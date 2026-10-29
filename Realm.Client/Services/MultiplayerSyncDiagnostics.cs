@@ -396,10 +396,10 @@ public static class MultiplayerSyncDiagnostics
 	{
 		Entity worldEntity = GameContext.Simulation.WorldEntity;
 		SyncRecordFormat.WritePlayerScope(writer, world, worldEntity, ReplicatedScope.Player, clientToServerEntityMap);
-		AppendLootState(writer, world, clientToServerEntityMap);
+		AppendLootState(writer, world);
 	}
 
-	private static void AppendLootState(BinaryWriter writer, EcsWorld? world, Dictionary<int, int>? clientToServerEntityMap)
+	private static void AppendLootState(BinaryWriter writer, EcsWorld? world)
 	{
 		_lootBuffer.Clear();
 		GameHost? host = GameContext.Host;
@@ -419,7 +419,7 @@ public static class MultiplayerSyncDiagnostics
 		writer.Write(_lootBuffer.Count);
 		for (int index = 0; index < _lootBuffer.Count; index++)
 		{
-			SyncRecordFormat.WriteLootItem(writer, _lootBuffer[index].UniqueId, world, _lootBuffer[index].Entity, clientToServerEntityMap);
+			SyncRecordFormat.WriteLootItem(writer, _lootBuffer[index].UniqueId, SyncRecordFormat.NamedByEveryPeer, world, _lootBuffer[index].Entity);
 		}
 	}
 

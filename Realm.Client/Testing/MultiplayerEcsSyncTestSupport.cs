@@ -79,6 +79,9 @@ public sealed class MultiplayerEcsSyncReport
 	public IReadOnlyList<string> Failures => _failures;
 	public int PairedSnapshotCount { get; set; }
 	public int ComparedUnitCount { get; set; }
+
+	/// <summary>How many items on the ground were compared against the authority, so a run can tell loot was exercised at all.</summary>
+	public int ComparedLootCount { get; set; }
 	public int HostSnapshotCount { get; set; }
 	public int ClientSnapshotCount { get; set; }
 
@@ -94,6 +97,7 @@ public sealed class MultiplayerEcsSyncReport
 		builder.AppendLine($"Client snapshots: {ClientSnapshotCount}");
 		builder.AppendLine($"Paired snapshots: {PairedSnapshotCount}");
 		builder.AppendLine($"Compared units: {ComparedUnitCount}");
+		builder.AppendLine($"Compared loot items: {ComparedLootCount}");
 		builder.AppendLine($"Failures: {_failures.Count}");
 		foreach (string failure in _failures)
 		{
@@ -117,6 +121,14 @@ public static class MultiplayerEcsSyncTestSupport
 	private const float DeltaPositionTolerance = 1.05f;
 	private const float DeltaRotationTolerance = 0.17f;
 	private const float DeltaHealthTolerance = 1.05f;
+	private const float LootPositionToleranceMeters = 0.1f;
+
+	/// <summary>
+	///     How far apart the life two processes say an item has left may be. The authority counts it down every tick and
+	///     restates the item a few times a second, so what a screen holds is always a little older than what the
+	///     authority does.
+	/// </summary>
+	private const float LootRemainingLifetimeToleranceSeconds = 0.5f;
 	private const float PresentationPositionTolerance = 0.25f;
 	private const float PresentationRotationTolerance = 0.2f;
 	/// <summary>
@@ -202,6 +214,95 @@ public static class MultiplayerEcsSyncTestSupport
 		}
 
 		return wasmPath;
+	}
+
+	/// <summary>
+	///     A copy of the Chaos Arena workspace whose script drops an item beside every seat's hero. Loot is dropped by
+	///     the map rather than by the harness because the authority is the only process that owns what lies on the ground,
+	///     so a run can only judge it by playing a map that drops something. The copy is published like any other map and
+	///     reused until the source map changes, because publishing a script is the slowest step of a run.
+	/// </summary>
+	public static (string MapFolder, string WasmPath) EnsureLootSpawningMap(string sourceMapFolder)
+	{
+		string sourceScriptPath = Path.Combine(sourceMapFolder, "MapScript.cs");
+		if (!File.Exists(sourceScriptPath)) throw new FileNotFoundException($"A map script was not found at {sourceScriptPath}.");
+
+		string mapFolder = Path.Combine(Path.GetTempPath(), "Realm_LootSpawningMap");
+		string scriptPath = Path.Combine(mapFolder, "MapScript.cs");
+		bool needsCopy = !File.Exists(scriptPath)
+			|| File.GetLastWriteTimeUtc(scriptPath) < File.GetLastWriteTimeUtc(sourceScriptPath)
+			|| !File.ReadAllText(scriptPath).Contains(LootSpawnerCall, StringComparison.Ordinal);
+
+		if (needsCopy)
+		{
+			DeleteMapCopy(mapFolder);
+			CopyMapFolder(sourceMapFolder, mapFolder);
+			PatchLootSpawningScript(scriptPath);
+		}
+
+		return (mapFolder, EnsureChaosArenaWasm(mapFolder));
+	}
+
+	private const string LootSpawnerCall = "        SpawnSyncTestLoot(api, delta);\n";
+
+	private const string LootSpawnerBody = @"
+    private float _syncTestLootElapsed;
+
+    private void SpawnSyncTestLoot(IGameAPI api, float delta)
+    {
+        _syncTestLootElapsed += delta;
+        if (_syncTestLootElapsed < 3f) return;
+        _syncTestLootElapsed = 0f;
+
+        int spawned = 0;
+        foreach (KeyValuePair<int, TileState> entry in tileStatesByUnitId)
+        {
+            if (entry.Value.Kind != TileKind.Hero) continue;
+
+            api.SpawnLootItem(ItemIds.VitalityRing, entry.Value.AnchorPosition + new Vector3(6f, 0f, 0f), 1, 0f);
+            spawned++;
+            if (spawned >= 4) break;
+        }
+    }
+";
+
+	private static void PatchLootSpawningScript(string scriptPath)
+	{
+		// The copy is a scratch file, so its line endings are settled here rather than matched in whichever shape the
+		// map it was copied from happened to be saved in.
+		string script = File.ReadAllText(scriptPath).Replace("\r\n", "\n");
+		const string updateOpening = "    public void Update(IGameAPI api, float delta)\n    {\n";
+		int updateIndex = script.IndexOf(updateOpening, StringComparison.Ordinal);
+		if (updateIndex < 0) throw new InvalidOperationException($"The map script no longer states the Update method the loot fixture is inserted into ({scriptPath}).");
+
+		script = script.Insert(updateIndex + updateOpening.Length, LootSpawnerCall);
+		script = script.Insert(script.LastIndexOf('}'), LootSpawnerBody);
+		File.WriteAllText(scriptPath, script);
+	}
+
+	/// <summary>
+	///     Removes a copy this fixture made earlier. A map folder carries content-addressed assets the asset store holds
+	///     read-only, which a recursive delete refuses, so every file is made writable first.
+	/// </summary>
+	private static void DeleteMapCopy(string mapFolder)
+	{
+		if (!Directory.Exists(mapFolder)) return;
+
+		foreach (string file in Directory.GetFiles(mapFolder, "*", SearchOption.AllDirectories)) File.SetAttributes(file, FileAttributes.Normal);
+		Directory.Delete(mapFolder, true);
+	}
+
+	private static void CopyMapFolder(string sourceFolder, string targetFolder)
+	{
+		Directory.CreateDirectory(targetFolder);
+		foreach (string file in Directory.GetFiles(sourceFolder)) File.Copy(file, Path.Combine(targetFolder, Path.GetFileName(file)));
+
+		foreach (string directory in Directory.GetDirectories(sourceFolder))
+		{
+			string name = Path.GetFileName(directory);
+			if (name == "bin" || name == "obj") continue;
+			CopyMapFolder(directory, Path.Combine(targetFolder, name));
+		}
 	}
 
 	public static async Task RunAsync(MultiplayerEcsRunSettings settings)
@@ -592,10 +693,17 @@ public static class MultiplayerEcsSyncTestSupport
 
 			List<string> digestTarget = hostSentBaselineToThisPeer ? mismatches : transientDigestMismatches;
 			int digestMismatchCountBefore = transientDigestMismatches.Count;
-			if (hostSentBaselineToThisPeer) comparedLootEntities += hostEntry.Value.Loot.Count;
 			ulong clientPeerMask = BuildPeerMask(hostEntry.Value.DescribedPeerIds, clientPeerIds);
+			if (hostSentBaselineToThisPeer)
+			{
+				foreach (MultiplayerLootState describedLoot in hostEntry.Value.Loot.Values)
+				{
+					if (describedLoot.NamedByPeers == SyncRecordFormat.NamedByEveryPeer || (describedLoot.NamedByPeers & clientPeerMask) != 0) comparedLootEntities++;
+				}
+			}
+
 			CompareSnapshotRecord(hostEntry.Value, clientRecord, hostSentBaselineToThisPeer, mismatches, digestTarget, ref comparedUnits, ref offscreenMissingUnits, deltaDivergences, clientPeerMask, referenceCoverage);
-			CompareScopeDigests(hostEntry.Value, clientRecord, digestTarget);
+			CompareScopeDigests(hostEntry.Value, clientRecord, clientPeerMask, digestTarget);
 			int transientAddedForSequence = transientDigestMismatches.Count - digestMismatchCountBefore;
 			transientDigestMismatchCount += transientAddedForSequence;
 			if (transientAddedForSequence > 0) transientMismatchSequences.Add((hostEntry.Key, transientAddedForSequence));
@@ -663,6 +771,7 @@ public static class MultiplayerEcsSyncTestSupport
 
 		report.PairedSnapshotCount = pairedSnapshots;
 		report.ComparedUnitCount = comparedUnits;
+		report.ComparedLootCount = comparedLootEntities;
 		report.AddSummaryLine($"First paired sequence: {firstPairedSequence}");
 		report.AddSummaryLine($"Last paired sequence: {lastPairedSequence}");
 		int lostSequenceCount = lostSequences.Count;
@@ -1328,7 +1437,7 @@ public static class MultiplayerEcsSyncTestSupport
 		public float WorstHostToApplied;
 	}
 
-	private static void CompareScopeDigests(MultiplayerSnapshotRecord hostRecord, MultiplayerSnapshotRecord clientRecord, List<string> mismatches)
+	private static void CompareScopeDigests(MultiplayerSnapshotRecord hostRecord, MultiplayerSnapshotRecord clientRecord, ulong clientPeerMask, List<string> mismatches)
 	{
 		foreach (KeyValuePair<int, Dictionary<int, ComponentDigestEntry>> hostPlayer in hostRecord.Players)
 		{
@@ -1343,21 +1452,60 @@ public static class MultiplayerEcsSyncTestSupport
 
 		CompareDigestSets(hostRecord.Sequence, "world entity", hostRecord.WorldDigests, clientRecord.WorldDigests, SyncRecordFormat.NamedByEveryPeer, mismatches);
 
-		foreach (KeyValuePair<int, Dictionary<int, ComponentDigestEntry>> hostLoot in hostRecord.Loot)
+		CompareLootRecords(hostRecord, clientRecord, clientPeerMask, mismatches);
+	}
+
+	/// <summary>
+	///     Holds a screen to every item the authority described to it, and to nothing else. What lies on the ground is
+	///     decided per peer, so an item outside this screen's sight is described to somebody else and the record says so
+	///     in the mask beside it; reporting it as absent would describe the shroud as a defect.
+	/// </summary>
+	private static void CompareLootRecords(MultiplayerSnapshotRecord hostRecord, MultiplayerSnapshotRecord clientRecord, ulong clientPeerMask, List<string> mismatches)
+	{
+		foreach (KeyValuePair<int, MultiplayerLootState> hostLoot in hostRecord.Loot)
 		{
-			if (!clientRecord.Loot.TryGetValue(hostLoot.Key, out Dictionary<int, ComponentDigestEntry>? clientDigests))
+			bool describedToThisPeer = hostLoot.Value.NamedByPeers == SyncRecordFormat.NamedByEveryPeer || (hostLoot.Value.NamedByPeers & clientPeerMask) != 0;
+			if (!describedToThisPeer) continue;
+
+			if (!clientRecord.Loot.TryGetValue(hostLoot.Key, out MultiplayerLootState? clientLoot))
 			{
-				AddMismatch(mismatches, 0, $"seq {hostRecord.Sequence}: loot {hostLoot.Key} has no applied state on the client.");
+				AddMismatch(mismatches, 0, $"seq {hostRecord.Sequence}: loot {hostLoot.Key} ('{hostLoot.Value.ItemTypeId}') has no applied state on the client although the host described it to this peer.");
 				continue;
 			}
 
-			CompareDigestSets(hostRecord.Sequence, $"loot {hostLoot.Key}", hostLoot.Value, clientDigests, SyncRecordFormat.NamedByEveryPeer, mismatches);
+			CompareLootValues(hostRecord.Sequence, hostLoot.Key, hostLoot.Value, clientLoot, mismatches);
 		}
 
 		foreach (int clientLootId in clientRecord.Loot.Keys)
 		{
 			if (hostRecord.Loot.ContainsKey(clientLootId)) continue;
 			AddMismatch(mismatches, 0, $"seq {hostRecord.Sequence}: the client holds loot {clientLootId} that the host does not.");
+		}
+	}
+
+	private static void CompareLootValues(int sequence, int uniqueId, MultiplayerLootState hostLoot, MultiplayerLootState clientLoot, List<string> mismatches)
+	{
+		if (!string.Equals(hostLoot.ItemTypeId, clientLoot.ItemTypeId, StringComparison.Ordinal))
+		{
+			AddMismatch(mismatches, 0, $"seq {sequence}: loot {uniqueId} is '{hostLoot.ItemTypeId}' on the host and '{clientLoot.ItemTypeId}' on the client.");
+		}
+
+		if (hostLoot.Charges != clientLoot.Charges) AddMismatch(mismatches, 0, $"seq {sequence}: loot {uniqueId} holds {hostLoot.Charges} charges on the host and {clientLoot.Charges} on the client.");
+		if (hostLoot.OwnerPlayerIndex != clientLoot.OwnerPlayerIndex) AddMismatch(mismatches, 0, $"seq {sequence}: loot {uniqueId} belongs to slot {hostLoot.OwnerPlayerIndex} on the host and {clientLoot.OwnerPlayerIndex} on the client.");
+		if (hostLoot.AutoPickup != clientLoot.AutoPickup) AddMismatch(mismatches, 0, $"seq {sequence}: loot {uniqueId} takes itself up on the host={hostLoot.AutoPickup} and on the client={clientLoot.AutoPickup}.");
+
+		float remainingLifeDifference = MathF.Abs(hostLoot.RemainingLifetime - clientLoot.RemainingLifetime);
+		if (remainingLifeDifference > LootRemainingLifetimeToleranceSeconds)
+		{
+			AddMismatch(mismatches, 0, $"seq {sequence}: loot {uniqueId} has {hostLoot.RemainingLifetime:F2}s left on the host and {clientLoot.RemainingLifetime:F2}s on the client, {remainingLifeDifference:F2}s apart.");
+		}
+
+		float displacement = System.Numerics.Vector3.Distance(
+			new System.Numerics.Vector3(hostLoot.PositionX, hostLoot.PositionY, hostLoot.PositionZ),
+			new System.Numerics.Vector3(clientLoot.PositionX, clientLoot.PositionY, clientLoot.PositionZ));
+		if (displacement > LootPositionToleranceMeters)
+		{
+			AddMismatch(mismatches, 0, $"seq {sequence}: loot {uniqueId} lies {displacement:F2} m from where the host described it.");
 		}
 	}
 
@@ -1937,7 +2085,20 @@ public static class MultiplayerEcsSyncTestSupport
 			int lootCount = reader.ReadInt32();
 			for (int index = 0; index < lootCount; index++)
 			{
-				record.Loot[reader.ReadInt32()] = ReadComponentDigests(reader);
+				record.Loot[reader.ReadInt32()] = new MultiplayerLootState
+				{
+					NamedByPeers = reader.ReadUInt64(),
+					ItemTypeId = reader.ReadString(),
+					Charges = reader.ReadInt32(),
+					Lifetime = reader.ReadSingle(),
+					RemainingLifetime = reader.ReadSingle(),
+					PickupRadius = reader.ReadSingle(),
+					AutoPickup = reader.ReadBoolean(),
+					OwnerPlayerIndex = reader.ReadInt32(),
+					PositionX = reader.ReadSingle(),
+					PositionY = reader.ReadSingle(),
+					PositionZ = reader.ReadSingle()
+				};
 			}
 
 			record.Navigation = new MultiplayerNavigationState
@@ -2040,8 +2201,24 @@ public static class MultiplayerEcsSyncTestSupport
 		public Dictionary<int, MultiplayerSnapshotUnit> Units = new();
 		public Dictionary<int, Dictionary<int, ComponentDigestEntry>> Players = new();
 		public Dictionary<int, ComponentDigestEntry> WorldDigests = new();
-		public Dictionary<int, Dictionary<int, ComponentDigestEntry>> Loot = new();
+		public Dictionary<int, MultiplayerLootState> Loot = new();
 		public MultiplayerNavigationState Navigation = new();
+	}
+
+	/// <summary>One item on the ground as one process records it, under the identifier both processes know it by.</summary>
+	private sealed class MultiplayerLootState
+	{
+		public ulong NamedByPeers;
+		public string ItemTypeId = string.Empty;
+		public int Charges;
+		public float Lifetime;
+		public float RemainingLifetime;
+		public float PickupRadius;
+		public bool AutoPickup;
+		public int OwnerPlayerIndex;
+		public float PositionX;
+		public float PositionY;
+		public float PositionZ;
 	}
 
 	private sealed class MultiplayerNavigationState

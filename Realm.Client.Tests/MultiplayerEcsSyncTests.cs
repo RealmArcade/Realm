@@ -57,6 +57,36 @@ public class MultiplayerEcsSyncTests
 		Verify(settings);
 	}
 
+	/// <summary>
+	///     The same two peers on a copy of the map whose script drops an item beside every hero. Loot is described per
+	///     peer and is not a unit, so this is what holds the authority to delivering a drop to the screens that can see
+	///     it, and a screen to retiring one the authority no longer holds.
+	/// </summary>
+	[TestCase]
+	public async Task DroppedItemsReachTheScreensThatCanSeeThem()
+	{
+		(string mapFolder, string wasmPath) = MultiplayerEcsSyncTestSupport.EnsureLootSpawningMap(ChaosArenaFolder);
+		MultiplayerEcsRunSettings settings = new()
+		{
+			GodotBinary = MultiplayerEcsSyncTestSupport.ResolveGodotBinary(),
+			ProjectDirectory = MultiplayerEcsSyncTestSupport.ResolveClientProjectDirectory(),
+			MapFolder = mapFolder,
+			WasmPath = wasmPath,
+			OutputDirectory = Path.Combine(Path.GetTempPath(), "Realm_MultiplayerEcsSync_Loot"),
+			DurationSeconds = 30f,
+			Port = FindAvailableUdpPort(),
+			PingMilliseconds = LaggedPingMilliseconds,
+			PeerCount = 2,
+			BotCount = BotSeatCount
+		};
+
+		await MultiplayerEcsSyncTestSupport.RunAsync(settings);
+
+		MultiplayerEcsSyncReport report = MultiplayerEcsSyncTestSupport.Verify(settings);
+		WriteReport(settings, report);
+		if (report.ComparedLootCount == 0) throw new Exception($"The run dropped items but compared none against the authority.\n{report.Render()}");
+	}
+
 	[TestCase]
 	public async Task DiscardedSnapshotIsRepairedWithExactlyOneBaseline()
 	{

@@ -36,6 +36,9 @@ public class AuthoritySyncRecorder : IDisposable
 	///     processes can hold and compare; one that names a unit a peer was never told about is not.
 	/// </summary>
 	private readonly Dictionary<int, ulong> _namedByPeerMask = new(256);
+
+	/// <summary>Which peers this sequence described each item on the ground to, keyed by the item's identifier.</summary>
+	private readonly Dictionary<int, ulong> _lootNamedByPeerMask = new(64);
 	private readonly Dictionary<int, int> _peerSlotById = new(8);
 	private readonly List<int> _describedPeerIds = new(8);
 	private ulong _peersDescribedMask;
@@ -75,6 +78,7 @@ public class AuthoritySyncRecorder : IDisposable
 		_peerSlotById.Clear();
 		_describedPeerIds.Clear();
 		_units.Clear();
+		_lootNamedByPeerMask.Clear();
 		_baselinePeerIds.Clear();
 	}
 
@@ -112,6 +116,16 @@ public class AuthoritySyncRecorder : IDisposable
 				PresentIn = 1,
 				NamedByMask = PeerBit(peerId)
 			};
+		}
+
+		if (snapshot.Loot == null) return;
+
+		// What is on the ground is decided per peer, so an item this screen was not told about is not a state it can be
+		// held to. The record states which peers each item was described to for the same reason a unit's record does.
+		for (int index = 0; index < snapshot.Loot.Count; index++)
+		{
+			int uniqueId = snapshot.Loot[index].EntityId;
+			_lootNamedByPeerMask[uniqueId] = _lootNamedByPeerMask.TryGetValue(uniqueId, out ulong describedTo) ? describedTo | PeerBit(peerId) : PeerBit(peerId);
 		}
 	}
 
@@ -275,7 +289,11 @@ public class AuthoritySyncRecorder : IDisposable
 		for (int index = 0; index < _loot.Count; index++)
 		{
 			(int uniqueId, Entity entity) = _loot[index];
-			SyncRecordFormat.WriteLootItem(_writer, uniqueId, _world, entity, null);
+			ulong namedByPeers = _peerCount == 0
+				? SyncRecordFormat.NamedByEveryPeer
+				: _lootNamedByPeerMask.TryGetValue(uniqueId, out ulong describedTo) ? describedTo : 0UL;
+
+			SyncRecordFormat.WriteLootItem(_writer, uniqueId, namedByPeers, _world, entity);
 		}
 	}
 

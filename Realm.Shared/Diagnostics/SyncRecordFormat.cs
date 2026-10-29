@@ -24,7 +24,7 @@ public static class SyncRecordFormat
 	public const uint Magic = 0x504E5352;
 
 	/// <summary>Which layout of the records a stream holds. A reader refuses a stream it was not built for.</summary>
-	public const int Version = 11;
+	public const int Version = 12;
 
 	/// <summary>
 	///     The mask that says every peer could name a reference, so the digest is a statement every peer can be held to.
@@ -189,11 +189,30 @@ public static class SyncRecordFormat
 		WriteComponentDigests(writer, world, worldEntity, ReplicatedScope.World, clientToServerEntityMap);
 	}
 
-	/// <summary>Writes one ground loot item's state, under the identifier both processes know it by.</summary>
-	public static void WriteLootItem(BinaryWriter writer, int uniqueId, EcsWorld? world, Entity entity, IReadOnlyDictionary<int, int>? clientToServerEntityMap)
+	/// <summary>
+	///     Writes one ground loot item's state, under the identifier both processes know it by, and which peers this
+	///     sequence described it to. An item is stated as the values a screen draws it from rather than as a component
+	///     digest: the life an item has left counts down on the authority every tick, so the two processes are never
+	///     exactly equal and a hash would call every run a divergence.
+	/// </summary>
+	public static void WriteLootItem(BinaryWriter writer, int uniqueId, ulong namedByPeers, EcsWorld? world, Entity entity)
 	{
 		writer.Write(uniqueId);
-		WriteComponentDigests(writer, world, entity, ReplicatedScope.Unit, clientToServerEntityMap);
+		writer.Write(namedByPeers);
+
+		GroundLoot loot = world != null && world.IsAlive(entity) && world.TryGet(entity, out GroundLoot readLoot) ? readLoot : default;
+		Vector3 position = world != null && world.IsAlive(entity) && world.TryGet(entity, out Position readPosition) ? readPosition.Value : Vector3.Zero;
+
+		writer.Write(loot.ItemTypeId ?? string.Empty);
+		writer.Write(loot.Charges);
+		writer.Write(loot.Lifetime);
+		writer.Write(loot.RemainingLifetime);
+		writer.Write(loot.PickupRadius);
+		writer.Write(loot.AutoPickup);
+		writer.Write(loot.OwnerPlayerIndex);
+		writer.Write(position.X);
+		writer.Write(position.Y);
+		writer.Write(position.Z);
 	}
 
 	/// <summary>

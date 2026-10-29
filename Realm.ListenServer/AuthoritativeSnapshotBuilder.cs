@@ -25,6 +25,13 @@ public class AuthoritativeSnapshotBuilder
 
 	private static readonly QueryDescription DescribedUnitsQuery = new QueryDescription().WithAll<UnitOwnerPlayer, Health, Position>();
 
+	/// <summary>
+	///     The items lying on the ground. Loot is a separate description from the units because an item carries no owner,
+	///     no health and no definition a screen could spawn a unit from, so it can neither ride the unit section nor be
+	///     found by the query that gathers units.
+	/// </summary>
+	private static readonly QueryDescription LootItemsQuery = new QueryDescription().WithAll<GroundLoot, Position>();
+
 	private static readonly IReplicatedComponentCodec[] WorldCodecs = SelectCodecs(ReplicatedScope.World);
 	private static readonly IReplicatedComponentCodec[] PlayerCodecs = SelectCodecs(ReplicatedScope.Player);
 	private static readonly IReplicatedComponentCodec[] UnitCodecs = SelectCodecs(ReplicatedScope.Unit);
@@ -66,7 +73,9 @@ public class AuthoritativeSnapshotBuilder
 	private readonly object _abilityLock;
 	private readonly int[] _peerIdByPlayerSlot = new int[EcsWorld.MAX_PLAYERS];
 	private readonly EntityCallback<UnitOwnerPlayer, Position> _collectCandidates;
+	private readonly EntityCallback<GroundLoot, Position> _collectLootItems;
 	private readonly List<(Entity Entity, Vector3 Position)> _candidates = new();
+	private readonly List<(Entity Entity, GroundLoot Loot, Vector3 Position)> _lootItems = new();
 	private readonly bool[] _candidateVisibility = new bool[EcsWorld.MAX_ENTITIES];
 	private readonly List<(Entity Entity, Vector3 Position)> _describedUnits = new();
 	private readonly List<UnitDescriptionState> _describedUnitStates = new();
@@ -88,6 +97,7 @@ public class AuthoritativeSnapshotBuilder
 		_peerStates = peerStates;
 		_descriptions = descriptions;
 		_abilityLock = abilityLock;
+		_collectLootItems = CollectLootItem;
 		_collectCandidates = CollectCandidate;
 	}
 
@@ -223,6 +233,7 @@ public class AuthoritativeSnapshotBuilder
 
 		if (isBaseline) AppendRuleEntries(snapshot.Catalog);
 		AppendTextEntries(state, snapshot.Catalog);
+		AppendLoot(state, ref snapshot, isBaseline);
 		AppendContentPayloads(state, snapshot);
 		if (Abilities != null)
 		{
@@ -343,6 +354,100 @@ public class AuthoritativeSnapshotBuilder
 	}
 
 	private readonly List<(int Id, string Text)> _stringTableEntries = new();
+
+	private void CollectLootItem(Entity entity, ref GroundLoot loot, ref Position position) => _lootItems.Add((entity, loot, position.Value));
+
+	/// <summary>
+	///     Describes the items lying on the ground that this peer can see, and only when what it would be told changed.
+	///     A loot record is the item itself rather than a component of a unit, so a peer turns it into an entity of its
+	///     own; an item that never expires is therefore stated once, when it is dropped, and a decaying one is restated
+	///     ten times a second instead of on every tick. The list is always the whole of what the peer can see, so it can
+	///     retire an item that left its sight.
+	/// </summary>
+	private void AppendLoot(SnapshotPeerState state, ref WorldSnapshot snapshot, bool isBaseline)
+	{
+		_lootItems.Clear();
+		_world.Query(in LootItemsQuery, _collectLootItems);
+
+		uint signature = 2166136261u;
+		int visibleCount = 0;
+		for (int index = 0; index < _lootItems.Count; index++)
+		{
+			(Entity entity, GroundLoot loot, Vector3 position) = _lootItems[index];
+			if (!IsLootVisible(position)) continue;
+
+			visibleCount++;
+			signature = FoldLootSignature(signature, entity.Id, in loot, position);
+		}
+
+		signature ^= (uint)visibleCount;
+		if (!isBaseline && state.HasSentLoot && state.SentLootSignature == signature) return;
+
+		state.SentLootSignature = signature;
+		state.HasSentLoot = true;
+
+		var entries = new List<LootSnapshot>(visibleCount);
+		for (int index = 0; index < _lootItems.Count; index++)
+		{
+			(Entity entity, GroundLoot loot, Vector3 position) = _lootItems[index];
+			if (!IsLootVisible(position)) continue;
+
+			entries.Add(new LootSnapshot
+			{
+				EntityId = entity.Id,
+				ItemTypeId = loot.ItemTypeId,
+				Charges = loot.Charges,
+				Lifetime = loot.Lifetime,
+				RemainingLifetime = loot.RemainingLifetime,
+				PickupRadius = loot.PickupRadius,
+				AutoPickup = loot.AutoPickup,
+				OwnerPlayerIndex = loot.OwnerPlayerIndex,
+				Position = new NetworkVector3(position.X, position.Y, position.Z)
+			});
+		}
+
+		snapshot.Loot = entries;
+	}
+
+	/// <summary>
+	///     Whether an item on the ground is inside the sight of one of this viewer's units. An item belongs to no player
+	///     and casts no sight of its own, so what reveals it is exactly the sources the viewer's own units give, which is
+	///     the same rule the units beside it are described by.
+	/// </summary>
+	private bool IsLootVisible(Vector3 position)
+	{
+		if (_context.ShroudDisabled || _viewer == Entity.Null) return true;
+
+		for (int index = 0; index < _visionSources.Count; index++)
+		{
+			(Vector3 sourcePosition, float radius) = _visionSources[index];
+			if (Vector3.DistanceSquared(sourcePosition, position) <= radius * radius) return true;
+		}
+
+		return false;
+	}
+
+	/// <summary>
+	///     Folds one item into the value that decides whether the peer needs to be told about the ground again. A decaying
+	///     item changes its remaining life every tick, which says nothing a screen does not redraw itself, so only the
+	///     tenth of a second that life falls inside changes the signature.
+	/// </summary>
+	private static uint FoldLootSignature(uint hash, int entityId, in GroundLoot loot, Vector3 position)
+	{
+		hash = FoldLootValue(hash, entityId);
+		hash = FoldLootValue(hash, loot.StringId);
+		hash = FoldLootValue(hash, loot.Charges);
+		hash = FoldLootValue(hash, BitConverter.SingleToInt32Bits(loot.Lifetime));
+		hash = FoldLootValue(hash, BitConverter.SingleToInt32Bits(MathF.Round(loot.RemainingLifetime, 1)));
+		hash = FoldLootValue(hash, BitConverter.SingleToInt32Bits(loot.PickupRadius));
+		hash = FoldLootValue(hash, loot.AutoPickupByte);
+		hash = FoldLootValue(hash, loot.OwnerPlayerIndex);
+		hash = FoldLootValue(hash, BitConverter.SingleToInt32Bits(position.X));
+		hash = FoldLootValue(hash, BitConverter.SingleToInt32Bits(position.Y));
+		return FoldLootValue(hash, BitConverter.SingleToInt32Bits(position.Z));
+	}
+
+	private static uint FoldLootValue(uint hash, int value) => (hash ^ (uint)value) * 16777619u;
 
 	/// <summary>
 	///     Describes the content the world names by handle: an ability list a unit offers, the queue a building is

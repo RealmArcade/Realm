@@ -55,6 +55,15 @@ public class SnapshotPeerState
 	public HashSet<int> SentContentIds { get; } = new();
 
 	/// <summary>
+	///     What the items on the ground looked like when this peer was last told about them. The items are a short list
+	///     with no per-item record kept, so the whole list is compared by this value rather than item by item.
+	/// </summary>
+	public uint SentLootSignature { get; set; }
+
+	/// <summary>Whether this peer has been told about the ground at all, which decides whether there is a value to compare.</summary>
+	public bool HasSentLoot { get; set; }
+
+	/// <summary>
 	///     Forgets what this peer was told about the world's values, because a baseline states all of them again. What the
 	///     peer was told about the text table and the content payloads is kept: those are described once for as long as
 	///     the process lives, and a baseline is no reason to send them twice.
@@ -65,6 +74,7 @@ public class SnapshotPeerState
 		SentUnits.Clear();
 		DescribedEntityIds.Clear();
 		UnseenUnitComponents.Clear();
+		HasSentLoot = false;
 	}
 }
 

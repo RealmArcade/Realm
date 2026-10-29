@@ -68,7 +68,7 @@ public class NetworkService
 		public int FirstSeenSequence;
 	}
 	private readonly List<int> _untrackedServerIds = new();
-	private readonly HashSet<int> _baselineLootServerIds = new();
+	private readonly HashSet<int> _describedLootServerIds = new();
 	private readonly List<int> _staleLootServerIds = new();
 	private readonly Dictionary<int, ulong> _baselineUnitPresence = new();
 	private readonly HashSet<(int Key, int TypeId)> _baselineSentUnitComponents = new();
@@ -484,9 +484,10 @@ public class NetworkService
 			_pendingUnitComponentDeltas.Clear();
 
 			ProcessBaselineSnapshotMismatches(snapshot, mapping);
-			ProcessBaselineLootReconciliation(snapshot, mapping);
 			ProcessBaselineComponentReconciliation(snapshot, mapping);
 		}
+
+		ApplyLootState(snapshot, mapping);
 
 		var prediction = GameSettings.MovementPrediction ? GameContext.MovementPredictionService : null;
 		if (prediction != null && GameContext.World != null)
@@ -608,24 +609,29 @@ public class NetworkService
 		}
 	}
 
-	private void ProcessBaselineLootReconciliation(WorldSnapshot snapshot, NetworkMappingState mapping)
+	/// <summary>
+	///     Applies the items lying on the ground that a description states for this screen. The list is the whole of what
+	///     the authority says this screen can see, so an item it names is created or brought up to date and an item it
+	///     leaves out is retired: that is how a drop that was picked up, ran out of time or fell out of sight leaves the
+	///     screen. A peer that was told nothing about the ground keeps what it holds, because a description only states
+	///     the ground when the ground it can see changed.
+	/// </summary>
+	private void ApplyLootState(WorldSnapshot snapshot, NetworkMappingState mapping)
 	{
-		if (snapshot.ComponentDeltas == null) return;
+		if (snapshot.Loot == null) return;
 
-		int lootComponentTypeId = ComponentType<GroundLoot>.Id;
-		_baselineLootServerIds.Clear();
-		for (int index = 0; index < snapshot.ComponentDeltas.Count; index++)
+		_describedLootServerIds.Clear();
+		for (int index = 0; index < snapshot.Loot.Count; index++)
 		{
-			var delta = snapshot.ComponentDeltas[index];
-			if (delta.ComponentTypeId != lootComponentTypeId) continue;
-			if (delta.Bytes == null || delta.Bytes.Length == 0) continue;
-			_baselineLootServerIds.Add(delta.Key);
+			LootSnapshot entry = snapshot.Loot[index];
+			_describedLootServerIds.Add(entry.EntityId);
+			ApplyLootEntry(in entry, mapping);
 		}
 
 		_staleLootServerIds.Clear();
 		foreach (var kvp in mapping.ServerToClientEntityMap)
 		{
-			if (_baselineLootServerIds.Contains(kvp.Key)) continue;
+			if (_describedLootServerIds.Contains(kvp.Key)) continue;
 			if (!GameContext.World.Has<GroundLoot>(kvp.Value)) continue;
 			_staleLootServerIds.Add(kvp.Key);
 		}
@@ -636,6 +642,59 @@ public class NetworkService
 			if (!mapping.ServerToClientEntityMap.TryGetValue(serverEntityId, out Entity localEntity)) continue;
 			DestroyReplicatedLootEntity(serverEntityId, localEntity, mapping);
 		}
+	}
+
+	/// <summary>
+	///     Writes one described item into the replica this screen holds for it, creating the replica the first time the
+	///     item is named. An item is not a unit, so the screen has no unit of its own for it: what it holds is a position
+	///     and a <c>GroundLoot</c> component, and the node drawn for it is built from those.
+	/// </summary>
+	private static void ApplyLootEntry(in LootSnapshot entry, NetworkMappingState mapping)
+	{
+		var position = new System.Numerics.Vector3(entry.Position.X, entry.Position.Y, entry.Position.Z);			if (mapping.ServerToClientEntityMap.TryGetValue(entry.EntityId, out Entity localEntity)
+				&& GameContext.World.IsAlive(localEntity)
+				&& GameContext.World.Has<GroundLoot>(localEntity))
+		{
+			GroundLoot loot = GameContext.World.Get<GroundLoot>(localEntity);
+			loot.UniqueId = entry.EntityId;
+			loot.ItemTypeId = entry.ItemTypeId;
+			loot.Charges = entry.Charges;
+			loot.Lifetime = entry.Lifetime;
+			loot.RemainingLifetime = entry.RemainingLifetime;
+			loot.PickupRadius = entry.PickupRadius;
+			loot.AutoPickup = entry.AutoPickup;
+			loot.OwnerPlayerIndex = entry.OwnerPlayerIndex;
+
+			GameContext.World.Set(localEntity, loot);
+			GameContext.World.Set(localEntity, new Position(position));
+			GameContext.Host?.SyncReplicatedLootNode(entry.EntityId, localEntity);
+			return;
+		}
+
+		GameContext.NetworkService?.RetireUnitReplicaForReusedServerId(mapping, entry.EntityId);
+		localEntity = CreateReplicatedLootEntity(entry.EntityId, mapping);
+		var described = new GroundLoot(entry.EntityId, entry.ItemTypeId, entry.Charges, entry.Lifetime, entry.PickupRadius, entry.AutoPickup, entry.OwnerPlayerIndex)
+		{
+			RemainingLifetime = entry.RemainingLifetime
+		};
+
+		GameContext.World.Set(localEntity, new Position(position));
+		GameContext.World.Set(localEntity, described);
+		GameContext.Host?.SyncReplicatedLootNode(entry.EntityId, localEntity);
+	}
+
+	/// <summary>
+	///     Retires the unit this screen holds for an identifier the authority has since given to an item on the ground.
+	///     Entity identifiers are recycled, so what a screen keeps for one is retired before the identifier describes
+	///     something else; the item waits for the unit to be taken off the screen rather than replacing it under its feet.
+	/// </summary>
+	public void RetireUnitReplicaForReusedServerId(NetworkMappingState mapping, int serverEntityId)
+	{
+		if (!mapping.ServerToClientEntityMap.TryGetValue(serverEntityId, out Entity localEntity)) return;
+		if (!GameContext.World.IsAlive(localEntity)) return;
+		if (GameContext.World.Has<GroundLoot>(localEntity)) return;
+
+		RetireClientEntityForUntrackedServerId(mapping, localEntity, serverEntityId);
 	}
 
 	private void RetireClientEntityForUntrackedServerId(NetworkMappingState mapping, Entity localEntity, int serverEntityId)
@@ -848,6 +907,16 @@ public class NetworkService
 		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkMappingState>(worldEntity)) return Entity.Null;
 
 		ref var mapping = ref GameContext.World.Get<NetworkMappingState>(worldEntity);
+		// The authority recycles the identifier of an entity that has gone, so a unit can be spawned under the identifier
+		// an item on the ground was described under a moment earlier. The item goes first: otherwise the unit is refused
+		// as a duplicate of an item, or the two replicas keep one identifier between them.
+		if (mapping.ServerToClientEntityMap.TryGetValue(snap.EntityId, out Entity heldForThisIdentifier)
+			&& GameContext.World.IsAlive(heldForThisIdentifier)
+			&& GameContext.World.Has<GroundLoot>(heldForThisIdentifier))
+		{
+			DestroyReplicatedLootEntity(snap.EntityId, heldForThisIdentifier, mapping);
+		}
+
 		if (mapping.ServerToClientEntityMap.TryGetValue(snap.EntityId, out Entity alreadySpawned))
 		{
 			GD.PushWarning($"[Network] Replicated entity {snap.EntityId} ('{snap.UnitId}') is already local entity {alreadySpawned.Id} at sequence {LastAppliedSnapshotSequenceForDiagnostics}; the duplicate spawn is ignored.");
