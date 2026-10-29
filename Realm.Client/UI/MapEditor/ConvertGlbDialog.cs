@@ -6,6 +6,7 @@ using Realm.Client.Core;
 using Realm.Client.Services;
 using Realm.Shared;
 using Realm.Shared.ModelOptimization;
+using Realm.Shared.Textures;
 using Realm.Client.Utils;
 
 namespace Realm.Client.UI.MapEditor;
@@ -17,6 +18,9 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 
 	private LineEdit _txtSourceFile;
 	private Button _btnSelectFile;
+	private LineEdit _txtReferenceImage;
+	private Button _btnSelectReferenceImage;
+	private Button _btnClearReferenceImage;
 	private OptionButton _optSubCategory;
 	private LineEdit _txtAssetName;
 
@@ -89,6 +93,53 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 		fileRow.AddChild(_btnSelectFile);
 
 		vbox.AddChild(fileRow);
+
+		AddSectionHeader(vbox, TranslationServer.Translate("SOURCE REFERENCE IMAGE"));
+
+		var referenceImageRow = new HBoxContainer();
+		referenceImageRow.Name = "ReferenceImageRow_HBoxContainer";
+		referenceImageRow.AddThemeConstantOverride("separation", 6);
+
+		var lblReferenceImage = new Label();
+		lblReferenceImage.Name = "LblReferenceImage_Label";
+		lblReferenceImage.Text = TranslationServer.Translate("Reference Image:");
+		lblReferenceImage.CustomMinimumSize = new Vector2(120, 0);
+		lblReferenceImage.AddThemeFontSizeOverride("font_size", 11);
+		referenceImageRow.AddChild(lblReferenceImage);
+
+		_txtReferenceImage = new LineEdit();
+		_txtReferenceImage.Name = "TxtReferenceImage_LineEdit";
+		_txtReferenceImage.PlaceholderText = TranslationServer.Translate("Optional .png, .webp, .jpg or .rtex reference image...");
+		_txtReferenceImage.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		_txtReferenceImage.AddThemeFontSizeOverride("font_size", 11);
+		_txtReferenceImage.TooltipText = TranslationServer.Translate("Stored as lossy WebP inside the .rmesh so the original reference can be recovered for re-generation or 2D portraits");
+		referenceImageRow.AddChild(_txtReferenceImage);
+
+		_btnSelectReferenceImage = new Button();
+		_btnSelectReferenceImage.Name = "BtnSelectReferenceImage_Button";
+		_btnSelectReferenceImage.Set("icon_max_width", 0);
+		_btnSelectReferenceImage.Text = UnicodeIcons.FOLDER_OPEN + " " + TranslationServer.Translate("Browse...");
+		_btnSelectReferenceImage.AddThemeFontSizeOverride("font_size", 11);
+		_btnSelectReferenceImage.CustomMinimumSize = new Vector2(90, 24);
+		_btnSelectReferenceImage.FocusMode = FocusModeEnum.None;
+		_btnSelectReferenceImage.Pressed += OnSelectReferenceImagePressed;
+		referenceImageRow.AddChild(_btnSelectReferenceImage);
+
+		_btnClearReferenceImage = new Button();
+		_btnClearReferenceImage.Name = "BtnClearReferenceImage_Button";
+		_btnClearReferenceImage.Set("icon_max_width", 0);
+		_btnClearReferenceImage.Text = UnicodeIcons.TRASH_ALT;
+		_btnClearReferenceImage.TooltipText = TranslationServer.Translate("Clear the reference image so nothing is embedded");
+		_btnClearReferenceImage.AddThemeFontSizeOverride("font_size", 11);
+		_btnClearReferenceImage.CustomMinimumSize = new Vector2(34, 24);
+		_btnClearReferenceImage.FocusMode = FocusModeEnum.None;
+		_btnClearReferenceImage.Pressed += OnClearReferenceImagePressed;
+		referenceImageRow.AddChild(_btnClearReferenceImage);
+
+		vbox.AddChild(referenceImageRow);
+
+		var lblReferenceImageHint = AddDescription(vbox, TranslationServer.Translate("Reference images are embedded automatically when the source model is an .rmesh that already carries one."));
+		lblReferenceImageHint.Name = "LblReferenceImageHint_Label";
 
 		AddSectionHeader(vbox, TranslationServer.Translate("TARGET ASSET PROPERTIES"));
 
@@ -221,6 +272,35 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 		}
 	}
 
+	private void OnSelectReferenceImagePressed()
+	{
+		var err = DisplayServer.FileDialogShow(
+			TranslationServer.Translate("Select Source Reference Image"),
+			PathUtils.GetProjectRoot(),
+			"",
+			false,
+			DisplayServer.FileDialogMode.OpenFile,
+			new[] { "*.png,*.webp,*.jpg,*.jpeg,*.bmp,*.tga,*.rtex ; Image Files (*.png, *.webp, *.jpg, *.jpeg, *.bmp, *.tga, *.rtex)" },
+			Callable.From((bool status, string[] selectedPaths, int selectedFilterIndex) =>
+			{
+				if (status && selectedPaths.Length > 0)
+				{
+					_txtReferenceImage.Text = selectedPaths[0];
+				}
+			})
+		);
+
+		if (err != Error.Ok)
+		{
+			Hud?.ShowFeedback(TranslationServer.Translate("Failed to show file dialog"));
+		}
+	}
+
+	private void OnClearReferenceImagePressed()
+	{
+		_txtReferenceImage.Text = string.Empty;
+	}
+
 	private void OnDetectMaskColorPressed()
 	{
 		string sourcePath = _txtSourceFile?.Text?.Trim() ?? string.Empty;
@@ -317,6 +397,7 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 		_lblStatus.Visible = false;
 		_progressBar.Visible = false;
 		_progressBar.Value = 0;
+		_txtReferenceImage.Text = string.Empty;
 
 		if (!string.IsNullOrEmpty(initialSubCat))
 		{
@@ -414,6 +495,8 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 		if (CancelButton != null) CancelButton.Disabled = converting;
 		if (CloseButton != null) CloseButton.Disabled = converting;
 		if (_btnSelectFile != null) _btnSelectFile.Disabled = converting;
+		if (_btnSelectReferenceImage != null) _btnSelectReferenceImage.Disabled = converting;
+		if (_btnClearReferenceImage != null) _btnClearReferenceImage.Disabled = converting;
 		if (_btnDetectMaskColor != null) _btnDetectMaskColor.Disabled = converting;
 		if (_progressBar != null) _progressBar.Visible = converting;
 	}
@@ -441,6 +524,13 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 		string cleanBase = assetName.ToLowerInvariant().Replace(' ', '_').Replace(".rmesh", "").Replace(".glb", "");
 		string fileName = $"{cleanBase}.rmesh";
 
+		string referenceImagePath = _txtReferenceImage.Text?.Trim() ?? string.Empty;
+		if (!string.IsNullOrEmpty(referenceImagePath) && !File.Exists(referenceImagePath))
+		{
+			ShowInvalidReferenceImageError(referenceImagePath);
+			return;
+		}
+
 		string subCategory = GetSubCategoryForApply();
 		string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
 		string destDir = Path.Combine(wsPath, "Assets", "models", subCategory);
@@ -455,7 +545,14 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 		SetConvertingState(true);
 		SetProgressStatus(TranslationServer.Translate("Starting conversion..."), 2, false);
 
-		StartConversionTask(sourcePath, cleanBase, fileName, subCategory, wsPath, destPath, doAutoRig, doTeamColor, autoCorrectChromaKey, maskColor);
+		StartConversionTask(sourcePath, cleanBase, fileName, subCategory, wsPath, destPath, doAutoRig, doTeamColor, autoCorrectChromaKey, maskColor, referenceImagePath);
+	}
+
+	private void ShowInvalidReferenceImageError(string referenceImagePath)
+	{
+		_lblStatus.Text = string.Format(TranslationServer.Translate("Reference image not found: {0}"), referenceImagePath);
+		_lblStatus.AddThemeColorOverride("font_color", new Color(0.9f, 0.35f, 0.35f));
+		_lblStatus.Visible = true;
 	}
 
 	private void ShowInvalidSourceFileError()
@@ -489,7 +586,7 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 		};
 	}
 
-	private void StartConversionTask(string sourcePath, string cleanBase, string fileName, string subCategory, string wsPath, string destPath, bool doAutoRig, bool doTeamColor, bool autoCorrectChromaKey, Color maskColor)
+	private void StartConversionTask(string sourcePath, string cleanBase, string fileName, string subCategory, string wsPath, string destPath, bool doAutoRig, bool doTeamColor, bool autoCorrectChromaKey, Color maskColor, string referenceImagePath)
 	{
 		Task.Run(() =>
 		{
@@ -514,7 +611,7 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 					if (!PerformTeamColorMasking(ref currentPath, tempWorkingDir, cleanBase, maskColor, autoCorrectChromaKey, doAutoRig, ref chromaKeyHex, out errorMessage)) return;
 				}
 
-				if (!PerformModelConversion(currentPath, destPath, subCategory, chromaKeyHex, out errorMessage, out byte[]? outputBytes)) return;
+				if (!PerformModelConversion(currentPath, destPath, subCategory, chromaKeyHex, referenceImagePath, out errorMessage, out byte[]? outputBytes)) return;
 
 				PerformFinalMetadataSave(destPath, fileName, subCategory, wsPath, outputBytes, out resultPath);
 			}
@@ -580,13 +677,24 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 		return true;
 	}
 
-	private bool PerformModelConversion(string currentPath, string destPath, string subCategory, string? chromaKeyHex, out string? errorMessage, out byte[]? outputBytes)
+	private bool PerformModelConversion(string currentPath, string destPath, string subCategory, string? chromaKeyHex, string referenceImagePath, out string? errorMessage, out byte[]? outputBytes)
 	{
 		errorMessage = null;
 		outputBytes = null;
 		SetProgressStatus(TranslationServer.Translate("Step 3/4: Optimizing geometry & packaging RMESH..."), 40, false);
 		int maxRes = subCategory is "attachments" or "items" ? 512 : 1024;
 		string canonicalAssetType = GetCanonicalAssetType(subCategory);
+
+		byte[]? sourceProfileImageWebp;
+		try
+		{
+			sourceProfileImageWebp = EncodeReferenceImage(referenceImagePath);
+		}
+		catch (Exception ex)
+		{
+			errorMessage = string.Format(TranslationServer.Translate("Failed to encode reference image: {0}"), ex.Message);
+			return false;
+		}
 
 		var convRes = ModelConverter.ConvertToRmesh(
 			currentPath,
@@ -599,7 +707,8 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 				MaxTextureResolution = maxRes,
 				ForceReDecimate = true
 			},
-			chromaKey: chromaKeyHex);
+			chromaKey: chromaKeyHex,
+			sourceProfileImageWebp: sourceProfileImageWebp);
 
 		if (!convRes.Success)
 		{
@@ -609,6 +718,12 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 
 		outputBytes = convRes.OutputBytes;
 		return true;
+	}
+
+	private static byte[]? EncodeReferenceImage(string referenceImagePath)
+	{
+		if (string.IsNullOrWhiteSpace(referenceImagePath)) return null;
+		return ImageFormatConverter.EncodeWebpBytes(referenceImagePath, RmeshFile.SourceProfileImageQuality);
 	}
 
 	private string GetCanonicalAssetType(string subCategory)
