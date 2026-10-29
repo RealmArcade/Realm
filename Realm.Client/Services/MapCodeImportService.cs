@@ -18,6 +18,8 @@ public class MapCodeImportService
 	private const string AttributionNamespace = "Realm.Maps";
 	private const string SourceMapAttributeUsageName = "Attribution_SourceMap";
 	private const string SourceMapAttributeTypeName = "Attribution_SourceMapAttribute";
+	private const string ExportAttributeUsageName = "Export";
+	private const string ExportAttributeTypeName = "ExportAttribute";
 
 	private static readonly HashSet<string> IgnoredDirectoryNames = new(StringComparer.OrdinalIgnoreCase)
 	{
@@ -52,12 +54,31 @@ public class MapCodeImportService
 
 	public IReadOnlyList<MapCodeTypeCandidate> EnumerateTypes(MapAssetImportSource source, string destinationWorkspacePath)
 	{
+		return EnumerateTypeCandidates(source, destinationWorkspacePath, requireExported: false);
+	}
+
+	public IReadOnlyList<MapCodeTypeCandidate> EnumerateExports(MapAssetImportSource source, string destinationWorkspacePath)
+	{
+		return EnumerateTypeCandidates(source, destinationWorkspacePath, requireExported: true);
+	}
+
+	private IReadOnlyList<MapCodeTypeCandidate> EnumerateTypeCandidates(MapAssetImportSource source, string destinationWorkspacePath, bool requireExported)
+	{
 		SourceCodeIndex sourceIndex = LoadSourceIndex(source);
 		DestinationCodeIndex destinationIndex = ScanDestination(destinationWorkspacePath);
 		var candidates = new List<MapCodeTypeCandidate>(sourceIndex.TypesByFullName.Count);
 
 		foreach (SourceType sourceType in sourceIndex.TypesByFullName.Values)
 		{
+			if (requireExported)
+			{
+				if (!sourceType.IsExported) continue;
+			}
+			else if (!IsTypeImportable(sourceType))
+			{
+				continue;
+			}
+
 			IReadOnlyList<string> existingPaths = destinationIndex.GetTypeFilePaths(sourceType.FullName);
 			string relativePath = existingPaths.Count > 0
 				? existingPaths[0]
@@ -71,11 +92,19 @@ public class MapCodeImportService
 				sourceType.FullName,
 				sourceType.Kind,
 				relativePath,
-				willReplace));
+				willReplace,
+				sourceType.IsExported,
+				sourceType.ExportDisplayName,
+				sourceType.ExportCategory));
 		}
 
 		candidates.Sort(CompareTypeCandidates);
 		return candidates;
+	}
+
+	private static bool IsTypeImportable(SourceType sourceType)
+	{
+		return !sourceType.IsTemplateFile || sourceType.IsExported;
 	}
 
 	public IReadOnlyList<MapCodeNamespaceCandidate> EnumerateNamespaces(MapAssetImportSource source, string destinationWorkspacePath)
@@ -86,7 +115,7 @@ public class MapCodeImportService
 
 		foreach (string namespaceName in sourceIndex.Namespaces)
 		{
-			var namespaceTypes = sourceIndex.GetTypesInNamespaceTree(namespaceName);
+			List<SourceType> namespaceTypes = sourceIndex.GetTypesInNamespaceTree(namespaceName).Where(IsTypeImportable).ToList();
 			if (namespaceTypes.Count == 0) continue;
 
 			var targetRelativePaths = new List<string>();
@@ -131,7 +160,7 @@ public class MapCodeImportService
 
 		foreach (string fullName in typeFullNames)
 		{
-			if (sourceIndex.TypesByFullName.TryGetValue(fullName, out SourceType? sourceType))
+			if (sourceIndex.TypesByFullName.TryGetValue(fullName, out SourceType? sourceType) && IsTypeImportable(sourceType))
 			{
 				requestedTypes.Add(sourceType);
 			}
@@ -152,7 +181,7 @@ public class MapCodeImportService
 
 		foreach (string namespaceName in namespaceNames)
 		{
-			var namespaceTypes = sourceIndex.GetTypesInNamespaceTree(namespaceName);
+			List<SourceType> namespaceTypes = sourceIndex.GetTypesInNamespaceTree(namespaceName).Where(IsTypeImportable).ToList();
 			if (namespaceTypes.Count == 0)
 			{
 				summary.FailedTypes.Add(namespaceName);
@@ -227,6 +256,7 @@ public class MapCodeImportService
 		{
 			SourceType? dependency = ResolveDependency(identifier, sourceType, sourceIndex);
 			if (dependency == null || dependency.FullName == sourceType.FullName) continue;
+			if (!IsTypeImportable(dependency)) continue;
 
 			AddTypeWithDependencies(dependency, sourceMapName, sourceIndex, destinationIndex, selectedFullNames, visitedTypes, orderedTypes, summary);
 		}
@@ -644,8 +674,8 @@ public class MapCodeImportService
 		{
 			foreach (var fileEntry in manifest.Files)
 			{
-				string relativePath = fileEntry.Key.Replace('\\', '/').TrimStart('/');
-				if (!IsImportableCodePath(relativePath)) continue;
+				string relativePath = NormalizeCodeRelativePath(fileEntry.Key);
+				if (!IsCodeFilePath(relativePath)) continue;
 				if (string.IsNullOrEmpty(fileEntry.Value)) continue;
 
 				string text;
@@ -666,9 +696,10 @@ public class MapCodeImportService
 					text = File.ReadAllText(extractedPath);
 				}
 
-				if (string.IsNullOrWhiteSpace(text)) continue;
-				sourceFiles.Add(new SourceFile(relativePath, text));
+				AddSourceFile(sourceFiles, relativePath, text);
 			}
+
+			LoadSourceFilesFromDisk(sourceDirectory, sourceFiles);
 		}
 		catch (Exception exception)
 		{
@@ -688,7 +719,73 @@ public class MapCodeImportService
 			}
 		}
 
+		if (sourceFiles.Count == 0)
+		{
+			GD.PushWarning($"[MapCodeImportService] No C# source files were found for '{source.MapTitle}' at '{source.ManifestFilePath}'.");
+		}
+
 		return sourceFiles;
+	}
+
+	private static void LoadSourceFilesFromDisk(string sourceDirectory, List<SourceFile> sourceFiles)
+	{
+		if (string.IsNullOrEmpty(sourceDirectory) || !Directory.Exists(sourceDirectory)) return;
+
+		foreach (string filePath in EnumerateCodeFiles(sourceDirectory, includeTemplateFiles: true))
+		{
+			string relativePath = Path.GetRelativePath(sourceDirectory, filePath).Replace('\\', '/');
+			if (!IsCodeFilePath(relativePath)) continue;
+			if (ContainsSourceFile(sourceFiles, relativePath)) continue;
+
+			try
+			{
+				AddSourceFile(sourceFiles, relativePath, File.ReadAllText(filePath));
+			}
+			catch (Exception exception)
+			{
+				GD.PrintErr($"[MapCodeImportService] Failed to read source file '{filePath}': {exception.Message}");
+			}
+		}
+	}
+
+	private static void AddSourceFile(List<SourceFile> sourceFiles, string relativePath, string text)
+	{
+		if (string.IsNullOrWhiteSpace(text)) return;
+		if (ContainsSourceFile(sourceFiles, relativePath)) return;
+
+		sourceFiles.Add(new SourceFile(relativePath, text, !IsImportableCodePath(relativePath)));
+	}
+
+	private static bool ContainsSourceFile(List<SourceFile> sourceFiles, string relativePath)
+	{
+		for (int index = 0; index < sourceFiles.Count; index++)
+		{
+			if (string.Equals(sourceFiles[index].RelativePath, relativePath, StringComparison.OrdinalIgnoreCase)) return true;
+		}
+
+		return false;
+	}
+
+	private static string NormalizeCodeRelativePath(string manifestKey)
+	{
+		string relativePath = manifestKey.StartsWith("res://", StringComparison.OrdinalIgnoreCase)
+			? manifestKey.Substring(6)
+			: manifestKey;
+		return relativePath.TrimStart('/', '\\').Replace('\\', '/');
+	}
+
+	private static bool IsCodeFilePath(string relativePath)
+	{
+		if (!relativePath.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)) return false;
+		if (relativePath.EndsWith(".template.cs", StringComparison.OrdinalIgnoreCase)) return false;
+
+		string[] segments = relativePath.Split('/');
+		for (int index = 0; index < segments.Length - 1; index++)
+		{
+			if (IgnoredDirectoryNames.Contains(segments[index])) return false;
+		}
+
+		return true;
 	}
 
 	private static DestinationCodeIndex ScanDestination(string destinationWorkspacePath)
@@ -997,7 +1094,28 @@ public class MapCodeImportService
 				simpleNameTypes.Add(sourceType);
 			}
 
+			sourceType.IsTemplateFile |= sourceFile.IsTemplateFile;
+			sourceType.ApplyExportAttribute(FindExportAttribute(declaration));
 			sourceType.AddPart(declaration, usings);
+		}
+
+		private static AttributeSyntax? FindExportAttribute(SyntaxNode declaration)
+		{
+			SyntaxList<AttributeListSyntax> attributeLists = GetAttributeLists(declaration);
+			foreach (AttributeListSyntax attributeList in attributeLists)
+			{
+				foreach (AttributeSyntax attribute in attributeList.Attributes)
+				{
+					string attributeName = GetAttributeTypeName(attribute);
+					if (attributeName.Equals(ExportAttributeUsageName, StringComparison.Ordinal)
+					    || attributeName.Equals(ExportAttributeTypeName, StringComparison.Ordinal))
+					{
+						return attribute;
+					}
+				}
+			}
+
+			return null;
 		}
 
 		private static string CombineNamespace(string containingNamespace, string name)
@@ -1035,6 +1153,39 @@ public class MapCodeImportService
 		public List<TypePart> Parts { get; } = new();
 		public HashSet<string> ReferencedIdentifiers { get; } = new(StringComparer.Ordinal);
 		public HashSet<string> UsingNamespaces { get; } = new(StringComparer.Ordinal);
+		public bool IsTemplateFile { get; set; }
+		public bool IsExported { get; private set; }
+		public string ExportDisplayName { get; private set; } = string.Empty;
+		public string ExportCategory { get; private set; } = string.Empty;
+
+		public void ApplyExportAttribute(AttributeSyntax? exportAttribute)
+		{
+			if (exportAttribute == null || IsExported) return;
+
+			IsExported = true;
+			AttributeArgumentListSyntax? argumentList = exportAttribute.ArgumentList;
+			if (argumentList == null) return;
+
+			if (argumentList.Arguments.Count > 0)
+			{
+				ExportDisplayName = ReadStringAttributeArgument(argumentList.Arguments[0].Expression);
+			}
+
+			if (argumentList.Arguments.Count > 1)
+			{
+				ExportCategory = ReadStringAttributeArgument(argumentList.Arguments[1].Expression);
+			}
+		}
+
+		private static string ReadStringAttributeArgument(ExpressionSyntax expression)
+		{
+			if (expression is LiteralExpressionSyntax literalExpression && literalExpression.IsKind(SyntaxKind.StringLiteralExpression))
+			{
+				return literalExpression.Token.ValueText.Trim();
+			}
+
+			return string.Empty;
+		}
 
 		public void AddPart(SyntaxNode declaration, IReadOnlyList<UsingDirectiveSyntax> usings)
 		{
@@ -1225,20 +1376,31 @@ public class MapCodeImportService
 
 	private sealed class SourceFile
 	{
-		public SourceFile(string relativePath, string text)
+		public SourceFile(string relativePath, string text, bool isTemplateFile)
 		{
 			RelativePath = relativePath;
 			Text = text;
+			IsTemplateFile = isTemplateFile;
 		}
 
 		public string RelativePath { get; }
 		public string Text { get; }
+		public bool IsTemplateFile { get; }
 	}
 }
 
 public class MapCodeTypeCandidate
 {
-	public MapCodeTypeCandidate(string namespaceName, string className, string fullName, string kind, string relativePath, bool willReplace)
+	public MapCodeTypeCandidate(
+		string namespaceName,
+		string className,
+		string fullName,
+		string kind,
+		string relativePath,
+		bool willReplace,
+		bool isExported = false,
+		string exportDisplayName = "",
+		string exportCategory = "")
 	{
 		NamespaceName = namespaceName;
 		ClassName = className;
@@ -1246,6 +1408,9 @@ public class MapCodeTypeCandidate
 		Kind = kind;
 		RelativePath = relativePath;
 		WillReplace = willReplace;
+		IsExported = isExported;
+		ExportDisplayName = exportDisplayName;
+		ExportCategory = exportCategory;
 	}
 
 	public string NamespaceName { get; }
@@ -1254,9 +1419,21 @@ public class MapCodeTypeCandidate
 	public string Kind { get; }
 	public string RelativePath { get; }
 	public bool WillReplace { get; }
+	public bool IsExported { get; }
+	public string ExportDisplayName { get; }
+	public string ExportCategory { get; }
 
 	public string SelectionKey => FullName;
 	public string DisplayName => string.IsNullOrEmpty(NamespaceName) ? ClassName : $"{NamespaceName}.{ClassName}";
+
+	public string ExportLabel
+	{
+		get
+		{
+			string exportName = !string.IsNullOrWhiteSpace(ExportDisplayName) ? ExportDisplayName : ClassName;
+			return !string.IsNullOrWhiteSpace(ExportCategory) ? $"[{ExportCategory}] {exportName}" : exportName;
+		}
+	}
 }
 
 public class MapCodeNamespaceCandidate

@@ -34,7 +34,8 @@ public partial class ImportFromMapDialog : FloatingDialogBase
 	private readonly Dictionary<string, CheckBox> _rowCheckBoxes = new(StringComparer.OrdinalIgnoreCase);
 
 	private ImportKind _selectedImportKind = ImportKind.Assets;
-	private bool _codeScopeIsNamespaces;
+	private CodeScope _codeScope = CodeScope.Classes;
+	private bool _codeScopeChosenExplicitly;
 	private Action? _onImportCompleted;
 
 	private enum ImportKind
@@ -42,6 +43,13 @@ public partial class ImportFromMapDialog : FloatingDialogBase
 		Assets,
 		Templates,
 		Code
+	}
+
+	private enum CodeScope
+	{
+		Classes = 0,
+		Namespaces = 1,
+		Exported = 2
 	}
 
 	public ImportFromMapDialog(MapEditorHUD hud)
@@ -120,9 +128,10 @@ public partial class ImportFromMapDialog : FloatingDialogBase
 		_optCodeScope.CustomMinimumSize = new Vector2(130, 26);
 		_optCodeScope.AddThemeFontSizeOverride("font_size", 11);
 		_optCodeScope.FocusMode = FocusModeEnum.None;
-		_optCodeScope.TooltipText = TranslationServer.Translate("Choose whether to list individual classes or whole namespaces");
-		_optCodeScope.AddItem(TranslationServer.Translate("Classes"), 0);
-		_optCodeScope.AddItem(TranslationServer.Translate("Namespaces"), 1);
+		_optCodeScope.TooltipText = TranslationServer.Translate("Choose between curated [Export] items, individual classes, or whole namespaces");
+		_optCodeScope.AddItem(TranslationServer.Translate("Classes"), (int)CodeScope.Classes);
+		_optCodeScope.AddItem(TranslationServer.Translate("Namespaces"), (int)CodeScope.Namespaces);
+		_optCodeScope.AddItem(TranslationServer.Translate("Exported"), (int)CodeScope.Exported);
 		_optCodeScope.ItemSelected += _ => OnCodeScopeChanged();
 		_optCodeScope.Visible = false;
 		filterRow.AddChild(_optCodeScope);
@@ -391,7 +400,8 @@ public partial class ImportFromMapDialog : FloatingDialogBase
 
 	private void OnCodeScopeChanged()
 	{
-		_codeScopeIsNamespaces = _optCodeScope.Selected == 1;
+		_codeScope = (CodeScope)Math.Max(0, _optCodeScope.Selected);
+		_codeScopeChosenExplicitly = true;
 		_txtSearch.PlaceholderText = GetSearchPlaceholder();
 		ReloadCandidates();
 	}
@@ -400,8 +410,13 @@ public partial class ImportFromMapDialog : FloatingDialogBase
 	{
 		if (_selectedImportKind == ImportKind.Code)
 		{
-			return _codeScopeIsNamespaces
-				? TranslationServer.Translate("Filter by namespace...")
+			if (_codeScope == CodeScope.Namespaces)
+			{
+				return TranslationServer.Translate("Filter by namespace...");
+			}
+
+			return _codeScope == CodeScope.Exported
+				? TranslationServer.Translate("Filter exported items...")
 				: TranslationServer.Translate("Filter by class name or namespace...");
 		}
 
@@ -432,6 +447,20 @@ public partial class ImportFromMapDialog : FloatingDialogBase
 		_codeNamespaceCandidates.Clear();
 	}
 
+	private void ResolveDefaultCodeScope(MapAssetImportSource source, string workspacePath)
+	{
+		if (_codeScopeChosenExplicitly) return;
+
+		_codeScope = GameContext.MapCodeImportService.EnumerateExports(source, workspacePath).Count > 0
+			? CodeScope.Exported
+			: CodeScope.Classes;
+
+		if (_optCodeScope != null)
+		{
+			_optCodeScope.Selected = (int)_codeScope;
+		}
+	}
+
 	private void ReloadCandidates()
 	{
 		ClearCandidates();
@@ -451,13 +480,18 @@ public partial class ImportFromMapDialog : FloatingDialogBase
 					_templateCandidates.AddRange(GameContext.MapTemplateImportService.EnumerateTemplates(selectedSource, workspacePath));
 					break;
 				case ImportKind.Code:
-					if (_codeScopeIsNamespaces)
+					ResolveDefaultCodeScope(selectedSource, workspacePath);
+					switch (_codeScope)
 					{
-						_codeNamespaceCandidates.AddRange(GameContext.MapCodeImportService.EnumerateNamespaces(selectedSource, workspacePath));
-					}
-					else
-					{
-						_codeTypeCandidates.AddRange(GameContext.MapCodeImportService.EnumerateTypes(selectedSource, workspacePath));
+						case CodeScope.Namespaces:
+							_codeNamespaceCandidates.AddRange(GameContext.MapCodeImportService.EnumerateNamespaces(selectedSource, workspacePath));
+							break;
+						case CodeScope.Exported:
+							_codeTypeCandidates.AddRange(GameContext.MapCodeImportService.EnumerateExports(selectedSource, workspacePath));
+							break;
+						default:
+							_codeTypeCandidates.AddRange(GameContext.MapCodeImportService.EnumerateTypes(selectedSource, workspacePath));
+							break;
 					}
 					break;
 			}
@@ -543,24 +577,30 @@ public partial class ImportFromMapDialog : FloatingDialogBase
 
 	private void RebuildCodeRows(string filter)
 	{
-		if (_codeScopeIsNamespaces)
+		if (_codeScope == CodeScope.Namespaces)
 		{
 			RebuildCodeNamespaceRows(filter);
 			return;
 		}
 
+		bool useExportLabels = _codeScope == CodeScope.Exported;
 		bool onlyMissing = _chkOnlyMissing.ButtonPressed;
 		int listedCount = 0;
 
 		foreach (var candidate in _codeTypeCandidates)
 		{
 			if (onlyMissing && candidate.WillReplace) continue;
-			if (!MatchesFilterText(candidate.ClassName, candidate.NamespaceName, filter)) continue;
+
+			string primaryText = useExportLabels ? candidate.ExportLabel : candidate.DisplayName;
+			string secondaryText = useExportLabels ? $"{candidate.DisplayName} {candidate.NamespaceName}" : candidate.NamespaceName;
+			if (!MatchesFilterText(primaryText, secondaryText, filter)) continue;
 
 			string label = candidate.WillReplace
-				? $"{candidate.DisplayName} ({TranslationServer.Translate("will replace")})"
-				: candidate.DisplayName;
-			string tooltip = $"{candidate.FullName}\n{TranslationServer.Translate("Class type:")} {candidate.Kind}\n{TranslationServer.Translate("Target file:")} {candidate.RelativePath}";
+				? $"{primaryText} ({TranslationServer.Translate("will replace")})"
+				: primaryText;
+			string tooltip = useExportLabels
+				? $"{candidate.ExportLabel}\n{candidate.FullName}\n{TranslationServer.Translate("Class type:")} {candidate.Kind}\n{TranslationServer.Translate("Target file:")} {candidate.RelativePath}"
+				: $"{candidate.FullName}\n{TranslationServer.Translate("Class type:")} {candidate.Kind}\n{TranslationServer.Translate("Target file:")} {candidate.RelativePath}";
 
 			AddRow(candidate.SelectionKey, label, tooltip, alreadyPresent: false);
 			listedCount++;
@@ -809,7 +849,7 @@ public partial class ImportFromMapDialog : FloatingDialogBase
 		var selectedNamespaces = new List<string>();
 		var replacePaths = new List<string>();
 
-		if (_codeScopeIsNamespaces)
+		if (_codeScope == CodeScope.Namespaces)
 		{
 			foreach (var candidate in _codeNamespaceCandidates)
 			{
@@ -870,7 +910,7 @@ public partial class ImportFromMapDialog : FloatingDialogBase
 	{
 		MapWorkspaceService.EnsureSourceMapAttributionAttribute(workspacePath);
 
-		var summary = _codeScopeIsNamespaces
+		var summary = _codeScope == CodeScope.Namespaces
 			? GameContext.MapCodeImportService.ImportNamespaces(source, workspacePath, selectedNamespaces)
 			: GameContext.MapCodeImportService.ImportTypes(source, workspacePath, selectedTypeNames);
 
