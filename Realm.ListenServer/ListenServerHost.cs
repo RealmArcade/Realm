@@ -319,10 +319,7 @@ public class ListenServerHost : IServerTransportSink
 				continue;
 			}
 
-			_seatedPeers[peerId] = slot;
-			_unacknowledgedPublicationsPerPeer[peerId] = -1;
-			_acknowledgedSequencePerPeer.Remove(peerId);
-			_seatedAtTickPerPeer[peerId] = _simulation.TickCount;
+			BeginSeatedPeerBookkeeping(peerId, slot, _simulation.TickCount);
 			if (_peerLanguages.TryGetValue(peerId, out string? language)) _simulation.SetPlayerLanguage(slot, language);
 
 			var assignment = new PeerRosterAssignment
@@ -505,12 +502,12 @@ public class ListenServerHost : IServerTransportSink
 	public void OnPeerDisconnected(int peerId, string reason)
 	{
 		_connectedPeers.Remove(peerId);
-		_peerLanguages.Remove(peerId);
 
 		if (_lobby != null && _simulation == null)
 		{
 			_log.Write($"peer {peerId} left the lobby: {reason}");
 			_lobby.OnPeerDisconnected(peerId);
+			ForgetPeerBookkeeping(peerId);
 			return;
 		}
 
@@ -534,6 +531,20 @@ public class ListenServerHost : IServerTransportSink
 		BroadcastPauseState(-1);
 	}
 
+	private void BeginSeatedPeerBookkeeping(int peerId, int playerSlot, long tick)
+	{
+		_seatedPeers[peerId] = playerSlot;
+		_seatedAtTickPerPeer[peerId] = tick;
+		_unacknowledgedPublicationsPerPeer[peerId] = -1;
+		_acknowledgedSequencePerPeer.Remove(peerId);
+		_roundTripMillisecondsPerPeer.Remove(peerId);
+		_firstSnapshotSequencePerPeer.Remove(peerId);
+		_lastLoggedAckSequencePerPeer.Remove(peerId);
+		_lastBaselineRequestTickPerPeer.Remove(peerId);
+		_lastRefreshBaselineTickPerPeer.Remove(peerId);
+		_obstacleSignaturePerPeer.Remove(peerId);
+	}
+
 	private void ForgetPeerBookkeeping(int peerId)
 	{
 		_pendingChallenges.Remove(peerId);
@@ -547,6 +558,7 @@ public class ListenServerHost : IServerTransportSink
 		_seatedAtTickPerPeer.Remove(peerId);
 		_obstacleSignaturePerPeer.Remove(peerId);
 		_commandsThisTick.Remove(peerId);
+		_peerLanguages.Remove(peerId);
 	}
 
 	public void OnFrameReceived(int peerId, NetworkFrameKind kind, ReadOnlySpan<byte> payload)
@@ -879,11 +891,7 @@ public class ListenServerHost : IServerTransportSink
 			return;
 		}
 
-		_seatedPeers[peerId] = playerSlot;
-		_unacknowledgedPublicationsPerPeer[peerId] = -1;
-		_acknowledgedSequencePerPeer.Remove(peerId);
-		_roundTripMillisecondsPerPeer.Remove(peerId);
-		_seatedAtTickPerPeer[peerId] = simulation.TickCount;
+		BeginSeatedPeerBookkeeping(peerId, playerSlot, simulation.TickCount);
 		simulation.SetPlayerLanguage(playerSlot, hello.Language);
 		SendHello(peerId, string.Empty);
 
