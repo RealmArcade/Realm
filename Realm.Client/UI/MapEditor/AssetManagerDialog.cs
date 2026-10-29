@@ -1160,6 +1160,7 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 	{
 		Imported,
 		Skipped,
+		Conflict,
 		Failed
 	}
 
@@ -1175,6 +1176,7 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 
 		var importedNames = new List<string>();
 		int skippedCount = 0;
+		int conflictCount = 0;
 		int failedCount = 0;
 
 		foreach (var selection in selections)
@@ -1187,6 +1189,9 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 				case AssetImportOutcome.Skipped:
 					skippedCount++;
 					break;
+				case AssetImportOutcome.Conflict:
+					conflictCount++;
+					break;
 				default:
 					failedCount++;
 					break;
@@ -1195,11 +1200,18 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 
 		RefreshAssetList();
 
-		string summary = string.Format(
-			TranslationServer.Translate("Imported {0} assets, skipped {1} already present, {2} failed."),
-			importedNames.Count,
-			skippedCount,
-			failedCount);
+		string summary = conflictCount > 0
+			? string.Format(
+				TranslationServer.Translate("Imported {0} assets, skipped {1} already present, refused {2} that would overwrite a different file, {3} failed."),
+				importedNames.Count,
+				skippedCount,
+				conflictCount,
+				failedCount)
+			: string.Format(
+				TranslationServer.Translate("Imported {0} assets, skipped {1} already present, {2} failed."),
+				importedNames.Count,
+				skippedCount,
+				failedCount);
 
 		Hud?.ShowFeedback(summary);
 	}
@@ -1222,12 +1234,23 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 			string destPath = Path.Combine(destDir, fileName);
 
 			string sourceHash = RealmMetadataHelper.ComputeBlake3(File.ReadAllBytes(sourceFilePath), ext);
-			if (File.Exists(destPath) && string.Equals(RealmMetadataHelper.ComputeBlake3(File.ReadAllBytes(destPath), ext), sourceHash, StringComparison.OrdinalIgnoreCase))
+			if (File.Exists(destPath))
 			{
-				return AssetImportOutcome.Skipped;
+				if (string.Equals(RealmMetadataHelper.ComputeBlake3(File.ReadAllBytes(destPath), ext), sourceHash, StringComparison.OrdinalIgnoreCase))
+				{
+					return AssetImportOutcome.Skipped;
+				}
+
+				GD.PushWarning($"[AssetManagerDialog] Refused to import '{fileName}': '{destPath}' already exists with different content.");
+				if (showFeedback)
+				{
+					Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Asset '{0}' already exists with different content. Delete or rename it before importing."), fileName));
+				}
+
+				return AssetImportOutcome.Conflict;
 			}
 
-			File.Copy(sourceFilePath, destPath, true);
+			File.Copy(sourceFilePath, destPath, false);
 			RealmMetadataHelper.EnsureMetadata(destPath);
 
 			byte[] finalBytes = File.ReadAllBytes(destPath);
