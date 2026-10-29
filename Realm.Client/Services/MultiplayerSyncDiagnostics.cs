@@ -274,9 +274,14 @@ public static class MultiplayerSyncDiagnostics
 	/// Records how far the position a unit was drawn at is from the navigation mesh this screen baked. Between two
 	/// descriptions a unit is drawn on the straight line joining them, and a corner of a building makes that line cut
 	/// through it, so this is the measurement of whether the presentation can put a unit inside geometry.
+	///     A building is an obstacle rather than something that walks the mesh, and a unit that does not move on the ground
+	///     has no mesh to be on, so neither is measured: counting them would report the map's shape as a defect.
 	/// </summary>
-	private static void RecordNavMeshPlacement(System.Numerics.Vector3 presentedPosition)
+	private static void RecordNavMeshPlacement(EcsWorld world, Entity localEntity, bool isBuilding, System.Numerics.Vector3 presentedPosition)
 	{
+		if (isBuilding) return;
+		if (world.Has<MovementStats>(localEntity) && world.Get<MovementStats>(localEntity).Type != MovementType.Ground) return;
+
 		var movementService = GameContext.Simulation?.MovementPathfindingService;
 		if (movementService == null) return;
 		if (!movementService.TryResolveDistanceOffNavMesh(presentedPosition, out float distanceOffNavMesh)) return;
@@ -290,6 +295,12 @@ public static class MultiplayerSyncDiagnostics
 		if (!PositionWriteTrace.IsEnabled) return;
 		if (_presentationGaps.Count >= 240) return;
 
+		// A unit the presentation step did not visit this record cannot be judged by what it wrote: the record is of a unit
+		// that was described and drawn for the first time on this tick, which is the spawn's own placement. That one is
+		// legitimate and the step takes it over from the next tick.
+		bool wasStepped = _presentationSteppedEntities.Contains(localEntityId);
+		if (!wasStepped) return;
+
 		System.Numerics.Vector3 writtenPosition = PositionWriteTrace.LastPresentationWrite(localEntity);
 		float presentationDrift = (writtenPosition - presentedPosition).Length();
 		bool writtenByPresentation = PositionWriteTrace.Last(localEntity) == PositionWriter.Interpolation;
@@ -298,7 +309,6 @@ public static class MultiplayerSyncDiagnostics
 		bool hasTarget = world.Has<LatestDescription>(localEntity);
 		System.Numerics.Vector3 targetPosition = hasTarget ? world.Get<LatestDescription>(localEntity).Position : presentedPosition;
 		bool hasPosition = world.Has<Position>(localEntity);
-		bool wasStepped = _presentationSteppedEntities.Contains(localEntityId);
 		float cursorSequence = GameContext.SnapshotTimeline.CursorSequence;
 		float lagSequences = GameContext.SnapshotTimeline.NewestSequence - cursorSequence;
 		float roundTripMilliseconds = GameContext.NetworkLatencyService?.SmoothedRoundTripMilliseconds ?? -1f;
@@ -521,7 +531,7 @@ public static class MultiplayerSyncDiagnostics
 
 			System.Numerics.Vector3 appliedPosition = world.Has<Position>(localEntity) ? world.Get<Position>(localEntity).Value : new System.Numerics.Vector3(unit3D.GlobalPosition.X, unit3D.GlobalPosition.Y, unit3D.GlobalPosition.Z);
 			RecordPresentationGap(world, sequence, kvp.Key, kvp.Value, localEntity, appliedPosition, unit3D.IsCulled);
-			RecordNavMeshPlacement(appliedPosition);
+			RecordNavMeshPlacement(world, localEntity, isBuilding, appliedPosition);
 
 			if (recordServerIds != null)
 			{

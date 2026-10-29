@@ -1265,6 +1265,20 @@ public static class MultiplayerEcsSyncTestSupport
 		report.AddSummaryLine($"Rendered transforms outside the camera frustum: {culledTransforms} of {comparedTransforms} (culling freezes rotation but still advances position, so they stay comparable).");
 		report.AddSummaryLine($"Rendered transforms more than {placementTolerance:F2} m from the authoritative position: {renderedBeyondTolerance} of {comparedTransforms}, worst {worstRenderedOffset:F2} m; this is context rather than an assertion, because the renderer may legally be that far behind.");
 		report.AddSummaryLine($"Buffer starvations: {ReadClientCounter(outputDirectory, "buffer_starvations=")} (the cursor reached the end of what had arrived, which is what deepens the delay), final delay {ReadClientCounter(outputDirectory, "interpolation_delay_sequences=")} sequences, samples drawn past the newest description: {ReadClientCounter(outputDirectory, "extrapolated_samples=")}");
+
+		// A run with no frame cap simulates as fast as the machine allows, so the injected delay covers far more of the
+		// match than it would in a game: at six times real time a 150 ms round trip is a fifth of a second of the match,
+		// which is more buffering than any bound allows. Stating the ratio keeps the starvation count above from being read
+		// as a verdict on the delay's ceiling, which it is not, and from being read as nothing at all, which it also is not.
+		int lastHostSequence = 0;
+		foreach (int hostSequence in hostRecords.Keys) lastHostSequence = hostSequence;
+
+		float matchSeconds = lastHostSequence / (float)MatchTiming.SnapshotRateHz;
+		if (settings.DurationSeconds > 0f && matchSeconds > 0f)
+		{
+			float simulatedFasterThanRealTime = matchSeconds / settings.DurationSeconds;
+			report.AddSummaryLine($"Simulation pace: {matchSeconds:F1} s of match time in a {settings.DurationSeconds:F0} s run, {simulatedFasterThanRealTime:F1} times real time (an uncapped run simulates as fast as the machine allows, so every latency figure covers that much more of the match than it would in a game)");
+		}
 		report.AddSummaryLine($"Rendered rotation deviations beyond {PresentationRotationTolerance:F2} rad: {rotationDeviationCount} of {comparedTransforms}, largest {largestRotationDeviation:F2} rad (off-frustum units keep their frozen transform until they enter the view)");
 		report.AddSummaryLine($"Rendered transforms that moved against the authority's own direction of travel: {backwardRenderCount} of {comparedTransforms}, worst {worstBackwardMeters:F2} m behind where it was drawn a sequence earlier (the cursor is the only thing that moves a unit, so this is what running out of world and being placed back on the newest description looks like)");
 		report.AddSummaryLine($"Drawn positions further from the navigation mesh than {MultiplayerSyncDiagnostics.OffNavMeshToleranceMeters:F2} m: {ReadClientCounter(outputDirectory, "off_navmesh_units=")}, worst {ReadClientMetric(outputDirectory, "worst_off_navmesh_meters="):F2} m (a unit is drawn on the line joining two descriptions, so a corner of a building is how that line leaves the mesh)");
