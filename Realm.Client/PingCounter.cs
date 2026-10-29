@@ -20,6 +20,7 @@ public partial class PingCounter : Label
 	private float _forceShowTimer;
 	private float _forceHideTimer;
 	private bool _forcedByLatency;
+	private int _lastReportedDelayMilliseconds = -1;
 
 	public override void _Ready()
 	{
@@ -42,19 +43,25 @@ public partial class PingCounter : Label
 
 		bool shouldShow = hasSample && (GameSettings.DisplayPing || _forcedByLatency);
 		if (Visible != shouldShow) Visible = shouldShow;
-		if (!shouldShow) return;
 
 		_refreshTimer += frameDelta;
 		if (_refreshTimer < RefreshIntervalSeconds) return;
 
 		_refreshTimer = 0f;
-		// The presentation delay is read beside the round trip because the two answer different questions: the round trip
-		// is how long the authority takes to hear an order, and the delay is how far behind the world this screen draws.
-		// A player reporting a late match on a good link is looking at the second number, not the first.
+
+		// The presentation delay is how far behind the world this screen draws, which is a different question from the
+		// round trip. It is reported to the console rather than drawn on the HUD, and only when it moves, so reading it
+		// back says when the buffer deepened or shallowed without a line every quarter second saying it did not.
 		int delayMilliseconds = Mathf.RoundToInt(GameContext.SnapshotTimeline.DelayMilliseconds);
-		Text = string.Format(TranslationServer.Translate("Ping: {0} ms"), Mathf.RoundToInt(roundTripMilliseconds))
-		       + "\n"
-		       + string.Format(TranslationServer.Translate("Presentation delay: {0} ms"), delayMilliseconds);
+		if (delayMilliseconds != _lastReportedDelayMilliseconds)
+		{
+			_lastReportedDelayMilliseconds = delayMilliseconds;
+			GD.Print($"[PingCounter] Presentation delay: {delayMilliseconds} ms");
+		}
+
+		if (!shouldShow) return;
+
+		Text = string.Format(TranslationServer.Translate("Ping: {0} ms"), Mathf.RoundToInt(roundTripMilliseconds));
 		AddThemeColorOverride("font_color", ResolveColor(roundTripMilliseconds));
 	}
 
