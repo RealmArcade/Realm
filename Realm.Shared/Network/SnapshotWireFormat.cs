@@ -64,23 +64,24 @@ public static class SnapshotWireFormat
 	[ThreadStatic]
 	private static byte[]? _compressionBuffer;
 
-	public static byte[] EncodeBaseline(byte[] serialized)
+	public static byte[] EncodeBaseline(ReadOnlySpan<byte> serialized)
 	{
 		return Encode(serialized, isBaseline: true);
 	}
 
-	public static byte[] EncodeDelta(byte[] serialized)
+	public static byte[] EncodeDelta(ReadOnlySpan<byte> serialized)
 	{
 		return Encode(serialized, isBaseline: false);
 	}
 
 	/// <summary>
 	/// Compresses a serialized snapshot into a frame. Both the compressor and the scratch buffer are reused, so framing
-	/// a per-tick payload allocates only the frame the transport is about to copy.
+	/// a per-tick payload allocates only the frame the transport is about to copy; the serialized snapshot itself is never
+	/// copied, and the host can describe a peer straight out of the buffer it serialized into.
 	/// </summary>
-	private static byte[] Encode(byte[] serialized, bool isBaseline)
+	private static byte[] Encode(ReadOnlySpan<byte> serialized, bool isBaseline)
 	{
-		if (serialized.Length == 0) return serialized;
+		if (serialized.Length == 0) return Array.Empty<byte>();
 
 		Compressor compressor = isBaseline
 			? _baselineCompressor ??= new Compressor(BaselineCompressionLevel)

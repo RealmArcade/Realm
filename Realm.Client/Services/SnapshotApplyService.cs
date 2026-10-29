@@ -166,6 +166,15 @@ public class SnapshotApplyService
 	}
 
 	private AppliedSequenceWindow _appliedSnapshots;
+	private int _lastAcknowledgedSequence = -1;
+
+	/// <summary>
+	///     How many sequences may pass between two acknowledgements. One per applied description is thirty reliable frames a
+	///     second from every peer, each stating what the next one states again; two still reports a hole within a fifteenth of
+	///     a second. A description this peer could not place is answered at once, because that answer is what the match
+	///     repairs from.
+	/// </summary>
+	private const int AcknowledgementIntervalSequences = 2;
 
 	public void Acknowledge(int sequence, bool fullyApplied)
 	{
@@ -181,7 +190,11 @@ public class SnapshotApplyService
 		else _appliedSnapshots.Advance(sequence);
 		if (_appliedSnapshots.Highest < 0) return;
 
-		GameContext.Host.SendSnapshotAck(_appliedSnapshots.Highest, _appliedSnapshots.BuildMask());
+		int highest = _appliedSnapshots.Highest;
+		if (fullyApplied && highest - _lastAcknowledgedSequence < AcknowledgementIntervalSequences) return;
+
+		_lastAcknowledgedSequence = highest;
+		GameContext.Host.SendSnapshotAck(highest, _appliedSnapshots.BuildMask());
 	}
 
 	private void QueueDelta(WorldSnapshot snapshot)
@@ -201,6 +214,7 @@ public class SnapshotApplyService
 	{
 		_queuedDeltas.Clear();
 		_appliedSnapshots.Reset();
+		_lastAcknowledgedSequence = -1;
 		_lastBaselineRequestTime = 0;
 	}
 }

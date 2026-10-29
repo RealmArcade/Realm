@@ -1,4 +1,5 @@
-﻿using System.Security.Cryptography;
+﻿using System.Buffers;
+using System.Security.Cryptography;
 using System.Text;
 using MemoryPack;
 using Realm.Ecs;
@@ -37,6 +38,16 @@ public class ListenServerHost : IServerTransportSink
 	private readonly Dictionary<int, long> _lastRefreshBaselineTickPerPeer = new();
 
 	/// <summary>
+	///     How many descriptions this peer has been sent since it last acknowledged one, or negative for a peer that has
+	///     not acknowledged anything yet. It is the only measure this process has of how far behind a screen is: the
+	///     transport reports what it was handed, not what the peer read.
+	/// </summary>
+	private readonly Dictionary<int, int> _unacknowledgedPublicationsPerPeer = new();
+
+	/// <summary>The last tick this peer was described from a baseline because it had fallen behind.</summary>
+	private readonly Dictionary<int, long> _lastSlowPeerBaselineTickPerPeer = new();
+
+	/// <summary>
 	///     How often a peer is described from scratch even though nothing was reported wrong, in ticks. Every section of a
 	///     delta states a change against what that peer was already told, so a peer that lost track of one component
 	///     without losing a whole snapshot — a replica it replaced, a component the authority dropped while the unit was
@@ -51,9 +62,25 @@ public class ListenServerHost : IServerTransportSink
 	private readonly WorldSnapshot[] _publishedSnapshots = new WorldSnapshot[EcsWorld.MAX_PLAYERS];
 	private readonly byte[][] _publishedFrames = new byte[EcsWorld.MAX_PLAYERS][];
 	private readonly bool[] _pendingBaselineRequests = new bool[EcsWorld.MAX_PLAYERS];
+	private readonly bool[] _pendingSkippedPeers = new bool[EcsWorld.MAX_PLAYERS];
 	private readonly SnapshotBaselineReason[] _pendingBaselineReasons = new SnapshotBaselineReason[EcsWorld.MAX_PLAYERS];
 	private readonly int[] _publishedSerializedBytes = new int[EcsWorld.MAX_PLAYERS];
 	private readonly double[] _publishedFramingMilliseconds = new double[EcsWorld.MAX_PLAYERS];
+
+	/// <summary>
+	///     One scratch buffer per peer slot, which the thread describing that slot owns for the length of one tick. It is
+	///     what a description is serialized into, so the per-tick path allocates the frame it sends rather than a copy of
+	///     the snapshot beside it.
+	/// </summary>
+	private readonly ArrayBufferWriter<byte>[] _serializationWriters = CreateSerializationWriters();
+
+	private static ArrayBufferWriter<byte>[] CreateSerializationWriters()
+	{
+		var writers = new ArrayBufferWriter<byte>[EcsWorld.MAX_PLAYERS];
+		for (int index = 0; index < writers.Length; index++) writers[index] = new ArrayBufferWriter<byte>(4096);
+		return writers;
+	}
+
 	private ParallelOptions? _publishParallelism;
 	private Action<int>? _describeOnePeer;
 	private int _publishSequence;
@@ -380,6 +407,8 @@ public class ListenServerHost : IServerTransportSink
 		_firstSnapshotSequencePerPeer.Remove(peerId);
 		_lastRepairBaselineTickPerPeer.Remove(peerId);
 		_lastRefreshBaselineTickPerPeer.Remove(peerId);
+		_unacknowledgedPublicationsPerPeer.Remove(peerId);
+		_lastSlowPeerBaselineTickPerPeer.Remove(peerId);
 		_obstacleSignaturePerPeer.Remove(peerId);
 		_commandsThisTick.Remove(peerId);
 	}
@@ -555,6 +584,7 @@ public class ListenServerHost : IServerTransportSink
 		}
 
 		_seatedPeers[peerId] = playerSlot;
+		_unacknowledgedPublicationsPerPeer[peerId] = -1;
 		simulation.SetPlayerLanguage(playerSlot, hello.Language);
 		SendHello(peerId, string.Empty);
 
@@ -669,6 +699,7 @@ public class ListenServerHost : IServerTransportSink
 			_pendingBaselineReasons[index] = resyncRequested
 				? SnapshotBaselineReason.Resync
 				: refreshDue ? SnapshotBaselineReason.Safety : SnapshotBaselineReason.None;
+			_pendingSkippedPeers[index] = ShouldSkipSlowPeer(seatedPeerId, simulation.TickCount, index);
 		}
 
 		// A unit record names the peer that owns the unit, so every worker has to agree on which peer acts as which
@@ -709,17 +740,33 @@ public class ListenServerHost : IServerTransportSink
 		ServerSimulation simulation = _simulation!;
 		int peerId = _seatedPeerIds[index];
 
+		if (_pendingSkippedPeers[index])
+		{
+			// A peer this far behind is told nothing this tick: describing it would be work its screen cannot draw, and
+			// the frame would only wait behind the ones it has not read. What it is owed is a baseline, which the tick
+			// that decided to skip it already asked for.
+			_publishedSnapshots[index] = default;
+			_publishedFrames[index] = null;
+			return;
+		}
+
 		WorldSnapshot snapshot = simulation.BuildSnapshotForPeer(peerId, _publishSequence, _pendingBaselineRequests[index]);
 		_publishedSnapshots[index] = snapshot;
 
 		// Serializing and framing is the host's cost of describing one peer, and it is measured where it is paid so the
-		// report states the real figure rather than the cost of a frame somebody else built.
+		// report states the real figure rather than the cost of a frame somebody else built. The serializer writes into a
+		// buffer this peer's slot already owns, so a tick that describes a full room allocates the frames it sends and
+		// nothing else.
 		long framingStarted = _trafficRecorder == null ? 0 : System.Diagnostics.Stopwatch.GetTimestamp();
-		byte[] serialized = MemoryPackSerializer.Serialize(snapshot);
-		_publishedFrames[index] = snapshot.IsBaseline ? SnapshotWireFormat.EncodeBaseline(serialized) : SnapshotWireFormat.EncodeDelta(serialized);
+		ArrayBufferWriter<byte> serialized = _serializationWriters[index];
+		serialized.ResetWrittenCount();
+		MemoryPackSerializer.Serialize(serialized, snapshot);
+		_publishedFrames[index] = snapshot.IsBaseline
+			? SnapshotWireFormat.EncodeBaseline(serialized.WrittenSpan)
+			: SnapshotWireFormat.EncodeDelta(serialized.WrittenSpan);
 		if (_trafficRecorder == null) return;
 
-		_publishedSerializedBytes[index] = serialized.Length;
+		_publishedSerializedBytes[index] = serialized.WrittenCount;
 		_publishedFramingMilliseconds[index] = (System.Diagnostics.Stopwatch.GetTimestamp() - framingStarted) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
 	}
 
@@ -733,6 +780,8 @@ public class ListenServerHost : IServerTransportSink
 		if (simulation == null) return;
 
 		int peerId = _seatedPeerIds[index];
+		if (_publishedFrames[index] == null) return;
+
 		WorldSnapshot snapshot = _publishedSnapshots[index];
 
 		_syncRecorder?.AddPeerSnapshot(peerId, in snapshot);
@@ -852,6 +901,10 @@ public class ListenServerHost : IServerTransportSink
 		ServerSimulation? simulation = _simulation;
 		if (simulation == null) return;
 
+		// A peer that answers is a peer that is reading, whatever else the answer says: the count of descriptions it has not
+		// answered starts over here, which is what tells the gate above that a screen has caught up.
+		if (_unacknowledgedPublicationsPerPeer.ContainsKey(peerId)) _unacknowledgedPublicationsPerPeer[peerId] = 0;
+
 		SnapshotAck ack;
 		try
 		{
@@ -906,6 +959,39 @@ public class ListenServerHost : IServerTransportSink
 		_log.Write($"peer {peerId} is missing a snapshot it was sent; it is described from scratch");
 	}
 
+	/// <summary>
+	///     Whether this peer is too far behind to be described this tick, and what it is owed instead. A peer that has
+	///     never acknowledged anything is not behind: it is a screen still loading the map it was told to play, and it is
+	///     left alone. One that has answered and then stopped is measurable, and half a second of publishing behind it is
+	///     skipped and described from a baseline once a second, so it can catch up rather than be starved by the stream it
+	///     is not reading. A peer that has left a quarter of a minute of publishing unanswered is dropped, so the seat and
+	///     the transport state it holds do not outlive the screen that forgot it.
+	/// </summary>
+	private bool ShouldSkipSlowPeer(int peerId, long tick, int index)
+	{
+		if (!_unacknowledgedPublicationsPerPeer.TryGetValue(peerId, out int unacknowledged)) return false;
+		if (unacknowledged < 0) return false;
+
+		_unacknowledgedPublicationsPerPeer[peerId] = unacknowledged + 1;
+		if (unacknowledged < MaximumUnacknowledgedPublications) return false;
+
+		if (!_lastSlowPeerBaselineTickPerPeer.TryGetValue(peerId, out long lastSlowBaselineTick)
+			|| tick - lastSlowBaselineTick >= RepairBaselineCooldownTicks)
+		{
+			_lastSlowPeerBaselineTickPerPeer[peerId] = tick;
+			_pendingBaselineRequests[index] = true;
+			_pendingBaselineReasons[index] = SnapshotBaselineReason.Resync;
+			return false;
+		}
+
+		if (unacknowledged < MaximumUnacknowledgedBeforeDisconnect) return true;
+
+		_log.Write($"peer {peerId} has left {unacknowledged} descriptions unanswered; the match drops it");
+		_seatedPeers.Remove(peerId);
+		_transport.Disconnect(peerId);
+		return true;
+	}
+
 	private const long AckReportInterval = 100;
 
 	/// <summary>
@@ -915,12 +1001,30 @@ public class ListenServerHost : IServerTransportSink
 	private const long RepairBaselineCooldownTicks = MatchTiming.SimulationTickRateHz;
 
 	/// <summary>
-	///     The largest delta carried on the unreliable stream, in framed bytes. A delta is about 1.2 kB for a peer in a
-	///     three hundred unit room, so this covers the stream a match actually sends; a payload beyond it is one the
-	///     transport would have to fragment, and a fragmented frame that loses any fragment is lost whole, which is a
-	///     worse bet than paying for it on the ordered stream.
+	///     How many descriptions a peer may leave unanswered before the match stops spending a tick's describing on it.
+	///     Half a second is twice the deepest buffer a screen renders from, so a peer this far behind is not drawing the
+	///     world it is being sent: the description states a moment its screen has already passed, while the frames it does
+	///     not read wait in the transport behind it. The figure is a duration rather than the screen's own bound, because
+	///     how deeply a screen buffers belongs to the link it is on and nothing this process can read.
 	/// </summary>
-	private const int UnreliableSnapshotLimitBytes = 8192;
+	private const int MaximumUnacknowledgedPublications = MatchTiming.SnapshotRateHz / 2;
+
+	/// <summary>
+	///     How many descriptions a peer may leave unanswered before the match ends its connection, counted in published
+	///     ticks rather than seconds so a paused match - which publishes nothing and owes nothing - never counts against a
+	///     peer. Together with the gate above this bounds what a screen that stopped reading can leave queued: past the
+	///     gate it is sent one baseline a second, so fifteen seconds of it is under forty kilobytes rather than a stream.
+	/// </summary>
+	private const int MaximumUnacknowledgedBeforeDisconnect = MatchTiming.SnapshotRateHz * 15;
+
+	/// <summary>
+	///     The largest delta carried on the unreliable stream, in framed bytes. It is one datagram: a delta is about 1.2 kB
+	///     for a peer in a three hundred unit room and fits one, and anything above this is fragmented by the transport into
+	///     several datagrams, any one of which being lost loses the delta whole. The old limit of eight kilobytes was
+	///     written as if fragmentation started there, so a large delta was offered a loss chance multiplied by the number of
+	///     fragments it turned into; past one datagram the reliable stream is the better bet.
+	/// </summary>
+	private const int UnreliableSnapshotLimitBytes = 1400;
 
 	private long _unreliableSnapshotCount;
 	private long _reliableSnapshotCount;
