@@ -235,21 +235,14 @@ public class SnapshotTimeline
 
 		ShallowestSurplusSequences = _shallowestSurplusInWindow;
 		if (_starvationsInWindow > 0 && _delaySequences < MaximumDelaySequences) _delaySequences++;
-		else if (_starvationsInWindow == 0 && _shallowestSurplusInWindow >= _delaySequences && _delaySequences > MinimumDelaySequences) _delaySequences--;
+		// A spare sequence has to have been held for the whole window, not merely reached once: without that margin a
+		// healthy link shallows the delay every second until it starves, which is a delay that saws up and down once a
+		// second for no reason a player could see.
+		else if (_starvationsInWindow == 0 && _shallowestSurplusInWindow >= _delaySequences + 1f && _delaySequences > MinimumDelaySequences) _delaySequences--;
 
 		_evaluationSeconds = 0f;
 		_starvationsInWindow = 0;
 		_shallowestSurplusInWindow = float.MaxValue;
-	}
-
-	/// <summary>
-	///     The position, facing and velocity to draw one unit at this tick, taken from the descriptions either side of
-	///     the cursor. Answers false for a unit this screen holds no description of, which is a unit that has not been
-	///     heard about yet rather than one that is standing still.
-	/// </summary>
-	public bool TrySample(int entityId, out Vector3 position, out float rotationY, out Vector3 velocity)
-	{
-		return TrySample(entityId, mayExtrapolate: false, out position, out rotationY, out velocity);
 	}
 
 	/// <summary>
@@ -259,6 +252,8 @@ public class SnapshotTimeline
 	///     this whole presentation model exists not to do. After it has - the unit carries a destination the match itself
 	///     published - the only unknown is the last third of a tick, and the direction it is filled in from is the one the
 	///     authority was already moving the unit along rather than a route this client planned.
+	///     Answers false for a unit this screen holds no description of, which is a unit that has not been heard about yet
+	///     rather than one that is standing still.
 	/// </summary>
 	public bool TrySample(int entityId, bool mayExtrapolate, out Vector3 position, out float rotationY, out Vector3 velocity)
 	{
