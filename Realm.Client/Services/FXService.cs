@@ -192,18 +192,33 @@ public class FXService
 		if (stage == null) return 0f;
 		if (parent == null || !GodotObject.IsInstanceValid(parent)) return 0f;
 
+		if (!TrySpawnVfxStageContent(parent, stage, worldPosition, scaleMultiplier, out float naturalLifetimeSeconds)) return 0f;
+		if (stage.DurationSeconds > 0f) return stage.DurationSeconds;
+
+		return naturalLifetimeSeconds;
+	}
+
+	private bool TrySpawnVfxStageContent(Node parent, VfxStageMetadata stage, Vector3 worldPosition, float scaleMultiplier, out float naturalLifetimeSeconds)
+	{
+		naturalLifetimeSeconds = 0f;
+
 		if (stage.ParticleConfig != null)
 		{
-			return SpawnOneShotParticleImpact(parent, stage.ParticleConfig, worldPosition, scaleMultiplier);
+			naturalLifetimeSeconds = SpawnOneShotParticleImpact(parent, stage.ParticleConfig, worldPosition, scaleMultiplier);
+			return naturalLifetimeSeconds > 0f;
 		}
 
 		if (stage.SingleInstance)
 		{
 			var singleInstanceConfig = TryResolveParticleConfig(stage.EffectId);
-			if (singleInstanceConfig != null) return SpawnOneShotParticleImpact(parent, singleInstanceConfig, worldPosition, scaleMultiplier);
+			if (singleInstanceConfig == null)
+			{
+				SkipVfxStage(stage, "no particle effect is registered for that id");
+				return false;
+			}
 
-			SkipVfxStage(stage, "no particle effect is registered for that id");
-			return 0f;
+			naturalLifetimeSeconds = SpawnOneShotParticleImpact(parent, singleInstanceConfig, worldPosition, scaleMultiplier);
+			return naturalLifetimeSeconds > 0f;
 		}
 
 		var stageConfig = ResolveVfxConfig(stage.EffectId);
@@ -214,14 +229,18 @@ public class FXService
 			parent.AddChild(instance);
 			instance.GlobalPosition = worldPosition;
 			instance.Scale = Vector3.One * Math.Max(0.01f, scaleMultiplier);
-			return 0f;
+			return true;
 		}
 
 		var particleConfig = TryResolveParticleConfig(stage.EffectId);
-		if (particleConfig != null) return SpawnOneShotParticleImpact(parent, particleConfig, worldPosition, scaleMultiplier);
+		if (particleConfig == null)
+		{
+			SkipVfxStage(stage, "no VFX template or particle preset matches that id");
+			return false;
+		}
 
-		SkipVfxStage(stage, "no VFX template or particle preset matches that id");
-		return 0f;
+		naturalLifetimeSeconds = SpawnOneShotParticleImpact(parent, particleConfig, worldPosition, scaleMultiplier);
+		return naturalLifetimeSeconds > 0f;
 	}
 
 	public float SpawnSingleParticleImpact(Node parent, string effectId, Vector3 worldPosition, float scaleMultiplier)

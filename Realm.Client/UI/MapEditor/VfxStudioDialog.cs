@@ -930,7 +930,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 	private void BuildStagesSection(VBoxContainer parent)
 	{
 		AddSectionHeader(parent, "🎬 " + TranslationServer.Translate("SEQUENCE STAGES"), new Color(0.55f, 0.9f, 0.75f));
-		AddDescription(parent, TranslationServer.Translate("Stages replay other effects as a timed sequence: immediately, after a delay, on projectile impact, or when the target dies."));
+		AddDescription(parent, TranslationServer.Translate("Stages replay other effects as a timed sequence: immediately, after a delay, on projectile impact, or when the target dies. Leave the duration at 0 to use the stage's own lifetime; set it to keep the sequence alive for procedural stages."));
 
 		_stagesContainer = new VBoxContainer();
 		_stagesContainer.Name = "StagesContainer_VBoxContainer";
@@ -1021,6 +1021,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		}, 140f);
 
 		AddNumberInput(box, TranslationServer.Translate("Delay (s)"), stage.DelaySeconds, (val) => stage.DelaySeconds = Math.Max(0f, val), 0.05f, "0", 140f);
+		AddNumberInput(box, TranslationServer.Translate("Stage Duration (s)"), stage.DurationSeconds, (val) => stage.DurationSeconds = Math.Max(0f, val), 0.1f, "auto", 140f);
 		AddNumberInput(box, TranslationServer.Translate("Stage Scale"), stage.Scale, (val) => stage.Scale = Math.Max(0.01f, val), 0.1f, "1", 140f);
 		AddCheckBox(box, TranslationServer.Translate("Play as a one-shot particle burst"), stage.SingleInstance, (pressed) => stage.SingleInstance = pressed);
 
