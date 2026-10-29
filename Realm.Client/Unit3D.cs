@@ -1315,6 +1315,12 @@ public partial class Unit3D : Node3D
 	{
 		if (effectiveNormalOffset != 0.0f) effectivePos += Vector3.Up * effectiveNormalOffset;
 
+		if (model is BillboardIconAttachment3D billboardIcon)
+		{
+			effectivePos += billboardIcon.ResolvePositionOffset();
+			effectiveScaleVec = Vector3.One;
+		}
+
 		model.Position = effectivePos;
 		model.RotationDegrees = effectiveRot;
 		model.Scale = effectiveScaleVec;
@@ -1677,15 +1683,92 @@ public partial class Unit3D : Node3D
 		var iconConfig = attachmentMetadata.BillboardIcon;
 		if (iconConfig == null) return false;
 
-		string socket = string.IsNullOrWhiteSpace(iconConfig.Socket) ? "Overhead" : iconConfig.Socket;
-		if (visible)
+		string socketName = string.IsNullOrWhiteSpace(iconConfig.Socket) ? "Overhead" : iconConfig.Socket;
+		string normSocket = NormalizeSocketName(socketName);
+
+		if (!visible)
 		{
-			SetPseudoSocketAttachment(socket, attachmentId, iconConfig.PositionOffset.ToGodotVector3(), Vector3.Zero, null, null, null, true);
+			RemoveBillboardIcon(normSocket, attachmentId);
 			return true;
 		}
 
-		SetPseudoSocketAttachment(socket, string.Empty, null, null, null, null, null, true);
+		if (TryFindBillboardIconNode(normSocket, attachmentId) != null) return true;
+
+		if (PseudoSocketCache.IsRealSocket(normSocket, GetRealSocketIds()) && TryResolveHumanoidSocket(normSocket, out var bone))
+		{
+			SetSocketAttachment(bone, attachmentId);
+			return true;
+		}
+
+		SetPseudoSocketAttachment(socketName, attachmentId);
 		return true;
+	}
+
+	private void RemoveBillboardIcon(string normSocket, string attachmentId)
+	{
+		var icon = TryFindBillboardIconNode(normSocket, attachmentId);
+		if (icon == null) return;
+
+		icon.GetParent()?.RemoveChild(icon);
+		icon.QueueFree();
+
+		if (_currentPseudoSocketAttachmentIds.TryGetValue(normSocket, out var currentPseudoAttachmentId) && string.Equals(currentPseudoAttachmentId, attachmentId, StringComparison.OrdinalIgnoreCase))
+		{
+			_currentPseudoSocketAttachmentIds.Remove(normSocket);
+		}
+
+		if (!TryResolveHumanoidSocket(normSocket, out var bone)) return;
+
+		if (_currentBoneAttachmentIds.TryGetValue(bone, out var currentBoneAttachmentId) && string.Equals(currentBoneAttachmentId, attachmentId, StringComparison.OrdinalIgnoreCase))
+		{
+			_currentBoneAttachmentIds.Remove(bone);
+		}
+
+		if (bone == HumanoidBone.RightHand && string.Equals(_currentRightAttachmentId, attachmentId, StringComparison.OrdinalIgnoreCase)) _currentRightAttachmentId = null;
+		else if (bone == HumanoidBone.LeftHand && string.Equals(_currentLeftAttachmentId, attachmentId, StringComparison.OrdinalIgnoreCase)) _currentLeftAttachmentId = null;
+	}
+
+	private BillboardIconAttachment3D? TryFindBillboardIconNode(string normSocket, string attachmentId)
+	{
+		if (_pseudoSockets.TryGetValue(normSocket, out var pseudoSocketNode) && GodotObject.IsInstanceValid(pseudoSocketNode))
+		{
+			var pseudoIcon = FindBillboardIconChild(pseudoSocketNode, attachmentId);
+			if (pseudoIcon != null) return pseudoIcon;
+		}
+
+		if (!TryResolveHumanoidSocket(normSocket, out var bone)) return null;
+		if (!_boneAttachments.TryGetValue(bone, out var boneAttachmentNode)) return null;
+		if (!GodotObject.IsInstanceValid(boneAttachmentNode)) return null;
+
+		return FindBillboardIconChild(boneAttachmentNode, attachmentId);
+	}
+
+	private static BillboardIconAttachment3D? FindBillboardIconChild(Node parentNode, string attachmentId)
+	{
+		foreach (Node child in parentNode.GetChildren())
+		{
+			if (!GodotObject.IsInstanceValid(child) || child.IsQueuedForDeletion()) continue;
+
+			if (child is BillboardIconAttachment3D icon && IsBillboardIconForAttachment(icon, attachmentId)) return icon;
+
+			var nestedIcon = FindBillboardIconChild(child, attachmentId);
+			if (nestedIcon != null) return nestedIcon;
+		}
+
+		return null;
+	}
+
+	private static bool IsBillboardIconForAttachment(BillboardIconAttachment3D icon, string attachmentId)
+	{
+		if (icon.HasMeta("AttachmentId") && string.Equals(icon.GetMeta("AttachmentId").AsString(), attachmentId, StringComparison.OrdinalIgnoreCase)) return true;
+
+		string cleanAttachmentId = GetCleanAttachmentId(attachmentId);
+		return icon.HasMeta("CleanAttachmentId") && string.Equals(icon.GetMeta("CleanAttachmentId").AsString(), cleanAttachmentId, StringComparison.OrdinalIgnoreCase);
+	}
+
+	private static bool TryResolveHumanoidSocket(string normSocket, out HumanoidBone bone)
+	{
+		return Enum.TryParse(normSocket, true, out bone) && Enum.IsDefined(bone);
 	}
 
 	public static bool IsPlayerColorGlowAttachment(string attachmentId)
@@ -1975,8 +2058,8 @@ public partial class Unit3D : Node3D
 		var createdIcon = BillboardIconAttachment3D.TryCreate(attachmentMetadata.BillboardIcon);
 		if (createdIcon == null) return false;
 
-		defaultScale = attachmentMetadata.Scale <= 0f ? 1.0f : attachmentMetadata.Scale;
-		defaultPos = attachmentMetadata.PositionOffset.ToGodotVector3() + createdIcon.ResolvePositionOffset();
+		defaultScale = 1.0f;
+		defaultPos = Vector3.Zero;
 		defaultRot = Vector3.Zero;
 		createdIcon.SetMeta("BillboardSocket", createdIcon.ResolveSocketId());
 		billboardIcon = createdIcon;
