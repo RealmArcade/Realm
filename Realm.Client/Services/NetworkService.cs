@@ -815,10 +815,35 @@ public class NetworkService
 			// that one is dropped first: otherwise this description is refused as older than a history that is not this
 			// unit's, and the unit is drawn wherever its predecessor was last seen.
 			GameContext.SnapshotTimeline.Reset(spawned.Id);
-			GameContext.SnapshotTimeline.Record(spawned.Id, snap.Position.ToNumerics(), snap.RotationY, LastAppliedSnapshotSequenceForDiagnostics);
+			RecordSpawnSample(spawned.Id, snap.Position.ToNumerics(), snap.RotationY);
 		}
 
 		return spawned;
+	}
+
+	/// <summary>
+	///     Records the position the authority put a replica at as the sample the match's clock is drawn at, rather than as
+	///     the sequence its description names. A spawn is the one thing this screen places before there is anything to
+	///     sample, and the sequence the description names is a tick the world has not reached: with the sample held there,
+	///     the sampler can do nothing but draw the unit at it and hold it until the cursor catches up, so a replica that
+	///     appeared at a fog edge was drawn a presentation delay ahead of every unit around it and did not start moving
+	///     until the delay had passed. Anchoring it to the drawn sequence puts the unit where the world has actually got to,
+	///     and the next description this unit is sent completes the pair - the two positions are the authority's own, so
+	///     the step between them is the path it walked and only the interval it covers is stretched to the window the screen
+	///     was not drawing the unit for. That is what makes the replica take its first step with everything else instead of
+	///     standing still and then starting.
+	/// </summary>
+	private void RecordSpawnSample(int localEntityId, System.Numerics.Vector3 position, float rotationY)
+	{
+		int anchorSequence = LastAppliedSnapshotSequenceForDiagnostics;
+		float cursorSequence = GameContext.SnapshotTimeline.CursorSequence;
+		if (cursorSequence >= 0f)
+		{
+			int drawnSequence = (int)MathF.Floor(cursorSequence);
+			if (drawnSequence < anchorSequence) anchorSequence = drawnSequence;
+		}
+
+		GameContext.SnapshotTimeline.Record(localEntityId, position, rotationY, anchorSequence);
 	}
 
 	public static Entity ApplySnapshotToEntity(string unitId, int entityId, int ownerPlayerEntityId, System.Numerics.Vector3 position, float rotationY, float currentHp, float maxHp, bool isBuilding, UnitMetadata meta, ref NetworkMappingState mapping, Func<string, bool, string> getFallbackModelPath, out string modelPath, out int playerIndex, int ownerPlayerIndex = -1)
