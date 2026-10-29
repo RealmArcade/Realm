@@ -106,7 +106,9 @@ public class SnapshotTimeline
 	private int _starvationsInWindow;
 	private int _cleanWindowsInARow;
 	private float _shallowestSurplusInWindow = float.MaxValue;
-	private int _largestArrivalGapInWindow = 1;
+	private int _starvationsSinceArrival;
+	private int _lateStarvationsInWindow;
+	private int _largestStallGapInWindow;
 	private int _delaySequences = MinimumDelaySequences;
 
 	public SnapshotTimeline()
@@ -157,7 +159,9 @@ public class SnapshotTimeline
 		_starvationsInWindow = 0;
 		_cleanWindowsInARow = 0;
 		_shallowestSurplusInWindow = float.MaxValue;
-		_largestArrivalGapInWindow = 1;
+		_starvationsSinceArrival = 0;
+		_lateStarvationsInWindow = 0;
+		_largestStallGapInWindow = 0;
 		StarvationCount = 0;
 		ShallowestSurplusSequences = 0f;
 		ExtrapolatedSampleCount = 0;
@@ -210,22 +214,32 @@ public class SnapshotTimeline
 		_heads[entityId] = head;
 		_counts[entityId] = count;
 
-		if (sequence > NewestSequence)
-		{
-			// How many sequences passed between the description that was newest and this one. A gap above one is a tick
-			// the authority did not get to describe or this screen did not get to read, which is the deficit the buffer is
-			// there to cover and therefore what it is deepened by.
-			if (NewestSequence >= 0)
-			{
-				int arrivalGap = sequence - NewestSequence;
-				if (arrivalGap > _largestArrivalGapInWindow) _largestArrivalGapInWindow = arrivalGap;
-			}
+		return true;
+	}
 
-			NewestSequence = sequence;
-			if (_cursor < 0f) _cursor = sequence - _delaySequences;
+	/// <summary>
+	///     Tells the timeline which sequence the match has reached. Every applied description does this, whether or not it
+	///     named a unit: a quiet tick describes nothing because nothing changed, and a clock that only moved on the ticks
+	///     something moved left the cursor running off the end of a world that had not stood still at all.
+	///     A gap between this arrival and the last one is also what tells the loop whether the link was late or the
+	///     description was lost. A single missing sequence is a datagram that did not arrive, which no deeper buffer can
+	///     bring back; several at once is a stall - the authority did not publish, or this screen did not read - and that is
+	///     what the buffer is there to cover.
+	/// </summary>
+	public void AdvanceTo(int sequence)
+	{
+		if (sequence <= NewestSequence) return;
+
+		if (NewestSequence >= 0 && _starvationsSinceArrival > 0)
+		{
+			int arrivalGap = sequence - NewestSequence;
+			if (arrivalGap <= 1) _lateStarvationsInWindow += _starvationsSinceArrival;
+			else if (arrivalGap >= 3 && arrivalGap - 1 > _largestStallGapInWindow) _largestStallGapInWindow = arrivalGap - 1;
+			_starvationsSinceArrival = 0;
 		}
 
-		return true;
+		NewestSequence = sequence;
+		if (_cursor < 0f) _cursor = sequence - _delaySequences;
 	}
 
 	/// <summary>
@@ -260,6 +274,7 @@ public class SnapshotTimeline
 			// option - there is no world ahead of it to show - and running out is what tells the loop to hold more.
 			StarvationCount++;
 			_starvationsInWindow++;
+			_starvationsSinceArrival++;
 			_cursor = NewestSequence;
 			surplus = 0f;
 		}
@@ -270,14 +285,16 @@ public class SnapshotTimeline
 		if (_evaluationSeconds < DelayEvaluationSeconds) return;
 
 		ShallowestSurplusSequences = _shallowestSurplusInWindow;
-		if (_starvationsInWindow > 0)
+
+		// A window deepens the buffer for a link that was late or that stalled, and not for a description that was lost:
+		// a datagram that did not arrive cannot be buffered back, and counting it as lateness ratcheted the delay to its
+		// ceiling on a link that was only dropping the occasional frame. The deficit is the stall that was measured, or
+		// one sequence when the only evidence is that the cursor reached the end of what had arrived.
+		bool linkFellBehind = _lateStarvationsInWindow > 0 || _largestStallGapInWindow > 0;
+		if (linkFellBehind)
 		{
-			// Deepened by the deficit this window actually showed rather than by one sequence: a burst the buffer could
-			// not cover costs a second per missing sequence to answer, and the link is already running late for all of
-			// them. A window that starved without a gap - descriptions arriving a little late rather than missing - has no
-			// measured deficit, so it still deepens by one.
 			_cleanWindowsInARow = 0;
-			int deepenBy = Math.Max(1, _largestArrivalGapInWindow - 1);
+			int deepenBy = Math.Max(1, _largestStallGapInWindow);
 			_delaySequences = Math.Min(MaximumDelaySequences, _delaySequences + deepenBy);
 		}
 		else
@@ -298,7 +315,8 @@ public class SnapshotTimeline
 		_evaluationSeconds = 0f;
 		_starvationsInWindow = 0;
 		_shallowestSurplusInWindow = float.MaxValue;
-		_largestArrivalGapInWindow = 1;
+		_lateStarvationsInWindow = 0;
+		_largestStallGapInWindow = 0;
 	}
 
 	/// <summary>

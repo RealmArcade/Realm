@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Numerics;
 using GdUnit4;
 using Realm.Client.Services;
@@ -27,6 +27,7 @@ public partial class SnapshotTimelineTests
 	public void ADescriptionOlderThanTheNewestHeldIsIgnored()
 	{
 		var timeline = new SnapshotTimeline();
+		timeline.AdvanceTo(100);
 		Assertions.AssertThat(timeline.Record(Unit, new Vector3(1f, 0f, 0f), 0f, 100)).IsTrue();
 		Assertions.AssertThat(timeline.Record(Unit, new Vector3(2f, 0f, 0f), 0f, 100)).OverrideFailureMessage("a repeat of the sequence held was taken as a newer description").IsFalse();
 		Assertions.AssertThat(timeline.Record(Unit, new Vector3(3f, 0f, 0f), 0f, 99)).OverrideFailureMessage("a description from behind the newest one was taken").IsFalse();
@@ -48,6 +49,7 @@ public partial class SnapshotTimelineTests
 		timeline.Record(Other, new Vector3(0f, 0f, 0f), 0f, 102);
 		timeline.Record(Unit, new Vector3(0f, 0f, 0f), 0f, 100);
 		timeline.Record(Unit, new Vector3(10f, 0f, 0f), 0f, 102);
+		timeline.AdvanceTo(102);
 
 		timeline.Advance(Step() * 0.5f);
 
@@ -61,6 +63,7 @@ public partial class SnapshotTimelineTests
 		var timeline = new SnapshotTimeline();
 		timeline.Record(Other, new Vector3(0f, 0f, 0f), 0f, 105);
 		timeline.Record(Unit, new Vector3(4f, 0f, 0f), 0f, 100);
+		timeline.AdvanceTo(105);
 		timeline.Advance(Step());
 
 		AssertPosition(timeline, Unit, true, 4f);
@@ -73,6 +76,7 @@ public partial class SnapshotTimelineTests
 		timeline.Record(Other, new Vector3(0f, 0f, 0f), 0f, 102);
 		timeline.Record(Unit, new Vector3(0f, 0f, 0f), 0f, 100);
 		timeline.Record(Unit, new Vector3(10f, 0f, 0f), 0f, 101);
+		timeline.AdvanceTo(102);
 
 		timeline.Advance(Step() * 1.5f);
 
@@ -87,6 +91,7 @@ public partial class SnapshotTimelineTests
 		timeline.Record(Other, new Vector3(0f, 0f, 0f), 0f, 102);
 		timeline.Record(Unit, new Vector3(0f, 0f, 0f), 0f, 100);
 		timeline.Record(Unit, new Vector3(10f, 0f, 0f), 0f, 101);
+		timeline.AdvanceTo(102);
 
 		timeline.Advance(Step() * 1.5f);
 
@@ -103,6 +108,7 @@ public partial class SnapshotTimelineTests
 		timeline.Record(Other, new Vector3(0f, 0f, 0f), 0f, 102);
 		timeline.Record(Unit, new Vector3(0f, 0f, 0f), 0f, 100);
 		timeline.Record(Unit, new Vector3(10f, 0f, 0f), 0f, 101);
+		timeline.AdvanceTo(102);
 
 		timeline.Advance(Step() * 1.5f);
 
@@ -120,6 +126,7 @@ public partial class SnapshotTimelineTests
 		timeline.Record(Other, new Vector3(0f, 0f, 0f), 0f, 105);
 		timeline.Record(Unit, new Vector3(0f, 0f, 0f), 0f, 100);
 		timeline.Record(Unit, new Vector3(10f, 0f, 0f), 0f, 101);
+		timeline.AdvanceTo(105);
 
 		timeline.Advance(Step());
 
@@ -148,6 +155,7 @@ public partial class SnapshotTimelineTests
 		var timeline = new SnapshotTimeline();
 		for (int sequence = 0; sequence < SnapshotTimeline.SamplesPerUnit * 2; sequence++)
 		{
+			timeline.AdvanceTo(sequence);
 			timeline.Record(Unit, new Vector3(sequence, 0f, 0f), 0f, sequence);
 		}
 
@@ -162,12 +170,14 @@ public partial class SnapshotTimelineTests
 	{
 		var timeline = new SnapshotTimeline();
 		timeline.Record(Unit, new Vector3(0f, 0f, 0f), 0f, 100);
+		timeline.AdvanceTo(100);
 
 		int sequence = 100;
 		for (int tick = 0; tick < 60; tick++)
 		{
 			timeline.Advance(Step());
 			sequence++;
+			timeline.AdvanceTo(sequence);
 			timeline.Record(Unit, new Vector3(0f, 0f, 0f), 0f, sequence);
 		}
 
@@ -176,6 +186,7 @@ public partial class SnapshotTimelineTests
 		{
 			timeline.Advance(Step());
 			sequence++;
+			timeline.AdvanceTo(sequence);
 			timeline.Record(Unit, new Vector3(0f, 0f, 0f), 0f, sequence);
 		}
 
@@ -189,8 +200,19 @@ public partial class SnapshotTimelineTests
 	{
 		var timeline = new SnapshotTimeline();
 		timeline.Record(Unit, new Vector3(0f, 0f, 0f), 0f, 100);
+		timeline.AdvanceTo(100);
 
-		for (int tick = 0; tick < 300; tick++) timeline.Advance(Step());
+		int sequence = 100;
+		for (int round = 0; round < 12; round++)
+		{
+			for (int tick = 0; tick < 30; tick++) timeline.Advance(Step());
+
+			sequence += 30;
+			timeline.AdvanceTo(sequence);
+			timeline.Record(Unit, new Vector3(0f, 0f, 0f), 0f, sequence);
+		}
+
+		for (int tick = 0; tick < 30; tick++) timeline.Advance(Step());
 
 		Assertions.AssertThat(timeline.StarvationCount > 0).OverrideFailureMessage("advancing through a world nothing describes never ran out").IsTrue();
 		Assertions.AssertThat(timeline.DelaySequences).OverrideFailureMessage($"a link that starves every window held a delay of only {timeline.DelaySequences}").IsEqual(SnapshotTimeline.MaximumDelaySequences);
@@ -201,12 +223,21 @@ public partial class SnapshotTimelineTests
 	{
 		var timeline = new SnapshotTimeline();
 		timeline.Record(Unit, new Vector3(0f, 0f, 0f), 0f, 100);
+		timeline.AdvanceTo(100);
 
-		for (int tick = 0; tick < 300; tick++) timeline.Advance(Step());
+		int sequence = 100;
+		for (int round = 0; round < 6; round++)
+		{
+			for (int tick = 0; tick < 30; tick++) timeline.Advance(Step());
+
+			sequence += 30;
+			timeline.AdvanceTo(sequence);
+			timeline.Record(Unit, new Vector3(0f, 0f, 0f), 0f, sequence);
+		}
+
 		int deepened = timeline.DelaySequences;
 		Assertions.AssertThat(deepened > SnapshotTimeline.MinimumDelaySequences).OverrideFailureMessage("the delay never deepened, so there was nothing to shallow").IsTrue();
 
-		int sequence = 100;
 		for (int tick = 0; tick < 240; tick++)
 		{
 			timeline.Advance(Step());
@@ -215,6 +246,8 @@ public partial class SnapshotTimelineTests
 				sequence++;
 				timeline.Record(Unit, new Vector3(0f, 0f, 0f), 0f, sequence);
 			}
+
+			timeline.AdvanceTo(sequence);
 		}
 
 		Assertions.AssertThat(timeline.DelaySequences < deepened).OverrideFailureMessage($"a world arriving three times faster than it is rendered left the delay at {timeline.DelaySequences}").IsTrue();
@@ -225,6 +258,7 @@ public partial class SnapshotTimelineTests
 	{
 		var timeline = new SnapshotTimeline();
 		timeline.Record(Unit, new Vector3(5f, 0f, 0f), 0f, 4000);
+		timeline.AdvanceTo(4000);
 		timeline.Advance(Step());
 
 		timeline.Clear();
@@ -234,5 +268,77 @@ public partial class SnapshotTimelineTests
 		Assertions.AssertThat(timeline.DelaySequences).IsEqual(SnapshotTimeline.MinimumDelaySequences);
 		Assertions.AssertThat(timeline.TrySample(Unit, false, out _, out _, out _)).IsFalse();
 		Assertions.AssertThat(timeline.Record(Unit, new Vector3(6f, 0f, 0f), 0f, 1)).OverrideFailureMessage("a new match's first sequence was refused against the previous match's").IsTrue();
+	}
+
+	[TestCase]
+	public void AQuietTickStillAdvancesTheWorld()
+	{
+		var timeline = new SnapshotTimeline();
+		timeline.AdvanceTo(100);
+		timeline.Record(Unit, new Vector3(0f, 0f, 0f), 0f, 100);
+
+		int sequence = 100;
+		for (int tick = 0; tick < 180; tick++)
+		{
+			timeline.Advance(Step());
+			sequence++;
+			timeline.AdvanceTo(sequence);
+		}
+
+		Assertions.AssertThat(timeline.StarvationCount)
+			.OverrideFailureMessage($"a match whose world never changed starved {timeline.StarvationCount} times at cursor {timeline.CursorSequence:F3}")
+			.IsEqual(0);
+		Assertions.AssertThat(timeline.DelaySequences)
+			.OverrideFailureMessage($"a quiet match deepened the buffer to {timeline.DelaySequences} for a link that never fell behind")
+			.IsEqual(SnapshotTimeline.MinimumDelaySequences);
+	}
+
+	[TestCase]
+	public void ALostDescriptionIsAbsorbedWithoutDeepeningTheBuffer()
+	{
+		var timeline = new SnapshotTimeline();
+		timeline.AdvanceTo(100);
+		timeline.Record(Unit, new Vector3(0f, 0f, 0f), 0f, 100);
+
+		int sequence = 100;
+		for (int tick = 0; tick < 400; tick++)
+		{
+			timeline.Advance(Step());
+			sequence++;
+			if (tick % 5 == 4) continue;
+
+			timeline.AdvanceTo(sequence);
+			timeline.Record(Unit, new Vector3(0f, 0f, 0f), 0f, sequence);
+		}
+
+		Assertions.AssertThat(timeline.StarvationCount)
+			.OverrideFailureMessage($"a link dropping one description in five still ran out of world {timeline.StarvationCount} times at a delay of {timeline.DelaySequences}")
+			.IsEqual(0);
+		Assertions.AssertThat(timeline.DelaySequences)
+			.OverrideFailureMessage($"a lost description deepened the buffer to {timeline.DelaySequences}, and no deeper buffer brings one back")
+			.IsEqual(SnapshotTimeline.MinimumDelaySequences);
+	}
+
+	[TestCase]
+	public void AWorldThatStopsArrivingForAFewTicksDeepensTheDelay()
+	{
+		var timeline = new SnapshotTimeline();
+		timeline.AdvanceTo(100);
+		timeline.Record(Unit, new Vector3(0f, 0f, 0f), 0f, 100);
+
+		int sequence = 100;
+		for (int tick = 0; tick < 600; tick++)
+		{
+			timeline.Advance(Step());
+			sequence++;
+			if (tick % 20 >= 16) continue;
+
+			timeline.AdvanceTo(sequence);
+			timeline.Record(Unit, new Vector3(0f, 0f, 0f), 0f, sequence);
+		}
+
+		Assertions.AssertThat(timeline.DelaySequences > SnapshotTimeline.MinimumDelaySequences)
+			.OverrideFailureMessage($"a world that stopped for four sequences at a time left the delay at {timeline.DelaySequences}")
+			.IsTrue();
 	}
 }

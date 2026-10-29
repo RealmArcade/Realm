@@ -488,6 +488,7 @@ public class NetworkService
 		// as its first authoritative sample, and a spawn that read the previous value anchored the unit to -1 instead -
 		// which the sample gap arithmetic then treated as "no previous sample" for that unit.
 		LastAppliedSnapshotSequenceForDiagnostics = snapshot.Sequence;
+		GameContext.SnapshotTimeline.AdvanceTo(snapshot.Sequence);
 
 		// Retired before this snapshot's units are applied, so a unit the authority spawned under an identifier it has
 		// just released does not inherit the replica that held it.
