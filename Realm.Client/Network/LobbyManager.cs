@@ -103,6 +103,8 @@ public partial class LobbyManager : BaseMapTransferNode
 	private readonly string _persistentSessionToken = Guid.NewGuid().ToString();
 	private bool _isReconnecting = false;
 	private string? _reconnectRejectionReason;
+	private string? _retryableReconnectRejection;
+	private bool _reconnectAttemptRejected;
 	public bool IsReconnecting => _isReconnecting;
 	public string? LastReconnectError { get; private set; }
 
@@ -1062,6 +1064,7 @@ public partial class LobbyManager : BaseMapTransferNode
 			if (connected)
 			{
 				GD.Print($"[LobbyManager] Successfully established handshake with {connectIp}:{connectPort}");
+				RpcId(1, nameof(RegisterPlayerSession), _persistentSessionToken);
 				return true;
 			}
 
@@ -1352,7 +1355,7 @@ public partial class LobbyManager : BaseMapTransferNode
 				string rejectionReason = string.Format(Tr("Lobby is full ({0} of {0} playable slots in use)."), MaxPlayers);
 				LastLobbyWarning = rejectionReason;
 				GD.Print($"[LobbyManager] Rejecting peer {id}: {rejectionReason}");
-				RpcId(id, nameof(RejectConnection), rejectionReason);
+				RpcId(id, nameof(RejectConnection), rejectionReason, false);
 
 
 				var timer = GetTree().CreateTimer(0.1f);
@@ -1371,7 +1374,7 @@ public partial class LobbyManager : BaseMapTransferNode
 			if (nextSlot < 0)
 			{
 				LastLobbyWarning = Tr("No free playable player slot is available.");
-				RpcId(id, nameof(RejectConnection), LastLobbyWarning);
+				RpcId(id, nameof(RejectConnection), LastLobbyWarning, false);
 
 				var slotTimer = GetTree().CreateTimer(0.1f);
 				slotTimer.Timeout += () =>
@@ -1885,6 +1888,8 @@ public partial class LobbyManager : BaseMapTransferNode
 		}
 
 		_reconnectRejectionReason = null;
+		_retryableReconnectRejection = null;
+		_reconnectAttemptRejected = false;
 		LastReconnectError = null;
 		_ = AttemptReconnectLoopAsync();
 	}
@@ -1918,6 +1923,7 @@ public partial class LobbyManager : BaseMapTransferNode
 		{
 			_isReconnecting = false;
 			GD.PrintErr("[LobbyManager] Match reconnection timed out.");
+			_reconnectRejectionReason ??= _retryableReconnectRejection;
 			Disconnect();
 			CallDeferred(nameof(OnReconnectFailed));
 		}
@@ -1954,6 +1960,7 @@ public partial class LobbyManager : BaseMapTransferNode
 			if (!await WaitForPeerConnectionAsync(peer)) return false;
 
 			GD.Print("[LobbyManager] Connected socket during reconnect. Sending RequestReconnect RPC...");
+			_reconnectAttemptRejected = false;
 			RpcId(1, nameof(RequestReconnect), _persistentSessionToken, AuthenticatedUsername, RealmVersion.GameBinaryVersion);
 
 			if (await WaitForReconnectAckAsync()) return true;
@@ -1980,7 +1987,7 @@ public partial class LobbyManager : BaseMapTransferNode
 	private async Task<bool> WaitForReconnectAckAsync()
 	{
 		DateTime ackTimeout = DateTime.UtcNow.AddSeconds(5);
-		while (DateTime.UtcNow < ackTimeout && _isReconnecting)
+		while (DateTime.UtcNow < ackTimeout && _isReconnecting && !_reconnectAttemptRejected)
 		{
 			await Task.Delay(150);
 		}
@@ -2006,31 +2013,31 @@ public partial class LobbyManager : BaseMapTransferNode
 	{
 		if (!IsHost) return;
 		int senderId = Multiplayer.GetRemoteSenderId();
-		GD.Print($"[LobbyManager] RequestReconnect received from Peer {senderId}: Token={sessionToken}, Name={playerName}");
+		GD.Print($"[LobbyManager] RequestReconnect received from Peer {senderId}: Token={(string.IsNullOrEmpty(sessionToken) ? "<none>" : "<present>")}, Name={playerName}");
 
 		if (!IsGameStarted)
 		{
-			RpcId(senderId, nameof(RejectConnection), Tr("Game is not in progress."));
+			RpcId(senderId, nameof(RejectConnection), Tr("Game is not in progress."), false);
 			return;
 		}
 
 		if (!string.Equals(binaryVersion, RealmVersion.GameBinaryVersion, StringComparison.Ordinal))
 		{
-			RpcId(senderId, nameof(RejectConnection), Tr("Game version mismatch with host."));
+			RpcId(senderId, nameof(RejectConnection), Tr("Game version mismatch with host."), false);
 			return;
 		}
 
-		PlayerInfo? targetPlayer = FindReconnectSessionOwner(sessionToken, playerName);
+		PlayerInfo? targetPlayer = FindReconnectSessionOwner(sessionToken);
 		if (targetPlayer == null)
 		{
-			RpcId(senderId, nameof(RejectConnection), Tr("Reconnect rejected: no player in this match owns that session."));
+			RpcId(senderId, nameof(RejectConnection), Tr("Reconnect rejected: no player in this match owns that session."), false);
 			return;
 		}
 
 		int oldPeerId = targetPlayer.PeerId;
 		if (oldPeerId != senderId && Multiplayer.GetPeers().Contains(oldPeerId))
 		{
-			RpcId(senderId, nameof(RejectConnection), Tr("Reconnect rejected: that player is already connected to this match."));
+			RpcId(senderId, nameof(RejectConnection), Tr("Reconnect rejected: that player is already connected to this match."), true);
 			return;
 		}
 
@@ -2047,16 +2054,28 @@ public partial class LobbyManager : BaseMapTransferNode
 		GameContext.Host?.HandlePeerReconnected(oldPeerId, senderId, targetPlayer.Slot);
 	}
 
-	private PlayerInfo? FindReconnectSessionOwner(string sessionToken, string playerName)
+	private PlayerInfo? FindReconnectSessionOwner(string sessionToken)
 	{
-		if (!string.IsNullOrEmpty(sessionToken))
+		if (string.IsNullOrEmpty(sessionToken)) return null;
+
+		return PlayerList.Find(p => !string.IsNullOrEmpty(p.SessionToken) && string.Equals(p.SessionToken, sessionToken, StringComparison.Ordinal));
+	}
+
+	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+	private void RegisterPlayerSession(string sessionToken)
+	{
+		if (!IsHost || string.IsNullOrWhiteSpace(sessionToken)) return;
+
+		int senderId = Multiplayer.GetRemoteSenderId();
+		var player = PlayerList.Find(p => p.PeerId == senderId && !p.IsHost);
+		if (player == null)
 		{
-			var tokenOwner = PlayerList.Find(p => !string.IsNullOrEmpty(p.SessionToken) && string.Equals(p.SessionToken, sessionToken, StringComparison.Ordinal));
-			if (tokenOwner != null) return tokenOwner;
+			GD.PushWarning($"[LobbyManager] Ignored a session token from peer {senderId}: no lobby row exists for it.");
+			return;
 		}
 
-		if (string.IsNullOrEmpty(playerName)) return null;
-		return PlayerList.Find(p => string.IsNullOrEmpty(p.SessionToken) && string.Equals(p.Name, playerName, StringComparison.Ordinal));
+		player.SessionToken = sessionToken;
+		GD.Print($"[LobbyManager] Registered the session token for peer {senderId} ({player.Name}).");
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
@@ -2064,6 +2083,8 @@ public partial class LobbyManager : BaseMapTransferNode
 	{
 		GD.Print($"[LobbyManager] AcceptReconnect received! Slot={slot}, Map={activeMapName}");
 		_isReconnecting = false;
+		_retryableReconnectRejection = null;
+		_reconnectAttemptRejected = false;
 		_isConnectedToHost = true;
 		ActiveMapName = activeMapName;
 		MatchSeed = matchSeed;
@@ -2136,12 +2157,19 @@ public partial class LobbyManager : BaseMapTransferNode
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	private void RejectConnection(string reason)
+	private void RejectConnection(string reason, bool retryableWhileReconnecting)
 	{
 		GD.Print($"[LobbyManager] Connection Rejected: {reason}");
 
 		if (_isReconnecting)
 		{
+			if (retryableWhileReconnecting)
+			{
+				_retryableReconnectRejection = reason;
+				_reconnectAttemptRejected = true;
+				return;
+			}
+
 			_reconnectRejectionReason = reason;
 			_isReconnecting = false;
 			Disconnect();
@@ -2824,7 +2852,7 @@ public partial class LobbyManager : BaseMapTransferNode
 				return;
 			}
 
-			RpcId(peerId, nameof(RejectConnection), "Kicked by Host");
+			RpcId(peerId, nameof(RejectConnection), "Kicked by Host", false);
 			var timer = GetTree().CreateTimer(0.1f);
 			timer.Timeout += () =>
 			{
