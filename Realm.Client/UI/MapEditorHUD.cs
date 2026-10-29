@@ -1155,6 +1155,7 @@ public partial class MapEditorHUD : Control
 		_wasmHasErrors = false;
 		ShowWasmConsoleModal();
 		MatchLoadTrace.Begin("test_map");
+		GameHost? tracingHost = GameContext.Host;
 		Action<string> logHandler = line => AppendWasmConsoleLog(line);
 		GameLog.OnLine += logHandler;
 
@@ -1181,7 +1182,9 @@ public partial class MapEditorHUD : Control
 		}
 		finally
 		{
-			if (MatchLoadTrace.IsTracing) MatchLoadTrace.WriteSummary("test_map_abandoned");
+			// Only a trace this launch opened is closed here. The match scene that replaced the editor starts a trace of
+			// its own, and this method is still running when it does, so it is left to write itself.
+			if (ReferenceEquals(GameContext.Host, tracingHost) && MatchLoadTrace.IsTracing) MatchLoadTrace.WriteSummary("test_map_abandoned");
 			GameLog.OnLine -= logHandler;
 		}
 	}
