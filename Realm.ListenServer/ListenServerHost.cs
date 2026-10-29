@@ -1311,16 +1311,18 @@ public class ListenServerHost : IServerTransportSink
 
 		WorldSnapshot snapshot = _publishedSnapshots[index];
 
+		// Taken before this frame is recorded below, which is what stops a peer looking like a newcomer afterwards.
+		bool isFirstFrameForPeer = !_firstSnapshotSequencePerPeer.ContainsKey(peerId);
+
 		_syncRecorder?.AddPeerSnapshot(peerId, in snapshot);
 
 		// The first frame a peer is sent restates the world, so it is the initial baseline whatever asked for it; after that
 		// the reason it was sent one is what the tick decided when it asked the simulation for the snapshot.
 		if (_trafficRecorder != null)
 		{
-			bool wasFirstFrameForPeer = !_firstSnapshotSequencePerPeer.ContainsKey(peerId);
 			SnapshotBaselineReason reason = !snapshot.IsBaseline
 				? SnapshotBaselineReason.None
-				: wasFirstFrameForPeer ? SnapshotBaselineReason.Initial : _pendingBaselineReasons[index];
+				: isFirstFrameForPeer ? SnapshotBaselineReason.Initial : _pendingBaselineReasons[index];
 			_trafficRecorder.RecordFrame(
 				peerId,
 				_publishSequence,
@@ -1350,7 +1352,12 @@ public class ListenServerHost : IServerTransportSink
 		if (snapshot.IsBaseline || !_firstSnapshotSequencePerPeer.ContainsKey(peerId)) _firstSnapshotSequencePerPeer[peerId] = _publishSequence;
 		if (snapshot.IsBaseline) _lastRefreshBaselineTickPerPeer[peerId] = simulation.TickCount;
 
-		if (!snapshot.IsBaseline || !_seatedPeers.TryGetValue(peerId, out int playerSlot)) return;
+		// What the map declared about the match - the cards, colours and labels, and the place it put the camera - is what a
+		// peer that has just been seated has to hear, and only that peer. It used to follow every baseline, so the ten
+		// second safety refresh told an established peer all of it again: a camera pan the map made once, when the match
+		// started, was replayed every ten seconds and snapped the screen back to where it began, with a duration of zero,
+		// while the player was looking somewhere else. State the map set once is stated once.
+		if (!snapshot.IsBaseline || !isFirstFrameForPeer || !_seatedPeers.TryGetValue(peerId, out int playerSlot)) return;
 
 		ServerPresentationEvent[] description = simulation.DescribePresentationStateFor(playerSlot);
 		if (description.Length > 0) SendPresentationToPeer(peerId, description);
