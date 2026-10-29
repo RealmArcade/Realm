@@ -289,23 +289,7 @@ public class NetworkService
 
 	public void UpdateClientTickDomain()
 	{
-		
-		GameContext.World?.Mutate<NetworkState>(GameContext.Simulation.WorldEntity, (ref NetworkState netState) =>
-			netState.DynamicInterpolationFactor = ComputeDynamicInterpolationFactor());
-
 		VerifyReplicatedEcsDriftDomain();
-	}
-
-	public float ComputeDynamicInterpolationFactor()
-	{
-		float bufferTime = MatchTiming.MinimumInterpolationBufferSeconds;
-		NetworkLatencyService? latency = GameContext.NetworkLatencyService;
-		if (latency != null && latency.HasSample && float.IsFinite(latency.SmoothedRoundTripMilliseconds))
-		{
-			bufferTime = Mathf.Max(MatchTiming.MinimumInterpolationBufferSeconds, (latency.SmoothedRoundTripMilliseconds / 1000f) * 1.5f);
-		}
-
-		return 1f / bufferTime;
 	}
 
 	public (int CommandId, byte[] Payload) BuildClientCommand(string commandType, List<int> unitIds, System.Numerics.Vector3 targetPos, int targetEntityId, string argString)
@@ -492,19 +476,6 @@ public class NetworkService
 		}
 
 		ApplyLootState(snapshot, mapping);
-
-		var prediction = GameSettings.MovementPrediction ? GameContext.MovementPredictionService : null;
-		if (prediction != null && GameContext.World != null)
-		{
-			prediction.BeginSnapshotReconcile(snapshot.Sequence);
-			foreach (var snap in snapshot.Units)
-			{
-				if (!mapping.ServerToClientEntityMap.TryGetValue(snap.EntityId, out var localEntity)) continue;
-				prediction.ReconcileAuthoritativePosition(GameContext.World, localEntity.Id, snap.Position.ToNumerics());
-			}
-
-			prediction.EndSnapshotReconcile();
-		}
 
 		// Published before the units are applied rather than after: a unit the apply spawns is anchored to this sequence
 		// as its first authoritative sample, and a spawn that read the previous value anchored the unit to -1 instead -
@@ -737,6 +708,9 @@ public class NetworkService
 
 		if (!GameContext.World.IsAlive(localEntity) || IsServerEntityIdRecycled(snap, localEntity))
 		{
+			// The local id is about to stand for a different unit, so the descriptions it was drawn from are not history
+			// this unit has; leaving them would draw the replacement at positions the old one walked.
+			GameContext.SnapshotTimeline.Reset(localEntity.Id);
 			RetireClientEntityForRecycledServerId(mapping, localEntity, snap.EntityId);
 			if (!snap.IsDead) _pendingUnitSpawns[snap.EntityId] = snap;
 			return;
@@ -761,13 +735,11 @@ public class NetworkService
 			GameContext.World.Set(localEntity, hp);
 		}
 
-		// What the last description asked this client to walk toward, read before the new one replaces it. A step larger
-		// than a unit can travel between two applied snapshots is a discontinuity in what the authority is telling this
-		// client, not movement: the client stalled and missed descriptions, drained a burst in one tick, or received a
-		// reconnect baseline, and a script can also move a unit outright. Smoothing across it means the unit visibly
-		// trails the authority for the better part of a second, which is the six metre placement gap the lossy profile
-		// used to report at the start of a run. The condition is the cause stated directly - how far the target stepped -
-		// rather than a lag bound with a round trip in it.
+		// A step larger than a unit can travel between two applied snapshots is a discontinuity in what the authority is
+		// telling this client, not movement: the client stalled and missed descriptions, drained a burst in one tick, or
+		// received a reconnect baseline, and a script can also move a unit outright. Nothing is continuous across it - the
+		// unit was not watched covering that distance - so the history it was drawn from is dropped rather than sampled
+		// across, which is what would otherwise show a unit gliding through a wall it never walked through.
 		System.Numerics.Vector3 describedPosition = snap.Position.ToNumerics();
 		System.Numerics.Vector3 previousTargetPosition = GameContext.World.Has<InterpolationTarget>(localEntity)
 			? GameContext.World.Get<InterpolationTarget>(localEntity).Position
@@ -775,12 +747,8 @@ public class NetworkService
 		bool targetJumped = (describedPosition - previousTargetPosition).Length() > MaximumPlausibleTargetStepMeters;
 
 		// The authority only describes a unit this peer can see, so a unit that leaves vision goes unmentioned for as long
-		// as it is away and comes back wherever it actually walked to. Gliding from the position the client last heard
-		// leaves the unit visibly trailing the authority for as long as the smoothing takes to cover that distance - the
-		// six to eight metres measured on the lossy profile - and there is nothing to be continuous with: the client was
-		// not watching the unit in between. The unit is placed where the authority says it is instead, and the smoothing
-		// resumes from there on the next description. A target that jumped is placed for the same reason: the follower's
-		// own lag would carry a distance the client never watched it walk.
+		// as it is away and comes back wherever it actually walked to. The client was not watching the unit in between, so
+		// there is no path between the two descriptions to render and the gap is a fresh sighting rather than a step.
 		int lastDescribedSequence = GameContext.World.Has<DescribedAtSequence>(localEntity)
 			? GameContext.World.Get<DescribedAtSequence>(localEntity).Sequence
 			: -1;
@@ -790,19 +758,20 @@ public class NetworkService
 		// cost half of what a description of a moving unit costs, because it is the part of a record that compression
 		// cannot fold away. A description that continues the one before it states the speed it covered that distance at;
 		// one that follows a gap or a jump states none, because the distance between them is not walking.
-		var target = new InterpolationTarget
+		System.Numerics.Vector3 describedVelocity = ResolveDescribedVelocity(describedPosition - previousTargetPosition, sequence - lastDescribedSequence, targetJumped || descriptionResumed);
+
+		if (targetJumped || descriptionResumed) GameContext.SnapshotTimeline.Reset(localEntity.Id);
+		GameContext.SnapshotTimeline.Record(localEntity.Id, describedPosition, snap.RotationY, sequence);
+
+		// The newest description is kept on the unit as well: it is the marker that says this unit is one the authority
+		// describes rather than one this screen moves, and it is what a diagnostic can compare against without reading the
+		// timeline's ring.
+		GameContext.World.SetOrAdd(localEntity, new InterpolationTarget
 		{
 			Position = describedPosition,
-			Velocity = ResolveDescribedVelocity(describedPosition - previousTargetPosition, sequence - lastDescribedSequence, targetJumped || descriptionResumed),
+			Velocity = describedVelocity,
 			RotationY = snap.RotationY
-		};
-
-		GameContext.World.SetOrAdd(localEntity, target);
-		if ((descriptionResumed || targetJumped) && !IsUnitOwnedByPrediction(localEntity) && GameContext.World.Has<Position>(localEntity))
-		{
-			PositionWriteTrace.Mark(localEntity, PositionWriter.Placement);
-			GameContext.World.Set(localEntity, new Position(target.Position));
-		}
+		});
 
 		GameContext.World.SetOrAdd(localEntity, new DescribedAtSequence(sequence));
 	}
@@ -822,41 +791,6 @@ public class NetworkService
 	/// so two metres is above anything continuous and below the distance a stalled client has to cover.
 	/// </summary>
 	public const float MaximumPlausibleTargetStepMeters = 2f;
-
-	/// <summary>
-	/// How much further than its smoothing can explain a follower may trail a description before this client stops
-	/// gliding at the interpolation rate and catches the excess up deliberately. Margin on top of the catch-up the rate
-	/// allows, so a follower that is merely smoothing never uses the faster path.
-	/// </summary>
-	public const float FollowerLagMarginMeters = 0.5f;
-
-	/// <summary>
-	/// The distance a unit may be moved before the authority resends it while it is outside the peer's detailed radius.
-	/// A follower is allowed to be one resend step behind the described position for that reason alone.
-	/// </summary>
-	public const float FarUnitResendStepMeters = 1f;
-
-	/// <summary>
-	/// How far the applied position trails the description before interpolation stops gliding at its rate and closes the
-	/// excess deliberately. A peer applies a snapshot when the packet arrives, not on its next physics tick, so several
-	/// descriptions can land between two ticks and move the described position further than one smoothing step covers.
-	/// The excess is bounded by the speed the description carries, the resend step and a margin, which is what a follower
-	/// that is merely smoothing can account for; anything beyond it is time the client missed and must make up.
-	/// </summary>
-	public static float ResolveDefensibleFollowerLagMeters(System.Numerics.Vector3 describedVelocity, float interpolationRate)
-	{
-		if (!(interpolationRate > 0f)) return float.MaxValue;
-
-		float smoothingLagMeters = describedVelocity.Length() / interpolationRate;
-		return smoothingLagMeters + FarUnitResendStepMeters + FollowerLagMarginMeters;
-	}
-
-	private static bool IsUnitOwnedByPrediction(Entity localEntity)
-	{
-		return GameSettings.MovementPrediction
-			&& GameContext.MovementPredictionService != null
-			&& GameContext.MovementPredictionService.IsEntityTracked(localEntity.Id);
-	}
 
 	private static bool IsServerEntityIdRecycled(UnitSnapshot snap, Entity localEntity)
 	{
@@ -934,7 +868,7 @@ public class NetworkService
 			// The mapping exists only after this call, so the reconciliation pass that runs before the snapshot is applied
 			// could not have sampled the unit. Anchoring it here gives prediction an authoritative position from the
 			// moment the unit exists on the client.
-			GameContext.MovementPredictionService?.AdoptSpawnedEntity(spawned.Id, snap.Position.ToNumerics(), LastAppliedSnapshotSequenceForDiagnostics);
+
 		}
 
 		return spawned;
@@ -1196,15 +1130,9 @@ public class NetworkService
 		}
 
 		if (targetEntity == Entity.Null || !GameContext.World.IsAlive(targetEntity)) return false;
-		bool isOrderState = delta.ComponentTypeId == ComponentType<MoveTo>.Id;
 		if (delta.Bytes.Length == 0)
 		{
-
 			codec.Remove(GameContext.World, targetEntity);
-			if (isOrderState && PredictionDiagnostics.IsRecording)
-			{
-				PredictionDiagnostics.RecordAppliedOrder(snapshotSequence, delta.Key, false, System.Numerics.Vector3.Zero);
-			}
 
 			if (codec.ComponentTypeId == ComponentType<GroundLoot>.Id)
 			{
@@ -1218,10 +1146,6 @@ public class NetworkService
 		else
 		{
 			codec.Apply(GameContext.World, targetEntity, delta.Bytes);
-			if (isOrderState && PredictionDiagnostics.IsRecording && GameContext.World.Has<MoveTo>(targetEntity))
-			{
-				PredictionDiagnostics.RecordAppliedOrder(snapshotSequence, delta.Key, true, GameContext.World.Get<MoveTo>(targetEntity).Target);
-			}
 
 			if (codec.ComponentTypeId == ComponentType<GroundLoot>.Id) GameContext.Host?.SyncReplicatedLootNode(delta.Key, targetEntity);
 		}

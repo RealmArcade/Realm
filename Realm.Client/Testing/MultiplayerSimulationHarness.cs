@@ -51,8 +51,6 @@ public partial class MultiplayerSimulationHarness : Node
 	private int _drainMilliseconds = 0;
 	private int _finalSequence = -1;
 	private float _durationSeconds = 15f;
-	private bool _predictionEnabled;
-	private bool _scenarioEnabled;
 	private string _networkProfile = "Latency";
 	private int _peerCount = 2;
 	private int _peerIndex = 1;
@@ -153,12 +151,6 @@ public partial class MultiplayerSimulationHarness : Node
 					break;
 				case "--duration":
 					_durationSeconds = float.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
-					break;
-				case "--prediction":
-					_predictionEnabled = value == "1";
-					break;
-				case "--scenario":
-					_scenarioEnabled = value == "1";
 					break;
 				case "--profile":
 					_networkProfile = value;
@@ -285,7 +277,6 @@ public partial class MultiplayerSimulationHarness : Node
 		MultiplayerBandwidthMeter.WriteReport(_outputDirectory, gameHost.GameElapsedTime);
 		GD.Print($"[MP_HARNESS] Host finished at game time {gameHost.GameElapsedTime:F2}s with {gameHost.AllUnits.Count} units and snapshot sequence {_finalSequence}.");
 		MultiplayerSyncDiagnostics.Stop();
-		PredictionDiagnostics.Stop();
 		WriteFinalWorldSnapshot("ECS_host_final_full.bin");
 		WriteWorldSummary("world_summary_host.json", "host");
 		return 0;
@@ -560,9 +551,7 @@ public partial class MultiplayerSimulationHarness : Node
 
 
 		GD.Print("[MP_HARNESS] Client simulation started. Recording until the host signals completion.");
-		_scenarioTick = 0;
-		_scenarioPass = 0;
-		if (!string.IsNullOrEmpty(_clientBuildId) && !_scenarioEnabled)
+		if (!string.IsNullOrEmpty(_clientBuildId))
 		{
 			await ToSignal(GetTree().CreateTimer(2.0f), SceneTreeTimer.SignalName.Timeout);
 			IssueClientBuildRequest(GameContext.Host);
@@ -583,7 +572,6 @@ public partial class MultiplayerSimulationHarness : Node
 		GD.Print($"[MP_HARNESS] Client stopped at applied snapshot sequence {_finalSequence} with game time {GameContext.Host?.GameElapsedTime ?? 0f:F2}s.");
 		MultiplayerBandwidthMeter.WriteReport(_outputDirectory, GameContext.Host?.GameElapsedTime ?? 0f);
 		MultiplayerSyncDiagnostics.Stop();
-		PredictionDiagnostics.Stop();
 		TryWriteSequenceFile(_finalSequence);
 		WriteFinalWorldSnapshot("ECS_client_final_full.bin");
 		WriteWorldSummary($"world_summary_peer{_peerIndex}.json", "client");
@@ -755,15 +743,12 @@ public partial class MultiplayerSimulationHarness : Node
 		lobby.ActiveMapName = _mapFolder;
 		lobby.IsGameStarted = true;
 		GameSettings.RecordReplays = false;
-		GameSettings.MovementPrediction = _predictionEnabled;
 
 		PackedScene scene = GD.Load<PackedScene>("res://GameHost.tscn");
 		Node gameHost = scene.Instantiate();
 		gameHost.Name = "GameHost";
 		AddChild(gameHost);
 
-		GameSettings.MovementPrediction = _predictionEnabled;
-		GD.Print($"[MP_HARNESS] Prediction requested={_predictionEnabled} developmentBuild={Realm.Client.Utils.PathUtils.IsDevelopmentBuild} movementPrediction={GameSettings.MovementPrediction} role={(isHost ? "host" : "client")}.");
 
 		int readinessLogCounter = 0;
 		bool ready = await WaitUntilAsync(() =>
@@ -794,10 +779,6 @@ public partial class MultiplayerSimulationHarness : Node
 		// record goes in its own folder because the run directory is also where the authority writes its own stream and
 		// where the peer this process is playing beside writes its own.
 		MultiplayerSyncDiagnostics.Start(isHost ? Path.Combine(_outputDirectory, "host") : _outputDirectory);
-		// The stream a prediction is judged against belongs to the authority, which recorded it from the first sequence
-		// it published. A screen records only what it predicted, so this process records nothing when it hosts.
-		if (isHost) PredictionDiagnostics.Stop();
-		else PredictionDiagnostics.Start(_outputDirectory);
 		PrintReplicatedCodecTable(isHost);
 		TryWriteReadyFile();
 		GameHost currentHost = GameContext.Host!;
@@ -876,9 +857,6 @@ public partial class MultiplayerSimulationHarness : Node
 		// The match reaches this process over the session's own transport, so Godot's multiplayer peer is not assigned at
 		// all. Asking it for an id errored on every physics frame and never produced the id the session already holds.
 		RecordClientPeerId(_session?.LocalPeerId ?? 0);
-		if (!_scenarioEnabled) return;
-		AimClientCameraAtNearestRemoteGroup(delta);
-		RunPredictionScenarioTick(delta);
 	}
 
 	/// <summary>

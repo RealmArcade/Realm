@@ -83,17 +83,6 @@ public static class GameSettings
 	public static bool FloatingCombatText { get; set; } = true;
 	public static bool OccludedUnitOutlines { get; set; } = true;
 
-	private static readonly bool MovementPredictionSupported = PathUtils.IsDevelopmentBuild;
-	private static bool _movementPrediction;
-
-	public static bool MovementPrediction
-	{
-		get => MovementPredictionSupported && _movementPrediction;
-		set => _movementPrediction = value && MovementPredictionSupported;
-	}
-
-	public static bool MovementPredictionPerformanceOverride { get; set; } = false;
-	public static float MovementPredictionCostThresholdMs { get; set; } = Services.PredictionPerformanceMonitor.DefaultPredictionCostThresholdMs;
 	public static string LastOpenedFolder { get; set; } = string.Empty;
 
 	public static int GetSafeScreenIndex()
@@ -143,9 +132,6 @@ public static class GameSettings
 		DisplayPing = false;
 		RecordReplays = false;
 		SeedMapFiles = false;
-		MovementPrediction = false;
-		MovementPredictionPerformanceOverride = false;
-		MovementPredictionCostThresholdMs = Services.PredictionPerformanceMonitor.DefaultPredictionCostThresholdMs;
 	}
 
 	public static void InitializeResolutions()
@@ -274,11 +260,6 @@ public static class GameSettings
 		FpsLimit = IsSupportedFpsLimit(data.FpsLimit) ? data.FpsLimit : 0;
 		FloatingCombatText = data.FloatingCombatText;
 		OccludedUnitOutlines = data.OccludedUnitOutlines;
-		MovementPrediction = data.MovementPrediction;
-		MovementPredictionPerformanceOverride = data.MovementPredictionPerformanceOverride;
-		MovementPredictionCostThresholdMs = data.MovementPredictionCostThresholdMs > 0f
-			? data.MovementPredictionCostThresholdMs
-			: Services.PredictionPerformanceMonitor.DefaultPredictionCostThresholdMs;
 		ShowHealthBars = data.ShowHealthBars;
 		LastOpenedFolder = data.LastOpenedFolder ?? string.Empty;
 
@@ -333,9 +314,6 @@ public static class GameSettings
 			FpsLimit = FpsLimit,
 			FloatingCombatText = FloatingCombatText,
 			OccludedUnitOutlines = OccludedUnitOutlines,
-			MovementPrediction = MovementPrediction,
-			MovementPredictionPerformanceOverride = MovementPredictionPerformanceOverride,
-			MovementPredictionCostThresholdMs = MovementPredictionCostThresholdMs,
 			LastOpenedFolder = LastOpenedFolder
 		};
 

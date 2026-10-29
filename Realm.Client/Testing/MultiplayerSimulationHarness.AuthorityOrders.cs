@@ -29,7 +29,7 @@ public partial class MultiplayerSimulationHarness
 	private void RunAuthorityOrderScenarioTick()
 	{
 		if (GameContext.World == null || GameContext.Host == null) return;
-		if (!IsScenarioNavigationReady()) return;
+		if (GameContext.Simulation.TerrainNavMeshService?.HasBakedMesh != true) return;
 
 		int tick = _authorityOrderTick++;
 		if (_authorityOrderIndex >= AuthorityOrderCount) return;

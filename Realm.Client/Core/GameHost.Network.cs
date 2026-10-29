@@ -113,7 +113,6 @@ public partial class GameHost
 		var targetNumerics = new System.Numerics.Vector3(targetPos.X, targetPos.Y, targetPos.Z);
 		var (commandId, payload) = GameContext.NetworkService.BuildClientCommand(commandType, unitIds, targetNumerics, targetEntityId, argString);
 		if (commandId <= 0) return;
-		RegisterPredictedCommand(commandId, unitIds, commandType, targetNumerics);
 
 		GameContext.ServerSession?.Submit(payload);
 	}
@@ -148,61 +147,8 @@ public partial class GameHost
 		var targetNumerics = new System.Numerics.Vector3(targetPos.X, targetPos.Y, targetPos.Z);
 		var (commandId, payload) = GameContext.NetworkService.BuildClientCommand(commandType, unitIds, targetNumerics, targetEntityId, argString);
 		if (commandId <= 0) return;
-		RegisterPredictedCommand(commandId, unitIds, commandType, targetNumerics);
 		GameContext.ServerSession?.Submit(payload);
 	}
-
-	private void RegisterPredictedCommand(int commandId, List<int> serverEntityIds, string commandType, System.Numerics.Vector3 targetPosition)
-	{
-		if (!GameSettings.MovementPrediction || GameContext.MovementPredictionService == null) return;
-		if (GameContext.World == null) return;
-
-		int localPlayerIndex = LocalPlayerIndex;
-		if (localPlayerIndex < 0) return;
-
-		_predictedCommandEntities.Clear();
-		for (int index = 0; index < serverEntityIds.Count; index++)
-		{
-			if (!TryResolveLocalEntity(serverEntityIds[index], out Entity localEntity)) continue;
-			if (!GameContext.World.IsAlive(localEntity)) continue;
-			if (!GameContext.World.Has<UnitOwnerPlayer>(localEntity)) continue;
-			if (GameContext.World.Get<UnitOwnerPlayer>(localEntity).PlayerIndex != localPlayerIndex) continue;
-			_predictedCommandEntities.Add(localEntity.Id);
-		}
-
-		if (_predictedCommandEntities.Count == 0) return;
-		GameContext.MovementPredictionService.RegisterPredictedCommand(commandId, _predictedCommandEntities);
-		GameContext.MovementPredictionService.ApplyPredictedOrder(
-			GameContext.World,
-			ResolvePredictedOrderKind(commandType),
-			System.Runtime.InteropServices.CollectionsMarshal.AsSpan(_predictedCommandEntities),
-			targetPosition,
-			commandType.EndsWith("_queued", StringComparison.Ordinal));
-	}
-
-	private bool TryResolveLocalEntity(int serverEntityId, out Entity localEntity)
-	{
-		if (TryGetLocalEntity(serverEntityId, out localEntity)) return true;
-
-		localEntity = Entity.Null;
-		return false;
-	}
-
-	private static PredictedOrderKind ResolvePredictedOrderKind(string commandType)
-	{
-		return commandType switch
-		{
-			"move" => PredictedOrderKind.Move,
-			"attack_move" => PredictedOrderKind.AttackMove,
-			"attack_move_queued" => PredictedOrderKind.AttackMove,
-			"gather" => PredictedOrderKind.Gather,
-			"build" => PredictedOrderKind.Build,
-			"stop" => PredictedOrderKind.Stop,
-			_ => PredictedOrderKind.None
-		};
-	}
-
-	private readonly List<int> _predictedCommandEntities = new();
 
 	public int GetLocalPlayerIndexForHarness() => LocalPlayerIndex;
 
@@ -251,7 +197,14 @@ public partial class GameHost
 		GameContext.NetworkService.UpdateClientTickDomain();
 		GameContext.NetworkLatencyService.Update(fDelta);
 
-		GameContext.MovementPredictionService?.Advance(GameContext.World, fDelta);
+		// The match clock is advanced once per tick and every replicated unit is placed from it below, so this is the only
+		// thing that moves one: the client renders the authority's own timeline from a little behind it instead of chasing
+		// the newest description it has.
+		GameContext.SnapshotTimeline.Advance(fDelta);
+
+		// Routes are planned for the units this client controls and none of them are walked: what a unit is drawn doing
+		// comes from the descriptions below, and this only gives it a path to draw and a direction to face.
+		GameContext.SimulationService.StepMovementPlanOnly(fDelta);
 
 		UpdateClientWorldState(fDelta);
 

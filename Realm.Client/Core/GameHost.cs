@@ -2990,23 +2990,6 @@ public partial class GameHost : Node3D
 		return GameContext.SimulationService?.GetInterpolatedTransform(entity, fraction) ?? (System.Numerics.Vector3.Zero, 0f);
 	}
 
-	private void SamplePredictionPerformance(float frameDelta)
-	{
-		var monitor = GameContext.PredictionPerformanceMonitor;
-		if (monitor == null) return;
-
-		monitor.PredictionCostThresholdMs = GameSettings.MovementPredictionCostThresholdMs;
-
-		float predictionCostMs = 0f;
-		var predictionService = GameContext.MovementPredictionService;
-		if (GameSettings.MovementPrediction && predictionService != null && predictionService.TryConsumeOperationCost(out float measuredCostMs))
-		{
-			predictionCostMs = measuredCostMs;
-		}
-
-		monitor.Sample(predictionCostMs, frameDelta * 1000f);
-	}
-
 	public override void _Process(double delta)
 	{
 		using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.GodotProcess))
@@ -3061,11 +3044,6 @@ public partial class GameHost : Node3D
 					GameContext.AudioService?.UpdateListenerFromCamera(MainCamera.GlobalTransform);
 				}
 			}
-			using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.PredictionPerformanceSample))
-			{
-				SamplePredictionPerformance(fDelta);
-			}
-
 			VisualProjectilePool.AdvanceActiveProjectiles(fDelta);
 
 			GameContext.FXService?.UpdateFloatingLabels(fDelta);

@@ -54,7 +54,6 @@ public partial class SettingsMenu : Control
 	private CheckBox _unitOutlineChk;
 	private CheckBox _recordReplaysChk;
 	private CheckBox _seedMapFilesChk;
-	private CheckBox _movementPredictionChk;
 
 	private HSlider _masterSlider;
 	private HSlider _musicSlider;
@@ -141,7 +140,6 @@ public partial class SettingsMenu : Control
 		_unitOutlineChk = GetNode<CheckBox>("CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/UnitOutlineChk");
 		_recordReplaysChk = GetNode<CheckBox>("CenterContainer/MainFrame/VBoxContainer/OtherPanel/VBox/Grid/RecordReplaysChk");
 		_seedMapFilesChk = GetNode<CheckBox>("CenterContainer/MainFrame/VBoxContainer/OtherPanel/VBox/Grid/SeedMapFilesChk");
-		_movementPredictionChk = GetNodeOrNull<CheckBox>("CenterContainer/MainFrame/VBoxContainer/OtherPanel/VBox/Grid/MovementPredictionChk");
 
 		_scrollSpeedSlider = GetNode<HSlider>("CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/ControlsPanel/VBox/ScrollRow/ScrollSpeedSlider");
 		_mouseSensSlider = GetNode<HSlider>("CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/ControlsPanel/VBox/SensRow/MouseSensSlider");
@@ -443,11 +441,6 @@ public partial class SettingsMenu : Control
 		UIStyle.ApplyCheckboxStyle(_seedMapFilesChk);
 		_seedMapFilesChk.Text = TranslationServer.Translate(_seedMapFilesChk.Text);
 		_seedMapFilesChk.TooltipText = TranslationServer.Translate(_seedMapFilesChk.TooltipText);
-		if (_movementPredictionChk != null)
-		{
-			UIStyle.ApplyCheckboxStyle(_movementPredictionChk);
-			_movementPredictionChk.Text = TranslationServer.Translate(_movementPredictionChk.Text);
-		}
 	}
 
 	private void PopulateDropdowns()
@@ -573,40 +566,6 @@ public partial class SettingsMenu : Control
 		_recordReplaysChk.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
 		_seedMapFilesChk.Pressed += () => GameContext.UserInterface.PlayClickSound();
 		_seedMapFilesChk.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
-		if (_movementPredictionChk != null)
-		{
-			_movementPredictionChk.Pressed += () => GameContext.UserInterface.PlayClickSound();
-			_movementPredictionChk.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
-			_movementPredictionChk.Toggled += OnMovementPredictionToggled;
-		}
-	}
-
-	private void OnMovementPredictionToggled(bool pressed)
-	{
-		if (!pressed) return;
-		if (GameSettings.MovementPredictionPerformanceOverride) return;
-
-		var monitor = Realm.Client.Services.GameContext.PredictionPerformanceMonitor;
-		if (monitor == null || !monitor.IsMachineTooSlow) return;
-
-		_movementPredictionChk.ButtonPressed = false;
-		GameContext.UserInterface?.PlayWarningSound();
-		GameContext.UserInterface?.ShowConfirmationDialog(
-			string.Format(
-				TranslationServer.Translate("This machine measured too slow for movement prediction ({0:F1} ms prediction update, {1:F1} ms average frame time). Prediction may make movement stutter. Lower graphics quality, close background apps, or keep prediction disabled. Enable prediction anyway?"),
-				monitor.AveragePredictionCostMs,
-				monitor.AverageFrameTimeMs),
-			() =>
-			{
-				GameSettings.MovementPredictionPerformanceOverride = true;
-				if (_movementPredictionChk != null)
-				{
-					_movementPredictionChk.ButtonPressed = true;
-				}
-			},
-			confirmText: TranslationServer.Translate("KEEP ENABLED"),
-			cancelText: TranslationServer.Translate("KEEP DISABLED"),
-			titleOverride: "PERFORMANCE WARNING");
 	}
 
 	private void SetupNatTestEvent()
@@ -898,13 +857,6 @@ public partial class SettingsMenu : Control
 
 		_healthBarsOpt.Select((int)GameSettings.ShowHealthBars);
 		_languageOpt.Select((int)GameSettings.Language);
-		if (_movementPredictionChk != null)
-		{
-			bool movementPredictionAvailable = PathUtils.IsDevelopmentBuild;
-			_movementPredictionChk.Visible = movementPredictionAvailable;
-			_movementPredictionChk.Disabled = !movementPredictionAvailable;
-			_movementPredictionChk.ButtonPressed = movementPredictionAvailable && GameSettings.MovementPrediction;
-		}
 	}
 
 	private async void ApplySettings()
@@ -1003,10 +955,6 @@ public partial class SettingsMenu : Control
 		GameSettings.OccludedUnitOutlines = _unitOutlineChk.ButtonPressed;
 		GameSettings.RecordReplays = _recordReplaysChk.ButtonPressed;
 		GameSettings.SeedMapFiles = _seedMapFilesChk.ButtonPressed;
-		if (_movementPredictionChk != null)
-		{
-			GameSettings.MovementPrediction = PathUtils.IsDevelopmentBuild && _movementPredictionChk.ButtonPressed;
-		}
 		GameSettings.ShowHealthBars = (HealthBarMode)_healthBarsOpt.Selected;
 	}
 

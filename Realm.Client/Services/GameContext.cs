@@ -207,9 +207,8 @@ namespace Realm.Client.Services
 		public static ResourceEconomyService ResourceEconomyService => Simulation.ResourceEconomyService;
 		public static SimulationService SimulationService => ScreenScope.Get<SimulationService>();
 		public static ConsumableService ConsumableService => ScreenScope.Get<ConsumableService>();
-		public static MovementPredictionService MovementPredictionService => ScreenScope.Get<MovementPredictionService>();
 		public static NetworkLatencyService NetworkLatencyService => ScreenScope.Get<NetworkLatencyService>();
-		public static PredictionPerformanceMonitor PredictionPerformanceMonitor => ScreenScope.Get<PredictionPerformanceMonitor>();
+		public static SnapshotTimeline SnapshotTimeline => ScreenScope.Get<SnapshotTimeline>();
 		public static ClientRpcService ClientRPC => ScreenScope.Get<ClientRpcService>();
 		public static PerspectiveFilter PerspectiveFilter => ScreenScope.Get<PerspectiveFilter>();
 		public static RaycastService RaycastService => ScreenScope.Get<RaycastService>();
@@ -249,8 +248,8 @@ namespace Realm.Client.Services
 			scope.RegisterCleanup<MapGenerationService>(static service => service.DiscardRun());
 			scope.RegisterCleanup<ModelOverrideService>(static service => service.ClearAll());
 			scope.RegisterCleanup<RegistryService>(static service => service.ClearAll());
-			scope.RegisterCleanup<MovementPredictionService>(static service => service.Clear());
 			scope.RegisterCleanup<NetworkLatencyService>(static service => service.Clear());
+			scope.RegisterCleanup<SnapshotTimeline>(static service => service.Clear());
 			scope.RegisterCleanup<NetworkService>(static service => service.Clear());
 			scope.RegisterDisposeAction(RecreateSimulation);
 

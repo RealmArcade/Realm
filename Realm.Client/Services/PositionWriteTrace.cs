@@ -8,7 +8,6 @@ public enum PositionWriter : byte
 	None,
 	Interpolation,
 	Movement,
-	Prediction,
 	Placement,
 	Spawn,
 	Input

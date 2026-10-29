@@ -34,8 +34,6 @@ public sealed class MultiplayerEcsRunSettings
 	public int JitterMilliseconds { get; init; }
 	public int PacketLossPercent { get; init; }
 	public NetworkProfile Profile { get; init; } = NetworkProfile.Latency;
-	public bool PredictionEnabled { get; init; }
-	public bool RunPredictionScenario { get; init; }
 	public int PeerCount { get; init; } = 2;
 	/// <summary>
 	/// How many seats the match is asked to play itself. They are part of the roster the lobby hands over, so a map's
@@ -464,8 +462,6 @@ public static class MultiplayerEcsSyncTestSupport
 		startInfo.ArgumentList.Add($"--sequence-file={sequenceFile}");
 		startInfo.ArgumentList.Add($"--drain-ms={settings.DrainMilliseconds}");
 		startInfo.ArgumentList.Add($"--duration={settings.DurationSeconds.ToString(CultureInfo.InvariantCulture)}");
-		startInfo.ArgumentList.Add($"--prediction={(settings.PredictionEnabled ? 1 : 0)}");
-		startInfo.ArgumentList.Add($"--scenario={(settings.RunPredictionScenario ? 1 : 0)}");
 		startInfo.ArgumentList.Add($"--profile={settings.Profile}");
 		startInfo.ArgumentList.Add($"--peers={Math.Max(2, settings.PeerCount)}");
 		startInfo.ArgumentList.Add($"--peer-index={peerIndex}");

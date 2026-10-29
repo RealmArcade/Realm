@@ -119,40 +119,16 @@ public partial class GameHost
 	}
 
 	/// <summary>
-	///     What the authority decided about one of this player's orders. A command it refused is rolled back, because the
-	///     order was predicted as soon as it was issued.
+	///     What the authority decided about one of this player's orders. Nothing is predicted, so this only counts what was
+	///     refused: a refused order is one whose unit never moves, which is what the feedback text and the harness read.
 	/// </summary>
 	private void ApplyCommandOutcome(CommandOutcome outcome)
 	{
 		if (!outcome.Accepted) RefusedCommandCount++;
-
-		DeliverLocalCommandAck(outcome.CommandId, Array.Empty<int>(), outcome.Accepted ? string.Empty : outcome.RejectionReason ?? string.Empty);
 	}
 
 	/// <summary>How many of this client's orders the authority refused, which is what a harness asserts a flood runs into.</summary>
 	public int RefusedCommandCount { get; private set; }
-
-	/// <summary>
-	///     Applies what the authority decided about one order. An order that was predicted as soon as it was issued is
-	///     rolled back here, because the world this client is showing is not the world the authority kept.
-	/// </summary>
-	/// <param name="commandId">Which order the authority answered.</param>
-	/// <param name="rejectedServerEntityIds">The units the authority refused, which are the ones that must be restored.</param>
-	/// <param name="rejectionReason">Why the order was refused, or nothing when it was accepted.</param>
-	private void DeliverLocalCommandAck(int commandId, int[] rejectedServerEntityIds, string rejectionReason)
-	{
-		var prediction = GameContext.MovementPredictionService;
-		if (prediction == null) return;
-
-		if (!string.IsNullOrEmpty(rejectionReason))
-		{
-			PredictionDiagnostics.RecordRejection(commandId, rejectionReason);
-			prediction.RollbackRejectedCommand(GameContext.World, commandId, rejectedServerEntityIds ?? Array.Empty<int>(), rejectionReason);
-			return;
-		}
-
-		prediction.OnCommandAccepted(commandId);
-	}
 
 	/// <summary>
 	///     Reports that the process running the match ended. The match stops rather than freezing on a world that will

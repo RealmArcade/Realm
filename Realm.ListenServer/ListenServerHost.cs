@@ -63,7 +63,6 @@ public class ListenServerHost : IServerTransportSink
 	private int _rateLimitedCommandCount;
 	private long _nextRateLimitReportTicks;
 	private Action<string>? _scriptLogSink;
-	private AuthoritySnapshotRecorder? _predictionRecorder;
 	private AuthoritySyncRecorder? _syncRecorder;
 	private SnapshotTrafficRecorder? _trafficRecorder;
 
@@ -147,12 +146,8 @@ public class ListenServerHost : IServerTransportSink
 				throw new IOException($"the match could not listen for peers: {failure}");
 			}
 
-			// A run that measures prediction asks the match to say where every unit really is, because only this process
-			// decided it. Nothing else is asked for it, so a normal match writes no such record.
 			if (_arguments.RecordPredictionPath.Length > 0)
 			{
-				_predictionRecorder = new AuthoritySnapshotRecorder(_arguments.RecordPredictionPath, map.World, out string recordPath);
-				_log.Write($"this match records what it decides into '{recordPath}'");
 				// A run that compares a screen's ECS against this one asks for the same folder, because the process that
 				// decided the world is the only one that can say what a screen should hold after applying a sequence.
 				_syncRecorder = new AuthoritySyncRecorder(map, _arguments.RecordPredictionPath, out string syncRecordPath);
@@ -318,8 +313,6 @@ public class ListenServerHost : IServerTransportSink
 		_simulation?.Dispose();
 		_simulation = null;
 
-		_predictionRecorder?.Dispose();
-		_predictionRecorder = null;
 		_syncRecorder?.Dispose();
 		_syncRecorder = null;
 
@@ -622,7 +615,6 @@ public class ListenServerHost : IServerTransportSink
 
 		// The account of this sequence is taken whether or not anyone is listening: a run measures prediction against the
 		// sequences a screen applied, and a gap in the record would hide the very ticks a peer was still catching up on.
-		_predictionRecorder?.Record(sequence);
 
 		// The world this tick described is recorded as it is sent, because a screen can only be judged against the world
 		// the process that decided it held, and only a run that asked for the record pays for it.

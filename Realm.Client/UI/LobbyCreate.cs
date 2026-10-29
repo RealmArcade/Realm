@@ -272,7 +272,6 @@ public partial class LobbyCreate : Control
 		_createButton.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
 	}
 
-	private bool _predictionHostWarningAcknowledged;
 
 	private async void OnCreatePressed()
 	{
@@ -285,22 +284,6 @@ public partial class LobbyCreate : Control
 		{
 			GameContext.UserInterface.PlayWarningSound();
 			ShowMapBuildMismatchModal(mapInfo.PathName, mapInfo.DisplayName, mapInfo.BuildNumber, RealmVersion.GameBuildNumber);
-			return;
-		}
-
-		var performanceMonitor = Realm.Client.Services.GameContext.PredictionPerformanceMonitor;
-		if (!_predictionHostWarningAcknowledged && performanceMonitor != null && performanceMonitor.IsMachineTooSlow)
-		{
-			_predictionHostWarningAcknowledged = true;
-			GameContext.UserInterface.PlayWarningSound();
-			GameContext.UserInterface.ShowConfirmationDialog(
-				string.Format(
-					TranslationServer.Translate("This machine measured too slow to host smoothly ({0:F1} ms average frame time). Hosting here may cause stutter for every player; lower graphics quality or close background apps first. Host anyway?"),
-					performanceMonitor.AverageFrameTimeMs),
-				() => ContinueHosting(mapInfo.PathName, mapInfo.DisplayName, selectedVersion),
-				confirmText: TranslationServer.Translate("HOST ANYWAY"),
-				cancelText: TranslationServer.Translate("CANCEL"),
-				titleOverride: "PERFORMANCE WARNING");
 			return;
 		}
 
