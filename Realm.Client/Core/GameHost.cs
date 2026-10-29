@@ -3127,6 +3127,7 @@ public partial class GameHost : Node3D
 			{
 				using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.UpdateVisualNodesFromEcs))
 				{
+					AdvancePresentationForRenderFrame(fDelta);
 					UpdateRenderFrameTransforms(fDelta);
 					UpdateSelectedAndImpulseUnitVisuals(fDelta);
 				}

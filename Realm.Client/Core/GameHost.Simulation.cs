@@ -643,7 +643,9 @@ public partial class GameHost
 		}
 
 		_renderFDelta = fDelta;
-		_renderFraction = (float)Engine.GetPhysicsInterpolationFraction();
+		_renderFraction = GameContext.ReplayPlayback.IsPlayingReplay || GameContext.SessionState.IsMapEditorMode
+			? (float)Engine.GetPhysicsInterpolationFraction()
+			: 1f;
 		_renderHasFrustum = hasFrustum;
 		_renderFrustumPlanes = hasFrustum ? _cachedCameraFrustumPlanes : Array.Empty<Plane>();
 		_renderCameraFrustumChanged = cameraFrustumChanged;

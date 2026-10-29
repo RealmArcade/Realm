@@ -268,25 +268,32 @@ public partial class GameHost
 		GameContext.NetworkService.UpdateClientTickDomain();
 		GameContext.NetworkLatencyService.Update(fDelta);
 
-		GameContext.SnapshotTimeline.Advance(fDelta);
-
-		FlushPresentationForCursor();
-
-		FlushUnitViewRemovalsForCursor();
-
 		ExpirePreviewRoutes();
 
 		GameContext.SimulationService.StepMovementPlanOnly(fDelta);
 
 		UpdateClientWorldState(fDelta);
 
-		var query = QueryCache.AllLatestDescriptionQuery;
-		GameContext.SimulationService.SetDelta(fDelta);
-		GameContext.World.Query(in query, GameContext.SimulationService.PresentationQueryDelegate);
 		UpdateVisualNodesFromEcs(fDelta);
 		UpdateBuildingPreview();
 
 		RecordGameplayTickIfNeeded();
+	}
+
+	private void AdvancePresentationForRenderFrame(float fDelta)
+	{
+		if (GameContext.World == null) return;
+		if (GameContext.SessionState.IsMapEditorMode || GameContext.ReplayPlayback.IsPlayingReplay) return;
+		if (!ShouldProcessPhysicsTick() || GameContext.NetworkService.IsPaused) return;
+
+		GameContext.SnapshotTimeline.Advance(fDelta);
+
+		FlushPresentationForCursor();
+		FlushUnitViewRemovalsForCursor();
+
+		var query = QueryCache.AllLatestDescriptionQuery;
+		GameContext.SimulationService.SetDelta(fDelta);
+		GameContext.World.Query(in query, GameContext.SimulationService.PresentationQueryDelegate);
 	}
 
 	public void SendSnapshotAck(int sequence, ulong appliedMask)
