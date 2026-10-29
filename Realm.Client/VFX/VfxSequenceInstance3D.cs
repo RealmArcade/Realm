@@ -14,6 +14,7 @@ public partial class VfxSequenceInstance3D : Node3D
 	private readonly List<VfxStageMetadata> _timedStages = new();
 	private readonly List<VfxStageMetadata> _impactStages = new();
 	private readonly List<VfxStageMetadata> _targetDeathStages = new();
+	private readonly List<float> _pendingStageReleaseTimes = new();
 
 	private Node3D? _anchor;
 	private float _elapsedSeconds;
@@ -30,6 +31,7 @@ public partial class VfxSequenceInstance3D : Node3D
 		_timedStages.Clear();
 		_impactStages.Clear();
 		_targetDeathStages.Clear();
+		_pendingStageReleaseTimes.Clear();
 
 		_scaleMultiplier = scaleMultiplier <= 0f ? 1.0f : scaleMultiplier;
 		TargetEntityId = targetEntityId;
@@ -38,9 +40,17 @@ public partial class VfxSequenceInstance3D : Node3D
 		_impactTriggered = false;
 		_targetDeathTriggered = false;
 
+		int stageIndex = 0;
 		foreach (var stage in sequenceConfig.Stages ?? new List<VfxStageMetadata>())
 		{
-			if (stage == null || string.IsNullOrWhiteSpace(stage.EffectId) && stage.ParticleConfig == null) continue;
+			int currentStageIndex = stageIndex++;
+			if (stage == null) continue;
+
+			if (string.IsNullOrWhiteSpace(stage.EffectId) && stage.ParticleConfig == null)
+			{
+				GD.PushWarning($"[VfxSequence] Skipping stage {currentStageIndex} of '{sequenceConfig.VfxId}': it has neither an effect id nor a particle config.");
+				continue;
+			}
 
 			switch (stage.Trigger)
 			{
@@ -67,6 +77,7 @@ public partial class VfxSequenceInstance3D : Node3D
 		if (deltaSeconds <= 0f) return;
 
 		_elapsedSeconds += deltaSeconds;
+		PruneReleasedStages();
 
 		if (_anchor != null && GodotObject.IsInstanceValid(_anchor))
 		{
@@ -110,8 +121,21 @@ public partial class VfxSequenceInstance3D : Node3D
 		}
 	}
 
+	private void PruneReleasedStages()
+	{
+		for (int index = _pendingStageReleaseTimes.Count - 1; index >= 0; index--)
+		{
+			if (_pendingStageReleaseTimes[index] <= _elapsedSeconds)
+			{
+				_pendingStageReleaseTimes.RemoveAt(index);
+			}
+		}
+	}
+
 	private void ClearSpawnedStages()
 	{
+		_pendingStageReleaseTimes.Clear();
+
 		foreach (Node child in GetChildren())
 		{
 			RemoveChild(child);
@@ -128,12 +152,16 @@ public partial class VfxSequenceInstance3D : Node3D
 	private void SpawnStage(VfxStageMetadata stage, Vector3 worldPosition)
 	{
 		float stageScale = Math.Max(0.01f, stage.Scale) * _scaleMultiplier;
-		GameContext.FXService.SpawnVfxStage(this, stage, worldPosition, stageScale);
+		float stageReleaseSeconds = GameContext.FXService.SpawnVfxStage(this, stage, worldPosition, stageScale);
+		if (stageReleaseSeconds <= 0f) return;
+
+		_pendingStageReleaseTimes.Add(_elapsedSeconds + stageReleaseSeconds);
 	}
 
 	private bool ComputeIsFinished()
 	{
 		if (_elapsedSeconds >= MaximumLifetimeSeconds) return true;
+		if (_pendingStageReleaseTimes.Count > 0) return false;
 		if (_timedStages.Count > 0) return false;
 		if (_impactStages.Count > 0 && !_impactTriggered) return false;
 		if (_targetDeathStages.Count > 0 && !_targetDeathTriggered) return false;

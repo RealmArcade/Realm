@@ -187,14 +187,23 @@ public class FXService
 		}
 	}
 
-	public void SpawnVfxStage(Node parent, VfxStageMetadata stage, Vector3 worldPosition, float scaleMultiplier)
+	public float SpawnVfxStage(Node parent, VfxStageMetadata stage, Vector3 worldPosition, float scaleMultiplier)
 	{
-		if (stage == null) return;
+		if (stage == null) return 0f;
+		if (parent == null || !GodotObject.IsInstanceValid(parent)) return 0f;
 
-		if (stage.SingleInstance || stage.ParticleConfig != null)
+		if (stage.ParticleConfig != null)
 		{
-			SpawnOneShotParticleImpact(parent, stage.ParticleConfig ?? ResolveParticleConfig(stage.EffectId), worldPosition, scaleMultiplier);
-			return;
+			return SpawnOneShotParticleImpact(parent, stage.ParticleConfig, worldPosition, scaleMultiplier);
+		}
+
+		if (stage.SingleInstance)
+		{
+			var singleInstanceConfig = TryResolveParticleConfig(stage.EffectId);
+			if (singleInstanceConfig != null) return SpawnOneShotParticleImpact(parent, singleInstanceConfig, worldPosition, scaleMultiplier);
+
+			SkipVfxStage(stage, "no particle effect is registered for that id");
+			return 0f;
 		}
 
 		var stageConfig = ResolveVfxConfig(stage.EffectId);
@@ -205,22 +214,34 @@ public class FXService
 			parent.AddChild(instance);
 			instance.GlobalPosition = worldPosition;
 			instance.Scale = Vector3.One * Math.Max(0.01f, scaleMultiplier);
-			return;
+			return 0f;
 		}
 
-		SpawnOneShotParticleImpact(parent, ResolveParticleConfig(stage.EffectId), worldPosition, scaleMultiplier);
+		var particleConfig = TryResolveParticleConfig(stage.EffectId);
+		if (particleConfig != null) return SpawnOneShotParticleImpact(parent, particleConfig, worldPosition, scaleMultiplier);
+
+		SkipVfxStage(stage, "no VFX template or particle preset matches that id");
+		return 0f;
 	}
 
-	public void SpawnSingleParticleImpact(Node parent, string effectId, Vector3 worldPosition, float scaleMultiplier)
+	public float SpawnSingleParticleImpact(Node parent, string effectId, Vector3 worldPosition, float scaleMultiplier)
 	{
-		SpawnOneShotParticleImpact(parent, ResolveParticleConfig(effectId), worldPosition, scaleMultiplier);
+		var particleConfig = TryResolveParticleConfig(effectId);
+		if (particleConfig == null)
+		{
+			GD.PushWarning($"[FXService] Skipping one-shot particle impact: no particle effect is registered for '{effectId}'.");
+			return 0f;
+		}
+
+		return SpawnOneShotParticleImpact(parent, particleConfig, worldPosition, scaleMultiplier);
 	}
 
-	public void SpawnOneShotParticleImpact(Node parent, SpellParticleConfig? particleConfig, Vector3 worldPosition, float scaleMultiplier)
+	public float SpawnOneShotParticleImpact(Node parent, SpellParticleConfig? particleConfig, Vector3 worldPosition, float scaleMultiplier)
 	{
-		if (parent == null || !GodotObject.IsInstanceValid(parent)) return;
+		if (particleConfig == null) return 0f;
+		if (parent == null || !GodotObject.IsInstanceValid(parent)) return 0f;
 
-		SpellParticleConfig config = particleConfig?.Clone() ?? new SpellParticleConfig();
+		SpellParticleConfig config = particleConfig.Clone();
 		var instance = new SpellParticleInstance3D(config);
 		instance.Name = "ParticleImpact";
 		parent.AddChild(instance);
@@ -228,25 +249,33 @@ public class FXService
 		instance.Scale = Vector3.One * Math.Max(0.01f, scaleMultiplier);
 		instance.PlayOneShot();
 
-		var tree = parent.GetTree();
-		if (tree == null) return;
-
 		float releaseDelaySeconds = Math.Max(0.25f, config.Lifetime + 0.5f);
+
+		var tree = parent.GetTree();
+		if (tree == null) return releaseDelaySeconds;
+
 		var releaseTimer = tree.CreateTimer(releaseDelaySeconds);
 		releaseTimer.Timeout += () =>
 		{
 			if (GodotObject.IsInstanceValid(instance)) instance.QueueFree();
 		};
+
+		return releaseDelaySeconds;
 	}
 
-	private static SpellParticleConfig ResolveParticleConfig(string effectId)
+	private static void SkipVfxStage(VfxStageMetadata stage, string reason)
 	{
-		if (string.IsNullOrWhiteSpace(effectId)) return SpellParticleConfig.CreatePreset("fire_sparks");
+		GD.PushWarning($"[FXService] Skipping VFX stage '{stage.EffectId}' with trigger '{stage.Trigger}': {reason}.");
+	}
+
+	private static SpellParticleConfig? TryResolveParticleConfig(string effectId)
+	{
+		if (string.IsNullOrWhiteSpace(effectId)) return null;
 
 		var stageConfig = ResolveVfxConfig(effectId);
 		if (stageConfig?.ParticleConfig != null) return stageConfig.ParticleConfig.Clone();
 
-		return SpellParticleConfig.CreatePreset(effectId);
+		return SpellParticleConfig.TryCreatePreset(effectId);
 	}
 
 	private static VfxAttachmentConfig? ResolveVfxConfig(string effectId)
