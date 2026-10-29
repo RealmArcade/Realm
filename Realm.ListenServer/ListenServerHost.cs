@@ -1268,14 +1268,17 @@ public class ListenServerHost : IServerTransportSink
 		{
 			// A peer this far behind is told nothing this tick: describing it would be work its screen cannot draw, and
 			// the frame would only wait behind the ones it has not read. What it is owed is a baseline, which the tick
-			// that decided to skip it already asked for.
-			_publishedSnapshots[index] = default;
+			// that decided to skip it already asked for. The description this slot holds is left where it is rather than
+			// discarded, because its containers are what the next description of this peer is written into; a null frame
+			// is what says this peer is told nothing.
 			_publishedFrames[index] = null;
 			return;
 		}
 
-		WorldSnapshot snapshot = simulation.BuildSnapshotForPeer(peerId, _publishSequence, _pendingBaselineRequests[index]);
-		_publishedSnapshots[index] = snapshot;
+		// The description is written into the slot this peer already has, so describing a room replaces nothing and empties
+		// what it held instead of allocating a set of lists per peer per tick.
+		simulation.BuildSnapshotForPeerInto(ref _publishedSnapshots[index], peerId, _publishSequence, _pendingBaselineRequests[index]);
+		WorldSnapshot snapshot = _publishedSnapshots[index];
 
 		// Serializing and framing is the host's cost of describing one peer, and it is measured where it is paid so the
 		// report states the real figure rather than the cost of a frame somebody else built. The serializer writes into a

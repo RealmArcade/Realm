@@ -159,6 +159,19 @@ public class AuthoritativeSnapshotBuilder
 	/// </summary>
 	public WorldSnapshot Build(int peerId, int sequence, PlayerEntity viewer, bool forceBaseline = false)
 	{
+		var snapshot = new WorldSnapshot();
+		BuildInto(ref snapshot, peerId, sequence, viewer, forceBaseline);
+		return snapshot;
+	}
+
+	/// <summary>
+	///     Describes the world into a description the caller already holds, so the tick it describes a room allocates nothing
+	///     per peer. A tick describes every peer, and building a fresh set of containers for each of them was five to eight
+	///     allocations per peer per tick. What the description held is emptied rather than replaced: it was serialized and
+	///     sent on the tick that built it, and the next tick is the only thing that reads the slot again.
+	/// </summary>
+	public void BuildInto(ref WorldSnapshot snapshot, int peerId, int sequence, PlayerEntity viewer, bool forceBaseline = false)
+	{
 		SnapshotPeerState state = _peerStates.Get(peerId);
 		bool isBaseline = forceBaseline || state.LastBaselineSequence < 0;
 		if (isBaseline)
@@ -170,20 +183,8 @@ public class AuthoritativeSnapshotBuilder
 		CollectDescribedUnits(viewer.Value, sequence);
 		_describedUnitStates.Clear();
 
-		var snapshot = new WorldSnapshot
-		{
-			Sequence = sequence,
-			IsBaseline = isBaseline,
-			BaseSequence = isBaseline ? sequence : state.LastBaselineSequence,
-			Units = new UnitSection(_describedUnits.Count),
-			ColdPayloads = new List<ColdPayloadDelta>(),
-			ComponentDeltas = new List<ComponentDelta>(),
-			AbilityStates = new List<AbilityStateDelta>(),
-			StaticTexts = new List<StaticTextDelta>(),
-			Catalog = new List<CatalogEntry>(),
-			UnitComponentPresence = isBaseline ? new List<UnitComponentPresence>(_describedUnits.Count) : null,
-			StateFingerprint = 0u
-		};
+		snapshot.ResetForDescription(sequence, isBaseline, isBaseline ? sequence : state.LastBaselineSequence);
+		if (isBaseline) snapshot.UnitComponentPresence = new List<UnitComponentPresence>(_describedUnits.Count);
 
 		for (int index = 0; index < _describedUnits.Count; index++)
 		{
@@ -240,12 +241,11 @@ public class AuthoritativeSnapshotBuilder
 			// The ability registry keeps one scratch table per process rather than one per peer, so two workers
 			// describing two peers may not be inside it at once. Everything this match spends on describing a peer is
 			// outside this lock; the ability state of a unit is a handful of entries, not the unit records themselves.
-			lock (_abilityLock) snapshot.AbilityStates = new List<AbilityStateDelta>(Abilities.CollectDeltas(peerId, _world, isBaseline));
+			lock (_abilityLock) snapshot.AbilityStates.AddRange(Abilities.CollectDeltas(peerId, _world, isBaseline));
 		}
 
 		AppendComponentDeltas(state, snapshot, sequence, isBaseline);
 		ForgetUntrackedUnitComponents(state, ref snapshot, isBaseline);
-		return snapshot;
 	}
 
 	/// <summary>
@@ -973,8 +973,9 @@ public class AuthoritativeSnapshotBuilder
 
 		// The same comparison is what the peer needs in order to drop the replica: a unit this peer was told about and is
 		// not told about now is one it must stop holding. A baseline states the whole world and a peer recovers from one
-		// by forgetting what it held, so it states nothing retired.
-		if (!isBaseline && _forgottenEntityIds.Count > 0) snapshot.RetiredEntityIds = new List<int>(_forgottenEntityIds);
+		// by forgetting what it held, so it states nothing retired - the list it carries is emptied for the tick, not
+		// allocated again, because a unit walking in and out of sight would otherwise cost a list every tick.
+		if (!isBaseline) snapshot.RetiredEntityIds!.AddRange(_forgottenEntityIds);
 
 		// A unit that left this peer's sight keeps the components it was told about: the peer still holds them, so the ones
 		// the authority drops while it is away are stated as gone when it comes back. Only the bytes are dropped, because

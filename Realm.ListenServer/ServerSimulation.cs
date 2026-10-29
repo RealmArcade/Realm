@@ -491,12 +491,24 @@ public class ServerSimulation : IDisposable
 	/// </summary>
 	public WorldSnapshot BuildSnapshotForPeer(int peerId, int sequence, bool forceBaseline)
 	{
+		var snapshot = new WorldSnapshot();
+		BuildSnapshotForPeerInto(ref snapshot, peerId, sequence, forceBaseline);
+		return snapshot;
+	}
+
+	/// <summary>
+	///     Describes the world to one peer into a description the caller already holds, which is how a tick describes a
+	///     whole room without allocating one set of containers per peer. The caller's slot is only read on the tick it was
+	///     described on, so what it held before is emptied rather than replaced.
+	/// </summary>
+	public void BuildSnapshotForPeerInto(ref WorldSnapshot snapshot, int peerId, int sequence, bool forceBaseline)
+	{
 		Entity viewer = TryGetPlayerEntity(peerId, out Entity playerEntity) ? playerEntity : Entity.Null;
 
 		AuthoritativeSnapshotBuilder builder = _snapshots.Rent();
 		try
 		{
-			return builder.Build(peerId, sequence, new PlayerEntity(viewer), forceBaseline);
+			builder.BuildInto(ref snapshot, peerId, sequence, new PlayerEntity(viewer), forceBaseline);
 		}
 		finally
 		{
