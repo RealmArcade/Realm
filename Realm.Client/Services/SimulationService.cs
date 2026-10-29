@@ -1669,7 +1669,11 @@ public class SimulationService
 		// has got to. That is the whole of the presentation model for a replicated unit: it is drawn between the two
 		// descriptions either side of the cursor, so it neither trails a smoothed target nor has to be caught up when the
 		// screen falls behind. A unit with nothing described for it yet keeps the position it has until one arrives.
-		if (!GameContext.SnapshotTimeline.TrySample(entity.Id, out Vector3 sampledPosition, out float sampledRotationY, out Vector3 sampledVelocity)) return;
+		// A unit the match has given a destination to is the only one this may draw slightly ahead of its newest
+		// description: the order is confirmed, and the step is bounded to a third of a tick along the direction the unit was
+		// already moving. Everything else is drawn strictly between descriptions it has.
+		bool orderConfirmed = GameContext.World.Has<MoveTo>(entity);
+		if (!GameContext.SnapshotTimeline.TrySample(entity.Id, orderConfirmed, out Vector3 sampledPosition, out float sampledRotationY, out Vector3 sampledVelocity)) return;
 
 		Vector3 currentPos = GameContext.World.Get<Position>(entity).Value;
 

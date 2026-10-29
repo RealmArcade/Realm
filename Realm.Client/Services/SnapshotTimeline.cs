@@ -65,6 +65,20 @@ public class SnapshotTimeline
 	/// <summary>How strongly the gap to the target bends the cursor's rate.</summary>
 	private const float RateCorrectionGain = 0.2f;
 
+	/// <summary>
+	///     How far past its newest description a unit with a confirmed order may be drawn, in sequences. This is a third
+	///     of one snapshot interval: enough to cover the moment the cursor crosses a description that has not arrived yet,
+	///     and short enough that the next description always lands before the guess could become visible as a wrong path.
+	/// </summary>
+	public const float MaximumExtrapolationSequences = 1f;
+
+	/// <summary>
+	///     The furthest a unit may be drawn past its newest description, in metres. A unit at this game's movement ceiling
+	///     covers under half of it in the horizon above, so this only ever binds after a long gap, which is exactly when the
+	///     guess should stop rather than run on.
+	/// </summary>
+	public const float MaximumExtrapolationMeters = 0.75f;
+
 	private readonly Vector3[] _positions = new Vector3[EcsWorld.MAX_ENTITIES * SamplesPerUnit];
 	private readonly float[] _rotations = new float[EcsWorld.MAX_ENTITIES * SamplesPerUnit];
 	private readonly int[] _sequences = new int[EcsWorld.MAX_ENTITIES * SamplesPerUnit];
@@ -100,6 +114,12 @@ public class SnapshotTimeline
 	/// <summary>The shallowest the buffer has been since the last time the delay was reconsidered, in sequences.</summary>
 	public float ShallowestSurplusSequences { get; private set; }
 
+	/// <summary>
+	///     How many times a unit with a confirmed order was drawn past its newest description. A run that never reports
+	///     this is running with a buffer deep enough that it never needed to guess, which is the state to aim for.
+	/// </summary>
+	public int ExtrapolatedSampleCount { get; private set; }
+
 	public void Clear()
 	{
 		Array.Clear(_counts);
@@ -113,6 +133,7 @@ public class SnapshotTimeline
 		_shallowestSurplusInWindow = float.MaxValue;
 		StarvationCount = 0;
 		ShallowestSurplusSequences = 0f;
+		ExtrapolatedSampleCount = 0;
 	}
 
 	/// <summary>
@@ -228,6 +249,19 @@ public class SnapshotTimeline
 	/// </summary>
 	public bool TrySample(int entityId, out Vector3 position, out float rotationY, out Vector3 velocity)
 	{
+		return TrySample(entityId, mayExtrapolate: false, out position, out rotationY, out velocity);
+	}
+
+	/// <summary>
+	///     The position, facing and velocity to draw one unit at this tick, where <paramref name="mayExtrapolate" /> says the
+	///     match has confirmed an order for it and the short step past its newest description may be drawn.
+	///     Extrapolating before the authority has confirmed anything would be the client inventing movement, which is what
+	///     this whole presentation model exists not to do. After it has - the unit carries a destination the match itself
+	///     published - the only unknown is the last third of a tick, and the direction it is filled in from is the one the
+	///     authority was already moving the unit along rather than a route this client planned.
+	/// </summary>
+	public bool TrySample(int entityId, bool mayExtrapolate, out Vector3 position, out float rotationY, out Vector3 velocity)
+	{
 		position = Vector3.Zero;
 		rotationY = 0f;
 		velocity = Vector3.Zero;
@@ -250,6 +284,14 @@ public class SnapshotTimeline
 		{
 			position = _positions[newestIndex];
 			rotationY = _rotations[newestIndex];
+
+			if (mayExtrapolate && count >= 2)
+			{
+				Vector3 held = position;
+				position = Extrapolate(held, velocity, cursor - newestSequence);
+				if (position != held) ExtrapolatedSampleCount++;
+			}
+
 			return true;
 		}
 
@@ -274,6 +316,22 @@ public class SnapshotTimeline
 		position = _positions[baseIndex + oldestOffset];
 		rotationY = _rotations[baseIndex + oldestOffset];
 		return true;
+	}
+
+	/// <summary>
+	///     The short step past a description that a confirmed order allows. It is bounded twice - by the horizon in
+	///     sequences and by the distance that horizon may cover - so a unit whose two samples are far apart, or whose last
+	///     sample is already stale, is held rather than flung forward.
+	/// </summary>
+	private static Vector3 Extrapolate(Vector3 newestPosition, Vector3 velocity, float sequencesAhead)
+	{
+		if (!(sequencesAhead > 0f) || sequencesAhead > MaximumExtrapolationSequences) return newestPosition;
+
+		float speed = velocity.Length();
+		if (speed < 0.01f) return newestPosition;
+
+		float meters = MathF.Min(speed * sequencesAhead * MatchTiming.SnapshotIntervalSeconds, MaximumExtrapolationMeters);
+		return newestPosition + velocity * (meters / speed);
 	}
 
 	/// <summary>

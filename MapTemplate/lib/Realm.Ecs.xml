@@ -909,15 +909,15 @@
         <member name="T:Realm.Ecs.Components.Movement.Patrol">
             <summary>Patrol component: unit walks back and forth between PointA and PointB, attacking enemies on sight.</summary>
         </member>
-        <member name="T:Realm.Ecs.Components.Movement.PredictedMoveTo">
+        <member name="T:Realm.Ecs.Components.Movement.PreviewMoveTo">
             <summary>
-                A client-only movement intent that predicts an order before the host confirms it, never replicated and never authoritative.
+                Where a locally issued order was aimed, held only until the authority says what it did with the order. It exists
+                so a click can draw its route on the next tick instead of waiting a round trip for the match, and it never moves
+                a unit: the planning pass that reads it produces a path and writes no position.
             </summary>
         </member>
-        <member name="M:Realm.Ecs.Components.Movement.PredictedMoveTo.#ctor(System.Numerics.Vector3,System.Int32)">
-            <summary>
-                A client-only movement intent that predicts an order before the host confirms it, never replicated and never authoritative.
-            </summary>
+        <member name="F:Realm.Ecs.Components.Movement.PreviewMoveTo.CommandId">
+            <summary>Which order drew this route, so an answer about that order can take it back.</summary>
         </member>
         <member name="T:Realm.Ecs.Components.Movement.RenderPosition">
             <summary>
@@ -1825,6 +1825,15 @@
                 it is destroyed, which is the same lifecycle a unit's body has; the only difference is that a building is not
                 rebuilt from a moving body every tick. A building that carries no authored radius - a template the map draws
                 as a flat ground marker - blocks nothing, exactly as it contributes no obstacle volume to the navigation bake.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Services.MovementAndPathfindingService.CollectPreviewMovementWorkItemAction(Realm.Ecs.Entity,Realm.Ecs.Components.Core.Position@,Realm.Ecs.Components.Movement.PreviewMoveTo@,Realm.Ecs.Components.Movement.MovementStats@)">
+            <summary>
+                Plans the route a click drew before the authority answered it. The order it stands for has not been decided
+                yet, so the route is only ever drawn: <see cref="F:Realm.Ecs.Services.MovementAndPathfindingService.MovementWorkItem.IsPlanOnly" /> is set for it, which is what
+                keeps the planning pass from writing a position. A unit that still carries the order it is replacing is
+                planned from the new destination instead of the old one, because this runs after the order pass and the route
+                it saves is the last one written.
             </summary>
         </member>
         <member name="T:Realm.Ecs.Services.MovementService">
