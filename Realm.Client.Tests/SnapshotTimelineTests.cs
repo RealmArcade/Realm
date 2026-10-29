@@ -93,7 +93,9 @@ public partial class SnapshotTimelineTests
 		timeline.Record(Unit, new Vector3(10f, 0f, 0f), 0f, 101);
 		timeline.AdvanceTo(102);
 
-		timeline.Advance(Step() * 1.5f);
+		// The cursor reaches the newest description, which is where the leading step of a confirmed order has the whole
+		// horizon to spend: further back it is spent between two descriptions rather than past the newest one.
+		timeline.Advance(Step());
 
 		bool sampled = timeline.TrySample(Unit, true, out Vector3 position, out _, out _);
 		Assertions.AssertThat(sampled).IsTrue();
@@ -110,7 +112,7 @@ public partial class SnapshotTimelineTests
 		timeline.Record(Unit, new Vector3(10f, 0f, 0f), 0f, 101);
 		timeline.AdvanceTo(102);
 
-		timeline.Advance(Step() * 1.5f);
+		timeline.Advance(Step());
 
 		Assertions.AssertThat(timeline.TrySample(Unit, true, out Vector3 position, out _, out _)).IsTrue();
 		float travelled = position.X - 10f;

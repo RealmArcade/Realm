@@ -16,17 +16,21 @@ namespace Realm.Client.Services;
 ///     instead of stalling it.
 ///     Sampling between two described positions is what removes the follower: a unit is drawn where the authority held
 ///     it at the moment being rendered, so it neither trails behind a smoothed target nor has to be caught up when the
-///     screen falls behind. The delay is discovered rather than calculated - the loop deepens it when the cursor runs
+///     screen falls behind. A unit the match has confirmed an order for is drawn one snapshot interval ahead of that
+///     moment while the buffer covers it, which is the one place this screen draws something fresher than the world it
+///     is part of. The delay is discovered rather than calculated - the loop deepens it when the cursor runs
 ///     off the end of what has arrived and shallows it when the buffer has been deeper than it needed for a while -
 ///     because a delay computed from a formula is only right on the link the formula was written for.
 /// </summary>
 public class SnapshotTimeline
 {
 	/// <summary>
-	///     How many descriptions of one unit are kept. It has to cover the deepest delay plus one sample on either side
-	///     of the cursor, which is why it is well above the delay bound rather than equal to it.
+	///     How many descriptions of one unit are kept. It covers the deepest delay plus the samples either side of the
+	///     cursor and a margin, and it is derived from the delay bound rather than stated beside it: a ring that was only
+	///     just deep enough would clamp a unit to a description older than the cursor if the bound were ever tuned up, and
+	///     it would do so silently.
 	/// </summary>
-	public const int SamplesPerUnit = 10;
+	public const int SamplesPerUnit = MaximumDelaySequences + 3;
 
 	/// <summary>
 	///     The shallowest delay, in sequences, the buffer is ever rendered at. Two sequences is what a link that answers
@@ -50,20 +54,24 @@ public class SnapshotTimeline
 	private const float StarvationToleranceSequences = 0.25f;
 
 	/// <summary>
-	///     How far behind its target the cursor may fall before it is placed rather than eased. A burst of descriptions
-	///     applied in one frame, a stalled process, or a baseline that restarted the stream all move the target by more
-	///     than easing can cover, and easing across that would play the world in slow motion for a second.
+	///     How far behind its target the cursor may fall before it is placed rather than eased. A tenth of a second behind
+	///     is an ordinary frame hitch on a rendered client and is absorbed by rendering a little faster, because placing the
+	///     cursor there moved every unit by that much in one frame and the pop was what a player actually saw; a whole
+	///     buffer behind is a process that was suspended or a stream that restarted, and easing across that would play the
+	///     world fast for seconds on end.
 	/// </summary>
-	private const float ResynchronizeSequences = 3f;
+	private const float ResynchronizeSequences = MaximumDelaySequences;
 
 	/// <summary>
 	///     The most the cursor's rate is bent to hold its place. A few percent is the difference between a world that
-	///     keeps time and one that does not, and is far below what a player can see in a unit's speed.
+	///     keeps time and one that does not, and is far below what a player can see in a unit's speed; fifteen is what a
+	///     screen that fell a tenth of a second behind can recover in a third of a second without the correction itself
+	///     becoming the thing a player notices.
 	/// </summary>
-	private const float MaximumRateCorrection = 0.05f;
+	private const float MaximumRateCorrection = 0.15f;
 
 	/// <summary>How strongly the gap to the target bends the cursor's rate.</summary>
-	private const float RateCorrectionGain = 0.2f;
+	private const float RateCorrectionGain = 0.25f;
 
 	/// <summary>
 	///     How many clean windows in a row the delay must hold before it is shallowed by one sequence. A link that only
@@ -82,16 +90,25 @@ public class SnapshotTimeline
 	private const float ShallowSurplusFraction = 0.5f;
 
 	/// <summary>
-	///     How far past its newest description a unit with a confirmed order may be drawn, in sequences. This is a third
-	///     of one snapshot interval: enough to cover the moment the cursor crosses a description that has not arrived yet,
-	///     and short enough that the next description always lands before the guess could become visible as a wrong path.
+	///     How far past its newest description a unit with a confirmed order may be drawn, in sequences. It is exactly one
+	///     snapshot interval: far enough that the drawn point stays within one description of what the authority last said,
+	///     and short enough that the next description lands before a wrong direction could become visible as a wrong path.
 	/// </summary>
 	public const float MaximumExtrapolationSequences = 1f;
 
 	/// <summary>
+	///     How far ahead of the render cursor a unit carrying a confirmed order is drawn, in sequences. It is what the
+	///     order buys this screen: the unit answers one snapshot interval sooner than the world around it, without this
+	///     client having decided where it went. While the presentation buffer holds more than this beyond the cursor the
+	///     step is taken between descriptions already in hand and is exact; only as the buffer runs out does it become the
+	///     bounded guess in <see cref="Extrapolate" />.
+	/// </summary>
+	public const float ExtrapolationLeadSequences = 1f;
+
+	/// <summary>
 	///     The furthest a unit may be drawn past its newest description, in metres. A unit at this game's movement ceiling
-	///     covers under half of it in the horizon above, so this only ever binds after a long gap, which is exactly when the
-	///     guess should stop rather than run on.
+	///     covers a fifth of it in the horizon above, so this only ever binds for a unit whose last two descriptions are
+	///     further apart than one sequence - which is exactly when the guess should stop rather than run on.
 	/// </summary>
 	public const float MaximumExtrapolationMeters = 0.75f;
 
@@ -311,11 +328,12 @@ public class SnapshotTimeline
 
 	/// <summary>
 	///     The position, facing and velocity to draw one unit at this tick, where <paramref name="mayExtrapolate" /> says the
-	///     match has confirmed an order for it and the short step past its newest description may be drawn.
+	///     match has confirmed an order for it and the step <see cref="ExtrapolationLeadSequences" /> ahead of the cursor may
+	///     be drawn.
 	///     Extrapolating before the authority has confirmed anything would be the client inventing movement, which is what
 	///     this whole presentation model exists not to do. After it has - the unit carries a destination the match itself
-	///     published - the only unknown is the last third of a tick, and the direction it is filled in from is the one the
-	///     authority was already moving the unit along rather than a route this client planned.
+	///     published - the direction is the one the authority was already moving the unit along rather than a route this
+	///     client planned, and the only unknown is the step between the cursor and the next description.
 	///     Answers false for a unit this screen holds no description of, which is a unit that has not been heard about yet
 	///     rather than one that is standing still.
 	/// </summary>
@@ -332,7 +350,12 @@ public class SnapshotTimeline
 
 		int head = _heads[entityId];
 		int baseIndex = entityId * SamplesPerUnit;
-		float cursor = _cursor;
+
+		// A confirmed order is drawn at a render time of its own, one interval ahead of the world around it. At the delay
+		// the buffer normally holds this lands between two descriptions already in hand - and lands there for every tick,
+		// including the one a new description arrives on, because interpolating towards the newest sample and extrapolating
+		// from it meet at it. A unit with nothing confirmed is drawn where the cursor is, exactly like everything else.
+		float cursor = _cursor + (mayExtrapolate ? ExtrapolationLeadSequences : 0f);
 
 		int newestIndex = baseIndex + head;
 		int newestSequence = _sequences[newestIndex];
@@ -391,7 +414,9 @@ public class SnapshotTimeline
 	/// <summary>
 	///     The short step past a description that a confirmed order allows. It is bounded twice - by the horizon in
 	///     sequences and by the distance that horizon may cover - so a unit whose two samples are far apart, or whose last
-	///     sample is already stale, is held rather than flung forward.
+	///     sample is already stale, is held rather than flung forward. The horizon is the distance from the newest
+	///     description to the time being drawn, so it is reached only when the buffer has run out; while the buffer holds a
+	///     description that far ahead the step is interpolation, not a guess.
 	/// </summary>
 	private static Vector3 Extrapolate(Vector3 newestPosition, Vector3 velocity, float sequencesAhead)
 	{
