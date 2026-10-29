@@ -389,15 +389,15 @@ public class NetworkService
 		// A delta names the oldest world state it assumes, not the newest baseline the host has started sending. It used
 		// to require an exact match, so every delta the host built on a baseline that was still in flight was queued until
 		// that baseline arrived: with a 138 KB baseline on the reliable channel that stalled the client for one burst per
-		// baseline interval, which is what the rendered transforms and the prediction record showed as a lag that grew
-		// and healed once a second. A delta is absolute per unit, so a base the client has already superseded is harmless.
+		// baseline interval, which is what the rendered transforms showed as a lag that grew and healed once a second. A
+		// delta is absolute per unit, so a base the client has already superseded is harmless.
 		if (!networkState.HasReceivedInitialBaseline || snapshot.BaseSequence > networkState.LastReceivedBaselineSeq)
 		{
 			// A delta the client cannot place is a delta whose base it never applied. Only waiting for one used to be
 			// enough because the base could not move without the baseline that moved it, but a baseline that is superseded
 			// in flight leaves the client queuing against a base nobody sent it any more: the match then ran for seconds
-			// on a frozen sequence, which is exactly the state prediction must never be left to reconcile against. Asking
-			// for the world the deltas are written against bounds the recovery to one round trip.
+			// on a frozen sequence, which is a world nothing on this screen moves against. Asking for the world the deltas
+			// are written against bounds the recovery to one round trip.
 			QueueDelta(snapshot);
 			RequestSnapshotBaseline();
 			return;
@@ -865,10 +865,10 @@ public class NetworkService
 		Entity spawned = ApplySnapshotToEntity(snap.UnitId, snap.EntityId, snap.OwnerPlayerEntityId, snap.Position.ToNumerics(), System.Numerics.Vector3.Zero, snap.RotationY, snap.CurrentHp, snap.MaxHp, snap.IsBuilding, meta, ref mapping, getFallbackModelPath, out modelPath, out playerIndex, snap.OwnerPlayerIndex);
 		if (spawned != Entity.Null)
 		{
-			// The mapping exists only after this call, so the reconciliation pass that runs before the snapshot is applied
-			// could not have sampled the unit. Anchoring it here gives prediction an authoritative position from the
-			// moment the unit exists on the client.
-
+			// The mapping exists only after this call, so this snapshot could not describe the unit to the apply pass that
+			// runs before it. Its first description is held here instead, so the unit is drawn where the match put it from
+			// the moment it exists on this screen rather than one sequence later.
+			GameContext.SnapshotTimeline.Record(spawned.Id, snap.Position.ToNumerics(), snap.RotationY, LastAppliedSnapshotSequenceForDiagnostics);
 		}
 
 		return spawned;

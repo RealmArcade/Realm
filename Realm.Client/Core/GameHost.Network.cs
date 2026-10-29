@@ -177,9 +177,9 @@ public partial class GameHost
 	}
 
 	/// <summary>
-	/// Submits commands without registering them for prediction. The harness uses this to exercise the authority's command
-	/// budget: a flood must be refused by the authority, and registering hundreds of predicted orders locally would
-	/// measure the client's rollback bookkeeping instead of the authority's rate limit.
+	/// Submits commands without drawing a route for any of them. The harness uses this to exercise the authority's command
+	/// budget: a flood must be refused by the authority, and planning hundreds of routes locally would measure this
+	/// screen's pathfinding instead of the authority's rate limit.
 	/// </summary>
 	public void SubmitCommandFloodForHarness(string commandType, List<int> unitIds, Vector3 targetPos, int count)
 	{

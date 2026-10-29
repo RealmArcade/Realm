@@ -840,7 +840,7 @@ public static class MultiplayerEcsSyncTestSupport
 
 		if (navMeshMissingCount > 0)
 		{
-			report.AddFailure($"{navMeshMissingCount} baselines had no baked navmesh on one side, so prediction could not path.");
+			report.AddFailure($"{navMeshMissingCount} baselines had no baked navmesh on one side, so a route could not be planned there.");
 		}
 
 		if (navMeshShapeDifferenceCount > 0)
@@ -1106,7 +1106,6 @@ public static class MultiplayerEcsSyncTestSupport
 		int pairedSequences = 0;
 		int comparedTransforms = 0;
 		int mismatchCount = 0;
-		int skippedPredictedTransforms = 0;
 		int culledTransforms = 0;
 		int notYetAppliedUnits = 0;
 		int unitsNoPeerWasToldAbout = 0;
@@ -1169,12 +1168,6 @@ public static class MultiplayerEcsSyncTestSupport
 					continue;
 				}
 
-				if ((presentedUnit.Flags & 16) != 0)
-				{
-					skippedPredictedTransforms++;
-					continue;
-				}
-
 				comparedTransforms++;
 				if ((presentedUnit.Flags & 32) != 0) culledTransforms++;				// The host states a unit at one precision, so the rendered transform is held to the authoritative position
 				// directly: the description the client applied is the movement threshold plus the catch-up interpolation
@@ -1224,11 +1217,11 @@ public static class MultiplayerEcsSyncTestSupport
 
 		report.AddSummaryLine($"Presentation parity window: from {MultiplayerSyncDiagnostics.PresentationSettleSeconds:F1}s to {MultiplayerSyncDiagnostics.PresentationWindowSeconds:F1}s after a baseline, paired ticks: {pairedSequences}, compared rendered transforms: {comparedTransforms} ({detailedTransforms} of a stated position), placement mismatches: {mismatchCount}");
 		report.AddSummaryLine($"Records sharing a physics tick with a later record of the same tick: {collapsedRepeatedSamples} (the follower and the renderer advance once per tick, so only the last record of a tick is the state that tick produced)");
-		report.AddSummaryLine($"A rendered transform is judged by what the protocol promised it: within {detailedAuthorityTolerance:F2} m of the authority ({StatedPositionThresholdMeters:F2} m resend threshold + {interpolationLagMeters:F2} m interpolation catch-up + {placementTolerance:F2} m of {profile} allowance) and within {PresentationPositionTolerance:F2} m of the client's own applied state. The catch-up is the run's fastest {fastestUnitSpeed:F2} m/s over its {interpolationBufferSeconds:F2} s interpolation buffer.");
-		report.AddSummaryLine($"Locally predicted rendered transforms excluded from placement parity: {skippedPredictedTransforms} (prediction intentionally leads the authoritative position).");
+		report.AddSummaryLine($"A rendered transform is judged by what the protocol promised it: within {detailedAuthorityTolerance:F2} m of the authority ({StatedPositionThresholdMeters:F2} m resend threshold + {interpolationLagMeters:F2} m of buffer at the run's fastest {fastestUnitSpeed:F2} m/s + {placementTolerance:F2} m of {profile} allowance) and within {PresentationPositionTolerance:F2} m of the client's own applied state. The buffer bound is the deepest delay the client may render from, {interpolationBufferSeconds:F2} s; the run reports the delay it actually held.");
 		report.AddSummaryLine($"Host units the client had not applied yet, so there was nothing to render: {notYetAppliedUnits} (the state comparison owns whether the client received them).");
 		report.AddSummaryLine($"Rendered transforms outside the camera frustum: {culledTransforms} of {comparedTransforms} (culling freezes rotation but still advances position, so they stay comparable).");
-		report.AddSummaryLine($"Rendered transforms more than {placementTolerance:F2} m from the authoritative position: {renderedBeyondTolerance} of {comparedTransforms}, worst {worstRenderedOffset:F2} m; a moving unit trails the authority by its interpolation buffer, so this figure is context rather than an assertion.");			report.AddSummaryLine($"Follower lags closed deliberately because interpolation could not account for them: {ReadFollowerCatchUpCount(outputDirectory)} (several descriptions can land between two physics ticks, and the excess over speed/rate is not something smoothing can absorb)");
+		report.AddSummaryLine($"Rendered transforms more than {placementTolerance:F2} m from the authoritative position: {renderedBeyondTolerance} of {comparedTransforms}, worst {worstRenderedOffset:F2} m; this is context rather than an assertion, because the renderer may legally be that far behind.");
+		report.AddSummaryLine($"Buffer starvations: {ReadClientCounter(outputDirectory, "buffer_starvations=")} (the cursor reached the end of what had arrived, which is what deepens the delay), final delay {ReadClientCounter(outputDirectory, "interpolation_delay_sequences=")} sequences, samples drawn past the newest description: {ReadClientCounter(outputDirectory, "extrapolated_samples=")}");
 		report.AddSummaryLine($"Rendered rotation deviations beyond {PresentationRotationTolerance:F2} rad: {rotationDeviationCount} of {comparedTransforms}, largest {largestRotationDeviation:F2} rad (off-frustum units keep their frozen transform until they enter the view)");
 		// The authority marks a unit as comparable only when every seated peer was told about it, which a room of this size
 		// with the shroud on almost never satisfies. That is a limit of what a single shared host record can say, not a
@@ -1239,10 +1232,6 @@ public static class MultiplayerEcsSyncTestSupport
 			report.AddSummaryLine($"Rendered placement parity was not measured: the {pairedSequences} paired host records described {describedUnitsInPairedRecords} units in total, of which {unitsNoPeerWasToldAbout} were comparable for a room this size, so there was no rendered transform to hold against an authority position.");
 		}
 		else if (pairedSequences == 0) report.AddFailure("No rendered presentation records paired with host snapshots, so placement parity was not verified.");
-		else if (comparedTransforms == 0 && skippedPredictedTransforms > 0)
-		{
-			report.AddSummaryLine($"Rendered placement parity was not measured: all {skippedPredictedTransforms} rendered transforms in the window belonged to units this screen was predicting, and a predicted transform leads the authority on purpose. The prediction report owns how far it leads and how it reconciles.");
-		}
 		else if (comparedTransforms < 20) report.AddFailure($"Only {comparedTransforms} rendered unit transforms were compared in the presentation window.");
 
 		if (mismatchCount > 0)
@@ -1266,32 +1255,26 @@ public static class MultiplayerEcsSyncTestSupport
 	}
 
 	/// <summary>
-	/// The interpolation buffer the client derives from its measured round trip, reproduced here from the same formula
-	/// (<see cref="NetworkService.ComputeDynamicInterpolationFactor" />) so the bound on a unit's visual lag follows the
-	/// profile the run injected instead of a single constant that would be wrong on every profile but one. The round trip
-	/// is read from both ways a profile can inject one: a latency profile states the ping it delays by, and a lossy profile
-	/// states the one-way delay its relay applies in each direction. Reading only the one-way delay left the lagged run
-	/// bounded as if it were played on the minimum buffer, four sequences short of the buffer the client had measured for
-	/// itself, and three units moving at speed were reported for trailing by exactly that difference.
+	/// The deepest the client's buffer is allowed to render from. A unit is drawn between the descriptions either side of a
+	/// cursor that follows the newest one from a delay the client discovers for itself, so the most it can legally trail the
+	/// authority is that delay - which is a bound this run can state without reproducing any formula. A run reports the
+	/// delay it actually held, and this is the ceiling that figure is checked against.
 	/// </summary>
 	private static float ResolveInterpolationBufferSeconds(MultiplayerEcsRunSettings settings)
 	{
-		float roundTripSeconds = MathF.Max(settings.PingMilliseconds, settings.OneWayDelayMilliseconds * 2f) / 1000f;
-		return MathF.Max(MatchTiming.MinimumInterpolationBufferSeconds, roundTripSeconds * 1.5f);
+		return SnapshotTimeline.MaximumDelaySequences * MatchTiming.SnapshotIntervalSeconds;
 	}
 
 	/// <summary>
-	/// Reads the count of descriptions the client could not glide to from the record it wrote at the end of the run. Zero
-	/// when the file or the line is missing, which a run recorded before this counter existed would be.
+	/// Reads one counter the client wrote at the end of the run, or zero when the file or the line is absent.
 	/// </summary>
-	private static int ReadFollowerCatchUpCount(string clientDirectory)
+	private static int ReadClientCounter(string clientDirectory, string prefix)
 	{
 		string path = Path.Combine(clientDirectory, "ECS_client_replication.txt");
 		if (!File.Exists(path)) return 0;
 
 		foreach (string line in File.ReadLines(path))
 		{
-			const string prefix = "follower_catch_ups=";
 			if (!line.StartsWith(prefix, StringComparison.Ordinal)) continue;
 			return int.TryParse(line.AsSpan(prefix.Length), out int count) ? count : 0;
 		}

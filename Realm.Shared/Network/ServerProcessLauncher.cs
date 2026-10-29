@@ -56,9 +56,9 @@ public static class ServerArgumentFlags
 	public const string RosterFlag = "--roster";
 
 	/// <summary>
-	///     The folder the authority writes its own account of the match into: the orders and routes of every unit it moved,
-	///     and the world it described on every sequence it published. A report measures a screen against the process that
-	///     decided the match, so only a run that asks for the record gets one: a normal match writes nothing here.
+	///     The folder the authority writes its own account of the match into: the world it described on every sequence it
+	///     published, so a run can hold a screen against the process that decided the match. Only a run that asks for the
+	///     record gets one; a normal match writes nothing here.
 	/// </summary>
 	public const string RecordPredictionFlag = "--record-prediction";
 

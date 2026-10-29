@@ -248,7 +248,7 @@ public static class MultiplayerSyncDiagnostics
 	/// the local id so a mapping that puts two local entities on one server id becomes visible instead of looking like a
 	/// frozen follower.
 	/// </summary>
-	private static void RecordFollowerDiagnostic(EcsWorld world, int sequence, int localEntityId, int serverEntityId, Entity localEntity, System.Numerics.Vector3 appliedPosition, bool isPredicted, bool isCulled)
+	private static void RecordFollowerDiagnostic(EcsWorld world, int sequence, int localEntityId, int serverEntityId, Entity localEntity, System.Numerics.Vector3 appliedPosition, bool isCulled)
 	{
 		if (_followerDiagnostics.Count >= 240) return;
 
@@ -262,7 +262,7 @@ public static class MultiplayerSyncDiagnostics
 		float cursorSequence = GameContext.SnapshotTimeline.CursorSequence;
 		float lagSequences = GameContext.SnapshotTimeline.NewestSequence - cursorSequence;
 		float roundTripMilliseconds = GameContext.NetworkLatencyService?.SmoothedRoundTripMilliseconds ?? -1f;
-		_followerDiagnostics.Add($"appliesInFrame={_presentationAppliesInFrame}:follower={serverEntityId}:{sequence}:local={localEntityId}:gap={followerGap.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}:hasTarget={(hasTarget ? 1 : 0)}:hasPos={(hasPosition ? 1 : 0)}:stepped={(wasStepped ? 1 : 0)}:cursor={cursorSequence.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}:behind={lagSequences.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}:delay={GameContext.SnapshotTimeline.DelaySequences}:rtt={roundTripMilliseconds.ToString("F0", System.Globalization.CultureInfo.InvariantCulture)}:target={targetPosition.X.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)},{targetPosition.Z.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}:applied={appliedPosition.X.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)},{appliedPosition.Z.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}:predicted={(isPredicted ? 1 : 0)}:culled={(isCulled ? 1 : 0)}:writer={PositionWriteTrace.Last(localEntity)}:frac={PositionWriteTrace.LastInterpolationFraction(localEntity).ToString("F4", System.Globalization.CultureInfo.InvariantCulture)}:wrote={PositionWriteTrace.LastInterpolationWrite(localEntity).X.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)},{PositionWriteTrace.LastInterpolationWrite(localEntity).Z.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}:age={Godot.Engine.GetPhysicsFrames() - PositionWriteTrace.LastWriteFrame(localEntity)}:cur={PositionWriteTrace.LastInterpolationFrom(localEntity).X.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)},{PositionWriteTrace.LastInterpolationFrom(localEntity).Z.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}:tgt={PositionWriteTrace.LastInterpolationTarget(localEntity).X.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)},{PositionWriteTrace.LastInterpolationTarget(localEntity).Z.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}:back={PositionWriteTrace.LastReadBack(localEntity).X.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)},{PositionWriteTrace.LastReadBack(localEntity).Z.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}");
+		_followerDiagnostics.Add($"appliesInFrame={_presentationAppliesInFrame}:follower={serverEntityId}:{sequence}:local={localEntityId}:gap={followerGap.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}:hasTarget={(hasTarget ? 1 : 0)}:hasPos={(hasPosition ? 1 : 0)}:stepped={(wasStepped ? 1 : 0)}:cursor={cursorSequence.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}:behind={lagSequences.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}:delay={GameContext.SnapshotTimeline.DelaySequences}:rtt={roundTripMilliseconds.ToString("F0", System.Globalization.CultureInfo.InvariantCulture)}:target={targetPosition.X.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)},{targetPosition.Z.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}:applied={appliedPosition.X.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)},{appliedPosition.Z.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}:culled={(isCulled ? 1 : 0)}:writer={PositionWriteTrace.Last(localEntity)}:frac={PositionWriteTrace.LastInterpolationFraction(localEntity).ToString("F4", System.Globalization.CultureInfo.InvariantCulture)}:wrote={PositionWriteTrace.LastInterpolationWrite(localEntity).X.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)},{PositionWriteTrace.LastInterpolationWrite(localEntity).Z.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}:age={Godot.Engine.GetPhysicsFrames() - PositionWriteTrace.LastWriteFrame(localEntity)}:cur={PositionWriteTrace.LastInterpolationFrom(localEntity).X.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)},{PositionWriteTrace.LastInterpolationFrom(localEntity).Z.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}:tgt={PositionWriteTrace.LastInterpolationTarget(localEntity).X.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)},{PositionWriteTrace.LastInterpolationTarget(localEntity).Z.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}:back={PositionWriteTrace.LastReadBack(localEntity).X.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)},{PositionWriteTrace.LastReadBack(localEntity).Z.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}");
 	}
 
 	public static void Stop()
@@ -476,9 +476,8 @@ public static class MultiplayerSyncDiagnostics
 			bool isBuilding = world.Has<Building>(localEntity);
 			int ownerPlayerIndex = ResolveOwnerPlayerIndex(world, localEntity);
 
-			bool isPredicted = false;
 			System.Numerics.Vector3 appliedPosition = world.Has<Position>(localEntity) ? world.Get<Position>(localEntity).Value : new System.Numerics.Vector3(unit3D.GlobalPosition.X, unit3D.GlobalPosition.Y, unit3D.GlobalPosition.Z);
-			RecordFollowerDiagnostic(world, sequence, kvp.Key, kvp.Value, localEntity, appliedPosition, isPredicted, unit3D.IsCulled);			if (recordServerIds != null)
+			RecordFollowerDiagnostic(world, sequence, kvp.Key, kvp.Value, localEntity, appliedPosition, unit3D.IsCulled);			if (recordServerIds != null)
 			{
 				if (!recordServerIds.Add(kvp.Value) && _duplicateMappingsReported < 20)
 				{
@@ -486,7 +485,7 @@ public static class MultiplayerSyncDiagnostics
 					_followerDiagnostics.Add($"duplicate={kvp.Value}:{sequence}:a second local entity {kvp.Key} maps to this server entity, two records for one unit will be written");
 				}
 			}
-			units.Add(new PresentedUnitState(kvp.Value, ownerPlayerIndex, unit3D.GlobalPosition, unit3D.GlobalRotation.Y, currentHp, maxHp, isDead, isBuilding, isPredicted, unit3D.IsCulled, appliedPosition));
+			units.Add(new PresentedUnitState(kvp.Value, ownerPlayerIndex, unit3D.GlobalPosition, unit3D.GlobalRotation.Y, currentHp, maxHp, isDead, isBuilding, unit3D.IsCulled, appliedPosition));
 		}
 
 		units.Sort((left, right) => left.ServerEntityId.CompareTo(right.ServerEntityId));
@@ -514,7 +513,6 @@ public static class MultiplayerSyncDiagnostics
 				// of where the match holds the unit.
 				flags |= SyncRecordFormat.FlagDetailed;
 				flags |= SyncRecordFormat.FlagVisibleToRemoteClient;
-				if (unit.IsPredicted) flags |= SyncRecordFormat.FlagLocallyPredicted;
 				if (unit.IsCulled) flags |= SyncRecordFormat.FlagCulled;
 				writer.Write(flags);
 				// A presented transform is this screen's own account of a unit it holds, so every peer could name it as far
@@ -627,13 +625,12 @@ public static class MultiplayerSyncDiagnostics
 		public readonly float MaxHp;
 		public readonly bool IsDead;
 		public readonly bool IsBuilding;
-		public readonly bool IsPredicted;
 		public readonly bool IsCulled;
 		public readonly float AppliedPositionX;
 		public readonly float AppliedPositionY;
 		public readonly float AppliedPositionZ;
 
-		public PresentedUnitState(int serverEntityId, int ownerPlayerIndex, Vector3 position, float rotationY, float currentHp, float maxHp, bool isDead, bool isBuilding, bool isPredicted, bool isCulled, System.Numerics.Vector3 appliedPosition)
+		public PresentedUnitState(int serverEntityId, int ownerPlayerIndex, Vector3 position, float rotationY, float currentHp, float maxHp, bool isDead, bool isBuilding, bool isCulled, System.Numerics.Vector3 appliedPosition)
 		{
 			ServerEntityId = serverEntityId;
 			OwnerPlayerIndex = ownerPlayerIndex;
@@ -645,7 +642,6 @@ public static class MultiplayerSyncDiagnostics
 			MaxHp = maxHp;
 			IsDead = isDead;
 			IsBuilding = isBuilding;
-			IsPredicted = isPredicted;
 			IsCulled = isCulled;
 			AppliedPositionX = appliedPosition.X;
 			AppliedPositionY = appliedPosition.Y;
