@@ -57,5 +57,11 @@ public enum NetworkFrameKind : byte
 	///     connected to, so a line a map's script has to see - and every line other players have to read - travels here
 	///     rather than between peers.
 	/// </summary>
-	ChatLine = 17
+	ChatLine = 17,
+
+	/// <summary>
+	///     The challenge a peer answers before it says who it is, so the ticket a match was started with never travels.
+	///     It is the first frame an authority sends and the only one a peer may receive before it has spoken.
+	/// </summary>
+	HandshakeChallenge = 18
 }

@@ -58,6 +58,9 @@ public class ClientServerSession : IDisposable
 	/// </summary>
 	private string _mapHash = string.Empty;
 	private bool _helloSent;
+
+	/// <summary>The challenge the authority handed this connection, which the hello answers.</summary>
+	private string _challenge = string.Empty;
 	private bool _joined;
 	private int _joinedPort;
 	private string _address = string.Empty;
@@ -373,14 +376,23 @@ public class ClientServerSession : IDisposable
 
 		bool handed = false;
 
-		if (_helloSent && _connectedBefore && !_channel.IsConnected) _helloSent = false;
+		if (_helloSent && _connectedBefore && !_channel.IsConnected)
+		{
+			_helloSent = false;
+			_challenge = string.Empty;
+		}
 
 		if (!_helloSent && _channel.IsConnected)
 		{
-			SendHello();
-			_helloSent = true;
-			_connectedBefore = true;
-			_reconnectAttempts = 0;
+			// The authority hands every peer a challenge the moment it connects, and the hello is the answer to it, so
+			// the hello waits for the challenge rather than the answer being guessable from the connection alone.
+			if (_challenge.Length > 0)
+			{
+				SendHello();
+				_helloSent = true;
+				_connectedBefore = true;
+				_reconnectAttempts = 0;
+			}
 		}
 		else if (!_helloSent && !TryReconnect())
 		{
@@ -407,6 +419,7 @@ public class ClientServerSession : IDisposable
 
 		_channel.Disconnect();
 		_helloSent = false;
+		_challenge = string.Empty;
 	}
 
 	/// <summary>
@@ -447,8 +460,10 @@ public class ClientServerSession : IDisposable
 	}
 
 	/// <summary>
-	///     Says who this client is. The token is the one the authority was started with, so an authority that was left
-	///     running by an earlier match refuses this one instead of seating it as a stranger.
+	///     Says who this client is. The ticket is the one the authority was started with, and what travels is the answer
+	///     to the challenge that authority handed this connection rather than the ticket itself, so an authority left
+	///     running by an earlier match refuses this one instead of seating it as a stranger, and a frame read off the wire
+	///     is worth nothing on any other connection.
 	/// </summary>
 	private void SendHello()
 	{
@@ -456,7 +471,7 @@ public class ClientServerSession : IDisposable
 		{
 			Protocol = RealmProtocol.Version,
 			Build = RealmVersion.GameBuildNumber,
-			Token = _token,
+			TokenProof = _token.Length > 0 && _challenge.Length > 0 ? RealmProtocol.ProveToken(_token, _challenge) : string.Empty,
 			WireTableHash = _launcher?.WireTableHash ?? ReplicatedComponents.ComputeWireTableHash(),
 			MapHash = _launcher?.MapHash ?? _mapHash,
 			Language = _language
@@ -471,6 +486,10 @@ public class ClientServerSession : IDisposable
 	{
 		switch (kind)
 		{
+			case NetworkFrameKind.HandshakeChallenge:
+				_challenge = MemoryPackSerializer.Deserialize<HandshakeChallenge>(payload).Nonce ?? string.Empty;
+				break;
+
 			case NetworkFrameKind.ServerHello:
 				ApplyHello(payload);
 				break;

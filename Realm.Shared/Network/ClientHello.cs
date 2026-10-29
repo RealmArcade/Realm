@@ -7,7 +7,14 @@ public partial struct ClientHello
 {
 	public int Protocol;
 	public string Build;
-	public string Token;
+
+	/// <summary>
+	///     The answer to the challenge this connection was handed (<see cref="RealmProtocol.ProveToken" />), or nothing
+	///     when this peer holds no ticket. The ticket itself never crosses the wire, so reading this frame tells an
+	///     observer nothing they can use on another connection.
+	/// </summary>
+	public string TokenProof;
+
 	public string WireTableHash;
 
 	/// <summary>

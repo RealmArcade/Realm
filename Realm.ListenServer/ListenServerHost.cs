@@ -26,6 +26,9 @@ public class ListenServerHost : IServerTransportSink
 	private readonly Dictionary<int, int> _seatedPeers = new();
 	private readonly Dictionary<int, int> _commandsThisTick = new();
 
+	/// <summary>The challenge each connected peer has been handed and not yet answered.</summary>
+	private readonly Dictionary<int, string> _pendingChallenges = new();
+
 	private ServerSimulation? _simulation;
 	private double _nextTickTime;
 	private readonly Dictionary<int, long> _lastLoggedAckSequencePerPeer = new();
@@ -333,6 +336,13 @@ public class ListenServerHost : IServerTransportSink
 	public void OnPeerConnected(int peerId)
 	{
 		_log.Write($"peer {peerId} connected");
+
+		// The challenge is the first thing a peer is told, because the hello is the first thing it may send. The ticket
+		// the match was started with has to prove itself without travelling: an open match still hands one out, so a peer
+		// never has to know whether the authority it reached was started with a ticket.
+		string challenge = RealmProtocol.CreateChallenge();
+		_pendingChallenges[peerId] = challenge;
+		_transport.Send(peerId, NetworkFrameKind.HandshakeChallenge, MemoryPackSerializer.Serialize(new HandshakeChallenge { Nonce = challenge }));
 	}
 
 	public void OnPeerDisconnected(int peerId, string reason)
@@ -365,6 +375,7 @@ public class ListenServerHost : IServerTransportSink
 	/// </summary>
 	private void ForgetPeerBookkeeping(int peerId)
 	{
+		_pendingChallenges.Remove(peerId);
 		_lastLoggedAckSequencePerPeer.Remove(peerId);
 		_firstSnapshotSequencePerPeer.Remove(peerId);
 		_lastRepairBaselineTickPerPeer.Remove(peerId);
@@ -525,7 +536,7 @@ public class ListenServerHost : IServerTransportSink
 			return;
 		}
 
-		string rejection = DescribeHandshakeRejection(in hello);
+		string rejection = DescribeHandshakeRejection(peerId, in hello);
 		if (rejection.Length > 0)
 		{
 			_log.Write($"peer {peerId} refused: {rejection}");
@@ -584,7 +595,7 @@ public class ListenServerHost : IServerTransportSink
 	/// </summary>
 	private const string CheatsMatchRejection = "server_rejected_cheats_match_is_local_only";
 
-	private string DescribeHandshakeRejection(in ClientHello hello)
+	private string DescribeHandshakeRejection(int peerId, in ClientHello hello)
 	{
 		if (hello.Protocol != RealmProtocol.Version) return "server_rejected_protocol";
 		if (!string.Equals(hello.Build, RealmVersion.GameBuildNumber, StringComparison.Ordinal)) return "server_rejected_build";
@@ -595,21 +606,29 @@ public class ListenServerHost : IServerTransportSink
 		// protocol and the wire table, which is every guarantee there was before this field existed.
 		if (!string.IsNullOrEmpty(hello.MapHash) && !string.Equals(hello.MapHash, _mapHash, StringComparison.Ordinal)) return "server_rejected_map";
 
-		if (!TokenMatches(hello.Token)) return "server_rejected_token";
+		if (!TokenMatches(peerId, hello.TokenProof)) return "server_rejected_token";
 		return string.Empty;
 	}
 
 	/// <summary>
-	///     Whether a peer presented the ticket this match was started with. A match started without one is open, which
-	///     is what a dedicated authority needs: the players it accepts never saw the command line it was started with.
+	///     Whether a peer proved it holds the ticket this match was started with. A match started without one is open,
+	///     which is what a dedicated authority needs: the players it accepts never saw the command line it was started
+	///     with. The challenge it issued is spent here whatever the answer, so an answer read off one connection is
+	///     worth nothing on another and nothing on this one.
 	/// </summary>
-	private bool TokenMatches(string? presentedToken)
+	private bool TokenMatches(int peerId, string? presentedProof)
 	{
-		if (_arguments.Token.Length == 0) return true;
-		if (presentedToken == null) return false;
+		if (_arguments.Token.Length == 0)
+		{
+			_pendingChallenges.Remove(peerId);
+			return true;
+		}
 
-		byte[] presented = Encoding.UTF8.GetBytes(presentedToken);
-		byte[] expected = Encoding.UTF8.GetBytes(_arguments.Token);
+		if (!_pendingChallenges.Remove(peerId, out string? challenge)) return false;
+		if (string.IsNullOrEmpty(presentedProof)) return false;
+
+		byte[] presented = Encoding.UTF8.GetBytes(presentedProof);
+		byte[] expected = Encoding.UTF8.GetBytes(RealmProtocol.ProveToken(_arguments.Token, challenge));
 		return CryptographicOperations.FixedTimeEquals(presented, expected);
 	}
 
