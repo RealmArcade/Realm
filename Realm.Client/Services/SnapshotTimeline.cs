@@ -103,7 +103,6 @@ public class SnapshotTimeline
 
 	private float _cursor = -1f;
 	private float _evaluationSeconds;
-	private int _starvationsInWindow;
 	private int _cleanWindowsInARow;
 	private float _shallowestSurplusInWindow = float.MaxValue;
 	private int _starvationsSinceArrival;
@@ -138,9 +137,6 @@ public class SnapshotTimeline
 	/// </summary>
 	public int StarvationCount { get; private set; }
 
-	/// <summary>The shallowest the buffer has been since the last time the delay was reconsidered, in sequences.</summary>
-	public float ShallowestSurplusSequences { get; private set; }
-
 	/// <summary>
 	///     How many times a unit with a confirmed order was drawn past its newest description. A run that never reports
 	///     this is running with a buffer deep enough that it never needed to guess, which is the state to aim for.
@@ -156,14 +152,12 @@ public class SnapshotTimeline
 		NewestSequence = -1;
 		_delaySequences = MinimumDelaySequences;
 		_evaluationSeconds = 0f;
-		_starvationsInWindow = 0;
 		_cleanWindowsInARow = 0;
 		_shallowestSurplusInWindow = float.MaxValue;
 		_starvationsSinceArrival = 0;
 		_lateStarvationsInWindow = 0;
 		_largestStallGapInWindow = 0;
 		StarvationCount = 0;
-		ShallowestSurplusSequences = 0f;
 		ExtrapolatedSampleCount = 0;
 	}
 
@@ -273,7 +267,6 @@ public class SnapshotTimeline
 			// The cursor reached the end of what has arrived. Placing it back at the newest description is the only
 			// option - there is no world ahead of it to show - and running out is what tells the loop to hold more.
 			StarvationCount++;
-			_starvationsInWindow++;
 			_starvationsSinceArrival++;
 			_cursor = NewestSequence;
 			surplus = 0f;
@@ -283,8 +276,6 @@ public class SnapshotTimeline
 
 		_evaluationSeconds += delta;
 		if (_evaluationSeconds < DelayEvaluationSeconds) return;
-
-		ShallowestSurplusSequences = _shallowestSurplusInWindow;
 
 		// A window deepens the buffer for a link that was late or that stalled, and not for a description that was lost:
 		// a datagram that did not arrive cannot be buffered back, and counting it as lateness ratcheted the delay to its
@@ -313,7 +304,6 @@ public class SnapshotTimeline
 		}
 
 		_evaluationSeconds = 0f;
-		_starvationsInWindow = 0;
 		_shallowestSurplusInWindow = float.MaxValue;
 		_lateStarvationsInWindow = 0;
 		_largestStallGapInWindow = 0;

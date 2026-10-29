@@ -557,7 +557,10 @@ public partial class MultiplayerSimulationHarness : Node
 		if (_pauseAtSeconds > 0f) _ = RunPauseScenarioAsync(session);
 		if (_discardAtSeconds > 0f) _ = RunSnapshotDiscardScenarioAsync();
 
-		bool hostFinished = await WaitUntilAsync(() => File.Exists(_doneFile), _durationSeconds * 4f + 120f + (_drainMilliseconds / 1000f));
+		// Bounded by the authority's own deadline plus a margin rather than by the same figure: the two clocks do not start
+		// together. The authority starts its deadline when the match begins and waits for every client to be seated first,
+		// so a map with a long warm-up spends most of that window before a peer sees its first description.
+		bool hostFinished = await WaitUntilAsync(() => File.Exists(_doneFile), _durationSeconds * 4f + 240f + (_drainMilliseconds / 1000f));
 		if (!hostFinished) GD.PrintErr("[MP_HARNESS] Host completion marker was not observed before the timeout.");
 
 		if (_drainMilliseconds > 0)

@@ -8,21 +8,33 @@ namespace Realm.Client.Services;
 
 public static class WasiSdkResolver
 {
-	public static string ResolveWasiSdkPath()
+	public static string ResolveWasiSdkPath() => Resolve(askGodot: true);
+
+	/// <summary>
+	///     Where the WASI SDK is, for a caller that is not running inside the engine - a harness that publishes a map's
+	///     script before it starts a match. Asking Godot for its user data folder goes through the engine's native side,
+	///     which a process that never loaded it cannot do, so that one probe is left out and every other one is a plain
+	///     file system question.
+	/// </summary>
+	public static string ResolveWasiSdkPathWithoutGodot() => Resolve(askGodot: false);
+
+	private static string Resolve(bool askGodot)
 	{
 		if (TryGetEnvironmentWasiPath(out string environmentPath))
 		{
 			return environmentPath;
 		}
 
-		if (TryGetGodotUserDataWasiPath(out string godotPath))
-		{
-			return godotPath;
-		}
-
+		// Asked before the engine's own folder because it answers without the engine: the editor downloads the SDK into
+		// this folder, so it is the same place, reached without a call that only exists once Godot has loaded.
 		if (TryGetAppDataWasiPath(out string appDataPath))
 		{
 			return appDataPath;
+		}
+
+		if (askGodot && TryGetGodotUserDataWasiPath(out string godotPath))
+		{
+			return godotPath;
 		}
 
 		if (TryGetEmbeddedWasiPath(out string embeddedPath))

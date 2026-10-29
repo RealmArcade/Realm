@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using Godot;
 using Realm.Shared.Network;
 
@@ -27,7 +27,9 @@ public partial class ServerNetworkChannel : Node
 
 	/// <summary>
 	///     Receives one frame a peer sent on its way. A client never sends this: what a peer says to a match is an order or
-	///     an answer about the world it was given, and both of those have to arrive.
+	///     an answer about the world it was given, and both of those have to arrive. It is declared here so both ends of the
+	///     wire carry the same two methods, which is what lets <see cref="Send" /> name the peer's method by the name this
+	///     end knows it by.
 	/// </summary>
 	[Rpc(MultiplayerApi.RpcMode.AnyPeer, CallLocal = false, TransferMode = MultiplayerPeer.TransferModeEnum.UnreliableOrdered)]
 	public void FrameUnreliable(int kind, byte[] payload)

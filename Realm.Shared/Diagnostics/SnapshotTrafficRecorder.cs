@@ -257,8 +257,8 @@ public class SnapshotTrafficRecorder
 		json.Append(",\"configuredPhysicsRate\":").Append(configuredPhysicsRateHz);
 		json.Append('}');
 
-		File.WriteAllText(Path.Combine(folder, "bandwidth_report.txt"), text.ToString());
-		File.WriteAllText(Path.Combine(folder, "bandwidth_report.json"), json.ToString());
+		WriteAtomically(Path.Combine(folder, "bandwidth_report.txt"), text.ToString());
+		WriteAtomically(Path.Combine(folder, "bandwidth_report.json"), json.ToString());
 
 		// The verifier reads coverage as "peerId sequence" so a sequence the host never sent to a peer is told apart from
 		// one it sent and the transport dropped; a match that recorded nothing leaves the file stating that.
@@ -268,7 +268,19 @@ public class SnapshotTrafficRecorder
 			for (int index = 0; index < entry.Value.Count; index++) coverage.Append(entry.Key).Append(' ').Append(entry.Value[index]).Append('\n');
 		}
 
-		File.WriteAllText(Path.Combine(folder, "host_sent_sequences.txt"), coverage.ToString());
+		WriteAtomically(Path.Combine(folder, "host_sent_sequences.txt"), coverage.ToString());
+	}
+
+	/// <summary>
+	///     Writes one report through a temporary file, so a reader never sees half of one. The run that reads these ends
+	///     the authority by killing it, which can land in the middle of a write: a truncated coverage file reads as a host
+	///     that stopped describing a peer, which is the one thing this file exists to rule out.
+	/// </summary>
+	private static void WriteAtomically(string path, string contents)
+	{
+		string temporaryPath = path + ".tmp";
+		File.WriteAllText(temporaryPath, contents);
+		File.Move(temporaryPath, path, overwrite: true);
 	}
 
 	private static string Format(double value, string format) => value.ToString(format, CultureInfo.InvariantCulture);

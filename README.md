@@ -43,6 +43,7 @@ Realm uses a server-authoritative UDP model.
     * Client commands are sent at a throttled rate of 20 Hz.
     * The server broadcasts a separate snapshot at the end of every 30 Hz tick.
     * Snapshots use **delta compression** based on unit visibility/proximity to the camera. Fog-of-war units are **never sent** in any snapshots.
+    * Deltas travel **unreliable and ordered**, so a lost one costs only the change it carried until the acknowledgement reports it missing; baselines, orders and every other frame the match cannot proceed without travel reliably.
 * **Hosting:** No official dedicated servers. Any player can host if their firewall allows UDP hole punching (~ 90% of home internet users, but not most corporate networks). Anyone could choose to host their own community server if desired.
 * **Map Distribution:** Maps are decentralized, stored as `.7z` packages, and downloaded from the host upon joining a lobby.
 

@@ -41,6 +41,61 @@ public class MultiplayerEcsSyncTests
 	///     treats as "already told" has to be repaired by something other than the dropped snapshot, and the record is read
 	///     the same way it is at the end of the clean run.
 	/// </summary>
+	/// <summary>
+	///     The same two peers with nothing injected at all. Every other run here delays, jitters or drops datagrams, and
+	///     a protocol that only agrees once it is given a buffer would agree on this run by accident: with no delay, the
+	///     cursor sits at its two-sequence minimum and any description applied late enough to be visible is a defect the
+	///     other profiles hide behind their own lag.
+	/// </summary>
+	[TestCase]
+	public async Task CleanTwoPeerRunKeepsBothClientsConverged()
+	{
+		MultiplayerEcsRunSettings settings = new()
+		{
+			GodotBinary = MultiplayerEcsSyncTestSupport.ResolveGodotBinary(),
+			ProjectDirectory = MultiplayerEcsSyncTestSupport.ResolveClientProjectDirectory(),
+			MapFolder = ChaosArenaFolder,
+			WasmPath = MultiplayerEcsSyncTestSupport.EnsureMapWasm(ChaosArenaFolder),
+			OutputDirectory = Path.Combine(Path.GetTempPath(), "Realm_MultiplayerEcsSync_Clean"),
+			DurationSeconds = 20f,
+			Port = FindAvailableUdpPort(),
+			Profile = NetworkProfile.Clean,
+			PeerCount = 2,
+			BotCount = BotSeatCount
+		};
+
+		await MultiplayerEcsSyncTestSupport.RunAsync(settings);
+		Verify(settings);
+	}
+
+	/// <summary>
+	///     The same two peers over a link whose delay varies from datagram to datagram rather than being late by a fixed
+	///     amount. This is the profile the presentation delay exists for: a fixed delay can be answered by a fixed buffer,
+	///     while jitter is what makes the cursor reach the end of what arrived and deepens the buffer it holds.
+	/// </summary>
+	[TestCase]
+	public async Task JitteredTwoPeerRunKeepsBothClientsConverged()
+	{
+		MultiplayerEcsRunSettings settings = new()
+		{
+			GodotBinary = MultiplayerEcsSyncTestSupport.ResolveGodotBinary(),
+			ProjectDirectory = MultiplayerEcsSyncTestSupport.ResolveClientProjectDirectory(),
+			MapFolder = ChaosArenaFolder,
+			WasmPath = MultiplayerEcsSyncTestSupport.EnsureMapWasm(ChaosArenaFolder),
+			OutputDirectory = Path.Combine(Path.GetTempPath(), "Realm_MultiplayerEcsSync_Jitter"),
+			DurationSeconds = 25f,
+			Port = FindAvailableUdpPort(),
+			Profile = NetworkProfile.LatencyJitter,
+			OneWayDelayMilliseconds = 40,
+			JitterMilliseconds = 60,
+			PeerCount = 2,
+			BotCount = BotSeatCount
+		};
+
+		await MultiplayerEcsSyncTestSupport.RunAsync(settings);
+		Verify(settings);
+	}
+
 	[TestCase]
 	public async Task LossyTwoPeerRunKeepsBothClientsConverged()
 	{
