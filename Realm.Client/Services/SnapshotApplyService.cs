@@ -39,10 +39,18 @@ public class SnapshotApplyService
 
 	private ulong _lastBaselineRequestTime;
 
+	/// <summary>Whether a request the cooldown refused is still owed, so it is delivered on the next description.</summary>
+	private bool _baselineRequestDeferred;
+
 	public void Accept(byte[] payload) => Accept(MemoryPackSerializer.Deserialize<WorldSnapshot>(SnapshotWireFormat.Decode(payload)));
 
 	public void Accept(WorldSnapshot snapshot)
 	{
+		// An ask that the cooldown refused is delivered on the next description rather than dropped, so a repair that was
+		// refused a moment ago is still owed one now. Without it, a request made just under the cooldown and answered by a
+		// baseline this screen had already superseded left nothing in flight and nothing asking again.
+		if (_baselineRequestDeferred) RequestBaseline();
+
 		Entity worldEntity = GameContext.NetworkService.FindWorldEntity();
 		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkState>(worldEntity)) return;
 		GameContext.World.Get<NetworkState>(worldEntity).LastSnapshotReceivedTime = Time.GetTicksMsec();
@@ -58,13 +66,20 @@ public class SnapshotApplyService
 	///     a baseline, and this is the one place that asks. It is throttled on the same policy the authority grants one on
 	///     rather than a figure of its own: the two clocks were half a second here and a second there, so the client asked
 	///     twice as often as the match would answer and half of every repair was spent on a request already in flight.
+	///     A request the cooldown refuses is held rather than lost, because the caller asked for a world this screen cannot
+	///     reach without one.
 	/// </summary>
 	public void RequestBaseline()
 	{
 		ulong now = Time.GetTicksMsec();
-		if (now - _lastBaselineRequestTime < (ulong)MatchTiming.BaselineRequestCooldownMilliseconds) return;
+		if (now - _lastBaselineRequestTime < (ulong)MatchTiming.BaselineRequestCooldownMilliseconds)
+		{
+			_baselineRequestDeferred = true;
+			return;
+		}
 
 		_lastBaselineRequestTime = now;
+		_baselineRequestDeferred = false;
 		GameContext.Host?.RequestSnapshotBaseline();
 	}
 
@@ -168,9 +183,21 @@ public class SnapshotApplyService
 	/// Applies every queued delta that the client now has the base for, in sequence order. A burst arrives when a lost
 	/// baseline is finally delivered, and the deltas behind it are still newer than what the client has applied, so
 	/// leaving them queued would discard the world state the transport went to the trouble of recovering.
+	/// A queue that reaches further ahead than a screen is ever meant to be behind is the backlog the baseline was
+	/// answering, not the burst it was recovering: applying it would draw the moment the screen missed in the frame it
+	/// recovered on, which is the work that produced the hitch in the first place. Past that depth the queue is answered
+	/// with a baseline instead, exactly as a delta that arrives with a backlog already behind it is.
 	/// </summary>
 	private void DrainQueuedDeltas(ref NetworkState networkState)
 	{
+		if (_queuedDeltas.Count > 0
+		    && _queuedDeltas[^1].Sequence - networkState.LastAppliedSnapshotSequence > MaximumBacklogSequences)
+		{
+			_queuedDeltas.Clear();
+			RequestBaseline();
+			return;
+		}
+
 		while (_queuedDeltas.Count > 0)
 		{
 			WorldSnapshot nextDelta = _queuedDeltas[0];
@@ -234,5 +261,6 @@ public class SnapshotApplyService
 		_appliedSnapshots.Reset();
 		_lastAcknowledgedSequence = -1;
 		_lastBaselineRequestTime = 0;
+		_baselineRequestDeferred = false;
 	}
 }
