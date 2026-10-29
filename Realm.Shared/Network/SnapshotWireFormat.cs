@@ -26,6 +26,13 @@ public static class SnapshotWireFormat
 	private const uint FrameMagic = 0x31545A53;
 
 	/// <summary>
+	/// The largest serialized snapshot a frame may declare. A baseline of a three hundred unit room is a few kilobytes and
+	/// the largest payload a map sends is far below a megabyte, so a header naming more than this is a frame whose length
+	/// cannot be trusted - and the buffer behind it is allocated before a single byte of it has been read.
+	/// </summary>
+	public const int MaximumSerializedSnapshotBytes = 8 * 1024 * 1024;
+
+	/// <summary>
 	/// A delta is framed on a per-tick path, so its level is the cheapest one that reaches the size the frame settles at.
 	/// Measured over 120 consecutive ticks of one peer, a delta of about 3.1 kB frames to 658 bytes at level 1 and 671
 	/// bytes at level 3, for 44 and 62 microseconds respectively; the levels above 3 buy 3 percent of bytes for five to
@@ -104,9 +111,9 @@ public static class SnapshotWireFormat
 		}
 
 		int serializedLength = BinaryPrimitives.ReadInt32LittleEndian(frame.AsSpan(4));
-		if (serializedLength <= 0)
+		if (serializedLength <= 0 || serializedLength > MaximumSerializedSnapshotBytes)
 		{
-			throw new InvalidDataException($"A snapshot frame declares {serializedLength} serialized bytes.");
+			throw new InvalidDataException($"A snapshot frame declares {serializedLength} serialized bytes, which is not a size a snapshot can be.");
 		}
 
 		Decompressor decompressor = _decompressor ??= new Decompressor();

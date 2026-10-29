@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using Godot;
 using MemoryPack;
 using Realm.Client.Network;
 using Realm.Client.Testing;
@@ -402,7 +403,20 @@ public class ClientServerSession : IDisposable
 		while (_incoming.Count > 0)
 		{
 			(NetworkFrameKind kind, byte[] payload) = _incoming.Dequeue();
-			Dispatch(kind, payload);
+
+			// One frame this build cannot read is not a match that cannot be played. It is dropped and the world is asked for
+			// again from a baseline, because letting it throw out of the frame would abort every frame behind it in the same
+			// queue and the tick the pump ran in, and the screen would sit on a world nothing advances.
+			try
+			{
+				Dispatch(kind, payload);
+			}
+			catch (Exception exception) when (exception is IOException or InvalidDataException or ArgumentException or MemoryPackSerializationException)
+			{
+				GD.PushWarning($"[Network] A {kind} frame could not be read and was dropped: {exception.Message}");
+				GameContext.SnapshotApply.RequestBaseline();
+			}
+
 			handed = true;
 		}
 
@@ -431,7 +445,7 @@ public class ClientServerSession : IDisposable
 	{
 		if (_address.Length == 0 || _port <= 0) return true;
 
-		long now = Environment.TickCount64;
+		long now = System.Environment.TickCount64;
 		if (_lastReconnectAttemptMilliseconds != 0 && now - _lastReconnectAttemptMilliseconds < ReconnectIntervalMilliseconds) return true;
 
 		_lastReconnectAttemptMilliseconds = now;

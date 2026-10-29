@@ -624,16 +624,18 @@ public class NetworkService
 			GameContext.World.Set(localEntity, hp);
 		}
 
-		// A step larger than a unit can travel between two applied snapshots is a discontinuity in what the authority is
+		// A step larger than the unit can travel between the two descriptions is a discontinuity in what the authority is
 		// telling this client, not movement: the client stalled and missed descriptions, drained a burst in one tick, or
 		// received a reconnect baseline, and a script can also move a unit outright. Nothing is continuous across it - the
 		// unit was not watched covering that distance - so the history it was drawn from is dropped rather than sampled
 		// across, which is what would otherwise show a unit gliding through a wall it never walked through.
+		// What a unit can travel is its own speed over the sequences it went undescribed, not one figure for every unit: a
+		// global step was what a unit at this match's movement ceiling was measured against, so a fast unit described after
+		// a lost description was taken for a teleport and drawn jumping to where it had run to.
 		System.Numerics.Vector3 describedPosition = snap.Position.ToNumerics();
 		System.Numerics.Vector3 previousTargetPosition = GameContext.World.Has<LatestDescription>(localEntity)
 			? GameContext.World.Get<LatestDescription>(localEntity).Position
 			: describedPosition;
-		bool targetJumped = (describedPosition - previousTargetPosition).Length() > MaximumPlausibleTargetStepMeters;
 
 		// The authority only describes a unit this peer can see, so a unit that leaves vision goes unmentioned for as long
 		// as it is away and comes back wherever it actually walked to. The client was not watching the unit in between, so
@@ -642,6 +644,8 @@ public class NetworkService
 			? GameContext.World.Get<DescribedAtSequence>(localEntity).Sequence
 			: -1;
 		bool descriptionResumed = lastDescribedSequence >= 0 && sequence - lastDescribedSequence > UnobservedUnitGapSequences;
+
+		bool targetJumped = (describedPosition - previousTargetPosition).Length() > PlausibleStepMeters(localEntity, sequence, lastDescribedSequence);
 
 		if (targetJumped || descriptionResumed) GameContext.SnapshotTimeline.Reset(localEntity.Id);
 		GameContext.SnapshotTimeline.Record(localEntity.Id, describedPosition, snap.RotationY, sequence);
@@ -667,12 +671,39 @@ public class NetworkService
 	public const int UnobservedUnitGapSequences = 10;
 
 	/// <summary>
-	/// How far a unit's described position can move between two applied snapshots before the step is a discontinuity
-	/// rather than movement. A detailed unit steps a few centimetres per snapshot and a far one steps at the resend
-	/// threshold plus the movement during its round trip - about one metre on the profiles that keep the game playable -
-	/// so two metres is above anything continuous and below the distance a stalled client has to cover.
+	/// How far a unit's described position can move between two applied descriptions before the step is a discontinuity
+	/// rather than movement, for a unit whose speed is unknown and as the floor for every other unit. A detailed unit
+	/// steps a few centimetres per description and a far one steps at the resend threshold plus the movement during its
+	/// round trip - about one metre on the profiles that keep the game playable - so two metres is above anything
+	/// continuous and below the distance a stalled client has to cover.
 	/// </summary>
 	public const float MaximumPlausibleTargetStepMeters = 2f;
+
+	/// <summary>
+	/// How much of the distance a unit's own speed covers while it went undescribed is allowed before the step counts as
+	/// a discontinuity. A unit is not always at its full speed and does not travel a straight line, and a lost description
+	/// leaves a gap the authority did move the unit across, so the allowance is the distance at speed with room for the
+	/// corner it turned rather than that distance exactly.
+	/// </summary>
+	public const float PlausibleStepAllowanceFactor = 2f;
+
+	/// <summary>
+	/// The distance one unit may be described as having covered since its last description before the step is read as a
+	/// teleport. A unit with no speed of its own - a building, or one the authority has not described before - is held to
+	/// the global floor, and every other unit to its own speed over the sequences it went undescribed.
+	/// </summary>
+	private static float PlausibleStepMeters(Entity localEntity, int sequence, int lastDescribedSequence)
+	{
+		if (!GameContext.World.Has<MovementStats>(localEntity)) return MaximumPlausibleTargetStepMeters;
+
+		int undescribedSequences = lastDescribedSequence >= 0 ? Math.Max(1, sequence - lastDescribedSequence) : 1;
+		float coveredAtSpeed = GameContext.World.Get<MovementStats>(localEntity).Speed
+			* undescribedSequences
+			* MatchTiming.SnapshotIntervalSeconds
+			* PlausibleStepAllowanceFactor;
+
+		return MathF.Max(MaximumPlausibleTargetStepMeters, coveredAtSpeed);
+	}
 
 	private static bool IsServerEntityIdRecycled(UnitSnapshot snap, Entity localEntity)
 	{

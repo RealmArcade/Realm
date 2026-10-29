@@ -23,6 +23,15 @@ public class SnapshotApplyService
 {
 	private const int MaximumQueuedDeltas = 512;
 
+	/// <summary>
+	///     How far behind the last applied description a queued description may be before the queue is answered with a
+	///     baseline instead of being applied. A description states a change against what this peer was last told, so a deep
+	///     queue cannot be skipped - but replaying it in one frame is the work that produced the hitch which built it, and
+	///     the world it describes is already a moment in the past. A baseline is self-contained and re-anchors this screen
+	///     in one round trip, which is why the backlog is answered rather than drained.
+	/// </summary>
+	private const int MaximumBacklogSequences = 8;
+
 	private readonly List<WorldSnapshot> _queuedDeltas = new();
 
 	private ulong _lastBaselineRequestTime;
@@ -103,6 +112,17 @@ public class SnapshotApplyService
 		}
 
 		if (snapshot.Sequence <= networkState.LastAppliedSnapshotSequence) return;
+
+		// A queue deeper than the buffer is a screen that stopped reading, not a link that is merely late: applying it in
+		// one frame costs more the deeper it is and leaves the world one frame closer to the moment it describes, whereas a
+		// baseline is a few kilobytes and puts the screen where the authority is. The queued descriptions are the tail of
+		// the same backlog, so they go with it.
+		if (snapshot.Sequence - networkState.LastAppliedSnapshotSequence > MaximumBacklogSequences)
+		{
+			_queuedDeltas.Clear();
+			RequestBaseline();
+			return;
+		}
 
 		// A delta names the oldest world state it assumes, not the newest baseline the host has started sending. It used
 		// to require an exact match, so every delta the host built on a baseline that was still in flight was queued until

@@ -153,9 +153,11 @@ public partial class GameHost
 	}
 
 	/// <summary>
-	///     How many sequences a drawn route waits for the match to answer the order that drew it. An order is answered
-	///     within a round trip, so this is several times what any playable link needs; it exists only so a route the match
-	///     never speaks about cannot outlive the click that drew it.
+	///     The shortest a drawn route waits for the match to answer the order that drew it, in sequences. An order is
+	///     answered within a round trip, so this is several times what any playable link needs; it exists only so a route
+	///     the match never speaks about cannot outlive the click that drew it. It is a floor rather than the lifetime
+	///     itself, because a fixed one that a link cannot answer within takes the route back before the answer arrives:
+	///     <see cref="ResolvePreviewLifetimeSequences" /> is what a route is actually held to.
 	/// </summary>
 	public const int PreviewLifetimeSequences = 20;
 
@@ -191,6 +193,23 @@ public partial class GameHost
 	private readonly List<Entity> _expiredPreviewRouteEntities = new();
 	private EntityCallback<PreviewMoveTo>? _collectExpiredPreviewRoute;
 	private int _previewSweepSequence;
+	private int _previewLifetimeSequences = PreviewLifetimeSequences;
+
+	/// <summary>
+	///     How long this link's drawn routes are held, in sequences. An order is answered in one round trip, so twice the
+	///     round trip this client measures is the bound a route needs and the floor covers the first probes of a match,
+	///     before there is a round trip to measure. Reading the estimate the ping readout already shows keeps the route and
+	///     the answer it is waiting for on the same clock; deriving the presentation delay from it is a different question
+	///     and is answered by the buffer itself.
+	/// </summary>
+	private static int ResolvePreviewLifetimeSequences()
+	{
+		NetworkLatencyService? latency = GameContext.Host != null ? GameContext.NetworkLatencyService : null;
+		if (latency == null || !latency.HasSample) return PreviewLifetimeSequences;
+
+		float roundTripSequences = latency.SmoothedRoundTripMilliseconds / 1000f / MatchTiming.SnapshotIntervalSeconds;
+		return Math.Max(PreviewLifetimeSequences, (int)MathF.Ceiling(roundTripSequences * 2f));
+	}
 
 	/// <summary>
 	///     Takes back the routes of orders the match has not spoken about within <see cref="PreviewLifetimeSequences" />.
@@ -206,6 +225,7 @@ public partial class GameHost
 		if (sequence < 0) return;
 
 		_previewSweepSequence = sequence;
+		_previewLifetimeSequences = ResolvePreviewLifetimeSequences();
 		_expiredPreviewRouteEntities.Clear();
 		_collectExpiredPreviewRoute ??= CollectExpiredPreviewRoute;
 		GameContext.World.Query(in QueryCache.AllPreviewMoveToQuery, _collectExpiredPreviewRoute);
@@ -219,7 +239,7 @@ public partial class GameHost
 
 	private void CollectExpiredPreviewRoute(Entity entity, ref PreviewMoveTo preview)
 	{
-		if (preview.IssuedSequence >= 0 && _previewSweepSequence - preview.IssuedSequence > PreviewLifetimeSequences) _expiredPreviewRouteEntities.Add(entity);
+		if (preview.IssuedSequence >= 0 && _previewSweepSequence - preview.IssuedSequence > _previewLifetimeSequences) _expiredPreviewRouteEntities.Add(entity);
 	}
 
 	/// <summary>
