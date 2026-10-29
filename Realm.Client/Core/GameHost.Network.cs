@@ -331,6 +331,11 @@ public partial class GameHost
 		// effect and the unit that produced it are drawn at the same moment rather than a presentation delay apart.
 		FlushPresentationForCursor();
 
+		// A unit leaves the screen at the moment the world reaches, not the moment its description arrived. Both the death
+		// effect the map asked for and the removal of the unit it is about are drawn from this one clock, so the unit is
+		// still there while it dies and is gone when the effect says it died.
+		FlushUnitViewRemovalsForCursor();
+
 		// A route the match never answered is taken back before the planning pass sees it, so a click that moved nothing
 		// stops drawing rather than being planned again every tick.
 		ExpirePreviewRoutes();
@@ -402,26 +407,84 @@ public partial class GameHost
 			spawnStarted = System.Diagnostics.Stopwatch.GetTimestamp();
 		}
 
+		// The node is not removed here. A description is applied the tick it arrives, while every other unit on this
+		// screen is drawn two to eight sequences behind that - so removing the node now made a unit vanish about a tenth
+		// of a second before the world reached the moment it died, and the death effect the map asked for was shown
+		// afterwards, over ground the unit had already left. The removal is held against the sequence the snapshot states
+		// and spent by the tick that draws it.
+		int removalSequence = GameContext.NetworkService.LastAppliedSnapshotSequenceForDiagnostics;
 		foreach (var localEntity in GameContext.NetworkService.FlushPendingUnitKills())
 		{
-			if (TryGetUnit3D(localEntity, out var unit3D))
-			{
-				Callable.From(() => KillUnitDeferred(unit3D)).CallDeferred();
-			}
+			if (TryGetUnit3D(localEntity, out var unit3D)) QueueUnitViewRemoval(unit3D, removalSequence, retire: false);
 		}
 
 		foreach (var localEntity in GameContext.NetworkService.FlushPendingUnitDespawns())
 		{
-			if (TryGetUnit3D(localEntity, out var unit3D))
-			{
-				Callable.From(() => RetireUnitFromView(unit3D)).CallDeferred();
-			}
+			if (TryGetUnit3D(localEntity, out var unit3D)) QueueUnitViewRemoval(unit3D, removalSequence, retire: true);
 		}
 
 		if (spawned > 0)
 		{
 			GameContext.NetworkService.ReapplyAbilityStatesToUnits();
 		}
+	}
+
+	/// <summary>
+	///     One unit node waiting for the presentation clock to reach the moment its description removed it, and whether it
+	///     leaves the world entirely or only the screen. The node is held rather than the entity because the entity behind
+	///     a recycled identifier becomes a different unit, and this has to free the one that died.
+	/// </summary>
+	private readonly record struct PendingUnitViewRemoval(Unit3D Unit, int Sequence, bool Retire);
+
+	private readonly List<PendingUnitViewRemoval> _pendingUnitViewRemovals = new();
+
+	private void QueueUnitViewRemoval(Unit3D unit3D, int sequence, bool retire)
+	{
+		if (!GodotObject.IsInstanceValid(unit3D)) return;
+		if (sequence < 0) sequence = 0;
+
+		// A unit that dies and then leaves sight before the clock reaches either is removed once, and by the retirement:
+		// it is the one that takes the replica out of the world as well as the node off the screen.
+		for (int index = 0; index < _pendingUnitViewRemovals.Count; index++)
+		{
+			if (!ReferenceEquals(_pendingUnitViewRemovals[index].Unit, unit3D)) continue;
+			if (retire) _pendingUnitViewRemovals[index] = new PendingUnitViewRemoval(unit3D, sequence, true);
+			return;
+		}
+
+		_pendingUnitViewRemovals.Add(new PendingUnitViewRemoval(unit3D, sequence, retire));
+	}
+
+	/// <summary>
+	///     Frees every unit node whose removal the presentation clock has reached, in the order the descriptions that
+	///     removed them arrived. It is the same gate the map's effects are shown through, so a unit and the effect of its
+	///     death are drawn at the same moment instead of one presentation delay apart.
+	/// </summary>
+	private void FlushUnitViewRemovalsForCursor()
+	{
+		if (_pendingUnitViewRemovals.Count == 0) return;
+
+		float cursor = GameContext.SnapshotTimeline.CursorSequence;
+		if (cursor < 0f) return;
+
+		int kept = 0;
+		for (int index = 0; index < _pendingUnitViewRemovals.Count; index++)
+		{
+			PendingUnitViewRemoval removal = _pendingUnitViewRemovals[index];
+			if (removal.Sequence > cursor)
+			{
+				_pendingUnitViewRemovals[kept++] = removal;
+				continue;
+			}
+
+			if (!GodotObject.IsInstanceValid(removal.Unit)) continue;
+
+			Unit3D unit = removal.Unit;
+			if (removal.Retire) Callable.From(() => RetireUnitFromView(unit)).CallDeferred();
+			else Callable.From(() => KillUnitDeferred(unit)).CallDeferred();
+		}
+
+		if (kept < _pendingUnitViewRemovals.Count) _pendingUnitViewRemovals.RemoveRange(kept, _pendingUnitViewRemovals.Count - kept);
 	}
 
 	public void RefreshReplicatedOverlayUi()

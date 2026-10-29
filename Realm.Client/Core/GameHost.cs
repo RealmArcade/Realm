@@ -2655,6 +2655,9 @@ public partial class GameHost : Node3D
 			GameContext.DetachServerSession();
 		}
 
+		// A removal held for a clock this screen no longer has would free a node of whatever match comes next.
+		_pendingUnitViewRemovals.Clear();
+
 		GameContext.Dispose();
 		GameContext.UnregisterHost(this);
 	}
