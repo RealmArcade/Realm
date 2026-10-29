@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using Realm.Shared.Terrain;
 
 namespace Realm.Shared.Metadata;
@@ -19,11 +18,5 @@ public class ProceduralSwayRegionResolution
 
 	public bool MaskInvert { get; init; } = false;
 
-	public IReadOnlyList<string> MeshNamePatterns { get; init; } = new List<string>();
-
-	public IReadOnlyList<string> MaterialNamePatterns { get; init; } = new List<string>();
-
 	public bool HasRegionBox => Source != ProceduralSwayRegionSource.PresetMask;
-
-	public bool UsesPartPatterns => MeshNamePatterns.Count > 0 || MaterialNamePatterns.Count > 0;
 }

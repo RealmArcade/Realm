@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using Godot;
 using Realm.Shared.Metadata;
 using Realm.Shared.Terrain;
@@ -29,8 +28,6 @@ public class ProceduralSwayRegionBinder
 
 	private readonly Node3D _modelRoot;
 	private readonly ProceduralAnimationConfig _config;
-	private readonly HashSet<ulong> _patternMatchedMeshIds = new();
-	private readonly bool _patternSelectionActive;
 
 	public ProceduralSwayRegionBinder(Node3D modelRoot, ProceduralAnimationConfig config, string? modelKey)
 	{
@@ -38,26 +35,11 @@ public class ProceduralSwayRegionBinder
 		_config = config;
 		Resolution = ProceduralSwayRegionResolver.Resolve(config, modelKey);
 		ModelBounds = modelRoot.CalculateLocalBounds();
-		TotalMeshCount = CollectPatternMatches(modelRoot);
-		_patternSelectionActive = Resolution.UsesPartPatterns && _patternMatchedMeshIds.Count > 0;
 	}
 
 	public ProceduralSwayRegionResolution Resolution { get; }
 
 	public Aabb ModelBounds { get; }
-
-	public int TotalMeshCount { get; }
-
-	public int MatchedMeshCount => _patternMatchedMeshIds.Count;
-
-	public bool PatternSelectionActive => _patternSelectionActive;
-
-	public bool MatchesMesh(GeometryInstance3D geometryInstance)
-	{
-		if (geometryInstance == null) return false;
-		if (!_patternSelectionActive) return true;
-		return _patternMatchedMeshIds.Contains(geometryInstance.GetInstanceId());
-	}
 
 	public ProceduralSwayMeshMask BuildMeshMask(GeometryInstance3D geometryInstance)
 	{
@@ -148,83 +130,4 @@ public class ProceduralSwayRegionBinder
 		}
 	}
 
-	private int CollectPatternMatches(Node node)
-	{
-		int meshCount = 0;
-		if (node is GeometryInstance3D geometryInstance)
-		{
-			meshCount++;
-			if (Resolution.UsesPartPatterns && MeshMatchesPatterns(geometryInstance))
-			{
-				_patternMatchedMeshIds.Add(geometryInstance.GetInstanceId());
-			}
-		}
-
-		int childCount = node.GetChildCount();
-		for (int i = 0; i < childCount; i++)
-		{
-			meshCount += CollectPatternMatches(node.GetChild(i));
-		}
-
-		return meshCount;
-	}
-
-	private bool MeshMatchesPatterns(GeometryInstance3D geometryInstance)
-	{
-		if (ProceduralSwayRegionResolver.MatchesAnyPattern(Resolution.MeshNamePatterns, geometryInstance.Name.ToString()))
-		{
-			return true;
-		}
-
-		return MatchesMaterialPatterns(geometryInstance);
-	}
-
-	private bool MatchesMaterialPatterns(GeometryInstance3D geometryInstance)
-	{
-		if (Resolution.MaterialNamePatterns.Count == 0) return false;
-
-		if (geometryInstance is MeshInstance3D meshInstance)
-		{
-			int surfaceCount = meshInstance.Mesh != null ? meshInstance.Mesh.GetSurfaceCount() : 0;
-			for (int surfaceIndex = 0; surfaceIndex < surfaceCount; surfaceIndex++)
-			{
-				if (ProceduralSwayRegionResolver.MatchesAnyPattern(Resolution.MaterialNamePatterns, ReadMaterialName(meshInstance, surfaceIndex)))
-				{
-					return true;
-				}
-			}
-		}
-
-		if (geometryInstance.MaterialOverride != null
-		    && ProceduralSwayRegionResolver.MatchesAnyPattern(Resolution.MaterialNamePatterns, ReadMaterialResourceName(geometryInstance.MaterialOverride)))
-		{
-			return true;
-		}
-
-		return false;
-	}
-
-	private static string ReadMaterialName(MeshInstance3D meshInstance, int surfaceIndex)
-	{
-		Material? surfaceMaterial = meshInstance.Mesh?.SurfaceGetMaterial(surfaceIndex);
-		if (surfaceMaterial != null)
-		{
-			string surfaceName = ReadMaterialResourceName(surfaceMaterial);
-			if (!string.IsNullOrEmpty(surfaceName)) return surfaceName;
-		}
-
-		Material? overrideMaterial = meshInstance.GetSurfaceOverrideMaterial(surfaceIndex);
-		return overrideMaterial != null ? ReadMaterialResourceName(overrideMaterial) : string.Empty;
-	}
-
-	private static string ReadMaterialResourceName(Material material)
-	{
-		string resourceName = material.ResourceName;
-		if (!string.IsNullOrEmpty(resourceName)) return resourceName;
-
-		string resourcePath = material.ResourcePath;
-		if (!string.IsNullOrEmpty(resourcePath)) return System.IO.Path.GetFileName(resourcePath);
-
-		return string.Empty;
-	}
 }
