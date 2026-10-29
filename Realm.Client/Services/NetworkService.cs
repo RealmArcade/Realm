@@ -443,7 +443,15 @@ public class NetworkService
 		foreach (var kvp in mapping.ServerToClientEntityMap)
 		{
 			int serverEntityId = kvp.Key;
-			if (!_baselineUnitPresence.TryGetValue(serverEntityId, out ulong presenceMask)) continue;
+			if (!_baselineUnitPresence.TryGetValue(serverEntityId, out ulong presenceMask))
+			{
+				if (GameContext.World.IsAlive(kvp.Value) && !GameContext.World.Has<GroundLoot>(kvp.Value))
+				{
+					MultiplayerSyncDiagnostics.RecordUnreconciledUnit(serverEntityId);
+				}
+
+				continue;
+			}
 
 			Entity localEntity = kvp.Value;
 			if (!GameContext.World.IsAlive(localEntity)) continue;
@@ -465,7 +473,10 @@ public class NetworkService
 				}
 
 				if (!peerHasComponent) continue;
+
 				codec.Remove(GameContext.World, localEntity);
+				MultiplayerSyncDiagnostics.RecordRemovedUnitComponent(serverEntityId, codec.ComponentName);
+				ForgetReplicatedReference(localEntity.Id, codec.ComponentTypeId);
 			}
 		}
 	}
@@ -1085,12 +1096,6 @@ public class NetworkService
 	}
 
 	/// <summary>
-	///     Forgets every reference one local entity holds. A local entity that is retired from the world stops being the
-	///     thing its references describe, and the identifier it used is handed to the next entity this screen creates. A
-	///     reference kept past that point is applied to whoever took the identifier the next time its target is described,
-	///     which put a target and an attacker on units the authority never said had either.
-	/// </summary>
-	/// <summary>
 	///     Whether this screen holds a reference it was told about but cannot name. The authority names a unit by the
 	///     identifier both processes know it by, and the peer translates it into the entity it holds for that unit; a unit
 	///     the peer was never told about has no such entity, so the reference stays empty. That is the shroud working, not
@@ -1103,6 +1108,12 @@ public class NetworkService
 		return ReplicatedEntityReferences.Resolve(new Entity(serverEntityId)) == Entity.Null;
 	}
 
+	/// <summary>
+	///     Forgets every reference one local entity holds. A local entity that is retired from the world stops being the
+	///     thing its references describe, and the identifier it used is handed to the next entity this screen creates. A
+	///     reference kept past that point is applied to whoever took the identifier the next time its target is described,
+	///     which put a target and an attacker on units the authority never said had either.
+	/// </summary>
 	public void ForgetReferencesHeldBy(int localEntityId)
 	{
 		if (!_referencedComponentTypesByLocalEntity.Remove(localEntityId, out List<int>? componentTypeIds)) return;
@@ -1164,6 +1175,7 @@ public class NetworkService
 	private static void DestroyReplicatedLootEntity(int serverEntityId, Entity localEntity, NetworkMappingState mapping)
 	{
 		GameContext.Host?.RemoveLootItemLocal(serverEntityId);
+		GameContext.NetworkService?.ForgetReferencesHeldBy(localEntity.Id);
 		ReplicatedEntityReferences.Unregister(serverEntityId);
 		mapping.ServerToClientEntityMap.Remove(serverEntityId);
 		mapping.ClientToServerEntityMap.Remove(localEntity.Id);

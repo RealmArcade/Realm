@@ -91,6 +91,37 @@ public static class MultiplayerSyncDiagnostics
 		_missingUnitComponentSummary += $"{serverEntityId}:{componentName}; ";
 	}
 
+	private static int _removedUnitComponentCount;
+	private static string _removedUnitComponentSummary = string.Empty;
+	private static int _unreconciledUnitCount;
+	private static string _unreconciledUnitSummary = string.Empty;
+
+	/// <summary>How many components a baseline's presence said the authority dropped, which the peer then dropped too.</summary>
+	public static int RemovedUnitComponentCount => _removedUnitComponentCount;
+	public static string RemovedUnitComponentSummary => _removedUnitComponentSummary;
+
+	/// <summary>
+	///     How many replicas a baseline never named while the peer still held them. A baseline states everything the peer
+	///     can see, so a unit it leaves out is one the peer must stop holding; a replica that survives one is state the
+	///     authority can no longer correct, and the components it carries read as differences for the rest of the match.
+	/// </summary>
+	public static int UnreconciledUnitCount => _unreconciledUnitCount;
+	public static string UnreconciledUnitSummary => _unreconciledUnitSummary;
+
+	public static void RecordRemovedUnitComponent(int serverEntityId, string componentName)
+	{
+		_removedUnitComponentCount++;
+		if (_removedUnitComponentCount > 20) return;
+		_removedUnitComponentSummary += $"{serverEntityId}:{componentName}; ";
+	}
+
+	public static void RecordUnreconciledUnit(int serverEntityId)
+	{
+		_unreconciledUnitCount++;
+		if (_unreconciledUnitCount > 20) return;
+		_unreconciledUnitSummary += $"{serverEntityId}; ";
+	}
+
 
 	/// <summary>
 	/// How many sequences a unit can go unmentioned by the host before the client's copy of it counts as withheld rather
@@ -160,6 +191,12 @@ public static class MultiplayerSyncDiagnostics
 		_presentationAnchorSequence = -1;
 		_fingerprintMismatchCount = 0;
 		_fingerprintMismatchSummary = string.Empty;
+		_missingUnitComponentCount = 0;
+		_missingUnitComponentSummary = string.Empty;
+		_removedUnitComponentCount = 0;
+		_removedUnitComponentSummary = string.Empty;
+		_unreconciledUnitCount = 0;
+		_unreconciledUnitSummary = string.Empty;
 		_clientUnitGapCount = 0;
 		WorstOffNavMeshMeters = 0f;
 		OffNavMeshCount = 0;
@@ -349,7 +386,7 @@ public static class MultiplayerSyncDiagnostics
 
 		try
 		{
-			string summary = $"fingerprint_mismatches={_fingerprintMismatchCount}\nmissing_unit_components={_missingUnitComponentCount}\nbuffer_starvations={GameContext.SnapshotTimeline.StarvationCount}\ninterpolation_delay_sequences={GameContext.SnapshotTimeline.DelaySequences}\nworst_off_navmesh_meters={WorstOffNavMeshMeters.ToString("F3", System.Globalization.CultureInfo.InvariantCulture)}\noff_navmesh_units={OffNavMeshCount}\nshadow_baselines={ShadowClientVerifier.VerifiedBaselines}\nshadow_replayed_deltas={ShadowClientVerifier.ReplayedDeltaCount}\nshadow_structural_failures={ShadowClientVerifier.StructuralFailures}\nshadow_fingerprint_failures={ShadowClientVerifier.FingerprintFailures}\n{_fingerprintMismatchSummary}{_missingUnitComponentSummary}\n";
+			string summary = $"fingerprint_mismatches={_fingerprintMismatchCount}\nmissing_unit_components={_missingUnitComponentCount}\nremoved_unit_components={_removedUnitComponentCount}\nunreconciled_units={_unreconciledUnitCount}\nbuffer_starvations={GameContext.SnapshotTimeline.StarvationCount}\ninterpolation_delay_sequences={GameContext.SnapshotTimeline.DelaySequences}\nworst_off_navmesh_meters={WorstOffNavMeshMeters.ToString("F3", System.Globalization.CultureInfo.InvariantCulture)}\noff_navmesh_units={OffNavMeshCount}\nshadow_baselines={ShadowClientVerifier.VerifiedBaselines}\nshadow_replayed_deltas={ShadowClientVerifier.ReplayedDeltaCount}\nshadow_structural_failures={ShadowClientVerifier.StructuralFailures}\nshadow_fingerprint_failures={ShadowClientVerifier.FingerprintFailures}\n{_fingerprintMismatchSummary}{_missingUnitComponentSummary}{_removedUnitComponentSummary}{_unreconciledUnitSummary}\n";
 			File.WriteAllText(Path.Combine(_outputDirectory, "ECS_client_replication.txt"), summary);
 		}
 		catch (IOException)
