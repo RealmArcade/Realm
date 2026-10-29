@@ -896,6 +896,7 @@ public class ListenServerHost : IServerTransportSink
 
 		_transport.Send(peerId, NetworkFrameKind.Roster, MemoryPackSerializer.Serialize(assignment));
 		_log.Write($"peer {peerId} seated as player {playerSlot} (team {team})");
+		TryClaimBaselineRequest(peerId, simulation.TickCount);
 		simulation.RequestBaseline(peerId);
 
 		SendNavMeshObstacles(peerId);
@@ -981,7 +982,7 @@ public class ListenServerHost : IServerTransportSink
 			_pendingBaselineReasons[index] = resyncRequested
 				? SnapshotBaselineReason.Resync
 				: refreshRequested ? SnapshotBaselineReason.Safety : SnapshotBaselineReason.None;
-			_pendingSkippedPeers[index] = ShouldSkipSlowPeer(seatedPeerId, simulation.TickCount, index);
+			_pendingSkippedPeers[index] = ShouldSkipSlowPeer(seatedPeerId, sequence, simulation.TickCount, index);
 		}
 
 		simulation.PreparePeerDescriptions();
@@ -1190,7 +1191,7 @@ public class ListenServerHost : IServerTransportSink
 		return true;
 	}
 
-	private bool ShouldSkipSlowPeer(int peerId, long tick, int index)
+	private bool ShouldSkipSlowPeer(int peerId, int sequence, long tick, int index)
 	{
 		if (!_unacknowledgedPublicationsPerPeer.TryGetValue(peerId, out int unacknowledged)) return false;
 
@@ -1208,7 +1209,7 @@ public class ListenServerHost : IServerTransportSink
 
 		if (_acknowledgedSequencePerPeer.TryGetValue(peerId, out int acknowledgedSequence))
 		{
-			int lagSequences = _publishSequence - acknowledgedSequence;
+			int lagSequences = sequence - acknowledgedSequence;
 			if (lagSequences <= MaximumLagBehindSequences + RoundTripSequences(peerId)) return false;
 		}
 

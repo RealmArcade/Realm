@@ -29,7 +29,11 @@ public class SnapshotApplyService
 		if (_baselineRequestDeferred) RequestBaseline();
 
 		Entity worldEntity = GameContext.NetworkService.FindWorldEntity();
-		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkState>(worldEntity)) return;
+		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkState>(worldEntity))
+		{
+			RequestBaseline();
+			return;
+		}
 		GameContext.World.Get<NetworkState>(worldEntity).LastSnapshotReceivedTime = Time.GetTicksMsec();
 		ProcessSnapshot(snapshot);
 

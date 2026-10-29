@@ -31,22 +31,33 @@ public partial class ClientNetworkChannel : Node
 	{
 		failure = string.Empty;
 
-		var peer = new ENetMultiplayerPeer();
-		Error error = localPort > 0 ? peer.CreateClient(address, port, localPort: localPort) : peer.CreateClient(address, port);
-		if (error != Error.Ok && localPort > 0)
-		{
-			error = peer.CreateClient(address, port);
-		}
+		Error error = CreateClientPeer(address, port, localPort, out ENetMultiplayerPeer? peer);
+		if (error != Error.Ok && localPort > 0) error = CreateClientPeer(address, port, 0, out peer);
 
-		if (error != Error.Ok)
+		if (error != Error.Ok || peer == null)
 		{
-			peer.Dispose();
 			failure = $"ENet could not reach {address}:{port}: {error}";
 			return false;
 		}
 
 		Multiplayer.MultiplayerPeer = peer;
 		return true;
+	}
+
+	private static Error CreateClientPeer(string address, int port, int localPort, out ENetMultiplayerPeer? peer)
+	{
+		peer = null;
+
+		var candidate = new ENetMultiplayerPeer();
+		Error error = localPort > 0 ? candidate.CreateClient(address, port, localPort: localPort) : candidate.CreateClient(address, port);
+		if (error != Error.Ok)
+		{
+			candidate.Dispose();
+			return error;
+		}
+
+		peer = candidate;
+		return Error.Ok;
 	}
 
 	public void Send(NetworkFrameKind kind, byte[] payload)
@@ -58,6 +69,8 @@ public partial class ClientNetworkChannel : Node
 
 	public void Disconnect()
 	{
+		MultiplayerPeer? peer = Multiplayer.MultiplayerPeer;
+		if (peer != null) peer.Close();
 		Multiplayer.MultiplayerPeer = null;
 	}
 }
