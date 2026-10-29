@@ -41,6 +41,11 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 	private readonly HSlider[] _sldRegionMax = new HSlider[3];
 	private readonly Label[] _lblRegionMax = new Label[3];
 	private static readonly string[] _regionAxisNames = { "X", "Y", "Z" };
+	private const float RegionAutoDetectCreaseAngleDegrees = 50.0f;
+
+	private Button _btnRegionAutoDetect;
+	private Label _lblRegionAutoDetectStatus;
+	private bool _isRegionAutoDetectActive;
 
 	private HSlider _sldSwayFrequency;
 	private Label _lblSwayFrequency;
@@ -657,8 +662,7 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 	private void BuildRegionBoxControls(VBoxContainer parent)
 	{
 		for (int axis = 0; axis < _regionAxisNames.Length; axis++)
-		{
-			int axisIndex = axis;
+		{			int axisIndex = axis;
 			string axisName = _regionAxisNames[axisIndex];
 
 			(_sldRegionMin[axisIndex], _lblRegionMin[axisIndex]) = AddSlider(
@@ -682,6 +686,24 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 				}, "0.00", 150f);
 		}
 
+		_btnRegionAutoDetect = AddButton(
+			parent,
+			"🎯 " + TranslationServer.Translate("Auto-Detect Region From Click"),
+			ToggleRegionAutoDetect,
+			"Click a part in the preview to raycast it and grow a connected region across its surface edges",
+			11,
+			new Vector2(0, 26));
+
+		_lblRegionAutoDetectStatus = new Label();
+		_lblRegionAutoDetectStatus.Name = "LblRegionAutoDetectStatus_Label";
+		_lblRegionAutoDetectStatus.Text = TranslationServer.Translate("Auto-detect is idle. Press the button, then click the part you want to animate.");
+		_lblRegionAutoDetectStatus.AddThemeFontSizeOverride("font_size", 10);
+		_lblRegionAutoDetectStatus.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
+		_lblRegionAutoDetectStatus.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+		_lblRegionAutoDetectStatus.CustomMinimumSize = new Vector2(300, 0);
+		_lblRegionAutoDetectStatus.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		parent.AddChild(_lblRegionAutoDetectStatus);
+
 		var hintLabel = new Label();
 		hintLabel.Name = "LblRegionBoxHint_Label";
 		hintLabel.Text = TranslationServer.Translate("Region Box affects only vertices inside this local-space volume (e.g. the cape). Mask Lower Bound acts as the edge feather width and a negative Falloff Power inverts the selection.");
@@ -690,6 +712,89 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 		hintLabel.CustomMinimumSize = new Vector2(300, 0);
 		hintLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		parent.AddChild(hintLabel);
+	}
+
+	protected override void OnViewportGuiInput(InputEvent @event)
+	{
+		if (_isRegionAutoDetectActive
+		    && @event is InputEventMouseButton regionPickMouseButton
+		    && regionPickMouseButton.ButtonIndex == MouseButton.Left
+		    && regionPickMouseButton.Pressed)
+		{
+			TryDetectRegionFromPreviewClick(regionPickMouseButton.Position);
+			return;
+		}
+
+		base.OnViewportGuiInput(@event);
+	}
+
+	private void ToggleRegionAutoDetect()
+	{
+		SetRegionAutoDetectActive(!_isRegionAutoDetectActive);
+	}
+
+	private void SetRegionAutoDetectActive(bool isActive)
+	{
+		_isRegionAutoDetectActive = isActive;
+
+		if (_btnRegionAutoDetect != null)
+		{
+			_btnRegionAutoDetect.Text = isActive
+				? "🎯 " + TranslationServer.Translate("Click The Part In The Preview...")
+				: "🎯 " + TranslationServer.Translate("Auto-Detect Region From Click");
+		}
+
+		if (_lblRegionAutoDetectStatus != null)
+		{
+			_lblRegionAutoDetectStatus.Text = isActive
+				? TranslationServer.Translate("Auto-detect is armed. Click the center of the part you want and the region box will grow to its connected surface.")
+				: TranslationServer.Translate("Auto-detect is idle. Press the button, then click the part you want to animate.");
+		}
+
+		if (isActive && _chkShowHeatmap != null && !_chkShowHeatmap.ButtonPressed)
+		{
+			_chkShowHeatmap.ButtonPressed = true;
+			UpdateShaderParameters();
+		}
+	}
+
+	private void TryDetectRegionFromPreviewClick(Vector2 viewportPoint)
+	{
+		if (_currentModelRoot == null || !GodotObject.IsInstanceValid(_currentModelRoot)) return;
+
+		if (!SpatialMeshRegionPicker.TryPickRegion(PreviewCamera, _currentModelRoot, viewportPoint, RegionAutoDetectCreaseAngleDegrees, out SpatialMeshRegionPick pick))
+		{
+			if (_lblRegionAutoDetectStatus != null)
+			{
+				_lblRegionAutoDetectStatus.Text = TranslationServer.Translate("Nothing was hit. Click directly on the mesh surface of the part you want to animate.");
+			}
+
+			return;
+		}
+
+		_config.MaskMode = SpatialMaskMode.RegionBox;
+		_config.MaskRegionMin = new Vector3Data(pick.Min.X, pick.Min.Y, pick.Min.Z);
+		_config.MaskRegionMax = new Vector3Data(pick.Max.X, pick.Max.Y, pick.Max.Z);
+
+		SetRegionAutoDetectActive(false);
+		SyncControlsFromConfig();
+		UpdateShaderParameters();
+
+		if (_lblRegionAutoDetectStatus != null)
+		{
+			_lblRegionAutoDetectStatus.Text = string.Format(
+				TranslationServer.Translate("Detected region on {0}: {1} connected triangles, X {2:F2} to {3:F2}, Y {4:F2} to {5:F2}, Z {6:F2} to {7:F2}."),
+				pick.MeshName,
+				pick.TriangleCount,
+				pick.Min.X,
+				pick.Max.X,
+				pick.Min.Y,
+				pick.Max.Y,
+				pick.Min.Z,
+				pick.Max.Z);
+		}
+
+		Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Auto-detected the {0} region box from {1} connected triangles."), pick.MeshName, pick.TriangleCount));
 	}
 
 	private void BuildSwayRegionControls(VBoxContainer parent)
@@ -1258,6 +1363,7 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 
 	public override void CloseDialog()
 	{
+		SetRegionAutoDetectActive(false);
 		ClearCurrentModelRoot();
 		base.CloseDialog();
 	}
