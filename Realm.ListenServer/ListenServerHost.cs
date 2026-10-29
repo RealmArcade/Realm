@@ -48,8 +48,18 @@ public class ListenServerHost : IServerTransportSink
 	private double _nextTickTime;
 	private readonly Dictionary<int, long> _lastLoggedAckSequencePerPeer = new();
 	private readonly Dictionary<int, int> _firstSnapshotSequencePerPeer = new();
-	private readonly Dictionary<int, long> _lastRepairBaselineTickPerPeer = new();
+
+	/// <summary>
+	///     The last tick this match asked for a peer to be described from scratch, whichever reason asked for it. Every
+	///     path that can entitle a peer to a baseline is answered from this one clock, which is what keeps a peer that
+	///     asks - on every frame, or once for every acknowledgement it loses - from costing this process more than one
+	///     baseline a second.
+	/// </summary>
+	private readonly Dictionary<int, long> _lastBaselineRequestTickPerPeer = new();
 	private readonly Dictionary<int, long> _lastRefreshBaselineTickPerPeer = new();
+
+	/// <summary>The tick a peer was seated on, which is what bounds the grace a screen that has not answered once is given.</summary>
+	private readonly Dictionary<int, long> _seatedAtTickPerPeer = new();
 
 	/// <summary>
 	///     How many descriptions this peer has been sent since it last acknowledged one, or negative for a peer that has
@@ -57,9 +67,6 @@ public class ListenServerHost : IServerTransportSink
 	///     transport reports what it was handed, not what the peer read.
 	/// </summary>
 	private readonly Dictionary<int, int> _unacknowledgedPublicationsPerPeer = new();
-
-	/// <summary>The last tick this peer was described from a baseline because it had fallen behind.</summary>
-	private readonly Dictionary<int, long> _lastSlowPeerBaselineTickPerPeer = new();
 
 	/// <summary>
 	///     How often a peer is described from scratch even though nothing was reported wrong, in ticks. Every section of a
@@ -305,6 +312,7 @@ public class ListenServerHost : IServerTransportSink
 
 			_seatedPeers[peerId] = slot;
 			_unacknowledgedPublicationsPerPeer[peerId] = -1;
+			_seatedAtTickPerPeer[peerId] = _simulation.TickCount;
 			if (_peerLanguages.TryGetValue(peerId, out string? language)) _simulation.SetPlayerLanguage(slot, language);
 
 			var assignment = new PeerRosterAssignment
@@ -568,10 +576,10 @@ public class ListenServerHost : IServerTransportSink
 		_pendingChallenges.Remove(peerId);
 		_lastLoggedAckSequencePerPeer.Remove(peerId);
 		_firstSnapshotSequencePerPeer.Remove(peerId);
-		_lastRepairBaselineTickPerPeer.Remove(peerId);
+		_lastBaselineRequestTickPerPeer.Remove(peerId);
 		_lastRefreshBaselineTickPerPeer.Remove(peerId);
 		_unacknowledgedPublicationsPerPeer.Remove(peerId);
-		_lastSlowPeerBaselineTickPerPeer.Remove(peerId);
+		_seatedAtTickPerPeer.Remove(peerId);
 		_obstacleSignaturePerPeer.Remove(peerId);
 		_commandsThisTick.Remove(peerId);
 	}
@@ -616,7 +624,9 @@ public class ListenServerHost : IServerTransportSink
 				HandleSnapshotAck(peerId, payload);
 				break;
 			case NetworkFrameKind.BaselineRequest:
-				simulation.RequestBaseline(peerId);
+				// A peer asking to be described from scratch is answered at the same cadence as every other reason one is
+				// owed, so a build that asked on every frame would be answered once a second rather than once a frame.
+				if (TryClaimBaselineRequest(peerId, simulation.TickCount)) simulation.RequestBaseline(peerId);
 				break;
 			case NetworkFrameKind.LatencyProbe:
 				_transport.Send(peerId, NetworkFrameKind.LatencyProbeEcho, payload.ToArray());
@@ -950,6 +960,7 @@ public class ListenServerHost : IServerTransportSink
 
 		_seatedPeers[peerId] = playerSlot;
 		_unacknowledgedPublicationsPerPeer[peerId] = -1;
+		_seatedAtTickPerPeer[peerId] = simulation.TickCount;
 		simulation.SetPlayerLanguage(playerSlot, hello.Language);
 		SendHello(peerId, string.Empty);
 
@@ -1071,11 +1082,13 @@ public class ListenServerHost : IServerTransportSink
 		{
 			int seatedPeerId = _seatedPeerIds[index];
 			bool resyncRequested = simulation.ConsumeBaselineRequest(seatedPeerId);
-			bool refreshDue = !resyncRequested && IsRefreshDue(seatedPeerId, simulation.TickCount);
-			_pendingBaselineRequests[index] = resyncRequested || refreshDue;
+			bool refreshRequested = !resyncRequested
+				&& IsRefreshDue(seatedPeerId, simulation.TickCount)
+				&& TryClaimBaselineRequest(seatedPeerId, simulation.TickCount);
+			_pendingBaselineRequests[index] = resyncRequested || refreshRequested;
 			_pendingBaselineReasons[index] = resyncRequested
 				? SnapshotBaselineReason.Resync
-				: refreshDue ? SnapshotBaselineReason.Safety : SnapshotBaselineReason.None;
+				: refreshRequested ? SnapshotBaselineReason.Safety : SnapshotBaselineReason.None;
 			_pendingSkippedPeers[index] = ShouldSkipSlowPeer(seatedPeerId, simulation.TickCount, index);
 		}
 
@@ -1306,7 +1319,10 @@ public class ListenServerHost : IServerTransportSink
 		ulong expected = coveredBits >= 64 ? ulong.MaxValue : (1UL << coveredBits) - 1UL;
 		if ((ack.AppliedMask & expected) == expected) return;
 
-		RequestRepairBaseline(peerId, simulation);
+		if (!TryClaimBaselineRequest(peerId, simulation.TickCount)) return;
+
+		simulation.RequestBaseline(peerId);
+		_log.Write($"peer {peerId} is missing a snapshot it was sent; it is described from scratch");
 	}
 
 	private void LogAcknowledgedSequence(int peerId, in SnapshotAck ack)
@@ -1327,35 +1343,57 @@ public class ListenServerHost : IServerTransportSink
 		return _lastRefreshBaselineTickPerPeer.TryGetValue(peerId, out long lastBaselineTick) && tick - lastBaselineTick >= SnapshotRefreshTicks;
 	}
 
-	private void RequestRepairBaseline(int peerId, ServerSimulation simulation)
+	/// <summary>
+	///     Entitles one peer to a description from scratch, if this peer is due one. Every path that can ask - an
+	///     acknowledgement that reports a hole, a peer that is too far behind to be described, the safety refresh, and the
+	///     peer itself - asks here first, so a peer that asks on every frame costs the same as one that asks once a second
+	///     rather than a full description and a reliable frame of it per request.
+	///     It claims the entitlement rather than delivering it: a caller that is publishing a tick describes the peer on
+	///     that tick, and one that is not asks the simulation to describe it on the next, so the same entitlement never
+	///     becomes two baselines.
+	/// </summary>
+	/// <returns>Whether the entitlement was granted, or false because one was granted too recently to grant another.</returns>
+	private bool TryClaimBaselineRequest(int peerId, long tick)
 	{
-		if (_lastRepairBaselineTickPerPeer.TryGetValue(peerId, out long lastRepairTick) && simulation.TickCount - lastRepairTick < RepairBaselineCooldownTicks) return;
+		if (_lastBaselineRequestTickPerPeer.TryGetValue(peerId, out long lastRequestTick) && tick - lastRequestTick < BaselineRequestCooldownTicks) return false;
 
-		_lastRepairBaselineTickPerPeer[peerId] = simulation.TickCount;
-		simulation.RequestBaseline(peerId);
-		_log.Write($"peer {peerId} is missing a snapshot it was sent; it is described from scratch");
+		_lastBaselineRequestTickPerPeer[peerId] = tick;
+		return true;
 	}
 
 	/// <summary>
 	///     Whether this peer is too far behind to be described this tick, and what it is owed instead. A peer that has
 	///     never acknowledged anything is not behind: it is a screen still loading the map it was told to play, and it is
-	///     left alone. One that has answered and then stopped is measurable, and half a second of publishing behind it is
-	///     skipped and described from a baseline once a second, so it can catch up rather than be starved by the stream it
-	///     is not reading. A peer that has left a quarter of a minute of publishing unanswered is dropped, so the seat and
-	///     the transport state it holds do not outlive the screen that forgot it.
+	///     left alone for the grace a load is allowed. One that has answered and then stopped is measurable, and half a
+	///     second of publishing behind it is skipped and described from a baseline once a second, so it can catch up rather
+	///     than be starved by the stream it is not reading. A peer that has left a quarter of a minute of publishing
+	///     unanswered is dropped, so the seat and the transport state it holds do not outlive the screen that forgot it.
+	///     A peer that never answers at all leaves the grace and enters this same measure, so a screen that reached the
+	///     handshake and then stopped reading costs a baseline a second for a while and is then dropped, rather than being
+	///     described in full thirty times a second for the length of the match.
 	/// </summary>
 	private bool ShouldSkipSlowPeer(int peerId, long tick, int index)
 	{
 		if (!_unacknowledgedPublicationsPerPeer.TryGetValue(peerId, out int unacknowledged)) return false;
-		if (unacknowledged < 0) return false;
+
+		if (unacknowledged < 0)
+		{
+			if (!_seatedAtTickPerPeer.TryGetValue(peerId, out long seatedAtTick)) return false;
+			if (tick - seatedAtTick < NeverAnsweredGraceTicks) return false;
+
+			_log.Write($"peer {peerId} has been described for {NeverAnsweredGraceTicks / MatchTiming.SimulationTickRateHz}s without answering once; it is measured as a peer that is behind");
+			_unacknowledgedPublicationsPerPeer[peerId] = 0;
+			unacknowledged = 0;
+		}
 
 		_unacknowledgedPublicationsPerPeer[peerId] = unacknowledged + 1;
 		if (unacknowledged < MaximumUnacknowledgedPublications) return false;
 
-		if (!_lastSlowPeerBaselineTickPerPeer.TryGetValue(peerId, out long lastSlowBaselineTick)
-			|| tick - lastSlowBaselineTick >= RepairBaselineCooldownTicks)
+		// A baseline asked for here is the only thing this peer is sent while it stays silent. One the cooldown refuses
+		// means a description from scratch is already on its way, so the tick it would have been described on is skipped
+		// rather than spent describing towards a screen that is not reading.
+		if (TryClaimBaselineRequest(peerId, tick))
 		{
-			_lastSlowPeerBaselineTickPerPeer[peerId] = tick;
 			_pendingBaselineRequests[index] = true;
 			_pendingBaselineReasons[index] = SnapshotBaselineReason.Resync;
 			return false;
@@ -1372,10 +1410,19 @@ public class ListenServerHost : IServerTransportSink
 	private const long AckReportInterval = 100;
 
 	/// <summary>
-	///     How long one peer waits between two repairs, in ticks. A peer that keeps losing state is described from
-	///     scratch once a second rather than on every snapshot, which bounds what a broken peer can cost the match.
+	///     How long one peer waits between two descriptions from scratch, in ticks, whatever asked for them. A peer that
+	///     keeps losing state is described from scratch once a second rather than on every snapshot, and one that asks on
+	///     every frame is answered on the same cadence, which bounds what a broken or hostile peer can cost the match.
 	/// </summary>
-	private const long RepairBaselineCooldownTicks = MatchTiming.SimulationTickRateHz;
+	private const long BaselineRequestCooldownTicks = MatchTiming.SimulationTickRateHz;
+
+	/// <summary>
+	///     How long a peer that has never acknowledged a description is given before it is measured like any other. A
+	///     match built by a lobby seats its peers on a world that already exists, so a peer here is loading the map it was
+	///     told to play; forty-five seconds is several times the slowest load this build allows, and it is a bound rather
+	///     than a description of a healthy peer, because a screen that stopped reading has to stop costing a slot.
+	/// </summary>
+	private const int NeverAnsweredGraceTicks = MatchTiming.SimulationTickRateHz * 45;
 
 	/// <summary>
 	///     How many descriptions a peer may leave unanswered before the match stops spending a tick's describing on it.
