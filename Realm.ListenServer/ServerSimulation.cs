@@ -361,6 +361,34 @@ public class ServerSimulation : IDisposable
 	}
 
 	/// <summary>
+	///     Gives a peer the exact player slot a lobby already gave it. A lobby arranges the seats before the world exists,
+	///     so the match is told which slot each connection plays rather than handing out the next free one. Returns false
+	///     when the slot belongs to another peer or the map declares no such slot.
+	/// </summary>
+	public bool SeatPeerAtSlot(int peerId, int playerSlot)
+	{
+		if (playerSlot <= 0 || playerSlot >= _map.PlayerEntities.Length) return false;
+		if (_peerPlayerSlots.TryGetValue(peerId, out int existing)) return existing == playerSlot;
+
+		foreach (var pair in _peerPlayerSlots)
+		{
+			if (pair.Value == playerSlot) return false;
+		}
+
+		_peerPlayerSlots[peerId] = playerSlot;
+		_unseatedPlayerSlots.Remove(playerSlot);
+
+		Entity worldEntity = _map.WorldEntity;
+		if (_map.World.IsAlive(worldEntity) && _map.World.Has<NetworkMappingState>(worldEntity))
+		{
+			NetworkMappingState mapping = _map.World.Get<NetworkMappingState>(worldEntity);
+			mapping.PeerIdToPlayerEntityMap[peerId] = _map.GetPlayerEntity(playerSlot).Value;
+		}
+
+		return true;
+	}
+
+	/// <summary>
 	///     What the match wants a screen to show since the last time the host collected it. Handing them over empties the
 	///     queue, so a request is delivered once rather than on every tick that follows it.
 	/// </summary>

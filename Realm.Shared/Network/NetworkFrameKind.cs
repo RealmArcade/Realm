@@ -63,5 +63,26 @@ public enum NetworkFrameKind : byte
 	///     The challenge a peer answers before it says who it is, so the ticket a match was started with never travels.
 	///     It is the first frame an authority sends and the only one a peer may receive before it has spoken.
 	/// </summary>
-	HandshakeChallenge = 18
+	HandshakeChallenge = 18,
+
+	/// <summary>A lobby member's request to the authority that holds the lobby.</summary>
+	LobbyCommand = 19,
+
+	/// <summary>The lobby as the authority holds it, sent whole after every change.</summary>
+	LobbyState = 20,
+
+	/// <summary>A line of lobby chat, relayed by the authority with the seat that sent it named.</summary>
+	LobbyChat = 21,
+
+	/// <summary>The lobby started its match, and every attached seat is now playing in it.</summary>
+	LobbyMatchStarted = 22,
+
+	/// <summary>A seat was removed by the peer administering the lobby and this connection is ending because of it.</summary>
+	LobbyKicked = 23,
+
+	/// <summary>A lobby member asking the authority to serve the lobby's map.</summary>
+	MapTransferRequest = 24,
+
+	/// <summary>The authority's answer to a map transfer request: the manifest, or one bundle of the files it lists.</summary>
+	MapTransferReply = 25
 }

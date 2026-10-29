@@ -28,4 +28,23 @@ public partial struct ClientHello
 	///     player's own screens are in rather than in the authority's.
 	/// </summary>
 	public string Language;
+
+	/// <summary>
+	///     The name this player is shown under in the lobby, already sanitized by the client that typed it. It is only
+	///     the first name a seat is given; the lobby's authority owns every change to it afterwards.
+	/// </summary>
+	public string PlayerName;
+
+	/// <summary>
+	///     The identity this connection presents on a later connection, so a seat it dropped out of is handed back to it
+	///     rather than to whoever connects next. It is not a credential and grants nothing on its own.
+	/// </summary>
+	public string SessionToken;
+
+	/// <summary>
+	///     The answer to the challenge that proves possession of the ticket this lobby's authority was started with. It
+	///     is what makes this peer the lobby's administrator: a process on the loopback address that does not hold that
+	///     ticket is an ordinary member, because the loopback address is not a credential.
+	/// </summary>
+	public string AdminProof;
 }

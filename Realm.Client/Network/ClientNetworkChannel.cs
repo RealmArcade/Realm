@@ -42,13 +42,25 @@ public partial class ClientNetworkChannel : Node
 		FrameArrived?.Invoke((NetworkFrameKind)kind, payload ?? Array.Empty<byte>());
 	}
 
-	/// <summary>Reaches the authority on the given loopback port, or reports why it could not.</summary>
-	public bool TryConnect(string address, int port, out string failure)
+	/// <summary>Reaches the authority on the given address, or reports why it could not.</summary>
+	public bool TryConnect(string address, int port, out string failure) => TryConnect(address, port, 0, out failure);
+
+	/// <summary>
+	///     Reaches the authority from a named local port. A peer behind NAT sends from the port its hole punch opened, so
+	///     the mapping the punch created is the one this connection uses; a peer that does not need one sends from
+	///     whatever port the operating system gives it.
+	/// </summary>
+	public bool TryConnect(string address, int port, int localPort, out string failure)
 	{
 		failure = string.Empty;
 
 		var peer = new ENetMultiplayerPeer();
-		Error error = peer.CreateClient(address, port);
+		Error error = localPort > 0 ? peer.CreateClient(address, port, localPort: localPort) : peer.CreateClient(address, port);
+		if (error != Error.Ok && localPort > 0)
+		{
+			error = peer.CreateClient(address, port);
+		}
+
 		if (error != Error.Ok)
 		{
 			peer.Dispose();

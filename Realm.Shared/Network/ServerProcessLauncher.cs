@@ -68,6 +68,29 @@ public static class ServerArgumentFlags
 	///     one watches, until the machine is restarted. A dedicated or exported authority is started without it.
 	/// </summary>
 	public const string ParentProcessIdFlag = "--parent-pid";
+
+	/// <summary>
+	///     Whether this authority opens a lobby before it plays a match. It binds the session's one public port immediately
+	///     and holds the lobby on it, so the peers that join the lobby are the peers the match is played with and nobody
+	///     reconnects when the countdown ends.
+	/// </summary>
+	public const string LobbyFlag = "--lobby";
+
+	/// <summary>
+	///     The ticket a lobby's administrator proves it holds. It is handed to the authority at spawn and never travels;
+	///     the client that started the authority answers a challenge with an HMAC of it, which is the capability that lets
+	///     its commands skip permission checks. Loopback alone grants nothing, because any local process can reach it.
+	/// </summary>
+	public const string AdminTokenFlag = "--admin-token";
+
+	/// <summary>
+	///     The name the lobby's map is known by in the client that selected it. The authority's map folder is not named
+	///     the same way as the map players join, so the name travels beside the folder.
+	/// </summary>
+	public const string MapNameFlag = "--map-name";
+
+	/// <summary>How many players the lobby's map seats, as the client that selected it read from its metadata.</summary>
+	public const string MaxPlayersFlag = "--max-players";
 }
 
 /// <summary>
@@ -133,6 +156,21 @@ public record ServerLaunchRequest(ServerLaunchTarget Target, string MapFolderPat
 ///     for it and every other match leaves no such file behind.
 	/// </summary>
 	public string? AuthorityRecordFolderPath { get; init; }
+
+	/// <summary>
+	///     Whether this authority opens a lobby before it plays a match. A lobby's authority binds the session's one
+	///     public port at creation and keeps it for the match that follows.
+	/// </summary>
+	public bool Lobby { get; init; }
+
+	/// <summary>The ticket the host's client proves to administer the lobby, or nothing for an authority nobody administers.</summary>
+	public string AdminToken { get; init; } = string.Empty;
+
+	/// <summary>The name the lobby's map is known by, or nothing for a match that was not created through a lobby.</summary>
+	public string MapName { get; init; } = string.Empty;
+
+	/// <summary>How many players the lobby's map seats, or zero to let the authority read it from the map's own metadata.</summary>
+	public int MaxPlayers { get; init; }
 
 	/// <summary>How long the authority has to load its map and report that it is listening.</summary>
 	public int ReadyTimeoutMilliseconds { get; init; } = 60000;
@@ -360,6 +398,24 @@ public class ServerProcessLauncher : IDisposable
 			startInfo.ArgumentList.Add(ServerArgumentFlags.DataFlag);
 			startInfo.ArgumentList.Add(Path.GetFullPath(request.DataFolderPath));
 		}
+		if (request.Lobby)
+		{
+			startInfo.ArgumentList.Add(ServerArgumentFlags.LobbyFlag);
+			startInfo.ArgumentList.Add(ServerArgumentFlags.AdminTokenFlag);
+			startInfo.ArgumentList.Add(request.AdminToken);
+			if (!string.IsNullOrWhiteSpace(request.MapName))
+			{
+				startInfo.ArgumentList.Add(ServerArgumentFlags.MapNameFlag);
+				startInfo.ArgumentList.Add(request.MapName);
+			}
+
+			if (request.MaxPlayers > 0)
+			{
+				startInfo.ArgumentList.Add(ServerArgumentFlags.MaxPlayersFlag);
+				startInfo.ArgumentList.Add(request.MaxPlayers.ToString(System.Globalization.CultureInfo.InvariantCulture));
+			}
+		}
+
 		if (request.Cheats) startInfo.ArgumentList.Add(ServerArgumentFlags.CheatsFlag);
 		if (request.WasmDebug) startInfo.ArgumentList.Add(ServerArgumentFlags.WasmDebugFlag);
 		if (request.WasmDebug && !string.IsNullOrWhiteSpace(request.MapWorkspacePath))

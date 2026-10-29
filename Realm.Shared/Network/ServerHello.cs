@@ -16,4 +16,13 @@ public partial struct ServerHello
 	///     everything a player can see.
 	/// </summary>
 	public string MapHash;
+
+	/// <summary>The identity the authority gave this connection, which a lobby state or a roster names it by.</summary>
+	public int PeerId;
+
+	/// <summary>Whether this connection administers the lobby, which is settled by the ticket it proved it holds.</summary>
+	public bool IsAdmin;
+
+	/// <summary>Whether this connection was admitted to a lobby rather than seated in a running match.</summary>
+	public bool InLobby;
 }

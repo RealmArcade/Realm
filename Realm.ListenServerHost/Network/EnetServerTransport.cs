@@ -1,3 +1,4 @@
+using System;
 using Godot;
 using Realm.Shared.Network;
 
@@ -104,6 +105,21 @@ public class EnetServerTransport : IServerTransport
 		if (_peer == null) return;
 
 		_peer.DisconnectPeer(peerId);
+	}
+
+	/// <summary>
+	///     Sends one datagram from the very socket the lobby is advertised on. A hole punch has to leave from that socket:
+	///     a punch sent from any other port opens a mapping no peer can reach this authority through.
+	/// </summary>
+	public bool SendToAddress(string address, int port, ReadOnlySpan<byte> payload)
+	{
+		if (_peer == null || string.IsNullOrWhiteSpace(address) || port <= 0) return false;
+
+		var host = _peer.GetHost();
+		if (host == null) return false;
+
+		host.SocketSend(address, port, payload.ToArray());
+		return true;
 	}
 
 	public void Stop()

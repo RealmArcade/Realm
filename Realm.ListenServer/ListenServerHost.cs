@@ -31,6 +31,20 @@ public class ListenServerHost : IServerTransportSink
 	private readonly Dictionary<int, string> _pendingChallenges = new();
 
 	private ServerSimulation? _simulation;
+
+	/// <summary>The lobby this authority holds before its match starts, or nothing for a match started without one.</summary>
+	private ServerLobby? _lobby;
+
+	/// <summary>The files of the map the lobby selected, served to the peers that joined it.</summary>
+	private ServerMapShares? _mapShares;
+
+	/// <summary>Every connection the transport has reported, seated or not, so the match can be started without leaving anyone attached.</summary>
+	private readonly HashSet<int> _connectedPeers = new();
+
+	/// <summary>The language each peer said it reads in, applied to the seat the lobby gave it once the match seats it.</summary>
+	private readonly Dictionary<int, string> _peerLanguages = new();
+
+	private double _lastTickSeconds;
 	private double _nextTickTime;
 	private readonly Dictionary<int, long> _lastLoggedAckSequencePerPeer = new();
 	private readonly Dictionary<int, int> _firstSnapshotSequencePerPeer = new();
@@ -90,6 +104,13 @@ public class ListenServerHost : IServerTransportSink
 	private int _pausedByPlayerSlot = -1;
 	private double _nextObstacleCheckTime;
 	private string _mapHash = string.Empty;
+
+	/// <summary>
+	///     The seat each session identity owned when a lobby handed its roster to this match, keyed by the identity the
+	///     client minted. A match a lobby arranged is closed to everyone the lobby did not seat, and a seat whose
+	///     connection dropped is handed back to the identity that owned it rather than to whoever connects next.
+	/// </summary>
+	private readonly Dictionary<string, int> _lobbySessionSlots = new(StringComparer.Ordinal);
 	private long _deliveredPresentationCount;
 	private int _rateLimitedCommandCount;
 	private long _nextRateLimitReportTicks;
@@ -141,6 +162,12 @@ public class ListenServerHost : IServerTransportSink
 		if (!Directory.Exists(_arguments.MapPath))
 		{
 			throw new DirectoryNotFoundException($"The map folder '{_arguments.MapPath}' does not exist.");
+		}
+
+		if (_arguments.Lobby)
+		{
+			StartLobby();
+			return;
 		}
 
 		// What the sandbox reports about the script it is running - the debug mode it started in, the process a debugger
@@ -201,6 +228,117 @@ public class ListenServerHost : IServerTransportSink
 	}
 
 	/// <summary>
+	///     Opens the lobby this authority was started for and binds the session's one public port before it can be told
+	///     about any player. No world exists yet: the map is loaded when the lobby's countdown ends, against the seats the
+	///     lobby arranged, so the peers that joined the lobby are the peers the match is played with and nobody reconnects.
+	/// </summary>
+	private void StartLobby()
+	{
+		if (!_transport.TryStart(EcsWorld.MAX_PLAYERS, loopbackOnly: false, this, out string failure))
+		{
+			throw new IOException($"the lobby could not listen for peers: {failure}");
+		}
+
+		_mapShares = new ServerMapShares(_arguments.MapPath, _log);
+		_lobby = new ServerLobby(
+			_arguments,
+			_log,
+			(peerId, kind, payload, delivery) => _transport.Send(peerId, kind, payload, delivery),
+			peerId => _transport.Disconnect(peerId),
+			StartMatchFromLobby,
+			Stop,
+			(address, port) => _transport.SendToAddress(address, port, Encoding.UTF8.GetBytes("PUNCH")));
+
+		IsRunning = true;
+		_mapHash = MapContentHash.Compute(_arguments.MapPath, _arguments.LogPath);
+		_log.Write($"lobby opened for map '{_lobby.MapName}' version {_lobby.MapVersion} with {_lobby.MaximumPlayers} playable slot(s)");
+		AnnounceReady();
+	}
+
+	/// <summary>
+	///     Builds the match the lobby arranged. It is the one place a lobby's seats become a world: the map is loaded with
+	///     those seats so its script spawns what each of them starts with, and every attached seat is bound to the player
+	///     slot the lobby already gave it, so the same connection carries the match from its first tick.
+	/// </summary>
+	/// <returns>Why the match could not start, or nothing when it did.</returns>
+	private string? StartMatchFromLobby(IReadOnlyList<MatchRosterSeat> roster, IReadOnlyList<(int PeerId, int Slot)> assignments, IReadOnlyDictionary<string, int> sessionSlots, int seed)
+	{
+		if (_simulation != null) return "This lobby has already started its match.";
+
+		_scriptLogSink = _log.Write;
+		WasmScriptHost.OnWasmLog += _scriptLogSink;
+
+		try
+		{
+			LoadedMap map = MapWorldLoader.Load(_arguments.MapPath, roster);
+			var paths = ServerMatchPaths.From(_arguments);
+			_simulation = new ServerSimulation(map, paths, _log, seed, _arguments.Cheats, _arguments.WasmDebug, _arguments.WorkspacePath, roster);
+			_simulation.PeerDropped += DisconnectPeer;
+			_log.Write($"map '{paths.MapName}' keeps its saved data under '{_simulation.MapSavedDataDirectory()}'");
+			_log.Write(_simulation.Describe());
+		}
+		catch (Exception exception)
+		{
+			_log.Write($"the lobby could not start its match: {exception}");
+			_simulation?.Dispose();
+			_simulation = null;
+			if (_scriptLogSink != null)
+			{
+				WasmScriptHost.OnWasmLog -= _scriptLogSink;
+				_scriptLogSink = null;
+			}
+
+			return "The match could not start; the authority's log explains why.";
+		}
+
+		_lobbySessionSlots.Clear();
+		foreach (var pair in sessionSlots) _lobbySessionSlots[pair.Key] = pair.Value;
+
+		for (int index = 0; index < assignments.Count; index++)
+		{
+			(int peerId, int slot) = assignments[index];
+			if (!_simulation.SeatPeerAtSlot(peerId, slot))
+			{
+				_log.Write($"peer {peerId} could not be given lobby seat {slot}; it will not be part of the match");
+				continue;
+			}
+
+			_seatedPeers[peerId] = slot;
+			_unacknowledgedPublicationsPerPeer[peerId] = -1;
+			if (_peerLanguages.TryGetValue(peerId, out string? language)) _simulation.SetPlayerLanguage(slot, language);
+
+			var assignment = new PeerRosterAssignment
+			{
+				PeerId = peerId,
+				PlayerSlot = slot,
+				Team = _simulation.ReadTeam(slot)
+			};
+
+			_transport.Send(peerId, NetworkFrameKind.Roster, MemoryPackSerializer.Serialize(assignment));
+			_simulation.RequestBaseline(peerId);
+			SendNavMeshObstacles(peerId);
+			SendPauseState(peerId);
+		}
+
+		// A connection that never said who it is, or that the lobby never admitted, has no seat in this match. It is ended
+		// here rather than left attached to a session whose traffic its role does not allow it to reach.
+		var unseated = new List<int>();
+		foreach (int peerId in _connectedPeers)
+		{
+			if (!_seatedPeers.ContainsKey(peerId)) unseated.Add(peerId);
+		}
+
+		for (int index = 0; index < unseated.Count; index++)
+		{
+			_log.Write($"peer {unseated[index]} was attached to the lobby but is not seated in the match; ending its connection");
+			_transport.Disconnect(unseated[index]);
+		}
+
+		_log.Write($"the lobby handed {_seatedPeers.Count} connection(s) to the match; the port it was reached on belongs to the match now");
+		return null;
+	}
+
+	/// <summary>
 	///     The players the match was started for. The roster names every seat the lobby arranged, so the map's script
 	///     seats each of them - and spawns what its rules give them - before the authority is listening.
 	/// </summary>
@@ -250,8 +388,15 @@ public class ListenServerHost : IServerTransportSink
 	/// </summary>
 	public void Tick(double nowSeconds)
 	{
+		if (!IsRunning) return;
+
+		double lobbyDelta = _lastTickSeconds <= 0 ? 0 : Math.Max(0, nowSeconds - _lastTickSeconds);
+		_lastTickSeconds = nowSeconds;
+		_lobby?.Tick(lobbyDelta);
+		if (!IsRunning) return;
+
 		ServerSimulation? simulation = _simulation;
-		if (!IsRunning || simulation == null) return;
+		if (simulation == null) return;
 
 		// A paused match holds its world where it is. Nothing is stepped and nothing is published, so every screen keeps
 		// the world it was last told about instead of watching it drift while nobody can act in it.
@@ -329,6 +474,11 @@ public class ListenServerHost : IServerTransportSink
 		WriteTrafficReport();
 
 		_seatedPeers.Clear();
+		_connectedPeers.Clear();
+		_peerLanguages.Clear();
+		_lobbySessionSlots.Clear();
+		_lobby = null;
+		_mapShares = null;
 	}
 
 	public void Dispose()
@@ -362,6 +512,7 @@ public class ListenServerHost : IServerTransportSink
 	/// </summary>
 	public void OnPeerConnected(int peerId)
 	{
+		_connectedPeers.Add(peerId);
 		_log.Write($"peer {peerId} connected");
 
 		// The challenge is the first thing a peer is told, because the hello is the first thing it may send. The ticket
@@ -374,6 +525,18 @@ public class ListenServerHost : IServerTransportSink
 
 	public void OnPeerDisconnected(int peerId, string reason)
 	{
+		_connectedPeers.Remove(peerId);
+		_peerLanguages.Remove(peerId);
+
+		// While the lobby owns the session, a seat belongs to the lobby: it is held for the identity that dropped, or
+		// the lobby is destroyed when the connection that administered it is gone.
+		if (_lobby != null && _simulation == null)
+		{
+			_log.Write($"peer {peerId} left the lobby: {reason}");
+			_lobby.OnPeerDisconnected(peerId);
+			return;
+		}
+
 		bool wasSeated = _seatedPeers.Remove(peerId);
 		_log.Write(wasSeated ? $"peer {peerId} left: {reason}" : $"peer {peerId} dropped before it was seated: {reason}");
 
@@ -419,6 +582,15 @@ public class ListenServerHost : IServerTransportSink
 	/// </summary>
 	public void OnFrameReceived(int peerId, NetworkFrameKind kind, ReadOnlySpan<byte> payload)
 	{
+		// A session is either a lobby or a match, and a peer's role decides which traffic it may reach. While the
+		// lobby owns the session there is no world to order or acknowledge, so a match frame from a lobby member is
+		// refused rather than queued for a match that does not exist yet.
+		if (_lobby != null && _simulation == null)
+		{
+			HandleLobbyFrame(peerId, kind, payload);
+			return;
+		}
+
 		ServerSimulation? simulation = _simulation;
 		if (simulation == null) return;
 
@@ -467,6 +639,174 @@ public class ListenServerHost : IServerTransportSink
 				_transport.Disconnect(peerId);
 				break;
 		}
+	}
+
+	/// <summary>
+	///     Reads one frame from a connection the lobby owns. The lobby's own messages are accepted; an order, an
+	///     acknowledgement or anything else only a seated match peer may send ends the connection, because a peer that is
+	///     still in the lobby must not reach match traffic.
+	/// </summary>
+	private void HandleLobbyFrame(int peerId, NetworkFrameKind kind, ReadOnlySpan<byte> payload)
+	{
+		ServerLobby? lobby = _lobby;
+		if (lobby == null) return;
+
+		if (kind == NetworkFrameKind.ClientHello)
+		{
+			HandleLobbyHello(peerId, payload);
+			return;
+		}
+
+		if (!lobby.TryGetSeat(peerId, out LobbySeat seat))
+		{
+			_log.Write($"peer {peerId} sent a {kind} frame before it was admitted to the lobby");
+			_transport.Disconnect(peerId);
+			return;
+		}
+
+		switch (kind)
+		{
+			case NetworkFrameKind.LobbyCommand:
+			{
+				LobbyCommand command;
+				try
+				{
+					command = MemoryPackSerializer.Deserialize<LobbyCommand>(payload.ToArray());
+				}
+				catch (Exception exception) when (exception is IOException or InvalidDataException or ArgumentException)
+				{
+					_log.Write($"peer {peerId} sent a lobby command that could not be read: {exception.Message}");
+					return;
+				}
+
+				lobby.HandleCommand(peerId, command);
+				break;
+			}
+
+			case NetworkFrameKind.MapTransferRequest:
+				HandleMapTransfer(peerId, payload);
+				break;
+
+			case NetworkFrameKind.LatencyProbe:
+				_transport.Send(peerId, NetworkFrameKind.LatencyProbeEcho, payload.ToArray());
+				break;
+
+			case NetworkFrameKind.Shutdown:
+				if (peerId != lobby.AdminPeerId)
+				{
+					_log.Write($"peer {peerId} asked to end a lobby it does not administer; the request is refused");
+					return;
+				}
+
+				_log.Write($"the peer administering the lobby asked it to end");
+				Stop();
+				break;
+
+			default:
+				// A seat is not a match peer yet, whatever frame it sends. Nothing it could say to a running match is
+				// accepted here, so the connection that said it is the thing that ends.
+				_log.Write($"lobby seat {seat.Slot} ('{seat.Name}') sent a {kind} frame, which a lobby member may not send");
+				_transport.Disconnect(peerId);
+				break;
+		}
+	}
+
+	/// <summary>
+	///     Admits a peer that has said who it is, and answers it with the seat it was given and the lobby it joined. The
+	///     ticket this authority was spawned with is spent on the hello whatever the answer, so an answer read off one
+	///     connection is worth nothing on another.
+	/// </summary>
+	private void HandleLobbyHello(int peerId, ReadOnlySpan<byte> payload)
+	{
+		ServerLobby? lobby = _lobby;
+		if (lobby == null) return;
+
+		ClientHello hello;
+		try
+		{
+			hello = MemoryPackSerializer.Deserialize<ClientHello>(payload.ToArray());
+		}
+		catch (Exception exception) when (exception is IOException or InvalidDataException or ArgumentException)
+		{
+			_log.Write($"peer {peerId} sent a hello that could not be read: {exception.Message}");
+			_transport.Disconnect(peerId);
+			return;
+		}
+
+		string rejection = DescribeLobbyHandshakeRejection(peerId, in hello);
+		if (rejection.Length > 0)
+		{
+			_log.Write($"peer {peerId} refused by the lobby: {rejection}");
+			SendHello(peerId, rejection, isAdmin: false, inLobby: true);
+			_transport.Disconnect(peerId);
+			return;
+		}
+
+		bool proveAdmin = ProvesAdmin(peerId, hello.AdminProof);
+		string admitted = lobby.AdmitPeer(peerId, hello.PlayerName, hello.SessionToken, proveAdmin, out bool isAdmin);
+		if (admitted.Length > 0)
+		{
+			_log.Write($"peer {peerId} refused by the lobby: {admitted}");
+			SendHello(peerId, admitted, isAdmin: false, inLobby: true);
+			_transport.Disconnect(peerId);
+			return;
+		}
+
+		_peerLanguages[peerId] = hello.Language ?? string.Empty;
+		SendHello(peerId, string.Empty, isAdmin, inLobby: true);
+		lobby.SendStateTo(peerId);
+	}
+
+	private string DescribeLobbyHandshakeRejection(int peerId, in ClientHello hello)
+	{
+		if (hello.Protocol != RealmProtocol.Version) return "server_rejected_protocol";
+		if (!string.Equals(hello.Build, RealmVersion.GameBuildNumber, StringComparison.Ordinal)) return "server_rejected_build";
+		if (!string.Equals(hello.WireTableHash, ReplicatedComponents.ComputeWireTableHash(), StringComparison.Ordinal)) return "server_rejected_wire_table";
+
+		// A lobby is joined before every peer holds the map: the map is downloaded while the lobby is open, so a peer
+		// with no map of its own states no hash and is admitted on the protocol and the wire table alone.
+		if (!string.IsNullOrEmpty(hello.MapHash) && _mapHash.Length > 0 && !string.Equals(hello.MapHash, _mapHash, StringComparison.Ordinal)) return "server_rejected_map";
+		return string.Empty;
+	}
+
+	/// <summary>
+	///     Whether a lobby hello proved possession of the ticket this authority was spawned with. The challenge is spent
+	///     here whatever the answer, and a peer that proves nothing is still admitted - as an ordinary member.
+	/// </summary>
+	private bool ProvesAdmin(int peerId, string? presentedProof)
+	{
+		if (_arguments.AdminToken.Length == 0) return false;
+		if (string.IsNullOrEmpty(presentedProof)) return false;
+		if (!_pendingChallenges.Remove(peerId, out string? challenge)) return false;
+
+		byte[] presented = Encoding.UTF8.GetBytes(presentedProof);
+		byte[] expected = Encoding.UTF8.GetBytes(RealmProtocol.ProveToken(_arguments.AdminToken, challenge));
+		return CryptographicOperations.FixedTimeEquals(presented, expected);
+	}
+
+	/// <summary>Serves one request for the lobby's map, or tells the peer why it cannot be served.</summary>
+	private void HandleMapTransfer(int peerId, ReadOnlySpan<byte> payload)
+	{
+		MapTransferRequest request;
+		try
+		{
+			request = MemoryPackSerializer.Deserialize<MapTransferRequest>(payload.ToArray());
+		}
+		catch (Exception exception) when (exception is IOException or InvalidDataException or ArgumentException)
+		{
+			_log.Write($"peer {peerId} sent a map transfer request that could not be read: {exception.Message}");
+			return;
+		}
+
+		MapTransferReply reply = _mapShares?.Handle(peerId, request) ?? new MapTransferReply
+		{
+			Kind = MapTransferReplyKind.Refused,
+			TransferId = request.TransferId,
+			MapName = request.MapName,
+			Refusal = "this lobby has no map to serve"
+		};
+
+		_transport.Send(peerId, NetworkFrameKind.MapTransferReply, MemoryPackSerializer.Serialize(reply));
 	}
 
 	/// <summary>
@@ -574,7 +914,32 @@ public class ListenServerHost : IServerTransportSink
 			return;
 		}
 
-		if (!simulation.TryAssignPlayerSlot(peerId, out int playerSlot, out int team))
+		int playerSlot;
+		int team;
+		if (_lobbySessionSlots.Count > 0)
+		{
+			// The lobby arranged this roster before the world existed, so this match seats nobody it did not seat. A seat
+			// whose connection dropped is handed back only to the identity that owned it, which is what makes a
+			// reconnecting player the same player rather than whoever happened to reach the port next.
+			if (string.IsNullOrEmpty(hello.SessionToken) || !_lobbySessionSlots.TryGetValue(hello.SessionToken, out playerSlot))
+			{
+				_log.Write($"peer {peerId} refused: this match's roster was arranged by a lobby, and this connection is not one of its seats");
+				SendHello(peerId, LobbyRosterClosedRejection);
+				_transport.Disconnect(peerId);
+				return;
+			}
+
+			if (!simulation.SeatPeerAtSlot(peerId, playerSlot))
+			{
+				_log.Write($"peer {peerId} refused: lobby seat {playerSlot} already belongs to another connection");
+				SendHello(peerId, LobbySeatTakenRejection);
+				_transport.Disconnect(peerId);
+				return;
+			}
+
+			team = simulation.ReadTeam(playerSlot);
+		}
+		else if (!simulation.TryAssignPlayerSlot(peerId, out playerSlot, out team))
 		{
 			const string noSlot = "server_rejected_no_free_slot";
 			_log.Write($"peer {peerId} refused: every player slot this map declares is taken");
@@ -605,7 +970,7 @@ public class ListenServerHost : IServerTransportSink
 		SendPauseState(peerId);
 	}
 
-	private void SendHello(int peerId, string rejection)
+	private void SendHello(int peerId, string rejection, bool isAdmin = false, bool inLobby = false)
 	{
 		var response = new ServerHello
 		{
@@ -613,7 +978,10 @@ public class ListenServerHost : IServerTransportSink
 			Build = RealmVersion.GameBuildNumber,
 			Accepted = rejection.Length == 0,
 			Rejection = rejection,
-			MapHash = _mapHash
+			MapHash = _mapHash,
+			PeerId = peerId,
+			IsAdmin = isAdmin,
+			InLobby = inLobby
 		};
 
 		_transport.Send(peerId, NetworkFrameKind.ServerHello, MemoryPackSerializer.Serialize(response));
@@ -624,6 +992,15 @@ public class ListenServerHost : IServerTransportSink
 	///     one person against the computer, so it takes one peer and nobody else is offered a seat.
 	/// </summary>
 	private const string CheatsMatchRejection = "server_rejected_cheats_match_is_local_only";
+
+	/// <summary>
+	///     What a peer is told when it reaches a match a lobby arranged without holding one of the lobby's seats. The
+	///     roster was settled before the match loaded the map, so a peer the lobby never seated has nothing to join.
+	/// </summary>
+	private const string LobbyRosterClosedRejection = "server_rejected_lobby_roster_is_closed";
+
+	/// <summary>What a peer is told when the lobby seat its identity owned is already played by a live connection.</summary>
+	private const string LobbySeatTakenRejection = "server_rejected_lobby_seat_is_taken";
 
 	private string DescribeHandshakeRejection(int peerId, in ClientHello hello)
 	{

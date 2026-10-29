@@ -3,7 +3,7 @@ using Realm.Shared.Network;
 
 namespace Realm.ListenServer;
 
-public record ServerArguments(string MapPath, int Port, string Token, string LogPath, string DataPath, int Seed, bool Cheats = false, bool WasmDebug = false, string WorkspacePath = "", string RosterPath = "", string RecordAuthorityPath = "", int ParentProcessId = 0)
+public record ServerArguments(string MapPath, int Port, string Token, string LogPath, string DataPath, int Seed, bool Cheats = false, bool WasmDebug = false, string WorkspacePath = "", string RosterPath = "", string RecordAuthorityPath = "", int ParentProcessId = 0, bool Lobby = false, string AdminToken = "", string MapName = "", int MaxPlayers = 0)
 {
 	public const string MapFlag = ServerArgumentFlags.MapFlag;
 	public const string PortFlag = ServerArgumentFlags.PortFlag;
@@ -17,8 +17,12 @@ public record ServerArguments(string MapPath, int Port, string Token, string Log
 	public const string RosterFlag = ServerArgumentFlags.RosterFlag;
 	public const string RecordAuthorityFlag = ServerArgumentFlags.RecordAuthorityFlag;
 	public const string ParentProcessIdFlag = ServerArgumentFlags.ParentProcessIdFlag;
+	public const string LobbyFlag = ServerArgumentFlags.LobbyFlag;
+	public const string AdminTokenFlag = ServerArgumentFlags.AdminTokenFlag;
+	public const string MapNameFlag = ServerArgumentFlags.MapNameFlag;
+	public const string MaxPlayersFlag = ServerArgumentFlags.MaxPlayersFlag;
 
-	public const string Usage = $"{MapFlag} <absolute map folder> [{PortFlag} <port>] [{SeedFlag} <integer>] [{TokenFlag} <join ticket>] {LogFlag} <log file> [{DataFlag} <folder a map's saved data belongs in>] [{RosterFlag} <match roster file>] [{RecordAuthorityFlag} <folder the run's reports read>] [{ParentProcessIdFlag} <process id of the screen that started the match>] [{CheatsFlag}] [{WasmDebugFlag} [{WorkspaceFlag} <map workspace folder>]]";
+	public const string Usage = $"{MapFlag} <absolute map folder> [{PortFlag} <port>] [{SeedFlag} <integer>] [{TokenFlag} <join ticket>] {LogFlag} <log file> [{DataFlag} <folder a map's saved data belongs in>] [{RosterFlag} <match roster file>] [{RecordAuthorityFlag} <folder the run's reports read>] [{ParentProcessIdFlag} <process id of the screen that started the match>] [{LobbyFlag} {AdminTokenFlag} <admin ticket> [{MapNameFlag} <map name>] [{MaxPlayersFlag} <playable slots>]] [{CheatsFlag}] [{WasmDebugFlag} [{WorkspaceFlag} <map workspace folder>]]";
 
 	public static bool TryParse(string[] args, out ServerArguments? arguments, out string error)
 	{
@@ -37,6 +41,10 @@ public record ServerArguments(string MapPath, int Port, string Token, string Log
 		string? rosterPath = null;
 		string? recordSyncPath = null;
 		int parentProcessId = 0;
+		bool lobby = false;
+		string? adminToken = null;
+		string? mapName = null;
+		int maxPlayers = 0;
 
 		for (int index = 0; index < args.Length; index++)
 		{
@@ -94,6 +102,23 @@ public record ServerArguments(string MapPath, int Port, string Token, string Log
 				case WorkspaceFlag:
 					if (!TryTakeValue(args, ref index, flag, out workspacePath, out error)) return false;
 					break;
+				case LobbyFlag:
+					lobby = true;
+					break;
+				case AdminTokenFlag:
+					if (!TryTakeValue(args, ref index, flag, out adminToken, out error)) return false;
+					break;
+				case MapNameFlag:
+					if (!TryTakeValue(args, ref index, flag, out mapName, out error)) return false;
+					break;
+				case MaxPlayersFlag:
+					if (!TryTakeValue(args, ref index, flag, out string? maxPlayersText, out error)) return false;
+					if (!int.TryParse(maxPlayersText, NumberStyles.Integer, CultureInfo.InvariantCulture, out maxPlayers) || maxPlayers < 1)
+					{
+						error = $"{MaxPlayersFlag} expects the number of playable slots, not '{maxPlayersText}'.";
+						return false;
+					}
+					break;
 				default:
 					error = $"'{flag}' is not a listen server argument.";
 					return false;
@@ -116,7 +141,13 @@ public record ServerArguments(string MapPath, int Port, string Token, string Log
 		// the script's JIT ELF is exported into when the caller named none.
 		string resolvedWorkspace = wasmDebug ? workspacePath ?? mapPath : workspacePath ?? string.Empty;
 
-		arguments = new ServerArguments(mapPath, port, token ?? string.Empty, logPath, string.IsNullOrWhiteSpace(dataPath) ? AppContext.BaseDirectory : dataPath, seed, cheats, wasmDebug, resolvedWorkspace, rosterPath ?? string.Empty, recordSyncPath ?? string.Empty, parentProcessId);
+		if (lobby && string.IsNullOrEmpty(adminToken))
+		{
+			error = $"{LobbyFlag} needs the ticket a lobby's administrator proves it holds ({AdminTokenFlag}).";
+			return false;
+		}
+
+		arguments = new ServerArguments(mapPath, port, token ?? string.Empty, logPath, string.IsNullOrWhiteSpace(dataPath) ? AppContext.BaseDirectory : dataPath, seed, cheats, wasmDebug, resolvedWorkspace, rosterPath ?? string.Empty, recordSyncPath ?? string.Empty, parentProcessId, lobby, adminToken ?? string.Empty, mapName ?? string.Empty, maxPlayers);
 		return true;
 	}
 

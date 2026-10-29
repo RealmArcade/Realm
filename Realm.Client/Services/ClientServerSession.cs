@@ -38,6 +38,13 @@ namespace Realm.Client.Services;
 public record ServerMatchStart(string MapFolderPath, string MapName, int Seed, string LogDirectory, string DataFolderPath, string Language, bool Cheats = false, bool OpenToOthers = false, bool WasmDebug = false, IReadOnlyList<MatchRosterSeat>? Roster = null, string? AuthorityRecordDirectory = null);
 
 /// <summary>
+///     What a lobby needs in order to have an authority: the map it will play, where the authority logs and keeps a map's
+///     saved data, the language this player reads in, and how many players the map seats. The authority is started when
+///     the lobby is created and binds the session's one public port, so the peers that join the lobby never reconnect.
+/// </summary>
+public record ServerLobbyStart(string MapFolderPath, string MapName, int MaxPlayers, string LogDirectory, string DataFolderPath, string Language, bool WasmDebug = false);
+
+/// <summary>
 ///     One client's match. A client never simulates a match: it starts the authority beside it, joins it as an ordinary
 ///     ENet peer, sends its orders and is told what the world is. Everything a match produces arrives here — the world
 ///     as this player can see it, what the map asked a screen to show, and whether the authority took each order — and
@@ -51,6 +58,19 @@ public class ClientServerSession : IDisposable
 	private ServerProcessLauncher? _launcher;
 	private string _language = string.Empty;
 	private string _token = string.Empty;
+
+	/// <summary>
+	///     The ticket this client proved to administer a lobby it started. It never travels: what the authority receives is
+	///     an HMAC of it over the challenge it handed this connection, and the capability it grants is spent when the hello
+	///     is answered.
+	/// </summary>
+	private string _adminToken = string.Empty;
+
+	/// <summary>The name this player is seated under in a lobby.</summary>
+	private string _playerName = string.Empty;
+
+	/// <summary>The identity this connection presents so a lobby seat it dropped out of is handed back to it.</summary>
+	private string _sessionToken = string.Empty;
 
 	/// <summary>
 	///     The map this peer is playing, as the hash of the authored files it holds, or nothing when it cannot state one.
@@ -85,6 +105,12 @@ public class ClientServerSession : IDisposable
 
 	/// <summary>The player slot this client acts as, or nothing before the authority has seated it.</summary>
 	public int LocalPlayerSlot { get; private set; } = -1;
+
+	/// <summary>Whether the authority granted this connection the capability that administers its lobby.</summary>
+	public bool IsAdmin { get; private set; }
+
+	/// <summary>Whether this connection was admitted to a lobby rather than seated in a running match.</summary>
+	public bool InLobby { get; private set; }
 
 	/// <summary>The team the player slot belongs to, which decides who this client may order its units against.</summary>
 	public int LocalTeam { get; private set; }
@@ -146,6 +172,24 @@ public class ClientServerSession : IDisposable
 
 	/// <summary>The authority ended in the middle of a match, whether or not it meant to.</summary>
 	public event Action<string>? ServerLost;
+
+	/// <summary>The authority answered this connection's hello, and said whether it was admitted and whether it administers the lobby.</summary>
+	public event Action<ServerHello>? HelloAnswered;
+
+	/// <summary>The lobby as the authority holds it, sent whole after every change.</summary>
+	public event Action<LobbyStateMessage>? LobbyStateReceived;
+
+	/// <summary>A line of lobby chat the authority relayed.</summary>
+	public event Action<LobbyChatMessage>? LobbyChatReceived;
+
+	/// <summary>The lobby started its match, and this connection is one of its seats.</summary>
+	public event Action<LobbyMatchStartedMessage>? LobbyMatchStartedEvent;
+
+	/// <summary>This connection was removed from the lobby, and is being disconnected because of it.</summary>
+	public event Action<LobbyKickedMessage>? LobbyKickedEvent;
+
+	/// <summary>The authority answered a request for the lobby's map.</summary>
+	public event Action<MapTransferReply>? MapTransferReplied;
 
 	public ClientServerSession(ClientNetworkChannel channel)
 	{
@@ -259,6 +303,123 @@ public class ClientServerSession : IDisposable
 		_joinedPort = port;
 		_address = address;
 		_port = port;
+		return true;
+	}
+
+	/// <summary>
+	///     Sets who this connection is in the lobby it is about to join. A name is what the seat is shown under and a
+	///     session identity is what a seat this connection dropped out of is handed back by; both are read when the hello
+	///     is sent, so they are set before the authority is reached or before the reconnect is attempted.
+	/// </summary>
+	public void ConfigureLobbyIdentity(string playerName, string sessionToken)
+	{
+		_playerName = playerName ?? string.Empty;
+		_sessionToken = sessionToken ?? string.Empty;
+	}
+
+	/// <summary>
+	///     Starts the authority that holds a lobby and joins it as the seat that administers it. The authority is started
+	///     for the lobby's map but builds no world: the map is loaded when the lobby's countdown ends, against the seats the
+	///     lobby arranged. The admin ticket is minted here, so only this client can prove the capability the authority was
+	///     spawned with; the loopback connection itself grants nothing.
+	/// </summary>
+	/// <param name="start">The lobby's map and where its authority writes.</param>
+	/// <param name="failure">What stopped the lobby's authority from starting, or nothing when it started.</param>
+	/// <param name="lobbyPort">The port the lobby is advertised on, or zero to let the authority pick one.</param>
+	public bool TryStartLobby(ServerLobbyStart start, out string failure, int lobbyPort = 0)
+	{
+		failure = string.Empty;
+
+		if (!ListenServerTarget.TryResolve(out ServerLaunchTarget? target, out failure) || target == null) return false;
+
+		string logName = Path.GetFileName(Path.TrimEndingDirectorySeparator(start.MapFolderPath));
+		if (string.IsNullOrEmpty(logName)) logName = "map";
+		string logPath = Path.Combine(start.LogDirectory, $"{logName}.listen_server.log");
+		try
+		{
+			Directory.CreateDirectory(start.LogDirectory);
+		}
+		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+		{
+			failure = $"the lobby log folder '{start.LogDirectory}' could not be created: {exception.Message}";
+			return false;
+		}
+
+		_token = string.Empty;
+		_adminToken = RealmProtocol.CreateToken();
+
+		var request = new ServerLaunchRequest(target, start.MapFolderPath, logPath, string.Empty, 0)
+		{
+			DataFolderPath = start.DataFolderPath,
+			WasmDebug = start.WasmDebug,
+			MapWorkspacePath = start.WasmDebug ? start.MapFolderPath : null,
+			Port = lobbyPort,
+			Lobby = true,
+			AdminToken = _adminToken,
+			MapName = start.MapName,
+			MaxPlayers = start.MaxPlayers
+		};
+
+		if (!ServerProcessLauncher.TryLaunch(request, out ServerProcessLauncher? launcher, out failure) || launcher == null) return false;
+
+		if (!_channel.TryConnect("127.0.0.1", launcher.Port, 0, out failure))
+		{
+			launcher.Dispose();
+			return false;
+		}
+
+		_launcher = launcher;
+		_language = start.Language;
+		_mapHash = launcher.MapHash;
+		_address = "127.0.0.1";
+		_port = launcher.Port;
+		LogPath = launcher.LogPath;
+		ConsoleLogPath = launcher.ConsoleLogPath;
+		return true;
+	}
+
+	/// <summary>
+	///     Joins a lobby an authority already holds. The connection made here is the connection the match is played over:
+	///     the lobby and the match are the same session, so a player who has been in the lobby does not reconnect when the
+	///     host presses Start.
+	/// </summary>
+	/// <param name="address">The address the authority listens on.</param>
+	/// <param name="port">The port the authority listens on.</param>
+	/// <param name="language">The language this player reads in.</param>
+	/// <param name="localPort">The local port to send from, or zero to let the operating system pick one.</param>
+	/// <param name="failure">What stopped the connection from being made, or nothing when it was made.</param>
+	public bool TryJoinLobby(string address, int port, string language, int localPort, out string failure)
+	{
+		failure = string.Empty;
+
+		// The map is downloaded while the lobby is open, so a peer joining a lobby states no map hash: it holds the map
+		// the lobby distributes, not the folder the authority loaded, and the lobby is where that difference is settled.
+		_mapHash = string.Empty;
+		if (!_channel.TryConnect(address, port, localPort, out failure)) return false;
+
+		_language = language;
+		_joined = true;
+		_joinedPort = port;
+		_address = address;
+		_port = port;
+		return true;
+	}
+
+	/// <summary>Hands the authority one lobby command, which it validates before it changes the lobby it holds.</summary>
+	public bool SendLobbyCommand(LobbyCommand command)
+	{
+		if (!IsRunning) return false;
+
+		_channel.Send(NetworkFrameKind.LobbyCommand, MemoryPackSerializer.Serialize(command));
+		return true;
+	}
+
+	/// <summary>Asks the authority for the lobby's map manifest or for one bundle of the files it lists.</summary>
+	public bool RequestMapTransfer(MapTransferRequest request)
+	{
+		if (!IsRunning) return false;
+
+		_channel.Send(NetworkFrameKind.MapTransferRequest, MemoryPackSerializer.Serialize(request));
 		return true;
 	}
 
@@ -414,7 +575,10 @@ public class ClientServerSession : IDisposable
 			catch (Exception exception) when (exception is IOException or InvalidDataException or ArgumentException or MemoryPackSerializationException)
 			{
 				GD.PushWarning($"[Network] A {kind} frame could not be read and was dropped: {exception.Message}");
-				GameContext.SnapshotApply.RequestBaseline();
+
+				// A lobby frame is not a description of a world, so there is nothing to ask a baseline for. Asking anyway
+				// would put a match frame on the lobby's connection, which the lobby answers by ending it.
+				if (!InLobby) GameContext.SnapshotApply.RequestBaseline();
 			}
 
 			handed = true;
@@ -486,9 +650,12 @@ public class ClientServerSession : IDisposable
 			Protocol = RealmProtocol.Version,
 			Build = RealmVersion.GameBuildNumber,
 			TokenProof = _token.Length > 0 && _challenge.Length > 0 ? RealmProtocol.ProveToken(_token, _challenge) : string.Empty,
+			AdminProof = _adminToken.Length > 0 && _challenge.Length > 0 ? RealmProtocol.ProveToken(_adminToken, _challenge) : string.Empty,
 			WireTableHash = _launcher?.WireTableHash ?? ReplicatedComponents.ComputeWireTableHash(),
 			MapHash = _launcher?.MapHash ?? _mapHash,
-			Language = _language
+			Language = _language,
+			PlayerName = _playerName,
+			SessionToken = _sessionToken
 		};
 
 		_channel.Send(NetworkFrameKind.ClientHello, MemoryPackSerializer.Serialize(hello));
@@ -548,6 +715,30 @@ public class ClientServerSession : IDisposable
 				break;
 			}
 
+			case NetworkFrameKind.LobbyState:
+				LobbyStateReceived?.Invoke(MemoryPackSerializer.Deserialize<LobbyStateMessage>(payload));
+				break;
+
+			case NetworkFrameKind.LobbyChat:
+				LobbyChatReceived?.Invoke(MemoryPackSerializer.Deserialize<LobbyChatMessage>(payload));
+				break;
+
+			case NetworkFrameKind.LobbyMatchStarted:
+			{
+				LobbyMatchStartedMessage started = MemoryPackSerializer.Deserialize<LobbyMatchStartedMessage>(payload);
+				InLobby = false;
+				LobbyMatchStartedEvent?.Invoke(started);
+				break;
+			}
+
+			case NetworkFrameKind.LobbyKicked:
+				LobbyKickedEvent?.Invoke(MemoryPackSerializer.Deserialize<LobbyKickedMessage>(payload));
+				break;
+
+			case NetworkFrameKind.MapTransferReply:
+				MapTransferReplied?.Invoke(MemoryPackSerializer.Deserialize<MapTransferReply>(payload));
+				break;
+
 			case NetworkFrameKind.Shutdown:
 				ReportLost("the authority ended the match");
 				break;
@@ -557,6 +748,11 @@ public class ClientServerSession : IDisposable
 	private void ApplyHello(byte[] payload)
 	{
 		ServerHello response = MemoryPackSerializer.Deserialize<ServerHello>(payload);
+		if (response.PeerId > 0) LocalPeerId = response.PeerId;
+		IsAdmin = response.IsAdmin;
+		InLobby = response.InLobby;
+		HelloAnswered?.Invoke(response);
+
 		if (!response.Accepted)
 		{
 			ReportLost($"the authority refused the connection: {response.Rejection}");

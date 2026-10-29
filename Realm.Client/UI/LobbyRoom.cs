@@ -577,7 +577,7 @@ public partial class LobbyRoom : Control
 	{
 		GameContext.UserInterface?.ShowConfirmationDialog(Tr("Not all players are ready, start anyway?"), () =>
 		{
-			GameContext.Lobby.StartGame(mapName);
+			GameContext.Lobby.StartGame(mapName, ignoreReadiness: true);
 		}, confirmText: "START GAME", cancelText: "CANCEL", titleOverride: "NOT ALL PLAYERS READY");
 	}
 
@@ -1061,8 +1061,7 @@ public partial class LobbyRoom : Control
 
 	private bool CheckIfLocalPlayer(PlayerInfo p)
 	{
-		return (GameContext.Lobby.IsHost && p.PeerId == 1) ||
-		       (p.PeerId == Multiplayer.GetUniqueId());
+		return GameContext.Lobby.IsLocalPlayer(p);
 	}
 
 	private PlayerInfo? GetLocalPlayer()
@@ -1376,7 +1375,7 @@ public partial class LobbyRoom : Control
 
 	private void AddBootButtonToRow(HBoxContainer hBox, PlayerInfo p)
 	{
-		if (!GameContext.Lobby.IsHost || p.PeerId == 1) return;
+		if (!GameContext.Lobby.IsHost || GameContext.Lobby.IsLocalPlayer(p)) return;
 
 		var bootBtn = new Button();
 		bootBtn.Name = "BootBtn";

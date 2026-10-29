@@ -55,6 +55,14 @@ public interface IServerTransport : IDisposable
 	/// <summary>Ends one peer's connection, after which the sink is told it disconnected.</summary>
 	void Disconnect(int peerId);
 
+	/// <summary>
+	///     Sends one datagram from the socket peers reach this authority on, to an address no peer has connected from. It
+	///     exists for the hole punch a host's client used to send on the socket it owned: the authority owns that socket
+	///     now, so the punch has to leave from here or the mapping it opens is not the one the lobby is reached on.
+	/// </summary>
+	/// <returns>Whether the datagram was handed to the socket.</returns>
+	bool SendToAddress(string address, int port, ReadOnlySpan<byte> payload);
+
 	/// <summary>Ends every peer's connection and stops listening.</summary>
 	void Stop();
 }
