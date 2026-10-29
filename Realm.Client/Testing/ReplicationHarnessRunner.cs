@@ -25,8 +25,8 @@ public partial class ReplicationHarnessRunner : SceneTree
 			{
 				GodotBinary = MultiplayerEcsSyncTestSupport.ResolveGodotBinary(),
 				ProjectDirectory = ProjectSettings.GlobalizePath("res://"),
-				MapFolder = @"c:\temp\ugc-ChaosArena",
-				WasmPath = MultiplayerEcsSyncTestSupport.EnsureChaosArenaWasm(@"c:\temp\ugc-ChaosArena"),
+				MapFolder = MultiplayerEcsSyncTestSupport.ResolveTestMapFolder("REALM_TEST_MAP_CHAOS", @"D:\git\Realm\ugc-ChaosArena", @"c:\temp\ugc-ChaosArena"),
+				WasmPath = MultiplayerEcsSyncTestSupport.EnsureMapWasm(MultiplayerEcsSyncTestSupport.ResolveTestMapFolder("REALM_TEST_MAP_CHAOS", @"D:\git\Realm\ugc-ChaosArena", @"c:\temp\ugc-ChaosArena")),
 				OutputDirectory = outputDirectory,
 				DurationSeconds = durationSeconds,
 				Port = 28417,

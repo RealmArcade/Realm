@@ -31,6 +31,17 @@ public partial class ClientNetworkChannel : Node
 		FrameArrived?.Invoke((NetworkFrameKind)kind, payload ?? Array.Empty<byte>());
 	}
 
+	/// <summary>
+	///     Receives one frame the authority sent on a stream that would rather be current than complete: the deltas, whose
+	///     successor describes a newer world anyway. A delta that is lost leaves a sequence the acknowledgement reports as
+	///     missing, and the match answers that by describing this peer from a baseline.
+	/// </summary>
+	[Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = false, TransferMode = MultiplayerPeer.TransferModeEnum.UnreliableOrdered)]
+	public void FrameUnreliable(int kind, byte[] payload)
+	{
+		FrameArrived?.Invoke((NetworkFrameKind)kind, payload ?? Array.Empty<byte>());
+	}
+
 	/// <summary>Reaches the authority on the given loopback port, or reports why it could not.</summary>
 	public bool TryConnect(string address, int port, out string failure)
 	{

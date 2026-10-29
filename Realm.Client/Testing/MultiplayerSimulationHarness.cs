@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
@@ -126,7 +126,6 @@ public partial class MultiplayerSimulationHarness : Node
 				case "--map":
 					_mapFolder = value;
 					break;
-					break;
 				case "--output":
 					_outputDirectory = value;
 					break;
@@ -145,7 +144,6 @@ public partial class MultiplayerSimulationHarness : Node
 				case "--client-build":
 					_clientBuildId = value;
 					break;
-					break;
 				case "--drain-ms":
 					_drainMilliseconds = int.Parse(value);
 					break;
@@ -154,7 +152,6 @@ public partial class MultiplayerSimulationHarness : Node
 					break;
 				case "--profile":
 					_networkProfile = value;
-					break;
 					break;
 				case "--peers":
 					_peerCount = int.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
@@ -485,7 +482,7 @@ public partial class MultiplayerSimulationHarness : Node
 		GameContext.ServerSession?.Dispose();
 
 		var session = new ClientServerSession(channel);
-		if (!session.TryJoin(_hostAddress, _port, LocalizationManager.GetCurrentLanguageCode(), out string failure))
+		if (!session.TryJoin(_hostAddress, _port, LocalizationManager.GetCurrentLanguageCode(), _mapFolder, out string failure))
 		{
 			throw new InvalidOperationException($"The authority at {_hostAddress}:{_port} could not be reached: {failure}");
 		}

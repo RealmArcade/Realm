@@ -15,7 +15,15 @@ namespace Realm.Client.Tests;
 [TestSuite]
 public class MultiplayerEcsSyncTests
 {
-	private const string ChaosArenaFolder = @"c:\temp\ugc-ChaosArena";
+	/// <summary>
+	///     The map these runs play. A map workspace lives wherever its author keeps it, so the folder is taken from the
+	///     environment when one names it and otherwise from the two places this repository's runs have used.
+	/// </summary>
+	private static string ChaosArenaFolder => MultiplayerEcsSyncTestSupport.ResolveTestMapFolder(
+		"REALM_TEST_MAP_CHAOS",
+		@"D:\git\Realm\ugc-ChaosArena",
+		@"c:\temp\ugc-ChaosArena");
+
 	private const int LaggedPingMilliseconds = 120;
 	private const int BotSeatCount = 12;
 
@@ -41,7 +49,7 @@ public class MultiplayerEcsSyncTests
 			GodotBinary = MultiplayerEcsSyncTestSupport.ResolveGodotBinary(),
 			ProjectDirectory = MultiplayerEcsSyncTestSupport.ResolveClientProjectDirectory(),
 			MapFolder = ChaosArenaFolder,
-			WasmPath = MultiplayerEcsSyncTestSupport.EnsureChaosArenaWasm(ChaosArenaFolder),
+			WasmPath = MultiplayerEcsSyncTestSupport.EnsureMapWasm(ChaosArenaFolder),
 			OutputDirectory = Path.Combine(Path.GetTempPath(), "Realm_MultiplayerEcsSync_Lossy"),
 			DurationSeconds = 30f,
 			Port = FindAvailableUdpPort(),
@@ -87,6 +95,36 @@ public class MultiplayerEcsSyncTests
 		if (report.ComparedLootCount == 0) throw new Exception($"The run dropped items but compared none against the authority.\n{report.Render()}");
 	}
 
+	/// <summary>
+	///     A second map, played the same way. The protocol is not a property of one map: a run that only ever played the
+	///     harness's own map could agree with itself about a shroud, a lobby script or a spawn it happens to share.
+	/// </summary>
+	[TestCase]
+	public async Task SecondMapKeepsItsPeersConverged()
+	{
+		string mapFolder = MultiplayerEcsSyncTestSupport.ResolveTestMapFolder(
+			"REALM_TEST_MAP_TOWER",
+			@"D:\git\Realm\ugc-TowerDefense",
+			@"c:\temp\ugc-TowerDefense");
+
+		MultiplayerEcsRunSettings settings = new()
+		{
+			GodotBinary = MultiplayerEcsSyncTestSupport.ResolveGodotBinary(),
+			ProjectDirectory = MultiplayerEcsSyncTestSupport.ResolveClientProjectDirectory(),
+			MapFolder = mapFolder,
+			WasmPath = MultiplayerEcsSyncTestSupport.EnsureMapWasm(mapFolder),
+			OutputDirectory = Path.Combine(Path.GetTempPath(), "Realm_MultiplayerEcsSync_SecondMap"),
+			DurationSeconds = 20f,
+			Port = FindAvailableUdpPort(),
+			PingMilliseconds = LaggedPingMilliseconds,
+			PeerCount = 2,
+			BotCount = BotSeatCount
+		};
+
+		await MultiplayerEcsSyncTestSupport.RunAsync(settings);
+		Verify(settings);
+	}
+
 	[TestCase]
 	public async Task DiscardedSnapshotIsRepairedWithExactlyOneBaseline()
 	{
@@ -95,7 +133,7 @@ public class MultiplayerEcsSyncTests
 			GodotBinary = MultiplayerEcsSyncTestSupport.ResolveGodotBinary(),
 			ProjectDirectory = MultiplayerEcsSyncTestSupport.ResolveClientProjectDirectory(),
 			MapFolder = ChaosArenaFolder,
-			WasmPath = MultiplayerEcsSyncTestSupport.EnsureChaosArenaWasm(ChaosArenaFolder),
+			WasmPath = MultiplayerEcsSyncTestSupport.EnsureMapWasm(ChaosArenaFolder),
 			OutputDirectory = Path.Combine(Path.GetTempPath(), "Realm_MultiplayerEcsSync_Repair"),
 			DurationSeconds = 30f,
 			Port = FindAvailableUdpPort(),
@@ -119,7 +157,7 @@ public class MultiplayerEcsSyncTests
 			GodotBinary = MultiplayerEcsSyncTestSupport.ResolveGodotBinary(),
 			ProjectDirectory = MultiplayerEcsSyncTestSupport.ResolveClientProjectDirectory(),
 			MapFolder = ChaosArenaFolder,
-			WasmPath = MultiplayerEcsSyncTestSupport.EnsureChaosArenaWasm(ChaosArenaFolder),
+			WasmPath = MultiplayerEcsSyncTestSupport.EnsureMapWasm(ChaosArenaFolder),
 			OutputDirectory = Path.Combine(Path.GetTempPath(), directoryName),
 			DurationSeconds = durationSeconds,
 			Port = FindAvailableUdpPort(),

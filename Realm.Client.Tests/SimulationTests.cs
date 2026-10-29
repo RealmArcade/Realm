@@ -65,13 +65,12 @@ public partial class SimulationTests
 			return;
 		}
 
-		const string chaosArenaFolder = @"c:\temp\ugc-ChaosArena";
-		if (!Directory.Exists(chaosArenaFolder))
-		{
-			throw new DirectoryNotFoundException($"Chaos Arena map folder was not found at {chaosArenaFolder}.");
-		}
+		string chaosArenaFolder = MultiplayerEcsSyncTestSupport.ResolveTestMapFolder(
+			"REALM_TEST_MAP_CHAOS",
+			@"D:\git\Realm\ugc-ChaosArena",
+			@"c:\temp\ugc-ChaosArena");
 
-		string wasmPath = MultiplayerEcsSyncTestSupport.EnsureChaosArenaWasm(chaosArenaFolder);
+		string wasmPath = MultiplayerEcsSyncTestSupport.EnsureMapWasm(chaosArenaFolder);
 		string outputDirectory = Path.Combine(Path.GetTempPath(), "Realm_MultiplayerEcsSync");
 		string durationText = System.Environment.GetEnvironmentVariable("REALM_MULTIPLAYER_ECS_DURATION") ?? "15";
 		float durationSeconds = float.Parse(durationText, System.Globalization.CultureInfo.InvariantCulture);

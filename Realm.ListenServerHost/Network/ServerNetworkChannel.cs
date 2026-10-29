@@ -25,11 +25,21 @@ public partial class ServerNetworkChannel : Node
 		FrameArrived?.Invoke(Multiplayer.GetRemoteSenderId(), (NetworkFrameKind)kind, payload ?? Array.Empty<byte>());
 	}
 
-	/// <summary>Sends one frame to one peer.</summary>
-	public void Send(int peerId, NetworkFrameKind kind, byte[] payload)
+	/// <summary>
+	///     Receives one frame a peer sent on its way. A client never sends this: what a peer says to a match is an order or
+	///     an answer about the world it was given, and both of those have to arrive.
+	/// </summary>
+	[Rpc(MultiplayerApi.RpcMode.AnyPeer, CallLocal = false, TransferMode = MultiplayerPeer.TransferModeEnum.UnreliableOrdered)]
+	public void FrameUnreliable(int kind, byte[] payload)
+	{
+		FrameArrived?.Invoke(Multiplayer.GetRemoteSenderId(), (NetworkFrameKind)kind, payload ?? Array.Empty<byte>());
+	}
+
+	/// <summary>Sends one frame to one peer, carried the way the caller asked for.</summary>
+	public void Send(int peerId, NetworkFrameKind kind, byte[] payload, FrameDelivery delivery)
 	{
 		if (Multiplayer.MultiplayerPeer == null) return;
 
-		RpcId(peerId, nameof(Frame), (int)kind, payload);
+		RpcId(peerId, delivery == FrameDelivery.UnreliableOrdered ? nameof(FrameUnreliable) : nameof(Frame), (int)kind, payload);
 	}
 }

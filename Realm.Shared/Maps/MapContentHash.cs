@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Text;
 using Blake3;
 
-namespace Realm.ListenServer;
+namespace Realm.Shared.Maps;
 
 public static class MapContentHash
 {

@@ -59,6 +59,7 @@ public class ListenServerHost : IServerTransportSink
 	private bool _paused;
 	private int _pausedByPlayerSlot = -1;
 	private double _nextObstacleCheckTime;
+	private string _mapHash = string.Empty;
 	private long _deliveredPresentationCount;
 	private int _rateLimitedCommandCount;
 	private long _nextRateLimitReportTicks;
@@ -158,6 +159,7 @@ public class ListenServerHost : IServerTransportSink
 			}
 
 			IsRunning = true;
+			_mapHash = MapContentHash.Compute(_arguments.MapPath, _arguments.LogPath);
 			AnnounceReady();
 		}
 		catch
@@ -202,11 +204,11 @@ public class ListenServerHost : IServerTransportSink
 		if (_readyAnnounced) return;
 		_readyAnnounced = true;
 
-		string mapHash = MapContentHash.Compute(_arguments.MapPath, _arguments.LogPath);
+		if (_mapHash.Length == 0) _mapHash = MapContentHash.Compute(_arguments.MapPath, _arguments.LogPath);
 		string wireTableHash = ReplicatedComponents.ComputeWireTableHash();
-		var readyInfo = new ServerReadyInfo(Port, RealmProtocol.Version, RealmVersion.GameBuildNumber, mapHash, wireTableHash);
+		var readyInfo = new ServerReadyInfo(Port, RealmProtocol.Version, RealmVersion.GameBuildNumber, _mapHash, wireTableHash);
 
-		_log.Write($"ready protocol={readyInfo.Protocol} build={readyInfo.Build} mapHash={mapHash} wireTableHash={wireTableHash}");
+		_log.Write($"ready protocol={readyInfo.Protocol} build={readyInfo.Build} mapHash={_mapHash} wireTableHash={wireTableHash}");
 		Console.Out.WriteLine(readyInfo.ToReadyLine());
 		Console.Out.Flush();
 	}
@@ -290,6 +292,7 @@ public class ListenServerHost : IServerTransportSink
 		// one whose presentation channel never delivered.
 		if (_readyAnnounced) _log.Write($"the match delivered {_deliveredPresentationCount} presentation messages");
 		if (_readyAnnounced) _log.Write($"the command rate limit refused {_rateLimitedCommandCount} command(s)");
+		if (_readyAnnounced) _log.Write($"snapshots: {_unreliableSnapshotCount} carried as deltas on the current stream, {_reliableSnapshotCount} carried in order");
 
 		// A match that was asked to end writes what it framed before it goes, because the run that asked for the record
 		// reads the folder once this process is gone.
@@ -568,7 +571,8 @@ public class ListenServerHost : IServerTransportSink
 			Protocol = RealmProtocol.Version,
 			Build = RealmVersion.GameBuildNumber,
 			Accepted = rejection.Length == 0,
-			Rejection = rejection
+			Rejection = rejection,
+			MapHash = _mapHash
 		};
 
 		_transport.Send(peerId, NetworkFrameKind.ServerHello, MemoryPackSerializer.Serialize(response));
@@ -585,6 +589,12 @@ public class ListenServerHost : IServerTransportSink
 		if (hello.Protocol != RealmProtocol.Version) return "server_rejected_protocol";
 		if (!string.Equals(hello.Build, RealmVersion.GameBuildNumber, StringComparison.Ordinal)) return "server_rejected_build";
 		if (!string.Equals(hello.WireTableHash, ReplicatedComponents.ComputeWireTableHash(), StringComparison.Ordinal)) return "server_rejected_wire_table";
+
+		// A peer that states the map it holds is playing this world or it is not. A peer that cannot state one - a joined
+		// match whose map arrived through the lobby rather than from a folder this machine named - is seated on the
+		// protocol and the wire table, which is every guarantee there was before this field existed.
+		if (!string.IsNullOrEmpty(hello.MapHash) && !string.Equals(hello.MapHash, _mapHash, StringComparison.Ordinal)) return "server_rejected_map";
+
 		if (!TokenMatches(hello.Token)) return "server_rejected_token";
 		return string.Empty;
 	}
@@ -728,7 +738,15 @@ public class ListenServerHost : IServerTransportSink
 				System.Diagnostics.Stopwatch.GetTimestamp());
 		}
 
-		_transport.Send(peerId, NetworkFrameKind.Snapshot, _publishedFrames[index]);
+		// A delta describes a world the next delta supersedes, so it travels on the stream that would rather be current
+		// than complete: losing one costs the change it carried until the acknowledgement reports the sequence missing
+		// and this peer is described from a baseline, while carrying it reliably stalls every delta behind it for as long
+		// as the retransmission takes. A baseline is the only thing a peer can rebuild the world from, so it is carried
+		// reliably whatever its size, and so is a delta too large to depend on arriving whole.
+		bool carriedUnreliably = !snapshot.IsBaseline && (_publishedFrames[index]?.Length ?? 0) <= UnreliableSnapshotLimitBytes;
+		_transport.Send(peerId, NetworkFrameKind.Snapshot, _publishedFrames[index], carriedUnreliably ? FrameDelivery.UnreliableOrdered : FrameDelivery.Reliable);
+		if (carriedUnreliably) _unreliableSnapshotCount++;
+		else _reliableSnapshotCount++;
 
 		// The first sequence this peer was described with bounds what its acknowledgement mask can claim: a bit for a
 		// sequence the match never sent was never meant to be set, so counting it as a loss would describe the peer
@@ -876,6 +894,17 @@ public class ListenServerHost : IServerTransportSink
 	///     scratch once a second rather than on every snapshot, which bounds what a broken peer can cost the match.
 	/// </summary>
 	private const long RepairBaselineCooldownTicks = MatchTiming.SimulationTickRateHz;
+
+	/// <summary>
+	///     The largest delta carried on the unreliable stream, in framed bytes. A delta is about 1.2 kB for a peer in a
+	///     three hundred unit room, so this covers the stream a match actually sends; a payload beyond it is one the
+	///     transport would have to fragment, and a fragmented frame that loses any fragment is lost whole, which is a
+	///     worse bet than paying for it on the ordered stream.
+	/// </summary>
+	private const int UnreliableSnapshotLimitBytes = 8192;
+
+	private long _unreliableSnapshotCount;
+	private long _reliableSnapshotCount;
 
 	/// <summary>
 ///     Answers one order. The authority validates and applies it, and the peer is told whether it was taken, which is

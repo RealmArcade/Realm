@@ -39,8 +39,18 @@ public interface IServerTransport : IDisposable
 	/// <param name="failure">Why listening could not start, or an empty string when it did.</param>
 	bool TryStart(int maximumPeers, bool loopbackOnly, IServerTransportSink sink, out string failure);
 
-	/// <summary>Sends one frame to one peer. A peer that is gone is not an error: the match is told it left.</summary>
-	void Send(int peerId, NetworkFrameKind kind, byte[] payload);
+	/// <summary>
+	///     Sends one frame to one peer. A peer that is gone is not an error: the match is told it left.
+	/// </summary>
+	/// <param name="peerId">The peer the frame is for.</param>
+	/// <param name="kind">What the frame is.</param>
+	/// <param name="payload">The frame, owned by the transport once this returns.</param>
+	/// <param name="delivery">
+	///     Whether the frame has to be delivered or is worth no more than the moment it describes. A delta travels
+	///     unreliable-ordered so that a loss costs that delta rather than every delta behind it; everything the match
+	///     cannot proceed without travels reliable.
+	/// </param>
+	void Send(int peerId, NetworkFrameKind kind, byte[] payload, FrameDelivery delivery = FrameDelivery.Reliable);
 
 	/// <summary>Ends one peer's connection, after which the sink is told it disconnected.</summary>
 	void Disconnect(int peerId);

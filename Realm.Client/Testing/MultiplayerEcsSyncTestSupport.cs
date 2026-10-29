@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Realm.Client.Services;
@@ -191,15 +192,45 @@ public static class MultiplayerEcsSyncTestSupport
 		throw new FileNotFoundException("Godot binary was not found. Set the GODOT_BIN environment variable.");
 	}
 
-	public static string EnsureChaosArenaWasm(string mapFolder)
+	/// <summary>
+	///     The folder a named test map lives in: the environment variable when it names a folder, then the candidates in
+	///     order. Machines keep their map workspaces in different places, and a harness that only knew one of them ran on
+	///     one machine.
+	/// </summary>
+	public static string ResolveTestMapFolder(string environmentVariable, params string[] candidates)
 	{
-		string projectPath = Path.Combine(mapFolder, "MapScript.csproj");
-		if (!File.Exists(projectPath)) throw new FileNotFoundException($"Chaos Arena map script project was not found at {projectPath}.");
+		string? fromEnvironment = System.Environment.GetEnvironmentVariable(environmentVariable);
+		if (!string.IsNullOrEmpty(fromEnvironment) && Directory.Exists(fromEnvironment)) return fromEnvironment;
 
-		string wasmPath = Path.Combine(mapFolder, "bin", "Release", "net10.0", "wasi-wasm", "publish", "MapScript.wasm");
+		for (int index = 0; index < candidates.Length; index++)
+		{
+			if (Directory.Exists(candidates[index])) return candidates[index];
+		}
+
+		throw new DirectoryNotFoundException($"No folder for this test map was found: set {environmentVariable} or provide one of {string.Join(", ", candidates)}.");
+	}
+
+	/// <summary>
+	///     The WASM artifact this map's authority runs, publishing the map's project when the artifact is older than the
+	///     script. A map workspace names its project whatever its author called it and may ship the artifact beside its
+	///     script instead of under a publish folder, so both shapes are accepted rather than assuming the harness's own map.
+	/// </summary>
+	public static string EnsureMapWasm(string mapFolder)
+	{
+		string? projectPath = Directory.EnumerateFiles(mapFolder, "*.csproj").FirstOrDefault();
+		if (projectPath == null) throw new FileNotFoundException($"A map script project was not found in {mapFolder}.");
+
+		string assemblyName = Path.GetFileNameWithoutExtension(projectPath);
 		string mapScriptPath = Path.Combine(mapFolder, "MapScript.cs");
-		if (File.Exists(wasmPath) && File.GetLastWriteTimeUtc(wasmPath) >= File.GetLastWriteTimeUtc(mapScriptPath)) return wasmPath;
+		string publishedPath = Path.Combine(mapFolder, "bin", "Release", "net10.0", "wasi-wasm", "publish", $"{assemblyName}.wasm");
+		string shippedPath = Path.Combine(mapFolder, $"{assemblyName}.wasm");
 
+		// A map that ships its artifact beside its script is played as shipped: publishing it again would run a script
+		// the map did not come with.
+		if (File.Exists(shippedPath) && (!File.Exists(mapScriptPath) || File.GetLastWriteTimeUtc(shippedPath) >= File.GetLastWriteTimeUtc(mapScriptPath))) return shippedPath;
+		if (File.Exists(publishedPath) && File.GetLastWriteTimeUtc(publishedPath) >= File.GetLastWriteTimeUtc(mapScriptPath)) return publishedPath;
+
+		string wasmPath = publishedPath;
 		string wasiSdkPath = WasiSdkResolver.ResolveWasiSdkPath();
 		var startInfo = new ProcessStartInfo("dotnet")
 		{
@@ -210,7 +241,7 @@ public static class MultiplayerEcsSyncTestSupport
 			CreateNoWindow = true
 		};
 		startInfo.ArgumentList.Add("publish");
-		startInfo.ArgumentList.Add("MapScript.csproj");
+		startInfo.ArgumentList.Add(Path.GetFileName(projectPath));
 		startInfo.ArgumentList.Add("-c");
 		startInfo.ArgumentList.Add("Release");
 		startInfo.ArgumentList.Add("-r");
@@ -218,13 +249,13 @@ public static class MultiplayerEcsSyncTestSupport
 		startInfo.ArgumentList.Add($"-p:WASI_SDK_PATH={wasiSdkPath}");
 		startInfo.EnvironmentVariables["WASI_SDK_PATH"] = wasiSdkPath;
 
-		using Process process = Process.Start(startInfo) ?? throw new InvalidOperationException("Failed to start the Chaos Arena WASM build.");
+		using Process process = Process.Start(startInfo) ?? throw new InvalidOperationException($"Failed to start the WASM build of {mapFolder}.");
 		string output = process.StandardOutput.ReadToEnd();
 		string error = process.StandardError.ReadToEnd();
 		process.WaitForExit();
 		if (process.ExitCode != 0 || !File.Exists(wasmPath))
 		{
-			throw new InvalidOperationException($"Chaos Arena WASM build failed (exit code {process.ExitCode}).\n{output}\n{error}");
+			throw new InvalidOperationException($"The WASM build of {mapFolder} failed (exit code {process.ExitCode}).\n{output}\n{error}");
 		}
 
 		return wasmPath;
@@ -254,7 +285,7 @@ public static class MultiplayerEcsSyncTestSupport
 			PatchLootSpawningScript(scriptPath);
 		}
 
-		return (mapFolder, EnsureChaosArenaWasm(mapFolder));
+		return (mapFolder, EnsureMapWasm(mapFolder));
 	}
 
 	private const string LootSpawnerCall = "        SpawnSyncTestLoot(api, delta);\n";

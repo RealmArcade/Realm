@@ -6,6 +6,7 @@ using Realm.Client.Network;
 using Realm.Client.Testing;
 using Realm.Ecs.Replication;
 using Realm.Shared;
+using Realm.Shared.Maps;
 using Realm.Shared.Network;
 
 namespace Realm.Client.Services;
@@ -49,6 +50,13 @@ public class ClientServerSession : IDisposable
 	private ServerProcessLauncher? _launcher;
 	private string _language = string.Empty;
 	private string _token = string.Empty;
+
+	/// <summary>
+	///     The map this peer is playing, as the hash of the authored files it holds, or nothing when it cannot state one.
+	///     A match this client launched states the hash the authority computed over the folder it was told to load, so a
+	///     map edited between that launch and this handshake is refused instead of played.
+	/// </summary>
+	private string _mapHash = string.Empty;
 	private bool _helloSent;
 	private bool _joined;
 	private int _joinedPort;
@@ -207,6 +215,7 @@ public class ClientServerSession : IDisposable
 
 		_launcher = launcher;
 		_language = start.Language;
+		_mapHash = launcher.MapHash;
 		_address = "127.0.0.1";
 		_port = launcher.Port;
 		LogPath = launcher.LogPath;
@@ -225,9 +234,19 @@ public class ClientServerSession : IDisposable
 	/// <param name="language">The language this player reads in, so the authority answers in it.</param>
 	/// <param name="failure">What stopped the connection from being made, or nothing when it was made.</param>
 	/// <returns>True once the connection to the authority is up and this session is reading from it.</returns>
-	public bool TryJoin(string address, int port, string language, out string failure)
+	/// <param name="mapFolder">
+	///     The folder this client holds the match's map in, or nothing when it cannot name one. A folder that is named is
+	///     hashed and stated in the handshake, so an authority running a different build of the same map refuses this
+	///     connection rather than describing a world this peer would draw wrong.
+	/// </param>
+	public bool TryJoin(string address, int port, string language, string? mapFolder, out string failure)
 	{
 		failure = string.Empty;
+
+		if (!string.IsNullOrEmpty(mapFolder) && Directory.Exists(mapFolder))
+		{
+			_mapHash = MapContentHash.Compute(mapFolder);
+		}
 
 		if (!_channel.TryConnect(address, port, out failure)) return false;
 
@@ -439,6 +458,7 @@ public class ClientServerSession : IDisposable
 			Build = RealmVersion.GameBuildNumber,
 			Token = _token,
 			WireTableHash = _launcher?.WireTableHash ?? ReplicatedComponents.ComputeWireTableHash(),
+			MapHash = _launcher?.MapHash ?? _mapHash,
 			Language = _language
 		};
 
@@ -504,9 +524,19 @@ public class ClientServerSession : IDisposable
 	private void ApplyHello(byte[] payload)
 	{
 		ServerHello response = MemoryPackSerializer.Deserialize<ServerHello>(payload);
-		if (response.Accepted) return;
+		if (!response.Accepted)
+		{
+			ReportLost($"the authority refused the connection: {response.Rejection}");
+			return;
+		}
 
-		ReportLost($"the authority refused the connection: {response.Rejection}");
+		// The authority states the map it is running, and a peer that holds one of its own refuses to play a world it was
+		// not built for rather than showing units walk through geometry this build does not have. A peer that could not
+		// state a hash has nothing to compare, and the protocol and wire table remain the whole of what it agreed to.
+		if (_mapHash.Length > 0 && response.MapHash.Length > 0 && !string.Equals(_mapHash, response.MapHash, StringComparison.Ordinal))
+		{
+			ReportLost("the authority is running a different build of this map");
+		}
 	}
 
 	private void ApplyRoster(byte[] payload)
@@ -549,6 +579,7 @@ public class ClientServerSession : IDisposable
 		bool startedHere = launcher != null;
 		_launcher = null;
 		_joined = false;
+		_mapHash = string.Empty;
 		_address = string.Empty;
 		_port = 0;
 		_channel.FrameArrived -= Enqueue;

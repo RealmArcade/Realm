@@ -97,7 +97,7 @@ public class EnetServerTransport : IServerTransport
 		_connected = true;
 	}
 
-	public void Send(int peerId, NetworkFrameKind kind, byte[] payload) => _channel.Send(peerId, kind, payload);
+	public void Send(int peerId, NetworkFrameKind kind, byte[] payload, FrameDelivery delivery) => _channel.Send(peerId, kind, payload, delivery);
 
 	public void Disconnect(int peerId)
 	{

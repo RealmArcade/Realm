@@ -2809,7 +2809,11 @@ public partial class LobbyManager : BaseMapTransferNode
 		GameContext.ServerSession?.Dispose();
 
 		var session = new ClientServerSession(channel);
-		if (!session.TryJoin(_connectedHostIp, authorityPort, LocalizationManager.GetCurrentLanguageCode(), out string failure))
+		// No folder is named here on purpose: the copy this peer holds is the one the lobby distributed, which is the
+		// files the map's manifest lists, while the authority hashes the folder it loaded. Those two agree only when the
+		// host is playing a distributed copy, and refusing a match over a difference the transfer itself creates is
+		// worse than the check is worth. What a peer plays is decided by the assets both sides resolved, as it was before.
+		if (!session.TryJoin(_connectedHostIp, authorityPort, LocalizationManager.GetCurrentLanguageCode(), null, out string failure))
 		{
 			LastHostError = failure;
 			GD.PushError($"[LobbyManager] {failure}");
