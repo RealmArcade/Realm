@@ -1311,19 +1311,27 @@ public partial class MapEditorHUD : Control
 			GameContext.UserInterface.TransitionTo(GameScreen.InGameHUD);
 		}
 
+		// The authority loads the map, runs its script and bakes the mesh this screen will path through, which takes as
+		// long as a map takes to load. That happens in another process and is waited for here rather than blocking the
+		// frame thread, so the editor keeps drawing and this console stays readable while it happens.
+		SetWasmConsoleStatus("Starting the authority that runs this map...", UIStyle.ColorCyanGlow);
+		AppendWasmConsoleLog("[AUTHORITY] Starting the process the map script runs in; the editor stays responsive while it loads.");
+
+		bool started = false;
 		if (GameContext.Lobby != null)
 		{
-			GameContext.Lobby.HostSinglePlayerGame(GameContext.EditorService.TempWorkspaceGodotPath, "Test Map", debugMapScript: true);
+			started = await GameContext.Lobby.HostSinglePlayerGame(GameContext.EditorService.TempWorkspaceGodotPath, "Test Map", debugMapScript: true);
 		}
 
 		// Leaving editor mode takes the ground with it, and the match is what builds the one this screen plays on. A match
 		// that could not be started therefore leaves a map with no terrain and nothing in it, so the console that was
 		// reporting the launch stays open and says why instead of closing on a playtest that never began.
-		if (GameContext.Lobby == null || !GameContext.Lobby.IsGameStarted)
+		if (!started)
 		{
 			_wasmHasErrors = true;
 			SetWasmConsoleStatus("❌ Test mode could not start", new Color(1f, 0.3f, 0.3f));
 			AppendWasmConsoleLog($"[ERROR] {GameContext.Lobby?.LastHostError ?? "this build has no lobby to start a match with"}");
+			AppendAuthorityDiagnostics();
 			return;
 		}
 
@@ -1339,6 +1347,42 @@ public partial class MapEditorHUD : Control
 
 		await Task.Delay(500);
 		CloseWasmConsoleModal();
+	}
+
+	/// <summary>How many of the authority's last lines are shown when the match it was starting did not come up.</summary>
+	private const int AuthorityDiagnosticsLineCount = 20;
+
+	/// <summary>
+	///     Shows the end of what the authority printed when a playtest could not be started. The process that runs the map
+	///     script is the only thing that knows what went wrong with it, and its console is the file it says so in, so the
+	///     dialog that reported the failure says it too rather than leaving the reason in a log nobody opens.
+	/// </summary>
+	private void AppendAuthorityDiagnostics()
+	{
+		string consolePath = GameContext.Lobby?.LastAuthorityConsoleLogPath ?? string.Empty;
+		if (consolePath.Length == 0) return;
+
+		try
+		{
+			if (!File.Exists(consolePath))
+			{
+				AppendWasmConsoleLog($"[AUTHORITY] It wrote no console output; its log is '{GameContext.Lobby?.LastAuthorityLogPath}'.");
+				return;
+			}
+
+			string[] lines = File.ReadAllLines(consolePath);
+			int first = Math.Max(0, lines.Length - AuthorityDiagnosticsLineCount);
+			AppendWasmConsoleLog($"=== AUTHORITY CONSOLE ({consolePath}, last {lines.Length - first} of {lines.Length} line(s)) ===");
+			for (int index = first; index < lines.Length; index++) AppendWasmConsoleLog(lines[index]);
+		}
+		catch (IOException exception)
+		{
+			AppendWasmConsoleLog($"[AUTHORITY] Its console output could not be read: {exception.Message}");
+		}
+		catch (UnauthorizedAccessException exception)
+		{
+			AppendWasmConsoleLog($"[AUTHORITY] Its console output could not be read: {exception.Message}");
+		}
 	}
 
 

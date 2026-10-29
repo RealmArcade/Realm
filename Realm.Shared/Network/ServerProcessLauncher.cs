@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace Realm.Shared.Network;
 
@@ -186,6 +187,7 @@ public record ServerLaunchRequest(ServerLaunchTarget Target, string MapFolderPat
 public class ServerConsoleCapture : IDisposable
 {
 	private readonly StreamWriter _writer;
+	private readonly object _writeLock = new();
 	private bool _disposed;
 
 	private ServerConsoleCapture(StreamWriter writer) => _writer = writer;
@@ -219,15 +221,20 @@ public class ServerConsoleCapture : IDisposable
 	{
 		if (_disposed) return;
 
-		try
+		// The authority's two streams are drained by two threads, so the one file they write is written one line at a
+		// time rather than by both of them at once.
+		lock (_writeLock)
 		{
-			_writer.WriteLine(line);
-		}
-		catch (IOException)
-		{
-		}
-		catch (ObjectDisposedException)
-		{
+			try
+			{
+				_writer.WriteLine(line);
+			}
+			catch (IOException)
+			{
+			}
+			catch (ObjectDisposedException)
+			{
+			}
 		}
 	}
 
@@ -239,6 +246,15 @@ public class ServerConsoleCapture : IDisposable
 	}
 }
 
+/// <summary>The outcome of one attempt to start an authority: the launcher it produced, or why there is none.</summary>
+/// <param name="Launcher">The started authority, or nothing when it could not be started.</param>
+/// <param name="Failure">Why the authority did not start, or nothing when it did.</param>
+public readonly record struct ServerLaunchAttempt(ServerProcessLauncher? Launcher, string Failure)
+{
+	/// <summary>Whether an authority is running behind this attempt.</summary>
+	public bool Started => Launcher != null;
+}
+
 /// <summary>
 ///     Starts the authoritative process for one match. It waits for the one line the authority prints when it is
 ///     listening and keeps everything the authority prints afterwards, so a chatty process cannot fill the pipe it is
@@ -246,6 +262,13 @@ public class ServerConsoleCapture : IDisposable
 /// </summary>
 public class ServerProcessLauncher : IDisposable
 {
+	/// <summary>
+	///     How long a process that has left is still read for the line it was started to print. Its last lines are in the
+	///     pipe when it exits, and calling that silent before they are read reports a start that did happen as one that
+	///     did not.
+	/// </summary>
+	private const int ReadinessGraceAfterExitMilliseconds = 250;
+
 	private readonly ServerLaunchRequest _request;
 	private readonly Process _process;
 	private readonly ServerConsoleCapture _console;
@@ -256,15 +279,14 @@ public class ServerProcessLauncher : IDisposable
 	private bool _shutdownRequested;
 	private bool _disposed;
 
-	private ServerProcessLauncher(ServerLaunchRequest request, Process process, ServerConsoleCapture console, ServerReadyInfo readyInfo)
+	private ServerProcessLauncher(ServerLaunchRequest request, Process process, ServerConsoleCapture console, ServerReadyInfo readyInfo, Thread standardOutputThread, Thread standardErrorThread)
 	{
 		_request = request;
 		_process = process;
 		_console = console;
 		_readyInfo = readyInfo;
-
-		_standardOutputThread = StartReader(process.StandardOutput, "RealmListenServerOutput");
-		_standardErrorThread = StartReader(process.StandardError, "RealmListenServerError");
+		_standardOutputThread = standardOutputThread;
+		_standardErrorThread = standardErrorThread;
 	}
 
 	public int Port => _readyInfo.Port;
@@ -298,39 +320,55 @@ public class ServerProcessLauncher : IDisposable
 	/// <summary>
 	///     Starts the authority and waits for it to report that it is listening, or reports why it could not, having
 	///     ended what it started. Everything the authority printed goes to the match's console capture.
+	///     This blocks the calling thread, so it belongs to a headless caller. A screen starts its authority with
+	///     <see cref="TryLaunchAsync" />, because a thread that is waiting for a ready line is a thread that is not drawing.
 	/// </summary>
 	public static bool TryLaunch(ServerLaunchRequest request, out ServerProcessLauncher? launcher, out string failure)
 	{
-		launcher = null;
-		failure = string.Empty;
+		ServerLaunchAttempt attempt = TryLaunchAsync(request).GetAwaiter().GetResult();
+		launcher = attempt.Launcher;
+		failure = attempt.Failure;
+		return attempt.Started;
+	}
 
-		if (!DescribeTargetProblem(request.Target, out failure)) return false;
-		if (!Directory.Exists(request.MapFolderPath))
-		{
-			failure = $"the map folder '{request.MapFolderPath}' does not exist";
-			return false;
-		}
+	/// <summary>
+	///     Starts the authority and completes when it reports that it is listening, or when it cannot. The wait runs on
+	///     the pool rather than on the thread that asked, which is what keeps a screen responsive while a match loads.
+	///     Both of the authority's streams are drained from the moment it exists: reading only stdout until the ready line
+	///     leaves stderr to fill its pipe, and a process blocked writing an error nobody is reading never reaches the line
+	///     it was started to print.
+	/// </summary>
+	/// <param name="request">What to start, and the map and log it was asked for.</param>
+	/// <param name="cancellationToken">Cancels the wait, which ends nothing already started.</param>
+	public static async Task<ServerLaunchAttempt> TryLaunchAsync(ServerLaunchRequest request, CancellationToken cancellationToken = default)
+	{
+		if (!DescribeTargetProblem(request.Target, out string failure)) return new ServerLaunchAttempt(null, failure);
+		if (!Directory.Exists(request.MapFolderPath)) return new ServerLaunchAttempt(null, $"the map folder '{request.MapFolderPath}' does not exist");
 
-		if (!ServerConsoleCapture.TryOpen(request.LogPath, out ServerConsoleCapture? console, out failure) || console == null) return false;
+		if (!ServerConsoleCapture.TryOpen(request.LogPath, out ServerConsoleCapture? console, out failure) || console == null) return new ServerLaunchAttempt(null, failure);
 
 		Process? process = StartProcess(request, out failure);
 		if (process == null)
 		{
 			console.Dispose();
-			return false;
+			return new ServerLaunchAttempt(null, failure);
 		}
 
-		ServerReadyInfo? readyInfo = ReadReadyLine(process, console, request.ReadyTimeoutMilliseconds, out string readyLine);
-		if (readyInfo == null)
+		var reported = new TaskCompletionSource<ServerReadyLine>(TaskCreationOptions.RunContinuationsAsynchronously);
+		Thread standardOutputThread = StartOutputReader(process, console, reported);
+		Thread standardErrorThread = StartReader(process.StandardError, console, "RealmListenServerError");
+
+		ServerReadyLine ready = await WaitForReadyAsync(process, reported.Task, request.ReadyTimeoutMilliseconds, cancellationToken).ConfigureAwait(false);
+		if (ready.Info == null)
 		{
-			failure = DescribeUnreadyLaunch(process, request, readyLine);
+			failure = DescribeUnreadyLaunch(process, request, ready.Line ?? string.Empty);
 			EndProcess(process, request.ShutdownTimeoutMilliseconds);
 			console.Dispose();
-			return false;
+			return new ServerLaunchAttempt(null, failure);
 		}
 
-		launcher = new ServerProcessLauncher(request, process, console, readyInfo);
-		return true;
+		var launcher = new ServerProcessLauncher(request, process, console, ready.Info, standardOutputThread, standardErrorThread);
+		return new ServerLaunchAttempt(launcher, string.Empty);
 	}
 
 	/// <summary>Whether the target names something that can actually be started, and why not when it cannot.</summary>
@@ -445,16 +483,16 @@ public class ServerProcessLauncher : IDisposable
 		}
 	}
 
-	/// <summary>
-	///     Reads the authority's output until it says it is listening. Its output keeps being drained afterwards, so a
-	///     chatty process cannot fill the pipe it is writing into and stall behind it.
-	/// </summary>
-	private static ServerReadyInfo? ReadReadyLine(Process process, ServerConsoleCapture console, int timeoutMilliseconds, out string readyLine)
-	{
-		ServerReadyInfo? readyInfo = null;
-		string? reportedLine = null;
-		using var reported = new ManualResetEventSlim(false);
+	/// <summary>One line of the authority's output, and the readiness it stated when it stated one.</summary>
+	private readonly record struct ServerReadyLine(ServerReadyInfo? Info, string? Line);
 
+	/// <summary>
+	///     Reads the authority's output for the whole life of the process, and reports the one line that says it is
+	///     listening. Its output keeps being drained afterwards, so a chatty process cannot fill the pipe it is writing
+	///     into and stall behind it.
+	/// </summary>
+	private static Thread StartOutputReader(Process process, ServerConsoleCapture console, TaskCompletionSource<ServerReadyLine> reported)
+	{
 		var reader = new Thread(() =>
 		{
 			try
@@ -463,12 +501,10 @@ public class ServerProcessLauncher : IDisposable
 				while ((line = process.StandardOutput.ReadLine()) != null)
 				{
 					console.WriteLine(line);
-					if (reportedLine != null) continue;
+					if (reported.Task.IsCompleted) continue;
 					if (!ServerReadyInfo.TryParseReadyLine(line, out ServerReadyInfo? parsed)) continue;
 
-					readyInfo = parsed;
-					reportedLine = line;
-					reported.Set();
+					reported.TrySetResult(new ServerReadyLine(parsed, line));
 				}
 			}
 			catch (IOException)
@@ -479,25 +515,42 @@ public class ServerProcessLauncher : IDisposable
 			}
 			finally
 			{
-				reported.Set();
+				// The stream ended, so no readiness line is coming and the wait must not sit on the timeout for it.
+				reported.TrySetResult(default);
 			}
 		})
 		{
 			IsBackground = true,
-			Name = "RealmListenServerReadiness"
+			Name = "RealmListenServerOutput"
 		};
 
 		reader.Start();
+		return reader;
+	}
 
-		long deadline = Environment.TickCount64 + timeoutMilliseconds;
-		while (reportedLine == null && Environment.TickCount64 < deadline)
+	/// <summary>
+	///     Completes when the authority reports that it is listening, when it leaves, or when it has had the time it was
+	///     given. Nothing here blocks the caller's thread.
+	/// </summary>
+	private static async Task<ServerReadyLine> WaitForReadyAsync(Process process, Task<ServerReadyLine> reported, int timeoutMilliseconds, CancellationToken cancellationToken)
+	{
+		Task exited;
+		try
 		{
-			if (process.HasExited) break;
-			reported.Wait(50);
+			exited = process.WaitForExitAsync(cancellationToken);
+		}
+		catch (InvalidOperationException)
+		{
+			exited = Task.CompletedTask;
 		}
 
-		readyLine = reportedLine ?? string.Empty;
-		return readyInfo;
+		Task finished = await Task.WhenAny(reported, exited, Task.Delay(timeoutMilliseconds, cancellationToken)).ConfigureAwait(false);
+		if (finished == reported) return await reported.ConfigureAwait(false);
+
+		// A process that has left may still have its last lines in the pipe, so the reader is given a moment before the
+		// start is called silent rather than a line that arrived being missed.
+		Task grace = await Task.WhenAny(reported, Task.Delay(ReadinessGraceAfterExitMilliseconds, cancellationToken)).ConfigureAwait(false);
+		return grace == reported ? await reported.ConfigureAwait(false) : default;
 	}
 
 	private static string DescribeUnreadyLaunch(Process process, ServerLaunchRequest request, string readyLine)
@@ -515,7 +568,7 @@ public class ServerProcessLauncher : IDisposable
 		return $"the authority did not report that it was listening within {request.ReadyTimeoutMilliseconds}ms; see '{request.LogPath}' and '{ServerConsoleCapture.ResolvePath(request.LogPath)}'";
 	}
 
-	private Thread StartReader(StreamReader reader, string threadName)
+	private static Thread StartReader(StreamReader reader, ServerConsoleCapture console, string threadName)
 	{
 		var thread = new Thread(() =>
 		{
@@ -524,7 +577,7 @@ public class ServerProcessLauncher : IDisposable
 				string? line;
 				while ((line = reader.ReadLine()) != null)
 				{
-					_console.WriteLine(line);
+					console.WriteLine(line);
 				}
 			}
 			catch (IOException)

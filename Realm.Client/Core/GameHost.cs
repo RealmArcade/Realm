@@ -1943,6 +1943,9 @@ public partial class GameHost : Node3D
 	/// <summary>Whether a world built behind a lobby is waiting for the match that will play it.</summary>
 	public bool HasPreparedMatchWorld { get; private set; }
 
+	/// <summary>Whether the stages of a world build are what is running, which reads the map in stage 4 rather than at the ground.</summary>
+	private bool _worldBuildRunning;
+
 	/// <summary>
 	///     Builds the world this screen is about to play, from the map files it already holds, without a seat and without
 	///     the map's script. It is the same build a match scene does on load, split into stages so the lobby keeps
@@ -2040,7 +2043,15 @@ public partial class GameHost : Node3D
 
 	private void InitializeGameEcs()
 	{
-		for (int stage = 0; stage < WorldBuildStageCount; stage++) RunWorldBuildStage(stage);
+		_worldBuildRunning = true;
+		try
+		{
+			for (int stage = 0; stage < WorldBuildStageCount; stage++) RunWorldBuildStage(stage);
+		}
+		finally
+		{
+			_worldBuildRunning = false;
+		}
 	}
 
 	/// <summary>
@@ -2777,9 +2788,9 @@ public partial class GameHost : Node3D
 
 		if (!File.Exists(targetPath)) return;
 
-		// A world the lobby prepares reads the map in the map stages instead, one frame each, so its ground is created here
-		// and filled there.
-		if (IsBuildingMatchWorld) return;
+		// A world the lobby prepares, and a world a build is making, read the map in the map stages instead, so its ground
+		// is created here and filled there.
+		if (IsBuildingMatchWorld || _worldBuildRunning) return;
 
 		LoadMapFromFile(terrainPath, true, false);
 	}

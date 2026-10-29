@@ -80,8 +80,8 @@ public partial class MultiplayerSimulationHarness
 
 			GameContext.SessionState.IsTestMode = true;
 			editor.ExitMapEditorMode();
-			GameContext.Lobby?.HostSinglePlayerGame(_mapFolder, "Test Map");
-			if (GameContext.Lobby == null || !GameContext.Lobby.IsGameStarted)
+			bool playtestStarted = GameContext.Lobby != null && await GameContext.Lobby.HostSinglePlayerGame(_mapFolder, "Test Map");
+			if (!playtestStarted)
 			{
 				report.Add($"playtest_started=0 error={GameContext.Lobby?.LastHostError}");
 				exitCode = 1;

@@ -41,6 +41,16 @@ public partial class LobbyManager : BaseMapTransferNode
 	public bool IsSinglePlayer { get; set; } = false;
 	public bool AllowsCheats => IsSinglePlayer;
 	public string? LastHostError { get; private set; }
+
+	/// <summary>
+	///     The log the last authority this screen started was asked to write, so a start that failed can be explained from
+	///     the file that says why. It is kept whether or not the authority got far enough to write anything in it.
+	/// </summary>
+	public string LastAuthorityLogPath { get; private set; } = string.Empty;
+
+	/// <summary>Where what that authority printed on its console was kept, beside the log it writes itself.</summary>
+	public string LastAuthorityConsoleLogPath { get; private set; } = string.Empty;
+
 	public bool IsRestrictedHost { get; private set; }
 
 	private static readonly JsonSerializerOptions Options = new() { PropertyNameCaseInsensitive = true };
@@ -523,7 +533,11 @@ public partial class LobbyManager : BaseMapTransferNode
 		NatTestCompleted?.Invoke();
 	}
 
-	/// <summary>Starts a match this machine plays by itself, with no lobby in front of it.</summary>
+	/// <summary>
+	///     Starts a match this machine plays by itself, with no lobby in front of it, and joins it. It completes once the
+	///     authority is running, which is what a screen waits on; the map itself is loaded by that process, so nothing here
+	///     is done on the frame thread.
+	/// </summary>
 	/// <param name="mapPathName">The map to play.</param>
 	/// <param name="mapDisplayName">The name the map is shown under.</param>
 	/// <param name="mapVersion">The version of the map to play, or nothing for the newest one.</param>
@@ -531,11 +545,11 @@ public partial class LobbyManager : BaseMapTransferNode
 	///     Whether the authority keeps the map script's debug information, which a map tested from the editor asks for so a
 	///     breakpoint in the script reaches the process running it.
 	/// </param>
-	public void HostSinglePlayerGame(string mapPathName, string mapDisplayName, string? mapVersion = null, bool debugMapScript = false)
+	/// <returns>Whether the match started, with <see cref="LastHostError" /> saying why when it did not.</returns>
+	public async Task<bool> HostSinglePlayerGame(string mapPathName, string mapDisplayName, string? mapVersion = null, bool debugMapScript = false)
 	{
 		IsSinglePlayer = true;
 		IsHost = true;
-		IsGameStarted = true;
 		ActiveMapName = mapPathName;
 		ActiveMapVersion = !string.IsNullOrWhiteSpace(mapVersion) ? mapVersion : "1.0.0";
 		PlayerList.Clear();
@@ -626,9 +640,13 @@ public partial class LobbyManager : BaseMapTransferNode
 			PlayerList.Add(botPlayer);
 		}
 
-		if (!TryStartAuthority(mapDirectory, mapPathName, wasmDebug: debugMapScript)) return;
+		if (!await TryStartAuthority(mapDirectory, mapPathName, wasmDebug: debugMapScript)) return false;
 
+		// The screen becomes the match only once there is a match to be: until the authority is listening, this process's
+		// own world is the one the editor left behind, and stepping a client tick over it is a tick over nothing.
+		IsGameStarted = true;
 		CallDeferred(nameof(EnterMatchScene), mapPathName, MatchSeed);
+		return true;
 	}
 
 	/// <summary>
@@ -636,8 +654,11 @@ public partial class LobbyManager : BaseMapTransferNode
 	///     remote one is, so the client never simulates the world it is playing in and a bug cannot behave differently in
 	///     one mode than the other.
 	/// </summary>
-	private bool TryStartAuthority(string? mapDirectory, string mapPathName, int authorityPort = 0, bool openToOthers = false, bool wasmDebug = false)
+	private async Task<bool> TryStartAuthority(string? mapDirectory, string mapPathName, int authorityPort = 0, bool openToOthers = false, bool wasmDebug = false)
 	{
+		LastAuthorityLogPath = string.Empty;
+		LastAuthorityConsoleLogPath = string.Empty;
+
 		if (string.IsNullOrEmpty(mapDirectory))
 		{
 			LastHostError = $"The map folder for '{mapPathName}' could not be found.";
@@ -670,10 +691,13 @@ public partial class LobbyManager : BaseMapTransferNode
 			wasmDebug,
 			BuildMatchRoster());
 
-		if (!session.TryStart(start, out string failure, authorityPort))
+		MatchStartResult started = await session.TryStartAsync(start, authorityPort);
+		LastAuthorityLogPath = started.LogPath;
+		LastAuthorityConsoleLogPath = started.ConsoleLogPath;
+		if (!started.Started)
 		{
-			LastHostError = failure;
-			GD.PushError($"[LobbyManager] {failure}");
+			LastHostError = started.Failure;
+			GD.PushError($"[LobbyManager] {started.Failure}");
 			IsGameStarted = false;
 			session.Dispose();
 			return false;
@@ -729,10 +753,13 @@ public partial class LobbyManager : BaseMapTransferNode
 			OS.GetUserDataDir(),
 			LocalizationManager.GetCurrentLanguageCode());
 
-		if (!session.TryStartLobby(start, out string failure, ENetPort))
+		MatchStartResult lobbyStarted = await session.TryStartLobbyAsync(start, ENetPort);
+		LastAuthorityLogPath = lobbyStarted.LogPath;
+		LastAuthorityConsoleLogPath = lobbyStarted.ConsoleLogPath;
+		if (!lobbyStarted.Started)
 		{
-			LastHostError = failure;
-			GD.PushError($"[LobbyManager] {failure}");
+			LastHostError = lobbyStarted.Failure;
+			GD.PushError($"[LobbyManager] {lobbyStarted.Failure}");
 			TeardownHostedLobby();
 			return false;
 		}

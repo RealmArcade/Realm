@@ -295,8 +295,13 @@ public partial class LobbyCreate : Control
 		if (GameContext.Lobby.IsSinglePlayer)
 		{
 			_createButton.Disabled = true;
-			GameContext.Lobby.HostSinglePlayerGame(pathName, displayName, selectedVersion);
+			bool started = await GameContext.Lobby.HostSinglePlayerGame(pathName, displayName, selectedVersion);
 			_createButton.Disabled = false;
+
+			if (started) return;
+
+			GameContext.UserInterface.PlayWarningSound();
+			ShowHostErrorModal(GameContext.Lobby.LastHostError ?? Tr("Failed to start the match."));
 			return;
 		}
 

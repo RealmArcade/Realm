@@ -222,7 +222,7 @@ public partial class MultiplayerSimulationHarness : Node
 		MultiplayerBandwidthMeter.Reset();
 		MultiplayerBandwidthMeter.IsRecording = true;
 
-		ClientServerSession session = StartAuthority();
+		ClientServerSession session = await StartAuthorityAsync();
 		GD.Print($"[MP_HARNESS] The authority is listening on port {session.Port}; this process plays as one of its clients.");
 		if (!string.IsNullOrEmpty(_listeningFile)) File.WriteAllText(_listeningFile, session.Port.ToString(System.Globalization.CultureInfo.InvariantCulture));
 
@@ -326,7 +326,8 @@ public partial class MultiplayerSimulationHarness : Node
 			GameContext.ServerSession?.Dispose();
 			var session = new ClientServerSession(channel);
 			var start = new ServerMatchStart(mapDirectory, "Test Map", HarnessMatchSeed, Path.Combine(_outputDirectory, "listen_server"), _outputDirectory, LocalizationManager.GetCurrentLanguageCode(), AuthorityRecordDirectory: _outputDirectory);
-			if (!session.TryStart(start, out string failure, _port)) throw new InvalidOperationException($"The authority could not be started: {failure}");
+			MatchStartResult started = await session.TryStartAsync(start, _port);
+			if (!started.Started) throw new InvalidOperationException($"The authority could not be started: {started.Failure}");
 			GameContext.AttachServerSession(session);
 			_session = session;
 			GD.Print($"[TESTMAP] the authority is listening on port {session.Port} with its log at {session.LogPath}.");
@@ -391,8 +392,8 @@ public partial class MultiplayerSimulationHarness : Node
 		GameContext.Host?.ExitMapEditorMode();
 		GameContext.SessionState.IsTestMode = true;
 		GD.Print($"[TESTMAP] asking the lobby for a single-player match of '{_mapFolder}' ('{mapDirectory}').");
-		GameContext.Lobby?.HostSinglePlayerGame(_mapFolder, "Test Map");
-		GD.Print("[TESTMAP] the lobby was asked; the probe reports what follows.");
+		bool playtestStarted = GameContext.Lobby != null && await GameContext.Lobby.HostSinglePlayerGame(_mapFolder, "Test Map");
+		GD.Print($"[TESTMAP] the lobby was asked; started={playtestStarted} error={GameContext.Lobby?.LastHostError}; the probe reports what follows.");
 
 		// This instance is about to be replaced by the scene the lobby changes to, so the process is left to the probe.
 		_probeOwnsProcess = true;
@@ -429,7 +430,7 @@ public partial class MultiplayerSimulationHarness : Node
 		GD.Print($"[TESTMAP] {second}s: grid={terrain.Width}x{terrain.Depth} quad={terrain.QuadSize} nodeVisible={terrain.Visible} at={terrain.GlobalPosition} chunks={chunks} visibleChunks={visibleChunks} surfaces={surfaces} vertices={vertices} camera={camera} world={GameContext.World != null}");
 	}
 
-	private ClientServerSession StartAuthority()
+	private async Task<ClientServerSession> StartAuthorityAsync()
 	{
 		ClientNetworkChannel channel = GetNodeOrNull<ClientNetworkChannel>("/root/RealmNetwork") ?? throw new InvalidOperationException("This build has no channel to an authority.");
 		GameContext.ServerSession?.Dispose();
@@ -446,7 +447,8 @@ public partial class MultiplayerSimulationHarness : Node
 			Roster: BuildHarnessRoster(),
 			AuthorityRecordDirectory: _outputDirectory);
 
-		if (!session.TryStart(start, out string failure, _port)) throw new InvalidOperationException($"The authority could not be started on port {_port}: {failure}");
+		MatchStartResult started = await session.TryStartAsync(start, _port);
+		if (!started.Started) throw new InvalidOperationException($"The authority could not be started on port {_port}: {started.Failure}");
 
 		GameContext.AttachServerSession(session);
 		_session = session;

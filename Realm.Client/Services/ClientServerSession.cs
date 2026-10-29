@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading.Tasks;
 using Godot;
 using MemoryPack;
 using Realm.Client.Network;
@@ -43,6 +44,24 @@ public record ServerMatchStart(string MapFolderPath, string MapName, int Seed, s
 ///     the lobby is created and binds the session's one public port, so the peers that join the lobby never reconnect.
 /// </summary>
 public record ServerLobbyStart(string MapFolderPath, string MapName, int MaxPlayers, string LogDirectory, string DataFolderPath, string Language, bool WasmDebug = false);
+
+/// <summary>
+///     What became of an attempt to start the authority a session belongs to. It reports the files the authority writes
+///     even when the start failed, because a start that failed is one whose reason is in those files and a screen has
+///     nowhere else to read it from.
+/// </summary>
+/// <param name="Started">Whether the authority is running and this session is reading from it.</param>
+/// <param name="Failure">Why there is no authority, or nothing when there is one.</param>
+/// <param name="LogPath">The log the authority was asked to write, whether or not it got far enough to write it.</param>
+/// <param name="ConsoleLogPath">Where what the authority printed on its console was kept.</param>
+public readonly record struct MatchStartResult(bool Started, string Failure, string LogPath, string ConsoleLogPath)
+{
+	/// <summary>A start that put the authority up.</summary>
+	public static MatchStartResult Success(string logPath, string consoleLogPath) => new(true, string.Empty, logPath, consoleLogPath);
+
+	/// <summary>A start that did not, with what the authority was going to write so a reader can find out why.</summary>
+	public static MatchStartResult Failed(string failure, string logPath) => new(false, failure, logPath, logPath.Length == 0 ? string.Empty : ServerConsoleCapture.ResolvePath(logPath));
+}
 
 /// <summary>
 ///     One client's match. A client never simulates a match: it starts the authority beside it, joins it as an ordinary
@@ -217,19 +236,20 @@ public class ClientServerSession : IDisposable
 	/// <summary>
 	///     Starts the authority for this match and joins it. The token is minted here so an authority this client
 	///     started is the only one that accepts it, and the map's name decides where its progress is kept.
+	///     The load of a match happens on the authority, which takes as long as a map takes to load; this completes when
+	///     that process reports it is listening, so the thread that awaits it keeps drawing its own screen. Waiting for it
+	///     on that thread froze the editor for as long as the match took to load, and for the whole readiness timeout when
+	///     it never became ready at all.
 	/// </summary>
 	/// <param name="start">What the match is, as this client knows it.</param>
-	/// <param name="failure">What stopped the match from starting, or nothing when it started.</param>
 	/// <param name="authorityPort">
 	///     The port to listen on, or zero to let the authority pick one. A match this machine plays by itself is reached on
 	///     whatever port the authority reports, while a match other machines are told to join has to be listening on the
 	///     port they were told.
 	/// </param>
-	public bool TryStart(ServerMatchStart start, out string failure, int authorityPort = 0)
+	public async Task<MatchStartResult> TryStartAsync(ServerMatchStart start, int authorityPort = 0)
 	{
-		failure = string.Empty;
-
-		if (!ListenServerTarget.TryResolve(out ServerLaunchTarget? target, out failure) || target == null) return false;
+		if (!ListenServerTarget.TryResolve(out ServerLaunchTarget? target, out string failure) || target == null) return MatchStartResult.Failed(failure, string.Empty);
 
 		// The log is named after the folder the map lives in, never after the name the caller knows it by: a match started
 		// for an unsaved map is named after a Godot path like 'user://temp_map_workspace', which is not a file name.
@@ -242,8 +262,7 @@ public class ClientServerSession : IDisposable
 		}
 		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
 		{
-			failure = $"the match log folder '{start.LogDirectory}' could not be created: {exception.Message}";
-			return false;
+			return MatchStartResult.Failed($"the match log folder '{start.LogDirectory}' could not be created: {exception.Message}", logPath);
 		}
 
 		_token = start.OpenToOthers ? string.Empty : RealmProtocol.CreateToken();
@@ -270,12 +289,14 @@ public class ClientServerSession : IDisposable
 			Port = authorityPort
 		};
 
-		if (!ServerProcessLauncher.TryLaunch(request, out ServerProcessLauncher? launcher, out failure) || launcher == null) return false;
+		ServerLaunchAttempt attempt = await ServerProcessLauncher.TryLaunchAsync(request);
+		if (!attempt.Started || attempt.Launcher == null) return MatchStartResult.Failed(attempt.Failure, logPath);
 
+		ServerProcessLauncher launcher = attempt.Launcher;
 		if (!_channel.TryConnect("127.0.0.1", launcher.Port, out failure))
 		{
 			launcher.Dispose();
-			return false;
+			return MatchStartResult.Failed(failure, logPath);
 		}
 
 		_launcher = launcher;
@@ -285,7 +306,7 @@ public class ClientServerSession : IDisposable
 		_port = launcher.Port;
 		LogPath = launcher.LogPath;
 		ConsoleLogPath = launcher.ConsoleLogPath;
-		return true;
+		return MatchStartResult.Success(LogPath, ConsoleLogPath);
 	}
 
 	/// <summary>
@@ -341,13 +362,10 @@ public class ClientServerSession : IDisposable
 	///     spawned with; the loopback connection itself grants nothing.
 	/// </summary>
 	/// <param name="start">The lobby's map and where its authority writes.</param>
-	/// <param name="failure">What stopped the lobby's authority from starting, or nothing when it started.</param>
 	/// <param name="lobbyPort">The port the lobby is advertised on, or zero to let the authority pick one.</param>
-	public bool TryStartLobby(ServerLobbyStart start, out string failure, int lobbyPort = 0)
+	public async Task<MatchStartResult> TryStartLobbyAsync(ServerLobbyStart start, int lobbyPort = 0)
 	{
-		failure = string.Empty;
-
-		if (!ListenServerTarget.TryResolve(out ServerLaunchTarget? target, out failure) || target == null) return false;
+		if (!ListenServerTarget.TryResolve(out ServerLaunchTarget? target, out string failure) || target == null) return MatchStartResult.Failed(failure, string.Empty);
 
 		string logName = Path.GetFileName(Path.TrimEndingDirectorySeparator(start.MapFolderPath));
 		if (string.IsNullOrEmpty(logName)) logName = "map";
@@ -358,8 +376,7 @@ public class ClientServerSession : IDisposable
 		}
 		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
 		{
-			failure = $"the lobby log folder '{start.LogDirectory}' could not be created: {exception.Message}";
-			return false;
+			return MatchStartResult.Failed($"the lobby log folder '{start.LogDirectory}' could not be created: {exception.Message}", logPath);
 		}
 
 		_token = string.Empty;
@@ -377,12 +394,14 @@ public class ClientServerSession : IDisposable
 			MaxPlayers = start.MaxPlayers
 		};
 
-		if (!ServerProcessLauncher.TryLaunch(request, out ServerProcessLauncher? launcher, out failure) || launcher == null) return false;
+		ServerLaunchAttempt attempt = await ServerProcessLauncher.TryLaunchAsync(request);
+		if (!attempt.Started || attempt.Launcher == null) return MatchStartResult.Failed(attempt.Failure, logPath);
 
+		ServerProcessLauncher launcher = attempt.Launcher;
 		if (!_channel.TryConnect("127.0.0.1", launcher.Port, 0, out failure))
 		{
 			launcher.Dispose();
-			return false;
+			return MatchStartResult.Failed(failure, logPath);
 		}
 
 		_launcher = launcher;
@@ -392,7 +411,7 @@ public class ClientServerSession : IDisposable
 		_port = launcher.Port;
 		LogPath = launcher.LogPath;
 		ConsoleLogPath = launcher.ConsoleLogPath;
-		return true;
+		return MatchStartResult.Success(LogPath, ConsoleLogPath);
 	}
 
 	/// <summary>

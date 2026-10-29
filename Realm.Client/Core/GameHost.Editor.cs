@@ -1504,8 +1504,6 @@ public partial class GameHost
 		EntityToUnit3D.Clear();
 		EntityIdToUnit3D.Clear();
 		EntityToProp3D.Clear();
-
-		ReinitializeEcsAndServices();
 	}
 
 	private MeshInstance3D _measureMeshInstance { get; set; }
