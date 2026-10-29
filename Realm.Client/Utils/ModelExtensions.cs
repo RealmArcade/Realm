@@ -82,7 +82,7 @@ public static class ModelExtensions
 		return relativeTransform;
 	}
 
-	private static bool IsAttachmentHelperNode(Node node)
+	public static bool IsAttachmentHelperNode(Node node)
 	{
 		string nodeName = node.Name.ToString();
 		return nodeName.StartsWith("PseudoSocket_", StringComparison.OrdinalIgnoreCase) ||

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.UI;
+using Realm.Client.Utils;
 using Realm.Ecs.Components.Tags;
 
 namespace Realm.Client.Services;
@@ -11,32 +12,54 @@ namespace Realm.Client.Services;
 public partial class UnitOcclusionOutlineService : Node3D
 {
 	private const string ShaderPath = "res://Assets/shaders/unit_occlusion_outline.gdshader";
-	private const int InitialInstanceCapacity = 64;
 	private const int TerrainOcclusionSamples = 10;
 	private const float TerrainOcclusionMargin = 0.25f;
 	private const float MaximumOcclusionDistance = 220.0f;
 	private const float BuildingOccluderRefreshSeconds = 1.0f;
-	private const float MinimumOutlineRadius = 0.45f;
+	private const float SilhouetteFadeInSeconds = 0.15f;
+	private const float SilhouetteFadeOutSeconds = 0.35f;
+	private const float SilhouetteOcclusionHoldSeconds = 0.25f;
+	private const float OcclusionSampleHeight = 1.0f;
+	private const float MinimumBuildingHalfExtent = 0.15f;
+	private const float MinimumBuildingHalfHeight = 0.2f;
+	private const float SilhouetteAlphaUpdateThreshold = 0.01f;
+
+	private static readonly StringName SilhouetteColorParameter = new("silhouette_color");
+	private static readonly StringName SilhouetteAlphaParameter = new("silhouette_alpha");
 
 	private readonly List<BuildingOccluder> _buildingOccluders = new();
+	private readonly Dictionary<ulong, SilhouetteState> _silhouetteStates = new();
+	private readonly List<ulong> _staleSilhouetteIds = new();
 
-	private MultiMeshInstance3D _outlineInstance;
-	private MultiMesh _multiMesh;
-	private int _instanceCapacity;
+	private ShaderMaterial _silhouetteMaterial;
 	private float _buildingRefreshTimer;
-	private bool _isInitialized;
+	private bool _buildingOccludersDirty = true;
+	private long _tickIndex;
 
-	private readonly struct BuildingOccluder
+	private struct BuildingOccluder
 	{
-		public BuildingOccluder(Vector3 center, Vector3 extents)
-		{
-			Center = center;
-			Extents = extents;
-		}
+		public Vector3 Center;
+		public Vector3 Extents;
+		public float BoundingRadius;
+		public float BoundingRadiusSquared;
+	}
 
-		public Vector3 Center { get; }
+	private class SilhouetteState
+	{
+		public Unit3D Unit;
+		public ulong ModelInstanceId;
+		public List<GeometryInstance3D> Meshes = new();
+		public bool OverlayApplied;
+		public Color AppliedColor;
+		public float AppliedAlpha;
+		public float Alpha;
+		public float HoldRemaining;
+		public long LastSeenTick;
+	}
 
-		public Vector3 Extents { get; }
+	public override void _ExitTree()
+	{
+		ClearAllOverlays();
 	}
 
 	public void Tick(float delta, Camera3D camera, IReadOnlyList<Unit3D> units)
@@ -44,97 +67,79 @@ public partial class UnitOcclusionOutlineService : Node3D
 		bool isEnabled = GameSettings.OccludedUnitOutlines
 		                 && GameSettings.QualityIdx != GraphicsQuality.Low
 		                 && !GameContext.SessionState.IsMapEditorMode;
-		if (!isEnabled || camera == null || !GodotObject.IsInstanceValid(camera) || units == null || units.Count == 0)
+		if (!isEnabled || camera == null || !GodotObject.IsInstanceValid(camera) || units == null)
 		{
-			HideOutlines();
+			ClearAllOverlays();
 			return;
 		}
 
-		EnsureInitialized();
+		EnsureMaterial();
+		_tickIndex++;
 
 		_buildingRefreshTimer += delta;
-		if (_buildingRefreshTimer >= BuildingOccluderRefreshSeconds)
+		if (_buildingOccludersDirty || _buildingRefreshTimer >= BuildingOccluderRefreshSeconds)
 		{
 			_buildingRefreshTimer = 0.0f;
-			RebuildBuildingOccluders(units);
+			_buildingOccludersDirty = false;
+			RebuildBuildingOccluders(units, camera.GlobalPosition);
 		}
 
-		WriteInstances(camera, units);
-	}
-
-	public void HideOutlines()
-	{
-		if (!_isInitialized || _outlineInstance == null || !GodotObject.IsInstanceValid(_outlineInstance)) return;
-
-		_multiMesh.VisibleInstanceCount = 0;
-		_outlineInstance.Visible = false;
-	}
-
-	private void EnsureInitialized()
-	{
-		if (_isInitialized) return;
-
-		_multiMesh = new MultiMesh
-		{
-			TransformFormat = MultiMesh.TransformFormatEnum.Transform3D,
-			UseColors = true,
-			Mesh = new CapsuleMesh { Radius = 0.5f, Height = 1.0f, RadialSegments = 8, Rings = 2 }
-		};
-
-		EnsureCapacity(InitialInstanceCapacity);
-		_multiMesh.VisibleInstanceCount = 0;
-
-		_outlineInstance = new MultiMeshInstance3D
-		{
-			Name = "UnitOcclusionOutlineMultiMesh",
-			Multimesh = _multiMesh,
-			MaterialOverride = new ShaderMaterial { Shader = GD.Load<Shader>(ShaderPath) },
-			CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
-			Visible = false
-		};
-
-		AddChild(_outlineInstance);
-		_isInitialized = true;
-	}
-
-	private void WriteInstances(Camera3D camera, IReadOnlyList<Unit3D> units)
-	{
-		EnsureCapacity(units.Count);
-		int instanceCount = 0;
+		Vector3 eye = camera.GlobalPosition;
 
 		for (int index = 0; index < units.Count; index++)
 		{
 			Unit3D unit = units[index];
 			if (!IsEligibleUnit(unit)) continue;
 
-			Vector3 center = GetOutlineCenter(unit);
-			if (!IsOccluded(camera, unit, center)) continue;
+			bool isOccluded = IsOccluded(eye, unit);
+			ulong unitInstanceId = unit.GetInstanceId();
 
-			if (instanceCount >= _instanceCapacity)
+			if (_silhouetteStates.TryGetValue(unitInstanceId, out SilhouetteState existingState))
 			{
-				EnsureCapacity(_instanceCapacity * 2);
+				existingState.LastSeenTick = _tickIndex;
+				UpdateSilhouette(existingState, isOccluded, delta);
+				continue;
 			}
 
-			Transform3D instanceTransform = new Transform3D(Basis.Identity.Scaled(GetOutlineScale(unit)), center);
-			_multiMesh.SetInstanceTransform(instanceCount, instanceTransform);
+			if (!isOccluded) continue;
 
-			Color outlineColor = unit.PlayerColor;
-			outlineColor.A = 1.0f;
-			_multiMesh.SetInstanceColor(instanceCount, outlineColor);
+			SilhouetteState state = new SilhouetteState
+			{
+				Unit = unit,
+				LastSeenTick = _tickIndex
+			};
 
-			instanceCount++;
+			_silhouetteStates[unitInstanceId] = state;
+			UpdateSilhouette(state, true, delta);
 		}
 
-		_multiMesh.VisibleInstanceCount = instanceCount;
-		_outlineInstance.Visible = instanceCount > 0;
+		ReleaseStaleStates();
 	}
 
-	private void EnsureCapacity(int capacity)
+	public void HideOutlines()
 	{
-		if (capacity <= _instanceCapacity) return;
+		ClearAllOverlays();
+	}
 
-		_instanceCapacity = Math.Max(InitialInstanceCapacity, capacity);
-		_multiMesh.InstanceCount = _instanceCapacity;
+	private void EnsureMaterial()
+	{
+		if (_silhouetteMaterial != null && GodotObject.IsInstanceValid(_silhouetteMaterial)) return;
+
+		_silhouetteMaterial = new ShaderMaterial
+		{
+			Shader = GD.Load<Shader>(ShaderPath),
+			RenderPriority = 1
+		};
+	}
+
+	private bool IsOccluded(Vector3 eye, Unit3D unit)
+	{
+		Vector3 samplePoint = unit.GlobalPosition + new Vector3(0.0f, OcclusionSampleHeight, 0.0f);
+		Vector3 toUnit = samplePoint - eye;
+		float distance = toUnit.Length();
+		if (distance < 1.0f || distance > MaximumOcclusionDistance) return false;
+
+		return IsOccludedByTerrain(eye, toUnit, distance) || IsOccludedByBuilding(eye, samplePoint, toUnit, distance);
 	}
 
 	private static bool IsEligibleUnit(Unit3D unit)
@@ -149,16 +154,6 @@ public partial class UnitOcclusionOutlineService : Node3D
 
 		ShroudService shroud = GameContext.ShroudService;
 		return shroud == null || shroud.IsUnitVisibleOnMinimap(unit);
-	}
-
-	private bool IsOccluded(Camera3D camera, Unit3D unit, Vector3 center)
-	{
-		Vector3 eye = camera.GlobalPosition;
-		Vector3 toUnit = center - eye;
-		float distance = toUnit.Length();
-		if (distance < 1.0f || distance > MaximumOcclusionDistance) return false;
-
-		return IsOccludedByTerrain(eye, toUnit, distance) || IsOccludedByBuilding(eye, center);
 	}
 
 	private static bool IsOccludedByTerrain(Vector3 eye, Vector3 toUnit, float distance)
@@ -178,11 +173,21 @@ public partial class UnitOcclusionOutlineService : Node3D
 		return false;
 	}
 
-	private bool IsOccludedByBuilding(Vector3 eye, Vector3 target)
+	private bool IsOccludedByBuilding(Vector3 eye, Vector3 target, Vector3 toTarget, float distance)
 	{
+		Vector3 direction = toTarget / distance;
+
 		for (int index = 0; index < _buildingOccluders.Count; index++)
 		{
 			BuildingOccluder occluder = _buildingOccluders[index];
+			Vector3 toCenter = occluder.Center - eye;
+			float alongSegment = toCenter.Dot(direction);
+			if (alongSegment + occluder.BoundingRadius <= 0.0f) continue;
+			if (alongSegment - occluder.BoundingRadius >= distance) continue;
+
+			float perpendicularDistanceSquared = toCenter.LengthSquared() - alongSegment * alongSegment;
+			if (perpendicularDistanceSquared > occluder.BoundingRadiusSquared) continue;
+
 			if (SegmentIntersectsBox(eye, target, occluder.Center, occluder.Extents)) return true;
 		}
 
@@ -224,7 +229,7 @@ public partial class UnitOcclusionOutlineService : Node3D
 		return maximum >= minimum;
 	}
 
-	private void RebuildBuildingOccluders(IReadOnlyList<Unit3D> units)
+	private void RebuildBuildingOccluders(IReadOnlyList<Unit3D> units, Vector3 eye)
 	{
 		_buildingOccluders.Clear();
 
@@ -234,28 +239,180 @@ public partial class UnitOcclusionOutlineService : Node3D
 			if (unit == null || !GodotObject.IsInstanceValid(unit)) continue;
 			if (!unit.Visible || unit.IsPreview || !unit.IsBuilding) continue;
 
-			float radius = MathF.Max(MinimumOutlineRadius, unit.GetBaseObstacleRadius());
-			float halfHeight = MathF.Max(0.8f, radius * 1.1f);
-			Vector3 center = unit.GlobalPosition + new Vector3(0.0f, halfHeight, 0.0f);
-			_buildingOccluders.Add(new BuildingOccluder(center, new Vector3(radius, halfHeight, radius)));
+			GetBuildingWorldBounds(unit, out Vector3 center, out Vector3 extents);
+
+			float boundingRadiusSquared = extents.LengthSquared();
+			float boundingRadius = MathF.Sqrt(boundingRadiusSquared);
+			float maximumCenterDistance = MaximumOcclusionDistance + boundingRadius;
+			if ((center - eye).LengthSquared() > maximumCenterDistance * maximumCenterDistance) continue;
+
+			_buildingOccluders.Add(new BuildingOccluder
+			{
+				Center = center,
+				Extents = extents,
+				BoundingRadius = boundingRadius,
+				BoundingRadiusSquared = boundingRadiusSquared
+			});
 		}
 	}
 
-	private static Vector3 GetOutlineCenter(Unit3D unit)
+	private static void GetBuildingWorldBounds(Unit3D unit, out Vector3 center, out Vector3 extents)
 	{
-		float height = GetOutlineHeight(unit);
-		return unit.GlobalPosition + new Vector3(0.0f, height * 0.5f, 0.0f);
+		Node3D modelNode = unit.ModelNode;
+		if (modelNode == null || !GodotObject.IsInstanceValid(modelNode))
+		{
+			float radius = MathF.Max(MinimumBuildingHalfExtent, unit.GetBaseObstacleRadius());
+			center = unit.GlobalPosition + new Vector3(0.0f, radius, 0.0f);
+			extents = new Vector3(radius, MathF.Max(MinimumBuildingHalfHeight, radius * 1.1f), radius);
+			return;
+		}
+
+		Aabb localBounds = modelNode.CalculateLocalBounds();
+		Transform3D worldTransform = modelNode.GlobalTransform;
+		Vector3 localHalfSize = localBounds.Size * 0.5f;
+		Vector3 column0 = worldTransform.Basis.Column0;
+		Vector3 column1 = worldTransform.Basis.Column1;
+		Vector3 column2 = worldTransform.Basis.Column2;
+
+		center = worldTransform * localBounds.GetCenter();
+		extents = new Vector3(
+			MathF.Max(MinimumBuildingHalfExtent, MathF.Abs(column0.X) * localHalfSize.X + MathF.Abs(column1.X) * localHalfSize.Y + MathF.Abs(column2.X) * localHalfSize.Z),
+			MathF.Max(MinimumBuildingHalfHeight, MathF.Abs(column0.Y) * localHalfSize.X + MathF.Abs(column1.Y) * localHalfSize.Y + MathF.Abs(column2.Y) * localHalfSize.Z),
+			MathF.Max(MinimumBuildingHalfExtent, MathF.Abs(column0.Z) * localHalfSize.X + MathF.Abs(column1.Z) * localHalfSize.Y + MathF.Abs(column2.Z) * localHalfSize.Z));
 	}
 
-	private static Vector3 GetOutlineScale(Unit3D unit)
+	private void UpdateSilhouette(SilhouetteState state, bool isOccluded, float delta)
 	{
-		float radius = MathF.Max(MinimumOutlineRadius, unit.GetBaseObstacleRadius());
-		return new Vector3(radius * 2.0f, GetOutlineHeight(unit), radius * 2.0f);
+		if (isOccluded)
+		{
+			state.HoldRemaining = SilhouetteOcclusionHoldSeconds;
+			state.Alpha = MathF.Min(1.0f, state.Alpha + delta / SilhouetteFadeInSeconds);
+		}
+		else
+		{
+			state.HoldRemaining -= delta;
+			if (state.HoldRemaining <= 0.0f)
+			{
+				state.Alpha = MathF.Max(0.0f, state.Alpha - delta / SilhouetteFadeOutSeconds);
+			}
+		}
+
+		if (state.Alpha <= 0.001f)
+		{
+			ClearOverlay(state);
+			return;
+		}
+
+		ApplyOverlay(state);
 	}
 
-	private static float GetOutlineHeight(Unit3D unit)
+	private void ApplyOverlay(SilhouetteState state)
 	{
-		float radius = MathF.Max(MinimumOutlineRadius, unit.GetBaseObstacleRadius());
-		return MathF.Max(1.4f, radius * 2.4f);
+		if (state.Unit == null || !GodotObject.IsInstanceValid(state.Unit))
+		{
+			ClearOverlay(state);
+			return;
+		}
+
+		EnsureMeshes(state);
+
+		Color silhouetteColor = state.Unit.PlayerColor;
+		silhouetteColor.A = 1.0f;
+
+		bool refreshBindings = !state.OverlayApplied || !state.AppliedColor.IsEqualApprox(silhouetteColor);
+		bool refreshAlpha = refreshBindings || MathF.Abs(state.Alpha - state.AppliedAlpha) >= SilhouetteAlphaUpdateThreshold;
+		if (!refreshBindings && !refreshAlpha) return;
+
+		float alpha = state.Alpha;
+
+		for (int index = 0; index < state.Meshes.Count; index++)
+		{
+			GeometryInstance3D mesh = state.Meshes[index];
+			if (mesh == null || !GodotObject.IsInstanceValid(mesh)) continue;
+
+			if (refreshBindings)
+			{
+				mesh.MaterialOverlay = _silhouetteMaterial;
+				mesh.SetInstanceShaderParameter(SilhouetteColorParameter, silhouetteColor);
+			}
+
+			mesh.SetInstanceShaderParameter(SilhouetteAlphaParameter, alpha);
+		}
+
+		state.OverlayApplied = true;
+		state.AppliedColor = silhouetteColor;
+		state.AppliedAlpha = state.Alpha;
+	}
+
+	private static void EnsureMeshes(SilhouetteState state)
+	{
+		Node3D modelNode = state.Unit.ModelNode;
+		ulong modelInstanceId = modelNode != null && GodotObject.IsInstanceValid(modelNode) ? modelNode.GetInstanceId() : 0UL;
+		if (modelInstanceId == state.ModelInstanceId && state.Meshes.Count > 0) return;
+
+		state.ModelInstanceId = modelInstanceId;
+		state.Meshes.Clear();
+		if (modelInstanceId == 0UL) return;
+
+		CollectMeshes(modelNode, state.Meshes);
+	}
+
+	private static void CollectMeshes(Node node, List<GeometryInstance3D> meshes)
+	{
+		if (node is MeshInstance3D meshInstance && meshInstance.Mesh != null && meshInstance.Visible && !ModelExtensions.IsAttachmentHelperNode(meshInstance))
+		{
+			meshes.Add(meshInstance);
+		}
+
+		int childCount = node.GetChildCount();
+		for (int index = 0; index < childCount; index++)
+		{
+			CollectMeshes(node.GetChild(index), meshes);
+		}
+	}
+
+	private static void ClearOverlay(SilhouetteState state)
+	{
+		if (!state.OverlayApplied) return;
+
+		state.OverlayApplied = false;
+		state.AppliedAlpha = 0.0f;
+		for (int index = 0; index < state.Meshes.Count; index++)
+		{
+			GeometryInstance3D mesh = state.Meshes[index];
+			if (mesh == null || !GodotObject.IsInstanceValid(mesh)) continue;
+			mesh.MaterialOverlay = null;
+		}
+	}
+
+	private void ReleaseStaleStates()
+	{
+		if (_silhouetteStates.Count == 0) return;
+
+		_staleSilhouetteIds.Clear();
+		foreach (KeyValuePair<ulong, SilhouetteState> pair in _silhouetteStates)
+		{
+			if (pair.Value.LastSeenTick == _tickIndex) continue;
+			ClearOverlay(pair.Value);
+			_staleSilhouetteIds.Add(pair.Key);
+		}
+
+		for (int index = 0; index < _staleSilhouetteIds.Count; index++)
+		{
+			_silhouetteStates.Remove(_staleSilhouetteIds[index]);
+		}
+	}
+
+	private void ClearAllOverlays()
+	{
+		if (_silhouetteStates.Count == 0) return;
+
+		foreach (KeyValuePair<ulong, SilhouetteState> pair in _silhouetteStates)
+		{
+			ClearOverlay(pair.Value);
+		}
+
+		_silhouetteStates.Clear();
+		_buildingOccludersDirty = true;
 	}
 }

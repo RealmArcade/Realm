@@ -1,26 +1,29 @@
 shader_type spatial;
 render_mode unshaded, blend_mix, cull_back, depth_draw_never, depth_test_disabled, shadows_disabled;
 
-uniform float rim_start : hint_range(0.0, 1.0) = 0.55;
-uniform float rim_softness : hint_range(0.01, 1.0) = 0.25;
-uniform float outline_alpha : hint_range(0.0, 1.0) = 0.85;
+uniform sampler2D depth_texture : hint_depth_texture, filter_nearest;
+uniform float fill_alpha : hint_range(0.0, 1.0) = 0.3;
+uniform float rim_alpha : hint_range(0.0, 1.0) = 0.85;
+uniform float rim_start : hint_range(0.0, 1.0) = 0.45;
+uniform float rim_end : hint_range(0.0, 1.0) = 0.85;
+uniform float depth_bias : hint_range(0.0, 0.5) = 0.04;
 
-varying vec4 v_instance_color;
-
-void vertex() {
-	v_instance_color = COLOR;
-}
+instance uniform vec4 silhouette_color = vec4(1.0);
+instance uniform float silhouette_alpha = 1.0;
 
 void fragment() {
-	vec3 view_direction = normalize(-VERTEX);
-	float facing = abs(dot(normalize(NORMAL), view_direction));
-	float rim = 1.0 - facing;
+	float raw_depth = texture(depth_texture, SCREEN_UV).r;
+	vec4 scene_view_position = INV_PROJECTION_MATRIX * vec4(SCREEN_UV * 2.0 - 1.0, raw_depth, 1.0);
+	float scene_depth = -scene_view_position.z / scene_view_position.w;
+	float silhouette_depth = -VERTEX.z;
 
-	if (rim < rim_start) {
+	if (scene_depth > silhouette_depth - depth_bias) {
 		discard;
 	}
 
-	float edge_fade = clamp((rim - rim_start) / rim_softness, 0.0, 1.0);
-	ALBEDO = v_instance_color.rgb;
-	ALPHA = edge_fade * outline_alpha * v_instance_color.a;
+	float facing = abs(dot(normalize(NORMAL), normalize(-VERTEX)));
+	float rim = smoothstep(rim_start, rim_end, 1.0 - facing);
+
+	ALBEDO = silhouette_color.rgb;
+	ALPHA = mix(fill_alpha, rim_alpha, rim) * silhouette_alpha;
 }
