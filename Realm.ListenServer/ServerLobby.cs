@@ -214,6 +214,9 @@ public class ServerLobby
 			case LobbyCommandKind.ReportMapReady:
 				ReportMapReady(sender, command.Flag);
 				break;
+			case LobbyCommandKind.ReportLoadReady:
+				ReportLoadReady(sender, command.Flag);
+				break;
 			case LobbyCommandKind.Chat:
 				RelayChat(sender, command.Text);
 				break;
@@ -261,6 +264,7 @@ public class ServerLobby
 		seat.IsDisconnected = true;
 		seat.IsReady = false;
 		seat.IsMapReady = false;
+		seat.IsLoadReady = false;
 		_seats[seat.Slot] = seat;
 		_slotByPeer.Remove(peerId);
 		_log.Write($"lobby seat {seat.Slot} ('{seat.Name}') dropped and is held for its session identity");
@@ -400,7 +404,8 @@ public class ServerLobby
 			TeamName = ResolveJoinTeamName(),
 			ColorRgba = PackPaletteColor(slot),
 			IsComputer = true,
-			IsMapReady = true
+			IsMapReady = true,
+			IsLoadReady = true
 		};
 		computer.Team = ResolveTeamNumber(computer.TeamName, slot);
 
@@ -482,6 +487,7 @@ public class ServerLobby
 
 			hasHuman = true;
 			if (!seat.IsMapReady) return "Some players are still downloading the map. Wait for them or remove them before starting the game.";
+			if (!seat.IsLoadReady) return "Some players are still loading the match. Wait for them or remove them before starting the game.";
 			if (!ignoreReadiness && !seat.IsHost && !seat.IsReady) return "Not all players are ready to start.";
 		}
 
@@ -567,8 +573,25 @@ public class ServerLobby
 		if (sender.IsMapReady == ready) return;
 
 		sender.IsMapReady = ready;
+		if (!ready) sender.IsLoadReady = false;
 		_seats[sender.Slot] = sender;
 		_log.Write($"lobby seat {sender.Slot} ('{sender.Name}') {(ready ? "holds" : "does not hold")} the map");
+		BroadcastState();
+	}
+
+	/// <summary>
+	///     Records whether a seat has finished preparing the match in memory. It is the gate after the map download:
+	///     holding the files is not being ready to start from them.
+	/// </summary>
+	private void ReportLoadReady(LobbySeat sender, bool ready)
+	{
+		if (sender.IsComputer) return;
+		if (sender.IsLoadReady == ready) return;
+		if (ready && !sender.IsMapReady) return;
+
+		sender.IsLoadReady = ready;
+		_seats[sender.Slot] = sender;
+		_log.Write($"lobby seat {sender.Slot} ('{sender.Name}') {(ready ? "finished" : "has not finished")} preparing the match");
 		BroadcastState();
 	}
 

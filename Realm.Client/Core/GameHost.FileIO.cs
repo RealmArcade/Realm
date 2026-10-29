@@ -238,6 +238,7 @@ public partial class GameHost
 			}
 
 			bool success = GameContext.SaveLoadService.LoadMapFromFile(absolutePath, terrainOnly);
+			MatchLoadTrace.Mark("map_definition");
 			if (!success)
 			{
 				return HandleLoadFailure();
@@ -263,6 +264,7 @@ public partial class GameHost
 			ApplyTerrainStateView(terrain);
 			LoadSplatMapsView(absolutePath);
 			LoadCliffSplatMapsView(absolutePath);
+			MatchLoadTrace.Mark("splat_images");
 			GameContext.EditorService?.SetTerrainSplatMap(GroundTerrain.SplatMap, GroundTerrain.CliffSplatMap);
 			AlignTerrainSplatMapExternal();
 			NormalizeCameraBoundsToMap();
@@ -270,9 +272,16 @@ public partial class GameHost
 			if (!terrainOnly)
 			{
 				ProcessSpawnRequests();
+				MatchLoadTrace.Mark("prop_instancing");
 			}
 
-			GroundTerrain.UpdateMeshAndPhysics(true, true);				if (!GameContext.SessionState.IsMapEditorMode) GroundTerrain.ReloadTerrainTextures();
+			GroundTerrain.UpdateMeshAndPhysics(true, true);
+			MatchLoadTrace.Mark("terrain_mesh");
+			if (!GameContext.SessionState.IsMapEditorMode)
+			{
+				GroundTerrain.ReloadTerrainTextures();
+				MatchLoadTrace.Mark("terrain_textures");
+			}
 				GameContext.MapEditorHud?.RegenerateMinimap();
 
 			RestoreLoadedCoordinates();

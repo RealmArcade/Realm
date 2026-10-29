@@ -291,7 +291,39 @@ public partial class InGameHUD : Control
 
 		ApplySpectatorAndReplayOverrides();
 		ApplySavedHudVisibilityOverrides();
+		SubscribeToLobbyCountdown();
 	}
+
+	/// <summary>
+	///     Shows the lobby's countdown over the match itself. The scene is built while that clock runs, so the countdown is
+	///     the window the first frames are drawn in rather than a wait that happens before the screen exists.
+	/// </summary>
+	private void SubscribeToLobbyCountdown()
+	{
+		LobbyManager? lobby = GameContext.Lobby;
+		if (lobby == null) return;
+
+		lobby.CountdownStarted += OnLobbyCountdownStarted;
+		lobby.CountdownTick += OnLobbyCountdownTick;
+		lobby.CountdownCancelled += StopCountdownTimer;
+		lobby.CountdownFinished += StopCountdownTimer;
+	}
+
+	private void UnsubscribeFromLobbyCountdown()
+	{
+		LobbyManager? lobby = GameContext.Lobby;
+		if (lobby == null) return;
+
+		lobby.CountdownStarted -= OnLobbyCountdownStarted;
+		lobby.CountdownTick -= OnLobbyCountdownTick;
+		lobby.CountdownCancelled -= StopCountdownTimer;
+		lobby.CountdownFinished -= StopCountdownTimer;
+	}
+
+	private void OnLobbyCountdownStarted(string mapName, int seconds) =>
+		StartCountdownTimer(seconds, TranslationServer.Translate("MATCH STARTS IN"));
+
+	private void OnLobbyCountdownTick(int seconds) => _viewModel.CountdownDuration = seconds;
 
 	private void SetupUnitHealthBarOverlay()
 	{
@@ -1036,6 +1068,7 @@ public partial class InGameHUD : Control
 
 	public override void _ExitTree()
 	{
+		UnsubscribeFromLobbyCountdown();
 		GameContext.UnregisterInGameHud(this);
 		if (GameContext.Lobby != null)
 		{

@@ -1702,7 +1702,13 @@ public partial class GameHost : Node3D
 		ItemRegistry.Clear();
 		GameContext.RegistryService.VfxRegistry.Clear();
 
-		if (metadata.Templates != null) LoadMetadataTemplates(DefinitionCatalog.Build(metadata));
+		MatchLoadTrace.Mark("map_metadata");
+		if (metadata.Templates != null)
+		{
+			DefinitionCatalog catalog = DefinitionCatalog.Build(metadata);
+			MatchLoadTrace.Mark("catalog_build");
+			LoadMetadataTemplates(catalog);
+		}
 
 		Prop3D.ClearModelPathCache();
 	}
@@ -1794,12 +1800,14 @@ public partial class GameHost : Node3D
 	{
 		RegisterTemplates(UnitRegistry, catalog.Units);
 		PreloadTemplates(catalog.Metadata.Templates.Units);
+		MatchLoadTrace.Mark("unit_models");
 	}
 
 	private void LoadBuildingTemplates(DefinitionCatalog catalog)
 	{
 		RegisterTemplates(BuildingRegistry, catalog.Buildings);
 		PreloadTemplates(catalog.Metadata.Templates.Buildings);
+		MatchLoadTrace.Mark("building_models");
 	}
 
 	private void LoadResourceAndPropTemplates(DefinitionCatalog catalog)
@@ -1887,6 +1895,8 @@ public partial class GameHost : Node3D
 
 	public override void _Ready()
 	{
+		if (!MatchLoadTrace.IsTracing) MatchLoadTrace.Begin("scene");
+
 		ProcessPerformanceOptimizer.EnforceOptimalPerformance();
 		MainNode = GetTree().Root.GetNodeOrNull("Main");
 		MainCamera = GetTree().Root.GetNodeOrNull<CameraControl>("Main/Camera3D");
@@ -1895,8 +1905,28 @@ public partial class GameHost : Node3D
 		GameContext.RegisterHost(this);
 		GameSettings.ApplyGraphicsSettings(this);
 		ReinitializeEcsAndServices();
+		MatchLoadTrace.Mark("scene_build");
 		JoinAuthority();
+		MatchLoadTrace.Mark("session_join");
 	}
+
+	/// <summary>
+	///     Joins the match this screen was told to play, after the scene was built while the lobby was still counting down.
+	///     The authority seats the connection when the match starts, so the screen that is already on screen receives the
+	///     roster and every description from then on instead of building a second scene to do it.
+	/// </summary>
+	public void AttachMatchSession()
+	{
+		if (_joinedSession != null) return;
+		JoinAuthority();
+		MatchLoadTrace.Mark("session_attached");
+	}
+
+	/// <summary>The first frame after the scene exists, which is the point the build stops being a blank screen.</summary>
+	private bool _firstFrameTraced;
+
+	/// <summary>Whether this screen has already recorded the tick at which its match became live.</summary>
+	private bool _simulationStartTraced;
 
 	private void InitializeGameEcs()
 	{
@@ -1910,6 +1940,7 @@ public partial class GameHost : Node3D
 		EnsurePropMultiMeshManager();
 		EnsureUnitOcclusionOutlineService();
 		SetupWorldEntityComponents();
+		MatchLoadTrace.Mark("ground_and_world");
 
 		if (GroundTerrain != null) GameContext.EditorService.SetTerrainSplatMap(GroundTerrain.SplatMap, GroundTerrain.CliffSplatMap);
 
@@ -1919,6 +1950,7 @@ public partial class GameHost : Node3D
 		InitializeResourceIds();
 
 		InitializeSimulationService();
+		MatchLoadTrace.Mark("simulation_services");
 
 		if (_multiplayerActive) InitializeMultiplayerPlayers();
 		else InitializeSingleplayerPlayers();
@@ -1928,12 +1960,15 @@ public partial class GameHost : Node3D
 
 		string rawMapName = GameContext.Lobby?.ActiveMapName ?? "";
 		if (!string.IsNullOrEmpty(rawMapName)) LoadUnitMetadata(rawMapName);
+		MatchLoadTrace.Mark("catalog_and_models");
 
 		ProcessMapLoadingAndScript(rawMapName);
+		MatchLoadTrace.Mark("map_load");
 
 		StartReplayRecordingIfNeeded(rawMapName);
 
 		if (!GameContext.ReplayService.IsResettingForReplay) SchedulePostInitializationTasks();
+		MatchLoadTrace.Mark("post_initialization");
 
 		GameContext.ShroudService.Initialize();
 	}
@@ -2451,8 +2486,8 @@ public partial class GameHost : Node3D
 
 		// Only the screen that joined this match may end it. The map editor's screen leaves as the playtest's screen
 		// arrives, and the session under it was started for the playtest, so ending it here would leave the playtest
-		// playing a world nothing runs.
-		if (ReferenceEquals(GameContext.ServerSession, _joinedSession))
+		// playing a world nothing runs. A screen that only built a scene under a lobby's countdown never joined one.
+		if (_joinedSession != null && ReferenceEquals(GameContext.ServerSession, _joinedSession))
 		{
 			GameContext.ServerSession?.Stop();
 			GameContext.DetachServerSession();
@@ -2994,6 +3029,13 @@ public partial class GameHost : Node3D
 
 	public override void _Process(double delta)
 	{
+		if (!_firstFrameTraced)
+		{
+			_firstFrameTraced = true;
+			MatchLoadTrace.Mark("first_frame");
+			MatchLoadTrace.WriteSummary("first_frame");
+		}
+
 		using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.GodotProcess))
 		{
 			float fDelta = (float)delta;
@@ -3059,6 +3101,13 @@ public partial class GameHost : Node3D
 		{
 			if (!ShouldProcessPhysicsTick()) return;
 
+			if (!_simulationStartTraced && _joinedSession != null)
+			{
+				_simulationStartTraced = true;
+				MatchLoadTrace.Mark("simulation_started");
+				MatchLoadTrace.WriteSummary("simulation_started");
+			}
+
 			float fDelta = (float)delta;
 			if (_wasClientInMultiplayer) UpdateConnectionStatus();
 
@@ -3078,6 +3127,9 @@ public partial class GameHost : Node3D
 
 	private bool ShouldProcessPhysicsTick()
 	{
+		// A match scene that is only being built under the lobby's countdown is a picture, not a world yet: the match
+		// begins at tick zero, which is the tick the authority seats this connection on.
+		if (GameContext.Lobby?.IsPreparingMatchScene == true) return false;
 		return GameContext.Lobby?.IsGameStarted == true || GameContext.SessionState.IsMapEditorMode;
 	}
 

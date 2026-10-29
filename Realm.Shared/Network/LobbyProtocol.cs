@@ -49,7 +49,13 @@ public enum LobbyCommandKind : byte
 	PunchAddress = 12,
 
 	/// <summary>Ask the authority to repeat the lobby's chat history to this seat, which is what a lobby screen opened late does.</summary>
-	RequestChatHistory = 13
+	RequestChatHistory = 13,
+
+	/// <summary>
+	///     Whether the sender has finished preparing the match in memory. It is the second gate after the map download:
+	///     a seat that holds the map but has not prepared it is still building, and the host may wait for it or remove it.
+	/// </summary>
+	ReportLoadReady = 14
 }
 
 /// <summary>Whether a map transfer request asks for the map's manifest or for one bundle of the files it lists.</summary>
@@ -104,6 +110,9 @@ public partial struct LobbySeat
 
 	/// <summary>Whether the player holds the lobby's map, whole and verified.</summary>
 	public bool IsMapReady;
+
+	/// <summary>Whether the player has finished preparing the match in memory, which is what lets Start be a scene swap.</summary>
+	public bool IsLoadReady;
 
 	/// <summary>Whether a person's connection dropped and the seat is being held for it to come back.</summary>
 	public bool IsDisconnected;

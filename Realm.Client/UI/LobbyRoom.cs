@@ -543,6 +543,22 @@ public partial class LobbyRoom : Control
 			return;
 		}
 
+		bool anyLoading = false;
+		foreach (var player in GameContext.Lobby.PlayerList)
+		{
+			if (player.PeerId > 1 && !player.IsLoadReady)
+			{
+				anyLoading = true;
+				break;
+			}
+		}
+
+		if (anyLoading)
+		{
+			ShowLoadingClientsPopup();
+			return;
+		}
+
 		bool anyNotReady = false;
 		foreach (var player in GameContext.Lobby.PlayerList)
 		{
@@ -584,6 +600,11 @@ public partial class LobbyRoom : Control
 	private void ShowDownloadingClientsPopup()
 	{
 		GameContext.UserInterface?.ShowPopupMessage(Tr("CLIENTS DOWNLOADING MAP"), Tr("Some players are still downloading the map.\nWait for them or Kick them before starting the game."));
+	}
+
+	private void ShowLoadingClientsPopup()
+	{
+		GameContext.UserInterface?.ShowPopupMessage(Tr("CLIENTS LOADING MATCH"), Tr("Some players are still loading the match.\nWait for them or Kick them before starting the game."));
 	}
 
 	private void OnActiveMapChanged(string mapName)
@@ -1360,6 +1381,11 @@ public partial class LobbyRoom : Control
 		if (!isLocalPlayer && !p.IsHost && !p.IsMapReady)
 		{
 			return $"  [color=#ffa040]{Tr("downloading...")}[/color]";
+		}
+
+		if (!isLocalPlayer && !p.IsHost && !p.IsLoadReady)
+		{
+			return $"  [color=#ffa040]{Tr("loading...")}[/color]";
 		}
 
 		string latencyText = p.Latency == "--" ? "measuring..." : p.Latency;

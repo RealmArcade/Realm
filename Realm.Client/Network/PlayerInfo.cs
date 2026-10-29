@@ -51,6 +51,9 @@ public class PlayerInfo
 	public string BinaryVersion { get; set; } = "";
 	public bool IsMapReady { get; set; } = true;
 
+	/// <summary>Whether this player has finished preparing the match in memory, after holding its map.</summary>
+	public bool IsLoadReady { get; set; }
+
 	[JsonIgnore]
 	public string SessionToken { get; set; } = Guid.NewGuid().ToString();
 	public bool IsDisconnected { get; set; } = false;

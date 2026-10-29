@@ -358,6 +358,33 @@ namespace Realm.Client.Utils
 			}
 		}
 
+		/// <summary>
+		///     Drops one model this cache holds, and the failure it remembered for it. A lobby that warmed a map's models
+		///     releases exactly those when it closes, so the next lobby does not inherit a map it will never play.
+		/// </summary>
+		public static void ReleaseModel(string modelPath)
+		{
+			if (string.IsNullOrEmpty(modelPath)) return;
+
+			string? resolvedPath = ResolveModelPath(modelPath);
+			string canonicalKey = BuildCanonicalKey(resolvedPath ?? modelPath);
+
+			_modelCacheLock.EnterWriteLock();
+			try
+			{
+				if (_cachedScenes.Remove(canonicalKey, out PackedScene? cachedScene))
+				{
+					cachedScene.Dispose();
+				}
+
+				_failedModelPaths.Remove(canonicalKey);
+			}
+			finally
+			{
+				_modelCacheLock.ExitWriteLock();
+			}
+		}
+
 		public static void PreloadModel(string modelPath)
 		{
 			if (string.IsNullOrEmpty(modelPath)) return;

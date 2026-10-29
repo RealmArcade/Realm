@@ -128,6 +128,21 @@ public partial class LobbyManager : BaseMapTransferNode
 	/// <summary>The port the authority holding this lobby is reachable on, which is the only public port the session uses.</summary>
 	public int BoundPort => _lobbySession?.Port ?? ENetPort;
 
+	/// <summary>
+	///     Whether the match scene is already built and on screen under the countdown, before the authority starts the
+	///     match at tick zero. While this holds, the scene draws but does not simulate.
+	/// </summary>
+	public bool IsPreparingMatchScene => _matchSceneOpen;
+
+	/// <summary>Whether the models the lobby's map names are already in the cache the match will read them from.</summary>
+	public bool IsMatchPrepared => _preparation.IsPrepared;
+
+	/// <summary>The model catalog warm the lobby runs while a player waits, so Start only has to swap a scene in.</summary>
+	private readonly LobbyMatchPreparation _preparation = new();
+
+	private bool _matchSceneOpen;
+	private bool _loadReadyReported;
+
 	private readonly HttpClient _httpClient = new();
 	private ClientServerSession? _lobbySession;
 	private string? _connectedHostIp;
@@ -272,6 +287,25 @@ public partial class LobbyManager : BaseMapTransferNode
 		if (session == null) return;
 
 		session.Pump();
+		TickMatchPreparation();
+	}
+
+	/// <summary>
+	///     Spends one frame's slice of the lobby's time warming the map's models, and tells the authority when this seat
+	///     is ready to play it. The slice is small enough that chat, readiness and the countdown keep answering while it
+	///     runs, which is what makes pre-loading in the lobby a background task rather than a loading screen.
+	/// </summary>
+	private void TickMatchPreparation()
+	{
+		if (!_preparation.HasWork) return;
+
+		bool justPrepared = _preparation.Tick();
+		if (!justPrepared) return;
+
+		GD.Print($"MATCH_LOAD preparation models={_preparation.TotalModels} warm_ms={_preparation.WarmMilliseconds.ToString("F1", CultureInfo.InvariantCulture)}");
+		if (_loadReadyReported) return;
+		_loadReadyReported = true;
+		ReportLocalLoadReadyState(true);
 	}
 
 	public override void _Notification(int what)
@@ -906,7 +940,41 @@ public partial class LobbyManager : BaseMapTransferNode
 		ApplySeats(state.Seats);
 		ApplyCountdown(state);
 		MakeSureThisSeatReportsItsMap();
+		StartMatchPreparationForCurrentMap();
 		PlayerListUpdated?.Invoke();
+	}
+
+	/// <summary>
+	///     Starts warming the map's models for this seat, once the map is on disk and the lobby names it. It is a second
+	///     gate after the download: a seat that is still downloading has nothing to warm, and a seat whose warm is still
+	///     running is not ready for the host to start on.
+	/// </summary>
+	private void StartMatchPreparationForCurrentMap()
+	{
+		if (string.IsNullOrWhiteSpace(ActiveMapName)) return;
+		if (!MapAssetManager.IsMapDownloaded(ActiveMapName, ActiveMapVersion)) return;
+		if (_preparation.IsPrepared && string.Equals(_preparation.MapName, ActiveMapName, StringComparison.Ordinal))
+		{
+			if (_loadReadyReported) return;
+			_loadReadyReported = true;
+			ReportLocalLoadReadyState(true);
+			return;
+		}
+
+		if (_preparation.IsPreparing(ActiveMapName)) return;
+
+		_loadReadyReported = false;
+		ReportLocalLoadReadyState(false);
+		MatchLoadTrace.Begin("lobby_preparation");
+		_preparation.Prepare(ActiveMapName, ActiveMapVersion);
+		MatchLoadTrace.Mark("preparation_started");
+		MatchLoadTrace.WriteSummary("preparation_started");
+
+		// A map with no model to warm is already prepared, and one whose metadata could not be read has nothing this
+		// seat can do about it here: either way the seat is not left blocking a start it will never finish preparing.
+		if (_preparation.HasWork) return;
+		_loadReadyReported = true;
+		ReportLocalLoadReadyState(true);
 	}
 
 	/// <summary>
@@ -950,6 +1018,7 @@ public partial class LobbyManager : BaseMapTransferNode
 				IsHost = seat.IsHost,
 				IsReady = seat.IsReady,
 				IsMapReady = seat.IsMapReady,
+				IsLoadReady = seat.IsLoadReady,
 				IsDisconnected = seat.IsDisconnected,
 				Latency = "0 ms",
 				Jitter = "0 ms",
@@ -972,6 +1041,10 @@ public partial class LobbyManager : BaseMapTransferNode
 			{
 				_countdownRemaining = state.CountdownRemainingSeconds;
 				CountdownStarted?.Invoke(state.MapName, state.CountdownRemainingSeconds);
+
+				// The countdown is the build window. Swapping to the match scene now means the first frames are drawn
+				// while the clock is still counting, rather than after it has already reached zero.
+				BeginMatchSceneForCountdown(state.MapName);
 			}
 			else if (state.CountdownRemainingSeconds != _countdownRemaining)
 			{
@@ -988,6 +1061,52 @@ public partial class LobbyManager : BaseMapTransferNode
 		_countdownMapName = null;
 		_countdownRemaining = 0;
 		CountdownCancelled?.Invoke();
+		EndMatchSceneForCountdown();
+	}
+
+	/// <summary>
+	///     Builds the match scene while the authority counts down. The connection stays the lobby's for the whole window:
+	///     the scene is built from the map files this machine already holds, so it needs no seat and no snapshot, and the
+	///     session is handed to it only when the match actually starts.
+	/// </summary>
+	private void BeginMatchSceneForCountdown(string mapName)
+	{
+		if (_matchSceneOpen || _matchStarted) return;
+
+		_matchSceneOpen = true;
+		ActiveMapName = mapName;
+		IsGameStarted = true;
+		GameContext.ReplayPlayback.StopReplay();
+
+		MatchLoadTrace.Begin("countdown_scene");
+		MatchLoadTrace.Mark("countdown_received");
+		GD.Print($"[LobbyManager] Building the match scene for '{mapName}' while the countdown runs");
+		GetTree().ChangeSceneToFile("res://GameHost.tscn");
+	}
+
+	/// <summary>
+	///     Puts a cancelled countdown back in the lobby. The scene is left behind rather than kept: a countdown that is
+	///     cancelled is a start that did not happen, and the models that were warmed for it stay in the cache that every
+	///     later start reads.
+	/// </summary>
+	private void EndMatchSceneForCountdown()
+	{
+		if (!_matchSceneOpen) return;
+
+		_matchSceneOpen = false;
+		IsGameStarted = false;
+		GD.Print("[LobbyManager] Countdown cancelled; returning to the lobby");
+		GetTree().ChangeSceneToFile("res://UI/LobbyRoom.tscn");
+	}
+
+	/// <summary>Sends the authority whether this seat has finished preparing the match in memory.</summary>
+	public void ReportLocalLoadReadyState(bool isLoadReady)
+	{
+		_lobbySession?.SendLobbyCommand(new LobbyCommand
+		{
+			Kind = LobbyCommandKind.ReportLoadReady,
+			Flag = isLoadReady
+		});
 	}
 
 	private void OnLobbyChat(LobbyChatMessage line)
@@ -1002,6 +1121,11 @@ public partial class LobbyManager : BaseMapTransferNode
 	{
 		GD.Print($"[LobbyManager] Removed from the lobby: {kicked.Reason}");
 		KickReceived?.Invoke(string.IsNullOrEmpty(kicked.Reason) ? "Kicked by Host" : kicked.Reason);
+
+		// A seat removed while its scene was already built under the countdown has nowhere to go back to, because the
+		// lobby screen it came from is gone. It is returned to the menu rather than left looking at a world it will
+		// never be told about.
+		bool wasBuilding = _matchSceneOpen;
 		var session = _lobbySession;
 		if (session != null)
 		{
@@ -1011,12 +1135,14 @@ public partial class LobbyManager : BaseMapTransferNode
 		}
 
 		ResetLobbyState();
+		if (wasBuilding) GameContext.UserInterface?.TransitionTo(GameScreen.MainMenu);
 	}
 
 	private void OnLobbyAuthorityLost(string reason)
 	{
 		if (_matchStarted) return;
 
+		bool wasBuilding = _matchSceneOpen;
 		bool administeredHere = IsHost;
 		if (administeredHere)
 		{
@@ -1038,6 +1164,7 @@ public partial class LobbyManager : BaseMapTransferNode
 		ReleaseHostedEndpoint(hostedPort);
 		ResetLobbyState();
 		ConnectionFailed?.Invoke(administeredHere ? reason : "The host's lobby is no longer running.");
+		if (wasBuilding) GameContext.UserInterface?.TransitionTo(GameScreen.MainMenu);
 	}
 
 	private void OnLobbyMatchStarted(LobbyMatchStartedMessage started)
@@ -1050,6 +1177,22 @@ public partial class LobbyManager : BaseMapTransferNode
 
 		ClientServerSession? session = _lobbySession;
 		if (session == null) return;
+
+		if (_matchSceneOpen)
+		{
+			// The scene is already built and drawing under the countdown. Tick zero only seats this connection, which is
+			// what turns the picture into the match.
+			_matchSceneOpen = false;
+			DetachLobbySession(session);
+			_lobbySession = null;
+			MatchSeed = started.Seed;
+			GameContext.RandomService.SetSeed(started.Seed);
+			GameSessionStartTime = DateTime.UtcNow;
+			GameContext.AttachServerSession(session);
+			GameContext.Host?.AttachMatchSession();
+			MatchLoadTrace.Mark("match_started");
+			return;
+		}
 
 		DetachLobbySession(session);
 		_lobbySession = null;
@@ -1203,6 +1346,9 @@ public partial class LobbyManager : BaseMapTransferNode
 
 	private void ResetLobbyState()
 	{
+		_preparation.Cancel();
+		_loadReadyReported = false;
+		_matchSceneOpen = false;
 		_isConnectedToHost = false;
 		IsHost = false;
 		IsGameStarted = false;
@@ -1759,10 +1905,11 @@ public partial class LobbyManager : BaseMapTransferNode
 
 		if (MapAssetManager.IsMapDownloaded(targetMap, targetVersion))
 		{
-			_downloadingMapName = null;
-			CallDeferred(nameof(EmitDownloadCompleted));
-			return true;
-		}
+		_downloadingMapName = null;
+		CallDeferred(nameof(EmitDownloadCompleted));
+		StartMatchPreparationForCurrentMap();
+		return true;
+	}
 
 		if (_downloadingMapName == targetMap) return false;
 
@@ -1850,10 +1997,11 @@ public partial class LobbyManager : BaseMapTransferNode
 				GameContext.AssetIndexService.RegisterManifest(manifest, Path.Combine(targetDirectory, "manifest.json"));
 			});
 
-			_downloadingMapName = null;
-			CallDeferred(nameof(EmitDownloadCompleted));
-			return true;
-		}
+		_downloadingMapName = null;
+		CallDeferred(nameof(EmitDownloadCompleted));
+		StartMatchPreparationForCurrentMap();
+		return true;
+	}
 		catch (Exception ex)
 		{
 			GD.PrintErr($"[LobbyManager] Map download failed for '{targetMap}': {ex.Message}");
