@@ -68,6 +68,13 @@ public static class MatchLoadTrace
 		string line = builder.ToString();
 		GD.Print(line);
 		AppendToFile(line);
+
+		// The trace is closed once it is written. A scene that replaced the one it measured starts its own rather than
+		// appending to this one, which would have counted the wait between the two scenes against whatever phase each
+		// happened to mark first.
+		Phases.Clear();
+		_lastTimestamp = 0;
+		_trigger = string.Empty;
 	}
 
 	private static void AppendToFile(string line)

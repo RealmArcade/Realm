@@ -1154,13 +1154,16 @@ public partial class MapEditorHUD : Control
 
 		_wasmHasErrors = false;
 		ShowWasmConsoleModal();
+		MatchLoadTrace.Begin("test_map");
 		Action<string> logHandler = line => AppendWasmConsoleLog(line);
 		GameLog.OnLine += logHandler;
 
 		try
 		{
 			SaveEditorStateBeforeTest();
+			MatchLoadTrace.Mark("editor_state_saved");
 			await PrepareMapAndWorkspaceForTest();
+			MatchLoadTrace.Mark("map_saved_and_compiled");
 
 			if (_wasmHasErrors) return;
 
@@ -1178,6 +1181,7 @@ public partial class MapEditorHUD : Control
 		}
 		finally
 		{
+			if (MatchLoadTrace.IsTracing) MatchLoadTrace.WriteSummary("test_map_abandoned");
 			GameLog.OnLine -= logHandler;
 		}
 	}
@@ -1302,18 +1306,14 @@ public partial class MapEditorHUD : Control
 			await GameContext.UserInterface.ApplyWindowSettings(GameSettings.WindowModeIdx, GameSettings.ResolutionIdx);
 		}
 
-		GameContext.Host.ExitMapEditorMode();
 		GameContext.SessionState.IsTestMode = true;
 		ShadowClientVerifier.IsEnabled = true;
 
-		if (GameContext.UserInterface != null)
-		{
-			GameContext.UserInterface.TransitionTo(GameScreen.InGameHUD);
-		}
-
 		// The authority loads the map, runs its script and bakes the mesh this screen will path through, which takes as
 		// long as a map takes to load. That happens in another process and is waited for here rather than blocking the
-		// frame thread, so the editor keeps drawing and this console stays readable while it happens.
+		// frame thread, so the editor keeps drawing and this console stays readable while it happens. The editor is left
+		// in place until then: leaving it takes the ground with it, and the map standing on screen is a better thing to
+		// wait behind than the sky the match has not replaced yet.
 		SetWasmConsoleStatus("Starting the authority that runs this map...", UIStyle.ColorCyanGlow);
 		AppendWasmConsoleLog("[AUTHORITY] Starting the process the map script runs in; the editor stays responsive while it loads.");
 
@@ -1323,8 +1323,7 @@ public partial class MapEditorHUD : Control
 			started = await GameContext.Lobby.HostSinglePlayerGame(GameContext.EditorService.TempWorkspaceGodotPath, "Test Map", debugMapScript: true);
 		}
 
-		// Leaving editor mode takes the ground with it, and the match is what builds the one this screen plays on. A match
-		// that could not be started therefore leaves a map with no terrain and nothing in it, so the console that was
+		// A match that could not be started leaves the editor standing exactly where it was, so the console that was
 		// reporting the launch stays open and says why instead of closing on a playtest that never began.
 		if (!started)
 		{
@@ -1333,6 +1332,18 @@ public partial class MapEditorHUD : Control
 			AppendWasmConsoleLog($"[ERROR] {GameContext.Lobby?.LastHostError ?? "this build has no lobby to start a match with"}");
 			AppendAuthorityDiagnostics();
 			return;
+		}
+
+		MatchLoadTrace.Mark("authority_started");
+		MatchLoadTrace.WriteSummary("authority_started");
+
+		// The scene the lobby changes to is what builds the match world, so leaving the editor now is one frame of work
+		// before the world that replaces it is built rather than the whole authority start spent looking at the sky.
+		GameContext.Host.ExitMapEditorMode();
+
+		if (GameContext.UserInterface != null)
+		{
+			GameContext.UserInterface.TransitionTo(GameScreen.InGameHUD);
 		}
 
 		// The authority is the process the script runs in, so its identifier is what a debugger has to be given. It is

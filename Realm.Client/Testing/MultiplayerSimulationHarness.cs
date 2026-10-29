@@ -389,10 +389,10 @@ public partial class MultiplayerSimulationHarness : Node
 		AddChild(editorHost);
 		await ToSignal(GetTree().CreateTimer(4.0f), SceneTreeTimer.SignalName.Timeout);
 
-		GameContext.Host?.ExitMapEditorMode();
 		GameContext.SessionState.IsTestMode = true;
 		GD.Print($"[TESTMAP] asking the lobby for a single-player match of '{_mapFolder}' ('{mapDirectory}').");
 		bool playtestStarted = GameContext.Lobby != null && await GameContext.Lobby.HostSinglePlayerGame(_mapFolder, "Test Map");
+		GameContext.Host?.ExitMapEditorMode();
 		GD.Print($"[TESTMAP] the lobby was asked; started={playtestStarted} error={GameContext.Lobby?.LastHostError}; the probe reports what follows.");
 
 		// This instance is about to be replaced by the scene the lobby changes to, so the process is left to the probe.
