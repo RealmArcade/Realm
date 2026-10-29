@@ -275,7 +275,7 @@ public class ServerLobby
 	{
 		if (!TryGetSeat(peerId, out _)) return;
 
-		_send(peerId, NetworkFrameKind.LobbyState, MemoryPackSerializer.Serialize(DescribeState()), FrameDelivery.Reliable);
+		_send(peerId, NetworkFrameKind.LobbyState, SerializeStateFor(DescribeState(), peerId), FrameDelivery.Reliable);
 		foreach (LobbyChatMessage line in _chatHistory)
 		{
 			_send(peerId, NetworkFrameKind.LobbyChat, MemoryPackSerializer.Serialize(line), FrameDelivery.Reliable);
@@ -285,18 +285,37 @@ public class ServerLobby
 	public void BroadcastState()
 	{
 		LobbyStateMessage state = DescribeState();
-		byte[] payload = MemoryPackSerializer.Serialize(state);
 		foreach (var pair in _slotByPeer)
 		{
-			_send(pair.Key, NetworkFrameKind.LobbyState, payload, FrameDelivery.Reliable);
+			_send(pair.Key, NetworkFrameKind.LobbyState, SerializeStateFor(state, pair.Key), FrameDelivery.Reliable);
 		}
+	}
+
+	private byte[] SerializeStateFor(LobbyStateMessage state, int peerId)
+	{
+		LobbySeat[] seats = state.Seats;
+		for (int index = 0; index < seats.Length; index++) seats[index].SessionToken = string.Empty;
+
+		for (int index = 0; index < seats.Length; index++)
+		{
+			if (seats[index].PeerId != peerId) continue;
+			if (_seats.TryGetValue(seats[index].Slot, out LobbySeat seat)) seats[index].SessionToken = seat.SessionToken;
+			break;
+		}
+
+		return MemoryPackSerializer.Serialize(state);
 	}
 
 	private LobbyStateMessage DescribeState()
 	{
 		var seats = new LobbySeat[_seats.Count];
 		int index = 0;
-		foreach (LobbySeat seat in _seats.Values) seats[index++] = seat;
+		foreach (LobbySeat seat in _seats.Values)
+		{
+			LobbySeat published = seat;
+			published.SessionToken = string.Empty;
+			seats[index++] = published;
+		}
 
 		return new LobbyStateMessage
 		{

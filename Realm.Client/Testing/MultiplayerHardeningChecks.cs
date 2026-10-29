@@ -106,38 +106,45 @@ public static class MultiplayerHardeningChecks
 	private static void RunSessionIdentityChecks(LobbyManager lobby, List<string> failures, List<string> notes)
 	{
 		int failuresBefore = failures.Count;
-		int checkedPeers = 0;
+		int disclosedForeignTokens = 0;
+		PlayerInfo? ownSeat = null;
+
 		foreach (PlayerInfo player in lobby.PlayerList)
 		{
-			if (player.PeerId <= 1) continue;
-
-			checkedPeers++;
-			if (!lobby.HasRegisteredSessionToken(player.PeerId))
+			if (lobby.IsLocalPlayer(player))
 			{
-				failures.Add($"peer {player.PeerId} (slot {player.Slot}) never registered its session token, so a reconnect from it would be refused as a session no player in the match owns.");
+				ownSeat = player;
 				continue;
 			}
 
-			if (string.IsNullOrEmpty(player.SessionToken))
-			{
-				failures.Add($"peer {player.PeerId} (slot {player.Slot}) registered a session token but the match holds none for it.");
-				continue;
-			}
-
-			if (!lobby.TryGetReconnectOwnerForHarness(player.SessionToken, out int ownerSlot))
-			{
-				failures.Add($"the session token peer {player.PeerId} registered resolves to no player, so its reconnect would be refused.");
-				continue;
-			}
-
-			if (ownerSlot != player.Slot)
-			{
-				failures.Add($"the session token peer {player.PeerId} registered resolves to slot {ownerSlot} instead of its own slot {player.Slot}.");
-			}
+			if (!string.IsNullOrEmpty(player.SessionToken)) disclosedForeignTokens++;
 		}
 
-		if (checkedPeers == 0) notes.Add("no remote human peer joined, so reconnect identity was not verified");
-		else if (failures.Count == failuresBefore) notes.Add($"{checkedPeers} remote peer(s) registered their own session token, and the reconnect lookup resolves each of them to its own slot");
+		if (disclosedForeignTokens > 0)
+		{
+			failures.Add($"{disclosedForeignTokens} seat(s) published a session token this client does not own, so a lobby member could take over another player's seat after a disconnect.");
+		}
+
+		if (ownSeat == null)
+		{
+			notes.Add("this client holds no lobby seat, so its reconnect identity was not verified");
+			return;
+		}
+
+		if (!lobby.HasRegisteredSessionToken(ownSeat.PeerId))
+		{
+			failures.Add($"this client's seat {ownSeat.Slot} registered no session token, so its reconnect would be refused as a session no player in the match owns.");
+		}
+		else if (!lobby.TryGetReconnectOwnerForHarness(ownSeat.SessionToken, out int ownerSlot))
+		{
+			failures.Add("the session token this client registered resolves to no player, so its reconnect would be refused.");
+		}
+		else if (ownerSlot != ownSeat.Slot)
+		{
+			failures.Add($"the session token this client registered resolves to slot {ownerSlot} instead of its own slot {ownSeat.Slot}.");
+		}
+
+		if (failures.Count == failuresBefore) notes.Add($"this client's seat {ownSeat.Slot} registered a session token that resolves back to it, and no other seat published one");
 	}
 
 	private static void RunPayloadChecks(List<string> failures, List<string> notes)
