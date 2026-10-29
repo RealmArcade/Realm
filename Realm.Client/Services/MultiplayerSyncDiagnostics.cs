@@ -161,6 +161,8 @@ public static class MultiplayerSyncDiagnostics
 		_fingerprintMismatchCount = 0;
 		_fingerprintMismatchSummary = string.Empty;
 		_clientUnitGapCount = 0;
+		WorstOffNavMeshMeters = 0f;
+		OffNavMeshCount = 0;
 		_presentationGaps.Clear();
 		_presentationStepDetails.Clear();
 		_clientUnitLastPresentSequence.Clear();
@@ -210,6 +212,19 @@ public static class MultiplayerSyncDiagnostics
 	private const float PresentationMatchToleranceMeters = 0.01f;
 
 	private static readonly List<string> _presentationGaps = new();
+
+	/// <summary>
+	///     How far from the navigation mesh a drawn position may be before it counts as a unit inside geometry. A mesh is
+	///     triangulated, so a point on it is on a polygon exactly; this is the room a quantized description and a sample
+	///     between two of them are allowed.
+	/// </summary>
+	public const float OffNavMeshToleranceMeters = 0.5f;
+
+	/// <summary>The worst distance from the navigation mesh any drawn unit reached during the run.</summary>
+	public static float WorstOffNavMeshMeters { get; private set; }
+
+	/// <summary>How many drawn units were further from the navigation mesh than the tolerance allows.</summary>
+	public static int OffNavMeshCount { get; private set; }
 	private static readonly HashSet<int> _presentationSteppedEntities = new();
 	private static int _presentationSteppedSequence = -1;
 
@@ -255,6 +270,21 @@ public static class MultiplayerSyncDiagnostics
 	/// so a mapping that puts two local entities on one server id becomes visible rather than looking like one unit
 	/// fighting itself.
 	/// </summary>
+	/// <summary>
+	/// Records how far the position a unit was drawn at is from the navigation mesh this screen baked. Between two
+	/// descriptions a unit is drawn on the straight line joining them, and a corner of a building makes that line cut
+	/// through it, so this is the measurement of whether the presentation can put a unit inside geometry.
+	/// </summary>
+	private static void RecordNavMeshPlacement(System.Numerics.Vector3 presentedPosition)
+	{
+		var movementService = GameContext.Simulation?.MovementPathfindingService;
+		if (movementService == null) return;
+		if (!movementService.TryResolveDistanceOffNavMesh(presentedPosition, out float distanceOffNavMesh)) return;
+
+		if (distanceOffNavMesh > WorstOffNavMeshMeters) WorstOffNavMeshMeters = distanceOffNavMesh;
+		if (distanceOffNavMesh > OffNavMeshToleranceMeters) OffNavMeshCount++;
+	}
+
 	private static void RecordPresentationGap(EcsWorld world, int sequence, int localEntityId, int serverEntityId, Entity localEntity, System.Numerics.Vector3 presentedPosition, bool isCulled)
 	{
 		if (!PositionWriteTrace.IsEnabled) return;
@@ -309,7 +339,7 @@ public static class MultiplayerSyncDiagnostics
 
 		try
 		{
-			string summary = $"fingerprint_mismatches={_fingerprintMismatchCount}\nmissing_unit_components={_missingUnitComponentCount}\nbuffer_starvations={GameContext.SnapshotTimeline.StarvationCount}\ninterpolation_delay_sequences={GameContext.SnapshotTimeline.DelaySequences}\nshadow_baselines={ShadowClientVerifier.VerifiedBaselines}\nshadow_replayed_deltas={ShadowClientVerifier.ReplayedDeltaCount}\nshadow_structural_failures={ShadowClientVerifier.StructuralFailures}\nshadow_fingerprint_failures={ShadowClientVerifier.FingerprintFailures}\n{_fingerprintMismatchSummary}{_missingUnitComponentSummary}\n";
+			string summary = $"fingerprint_mismatches={_fingerprintMismatchCount}\nmissing_unit_components={_missingUnitComponentCount}\nbuffer_starvations={GameContext.SnapshotTimeline.StarvationCount}\ninterpolation_delay_sequences={GameContext.SnapshotTimeline.DelaySequences}\nworst_off_navmesh_meters={WorstOffNavMeshMeters.ToString("F3", System.Globalization.CultureInfo.InvariantCulture)}\noff_navmesh_units={OffNavMeshCount}\nshadow_baselines={ShadowClientVerifier.VerifiedBaselines}\nshadow_replayed_deltas={ShadowClientVerifier.ReplayedDeltaCount}\nshadow_structural_failures={ShadowClientVerifier.StructuralFailures}\nshadow_fingerprint_failures={ShadowClientVerifier.FingerprintFailures}\n{_fingerprintMismatchSummary}{_missingUnitComponentSummary}\n";
 			File.WriteAllText(Path.Combine(_outputDirectory, "ECS_client_replication.txt"), summary);
 		}
 		catch (IOException)
@@ -491,6 +521,7 @@ public static class MultiplayerSyncDiagnostics
 
 			System.Numerics.Vector3 appliedPosition = world.Has<Position>(localEntity) ? world.Get<Position>(localEntity).Value : new System.Numerics.Vector3(unit3D.GlobalPosition.X, unit3D.GlobalPosition.Y, unit3D.GlobalPosition.Z);
 			RecordPresentationGap(world, sequence, kvp.Key, kvp.Value, localEntity, appliedPosition, unit3D.IsCulled);
+			RecordNavMeshPlacement(appliedPosition);
 
 			if (recordServerIds != null)
 			{

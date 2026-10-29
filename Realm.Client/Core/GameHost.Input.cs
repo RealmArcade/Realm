@@ -2879,12 +2879,12 @@ public partial class GameHost
 		if (isQueued)
 		{
 			SpawnTargetIndicator(targetPos, new Color(0.2f, 0.7f, 1.0f));
-			GameContext.InGameHud?.ShowFeedbackText("Command: Queued Move (Shift+Click)", new Color(0.2f, 0.7f, 1.0f));
+			GameContext.InGameHud?.ShowFeedbackText(TranslationServer.Translate("Command: Queued Move (Shift+Click)"), new Color(0.2f, 0.7f, 1.0f));
 		}
 		else
 		{
 			SpawnTargetIndicator(targetPos, new Color(0.22f, 0.54f, 0.26f));
-			GameContext.InGameHud?.ShowFeedbackText("Command: Move to position", new Color(0.22f, 0.54f, 0.26f));
+			GameContext.InGameHud?.ShowFeedbackText(TranslationServer.Translate("Command: Move to position"), new Color(0.22f, 0.54f, 0.26f));
 		}
 	}
 
@@ -3992,7 +3992,7 @@ public partial class GameHost
 		if (SelectedUnits.Count == 0) return;
 
 		SpawnTargetIndicator(targetPos, new Color(0.6f, 0.3f, 1.0f));
-		GameContext.InGameHud?.ShowFeedbackText("Command: Patrol Route Set", new Color(0.7f, 0.4f, 1.0f));
+		GameContext.InGameHud?.ShowFeedbackText(TranslationServer.Translate("Command: Patrol Route Set"), new Color(0.7f, 0.4f, 1.0f));
 
 		var targetIds = new List<int>();
 		var selectedEntities = new List<Entity>();
@@ -4015,12 +4015,12 @@ public partial class GameHost
 		if (isQueued)
 		{
 			SpawnTargetIndicator(targetPos, new Color(0.2f, 0.7f, 1.0f));
-			GameContext.InGameHud?.ShowFeedbackText("Command: Queued Attack-Move (Shift+Click)", new Color(0.2f, 0.7f, 1.0f));
+			GameContext.InGameHud?.ShowFeedbackText(TranslationServer.Translate("Command: Queued Attack-Move (Shift+Click)"), new Color(0.2f, 0.7f, 1.0f));
 		}
 		else
 		{
 			SpawnTargetIndicator(targetPos, new Color(0.9f, 0.5f, 0.1f));
-			GameContext.InGameHud?.ShowFeedbackText("Command: Attack-Move to position", new Color(0.9f, 0.5f, 0.1f));
+			GameContext.InGameHud?.ShowFeedbackText(TranslationServer.Translate("Command: Attack-Move to position"), new Color(0.9f, 0.5f, 0.1f));
 		}
 
 		var targetIds = new List<int>();

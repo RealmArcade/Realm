@@ -560,6 +560,33 @@ namespace Realm.Ecs.Services
 			};
 		}
 
+		/// <summary>
+		///     How far a point is from the navigation mesh this process was baked with, which is the question a screen asks of a
+		///     position it did not compute - a replicated unit it is drawing between two descriptions. Answers false when this
+		///     process has no mesh to ask, so a caller can tell "on the mesh" from "nothing to compare against".
+		/// </summary>
+		public bool TryResolveDistanceOffNavMesh(Vector3 position, out float distanceOffNavMesh)
+		{
+			distanceOffNavMesh = 0f;
+
+			var navQuery = GetThreadLocalNavMeshQuery() ?? _currentTerrainState.NavMeshQuery;
+			if (navQuery == null) return false;
+
+			var pathfinder = _threadLocalPathfinder.Value!;
+			var sampledPosition = new RcVec3f(position.X, position.Y, position.Z);
+			navQuery.FindNearestPoly(sampledPosition, NavMeshSnapExtents, pathfinder.Filter, out long polygonRef, out RcVec3f nearestPoint, out _);
+			if (polygonRef == 0)
+			{
+				distanceOffNavMesh = float.MaxValue;
+				return true;
+			}
+
+			float offsetX = nearestPoint.X - position.X;
+			float offsetZ = nearestPoint.Z - position.Z;
+			distanceOffNavMesh = MathF.Sqrt(offsetX * offsetX + offsetZ * offsetZ);
+			return true;
+		}
+
 		private DtNavMeshQuery? GetThreadLocalNavMeshQuery()
 		{
 			if (!_hasTerrainState || _currentTerrainState.NavMesh == null)

@@ -66,6 +66,22 @@ public class SnapshotTimeline
 	private const float RateCorrectionGain = 0.2f;
 
 	/// <summary>
+	///     How many clean windows in a row the delay must hold before it is shallowed by one sequence. A link that only
+	///     just keeps up is clean for a window now and then, and shallowing on the first such window would take back the
+	///     headroom it is about to need.
+	/// </summary>
+	private const int ShallowConfirmWindows = 2;
+
+	/// <summary>
+	///     How deep the buffer must have been throughout a window, as a fraction of the delay held, before the delay is
+	///     considered deeper than the link needs. The cursor is driven towards "newest minus the delay", so on a healthy
+	///     link the surplus settles at exactly the delay held: a rule that asked for a surplus above the delay could never
+	///     be met, which is a delay that only ever grows. Half is the margin that a link which genuinely needs the depth
+	///     cannot hold through a whole window.
+	/// </summary>
+	private const float ShallowSurplusFraction = 0.5f;
+
+	/// <summary>
 	///     How far past its newest description a unit with a confirmed order may be drawn, in sequences. This is a third
 	///     of one snapshot interval: enough to cover the moment the cursor crosses a description that has not arrived yet,
 	///     and short enough that the next description always lands before the guess could become visible as a wrong path.
@@ -88,6 +104,7 @@ public class SnapshotTimeline
 	private float _cursor = -1f;
 	private float _evaluationSeconds;
 	private int _starvationsInWindow;
+	private int _cleanWindowsInARow;
 	private float _shallowestSurplusInWindow = float.MaxValue;
 	private int _delaySequences = MinimumDelaySequences;
 
@@ -130,6 +147,7 @@ public class SnapshotTimeline
 		_delaySequences = MinimumDelaySequences;
 		_evaluationSeconds = 0f;
 		_starvationsInWindow = 0;
+		_cleanWindowsInARow = 0;
 		_shallowestSurplusInWindow = float.MaxValue;
 		StarvationCount = 0;
 		ShallowestSurplusSequences = 0f;
@@ -234,11 +252,25 @@ public class SnapshotTimeline
 		if (_evaluationSeconds < DelayEvaluationSeconds) return;
 
 		ShallowestSurplusSequences = _shallowestSurplusInWindow;
-		if (_starvationsInWindow > 0 && _delaySequences < MaximumDelaySequences) _delaySequences++;
-		// A spare sequence has to have been held for the whole window, not merely reached once: without that margin a
-		// healthy link shallows the delay every second until it starves, which is a delay that saws up and down once a
-		// second for no reason a player could see.
-		else if (_starvationsInWindow == 0 && _shallowestSurplusInWindow >= _delaySequences + 1f && _delaySequences > MinimumDelaySequences) _delaySequences--;
+		if (_starvationsInWindow > 0)
+		{
+			_cleanWindowsInARow = 0;
+			if (_delaySequences < MaximumDelaySequences) _delaySequences++;
+		}
+		else
+		{
+			// The depth is only taken back once the buffer has held twice what the link ever needed for several windows
+			// running: a link that needs the depth cannot hold that margin through a whole window, so it keeps it, while a
+			// link that was deepened by one bad second gets its headroom returned instead of paying for it for the match.
+			if (_shallowestSurplusInWindow >= _delaySequences * ShallowSurplusFraction) _cleanWindowsInARow++;
+			else _cleanWindowsInARow = 0;
+
+			if (_cleanWindowsInARow >= ShallowConfirmWindows && _delaySequences > MinimumDelaySequences)
+			{
+				_delaySequences--;
+				_cleanWindowsInARow = 0;
+			}
+		}
 
 		_evaluationSeconds = 0f;
 		_starvationsInWindow = 0;

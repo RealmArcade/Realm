@@ -151,6 +151,22 @@ public static class MultiplayerEcsSyncTestSupport
 	private const int StartupWarmupSequenceCount = 60;
 	private const int SyncRecordVersion = SyncRecordFormat.Version;
 
+	/// <summary>
+	/// How far the authority must have moved a unit for the direction it moved in to mean anything. A unit standing still
+	/// has no direction, so its rendered position has nothing to be measured against.
+	/// </summary>
+	private const float BackwardMotionAuthorityMeters = 0.05f;
+
+	/// <summary>
+	/// How far a rendered transform may fall behind where it was drawn a sequence earlier, measured along the direction the
+	/// authority moved it, before the step counts as backwards. Below this is the facing and position a quantized
+	/// description cannot resolve.
+	/// </summary>
+	private const float BackwardMotionToleranceMeters = 0.02f;
+
+	/// <summary>Where a unit was last drawn and where the authority held it, so consecutive sequences can be compared.</summary>
+	private readonly record struct TrackedPresentedPosition(int Sequence, float AuthorityX, float AuthorityZ, float PresentedX, float PresentedZ);
+
 	public static string ResolveClientProjectDirectory()
 	{
 		DirectoryInfo? directory = new(AppContext.BaseDirectory);
@@ -1129,6 +1145,13 @@ public static class MultiplayerEcsSyncTestSupport
 			if (presentedEntry.Key > lastSequence) lastSequencePerFrame[presentedEntry.Value.PhysicsFrame] = presentedEntry.Key;
 		}
 
+		// A rendered unit is drawn from the authority's own timeline, so the only thing that can move it is the cursor, and
+		// the cursor only goes backwards when it ran out of world and was placed back on the newest description. Measuring
+		// motion against the authority's own direction of travel turns that from an impression into a count.
+		var previousPresented = new Dictionary<int, TrackedPresentedPosition>();
+		int backwardRenderCount = 0;
+		float worstBackwardMeters = 0f;
+
 		int collapsedRepeatedSamples = 0;
 		foreach (KeyValuePair<int, MultiplayerSnapshotRecord> hostEntry in hostRecords)
 		{
@@ -1183,6 +1206,26 @@ public static class MultiplayerEcsSyncTestSupport
 				if (observed.HostToRendered > placementTolerance) renderedBeyondTolerance++;
 				if (observed.HostToRendered > worstRenderedOffset) worstRenderedOffset = observed.HostToRendered;
 
+				if (previousPresented.TryGetValue(hostUnit.EntityId, out TrackedPresentedPosition previous) && hostEntry.Key - previous.Sequence == 1)
+				{
+					float authorityDeltaX = hostUnit.PositionX - previous.AuthorityX;
+					float authorityDeltaZ = hostUnit.PositionZ - previous.AuthorityZ;
+					float authorityDistance = MathF.Sqrt(authorityDeltaX * authorityDeltaX + authorityDeltaZ * authorityDeltaZ);
+					if (authorityDistance > BackwardMotionAuthorityMeters)
+					{
+						float presentedDeltaX = presentedUnit.PositionX - previous.PresentedX;
+						float presentedDeltaZ = presentedUnit.PositionZ - previous.PresentedZ;
+						float alongAuthority = (presentedDeltaX * authorityDeltaX + presentedDeltaZ * authorityDeltaZ) / authorityDistance;
+						if (alongAuthority < -BackwardMotionToleranceMeters)
+						{
+							backwardRenderCount++;
+							if (-alongAuthority > worstBackwardMeters) worstBackwardMeters = -alongAuthority;
+						}
+					}
+				}
+
+				previousPresented[hostUnit.EntityId] = new TrackedPresentedPosition(hostEntry.Key, hostUnit.PositionX, hostUnit.PositionZ, presentedUnit.PositionX, presentedUnit.PositionZ);
+
 				TrackPlacementStreak(placementStreaks, completedPlacementStreaks, hostUnit.EntityId, PlacementQuantityRendererFidelity, true, hostEntry.Key, in observed, PresentationPositionTolerance);
 				TrackPlacementStreak(placementStreaks, completedPlacementStreaks, hostUnit.EntityId, PlacementQuantityAuthority, true, hostEntry.Key, in observed, detailedAuthorityTolerance);
 
@@ -1223,6 +1266,8 @@ public static class MultiplayerEcsSyncTestSupport
 		report.AddSummaryLine($"Rendered transforms more than {placementTolerance:F2} m from the authoritative position: {renderedBeyondTolerance} of {comparedTransforms}, worst {worstRenderedOffset:F2} m; this is context rather than an assertion, because the renderer may legally be that far behind.");
 		report.AddSummaryLine($"Buffer starvations: {ReadClientCounter(outputDirectory, "buffer_starvations=")} (the cursor reached the end of what had arrived, which is what deepens the delay), final delay {ReadClientCounter(outputDirectory, "interpolation_delay_sequences=")} sequences, samples drawn past the newest description: {ReadClientCounter(outputDirectory, "extrapolated_samples=")}");
 		report.AddSummaryLine($"Rendered rotation deviations beyond {PresentationRotationTolerance:F2} rad: {rotationDeviationCount} of {comparedTransforms}, largest {largestRotationDeviation:F2} rad (off-frustum units keep their frozen transform until they enter the view)");
+		report.AddSummaryLine($"Rendered transforms that moved against the authority's own direction of travel: {backwardRenderCount} of {comparedTransforms}, worst {worstBackwardMeters:F2} m behind where it was drawn a sequence earlier (the cursor is the only thing that moves a unit, so this is what running out of world and being placed back on the newest description looks like)");
+		report.AddSummaryLine($"Drawn positions further from the navigation mesh than {MultiplayerSyncDiagnostics.OffNavMeshToleranceMeters:F2} m: {ReadClientCounter(outputDirectory, "off_navmesh_units=")}, worst {ReadClientMetric(outputDirectory, "worst_off_navmesh_meters="):F2} m (a unit is drawn on the line joining two descriptions, so a corner of a building is how that line leaves the mesh)");
 		// The authority marks a unit as comparable only when every seated peer was told about it, which a room of this size
 		// with the shroud on almost never satisfies. That is a limit of what a single shared host record can say, not a
 		// measurement of the client, so it is reported as unmeasured rather than as a defect.
@@ -1234,8 +1279,21 @@ public static class MultiplayerEcsSyncTestSupport
 		else if (pairedSequences == 0) report.AddFailure("No rendered presentation records paired with host snapshots, so placement parity was not verified.");
 		else if (comparedTransforms < 20) report.AddFailure($"Only {comparedTransforms} rendered unit transforms were compared in the presentation window.");
 
+		int offNavMeshUnits = ReadClientCounter(outputDirectory, "off_navmesh_units=");
+		if (offNavMeshUnits > 0)
+		{
+			report.AddFailure($"{offNavMeshUnits} drawn unit positions were more than {MultiplayerSyncDiagnostics.OffNavMeshToleranceMeters:F2} m from the navigation mesh this screen baked, worst {ReadClientMetric(outputDirectory, "worst_off_navmesh_meters="):F2} m, so the presentation put a unit inside geometry.");
+		}
+
+		int clientStarvations = ReadClientCounter(outputDirectory, "buffer_starvations=");
+		if (backwardRenderCount > 0 && clientStarvations == 0)
+		{
+			report.AddFailure($"{backwardRenderCount} rendered transforms moved against the authority's direction of travel, worst {worstBackwardMeters:F2} m, and the buffer never ran out of world, so the cursor was not the cause.");
+		}
+
 		if (mismatchCount > 0)
-		{			report.AddFailure($"{mismatchCount} rendered placement mismatches were detected inside the presentation window: a rendered transform, or the applied state behind it, stayed beyond its tolerance for more than {PlacementLagAllowanceSequences} consecutive records. Each entry names the quantity that left its bound and the three distances at its worst sequence.");
+		{
+			report.AddFailure($"{mismatchCount} rendered placement mismatches were detected inside the presentation window: a rendered transform, or the applied state behind it, stayed beyond its tolerance for more than {PlacementLagAllowanceSequences} consecutive records. Each entry names the quantity that left its bound and the three distances at its worst sequence.");
 			report.AddSummaryLine("First presentation mismatches:");
 			foreach (string mismatch in mismatches) report.AddSummaryLine($"  {mismatch}");
 		}
@@ -1268,6 +1326,20 @@ public static class MultiplayerEcsSyncTestSupport
 	/// <summary>
 	/// Reads one counter the client wrote at the end of the run, or zero when the file or the line is absent.
 	/// </summary>
+	private static float ReadClientMetric(string clientDirectory, string prefix)
+	{
+		string path = Path.Combine(clientDirectory, "ECS_client_replication.txt");
+		if (!File.Exists(path)) return 0f;
+
+		foreach (string line in File.ReadLines(path))
+		{
+			if (!line.StartsWith(prefix, StringComparison.Ordinal)) continue;
+			return float.TryParse(line.AsSpan(prefix.Length), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float value) ? value : 0f;
+		}
+
+		return 0f;
+	}
+
 	private static int ReadClientCounter(string clientDirectory, string prefix)
 	{
 		string path = Path.Combine(clientDirectory, "ECS_client_replication.txt");

@@ -1844,6 +1844,13 @@
                 it saves is the last one written.
             </summary>
         </member>
+        <member name="M:Realm.Ecs.Services.MovementAndPathfindingService.TryResolveDistanceOffNavMesh(System.Numerics.Vector3,System.Single@)">
+            <summary>
+                How far a point is from the navigation mesh this process was baked with, which is the question a screen asks of a
+                position it did not compute - a replicated unit it is drawing between two descriptions. Answers false when this
+                process has no mesh to ask, so a caller can tell "on the mesh" from "nothing to compare against".
+            </summary>
+        </member>
         <member name="T:Realm.Ecs.Services.MovementService">
             <summary>
                 Demonstrates how Movement components are used, particularly "intent" components.
