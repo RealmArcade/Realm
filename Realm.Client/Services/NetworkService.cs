@@ -352,7 +352,9 @@ public class NetworkService
 			ApplySnapshotToUnit(snap, snapshot.Sequence, mapping);
 		}
 
-		GameContext.Host?.FlushReplicatedSnapshotEvents();
+		// The units a description named are built by the host once this returns, not here: the host flushes them after the
+		// whole description is applied, and flushing in both places built them against a half-applied snapshot and cost a
+		// second pass over the queues on every description this screen received.
 		bool componentsFullyApplied = ApplyReplicatedComponentState(snapshot);
 		ApplyPendingUnitComponentDeltas(snapshot.Sequence);
 
@@ -752,17 +754,22 @@ public class NetworkService
 		return _pendingUnitSpawns.Remove(serverEntityId, out snapshot);
 	}
 
-	public IReadOnlyList<Entity> FlushPendingUnitKills()
-	{
-		var result = new List<Entity>(_pendingUnitKills);
-		_pendingUnitKills.Clear();
-		return result;
-	}
+	public IReadOnlyList<Entity> FlushPendingUnitKills() => TakePending(_pendingUnitKills);
 
-	public IReadOnlyList<Entity> FlushPendingUnitDespawns()
+	public IReadOnlyList<Entity> FlushPendingUnitDespawns() => TakePending(_pendingUnitDespawns);
+
+	/// <summary>
+	///     Hands over what is waiting and empties the queue. A tick with nothing in it hands back the empty array rather than
+	///     a fresh list: this is called for the kills and again for the retirements of every description this screen applies,
+	///     and the great majority of those describe neither, so the copy was three allocations a tick on a path meant to be
+	///     allocation-free.
+	/// </summary>
+	private static IReadOnlyList<Entity> TakePending(List<Entity> pending)
 	{
-		var result = new List<Entity>(_pendingUnitDespawns);
-		_pendingUnitDespawns.Clear();
+		if (pending.Count == 0) return Array.Empty<Entity>();
+
+		var result = new List<Entity>(pending);
+		pending.Clear();
 		return result;
 	}
 
