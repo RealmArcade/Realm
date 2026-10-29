@@ -21,6 +21,7 @@
     <Compile Remove=".vscode\**" />
     <Compile Remove="Maps\**\obj\**" />
     <Compile Remove="Maps\**\bin\**" />
+    <Compile Remove="Maps\**\*.cs" />
     <Compile Remove="Maps\Test final\**\*.cs" />
     <Compile Remove="Maps\Prueba torre\**\*.cs" />
     <Compile Remove="Maps\blank_map\**\*.cs" />
@@ -31,6 +32,7 @@
     <None Remove=".vscode\**" />
     <None Remove="Maps\**\obj\**" />
     <None Remove="Maps\**\bin\**" />
+    <None Remove="Maps\**\*.cs" />
     <None Remove="Maps\Test final\**\*.cs" />
     <None Remove="Maps\Prueba torre\**\*.cs" />
     <None Remove="Maps\blank_map\**\*.cs" />

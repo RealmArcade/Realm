@@ -37,7 +37,6 @@ public class MapCodeImportService
 	private static readonly HashSet<string> ExcludedTemplateFileNames = new(StringComparer.OrdinalIgnoreCase)
 	{
 		"MapScript.cs",
-		"MeleeRules.cs",
 		"Coordinates.cs",
 		"WasmEntryPoint.cs",
 		"WasmEntryPoint.g.cs",
@@ -213,8 +212,9 @@ public class MapCodeImportService
 		var orderedTypes = new List<SourceType>();
 		var visitedTypes = new HashSet<string>(StringComparer.Ordinal);
 		var selectedFullNames = new HashSet<string>(requestedTypes.Select(sourceType => sourceType.FullName), StringComparer.Ordinal);
+		List<SourceType> expandedTypes = ExpandExportedCompanionTypes(sourceIndex, requestedTypes);
 
-		foreach (SourceType requestedType in requestedTypes)
+		foreach (SourceType requestedType in expandedTypes)
 		{
 			AddTypeWithDependencies(requestedType, source.MapTitle, sourceIndex, destinationIndex, selectedFullNames, visitedTypes, orderedTypes, summary);
 		}
@@ -227,6 +227,26 @@ public class MapCodeImportService
 		}
 
 		return summary;
+	}
+
+	private static List<SourceType> ExpandExportedCompanionTypes(SourceCodeIndex sourceIndex, IReadOnlyCollection<SourceType> requestedTypes)
+	{
+		var expandedTypes = new List<SourceType>(requestedTypes);
+
+		foreach (SourceType requestedType in requestedTypes)
+		{
+			if (!requestedType.IsExported || requestedType.SourceFilePaths.Count == 0) continue;
+
+			foreach (SourceType companionType in sourceIndex.GetTypesInSourceFiles(requestedType.SourceFilePaths))
+			{
+				if (expandedTypes.Contains(companionType)) continue;
+				if (!IsTypeImportable(companionType)) continue;
+
+				expandedTypes.Add(companionType);
+			}
+		}
+
+		return expandedTypes;
 	}
 
 	private static void AddTypeWithDependencies(
@@ -1017,6 +1037,14 @@ public class MapCodeImportService
 				.ToList();
 		}
 
+		public IReadOnlyList<SourceType> GetTypesInSourceFiles(IReadOnlyCollection<string> relativePath)
+		{
+			return TypesByFullName.Values
+				.Where(sourceType => sourceType.SourceFilePaths.Overlaps(relativePath))
+				.OrderBy(sourceType => sourceType.FullName, StringComparer.Ordinal)
+				.ToList();
+		}
+
 		private void IndexFile(SourceFile sourceFile)
 		{
 			CompilationUnitSyntax root = CSharpSyntaxTree.ParseText(sourceFile.Text, new CSharpParseOptions(LanguageVersion.Latest)).GetCompilationUnitRoot();
@@ -1095,6 +1123,7 @@ public class MapCodeImportService
 			}
 
 			sourceType.IsTemplateFile |= sourceFile.IsTemplateFile;
+			sourceType.SourceFilePaths.Add(sourceFile.RelativePath);
 			sourceType.ApplyExportAttribute(FindExportAttribute(declaration));
 			sourceType.AddPart(declaration, usings);
 		}
@@ -1154,6 +1183,7 @@ public class MapCodeImportService
 		public HashSet<string> ReferencedIdentifiers { get; } = new(StringComparer.Ordinal);
 		public HashSet<string> UsingNamespaces { get; } = new(StringComparer.Ordinal);
 		public bool IsTemplateFile { get; set; }
+		public HashSet<string> SourceFilePaths { get; } = new(StringComparer.OrdinalIgnoreCase);
 		public bool IsExported { get; private set; }
 		public string ExportDisplayName { get; private set; } = string.Empty;
 		public string ExportCategory { get; private set; } = string.Empty;

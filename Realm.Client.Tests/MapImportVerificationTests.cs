@@ -300,6 +300,14 @@ public class MapImportVerificationTests
 				{
 					public float BasePopulation = 20.0f;
 				}
+
+				public static class MeleeRulesExtensions
+				{
+					public static MeleeRules EnableMeleeRules(this IGameAPI api)
+					{
+						return new MeleeRules();
+					}
+				}
 				"""
 			};
 
@@ -328,6 +336,11 @@ public class MapImportVerificationTests
 			string importedContent = File.ReadAllText(importedPath);
 			Assertions.AssertThat(importedContent.Contains("[Export(\"Melee Rules\", \"Rules\")]")).IsTrue();
 			Assertions.AssertThat(importedContent.Contains("<summary>Shared melee rule helpers.</summary>")).IsTrue();
+
+			string importedExtensionsPath = Path.Combine(destinationPath, "imports", SourceTitle, "Realm", "Maps", "MeleeRulesExtensions.cs");
+			Assertions.AssertThat(File.Exists(importedExtensionsPath))
+				.OverrideFailureMessage("An exported item should bring the helper types declared in its own file along with it.")
+				.IsTrue();
 
 			IReadOnlyList<string> compilationErrors = CompileWorkspaceSources(destinationPath);
 			Assertions.AssertThat(compilationErrors)

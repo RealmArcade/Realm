@@ -1,0 +1,14 @@
+{
+  "MapName": "Rules Asset_Pack",
+  "Author": "Realm",
+  "Version": "1.0.0",
+  "Description": "Shared rule systems map authors import into their own maps.",
+  "Tags": [
+    "Rules",
+    "Asset Pack"
+  ],
+  "Maintainers": [],
+  "GreenlitReferences": [],
+  "Attribution_SourceMap": [],
+  "Assets": {}
+}
