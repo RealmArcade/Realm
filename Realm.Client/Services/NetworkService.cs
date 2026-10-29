@@ -112,6 +112,7 @@ public class NetworkService
 		_pendingUnitKills.Clear();
 		_pendingUnitDespawns.Clear();
 		_pendingUnitComponentDeltas.Clear();
+		GameContext.SnapshotTimeline.Clear();
 		_referrersByServerEntityId.Clear();
 		_referencedServerEntityIds.Clear();
 		_referencedComponentTypesByLocalEntity.Clear();
@@ -369,6 +370,11 @@ public class NetworkService
 				return;
 			}
 
+			// The first baseline of a match describes a world this screen has never been told about, so nothing held from
+			// a previous match can be sampled against it: the sequences of the two matches overlap and a description left
+			// over from the first would be treated as the newest one held for whichever identifier it was filed under.
+			if (!networkState.HasReceivedInitialBaseline) GameContext.SnapshotTimeline.Clear();
+
 			networkState.LastReceivedBaselineSeq = snapshot.Sequence;
 			networkState.HasReceivedInitialBaseline = true;
 			networkState.LastAppliedSnapshotSequence = snapshot.Sequence;
@@ -513,15 +519,16 @@ public class NetworkService
 		_untrackedServerIds.Clear();
 		foreach (var kvp in mapping.ServerToClientEntityMap)
 		{
-			if (serverIdsInSnapshot.Contains(kvp.Key)) continue;
+			if (serverIdsInSnapshot.Contains(kvp.Key)) continue;			_untrackedServerIds.Add(kvp.Key);
+		}
 
-			_untrackedServerIds.Add(kvp.Key);
-		}			for (int i = 0; i < _untrackedServerIds.Count; i++)
-			{
-				int serverEntityId = _untrackedServerIds[i];
-				if (!mapping.ServerToClientEntityMap.TryGetValue(serverEntityId, out var localEntity)) continue;				if (GameContext.World.Has<GroundLoot>(localEntity)) continue;
+		for (int index = 0; index < _untrackedServerIds.Count; index++)
+		{
+			int serverEntityId = _untrackedServerIds[index];
+			if (!mapping.ServerToClientEntityMap.TryGetValue(serverEntityId, out var localEntity)) continue;
+			if (GameContext.World.Has<GroundLoot>(localEntity)) continue;
 
-				RetireClientEntityForUntrackedServerId(mapping, localEntity, serverEntityId);
+			RetireClientEntityForUntrackedServerId(mapping, localEntity, serverEntityId);
 		}
 	}
 
@@ -680,6 +687,7 @@ public class NetworkService
 		}
 
 		ForgetReferencesHeldBy(localEntity.Id);
+		GameContext.SnapshotTimeline.Reset(localEntity.Id);
 		mapping.ServerToClientEntityMap.Remove(serverEntityId);
 		mapping.ClientToServerEntityMap.Remove(localEntity.Id);
 		ReplicatedEntityReferences.Unregister(serverEntityId);
@@ -724,6 +732,10 @@ public class NetworkService
 				_pendingUnitKills.Add(localEntity);
 			}
 
+			// Entity identifiers are recycled, so what was described for this unit must not outlive it: the identifier
+			// describes a different unit from the next spawn, and a description left behind would draw that unit at
+			// positions this one walked and reject the first description the new one is given.
+			GameContext.SnapshotTimeline.Reset(localEntity.Id);
 			return;
 		}
 
@@ -868,6 +880,10 @@ public class NetworkService
 			// The mapping exists only after this call, so this snapshot could not describe the unit to the apply pass that
 			// runs before it. Its first description is held here instead, so the unit is drawn where the match put it from
 			// the moment it exists on this screen rather than one sequence later.
+			// The local identifier may have belonged to a unit that died or left this screen, so what was described for
+			// that one is dropped first: otherwise this description is refused as older than a history that is not this
+			// unit's, and the unit is drawn wherever its predecessor was last seen.
+			GameContext.SnapshotTimeline.Reset(spawned.Id);
 			GameContext.SnapshotTimeline.Record(spawned.Id, snap.Position.ToNumerics(), snap.RotationY, LastAppliedSnapshotSequenceForDiagnostics);
 		}
 

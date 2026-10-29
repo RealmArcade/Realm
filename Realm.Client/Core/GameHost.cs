@@ -2758,7 +2758,9 @@ public partial class GameHost : Node3D
 		{
 			if (unit.IsBuilding || unit.Player != localPlayerIndex || unit.UnitId != "worker") continue;
 			targetIds.Add(GetServerEntityId(unit.Entity));
-		}		SubmitOrderCommand(isQueued ? "gather_queued" : "gather", targetIds, propPos, GetServerEntityId(propEntity), "");
+		}
+
+		SubmitOrderCommand(isQueued ? "gather_queued" : "gather", targetIds, propPos, GetServerEntityId(propEntity), string.Empty);
 	}
 
 	public void IssueGatherCommand(Prop3D prop, bool isQueued = false)

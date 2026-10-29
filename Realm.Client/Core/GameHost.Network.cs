@@ -143,9 +143,21 @@ public partial class GameHost
 			if (!GameContext.World.Has<UnitOwnerPlayer>(localEntity)) continue;
 			if (GameContext.World.Get<UnitOwnerPlayer>(localEntity).PlayerIndex != localPlayerIndex) continue;
 
-			GameContext.World.SetOrAdd(localEntity, new PreviewMoveTo { Target = target, CommandId = commandId });
+			GameContext.World.SetOrAdd(localEntity, new PreviewMoveTo
+			{
+				Target = target,
+				CommandId = commandId,
+				IssuedSequence = GameContext.NetworkService?.LastAppliedSnapshotSequenceForDiagnostics ?? -1
+			});
 		}
 	}
+
+	/// <summary>
+	///     How many sequences a drawn route waits for the match to answer the order that drew it. An order is answered
+	///     within a round trip, so this is several times what any playable link needs; it exists only so a route the match
+	///     never speaks about cannot outlive the click that drew it.
+	/// </summary>
+	public const int PreviewLifetimeSequences = 20;
 
 	private readonly List<Entity> _previewRouteEntitiesToClear = new();
 	private EntityCallback<PreviewMoveTo>? _collectPreviewRouteToClear;
@@ -174,6 +186,40 @@ public partial class GameHost
 	private void CollectPreviewRouteToClear(Entity entity, ref PreviewMoveTo preview)
 	{
 		if (preview.CommandId == _previewCommandIdToClear) _previewRouteEntitiesToClear.Add(entity);
+	}
+
+	private readonly List<Entity> _expiredPreviewRouteEntities = new();
+	private EntityCallback<PreviewMoveTo>? _collectExpiredPreviewRoute;
+	private int _previewSweepSequence;
+
+	/// <summary>
+	///     Takes back the routes of orders the match has not spoken about within <see cref="PreviewLifetimeSequences" />.
+	///     A click that the match accepted without moving anything - the unit was already on the destination, or the order
+	///     waits behind another - draws a route nothing will ever supersede, and the planning pass would keep producing it
+	///     on every tick.
+	/// </summary>
+	private void ExpirePreviewRoutes()
+	{
+		if (GameContext.World == null) return;
+
+		int sequence = GameContext.NetworkService?.LastAppliedSnapshotSequenceForDiagnostics ?? -1;
+		if (sequence < 0) return;
+
+		_previewSweepSequence = sequence;
+		_expiredPreviewRouteEntities.Clear();
+		_collectExpiredPreviewRoute ??= CollectExpiredPreviewRoute;
+		GameContext.World.Query(in QueryCache.AllPreviewMoveToQuery, _collectExpiredPreviewRoute);
+		for (int index = 0; index < _expiredPreviewRouteEntities.Count; index++)
+		{
+			GameContext.World.Remove<PreviewMoveTo>(_expiredPreviewRouteEntities[index]);
+		}
+
+		_expiredPreviewRouteEntities.Clear();
+	}
+
+	private void CollectExpiredPreviewRoute(Entity entity, ref PreviewMoveTo preview)
+	{
+		if (preview.IssuedSequence >= 0 && _previewSweepSequence - preview.IssuedSequence > PreviewLifetimeSequences) _expiredPreviewRouteEntities.Add(entity);
 	}
 
 	/// <summary>
@@ -260,6 +306,10 @@ public partial class GameHost
 		// thing that moves one: the client renders the authority's own timeline from a little behind it instead of chasing
 		// the newest description it has.
 		GameContext.SnapshotTimeline.Advance(fDelta);
+
+		// A route the match never answered is taken back before the planning pass sees it, so a click that moved nothing
+		// stops drawing rather than being planned again every tick.
+		ExpirePreviewRoutes();
 
 		// Routes are planned for the units this client controls and none of them are walked: what a unit is drawn doing
 		// comes from the descriptions below, and this only gives it a path to draw and a direction to face.
