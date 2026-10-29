@@ -49,9 +49,6 @@ public partial class PingCounter : Label
 
 		_refreshTimer = 0f;
 
-		// The presentation delay is how far behind the world this screen draws, which is a different question from the
-		// round trip. It is reported to the console rather than drawn on the HUD, and only when it moves, so reading it
-		// back says when the buffer deepened or shallowed without a line every quarter second saying it did not.
 		int delayMilliseconds = Mathf.RoundToInt(GameContext.SnapshotTimeline.DelayMilliseconds);
 		if (delayMilliseconds != _lastReportedDelayMilliseconds)
 		{

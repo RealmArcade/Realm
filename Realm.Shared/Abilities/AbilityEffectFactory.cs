@@ -6,23 +6,10 @@ using Realm.Shared.Metadata;
 
 namespace Realm.Shared.Abilities;
 
-/// <summary>
-///     Turns authored ability effects into the immutable definitions the cast path reads, and
-///     registers any inline buff modifiers once so a cast never allocates a modifier list.
-/// </summary>
 public static class AbilityEffectFactory
 {
-	/// <summary>
-	///     Where a map's own definitions are reported when they do not say enough to be followed. It is set by the process
-	///     that owns the screen or the log the complaint belongs on, so this can be read by a headless authority too.
-	/// </summary>
 	public static Action<string>? WarningSink { get; set; }
 
-	/// <summary>
-	///     Parses the authored effects. Returns the definitions, plus the highest damage and heal
-	///     magnitude before scaling, which the command card and autocast heuristics use to tell damage
-	///     abilities from support ones.
-	/// </summary>
 	public static List<AbilityEffectDefinition> Create(AbilityMetadata meta, float defaultRadius, out float maxDamage, out float maxHealing)
 	{
 		var result = new List<AbilityEffectDefinition>();

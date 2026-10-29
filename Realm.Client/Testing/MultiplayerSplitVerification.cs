@@ -7,13 +7,6 @@ using System.Text.Json;
 
 namespace Realm.Client.Testing;
 
-/// <summary>
-///     Compares what every process in a match holds after it ran. The authority is the only process that simulates, so
-///     the screens are supposed to agree: a unit one screen never received, a player resource that never travelled, or
-///     a unit the authority spawned at a place no screen was told about is a change that stopped at the process which
-///     made it. Differences that are only a matter of timing - a screen that stopped earlier holds an older position -
-///     are measured rather than failed.
-/// </summary>
 public static class MultiplayerSplitVerification
 {
 	private const float PositionToleranceMeters = 15f;
@@ -35,9 +28,6 @@ public static class MultiplayerSplitVerification
 		report.HostUnitCount = host.Units.Count;
 		for (int index = 0; index < clientDirectories.Count; index++)
 		{
-			// A harness process names its summary after the peer index the launcher gave it, which is one-based: the first
-			// client writes peer1 and the second peer2. Reading it as a peer id instead made every comparison look for a
-			// file the process never wrote.
 			int harnessPeerIndex = index + 1;
 			int peerIndex = harnessPeerIndex + 1;
 			string clientPath = Path.Combine(clientDirectories[index], $"world_summary_peer{harnessPeerIndex}.json");
@@ -256,7 +246,6 @@ public static class MultiplayerSplitVerification
 	}
 }
 
-/// <summary>What comparing the screens of a match found.</summary>
 public class SplitWorldReport
 {
 	private readonly List<string> _failures = new();

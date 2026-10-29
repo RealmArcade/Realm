@@ -5,11 +5,6 @@ using System.Text;
 
 namespace Realm.Client.Testing;
 
-/// <summary>
-///     What one screen was actually sent. The authority builds and frames the snapshots, so its own report owns the frame
-///     sizes and the framing cost; what a run on this machine can measure directly is the other leg of the journey — the
-///     bytes that arrived at this peer — and that is what this records.
-/// </summary>
 public static class MultiplayerBandwidthMeter
 {
 	private static long _receivedSnapshotBytes;
@@ -27,7 +22,6 @@ public static class MultiplayerBandwidthMeter
 		_receivedBaselineCount = 0;
 	}
 
-	/// <summary>Counts one snapshot this screen received, as it arrived on the link.</summary>
 	public static void RecordReceivedSnapshot(int byteCount, bool isBaseline)
 	{
 		if (byteCount <= 0) return;
@@ -39,10 +33,6 @@ public static class MultiplayerBandwidthMeter
 		_receivedBaselineCount++;
 	}
 
-	/// <summary>
-	///     Writes what this screen received over the recorded span. Both processes write into the folder the run reads
-	///     back, so the file is named for the screen rather than for the match.
-	/// </summary>
 	public static int WriteReport(string outputDirectory, double elapsedSeconds)
 	{
 		double duration = Math.Max(0.001, elapsedSeconds);

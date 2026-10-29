@@ -29,12 +29,6 @@ using HttpClient = System.Net.Http.HttpClient;
 
 namespace Realm.Client.Network;
 
-/// <summary>
-///     This client's seat in a lobby. The lobby itself belongs to the authority this machine started, or to the
-///     authority another player's machine started: this type holds the copy the screen draws, sends the commands a
-///     player issues, and keeps the registry, the public port and the map download that belong to being the host. It
-///     never decides a lobby change - the authority does, and answers with the lobby it holds.
-/// </summary>
 [GlobalClass]
 public partial class LobbyManager : BaseMapTransferNode
 {
@@ -42,13 +36,8 @@ public partial class LobbyManager : BaseMapTransferNode
 	public bool AllowsCheats => IsSinglePlayer;
 	public string? LastHostError { get; private set; }
 
-	/// <summary>
-	///     The log the last authority this screen started was asked to write, so a start that failed can be explained from
-	///     the file that says why. It is kept whether or not the authority got far enough to write anything in it.
-	/// </summary>
 	public string LastAuthorityLogPath { get; private set; } = string.Empty;
 
-	/// <summary>Where what that authority printed on its console was kept, beside the log it writes itself.</summary>
 	public string LastAuthorityConsoleLogPath { get; private set; } = string.Empty;
 
 	public bool IsRestrictedHost { get; private set; }
@@ -132,31 +121,22 @@ public partial class LobbyManager : BaseMapTransferNode
 
 	public List<PlayerInfo> PlayerList { get; } = new();
 
-	/// <summary>The identity the authority gave this connection, or nothing before it was admitted to a lobby.</summary>
 	public int LocalPeerId => _lobbySession?.LocalPeerId ?? -1;
 
-	/// <summary>The port the authority holding this lobby is reachable on, which is the only public port the session uses.</summary>
 	public int BoundPort => _lobbySession?.Port ?? ENetPort;
 
-	/// <summary>Whether the authority is counting down to a start, so a screen opened mid-countdown can show it.</summary>
 	public bool IsCountdownActive => _countdownActive;
 
-	/// <summary>How many seconds the authority's countdown has left.</summary>
 	public int CountdownRemainingSeconds => _countdownRemaining;
 
-	/// <summary>The model catalog warm and the match-world build the lobby runs while a player waits.</summary>
 	private readonly LobbyMatchPreparation _preparation = new();
 
-	/// <summary>Whether the match world for the map below is built and hidden behind the lobby.</summary>
 	private bool _worldPrepared;
 
-	/// <summary>The map the built world belongs to, so a lobby that changes its map builds the new one instead.</summary>
 	private string? _worldPreparedMapName;
 
-	/// <summary>Whether the countdown is being shown over the match screen, which is what a cancel takes back.</summary>
 	private bool _matchPresentationOpen;
 
-	/// <summary>Whether this seat has already told the authority it can start, so it tells it once per preparation.</summary>
 	private bool _loadReadyReported;
 
 	private readonly HttpClient _httpClient = new();
@@ -292,11 +272,6 @@ public partial class LobbyManager : BaseMapTransferNode
 		}).CallDeferred();
 	}
 
-	/// <summary>
-	///     Moves a lobby's traffic while a lobby is open. A lobby is not a match screen, so this is the only thing
-	///     advancing the session a lobby is played over; once the lobby starts its match the session belongs to the match
-	///     screen and is pumped there instead.
-	/// </summary>
 	public override void _Process(double delta)
 	{
 		ClientServerSession? session = _lobbySession;
@@ -306,11 +281,6 @@ public partial class LobbyManager : BaseMapTransferNode
 		TickMatchPreparation();
 	}
 
-	/// <summary>
-	///     Spends one frame's slice of the lobby's time warming the map's models, and tells the authority when this seat
-	///     is ready to play it. The slice is small enough that chat, readiness and the countdown keep answering while it
-	///     runs, which is what makes pre-loading in the lobby a background task rather than a loading screen.
-	/// </summary>
 	private void TickMatchPreparation()
 	{
 		if (_preparation.HasWork)
@@ -325,11 +295,6 @@ public partial class LobbyManager : BaseMapTransferNode
 		AdvanceMatchWorldBuild();
 	}
 
-	/// <summary>
-	///     Starts building the match world behind the lobby, once every model the map names is warm. The world is built from
-	///     the map files this machine holds, so it needs neither a seat nor a roster; the map's own script waits for the
-	///     roster at tick zero, which is why nothing it creates is built here.
-	/// </summary>
 	private void BeginMatchWorldBuild()
 	{
 		if (_worldPrepared && string.Equals(_worldPreparedMapName, ActiveMapName, StringComparison.Ordinal)) return;
@@ -341,7 +306,6 @@ public partial class LobbyManager : BaseMapTransferNode
 
 		if (host.IsBuildingMatchWorld) return;
 
-		// A world built for a map the lobby has since moved away from is not a world this match will play.
 		if (_worldPrepared) host.DiscardPreparedMatchWorld();
 		_worldPrepared = false;
 		_worldPreparedMapName = null;
@@ -350,10 +314,6 @@ public partial class LobbyManager : BaseMapTransferNode
 		MatchLoadTrace.Mark("world_build_begun");
 	}
 
-	/// <summary>
-	///     Spends one frame of the lobby's time on one stage of the world build. The lobby keeps answering between stages,
-	///     and the seat is only reported ready once the whole world exists.
-	/// </summary>
 	private void AdvanceMatchWorldBuild()
 	{
 		GameHost? host = GameContext.Host;
@@ -373,10 +333,6 @@ public partial class LobbyManager : BaseMapTransferNode
 		ReportWorldPreparedIfReady();
 	}
 
-	/// <summary>
-	///     Tells the authority this seat can start on the tick the countdown ends. A seat that holds the map but has not
-	///     built its world yet is still loading, and the host may wait for it or remove it.
-	/// </summary>
 	private void ReportWorldPreparedIfReady()
 	{
 		if (!_worldPrepared || _loadReadyReported) return;
@@ -462,10 +418,6 @@ public partial class LobbyManager : BaseMapTransferNode
 		CallDeferred(nameof(EmitNatTestCompleted));
 	}
 
-	/// <summary>
-	///     Learns the public address the given local port is reached on. It is asked for the port the authority actually
-	///     bound, so the address the registry advertises is the address peers can reach that authority on.
-	/// </summary>
 	private async Task ResolvePublicEndpointAsync(int localPort)
 	{
 		_hostPublicIp = null;
@@ -533,19 +485,6 @@ public partial class LobbyManager : BaseMapTransferNode
 		NatTestCompleted?.Invoke();
 	}
 
-	/// <summary>
-	///     Starts a match this machine plays by itself, with no lobby in front of it, and joins it. It completes once the
-	///     authority is running, which is what a screen waits on; the map itself is loaded by that process, so nothing here
-	///     is done on the frame thread.
-	/// </summary>
-	/// <param name="mapPathName">The map to play.</param>
-	/// <param name="mapDisplayName">The name the map is shown under.</param>
-	/// <param name="mapVersion">The version of the map to play, or nothing for the newest one.</param>
-	/// <param name="debugMapScript">
-	///     Whether the authority keeps the map script's debug information, which a map tested from the editor asks for so a
-	///     breakpoint in the script reaches the process running it.
-	/// </param>
-	/// <returns>Whether the match started, with <see cref="LastHostError" /> saying why when it did not.</returns>
 	public async Task<bool> HostSinglePlayerGame(string mapPathName, string mapDisplayName, string? mapVersion = null, bool debugMapScript = false)
 	{
 		IsSinglePlayer = true;
@@ -642,18 +581,11 @@ public partial class LobbyManager : BaseMapTransferNode
 
 		if (!await TryStartAuthority(mapDirectory, mapPathName, wasmDebug: debugMapScript)) return false;
 
-		// The screen becomes the match only once there is a match to be: until the authority is listening, this process's
-		// own world is the one the editor left behind, and stepping a client tick over it is a tick over nothing.
 		IsGameStarted = true;
 		CallDeferred(nameof(EnterMatchScene), mapPathName, MatchSeed);
 		return true;
 	}
 
-	/// <summary>
-	///     Starts the process that runs this match and joins it. A single-player match is run by an authority exactly as a
-	///     remote one is, so the client never simulates the world it is playing in and a bug cannot behave differently in
-	///     one mode than the other.
-	/// </summary>
 	private async Task<bool> TryStartAuthority(string? mapDirectory, string mapPathName, int authorityPort = 0, bool openToOthers = false, bool wasmDebug = false)
 	{
 		LastAuthorityLogPath = string.Empty;
@@ -707,11 +639,6 @@ public partial class LobbyManager : BaseMapTransferNode
 		return true;
 	}
 
-	/// <summary>
-	///     Creates a lobby. The authority is started here, before anything is registered or advertised, and it keeps the
-	///     single public port for the whole session: it is the lobby server and the match server, and this client is its
-	///     administrator rather than its host. A lobby whose authority cannot start is never published.
-	/// </summary>
 	public async Task<bool> HostLobbyAsync(string mapPathName, string mapDisplayName, string? explicitVersion = null)
 	{
 		InitializeHostState(mapPathName, explicitVersion);
@@ -889,10 +816,6 @@ public partial class LobbyManager : BaseMapTransferNode
 		PlayerList.Clear();
 	}
 
-	/// <summary>
-	///     Joins the lobby's authority and waits until it has admitted this connection, which is the point a player is
-	///     actually in a lobby: the connection made here is the connection the match is played over.
-	/// </summary>
 	private async Task<bool> EstablishLobbyConnectionAsync(string connectIp, int connectPort, bool isLocalConnection)
 	{
 		var channel = GetNodeOrNull<ClientNetworkChannel>("/root/RealmNetwork");
@@ -940,10 +863,6 @@ public partial class LobbyManager : BaseMapTransferNode
 		return true;
 	}
 
-	/// <summary>
-	///     Waits for the authority to answer this connection's hello. A refusal is reported as the reason the lobby was
-	///     not joined, and a lobby whose authority never answers is not a lobby this client can show.
-	/// </summary>
 	private async Task<string?> WaitForLobbyAdmissionAsync(ClientServerSession session)
 	{
 		var decided = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -968,10 +887,6 @@ public partial class LobbyManager : BaseMapTransferNode
 		}
 	}
 
-	/// <summary>
-	///     Subscribes this screen to the lobby the session is connected to. The authority is the only writer: everything
-	///     this type shows comes from the state it describes, and every change this player asks for is a command.
-	/// </summary>
 	private void AttachLobbySession(ClientServerSession session)
 	{
 		_lobbySession = session;
@@ -1041,17 +956,10 @@ public partial class LobbyManager : BaseMapTransferNode
 		PlayerListUpdated?.Invoke();
 	}
 
-	/// <summary>
-	///     Starts warming the map's models for this seat, once the map is on disk and the lobby names it. It is a second
-	///     gate after the download: a seat that is still downloading has nothing to warm, and a seat whose warm is still
-	///     running is not ready for the host to start on.
-	/// </summary>
 	private void StartMatchPreparationForCurrentMap()
 	{
 		if (string.IsNullOrWhiteSpace(ActiveMapName)) return;
 
-		// The host plays the map from wherever it already lives; every other seat can only prepare a map its download
-		// has finished, which is the same gate the authority applies before it seats anyone.
 		bool holdsMap = IsHost
 			? !string.IsNullOrEmpty(GameHost.ResolveMapDirectory(ActiveMapName, ActiveMapVersion))
 			: MapAssetManager.IsMapDownloaded(ActiveMapName, ActiveMapVersion);
@@ -1060,8 +968,6 @@ public partial class LobbyManager : BaseMapTransferNode
 		bool preparedForThisMap = _preparation.IsPrepared && string.Equals(_preparation.MapName, ActiveMapName, StringComparison.Ordinal);
 		if (preparedForThisMap)
 		{
-			// A warm that finished before the map was reported as held is not a forgotten seat: the world it makes room for
-			// is built next, and the authority hears about the seat when that world exists.
 			if (!_worldPrepared || !string.Equals(_worldPreparedMapName, ActiveMapName, StringComparison.Ordinal)) BeginMatchWorldBuild();
 			ReportWorldPreparedIfReady();
 			return;
@@ -1069,7 +975,6 @@ public partial class LobbyManager : BaseMapTransferNode
 
 		if (_preparation.IsPreparing(ActiveMapName)) return;
 
-		// The lobby's map is fixed when it is created, so this only runs when a map that was prepared was replaced.
 		if (_worldPrepared) GameContext.Host?.DiscardPreparedMatchWorld();
 		_worldPrepared = false;
 		_worldPreparedMapName = null;
@@ -1080,17 +985,10 @@ public partial class LobbyManager : BaseMapTransferNode
 		MatchLoadTrace.Mark("preparation_started");
 		MatchLoadTrace.WriteSummary("preparation_started");
 
-		// A map with no model to warm still has a world to build, and one whose metadata could not be read has nothing
-		// this seat can do about it here.
 		if (_preparation.HasWork) return;
 		BeginMatchWorldBuild();
 	}
 
-	/// <summary>
-	///     Makes sure the seat this screen plays has told the authority whether it holds the lobby's map. The authority
-	///     forgets that when a seat's connection drops, so a player that reconnects - or one whose map was already on
-	///     disk before the lobby named it - would otherwise block the countdown until it downloaded the map it already had.
-	/// </summary>
 	private void MakeSureThisSeatReportsItsMap()
 	{
 		if (IsHost) return;
@@ -1151,8 +1049,6 @@ public partial class LobbyManager : BaseMapTransferNode
 				_countdownRemaining = state.CountdownRemainingSeconds;
 				CountdownStarted?.Invoke(state.MapName, state.CountdownRemainingSeconds);
 
-				// The world was built while the lobby was open, so the countdown begins on the match screen: the first frames
-				// are drawn while the clock is still counting, rather than after it has already reached zero.
 				BeginMatchPresentation(state.MapName);
 			}
 			else if (state.CountdownRemainingSeconds != _countdownRemaining)
@@ -1173,11 +1069,6 @@ public partial class LobbyManager : BaseMapTransferNode
 		EndMatchPresentation();
 	}
 
-	/// <summary>
-	///     Puts the match screen in front of the world the lobby already built, when the authority starts its countdown. It is
-	///     a change of screen, not a scene load: the terrain, the props and the catalog are already there, and only the first
-	///     draw is left to do.
-	/// </summary>
 	private void BeginMatchPresentation(string mapName)
 	{
 		if (_matchPresentationOpen || _matchStarted) return;
@@ -1185,8 +1076,6 @@ public partial class LobbyManager : BaseMapTransferNode
 		ActiveMapName = mapName;
 		GameContext.ReplayPlayback.StopReplay();
 
-		// A start that was forced through while this seat was still building finishes the remaining stages here rather than
-		// showing a world that is not whole. The authority does not let a start happen in that window, so this is a guard.
 		GameHost? host = GameContext.Host;
 		while (host != null && host.IsBuildingMatchWorld) host.AdvanceMatchWorldPreparation();
 		if (host != null && host.HasPreparedMatchWorld)
@@ -1195,8 +1084,6 @@ public partial class LobbyManager : BaseMapTransferNode
 			_worldPreparedMapName = mapName;
 		}
 
-		// Nothing was prepared for this map, so there is no world to show. The match is entered the way it always was, by
-		// loading the match scene at tick zero, and the countdown stays on the lobby screen.
 		if (!_worldPrepared) return;
 
 		_matchPresentationOpen = true;
@@ -1208,9 +1095,6 @@ public partial class LobbyManager : BaseMapTransferNode
 		GameContext.UserInterface?.TransitionTo(GameScreen.InGameHUD);
 	}
 
-	/// <summary>
-	///     Puts a cancelled countdown back in the lobby, with the world it built still there for the next start.
-	/// </summary>
 	private void EndMatchPresentation()
 	{
 		if (!_matchPresentationOpen) return;
@@ -1220,7 +1104,6 @@ public partial class LobbyManager : BaseMapTransferNode
 		GameContext.UserInterface?.TransitionTo(GameScreen.LobbyRoom);
 	}
 
-	/// <summary>Sends the authority whether this seat has finished preparing the match in memory.</summary>
 	public void ReportLocalLoadReadyState(bool isLoadReady)
 	{
 		_lobbySession?.SendLobbyCommand(new LobbyCommand
@@ -1243,9 +1126,6 @@ public partial class LobbyManager : BaseMapTransferNode
 		GD.Print($"[LobbyManager] Removed from the lobby: {kicked.Reason}");
 		KickReceived?.Invoke(string.IsNullOrEmpty(kicked.Reason) ? "Kicked by Host" : kicked.Reason);
 
-		// A seat removed while the countdown was already showing the match screen has nowhere to go back to, because the
-		// lobby screen it came from is gone. It is returned to the menu rather than left looking at a world it will
-		// never be told about.
 		bool wasBuilding = _matchPresentationOpen;
 		var session = _lobbySession;
 		if (session != null)
@@ -1280,8 +1160,6 @@ public partial class LobbyManager : BaseMapTransferNode
 			_lobbySession = null;
 		}
 
-		// A lobby whose authority is gone can no longer be reached, so the mapping that advertised it is released with
-		// it rather than left pointing at a port nothing listens on.
 		ReleaseHostedEndpoint(hostedPort);
 		ResetLobbyState();
 		ConnectionFailed?.Invoke(administeredHere ? reason : "The host's lobby is no longer running.");
@@ -1296,8 +1174,6 @@ public partial class LobbyManager : BaseMapTransferNode
 		_countdownActive = false;
 		CountdownFinished?.Invoke();
 
-		// The lobby stops being advertised the moment its match begins, whether this screen was still the lobby screen or
-		// the match screen that replaced it at countdown start. The port stays, because the match runs on it.
 		if (IsHost) UnregisterActiveLobbyFromRegistry();
 
 		ClientServerSession? session = _lobbySession;
@@ -1305,8 +1181,6 @@ public partial class LobbyManager : BaseMapTransferNode
 
 		if (_matchPresentationOpen)
 		{
-			// The world is already built and drawing under the countdown. Tick zero only seats this connection, which is
-			// what turns the picture into the match.
 			_matchPresentationOpen = false;
 			DetachLobbySession(session);
 			_lobbySession = null;
@@ -1326,7 +1200,6 @@ public partial class LobbyManager : BaseMapTransferNode
 		EnterMatchScene(started.MapName, started.Seed);
 	}
 
-	/// <summary>Enters the screen the match is played on, having already been given its connection.</summary>
 	private void EnterMatchScene(string mapName, int matchSeed)
 	{
 		GD.Print($"[LobbyManager] Match started for '{mapName}' with deterministic random seed {matchSeed}");
@@ -1425,11 +1298,6 @@ public partial class LobbyManager : BaseMapTransferNode
 		ActiveLobbyId = null;
 	}
 
-	/// <summary>
-	///     Releases the one public endpoint this machine advertised for its lobby: the diagnostics listener and the port
-	///     mapping that made it reachable. It is called when the authority that owned the port is gone, never when the
-	///     registry entry is closed as a match starts, because the match keeps using the port the lobby opened.
-	/// </summary>
 	private void ReleaseHostedEndpoint(int port)
 	{
 		if (!IsHost) return;
@@ -1438,10 +1306,6 @@ public partial class LobbyManager : BaseMapTransferNode
 		GameContext.Upnp.ClosePort(port > 0 ? port : ENetPort);
 	}
 
-	/// <summary>
-	///     Leaves the lobby. A lobby this machine hosts is destroyed with its authority, which releases the port and closes
-	///     the registry entry; a lobby someone else hosts is only left, and its authority keeps running for everyone else.
-	/// </summary>
 	public void Disconnect()
 	{
 		GD.Print("[LobbyManager] Disconnecting...");
@@ -1458,9 +1322,6 @@ public partial class LobbyManager : BaseMapTransferNode
 			DetachLobbySession(session);
 			if (ReferenceEquals(GameContext.ServerSession, session)) GameContext.DetachServerSession();
 
-			// A member that leaves takes its seat with it, rather than being remembered as a player whose connection
-			// dropped and left on the roster the match starts from. The command is handed to the transport first and the
-			// connection is closed a frame later, so the reliable frame that carries it is actually on the wire.
 			if (!hostedHere) session.SendLobbyCommand(new LobbyCommand { Kind = LobbyCommandKind.Leave });
 			if (hostedHere) session.Dispose();
 			else Callable.From(session.Dispose).CallDeferred();
@@ -1491,9 +1352,6 @@ public partial class LobbyManager : BaseMapTransferNode
 		PlayerList.Clear();
 		PlayerListUpdated?.Invoke();
 
-		// A lobby that is left, cancelled or disconnected takes the world it built with it: no scene, no cache and no
-		// camera left behind for the next lobby to inherit. It runs after the flags above, because the world the screen
-		// is put back to is the empty one a lobby-less screen shows.
 		GameContext.Host?.DiscardPreparedMatchWorld();
 		if (hadPreparedWorld) GameContext.Host?.ResetWorldAndState();
 	}
@@ -1561,11 +1419,6 @@ public partial class LobbyManager : BaseMapTransferNode
 		GD.Print("[LobbyManager] Host WebSocket message processing loop ended.");
 	}
 
-	/// <summary>
-	///     Answers the registry's request to punch towards a joining peer. The punch has to leave from the socket the lobby
-	///     is reached on, and that socket belongs to the authority, so the request is a command to it rather than a send
-	///     from this client.
-	/// </summary>
 	private void HandleWebSocketMessage(string json)
 	{
 		try
@@ -1932,11 +1785,6 @@ public partial class LobbyManager : BaseMapTransferNode
 		});
 	}
 
-	/// <summary>
-	///     Asks the lobby's authority to start the match. Readiness is the lobby's rule, not this screen's: an
-	///     administrator may force a start past the ready toggles, but the map every seat holds and the slots the map
-	///     declares are still checked centrally.
-	/// </summary>
 	public void StartGame(string mapName, bool ignoreReadiness = false)
 	{
 		if (!IsHost) return;
@@ -2025,10 +1873,6 @@ public partial class LobbyManager : BaseMapTransferNode
 		return true;
 	}
 
-	/// <summary>
-	///     Makes sure this client holds the lobby's map, downloading it from the authority that serves the lobby. Progress is
-	///     what the lobby's gating is based on: a seat that does not hold the map cannot be seated in the match.
-	/// </summary>
 	public async Task<bool> EnsureMapDownloadedAsync(string? mapName = null, string? version = null)
 	{
 		string targetMap = !string.IsNullOrWhiteSpace(mapName) ? mapName : ActiveMapName;
@@ -2049,8 +1893,6 @@ public partial class LobbyManager : BaseMapTransferNode
 
 		if (_downloadingMapName == targetMap) return false;
 
-		// A lobby is served by its authority, over the same connection the lobby itself is played over. A seeder is an
-		// ordinary peer with no authority behind it, so it is still served by the transfer its node already speaks.
 		if (_lobbySession == null && _isConnectedToHost) return await TryDownloadMapFromHostAsync(targetMap);
 		if (_lobbySession == null) return false;
 
@@ -2190,7 +2032,6 @@ public partial class LobbyManager : BaseMapTransferNode
 		MapDownloadFailed?.Invoke();
 	}
 
-	/// <summary>The players this match is played by, as this lobby listed them.</summary>
 	private List<MatchRosterSeat> BuildMatchRoster()
 	{
 		var seats = new List<MatchRosterSeat>(PlayerList.Count);
@@ -2412,11 +2253,6 @@ public partial class LobbyManager : BaseMapTransferNode
 		return value >= min && value <= max;
 	}
 
-	/// <summary>
-	///     Downloads a map from a peer that serves map files without holding a lobby: a seeding node joins the distribution
-	///     network as an ordinary ENet peer, so what it speaks is the transfer this node already implements rather than the
-	///     frames a lobby's authority answers with.
-	/// </summary>
 	private async Task<bool> TryDownloadMapFromHostAsync(string targetMap)
 	{
 		var manifest = await RequestManifestFromHostAsync(targetMap);

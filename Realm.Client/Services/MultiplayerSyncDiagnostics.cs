@@ -79,11 +79,6 @@ public static class MultiplayerSyncDiagnostics
 
 	public static int MissingUnitComponentCount => _missingUnitComponentCount;
 
-	/// <summary>
-	/// A baseline's presence mask said the authority has a component the peer does not hold. The peer keeps what it has
-	/// and reports it rather than inventing the value, because the mask and the component bytes disagree and only the
-	/// authority can say which one is right.
-	/// </summary>
 	public static void RecordMissingUnitComponent(int serverEntityId, string componentName)
 	{
 		_missingUnitComponentCount++;
@@ -96,15 +91,9 @@ public static class MultiplayerSyncDiagnostics
 	private static int _unreconciledUnitCount;
 	private static string _unreconciledUnitSummary = string.Empty;
 
-	/// <summary>How many components a baseline's presence said the authority dropped, which the peer then dropped too.</summary>
 	public static int RemovedUnitComponentCount => _removedUnitComponentCount;
 	public static string RemovedUnitComponentSummary => _removedUnitComponentSummary;
 
-	/// <summary>
-	///     How many replicas a baseline never named while the peer still held them. A baseline states everything the peer
-	///     can see, so a unit it leaves out is one the peer must stop holding; a replica that survives one is state the
-	///     authority can no longer correct, and the components it carries read as differences for the rest of the match.
-	/// </summary>
 	public static int UnreconciledUnitCount => _unreconciledUnitCount;
 	public static string UnreconciledUnitSummary => _unreconciledUnitSummary;
 
@@ -123,12 +112,6 @@ public static class MultiplayerSyncDiagnostics
 	}
 
 
-	/// <summary>
-	/// How many sequences a unit can go unmentioned by the host before the client's copy of it counts as withheld rather
-	/// than merely quiet. A unit the host is telling this peer about is resent within a few sequences of moving, so a
-	/// longer silence means the visibility filter stopped describing it - which the client cannot distinguish from the
-	/// unit holding still, and which decides whether a placement gap is the protocol doing its job or a defect.
-	/// </summary>
 	public const int ClientUnitGapAlertSequences = 8;
 
 	private static readonly Dictionary<int, int> _clientUnitLastPresentSequence = new();
@@ -138,11 +121,6 @@ public static class MultiplayerSyncDiagnostics
 
 	public static int ClientUnitGapCount => _clientUnitGapCount;
 
-	/// <summary>
-	/// Records which units each applied snapshot actually mentioned, so the recorded placement series can be read against
-	/// what the host told this peer. A unit absent from the payloads is not a replication mismatch: the client is holding a
-	/// last-known state on purpose, and comparing it to the authority would blame the client for the vision filter.
-	/// </summary>
 	public static void RecordClientSnapshotUnitPresence(int sequence, IReadOnlyList<UnitSnapshot> units)
 	{
 		if (!IsRecording) return;
@@ -174,11 +152,6 @@ public static class MultiplayerSyncDiagnostics
 	public static int WrittenRecordCount => _writtenRecordCount;
 	public static string OutputDirectory => _outputDirectory;
 
-	/// <summary>
-	///     Starts recording what this screen applies. Every process that plays the match records this way, because each
-	///     of them is a peer of the authority now; the account it is judged against is the authority's own record, which
-	///     the authority writes into the same folder.
-	/// </summary>
 	public static void Start(string outputDirectory)
 	{
 		Stop();
@@ -241,38 +214,20 @@ public static class MultiplayerSyncDiagnostics
 		_presentationWriter.Flush();
 	}
 
-	/// <summary>
-	///     How far a replicated unit's position may differ from the one the presentation step wrote before something other
-	///     than that step has moved it. It is a comparison of one write against the read of it, not a tolerance on how far
-	///     the unit has travelled since it was described, which is the buffer's delay and entirely expected.
-	/// </summary>
 	private const float PresentationMatchToleranceMeters = 0.01f;
 
 	private static readonly List<string> _presentationGaps = new();
 
-	/// <summary>
-	///     How far from the navigation mesh a drawn position may be before it counts as a unit inside geometry. A mesh is
-	///     triangulated, so a point on it is on a polygon exactly; this is the room a quantized description and a sample
-	///     between two of them are allowed.
-	/// </summary>
 	public const float OffNavMeshToleranceMeters = 0.5f;
 
-	/// <summary>The worst distance from the navigation mesh any drawn unit reached during the run.</summary>
 	public static float WorstOffNavMeshMeters { get; private set; }
 
-	/// <summary>How many drawn units were further from the navigation mesh than the tolerance allows.</summary>
 	public static int OffNavMeshCount { get; private set; }
 	private static readonly HashSet<int> _presentationSteppedEntities = new();
 	private static int _presentationSteppedSequence = -1;
 
 	private static readonly List<string> _presentationStepDetails = new();
 
-	/// <summary>
-	/// Records what one presentation step actually computed for a unit that is far from its newest description: the
-	/// position it started from, the position sampled on the buffer, the fraction and the value it wrote. A unit that is
-	/// visited by the step, computes a new position and is still drawn somewhere else can only be one whose write is
-	/// undone or whose read is of another entity, and those two are indistinguishable without these numbers.
-	/// </summary>
 	public static void RecordPresentationStepDetail(int entityId, System.Numerics.Vector3 currentPosition, System.Numerics.Vector3 targetPosition, float stepFraction, System.Numerics.Vector3 writtenPosition)
 	{
 		if (!IsRecording || _presentationStepDetails.Count >= 240) return;
@@ -283,10 +238,6 @@ public static class MultiplayerSyncDiagnostics
 	private static ulong _presentationFrame = ulong.MaxValue;
 	private static int _presentationAppliesInFrame;
 
-	/// <summary>
-	/// Notes that the presentation step ran for an entity, so a unit the step never visited can be told apart from one it
-	/// placed and something else moved afterwards. Recording only: the check is one boolean when no run is recorded.
-	/// </summary>
 	public static void RecordPresentationStep(int entityId, int sequence)
 	{
 		if (!IsRecording) return;
@@ -299,21 +250,6 @@ public static class MultiplayerSyncDiagnostics
 		_presentationSteppedEntities.Add(entityId);
 	}
 
-	/// <summary>
-	/// Records a replicated unit whose position is not the one the presentation step wrote, which is the one thing this
-	/// model does not allow: exactly one writer places a replicated unit, and it places it from the authority's own
-	/// timeline. Being behind the newest description is not a fault - it is the delay the buffer holds - so the check is
-	/// the write read back against the read that follows it, not a distance to a target. It records the local id as well,
-	/// so a mapping that puts two local entities on one server id becomes visible rather than looking like one unit
-	/// fighting itself.
-	/// </summary>
-	/// <summary>
-	/// Records how far the position a unit was drawn at is from the navigation mesh this screen baked. Between two
-	/// descriptions a unit is drawn on the straight line joining them, and a corner of a building makes that line cut
-	/// through it, so this is the measurement of whether the presentation can put a unit inside geometry.
-	///     A building is an obstacle rather than something that walks the mesh, and a unit that does not move on the ground
-	///     has no mesh to be on, so neither is measured: counting them would report the map's shape as a defect.
-	/// </summary>
 	private static void RecordNavMeshPlacement(EcsWorld world, Entity localEntity, bool isBuilding, System.Numerics.Vector3 presentedPosition)
 	{
 		if (isBuilding) return;
@@ -332,9 +268,6 @@ public static class MultiplayerSyncDiagnostics
 		if (!PositionWriteTrace.IsEnabled) return;
 		if (_presentationGaps.Count >= 240) return;
 
-		// A unit the presentation step did not visit this record cannot be judged by what it wrote: the record is of a unit
-		// that was described and drawn for the first time on this tick, which is the spawn's own placement. That one is
-		// legitimate and the step takes it over from the next tick.
 		bool wasStepped = _presentationSteppedEntities.Contains(localEntityId);
 		if (!wasStepped) return;
 
@@ -602,15 +535,10 @@ public static class MultiplayerSyncDiagnostics
 				byte flags = 0;
 				if (unit.IsDead) flags |= SyncRecordFormat.FlagDead;
 				if (unit.IsBuilding) flags |= SyncRecordFormat.FlagBuilding;
-				// The match states a unit at one precision, so a transform this screen rendered came from a full description
-				// of where the match holds the unit.
 				flags |= SyncRecordFormat.FlagDetailed;
 				flags |= SyncRecordFormat.FlagVisibleToRemoteClient;
 				if (unit.IsCulled) flags |= SyncRecordFormat.FlagCulled;
 				writer.Write(flags);
-				// A presented transform is this screen's own account of a unit it holds, so every peer could name it as far
-				// as this record speaks, and the digest count that follows states none: the presentation stream is read by
-				// the same reader as the applied state and both keep one unit header.
 				writer.Write(SyncRecordFormat.NamedByEveryPeer);
 				writer.Write(0);
 			}
@@ -625,29 +553,16 @@ public static class MultiplayerSyncDiagnostics
 		_lastPresentedSequence = sequence;
 	}
 
-	/// <summary>
-	///     The entity the record being written describes, read by <see cref="ClientComponentComparability" />. A recording
-	///     pass writes one unit at a time and allocates nothing per unit, so the comparability rule is a static delegate
-	///     reading the identifier the loop just set rather than a closure over it.
-	/// </summary>
 	private static int _comparabilityLocalEntityId;
 
 	private static readonly SyncRecordFormat.ComponentComparabilityMask ClientComponentComparability = IsClientComponentComparable;
 
-	/// <summary>
-	///     Whether this screen can state one component of the unit in hand. A reference the authority named and this
-	///     screen could not resolve is one it must leave out: it was told to point at a unit it was never given, and the
-	///     authority holds the identifier of a unit this peer is not allowed to know. Writing that as a hash difference
-	///     reports the shroud as a defect.
-	/// </summary>
 	private static bool IsClientComponentComparable(int componentTypeId, ReadOnlySpan<byte> payload, out ulong namedByPeers)
 	{
 		namedByPeers = SyncRecordFormat.NamedByEveryPeer;
 		NetworkService? networkService = GameContext.NetworkService;
 		if (networkService == null) return true;
 
-		// A screen speaks only for itself: a reference it can name is a statement about its own copy of the world, which
-		// the reader holds this screen to. One it cannot name is left out rather than written as a value it invented.
 		return !networkService.IsReferenceUnresolved(_comparabilityLocalEntityId, componentTypeId);
 	}
 
@@ -662,12 +577,6 @@ public static class MultiplayerSyncDiagnostics
 		return BuildRecord(sequence, isBaseline, Array.Empty<int>(), writeUnits);
 	}
 
-	/// <summary>
-	/// A baseline is decided per peer, not per sequence: a peer that needs a full world dump gets one while the peers whose
-	/// acknowledged state is healthy keep receiving deltas. The record therefore carries the peers this sequence was a
-	/// baseline for, so the verifier can compare a client's own flag against what it was actually sent rather than against
-	/// a single shared flag that no longer describes the stream.
-	/// </summary>
 	private static byte[] BuildRecord(int sequence, bool isBaseline, IReadOnlyList<int> baselinePeerIds, Action<BinaryWriter> writeUnits)
 	{
 		using MemoryStream stream = new(4096);
@@ -677,12 +586,7 @@ public static class MultiplayerSyncDiagnostics
 			writer.Write(isBaseline);
 			writer.Write(baselinePeerIds.Count);
 			for (int index = 0; index < baselinePeerIds.Count; index++) writer.Write(baselinePeerIds[index]);
-			// Snapshots are applied when the packet arrives, not on the next physics tick, so one tick can produce several
-			// records of the same instant. Readers that judge a per-tick quantity - how far the renderer travelled, where the
-			// cursor stood - need to know which records share a tick, or one instant is counted as dozens.
 			writer.Write(Godot.Engine.GetPhysicsFrames());
-			// A screen describes only itself, so there is no peer whose bit a reader would look up here; the authority's
-			// record is the one that states the order its reference masks count peers in.
 			writer.Write(0);
 			writeUnits(writer);
 		}

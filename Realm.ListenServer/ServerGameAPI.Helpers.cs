@@ -10,10 +10,6 @@ public partial class ServerGameAPI
 {
 	private static readonly QueryDescription ResourceNodeQuery = new QueryDescription().WithAll<ResourceNode>();
 
-	/// <summary>
-	///     What a script means by a player's units: something a map template built and a player owns. A player's own
-	///     entity and the props a map places carry no template, so they never show up in a script's army count.
-	/// </summary>
 	private static readonly QueryDescription PlayerUnitsQuery = new QueryDescription().WithAll<Owner, UnitOwnerPlayer, DefinitionId>().WithNone<Dead, Player, Prop>();
 
 	private readonly EntityCallback<ResourceNode> _countResourceNodes;
@@ -22,7 +18,6 @@ public partial class ServerGameAPI
 
 	private delegate void PlayersStateMutation(ref ScriptPlayersState playersState, int playerSlot);
 
-	/// <summary>Which of a player's three resources a write or a read is about.</summary>
 	private enum PlayerResourceKind
 	{
 		Gold,
@@ -30,7 +25,6 @@ public partial class ServerGameAPI
 		Stone
 	}
 
-	/// <summary>The script-visible player table the world carries, if the match has published one.</summary>
 	private bool TryReadPlayersState(out ScriptPlayersState playersState)
 	{
 		playersState = default;
@@ -43,10 +37,6 @@ public partial class ServerGameAPI
 		return true;
 	}
 
-	/// <summary>
-	///     Changes one player's script-visible row and publishes the row back to the buffer a script reads, so a write
-	///     through the surface and a read through a player handle agree on the same numbers.
-	/// </summary>
 	private void MutatePlayersState(int playerIndex, PlayersStateMutation mutation)
 	{
 		Entity worldEntity = _context.WorldEntity;
@@ -75,10 +65,6 @@ public partial class ServerGameAPI
 		};
 	}
 
-	/// <summary>
-	///     Writes a player's resource where the match reads it and where clients are told about it. Gold is also kept in
-	///     the replicated resource store, which is what the resource bars and costs are settled against.
-	/// </summary>
 	private void WritePlayerResource(int playerIndex, PlayerResourceKind kind, float amount)
 	{
 		float clamped = Math.Max(0f, amount);
@@ -118,7 +104,6 @@ public partial class ServerGameAPI
 		}
 	}
 
-	/// <summary>The entity a script's unit handle names, or nothing when it names a unit that is gone.</summary>
 	private Entity ResolveUnit(UnitId unit)
 	{
 		if (!unit.IsValid) return Entity.Null;
@@ -127,7 +112,6 @@ public partial class ServerGameAPI
 		return _context.World.IsAlive(entity) ? entity : Entity.Null;
 	}
 
-	/// <summary>Stops a unit taking orders and animating, which is what a script means by frozen.</summary>
 	private void SetFrozenFlags(Entity entity, bool frozen)
 	{
 		if (frozen)
@@ -141,7 +125,6 @@ public partial class ServerGameAPI
 		if (_context.World.Has<AnimationsFrozen>(entity)) _context.World.Remove<AnimationsFrozen>(entity);
 	}
 
-	/// <summary>Turns a unit's flag component on or off, which is how the surface immunizes or freezes a unit.</summary>
 	private void SetUnitFlag<TFlag>(UnitId unit, bool enabled) where TFlag : unmanaged
 	{
 		Entity entity = ResolveUnit(unit);

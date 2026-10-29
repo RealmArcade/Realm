@@ -1965,7 +1965,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 				NormalizeLuminance = _normalizeLuminance,
 				IgnorePlayerColor = _ignorePlayerColor,
 				DespillPlayerColor = _despillPlayerColor,
-				PathingType = 8, // Fixed from 31
+				PathingType = 8,
 				MaxHp = 100,
 				SpawnShader = string.IsNullOrWhiteSpace(spawnKey) ? null : spawnKey,
 				DeathShader = string.IsNullOrWhiteSpace(deathKey) ? null : deathKey

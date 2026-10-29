@@ -7,13 +7,6 @@ using Realm.Client.Utils;
 
 namespace Realm.Client.Services;
 
-/// <summary>
-///     Converts authored combat data from the rated-armor and armor-class model to the two
-///     resistance model. Armor classes are gone, so a unit keeps only its armor points; every
-///     elemental damage label collapses onto the damage type it was always mitigated as, because the
-///     engine now mitigates physical, magic and pure and nothing else. The damage/armor matrix that
-///     existed only to differentiate those labels goes with them.
-/// </summary>
 public class Migration_0_0_6_Resistances : IMapMigration
 {
 	public string FromVersion => "v0.0.5";

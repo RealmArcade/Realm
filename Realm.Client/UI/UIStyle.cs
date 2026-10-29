@@ -9,15 +9,15 @@ namespace Realm.Client.UI;
 
 public static class UIStyle
 {
-	public static readonly Color ColorBgDark = new Color(0.08f, 0.08f, 0.1f, 1.0f); // Deep charcoal/midnight
-	public static readonly Color ColorPanelBg = new Color(0.13f, 0.14f, 0.17f, 0.95f); // Granite slate
-	public static readonly Color ColorPanelLight = new Color(0.18f, 0.19f, 0.23f, 0.95f); // Lighter granite
+	public static readonly Color ColorBgDark = new Color(0.08f, 0.08f, 0.1f, 1.0f);
+	public static readonly Color ColorPanelBg = new Color(0.13f, 0.14f, 0.17f, 0.95f);
+	public static readonly Color ColorPanelLight = new Color(0.18f, 0.19f, 0.23f, 0.95f);
 
-	public static readonly Color ColorBronze = new Color(0.6f, 0.5f, 0.35f, 1.0f); // Bronze border
-	public static readonly Color ColorGold = new Color(0.95f, 0.82f, 0.55f, 1.0f); // Bright gold text
-	public static readonly Color ColorGoldDull = new Color(0.75f, 0.67f, 0.5f, 1.0f); // Dull gold
+	public static readonly Color ColorBronze = new Color(0.6f, 0.5f, 0.35f, 1.0f);
+	public static readonly Color ColorGold = new Color(0.95f, 0.82f, 0.55f, 1.0f);
+	public static readonly Color ColorGoldDull = new Color(0.75f, 0.67f, 0.5f, 1.0f);
 
-	public static readonly Color ColorCyanGlow = new Color(0.15f, 0.65f, 1.0f, 1.0f); // Runic cyan glow
+	public static readonly Color ColorCyanGlow = new Color(0.15f, 0.65f, 1.0f, 1.0f);
 	public static readonly Color ColorCyanGlowDim = new Color(0.15f, 0.65f, 1.0f, 0.4f);
 
 	public static readonly Font FontNorseBold = GD.Load<Font>("res://Assets/UI/Norse-Bold.otf");
@@ -230,13 +230,11 @@ public static class UIStyle
 			var style = new StyleBoxTexture();
 			style.Texture = tex;
 
-			// Set TextureMargin to 0 so the entire artwork image renders unified without 9-slice slicing distortion
 			style.TextureMarginLeft = 0;
 			style.TextureMarginRight = 0;
 			style.TextureMarginTop = 0;
 			style.TextureMarginBottom = 0;
 
-			// Content margins: increased padding to make the inner information block compact in width and height
 			style.ContentMarginLeft = 175;
 			style.ContentMarginRight = 170;
 			style.ContentMarginTop = 85;
@@ -665,7 +663,7 @@ public static class UIStyle
 			style.ContentMarginTop = 10;
 			style.ContentMarginBottom = 10;
 
-			style.ModulateColor = new Color(0.9f, 0.9f, 0.93f, 0.95f); // Slightly lighter for sub-panels
+			style.ModulateColor = new Color(0.9f, 0.9f, 0.93f, 0.95f);
 		}
 		else
 		{
@@ -679,7 +677,7 @@ public static class UIStyle
 			style.ContentMarginTop = 14;
 			style.ContentMarginBottom = 14;
 
-			style.ModulateColor = new Color(0.72f, 0.72f, 0.75f, 0.98f); // Darker base frame
+			style.ModulateColor = new Color(0.72f, 0.72f, 0.75f, 0.98f);
 		}
 
 		return style;
@@ -772,14 +770,11 @@ public static class UIStyle
 			var style = new StyleBoxTexture();
 			style.Texture = texture;
 
-			// Zero 9-patch slice margins: renders the 2338x1744 custom artwork as a single unified 3D frame
-			// Eliminates 100% of pillar distortion, rune slicing, and header squishing
 			style.TextureMarginLeft = 0;
 			style.TextureMarginRight = 0;
 			style.TextureMarginTop = 0;
 			style.TextureMarginBottom = 0;
 
-			// Side content margins (100px)
 			style.ContentMarginLeft = 100;
 			style.ContentMarginRight = 100;
 			style.ContentMarginTop = 18;

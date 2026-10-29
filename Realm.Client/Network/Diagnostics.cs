@@ -11,9 +11,9 @@ namespace Realm.Client.Network;
 
 public class Diagnostics
 {
-	private const int MagicHeader = 0x44494147; // "DIAG"
+	private const int MagicHeader = 0x44494147;
 	private const int PacketCount = 50;
-	private const int DelayBetweenPacketsMs = 100; // 50 * 100ms = 5 seconds
+	private const int DelayBetweenPacketsMs = 100;
 
 
 	private static CancellationTokenSource? _serverCts;
@@ -46,7 +46,6 @@ public class Diagnostics
 		}
 		catch (OperationCanceledException)
 		{
-			/* Clean shutdown */
 		}
 		catch (Exception ex)
 		{
@@ -78,7 +77,7 @@ public class Diagnostics
 		using var udp = new UdpClient();
 		udp.ExclusiveAddressUse = false;
 		udp.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
-		udp.Client.Bind(new IPEndPoint(IPAddress.Any, 0)); // bind to any local port
+		udp.Client.Bind(new IPEndPoint(IPAddress.Any, 0));
 
 		var remoteEp = new IPEndPoint(IPAddress.Parse(hostIp), diagPort);
 
@@ -101,7 +100,6 @@ public class Diagnostics
 		}
 		catch
 		{
-			/* Ignore task cancellation error */
 		}
 
 		stopwatch.Stop();

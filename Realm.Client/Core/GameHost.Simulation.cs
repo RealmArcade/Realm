@@ -22,8 +22,6 @@ namespace Realm.Client.Core;
 
 public partial class GameHost
 {
-	// Upper bound for _warnedNonFinitePositions. Once it grows past this, stale warnings for
-	// already-destroyed entities are swept so recycled entity ids get a fresh warning later.
 
 	private void KillUnit(Unit3D unit)
 	{
@@ -194,8 +192,6 @@ public partial class GameHost
 
 	private float ConstructionWorkRatePerSecond => GameContext.SimulationService.FastBuildEnabled ? SimulationService.BaseConstructionWorkRatePerSecond * 10f : SimulationService.BaseConstructionWorkRatePerSecond;
 
-	// Units face their attack/heal/build target once they are within this distance,
-	// even while still moving toward it.
 
 	private List<(Entity Worker, BuildTask UpdatedTask)> _pendingBuildTaskUpdates => GameContext.SimulationService.PendingBuildTaskUpdates;
 

@@ -16,14 +16,14 @@ public class NatTypeTester
 			if (stunAddresses.Length == 0) return NatType.Open;
 
 			var serverIp1 = stunAddresses[0];
-			var serverIp2 = stunAddresses.Length > 1 ? stunAddresses[1] : IPAddress.Parse("74.125.200.127"); // google stun alternate
+			var serverIp2 = stunAddresses.Length > 1 ? stunAddresses[1] : IPAddress.Parse("74.125.200.127");
 
 			return await EvaluateNatTypeAsync(serverIp1, serverIp2, testLocalPort);
 		}
 		catch (Exception ex)
 		{
 			GD.PrintErr($"[NatTypeTester] Error checking NAT: {ex.Message}");
-			return NatType.PortRestrictedCone; // Safe default
+			return NatType.PortRestrictedCone;
 		}
 	}
 
@@ -42,7 +42,7 @@ public class NatTypeTester
 		if (IsSameEndPoint(test1.MappedEndPoint, test1.LocalEndPoint))
 		{
 			var test2Open = await QueryStunWithChangeRequestAsync(serverIp1, 19302, boundPort, changeIP: true, changePort: true);
-			return test2Open.Success ? NatType.Open : NatType.Symmetric; // Symmetric UDP Firewall
+			return test2Open.Success ? NatType.Open : NatType.Symmetric;
 		}
 
 		var test2 = await QueryStunWithChangeRequestAsync(serverIp1, 19302, boundPort, changeIP: true, changePort: true);
@@ -94,7 +94,6 @@ public class NatTypeTester
 		}
 		catch
 		{
-			/* Ignore errors and return success=false */
 		}
 
 		result.Success = false;
@@ -119,7 +118,7 @@ public class NatTypeTester
 			await udp.SendAsync(request, request.Length, serverEp);
 
 			var receiveTask = udp.ReceiveAsync();
-			var timeoutTask = Task.Delay(1000); // 1s timeout
+			var timeoutTask = Task.Delay(1000);
 
 			if (await Task.WhenAny(receiveTask, timeoutTask) == receiveTask)
 			{
@@ -129,7 +128,6 @@ public class NatTypeTester
 		}
 		catch
 		{
-			/* Ignore */
 		}
 
 		result.Success = false;
@@ -193,7 +191,7 @@ public class NatTypeTester
 
 
 		int type = (response[0] << 8) | response[1];
-		if (type != 0x0101 && type != 0x0111) // standard response or XOR response
+		if (type != 0x0101 && type != 0x0111)
 		{
 			result.Success = false;
 			return result;
@@ -211,11 +209,11 @@ public class NatTypeTester
 			if (offset + attrLength > response.Length)
 				break;
 
-			if (attrType == 0x0001 || attrType == 0x0020) // MAPPED-ADDRESS or XOR-MAPPED-ADDRESS
+			if (attrType == 0x0001 || attrType == 0x0020)
 			{
 				result.MappedEndPoint = ParseAddress(response, offset, attrLength, attrType == 0x0020);
 			}
-			else if (attrType == 0x0005) // CHANGED-ADDRESS
+			else if (attrType == 0x0005)
 			{
 				result.ChangedEndPoint = ParseAddress(response, offset, attrLength, false);
 			}
@@ -233,7 +231,7 @@ public class NatTypeTester
 		if (length < 8) return null;
 
 		byte family = response[offset + 1];
-		if (family != 0x01) return null; // IPv4 only for now
+		if (family != 0x01) return null;
 
 		int port = (response[offset + 2] << 8) | response[offset + 3];
 		if (isXor)

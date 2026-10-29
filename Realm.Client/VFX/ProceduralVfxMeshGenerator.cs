@@ -67,37 +67,31 @@ public class ProceduralVfxMeshGenerator
 
 		Vector3[] vertices = new Vector3[]
 		{
-			// Front face (Z = 0.5)
 			new Vector3(-0.5f, -0.5f, 0.5f),
 			new Vector3(0.5f, -0.5f, 0.5f),
 			new Vector3(0.5f, 0.5f, 0.5f),
 			new Vector3(-0.5f, 0.5f, 0.5f),
 
-			// Back face (Z = -0.5)
 			new Vector3(0.5f, -0.5f, -0.5f),
 			new Vector3(-0.5f, -0.5f, -0.5f),
 			new Vector3(-0.5f, 0.5f, -0.5f),
 			new Vector3(0.5f, 0.5f, -0.5f),
 
-			// Left face (X = -0.5)
 			new Vector3(-0.5f, -0.5f, -0.5f),
 			new Vector3(-0.5f, -0.5f, 0.5f),
 			new Vector3(-0.5f, 0.5f, 0.5f),
 			new Vector3(-0.5f, 0.5f, -0.5f),
 
-			// Right face (X = 0.5)
 			new Vector3(0.5f, -0.5f, 0.5f),
 			new Vector3(0.5f, -0.5f, -0.5f),
 			new Vector3(0.5f, 0.5f, -0.5f),
 			new Vector3(0.5f, 0.5f, 0.5f),
 
-			// Top face (Y = 0.5)
 			new Vector3(-0.5f, 0.5f, 0.5f),
 			new Vector3(0.5f, 0.5f, 0.5f),
 			new Vector3(0.5f, 0.5f, -0.5f),
 			new Vector3(-0.5f, 0.5f, -0.5f),
 
-			// Bottom face (Y = -0.5)
 			new Vector3(-0.5f, -0.5f, -0.5f),
 			new Vector3(0.5f, -0.5f, -0.5f),
 			new Vector3(0.5f, -0.5f, 0.5f),

@@ -5,7 +5,7 @@ namespace Realm.Shared.Animation;
 
 public class RanimFile : RealmContainerFile
 {
-	public static readonly byte[] MagicBytes = [0x52, 0x41, 0x4E, 0x4D]; // "RANM"
+	public static readonly byte[] MagicBytes = [0x52, 0x41, 0x4E, 0x4D];
 	public static byte[] Magic => MagicBytes;
 	public const uint CurrentVersion = 1;
 	public const string Format = "ranim";

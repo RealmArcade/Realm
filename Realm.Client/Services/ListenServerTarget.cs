@@ -6,37 +6,18 @@ using Realm.Shared.Network;
 
 namespace Realm.Client.Services;
 
-/// <summary>
-///     Which authority this build runs its matches on. The authority is a Godot process, so while developing it is the
-///     project beside this one, run by the engine already running the client; in a build it is the exported authority
-///     shipped in this game's own folder. Both shapes are named here rather than guessed at launch time, and they are
-///     looked for from every folder this process can prove it knows, because the project folder the engine reports is
-///     not always the folder the client was launched from.
-/// </summary>
 public static class ListenServerTarget
 {
-	/// <summary>The folder the authority is shipped in, and the project folder it lives in while developing.</summary>
 	public const string FolderName = "Realm.ListenServerHost";
 
-	/// <summary>The name the authority is exported as, without its platform extension.</summary>
 	public const string ExecutableName = "Realm.ListenServerHost";
 
-	/// <summary>The project file that states a folder is the authority's Godot project.</summary>
 	private const string ProjectFileName = "project.godot";
 
-	/// <summary>What an exported Godot project names the folder it keeps its assemblies in.</summary>
 	private const string DataFolderPrefix = "data_";
 
-	/// <summary>How far above each known folder the authority's own folder is looked for.</summary>
 	private const int SearchedAncestorLevels = 6;
 
-	/// <summary>
-	///     Finds the authority this build would run a match on, either the exported one shipped beside the game or the
-	///     project beside the client while developing.
-	/// </summary>
-	/// <param name="target">What to start, when something was found.</param>
-	/// <param name="failure">Why nothing was found, naming every folder that was looked in.</param>
-	/// <returns>Whether this build carries an authority it can start.</returns>
 	public static bool TryResolve(out ServerLaunchTarget? target, out string failure)
 	{
 		target = null;
@@ -73,11 +54,6 @@ public static class ListenServerTarget
 		return false;
 	}
 
-	/// <summary>
-	///     Every folder this process can prove it knows, most specific first. The engine's own answer comes first and the
-	///     process facts after it, because a client run in a mode the engine does not globalize a resource path for is
-	///     still running from a folder that holds the repository it was built in.
-	/// </summary>
 	private static List<string> CandidateAnchors()
 	{
 		var anchors = new List<string>();
@@ -88,14 +64,11 @@ public static class ListenServerTarget
 		AddAnchor(anchors, AppContext.BaseDirectory);
 		AddAnchor(anchors, TryCurrentDirectory());
 
-		// A shipped game keeps its managed assemblies in a data folder named after this project, and the archive a player
-		// opens carries the authority inside that folder rather than beside the executable they double-clicked.
 		foreach (string anchor in anchors.ToArray()) AddDataFolderAnchors(anchors, anchor);
 
 		return anchors;
 	}
 
-	/// <summary>Every data folder of one known folder, which a shipped build keeps its screen code and the authority in.</summary>
 	private static void AddDataFolderAnchors(List<string> anchors, string anchor)
 	{
 		string[] dataFolders;
@@ -111,11 +84,6 @@ public static class ListenServerTarget
 		foreach (string dataFolder in dataFolders) AddAnchor(anchors, dataFolder);
 	}
 
-	/// <summary>
-	///     Where the authority's folder sits relative to one known folder: inside it, or beside it, for as many levels
-	///     above it as a build's output nesting is deep. A development client lives inside the repository, so the
-	///     authority is at worst a sibling of one of the known folder's ancestors.
-	/// </summary>
 	private static IEnumerable<string> CandidateAuthorityFolders(string anchorDirectory)
 	{
 		DirectoryInfo? current;
@@ -135,7 +103,6 @@ public static class ListenServerTarget
 		}
 	}
 
-	/// <summary>Keeps a folder the engine named only if it is a folder this process can actually reach.</summary>
 	private static void AddAnchor(List<string> anchors, string? folder)
 	{
 		if (string.IsNullOrWhiteSpace(folder)) return;
@@ -156,7 +123,6 @@ public static class ListenServerTarget
 		anchors.Add(fullPath);
 	}
 
-	/// <summary>What the engine says a resource path resolves to, or nothing when it cannot say.</summary>
 	private static string? TryGlobalizePath(string resourcePath)
 	{
 		try
@@ -169,7 +135,6 @@ public static class ListenServerTarget
 		}
 	}
 
-	/// <summary>The folder the running engine's executable sits in, which a shipped game shares with the authority.</summary>
 	private static string? TryExecutableDirectory()
 	{
 		try
@@ -182,7 +147,6 @@ public static class ListenServerTarget
 		}
 	}
 
-	/// <summary>The folder the process was started from.</summary>
 	private static string? TryCurrentDirectory()
 	{
 		try

@@ -24,10 +24,6 @@ public partial class MultiplayerSimulationHarness : Node
 	private const string HostPlayerName = "HarnessHost";
 	private const int HarnessMatchSeed = 12345;
 
-	/// <summary>
-	/// The role this harness runs as. A second instance is given one before it enters the tree, which is how a probe can
-	/// be left behind to watch a scene the first instance replaces.
-	/// </summary>
 	public string Role
 	{
 		set
@@ -238,13 +234,8 @@ public partial class MultiplayerSimulationHarness : Node
 		GameHost gameHost = GameContext.Host ?? throw new InvalidOperationException("GameHost instance is unavailable.");
 		await RunSplitScenarioAsync(lobby, gameHost);
 
-		// The peer that started the authority is the one player this map gives starting units to, so it is also the one
-		// that can be asked to spend one on a building. That order travels the same path a player's order does.
 		if (!string.IsNullOrEmpty(_clientBuildId)) IssueClientBuildRequest(gameHost);
 
-		// Every client joins the lobby before the map loads, but the clients load the map one at a time so a single
-		// machine is not asked to compile and instantiate several at once. The match clock would otherwise run out for the
-		// clients still waiting their turn, and they would record an empty stream and never acknowledge a snapshot.
 		double matchStartGameTime = await WaitForClientsToStartAsync(gameHost);
 		bool finished = false;
 		ulong simulationDeadline = Time.GetTicksMsec() + (ulong)((_durationSeconds * 4f + 120f) * 1000f);
@@ -279,10 +270,6 @@ public partial class MultiplayerSimulationHarness : Node
 		return 0;
 	}
 
-	/// <summary>
-	/// Opens the map the map editor playtests, through the same lobby state and the same scene the editor's Test Map
-	/// button produces, and reports what this screen actually built for it.
-	/// </summary>
 	private async Task<int> RunTestMapAsync()
 	{
 		LobbyManager lobby = GameContext.Lobby ?? throw new InvalidOperationException("LobbyManager autoload is unavailable.");
@@ -304,8 +291,6 @@ public partial class MultiplayerSimulationHarness : Node
 
 		if (_editorFirst)
 		{
-			// The editor playtest runs in a process that is already standing in the map, so the map it plays is loaded by a
-			// screen that replaces the one holding the editable terrain.
 			GameContext.SessionState.IsMapEditorMode = true;
 			PackedScene editorScene = GD.Load<PackedScene>("res://GameHost.tscn");
 			Node editorHost = editorScene.Instantiate();
@@ -347,10 +332,6 @@ public partial class MultiplayerSimulationHarness : Node
 		return 0;
 	}
 
-	/// <summary>
-	/// Runs the map safe from whatever the screen that loads it does. A node added to the tree's root outlives the scene
-	/// the playtest replaces, so it can report what the screen that took its place actually built.
-	/// </summary>
 	private async Task<int> RunProbeAsync()
 	{
 		_probeOwnsProcess = true;
@@ -368,13 +349,8 @@ public partial class MultiplayerSimulationHarness : Node
 		return 0;
 	}
 
-	/// <summary>
-	/// Triggers the map editor's own Test Map path in this process: a screen already standing in the map, the lobby asked
-	/// for a single-player match, and the scene the lobby changes to. What the probe reports is what a playtest shows.
-	/// </summary>
 	private async Task<int> RunRealTestMapFlowAsync(string mapDirectory)
 	{
-		// The tree is still setting this scene up while this runs, so the probe is attached once a frame has passed.
 		await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 		var probeScene = GD.Load<PackedScene>("res://Testing/MultiplayerSimulationHarness.tscn");
 		Node probe = probeScene.Instantiate();
@@ -395,7 +371,6 @@ public partial class MultiplayerSimulationHarness : Node
 		GameContext.Host?.ExitMapEditorMode();
 		GD.Print($"[TESTMAP] the lobby was asked; started={playtestStarted} error={GameContext.Lobby?.LastHostError}; the probe reports what follows.");
 
-		// This instance is about to be replaced by the scene the lobby changes to, so the process is left to the probe.
 		_probeOwnsProcess = true;
 		return 0;
 	}
@@ -455,11 +430,6 @@ public partial class MultiplayerSimulationHarness : Node
 		return session;
 	}
 
-	/// <summary>
-	/// The players this match is played by, exactly as a lobby lists them before it hands the match over: one seat per
-	/// peer, plus the seats the match is asked to play itself. The authority seats them before the map's script runs, so
-	/// a map that spawns starting units only spawns them for a seat that exists.
-	/// </summary>
 	private List<MatchRosterSeat> BuildHarnessRoster()
 	{
 		var roster = new List<MatchRosterSeat>(_peerCount + _botCount);
@@ -559,9 +529,6 @@ public partial class MultiplayerSimulationHarness : Node
 		if (_pauseAtSeconds > 0f) _ = RunPauseScenarioAsync(session);
 		if (_discardAtSeconds > 0f) _ = RunSnapshotDiscardScenarioAsync();
 
-		// Bounded by the authority's own deadline plus a margin rather than by the same figure: the two clocks do not start
-		// together. The authority starts its deadline when the match begins and waits for every client to be seated first,
-		// so a map with a long warm-up spends most of that window before a peer sees its first description.
 		bool hostFinished = await WaitUntilAsync(() => File.Exists(_doneFile), _durationSeconds * 4f + 240f + (_drainMilliseconds / 1000f));
 		if (!hostFinished) GD.PrintErr("[MP_HARNESS] Host completion marker was not observed before the timeout.");
 
@@ -580,10 +547,6 @@ public partial class MultiplayerSimulationHarness : Node
 		return hostFinished ? 0 : 1;
 	}
 
-	/// <summary>
-	/// Pauses the match once from this peer and resumes it again, and records what this screen saw, so a test can prove
-	/// the pause travelled: the peer asked, the authority decided, and every screen was told the state it holds.
-	/// </summary>
 	private async Task RunPauseScenarioAsync(ClientServerSession session)
 	{
 		string path = Path.Combine(_outputDirectory, "pause.txt");
@@ -626,11 +589,6 @@ public partial class MultiplayerSimulationHarness : Node
 		}
 	}
 
-	/// <summary>
-	/// Discards one snapshot this peer was sent and records what the repair cost, so a test can prove the authority
-	/// describes a hole in the acknowledgement mask from scratch exactly once rather than leaving the peer to drift
-	/// against a world it is missing one change of.
-	/// </summary>
 	private async Task RunSnapshotDiscardScenarioAsync()
 	{
 		string path = Path.Combine(_outputDirectory, "snapshot_discard.txt");
@@ -688,11 +646,6 @@ public partial class MultiplayerSimulationHarness : Node
 
 	private const ulong RepairObservationMilliseconds = 4000;
 
-	/// <summary>
-	/// Drops this client's connection once mid-match and waits for it to rejoin, so the reconnect path is exercised the
-	/// way a lost host would exercise it. The outcome is written for the verifier: the sequence the client had applied
-	/// when it dropped, the first sequence it applied after rejoining, and whether it rejoined at all.
-	/// </summary>
 	private async Task RunConnectionLossScenarioAsync(ClientServerSession session)
 	{
 		string path = Path.Combine(_outputDirectory, "client_drop.txt");
@@ -710,10 +663,6 @@ public partial class MultiplayerSimulationHarness : Node
 			GD.Print($"[MP_HARNESS] Dropping the client connection at game time {dropGameTime:F2}s, applied sequence {dropSequence}.");
 			session.DropConnectionForHarness();
 
-			// A peer that has been seated again is described from scratch, so the resumption is the baseline the match sends
-			// the re-established connection - not merely the next snapshot that reaches the screen. Frames already in the
-			// transport when the connection was dropped arrive first, and counting one of them as the resume made an outage
-			// of eleven seconds read as a single sequence.
 			bool resumed = await WaitUntilAsync(
 				() => GameContext.NetworkService.LastAppliedSnapshotSequenceForDiagnostics > dropSequence
 					&& GameContext.NetworkService.LastAppliedBaselineSequenceForDiagnostics > dropSequence,
@@ -759,8 +708,6 @@ public partial class MultiplayerSimulationHarness : Node
 			int appliedSequence = GameContext.NetworkService?.LastAppliedSnapshotSequenceForDiagnostics ?? -1;
 			bool hasBaseline = GameContext.World != null && GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) && GameContext.World.Has<NetworkState>(GameContext.Simulation.WorldEntity)
 				&& GameContext.World.Get<NetworkState>(GameContext.Simulation.WorldEntity).HasReceivedInitialBaseline;
-			// A peer is playing the match once the authority has described a world to it and it has applied it. How many
-			// units that world holds is the map's business, and a map may give a player nothing at all until it drafts.
 			bool isReady = host != null && appliedSequence >= 0 && hasBaseline;
 			readinessLogCounter++;
 			if (!isReady && readinessLogCounter % 50 == 0)
@@ -777,9 +724,6 @@ public partial class MultiplayerSimulationHarness : Node
 			return false;
 		}
 
-		// The process that owns the authority plays as a peer like any other, and every peer keeps its own record. Its
-		// record goes in its own folder because the run directory is also where the authority writes its own stream and
-		// where the peer this process is playing beside writes its own.
 		MultiplayerSyncDiagnostics.Start(isHost ? Path.Combine(_outputDirectory, "host") : _outputDirectory);
 		PrintReplicatedCodecTable(isHost);
 		TryWriteReadyFile();
@@ -853,19 +797,10 @@ public partial class MultiplayerSimulationHarness : Node
 
 	public override void _PhysicsProcess(double delta)
 	{
-		// The session has to be read before a match scene exists too, because the seat a client is given is what decides
-		// when it may load the map. Once the match runs, it pumps the same queue and this call finds nothing to do.
 		_session?.Pump();
-		// The match reaches this process over the session's own transport, so Godot's multiplayer peer is not assigned at
-		// all. Asking it for an id errored on every physics frame and never produced the id the session already holds.
 		RecordClientPeerId(_session?.LocalPeerId ?? 0);
 	}
 
-	/// <summary>
-	/// Appends a peer id the client process is connected with. A client that loses the host while the map loads rejoins
-	/// with a new id, and both ids belong to this process; keeping only the first one made every baseline the second
-	/// connection received look like one the host never sent to this peer.
-	/// </summary>
 	private void RecordClientPeerId(int peerId)
 	{
 		if (_role != "client" || peerId <= 0 || peerId == _recordedClientPeerId) return;
@@ -880,11 +815,6 @@ public partial class MultiplayerSimulationHarness : Node
 		}
 	}
 
-	/// <summary>
-	/// Waits until every client process has reported that its simulation is running, and returns the host's game time at
-	/// that moment. The match window is measured from here so a client that was still loading the map is not handed a
-	/// stream that has already finished.
-	/// </summary>
 	private async Task<double> WaitForClientsToStartAsync(GameHost gameHost)
 	{
 		int expectedClients = Math.Max(1, _peerCount - 1);
@@ -979,10 +909,6 @@ public partial class MultiplayerSimulationHarness : Node
 		}
 	}
 
-	/// <summary>
-	/// The newest snapshot this process has applied. Every process in a match is a client now, so this reads what it
-	/// applied rather than the counter the process that used to simulate the world published.
-	/// </summary>
 	private static int ResolveSnapshotSequence() => GameContext.NetworkService?.LastAppliedSnapshotSequenceForDiagnostics ?? -1;
 
 	private static void SetPrivateProperty(object target, string propertyName, object value)

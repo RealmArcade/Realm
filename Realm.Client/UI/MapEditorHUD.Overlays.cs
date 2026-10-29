@@ -941,7 +941,7 @@ namespace Realm.Client.UI
 
 				var style = new StyleBoxFlat();
 				style.BgColor = new Color(0, 0, 0, 0);
-				style.BorderColor = new Color(0.9f, 0.45f, 0.1f); // Vibrant orange/gold for cliff
+				style.BorderColor = new Color(0.9f, 0.45f, 0.1f);
 				style.SetBorderWidthAll(3);
 				style.CornerRadiusTopLeft = 4;
 				style.CornerRadiusTopRight = 4;
@@ -2908,7 +2908,6 @@ namespace Realm.Client.UI
 			contentOverlay.SetAnchorsPreset(LayoutPreset.FullRect);
 			panel.AddChild(contentOverlay);
 
-			// Top Title Header
 			var lblTitle = new Label();
 			lblTitle.Name = "LblTitle_Label";
 			UIStyle.ApplyTitle(lblTitle, "Realm Creator Agreement", 20);
@@ -2918,7 +2917,6 @@ namespace Realm.Client.UI
 			lblTitle.Size = new Vector2(744, 30);
 			contentOverlay.AddChild(lblTitle);
 
-			// Intro Line 1 & Line 2
 			var lblIntro1 = new Label();
 			lblIntro1.Name = "LblIntro1_Label";
 			lblIntro1.Text = TranslationServer.Translate("By publishing content on Realm, you grant us permission to host, distribute, and display your map so people can play it.");
@@ -2939,7 +2937,6 @@ namespace Realm.Client.UI
 			lblIntro2.Size = new Vector2(784, 20);
 			contentOverlay.AddChild(lblIntro2);
 
-			// Helper to place text rule card at exact X, Y coordinates
 			void AddRuleTextBox(string title, string desc, float posX, float posY, float width, float height)
 			{
 				var textVBox = new VBoxContainer();
@@ -2968,7 +2965,6 @@ namespace Realm.Client.UI
 				contentOverlay.AddChild(textVBox);
 			}
 
-			// Row 1
 			AddRuleTextBox("Your Work is Yours",
 				"You retain full ownership of your original creations. You aren't signing away your copyright to anyone.",
 				252, 185, 235, 125);
@@ -2977,7 +2973,6 @@ namespace Realm.Client.UI
 				"You may ask for donations from your player base, but you may not offer any differences in gameplay compared to non-paying users, other than cosmetic rewards. Pay-to-win is not allowed.",
 				655, 185, 240, 125);
 
-			// Row 2
 			AddRuleTextBox("Collaboration",
 				"By publishing your content on Realm, you allow other creators to open and learn from your work. You also grant them permission to adapt, build upon, and incorporate it into their own creations, provided those new works remain exclusively within the Realm platform.",
 				252, 338, 235, 135);
@@ -2986,7 +2981,6 @@ namespace Realm.Client.UI
 				"Want to turn your map into a standalone game? Go for it! However, you can only take your original work with you. You must replace any content created by other Realm users, unless you obtain their explicit written permission.",
 				655, 338, 240, 135);
 
-			// Row 3
 			AddRuleTextBox("Give Credit",
 				"If you import another creator's work, they still own the original. Never claim their work as your own.",
 				252, 518, 235, 125);
@@ -2995,7 +2989,6 @@ namespace Realm.Client.UI
 				"Do not upload content you didn’t make or don't have the rights to use. This includes trademarked content from other video games, movies, music, and media.",
 				655, 518, 240, 125);
 
-			// Bottom Buttons (Accept & Quit)
 			var btnAccept = new Button();
 			btnAccept.Name = "BtnAccept_Button";
 			btnAccept.Set("icon_max_width", 0);

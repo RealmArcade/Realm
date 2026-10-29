@@ -9,33 +9,16 @@ using Realm.Shared.Services;
 
 namespace Realm.ListenServer;
 
-/// <summary>
-///     The lobby an authority holds before its match starts. It owns the seats, what each seat is called and looks like,
-///     readiness, whether a player holds the map, the pre-match countdown and the chat history; clients send commands
-///     and are answered with the lobby it decided on. The host's client is an ordinary seat holding the capability the
-///     authority was spawned with, so its commands skip permission checks and are validated against the same invariants
-///     as everyone else's.
-/// </summary>
 public class ServerLobby
 {
-	/// <summary>What the authority sends one peer. It is the transport's send, handed in so the lobby owns no socket.</summary>
 	private readonly Action<int, NetworkFrameKind, byte[], FrameDelivery> _send;
 
-	/// <summary>Ends one peer's connection, which is how a refused or removed seat stops being attached.</summary>
 	private readonly Action<int> _disconnect;
 
-	/// <summary>
-	///     Builds the match from the roster the lobby arranged. It returns why the match could not start, or nothing when
-	///     it did. The authority is the only thing that can load a world, so the lobby hands it the seats rather than
-	///     starting anything itself. The session identities travel beside the seats, because the match those seats become
-	///     is closed to everyone else and a seat whose connection dropped is handed back to the identity that owned it.
-	/// </summary>
 	private readonly Func<IReadOnlyList<MatchRosterSeat>, IReadOnlyList<(int PeerId, int Slot)>, IReadOnlyDictionary<string, int>, int, string?> _startMatch;
 
-	/// <summary>What to do when the peer that administers the lobby is gone: a lobby nobody can administer is destroyed.</summary>
 	private readonly Action _lobbyAbandoned;
 
-	/// <summary>Sends a NAT hole punch from the socket the authority owns, which is the socket the lobby advertises.</summary>
 	private readonly Action<string, int> _punchAddress;
 
 	private readonly ServerLog _log;
@@ -44,14 +27,12 @@ public class ServerLobby
 	private readonly string _mapVersion;
 	private readonly int _maximumPlayers;
 
-	/// <summary>The seats by player slot, so the lobby is listed in the order the roster plays it whatever order peers joined in.</summary>
 	private readonly SortedDictionary<int, LobbySeat> _seats = new();
 	private readonly Dictionary<int, int> _slotByPeer = new();
 	private readonly List<LobbyChatMessage> _chatHistory = new();
 
 	private const int MaximumChatHistory = 200;
 
-	/// <summary>How long a session identity may be. A client mints one, so the lobby refuses an identity no client mints.</summary>
 	private const int MaximumSessionTokenLength = 64;
 
 	private int _adminPeerId;
@@ -77,10 +58,8 @@ public class ServerLobby
 		_maximumPlayers = ResolveMaximumPlayers(arguments);
 	}
 
-	/// <summary>Whether the lobby has handed its seats to a match. A started lobby holds no state and accepts no commands.</summary>
 	public bool MatchStarted => _matchStarted;
 
-	/// <summary>The connection that administers this lobby, or zero while no peer has proved the ticket it was spawned with.</summary>
 	public int AdminPeerId => _adminPeerId;
 
 	public string MapName => _mapName;
@@ -89,10 +68,6 @@ public class ServerLobby
 
 	public int MaximumPlayers => _maximumPlayers;
 
-	/// <summary>
-	///     Whether anyone is here to play yet. A lobby that nobody has joined is a lobby with nothing to prepare, so this
-	///     is what an authority waits for before it spends the work of a map on it.
-	/// </summary>
 	public bool HasHumanSeat
 	{
 		get
@@ -107,7 +82,6 @@ public class ServerLobby
 		}
 	}
 
-	/// <summary>The seat a connection is attached as, or nothing when it was never admitted or has been removed.</summary>
 	public bool TryGetSeat(int peerId, out LobbySeat seat)
 	{
 		seat = default;
@@ -116,16 +90,8 @@ public class ServerLobby
 		return true;
 	}
 
-	/// <summary>Every line of chat this lobby has relayed, oldest first, so a seat that joins late reads what it missed.</summary>
 	public IReadOnlyList<LobbyChatMessage> ChatHistory => _chatHistory;
 
-	/// <summary>
-	///     Admits a peer that has said who it is, handing it the seat its session identity owned before it dropped or the
-	///     next free one. The admin capability is granted only to a peer whose hello proved the ticket this authority was
-	///     spawned with; the loopback address is not a credential, so a local process that proves nothing is an ordinary
-	///     member.
-	/// </summary>
-	/// <returns>Why the peer was refused, or nothing when it was admitted.</returns>
 	public string AdmitPeer(int peerId, string name, string sessionToken, bool proveAdmin, out bool isAdmin)
 	{
 		isAdmin = false;
@@ -191,10 +157,6 @@ public class ServerLobby
 		return string.Empty;
 	}
 
-	/// <summary>
-	///     Applies one command from a lobby member. Every invariant is checked here whatever the sender administers, so
-	///     the host's client can skip permissions but not the rules the lobby is playing by.
-	/// </summary>
 	public void HandleCommand(int peerId, LobbyCommand command)
 	{
 		if (_matchStarted) return;
@@ -262,11 +224,6 @@ public class ServerLobby
 		}
 	}
 
-	/// <summary>
-	///     Answers a connection that dropped. A member's seat is held for the session identity to reclaim; the
-	///     administrator's seat cannot be held, because a lobby nobody administers is a room nobody can start or clean
-	///     up, so the whole session is ended instead of left running unreachable.
-	/// </summary>
 	public void OnPeerDisconnected(int peerId)
 	{
 		if (_matchStarted) return;
@@ -291,10 +248,6 @@ public class ServerLobby
 		BroadcastState();
 	}
 
-	/// <summary>
-	///     Advances the pre-match countdown. The countdown belongs to the authority, so every screen shows the same
-	///     remaining time and a cancel reaches all of them on the message that states it was cancelled.
-	/// </summary>
 	public void Tick(double deltaSeconds)
 	{
 		if (_matchStarted || !_countdownActive) return;
@@ -318,7 +271,6 @@ public class ServerLobby
 		BroadcastState();
 	}
 
-	/// <summary>Describes this lobby to one peer, which is what a peer that has just been admitted is answered with.</summary>
 	public void SendStateTo(int peerId)
 	{
 		if (!TryGetSeat(peerId, out _)) return;
@@ -330,7 +282,6 @@ public class ServerLobby
 		}
 	}
 
-	/// <summary>Describes this lobby to every attached seat. It is sent whole after every change, so no command has to be replayed in order.</summary>
 	public void BroadcastState()
 	{
 		LobbyStateMessage state = DescribeState();
@@ -512,11 +463,6 @@ public class ServerLobby
 		return hasHuman ? null : "A match needs at least one connected player.";
 	}
 
-	/// <summary>
-	///     Hands the seats to the match the lobby arranged. A seat whose player is disconnected stays on the roster - the
-	///     map's script seats it and spawns what its rules give it - so a match does not depend on every connection being
-	///     present at the instant the countdown reaches zero.
-	/// </summary>
 	private string? StartMatch()
 	{
 		string? rejection = ValidateStart(ignoreReadiness: true);
@@ -548,9 +494,6 @@ public class ServerLobby
 
 		_log.Write($"the lobby started its match with {roster.Count} seat(s) and seed {seed}");
 
-		// A connection that was attached but is not on the roster - a peer that never finished downloading, one that
-		// was admitted after validation, or one that was refused a seat and never told - has no part in the match and is
-		// ended here rather than left attached to a session it cannot take part in.
 		var attached = new List<int>(_slotByPeer.Keys);
 		var seated = new HashSet<int>();
 		foreach (var assignment in assignments) seated.Add(assignment.PeerId);
@@ -597,10 +540,6 @@ public class ServerLobby
 		BroadcastState();
 	}
 
-	/// <summary>
-	///     Records whether a seat has finished preparing the match in memory. It is the gate after the map download:
-	///     holding the files is not being ready to start from them.
-	/// </summary>
 	private void ReportLoadReady(LobbySeat sender, bool ready)
 	{
 		if (sender.IsComputer) return;
@@ -717,7 +656,6 @@ public class ServerLobby
 		return -1;
 	}
 
-	/// <summary>The team a joining human is put on: the one with fewer people on it, so a lobby fills up evenly.</summary>
 	private string ResolveJoinTeamName()
 	{
 		int teamOne = 0;

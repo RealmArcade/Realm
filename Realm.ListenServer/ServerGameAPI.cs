@@ -15,12 +15,6 @@ using Realm.MapAPI;
 
 namespace Realm.ListenServer;
 
-/// <summary>
-///     The map scripting surface as the authority answers it. A map script's effects land in the server's own ECS
-///     through the same services the simulation steps with, so what a script asks for is simulated once, by the
-///     authority, and reaches every client as replicated state. Effects that only a screen can express are handed to
-///     the presentation queue, addressed to the players that can see them.
-/// </summary>
 public partial class ServerGameAPI : IGameAPI
 {
 	private readonly SimulationContext _context;
@@ -58,25 +52,18 @@ public partial class ServerGameAPI : IGameAPI
 		_collectResourceNodes = CollectResourceNodes;
 	}
 
-	/// <summary>The world this surface writes to, so the host that runs a script can hand it the same world.</summary>
 	public EcsWorld World => _context.World;
 
-	/// <summary>The languages a map's text is available in and the language each player connected in.</summary>
 	public ServerLocalization Localization => _localization;
 
-	/// <summary>How far each player is up each of the map's tech tracks.</summary>
 	public ServerTechLevels TechLevels => _techLevels;
 
-	/// <summary>The opponents this match plays itself.</summary>
 	public ServerBots Bots => _bots;
 
-	/// <summary>What puts items on units and takes them off again in this match.</summary>
 	public ItemGrantService Items { get; }
 
-	/// <summary>What drops, expires and sweeps up the loot lying on this match's map.</summary>
 	public GroundLootService Loot { get; }
 
-	/// <summary>How long the match has run, which is the clock a map script schedules against.</summary>
 	public float GameElapsedTime
 	{
 		get
@@ -89,10 +76,8 @@ public partial class ServerGameAPI : IGameAPI
 		}
 	}
 
-	/// <summary>A match the authority runs gives a script no shortcuts, so cheating is always off here.</summary>
 	public bool CheatsEnabled => _context.CheatsEnabled;
 
-	/// <summary>How many players the map has seated and left in the match.</summary>
 	public int PlayerCount
 	{
 		get
@@ -109,7 +94,6 @@ public partial class ServerGameAPI : IGameAPI
 		}
 	}
 
-	/// <summary>How many harvestable nodes the map still has in the world.</summary>
 	public int ResourceNodeCount
 	{
 		get
@@ -120,10 +104,6 @@ public partial class ServerGameAPI : IGameAPI
 		}
 	}
 
-	/// <summary>
-	///     The players still in the match, in slot order. The buffer belongs to this surface and is refilled per call, so
-	///     a script can enumerate players without making the authority allocate.
-	/// </summary>
 	public ReadOnlySpan<PlayerId> GetActivePlayers()
 	{
 		if (!TryReadPlayersState(out ScriptPlayersState playersState))
@@ -141,7 +121,6 @@ public partial class ServerGameAPI : IGameAPI
 		return new ReadOnlySpan<PlayerId>(_activePlayersBuffer, 0, count);
 	}
 
-	/// <summary>The name a player joined under, or the slot's own name when the roster has none.</summary>
 	public string GetPlayerName(int playerIndex)
 	{
 		if (TryReadPlayersState(out ScriptPlayersState playersState) && playersState.IsValidSlot(playerIndex))
@@ -153,7 +132,6 @@ public partial class ServerGameAPI : IGameAPI
 		return playerIndex == 0 ? "Neutral" : $"Player {playerIndex}";
 	}
 
-	/// <summary>Where a player's units start, which is where the map put the player's entity.</summary>
 	public Vector3 GetPlayerStartLocation(int playerIndex)
 	{
 		Entity playerEntity = _context.GetPlayerEntity(playerIndex);
@@ -163,7 +141,6 @@ public partial class ServerGameAPI : IGameAPI
 		return position.Value;
 	}
 
-	/// <summary>The team a player is on, or zero for a player the map left neutral.</summary>
 	public int GetPlayerTeam(int playerIndex)
 	{
 		if (!TryReadPlayersState(out ScriptPlayersState playersState) || !playersState.IsValidSlot(playerIndex)) return 0;
@@ -176,7 +153,6 @@ public partial class ServerGameAPI : IGameAPI
 
 	public float GetPlayerStone(int playerIndex) => ReadPlayerResource(playerIndex, PlayerResourceKind.Stone);
 
-	/// <summary>Sets a player's gold where the match and every client read it: the script state and the replicated store.</summary>
 	public void SetPlayerGold(int playerIndex, float amount) => WritePlayerResource(playerIndex, PlayerResourceKind.Gold, amount);
 
 	public void SetPlayerWood(int playerIndex, float amount) => WritePlayerResource(playerIndex, PlayerResourceKind.Wood, amount);
@@ -189,22 +165,18 @@ public partial class ServerGameAPI : IGameAPI
 
 	public void AdjustPlayerStone(int playerIndex, float delta) => SetPlayerStone(playerIndex, GetPlayerStone(playerIndex) + delta);
 
-	/// <summary>The population a player's buildings entitle them to.</summary>
 	public void SetPlayerMaxPopulation(int playerIndex, int max) => _context.ResourceEconomyService.SetPlayerMaxPopulation(playerIndex, max);
 
-	/// <summary>How many kills a player's scoreboard shows.</summary>
 	public void SetPlayerKills(int playerIndex, int kills)
 	{
 		MutatePlayersState(playerIndex, (ref ScriptPlayersState playersState, int slot) => playersState.SetKills(slot, kills));
 	}
 
-	/// <summary>Seats or removes a player from the match, which is what a map's victory rules read.</summary>
 	public void SetPlayerActive(int playerIndex, bool active)
 	{
 		MutatePlayersState(playerIndex, (ref ScriptPlayersState playersState, int slot) => playersState.SetActive(slot, active));
 	}
 
-	/// <summary>Puts a player on a team, which is what decides who may attack whom.</summary>
 	public void SetPlayerTeam(int playerIndex, int teamIndex)
 	{
 		int teamNameStringId = StringRegistry.GetOrAdd(teamIndex == 0 ? "Neutral" : $"Team {teamIndex}");
@@ -224,10 +196,6 @@ public partial class ServerGameAPI : IGameAPI
 		_context.World.Add(playerEntity, new PlayerTeam(teamIndex, teamNameStringId));
 	}
 
-	/// <summary>
-	///     Whether two players are on the same side. A player is always allied with themselves; otherwise the match
-	///     answers from the relationship table the map's own alliances wrote, falling back to who shares a team.
-	/// </summary>
 	public bool ArePlayersAllied(int playerIndex, int otherPlayerIndex)
 	{
 		if (playerIndex == otherPlayerIndex) return true;
@@ -243,7 +211,6 @@ public partial class ServerGameAPI : IGameAPI
 		return firstTeam != 0 && firstTeam == secondTeam;
 	}
 
-	/// <summary>Records an alliance between two players in the relationship table the match resolves fights with.</summary>
 	public void SetPlayersAllied(int playerIndex, int otherPlayerIndex, bool allied)
 	{
 		Entity worldEntity = _context.WorldEntity;
@@ -255,7 +222,6 @@ public partial class ServerGameAPI : IGameAPI
 		relationships.SetRelationship(otherPlayerIndex, playerIndex, relationship);
 	}
 
-	/// <summary>How many living units a player owns right now, counted from the authority's own world.</summary>
 	public int CountUnitsOwnedByPlayer(int playerIndex)
 	{
 		Entity playerEntity = _context.GetPlayerEntity(playerIndex);
@@ -267,7 +233,6 @@ public partial class ServerGameAPI : IGameAPI
 		return _countingScratch;
 	}
 
-	/// <summary>The definition a spawned unit was built from.</summary>
 	public string GetUnitTemplateId(UnitId unit)
 	{
 		Entity entity = ResolveUnit(unit);
@@ -277,7 +242,6 @@ public partial class ServerGameAPI : IGameAPI
 		return definitionId.Value;
 	}
 
-	/// <summary>The name a unit shows on screen, which is what the map called it when it was created.</summary>
 	public string GetUnitInstanceName(UnitId unit)
 	{
 		Entity entity = ResolveUnit(unit);
@@ -287,7 +251,6 @@ public partial class ServerGameAPI : IGameAPI
 		return name.Value;
 	}
 
-	/// <summary>The unit a script-visible id names, or an invalid one when nothing alive carries that id.</summary>
 	public UnitId GetUnitById(int uniqueId)
 	{
 		if (uniqueId <= 0) return UnitId.Invalid;
@@ -296,7 +259,6 @@ public partial class ServerGameAPI : IGameAPI
 		return _context.World.IsAlive(entity) ? new UnitId(uniqueId) : UnitId.Invalid;
 	}
 
-	/// <summary>Sets a unit's hit points, clamped into the unit's own range; a unit taken to nothing is destroyed.</summary>
 	public void SetUnitHealth(UnitId unit, float value)
 	{
 		Entity entity = ResolveUnit(unit);
@@ -310,7 +272,6 @@ public partial class ServerGameAPI : IGameAPI
 		DestroyUnit(unit);
 	}
 
-	/// <summary>Sets the hit points a unit can hold.</summary>
 	public void SetUnitMaxHealth(UnitId unit, float value)
 	{
 		Entity entity = ResolveUnit(unit);
@@ -322,7 +283,6 @@ public partial class ServerGameAPI : IGameAPI
 		_context.World.Set(entity, health);
 	}
 
-	/// <summary>Sets a unit's mana, clamped into the unit's own range.</summary>
 	public void SetUnitMana(UnitId unit, float value)
 	{
 		Entity entity = ResolveUnit(unit);
@@ -344,7 +304,6 @@ public partial class ServerGameAPI : IGameAPI
 		_context.World.Set(entity, mana);
 	}
 
-	/// <summary>Sets how much mana a unit recovers each second.</summary>
 	public void SetUnitManaRegen(UnitId unit, float value)
 	{
 		Entity entity = ResolveUnit(unit);
@@ -362,7 +321,6 @@ public partial class ServerGameAPI : IGameAPI
 		}
 	}
 
-	/// <summary>Sets a unit's attack damage, which is the number its attacks resolve with.</summary>
 	public void SetUnitDamage(UnitId unit, float value)
 	{
 		Entity entity = ResolveUnit(unit);
@@ -383,7 +341,6 @@ public partial class ServerGameAPI : IGameAPI
 		_context.World.Set(entity, attack);
 	}
 
-	/// <summary>Sets the interval between a unit's attacks, which is its attack speed.</summary>
 	public void SetUnitAttackSpeed(UnitId unit, float value)
 	{
 		Entity entity = ResolveUnit(unit);
@@ -394,7 +351,6 @@ public partial class ServerGameAPI : IGameAPI
 		_context.World.Set(entity, attack);
 	}
 
-	/// <summary>Sets the armor a unit's physical damage is resolved against.</summary>
 	public void SetUnitArmor(UnitId unit, float value)
 	{
 		Entity entity = ResolveUnit(unit);
@@ -405,7 +361,6 @@ public partial class ServerGameAPI : IGameAPI
 		_context.World.Set(entity, resistances);
 	}
 
-	/// <summary>Sets how fast a unit moves, which the movement step reads every tick.</summary>
 	public void SetUnitSpeed(UnitId unit, float value)
 	{
 		Entity entity = ResolveUnit(unit);
@@ -416,7 +371,6 @@ public partial class ServerGameAPI : IGameAPI
 		_context.World.Set(entity, movement);
 	}
 
-	/// <summary>Puts a unit at a place without asking the movement step to walk it there.</summary>
 	public void TeleportUnit(UnitId unit, Vector3 position)
 	{
 		Entity entity = ResolveUnit(unit);
@@ -435,7 +389,6 @@ public partial class ServerGameAPI : IGameAPI
 		_context.World.SetOrAdd(entity, new RotationY(facingRadians));
 	}
 
-	/// <summary>Sets how large a unit is drawn and collided with.</summary>
 	public void SetUnitScale(UnitId unit, float value)
 	{
 		Entity entity = ResolveUnit(unit);
@@ -466,7 +419,6 @@ public partial class ServerGameAPI : IGameAPI
 
 	public void SetUnitInvulnerable(UnitId unit, bool value) => SetUnitFlag<Invulnerable>(unit, value);
 
-	/// <summary>Freezes a unit where it stands: it takes no further orders and stops animating until it is thawed.</summary>
 	public void SetUnitFrozen(UnitId unit, bool value)
 	{
 		Entity entity = ResolveUnit(unit);
@@ -478,7 +430,6 @@ public partial class ServerGameAPI : IGameAPI
 
 	public void SetUnitCommandsFrozen(UnitId unit, bool value) => SetUnitFlag<CommandsFrozen>(unit, value);
 
-	/// <summary>Turns a unit's own targeting on or off, which is what a script does before scripting its fights.</summary>
 	public void EnableUnitAutoCombat(UnitId unit, bool enabled)
 	{
 		Entity entity = ResolveUnit(unit);
@@ -496,7 +447,6 @@ public partial class ServerGameAPI : IGameAPI
 		_context.World.Add(entity, state);
 	}
 
-	/// <summary>Hands a unit to another player, which is what a script does when it converts a unit.</summary>
 	public void SetUnitOwner(UnitId unit, int playerIndex)
 	{
 		Entity entity = ResolveUnit(unit);
@@ -517,7 +467,6 @@ public partial class ServerGameAPI : IGameAPI
 		_context.World.Add(entity, new UnitOwnerPlayer(playerIndex));
 	}
 
-	/// <summary>Takes a unit out of the world, which is what a script asks for when it wants something gone.</summary>
 	public void DestroyUnit(UnitId unit, bool executeDespawnShader = true, bool playDeathAnimation = true)
 	{
 		Entity entity = ResolveUnit(unit);
@@ -526,7 +475,6 @@ public partial class ServerGameAPI : IGameAPI
 		_context.World.Destroy(entity);
 	}
 
-	/// <summary>Kills a unit, which takes it out of the world the same way its own death would.</summary>
 	public void KillUnit(UnitId unit, bool executeDespawnShader = true, bool playDeathAnimation = true)
 	{
 		Entity entity = ResolveUnit(unit);
@@ -541,7 +489,6 @@ public partial class ServerGameAPI : IGameAPI
 		_context.World.Destroy(entity);
 	}
 
-	/// <summary>Publishes what a player should hear, addressed to that player.</summary>
 	public void SendMessageToPlayer(int playerIndex, string message)
 	{
 		if (string.IsNullOrEmpty(message)) return;
@@ -550,7 +497,6 @@ public partial class ServerGameAPI : IGameAPI
 		_log.Write($"script message to player {playerIndex}: {message}");
 	}
 
-	/// <summary>Publishes what every player should hear.</summary>
 	public void BroadcastMessage(string message)
 	{
 		if (string.IsNullOrEmpty(message)) return;
@@ -559,19 +505,16 @@ public partial class ServerGameAPI : IGameAPI
 		_log.Write($"script message: {message}");
 	}
 
-	/// <summary>Publishes a line of feedback to one player's screen.</summary>
 	public void ShowPlayerFeedbackText(int playerIndex, string text, Vector3 color)
 	{
 		_presentation.WriteText(PresentationKind.PlayerFeedbackText, playerIndex, text, color);
 	}
 
-	/// <summary>Publishes a line of feedback to every player's screen.</summary>
 	public void ShowFeedbackText(string text, Vector3 color)
 	{
 		_presentation.WriteText(PresentationKind.FeedbackText, -1, text, color);
 	}
 
-	/// <summary>Publishes a number that floats over a place on the map.</summary>
 	public void CreateFloatingText(string text, Vector3 position, Vector3 color, float duration)
 	{
 		if (string.IsNullOrEmpty(text)) return;
@@ -580,34 +523,29 @@ public partial class ServerGameAPI : IGameAPI
 			position, Vector3.Zero, color, 0, 0, 0f, 0f, duration, false);
 	}
 
-	/// <summary>Marks a place on one player's minimap.</summary>
 	public void PingPlayerMinimap(int playerIndex, Vector3 position)
 	{
 		_presentation.Write(PresentationKind.MinimapPing, playerIndex, position);
 	}
 
-	/// <summary>Marks a place on the map for every player.</summary>
 	public void SpawnTargetIndicator(Vector3 position, Vector3 color)
 	{
 		_presentation.Write(PresentationKind.TargetIndicator, -1, 0, string.Empty, string.Empty, string.Empty, string.Empty, null,
 			position, Vector3.Zero, color, 0, 0, 0f, 0f, 0f, false);
 	}
 
-	/// <summary>Ends the match in victory, which every client reads from the match state.</summary>
 	public void TriggerVictory()
 	{
 		_context.IsGameOver = true;
 		_log.Write("the map declared victory");
 	}
 
-	/// <summary>Ends the match in defeat, which every client reads from the match state.</summary>
 	public void TriggerDefeat()
 	{
 		_context.IsGameOver = true;
 		_log.Write("the map declared defeat");
 	}
 
-	/// <summary>Takes one player out of the match, which the rest of the match reads as that slot being gone.</summary>
 	public void TriggerPlayerDefeat(int playerIndex, string reason = "")
 	{
 		SetPlayerActive(playerIndex, false);
@@ -615,35 +553,27 @@ public partial class ServerGameAPI : IGameAPI
 		_log.Write(string.IsNullOrEmpty(reason) ? $"player {playerIndex} defeated" : $"player {playerIndex} defeated ({reason})");
 	}
 
-	/// <summary>Declares one player's victory, which the match reports to that player.</summary>
 	public void TriggerPlayerVictory(int playerIndex)
 	{
 		_presentation.Write(PresentationKind.PlayerVictory, playerIndex, Vector3.Zero);
 		_log.Write($"player {playerIndex} victorious");
 	}
 
-	/// <summary>
-	///     Brings one of a spell's summons into the world as the caster's own unit, which is how a summon ends up owned,
-	///     replicated and simulated like any other unit rather than being something only the caster's screen knows about.
-	/// </summary>
 	private UnitId SpawnAbilitySummon(string unitTypeId, Vector3 position, int playerIndex)
 	{
 		var spawnPosition = new Vector2(position.X, position.Z);
 		return SpawnUnitForPlayer(unitTypeId, spawnPosition, playerIndex, executeSpawnShader: false, bypassPopulation: true);
 	}
 
-	/// <summary>What a bot's own decision asked for, handed to the map that taught it the decision.</summary>
 	private void ForwardBotCustomAction(int playerIndex, string actionId, string intent, Vector3 position, string payload) =>
 		OnBotCustomActionExecuted?.Invoke(playerIndex, actionId, intent, position, payload);
 
-	/// <summary>A whole number in a script-visible range, drawn from the match's own deterministic sequence.</summary>
 	public int RandomInt(int min, int max)
 	{
 		if (max <= min) return min;
 		return DeterministicRandom.Shared.NextInt(min, max);
 	}
 
-	/// <summary>A fraction in a script-visible range, drawn from the match's own deterministic sequence.</summary>
 	public float RandomFloat(float min, float max)
 	{
 		if (max <= min) return min;

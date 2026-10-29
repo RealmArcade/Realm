@@ -1,10 +1,5 @@
 namespace Realm.ListenServer;
 
-/// <summary>
-///     The data a map asked to keep between matches. A map names a file and hands over its contents, so the authority
-///     writes it under the map's own name in the folder the launcher pointed it at, and reads it back the same way. A
-///     name that could reach outside that folder is refused rather than resolved.
-/// </summary>
 public class ServerSavedData
 {
 	private const string SavedDataFolderName = "saved_data";
@@ -19,7 +14,6 @@ public class ServerSavedData
 		_log = log;
 	}
 
-	/// <summary>Writes one of a map's files, keeping the copy it replaced.</summary>
 	public void Write(string mapName, string fileName, string content)
 	{
 		if (IsInvalidPathString(fileName) || IsInvalidPathString(MapNameOnly(mapName)))
@@ -43,7 +37,6 @@ public class ServerSavedData
 		}
 	}
 
-	/// <summary>One of a map's files, or nothing when the map has never saved it.</summary>
 	public string Read(string mapName, string fileName)
 	{
 		if (IsInvalidPathString(fileName) || IsInvalidPathString(MapNameOnly(mapName))) return string.Empty;
@@ -60,7 +53,6 @@ public class ServerSavedData
 		}
 	}
 
-	/// <summary>The folder a map's saved data lives in, so a log can say where a match is keeping it.</summary>
 	public string DirectoryFor(string mapName) => Path.Combine(_dataDirectory, SavedDataFolderName, MapNameOnly(mapName));
 
 	private void CreateBackup(string mapName, string fileName, string targetFile)

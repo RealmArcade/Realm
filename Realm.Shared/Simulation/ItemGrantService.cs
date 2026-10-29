@@ -9,14 +9,8 @@ using Realm.Shared.Metadata;
 
 namespace Realm.Shared.Simulation;
 
-/// <summary>
-///     Puts items on units and takes them off again, applying everything an item hands over: the abilities it grants,
-///     the upgrades it carries and the weapons it swings. It reads the map's own catalog rather than a process registry,
-///     so the authority and any other process that equips an item arrive at the same stats for it.
-/// </summary>
 public class ItemGrantService
 {
-	/// <summary>How many distinct items a unit can carry at once.</summary>
 	public const int CarriedItemLimit = 6;
 
 	private readonly SimulationContext _context;
@@ -30,7 +24,6 @@ public class ItemGrantService
 
 	public EcsWorld World => _context.World;
 
-	/// <summary>Whether a unit has room for an item, which is what decides if it can pick one up.</summary>
 	public bool CanCarry(Entity entity, string itemId)
 	{
 		if (!World.IsAlive(entity) || string.IsNullOrWhiteSpace(itemId)) return false;
@@ -40,10 +33,6 @@ public class ItemGrantService
 		return inventory.Count < CarriedItemLimit || inventory.HasItem(itemId);
 	}
 
-	/// <summary>
-	///     Gives a unit an item and everything the item grants, stacking onto a copy it already carries. The inventory
-	///     refuses an item it has no slot for, so the attempt is read back rather than assumed.
-	/// </summary>
 	public bool Equip(Entity entity, string itemId, int charges = 1)
 	{
 		if (!World.IsAlive(entity) || string.IsNullOrWhiteSpace(itemId)) return false;
@@ -59,7 +48,6 @@ public class ItemGrantService
 		return true;
 	}
 
-	/// <summary>Takes an item off a unit and withdraws everything the item was handing over.</summary>
 	public bool Unequip(Entity entity, string itemId)
 	{
 		if (!World.IsAlive(entity) || string.IsNullOrWhiteSpace(itemId)) return false;
@@ -79,7 +67,6 @@ public class ItemGrantService
 		return World.Get<Inventory>(entity).HasItem(itemId);
 	}
 
-	/// <summary>The items a unit carries, in the order it picked them up.</summary>
 	public List<string> List(Entity entity)
 	{
 		if (!World.IsAlive(entity) || !World.Has<Inventory>(entity)) return new List<string>();
@@ -94,10 +81,6 @@ public class ItemGrantService
 		return CarriedCharges(entity, itemId);
 	}
 
-	/// <summary>
-	///     Changes how many charges of an item a unit carries, which is what a consumable being spent does. Dropping to
-	///     nothing takes the item off the unit and withdraws what it was granting.
-	/// </summary>
 	public bool SetCharges(Entity entity, string itemId, int charges)
 	{
 		if (!World.IsAlive(entity) || string.IsNullOrWhiteSpace(itemId)) return false;
@@ -113,7 +96,6 @@ public class ItemGrantService
 		return true;
 	}
 
-	/// <summary>How many charges of one item a unit carries, read without touching the world's storage.</summary>
 	private int CarriedCharges(Entity entity, string itemId)
 	{
 		if (!World.IsAlive(entity) || !World.Has<Inventory>(entity)) return 0;
@@ -121,10 +103,6 @@ public class ItemGrantService
 		return World.Get<Inventory>(entity).GetItemCount(itemId);
 	}
 
-	/// <summary>
-	///     Writes a charge count into a unit's inventory and reports whether it stuck: an inventory with no slot left
-	///     silently refuses an item it does not already carry, so the write has to be read back to be trusted.
-	/// </summary>
 	private bool WriteCharges(Entity entity, string itemId, int charges)
 	{
 		ref Inventory inventory = ref World.Get<Inventory>(entity);
@@ -133,10 +111,6 @@ public class ItemGrantService
 		return inventory.GetItemCount(itemId) == charges;
 	}
 
-	/// <summary>
-	///     Applies what an item grants without writing it into an inventory, which is what a caller that already recorded
-	///     the item does to hand over its effects. An upgrade an item carries is applied once per copy the unit holds.
-	/// </summary>
 	public void ApplyGrants(Entity entity, string itemId)
 	{
 		if (!World.IsAlive(entity)) return;
@@ -187,7 +161,6 @@ public class ItemGrantService
 		AttributeStatCalculator.RecalculateEntityStats(World, entity, 0f, _context.ActiveCombatTuning);
 	}
 
-	/// <summary>Drops the stat changes an item's upgrades were applying, leaving every other modifier in place.</summary>
 	public void WithdrawGrants(Entity entity, string itemId)
 	{
 		if (World.Has<ModifierState>(entity)) WithdrawUpgrades(entity, itemId);
@@ -209,10 +182,6 @@ public class ItemGrantService
 		}
 	}
 
-	/// <summary>
-	///     Adds one upgrade's modifiers to a unit from a named source, replacing whatever that same source applied before.
-	///     Level one is the item's own grant; a higher level is a research level the match has reached.
-	/// </summary>
 	public void ApplyUpgradeModifiers(Entity entity, string sourceId, int level, UpgradeMetadata upgrade)
 	{
 		if (upgrade.Modifiers == null || upgrade.Modifiers.Count == 0) return;
@@ -247,10 +216,6 @@ public class ItemGrantService
 		}
 	}
 
-	/// <summary>
-	///     Re-derives everything a unit is holding at once: the abilities its template plus its items make available, the
-	///     weapons those items swing, and the stats that follow from both.
-	/// </summary>
 	public void RebuildCapabilities(Entity entity)
 	{
 		if (!World.IsAlive(entity)) return;
@@ -286,7 +251,6 @@ public class ItemGrantService
 		AttributeStatCalculator.RecalculateEntityStats(World, entity, 0f, _context.ActiveCombatTuning);
 	}
 
-	/// <summary>Rebuilds the weapon slots a unit fights with from the items it carries, and points its attack at them.</summary>
 	private void ApplyGrantedWeapons(Entity entity)
 	{
 		var slots = new List<Weapon>();

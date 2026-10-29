@@ -25,18 +25,15 @@ public class UnitMetadata
 	public float Intelligence { get; set; }
 	public float Wisdom { get; set; }
 	public float Fortune { get; set; }
-	/// <summary>Attribute gain per level. Level 1 is the authored base above.</summary>
 	public LevelGrowthMetadata? LevelGrowth { get; set; }
 	public float HpRegen { get; set; }
 	public float HpRegenCombatDelay { get; set; }
 	public float MaxMana { get; set; }
 	public float ManaRegen { get; set; }
-	/// <summary>Magic resistance points. Armor is the <see cref="Armor" /> field above.</summary>
 	public float MagicResistance { get; set; }
 	public float FlatArmorPenetration { get; set; }
 	public float PercentArmorPenetration { get; set; }
 	public float DamageVariance { get; set; }
-	/// <summary>Physical, magic or pure. Pure ignores resistances and penetration.</summary>
 	public string DamageType { get; set; } = "physical";
 	public float CritChance { get; set; }
 	public float CritMultiplier { get; set; } = 1.0f;

@@ -12,38 +12,14 @@ using Realm.Shared.Network;
 
 namespace Realm.Client.Core;
 
-/// <summary>
-///     The client's end of a match: it holds the connection to the process that runs the world, hands that process this
-///     player's orders, and applies what it is told. Nothing here simulates, so a match this machine started and a
-///     match someone else runs reach the screen through the same calls.
-/// </summary>
 public partial class GameHost
 {
-	/// <summary>
-	///     The match this screen joined. A match belongs to the session that was started for it rather than to whichever
-	///     screen is showing it, so a screen that leaves while another takes the match over - the map editor handing a
-	///     playtest to the screen that plays it - must not end a match it never joined.
-	/// </summary>
 	private ClientServerSession? _joinedSession;
 
-	/// <summary>
-	///     What the map asked this screen to show, held until the render cursor reaches the tick each request belongs to.
-	///     An effect drawn the moment its frame arrived named a place in the world the screen has not drawn yet, so on a
-	///     link with a presentation delay it appeared before the unit it belonged to had reached it.
-	/// </summary>
 	private readonly List<PresentationMessage> _pendingPresentation = new();
 
-	/// <summary>
-	///     How many requests may wait for the cursor. A match produces a handful a second; this only bounds what a map
-	///     that asks for something every tick can hold when the cursor is stopped (a paused match, a screen that stopped
-	///     receiving).
-	/// </summary>
 	private const int MaximumPendingPresentation = 512;
 
-	/// <summary>
-	///     Holds the connection the match was started with. The authority frames that arrived before this scene existed
-	///     are still queued in the session, so nothing the authority said while the map was loading is lost.
-	/// </summary>
 	private void JoinAuthority()
 	{
 		ClientServerSession? session = GameContext.ServerSession;
@@ -71,21 +47,11 @@ public partial class GameHost
 			});
 		}
 
-		// Both of these are sent the moment the authority seats this connection, which is before this screen exists, so
-		// the newest of each is applied here rather than waiting for a second copy that is never sent. A connection that
-		// was seated with its volumes still on the way holds its first bake until they arrive, because the mesh this
-		// screen paths through has to be the one the authority built.
 		if (session.LatestNavMeshObstacles is { } obstacles) ApplyNavMeshObstacles(obstacles);
 		else AwaitAuthoritativeObstacleVolumes();
 		if (session.LatestPauseState is { } pause) ApplyMatchPause(pause);
 	}
 
-	/// <summary>
-	///     Ends the match this screen joined, if it joined one. A screen that stops being a match - the map editor
-	///     taking back the world a playtest was played in - has to leave the match before it puts its own world back,
-	///     because the authority keeps describing the match it ran and the next snapshot would repaint the units that
-	///     were just cleared.
-	/// </summary>
 	public void EndJoinedMatch()
 	{
 		ClientServerSession? session = GameContext.ServerSession;
@@ -98,28 +64,17 @@ public partial class GameHost
 		GameContext.DetachServerSession();
 	}
 
-	/// <summary>
-	///     Shows a line of chat the match relayed. The line reaches the screen through the lobby the chat panel already
-	///     listens to, so a message the authority relayed is shown the same way a line typed here is.
-	/// </summary>
 	private void ApplyChatLine(ChatLine line)
 	{
 		GameContext.Lobby?.ReceiveChatFromAuthority(line.Sender, line.Message, line.AlliesOnly, line.TimestampUtcTicks);
 	}
 
-	/// <summary>
-	///     Takes the player the authority seated this connection as. The peer id the authority assigned is the one every
-	///     order of this player is attributed to, so the roster is keyed by it rather than by whatever the game happened
-	///     to assume before the authority answered.
-	/// </summary>
 	private void ApplyRosterAssignment(PeerRosterAssignment assignment)
 	{
 		_localPeerId = assignment.PeerId;
 		GameContext.NetworkService.LocalPeerId = assignment.PeerId;
 		GameContext.NetworkService.MarkClientEnteredMultiplayer();
 
-		// The seat is the authority's answer to who this client plays as, so the screens read it as soon as it arrives
-		// rather than keeping whatever the lobby guessed before the match started.
 		if (assignment.PlayerSlot > 0 && GameContext.ReplayPlayback is not { IsPlayingReplay: true })
 		{
 			GameContext.PerspectiveFilter.ConfigureParticipant(assignment.PlayerSlot);
@@ -135,11 +90,6 @@ public partial class GameHost
 		_peerIdToPlayerEntityMap[assignment.PeerId] = mapping.PlayerEntities[assignment.PlayerSlot];
 	}
 
-	/// <summary>
-	///     What the authority decided about one of this player's orders. Nothing is simulated ahead of the authority, so
-	///     this only counts what was refused: a refused order is one whose unit never moves, which is what the feedback
-	///     text and the harness read.
-	/// </summary>
 	private void ApplyCommandOutcome(CommandOutcome outcome)
 	{
 		if (outcome.Accepted) return;
@@ -148,13 +98,8 @@ public partial class GameHost
 		ClearPreviewRoute(outcome.CommandId);
 	}
 
-	/// <summary>How many of this client's orders the authority refused, which is what a harness asserts a flood runs into.</summary>
 	public int RefusedCommandCount { get; private set; }
 
-	/// <summary>
-	///     Reports that the process running the match ended. The match stops rather than freezing on a world that will
-	///     never advance again, and the reason names the log that explains why.
-	/// </summary>
 	private void ReportAuthorityLost(string report)
 	{
 		GD.PushError($"[GameHost] {report}");
@@ -162,12 +107,6 @@ public partial class GameHost
 		GameContext.InGameHud?.ShowFeedbackText(report, new Color(1.0f, 0.35f, 0.3f));
 	}
 
-	/// <summary>
-	///     Replaces this screen's obstacle volumes with the ones the match pathing was baked with and rebakes from them.
-	///     A map's placed props are in both worlds because both load the same files; what this adds is whatever the map's
-	///     script spawned, which this screen never ran and would otherwise path straight through. The volumes are kept so
-	///     every later bake uses them too, including one that runs after this world was replaced.
-	/// </summary>
 	private void ApplyNavMeshObstacles(NavMeshObstacleVolumes volumes)
 	{
 		StopAwaitingAuthoritativeObstacleVolumes();
@@ -197,11 +136,6 @@ public partial class GameHost
 	private float[] _authoritativeObstacleRadii = System.Array.Empty<float>();
 	private bool _hasAuthoritativeObstacleVolumes;
 
-	/// <summary>
-	///     Hands the volumes the match baked with to this screen's navigation mesh before it bakes, so every bake this
-	///     screen makes uses the authority's own obstacle set instead of collecting its own. Until the authority's first
-	///     set arrives this screen has nothing to defer to and bakes from the entities it loaded itself.
-	/// </summary>
 	private void ApplyStoredObstacleVolumes()
 	{
 		if (!_hasAuthoritativeObstacleVolumes) return;
@@ -212,10 +146,6 @@ public partial class GameHost
 		navMesh.SetAuthoritativeObstacleVolumes(_authoritativeObstaclePositions, _authoritativeObstacleRadii);
 	}
 
-	/// <summary>
-	///     Shows the pause state the match holds. The clock belongs to the process running the match, so what this screen
-	///     shows is what that process said rather than anything it decided itself.
-	/// </summary>
 	private void ApplyMatchPause(MatchPauseState state)
 	{
 		var network = GameContext.NetworkService;
@@ -226,12 +156,6 @@ public partial class GameHost
 		UpdatePauseUI();
 	}
 
-	/// <summary>
-	///     Takes something the authority's map script asked this screen to show. A request that belongs to a tick is held
-	///     until the render cursor reaches that tick, because it names a place in the world and the world is drawn a
-	///     presentation delay behind the newest description; one that describes the match's state is shown at once,
-	///     because it is true of the world now rather than of a moment in it.
-	/// </summary>
 	private void QueuePresentation(PresentationMessage message)
 	{
 		if (message.Sequence < 0)
@@ -244,11 +168,6 @@ public partial class GameHost
 		_pendingPresentation.Add(message);
 	}
 
-	/// <summary>
-	///     Shows every held request whose tick the cursor has reached, in the order the authority sent them. A request
-	///     that arrives after the cursor has already passed its tick is shown by the next call rather than dropped: an
-	///     effect one tick late is what the link did, and dropping it would hide the fact that something happened.
-	/// </summary>
 	private void FlushPresentationForCursor()
 	{
 		if (_pendingPresentation.Count == 0) return;
@@ -272,12 +191,6 @@ public partial class GameHost
 		if (kept < _pendingPresentation.Count) _pendingPresentation.RemoveRange(kept, _pendingPresentation.Count - kept);
 	}
 
-	/// <summary>
-	///     Applies something the authority's map script asked a screen to show, in the words and the ids it already
-	///     agreed on. Requests addressed to another player are ignored: what one player is told is not another's to see.
-	///     Every kind the scripting surface can produce is answered here, so a map that draws, plays or writes something
-	///     reaches this screen the same way whether this machine started the match or joined it.
-	/// </summary>
 	private void ApplyPresentation(PresentationMessage message)
 	{
 		if (message.PlayerIndex >= 0 && !GameContext.PerspectiveFilter.CanControl(message.PlayerIndex)) return;
@@ -525,10 +438,6 @@ public partial class GameHost
 		}
 	}
 
-	/// <summary>
-	///     Resolves the unit a request names to the node this screen drew for it. The authority names units by the entity
-	///     id it owns, so the id has to be mapped before anything can be shown on the unit it means.
-	/// </summary>
 	private bool TryPresentUnit(int serverUnitId, out Unit3D unit3D)
 	{
 		unit3D = null!;
@@ -625,8 +534,6 @@ public partial class GameHost
 		var start = new Vector3(message.Position.X, message.Position.Y, message.Position.Z);
 		var target = new Vector3(message.Secondary.X, message.Secondary.Y, message.Secondary.Z);
 
-		// The authority names the projectile the map asked for; an id this screen does not know still draws, because the
-		// effect service falls back to the arrow every map has.
 		Callable.From(() => GameContext.FXService.SpawnWeaponProjectile(this, start, target, message.Key, default, message.PlayerIndex)).CallDeferred();
 	}
 

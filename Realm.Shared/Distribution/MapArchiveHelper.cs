@@ -7,14 +7,14 @@ namespace Realm.Shared.Distribution;
 
 public static class MapArchiveHelper
 {
-	public static readonly byte[] RmapMagic = [0x52, 0x4D, 0x41, 0x50]; // "RMAP"
+	public static readonly byte[] RmapMagic = [0x52, 0x4D, 0x41, 0x50];
 	public const uint CurrentVersion = 1;
 
 	public static string CreateRmapArchive(
 		string sourceDirectory,
 		string destinationRmapPath,
 		Action<float, string>? progressCallback = null,
-		int compressionLevel = 1, // Note: Not currently used for files in code below, uses NoCompression, keeping for signature match.
+		int compressionLevel = 1,
 		bool fullExport = false,
 		IReadOnlyCollection<string>? excludedRelativePaths = null)
 	{

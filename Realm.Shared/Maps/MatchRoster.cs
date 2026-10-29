@@ -9,29 +9,12 @@ using Realm.Ecs.Components.Core;
 
 namespace Realm.Shared.Maps;
 
-/// <summary>
-///     One player a match is played by, as the lobby that arranged it knows them.
-/// </summary>
-/// <param name="Slot">The player slot the seat plays, which is the index the map's script addresses it by.</param>
-/// <param name="Name">The name the seat is shown under.</param>
-/// <param name="Team">The team the seat is on, which decides who its units treat as allies.</param>
-/// <param name="TeamName">The team as players read it.</param>
-/// <param name="IsComputer">Whether the match plays this seat itself instead of a person.</param>
 public readonly record struct MatchRosterSeat(int Slot, string Name, int Team, string TeamName, bool IsComputer);
 
-/// <summary>
-///     The players a match starts with before a lobby hands out slots. Both processes build the same roster, so a
-///     player slot means the same thing to whoever is simulating and whoever is rendering.
-/// </summary>
 public static class MatchRoster
 {
 	public const int NeutralSlot = 0;
 
-	/// <summary>
-	///     Slot zero is the neutral player the map's own scenery belongs to. The remaining slots are the match
-	///     participants. Nobody starts with anything: what a player begins with is a rule the map authors, so the
-	///     roster hands out zero and the map's own script grants whatever its rules call for.
-	/// </summary>
 	public static ScriptPlayer[] CreateDefaultPlayers()
 	{
 		var players = new ScriptPlayer[EcsWorld.MAX_PLAYERS];
@@ -68,14 +51,6 @@ public static class MatchRoster
 		return players;
 	}
 
-	/// <summary>
-	///     Seats the players a lobby arranged before the map's script runs. A map asks who is playing and spawns their
-	///     starting units while it initializes, so every seat - including the ones the match plays itself and the ones
-	///     whose players have not connected yet - has to be in the roster by then. A seat the roster does not name is
-	///     left inactive, which is what a slot nobody plays looks like.
-	/// </summary>
-	/// <param name="players">The default roster, which this rewrites in place.</param>
-	/// <param name="seats">The players the lobby arranged, or nothing to leave the defaults alone.</param>
 	public static void SeatPlayers(ScriptPlayer[] players, IReadOnlyList<MatchRosterSeat>? seats)
 	{
 		if (seats == null || seats.Count == 0) return;
@@ -104,7 +79,6 @@ public static class MatchRoster
 		}
 	}
 
-	/// <summary>The player entity a slot belongs to, falling back to the neutral slot for a slot a map did not use.</summary>
 	public static PlayerEntity ResolvePlayer(Entity[] playerEntities, int playerIndex)
 	{
 		if (playerEntities == null || playerEntities.Length == 0) return new PlayerEntity(Entity.Null);
@@ -114,23 +88,14 @@ public static class MatchRoster
 	}
 }
 
-/// <summary>
-///     The file a client hands its authority so a match is seated before its map script runs. The roster travels as a
-///     file rather than as a flag because a match's players are a list, and because the authority loads the world and
-///     starts the script before it is listening: by the time a peer could say who it is, the seats already exist.
-/// </summary>
 public static class MatchRosterFile
 {
-	/// <summary>The name a roster file is written under beside the match's log.</summary>
 	public const string FileSuffix = ".roster.txt";
 
 	private const string Header = "realm-match-roster 1";
 	private const char Separator = '\t';
 	private const int ColumnCount = 5;
 
-	/// <summary>Writes the players a match is played by.</summary>
-	/// <param name="path">Where the roster belongs.</param>
-	/// <param name="seats">The seats the lobby arranged, in the order it listed them.</param>
 	public static void Write(string path, IReadOnlyList<MatchRosterSeat> seats)
 	{
 		var builder = new StringBuilder();
@@ -151,11 +116,6 @@ public static class MatchRosterFile
 		File.WriteAllText(path, builder.ToString());
 	}
 
-	/// <summary>
-	///     Reads the players a match is played by. A roster that cannot be read is reported rather than half-seated:
-	///     the authority would otherwise run a match whose map script spawned starting units for players who are not in
-	///     it.
-	/// </summary>
 	public static bool TryRead(string path, out MatchRosterSeat[] seats, out string error)
 	{
 		seats = Array.Empty<MatchRosterSeat>();

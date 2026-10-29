@@ -14,10 +14,6 @@ using Realm.Shared.Terrain;
 
 namespace Realm.Shared.Maps;
 
-/// <summary>
-///     A map folder loaded into a live simulation. Loading is pure data and ECS work, so the authoritative process
-///     builds a match without a scene tree, a node, or a Godot assembly loaded.
-/// </summary>
 public sealed class LoadedMap : IDisposable
 {
 	internal LoadedMap(SimulationContext simulation, DefinitionCatalog catalog, MapSaveData saveData)
@@ -37,7 +33,6 @@ public sealed class LoadedMap : IDisposable
 
 	public Entity WorldEntity { get; internal set; } = Entity.Null;
 
-	/// <summary>One entity per player slot, indexed by the slot the map and the roster use.</summary>
 	public Entity[] PlayerEntities { get; } = new Entity[EcsWorld.MAX_PLAYERS];
 
 	public MapMetadata Metadata => Catalog.Metadata;
@@ -54,20 +49,13 @@ public sealed class LoadedMap : IDisposable
 
 	public bool HasNavMesh { get; internal set; }
 
-	/// <summary>Everything worth telling the player's log about how the map loaded.</summary>
 	public List<string> Warnings { get; } = new();
 
-	/// <summary>The owner a unit placed for the given player slot belongs to.</summary>
 	public PlayerEntity GetPlayerEntity(int playerSlot) => MatchRoster.ResolvePlayer(PlayerEntities, playerSlot);
 
 	public void Dispose() => Simulation.Dispose();
 }
 
-/// <summary>
-///     The one loader that turns a map folder into a simulation world. Both processes call it with an explicit folder
-///     path, so terrain, definitions, player entities and the placed units and props are built by the same code from
-///     the same files.
-/// </summary>
 public static class MapWorldLoader
 {
 	private const int MinimumGridSize = 32;
@@ -75,15 +63,6 @@ public static class MapWorldLoader
 	private const int GridSizeMultiple = 32;
 	private const float DefaultGridSize = 128f;
 
-	/// <summary>
-	///     Loads the map at the given folder into a fresh simulation. The caller owns the result and disposes it, which
-	///     tears the world down along with the payload handles it allocated.
-	/// </summary>
-	/// <param name="mapFolderPath">The map folder to load.</param>
-	/// <param name="roster">
-	///     The players the match is played by, or nothing for the default single player a map is opened with. An
-	///     authority hands the lobby's roster over so the world it simulates is seated before the map's script runs.
-	/// </param>
 	public static LoadedMap Load(string mapFolderPath, IReadOnlyList<MatchRosterSeat>? roster = null)
 	{
 		LoadedMap loaded = LoadShell(mapFolderPath);
@@ -99,14 +78,6 @@ public static class MapWorldLoader
 		}
 	}
 
-	/// <summary>
-	///     Loads everything about a map that does not depend on who is playing it: its definitions, its terrain and the
-	///     navigation mesh over it, and the props it placed. That is the part of a match's start that takes the time, so
-	///     an authority that already has a lobby can build it while it waits for one, and have only
-	///     <see cref="Seat" /> left when the countdown reaches zero.
-	/// </summary>
-	/// <param name="mapFolderPath">The map folder to load.</param>
-	/// <returns>A map with a world but no players, which the caller owns and disposes.</returns>
 	public static LoadedMap LoadShell(string mapFolderPath)
 	{
 		string folder = Path.GetFullPath(mapFolderPath);
@@ -150,13 +121,6 @@ public static class MapWorldLoader
 		}
 	}
 
-	/// <summary>
-	///     Seats the players a match is played by and everything that belongs to them, which is the part of a map that
-	///     cannot be built before it is known who is playing. It runs on a shell <see cref="LoadShell" /> built, and it
-	///     runs before the map's script, so a script that spawns what each player starts with already has them.
-	/// </summary>
-	/// <param name="loaded">The map to seat, which must not have been seated already.</param>
-	/// <param name="roster">The players the match is played by, or nothing for the default single player.</param>
 	public static void Seat(LoadedMap loaded, IReadOnlyList<MatchRosterSeat>? roster = null)
 	{
 		if (loaded.PlayerCount > 0) return;
@@ -165,10 +129,6 @@ public static class MapWorldLoader
 		SpawnPlacedUnits(loaded);
 	}
 
-	/// <summary>
-	///     The grid a map describes. The metadata's declared size wins, then the terrain save, rounded to the multiple
-	///     the terrain systems assume. Both processes size a map this way, so they build the same grid.
-	/// </summary>
 	public static void DetermineGridSize(MapMetadata? metadata, MapSaveData? saveData, out int width, out int depth)
 	{
 		float declaredWidth = metadata?.MapProperties?.MapWidth ?? 0f;
@@ -294,10 +254,6 @@ public static class MapWorldLoader
 		world.SetOrAdd(loaded.WorldEntity, mappingState);
 	}
 
-	/// <summary>
-	///     Places the units and buildings a map's save data describes. Each one is owned by the slot the save names, so
-	///     this runs once the seats exist rather than with the rest of the shell.
-	/// </summary>
 	private static void SpawnPlacedUnits(LoadedMap loaded)
 	{
 		EcsWorld world = loaded.World;
@@ -328,10 +284,6 @@ public static class MapWorldLoader
 		}
 	}
 
-	/// <summary>
-	///     Places the props a map's save data describes. They belong to nobody, so they are part of the shell a lobby can
-	///     build before it knows who is playing.
-	/// </summary>
 	private static void SpawnPlacedProps(LoadedMap loaded)
 	{
 		EcsWorld world = loaded.World;

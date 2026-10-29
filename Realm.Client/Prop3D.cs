@@ -159,11 +159,6 @@ public partial class Prop3D : Node3D
 	private MeshInstance3D _hoverRing;
 	private bool _isHovered = false;
 
-	/// <summary>
-	///     The radius of the body this prop or resource node stands in, which is the number the navigation bake and the
-	///     movement grid use. It comes from the same metadata the authority builds the prop from, so the ring this prop
-	///     shows is the ground it actually blocks.
-	/// </summary>
 	public virtual float GetBaseObstacleRadius()
 	{
 		if (GameContext.Host != null)

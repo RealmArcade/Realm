@@ -14,12 +14,6 @@ using Realm.Shared.Simulation;
 
 namespace Realm.ReplicationVerifier;
 
-/// <summary>
-///     Runs a real map against a real authority for a few simulated seconds and reports what the match did: whether the
-///     map's own script created units, whether a construction site a worker was sent to finishes, whether the events a
-///     map subscribes to are raised, and whether the description of the world carries the content a peer needs to name
-///     an ability list. It is the check a unit test cannot make, because what is under test is a compiled map.
-/// </summary>
 public static class MapSmokeRun
 {
 	public static int Run(string mapPath, int seconds)
@@ -168,11 +162,6 @@ public static class MapSmokeRun
 		return count;
 	}
 
-	/// <summary>
-	///     Puts a worker on a site the way an order does, runs the match until the site finishes and reports what the
-	///     world and the map were told. A site that never finishes is what a match without a construction tick looks
-	///     like, so this is the check that a worker's work reaches anything at all.
-	/// </summary>
 	private static bool FinishConstructionSite(LoadedMap map, ServerSimulation simulation, ServerGameAPI api, List<int> built, out string report)
 	{
 		report = string.Empty;
@@ -221,7 +210,6 @@ public static class MapSmokeRun
 			return false;
 		}
 
-		// A site costs resources, so the player is given enough of each to pay for the one the smoke run places.
 		api.SetPlayerGold(workerPlayerIndex, 100000f);
 		api.SetPlayerWood(workerPlayerIndex, 100000f);
 		api.SetPlayerStone(workerPlayerIndex, 100000f);
@@ -253,11 +241,6 @@ public static class MapSmokeRun
 		return false;
 	}
 
-	/// <summary>
-	///     Leaves the seated computer player to draft and field a wave, and reports what the match produced: the units the
-	///     authority created for a clone wave, and the labels the map drew over the heroes it drafted. A map whose draft
-	///     never finishes fields nothing, which is what a match whose construction sites never complete looks like.
-	/// </summary>
 	private static bool PlayOutTheDraft(LoadedMap map, ServerSimulation simulation, int seconds, Dictionary<Entity, Vector3> spawnOrigins)
 	{
 		int createdBefore = CountUnits(map.World);
@@ -294,10 +277,8 @@ public static class MapSmokeRun
 		return walkers > 0;
 	}
 
-	/// <summary>The first player slot the map uses for the units it fields on a player's behalf.</summary>
 	private const int ProxySlotOffset = 12;
 
-	/// <summary>Types a line into the map's console the way a peer does, and reports what the map said back.</summary>
 	private static string TryConsoleCommand(ServerSimulation simulation, string command)
 	{
 		simulation.ApplyConsoleCommand(1, new ScriptConsoleCommand { Command = command, SelectedUnitEntityId = 0 });

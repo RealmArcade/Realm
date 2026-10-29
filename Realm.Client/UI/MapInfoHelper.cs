@@ -143,8 +143,6 @@ public static class MapInfoHelper
 	{
 		if (string.IsNullOrEmpty(jsonPath)) return jsonPath;
 
-		// A manifest and the metadata beside it describe one map, so the folder is what both are read from. A file name
-		// handed to the loader is not a folder, and reading metadata from it returns the manifest's own fields.
 		return jsonPath.EndsWith(".json", StringComparison.OrdinalIgnoreCase)
 			? Path.GetDirectoryName(jsonPath) ?? jsonPath
 			: jsonPath;
@@ -216,7 +214,6 @@ public static class MapInfoHelper
 
 		try
 		{
-			// This file is the manifest, while the metadata beside it is the folder's.
 			MapManifest manifest = MapFileService.LoadManifest(filePath);
 			MapMetadata metadata = MapFileService.LoadMetadata(ResolveMapJsonDirectory(filePath));
 
@@ -334,8 +331,6 @@ public static class MapInfoHelper
 			string description = GetMapDescription(manifest, metadata);
 			string version = GetMapVersion(manifest, metadata);
 
-			// A map states the build it was compiled for in its metadata. One that states nothing is of an unknown build,
-			// which is never this one: claiming otherwise lists a map for a match its script cannot run in.
 			string gameBuildNumber = !string.IsNullOrEmpty(metadata.GameBuildNumber) ? metadata.GameBuildNumber : "v0.0.0";
 
 			string manifestHash = TryGetManifestHash(globalPath);

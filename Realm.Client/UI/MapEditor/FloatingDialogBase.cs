@@ -198,7 +198,6 @@ public partial class FloatingDialogBase : PanelContainer
 		return string.Empty;
 	}
 
-	// Overridable hook: dialogs that randomise assets override this.
 	protected virtual void OnAssetsRandomized()
 	{
 	}
@@ -513,7 +512,6 @@ public partial class FloatingDialogBase : PanelContainer
 		DialogClosed?.Invoke();
 	}
 
-	// Overridable hook: dialogs opt into apply/cancel handling by overriding these.
 	protected virtual void OnApply()
 	{
 	}

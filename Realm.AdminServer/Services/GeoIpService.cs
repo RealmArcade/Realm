@@ -57,7 +57,6 @@ public class GeoIpService
 		}
 		catch (AddressNotFoundException)
 		{
-			/* Fallback */
 		}
 		catch (Exception ex)
 		{
@@ -80,10 +79,10 @@ public class GeoIpService
 			int bucket = firstOctet % 4;
 			return bucket switch
 			{
-				0 => (37.7749, -122.4194), // US West (San Francisco)
-				1 => (40.7128, -74.0060), // US East (New York)
-				2 => (51.5074, -0.1278), // Europe (London)
-				3 => (35.6762, 139.6503), // Asia (Tokyo)
+				0 => (37.7749, -122.4194),
+				1 => (40.7128, -74.0060),
+				2 => (51.5074, -0.1278),
+				3 => (35.6762, 139.6503),
 				_ => (38.9072, -77.0369)
 			};
 		}
@@ -93,7 +92,7 @@ public class GeoIpService
 
 	public static double CalculateDistance(double lat1, double lon1, double lat2, double lon2)
 	{
-		var r = 6371; // In kilometers
+		var r = 6371;
 		var dLat = ToRadians(lat2 - lat1);
 		var dLon = ToRadians(lon2 - lon1);
 		var a = Math.Sin(dLat / 2) * Math.Sin(dLat / 2) +

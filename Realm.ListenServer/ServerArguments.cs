@@ -137,8 +137,6 @@ public record ServerArguments(string MapPath, int Port, string Token, string Log
 			return false;
 		}
 
-		// A map tested from the editor is played straight out of the workspace it was compiled in, so that workspace is what
-		// the script's JIT ELF is exported into when the caller named none.
 		string resolvedWorkspace = wasmDebug ? workspacePath ?? mapPath : workspacePath ?? string.Empty;
 
 		if (lobby && string.IsNullOrEmpty(adminToken))

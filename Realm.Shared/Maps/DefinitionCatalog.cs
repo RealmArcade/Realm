@@ -5,11 +5,6 @@ using Realm.Shared.Simulation;
 
 namespace Realm.Shared.Maps;
 
-/// <summary>
-///     The authored stats, costs and model keys a map declares, keyed by template id. Both the client and the
-///     authoritative process build one from the same <c>metadata.json</c>, so a unit is spawned with identical numbers
-///     wherever it is spawned from, and the identifier aliases and default fixups exist in exactly one place.
-/// </summary>
 public class DefinitionCatalog
 {
 	private static readonly string[] StrippablePrefixes = ["unit/", "building/", "prop/", "resource/", "item/", "upgrade/", "weapon/", "ability/"];
@@ -25,7 +20,6 @@ public class DefinitionCatalog
 	private readonly Dictionary<string, WeaponMetadata> _weapons = new(StringComparer.OrdinalIgnoreCase);
 	private readonly Dictionary<string, AbilityMetadata> _abilities = new(StringComparer.OrdinalIgnoreCase);
 
-	/// <summary>The metadata document this catalog was built from.</summary>
 	public MapMetadata Metadata { get; }
 
 	private DefinitionCatalog(MapMetadata metadata)
@@ -33,16 +27,11 @@ public class DefinitionCatalog
 		Metadata = metadata;
 	}
 
-	/// <summary>Loads and indexes the catalog a map folder declares.</summary>
 	public static DefinitionCatalog LoadFromMapFolder(string mapFolderPath)
 	{
 		return Build(MapFileService.LoadMetadata(mapFolderPath));
 	}
 
-	/// <summary>
-	///     Indexes a metadata document. The same objects are stored under their full id and under their id with the
-	///     type prefix removed, which is how map files and map scripts have always addressed them.
-	/// </summary>
 	public static DefinitionCatalog Build(MapMetadata metadata)
 	{
 		var catalog = new DefinitionCatalog(metadata ?? new MapMetadata());
@@ -118,22 +107,12 @@ public class DefinitionCatalog
 		return catalog;
 	}
 
-	/// <summary>
-	///     Points a match's rule catalog at these templates, so a rule that asks what a definition can build or what
-	///     population it costs gets the map's answer. Both processes bind the catalog they loaded, which is what keeps a
-	///     delivery point and a population total identical on either side.
-	/// </summary>
 	public void BindTo(MapRulesCatalog rules)
 	{
 		rules.BuildOptionsProvider = templateId => FindBuilding(templateId)?.BuildOptions;
 		rules.PopulationCostProvider = templateId => FindUnit(templateId)?.PopCost ?? 0;
 	}
 
-	/// <summary>
-	///     Points the command authority at these templates, so the mana a cast spends, the cooldown it starts and the
-	///     resources an order costs are the map's numbers. Both processes bind what they loaded, which is what stops an
-	///     order being affordable on one side and refused on the other.
-	/// </summary>
 	public void BindTo(CommandAuthorityService authority)
 	{
 		authority.AbilityRulesProvider = spellId => FindAbility(spellId) is { } ability
@@ -155,7 +134,6 @@ public class DefinitionCatalog
 
 	public UnitMetadata? FindBuilding(string templateId) => Find(_buildings, templateId);
 
-	/// <summary>Resolves a unit or a building, which is how a save file and a training order name either one.</summary>
 	public UnitMetadata? FindUnitOrBuilding(string templateId) => Find(_units, templateId) ?? Find(_buildings, templateId);
 
 	public PropMetadata? FindProp(string templateId) => Find(_props, templateId);
@@ -166,10 +144,6 @@ public class DefinitionCatalog
 
 	public ConsumableMetadata? FindConsumable(string templateId) => Find(_consumables, templateId);
 
-	/// <summary>
-	///     The consumable the card a player clicked sells, or nothing when that card is an ordinary cast. A card is named
-	///     by an ability, by the purchase's own id, or by either of those without its type prefix.
-	/// </summary>
 	public ConsumableMetadata? FindConsumableForCard(string cardId)
 	{
 		if (string.IsNullOrEmpty(cardId)) return null;
@@ -190,10 +164,6 @@ public class DefinitionCatalog
 
 	public IReadOnlyDictionary<string, ResourceMetadata> Resources => _resources;
 
-	/// <summary>
-	///     The resource amount a prop yields when the map does not declare one. Gold mines, rock and trees are the
-	///     engine's own resource node types, so their amounts live here rather than in whichever process loads them.
-	/// </summary>
 	public static float DefaultResourceAmount(string propId)
 	{
 		return propId switch

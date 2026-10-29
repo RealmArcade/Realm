@@ -14,7 +14,6 @@ public class ModelOptimizerService
 
 	public struct OptimizationOptions
 	{
-		// Required by the language: a struct with property initializers needs an explicit parameterless constructor.
 		public OptimizationOptions()
 		{
 		}

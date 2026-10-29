@@ -7,11 +7,6 @@ using Realm.Shared.Metadata;
 
 namespace Realm.ListenServer;
 
-/// <summary>
-///     Advances every production building's training queue and stands the finished unit beside the building that made
-///     it. A client only asks for the training through a command; the unit that appears is the authority's, and it
-///     reaches the client as replicated state like every other unit.
-/// </summary>
 public class ServerProductionStep
 {
 	private const float FallbackProductionSeconds = 5f;
@@ -26,7 +21,6 @@ public class ServerProductionStep
 	private readonly List<PendingProduction> _completedTraining = new();
 	private float _deltaSeconds;
 
-	/// <summary>A training queue entry that finished this tick, held until the query that found it has finished.</summary>
 	private struct PendingProduction
 	{
 		public Entity Building;
@@ -41,11 +35,6 @@ public class ServerProductionStep
 		_advanceTraining = AdvanceTraining;
 	}
 
-	/// <summary>
-	///     Counts every queue down by one tick and spawns what finished. Entities are created after the query has
-	///     finished rather than during it, so a unit standing beside its building cannot disturb the walk the query is
-	///     in the middle of.
-	/// </summary>
 	public void Step(float deltaSeconds)
 	{
 		_deltaSeconds = deltaSeconds;
@@ -86,10 +75,6 @@ public class ServerProductionStep
 		});
 	}
 
-	/// <summary>
-	///     How much faster than the map's own production times this match builds. A cheat asks for it, so the work a
-	///     building does per tick is scaled rather than its queue being rewritten.
-	/// </summary>
 	private float FastBuildMultiplier => _map.Simulation.FastBuildEnabled ? 10f : 1f;
 
 	private float ReadProductionSeconds(string unitId)
@@ -100,10 +85,6 @@ public class ServerProductionStep
 		return metadata.ProductionTime > 0f ? metadata.ProductionTime : FallbackProductionSeconds;
 	}
 
-	/// <summary>
-	///     Stands a finished unit beside the building that trained it, owned by whoever owns that building. A building
-	///     that is gone by the time its queue empties takes the unit with it.
-	/// </summary>
 	private void SpawnTrainedUnit(in PendingProduction pending)
 	{
 		if (!_world.IsAlive(pending.Building)) return;

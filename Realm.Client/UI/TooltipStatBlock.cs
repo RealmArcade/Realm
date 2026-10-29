@@ -6,14 +6,8 @@ using Realm.Shared.Metadata;
 
 namespace Realm.Client.UI;
 
-/// <summary>
-/// Renders the numeric lines of an item or upgrade card straight from the modifiers it applies.
-/// Nothing here is authored prose: add a modifier to the template and it appears on the card, and
-/// a card can never claim a number the item does not grant.
-/// </summary>
 public static class TooltipStatBlock
 {
-	/// <summary>Modifier lines for an upgrade, one per stat, at its per-purchase value.</summary>
 	public static string ForUpgrade(UpgradeMetadata? upgrade)
 	{
 		if (upgrade?.Modifiers == null || upgrade.Modifiers.Count == 0) return string.Empty;
@@ -30,7 +24,6 @@ public static class TooltipStatBlock
 		return builder.ToString();
 	}
 
-	/// <summary>Modifier lines for an item, multiplied by how many copies the unit carries.</summary>
 	public static string ForItem(ItemMetadata? item, int stacks = 1)
 	{
 		if (item?.GrantedUpgrades == null || item.GrantedUpgrades.Length == 0) return string.Empty;
@@ -91,7 +84,6 @@ public static class TooltipStatBlock
 			 type.Equals("AdditivePercent", System.StringComparison.OrdinalIgnoreCase));
 	}
 
-	/// <summary>Player-facing name for a canonical stat key. Unknown keys show as written.</summary>
 	public static string Label(string statKey)
 	{
 		switch (statKey)

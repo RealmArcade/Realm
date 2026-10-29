@@ -10,15 +10,8 @@ using Realm.Shared.Services;
 
 namespace Realm.Client.Services;
 
-/// <summary>
-///     Prepares what a match reads before the match scene exists, while the lobby is open and the machine is idle. It
-///     walks the map's own template catalog and warms every model path the runtime will ask <see cref="ModelCache" /> for,
-///     through that same cache, in small slices so the lobby keeps answering. Nothing is decoded into a list the runtime
-///     never reads: the only thing prepared is what a unit, building, prop or resource asks for when it is spawned.
-/// </summary>
 public class LobbyMatchPreparation
 {
-	/// <summary>How long one frame may spend warming models before the rest is left for the next frame.</summary>
 	private const double FrameBudgetMilliseconds = 6.0;
 
 	private readonly Queue<string> _pendingModels = new();
@@ -28,29 +21,18 @@ public class LobbyMatchPreparation
 	private string _mapVersion = "1.0.0";
 	private int _totalModels;
 
-	/// <summary>Whether every model the map names is already in the cache the match will read them from.</summary>
 	public bool IsPrepared { get; private set; }
 
-	/// <summary>Whether anything is being prepared for a map right now.</summary>
 	public bool HasWork => _pendingModels.Count > 0 || (_totalModels > 0 && !IsPrepared);
 
-	/// <summary>The map this preparation is for, or nothing before a map was named.</summary>
 	public string MapName => _mapName;
 
-	/// <summary>How many models the map names, and how many of them are still waiting to be warmed.</summary>
 	public int TotalModels => _totalModels;
 
-	/// <summary>How much time the warm actually spent parsing and decoding models, across every slice it took.</summary>
 	public double WarmMilliseconds { get; private set; }
 
-	/// <summary>Raised when preparation starts, finishes or is cancelled, so the screen can say which it is.</summary>
 	public event Action? StateChanged;
 
-	/// <summary>
-	///     Starts preparing a map, or does nothing when this map is already prepared or already being prepared. The map
-	///     must be on disk: a client that does not hold it yet is still downloading, and its preparation begins when the
-	///     download reports the map ready.
-	/// </summary>
 	public void Prepare(string? mapName, string? mapVersion)
 	{
 		string name = mapName ?? string.Empty;
@@ -97,11 +79,6 @@ public class LobbyMatchPreparation
 		StateChanged?.Invoke();
 	}
 
-	/// <summary>
-	///     Warms as many models as fit in one frame's budget. Called from the lobby's own frame, so a map with hundreds
-	///     of models is spread over many frames rather than stalling the screen that is showing the lobby.
-	/// </summary>
-	/// <returns>True once every model the map names has been warmed.</returns>
 	public bool Tick()
 	{
 		if (!HasWork) return IsPrepared;
@@ -123,10 +100,6 @@ public class LobbyMatchPreparation
 		return true;
 	}
 
-	/// <summary>
-	///     Drops the preparation, and the models it put in the cache, so a player who leaves, is kicked or drops out of a
-	///     lobby leaves nothing behind that the next lobby would inherit.
-	/// </summary>
 	public void Cancel()
 	{
 		bool hadWork = _totalModels > 0 || _warmedModels.Count > 0;
@@ -144,7 +117,6 @@ public class LobbyMatchPreparation
 		if (hadWork) StateChanged?.Invoke();
 	}
 
-	/// <summary>Whether the map this preparation is for is the one the lobby named.</summary>
 	public bool IsPreparing(string? mapName) => HasWork && string.Equals(_mapName, mapName ?? string.Empty, StringComparison.Ordinal);
 
 	private void EnqueueTemplateModels(TemplateContainer? templates)

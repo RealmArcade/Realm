@@ -138,8 +138,6 @@ public class UnitSpawnService
 
 			AttributeStatCalculator.RecalculateEntityStats(GameContext.World, entity);
 
-			// The same body the authoritative process builds this unit with, so a unit spawned on this screen occupies
-			// the room the match separates and paths around.
 			GameContext.World.SetOrAdd(entity, new CollisionRadius(UnitEntityFactory.ResolveUnitCollisionRadius(regMeta)));
 		}
 		else

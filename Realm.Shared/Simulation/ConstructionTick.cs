@@ -13,15 +13,8 @@ using Realm.Shared.Metadata;
 
 namespace Realm.Shared.Simulation;
 
-/// <summary>
-///     The part of a match tick that builds what a worker was sent to build: the worker closes on the site, its work
-///     advances the site's own progress, and a site that reaches its build time stops being a construction site. It is
-///     the same class wherever a match is simulated, so what a worker finishes and what a map is told about are one
-///     account of the same event.
-/// </summary>
 public class ConstructionTick
 {
-	/// <summary>How much build progress one worker's second of work is worth, before a match's own multiplier.</summary>
 	public const float BaseWorkRatePerSecond = 1f;
 
 	private const float WorkRateMultiplierFastBuild = 10f;
@@ -44,10 +37,8 @@ public class ConstructionTick
 		_advanceWorker = AdvanceWorker;
 	}
 
-	/// <summary>A site that reached its build time this tick, which is the moment a map hears about it.</summary>
 	public event Action<Entity>? Completed;
 
-	/// <summary>Advances every worker's building work by one tick and finishes the sites that were finished.</summary>
 	public void Step(float deltaSeconds)
 	{
 		_deltaSeconds = deltaSeconds;
@@ -77,7 +68,6 @@ public class ConstructionTick
 		Entity site = buildTask.BuildingEntity;
 		if (site == Entity.Null || !_simulation.World.IsAlive(site) || !_simulation.World.Has<ConstructionState>(site))
 		{
-			// The site is gone or already finished, so the worker has nothing left to do and is free for its next order.
 			_abandonedWorkers.Add(workerEntity);
 			return;
 		}
@@ -108,10 +98,6 @@ public class ConstructionTick
 		if (construction.IsComplete) QueueCompleted(site);
 	}
 
-	/// <summary>
-	///     Picks up a site whose progress already reached its build time, so a map or a loaded save that finished a
-	///     building without a worker still ends up finished rather than staying a site nothing advances.
-	/// </summary>
 	private void CollectSitesAlreadyComplete()
 	{
 		foreach (Entity site in _simulation.World.Query<ConstructionState>())
@@ -145,7 +131,6 @@ public class ConstructionTick
 		Completed?.Invoke(site);
 	}
 
-	/// <summary>How close a worker has to stand to a site it is building, as its own template declares it.</summary>
 	private float ReadConstructionRange(Entity workerEntity)
 	{
 		if (!_simulation.World.TryGet<DefinitionId>(workerEntity, out DefinitionId definitionId)) return UnitMetadata.DefaultConstructionRange;

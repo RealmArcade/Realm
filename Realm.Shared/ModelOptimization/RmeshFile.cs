@@ -5,14 +5,14 @@ namespace Realm.Shared.ModelOptimization;
 
 public class RmeshFile : RealmContainerFile
 {
-	public static readonly byte[] MagicBytes = [0x52, 0x4D, 0x53, 0x48]; // "RMSH"
+	public static readonly byte[] MagicBytes = [0x52, 0x4D, 0x53, 0x48];
 	public static byte[] Magic => MagicBytes;
 	public const uint CurrentVersion = 1;
 	public const string Format = "rmesh";
 	public const string Name = "RMESH";
 	public const int SourceProfileImageQuality = 80;
 
-	public static readonly byte[] SourceProfileImageTrailerMagic = [0x52, 0x4D, 0x53, 0x50]; // "RMSP"
+	public static readonly byte[] SourceProfileImageTrailerMagic = [0x52, 0x4D, 0x53, 0x50];
 	public const ushort SourceProfileImageTrailerVersion = 1;
 	public const int SourceProfileImageTrailerHeaderLength = 10;
 

@@ -731,9 +731,6 @@ public static partial class MapWorkspaceService
 
 	private static string NormalizeMapApiReference(string csprojContent)
 	{
-		// Every anchor below is written with plain newlines, so a project file saved with Windows newlines would never
-		// match one. The file is rewritten anyway, so it is normalized once here and every repair below then finds what
-		// it is looking for.
 		csprojContent = csprojContent.Replace("\r\n", "\n");
 
 		string mapApiReference = $"<Reference Include=\"Realm.MapAPI\">\n      <HintPath>{MapApiDllRelativePath}</HintPath>\n    </Reference>";

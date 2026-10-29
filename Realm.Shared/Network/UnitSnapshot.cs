@@ -2,7 +2,6 @@ using MemoryPack;
 
 namespace Realm.Shared.Network;
 
-/// <summary>Replicated state of a single unit or building.</summary>
 [MemoryPackable]
 public partial struct UnitSnapshot
 {

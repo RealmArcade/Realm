@@ -7,12 +7,6 @@ using Realm.Client.Utils;
 
 namespace Realm.Client.Services;
 
-/// <summary>
-///     Converts the single damage-or-heal ability shape into the composable effect list. Every
-///     legacy scalar becomes the one effect that reproduces it — a damage number becomes a damage
-///     effect on the same radius, a heal becomes a heal effect, a summon becomes a summon effect —
-///     so an upgraded map plays exactly as it did before.
-/// </summary>
 public class Migration_0_0_5_AbilityEffects : IMapMigration
 {
 	public string FromVersion => "v0.0.4";
@@ -101,8 +95,6 @@ public class Migration_0_0_5_AbilityEffects : IMapMigration
 			ability["Effects"] = effects;
 		}
 
-		// Applied status effects were authored as bare ids with no duration or magnitude, and no
-		// shipped map ever set them; the effect list replaces them outright.
 		changed |= ability.Remove("AppliedStatusEffects");
 		changed |= ability.Remove("Damage");
 		changed |= ability.Remove("Healing");

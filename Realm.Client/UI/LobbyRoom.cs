@@ -1306,7 +1306,7 @@ public partial class LobbyRoom : Control
 		optFaction.SizeFlagsVertical = SizeFlags.ShrinkCenter;
 		optFaction.Flat = false;
 
-		ApplyTeamOptionStyle(optFaction); // Reuse the same style as Team Option
+		ApplyTeamOptionStyle(optFaction);
 
 		if (p.Team == "Spectator")
 		{

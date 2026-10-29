@@ -9,10 +9,6 @@ public static class MapContentHash
 	private static readonly string[] ExcludedDirectoryNames = ["obj", "bin", ".git", ".godot"];
 	private static readonly byte[] FieldSeparator = [0];
 
-	/// <summary>
-	///     Hashes the authored files of a map folder. <paramref name="excludedFilePath" /> names a file the caller is
-	///     writing itself, such as the server's log, so its own output never becomes part of the map's identity.
-	/// </summary>
 	public static string Compute(string mapFolderPath, string? excludedFilePath = null)
 	{
 		string root = Path.GetFullPath(mapFolderPath);

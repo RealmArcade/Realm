@@ -11,11 +11,6 @@ using Realm.Shared.Network;
 
 namespace Realm.ListenServer;
 
-/// <summary>
-///     Writes what the authority holds for every unit on every sequence it publishes. A client can only be judged
-///     against the process that decided the world, so a run that checks whether a screen holds the same ECS as the
-///     authority asks the authority for this stream; nothing else asks for it, so a normal match writes none.
-/// </summary>
 public class AuthoritySyncRecorder : IDisposable
 {
 	private static readonly QueryDescription RecordedUnitsQuery = new QueryDescription().WithAll<UnitOwnerPlayer, Health, Position>();
@@ -31,13 +26,8 @@ public class AuthoritySyncRecorder : IDisposable
 	private readonly List<int> _baselinePeerIds = new();
 	private readonly List<int> _orderedEntityIds = new(256);
 
-	/// <summary>
-	///     The units this sequence described to every peer. A component that names one of them is a statement both
-	///     processes can hold and compare; one that names a unit a peer was never told about is not.
-	/// </summary>
 	private readonly Dictionary<int, ulong> _namedByPeerMask = new(256);
 
-	/// <summary>Which peers this sequence described each item on the ground to, keyed by the item's identifier.</summary>
 	private readonly Dictionary<int, ulong> _lootNamedByPeerMask = new(64);
 	private readonly Dictionary<int, int> _peerSlotById = new(8);
 	private readonly List<int> _describedPeerIds = new(8);
@@ -68,7 +58,6 @@ public class AuthoritySyncRecorder : IDisposable
 		_writer.Flush();
 	}
 
-	/// <summary>Opens the record for one sequence, before the snapshots that describe it have been built.</summary>
 	public void BeginSequence(int sequence, long tick)
 	{
 		_sequence = sequence;
@@ -82,18 +71,11 @@ public class AuthoritySyncRecorder : IDisposable
 		_baselinePeerIds.Clear();
 	}
 
-	/// <summary>
-	///     Notes one peer's description of the sequence. A unit is counted as holding in every peer's copy when every
-	///     snapshot built this tick mentions it, which is what decides whether a peer that does not hold it is missing it
-	///     or was never told about it.
-	/// </summary>
 	public void AddPeerSnapshot(int peerId, in WorldSnapshot snapshot)
 	{
 		if (_disposed || snapshot.Units == null) return;
 
 		_peerCount++;
-		// A transport hands out whatever peer identifiers it likes, so a mask is indexed by the order this sequence first
-		// described its peers in; the record states that order beside the mask.
 		if (_peerSlotById.TryAdd(peerId, _describedPeerIds.Count)) _describedPeerIds.Add(peerId);
 		_peersDescribedMask |= PeerBit(peerId);
 		if (snapshot.IsBaseline) _baselinePeerIds.Add(peerId);
@@ -120,8 +102,6 @@ public class AuthoritySyncRecorder : IDisposable
 
 		if (snapshot.Loot == null) return;
 
-		// What is on the ground is decided per peer, so an item this screen was not told about is not a state it can be
-		// held to. The record states which peers each item was described to for the same reason a unit's record does.
 		for (int index = 0; index < snapshot.Loot.Count; index++)
 		{
 			int uniqueId = snapshot.Loot[index].EntityId;
@@ -129,11 +109,6 @@ public class AuthoritySyncRecorder : IDisposable
 		}
 	}
 
-	/// <summary>
-	///     Closes the record for the sequence just published. A sequence no peer was described for is still written: the
-	///     stream is read against the sequences a screen applied, and a gap would hide the very ticks a peer was catching
-	///     up on.
-	/// </summary>
 	public void EndSequence()
 	{
 		if (_disposed) return;
@@ -145,8 +120,6 @@ public class AuthoritySyncRecorder : IDisposable
 		for (int index = 0; index < recordedPeers; index++) _writer.Write(_baselinePeerIds[index]);
 		_writer.Write((ulong)_tick);
 
-		// Which bit of a reference digest's mask stands for which peer, so a reader can find its own bit without knowing
-		// how the transport numbered the peers.
 		_writer.Write(_describedPeerIds.Count);
 		for (int index = 0; index < _describedPeerIds.Count; index++) _writer.Write(_describedPeerIds[index]);
 
@@ -157,11 +130,6 @@ public class AuthoritySyncRecorder : IDisposable
 		_writer.Flush();
 	}
 
-	/// <summary>
-	///     Writes every unit the sequence described, in the order a reader expects. A tick no peer was described for
-	///     still records the units the authority holds, so the stream describes every sequence rather than only the ones
-	///     somebody happened to be watching.
-	/// </summary>
 	private void WriteUnits()
 	{
 		if (_peerCount == 0)
@@ -189,8 +157,6 @@ public class AuthoritySyncRecorder : IDisposable
 		foreach (KeyValuePair<int, RecordedUnit> entry in _units)
 		{
 			_orderedEntityIds.Add(entry.Key);
-			// Which peers could name this entity. A unit every peer was told about is one any peer can be held to; a unit
-			// only some were told about is a statement only those peers can make, so the mask travels with the reference.
 			_namedByPeerMask[entry.Key] = entry.Value.NamedByMask == SyncRecordFormat.NamedByEveryPeer
 				? entry.Value.NamedByMask
 				: entry.Value.NamedByMask & _peersDescribedMask;
@@ -203,10 +169,6 @@ public class AuthoritySyncRecorder : IDisposable
 			RecordedUnit recorded = _units[_orderedEntityIds[index]];
 			bool isVisibleToEveryPeer = (recorded.NamedByMask & _peersDescribedMask) == _peersDescribedMask;
 
-			// The match states a unit at one precision, so a peer that was told about a unit was told everything the
-			// match holds about it. Reading the flag off the unit's own record said the same thing while the wire no
-			// longer carries a second precision, and it is kept apart from visibility because a reader judges a
-			// rendered transform against the precision it was promised rather than against how many peers it reached.
 			bool isDetailedForEveryPeer = isVisibleToEveryPeer;
 
 			Entity entity = new(recorded.Snapshot.EntityId);
@@ -240,11 +202,6 @@ public class AuthoritySyncRecorder : IDisposable
 		}
 	}
 
-	/// <summary>
-	///     Which peers could name the entity one component of one unit points at. Only a component that names another
-	///     entity can be unnameable to a peer: a component that names no entity is a value both processes hold or neither
-	///     does, and a reference is a statement by exactly the peers this sequence described its target to.
-	/// </summary>
 	private bool ResolveNamedByMask(int componentTypeId, ReadOnlySpan<byte> payload, out ulong namedByPeers)
 	{
 		namedByPeers = SyncRecordFormat.NamedByEveryPeer;
@@ -253,13 +210,10 @@ public class AuthoritySyncRecorder : IDisposable
 		int referencedServerEntityId = codec.ReadReferencedServerEntityId(payload);
 		if (referencedServerEntityId < 0) return true;
 
-		// A target this sequence described to nobody is still a value the authority holds, written with an empty mask so a
-		// screen that kept the name from an earlier description is not reported as carrying a component the host lacks.
 		namedByPeers = _namedByPeerMask.TryGetValue(referencedServerEntityId, out ulong mask) ? mask : 0;
 		return true;
 	}
 
-	/// <summary>Which bit of a record's peer mask stands for one peer, by the order this sequence described them in.</summary>
 	private ulong PeerBit(int peerId)
 	{
 		int slot = _peerSlotById.TryGetValue(peerId, out int existing) ? existing : _describedPeerIds.Count;
@@ -297,7 +251,6 @@ public class AuthoritySyncRecorder : IDisposable
 		}
 	}
 
-	/// <summary>The state of one unit as this process holds it, for a tick no snapshot described it.</summary>
 	private UnitSnapshot DescribeUnit(Entity entity)
 	{
 		Vector3 position = _world.TryGet<Position>(entity, out Position readablePosition) ? readablePosition.Value : Vector3.Zero;

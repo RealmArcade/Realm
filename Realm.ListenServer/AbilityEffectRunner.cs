@@ -12,16 +12,8 @@ using Realm.Shared.Abilities;
 
 namespace Realm.ListenServer;
 
-/// <summary>
-///     Runs an ability's effects on the authority. One executor, one target query, every kind: damage goes through the
-///     combat resolver, heals through the healing pipeline, buffs through the buff pipeline, and shields and summons
-///     through their own components. A cast is simulated here and nowhere else, so what a spell did is the state every
-///     client is told about rather than something each client works out for itself.
-/// </summary>
 public class AbilityEffectRunner
 {
-	// Reused between casts: a cast resolves at most a few hundred targets and never runs per tick,
-	// so one buffer keeps the path allocation-free without pooling machinery.
 	private readonly List<Entity> _targets = new(256);
 	private readonly List<(Entity Entity, float Distance)> _sortedTargets = new(256);
 
@@ -38,10 +30,8 @@ public class AbilityEffectRunner
 		_summon = summon;
 	}
 
-	/// <summary>Whether an ability does anything by itself, or is a scripted one the map answers for.</summary>
 	public static bool HasEffects(AbilityDefinition? definition) => definition != null && definition.Effects.Count > 0;
 
-	/// <summary>Applies every effect of the ability in authored order.</summary>
 	public void Execute(Entity casterEntity, Vector3 casterPosition, AbilityDefinition definition, Vector3 targetPosition)
 	{
 		if (definition.Effects.Count == 0) return;
@@ -167,7 +157,6 @@ public class AbilityEffectRunner
 
 		for (int index = 0; index < spawnCount; index++)
 		{
-			// Summons ring the cast point so several of them never occupy one another's space.
 			float angle = (MathF.Tau / MathF.Max(1, spawnCount)) * index;
 			var offset = new Vector3(MathF.Cos(angle) * 1.2f, 0f, MathF.Sin(angle) * 1.2f);
 			UnitId spawned = _summon(effect.SummonUnitId, targetPosition + offset, ownerPlayerIndex);
@@ -196,10 +185,6 @@ public class AbilityEffectRunner
 		return count;
 	}
 
-	/// <summary>
-	///     Gathers the entities one effect lands on. Every delivery shape resolves here, so a new shape cannot end up with
-	///     its own subtly different ally test.
-	/// </summary>
 	private void CollectTargets(Entity casterEntity, bool casterAlive, AbilityEffectDefinition effect, Vector3 casterPosition, Vector3 targetPosition)
 	{
 		_targets.Clear();
@@ -291,11 +276,6 @@ public class AbilityEffectRunner
 		for (int index = 0; index < _sortedTargets.Count && index < effect.MaxTargets; index++) _targets.Add(_sortedTargets[index].Entity);
 	}
 
-	/// <summary>
-	///     Whether an effect reaches a unit: whoever cast it counts as an ally of itself, and everyone else is answered by
-	///     the match's own relationship table, so a spell's allies are the caster's allies and not whoever happens to be
-	///     standing nearby.
-	/// </summary>
 	private bool MatchesSide(bool casterAlive, Entity entity, AbilityTargetSide side)
 	{
 		switch (side)
@@ -309,8 +289,6 @@ public class AbilityEffectRunner
 				if (!casterAlive) return true;
 				return !_areAllied(_castingPlayerIndex, PlayerIndexOf(entity));
 			default:
-				// "All" deliberately skips the caster, which the caller filters: an ability that should reach
-				// its own caster says Self.
 				return true;
 		}
 	}
@@ -325,7 +303,6 @@ public class AbilityEffectRunner
 		return Vector3.Distance(point, start);
 	}
 
-	/// <summary>Puts a unit somewhere without asking the movement step to walk it there.</summary>
 	private void MoveUnitWithoutWalking(Entity entity, Vector3 position)
 	{
 		_context.World.Set(entity, new Position(position));

@@ -2638,9 +2638,6 @@ namespace Realm.Client.Core
 
 				GameContext.SessionState.EditorWorldState = null;
 
-				// The playtest ran on a world of its own; the ground it stood on is replaced with the editable one the
-				// editor paints, and what the editor looked like before the playtest is put back into it. The match is left
-				// first, so no snapshot of it can repaint the world once it is back.
 				EndJoinedMatch();
 				CreateGround();
 				MapStateSnapshot.Restore(editorState, updateMapSize: false);

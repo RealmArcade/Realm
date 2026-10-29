@@ -1182,8 +1182,6 @@ public partial class MapEditorHUD : Control
 		}
 		finally
 		{
-			// Only a trace this launch opened is closed here. The match scene that replaced the editor starts a trace of
-			// its own, and this method is still running when it does, so it is left to write itself.
 			if (ReferenceEquals(GameContext.Host, tracingHost) && MatchLoadTrace.IsTracing) MatchLoadTrace.WriteSummary("test_map_abandoned");
 			GameLog.OnLine -= logHandler;
 		}
@@ -1196,11 +1194,6 @@ public partial class MapEditorHUD : Control
 		SaveEditorWorldBeforeTest();
 	}
 
-	/// <summary>
-	///     Keeps the editor's world so the world the playtest builds cannot be built on it. What is played has to be the
-	///     map as it was saved, standing in a world of its own, and the editor is put back from here once the playtest
-	///     has ended.
-	/// </summary>
 	private void SaveEditorWorldBeforeTest()
 	{
 		GameContext.SessionState.EditorWorldState = MapStateSnapshot.CreateSnapshot();
@@ -1312,11 +1305,6 @@ public partial class MapEditorHUD : Control
 		GameContext.SessionState.IsTestMode = true;
 		ShadowClientVerifier.IsEnabled = true;
 
-		// The authority loads the map, runs its script and bakes the mesh this screen will path through, which takes as
-		// long as a map takes to load. That happens in another process and is waited for here rather than blocking the
-		// frame thread, so the editor keeps drawing and this console stays readable while it happens. The editor is left
-		// in place until then: leaving it takes the ground with it, and the map standing on screen is a better thing to
-		// wait behind than the sky the match has not replaced yet.
 		SetWasmConsoleStatus("Starting the authority that runs this map...", UIStyle.ColorCyanGlow);
 		AppendWasmConsoleLog("[AUTHORITY] Starting the process the map script runs in; the editor stays responsive while it loads.");
 
@@ -1326,8 +1314,6 @@ public partial class MapEditorHUD : Control
 			started = await GameContext.Lobby.HostSinglePlayerGame(GameContext.EditorService.TempWorkspaceGodotPath, "Test Map", debugMapScript: true);
 		}
 
-		// A match that could not be started leaves the editor standing exactly where it was, so the console that was
-		// reporting the launch stays open and says why instead of closing on a playtest that never began.
 		if (!started)
 		{
 			_wasmHasErrors = true;
@@ -1340,8 +1326,6 @@ public partial class MapEditorHUD : Control
 		MatchLoadTrace.Mark("authority_started");
 		MatchLoadTrace.WriteSummary("authority_started");
 
-		// The scene the lobby changes to is what builds the match world, so leaving the editor now is one frame of work
-		// before the world that replaces it is built rather than the whole authority start spent looking at the sky.
 		GameContext.Host.ExitMapEditorMode();
 
 		if (GameContext.UserInterface != null)
@@ -1349,8 +1333,6 @@ public partial class MapEditorHUD : Control
 			GameContext.UserInterface.TransitionTo(GameScreen.InGameHUD);
 		}
 
-		// The authority is the process the script runs in, so its identifier is what a debugger has to be given. It is
-		// printed for the console that closes in a moment and written to the game log the match itself keeps.
 		int authorityProcessId = GameContext.ServerSession?.AuthorityProcessId ?? 0;
 		if (authorityProcessId > 0)
 		{
@@ -1363,14 +1345,8 @@ public partial class MapEditorHUD : Control
 		CloseWasmConsoleModal();
 	}
 
-	/// <summary>How many of the authority's last lines are shown when the match it was starting did not come up.</summary>
 	private const int AuthorityDiagnosticsLineCount = 20;
 
-	/// <summary>
-	///     Shows the end of what the authority printed when a playtest could not be started. The process that runs the map
-	///     script is the only thing that knows what went wrong with it, and its console is the file it says so in, so the
-	///     dialog that reported the failure says it too rather than leaving the reason in a log nobody opens.
-	/// </summary>
 	private void AppendAuthorityDiagnostics()
 	{
 		string consolePath = GameContext.Lobby?.LastAuthorityConsoleLogPath ?? string.Empty;

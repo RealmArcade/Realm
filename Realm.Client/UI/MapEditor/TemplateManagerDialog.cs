@@ -112,7 +112,6 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 	{
 		BodyContainer.AddThemeConstantOverride("separation", 6);
 
-		// 1. TOP LIVE PREVIEW SECTION (3D / 2D / Audio)
 		var previewStack = new PanelContainer();
 		previewStack.Name = "PreviewStack_PanelContainer";
 		previewStack.CustomMinimumSize = new Vector2(360, 180);
@@ -120,11 +119,9 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		previewStack.AddThemeStyleboxOverride("panel", UIStyle.CreateLightInnerPanel());
 		BodyContainer.AddChild(previewStack);
 
-		// 3D Viewport
 		Add3DPreviewViewport(previewStack, new Vector2(360, 180));
 		Setup3DEnvironment();
 
-		// 2D Static Preview
 		_preview2DContainer = new PanelContainer();
 		_preview2DContainer.Name = "Preview2DContainer_PanelContainer";
 		_preview2DContainer.CustomMinimumSize = new Vector2(360, 180);
@@ -160,7 +157,6 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		_preview2DContainer.AddChild(preview2DVBox);
 		previewStack.AddChild(_preview2DContainer);
 
-		// Audio Preview
 		_previewAudioContainer = new PanelContainer();
 		_previewAudioContainer.Name = "PreviewAudioContainer_PanelContainer";
 		_previewAudioContainer.CustomMinimumSize = new Vector2(360, 180);
@@ -198,10 +194,8 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		_previewAudioContainer.AddChild(audioVBox);
 		previewStack.AddChild(_previewAudioContainer);
 
-		// 2. CAMERA PRESETS BAR
 		AddCameraPresetToolbar(BodyContainer, includeBack: true);
 
-		// 3. CATEGORY & FILTER & ADD BAR
 		var catRow = new HBoxContainer();
 		catRow.Name = "CatRow_HBoxContainer";
 		catRow.AddThemeConstantOverride("separation", 8);
@@ -285,7 +279,6 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 
 		BodyContainer.AddChild(catRow);
 
-		// 4. SEARCH FILTER INPUT
 		var searchRow = new HBoxContainer();
 		searchRow.Name = "SearchRow_HBoxContainer";
 		searchRow.AddThemeConstantOverride("separation", 6);
@@ -311,7 +304,6 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 
 		BodyContainer.AddChild(searchRow);
 
-		// 5. SCROLLABLE OBJECT LIST
 		_listVBox = CreateScrollBody(340);
 	}
 
@@ -906,7 +898,6 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		hBox.AddThemeConstantOverride("separation", 8);
 		row.AddChild(hBox);
 
-		// Clickable selection for preview
 		var selectBtn = new Button();
 		selectBtn.Name = "SelectBtn_Button";
 		selectBtn.Flat = true;
@@ -941,7 +932,6 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		contentBox.AddChild(infoVBox);
 		hBox.AddChild(selectBtn);
 
-		// Action buttons: Preview, Edit & Delete
 		var actionsHBox = new HBoxContainer();
 		actionsHBox.Name = "ActionsHBox_HBoxContainer";
 		actionsHBox.AddThemeConstantOverride("separation", 4);

@@ -18,10 +18,6 @@ namespace Realm.Client.Services;
 
 public class RegistryService
 {
-	/// <summary>
-	///     Where a map's own ability definitions are reported when they do not say enough to be followed. The definitions
-	///     are read here and on the authority, and a screen is the side that has somewhere to show a complaint.
-	/// </summary>
 	static RegistryService() => AbilityEffectFactory.WarningSink = GD.PushWarning;
 
 	private static MapRulesCatalog Rules => GameContext.Simulation.MapRules;
@@ -414,7 +410,6 @@ public class RegistryService
 	public Dictionary<(int UnitUniqueId, string AbilityId), float> UnitAbilityManaCosts { get; set; } = new();
 	public Dictionary<string, string> ItemTooltips { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
-	/// <summary>Values the map publishes for its own tooltips, keyed by ability, item, upgrade or unit.</summary>
 	public TooltipValueStore TooltipValues { get; } = new();
 
 	public bool CheckPropRegistryForMatch(string id, string cleanId, string normTarget, Func<string, string, bool> isMatch)
@@ -779,10 +774,6 @@ public class RegistryService
 		return Path.GetFileNameWithoutExtension(abilityId);
 	}
 
-	/// <summary>
-	///     Leads the tooltip with the authored role so a draft shows what an ability is for before it
-	///     shows what it does.
-	/// </summary>
 	private static string BuildAbilityTooltip(AbilityMetadata meta)
 	{
 		string description = meta.Description ?? string.Empty;

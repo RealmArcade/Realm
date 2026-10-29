@@ -4,28 +4,10 @@ using Realm.Ecs.Services;
 
 namespace Realm.ListenServer;
 
-/// <summary>
-///     Describes the world to several peers at once. One description is independent of every other — it reads the world
-///     and the state of the single peer it is for — so the peers are spread across the cores the machine has, which is
-///     where almost all of a match's per-tick cost lives. The builders are rented rather than shared: a builder holds
-///     scratch that only one thread may use at a time, and what they do share is the per-peer state, which is only ever
-///     written by the thread describing that peer.
-/// </summary>
 public class SnapshotFanOut
 {
-	/// <summary>How many descriptions may run at once, whatever a caller asks for.</summary>
 	public const int MaximumWorkerCount = 8;
 
-	/// <summary>
-	///     How many descriptions this machine is given unless it is told otherwise. Measured on a 300-unit room of
-	///     twenty-four players, the describing phase takes 8.0 ms on one worker, 5.4 ms on two, 3.8 ms on three and 3.4 ms
-	///     on four, while the room's total description cost per tick rises 7.9, 10.3, 10.8 and 12.6 ms over the same steps:
-	///     peers share one description cache, so a worker beyond the first re-reads lines another core has just written and
-	///     describing one peer costs 0.33 ms alone against 0.53 ms on four. Three workers take the phase to within half a
-	///     millisecond of the floor, where the fourth adds 1.8 ms to the room's per-tick CPU to save 0.4 ms of wall clock,
-	///     and the cores left over belong to the authority, the transport, and on a self-hosted match the client the host
-	///     is also running.
-	/// </summary>
 	public const int DefaultWorkerLimit = 3;
 
 	private readonly AuthoritativeSnapshotBuilder[] _builders;
@@ -47,16 +29,10 @@ public class SnapshotFanOut
 		}
 	}
 
-	/// <summary>How many peers this fan-out may be describing at the same time.</summary>
 	public int WorkerCount { get; }
 
-	/// <summary>The worker count this machine is given unless a match asks for another one.</summary>
 	public static int DefaultWorkerCount => Math.Clamp(Environment.ProcessorCount - 1, 1, DefaultWorkerLimit);
 
-	/// <summary>
-	///     What the map registered about abilities. A map marks an order unavailable or hides a button on the authority,
-	///     so how each unit's abilities are shown is described from here rather than worked out again on every client.
-	/// </summary>
 	public ScriptAbilityRegistry? Abilities
 	{
 		get => _builders[0].Abilities;
@@ -66,7 +42,6 @@ public class SnapshotFanOut
 		}
 	}
 
-	/// <summary>How far each player is up each of the map's tech tracks, which a peer that joins a match in progress learns.</summary>
 	public ServerTechLevels? TechLevels
 	{
 		get => _builders[0].TechLevels;
@@ -76,35 +51,23 @@ public class SnapshotFanOut
 		}
 	}
 
-	/// <summary>Tells every builder which peer acts as each player slot. Only seats that exist are named; the rest stay zero.</summary>
 	public void PrepareFor(ReadOnlySpan<int> peerIdByPlayerSlot)
 	{
 		for (int index = 0; index < _builders.Length; index++) _builders[index].PrepareFor(peerIdByPlayerSlot);
 	}
 
-	/// <summary>
-	///     Takes a builder for one description. A caller that asks for more at once than this fan-out has waits for one to
-	///     come back, which is why the number of concurrent descriptions is bounded by <see cref="WorkerCount" />.
-	/// </summary>
 	public AuthoritativeSnapshotBuilder Rent()
 	{
-		// The number of descriptions at once is bounded by WorkerCount where the room is described, so every builder a
-		// caller asked for is owed back. Waiting for one is only ever a wait for a description already in flight, and a
-		// builder that is never returned stops the match inside a tick. That was a spin that could not end; it is a wait
-		// with a deadline that says so instead, because a tick that blocks forever leaves no log and no frame.
 		if (_idleBuilders.TryTake(out AuthoritativeSnapshotBuilder? builder, RentTimeoutMilliseconds)) return builder;
 
 		throw new InvalidOperationException(
 			$"all {_builders.Length} snapshot builders are still checked out after {RentTimeoutMilliseconds} ms; a description was rented and never returned");
 	}
 
-	/// <summary>How long a description waits for a builder before the match is told something went wrong instead of stopping.</summary>
 	private const int RentTimeoutMilliseconds = 5000;
 
-	/// <summary>Gives a builder back once its description has been serialized.</summary>
 	public void Return(AuthoritativeSnapshotBuilder builder) => _idleBuilders.Add(builder);
 
-	/// <summary>Forgets a peer that has gone, so the connection taking its place is described from scratch.</summary>
 	public void ForgetPeer(int peerId)
 	{
 		_peerStates.Forget(peerId);

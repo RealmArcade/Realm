@@ -7,12 +7,6 @@ using SkiaSharp;
 
 namespace Realm.Shared;
 
-// CRITICAL / IN-MEMORY ONLY:
-// This preprocessor performs a 1x baked CPU in-memory analytical chroma despill pass for loaded GLB/RMESH models at runtime.
-// It is intended EXCLUSIVELY for runtime model loading in memory (e.g. ModelCache, thumbnail rendering) and must NEVER
-// be serialized to disk, written to .glb, or packaged into .rmesh files during asset conversion or export workflows.
-// On-disk asset files must strictly preserve the pristine, raw albedo textures so that spatial shaders can retain
-// original albedos when 'ignore_player_color' is active.
 public static class GlbInMemoryColorPreprocessor
 {
 	private static readonly ConcurrentDictionary<ulong, byte[]> DespilledGlbCache = new();

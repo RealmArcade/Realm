@@ -295,10 +295,6 @@ public partial class InGameHUD : Control
 		SubscribeToLobbyCountdown();
 	}
 
-	/// <summary>
-	///     Shows the lobby's countdown over the match itself. The scene is built while that clock runs, so the countdown is
-	///     the window the first frames are drawn in rather than a wait that happens before the screen exists.
-	/// </summary>
 	private void SubscribeToLobbyCountdown()
 	{
 		LobbyManager? lobby = GameContext.Lobby;
@@ -309,8 +305,6 @@ public partial class InGameHUD : Control
 		lobby.CountdownCancelled += StopCountdownTimer;
 		lobby.CountdownFinished += StopCountdownTimer;
 
-		// This screen is created once the countdown has already begun on the lobby screen it replaced, so the clock it is
-		// showing is read here rather than waited for a second start that will not come.
 		if (lobby.IsCountdownActive) StartCountdownTimer(lobby.CountdownRemainingSeconds, TranslationServer.Translate("MATCH STARTS IN"));
 	}
 
@@ -715,7 +709,6 @@ public partial class InGameHUD : Control
 		_countdownLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		countdownRow.AddChild(_countdownLabel);
 
-		// The countdown is shown over the match now, so the host's cancel has to come with it.
 		_countdownCancelButton = new Button();
 		_countdownCancelButton.Name = "CountdownCancelButton";
 		_countdownCancelButton.CustomMinimumSize = new Vector2(0, 24);
@@ -1482,7 +1475,6 @@ public partial class InGameHUD : Control
 	{
 		float dt = (float)delta;
 
-		// 1. Per-Frame / Immediate updates (Frustum indicator & connection warning)
 		_unitHealthBarOverlay?.Refresh(_camera3D ?? GetViewport()?.GetCamera3D());
 		_minimapPanelController?.UpdateMinimapIndicator();
 		if (_connectionWarningLabel != null)
@@ -1490,7 +1482,6 @@ public partial class InGameHUD : Control
 			_connectionWarningLabel.Visible = _viewModel.IsConnectionLost;
 		}
 
-		// 2. Tactical Cadence (~25Hz) - Health/mana vitals, command panel, portrait, selection visuals, control groups
 		_tacticalTimer += dt;
 		if (_tacticalTimer >= TacticalInterval)
 		{
@@ -1504,7 +1495,6 @@ public partial class InGameHUD : Control
 			_controlGroupsUIController?.Update();
 		}
 
-		// 3. Macro Cadence (~10Hz) - Resource panel, clock, idle count, minimap shroud redraw
 		_macroTimer += dt;
 		if (_macroTimer >= MacroInterval)
 		{
@@ -1516,7 +1506,6 @@ public partial class InGameHUD : Control
 			UpdateIdleUnitButton(accumulated);
 		}
 
-		// 4. Ambient Cadence (~2Hz) - Leaderboard and match summary statistics
 		_ambientTimer += dt;
 		if (_ambientTimer >= AmbientInterval)
 		{
@@ -2558,10 +2547,6 @@ public partial class InGameHUD : Control
 			: string.Format(TranslationServer.Translate("Paused by {0}"), pausedByName);
 	}
 
-	/// <summary>
-	/// The name of the player the authority named as having paused the match, or an empty string when it paused
-	/// itself. The match sends a player slot, and this screen only names a slot its own roster knows.
-	/// </summary>
 	private static string ResolvePlayerName(int playerSlot)
 	{
 		if (playerSlot < 0 || GameContext.Lobby == null) return string.Empty;

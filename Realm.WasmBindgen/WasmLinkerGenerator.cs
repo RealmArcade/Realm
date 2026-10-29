@@ -30,7 +30,6 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		context.RegisterSourceOutput(combined, static (context, input) => Execute(context, input.Left.Left, input.Left.Right, input.Right));
 	}
 
-	/// <summary>The assembly that hosts map scripts, which is the only one the host bindings are generated into.</summary>
 	private const string DefaultHostAssembly = "Realm.Client";
 
 	private const string DefaultHostNamespace = "Realm.Client.Core";
@@ -154,11 +153,6 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		}
 	}
 
-	/// <summary>
-	///     The namespace and type the host bindings belong to. A project that hosts map scripts declares itself with
-	///     RealmWasmHostAssembly, RealmWasmHostNamespace and RealmWasmHostType; without them the bindings belong to the
-	///     Godot client, which is where map scripts were hosted before the authority became its own process.
-	/// </summary>
 	private static (string Assembly, string Namespace, string Type) ResolveHostType(AnalyzerConfigOptionsProvider options)
 	{
 		return (
@@ -172,7 +166,6 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		return options.GlobalOptions.TryGetValue(key, out string? value) && !string.IsNullOrWhiteSpace(value) ? value : fallback;
 	}
 
-	// ── Helper Discovery and Symbol Checks ──────────────────────────────────────
 
 	private static HashSet<INamedTypeSymbol> DiscoverEntityInterfaces(INamedTypeSymbol gameApiSymbol)
 	{
@@ -375,7 +368,6 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		throw new InvalidOperationException($"Could not find resolver method on IGameAPI returning {entityType.ToDisplayString()} taking a single int parameter");
 	}
 
-	// ── Output 1: Host-side DefineFunction registrations ────────────────────────
 
 	private static string GenerateHostBindings(INamedTypeSymbol gameApiSymbol, HashSet<INamedTypeSymbol> entityInterfaces, string hostNamespace, string hostType)
 	{
@@ -1447,7 +1439,6 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		last = current;
 	}
 
-	// ── Output 2: Wit bindings dynamic generation ──────────────────────────────
 
 	private static string GenerateWitContent(INamedTypeSymbol gameApiSymbol, HashSet<INamedTypeSymbol> entityInterfaces, string manualFunctions)
 	{
@@ -1796,7 +1787,6 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		}
 	}
 
-	// ── Output 3: Auto-Events bindings dynamic generation ───────────────────────
 
 	private static string GenerateAutoEvents(INamedTypeSymbol gameApiSymbol, string hostNamespace, string hostType)
 	{
@@ -2041,7 +2031,6 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		return string.Join(", ", list);
 	}
 
-	// ── Output 4: Guest-side WasmWrappers dynamic generation ────────────────────
 
 	private static string GenerateWasmWrappers(INamedTypeSymbol gameApiSymbol, HashSet<INamedTypeSymbol> entityInterfaces)
 	{

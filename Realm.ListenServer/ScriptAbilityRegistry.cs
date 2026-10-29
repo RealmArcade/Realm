@@ -8,17 +8,8 @@ using Realm.Shared.Metadata;
 
 namespace Realm.ListenServer;
 
-/// <summary>
-///     Whether one unit's ability is currently shown as unusable, hidden, or both, and the name the map used for the
-///     ability, which is what a peer is told when the unit does not list the ability among its own.
-/// </summary>
 public readonly record struct ScriptAbilityState(bool Disabled, bool Hidden, string DeclaredId);
 
-/// <summary>
-///     The authority's own view of abilities: what a map registered, what it wrote on a card, and how each unit's
-///     abilities are currently presented. A script changes all of it through the authoritative process, and the state
-///     that has to be seen is published to peers as ability-state deltas rather than being worked out by each client.
-/// </summary>
 public class ScriptAbilityRegistry
 {
 	private readonly DefinitionCatalog _catalog;
@@ -42,11 +33,6 @@ public class ScriptAbilityRegistry
 		_catalog = catalog;
 	}
 
-	/// <summary>
-	///     What an ability is: the definition the map authored for it, with whatever the map's script has since changed
-	///     about its name, its card and its cost written over the top. A cast reads the definition, so what a script says
-	///     about an ability is what the cast does.
-	/// </summary>
 	public AbilityDefinition GetDefinition(string abilityId)
 	{
 		string key = NormalizeKey(abilityId);
@@ -57,10 +43,8 @@ public class ScriptAbilityRegistry
 		return definition;
 	}
 
-	/// <summary>Whether this build has anything at all to say about an ability.</summary>
 	public bool Knows(string abilityId) => !string.IsNullOrWhiteSpace(abilityId);
 
-	/// <summary>Records what an ability is called and what its card says, replacing what the map said before.</summary>
 	public bool Register(string abilityId, string displayName, string tooltip, string iconPath, bool isInstant)
 	{
 		if (string.IsNullOrWhiteSpace(abilityId)) return false;
@@ -89,10 +73,8 @@ public class ScriptAbilityRegistry
 		definition.GridY = y;
 	}
 
-	/// <summary>What an ability costs a caster unless a map says otherwise for one unit.</summary>
 	public void SetManaCost(string abilityId, float manaCost) => GetDefinition(abilityId).ManaCost = manaCost;
 
-	/// <summary>The name an ability shows, as the map registered it, falling back to the template's own name.</summary>
 	public string GetName(string abilityId, string? templateName)
 	{
 		if (string.IsNullOrWhiteSpace(abilityId)) return string.Empty;
@@ -104,11 +86,6 @@ public class ScriptAbilityRegistry
 		return Path.GetFileNameWithoutExtension(abilityId);
 	}
 
-	/// <summary>
-	///     The definition an ability starts from: what the map's catalog authored for it, in the shape the cast path reads.
-	///     An ability the map never declared is still an ability a script may register and cast, so an empty definition is
-	///     what the script then fills in.
-	/// </summary>
 	private AbilityDefinition BuildFromCatalog(string abilityId)
 	{
 		var definition = new AbilityDefinition { Id = abilityId };
@@ -141,10 +118,6 @@ public class ScriptAbilityRegistry
 		return definition;
 	}
 
-	/// <summary>
-	///     The key a definition is held under. A map may name an ability with or without the kind its template id carries,
-	///     and both names mean the same ability, so they share one definition.
-	/// </summary>
 	private static string NormalizeKey(string abilityId)
 	{
 		ReadOnlySpan<char> span = abilityId.AsSpan().Trim();
@@ -159,7 +132,6 @@ public class ScriptAbilityRegistry
 		return span.ToString();
 	}
 
-	/// <summary>Records a number a registered card reads, keyed by what owns it.</summary>
 	public void SetTooltipNumber(string ownerKind, string ownerId, string key, float value)
 	{
 		if (string.IsNullOrWhiteSpace(ownerId) || string.IsNullOrWhiteSpace(key)) return;
@@ -174,7 +146,6 @@ public class ScriptAbilityRegistry
 		numbers[key] = value;
 	}
 
-	/// <summary>Records a string a registered card reads, keyed by what owns it.</summary>
 	public void SetTooltipText(string ownerKind, string ownerId, string key, string value)
 	{
 		if (string.IsNullOrWhiteSpace(ownerId) || string.IsNullOrWhiteSpace(key)) return;
@@ -205,12 +176,10 @@ public class ScriptAbilityRegistry
 		return texts.TryGetValue(key, out value!);
 	}
 
-	/// <summary>How a card names what its values belong to, so the client's own cards look up the same place.</summary>
 	public static string OwnerKey(string kind, string id) => $"{kind}:{id}";
 
 	public static string OwnerKey(string kind, int id) => $"{kind}:{id}";
 
-	/// <summary>Publishes how one unit's ability is shown: an order it cannot take, or an option it does not offer.</summary>
 	public void SetUnitAbilityState(int unitId, string abilityId, bool disabled, bool hidden)
 	{
 		if (unitId <= 0 || string.IsNullOrWhiteSpace(abilityId)) return;
@@ -247,7 +216,6 @@ public class ScriptAbilityRegistry
 		return false;
 	}
 
-	/// <summary>Sets what one ability costs one unit, which is what a map does when it hands a unit a free cast.</summary>
 	public void SetUnitAbilityManaCost(int unitId, string abilityId, float manaCost)
 	{
 		if (string.IsNullOrWhiteSpace(abilityId)) return;
@@ -261,7 +229,6 @@ public class ScriptAbilityRegistry
 		}
 	}
 
-	/// <summary>What an ability costs one unit, or nothing when the map has said nothing about that unit.</summary>
 	public float? UnitAbilityManaCost(int unitId, string abilityId)
 	{
 		if (unitId <= 0 || string.IsNullOrWhiteSpace(abilityId)) return null;
@@ -274,12 +241,6 @@ public class ScriptAbilityRegistry
 		return null;
 	}
 
-	/// <summary>
-	///     How every unit's abilities are presented, as one peer has not heard it. A delta names a slot in the unit's
-	///     own ability list rather than an ability id, so what one peer has been told is remembered against that slot and
-	///     only what changed for that peer travels. A slot only means the same ability while the list is unchanged, so a
-	///     list that gained or lost an ability makes every exception be restated against the new one.
-	/// </summary>
 	public List<AbilityStateDelta> CollectDeltas(int peerId, EcsWorld world, bool includeAll)
 	{
 		_deltas.Clear();
@@ -306,8 +267,6 @@ public class ScriptAbilityRegistry
 			told[entry.Key] = entry.Value;
 		}
 
-		// An ability that has gone back to being usable normally has to be said so, or the peer keeps showing the
-		// order as unavailable for the rest of the match.
 		_clearedKeys.Clear();
 		foreach (var entry in told)
 		{
@@ -341,10 +300,6 @@ public class ScriptAbilityRegistry
 		return _deltas;
 	}
 
-	/// <summary>
-	///     Adds the changes about abilities a unit does not list, which a peer is told about by name rather than by a
-	///     slot. What each peer has already heard is remembered per name, so a name only travels when it changes.
-	/// </summary>
 	private void CollectNamedDeltas(int peerId, bool includeAll)
 	{
 		if (!_toldIdFlagsByPeer.TryGetValue(peerId, out Dictionary<(int UnitId, string AbilityId), byte>? told))
@@ -388,7 +343,6 @@ public class ScriptAbilityRegistry
 
 	private readonly List<(int UnitId, string AbilityId)> _clearedNamedKeys = new();
 
-	/// <summary>Forgets what a peer was told, so the peer that takes its place is described from scratch.</summary>
 	public void ForgetPeer(int peerId)
 	{
 		_toldByPeer.Remove(peerId);
@@ -404,10 +358,6 @@ public class ScriptAbilityRegistry
 		return told;
 	}
 
-	/// <summary>
-	///     Every ability a unit is not currently offering normally. One the unit lists is keyed by its slot, and one it
-	///     does not list at all, such as a build option the map decided to withhold, is keyed by the name the map used.
-	/// </summary>
 	private void CollectExceptionFlags(EcsWorld world)
 	{
 		_currentFlags.Clear();
@@ -430,7 +380,6 @@ public class ScriptAbilityRegistry
 		}
 	}
 
-	/// <summary>Forgets a unit that is gone, so a recycled entity id does not inherit what its predecessor showed.</summary>
 	public void ForgetUnit(int unitId)
 	{
 		_abilityListHandles.Remove(unitId);
@@ -506,7 +455,6 @@ public class ScriptAbilityRegistry
 		return false;
 	}
 
-	/// <summary>The slot an ability occupies in a unit's own list, which is what a peer is told about.</summary>
 	private static bool TryResolveAbilityIndex(EcsWorld world, int unitId, string abilityId, out short abilityIndex)
 	{
 		abilityIndex = -1;
@@ -536,10 +484,6 @@ public class ScriptAbilityRegistry
 		return span.StartsWith("ability/", StringComparison.OrdinalIgnoreCase) ? span[8..] : span;
 	}
 
-	/// <summary>
-	///     The ids a script's ability name answers to: the name it used and the name without its type prefix, which is
-	///     how a map that says "ability/ember_bolt" and one that says "ember_bolt" mean the same ability.
-	/// </summary>
 	private static IEnumerable<string> NormalizedAbilityIds(string abilityId)
 	{
 		yield return abilityId;

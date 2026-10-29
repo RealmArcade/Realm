@@ -49,11 +49,6 @@ public static class VisualSelectionHelper
 		SharedMaterials.ClearCache();
 	}
 
-	/// <summary>
-	///     How big the ring drawn under a body is, in world units. The body radius is already the ground the body
-	///     occupies, so the ring is that radius: multiplying it by the model's circle ratio again drew a ring the size
-	///     of the body squared, which is why the rings grew once bodies started taking their size from the map.
-	/// </summary>
 	public static void CalculateSelectionRingParams(Vector3 scale, string assetKey, float baseRadius, out float sx, out float ratio, out float worldRadius)
 	{
 		sx = Mathf.Abs(scale.X) > 0.001f ? scale.X : 1.0f;

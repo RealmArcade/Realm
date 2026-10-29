@@ -4,24 +4,13 @@ using System.Numerics;
 
 namespace Realm.Shared.Players;
 
-/// <summary>
-///     The color a player slot is drawn in, as red, green and blue fractions between zero and one, so anything that
-///     can answer a color question does not have to know how a particular renderer stores one.
-/// </summary>
 public readonly record struct PlayerColorEntry(int Index, string Name, float Red, float Green, float Blue)
 {
-	/// <summary>This entry's color as a plain vector, which is what a map script is handed.</summary>
 	public Vector3 ToVector() => new(Red, Green, Blue);
 }
 
-/// <summary>
-///     The colors player slots are drawn in. A map script asks the authority what color a player is, and screens draw
-///     the slots they are told about, so the palette lives beside the protocol rather than in either process: a color
-///     a script reads and a color a screen shows are then the same answer.
-/// </summary>
 public static class PlayerColorPalette
 {
-	/// <summary>The slot that belongs to nobody, which is who the map itself acts as.</summary>
 	public const int NeutralPlayerIndex = 0;
 
 	private static readonly PlayerColorEntry[] Entries =
@@ -55,13 +44,10 @@ public static class PlayerColorPalette
 		new PlayerColorEntry(24, "Silver", 0.850f, 0.880f, 0.900f)
 	];
 
-	/// <summary>How many slots the palette covers, which is the highest slot index plus one.</summary>
 	public static int Count => Entries.Length;
 
-	/// <summary>Every entry, in slot order.</summary>
 	public static IReadOnlyList<PlayerColorEntry> Palette => Entries;
 
-	/// <summary>One slot's entry, or the neutral entry when the slot has no color of its own.</summary>
 	public static PlayerColorEntry GetEntry(int playerIndex)
 	{
 		if (playerIndex < 0 || playerIndex >= Entries.Length) return Entries[NeutralPlayerIndex];
@@ -69,13 +55,10 @@ public static class PlayerColorPalette
 		return Entries[playerIndex];
 	}
 
-	/// <summary>One slot's color.</summary>
 	public static Vector3 GetColor(int playerIndex) => GetEntry(playerIndex).ToVector();
 
-	/// <summary>The name a slot's color is known by, which is what a lobby and a map both call it.</summary>
 	public static string GetName(int playerIndex) => GetEntry(playerIndex).Name;
 
-	/// <summary>One slot's color as six hexadecimal digits, uppercase and without an alpha channel.</summary>
 	public static string GetColorHex(int playerIndex)
 	{
 		if (playerIndex < 0 || playerIndex >= Entries.Length) return "FFFFFF";
@@ -84,10 +67,8 @@ public static class PlayerColorPalette
 		return string.Create(CultureInfo.InvariantCulture, $"{RoundToByte(entry.Red):X2}{RoundToByte(entry.Green):X2}{RoundToByte(entry.Blue):X2}");
 	}
 
-	/// <summary>The slot a color belongs to, or the neutral slot when the color is not in the palette.</summary>
 	public static int IndexOfColor(Vector3 color) => IndexOfColor(color.X, color.Y, color.Z);
 
-	/// <summary>The slot a color belongs to, or the neutral slot when the color is not in the palette.</summary>
 	public static int IndexOfColor(float red, float green, float blue)
 	{
 		for (int index = 0; index < Entries.Length; index++)

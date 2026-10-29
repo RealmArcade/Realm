@@ -17,35 +17,23 @@ using Realm.Shared.Network;
 
 namespace Realm.Shared.Simulation;
 
-/// <summary>
-///     Validates the commands a player sends and applies the ones that are legal. An order names units by the id the
-///     sender knows them by, so the targets are resolved through <see cref="CommandTargetResolver" /> rather than a
-///     scene node scan, and the cost tables an order is checked against are the map's.
-/// </summary>
 public class CommandAuthorityService
 {
 	private readonly SimulationContext _context;
 	private readonly CommandTargetResolver _targets;
 
-	/// <summary>Answers an ability's mana, cooldown and range, which a cast is authorized against.</summary>
 	public Func<string, AbilityRules?>? AbilityRulesProvider { get; set; }
 
-	/// <summary>Answers what a unit order costs and how long it takes to produce.</summary>
 	public Func<string, ProductionCosts?>? ProductionCostsProvider { get; set; }
 
-	/// <summary>Answers what a tech track costs and how far it goes, so a research order is authorized against the map's numbers.</summary>
 	public Func<string, UpgradeRules?>? UpgradeRulesProvider { get; set; }
 
-	/// <summary>Reads how far a player is up a tech track, which lives with whoever owns the match's tech state.</summary>
 	public Func<int, string, int>? TechLevelReader { get; set; }
 
-	/// <summary>Grants a player a level on a tech track. Granting a level is what changes the units they already own.</summary>
 	public Action<int, string, int>? TechLevelWriter { get; set; }
 
-	/// <summary>Answers what a card a building sells is, or nothing when the card is an ordinary cast.</summary>
 	public Func<string, ConsumableMetadata?>? ConsumableProvider { get; set; }
 
-	/// <summary>Where a dropped order is reported. A headless process has no Godot logger and leaves this unset.</summary>
 	public Action<string>? DroppedOrderSink { get; set; }
 
 	public CommandTargetResolver Targets => _targets;
@@ -126,8 +114,6 @@ public ServerCommandResult ExecuteServerCommand(int peerId, NetworkCommand cmd)
 
 		if (!TryGetPlayerEntityForPeer(peerId, out Entity playerEntity)) return false;
 
-		// A match that was started with cheats on does not charge a caster for what it casts, and does not start the
-		// cooldown the map asked for either.
 		if (_context.UnlimitedPowerEnabled) return true;
 
 		if (definition.ManaCost > 0f && _context.World.Has<Mana>(casterEntity))
@@ -772,12 +758,6 @@ public ServerCommandResult ExecuteServerCommand(int peerId, NetworkCommand cmd)
 
 	}
 
-	/// <summary>
-	///     Applies a technology order. The track the map declares says what the next level costs and when the last one is
-	///     reached, and a level the player can pay for is granted here rather than by the peer that asked for it: the level
-	///     is what grants the modifiers, so the units the player already owns change on this side and reach every screen as
-	///     replicated state.
-	/// </summary>
 	private void HandleResearchCommand(int peerId, NetworkCommand cmd, ref string rejectionReason)
 	{
 		string requestedId = cmd.ArgString ?? string.Empty;
@@ -824,11 +804,6 @@ public ServerCommandResult ExecuteServerCommand(int peerId, NetworkCommand cmd)
 		TechLevelWriter(playerIndex, rules.CanonicalId, currentLevel + 1);
 	}
 
-	/// <summary>
-	///     Takes an order's price out of the player's pool, or nothing at all when they cannot pay it. The pool is read,
-	///     changed and written back as one value, so an order that is refused leaves the resources it was measured against
-	///     exactly as they were.
-	/// </summary>
 	private bool TryPayCosts(Entity playerEntity, float gold, float wood, float stone)
 	{
 		if (!_context.World.TryGet<PlayerResources>(playerEntity, out PlayerResources resources)) return false;
@@ -866,12 +841,6 @@ public ServerCommandResult ExecuteServerCommand(int peerId, NetworkCommand cmd)
 		return true;
 	}
 
-	/// <summary>
-	///     Applies a purchase a building sells and binds to one unit it was aimed at. The whole decision belongs to the
-	///     authority because it is a decision about world state: which unit is close enough to receive the card, whether it
-	///     has room for it, and what the card costs are all read from the world the players are playing in, and the unit is
-	///     changed here so every screen is told the same thing.
-	/// </summary>
 	private void HandleConsumableCommand(int peerId, NetworkCommand cmd, ref string rejectionReason)
 	{
 		string cardId = cmd.ArgString ?? string.Empty;
@@ -950,10 +919,6 @@ public ServerCommandResult ExecuteServerCommand(int peerId, NetworkCommand cmd)
 		_context.World.SetOrAdd(target, new ConsumableAttachment(consumable.TemplateID, consumable.SlotGroup, _context.PlayerSlotForEntity(playerEntity)));
 	}
 
-	/// <summary>
-	///     The unit a purchase was aimed at: the nearest one to the place the buyer clicked, within the reach the card was
-	///     authored with, and one of their own unless the card was authored to reach anyone's.
-	/// </summary>
 	private Entity FindConsumableTarget(Entity building, Entity playerEntity, ConsumableMetadata consumable, Vector3 position)
 	{
 		bool ownOnly = !string.Equals(consumable.TargetScope, "AnyUnit", StringComparison.OrdinalIgnoreCase);
@@ -976,7 +941,6 @@ public ServerCommandResult ExecuteServerCommand(int peerId, NetworkCommand cmd)
 		return best;
 	}
 
-	/// <summary>Whether a unit already carries a consumable in the group this card fills.</summary>
 	private bool CarriesAttachment(Entity unit, ConsumableMetadata consumable)
 	{
 		if (!_context.World.TryGet<ConsumableAttachment>(unit, out ConsumableAttachment attachment)) return false;
@@ -985,11 +949,6 @@ public ServerCommandResult ExecuteServerCommand(int peerId, NetworkCommand cmd)
 		return attachment.IsInGroup(consumable.SlotGroup);
 	}
 
-	/// <summary>
-	///     Applies a development cheat a player typed. A cheat is an order like any other because it changes the world
-	///     the match plays at: a screen that applied one to its own copy would be describing a world nobody else is
-	///     playing in. Only a match that was started for a player to play alone allows them at all.
-	/// </summary>
 	private void HandleCheatCommand(int peerId, NetworkCommand cmd, ref string rejectionReason)
 	{
 		string key = (cmd.ArgString ?? string.Empty).Trim().ToLowerInvariant();
@@ -1043,7 +1002,6 @@ public ServerCommandResult ExecuteServerCommand(int peerId, NetworkCommand cmd)
 		}
 	}
 
-	/// <summary>Fills what a player has of every resource they can hold, stopping at the ceiling a match stockpiles to.</summary>
 	private void ApplySecureTheBag(Entity playerEntity)
 	{
 		if (!_context.World.TryGet<PlayerResources>(playerEntity, out PlayerResources resources)) return;
@@ -1060,7 +1018,6 @@ public ServerCommandResult ExecuteServerCommand(int peerId, NetworkCommand cmd)
 		_context.World.Set(playerEntity, resources);
 	}
 
-	/// <summary>Makes everything a player owns close to unkillable, which is what the cheat is for.</summary>
 	private void ApplyGigachad(Entity playerEntity)
 	{
 		var query = QueryCache.AllHealthAndOwnerQuery;
@@ -1073,7 +1030,6 @@ public ServerCommandResult ExecuteServerCommand(int peerId, NetworkCommand cmd)
 		});
 	}
 
-	/// <summary>Speeds up the units an order named, which is what a player had selected when they typed it.</summary>
 	private void ApplyNeedForSpeed(int peerId, NetworkCommand cmd)
 	{
 		if (cmd.UnitEntityIds == null) return;
@@ -1088,7 +1044,6 @@ public ServerCommandResult ExecuteServerCommand(int peerId, NetworkCommand cmd)
 		}
 	}
 
-	/// <summary>Destroys everything the computer plays with, which is the cheat that ends a match the player is losing.</summary>
 	private void ApplyThanosSnap()
 	{
 		var targets = new List<Entity>();
@@ -1114,7 +1069,6 @@ public ServerCommandResult ExecuteServerCommand(int peerId, NetworkCommand cmd)
 		}
 	}
 
-	/// <summary>Reveals what the match was hiding, which is the whole board when a map shrouds nothing.</summary>
 	private void ApplyAura()
 	{
 		Entity worldEntity = _context.WorldEntity;
@@ -1123,7 +1077,6 @@ public ServerCommandResult ExecuteServerCommand(int peerId, NetworkCommand cmd)
 		_context.World.Mutate<ShroudState>(worldEntity, (ref ShroudState shroud) => shroud.VisibilityMode = ShroudVisibilityMode.Revealed);
 	}
 
-	/// <summary>Waives what a player's casts cost, and gives back the cooldowns they already started.</summary>
 	private void ApplySkibidi(Entity playerEntity)
 	{
 		_context.UnlimitedPowerEnabled = !_context.UnlimitedPowerEnabled;

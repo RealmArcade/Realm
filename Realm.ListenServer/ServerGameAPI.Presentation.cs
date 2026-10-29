@@ -8,16 +8,10 @@ using Realm.Shared.Network;
 
 namespace Realm.ListenServer;
 
-/// <summary>
-///     Everything a map script asks a screen to do: what to draw, what to play, what to write, where to look. The
-///     authority decides what happened and which players are told; the request travels as a presentation event so a
-///     client renders it the same way whether it is the host or a remote peer.
-/// </summary>
 public partial class ServerGameAPI
 {
 	private const string DefaultLeaderboardBoardId = "default";
 
-	/// <summary>What a request addressed to no player in particular names: it goes to every player.</summary>
 	private const int AllPlayers = ServerPresentationEvent.Everyone;
 
 	private readonly Dictionary<int, ScriptStaticText> _staticTexts = new();
@@ -26,7 +20,6 @@ public partial class ServerGameAPI
 	private string _currentEnvironmentPreset = "day";
 	private string _currentWeather = "clear";
 
-	/// <summary>How many players are alive, which is what the match reports while it runs.</summary>
 	public void SpawnVisualEffect(string effectTypeId, Vector3 position, float scale = 1.0f)
 	{
 		if (string.IsNullOrWhiteSpace(effectTypeId)) return;
@@ -61,11 +54,6 @@ public partial class ServerGameAPI
 			new Vector3(start.X, 0f, start.Y), new Vector3(end.X, 0f, end.Y), color ?? Vector3.One, 0, 0, width, 0f, duration, false);
 	}
 
-	/// <summary>
-	///     Hangs an effect on a unit for as long as it lives, which is what a shield or a curse looks like. The unit is
-	///     named by its id rather than by anything the authority holds, so a client can act on it once it has been told
-	///     the unit exists.
-	/// </summary>
 	public void AttachPersistentAura(UnitId unit, string auraVfxId, float scale = 1.0f)
 	{
 		Entity entity = ResolveUnit(unit);
@@ -76,10 +64,6 @@ public partial class ServerGameAPI
 			Vector3.Zero, Vector3.Zero, Vector3.Zero, 0, 0, scale, 0f, 0f, false);
 	}
 
-	/// <summary>
-	///     Shows a projectile crossing from one place to another. The authority does not simulate the flight: it tells
-	///     every client the same start, end and speed, so each of them draws the same arc.
-	/// </summary>
 	public void SpawnProjectile(string projectileTypeId, Vector3 start, Vector3 target, float speed)
 	{
 		if (string.IsNullOrWhiteSpace(projectileTypeId)) return;
@@ -137,7 +121,6 @@ public partial class ServerGameAPI
 			Vector3.Zero, Vector3.Zero, Vector3.Zero, groupPlayerIndex, 0, 0f, 0f, 0f, false);
 	}
 
-	/// <summary>Adds a row to the board a map uses when it names no board of its own.</summary>
 	public void AddLeaderboardRow(string label, string value, Vector3? color = null)
 	{
 		_presentation.Write(PresentationKind.LeaderboardRow, AllPlayers, 0, DefaultLeaderboardBoardId, label, value, string.Empty, null,
@@ -167,10 +150,6 @@ public partial class ServerGameAPI
 		_presentation.Write(PresentationKind.SummaryTableCleared, AllPlayers, Vector3.Zero);
 	}
 
-	/// <summary>
-	///     Starts the match-wide countdown. The authority keeps it as match state so the remaining time is the same
-	///     wherever it is read, and tells every client to show it.
-	/// </summary>
 	public void StartCountdownTimer(float duration, string label)
 	{
 		Entity worldEntity = _context.WorldEntity;
@@ -208,7 +187,6 @@ public partial class ServerGameAPI
 			Vector3.Zero, Vector3.Zero, Vector3.Zero, 0, 0, 0f, 0f, 0f, false);
 	}
 
-	/// <summary>Shakes every player's camera, which is what a map does when something lands hard.</summary>
 	public void ShakeCamera(float intensity, float duration)
 	{
 		_presentation.Write(PresentationKind.CameraShaken, AllPlayers, 0, string.Empty, string.Empty, string.Empty, string.Empty, null,
@@ -244,10 +222,6 @@ public partial class ServerGameAPI
 			Vector3.Zero, Vector3.Zero, Vector3.Zero, (int)element, 0, 0f, 0f, 0f, visible);
 	}
 
-	/// <summary>
-	///     Tells one player to select a unit, which is what a map does when it hands someone a unit to play with. The
-	///     authority keeps what it last told each player, so a script can read the selection back.
-	/// </summary>
 	public void SelectPlayerUnit(int playerIndex, UnitId unit)
 	{
 		if (!unit.IsValid) return;
@@ -272,7 +246,6 @@ public partial class ServerGameAPI
 			Vector3.Zero, Vector3.Zero, Vector3.Zero, 0, 0, 0f, 0f, 0f, false);
 	}
 
-	/// <summary>The units the authority last told a player to have selected.</summary>
 	public ReadOnlySpan<UnitId> GetPlayerSelectedUnits(int playerIndex)
 	{
 		if (!_selectedUnitsByPlayer.TryGetValue(playerIndex, out List<int>? selected) || selected.Count == 0) return ReadOnlySpan<UnitId>.Empty;
@@ -297,10 +270,6 @@ public partial class ServerGameAPI
 		_presentation.Write(PresentationKind.ClickSound, playerIndex, Vector3.Zero);
 	}
 
-	/// <summary>
-	///     Puts a player into placement mode for a building, which is what a map does when it decides what a player may
-	///     build next. The authority checks the player may build it before telling them.
-	/// </summary>
 	public void StartPlayerBuildingPlacement(int playerIndex, string unitTypeId)
 	{
 		if (string.IsNullOrWhiteSpace(unitTypeId)) return;
@@ -310,10 +279,6 @@ public partial class ServerGameAPI
 			Vector3.Zero, Vector3.Zero, Vector3.Zero, 0, 0, 0f, 0f, 0f, true);
 	}
 
-	/// <summary>
-	///     Writes a line of text into the world where every client can read it. The authority hands out the handle, so the
-	///     handle a script holds names the same text after it is shown.
-	/// </summary>
 	public int CreateStaticText(string text, Vector3 position, Vector3 color, int fontSize = 48)
 	{
 		int handle = _nextStaticTextHandle++;
@@ -359,12 +324,6 @@ public partial class ServerGameAPI
 		_presentation.Write(PresentationKind.StaticTextDestroyed, AllPlayers, handle, Vector3.Zero);
 	}
 
-	/// <summary>
-	///     Adds what every label the map created currently reads, so a peer that joins after the map set the match up
-	///     still sees the numbers the map put over its tiles and its heroes. The handle is the label's own, which is
-	///     what a later change addresses, so what the peer is handed here is the label itself rather than a replay of
-	///     how it got here.
-	/// </summary>
 	public void AppendStaticTextDescription(List<ServerPresentationEvent> destination)
 	{
 		foreach (KeyValuePair<int, ScriptStaticText> entry in _staticTexts)
@@ -391,7 +350,6 @@ public partial class ServerGameAPI
 		}
 	}
 
-	/// <summary>Sets the hour the match is lit by, which the day/night cycle then runs forward from.</summary>
 	public void SetTimeOfDay(float time)
 	{
 		SetWorldTimeOfDay(time);
@@ -444,13 +402,8 @@ public partial class ServerGameAPI
 
 	public string GetWeather() => _currentWeather;
 
-	/// <summary>
-	///     Stops the match hiding anything from anyone, which is what an arena map wants: every player sees the whole
-	///     board and no client has to be told what it cannot see.
-	/// </summary>
 	public void DisableShroud() => _context.ShroudDisabled = true;
 
-	/// <summary>Tints one unit's model, which is how a map marks a unit it cares about.</summary>
 	public void SetUnitColor(UnitId unit, Vector3 color)
 	{
 		Entity entity = ResolveUnit(unit);
@@ -497,10 +450,6 @@ public partial class ServerGameAPI
 			Vector3.Zero, Vector3.Zero, Vector3.Zero, 0, 0, strength, frequency, duration, false);
 	}
 
-	/// <summary>
-	///     Moves the match's hour forward to a time of day, which is match state every client reads rather than something
-	///     each client decides for itself.
-	/// </summary>
 	private void SetWorldTimeOfDay(float time)
 	{
 		Entity worldEntity = _context.WorldEntity;

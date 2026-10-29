@@ -48,7 +48,7 @@ public static class GameSettings
 
 	public static float ScrollSpeed { get; set; } = 50f;
 	public static float MouseSens { get; set; } = 40f;
-	public static float HudScale { get; set; } = 100f; // 100% default
+	public static float HudScale { get; set; } = 100f;
 	public static HealthBarMode ShowHealthBars { get; set; } = HealthBarMode.Damaged;
 	public static GameLanguage Language { get; set; } = GameLanguage.English;
 	public static bool DisplayFps { get; set; } = false;

@@ -14,17 +14,8 @@ using Realm.Shared.Metadata;
 
 namespace Realm.Shared.Maps;
 
-/// <summary>
-///     Builds a unit or building entity from authored statistics. The authoritative process and the client both call
-///     this, so a unit that the simulation moves and a unit that a client renders always carry the same components
-///     with the same numbers.
-/// </summary>
 public static class UnitEntityFactory
 {
-	/// <summary>
-	///     Creates the entity a map declares, reading every statistic and cost from the catalog. Returns
-	///     <see cref="Entity.Null" /> when the map declares no such template.
-	/// </summary>
 	public static Entity CreateFromMetadata(
 		EcsWorld world,
 		DefinitionCatalog catalog,
@@ -41,10 +32,6 @@ public static class UnitEntityFactory
 		return CreateFromMetadata(world, metadata, templateId, catalog.FindUnit(templateId) == null, position, rotationY, scale, owner, bypassPopulation);
 	}
 
-	/// <summary>
-	///     Creates the entity for an already resolved template, which is how a caller that indexes its templates some
-	///     other way still builds the same entity.
-	/// </summary>
 	public static Entity CreateFromMetadata(
 		EcsWorld world,
 		UnitMetadata metadata,
@@ -109,10 +96,6 @@ public static class UnitEntityFactory
 		AttributeStatCalculator.RecalculateEntityStats(world, entity);
 
 		float modelScale = scale <= 0.001f ? metadata.Scale : scale;
-		// A template's collision circle is the ground its body occupies, already measured at the size the map drew it.
-		// The model scale makes the mesh larger, not the body, so only a scale the map placed the unit at multiplies
-		// the circle; feeding the model scale in as well made every unit occupy - and draw its selection ring over -
-		// as much extra ground as its model happened to be scaled by.
 		float placedScale = scale <= 0.001f ? 1f : scale;
 		world.SetOrAdd(entity, new RotationY(rotationY));
 		world.SetOrAdd(entity, new ModelScale(modelScale));
@@ -132,11 +115,6 @@ public static class UnitEntityFactory
 		return entity;
 	}
 
-	/// <summary>
-	///     True when a building stands on the ground and therefore blocks the units that walk around it. A template
-	///     drawn as a flat ground-plane marker is a decoration the map lays on the floor, so nothing paths around it.
-	///     Every process asks this, so a building blocks the same ground wherever it is simulated.
-	/// </summary>
 	public static bool BlocksMovement(UnitMetadata metadata)
 	{
 		return !string.Equals(metadata.VisualMode, GroundPlaneVisualMode, StringComparison.OrdinalIgnoreCase);
@@ -144,21 +122,11 @@ public static class UnitEntityFactory
 
 	private const string GroundPlaneVisualMode = "GroundPlane";
 
-	/// <summary>
-	///     The radius a building blocks movement and routing with: the collision circle its template authors, or the
-	///     shared default building radius when it authors none. Every consumer scales it by the building's placed
-	///     collision scale, so a building placed at twice the size blocks twice as much ground.
-	/// </summary>
 	public static float ResolveCollisionRadius(UnitMetadata metadata)
 	{
 		return GameplayConstants.ResolveContactRadius(metadata.CollisionCircle, 1f, GameplayConstants.DefaultBuildingCollisionRadius);
 	}
 
-	/// <summary>
-	///     The radius a unit body uses: the collision circle its template authors, or the shared default unit radius
-	///     when it authors none. Every consumer scales it by the unit's collision scale, so a unit placed at twice the
-	///     size occupies twice the room and both processes resolve it the same way.
-	/// </summary>
 	public static float ResolveUnitCollisionRadius(UnitMetadata metadata)
 	{
 		return GameplayConstants.ResolveContactRadius(metadata.CollisionCircle, 1f, GameplayConstants.DefaultCollisionRadius);
@@ -296,7 +264,6 @@ public static class UnitEntityFactory
 		return entity;
 	}
 
-	/// <summary>The terrain bits a unit may stand on, derived from what its template declares it can traverse.</summary>
 	public static int GetPathingFlags(UnitMetadata metadata)
 	{
 		if (metadata.PathingType != 0) return metadata.PathingType;

@@ -3,12 +3,6 @@ using System.Collections.Generic;
 
 namespace Realm.Client.Services;
 
-/// <summary>
-/// Holds the numbers and strings a map script publishes for its own tooltips, keyed by the thing
-/// that owns them ("ability:elixir_blood_debt", "unit:412", "item:titan_belt"). The base game fills
-/// every scope it can read from the ECS; this exists so an effect that only the script knows about
-/// still has exactly one place its card can read from — the same fields the script applies.
-/// </summary>
 public sealed class TooltipValueStore
 {
 	private readonly Dictionary<string, Dictionary<string, float>> _numbers =

@@ -130,12 +130,6 @@ public partial class GameHost
 		return GameContext.ModelOverrideService.GetModelCollisionCircleRatio(primaryKey, assetKey, GameContext.EditorService.NormalizeModelAssetKey);
 	}
 
-	/// <summary>
-	///     The body radius a template declares in metadata.json, or the shared default for its kind when it declares
-	///     none. The authoritative process builds units, buildings, props and resource nodes through the same resolvers,
-	///     so a screen and the match it is watching agree on how much ground a body occupies instead of one measuring a
-	///     model the other cannot see.
-	/// </summary>
 	public float ResolveTemplateCollisionRadius(string templateId)
 	{
 		if (string.IsNullOrEmpty(templateId)) return GameplayConstants.DefaultCollisionRadius;
@@ -148,11 +142,6 @@ public partial class GameHost
 		return GameplayConstants.ResolveContactRadius(authoredCollisionRadius, 1f, GameplayConstants.DefaultPropCollisionRadius);
 	}
 
-	/// <summary>
-	///     The body radius an entity actually has: the number the simulation separates and paths around when the entity
-	///     carries one, which is what a replicated unit, building or prop always does. A preview node that has no entity
-	///     yet falls back to what its template declares, scaled by its placed model scale.
-	/// </summary>
 	public float ResolveEntityBodyRadius(Entity entity, string templateId)
 	{
 		if (GameContext.World != null && entity != Entity.Null && GameContext.World.IsAlive(entity) && GameContext.World.Has<CollisionRadius>(entity))
@@ -160,10 +149,6 @@ public partial class GameHost
 			return GameplayConstants.ResolveBodyRadius(GameContext.World, entity, GameplayConstants.DefaultCollisionRadius);
 		}
 
-		// A body that has not been told its size yet falls back to what its template authors. The model scale is not part
-		// of that number: it makes the mesh larger, and multiplying by it here drew a ring around a fire element that
-		// was the size of its template times three while the same building on another screen drew the template's own
-		// radius.
 		return ResolveTemplateCollisionRadius(templateId);
 	}
 
@@ -502,10 +487,6 @@ public partial class GameHost
 		float circleRatio = GetModelCollisionCircleRatio(unit);
 		unit.UpdateCollisionCircleScale(circleRatio);
 
-		// The body a unit occupies is a replicated component, so a screen in a match holds the one the authority stated
-		// and works nothing out for itself. Every replicated unit runs through here while its node is built, which is how
-		// this screen ended up carrying a radius the match did not have until its next baseline took it away again. The
-		// visual overrides below stay local either way: they describe how the model is drawn, not what the world holds.
 		if (GameContext.ServerSession == null)
 		{
 			float baseRadius = ResolveTemplateCollisionRadius(unit.UnitId);
@@ -1160,8 +1141,6 @@ public partial class GameHost
 
 	public Unit3D SpawnUnitExternal(string unitId, Vector3 position, float rotationY, float scale, int player = 0)
 	{
-		// Preserve the authored Y (saved maps, pasted/cloned/undone objects). Placement paths
-		// that want feet-on-terrain snap the Y to the terrain before calling this method.
 		int playerIndex = player >= 0 ? player : 0;
 		bool isBuilding = false;
 		if (!UnitRegistry.ContainsKey(unitId) && !BuildingRegistry.ContainsKey(unitId))
@@ -1457,10 +1436,6 @@ public partial class GameHost
 
 	private Node3D? _editorCoverageOverlayRoot { get; set; }
 
-	/// <summary>
-	///     When enabled, the editor draws vision/attack range rings around the selected unit.
-	///     Off by default so the overlay only appears on demand.
-	/// </summary>
 	public bool EditorCoverageOverlayEnabled { get; set; } = false;
 
 	private void ClearAllUnits()

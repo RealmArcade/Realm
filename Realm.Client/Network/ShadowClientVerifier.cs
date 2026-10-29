@@ -17,11 +17,6 @@ public static class ShadowClientVerifier
 	private static int _structuralFailures;
 	private static int _fingerprintFailures;
 
-	/// <summary>
-	/// Whether the host replays the stream it sends. Replaying decodes, deserializes and rebuilds a mirror for every
-	/// payload of every peer on the sending tick, so it is a verification cost and not a shipping one: the harness and
-	/// map-editor test mode turn it on explicitly, and a live match leaves it off.
-	/// </summary>
 	public static bool IsEnabled { get; set; }
 
 	public static int VerifiedBaselines => _verifiedBaselines;
@@ -38,12 +33,6 @@ public static class ShadowClientVerifier
 		_fingerprintFailures = 0;
 	}
 
-	/// <summary>
-	/// Replays every payload a peer is sent into a mirror, in the order the peer receives it, and compares fingerprints
-	/// on baselines. A baseline is no longer self-contained - it restates only what changed, because the peer keeps the
-	/// components it already acknowledged - so reconstruction has to accumulate the stream instead of restarting at each
-	/// baseline, which is also what the peer itself does.
-	/// </summary>
 	public static void VerifyPayload(int peerId, byte[] payload, bool isBaseline)
 	{
 		if (!IsEnabled) return;

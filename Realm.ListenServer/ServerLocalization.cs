@@ -3,15 +3,8 @@ using Realm.Shared.Network;
 
 namespace Realm.ListenServer;
 
-/// <summary>
-///     The text a map's script asks the authority for. A script builds the strings it shows a screen, so the words have
-///     to come from the authority in the language of the player who will read them: the base text of the game is read
-///     from the folder the authority is installed with, the map's own text from the map folder, and each player's
-///     language from the hello that player connected with.
-/// </summary>
 public class ServerLocalization
 {
-	/// <summary>The language a player who said nothing about one is answered in.</summary>
 	public const string DefaultLanguage = "en";
 
 	private readonly Dictionary<string, Dictionary<string, string>> _textByLanguage = new(StringComparer.OrdinalIgnoreCase);
@@ -23,7 +16,6 @@ public class ServerLocalization
 		LoadDirectory(paths.MapLocaleDirectory, log, "map text");
 	}
 
-	/// <summary>Records the language a player connected in, which every later answer for that player is written in.</summary>
 	public void SetPlayerLanguage(int playerSlot, string? language)
 	{
 		if (playerSlot < 0) return;
@@ -32,19 +24,13 @@ public class ServerLocalization
 		_languageByPlayerSlot[playerSlot] = normalized;
 	}
 
-	/// <summary>Forgets a player that left, so a slot that is seated again starts from the default language.</summary>
 	public void ForgetPlayer(int playerSlot) => _languageByPlayerSlot.Remove(playerSlot);
 
-	/// <summary>The language a player is answered in.</summary>
 	public string GetPlayerLanguage(int playerSlot)
 	{
 		return _languageByPlayerSlot.TryGetValue(playerSlot, out string? language) ? language : DefaultLanguage;
 	}
 
-	/// <summary>
-	///     What a key reads as in a player's language. A key the map never wrote a translation for reads as the key
-	///     itself, which is how a screen is shown that the text is missing rather than being shown the wrong words.
-	/// </summary>
 	public string Translate(string key, int playerSlot)
 	{
 		if (string.IsNullOrEmpty(key)) return string.Empty;
@@ -64,10 +50,6 @@ public class ServerLocalization
 		return entries.TryGetValue(key, out text!);
 	}
 
-	/// <summary>
-	///     Reads the flat key-to-text files one folder holds, one per language, by the name of the file. Text loaded later
-	///     wins, which is what lets a map's own words replace the game's words for the same key.
-	/// </summary>
 	private void LoadDirectory(string directory, ServerLog log, string what)
 	{
 		if (string.IsNullOrEmpty(directory) || !Directory.Exists(directory)) return;

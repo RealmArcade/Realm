@@ -248,7 +248,6 @@ public partial class EditorService
 
 	public EditorOperationResult RefreshPlacedObjectModels(string assetKey = "") => WithHost(host => host.RefreshAllPlacedObjectModels(string.IsNullOrEmpty(assetKey) ? null : assetKey));
 
-	/// <summary>Runs an operation against the open map, reporting that there is nothing to run it against otherwise.</summary>
 	private static EditorOperationResult WithHost(Action<GameHost> operation)
 	{
 		if (GameContext.Host == null) return EditorOperationResult.Failed("there is no map open in the editor");

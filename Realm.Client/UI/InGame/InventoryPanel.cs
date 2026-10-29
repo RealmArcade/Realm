@@ -26,11 +26,6 @@ public class InventoryPanel
 		public string ItemId;
 		public int Count;
 
-		/// <summary>
-		/// Whether the slot shows a consumable the unit carries rather than a stackable item. A carried consumable is
-		/// shown beside the items because it is something the unit holds, and it is shown read-only because there is no
-		/// order that uses one yet.
-		/// </summary>
 		public bool IsCarriedConsumable;
 	}
 
@@ -307,12 +302,6 @@ public class InventoryPanel
 		slot.CountLabel.Text = itemData.Count.ToString();
 	}
 
-	/// <summary>
-	///     Draws a consumable the unit is carrying as the card the player bought it from: the icon and the text are the
-	///     ones its ability was authored with, so the slot reads as the thing that was bought rather than as an
-	///     identifier. A consumable this screen has no card for still takes its slot, so a player can see that a unit is
-	///     carrying something the authority recorded even when the map's own card is missing here.
-	/// </summary>
 	private void RenderCarriedConsumable(ref SlotControls slot, string definitionId)
 	{
 		string name = definitionId.ToUpper();

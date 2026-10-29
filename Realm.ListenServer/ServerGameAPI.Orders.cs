@@ -33,16 +33,10 @@ public partial class ServerGameAPI
 	private Vector3 _radiusCenter;
 	private float _radiusSquared;
 
-	/// <summary>
-	///     The units a player owns, read from the authority's own world. The buffer belongs to this surface and is
-	///     refilled per call, so a script can walk a player's army without making the authority allocate.
-	/// </summary>
 	public ReadOnlySpan<UnitId> GetUnitsOwnedByPlayer(int playerIndex) => CollectWorldUnits(playerIndex);
 
-	/// <summary>Every unit in the match, in entity order.</summary>
 	public ReadOnlySpan<UnitId> GetAllUnits() => CollectWorldUnits(AnyPlayer);
 
-	/// <summary>The units within a radius of a place, which is how a script asks what an effect caught.</summary>
 	public ReadOnlySpan<UnitId> GetUnitsInRadius(Vector3 center, float radius)
 	{
 		ReadOnlySpan<UnitId> units = CollectWorldUnits(AnyPlayer);
@@ -62,10 +56,6 @@ public partial class ServerGameAPI
 		return new ReadOnlySpan<UnitId>(_ownedUnitsBuffer, 0, kept);
 	}
 
-	/// <summary>
-	///     Refills this surface's unit buffer from the world. A player index limits it to that player's units; the
-	///     authority's own "any player" value walks every unit in the match.
-	/// </summary>
 	private ReadOnlySpan<UnitId> CollectWorldUnits(int playerIndex)
 	{
 		_collectedCount = 0;
@@ -89,7 +79,6 @@ public partial class ServerGameAPI
 		return offset.LengthSquared() <= _radiusSquared;
 	}
 
-	/// <summary>Sends a unit to a place, which is the order a script gives most often.</summary>
 	public void IssueMoveOrder(UnitId unit, Vector3 destination)
 	{
 		Entity entity = ResolveUnit(unit);
@@ -98,7 +87,6 @@ public partial class ServerGameAPI
 		UnitOrderService.MoveTo(_context.World, entity, destination);
 	}
 
-	/// <summary>Sends a unit to a place while it fights whatever it meets on the way.</summary>
 	public void IssueAttackMoveOrder(UnitId unit, Vector3 destination)
 	{
 		Entity entity = ResolveUnit(unit);
@@ -107,7 +95,6 @@ public partial class ServerGameAPI
 		UnitOrderService.AttackMove(_context.World, entity, destination);
 	}
 
-	/// <summary>Sends everything a player owns across the map on the warpath.</summary>
 	public void IssueAttackMoveOrderToPlayer(int playerIndex, Vector3 destination)
 	{
 		ReadOnlySpan<UnitId> units = GetUnitsOwnedByPlayer(playerIndex);
@@ -121,7 +108,6 @@ public partial class ServerGameAPI
 		}
 	}
 
-	/// <summary>Points a unit's attack at another unit.</summary>
 	public void IssueAttackOrder(UnitId unit, UnitId target)
 	{
 		Entity entity = ResolveUnit(unit);
@@ -133,7 +119,6 @@ public partial class ServerGameAPI
 		UnitOrderService.Attack(_context.World, entity, targetEntity);
 	}
 
-	/// <summary>Sends a worker to a resource node, carrying the resource type the node harvests.</summary>
 	public void IssueGatherOrder(UnitId unit, ResourceNodeId resourceNode)
 	{
 		Entity entity = ResolveUnit(unit);
@@ -145,7 +130,6 @@ public partial class ServerGameAPI
 		UnitOrderService.Gather(_context.World, entity, node, ReadResourceNodeType(node));
 	}
 
-	/// <summary>Stops a unit where it stands.</summary>
 	public void IssueStopOrder(UnitId unit)
 	{
 		Entity entity = ResolveUnit(unit);
@@ -154,7 +138,6 @@ public partial class ServerGameAPI
 		UnitOrderService.Stop(_context.World, entity);
 	}
 
-	/// <summary>Stops a unit and tells it to hold its ground instead of chasing.</summary>
 	public void IssueHoldPositionOrder(UnitId unit)
 	{
 		Entity entity = ResolveUnit(unit);
@@ -163,7 +146,6 @@ public partial class ServerGameAPI
 		UnitOrderService.HoldPosition(_context.World, entity);
 	}
 
-	/// <summary>The route a script put a unit on, or zero when it is on none.</summary>
 	public int GetUnitRouteState(UnitId unit)
 	{
 		Entity entity = ResolveUnit(unit);
@@ -172,7 +154,6 @@ public partial class ServerGameAPI
 		return UnitOrderService.GetRouteState(_context.World, entity);
 	}
 
-	/// <summary>Puts a unit on a route a map script tracks itself.</summary>
 	public void SetUnitRouteState(UnitId unit, int state)
 	{
 		Entity entity = ResolveUnit(unit);
@@ -181,10 +162,6 @@ public partial class ServerGameAPI
 		UnitOrderService.SetRouteState(_context.World, entity, state);
 	}
 
-	/// <summary>
-	///     Puts a timed status on a unit. The status lands in the replicated tables the match advances, so every client
-	///     sees the same status running for the same time.
-	/// </summary>
 	public void AddBuff(UnitId unit, string buffId, float duration)
 	{
 		Entity entity = ResolveUnit(unit);
@@ -209,7 +186,6 @@ public partial class ServerGameAPI
 		return UnitOrderService.HasBuff(_context.World, entity, buffId);
 	}
 
-	/// <summary>Declares which stats a status changes while it lasts, which is what makes the status do anything.</summary>
 	public void RegisterBuffModifier(string buffId, string statName, bool isPercentage, float value)
 	{
 		if (string.IsNullOrEmpty(buffId) || string.IsNullOrWhiteSpace(statName)) return;
@@ -224,7 +200,6 @@ public partial class ServerGameAPI
 		modifiers.Add(new StatModifier(new StatId(statName), isPercentage ? ModifierType.Percentage : ModifierType.Flat, value));
 	}
 
-	/// <summary>Takes a unit out of action for a while and stops it where it stands.</summary>
 	public void StunUnit(UnitId unit, float duration)
 	{
 		Entity entity = ResolveUnit(unit);
@@ -234,7 +209,6 @@ public partial class ServerGameAPI
 		UnitOrderService.Stop(_context.World, entity);
 	}
 
-	/// <summary>Keeps a unit from casting for a while.</summary>
 	public void SilenceUnit(UnitId unit, float duration)
 	{
 		Entity entity = ResolveUnit(unit);
@@ -243,7 +217,6 @@ public partial class ServerGameAPI
 		UnitOrderService.ApplyBuff(_context.World, entity, "silence", duration);
 	}
 
-	/// <summary>The stat changes currently shaping a unit, as a script reads them back.</summary>
 	public IEnumerable<string> GetModifiers(UnitId unit)
 	{
 		Entity entity = ResolveUnit(unit);
@@ -261,7 +234,6 @@ public partial class ServerGameAPI
 		return described;
 	}
 
-	/// <summary>Changes one of a unit's stats for as long as the source that granted it keeps it.</summary>
 	public void AddStatModifier(UnitId unit, string statName, bool isPercentage, float value, string sourceId)
 	{
 		Entity entity = ResolveUnit(unit);
@@ -311,7 +283,6 @@ public partial class ServerGameAPI
 		return UnitOrderService.HasCustomData(_context.World, entity, key);
 	}
 
-	/// <summary>How long a unit must wait before an ability is ready again.</summary>
 	public float GetAbilityCooldown(UnitId unit, string abilityId)
 	{
 		Entity entity = ResolveUnit(unit);
@@ -320,7 +291,6 @@ public partial class ServerGameAPI
 		return UnitOrderService.GetAbilityCooldownRemaining(_context.World, entity, abilityId);
 	}
 
-	/// <summary>Puts an ability on cooldown for a unit.</summary>
 	public void SetAbilityCooldown(UnitId unit, string abilityId, float cooldown)
 	{
 		Entity entity = ResolveUnit(unit);
@@ -329,10 +299,6 @@ public partial class ServerGameAPI
 		UnitOrderService.SetAbilityCooldown(_context.World, entity, abilityId, cooldown);
 	}
 
-	/// <summary>
-	///     Turns one of a unit's abilities on or off as an automatic cast. The ability's own slot decides which bit of
-	///     the unit's auto-cast mask it owns, so the client's ability bar and the authority agree on what is armed.
-	/// </summary>
 	public void SetAbilityAutoCast(UnitId unit, string abilityId, bool active)
 	{
 		Entity entity = ResolveUnit(unit);
@@ -353,7 +319,6 @@ public partial class ServerGameAPI
 		if (active) _context.World.Add(entity, new AutoCastState(true, bit));
 	}
 
-	/// <summary>Names a unit, which is what its own tooltip and its selection panel show.</summary>
 	public void SetUnitName(UnitId unit, string value)
 	{
 		Entity entity = ResolveUnit(unit);
@@ -362,16 +327,10 @@ public partial class ServerGameAPI
 		_context.World.SetOrAdd(entity, new Name(value ?? string.Empty));
 	}
 
-	/// <summary>Stops a unit animating without stopping it taking orders.</summary>
 	public void SetUnitAnimationsFrozen(UnitId unit, bool value) => SetUnitFlag<AnimationsFrozen>(unit, value);
 
-	/// <summary>Hides the health and mana bars a unit floats over its head.</summary>
 	public void SetUnitHideHealthAndManaBars(UnitId unit, bool value) => SetUnitFlag<OverheadBarsHidden>(unit, value);
 
-	/// <summary>
-	///     Deals damage of a named type through the match's own resolver, so armor, penetration and the damage matrix
-	///     resolve the same way a weapon's damage does.
-	/// </summary>
 	public void DealTypedDamage(UnitId attacker, UnitId target, float damage, string damageType)
 	{
 		Entity targetEntity = ResolveUnit(target);
@@ -380,7 +339,6 @@ public partial class ServerGameAPI
 		_context.CombatDamageService.DealResolvedDamage(ResolveUnit(attacker), targetEntity, damage, damageType);
 	}
 
-	/// <summary>Puts a harvestable node in the world where the map asked for one.</summary>
 	public void SpawnResourceNode(string resourceType, Vector3 position, float amount)
 	{
 		if (string.IsNullOrEmpty(resourceType)) return;
@@ -394,14 +352,12 @@ public partial class ServerGameAPI
 		_log.Write($"spawned a '{resourceType}' node with {amount} in it");
 	}
 
-	/// <summary>The node at one position in the authority's own node order, which is the order a script enumerates.</summary>
 	public ResourceNodeId GetResourceNode(int index)
 	{
 		ReadOnlySpan<ResourceNodeId> nodes = GetResourceNodes();
 		return index >= 0 && index < nodes.Length ? nodes[index] : ResourceNodeId.Invalid;
 	}
 
-	/// <summary>Every harvestable node the authority still has, in entity order.</summary>
 	public ReadOnlySpan<ResourceNodeId> GetResourceNodes()
 	{
 		_collectedCount = 0;
@@ -451,7 +407,6 @@ public partial class ServerGameAPI
 		return _context.World.Get<ResourceNode>(entity).Amount <= 0f;
 	}
 
-	/// <summary>The entity a script's node handle names, or nothing when that node is gone.</summary>
 	private Entity ResolveResourceNode(ResourceNodeId node)
 	{
 		if (!node.IsValid) return Entity.Null;
@@ -461,10 +416,6 @@ public partial class ServerGameAPI
 		return _context.World.Has<ResourceNode>(entity) ? entity : Entity.Null;
 	}
 
-	/// <summary>
-	///     What a node harvests. A map declares it per node definition; a node the map declares nothing for harvests
-	///     under its own name, which is what a script that spawns one by type means.
-	/// </summary>
 	private string ReadResourceNodeType(Entity node)
 	{
 		string propId = _context.World.TryGet<PropIdentity>(node, out PropIdentity identity) ? identity.PropId : string.Empty;
@@ -474,7 +425,6 @@ public partial class ServerGameAPI
 		return string.IsNullOrEmpty(declared) ? propId : declared;
 	}
 
-	/// <summary>Which slot of a unit's ability list an ability occupies, which is the bit its auto-cast uses.</summary>
 	private int FindAbilitySlot(Entity entity, string abilityId)
 	{
 		if (string.IsNullOrEmpty(abilityId)) return -1;

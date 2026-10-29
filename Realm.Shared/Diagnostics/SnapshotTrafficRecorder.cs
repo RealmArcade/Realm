@@ -6,7 +6,6 @@ using System.Text;
 
 namespace Realm.Shared.Diagnostics;
 
-/// <summary>Why a peer was sent a baseline rather than a delta.</summary>
 public enum SnapshotBaselineReason
 {
 	None,
@@ -15,16 +14,6 @@ public enum SnapshotBaselineReason
 	Safety
 }
 
-/// <summary>
-///     What the authority actually put on the wire: one frame per peer per tick, how big it was before and after framing,
-///     and how long framing took. The frames are built in the authority's own process, so this is the only place that
-///     number exists; a run that measures what a screen receives is measuring a different leg of the same journey.
-/// </summary>
-/// <remarks>
-///     Every method is called from the thread the match publishes on, which is why the bookkeeping is a plain dictionary
-///     rather than a concurrent one: a peer's frame is measured on whichever worker described it, and the measurement is
-///     handed back to the publishing thread with the frame itself.
-/// </remarks>
 public class SnapshotTrafficRecorder
 {
 	private readonly Dictionary<int, PeerTraffic> _peers = new();
@@ -43,7 +32,6 @@ public class SnapshotTrafficRecorder
 	private int _slowestSequence = -1;
 	private int _slowestSequenceBaselineCount;
 
-	/// <summary>Opens the accounting for one published sequence.</summary>
 	public void BeginSequence(int sequence)
 	{
 		_sequence = sequence;
@@ -51,10 +39,6 @@ public class SnapshotTrafficRecorder
 		if (sequence > _lastSequence) _lastSequence = sequence;
 	}
 
-	/// <summary>
-	///     Records one peer's frame: the snapshot as it was serialized, the frame that was actually sent, and how long the
-	///     serialization and framing took. Called once per peer per sequence, on the publishing thread.
-	/// </summary>
 	public void RecordFrame(
 		int peerId,
 		int sequence,
@@ -118,8 +102,6 @@ public class SnapshotTrafficRecorder
 
 		sequences.Add(sequence);
 
-		// Framing happens on the publishing thread once per peer that is due a baseline, so what the host pays is the
-		// total at a sequence rather than the cost of any one frame.
 		_framingBySequence.TryGetValue(sequence, out double sequenceMilliseconds);
 		double sequenceTotal = sequenceMilliseconds + framingMilliseconds;
 		_framingBySequence[sequence] = sequenceTotal;
@@ -147,10 +129,6 @@ public class SnapshotTrafficRecorder
 		_lastPhysicsFrame = physicsFrame;
 	}
 
-	/// <summary>
-	///     Writes what the authority sent into a folder: the per-peer frame sizes and framing cost as text and as JSON for
-	///     a harness to read, and the sequences each peer was sent in the form the sync verifier attributes coverage with.
-	/// </summary>
 	public void WriteReport(string folder, double elapsedGameSeconds, int configuredPhysicsRateHz)
 	{
 		Directory.CreateDirectory(folder);
@@ -260,8 +238,6 @@ public class SnapshotTrafficRecorder
 		WriteAtomically(Path.Combine(folder, "bandwidth_report.txt"), text.ToString());
 		WriteAtomically(Path.Combine(folder, "bandwidth_report.json"), json.ToString());
 
-		// The verifier reads coverage as "peerId sequence" so a sequence the host never sent to a peer is told apart from
-		// one it sent and the transport dropped; a match that recorded nothing leaves the file stating that.
 		StringBuilder coverage = new();
 		foreach (KeyValuePair<int, List<int>> entry in _sentSequencesByPeer)
 		{
@@ -271,11 +247,6 @@ public class SnapshotTrafficRecorder
 		WriteAtomically(Path.Combine(folder, "host_sent_sequences.txt"), coverage.ToString());
 	}
 
-	/// <summary>
-	///     Writes one report through a temporary file, so a reader never sees half of one. The run that reads these ends
-	///     the authority by killing it, which can land in the middle of a write: a truncated coverage file reads as a host
-	///     that stopped describing a peer, which is the one thing this file exists to rule out.
-	/// </summary>
 	private static void WriteAtomically(string path, string contents)
 	{
 		string temporaryPath = path + ".tmp";

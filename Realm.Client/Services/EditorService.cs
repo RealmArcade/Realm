@@ -1638,7 +1638,7 @@ public partial class EditorService : IEditorAPI
 	{
 		if (ctx.ActiveTool == EditorTool.PaintTexture)
 		{
-			ProcessBlockPaint(ref terrain, ref ctx, -1, -1); // Let ProcessBlockPaint handle its own bounds
+			ProcessBlockPaint(ref terrain, ref ctx, -1, -1);
 			return;
 		}
 
@@ -6516,7 +6516,7 @@ public class {mapName} : IMapScript
 	{
 		try
 		{
-			if (!Directory.Exists(workspace)) return true; // Nothing to compile
+			if (!Directory.Exists(workspace)) return true;
 
 			Realm.Client.Services.MapWorkspaceService.EnsureWitFile(workspace);
 			Realm.Client.Services.MapWorkspaceService.EnsureWasmEntryPoint(workspace);

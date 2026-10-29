@@ -72,7 +72,7 @@ public static class HardLinkHelper
 			return true;
 		}
 
-		if (!overwrite && Marshal.GetLastWin32Error() == 183) // ERROR_ALREADY_EXISTS
+		if (!overwrite && Marshal.GetLastWin32Error() == 183)
 		{
 			return true;
 		}

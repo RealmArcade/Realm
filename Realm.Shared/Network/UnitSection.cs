@@ -8,20 +8,6 @@ using Realm.Ecs;
 
 namespace Realm.Shared.Network;
 
-/// <summary>
-///     The units one description carries, held field by field rather than unit by unit: every entity id, then every
-///     owner, then each position axis, then the scalars, then the flags, and finally the definition each unit names. A
-///     record per unit interleaves eleven different kinds of value, so an encoder looking for redundancy sees the same
-///     owner and the same definition scattered through the frame at a stride of one record; grouped into columns, each
-///     column is a run of values of one kind that repeats within itself. The same units of a three hundred unit room
-///     measured 10.6 percent smaller on the wire and 14 percent less encoder time than the records they replaced.
-///     Values are quantized on the way in (<see cref="UnitQuantization" />): a position to a sixty-fourth of a metre, a
-///     facing to a sixty-fifthousandth of a turn, a hit point to a sixty-fourth of a point. An integer column carries the
-///     trailing zero bytes an encoder drops, where a float carries mantissa noise it cannot, and no screen resolves
-///     finer than the step.
-///     It reads like the list it replaces — a count, an indexer and an enumerator — so a peer applies a description the
-///     same way it did, and a reader can only ever see the columns it was given.
-/// </summary>
 public sealed class UnitSection : IReadOnlyList<UnitSnapshot>
 {
 	private const int InitialCapacity = 16;
@@ -43,12 +29,10 @@ public sealed class UnitSection : IReadOnlyList<UnitSnapshot>
 
 	private int _count;
 
-	/// <summary>An empty section, which allocates nothing until the first unit is added to it.</summary>
 	public UnitSection()
 	{
 	}
 
-	/// <summary>A section with room for <paramref name="capacity" /> units before its columns have to grow.</summary>
 	public UnitSection(int capacity)
 	{
 		if (capacity > 0) Grow(capacity);
@@ -56,7 +40,6 @@ public sealed class UnitSection : IReadOnlyList<UnitSnapshot>
 
 	public int Count => _count;
 
-	/// <summary>How many units the columns have room for, which is at least <see cref="Count" />.</summary>
 	public int Capacity => _entityIds.Length;
 
 	public UnitSnapshot this[int index]
@@ -85,7 +68,6 @@ public sealed class UnitSection : IReadOnlyList<UnitSnapshot>
 		}
 	}
 
-	/// <summary>Adds one described unit, quantizing it into the columns as it goes.</summary>
 	public void Add(in UnitSnapshot unit)
 	{
 		if (_count == _entityIds.Length) Grow(_count + 1);
@@ -105,7 +87,6 @@ public sealed class UnitSection : IReadOnlyList<UnitSnapshot>
 		_count = index + 1;
 	}
 
-	/// <summary>Empties the section without giving up the room its columns already have, for a description rebuilt each tick.</summary>
 	public void Clear() => _count = 0;
 
 	private void Grow(int requiredCapacity)
@@ -130,10 +111,6 @@ public sealed class UnitSection : IReadOnlyList<UnitSnapshot>
 
 	IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
-	/// <summary>
-	///     Walks the columns in step, which is how a reader sees one unit at a time from a layout that stored one field
-	///     at a time.
-	/// </summary>
 	public struct Enumerator : IEnumerator<UnitSnapshot>
 	{
 		private readonly UnitSection _section;
@@ -158,11 +135,6 @@ public sealed class UnitSection : IReadOnlyList<UnitSnapshot>
 		}
 	}
 
-	/// <summary>
-	///     Writes the columns in the order they are held and reads them back into a section of the same shape, so the
-	///     bytes a peer receives are the layout the encoder was measured on. Only the units the section holds travel: the
-	///     columns keep room for the ones that will be added next, and that spare room is not the peer's business.
-	/// </summary>
 	public sealed class WireFormatter : MemoryPackFormatter<UnitSection>
 	{
 		public override void Serialize<TBufferWriter>(ref MemoryPackWriter<TBufferWriter> writer, scoped ref UnitSection? value)
@@ -198,8 +170,6 @@ public sealed class UnitSection : IReadOnlyList<UnitSnapshot>
 				return;
 			}
 
-			// A description cannot name more units than the world has entities, so a length above that is a corrupt
-			// frame rather than a reason to reserve a column of that size.
 			if (declared > EcsWorld.MAX_ENTITIES) throw new InvalidDataException($"A unit section declares {declared} units, more than a world holds.");
 
 			int count = declared;
@@ -226,11 +196,6 @@ public sealed class UnitSection : IReadOnlyList<UnitSnapshot>
 		}
 	}
 
-	/// <summary>
-	///     A frame states how many units it describes before it states the columns, so every column has to hold exactly
-	///     that many. A column that does not is a defect in the frame rather than something to pad or truncate: a record
-	///     invented here would place a unit the authority never described.
-	/// </summary>
 	private void ValidateColumnLengths(int count)
 	{
 		if (_entityIds.Length != count) throw new InvalidDataException($"A unit section describes {count} units but carries {_entityIds.Length} entity ids.");
@@ -246,22 +211,11 @@ public sealed class UnitSection : IReadOnlyList<UnitSnapshot>
 	}
 }
 
-/// <summary>
-///     Tells MemoryPack that a <see cref="UnitSection" /> is written by <see cref="UnitSection.WireFormatter" /> rather than
-///     a record at a time. It is applied where a description is serialized, which is the one place that decides a frame's
-///     layout.
-/// </summary>
 public sealed class UnitSectionFormatterAttribute : MemoryPackCustomFormatterAttribute<UnitSection>
 {
 	public override IMemoryPackFormatter<UnitSection> GetFormatter() => new UnitSection.WireFormatter();
 }
 
-/// <summary>
-///     Makes the section's formatter known to MemoryPack for the whole process. The attribute above is read where a
-///     serializer is generated for a description, but a section serialized on its own — which is how a test or a
-///     measurement reads one — resolves its formatter through the provider, and a provider is filled in once rather
-///     than looked at on every frame.
-/// </summary>
 public static class UnitSectionFormatterRegistration
 {
 	[ModuleInitializer]

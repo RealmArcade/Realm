@@ -43,7 +43,7 @@ public partial class UIManager : Control
 	private AnimationPlayer _fadeAnim;
 	private Label _watermark;
 	private GameScreen _targetScreen;
-	private bool _isVictory = true; // State passed to Game Over screen
+	private bool _isVictory = true;
 	private bool _transitionInProgress = false;
 	private GameScreen? _queuedScreen;
 	private bool _queuedIsVictory;
@@ -280,9 +280,9 @@ public partial class UIManager : Control
 	{
 		_fadeOverlay = new ColorRect();
 		_fadeOverlay.Name = "FadeOverlay_ColorRect";
-		_fadeOverlay.Color = new Color(0, 0, 0, 1); // Black
+		_fadeOverlay.Color = new Color(0, 0, 0, 1);
 		_fadeOverlay.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		_fadeOverlay.MouseFilter = MouseFilterEnum.Ignore; // Let clicks pass when transparent
+		_fadeOverlay.MouseFilter = MouseFilterEnum.Ignore;
 		AddChild(_fadeOverlay);
 
 		_fadeAnim = new AnimationPlayer();
@@ -309,7 +309,7 @@ public partial class UIManager : Control
 		library.AddAnimation("fade_out", animFadeOut);
 
 		_fadeAnim.AddAnimationLibrary("", library);
-		_fadeOverlay.Color = new Color(0, 0, 0, 0); // Start clear
+		_fadeOverlay.Color = new Color(0, 0, 0, 0);
 	}
 
 	public void TransitionTo(GameScreen screen, bool isVictory = true)
@@ -627,7 +627,7 @@ public partial class UIManager : Control
 		MoveChild(settingsPopup, GetChildCount() - 1);
 		if (_fadeOverlay != null)
 		{
-			MoveChild(_fadeOverlay, GetChildCount() - 1); // Keep fade overlay at the very top
+			MoveChild(_fadeOverlay, GetChildCount() - 1);
 		}
 	}
 

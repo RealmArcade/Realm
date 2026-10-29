@@ -62,12 +62,10 @@ public partial class VSCodeManager
 		"muhammad-sammy.csharp",
 		"OHZIInteractiveStudio.ohzi-vscode-glb-viewer",
 		"Gruntfuggly.todo-tree",
-		// "mechatroner.rainbow-json",
 		"patcx.vscode-nuget-gallery",
 		"AykutSarac.jsoncrack-vscode",
 		"vadimcn.vscode-lldb",
 		"haoyangzeng.opencui"
-		// "akondratiuk1-dev.texture-viewer",
 	};
 
 	public bool IsInstalling
@@ -382,12 +380,7 @@ public partial class VSCodeManager
 				try
 				{
 					ZeroMemory(extendedInfoPtr, length);
-					Marshal.WriteInt32(extendedInfoPtr, 4, (int)JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE); // BasicLimitInformation.LimitFlags at offset 4 (after 4-byte PerProcessUserTimeLimit/PerJobUserTimeLimit or 8-byte alignment)
-					// Structure layout:
-					// JOBOBJECT_BASIC_LIMIT_INFORMATION (48 bytes):
-					//   LONGLONG PerProcessUserTimeLimit (8)
-					//   LONGLONG PerJobUserTimeLimit (8)
-					//   DWORD LimitFlags (4) -> offset 16
+					Marshal.WriteInt32(extendedInfoPtr, 4, (int)JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE);
 					Marshal.WriteInt32(extendedInfoPtr, 16, (int)JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE);
 					SetInformationJobObject(_jobHandle, JOBOBJECT_EXTENDED_LIMIT_INFORMATION, extendedInfoPtr, (uint)length);
 				}

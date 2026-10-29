@@ -88,8 +88,8 @@ public partial class TimelineGraph : Control
 
 
 		Color axisColor = new Color(0.7f, 0.7f, 0.7f, 0.8f);
-		DrawLine(graphOrigin, new Vector2(graphOrigin.X + graphSize.X, graphOrigin.Y), axisColor, 3.0f); // X axis
-		DrawLine(graphOrigin, new Vector2(graphOrigin.X, graphOrigin.Y - graphSize.Y), axisColor, 3.0f); // Y axis
+		DrawLine(graphOrigin, new Vector2(graphOrigin.X + graphSize.X, graphOrigin.Y), axisColor, 3.0f);
+		DrawLine(graphOrigin, new Vector2(graphOrigin.X, graphOrigin.Y - graphSize.Y), axisColor, 3.0f);
 
 
 		List<Vector2> p1Points = GetActiveData(true);
@@ -97,8 +97,8 @@ public partial class TimelineGraph : Control
 
 		float maxY = GetMaxY();
 
-		DrawPlotLine(p1Points, graphOrigin, graphSize, maxY, new Color(0.2f, 0.8f, 0.3f), new Color(0.1f, 0.6f, 0.2f, 0.3f)); // P1: Green
-		DrawPlotLine(p2Points, graphOrigin, graphSize, maxY, new Color(0.9f, 0.9f, 0.9f), new Color(0.6f, 0.6f, 0.6f, 0.2f)); // P2: White
+		DrawPlotLine(p1Points, graphOrigin, graphSize, maxY, new Color(0.2f, 0.8f, 0.3f), new Color(0.1f, 0.6f, 0.2f, 0.3f));
+		DrawPlotLine(p2Points, graphOrigin, graphSize, maxY, new Color(0.9f, 0.9f, 0.9f), new Color(0.6f, 0.6f, 0.6f, 0.2f));
 	}
 
 	private void DrawPlotLine(List<Vector2> data, Vector2 origin, Vector2 size, float maxY, Color lineColor, Color fillGradient)
@@ -164,9 +164,9 @@ public partial class TimelineGraph : Control
 
 	private float GetMaxY()
 	{
-		if (_activeTab == 0) return 30f; // Army value 0..30
-		if (_activeTab == 1) return 3000f; // Gold 0..3000
-		return 50f; // Units 0..50
+		if (_activeTab == 0) return 30f;
+		if (_activeTab == 1) return 3000f;
+		return 50f;
 	}
 
 	private string GetYLabel(float ratio)

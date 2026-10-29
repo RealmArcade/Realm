@@ -345,7 +345,7 @@ public static class AnimationRetargetingService
 	{
 		int targetBoneIndex = -1;
 		targetBoneName = string.Empty;
-		canonicalBone = HumanoidBone.Hips; // Default, might not be used if not matched
+		canonicalBone = HumanoidBone.Hips;
 
 		if (HumanoidBoneMapper.TryMapToCanonical(track.BoneName, out canonicalBone))
 		{

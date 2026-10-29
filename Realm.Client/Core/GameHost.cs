@@ -91,9 +91,6 @@ public partial class GameHost : Node3D
 			return;
 		}
 
-		// The authority seated this connection on a player slot, and that seat is what this client plays as whatever the
-		// lobby or the map happen to look like here. The seat can arrive after this scene does, so until it does the
-		// screen stays with the first player and is moved to the seat the moment the authority answers.
 		ClientServerSession? session = GameContext.ServerSession;
 		if (session != null)
 		{
@@ -532,7 +529,7 @@ public partial class GameHost : Node3D
 		}
 	}
 
-	public string ActivePlaceId { get; set; } = ""; // "soldier", "tree", etc.
+	public string ActivePlaceId { get; set; } = "";
 
 	public string GetTerrainStatusString(Vector3 hitPos)
 	{
@@ -1053,10 +1050,6 @@ public partial class GameHost : Node3D
 	public event Action<UnitId>? OnUnitSelected;
 	public event Action<UnitId, UnitId>? OnUnitAttacked;
 
-	/// <summary>
-	/// Fires after a consumable is bound to a unit or purged from one. The id is the consumable that
-	/// was attached, or empty when the slot was cleared.
-	/// </summary>
 	public event Action<UnitId, string>? OnConsumableChanged;
 
 	public void RaiseConsumableChanged(UnitId unit, string consumableId)
@@ -1079,11 +1072,6 @@ public partial class GameHost : Node3D
 		return true;
 	}
 
-	/// <summary>
-	///     Hands the authority a line typed into the map script's console, with the unit that was selected when it was
-	///     typed. A map's console commands are read by the map, and the map runs on the authority, so nothing is
-	///     interpreted on this screen.
-	/// </summary>
 	public void TriggerPlayerChatMessage(string message)
 	{
 		if (string.IsNullOrWhiteSpace(message)) return;
@@ -1684,8 +1672,6 @@ public partial class GameHost : Node3D
 
 		var metadata = (GameContext.MetadataService ?? GameContext.MetadataService).LoadMetadata(path);
 
-		// Map tuning is applied before anything is spawned so the first stat calculation already
-		// sees the map's numbers rather than the engine defaults.
 		var combatTuningWarnings = new List<string>(4);
 		MapCombatTuning.Apply(GameContext.Simulation, metadata, combatTuningWarnings);
 		for (int index = 0; index < combatTuningWarnings.Count; index++)
@@ -1910,11 +1896,6 @@ public partial class GameHost : Node3D
 		MatchLoadTrace.Mark("session_join");
 	}
 
-	/// <summary>
-	///     Joins the match this screen was told to play, after the scene was built while the lobby was still counting down.
-	///     The authority seats the connection when the match starts, so the screen that is already on screen receives the
-	///     roster and every description from then on instead of building a second scene to do it.
-	/// </summary>
 	public void AttachMatchSession()
 	{
 		if (_joinedSession != null) return;
@@ -1922,35 +1903,20 @@ public partial class GameHost : Node3D
 		MatchLoadTrace.Mark("session_attached");
 	}
 
-	/// <summary>The first frame after the scene exists, which is the point the build stops being a blank screen.</summary>
 	private bool _firstFrameTraced;
 
-	/// <summary>Whether this screen has already recorded the tick at which its match became live.</summary>
 	private bool _simulationStartTraced;
 
-	/// <summary>How many stages <see cref="InitializeGameEcs" /> is made of.</summary>
 	private const int WorldBuildStageCount = 7;
 
-	/// <summary>The stage a world build is on, so the lobby can run one per frame instead of all in one.</summary>
 	private int _worldBuildStage;
 
-	/// <summary>
-	///     Whether this screen is building its match world before the match exists, behind the lobby. Nothing ticks and
-	///     nothing is drawn while this holds; the build is finished by the time the authority starts the match.
-	/// </summary>
 	public bool IsBuildingMatchWorld { get; private set; }
 
-	/// <summary>Whether a world built behind a lobby is waiting for the match that will play it.</summary>
 	public bool HasPreparedMatchWorld { get; private set; }
 
-	/// <summary>Whether the stages of a world build are what is running, which reads the map in stage 4 rather than at the ground.</summary>
 	private bool _worldBuildRunning;
 
-	/// <summary>
-	///     Builds the world this screen is about to play, from the map files it already holds, without a seat and without
-	///     the map's script. It is the same build a match scene does on load, split into stages so the lobby keeps
-	///     answering between them.
-	/// </summary>
 	public void BeginMatchWorldPreparation(string mapName)
 	{
 		if (IsBuildingMatchWorld) return;
@@ -1966,10 +1932,6 @@ public partial class GameHost : Node3D
 		ResetScreenScopeForWorldRebuild();
 	}
 
-	/// <summary>
-	///     Runs one stage of a preparation started by <see cref="BeginMatchWorldPreparation" />.
-	/// </summary>
-	/// <returns>True once the whole world is built.</returns>
 	public bool AdvanceMatchWorldPreparation()
 	{
 		if (!IsBuildingMatchWorld) return false;
@@ -1988,10 +1950,6 @@ public partial class GameHost : Node3D
 		return true;
 	}
 
-	/// <summary>
-	///     Shows the world a lobby prepared, because the authority has started the match on it. The first frames are drawn
-	///     from here, so it happens as soon as the countdown starts rather than when it ends.
-	/// </summary>
 	public void ShowPreparedMatchWorld()
 	{
 		_matchWorldVisible = true;
@@ -1999,13 +1957,8 @@ public partial class GameHost : Node3D
 		MatchLoadTrace.Mark("world_shown");
 	}
 
-	/// <summary>Whether the match world is on screen, which is the point the first frame can be measured from.</summary>
 	private bool _matchWorldVisible;
 
-	/// <summary>
-	///     Throws away a world that was built for a match which will not be played, so a lobby that was left, cancelled or
-	///     disconnected leaves no world behind for the next one.
-	/// </summary>
 	public void DiscardPreparedMatchWorld()
 	{
 		bool hadWorld = IsBuildingMatchWorld || HasPreparedMatchWorld;
@@ -2020,7 +1973,6 @@ public partial class GameHost : Node3D
 		MatchLoadTrace.WriteSummary("world_discarded");
 	}
 
-	/// <summary>Starts recording the match that just began, which is the tick zero the world was prepared for.</summary>
 	public void StartMatchRecording() => StartReplayRecordingIfNeeded(GameContext.Lobby?.ActiveMapName ?? "");
 
 	private void FinishMatchWorldPreparation()
@@ -2031,11 +1983,6 @@ public partial class GameHost : Node3D
 		MatchLoadTrace.WriteSummary("lobby_prebuild");
 	}
 
-	/// <summary>
-	///     Takes the prepared world out of the frame while the lobby is still what the player is looking at. Shader
-	///     compilation, geometry upload and material setup happen on the first draw under the real camera, so the first
-	///     draw is deliberately left for the countdown rather than spent behind a lobby nobody can see through.
-	/// </summary>
 	private void HideWorldUntilMatchStarts()
 	{
 		if (MainCamera != null && GodotObject.IsInstanceValid(MainCamera)) MainCamera.Current = false;
@@ -2054,10 +2001,6 @@ public partial class GameHost : Node3D
 		}
 	}
 
-	/// <summary>
-	///     One stage of the world build. The stages are ordered exactly as the single-pass build used to run them, and
-	///     splitting them only decides where a frame boundary may fall.
-	/// </summary>
 	private void RunWorldBuildStage(int stage)
 	{
 		switch (stage)
@@ -2395,9 +2338,6 @@ public partial class GameHost : Node3D
 			return;
 		}
 
-		// A peer does not run the map script, so the props and pre-placed buildings it needs as obstacle volumes arrive as
-		// spawn requests after this point. Baking here produced a mesh with no obstacles at all, which is why a locally
-		// planned route could pick a corridor the authority treats as blocked.
 		RequestNavMeshRefresh();
 	}
 
@@ -2416,8 +2356,6 @@ public partial class GameHost : Node3D
 	{
 		if (GameContext.SaveLoadService.IsLoadingMap) return false;
 
-		// The script creates the starting units from the roster, so it runs on the authority and never on a peer. A world
-		// the lobby prepares is built before that roster exists, which is why preparing is not the same as playing.
 		bool isGameStarted = GameContext.Lobby?.IsGameStarted ?? false;
 		return (!isGameStarted && !IsBuildingMatchWorld) || GameContext.SessionState.IsMapEditorMode;
 	}
@@ -2539,10 +2477,6 @@ public partial class GameHost : Node3D
 		ReinitializeEcsAndServices();
 	}
 
-	/// <summary>
-	///     Frees every node the previous world put in the tree and forgets the maps that pointed at them, leaving the
-	///     screen-scope services and the world itself for the rebuild that follows.
-	/// </summary>
 	private void ClearWorldNodesForRebuild()
 	{
 		GameContext.ReplayPlayback.StopReplay();
@@ -2593,11 +2527,6 @@ public partial class GameHost : Node3D
 		InitializeGameEcs();
 	}
 
-	/// <summary>
-	///     Drops everything the previous world held and gives this screen a fresh set of screen-scope services, so the
-	///     build that follows starts from nothing. It is separate from the build itself because a world the lobby prepares
-	///     is reset on one frame and built over the next few.
-	/// </summary>
 	private void ResetScreenScopeForWorldRebuild()
 	{
 		EntityToUnit3D.Clear();
@@ -2625,10 +2554,6 @@ public partial class GameHost : Node3D
 			GameContext.PerformanceTrackingService.IsFunctionProfilingEnabled = true;
 		}
 
-		// Do not trigger lazy GroundTerrain creation here: InitializeGameEcs()
-		// builds the ground exactly once (CreateGround at Realm.Client.Core.cs:2751).
-		// Triggering the getter here previously built the whole 128x128 mesh/water/navmesh
-		// a second time on every _Ready, stalling the main thread at startup.
 		if (_groundTerrain != null)
 		{
 			GameContext.EditorService.SetTerrainSplatMap(_groundTerrain.SplatMap, _groundTerrain.CliffSplatMap);
@@ -2646,16 +2571,12 @@ public partial class GameHost : Node3D
 
 		StopRecording();
 
-		// Only the screen that joined this match may end it. The map editor's screen leaves as the playtest's screen
-		// arrives, and the session under it was started for the playtest, so ending it here would leave the playtest
-		// playing a world nothing runs. A screen that only built a scene under a lobby's countdown never joined one.
 		if (_joinedSession != null && ReferenceEquals(GameContext.ServerSession, _joinedSession))
 		{
 			GameContext.ServerSession?.Stop();
 			GameContext.DetachServerSession();
 		}
 
-		// A removal held for a clock this screen no longer has would free a node of whatever match comes next.
 		_pendingUnitViewRemovals.Clear();
 
 		GameContext.Dispose();
@@ -2791,8 +2712,6 @@ public partial class GameHost : Node3D
 
 		if (!File.Exists(targetPath)) return;
 
-		// A world the lobby prepares, and a world a build is making, read the map in the map stages instead, so its ground
-		// is created here and filled there.
 		if (IsBuildingMatchWorld || _worldBuildRunning) return;
 
 		LoadMapFromFile(terrainPath, true, false);
@@ -3045,15 +2964,9 @@ public partial class GameHost : Node3D
 
 		GameContext.World.SetOrAdd(entity, new BuildingSpawnOffset(new System.Numerics.Vector3(0f, 0f, 8f)));
 
-		// A screen in a match holds the components the authority stated and nothing else. The authority describes a
-		// building's body along with the rest of it, so working out a radius here made this screen hold a component the
-		// match did not have until the next baseline took it away again. Only a screen playing no match supplies its own.
 		if (GameContext.ServerSession != null) return;
 		if (GameContext.World.Has<CollisionRadius>(entity)) return;
 
-		// The radius comes from the template the authority builds the same building from, so the ground this building
-		// blocks is the ground the authority pathing treats as blocked, and is scaled by its collision scale where it is
-		// used. A template the map does not register at all still gets the shared default body.
 		float baseRadius = meta != null
 			? UnitEntityFactory.ResolveCollisionRadius(meta)
 			: GameplayConstants.DefaultBuildingCollisionRadius;
@@ -3271,9 +3184,6 @@ public partial class GameHost : Node3D
 		{
 			if (!ShouldProcessPhysicsTick()) return;
 
-			// A description only names units; building their nodes is this screen's work, and it is given a share of each tick
-			// rather than all of it in the tick the description arrived on. Units left over from the last tick are built
-			// first, so a burst finishes even when no new description follows it.
 			_replicatedUnitSpawnBudgetRemainingMilliseconds = ReplicatedUnitSpawnBudgetMilliseconds;
 			if (GameContext.NetworkService is { HasPendingUnitSpawns: true }) FlushReplicatedSnapshotEvents();
 
@@ -3303,8 +3213,6 @@ public partial class GameHost : Node3D
 
 	private bool ShouldProcessPhysicsTick()
 	{
-		// A match world that is only prepared for a lobby is a picture, not a world yet: the match begins at tick zero,
-		// which is the tick the authority seats this connection on.
 		if (IsBuildingMatchWorld) return false;
 		return GameContext.Lobby?.IsGameStarted == true || GameContext.SessionState.IsMapEditorMode;
 	}
@@ -3342,15 +3250,8 @@ public partial class GameHost : Node3D
 	{
 		if (GroundTerrain == null) return;
 
-		// Every bake uses the volumes the match baked with, so a bake that runs after the authority's set arrived and one
-		// that ran before it both describe the same corridors.
 		ApplyStoredObstacleVolumes();
 
-		// A screen that joined a match paths through the mesh the authority built, and the volumes that mesh was built
-		// from are on their way from the process that decided them. Baking before they arrive builds a mesh with none of
-		// the map's blockers - a screen runs no map script, so it has none of its own - and every corridor it answers
-		// from that mesh is one the authority does not have. The wait is bounded: a match whose authority has no mesh to
-		// report never sends one, and the screen cannot stay meshless for it.
 		if (_awaitingAuthoritativeObstacleVolumes && Time.GetTicksMsec() < _authoritativeObstacleDeadlineMsec)
 		{
 			RequestNavMeshRefresh();
@@ -3364,36 +3265,19 @@ public partial class GameHost : Node3D
 	private bool _navMeshRefreshPending;
 	private ulong _navMeshRefreshDeadlineMsec;
 
-	/// <summary>
-	///     How long a screen waits for the obstacle volumes its match was baked with before it bakes without them. The set
-	///     follows the match's first bake, and a screen can be seated before that bake has run - a match this machine
-	///     hosts loads its map while its own screen is already waiting - so the wait covers a slow map load rather than
-	///     only a set that is already on its way. It runs out for a match that never bakes a mesh to report at all.
-	/// </summary>
 	private const ulong AuthoritativeObstacleWaitMsec = 10000;
 
 	private bool _awaitingAuthoritativeObstacleVolumes;
 	private ulong _authoritativeObstacleDeadlineMsec;
 
-	/// <summary>
-	///     States that this screen's mesh is not its own: a joined match bakes from the volumes its authority reports, so a
-	///     bake is held until they arrive rather than built from the props this screen happens to hold.
-	/// </summary>
 	public void AwaitAuthoritativeObstacleVolumes()
 	{
 		_awaitingAuthoritativeObstacleVolumes = true;
 		_authoritativeObstacleDeadlineMsec = Time.GetTicksMsec() + AuthoritativeObstacleWaitMsec;
 	}
 
-	/// <summary>States that the volumes this match was baked with have arrived, so a bake may be made from them.</summary>
 	public void StopAwaitingAuthoritativeObstacleVolumes() => _awaitingAuthoritativeObstacleVolumes = false;
 
-	/// <summary>
-	/// Asks for a navigation mesh bake once the world has stopped changing. A bake is expensive and a map load spawns
-	/// hundreds of props through independent requests, so the refresh waits for the last one instead of baking per prop.
-	/// The wait is measured on the clock rather than in frame deltas: a machine running several peers advances a frame by
-	/// more than the whole wait, which made the bake fire after the first prop and miss the rest of the map.
-	/// </summary>
 	public void RequestNavMeshRefresh()
 	{
 		if (GameContext.SessionState.IsMapEditorMode) return;
@@ -3407,17 +3291,11 @@ public partial class GameHost : Node3D
 		if (Time.GetTicksMsec() < _navMeshRefreshDeadlineMsec) return;
 
 		_navMeshRefreshPending = false;
-		// Any new obstacle requests the next refresh itself, so this one only has to cover what already exists.
 		RebakeNavMesh();
 	}
 
 	public bool IsNavMeshRefreshPending => _navMeshRefreshPending;
 
-	/// <summary>
-	///     Opens the ground a destroyed obstacle used to block. Only the editor does this: in a match the navigation mesh
-	///     is baked from the obstacle set the authority reports, so a screen that carved its own holes would path
-	///     through ground the authority still treats as blocked.
-	/// </summary>
 	public void UncarveObstacle(System.Numerics.Vector3 pos, float radius)
 	{
 		if (!GameContext.SessionState.IsMapEditorMode) return;
@@ -3428,10 +3306,6 @@ public partial class GameHost : Node3D
 		}
 	}
 
-	/// <summary>
-	///     The body a template places on the ground, used where a placement is checked against the world before the
-	///     entity exists. It is the same number the authoritative process builds that template with.
-	/// </summary>
 	public float ResolveTemplateBodyRadius(string templateId)
 	{
 		float radius = ResolveTemplateCollisionRadius(templateId);
@@ -3439,11 +3313,6 @@ public partial class GameHost : Node3D
 		return radius;
 	}
 
-	/// <summary>
-	///     Measures the horizontal footprint radius (max corner distance from the origin in the
-	///     XZ plane) of a freshly instantiated model. Used at import time to persist an obstacle
-	///     radius for custom map assets that have no code-side collision shapes.
-	/// </summary>
 	public float MeasureModelRadius(Node3D root)
 	{
 		if (root == null) return 0f;
@@ -3493,10 +3362,6 @@ public partial class GameHost : Node3D
 		}
 	}
 
-	/// <summary>
-	///     Returns true when the entity's pathing flags include the given capability
-	///     (e.g. <see cref="TerrainPathingFlags.Flying"/>).
-	/// </summary>
 	public bool IsPathingCapability(Entity entity, TerrainPathingFlags capability)
 	{
 		if (GameContext.World == null || !GameContext.World.IsAlive(entity) || !GameContext.World.Has<Realm.Ecs.Components.Movement.PathingFlags>(entity)) return false;
@@ -3506,10 +3371,6 @@ public partial class GameHost : Node3D
 
 	private static ImageTexture SharedShadowGradient { get; set; }
 
-	/// <summary>
-	///     Shared radial gradient used by flying-unit drop-shadow decals. One texture is
-	///     generated once and reused by every unit to avoid per-unit allocations.
-	/// </summary>
 	public Texture2D GetSharedShadowGradient()
 	{
 		if (SharedShadowGradient != null && GodotObject.IsInstanceValid(SharedShadowGradient))
@@ -3582,7 +3443,6 @@ public partial class GameHost : Node3D
 		}
 	}
 
-	/// <summary>Writes the frame a replay shows, from the world this client has been told about.</summary>
 	private void RecordGameplayTickIfNeeded()
 	{
 		if (GameContext.ReplayPlayback.IsPlayingReplay || !GameSettings.RecordReplays) return;

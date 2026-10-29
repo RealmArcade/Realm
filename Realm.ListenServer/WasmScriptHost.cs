@@ -1,21 +1,3 @@
-// ─────────────────────────────────────────────────────────────────────────────
-// Realm.Client Hand-Coded WasmRuntime class (WasmRuntime.cs)
-// ─────────────────────────────────────────────────────────────────────────────
-//
-// What belongs in this file:
-// 1. Manual WASM function registrations (e.g., in InitializeManualBindings())
-//    that CANNOT be auto-generated from C# interfaces because:
-//    - They require custom WASM linker configurations or WASI overrides.
-//    - They wrap complex low-level host behaviors not exposed through IGameAPI.
-// 2. Main class constructor, WASI configurations, lifecycle, and host-side event
-//    subscriptions.
-// 3. Custom marshaling helpers (e.g. ReadGuestString, WriteGuestString, etc.)
-//    that perform low-level guest memory writes/reads.
-//
-// What should NOT be in this file (Leave to Auto-Generate in WasmRuntime.g.cs):
-// 1. Standard bindings for abstract interface members of IGameAPI, IUnit,
-//    or IResourceNode using primitive types, Vector3, lists, or simple strings.
-// ─────────────────────────────────────────────────────────────────────────────
 
 using System;
 using System.Buffers.Binary;
@@ -329,7 +311,6 @@ public partial class WasmScriptHost : IWasmRuntime, IWasmEvaluationEngine, IDisp
 	private partial void UnsubscribeAutoEvents();
 	private partial void InitializeManualBindings();
 
-	// Partial-method hook required by the WASM linker generator; empty when there are no manual bindings.
 	private partial void InitializeManualBindings()
 	{
 	}

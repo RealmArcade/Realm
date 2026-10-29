@@ -11,18 +11,8 @@ using Realm.Shared.Simulation;
 
 namespace Realm.Shared.Maps;
 
-/// <summary>
-///     Places a building the way the authority does: the player pays for it, the entity is created from the catalog,
-///     and a worker that was told to build it is left with the task and the walk to the site. The work is pure ECS, so
-///     a headless process and the map loader build the same entity from the same template.
-/// </summary>
 public static class BuildingPlacementService
 {
-	/// <summary>
-	///     Places the template for the player. A worker is handed the construction task and the building starts
-	///     unfinished; without one the building is finished on the spot. Returns false, having changed nothing, when the
-	///     template is unknown or the player cannot pay for it.
-	/// </summary>
 	public static bool TryPlace(
 		EcsWorld world,
 		DefinitionCatalog catalog,
@@ -42,9 +32,6 @@ public static class BuildingPlacementService
 
 		float buildSeconds = Math.Max(metadata.ProductionTime, 0f);
 
-		// A worker's order always raises a site, even for a template the map gives no build time: finishing work a map
-		// can react to is what tells it the thing it asked for is there, and a template with nothing to build finishes
-		// on the first tick rather than never being announced at all.
 		bool builtByWorker = workerEntity != Entity.Null && world.IsAlive(workerEntity);
 
 		buildingEntity = UnitEntityFactory.CreateFromMetadata(world, catalog, templateId, position, 0f, 0f, ownerPlayer, bypassPopulation: true);

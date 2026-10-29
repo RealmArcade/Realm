@@ -7,11 +7,6 @@ using Environment = System.Environment;
 
 namespace Realm.Client.Utils;
 
-/// <summary>
-/// Detects hybrid Intel/AMD CPU architectures (Performance vs Efficient cores),
-/// configures process affinity to restrict execution strictly to P-cores,
-/// elevates process priority, and explicitly disables Windows EcoQoS / Power Throttling.
-/// </summary>
 public static class ProcessPerformanceOptimizer
 {
 	private const int RelationProcessorCore = 0;
@@ -60,13 +55,10 @@ public static class ProcessPerformanceOptimizer
 		string? disableEnv = Environment.GetEnvironmentVariable("REALM_DISABLE_PCORE_AFFINITY");
 		bool affinityDisabledByEnv = disableEnv == "1" || string.Equals(disableEnv, "true", StringComparison.OrdinalIgnoreCase);
 
-		// 1. Disable Windows Power Throttling / EcoQoS (Efficiency Mode)
 		DisableEcoQoS();
 
-		// 2. Elevate process priority
 		ElevateProcessPriority();
 
-		// 3. Detect Hybrid Architecture & Restrict to Performance Cores
 		if (!affinityDisabledByEnv)
 		{
 			ConfigureCpuAffinity();
@@ -85,7 +77,7 @@ public static class ProcessPerformanceOptimizer
 			{
 				Version = 1,
 				ControlMask = PROCESS_POWER_THROTTLING_EXECUTION_SPEED,
-				StateMask = 0 // Explicitly disable speed throttling
+				StateMask = 0
 			};
 
 			bool success = SetProcessInformation(
@@ -214,12 +206,11 @@ public static class ProcessPerformanceOptimizer
 
 	private static void CheckFallbackAffinity()
 	{
-		// Fallback for i9-12900K/13900K/14900K (24 or 32 threads) if Win32 topology query fails
 		if (Environment.ProcessorCount >= 24)
 		{
 			try
 			{
-				long fallbackMask = 0x0000FFFF; // First 16 threads (8 P-Cores with SMT)
+				long fallbackMask = 0x0000FFFF;
 				Process.GetCurrentProcess().ProcessorAffinity = new IntPtr(fallbackMask);
 				PerformanceCoreAffinityMask = fallbackMask;
 				IsHybridCpu = true;

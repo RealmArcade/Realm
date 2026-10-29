@@ -4,16 +4,8 @@ using Realm.Shared.Metadata;
 
 namespace Realm.Shared.Simulation;
 
-/// <summary>
-///     What a player pays for a template. Charging lives here rather than at a call site so the authority and any
-///     caller that only wants to know whether an order is affordable read the same costs out of the same catalog.
-/// </summary>
 public static class PlayerResourceCost
 {
-	/// <summary>
-	///     Takes the template's cost from the player, or reports that the player cannot afford it. The caller decides
-	///     what an unaffordable order means; nothing is charged when it returns false.
-	/// </summary>
 	public static bool TryCharge(EcsWorld world, Entity playerEntity, UnitMetadata metadata)
 	{
 		if (playerEntity == Entity.Null || metadata == null) return false;

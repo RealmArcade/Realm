@@ -1025,8 +1025,6 @@ public class InputService
 
 	public void ApplySpellEffect(AbilityDefinition def, Vector3 simPos, Entity target)
 	{
-		// One executor for every cast path: the command card, autocast and scripted casts all end
-		// up here, so an effect cannot behave differently depending on who pressed the button.
 		AbilityEffectService.Execute(target, simPos, def, simPos);
 	}
 

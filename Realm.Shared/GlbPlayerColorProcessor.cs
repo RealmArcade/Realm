@@ -1794,7 +1794,7 @@ public static class GlbPlayerColorProcessor
 		if (!valid) return result;
 
 		int elementSize = componentType == 5126 ? 8 : 4;
-		stride = stride == 8 && elementSize == 4 ? 4 : stride; // adjust default if needed
+		stride = stride == 8 && elementSize == 4 ? 4 : stride;
 
 		for (int i = 0; i < count; i++)
 		{

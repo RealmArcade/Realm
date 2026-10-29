@@ -40,22 +40,9 @@ public class NetworkService
 	private readonly List<Entity> _pendingUnitKills = new();
 	private readonly List<Entity> _pendingUnitDespawns = new();
 
-	/// <summary>
-	///     Component changes for a unit whose replica does not exist yet. A unit the authority has just started can be
-	///     described an instant away from the components it also carries, so a change that arrives while the replica is
-	///     still missing is kept here rather than dropped, and placed once the replica exists. A change that outlives the
-	///     grace is state this screen was never told it had; the peer asks for a baseline instead of waiting for the
-	///     match's own repair, which is rate limited to one baseline a second. A baseline empties this, because a baseline
-	///     restates every component anyway.
-	/// </summary>
 	private readonly Dictionary<(int Key, int ComponentTypeId), PendingUnitComponentDelta> _pendingUnitComponentDeltas = new();
 	private readonly List<(int Key, int ComponentTypeId)> _pendingUnitComponentDeltaKeys = new();
 
-	/// <summary>
-	///     How many sequences a change waits for the replica it names before this screen stops expecting one. A change is
-	///     not unplaceable the moment its replica is missing, because a unit and its components can be described a
-	///     sequence apart, and one still unplaceable after this many sequences will not be placed by a later delta.
-	/// </summary>
 	private const int UnplacedUnitDeltaGraceSequences = 4;
 
 	private struct PendingUnitComponentDelta
@@ -75,10 +62,6 @@ public class NetworkService
 	public int LastAppliedSnapshotSequenceForDiagnostics { get; private set; } = -1;
 	public int LastAppliedBaselineSequenceForDiagnostics { get; private set; } = -1;
 
-	/// <summary>
-	/// The player slot that asked the match to pause, or -1 when the match paused itself. The match owns the pause, so
-	/// this is only ever what the authority last reported.
-	/// </summary>
 	public int PausedByPlayerIndex { get; set; } = -1;
 
 	public void RemoveClientToServerMapping(int localEntityId)
@@ -126,13 +109,6 @@ public class NetworkService
 		return mapping.ClientToServerEntityMap.TryGetValue(localEntityId, out serverEntityId);
 	}
 
-	/// <summary>
-	///     The authoritative entity a local one replicates, or nothing when it replicates none. The mapping is the only
-	///     truth: this screen holds no world of its own, so a local id is not a server id and an entity the authority never
-	///     described has no server entity at all. Answering with the local id made a local entity indistinguishable from
-	///     the authoritative unit that happened to carry that number, which is how an order could name a unit the match
-	///     does not have.
-	/// </summary>
 	public int GetServerEntityId(int localEntityId)
 	{
 		Entity worldEntity = FindWorldEntity();
@@ -290,10 +266,6 @@ public class NetworkService
 
 	public (int CommandId, byte[] Payload) BuildClientCommand(string commandType, List<int> unitIds, System.Numerics.Vector3 targetPos, int targetEntityId, string argString)
 	{
-		// A command id is this peer's own counter, and the authority answers a repeat of one it already answered as a
-		// duplicate. Falling back to a fixed first id meant a window in which the counter could not be read - the world
-		// entity before a match builds it, or after a playtest rebuilds it - minted the id of an order already sent, and
-		// the order was then dropped as a repeat. Nothing is authored here rather than something that might be a repeat.
 		Entity worldEntity = FindWorldEntity();
 		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkState>(worldEntity)) return (0, Array.Empty<byte>());
 
@@ -327,8 +299,6 @@ public class NetworkService
 
 		if (snapshot.IsBaseline)
 		{
-			// A baseline restates every component of every unit it describes, so the changes held for a replica that never
-			// arrived are answered here and holding them further would only place them again on top of the restatement.
 			_pendingUnitComponentDeltas.Clear();
 
 			ProcessBaselineSnapshotMismatches(snapshot, mapping);
@@ -337,14 +307,9 @@ public class NetworkService
 
 		ApplyLootState(snapshot, mapping);
 
-		// Published before the units are applied rather than after: a unit the apply spawns is anchored to this sequence
-		// as its first authoritative sample, and a spawn that read the previous value anchored the unit to -1 instead -
-		// which the sample gap arithmetic then treated as "no previous sample" for that unit.
 		LastAppliedSnapshotSequenceForDiagnostics = snapshot.Sequence;
 		GameContext.SnapshotTimeline.AdvanceTo(snapshot.Sequence);
 
-		// Retired before this snapshot's units are applied, so a unit the authority spawned under an identifier it has
-		// just released does not inherit the replica that held it.
 		RetireUndescribedUnits(snapshot, mapping);
 
 		foreach (var snap in snapshot.Units)
@@ -352,9 +317,6 @@ public class NetworkService
 			ApplySnapshotToUnit(snap, snapshot.Sequence, mapping);
 		}
 
-		// The units a description named are built by the host once this returns, not here: the host flushes them after the
-		// whole description is applied, and flushing in both places built them against a half-applied snapshot and cost a
-		// second pass over the queues on every description this screen received.
 		bool componentsFullyApplied = ApplyReplicatedComponentState(snapshot);
 		ApplyPendingUnitComponentDeltas(snapshot.Sequence);
 
@@ -363,19 +325,9 @@ public class NetworkService
 		{
 			MultiplayerSyncDiagnostics.RecordClientSnapshot(snapshot.IsBaseline);
 		}
-		// The acknowledgement names the exact sequences this client applied, so a snapshot that carried a delta it could not
-		// place simply leaves its own bit clear: the host repeats that change instead of treating it as delivered, and the
-		// rest of the stream is still confirmed.
 		GameContext.SnapshotApply.Acknowledge(snapshot.Sequence, componentsFullyApplied);
 	}
 
-	/// <summary>
-	///     Retires the replicas of the units this peer was described with and no longer is. What this screen holds for a
-	///     unit is only ever what the authority said about it, so a unit the authority stops describing is one this
-	///     screen must stop holding: left behind, it stays selectable, orderable, counted by the HUD and hit-tested by
-	///     the cursor long after the authority stopped knowing the player could see it. The authority states these with
-	///     every delta, so the replica goes on the tick the unit leaves sight rather than on the next baseline.
-	/// </summary>
 	private void RetireUndescribedUnits(WorldSnapshot snapshot, NetworkMappingState mapping)
 	{
 		if (snapshot.RetiredEntityIds == null || snapshot.RetiredEntityIds.Count == 0) return;
@@ -384,8 +336,6 @@ public class NetworkService
 		{
 			int serverEntityId = snapshot.RetiredEntityIds[index];
 
-			// A unit this screen was told about but has not built yet is retired like any other: its node would otherwise be
-			// built by a later tick for a unit the authority has already stopped describing.
 			_pendingUnitSpawns.Remove(serverEntityId);
 
 			if (!mapping.ServerToClientEntityMap.TryGetValue(serverEntityId, out Entity localEntity)) continue;
@@ -418,12 +368,6 @@ public class NetworkService
 		}
 	}
 
-	/// <summary>
-	/// Removes the unit components the authority does not have. What the authority has is the presence mask it sends with
-	/// every baselined unit, and that mask is what decides: the baseline restates every component of every unit it
-	/// describes, but a record can also go missing from a payload this peer applied only in part, so "not in this
-	/// payload" is never read as "gone" on its own.
-	/// </summary>
 	private void ProcessBaselineComponentReconciliation(WorldSnapshot snapshot, NetworkMappingState mapping)
 	{
 		if (snapshot.ComponentDeltas == null || snapshot.Units == null || snapshot.UnitComponentPresence == null) return;
@@ -435,8 +379,6 @@ public class NetworkService
 			_baselineUnitPresence[presence.ServerEntityId] = presence.Mask;
 		}
 
-		// A component that is new to the peer travels in this same baseline, and the reconciliation runs before the
-		// component deltas are applied, so only a component the payload did not carry can be missing at this point.
 		_baselineSentUnitComponents.Clear();
 		for (int index = 0; index < snapshot.ComponentDeltas.Count; index++)
 		{
@@ -488,13 +430,6 @@ public class NetworkService
 		}
 	}
 
-	/// <summary>
-	///     Applies the items lying on the ground that a description states for this screen. The list is the whole of what
-	///     the authority says this screen can see, so an item it names is created or brought up to date and an item it
-	///     leaves out is retired: that is how a drop that was picked up, ran out of time or fell out of sight leaves the
-	///     screen. A peer that was told nothing about the ground keeps what it holds, because a description only states
-	///     the ground when the ground it can see changed.
-	/// </summary>
 	private void ApplyLootState(WorldSnapshot snapshot, NetworkMappingState mapping)
 	{
 		if (snapshot.Loot == null) return;
@@ -523,11 +458,6 @@ public class NetworkService
 		}
 	}
 
-	/// <summary>
-	///     Writes one described item into the replica this screen holds for it, creating the replica the first time the
-	///     item is named. An item is not a unit, so the screen has no unit of its own for it: what it holds is a position
-	///     and a <c>GroundLoot</c> component, and the node drawn for it is built from those.
-	/// </summary>
 	private static void ApplyLootEntry(in LootSnapshot entry, NetworkMappingState mapping)
 	{
 		var position = new System.Numerics.Vector3(entry.Position.X, entry.Position.Y, entry.Position.Z);			if (mapping.ServerToClientEntityMap.TryGetValue(entry.EntityId, out Entity localEntity)
@@ -562,11 +492,6 @@ public class NetworkService
 		GameContext.Host?.SyncReplicatedLootNode(entry.EntityId, localEntity);
 	}
 
-	/// <summary>
-	///     Retires the unit this screen holds for an identifier the authority has since given to an item on the ground.
-	///     Entity identifiers are recycled, so what a screen keeps for one is retired before the identifier describes
-	///     something else; the item waits for the unit to be taken off the screen rather than replacing it under its feet.
-	/// </summary>
 	public void RetireUnitReplicaForReusedServerId(NetworkMappingState mapping, int serverEntityId)
 	{
 		if (!mapping.ServerToClientEntityMap.TryGetValue(serverEntityId, out Entity localEntity)) return;
@@ -594,8 +519,6 @@ public class NetworkService
 	{
 		if (!mapping.ServerToClientEntityMap.TryGetValue(snap.EntityId, out var localEntity))
 		{
-			// A description says whether the unit is alive, and a unit that died before this screen got to it is never built:
-			// a description held for a later tick would otherwise put a node on the map for a unit the match already ended.
 			if (snap.IsDead) _pendingUnitSpawns.Remove(snap.EntityId);
 			else _pendingUnitSpawns[snap.EntityId] = snap;
 			return;
@@ -603,8 +526,6 @@ public class NetworkService
 
 		if (!GameContext.World.IsAlive(localEntity) || IsServerEntityIdRecycled(snap, localEntity))
 		{
-			// The local id is about to stand for a different unit, so the descriptions it was drawn from are not history
-			// this unit has; leaving them would draw the replacement at positions the old one walked.
 			GameContext.SnapshotTimeline.Reset(localEntity.Id);
 			RetireClientEntityForRecycledServerId(mapping, localEntity, snap.EntityId);
 			if (!snap.IsDead) _pendingUnitSpawns[snap.EntityId] = snap;
@@ -619,9 +540,6 @@ public class NetworkService
 				_pendingUnitKills.Add(localEntity);
 			}
 
-			// Entity identifiers are recycled, so what was described for this unit must not outlive it: the identifier
-			// describes a different unit from the next spawn, and a description left behind would draw that unit at
-			// positions this one walked and reject the first description the new one is given.
 			GameContext.SnapshotTimeline.Reset(localEntity.Id);
 			return;
 		}
@@ -634,22 +552,11 @@ public class NetworkService
 			GameContext.World.Set(localEntity, hp);
 		}
 
-		// A step larger than the unit can travel between the two descriptions is a discontinuity in what the authority is
-		// telling this client, not movement: the client stalled and missed descriptions, drained a burst in one tick, or
-		// received a reconnect baseline, and a script can also move a unit outright. Nothing is continuous across it - the
-		// unit was not watched covering that distance - so the history it was drawn from is dropped rather than sampled
-		// across, which is what would otherwise show a unit gliding through a wall it never walked through.
-		// What a unit can travel is its own speed over the sequences it went undescribed, not one figure for every unit: a
-		// global step was what a unit at this match's movement ceiling was measured against, so a fast unit described after
-		// a lost description was taken for a teleport and drawn jumping to where it had run to.
 		System.Numerics.Vector3 describedPosition = snap.Position.ToNumerics();
 		System.Numerics.Vector3 previousTargetPosition = GameContext.World.Has<LatestDescription>(localEntity)
 			? GameContext.World.Get<LatestDescription>(localEntity).Position
 			: describedPosition;
 
-		// The authority only describes a unit this peer can see, so a unit that leaves vision goes unmentioned for as long
-		// as it is away and comes back wherever it actually walked to. The client was not watching the unit in between, so
-		// there is no path between the two descriptions to render and the gap is a fresh sighting rather than a step.
 		int lastDescribedSequence = GameContext.World.Has<DescribedAtSequence>(localEntity)
 			? GameContext.World.Get<DescribedAtSequence>(localEntity).Sequence
 			: -1;
@@ -660,9 +567,6 @@ public class NetworkService
 		if (targetJumped || descriptionResumed) GameContext.SnapshotTimeline.Reset(localEntity.Id);
 		GameContext.SnapshotTimeline.Record(localEntity.Id, describedPosition, snap.RotationY, sequence);
 
-		// The newest description is kept on the unit as well: it is the marker that says this unit is one the authority
-		// describes rather than one this screen moves, and it is what a diagnostic can compare against without reading the
-		// timeline's ring. The facing it holds is replaced by the presented one on the next tick.
 		GameContext.World.SetOrAdd(localEntity, new LatestDescription
 		{
 			Position = describedPosition,
@@ -672,36 +576,12 @@ public class NetworkService
 		GameContext.World.SetOrAdd(localEntity, new DescribedAtSequence(sequence));
 	}
 
-	/// <summary>
-	/// How many sequences a unit can go undescribed before its next description counts as a fresh sighting rather than a
-	/// step. The far-unit resend cadence tells a peer about a moving unit every few sequences and a stationary one not at
-	/// all, so a longer silence than this means the authority had nothing to say about it - it was outside this peer's
-	/// vision - and the position it names is a sighting, not a continuation.
-	/// </summary>
 	public const int UnobservedUnitGapSequences = 10;
 
-	/// <summary>
-	/// How far a unit's described position can move between two applied descriptions before the step is a discontinuity
-	/// rather than movement, for a unit whose speed is unknown and as the floor for every other unit. A detailed unit
-	/// steps a few centimetres per description and a far one steps at the resend threshold plus the movement during its
-	/// round trip - about one metre on the profiles that keep the game playable - so two metres is above anything
-	/// continuous and below the distance a stalled client has to cover.
-	/// </summary>
 	public const float MaximumPlausibleTargetStepMeters = 2f;
 
-	/// <summary>
-	/// How much of the distance a unit's own speed covers while it went undescribed is allowed before the step counts as
-	/// a discontinuity. A unit is not always at its full speed and does not travel a straight line, and a lost description
-	/// leaves a gap the authority did move the unit across, so the allowance is the distance at speed with room for the
-	/// corner it turned rather than that distance exactly.
-	/// </summary>
 	public const float PlausibleStepAllowanceFactor = 2f;
 
-	/// <summary>
-	/// The distance one unit may be described as having covered since its last description before the step is read as a
-	/// teleport. A unit with no speed of its own - a building, or one the authority has not described before - is held to
-	/// the global floor, and every other unit to its own speed over the sequences it went undescribed.
-	/// </summary>
 	private static float PlausibleStepMeters(Entity localEntity, int sequence, int lastDescribedSequence)
 	{
 		if (!GameContext.World.Has<MovementStats>(localEntity)) return MaximumPlausibleTargetStepMeters;
@@ -730,15 +610,8 @@ public class NetworkService
 		RetireClientEntityForUntrackedServerId(mapping, localEntity, serverEntityId);
 	}
 
-	/// <summary>Whether a unit this peer was told about is still waiting for its node to be built.</summary>
 	public bool HasPendingUnitSpawns => _pendingUnitSpawns.Count > 0;
 
-	/// <summary>
-	///     Takes one of the units still waiting to be spawned, so the screen can build them at whatever rate it can afford
-	///     rather than all of them in the frame the description arrived on. The oldest description held for a unit is the
-	///     one taken: a later description of the same unit replaces it in the map rather than queueing behind it.
-	/// </summary>
-	/// <returns>Whether a snapshot was taken.</returns>
 	public bool TryTakePendingUnitSpawn(out UnitSnapshot snapshot)
 	{
 		snapshot = default;
@@ -758,12 +631,6 @@ public class NetworkService
 
 	public IReadOnlyList<Entity> FlushPendingUnitDespawns() => TakePending(_pendingUnitDespawns);
 
-	/// <summary>
-	///     Hands over what is waiting and empties the queue. A tick with nothing in it hands back the empty array rather than
-	///     a fresh list: this is called for the kills and again for the retirements of every description this screen applies,
-	///     and the great majority of those describe neither, so the copy was three allocations a tick on a path meant to be
-	///     allocation-free.
-	/// </summary>
 	private static IReadOnlyList<Entity> TakePending(List<Entity> pending)
 	{
 		if (pending.Count == 0) return Array.Empty<Entity>();
@@ -788,9 +655,6 @@ public class NetworkService
 		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkMappingState>(worldEntity)) return Entity.Null;
 
 		ref var mapping = ref GameContext.World.Get<NetworkMappingState>(worldEntity);
-		// The authority recycles the identifier of an entity that has gone, so a unit can be spawned under the identifier
-		// an item on the ground was described under a moment earlier. The item goes first: otherwise the unit is refused
-		// as a duplicate of an item, or the two replicas keep one identifier between them.
 		if (mapping.ServerToClientEntityMap.TryGetValue(snap.EntityId, out Entity heldForThisIdentifier)
 			&& GameContext.World.IsAlive(heldForThisIdentifier)
 			&& GameContext.World.Has<GroundLoot>(heldForThisIdentifier))
@@ -808,12 +672,6 @@ public class NetworkService
 		Entity spawned = ApplySnapshotToEntity(snap.UnitId, snap.EntityId, snap.OwnerPlayerEntityId, snap.Position.ToNumerics(), snap.RotationY, snap.CurrentHp, snap.MaxHp, snap.IsBuilding, meta, ref mapping, getFallbackModelPath, out modelPath, out playerIndex, snap.OwnerPlayerIndex);
 		if (spawned != Entity.Null)
 		{
-			// The mapping exists only after this call, so this snapshot could not describe the unit to the apply pass that
-			// runs before it. Its first description is held here instead, so the unit is drawn where the match put it from
-			// the moment it exists on this screen rather than one sequence later.
-			// The local identifier may have belonged to a unit that died or left this screen, so what was described for
-			// that one is dropped first: otherwise this description is refused as older than a history that is not this
-			// unit's, and the unit is drawn wherever its predecessor was last seen.
 			GameContext.SnapshotTimeline.Reset(spawned.Id);
 			RecordSpawnSample(spawned.Id, snap.Position.ToNumerics(), snap.RotationY);
 		}
@@ -821,18 +679,6 @@ public class NetworkService
 		return spawned;
 	}
 
-	/// <summary>
-	///     Records the position the authority put a replica at as the sample the match's clock is drawn at, rather than as
-	///     the sequence its description names. A spawn is the one thing this screen places before there is anything to
-	///     sample, and the sequence the description names is a tick the world has not reached: with the sample held there,
-	///     the sampler can do nothing but draw the unit at it and hold it until the cursor catches up, so a replica that
-	///     appeared at a fog edge was drawn a presentation delay ahead of every unit around it and did not start moving
-	///     until the delay had passed. Anchoring it to the drawn sequence puts the unit where the world has actually got to,
-	///     and the next description this unit is sent completes the pair - the two positions are the authority's own, so
-	///     the step between them is the path it walked and only the interval it covers is stretched to the window the screen
-	///     was not drawing the unit for. That is what makes the replica take its first step with everything else instead of
-	///     standing still and then starting.
-	/// </summary>
 	private void RecordSpawnSample(int localEntityId, System.Numerics.Vector3 position, float rotationY)
 	{
 		int anchorSequence = LastAppliedSnapshotSequenceForDiagnostics;
@@ -979,13 +825,6 @@ public class NetworkService
 		return allApplied;
 	}
 
-	/// <summary>
-	///     Applies the changes that arrived for a unit before its replica existed. The spawns are flushed just before this
-	///     runs, so a unit of this same snapshot has a replica by now and its changes land as they normally would. One
-	///     whose replica is still missing is retried for the grace and then given up on, and the resulting baseline is
-	///     asked for here rather than waited for: the match's repair of a peer that acknowledged a hole is rate limited,
-	///     so a peer that waited on it held state it could have replaced in one round trip.
-	/// </summary>
 	private void ApplyPendingUnitComponentDeltas(int sequence)
 	{
 		if (_pendingUnitComponentDeltas.Count == 0) return;
@@ -1118,9 +957,6 @@ public class NetworkService
 		{
 			codec.Apply(GameContext.World, targetEntity, delta.Bytes);
 
-			// The route a click drew is replaced by the order the match actually gave, which is the same shape from the
-			// same planner and arrives a round trip later. Keeping both would leave the drawn one behind to be planned
-			// again once the real order completed.
 			if (codec.ComponentTypeId == ComponentType<MoveTo>.Id && GameContext.World.Has<PreviewMoveTo>(targetEntity))
 			{
 				GameContext.World.Remove<PreviewMoveTo>(targetEntity);
@@ -1133,8 +969,6 @@ public class NetworkService
 
 		_mirror.RecordComponent(delta);
 		_appliedComponentDeltaCount++;
-		// A delta names a slot in the unit's ability list, so a list that was replaced renumbers every slot. The peer
-		// drops the flags it attached to the old numbering and takes the authority's exception set for the new list.
 		if (delta.ComponentTypeId == ComponentType<AbilityState>.Id && (ReplicatedScope)delta.Scope == ReplicatedScope.Unit)
 		{
 			GameContext.RegistryService?.ClearAbilityStateForUnit(new UnitId(targetEntity.Id));
@@ -1181,12 +1015,6 @@ public class NetworkService
 		if (!componentTypeIds.Contains(codec.ComponentTypeId)) componentTypeIds.Add(codec.ComponentTypeId);
 	}
 
-	/// <summary>
-	///     Whether this screen holds a reference it was told about but cannot name. The authority names a unit by the
-	///     identifier both processes know it by, and the peer translates it into the entity it holds for that unit; a unit
-	///     the peer was never told about has no such entity, so the reference stays empty. That is the shroud working, not
-	///     a missing update: the peer is not allowed to know which of the units it cannot see attacked it.
-	/// </summary>
 	public bool IsReferenceUnresolved(int localEntityId, int componentTypeId)
 	{
 		if (!_referencedServerEntityIds.TryGetValue((localEntityId, componentTypeId), out int serverEntityId)) return false;
@@ -1194,12 +1022,6 @@ public class NetworkService
 		return ReplicatedEntityReferences.Resolve(new Entity(serverEntityId)) == Entity.Null;
 	}
 
-	/// <summary>
-	///     Forgets every reference one local entity holds. A local entity that is retired from the world stops being the
-	///     thing its references describe, and the identifier it used is handed to the next entity this screen creates. A
-	///     reference kept past that point is applied to whoever took the identifier the next time its target is described,
-	///     which put a target and an attacker on units the authority never said had either.
-	/// </summary>
 	public void ForgetReferencesHeldBy(int localEntityId)
 	{
 		if (!_referencedComponentTypesByLocalEntity.Remove(localEntityId, out List<int>? componentTypeIds)) return;
@@ -1279,8 +1101,6 @@ public class NetworkService
 	{
 		if (!TryGetLocalEntity(serverEntityId, out var localEntity)) return;
 
-		// A change about an ability the unit does not list is named rather than slotted, which is how a build option the
-		// map withheld reaches a screen even though the unit can never cast it.
 		string? abilityId = string.IsNullOrEmpty(namedAbilityId) ? ResolveAbilityIdAt(localEntity, abilityIndex) : namedAbilityId;
 		if (abilityId == null) return;
 
@@ -1457,12 +1277,6 @@ public class NetworkService
 	private readonly Dictionary<int, List<(int LocalEntityId, IReplicatedComponentCodec Codec)>> _referrersByServerEntityId = new();
 	private readonly Dictionary<(int LocalEntityId, int ComponentTypeId), int> _referencedServerEntityIds = new();
 
-	/// <summary>
-	///     The components each local entity holds a reference through, so retiring it forgets exactly those without a
-	///     walk of every reference this screen keeps. A local entity identifier is recycled the moment the entity is
-	///     destroyed, so a reference that outlives its holder is not merely stale: it is a reference the next entity to
-	///     take that identifier will be given when the server entity it names is described again.
-	/// </summary>
 	private readonly Dictionary<int, List<int>> _referencedComponentTypesByLocalEntity = new();
 
 	public Entity FindWorldEntity()
@@ -1544,10 +1358,6 @@ public class NetworkService
 
 	public void BroadcastMessageDomainLogic(string message) => GameLog.LogToConsole($"[HOST BROADCAST] {message}");
 
-	/// <summary>
-	///     Marks the match lost because the process running it ended. The screen shows this instead of waiting for a
-	///     snapshot that will never arrive.
-	/// </summary>
 	public void ReportAuthorityLost() => IsConnectionLost = true;
 
 	public void UpdateConnectionStatus(bool multiplayerActive, bool isServer)

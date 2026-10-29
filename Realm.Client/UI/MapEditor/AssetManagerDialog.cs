@@ -136,7 +136,6 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 	{
 		BodyContainer.AddThemeConstantOverride("separation", 8);
 
-		// 1. TOP HEADER: Asset Type Filter Dropdown & Search Filter Input
 		var headerRow = new HBoxContainer();
 		headerRow.Name = "HeaderRow_HBoxContainer";
 		headerRow.AddThemeConstantOverride("separation", 8);
@@ -198,7 +197,6 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 
 		BodyContainer.AddChild(headerRow);
 
-		// 2. ACTION BUTTONS TOOLBAR
 		var actionsRow = new HBoxContainer();
 		actionsRow.Name = "ActionsRow_HBoxContainer";
 		actionsRow.AddThemeConstantOverride("separation", 6);
@@ -229,7 +227,6 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 			_generateAiAssetMenu?.Hide();
 		};
 
-		// 3. SCROLLABLE ASSET GRID (Extra Large Icons)
 		var gridPanel = new PanelContainer();
 		gridPanel.Name = "GridPanel_PanelContainer";
 		gridPanel.CustomMinimumSize = new Vector2(0, 360);
@@ -270,7 +267,6 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 			UpdateVisibleGridCells();
 		};
 
-		// 4. FOOTER DETAILS PANEL
 		_footerPanel = new PanelContainer();
 		_footerPanel.Name = "FooterPanel_PanelContainer";
 		_footerPanel.CustomMinimumSize = new Vector2(0, 95);
@@ -368,7 +364,6 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 		_lblSelectedDetails.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlowDim);
 		footerInfoVBox.AddChild(_lblSelectedDetails);
 
-		// Right side buttons in footer: Trash Can Icon
 		var footerBtnVBox = new VBoxContainer();
 		footerBtnVBox.Name = "FooterBtnVBox_VBoxContainer";
 		footerBtnVBox.Alignment = BoxContainer.AlignmentMode.Center;
@@ -981,7 +976,6 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 		string assetFileName = _selectedAsset.FileName;
 		string categoryKey = _selectedAsset.AssetType?.ToCanonicalString() ?? "Prop";
 
-		// Search metadata.json for any references to the asset
 		var orphanedObjects = FindOrphanedObjectsInMetadata(wsPath, assetFileName);
 
 		if (orphanedObjects.Count > 0)

@@ -50,7 +50,7 @@ public class ReplayService
 			ProjectileTypeId = typeId,
 			Start = new NetworkVector3(start.X, start.Y, start.Z),
 			Target = new NetworkVector3(target.X, target.Y, target.Z),
-			Speed = 0f // We might need to handle speed later or remove it from snapshot
+			Speed = 0f
 		});
 	}
 

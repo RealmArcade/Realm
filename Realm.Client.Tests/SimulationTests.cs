@@ -109,11 +109,8 @@ public partial class SimulationTests
 	public void MultiplayerECSHardening()
 	{
 		// TODO: Assert that the simulation actually changed during the run (units moved, health changed, units spawned or died).
-		//       Every unit was idle at 15 seconds, so an idle simulation or a map AI that never plays is currently indistinguishable from a correct one.
 		// TODO: Guard the fog-of-war assumption before treating a missing entity on the client as a failure.
-		//       Absence is only a bug while the map is Revealed, so assert the shroud mode or record the host's per-player visibility set.
 		// TODO: Keep only the product changes that are correct on their own merits, independent of what this test needs.
-		//       IsShroudRevealed, the health-triggered full-state deltas, the BuildingRegistry spawn fallback and the lobby player-list broadcast were introduced while diagnosing sync failures.
 	}
 
 	private static int FindAvailableUdpPort()

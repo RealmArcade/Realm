@@ -1697,7 +1697,7 @@ namespace Realm.Client.UI
 				string? exportedPath = await PerformExportStepsAsync(progressBar, statusLabel, closeBtn, destinationPath, fullExport);
 				if (string.IsNullOrEmpty(exportedPath))
 				{
-					return; // Export failed or aborted
+					return;
 				}
 
 				FinalizeSuccessfulExport(popup, exportedPath, statusLabel, progressBar);

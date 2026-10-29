@@ -8,12 +8,6 @@ using Vector3 = System.Numerics.Vector3;
 
 namespace Realm.Client.Services;
 
-/// <summary>
-/// Answers "can this player see that position" from the simulation positions the authority already holds. The filter it
-/// replaces walked the whole unit list twice for every unit it was asked about - reading a Godot node transform each
-/// time - which is quadratic in units and linear in peers, and at twenty-four players does not fit in a tick. The index
-/// is rebuilt once per physics frame from the ECS and each query then reads at most nine cells.
-/// </summary>
 public class UnitVisibilityIndex
 {
 	public const float VisionRadiusMeters = 15.0f;

@@ -3478,8 +3478,6 @@ public partial class GameHost
 	}
 
 
-	// Lanza una habilidad instantánea (compras/mejoras del mapa) usando la unidad
-	// seleccionada como lanzador y su posición como objetivo; sin clic en el suelo.
 	public void CastInstantAbility(string abilityId)
 	{
 		if (GameContext.PerspectiveFilter.IsSpectating) return;

@@ -3,9 +3,6 @@ using Godot;
 
 namespace Realm.Client.Services;
 
-/// <summary>
-/// The line sink the editor, the HUD and the gameplay services write to, and the console windows read from.
-/// </summary>
 public static class GameLog
 {
 	public static event Action<string>? OnLine;

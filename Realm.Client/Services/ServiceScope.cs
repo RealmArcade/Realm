@@ -4,13 +4,6 @@ using Godot;
 
 namespace Realm.Client.Services;
 
-/// <summary>
-/// Owns a set of services for one lifetime, such as a single screen or the whole application session.
-/// Services are created on first request and cleaned up in reverse creation order when the scope is disposed.
-/// Requesting a service from a disposed scope throws <see cref="ObjectDisposedException"/>: a disposed service is
-/// never handed out again. Callers that hold a long-lived scope reference must therefore resolve the live scope
-/// again, which is what <see cref="GameContext.ScreenScope"/> does by creating a fresh scope after disposal.
-/// </summary>
 public class ServiceScope : IDisposable
 {
 	private readonly Dictionary<Type, object> _services = new();

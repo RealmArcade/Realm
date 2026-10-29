@@ -596,7 +596,7 @@ public partial class LobbyBrowser : Control
 		{
 			LobbyId = GetStringProp(item, "lobbyId"),
 			Map = mapName,
-			Mode = "Melee", // Default mode
+			Mode = "Melee",
 			Players = $"{slotsUsed}/{maxPlayers}",
 			Ping = calculatedPing,
 			GameVersion = GetStringProp(item, "gameVersion"),
@@ -764,7 +764,7 @@ public partial class LobbyBrowser : Control
 		rowStyle.ContentMarginBottom = 0;
 
 		var hoverStyle = new StyleBoxFlat();
-		hoverStyle.BgColor = new Color(0.95f, 0.82f, 0.55f, 0.12f); // Gold hover fill
+		hoverStyle.BgColor = new Color(0.95f, 0.82f, 0.55f, 0.12f);
 		hoverStyle.BorderColor = UIStyle.ColorGold;
 		hoverStyle.SetBorderWidthAll(1);
 		hoverStyle.ContentMarginLeft = 12;

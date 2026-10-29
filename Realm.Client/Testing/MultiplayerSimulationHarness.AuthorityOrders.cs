@@ -18,12 +18,6 @@ public partial class MultiplayerSimulationHarness
 	private int _authorityOrderTick;
 	private int _authorityOrderIndex;
 
-	/// <summary>
-	/// Issues move orders on the authority for units the client does not own. Nothing in the client can anticipate these,
-	/// because they are not submitted through the command transport, so the delay until the client first sees the order
-	/// is the measured cost of a host-only decision such as an AI order or a map-script order. Every order names the unit,
-	/// the target and the tick it was issued on so a report can attribute the measurement.
-	/// </summary>
 	private bool _authorityOrderReportedNoUnit;
 
 	private void RunAuthorityOrderScenarioTick()
@@ -56,8 +50,6 @@ public partial class MultiplayerSimulationHarness
 
 		if (selected == null)
 		{
-			// A map that has not produced a unit for a remote seat yet is not an error: the order waits for the next due
-			// tick. Saying so once keeps the log readable instead of repeating it every tick for the rest of the match.
 			if (!_authorityOrderReportedNoUnit)
 			{
 				_authorityOrderReportedNoUnit = true;

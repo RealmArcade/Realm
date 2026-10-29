@@ -4,7 +4,6 @@ using MemoryPack;
 
 namespace Realm.Shared.Network;
 
-/// <summary>Command sent from a client to the server representing a player action.</summary>
 [MemoryPackable]
 public partial struct NetworkCommand
 {

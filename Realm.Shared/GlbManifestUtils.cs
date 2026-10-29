@@ -8,9 +8,9 @@ namespace Realm.Shared;
 
 public static class GlbManifestUtils
 {
-	private const uint GlbMagic = 0x46546C67; // 'glTF'
-	private const uint JsonChunkType = 0x4E4F534A; // 'JSON'
-	private const uint BinChunkType = 0x004E4942; // 'BIN\0'
+	private const uint GlbMagic = 0x46546C67;
+	private const uint JsonChunkType = 0x4E4F534A;
+	private const uint BinChunkType = 0x004E4942;
 
 	public static bool IsValidGlb(byte[] glbBytes)
 	{
@@ -65,7 +65,7 @@ public static class GlbManifestUtils
 		Array.Copy(jsonBytes, paddedJson, jsonBytes.Length);
 		for (int i = jsonBytes.Length; i < paddedJsonLength; i++)
 		{
-			paddedJson[i] = 0x20; // GLTF JSON padding with ASCII space
+			paddedJson[i] = 0x20;
 		}
 
 		int paddedBinLength = binChunk != null ? ((binChunk.Length + 3) & ~3) : 0;
@@ -90,12 +90,10 @@ public static class GlbManifestUtils
 
 		writer.Write(totalLength);
 
-		// JSON chunk
 		writer.Write((uint)paddedJsonLength);
 		writer.Write(JsonChunkType);
 		writer.Write(paddedJson);
 
-		// BIN chunk
 		if (paddedBin != null)
 		{
 			writer.Write((uint)paddedBinLength);

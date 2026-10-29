@@ -3,17 +3,8 @@ using System.Diagnostics;
 
 namespace Realm.ListenServerHost;
 
-/// <summary>
-///     Watches the process that started this authority, so a match ends with the screen that was playing it. The
-///     authority is reached on a port and keeps simulating whether or not anyone is connected, so a client that crashed,
-///     was killed, or ended without sending its shutdown frame used to leave behind a process that held the port and
-///     advanced a world no one could see until the machine was restarted.
-///     The handle is opened once and kept: a released parent is still the process that was watched, while looking the id
-///     up again could find a different process that has since reused it.
-/// </summary>
 public class ParentProcessWatchdog
 {
-    /// <summary>How often the parent is looked at. A match outlives a missed check by a second at most.</summary>
     public const double CheckIntervalSeconds = 1.0;
 
     private readonly int _parentProcessId;
@@ -26,13 +17,8 @@ public class ParentProcessWatchdog
         _parentProcessId = parentProcessId;
     }
 
-    /// <summary>Whether this authority was started by a process that is being watched at all.</summary>
     public bool IsWatching => _parentProcessId > 0 && !_parentGone;
 
-    /// <summary>
-    ///     Answers whether the parent is gone, looking at most once per <see cref="CheckIntervalSeconds" />. An authority
-    ///     started without a parent is never reported gone, which is what a dedicated or exported authority is.
-    /// </summary>
     public bool Update(double nowSeconds)
     {
         if (_parentProcessId <= 0) return false;

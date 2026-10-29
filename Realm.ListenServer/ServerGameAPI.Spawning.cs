@@ -13,10 +13,6 @@ public partial class ServerGameAPI
 	private readonly Dictionary<int, ServerTimer> _timers = new();
 	private int _nextTimerHandle = 1;
 
-	/// <summary>
-	///     One scripted timer. A repeating timer keeps its interval; a one-shot keeps its handle until it fires, which is
-	///     the moment the script is told about it.
-	/// </summary>
 	private struct ServerTimer
 	{
 		public float Interval;
@@ -24,10 +20,6 @@ public partial class ServerGameAPI
 		public bool Repeating;
 	}
 
-	/// <summary>
-	///     Creates the unit a map asked for, owned by the player it named and stamped with that ownership, which is what
-	///     the authority describes a unit by. A map that declares no such template gets nothing, and is told so.
-	/// </summary>
 	public UnitId SpawnUnitForPlayer(string unitTypeId, Vector2 position, int playerIndex, bool executeSpawnShader = true, bool bypassPopulation = false)
 	{
 		if (string.IsNullOrEmpty(unitTypeId)) return UnitId.Invalid;
@@ -42,10 +34,6 @@ public partial class ServerGameAPI
 		return SpawnUnit(unitTypeId, new Vector3(position.X, 0f, position.Y), owner, playerIndex, bypassPopulation);
 	}
 
-	/// <summary>
-	///     The one path the authority creates a unit through: the shared factory builds it from the map's own statistics
-	///     and the match stamps the ownership every other system reads.
-	/// </summary>
 	internal UnitId SpawnUnit(string unitTypeId, Vector3 position, PlayerEntity owner, int playerIndex, bool bypassPopulation)
 	{
 		float groundHeight = ReadTerrainHeight(position);
@@ -64,7 +52,6 @@ public partial class ServerGameAPI
 		return new UnitId(spawned.Id);
 	}
 
-	/// <summary>The height of the ground a unit is placed on, so a scripted spawn stands on the terrain rather than under it.</summary>
 	private float ReadTerrainHeight(Vector3 position)
 	{
 		Entity worldEntity = _context.WorldEntity;
@@ -75,7 +62,6 @@ public partial class ServerGameAPI
 		return height;
 	}
 
-	/// <summary>Runs the timers a script scheduled and tells the script about the ones that came due.</summary>
 	public void AdvanceTimers(float deltaSeconds)
 	{
 		if (_timers.Count == 0) return;
@@ -113,7 +99,6 @@ public partial class ServerGameAPI
 
 	private readonly List<int> _nextDueTimers = new();
 
-	/// <summary>Schedules a timer that fires once, after the delay the script asked for.</summary>
 	public int ScheduleTimer(float delay)
 	{
 		int handle = _nextTimerHandle++;
@@ -122,7 +107,6 @@ public partial class ServerGameAPI
 		return handle;
 	}
 
-	/// <summary>Schedules a timer that fires every interval until the script cancels it.</summary>
 	public int ScheduleRepeatingTimer(float interval)
 	{
 		int handle = _nextTimerHandle++;
@@ -131,7 +115,6 @@ public partial class ServerGameAPI
 		return handle;
 	}
 
-	/// <summary>Stops a timer, whether it has fired or not.</summary>
 	public void CancelTimer(int timerHandle)
 	{
 		_timers.Remove(timerHandle);

@@ -6,18 +6,12 @@ using Realm.Shared.Services;
 
 namespace Realm.ListenServer;
 
-/// <summary>
-///     Serves the lobby's map to the peers that joined it. Sharing used to run on the host's lobby peer; it moves with
-///     the lobby, so the process that holds the lobby also holds the map a peer still downloading needs. Only files the
-///     map's own manifest lists are served, so a peer cannot name a path outside the map folder.
-/// </summary>
 public class ServerMapShares
 {
 	private readonly ServerLog _log;
 	private readonly MapManifest? _manifest;
 	private readonly Dictionary<string, string> _pathByHash = new(StringComparer.OrdinalIgnoreCase);
 
-	/// <summary>How many hashes one request may name. A map lists thousands; more than this is not a map transfer.</summary>
 	private const int MaximumRequestedHashes = 20000;
 
 	public ServerMapShares(string mapFolder, ServerLog log)
@@ -67,10 +61,6 @@ public class ServerMapShares
 		}
 	}
 
-	/// <summary>
-	///     Answers one transfer request. The client names what it is missing and which bundle of those files it wants
-	///     next, so the authority reads only the files that request needs and never holds a whole map in memory.
-	/// </summary>
 	public MapTransferReply Handle(int peerId, MapTransferRequest request)
 	{
 		if (_manifest == null) return Refused(request, "this lobby cannot serve a map it could not read");

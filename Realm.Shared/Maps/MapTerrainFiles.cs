@@ -4,11 +4,6 @@ using Realm.Shared.Textures;
 
 namespace Realm.Shared.Maps;
 
-/// <summary>
-///     The terrain half of a map folder: the height, water, pathing and splat images, their canonical file names and
-///     the packing that turns a <see cref="TerrainCell" /> grid into those images and back. The client editor and the
-///     authoritative process both go through here, so a map decodes to the same terrain wherever it is loaded.
-/// </summary>
 public static class MapTerrainFiles
 {
 	public const string HeightsFileName = "terrain_heights.exr";

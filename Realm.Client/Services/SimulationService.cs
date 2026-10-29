@@ -38,8 +38,6 @@ public class SimulationService
 		GameContext.RegistryService.AbilityDefinitions.TryGetValue(spellId, out var def);
 		if (def == null) return;
 
-		// Scripts apply an ability through the same executor the command card uses, so a spell
-		// triggered from map code cannot skip buffs, shields, scaling or summons.
 		if (AbilityEffectService.HasEffects(def))
 		{
 			AbilityEffectService.Execute(casterEnt, position, def, position);
@@ -669,8 +667,6 @@ public class SimulationService
 		_combatService.OnUnderAttackAlertRequested = (player, id) => OnUnderAttackAlertRequested?.Invoke(player, id);
 		_combatService.OnKillUnitRequested = ent => OnKillUnitRequested?.Invoke(ent);
 
-		// A summon that times out dies like any other unit for visuals and cleanup, but the expiry
-		// itself is not a kill: it has no last attacker, so no bounty or kill credit is awarded.
 		OnSummonExpired = ent =>
 		{
 			if (!GameContext.World.IsAlive(ent) || GameContext.World.Has<Dead>(ent)) return;
@@ -1058,11 +1054,6 @@ public class SimulationService
 		_fDelta = fDelta;
 	}
 
-	/// <summary>
-	///     Plans a route for every unit this client controls without moving any of them. A route is what a selected unit
-	///     draws and what its facing follows, so it has to exist locally; the positions themselves belong to the
-	///     authority, and a second writer here would pin a unit wherever it spawned.
-	/// </summary>
 	public void StepMovementPlanOnly(float fDelta)
 	{
 		_fDelta = fDelta;
@@ -1226,8 +1217,6 @@ public class SimulationService
 	{
 		shield.Advance(_fDelta);
 
-		// Pools with nothing left are removed with their component so a unit that never gets
-		// shielded again does not keep paying for the query.
 		if (shield.Count == 0)
 		{
 			GameContext.World.Remove<AbsorbShield>(entity);
@@ -1245,13 +1234,10 @@ public class SimulationService
 		OnSummonExpired?.Invoke(entity);
 	}
 
-	/// <summary>Raised when a summon's lifespan runs out, so it despawns without kill credit.</summary>
 	public Action<Entity>? OnSummonExpired;
 
 	private void StatsRecalcQueryAction(Entity entity, ref Stats stats)
 	{
-		// Applying or removing a modifier already recalculates the entity, so the tick only has to
-		// catch durations running out and then hand the entity back to the one stat pipeline.
 		if (!UpdateEntityModifiers(entity)) return;
 
 		AttributeStatCalculator.RecalculateEntityStats(GameContext.World, entity);
@@ -1295,8 +1281,6 @@ public class SimulationService
 	{
 		if (!GameContext.World.IsAlive(entity)) return;
 
-		// Only the editor opens ground itself. In a match the mesh is baked from the authority's obstacle set, so a
-		// screen that uncarved here would path through a blocker the authority still has.
 		if (isBuilding && GameContext.SessionState.IsMapEditorMode)
 		{
 			if (GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) && GameContext.World.Has<TerrainState>(GameContext.Simulation.WorldEntity))
@@ -1659,7 +1643,6 @@ public class SimulationService
 		OnProductionCompleted?.Invoke(buildingPlayerIndex, unitToSpawn);
 	}
 
-	/// <summary>The speed below which a unit is treated as standing still, which is where its facing comes from its description.</summary>
 	private const float StationaryVelocitySquared = 0.01f;
 
 	private void PresentationQueryAction(Entity entity, ref LatestDescription target)
@@ -1668,13 +1651,6 @@ public class SimulationService
 
 		if (MultiplayerSyncDiagnostics.IsRecording) MultiplayerSyncDiagnostics.RecordPresentationStep(entity.Id, GameContext.NetworkService?.LastAppliedSnapshotSequenceForDiagnostics ?? -1);
 
-		// The description this unit is drawn from, sampled where the match clock is being rendered rather than where it
-		// has got to. That is the whole of the presentation model for a replicated unit: it is drawn between the two
-		// descriptions either side of the cursor, so it neither trails a smoothed target nor has to be caught up when the
-		// screen falls behind. A unit with nothing described for it yet keeps the position it has until one arrives.
-		// A unit the match has given a destination to is the only one this may draw slightly ahead of its newest
-		// description: the order is confirmed, and the step is bounded to a third of a tick along the direction the unit was
-		// already moving. Everything else is drawn strictly between descriptions it has.
 		bool orderConfirmed = GameContext.World.Has<MoveTo>(entity);
 		if (!GameContext.SnapshotTimeline.TrySample(entity.Id, orderConfirmed, out Vector3 sampledPosition, out float sampledRotationY, out Vector3 sampledVelocity)) return;
 
@@ -1689,10 +1665,6 @@ public class SimulationService
 		GameContext.World.Set(entity, new Position(sampledPosition));
 		GameContext.World.SetOrAdd(entity, new Velocity(sampledVelocity));
 
-		// A unit that is standing still is drawn facing where the authority had it facing at the moment being rendered.
-		// The renderer smooths towards this value, so a unit that turns in place turns when it is drawn rather than one
-		// presentation delay before it. A unit that is moving is turned along its own movement instead, which is the
-		// same facing at the same moment; that decision belongs to the renderer and is left to it.
 		if (sampledVelocity.LengthSquared() <= StationaryVelocitySquared) target.RotationY = sampledRotationY;
 	}
 
@@ -1896,7 +1868,6 @@ public class SimulationService
 	{
 		if (!autoCast.Enabled || autoCast.ActiveAbilityBitmask == 0) return;
 
-		// Stagger auto-cast checks per entity across ticks so idle units do not all scan simultaneously
 		if ((entity.Id + _tickCount) % 4 != 0) return;
 
 		if (GameContext.World.Has<BuffState>(entity))
@@ -1924,8 +1895,6 @@ public class SimulationService
 
 			string abilityId = abilities[i];
 
-			// An ability the unit has hidden or disabled is not castable: the player-facing slot is
-			// the source of truth for what this unit may use, and autocast must agree with it.
 			if (GameContext.RegistryService.IsAbilityHiddenForUnit(unitWrapper, abilityId)) continue;
 			if (GameContext.RegistryService.IsAbilityDisabledForUnit(unitWrapper, abilityId)) continue;
 

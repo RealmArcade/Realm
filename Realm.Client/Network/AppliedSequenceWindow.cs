@@ -1,9 +1,5 @@
 namespace Realm.Client.Network;
 
-/// <summary>
-/// Bit 0 is the newest sequence, bit i is that sequence minus i, so a 64-bit mask sent with
-/// <see cref="Highest"/> names exactly the snapshots a peer applied rather than every snapshot before one it did.
-/// </summary>
 public struct AppliedSequenceWindow
 {
 	public const int WindowSize = 128;

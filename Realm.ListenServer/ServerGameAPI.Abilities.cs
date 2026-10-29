@@ -7,11 +7,6 @@ using Realm.Shared.Network;
 
 namespace Realm.ListenServer;
 
-/// <summary>
-///     Abilities as a map script describes and adjusts them: what they are called, what their cards read, and how each
-///     unit's own abilities are currently presented. The authority holds the answer, so a card a script wrote and a
-///     command a unit cannot take are one decision every client is told about rather than one each client works out.
-/// </summary>
 public partial class ServerGameAPI
 {
 	private readonly ScriptAbilityRegistry _abilities;
@@ -21,10 +16,8 @@ public partial class ServerGameAPI
 	private const string UnitOwnerKind = "unit";
 	private const string UpgradeOwnerKind = "upgrade";
 
-	/// <summary>What puts a name and a card on an ability no template in the map declares.</summary>
 	public ScriptAbilityRegistry Abilities => _abilities;
 
-	/// <summary>Adds an ability to every unit and building of a template, which is how a map hands out its own buttons.</summary>
 	public void AddUnitTypeAbility(string unitTypeId, string abilityId)
 	{
 		if (string.IsNullOrWhiteSpace(unitTypeId) || string.IsNullOrWhiteSpace(abilityId)) return;
@@ -36,12 +29,6 @@ public partial class ServerGameAPI
 		PublishTemplateAbility(abilityId);
 	}
 
-	/// <summary>
-	///     Tells screens what a button a map added to a template reads. The template a button belongs to is the
-	///     authority's own catalog, so a client that was never told would have the command without a name or a picture
-	///     for it: an ability the map's own files describe is published under that description, and one that names a unit
-	///     type is published as the unit it offers, which is how a map's build list can offer units as buttons.
-	/// </summary>
 	private void PublishTemplateAbility(string abilityId)
 	{
 		if (!_declaredTemplateAbilities.Add(abilityId)) return;
@@ -57,10 +44,8 @@ public partial class ServerGameAPI
 			Vector3.Zero, Vector3.Zero, Vector3.Zero, 0, 0, 0f, 0f, 0f, false);
 	}
 
-	/// <summary>The buttons this map put on a template, published once each.</summary>
 	private readonly HashSet<string> _declaredTemplateAbilities = new(StringComparer.OrdinalIgnoreCase);
 
-	/// <summary>The abilities a unit or building template offers, in the order a map declared them.</summary>
 	public IReadOnlyList<string> GetUnitTypeAbilities(string unitTypeId)
 	{
 		if (string.IsNullOrWhiteSpace(unitTypeId)) return Array.Empty<string>();
@@ -69,7 +54,6 @@ public partial class ServerGameAPI
 		return template?.Abilities ?? Array.Empty<string>();
 	}
 
-	/// <summary>The name a unit or building shows, as its template declares it.</summary>
 	public string GetUnitName(string unitTypeId)
 	{
 		if (string.IsNullOrWhiteSpace(unitTypeId)) return string.Empty;
@@ -80,7 +64,6 @@ public partial class ServerGameAPI
 		return Path.GetFileNameWithoutExtension(unitTypeId);
 	}
 
-	/// <summary>The name an ability shows, as the map registered it or as its template declares it.</summary>
 	public string GetAbilityName(string abilityId)
 	{
 		if (string.IsNullOrWhiteSpace(abilityId)) return string.Empty;
@@ -88,10 +71,8 @@ public partial class ServerGameAPI
 		return _abilities.GetName(abilityId, _map.Catalog.FindAbility(abilityId)?.Name);
 	}
 
-	/// <summary>The text a string id was registered under, which is how a map names something both sides already hold.</summary>
 	public string GetStringText(int stringId) => stringId <= 0 ? string.Empty : StringRegistry.Get(stringId);
 
-	/// <summary>Puts a name and a card on an ability every player can be offered.</summary>
 	public void RegisterAbility(string abilityId, string displayName, string tooltip, string iconPath = "", bool isInstant = false)
 	{
 		if (!_abilities.Register(abilityId, displayName, tooltip, iconPath, isInstant)) return;
@@ -100,7 +81,6 @@ public partial class ServerGameAPI
 			Vector3.Zero, Vector3.Zero, Vector3.Zero, isInstant ? 1 : 0, 0, 0f, 0f, 0f, isInstant);
 	}
 
-	/// <summary>Puts a name and a card on an ability one player is offered, which is what a map does for one seat.</summary>
 	public void RegisterPlayerAbility(int playerIndex, string abilityId, string displayName, string tooltip, string iconPath = "", bool isInstant = false)
 	{
 		if (!_abilities.Register(abilityId, displayName, tooltip, iconPath, isInstant)) return;
@@ -147,7 +127,6 @@ public partial class ServerGameAPI
 			Vector3.Zero, Vector3.Zero, Vector3.Zero, 0, 0, 0f, 0f, 0f, false);
 	}
 
-	/// <summary>Publishes a number one of the map's own cards reads.</summary>
 	public void SetAbilityTooltipValue(string abilityId, string key, float value) => WriteTooltipNumber(AbilityOwnerKind, abilityId, key, value);
 
 	public void SetAbilityTooltipText(string abilityId, string key, string value) => WriteTooltipText(AbilityOwnerKind, abilityId, key, value);
@@ -170,10 +149,6 @@ public partial class ServerGameAPI
 
 	public void SetUpgradeTooltipValue(string upgradeId, string key, float value) => WriteTooltipNumber(UpgradeOwnerKind, upgradeId, key, value);
 
-	/// <summary>
-	///     Shows or hides one of a unit's abilities, which is how a map marks an order the unit cannot take right now.
-	///     The change is published to peers against the ability's slot in that unit's own list.
-	/// </summary>
 	public void SetAbilityState(UnitId unit, string abilityId, bool disabled, bool hidden)
 	{
 		if (!unit.IsValid) return;
@@ -181,7 +156,6 @@ public partial class ServerGameAPI
 		_abilities.SetUnitAbilityState(unit.Value, abilityId, disabled, hidden);
 	}
 
-	/// <summary>Sets what one ability costs one unit, which the authority charges when that unit casts it.</summary>
 	public void SetAbilityManaCost(UnitId unit, string abilityId, float manaCost)
 	{
 		if (string.IsNullOrWhiteSpace(abilityId)) return;
@@ -189,10 +163,6 @@ public partial class ServerGameAPI
 		_abilities.SetUnitAbilityManaCost(unit.IsValid ? unit.Value : 0, abilityId, Math.Max(0f, manaCost));
 	}
 
-	/// <summary>
-	///     What a cast costs a unit, or nothing when the map has said nothing about that unit, so the authored cost
-	///     stands.
-	/// </summary>
 	public float? AbilityManaCostFor(Entity caster, string abilityId)
 	{
 		if (caster == Entity.Null || !_context.World.IsAlive(caster)) return null;
@@ -227,10 +197,6 @@ public partial class ServerGameAPI
 			Vector3.Zero, Vector3.Zero, Vector3.Zero, 0, 0, 0f, 0f, 0f, false);
 	}
 
-	/// <summary>
-	///     Adds an ability to a template's list. The same object is stored under the template's full id and under the id
-	///     without its prefix, so the list a script reads back is the list a spawn uses.
-	/// </summary>
 	private static bool AddAbilityToTemplate(UnitMetadata? template, string abilityId)
 	{
 		if (template == null) return false;

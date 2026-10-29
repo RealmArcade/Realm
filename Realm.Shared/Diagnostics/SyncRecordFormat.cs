@@ -13,28 +13,14 @@ using Realm.Ecs.Services;
 
 namespace Realm.Shared.Diagnostics;
 
-/// <summary>
-///     The binary shape of the ECS sync records a match writes: the stream the authority writes as it publishes and the
-///     stream a client writes as it applies. Both processes have to agree on it, so it lives beside the other contracts
-///     they share rather than inside either one of them.
-/// </summary>
 public static class SyncRecordFormat
 {
-	/// <summary>Identifies a sync record stream, so a file that is not one is refused rather than misread.</summary>
 	public const uint Magic = 0x504E5352;
 
-	/// <summary>Which layout of the records a stream holds. A reader refuses a stream it was not built for.</summary>
 	public const int Version = 12;
 
-	/// <summary>
-	///     The mask that says every peer could name a reference, so the digest is a statement every peer can be held to.
-	///     Any other mask names only the peers that were told about the entity the reference points at, because the
-	///     shroud is decided per peer: a reference the authority sent to one screen and withheld from another is a
-	///     statement the first screen can be judged on and the second cannot.
-	/// </summary>
 	public const ulong NamedByEveryPeer = ulong.MaxValue;
 
-	/// <summary>How many player slots a record describes, whatever the match actually seats.</summary>
 	public const int PlayerSlotCount = 25;
 
 	public const byte FlagDead = 1;
@@ -43,18 +29,8 @@ public static class SyncRecordFormat
 	public const byte FlagVisibleToRemoteClient = 8;
 	public const byte FlagCulled = 32;
 
-	/// <summary>
-	///     Says whether the writer can state one component and which peers could name the entity it points at. A component
-	///     that names no entity is comparable by everyone; a reference is comparable only by the peers that were told about
-	///     the entity it points at, because a peer that was never told holds no name for it. Returning false means the
-	///     writer has no statement to make and the digest is left out; returning true with an empty mask means the writer
-	///     holds a value that no peer was ever given a name for, which is a statement the reader must not hold anyone to
-	///     either — the difference between the two is what keeps a name this screen kept from an earlier description out
-	///     of the comparison instead of being reported as a component the host does not have.
-	/// </summary>
 	public delegate bool ComponentComparabilityMask(int componentTypeId, ReadOnlySpan<byte> payload, out ulong namedByPeers);
 
-	/// <summary>What one unit looked like on one sequence, as either process describes it.</summary>
 	public readonly struct SyncUnitRecord
 	{
 		public readonly int EntityId;
@@ -66,7 +42,6 @@ public static class SyncRecordFormat
 		public readonly Vector3 AppliedPosition;
 		public readonly byte Flags;
 
-		/// <summary>Which peers this sequence described the unit to, as the bits of the record's peer mask.</summary>
 		public readonly ulong NamedByPeers;
 
 		public SyncUnitRecord(int entityId, int ownerPlayerIndex, Vector3 position, float rotationY, float currentHp, float maxHp, Vector3 appliedPosition, byte flags, ulong namedByPeers = NamedByEveryPeer)
@@ -83,7 +58,6 @@ public static class SyncRecordFormat
 		}
 	}
 
-	/// <summary>Writes the file header both processes start a stream with.</summary>
 	public static void WriteHeader(BinaryWriter writer, bool isAuthority)
 	{
 		writer.Write(Magic);
@@ -91,12 +65,6 @@ public static class SyncRecordFormat
 		writer.Write(isAuthority);
 	}
 
-	/// <summary>
-	///     Writes one unit's state as every side of the match describes it: where it is, how healthy it is, how far the
-	///     screen that received it has applied it, and which components the entity carries. The entity the components are
-	///     hashed from is passed in because a client records the unit under the authority's identifier while holding it
-	///     under its own.
-	/// </summary>
 	public static void WriteUnit(BinaryWriter writer, in SyncUnitRecord unit, EcsWorld? world, Entity digestEntity, ReplicatedScope scope, IReadOnlyDictionary<int, int>? clientToServerEntityMap, ComponentComparabilityMask? namedBy = null)
 	{
 		writer.Write(unit.EntityId);
@@ -111,17 +79,10 @@ public static class SyncRecordFormat
 		writer.Write(unit.AppliedPosition.Y);
 		writer.Write(unit.AppliedPosition.Z);
 		writer.Write(unit.Flags);
-		// A unit only some peers were told about is still a unit those peers can be held to, so the record states which
-		// peers it reached rather than leaving a reader to assume it reached everyone or no one.
 		writer.Write(unit.NamedByPeers);
 		WriteComponentDigests(writer, world, digestEntity, scope, clientToServerEntityMap, namedBy);
 	}
 
-	/// <summary>
-	///     Writes a hash per replicated component the entity carries. A hash rather than the payload, because a record is
-	///     a fingerprint of one ECS at one instant: two processes agreeing on every hash hold the same world, and one that
-	///     disagrees names the component that differs without either side having to send its values.
-	/// </summary>
 	public static void WriteComponentDigests(BinaryWriter writer, EcsWorld? world, Entity entity, ReplicatedScope scope, IReadOnlyDictionary<int, int>? clientToServerEntityMap, ComponentComparabilityMask? namedBy = null)
 	{
 		_digestBuffer.Clear();
@@ -140,8 +101,6 @@ public static class SyncRecordFormat
 				payload.Clear();
 				if (!codec.TryWrite(world, entity, payload)) continue;
 
-				// Asked before the reference is rewritten, because the writer's own value is the one it can name, and a
-				// reference it cannot name is exactly the statement it must leave out.
 				ulong namedByMask = NamedByEveryPeer;
 				if (namedBy != null && !namedBy(codec.ComponentTypeId, payload, out namedByMask)) continue;
 
@@ -156,18 +115,12 @@ public static class SyncRecordFormat
 		{
 			writer.Write(_digestBuffer[index].ComponentTypeId);
 			writer.Write(_digestBuffer[index].Hash);
-			// Only a reference is ever scoped, so the byte is written for every entry and the mask after it only for the
-			// one entry in a unit's component set that can be about the shroud rather than about the world.
 			bool isScoped = _digestBuffer[index].NamedByMask != NamedByEveryPeer;
 			writer.Write((byte)(isScoped ? 1 : 0));
 			if (isScoped) writer.Write(_digestBuffer[index].NamedByMask);
 		}
 	}
 
-	/// <summary>
-	///     Writes the state of every player seat. An order names an entity as its own process numbers it, so a client's
-	///     copy is rewritten through that entity reference before it is hashed; the authority has nothing to rewrite.
-	/// </summary>
 	public static void WritePlayerScope(BinaryWriter writer, EcsWorld? world, Entity worldEntity, ReplicatedScope scope, IReadOnlyDictionary<int, int>? clientToServerEntityMap)
 	{
 		Entity[]? playerEntities = null;
@@ -188,12 +141,6 @@ public static class SyncRecordFormat
 		WriteComponentDigests(writer, world, worldEntity, ReplicatedScope.World, clientToServerEntityMap);
 	}
 
-	/// <summary>
-	///     Writes one ground loot item's state, under the identifier both processes know it by, and which peers this
-	///     sequence described it to. An item is stated as the values a screen draws it from rather than as a component
-	///     digest: the life an item has left counts down on the authority every tick, so the two processes are never
-	///     exactly equal and a hash would call every run a divergence.
-	/// </summary>
 	public static void WriteLootItem(BinaryWriter writer, int uniqueId, ulong namedByPeers, EcsWorld? world, Entity entity)
 	{
 		writer.Write(uniqueId);
@@ -214,11 +161,6 @@ public static class SyncRecordFormat
 		writer.Write(position.Z);
 	}
 
-	/// <summary>
-///     Writes what both processes' navigation looked like: the grid, the mesh baked over it and the obstacle volumes
-///     the bake consumed. A route a screen plans can only follow the corridor the authority follows while the two agree
-///     on these.
-	/// </summary>
 	public static void WriteNavigationState(BinaryWriter writer, in NavigationParityDigest digest)
 	{
 		writer.Write(digest.HasTerrainState);
@@ -273,10 +215,6 @@ public static class SyncRecordFormat
 		}
 	}
 
-	/// <summary>
-	///     The components whose payload starts with an entity reference. A client hashes its copy of one of these after
-	///     rewriting the reference to the server identifier, so the two processes hash the same number.
-	/// </summary>
 	private static readonly Dictionary<int, int> _entityReferencePayloadOffsets = new()
 	{
 		{ ComponentType<AttackTarget>.Id, 0 },

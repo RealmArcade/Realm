@@ -36,20 +36,9 @@ public sealed class MultiplayerEcsRunSettings
 	public int PacketLossPercent { get; init; }
 	public NetworkProfile Profile { get; init; } = NetworkProfile.Latency;
 	public int PeerCount { get; init; } = 2;
-	/// <summary>
-	/// How many seats the match is asked to play itself. They are part of the roster the lobby hands over, so a map's
-	/// script seats them before it runs its own logic, exactly as it does for a player who connected.
-	/// </summary>
 	public int BotCount { get; init; }
-	/// <summary>
-	/// Game time at which the first client drops its connection on purpose. Zero disables the reconnect scenario.
-	/// </summary>
 	public float DropClientAtSeconds { get; init; }
 	public float DiscardSnapshotAtSeconds { get; init; }
-	/// <summary>
-	/// How many host snapshot sequences the dropped client may miss before the reconnect counts as failed. At 30 snapshots
-	/// per second this is roughly eight seconds: the reconnect handshake, a fresh baseline and the first deltas.
-	/// </summary>
 	public int ReconnectDeadlineSequences { get; init; } = 240;
 	public int DrainMilliseconds => Math.Max(1500, Math.Max(PingMilliseconds * 4, OneWayDelayMilliseconds * 8));
 
@@ -79,7 +68,6 @@ public sealed class MultiplayerEcsSyncReport
 	public int PairedSnapshotCount { get; set; }
 	public int ComparedUnitCount { get; set; }
 
-	/// <summary>How many items on the ground were compared against the authority, so a run can tell loot was exercised at all.</summary>
 	public int ComparedLootCount { get; set; }
 	public int HostSnapshotCount { get; set; }
 	public int ClientSnapshotCount { get; set; }
@@ -109,63 +97,29 @@ public sealed class MultiplayerEcsSyncReport
 
 public static class MultiplayerEcsSyncTestSupport
 {
-	/// <summary>
-	/// What "exact" can mean for a unit a baseline restates. The host declares a unit changed - and therefore says
-	/// anything about it at all - only when it moved more than five centimetres, turned more than three degrees, or lost
-	/// or gained a tenth of a hit point, so a peer legitimately holds a value inside that quantum and demanding 0.0005
-	/// asked for precision the protocol never sends. Regenerating units drifted by a few hundredths and were reported as
-	/// divergences on every eight-peer run.
-	/// </summary>
 	private const float BaselineTolerance = 0.1f;
 	private const float DeltaPositionTolerance = 1.05f;
 	private const float DeltaRotationTolerance = 0.17f;
 	private const float DeltaHealthTolerance = 1.05f;
 	private const float LootPositionToleranceMeters = 0.1f;
 
-	/// <summary>
-	///     How far apart the life two processes say an item has left may be. The authority counts it down every tick and
-	///     restates the item a few times a second, so what a screen holds is always a little older than what the
-	///     authority does.
-	/// </summary>
 	private const float LootRemainingLifetimeToleranceSeconds = 0.5f;
 	private const float PresentationPositionTolerance = 0.25f;
 	private const float PresentationRotationTolerance = 0.2f;
-	/// <summary>
-	/// The smallest movement the wire can state, so a unit the match describes to a peer is fresh to within this much on
-	/// every tick it is described on. The match states one precision, which this is the resend step of.
-	/// </summary>
 	private const float StatedPositionThresholdMeters = 0.05f;
 	private const float SnapshotRecordsPerSecond = 60f;
-	/// <summary>
-	/// A host step this large is a spawn, a teleport or a correction, not travel, so it is left out of the speed measured
-	/// for the interpolation bound.
-	/// </summary>
 	private const float MaximumTravelStepMeters = 2f;
 	private const int PlacementQuantityRendererFidelity = 0;
 	private const int PlacementQuantityAuthority = 1;
 	private const int PlacementQuantityCount = 2;
-	/// <summary>
-	/// How many consecutive records a measured distance may exceed its tolerance before it is reported: at the harness's
-	/// sixty records per second this is half a second, which is longer than any legitimate catch-up the protocol allows.
-	/// </summary>
 	private const int PlacementLagAllowanceSequences = 30;
 	private const int StartupWarmupSequenceCount = 60;
 	private const int SyncRecordVersion = SyncRecordFormat.Version;
 
-	/// <summary>
-	/// How far the authority must have moved a unit for the direction it moved in to mean anything. A unit standing still
-	/// has no direction, so its rendered position has nothing to be measured against.
-	/// </summary>
 	private const float BackwardMotionAuthorityMeters = 0.05f;
 
-	/// <summary>
-	/// How far a rendered transform may fall behind where it was drawn a sequence earlier, measured along the direction the
-	/// authority moved it, before the step counts as backwards. Below this is the facing and position a quantized
-	/// description cannot resolve.
-	/// </summary>
 	private const float BackwardMotionToleranceMeters = 0.02f;
 
-	/// <summary>Where a unit was last drawn and where the authority held it, so consecutive sequences can be compared.</summary>
 	private readonly record struct TrackedPresentedPosition(int Sequence, float AuthorityX, float AuthorityZ, float PresentedX, float PresentedZ);
 
 	public static string ResolveClientProjectDirectory()
@@ -192,11 +146,6 @@ public static class MultiplayerEcsSyncTestSupport
 		throw new FileNotFoundException("Godot binary was not found. Set the GODOT_BIN environment variable.");
 	}
 
-	/// <summary>
-	///     The folder a named test map lives in: the environment variable when it names a folder, then the candidates in
-	///     order. Machines keep their map workspaces in different places, and a harness that only knew one of them ran on
-	///     one machine.
-	/// </summary>
 	public static string ResolveTestMapFolder(string environmentVariable, params string[] candidates)
 	{
 		string? fromEnvironment = System.Environment.GetEnvironmentVariable(environmentVariable);
@@ -210,11 +159,6 @@ public static class MultiplayerEcsSyncTestSupport
 		throw new DirectoryNotFoundException($"No folder for this test map was found: set {environmentVariable} or provide one of {string.Join(", ", candidates)}.");
 	}
 
-	/// <summary>
-	///     The WASM artifact this map's authority runs, publishing the map's project when the artifact is older than the
-	///     script. A map workspace names its project whatever its author called it and may ship the artifact beside its
-	///     script instead of under a publish folder, so both shapes are accepted rather than assuming the harness's own map.
-	/// </summary>
 	public static string EnsureMapWasm(string mapFolder)
 	{
 		string? projectPath = Directory.EnumerateFiles(mapFolder, "*.csproj").FirstOrDefault();
@@ -225,8 +169,6 @@ public static class MultiplayerEcsSyncTestSupport
 		string publishedPath = Path.Combine(mapFolder, "bin", "Release", "net10.0", "wasi-wasm", "publish", $"{assemblyName}.wasm");
 		string shippedPath = Path.Combine(mapFolder, $"{assemblyName}.wasm");
 
-		// A map that ships its artifact beside its script is played as shipped: publishing it again would run a script
-		// the map did not come with.
 		if (File.Exists(shippedPath) && (!File.Exists(mapScriptPath) || File.GetLastWriteTimeUtc(shippedPath) >= File.GetLastWriteTimeUtc(mapScriptPath))) return shippedPath;
 		if (File.Exists(publishedPath) && File.GetLastWriteTimeUtc(publishedPath) >= File.GetLastWriteTimeUtc(mapScriptPath)) return publishedPath;
 
@@ -261,12 +203,6 @@ public static class MultiplayerEcsSyncTestSupport
 		return wasmPath;
 	}
 
-	/// <summary>
-	///     A copy of the Chaos Arena workspace whose script drops an item beside every seat's hero. Loot is dropped by
-	///     the map rather than by the harness because the authority is the only process that owns what lies on the ground,
-	///     so a run can only judge it by playing a map that drops something. The copy is published like any other map and
-	///     reused until the source map changes, because publishing a script is the slowest step of a run.
-	/// </summary>
 	public static (string MapFolder, string WasmPath) EnsureLootSpawningMap(string sourceMapFolder)
 	{
 		string sourceScriptPath = Path.Combine(sourceMapFolder, "MapScript.cs");
@@ -313,8 +249,6 @@ public static class MultiplayerEcsSyncTestSupport
 
 	private static void PatchLootSpawningScript(string scriptPath)
 	{
-		// The copy is a scratch file, so its line endings are settled here rather than matched in whichever shape the
-		// map it was copied from happened to be saved in.
 		string script = File.ReadAllText(scriptPath).Replace("\r\n", "\n");
 		const string updateOpening = "    public void Update(IGameAPI api, float delta)\n    {\n";
 		int updateIndex = script.IndexOf(updateOpening, StringComparison.Ordinal);
@@ -325,10 +259,6 @@ public static class MultiplayerEcsSyncTestSupport
 		File.WriteAllText(scriptPath, script);
 	}
 
-	/// <summary>
-	///     Removes a copy this fixture made earlier. A map folder carries content-addressed assets the asset store holds
-	///     read-only, which a recursive delete refuses, so every file is made writable first.
-	/// </summary>
 	private static void DeleteMapCopy(string mapFolder)
 	{
 		if (!Directory.Exists(mapFolder)) return;
@@ -514,9 +444,6 @@ public static class MultiplayerEcsSyncTestSupport
 		startInfo.ArgumentList.Add($"--peer-index={peerIndex}");
 		startInfo.ArgumentList.Add($"--bots={(role == "host" ? settings.BotCount : 0)}");
 		startInfo.ArgumentList.Add($"--wait-for-peer-ready={waitForPeerReadyFile}");
-		// The scenarios are named after what they ask of a peer rather than after a seat in a particular room: the
-		// reconnect drops the first client's connection and the repair makes the first client discard a snapshot, so a
-		// room of two peers - one screen - runs both, and a room of three runs them on the screen they were written for.
 		startInfo.ArgumentList.Add($"--drop-at={(role == "client" && peerIndex == 1 ? settings.DropClientAtSeconds : 0f).ToString(CultureInfo.InvariantCulture)}");
 		startInfo.ArgumentList.Add($"--discard-at={(role == "client" && peerIndex == 1 ? settings.DiscardSnapshotAtSeconds : 0f).ToString(CultureInfo.InvariantCulture)}");
 
@@ -627,11 +554,6 @@ public static class MultiplayerEcsSyncTestSupport
 
 		HashSet<int> clientSeenSequences = ReadClientSeenSequences(clientOutputDirectory);
 		TryReadSequence(Path.Combine(clientOutputDirectory, "client_final_sequence.txt"), out int clientFinalAppliedSequence);
-		// A baseline is decided per peer, so whether this client was sent one at a sequence comes from the record's peer
-		// list rather than from the sequence's own flag, which now only means "a baseline for at least one peer".
-		// The client's peer id is not constant: a connection that times out while the map loads reconnects with a new
-		// id, so the harness appends every id the process used and a baseline counts as sent to this client when any of
-		// them appears in the record. Attributing by the first id alone reported every later baseline as a mismatch.
 		HashSet<int> clientPeerIds = ReadClientPeerIds(clientOutputDirectory);
 		int inFlightSequenceCount = 0;
 		int supersededSequenceCount = 0;
@@ -640,9 +562,6 @@ public static class MultiplayerEcsSyncTestSupport
 		HashSet<int>? sequencesSentToPeer = reconnectExpectation == null ? ReadHostSentSequences(outputDirectory, clientOutputDirectory) : null;
 		List<int> notSentSequences = new();
 
-		// The authority writes its coverage of what it sent every few hundred sequences, so the tail after the last write
-		// is not covered by the record at all. Those sequences are counted apart from the ones it names, because a
-		// record that stops early says nothing about the stream.
 		int lastRecordedSendSequence = sequencesSentToPeer is { Count: > 0 } ? MaxOf(sequencesSentToPeer) : -1;
 		int unrecordedSequenceCount = 0;
 		int reconnectOutageSequences = 0;
@@ -700,8 +619,6 @@ public static class MultiplayerEcsSyncTestSupport
 				{
 					unpairedSequenceCount++;
 
-					// A sequence the scenario asked the peer to be away for was never going to be applied, so nothing it carried
-					// - a baseline included - is a fault in the protocol.
 					if (reconnectExpectation != null && reconnectExpectation.Contains(hostEntry.Key))
 					{
 						reconnectOutageSequences++;
@@ -713,10 +630,6 @@ public static class MultiplayerEcsSyncTestSupport
 					else if (sequencesSentToPeer != null && hostEntry.Key > lastRecordedSendSequence) unrecordedSequenceCount++;
 					else if (sequencesSentToPeer != null && !sequencesSentToPeer.Contains(hostEntry.Key)) notSentSequences.Add(hostEntry.Key);
 					else lostSequences.Add(hostEntry.Key);
-					// A baseline travels on its own reliable channel, so a burst of deltas can overtake it and the client then
-					// rejects it as older than what it has already applied. That is the transport working, not a lost baseline:
-					// the sequence reached the peer and the state it carried is already superseded. Only a baseline the peer never
-					// saw is a missing baseline.
 					if (ContainsAnyPeerId(hostEntry.Value.BaselinePeerIds, clientPeerIds))
 					{
 						if (clientSeenSequences.Contains(hostEntry.Key)) supersededBaselineSequences.Add(hostEntry.Key);
@@ -770,10 +683,6 @@ public static class MultiplayerEcsSyncTestSupport
 				CompareNavigationState(hostEntry.Value.Sequence, hostEntry.Value.Navigation, clientRecord.Navigation, mismatches, navMeshObservations, ref pathingMismatchCount, ref navMeshMissingCount, ref navMeshShapeDifferenceCount);
 			}
 
-			// The mesh is also compared on every paired record, not only on baselines, because a mesh difference is not a
-			// per-tick state change: it changes only when one side bakes. Once the two sides have agreed on a mesh, any later
-			// difference means one side re-baked from different input. Baselines alone left the peers whose baseline flag the
-			// host records imperfectly with no mesh verification at all.
 			if (hostEntry.Value.Navigation.HasNavMesh && clientRecord.Navigation.HasNavMesh)
 			{
 				bool shapeMatches = hostEntry.Value.Navigation.PolyCount == clientRecord.Navigation.PolyCount
@@ -792,11 +701,6 @@ public static class MultiplayerEcsSyncTestSupport
 				}
 				else if (firstNavMeshAgreementSequence >= 0)
 				{
-					// The two sides bake the same volumes into the same mesh, so a mesh that differs is only a defect when
-					// they baked the same volumes. A volume the authority gained takes the sender's compare cadence and
-					// one trip over the link to reach the peer, so for a moment the peer's mesh is that volume behind by
-					// design; only an input difference that outlives that window, or a mesh difference over identical
-					// input, says one side baked something the other never held.
 					bool obstacleInputDiffers = hostEntry.Value.Navigation.ObstacleVolumeCount != clientRecord.Navigation.ObstacleVolumeCount
 						|| hostEntry.Value.Navigation.ObstacleHash != clientRecord.Navigation.ObstacleHash;
 					if (obstacleInputDiffers && ++navMeshObstacleInputRun <= navMeshObstacleInputAllowance)
@@ -927,12 +831,6 @@ public static class MultiplayerEcsSyncTestSupport
 		return report;
 	}
 
-	/// <summary>
-	/// The share of host snapshot sequences that may never reach the client, expressed as a percentage of the paired
-	/// snapshots. A per-tick snapshot spans roughly four unreliable fragments, so a datagram loss rate of p drops about
-	/// 1-(1-p)^4 of snapshots: 3% datagrams is close to 11.5% of snapshots. The allowance is that expectation with
-	/// roughly 1.75x headroom, so it fails only on a real transport regression rather than on the profile's own loss.
-	/// </summary>
 	private static int ResolveLostSequenceTolerance(MultiplayerEcsRunSettings settings, int pairedSnapshots, int lostSequenceCount)
 	{
 		int allowancePercent = settings.Profile switch
@@ -944,23 +842,10 @@ public static class MultiplayerEcsSyncTestSupport
 			_ => 12
 		};
 
-		// Loss is a share of what the host produced, so the denominator is the sequences the client received plus the
-		// ones it never received. Measured on this harness: a clean profile loses 1%, a fixed 60 ms one-way delay between
-		// 1.6% and 9.4% run to run, a jittered profile 7%, and 3% injected datagram loss reaches roughly 33-38% of
-		// snapshots because each snapshot spans multiple unreliable fragments. The spread at a fixed delay is the pace
-		// rather than the protocol: an uncapped run describes the world six times faster than it would be played, so the
-		// channel is saturated and ENet drops what it cannot queue. What a regression looks like is asserted separately -
-		// a lost baseline, a sequence no later description or baseline repaired, or a client that stops converging.
 		int producedSequences = pairedSnapshots + lostSequenceCount;
 		return Math.Max(10, producedSequences * allowancePercent / 100);
 	}
 
-	/// <summary>
-	/// What the mid-match reconnect scenario recorded on the client: the sequence it had applied when the connection was
-	/// dropped and the first sequence it applied after rejoining. Sequences in between are the outage the scenario asked
-	/// for, so they are counted separately from snapshots the transport lost, and the state compared after the resume is
-	/// what proves the client converged back to the authority.
-	/// </summary>
 	private sealed class ReconnectExpectation
 	{
 		public int DropSequence { get; init; }
@@ -996,7 +881,6 @@ public static class MultiplayerEcsSyncTestSupport
 	{
 		if (settings.DropClientAtSeconds <= 0f) return null;
 
-		// The scenario drops the connection of the first peer, so only that peer's record carries the drop.
 		if (!string.Equals(Path.GetFullPath(clientDirectory), Path.GetFullPath(settings.ResolveClientDirectory(1)), StringComparison.OrdinalIgnoreCase)) return null;
 
 		string path = Path.Combine(clientDirectory, "client_drop.txt");
@@ -1100,8 +984,6 @@ public static class MultiplayerEcsSyncTestSupport
 			navMeshShapeDifferenceCount++;
 			if (navMeshObservations.Count < 20)
 			{
-				// The bake input is reported beside the result, because a mesh that differs while the volumes and the terrain
-				// agree is a bake defect, and one that differs with different volumes is a missing transfer.
 				navMeshObservations.Add($"seq {sequence}: navmesh host=(polys {hostNavigation.PolyCount}, ground {hostNavigation.GroundPolyCount}, hash {hostNavigation.PolyHash:x8}, obstacle volumes {hostNavigation.ObstacleVolumeCount}, input hash {hostNavigation.ObstacleHash:x8}) client=(polys {clientNavigation.PolyCount}, ground {clientNavigation.GroundPolyCount}, hash {clientNavigation.PolyHash:x8}, obstacle volumes {clientNavigation.ObstacleVolumeCount}, input hash {clientNavigation.ObstacleHash:x8}), obstacle inputs {(obstacleInputMatches ? "agree" : "differ")}.");
 			}
 		}
@@ -1175,10 +1057,6 @@ public static class MultiplayerEcsSyncTestSupport
 		var placementStreaks = new Dictionary<int, PlacementStreak[]>();
 		var completedPlacementStreaks = new List<(int EntityId, int Quantity, PlacementStreak Streak)>();
 
-		// One sample per physics tick. The client applies a snapshot when the packet arrives, so a tick that receives a
-		// clump of them writes a record per snapshot, all of the same instant, and the cursor and the renderer advance
-		// once. Judging every record of a clump measured that one instant as dozens of consecutive samples; the last
-		// record of each tick is the state that tick actually produced.
 		Dictionary<ulong, int> lastSequencePerFrame = new();
 		foreach (KeyValuePair<int, MultiplayerSnapshotRecord> presentedEntry in presentedRecords)
 		{
@@ -1186,9 +1064,6 @@ public static class MultiplayerEcsSyncTestSupport
 			if (presentedEntry.Key > lastSequence) lastSequencePerFrame[presentedEntry.Value.PhysicsFrame] = presentedEntry.Key;
 		}
 
-		// A rendered unit is drawn from the authority's own timeline, so the only thing that can move it is the cursor, and
-		// the cursor only goes backwards when it ran out of world and was placed back on the newest description. Measuring
-		// motion against the authority's own direction of travel turns that from an impression into a count.
 		var previousPresented = new Dictionary<int, TrackedPresentedPosition>();
 		int backwardRenderCount = 0;
 		float worstBackwardMeters = 0f;
@@ -1216,9 +1091,6 @@ public static class MultiplayerEcsSyncTestSupport
 
 				if (!presentedRecord.Units.TryGetValue(hostUnit.EntityId, out MultiplayerSnapshotUnit? presentedUnit))
 				{
-					// A unit the client has not applied yet has nothing to render: its spawn was in a snapshot that has not
-					// arrived or could not be placed. The state comparison owns that question, so counting it here would report
-					// one defect twice; an entity the client did apply but did not render is a rendering defect and fails below.
 					bool appliedByClient = appliedRecords.TryGetValue(hostEntry.Key, out MultiplayerSnapshotRecord? missingUnitAppliedRecord)
 						&& missingUnitAppliedRecord.Units.ContainsKey(hostUnit.EntityId);
 					if (!appliedByClient)
@@ -1233,9 +1105,7 @@ public static class MultiplayerEcsSyncTestSupport
 				}
 
 				comparedTransforms++;
-				if ((presentedUnit.Flags & 32) != 0) culledTransforms++;				// The host states a unit at one precision, so the rendered transform is held to the authoritative position
-				// directly: the description the client applied is the movement threshold plus the catch-up interpolation
-				// allows, and nothing about where the peer's camera happens to be widens either.
+				if ((presentedUnit.Flags & 32) != 0) culledTransforms++;
 				detailedTransforms++;
 
 
@@ -1290,9 +1160,6 @@ public static class MultiplayerEcsSyncTestSupport
 			}
 		}
 
-		// Every streak that crossed the allowance is reported, including the ones that healed before the client stopped
-		// recording. Inspecting only the streaks still open at the last record is how a unit that spent a second and a
-		// half five metres behind the authority went unreported.
 		foreach ((int entityId, int quantity, PlacementStreak streak) in completedPlacementStreaks)
 		{
 			mismatchCount++;
@@ -1307,10 +1174,6 @@ public static class MultiplayerEcsSyncTestSupport
 		report.AddSummaryLine($"Rendered transforms more than {placementTolerance:F2} m from the authoritative position: {renderedBeyondTolerance} of {comparedTransforms}, worst {worstRenderedOffset:F2} m; this is context rather than an assertion, because the renderer may legally be that far behind.");
 		report.AddSummaryLine($"Buffer starvations: {ReadClientCounter(outputDirectory, "buffer_starvations=")} (the cursor reached the end of what had arrived, which is what deepens the delay), final delay {ReadClientCounter(outputDirectory, "interpolation_delay_sequences=")} sequences, samples drawn past the newest description: {ReadClientCounter(outputDirectory, "extrapolated_samples=")}");
 
-		// A run with no frame cap simulates as fast as the machine allows, so the injected delay covers far more of the
-		// match than it would in a game: at six times real time a 150 ms round trip is a fifth of a second of the match,
-		// which is more buffering than any bound allows. Stating the ratio keeps the starvation count above from being read
-		// as a verdict on the delay's ceiling, which it is not, and from being read as nothing at all, which it also is not.
 		int lastHostSequence = 0;
 		foreach (int hostSequence in hostRecords.Keys) lastHostSequence = hostSequence;
 
@@ -1323,9 +1186,6 @@ public static class MultiplayerEcsSyncTestSupport
 		report.AddSummaryLine($"Rendered rotation deviations beyond {PresentationRotationTolerance:F2} rad: {rotationDeviationCount} of {comparedTransforms}, largest {largestRotationDeviation:F2} rad (off-frustum units keep their frozen transform until they enter the view)");
 		report.AddSummaryLine($"Rendered transforms that moved against the authority's own direction of travel: {backwardRenderCount} of {comparedTransforms}, worst {worstBackwardMeters:F2} m behind where it was drawn a sequence earlier (the cursor is the only thing that moves a unit, so this is what running out of world and being placed back on the newest description looks like)");
 		report.AddSummaryLine($"Drawn positions further from the navigation mesh than {MultiplayerSyncDiagnostics.OffNavMeshToleranceMeters:F2} m: {ReadClientCounter(outputDirectory, "off_navmesh_units=")}, worst {ReadClientMetric(outputDirectory, "worst_off_navmesh_meters="):F2} m (a unit is drawn on the line joining two descriptions, so a corner of a building is how that line leaves the mesh)");
-		// The authority marks a unit as comparable only when every seated peer was told about it, which a room of this size
-		// with the shroud on almost never satisfies. That is a limit of what a single shared host record can say, not a
-		// measurement of the client, so it is reported as unmeasured rather than as a defect.
 		bool parityMeasureWasEmpty = comparedTransforms == 0 && (unitsNoPeerWasToldAbout > 0 || describedUnitsInPairedRecords == 0);
 		if (parityMeasureWasEmpty)
 		{
@@ -1354,12 +1214,6 @@ public static class MultiplayerEcsSyncTestSupport
 		}
 	}
 
-	/// <summary>
-	/// How many consecutive paired records may show a mesh difference explained by obstacle volumes that have not reached
-	/// the peer yet. The authority compares its volumes once a second and sends the set when it changes, so a change is a
-	/// second of not being noticed plus one trip over the link before the peer can bake it. Bounded so a profile with a
-	/// pathological delay cannot turn the check into no check at all.
-	/// </summary>
 	private static int ResolveObstacleInputAllowanceSequences(MultiplayerEcsRunSettings settings)
 	{
 		float oneWaySeconds = MathF.Max(settings.OneWayDelayMilliseconds, settings.PingMilliseconds / 2f) / 1000f;
@@ -1367,20 +1221,11 @@ public static class MultiplayerEcsSyncTestSupport
 		return Math.Min(90, MatchTiming.SnapshotRateHz + linkSequences + 4);
 	}
 
-	/// <summary>
-	/// The deepest the client's buffer is allowed to render from. A unit is drawn between the descriptions either side of a
-	/// cursor that follows the newest one from a delay the client discovers for itself, so the most it can legally trail the
-	/// authority is that delay - which is a bound this run can state without reproducing any formula. A run reports the
-	/// delay it actually held, and this is the ceiling that figure is checked against.
-	/// </summary>
 	private static float ResolveInterpolationBufferSeconds(MultiplayerEcsRunSettings settings)
 	{
 		return SnapshotTimeline.MaximumDelaySequences * MatchTiming.SnapshotIntervalSeconds;
 	}
 
-	/// <summary>
-	/// Reads one counter the client wrote at the end of the run, or zero when the file or the line is absent.
-	/// </summary>
 	private static float ReadClientMetric(string clientDirectory, string prefix)
 	{
 		string path = Path.Combine(clientDirectory, "ECS_client_replication.txt");
@@ -1409,11 +1254,6 @@ public static class MultiplayerEcsSyncTestSupport
 		return 0;
 	}
 
-	/// <summary>
-	/// The fastest travel the authority recorded, measured from consecutive host records. A first-order interpolation
-	/// that chases the replicated position settles at speed divided by its rate, so the bound needs the speed the run
-	/// actually reached rather than a guess.
-	/// </summary>
 	private static float MeasureFastestUnitSpeed(SortedDictionary<int, MultiplayerSnapshotRecord> hostRecords)
 	{
 		float fastest = 0f;
@@ -1446,13 +1286,6 @@ public static class MultiplayerEcsSyncTestSupport
 		return MathF.Max(offsetX, MathF.Max(offsetY, offsetZ));
 	}
 
-	/// <summary>
-	/// Continues or restarts one measured distance for one unit, so a sustained departure is reported once with the
-	/// sequence range and the worst sample in it instead of once per record. Passing <paramref name="tracked"/> false
-	/// clears the measurement: a unit that crosses the detailed radius must not carry a streak earned at the other
-	/// precision into the tolerance it is now judged by. A streak that ends is handed to <paramref name="completed"/>,
-	/// because a departure that healed still happened and the run has to report it.
-	/// </summary>
 	private static void TrackPlacementStreak(Dictionary<int, PlacementStreak[]> streaks, List<(int EntityId, int Quantity, PlacementStreak Streak)> completed, int entityId, int quantity, bool tracked, int sequence, in PlacementOffset observed, float tolerance)
 	{
 		if (!streaks.TryGetValue(entityId, out PlacementStreak[]? perQuantity))
@@ -1490,10 +1323,6 @@ public static class MultiplayerEcsSyncTestSupport
 		}
 	}
 
-	/// <summary>
-	/// Names the quantity that left its bound, so a red run says whether the renderer stopped following the client's own
-	/// simulation or whether a unit the host described was rendered loosely.
-	/// </summary>
 	private static void ClosePlacementStreak(List<(int EntityId, int Quantity, PlacementStreak Streak)> completed, int entityId, int quantity, in PlacementStreak streak)
 	{
 		if (streak.Count <= PlacementLagAllowanceSequences) return;
@@ -1561,11 +1390,6 @@ public static class MultiplayerEcsSyncTestSupport
 		CompareLootRecords(hostRecord, clientRecord, clientPeerMask, mismatches);
 	}
 
-	/// <summary>
-	///     Holds a screen to every item the authority described to it, and to nothing else. What lies on the ground is
-	///     decided per peer, so an item outside this screen's sight is described to somebody else and the record says so
-	///     in the mask beside it; reporting it as absent would describe the shroud as a defect.
-	/// </summary>
 	private static void CompareLootRecords(MultiplayerSnapshotRecord hostRecord, MultiplayerSnapshotRecord clientRecord, ulong clientPeerMask, List<string> mismatches)
 	{
 		foreach (KeyValuePair<int, MultiplayerLootState> hostLoot in hostRecord.Loot)
@@ -1620,9 +1444,6 @@ public static class MultiplayerEcsSyncTestSupport
 		const int mismatchCountBefore = 0;
 		foreach (KeyValuePair<int, ComponentDigestEntry> hostDigest in hostDigests)
 		{
-			// The authority states a reference only for the peers it described its target to, so a peer outside that set is
-			// asked nothing about it: reporting it as absent would describe the shroud as a defect. The counters keep that
-			// skip visible, because a rule that skips everything passes every run it is asked to judge.
 			if (!hostDigest.Value.IsNameableBy(peerMask))
 			{
 				if (hostDigest.Value.IsScoped) coverage?.RecordSkipped();
@@ -1646,7 +1467,6 @@ public static class MultiplayerEcsSyncTestSupport
 
 		foreach (KeyValuePair<int, ComponentDigestEntry> clientDigest in clientDigests)
 		{
-			// Present on the host but stated only to other peers: this screen's own copy is not a defect.
 			if (hostDigests.TryGetValue(clientDigest.Key, out ComponentDigestEntry hostDigest) && !hostDigest.IsNameableBy(peerMask)) continue;
 			if (hostDigests.ContainsKey(clientDigest.Key)) continue;
 			AddMismatch(mismatches, mismatchCountBefore, $"seq {sequence}: {owner} carries {DescribeComponent(clientDigest.Key)} in the client's applied ECS but not on the host.");
@@ -1665,12 +1485,6 @@ public static class MultiplayerEcsSyncTestSupport
 		return $"component {componentTypeId}";
 	}
 
-	/// <summary>
-	/// How many consecutive delta records a field may stay divergent before it counts as divergence rather than a
-	/// repair in progress. The authority describes a unit again when what it holds differs from what the peer was last
-	/// told, so a single lost description is repaired by the next one that changes it; a lossy profile gets two windows
-	/// because the record that carries the repair can be dropped too.
-	/// </summary>
 	private const int DeltaDivergenceRecordAllowance = 15;
 
 	private static int ResolveDeltaDivergenceRecordAllowance(MultiplayerEcsRunSettings settings)
@@ -1684,8 +1498,6 @@ public static class MultiplayerEcsSyncTestSupport
 
 		int allowance = ResolveDeltaDivergenceRecordAllowance(settings);
 
-		// A divergence counts against the retransmit window only while it is unbroken: two scattered single-record
-		// differences an order apart are two repaired retransmits, not one long divergence.
 		var streaks = new Dictionary<(int EntityId, string Field), (int Count, int FirstSequence, int LastSequence, string Message)>();
 		var reportedStreaks = new List<(int EntityId, string Field, int Count, int FirstSequence, int LastSequence, string Message)>();
 		for (int index = 0; index < divergences.Count; index++)
@@ -1741,10 +1553,6 @@ public static class MultiplayerEcsSyncTestSupport
 		{
 			bool isDead = (hostUnit.Flags & 1) != 0;
 			bool isVisibleToRemoteClient = (hostUnit.Flags & 8) != 0;
-			// A unit can be described to some peers and not others, which is what the shroud does: the digests are then a
-			// statement only for the peers that were told about it, and this screen's own bit is what decides whether it
-			// was. Field comparisons stay bound to the flag that says every peer was told, because that is the promise the
-			// tolerance was written against.
 			bool isDescribedToThisPeer = (hostUnit.NamedByPeers & clientPeerMask) != 0;
 			bool isDetailedForThisClient = (hostUnit.Flags & 4) != 0;
 			bool exactUnit = exact && isDetailedForThisClient;
@@ -1769,9 +1577,6 @@ public static class MultiplayerEcsSyncTestSupport
 
 			comparedUnits++;
 
-			// Component digests are compared for every unit this peer was told about, so a reference on a unit only this
-			// screen can see is still held to its value there. What that unit looks like is compared only when every peer
-			// was told about it.
 			if (isDescribedToThisPeer)
 			{
 				CompareDigestSets(hostRecord.Sequence, $"entity {hostUnit.EntityId}", hostUnit.ComponentDigests, clientUnit.ComponentDigests, clientPeerMask, digestMismatches, coverage);
@@ -1887,11 +1692,6 @@ public static class MultiplayerEcsSyncTestSupport
 
 	}
 
-	/// <summary>
-	/// Reports whether one discarded snapshot cost the peer exactly one baseline. A repair that repeats describes the
-	/// peer from scratch on every cooldown for a hole it no longer has, which is the difference between a protocol that
-	/// heals and one that never stops healing.
-	/// </summary>
 	public static void VerifySnapshotDiscardRepair(MultiplayerEcsRunSettings settings, string? clientDirectory, MultiplayerEcsSyncReport report)
 	{
 		if (settings.DiscardSnapshotAtSeconds <= 0f) return;
@@ -1944,11 +1744,6 @@ public static class MultiplayerEcsSyncTestSupport
 			}
 		}
 
-		// The repairs logged over the whole run are not all this discard. A delta travels unreliable, so every delta the
-		// link drops opens a hole the acknowledgement reports honestly, and the authority answers it the same way - once per
-		// cooldown, which is why the count is bounded rather than one. What the discard itself cost is the baseline count
-		// the peer recorded, asserted above; what this bounds is a repair storm, where the hole is answered again and again
-		// long after a baseline filled it.
 		int repairStormAllowance = Math.Max(8, (int)(2f * settings.DurationSeconds * Math.Max(1, settings.PeerCount)));
 		report.AddSummaryLine($"Repair scenario: the authority logged {repairCount} repair(s) over the run, of which the discard accounts for the baseline asserted above (allowed {repairStormAllowance} in total, and a storm would be one per sequence).");
 		if (repairCount > repairStormAllowance)
@@ -1957,10 +1752,6 @@ public static class MultiplayerEcsSyncTestSupport
 		}
 	}
 
-	/// <summary>
-	/// Finds the logs the authority itself wrote for this run. It writes beside the output directory it is given, so the
-	/// harness wrapper's own stdout is a fallback rather than the place the repair is recorded.
-	/// </summary>
 	private static List<string> ResolveAuthorityLogs(string outputDirectory)
 	{
 		var logs = new List<string>();
@@ -2035,12 +1826,6 @@ public static class MultiplayerEcsSyncTestSupport
 		mismatches.Add(message);
 	}
 
-	/// <summary>
-	/// The sequences the host actually sent to this client's peer, so a sequence that never arrived can be attributed:
-	/// the host stopping its stream is a liveness defect, while a sequence it sent and the client never saw is transport
-	/// loss. The file is absent for the reconnect scenario, where the client's peer id changes mid-run and the coverage
-	/// of the old id would mislabel the induced outage.
-	/// </summary>
 	private static int MaxOf(HashSet<int> values)
 	{
 		int maximum = int.MinValue;
@@ -2073,11 +1858,6 @@ public static class MultiplayerEcsSyncTestSupport
 		return sequences;
 	}
 
-	/// <summary>
-	/// A peer that has just joined is not streamed to until the host has an acknowledgement from it, so the sequences
-	/// between its first pairing and the first sequence the host sent it are join latency. A gap after that is the host
-	/// having stopped the stream, which is a liveness defect rather than transport loss.
-	/// </summary>
 	private static void ReportNotSentSequences(MultiplayerEcsSyncReport report, List<int> notSentSequences, int firstPairedSequence)
 	{
 		if (notSentSequences.Count == 0) return;
@@ -2098,11 +1878,6 @@ public static class MultiplayerEcsSyncTestSupport
 		report.AddFailure($"the host stopped sending snapshots to this peer for {sustained.Count} sequences after the join window, starting at sequence {sustained[0]}; a peer the host no longer streams to can never converge.");
 	}
 
-	/// <summary>
-	/// Every peer id the client process has connected with. A client that loses the host while the map is loading
-	/// reconnects with a new id, and both ids describe the same process, so attribution by a single id mislabels every
-	/// baseline the other connection received.
-	/// </summary>
 	private static HashSet<int> ReadClientPeerIds(string clientDirectory)
 	{
 		var peerIds = new HashSet<int>();
@@ -2262,11 +2037,6 @@ public static class MultiplayerEcsSyncTestSupport
 		return digests;
 	}
 
-	/// <summary>
-	/// One component digest with the peers that could have named whatever it points at. An authority record scopes a
-	/// reference to the peers it described the target to, so a peer that was never told about the target is not held to a
-	/// statement about it instead of being reported as a missing component.
-	/// </summary>
 	private readonly struct ComponentDigestEntry
 	{
 		public readonly uint Hash;
@@ -2278,17 +2048,11 @@ public static class MultiplayerEcsSyncTestSupport
 			NamedByMask = namedByMask;
 		}
 
-		/// <summary>Whether this digest states which peers could name what it refers to, which only a reference does.</summary>
 		public bool IsScoped => NamedByMask != SyncRecordFormat.NamedByEveryPeer;
 
 		public bool IsNameableBy(ulong peerMask) => (NamedByMask & peerMask) != 0;
 	}
 
-	/// <summary>
-	/// How many reference digests this comparison actually held the screen to, and how many it passed over because the
-	/// authority never described the target to it. A rule that skips every reference still passes every run, so the counts
-	/// are reported rather than assumed.
-	/// </summary>
 	private sealed class ReferenceDigestCoverage
 	{
 		public int Compared;
@@ -2298,10 +2062,6 @@ public static class MultiplayerEcsSyncTestSupport
 		public void RecordSkipped() => Skipped++;
 	}
 
-	/// <summary>
-	/// Which bits of a record's reference masks stand for this screen: the authority numbers the peers it described a
-	/// sequence for in the order the record states, so the screen's own bits are wherever it appears in that list.
-	/// </summary>
 	private static ulong BuildPeerMask(List<int> describedPeerIds, HashSet<int> peerIds)
 	{
 		ulong mask = 0;
@@ -2319,7 +2079,6 @@ public static class MultiplayerEcsSyncTestSupport
 		public ulong PhysicsFrame;
 		public bool IsBaseline;
 		public HashSet<int> BaselinePeerIds = new();
-		/// <summary>The peers this sequence was described for, in the order its reference masks count them.</summary>
 		public List<int> DescribedPeerIds = new();
 		public Dictionary<int, MultiplayerSnapshotUnit> Units = new();
 		public Dictionary<int, Dictionary<int, ComponentDigestEntry>> Players = new();
@@ -2328,7 +2087,6 @@ public static class MultiplayerEcsSyncTestSupport
 		public MultiplayerNavigationState Navigation = new();
 	}
 
-	/// <summary>One item on the ground as one process records it, under the identifier both processes know it by.</summary>
 	private sealed class MultiplayerLootState
 	{
 		public ulong NamedByPeers;
@@ -2374,7 +2132,6 @@ public static class MultiplayerEcsSyncTestSupport
 		public float AppliedPositionY;
 		public float AppliedPositionZ;
 		public byte Flags;
-		/// <summary>The peers this sequence described the unit to, as bits of the record's peer mask.</summary>
 		public ulong NamedByPeers = SyncRecordFormat.NamedByEveryPeer;
 		public Dictionary<int, ComponentDigestEntry> ComponentDigests = new();
 	}

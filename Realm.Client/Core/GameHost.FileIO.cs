@@ -234,14 +234,8 @@ public partial class GameHost
 		return true;
 	}
 
-	/// <summary>Whether the map being loaded leaves its placed props to the authority, as a peer's does.</summary>
 	private bool _mapWorldLoadTerrainOnly;
 
-	/// <summary>
-	///     Reads the map's own files and applies them to the ground: its terrain cells, its splat images and its camera
-	///     bounds. It is the first third of a map load; the props and the mesh follow in their own stages, because a world
-	///     built while a lobby is open spends one frame on each.
-	/// </summary>
 	private bool BeginMapWorldLoad(string customPath, bool terrainOnly, bool clearUnits, bool ensureGlbOptimized)
 	{
 		GameContext.SaveLoadService.IsLoadingMap = true;
@@ -295,7 +289,6 @@ public partial class GameHost
 		}
 	}
 
-	/// <summary>Places the props, units and decals the map file asked for, which is the second third of a map load.</summary>
 	private void InstantiateMapSpawnRequests()
 	{
 		if (_mapWorldLoadTerrainOnly) return;
@@ -311,10 +304,6 @@ public partial class GameHost
 		}
 	}
 
-	/// <summary>
-	///     Builds the ground's mesh and collision, uploads its textures and settles the camera on it. This is the part of a
-	///     map load that costs the most, and the part a lobby can therefore prepare before anyone presses Start.
-	/// </summary>
 	private void CompleteMapWorldLoad()
 	{
 		GameContext.SaveLoadService.IsLoadingMap = true;
@@ -342,11 +331,6 @@ public partial class GameHost
 		}
 	}
 
-	/// <summary>
-	///     Starts a map load from the map a lobby names rather than from a path, which is how a peer builds the world it is
-	///     about to play while the lobby is still open. It is the same load the match scene did on its own load, moved to a
-	///     moment the player is not waiting for it.
-	/// </summary>
 	private bool BeginLobbyMapWorldLoad(string rawMapName)
 	{
 		string targetPath = ResolveCustomTerrainPath(rawMapName);
@@ -356,9 +340,6 @@ public partial class GameHost
 
 		if (string.IsNullOrEmpty(targetPath) || !File.Exists(targetPath)) return false;
 
-		// The assets are taken as they were published and downloaded: re-optimizing a map as a player joins a lobby walks
-		// every file it holds while the lobby screen waits, which is minutes on a large map and changes nothing, because
-		// the copy this machine has is the copy the authority published.
 		bool terrainOnly = _multiplayerActive && !Multiplayer.IsServer();
 		return BeginMapWorldLoad(targetPath, terrainOnly, true, false);
 	}
@@ -481,9 +462,6 @@ public partial class GameHost
 			GroundTerrain.Cells = (TerrainCell[,])terrain.Cells.Clone();
 		}
 
-		// The size is read after the cells land, because the cells are what states the map's size. A ground built from
-		// nothing but its node starts at the default size, and reading it first dropped the pathing codes of every map
-		// that is not that size.
 		int width = GroundTerrain.Width;
 		int depth = GroundTerrain.Depth;
 

@@ -9,11 +9,6 @@ using Realm.Ecs.Components.Stats;
 
 namespace Realm.Client.Services;
 
-/// <summary>
-///     What each player is up to on the map's tech tracks, as the authority reported it. The authority owns the levels
-///     and grants what a level does to the units it simulates, so a screen keeps the numbers only to offer the next
-///     level and to show the one a player is on: applying a level here as well would double what the world already says.
-/// </summary>
 public class TechTreeService
 {
 	private readonly Dictionary<(int PlayerIndex, string TechId), int> _levels = new();
@@ -24,18 +19,12 @@ public class TechTreeService
 		return _levels.TryGetValue((playerIndex, techId), out int level) ? level : 0;
 	}
 
-	/// <summary>Records how far the authority says a player is up one of the map's tech tracks.</summary>
 	public void ApplyReplicatedLevel(int playerIndex, string techId, int level)
 	{
 		if (string.IsNullOrEmpty(techId)) return;
 		_levels[(playerIndex, techId)] = level;
 	}
 
-	/// <summary>
-	///     Grants one of a map's authored modifiers to an entity a screen made for itself, which is what an item that
-	///     confers an upgrade does. A level the authority granted is not applied here: it arrives as replicated state on
-	///     the units the authority changed.
-	/// </summary>
 	public static void ApplyUpgradeModifiersToEntity(Entity entity, string techId, int level, Realm.Shared.Metadata.UpgradeMetadata? upgradeDef)
 	{
 		if (upgradeDef == null || upgradeDef.Modifiers == null || upgradeDef.Modifiers.Count == 0) return;

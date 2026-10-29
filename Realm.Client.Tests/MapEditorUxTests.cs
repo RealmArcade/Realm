@@ -42,11 +42,9 @@ public class MapEditorUxTests
 		var btnTestMap = hud!.GetNode<Button>("TopLeftBox/BtnTestMap");
 		Assertions.AssertThat(btnTestMap).IsNotNull();
 
-		// Trigger TestMapAction on blank map
 		btnTestMap.EmitSignal("pressed");
 		await runner.AwaitMillis(500);
 
-		// Find the confirmation dialog overlay created by ShowConfirmationDialog
 		Node? overlay = hud.GetNodeOrNull<Node>("ConfirmationDialogOverlay");
 
 		if (overlay != null)
@@ -60,7 +58,6 @@ public class MapEditorUxTests
 			}
 			else
 			{
-				// Fallback: directly proceed if button search fails
 				await hud.ProceedToTestMap();
 			}
 		}
@@ -94,7 +91,6 @@ public class MapEditorUxTests
 		Assertions.AssertThat(hud).IsNotNull();
 		Assertions.AssertThat(gameHost!.GroundTerrain).IsNotNull();
 
-		// 1. Select swatch "Lava Vein" for cliff face & "Deep Moss" for standard brush
 		int deepMossIndex = 1;
 		int lavaVeinIndex = 3;
 
@@ -108,7 +104,6 @@ public class MapEditorUxTests
 		GameContext.EditorService.EditorPaintTextureIndex = deepMossIndex;
 		GameContext.EditorService.EditorCliffPaintTextureIndex = lavaVeinIndex;
 
-		// 2. Configure Raise tool in Block mode with 8.0f height step
 		GameContext.Host.ActiveEditorTool = EditorTool.Raise;
 		GameContext.Host.EditorBlockMode = true;
 		GameContext.Host.EditorBlockLevelHeight = 8.0f;
@@ -118,7 +113,6 @@ public class MapEditorUxTests
 		var editorService = GameContext.EditorService;
 		editorService.SetTerrainSplatMap(GameContext.Host.GroundTerrain.SplatMap);
 
-		// 3. Raise terrain step at Z = -10.0f to create a distinct cliff wall & top terrace
 		Vector3 raiseCenter = new Vector3(0.0f, 0.0f, -10.0f);
 
 		editorService.BeginTerrainDraw(
@@ -144,7 +138,6 @@ public class MapEditorUxTests
 		GameContext.Host.GroundTerrain.UpdateMeshAndPhysics(true, true);
 		await runner.AwaitMillis(1000);
 
-		// 4. Position camera up close to view the front cliff face and top terrace step
 		var camera = GameContext.Host.MainCamera;
 		if (camera != null)
 		{
@@ -154,7 +147,6 @@ public class MapEditorUxTests
 
 		await runner.AwaitMillis(1000);
 
-		// 5. Capture screenshot
 		Image image = runner.Scene().GetViewport().GetTexture().GetImage();
 
 		string tempDir = @"C:\temp\realm_screenshots";

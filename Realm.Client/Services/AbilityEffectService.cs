@@ -15,22 +15,13 @@ using Realm.Shared.Abilities;
 
 namespace Realm.Client.Services;
 
-/// <summary>
-///     Runs an ability's effects. One executor, one target query, every kind: damage goes through
-///     the combat resolver, heals through the healing multiplier, buffs through the buff pipeline,
-///     and shields and summons through their own components. Nothing here reads an authored number
-///     without scaling it first.
-/// </summary>
 public static class AbilityEffectService
 {
-	// Reused between casts: a cast resolves at most a few hundred targets and never runs per tick,
-	// so one buffer keeps the path allocation-free without pooling machinery.
 	private static readonly List<Entity> Targets = new(256);
 	private static readonly List<(Entity Entity, float Distance)> SortedTargets = new(256);
 
 	public static bool HasEffects(AbilityDefinition? def) => def != null && def.Effects.Count > 0;
 
-	/// <summary>Applies every effect of the ability in authored order.</summary>
 	public static void Execute(Entity casterEntity, Vector3 casterPosition, AbilityDefinition def, Vector3 targetPosition)
 	{
 		EcsWorld world = GameContext.World;
@@ -169,7 +160,6 @@ public static class AbilityEffectService
 
 		for (int index = 0; index < spawnCount; index++)
 		{
-			// Summons ring the cast point so several of them never occupy one another's space.
 			float angle = (MathF.Tau / MathF.Max(1, spawnCount)) * index;
 			var offset = new Vector3(MathF.Cos(angle) * 1.2f, 0f, MathF.Sin(angle) * 1.2f);
 			UnitId spawned = GameContext.Host?.SpawnAbilitySummon(effect.SummonUnitId, targetPosition + offset, ownerPlayerIndex) ?? UnitId.Invalid;
@@ -196,10 +186,6 @@ public static class AbilityEffectService
 		return count;
 	}
 
-	/// <summary>
-	///     Gathers the entities one effect lands on. Every delivery shape resolves here, so a new
-	///     shape cannot end up with its own subtly different ally test.
-	/// </summary>
 	private static void CollectTargets(EcsWorld world, Entity casterEntity, bool casterAlive, AbilityEffectDefinition effect, Vector3 casterPosition, Vector3 targetPosition)
 	{
 		Targets.Clear();
@@ -315,9 +301,6 @@ public static class AbilityEffectService
 				if (!casterAlive) return true;
 				return NetworkService.ArePlayerIndicesEnemies(casterPlayer, GetPlayerIndexForEntity(world, entity));
 			default:
-				// "All" deliberately skips the caster, which the caller filters: an ability that should
-				// reach its own caster says Self, and a damage effect that silently included the caster
-				// would be a self-kill.
 				return true;
 		}
 	}

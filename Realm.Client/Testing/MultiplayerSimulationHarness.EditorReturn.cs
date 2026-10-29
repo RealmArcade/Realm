@@ -13,27 +13,16 @@ using Realm.Ecs.Common;
 
 namespace Realm.Client.Testing;
 
-/// <summary>
-///     Reproduces what the editor's Test Map button does to the world it returns to: keeps the editor's world, plays the
-///     map through the lobby exactly as a playtest does, and comes back through the same calls the Back to Editor button
-///     makes. What the editor is standing on afterwards is reported, because the only reliable statement about it is the
-///     numbers the world holds.
-/// </summary>
 public partial class MultiplayerSimulationHarness
 {
 	private const float EditorWarmupSeconds = 3.0f;
 	private const float PlaytestSeconds = 12.0f;
 	private const float EditorReturnSettleSeconds = 8.0f;
 
-	/// <summary>
-	///     Attaches the scenario to the tree's root, because the screen that runs it is the one the playtest replaces.
-	///     This instance leaves the process to the node it adds.
-	/// </summary>
 	private async Task<int> RunEditorReturnLauncherAsync()
 	{
 		_probeOwnsProcess = true;
 
-		// The tree is still setting up this scene while it runs, so the probe is attached once a frame has passed.
 		await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
 		var probeScene = GD.Load<PackedScene>("res://Testing/MultiplayerSimulationHarness.tscn");
@@ -44,10 +33,6 @@ public partial class MultiplayerSimulationHarness
 		return 0;
 	}
 
-	/// <summary>
-	///     Stands in the map editor, plays the map, then returns to the editor the way its own button does, and reports
-	///     what the editor's world holds afterwards compared with what it held before the playtest.
-	/// </summary>
 	private async Task<int> RunEditorReturnWorkAsync()
 	{
 		_probeOwnsProcess = true;
@@ -67,8 +52,6 @@ public partial class MultiplayerSimulationHarness
 			editor.StartMapEditorMode();
 			await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
-			// The editor is given something of its own to come back to, so coming back from the playtest can be told
-			// apart from simply being emptied.
 			int placedUnits = PlaceEditorMarkers(editor);
 			report.Add($"editor_before placed_units={placedUnits}");
 
@@ -97,7 +80,6 @@ public partial class MultiplayerSimulationHarness
 				GameHost matchHost = GameContext.Host ?? throw new InvalidOperationException("The playtest's world went away.");
 				report.Add(DescribeWorld("playtest_end", matchHost));
 
-				// Exactly what the screen's own Back to Editor button does.
 				GameContext.SessionState.IsTestMode = false;
 				GameContext.SessionState.ReturningFromTest = true;
 				GameContext.Lobby?.Disconnect();
@@ -140,10 +122,6 @@ public partial class MultiplayerSimulationHarness
 		return exitCode;
 	}
 
-	/// <summary>
-	///     Puts a few authored objects into the editor's world, which is what a map author would have on screen before a
-	///     playtest, and reports how many were accepted.
-	/// </summary>
 	private int PlaceEditorMarkers(GameHost editor)
 	{
 		editor.LoadUnitMetadata(_mapFolder);
@@ -156,10 +134,6 @@ public partial class MultiplayerSimulationHarness
 		return placed;
 	}
 
-	/// <summary>
-	///     What a world holds, in the terms the editor paints from: the nodes it draws, the entities those nodes stand
-	///     for, and the entities the renderers read instead of a node.
-	/// </summary>
 	private static string DescribeWorld(string label, GameHost host)
 	{
 		EcsWorld? world = GameContext.World;

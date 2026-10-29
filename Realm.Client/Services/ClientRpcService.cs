@@ -9,13 +9,6 @@ using Vector3 = System.Numerics.Vector3;
 
 namespace Realm.Client.Services;
 
-/// <summary>
-/// Applies a presentation request this player is the audience for: camera movement, camera shake,
-/// unit selection, HUD feedback text, minimap pings, audio, building placement mode, and the victory
-/// or defeat transition. Every method names the player the request was addressed to, and a request
-/// addressed to a player this screen does not control is ignored rather than shown to the wrong
-/// person — the authority decides who is told what, and this is where that decision is honoured.
-/// </summary>
 public class ClientRpcService
 {
 	private static bool TryResolveLocalPlayer(int playerIndex, out GameHost host)
@@ -27,7 +20,6 @@ public class ClientRpcService
 		if (playerIndex < 0)
 			return false;
 
-		// Never dispatch client UI/camera/selection actions for computer/AI slots.
 		if (host.IsPlayerComputer(playerIndex))
 			return false;
 

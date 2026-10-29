@@ -386,7 +386,6 @@ namespace Realm.Client.UI
 					rightScroll.VerticalScrollMode = ScrollContainer.ScrollMode.Disabled;
 				}
 
-				// Left Accordions
 				_accordionFile = GetNode<VBoxContainer>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion");
 				_btnHeaderFile = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/BtnHeaderFile");
 				_contentFile = GetNode<VBoxContainer>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile");
@@ -820,7 +819,6 @@ namespace Realm.Client.UI
 				ApplyThemeStyles();
 				SetupLightingTuningUI();
 
-				// Right Accordions
 				_accordionTool = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion");
 				_btnHeaderTool = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/BtnHeaderTool");
 				_contentTool = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool");
@@ -3544,7 +3542,6 @@ namespace Realm.Client.UI
 
 		private void RestructurePanelLayouts()
 		{
-			// 1. File Panel
 			var targetFile = GetContentTarget(_contentFile);
 			if (targetFile != null)
 			{
@@ -3564,7 +3561,6 @@ namespace Realm.Client.UI
 				StyleSubContainer(targetFile.GetNodeOrNull<Control>("BoxGenOps"), "Generation & Imports");
 			}
 
-			// 2. Viewport Panel
 			var targetViewport = GetContentTarget(_contentViewport);
 			if (targetViewport != null)
 			{
@@ -3605,44 +3601,37 @@ namespace Realm.Client.UI
 				_rowPolarConfig.Visible = isSymmetryActive;
 			}
 
-			// 3. Terrain Tools
 			if (_panelTerrainVBox != null)
 			{
 				StyleSubContainer(_panelTerrainVBox, "Terrain Elevation");
 			}
 
-			// 4. Deco Tools
 			if (_panelDecoVBox != null)
 			{
 				StyleSubContainer(_panelDecoVBox, "Texture Actions");
 			}
 
-			// 5. Pathing Tools
 			if (_panelPathingVBox != null)
 			{
 				StyleSubContainer(_panelPathingVBox, "Pathing Actions");
 			}
 
-			// 6. Object Tools
 			if (_panelObjects != null)
 			{
 				StyleSubContainer(_panelObjects, "Object Placement");
 			}
 
-			// 7. Clipboard Tools
 			if (_panelClipboard != null)
 			{
 				StyleSubContainer(_panelClipboard, "Clipboard Actions");
 			}
 
-			// 8. Inspector Transform
 			var targetInspector = GetContentTarget(_contentInspector);
 			if (targetInspector != null)
 			{
 				StyleSubContainer(targetInspector.GetNodeOrNull<Control>("InspBox_VBoxContainer"), "Transform Controls");
 			}
 
-			// 9. Global Brush Properties Panel
 			if (_contentBrush != null)
 			{
 				StyleSubContainer(_contentBrush, "Brush Properties");
@@ -3666,7 +3655,6 @@ namespace Realm.Client.UI
 				}
 			}
 
-			// 10. Tool Settings Panel
 			if (_containerTextureSettings != null)
 			{
 				StyleSubContainer(_containerTextureSettings, "Texture Palette & Settings");
@@ -3675,7 +3663,7 @@ namespace Realm.Client.UI
 				{
 					var groundStyle = new StyleBoxFlat();
 					groundStyle.BgColor = new Color(0.12f, 0.16f, 0.20f, 0.85f);
-					groundStyle.BorderColor = new Color(0.20f, 0.65f, 0.95f, 0.85f); // Blue Ground accent
+					groundStyle.BorderColor = new Color(0.20f, 0.65f, 0.95f, 0.85f);
 					groundStyle.SetBorderWidthAll(1);
 					groundStyle.CornerRadiusTopLeft = 4;
 					groundStyle.CornerRadiusTopRight = 4;
@@ -3705,7 +3693,7 @@ namespace Realm.Client.UI
 				{
 					var cliffStyle = new StyleBoxFlat();
 					cliffStyle.BgColor = new Color(0.18f, 0.14f, 0.10f, 0.85f);
-					cliffStyle.BorderColor = new Color(0.95f, 0.55f, 0.15f, 0.85f); // Orange Cliff accent
+					cliffStyle.BorderColor = new Color(0.95f, 0.55f, 0.15f, 0.85f);
 					cliffStyle.SetBorderWidthAll(1);
 					cliffStyle.CornerRadiusTopLeft = 4;
 					cliffStyle.CornerRadiusTopRight = 4;
@@ -3795,7 +3783,6 @@ namespace Realm.Client.UI
 				StyleSubContainer(_containerEyedropperSettings, "Eyedropper Settings");
 			}
 
-			// 11. Apply Procedural RTS Button Style to all Option Panel Buttons
 			Control[] allOptionContents = new Control[]
 			{
 				_contentFile, _contentViewport, _contentTool,

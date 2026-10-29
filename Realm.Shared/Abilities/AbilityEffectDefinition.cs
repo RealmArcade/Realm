@@ -23,7 +23,6 @@ public enum AbilityEffectDelivery
 	Cone,
 	Line,
 
-	/// <summary>A radius around the caster rather than around the cast point.</summary>
 	Aura
 }
 
@@ -46,11 +45,6 @@ public enum AbilityScalingShape
 	Conversion
 }
 
-/// <summary>
-///     One resolved effect of an ability: what it does, to whom, over what shape, and how its
-///     magnitude follows the caster's attributes. Built once at registration; the cast path only
-///     reads it.
-/// </summary>
 public sealed class AbilityEffectDefinition
 {
 	public AbilityEffectKind Kind { get; init; }
@@ -64,10 +58,8 @@ public sealed class AbilityEffectDefinition
 	public float Duration { get; init; }
 	public string DamageType { get; init; } = "magic";
 
-	/// <summary>Engine-recognised status id (stun, silence, ...) or a plain marker.</summary>
 	public string? BuffId { get; init; }
 
-	/// <summary>Registry key for this effect's inline modifiers, or null when it carries none.</summary>
 	public string? BuffModifierKey { get; init; }
 
 	public string? SummonUnitId { get; init; }
@@ -76,28 +68,18 @@ public sealed class AbilityEffectDefinition
 
 	public AbilityScalingShape ScalingShape { get; init; }
 
-	/// <summary>Attribute the effect scales from, or null when it is a flat authored number.</summary>
 	public AttributeType? ScalingAttribute { get; init; }
 	public float ScalingCoefficient { get; init; }
 	public float ScalingDivisor { get; init; }
 	public float ScalingCap { get; init; }
 
-	/// <summary>
-	///     When false the scaling formula reaches the magnitude only, and the timer stays the
-	///     authored Duration. Most kits want a shield whose size grows but whose lifetime does not.
-	/// </summary>
 	public bool ScalesDuration { get; init; } = true;
 
-	/// <summary>Applies this effect's scaling to a duration, honouring <see cref="ScalesDuration" />.</summary>
 	public float ScaleDuration(float duration, float attributeValue)
 	{
 		return ScalesDuration ? Scale(duration, attributeValue) : duration;
 	}
 
-	/// <summary>
-	///     Applies this effect's scaling to a base magnitude. One attribute in, one magnitude out;
-	///     the cap is the authoring guarantee that a stacking stat cannot make an effect unbounded.
-	/// </summary>
 	public float Scale(float baseValue, float attributeValue)
 	{
 		float stat = MathF.Max(0f, attributeValue);

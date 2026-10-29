@@ -11,12 +11,6 @@ using Realm.Shared.Network;
 
 namespace Realm.ListenServer;
 
-/// <summary>
-///     How far up each player is on each of a map's tech tracks. A level is what the authority grants modifiers from, so
-///     raising one changes the units a player already owns, and what the level is has to reach the screens that offer
-///     the next one: the levels travel to a peer joining mid-match in the description of the world it is given, and each
-///     change is sent as it happens.
-/// </summary>
 public class ServerTechLevels
 {
 	private static readonly QueryDescription OwnedUnitsQuery = new QueryDescription().WithAll<Owner>().WithNone<Dead>();
@@ -38,14 +32,12 @@ public class ServerTechLevels
 
 	private readonly EntityCallback<Owner> _applyLevelToOwnedUnit;
 
-	/// <summary>How far a player is up one track, or nothing when the map has never raised it.</summary>
 	public int Get(int playerIndex, string techId)
 	{
 		if (string.IsNullOrEmpty(techId)) return 0;
 		return _levels.TryGetValue((playerIndex, techId), out int level) ? level : 0;
 	}
 
-	/// <summary>Sets how far a player is up one track and grants that level's modifiers to the units they own.</summary>
 	public void Set(int playerIndex, string techId, int level)
 	{
 		if (string.IsNullOrEmpty(techId)) return;
@@ -58,7 +50,6 @@ public class ServerTechLevels
 		_changes.Add((playerIndex, techId, level));
 	}
 
-	/// <summary>Raises or lowers how far a player is up one track.</summary>
 	public void Add(int playerIndex, string techId, int delta)
 	{
 		if (string.IsNullOrEmpty(techId)) return;
@@ -66,17 +57,12 @@ public class ServerTechLevels
 		Set(playerIndex, techId, Get(playerIndex, techId) + delta);
 	}
 
-	/// <summary>The changes made since this was last called, which is what a screen is told about.</summary>
 	public IReadOnlyList<(int PlayerIndex, string TechId, int Level)> ConsumeChanges()
 	{
 		_changes.Clear();
 		return _changes;
 	}
 
-	/// <summary>
-	///     Every level the match has raised, as entries a peer applies to its own copy. A peer that joins a match already
-	///     in progress learns what every player has researched from the same description it learns the map's rules from.
-	/// </summary>
 	public void AppendDescription(List<CatalogEntry> entries)
 	{
 		foreach (var entry in _levels)
@@ -92,7 +78,6 @@ public class ServerTechLevels
 		}
 	}
 
-	/// <summary>What a screen reads a raised level from, in the description of the world and in the changes sent after.</summary>
 	public const string TechLevelChannel = "tech_level";
 
 	private void ApproveLevel(int playerIndex, string techId, int level)
@@ -106,10 +91,6 @@ public class ServerTechLevels
 		_context.World.Query(in OwnedUnitsQuery, _applyLevelToOwnedUnit);
 	}
 
-	/// <summary>
-	///     Grants one player's level to one of their units: the modifiers the level carries replace the ones the same
-	///     track left before, so raising a level twice leaves one level's worth of modifiers rather than two.
-	/// </summary>
 	private void ApplyLevelToOwnedUnit(Entity entity, ref Owner owner)
 	{
 		if (_context.PlayerSlotForEntity(owner.PlayerEntity.Value) != _appliedPlayerIndex) return;
@@ -151,10 +132,6 @@ public class ServerTechLevels
 		}
 	}
 
-	/// <summary>
-	///     Whether a track reaches a unit. A track that names no units reaches all of them, which is what an upgrade for
-	///     an army rather than for one kind of soldier means.
-	/// </summary>
 	private bool IsAffectedByUpgrade(Entity entity, string techId)
 	{
 		string[]? affected = _map.Catalog.FindUpgrade(techId)?.AffectedUnitIds;

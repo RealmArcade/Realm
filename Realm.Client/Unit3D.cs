@@ -994,11 +994,6 @@ public partial class Unit3D : Node3D
 		Realm.Client.Utils.PreviewHologram.Apply(this, PreviewHologramColor.Value);
 	}
 
-	/// <summary>
-	///     The radius of the body this unit stands in, which is the number the simulation separates and paths around.
-	///     It comes from the same metadata the authority builds the unit from, so the ring this unit shows is the ground
-	///     it actually occupies rather than a measurement of the model on this screen.
-	/// </summary>
 	public float GetBaseObstacleRadius()
 	{
 		if (GameContext.Host != null)
@@ -1009,10 +1004,6 @@ public partial class Unit3D : Node3D
 		return 1.4f;
 	}
 
-	/// <summary>
-	///     Adds (or refreshes) a projected drop shadow for flying units so they read clearly
-	///     against the terrain below instead of appearing to float in empty space.
-	/// </summary>
 	private void UpdateDropShadow()
 	{
 		if (GameContext.Host == null || !GameContext.Host.IsPathingCapability(Entity, TerrainPathingFlags.Flying))
@@ -1048,7 +1039,6 @@ public partial class Unit3D : Node3D
 		float decalSize = Mathf.Max(0.1f, radius * 2.5f);
 		shadowDecal.Size = new Vector3(decalSize, 3f, decalSize);
 		shadowDecal.Position = Vector3.Zero;
-		// Decals project along local -Z; tilt the node down so the shadow lands on the terrain.
 		shadowDecal.RotationDegrees = new Vector3(-90f, 0f, 0f);
 		shadowDecal.CullMask = RuntimeTerrain.TerrainDecalCullMask;
 
@@ -2678,9 +2668,6 @@ public partial class Unit3D : Node3D
 			points.Add(new Vector3(mt.Target.X, mt.Target.Y, mt.Target.Z));
 		}
 
-		// The route a click drew a moment ago, shown until the match says what it did with the order. It is the same
-		// shape as an order's route because it comes from the same planner, and it is never walked: it is what makes a
-		// click feel answered without moving a unit the authority has not answered for yet.
 		if (!hasPathPoints && world.Has<PreviewMoveTo>(Entity))
 		{
 			var preview = world.Get<PreviewMoveTo>(Entity);

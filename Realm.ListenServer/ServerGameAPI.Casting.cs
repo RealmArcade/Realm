@@ -7,19 +7,8 @@ using Realm.Shared.Network;
 
 namespace Realm.ListenServer;
 
-/// <summary>
-///     What a cast does when a map script asks for one. The effects land in the authority's own world through the same
-///     executor every other cast goes through, and only what a screen has to draw travels: a cast whose effect the
-///     engine carries out itself never reaches a client as a decision, only as the state it changed and the effect it is
-///     drawn with.
-/// </summary>
 public partial class ServerGameAPI
 {
-	/// <summary>
-	///     Casts an ability from a unit at a place. Damage, healing, shields, statuses and summons are applied here, so a
-	///     spell a map fires off is simulated once and every client sees the same outcome; an ability with no effects of
-	///     its own is the map's own and is handed back to the map to resolve through its cast event.
-	/// </summary>
 	public void CastAbility(UnitId unit, string abilityId, Vector3 targetPosition)
 	{
 		Entity caster = ResolveUnit(unit);
@@ -34,11 +23,6 @@ public partial class ServerGameAPI
 		PublishCast(unit, definition, casterPosition, targetPosition);
 	}
 
-	/// <summary>
-	///     Orders a unit to use an ability on another unit. The order is an attack the ability rides along with: the unit
-	///     walks into reach and its cast resolves through the same path every other cast does, which is what a map means
-	///     when it points one unit at another.
-	/// </summary>
 	public void IssueCastOrder(UnitId caster, string abilityId, UnitId target)
 	{
 		Entity casterEntity = ResolveUnit(caster);
@@ -50,7 +34,6 @@ public partial class ServerGameAPI
 		OnUnitOrdered?.Invoke(caster, abilityId ?? "Cast", position);
 	}
 
-	/// <summary>Orders a unit to use an ability at a place, which is an attack-move the ability rides along with.</summary>
 	public void IssueCastOrderAt(UnitId caster, string abilityId, Vector3 position)
 	{
 		Entity casterEntity = ResolveUnit(caster);
@@ -60,11 +43,6 @@ public partial class ServerGameAPI
 		OnUnitOrdered?.Invoke(caster, abilityId ?? "CastAt", position);
 	}
 
-	/// <summary>
-	///     Tells every screen what the cast is drawn as. A cast that changed the world has already been described in the
-	///     snapshot that carries the change, so this says nothing about what the cast did: it says where the effect
-	///     belongs and what it looks like.
-	/// </summary>
 	private void PublishCast(UnitId unit, AbilityDefinition definition, Vector3 casterPosition, Vector3 targetPosition)
 	{
 		if (!string.IsNullOrEmpty(definition.VisualEffect))

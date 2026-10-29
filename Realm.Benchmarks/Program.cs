@@ -126,8 +126,6 @@ string RuntimeInformation() => System.Runtime.InteropServices.RuntimeInformation
 
 static double Megabits(double bytesPerSecond) => bytesPerSecond * 8.0 / 1_000_000.0;
 
-// Measures what this machine does with the same purely arithmetic work spread over a number of threads. Comparing it
-// with the description phase separates a limit that belongs to the hardware from one the match's own code imposes.
 static void RunScalingProbe()
 {
 	const int IterationsPerTask = 4_000_000;

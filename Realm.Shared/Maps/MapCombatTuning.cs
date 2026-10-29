@@ -4,23 +4,11 @@ using Realm.Shared.Metadata;
 
 namespace Realm.Shared.Maps;
 
-/// <summary>
-///     Turns a map's authored <see cref="CombatTuningMetadata" /> into the runtime
-///     <see cref="CombatTuning" /> and <see cref="CombatConfig" /> the stat and damage pipelines
-///     read. Applied on every map load, so a map that authors nothing is reset to the engine
-///     defaults rather than inheriting whatever the previous map asked for, and applied by both
-///     processes so a unit takes the same damage wherever it is simulated.
-/// </summary>
 public static class MapCombatTuning
 {
 	private const float TinyPositive = 0.0001f;
 	private const float LargeBound = 100000f;
 
-	/// <summary>
-	///     Replaces the given simulation's tuning with the map's, falling back to the defaults for every field
-	///     the map leaves out. Invalid values are rejected into <paramref name="warnings" /> and take the default,
-	///     so a typo in map data cannot divide by zero mid-match.
-	/// </summary>
 	public static void Apply(SimulationContext simulation, MapMetadata? metadata, List<string>? warnings = null)
 	{
 		CombatTuningMetadata? authored = metadata?.CombatTuning;

@@ -2,7 +2,6 @@ using MemoryPack;
 
 namespace Realm.Shared.Network;
 
-/// <summary>Network-serializable representation of a 3D vector.</summary>
 [MemoryPackable]
 public partial struct NetworkVector3
 {

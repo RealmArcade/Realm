@@ -295,8 +295,6 @@ public sealed class AuthorityBenchmark : IDisposable
 
 			if (_sequence % SnapshotSampleIntervalTicks != 0) continue;
 
-			// The authority describes every peer of a room at once, so the thing worth measuring is the whole phase on
-			// the wall clock, not the sum of the descriptions a single thread would have made.
 			_measuredForceBaseline = !baselineTaken;
 			long snapshotStart = Stopwatch.GetTimestamp();
 			Parallel.For(0, _options.Players, _parallelOptions, _describeAndFrameOnePeer);
@@ -354,11 +352,6 @@ public sealed class AuthorityBenchmark : IDisposable
 			composition);
 	}
 
-	/// <summary>
-	///     Frames one delta stream at every level worth considering, so the encoder's level is chosen from what this room
-	///     actually compresses rather than from a rule of thumb. The frames are encoded in sequence through one encoder
-	///     each: a compressor carries state between the frames it produces, and a stream is what a peer receives.
-	/// </summary>
 	public ZstdSweep MeasureZstdSweep(int frameCount)
 	{
 		for (int slot = 0; slot < _options.Players; slot++) DescribePeer(slot, ++_sequence, true);
@@ -433,8 +426,6 @@ public sealed class AuthorityBenchmark : IDisposable
 			Array.Sort(frameMicros);
 			double bytesPerFrame = framedBytes / (double)frameCount;
 
-			// The median rather than the mean: the first frames of a fresh encoder carry its window setup, which a peer
-			// pays once when it connects rather than on every frame of the stream.
 			samples.Add(new ZstdLevelSample(
 				level,
 				bytesPerFrame,
@@ -454,12 +445,6 @@ public sealed class AuthorityBenchmark : IDisposable
 			samples);
 	}
 
-	/// <summary>
-	///     Frames the same delta's units three ways: as one record per unit, which is what a peer received before the
-	///     section became columnar; the same values laid out field by field but still as floats, which is the layout
-	///     change alone; and as the quantized columnar section a peer is sent now. Each goes through its own encoder at the
-	///     level a delta uses, because a stream that alternated between layouts would let each find matches in the other.
-	/// </summary>
 	public UnitSectionComparison MeasureUnitSection(int frameCount)
 	{
 		for (int slot = 0; slot < _options.Players; slot++) DescribePeer(slot, ++_sequence, true);
@@ -524,12 +509,6 @@ public sealed class AuthorityBenchmark : IDisposable
 			sectionMicros / frameCount);
 	}
 
-	/// <summary>
-	///     Writes one peer's units field by field into <paramref name="destination" /> and returns the bytes it used: the
-	///     count, then every entity's id, then every owner, then each position axis, then the scalars, then the flags, and
-	///     finally the ids of the units themselves. Every column carries the same value of the same kind, which is what an
-	///     encoder can find redundancy in and what a vector copy could move.
-	/// </summary>
 	private static int WriteColumnMajor(IReadOnlyList<UnitSnapshot> units, byte[] destination)
 	{
 		int count = units.Count;
@@ -576,11 +555,6 @@ public sealed class AuthorityBenchmark : IDisposable
 		return offset + 4;
 	}
 
-	/// <summary>
-	///     What a delta frame carries, section by section, on the same peer. The frame is measured on a tick that
-	///     follows a baseline, so every section holds what a match in progress actually sends rather than a catalog or a
-	///     content payload that only a baseline carries.
-	/// </summary>
 	private DeltaComposition MeasureComposition()
 	{
 		DescribePeer(0, ++_sequence, true);
@@ -609,8 +583,6 @@ public sealed class AuthorityBenchmark : IDisposable
 
 		for (int slot = 0; slot < _options.Players; slot++) DescribePeer(slot, ++_sequence, true);
 
-		// Every unit has to have changed for this to measure what describing them costs: a delta that skipped the
-		// units standing still would measure how empty a description can be, not how large a full-board one is.
 		StepOnce();
 		_sequence++;
 

@@ -2,12 +2,6 @@ using Realm.Ecs;
 
 namespace Realm.Client.UI;
 
-/// <summary>
-/// Everything a tooltip template may read: the unit whose card is showing, an optional target,
-/// the ability or item the card describes, and the player the numbers belong to.
-/// A card keeps the context and resolves its template when the player hovers it, so the numbers
-/// on screen are the numbers the game would use at that moment.
-/// </summary>
 public struct TooltipContext
 {
 	public Entity Source;
@@ -17,7 +11,6 @@ public struct TooltipContext
 	public string? ItemId;
 	public string? UpgradeId;
 
-	/// <summary>Player whose resources the <c>Owner</c> scope reads. Negative means the local player.</summary>
 	public int PlayerIndex;
 
 	public static TooltipContext ForAbility(Entity source, string? abilityId, int playerIndex = -1)

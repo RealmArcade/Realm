@@ -15,18 +15,6 @@ using Realm.Shared.Abilities;
 
 namespace Realm.Client.UI;
 
-/// <summary>
-/// Resolves <c>{{Scope.Key}}</c> tokens in an authored tooltip against live state.
-///
-/// A card stores the template and resolves it when the player hovers, so a number on a card is
-/// always the number the game would use at that moment — no cache to invalidate, and no second
-/// copy of the value to keep in step. Scopes: <c>Source</c>, <c>Target</c>, <c>Ability</c>,
-/// <c>Item</c>, <c>Upgrade</c>, <c>Owner</c>. A bare key is <c>Source</c>.
-///
-/// Values come from two places: the canonical <c>StatKeys</c> snapshot the combat resolver reads,
-/// and the map's published bag for anything the engine cannot know (see
-/// <see cref="TooltipValueStore"/>). Engine keys win, so a map cannot redefine "Armor".
-/// </summary>
 public static class TooltipTemplate
 {
 	public const string MissingColor = "#ff6b6b";
@@ -60,10 +48,6 @@ public static class TooltipTemplate
 			new(false, string.Empty, path, scope, key, format);
 	}
 
-	/// <summary>
-	/// Substitutes every token in <paramref name="template"/>. Returns the input unchanged when it
-	/// holds no tokens, so a plain string costs one scan and no allocation.
-	/// </summary>
 	public static string Resolve(string? template, in TooltipContext context)
 	{
 		if (string.IsNullOrEmpty(template)) return string.Empty;
@@ -98,10 +82,6 @@ public static class TooltipTemplate
 		return builder.ToString();
 	}
 
-	/// <summary>
-	/// Reports every token in a template that the given context cannot resolve, so an authoring
-	/// check can fail a build instead of shipping a card with a hole in it.
-	/// </summary>
 	public static void CollectUnresolved(string? template, in TooltipContext context, List<string> into)
 	{
 		if (string.IsNullOrEmpty(template) || template.IndexOf("{{", StringComparison.Ordinal) < 0) return;
@@ -157,7 +137,6 @@ public static class TooltipTemplate
 		{
 			char current = template[index];
 
-			// "{{" escaped as the literal text it looks like.
 			if (current == '\\' && index + 2 < template.Length && template[index + 1] == '{' && template[index + 2] == '{')
 			{
 				literal.Append("{{");
@@ -197,7 +176,6 @@ public static class TooltipTemplate
 		return result;
 	}
 
-	/// <summary>Token body is <c>Scope.Key</c> or <c>Key</c>, either optionally followed by <c>:format</c>.</summary>
 	private static Segment ParseToken(string body)
 	{
 		string path = body;
@@ -537,11 +515,6 @@ public static class TooltipTemplate
 		return false;
 	}
 
-	/// <summary>
-	/// Reads one numeric field of one authored effect, e.g. <c>Effect0.Amount</c>,
-	/// <c>Effect1.Duration</c>, <c>Effect0.Modifier1</c>. Indexes are the authored order, so a card
-	/// describes the effect list the cast reads rather than restating it.
-	/// </summary>
 	private static bool TryResolveEffectNumber(AbilityDefinition definition, string key, out float value)
 	{
 		value = 0f;
@@ -602,7 +575,6 @@ public static class TooltipTemplate
 		return BuffRegistry.BuffModifiers.TryGetValue(effect.BuffModifierKey, out var modifiers) ? modifiers : null;
 	}
 
-	/// <summary>Text fields of an effect, currently just the scaling attribute's name.</summary>
 	private static bool TryResolveEffectText(string? abilityId, string key, out string value)
 	{
 		value = string.Empty;

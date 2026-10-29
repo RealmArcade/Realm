@@ -9,17 +9,10 @@ using Realm.Ecs.Services;
 
 namespace Realm.Shared.Simulation;
 
-/// <summary>
-///     The loot lying on the map: what has been dropped, how long it has left, and who walks over it. The authority owns
-///     this, so an item on the ground and the moment it is picked up are one decision that every client is told about
-///     rather than one each client makes for itself.
-/// </summary>
 public class GroundLootService
 {
-	/// <summary>How close a unit has to be to a dropped item to pick it up when the map names no radius.</summary>
 	public const float DefaultPickupRadius = 2.0f;
 
-	/// <summary>How far above the ground a dropped item rests, so it is drawn on the surface rather than in it.</summary>
 	private const float GroundOffset = 0.1f;
 
 	private const int LootBufferCapacity = 4096;
@@ -52,11 +45,6 @@ public class GroundLootService
 
 	public EcsWorld World => _context.World;
 
-	/// <summary>
-	///     Drops an item on the map. An item with a lifespan runs out and vanishes; an item that picks itself up is taken
-	///     by the first unit that walks over it. The position is settled onto the terrain, so a drop lands on the ground
-	///     rather than at whatever height the caller guessed.
-	/// </summary>
 	public LootItemId Spawn(string itemTypeId, Vector3 position, int charges = 1, float lifetime = 0f, float pickupRadius = DefaultPickupRadius, bool autoPickup = true, int ownerPlayerIndex = -1)
 	{
 		if (string.IsNullOrWhiteSpace(itemTypeId)) return LootItemId.Invalid;
@@ -75,7 +63,6 @@ public class GroundLootService
 		return (LootItemId)entity.Id;
 	}
 
-	/// <summary>Reads a dropped item back, together with where it lies.</summary>
 	public bool TryRead(int lootItemId, out GroundLoot loot, out Vector3 position)
 	{
 		loot = default;
@@ -91,7 +78,6 @@ public class GroundLootService
 		return true;
 	}
 
-	/// <summary>Every item lying on the map, in entity order. The buffer belongs to this service and is refilled per call.</summary>
 	public ReadOnlySpan<LootItemId> All()
 	{
 		_collectedCount = 0;
@@ -99,7 +85,6 @@ public class GroundLootService
 		return new ReadOnlySpan<LootItemId>(_lootBuffer, 0, _collectedCount);
 	}
 
-	/// <summary>The items lying within a radius of a place, which is how a script asks what it could sweep up.</summary>
 	public ReadOnlySpan<LootItemId> InRadius(Vector3 center, float radius)
 	{
 		ReadOnlySpan<LootItemId> all = All();
@@ -118,7 +103,6 @@ public class GroundLootService
 		return new ReadOnlySpan<LootItemId>(_lootBuffer, 0, kept);
 	}
 
-	/// <summary>Takes an item off the map, whether it ran out of time, was swept up or was asked away.</summary>
 	public bool Despawn(int lootItemId)
 	{
 		if (lootItemId <= 0) return false;
@@ -130,10 +114,6 @@ public class GroundLootService
 		return true;
 	}
 
-	/// <summary>
-	///     Hands a dropped item to a unit, which carries it if it has room. The item leaves the map whether or not the
-	///     unit could hold it, so a full inventory does not leave an item on the ground for someone else.
-	/// </summary>
 	public bool Collect(int lootItemId, Entity unit)
 	{
 		if (!TryRead(lootItemId, out GroundLoot loot, out _)) return false;
@@ -148,10 +128,6 @@ public class GroundLootService
 		return true;
 	}
 
-	/// <summary>
-	///     Hands a dropped item straight to a player rather than to one of their units, which is what a map means when it
-	///     grants loot to a slot. The first unit that has room and is not yet carrying the item takes it.
-	/// </summary>
 	public bool CollectForPlayer(int lootItemId, int playerIndex)
 	{
 		if (!TryRead(lootItemId, out GroundLoot loot, out Vector3 position)) return false;
@@ -174,10 +150,6 @@ public class GroundLootService
 		return false;
 	}
 
-	/// <summary>
-	///     Advances every dropped item: the ones that ran out of time leave the map, and the ones that pick themselves up
-	///     find the nearest unit standing inside their reach.
-	/// </summary>
 	public void Step(float deltaSeconds)
 	{
 		_expired.Clear();
@@ -225,7 +197,6 @@ public class GroundLootService
 		}
 	}
 
-	/// <summary>The player slot a unit belongs to, or nothing for a unit the map never assigned.</summary>
 	private int OwnerPlayerIndex(Entity unit)
 	{
 		return World.TryGet<UnitOwnerPlayer>(unit, out UnitOwnerPlayer owner) ? owner.Value : -1;
@@ -238,10 +209,6 @@ public class GroundLootService
 		_lootBuffer[_collectedCount++] = (LootItemId)entity.Id;
 	}
 
-	/// <summary>
-	///     Gathers the units a drop could legally be taken by: alive, owned by the item's owner when it has one, and with
-	///     room for the item.
-	/// </summary>
 	private void CollectPickupCandidates(Entity entity, ref Position position, ref Owner owner, ref Health health)
 	{
 		if (health.Current <= 0f) return;

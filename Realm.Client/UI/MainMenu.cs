@@ -537,7 +537,6 @@ public partial class MainMenu : Control
 		button.AddThemeStyleboxOverride("pressed", playPressedStyle);
 		button.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 
-		// Scale-up on hover for premium feel
 		ApplyButtonAnimations(button, 1.04f);
 
 		button.Pressed += () =>
@@ -558,12 +557,10 @@ public partial class MainMenu : Control
 		button.AddThemeStyleboxOverride("pressed", new StyleBoxEmpty());
 		button.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 
-		// Load custom textures
 		var frameNormal = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/profile_frame_normal.webp");
 		var nameplateNormal = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/profile_nameplate_normal.webp");
 		var backdropNormal = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/profile_backdrop_normal.webp");
 
-		// Fetch nodes
 		var backdrop = button.GetNode<TextureRect>("Backdrop");
 		var avatar = button.GetNode<TextureRect>("Avatar");
 		var frame = button.GetNode<TextureRect>("Frame");
@@ -591,11 +588,9 @@ public partial class MainMenu : Control
 		avatar.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
 		avatar.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 
-		// Set up dynamic player data
 		nameLabel.Text = "Horald_Topa";
 		levelLabel.Text = "LVL 50";
 
-		// Setup custom fonts & styles for labels
 		var labelFont = new SystemFont();
 		labelFont.FontNames = new string[] { "Cinzel Bold", "Cinzel", "Palatino Linotype", "Georgia", "serif" };
 		labelFont.FontWeight = 700;

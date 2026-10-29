@@ -5,119 +5,34 @@ using Realm.Shared.Network;
 
 namespace Realm.Client.Services;
 
-/// <summary>
-///     The positions the authority has described, held per unit on the authority's own tick timeline and sampled at a
-///     cursor that follows it from behind.
-///     A description names the sequence of the tick it describes, and a sequence is a tick - the authority advances it
-///     once per simulated tick - so a sequence is an exact place on the match clock. That is what makes buffering
-///     possible at all: no wall clock has to be synchronised between the two processes, because the unit of time on this
-///     side of the wire is already the sequence. The cursor advances at the match's real rate and is nudged towards
-///     "the newest sequence minus the delay it currently holds", so a late description slows the cursor for a moment
-///     instead of stalling it.
-///     Sampling between two described positions is what removes the follower: a unit is drawn where the authority held
-///     it at the moment being rendered, so it neither trails behind a smoothed target nor has to be caught up when the
-///     screen falls behind. A unit the match has confirmed an order for is drawn one snapshot interval ahead of that
-///     moment while the buffer covers it, which is the one place this screen draws something fresher than the world it
-///     is part of. The delay is discovered rather than calculated - the loop deepens it when the cursor runs
-///     off the end of what has arrived and shallows it when the buffer has been deeper than it needed for a while -
-///     because a delay computed from a formula is only right on the link the formula was written for.
-/// </summary>
 public class SnapshotTimeline
 {
-	/// <summary>
-	///     How many descriptions of one unit are kept. It covers the deepest delay plus the samples either side of the
-	///     cursor and a margin, and it is derived from the delay bound rather than stated beside it: a ring that was only
-	///     just deep enough would clamp a unit to a description older than the cursor if the bound were ever tuned up, and
-	///     it would do so silently.
-	/// </summary>
 	public const int SamplesPerUnit = MaximumDelaySequences + 3;
 
-	/// <summary>
-	///     The shallowest delay, in sequences, the buffer is ever rendered at. Two sequences is what a link that answers
-	///     immediately needs to have one sample in hand while it renders between the previous one and the current one.
-	/// </summary>
 	public const int MinimumDelaySequences = 2;
 
-	/// <summary>
-	///     The deepest delay the buffer will hold. Beyond this the world is being shown late enough that the screen is
-	///     answering a link nobody can play over, and a cursor that keeps falling back is worse than one that holds.
-	/// </summary>
 	public const int MaximumDelaySequences = 8;
 
-	/// <summary>How often the delay is reconsidered, in seconds.</summary>
 	private const float DelayEvaluationSeconds = 1f;
 
-	/// <summary>
-	///     How far the cursor may run past the newest description before it counts as having run out of world. A fraction
-	///     of a sequence is normal - the cursor is a continuous time and descriptions arrive on tick boundaries.
-	/// </summary>
 	private const float StarvationToleranceSequences = 0.25f;
 
-	/// <summary>
-	///     How far behind its target the cursor may fall before it is placed rather than eased. A tenth of a second behind
-	///     is an ordinary frame hitch on a rendered client and is absorbed by rendering a little faster, because placing the
-	///     cursor there moved every unit by that much in one frame and the pop was what a player actually saw; a whole
-	///     buffer behind is a process that was suspended or a stream that restarted, and easing across that would play the
-	///     world fast for seconds on end.
-	/// </summary>
 	private const float ResynchronizeSequences = MaximumDelaySequences;
 
-	/// <summary>
-	///     The most the cursor's rate is bent to hold its place. A few percent is the difference between a world that
-	///     keeps time and one that does not, and is far below what a player can see in a unit's speed; fifteen is what a
-	///     screen that fell a tenth of a second behind can recover in a third of a second without the correction itself
-	///     becoming the thing a player notices.
-	/// </summary>
 	private const float MaximumRateCorrection = 0.15f;
 
-	/// <summary>How strongly the gap to the target bends the cursor's rate.</summary>
 	private const float RateCorrectionGain = 0.25f;
 
-	/// <summary>
-	///     How many clean windows in a row the delay must hold before it is shallowed by one sequence. A link that only
-	///     just keeps up is clean for a window now and then, and shallowing on the first such window would take back the
-	///     headroom it is about to need.
-	/// </summary>
 	private const int ShallowConfirmWindows = 2;
 
-	/// <summary>
-	///     How deep the buffer must have been throughout a window, as a fraction of the delay held, before the delay is
-	///     considered deeper than the link needs. The cursor is driven towards "newest minus the delay", so on a healthy
-	///     link the surplus settles at exactly the delay held: a rule that asked for a surplus above the delay could never
-	///     be met, which is a delay that only ever grows. Half is the margin that a link which genuinely needs the depth
-	///     cannot hold through a whole window.
-	/// </summary>
 	private const float ShallowSurplusFraction = 0.5f;
 
-	/// <summary>
-	///     How far past its newest description a unit with a confirmed order may be drawn, in sequences. It is exactly one
-	///     snapshot interval: far enough that the drawn point stays within one description of what the authority last said,
-	///     and short enough that the next description lands before a wrong direction could become visible as a wrong path.
-	/// </summary>
 	public const float MaximumExtrapolationSequences = 1f;
 
-	/// <summary>
-	///     How far ahead of the render cursor a unit carrying a confirmed order is drawn, in sequences. It is what the
-	///     order buys this screen: the unit answers one snapshot interval sooner than the world around it, without this
-	///     client having decided where it went. While the presentation buffer holds more than this beyond the cursor the
-	///     step is taken between descriptions already in hand and is exact; only as the buffer runs out does it become the
-	///     bounded guess in <see cref="Extrapolate" />.
-	/// </summary>
 	public const float ExtrapolationLeadSequences = 1f;
 
-	/// <summary>
-	///     How fast the leading step is taken up and given back, in sequences per sample. A step that appeared the moment an
-	///     order was confirmed and vanished the moment it was complete would move the unit by that interval in one frame, in
-	///     both directions, which is the snap this whole model exists to avoid; easing it in over a sixth of a second keeps
-	///     what the step does per tick smaller than the distance the unit covers moving forward.
-	/// </summary>
 	private const float LeadRampPerSample = ExtrapolationLeadSequences / 6f;
 
-	/// <summary>
-	///     The furthest a unit may be drawn past its newest description, in metres. A unit at this game's movement ceiling
-	///     covers a fifth of it in the horizon above, so this only ever binds for a unit whose last two descriptions are
-	///     further apart than one sequence - which is exactly when the guess should stop rather than run on.
-	/// </summary>
 	public const float MaximumExtrapolationMeters = 0.75f;
 
 	private readonly Vector3[] _positions = new Vector3[EcsWorld.MAX_ENTITIES * SamplesPerUnit];
@@ -141,32 +56,16 @@ public class SnapshotTimeline
 		Array.Fill(_sequences, -1);
 	}
 
-	/// <summary>The sequence being rendered, which is continuous rather than a whole tick.</summary>
 	public float CursorSequence => _cursor;
 
-	/// <summary>The newest sequence any description has been applied for, or nothing before the first one.</summary>
 	public int NewestSequence { get; private set; } = -1;
 
-	/// <summary>How far behind the newest description this screen renders, in sequences.</summary>
 	public int DelaySequences => _delaySequences;
 
-	/// <summary>
-	///     How far behind the newest description this screen renders, in milliseconds. It is the figure a player asks
-	///     about when the match feels late, and it is not the round trip: a low ping with a deep buffer is a screen that
-	///     is holding descriptions it does not need to, which is a different problem from a slow link.
-	/// </summary>
 	public float DelayMilliseconds => _delaySequences * MatchTiming.SnapshotIntervalSeconds * 1000f;
 
-	/// <summary>
-	///     How many times the cursor reached the end of what had arrived. Deepening the delay is the answer to this
-	///     happening, so it is reported rather than hidden.
-	/// </summary>
 	public int StarvationCount { get; private set; }
 
-	/// <summary>
-	///     How many times a unit with a confirmed order was drawn past its newest description. A run that never reports
-	///     this is running with a buffer deep enough that it never needed to guess, which is the state to aim for.
-	/// </summary>
 	public int ExtrapolatedSampleCount { get; private set; }
 
 	public void Clear()
@@ -188,11 +87,6 @@ public class SnapshotTimeline
 		ExtrapolatedSampleCount = 0;
 	}
 
-	/// <summary>
-	///     Forgets what was described for one unit, which is what a discontinuity calls for: a unit that respawned, was
-	///     placed by a script, or left this peer's sight and came back has no path between the two positions, and gliding
-	///     across it would show the unit walking a distance it never walked.
-	/// </summary>
 	public void Reset(int entityId)
 	{
 		if ((uint)entityId >= EcsWorld.MAX_ENTITIES) return;
@@ -202,11 +96,6 @@ public class SnapshotTimeline
 		_leads[entityId] = 0f;
 	}
 
-	/// <summary>
-	///     Adds the position the authority described for one unit, and returns whether it was taken. A description older
-	///     than the newest one held for that unit is ignored, because a delta that arrives behind a baseline describes a
-	///     world this screen has already moved past.
-	/// </summary>
 	public bool Record(int entityId, Vector3 position, float rotationY, int sequence)
 	{
 		if ((uint)entityId >= EcsWorld.MAX_ENTITIES || sequence < 0) return false;
@@ -239,15 +128,6 @@ public class SnapshotTimeline
 		return true;
 	}
 
-	/// <summary>
-	///     Tells the timeline which sequence the match has reached. Every applied description does this, whether or not it
-	///     named a unit: a quiet tick describes nothing because nothing changed, and a clock that only moved on the ticks
-	///     something moved left the cursor running off the end of a world that had not stood still at all.
-	///     A gap between this arrival and the last one is also what tells the loop whether the link was late or the
-	///     description was lost. A single missing sequence is a datagram that did not arrive, which no deeper buffer can
-	///     bring back; several at once is a stall - the authority did not publish, or this screen did not read - and that is
-	///     what the buffer is there to cover.
-	/// </summary>
 	public void AdvanceTo(int sequence)
 	{
 		if (sequence <= NewestSequence) return;
@@ -264,10 +144,6 @@ public class SnapshotTimeline
 		if (_cursor < 0f) _cursor = sequence - _delaySequences;
 	}
 
-	/// <summary>
-	///     Advances the render cursor by one client tick. The cursor is what every sample is taken at, so this is the only
-	///     thing that moves the world forward on this side of the wire.
-	/// </summary>
 	public void Advance(float delta)
 	{
 		if (!(delta > 0f) || NewestSequence < 0) return;
@@ -279,8 +155,6 @@ public class SnapshotTimeline
 
 		if (error > ResynchronizeSequences)
 		{
-			// The descriptions arrived faster than this screen consumed them - a burst after a loss, or a process that
-			// stopped for a moment. Easing across that would play the world slowly until it caught up.
 			_cursor = target;
 		}
 		else
@@ -292,8 +166,6 @@ public class SnapshotTimeline
 		float surplus = NewestSequence - _cursor;
 		if (surplus < -StarvationToleranceSequences)
 		{
-			// The cursor reached the end of what has arrived. Placing it back at the newest description is the only
-			// option - there is no world ahead of it to show - and running out is what tells the loop to hold more.
 			StarvationCount++;
 			_starvationsSinceArrival++;
 			_cursor = NewestSequence;
@@ -305,27 +177,15 @@ public class SnapshotTimeline
 		_evaluationSeconds += delta;
 		if (_evaluationSeconds < DelayEvaluationSeconds) return;
 
-		// A window deepens the buffer for a link that was late or that stalled, and not for a description that was lost:
-		// a datagram that did not arrive cannot be buffered back, and counting it as lateness ratcheted the delay to its
-		// ceiling on a link that was only dropping the occasional frame. The deficit is the stall that was measured, or
-		// one sequence when the only evidence is that the cursor reached the end of what had arrived.
 		bool linkFellBehind = _lateStarvationsInWindow > 0 || _largestStallGapInWindow > 0;
 		if (linkFellBehind)
 		{
 			_cleanWindowsInARow = 0;
-			// A gap wider than this buffer can ever hold is not one its depth answers: a screen that spent a second building
-			// what it had already been sent, or a process that was suspended, leaves exactly that gap, and deepening to the
-			// ceiling for it buys nothing - the next such gap is just as uncoverable - while the shallowing rule then needs
-			// as many clean windows as the ceiling has sequences to give it back. Such a gap deepens by one sequence, so the
-			// buffer still leans toward holding more without spending the next ten seconds of the match at its deepest.
 			int deepenBy = _largestStallGapInWindow > MaximumDelaySequences ? 1 : Math.Max(1, _largestStallGapInWindow);
 			_delaySequences = Math.Min(MaximumDelaySequences, _delaySequences + deepenBy);
 		}
 		else
 		{
-			// The depth is only taken back once the buffer has held twice what the link ever needed for several windows
-			// running: a link that needs the depth cannot hold that margin through a whole window, so it keeps it, while a
-			// link that was deepened by one bad second gets its headroom returned instead of paying for it for the match.
 			if (_shallowestSurplusInWindow >= _delaySequences * ShallowSurplusFraction) _cleanWindowsInARow++;
 			else _cleanWindowsInARow = 0;
 
@@ -342,17 +202,6 @@ public class SnapshotTimeline
 		_largestStallGapInWindow = 0;
 	}
 
-	/// <summary>
-	///     The position, facing and velocity to draw one unit at this tick, where <paramref name="mayExtrapolate" /> says the
-	///     match has confirmed an order for it and the step <see cref="ExtrapolationLeadSequences" /> ahead of the cursor may
-	///     be drawn.
-	///     Extrapolating before the authority has confirmed anything would be the client inventing movement, which is what
-	///     this whole presentation model exists not to do. After it has - the unit carries a destination the match itself
-	///     published - the direction is the one the authority was already moving the unit along rather than a route this
-	///     client planned, and the only unknown is the step between the cursor and the next description.
-	///     Answers false for a unit this screen holds no description of, which is a unit that has not been heard about yet
-	///     rather than one that is standing still.
-	/// </summary>
 	public bool TrySample(int entityId, bool mayExtrapolate, out Vector3 position, out float rotationY, out Vector3 velocity)
 	{
 		position = Vector3.Zero;
@@ -367,11 +216,6 @@ public class SnapshotTimeline
 		int head = _heads[entityId];
 		int baseIndex = entityId * SamplesPerUnit;
 
-		// A confirmed order is drawn at a render time of its own, one interval ahead of the world around it. At the delay
-		// the buffer normally holds this lands between two descriptions already in hand - and lands there for every tick,
-		// including the one a new description arrives on, because interpolating towards the newest sample and extrapolating
-		// from it meet at it. A unit with nothing confirmed is drawn where the cursor is, exactly like everything else, and
-		// the step between the two is eased rather than switched so neither the order nor its completion moves the unit.
 		float targetLead = mayExtrapolate ? ExtrapolationLeadSequences : 0f;
 		float lead = _leads[entityId];
 		lead += Math.Clamp(targetLead - lead, -LeadRampPerSample, LeadRampPerSample);
@@ -403,10 +247,6 @@ public class SnapshotTimeline
 			return true;
 		}
 
-		// The sample and the speed are taken from the same pair of descriptions, so a unit that is drawn between two of
-		// them is animated at the speed it covered that span at rather than at the speed of the last pair held. Reading
-		// the newest pair here made a unit that had just started moving animate a walk while it was still drawn standing
-		// where it stopped, and made one that had just stopped report the speed of its last step.
 		for (int steps = 1; steps < count; steps++)
 		{
 			int olderOffset = (head - steps + SamplesPerUnit) % SamplesPerUnit;
@@ -433,13 +273,6 @@ public class SnapshotTimeline
 		return true;
 	}
 
-	/// <summary>
-	///     The short step past a description that a confirmed order allows. It is bounded twice - by the horizon in
-	///     sequences and by the distance that horizon may cover - so a unit whose two samples are far apart, or whose last
-	///     sample is already stale, is held rather than flung forward. The horizon is the distance from the newest
-	///     description to the time being drawn, so it is reached only when the buffer has run out; while the buffer holds a
-	///     description that far ahead the step is interpolation, not a guess.
-	/// </summary>
 	private static Vector3 Extrapolate(Vector3 newestPosition, Vector3 velocity, float sequencesAhead)
 	{
 		if (!(sequencesAhead > 0f) || sequencesAhead > MaximumExtrapolationSequences) return newestPosition;
@@ -451,10 +284,6 @@ public class SnapshotTimeline
 		return newestPosition + velocity * (meters / speed);
 	}
 
-	/// <summary>
-	///     The speed two descriptions cover. It is not on the wire - two positions state it - and it is what the renderer
-	///     animates a walk from and turns a unit along, so it is resolved from the pair the unit is drawn between.
-	/// </summary>
 	private static Vector3 ResolveVelocity(Vector3 from, Vector3 to, int sequences)
 	{
 		if (sequences <= 0) return Vector3.Zero;
@@ -465,10 +294,6 @@ public class SnapshotTimeline
 		return (to - from) / seconds;
 	}
 
-	/// <summary>
-	///     Turns from one facing to another the short way round, so a unit that crosses the seam between the last and the
-	///     first radian turns through it rather than spinning the long way.
-	/// </summary>
 	private static float InterpolateAngle(float from, float to, float fraction)
 	{
 		float difference = to - from;

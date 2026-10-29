@@ -1,9 +1,5 @@
 namespace Realm.Shared.Metadata;
 
-/// <summary>
-/// Attribute gain per level. Level 1 is the authored base, so a unit at level N receives
-/// (N - 1) multiples of every value here.
-/// </summary>
 public class LevelGrowthMetadata
 {
 	public float StrengthPerLevel { get; set; }

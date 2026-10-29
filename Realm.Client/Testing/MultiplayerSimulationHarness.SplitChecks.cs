@@ -14,21 +14,11 @@ using Realm.Ecs.Components.Tags;
 
 namespace Realm.Client.Testing;
 
-/// <summary>
-/// What a match looks like from each process that plays it. The authority is the only process that simulates, so what
-/// every screen holds has to come to it from there: the seats the map spawned units for, the world those units are in,
-/// and what a map command typed in chat did. These checks compare the screens against each other, which is the only way
-/// to see a change that never left the authority.
-/// </summary>
 public partial class MultiplayerSimulationHarness
 {
 	private const float SplitScenarioTimeoutSeconds = 120f;
 	private const float SummaryPositionToleranceMeters = 15f;
 
-	/// <summary>
-	/// Runs the checks a split match has to pass: every seat the lobby arranged was seated before the map's script ran,
-	/// the seats the match plays itself were seated too, and a map command typed in chat reached the map.
-	/// </summary>
 	private async Task RunSplitScenarioAsync(LobbyManager lobby, GameHost gameHost)
 	{
 		var failures = new List<string>();
@@ -38,15 +28,10 @@ public partial class MultiplayerSimulationHarness
 		if (!unitsAppeared) failures.Add("no unit was ever described to this screen");
 		notes.Add($"units on this screen after the match started: {gameHost.AllUnits.Count}");
 
-		// Which seat a map gives its units to is the map's own business: a map that plays its enemies on proxy seats keeps
-		// its units under the proxy, and a map that drafts gives a player nothing until they pick. What the split has to
-		// deliver is every unit the map spawned, so the distribution is reported rather than asserted.
 		var seatUnitCounts = new Dictionary<int, int>();
 		await WaitUntilAsync(() => CountSeatUnits(gameHost, _peerCount + _botCount, seatUnitCounts), SplitScenarioTimeoutSeconds);
 		notes.Add($"units per seat: {DescribeSeatUnits(seatUnitCounts)}");
 
-		// A map's own commands are typed in chat, so this is the path a player actually uses. The slot has to be one the
-		// map has not used, and the check is that the map acted on the line rather than that a screen showed it.
 		int commandSlot = _peerCount + _botCount + 1;
 		if (commandSlot > PlayableSlotCount)
 		{
@@ -58,8 +43,6 @@ public partial class MultiplayerSimulationHarness
 			notes.Add($"chat command '-addai {commandSlot}' sent with {_splitUnitsBeforeCommand} unit(s) on this screen");
 			lobby.SendChatMessage(HostPlayerName, $"-addai {commandSlot}", false);
 
-			// The command arrives at the authority and the map acts on it; which seat the map gives the new player is again
-			// the map's decision. What the split must not do is swallow the line, so the check is that the world changed.
 			bool unitsAppearedAfterCommand = await WaitUntilAsync(() => gameHost.AllUnits.Count > _splitUnitsBeforeCommand, SplitScenarioTimeoutSeconds);
 
 			seatUnitCounts.Clear();
@@ -131,11 +114,6 @@ public partial class MultiplayerSimulationHarness
 		}
 	}
 
-	/// <summary>
-	/// Writes what this process holds, so the run can be checked across processes rather than only inside one. Every
-	/// player in a match is a client of the authority, so two screens holding the same world is the property a split
-	/// match has to have; two screens that disagree is a change that never left the process that simulated it.
-	/// </summary>
 	private void WriteWorldSummary(string fileName, string role)
 	{
 		try
@@ -219,21 +197,11 @@ public partial class MultiplayerSimulationHarness
 		}
 	}
 
-	/// <summary>
-	///     How many labels the map's script put into this world and this screen is actually showing. A label is drawn by
-	///     the screen that receives it, so a count of zero on a peer the map addressed means the text never crossed the
-	///     transport rather than that it was placed somewhere unhelpful.
-	/// </summary>
 	private static int CountStaticTextLabels(GameHost gameHost)
 	{
 		return ReadStaticTextLabels(gameHost) is { } labels ? labels.Count : -1;
 	}
 
-	/// <summary>
-	///     What each label the map drew actually says and where the screen put it. A label the map created but the screen
-	///     holds at the wrong height is a placement problem, and one the screen does not hold at all is a delivery one;
-	///     the two look identical on a screenshot and are fixed in different places.
-	/// </summary>
 	private static List<object> DescribeStaticTextLabels(GameHost gameHost)
 	{
 		var described = new List<object>();

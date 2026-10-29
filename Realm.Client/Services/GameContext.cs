@@ -22,31 +22,14 @@ namespace Realm.Client.Services
 		private static VSCodeManager? _vscode;
 		private static WasmConsoleWindow? _wasmConsole;
 
-		/// <summary>
-		/// Services that live for the whole application session and are disposed only at shutdown.
-		/// </summary>
 		public static ServiceScope GlobalScope => _globalScope;
 
-		/// <summary>
-		/// Services owned by the screen that is currently open. Ending the screen disposes this scope; because a
-		/// disposed scope never hands a service out again, the next request creates a fresh scope instead of
-		/// returning disposed state. A screen must therefore read this property when it needs a service rather
-		/// than keeping a scope reference across screens.
-		/// </summary>
 		public static ServiceScope ScreenScope => _screenScope is { IsDisposed: false } scope ? scope : CreateScreenScope();
 
-		/// <summary>
-		///     This client's own simulation world and services. The authoritative process runs a separate
-		///     <see cref="SimulationContext" /> in its own process; nothing here can name one of its worlds.
-		/// </summary>
 		public static SimulationContext Simulation => _simulation;
 
 		private static SimulationContext _simulation = new();
 
-		/// <summary>
-		///     Replaces this client's world and services with a fresh set. Ending a screen returns the world to a known
-		///     empty state instead of leaving the previous match's entities and handles behind.
-		/// </summary>
 		public static void RecreateSimulation()
 		{
 			_simulation.Dispose();
@@ -71,16 +54,10 @@ namespace Realm.Client.Services
 			set => _simulation.ActiveMapName = value;
 		}
 
-		/// <summary>
-		///     This client's connection to the process that runs its match, or nothing outside a match. A match is always
-		///     run by an authority this client only speaks to, so this is the one way anything here reaches it.
-		/// </summary>
 		public static ClientServerSession? ServerSession { get; private set; }
 
-		/// <summary>Holds the session a match was started with, so every part of the match reaches the same authority.</summary>
 		public static void AttachServerSession(ClientServerSession session) => ServerSession = session;
 
-		/// <summary>Drops the session of a match that ended, so nothing reaches an authority that is gone.</summary>
 		public static void DetachServerSession() => ServerSession = null;
 
 		public static GameHost? Host { get; private set; }
@@ -184,14 +161,9 @@ namespace Realm.Client.Services
 		public static ReplayService ReplayService => ScreenScope.Get<ReplayService>();
 		public static NetworkService NetworkService => ScreenScope.Get<NetworkService>();
 
-		/// <summary>The path a description takes from the wire into this screen's world, and the bookkeeping it owns.</summary>
 		public static SnapshotApplyService SnapshotApply => ScreenScope.Get<SnapshotApplyService>();
 		private static CommandAuthorityService? _commandAuthority;
 
-		/// <summary>
-		///     This client's command authority. It belongs to the match, so it is rebuilt with the world rather than
-		///     carried over from the last one; the map's catalog binds its cost tables as it loads.
-		/// </summary>
 		public static CommandAuthorityService CommandAuthority => _commandAuthority ??= new CommandAuthorityService(_simulation);
 		public static TechTreeService TechTreeService => ScreenScope.Get<TechTreeService>();
 		public static ShroudService ShroudService => ScreenScope.Get<ShroudService>();

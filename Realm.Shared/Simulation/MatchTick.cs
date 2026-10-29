@@ -8,11 +8,6 @@ using Realm.Ecs.Services;
 
 namespace Realm.Shared.Simulation;
 
-/// <summary>
-///     The parts of a simulation tick that advance time rather than react to orders: the match clock, cooldowns, timed
-///     statuses, regeneration and visibility. Both processes run these through the same class, so a cooldown that has run
-///     out, a buff that has expired and a shield that has decayed agree wherever the match is being simulated.
-/// </summary>
 public class MatchTick
 {
 	private const float DayNightCycleSeconds = 90f;
@@ -59,16 +54,12 @@ public class MatchTick
 
 	public EcsWorld World => _simulation.World;
 
-	/// <summary>Clears every cooldown instead of counting them down, which is what a match with unlimited power wants.</summary>
 	public bool UnlimitedPower { get; set; }
 
-	/// <summary>How much simulated time passes between visibility updates.</summary>
 	public float ShroudInterval { get; set; } = ShroudSimulationService.UpdateInterval;
 
-	/// <summary>Raised for a summoned unit whose lifespan ran out. Whoever owns the match decides what happens to it.</summary>
 	public event Action<Entity>? SummonExpired;
 
-	/// <summary>Advances the match clock and both cooldown families. Runs before movement so this tick's orders see fresh cooldowns.</summary>
 	public void AdvanceCooldowns(float deltaSeconds)
 	{
 		_deltaSeconds = deltaSeconds;
@@ -77,7 +68,6 @@ public class MatchTick
 		World.Query(in QueryCache.AllCooldownsQuery, _cooldownsDelegate);
 	}
 
-	/// <summary>Advances visibility, timed statuses, absorb pools and summons, then re-derives the stats that expired modifiers changed.</summary>
 	public void AdvanceStatusEffects(float deltaSeconds)
 	{
 		_deltaSeconds = deltaSeconds;
@@ -99,7 +89,6 @@ public class MatchTick
 		World.Query(in SummonQuery, _summonDelegate);
 	}
 
-	/// <summary>Advances attack cooldowns and the health and mana regeneration that follows them.</summary>
 	public void AdvanceRegeneration(float deltaSeconds)
 	{
 		_deltaSeconds = deltaSeconds;
@@ -172,8 +161,6 @@ public class MatchTick
 	{
 		shield.Advance(_deltaSeconds);
 
-		// Pools with nothing left are removed with their component so a unit that never gets
-		// shielded again does not keep paying for the query.
 		if (shield.Count == 0) World.Remove<AbsorbShield>(entity);
 	}
 
@@ -190,8 +177,6 @@ public class MatchTick
 
 	private void AdvanceTimedModifiers(Entity entity, ref Stats stats)
 	{
-		// Applying or removing a modifier already recalculates the entity, so the tick only has to
-		// catch durations running out and then hand the entity back to the one stat pipeline.
 		if (!World.Has<ModifierState>(entity)) return;
 
 		ref var modifiers = ref World.Get<ModifierState>(entity);

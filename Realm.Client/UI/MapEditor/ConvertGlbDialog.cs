@@ -422,8 +422,6 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 	{
 		CommitPendingInputFocus();
 		OnApply();
-		// Do NOT call CloseDialog() here — the dialog closes itself via
-		// OnConversionFinished once the background conversion task is done.
 	}
 
 	protected override void OnApply()

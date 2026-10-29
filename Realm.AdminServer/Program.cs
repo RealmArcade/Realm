@@ -124,7 +124,6 @@ _ = Task.Run(async () =>
 					}
 					catch
 					{
-						/* Ignore socket close errors */
 					}
 				}
 			}
@@ -153,7 +152,7 @@ app.MapGet("/lobbies", (LobbyRegistry registry, GeoIpService geoIp, HttpContext 
 		int estimatedPing = 15 + (int)(distance / 100);
 		if (clientIpStr == lobby.HostIP || clientIpStr == "127.0.0.1" || lobby.HostIP == "127.0.0.1")
 		{
-			estimatedPing = 5; // Local connection ping
+			estimatedPing = 5;
 		}
 
 		return new LobbyResponseDto(
@@ -390,7 +389,6 @@ app.MapPost("/lobbies/close", async (CloseLobbyRequest req, LobbyRegistry regist
 				}
 				catch
 				{
-					/* Ignore socket close errors */
 				}
 			}
 
@@ -436,7 +434,6 @@ app.MapPost("/lobbies/propagate-close", async (CloseLobbyRequest req, LobbyRegis
 				}
 				catch
 				{
-					/* Ignore socket close errors */
 				}
 			}
 

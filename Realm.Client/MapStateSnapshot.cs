@@ -57,11 +57,6 @@ public class MapStateSnapshot
 	public List<VfxSaveData> Vfx = new List<VfxSaveData>();
 	public List<CoordinateSaveData> Coordinates = new List<CoordinateSaveData>();
 
-	/// <summary>
-	///     Puts the world under the host back to what this snapshot describes: the terrain it was taken from, the units,
-	///     props, decals and effects that were standing on it, and the coordinates a map had named. Restoring is what
-	///     lets a world be torn down for a playtest and come back afterwards without a file being written in between.
-	/// </summary>
 	public static void Restore(MapStateSnapshot snapshot, bool updateMapSize)
 	{
 		var host = GameContext.Host;

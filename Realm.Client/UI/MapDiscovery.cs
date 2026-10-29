@@ -32,7 +32,6 @@ public partial class MapDiscovery : Control
 	private LineEdit _searchBar;
 	private GridContainer _mapGrid;
 
-	// Category buttons
 	private Button _btnAll;
 	private Button _btnFeatured;
 	private Button _btnTD;

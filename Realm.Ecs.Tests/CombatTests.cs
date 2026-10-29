@@ -100,7 +100,6 @@ namespace Realm.Ecs.Tests
 
 			_combatService.StepCombat(0.1f);
 
-			// 5 armor against K = 16.67 removes 5 / 21.67 of a 20 damage hit.
 			Assert.That(_world.Get<Health>(enemy).Current, Is.EqualTo(84.61f).Within(0.01f));
 		}
 
@@ -193,8 +192,6 @@ namespace Realm.Ecs.Tests
 
 			_combatService.StepCombat(0.1f);
 
-			// Horizontal gap (20) is inside range (20), but the 8-unit vertical drop pushes the
-			// true 3D distance (~21.5) beyond effective range -> the tower must NOT fire.
 			Assert.That(_world.Has<AttackTarget>(tower), Is.False, "Building should drop a target whose 3D distance exceeds range.");
 			Assert.That(_world.Get<Health>(enemy).Current, Is.EqualTo(100f), "Tower out of 3D range must not damage the enemy.");
 		}
@@ -207,8 +204,6 @@ namespace Realm.Ecs.Tests
 
 			_combatService.StepCombat(0.1f);
 
-			// Horizontal distance (20) is inside the scan radius (21), but the 8-unit height delta
-			// pushes the 3D scan distance (~21.5) beyond it -> the enemy is NOT acquired.
 			Assert.That(_world.Has<AttackTarget>(tower), Is.False, "Enemy beyond the 3D scan radius should not be acquired.");
 			Assert.That(_world.Get<Health>(enemy).Current, Is.EqualTo(100f));
 		}
@@ -265,10 +260,6 @@ namespace Realm.Ecs.Tests
 		[Test]
 		public void TestMeleeSwarmOverflowingCandidateBufferDoesNotThrow()
 		{
-			// More enemies than the internal acquisition candidate buffer can hold so the
-			// closest survivors keep triggering the sorted-insert while the buffer is full.
-			// This used to index one past the array end and throw IndexOutOfRangeException,
-			// aborting the whole combat tick and freezing every unit.
 			var melee = SpawnMeleeUnit(new Vector3(0f, 0f, 0f), 20f, 2f, 1f, 50f, new PlayerEntity(CreatePlayer(0)));
 			var owner = new PlayerEntity(CreatePlayer(1));
 

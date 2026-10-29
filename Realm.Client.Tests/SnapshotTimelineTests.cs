@@ -93,8 +93,6 @@ public partial class SnapshotTimelineTests
 		timeline.Record(Unit, new Vector3(10f, 0f, 0f), 0f, 101);
 		timeline.AdvanceTo(102);
 
-		// The cursor reaches the newest description, which is where the leading step of a confirmed order has the whole
-		// horizon to spend: further back it is spent between two descriptions rather than past the newest one.
 		timeline.Advance(Step());
 
 		bool sampled = timeline.TrySample(Unit, true, out Vector3 position, out _, out _);

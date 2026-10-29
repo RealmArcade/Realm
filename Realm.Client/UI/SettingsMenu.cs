@@ -238,15 +238,14 @@ public partial class SettingsMenu : Control
 		if (GetNodeOrNull<Panel>("CenterContainer/MainFrame/TitlePanel") is Panel titlePanel)
 		{
 			var titleStyle = new StyleBoxFlat();
-			titleStyle.BgColor = new Color(0.24f, 0.21f, 0.18f, 1.0f); // Match configurations background
-			titleStyle.BorderColor = new Color(0.45f, 0.40f, 0.32f, 1.0f); // Bronze/Gold frame
+			titleStyle.BgColor = new Color(0.24f, 0.21f, 0.18f, 1.0f);
+			titleStyle.BorderColor = new Color(0.45f, 0.40f, 0.32f, 1.0f);
 			titleStyle.SetBorderWidthAll(3);
 			titleStyle.CornerRadiusTopLeft = 8;
 			titleStyle.CornerRadiusTopRight = 8;
 			titleStyle.CornerRadiusBottomLeft = 8;
 			titleStyle.CornerRadiusBottomRight = 8;
 
-			// Beautiful drop shadow
 			titleStyle.ShadowColor = new Color(0, 0, 0, 0.75f);
 			titleStyle.ShadowSize = 12;
 			titleStyle.ShadowOffset = new Vector2(0, 6);
@@ -257,8 +256,8 @@ public partial class SettingsMenu : Control
 		if (GetNodeOrNull<Panel>("CenterContainer/MainFrame/TitlePanel/TitleInnerPanel") is Panel titleInnerPanel)
 		{
 			var innerStyle = new StyleBoxFlat();
-			innerStyle.BgColor = new Color(0.18f, 0.16f, 0.14f, 1.0f); // Match inset color
-			innerStyle.BorderColor = new Color(0.82f, 0.72f, 0.50f, 0.5f); // Thinner semi-transparent gold outline
+			innerStyle.BgColor = new Color(0.18f, 0.16f, 0.14f, 1.0f);
+			innerStyle.BorderColor = new Color(0.82f, 0.72f, 0.50f, 0.5f);
 			innerStyle.SetBorderWidthAll(1);
 			innerStyle.CornerRadiusTopLeft = 5;
 			innerStyle.CornerRadiusTopRight = 5;
@@ -283,10 +282,9 @@ public partial class SettingsMenu : Control
 		_settingsTitle.HorizontalAlignment = HorizontalAlignment.Center;
 		_settingsTitle.VerticalAlignment = VerticalAlignment.Center;
 
-		// Create header panel style for VIDEO, AUDIO, CONTROLS and OTHER title boxes
 		var headerStyle = new StyleBoxFlat();
-		headerStyle.BgColor = new Color(0.12f, 0.11f, 0.10f, 0.6f); // Dark translucent charcoal/bronze
-		headerStyle.BorderColor = new Color(0.40f, 0.35f, 0.28f, 0.7f); // Antique bronze-gold border
+		headerStyle.BgColor = new Color(0.12f, 0.11f, 0.10f, 0.6f);
+		headerStyle.BorderColor = new Color(0.40f, 0.35f, 0.28f, 0.7f);
 		headerStyle.SetBorderWidthAll(1);
 		headerStyle.CornerRadiusTopLeft = 4;
 		headerStyle.CornerRadiusTopRight = 4;
@@ -373,8 +371,8 @@ public partial class SettingsMenu : Control
 			"CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/ControlsPanel/VBox/HudScaleRow/HudScaleValLabel"
 		};
 		var valLabelStyle = new StyleBoxFlat();
-		valLabelStyle.BgColor = new Color(0.12f, 0.11f, 0.10f, 0.6f); // Dark translucent charcoal/bronze matching subtitles
-		valLabelStyle.BorderColor = new Color(0.40f, 0.35f, 0.28f, 0.7f); // Antique bronze-gold border matching subtitles
+		valLabelStyle.BgColor = new Color(0.12f, 0.11f, 0.10f, 0.6f);
+		valLabelStyle.BorderColor = new Color(0.40f, 0.35f, 0.28f, 0.7f);
 		valLabelStyle.SetBorderWidthAll(1);
 		valLabelStyle.CornerRadiusTopLeft = 4;
 		valLabelStyle.CornerRadiusTopRight = 4;
