@@ -313,7 +313,12 @@ public class SnapshotTimeline
 		if (linkFellBehind)
 		{
 			_cleanWindowsInARow = 0;
-			int deepenBy = Math.Max(1, _largestStallGapInWindow);
+			// A gap wider than this buffer can ever hold is not one its depth answers: a screen that spent a second building
+			// what it had already been sent, or a process that was suspended, leaves exactly that gap, and deepening to the
+			// ceiling for it buys nothing - the next such gap is just as uncoverable - while the shallowing rule then needs
+			// as many clean windows as the ceiling has sequences to give it back. Such a gap deepens by one sequence, so the
+			// buffer still leans toward holding more without spending the next ten seconds of the match at its deepest.
+			int deepenBy = _largestStallGapInWindow > MaximumDelaySequences ? 1 : Math.Max(1, _largestStallGapInWindow);
 			_delaySequences = Math.Min(MaximumDelaySequences, _delaySequences + deepenBy);
 		}
 		else
