@@ -489,6 +489,10 @@ public class NetworkService
 		// which the sample gap arithmetic then treated as "no previous sample" for that unit.
 		LastAppliedSnapshotSequenceForDiagnostics = snapshot.Sequence;
 
+		// Retired before this snapshot's units are applied, so a unit the authority spawned under an identifier it has
+		// just released does not inherit the replica that held it.
+		RetireUndescribedUnits(snapshot, mapping);
+
 		foreach (var snap in snapshot.Units)
 		{
 			ApplySnapshotToUnit(snap, snapshot.Sequence, mapping);
@@ -507,6 +511,26 @@ public class NetworkService
 		// place simply leaves its own bit clear: the host repeats that change instead of treating it as delivered, and the
 		// rest of the stream is still confirmed.
 		AcknowledgeAppliedSnapshot(snapshot.Sequence, componentsFullyApplied);
+	}
+
+	/// <summary>
+	///     Retires the replicas of the units this peer was described with and no longer is. What this screen holds for a
+	///     unit is only ever what the authority said about it, so a unit the authority stops describing is one this
+	///     screen must stop holding: left behind, it stays selectable, orderable, counted by the HUD and hit-tested by
+	///     the cursor long after the authority stopped knowing the player could see it. The authority states these with
+	///     every delta, so the replica goes on the tick the unit leaves sight rather than on the next baseline.
+	/// </summary>
+	private void RetireUndescribedUnits(WorldSnapshot snapshot, NetworkMappingState mapping)
+	{
+		if (snapshot.RetiredEntityIds == null || snapshot.RetiredEntityIds.Count == 0) return;
+
+		for (int index = 0; index < snapshot.RetiredEntityIds.Count; index++)
+		{
+			int serverEntityId = snapshot.RetiredEntityIds[index];
+			if (!mapping.ServerToClientEntityMap.TryGetValue(serverEntityId, out Entity localEntity)) continue;
+
+			RetireClientEntityForUntrackedServerId(mapping, localEntity, serverEntityId);
+		}
 	}
 
 	private void ProcessBaselineSnapshotMismatches(WorldSnapshot snapshot, NetworkMappingState mapping)
@@ -694,19 +718,6 @@ public class NetworkService
 		ReplicatedEntityReferences.Unregister(serverEntityId);
 	}
 
-	/// <summary>
-	///     How fast a description says a unit is going, worked out from the distance it covered since the description
-	///     before it. A unit is described wherever the authority put it, and not every one of those descriptions reaches
-	///     this client, so the span is counted in sequences rather than assumed to be one snapshot.
-	/// </summary>
-	private static System.Numerics.Vector3 ResolveDescribedVelocity(System.Numerics.Vector3 displacement, int sequences, bool discontinuous)
-	{
-		if (discontinuous || sequences <= 0) return System.Numerics.Vector3.Zero;
-
-		float seconds = sequences * MatchTiming.SnapshotIntervalSeconds;
-		return seconds > 0f ? displacement / seconds : System.Numerics.Vector3.Zero;
-	}
-
 	private void ApplySnapshotToUnit(UnitSnapshot snap, int sequence, NetworkMappingState mapping)
 	{
 		if (!mapping.ServerToClientEntityMap.TryGetValue(snap.EntityId, out var localEntity))
@@ -767,22 +778,15 @@ public class NetworkService
 			: -1;
 		bool descriptionResumed = lastDescribedSequence >= 0 && sequence - lastDescribedSequence > UnobservedUnitGapSequences;
 
-		// How fast a unit is going is not on the wire: two descriptions of where it is say it, and carrying it as well
-		// cost half of what a description of a moving unit costs, because it is the part of a record that compression
-		// cannot fold away. A description that continues the one before it states the speed it covered that distance at;
-		// one that follows a gap or a jump states none, because the distance between them is not walking.
-		System.Numerics.Vector3 describedVelocity = ResolveDescribedVelocity(describedPosition - previousTargetPosition, sequence - lastDescribedSequence, targetJumped || descriptionResumed);
-
 		if (targetJumped || descriptionResumed) GameContext.SnapshotTimeline.Reset(localEntity.Id);
 		GameContext.SnapshotTimeline.Record(localEntity.Id, describedPosition, snap.RotationY, sequence);
 
 		// The newest description is kept on the unit as well: it is the marker that says this unit is one the authority
 		// describes rather than one this screen moves, and it is what a diagnostic can compare against without reading the
-		// timeline's ring.
+		// timeline's ring. The facing it holds is replaced by the presented one on the next tick.
 		GameContext.World.SetOrAdd(localEntity, new LatestDescription
 		{
 			Position = describedPosition,
-			Velocity = describedVelocity,
 			RotationY = snap.RotationY
 		});
 
@@ -875,7 +879,7 @@ public class NetworkService
 			return Entity.Null;
 		}
 
-		Entity spawned = ApplySnapshotToEntity(snap.UnitId, snap.EntityId, snap.OwnerPlayerEntityId, snap.Position.ToNumerics(), System.Numerics.Vector3.Zero, snap.RotationY, snap.CurrentHp, snap.MaxHp, snap.IsBuilding, meta, ref mapping, getFallbackModelPath, out modelPath, out playerIndex, snap.OwnerPlayerIndex);
+		Entity spawned = ApplySnapshotToEntity(snap.UnitId, snap.EntityId, snap.OwnerPlayerEntityId, snap.Position.ToNumerics(), snap.RotationY, snap.CurrentHp, snap.MaxHp, snap.IsBuilding, meta, ref mapping, getFallbackModelPath, out modelPath, out playerIndex, snap.OwnerPlayerIndex);
 		if (spawned != Entity.Null)
 		{
 			// The mapping exists only after this call, so this snapshot could not describe the unit to the apply pass that
@@ -891,7 +895,7 @@ public class NetworkService
 		return spawned;
 	}
 
-	public static Entity ApplySnapshotToEntity(string unitId, int entityId, int ownerPlayerEntityId, System.Numerics.Vector3 position, System.Numerics.Vector3 velocity, float rotationY, float currentHp, float maxHp, bool isBuilding, UnitMetadata meta, ref NetworkMappingState mapping, Func<string, bool, string> getFallbackModelPath, out string modelPath, out int playerIndex, int ownerPlayerIndex = -1)
+	public static Entity ApplySnapshotToEntity(string unitId, int entityId, int ownerPlayerEntityId, System.Numerics.Vector3 position, float rotationY, float currentHp, float maxHp, bool isBuilding, UnitMetadata meta, ref NetworkMappingState mapping, Func<string, bool, string> getFallbackModelPath, out string modelPath, out int playerIndex, int ownerPlayerIndex = -1)
 	{
 		Entity ownerPlayerEntity = mapping.PlayerEntities != null && mapping.PlayerEntities.Length > 1 ? mapping.PlayerEntities[1] : Entity.Null;
 		if (ownerPlayerIndex >= 0 && mapping.PlayerEntities != null && ownerPlayerIndex < mapping.PlayerEntities.Length)
@@ -948,7 +952,6 @@ public class NetworkService
 		var interpolationTarget = new LatestDescription
 		{
 			Position = position,
-			Velocity = velocity,
 			RotationY = rotationY
 		};
 		GameContext.World.Add(entity, interpolationTarget);

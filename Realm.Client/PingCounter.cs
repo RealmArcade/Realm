@@ -48,7 +48,13 @@ public partial class PingCounter : Label
 		if (_refreshTimer < RefreshIntervalSeconds) return;
 
 		_refreshTimer = 0f;
-		Text = string.Format(TranslationServer.Translate("Ping: {0} ms"), Mathf.RoundToInt(roundTripMilliseconds));
+		// The presentation delay is read beside the round trip because the two answer different questions: the round trip
+		// is how long the authority takes to hear an order, and the delay is how far behind the world this screen draws.
+		// A player reporting a late match on a good link is looking at the second number, not the first.
+		int delayMilliseconds = Mathf.RoundToInt(GameContext.SnapshotTimeline.DelayMilliseconds);
+		Text = string.Format(TranslationServer.Translate("Ping: {0} ms"), Mathf.RoundToInt(roundTripMilliseconds))
+		       + "\n"
+		       + string.Format(TranslationServer.Translate("Presentation delay: {0} ms"), delayMilliseconds);
 		AddThemeColorOverride("font_color", ResolveColor(roundTripMilliseconds));
 	}
 

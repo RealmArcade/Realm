@@ -31,11 +31,18 @@ public readonly record struct ServerPresentationEvent(
 	/// <summary>What a request addressed to no player in particular names: every player is meant to see it.</summary>
 	public const int Everyone = -1;
 
-	/// <summary>The request in the form that crosses the transport, so a client reads one shape for every kind.</summary>
-	public PresentationMessage ToMessage()
+	/// <summary>
+	///     The request in the form that crosses the transport, so a client reads one shape for every kind.
+	/// </summary>
+	/// <param name="sequence">
+	///     The published sequence the request belongs to, or <see cref="PresentationMessage.StateDescriptionSequence" />
+	///     for one that describes the match's state rather than a tick.
+	/// </param>
+	public PresentationMessage ToMessage(int sequence)
 	{
 		return new PresentationMessage
 		{
+			Sequence = sequence,
 			Kind = (byte)Kind,
 			PlayerIndex = PlayerIndex,
 			Handle = Handle,

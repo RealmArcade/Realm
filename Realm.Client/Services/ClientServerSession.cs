@@ -77,9 +77,6 @@ public class ClientServerSession : IDisposable
 	/// <summary>The team the player slot belongs to, which decides who this client may order its units against.</summary>
 	public int LocalTeam { get; private set; }
 
-	/// <summary>The newest snapshot this client has applied, which is what it acknowledges to the authority.</summary>
-	public int AppliedSequence { get; private set; }
-
 	/// <summary>The log the authority writes for itself, so a match can show where to look when something goes wrong.</summary>
 	public string LogPath { get; private set; } = string.Empty;
 
@@ -529,7 +526,6 @@ public class ClientServerSession : IDisposable
 		// frames in another process; a run that asks for the figure is the run that reads this counter.
 		if (MultiplayerBandwidthMeter.IsRecording) MultiplayerBandwidthMeter.RecordReceivedSnapshot(payload.Length, snapshot.IsBaseline);
 
-		AppliedSequence = snapshot.Sequence;
 		SnapshotReceived?.Invoke(snapshot);
 	}
 

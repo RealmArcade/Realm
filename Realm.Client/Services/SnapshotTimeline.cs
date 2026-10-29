@@ -106,6 +106,7 @@ public class SnapshotTimeline
 	private int _starvationsInWindow;
 	private int _cleanWindowsInARow;
 	private float _shallowestSurplusInWindow = float.MaxValue;
+	private int _largestArrivalGapInWindow = 1;
 	private int _delaySequences = MinimumDelaySequences;
 
 	public SnapshotTimeline()
@@ -121,6 +122,13 @@ public class SnapshotTimeline
 
 	/// <summary>How far behind the newest description this screen renders, in sequences.</summary>
 	public int DelaySequences => _delaySequences;
+
+	/// <summary>
+	///     How far behind the newest description this screen renders, in milliseconds. It is the figure a player asks
+	///     about when the match feels late, and it is not the round trip: a low ping with a deep buffer is a screen that
+	///     is holding descriptions it does not need to, which is a different problem from a slow link.
+	/// </summary>
+	public float DelayMilliseconds => _delaySequences * MatchTiming.SnapshotIntervalSeconds * 1000f;
 
 	/// <summary>
 	///     How many times the cursor reached the end of what had arrived. Deepening the delay is the answer to this
@@ -149,6 +157,7 @@ public class SnapshotTimeline
 		_starvationsInWindow = 0;
 		_cleanWindowsInARow = 0;
 		_shallowestSurplusInWindow = float.MaxValue;
+		_largestArrivalGapInWindow = 1;
 		StarvationCount = 0;
 		ShallowestSurplusSequences = 0f;
 		ExtrapolatedSampleCount = 0;
@@ -203,6 +212,15 @@ public class SnapshotTimeline
 
 		if (sequence > NewestSequence)
 		{
+			// How many sequences passed between the description that was newest and this one. A gap above one is a tick
+			// the authority did not get to describe or this screen did not get to read, which is the deficit the buffer is
+			// there to cover and therefore what it is deepened by.
+			if (NewestSequence >= 0)
+			{
+				int arrivalGap = sequence - NewestSequence;
+				if (arrivalGap > _largestArrivalGapInWindow) _largestArrivalGapInWindow = arrivalGap;
+			}
+
 			NewestSequence = sequence;
 			if (_cursor < 0f) _cursor = sequence - _delaySequences;
 		}
@@ -254,8 +272,13 @@ public class SnapshotTimeline
 		ShallowestSurplusSequences = _shallowestSurplusInWindow;
 		if (_starvationsInWindow > 0)
 		{
+			// Deepened by the deficit this window actually showed rather than by one sequence: a burst the buffer could
+			// not cover costs a second per missing sequence to answer, and the link is already running late for all of
+			// them. A window that starved without a gap - descriptions arriving a little late rather than missing - has no
+			// measured deficit, so it still deepens by one.
 			_cleanWindowsInARow = 0;
-			if (_delaySequences < MaximumDelaySequences) _delaySequences++;
+			int deepenBy = Math.Max(1, _largestArrivalGapInWindow - 1);
+			_delaySequences = Math.Min(MaximumDelaySequences, _delaySequences + deepenBy);
 		}
 		else
 		{
@@ -275,6 +298,7 @@ public class SnapshotTimeline
 		_evaluationSeconds = 0f;
 		_starvationsInWindow = 0;
 		_shallowestSurplusInWindow = float.MaxValue;
+		_largestArrivalGapInWindow = 1;
 	}
 
 	/// <summary>
@@ -305,12 +329,16 @@ public class SnapshotTimeline
 		int newestIndex = baseIndex + head;
 		int newestSequence = _sequences[newestIndex];
 
-		velocity = ResolveVelocity(entityId, count, head);
-
 		if (cursor >= newestSequence || count == 1)
 		{
 			position = _positions[newestIndex];
 			rotationY = _rotations[newestIndex];
+
+			if (count >= 2)
+			{
+				int previousIndex = baseIndex + (head - 1 + SamplesPerUnit) % SamplesPerUnit;
+				velocity = ResolveVelocity(_positions[previousIndex], _positions[newestIndex], newestSequence - _sequences[previousIndex]);
+			}
 
 			if (mayExtrapolate && count >= 2)
 			{
@@ -322,6 +350,10 @@ public class SnapshotTimeline
 			return true;
 		}
 
+		// The sample and the speed are taken from the same pair of descriptions, so a unit that is drawn between two of
+		// them is animated at the speed it covered that span at rather than at the speed of the last pair held. Reading
+		// the newest pair here made a unit that had just started moving animate a walk while it was still drawn standing
+		// where it stopped, and made one that had just stopped report the speed of its last step.
 		for (int steps = 1; steps < count; steps++)
 		{
 			int olderOffset = (head - steps + SamplesPerUnit) % SamplesPerUnit;
@@ -331,17 +363,20 @@ public class SnapshotTimeline
 
 			int newerIndex = baseIndex + (olderOffset + 1) % SamplesPerUnit;
 			int newerSequence = _sequences[newerIndex];
-			float span = newerSequence - olderSequence;
+			int span = newerSequence - olderSequence;
 			float fraction = span > 0 ? Math.Clamp((cursor - olderSequence) / span, 0f, 1f) : 1f;
 
 			position = Vector3.Lerp(_positions[olderIndex], _positions[newerIndex], fraction);
 			rotationY = InterpolateAngle(_rotations[olderIndex], _rotations[newerIndex], fraction);
+			velocity = ResolveVelocity(_positions[olderIndex], _positions[newerIndex], span);
 			return true;
 		}
 
 		int oldestOffset = (head - count + 1 + SamplesPerUnit) % SamplesPerUnit;
-		position = _positions[baseIndex + oldestOffset];
-		rotationY = _rotations[baseIndex + oldestOffset];
+		int oldestIndex = baseIndex + oldestOffset;
+		position = _positions[oldestIndex];
+		rotationY = _rotations[oldestIndex];
+		velocity = ResolveVelocity(_positions[oldestIndex], _positions[baseIndex + (oldestOffset + 1) % SamplesPerUnit], _sequences[baseIndex + (oldestOffset + 1) % SamplesPerUnit] - _sequences[oldestIndex]);
 		return true;
 	}
 
@@ -362,25 +397,17 @@ public class SnapshotTimeline
 	}
 
 	/// <summary>
-	///     The speed the last two descriptions of a unit cover. It is not on the wire - two positions state it - and it is
-	///     what the renderer animates a walk from.
+	///     The speed two descriptions cover. It is not on the wire - two positions state it - and it is what the renderer
+	///     animates a walk from and turns a unit along, so it is resolved from the pair the unit is drawn between.
 	/// </summary>
-	private Vector3 ResolveVelocity(int entityId, int count, int head)
+	private static Vector3 ResolveVelocity(Vector3 from, Vector3 to, int sequences)
 	{
-		if (count < 2) return Vector3.Zero;
-
-		int baseIndex = entityId * SamplesPerUnit;
-		int newestIndex = baseIndex + head;
-		int previousIndex = baseIndex + (head - 1 + SamplesPerUnit) % SamplesPerUnit;
-
-		int sequences = _sequences[newestIndex] - _sequences[previousIndex];
 		if (sequences <= 0) return Vector3.Zero;
 
 		float seconds = sequences * MatchTiming.SnapshotIntervalSeconds;
 		if (!(seconds > 0f)) return Vector3.Zero;
 
-		Vector3 displacement = _positions[newestIndex] - _positions[previousIndex];
-		return displacement / seconds;
+		return (to - from) / seconds;
 	}
 
 	/// <summary>

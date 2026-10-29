@@ -307,6 +307,10 @@ public partial class GameHost
 		// the newest description it has.
 		GameContext.SnapshotTimeline.Advance(fDelta);
 
+		// Everything the map asked this screen to show is shown from the same clock as the units it is about, so an
+		// effect and the unit that produced it are drawn at the same moment rather than a presentation delay apart.
+		FlushPresentationForCursor();
+
 		// A route the match never answered is taken back before the planning pass sees it, so a click that moved nothing
 		// stops drawing rather than being planned again every tick.
 		ExpirePreviewRoutes();

@@ -92,6 +92,16 @@ public enum PresentationKind : byte
 [MemoryPackable]
 public partial struct PresentationMessage
 {
+	/// <summary>
+	///     The published sequence this request belongs to, so a screen can show it at the moment it draws that sequence.
+	///     A request that describes the match's current state rather than something one tick did - the cards, colours and
+	///     labels a peer is given when it is seated - carries <see cref="StateDescriptionSequence" /> and is applied at once.
+	/// </summary>
+	public int Sequence;
+
+	/// <summary>The sequence that names a request which is state rather than a moment, and is therefore shown on arrival.</summary>
+	public const int StateDescriptionSequence = -1;
+
 	public byte Kind;
 
 	/// <summary>The player this is addressed to, or nothing when every player should see it.</summary>

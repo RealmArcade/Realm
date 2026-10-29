@@ -301,7 +301,6 @@ namespace Realm.Client.ReplaySystem
 				GameContext.World.Set(localEntity, new LatestDescription
 				{
 					Position = snap.Position.ToNumerics(),
-					Velocity = snap.Velocity.ToNumerics(),
 					RotationY = snap.RotationY
 				});
 			}

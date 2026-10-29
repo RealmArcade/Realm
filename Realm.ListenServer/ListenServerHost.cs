@@ -761,18 +761,23 @@ public class ListenServerHost : IServerTransportSink
 
 	/// <summary>
 	///     Tells each peer what the map asked its screen to show. A request addressed to one player reaches only the
-	///     peer acting as that player; one addressed to everyone reaches all of them.
+	///     peer acting as that player; one addressed to everyone reaches all of them. Every request carries the tick it
+	///     belongs to, so a screen shows it when it draws that tick rather than when the frame happens to arrive.
 	/// </summary>
-	private void SendPresentation(int peerCount, ServerPresentationEvent[] events) => SendPresentation(_seatedPeerIds.AsSpan(0, peerCount), events);
+	private void SendPresentation(int peerCount, ServerPresentationEvent[] events) => SendPresentation(_seatedPeerIds.AsSpan(0, peerCount), events, _publishSequence);
 
+	/// <summary>
+	///     Tells one peer the state the match holds for it, rather than what one tick did: the cards, colours and labels a
+	///     peer is given when it is seated describe the match now and are shown on arrival.
+	/// </summary>
 	private void SendPresentationToPeer(int peerId, ServerPresentationEvent[] events)
 	{
 		Span<int> singlePeer = stackalloc int[1];
 		singlePeer[0] = peerId;
-		SendPresentation(singlePeer, events);
+		SendPresentation(singlePeer, events, PresentationMessage.StateDescriptionSequence);
 	}
 
-	private void SendPresentation(ReadOnlySpan<int> peerIds, ServerPresentationEvent[] events)
+	private void SendPresentation(ReadOnlySpan<int> peerIds, ServerPresentationEvent[] events, int sequence)
 	{
 		// Each request is serialized once and handed to every peer it addresses. Serializing it inside the per-peer
 		// loop made a room of twenty-four pay for the same event twenty-four times.
@@ -780,7 +785,7 @@ public class ListenServerHost : IServerTransportSink
 		for (int eventIndex = 0; eventIndex < events.Length; eventIndex++)
 		{
 			ServerPresentationEvent request = events[eventIndex];
-			_presentationPayloads.Add((request.PlayerIndex, MemoryPackSerializer.Serialize(request.ToMessage())));
+			_presentationPayloads.Add((request.PlayerIndex, MemoryPackSerializer.Serialize(request.ToMessage(sequence))));
 		}
 
 		for (int peerIndex = 0; peerIndex < peerIds.Length; peerIndex++)

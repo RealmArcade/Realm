@@ -1659,6 +1659,9 @@ public class SimulationService
 		OnProductionCompleted?.Invoke(buildingPlayerIndex, unitToSpawn);
 	}
 
+	/// <summary>The speed below which a unit is treated as standing still, which is where its facing comes from its description.</summary>
+	private const float StationaryVelocitySquared = 0.01f;
+
 	private void PresentationQueryAction(Entity entity, ref LatestDescription target)
 	{
 		if (!GameContext.World.Has<Position>(entity)) return;
@@ -1685,6 +1688,12 @@ public class SimulationService
 		PositionWriteTrace.MarkPresentation(entity, 1f, currentPos, sampledPosition, sampledPosition, target.Position);
 		GameContext.World.Set(entity, new Position(sampledPosition));
 		GameContext.World.SetOrAdd(entity, new Velocity(sampledVelocity));
+
+		// A unit that is standing still is drawn facing where the authority had it facing at the moment being rendered.
+		// The renderer smooths towards this value, so a unit that turns in place turns when it is drawn rather than one
+		// presentation delay before it. A unit that is moving is turned along its own movement instead, which is the
+		// same facing at the same moment; that decision belongs to the renderer and is left to it.
+		if (sampledVelocity.LengthSquared() <= StationaryVelocitySquared) target.RotationY = sampledRotationY;
 	}
 
 	private int GetTimeOfDayIndex()

@@ -244,7 +244,7 @@ public class AuthoritativeSnapshotBuilder
 		}
 
 		AppendComponentDeltas(state, snapshot, sequence, isBaseline);
-		ForgetUntrackedUnitComponents(state);
+		ForgetUntrackedUnitComponents(state, ref snapshot, isBaseline);
 		return snapshot;
 	}
 
@@ -960,7 +960,7 @@ public class AuthoritativeSnapshotBuilder
 	///     comes back, and nothing tells the peer to drop what it holds: a unit that walked out of vision is still where
 	///     the peer last saw it, and only a death or a removal says otherwise.
 	/// </summary>
-	private void ForgetUntrackedUnitComponents(SnapshotPeerState state)
+	private void ForgetUntrackedUnitComponents(SnapshotPeerState state, ref WorldSnapshot snapshot, bool isBaseline)
 	{
 		// Only the units that left this peer's sight are dropped, found by comparing the set it was described with last
 		// tick against the one it is described with now. Walking every remembered component instead cost a full pass
@@ -970,6 +970,11 @@ public class AuthoritativeSnapshotBuilder
 		{
 			if (!_describedEntityIds.Contains(rememberedEntityId)) _forgottenEntityIds.Add(rememberedEntityId);
 		}
+
+		// The same comparison is what the peer needs in order to drop the replica: a unit this peer was told about and is
+		// not told about now is one it must stop holding. A baseline states the whole world and a peer recovers from one
+		// by forgetting what it held, so it states nothing retired.
+		if (!isBaseline && _forgottenEntityIds.Count > 0) snapshot.RetiredEntityIds = new List<int>(_forgottenEntityIds);
 
 		// A unit that left this peer's sight keeps the components it was told about: the peer still holds them, so the ones
 		// the authority drops while it is away are stated as gone when it comes back. Only the bytes are dropped, because

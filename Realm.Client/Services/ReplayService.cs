@@ -114,7 +114,7 @@ public class ReplayService
 
 		ref var mapping = ref GameContext.World.Get<NetworkMappingState>(worldEntity);
 
-		var entity = NetworkService.ApplySnapshotToEntity(snap.UnitId, snap.EntityId, snap.OwnerPlayerEntityId, snap.Position.ToNumerics(), snap.Velocity.ToNumerics(), snap.RotationY, snap.CurrentHp, snap.MaxHp, snap.IsBuilding, meta, ref mapping, GameContext.UnitSpawnService.GetFallbackModelPath, out string modelPath, out int playerIndex);
+		var entity = NetworkService.ApplySnapshotToEntity(snap.UnitId, snap.EntityId, snap.OwnerPlayerEntityId, snap.Position.ToNumerics(), snap.RotationY, snap.CurrentHp, snap.MaxHp, snap.IsBuilding, meta, ref mapping, GameContext.UnitSpawnService.GetFallbackModelPath, out string modelPath, out int playerIndex);
 		return (entity, modelPath, playerIndex);
 	}
 

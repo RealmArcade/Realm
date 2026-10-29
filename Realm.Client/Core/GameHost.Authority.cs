@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Godot;
 using Realm.Client.Services;
 using Realm.Client.VFX;
@@ -26,6 +27,20 @@ public partial class GameHost
 	private ClientServerSession? _joinedSession;
 
 	/// <summary>
+	///     What the map asked this screen to show, held until the render cursor reaches the tick each request belongs to.
+	///     An effect drawn the moment its frame arrived named a place in the world the screen has not drawn yet, so on a
+	///     link with a presentation delay it appeared before the unit it belonged to had reached it.
+	/// </summary>
+	private readonly List<PresentationMessage> _pendingPresentation = new();
+
+	/// <summary>
+	///     How many requests may wait for the cursor. A match produces a handful a second; this only bounds what a map
+	///     that asks for something every tick can hold when the cursor is stopped (a paused match, a screen that stopped
+	///     receiving).
+	/// </summary>
+	private const int MaximumPendingPresentation = 512;
+
+	/// <summary>
 	///     Holds the connection the match was started with. The authority frames that arrived before this scene existed
 	///     are still queued in the session, so nothing the authority said while the map was loading is lost.
 	/// </summary>
@@ -35,9 +50,10 @@ public partial class GameHost
 		if (session == null) return;
 
 		_joinedSession = session;
+		_pendingPresentation.Clear();
 		session.Seated += ApplyRosterAssignment;
 		session.SnapshotReceived += ApplyReceivedSnapshot;
-		session.PresentationReceived += ApplyPresentation;
+		session.PresentationReceived += QueuePresentation;
 		session.NavMeshObstaclesReceived += ApplyNavMeshObstacles;
 		session.PauseStateReceived += ApplyMatchPause;
 		session.CommandAnswered += ApplyCommandOutcome;
@@ -76,6 +92,7 @@ public partial class GameHost
 		if (session == null || !ReferenceEquals(session, _joinedSession)) return;
 
 		_joinedSession = null;
+		_pendingPresentation.Clear();
 		StopAwaitingAuthoritativeObstacleVolumes();
 		session.Stop();
 		GameContext.DetachServerSession();
@@ -207,6 +224,52 @@ public partial class GameHost
 		network.IsPaused = state.Paused;
 		network.PausedByPlayerIndex = state.Paused ? state.RequestedByPlayer : -1;
 		UpdatePauseUI();
+	}
+
+	/// <summary>
+	///     Takes something the authority's map script asked this screen to show. A request that belongs to a tick is held
+	///     until the render cursor reaches that tick, because it names a place in the world and the world is drawn a
+	///     presentation delay behind the newest description; one that describes the match's state is shown at once,
+	///     because it is true of the world now rather than of a moment in it.
+	/// </summary>
+	private void QueuePresentation(PresentationMessage message)
+	{
+		if (message.Sequence < 0)
+		{
+			ApplyPresentation(message);
+			return;
+		}
+
+		if (_pendingPresentation.Count >= MaximumPendingPresentation) _pendingPresentation.RemoveAt(0);
+		_pendingPresentation.Add(message);
+	}
+
+	/// <summary>
+	///     Shows every held request whose tick the cursor has reached, in the order the authority sent them. A request
+	///     that arrives after the cursor has already passed its tick is shown by the next call rather than dropped: an
+	///     effect one tick late is what the link did, and dropping it would hide the fact that something happened.
+	/// </summary>
+	private void FlushPresentationForCursor()
+	{
+		if (_pendingPresentation.Count == 0) return;
+
+		float cursor = GameContext.SnapshotTimeline.CursorSequence;
+		if (cursor < 0f) return;
+
+		int kept = 0;
+		for (int index = 0; index < _pendingPresentation.Count; index++)
+		{
+			PresentationMessage message = _pendingPresentation[index];
+			if (message.Sequence <= cursor)
+			{
+				ApplyPresentation(message);
+				continue;
+			}
+
+			_pendingPresentation[kept++] = message;
+		}
+
+		if (kept < _pendingPresentation.Count) _pendingPresentation.RemoveRange(kept, _pendingPresentation.Count - kept);
 	}
 
 	/// <summary>
