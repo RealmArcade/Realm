@@ -66,9 +66,9 @@ public class SimulationService
 		if (TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
 		{
 			GameContext.World.SetOrAdd(entity, new RotationY(facingRadians));
-			if (GameContext.World.Has<InterpolationTarget>(entity))
+			if (GameContext.World.Has<LatestDescription>(entity))
 			{
-				ref var interp = ref GameContext.World.Get<InterpolationTarget>(entity);
+				ref var interp = ref GameContext.World.Get<LatestDescription>(entity);
 				interp.RotationY = facingRadians;
 			}
 		}
@@ -285,7 +285,7 @@ public class SimulationService
 	private EntityCallback<Health> _healthRegenQueryDelegate = null!;
 	private EntityCallback<Mana, ManaRegen> _manaRegenQueryDelegate = null!;
 	private EntityCallback<ProductionQueue> _prodQueryDelegate = null!;
-	private EntityCallback<InterpolationTarget> _interpolationQueryDelegate = null!;
+	private EntityCallback<LatestDescription> _presentationQueryDelegate = null!;
 
 	private EntityCallback<SpellCooldowns> _spellCooldownQueryDelegate = null!;
 	private EntityCallback<Cooldowns> _cooldownsQueryDelegate = null!;
@@ -702,7 +702,7 @@ public class SimulationService
 		_manaRegenQueryDelegate = ManaRegenQueryAction;
 		_prodQueryDelegate = ProdQueryAction;
 		_cooldownsQueryDelegate = CooldownsQueryAction;
-		_interpolationQueryDelegate = InterpolationQueryAction;
+		_presentationQueryDelegate = PresentationQueryAction;
 		_spellCooldownQueryDelegate = SpellCooldownQueryAction;
 		_autoCastQueryDelegate = AutoCastQueryAction;
 	}
@@ -1100,7 +1100,7 @@ public class SimulationService
 	}
 
 	public EntityCallback<Position, MoveTo, MovementStats> EditorMovementQueryDelegate => _movementService.EditorMovementQueryDelegate;
-	public EntityCallback<InterpolationTarget> InterpolationQueryDelegate => _interpolationQueryDelegate;
+	public EntityCallback<LatestDescription> PresentationQueryDelegate => _presentationQueryDelegate;
 
 	public void SetRuntimeReferences(
 		List<Unit3D> allUnits,
@@ -1659,11 +1659,11 @@ public class SimulationService
 		OnProductionCompleted?.Invoke(buildingPlayerIndex, unitToSpawn);
 	}
 
-	private void InterpolationQueryAction(Entity entity, ref InterpolationTarget target)
+	private void PresentationQueryAction(Entity entity, ref LatestDescription target)
 	{
 		if (!GameContext.World.Has<Position>(entity)) return;
 
-		if (MultiplayerSyncDiagnostics.IsRecording) MultiplayerSyncDiagnostics.RecordInterpolationStep(entity.Id, GameContext.NetworkService?.LastAppliedSnapshotSequenceForDiagnostics ?? -1);
+		if (MultiplayerSyncDiagnostics.IsRecording) MultiplayerSyncDiagnostics.RecordPresentationStep(entity.Id, GameContext.NetworkService?.LastAppliedSnapshotSequenceForDiagnostics ?? -1);
 
 		// The description this unit is drawn from, sampled where the match clock is being rendered rather than where it
 		// has got to. That is the whole of the presentation model for a replicated unit: it is drawn between the two
@@ -1679,10 +1679,10 @@ public class SimulationService
 
 		if (MultiplayerSyncDiagnostics.IsRecording && (sampledPosition - currentPos).LengthSquared() > 4f)
 		{
-			MultiplayerSyncDiagnostics.RecordInterpolationStepDetail(entity.Id, currentPos, sampledPosition, 1f, sampledPosition);
+			MultiplayerSyncDiagnostics.RecordPresentationStepDetail(entity.Id, currentPos, sampledPosition, 1f, sampledPosition);
 		}
 
-		PositionWriteTrace.MarkInterpolation(entity, 1f, currentPos, sampledPosition, sampledPosition, target.Position);
+		PositionWriteTrace.MarkPresentation(entity, 1f, currentPos, sampledPosition, sampledPosition, target.Position);
 		GameContext.World.Set(entity, new Position(sampledPosition));
 		GameContext.World.SetOrAdd(entity, new Velocity(sampledVelocity));
 	}

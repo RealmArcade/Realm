@@ -810,7 +810,7 @@ public partial class GameHost
 		}
 
 		bool hasLookTarget = TryGetLookTarget(entity, out Godot.Vector3 lookTargetPos);
-		bool hasMovement = world.Has<MoveTo>(entity) || world.Has<Follow>(entity) || world.Has<InterpolationTarget>(entity);
+		bool hasMovement = world.Has<MoveTo>(entity) || world.Has<Follow>(entity) || world.Has<LatestDescription>(entity);
 		bool hasVelocityComp = world.Has<Velocity>(entity);
 		Vector3 ecsVel = hasVelocityComp ? world.Get<Velocity>(entity).Value : Vector3.Zero;
 		bool hasVelocity = hasVelocityComp && ecsVel.LengthSquared() > 0.0001f;
@@ -955,9 +955,9 @@ public partial class GameHost
 		{
 			return ComputeDirectionalRotationBasisParallel(ref item, entity, nextPos, dir, fDelta, out targetRotY);
 		}
-		else if (world.Has<InterpolationTarget>(entity))
+		else if (world.Has<LatestDescription>(entity))
 		{
-			var interp = world.Get<InterpolationTarget>(entity);
+			var interp = world.Get<LatestDescription>(entity);
 			targetRotY = Mathf.LerpAngle(item.CachedRotationY, interp.RotationY, 10f * fDelta);
 
 			if (world.Has<RotationY>(entity))

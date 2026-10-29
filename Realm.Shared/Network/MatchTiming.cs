@@ -4,7 +4,9 @@ namespace Realm.Shared.Network;
 ///     The one place a match's cadence is stated. The authority advances its world on
 ///     <see cref="SimulationTickRateHz" /> and describes that world to each peer on <see cref="SnapshotRateHz" />, and
 ///     the client derives how far apart two authoritative samples are from the same values. Both processes compile
-///     against this type, so prediction, interpolation and the authority's clock cannot disagree about what a tick is.
+///     against this type, so the presentation and the authority's clock cannot disagree about what a tick is. How deeply
+///     the client buffers those samples is not here: it is a property of the link, discovered at run time, and stating it
+///     next to the cadence would have made it a constant one link is right for and every other is wrong for.
 ///     The two rates are deliberately equal: a snapshot is the description of one tick, so describing the world more
 ///     often than it advances would send the same world twice and describing it less often would leave the client to
 ///     interpolate across ticks it never heard about.
@@ -36,20 +38,11 @@ public static class MatchTiming
 	/// </summary>
 	public const int SnapshotRateHz = 30;
 
-	/// <summary>How deeply the client buffers authoritative samples before it renders them, as a multiple of the snapshot interval.</summary>
-	public const float InterpolationBufferSnapshotIntervals = 2f;
-
 	/// <summary>The seconds one simulation tick covers.</summary>
 	public const double FixedTickSeconds = 1.0 / SimulationTickRateHz;
 
-	/// <summary>The seconds one snapshot interval covers.</summary>
+	/// <summary>The seconds one snapshot interval covers, which is also what one sequence of a snapshot's timeline covers.</summary>
 	public const float SnapshotIntervalSeconds = 1.0f / SnapshotRateHz;
-
-	/// <summary>The ticks that pass between two snapshots, which is one because a snapshot describes one tick.</summary>
-	public const int TicksPerSnapshot = SimulationTickRateHz / SnapshotRateHz;
-
-	/// <summary>The shortest span the client buffers before rendering, so a single late frame does not stall it.</summary>
-	public const float MinimumInterpolationBufferSeconds = InterpolationBufferSnapshotIntervals * SnapshotIntervalSeconds;
 
 	/// <summary>Converts a number of ticks into the simulated seconds they cover.</summary>
 	public static float TicksToSeconds(int ticks) => (float)(ticks * FixedTickSeconds);

@@ -753,8 +753,8 @@ public class NetworkService
 		// unit was not watched covering that distance - so the history it was drawn from is dropped rather than sampled
 		// across, which is what would otherwise show a unit gliding through a wall it never walked through.
 		System.Numerics.Vector3 describedPosition = snap.Position.ToNumerics();
-		System.Numerics.Vector3 previousTargetPosition = GameContext.World.Has<InterpolationTarget>(localEntity)
-			? GameContext.World.Get<InterpolationTarget>(localEntity).Position
+		System.Numerics.Vector3 previousTargetPosition = GameContext.World.Has<LatestDescription>(localEntity)
+			? GameContext.World.Get<LatestDescription>(localEntity).Position
 			: describedPosition;
 		bool targetJumped = (describedPosition - previousTargetPosition).Length() > MaximumPlausibleTargetStepMeters;
 
@@ -778,7 +778,7 @@ public class NetworkService
 		// The newest description is kept on the unit as well: it is the marker that says this unit is one the authority
 		// describes rather than one this screen moves, and it is what a diagnostic can compare against without reading the
 		// timeline's ring.
-		GameContext.World.SetOrAdd(localEntity, new InterpolationTarget
+		GameContext.World.SetOrAdd(localEntity, new LatestDescription
 		{
 			Position = describedPosition,
 			Velocity = describedVelocity,
@@ -944,7 +944,7 @@ public class NetworkService
 			GameContext.World.Add(entity, new Realm.Ecs.Components.Movement.PathingFlags(GameHost.GetUnitPathingFlags(meta)));
 		}
 
-		var interpolationTarget = new InterpolationTarget
+		var interpolationTarget = new LatestDescription
 		{
 			Position = position,
 			Velocity = velocity,

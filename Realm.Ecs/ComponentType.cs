@@ -92,7 +92,7 @@ public static class ComponentTypeRegistry
 			typeof(AttackMove),
 			typeof(Follow),
 			typeof(HoldPosition),
-			typeof(InterpolationTarget),
+			typeof(LatestDescription),
 			typeof(RenderPosition),
 			typeof(Realm.Ecs.Components.Movement.PathingFlags),
 			typeof(Patrol),

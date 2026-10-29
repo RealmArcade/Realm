@@ -14,7 +14,7 @@ public static class QueryCache
 {
 	public static readonly QueryDescription AllStatModifierQuery = new QueryDescription().WithAll<StatModifier>();
 	public static readonly QueryDescription AllPositionAndDefinitionIdQuery = new QueryDescription().WithAll<Position, DefinitionId>();
-	public static readonly QueryDescription AllInterpolationTargetQuery = new QueryDescription().WithAll<InterpolationTarget>();
+	public static readonly QueryDescription AllLatestDescriptionQuery = new QueryDescription().WithAll<LatestDescription>();
 	public static readonly QueryDescription AllPositionAndMoveToAndMovementStatsNoneDeadQuery = new QueryDescription().WithAll<Position, MoveTo, MovementStats>().WithNone<Dead>();
 	public static readonly QueryDescription AllPositionAndDefinitionIdNoneDeadQuery = new QueryDescription().WithAll<Position, DefinitionId>().WithNone<Dead>();
 	public static readonly QueryDescription AllTerrainStateAndEditorStateQuery = new QueryDescription().WithAll<TerrainState, EditorState>();

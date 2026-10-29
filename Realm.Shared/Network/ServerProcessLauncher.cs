@@ -60,7 +60,7 @@ public static class ServerArgumentFlags
 	///     published, so a run can hold a screen against the process that decided the match. Only a run that asks for the
 	///     record gets one; a normal match writes nothing here.
 	/// </summary>
-	public const string RecordPredictionFlag = "--record-prediction";
+	public const string RecordAuthorityFlag = "--record-authority";
 
 	/// <summary>
 	///     The process that started this authority, or nothing for one nobody is waiting on. A match is over when the
@@ -133,7 +133,7 @@ public record ServerLaunchRequest(ServerLaunchTarget Target, string MapFolderPat
 	///     screen's applied world against, so a run that measures either asks for it and every other match leaves no such
 	///     file behind.
 	/// </summary>
-	public string? PredictionRecordFolderPath { get; init; }
+	public string? AuthorityRecordFolderPath { get; init; }
 
 	/// <summary>How long the authority has to load its map and report that it is listening.</summary>
 	public int ReadyTimeoutMilliseconds { get; init; } = 60000;
@@ -373,10 +373,10 @@ public class ServerProcessLauncher : IDisposable
 			startInfo.ArgumentList.Add(ServerArgumentFlags.RosterFlag);
 			startInfo.ArgumentList.Add(Path.GetFullPath(request.RosterPath));
 		}
-		if (!string.IsNullOrWhiteSpace(request.PredictionRecordFolderPath))
+		if (!string.IsNullOrWhiteSpace(request.AuthorityRecordFolderPath))
 		{
-			startInfo.ArgumentList.Add(ServerArgumentFlags.RecordPredictionFlag);
-			startInfo.ArgumentList.Add(Path.GetFullPath(request.PredictionRecordFolderPath));
+			startInfo.ArgumentList.Add(ServerArgumentFlags.RecordAuthorityFlag);
+			startInfo.ArgumentList.Add(Path.GetFullPath(request.AuthorityRecordFolderPath));
 		}
 
 		try

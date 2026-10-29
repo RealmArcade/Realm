@@ -296,9 +296,9 @@ namespace Realm.Client.ReplaySystem
 				GameContext.World.Set(localEntity, new Velocity(snap.Velocity.ToNumerics()));
 			}
 
-			if (GameContext.World.Has<InterpolationTarget>(localEntity))
+			if (GameContext.World.Has<LatestDescription>(localEntity))
 			{
-				GameContext.World.Set(localEntity, new InterpolationTarget
+				GameContext.World.Set(localEntity, new LatestDescription
 				{
 					Position = snap.Position.ToNumerics(),
 					Velocity = snap.Velocity.ToNumerics(),

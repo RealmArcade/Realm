@@ -77,7 +77,7 @@ public class ListenServerHost : IServerTransportSink
 		if (recorder == null) return;
 
 		double recordedSeconds = (_simulation?.TickCount ?? 0) * MatchTiming.FixedTickSeconds;
-		recorder.WriteReport(_arguments.RecordPredictionPath, recordedSeconds, MatchTiming.SimulationTickRateHz);
+		recorder.WriteReport(_arguments.RecordAuthorityPath, recordedSeconds, MatchTiming.SimulationTickRateHz);
 	}
 
 	/// <summary>How often the frame report is rewritten while a match runs, in published sequences.</summary>
@@ -146,11 +146,11 @@ public class ListenServerHost : IServerTransportSink
 				throw new IOException($"the match could not listen for peers: {failure}");
 			}
 
-			if (_arguments.RecordPredictionPath.Length > 0)
+			if (_arguments.RecordAuthorityPath.Length > 0)
 			{
 				// A run that compares a screen's ECS against this one asks for the same folder, because the process that
 				// decided the world is the only one that can say what a screen should hold after applying a sequence.
-				_syncRecorder = new AuthoritySyncRecorder(map, _arguments.RecordPredictionPath, out string syncRecordPath);
+				_syncRecorder = new AuthoritySyncRecorder(map, _arguments.RecordAuthorityPath, out string syncRecordPath);
 				_log.Write($"this match records the world it publishes into '{syncRecordPath}'");
 				// What each peer's frame weighed and what framing it cost is known only here, because the frames are built in
 				// this process; the folder the other records go to is where a run reads it back from.

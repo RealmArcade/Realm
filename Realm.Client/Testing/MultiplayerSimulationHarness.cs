@@ -328,7 +328,7 @@ public partial class MultiplayerSimulationHarness : Node
 			ClientNetworkChannel channel = GetNodeOrNull<ClientNetworkChannel>("/root/RealmNetwork") ?? throw new InvalidOperationException("This build has no channel to an authority.");
 			GameContext.ServerSession?.Dispose();
 			var session = new ClientServerSession(channel);
-			var start = new ServerMatchStart(mapDirectory, "Test Map", HarnessMatchSeed, Path.Combine(_outputDirectory, "listen_server"), _outputDirectory, LocalizationManager.GetCurrentLanguageCode(), PredictionRecordDirectory: _outputDirectory);
+			var start = new ServerMatchStart(mapDirectory, "Test Map", HarnessMatchSeed, Path.Combine(_outputDirectory, "listen_server"), _outputDirectory, LocalizationManager.GetCurrentLanguageCode(), AuthorityRecordDirectory: _outputDirectory);
 			if (!session.TryStart(start, out string failure, _port)) throw new InvalidOperationException($"The authority could not be started: {failure}");
 			GameContext.AttachServerSession(session);
 			_session = session;
@@ -447,7 +447,7 @@ public partial class MultiplayerSimulationHarness : Node
 			LocalizationManager.GetCurrentLanguageCode(),
 			OpenToOthers: true,
 			Roster: BuildHarnessRoster(),
-			PredictionRecordDirectory: _outputDirectory);
+			AuthorityRecordDirectory: _outputDirectory);
 
 		if (!session.TryStart(start, out string failure, _port)) throw new InvalidOperationException($"The authority could not be started on port {_port}: {failure}");
 

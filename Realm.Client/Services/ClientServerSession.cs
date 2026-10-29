@@ -28,12 +28,12 @@ namespace Realm.Client.Services;
 ///     while it initializes, which is before the authority is listening, so the seats travel with the launch rather than
 ///     arriving with the peers that fill them.
 /// </param>
-/// <param name="PredictionRecordDirectory">
+/// <param name="AuthorityRecordDirectory">
 ///     The folder the authority writes what it knows about every unit on every published sequence into, or nothing for a
 ///     match that does not have to answer a prediction report. A screen's prediction is measured against the process
 ///     that decided the movement, and no screen can speak for it.
 /// </param>
-public record ServerMatchStart(string MapFolderPath, string MapName, int Seed, string LogDirectory, string DataFolderPath, string Language, bool Cheats = false, bool OpenToOthers = false, bool WasmDebug = false, IReadOnlyList<MatchRosterSeat>? Roster = null, string? PredictionRecordDirectory = null);
+public record ServerMatchStart(string MapFolderPath, string MapName, int Seed, string LogDirectory, string DataFolderPath, string Language, bool Cheats = false, bool OpenToOthers = false, bool WasmDebug = false, IReadOnlyList<MatchRosterSeat>? Roster = null, string? AuthorityRecordDirectory = null);
 
 /// <summary>
 ///     One client's match. A client never simulates a match: it starts the authority beside it, joins it as an ordinary
@@ -196,7 +196,7 @@ public class ClientServerSession : IDisposable
 			WasmDebug = start.WasmDebug,
 			MapWorkspacePath = start.WasmDebug ? start.MapFolderPath : null,
 			RosterPath = rosterPath,
-			PredictionRecordFolderPath = start.PredictionRecordDirectory,
+			AuthorityRecordFolderPath = start.AuthorityRecordDirectory,
 			Port = authorityPort
 		};
 

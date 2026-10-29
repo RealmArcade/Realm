@@ -1119,7 +1119,7 @@ public static class MultiplayerEcsSyncTestSupport
 		var completedPlacementStreaks = new List<(int EntityId, int Quantity, PlacementStreak Streak)>();
 
 		// One sample per physics tick. The client applies a snapshot when the packet arrives, so a tick that receives a
-		// clump of them writes a record per snapshot, all of the same instant, and the follower and the renderer advance
+		// clump of them writes a record per snapshot, all of the same instant, and the cursor and the renderer advance
 		// once. Judging every record of a clump measured that one instant as dozens of consecutive samples; the last
 		// record of each tick is the state that tick actually produced.
 		Dictionary<ulong, int> lastSequencePerFrame = new();
@@ -1216,7 +1216,7 @@ public static class MultiplayerEcsSyncTestSupport
 		}
 
 		report.AddSummaryLine($"Presentation parity window: from {MultiplayerSyncDiagnostics.PresentationSettleSeconds:F1}s to {MultiplayerSyncDiagnostics.PresentationWindowSeconds:F1}s after a baseline, paired ticks: {pairedSequences}, compared rendered transforms: {comparedTransforms} ({detailedTransforms} of a stated position), placement mismatches: {mismatchCount}");
-		report.AddSummaryLine($"Records sharing a physics tick with a later record of the same tick: {collapsedRepeatedSamples} (the follower and the renderer advance once per tick, so only the last record of a tick is the state that tick produced)");
+		report.AddSummaryLine($"Records sharing a physics tick with a later record of the same tick: {collapsedRepeatedSamples} (the cursor and the renderer advance once per tick, so only the last record of a tick is the state that tick produced)");
 		report.AddSummaryLine($"A rendered transform is judged by what the protocol promised it: within {detailedAuthorityTolerance:F2} m of the authority ({StatedPositionThresholdMeters:F2} m resend threshold + {interpolationLagMeters:F2} m of buffer at the run's fastest {fastestUnitSpeed:F2} m/s + {placementTolerance:F2} m of {profile} allowance) and within {PresentationPositionTolerance:F2} m of the client's own applied state. The buffer bound is the deepest delay the client may render from, {interpolationBufferSeconds:F2} s; the run reports the delay it actually held.");
 		report.AddSummaryLine($"Host units the client had not applied yet, so there was nothing to render: {notYetAppliedUnits} (the state comparison owns whether the client received them).");
 		report.AddSummaryLine($"Rendered transforms outside the camera frustum: {culledTransforms} of {comparedTransforms} (culling freezes rotation but still advances position, so they stay comparable).");

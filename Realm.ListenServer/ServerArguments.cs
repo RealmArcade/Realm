@@ -3,7 +3,7 @@ using Realm.Shared.Network;
 
 namespace Realm.ListenServer;
 
-public record ServerArguments(string MapPath, int Port, string Token, string LogPath, string DataPath, int Seed, bool Cheats = false, bool WasmDebug = false, string WorkspacePath = "", string RosterPath = "", string RecordPredictionPath = "", int ParentProcessId = 0)
+public record ServerArguments(string MapPath, int Port, string Token, string LogPath, string DataPath, int Seed, bool Cheats = false, bool WasmDebug = false, string WorkspacePath = "", string RosterPath = "", string RecordAuthorityPath = "", int ParentProcessId = 0)
 {
 	public const string MapFlag = ServerArgumentFlags.MapFlag;
 	public const string PortFlag = ServerArgumentFlags.PortFlag;
@@ -15,10 +15,10 @@ public record ServerArguments(string MapPath, int Port, string Token, string Log
 	public const string WasmDebugFlag = ServerArgumentFlags.WasmDebugFlag;
 	public const string WorkspaceFlag = ServerArgumentFlags.WorkspaceFlag;
 	public const string RosterFlag = ServerArgumentFlags.RosterFlag;
-	public const string RecordPredictionFlag = ServerArgumentFlags.RecordPredictionFlag;
+	public const string RecordAuthorityFlag = ServerArgumentFlags.RecordAuthorityFlag;
 	public const string ParentProcessIdFlag = ServerArgumentFlags.ParentProcessIdFlag;
 
-	public const string Usage = $"{MapFlag} <absolute map folder> [{PortFlag} <port>] [{SeedFlag} <integer>] [{TokenFlag} <join ticket>] {LogFlag} <log file> [{DataFlag} <folder a map's saved data belongs in>] [{RosterFlag} <match roster file>] [{RecordPredictionFlag} <folder the run's reports read>] [{ParentProcessIdFlag} <process id of the screen that started the match>] [{CheatsFlag}] [{WasmDebugFlag} [{WorkspaceFlag} <map workspace folder>]]";
+	public const string Usage = $"{MapFlag} <absolute map folder> [{PortFlag} <port>] [{SeedFlag} <integer>] [{TokenFlag} <join ticket>] {LogFlag} <log file> [{DataFlag} <folder a map's saved data belongs in>] [{RosterFlag} <match roster file>] [{RecordAuthorityFlag} <folder the run's reports read>] [{ParentProcessIdFlag} <process id of the screen that started the match>] [{CheatsFlag}] [{WasmDebugFlag} [{WorkspaceFlag} <map workspace folder>]]";
 
 	public static bool TryParse(string[] args, out ServerArguments? arguments, out string error)
 	{
@@ -80,7 +80,7 @@ public record ServerArguments(string MapPath, int Port, string Token, string Log
 				case RosterFlag:
 					if (!TryTakeValue(args, ref index, flag, out rosterPath, out error)) return false;
 					break;
-				case RecordPredictionFlag:
+				case RecordAuthorityFlag:
 					if (!TryTakeValue(args, ref index, flag, out recordPredictionPath, out error)) return false;
 					break;
 				case ParentProcessIdFlag:

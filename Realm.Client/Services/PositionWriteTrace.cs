@@ -8,7 +8,6 @@ public enum PositionWriter : byte
 	None,
 	Interpolation,
 	Movement,
-	Placement,
 	Spawn,
 	Input
 }
@@ -16,8 +15,8 @@ public enum PositionWriter : byte
 public static class PositionWriteTrace
 {
 	private static readonly byte[] _lastWriter = new byte[EcsWorld.MAX_ENTITIES];
-	private static readonly float[] _lastInterpolationFraction = new float[EcsWorld.MAX_ENTITIES];
-	private static readonly Vector3[] _lastInterpolationWrite = new Vector3[EcsWorld.MAX_ENTITIES];
+	private static readonly float[] _lastPresentationFraction = new float[EcsWorld.MAX_ENTITIES];
+	private static readonly Vector3[] _lastPresentationWrite = new Vector3[EcsWorld.MAX_ENTITIES];
 	private static readonly ulong[] _lastWriteFrame = new ulong[EcsWorld.MAX_ENTITIES];
 
 	public static bool IsEnabled;
@@ -31,11 +30,11 @@ public static class PositionWriteTrace
 		_lastWriteFrame[entity.Id] = Godot.Engine.GetPhysicsFrames();
 	}
 
-	private static readonly Vector3[] _lastInterpolationFrom = new Vector3[EcsWorld.MAX_ENTITIES];
-	private static readonly Vector3[] _lastInterpolationTarget = new Vector3[EcsWorld.MAX_ENTITIES];
+	private static readonly Vector3[] _lastPresentationFrom = new Vector3[EcsWorld.MAX_ENTITIES];
+	private static readonly Vector3[] _lastLatestDescription = new Vector3[EcsWorld.MAX_ENTITIES];
 	private static readonly Vector3[] _lastReadBack = new Vector3[EcsWorld.MAX_ENTITIES];
 
-	public static void MarkInterpolation(Entity entity, float fraction, Vector3 from, Vector3 target, Vector3 written, Vector3 readBack)
+	public static void MarkPresentation(Entity entity, float fraction, Vector3 from, Vector3 target, Vector3 written, Vector3 readBack)
 	{
 		if (!IsEnabled) return;
 		if (entity.Id < 0 || entity.Id >= _lastWriter.Length) return;
@@ -43,18 +42,18 @@ public static class PositionWriteTrace
 		_lastReadBack[entity.Id] = readBack;
 
 		_lastWriter[entity.Id] = (byte)PositionWriter.Interpolation;
-		_lastInterpolationFraction[entity.Id] = fraction;
-		_lastInterpolationFrom[entity.Id] = from;
-		_lastInterpolationTarget[entity.Id] = target;
-		_lastInterpolationWrite[entity.Id] = written;
+		_lastPresentationFraction[entity.Id] = fraction;
+		_lastPresentationFrom[entity.Id] = from;
+		_lastLatestDescription[entity.Id] = target;
+		_lastPresentationWrite[entity.Id] = written;
 		_lastWriteFrame[entity.Id] = Godot.Engine.GetPhysicsFrames();
 	}
 
-	public static Vector3 LastInterpolationFrom(Entity entity)
+	public static Vector3 LastPresentationFrom(Entity entity)
 	{
-		if (entity.Id < 0 || entity.Id >= _lastInterpolationFrom.Length) return Vector3.Zero;
+		if (entity.Id < 0 || entity.Id >= _lastPresentationFrom.Length) return Vector3.Zero;
 
-		return _lastInterpolationFrom[entity.Id];
+		return _lastPresentationFrom[entity.Id];
 	}
 
 	public static Vector3 LastReadBack(Entity entity)
@@ -64,11 +63,11 @@ public static class PositionWriteTrace
 		return _lastReadBack[entity.Id];
 	}
 
-	public static Vector3 LastInterpolationTarget(Entity entity)
+	public static Vector3 LastNewestDescription(Entity entity)
 	{
-		if (entity.Id < 0 || entity.Id >= _lastInterpolationTarget.Length) return Vector3.Zero;
+		if (entity.Id < 0 || entity.Id >= _lastLatestDescription.Length) return Vector3.Zero;
 
-		return _lastInterpolationTarget[entity.Id];
+		return _lastLatestDescription[entity.Id];
 	}
 
 	public static ulong LastWriteFrame(Entity entity)
@@ -85,17 +84,17 @@ public static class PositionWriteTrace
 		return (PositionWriter)_lastWriter[entity.Id];
 	}
 
-	public static float LastInterpolationFraction(Entity entity)
+	public static float LastPresentationFraction(Entity entity)
 	{
-		if (entity.Id < 0 || entity.Id >= _lastInterpolationFraction.Length) return -1f;
+		if (entity.Id < 0 || entity.Id >= _lastPresentationFraction.Length) return -1f;
 
-		return _lastInterpolationFraction[entity.Id];
+		return _lastPresentationFraction[entity.Id];
 	}
 
-	public static Vector3 LastInterpolationWrite(Entity entity)
+	public static Vector3 LastPresentationWrite(Entity entity)
 	{
-		if (entity.Id < 0 || entity.Id >= _lastInterpolationWrite.Length) return Vector3.Zero;
+		if (entity.Id < 0 || entity.Id >= _lastPresentationWrite.Length) return Vector3.Zero;
 
-		return _lastInterpolationWrite[entity.Id];
+		return _lastPresentationWrite[entity.Id];
 	}
 }

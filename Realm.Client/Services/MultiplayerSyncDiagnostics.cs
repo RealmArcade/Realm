@@ -161,8 +161,8 @@ public static class MultiplayerSyncDiagnostics
 		_fingerprintMismatchCount = 0;
 		_fingerprintMismatchSummary = string.Empty;
 		_clientUnitGapCount = 0;
-		_followerDiagnostics.Clear();
-		_interpolationStepDetails.Clear();
+		_presentationGaps.Clear();
+		_presentationStepDetails.Clear();
 		_clientUnitLastPresentSequence.Clear();
 		_clientUnitLastUpdateInterval.Clear();
 		_clientUnitGaps.Clear();
@@ -202,23 +202,29 @@ public static class MultiplayerSyncDiagnostics
 		_presentationWriter.Flush();
 	}
 
-	private const float FollowerGapAlertMeters = 1.5f;
-	private static readonly List<string> _followerDiagnostics = new();
-	private static readonly HashSet<int> _interpolationSteppedEntities = new();
-	private static int _interpolationSteppedSequence = -1;
+	/// <summary>
+	///     How far a replicated unit's position may differ from the one the presentation step wrote before something other
+	///     than that step has moved it. It is a comparison of one write against the read of it, not a tolerance on how far
+	///     the unit has travelled since it was described, which is the buffer's delay and entirely expected.
+	/// </summary>
+	private const float PresentationMatchToleranceMeters = 0.01f;
 
-	private static readonly List<string> _interpolationStepDetails = new();
+	private static readonly List<string> _presentationGaps = new();
+	private static readonly HashSet<int> _presentationSteppedEntities = new();
+	private static int _presentationSteppedSequence = -1;
+
+	private static readonly List<string> _presentationStepDetails = new();
 
 	/// <summary>
-	/// Records what one interpolation step actually computed for a follower that is far from its target: the position it
-	/// started from, the target, the fraction it applied and the value it wrote. A follower that is visited by the step,
-	/// computes a new position and still does not move can only be one whose write is undone or whose read is of another
-	/// entity, and those two are indistinguishable without these numbers.
+	/// Records what one presentation step actually computed for a unit that is far from its newest description: the
+	/// position it started from, the position sampled on the buffer, the fraction and the value it wrote. A unit that is
+	/// visited by the step, computes a new position and is still drawn somewhere else can only be one whose write is
+	/// undone or whose read is of another entity, and those two are indistinguishable without these numbers.
 	/// </summary>
-	public static void RecordInterpolationStepDetail(int entityId, System.Numerics.Vector3 currentPosition, System.Numerics.Vector3 targetPosition, float stepFraction, System.Numerics.Vector3 writtenPosition)
+	public static void RecordPresentationStepDetail(int entityId, System.Numerics.Vector3 currentPosition, System.Numerics.Vector3 targetPosition, float stepFraction, System.Numerics.Vector3 writtenPosition)
 	{
-		if (!IsRecording || _interpolationStepDetails.Count >= 240) return;
-		_interpolationStepDetails.Add($"step={entityId}:{_interpolationSteppedSequence}:from={currentPosition.X.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)},{currentPosition.Z.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}:to={targetPosition.X.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)},{targetPosition.Z.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}:fraction={stepFraction.ToString("F4", System.Globalization.CultureInfo.InvariantCulture)}:wrote={writtenPosition.X.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)},{writtenPosition.Z.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}");
+		if (!IsRecording || _presentationStepDetails.Count >= 240) return;
+		_presentationStepDetails.Add($"step={entityId}:{_presentationSteppedSequence}:from={currentPosition.X.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)},{currentPosition.Z.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}:to={targetPosition.X.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)},{targetPosition.Z.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}:fraction={stepFraction.ToString("F4", System.Globalization.CultureInfo.InvariantCulture)}:wrote={writtenPosition.X.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)},{writtenPosition.Z.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}");
 	}
 
 	private static int _duplicateMappingsReported;
@@ -226,43 +232,47 @@ public static class MultiplayerSyncDiagnostics
 	private static int _presentationAppliesInFrame;
 
 	/// <summary>
-	/// Notes that the interpolation step ran for an entity, so a follower that is not closing its gap can be told apart
-	/// from one the step never visited. Recording only: the check is one boolean when no run is being recorded.
+	/// Notes that the presentation step ran for an entity, so a unit the step never visited can be told apart from one it
+	/// placed and something else moved afterwards. Recording only: the check is one boolean when no run is recorded.
 	/// </summary>
-	public static void RecordInterpolationStep(int entityId, int sequence)
+	public static void RecordPresentationStep(int entityId, int sequence)
 	{
 		if (!IsRecording) return;
-		if (sequence != _interpolationSteppedSequence)
+		if (sequence != _presentationSteppedSequence)
 		{
-			_interpolationSteppedSequence = sequence;
-			_interpolationSteppedEntities.Clear();
+			_presentationSteppedSequence = sequence;
+			_presentationSteppedEntities.Clear();
 		}
 
-		_interpolationSteppedEntities.Add(entityId);
+		_presentationSteppedEntities.Add(entityId);
 	}
 
 	/// <summary>
-	/// Records a unit whose follower is far from the position it was last told to walk toward, with the target it has and
-	/// the local entity that owns it. The placement check reports applied-versus-authority, which cannot distinguish a
-	/// client whose follower stopped advancing from one that was never told anything; this separates them, and it records
-	/// the local id so a mapping that puts two local entities on one server id becomes visible instead of looking like a
-	/// frozen follower.
+	/// Records a replicated unit whose position is not the one the presentation step wrote, which is the one thing this
+	/// model does not allow: exactly one writer places a replicated unit, and it places it from the authority's own
+	/// timeline. Being behind the newest description is not a fault - it is the delay the buffer holds - so the check is
+	/// the write read back against the read that follows it, not a distance to a target. It records the local id as well,
+	/// so a mapping that puts two local entities on one server id becomes visible rather than looking like one unit
+	/// fighting itself.
 	/// </summary>
-	private static void RecordFollowerDiagnostic(EcsWorld world, int sequence, int localEntityId, int serverEntityId, Entity localEntity, System.Numerics.Vector3 appliedPosition, bool isCulled)
+	private static void RecordPresentationGap(EcsWorld world, int sequence, int localEntityId, int serverEntityId, Entity localEntity, System.Numerics.Vector3 presentedPosition, bool isCulled)
 	{
-		if (_followerDiagnostics.Count >= 240) return;
+		if (!PositionWriteTrace.IsEnabled) return;
+		if (_presentationGaps.Count >= 240) return;
 
-		bool hasTarget = world.Has<InterpolationTarget>(localEntity);
-		System.Numerics.Vector3 targetPosition = hasTarget ? world.Get<InterpolationTarget>(localEntity).Position : appliedPosition;
-		float followerGap = (targetPosition - appliedPosition).Length();
-		if (followerGap < FollowerGapAlertMeters) return;
+		System.Numerics.Vector3 writtenPosition = PositionWriteTrace.LastPresentationWrite(localEntity);
+		float presentationDrift = (writtenPosition - presentedPosition).Length();
+		bool writtenByPresentation = PositionWriteTrace.Last(localEntity) == PositionWriter.Interpolation;
+		if (writtenByPresentation && presentationDrift <= PresentationMatchToleranceMeters) return;
 
+		bool hasTarget = world.Has<LatestDescription>(localEntity);
+		System.Numerics.Vector3 targetPosition = hasTarget ? world.Get<LatestDescription>(localEntity).Position : presentedPosition;
 		bool hasPosition = world.Has<Position>(localEntity);
-		bool wasStepped = _interpolationSteppedEntities.Contains(localEntityId);
+		bool wasStepped = _presentationSteppedEntities.Contains(localEntityId);
 		float cursorSequence = GameContext.SnapshotTimeline.CursorSequence;
 		float lagSequences = GameContext.SnapshotTimeline.NewestSequence - cursorSequence;
 		float roundTripMilliseconds = GameContext.NetworkLatencyService?.SmoothedRoundTripMilliseconds ?? -1f;
-		_followerDiagnostics.Add($"appliesInFrame={_presentationAppliesInFrame}:follower={serverEntityId}:{sequence}:local={localEntityId}:gap={followerGap.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}:hasTarget={(hasTarget ? 1 : 0)}:hasPos={(hasPosition ? 1 : 0)}:stepped={(wasStepped ? 1 : 0)}:cursor={cursorSequence.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}:behind={lagSequences.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}:delay={GameContext.SnapshotTimeline.DelaySequences}:rtt={roundTripMilliseconds.ToString("F0", System.Globalization.CultureInfo.InvariantCulture)}:target={targetPosition.X.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)},{targetPosition.Z.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}:applied={appliedPosition.X.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)},{appliedPosition.Z.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}:culled={(isCulled ? 1 : 0)}:writer={PositionWriteTrace.Last(localEntity)}:frac={PositionWriteTrace.LastInterpolationFraction(localEntity).ToString("F4", System.Globalization.CultureInfo.InvariantCulture)}:wrote={PositionWriteTrace.LastInterpolationWrite(localEntity).X.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)},{PositionWriteTrace.LastInterpolationWrite(localEntity).Z.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}:age={Godot.Engine.GetPhysicsFrames() - PositionWriteTrace.LastWriteFrame(localEntity)}:cur={PositionWriteTrace.LastInterpolationFrom(localEntity).X.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)},{PositionWriteTrace.LastInterpolationFrom(localEntity).Z.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}:tgt={PositionWriteTrace.LastInterpolationTarget(localEntity).X.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)},{PositionWriteTrace.LastInterpolationTarget(localEntity).Z.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}:back={PositionWriteTrace.LastReadBack(localEntity).X.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)},{PositionWriteTrace.LastReadBack(localEntity).Z.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}");
+		_presentationGaps.Add($"appliesInFrame={_presentationAppliesInFrame}:unit={serverEntityId}:{sequence}:local={localEntityId}:drift={presentationDrift.ToString("F4", System.Globalization.CultureInfo.InvariantCulture)}:writer={PositionWriteTrace.Last(localEntity)}:hasDescription={(hasTarget ? 1 : 0)}:hasPos={(hasPosition ? 1 : 0)}:stepped={(wasStepped ? 1 : 0)}:cursor={cursorSequence.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}:behind={lagSequences.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}:delay={GameContext.SnapshotTimeline.DelaySequences}:rtt={roundTripMilliseconds.ToString("F0", System.Globalization.CultureInfo.InvariantCulture)}:newest={targetPosition.X.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)},{targetPosition.Z.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}:presented={presentedPosition.X.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)},{presentedPosition.Z.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}:wrote={writtenPosition.X.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)},{writtenPosition.Z.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}:age={Godot.Engine.GetPhysicsFrames() - PositionWriteTrace.LastWriteFrame(localEntity)}:culled={(isCulled ? 1 : 0)}:frac={PositionWriteTrace.LastPresentationFraction(localEntity).ToString("F4", System.Globalization.CultureInfo.InvariantCulture)}:cur={PositionWriteTrace.LastPresentationFrom(localEntity).X.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)},{PositionWriteTrace.LastPresentationFrom(localEntity).Z.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}:back={PositionWriteTrace.LastReadBack(localEntity).X.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)},{PositionWriteTrace.LastReadBack(localEntity).Z.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}");
 	}
 
 	public static void Stop()
@@ -308,11 +318,14 @@ public static class MultiplayerSyncDiagnostics
 
 		try
 		{
-			using StreamWriter followerWriter = new(Path.Combine(_outputDirectory, "ECS_client_follower_gaps.txt"), false);
-			followerWriter.WriteLine($"count={_followerDiagnostics.Count}");
-			followerWriter.WriteLine($"alert_meters={FollowerGapAlertMeters.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
-			for (int index = 0; index < _followerDiagnostics.Count; index++) followerWriter.WriteLine(_followerDiagnostics[index]);
-			for (int index = 0; index < _interpolationStepDetails.Count; index++) followerWriter.WriteLine(_interpolationStepDetails[index]);
+			using StreamWriter presentationWriter = new(Path.Combine(_outputDirectory, "ECS_client_presentation_gaps.txt"), false);
+			presentationWriter.WriteLine($"count={_presentationGaps.Count}");
+			presentationWriter.WriteLine($"tolerance_meters={PresentationMatchToleranceMeters.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
+			presentationWriter.WriteLine($"delay_sequences={GameContext.SnapshotTimeline.DelaySequences}");
+			presentationWriter.WriteLine($"starvations={GameContext.SnapshotTimeline.StarvationCount}");
+			presentationWriter.WriteLine($"extrapolated_samples={GameContext.SnapshotTimeline.ExtrapolatedSampleCount}");
+			for (int index = 0; index < _presentationGaps.Count; index++) presentationWriter.WriteLine(_presentationGaps[index]);
+			for (int index = 0; index < _presentationStepDetails.Count; index++) presentationWriter.WriteLine(_presentationStepDetails[index]);
 		}
 		catch (IOException)
 		{
@@ -353,9 +366,9 @@ public static class MultiplayerSyncDiagnostics
 		{
 			Entity localEntity = new(kvp.Key);
 			if (!world.IsAlive(localEntity)) continue;
-			if (!world.Has<InterpolationTarget>(localEntity)) continue;
+			if (!world.Has<LatestDescription>(localEntity)) continue;
 
-			InterpolationTarget target = world.Get<InterpolationTarget>(localEntity);
+			LatestDescription target = world.Get<LatestDescription>(localEntity);
 			float currentHp = world.Has<Health>(localEntity) ? world.Get<Health>(localEntity).Current : 0f;
 			float maxHp = world.Has<Health>(localEntity) ? world.Get<Health>(localEntity).Max : 0f;
 			bool isDead = world.Has<Dead>(localEntity);
@@ -477,12 +490,14 @@ public static class MultiplayerSyncDiagnostics
 			int ownerPlayerIndex = ResolveOwnerPlayerIndex(world, localEntity);
 
 			System.Numerics.Vector3 appliedPosition = world.Has<Position>(localEntity) ? world.Get<Position>(localEntity).Value : new System.Numerics.Vector3(unit3D.GlobalPosition.X, unit3D.GlobalPosition.Y, unit3D.GlobalPosition.Z);
-			RecordFollowerDiagnostic(world, sequence, kvp.Key, kvp.Value, localEntity, appliedPosition, unit3D.IsCulled);			if (recordServerIds != null)
+			RecordPresentationGap(world, sequence, kvp.Key, kvp.Value, localEntity, appliedPosition, unit3D.IsCulled);
+
+			if (recordServerIds != null)
 			{
 				if (!recordServerIds.Add(kvp.Value) && _duplicateMappingsReported < 20)
 				{
 					_duplicateMappingsReported++;
-					_followerDiagnostics.Add($"duplicate={kvp.Value}:{sequence}:a second local entity {kvp.Key} maps to this server entity, two records for one unit will be written");
+					_presentationGaps.Add($"duplicate={kvp.Value}:{sequence}:a second local entity {kvp.Key} maps to this server entity, two records for one unit will be written");
 				}
 			}
 			units.Add(new PresentedUnitState(kvp.Value, ownerPlayerIndex, unit3D.GlobalPosition, unit3D.GlobalRotation.Y, currentHp, maxHp, isDead, isBuilding, unit3D.IsCulled, appliedPosition));
@@ -585,8 +600,8 @@ public static class MultiplayerSyncDiagnostics
 			writer.Write(baselinePeerIds.Count);
 			for (int index = 0; index < baselinePeerIds.Count; index++) writer.Write(baselinePeerIds[index]);
 			// Snapshots are applied when the packet arrives, not on the next physics tick, so one tick can produce several
-			// records of the same instant. Readers that judge a per-tick quantity - how far the renderer has followed, how
-			// far the follower has advanced - need to know which records share a tick, or one instant is counted as dozens.
+			// records of the same instant. Readers that judge a per-tick quantity - how far the renderer travelled, where the
+			// cursor stood - need to know which records share a tick, or one instant is counted as dozens.
 			writer.Write(Godot.Engine.GetPhysicsFrames());
 			// A screen describes only itself, so there is no peer whose bit a reader would look up here; the authority's
 			// record is the one that states the order its reference masks count peers in.
@@ -663,7 +678,7 @@ public static class MultiplayerSyncDiagnostics
 		public readonly bool IsDead;
 		public readonly bool IsBuilding;
 
-		public ClientUnitState(int serverEntityId, int localEntityId, int ownerPlayerIndex, InterpolationTarget target, float currentHp, float maxHp, bool isDead, bool isBuilding)
+		public ClientUnitState(int serverEntityId, int localEntityId, int ownerPlayerIndex, LatestDescription target, float currentHp, float maxHp, bool isDead, bool isBuilding)
 		{
 			ServerEntityId = serverEntityId;
 			LocalEntityId = localEntityId;

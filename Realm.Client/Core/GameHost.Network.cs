@@ -317,9 +317,9 @@ public partial class GameHost
 
 		UpdateClientWorldState(fDelta);
 
-		var query = QueryCache.AllInterpolationTargetQuery;
+		var query = QueryCache.AllLatestDescriptionQuery;
 		GameContext.SimulationService.SetDelta(fDelta);
-		GameContext.World.Query(in query, GameContext.SimulationService.InterpolationQueryDelegate);
+		GameContext.World.Query(in query, GameContext.SimulationService.PresentationQueryDelegate);
 		UpdateVisualNodesFromEcs(fDelta);
 		UpdateBuildingPreview();
 
