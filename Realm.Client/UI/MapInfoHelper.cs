@@ -139,6 +139,17 @@ public static class MapInfoHelper
 		return string.Empty;
 	}
 
+	private static string ResolveMapJsonDirectory(string jsonPath)
+	{
+		if (string.IsNullOrEmpty(jsonPath)) return jsonPath;
+
+		// A manifest and the metadata beside it describe one map, so the folder is what both are read from. A file name
+		// handed to the loader is not a folder, and reading metadata from it returns the manifest's own fields.
+		return jsonPath.EndsWith(".json", StringComparison.OrdinalIgnoreCase)
+			? Path.GetDirectoryName(jsonPath) ?? jsonPath
+			: jsonPath;
+	}
+
 	private static string TryGetManifestHash(string filePath)
 	{
 		try
@@ -205,8 +216,9 @@ public static class MapInfoHelper
 
 		try
 		{
+			// This file is the manifest, while the metadata beside it is the folder's.
 			MapManifest manifest = MapFileService.LoadManifest(filePath);
-			MapMetadata metadata = MapFileService.LoadMetadata(filePath);
+			MapMetadata metadata = MapFileService.LoadMetadata(ResolveMapJsonDirectory(filePath));
 
 			string mapName = GetMapName(manifest, metadata, fileName);
 			if (string.IsNullOrWhiteSpace(mapName)) return false;
@@ -309,21 +321,22 @@ public static class MapInfoHelper
 		return displayName;
 	}
 
-	private static bool TryParseMapJson(string mapFolder, string mapFolderPath, string path, string globalPath, out MapBriefingDetails result)
+	private static bool TryParseMapJson(string mapFolder, string mapFolderPath, string globalPath, out MapBriefingDetails result)
 	{
 		result = default;
 		try
 		{
-			MapManifest manifest = MapFileService.LoadManifest(globalPath);
-			MapMetadata metadata = MapFileService.LoadMetadata(globalPath);
+			string mapDirectory = ResolveMapJsonDirectory(globalPath);
+			MapManifest manifest = MapFileService.LoadManifest(mapDirectory);
+			MapMetadata metadata = MapFileService.LoadMetadata(mapDirectory);
 
 			string displayName = ResolveDisplayName(mapFolder, manifest, metadata);
 			string description = GetMapDescription(manifest, metadata);
 			string version = GetMapVersion(manifest, metadata);
 
-			string gameBuildNumber = path.EndsWith("manifest.json", StringComparison.OrdinalIgnoreCase)
-				? RealmVersion.GameBuildNumber
-				: (!string.IsNullOrEmpty(metadata.GameBuildNumber) ? metadata.GameBuildNumber : "v0.0.0");
+			// A map states the build it was compiled for in its metadata. One that states nothing is of an unknown build,
+			// which is never this one: claiming otherwise lists a map for a match its script cannot run in.
+			string gameBuildNumber = !string.IsNullOrEmpty(metadata.GameBuildNumber) ? metadata.GameBuildNumber : "v0.0.0";
 
 			string manifestHash = TryGetManifestHash(globalPath);
 
@@ -380,7 +393,7 @@ public static class MapInfoHelper
 
 			if (!File.Exists(globalPath) && !FileAccess.FileExists(path)) continue;
 
-			if (TryParseMapJson(mapFolder, mapFolderPath, path, globalPath, out details))
+			if (TryParseMapJson(mapFolder, mapFolderPath, globalPath, out details))
 			{
 				return true;
 			}
@@ -671,7 +684,7 @@ public static class MapInfoHelper
 				var manifest = MapFileService.LoadManifest(jsonFilePath);
 				if (!string.IsNullOrEmpty(manifest.Version)) return manifest.Version.Trim();
 
-				var metadata = MapFileService.LoadMetadata(jsonFilePath);
+				var metadata = MapFileService.LoadMetadata(ResolveMapJsonDirectory(jsonFilePath));
 				if (!string.IsNullOrEmpty(metadata.MapProperties?.Version)) return metadata.MapProperties.Version.Trim();
 			}
 		}

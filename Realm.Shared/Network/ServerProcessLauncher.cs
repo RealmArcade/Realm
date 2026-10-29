@@ -195,6 +195,43 @@ public class ServerConsoleCapture : IDisposable
 	/// <summary>Where the console output of the authority logging to this path is kept.</summary>
 	public static string ResolvePath(string logPath) => logPath + ".console";
 
+	/// <summary>
+	///     The end of what the authority printed, which is where the process that runs a map says why the match it was
+	///     starting did not come up. A launch that fails before the authority is listening is reported to a player, and a
+	///     player reads the reason rather than the path of the file it was written to.
+	/// </summary>
+	/// <param name="logPath">The path the authority logs to, whose console capture is read.</param>
+	/// <param name="lineCount">How many of its last non-blank lines to return.</param>
+	/// <returns>The lines, or nothing when the authority printed none or its console could not be read.</returns>
+	public static string ReadLastLines(string logPath, int lineCount)
+	{
+		if (string.IsNullOrEmpty(logPath) || lineCount <= 0) return string.Empty;
+
+		string path = ResolvePath(logPath);
+		try
+		{
+			if (!File.Exists(path)) return string.Empty;
+
+			string[] lines = File.ReadAllLines(path);
+			var tail = new List<string>(lineCount);
+			for (int index = lines.Length - 1; index >= 0 && tail.Count < lineCount; index--)
+			{
+				if (string.IsNullOrWhiteSpace(lines[index])) continue;
+				tail.Insert(0, lines[index]);
+			}
+
+			return string.Join(Environment.NewLine, tail);
+		}
+		catch (IOException)
+		{
+			return string.Empty;
+		}
+		catch (UnauthorizedAccessException)
+		{
+			return string.Empty;
+		}
+	}
+
 	public static bool TryOpen(string logPath, out ServerConsoleCapture? capture, out string failure)
 	{
 		capture = null;

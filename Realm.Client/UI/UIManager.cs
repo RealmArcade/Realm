@@ -672,6 +672,8 @@ public partial class UIManager : Control
 		lblMsg.Name = "LblMsg_Label";
 		lblMsg.Text = TranslationServer.Translate(message);
 		lblMsg.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+		lblMsg.CustomMinimumSize = new Vector2(460, 0);
+		lblMsg.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		lblMsg.HorizontalAlignment = HorizontalAlignment.Center;
 		lblMsg.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.95f));
 		lblMsg.AddThemeFontSizeOverride("font_size", 13);

@@ -233,6 +233,20 @@ public class ClientServerSession : IDisposable
 		_channel.FrameArrived += Enqueue;
 	}
 
+	/// <summary>How many of the authority's last lines a failed start reports beside the reason it stopped.</summary>
+	private const int FailedLaunchDetailLineCount = 8;
+
+	/// <summary>
+	///     Says why a launch that never reported listening failed, in the words of the process that knows. The authority is
+	///     a separate process, so the only place it says that a map's script could not be loaded is its own console; a
+	///     player handed two log paths instead of a reason has nothing to act on.
+	/// </summary>
+	private static MatchStartResult FailedLaunch(ServerLaunchAttempt attempt, string logPath)
+	{
+		string detail = ServerConsoleCapture.ReadLastLines(logPath, FailedLaunchDetailLineCount);
+		return MatchStartResult.Failed(detail.Length == 0 ? attempt.Failure : $"{attempt.Failure}\n\n{detail}", logPath);
+	}
+
 	/// <summary>
 	///     Starts the authority for this match and joins it. The token is minted here so an authority this client
 	///     started is the only one that accepts it, and the map's name decides where its progress is kept.
@@ -290,7 +304,7 @@ public class ClientServerSession : IDisposable
 		};
 
 		ServerLaunchAttempt attempt = await ServerProcessLauncher.TryLaunchAsync(request);
-		if (!attempt.Started || attempt.Launcher == null) return MatchStartResult.Failed(attempt.Failure, logPath);
+		if (!attempt.Started || attempt.Launcher == null) return FailedLaunch(attempt, logPath);
 
 		ServerProcessLauncher launcher = attempt.Launcher;
 		if (!_channel.TryConnect("127.0.0.1", launcher.Port, out failure))
@@ -395,7 +409,7 @@ public class ClientServerSession : IDisposable
 		};
 
 		ServerLaunchAttempt attempt = await ServerProcessLauncher.TryLaunchAsync(request);
-		if (!attempt.Started || attempt.Launcher == null) return MatchStartResult.Failed(attempt.Failure, logPath);
+		if (!attempt.Started || attempt.Launcher == null) return FailedLaunch(attempt, logPath);
 
 		ServerProcessLauncher launcher = attempt.Launcher;
 		if (!_channel.TryConnect("127.0.0.1", launcher.Port, 0, out failure))
