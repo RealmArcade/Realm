@@ -86,6 +86,29 @@ public static class MapWorldLoader
 	/// </param>
 	public static LoadedMap Load(string mapFolderPath, IReadOnlyList<MatchRosterSeat>? roster = null)
 	{
+		LoadedMap loaded = LoadShell(mapFolderPath);
+		try
+		{
+			Seat(loaded, roster);
+			return loaded;
+		}
+		catch
+		{
+			loaded.Dispose();
+			throw;
+		}
+	}
+
+	/// <summary>
+	///     Loads everything about a map that does not depend on who is playing it: its definitions, its terrain and the
+	///     navigation mesh over it, and the props it placed. That is the part of a match's start that takes the time, so
+	///     an authority that already has a lobby can build it while it waits for one, and have only
+	///     <see cref="Seat" /> left when the countdown reaches zero.
+	/// </summary>
+	/// <param name="mapFolderPath">The map folder to load.</param>
+	/// <returns>A map with a world but no players, which the caller owns and disposes.</returns>
+	public static LoadedMap LoadShell(string mapFolderPath)
+	{
 		string folder = Path.GetFullPath(mapFolderPath);
 		if (!Directory.Exists(folder))
 		{
@@ -117,8 +140,7 @@ public static class MapWorldLoader
 			loaded.HasNavMesh = terrain.NavMesh != null;
 			simulation.World.Add(worldEntity, terrain);
 
-			SpawnPlayers(loaded, roster);
-			SpawnPlacedContent(loaded);
+			SpawnPlacedProps(loaded);
 			return loaded;
 		}
 		catch
@@ -126,6 +148,21 @@ public static class MapWorldLoader
 			loaded.Dispose();
 			throw;
 		}
+	}
+
+	/// <summary>
+	///     Seats the players a match is played by and everything that belongs to them, which is the part of a map that
+	///     cannot be built before it is known who is playing. It runs on a shell <see cref="LoadShell" /> built, and it
+	///     runs before the map's script, so a script that spawns what each player starts with already has them.
+	/// </summary>
+	/// <param name="loaded">The map to seat, which must not have been seated already.</param>
+	/// <param name="roster">The players the match is played by, or nothing for the default single player.</param>
+	public static void Seat(LoadedMap loaded, IReadOnlyList<MatchRosterSeat>? roster = null)
+	{
+		if (loaded.PlayerCount > 0) return;
+
+		SpawnPlayers(loaded, roster);
+		SpawnPlacedUnits(loaded);
 	}
 
 	/// <summary>
@@ -257,35 +294,48 @@ public static class MapWorldLoader
 		world.SetOrAdd(loaded.WorldEntity, mappingState);
 	}
 
-	private static void SpawnPlacedContent(LoadedMap loaded)
+	/// <summary>
+	///     Places the units and buildings a map's save data describes. Each one is owned by the slot the save names, so
+	///     this runs once the seats exist rather than with the rest of the shell.
+	/// </summary>
+	private static void SpawnPlacedUnits(LoadedMap loaded)
 	{
 		EcsWorld world = loaded.World;
 		MapSaveData saveData = loaded.SaveData;
 
-		if (saveData.Units != null)
+		if (saveData.Units == null) return;
+
+		for (int index = 0; index < saveData.Units.Count; index++)
 		{
-			for (int index = 0; index < saveData.Units.Count; index++)
+			UnitSaveData unit = saveData.Units[index];
+			Entity entity = UnitEntityFactory.CreateFromMetadata(
+				world,
+				loaded.Catalog,
+				unit.TemplateId,
+				new Vector3(unit.PosX, unit.PosY, unit.PosZ),
+				unit.RotationY,
+				unit.Scale,
+				loaded.GetPlayerEntity(unit.Player),
+				bypassPopulation: false);
+
+			if (entity == Entity.Null)
 			{
-				UnitSaveData unit = saveData.Units[index];
-				Entity entity = UnitEntityFactory.CreateFromMetadata(
-					world,
-					loaded.Catalog,
-					unit.TemplateId,
-					new Vector3(unit.PosX, unit.PosY, unit.PosZ),
-					unit.RotationY,
-					unit.Scale,
-					loaded.GetPlayerEntity(unit.Player),
-					bypassPopulation: false);
-
-				if (entity == Entity.Null)
-				{
-					loaded.Warnings.Add($"The map places '{unit.TemplateId}' but declares no such unit or building template.");
-					continue;
-				}
-
-				loaded.UnitCount++;
+				loaded.Warnings.Add($"The map places '{unit.TemplateId}' but declares no such unit or building template.");
+				continue;
 			}
+
+			loaded.UnitCount++;
 		}
+	}
+
+	/// <summary>
+	///     Places the props a map's save data describes. They belong to nobody, so they are part of the shell a lobby can
+	///     build before it knows who is playing.
+	/// </summary>
+	private static void SpawnPlacedProps(LoadedMap loaded)
+	{
+		EcsWorld world = loaded.World;
+		MapSaveData saveData = loaded.SaveData;
 
 		if (saveData.Props == null) return;
 

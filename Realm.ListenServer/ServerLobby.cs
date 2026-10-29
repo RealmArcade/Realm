@@ -89,6 +89,24 @@ public class ServerLobby
 
 	public int MaximumPlayers => _maximumPlayers;
 
+	/// <summary>
+	///     Whether anyone is here to play yet. A lobby that nobody has joined is a lobby with nothing to prepare, so this
+	///     is what an authority waits for before it spends the work of a map on it.
+	/// </summary>
+	public bool HasHumanSeat
+	{
+		get
+		{
+			foreach (LobbySeat seat in _seats.Values)
+			{
+				if (seat.IsComputer || seat.IsDisconnected) continue;
+				return true;
+			}
+
+			return false;
+		}
+	}
+
 	/// <summary>The seat a connection is attached as, or nothing when it was never admitted or has been removed.</summary>
 	public bool TryGetSeat(int peerId, out LobbySeat seat)
 	{

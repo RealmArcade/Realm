@@ -39,6 +39,16 @@ public class ListenServerHost : IServerTransportSink
 	/// <summary>The files of the map the lobby selected, served to the peers that joined it.</summary>
 	private ServerMapShares? _mapShares;
 
+	/// <summary>
+	///     The map this lobby built while it waited for its match: everything about it that does not depend on who is
+	///     playing. The match starts on it by seating the roster the lobby arranged, or loads a map of its own when there
+	///     is none.
+	/// </summary>
+	private LoadedMap? _preparedLobbyWorld;
+
+	/// <summary>Whether this lobby has already tried to prepare its world, so a map that cannot be prepared is tried once.</summary>
+	private bool _preparedLobbyWorldAttempted;
+
 	/// <summary>Every connection the transport has reported, seated or not, so the match can be started without leaving anyone attached.</summary>
 	private readonly HashSet<int> _connectedPeers = new();
 
@@ -124,6 +134,68 @@ public class ListenServerHost : IServerTransportSink
 	private void MarkStartStage(string stage)
 	{
 		_log.Write($"match start: {stage} at {_startClock.Elapsed.TotalMilliseconds:F0} ms");
+	}
+
+	/// <summary>
+	///     Builds the part of the map that does not depend on who is playing it, once this lobby has someone to play it
+	///     with. What is left when the countdown reaches zero is then the seats, the map's script and the first
+	///     description, rather than the terrain and the catalog as well; a lobby nobody has joined costs nothing.
+	///     It runs on the thread the match ticks on rather than a worker of its own, because the world it builds is the
+	///     world the match will tick and one thread owns a world in this process. A lobby has no tick to hold up, so the
+	///     work is done whole rather than in stages.
+	/// </summary>
+	private void PrepareLobbyWorldIfDue()
+	{
+		if (_preparedLobbyWorld != null || _preparedLobbyWorldAttempted) return;
+
+		ServerLobby? lobby = _lobby;
+		if (lobby == null || _simulation != null || !lobby.HasHumanSeat) return;
+
+		_preparedLobbyWorldAttempted = true;
+		Stopwatch clock = Stopwatch.StartNew();
+		try
+		{
+			_preparedLobbyWorld = MapWorldLoader.LoadShell(_arguments.MapPath);
+			_log.Write($"the map's world is prepared while this lobby is open ({clock.Elapsed.TotalMilliseconds:F0} ms); the match starts on its seats");
+		}
+		catch (Exception exception)
+		{
+			// Preparing early is work saved rather than work required: a map that cannot be prepared here is loaded when the
+			// match starts, where the failure is reported as it always was rather than as a lobby that cannot open.
+			_preparedLobbyWorld = null;
+			_log.Write($"the map's world could not be prepared, so the match will load it when it starts: {exception.Message}");
+		}
+	}
+
+	/// <summary>
+	///     The map the match is about to play: the world this lobby prepared, seated with the roster it arranged, or a map
+	///     loaded from scratch when nothing was prepared. The caller owns the result.
+	/// </summary>
+	private LoadedMap TakePreparedLobbyWorldOrLoad(IReadOnlyList<MatchRosterSeat> roster)
+	{
+		LoadedMap? prepared = _preparedLobbyWorld;
+		_preparedLobbyWorld = null;
+
+		// A folder the world was built from and that is no longer there is a map this match cannot play: the load path
+		// reports that, where a world prepared from it would have quietly run without the script it can no longer find.
+		if (prepared != null && !Directory.Exists(_arguments.MapPath))
+		{
+			prepared.Dispose();
+			prepared = null;
+		}
+
+		if (prepared == null) return MapWorldLoader.Load(_arguments.MapPath, roster);
+
+		try
+		{
+			MapWorldLoader.Seat(prepared, roster);
+			return prepared;
+		}
+		catch
+		{
+			prepared.Dispose();
+			throw;
+		}
 	}
 
 	/// <summary>
@@ -300,12 +372,16 @@ public class ListenServerHost : IServerTransportSink
 		_scriptLogSink = _log.Write;
 		WasmScriptHost.OnWasmLog += _scriptLogSink;
 
+		LoadedMap? worldOwnedHere = null;
 		try
 		{
-			LoadedMap map = MapWorldLoader.Load(_arguments.MapPath, roster);
+			worldOwnedHere = TakePreparedLobbyWorldOrLoad(roster);
 			MarkStartStage("map loaded");
 			var paths = ServerMatchPaths.From(_arguments);
-			_simulation = new ServerSimulation(map, paths, _log, seed, _arguments.Cheats, _arguments.WasmDebug, _arguments.WorkspacePath, roster);
+			_simulation = new ServerSimulation(worldOwnedHere, paths, _log, seed, _arguments.Cheats, _arguments.WasmDebug, _arguments.WorkspacePath, roster);
+
+			// The simulation owns the world from here, and releases it when it is disposed.
+			worldOwnedHere = null;
 			MarkStartStage("simulation built");
 			_simulation.PeerDropped += DisconnectPeer;
 			_log.Write($"map '{paths.MapName}' keeps its saved data under '{_simulation.MapSavedDataDirectory()}'");
@@ -314,8 +390,13 @@ public class ListenServerHost : IServerTransportSink
 		catch (Exception exception)
 		{
 			_log.Write($"the lobby could not start its match: {exception}");
+			worldOwnedHere?.Dispose();
 			_simulation?.Dispose();
 			_simulation = null;
+
+			// The world a lobby prepared was spent on a start that failed, so the next start prepares its own rather than
+			// beginning from nothing.
+			_preparedLobbyWorldAttempted = false;
 			if (_scriptLogSink != null)
 			{
 				WasmScriptHost.OnWasmLog -= _scriptLogSink;
@@ -431,6 +512,8 @@ public class ListenServerHost : IServerTransportSink
 		_lobby?.Tick(lobbyDelta);
 		if (!IsRunning) return;
 
+		PrepareLobbyWorldIfDue();
+
 		ServerSimulation? simulation = _simulation;
 		if (simulation == null) return;
 
@@ -515,6 +598,10 @@ public class ListenServerHost : IServerTransportSink
 		_lobbySessionSlots.Clear();
 		_lobby = null;
 		_mapShares = null;
+
+		// A world prepared for a match that never started is this process's to release, because nothing else ever saw it.
+		_preparedLobbyWorld?.Dispose();
+		_preparedLobbyWorld = null;
 	}
 
 	public void Dispose()
