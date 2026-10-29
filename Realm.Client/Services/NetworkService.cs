@@ -358,8 +358,9 @@ public class NetworkService
 			if (snapshot.Sequence <= networkState.LastReceivedBaselineSeq) return;
 
 			// A baseline is larger than a delta and travels on the same reliable stream, so it can arrive after deltas that
-			// already describe a newer world. Applying it would move every replicated unit backwards, and a predicted unit
-			// would then be corrected toward positions the client has already moved past. The baseline is stale, not useful.
+			// already describe a newer world. Applying it would move every replicated unit backwards, and a unit presented
+			// from a newer description would then be moved to positions this screen has already passed. The baseline is
+			// stale, not useful.
 			if (snapshot.Sequence <= networkState.LastAppliedSnapshotSequence)
 			{
 				// The baseline is stale for the units, but it is still the base every later delta is written against, so it

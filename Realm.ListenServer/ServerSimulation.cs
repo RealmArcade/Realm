@@ -534,9 +534,9 @@ public class ServerSimulation : IDisposable
 	}
 
 	/// <summary>
-	///     Validates a peer's order against the world, applies the parts of it that are legal, and carries out what the
-	///     order asked the world to do. An order the peer has already had answered is dropped rather than answered
-	///     twice: a second answer would tell a predicting client to roll back an order it was already told to keep.
+///     Validates a peer's order against the world, applies the parts of it that are legal, and carries out what the
+///     order asked the world to do. An order the peer has already had answered is dropped rather than answered
+///     twice: a second answer would take back the route preview for an order it was already told to keep.
 	/// </summary>
 	public ServerCommandResult ApplyCommand(int peerId, NetworkCommand command)
 	{

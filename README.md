@@ -18,12 +18,12 @@ The engine is built for simplicity for content creators and is not geared toward
 
 ## 🧠 Authority Model & Simulation
 
-The engine employs a hybrid simulation and prediction model:
+The engine is server-authoritative and uses latency masking rather than prediction:
 
 | Component | Responsibility |
 | :--- | :--- |
 | **Server (Authoritative)** | Runs triggers, damage, AI, pathfinding, authoritative unit state, and ability resolution. Runs the ECS-style simulation written in C#. |
-| **Client (Predictive)** | Renders HP bars, VFX, UI, and sends player commands. Runs local prediction for the client's own unit movement/turning to reduce input delay; server corrections are smoothed. |
+| **Client (Latency-masked)** | Renders HP bars, VFX, UI, and sends player commands. Draws every unit, its own included, from the authority's own timeline by interpolating between buffered descriptions at a presentation delay it measures; never simulates movement or combat, and shows an order as a route preview until the authority's destination replaces it. |
 | **Interop (C#/Godot)** | Uses a single P/Invoke per tick to send a minimal state snapshot from Godot to C#, and modified state back to Godot. C# heavily uses performance features like `Span<>`, `structs`, and object pooling to avoid excessive GC pressure. |
 
 ## 🛠️ Realm Editor (UGC Tooling)

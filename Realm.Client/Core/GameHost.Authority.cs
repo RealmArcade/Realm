@@ -119,8 +119,9 @@ public partial class GameHost
 	}
 
 	/// <summary>
-	///     What the authority decided about one of this player's orders. Nothing is predicted, so this only counts what was
-	///     refused: a refused order is one whose unit never moves, which is what the feedback text and the harness read.
+	///     What the authority decided about one of this player's orders. Nothing is simulated ahead of the authority, so
+	///     this only counts what was refused: a refused order is one whose unit never moves, which is what the feedback
+	///     text and the harness read.
 	/// </summary>
 	private void ApplyCommandOutcome(CommandOutcome outcome)
 	{

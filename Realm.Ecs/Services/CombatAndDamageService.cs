@@ -244,15 +244,16 @@ namespace Realm.Ecs.Services
 		}
 
 		/// <summary>
-		///     Decides whether this service is the one that applies the damage it computed. A client predicts its own
-		///     units and takes the authority's health, so it leaves this unset only when it is the authority; the
-		///     authoritative process answers yes and owns the outcome.
+		///     Decides whether this service is the one that applies the damage it computed. A client takes every unit's
+		///     health from the authority's descriptions and never owns the outcome, so it answers no; the authoritative
+		///     process answers yes and owns the damage it resolves.
 		/// </summary>
 		public Func<bool>? AuthoritativeProvider { get; set; }
 
 		/// <summary>
-		///     Decides whether an entity takes part in combat resolution. A client narrows this to the units it predicts;
-		///     an authoritative context leaves it unset and resolves every entity in the world.
+		///     Decides whether an entity takes part in combat resolution. A client narrows this to the units this player
+		///     owns, whose presentation it is responsible for; an authoritative context leaves it unset and resolves every
+		///     entity in the world.
 		/// </summary>
 		public Func<Entity, bool>? SimulateEntityFilter { get; set; }
 

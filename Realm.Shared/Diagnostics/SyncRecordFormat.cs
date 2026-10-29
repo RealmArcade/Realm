@@ -41,7 +41,6 @@ public static class SyncRecordFormat
 	public const byte FlagBuilding = 2;
 	public const byte FlagDetailed = 4;
 	public const byte FlagVisibleToRemoteClient = 8;
-	public const byte FlagLocallyPredicted = 16;
 	public const byte FlagCulled = 32;
 
 	/// <summary>
@@ -216,8 +215,9 @@ public static class SyncRecordFormat
 	}
 
 	/// <summary>
-	///     Writes what both processes' navigation looked like: the grid, the mesh baked over it and the obstacle volumes
-	///     the bake consumed. A prediction can only choose the route the authority chose while the two agree on these.
+///     Writes what both processes' navigation looked like: the grid, the mesh baked over it and the obstacle volumes
+///     the bake consumed. A route a screen plans can only follow the corridor the authority follows while the two agree
+///     on these.
 	/// </summary>
 	public static void WriteNavigationState(BinaryWriter writer, in NavigationParityDigest digest)
 	{

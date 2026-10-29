@@ -35,7 +35,7 @@ public record ServerArguments(string MapPath, int Port, string Token, string Log
 		bool wasmDebug = false;
 		string? workspacePath = null;
 		string? rosterPath = null;
-		string? recordPredictionPath = null;
+		string? recordSyncPath = null;
 		int parentProcessId = 0;
 
 		for (int index = 0; index < args.Length; index++)
@@ -81,7 +81,7 @@ public record ServerArguments(string MapPath, int Port, string Token, string Log
 					if (!TryTakeValue(args, ref index, flag, out rosterPath, out error)) return false;
 					break;
 				case RecordAuthorityFlag:
-					if (!TryTakeValue(args, ref index, flag, out recordPredictionPath, out error)) return false;
+					if (!TryTakeValue(args, ref index, flag, out recordSyncPath, out error)) return false;
 					break;
 				case ParentProcessIdFlag:
 					if (!TryTakeValue(args, ref index, flag, out string? parentText, out error)) return false;
@@ -116,7 +116,7 @@ public record ServerArguments(string MapPath, int Port, string Token, string Log
 		// the script's JIT ELF is exported into when the caller named none.
 		string resolvedWorkspace = wasmDebug ? workspacePath ?? mapPath : workspacePath ?? string.Empty;
 
-		arguments = new ServerArguments(mapPath, port, token ?? string.Empty, logPath, string.IsNullOrWhiteSpace(dataPath) ? AppContext.BaseDirectory : dataPath, seed, cheats, wasmDebug, resolvedWorkspace, rosterPath ?? string.Empty, recordPredictionPath ?? string.Empty, parentProcessId);
+		arguments = new ServerArguments(mapPath, port, token ?? string.Empty, logPath, string.IsNullOrWhiteSpace(dataPath) ? AppContext.BaseDirectory : dataPath, seed, cheats, wasmDebug, resolvedWorkspace, rosterPath ?? string.Empty, recordSyncPath ?? string.Empty, parentProcessId);
 		return true;
 	}
 

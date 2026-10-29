@@ -30,8 +30,8 @@ namespace Realm.Client.Services;
 /// </param>
 /// <param name="AuthorityRecordDirectory">
 ///     The folder the authority writes what it knows about every unit on every published sequence into, or nothing for a
-///     match that does not have to answer a prediction report. A screen's prediction is measured against the process
-///     that decided the movement, and no screen can speak for it.
+///     match that does not have to answer a synchronisation report. What a screen presents is measured against the
+///     process that decided the movement, and no screen can speak for it.
 /// </param>
 public record ServerMatchStart(string MapFolderPath, string MapName, int Seed, string LogDirectory, string DataFolderPath, string Language, bool Cheats = false, bool OpenToOthers = false, bool WasmDebug = false, IReadOnlyList<MatchRosterSeat>? Roster = null, string? AuthorityRecordDirectory = null);
 

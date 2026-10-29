@@ -151,8 +151,8 @@ namespace Realm.Ecs.Services
 
 			public bool HasArrived;
 			/// <summary>
-			/// Set for a unit the client does not predict. Its route is planned so pathing parity and a later predicted
-			/// order both start from the corridor the authority uses, but its position belongs to reconciliation.
+			/// Set for a unit the client plans but never moves. Its route is produced so the path and the facing it draws
+			/// agree with the corridor the authority uses, while its position stays the one the presentation step wrote.
 			/// </summary>
 			public bool IsPlanOnly;
 			public Vector3 NextPosition;
@@ -198,8 +198,8 @@ namespace Realm.Ecs.Services
 		}
 
 		/// <summary>
-		///     Decides whether an entity takes part in movement planning. A client narrows this to the units it predicts;
-		///     an authoritative context leaves it unset and plans every entity in the world.
+		///     Decides whether an entity takes part in movement planning. A client narrows this to the units this player
+		///     owns, whose routes it draws; an authoritative context leaves it unset and plans every entity in the world.
 		/// </summary>
 		public Func<Entity, bool>? SimulateEntityFilter { get; set; }
 
@@ -244,18 +244,18 @@ namespace Realm.Ecs.Services
 		}
 
 		/// <summary>
-		/// Steps movement for the given rate. With <paramref name="predictedEntitiesOnly"/> set - which is how the client's
-		/// prediction path calls it - only units carrying a predicted order are integrated. Every other unit the local
-		/// player owns is still planned, so it keeps a route the authority would have produced, but it is never written:
-		/// its position arrives in snapshots and is smoothed by the interpolation step, and a second writer here pinned
-		/// such a unit at the position it spawned with because the client cannot advance the authority's own route.
+		/// Steps movement for the given rate. With <paramref name="planOnlyLocallyOwned"/> set - which is how the client's
+		/// presentation tick calls it - only units this player owns are planned. Their route is produced so the path and
+		/// facing they are drawn with agree with the corridor the authority uses, and no position is written: every
+		/// position arrives in a description and is placed by the presentation step, and a second writer here pinned such
+		/// a unit at the position it spawned with because the client cannot advance the authority's own route.
 		/// </summary>
-		public void StepMovement(float delta, bool predictedEntitiesOnly)
+		public void StepMovement(float delta, bool planOnlyLocallyOwned)
 		{
 			_fDelta = delta;
 			_elapsedTime += delta;
 			_tickArrivedUnits.Clear();
-			_planOnlyLocallyOwnedMovement = predictedEntitiesOnly;
+			_planOnlyLocallyOwnedMovement = planOnlyLocallyOwned;
 
 			RefreshTerrainState();
 

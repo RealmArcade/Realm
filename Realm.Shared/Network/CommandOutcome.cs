@@ -3,8 +3,9 @@ using MemoryPack;
 namespace Realm.Shared.Network;
 
 /// <summary>
-///     What the authority decided about one command. A client predicts its own units, so an accepted command tells it
-///     to keep the prediction it already made and a rejected one tells it to roll that prediction back.
+///     What the authority decided about one command. A screen draws a route preview for an order until this answers it:
+///     an accepted order is kept and the authority's own destination soon replaces the preview, while a refused one is
+///     taken back by its command id.
 /// </summary>
 [MemoryPackable]
 public partial struct CommandOutcome

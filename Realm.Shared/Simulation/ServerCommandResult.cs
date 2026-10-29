@@ -22,9 +22,9 @@ public readonly struct ServerCommandResult
 	public readonly string RejectionReason;
 
 	/// <summary>
-	///     Whether this order was dropped because the same command id had already been answered. A repeat is not a
-	///     refusal: the peer already holds the answer it is asking for, so a second answer stating a rejection would tell
-	///     a predicting client to undo an order the match accepted.
+///     Whether this order was dropped because the same command id had already been answered. A repeat is not a
+///     refusal: the peer already holds the answer it is asking for, so a second answer stating a rejection would take
+///     back a route preview for an order the match accepted.
 	/// </summary>
 	public readonly bool WasAlreadyAnswered;
 

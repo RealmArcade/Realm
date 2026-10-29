@@ -2218,8 +2218,8 @@ public partial class GameHost : Node3D
 		}
 
 		// A peer does not run the map script, so the props and pre-placed buildings it needs as obstacle volumes arrive as
-		// spawn requests after this point. Baking here produced a mesh with no obstacles at all, which is why a predicted
-		// route could pick a corridor the authority treats as blocked.
+		// spawn requests after this point. Baking here produced a mesh with no obstacles at all, which is why a locally
+		// planned route could pick a corridor the authority treats as blocked.
 		RequestNavMeshRefresh();
 	}
 

@@ -13,7 +13,7 @@ namespace Realm.Ecs.Services;
 /// <summary>
 ///     The orders, statuses and per-unit bookkeeping a unit can be given. The authoritative process, the client's own
 ///     command path and a map script all call these, so an order a script issues, an order a player clicks and an
-///     order a client predicts are the same components with the same values.
+///     order a client draws a route for are the same components with the same values.
 /// </summary>
 public static class UnitOrderService
 {

@@ -613,8 +613,8 @@ public class ListenServerHost : IServerTransportSink
 		ServerSimulation? simulation = _simulation;
 		if (simulation == null) return;
 
-		// The account of this sequence is taken whether or not anyone is listening: a run measures prediction against the
-		// sequences a screen applied, and a gap in the record would hide the very ticks a peer was still catching up on.
+		// The account of this sequence is taken whether or not anyone is listening: a run measures what a screen presents
+		// against the sequences it applied, and a gap in the record would hide the very ticks a peer was catching up on.
 
 		// The world this tick described is recorded as it is sent, because a screen can only be judged against the world
 		// the process that decided it held, and only a run that asked for the record pays for it.
@@ -873,8 +873,8 @@ public class ListenServerHost : IServerTransportSink
 	private const long RepairBaselineCooldownTicks = MatchTiming.SimulationTickRateHz;
 
 	/// <summary>
-	///     Answers one order. The authority validates and applies it, and the peer is told whether it was taken, which
-	///     is what lets a predicting client keep or roll back what it already showed.
+///     Answers one order. The authority validates and applies it, and the peer is told whether it was taken, which is
+///     what lets a screen keep the route it drew for the order or take it back.
 	/// </summary>
 	private void HandleCommand(int peerId, ReadOnlySpan<byte> payload)
 	{
@@ -943,7 +943,7 @@ public class ListenServerHost : IServerTransportSink
 		// A repeat of an order that was already answered is not answered again. The peer already holds the answer - the
 		// transport is reliable and ordered, so it arrived unless the connection that carried it is gone, and a peer that
 		// reconnects is described from scratch under a new connection that has no record to repeat. Sending a second,
-		// negative answer here told a predicting client to roll back an order this match had accepted.
+		// negative answer here took back the route preview for an order this match had accepted.
 		if (result.WasAlreadyAnswered) return;
 
 		SendOutcome(peerId, commandId, accepted, result.RejectionReason);
@@ -1035,9 +1035,9 @@ public class ListenServerHost : IServerTransportSink
 	}
 
 	/// <summary>
-	///     Tells every seated peer the volumes the match now paths with, once and only when they have changed since the
-	///     last set was sent. A script that spawns a blocker after the match started changes them, and a peer that kept
-	///     the earlier set would predict a route through it.
+///     Tells every seated peer the volumes the match now paths with, once and only when they have changed since the
+///     last set was sent. A script that spawns a blocker after the match started changes them, and a peer that kept
+///     the earlier set would plan a route through it.
 	/// </summary>
 	private void BroadcastNavMeshObstaclesWhenChanged()
 	{

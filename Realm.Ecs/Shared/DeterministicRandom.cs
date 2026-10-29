@@ -8,7 +8,7 @@ namespace Realm.Ecs;
 /// <remarks>
 /// The generator is a fixed SplitMix64 implementation rather than <see cref="System.Random"/>, so the produced sequence does not depend on the runtime version,
 /// the platform, or whether the code executes inside WebAssembly. Host code and map scripts must draw from <see cref="Shared"/> so that both sides advance the
-/// same logical stream and client-side movement prediction cannot diverge because of a random draw.
+/// same logical stream, because a map's script and the world it acts on agree only while every draw is taken the same way and in the same order.
 /// </remarks>
 public class DeterministicRandom
 {

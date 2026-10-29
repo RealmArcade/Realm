@@ -128,10 +128,9 @@ public record ServerLaunchRequest(ServerLaunchTarget Target, string MapFolderPat
 	public string? RosterPath { get; init; }
 
 	/// <summary>
-	///     The folder the authority writes its own account of every published sequence into, or nothing to write none. It
-	///     is what a prediction report compares a screen's prediction against and what an ECS sync report compares a
-	///     screen's applied world against, so a run that measures either asks for it and every other match leaves no such
-	///     file behind.
+///     The folder the authority writes its own account of every published sequence into, or nothing to write none. It
+///     is what a synchronisation report compares a screen's presented world against, so a run that measures that asks
+///     for it and every other match leaves no such file behind.
 	/// </summary>
 	public string? AuthorityRecordFolderPath { get; init; }
 

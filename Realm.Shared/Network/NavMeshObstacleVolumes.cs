@@ -6,7 +6,7 @@ namespace Realm.Shared.Network;
 ///     The obstacle volumes the authority baked its navigation mesh with, sent to a peer so the mesh it bakes for
 ///     itself is the same one. A map's placed props are in both worlds because both load the same files, but a prop or
 ///     blocker the map's script spawned exists only in the authority's world, and a client that never learned it would
-///     predict a route straight through a corridor the authority pathing treats as blocked.
+///     draw a route straight through a corridor the authority pathing treats as blocked.
 /// </summary>
 [MemoryPackable]
 public partial struct NavMeshObstacleVolumes

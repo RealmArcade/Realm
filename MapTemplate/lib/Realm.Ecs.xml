@@ -929,7 +929,7 @@
         </member>
         <member name="T:Realm.Ecs.Components.Movement.RenderPosition">
             <summary>
-                Stores the visual render position for smooth interpolation during prediction and state reconciliation.
+                Stores the visual render position each frame draws from, so a unit interpolates between the two positions the presentation step wrote rather than being read mid-write.
             </summary>
         </member>
         <member name="T:Realm.Ecs.Components.Movement.Velocity">
@@ -1520,15 +1520,16 @@
         </member>
         <member name="P:Realm.Ecs.Services.CombatAndDamageService.AuthoritativeProvider">
             <summary>
-                Decides whether this service is the one that applies the damage it computed. A client predicts its own
-                units and takes the authority's health, so it leaves this unset only when it is the authority; the
-                authoritative process answers yes and owns the outcome.
+                Decides whether this service is the one that applies the damage it computed. A client takes every unit's
+                health from the authority's descriptions and never owns the outcome, so it answers no; the authoritative
+                process answers yes and owns the damage it resolves.
             </summary>
         </member>
         <member name="P:Realm.Ecs.Services.CombatAndDamageService.SimulateEntityFilter">
             <summary>
-                Decides whether an entity takes part in combat resolution. A client narrows this to the units it predicts;
-                an authoritative context leaves it unset and resolves every entity in the world.
+                Decides whether an entity takes part in combat resolution. A client narrows this to the units this player
+                owns, whose presentation it is responsible for; an authoritative context leaves it unset and resolves every
+                entity in the world.
             </summary>
         </member>
         <member name="P:Realm.Ecs.Services.CombatAndDamageService.ItemGrantedWeaponsProvider">
@@ -1795,14 +1796,14 @@
         </member>
         <member name="F:Realm.Ecs.Services.MovementAndPathfindingService.MovementWorkItem.IsPlanOnly">
             <summary>
-            Set for a unit the client does not predict. Its route is planned so pathing parity and a later predicted
-            order both start from the corridor the authority uses, but its position belongs to reconciliation.
+            Set for a unit the client plans but never moves. Its route is produced so the path and the facing it draws
+            agree with the corridor the authority uses, while its position stays the one the presentation step wrote.
             </summary>
         </member>
         <member name="P:Realm.Ecs.Services.MovementAndPathfindingService.SimulateEntityFilter">
             <summary>
-                Decides whether an entity takes part in movement planning. A client narrows this to the units it predicts;
-                an authoritative context leaves it unset and plans every entity in the world.
+                Decides whether an entity takes part in movement planning. A client narrows this to the units this player
+                owns, whose routes it draws; an authoritative context leaves it unset and plans every entity in the world.
             </summary>
         </member>
         <member name="P:Realm.Ecs.Services.MovementAndPathfindingService.WarningSink">
@@ -1820,11 +1821,11 @@
         </member>
         <member name="M:Realm.Ecs.Services.MovementAndPathfindingService.StepMovement(System.Single,System.Boolean)">
             <summary>
-            Steps movement for the given rate. With <paramref name="predictedEntitiesOnly"/> set - which is how the client's
-            prediction path calls it - only units carrying a predicted order are integrated. Every other unit the local
-            player owns is still planned, so it keeps a route the authority would have produced, but it is never written:
-            its position arrives in snapshots and is smoothed by the interpolation step, and a second writer here pinned
-            such a unit at the position it spawned with because the client cannot advance the authority's own route.
+            Steps movement for the given rate. With <paramref name="planOnlyLocallyOwned"/> set - which is how the client's
+            presentation tick calls it - only units this player owns are planned. Their route is produced so the path and
+            facing they are drawn with agree with the corridor the authority uses, and no position is written: every
+            position arrives in a description and is placed by the presentation step, and a second writer here pinned such
+            a unit at the position it spawned with because the client cannot advance the authority's own route.
             </summary>
         </member>
         <member name="M:Realm.Ecs.Services.MovementAndPathfindingService.BuildingObstacleQueryAction(Realm.Ecs.Entity,Realm.Ecs.Components.Core.Position@)">
@@ -2029,7 +2030,7 @@
             <summary>
                 The orders, statuses and per-unit bookkeeping a unit can be given. The authoritative process, the client's own
                 command path and a map script all call these, so an order a script issues, an order a player clicks and an
-                order a client predicts are the same components with the same values.
+                order a client draws a route for are the same components with the same values.
             </summary>
         </member>
         <member name="F:Realm.Ecs.Services.UnitOrderService.RouteStateKey">
@@ -2496,7 +2497,7 @@
             <remarks>
             The generator is a fixed SplitMix64 implementation rather than <see cref="T:System.Random"/>, so the produced sequence does not depend on the runtime version,
             the platform, or whether the code executes inside WebAssembly. Host code and map scripts must draw from <see cref="P:Realm.Ecs.DeterministicRandom.Shared"/> so that both sides advance the
-            same logical stream and client-side movement prediction cannot diverge because of a random draw.
+            same logical stream, because a map's script and the world it acts on agree only while every draw is taken the same way and in the same order.
             </remarks>
         </member>
         <member name="M:Realm.Ecs.DeterministicRandom.#ctor(System.Int32)">
