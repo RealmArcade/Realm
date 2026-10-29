@@ -3268,6 +3268,12 @@ public partial class GameHost : Node3D
 		{
 			if (!ShouldProcessPhysicsTick()) return;
 
+			// A description only names units; building their nodes is this screen's work, and it is given a share of each tick
+			// rather than all of it in the tick the description arrived on. Units left over from the last tick are built
+			// first, so a burst finishes even when no new description follows it.
+			_replicatedUnitSpawnBudgetRemainingMilliseconds = ReplicatedUnitSpawnBudgetMilliseconds;
+			if (GameContext.NetworkService is { HasPendingUnitSpawns: true }) FlushReplicatedSnapshotEvents();
+
 			if (!_simulationStartTraced && _joinedSession != null)
 			{
 				_simulationStartTraced = true;

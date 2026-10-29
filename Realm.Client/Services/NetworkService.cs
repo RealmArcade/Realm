@@ -381,6 +381,11 @@ public class NetworkService
 		for (int index = 0; index < snapshot.RetiredEntityIds.Count; index++)
 		{
 			int serverEntityId = snapshot.RetiredEntityIds[index];
+
+			// A unit this screen was told about but has not built yet is retired like any other: its node would otherwise be
+			// built by a later tick for a unit the authority has already stopped describing.
+			_pendingUnitSpawns.Remove(serverEntityId);
+
 			if (!mapping.ServerToClientEntityMap.TryGetValue(serverEntityId, out Entity localEntity)) continue;
 
 			RetireClientEntityForUntrackedServerId(mapping, localEntity, serverEntityId);
@@ -587,7 +592,10 @@ public class NetworkService
 	{
 		if (!mapping.ServerToClientEntityMap.TryGetValue(snap.EntityId, out var localEntity))
 		{
-			if (!snap.IsDead) _pendingUnitSpawns[snap.EntityId] = snap;
+			// A description says whether the unit is alive, and a unit that died before this screen got to it is never built:
+			// a description held for a later tick would otherwise put a node on the map for a unit the match already ended.
+			if (snap.IsDead) _pendingUnitSpawns.Remove(snap.EntityId);
+			else _pendingUnitSpawns[snap.EntityId] = snap;
 			return;
 		}
 
@@ -720,13 +728,28 @@ public class NetworkService
 		RetireClientEntityForUntrackedServerId(mapping, localEntity, serverEntityId);
 	}
 
-	public IReadOnlyList<UnitSnapshot> FlushPendingUnitSpawns()
-	{
-		if (_pendingUnitSpawns.Count == 0) return Array.Empty<UnitSnapshot>();
+	/// <summary>Whether a unit this peer was told about is still waiting for its node to be built.</summary>
+	public bool HasPendingUnitSpawns => _pendingUnitSpawns.Count > 0;
 
-		var result = new List<UnitSnapshot>(_pendingUnitSpawns.Values);
-		_pendingUnitSpawns.Clear();
-		return result;
+	/// <summary>
+	///     Takes one of the units still waiting to be spawned, so the screen can build them at whatever rate it can afford
+	///     rather than all of them in the frame the description arrived on. The oldest description held for a unit is the
+	///     one taken: a later description of the same unit replaces it in the map rather than queueing behind it.
+	/// </summary>
+	/// <returns>Whether a snapshot was taken.</returns>
+	public bool TryTakePendingUnitSpawn(out UnitSnapshot snapshot)
+	{
+		snapshot = default;
+		if (_pendingUnitSpawns.Count == 0) return false;
+
+		int serverEntityId = 0;
+		foreach (int candidate in _pendingUnitSpawns.Keys)
+		{
+			serverEntityId = candidate;
+			break;
+		}
+
+		return _pendingUnitSpawns.Remove(serverEntityId, out snapshot);
 	}
 
 	public IReadOnlyList<Entity> FlushPendingUnitKills()

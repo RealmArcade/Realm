@@ -361,12 +361,36 @@ public partial class GameHost
 		MultiplayerSyncDiagnostics.RecordClientPresentation();
 	}
 
+	/// <summary>
+	///     How much of one physics tick may be spent building the units a description named. Four milliseconds is a
+	///     quarter of a frame at sixty: enough that a burst of ordinary units is built in a handful of ticks, small enough
+	///     that the tick it lands on is still a tick the presentation buffer has room for.
+	/// </summary>
+	private const double ReplicatedUnitSpawnBudgetMilliseconds = 4.0;
+
+	/// <summary>What is left of this tick's share, reset once per tick so every snapshot the tick applies draws on it.</summary>
+	private double _replicatedUnitSpawnBudgetRemainingMilliseconds;
+
 	public void FlushReplicatedSnapshotEvents()
 	{
-		var pendingSpawns = GameContext.NetworkService.FlushPendingUnitSpawns();
-		for (int i = 0; i < pendingSpawns.Count; i++)
+		// Units are built until this tick's share of the work is spent rather than until the last of them exists. A match's
+		// first description names every unit on the board at once, and each unit that is the first of its kind costs tens of
+		// milliseconds to load, aim and dress, so building all of them in the frame they arrived froze the tick for close
+		// to a second. What is left over keeps its newest description in the pending map and is built by the next ticks,
+		// which also means a unit that leaves sight before its turn is simply never built.
+		// One unit is always built when there is one waiting, so a description applied outside a tick - a replay, or the
+		// few frames before this screen's first tick - still makes progress instead of queueing until a tick resets the share.
+		long spawnStarted = System.Diagnostics.Stopwatch.GetTimestamp();
+		int spawned = 0;
+		while ((_replicatedUnitSpawnBudgetRemainingMilliseconds > 0 || spawned == 0)
+		       && GameContext.NetworkService.TryTakePendingUnitSpawn(out UnitSnapshot pendingSpawn))
 		{
-			SpawnUnitFromSnapshot(pendingSpawns[i]);
+			SpawnUnitFromSnapshot(pendingSpawn);
+			spawned++;
+			_replicatedUnitSpawnBudgetRemainingMilliseconds -= (System.Diagnostics.Stopwatch.GetTimestamp() - spawnStarted)
+			                                                   * 1000.0
+			                                                   / System.Diagnostics.Stopwatch.Frequency;
+			spawnStarted = System.Diagnostics.Stopwatch.GetTimestamp();
 		}
 
 		foreach (var localEntity in GameContext.NetworkService.FlushPendingUnitKills())
@@ -385,7 +409,7 @@ public partial class GameHost
 			}
 		}
 
-		if (pendingSpawns.Count > 0)
+		if (spawned > 0)
 		{
 			GameContext.NetworkService.ReapplyAbilityStatesToUnits();
 		}
