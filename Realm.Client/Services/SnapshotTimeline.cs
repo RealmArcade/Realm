@@ -106,6 +106,14 @@ public class SnapshotTimeline
 	public const float ExtrapolationLeadSequences = 1f;
 
 	/// <summary>
+	///     How fast the leading step is taken up and given back, in sequences per sample. A step that appeared the moment an
+	///     order was confirmed and vanished the moment it was complete would move the unit by that interval in one frame, in
+	///     both directions, which is the snap this whole model exists to avoid; easing it in over a sixth of a second keeps
+	///     what the step does per tick smaller than the distance the unit covers moving forward.
+	/// </summary>
+	private const float LeadRampPerSample = ExtrapolationLeadSequences / 6f;
+
+	/// <summary>
 	///     The furthest a unit may be drawn past its newest description, in metres. A unit at this game's movement ceiling
 	///     covers a fifth of it in the horizon above, so this only ever binds for a unit whose last two descriptions are
 	///     further apart than one sequence - which is exactly when the guess should stop rather than run on.
@@ -117,6 +125,7 @@ public class SnapshotTimeline
 	private readonly int[] _sequences = new int[EcsWorld.MAX_ENTITIES * SamplesPerUnit];
 	private readonly int[] _counts = new int[EcsWorld.MAX_ENTITIES];
 	private readonly int[] _heads = new int[EcsWorld.MAX_ENTITIES];
+	private readonly float[] _leads = new float[EcsWorld.MAX_ENTITIES];
 
 	private float _cursor = -1f;
 	private float _evaluationSeconds;
@@ -164,6 +173,7 @@ public class SnapshotTimeline
 	{
 		Array.Clear(_counts);
 		Array.Clear(_heads);
+		Array.Clear(_leads);
 		Array.Fill(_sequences, -1);
 		_cursor = -1f;
 		NewestSequence = -1;
@@ -189,6 +199,7 @@ public class SnapshotTimeline
 
 		_counts[entityId] = 0;
 		_heads[entityId] = 0;
+		_leads[entityId] = 0f;
 	}
 
 	/// <summary>
@@ -354,8 +365,14 @@ public class SnapshotTimeline
 		// A confirmed order is drawn at a render time of its own, one interval ahead of the world around it. At the delay
 		// the buffer normally holds this lands between two descriptions already in hand - and lands there for every tick,
 		// including the one a new description arrives on, because interpolating towards the newest sample and extrapolating
-		// from it meet at it. A unit with nothing confirmed is drawn where the cursor is, exactly like everything else.
-		float cursor = _cursor + (mayExtrapolate ? ExtrapolationLeadSequences : 0f);
+		// from it meet at it. A unit with nothing confirmed is drawn where the cursor is, exactly like everything else, and
+		// the step between the two is eased rather than switched so neither the order nor its completion moves the unit.
+		float targetLead = mayExtrapolate ? ExtrapolationLeadSequences : 0f;
+		float lead = _leads[entityId];
+		lead += Math.Clamp(targetLead - lead, -LeadRampPerSample, LeadRampPerSample);
+		_leads[entityId] = lead;
+
+		float cursor = _cursor + lead;
 
 		int newestIndex = baseIndex + head;
 		int newestSequence = _sequences[newestIndex];

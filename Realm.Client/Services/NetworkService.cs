@@ -413,9 +413,9 @@ public class NetworkService
 
 	/// <summary>
 	/// Removes the unit components the authority does not have. What the authority has is the presence mask it sends with
-	/// every baselined unit, not the component records that happened to travel in this baseline: a baseline no longer
-	/// restates a component the peer already acknowledged, so treating "not in this payload" as "gone" would delete the
-	/// peer's copy of every unchanged component on every baseline.
+	/// every baselined unit, and that mask is what decides: the baseline restates every component of every unit it
+	/// describes, but a record can also go missing from a payload this peer applied only in part, so "not in this
+	/// payload" is never read as "gone" on its own.
 	/// </summary>
 	private void ProcessBaselineComponentReconciliation(WorldSnapshot snapshot, NetworkMappingState mapping)
 	{
