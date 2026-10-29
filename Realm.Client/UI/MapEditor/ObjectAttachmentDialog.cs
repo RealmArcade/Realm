@@ -235,8 +235,8 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 		_txtPseudoSocketName.AddThemeFontSizeOverride("font_size", 11);
 		anchorRow.AddChild(_txtPseudoSocketName);
 
-		AddButton(anchorRow, "➕ " + TranslationServer.Translate("Save Anchor"), AddOrUpdatePseudoSocketAnchor, "Add or override an anchor for this asset at the selected socket position", 10, new Vector2(110, 24));
-		AddButton(anchorRow, "🗑️ " + TranslationServer.Translate("Delete"), RemovePseudoSocketAnchor, "Remove a custom anchor from this asset", 10, new Vector2(80, 24));
+		AddButton(anchorRow, $"{UnicodeIcons.PLUS} " + TranslationServer.Translate("Save Anchor"), AddOrUpdatePseudoSocketAnchor, "Add or override an anchor for this asset at the selected socket position", 10, new Vector2(110, 24));
+		AddButton(anchorRow, $"{UnicodeIcons.TRASH} " + TranslationServer.Translate("Delete"), RemovePseudoSocketAnchor, "Remove a custom anchor from this asset", 10, new Vector2(80, 24));
 
 		parent.AddChild(anchorRow);
 	}
@@ -464,7 +464,7 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 		btnRow.AddThemeConstantOverride("separation", 8);
 		AddButton(btnRow, "⚡ " + TranslationServer.Translate("Auto Calculate"), () => AutoCalculateAttachmentOrientation(), "Automatically calculate orientation and position based on attachment bounds and camera view", 11, new Vector2(130, 24));
 		AddButton(btnRow, "⟲ " + TranslationServer.Translate("Reset"), () => ResetTransformValues(), "Reset transform to defaults", 11, new Vector2(80, 24));
-		var btnAdd = AddButton(btnRow, "➕ " + TranslationServer.Translate("Add"), () => AddOrUpdateCurrentAttachment(), "Add or update this attachment on the selected socket", 11, new Vector2(80, 24));
+		var btnAdd = AddButton(btnRow, $"{UnicodeIcons.PLUS} " + TranslationServer.Translate("Add"), () => AddOrUpdateCurrentAttachment(), "Add or update this attachment on the selected socket", 11, new Vector2(80, 24));
 		btnAdd.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
 		rightCol.AddChild(btnRow);
 
@@ -1839,7 +1839,7 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 			var btnRemove = new Button();
 			btnRemove.Name = "BtnRemove_Button";
 			btnRemove.Set("icon_max_width", 0);
-			btnRemove.Text = "🗑️ " + TranslationServer.Translate("Remove");
+			btnRemove.Text = $"{UnicodeIcons.TRASH} " + TranslationServer.Translate("Remove");
 			btnRemove.AddThemeFontSizeOverride("font_size", 11);
 			btnRemove.AddThemeColorOverride("font_color", new Color(1.0f, 0.45f, 0.45f));
 			btnRemove.CustomMinimumSize = new Vector2(65, 22);
