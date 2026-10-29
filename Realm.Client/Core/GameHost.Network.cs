@@ -336,7 +336,7 @@ public partial class GameHost
 
 	private void ApplyReceivedSnapshot(WorldSnapshot snapshot)
 	{
-		GameContext.NetworkService.RecordSnapshotReceived(snapshot);
+		GameContext.SnapshotApply.Accept(snapshot);
 		FlushReplicatedSnapshotEvents();
 		MultiplayerSyncDiagnostics.RecordClientPresentation();
 	}

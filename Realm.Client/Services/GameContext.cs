@@ -183,6 +183,9 @@ namespace Realm.Client.Services
 		public static ModelOverrideService ModelOverrideService => ScreenScope.Get<ModelOverrideService>();
 		public static ReplayService ReplayService => ScreenScope.Get<ReplayService>();
 		public static NetworkService NetworkService => ScreenScope.Get<NetworkService>();
+
+		/// <summary>The path a description takes from the wire into this screen's world, and the bookkeeping it owns.</summary>
+		public static SnapshotApplyService SnapshotApply => ScreenScope.Get<SnapshotApplyService>();
 		private static CommandAuthorityService? _commandAuthority;
 
 		/// <summary>
@@ -250,6 +253,7 @@ namespace Realm.Client.Services
 			scope.RegisterCleanup<RegistryService>(static service => service.ClearAll());
 			scope.RegisterCleanup<NetworkLatencyService>(static service => service.Clear());
 			scope.RegisterCleanup<SnapshotTimeline>(static service => service.Clear());
+			scope.RegisterCleanup<SnapshotApplyService>(static service => service.Clear());
 			scope.RegisterCleanup<NetworkService>(static service => service.Clear());
 			scope.RegisterDisposeAction(RecreateSimulation);
 
