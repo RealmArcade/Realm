@@ -85,15 +85,26 @@ public class NetworkLatencyService
 		return sequence;
 	}
 
-	public void OnResponse(int sequence)
+	/// <summary>
+	///     Measures one answer from the moment the transport delivered it, not the moment this client got around to
+	///     reading it. Both stamps come from the same clock, so the measurement needs no synchronisation; the wait it
+	///     leaves out is the one this screen imposed on itself by ticking at thirty hertz, which is what made a loopback
+	///     round trip read as seventeen milliseconds of a connection that was answering immediately.
+	/// </summary>
+	/// <param name="sequence">Which probe this answers, so an old answer is not taken for a fresh one.</param>
+	/// <param name="arrivalMilliseconds">The millisecond the transport handed the answer over.</param>
+	public void OnResponse(int sequence, ulong arrivalMilliseconds)
 	{
 		for (int index = 0; index < _pendingCount; index++)
 		{
 			if (_sentSequences[index] != sequence) continue;
 
-			ulong elapsed = Time.GetTicksMsec() - _sentTimestamps[index];
+			ulong sentMilliseconds = _sentTimestamps[index];
 			RemoveAt(index);
 
+			if (arrivalMilliseconds < sentMilliseconds) return;
+
+			ulong elapsed = arrivalMilliseconds - sentMilliseconds;
 			if (elapsed > MaximumPlausibleRoundTripMilliseconds) return;
 
 			LastRoundTripMilliseconds = elapsed;

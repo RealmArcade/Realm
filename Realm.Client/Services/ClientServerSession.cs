@@ -78,9 +78,31 @@ public class ClientServerSession : IDisposable
 	///     every frame, so it is only ever as long as the frames one frame's worth of reading missed - except while the
 	///     screen is building the world it is about to play, where nothing reads it at all.
 	/// </summary>
-	private readonly List<(NetworkFrameKind Kind, byte[] Payload)> _incoming = new();
+	private readonly List<QueuedFrame> _incoming = new();
 	private int _incomingIndex;
 	private bool _descriptionsWereDropped;
+
+	/// <summary>
+	///     One frame waiting to be read, with the moment the transport delivered it. The moment of arrival is the only
+	///     stamp a round trip can honestly be measured against: the moment the match reads the frame is the moment this
+	///     client's own tick got around to it, which on a thirty hertz screen is up to a whole tick of waiting that the
+	///     link never spent.
+	/// </summary>
+	private readonly struct QueuedFrame
+	{
+		public QueuedFrame(NetworkFrameKind kind, byte[] payload, ulong arrivalMilliseconds)
+		{
+			Kind = kind;
+			Payload = payload;
+			ArrivalMilliseconds = arrivalMilliseconds;
+		}
+
+		public NetworkFrameKind Kind { get; }
+		public byte[] Payload { get; }
+
+		/// <summary>The millisecond the frame was handed over, or zero for a frame whose arrival nothing measures.</summary>
+		public ulong ArrivalMilliseconds { get; }
+	}
 
 	private ServerProcessLauncher? _launcher;
 	private string _language = string.Empty;
@@ -203,8 +225,13 @@ public class ClientServerSession : IDisposable
 	/// <summary>Whether the authority took one of this client's orders, and why not when it did not.</summary>
 	public event Action<CommandOutcome>? CommandAnswered;
 
-	/// <summary>One of this client's probes came back, which is what the round trip is measured from.</summary>
-	public event Action<int>? LatencyProbeAnswered;
+	/// <summary>
+	///     One of this client's probes came back, which is what the round trip is measured from. The second argument is
+	///     the moment the transport delivered the answer, and the measurement ends there: a link that answered in a
+	///     sixth of a tick must not be reported as having taken most of one, because that number reads to a player as
+	///     their connection failing rather than their screen's cadence.
+	/// </summary>
+	public event Action<int, ulong>? LatencyProbeAnswered;
 
 	/// <summary>The authority ended in the middle of a match, whether or not it meant to.</summary>
 	public event Action<string>? ServerLost;
@@ -620,7 +647,7 @@ public class ClientServerSession : IDisposable
 
 		while (_incomingIndex < _incoming.Count)
 		{
-			(NetworkFrameKind kind, byte[] payload) = _incoming[_incomingIndex];
+			QueuedFrame frame = _incoming[_incomingIndex];
 			_incomingIndex++;
 
 			// One frame this build cannot read is not a match that cannot be played. It is dropped and the world is asked for
@@ -628,11 +655,11 @@ public class ClientServerSession : IDisposable
 			// queue and the tick the pump ran in, and the screen would sit on a world nothing advances.
 			try
 			{
-				Dispatch(kind, payload);
+				Dispatch(frame.Kind, frame.Payload, frame.ArrivalMilliseconds);
 			}
 			catch (Exception exception) when (exception is IOException or InvalidDataException or ArgumentException or MemoryPackSerializationException)
 			{
-				GD.PushWarning($"[Network] A {kind} frame could not be read and was dropped: {exception.Message}");
+				GD.PushWarning($"[Network] A {frame.Kind} frame could not be read and was dropped: {exception.Message}");
 
 				// A lobby frame is not a description of a world, so there is nothing to ask a baseline for. Asking anyway
 				// would put a match frame on the lobby's connection, which the lobby answers by ending it.
@@ -745,7 +772,11 @@ public class ClientServerSession : IDisposable
 			return;
 		}
 
-		_incoming.Add((kind, payload));
+		// Only the answer to a probe is stamped, because it is the one frame whose arrival is a measurement rather than an
+		// ordering. Stamping it here rather than when the match reads it is the difference between reporting the link and
+		// reporting how long this client waited for its own next tick.
+		ulong arrivalMilliseconds = kind == NetworkFrameKind.LatencyProbeEcho ? Time.GetTicksMsec() : 0UL;
+		_incoming.Add(new QueuedFrame(kind, payload, arrivalMilliseconds));
 	}
 
 	/// <summary>
@@ -767,7 +798,7 @@ public class ClientServerSession : IDisposable
 		return false;
 	}
 
-	private void Dispatch(NetworkFrameKind kind, byte[] payload)
+	private void Dispatch(NetworkFrameKind kind, byte[] payload, ulong arrivalMilliseconds)
 	{
 		switch (kind)
 		{
@@ -796,7 +827,7 @@ public class ClientServerSession : IDisposable
 				break;
 
 			case NetworkFrameKind.LatencyProbeEcho:
-				LatencyProbeAnswered?.Invoke(MemoryPackSerializer.Deserialize<LatencyProbe>(payload).Sequence);
+				LatencyProbeAnswered?.Invoke(MemoryPackSerializer.Deserialize<LatencyProbe>(payload).Sequence, arrivalMilliseconds);
 				break;
 
 			case NetworkFrameKind.ChatLine:
