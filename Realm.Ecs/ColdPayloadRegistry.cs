@@ -3,12 +3,26 @@ namespace Realm.Ecs;
 /// <summary>
 ///     Resolves a cold payload handle in the ambient world's own store. Only one world is alive per process at a time,
 ///     so a component can name its payload without holding a world reference, and a second world constructed in the
-///     same process never aliases or frees the first world's payloads.
+///     same process never aliases or frees the first world's payloads. The world and the store resolved from it are
+///     published together as one binding, because a reader that paired a new ambient world with a store cached beside
+///     the previous one would resolve another world's handles.
 /// </summary>
 public static class ColdPayloadRegistry<T> where T : class
 {
-	private static EcsWorld? _cachedWorld;
-	private static ColdPayloadStore<T>? _cachedStore;
+	private class StoreBinding
+	{
+		public StoreBinding(EcsWorld? world, ColdPayloadStore<T> store)
+		{
+			World = world;
+			Store = store;
+		}
+
+		public EcsWorld? World { get; }
+
+		public ColdPayloadStore<T> Store { get; }
+	}
+
+	private static StoreBinding? _cachedBinding;
 	private static ColdPayloadStore<T>? _worldlessStore;
 
 	private static ColdPayloadStore<T> Store
@@ -16,14 +30,20 @@ public static class ColdPayloadRegistry<T> where T : class
 		get
 		{
 			EcsWorld? ambient = EcsWorld.Ambient;
-			if (!ReferenceEquals(ambient, _cachedWorld))
-			{
-				_cachedWorld = ambient;
-				_cachedStore = ambient?.PayloadStores.GetOrCreateColdPayloadStore<T>();
-			}
+			StoreBinding? cached = Volatile.Read(ref _cachedBinding);
+			if (cached != null && ReferenceEquals(cached.World, ambient)) return cached.Store;
 
-			return _cachedStore ?? (_worldlessStore ??= new ColdPayloadStore<T>());
+			return Resolve(ambient);
 		}
+	}
+
+	private static ColdPayloadStore<T> Resolve(EcsWorld? ambient)
+	{
+		if (ambient == null) return _worldlessStore ??= new ColdPayloadStore<T>();
+
+		ColdPayloadStore<T> store = ambient.PayloadStores.GetOrCreateColdPayloadStore<T>();
+		Volatile.Write(ref _cachedBinding, new StoreBinding(ambient, store));
+		return store;
 	}
 
 	public static int Register(T? payload) => Store.Register(payload);

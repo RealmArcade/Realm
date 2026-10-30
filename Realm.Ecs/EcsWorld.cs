@@ -60,9 +60,12 @@ public class EcsWorld : IDisposable
 	///     The world the current session runs in. Exactly one world is alive per process at a time, so a pure-data
 	///     component reaches its own world's handle stores through this instead of holding a world reference. A world
 	///     becomes ambient when it is constructed and stops being ambient when it is disposed, which is what lets the
-	///     editor save its world, hand the process to a playtest world, and restore itself afterwards.
+	///     editor save its world, hand the process to a playtest world, and restore itself afterwards. It is read from
+	///     lanes that do not own it, so it is published and read through <see cref="Volatile" /> rather than assigned.
 	/// </summary>
-	public static EcsWorld? Ambient { get; private set; }
+	public static EcsWorld? Ambient => Volatile.Read(ref _ambientWorld);
+
+	private static EcsWorld? _ambientWorld;
 
 	/// <summary>
 	///     The cold payload and shroud grid handles this world owns. Handles are allocation indices into these stores,
@@ -74,11 +77,11 @@ public class EcsWorld : IDisposable
 	///     Hands the session to the given world. A tool that deliberately holds more than one world calls this before
 	///     touching each one so its components resolve handles in the world they belong to.
 	/// </summary>
-	public static void SetAmbient(EcsWorld? world) => Ambient = world;
+	public static void SetAmbient(EcsWorld? world) => Volatile.Write(ref _ambientWorld, world);
 
 	public EcsWorld()
 	{
-		Ambient = this;
+		Volatile.Write(ref _ambientWorld, this);
 	}
 
 	/// <summary>
@@ -171,7 +174,7 @@ public class EcsWorld : IDisposable
 		_nextEntityId = 0;
 		Array.Clear(_activeEntityBitset);
 		PayloadStores.Reset();
-		if (ReferenceEquals(Ambient, this)) Ambient = null;
+		if (ReferenceEquals(Ambient, this)) SetAmbient(null);
 		unsafe
 		{
 			if (_externalActiveEntityBitset != null)
