@@ -222,21 +222,21 @@ custom_minimumSize = Vector2(160, 36)
 layout_mode = 2
 focus_mode = 0
 
-[node name="DisableShadowsChk" type="CheckBox" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox"]
+[node name="ShadowsChk" type="CheckBox" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox"]
 layout_mode = 2
 focus_mode = 0
 theme_override_constants/h_separation = 8
 theme_override_constants/icon_max_width = 0
 text = "Shadows"
 
-[node name="DisableDayNightLightingChk" type="CheckBox" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox"]
+[node name="DayNightLightingChk" type="CheckBox" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox"]
 layout_mode = 2
 focus_mode = 0
 theme_override_constants/h_separation = 8
 theme_override_constants/icon_max_width = 0
 text = "Day/night lighting"
 
-[node name="DisableWeatherEffectsChk" type="CheckBox" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox"]
+[node name="WeatherEffectsChk" type="CheckBox" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox"]
 layout_mode = 2
 focus_mode = 0
 theme_override_constants/h_separation = 8

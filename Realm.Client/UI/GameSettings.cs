@@ -57,9 +57,9 @@ public static class GameSettings
 	public static bool DisplayPing { get; set; } = false;
 	public static bool RecordReplays { get; set; } = false;
 	public static bool SeedMapFiles { get; set; } = false;
-	public static bool DisableShadows { get; set; } = false;
-	public static bool DisableDayNightLighting { get; set; } = false;
-	public static bool DisableWeatherEffects { get; set; } = false;
+	public static bool DisableShadows { get; private set; } = false;
+	public static bool DisableDayNightLighting { get; private set; } = false;
+	public static bool DisableWeatherEffects { get; private set; } = false;
 
 	public static bool ShadowsEnabled
 	{

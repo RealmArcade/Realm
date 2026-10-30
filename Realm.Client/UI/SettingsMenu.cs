@@ -39,9 +39,9 @@ public partial class SettingsMenu : Control
 
 	private OptionButton _resolutionOpt;
 	private OptionButton _qualityOpt;
-	private CheckBox _disableShadowsChk;
-	private CheckBox _disableDayNightLightingChk;
-	private CheckBox _disableWeatherEffectsChk;
+	private CheckBox _shadowsChk;
+	private CheckBox _dayNightLightingChk;
+	private CheckBox _weatherEffectsChk;
 	private CheckBox _floatingCombatTextChk;
 	private OptionButton _windowModeOpt;
 	private OptionButton _vsyncOpt;
@@ -121,9 +121,9 @@ public partial class SettingsMenu : Control
 		_healthBarsOpt = GetNode<OptionButton>("CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/HealthBarsRow/HealthBarsOpt");
 		_languageOpt = GetNode<OptionButton>("CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/LanguageRow/LanguageOpt");
 
-		_disableShadowsChk = GetNode<CheckBox>("CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/DisableShadowsChk");
-		_disableDayNightLightingChk = GetNode<CheckBox>("CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/DisableDayNightLightingChk");
-		_disableWeatherEffectsChk = GetNode<CheckBox>("CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/DisableWeatherEffectsChk");
+		_shadowsChk = GetNode<CheckBox>("CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/ShadowsChk");
+		_dayNightLightingChk = GetNode<CheckBox>("CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/DayNightLightingChk");
+		_weatherEffectsChk = GetNode<CheckBox>("CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/WeatherEffectsChk");
 		_fpsLimitSlider = GetNode<HSlider>("CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/FpsRow/FpsLimitSlider");
 		_fpsLimitValLabel = GetNode<Label>("CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/FpsRow/FpsLimitValLabel");
 		_floatingCombatTextChk = GetNode<CheckBox>("CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/FloatingCombatTextChk");
@@ -425,12 +425,12 @@ public partial class SettingsMenu : Control
 
 	private void ApplyCheckboxStyles()
 	{
-		UIStyle.ApplyCheckboxStyle(_disableShadowsChk);
-		_disableShadowsChk.Text = LocalizationManager.Translate("Disable shadows");
-		UIStyle.ApplyCheckboxStyle(_disableDayNightLightingChk);
-		_disableDayNightLightingChk.Text = LocalizationManager.Translate("Disable day/night lighting");
-		UIStyle.ApplyCheckboxStyle(_disableWeatherEffectsChk);
-		_disableWeatherEffectsChk.Text = TranslationServer.Translate(_disableWeatherEffectsChk.Text);
+		UIStyle.ApplyCheckboxStyle(_shadowsChk);
+		_shadowsChk.Text = LocalizationManager.Translate(_shadowsChk.Text);
+		UIStyle.ApplyCheckboxStyle(_dayNightLightingChk);
+		_dayNightLightingChk.Text = LocalizationManager.Translate(_dayNightLightingChk.Text);
+		UIStyle.ApplyCheckboxStyle(_weatherEffectsChk);
+		_weatherEffectsChk.Text = LocalizationManager.Translate(_weatherEffectsChk.Text);
 		UIStyle.ApplyCheckboxStyle(_floatingCombatTextChk);
 		_floatingCombatTextChk.Text = LocalizationManager.Translate("Floating Combat Text");
 		UIStyle.ApplyCheckboxStyle(_displayFpsChk);
@@ -564,12 +564,12 @@ public partial class SettingsMenu : Control
 
 	private void SetupCheckboxEvents()
 	{
-		_disableShadowsChk.Pressed += () => GameContext.UserInterface.PlayClickSound();
-		_disableShadowsChk.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
-		_disableDayNightLightingChk.Pressed += () => GameContext.UserInterface.PlayClickSound();
-		_disableDayNightLightingChk.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
-		_disableWeatherEffectsChk.Pressed += () => GameContext.UserInterface.PlayClickSound();
-		_disableWeatherEffectsChk.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
+		_shadowsChk.Pressed += () => GameContext.UserInterface.PlayClickSound();
+		_shadowsChk.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
+		_dayNightLightingChk.Pressed += () => GameContext.UserInterface.PlayClickSound();
+		_dayNightLightingChk.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
+		_weatherEffectsChk.Pressed += () => GameContext.UserInterface.PlayClickSound();
+		_weatherEffectsChk.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
 		_floatingCombatTextChk.Pressed += () => GameContext.UserInterface.PlayClickSound();
 		_floatingCombatTextChk.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
 		_displayFpsChk.Pressed += () => GameContext.UserInterface.PlayClickSound();
@@ -861,9 +861,9 @@ public partial class SettingsMenu : Control
 		_sensValLabel.Text = (_mouseSensSlider.Value / 40.0f).ToString("0.0");
 		_hudScaleValLabel.Text = ((_hudScaleSlider.Value - 100.0f) / 100.0f).ToString("0.0");
 
-		_disableShadowsChk.ButtonPressed = GameSettings.ShadowsEnabled;
-		_disableDayNightLightingChk.ButtonPressed = GameSettings.DayNightLightingEnabled;
-		_disableWeatherEffectsChk.ButtonPressed = GameSettings.WeatherEffectsEnabled;
+		_shadowsChk.ButtonPressed = GameSettings.ShadowsEnabled;
+		_dayNightLightingChk.ButtonPressed = GameSettings.DayNightLightingEnabled;
+		_weatherEffectsChk.ButtonPressed = GameSettings.WeatherEffectsEnabled;
 		_floatingCombatTextChk.ButtonPressed = GameSettings.FloatingCombatText;
 		_displayFpsChk.ButtonPressed = GameSettings.DisplayFps;
 		_displayPingChk.ButtonPressed = GameSettings.DisplayPing;
@@ -964,9 +964,9 @@ public partial class SettingsMenu : Control
 
 		GameSettings.QualityIdx = (GraphicsQuality)_qualityOpt.Selected;
 		GameSettings.Vsync = vsyncEnabled;
-		GameSettings.ShadowsEnabled = _disableShadowsChk.ButtonPressed;
-		GameSettings.DayNightLightingEnabled = _disableDayNightLightingChk.ButtonPressed;
-		GameSettings.WeatherEffectsEnabled = _disableWeatherEffectsChk.ButtonPressed;
+		GameSettings.ShadowsEnabled = _shadowsChk.ButtonPressed;
+		GameSettings.DayNightLightingEnabled = _dayNightLightingChk.ButtonPressed;
+		GameSettings.WeatherEffectsEnabled = _weatherEffectsChk.ButtonPressed;
 		GameSettings.FloatingCombatText = _floatingCombatTextChk.ButtonPressed;
 
 		GameSettings.FpsLimit = NormalizeFpsLimit((int)_fpsLimitSlider.Value);
