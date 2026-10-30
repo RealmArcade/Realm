@@ -1540,7 +1540,7 @@ public class ListenServerHost : IServerTransportSink
 
 	private const int MaximumUnacknowledgedBeforeDisconnect = MatchTiming.SnapshotRateHz * 15;
 
-	private const long RepairCooldownTicks = MatchTiming.SimulationTickRateHz / 4;
+	private const long RepairCooldownTicks = MatchTiming.SnapshotRepairCooldownTicks;
 
 	private readonly Dictionary<int, long> _lastRepairSentTickPerPeer = new();
 

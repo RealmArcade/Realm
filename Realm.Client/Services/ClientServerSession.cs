@@ -427,7 +427,11 @@ public class ClientServerSession : IDisposable
 			AppliedMask = appliedMask,
 			RoundTripMilliseconds = roundTripMilliseconds > 0 ? roundTripMilliseconds : 0
 		};
-		_channel.Send(NetworkFrameKind.SnapshotAck, MemoryPackSerializer.Serialize(ack));
+
+		// An answer is worth nothing once the next one is written: it restates where this screen has got to, and a later
+		// answer restates it more recently. Held behind a baseline on the reliable stream it would report a peer as silent
+		// for the whole time that baseline took to arrive, which is what asked for the next one.
+		_channel.SendUnreliable(NetworkFrameKind.SnapshotAck, MemoryPackSerializer.Serialize(ack));
 		return true;
 	}
 

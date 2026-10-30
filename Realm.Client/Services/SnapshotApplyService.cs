@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using Godot;
 using MemoryPack;
 using Realm.Client.Core;
@@ -25,10 +26,14 @@ public class SnapshotApplyService
 	private const int RepairRequestIntervalMilliseconds = 120;
 
 	/// <summary>
-	///     How long a description that arrived ahead of a missing one is held before the screen gives up on the run and asks
-	///     for the world instead. It has to cover a repair's round trip, which is the request out and the description back.
+	///     The least and the most time a description that arrived ahead of a missing one is held before the screen gives up
+	///     on the run and asks for the world instead. The grace has to cover the repair's whole journey - the request out,
+	///     the cooldown the authority keeps between repairs, and the description back - so it is taken from the link rather
+	///     than fixed: a run held for less than its repair takes is a run thrown away and paid for with a baseline.
 	/// </summary>
-	private const int RepairGraceMilliseconds = 250;
+	private const int MinimumRepairGraceMilliseconds = 250;
+
+	private const int MaximumRepairGraceMilliseconds = 1200;
 
 	private readonly List<WorldSnapshot> _queuedDeltas = new();
 
@@ -237,7 +242,7 @@ public class SnapshotApplyService
 		QueueDelta(snapshot);
 
 		ulong now = Time.GetTicksMsec();
-		if (_repairDeadlineMilliseconds == 0) _repairDeadlineMilliseconds = now + RepairGraceMilliseconds;
+		if (_repairDeadlineMilliseconds == 0) _repairDeadlineMilliseconds = now + ResolveRepairGraceMilliseconds();
 
 		if (_repairFirstSequence == firstMissingSequence)
 		{
@@ -252,6 +257,17 @@ public class SnapshotApplyService
 		_repairFirstSequence = firstMissingSequence;
 		_lastRepairRequestTime = now;
 		GameContext.Host?.RequestSnapshotRepair(firstMissingSequence, missingCount);
+	}
+
+	private static ulong ResolveRepairGraceMilliseconds()
+	{
+		NetworkLatencyService? latency = GameContext.Host != null ? GameContext.NetworkLatencyService : null;
+		if (latency == null || !latency.HasSample) return MinimumRepairGraceMilliseconds;
+
+		float graceMilliseconds = MatchTiming.SnapshotRepairCooldownMilliseconds
+		                          + latency.SmoothedRoundTripMilliseconds
+		                          + MatchTiming.SnapshotIntervalSeconds * 1000f;
+		return (ulong)Math.Clamp(graceMilliseconds, MinimumRepairGraceMilliseconds, MaximumRepairGraceMilliseconds);
 	}
 
 	private bool HasWaitedPastRepairGrace()
