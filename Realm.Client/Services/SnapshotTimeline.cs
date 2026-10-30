@@ -37,7 +37,13 @@ public class SnapshotTimeline
 
 	public const float ExtrapolationLeadSequences = 1f;
 
-	private const float LeadRampPerSample = ExtrapolationLeadSequences / 6f;
+	/// <summary>
+	///     How long the lead takes to reach its full width, in seconds. It is a duration rather than a count of samples so a
+	///     screen drawing at a different rate eases it in over the same moment instead of in an eighth of the time.
+	/// </summary>
+	private const float LeadRampSeconds = 0.2f;
+
+	private const float DefaultFrameDeltaSeconds = 1f / 60f;
 
 	public const float MaximumExtrapolationMeters = 0.75f;
 
@@ -47,6 +53,10 @@ public class SnapshotTimeline
 	private readonly int[] _counts = new int[EcsWorld.MAX_ENTITIES];
 	private readonly int[] _heads = new int[EcsWorld.MAX_ENTITIES];
 	private readonly float[] _leads = new float[EcsWorld.MAX_ENTITIES];
+	private readonly int[] _orderConfirmedFrom = new int[EcsWorld.MAX_ENTITIES];
+	private readonly int[] _orderClearedAt = new int[EcsWorld.MAX_ENTITIES];
+
+	private float _frameDeltaSeconds = DefaultFrameDeltaSeconds;
 
 	private float _cursor = -1f;
 	private float _evaluationSeconds;
@@ -63,6 +73,8 @@ public class SnapshotTimeline
 	public SnapshotTimeline()
 	{
 		Array.Fill(_sequences, -1);
+		Array.Fill(_orderConfirmedFrom, -1);
+		Array.Fill(_orderClearedAt, int.MaxValue);
 	}
 
 	public float CursorSequence => _cursor;
@@ -87,6 +99,8 @@ public class SnapshotTimeline
 		Array.Clear(_heads);
 		Array.Clear(_leads);
 		Array.Fill(_sequences, -1);
+		Array.Fill(_orderConfirmedFrom, -1);
+		Array.Fill(_orderClearedAt, int.MaxValue);
 		_cursor = -1f;
 		NewestSequence = -1;
 		_delaySequences = MinimumDelaySequences;
@@ -110,6 +124,34 @@ public class SnapshotTimeline
 		_counts[entityId] = 0;
 		_heads[entityId] = 0;
 		_leads[entityId] = 0f;
+		_orderConfirmedFrom[entityId] = -1;
+		_orderClearedAt[entityId] = int.MaxValue;
+	}
+
+	/// <summary>
+	///     Records whether the description just applied gave this unit a destination the match confirmed, and the sequence it
+	///     was applied at. The lead a confirmed order draws is released by the moment the order is <em>drawn</em> to have
+	///     ended rather than by the moment that end was described, so a unit stops being drawn ahead of itself exactly when
+	///     the completion reaches the cursor.
+	/// </summary>
+	public void NoteConfirmedOrder(int entityId, bool confirmed)
+	{
+		if ((uint)entityId >= EcsWorld.MAX_ENTITIES) return;
+		if (_counts[entityId] == 0) return;
+
+		int sequence = _sequences[entityId * SamplesPerUnit + _heads[entityId]];
+		if (sequence < 0) return;
+
+		if (confirmed)
+		{
+			if (_orderConfirmedFrom[entityId] < 0) _orderConfirmedFrom[entityId] = sequence;
+			_orderClearedAt[entityId] = int.MaxValue;
+			return;
+		}
+
+		if (_orderConfirmedFrom[entityId] < 0) return;
+
+		_orderClearedAt[entityId] = Math.Min(_orderClearedAt[entityId], sequence);
 	}
 
 	public bool Record(int entityId, Vector3 position, float rotationY, int sequence)
@@ -165,6 +207,9 @@ public class SnapshotTimeline
 
 	public void Advance(float delta)
 	{
+		// The lead a confirmed order draws is eased per second, so the frame's own step is what the sample below is told.
+		if (delta > 0f && delta < 0.5f) _frameDeltaSeconds = delta;
+
 		if (!(delta > 0f) || NewestSequence < 0) return;
 
 		if (_cursor < 0f) _cursor = NewestSequence - _delaySequences;
@@ -290,10 +335,17 @@ public class SnapshotTimeline
 		int baseIndex = entityId * SamplesPerUnit;
 
 		// A confirmed order is drawn at a render time of its own, one interval ahead of the world around it, and the lead is
-		// eased rather than switched so neither the order nor its completion moves the unit.
-		float targetLead = mayExtrapolate ? ExtrapolationLeadSequences : 0f;
+		// eased rather than switched so neither the order nor its completion moves the unit. What decides whether it is
+		// drawn that way is the description the cursor is showing, not the newest one held: a unit whose order is already
+		// described as finished keeps its lead until the moment that finish is drawn.
+		int drawnSequence = (int)MathF.Floor(_cursor);
+		bool orderStillHeld = mayExtrapolate
+		                      || (_orderConfirmedFrom[entityId] >= 0 && drawnSequence <= _orderClearedAt[entityId]);
+
+		float targetLead = orderStillHeld ? ExtrapolationLeadSequences : 0f;
+		float leadStep = ExtrapolationLeadSequences * Math.Clamp(_frameDeltaSeconds / LeadRampSeconds, 0f, 1f);
 		float lead = _leads[entityId];
-		lead += Math.Clamp(targetLead - lead, -LeadRampPerSample, LeadRampPerSample);
+		lead += Math.Clamp(targetLead - lead, -leadStep, leadStep);
 		_leads[entityId] = lead;
 
 		float cursor = _cursor + lead;
@@ -312,7 +364,7 @@ public class SnapshotTimeline
 				velocity = ResolveVelocity(_positions[previousIndex], _positions[newestIndex], newestSequence - _sequences[previousIndex]);
 			}
 
-			if (mayExtrapolate && count >= 2)
+			if (orderStillHeld && count >= 2)
 			{
 				Vector3 held = position;
 				position = Extrapolate(held, velocity, cursor - newestSequence);
