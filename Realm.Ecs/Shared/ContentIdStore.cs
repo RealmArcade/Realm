@@ -21,9 +21,10 @@ namespace Realm.Ecs;
 /// once both payloads have been registered in the same process.
 /// <para>
 /// Registration is serialized on the thread that registers, because resolving a collision has to be atomic with the
-/// lookup that found it. Reading a single entry is not: entries are immutable once stored, so they are published into a
-/// concurrent table and a snapshot lane resolves identifiers per unit per codec without ever acquiring the registration
-/// lock. Only the ordered cursor walk takes it, because that walk has to be consistent with the list it walks.
+/// lookup that found it. Reading is not: entries are immutable once stored, so they are published into a concurrent
+/// table and a snapshot lane resolves identifiers per unit per codec without ever acquiring the registration lock.
+/// The ordered text walk reads a published view of the text table as well, so a peer's cursor copies the entries it is
+/// owed without waiting for the registration lock that a lane describing another peer would otherwise hold against it.
 /// </para>
 /// </remarks>
 public static class ContentIdStore
@@ -71,12 +72,12 @@ public static class ContentIdStore
 	private static readonly ConcurrentDictionary<int, ContentIdEntry> _entryById = new ConcurrentDictionary<int, ContentIdEntry>();
 	private static readonly Dictionary<string, int> _textIdByText = new Dictionary<string, int>(StringComparer.Ordinal);
 	private static readonly List<ContentIdEntry> _registeredEntries = new List<ContentIdEntry>();
-	private static readonly List<ContentIdEntry> _registeredTextEntries = new List<ContentIdEntry>();
 	private static readonly object _lock = new object();
+
+	private static TextTableView _textView = new TextTableView(Array.Empty<(int Id, string Text)>(), 0);
 
 	private static int _collisionCount;
 	private static int _registeredEntryCount;
-	private static int _registeredTextEntryCount;
 	private static string _collisionSummary = string.Empty;
 
 	/// <summary>
@@ -117,7 +118,7 @@ public static class ContentIdStore
 	/// Gets the number of text entries that have been registered or received in this process, which is the number
 	/// of entries a peer's text cursor walks past.
 	/// </summary>
-	public static int TextEntryCount => Volatile.Read(ref _registeredTextEntryCount);
+	public static int TextEntryCount => Volatile.Read(ref _textView).Count;
 
 	/// <summary>
 	/// Registers a text in the table and returns its stable identifier.
@@ -309,17 +310,15 @@ public static class ContentIdStore
 	/// <returns>The cursor that stands for the end of the text table after this copy.</returns>
 	public static int GetTextEntriesSince(int cursor, List<(int Id, string Text)> destination)
 	{
-		lock (_lock)
+		TextTableView view = Volatile.Read(ref _textView);
+		int start = Math.Clamp(cursor, 0, view.Count);
+		for (int index = start; index < view.Count; index ++)
 		{
-			int start = Math.Clamp(cursor, 0, _registeredTextEntries.Count);
-			for (int index = start; index < _registeredTextEntries.Count; index++)
-			{
-				ContentIdEntry entry = _registeredTextEntries[index];
-				destination.Add((entry.Id, entry.Text));
-			}
-
-			return _registeredTextEntries.Count;
+			(int id, string text) = view.Entries[index];
+			destination.Add((id, text));
 		}
+
+		return view.Count;
 	}
 
 	/// <summary>
@@ -377,10 +376,9 @@ public static class ContentIdStore
 			_entryById.Clear();
 			_textIdByText.Clear();
 			_registeredEntries.Clear();
-			_registeredTextEntries.Clear();
+			Volatile.Write(ref _textView, new TextTableView(Array.Empty<(int Id, string Text)>(), 0));
 			_collisionCount = 0;
 			_registeredEntryCount = 0;
-			_registeredTextEntryCount = 0;
 			_collisionSummary = string.Empty;
 		}
 	}
@@ -510,8 +508,41 @@ public static class ContentIdStore
 		if (entry.Kind != TextKind) return;
 
 		_textIdByText[entry.Text] = entry.Id;
-		_registeredTextEntries.Add(entry);
-		Volatile.Write(ref _registeredTextEntryCount, _registeredTextEntries.Count);
+		PublishTextEntry(entry.Id, entry.Text);
+	}
+
+	private static void PublishTextEntry(int id, string text)
+	{
+		TextTableView published = _textView;
+		(int Id, string Text)[] entries = published.Entries;
+		if (published.Count == entries.Length)
+		{
+			// Only the entries the old view covers are copied, and no reader can read past its own view's count, so
+			// the slot this resize leaves free is one no reader has been told about.
+			entries = new (int Id, string Text)[Math.Max(8, entries.Length * 2)];
+			Array.Copy(published.Entries, entries, published.Count);
+		}
+
+		entries[published.Count] = (id, text);
+		Volatile.Write(ref _textView, new TextTableView(entries, published.Count + 1));
+	}
+
+	/// <summary>
+	/// The text entries a cursor walks, published as one immutable pair so a reader that takes the view sees the same
+	/// array and the same count. The array is appended to in place and only replaced when it has to grow, which is safe
+	/// because a reader never reads a slot beyond the count belonging to the view it took.
+	/// </summary>
+	private sealed class TextTableView
+	{
+		public TextTableView((int Id, string Text)[] entries, int count)
+		{
+			Entries = entries;
+			Count = count;
+		}
+
+		public (int Id, string Text)[] Entries { get; }
+
+		public int Count { get; }
 	}
 
 	private static int ComputeTextFallbackId(string text)
