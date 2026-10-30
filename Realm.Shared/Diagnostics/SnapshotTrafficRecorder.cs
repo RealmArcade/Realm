@@ -24,7 +24,7 @@ public class SnapshotTrafficRecorder
 {
 	private readonly Dictionary<int, PeerTraffic> _peers = new();
 	private readonly List<int> _peerOrder = new(8);
-	private readonly Dictionary<int, List<int>> _sentSequencesByPeer = new();
+	private readonly Dictionary<int, List<(int First, int Last)>> _sentSequencesByPeer = new();
 	private readonly Dictionary<int, double> _framingBySequence = new();
 	private readonly Dictionary<int, int> _baselinesBySequence = new();
 	private int _sequence;
@@ -100,13 +100,16 @@ public class SnapshotTrafficRecorder
 			if (framingMilliseconds > traffic.SlowestDeltaFramingMilliseconds) traffic.SlowestDeltaFramingMilliseconds = framingMilliseconds;
 		}
 
-		if (!_sentSequencesByPeer.TryGetValue(peerId, out List<int>? sequences))
+		// Sequences are recorded as runs rather than one entry per description: a peer that is described every tick
+		// keeps one run for the whole match, and the record only grows where the host stopped describing it.
+		if (!_sentSequencesByPeer.TryGetValue(peerId, out List<(int First, int Last)>? runs))
 		{
-			sequences = new List<int>(1024);
-			_sentSequencesByPeer[peerId] = sequences;
+			runs = new List<(int First, int Last)>(8);
+			_sentSequencesByPeer[peerId] = runs;
 		}
 
-		sequences.Add(sequence);
+		if (runs.Count > 0 && runs[runs.Count - 1].Last == sequence - 1) runs[runs.Count - 1] = (runs[runs.Count - 1].First, sequence);
+		else runs.Add((sequence, sequence));
 
 		_framingBySequence.TryGetValue(sequence, out double sequenceMilliseconds);
 		double sequenceTotal = sequenceMilliseconds + framingMilliseconds;
@@ -135,7 +138,7 @@ public class SnapshotTrafficRecorder
 		_lastPhysicsFrame = physicsFrame;
 	}
 
-	public SnapshotReportFile[] BuildReport(double elapsedGameSeconds, int configuredPhysicsRateHz)
+	public SnapshotReportFile[] BuildReport(double elapsedGameSeconds, int configuredPhysicsRateHz, bool includeSequenceCoverage)
 	{
 		double duration = Math.Max(0.001, elapsedGameSeconds);
 		StringBuilder text = new();
@@ -239,10 +242,24 @@ public class SnapshotTrafficRecorder
 		json.Append(",\"configuredPhysicsRate\":").Append(configuredPhysicsRateHz);
 		json.Append('}');
 
-		StringBuilder coverage = new();
-		foreach (KeyValuePair<int, List<int>> entry in _sentSequencesByPeer)
+		if (!includeSequenceCoverage)
 		{
-			for (int index = 0; index < entry.Value.Count; index++) coverage.Append(entry.Key).Append(' ').Append(entry.Value[index]).Append('\n');
+			return
+			[
+				new SnapshotReportFile("bandwidth_report.txt", text.ToString()),
+				new SnapshotReportFile("bandwidth_report.json", json.ToString())
+			];
+		}
+
+		StringBuilder coverage = new();
+		foreach (KeyValuePair<int, List<(int First, int Last)>> entry in _sentSequencesByPeer)
+		{
+			List<(int First, int Last)> runs = entry.Value;
+			for (int runIndex = 0; runIndex < runs.Count; runIndex++)
+			{
+				(int first, int last) = runs[runIndex];
+				for (int sequence = first; sequence <= last; sequence++) coverage.Append(entry.Key).Append(' ').Append(sequence).Append('\n');
+			}
 		}
 
 		return

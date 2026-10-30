@@ -592,7 +592,8 @@ public partial class GameHost
 	private Plane[] _renderFrustumPlanes = Array.Empty<Plane>();
 	private bool _renderCameraFrustumChanged;
 	private float _renderCurrentGameTime;
-	private RuntimeTerrain? _renderGroundTerrain;
+	private TerrainCell[,]? _renderGroundCells;
+	private float _renderGroundQuadSize = RuntimeTerrain.DefaultQuadSize;
 	private Action<int>? _processRenderWorkItemDelegate;
 
 	private readonly Plane[] _cachedCameraFrustumPlanes = new Plane[6];
@@ -650,7 +651,9 @@ public partial class GameHost
 		_renderFrustumPlanes = hasFrustum ? _cachedCameraFrustumPlanes : Array.Empty<Plane>();
 		_renderCameraFrustumChanged = cameraFrustumChanged;
 		_renderCurrentGameTime = GameElapsedTime;
-		_renderGroundTerrain = (GroundTerrain != null && GodotObject.IsInstanceValid(GroundTerrain)) ? GroundTerrain : null;
+		RuntimeTerrain? renderTerrain = (GroundTerrain != null && GodotObject.IsInstanceValid(GroundTerrain)) ? GroundTerrain : null;
+		_renderGroundCells = renderTerrain?.Cells;
+		_renderGroundQuadSize = renderTerrain?.QuadSize ?? RuntimeTerrain.DefaultQuadSize;
 
 		_renderWorkItemCount = 0;
 		var query = QueryCache.AllPositionAndDefinitionIdQuery;
@@ -1041,10 +1044,10 @@ public partial class GameHost
 		Basis currentBasis = Basis.FromEuler(new Godot.Vector3(0f, targetRotY, 0f));
 
 		Godot.Vector3 normal = Godot.Vector3.Up;
-		var terrain = _renderGroundTerrain;
-		if (!isFlying && terrain != null)
+		TerrainCell[,]? groundCells = _renderGroundCells;
+		if (!isFlying && groundCells != null)
 		{
-			terrain.GetHeightAndNormal(nextPos.X, nextPos.Z, out _, out normal);
+			RuntimeTerrain.SampleHeightAndNormal(groundCells, _renderGroundQuadSize, nextPos.X, nextPos.Z, out _, out normal);
 		}
 
 		if (Mathf.Abs(normal.Y - 1f) > 0.02f)

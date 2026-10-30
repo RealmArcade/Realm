@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using Realm.Ecs;
 using Godot;
 using Realm.Client.Core;
@@ -1098,7 +1099,7 @@ public partial class InGameHUD : Control
 	private bool _isGeneratingMinimap = false;
 	private bool _minimapNeedsRegen = false;
 
-	public async void RegenerateMinimapBackground()
+	public async Task RegenerateMinimapBackground()
 	{
 		if (_isGeneratingMinimap)
 		{
@@ -1138,7 +1139,7 @@ public partial class InGameHUD : Control
 
 	private void GenerateDynamicMinimap()
 	{
-		RegenerateMinimapBackground();
+		_ = RegenerateMinimapBackground();
 	}
 
 	private void CreateStatsContainer()
@@ -2425,7 +2426,7 @@ public partial class InGameHUD : Control
 				GameContext.UserInterface?.TransitionTo(GameScreen.GameOver, true);
 				break;
 			case CheatResult.NoCap:
-				RegenerateMinimapBackground();
+				_ = RegenerateMinimapBackground();
 				QueueMinimapRedraw();
 				break;
 		}

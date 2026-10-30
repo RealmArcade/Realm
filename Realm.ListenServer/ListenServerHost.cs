@@ -168,14 +168,14 @@ public class ListenServerHost : IServerTransportSink
 	private SnapshotTrafficRecorder? _trafficRecorder;
 	private ServerReportWriter? _reportWriter;
 
-	private void QueueTrafficReport()
+	private void QueueTrafficReport(bool includeSequenceCoverage = false)
 	{
 		SnapshotTrafficRecorder? recorder = _trafficRecorder;
 		ServerReportWriter? writer = _reportWriter;
 		if (recorder == null || writer == null) return;
 
 		double recordedSeconds = (_simulation?.TickCount ?? 0) * MatchTiming.FixedTickSeconds;
-		writer.Enqueue(_arguments.RecordAuthorityPath, recorder.BuildReport(recordedSeconds, MatchTiming.SimulationTickRateHz));
+		writer.Enqueue(_arguments.RecordAuthorityPath, recorder.BuildReport(recordedSeconds, MatchTiming.SimulationTickRateHz, includeSequenceCoverage));
 	}
 
 	private const int TrafficReportIntervalSequences = MatchTiming.SnapshotRateHz * 10;
@@ -495,7 +495,7 @@ public class ListenServerHost : IServerTransportSink
 		if (_readyAnnounced) _log.Write($"the command rate limit refused {_rateLimitedCommandCount} command(s)");
 		if (_readyAnnounced) _log.Write($"snapshots: {_unreliableSnapshotCount} carried as deltas on the current stream, {_reliableSnapshotCount} carried in order, {_fragmentedSnapshotCount} split across datagrams");
 
-		QueueTrafficReport();
+		QueueTrafficReport(includeSequenceCoverage: true);
 
 		_seatedPeers.Clear();
 		_connectedPeers.Clear();
@@ -517,7 +517,7 @@ public class ListenServerHost : IServerTransportSink
 		Stop();
 		_transport.Dispose();
 
-		QueueTrafficReport();
+		QueueTrafficReport(includeSequenceCoverage: true);
 
 		_simulation?.Dispose();
 		_simulation = null;

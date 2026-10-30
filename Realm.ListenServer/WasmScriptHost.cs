@@ -215,13 +215,13 @@ public partial class WasmScriptHost : IWasmRuntime, IWasmEvaluationEngine, IDisp
 		catch (TrapException trapEx)
 		{
 			IsFaulted = true;
-			FlushWasiLogFile();
+			RequestWasiLogFlush();
 			LogToConsole($"[WASM RUNTIME TRAP] Script fault or timeout in {contextName}: {trapEx.Message} (Type: {trapEx.Type})", true);
 		}
 		catch (Exception ex)
 		{
 			IsFaulted = true;
-			FlushWasiLogFile();
+			RequestWasiLogFlush();
 			LogToConsole($"[WASM RUNTIME ERROR] Unhandled exception in {contextName}: {ex.Message}", true);
 		}
 		finally
@@ -250,14 +250,14 @@ public partial class WasmScriptHost : IWasmRuntime, IWasmEvaluationEngine, IDisp
 		catch (TrapException trapEx)
 		{
 			IsFaulted = true;
-			FlushWasiLogFile();
+			RequestWasiLogFlush();
 			LogToConsole($"[WASM RUNTIME TRAP] Script fault or timeout in {contextName}: {trapEx.Message} (Type: {trapEx.Type})", true);
 			return defaultValue;
 		}
 		catch (Exception ex)
 		{
 			IsFaulted = true;
-			FlushWasiLogFile();
+			RequestWasiLogFlush();
 			LogToConsole($"[WASM RUNTIME ERROR] Unhandled exception in {contextName}: {ex.Message}", true);
 			return defaultValue;
 		}
@@ -270,9 +270,37 @@ public partial class WasmScriptHost : IWasmRuntime, IWasmEvaluationEngine, IDisp
 		}
 	}
 
+	private int _logFlushInProgress;
+	private int _logFlushQueued;
+
+	/// <summary>
+	///     Asks for the guest's standard output to be read into the log from a pool thread. The read is a file operation,
+	///     and the tick that trapped is not allowed to wait for one, so the trap reports and carries on.
+	/// </summary>
+	private void RequestWasiLogFlush()
+	{
+		if (string.IsNullOrEmpty(_wasiLogPath)) return;
+		if (Interlocked.Exchange(ref _logFlushQueued, 1) != 0) return;
+
+		ThreadPool.QueueUserWorkItem(static host => ((WasmScriptHost)host!).FlushQueuedWasiLog(), this);
+	}
+
+	private void FlushQueuedWasiLog()
+	{
+		try
+		{
+			FlushWasiLogFile();
+		}
+		finally
+		{
+			Volatile.Write(ref _logFlushQueued, 0);
+		}
+	}
+
 	private void FlushWasiLogFile()
 	{
 		if (string.IsNullOrEmpty(_wasiLogPath) || !File.Exists(_wasiLogPath)) return;
+		if (Interlocked.CompareExchange(ref _logFlushInProgress, 1, 0) != 0) return;
 		try
 		{
 			using var fs = new FileStream(_wasiLogPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
@@ -297,6 +325,11 @@ public partial class WasmScriptHost : IWasmRuntime, IWasmEvaluationEngine, IDisp
 		}
 		catch
 		{
+
+		}
+		finally
+		{
+			Volatile.Write(ref _logFlushInProgress, 0);
 		}
 	}
 
@@ -465,7 +498,7 @@ public partial class WasmScriptHost : IWasmRuntime, IWasmEvaluationEngine, IDisp
 				if (++_updateTickCounter >= 30)
 				{
 					_updateTickCounter = 0;
-					FlushWasiLogFile();
+					RequestWasiLogFlush();
 				}
 			}, "update()");
 		}

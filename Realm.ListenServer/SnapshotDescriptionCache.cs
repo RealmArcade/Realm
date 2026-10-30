@@ -9,8 +9,9 @@ namespace Realm.ListenServer;
 ///     it. Every entry is written into the generation that is not published and then published by moving the slot's
 ///     generation index, so a value that a reader has been handed is never rewritten while it is being consumed: the
 ///     reader takes one volatile read and no lock, and a payload span it holds stays the bytes it was given for the rest
-///     of the tick. Writers still serialize per stripe, because two peers describing the same unit must not both be the
-///     first to describe it.
+///     of the tick. Writers still serialize per stripe, because two peers describing the same unit must not both be
+///     first to describe it. A stripe is taken on the first tick a unit is described and never again, and the whole board
+///     is published for the lanes by the tick thread before the fork, so a steady-state tick acquires none of them.
 /// </summary>
 public class SnapshotDescriptionCache
 {

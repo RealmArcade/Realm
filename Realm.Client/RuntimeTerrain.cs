@@ -3434,7 +3434,15 @@ public partial class RuntimeTerrain : Node3D
 
 	public void GetHeightAndNormal(float worldX, float worldZ, out float height, out Vector3 normal)
 	{
-		var cells = Cells;
+		SampleHeightAndNormal(Cells, QuadSize, worldX, worldZ, out height, out normal);
+	}
+
+	/// <summary>
+	///     Samples the terrain surface from the cells themselves. It takes the data rather than this node so a worker that
+	///     is only allowed to read managed state can place a unit on the ground without reaching a scene node at all.
+	/// </summary>
+	public static void SampleHeightAndNormal(TerrainCell[,]? cells, float quadSize, float worldX, float worldZ, out float height, out Vector3 normal)
+	{
 		if (cells == null)
 		{
 			height = 0.0f;
@@ -3451,11 +3459,18 @@ public partial class RuntimeTerrain : Node3D
 			return;
 		}
 
-		float halfW = (cellW / 2.0f) * QuadSize;
-		float halfD = (cellD / 2.0f) * QuadSize;
+		if (quadSize <= 0.0f)
+		{
+			height = 0.0f;
+			normal = Vector3.Up;
+			return;
+		}
 
-		float localX = (worldX + halfW) / QuadSize;
-		float localZ = (worldZ + halfD) / QuadSize;
+		float halfW = (cellW / 2.0f) * quadSize;
+		float halfD = (cellD / 2.0f) * quadSize;
+
+		float localX = (worldX + halfW) / quadSize;
+		float localZ = (worldZ + halfD) / quadSize;
 
 		int x0 = Math.Clamp((int)MathF.Floor(localX), 0, cellW - 1);
 		int z0 = Math.Clamp((int)MathF.Floor(localZ), 0, cellD - 1);
@@ -3469,10 +3484,10 @@ public partial class RuntimeTerrain : Node3D
 		float h01 = cell.Y_SW;
 		float h11 = cell.Y_SE;
 		height = (1 - tx) * (1 - tz) * h00 + tx * (1 - tz) * h10 + (1 - tx) * tz * h01 + tx * tz * h11;
-		Vector3 n00 = GetVertexNormal(x0, z0);
-		Vector3 n10 = GetVertexNormal(x0 + 1, z0);
-		Vector3 n01 = GetVertexNormal(x0, z0 + 1);
-		Vector3 n11 = GetVertexNormal(x0 + 1, z0 + 1);
+		Vector3 n00 = GetVertexNormal(x0, z0, cells, cellW, cellD, quadSize);
+		Vector3 n10 = GetVertexNormal(x0 + 1, z0, cells, cellW, cellD, quadSize);
+		Vector3 n01 = GetVertexNormal(x0, z0 + 1, cells, cellW, cellD, quadSize);
+		Vector3 n11 = GetVertexNormal(x0 + 1, z0 + 1, cells, cellW, cellD, quadSize);
 		normal = ((1 - tx) * (1 - tz) * n00 + tx * (1 - tz) * n10 + (1 - tx) * tz * n01 + tx * tz * n11).Normalized();
 	}
 

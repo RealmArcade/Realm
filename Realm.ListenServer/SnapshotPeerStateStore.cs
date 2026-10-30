@@ -1,21 +1,32 @@
 using System;
-using System.Collections.Concurrent;
 using System.Threading;
 using Realm.Shared.Network;
 
 namespace Realm.ListenServer;
 
+/// <summary>
+///     What each peer has already been told. The tick thread is the only writer: it creates the state of every seated
+///     peer before the publish lanes are forked and removes it once the peer is gone. A lane only reads, which is why
+///     the table is a plain dictionary rather than a concurrent one - the fork is the barrier, not a lock per lookup.
+/// </summary>
 public class SnapshotPeerStateStore
 {
-	private readonly ConcurrentDictionary<int, SnapshotPeerState> _statesByPeerId = new();
+	private readonly Dictionary<int, SnapshotPeerState> _statesByPeerId = new();
 
 	public int Count => _statesByPeerId.Count;
 
-	public SnapshotPeerState Get(int peerId) => _statesByPeerId.GetOrAdd(peerId, static _ => new SnapshotPeerState());
+	public SnapshotPeerState Get(int peerId)
+	{
+		if (_statesByPeerId.TryGetValue(peerId, out SnapshotPeerState? state)) return state;
+
+		state = new SnapshotPeerState();
+		_statesByPeerId[peerId] = state;
+		return state;
+	}
 
 	public void Ensure(int peerId) => _statesByPeerId.TryAdd(peerId, new SnapshotPeerState());
 
-	public void Forget(int peerId) => _statesByPeerId.TryRemove(peerId, out _);
+	public void Forget(int peerId) => _statesByPeerId.Remove(peerId);
 }
 
 /// <summary>
