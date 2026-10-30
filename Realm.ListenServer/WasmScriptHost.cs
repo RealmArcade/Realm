@@ -723,6 +723,20 @@ public partial class WasmScriptHost : IWasmRuntime, IWasmEvaluationEngine, IDisp
 		}
 	}
 
+	/// <summary>
+	///     States the seed this script draws from. A module the lobby warmed is instantiated before its match has a seed,
+	///     so the match restates it here before the script initializes.
+	/// </summary>
+	/// <param name="seed">The seed the match's script draws from.</param>
+	public void PublishRandomSeed(int seed)
+	{
+		var memory = _instance.GetMemory("memory");
+		if (memory == null || _sharedMemoryOffset <= 0) return;
+
+		WriteInt32(memory, _sharedMemoryOffset + Realm.Ecs.EcsSharedMemory.RANDOM_SEED_OFFSET, seed);
+		LogToConsole($"[WASM RUNTIME] Published deterministic random seed {seed} to the map script.");
+	}
+
 	private void PublishSeededRandomSeed()
 	{
 		var memory = _instance.GetMemory("memory");

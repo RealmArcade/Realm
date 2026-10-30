@@ -45,6 +45,7 @@ public class ServerMapScript : IDisposable
 		if (preparedHost != null)
 		{
 			GameAPI.Current = api;
+			preparedHost.PublishRandomSeed(randomSeed);
 			preparedHost.Initialize(api);
 			log.Write($"map script '{preparedHost.ScriptPath}' was warmed by the lobby and is initialized for the match");
 			return new ServerMapScript(api, preparedHost, preparedHost.ScriptPath, log);
