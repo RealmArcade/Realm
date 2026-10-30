@@ -2495,6 +2495,15 @@ namespace Realm.Client.UI
 		private async void PublishMapActionView(bool fullExport = false)
 		{
 			if (GameContext.Host == null || GameContext.EditorService.IsSyncing) return;
+
+			if (!EnsureSignedInForPublishing()) return;
+
+			if (!TryGetSelectedAuthorshipKey(out NSec.Cryptography.Key? publishAuthorshipKey, out _, out _) || publishAuthorshipKey == null)
+			{
+				ShowFeedback(TranslationServer.Translate("Select an authorship key before publishing."));
+				return;
+			}
+
 			GameContext.EditorService.IsSyncing = true;
 			if (GameContext.EditorService != null)
 			{
@@ -2556,15 +2565,7 @@ namespace Realm.Client.UI
 				try
 				{
 					using var checkClient = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
-					string creatorPubKey = "";
-					try
-					{
-						var key = GetOrGenerateAuthorshipKey();
-						creatorPubKey = Convert.ToBase64String(key.PublicKey.Export(KeyBlobFormat.RawPublicKey));
-					}
-					catch
-					{
-					}
+					string creatorPubKey = Convert.ToBase64String(publishAuthorshipKey.PublicKey.Export(KeyBlobFormat.RawPublicKey));
 
 					string statusKey = !string.IsNullOrEmpty(creatorPubKey)
 						? $"{Uri.EscapeDataString(mapTitle)}_{Uri.EscapeDataString(mapVersion)}_{Uri.EscapeDataString(creatorPubKey)}"
@@ -2708,8 +2709,8 @@ namespace Realm.Client.UI
 				statusLabel.Text = TranslationServer.Translate("Generating manifest & indexing asset hashes...");
 				await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
-				var authorshipKey = GetOrGenerateAuthorshipKey();
-				string currentUsername = GameContext.Lobby?.AuthenticatedUsername ?? "MapAuthor";
+				var authorshipKey = publishAuthorshipKey;
+				string currentUsername = GetPublishAuthorName();
 				string pubKeyBase64 = Convert.ToBase64String(authorshipKey.PublicKey.Export(KeyBlobFormat.RawPublicKey));
 
 				MapWorkspaceService.NormalizeMetadataTextureEntries(workspace);

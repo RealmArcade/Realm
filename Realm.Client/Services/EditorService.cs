@@ -214,14 +214,7 @@ public partial class EditorService : IEditorAPI
 			return JsonSerializer.Serialize(new { Message = validationError ?? "Invalid username." });
 		}
 
-		string errText = await RegisterCreatorAsync(username, pubKeyStr, key);
-		if (string.IsNullOrEmpty(errText))
-		{
-			string keyDir = ProjectSettings.GlobalizePath("user://appdata/keys/");
-			AuthorshipKeyHelper.UpdateUserName(keyDir, username);
-		}
-		
-		return errText;
+		return await RegisterCreatorAsync(username, pubKeyStr, key);
 	}
 
 	public async Task<string> RegisterCreatorAsync(string username, string pubKeyStr, Key key)
@@ -6537,11 +6530,6 @@ public class {mapName} : IMapScript
 		if (string.IsNullOrEmpty(cleanName) || cleanName.Equals("Untitled Map", StringComparison.OrdinalIgnoreCase)) cleanName = "new_map";
 
 		return Path.Combine(docsDir, cleanName);
-	}
-
-	public (NSec.Cryptography.Key key, Realm.Shared.Metadata.AuthorshipKeyData data, string keyPath, bool createdNew) GetOrGenerateAuthorshipKeyDomain(string defaultUsername, string keyDir)
-	{
-		return Realm.Shared.Distribution.AuthorshipKeyHelper.GetOrGenerateKeyInfo(keyDir, defaultUsername);
 	}
 
 	public async Task<bool> PerformCompilationStepAsyncDomain(string workspace, Func<string, string> findProjectFile, Func<string, bool> tryBypassCompilation, Func<string, bool> checkMapApiDependency, Func<string, string, bool, Task<bool>> executeDotnetPublishAsync, Action<string> onStatusError, Action<string> onLog, bool isDebug = false)

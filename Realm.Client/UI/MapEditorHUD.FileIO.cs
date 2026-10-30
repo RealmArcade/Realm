@@ -1219,17 +1219,9 @@ namespace Realm.Client.UI
 		}
 
 
-		private NSec.Cryptography.Key GetOrGenerateAuthorshipKey()
+		private NSec.Cryptography.Key? GetSelectedAuthorshipKey()
 		{
-			string keyDir = ProjectSettings.GlobalizePath("user://appdata/keys/");
-			string defaultUsername = GameContext.Lobby?.AuthenticatedUsername ?? string.Empty;
-			var (key, data, keyPath, createdNew) = GameContext.EditorService.GetOrGenerateAuthorshipKeyDomain(defaultUsername, keyDir);
-			if (createdNew)
-			{
-				ShowFeedback(TranslationServer.Translate("A new authorship key has been generated at ") + keyPath + TranslationServer.Translate(". Please backup this file to retain your authorship identity."));
-			}
-
-			return key;
+			return TryGetSelectedAuthorshipKey(out NSec.Cryptography.Key? key, out _, out _) ? key : null;
 		}
 
 
@@ -1328,10 +1320,17 @@ namespace Realm.Client.UI
 		{
 			try
 			{
-				var authorshipKey = GetOrGenerateAuthorshipKey();
+				var authorshipKey = GetSelectedAuthorshipKey();
+				if (authorshipKey == null)
+				{
+					ShowFeedback(TranslationServer.Translate("Sign in and choose an authorship key to sign this export."));
+					GD.PrintErr("[MapEditorHUD] Signing skipped: no authorship key is selected.");
+					return;
+				}
+
 				string pubKeyStr = Convert.ToBase64String(authorshipKey.PublicKey.Export(KeyBlobFormat.RawPublicKey));
 				string seedServerUrl = GameContext.Host != null && GodotObject.IsInstanceValid(GameContext.Lobby) ? GameContext.Lobby.RegistryServerUrl : ServersConfigHelper.GetDefaultServerUrl();
-				string currentUsername = await FetchCurrentUsernameAsync(pubKeyStr, seedServerUrl) ?? "MapAuthor";
+				string currentUsername = await FetchCurrentUsernameAsync(pubKeyStr, seedServerUrl) ?? GetPublishAuthorName();
 
 				var referencedHashes = new List<string>();
 				using (var httpClient = new HttpClient())
@@ -1868,7 +1867,7 @@ namespace Realm.Client.UI
 
 			string mapTitle = GetMapNameFromMetadata();
 			string mapVersion = GetMapVersionFromMetadata();
-			string author = GameContext.Lobby?.AuthenticatedUsername ?? "MapAuthor";
+			string author = GetPublishAuthorName();
 
 			GameContext.MapStorageService.GenerateMapManifest(tempWorkspacePath, mapTitle, mapVersion, author);
 		}
@@ -2097,7 +2096,7 @@ namespace Realm.Client.UI
 			string workspacePath = !string.IsNullOrEmpty(GameContext.EditorService._tempWorkspacePath) ? GameContext.EditorService._tempWorkspacePath : MapWorkspaceService.GetActiveWorkspacePath();
 			string mapTitle = GetMapNameFromMetadata();
 			string mapVersion = GetMapVersionFromMetadata();
-			string author = GameContext.Lobby?.AuthenticatedUsername ?? "MapAuthor";
+			string author = GetPublishAuthorName();
 			return GameContext.EditorService.GetManifestBlake3(workspacePath, mapTitle, mapVersion, author);
 		}
 

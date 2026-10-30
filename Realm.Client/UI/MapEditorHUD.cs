@@ -225,6 +225,7 @@ public partial class MapEditorHUD : Control
 	private VfxStudioDialog _vfxStudioDialog { get; set; }
 	private ProceduralAnimationStudioDialog _proceduralAnimationStudioDialog { get; set; }
 	private AuthorSignatureDialog _authorSignatureDialog { get; set; }
+	private string _publishAuthorshipKeyPath { get; set; } = string.Empty;
 	private ReplaceTextureDialog _replaceTextureDialog { get; set; }
 	private UtilitiesDialog _utilitiesDialog { get; set; }
 	private TestSettingsDialog _testSettingsDialog { get; set; }
@@ -366,11 +367,94 @@ public partial class MapEditorHUD : Control
 	private string _wasmCompileLogPath { get; set; } = "";
 
 
+	private string GetAuthorshipKeysDirectory()
+	{
+		return ProjectSettings.GlobalizePath("user://appdata/keys/");
+	}
+
+	private bool EnsureSignedInForPublishing()
+	{
+		if (GameContext.Account.IsSignedIn) return true;
+
+		ShowFeedback(TranslationServer.Translate("Sign in to publish maps. Offline play and editing still work without an account."));
+		return false;
+	}
+
+	private bool EnsureAuthorshipKeyForPublishing()
+	{
+		string keysDirectory = GetAuthorshipKeysDirectory();
+		var keys = AuthorshipKeyHelper.EnumerateAuthorshipKeys(keysDirectory);
+		string accountUserName = GameContext.Account.DisplayName;
+
+		foreach (AuthorshipKeyInfo keyInfo in keys)
+		{
+			if (string.Equals(keyInfo.UserName, accountUserName, StringComparison.OrdinalIgnoreCase))
+			{
+				_publishAuthorshipKeyPath = keyInfo.Path;
+				return false;
+			}
+		}
+
+		if (keys.Count > 0)
+		{
+			_publishAuthorshipKeyPath = keys[0].Path;
+			return false;
+		}
+
+		if (string.IsNullOrWhiteSpace(accountUserName))
+		{
+			ShowFeedback(TranslationServer.Translate("Your account has no user name, so no authorship key can be created."));
+			return false;
+		}
+
+		var (_, _, keyPath, createdNew) = AuthorshipKeyHelper.GetOrGenerateKeyInfo(keysDirectory, accountUserName);
+		_publishAuthorshipKeyPath = keyPath;
+
+		if (createdNew)
+		{
+			ShowFeedback(string.Format(TranslationServer.Translate("A new authorship key has been generated at {0}. Please back up this file to keep ownership of your maps."), keyPath));
+		}
+
+		return createdNew;
+	}
+
+	private string GetSelectedAuthorshipKeyPath()
+	{
+		if (!string.IsNullOrEmpty(_publishAuthorshipKeyPath) && File.Exists(_publishAuthorshipKeyPath)) return _publishAuthorshipKeyPath;
+
+		var keys = AuthorshipKeyHelper.EnumerateAuthorshipKeys(GetAuthorshipKeysDirectory());
+		return keys.Count > 0 ? keys[0].Path : string.Empty;
+	}
+
+	private bool TryGetSelectedAuthorshipKey(out NSec.Cryptography.Key? key, out Realm.Shared.Metadata.AuthorshipKeyData? data, out string keyPath)
+	{
+		key = null;
+		data = null;
+		keyPath = GetSelectedAuthorshipKeyPath();
+
+		return keyPath.Length > 0 && AuthorshipKeyHelper.TryLoadAuthorshipKey(keyPath, out key, out data);
+	}
+
+	private string GetPublishAuthorName()
+	{
+		if (AuthorshipKeyHelper.TryReadKeyFile(GetSelectedAuthorshipKeyPath(), out Realm.Shared.Metadata.AuthorshipKeyData? authorsKeyData) && authorsKeyData != null)
+		{
+			return authorsKeyData.UserName;
+		}
+
+		string accountUserName = GameContext.Account.DisplayName;
+		return string.IsNullOrWhiteSpace(accountUserName) ? "MapAuthor" : accountUserName;
+	}
+
 	public void PublishMapActionExternal()
 	{
+		if (!EnsureSignedInForPublishing()) return;
+
 		string wsPath = !string.IsNullOrEmpty(GameContext.EditorService._tempWorkspacePath) ? GameContext.EditorService._tempWorkspacePath : MapWorkspaceService.GetActiveWorkspacePath();
 
 		if (!TryValidateMapPublishRequirements(wsPath)) return;
+
+		bool createdAuthorshipKey = EnsureAuthorshipKeyForPublishing();
 
 		var overlay = new ColorRect { Name = "PublishInstructionsOverlay", Color = new Color(0, 0, 0, 0.7f) };
 		overlay.SetAnchorsPreset(LayoutPreset.FullRect);
@@ -413,6 +497,11 @@ public partial class MapEditorHUD : Control
 		CreatePublishMapIdentityPanel(vbox);
 
 		AddPublishMapActionButtons(vbox, overlay, chkFullExport);
+
+		if (createdAuthorshipKey && TryGetSelectedAuthorshipKey(out NSec.Cryptography.Key? createdPublishKey, out _, out _) && createdPublishKey != null)
+		{
+			CheckCreatorRegistrationAndPrompt(createdPublishKey);
+		}
 	}
 
 	private bool TryValidateMapPublishRequirements(string wsPath)
@@ -533,13 +622,6 @@ public partial class MapEditorHUD : Control
 
 	private void CreatePublishMapIdentityPanel(VBoxContainer vbox)
 	{
-		string keyDir = ProjectSettings.GlobalizePath("user://appdata/keys/");
-		string defaultUsername = GameContext.Lobby?.AuthenticatedUsername ?? System.Environment.UserName;
-		var (_, keyData, keyPath, _) = AuthorshipKeyHelper.GetOrGenerateKeyInfo(keyDir, defaultUsername);
-		string currentAuthorName = !string.IsNullOrWhiteSpace(keyData?.UserName) ? keyData.UserName : defaultUsername;
-		string authorPubKey = !string.IsNullOrWhiteSpace(keyData?.PublicKey) ? keyData.PublicKey : "";
-		string shortPubKey = authorPubKey.Length > 16 ? $"{authorPubKey[..8]}...{authorPubKey[^8..]}" : authorPubKey;
-
 		var identityPanel = new PanelContainer();
 		identityPanel.Name = "IdentityPanel_PanelContainer";
 		var identityStyle = new StyleBoxFlat
@@ -576,22 +658,119 @@ public partial class MapEditorHUD : Control
 		idHeaderLabel.AddThemeFontSizeOverride("font_size", 13);
 		idHeaderLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		idHeaderHBox.AddChild(idHeaderLabel);
-
-		var btnEditKey = new Button { Text = TranslationServer.Translate("Manage Key / Identity"), CustomMinimumSize = new Vector2(160, 26) };
-		btnEditKey.AddThemeConstantOverride("icon_max_width", 0);
-		btnEditKey.AddThemeFontSizeOverride("font_size", 11);
-		btnEditKey.Pressed += () =>
-		{
-			_authorSignatureDialog ??= new AuthorSignatureDialog(this);
-			_authorSignatureDialog.OpenDialog();
-		};
-		idHeaderHBox.AddChild(btnEditKey);
 		idVBox.AddChild(idHeaderHBox);
 
-		var idDetailsLabel = new Label { Text = string.Format(TranslationServer.Translate("Author: {0} | Public Key: {1}\nKey File: {2}"), currentAuthorName, shortPubKey, keyPath), AutowrapMode = TextServer.AutowrapMode.WordSmart };
+		var keyRow = new HBoxContainer();
+		keyRow.Name = "KeyRow_HBoxContainer";
+		keyRow.AddThemeConstantOverride("separation", 8);
+
+		var lblKeyCaption = new Label { Text = TranslationServer.Translate("Publishing Key:") };
+		lblKeyCaption.AddThemeFontSizeOverride("font_size", 11);
+		lblKeyCaption.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+		keyRow.AddChild(lblKeyCaption);
+
+		var optKeys = new OptionButton { Name = "PublishKeyOption_OptionButton", CustomMinimumSize = new Vector2(320, 26), SizeFlagsHorizontal = SizeFlags.ExpandFill };
+		optKeys.AddThemeFontSizeOverride("font_size", 11);
+		optKeys.AddThemeConstantOverride("icon_max_width", 0);
+		keyRow.AddChild(optKeys);
+
+		Font faFont = GetFontAwesomeFont();
+
+		var btnViewKey = new Button { Name = "ViewKey_Button", Text = Realm.Client.Utils.UnicodeIcons.EYE, TooltipText = TranslationServer.Translate("Open the selected key"), CustomMinimumSize = new Vector2(34, 26) };
+		btnViewKey.AddThemeConstantOverride("icon_max_width", 0);
+		if (faFont != null) btnViewKey.AddThemeFontOverride("font", faFont);
+		keyRow.AddChild(btnViewKey);
+
+		var btnAddKey = new Button { Name = "AddKey_Button", Text = Realm.Client.Utils.UnicodeIcons.PLUS, TooltipText = TranslationServer.Translate("Create a new authorship key"), CustomMinimumSize = new Vector2(34, 26) };
+		btnAddKey.AddThemeConstantOverride("icon_max_width", 0);
+		if (faFont != null) btnAddKey.AddThemeFontOverride("font", faFont);
+		keyRow.AddChild(btnAddKey);
+
+		idVBox.AddChild(keyRow);
+
+		var idDetailsLabel = new Label { Name = "IdDetailsLabel_Label", Text = string.Empty, AutowrapMode = TextServer.AutowrapMode.WordSmart };
 		idDetailsLabel.AddThemeFontSizeOverride("font_size", 11);
 		idDetailsLabel.AddThemeColorOverride("font_color", new Color(0.85f, 0.9f, 1.0f));
 		idVBox.AddChild(idDetailsLabel);
+
+		string keysDirectory = GetAuthorshipKeysDirectory();
+
+		void RefreshSelectedKeyDetails()
+		{
+			if (AuthorshipKeyHelper.TryReadKeyFile(_publishAuthorshipKeyPath, out Realm.Shared.Metadata.AuthorshipKeyData? selectedKeyData) && selectedKeyData != null)
+			{
+				string shortPubKey = selectedKeyData.PublicKey.Length > 16 ? $"{selectedKeyData.PublicKey[..8]}...{selectedKeyData.PublicKey[^8..]}" : selectedKeyData.PublicKey;
+				idDetailsLabel.Text = string.Format(TranslationServer.Translate("Author: {0} | Public Key: {1}\nKey File: {2}"), selectedKeyData.UserName, shortPubKey, _publishAuthorshipKeyPath);
+				return;
+			}
+
+			idDetailsLabel.Text = TranslationServer.Translate("No authorship key is selected.");
+		}
+
+		void RefreshKeyOptions()
+		{
+			var keys = AuthorshipKeyHelper.EnumerateAuthorshipKeys(keysDirectory);
+			optKeys.Clear();
+
+			int selectedIndex = 0;
+			for (int index = 0; index < keys.Count; index++)
+			{
+				AuthorshipKeyInfo keyInfo = keys[index];
+				optKeys.AddItem($"{keyInfo.UserName} — {Path.GetFileName(keyInfo.Path)}", index);
+				if (string.Equals(keyInfo.Path, _publishAuthorshipKeyPath, StringComparison.OrdinalIgnoreCase)) selectedIndex = index;
+			}
+
+			if (keys.Count == 0) return;
+
+			_publishAuthorshipKeyPath = keys[selectedIndex].Path;
+			optKeys.Selected = selectedIndex;
+		}
+
+		optKeys.ItemSelected += selectedIndex =>
+		{
+			var keys = AuthorshipKeyHelper.EnumerateAuthorshipKeys(keysDirectory);
+			if (selectedIndex < 0 || selectedIndex >= keys.Count) return;
+
+			_publishAuthorshipKeyPath = keys[(int)selectedIndex].Path;
+			RefreshSelectedKeyDetails();
+		};
+
+		btnViewKey.Pressed += () =>
+		{
+			GameContext.UserInterface?.PlayClickSound();
+			_authorSignatureDialog ??= new AuthorSignatureDialog(this);
+			_authorSignatureDialog.OpenForKey(_publishAuthorshipKeyPath);
+		};
+
+		btnAddKey.Pressed += () =>
+		{
+			GameContext.UserInterface?.PlayClickSound();
+
+			if (!GameContext.Account.IsSignedIn)
+			{
+				ShowFeedback(TranslationServer.Translate("Sign in to create an authorship key."));
+				return;
+			}
+
+			string accountUserName = GameContext.Account.DisplayName;
+			if (string.IsNullOrWhiteSpace(accountUserName))
+			{
+				ShowFeedback(TranslationServer.Translate("Your account has no user name, so no authorship key can be created."));
+				return;
+			}
+
+			var (_, _, createdKeyPath, createdNew) = AuthorshipKeyHelper.GetOrGenerateKeyInfo(keysDirectory, accountUserName);
+			_publishAuthorshipKeyPath = createdKeyPath;
+			RefreshKeyOptions();
+			RefreshSelectedKeyDetails();
+
+			ShowFeedback(createdNew
+				? string.Format(TranslationServer.Translate("A new authorship key has been generated for {0} at {1}. Please back up this file to keep ownership of your maps."), accountUserName, createdKeyPath)
+				: string.Format(TranslationServer.Translate("Using the existing authorship key for {0} at {1}."), accountUserName, createdKeyPath));
+		};
+
+		RefreshKeyOptions();
+		RefreshSelectedKeyDetails();
 
 		var idBackupWarn = new Label { Text = "⚠️ " + TranslationServer.Translate("Important: Back up your key file! Your authorship key proves ownership of your map name and allows future updates. If you lose your key file, you will permanently lose ownership and the ability to update this map."), AutowrapMode = TextServer.AutowrapMode.WordSmart };
 		idBackupWarn.AddThemeFontSizeOverride("font_size", 11);

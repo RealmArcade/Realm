@@ -969,18 +969,18 @@ namespace Realm.Client.UI
 		{
 			if (GameContext.AssetIndexService.IsIndexVersionMismatch())
 			{
-				_ = ShowAssetIndexRepairModalAsync(() => { CheckUnsavedSessionOnLaunch(() => { CheckCreatorRegistrationAndPrompt(); }); });
+				_ = ShowAssetIndexRepairModalAsync(() => CheckUnsavedSessionOnLaunch());
 				return;
 			}
 
 			var verification = GameContext.AssetIndexService.VerifyIndex();
 			if (verification.IsHealthy)
 			{
-				CheckUnsavedSessionOnLaunch(() => { CheckCreatorRegistrationAndPrompt(); });
+				CheckUnsavedSessionOnLaunch();
 				return;
 			}
 
-			_ = RepairFailedAssetIndexEntriesAsync(verification, () => { CheckUnsavedSessionOnLaunch(() => { CheckCreatorRegistrationAndPrompt(); }); });
+			_ = RepairFailedAssetIndexEntriesAsync(verification, () => CheckUnsavedSessionOnLaunch());
 		}
 
 		private async Task RepairFailedAssetIndexEntriesAsync(AssetIndexVerificationResult verification, Action onCompleted)
@@ -1445,14 +1445,13 @@ namespace Realm.Client.UI
 		}
 
 
-		private async void CheckCreatorRegistrationAndPrompt()
+		private async void CheckCreatorRegistrationAndPrompt(Key key)
 		{
 			if (GetNodeOrNull("AgreementOverlay") != null || GetNodeOrNull("CreatorRegistrationOverlay") != null)
 			{
 				return;
 			}
 
-			var key = GetOrGenerateAuthorshipKey();
 			string pubKeyStr = Convert.ToBase64String(key.PublicKey.Export(KeyBlobFormat.RawPublicKey));
 
 			string seedServerUrl = GameContext.Host != null && GodotObject.IsInstanceValid(GameContext.Lobby) ? GameContext.Lobby.RegistryServerUrl : ServersConfigHelper.GetDefaultServerUrl();
@@ -1475,7 +1474,7 @@ namespace Realm.Client.UI
 			var overlay = CreateCreatorRegistrationOverlay();
 			var vbox = CreateCreatorRegistrationContainer(overlay);
 
-			var lineEdit = new LineEdit { PlaceholderText = TranslationServer.Translate("Enter Username"), Alignment = HorizontalAlignment.Center };
+			var lineEdit = new LineEdit { PlaceholderText = TranslationServer.Translate("Enter Username"), Alignment = HorizontalAlignment.Center, Text = GameContext.Account.DisplayName };
 			vbox.AddChild(lineEdit);
 
 			var errLabel = new Label { HorizontalAlignment = HorizontalAlignment.Center };
@@ -3001,7 +3000,6 @@ namespace Realm.Client.UI
 				}
 
 				overlay.QueueFree();
-				CheckCreatorRegistrationAndPrompt();
 			}, 13);
 			btnAccept.Position = new Vector2(300, 692);
 			btnAccept.Size = new Vector2(165, 42);
@@ -3217,7 +3215,8 @@ namespace Realm.Client.UI
 
 		public void OpenAuthorSignatureDialog()
 		{
-			_authorSignatureDialog?.OpenDialog();
+			_authorSignatureDialog ??= new AuthorSignatureDialog(this);
+			_authorSignatureDialog.OpenForKey(GetSelectedAuthorshipKeyPath());
 		}
 
 
