@@ -1126,6 +1126,48 @@ public partial class Unit3D : Node3D
 		{
 			_animationPlayer.Advance(0.0);
 		}
+
+		StaggerLocomotionPhase(animName);
+	}
+
+	/// <summary>
+	///     Starts a walking cycle a little way into itself, at a point that belongs to this unit alone, so a group that is
+	///     ordered to move together does not put every foot down on the same frame.
+	/// </summary>
+	/// <param name="requestedAnimationName">The animation the unit was just asked to play.</param>
+	private void StaggerLocomotionPhase(string requestedAnimationName)
+	{
+		if (_animationPlayer == null || !GodotObject.IsInstanceValid(_animationPlayer)) return;
+		if (!IsLocomotionAnimationName(requestedAnimationName)) return;
+
+		double length = _animationPlayer.CurrentAnimationLength;
+		if (length <= 0.001) return;
+
+		_animationPlayer.Seek(length * LocomotionPhaseOffset, update: true);
+	}
+
+	private static bool IsLocomotionAnimationName(string animationName)
+	{
+		return animationName.Contains("walk", StringComparison.OrdinalIgnoreCase)
+			|| animationName.Contains("run", StringComparison.OrdinalIgnoreCase)
+			|| animationName.Contains("sprint", StringComparison.OrdinalIgnoreCase)
+			|| animationName.Contains("move", StringComparison.OrdinalIgnoreCase);
+	}
+
+	/// <summary>
+	///     Where this unit enters its walking cycle, spread over one whole cycle and fixed for the unit's lifetime. It is
+	///     derived from the node's identity so no per-unit state or allocation is needed to keep it stable.
+	/// </summary>
+	private float LocomotionPhaseOffset
+	{
+		get
+		{
+			ulong instanceId = GetInstanceId();
+			uint hash = (uint)(instanceId ^ (instanceId >> 32));
+			hash *= 2654435761u;
+			hash ^= hash >> 13;
+			return (hash & 0x3FFu) / 1024f;
+		}
 	}
 
 	public void UpdateFrustumCulling(bool hasFrustum, ReadOnlySpan<Plane> frustumPlanes, float currentGameTime)
