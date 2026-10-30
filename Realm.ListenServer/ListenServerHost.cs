@@ -281,6 +281,7 @@ public class ListenServerHost : IServerTransportSink
 			}
 
 			IsRunning = true;
+			ResetPauseAllowances();
 			_mapHash = MapContentHash.Compute(_arguments.MapPath, _arguments.LogPath);
 			MarkStartStage("ready to be joined");
 			AnnounceReady();
@@ -366,6 +367,8 @@ public class ListenServerHost : IServerTransportSink
 			return "The match could not start; the authority's log explains why.";
 		}
 
+		ResetPauseAllowances();
+
 		_lobbySessionSlots.Clear();
 		foreach (var pair in sessionSlots)
 		{
@@ -396,6 +399,7 @@ public class ListenServerHost : IServerTransportSink
 			_simulation.RequestBaseline(peerId);
 			SendNavMeshObstacles(peerId);
 			SendPauseState(peerId);
+			SendPauseAllowance(peerId, string.Empty);
 		}
 
 		var unseated = new List<int>();
@@ -493,11 +497,22 @@ public class ListenServerHost : IServerTransportSink
 		// indistinguishable from one that has gone away.
 		if (_paused)
 		{
+			if (_resumeCountdownRemaining > 0)
+			{
+				_resumeCountdownRemaining -= lobbyDelta;
+				if (_resumeCountdownRemaining <= 0)
+				{
+					ResumeMatch("the resume countdown ran out, so the match resumes");
+					_nextTickTime = nowSeconds;
+					return;
+				}
+			}
+
 			_nextTickTime = nowSeconds + MatchTiming.FixedTickSeconds;
 			if (nowSeconds >= _nextPauseHeartbeatSeconds)
 			{
 				_nextPauseHeartbeatSeconds = nowSeconds + PauseHeartbeatSeconds;
-				BroadcastPauseState(-1);
+				BroadcastPauseState();
 			}
 
 			return;
@@ -528,6 +543,19 @@ public class ListenServerHost : IServerTransportSink
 	private const int MaximumTicksPerCall = 5;
 
 	private const double PauseHeartbeatSeconds = 1.0;
+
+	/// <summary>How long a player must wait between the pauses it asks for.</summary>
+	private const int PauseCooldownSeconds = 60;
+
+	/// <summary>How many times one player may pause a match before it has to carry on without it.</summary>
+	private const int PausesPerPlayerPerMatch = 3;
+
+	/// <summary>How long everyone is warned for before a paused match resumes.</summary>
+	private const int ResumeCountdownSeconds = 5;
+
+	private readonly int[] _pausesRemainingPerPlayerSlot = new int[EcsWorld.MAX_PLAYERS];
+	private readonly double[] _pauseCooldownEndsAtSeconds = new double[EcsWorld.MAX_PLAYERS];
+	private double _resumeCountdownRemaining;
 
 	private double _nextPauseHeartbeatSeconds;
 
@@ -647,10 +675,7 @@ public class ListenServerHost : IServerTransportSink
 			if (seatedPlayerSlot == _pausedByPlayerSlot) return;
 		}
 
-		_paused = false;
-		_pausedByPlayerSlot = -1;
-		_log.Write("the player who paused the match left, so the match resumes");
-		BroadcastPauseState(-1);
+		ResumeMatch("the player who paused the match left, so the match resumes");
 	}
 
 	private bool TryReclaimSessionSlot(ServerSimulation simulation, int peerId, string sessionToken, out int playerSlot, out int team)
@@ -1071,6 +1096,7 @@ public class ListenServerHost : IServerTransportSink
 
 		SendNavMeshObstacles(peerId);
 		SendPauseState(peerId);
+		SendPauseAllowance(peerId, string.Empty);
 	}
 
 	private void SendHello(int peerId, string rejection, bool isAdmin = false, bool inLobby = false)
@@ -1783,30 +1809,154 @@ public class ListenServerHost : IServerTransportSink
 			return;
 		}
 
-		if (_paused == request.Paused)
+		if (request.Paused) PauseMatch(peerId, playerSlot);
+		else RequestResume(peerId, playerSlot);
+	}
+
+	/// <summary>
+	///     Holds the match for one player. Every player may pause, but only within what it has left: a pause costs one of
+	///     its three for the match and starts a minute of recovery, so a match cannot be held by one screen indefinitely.
+	/// </summary>
+	/// <param name="peerId">The peer that asked.</param>
+	/// <param name="playerSlot">The slot it is seated in.</param>
+	private void PauseMatch(int peerId, int playerSlot)
+	{
+		if (_paused)
+		{
+			SendPauseState(peerId);
+			SendPauseAllowance(peerId, string.Empty);
+			return;
+		}
+
+		int pausesRemaining = PausesRemainingFor(playerSlot);
+		if (pausesRemaining <= 0)
+		{
+			_log.Write($"player {playerSlot} asked to pause the match but has used every pause it is allowed");
+			SendPauseAllowance(peerId, MatchPauseAllowance.RefusalExhausted);
+			return;
+		}
+
+		int cooldownSeconds = CooldownSecondsRemaining(playerSlot);
+		if (cooldownSeconds > 0)
+		{
+			_log.Write($"player {playerSlot} asked to pause the match {cooldownSeconds} second(s) before its pause recovers");
+			SendPauseAllowance(peerId, MatchPauseAllowance.RefusalCooldown);
+			return;
+		}
+
+		_pausesRemainingPerPlayerSlot[playerSlot] = pausesRemaining - 1;
+		_pauseCooldownEndsAtSeconds[playerSlot] = _lastTickSeconds + PauseCooldownSeconds;
+		_paused = true;
+		_pausedByPlayerSlot = playerSlot;
+		_resumeCountdownRemaining = 0;
+		_log.Write($"player {playerSlot} paused the match; it has {pausesRemaining - 1} pause(s) left and may pause again in {PauseCooldownSeconds} second(s)");
+
+		BroadcastPauseState();
+		SendPauseAllowance(peerId, string.Empty);
+	}
+
+	/// <summary>
+	///     Starts the ready countdown that resumes a paused match. Any seated player may ask for it, and it then runs to the
+	///     end for everyone rather than being cancelled, so no screen resumes a match the others have not been warned about.
+	/// </summary>
+	/// <param name="peerId">The peer that asked.</param>
+	/// <param name="playerSlot">The slot it is seated in.</param>
+	private void RequestResume(int peerId, int playerSlot)
+	{
+		if (!_paused)
+		{
+			SendPauseState(peerId);
+			SendPauseAllowance(peerId, string.Empty);
+			return;
+		}
+
+		if (_resumeCountdownRemaining > 0)
 		{
 			SendPauseState(peerId);
 			return;
 		}
 
-		_paused = request.Paused;
-		_pausedByPlayerSlot = request.Paused ? playerSlot : -1;
-		_log.Write(request.Paused
-			? $"player {playerSlot} paused the match"
-			: $"player {playerSlot} resumed the match");
+		_resumeCountdownRemaining = ResumeCountdownSeconds;
+		_log.Write($"player {playerSlot} asked for the match to resume; it resumes in {ResumeCountdownSeconds} second(s)");
 
-		BroadcastPauseState(playerSlot);
+		BroadcastPauseState();
+		SendPauseAllowance(peerId, string.Empty);
+	}
+
+	private void ResumeMatch(string reason)
+	{
+		if (!_paused) return;
+
+		_paused = false;
+		_pausedByPlayerSlot = -1;
+		_resumeCountdownRemaining = 0;
+		_log.Write(reason);
+
+		BroadcastPauseState();
+	}
+
+	private int PausesRemainingFor(int playerSlot)
+	{
+		if (playerSlot < 0 || playerSlot >= _pausesRemainingPerPlayerSlot.Length) return 0;
+		return _pausesRemainingPerPlayerSlot[playerSlot];
+	}
+
+	private int CooldownSecondsRemaining(int playerSlot)
+	{
+		if (playerSlot < 0 || playerSlot >= _pauseCooldownEndsAtSeconds.Length) return 0;
+
+		double remaining = _pauseCooldownEndsAtSeconds[playerSlot] - _lastTickSeconds;
+		return remaining <= 0 ? 0 : (int)Math.Ceiling(remaining);
+	}
+
+	private void ResetPauseAllowances()
+	{
+		for (int slot = 0; slot < _pausesRemainingPerPlayerSlot.Length; slot++)
+		{
+			_pausesRemainingPerPlayerSlot[slot] = PausesPerPlayerPerMatch;
+			_pauseCooldownEndsAtSeconds[slot] = 0;
+		}
+
+		_resumeCountdownRemaining = 0;
+	}
+
+	private MatchPauseState BuildPauseState()
+	{
+		return new MatchPauseState
+		{
+			Paused = _paused,
+			RequestedByPlayer = _paused ? _pausedByPlayerSlot : -1,
+			ResumeCountdownSeconds = _paused && _resumeCountdownRemaining > 0 ? (int)Math.Ceiling(_resumeCountdownRemaining) : 0
+		};
 	}
 
 	private void SendPauseState(int peerId) =>
-		_transport.Send(peerId, NetworkFrameKind.MatchPaused, MemoryPackSerializer.Serialize(new MatchPauseState { Paused = _paused, RequestedByPlayer = -1 }));
+		_transport.Send(peerId, NetworkFrameKind.MatchPaused, MemoryPackSerializer.Serialize(BuildPauseState()));
 
-	private void BroadcastPauseState(int requestedByPlayer)
+	/// <summary>
+	///     Tells one player what it may still do about pausing, and why the pause it just asked for was refused when it was.
+	/// </summary>
+	/// <param name="peerId">The peer being answered.</param>
+	/// <param name="rejection">Why a pause was refused, or empty when it was not.</param>
+	private void SendPauseAllowance(int peerId, string rejection)
+	{
+		if (!_seatedPeers.TryGetValue(peerId, out int playerSlot)) return;
+
+		var allowance = new MatchPauseAllowance
+		{
+			PausesRemaining = PausesRemainingFor(playerSlot),
+			CooldownSecondsRemaining = CooldownSecondsRemaining(playerSlot),
+			Rejection = rejection ?? string.Empty
+		};
+
+		_transport.Send(peerId, NetworkFrameKind.PauseAllowance, MemoryPackSerializer.Serialize(allowance));
+	}
+
+	private void BroadcastPauseState()
 	{
 		if (_seatedPeers.Count == 0) return;
 
-		var state = new MatchPauseState { Paused = _paused, RequestedByPlayer = requestedByPlayer };
-		byte[] payload = MemoryPackSerializer.Serialize(state);
+		byte[] payload = MemoryPackSerializer.Serialize(BuildPauseState());
 
 		int[] peerIds = new int[_seatedPeers.Count];
 		_seatedPeers.Keys.CopyTo(peerIds, 0);

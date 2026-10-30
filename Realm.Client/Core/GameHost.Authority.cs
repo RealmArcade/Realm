@@ -32,6 +32,7 @@ public partial class GameHost
 		session.PresentationReceived += QueuePresentation;
 		session.NavMeshObstaclesReceived += ApplyNavMeshObstacles;
 		session.PauseStateReceived += ApplyMatchPause;
+		session.PauseAllowanceReceived += ApplyPauseAllowance;
 		session.CommandAnswered += ApplyCommandOutcome;
 		session.LatencyProbeAnswered += GameContext.NetworkLatencyService.OnResponse;
 		session.ServerLost += ReportAuthorityLost;
@@ -54,6 +55,7 @@ public partial class GameHost
 		if (session.LatestNavMeshObstacles is { } obstacles) ApplyNavMeshObstacles(obstacles);
 		else AwaitAuthoritativeObstacleVolumes();
 		if (session.LatestPauseState is { } pause) ApplyMatchPause(pause);
+		if (session.LatestPauseAllowance is { } allowance) ApplyPauseAllowance(allowance);
 	}
 
 	public void EndJoinedMatch()
@@ -163,8 +165,27 @@ public partial class GameHost
 
 		network.IsPaused = state.Paused;
 		network.PausedByPlayerIndex = state.Paused ? state.RequestedByPlayer : -1;
+		network.PauseResumeCountdownSeconds = state.Paused ? state.ResumeCountdownSeconds : 0;
 		network.NoteAuthorityAlive();
 		UpdatePauseUI();
+	}
+
+	private void ApplyPauseAllowance(MatchPauseAllowance allowance)
+	{
+		var network = GameContext.NetworkService;
+		if (network == null) return;
+
+		network.RemainingPauses = allowance.PausesRemaining;
+		network.PauseCooldownSecondsRemaining = allowance.CooldownSecondsRemaining;
+		UpdatePauseUI();
+
+		if (string.IsNullOrEmpty(allowance.Rejection)) return;
+
+		string message = allowance.Rejection == MatchPauseAllowance.RefusalExhausted
+			? TranslationServer.Translate("Every pause this player is allowed this match has been used")
+			: string.Format(TranslationServer.Translate("A pause is only available again in {0} second(s)"), allowance.CooldownSecondsRemaining);
+
+		GameContext.InGameHud?.ShowFeedbackText(message, new Color(0.9f, 0.7f, 0.2f));
 	}
 
 	private void QueuePresentation(PresentationMessage message)

@@ -64,6 +64,12 @@ public class NetworkService
 
 	public int PausedByPlayerIndex { get; set; } = -1;
 
+	public int PauseResumeCountdownSeconds { get; set; }
+
+	public int RemainingPauses { get; set; } = 3;
+
+	public int PauseCooldownSecondsRemaining { get; set; }
+
 	public void RemoveClientToServerMapping(int localEntityId)
 	{
 		ForgetReferencesHeldBy(localEntityId);
@@ -86,6 +92,9 @@ public class NetworkService
 	{
 		IsPaused = false;
 		PausedByPlayerIndex = -1;
+		PauseResumeCountdownSeconds = 0;
+		RemainingPauses = 3;
+		PauseCooldownSecondsRemaining = 0;
 		_pendingUnitSpawns.Clear();
 		_pendingUnitKills.Clear();
 		_pendingUnitDespawns.Clear();

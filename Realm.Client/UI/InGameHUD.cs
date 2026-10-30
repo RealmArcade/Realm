@@ -388,7 +388,73 @@ public partial class InGameHUD : Control
 			};
 		}
 
+		SetupPauseMatchButton();
 		SetupQuitMatchButton();
+	}
+
+	private Button _btnPauseMatch;
+
+	/// <summary>
+	///     The pause control every player has: it asks the match to hold where it is, and while the match is held it asks
+	///     for the resume countdown that belongs to everyone. What a player is still allowed to ask for is the match's
+	///     answer, so the button reports the match's state rather than deciding anything itself.
+	/// </summary>
+	private void SetupPauseMatchButton()
+	{
+		if (_btnSettings == null) return;
+
+		_btnPauseMatch = new Button();
+		_btnPauseMatch.Name = "BtnPauseMatch";
+		_btnPauseMatch.Set("icon_max_width", 0);
+		_btnPauseMatch.Text = UnicodeIcons.PAUSE;
+		_btnPauseMatch.CustomMinimumSize = new Vector2(32, 32);
+		_btnPauseMatch.SizeFlagsVertical = SizeFlags.ShrinkCenter;
+		_btnPauseMatch.FocusMode = FocusModeEnum.None;
+		Font pauseIconFont = UIStyle.FontAwesome;
+		if (pauseIconFont != null)
+		{
+			_btnPauseMatch.AddThemeFontOverride("font", pauseIconFont);
+		}
+
+		_btnPauseMatch.AddThemeFontSizeOverride("font_size", 16);
+		_btnPauseMatch.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
+		_btnPauseMatch.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
+		_btnPauseMatch.AddThemeColorOverride("font_pressed_color", UIStyle.ColorCyanGlow);
+		_btnPauseMatch.AddThemeColorOverride("font_focus_color", UIStyle.ColorGoldDull);
+		_btnPauseMatch.AddThemeStyleboxOverride("normal", UIStyle.CreateHUDButtonStyle(false, false));
+		_btnPauseMatch.AddThemeStyleboxOverride("hover", UIStyle.CreateHUDButtonStyle(true, false));
+		_btnPauseMatch.AddThemeStyleboxOverride("pressed", UIStyle.CreateHUDButtonStyle(false, true));
+		_btnPauseMatch.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		_btnPauseMatch.TooltipText = TranslationServer.Translate("Pause Match [P]");
+		_btnPauseMatch.Pressed += OnPauseMatchButtonPressed;
+		_btnPauseMatch.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
+
+		var resourceRow = _btnSettings.GetParent();
+		resourceRow.AddChild(_btnPauseMatch);
+		resourceRow.MoveChild(_btnPauseMatch, _btnSettings.GetIndex());
+	}
+
+	private void OnPauseMatchButtonPressed()
+	{
+		GameContext.UserInterface?.PlayClickSound();
+		GameContext.Host?.TogglePauseRequest();
+	}
+
+	private void RefreshPauseMatchButton()
+	{
+		if (_btnPauseMatch == null || !GodotObject.IsInstanceValid(_btnPauseMatch)) return;
+
+		var network = GameContext.NetworkService;
+		bool paused = network != null && network.IsPaused;
+
+		_btnPauseMatch.Text = paused ? UnicodeIcons.PLAY : UnicodeIcons.PAUSE;
+		_btnPauseMatch.TooltipText = paused
+			? TranslationServer.Translate("Resume Match [P]")
+			: string.Format(TranslationServer.Translate("Pause Match [P] - {0} pause(s) left this match"), network?.RemainingPauses ?? 0);
+
+		// The cooldown is deliberately left to the authority: the button that could tell a player it is still recharging is
+		// the one it has to press to be told, so only a player with nothing left to spend is stopped here.
+		_btnPauseMatch.Disabled = !paused && network != null && network.RemainingPauses <= 0;
 	}
 
 	private void SetupQuitMatchButton()
@@ -2518,19 +2584,34 @@ public partial class InGameHUD : Control
 	private PanelContainer _pausePanel;
 	private VBoxContainer _pausePlayerListContainer;
 	private Label _pauseTitleLabel;
+	private Button _pauseResumeButton;
 
 	public void UpdatePauseUI()
 	{
 		if (GameContext.Host == null) return;
 		if (_pausePanel == null) BuildPausePanel();
 
+		RefreshPauseMatchButton();
+
 		_pausePanel.Visible = GameContext.NetworkService.IsPaused;
 		if (!GameContext.NetworkService.IsPaused) return;
 
 		UpdatePauseTitle();
+		UpdatePauseResumeButton();
 
 		ClearPausePlayerList();
 		UpdatePausePlayerList();
+	}
+
+	private void UpdatePauseResumeButton()
+	{
+		if (_pauseResumeButton == null) return;
+
+		int countdown = GameContext.NetworkService.PauseResumeCountdownSeconds;
+		_pauseResumeButton.Disabled = countdown > 0;
+		_pauseResumeButton.Text = countdown > 0
+			? string.Format(TranslationServer.Translate("RESUMING IN {0}"), countdown)
+			: TranslationServer.Translate("RESUME FOR EVERYONE");
 	}
 
 	private void ClearPausePlayerList()
@@ -2540,6 +2621,13 @@ public partial class InGameHUD : Control
 
 	private void UpdatePauseTitle()
 	{
+		int countdown = GameContext.NetworkService.PauseResumeCountdownSeconds;
+		if (countdown > 0)
+		{
+			_pauseTitleLabel.Text = string.Format(TranslationServer.Translate("Resuming in {0}"), countdown);
+			return;
+		}
+
 		int pausedByPlayer = GameContext.NetworkService.PausedByPlayerIndex;
 		string pausedByName = ResolvePlayerName(pausedByPlayer);
 
@@ -2623,6 +2711,23 @@ public partial class InGameHUD : Control
 		_pausePlayerListContainer.Name = "PausePlayerListContainer_VBoxContainer";
 		_pausePlayerListContainer.AddThemeConstantOverride("separation", 10);
 		scroll.AddChild(_pausePlayerListContainer);
+
+		_pauseResumeButton = new Button();
+		_pauseResumeButton.Name = "PauseResumeButton";
+		_pauseResumeButton.Text = TranslationServer.Translate("RESUME FOR EVERYONE");
+		_pauseResumeButton.CustomMinimumSize = new Vector2(0, 34);
+		_pauseResumeButton.AddThemeStyleboxOverride("normal", UIStyle.CreateHUDButtonStyle(false, false));
+		_pauseResumeButton.AddThemeStyleboxOverride("hover", UIStyle.CreateHUDButtonStyle(true, false));
+		_pauseResumeButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateHUDButtonStyle(false, true));
+		_pauseResumeButton.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		_pauseResumeButton.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
+		_pauseResumeButton.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
+		_pauseResumeButton.Pressed += () =>
+		{
+			GameContext.UserInterface?.PlayClickSound();
+			GameContext.Host?.TogglePauseRequest();
+		};
+		mainVBox.AddChild(_pauseResumeButton);
 
 		AddChild(_pausePanel);
 	}

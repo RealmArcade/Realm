@@ -158,7 +158,11 @@ public class ClientServerSession : IDisposable
 
 	public event Action<MatchPauseState>? PauseStateReceived;
 
+	public event Action<MatchPauseAllowance>? PauseAllowanceReceived;
+
 	public MatchPauseState? LatestPauseState { get; private set; }
+
+	public MatchPauseAllowance? LatestPauseAllowance { get; private set; }
 
 	public event Action<ChatLine>? ChatReceived;
 
@@ -700,6 +704,14 @@ public class ClientServerSession : IDisposable
 				MatchPauseState state = MemoryPackSerializer.Deserialize<MatchPauseState>(payload);
 				LatestPauseState = state;
 				PauseStateReceived?.Invoke(state);
+				break;
+			}
+
+			case NetworkFrameKind.PauseAllowance:
+			{
+				MatchPauseAllowance allowance = MemoryPackSerializer.Deserialize<MatchPauseAllowance>(payload);
+				LatestPauseAllowance = allowance;
+				PauseAllowanceReceived?.Invoke(allowance);
 				break;
 			}
 
