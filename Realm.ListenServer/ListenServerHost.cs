@@ -1406,7 +1406,7 @@ public class ListenServerHost : IServerTransportSink
 		SnapshotRepairRequest request;
 		try
 		{
-			request = MemoryPackSerializer.Deserialize<SnapshotRepairRequest>(payload.ToArray());
+			request = MemoryPackSerializer.Deserialize<SnapshotRepairRequest>(payload);
 		}
 		catch (Exception exception) when (exception is IOException or InvalidDataException or ArgumentException)
 		{
@@ -1486,7 +1486,7 @@ public class ListenServerHost : IServerTransportSink
 		SnapshotAck ack;
 		try
 		{
-			ack = MemoryPackSerializer.Deserialize<SnapshotAck>(payload.ToArray());
+			ack = MemoryPackSerializer.Deserialize<SnapshotAck>(payload);
 		}
 		catch (Exception exception) when (exception is IOException or InvalidDataException or ArgumentException)
 		{
@@ -1631,7 +1631,7 @@ public class ListenServerHost : IServerTransportSink
 		NetworkCommand command;
 		try
 		{
-			command = MemoryPackSerializer.Deserialize<NetworkCommand>(payload.ToArray());
+			command = MemoryPackSerializer.Deserialize<NetworkCommand>(payload);
 		}
 		catch (Exception exception) when (exception is IOException or InvalidDataException or ArgumentException)
 		{
@@ -1722,7 +1722,7 @@ public class ListenServerHost : IServerTransportSink
 		MatchPauseState request;
 		try
 		{
-			request = MemoryPackSerializer.Deserialize<MatchPauseState>(payload.ToArray());
+			request = MemoryPackSerializer.Deserialize<MatchPauseState>(payload);
 		}
 		catch (Exception exception) when (exception is IOException or InvalidDataException or ArgumentException)
 		{

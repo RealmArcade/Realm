@@ -691,23 +691,14 @@ public class AuthoritativeSnapshotBuilder
 			_descriptions.SetComponentPayload(tick, entity.Id, codecIndex, payload);
 		}
 
-		byte[]? previous = isBaseline ? null : held.SentPayloads[codecIndex];
-		if (previous != null)
-		{
-			if (previous.AsSpan().SequenceEqual(payload)) return true;
+		// The buffer this peer was last told about the component in is written into again rather than replaced. It holds what
+		// this description sends and it is what the next description compares against, so a baseline - which states every
+		// unit and every component - allocates nothing for a peer that has already been described once.
+		byte[]? previous = held.SentPayloads[codecIndex];
+		bool reusable = previous != null && previous.Length == codec.SizeInBytes;
+		if (!isBaseline && reusable && previous!.AsSpan().SequenceEqual(payload)) return true;
 
-			payload.CopyTo(previous);
-			snapshot.ComponentDeltas.Add(new ComponentDelta
-			{
-				Key = entity.Id,
-				ComponentTypeId = codec.ComponentTypeId,
-				Scope = (byte)ReplicatedScope.Unit,
-				Bytes = previous
-			});
-			return true;
-		}
-
-		var bytes = new byte[codec.SizeInBytes];
+		byte[] bytes = reusable ? previous! : new byte[codec.SizeInBytes];
 		payload.CopyTo(bytes);
 		held.SentPayloads[codecIndex] = bytes;
 
@@ -755,22 +746,11 @@ public class AuthoritativeSnapshotBuilder
 		}
 
 		var deltaKey = (scope, key, codec.ComponentTypeId);
-		if (!isBaseline && state.SentComponents.TryGetValue(deltaKey, out byte[]? previous))
-		{
-			if (previous.AsSpan().SequenceEqual(scratch)) return true;
+		state.SentComponents.TryGetValue(deltaKey, out byte[]? previous);
+		bool reusable = previous != null && previous.Length == codec.SizeInBytes;
+		if (!isBaseline && reusable && previous!.AsSpan().SequenceEqual(scratch)) return true;
 
-			scratch.CopyTo(previous);
-			snapshot.ComponentDeltas.Add(new ComponentDelta
-			{
-				Key = key,
-				ComponentTypeId = codec.ComponentTypeId,
-				Scope = scope,
-				Bytes = previous
-			});
-			return true;
-		}
-
-		var bytes = new byte[codec.SizeInBytes];
+		byte[] bytes = reusable ? previous! : new byte[codec.SizeInBytes];
 		scratch.CopyTo(bytes);
 		state.SentComponents[deltaKey] = bytes;
 
