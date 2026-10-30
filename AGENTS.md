@@ -119,6 +119,7 @@ The client renders the authority's own timeline. It does not simulate or predict
 - For fast lookup during queries without breaking the PURE DATA PRINCIPLE, do not put Godot Nodes inside components. Instead, map the relationship using unique entity IDs, or look up corresponding visual nodes via a managed registry outside the ECS system arrays.
 - Don't write unit or integration tests unless explicitly instructed to do so.
 - Always compile code after making changes to ensure there are no errors.
+- Do not code backwards compatability of fallbacks when adding new features or refactoring, it is the map author's responsibility to upgrade to the latest format (with the help of `MapUpgradeService`) and old maps can continue to be played on old game builds.
 
 ## Test CLI example
 dotnet test Realm.Client.Tests/Realm.Client.Tests.csproj -e GODOT_BIN="C:\Program Files\Godot_v4.7-stable_mono_win64\Godot_v4.7-stable_mono_win64.exe" --filter "FullyQualifiedName~Realm.Client.Tests.MapEditorUxTests.TestCustomWeaponProjectileLayersAndVisualRendering"
