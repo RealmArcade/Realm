@@ -376,27 +376,8 @@ public class AudioService
 		return new Basis(right, correctedUp, -forward);
 	}
 
-	public void EnableCameraListener()
-	{
-		_followCameraListener = true;
-
-		Node3D? camera = GameContext.Host?.MainCamera;
-		if (camera != null && GodotObject.IsInstanceValid(camera))
-		{
-			ApplyListenerTransform(camera.GlobalTransform);
-		}
-	}
-
 	public AudioListener GetAudioListener()
 	{
-		if (!_followCameraListener) return _listener;
-
-		Node3D? camera = GameContext.Host?.MainCamera;
-		if (camera != null && GodotObject.IsInstanceValid(camera))
-		{
-			ApplyListenerTransform(camera.GlobalTransform);
-		}
-
 		return _listener;
 	}
 
