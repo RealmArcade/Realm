@@ -64,6 +64,7 @@ public class ListenServerHost : IServerTransportSink
 	private const int SnapshotRefreshStallTicks = MatchTiming.SimulationTickRateHz * 3;
 	private readonly Dictionary<int, int> _obstacleSignaturePerPeer = new();
 	private readonly int[] _seatedPeerIds = new int[EcsWorld.MAX_PLAYERS];
+	private readonly int[] _peersOwedObstacleVolumes = new int[EcsWorld.MAX_PLAYERS];
 	private readonly List<PresentationMessage> _statePresentationBatch = new();
 	private readonly List<PresentationMessage> _momentPresentationBatch = new();
 	private readonly WorldSnapshot[] _publishedSnapshots = new WorldSnapshot[EcsWorld.MAX_PLAYERS];
@@ -1408,11 +1409,20 @@ public class ListenServerHost : IServerTransportSink
 		return true;
 	}
 
+	/// <summary>
+	///     The slot this peer's description is kept in. It is found by walking the seats in the order they are numbered,
+	///     which is the order a publish numbers them, rather than by reading the array a publish filled: a seat taken or
+	///     given up between two publishes leaves that array describing a different set of peers than the one this is asking
+	///     about, and answering with the wrong peer's slot hands one screen another's description.
+	/// </summary>
 	private int FindSeatedPeerIndex(int peerId)
 	{
-		for (int index = 0; index < _seatedPeers.Count && index < _seatedPeerIds.Length; index++)
+		int index = 0;
+		foreach (int seatedPeerId in _seatedPeers.Keys)
 		{
-			if (_seatedPeerIds[index] == peerId) return index;
+			if (index >= _seatedPeerIds.Length) return -1;
+			if (seatedPeerId == peerId) return index;
+			index++;
 		}
 
 		return -1;
@@ -1744,10 +1754,10 @@ public class ListenServerHost : IServerTransportSink
 		int staleCount = 0;
 		foreach (int seatedPeerId in _seatedPeers.Keys)
 		{
-			if (staleCount == _seatedPeerIds.Length) break;
+			if (staleCount == _peersOwedObstacleVolumes.Length) break;
 			if (_obstacleSignaturePerPeer.TryGetValue(seatedPeerId, out int sentSignature) && sentSignature == signature) continue;
 
-			_seatedPeerIds[staleCount++] = seatedPeerId;
+			_peersOwedObstacleVolumes[staleCount++] = seatedPeerId;
 		}
 
 		if (staleCount == 0) return;
@@ -1755,8 +1765,8 @@ public class ListenServerHost : IServerTransportSink
 		byte[] payload = MemoryPackSerializer.Serialize(volumes);
 		for (int index = 0; index < staleCount; index++)
 		{
-			_obstacleSignaturePerPeer[_seatedPeerIds[index]] = signature;
-			_transport.Send(_seatedPeerIds[index], NetworkFrameKind.NavMeshObstacles, payload);
+			_obstacleSignaturePerPeer[_peersOwedObstacleVolumes[index]] = signature;
+			_transport.Send(_peersOwedObstacleVolumes[index], NetworkFrameKind.NavMeshObstacles, payload);
 		}
 
 		_log.Write($"the match now paths with {count} obstacle volumes; {staleCount} peer(s) were given the new set");
