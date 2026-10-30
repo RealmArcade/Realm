@@ -14,6 +14,12 @@ public enum SnapshotBaselineReason
 	Safety
 }
 
+/// <summary>
+///     One file a traffic report is made of. The report is rendered where the recorder's counters are, and written by
+///     whichever lane was given the files, so rendering and storing are separable.
+/// </summary>
+public sealed record SnapshotReportFile(string FileName, string Contents);
+
 public class SnapshotTrafficRecorder
 {
 	private readonly Dictionary<int, PeerTraffic> _peers = new();
@@ -129,10 +135,8 @@ public class SnapshotTrafficRecorder
 		_lastPhysicsFrame = physicsFrame;
 	}
 
-	public void WriteReport(string folder, double elapsedGameSeconds, int configuredPhysicsRateHz)
+	public SnapshotReportFile[] BuildReport(double elapsedGameSeconds, int configuredPhysicsRateHz)
 	{
-		Directory.CreateDirectory(folder);
-
 		double duration = Math.Max(0.001, elapsedGameSeconds);
 		StringBuilder text = new();
 		StringBuilder json = new();
@@ -235,23 +239,18 @@ public class SnapshotTrafficRecorder
 		json.Append(",\"configuredPhysicsRate\":").Append(configuredPhysicsRateHz);
 		json.Append('}');
 
-		WriteAtomically(Path.Combine(folder, "bandwidth_report.txt"), text.ToString());
-		WriteAtomically(Path.Combine(folder, "bandwidth_report.json"), json.ToString());
-
 		StringBuilder coverage = new();
 		foreach (KeyValuePair<int, List<int>> entry in _sentSequencesByPeer)
 		{
 			for (int index = 0; index < entry.Value.Count; index++) coverage.Append(entry.Key).Append(' ').Append(entry.Value[index]).Append('\n');
 		}
 
-		WriteAtomically(Path.Combine(folder, "host_sent_sequences.txt"), coverage.ToString());
-	}
-
-	private static void WriteAtomically(string path, string contents)
-	{
-		string temporaryPath = path + ".tmp";
-		File.WriteAllText(temporaryPath, contents);
-		File.Move(temporaryPath, path, overwrite: true);
+		return
+		[
+			new SnapshotReportFile("bandwidth_report.txt", text.ToString()),
+			new SnapshotReportFile("bandwidth_report.json", json.ToString()),
+			new SnapshotReportFile("host_sent_sequences.txt", coverage.ToString())
+		];
 	}
 
 	private static string Format(double value, string format) => value.ToString(format, CultureInfo.InvariantCulture);

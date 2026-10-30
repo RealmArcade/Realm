@@ -93,5 +93,6 @@ public class ServerMapScript : IDisposable
 
 		if (GameAPI.Current == _api) GameAPI.Current = null!;
 		_host?.Dispose();
+		_api.Dispose();
 	}
 }

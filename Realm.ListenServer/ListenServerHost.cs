@@ -166,14 +166,16 @@ public class ListenServerHost : IServerTransportSink
 	private Action<string>? _scriptLogSink;
 	private AuthoritySyncRecorder? _syncRecorder;
 	private SnapshotTrafficRecorder? _trafficRecorder;
+	private ServerReportWriter? _reportWriter;
 
-	private void WriteTrafficReport()
+	private void QueueTrafficReport()
 	{
 		SnapshotTrafficRecorder? recorder = _trafficRecorder;
-		if (recorder == null) return;
+		ServerReportWriter? writer = _reportWriter;
+		if (recorder == null || writer == null) return;
 
 		double recordedSeconds = (_simulation?.TickCount ?? 0) * MatchTiming.FixedTickSeconds;
-		recorder.WriteReport(_arguments.RecordAuthorityPath, recordedSeconds, MatchTiming.SimulationTickRateHz);
+		writer.Enqueue(_arguments.RecordAuthorityPath, recorder.BuildReport(recordedSeconds, MatchTiming.SimulationTickRateHz));
 	}
 
 	private const int TrafficReportIntervalSequences = MatchTiming.SnapshotRateHz * 10;
@@ -250,6 +252,7 @@ public class ListenServerHost : IServerTransportSink
 				_syncRecorder = new AuthoritySyncRecorder(map, _arguments.RecordAuthorityPath, out string syncRecordPath);
 				_log.Write($"this match records the world it publishes into '{syncRecordPath}'");
 				_trafficRecorder = new SnapshotTrafficRecorder();
+				_reportWriter = new ServerReportWriter();
 			}
 
 			IsRunning = true;
@@ -492,7 +495,7 @@ public class ListenServerHost : IServerTransportSink
 		if (_readyAnnounced) _log.Write($"the command rate limit refused {_rateLimitedCommandCount} command(s)");
 		if (_readyAnnounced) _log.Write($"snapshots: {_unreliableSnapshotCount} carried as deltas on the current stream, {_reliableSnapshotCount} carried in order, {_fragmentedSnapshotCount} split across datagrams");
 
-		WriteTrafficReport();
+		QueueTrafficReport();
 
 		_seatedPeers.Clear();
 		_connectedPeers.Clear();
@@ -514,7 +517,7 @@ public class ListenServerHost : IServerTransportSink
 		Stop();
 		_transport.Dispose();
 
-		WriteTrafficReport();
+		QueueTrafficReport();
 
 		_simulation?.Dispose();
 		_simulation = null;
@@ -527,6 +530,9 @@ public class ListenServerHost : IServerTransportSink
 
 		_syncRecorder?.Dispose();
 		_syncRecorder = null;
+
+		_reportWriter?.Dispose();
+		_reportWriter = null;
 
 		if (_scriptLogSink != null)
 		{
@@ -1103,7 +1109,7 @@ public class ListenServerHost : IServerTransportSink
 
 		_syncRecorder?.EndSequence();
 
-		if (_trafficRecorder != null && sequence % TrafficReportIntervalSequences == 0) WriteTrafficReport();
+		if (_trafficRecorder != null && sequence % TrafficReportIntervalSequences == 0) QueueTrafficReport();
 
 		if (presentation.Length > 0) SendPresentation(peerCount, presentation);
 	}

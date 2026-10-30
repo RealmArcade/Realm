@@ -15,7 +15,7 @@ using Realm.MapAPI;
 
 namespace Realm.ListenServer;
 
-public partial class ServerGameAPI : IGameAPI
+public partial class ServerGameAPI : IGameAPI, IDisposable
 {
 	private readonly SimulationContext _context;
 	private readonly LoadedMap _map;
@@ -51,6 +51,8 @@ public partial class ServerGameAPI : IGameAPI
 		_collectOwnedUnits = CollectOwnedUnits;
 		_collectResourceNodes = CollectResourceNodes;
 	}
+
+	public void Dispose() => _savedData.Dispose();
 
 	public EcsWorld World => _context.World;
 
