@@ -215,7 +215,13 @@ public partial class SnapshotTimelineTests
 		for (int tick = 0; tick < 30; tick++) timeline.Advance(Step());
 
 		Assertions.AssertThat(timeline.StarvationCount > 0).OverrideFailureMessage("advancing through a world nothing describes never ran out").IsTrue();
-		Assertions.AssertThat(timeline.DelaySequences).OverrideFailureMessage($"a link that starves every window held a delay of only {timeline.DelaySequences}").IsEqual(SnapshotTimeline.MaximumDelaySequences);
+
+		// A link that has not measured itself yet is held to the depth a match was fixed at, so that is the ceiling such a
+		// window can reach: a screen cannot know how deep a link needs to be held before it has been told how long it is.
+		Assertions.AssertThat(timeline.DelaySequences > SnapshotTimeline.MinimumDelaySequences)
+			.OverrideFailureMessage($"a link that starves every window never deepened past {timeline.DelaySequences}").IsTrue();
+		Assertions.AssertThat(timeline.DelaySequences).OverrideFailureMessage($"a link that starves every window held a delay of only {timeline.DelaySequences} where its ceiling is {timeline.DelayCeilingSequences}")
+			.IsEqual(timeline.DelayCeilingSequences);
 	}
 
 	[TestCase]

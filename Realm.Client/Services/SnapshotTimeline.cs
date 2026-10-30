@@ -45,6 +45,14 @@ public class SnapshotTimeline
 
 	private const float DefaultFrameDeltaSeconds = 1f / 60f;
 
+	/// <summary>
+	///     The fraction of the time a run of descriptions was published over that it may arrive in and still count as a
+	///     burst. A run the world arrived through at more than twice the rate it was written at was produced by the process
+	///     publishing it, or by this screen not reading for a moment, rather than by the link: a deeper buffer brings a
+	///     stalled publisher no closer and a screen that stopped reading its own pause no closer either.
+	/// </summary>
+	private const float ArrivalBurstFraction = 0.5f;
+
 	public const float MaximumExtrapolationMeters = 0.75f;
 
 	private readonly Vector3[] _positions = new Vector3[EcsWorld.MAX_ENTITIES * SamplesPerUnit];
@@ -58,6 +66,14 @@ public class SnapshotTimeline
 
 	private float _frameDeltaSeconds = DefaultFrameDeltaSeconds;
 
+	/// <summary>
+	///     How long this screen has been drawing, which is the clock a run of descriptions is measured against. It is a
+	///     render clock rather than a wall clock because a frame that took a while is the stall this is trying to tell
+	///     apart from a link that is late.
+	/// </summary>
+	private double _timelineSeconds;
+	private double _lastArrivalTimelineSeconds;
+
 	private float _cursor = -1f;
 	private float _evaluationSeconds;
 	private int _cleanWindowsInARow;
@@ -66,6 +82,14 @@ public class SnapshotTimeline
 	private int _lateStarvationsInWindow;
 	private int _largestStallGapInWindow;
 	private int _delaySequences = MinimumDelaySequences;
+
+	/// <summary>
+	///     The depth this link was measured to need, which is its trip in one direction plus the variation around it. Depth
+	///     is only ever given back down to this and no further: a link that varies keeps the room its variation needs, and
+	///     one measured on a quiet minute does not have to discover its jitter again by stalling.
+	/// </summary>
+	private int _delayTargetSequences = MinimumDelaySequences;
+
 	private int _delayFloorSequences = MinimumDelaySequences;
 	private int _delayCeilingSequences = InitialCeilingSequences;
 	private bool _isStarved;
@@ -103,7 +127,10 @@ public class SnapshotTimeline
 		Array.Fill(_orderClearedAt, int.MaxValue);
 		_cursor = -1f;
 		NewestSequence = -1;
+		_timelineSeconds = 0d;
+		_lastArrivalTimelineSeconds = 0d;
 		_delaySequences = MinimumDelaySequences;
+		_delayTargetSequences = MinimumDelaySequences;
 		_delayFloorSequences = MinimumDelaySequences;
 		_delayCeilingSequences = InitialCeilingSequences;
 		_isStarved = false;
@@ -190,14 +217,27 @@ public class SnapshotTimeline
 	{
 		if (sequence <= NewestSequence) return;
 
+		int arrivalGap = NewestSequence >= 0 ? sequence - NewestSequence : 1;
+		double publishedSpan = arrivalGap * MatchTiming.SnapshotIntervalSeconds;
+		double elapsedSpan = NewestSequence >= 0 ? _timelineSeconds - _lastArrivalTimelineSeconds : publishedSpan;
+		_lastArrivalTimelineSeconds = _timelineSeconds;
+
 		// The gap a window records decides how it deepens the buffer, and a lost description is not lateness: a datagram
 		// that did not arrive cannot be buffered back, and counting it as lateness ratcheted the delay to its ceiling on a
 		// link that was only dropping the occasional frame.
+		//
+		// A run that arrived faster than it was written is the same story with a different cause: a process that stepped
+		// several ticks in one call, or a screen that stopped reading for a moment and then drained what it had been sent.
+		// Both look exactly like a link that fell behind, and neither is fixed by holding the cursor further back.
 		if (NewestSequence >= 0 && _starvationsSinceArrival > 0)
 		{
-			int arrivalGap = sequence - NewestSequence;
-			if (arrivalGap <= 1) _lateStarvationsInWindow += _starvationsSinceArrival;
-			else if (arrivalGap >= 3 && arrivalGap - 1 > _largestStallGapInWindow) _largestStallGapInWindow = arrivalGap - 1;
+			bool arrivedAsABurst = elapsedSpan < publishedSpan * ArrivalBurstFraction;
+			if (!arrivedAsABurst)
+			{
+				if (arrivalGap <= 1) _lateStarvationsInWindow += _starvationsSinceArrival;
+				else if (arrivalGap >= 3 && arrivalGap - 1 > _largestStallGapInWindow) _largestStallGapInWindow = arrivalGap - 1;
+			}
+
 			_starvationsSinceArrival = 0;
 		}
 
@@ -209,6 +249,8 @@ public class SnapshotTimeline
 	{
 		// The lead a confirmed order draws is eased per second, so the frame's own step is what the sample below is told.
 		if (delta > 0f && delta < 0.5f) _frameDeltaSeconds = delta;
+
+		_timelineSeconds += delta;
 
 		if (!(delta > 0f) || NewestSequence < 0) return;
 
@@ -280,7 +322,7 @@ public class SnapshotTimeline
 			if (_shallowestSurplusInWindow >= _delaySequences * ShallowSurplusFraction) _cleanWindowsInARow++;
 			else _cleanWindowsInARow = 0;
 
-			if (_cleanWindowsInARow >= ShallowConfirmWindows && _delaySequences > _delayFloorSequences)
+			if (_cleanWindowsInARow >= ShallowConfirmWindows && _delaySequences > _delayTargetSequences)
 			{
 				_delaySequences--;
 				_cleanWindowsInARow = 0;
@@ -327,7 +369,13 @@ public class SnapshotTimeline
 		// sequences ahead, and the screen plays the match fast for as long as that takes to close.
 		_delayFloorSequences = floor;
 		_delayCeilingSequences = ceiling;
-		if (_delaySequences < floor) _delaySequences = floor;
+
+		// The depth this link needs is its trip plus the variation around it, not its trip alone. Holding only the trip
+		// meant a link that varies by two sequences stalled first and learned about it by stalling, one starvation at a
+		// time, however clearly the variation had already been measured.
+		int neededSequences = Math.Min(_delayCeilingSequences, floor + jitterSequences);
+		_delayTargetSequences = neededSequences;
+		if (_delaySequences < neededSequences) _delaySequences = neededSequences;
 	}
 
 	/// <summary>
@@ -341,6 +389,7 @@ public class SnapshotTimeline
 
 		_delayFloorSequences = MinimumDelaySequences;
 		_delayCeilingSequences = InitialCeilingSequences;
+		_delayTargetSequences = MinimumDelaySequences;
 		if (_delaySequences < MinimumDelaySequences) _delaySequences = MinimumDelaySequences;
 	}
 
