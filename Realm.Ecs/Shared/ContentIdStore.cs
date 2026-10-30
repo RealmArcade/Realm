@@ -1,8 +1,10 @@
 using System;
 using System.Buffers.Binary;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
+using System.Threading;
 
 namespace Realm.Ecs;
 
@@ -17,6 +19,12 @@ namespace Realm.Ecs;
 /// identifier from the reserved fallback range so no two values alias. Colliding payloads are reported through
 /// <see cref="CollisionCount"/> and <see cref="CollisionSummary"/> because the fallback decision is only reachable
 /// once both payloads have been registered in the same process.
+/// <para>
+/// Registration is serialized on the thread that registers, because resolving a collision has to be atomic with the
+/// lookup that found it. Reading a single entry is not: entries are immutable once stored, so they are published into a
+/// concurrent table and a snapshot lane resolves identifiers per unit per codec without ever acquiring the registration
+/// lock. Only the ordered cursor walk takes it, because that walk has to be consistent with the list it walks.
+/// </para>
 /// </remarks>
 public static class ContentIdStore
 {
@@ -60,13 +68,15 @@ public static class ContentIdStore
 	private const uint PrimaryHashSeed = 2166136261u;
 	private const uint FallbackHashSeed = 0x811C9DC5u ^ 0x5BD1E995u;
 
-	private static readonly Dictionary<int, ContentIdEntry> _entryById = new Dictionary<int, ContentIdEntry>();
+	private static readonly ConcurrentDictionary<int, ContentIdEntry> _entryById = new ConcurrentDictionary<int, ContentIdEntry>();
 	private static readonly Dictionary<string, int> _textIdByText = new Dictionary<string, int>(StringComparer.Ordinal);
 	private static readonly List<ContentIdEntry> _registeredEntries = new List<ContentIdEntry>();
 	private static readonly List<ContentIdEntry> _registeredTextEntries = new List<ContentIdEntry>();
 	private static readonly object _lock = new object();
 
 	private static int _collisionCount;
+	private static int _registeredEntryCount;
+	private static int _registeredTextEntryCount;
 	private static string _collisionSummary = string.Empty;
 
 	/// <summary>
@@ -101,31 +111,13 @@ public static class ContentIdStore
 	/// <summary>
 	/// Gets the number of entries that have been registered or received in this process, in registration order.
 	/// </summary>
-	public static int EntryCount
-	{
-		get
-		{
-			lock (_lock)
-			{
-				return _registeredEntries.Count;
-			}
-		}
-	}
+	public static int EntryCount => Volatile.Read(ref _registeredEntryCount);
 
 	/// <summary>
 	/// Gets the number of text entries that have been registered or received in this process, which is the number
 	/// of entries a peer's text cursor walks past.
 	/// </summary>
-	public static int TextEntryCount
-	{
-		get
-		{
-			lock (_lock)
-			{
-				return _registeredTextEntries.Count;
-			}
-		}
-	}
+	public static int TextEntryCount => Volatile.Read(ref _registeredTextEntryCount);
 
 	/// <summary>
 	/// Registers a text in the table and returns its stable identifier.
@@ -169,17 +161,14 @@ public static class ContentIdStore
 			return false;
 		}
 
-		lock (_lock)
+		if (_entryById.TryGetValue(id, out ContentIdEntry entry) && entry.Kind == TextKind)
 		{
-			if (_entryById.TryGetValue(id, out ContentIdEntry entry) && entry.Kind == TextKind)
-			{
-				text = entry.Text;
-				return true;
-			}
-
-			text = string.Empty;
-			return false;
+			text = entry.Text;
+			return true;
 		}
+
+		text = string.Empty;
+		return false;
 	}
 
 	/// <summary>
@@ -229,12 +218,9 @@ public static class ContentIdStore
 	{
 		if (id == 0) return 0;
 
-		lock (_lock)
-		{
-			return _entryById.TryGetValue(id, out ContentIdEntry entry) && entry.Kind == TextListKind && entry.Bytes != null
-				? ReadTextListCount(entry.Bytes)
-				: 0;
-		}
+		return _entryById.TryGetValue(id, out ContentIdEntry entry) && entry.Kind == TextListKind && entry.Bytes != null
+			? ReadTextListCount(entry.Bytes)
+			: 0;
 	}
 
 	/// <summary>
@@ -247,15 +233,12 @@ public static class ContentIdStore
 	{
 		if (id == 0 || index < 0) return 0;
 
-		lock (_lock)
-		{
-			if (!_entryById.TryGetValue(id, out ContentIdEntry entry) || entry.Kind != TextListKind || entry.Bytes == null) return 0;
+		if (!_entryById.TryGetValue(id, out ContentIdEntry entry) || entry.Kind != TextListKind || entry.Bytes == null) return 0;
 
-			int count = ReadTextListCount(entry.Bytes);
-			if (index >= count) return 0;
+		int count = ReadTextListCount(entry.Bytes);
+		if (index >= count) return 0;
 
-			return BinaryPrimitives.ReadInt32LittleEndian(entry.Bytes.AsSpan(sizeof(int) + (index * sizeof(int)), sizeof(int)));
-		}
+		return BinaryPrimitives.ReadInt32LittleEndian(entry.Bytes.AsSpan(sizeof(int) + (index * sizeof(int)), sizeof(int)));
 	}
 
 	/// <summary>
@@ -267,19 +250,16 @@ public static class ContentIdStore
 	/// <returns>True when the identifier is present in the table.</returns>
 	public static bool TryGetPayload(int id, out byte kind, out ReadOnlySpan<byte> payload)
 	{
-		lock (_lock)
+		if (_entryById.TryGetValue(id, out ContentIdEntry entry))
 		{
-			if (_entryById.TryGetValue(id, out ContentIdEntry entry))
-			{
-				kind = entry.Kind;
-				payload = entry.Bytes ?? ReadOnlySpan<byte>.Empty;
-				return true;
-			}
-
-			kind = 0;
-			payload = ReadOnlySpan<byte>.Empty;
-			return false;
+			kind = entry.Kind;
+			payload = entry.Bytes ?? ReadOnlySpan<byte>.Empty;
+			return true;
 		}
+
+		kind = 0;
+		payload = ReadOnlySpan<byte>.Empty;
+		return false;
 	}
 
 	/// <summary>
@@ -350,17 +330,14 @@ public static class ContentIdStore
 	/// <param name="kind">The kind tag of the stored payload.</param>
 	public static bool TryGetKind(int id, out byte kind)
 	{
-		lock (_lock)
+		if (_entryById.TryGetValue(id, out ContentIdEntry entry))
 		{
-			if (_entryById.TryGetValue(id, out ContentIdEntry entry))
-			{
-				kind = entry.Kind;
-				return true;
-			}
-
-			kind = 0;
-			return false;
+			kind = entry.Kind;
+			return true;
 		}
+
+		kind = 0;
+		return false;
 	}
 
 	/// <summary>
@@ -402,6 +379,8 @@ public static class ContentIdStore
 			_registeredEntries.Clear();
 			_registeredTextEntries.Clear();
 			_collisionCount = 0;
+			_registeredEntryCount = 0;
+			_registeredTextEntryCount = 0;
 			_collisionSummary = string.Empty;
 		}
 	}
@@ -527,10 +506,12 @@ public static class ContentIdStore
 	{
 		_entryById[entry.Id] = entry;
 		_registeredEntries.Add(entry);
+		Volatile.Write(ref _registeredEntryCount, _registeredEntries.Count);
 		if (entry.Kind != TextKind) return;
 
 		_textIdByText[entry.Text] = entry.Id;
 		_registeredTextEntries.Add(entry);
+		Volatile.Write(ref _registeredTextEntryCount, _registeredTextEntries.Count);
 	}
 
 	private static int ComputeTextFallbackId(string text)
