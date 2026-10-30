@@ -2193,6 +2193,7 @@ public partial class LobbyManager : BaseMapTransferNode
 	public override void _ExitTree()
 	{
 		_authHttpListener?.Stop();
+		GameContext.UnregisterLobby(this);
 	}
 
 	private static string GetLocalIPAddress()
