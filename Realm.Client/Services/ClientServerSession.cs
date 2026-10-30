@@ -79,6 +79,20 @@ public class ClientServerSession : IDisposable
 
 	private const int MaximumQueuedFrames = 256;
 
+	/// <summary>
+	///     How many descriptions one tick may apply. A tick that spent all of itself draining a backlog applied state the
+	///     screen was about to be told again anyway, and everything after the first of them was older than the world it left
+	///     behind; what is left keeps waiting for the next tick.
+	/// </summary>
+	private const int MaximumSnapshotsAppliedPerPump = 3;
+
+	/// <summary>
+	///     How many descriptions may wait to be applied before the older ones are dropped. A queue this deep is a screen
+	///     that stopped reading for a fifth of a second, and the descriptions at its front describe a world the ones behind
+	///     them already supersede.
+	/// </summary>
+	private const int MaximumQueuedDescriptionsBeforeDiscard = 6;
+
 	public bool IsRunning => TerminationReport == null && (_launcher == null ? _joined : _launcher.IsRunning);
 
 	public int LocalPeerId { get; private set; }
@@ -418,6 +432,8 @@ public class ClientServerSession : IDisposable
 
 		bool handed = false;
 
+		DiscardSupersededDescriptions();
+
 		if (_helloSent && _connectedBefore && !_channel.IsConnected)
 		{
 			_helloSent = false;
@@ -439,10 +455,14 @@ public class ClientServerSession : IDisposable
 			return false;
 		}
 
+		int snapshotsApplied = 0;
 		while (_incomingIndex < _incoming.Count)
 		{
 			QueuedFrame frame = _incoming[_incomingIndex];
+			if (frame.Kind == NetworkFrameKind.Snapshot && snapshotsApplied >= MaximumSnapshotsAppliedPerPump) break;
+
 			_incomingIndex++;
+			if (frame.Kind == NetworkFrameKind.Snapshot) snapshotsApplied++;
 
 			try
 			{
@@ -540,6 +560,34 @@ public class ClientServerSession : IDisposable
 
 		ulong arrivalMilliseconds = kind == NetworkFrameKind.LatencyProbeEcho ? Time.GetTicksMsec() : 0UL;
 		_incoming.Add(new QueuedFrame(kind, payload, arrivalMilliseconds));
+	}
+
+	/// <summary>
+	///     Keeps only the newest descriptions waiting to be applied. Nothing is repaired here: the hole the drops leave is
+	///     what tells the apply path which run of descriptions this screen is missing, and it asks for exactly that run.
+	/// </summary>
+	private void DiscardSupersededDescriptions()
+	{
+		int queuedDescriptions = 0;
+		for (int index = _incomingIndex; index < _incoming.Count; index++)
+		{
+			if (_incoming[index].Kind == NetworkFrameKind.Snapshot) queuedDescriptions++;
+		}
+
+		if (queuedDescriptions <= MaximumQueuedDescriptionsBeforeDiscard) return;
+
+		int toDiscard = queuedDescriptions - MaximumQueuedDescriptionsBeforeDiscard;
+		for (int index = _incomingIndex; index < _incoming.Count && toDiscard > 0;)
+		{
+			if (_incoming[index].Kind != NetworkFrameKind.Snapshot)
+			{
+				index++;
+				continue;
+			}
+
+			_incoming.RemoveAt(index);
+			toDiscard--;
+		}
 	}
 
 	private bool DropOldestDescription()
