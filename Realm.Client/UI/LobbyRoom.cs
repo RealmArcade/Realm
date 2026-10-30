@@ -1769,13 +1769,13 @@ public partial class LobbyRoom : Control
 	{
 		if (string.IsNullOrEmpty(text.Trim())) return;
 		_chatInput.Clear();
-		string myName = GetLocalPlayer()?.Name ?? GameContext.Lobby.AuthenticatedUsername;
+		string myName = GetLocalPlayer()?.Name ?? GameContext.Lobby.PlayerDisplayName;
 		GameContext.Lobby.SendChatMessage(myName, text);
 	}
 
 	private void OnLobbyChatReceived(string senderName, string message, bool alliesOnly, long timestampUtcTicks)
 	{
-		string myName = GetLocalPlayer()?.Name ?? GameContext.Lobby.AuthenticatedUsername;
+		string myName = GetLocalPlayer()?.Name ?? GameContext.Lobby.PlayerDisplayName;
 		string color = senderName == "System" ? "#ffd700" : (senderName == myName ? "#5cd6ff" : "#d4a0a0");
 		string timestamp = ChatPanel.FormatTimestamp(timestampUtcTicks);
 		_chatLog.Text += $"[color=#a0a0a0][{timestamp}][/color] [color={color}]{senderName}[/color]: {message}\n";

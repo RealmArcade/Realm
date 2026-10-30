@@ -204,7 +204,7 @@ public class ServerLobby
 
 	public IReadOnlyList<LobbyChatMessage> ChatHistory => _chatHistory;
 
-	public string AdmitPeer(int peerId, string name, string sessionToken, bool proveAdmin, out bool isAdmin)
+	public string AdmitPeer(int peerId, string name, long accountId, string sessionToken, bool proveAdmin, out bool isAdmin)
 	{
 		isAdmin = false;
 		if (_matchStarted) return "server_rejected_lobby_is_closed";
@@ -248,6 +248,7 @@ public class ServerLobby
 			seat = new LobbySeat
 			{
 				Slot = slot,
+				AccountId = accountId,
 				Name = DefaultName(name, slot, isAdmin),
 				Faction = Roster?.GetFactionName(0) ?? string.Empty,
 				TeamName = ResolveJoinTeamName(),
@@ -262,9 +263,10 @@ public class ServerLobby
 		}
 
 		seat.PeerId = peerId;
+		seat.AccountId = accountId;
 		seat.IsHost = isAdmin || peerId == _adminPeerId;
 		seat.IsDisconnected = false;
-		if (!string.IsNullOrWhiteSpace(name)) seat.Name = LobbyLimits.Sanitize(name, LobbyLimits.MaximumPlayerNameLength);
+		if (!string.IsNullOrWhiteSpace(name)) seat.Name = LobbyLimits.SanitizeDisplayName(name);
 		if (string.IsNullOrEmpty(seat.Name)) seat.Name = DefaultName(name, seat.Slot, seat.IsHost);
 
 		_seats[seat.Slot] = seat;
@@ -561,7 +563,7 @@ public class ServerLobby
 			return;
 		}
 
-		string name = LobbyLimits.Sanitize(command.Name, LobbyLimits.MaximumPlayerNameLength);
+		string name = LobbyLimits.SanitizeDisplayName(command.Name);
 		if (!string.IsNullOrEmpty(name)) target.Name = name;
 
 		string faction = LobbyLimits.Sanitize(command.Faction, LobbyLimits.MaximumFactionLength);
@@ -720,7 +722,7 @@ public class ServerLobby
 		var sessionSeats = new Dictionary<string, int>(_seats.Count, StringComparer.Ordinal);
 		foreach (LobbySeat seat in _seats.Values)
 		{
-			roster.Add(new MatchRosterSeat(seat.Slot, seat.Name, seat.Team, seat.TeamName, seat.IsComputer));
+			roster.Add(new MatchRosterSeat(seat.Slot, seat.AccountId, seat.Name, seat.Team, seat.TeamName, seat.IsComputer));
 			if (!seat.IsComputer && seat.SessionToken.Length > 0) sessionSeats[seat.SessionToken] = seat.Slot;
 			if (!seat.IsComputer && !seat.IsDisconnected && seat.PeerId > 0) assignments.Add((seat.PeerId, seat.Slot));
 		}
@@ -836,6 +838,7 @@ public class ServerLobby
 		var line = new LobbyChatMessage
 		{
 			SenderPeerId = sender.PeerId,
+			SenderAccountId = sender.AccountId,
 			SenderName = sender.Name,
 			Message = text,
 			TimestampUtcTicks = DateTime.UtcNow.Ticks
@@ -973,7 +976,7 @@ public class ServerLobby
 
 	private static string DefaultName(string? name, int slot, bool isHost)
 	{
-		string sanitized = LobbyLimits.Sanitize(name, LobbyLimits.MaximumPlayerNameLength);
+		string sanitized = LobbyLimits.SanitizeDisplayName(name);
 		if (sanitized.Length > 0) return sanitized;
 		return isHost ? "Host" : $"Player {slot}";
 	}

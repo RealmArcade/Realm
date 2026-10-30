@@ -1,5 +1,6 @@
 using System.Text.Json;
 using DBreeze;
+using DBreeze.Transactions;
 
 namespace Realm.AdminServer.Services;
 
@@ -94,6 +95,37 @@ public class DataStoreService : IDisposable
 		}
 
 		t.Commit();
+	}
+
+	/// <summary>
+	///     Applies a mutation across several collections in one committed transaction. A caller that moves a DisplayName from one
+	///     owner to another needs the account record, the fold index and the rename history to change together or not at all, so
+	///     the whole mutation is expressed here and the commit is the single point where it becomes visible.
+	/// </summary>
+	public bool TryMutate(string[] collections, Func<Transaction, bool> mutation)
+	{
+		using var transaction = _engine.GetTransaction();
+		transaction.SynchronizeTables(collections);
+		if (!mutation(transaction)) return false;
+
+		transaction.Commit();
+		return true;
+	}
+
+	public static T? ReadFrom<T>(Transaction transaction, string collection, string id)
+	{
+		var row = transaction.Select<string, string>(collection, id);
+		return row.Exists ? JsonSerializer.Deserialize<T>(row.Value) : default;
+	}
+
+	public static void WriteTo<T>(Transaction transaction, string collection, string id, T value)
+	{
+		transaction.Insert(collection, id, JsonSerializer.Serialize(value));
+	}
+
+	public static void RemoveFrom(Transaction transaction, string collection, string id)
+	{
+		transaction.RemoveKey(collection, id);
 	}
 
 	public void Dispose()

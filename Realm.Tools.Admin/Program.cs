@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using CommandLine;
 using Realm.Shared;
+using Realm.Shared.Accounts;
 using Realm.Shared.Distribution;
 using Realm.Shared.Metadata;
 
@@ -30,9 +31,10 @@ public static class Program
 			typeof(AdminAddMaintainerOptions),
 			typeof(AdminRemoveMaintainerOptions),
 			typeof(AdminListMaintainersOptions),
+			typeof(AdminRenameAccountOptions),
 			typeof(AdminKeygenOptions));
 
-		return Parser.Default.ParseArguments<AdminGreenlightOptions, AdminStatusOptions, AdminUnlockNameOptions, AdminInfoOptions, AdminExportEventsOptions, AdminPruneCasOptions, AdminDigestOptions, AdminSnapshotOptions, AdminRestoreSnapshotOptions, AdminRemoveManifestOptions, AdminAddMaintainerOptions, AdminRemoveMaintainerOptions, AdminListMaintainersOptions, AdminKeygenOptions>(sanitizedArgs)
+		return Parser.Default.ParseArguments<AdminGreenlightOptions, AdminStatusOptions, AdminUnlockNameOptions, AdminInfoOptions, AdminExportEventsOptions, AdminPruneCasOptions, AdminDigestOptions, AdminSnapshotOptions, AdminRestoreSnapshotOptions, AdminRemoveManifestOptions, AdminAddMaintainerOptions, AdminRemoveMaintainerOptions, AdminListMaintainersOptions, AdminRenameAccountOptions, AdminKeygenOptions>(sanitizedArgs)
 			.WithParsed(options => CommandLineArgsHelper.ApplyBooleanOverrides(options, originalArgs))
 			.MapResult(
 				(AdminGreenlightOptions options) => ExecuteGreenlight(options),
@@ -48,6 +50,7 @@ public static class Program
 				(AdminAddMaintainerOptions options) => ExecuteAddMaintainer(options),
 				(AdminRemoveMaintainerOptions options) => ExecuteRemoveMaintainer(options),
 				(AdminListMaintainersOptions options) => ExecuteListMaintainers(options),
+				(AdminRenameAccountOptions options) => ExecuteRenameAccount(options),
 				(AdminKeygenOptions options) => ExecuteKeygen(options),
 				errors => 1);
 	}
@@ -508,6 +511,69 @@ public static class Program
 	private static double GetDouble(JsonNode node, string key)
 	{
 		return node[key]?.GetValue<double>() ?? 0.0;
+	}
+
+	private static int ExecuteRenameAccount(AdminRenameAccountOptions options)
+	{
+		if (options.AccountId <= 0)
+		{
+			Console.Error.WriteLine("Error: --account-id must be the positive decimal AccountId of an existing account.");
+			return 1;
+		}
+
+		if (!DisplayNameRules.TryCanonicalize(options.DisplayName, out string canonical, out DisplayNameError nameError))
+		{
+			Console.Error.WriteLine($"Error: {DisplayNameRules.DescribeError(nameError)}");
+			return 1;
+		}
+
+		string serverUrl = ResolveServerUrl(options.Server);
+		using var keyPair = ParseAdminKey(options.Key);
+		if (keyPair == null) return 1;
+
+		string nonce = Guid.NewGuid().ToString("N");
+		long timestampUnixSeconds = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+		string signature = keyPair.CreateSignature(AccountAdminRenameProof.BuildPayload(options.AccountId, canonical, nonce, timestampUnixSeconds));
+
+		Console.WriteLine("=================================================");
+		Console.WriteLine("Realm Admin Tool - Rename Account");
+		Console.WriteLine("=================================================");
+		Console.WriteLine($"Server:      {serverUrl}");
+		Console.WriteLine($"AccountId:   {options.AccountId}");
+		Console.WriteLine($"DisplayName: {canonical}");
+		Console.WriteLine();
+
+		try
+		{
+			using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+			var requestBody = new
+			{
+				AccountId = options.AccountId,
+				DisplayName = canonical,
+				Nonce = nonce,
+				TimestampUnixSeconds = timestampUnixSeconds,
+				Signature = signature,
+				AdminPublicKey = keyPair.PublicKeyBase64
+			};
+
+			var content = new StringContent(JsonSerializer.Serialize(requestBody), Encoding.UTF8, "application/json");
+			var response = httpClient.PostAsync($"{serverUrl.TrimEnd('/')}/auth/admin/rename", content).GetAwaiter().GetResult();
+			string responseText = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+
+			if (response.IsSuccessStatusCode)
+			{
+				Console.WriteLine($"[SUCCESS] Account {options.AccountId} is now '{canonical}'.");
+				return 0;
+			}
+
+			Console.Error.WriteLine($"[FAILED] HTTP {(int)response.StatusCode}: {responseText}");
+			return 1;
+		}
+		catch (HttpRequestException exception)
+		{
+			Console.Error.WriteLine($"[FAILED] {exception.Message}");
+			return 1;
+		}
 	}
 
 	private static int ExecuteUnlockName(AdminUnlockNameOptions options)

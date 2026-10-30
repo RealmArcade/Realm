@@ -83,6 +83,8 @@ public class ClientServerSession : IDisposable
 
 	private string _playerName = string.Empty;
 
+	private long _accountId;
+
 	private string _sessionToken = string.Empty;
 
 	private string _mapHash = string.Empty;
@@ -266,10 +268,11 @@ public class ClientServerSession : IDisposable
 		return true;
 	}
 
-	public void ConfigureLobbyIdentity(string playerName, string sessionToken)
+	public void ConfigureLobbyIdentity(string playerName, string sessionToken, long accountId)
 	{
 		_playerName = playerName ?? string.Empty;
 		_sessionToken = sessionToken ?? string.Empty;
+		_accountId = accountId;
 	}
 
 	public async Task<MatchStartResult> TryStartLobbyAsync(ServerLobbyStart start, int lobbyPort = 0)
@@ -587,6 +590,7 @@ public class ClientServerSession : IDisposable
 			MapHash = _mapHash,
 			Language = _language,
 			PlayerName = _playerName,
+			AccountId = _accountId,
 			SessionToken = _sessionToken
 		};
 

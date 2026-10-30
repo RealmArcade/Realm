@@ -1,10 +1,12 @@
 using System.Collections.Concurrent;
+using System.Globalization;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http.Features;
 using NSec.Cryptography;
 using Realm.AdminServer;
+using Realm.AdminServer.Accounts;
 using Realm.AdminServer.Models;
 using Realm.AdminServer.Services;
 using Realm.Shared;
@@ -91,6 +93,14 @@ var peerRegistry = new PeerRegistry
 	PeerUrls = peerUrls
 };
 builder.Services.AddSingleton(peerRegistry);
+
+var accountAuthorityOptions = AccountAuthorityOptions.FromConfiguration(builder.Configuration, selfUrl);
+builder.Services.AddSingleton(accountAuthorityOptions);
+builder.Services.AddSingleton<AccountStoreService>();
+builder.Services.AddSingleton<AuthFlowService>();
+builder.Services.AddSingleton<DiscordOAuthService>();
+builder.Services.AddSingleton<SteamOpenIdService>();
+builder.Services.AddSingleton<IAccountReplicationSink, AccountClusterPublisher>();
 builder.Services.AddSingleton<ClusterEventService>();
 
 
@@ -100,6 +110,17 @@ var app = builder.Build();
 
 app.UseCors("AllowAll");
 app.UseWebSockets();
+
+AccountEndpoints.MapAccountEndpoints(app, accountAuthorityOptions, adminPublicKeys);
+
+if (accountAuthorityOptions.IsAuthority)
+{
+	Console.WriteLine($"[AccountAuthority] This node owns account and display-name writes. Signing key configured: {(accountAuthorityOptions.SigningPrivateKeyBase64.Length > 0 ? "yes" : "no")}.");
+}
+else
+{
+	Console.WriteLine($"[AccountAuthority] Account writes belong to {accountAuthorityOptions.AuthorityUrl}; this node will refuse them.");
+}
 
 
 var hostConnections = new ConcurrentDictionary<string, WebSocket>();
@@ -551,175 +572,6 @@ app.Map("/lobbies/ws", async (HttpContext context, LobbyRegistry registry) =>
 	{
 		context.Response.StatusCode = StatusCodes.Status400BadRequest;
 	}
-});
-
-app.MapGet("/auth/login", (string provider, int port, IWebHostEnvironment env) =>
-{
-	long part1 = Random.Shared.Next(100000000, 999999999);
-	long part2 = Random.Shared.Next(100000000, 999999999);
-	string randomSnowflake = $"{part1}{part2}";
-
-	string templatePath = Path.Combine(env.ContentRootPath, "Templates", "login.html");
-	if (!File.Exists(templatePath))
-	{
-		templatePath = Path.Combine(AppContext.BaseDirectory, "Templates", "login.html");
-	}
-
-	string template = File.ReadAllText(templatePath);
-	string discordInput = provider == "discord" ? $"<input type=\"text\" name=\"discord_id\" placeholder=\"Discord Snowflake ID\" required value=\"{randomSnowflake}\" />" : "";
-	string buttonClass = provider == "steam" ? "btn-steam" : "";
-
-	string html = template
-		.Replace("{{provider}}", provider)
-		.Replace("{{port}}", port.ToString())
-		.Replace("{{random_number}}", Random.Shared.Next(1000, 9999).ToString())
-		.Replace("{{discord_input}}", discordInput)
-		.Replace("{{button_class}}", buttonClass);
-
-	return Results.Content(html, "text/html");
-});
-
-app.MapGet("/auth/authorize", (string provider, int port, string username, string? discord_id, DataStoreService db) =>
-{
-	string candidateUsername = username?.Trim() ?? string.Empty;
-	string playerId = "";
-	string playerKey = "";
-
-	if (provider == "discord")
-	{
-		string snowflake = discord_id ?? "";
-		if (string.IsNullOrEmpty(snowflake))
-		{
-			long part1 = Random.Shared.Next(100000000, 999999999);
-			long part2 = Random.Shared.Next(100000000, 999999999);
-			snowflake = $"{part1}{part2}";
-		}
-
-		playerKey = snowflake;
-		playerId = $"discord_{snowflake}";
-	}
-	else
-	{
-		playerKey = $"{provider}_{Guid.NewGuid().ToString("N")[..8]}";
-		playerId = playerKey;
-	}
-
-	string finalUsername = candidateUsername;
-	var existingPlayer = db.Get<JsonDocument>("players", playerKey) ?? db.Get<JsonDocument>("players", playerId);
-
-	if (existingPlayer != null)
-	{
-		var root = existingPlayer.RootElement;
-		if (root.TryGetProperty("username", out var uProp))
-		{
-			string existingUsername = uProp.GetString() ?? "";
-			if (!string.IsNullOrWhiteSpace(existingUsername))
-			{
-				finalUsername = existingUsername;
-			}
-		}
-	}
-
-	if (string.IsNullOrWhiteSpace(finalUsername) || !NameNormalizationHelper.ValidateUsername(finalUsername, out _))
-	{
-		finalUsername = $"Gamer_{Random.Shared.Next(1000, 9999)}";
-	}
-
-	string normalizedUser = NameNormalizationHelper.NormalizeUsername(finalUsername);
-	var existingLock = db.Get<JsonDocument>("name_locks", normalizedUser);
-	if (existingLock != null && existingPlayer == null)
-	{
-		finalUsername = $"Gamer_{Random.Shared.Next(1000, 9999)}";
-	}
-
-	var playerDoc = JsonSerializer.SerializeToDocument(new
-	{
-		id = playerId,
-		username = finalUsername,
-		provider = provider,
-		registration_date = DateTime.UtcNow
-	});
-	db.Upsert("players", playerKey, playerDoc);
-	if (playerKey != playerId)
-	{
-		db.Upsert("players", playerId, playerDoc);
-	}
-
-	var token = Guid.NewGuid().ToString("N");
-	var sessionDoc = JsonSerializer.SerializeToDocument(new
-	{
-		token = token,
-		username = finalUsername,
-		provider = provider,
-		player_id = playerId,
-		created_at = DateTime.UtcNow
-	});
-	db.Upsert("auth_sessions", token, sessionDoc);
-
-	var callbackUrl = $"http://localhost:{port}/auth/callback/?username={Uri.EscapeDataString(finalUsername)}&token={token}&provider={provider}";
-	return Results.Redirect(callbackUrl);
-});
-
-app.MapPost("/api/players/username", (UpdatePlayerUsernameRequest req, DataStoreService db) =>
-{
-	if (string.IsNullOrWhiteSpace(req.PlayerId))
-	{
-		return Results.BadRequest(new { Message = "PlayerId is required." });
-	}
-
-	if (!NameNormalizationHelper.ValidateUsername(req.Username, out var usernameError))
-	{
-		return Results.BadRequest(new { Message = usernameError });
-	}
-
-	string trimmedUsername = req.Username.Trim();
-	string normalizedUser = NameNormalizationHelper.NormalizeUsername(trimmedUsername);
-
-	var existingLock = db.Get<JsonDocument>("name_locks", normalizedUser);
-	if (existingLock != null)
-	{
-		return Results.Conflict(new { Message = $"The username '{trimmedUsername}' conflicts with a registered creator name." });
-	}
-
-	var allPlayers = db.GetAllWithKeys<JsonDocument>("players");
-	foreach (var pair in allPlayers)
-	{
-		if (string.Equals(pair.Key, req.PlayerId, StringComparison.OrdinalIgnoreCase))
-		{
-			continue;
-		}
-
-		var root = pair.Value.RootElement;
-		if (root.TryGetProperty("username", out var uProp))
-		{
-			string existingU = uProp.GetString() ?? "";
-			if (NameNormalizationHelper.AreUsernamesConflicting(existingU, trimmedUsername))
-			{
-				return Results.Conflict(new { Message = $"The username '{trimmedUsername}' is already in use by another player." });
-			}
-		}
-	}
-
-	var existingDoc = db.Get<JsonDocument>("players", req.PlayerId);
-	string provider = "custom";
-	DateTime regDate = DateTime.UtcNow;
-	if (existingDoc != null)
-	{
-		var root = existingDoc.RootElement;
-		if (root.TryGetProperty("provider", out var pProp)) provider = pProp.GetString() ?? "custom";
-		if (root.TryGetProperty("registration_date", out var rProp) && rProp.TryGetDateTime(out var dt)) regDate = dt;
-	}
-
-	var updatedDoc = JsonSerializer.SerializeToDocument(new
-	{
-		id = req.PlayerId,
-		username = trimmedUsername,
-		provider = provider,
-		registration_date = regDate
-	});
-	db.Upsert("players", req.PlayerId, updatedDoc);
-
-	return Results.Ok(new { Status = "Updated", Username = trimmedUsername, PlayerId = req.PlayerId });
 });
 
 app.MapPost("/seeders/register", (SeederRegisterRequest req, SeederRegistry registry, HttpContext context) =>
@@ -2072,7 +1924,7 @@ app.MapGet("/api/publish_map/asset_author/{hash}", (string hash, DataStoreServic
 	return Results.NotFound();
 });
 
-app.MapPost("/api/creators/register", async (HttpRequest request, RegisterCreatorRequest req, DataStoreService db, ClusterEventService clusterEvents, PeerRegistry registeredPeers, IHttpClientFactory httpClientFactory) =>
+app.MapPost("/api/creators/register", async (HttpRequest request, RegisterCreatorRequest req, DataStoreService db, AccountStoreService accounts, ClusterEventService clusterEvents, PeerRegistry registeredPeers, IHttpClientFactory httpClientFactory) =>
 {
 	if (!NameNormalizationHelper.ValidateUsername(req.Username, out var usernameError))
 	{
@@ -2089,6 +1941,11 @@ app.MapPost("/api/creators/register", async (HttpRequest request, RegisterCreato
 	if (!sigValid)
 	{
 		return Results.BadRequest(new { Message = "Invalid cryptographic signature for public key." });
+	}
+
+	if (accounts.FindAccountByDisplayName(username) != null)
+	{
+		return Results.Conflict(new { Message = "This username belongs to a Realm account and cannot be registered as a creator name." });
 	}
 
 	string slug = NameNormalizationHelper.NormalizeUsername(username);
@@ -2812,7 +2669,7 @@ app.Map("/seeders/ws", async (HttpContext context, SeederRegistry registry) =>
 	}
 });
 
-app.MapPost("/api/maps/report_metrics", (MapMetricsReport req, DataStoreService db, ClusterEventService clusterEvents, PeerRegistry registeredPeers, IHttpClientFactory httpClientFactory) =>
+app.MapPost("/api/maps/report_metrics", (MapMetricsReport req, AccountStoreService accounts, DataStoreService db, ClusterEventService clusterEvents, PeerRegistry registeredPeers, IHttpClientFactory httpClientFactory) =>
 {
 	if (string.IsNullOrWhiteSpace(req.MapTitle))
 	{
@@ -2825,38 +2682,27 @@ app.MapPost("/api/maps/report_metrics", (MapMetricsReport req, DataStoreService 
 	string compositeKey = $"{mapTitle}_{mapVersion}";
 	string authorCompositeKey = !string.IsNullOrEmpty(authorPublicKey) ? $"{mapTitle}_{mapVersion}_{authorPublicKey}" : compositeKey;
 
-	string playerIdentifier = !string.IsNullOrWhiteSpace(req.PlayerId) ? req.PlayerId.Trim() : "Anonymous";
-	bool isVerifiedAccount = false;
-
-	if (!string.IsNullOrWhiteSpace(req.AuthToken))
+	long accountId = 0;
+	string displayName = string.Empty;
+	if (accounts.TryValidateSession(req.SessionToken, out AccountRecord? reportingAccount, out _, out _) && reportingAccount != null)
 	{
-		var sessionDoc = db.Get<JsonDocument>("auth_sessions", req.AuthToken);
-		if (sessionDoc != null)
-		{
-			var root = sessionDoc.RootElement;
-			string? provider = root.TryGetProperty("provider", out var pProp) ? pProp.GetString() : null;
-			string? user = root.TryGetProperty("username", out var uProp) ? uProp.GetString() : null;
-			if (!string.IsNullOrEmpty(user))
-			{
-				playerIdentifier = user;
-			}
+		accountId = reportingAccount.AccountId;
+		displayName = reportingAccount.DisplayName;
+	}
 
-			if (!string.IsNullOrEmpty(provider) && !provider.Equals("guest", StringComparison.OrdinalIgnoreCase))
-			{
-				isVerifiedAccount = true;
-			}
-		}
-	}
-	else if (!string.IsNullOrWhiteSpace(req.AuthProvider) && !req.AuthProvider.Equals("guest", StringComparison.OrdinalIgnoreCase))
-	{
-		isVerifiedAccount = true;
-	}
+	string playerIdentifier = accountId != 0 ? accountId.ToString(CultureInfo.InvariantCulture) : "anonymous";
+	bool isVerifiedAccount = accountId != 0;
 
 	string engagementKey = !string.IsNullOrEmpty(authorPublicKey)
 		? $"{playerIdentifier}_{authorCompositeKey}".ToLowerInvariant()
 		: $"{playerIdentifier}_{compositeKey}".ToLowerInvariant();
 	var engagement = db.Get<PlayerMapEngagement>("player_engagement", engagementKey)
-	                 ?? new PlayerMapEngagement { PlayerId = playerIdentifier };
+	                 ?? new PlayerMapEngagement { AccountId = accountId, DisplayName = displayName };
+
+	if (accountId != 0)
+	{
+		engagement.DisplayName = displayName;
+	}
 
 	bool wasVerifiedGood = engagement.IsVerifiedGoodReview;
 	bool hadSubmittedRating = engagement.SubmittedRating.HasValue;
@@ -2916,11 +2762,11 @@ app.MapPost("/api/maps/report_metrics", (MapMetricsReport req, DataStoreService 
 		{
 			MapTitle = mapTitle,
 			MapVersion = mapVersion,
-			PlayerId = playerIdentifier,
+			AccountId = accountId,
+			DisplayName = displayName,
 			PlaytimeMinutes = Math.Max(0.0, req.PlaytimeMinutes),
 			Stars = req.Stars,
 			IsCompleteGame = req.IsCompleteGame,
-			AuthProvider = req.AuthProvider,
 			AuthorPublicKey = authorPublicKey
 		})
 	};

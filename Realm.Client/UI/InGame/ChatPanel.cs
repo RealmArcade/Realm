@@ -205,7 +205,7 @@ public class ChatPanel
 
 	private void DispatchChatMessage(string trimmedText)
 	{
-		string sender = GameContext.Lobby?.AuthenticatedUsername ?? "Player";
+		string sender = GameContext.Lobby?.PlayerDisplayName ?? TranslationServer.Translate("Guest");
 		bool alliesOnly = _currentMode == ChatMode.Allies;
 
 		if (GameContext.Lobby != null)

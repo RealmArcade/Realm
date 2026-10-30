@@ -2,7 +2,9 @@ namespace Realm.AdminServer;
 
 public class PlayerMapEngagement
 {
-	public string PlayerId { get; set; } = "";
+	public long AccountId { get; set; }
+
+	public string DisplayName { get; set; } = "";
 	public double TotalPlaytimeMinutes { get; set; }
 	public int GamesPlayed { get; set; }
 	public int? SubmittedRating { get; set; }

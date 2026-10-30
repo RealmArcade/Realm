@@ -1,4 +1,7 @@
+using System.Globalization;
+using System.Text;
 using MemoryPack;
+using Realm.Shared.Accounts;
 
 namespace Realm.Shared.Network;
 
@@ -54,6 +57,8 @@ public partial struct LobbySeat
 	public int PeerId;
 
 	public int Slot;
+
+	public long AccountId;
 
 	public string Name;
 	public string Faction;
@@ -128,6 +133,12 @@ public partial struct LobbyCommand
 public partial struct LobbyChatMessage
 {
 	public int SenderPeerId;
+
+	/// <summary>
+	///     The account whose seat spoke, filled by the authority from the seat rather than from anything the sender typed.
+	/// </summary>
+	public long SenderAccountId;
+
 	public string SenderName;
 	public string Message;
 	public long TimestampUtcTicks;
@@ -175,7 +186,12 @@ public partial struct MapTransferReply
 
 public static class LobbyLimits
 {
-	public const int MaximumPlayerNameLength = 32;
+	/// <summary>
+	///     The seat's name ceiling in UTF-16 units. It is deliberately the DisplayName byte ceiling: a legal DisplayName never
+	///     exceeds <see cref="DisplayNameRules.MaximumUtf8Bytes" /> UTF-8 bytes, and UTF-8 never uses fewer bytes than the UTF-16
+	///     units it encodes, so a registered name can never be truncated on its way into a seat.
+	/// </summary>
+	public const int MaximumPlayerNameLength = DisplayNameRules.MaximumUtf8Bytes;
 	public const int MaximumFactionLength = 48;
 	public const int MaximumTeamNameLength = 48;
 	public const int MaximumChatMessageLength = 400;
@@ -197,16 +213,25 @@ public static class LobbyLimits
 	{
 		if (string.IsNullOrEmpty(value)) return string.Empty;
 
-		int length = Math.Min(value.Length, maximumLength);
-		var builder = new System.Text.StringBuilder(length);
-		for (int index = 0; index < length; index++)
+		var builder = new System.Text.StringBuilder(value.Length);
+		foreach (Rune rune in value.EnumerateRunes())
 		{
-			char character = value[index];
-			if (char.IsControl(character)) continue;
-			builder.Append(character);
+			UnicodeCategory category = Rune.GetUnicodeCategory(rune);
+			if (category is UnicodeCategory.Control or UnicodeCategory.Format or UnicodeCategory.Surrogate) continue;
+			builder.Append(rune.ToString());
 		}
 
-		return builder.ToString().Trim();
+		return DisplayNameRules.TruncateAtGraphemeBoundary(builder.ToString().Trim(), maximumLength);
+	}
+
+	/// <summary>
+	///     The name a lobby carries for a peer. A legal DisplayName is passed through untouched; anything else is reduced to a
+	///     control-free, grapheme-safe rendering so a seat can never hold a name the account authority would refuse or a string
+	///     cut in the middle of a surrogate pair.
+	/// </summary>
+	public static string SanitizeDisplayName(string? value)
+	{
+		return DisplayNameRules.AdmitForLobby(value, MaximumPlayerNameLength);
 	}
 
 	public static bool IsAcceptableTeamName(string? teamName)

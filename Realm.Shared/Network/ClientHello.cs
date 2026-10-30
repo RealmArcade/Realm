@@ -17,6 +17,8 @@ public partial struct ClientHello
 
 	public string PlayerName;
 
+	public long AccountId;
+
 	public string SessionToken;
 
 	public string AdminProof;

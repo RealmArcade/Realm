@@ -46,6 +46,7 @@ public partial class MainMenu : Control
 	private Button _announcementsButton;
 	private Button _bugReportButton;
 	private Control _profilePopup;
+	private AccountDialog _accountDialog;
 	private OptionButton _versionDropdown;
 	private Label _outdatedLabel;
 
@@ -65,6 +66,67 @@ public partial class MainMenu : Control
 
 		PopulateRunicPillar(GetNode<VBoxContainer>("LeftPillar/RuneContainer"));
 		PopulateRunicPillar(GetNode<VBoxContainer>("RightPillar/RuneContainer"));
+
+		GameContext.Account.Changed += OnAccountChanged;
+		RefreshAccountPresentation();
+		RestoreAccountSessionAsync();
+	}
+
+	public override void _ExitTree()
+	{
+		GameContext.Account.Changed -= OnAccountChanged;
+	}
+
+	private void OnAccountChanged()
+	{
+		if (!GodotObject.IsInstanceValid(this)) return;
+		RefreshAccountPresentation();
+	}
+
+	/// <summary>
+	///     Restores the stored session before the player asks for anything. A rejected token simply leaves the menu signed out;
+	///     the Play gate asks for a sign-in only when the player chooses to play online, so a slow authority never blocks the menu.
+	/// </summary>
+	private async void RestoreAccountSessionAsync()
+	{
+		await GameContext.Account.RestoreAsync();
+		if (!GodotObject.IsInstanceValid(this)) return;
+
+		RefreshAccountPresentation();
+	}
+
+	private void RefreshAccountPresentation()
+	{
+		if (!GodotObject.IsInstanceValid(this)) return;
+
+		Label nameLabel = _profileButton?.GetNodeOrNull<Label>("Nameplate/Label");
+		if (nameLabel != null)
+		{
+			nameLabel.Text = GameContext.Account.IsSignedIn
+				? GameContext.Account.DisplayName
+				: TranslationServer.Translate("SIGNED OUT");
+		}
+
+		if (_accountDialog != null && GodotObject.IsInstanceValid(_accountDialog)) _accountDialog.RefreshPresentation();
+	}
+
+	private void OpenAccountDialog(Action onSignedIn = null)
+	{
+		if (_accountDialog != null && GodotObject.IsInstanceValid(_accountDialog))
+		{
+			_accountDialog.QueueFree();
+		}
+
+		_accountDialog = new AccountDialog { Name = "AccountDialog" };
+		_accountDialog.SignedIn = () =>
+		{
+			RefreshAccountPresentation();
+			_accountDialog?.QueueFree();
+			_accountDialog = null;
+			onSignedIn?.Invoke();
+		};
+		AddChild(_accountDialog);
+		_accountDialog.Open();
 	}
 
 	private void BindNodes()
@@ -112,13 +174,7 @@ public partial class MainMenu : Control
 
 	private void SetupButtons()
 	{
-		SetupPlayButton(_playButton, () =>
-		{
-			GameContext.SessionState.IsMapEditorMode = false;
-			GameContext.SessionState.IsTestMode = false;
-			GameContext.Lobby.IsSinglePlayer = false;
-			GameContext.UserInterface.TransitionTo(GameScreen.LobbyBrowser);
-		});
+		SetupPlayButton(_playButton, OnPlayPressed);
 		if (_singlePlayerButton != null)
 		{
 			SetupMenuButton(_singlePlayerButton, "SINGLE PLAYER", () =>
@@ -475,6 +531,25 @@ public partial class MainMenu : Control
 		}
 	}
 
+	/// <summary>
+	///     Play is the one entry that needs an online identity, so a signed-out player is asked to sign in first and is taken to
+	///     the lobby browser once that succeeds. Every other menu entry stays usable while signed out.
+	/// </summary>
+	private void OnPlayPressed()
+	{
+		GameContext.SessionState.IsMapEditorMode = false;
+		GameContext.SessionState.IsTestMode = false;
+		GameContext.Lobby.IsSinglePlayer = false;
+
+		if (!GameContext.Account.IsSignedIn)
+		{
+			OpenAccountDialog(() => GameContext.UserInterface.TransitionTo(GameScreen.LobbyBrowser));
+			return;
+		}
+
+		GameContext.UserInterface.TransitionTo(GameScreen.LobbyBrowser);
+	}
+
 	private void SetupPlayButton(Button button, Action onClick)
 	{
 		button.Flat = false;
@@ -588,8 +663,8 @@ public partial class MainMenu : Control
 		avatar.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
 		avatar.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 
-		nameLabel.Text = "Horald_Topa";
-		levelLabel.Text = "LVL 50";
+		nameLabel.Text = GameContext.Account.IsSignedIn ? GameContext.Account.DisplayName : TranslationServer.Translate("SIGNED OUT");
+		levelLabel.Text = "";
 
 		var labelFont = new SystemFont();
 		labelFont.FontNames = new string[] { "Cinzel Bold", "Cinzel", "Palatino Linotype", "Georgia", "serif" };
@@ -816,6 +891,7 @@ public partial class MainMenu : Control
 		CreateProfileDataRows(vbox);
 
 		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 8) });
+		vbox.AddChild(CreateProfileAccountButton());
 		vbox.AddChild(CreateProfileBackButton());
 	}
 
@@ -968,7 +1044,7 @@ public partial class MainMenu : Control
 
 		var profileDataRows = new (string Key, string Value, Color ValueColor)[]
 		{
-			(LocalizationManager.Translate("Username"), "Horald_Topa", profileInfoColor),
+			(LocalizationManager.Translate("Username"), GameContext.Account.IsSignedIn ? GameContext.Account.DisplayName : TranslationServer.Translate("SIGNED OUT"), profileInfoColor),
 			(LocalizationManager.Translate("Faction"), LocalizationManager.Translate("Human Alliance"), profileInfoColor),
 			(LocalizationManager.Translate("Matches Played"), "142", profileInfoColor),
 			(LocalizationManager.Translate("Victories"), "89", new Color(0.55f, 0.95f, 0.55f)),
@@ -1010,6 +1086,25 @@ public partial class MainMenu : Control
 			vbox.AddChild(rowContainer);
 			vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 4) });
 		}
+	}
+
+	private Button CreateProfileAccountButton()
+	{
+		var accountBtn = new Button { Name = "AccountBtn_Button" };
+		UIStyle.ApplyButtonStyleBoxes(accountBtn);
+		UIStyle.ApplyButtonText(accountBtn, GameContext.Account.IsSignedIn ? "ACCOUNT" : "SIGN IN", 15);
+		accountBtn.CustomMinimumSize = new Vector2(210, 44);
+		accountBtn.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
+		accountBtn.AddThemeConstantOverride("icon_max_width", 20);
+		accountBtn.Pressed += () =>
+		{
+			PlayClickSound();
+			_profilePopup?.QueueFree();
+			_profilePopup = null;
+			OpenAccountDialog();
+		};
+		accountBtn.MouseEntered += PlayHoverSound;
+		return accountBtn;
 	}
 
 	private Button CreateProfileBackButton()

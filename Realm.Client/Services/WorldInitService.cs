@@ -57,7 +57,12 @@ public class WorldInitService
 			var playerEntity = GameContext.World.Create();
 			GameContext.World.Add(playerEntity, new Player());
 			GameContext.World.Add(playerEntity, new UnitOwnerPlayer(i));
-			GameContext.World.Add(playerEntity, new Name(i == 0 ? "Neutral" : (i == 1 ? "Horaid_Topa" : $"Player {i}")));
+			string playerName = i == 0
+				? "Neutral"
+				: i == 1
+					? GameContext.Lobby?.PlayerDisplayName ?? Godot.TranslationServer.Translate("Guest")
+					: $"Player {i}";
+			GameContext.World.Add(playerEntity, new Name(playerName));
 			var resourcesDict = new Dictionary<ResourceId, int>
 			{
 				{ GameContext.Simulation.PlayerResourceService.GoldResourceId, 0 },

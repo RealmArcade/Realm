@@ -630,9 +630,7 @@ public partial class GameOver : Control
 			PlaytimeMinutes = playtimeMinutes,
 			Stars = stars,
 			IsCompleteGame = isComplete,
-			PlayerId = GameContext.Lobby?.AuthenticatedUsername ?? "Anonymous",
-			AuthToken = GameContext.Lobby?.AuthToken,
-			AuthProvider = GameContext.Lobby?.AuthProvider
+			SessionToken = GameContext.Account.SessionToken
 		};
 
 		string seedServerUrl = GodotObject.IsInstanceValid(GameContext.Lobby) ? GameContext.Lobby.RegistryServerUrl : ServersConfigHelper.GetDefaultServerUrl();

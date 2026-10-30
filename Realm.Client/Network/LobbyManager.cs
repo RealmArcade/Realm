@@ -88,29 +88,25 @@ public partial class LobbyManager : BaseMapTransferNode
 	public int MaxPlayers { get; private set; } = MapInfoMetadata.DefaultPlayablePlayerSlots;
 	public string? LastLobbyWarning { get; private set; }
 
-	public string AuthenticatedUsername { get; set; } = "Horaid_Topa";
-	public string? AuthToken { get; set; }
-	public string? AuthProvider { get; set; }
+	public bool IsSignedIn => GameContext.Account.IsSignedIn;
 
-	public bool SetInGameUsername(string newUsername, out string? errorMessage)
-	{
-		if (!NameNormalizationHelper.ValidateUsername(newUsername, out errorMessage))
-		{
-			return false;
-		}
+	public long AccountId => GameContext.Account.AccountId;
 
-		AuthenticatedUsername = newUsername.Trim();
-		PlayerInfo? me = PlayerList.Find(IsLocalPlayer);
-		if (me != null)
-		{
-			me.Name = AuthenticatedUsername;
-			SendSeatUpdate(me);
-		}
+	public string AuthenticatedUsername => GameContext.Account.DisplayName;
 
-		return true;
-	}
+	/// <summary>
+	///     The name a lobby seat carries. A signed-in player is seated under the account's current DisplayName; a signed-out
+	///     player is seated under a neutral guest label, never under an invented player name.
+	/// </summary>
+	public string PlayerDisplayName => GameContext.Account.IsSignedIn ? GameContext.Account.DisplayName : TranslationServer.Translate("Guest");
 
-	private readonly string _persistentSessionToken = Guid.NewGuid().ToString();
+	private readonly string _guestLobbySessionToken = Guid.NewGuid().ToString();
+
+	/// <summary>
+	///     The token a lobby uses to give a seat back to the peer that held it. A signed-in player's seat belongs to the account,
+	///     so reconnecting from the same account takes the seat back.
+	/// </summary>
+	public string LobbySessionToken => GameContext.Account.IsSignedIn ? $"account_{GameContext.Account.AccountId}" : _guestLobbySessionToken;
 
 	public NatType LocalNatType { get; private set; } = NatType.Open;
 	public bool IsHost { get; set; }
@@ -252,6 +248,25 @@ public partial class LobbyManager : BaseMapTransferNode
 
 		StartPeerSeederLoop();
 		WarmUpLocalAuthority();
+
+		GameContext.Account.Changed += OnAccountChanged;
+	}
+
+	/// <summary>
+	///     Keeps the local seat on the account it belongs to. A DisplayName change is announced to the lobby so every other
+	///     screen sees the new name without the player leaving and rejoining.
+	/// </summary>
+	private void OnAccountChanged()
+	{
+		PlayerInfo? me = PlayerList.Find(IsLocalPlayer);
+		if (me == null) return;
+
+		me.AccountId = AccountId;
+		string displayName = PlayerDisplayName;
+		if (string.Equals(me.Name, displayName, StringComparison.Ordinal)) return;
+
+		me.Name = displayName;
+		SendSeatUpdate(me);
 	}
 
 	/// <summary>
@@ -610,7 +625,8 @@ public partial class LobbyManager : BaseMapTransferNode
 		{
 			PeerId = 1,
 			Slot = humanSlot,
-			Name = AuthenticatedUsername,
+			AccountId = AccountId,
+			Name = PlayerDisplayName,
 			Faction = "HUMAN",
 			Team = "Team 1",
 			Color = PlayerColorConfig.GetColor(humanSlot),
@@ -619,7 +635,7 @@ public partial class LobbyManager : BaseMapTransferNode
 			Jitter = "0 ms",
 			PacketLoss = "0%",
 			BinaryVersion = RealmVersion.GameBinaryVersion,
-			SessionToken = _persistentSessionToken
+			SessionToken = LobbySessionToken
 		};
 		PlayerList.Add(hostPlayer);
 
@@ -735,7 +751,7 @@ public partial class LobbyManager : BaseMapTransferNode
 		GameContext.DetachServerSession();
 
 		var session = new ClientServerSession(channel);
-		session.ConfigureLobbyIdentity(AuthenticatedUsername, _persistentSessionToken);
+		session.ConfigureLobbyIdentity(PlayerDisplayName, LobbySessionToken, AccountId);
 		AttachLobbySession(session);
 
 		var start = new ServerLobbyStart(
@@ -905,7 +921,7 @@ public partial class LobbyManager : BaseMapTransferNode
 		GameContext.DetachServerSession();
 
 		var session = new ClientServerSession(channel);
-		session.ConfigureLobbyIdentity(AuthenticatedUsername, _persistentSessionToken);
+		session.ConfigureLobbyIdentity(PlayerDisplayName, LobbySessionToken, AccountId);
 		AttachLobbySession(session);
 
 		if (!session.TryJoinLobby(connectIp, connectPort, LocalizationManager.GetCurrentLanguageCode(), isLocalConnection ? 0 : ENetPort, out string failure))
@@ -1092,6 +1108,7 @@ public partial class LobbyManager : BaseMapTransferNode
 			{
 				PeerId = seat.PeerId,
 				Slot = seat.Slot,
+				AccountId = seat.AccountId,
 				Name = seat.Name ?? string.Empty,
 				Faction = seat.Faction ?? string.Empty,
 				Team = seat.TeamName ?? string.Empty,
@@ -1935,7 +1952,7 @@ public partial class LobbyManager : BaseMapTransferNode
 
 	public void ReceiveChatFromAuthority(string senderName, string message, bool alliesOnly, long timestampUtcTicks)
 	{
-		ChatReceived?.Invoke(LobbyLimits.Sanitize(senderName, 32), message, alliesOnly, timestampUtcTicks);
+		ChatReceived?.Invoke(LobbyLimits.SanitizeDisplayName(senderName), message, alliesOnly, timestampUtcTicks);
 	}
 
 	public void SendChatMessage(string senderName, string message, bool alliesOnly = false, long timestampUtcTicks = 0)
@@ -2154,7 +2171,7 @@ public partial class LobbyManager : BaseMapTransferNode
 			if (player.Slot <= 0) continue;
 
 			bool isComputer = string.Equals(player.Faction, "AI", StringComparison.OrdinalIgnoreCase) || player.PeerId < 0;
-			seats.Add(new MatchRosterSeat(player.Slot, player.Name, ResolveSeatTeam(player.Team, player.Slot), player.Team, isComputer));
+			seats.Add(new MatchRosterSeat(player.Slot, player.AccountId, player.Name, ResolveSeatTeam(player.Team, player.Slot), player.Team, isComputer));
 		}
 
 		seats.Sort((left, right) => left.Slot.CompareTo(right.Slot));
@@ -2193,119 +2210,9 @@ public partial class LobbyManager : BaseMapTransferNode
 		return 100;
 	}
 
-	private HttpListener? _authHttpListener;
-
-	public async Task<bool> StartOAuthFlowAsync(string provider)
-	{
-		int port = 8089;
-		if (!TryStartAuthListener(port)) return false;
-
-		string loginUrl = $"{RegistryServerUrl}/auth/login?provider={provider}&port={port}";
-		OS.ShellOpen(loginUrl);
-
-		try
-		{
-			var context = await _authHttpListener!.GetContextAsync();
-			return HandleOAuthCallback(context);
-		}
-		catch (Exception ex)
-		{
-			GD.PrintErr($"[LobbyManager] Error handling OAuth callback: {ex.Message}");
-			return false;
-		}
-		finally
-		{
-			_authHttpListener?.Stop();
-		}
-	}
-
-	private bool TryStartAuthListener(int port)
-	{
-		_authHttpListener?.Stop();
-		_authHttpListener = new HttpListener();
-		_authHttpListener.Prefixes.Add($"http://localhost:{port}/auth/callback/");
-		try
-		{
-			_authHttpListener.Start();
-			return true;
-		}
-		catch (Exception ex)
-		{
-			GD.PrintErr($"[LobbyManager] Failed to start local OAuth listener on port {port}: {ex.Message}");
-			return false;
-		}
-	}
-
-	private bool HandleOAuthCallback(HttpListenerContext context)
-	{
-		var request = context.Request;
-		var response = context.Response;
-
-		string? username = request.QueryString["username"];
-		string? token = request.QueryString["token"];
-		string? returnedProvider = request.QueryString["provider"];
-
-		if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(token))
-		{
-			SendAuthResponse(response, "<h1>Login Failed</h1><p>Invalid parameters received.</p>");
-			return false;
-		}
-
-		AuthenticatedUsername = username;
-		AuthToken = token;
-		AuthProvider = returnedProvider;
-		PlayerInfo? me = PlayerList.Find(IsLocalPlayer);
-		if (me != null)
-		{
-			me.Name = username;
-			SendSeatUpdate(me);
-		}
-
-		GD.Print($"[LobbyManager] OAuth Login Success! Provider: {returnedProvider}, User: {username}");
-
-		string successHtml = GetLoginSuccessHtml();
-		SendAuthResponse(response, successHtml);
-
-		_authHttpListener?.Stop();
-		return true;
-	}
-
-	private string GetLoginSuccessHtml()
-	{
-		string successHtml = string.Empty;
-		const string templatePath = "res://Templates/login_success.html";
-
-		if (Godot.FileAccess.FileExists(templatePath))
-		{
-			using var file = Godot.FileAccess.Open(templatePath, Godot.FileAccess.ModeFlags.Read);
-			if (file != null)
-			{
-				successHtml = file.GetAsText();
-			}
-		}
-		else
-		{
-			string diskPath = Path.Combine(AppContext.BaseDirectory, "Templates", "login_success.html");
-			if (File.Exists(diskPath))
-			{
-				successHtml = File.ReadAllText(diskPath);
-			}
-		}
-
-		return successHtml;
-	}
-
-	private void SendAuthResponse(HttpListenerResponse response, string htmlContent)
-	{
-		byte[] buffer = Encoding.UTF8.GetBytes(htmlContent);
-		response.ContentLength64 = buffer.Length;
-		response.OutputStream.Write(buffer, 0, buffer.Length);
-		response.OutputStream.Close();
-	}
-
 	public override void _ExitTree()
 	{
-		_authHttpListener?.Stop();
+		GameContext.Account.Changed -= OnAccountChanged;
 		GameContext.UnregisterLobby(this);
 	}
 
