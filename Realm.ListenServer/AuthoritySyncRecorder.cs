@@ -106,6 +106,11 @@ public class AuthoritySyncRecorder : IDisposable
 			try
 			{
 				_recordStream.Write(buffer, 0, length);
+
+				// Flushed per record rather than left to the stream's own buffer, because this process is terminated where the
+				// match ends: without it the buffer takes every record written since it last filled with it, and a reader has to
+				// step over several cut-off records instead of one.
+				_recordStream.Flush();
 			}
 			catch (IOException)
 			{

@@ -541,10 +541,12 @@ public static class MultiplayerEcsSyncTestSupport
 			return report;
 		}
 
-		SortedDictionary<int, MultiplayerSnapshotRecord> hostRecords = ReadRecords(hostPath);
-		SortedDictionary<int, MultiplayerSnapshotRecord> clientRecords = ReadRecords(clientPath);
+		SortedDictionary<int, MultiplayerSnapshotRecord> hostRecords = ReadRecords(hostPath, out string hostRecordTruncation);
+		SortedDictionary<int, MultiplayerSnapshotRecord> clientRecords = ReadRecords(clientPath, out string clientRecordTruncation);
 		report.HostSnapshotCount = hostRecords.Count;
 		report.ClientSnapshotCount = clientRecords.Count;
+		if (hostRecordTruncation.Length > 0) report.AddSummaryLine($"Host records: {hostRecordTruncation}.");
+		if (clientRecordTruncation.Length > 0) report.AddSummaryLine($"Client records: {clientRecordTruncation}.");
 
 		if (hostRecords.Count == 0 || clientRecords.Count == 0)
 		{
@@ -1027,7 +1029,7 @@ public static class MultiplayerEcsSyncTestSupport
 			return;
 		}
 
-		SortedDictionary<int, MultiplayerSnapshotRecord> presentedRecords = ReadRecords(presentationPath);
+		SortedDictionary<int, MultiplayerSnapshotRecord> presentedRecords = ReadRecords(presentationPath, out string presentedRecordTruncation);
 		string appliedPath = Path.Combine(outputDirectory, "ECS_client_sync.bin");
 		if (!File.Exists(appliedPath))
 		{
@@ -1035,7 +1037,9 @@ public static class MultiplayerEcsSyncTestSupport
 			return;
 		}
 
-		SortedDictionary<int, MultiplayerSnapshotRecord> appliedRecords = ReadRecords(appliedPath);
+		SortedDictionary<int, MultiplayerSnapshotRecord> appliedRecords = ReadRecords(appliedPath, out string appliedRecordTruncation);
+		if (presentedRecordTruncation.Length > 0) report.AddSummaryLine($"Presentation records: {presentedRecordTruncation}.");
+		if (appliedRecordTruncation.Length > 0) report.AddSummaryLine($"Applied records: {appliedRecordTruncation}.");
 		float placementTolerance = ResolvePresentationTolerance(profile);
 		float fastestUnitSpeed = MeasureFastestUnitSpeed(hostRecords);
 		float interpolationBufferSeconds = ResolveInterpolationBufferSeconds(settings);
@@ -1923,9 +1927,35 @@ public static class MultiplayerEcsSyncTestSupport
 		return seenSequences;
 	}
 
-	private static SortedDictionary<int, MultiplayerSnapshotRecord> ReadRecords(string path)
+	/// <summary>
+	///     Reads a run's records, and reports the file as ending inside a record rather than failing the comparison for it.
+	///     This log is written while the match runs and the process behind it is terminated where the match ends, so the final
+	///     record is cut off wherever that happened: the records before it are complete, and they are what the comparison is
+	///     made from. A record whose sequence does not advance is the file read against the wrong layout, which still fails.
+	/// </summary>
+	private static SortedDictionary<int, MultiplayerSnapshotRecord> ReadRecords(string path, out string truncation)
 	{
 		SortedDictionary<int, MultiplayerSnapshotRecord> records = new();
+		truncation = string.Empty;
+		try
+		{
+			ReadRecordsInto(path, records);
+		}
+		catch (EndOfStreamException)
+		{
+			int lastSequence = -1;
+			foreach (KeyValuePair<int, MultiplayerSnapshotRecord> entry in records) lastSequence = entry.Key;
+
+			truncation = records.Count == 0
+				? $"{Path.GetFileName(path)} ends inside its first record and holds nothing comparable"
+				: $"{Path.GetFileName(path)} ends inside a record after {records.Count} complete ones, the last of them sequence {lastSequence}";
+		}
+
+		return records;
+	}
+
+	private static void ReadRecordsInto(string path, SortedDictionary<int, MultiplayerSnapshotRecord> records)
+	{
 		using FileStream stream = new(path, FileMode.Open, FileAccess.Read, FileShare.Read, 1 << 16);
 		using BinaryReader reader = new(stream);
 
@@ -1936,9 +1966,16 @@ public static class MultiplayerEcsSyncTestSupport
 		if (version != SyncRecordVersion) throw new InvalidDataException($"{Path.GetFileName(path)} uses unsupported record version {version}.");
 		reader.ReadBoolean();
 
+		int previousSequence = -1;
 		while (stream.Position < stream.Length)
 		{
 			int sequence = reader.ReadInt32();
+			if (sequence <= previousSequence)
+			{
+				throw new InvalidDataException($"{Path.GetFileName(path)} reads sequence {sequence} after {previousSequence}; it is not the layout this reader expects.");
+			}
+
+			previousSequence = sequence;
 			bool isBaseline = reader.ReadBoolean();
 			int baselinePeerCount = reader.ReadInt32();
 			HashSet<int> baselinePeerIds = new(baselinePeerCount);
@@ -2017,8 +2054,6 @@ public static class MultiplayerEcsSyncTestSupport
 
 			records[sequence] = record;
 		}
-
-		return records;
 	}
 
 	private static Dictionary<int, ComponentDigestEntry> ReadComponentDigests(BinaryReader reader)
