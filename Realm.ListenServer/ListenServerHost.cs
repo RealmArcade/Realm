@@ -46,7 +46,7 @@ public class ListenServerHost : IServerTransportSink
 	private readonly Dictionary<int, int> _firstSnapshotSequencePerPeer = new();
 
 	private readonly Dictionary<int, long> _lastBaselineRequestTickPerPeer = new();
-	private readonly Dictionary<int, long> _lastRefreshBaselineTickPerPeer = new();
+	private readonly Dictionary<int, long> _lastAcknowledgedProgressTickPerPeer = new();
 
 	private readonly Dictionary<int, long> _seatedAtTickPerPeer = new();
 
@@ -56,7 +56,12 @@ public class ListenServerHost : IServerTransportSink
 
 	private readonly Dictionary<int, int> _roundTripMillisecondsPerPeer = new();
 
-	private const int SnapshotRefreshTicks = MatchTiming.SimulationTickRateHz * 10;
+	/// <summary>
+	///     How long a peer may go without acknowledging a description it had not acknowledged before. An acknowledgement is
+	///     what proves a screen is still holding a world, so a peer that has stopped answering is the only peer the safety
+	///     refresh is still for.
+	/// </summary>
+	private const int SnapshotRefreshStallTicks = MatchTiming.SimulationTickRateHz * 3;
 	private readonly Dictionary<int, int> _obstacleSignaturePerPeer = new();
 	private readonly int[] _seatedPeerIds = new int[EcsWorld.MAX_PLAYERS];
 	private readonly List<PresentationMessage> _statePresentationBatch = new();
@@ -618,7 +623,7 @@ public class ListenServerHost : IServerTransportSink
 		_firstSnapshotSequencePerPeer.Remove(peerId);
 		_lastLoggedAckSequencePerPeer.Remove(peerId);
 		_lastBaselineRequestTickPerPeer.Remove(peerId);
-		_lastRefreshBaselineTickPerPeer.Remove(peerId);
+		_lastAcknowledgedProgressTickPerPeer[peerId] = tick;
 		_lastRepairSentTickPerPeer.Remove(peerId);
 		_obstacleSignaturePerPeer.Remove(peerId);
 	}
@@ -629,7 +634,7 @@ public class ListenServerHost : IServerTransportSink
 		_lastLoggedAckSequencePerPeer.Remove(peerId);
 		_firstSnapshotSequencePerPeer.Remove(peerId);
 		_lastBaselineRequestTickPerPeer.Remove(peerId);
-		_lastRefreshBaselineTickPerPeer.Remove(peerId);
+		_lastAcknowledgedProgressTickPerPeer.Remove(peerId);
 		_unacknowledgedPublicationsPerPeer.Remove(peerId);
 		_acknowledgedSequencePerPeer.Remove(peerId);
 		_roundTripMillisecondsPerPeer.Remove(peerId);
@@ -1249,7 +1254,6 @@ public class ListenServerHost : IServerTransportSink
 		// The first sequence this peer was described with bounds what its acknowledgement mask can claim: a bit for a
 		// sequence the match never sent was never meant to be set. A baseline starts that bound over.
 		if (snapshot.IsBaseline || !_firstSnapshotSequencePerPeer.ContainsKey(peerId)) _firstSnapshotSequencePerPeer[peerId] = _publishSequence;
-		if (snapshot.IsBaseline) _lastRefreshBaselineTickPerPeer[peerId] = simulation.TickCount;
 
 		// What the map declared about the match - cards, colours, labels and the camera it placed - is stated once, to the
 		// peer that has just been seated, and only to it. Sending it after every baseline replayed a camera pan the map
@@ -1438,6 +1442,9 @@ public class ListenServerHost : IServerTransportSink
 		// backwards, so it is taken at the value it now holds.
 		if (!_acknowledgedSequencePerPeer.TryGetValue(peerId, out int acknowledgedSequence) || ack.Sequence >= acknowledgedSequence)
 		{
+			// Answering with a description this peer had already acknowledged says it is still reading but not that it has
+			// got any further, so only a sequence it had not reported before counts as progress.
+			if (ack.Sequence > acknowledgedSequence) _lastAcknowledgedProgressTickPerPeer[peerId] = simulation.TickCount;
 			_acknowledgedSequencePerPeer[peerId] = ack.Sequence;
 		}
 
@@ -1494,9 +1501,16 @@ public class ListenServerHost : IServerTransportSink
 		_log.Write($"peer {peerId} acknowledged sequence {ack.Sequence} with mask {ack.AppliedMask:x16}");
 	}
 
+	/// <summary>
+	///     Whether this peer needs the world stated again rather than described again. The safety refresh used to run every
+	///     ten seconds whatever the peer was saying, which put a hundred kilobytes on that peer's reliable stream for a
+	///     screen whose every acknowledgement was proving continuity, and held everything queued behind it while it
+	///     travelled. What is left is the case it was written for: a peer that has stopped acknowledging cannot say whether
+	///     it is still holding a world, and only a description from scratch puts that beyond doubt.
+	/// </summary>
 	private bool IsRefreshDue(int peerId, long tick)
 	{
-		return _lastRefreshBaselineTickPerPeer.TryGetValue(peerId, out long lastBaselineTick) && tick - lastBaselineTick >= SnapshotRefreshTicks;
+		return _lastAcknowledgedProgressTickPerPeer.TryGetValue(peerId, out long lastProgressTick) && tick - lastProgressTick >= SnapshotRefreshStallTicks;
 	}
 
 	private bool TryClaimBaselineRequest(int peerId, long tick)

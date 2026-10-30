@@ -659,12 +659,12 @@ public static class MultiplayerEcsSyncTestSupport
 			List<string> digestTarget = hostSentBaselineToThisPeer ? mismatches : transientDigestMismatches;
 			int digestMismatchCountBefore = transientDigestMismatches.Count;
 			ulong clientPeerMask = BuildPeerMask(hostEntry.Value.DescribedPeerIds, clientPeerIds);
-			if (hostSentBaselineToThisPeer)
+			// Loot is described whenever its signature changes rather than only when the world is stated whole, so it is
+			// counted on every paired record: a run that compares it only at baselines says nothing about the loot that
+			// appeared since one, which is most of it.
+			foreach (MultiplayerLootState describedLoot in hostEntry.Value.Loot.Values)
 			{
-				foreach (MultiplayerLootState describedLoot in hostEntry.Value.Loot.Values)
-				{
-					if (describedLoot.NamedByPeers == SyncRecordFormat.NamedByEveryPeer || (describedLoot.NamedByPeers & clientPeerMask) != 0) comparedLootEntities++;
-				}
+				if (describedLoot.NamedByPeers == SyncRecordFormat.NamedByEveryPeer || (describedLoot.NamedByPeers & clientPeerMask) != 0) comparedLootEntities++;
 			}
 
 			CompareSnapshotRecord(hostEntry.Value, clientRecord, hostSentBaselineToThisPeer, mismatches, digestTarget, ref comparedUnits, ref offscreenMissingUnits, deltaDivergences, clientPeerMask, referenceCoverage);
@@ -738,7 +738,7 @@ public static class MultiplayerEcsSyncTestSupport
 		report.AddSummaryLine($"Startup catch-up sequences lost while the client applied its first baseline: {startupCatchUpSequences.Count} of the first {StartupWarmupSequenceCount} sequences ({DescribeSequenceBursts(startupCatchUpSequences)})");
 		report.AddSummaryLine($"Lost sequence bursts after startup: {DescribeSequenceBursts(lostSequences)}");
 		report.AddSummaryLine($"Off-screen host units absent on the client as expected: {offscreenMissingUnits}");
-		report.AddSummaryLine($"Loot entities compared at baselines: {comparedLootEntities}");
+		report.AddSummaryLine($"Loot entities compared on paired records: {comparedLootEntities}");
 		report.AddSummaryLine($"Navigation parity: compared {comparedNavigationBaselines} baselines, pathing grid mismatches {pathingMismatchCount}, baselines missing a navmesh {navMeshMissingCount}");
 		report.AddSummaryLine($"Navmesh shape differences: {navMeshShapeDifferenceCount} of {comparedNavigationBaselines} baselines (a peer bakes the obstacle volumes the authority reports, so a peer's mesh must be the authority's mesh polygon for polygon)");
 		report.AddSummaryLine($"Navmesh on every paired record: agreed on {navMeshAgreedRecords} records from seq {firstNavMeshAgreementSequence} onward, differed on {navMeshDisagreementBeforeAgreementCount} before the two sides first agreed (the peer's first bake) and on {navMeshDisagreementAfterAgreementCount} after; the agreed mesh is host {lastAgreedHostPolyCount} polygons ({lastAgreedHostGroundPolyCount} ground) and peer {lastAgreedClientPolyCount} polygons ({lastAgreedClientGroundPolyCount} ground) from {lastAgreedObstacleVolumeCount} obstacle volumes");
