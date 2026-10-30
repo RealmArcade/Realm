@@ -55,12 +55,34 @@ public class SnapshotTimeline
 
 	public const float MaximumExtrapolationMeters = 0.75f;
 
+	/// <summary>
+	///     How far past its target a starved cursor may be held still, in sequences, rather than drained at the corrected
+	///     rate. A starvation leaves the cursor at the end of the buffer, so the depth this link needs can only be rebuilt by
+	///     time passing without the world advancing: a pause a few sequences wide is that, while one the width of a whole
+	///     buffer is a freeze this rule would be inventing. It covers the depth a measured link settles at on anything up to
+	///     a bad link; a deficit wider than this keeps the gentle drain, because a pause longer than this is worse than the
+	///     slow motion it replaces.
+	/// </summary>
+	private const int MaximumCatchUpHoldSequences = 8;
+
+	/// <summary>
+	///     How fast a sample may give back distance the descriptions no longer support, in metres per second. A step past the
+	///     newest description is bounded to one interval and <see cref="MaximumExtrapolationMeters" />, and the frame the
+	///     descriptions catch up with the cursor the sample lands behind where it was just drawn; at this rate a full step
+	///     is given back over about a tenth of a second, which reads as the unit settling rather than as the moment the link
+	///     resumed. It is a speed rather than a duration so a screen drawing slower gives the same distance back over the
+	///     frames it has.
+	/// </summary>
+	private const float MaximumReleaseMetersPerSecond = 8f;
+
 	private readonly Vector3[] _positions = new Vector3[EcsWorld.MAX_ENTITIES * SamplesPerUnit];
 	private readonly float[] _rotations = new float[EcsWorld.MAX_ENTITIES * SamplesPerUnit];
 	private readonly int[] _sequences = new int[EcsWorld.MAX_ENTITIES * SamplesPerUnit];
 	private readonly int[] _counts = new int[EcsWorld.MAX_ENTITIES];
 	private readonly int[] _heads = new int[EcsWorld.MAX_ENTITIES];
 	private readonly float[] _leads = new float[EcsWorld.MAX_ENTITIES];
+	private readonly Vector3[] _drawnPositions = new Vector3[EcsWorld.MAX_ENTITIES];
+	private readonly bool[] _hasDrawnPosition = new bool[EcsWorld.MAX_ENTITIES];
 	private readonly int[] _orderConfirmedFrom = new int[EcsWorld.MAX_ENTITIES];
 	private readonly int[] _orderClearedAt = new int[EcsWorld.MAX_ENTITIES];
 
@@ -122,6 +144,8 @@ public class SnapshotTimeline
 		Array.Clear(_counts);
 		Array.Clear(_heads);
 		Array.Clear(_leads);
+		Array.Clear(_drawnPositions);
+		Array.Clear(_hasDrawnPosition);
 		Array.Fill(_sequences, -1);
 		Array.Fill(_orderConfirmedFrom, -1);
 		Array.Fill(_orderClearedAt, int.MaxValue);
@@ -151,6 +175,8 @@ public class SnapshotTimeline
 		_counts[entityId] = 0;
 		_heads[entityId] = 0;
 		_leads[entityId] = 0f;
+		_drawnPositions[entityId] = Vector3.Zero;
+		_hasDrawnPosition[entityId] = false;
 		_orderConfirmedFrom[entityId] = -1;
 		_orderClearedAt[entityId] = int.MaxValue;
 	}
@@ -267,6 +293,23 @@ public class SnapshotTimeline
 		{
 			_cursor = target;
 			_isStarved = false;
+		}
+		else if (error < 0f && _isStarved && _cursor - target <= MaximumCatchUpHoldSequences)
+		{
+			// A starvation leaves the cursor where the world it could draw stopped, which is the end of the buffer, so the
+			// next description that arrives puts it ahead of the depth this link needs. Easing that back at a fifteenth of
+			// the deficit per sequence kept the depth short - and so the screen starving - for over a second after every
+			// stall. Holding the clock still rebuilds the depth at the rate the target advances, which costs one pause the
+			// width of the deficit instead of a long stretch of slow motion.
+			//
+			// This only answers a cursor that ran out of world. A cursor with a description ahead of it that merely has less
+			// room behind it than the link was measured to need is a buffer being consumed as a buffer, and stopping it
+			// there would also be stopping the run-out that tells this screen how deep the link really has to be held.
+			// The starvation stays set for as long as the hold lasts, so the cursor does not creep forward between frames.
+
+			// A window the cursor spent ahead of its target is not a window with room to spare: the buffer was over-drawn,
+			// and the shallowing rule reads a deep buffer as depth this link does not need.
+			_cleanWindowsInARow = 0;
 		}
 		else
 		{
@@ -431,22 +474,23 @@ public class SnapshotTimeline
 
 		if (cursor >= newestSequence || count == 1)
 		{
-			position = _positions[newestIndex];
+			Vector3 described = _positions[newestIndex];
+			position = described;
 			rotationY = _rotations[newestIndex];
 
 			if (count >= 2)
 			{
 				int previousIndex = baseIndex + (head - 1 + SamplesPerUnit) % SamplesPerUnit;
-				velocity = ResolveVelocity(_positions[previousIndex], _positions[newestIndex], newestSequence - _sequences[previousIndex]);
+				velocity = ResolveVelocity(_positions[previousIndex], described, newestSequence - _sequences[previousIndex]);
 			}
 
 			if (orderStillHeld && count >= 2)
 			{
-				Vector3 held = position;
-				position = Extrapolate(held, velocity, cursor - newestSequence);
-				if (position != held) ExtrapolatedSampleCount++;
+				position = Extrapolate(described, velocity, cursor - newestSequence);
+				if (position != described) ExtrapolatedSampleCount++;
 			}
 
+			position = ReleaseBackwards(entityId, position);
 			return true;
 		}
 
@@ -467,6 +511,8 @@ public class SnapshotTimeline
 			position = Vector3.Lerp(_positions[olderIndex], _positions[newerIndex], fraction);
 			rotationY = InterpolateAngle(_rotations[olderIndex], _rotations[newerIndex], fraction);
 			velocity = ResolveVelocity(_positions[olderIndex], _positions[newerIndex], span);
+
+			position = ReleaseBackwards(entityId, position);
 			return true;
 		}
 
@@ -475,7 +521,42 @@ public class SnapshotTimeline
 		position = _positions[oldestIndex];
 		rotationY = _rotations[oldestIndex];
 		velocity = ResolveVelocity(_positions[oldestIndex], _positions[baseIndex + (oldestOffset + 1) % SamplesPerUnit], _sequences[baseIndex + (oldestOffset + 1) % SamplesPerUnit] - _sequences[oldestIndex]);
+		position = ReleaseBackwards(entityId, position);
 		return true;
+	}
+
+	/// <summary>
+	///     Keeps a sample from moving backwards faster than the frame allows. The frame the descriptions catch up with a
+	///     cursor that had run past them, the sample belongs behind where the step past the newest description had just
+	///     drawn it, and taking that in one frame is the unit jumping backwards on screen at exactly the moment the link
+	///     handed this screen new state. What is held back is given back over the next few frames instead.
+	/// </summary>
+	/// <remarks>
+	///     It is a limit on the speed taken backwards rather than a blend between the two positions, so a sample that belongs
+	///     <em>forward</em> of where it was drawn - the ordinary case, and every ordinary frame - is drawn where it belongs
+	///     with nothing added. Only a description that genuinely places a unit behind its last drawn sample is eased, and
+	///     only for as long as that distance takes at <see cref="MaximumReleaseMetersPerSecond" />.
+	/// </remarks>
+	private Vector3 ReleaseBackwards(int entityId, Vector3 sampled)
+	{
+		if (!_hasDrawnPosition[entityId])
+		{
+			_hasDrawnPosition[entityId] = true;
+			_drawnPositions[entityId] = sampled;
+			return sampled;
+		}
+
+		Vector3 drawn = _drawnPositions[entityId];
+		Vector3 backwards = drawn - sampled;
+		float backwardsMeters = backwards.Length();
+		float allowedMeters = MaximumReleaseMetersPerSecond * _frameDeltaSeconds;
+
+		// Nothing but the last drawn position is compared, so a unit that is reset - which forgets it - is drawn wherever
+		// its new descriptions put it rather than crawling there from wherever it used to be.
+		if (backwardsMeters > allowedMeters && backwardsMeters > 0.0001f) sampled = drawn - backwards * (allowedMeters / backwardsMeters);
+
+		_drawnPositions[entityId] = sampled;
+		return sampled;
 	}
 
 	private static Vector3 Extrapolate(Vector3 newestPosition, Vector3 velocity, float sequencesAhead)
