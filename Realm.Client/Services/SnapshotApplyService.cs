@@ -35,6 +35,23 @@ public class SnapshotApplyService
 
 	private const int MaximumRepairGraceMilliseconds = 1200;
 
+	/// <summary>
+	///     How long a description may go missing before this screen asks about it. It is the depth the presentation buffer
+	///     already covers plus two intervals, because past that the screen draws its newest description and gets no closer
+	///     to the match: the acknowledgement that would have reported the hole is written by a description arriving, so a
+	///     stream that stops entirely reports nothing at all.
+	/// </summary>
+	private const int MinimumSilenceMilliseconds = 250;
+
+	private const int MaximumSilenceMilliseconds = 1000;
+
+	/// <summary>
+	///     How many silent windows pass before the screen stops asking for the description it expected and asks for the
+	///     world instead. A delta names only what changed since the one before it, so a run the match no longer holds is
+	///     answered by a baseline and by nothing else.
+	/// </summary>
+	private const int SilentWindowsBeforeBaseline = 2;
+
 	private readonly List<WorldSnapshot> _queuedDeltas = new();
 
 	private int _queuedDeltaHead;
@@ -47,8 +64,17 @@ public class SnapshotApplyService
 	private int _repairFirstSequence = -1;
 	private ulong _lastRepairRequestTime;
 
+	private ulong _lastDescriptionArrivalMilliseconds;
+	private ulong _lastSilenceRequestMilliseconds;
+	private int _silentWindows;
+
 	public void Accept(WorldSnapshot snapshot)
 	{
+		// A description that arrived, whatever this screen goes on to make of it, is the answer to a watch that asked
+		// about a stream that had stopped.
+		_lastDescriptionArrivalMilliseconds = Time.GetTicksMsec();
+		_silentWindows = 0;
+
 		if (_baselineRequestDeferred) RequestBaseline();
 
 		Entity worldEntity = GameContext.NetworkService.FindWorldEntity();
@@ -180,6 +206,51 @@ public class SnapshotApplyService
 		GameContext.NetworkService.ApplySnapshotToWorld(snapshot);
 		DrainQueuedDeltas(ref networkState);
 		if (QueuedDeltaCount == 0) ForgetRepairRun();
+	}
+
+	/// <summary>
+	///     Asks about a stream of descriptions that has stopped. Nothing else in this screen can: every other recovery path
+	///     here is entered by a description arriving, so a run that simply ends leaves the picture frozen on the newest
+	///     description this screen holds until the match is declared lost tens of seconds later.
+	/// </summary>
+	public void ObserveDescriptionSilence()
+	{
+		if (GameContext.Host == null) return;
+		if (GameContext.NetworkService == null || GameContext.NetworkService.IsPaused) return;
+
+		int newestSequence = GameContext.SnapshotTimeline.NewestSequence;
+		if (newestSequence < 0) return;
+
+		ulong now = Time.GetTicksMsec();
+		int silenceMilliseconds = ResolveSilenceMilliseconds();
+		if (now - _lastDescriptionArrivalMilliseconds < (ulong)silenceMilliseconds) return;
+		if (now - _lastSilenceRequestMilliseconds < (ulong)silenceMilliseconds) return;
+
+		_lastSilenceRequestMilliseconds = now;
+		_silentWindows++;
+
+		if (_silentWindows >= SilentWindowsBeforeBaseline)
+		{
+			_silentWindows = 0;
+			RequestBaseline();
+			return;
+		}
+
+		// The description this screen is owed next is the one the match published after the newest it holds. A run the
+		// match no longer holds is answered by a baseline of its own, so this asks by name first and only rebuilds when
+		// naming it has not worked.
+		GameContext.Host.RequestSnapshotRepair(newestSequence + 1, 1);
+	}
+
+	/// <summary>
+	///     How long this link may leave this screen without a description before the silence is a fault rather than the
+	///     buffer doing its job. The buffer already covers the delay it was sized to, so the wait is that depth and no more.
+	/// </summary>
+	private static int ResolveSilenceMilliseconds()
+	{
+		float bufferMilliseconds = GameContext.SnapshotTimeline.DelayMilliseconds;
+		float silenceMilliseconds = bufferMilliseconds + MatchTiming.SnapshotIntervalSeconds * 2000f;
+		return Math.Clamp((int)MathF.Ceiling(silenceMilliseconds), MinimumSilenceMilliseconds, MaximumSilenceMilliseconds);
 	}
 
 	/// <summary>
@@ -332,6 +403,9 @@ public class SnapshotApplyService
 		_lastBaselineRequestTime = 0;
 		_baselineRequestDeferred = false;
 		_lastRepairRequestTime = 0;
+		_lastDescriptionArrivalMilliseconds = 0;
+		_lastSilenceRequestMilliseconds = 0;
+		_silentWindows = 0;
 		ForgetRepairRun();
 	}
 }

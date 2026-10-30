@@ -292,6 +292,10 @@ public partial class GameHost
 		GameContext.NetworkService.UpdateClientTickDomain();
 		GameContext.NetworkLatencyService.Update(fDelta);
 
+		// A stream that stops takes every other recovery path with it, because each of them is entered by a description
+		// arriving. This one is entered by the tick instead.
+		GameContext.SnapshotApply.ObserveDescriptionSilence();
+
 		// A route the match never answered is taken back before the planning pass sees it, so a click that moved nothing
 		// stops drawing rather than being planned again every tick.
 		ExpirePreviewRoutes();
