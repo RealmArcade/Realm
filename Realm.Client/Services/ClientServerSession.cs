@@ -566,7 +566,6 @@ public class ClientServerSession : IDisposable
 	{
 		var hello = new ClientHello
 		{
-			Protocol = RealmProtocol.Version,
 			Build = RealmVersion.GameBuildNumber,
 			TokenProof = _token.Length > 0 && _challenge.Length > 0 ? RealmProtocol.ProveToken(_token, _challenge) : string.Empty,
 			AdminProof = _adminToken.Length > 0 && _challenge.Length > 0 ? RealmProtocol.ProveToken(_adminToken, _challenge) : string.Empty,

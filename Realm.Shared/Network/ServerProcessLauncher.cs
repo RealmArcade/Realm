@@ -195,8 +195,6 @@ public class ServerProcessLauncher : IDisposable
 
 	public int Port => _readyInfo.Port;
 
-	public int Protocol => _readyInfo.Protocol;
-
 	public string Build => _readyInfo.Build;
 
 	public string MapHash => _readyInfo.MapHash;

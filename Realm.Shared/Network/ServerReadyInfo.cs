@@ -4,7 +4,7 @@ using System.Text.Json.Serialization;
 
 namespace Realm.Shared.Network;
 
-public record ServerReadyInfo(int Port, int Protocol, string Build, string MapHash, string WireTableHash)
+public record ServerReadyInfo(int Port, string Build, string MapHash, string WireTableHash)
 {
 	private static readonly JsonSerializerOptions Format = new()
 	{

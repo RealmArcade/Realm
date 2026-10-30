@@ -41,7 +41,7 @@ public partial class ListenServerEntry : Node
 		parsed = resolved;
 
 		_log = new ServerLog(parsed.LogPath);
-		_log.Write($"starting pid={System.Environment.ProcessId} map={parsed.MapPath} port={parsed.Port} protocol={RealmProtocol.Version} build={RealmVersion.GameBuildNumber}");
+		_log.Write($"starting pid={System.Environment.ProcessId} map={parsed.MapPath} port={parsed.Port} build={RealmVersion.GameBuildNumber}");
 
 		_parentWatchdog = new ParentProcessWatchdog(parsed.ParentProcessId);
 		if (_parentWatchdog.IsWatching) _log.Write($"watching the screen that started this match, pid={parsed.ParentProcessId}");

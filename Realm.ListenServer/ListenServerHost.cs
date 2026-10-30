@@ -416,9 +416,9 @@ public class ListenServerHost : IServerTransportSink
 
 		if (_mapHash.Length == 0) _mapHash = MapContentHash.Compute(_arguments.MapPath, _arguments.LogPath);
 		string wireTableHash = ReplicatedComponents.ComputeWireTableHash();
-		var readyInfo = new ServerReadyInfo(Port, RealmProtocol.Version, RealmVersion.GameBuildNumber, _mapHash, wireTableHash);
+		var readyInfo = new ServerReadyInfo(Port, RealmVersion.GameBuildNumber, _mapHash, wireTableHash);
 
-		_log.Write($"ready protocol={readyInfo.Protocol} build={readyInfo.Build} mapHash={_mapHash} wireTableHash={wireTableHash}");
+		_log.Write($"ready build={readyInfo.Build} mapHash={_mapHash} wireTableHash={wireTableHash}");
 		Console.Out.WriteLine(readyInfo.ToReadyLine());
 		Console.Out.Flush();
 	}
@@ -833,7 +833,6 @@ public class ListenServerHost : IServerTransportSink
 
 	private string DescribeLobbyHandshakeRejection(int peerId, in ClientHello hello)
 	{
-		if (hello.Protocol != RealmProtocol.Version) return "server_rejected_protocol";
 		if (!string.Equals(hello.Build, RealmVersion.GameBuildNumber, StringComparison.Ordinal)) return "server_rejected_build";
 		if (!string.Equals(hello.WireTableHash, ReplicatedComponents.ComputeWireTableHash(), StringComparison.Ordinal)) return "server_rejected_wire_table";
 
@@ -1025,7 +1024,6 @@ public class ListenServerHost : IServerTransportSink
 	{
 		var response = new ServerHello
 		{
-			Protocol = RealmProtocol.Version,
 			Build = RealmVersion.GameBuildNumber,
 			Accepted = rejection.Length == 0,
 			Rejection = rejection,
@@ -1046,7 +1044,6 @@ public class ListenServerHost : IServerTransportSink
 
 	private string DescribeHandshakeRejection(int peerId, in ClientHello hello)
 	{
-		if (hello.Protocol != RealmProtocol.Version) return "server_rejected_protocol";
 		if (!string.Equals(hello.Build, RealmVersion.GameBuildNumber, StringComparison.Ordinal)) return "server_rejected_build";
 		if (!string.Equals(hello.WireTableHash, ReplicatedComponents.ComputeWireTableHash(), StringComparison.Ordinal)) return "server_rejected_wire_table";
 
