@@ -76,6 +76,7 @@ public partial class AccountDialog : Control
 		_mode = GameContext.Account.IsSignedIn ? DialogMode.Account : DialogMode.SignIn;
 		Visible = true;
 		ClearStatus();
+		PrefillDisplayNameFromSteam();
 		RefreshMode();
 		RefreshAccount();
 		_ = LoadProvidersAsync();
@@ -204,11 +205,23 @@ public partial class AccountDialog : Control
 		{
 			_mode = DialogMode.Register;
 			ClearStatus();
+			PrefillDisplayNameFromSteam();
 			RefreshMode();
 		};
 		row.AddChild(_registerTabButton);
 
 		return row;
+	}
+
+	private void PrefillDisplayNameFromSteam()
+	{
+		if (GameContext.Account.IsSignedIn) return;
+		if (_displayNameEdit == null || _displayNameEdit.Text.Length > 0) return;
+
+		string personaName = GameContext.Steam.GetPersonaName();
+		if (personaName.Length == 0) return;
+
+		_displayNameEdit.Text = personaName;
 	}
 
 	private LineEdit CreateField(VBoxContainer parent, string fieldName, string fieldLabel, out Label fieldLabelNode)

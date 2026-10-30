@@ -141,6 +141,29 @@ jobs:
             Copy-Item -Path "Realm.Client\servers.template.json" -Destination "$PWD\publish\servers.json" -Force
           }
 
+      - name: Ship the Steam Native Library
+        if: ${{ github.event_name == 'workflow_dispatch' && (inputs.publish == true || github.event.inputs.publish == 'true') }}
+        run: |
+          # A demo is licensed by the Steam client through steam_api64.dll, so a published build without it cannot start.
+          $steamLibrary = Join-Path $PWD "ThirdPartyBinaries\steam_api64.dll"
+          if (-not (Test-Path $steamLibrary)) {
+            throw "ThirdPartyBinaries\steam_api64.dll is missing. Copy it from the Steamworks SDK (redistributable_bin/win64) before publishing."
+          }
+          Copy-Item -Path $steamLibrary -Destination "$PWD\publish\steam_api64.dll" -Force
+
+          # steam_appid.txt makes every install behave like a development run, so a published build must never carry it.
+          if (Test-Path "$PWD\publish\steam_appid.txt") {
+            throw "steam_appid.txt must never be shipped inside the published build."
+          }
+
+      - name: Upload SteamPipe Content
+        if: ${{ github.event_name == 'workflow_dispatch' && (inputs.publish == true || github.event.inputs.publish == 'true') }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: Realm-SteamPipe-Windows-x64
+          path: publish/**
+          if-no-files-found: error
+
       - name: Create 7z Ultra Archive
         if: ${{ github.event_name == 'workflow_dispatch' && (inputs.publish == true || github.event.inputs.publish == 'true') }}
         id: create_archive

@@ -23,6 +23,7 @@ config/icon="res://icon.png"
 
 RealmNetwork="*res://Network/ClientNetworkChannel.cs"
 LobbyManager="*res://Network/LobbyManager.cs"
+SteamRuntime="*res://Services/Steam/SteamRuntime.cs"
 
 [debug]
 

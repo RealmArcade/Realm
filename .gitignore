@@ -26,6 +26,7 @@ Realm.AdminServer/.data/
 admin_private.key
 servers.json
 Realm.Clientservers.json
+steam_appid.txt
 Realm.AdminServer/appsettings.json
 .godot/
 /android/

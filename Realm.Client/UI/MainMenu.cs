@@ -175,6 +175,7 @@ public partial class MainMenu : Control
 	private void SetupButtons()
 	{
 		SetupPlayButton(_playButton, OnPlayPressed);
+		CreateSteamWishlistButton();
 		if (_singlePlayerButton != null)
 		{
 			SetupMenuButton(_singlePlayerButton, "SINGLE PLAYER", () =>
@@ -548,6 +549,27 @@ public partial class MainMenu : Control
 		}
 
 		GameContext.UserInterface.TransitionTo(GameScreen.LobbyBrowser);
+	}
+
+	private void CreateSteamWishlistButton()
+	{
+		if (!GameContext.Steam.CanOpenStorePage) return;
+
+		var wishlistButton = new Button { Name = "WishlistButton" };
+		wishlistButton.CustomMinimumSize = new Vector2(240, 40);
+		wishlistButton.AddThemeConstantOverride("icon_max_width", 24);
+		UIStyle.ApplyButtonStyleBoxes(wishlistButton);
+		UIStyle.ApplyButtonText(wishlistButton, TranslationServer.Translate("WISHLIST ON STEAM"), 16);
+		wishlistButton.Pressed += () =>
+		{
+			PlayClickSound();
+			GameContext.Steam.OpenFullGameStorePage();
+		};
+		wishlistButton.MouseEntered += PlayHoverSound;
+
+		VBoxContainer column = GetNode<VBoxContainer>("CentralPanel/VBoxContainer");
+		column.AddChild(wishlistButton);
+		column.MoveChild(wishlistButton, _playButton.GetIndex() + 1);
 	}
 
 	private void SetupPlayButton(Button button, Action onClick)

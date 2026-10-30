@@ -39,6 +39,10 @@
     <None Remove="MapTemplate\**\*.cs" />
     <None Remove=".godot\**" />
     <None Include="install_editor_dependencies.ps1" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\ThirdPartyBinaries\steam_api64.dll" Condition="Exists('..\ThirdPartyBinaries\steam_api64.dll')">
+      <Link>steam_api64.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Include="vscode_extensions_dist\**\*.*" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\MapTemplate\**\*.*" Exclude="..\MapTemplate\bin\**;..\MapTemplate\obj\**">
       <Link>MapTemplate\%(RecursiveDir)%(Filename)%(Extension)</Link>
@@ -85,6 +89,7 @@
     <PackageReference Include="MemoryPack" Version="1.21.4" />
     <PackageReference Include="SharpToken" Version="2.0.6" />
     <PackageReference Include="SkiaSharp" Version="3.116.1" />
+    <PackageReference Include="Steamworks.NET" Version="2024.8.0" GeneratePathProperty="true" />
     <PackageReference Include="ZstdSharp.Port" Version="0.8.8" />
   </ItemGroup>
   <ItemGroup>
@@ -98,4 +103,8 @@
   <ItemGroup>
     <AdditionalFiles Include="..\Realm.MapAPI\wit\game.wit" />
   </ItemGroup>
+  <Target Name="PlaceSteamworksManagedLibrary" AfterTargets="Build">
+    <!-- The package carries Steamworks.NET only under runtimes/, and an exported Godot build gathers assemblies flat. -->
+    <Copy SourceFiles="$(PkgSteamworks_NET)\runtimes\win-x64\lib\netstandard2.1\Steamworks.NET.dll" DestinationFolder="$(OutputPath)" SkipUnchangedFiles="true" />
+  </Target>
 </Project>

@@ -93,6 +93,7 @@ public partial class GameOver : Control
 		SetupCloseButton();
 		SetupReportCopyrightButton();
 		SetupWriteReviewButton();
+		SetupWishlistButton();
 
 		UpdateTabDisplay();
 
@@ -311,6 +312,30 @@ public partial class GameOver : Control
 			ShowReviewPopup();
 		};
 		_btnWriteReview.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
+	}
+
+	private void SetupWishlistButton()
+	{
+		if (!GameContext.Steam.CanOpenStorePage) return;
+
+		var wishlistButton = new Button { Name = "BtnWishlist" };
+		wishlistButton.Flat = false;
+		UIStyle.ApplyButtonText(wishlistButton, TranslationServer.Translate("WISHLIST ON STEAM"), 18);
+		wishlistButton.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
+		wishlistButton.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
+		wishlistButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
+		wishlistButton.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+
+		wishlistButton.Pressed += () =>
+		{
+			GameContext.UserInterface.PlayClickSound();
+			GameContext.Steam.OpenFullGameStorePage();
+		};
+		wishlistButton.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
+
+		var bottomButtons = GetNode<HBoxContainer>("BottomButtons");
+		bottomButtons.AddChild(wishlistButton);
+		bottomButtons.MoveChild(wishlistButton, _btnWriteReview.GetIndex());
 	}
 
 	private void ShowReviewPopup()

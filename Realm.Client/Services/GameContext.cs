@@ -73,6 +73,10 @@ namespace Realm.Client.Services
 
 		public static AccountService Account => _account ??= new AccountService();
 
+		private static SteamService? _steam;
+
+		public static SteamService Steam => _steam ??= new SteamService();
+
 		public static ReplayPlaybackManager ReplayPlayback => _replayPlayback ??= new ReplayPlaybackManager();
 		public static PeerSeederManager PeerSeeder => _peerSeeder ??= new PeerSeederManager();
 
