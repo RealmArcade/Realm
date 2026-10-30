@@ -5,39 +5,59 @@ using Realm.Shared.Network;
 namespace Realm.ListenServer;
 
 /// <summary>
-///     What each peer has already been told. The tick thread is the only writer: it creates the state of every seated
-///     peer before the publish lanes are forked and removes it once the peer is gone. A lane only reads, which is why
-///     the table is a plain dictionary rather than a concurrent one - the fork is the barrier, not a lock per lookup.
+///     What each peer has already been told. The tick thread is the writer: it creates the state of every seated peer
+///     before the publish lanes are forked and removes it once the peer is gone. Every lane reads at once, so the table is
+///     published by reference and replaced rather than mutated: a lane reads a dictionary that is never written, which is
+///     what makes the lock-free lookup safe. A peer that seats mid-run pays for one replacement, not for a lock per lookup.
 /// </summary>
 public class SnapshotPeerStateStore
 {
-	private readonly Dictionary<int, SnapshotPeerState> _statesByPeerId = new();
-
 	private readonly object _creationLock = new();
 
-	public int Count => _statesByPeerId.Count;
+	private Dictionary<int, SnapshotPeerState> _statesByPeerId = new();
+
+	public int Count => Volatile.Read(ref _statesByPeerId).Count;
 
 	public SnapshotPeerState Get(int peerId)
 	{
-		if (_statesByPeerId.TryGetValue(peerId, out SnapshotPeerState? state)) return state;
+		Dictionary<int, SnapshotPeerState> published = Volatile.Read(ref _statesByPeerId);
+		if (published.TryGetValue(peerId, out SnapshotPeerState? state)) return state;
 
-		// Reached only for a peer the tick thread did not ensure, which is once per peer rather than once per description.
-		// It is taken under a lock because the fast path above is read by every publish lane at once, and a plain
-		// dictionary cannot be written while another lane is reading it: the alternative was creating the state where the
-		// description is written, which is exactly the lane that must only read.
+		return Ensure(peerId);
+	}
+
+	public SnapshotPeerState Ensure(int peerId)
+	{
+		Dictionary<int, SnapshotPeerState> published = Volatile.Read(ref _statesByPeerId);
+		if (published.TryGetValue(peerId, out SnapshotPeerState? existing)) return existing;
+
 		lock (_creationLock)
 		{
-			if (_statesByPeerId.TryGetValue(peerId, out state)) return state;
+			published = Volatile.Read(ref _statesByPeerId);
+			if (published.TryGetValue(peerId, out existing)) return existing;
 
-			state = new SnapshotPeerState();
-			_statesByPeerId[peerId] = state;
+			var state = new SnapshotPeerState();
+			var expanded = new Dictionary<int, SnapshotPeerState>(published) { [peerId] = state };
+			Volatile.Write(ref _statesByPeerId, expanded);
 			return state;
 		}
 	}
 
-	public void Ensure(int peerId) => _statesByPeerId.TryAdd(peerId, new SnapshotPeerState());
+	public void Forget(int peerId)
+	{
+		Dictionary<int, SnapshotPeerState> published = Volatile.Read(ref _statesByPeerId);
+		if (!published.ContainsKey(peerId)) return;
 
-	public void Forget(int peerId) => _statesByPeerId.Remove(peerId);
+		lock (_creationLock)
+		{
+			published = Volatile.Read(ref _statesByPeerId);
+			if (!published.ContainsKey(peerId)) return;
+
+			var reduced = new Dictionary<int, SnapshotPeerState>(published);
+			reduced.Remove(peerId);
+			Volatile.Write(ref _statesByPeerId, reduced);
+		}
+	}
 }
 
 /// <summary>
