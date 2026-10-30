@@ -827,11 +827,11 @@ public partial class GameHost : Node3D, IGameAPI
 
 	public bool IsEditorObjectSelected(Node node) => node != null && _editorObjectSelection.Contains(node);
 
-	public void ToggleEditorObjectSelection(Node node, bool remove)
+	public void ToggleEditorObjectSelection(Node node)
 	{
 		if (node == null) return;
 
-		if (remove || IsEditorObjectSelected(node))
+		if (IsEditorObjectSelected(node))
 		{
 			RemoveEditorObjectFromSelection(node);
 		}

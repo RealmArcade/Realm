@@ -1597,7 +1597,7 @@ public partial class GameHost
 
 						if (shiftPressed || ctrlPressed)
 						{
-							ToggleEditorObjectSelection(clickedNode, ctrlPressed);
+							ToggleEditorObjectSelection(clickedNode);
 						}
 						else if (!(SelectedEditorObjectCount > 1 && IsEditorObjectSelected(clickedNode)))
 						{
