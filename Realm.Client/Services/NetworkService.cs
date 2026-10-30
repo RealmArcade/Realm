@@ -521,7 +521,7 @@ public class NetworkService
 		if (!mapping.ServerToClientEntityMap.TryGetValue(snap.EntityId, out var localEntity))
 		{
 			if (snap.IsDead) _pendingUnitSpawns.Remove(snap.EntityId);
-			else _pendingUnitSpawns[snap.EntityId] = snap;
+			else QueueUnitSpawn(snap);
 			return;
 		}
 
@@ -529,7 +529,7 @@ public class NetworkService
 		{
 			GameContext.SnapshotTimeline.Reset(localEntity.Id);
 			RetireClientEntityForRecycledServerId(mapping, localEntity, snap.EntityId);
-			if (!snap.IsDead) _pendingUnitSpawns[snap.EntityId] = snap;
+			if (!snap.IsDead) QueueUnitSpawn(snap);
 			return;
 		}
 
@@ -596,9 +596,26 @@ public class NetworkService
 		return MathF.Max(MaximumPlausibleTargetStepMeters, coveredAtSpeed);
 	}
 
+	/// <summary>
+	///     Holds a unit this screen has not built yet until it has the budget to build it. A description of a unit that
+	///     already has a definition on the wire leaves it out, so a unit waiting to be built keeps the one it arrived with
+	///     rather than being queued a second time without it.
+	/// </summary>
+	private void QueueUnitSpawn(UnitSnapshot snap)
+	{
+		if (snap.UnitId.Length == 0 && _pendingUnitSpawns.TryGetValue(snap.EntityId, out UnitSnapshot queued)) snap.UnitId = queued.UnitId;
+
+		_pendingUnitSpawns[snap.EntityId] = snap;
+	}
+
 	private static bool IsServerEntityIdRecycled(UnitSnapshot snap, Entity localEntity)
 	{
-		if (GameContext.World.Has<DefinitionId>(localEntity) && GameContext.World.Get<DefinitionId>(localEntity).Value != snap.UnitId) return true;
+		// A description that names no definition says the unit is one this screen already knows, which cannot be a different
+		// unit using a recycled identifier: that is what the definition in the description is for.
+		if (snap.UnitId.Length > 0
+		    && GameContext.World.Has<DefinitionId>(localEntity)
+		    && GameContext.World.Get<DefinitionId>(localEntity).Value != snap.UnitId) return true;
+
 		if (GameContext.World.Has<UnitOwnerPlayer>(localEntity)
 			&& snap.OwnerPlayerIndex >= 0
 			&& GameContext.World.Get<UnitOwnerPlayer>(localEntity).PlayerIndex != snap.OwnerPlayerIndex) return true;

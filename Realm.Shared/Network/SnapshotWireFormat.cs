@@ -57,6 +57,38 @@ public static class SnapshotWireFormat
 		return frame;
 	}
 
+	/// <summary>
+	///     Decompresses a frame into a buffer the caller keeps, so a screen reading thirty descriptions a second does not
+	///     hand the allocator a new buffer of the frame's own size for each of them. A baseline is over a hundred kilobytes,
+	///     which is a large-object allocation every time one arrives.
+	/// </summary>
+	public static ReadOnlySpan<byte> Decode(byte[] frame, ref byte[] serializedBuffer)
+	{
+		if (frame.Length == 0) return ReadOnlySpan<byte>.Empty;
+
+		if (frame.Length < FrameHeaderBytes || BinaryPrimitives.ReadUInt32LittleEndian(frame) != FrameMagic)
+		{
+			throw new InvalidDataException($"A snapshot frame of {frame.Length} bytes does not carry the frame magic.");
+		}
+
+		int serializedLength = BinaryPrimitives.ReadInt32LittleEndian(frame.AsSpan(4));
+		if (serializedLength <= 0 || serializedLength > MaximumSerializedSnapshotBytes)
+		{
+			throw new InvalidDataException($"A snapshot frame declares {serializedLength} serialized bytes, which is not a size a snapshot can be.");
+		}
+
+		if (serializedBuffer.Length < serializedLength) serializedBuffer = new byte[serializedLength];
+
+		Decompressor decompressor = _decompressor ??= new Decompressor();
+		int written = decompressor.Unwrap(frame.AsSpan(FrameHeaderBytes), serializedBuffer.AsSpan(0, serializedLength));
+		if (written != serializedLength)
+		{
+			throw new InvalidDataException($"A snapshot frame of {frame.Length} bytes decompressed to {written} bytes instead of its declared {serializedLength}.");
+		}
+
+		return serializedBuffer.AsSpan(0, serializedLength);
+	}
+
 	public static byte[] Decode(byte[] frame)
 	{
 		if (frame.Length == 0) return frame;

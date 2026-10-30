@@ -78,6 +78,13 @@ public class UnitDescriptionState
 
 	public UnitSnapshot SentRecord;
 
+	/// <summary>
+	///     The definition this peer was last told this unit is built from, so the description of a unit that moves can leave
+	///     it out. Null until the peer has been told, and forgotten with the rest of the record when the unit leaves its
+	///     sight.
+	/// </summary>
+	public string? ToldDefinition;
+
 	public ulong ToldCodecMask;
 
 	public byte[]?[] SentPayloads;

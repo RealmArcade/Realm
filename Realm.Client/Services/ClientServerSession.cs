@@ -30,6 +30,8 @@ public class ClientServerSession : IDisposable
 
 	private readonly SnapshotReassembler _snapshotReassembler = new();
 
+	private byte[] _snapshotBuffer = new byte[SnapshotWireFormat.FrameHeaderBytes];
+
 	private readonly List<QueuedFrame> _incoming = new();
 	private int _incomingIndex;
 	private bool _descriptionsWereDropped;
@@ -721,7 +723,8 @@ public class ClientServerSession : IDisposable
 		// was not told: nothing is applied for it, the acknowledgement reports the hole, and the match sends it again.
 		if (!_snapshotReassembler.TryTake(payload, out byte[] frame)) return;
 
-		WorldSnapshot snapshot = MemoryPackSerializer.Deserialize<WorldSnapshot>(SnapshotWireFormat.Decode(frame));
+		ReadOnlySpan<byte> serialized = SnapshotWireFormat.Decode(frame, ref _snapshotBuffer);
+		WorldSnapshot snapshot = MemoryPackSerializer.Deserialize<WorldSnapshot>(serialized);
 
 		if (MultiplayerBandwidthMeter.IsRecording) MultiplayerBandwidthMeter.RecordReceivedSnapshot(frame.Length, snapshot.IsBaseline);
 

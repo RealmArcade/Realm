@@ -171,6 +171,21 @@ public class AuthoritativeSnapshotBuilder
 			if (!isBaseline && MatchesIn(in described, in held.SentRecord)) continue;
 
 			held.SentRecord = described;
+
+			// A unit's definition never changes, so it is named once rather than on every description of it. A moving unit is
+			// described thirty times a second, and the same text was encoded, carried and allocated on the screen each time;
+			// the record this match keeps still holds it, so the next description can tell whether the peer has been told.
+			// A unit that leaves this peer's sight loses its record here and is named again when it comes back, which is the
+			// moment the screen has thrown its copy away.
+			if (!isBaseline && held.ToldDefinition != null && string.Equals(held.ToldDefinition, described.UnitId, StringComparison.Ordinal))
+			{
+				described.UnitId = string.Empty;
+			}
+			else
+			{
+				held.ToldDefinition = described.UnitId;
+			}
+
 			snapshot.Units.Add(described);
 		}
 
