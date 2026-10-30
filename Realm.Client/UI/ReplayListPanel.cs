@@ -57,9 +57,6 @@ public partial class ReplayListPanel : Control
 
 	private void ConnectSignals()
 	{
-		_backBtn.Pressed += OnBackPressed;
-		_backBtn.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
-
 		_deleteAllBtn.Pressed += OnDeleteAllPressed;
 		_deleteAllBtn.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 	}
@@ -67,12 +64,7 @@ public partial class ReplayListPanel : Control
 	private void ApplyStyles()
 	{
 		UIStyle.ApplyTitle(_titleLabel, "REPLAYS", 28);
-		UIStyle.ApplyButtonText(_backBtn, "BACK", 14);
-		_backBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		_backBtn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		_backBtn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		_backBtn.AddThemeConstantOverride("icon_max_width", 0);
-		_backBtn.MouseFilter = MouseFilterEnum.Stop;
+		UIStyle.ApplyBackButton(_backBtn, OnBackPressed);
 
 		UIStyle.ApplyButtonText(_deleteAllBtn, "DELETE ALL", 14);
 		_deleteAllBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
@@ -135,7 +127,6 @@ public partial class ReplayListPanel : Control
 
 	private void OnBackPressed()
 	{
-		GameContext.UserInterface?.PlayClickSound();
 		GameContext.UserInterface?.TransitionTo(GameScreen.MainMenu);
 	}
 

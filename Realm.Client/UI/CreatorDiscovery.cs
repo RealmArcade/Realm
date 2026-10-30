@@ -98,13 +98,7 @@ public partial class CreatorDiscovery : Control
 
 		_backButton = new Button();
 		_backButton.Name = "BackButton_Button";
-		_backButton.AddThemeConstantOverride("icon_max_width", 24);
-		_backButton.CustomMinimumSize = new Vector2(120, 42);
-		UIStyle.ApplyButtonText(_backButton, "◀ BACK", 16);
-		_backButton.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		_backButton.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		_backButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		_backButton.Pressed += () => GameContext.UserInterface.TransitionTo(GameScreen.MainMenu);
+		UIStyle.ApplyBackButton(_backButton, () => GameContext.UserInterface.TransitionTo(GameScreen.MainMenu));
 		topHeaderHBox.AddChild(_backButton);
 
 		var titleLabel = new Label();

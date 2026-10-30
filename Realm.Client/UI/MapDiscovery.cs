@@ -246,35 +246,11 @@ public partial class MapDiscovery : Control
 
 	private void ApplyBackButtonStyle()
 	{
-		_backButton.Text = TranslationServer.Translate("MAIN MENU");
-		if (_fontNorseBold != null) _backButton.AddThemeFontOverride("font", _fontNorseBold);
-		_backButton.AddThemeFontSizeOverride("font_size", 19);
-		_backButton.AddThemeConstantOverride("outline_size", 4);
-		_backButton.AddThemeColorOverride("font_outline_color", new Color(0.06f, 0.06f, 0.08f));
-		_backButton.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		_backButton.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
-		_backButton.AddThemeColorOverride("font_pressed_color", UIStyle.ColorGold);
-		_backButton.AddThemeColorOverride("font_focus_color", UIStyle.ColorGold);
-		_backButton.Icon = null;
-
-		_backButton.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		_backButton.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		_backButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		_backButton.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-		_backButton.TextureFilter = TextureFilterEnum.Linear;
-
+		UIStyle.ApplyBackButton(_backButton, () => GameContext.UserInterface.TransitionTo(GameScreen.MainMenu));
 		_backButton.SetAnchorsPreset(LayoutPreset.TopLeft);
-		_backButton.CustomMinimumSize = new Vector2(190, 52);
-		_backButton.Size = new Vector2(190, 52);
-		_backButton.Position = new Vector2(1590, 50);
+		_backButton.Position = new Vector2(130, 40);
+		_backButton.Size = new Vector2(130, 42);
 		_backButton.ZIndex = 1;
-
-		_backButton.Pressed += () =>
-		{
-			GameContext.UserInterface.PlayClickSound();
-			GameContext.UserInterface.TransitionTo(GameScreen.MainMenu);
-		};
-		_backButton.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
 	}
 
 	private void ApplySearchBarStyle()

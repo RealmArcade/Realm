@@ -57,13 +57,14 @@ grow_vertical = 2
 alignment = 1
 
 [node name="BackButton" type="Button" parent="."]
-custom_minimumSize = Vector2(60, 60)
+custom_minimum_size = Vector2(130, 42)
 layout_mode = 0
 offset_left = 130.0
 offset_top = 40.0
-offset_right = 190.0
-offset_bottom = 100.0
+offset_right = 260.0
+offset_bottom = 82.0
 focus_mode = 0
+text = "◀ BACK"
 
 [node name="Title" type="Label" parent="."]
 layout_mode = 1

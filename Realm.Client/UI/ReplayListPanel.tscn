@@ -40,14 +40,14 @@ grow_vertical = 2
 mouse_filter = 2
 
 [node name="BackButton" type="Button" parent="."]
-custom_minimum_size = Vector2(130, 45)
+custom_minimum_size = Vector2(130, 42)
 layout_mode = 0
 offset_left = 40.0
 offset_top = 40.0
 offset_right = 170.0
-offset_bottom = 85.0
+offset_bottom = 82.0
 focus_mode = 0
-text = "BACK"
+text = "◀ BACK"
 
 [node name="MainFrame" type="Control" parent="CenterContainer"]
 custom_minimum_size = Vector2(1100, 660)

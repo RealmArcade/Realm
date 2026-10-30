@@ -1336,6 +1336,25 @@ public static void ApplyTitle(Label label, string text, int fontSize = 36)
 
 
 
+	public static void ApplyBackButton(Button button, Action onPressed)
+	{
+		button.AddThemeConstantOverride("icon_max_width", 24);
+		button.CustomMinimumSize = new Vector2(130, 42);
+		button.Size = new Vector2(130, 42);
+		ApplyButtonText(button, "◀ " + TranslationServer.Translate("BACK"), 16);
+		button.AddThemeStyleboxOverride("normal", CreateButtonNormal());
+		button.AddThemeStyleboxOverride("hover", CreateButtonHover());
+		button.AddThemeStyleboxOverride("pressed", CreateButtonPressed());
+		button.FocusMode = Control.FocusModeEnum.None;
+		button.MouseFilter = Control.MouseFilterEnum.Stop;
+		button.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
+		button.Pressed += () =>
+		{
+			GameContext.UserInterface?.PlayClickSound();
+			onPressed?.Invoke();
+		};
+	}
+
 	public static void ApplyButtonText(Button button, string text, int fontSize = 18)
 	{
 		button.Text = TranslationServer.Translate(text);

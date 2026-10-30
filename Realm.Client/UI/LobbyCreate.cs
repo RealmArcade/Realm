@@ -252,7 +252,7 @@ public partial class LobbyCreate : Control
 		UIStyle.ApplyTitle(_titleLabel, GameContext.Lobby.IsSinglePlayer ? "SINGLE PLAYER" : "CREATE CUSTOM MATCH", 36);
 		UIStyle.ApplyTitle(_mapSelectLabel, "SELECT MAP", 20);
 
-		Realm.Client.Utils.UIHelper.SetupPillarButton(_backButton, "◀", () => GameContext.UserInterface.TransitionTo(GameContext.Lobby.IsSinglePlayer ? GameScreen.MainMenu : GameScreen.LobbyBrowser));
+		UIStyle.ApplyBackButton(_backButton, () => GameContext.UserInterface.TransitionTo(GameContext.Lobby.IsSinglePlayer ? GameScreen.MainMenu : GameScreen.LobbyBrowser));
 		SetupCreateButton();
 
 		_mapSelectButton.AddThemeStyleboxOverride("normal", UIStyle.CreateDropdownStyle(false, false));
