@@ -487,6 +487,12 @@ public partial class CommandPanel
 	{
 		if (_activeItems.Count == 0) return false;
 
+		if (TryInvokeHotkey(keycode, modifiers, ignoreQueueModifier: false)) return true;
+		return (modifiers & KeyModifierMask.MaskShift) != 0 && TryInvokeHotkey(keycode, modifiers, ignoreQueueModifier: true);
+	}
+
+	private bool TryInvokeHotkey(Key keycode, KeyModifierMask modifiers, bool ignoreQueueModifier)
+	{
 		GetHotkeyCheckRange(out int startIndex, out int itemsToCheck);
 
 		for (int i = 0; i < itemsToCheck; i++)
@@ -495,7 +501,11 @@ public partial class CommandPanel
 			if (itemIndex >= _activeItems.Count) break;
 
 			var item = _activeItems[itemIndex];
-			if (item.Hotkey.Matches(keycode, modifiers) && !(item.IsDisabled?.Invoke() ?? false))
+			bool hotkeyMatches = ignoreQueueModifier
+				? item.Hotkey.MatchesIgnoringQueueModifier(keycode, modifiers)
+				: item.Hotkey.Matches(keycode, modifiers);
+
+			if (hotkeyMatches && !(item.IsDisabled?.Invoke() ?? false))
 			{
 				item.Callback?.Invoke();
 				return true;

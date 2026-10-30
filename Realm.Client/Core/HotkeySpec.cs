@@ -112,6 +112,15 @@ public readonly record struct HotkeySpec(Key Key, KeyModifierMask Modifiers)
 		return (pressedModifiers & TrackedModifiers) == (Modifiers & TrackedModifiers);
 	}
 
+	public bool MatchesIgnoringQueueModifier(Key pressedKey, KeyModifierMask pressedModifiers)
+	{
+		if (IsNone) return false;
+		if ((Modifiers & KeyModifierMask.MaskShift) != 0) return false;
+		if (Key != pressedKey) return false;
+		KeyModifierMask remainingPressedModifiers = (pressedModifiers & TrackedModifiers) & ~KeyModifierMask.MaskShift;
+		return remainingPressedModifiers == (Modifiers & TrackedModifiers);
+	}
+
 	public string DisplayName => IsNone ? string.Empty : $"{FormatModifiers()}{Key}";
 
 	public override string ToString()
