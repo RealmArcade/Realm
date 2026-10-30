@@ -265,11 +265,12 @@ public class SnapshotTimeline
 			// the shallowing rule then takes as many clean windows as the ceiling has sequences to give it back.
 			_cleanWindowsInARow = 0;
 
-			// The window that starved says how much it was short by as well as how wide the stalls in it were, and the
-			// buffer grows to cover the larger of the two - a link that was a tenth of a sequence short needs one more,
-			// and one that ran dry for a whole second needs the room that second left it missing.
-			int shortfall = (int)MathF.Ceiling(_delaySequences - _shallowestSurplusInWindow);
-			int deepenBy = Math.Clamp(Math.Max(shortfall, _largestStallGapInWindow), 1, MaximumDeepenPerWindow);
+			// A starving window is short by one sequence, not by its whole depth: the cursor ran out at the newest
+			// description this screen held, so the depth the window needed is the depth it had plus one. Measuring the
+			// shortfall against the current delay instead doubled the buffer on every single starvation, which is what
+			// pinned it to the ceiling on links that were never that late. A window that arrived after a genuinely wide
+			// gap still deepens by that gap, because that is a stall no single extra sequence absorbs.
+			int deepenBy = Math.Clamp(Math.Max(1, _largestStallGapInWindow), 1, MaximumDeepenPerWindow);
 			_delaySequences = Math.Min(_delayCeilingSequences, _delaySequences + deepenBy);
 		}
 		else
@@ -320,10 +321,13 @@ public class SnapshotTimeline
 
 		if (floor == _delayFloorSequences && ceiling == _delayCeilingSequences) return;
 
+		// A floor that rises is met at once: drawing below what the link needs is the stall the floor exists to avoid. A
+		// floor or a ceiling that falls is not applied here, because depth is only given back by the shallowing rule,
+		// one sequence per two clean windows. Taking it back in one step leaves the cursor chasing a target several
+		// sequences ahead, and the screen plays the match fast for as long as that takes to close.
 		_delayFloorSequences = floor;
 		_delayCeilingSequences = ceiling;
 		if (_delaySequences < floor) _delaySequences = floor;
-		if (_delaySequences > ceiling) _delaySequences = ceiling;
 	}
 
 	/// <summary>
@@ -333,15 +337,11 @@ public class SnapshotTimeline
 	/// </summary>
 	public void ObserveLocalLink()
 	{
-		if (_delayFloorSequences == MinimumDelaySequences
-		    && _delayCeilingSequences == InitialCeilingSequences
-		    && _delaySequences >= MinimumDelaySequences
-		    && _delaySequences <= InitialCeilingSequences) return;
+		if (_delayFloorSequences == MinimumDelaySequences && _delayCeilingSequences == InitialCeilingSequences) return;
 
 		_delayFloorSequences = MinimumDelaySequences;
 		_delayCeilingSequences = InitialCeilingSequences;
 		if (_delaySequences < MinimumDelaySequences) _delaySequences = MinimumDelaySequences;
-		else if (_delaySequences > InitialCeilingSequences) _delaySequences = InitialCeilingSequences;
 	}
 
 	public bool TrySample(int entityId, bool mayExtrapolate, out Vector3 position, out float rotationY, out Vector3 velocity)
