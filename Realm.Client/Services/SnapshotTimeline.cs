@@ -438,7 +438,15 @@ public class SnapshotTimeline
 		if (_delaySequences < MinimumDelaySequences) _delaySequences = MinimumDelaySequences;
 	}
 
-	public bool TrySample(int entityId, bool localOrderConfirmed, out Vector3 position, out float rotationY, out Vector3 velocity)
+	/// <summary>
+	///     Samples where a unit is drawn on the presentation clock.
+	/// </summary>
+	/// <param name="localOrderBelievedHeld">
+	///     Whether this screen believes one of its own units is still under a move order, which is true from the moment the
+	///     order is issued rather than from the moment the match confirms it. It is the belief that is drawn ahead, and the
+	///     sequence-stamped answer <see cref="NoteConfirmedOrder" /> records is what takes that belief away.
+	/// </param>
+	public bool TrySample(int entityId, bool localOrderBelievedHeld, out Vector3 position, out float rotationY, out Vector3 velocity)
 	{
 		position = Vector3.Zero;
 		rotationY = 0f;
@@ -458,7 +466,7 @@ public class SnapshotTimeline
 		// description the cursor is showing, not the newest one held: a unit whose order is already described as finished
 		// keeps its lead until the moment that finish is drawn.
 		int drawnSequence = (int)MathF.Floor(_cursor);
-		bool orderStillHeld = localOrderConfirmed
+		bool orderStillHeld = localOrderBelievedHeld
 		                      || (_orderConfirmedFrom[entityId] >= 0 && drawnSequence <= _orderClearedAt[entityId]);
 
 		float targetLead = orderStillHeld ? ExtrapolationLeadSequences : 0f;
