@@ -15,7 +15,12 @@ public class SnapshotApplyService
 {
 	private const int MaximumQueuedDeltas = 512;
 
-	private const int MaximumBacklogSequences = SnapshotTimeline.MaximumDelaySequences;
+	/// <summary>
+	///     How far behind the newest description this screen may fall before it rebuilds instead of catching up. It is the
+	///     run the match still holds, so every hole this refuses to wait out is one the match could not have answered by
+	///     name either: a narrower bound rebuilt the world for runs a handful of descriptions would have filled.
+	/// </summary>
+	private const int MaximumBacklogSequences = MatchTiming.SnapshotHistoryDepth;
 
 	/// <summary>
 	///     The widest run of descriptions this screen asks the match to send again, which is exactly the run the match
