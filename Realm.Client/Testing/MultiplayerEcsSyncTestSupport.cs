@@ -1727,9 +1727,13 @@ public static class MultiplayerEcsSyncTestSupport
 		string baselinesAfterText = fields.GetValueOrDefault("baselines_after") ?? string.Empty;
 
 		report.AddSummaryLine($"Repair scenario: the peer discarded snapshot {discardedSequence}, leaving one clear bit in its acknowledgement mask; the authority described it from scratch {baselinesAfter} time(s) afterwards ({baselinesAfterText}).");
-		if (baselinesAfter != 1)
+
+		// A description the match still holds is sent again by name, which is what the acknowledgement mask is for. A
+		// baseline is the fallback for a run the ring no longer has, so zero is the healthy number and one is the worst a
+		// single discard may cost. Repeating one every cooldown was the defect this asserts against.
+		if (baselinesAfter > 1)
 		{
-			report.AddFailure($"A discarded snapshot produced {baselinesAfter} baselines instead of exactly one, so the repair either never happened or repeated after the hole was already filled.");
+			report.AddFailure($"A discarded snapshot produced {baselinesAfter} baselines; a description the match still holds is meant to be sent again by name, and one baseline is the fallback rather than the first answer.");
 		}
 
 		List<string> authorityLogs = ResolveAuthorityLogs(settings.OutputDirectory);
@@ -1744,12 +1748,17 @@ public static class MultiplayerEcsSyncTestSupport
 		{
 			foreach (string line in File.ReadLines(log))
 			{
-				if (line.Contains("is missing a snapshot it was sent", StringComparison.Ordinal)) repairCount++;
+				if (line.Contains("are sent again", StringComparison.Ordinal)) repairCount++;
 			}
 		}
 
 		int repairStormAllowance = Math.Max(8, (int)(2f * settings.DurationSeconds * Math.Max(1, settings.PeerCount)));
-		report.AddSummaryLine($"Repair scenario: the authority logged {repairCount} repair(s) over the run, of which the discard accounts for the baseline asserted above (allowed {repairStormAllowance} in total, and a storm would be one per sequence).");
+		report.AddSummaryLine($"Repair scenario: the authority logged {repairCount} repair(s) over the run (allowed {repairStormAllowance} in total, and a storm would be one per sequence).");
+		if (baselinesAfter == 0 && repairCount == 0)
+		{
+			report.AddFailure("The peer discarded a snapshot and the authority neither sent it again by name nor described the world from scratch, so the hole it left was never filled.");
+		}
+
 		if (repairCount > repairStormAllowance)
 		{
 			report.AddFailure($"The authority logged {repairCount} repairs in a {settings.DurationSeconds:F0} s run for {settings.PeerCount} peers (allowed {repairStormAllowance}); a peer missing a change is meant to be described from scratch once per cooldown, not once per sequence.");
