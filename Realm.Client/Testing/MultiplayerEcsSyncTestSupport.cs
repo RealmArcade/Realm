@@ -584,6 +584,7 @@ public static class MultiplayerEcsSyncTestSupport
 		int transientDigestMismatchCount = 0;
 		List<(int Sequence, int Count)> transientMismatchSequences = new();
 		List<(int EntityId, string Field, int Sequence, string Message)> deltaDivergences = new();
+		List<(int EntityId, string Field, int Sequence, string Message)> membershipDivergences = new();
 		int comparedLootEntities = 0;
 		ReferenceDigestCoverage referenceCoverage = new();
 		int comparedNavigationBaselines = 0;
@@ -667,7 +668,7 @@ public static class MultiplayerEcsSyncTestSupport
 				if (describedLoot.NamedByPeers == SyncRecordFormat.NamedByEveryPeer || (describedLoot.NamedByPeers & clientPeerMask) != 0) comparedLootEntities++;
 			}
 
-			CompareSnapshotRecord(hostEntry.Value, clientRecord, hostSentBaselineToThisPeer, mismatches, digestTarget, ref comparedUnits, ref offscreenMissingUnits, deltaDivergences, clientPeerMask, referenceCoverage);
+			CompareSnapshotRecord(hostEntry.Value, clientRecord, hostSentBaselineToThisPeer, mismatches, digestTarget, ref comparedUnits, ref offscreenMissingUnits, deltaDivergences, membershipDivergences, clientPeerMask, referenceCoverage);
 			CompareScopeDigests(hostEntry.Value, clientRecord, clientPeerMask, digestTarget);
 			int transientAddedForSequence = transientDigestMismatches.Count - digestMismatchCountBefore;
 			transientDigestMismatchCount += transientAddedForSequence;
@@ -767,7 +768,8 @@ public static class MultiplayerEcsSyncTestSupport
 		}
 
 		ReportNotSentSequences(report, notSentSequences, firstPairedSequence);
-		ReportDeltaDivergences(report, deltaDivergences, settings);
+		ReportDivergenceStreaks(report, deltaDivergences, ResolveDeltaDivergenceRecordAllowance(settings), "Unit fields that diverged on a delta record", "retransmit window");
+		ReportDivergenceStreaks(report, membershipDivergences, MembershipRecordAllowanceSequences, "Units the client had not built yet", "spawn window");
 
 		int tolerance = ResolveLostSequenceTolerance(settings, pairedSnapshots, lostSequenceCount);
 		if (lostSequenceCount > tolerance)
@@ -1491,16 +1493,27 @@ public static class MultiplayerEcsSyncTestSupport
 
 	private const int DeltaDivergenceRecordAllowance = 15;
 
+	/// <summary>
+	///     How long a unit the host has described may be absent from the client's own state before the absence is a
+	///     divergence. A description names the units the peer is being told about; the client builds them over the ticks that
+	///     follow, spending a few milliseconds of each on the first of a kind, because building a whole board at once froze a
+	///     tick for close to a second. At a record per physics tick this covers a board of dozens of units built one per tick.
+	/// </summary>
+	private const int MembershipRecordAllowanceSequences = 90;
+
 	private static int ResolveDeltaDivergenceRecordAllowance(MultiplayerEcsRunSettings settings)
 		=> settings.PacketLossPercent > 0
 			? 2 * DeltaDivergenceRecordAllowance + 1
 			: DeltaDivergenceRecordAllowance + 1;
 
-	private static void ReportDeltaDivergences(MultiplayerEcsSyncReport report, List<(int EntityId, string Field, int Sequence, string Message)> divergences, MultiplayerEcsRunSettings settings)
+	/// <summary>
+	///     Reports each run of consecutive records a quantity stayed wrong for, and only counts a run the allowance does not
+	///     cover: a value that heals inside the window it is stated in is what the protocol promises, while one that outlives
+	///     it is a divergence.
+	/// </summary>
+	private static void ReportDivergenceStreaks(MultiplayerEcsSyncReport report, List<(int EntityId, string Field, int Sequence, string Message)> divergences, int allowance, string quantityDescription, string allowanceDescription)
 	{
 		if (divergences.Count == 0) return;
-
-		int allowance = ResolveDeltaDivergenceRecordAllowance(settings);
 
 		var streaks = new Dictionary<(int EntityId, string Field), (int Count, int FirstSequence, int LastSequence, string Message)>();
 		var reportedStreaks = new List<(int EntityId, string Field, int Count, int FirstSequence, int LastSequence, string Message)>();
@@ -1528,17 +1541,17 @@ public static class MultiplayerEcsSyncTestSupport
 		{
 			if (streak.Count > allowance)
 			{
-				report.AddFailure($"entity {streak.EntityId} {streak.Field} diverged on {streak.Count} consecutive delta records between sequences {streak.FirstSequence} and {streak.LastSequence}, beyond the {allowance}-record retransmit window; last observation: {streak.Message}");
+				report.AddFailure($"entity {streak.EntityId} {streak.Field} diverged on {streak.Count} consecutive delta records between sequences {streak.FirstSequence} and {streak.LastSequence}, beyond the {allowance}-record {allowanceDescription}; last observation: {streak.Message}");
 				continue;
 			}
 
 			healedCount += streak.Count;
 		}
 
-		report.AddSummaryLine($"Unit fields that diverged on a delta record and healed inside the {allowance}-record retransmit window: {healedCount} (counted from {divergences.Count} observations)");
+		report.AddSummaryLine($"{quantityDescription} and healed inside the {allowance}-record {allowanceDescription}: {healedCount} (counted from {divergences.Count} observations)");
 	}
 
-	private static void CompareSnapshotRecord(MultiplayerSnapshotRecord hostRecord, MultiplayerSnapshotRecord clientRecord, bool exact, List<string> mismatches, List<string> digestMismatches, ref int comparedUnits, ref int offscreenMissingUnits, List<(int EntityId, string Field, int Sequence, string Message)> deltaDivergences, ulong clientPeerMask, ReferenceDigestCoverage coverage)
+	private static void CompareSnapshotRecord(MultiplayerSnapshotRecord hostRecord, MultiplayerSnapshotRecord clientRecord, bool exact, List<string> mismatches, List<string> digestMismatches, ref int comparedUnits, ref int offscreenMissingUnits, List<(int EntityId, string Field, int Sequence, string Message)> deltaDivergences, List<(int EntityId, string Field, int Sequence, string Message)> membershipDivergences, ulong clientPeerMask, ReferenceDigestCoverage coverage)
 	{
 		int mismatchCountBefore = mismatches.Count;
 
@@ -1574,8 +1587,10 @@ public static class MultiplayerEcsSyncTestSupport
 					continue;
 				}
 
-				List<string> missingEntityTarget = hostRecord.IsBaseline ? mismatches : digestMismatches;
-				AddMismatch(missingEntityTarget, 0, $"seq {hostRecord.Sequence}: client is missing live entity {hostUnit.EntityId} (owner slot {hostUnit.OwnerPlayerIndex}) that the host sent to it.");
+				// A described unit is not instantly a unit the client holds: it is built by the ticks that follow, and a
+				// baseline names a whole board at once. The absence is therefore measured as a streak against the spawn
+				// window rather than taken as a divergence the moment it is seen, so only a unit that never arrives counts.
+				membershipDivergences.Add((hostUnit.EntityId, "membership", hostRecord.Sequence, $"seq {hostRecord.Sequence}: client is missing live entity {hostUnit.EntityId} (owner slot {hostUnit.OwnerPlayerIndex}) that the host sent to it."));
 				continue;
 			}
 
