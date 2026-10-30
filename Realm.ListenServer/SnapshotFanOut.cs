@@ -5,6 +5,11 @@ using Realm.Ecs.Services;
 
 namespace Realm.ListenServer;
 
+/// <summary>
+///     Describes peers across a fixed set of lanes. Each lane owns one builder for the whole match, so describing a peer
+///     never waits for another lane to hand one back: the work is assigned to lanes up front and a lane only ever touches
+///     its own builder and the peer slots it was given.
+/// </summary>
 public class SnapshotFanOut
 {
 	public const int MaximumWorkerCount = 8;
@@ -12,7 +17,6 @@ public class SnapshotFanOut
 	public const int DefaultWorkerLimit = 3;
 
 	private readonly AuthoritativeSnapshotBuilder[] _builders;
-	private readonly BlockingCollection<AuthoritativeSnapshotBuilder> _idleBuilders = new();
 	private readonly SnapshotPeerStateStore _peerStates = new();
 	private readonly SnapshotDescriptionCache _descriptions = new(AuthoritativeSnapshotBuilder.UnitCodecCount);
 	private readonly object _abilityLock = new();
@@ -35,19 +39,16 @@ public class SnapshotFanOut
 
 		for (int index = 0; index < WorkerCount; index++)
 		{
-			var builder = CreateBuilder();
-			_builders[index] = builder;
-			_idleBuilders.Add(builder);
+			_builders[index] = new AuthoritativeSnapshotBuilder(_world, _context, _worldEntity, _rules, _peerStates, _descriptions, _abilityLock);
 		}
 	}
 
 	/// <summary>
-	///     Where a description that had to be built outside the pool says so. It is said rather than swallowed because the
-	///     pool being empty is a defect in this class, and the match recovering from it should not hide that.
+	///     Where a description that had to be built outside a lane says so. It is said rather than swallowed because a
+	///     caller asking for a lane the match does not have is a defect in this class, and the match recovering from it
+	///     should not hide that.
 	/// </summary>
 	public Action<string>? Report { get; set; }
-
-	private AuthoritativeSnapshotBuilder CreateBuilder() => new(_world, _context, _worldEntity, _rules, _peerStates, _descriptions, _abilityLock);
 
 	public int WorkerCount { get; }
 
@@ -77,27 +78,16 @@ public class SnapshotFanOut
 		for (int index = 0; index < _builders.Length; index++) _builders[index].PrepareFor(peerIdByPlayerSlot);
 	}
 
-	public AuthoritativeSnapshotBuilder Rent()
+	/// <summary>
+	///     The builder belonging to a lane. Outside the pool's lanes a description is built on lane zero, which is the
+	///     lane a single-threaded caller is always given.
+	/// </summary>
+	public AuthoritativeSnapshotBuilder GetLane(int laneIndex)
 	{
-		if (_idleBuilders.TryTake(out AuthoritativeSnapshotBuilder? builder, RentTimeoutMilliseconds)) return builder;
+		if ((uint)laneIndex < (uint)_builders.Length) return _builders[laneIndex];
 
-		// A builder checked out and never returned is a defect in this class, but it is not a reason for the match to stop
-		// describing its players: one more is built for this description alone and dropped with it, so the publication that
-		// found the pool empty still goes out.
-		Report?.Invoke($"all {_builders.Length} snapshot builders are still checked out after {RentTimeoutMilliseconds} ms; a description is built outside the pool");
-		AuthoritativeSnapshotBuilder fallback = CreateBuilder();
-		fallback.PrepareFor(_peerIdByPlayerSlot);
-		return fallback;
-	}
-
-	private const int RentTimeoutMilliseconds = 5000;
-
-	public void Return(AuthoritativeSnapshotBuilder builder)
-	{
-		// A builder that was built because the pool was empty belongs to the caller that needed it, not to the pool.
-		if (Array.IndexOf(_builders, builder) < 0) return;
-
-		_idleBuilders.Add(builder);
+		Report?.Invoke($"lane {laneIndex} does not exist among {_builders.Length} publish lanes; lane zero describes it instead");
+		return _builders[0];
 	}
 
 	public void EnterPeerDescription(int peerId) => _peerStates.Get(peerId).EnterDescription();

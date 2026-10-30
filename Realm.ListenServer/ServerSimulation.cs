@@ -5,6 +5,7 @@ using Realm.Ecs.Common;
 using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Terrain;
+using Realm.Ecs.Replication;
 using Realm.Ecs.Services;
 using Realm.Shared.Maps;
 using Realm.Shared.Network;
@@ -335,6 +336,10 @@ public class ServerSimulation : IDisposable
 
 	public int SnapshotWorkerCount => _snapshots.WorkerCount;
 
+	private readonly List<AbilityStateDelta>?[] _abilityDeltasByPeerSlot = new List<AbilityStateDelta>?[EcsWorld.MAX_PLAYERS];
+
+	private static readonly List<AbilityStateDelta> NoAbilityDeltas = new();
+
 	public void PreparePeerDescriptions()
 	{
 		Span<int> peerIdsByPlayerSlot = stackalloc int[EcsWorld.MAX_PLAYERS];
@@ -356,20 +361,48 @@ public class ServerSimulation : IDisposable
 		return snapshot;
 	}
 
+	/// <summary>
+	///     The ability deltas each seated peer is owed this tick, collected once on the tick thread before the publish
+	///     lanes are forked. The registry keeps one scratch table per process, so collecting per peer inside a lane would
+	///     put every lane behind one lock for the whole pass.
+	/// </summary>
+	public void PrepareAbilityDeltas(ReadOnlySpan<int> peerIds, ReadOnlySpan<bool> describeInFull, ReadOnlySpan<bool> skipThisTick)
+	{
+		ScriptAbilityRegistry? abilities = _snapshots.Abilities;
+		int count = Math.Min(peerIds.Length, _abilityDeltasByPeerSlot.Length);
+		for (int index = 0; index < count; index++)
+		{
+			// A peer that is told nothing this tick is not collected for: collecting marks its deltas as told, and a
+			// delta marked told for a peer that was never sent it is one that peer will never hear about.
+			if (index < skipThisTick.Length && skipThisTick[index])
+			{
+				_abilityDeltasByPeerSlot[index] = null;
+				continue;
+			}
+
+			_abilityDeltasByPeerSlot[index] = abilities != null ? abilities.CollectDeltas(peerIds[index], _map.World, describeInFull[index]) : NoAbilityDeltas;
+		}
+	}
+
 	public void BuildSnapshotForPeerInto(ref WorldSnapshot snapshot, int peerId, int sequence, bool forceBaseline)
 	{
-		Entity viewer = TryGetPlayerEntity(peerId, out Entity playerEntity) ? playerEntity : Entity.Null;
+		BuildSnapshotForPeerInto(ref snapshot, peerId, sequence, forceBaseline, 0, -1);
+	}
 
-		AuthoritativeSnapshotBuilder builder = _snapshots.Rent();
+	public void BuildSnapshotForPeerInto(ref WorldSnapshot snapshot, int peerId, int sequence, bool forceBaseline, int laneIndex, int peerSlot)
+	{
+		Entity viewer = TryGetPlayerEntity(peerId, out Entity playerEntity) ? playerEntity : Entity.Null;
+		List<AbilityStateDelta>? preparedAbilityDeltas = (uint)peerSlot < (uint)_abilityDeltasByPeerSlot.Length ? _abilityDeltasByPeerSlot[peerSlot] : null;
+
+		AuthoritativeSnapshotBuilder builder = _snapshots.GetLane(laneIndex);
 		_snapshots.EnterPeerDescription(peerId);
 		try
 		{
-			builder.BuildInto(ref snapshot, peerId, sequence, new PlayerEntity(viewer), forceBaseline);
+			builder.BuildInto(ref snapshot, peerId, sequence, new PlayerEntity(viewer), forceBaseline, preparedAbilityDeltas);
 		}
 		finally
 		{
 			_snapshots.ExitPeerDescription(peerId);
-			_snapshots.Return(builder);
 		}
 	}
 

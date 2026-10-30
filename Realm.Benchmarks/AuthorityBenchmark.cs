@@ -53,7 +53,8 @@ public sealed class AuthorityBenchmark : IDisposable
 	private readonly int[] _peerVisibleUnits;
 	private readonly bool[] _peerIsBaseline;
 	private readonly ParallelOptions _parallelOptions = new();
-	private readonly Action<int> _describeAndFrameOnePeer;
+	private readonly Action<int> _describeOneLane;
+	private readonly int _laneCount;
 	private bool _measuredForceBaseline;
 	private readonly Random _random = new(20261028);
 
@@ -70,7 +71,7 @@ public sealed class AuthorityBenchmark : IDisposable
 		_peerFrameBytes = new int[options.Players];
 		_peerVisibleUnits = new int[options.Players];
 		_peerIsBaseline = new bool[options.Players];
-		_describeAndFrameOnePeer = DescribeAndFrameOnePeer;
+		_describeOneLane = DescribeOneLane;
 
 		_worldEntity = CreateWorld();
 		_playerEntities = CreatePlayers();
@@ -90,7 +91,8 @@ public sealed class AuthorityBenchmark : IDisposable
 
 		_snapshots = new SnapshotFanOut(_context.World, _context, _worldEntity, _context.MapRules, options.Workers > 0 ? options.Workers : SnapshotFanOut.DefaultWorkerCount);
 		_snapshots.PrepareFor(PeerIdByPlayerSlot());
-		_parallelOptions.MaxDegreeOfParallelism = Math.Min(options.Players, _snapshots.WorkerCount);
+		_laneCount = Math.Min(options.Players, _snapshots.WorkerCount);
+		_parallelOptions.MaxDegreeOfParallelism = _laneCount;
 	}
 
 	private static int TeamOf(int playerIndex) => playerIndex < EcsWorld.MAX_PLAYERS / 2 ? 0 : 1;
@@ -106,21 +108,26 @@ public sealed class AuthorityBenchmark : IDisposable
 
 	private WorldSnapshot DescribePeer(int playerSlot, int sequence, bool forceBaseline)
 	{
-		AuthoritativeSnapshotBuilder builder = _snapshots.Rent();
-		try
+		return DescribePeer(playerSlot, 0, sequence, forceBaseline);
+	}
+
+	private WorldSnapshot DescribePeer(int playerSlot, int laneIndex, int sequence, bool forceBaseline)
+	{
+		return _snapshots.GetLane(laneIndex).Build(PeerIdForPlayerSlot(playerSlot), sequence, new PlayerEntity(_playerEntities[playerSlot]), forceBaseline);
+	}
+
+	private void DescribeOneLane(int laneIndex)
+	{
+		for (int playerSlot = laneIndex; playerSlot < _options.Players; playerSlot += _laneCount)
 		{
-			return builder.Build(PeerIdForPlayerSlot(playerSlot), sequence, new PlayerEntity(_playerEntities[playerSlot]), forceBaseline);
-		}
-		finally
-		{
-			_snapshots.Return(builder);
+			DescribeAndFrameOnePeer(playerSlot, laneIndex);
 		}
 	}
 
-	private void DescribeAndFrameOnePeer(int playerSlot)
+	private void DescribeAndFrameOnePeer(int playerSlot, int laneIndex)
 	{
 		long start = Stopwatch.GetTimestamp();
-		WorldSnapshot snapshot = DescribePeer(playerSlot, _sequence, _measuredForceBaseline);
+		WorldSnapshot snapshot = DescribePeer(playerSlot, laneIndex, _sequence, _measuredForceBaseline);
 		_peerBuildMicros[playerSlot] = Elapsed(start);
 		_peerVisibleUnits[playerSlot] = snapshot.Units.Count;
 		_peerIsBaseline[playerSlot] = snapshot.IsBaseline;
@@ -297,7 +304,7 @@ public sealed class AuthorityBenchmark : IDisposable
 
 			_measuredForceBaseline = !baselineTaken;
 			long snapshotStart = Stopwatch.GetTimestamp();
-			Parallel.For(0, _options.Players, _parallelOptions, _describeAndFrameOnePeer);
+			Parallel.For(0, _laneCount, _parallelOptions, _describeOneLane);
 			snapshotPhaseMicros += Elapsed(snapshotStart);
 
 			for (int slot = 0; slot < _options.Players; slot++)

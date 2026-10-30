@@ -94,7 +94,9 @@ public class ListenServerHost : IServerTransportSink
 	}
 
 	private ParallelOptions? _publishParallelism;
-	private Action<int>? _describeOnePeer;
+	private Action<int>? _describeOneLane;
+	private int _publishPeerCount;
+	private int _publishLaneCount;
 	private int _publishSequence;
 	private bool _readyAnnounced;
 	private bool _disposed;
@@ -1068,18 +1070,26 @@ public class ListenServerHost : IServerTransportSink
 
 		simulation.PreparePeerDescriptions();
 
+		// Peer work is split over fixed lanes, so a lane owns its builder for the whole match instead of queuing for one.
+		// The ability deltas are collected for every peer here, on the tick thread, because the registry behind them keeps
+		// one scratch table per process and cannot be entered by two lanes at once.
+		int laneCount = Math.Min(peerCount, simulation.SnapshotWorkerCount);
+		simulation.PrepareAbilityDeltas(_seatedPeerIds.AsSpan(0, peerCount), _pendingBaselineRequests.AsSpan(0, peerCount), _pendingSkippedPeers.AsSpan(0, peerCount));
+
 		_publishSequence = sequence;
 
-		if (peerCount == 1)
+		if (laneCount == 1)
 		{
-			DescribeAndFrameOnePeer(0);
+			for (int peerIndex = 0; peerIndex < peerCount; peerIndex++) DescribeAndFrameOnePeer(peerIndex, 0);
 		}
 		else
 		{
+			_publishPeerCount = peerCount;
+			_publishLaneCount = laneCount;
 			_publishParallelism ??= new ParallelOptions();
-			_publishParallelism.MaxDegreeOfParallelism = Math.Min(peerCount, simulation.SnapshotWorkerCount);
-			_describeOnePeer ??= DescribeAndFrameOnePeer;
-			Parallel.For(0, peerCount, _publishParallelism, _describeOnePeer);
+			_publishParallelism.MaxDegreeOfParallelism = laneCount;
+			_describeOneLane ??= DescribeOneLane;
+			Parallel.For(0, laneCount, _publishParallelism, _describeOneLane);
 		}
 
 		for (int index = 0; index < peerCount; index++) SendPublishedSnapshot(index);
@@ -1091,7 +1101,15 @@ public class ListenServerHost : IServerTransportSink
 		if (presentation.Length > 0) SendPresentation(peerCount, presentation);
 	}
 
-	private void DescribeAndFrameOnePeer(int index)
+	private void DescribeOneLane(int laneIndex)
+	{
+		for (int peerIndex = laneIndex; peerIndex < _publishPeerCount; peerIndex += _publishLaneCount)
+		{
+			DescribeAndFrameOnePeer(peerIndex, laneIndex);
+		}
+	}
+
+	private void DescribeAndFrameOnePeer(int index, int laneIndex)
 	{
 		ServerSimulation simulation = _simulation!;
 		int peerId = _seatedPeerIds[index];
@@ -1108,7 +1126,7 @@ public class ListenServerHost : IServerTransportSink
 
 		// The description is written into the slot this peer already has, so describing a room replaces nothing and
 		// empties what it held instead of allocating a set of lists per peer per tick.
-		simulation.BuildSnapshotForPeerInto(ref _publishedSnapshots[index], peerId, _publishSequence, _pendingBaselineRequests[index]);
+		simulation.BuildSnapshotForPeerInto(ref _publishedSnapshots[index], peerId, _publishSequence, _pendingBaselineRequests[index], laneIndex, index);
 		WorldSnapshot snapshot = _publishedSnapshots[index];
 
 		// Serializing and framing is the host's cost of describing one peer, measured where it is paid, and the serializer

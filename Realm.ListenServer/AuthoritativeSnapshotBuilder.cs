@@ -124,6 +124,15 @@ public class AuthoritativeSnapshotBuilder
 
 	public void BuildInto(ref WorldSnapshot snapshot, int peerId, int sequence, PlayerEntity viewer, bool forceBaseline = false)
 	{
+		BuildInto(ref snapshot, peerId, sequence, viewer, forceBaseline, null);
+	}
+
+	/// <summary>
+	///     Describes one peer. A lane that was handed this peer's ability deltas has already had them collected on its
+	///     behalf, because the registry keeps one scratch table per process and could not be entered by two lanes at once.
+	/// </summary>
+	public void BuildInto(ref WorldSnapshot snapshot, int peerId, int sequence, PlayerEntity viewer, bool forceBaseline, List<AbilityStateDelta>? preparedAbilityDeltas)
+	{
 		SnapshotPeerState state = _peerStates.Get(peerId);
 		bool isBaseline = forceBaseline || state.LastBaselineSequence < 0;
 		if (isBaseline)
@@ -193,9 +202,14 @@ public class AuthoritativeSnapshotBuilder
 		AppendTextEntries(state, snapshot.Catalog);
 		AppendLoot(state, ref snapshot, isBaseline);
 		AppendContentPayloads(state, snapshot);
-		// The ability registry keeps one scratch table per process rather than one per peer, so two workers describing two
-		// peers may not be inside it at once. Everything else this match spends on describing a peer is outside this lock.
-		if (Abilities != null)
+		// The ability registry keeps one scratch table per process rather than one per peer, so it is entered once for
+		// every peer before the lanes are forked. A caller that built no such list describes on its own thread and can
+		// enter the registry itself.
+		if (preparedAbilityDeltas != null)
+		{
+			if (preparedAbilityDeltas.Count > 0) snapshot.AbilityStates.AddRange(preparedAbilityDeltas);
+		}
+		else if (Abilities != null)
 		{
 			lock (_abilityLock) snapshot.AbilityStates.AddRange(Abilities.CollectDeltas(peerId, _world, isBaseline));
 		}
