@@ -829,12 +829,6 @@ text = "INSPECTOR: NONE"
 layout_mode = 2
 theme_override_font_sizes/font_size = 11
 
-[node name="Grid" type="GridContainer" parent="RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspectorPanel/VBox"]
-layout_mode = 2
-theme_override_constants/h_separation = 6
-theme_override_constants/v_separation = 6
-columns = 2
-
 [node name="BtnCenter" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspectorPanel/VBox"]
 custom_minimum_size = Vector2(0, 32)
 layout_mode = 2
