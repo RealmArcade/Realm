@@ -33,6 +33,8 @@ public static class ServerArgumentFlags
 
 	public const string AdminTokenFlag = "--admin-token";
 
+	public const string AdminTokenStdinFlag = "--admin-token-stdin";
+
 	public const string MapNameFlag = "--map-name";
 
 	public const string MaxPlayersFlag = "--max-players";
@@ -278,7 +280,8 @@ public class ServerProcessLauncher : IDisposable
 			UseShellExecute = false,
 			CreateNoWindow = true,
 			RedirectStandardOutput = true,
-			RedirectStandardError = true
+			RedirectStandardError = true,
+			RedirectStandardInput = true
 		};
 
 		startInfo.ArgumentList.Add("--headless");
@@ -312,8 +315,10 @@ public class ServerProcessLauncher : IDisposable
 		if (request.Lobby)
 		{
 			startInfo.ArgumentList.Add(ServerArgumentFlags.LobbyFlag);
-			startInfo.ArgumentList.Add(ServerArgumentFlags.AdminTokenFlag);
-			startInfo.ArgumentList.Add(request.AdminToken);
+
+			// The admin ticket is handed over on the process's input rather than its command line, where every process on
+			// the machine can read the arguments another process was started with.
+			startInfo.ArgumentList.Add(ServerArgumentFlags.AdminTokenStdinFlag);
 			if (!string.IsNullOrWhiteSpace(request.MapName))
 			{
 				startInfo.ArgumentList.Add(ServerArgumentFlags.MapNameFlag);
@@ -347,12 +352,27 @@ public class ServerProcessLauncher : IDisposable
 
 		try
 		{
-			return Process.Start(startInfo);
+			Process? started = Process.Start(startInfo);
+			if (started != null && request.Lobby) WriteAdminTokenToInput(started, request.AdminToken);
+			return started;
 		}
 		catch (Exception exception) when (exception is InvalidOperationException or System.ComponentModel.Win32Exception or IOException)
 		{
 			failure = $"the authority could not be started: {exception.Message}";
 			return null;
+		}
+	}
+
+	private static void WriteAdminTokenToInput(Process process, string adminToken)
+	{
+		try
+		{
+			process.StandardInput.WriteLine(adminToken);
+			process.StandardInput.Flush();
+		}
+		catch (Exception exception) when (exception is IOException or InvalidOperationException or ObjectDisposedException or System.ComponentModel.Win32Exception)
+		{
+			// The authority reports the ticket it never received and stops; this end of the pipe is already gone by then.
 		}
 	}
 

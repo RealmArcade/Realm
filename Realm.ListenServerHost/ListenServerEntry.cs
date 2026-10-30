@@ -30,7 +30,17 @@ public partial class ListenServerEntry : Node
 			return;
 		}
 
-		_log = new ServerLog(parsed!.LogPath);
+		if (!parsed!.TryReadAdminToken(Console.In, out ServerArguments? resolved, out string tokenError))
+		{
+			Console.Error.WriteLine(tokenError);
+			Console.Error.Flush();
+			GetTree().Quit(ExitStartFailed);
+			return;
+		}
+
+		parsed = resolved;
+
+		_log = new ServerLog(parsed.LogPath);
 		_log.Write($"starting pid={System.Environment.ProcessId} map={parsed.MapPath} port={parsed.Port} protocol={RealmProtocol.Version} build={RealmVersion.GameBuildNumber}");
 
 		_parentWatchdog = new ParentProcessWatchdog(parsed.ParentProcessId);

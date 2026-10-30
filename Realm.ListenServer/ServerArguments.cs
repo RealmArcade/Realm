@@ -3,7 +3,7 @@ using Realm.Shared.Network;
 
 namespace Realm.ListenServer;
 
-public record ServerArguments(string MapPath, int Port, string Token, string LogPath, string DataPath, int Seed, bool Cheats = false, bool WasmDebug = false, string WorkspacePath = "", string RosterPath = "", string RecordAuthorityPath = "", int ParentProcessId = 0, bool Lobby = false, string AdminToken = "", string MapName = "", int MaxPlayers = 0)
+public record ServerArguments(string MapPath, int Port, string Token, string LogPath, string DataPath, int Seed, bool Cheats = false, bool WasmDebug = false, string WorkspacePath = "", string RosterPath = "", string RecordAuthorityPath = "", int ParentProcessId = 0, bool Lobby = false, string AdminToken = "", string MapName = "", int MaxPlayers = 0, bool AdminTokenOnStandardInput = false)
 {
 	public const string MapFlag = ServerArgumentFlags.MapFlag;
 	public const string PortFlag = ServerArgumentFlags.PortFlag;
@@ -19,10 +19,9 @@ public record ServerArguments(string MapPath, int Port, string Token, string Log
 	public const string ParentProcessIdFlag = ServerArgumentFlags.ParentProcessIdFlag;
 	public const string LobbyFlag = ServerArgumentFlags.LobbyFlag;
 	public const string AdminTokenFlag = ServerArgumentFlags.AdminTokenFlag;
+	public const string AdminTokenStdinFlag = ServerArgumentFlags.AdminTokenStdinFlag;
 	public const string MapNameFlag = ServerArgumentFlags.MapNameFlag;
-	public const string MaxPlayersFlag = ServerArgumentFlags.MaxPlayersFlag;
-
-	public const string Usage = $"{MapFlag} <absolute map folder> [{PortFlag} <port>] [{SeedFlag} <integer>] [{TokenFlag} <join ticket>] {LogFlag} <log file> [{DataFlag} <folder a map's saved data belongs in>] [{RosterFlag} <match roster file>] [{RecordAuthorityFlag} <folder the run's reports read>] [{ParentProcessIdFlag} <process id of the screen that started the match>] [{LobbyFlag} {AdminTokenFlag} <admin ticket> [{MapNameFlag} <map name>] [{MaxPlayersFlag} <playable slots>]] [{CheatsFlag}] [{WasmDebugFlag} [{WorkspaceFlag} <map workspace folder>]]";
+	public const string MaxPlayersFlag = ServerArgumentFlags.MaxPlayersFlag;		public const string Usage = $"{MapFlag} <absolute map folder> [{PortFlag} <port>] [{SeedFlag} <integer>] [{TokenFlag} <join ticket>] {LogFlag} <log file> [{DataFlag} <folder a map's saved data belongs in>] [{RosterFlag} <match roster file>] [{RecordAuthorityFlag} <folder the run's reports read>] [{ParentProcessIdFlag} <process id of the screen that started the match>] [{LobbyFlag} ({AdminTokenFlag} <admin ticket> | {AdminTokenStdinFlag}) [{MapNameFlag} <map name>] [{MaxPlayersFlag} <playable slots>]] [{CheatsFlag}] [{WasmDebugFlag} [{WorkspaceFlag} <map workspace folder>]]";
 
 	public static bool TryParse(string[] args, out ServerArguments? arguments, out string error)
 	{
@@ -42,6 +41,7 @@ public record ServerArguments(string MapPath, int Port, string Token, string Log
 		string? recordSyncPath = null;
 		int parentProcessId = 0;
 		bool lobby = false;
+		bool adminTokenOnStandardInput = false;
 		string? adminToken = null;
 		string? mapName = null;
 		int maxPlayers = 0;
@@ -108,6 +108,9 @@ public record ServerArguments(string MapPath, int Port, string Token, string Log
 				case AdminTokenFlag:
 					if (!TryTakeValue(args, ref index, flag, out adminToken, out error)) return false;
 					break;
+				case AdminTokenStdinFlag:
+					adminTokenOnStandardInput = true;
+					break;
 				case MapNameFlag:
 					if (!TryTakeValue(args, ref index, flag, out mapName, out error)) return false;
 					break;
@@ -139,13 +142,36 @@ public record ServerArguments(string MapPath, int Port, string Token, string Log
 
 		string resolvedWorkspace = wasmDebug ? workspacePath ?? mapPath : workspacePath ?? string.Empty;
 
-		if (lobby && string.IsNullOrEmpty(adminToken))
+		if (lobby && string.IsNullOrEmpty(adminToken) && !adminTokenOnStandardInput)
 		{
-			error = $"{LobbyFlag} needs the ticket a lobby's administrator proves it holds ({AdminTokenFlag}).";
+			error = $"{LobbyFlag} needs the ticket a lobby's administrator proves it holds ({AdminTokenFlag} <ticket>, or {AdminTokenStdinFlag} to read it from the match's input).";
 			return false;
 		}
 
-		arguments = new ServerArguments(mapPath, port, token ?? string.Empty, logPath, string.IsNullOrWhiteSpace(dataPath) ? AppContext.BaseDirectory : dataPath, seed, cheats, wasmDebug, resolvedWorkspace, rosterPath ?? string.Empty, recordSyncPath ?? string.Empty, parentProcessId, lobby, adminToken ?? string.Empty, mapName ?? string.Empty, maxPlayers);
+		arguments = new ServerArguments(mapPath, port, token ?? string.Empty, logPath, string.IsNullOrWhiteSpace(dataPath) ? AppContext.BaseDirectory : dataPath, seed, cheats, wasmDebug, resolvedWorkspace, rosterPath ?? string.Empty, recordSyncPath ?? string.Empty, parentProcessId, lobby, adminToken ?? string.Empty, mapName ?? string.Empty, maxPlayers, adminTokenOnStandardInput);
+		return true;
+	}
+
+	/// <summary>
+	///     Reads the ticket this lobby's administrator proves it holds from the match's own input, where it cannot be read
+	///     by another process on the machine the way an argument can. It is one line, and it is read before the match
+	///     announces itself, so nothing can be seated in a lobby that has no administrator yet.
+	/// </summary>
+	public bool TryReadAdminToken(System.IO.TextReader input, out ServerArguments resolved, out string error)
+	{
+		resolved = this;
+		error = string.Empty;
+
+		if (!AdminTokenOnStandardInput) return true;
+
+		string ticket = input.ReadLine()?.Trim() ?? string.Empty;
+		if (ticket.Length == 0)
+		{
+			error = $"{AdminTokenStdinFlag} was given and no ticket was written to the match's input.";
+			return false;
+		}
+
+		resolved = this with { AdminToken = ticket, AdminTokenOnStandardInput = false };
 		return true;
 	}
 
