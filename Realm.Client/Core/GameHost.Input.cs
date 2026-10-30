@@ -231,20 +231,18 @@ public partial class GameHost
 
 			if (editorKeyEvent.Keycode == Key.Delete)
 			{
-				if (ActiveEditorTool == EditorTool.SelectMove && GodotObject.IsInstanceValid(SelectedEditorObject))
+				if (ActiveEditorTool == EditorTool.SelectMove && SelectedEditorObjectCount > 0)
 				{
-					var target = SelectedEditorObject;
-					SelectedEditorObject = null;
-					var action = DeleteObjectAtWithUndo(target, (target as Node3D).Position);
-					if (action != null)
+					var (success, deletedCount) = DeleteSelectedObjects();
+					if (success)
 					{
-						EditorHistoryManager.RecordAction(action);
-						GameContext.MapEditorHud?.ShowFeedbackExternal("Deleted Object");
-						EditorHasUnsavedChanges = true;
+						string deletedMessage = deletedCount > 1
+							? string.Format(LocalizationManager.Translate("{0} Objects Deleted"), deletedCount)
+							: LocalizationManager.Translate("Deleted Object");
+						GameContext.MapEditorHud?.ShowFeedbackExternal(deletedMessage);
+						GetViewport().SetInputAsHandled();
+						return;
 					}
-
-					GetViewport().SetInputAsHandled();
-					return;
 				}
 			}
 

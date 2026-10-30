@@ -1115,22 +1115,40 @@ namespace Realm.Client.Core
 
 		public (bool success, string error) DeleteSelectedObject()
 		{
-			Node? selected = SelectedEditorObject;
-			if (selected == null || !GodotObject.IsInstanceValid(selected)) return (false, "");
+			var (success, _) = DeleteSelectedObjects();
+			return (success, "");
+		}
 
-			Vector3 position = selected is Node3D node3D ? node3D.Position : Vector3.Zero;
-			SelectedEditorObject = null;
-			var action = DeleteObjectAtWithUndo(selected, position);
-			if (action != null)
+		public (bool success, int deletedCount) DeleteSelectedObjects()
+		{
+			if (_editorObjectSelection.Count == 0) return (false, 0);
+
+			var targets = new List<Node>(_editorObjectSelection);
+			var actions = new List<IEditorAction>();
+			ClearEditorObjectSelection();
+
+			for (int i = 0; i < targets.Count; i++)
 			{
-				EditorHistoryManager.RecordAction(action);
-			}
-			else
-			{
-				DeleteNodeExternal(selected);
+				Node target = targets[i];
+				if (target == null || !GodotObject.IsInstanceValid(target)) continue;
+
+				Vector3 position = target is Node3D node3D ? node3D.Position : Vector3.Zero;
+				var action = DeleteObjectAtWithUndo(target, position);
+				if (action != null)
+				{
+					actions.Add(action);
+				}
+				else
+				{
+					DeleteNodeExternal(target);
+				}
 			}
 
-			return (true, "");
+			if (actions.Count == 0) return (false, 0);
+
+			EditorHistoryManager.RecordAction(actions.Count == 1 ? actions[0] : new CompositeAction(actions));
+			EditorHasUnsavedChanges = true;
+			return (true, actions.Count);
 		}
 
 		public void DeleteNodeExternal(Node node)

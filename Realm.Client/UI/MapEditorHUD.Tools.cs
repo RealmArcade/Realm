@@ -1684,6 +1684,23 @@ namespace Realm.Client.UI
 			}
 		}
 
+		private void ShowMultiSelectionInfo(int selectedCount)
+		{
+			SetInspectorVisibility();
+
+			if (_playerOwnerContainer != null) _playerOwnerContainer.Visible = false;
+			if (_btnShowCoverage != null) _btnShowCoverage.Visible = false;
+			if (_rigStatusContainer != null) _rigStatusContainer.Visible = false;
+			if (_btnOpenGlobalOverrides != null) _btnOpenGlobalOverrides.Visible = false;
+			if (BtnEditVfx != null) BtnEditVfx.Visible = false;
+
+			if (_viewModel == null) return;
+
+			_viewModel.HasInspectorSelection = true;
+			_viewModel.InspectorTitle = string.Format(LocalizationManager.Translate("{0} Objects Selected"), selectedCount);
+			_viewModel.InspectorPos = LocalizationManager.Translate("Drag any selected object to move the whole group. Delete removes all of them.");
+		}
+
 		private void SetInspectorVisibility()
 		{
 			if (_lblInfoText != null) _lblInfoText.Visible = false;
@@ -1743,6 +1760,13 @@ namespace Realm.Client.UI
 		{
 			if (GameContext.Host == null) return;
 			var selected = GameContext.Host.SelectedEditorObject;
+			int selectedCount = GameContext.Host.SelectedEditorObjectCount;
+
+			if (selectedCount > 1)
+			{
+				ShowMultiSelectionInfo(selectedCount);
+				return;
+			}
 
 			if (!GodotObject.IsInstanceValid(selected))
 			{
