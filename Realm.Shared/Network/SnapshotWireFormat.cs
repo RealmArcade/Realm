@@ -88,6 +88,12 @@ public static class SnapshotWireFormat
 		return EncodeWith(compressor, ref _compressionBuffer, serialized);
 	}
 
+	/// <summary>
+	///     Frames one compressed description. The frame is a fresh array rather than a slice of the scratch buffer on purpose:
+	///     the match hands it to the transport and keeps it in the peer's frame ring for repair, so it has to outlive the next
+	///     description that reuses the scratch buffer. One allocation per peer per tick is the price of that lifetime, and the
+	///     serialized buffer beside it is not allocated at all.
+	/// </summary>
 	internal static byte[] EncodeWith(Compressor compressor, ref byte[]? compressionBuffer, ReadOnlySpan<byte> serialized)
 	{
 		int bound = Compressor.GetCompressBound(serialized.Length);
