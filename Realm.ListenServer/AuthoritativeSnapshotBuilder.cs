@@ -15,6 +15,13 @@ namespace Realm.ListenServer;
 public class AuthoritativeSnapshotBuilder
 {
 	private const float MaximumDescribedCoordinate = 100000f;
+
+	/// <summary>
+	///     How many descriptions a component removal is stated in. One lost description is what leaves a peer holding a
+	///     component the authority dropped, so a handful of statements make that cost a burst of consecutive loss rather
+	///     than a single datagram that did not arrive.
+	/// </summary>
+	private const int RemovalRestateSequences = 6;
 	private const float VisionCellSize = 16f;
 	private const float DefaultVisionRadius = 15f;
 
@@ -604,9 +611,11 @@ public class AuthoritativeSnapshotBuilder
 
 	private void AppendComponentDeltas(SnapshotPeerState state, WorldSnapshot snapshot, int sequence, bool isBaseline)
 	{
+		RestatePendingRemovals(state, snapshot, sequence);
+
 		for (int codecIndex = 0; codecIndex < WorldCodecs.Length; codecIndex++)
 		{
-			AppendComponentDelta(state, snapshot, WorldCodecs[codecIndex], _worldEntity, (byte)ReplicatedScope.World, 0, isBaseline);
+			AppendComponentDelta(state, snapshot, WorldCodecs[codecIndex], _worldEntity, (byte)ReplicatedScope.World, 0, sequence, isBaseline);
 		}
 
 		Entity[] playerEntities = ResolvePlayerEntities();
@@ -619,17 +628,62 @@ public class AuthoritativeSnapshotBuilder
 				Entity playerEntity = playerEntities[slot];
 				if (playerEntity == Entity.Null || !_world.IsAlive(playerEntity)) continue;
 
-				AppendComponentDelta(state, snapshot, codec, playerEntity, (byte)ReplicatedScope.Player, slot, isBaseline);
+				AppendComponentDelta(state, snapshot, codec, playerEntity, (byte)ReplicatedScope.Player, slot, sequence, isBaseline);
 			}
 		}
 
 		for (int unitIndex = 0; unitIndex < _describedUnits.Count; unitIndex++)
 		{
-			AppendUnitComponentDeltas(snapshot, _describedUnits[unitIndex].Entity, _describedUnitStates[unitIndex], sequence, isBaseline);
+			AppendUnitComponentDeltas(state, snapshot, _describedUnits[unitIndex].Entity, _describedUnitStates[unitIndex], sequence, isBaseline);
 		}
 	}
 
-	private void AppendUnitComponentDeltas(WorldSnapshot snapshot, Entity unitEntity, UnitDescriptionState held, int tick, bool isBaseline)
+	/// <summary>
+	///     Says again, for a few sequences, that a component this peer was told it had is gone. A description that did not
+	///     arrive costs whatever it stated, and a removal is the one statement no later description repeats: a peer that
+	///     missed it keeps a component the authority dropped, and a baseline does not clear what it leaves out. Stating it
+	///     again costs one empty delta per removed component per sequence, and stops once the window has passed.
+	/// </summary>
+	private void RestatePendingRemovals(SnapshotPeerState state, WorldSnapshot snapshot, int sequence)
+	{
+		for (int index = state.PendingRemovals.Count - 1; index >= 0; index--)
+		{
+			PendingComponentRemoval removal = state.PendingRemovals[index];
+			int age = sequence - removal.DescribedAtSequence;
+			if (age <= 0) continue;
+
+			if (age > RemovalRestateSequences)
+			{
+				state.PendingRemovals.RemoveAt(index);
+				continue;
+			}
+
+			snapshot.ComponentDeltas.Add(new ComponentDelta
+			{
+				Key = removal.Key,
+				ComponentTypeId = removal.TypeId,
+				Scope = removal.Scope,
+				Bytes = Array.Empty<byte>()
+			});
+		}
+	}
+
+	/// <summary>
+	///     Forgets that a component was removed once it is being described again, because the value this description states
+	///     is newer than the removal it supersedes.
+	/// </summary>
+	private static void ForgetPendingRemoval(SnapshotPeerState state, byte scope, int key, int componentTypeId)
+	{
+		for (int index = state.PendingRemovals.Count - 1; index >= 0; index--)
+		{
+			PendingComponentRemoval removal = state.PendingRemovals[index];
+			if (removal.Scope != scope || removal.Key != key || removal.TypeId != componentTypeId) continue;
+
+			state.PendingRemovals.RemoveAt(index);
+		}
+	}
+
+	private void AppendUnitComponentDeltas(SnapshotPeerState state, WorldSnapshot snapshot, Entity unitEntity, UnitDescriptionState held, int tick, bool isBaseline)
 	{
 		if (!_descriptions.TryGetUnitComponentState(tick, unitEntity.Id, out ulong presentCodecMask, out ulong presenceMask))
 		{
@@ -639,14 +693,14 @@ public class AuthoritativeSnapshotBuilder
 
 		for (ulong forgottenBits = held.ToldCodecMask & ~presentCodecMask; forgottenBits != 0; forgottenBits &= forgottenBits - 1)
 		{
-			RemoveSentUnitComponent(snapshot, held, BitOperations.TrailingZeroCount(forgottenBits), unitEntity.Id);
+			RemoveSentUnitComponent(state, snapshot, held, BitOperations.TrailingZeroCount(forgottenBits), unitEntity.Id, tick);
 		}
 
 		ulong describedMask = 0;
 		for (ulong presentBits = presentCodecMask; presentBits != 0; presentBits &= presentBits - 1)
 		{
 			int codecIndex = BitOperations.TrailingZeroCount(presentBits);
-			if (!AppendUnitComponentDelta(snapshot, held, UnitCodecs[codecIndex], codecIndex, unitEntity, tick, isBaseline)) continue;
+			if (!AppendUnitComponentDelta(state, snapshot, held, UnitCodecs[codecIndex], codecIndex, unitEntity, tick, isBaseline)) continue;
 
 			describedMask |= 1UL << codecIndex;
 		}
@@ -677,14 +731,14 @@ public class AuthoritativeSnapshotBuilder
 		return (presentCodecMask, presenceMask);
 	}
 
-	private bool AppendUnitComponentDelta(WorldSnapshot snapshot, UnitDescriptionState held, IReplicatedComponentCodec codec, int codecIndex, Entity entity, int tick, bool isBaseline)
+	private bool AppendUnitComponentDelta(SnapshotPeerState state, WorldSnapshot snapshot, UnitDescriptionState held, IReplicatedComponentCodec codec, int codecIndex, Entity entity, int tick, bool isBaseline)
 	{
 		if (!_descriptions.TryGetComponentPayload(tick, entity.Id, codecIndex, out ReadOnlySpan<byte> payload))
 		{
 			payload = WriteComponentPayload(codec, entity);
 			if (payload.Length == 0)
 			{
-				RemoveSentUnitComponent(snapshot, held, codecIndex, entity.Id);
+				RemoveSentUnitComponent(state, snapshot, held, codecIndex, entity.Id, tick);
 				return false;
 			}
 
@@ -701,6 +755,7 @@ public class AuthoritativeSnapshotBuilder
 		byte[] bytes = reusable ? previous! : new byte[codec.SizeInBytes];
 		payload.CopyTo(bytes);
 		held.SentPayloads[codecIndex] = bytes;
+		ForgetPendingRemoval(state, (byte)ReplicatedScope.Unit, entity.Id, codec.ComponentTypeId);
 
 		snapshot.ComponentDeltas.Add(new ComponentDelta
 		{
@@ -712,7 +767,7 @@ public class AuthoritativeSnapshotBuilder
 		return true;
 	}
 
-	private static void RemoveSentUnitComponent(WorldSnapshot snapshot, UnitDescriptionState held, int codecIndex, int entityId)
+	private static void RemoveSentUnitComponent(SnapshotPeerState state, WorldSnapshot snapshot, UnitDescriptionState held, int codecIndex, int entityId, int sequence)
 	{
 		if ((held.ToldCodecMask & (1UL << codecIndex)) == 0) return;
 
@@ -724,6 +779,8 @@ public class AuthoritativeSnapshotBuilder
 			Scope = (byte)ReplicatedScope.Unit,
 			Bytes = Array.Empty<byte>()
 		});
+
+		state.PendingRemovals.Add(new PendingComponentRemoval((byte)ReplicatedScope.Unit, entityId, UnitCodecs[codecIndex].ComponentTypeId, sequence));
 	}
 
 	private ReadOnlySpan<byte> WriteComponentPayload(IReplicatedComponentCodec codec, Entity entity)
@@ -734,14 +791,14 @@ public class AuthoritativeSnapshotBuilder
 		return codec.TryWrite(_world, entity, scratch) ? scratch : ReadOnlySpan<byte>.Empty;
 	}
 
-	private bool AppendComponentDelta(SnapshotPeerState state, WorldSnapshot snapshot, IReplicatedComponentCodec codec, Entity entity, byte scope, int key, bool isBaseline)
+	private bool AppendComponentDelta(SnapshotPeerState state, WorldSnapshot snapshot, IReplicatedComponentCodec codec, Entity entity, byte scope, int key, int sequence, bool isBaseline)
 	{
 		if (_writeScratch.Length < codec.SizeInBytes) _writeScratch = new byte[codec.SizeInBytes];
 
 		Span<byte> scratch = _writeScratch.AsSpan(0, codec.SizeInBytes);
 		if (!codec.TryWrite(_world, entity, scratch))
 		{
-			RemoveComponentDeltaWhenSent(state, snapshot, codec, scope, key);
+			RemoveComponentDeltaWhenSent(state, snapshot, codec, scope, key, sequence);
 			return false;
 		}
 
@@ -753,6 +810,7 @@ public class AuthoritativeSnapshotBuilder
 		byte[] bytes = reusable ? previous! : new byte[codec.SizeInBytes];
 		scratch.CopyTo(bytes);
 		state.SentComponents[deltaKey] = bytes;
+		ForgetPendingRemoval(state, scope, key, codec.ComponentTypeId);
 
 		snapshot.ComponentDeltas.Add(new ComponentDelta
 		{
@@ -764,9 +822,11 @@ public class AuthoritativeSnapshotBuilder
 		return true;
 	}
 
-	private static void RemoveComponentDeltaWhenSent(SnapshotPeerState state, WorldSnapshot snapshot, IReplicatedComponentCodec codec, byte scope, int key)
+	private static void RemoveComponentDeltaWhenSent(SnapshotPeerState state, WorldSnapshot snapshot, IReplicatedComponentCodec codec, byte scope, int key, int sequence)
 	{
 		if (!state.SentComponents.Remove((scope, key, codec.ComponentTypeId))) return;
+
+		state.PendingRemovals.Add(new PendingComponentRemoval(scope, key, codec.ComponentTypeId, sequence));
 
 		snapshot.ComponentDeltas.Add(new ComponentDelta
 		{

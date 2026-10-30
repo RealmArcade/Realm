@@ -99,6 +99,15 @@ public class SnapshotPeerState
 
 	public HashSet<int> SentContentIds { get; } = new();
 
+	/// <summary>
+	///     The components this peer has been told are <em>gone</em>, and the sequences they were told at. A removal is the one
+	///     statement a description makes that no later description repeats: a value is restated every time it differs from
+	///     what the peer holds, while a component that stays gone has nothing left to say. Losing that one description left
+	///     the peer holding a component the authority dropped until a baseline, which does not clear it either, so the
+	///     statement is kept for a few sequences and made again.
+	/// </summary>
+	public List<PendingComponentRemoval> PendingRemovals { get; } = new();
+
 	public uint SentLootSignature { get; set; }
 
 	public bool HasSentLoot { get; set; }
@@ -112,6 +121,12 @@ public class SnapshotPeerState
 		HasSentLoot = false;
 	}
 }
+
+/// <summary>
+///     One component removal this peer was told about, kept until it has been stated as often as a lost description needs
+///     it to be. It names the same triple a description addresses a component by, so restating it is the identical delta.
+/// </summary>
+public readonly record struct PendingComponentRemoval(byte Scope, int Key, int TypeId, int DescribedAtSequence);
 
 public class UnitDescriptionState
 {
