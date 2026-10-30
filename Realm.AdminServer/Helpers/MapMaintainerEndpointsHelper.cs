@@ -65,7 +65,7 @@ namespace Realm.AdminServer.Helpers
                 });
             }
 
-            return null;
+            return null; // indicates success
         }
 
         public static IResult HandleAddMapMaintainer(

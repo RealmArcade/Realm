@@ -959,7 +959,7 @@ public class DistributionClient
 	{
 		int totalMissing = missingHashes.Count;
 		int[] completedCountWrapper = new int[1];
-		string?[] errorWrapper = new string?[2];
+		string?[] errorWrapper = new string?[2]; // [0] = firstErrorAsset, [1] = firstErrorMessage
 		var errorLock = new object();
 
 		using var semaphore = new SemaphoreSlim(Math.Max(1, maximumConcurrency));

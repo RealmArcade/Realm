@@ -25,6 +25,7 @@ public partial class SpellParticleInstance3D : Node3D
 		_processMaterial.Color = _playerColor;
 	}
 
+	// NOTE: Required by the call sites that pool bare instances and initialise them later.	
 	public SpellParticleInstance3D()
 	{
 	}

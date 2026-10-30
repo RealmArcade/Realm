@@ -11,7 +11,7 @@
 	- Structs in the `Realm.Ecs` project must have a single XML-doc `<summary />` comment at the top describing their purpose.
 	- Everything in `Realm.MapAPI` and `Realm.EditorAPI` must have full, comprehensive XML-doc comments for public consumption.
 - Do not use `#region` blocks.
-- Use verbose, descriptive names that clearly identify their purpose (avoid cryptic abbreviations).
+- All code should be self-documenting. Use verbose, descriptive names that clearly identify their purpose (avoid cryptic abbreviations).
 - Avoid the `sealed` keyword.
 - Use [GeneratedRegex] syntax.
 - Avoid keywords `internal` and `InternalsVisibleTo` use `public` or `private` instead.

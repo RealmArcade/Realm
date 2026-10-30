@@ -35,7 +35,7 @@ public class UdpHolePuncher
 			for (int i = 0; i < packetCount; i++)
 			{
 				await udp.SendAsync(payload, payload.Length, remoteEp);
-				await Task.Delay(25);
+				await Task.Delay(25); // wait 25ms between packet bursts
 			}
 
 			GD.Print($"[HolePuncher] Hole punch bursts sent ({packetCount} packets).");

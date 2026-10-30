@@ -77,7 +77,7 @@ public static class ProcessPerformanceOptimizer
 			{
 				Version = 1,
 				ControlMask = PROCESS_POWER_THROTTLING_EXECUTION_SPEED,
-				StateMask = 0
+				StateMask = 0 // Explicitly disable speed throttling
 			};
 
 			bool success = SetProcessInformation(
@@ -136,7 +136,6 @@ public static class ProcessPerformanceOptimizer
 			GetLogicalProcessorInformationEx(RelationProcessorCore, IntPtr.Zero, ref length);
 			if (length <= 0)
 			{
-				CheckFallbackAffinity();
 				return;
 			}
 
@@ -145,7 +144,6 @@ public static class ProcessPerformanceOptimizer
 			{
 				if (!GetLogicalProcessorInformationEx(RelationProcessorCore, buffer, ref length))
 				{
-					CheckFallbackAffinity();
 					return;
 				}
 
@@ -200,26 +198,6 @@ public static class ProcessPerformanceOptimizer
 		catch (Exception ex)
 		{
 			Log($"[Performance] Error configuring CPU affinity: {ex.Message}");
-			CheckFallbackAffinity();
-		}
-	}
-
-	private static void CheckFallbackAffinity()
-	{
-		if (Environment.ProcessorCount >= 24)
-		{
-			try
-			{
-				long fallbackMask = 0x0000FFFF;
-				Process.GetCurrentProcess().ProcessorAffinity = new IntPtr(fallbackMask);
-				PerformanceCoreAffinityMask = fallbackMask;
-				IsHybridCpu = true;
-				Log($"[Performance] Applied fallback P-Core affinity mask 0x{fallbackMask:X} for {Environment.ProcessorCount}-thread processor.");
-			}
-			catch (Exception ex)
-			{
-				Log($"[Performance] Fallback affinity application failed: {ex.Message}");
-			}
 		}
 	}
 

@@ -448,6 +448,7 @@ public static class Program
 		}
 		catch
 		{
+			// Ignore resolution errors
 		}
 
 		return null;

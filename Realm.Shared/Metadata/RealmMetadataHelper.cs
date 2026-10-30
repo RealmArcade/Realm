@@ -824,6 +824,7 @@ public static class RealmMetadataHelper
 		}
 		catch
 		{
+			// fallback
 		}
 
 		return bytes;

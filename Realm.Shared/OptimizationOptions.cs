@@ -12,6 +12,7 @@ public struct OptimizationOptions
 	public bool ReduceUvIslands { get; set; } = true;
 	public float UvChartMergeTolerance { get; set; } = ModelOptimization.UvChartReducer.DefaultTexCoordTolerance;
 
+	// NOTE: Required by the language: a struct with property initializers needs an explicit parameterless constructor.
 	public OptimizationOptions()
 	{
 	}

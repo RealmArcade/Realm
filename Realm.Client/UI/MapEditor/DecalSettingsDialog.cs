@@ -1210,15 +1210,15 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 		_setTexturePathValue?.Invoke(_texturePath);
 
 		SyncSlider(_sldBrightness, _lblBrightness, _brightness, "F2");
-		if (_lblBrightness != null) _lblBrightness.Text += "x";
+		if (_lblBrightness != null) _lblBrightness.Text += "x"; // Append x for brightness
 
 		if (_btnTint != null) _btnTint.Color = _tint;
 
 		SyncSlider(_sldContrast, _lblContrast, _contrast, "F2");
-		if (_lblContrast != null) _lblContrast.Text += "x";
+		if (_lblContrast != null) _lblContrast.Text += "x"; // Append x for contrast
 
 		SyncSlider(_sldSaturation, _lblSaturation, _saturation, "F2");
-		if (_lblSaturation != null) _lblSaturation.Text += "x";
+		if (_lblSaturation != null) _lblSaturation.Text += "x"; // Append x for saturation
 
 		SyncSlider(_sldOpacity, _lblOpacity, _opacity, "F2");
 	}
@@ -1234,7 +1234,7 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 		SyncSlider(_sldAlbedoMix, _lblAlbedoMix, _albedoMix, "F2");
 
 		SyncSlider(_sldNormalStrength, _lblNormalStrength, _normalStrength, "F2");
-		if (_lblNormalStrength != null) _lblNormalStrength.Text += "x";
+		if (_lblNormalStrength != null) _lblNormalStrength.Text += "x"; // Append x for normal strength
 
 		SyncSlider(_sldRoughness, _lblRoughness, _roughness, "F2");
 		SyncSlider(_sldMetallic, _lblMetallic, _metallic, "F2");
@@ -1267,7 +1267,7 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 		if (_chkAnimateOpacity != null) _chkAnimateOpacity.ButtonPressed = _animateOpacity;
 
 		SyncSlider(_sldOpacitySpeed, _lblOpacitySpeed, _opacityPulseSpeed, "F1");
-		if (_lblOpacitySpeed != null) _lblOpacitySpeed.Text += "x";
+		if (_lblOpacitySpeed != null) _lblOpacitySpeed.Text += "x"; // Append x for speed
 
 		SyncSlider(_sldMinOpacity, _lblMinOpacity, _minOpacity, "F2");
 		SyncSlider(_sldMaxOpacity, _lblMaxOpacity, _maxOpacity, "F2");
@@ -1278,7 +1278,7 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 		if (_chkAnimateEmission != null) _chkAnimateEmission.ButtonPressed = _animateEmission;
 
 		SyncSlider(_sldEmissionSpeed, _lblEmissionSpeed, _emissionPulseSpeed, "F1");
-		if (_lblEmissionSpeed != null) _lblEmissionSpeed.Text += "x";
+		if (_lblEmissionSpeed != null) _lblEmissionSpeed.Text += "x"; // Append x for speed
 
 		SyncSlider(_sldMinEmission, _lblMinEmission, _minEmission, "F1");
 		SyncSlider(_sldMaxEmission, _lblMaxEmission, _maxEmission, "F1");
@@ -1289,13 +1289,13 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 		if (_chkAnimateScale != null) _chkAnimateScale.ButtonPressed = _animateScale;
 
 		SyncSlider(_sldScaleSpeed, _lblScaleSpeed, _scalePulseSpeed, "F1");
-		if (_lblScaleSpeed != null) _lblScaleSpeed.Text += "x";
+		if (_lblScaleSpeed != null) _lblScaleSpeed.Text += "x"; // Append x for speed
 
 		SyncSlider(_sldMinScale, _lblMinScale, _minScaleRatio, "F2");
-		if (_lblMinScale != null) _lblMinScale.Text += "x";
+		if (_lblMinScale != null) _lblMinScale.Text += "x"; // Append x for scale ratio
 
 		SyncSlider(_sldMaxScale, _lblMaxScale, _maxScaleRatio, "F2");
-		if (_lblMaxScale != null) _lblMaxScale.Text += "x";
+		if (_lblMaxScale != null) _lblMaxScale.Text += "x"; // Append x for scale ratio
 	}
 
 	private void SyncFadeControls()
@@ -1387,43 +1387,43 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 	private void UpdateLabels()
 	{
 		UpdateLabelText(_lblBrightness, _brightness, "F2");
-		if (_lblBrightness != null) _lblBrightness.Text += "x";
+		if (_lblBrightness != null) _lblBrightness.Text += "x"; // Append x
 
 		UpdateLabelText(_lblContrast, _contrast, "F2");
-		if (_lblContrast != null) _lblContrast.Text += "x";
+		if (_lblContrast != null) _lblContrast.Text += "x"; // Append x
 
 		UpdateLabelText(_lblSaturation, _saturation, "F2");
-		if (_lblSaturation != null) _lblSaturation.Text += "x";
+		if (_lblSaturation != null) _lblSaturation.Text += "x"; // Append x
 
 		UpdateLabelText(_lblOpacity, _opacity, "F2");
 		UpdateLabelText(_lblAlbedoMix, _albedoMix, "F2");
 
 		UpdateLabelText(_lblNormalStrength, _normalStrength, "F2");
-		if (_lblNormalStrength != null) _lblNormalStrength.Text += "x";
+		if (_lblNormalStrength != null) _lblNormalStrength.Text += "x"; // Append x
 
 		UpdateLabelText(_lblRoughness, _roughness, "F2");
 		UpdateLabelText(_lblMetallic, _metallic, "F2");
 
 		UpdateLabelText(_lblOpacitySpeed, _opacityPulseSpeed, "F1");
-		if (_lblOpacitySpeed != null) _lblOpacitySpeed.Text += "x";
+		if (_lblOpacitySpeed != null) _lblOpacitySpeed.Text += "x"; // Append x
 
 		UpdateLabelText(_lblMinOpacity, _minOpacity, "F2");
 		UpdateLabelText(_lblMaxOpacity, _maxOpacity, "F2");
 
 		UpdateLabelText(_lblEmissionSpeed, _emissionPulseSpeed, "F1");
-		if (_lblEmissionSpeed != null) _lblEmissionSpeed.Text += "x";
+		if (_lblEmissionSpeed != null) _lblEmissionSpeed.Text += "x"; // Append x
 
 		UpdateLabelText(_lblMinEmission, _minEmission, "F1");
 		UpdateLabelText(_lblMaxEmission, _maxEmission, "F1");
 
 		UpdateLabelText(_lblScaleSpeed, _scalePulseSpeed, "F1");
-		if (_lblScaleSpeed != null) _lblScaleSpeed.Text += "x";
+		if (_lblScaleSpeed != null) _lblScaleSpeed.Text += "x"; // Append x
 
 		UpdateLabelText(_lblMinScale, _minScaleRatio, "F2");
-		if (_lblMinScale != null) _lblMinScale.Text += "x";
+		if (_lblMinScale != null) _lblMinScale.Text += "x"; // Append x
 
 		UpdateLabelText(_lblMaxScale, _maxScaleRatio, "F2");
-		if (_lblMaxScale != null) _lblMaxScale.Text += "x";
+		if (_lblMaxScale != null) _lblMaxScale.Text += "x"; // Append x
 
 		UpdateLabelText(_lblUpperFade, _upperFade, "F2");
 		UpdateLabelText(_lblLowerFade, _lowerFade, "F2");

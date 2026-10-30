@@ -41,7 +41,7 @@ public class WaterProfileSaveData
 	public float DetailCrossFade { get; set; } = 0.0f;
 	public float DetailAlpha { get; set; } = 0.5f;
 	public int DetailBlendMode { get; set; } = 0;
-	public int DefaultPathingCode { get; set; } = 1 | 4;
+	public int DefaultPathingCode { get; set; } = 1 | 4; // ShallowWater | Flying
 	public List<ProceduralBombingDecalRule> DecalBombingRules { get; set; } = new();
 	public List<ProceduralBombingVfxRule> VfxBombingRules { get; set; } = new();
 

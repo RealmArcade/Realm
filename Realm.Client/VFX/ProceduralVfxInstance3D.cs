@@ -94,6 +94,7 @@ public partial class ProceduralVfxInstance3D : Node3D
 		}
 	}
 
+	// NOTE: Required by the call sites that pool bare instances and initialise them later.
 	public ProceduralVfxInstance3D()
 	{
 	}

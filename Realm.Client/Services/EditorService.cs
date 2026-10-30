@@ -1638,7 +1638,7 @@ public partial class EditorService : IEditorAPI
 	{
 		if (ctx.ActiveTool == EditorTool.PaintTexture)
 		{
-			ProcessBlockPaint(ref terrain, ref ctx, -1, -1);
+			ProcessBlockPaint(ref terrain, ref ctx, -1, -1); // Let ProcessBlockPaint handle its own bounds
 			return;
 		}
 

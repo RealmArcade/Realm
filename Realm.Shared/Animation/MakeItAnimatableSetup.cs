@@ -137,6 +137,7 @@ public static class MakeItAnimatableSetup
 		}
 		catch (IOException) when (File.Exists(destPath))
 		{
+			// File is locked or in use by another running process; existing file will be used.
 		}
 	}
 

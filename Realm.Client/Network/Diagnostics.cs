@@ -11,9 +11,9 @@ namespace Realm.Client.Network;
 
 public class Diagnostics
 {
-	private const int MagicHeader = 0x44494147;
+	private const int MagicHeader = 0x44494147; // "DIAG"
 	private const int PacketCount = 50;
-	private const int DelayBetweenPacketsMs = 100;
+	private const int DelayBetweenPacketsMs = 100; // 50 * 100ms = 5 seconds
 
 
 	private static CancellationTokenSource? _serverCts;
@@ -46,6 +46,7 @@ public class Diagnostics
 		}
 		catch (OperationCanceledException)
 		{
+			/* Clean shutdown */
 		}
 		catch (Exception ex)
 		{
@@ -58,7 +59,7 @@ public class Diagnostics
 		var data = receiveResult.Buffer;
 		if (data.Length < 16) return;
 
-		int magic = BitConverter.ToInt32(data, 0);
+		int magic = BitConverter.ToInt32(data, 0); // bind to any local port
 		if (magic != MagicHeader) return;
 
 		await udp.SendAsync(data, data.Length, receiveResult.RemoteEndPoint);
@@ -100,6 +101,7 @@ public class Diagnostics
 		}
 		catch
 		{
+			/* Ignore task cancellation error */
 		}
 
 		stopwatch.Stop();

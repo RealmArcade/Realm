@@ -16,7 +16,7 @@ public class NatTypeTester
 			if (stunAddresses.Length == 0) return NatType.Open;
 
 			var serverIp1 = stunAddresses[0];
-			var serverIp2 = stunAddresses.Length > 1 ? stunAddresses[1] : IPAddress.Parse("74.125.200.127");
+			var serverIp2 = stunAddresses.Length > 1 ? stunAddresses[1] : IPAddress.Parse("74.125.200.127"); // google stun alternate
 
 			return await EvaluateNatTypeAsync(serverIp1, serverIp2, testLocalPort);
 		}
@@ -94,6 +94,7 @@ public class NatTypeTester
 		}
 		catch
 		{
+			/* Ignore errors and return success=false */
 		}
 
 		result.Success = false;
@@ -128,6 +129,7 @@ public class NatTypeTester
 		}
 		catch
 		{
+			/* Ignore */
 		}
 
 		result.Success = false;
@@ -191,7 +193,7 @@ public class NatTypeTester
 
 
 		int type = (response[0] << 8) | response[1];
-		if (type != 0x0101 && type != 0x0111)
+		if (type != 0x0101 && type != 0x0111) // standard response or XOR response
 		{
 			result.Success = false;
 			return result;
@@ -209,11 +211,11 @@ public class NatTypeTester
 			if (offset + attrLength > response.Length)
 				break;
 
-			if (attrType == 0x0001 || attrType == 0x0020)
+			if (attrType == 0x0001 || attrType == 0x0020) // MAPPED-ADDRESS or XOR-MAPPED-ADDRESS
 			{
 				result.MappedEndPoint = ParseAddress(response, offset, attrLength, attrType == 0x0020);
 			}
-			else if (attrType == 0x0005)
+			else if (attrType == 0x0005) // CHANGED-ADDRESS
 			{
 				result.ChangedEndPoint = ParseAddress(response, offset, attrLength, false);
 			}
@@ -231,7 +233,7 @@ public class NatTypeTester
 		if (length < 8) return null;
 
 		byte family = response[offset + 1];
-		if (family != 0x01) return null;
+		if (family != 0x01) return null; // IPv4 only for now
 
 		int port = (response[offset + 2] << 8) | response[offset + 3];
 		if (isXor)

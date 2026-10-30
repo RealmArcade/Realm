@@ -5,7 +5,7 @@ namespace Realm.Shared.Metadata;
 
 public class RkeyFile : RealmContainerFile
 {
-	public static readonly byte[] MagicBytes = [0x52, 0x4B, 0x45, 0x59];
+	public static readonly byte[] MagicBytes = [0x52, 0x4B, 0x45, 0x59]; // "RKEY"
 	public static byte[] Magic => MagicBytes;
 	public const uint CurrentVersion = 1;
 	public const string Format = "rkey";
