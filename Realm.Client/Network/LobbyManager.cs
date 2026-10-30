@@ -1055,6 +1055,7 @@ public partial class LobbyManager : BaseMapTransferNode
 				IsHost = seat.IsHost,
 				IsReady = seat.IsReady,
 				IsMapReady = seat.IsMapReady,
+				MapDownloadPercent = seat.MapDownloadPercent,
 				IsLoadReady = seat.IsLoadReady,
 				IsDisconnected = seat.IsDisconnected,
 				Latency = FormatLinkMilliseconds(seat.LatencyMilliseconds),
@@ -1812,6 +1813,21 @@ public partial class LobbyManager : BaseMapTransferNode
 		});
 	}
 
+	public void ReportLocalMapProgress(int percent)
+	{
+		if (IsHost) return;
+
+		int clamped = Math.Clamp(percent, 0, 100);
+		if (clamped == _reportedMapProgressPercent) return;
+
+		_reportedMapProgressPercent = clamped;
+		_lobbySession?.SendLobbyCommand(new LobbyCommand
+		{
+			Kind = LobbyCommandKind.ReportMapProgress,
+			Progress = clamped
+		});
+	}
+
 	public void UpdateSpectatorDelay(bool enabled)
 	{
 		if (!IsHost) return;
@@ -2065,9 +2081,12 @@ public partial class LobbyManager : BaseMapTransferNode
 		}
 	}
 
+	private int _reportedMapProgressPercent = -1;
+
 	private void EmitDownloadProgress(float progress)
 	{
 		MapDownloadProgressChanged?.Invoke(progress);
+		ReportLocalMapProgress((int)MathF.Round(Math.Clamp(progress, 0f, 1f) * 100f));
 	}
 
 	private void EmitDownloadCompleted()

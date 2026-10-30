@@ -459,7 +459,8 @@ public partial class LobbyRoom : Control
 		bool isMapReady = !string.IsNullOrEmpty(activeMap) && MapAssetManager.IsMapDownloaded(activeMap);
 		if (!isMapReady)
 		{
-			UIStyle.ApplyButtonText(_startButton, "DOWNLOADING MAP...", 18);
+			int downloadPercent = Math.Clamp(GetLocalPlayer()?.MapDownloadPercent ?? 0, 0, 100);
+			UIStyle.ApplyButtonText(_startButton, $"{Tr("DOWNLOADING MAP...")} {downloadPercent}%", 18);
 			_startButton.Disabled = true;
 			return;
 		}
@@ -1396,9 +1397,10 @@ public partial class LobbyRoom : Control
 
 	private string BuildDiagnosticText(PlayerInfo p, bool isLocalPlayer)
 	{
-		if (!isLocalPlayer && !p.IsHost && !p.IsMapReady)
+		if (!p.IsHost && !p.IsMapReady)
 		{
-			return $"  [color=#ffa040]{Tr("downloading...")}[/color]";
+			int downloadPercent = Math.Clamp(p.MapDownloadPercent, 0, 100);
+			return $"  [color=#ffa040]{Tr("downloading...")} {downloadPercent}%[/color]";
 		}
 
 		if (!isLocalPlayer && !p.IsHost && !p.IsLoadReady)

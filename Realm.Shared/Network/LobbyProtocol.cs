@@ -30,7 +30,9 @@ public enum LobbyCommandKind : byte
 
 	RequestChatHistory = 13,
 
-	ReportLoadReady = 14
+	ReportLoadReady = 14,
+
+	ReportMapProgress = 15
 }
 
 public enum MapTransferRequestKind : byte
@@ -81,6 +83,8 @@ public partial struct LobbySeat
 	public int JitterMilliseconds;
 
 	public float PacketLossPercent;
+
+	public int MapDownloadPercent;
 }
 
 [MemoryPackable]
@@ -114,6 +118,8 @@ public partial struct LobbyCommand
 
 	public string Address;
 	public int Port;
+
+	public int Progress;
 }
 
 [MemoryPackable]

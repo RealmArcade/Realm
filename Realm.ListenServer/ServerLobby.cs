@@ -315,6 +315,9 @@ public class ServerLobby
 			case LobbyCommandKind.ReportMapReady:
 				ReportMapReady(sender, command.Flag);
 				break;
+			case LobbyCommandKind.ReportMapProgress:
+				ReportMapProgress(sender, command.Progress);
+				break;
 			case LobbyCommandKind.ReportLoadReady:
 				ReportLoadReady(sender, command.Flag);
 				break;
@@ -605,6 +608,7 @@ public class ServerLobby
 			IsComputer = true,
 			IsMapReady = true,
 			IsLoadReady = true,
+			MapDownloadPercent = 100,
 			LatencyMilliseconds = 0,
 			JitterMilliseconds = 0,
 			PacketLossPercent = 0f
@@ -775,9 +779,29 @@ public class ServerLobby
 		if (sender.IsMapReady == ready) return;
 
 		sender.IsMapReady = ready;
+		sender.MapDownloadPercent = ready ? 100 : 0;
 		if (!ready) sender.IsLoadReady = false;
 		_seats[sender.Slot] = sender;
 		_log.Write($"lobby seat {sender.Slot} ('{sender.Name}') {(ready ? "holds" : "does not hold")} the map");
+		BroadcastState();
+	}
+
+	/// <summary>
+	///     Records how far a seat is through fetching this lobby's map, so every screen in the lobby can say what that seat
+	///     is waiting on instead of only the seat itself knowing.
+	/// </summary>
+	/// <param name="sender">The seat that reported its progress.</param>
+	/// <param name="percent">How much of the map it holds, from 0 to 100.</param>
+	private void ReportMapProgress(LobbySeat sender, int percent)
+	{
+		if (sender.IsComputer) return;
+
+		int clamped = Math.Clamp(percent, 0, 100);
+		if (sender.IsMapReady) clamped = 100;
+		if (sender.MapDownloadPercent == clamped) return;
+
+		sender.MapDownloadPercent = clamped;
+		_seats[sender.Slot] = sender;
 		BroadcastState();
 	}
 

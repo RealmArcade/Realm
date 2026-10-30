@@ -51,6 +51,8 @@ public class PlayerInfo
 	public string BinaryVersion { get; set; } = "";
 	public bool IsMapReady { get; set; } = true;
 
+	public int MapDownloadPercent { get; set; } = 100;
+
 	public bool IsLoadReady { get; set; }
 
 	[JsonIgnore]
