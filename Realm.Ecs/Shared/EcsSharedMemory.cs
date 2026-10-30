@@ -71,6 +71,17 @@ public static unsafe class EcsSharedMemory
 	public const int SCRIPT_PLAYER_OFFSET = 1650912;
 	/// <summary>Default offset to the player population array.</summary>
 	public const int PLAYER_POPULATION_OFFSET = 1651612;
+
+	/// <summary>The maximum number of factions a lobby's roster may offer.</summary>
+	public const int MAX_LOBBY_FACTIONS = 16;
+	/// <summary>The number of UTF-16 characters reserved for each faction name in the lobby's faction table.</summary>
+	public const int LOBBY_FACTION_NAME_CHARACTERS = 24;
+	/// <summary>Offset to the lobby roster header, which a map script reads directly.</summary>
+	public const int LOBBY_ROSTER_HEADER_OFFSET = 1651820;
+	/// <summary>Offset to the UTF-16 faction names the lobby offers, each padded to <see cref="LOBBY_FACTION_NAME_CHARACTERS" />.</summary>
+	public const int LOBBY_FACTION_NAMES_OFFSET = 1651836;
+	/// <summary>Offset to the per-player roster slots, one for every player slot the lobby may seat.</summary>
+	public const int PLAYER_ROSTER_SLOTS_OFFSET = 1652604;
 	/// <summary>Total byte capacity of the contiguous shared memory block.</summary>
 	public const int TOTAL_SIZE_BYTES = 4194304;
 
@@ -85,6 +96,42 @@ public static unsafe class EcsSharedMemory
 	/// The global static base address pointer for shared memory linear layout visible to native debuggers.
 	/// </summary>
 	public static IntPtr g_realmSharedMemoryBase = IntPtr.Zero;
+
+	/// <summary>
+	/// Resolves the lobby roster header a map script reads from a shared memory region.
+	/// </summary>
+	/// <param name="sharedMemoryBase">The base of the shared memory region, which is the guest's own base inside WebAssembly and the bound guest region on the host.</param>
+	/// <returns>A pointer to the roster header.</returns>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public static LobbyRosterHeader* LobbyRosterHeaderAt(IntPtr sharedMemoryBase)
+	{
+		return (LobbyRosterHeader*)((byte*)sharedMemoryBase + LOBBY_ROSTER_HEADER_OFFSET);
+	}
+
+	/// <summary>
+	/// Resolves the roster slot array a map script reads from a shared memory region.
+	/// </summary>
+	/// <param name="sharedMemoryBase">The base of the shared memory region.</param>
+	/// <returns>A pointer to the first player roster slot.</returns>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public static PlayerRosterSlot* PlayerRosterSlotsAt(IntPtr sharedMemoryBase)
+	{
+		return (PlayerRosterSlot*)((byte*)sharedMemoryBase + PLAYER_ROSTER_SLOTS_OFFSET);
+	}
+
+	/// <summary>
+	/// Resolves the faction name table a map script reads from a shared memory region.
+	/// </summary>
+	/// <param name="sharedMemoryBase">The base of the shared memory region.</param>
+	/// <returns>A pointer to the first faction name, with each name padded to <see cref="LOBBY_FACTION_NAME_CHARACTERS" /> characters.</returns>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public static char* LobbyFactionNamesAt(IntPtr sharedMemoryBase)
+	{
+		return (char*)((byte*)sharedMemoryBase + LOBBY_FACTION_NAMES_OFFSET);
+	}
+
+	/// <summary>Gets the base address of this process's shared memory region.</summary>
+	public static IntPtr BasePointer => _basePtr;
 
 	/// <summary>Gets the raw pointer to the component array base offsets directory table.</summary>
 	public static int* ComponentArrayBaseOffsets => _componentArrayBaseOffsets != null ? _componentArrayBaseOffsets : (int*)(_basePtr + COMPONENT_ARRAY_BASE_OFFSETS_OFFSET);

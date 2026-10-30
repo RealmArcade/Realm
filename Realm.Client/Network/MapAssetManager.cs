@@ -1071,10 +1071,12 @@ public static class MapAssetManager
 
 		try
 		{
+			string? manifestPath = FindManifestPath(mapName, version);
 			var manifest = FindHostManifest(mapName, version);
 			if (manifest != null)
-			{
-				long manifestSize = GetSizeFromManifest(manifest);
+		{
+				string? mapDirectory = !string.IsNullOrEmpty(manifestPath) ? Path.GetDirectoryName(manifestPath) : null;
+				long manifestSize = GetSizeFromManifest(manifest, mapDirectory);
 				if (manifestSize > 0) return manifestSize;
 			}
 
@@ -1088,7 +1090,7 @@ public static class MapAssetManager
 		return 0;
 	}
 
-	private static long GetSizeFromManifest(MapManifest manifest)
+	private static long GetSizeFromManifest(MapManifest manifest, string? mapDirectory)
 	{
 		if (manifest.FileSizes != null && manifest.FileSizes.Count > 0)
 		{
@@ -1100,20 +1102,36 @@ public static class MapAssetManager
 				return totalFromManifest;
 		}
 
-		long totalCas = 0;
-		if (manifest.Files != null && manifest.Files.Count > 0)
+		if (manifest.Files == null || manifest.Files.Count == 0)
+			return 0;
+
+		long total = 0;
+		foreach (var pair in manifest.Files)
 		{
-			foreach (var hash in manifest.Files.Values)
-			{
-				string? assetPath = Storage.FindAssetFilePath(hash);
-				if (assetPath != null && File.Exists(assetPath))
-				{
-					totalCas += new FileInfo(assetPath).Length;
-				}
-			}
+			long fileSize = GetManifestFileSize(mapDirectory, pair.Key, pair.Value);
+			if (fileSize > 0) total += fileSize;
 		}
 
-		return totalCas;
+		return total;
+	}
+
+	/// <summary>
+	///     The size of one file a manifest lists. A map the host holds on disk is served from that folder, so its files are
+	///     measured where they are; only a file the folder no longer has is measured out of the content archive.
+	/// </summary>
+	private static long GetManifestFileSize(string? mapDirectory, string relativePath, string hash)
+	{
+		if (!string.IsNullOrEmpty(mapDirectory))
+		{
+			string path = relativePath.StartsWith("res://", StringComparison.OrdinalIgnoreCase) ? relativePath.Substring(6) : relativePath;
+			path = path.TrimStart('/', '\\').Replace('/', Path.DirectorySeparatorChar);
+
+			string onDisk = Path.Combine(mapDirectory, path);
+			if (File.Exists(onDisk)) return new FileInfo(onDisk).Length;
+		}
+
+		string? assetPath = Storage.FindAssetFilePath(hash);
+		return assetPath != null && File.Exists(assetPath) ? new FileInfo(assetPath).Length : 0;
 	}
 
 	private static long GetSizeFromDirectoryFallbacks(string mapName, string? version)

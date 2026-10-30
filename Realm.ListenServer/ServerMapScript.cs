@@ -25,9 +25,30 @@ public class ServerMapScript : IDisposable
 
 	public bool IsRunning => _host != null;
 
-	public static ServerMapScript Load(LoadedMap map, ServerMatchPaths paths, int randomSeed, ServerLog log, ServerPresentationQueue presentation, ItemGrantService items, GroundLootService loot, bool wasmDebug = false, string? mapWorkspacePath = null)
+	/// <summary>
+	///     Initializes the map script for a match that is starting.
+	/// </summary>
+	/// <param name="map">The world the match plays on.</param>
+	/// <param name="paths">Where this match's map, data and logs live.</param>
+	/// <param name="randomSeed">The seed this match's script draws from.</param>
+	/// <param name="log">The authority's log.</param>
+	/// <param name="presentation">The queue the script presents through.</param>
+	/// <param name="items">The match's item grants.</param>
+	/// <param name="loot">The match's ground loot.</param>
+	/// <param name="wasmDebug">Whether a script this call has to instantiate is built for a debugger.</param>
+	/// <param name="mapWorkspacePath">The workspace a script this call has to instantiate was published from.</param>
+	/// <param name="preparedHost">A script the lobby already instantiated and warmed on this same world, which the match takes over instead of instantiating its own.</param>
+	public static ServerMapScript Load(LoadedMap map, ServerMatchPaths paths, int randomSeed, ServerLog log, ServerPresentationQueue presentation, ItemGrantService items, GroundLootService loot, bool wasmDebug = false, string? mapWorkspacePath = null, WasmScriptHost? preparedHost = null)
 	{
 		var api = new ServerGameAPI(map, log, presentation, items, loot, paths);
+
+		if (preparedHost != null)
+		{
+			GameAPI.Current = api;
+			preparedHost.Initialize(api);
+			log.Write($"map script '{preparedHost.ScriptPath}' was warmed by the lobby and is initialized for the match");
+			return new ServerMapScript(api, preparedHost, preparedHost.ScriptPath, log);
+		}
 
 		if (!TryFindScript(paths.MapPath, out string wasmPath))
 		{

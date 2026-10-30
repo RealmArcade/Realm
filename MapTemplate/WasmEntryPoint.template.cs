@@ -49,6 +49,7 @@ public class WasmEntryPoint
 {
     private static IMapScript? _mapScript;
     private static IGameAPI? _gameApi;
+    private static ILobbyAPI? _lobbyApi;
 
     private static unsafe string ReadString(nint ptr, int len)
     {
@@ -116,6 +117,49 @@ public class WasmEntryPoint
             }
             catch { }
             Console.WriteLine($"Error in update: {ex}");
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "lobby-init")]
+    public static int LobbyInit()
+    {
+        try
+        {
+            if (_mapScript is not ILobbyScript lobbyScript) return 0;
+
+            _lobbyApi = new LobbyAPI_WasmModule();
+            lobbyScript.LobbyInitialize(_lobbyApi);
+            return 1;
+        }
+        catch (Exception ex)
+        {
+            try
+            {
+                _gameApi?.BroadcastMessage($"[GUEST LOBBY ERROR] {ex.GetType().Name}: {ex.Message}");
+            }
+            catch { }
+            Console.WriteLine($"Error in lobby-init: {ex}");
+            return 0;
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "lobby-update")]
+    public static void LobbyUpdate(float delta)
+    {
+        if (_lobbyApi == null || _mapScript is not ILobbyScript lobbyScript) return;
+
+        try
+        {
+            lobbyScript.LobbyUpdate(_lobbyApi, delta);
+        }
+        catch (Exception ex)
+        {
+            try
+            {
+                _gameApi?.BroadcastMessage($"[GUEST LOBBY ERROR] {ex.GetType().Name}: {ex.Message}");
+            }
+            catch { }
+            Console.WriteLine($"Error in lobby-update: {ex}");
         }
     }
 

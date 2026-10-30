@@ -27,7 +27,7 @@ public class ServerLobby
 	private readonly string _mapFolder;
 	private readonly string _mapName;
 	private readonly string _mapVersion;
-	private readonly int _maximumPlayers;
+	private int _maximumPlayers;
 
 	private readonly SortedDictionary<int, LobbySeat> _seats = new();
 	private readonly Dictionary<int, int> _slotByPeer = new();
@@ -83,6 +83,87 @@ public class ServerLobby
 	public string MapVersion => _mapVersion;
 
 	public int MaximumPlayers => _maximumPlayers;
+
+	/// <summary>
+	///     The roster rules this lobby's map states, or nothing while the lobby runs on the authority's own rules. The
+	///     roster refuses a change to a field it locked, so every way a seat can change is filtered through it.
+	/// </summary>
+	public ServerLobbyRoster? Roster { get; set; }
+
+	public IReadOnlyCollection<LobbySeat> Seats => _seats.Values;
+
+	public bool TryGetSeatBySlot(int slot, out LobbySeat seat) => _seats.TryGetValue(slot, out seat);
+
+	/// <summary>
+	///     Gives the seat a faction its map's roster chose. Nothing is published when the seat is gone.
+	/// </summary>
+	/// <param name="slot">The seat's slot.</param>
+	/// <param name="faction">The faction the seat plays as.</param>
+	/// <returns>Whether the seat holds the faction afterwards.</returns>
+	public bool ApplyRosterFaction(int slot, string faction)
+	{
+		if (!_seats.TryGetValue(slot, out LobbySeat seat)) return false;
+		seat.Faction = faction;
+		_seats[slot] = seat;
+		BroadcastState();
+		return true;
+	}
+
+	/// <summary>
+	///     Puts the seat on a team its map's roster chose, where team zero means it plays on no team.
+	/// </summary>
+	/// <param name="slot">The seat's slot.</param>
+	/// <param name="team">The team number.</param>
+	/// <returns>Whether the seat holds the team afterwards.</returns>
+	public bool ApplyRosterTeam(int slot, int team)
+	{
+		if (!_seats.TryGetValue(slot, out LobbySeat seat)) return false;
+
+		seat.Team = Math.Max(0, team);
+		seat.TeamName = seat.Team == 0 ? "Spectator" : $"Team {seat.Team}";
+		if (seat.Team == 0) seat.IsReady = false;
+		_seats[slot] = seat;
+		BroadcastState();
+		return true;
+	}
+
+	/// <summary>
+	///     Gives the seat a colour its map's roster chose.
+	/// </summary>
+	/// <param name="slot">The seat's slot.</param>
+	/// <param name="colorRgba">The colour, packed as 0xRRGGBBAA.</param>
+	/// <returns>Whether the seat holds the colour afterwards.</returns>
+	public bool ApplyRosterColor(int slot, uint colorRgba)
+	{
+		if (!_seats.TryGetValue(slot, out LobbySeat seat)) return false;
+		seat.ColorRgba = colorRgba;
+		_seats[slot] = seat;
+		BroadcastState();
+		return true;
+	}
+
+	/// <summary>
+	///     Seats a different number of players, which is what a map's roster states once its lobby is open.
+	/// </summary>
+	/// <param name="maximumPlayers">The number of player slots to seat.</param>
+	/// <returns>Whether the lobby seats that many players afterwards.</returns>
+	public bool TrySetMaximumPlayers(int maximumPlayers)
+	{
+		int clamped = Math.Clamp(maximumPlayers, 1, LobbyLimits.MaximumSeats);
+		if (clamped == _maximumPlayers) return true;
+
+		foreach (int slot in _seats.Keys)
+		{
+			if (slot <= clamped) continue;
+			_log.Write($"the lobby cannot seat {clamped} player(s) while seat {slot} is taken; the count is refused");
+			return false;
+		}
+
+		_maximumPlayers = clamped;
+		_log.Write($"the lobby now seats {_maximumPlayers} player(s)");
+		BroadcastState();
+		return true;
+	}
 
 	public bool HasHumanSeat
 	{
@@ -479,21 +560,30 @@ public class ServerLobby
 		if (!string.IsNullOrEmpty(name)) target.Name = name;
 
 		string faction = LobbyLimits.Sanitize(command.Faction, LobbyLimits.MaximumFactionLength);
-		if (!string.IsNullOrEmpty(faction)) target.Faction = faction;
+		if (!string.IsNullOrEmpty(faction) && !IsFactionLocked(target.Slot))
+		{
+			target.Faction = faction;
+		}
 
-		if (LobbyLimits.IsAcceptableTeamName(command.TeamName))
+		if (LobbyLimits.IsAcceptableTeamName(command.TeamName) && !IsTeamLocked(target.Slot))
 		{
 			target.TeamName = LobbyLimits.Sanitize(command.TeamName, LobbyLimits.MaximumTeamNameLength);
 			target.Team = ResolveTeamNumber(target.TeamName, target.Slot);
 			if (string.Equals(target.TeamName, "Spectator", StringComparison.Ordinal)) target.IsReady = false;
 		}
 
-		if (command.ColorRgba != 0) target.ColorRgba = command.ColorRgba;
+		if (command.ColorRgba != 0 && !IsColorLocked(target.Slot)) target.ColorRgba = command.ColorRgba;
 
 		_seats[target.Slot] = target;
 		if (target.PeerId > 0) _slotByPeer[target.PeerId] = target.Slot;
 		BroadcastState();
 	}
+
+	private bool IsFactionLocked(int slot) => Roster?.IsFactionLocked(slot) ?? false;
+
+	private bool IsTeamLocked(int slot) => Roster?.IsTeamLocked(slot) ?? false;
+
+	private bool IsColorLocked(int slot) => Roster?.IsColorLocked(slot) ?? false;
 
 	private void AddComputer(int adminSlot)
 	{

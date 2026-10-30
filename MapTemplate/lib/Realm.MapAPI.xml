@@ -2832,6 +2832,167 @@
             <param name="node">The resource node identifier.</param>
             <returns>True if depleted; otherwise, false.</returns>
         </member>
+        <member name="T:Realm.MapAPI.ILobbyAPI">
+            <summary>
+                The roster a map script owns while its lobby is filling: which factions the map offers, how many players it seats,
+                and what faction, team and colour each player slot holds. It is handed to <see cref="T:Realm.MapAPI.ILobbyScript" /> while the
+                authority sits at tick zero, before any match exists.
+            </summary>
+            <remarks>
+                <para>
+                    Reads are taken straight out of the shared roster the authority publishes, so they cost no host call and never
+                    allocate. Writes are orders to the authority, which applies them to the lobby the players are sitting in, so a
+                    write can be refused - a locked slot, a slot nobody holds, a faction the map does not offer, or a full lobby -
+                    and reports whether it was accepted.
+                </para>
+                <para>
+                    A lock is what a map offers a player as a choice it may not change: a script sets a slot's faction, team or
+                    colour and locks it, and the lobby stops offering that field for that seat. A map that sets nothing leaves the
+                    lobby's own assignment of colours and teams in place, which is what the default lobby rules do.
+                </para>
+            </remarks>
+        </member>
+        <member name="P:Realm.MapAPI.ILobbyAPI.MaximumPlayerCount">
+            <summary>How many player slots this lobby currently seats. Slots are indexed from one; slot zero is not a player.</summary>
+        </member>
+        <member name="P:Realm.MapAPI.ILobbyAPI.SlotCount">
+            <summary>The number of slots the shared roster carries, which is the highest player index this API accepts.</summary>
+        </member>
+        <member name="P:Realm.MapAPI.ILobbyAPI.FactionCount">
+            <summary>How many factions the map offers, in the order <see cref="M:Realm.MapAPI.ILobbyAPI.GetFactionName(System.Int32)" /> reports them.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.ILobbyAPI.GetFactionName(System.Int32)">
+            <summary>
+                The name of one of the map's factions without allocating a string, so a script may read it inside its lobby
+                tick. The span is empty for an index this lobby does not offer.
+            </summary>
+            <param name="factionIndex">The faction's position in the lobby's faction table.</param>
+            <returns>The faction's name, valid until the authority restates the roster.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.ILobbyAPI.AddFaction(System.String)">
+            <summary>
+                Adds a faction to the lobby's roster, which is how a map states the choices its players are offered. The
+                authority keeps the table, and a name the roster already offers is not added twice.
+            </summary>
+            <param name="factionName">The faction's name, at most 24 characters.</param>
+            <returns>Whether the faction is part of the roster afterwards.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.ILobbyAPI.GetPlayerFactionIndex(System.Int32)">
+            <summary>The faction table position of the slot's faction, or -1 when the slot holds no faction.</summary>
+            <param name="playerIndex">The player slot.</param>
+        </member>
+        <member name="M:Realm.MapAPI.ILobbyAPI.GetPlayerFaction(System.Int32)">
+            <summary>The faction the slot plays as, without allocating a string. Empty when the slot holds no faction.</summary>
+            <param name="playerIndex">The player slot.</param>
+        </member>
+        <member name="M:Realm.MapAPI.ILobbyAPI.SetPlayerFaction(System.Int32,System.String)">
+            <summary>
+                Gives a player slot a faction from the lobby's roster. A slot whose faction is locked, a slot nobody holds and
+                a faction the roster does not offer are all refused.
+            </summary>
+            <param name="playerIndex">The player slot.</param>
+            <param name="factionName">The faction the slot should play as.</param>
+            <returns>Whether the authority took the order.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.ILobbyAPI.IsFactionLocked(System.Int32)">
+            <summary>Whether the slot's faction may no longer be changed.</summary>
+            <param name="playerIndex">The player slot.</param>
+        </member>
+        <member name="M:Realm.MapAPI.ILobbyAPI.SetFactionLocked(System.Int32,System.Boolean)">
+            <summary>Locks or unlocks the slot's faction, which is what stops a player changing it in the lobby.</summary>
+            <param name="playerIndex">The player slot.</param>
+            <param name="locked">Whether the field is locked.</param>
+        </member>
+        <member name="M:Realm.MapAPI.ILobbyAPI.GetPlayerTeam(System.Int32)">
+            <summary>The team number the slot plays on, where 0 means it plays on no team.</summary>
+            <param name="playerIndex">The player slot.</param>
+        </member>
+        <member name="M:Realm.MapAPI.ILobbyAPI.SetPlayerTeam(System.Int32,System.Int32)">
+            <summary>
+                Puts a player slot on a team. A slot whose team is locked, a slot nobody holds and a team number outside the
+                lobby's seats are all refused.
+            </summary>
+            <param name="playerIndex">The player slot.</param>
+            <param name="teamIndex">The team number, from 1 up to the lobby's seats, or 0 for no team.</param>
+            <returns>Whether the authority took the order.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.ILobbyAPI.IsTeamLocked(System.Int32)">
+            <summary>Whether the slot's team may no longer be changed.</summary>
+            <param name="playerIndex">The player slot.</param>
+        </member>
+        <member name="M:Realm.MapAPI.ILobbyAPI.SetTeamLocked(System.Int32,System.Boolean)">
+            <summary>Locks or unlocks the slot's team.</summary>
+            <param name="playerIndex">The player slot.</param>
+            <param name="locked">Whether the field is locked.</param>
+        </member>
+        <member name="M:Realm.MapAPI.ILobbyAPI.GetPlayerColor(System.Int32)">
+            <summary>The slot's colour, packed as 0xRRGGBBAA the way the lobby publishes its seats.</summary>
+            <param name="playerIndex">The player slot.</param>
+        </member>
+        <member name="M:Realm.MapAPI.ILobbyAPI.SetPlayerColor(System.Int32,System.UInt32)">
+            <summary>
+                Gives a player slot a colour. A slot whose colour is locked and a slot nobody holds are both refused.
+            </summary>
+            <param name="playerIndex">The player slot.</param>
+            <param name="colorRgba">The colour, packed as 0xRRGGBBAA.</param>
+            <returns>Whether the authority took the order.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.ILobbyAPI.IsColorLocked(System.Int32)">
+            <summary>Whether the slot's colour may no longer be changed.</summary>
+            <param name="playerIndex">The player slot.</param>
+        </member>
+        <member name="M:Realm.MapAPI.ILobbyAPI.SetColorLocked(System.Int32,System.Boolean)">
+            <summary>Locks or unlocks the slot's colour.</summary>
+            <param name="playerIndex">The player slot.</param>
+            <param name="locked">Whether the field is locked.</param>
+        </member>
+        <member name="M:Realm.MapAPI.ILobbyAPI.IsOccupied(System.Int32)">
+            <summary>Whether a player or a computer holds the slot.</summary>
+            <param name="playerIndex">The player slot.</param>
+        </member>
+        <member name="M:Realm.MapAPI.ILobbyAPI.IsComputer(System.Int32)">
+            <summary>Whether the slot is held by a computer rather than by a person.</summary>
+            <param name="playerIndex">The player slot.</param>
+        </member>
+        <member name="M:Realm.MapAPI.ILobbyAPI.IsHost(System.Int32)">
+            <summary>Whether the slot belongs to the player administering the lobby.</summary>
+            <param name="playerIndex">The player slot.</param>
+        </member>
+        <member name="M:Realm.MapAPI.ILobbyAPI.SetMaximumPlayerCount(System.Int32)">
+            <summary>
+                Sets how many players the lobby seats. The authority clamps it to the seats its map may serve and refuses a
+                count smaller than the players already sitting in it.
+            </summary>
+            <param name="maximumPlayerCount">The number of player slots the lobby should seat.</param>
+        </member>
+        <member name="T:Realm.MapAPI.ILobbyScript">
+            <summary>
+                A map script that decides its lobby's roster. The authority runs it at tick zero, before any match exists, and
+                hands it <see cref="T:Realm.MapAPI.ILobbyAPI" /> instead of <see cref="T:Realm.MapAPI.IGameAPI" />; the match itself then runs
+                <see cref="T:Realm.MapAPI.IWasmModule" /> as usual.
+            </summary>
+            <remarks>
+                A map that does not implement this interface runs the authority's own lobby rules, which leave the colours and
+                teams the lobby assigns on admission alone. The methods are called on the authority's simulation thread, once
+                before the lobby fills and then once per lobby tick, so they must not block and must not be confused with the
+                match tick.
+            </remarks>
+        </member>
+        <member name="M:Realm.MapAPI.ILobbyScript.LobbyInitialize(Realm.MapAPI.ILobbyAPI)">
+            <summary>
+                States the roster this map offers: its factions, how many players the lobby seats, and the faction, team and
+                colour each slot starts with. It runs once when the lobby's world is prepared.
+            </summary>
+            <param name="api">The roster this lobby currently holds.</param>
+        </member>
+        <member name="M:Realm.MapAPI.ILobbyScript.LobbyUpdate(Realm.MapAPI.ILobbyAPI,System.Single)">
+            <summary>
+                Keeps the roster current while players join, leave and change their seats. It runs once per lobby tick, which
+                is the lobby's own cadence and not the simulation's.
+            </summary>
+            <param name="api">The roster this lobby currently holds.</param>
+            <param name="deltaSeconds">The time since the previous lobby tick.</param>
+        </member>
         <member name="T:Realm.MapAPI.IMapScript">
             <summary>
             Defines the base lifecycle methods for map scripts, supporting both direct <see cref="T:Realm.MapAPI.IGameAPI"/> parameter passing and global <see cref="P:Realm.MapAPI.GameAPI.Current"/> singleton usage.
@@ -2944,6 +3105,18 @@
             <param name="modifierValue">The configured value of the modifier.</param>
             <param name="level">The source level of the modifier.</param>
             <returns>The calculated bonus stat value, or zero if execution fails.</returns>
+        </member>
+        <member name="T:Realm.MapAPI.LobbyAPI_WasmModule">
+            <summary>
+                The guest half of the lobby roster: reads are taken straight out of the shared roster the authority publishes, so
+                they cost no host call, and writes are placed as orders the authority applies to the lobby it is holding.
+            </summary>
+        </member>
+        <member name="T:Realm.MapAPI.LobbyImports">
+            <summary>
+                The roster orders a map script places with the authority, declared by hand because the roster itself is published
+                in shared memory the script reads directly: only the orders a script makes cross the boundary.
+            </summary>
         </member>
         <member name="T:Realm.MapAPI.LootItemIdScriptExtensions">
             <summary>

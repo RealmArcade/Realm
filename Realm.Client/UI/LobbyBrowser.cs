@@ -246,7 +246,7 @@ public partial class LobbyBrowser : Control
 		_arcadeCheck.Text = Tr("Arcade");
 		_betaTestingMapsCheck.Text = Tr("Show beta-testing maps");
 		_betaTestingMapsCheck.TooltipText = Tr("Also list lobbies for maps that are still in Beta-Testing and have not been greenlit yet");
-		_betaTestingMapsCheck.ButtonPressed = false;
+		_betaTestingMapsCheck.ButtonPressed = true;
 
 		var checkBoxes = new[] { _campaignCheck, _meleeCheck, _tutorialCheck, _arcadeCheck, _betaTestingMapsCheck };
 		foreach (var cb in checkBoxes)

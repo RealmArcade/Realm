@@ -40,6 +40,12 @@ public class EcsWorld : IDisposable
 	private readonly ulong[] _activeEntityBitset = new ulong[BITSET_CHUNKS];
 	private unsafe ulong* _externalActiveEntityBitset;
 
+	/// <summary>The base of the shared memory region this world is bound to, or <see cref="IntPtr.Zero" /> when it owns no shared region.</summary>
+	public IntPtr SharedMemoryBasePointer { get; private set; }
+
+	/// <summary>The linear memory offset the bound shared region sits at inside the WebAssembly guest.</summary>
+	public int SharedMemoryGuestBaseOffset { get; private set; }
+
 	private readonly object _componentBufferCreationLock = new object();
 	private int _activeWorkerLeases;
 
@@ -116,6 +122,9 @@ public class EcsWorld : IDisposable
 	public unsafe void BindSharedMemory(IntPtr basePtr, int guestBaseOffset = 0)
 	{
 		if (basePtr == IntPtr.Zero) return;
+
+		SharedMemoryBasePointer = basePtr;
+		SharedMemoryGuestBaseOffset = guestBaseOffset;
 
 		_externalActiveEntityBitset = (ulong*)(basePtr + EcsSharedMemory.ACTIVE_ENTITY_BITSET_OFFSET);
 		new ReadOnlySpan<ulong>(_activeEntityBitset).CopyTo(new Span<ulong>(_externalActiveEntityBitset, BITSET_CHUNKS));

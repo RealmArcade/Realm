@@ -32,6 +32,8 @@ public class ListenServerHost : IServerTransportSink
 
 	private LoadedMap? _preparedLobbyWorld;
 
+	private ServerLobbyScript? _lobbyScript;
+
 	private bool _preparedLobbyWorldAttempted;
 
 	private readonly HashSet<int> _connectedPeers = new();
@@ -134,12 +136,27 @@ public class ListenServerHost : IServerTransportSink
 		{
 			_preparedLobbyWorld = MapWorldLoader.LoadShell(_arguments.MapPath);
 			_log.Write($"the map's world is prepared while this lobby is open ({clock.Elapsed.TotalMilliseconds:F0} ms); the match starts on its seats");
+			StartLobbyScript(_preparedLobbyWorld);
 		}
 		catch (Exception exception)
 		{
 			_preparedLobbyWorld = null;
 			_log.Write($"the map's world could not be prepared, so the match will load it when it starts: {exception.Message}");
 		}
+	}
+
+	/// <summary>
+	///     Starts the lobby's script at tick zero, on the world the lobby prepared, so the roster it states is already in
+	///     force while the lobby fills and the match has nothing left to initialize when it starts.
+	/// </summary>
+	/// <param name="world">The world the lobby prepared.</param>
+	private void StartLobbyScript(LoadedMap world)
+	{
+		ServerLobbyRoster? roster = _lobby?.Roster;
+		if (roster == null) return;
+
+		var paths = ServerMatchPaths.From(_arguments);
+		_lobbyScript = ServerLobbyScript.Start(world, paths, _log, roster, _arguments.WasmDebug, _arguments.WorkspacePath);
 	}
 
 	private LoadedMap TakePreparedLobbyWorldOrLoad(IReadOnlyList<MatchRosterSeat> roster)
@@ -294,6 +311,10 @@ public class ListenServerHost : IServerTransportSink
 			(address, port) => _transport.SendToAddress(address, port, Encoding.UTF8.GetBytes("PUNCH")),
 			peerId => _transport.TryReadPeerLink(peerId, out PeerLinkStatistics statistics) ? statistics : null);
 
+		var roster = new ServerLobbyRoster(_lobby, _log);
+		roster.SeedDefaultFactions();
+		_lobby.Roster = roster;
+
 		IsRunning = true;
 		_mapHash = MapContentHash.Compute(_arguments.MapPath, _arguments.LogPath);
 		MarkStartStage("lobby listening");
@@ -310,13 +331,15 @@ public class ListenServerHost : IServerTransportSink
 		WasmScriptHost.OnWasmLog += _scriptLogSink;
 
 		LoadedMap? worldOwnedHere = null;
+		WasmScriptHost? preparedScriptHost = _lobbyScript?.DetachHost();
 		try
 		{
 			worldOwnedHere = TakePreparedLobbyWorldOrLoad(roster);
 			MarkStartStage("map loaded");
 			var paths = ServerMatchPaths.From(_arguments);
 			int hostPlayerSlot = ResolveLobbyHostPlayerSlot(assignments);
-			_simulation = new ServerSimulation(worldOwnedHere, paths, _log, seed, _arguments.Cheats, _arguments.WasmDebug, _arguments.WorkspacePath, roster, hostPlayerSlot);
+			_simulation = new ServerSimulation(worldOwnedHere, paths, _log, seed, _arguments.Cheats, _arguments.WasmDebug, _arguments.WorkspacePath, roster, hostPlayerSlot, preparedScriptHost);
+			preparedScriptHost = null;
 			if (hostPlayerSlot > 0) _log.Write($"player slot {hostPlayerSlot} hosts this match: its seat is the one that administered the lobby");
 
 			worldOwnedHere = null;
@@ -328,6 +351,7 @@ public class ListenServerHost : IServerTransportSink
 		catch (Exception exception)
 		{
 			_log.Write($"the lobby could not start its match: {exception}");
+			preparedScriptHost?.Dispose();
 			worldOwnedHere?.Dispose();
 			_simulation?.Dispose();
 			_simulation = null;
@@ -456,6 +480,10 @@ public class ListenServerHost : IServerTransportSink
 
 		PrepareLobbyWorldIfDue();
 
+		// A lobby whose script is already running keeps its roster current while the players are still choosing seats. Once
+		// the match exists the same script is the match's, so the lobby stops ticking it.
+		if (_simulation == null) _lobbyScript?.Tick((float)lobbyDelta);
+
 		ServerSimulation? simulation = _simulation;
 		if (simulation == null) return;
 
@@ -535,6 +563,9 @@ public class ListenServerHost : IServerTransportSink
 		_lobbySessionSlots.Clear();
 		_lobby = null;
 		_mapShares = null;
+
+		_lobbyScript?.Dispose();
+		_lobbyScript = null;
 
 		_preparedLobbyWorld?.Dispose();
 		_preparedLobbyWorld = null;

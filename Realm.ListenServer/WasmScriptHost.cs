@@ -51,13 +51,38 @@ public partial class WasmScriptHost : IWasmRuntime, IWasmEvaluationEngine, IDisp
 	private readonly Store _store;
 	private readonly Instance _instance;
 	private readonly string _mapName;
+	private readonly string _scriptPath;
 
 	private readonly Function? _cabiRealloc;
 	private readonly Action? _initialize;
 	private readonly Action<float>? _update;
+	private readonly Func<int>? _lobbyInit;
+	private readonly Action<float>? _lobbyUpdate;
 	private int _sharedMemoryOffset = 0;
+	private IntPtr _sharedMemoryPointer = IntPtr.Zero;
 
 	public int SharedMemoryOffset => _sharedMemoryOffset;
+
+	/// <summary>The script this host runs, which is the artifact the map was published with.</summary>
+	public string ScriptPath => _scriptPath;
+
+	/// <summary>
+	///     The base of the guest's shared memory region, which is where everything this process publishes to a map script
+	///     is written.
+	/// </summary>
+	public IntPtr SharedMemoryPointer => _sharedMemoryPointer;
+
+	/// <summary>
+	///     The roster orders a lobby script places while this host runs without a match. Imports reach it by reference, so
+	///     it is attached before the lobby runs and detached once the match takes over.
+	/// </summary>
+	public Realm.MapAPI.ILobbyAPI? LobbyApi { get; set; }
+
+	/// <summary>
+	///     Whether this map's script took over its lobby's roster, which it does by exporting <c>lobby-init</c> and
+	///     answering that it handled it. A script that does not is run on the authority's own lobby rules.
+	/// </summary>
+	public bool LobbyInitHandled { get; private set; }
 
 	private IGameAPI? _cachedApi;
 	private readonly string? _wasiLogPath;
@@ -87,6 +112,7 @@ public partial class WasmScriptHost : IWasmRuntime, IWasmEvaluationEngine, IDisp
 	public WasmScriptHost(string wasmPath, string mapName, SimulationContext simulation, EcsWorld world, int randomSeed, string? logDirectory = null, string? mapWorkspacePath = null, bool isDebug = false)
 	{
 		_mapName = mapName;
+		_scriptPath = wasmPath;
 		_simulation = simulation;
 		_world = world;
 		_randomSeed = randomSeed;
@@ -162,6 +188,7 @@ public partial class WasmScriptHost : IWasmRuntime, IWasmEvaluationEngine, IDisp
 					IntPtr sharedMemPtr = GetSharedMemoryPointer();
 					if (sharedMemPtr != IntPtr.Zero)
 					{
+						_sharedMemoryPointer = sharedMemPtr;
 						_world?.BindSharedMemory(sharedMemPtr, _sharedMemoryOffset);
 
 						var setTableDirFn = _instance.GetFunction("set_realm_shared_memory_table_directory");
@@ -186,6 +213,12 @@ public partial class WasmScriptHost : IWasmRuntime, IWasmEvaluationEngine, IDisp
 
 			var updateFn = _instance.GetFunction("update");
 			if (updateFn != null) _update = updateFn.WrapAction<float>();
+
+			var lobbyInitFn = _instance.GetFunction("lobby-init");
+			if (lobbyInitFn != null) _lobbyInit = lobbyInitFn.WrapFunc<int>();
+
+			var lobbyUpdateFn = _instance.GetFunction("lobby-update");
+			if (lobbyUpdateFn != null) _lobbyUpdate = lobbyUpdateFn.WrapAction<float>();
 
 			FlushWasiLogFile();
 			_simulation.EvaluationEngine = this;
@@ -339,8 +372,67 @@ public partial class WasmScriptHost : IWasmRuntime, IWasmEvaluationEngine, IDisp
 	private partial void UnsubscribeAutoEvents();
 	private partial void InitializeManualBindings();
 
+	private const string LobbyImportModule = "custom:game/game-api";
+
+	/// <summary>
+	///     Binds the roster orders a lobby script places. They are hand written because the roster itself is published in
+	///     shared memory the script reads directly, so only the orders it places cross into this process.
+	/// </summary>
 	private partial void InitializeManualBindings()
 	{
+		_linker.DefineFunction(LobbyImportModule, "add-lobby-faction", (Caller caller, int namePtr, int nameLength) =>
+			LobbyApi?.AddFaction(ReadGuestString(caller, namePtr, nameLength)) == true ? 1 : 0);
+
+		_linker.DefineFunction(LobbyImportModule, "set-lobby-maximum-player-count", (int maximumPlayerCount) =>
+			LobbyApi?.SetMaximumPlayerCount(maximumPlayerCount));
+
+		_linker.DefineFunction(LobbyImportModule, "set-lobby-player-faction", (Caller caller, int playerIndex, int namePtr, int nameLength) =>
+			LobbyApi?.SetPlayerFaction(playerIndex, ReadGuestString(caller, namePtr, nameLength)) == true ? 1 : 0);
+
+		_linker.DefineFunction(LobbyImportModule, "set-lobby-player-team", (int playerIndex, int teamIndex) =>
+			LobbyApi?.SetPlayerTeam(playerIndex, teamIndex) == true ? 1 : 0);
+
+		_linker.DefineFunction(LobbyImportModule, "set-lobby-player-color", (int playerIndex, int colorRgba) =>
+			LobbyApi?.SetPlayerColor(playerIndex, (uint)colorRgba) == true ? 1 : 0);
+
+		_linker.DefineFunction(LobbyImportModule, "set-lobby-faction-locked", (int playerIndex, int locked) =>
+			LobbyApi?.SetFactionLocked(playerIndex, locked != 0));
+
+		_linker.DefineFunction(LobbyImportModule, "set-lobby-team-locked", (int playerIndex, int locked) =>
+			LobbyApi?.SetTeamLocked(playerIndex, locked != 0));
+
+		_linker.DefineFunction(LobbyImportModule, "set-lobby-color-locked", (int playerIndex, int locked) =>
+			LobbyApi?.SetColorLocked(playerIndex, locked != 0));
+	}
+
+	/// <summary>
+	///     Runs the map's lobby entry point at tick zero, before any match exists, and reports whether the script took the
+	///     lobby over. It is called once, as soon as the lobby's world is prepared.
+	/// </summary>
+	/// <returns>Whether the script handles its lobby, so the authority's own lobby rules must not run.</returns>
+	public bool RunLobbyInit()
+	{
+		LobbyInitHandled = false;
+		if (IsFaulted || _lobbyInit == null) return false;
+
+		bool handled = ExecuteGuardedFunc(() => _lobbyInit.Invoke() != 0, false, "lobby-init()", timeoutMs: 30000);
+		LobbyInitHandled = handled;
+		LogToConsole(handled
+			? "[WASM RUNTIME] The map script took over its lobby's roster."
+			: "[WASM RUNTIME] The map script left its lobby's roster to the authority's own rules.");
+		return handled;
+	}
+
+	/// <summary>
+	///     Runs the map's lobby tick while the simulation is held at tick zero. It does nothing once the script has
+	///     declined the lobby or the match has taken the host over.
+	/// </summary>
+	/// <param name="deltaSeconds">The time since the previous lobby tick.</param>
+	public void RunLobbyUpdate(float deltaSeconds)
+	{
+		if (!LobbyInitHandled || IsFaulted || _lobbyUpdate == null) return;
+
+		ExecuteGuardedAction(() => _lobbyUpdate.Invoke(deltaSeconds), "lobby-update()");
 	}
 
 	public readonly struct ApiProfileScope : IDisposable

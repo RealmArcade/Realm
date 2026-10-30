@@ -1276,6 +1276,12 @@
                 from a forked lane fails loudly instead of corrupting a buffer a worker is reading.
             </summary>
         </member>
+        <member name="P:Realm.Ecs.EcsWorld.SharedMemoryBasePointer">
+            <summary>The base of the shared memory region this world is bound to, or <see cref="F:System.IntPtr.Zero" /> when it owns no shared region.</summary>
+        </member>
+        <member name="P:Realm.Ecs.EcsWorld.SharedMemoryGuestBaseOffset">
+            <summary>The linear memory offset the bound shared region sits at inside the WebAssembly guest.</summary>
+        </member>
         <member name="P:Realm.Ecs.EcsWorld.Context">
             <summary>
                 The per-match simulation that owns this world, or null for a bare world. Services reach their tuning, combat
@@ -2639,6 +2645,21 @@
         <member name="F:Realm.Ecs.EcsSharedMemory.PLAYER_POPULATION_OFFSET">
             <summary>Default offset to the player population array.</summary>
         </member>
+        <member name="F:Realm.Ecs.EcsSharedMemory.MAX_LOBBY_FACTIONS">
+            <summary>The maximum number of factions a lobby's roster may offer.</summary>
+        </member>
+        <member name="F:Realm.Ecs.EcsSharedMemory.LOBBY_FACTION_NAME_CHARACTERS">
+            <summary>The number of UTF-16 characters reserved for each faction name in the lobby's faction table.</summary>
+        </member>
+        <member name="F:Realm.Ecs.EcsSharedMemory.LOBBY_ROSTER_HEADER_OFFSET">
+            <summary>Offset to the lobby roster header, which a map script reads directly.</summary>
+        </member>
+        <member name="F:Realm.Ecs.EcsSharedMemory.LOBBY_FACTION_NAMES_OFFSET">
+            <summary>Offset to the UTF-16 faction names the lobby offers, each padded to <see cref="F:Realm.Ecs.EcsSharedMemory.LOBBY_FACTION_NAME_CHARACTERS" />.</summary>
+        </member>
+        <member name="F:Realm.Ecs.EcsSharedMemory.PLAYER_ROSTER_SLOTS_OFFSET">
+            <summary>Offset to the per-player roster slots, one for every player slot the lobby may seat.</summary>
+        </member>
         <member name="F:Realm.Ecs.EcsSharedMemory.TOTAL_SIZE_BYTES">
             <summary>Total byte capacity of the contiguous shared memory block.</summary>
         </member>
@@ -2646,6 +2667,30 @@
             <summary>
             The global static base address pointer for shared memory linear layout visible to native debuggers.
             </summary>
+        </member>
+        <member name="M:Realm.Ecs.EcsSharedMemory.LobbyRosterHeaderAt(System.IntPtr)">
+            <summary>
+            Resolves the lobby roster header a map script reads from a shared memory region.
+            </summary>
+            <param name="sharedMemoryBase">The base of the shared memory region, which is the guest's own base inside WebAssembly and the bound guest region on the host.</param>
+            <returns>A pointer to the roster header.</returns>
+        </member>
+        <member name="M:Realm.Ecs.EcsSharedMemory.PlayerRosterSlotsAt(System.IntPtr)">
+            <summary>
+            Resolves the roster slot array a map script reads from a shared memory region.
+            </summary>
+            <param name="sharedMemoryBase">The base of the shared memory region.</param>
+            <returns>A pointer to the first player roster slot.</returns>
+        </member>
+        <member name="M:Realm.Ecs.EcsSharedMemory.LobbyFactionNamesAt(System.IntPtr)">
+            <summary>
+            Resolves the faction name table a map script reads from a shared memory region.
+            </summary>
+            <param name="sharedMemoryBase">The base of the shared memory region.</param>
+            <returns>A pointer to the first faction name, with each name padded to <see cref="F:Realm.Ecs.EcsSharedMemory.LOBBY_FACTION_NAME_CHARACTERS" /> characters.</returns>
+        </member>
+        <member name="P:Realm.Ecs.EcsSharedMemory.BasePointer">
+            <summary>Gets the base address of this process's shared memory region.</summary>
         </member>
         <member name="P:Realm.Ecs.EcsSharedMemory.ComponentArrayBaseOffsets">
             <summary>Gets the raw pointer to the component array base offsets directory table.</summary>
@@ -2772,6 +2817,24 @@
             <summary>
             Holds the command sink that handle properties reach, which is the map script api of the process running them.
             </summary>
+        </member>
+        <member name="T:Realm.Ecs.LobbyRosterHeader">
+            <summary>
+                The head of the lobby roster a map script reads from shared memory: how many players the lobby seats, how many
+                factions its map offers, and a counter that moves every time the authority restates the roster.
+            </summary>
+        </member>
+        <member name="F:Realm.Ecs.LobbyRosterHeader.MaximumPlayerCount">
+            <summary>The number of player slots this lobby seats.</summary>
+        </member>
+        <member name="F:Realm.Ecs.LobbyRosterHeader.FactionCount">
+            <summary>The number of factions in the lobby's faction table.</summary>
+        </member>
+        <member name="F:Realm.Ecs.LobbyRosterHeader.Revision">
+            <summary>How many times the authority has restated the roster, so a reader can tell a fresh one from a stale one.</summary>
+        </member>
+        <member name="F:Realm.Ecs.LobbyRosterHeader.SlotCount">
+            <summary>The number of player slots shared memory carries, which is what a reader may index up to.</summary>
         </member>
         <member name="T:Realm.Ecs.LootItemId">
             <summary>
@@ -2903,6 +2966,43 @@
             <summary>
             Gets or sets the total number of enemy unit kills credited to this player.
             </summary>
+        </member>
+        <member name="T:Realm.Ecs.PlayerRosterSlot">
+            <summary>
+                The roster slot a lobby player occupies: the faction, team and colour the authority gave it, whether the player may
+                still change each of those, and whether anyone occupies it at all. It is published in shared memory so a map script
+                reads a slot without crossing the host boundary.
+            </summary>
+        </member>
+        <member name="F:Realm.Ecs.PlayerRosterSlot.FactionIndex">
+            <summary>The index into the lobby's faction table, or -1 when the slot was given no faction.</summary>
+        </member>
+        <member name="F:Realm.Ecs.PlayerRosterSlot.TeamIndex">
+            <summary>The team number the slot plays on, where 0 means it plays on no team.</summary>
+        </member>
+        <member name="F:Realm.Ecs.PlayerRosterSlot.ColorRgba">
+            <summary>The slot's colour packed as 0xRRGGBBAA, matching the colour the lobby publishes for its seat.</summary>
+        </member>
+        <member name="F:Realm.Ecs.PlayerRosterSlot.FactionLocked">
+            <summary>Whether the slot's faction may no longer be changed.</summary>
+        </member>
+        <member name="F:Realm.Ecs.PlayerRosterSlot.TeamLocked">
+            <summary>Whether the slot's team may no longer be changed.</summary>
+        </member>
+        <member name="F:Realm.Ecs.PlayerRosterSlot.ColorLocked">
+            <summary>Whether the slot's colour may no longer be changed.</summary>
+        </member>
+        <member name="F:Realm.Ecs.PlayerRosterSlot.Occupied">
+            <summary>Whether a player or a computer holds the slot.</summary>
+        </member>
+        <member name="F:Realm.Ecs.PlayerRosterSlot.Computer">
+            <summary>Whether the slot is held by a computer rather than by a person.</summary>
+        </member>
+        <member name="F:Realm.Ecs.PlayerRosterSlot.Host">
+            <summary>Whether the slot belongs to the player administering the lobby.</summary>
+        </member>
+        <member name="F:Realm.Ecs.PlayerRosterSlot.Reserved">
+            <summary>Keeps the following slot four-byte aligned.</summary>
         </member>
         <member name="T:Realm.Ecs.ResourceNodeId">
             <summary>
