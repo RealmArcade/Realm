@@ -557,6 +557,8 @@ public partial class MainMenu : Control
 
 		var wishlistButton = new Button { Name = "WishlistButton" };
 		wishlistButton.CustomMinimumSize = new Vector2(240, 40);
+		wishlistButton.Icon = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/steam_icon.webp");
+		wishlistButton.ExpandIcon = true;
 		wishlistButton.AddThemeConstantOverride("icon_max_width", 24);
 		UIStyle.ApplyButtonStyleBoxes(wishlistButton);
 		UIStyle.ApplyButtonText(wishlistButton, TranslationServer.Translate("WISHLIST ON STEAM"), 16);

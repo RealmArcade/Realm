@@ -320,6 +320,9 @@ public partial class GameOver : Control
 
 		var wishlistButton = new Button { Name = "BtnWishlist" };
 		wishlistButton.Flat = false;
+		wishlistButton.Icon = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/steam_icon.webp");
+		wishlistButton.ExpandIcon = true;
+		wishlistButton.AddThemeConstantOverride("icon_max_width", 24);
 		UIStyle.ApplyButtonText(wishlistButton, TranslationServer.Translate("WISHLIST ON STEAM"), 18);
 		wishlistButton.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
 		wishlistButton.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
