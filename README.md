@@ -18,12 +18,12 @@ The engine is built for simplicity for content creators and is not geared toward
 
 ## 🧠 Authority Model & Simulation
 
-The engine employs a hybrid simulation and prediction model:
+The engine is server-authoritative and uses latency masking rather than prediction:
 
 | Component | Responsibility |
 | :--- | :--- |
 | **Server (Authoritative)** | Runs triggers, damage, AI, pathfinding, authoritative unit state, and ability resolution. Runs the ECS-style simulation written in C#. |
-| **Client (Predictive)** | Renders HP bars, VFX, UI, and sends player commands. Runs local prediction for the client's own unit movement/turning to reduce input delay; server corrections are smoothed. |
+| **Client (Latency-masked)** | Renders HP bars, VFX, UI, and sends player commands. Draws every unit, its own included, from the authority's own timeline by interpolating between buffered descriptions at a presentation delay it measures; never simulates movement or combat, and shows an order as a route preview until the authority's destination replaces it. |
 | **Interop (C#/Godot)** | Uses a single P/Invoke per tick to send a minimal state snapshot from Godot to C#, and modified state back to Godot. C# heavily uses performance features like `Span<>`, `structs`, and object pooling to avoid excessive GC pressure. |
 
 ## 🛠️ Realm Editor (UGC Tooling)
@@ -43,6 +43,7 @@ Realm uses a server-authoritative UDP model.
     * Client commands are sent at a throttled rate of 20 Hz.
     * The server broadcasts a separate snapshot at the end of every 30 Hz tick.
     * Snapshots use **delta compression** based on unit visibility/proximity to the camera. Fog-of-war units are **never sent** in any snapshots.
+    * Deltas travel **unreliable and ordered**, so a lost one costs only the change it carried until the acknowledgement reports it missing; baselines, orders and every other frame the match cannot proceed without travel reliably.
 * **Hosting:** No official dedicated servers. Any player can host if their firewall allows UDP hole punching (~ 90% of home internet users, but not most corporate networks). Anyone could choose to host their own community server if desired.
 * **Map Distribution:** Maps are decentralized, stored as `.7z` packages, and downloaded from the host upon joining a lobby.
 

@@ -15,7 +15,32 @@ namespace Realm.Ecs.Services;
 
 public class TerrainNavMeshService
 {
-	public Dictionary<string, float> ObstacleRadiusCache { get; set; } = new();
+	/// <summary>
+	/// How many obstacle volumes went into the last bake. Reported by the host and by each peer so a mesh that differs from
+	/// the authority's can be traced to the input it was built from rather than to the bake itself.
+	/// </summary>
+	public int LastBakedObstacleCount { get; private set; }
+
+	/// <summary>
+	/// True when this instance bakes with obstacle volumes received from the authority rather than collecting them from the
+	/// entities it can see. A peer does not run the map script, so most of the authority's obstacle volumes have no entity
+	/// behind them on the peer at all. An empty authoritative set still counts: a map with no blockers is baked with no
+	/// volumes rather than with whatever bodies the peer happens to hold.
+	/// </summary>
+	public bool UsesAuthoritativeObstacles => _hasAuthoritativeObstacles;
+
+	/// <summary>
+	/// True once this instance has built a mesh. The volumes a bake consumed are only meaningful after one, so a peer
+	/// that is seated before the match bakes must be told nothing rather than told that the map has no blockers.
+	/// </summary>
+	public bool HasBakedMesh { get; private set; }
+
+	private bool _hasAuthoritativeObstacles;
+	private readonly List<Vector3> _authoritativeObstaclePositions = new();
+	private readonly List<float> _authoritativeObstacleRadii = new();
+	private readonly List<Vector3> _bakedObstaclePositions = new();
+	private readonly List<float> _bakedObstacleRadii = new();
+	private int _bakedObstacleSignature = int.MinValue;
 
 	private const float NavMeshCellHeight = 0.1f;
 	private const float AgentRadius = 1.2f;
@@ -23,6 +48,7 @@ public class TerrainNavMeshService
 	private const float AgentMaxClimb = 0.9f;
 	private const float AgentMaxSlope = 55.0f;
 
+	private readonly SimulationContext _context;
 	private readonly EntityCallback<Position, MoveTo, PathFollow> _invalidatePathsDelegate;
 	private Vector3 _invalidateCenter;
 	private float _invalidateRadiusSq;
@@ -36,8 +62,9 @@ public class TerrainNavMeshService
 	private float _checkCellZ;
 	private bool _isCellBlockedByOtherObstacle;
 
-	public TerrainNavMeshService()
+	public TerrainNavMeshService(SimulationContext context)
 	{
+		_context = context;
 		_invalidatePathsDelegate = InvalidatePathsQueryAction;
 		_collectPropObstacleDelegate = CollectPropObstacle;
 		_collectBuildingObstacleDelegate = CollectBuildingObstacle;
@@ -78,7 +105,7 @@ public class TerrainNavMeshService
 	{
 		_invalidateCenter = center;
 		_invalidateRadiusSq = radius * radius;
-		ECSContext.World?.Query(in QueryCache.AllPositionAndMoveToAndPathFollowNoneDeadQuery, _invalidatePathsDelegate);
+		_context.World?.Query(in QueryCache.AllPositionAndMoveToAndPathFollowNoneDeadQuery, _invalidatePathsDelegate);
 	}
 
 	private void CollectPropObstacle(Entity entity, ref Position pos, ref CollisionRadius colRad, ref PropIdentity propIdentity)
@@ -121,9 +148,10 @@ public class TerrainNavMeshService
 		}
 	}
 
-	private static float ResolveObstacleRadius(Entity entity, float authoredRadius)
+	private float ResolveObstacleRadius(Entity entity, float authoredRadius)
 	{
-		float scale = (ECSContext.World != null && ECSContext.World.Has<CollisionScale>(entity)) ? ECSContext.World.Get<CollisionScale>(entity).Value : 1.0f;
+		EcsWorld? world = _context.World;
+		float scale = (world != null && world.Has<CollisionScale>(entity)) ? world.Get<CollisionScale>(entity).Value : 1.0f;
 		return authoredRadius * scale;
 	}
 
@@ -132,11 +160,11 @@ public class TerrainNavMeshService
 		_checkCellX = px;
 		_checkCellZ = pz;
 		_isCellBlockedByOtherObstacle = false;
-		var world = ECSContext.World;
+		var world = _context.World;
 		if (world == null) return false;
 
-		world.Query(in QueryCache.AllPositionAndCollisionRadiusAndPropIdentityQuery, _checkPropObstacleDelegate);
-		world.Query(in QueryCache.AllPositionAndCollisionRadiusAndBuildingQuery, _checkBuildingObstacleDelegate);
+		world.Query(in QueryCache.AllPositionAndCollisionRadiusAndPropIdentityNoneDeadQuery, _checkPropObstacleDelegate);
+		world.Query(in QueryCache.AllPositionAndCollisionRadiusAndBuildingNoneDeadQuery, _checkBuildingObstacleDelegate);
 		return _isCellBlockedByOtherObstacle;
 	}
 
@@ -556,6 +584,15 @@ public class TerrainNavMeshService
 		float halfD = depth / 2.0f * quadSize;
 
 		var obstacles = GetNavMeshObstacles();
+		LastBakedObstacleCount = obstacles.Count;
+		_bakedObstacleSignature = ComputeObstacleSignature(obstacles);
+		_bakedObstaclePositions.Clear();
+		_bakedObstacleRadii.Clear();
+		for (int index = 0; index < obstacles.Count; index++)
+		{
+			_bakedObstaclePositions.Add(obstacles[index].Pos);
+			_bakedObstacleRadii.Add(obstacles[index].Radius);
+		}
 		if (state.Cells == null) return;
 		var bakeHeights = GetBakeHeights(in state, width, depth);
 
@@ -564,18 +601,88 @@ public class TerrainNavMeshService
 		AddUnwalkableVolumes(in state, geom, width, depth, quadSize);
 
 		BuildNavMesh(ref state, geom, width, depth, quadSize);
+		HasBakedMesh = true;
 	}
 
 	private List<(Vector3 Pos, float Radius)> GetNavMeshObstacles()
 	{
 		_navMeshObstacles.Clear();
-		var world = ECSContext.World;
+		if (UsesAuthoritativeObstacles)
+		{
+			for (int index = 0; index < _authoritativeObstaclePositions.Count; index++)
+			{
+				_navMeshObstacles.Add((_authoritativeObstaclePositions[index], _authoritativeObstacleRadii[index]));
+			}
+
+			return _navMeshObstacles;
+		}
+
+		var world = _context.World;
 		if (world == null) return _navMeshObstacles;
 
-		world.Query(in QueryCache.AllPositionAndCollisionRadiusAndPropIdentityQuery, _collectPropObstacleDelegate);
-		world.Query(in QueryCache.AllPositionAndCollisionRadiusAndBuildingQuery, _collectBuildingObstacleDelegate);
+		world.Query(in QueryCache.AllPositionAndCollisionRadiusAndPropIdentityNoneDeadQuery, _collectPropObstacleDelegate);
+		world.Query(in QueryCache.AllPositionAndCollisionRadiusAndBuildingNoneDeadQuery, _collectBuildingObstacleDelegate);
 		return _navMeshObstacles;
 	}
+
+	/// <summary>
+	/// True when the volumes this instance would bake with are not the ones its mesh was last built from, which is how the
+	/// authority notices that a prop, a building or a blocker its script spawned has appeared or gone since the last bake.
+	/// A building counts as gone only once it is destroyed: it stops contributing a volume the moment it is dead, and the
+	/// next bake paths units through the ground it used to stand on.
+	/// </summary>
+	public bool ObstaclesChangedSinceBake()
+	{
+		var obstacles = GetNavMeshObstacles();
+		return ComputeObstacleSignature(obstacles) != _bakedObstacleSignature;
+	}
+
+	/// <summary>
+	/// Fingerprints one set of obstacle volumes so two bakes can be compared without keeping the volumes themselves.
+	/// </summary>
+	private static int ComputeObstacleSignature(List<(Vector3 Pos, float Radius)> obstacles)
+	{
+		int hash = 17;
+		for (int index = 0; index < obstacles.Count; index++)
+		{
+			Vector3 position = obstacles[index].Pos;
+			float radius = obstacles[index].Radius;
+			hash = hash * 31 + BitConverter.SingleToInt32Bits(position.X);
+			hash = hash * 31 + BitConverter.SingleToInt32Bits(position.Y);
+			hash = hash * 31 + BitConverter.SingleToInt32Bits(position.Z);
+			hash = hash * 31 + BitConverter.SingleToInt32Bits(radius);
+		}
+
+		return hash;
+	}
+
+	/// <summary>
+	/// Replaces the obstacle volumes this instance bakes with the ones the authority baked with. Called on a peer after the
+	/// authority reports a bake, so both sides build their mesh from the same volumes and answer the same path query with
+	/// the same corridor.
+	/// </summary>
+	public void SetAuthoritativeObstacleVolumes(ReadOnlySpan<Vector3> positions, ReadOnlySpan<float> radii)
+	{
+		_hasAuthoritativeObstacles = true;
+		_authoritativeObstaclePositions.Clear();
+		_authoritativeObstacleRadii.Clear();
+		int count = Math.Min(positions.Length, radii.Length);
+		for (int index = 0; index < count; index++)
+		{
+			_authoritativeObstaclePositions.Add(positions[index]);
+			_authoritativeObstacleRadii.Add(radii[index]);
+		}
+	}
+
+	/// <summary>
+	/// The obstacle volumes the last bake used. The authority sends these to its peers so a peer bakes an identical mesh.
+	/// </summary>
+	public ReadOnlySpan<Vector3> BakedObstaclePositions => System.Runtime.InteropServices.CollectionsMarshal.AsSpan(_bakedObstaclePositions);
+
+	/// <summary>
+	/// The radii that belong to <see cref="BakedObstaclePositions"/>.
+	/// </summary>
+	public ReadOnlySpan<float> BakedObstacleRadii => System.Runtime.InteropServices.CollectionsMarshal.AsSpan(_bakedObstacleRadii);
 
 	private float[,] GetBakeHeights(in TerrainState state, int width, int depth)
 	{

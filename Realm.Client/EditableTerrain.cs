@@ -12,12 +12,6 @@ namespace Realm.Client;
 [GlobalClass]
 public partial class EditableTerrain : RuntimeTerrain
 {
-	public new static EditableTerrain Instance => RuntimeTerrain.Instance as EditableTerrain;
-
-	public EditableTerrain() : base()
-	{
-	}
-
 	protected override bool IsRuntimeOnly => false;
 
 	public override void ProcessAndSaveRawTexture(string rawPngPath, string outputRtexPath)
@@ -89,10 +83,10 @@ public partial class EditableTerrain : RuntimeTerrain
 		clampedDepth = Math.Clamp((int)Math.Round(newDepth / 32.0) * 32, 32, 512);
 		state = default;
 
-		if (GameHost.Instance == null || GameContext.World == null || !GameContext.World.IsAlive(ECSContext.WorldEntity)) return false;
-		if (!GameContext.World.Has<TerrainState>(ECSContext.WorldEntity)) return false;
+		if (GameContext.Host == null || GameContext.World == null || !GameContext.World.IsAlive(GameContext.Simulation.WorldEntity)) return false;
+		if (!GameContext.World.Has<TerrainState>(GameContext.Simulation.WorldEntity)) return false;
 
-		state = GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
+		state = GameContext.World.Get<TerrainState>(GameContext.Simulation.WorldEntity);
 		return true;
 	}
 
@@ -338,8 +332,8 @@ public partial class EditableTerrain : RuntimeTerrain
 
 	private bool ValidateAndClampDimensions(ref int newWidth, ref int newDepth)
 	{
-		if (GameHost.Instance == null || GameContext.World == null || !GameContext.World.IsAlive(ECSContext.WorldEntity)) return false;
-		if (!GameContext.World.Has<TerrainState>(ECSContext.WorldEntity)) return false;
+		if (GameContext.Host == null || GameContext.World == null || !GameContext.World.IsAlive(GameContext.Simulation.WorldEntity)) return false;
+		if (!GameContext.World.Has<TerrainState>(GameContext.Simulation.WorldEntity)) return false;
 
 		newWidth = Math.Clamp((int)Math.Round(newWidth / 32.0) * 32, 32, 512);
 		newDepth = Math.Clamp((int)Math.Round(newDepth / 32.0) * 32, 32, 512);
@@ -358,8 +352,8 @@ public partial class EditableTerrain : RuntimeTerrain
 
 	private void ApplyNewTerrainState(int newWidth, int newDepth, float quadSize, TerrainCell[,] newCells, int[,] newPathing, TerrainSplatWeights[,] newSplatMap, TerrainSplatWeights[,] newCliffSplatMap)
 	{
-		ref var state = ref GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
-		GameContext.World.Set(ECSContext.WorldEntity, new TerrainState(
+		ref var state = ref GameContext.World.Get<TerrainState>(GameContext.Simulation.WorldEntity);
+		GameContext.World.Set(GameContext.Simulation.WorldEntity, new TerrainState(
 			newWidth, newDepth, quadSize, state.CellSize,
 			newCells, newPathing, state.NavMesh, state.NavMeshQuery
 		));

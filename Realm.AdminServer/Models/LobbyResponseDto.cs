@@ -17,5 +17,7 @@ public record LobbyResponseDto(
 	string? GameVersion = null,
 	string? LocalIP = null,
 	string? MapVersion = null,
-	long MapSizeBytes = 0
+	long MapSizeBytes = 0,
+	bool IsGreenlit = false,
+	string? MapCreator = null
 );

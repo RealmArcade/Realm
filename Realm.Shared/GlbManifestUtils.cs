@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -8,9 +9,11 @@ namespace Realm.Shared;
 
 public static class GlbManifestUtils
 {
-	private const uint GlbMagic = 0x46546C67; // 'glTF'
-	private const uint JsonChunkType = 0x4E4F534A; // 'JSON'
-	private const uint BinChunkType = 0x004E4942; // 'BIN\0'
+	private static readonly uint GlbMagic = BinaryPrimitives.ReadUInt32LittleEndian("glTF"u8);
+	private static readonly uint JsonChunkType = BinaryPrimitives.ReadUInt32LittleEndian("JSON"u8);
+	private static readonly uint BinChunkType = BinaryPrimitives.ReadUInt32LittleEndian("BIN\0"u8);
+
+	private const byte GlbJsonPaddingSpace = (byte)' ';
 
 	public static bool IsValidGlb(byte[] glbBytes)
 	{
@@ -65,7 +68,7 @@ public static class GlbManifestUtils
 		Array.Copy(jsonBytes, paddedJson, jsonBytes.Length);
 		for (int i = jsonBytes.Length; i < paddedJsonLength; i++)
 		{
-			paddedJson[i] = 0x20; // GLTF JSON padding with ASCII space
+			paddedJson[i] = GlbJsonPaddingSpace;
 		}
 
 		int paddedBinLength = binChunk != null ? ((binChunk.Length + 3) & ~3) : 0;
@@ -90,20 +93,21 @@ public static class GlbManifestUtils
 
 		writer.Write(totalLength);
 
-		// JSON chunk
-		writer.Write((uint)paddedJsonLength);
-		writer.Write(JsonChunkType);
-		writer.Write(paddedJson);
+		WriteGlbChunk(writer, JsonChunkType, paddedJson);
 
-		// BIN chunk
 		if (paddedBin != null)
 		{
-			writer.Write((uint)paddedBinLength);
-			writer.Write(BinChunkType);
-			writer.Write(paddedBin);
+			WriteGlbChunk(writer, BinChunkType, paddedBin);
 		}
 
 		return ms.ToArray();
+	}
+
+	private static void WriteGlbChunk(BinaryWriter writer, uint chunkType, byte[] chunkBytes)
+	{
+		writer.Write((uint)chunkBytes.Length);
+		writer.Write(chunkType);
+		writer.Write(chunkBytes);
 	}
 
 	private static bool TryGetTrue(JsonObject? container, string propertyName)

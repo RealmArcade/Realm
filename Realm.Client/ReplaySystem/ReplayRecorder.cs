@@ -25,6 +25,12 @@ namespace Realm.Client.ReplaySystem
 		private readonly List<ReplayPlayerInfo> _players = new();
 		private int _tickCount = 0;
 
+		private const int MaximumQueuedFrames = 300;
+		private int _queuedFrames;
+		private int _droppedFrameCount;
+
+		public int DroppedFrameCount => Volatile.Read(ref _droppedFrameCount);
+
 		public ReplayRecorder(string replayPath, string mapName, List<PlayerInfo> players)
 		{
 			_replayPath = replayPath;
@@ -87,6 +93,8 @@ namespace Realm.Client.ReplaySystem
 			{
 				_thread.Join(1000);
 			}
+
+			ReplayObjectPool.Trim();
 		}
 
 		public void RecordTick(int tick, List<ReplayUnitSnapshot> units, List<ReplayProjectileSnapshot> projectiles, float gold, float wood, float stone, bool isKeyframe)
@@ -103,9 +111,29 @@ namespace Realm.Client.ReplaySystem
 			frame.Units.AddRange(units);
 			if (projectiles != null) frame.Projectiles.AddRange(projectiles);
 
+			// A replay is a diagnostic artifact, so a writer that cannot keep up costs the oldest frames rather than
+			// making the match wait or letting the queue grow for as long as the disk is slow.
+			_queuedFrames = Interlocked.Increment(ref _queuedFrames);
+			if (_queuedFrames > MaximumQueuedFrames)
+			{
+				if (_queue.TryDequeue(out ReplayFrame? dropped))
+				{
+					Interlocked.Decrement(ref _queuedFrames);
+					Interlocked.Increment(ref _droppedFrameCount);
+					ReplayObjectPool.ReturnFrame(dropped);
+				}
+				else
+				{
+					Interlocked.Decrement(ref _queuedFrames);
+				}
+			}
+
 			_queue.Enqueue(frame);
 			_signal.Set();
-			_tickCount = tick + 1;
+
+			// Read by the writer thread when it patches the frame count into the header, so it is published rather than
+			// left for the two threads to settle between themselves.
+			Volatile.Write(ref _tickCount, tick + 1);
 		}
 
 		private void WriteLoop()
@@ -151,6 +179,7 @@ namespace Realm.Client.ReplaySystem
 
 						while (_queue.TryDequeue(out var frame))
 						{
+							Interlocked.Decrement(ref _queuedFrames);
 							bufferWriter.Clear();
 							MemoryPackSerializer.Serialize(in bufferWriter, frame);
 
@@ -167,11 +196,22 @@ namespace Realm.Client.ReplaySystem
 				}
 
 				fs.Seek(ticksOffset, SeekOrigin.Begin);
-				fs.Write(BitConverter.GetBytes(_tickCount), 0, 4);
+				fs.Write(BitConverter.GetBytes(Volatile.Read(ref _tickCount)), 0, 4);
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"[ReplayRecorder] Error writing replay file: {ex.Message}");
+				ReportWriteError(ex.Message);
+			}
+		}
+
+		private void ReportWriteError(string message)
+		{
+			try
+			{
+				File.AppendAllText(_replayPath + ".error.log", $"{DateTime.UtcNow:O} {message}{System.Environment.NewLine}");
+			}
+			catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+			{
 			}
 		}
 	}

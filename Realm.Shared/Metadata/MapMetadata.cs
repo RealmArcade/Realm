@@ -16,6 +16,8 @@ public class MapMetadata
 
 	[JsonPropertyName("Templates")] public TemplateContainer Templates { get; set; } = new();
 
+	[JsonPropertyName("CombatTuning")] public CombatTuningMetadata? CombatTuning { get; set; }
+
 	[JsonPropertyName("CustomProceduralAnimations")]
 	public List<ProceduralAnimationConfig> CustomProceduralAnimations { get; set; } = new();
 
@@ -235,6 +237,29 @@ public class MapMetadata
 		int idx = Templates.Items.FindIndex(i => string.Equals(i.TemplateID, item.TemplateID, StringComparison.OrdinalIgnoreCase));
 		if (idx >= 0) Templates.Items[idx] = item;
 		else Templates.Items.Add(item);
+	}
+
+	public void AddOrUpdateConsumable(ConsumableMetadata consumable)
+	{
+		if (string.IsNullOrWhiteSpace(consumable.TemplateID)) return;
+		Templates ??= new();
+		Templates.Consumables ??= new();
+		int idx = Templates.Consumables.FindIndex(c => string.Equals(c.TemplateID, consumable.TemplateID, StringComparison.OrdinalIgnoreCase));
+		if (idx >= 0) Templates.Consumables[idx] = consumable;
+		else Templates.Consumables.Add(consumable);
+	}
+
+	public ConsumableMetadata? GetConsumable(string consumableId)
+	{
+		if (Templates?.Consumables == null || string.IsNullOrWhiteSpace(consumableId)) return null;
+
+		for (int i = 0; i < Templates.Consumables.Count; i++)
+		{
+			ConsumableMetadata consumable = Templates.Consumables[i];
+			if (string.Equals(consumable.TemplateID, consumableId, StringComparison.OrdinalIgnoreCase)) return consumable;
+		}
+
+		return null;
 	}
 
 	public bool RemoveItem(string objectId)

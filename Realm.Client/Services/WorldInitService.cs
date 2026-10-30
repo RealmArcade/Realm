@@ -11,16 +11,11 @@ using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Services;
 using Realm.Ecs.Components.Terrain;
-using Realm.MapAPI;
 
 namespace Realm.Client.Services;
 
 public class WorldInitService
 {
-	public WorldInitService()
-	{
-	}
-
 	private void AddOrSet<T>(Entity entity, T component) where T : unmanaged
 	{
 		GameContext.World.SetOrAdd(entity, component);
@@ -42,17 +37,17 @@ public class WorldInitService
 
 	private void InitializeCommonWorldComponents(Entity worldEntity)
 	{
-		GameHost.Instance?.LoadModelYOffsetsFromMetadataJson();
+		GameContext.Host?.LoadModelYOffsetsFromMetadataJson();
 
 		AddOrSet(worldEntity, new WorldState(0f, 0, 0f, true));
 		AddOrSet(worldEntity, new ReplayState(0, 500f, 400f, 200f));
 		AddOrSet(worldEntity, new NetworkState(1, 0f, 0, -1, -1, false, 0, 1));
 		var mappingState = new NetworkMappingState(new(), new(), new());
-		if (ECSContext.PlayerResourceService.GoldResourceId == default)
+		if (GameContext.Simulation.PlayerResourceService.GoldResourceId == default)
 		{
-			ECSContext.PlayerResourceService.GoldResourceId = "gold".AsResourceId(ECSContext.DefinitionManager);
-			ECSContext.PlayerResourceService.WoodResourceId = "wood".AsResourceId(ECSContext.DefinitionManager);
-			ECSContext.PlayerResourceService.StoneResourceId = "stone".AsResourceId(ECSContext.DefinitionManager);
+			GameContext.Simulation.PlayerResourceService.GoldResourceId = "gold".AsResourceId(GameContext.Simulation.DefinitionManager);
+			GameContext.Simulation.PlayerResourceService.WoodResourceId = "wood".AsResourceId(GameContext.Simulation.DefinitionManager);
+			GameContext.Simulation.PlayerResourceService.StoneResourceId = "stone".AsResourceId(GameContext.Simulation.DefinitionManager);
 		}
 
 		var defaultPlayers = CreateDefaultPlayers();
@@ -65,9 +60,9 @@ public class WorldInitService
 			GameContext.World.Add(playerEntity, new Name(i == 0 ? "Neutral" : (i == 1 ? "Horaid_Topa" : $"Player {i}")));
 			var resourcesDict = new Dictionary<ResourceId, int>
 			{
-				{ ECSContext.PlayerResourceService.GoldResourceId, i == 1 ? 500 : 0 },
-				{ ECSContext.PlayerResourceService.WoodResourceId, i == 1 ? 400 : 0 },
-				{ ECSContext.PlayerResourceService.StoneResourceId, i == 1 ? 200 : 0 }
+				{ GameContext.Simulation.PlayerResourceService.GoldResourceId, 0 },
+				{ GameContext.Simulation.PlayerResourceService.WoodResourceId, 0 },
+				{ GameContext.Simulation.PlayerResourceService.StoneResourceId, 0 }
 			};
 			GameContext.World.Add(playerEntity, new PlayerResources(resourcesDict));
 			GameContext.World.Add(playerEntity, new PlayerPopulation(0, 0));
@@ -135,43 +130,7 @@ public class WorldInitService
 		GameContext.SimulationService?.RecalculatePlayerRelationships();
 	}
 
-	private static ScriptPlayer[] CreateDefaultPlayers()
-	{
-		var players = new ScriptPlayer[25];
-
-		// Slot 0 is always neutral Gaia
-		players[0] = new ScriptPlayer
-		{
-			Gold = 0f,
-			Wood = 0f,
-			Stone = 0f,
-			Active = true,
-			IsComputer = true,
-			Team = 0,
-			Name = "Neutral",
-			KillCount = 0,
-			TeamNameStringId = StringRegistry.GetOrAdd("Neutral")
-		};
-
-		// Slots 1 to 24 are match participants
-		for (int i = 1; i < 25; i++)
-		{
-			players[i] = new ScriptPlayer
-			{
-				Gold = i == 1 ? 500f : 0f,
-				Wood = i == 1 ? 400f : 0f,
-				Stone = i == 1 ? 200f : 0f,
-				Active = i == 1,
-				IsComputer = false,
-				Team = i,
-				Name = $"Player {i}",
-				KillCount = 0,
-				TeamNameStringId = StringRegistry.GetOrAdd($"Team {i}")
-			};
-		}
-
-		return players;
-	}
+	private static ScriptPlayer[] CreateDefaultPlayers() => MatchRoster.CreateDefaultPlayers();
 
 	private void UpdateTerrainState(
 		Entity worldEntity,

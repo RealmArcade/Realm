@@ -1,0 +1,30 @@
+{
+  "license": "https://www.realm-game.com/RealmPlatform_UGC_License_v1.txt",
+  "GameBuildNumber": "v0.0.6",
+  "MapProperties": {
+    "MapName": "Rules Asset_Pack",
+    "MapDescription": "Shared rule systems map authors import into their own maps.",
+    "Author": "Realm",
+    "SuggestedPlayers": "1-8",
+    "ShroudType": "ExplorationShroud",
+    "MapWidth": 64,
+    "MapHeight": 64,
+    "Version": "1.0.0",
+    "Tags": [
+      "Rules",
+      "Asset Pack"
+    ],
+    "MapType": "AssetPack"
+  },
+  "Dependencies": [],
+  "Templates": {
+    "Units": [],
+    "Buildings": [],
+    "Resources": [],
+    "Props": [],
+    "Weapons": [],
+    "Abilities": [],
+    "Items": [],
+    "Vfx": []
+  }
+}

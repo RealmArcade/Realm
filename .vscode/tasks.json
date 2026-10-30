@@ -15,12 +15,22 @@
       "problemMatcher": []
     },
     {
+      "label": "Build Client and Authority",
+      "type": "shell",
+      "command": "dotnet",
+      "args": [
+        "build",
+        "${workspaceFolder}/Realm.slnx"
+      ],
+      "problemMatcher": "$msCompile"
+    },
+    {
       "label": "Run Simulation Tests",
       "type": "shell",
       "command": "dotnet",
       "args": [
         "test",
-        "${workspaceFolder}/Realm.ClientRealm.Client.csproj",
+        "${workspaceFolder}/Realm.Client.Tests/Realm.Client.Tests.csproj",
         "--filter",
         "FullyQualifiedName~SimulationTests"
       ],
@@ -37,7 +47,7 @@
       "command": "dotnet",
       "args": [
         "test",
-        "${workspaceFolder}/Realm.ClientRealm.Client.csproj"
+        "${workspaceFolder}/Realm.Client.Tests/Realm.Client.Tests.csproj"
       ],
       "options": {
         "env": {

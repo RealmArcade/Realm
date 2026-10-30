@@ -1,7 +1,7 @@
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -13,18 +13,16 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Godot;
-using Microsoft.ML.OnnxRuntime;
-using Microsoft.ML.OnnxRuntime.Tensors;
 using Realm.Client.Core;
-using Realm.Client.ReplaySystem;
 using Realm.Client.Services;
 using Realm.Client.UI;
 using Realm.Client.Utils;
 using Realm.Shared;
 using Realm.Shared.Distribution;
+using Realm.Shared.Maps;
 using Realm.Shared.Metadata;
+using Realm.Shared.Network;
 using Realm.Shared.Services;
-using SharpToken;
 using Environment = System.Environment;
 using FileAccess = System.IO.FileAccess;
 using HttpClient = System.Net.Http.HttpClient;
@@ -34,10 +32,21 @@ namespace Realm.Client.Network;
 [GlobalClass]
 public partial class LobbyManager : BaseMapTransferNode
 {
-	public static LobbyManager Instance { get; private set; }
 	public bool IsSinglePlayer { get; set; } = false;
+	public bool AllowsCheats => IsSinglePlayer;
 	public string? LastHostError { get; private set; }
+
+	public string LastAuthorityLogPath { get; private set; } = string.Empty;
+
+	public string LastAuthorityConsoleLogPath { get; private set; } = string.Empty;
+
 	public bool IsRestrictedHost { get; private set; }
+
+	/// <summary>The factions the lobby's map offers, in the order its roster numbers them.</summary>
+	public IReadOnlyList<string> LobbyFactions { get; private set; } = Array.Empty<string>();
+
+	/// <summary>The number of teams the lobby offers, which is the highest team number a seat may hold.</summary>
+	public int LobbyTeamCount { get; private set; } = LobbyLimits.DefaultTeamCount;
 
 	private static readonly JsonSerializerOptions Options = new() { PropertyNameCaseInsensitive = true };
 
@@ -72,7 +81,10 @@ public partial class LobbyManager : BaseMapTransferNode
 	public List<string> RegistryServers => OfficialServers;
 	private int _currentServerIndex = 0;
 	public string RegistryServerUrl => OfficialServers.Count > 0 && _currentServerIndex < OfficialServers.Count && !string.IsNullOrWhiteSpace(OfficialServers[_currentServerIndex]) ? OfficialServers[_currentServerIndex] : ServersConfigHelper.GetDefaultServerUrl();
-	public int ENetPort { get; private set; } = 8999;
+	private const int DefaultGamePort = 8999;
+	private const int StunPort = 19302;
+
+	public int ENetPort { get; private set; } = DefaultGamePort;
 	public int MaxPlayers { get; private set; } = MapInfoMetadata.DefaultPlayablePlayerSlots;
 	public string? LastLobbyWarning { get; private set; }
 
@@ -88,25 +100,24 @@ public partial class LobbyManager : BaseMapTransferNode
 		}
 
 		AuthenticatedUsername = newUsername.Trim();
-		int myId = Multiplayer?.MultiplayerPeer != null ? Multiplayer.GetUniqueId() : 1;
-		var me = PlayerList.Find(p => p.PeerId == myId || (IsHost && p.PeerId == 1));
+		PlayerInfo? me = PlayerList.Find(IsLocalPlayer);
 		if (me != null)
 		{
 			me.Name = AuthenticatedUsername;
+			SendSeatUpdate(me);
 		}
 
 		return true;
 	}
 
 	private readonly string _persistentSessionToken = Guid.NewGuid().ToString();
-	private bool _isReconnecting = false;
-	public bool IsReconnecting => _isReconnecting;
 
 	public NatType LocalNatType { get; private set; } = NatType.Open;
 	public bool IsHost { get; set; }
 	public string? ActiveLobbyId { get; private set; }
 	public bool IsGameStarted { get; set; }
 	public DateTime? GameSessionStartTime { get; private set; }
+	public int MatchSeed { get; private set; }
 	public string ActiveMapName { get; set; }
 	public string ActiveMapVersion { get; set; } = "1.0.0";
 	public bool SpectatorDelay { get; set; } = false;
@@ -114,32 +125,52 @@ public partial class LobbyManager : BaseMapTransferNode
 	public string HostStability { get; set; } = "Excellent";
 	public event Action<string> HostStabilityUpdated;
 
-
 	public List<PlayerInfo> PlayerList { get; } = new();
 
+	public int LocalPeerId => _lobbySession?.LocalPeerId ?? -1;
+
+	public int BoundPort => _lobbySession?.Port ?? ENetPort;
+
+	public bool IsCountdownActive => _countdownActive;
+
+	/// <summary>
+	///     Whether the lobby's authority has described this lobby to this screen yet. A screen that has one is connected: it
+	///     has its seat, it can chat, and whatever else it is waiting for (a map package, a warmed world) is work already
+	///     running behind a lobby it is free to use.
+	/// </summary>
+	public bool HasLobbyState => _lobbyRevision > 0;
+
+	public int CountdownRemainingSeconds => _countdownRemaining;
+
+	private readonly LobbyMatchPreparation _preparation = new();
+
+	private bool _worldPrepared;
+
+	private string? _worldPreparedMapName;
+
+	private bool _matchPresentationOpen;
+
+	private bool _loadReadyReported;
 
 	private readonly HttpClient _httpClient = new();
+	private ClientServerSession? _lobbySession;
 	private string? _connectedHostIp;
-	private int _connectedHostPort;
 	private bool _isConnectedToHost;
 	private ClientWebSocket? _hostWebSocket;
 	private CancellationTokenSource? _wsCts;
 	private string? _hostPublicIp;
 	private int _hostPublicPort;
 	public string PublicIP => _hostPublicIp ?? "127.0.0.1";
-	public int PublicPort => _hostPublicPort > 0 ? _hostPublicPort : ENetPort;
+	public int PublicPort => _hostPublicPort > 0 ? _hostPublicPort : BoundPort;
 	private string? _hostToken;
-	private string? _countdownMapName;
+	private long _lobbyRevision;
+	private bool _countdownActive;
 	private int _countdownRemaining;
-	private SceneTreeTimer? _countdownTimer;
-	private SceneTreeTimer? _diagnosticsTimer;
-	private readonly List<(string Sender, string Message, bool IsMuted, long TimestampUtcTicks)> _chatHistory = new();
-	private static InferenceSession? _onnxSession;
-	private static Dictionary<string, int>? _vocab;
-	private static readonly object _sessionLock = new();
+	private string? _countdownMapName;
+	private TaskCompletionSource<string?>? _admissionTcs;
+	private TaskCompletionSource<MapTransferReply>? _transferReplyTcs;
+	private string? _downloadingMapName;
 	private readonly SemaphoreSlim _mapDownloadLock = new(1, 1);
-
-
 
 	public void SwitchToNextServer()
 	{
@@ -184,13 +215,13 @@ public partial class LobbyManager : BaseMapTransferNode
 
 	public string? ConnectedHostIp => _connectedHostIp;
 
-
 	public event Action? PlayerListUpdated;
 	public event Action<string, string, bool, long>? ChatReceived;
 	public event Action<int, string>? ServerChatCommandReceived;
 	public event Action<string>? ConnectionFailed;
 	public event Action<string>? KickReceived;
 	public event Action? NatTestCompleted;
+	public event Action<HostLobbyStage>? HostLobbyStageChanged;
 	public event Action<float>? MapDownloadProgressChanged;
 	public event Action? MapDownloadCompleted;
 	public event Action? MapDownloadFailed;
@@ -203,30 +234,41 @@ public partial class LobbyManager : BaseMapTransferNode
 
 	protected override string TransferLogPrefix => "LobbyManager";
 
-	protected override bool IsMapTransferAllowed() => IsHost || (PeerSeederManager.Instance != null && PeerSeederManager.Instance.IsSeeding);
+	protected override bool IsMapTransferAllowed() => IsHost || (GameContext.PeerSeeder != null && GameContext.PeerSeeder.IsSeeding);
 
 	protected override void OnDownloadProgressChanged(float progress) => CallDeferred(nameof(EmitDownloadProgress), progress);
 
 	public override void _Ready()
 	{
 		ProcessPerformanceOptimizer.EnforceOptimalPerformance();
-		Instance = this;
+		GameContext.RegisterLobby(this);
 		ProcessMode = ProcessModeEnum.Always;
 
 		LoadServersConfig();
-
-		Multiplayer.PeerConnected += OnPeerConnected;
-		Multiplayer.PeerDisconnected += OnPeerDisconnected;
-		Multiplayer.ConnectedToServer += OnConnectedToServer;
-		Multiplayer.ConnectionFailed += OnConnectionFailedGodot;
-		Multiplayer.ServerDisconnected += OnServerDisconnectedGodot;
-
 		RunNatTypeTest();
 
 		MapAssetManager.PruneGlobalArchive();
 		AppDomain.CurrentDomain.ProcessExit += OnProcessExit;
 
 		StartPeerSeederLoop();
+		WarmUpLocalAuthority();
+	}
+
+	/// <summary>
+	///     Brings this screen's own authority up while the screen is still in its menus. It is started once here and stays
+	///     up for the whole session: matches are put on it and taken off it, so hosting never pays for a process start and
+	///     nothing is killed between one session and the next.
+	/// </summary>
+	private void WarmUpLocalAuthority()
+	{
+		if (!ListenServerTarget.TryResolve(out ServerLaunchTarget? target, out string failure) || target == null)
+		{
+			GD.PushWarning($"[LobbyManager] This screen cannot host a match: {failure}");
+			return;
+		}
+
+		GameContext.LocalAuthority.Configure(target, Path.Combine(OS.GetUserDataDir(), "logs"), OS.GetUserDataDir());
+		_ = GameContext.LocalAuthority.EnsureStartedAsync();
 	}
 
 	private void StartPeerSeederLoop()
@@ -251,15 +293,87 @@ public partial class LobbyManager : BaseMapTransferNode
 
 	private void CheckPeerSeederStatus()
 	{
-		if (PeerSeederManager.Instance == null) return;
+		if (GameContext.PeerSeeder == null) return;
 
 		Callable.From(() =>
 		{
-			if (GodotObject.IsInstanceValid(this) && !IsQueuedForDeletion() && PeerSeederManager.Instance != null)
+			if (GodotObject.IsInstanceValid(this) && !IsQueuedForDeletion() && GameContext.PeerSeeder != null)
 			{
-				PeerSeederManager.Instance.CheckIdleAndSeedStatus();
+				GameContext.PeerSeeder.CheckIdleAndSeedStatus();
 			}
 		}).CallDeferred();
+	}
+
+	public override void _Process(double delta)
+	{
+		ClientServerSession? session = _lobbySession;
+		if (session == null) return;
+
+		session.Pump();
+		TickMatchPreparation();
+	}
+
+	private void TickMatchPreparation()
+	{
+		if (_preparation.HasWork)
+		{
+			if (!_preparation.Tick()) return;
+
+			GD.Print($"MATCH_LOAD preparation models={_preparation.TotalModels} warm_ms={_preparation.WarmMilliseconds.ToString("F1", CultureInfo.InvariantCulture)}");
+			BeginMatchWorldBuild();
+			return;
+		}
+
+		AdvanceMatchWorldBuild();
+	}
+
+	private void BeginMatchWorldBuild()
+	{
+		if (_worldPrepared && string.Equals(_worldPreparedMapName, ActiveMapName, StringComparison.Ordinal)) return;
+		_loadReadyReported = false;
+		if (string.IsNullOrWhiteSpace(ActiveMapName)) return;
+
+		GameHost? host = GameContext.Host;
+		if (host == null) return;
+
+		if (host.IsBuildingMatchWorld) return;
+
+		if (_worldPrepared) host.DiscardPreparedMatchWorld();
+		_worldPrepared = false;
+		_worldPreparedMapName = null;
+
+		host.BeginMatchWorldPreparation(ActiveMapName);
+		MatchLoadTrace.Mark("world_build_begun");
+	}
+
+	private void AdvanceMatchWorldBuild()
+	{
+		GameHost? host = GameContext.Host;
+		if (host == null) return;
+		if (!host.IsBuildingMatchWorld)
+		{
+			ReportWorldPreparedIfReady();
+			return;
+		}
+
+		if (!host.AdvanceMatchWorldPreparation()) return;
+
+		_worldPrepared = true;
+		_worldPreparedMapName = ActiveMapName;
+		MatchLoadTrace.Mark("lobby_ready");
+		MatchLoadTrace.WriteSummary("lobby_ready");
+		ReportWorldPreparedIfReady();
+	}
+
+	private void ReportWorldPreparedIfReady()
+	{
+		if (!_worldPrepared || _loadReadyReported) return;
+
+		PlayerInfo? me = PlayerList.Find(IsLocalPlayer);
+		if (me == null || !me.IsMapReady) return;
+
+		_loadReadyReported = true;
+		ReportLocalLoadReadyState(true);
 	}
 
 	public override void _Notification(int what)
@@ -288,8 +402,10 @@ public partial class LobbyManager : BaseMapTransferNode
 
 		try
 		{
-			PeerSeederManager.Instance.Stop();
-			UpnpService.Instance.ClosePort(ENetPort);
+			GameContext.PeerSeeder.Stop();
+			GameContext.Upnp.ClosePort(BoundPort);
+			GameContext.LocalAuthority.Dispose();
+			_lobbySession?.Dispose();
 		}
 		catch
 		{
@@ -328,71 +444,94 @@ public partial class LobbyManager : BaseMapTransferNode
 	public async Task RunNatTypeTestAsync()
 	{
 		GD.Print("[LobbyManager] Starting STUN NAT Type Test...");
-		_hostPublicIp = null;
-		_hostPublicPort = 0;
 		LocalNatType = await NatTypeTester.DetermineNatTypeAsync(0);
 		GD.Print($"[LobbyManager] NAT Type Classified: {LocalNatType}");
+
+		await ResolvePublicEndpointAsync(ENetPort);
+		CallDeferred(nameof(EmitNatTestCompleted));
+	}
+
+	private async Task ResolvePublicEndpointAsync(int localPort)
+	{
+		_hostPublicIp = null;
+		_hostPublicPort = 0;
 
 		try
 		{
 			var dnsAddresses = await Dns.GetHostAddressesAsync("stun.l.google.com");
-			if (dnsAddresses.Length > 0)
+			if (dnsAddresses.Length == 0) return;
+
+			StunResult? result = null;
+			try
 			{
-				StunResult? result = null;
+				result = await NatTypeTester.QueryStunOnPortAsync(dnsAddresses[0], StunPort, localPort);
+			}
+			catch (Exception ex)
+			{
+				GD.Print($"[LobbyManager] Direct STUN on port {localPort} failed: {ex.Message}");
+			}
 
-				try
+			if (result == null || !result.Success || result.MappedEndPoint == null)
+			{
+				using var udp = new UdpClient();
+				udp.ExclusiveAddressUse = false;
+				udp.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+				udp.Client.Bind(new IPEndPoint(IPAddress.Any, 0));
+
+				var serverEp = new IPEndPoint(dnsAddresses[0], StunPort);
+				byte[] req = new byte[20];
+				req[0] = 0x00;
+				req[1] = 0x01;
+				new Random().NextBytes(new Span<byte>(req, 4, 16));
+
+				await udp.SendAsync(req, req.Length, serverEp);
+				var receiveTask = udp.ReceiveAsync();
+				var timeoutTask = Task.Delay(1000);
+				if (await Task.WhenAny(receiveTask, timeoutTask) == receiveTask)
 				{
-					result = await NatTypeTester.QueryStunOnPortAsync(dnsAddresses[0], 19302, ENetPort);
-				}
-				catch (Exception ex)
-				{
-					GD.Print($"[LobbyManager] Direct STUN on port {ENetPort} failed: {ex.Message}");
-				}
-
-				if (result == null || !result.Success || result.MappedEndPoint == null)
-				{
-					using var udp = new UdpClient();
-					udp.ExclusiveAddressUse = false;
-					udp.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
-					udp.Client.Bind(new IPEndPoint(IPAddress.Any, 0));
-
-					var serverEp = new IPEndPoint(dnsAddresses[0], 19302);
-					byte[] req = new byte[20];
-					req[0] = 0x00;
-					req[1] = 0x01; // Binding Request
-					new Random().NextBytes(new Span<byte>(req, 4, 16));
-
-					await udp.SendAsync(req, req.Length, serverEp);
-					var receiveTask = udp.ReceiveAsync();
-					var timeoutTask = Task.Delay(1000);
-					if (await Task.WhenAny(receiveTask, timeoutTask) == receiveTask)
-					{
-						var response = await receiveTask;
-						result = new StunResult();
-						NatTypeTester.ParseStunResponse(response.Buffer, result);
-					}
-				}
-
-				if (result != null && result.Success && result.MappedEndPoint != null)
-				{
-					bool mappedFromEnetPort = result.LocalEndPoint != null && result.LocalEndPoint.Port == ENetPort;
-					_hostPublicIp = result.MappedEndPoint.Address.ToString();
-					_hostPublicPort = mappedFromEnetPort ? result.MappedEndPoint.Port : ENetPort;
-					GD.Print($"[STUN] Local {ENetPort} -> Public {_hostPublicIp}:{_hostPublicPort}");
+					var response = await receiveTask;
+					result = new StunResult();
+					NatTypeTester.ParseStunResponse(response.Buffer, result);
 				}
 			}
+
+			if (result == null || !result.Success || result.MappedEndPoint == null) return;
+
+			bool mappedFromBoundPort = result.LocalEndPoint != null && result.LocalEndPoint.Port == localPort;
+			_hostPublicIp = result.MappedEndPoint.Address.ToString();
+			_hostPublicPort = mappedFromBoundPort ? result.MappedEndPoint.Port : localPort;
+			GD.Print($"[STUN] Local {localPort} -> Public {_hostPublicIp}:{_hostPublicPort}");
 		}
 		catch (Exception ex)
 		{
 			GD.PrintErr($"[LobbyManager] Failed to get public IP: {ex.Message}");
 		}
-
-		CallDeferred(nameof(EmitNatTestCompleted));
 	}
 
 	public void RunNatTypeTest()
 	{
-		Task.Run(RunNatTypeTestAsync);
+		_natTypeTest = Task.Run(RunNatTypeTestAsync);
+	}
+
+	private Task? _natTypeTest;
+
+	/// <summary>
+	///     The public endpoint this screen advertises is measured once when it starts and reused until it is missing, so
+	///     joining a lobby does not first wait out a NAT test: the join is the screen's own business, and the test that
+	///     was already running is joined rather than repeated.
+	/// </summary>
+	private async Task EnsureNatTypeMeasuredAsync()
+	{
+		if (!string.IsNullOrEmpty(_hostPublicIp)) return;
+
+		Task? running = _natTypeTest;
+		if (running is { IsCompleted: false })
+		{
+			await running;
+			if (!string.IsNullOrEmpty(_hostPublicIp)) return;
+		}
+
+		await RunNatTypeTestAsync();
 	}
 
 	private void EmitNatTestCompleted()
@@ -400,12 +539,21 @@ public partial class LobbyManager : BaseMapTransferNode
 		NatTestCompleted?.Invoke();
 	}
 
+	private void ReportHostLobbyStage(HostLobbyStage stage)
+	{
+		Callable.From(() =>
+		{
+			if (GodotObject.IsInstanceValid(this) && !IsQueuedForDeletion())
+			{
+				HostLobbyStageChanged?.Invoke(stage);
+			}
+		}).CallDeferred();
+	}
 
-	public void HostSinglePlayerGame(string mapPathName, string mapDisplayName, string? mapVersion = null)
+	public async Task<bool> HostSinglePlayerGame(string mapPathName, string mapDisplayName, string? mapVersion = null, bool debugMapScript = false)
 	{
 		IsSinglePlayer = true;
 		IsHost = true;
-		IsGameStarted = true;
 		ActiveMapName = mapPathName;
 		ActiveMapVersion = !string.IsNullOrWhiteSpace(mapVersion) ? mapVersion : "1.0.0";
 		PlayerList.Clear();
@@ -426,6 +574,7 @@ public partial class LobbyManager : BaseMapTransferNode
 		int? testSeed = metadata.MapProperties?.TestRandomSeed;
 
 		GameContext.RandomService.SetSeed(testSeed);
+		MatchSeed = GameContext.RandomService.Seed;
 
 		int humanSlot = 1;
 		var aiSlots = new List<int>();
@@ -495,14 +644,71 @@ public partial class LobbyManager : BaseMapTransferNode
 			PlayerList.Add(botPlayer);
 		}
 
-		Multiplayer.MultiplayerPeer = new OfflineMultiplayerPeer();
-		CallDeferred(nameof(LoadMap), mapPathName);
+		if (!await TryStartAuthority(mapDirectory, mapPathName, wasmDebug: debugMapScript)) return false;
+
+		IsGameStarted = true;
+		CallDeferred(nameof(EnterMatchScene), mapPathName, MatchSeed);
+		return true;
+	}
+
+	private async Task<bool> TryStartAuthority(string? mapDirectory, string mapPathName, int authorityPort = 0, bool openToOthers = false, bool wasmDebug = false)
+	{
+		LastAuthorityLogPath = string.Empty;
+		LastAuthorityConsoleLogPath = string.Empty;
+
+		if (string.IsNullOrEmpty(mapDirectory))
+		{
+			LastHostError = $"The map folder for '{mapPathName}' could not be found.";
+			GD.PushError($"[LobbyManager] {LastHostError}");
+			IsGameStarted = false;
+			return false;
+		}
+
+		var channel = GetNodeOrNull<ClientNetworkChannel>("/root/RealmNetwork");
+		if (channel == null)
+		{
+			LastHostError = "This build has no channel to an authority.";
+			GD.PushError($"[LobbyManager] {LastHostError}");
+			IsGameStarted = false;
+			return false;
+		}
+
+		GameContext.ServerSession?.Dispose();
+
+		var session = new ClientServerSession(channel);
+		var start = new ServerMatchStart(
+			ProjectSettings.GlobalizePath(mapDirectory),
+			mapPathName,
+			MatchSeed,
+			Path.Combine(OS.GetUserDataDir(), "logs"),
+			OS.GetUserDataDir(),
+			LocalizationManager.GetCurrentLanguageCode(),
+			AllowsCheats,
+			openToOthers,
+			wasmDebug,
+			BuildMatchRoster());
+
+		MatchStartResult started = await session.TryStartAsync(start, authorityPort);
+		LastAuthorityLogPath = started.LogPath;
+		LastAuthorityConsoleLogPath = started.ConsoleLogPath;
+		if (!started.Started)
+		{
+			LastHostError = started.Failure;
+			GD.PushError($"[LobbyManager] {started.Failure}");
+			IsGameStarted = false;
+			session.Dispose();
+			return false;
+		}
+
+		GameContext.AttachServerSession(session);
+		return true;
 	}
 
 	public async Task<bool> HostLobbyAsync(string mapPathName, string mapDisplayName, string? explicitVersion = null)
 	{
 		InitializeHostState(mapPathName, explicitVersion);
 
+		ReportHostLobbyStage(HostLobbyStage.TestingNetwork);
 		await RunNatTypeTestAsync();
 		if (LocalNatType == NatType.Symmetric)
 		{
@@ -511,9 +717,71 @@ public partial class LobbyManager : BaseMapTransferNode
 			return false;
 		}
 
-		if (!await TryCreateENetServerAsync()) return false;
+		string? mapDirectory = GameHost.ResolveMapDirectory(mapPathName, ActiveMapVersion);
+		if (string.IsNullOrEmpty(mapDirectory))
+		{
+			LastHostError = $"The map folder for '{mapPathName}' could not be found.";
+			return false;
+		}
 
-		bool upnpSuccess = await UpnpService.Instance.OpenPortAsync(ENetPort);
+		var channel = GetNodeOrNull<ClientNetworkChannel>("/root/RealmNetwork");
+		if (channel == null)
+		{
+			LastHostError = "This build has no channel to an authority.";
+			return false;
+		}
+
+		GameContext.ServerSession?.Dispose();
+		GameContext.DetachServerSession();
+
+		var session = new ClientServerSession(channel);
+		session.ConfigureLobbyIdentity(AuthenticatedUsername, _persistentSessionToken);
+		AttachLobbySession(session);
+
+		var start = new ServerLobbyStart(
+			ProjectSettings.GlobalizePath(mapDirectory),
+			mapPathName,
+			MaxPlayers,
+			Path.Combine(OS.GetUserDataDir(), "logs"),
+			OS.GetUserDataDir(),
+			LocalizationManager.GetCurrentLanguageCode());
+
+		ReportHostLobbyStage(HostLobbyStage.LoadingMap);
+		MatchStartResult lobbyStarted = await session.TryStartLobbyAsync(start, ENetPort);
+		LastAuthorityLogPath = lobbyStarted.LogPath;
+		LastAuthorityConsoleLogPath = lobbyStarted.ConsoleLogPath;
+		if (!lobbyStarted.Started)
+		{
+			LastHostError = lobbyStarted.Failure;
+			GD.PushError($"[LobbyManager] {lobbyStarted.Failure}");
+			TeardownHostedLobby(session);
+			return false;
+		}
+
+		ReportHostLobbyStage(HostLobbyStage.AdmittingHost);
+		string? admissionFailure = await WaitForLobbyAdmissionAsync(session);
+		if (admissionFailure != null)
+		{
+			LastHostError = admissionFailure;
+			GD.PushError($"[LobbyManager] {admissionFailure}");
+			TeardownHostedLobby(session);
+			return false;
+		}
+
+		if (!session.IsAdmin)
+		{
+			LastHostError = "The lobby's authority did not grant this client the capability that administers it.";
+			GD.PushError($"[LobbyManager] {LastHostError}");
+			TeardownHostedLobby(session);
+			return false;
+		}
+
+		IsHost = true;
+
+		ReportHostLobbyStage(HostLobbyStage.OpeningPort);
+		await ResolvePublicEndpointAsync(session.Port);
+
+		bool upnpSuccess = await GameContext.Upnp.OpenPortAsync(session.Port);
 		bool isRestrictedNat = LocalNatType is NatType.RestrictedCone or NatType.PortRestrictedCone or NatType.Symmetric;
 		IsRestrictedHost = !upnpSuccess && isRestrictedNat;
 		if (IsRestrictedHost)
@@ -521,14 +789,33 @@ public partial class LobbyManager : BaseMapTransferNode
 			GD.Print("[LobbyManager] Warning: UPnP port mapping not available on restricted NAT. External players may require Direct Connect.");
 		}
 
-		Diagnostics.StartHostListener(ENetPort + 1);
-		StartHostDiagnosticsTimer();
+		Diagnostics.StartHostListener(session.Port + 1);
 
+		ReportHostLobbyStage(HostLobbyStage.RegisteringLobby);
 		bool registered = await RegisterLobbyWithRegistryAsync(mapPathName, mapDisplayName, explicitVersion);
-		if (!registered) return false;
+		if (!registered)
+		{
+			TeardownHostedLobby(session);
+			return false;
+		}
 
 		PlayerListUpdated?.Invoke();
 		return true;
+	}
+
+	private void InitializeHostState(string mapPathName, string? explicitVersion)
+	{
+		IsHost = true;
+		MaxPlayers = ResolvePlayablePlayerSlots(mapPathName, explicitVersion);
+		LastLobbyWarning = null;
+		HostStability = HostStabilityTracker.GetOverallStability();
+		IsGameStarted = false;
+		SpectatorDelay = false;
+		LastHostError = null;
+		_downloadingMapName = null;
+		PlayerList.Clear();
+		ActiveMapName = mapPathName;
+		ActiveMapVersion = !string.IsNullOrWhiteSpace(explicitVersion) ? explicitVersion : "1.0.0";
 	}
 
 	private static int ResolvePlayablePlayerSlots(string mapPathName, string? version)
@@ -549,85 +836,726 @@ public partial class LobbyManager : BaseMapTransferNode
 		}
 	}
 
-	private int FindNextFreePlayableSlot()
+	public async Task<bool> JoinLobbyAsync(string lobbyId)
 	{
-		for (int slot = 1; slot <= MaxPlayers; slot++)
+		InitializeClientState(lobbyId);
+		await EnsureNatTypeMeasuredAsync();
+
+		string clientPublicIp = _hostPublicIp ?? "127.0.0.1";
+		int clientPublicPort = _hostPublicPort > 0 ? _hostPublicPort : ENetPort;
+
+		try
 		{
-			if (!PlayerList.Any(p => p.Slot == slot)) return slot;
+			var response = await SendJoinRequestAsync(lobbyId, clientPublicIp, clientPublicPort);
+			if (response == null || !response.IsSuccessStatusCode)
+			{
+				var errorText = response != null ? await response.Content.ReadAsStringAsync() : "All registry nodes offline";
+				GD.PrintErr($"[LobbyManager] Failed to join lobby: {errorText}");
+				ConnectionFailed?.Invoke("Failed to coordinate join.");
+				return false;
+			}
+
+			var (connectIp, connectPort) = await ResolveHostConnectionInfoAsync(response, clientPublicIp);
+			_connectedHostIp = connectIp;
+			return await EstablishLobbyConnectionAsync(connectIp, connectPort, IsPrivateIp(connectIp));
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"[LobbyManager] Join error: {ex.Message}");
+			ConnectionFailed?.Invoke(ex.Message);
+			return false;
+		}
+	}
+
+	public async Task<bool> JoinByIpAsync(string targetIp, int targetPort = DefaultGamePort)
+	{
+		string directLobbyId = $"direct-{Guid.NewGuid():N}";
+		InitializeClientState(directLobbyId);
+		_connectedHostIp = targetIp;
+		return await EstablishLobbyConnectionAsync(targetIp, targetPort, IsPrivateIp(targetIp));
+	}
+
+	private void InitializeClientState(string lobbyId)
+	{
+		IsHost = false;
+		IsGameStarted = false;
+		ActiveLobbyId = lobbyId;
+		LastLobbyWarning = null;
+		LastHostError = null;
+		_downloadingMapName = null;
+		PlayerList.Clear();
+	}
+
+	private async Task<bool> EstablishLobbyConnectionAsync(string connectIp, int connectPort, bool isLocalConnection)
+	{
+		var channel = GetNodeOrNull<ClientNetworkChannel>("/root/RealmNetwork");
+		if (channel == null)
+		{
+			LastHostError = "This build has no channel to an authority.";
+			ConnectionFailed?.Invoke(LastHostError);
+			return false;
 		}
 
-		return -1;
-	}
-
-	private void InitializeHostState(string mapPathName, string? explicitVersion)
-	{
-		IsHost = true;
-		MaxPlayers = ResolvePlayablePlayerSlots(mapPathName, explicitVersion);
-		LastLobbyWarning = null;
-		HostStability = HostStabilityTracker.GetOverallStability();
-		IsGameStarted = false;
-		SpectatorDelay = false;
-		LastHostError = null;
-		PlayerList.Clear();
-		ActiveMapName = mapPathName;
-		ActiveMapVersion = !string.IsNullOrWhiteSpace(explicitVersion) ? explicitVersion : "1.0.0";
-
-		var hostPlayer = new PlayerInfo
+		if (!isLocalConnection)
 		{
-			PeerId = 1,
-			Slot = 1,
-			Name = AuthenticatedUsername,
-			Faction = "HUMAN",
-			Team = "Team 1",
-			Color = PlayerColorConfig.GetColor(1),
-			IsHost = true,
-			Latency = "0 ms",
-			Jitter = "0 ms",
-			PacketLoss = "0%",
-			BinaryVersion = RealmVersion.GameBinaryVersion,
-			SessionToken = _persistentSessionToken
-		};
-		PlayerList.Add(hostPlayer);
+			await UdpHolePuncher.PunchHoleAsync(connectIp, connectPort, ENetPort);
+		}
+
+		GameContext.ServerSession?.Dispose();
+		GameContext.DetachServerSession();
+
+		var session = new ClientServerSession(channel);
+		session.ConfigureLobbyIdentity(AuthenticatedUsername, _persistentSessionToken);
+		AttachLobbySession(session);
+
+		if (!session.TryJoinLobby(connectIp, connectPort, LocalizationManager.GetCurrentLanguageCode(), isLocalConnection ? 0 : ENetPort, out string failure))
+		{
+			LastHostError = failure;
+			GD.PrintErr($"[LobbyManager] {failure}");
+			Disconnect();
+			ConnectionFailed?.Invoke(failure);
+			return false;
+		}
+
+		_isConnectedToHost = true;
+
+		string? admissionFailure = await WaitForLobbyAdmissionAsync(session);
+		if (admissionFailure != null)
+		{
+			LobbyJoinError = string.Equals(admissionFailure, LobbyLimits.KickedRejection, StringComparison.Ordinal)
+				? "You were removed from this lobby."
+				: admissionFailure;
+			GD.PrintErr($"[LobbyManager] {admissionFailure}");
+			Disconnect();
+			ConnectionFailed?.Invoke("Direct connection handshake failed.");
+			return false;
+		}
+
+		IsHost = session.IsAdmin;
+		return true;
 	}
 
-	private async Task<bool> TryCreateENetServerAsync()
+	private async Task<string?> WaitForLobbyAdmissionAsync(ClientServerSession session)
 	{
-		if (Multiplayer.MultiplayerPeer != null)
+		var decided = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
+		_admissionTcs = decided;
+
+		void OnHello(ServerHello hello) => decided.TrySetResult(hello.Accepted ? null : hello.Rejection);
+		void OnLost(string reason) => decided.TrySetResult(reason);
+
+		session.HelloAnswered += OnHello;
+		session.ServerLost += OnLost;
+
+		try
+		{
+			var completed = await Task.WhenAny(decided.Task, Task.Delay(TimeSpan.FromSeconds(15)));
+			return completed == decided.Task ? decided.Task.Result : "The lobby's authority did not answer in time.";
+		}
+		finally
+		{
+			session.HelloAnswered -= OnHello;
+			session.ServerLost -= OnLost;
+			_admissionTcs = null;
+		}
+	}
+
+	private void AttachLobbySession(ClientServerSession session)
+	{
+		_lobbySession = session;
+		session.HelloAnswered += OnLobbyHelloAnswered;
+		session.LobbyStateReceived += OnLobbyState;
+		session.LobbyChatReceived += OnLobbyChat;
+		session.LobbyMatchStartedEvent += OnLobbyMatchStarted;
+		session.LobbyKickedEvent += OnLobbyKicked;
+		session.MapTransferReplied += OnMapTransferReplied;
+		session.ServerLost += OnLobbyAuthorityLost;
+	}
+
+	private void DetachLobbySession(ClientServerSession session)
+	{
+		session.HelloAnswered -= OnLobbyHelloAnswered;
+		session.LobbyStateReceived -= OnLobbyState;
+		session.LobbyChatReceived -= OnLobbyChat;
+		session.LobbyMatchStartedEvent -= OnLobbyMatchStarted;
+		session.LobbyKickedEvent -= OnLobbyKicked;
+		session.MapTransferReplied -= OnMapTransferReplied;
+		session.ServerLost -= OnLobbyAuthorityLost;
+	}
+
+	private void OnLobbyHelloAnswered(ServerHello hello)
+	{
+		if (!hello.Accepted) return;
+
+		IsHost = hello.IsAdmin;
+		if (IsHost)
+		{
+			ReportLocalMapReadyState(true);
+			_lobbySession?.SendLobbyCommand(new LobbyCommand
+			{
+				Kind = LobbyCommandKind.ReportHostStability,
+				Text = HostStability
+			});
+		}
+
+		PlayerListUpdated?.Invoke();
+	}
+
+	private void OnLobbyState(LobbyStateMessage state)
+	{
+		if (state.Revision < _lobbyRevision) return;
+		_lobbyRevision = state.Revision;
+
+		MaxPlayers = state.MaxPlayers > 0 ? state.MaxPlayers : MaxPlayers;
+		LobbyFactions = state.Factions ?? Array.Empty<string>();
+		LobbyTeamCount = state.TeamCount > 0 ? state.TeamCount : LobbyLimits.DefaultTeamCount;
+		SpectatorDelay = state.SpectatorDelay;
+		if (!string.IsNullOrEmpty(state.HostStability) && !string.Equals(state.HostStability, HostStability, StringComparison.Ordinal))
+		{
+			HostStability = state.HostStability;
+			HostStabilityUpdated?.Invoke(HostStability);
+		}
+
+		if (!string.IsNullOrEmpty(state.MapName) && !string.Equals(state.MapName, ActiveMapName, StringComparison.Ordinal))
+		{
+			ActiveMapName = state.MapName;
+			ActiveMapVersion = string.IsNullOrEmpty(state.MapVersion) ? "1.0.0" : state.MapVersion;
+			ActiveMapChanged?.Invoke(ActiveMapName);
+			if (!IsHost) _ = EnsureMapDownloadedAsync(ActiveMapName, ActiveMapVersion);
+		}
+
+		ApplySeats(state.Seats);
+		ApplyCountdown(state);
+		MakeSureThisSeatReportsItsMap();
+		StartMatchPreparationForCurrentMap();
+		PlayerListUpdated?.Invoke();
+	}
+
+	private void StartMatchPreparationForCurrentMap()
+	{
+		if (string.IsNullOrWhiteSpace(ActiveMapName)) return;
+
+		bool holdsMap = IsHost
+			? !string.IsNullOrEmpty(GameHost.ResolveMapDirectory(ActiveMapName, ActiveMapVersion))
+			: MapAssetManager.IsMapDownloaded(ActiveMapName, ActiveMapVersion);
+		if (!holdsMap) return;
+
+		bool preparedForThisMap = _preparation.IsPrepared && string.Equals(_preparation.MapName, ActiveMapName, StringComparison.Ordinal);
+		if (preparedForThisMap)
+		{
+			if (!_worldPrepared || !string.Equals(_worldPreparedMapName, ActiveMapName, StringComparison.Ordinal)) BeginMatchWorldBuild();
+			ReportWorldPreparedIfReady();
+			return;
+		}
+
+		if (_preparation.IsPreparing(ActiveMapName)) return;
+
+		if (_worldPrepared) GameContext.Host?.DiscardPreparedMatchWorld();
+		_worldPrepared = false;
+		_worldPreparedMapName = null;
+
+		ReportLocalLoadReadyState(false);
+		MatchLoadTrace.Begin("lobby_preparation");
+		_preparation.Prepare(ActiveMapName, ActiveMapVersion);
+		MatchLoadTrace.Mark("preparation_started");
+		MatchLoadTrace.WriteSummary("preparation_started");
+
+		if (_preparation.HasWork) return;
+		BeginMatchWorldBuild();
+	}
+
+	private void MakeSureThisSeatReportsItsMap()
+	{
+		if (IsHost) return;
+
+		PlayerInfo? me = PlayerList.Find(IsLocalPlayer);
+		if (me == null || me.IsMapReady) return;
+		if (string.IsNullOrWhiteSpace(ActiveMapName)) return;
+
+		if (MapAssetManager.IsMapDownloaded(ActiveMapName, ActiveMapVersion))
+		{
+			ReportLocalMapReadyState(true);
+			return;
+		}
+
+		if (_downloadingMapName != ActiveMapName) _ = EnsureMapDownloadedAsync(ActiveMapName, ActiveMapVersion);
+	}
+
+	private void ApplySeats(LobbySeat[] seats)
+	{
+		PlayerList.Clear();
+		if (seats == null) return;
+
+		for (int index = 0; index < seats.Length; index++)
+		{
+			LobbySeat seat = seats[index];
+			PlayerList.Add(new PlayerInfo
+			{
+				PeerId = seat.PeerId,
+				Slot = seat.Slot,
+				Name = seat.Name ?? string.Empty,
+				Faction = seat.Faction ?? string.Empty,
+				Team = seat.TeamName ?? string.Empty,
+				Color = seat.ColorRgba == 0 ? PlayerColorConfig.GetColor(seat.Slot) : UnpackColor(seat.ColorRgba),
+				IsHost = seat.IsHost,
+				IsReady = seat.IsReady,
+				IsMapReady = seat.IsMapReady,
+				MapDownloadPercent = seat.MapDownloadPercent,
+				IsLoadReady = seat.IsLoadReady,
+				IsDisconnected = seat.IsDisconnected,
+				Latency = FormatLinkMilliseconds(seat.LatencyMilliseconds),
+				Jitter = FormatLinkMilliseconds(seat.JitterMilliseconds),
+				PacketLoss = FormatLinkPercent(seat.PacketLossPercent),
+				BinaryVersion = RealmVersion.GameBinaryVersion,
+				SessionToken = seat.SessionToken ?? string.Empty
+			});
+		}
+	}
+
+	private void ApplyCountdown(LobbyStateMessage state)
+	{
+		if (state.CountdownActive)
+		{
+			bool started = !_countdownActive;
+			_countdownActive = true;
+			_countdownMapName = state.MapName;
+
+			if (started)
+			{
+				_countdownRemaining = state.CountdownRemainingSeconds;
+				CountdownStarted?.Invoke(state.MapName, state.CountdownRemainingSeconds);
+
+				BeginMatchPresentation(state.MapName);
+			}
+			else if (state.CountdownRemainingSeconds != _countdownRemaining)
+			{
+				_countdownRemaining = state.CountdownRemainingSeconds;
+				CountdownTick?.Invoke(_countdownRemaining);
+			}
+
+			return;
+		}
+
+		if (!_countdownActive) return;
+
+		_countdownActive = false;
+		_countdownMapName = null;
+		_countdownRemaining = 0;
+		CountdownCancelled?.Invoke();
+		EndMatchPresentation();
+	}
+
+	private void BeginMatchPresentation(string mapName)
+	{
+		if (_matchPresentationOpen || _matchStarted) return;
+
+		ActiveMapName = mapName;
+		GameContext.ReplayPlayback.StopReplay();
+
+		GameHost? host = GameContext.Host;
+		while (host != null && host.IsBuildingMatchWorld) host.AdvanceMatchWorldPreparation();
+		if (host != null && host.HasPreparedMatchWorld)
+		{
+			_worldPrepared = true;
+			_worldPreparedMapName = mapName;
+		}
+
+		if (!_worldPrepared) return;
+
+		_matchPresentationOpen = true;
+		MatchLoadTrace.Begin("start_presentation");
+		MatchLoadTrace.Mark("countdown_received");
+		GD.Print($"[LobbyManager] Showing the match world for '{mapName}' under the countdown");
+
+		host?.ShowPreparedMatchWorld();
+		GameContext.UserInterface?.TransitionTo(GameScreen.InGameHUD);
+	}
+
+	private void EndMatchPresentation()
+	{
+		if (!_matchPresentationOpen) return;
+
+		_matchPresentationOpen = false;
+		GD.Print("[LobbyManager] Countdown cancelled; returning to the lobby");
+		GameContext.UserInterface?.TransitionTo(GameScreen.LobbyRoom);
+	}
+
+	public void ReportLocalLoadReadyState(bool isLoadReady)
+	{
+		_lobbySession?.SendLobbyCommand(new LobbyCommand
+		{
+			Kind = LobbyCommandKind.ReportLoadReady,
+			Flag = isLoadReady
+		});
+	}
+
+	private void OnLobbyChat(LobbyChatMessage line)
+	{
+		string sender = string.IsNullOrEmpty(line.SenderName) ? "System" : line.SenderName;
+		int senderSlot = PlayerList.Find(p => p.PeerId == line.SenderPeerId)?.Slot ?? 0;
+		if (line.SenderPeerId > 0) ServerChatCommandReceived?.Invoke(senderSlot, line.Message);
+		ChatReceived?.Invoke(sender, line.Message, false, line.TimestampUtcTicks);
+	}
+
+	private void OnLobbyKicked(LobbyKickedMessage kicked)
+	{
+		GD.Print($"[LobbyManager] Removed from the lobby: {kicked.Reason}");
+		KickReceived?.Invoke(string.IsNullOrEmpty(kicked.Reason) ? "Kicked by Host" : kicked.Reason);
+
+		bool wasBuilding = _matchPresentationOpen;
+		var session = _lobbySession;
+		if (session != null)
+		{
+			DetachLobbySession(session);
+			session.Dispose();
+			_lobbySession = null;
+		}
+
+		ResetLobbyState();
+		if (wasBuilding) GameContext.UserInterface?.TransitionTo(GameScreen.MainMenu);
+	}
+
+	private void OnLobbyAuthorityLost(string reason)
+	{
+		if (_matchStarted) return;
+
+		// A kicked connection drops before its reason has been read, and the reconnect that follows is refused by
+		// name. That refusal is the kick arriving late rather than a lobby that failed.
+		bool kicked = reason.Contains(LobbyLimits.KickedRejection, StringComparison.Ordinal);
+		bool wasBuilding = _matchPresentationOpen;
+		bool administeredHere = IsHost;
+		if (administeredHere && !kicked)
+		{
+			LastHostError = reason;
+			GD.PrintErr($"[LobbyManager] The lobby's authority is gone: {reason}");
+		}
+
+		var session = _lobbySession;
+		int hostedPort = session?.Port ?? ENetPort;
+		if (session != null)
+		{
+			DetachLobbySession(session);
+			session.Dispose();
+			_lobbySession = null;
+		}
+
+		ReleaseHostedEndpoint(hostedPort);
+		ResetLobbyState();
+
+		if (kicked)
+		{
+			KickReceived?.Invoke("Kicked by Host");
+			return;
+		}
+
+		ConnectionFailed?.Invoke(administeredHere ? reason : "The host's lobby is no longer running.");
+		if (wasBuilding) GameContext.UserInterface?.TransitionTo(GameScreen.MainMenu);
+	}
+
+	private void OnLobbyMatchStarted(LobbyMatchStartedMessage started)
+	{
+		if (_matchStarted) return;
+		_matchStarted = true;
+		IsGameStarted = true;
+		_countdownActive = false;
+		CountdownFinished?.Invoke();
+
+		if (IsHost) UnregisterActiveLobbyFromRegistry();
+
+		ClientServerSession? session = _lobbySession;
+		if (session == null) return;
+
+		if (_matchPresentationOpen)
+		{
+			_matchPresentationOpen = false;
+			DetachLobbySession(session);
+			_lobbySession = null;
+			MatchSeed = started.Seed;
+			GameContext.RandomService.SetSeed(started.Seed);
+			GameSessionStartTime = DateTime.UtcNow;
+			GameContext.AttachServerSession(session);
+			GameContext.Host?.AttachMatchSession();
+			GameContext.Host?.StartMatchRecording();
+			MatchLoadTrace.Mark("match_started");
+			return;
+		}
+
+		DetachLobbySession(session);
+		_lobbySession = null;
+		GameContext.AttachServerSession(session);
+		EnterMatchScene(started.MapName, started.Seed);
+	}
+
+	private void EnterMatchScene(string mapName, int matchSeed)
+	{
+		GD.Print($"[LobbyManager] Match started for '{mapName}' with deterministic random seed {matchSeed}");
+		GameContext.ReplayPlayback.StopReplay();
+		ActiveMapName = mapName;
+		MatchSeed = matchSeed;
+		GameContext.RandomService.SetSeed(matchSeed);
+
+		IsGameStarted = true;
+		GameSessionStartTime = DateTime.UtcNow;
+
+		GetTree().ChangeSceneToFile("res://GameHost.tscn");
+	}
+
+	private async Task<HttpResponseMessage?> SendJoinRequestAsync(string lobbyId, string clientPublicIp, int clientPublicPort)
+	{
+		var joinPayload = new
+		{
+			LobbyId = lobbyId,
+			ClientPublicIP = clientPublicIp,
+			ClientPublicPort = clientPublicPort
+		};
+
+		GD.Print($"[LobbyManager] Joining Lobby {lobbyId} via registry server...");
+		HttpResponseMessage? response = null;
+		for (int i = 0; i < RegistryServers.Count; i++)
 		{
 			try
 			{
-				Multiplayer.MultiplayerPeer.Close();
+				var jsonContent = new StringContent(JsonSerializer.Serialize(joinPayload), Encoding.UTF8, "application/json");
+				response = await _httpClient.PostAsync($"{RegistryServerUrl}/lobbies/join", jsonContent);
+				if (response.IsSuccessStatusCode) break;
 			}
-			catch
+			catch (Exception ex)
+			{
+				GD.PrintErr($"[LobbyManager] Join failed on {RegistryServerUrl}: {ex.Message}");
+			}
+
+			SwitchToNextServer();
+		}
+
+		return response;
+	}
+
+	private async Task<(string Ip, int Port)> ResolveHostConnectionInfoAsync(HttpResponseMessage response, string clientPublicIp)
+	{
+		var respText = await response.Content.ReadAsStringAsync();
+		using var doc = JsonDocument.Parse(respText);
+
+		string hostIp = doc.RootElement.GetProperty("hostIP").GetString() ?? "";
+		int hostPort = doc.RootElement.GetProperty("hostPort").GetInt32();
+
+		string? localIp = null;
+		if (doc.RootElement.TryGetProperty("localIP", out var localIpProp))
+		{
+			localIp = localIpProp.GetString();
+		}
+
+		string connectIp = hostIp;
+		int connectPort = hostPort;
+		if (!string.IsNullOrEmpty(localIp) && hostIp == clientPublicIp)
+		{
+			GD.Print($"[LobbyManager] Host is on the same LAN (Public IP: {hostIp}). Connecting to local IP: {localIp}:{ENetPort}");
+			connectIp = localIp;
+			connectPort = ENetPort;
+		}
+
+		return (connectIp, connectPort);
+	}
+
+	public void UnregisterActiveLobbyFromRegistry()
+	{
+		if (IsHost && !string.IsNullOrEmpty(ActiveLobbyId) && !string.IsNullOrEmpty(_hostToken))
+		{
+			string lobbyIdToClose = ActiveLobbyId;
+			string tokenToClose = _hostToken;
+			Task.Run(async () =>
+			{
+				try
+				{
+					var payload = new { LobbyId = lobbyIdToClose, HostToken = tokenToClose };
+					var jsonContent = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
+					await _httpClient.PostAsync($"{RegistryServerUrl}/lobbies/close", jsonContent);
+				}
+				catch (Exception ex)
+				{
+					GD.PrintErr($"[LobbyManager] Failed to close lobby {lobbyIdToClose} on server: {ex.Message}");
+				}
+			});
+			_hostToken = null;
+		}
+
+		_wsCts?.Cancel();
+		_hostWebSocket?.Dispose();
+		_hostWebSocket = null;
+		ActiveLobbyId = null;
+	}
+
+	private void ReleaseHostedEndpoint(int port)
+	{
+		if (!IsHost) return;
+
+		Diagnostics.StopHostListener();
+		GameContext.Upnp.ClosePort(port > 0 ? port : ENetPort);
+	}
+
+	public void Disconnect()
+	{
+		GD.Print("[LobbyManager] Disconnecting...");
+
+		ClientServerSession? session = _lobbySession;
+		int hostedPort = session?.Port ?? ENetPort;
+		bool hostedHere = IsHost;
+		_lobbySession = null;
+
+		UnregisterActiveLobbyFromRegistry();
+
+		if (session != null)
+		{
+			DetachLobbySession(session);
+			if (ReferenceEquals(GameContext.ServerSession, session)) GameContext.DetachServerSession();
+
+			if (!hostedHere) session.SendLobbyCommand(new LobbyCommand { Kind = LobbyCommandKind.Leave });
+			if (hostedHere) session.Dispose();
+			else Callable.From(session.Dispose).CallDeferred();
+		}
+
+		ReleaseHostedEndpoint(hostedPort);
+		ResetLobbyState();
+	}
+
+	private void ResetLobbyState()
+	{
+		_preparation.Cancel();
+
+		bool hadPreparedWorld = _worldPrepared || GameContext.Host?.IsBuildingMatchWorld == true;
+		_worldPrepared = false;
+		_worldPreparedMapName = null;
+		_loadReadyReported = false;
+		_matchPresentationOpen = false;
+		_isConnectedToHost = false;
+		IsHost = false;
+		IsGameStarted = false;
+		_countdownActive = false;
+		_countdownRemaining = 0;
+		_countdownMapName = null;
+		_matchStarted = false;
+		_lobbyRevision = 0;
+		_downloadingMapName = null;
+		PlayerList.Clear();
+		PlayerListUpdated?.Invoke();
+
+		GameContext.Host?.DiscardPreparedMatchWorld();
+		if (hadPreparedWorld) GameContext.Host?.EndMatchAndClearWorld();
+	}
+
+	private bool _matchStarted;
+
+	private void TeardownHostedLobby(ClientServerSession? launchedSession = null)
+	{
+		ClientServerSession? session = _lobbySession ?? launchedSession;
+		int hostedPort = session?.Port ?? ENetPort;
+		_lobbySession = null;
+		if (session != null)
+		{
+			DetachLobbySession(session);
+			session.Dispose();
+		}
+
+		UnregisterActiveLobbyFromRegistry();
+		ReleaseHostedEndpoint(hostedPort);
+		ResetLobbyState();
+	}
+
+	private void StartHostWebSocketSignaling(string lobbyId)
+	{
+		_wsCts = new CancellationTokenSource();
+		var token = _wsCts.Token;
+
+		Task.Run(async () =>
+		{
+			_hostWebSocket = new ClientWebSocket();
+			var wsUrl = RegistryServerUrl.Replace("http://", "ws://").Replace("https://", "wss://");
+			var uri = new Uri($"{wsUrl}/lobbies/ws?lobbyId={lobbyId}");
+
+			try
+			{
+				await _hostWebSocket.ConnectAsync(uri, token);
+				GD.Print("[LobbyManager] Host WebSocket signaling connected.");
+				await ProcessWebSocketMessagesAsync(token);
+			}
+			catch (Exception ex) when (ex is OperationCanceledException || ex is ObjectDisposedException)
 			{
 			}
-
-			Multiplayer.MultiplayerPeer = null;
-		}
-
-		var peer = new ENetMultiplayerPeer();
-		var err = peer.CreateServer(ENetPort, MaxPlayers);
-		if (err != Error.Ok)
-		{
-			await Task.Delay(100);
-			peer = new ENetMultiplayerPeer();
-			err = peer.CreateServer(ENetPort, MaxPlayers);
-			if (err != Error.Ok)
+			catch (Exception ex)
 			{
-				LastHostError = $"Failed to create ENet Server on port {ENetPort}: {err}";
-				GD.PrintErr($"[LobbyManager] Failed to create ENet Server on port {ENetPort}: {err}");
-				return false;
+				GD.PrintErr($"[LobbyManager] Host WebSocket error: {ex.Message}");
+			}
+		}, token);
+	}
+
+	private async Task ProcessWebSocketMessagesAsync(CancellationToken token)
+	{
+		byte[] buffer = new byte[1024 * 4];
+		while (_hostWebSocket!.State == WebSocketState.Open && !token.IsCancellationRequested)
+		{
+			var result = await _hostWebSocket.ReceiveAsync(new ArraySegment<byte>(buffer), token);
+			if (result.MessageType == WebSocketMessageType.Close) break;
+
+			if (result.MessageType == WebSocketMessageType.Text)
+			{
+				var json = Encoding.UTF8.GetString(buffer, 0, result.Count);
+				HandleWebSocketMessage(json);
 			}
 		}
 
-		Multiplayer.MultiplayerPeer = peer;
-		if (Multiplayer is SceneMultiplayer sceneMultiplayer)
-		{
-			sceneMultiplayer.ServerRelay = false;
-		}
+		GD.Print("[LobbyManager] Host WebSocket message processing loop ended.");
+	}
 
-		GD.Print($"[LobbyManager] ENet Server initialized on port {ENetPort}");
-		return true;
+	private void HandleWebSocketMessage(string json)
+	{
+		try
+		{
+			using var doc = JsonDocument.Parse(json);
+			var root = doc.RootElement;
+
+			if (root.GetProperty("Action").GetString() == "Punch")
+			{
+				string clientIp = root.GetProperty("ClientIP").GetString() ?? "";
+				int clientPort = root.GetProperty("ClientPort").GetInt32();
+				Callable.From(() => SendPunchRequest(clientIp, clientPort)).CallDeferred();
+			}
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"[LobbyManager] Error handling WebSocket message: {ex.Message}");
+		}
+	}
+
+	private void SendPunchRequest(string clientIp, int clientPort)
+	{
+		if (string.IsNullOrEmpty(clientIp) || clientPort <= 0) return;
+
+		_lobbySession?.SendLobbyCommand(new LobbyCommand
+		{
+			Kind = LobbyCommandKind.PunchAddress,
+			Address = clientIp,
+			Port = clientPort
+		});
+	}
+
+	private void StartHeartbeatLoop(string lobbyId)
+	{
+		var token = _wsCts!.Token;
+		Task.Run(async () =>
+		{
+			while (!token.IsCancellationRequested)
+			{
+				try
+				{
+					var heartbeat = new { LobbyId = lobbyId, SlotsUsed = PlayerList.Count, IsGameInProgress = IsGameStarted };
+					var jsonContent = new StringContent(JsonSerializer.Serialize(heartbeat), Encoding.UTF8, "application/json");
+					await _httpClient.PostAsync($"{RegistryServerUrl}/lobbies/heartbeat", jsonContent, token);
+				}
+				catch
+				{
+				}
+
+				await Task.Delay(1000, token);
+			}
+		}, token);
 	}
 
 	private async Task<bool> RegisterLobbyWithRegistryAsync(string mapPathName, string mapDisplayName, string? explicitVersion)
@@ -640,7 +1568,7 @@ public partial class LobbyManager : BaseMapTransferNode
 			var registerPayload = new
 			{
 				Map = mapDisplayName,
-				HostPort = _hostPublicPort > 0 ? _hostPublicPort : ENetPort,
+				HostPort = _hostPublicPort > 0 ? _hostPublicPort : BoundPort,
 				NatType = LocalNatType.ToString(),
 				ReportedHostIP = _hostPublicIp ?? "127.0.0.1",
 				PasswordHash = "",
@@ -668,6 +1596,7 @@ public partial class LobbyManager : BaseMapTransferNode
 		catch (Exception ex)
 		{
 			GD.PrintErr($"[LobbyManager] Registry registration error: {ex.Message}");
+			LastHostError = ex.Message;
 			return false;
 		}
 	}
@@ -805,24 +1734,7 @@ public partial class LobbyManager : BaseMapTransferNode
 
 		LastHostError = errMsg;
 		GD.PrintErr($"[LobbyManager] {errMsg}");
-
-		if (response != null)
-		{
-			if (response.StatusCode == HttpStatusCode.BadRequest)
-			{
-				Multiplayer.MultiplayerPeer = null;
-				IsHost = false;
-				return false;
-			}
-		}
-
-		if (string.IsNullOrEmpty(ActiveLobbyId))
-		{
-			ActiveLobbyId = $"local-{Guid.NewGuid():N}";
-			GD.Print($"[LobbyManager] Assigned fallback local lobby ID: {ActiveLobbyId}");
-		}
-
-		return true; // proceed locally if registry is offline
+		return false;
 	}
 
 	private async Task<string> ExtractErrorMessageAsync(HttpResponseMessage response, string defaultError)
@@ -845,7 +1757,6 @@ public partial class LobbyManager : BaseMapTransferNode
 		}
 		catch
 		{
-			// Ignore parse errors, fallback to default error
 		}
 
 		return defaultError;
@@ -887,624 +1798,302 @@ public partial class LobbyManager : BaseMapTransferNode
 		}
 	}
 
-	public async Task<bool> JoinLobbyAsync(string lobbyId)
+	public bool IsLocalPlayer(PlayerInfo player) => player.PeerId == LocalPeerId && player.PeerId > 0;
+
+	public void UpdateReadyState(int peerId, bool isReady)
 	{
-		InitializeClientState(lobbyId);
-		await RunNatTypeTestAsync();
+		PlayerInfo? player = PlayerList.Find(p => p.PeerId == peerId);
+		if (player != null) player.IsReady = isReady;
 
-		string clientPublicIp = _hostPublicIp ?? "127.0.0.1";
-		int clientPublicPort = _hostPublicPort > 0 ? _hostPublicPort : ENetPort;
-
-		try
+		_lobbySession?.SendLobbyCommand(new LobbyCommand
 		{
-			var response = await SendJoinRequestAsync(lobbyId, clientPublicIp, clientPublicPort);
-			if (response == null || !response.IsSuccessStatusCode)
-			{
-				var errorText = response != null ? await response.Content.ReadAsStringAsync() : "All registry nodes offline";
-				GD.PrintErr($"[LobbyManager] Failed to join lobby: {errorText}");
-				ConnectionFailed?.Invoke("Failed to coordinate join.");
-				return false;
-			}
+			Kind = LobbyCommandKind.SetReady,
+			TargetPeerId = peerId,
+			Flag = isReady
+		});
+	}
 
-			var (connectIp, connectPort) = await ResolveHostConnectionInfoAsync(response, clientPublicIp);
-			_connectedHostIp = connectIp;
-			_connectedHostPort = connectPort;
+	private void SendSeatUpdate(PlayerInfo player)
+	{
+		_lobbySession?.SendLobbyCommand(new LobbyCommand
+		{
+			Kind = LobbyCommandKind.UpdateSeat,
+			TargetPeerId = player.PeerId,
+			Name = player.Name,
+			Faction = player.Faction,
+			TeamName = player.Team,
+			ColorRgba = PackColor(player.Color)
+		});
+	}
 
-			return await EstablishClientConnectionAsync(connectIp, connectPort);
+	public void UpdatePlayerSlot(int peerId, string faction, string team, Color color, string name)
+	{
+		PlayerInfo? player = PlayerList.Find(p => p.PeerId == peerId);
+		if (player != null)
+		{
+			player.Faction = faction;
+			player.Team = team;
+			player.Color = color;
+			player.Name = name;
 		}
-		catch (Exception ex)
+
+		_lobbySession?.SendLobbyCommand(new LobbyCommand
 		{
-			GD.PrintErr($"[LobbyManager] Join error: {ex.Message}");
-			ConnectionFailed?.Invoke(ex.Message);
+			Kind = LobbyCommandKind.UpdateSeat,
+			TargetPeerId = peerId,
+			Name = name,
+			Faction = faction,
+			TeamName = team,
+			ColorRgba = PackColor(color)
+		});
+	}
+
+	public void ReportLocalMapReadyState(bool isMapReady)
+	{
+		_lobbySession?.SendLobbyCommand(new LobbyCommand
+		{
+			Kind = LobbyCommandKind.ReportMapReady,
+			Flag = isMapReady
+		});
+	}
+
+	public void ReportLocalMapProgress(int percent)
+	{
+		if (IsHost) return;
+
+		int clamped = Math.Clamp(percent, 0, 100);
+		if (clamped == _reportedMapProgressPercent) return;
+
+		_reportedMapProgressPercent = clamped;
+		_lobbySession?.SendLobbyCommand(new LobbyCommand
+		{
+			Kind = LobbyCommandKind.ReportMapProgress,
+			Progress = clamped
+		});
+	}
+
+	public void UpdateSpectatorDelay(bool enabled)
+	{
+		if (!IsHost) return;
+
+		SpectatorDelay = enabled;
+		SpectatorDelayChanged?.Invoke(enabled);
+		_lobbySession?.SendLobbyCommand(new LobbyCommand
+		{
+			Kind = LobbyCommandKind.SetSpectatorDelay,
+			Flag = enabled
+		});
+	}
+
+	public void StartGame(string mapName, bool ignoreReadiness = false)
+	{
+		if (!IsHost) return;
+
+		_lobbySession?.SendLobbyCommand(new LobbyCommand
+		{
+			Kind = LobbyCommandKind.StartCountdown,
+			Text = mapName,
+			Flag = ignoreReadiness
+		});
+	}
+
+	public void RequestCancelCountdown()
+	{
+		_lobbySession?.SendLobbyCommand(new LobbyCommand { Kind = LobbyCommandKind.CancelCountdown });
+	}
+
+	public bool AddAIBot()
+	{
+		if (!IsHost) return false;
+		if (PlayerList.Count >= MaxPlayers)
+		{
+			LastLobbyWarning = string.Format(Tr("Cannot add an AI player: all {0} playable slots are taken."), MaxPlayers);
 			return false;
 		}
+
+		_lobbySession?.SendLobbyCommand(new LobbyCommand { Kind = LobbyCommandKind.AddComputer });
+		return true;
 	}
 
-	public async Task<bool> JoinByIpAsync(string targetIp, int targetPort = 8999)
+	public void BootPlayer(int peerId)
 	{
-		string directLobbyId = $"direct-{Guid.NewGuid():N}";
-		InitializeClientState(directLobbyId);
-		_connectedHostIp = targetIp;
-		_connectedHostPort = targetPort;
-		return await EstablishClientConnectionAsync(targetIp, targetPort);
+		if (!IsHost || peerId == LocalPeerId) return;
+
+		bool sent = _lobbySession?.SendLobbyCommand(new LobbyCommand
+		{
+			Kind = LobbyCommandKind.Kick,
+			TargetPeerId = peerId
+		}) == true;
+
+		if (!sent) GD.PushWarning($"[LobbyManager] The lobby session did not carry a kick for peer {peerId}.");
 	}
 
-	private void InitializeClientState(string lobbyId)
+	public void RequestChatHistory()
 	{
-		IsHost = false;
-		IsGameStarted = false;
-		ActiveLobbyId = lobbyId;
-		PlayerList.Clear();
+		_lobbySession?.SendLobbyCommand(new LobbyCommand { Kind = LobbyCommandKind.RequestChatHistory });
 	}
 
-	private async Task<HttpResponseMessage?> SendJoinRequestAsync(string lobbyId, string clientPublicIp, int clientPublicPort)
+	public void ReceiveChatFromAuthority(string senderName, string message, bool alliesOnly, long timestampUtcTicks)
 	{
-		var joinPayload = new
-		{
-			LobbyId = lobbyId,
-			ClientPublicIP = clientPublicIp,
-			ClientPublicPort = clientPublicPort
-		};
-
-		GD.Print($"[LobbyManager] Joining Lobby {lobbyId} via registry server...");
-		HttpResponseMessage? response = null;
-		for (int i = 0; i < RegistryServers.Count; i++)
-		{
-			try
-			{
-				var jsonContent = new StringContent(JsonSerializer.Serialize(joinPayload), Encoding.UTF8, "application/json");
-				response = await _httpClient.PostAsync($"{RegistryServerUrl}/lobbies/join", jsonContent);
-				if (response.IsSuccessStatusCode) break;
-			}
-			catch (Exception ex)
-			{
-				GD.PrintErr($"[LobbyManager] Join failed on {RegistryServerUrl}: {ex.Message}");
-			}
-
-			SwitchToNextServer();
-		}
-
-		return response;
+		ChatReceived?.Invoke(LobbyLimits.Sanitize(senderName, 32), message, alliesOnly, timestampUtcTicks);
 	}
 
-	private async Task<(string Ip, int Port)> ResolveHostConnectionInfoAsync(HttpResponseMessage response, string clientPublicIp)
+	public void SendChatMessage(string senderName, string message, bool alliesOnly = false, long timestampUtcTicks = 0)
 	{
-		var respText = await response.Content.ReadAsStringAsync();
-		using var doc = JsonDocument.Parse(respText);
+		long sentAtUtcTicks = timestampUtcTicks > 0 ? timestampUtcTicks : DateTime.UtcNow.Ticks;
 
-		string hostIp = doc.RootElement.GetProperty("hostIP").GetString() ?? "";
-		int hostPort = doc.RootElement.GetProperty("hostPort").GetInt32();
-
-		string? localIp = null;
-		if (doc.RootElement.TryGetProperty("localIP", out var localIpProp))
+		ClientServerSession? matchSession = GameContext.ServerSession;
+		if (matchSession != null && matchSession.IsRunning && IsGameStarted && senderName != "System")
 		{
-			localIp = localIpProp.GetString();
+			if (matchSession.SendChat(message, alliesOnly)) return;
 		}
 
-		string connectIp = hostIp;
-		int connectPort = hostPort;
-		if (!string.IsNullOrEmpty(localIp) && hostIp == clientPublicIp)
-		{
-			GD.Print($"[LobbyManager] Host is on the same LAN (Public IP: {hostIp}). Connecting to local IP: {localIp}:{ENetPort}");
-			connectIp = localIp;
-			connectPort = ENetPort;
-		}
+		if (senderName == "System") return;
 
-		return (connectIp, connectPort);
+		_lobbySession?.SendLobbyCommand(new LobbyCommand
+		{
+			Kind = LobbyCommandKind.Chat,
+			Text = message
+		});
 	}
 
-	private async Task<bool> EstablishClientConnectionAsync(string connectIp, int connectPort)
+	public bool HasRegisteredSessionToken(int peerId)
 	{
-		bool isLocalConnection = IsPrivateIp(connectIp);
-		int maxAttempts = isLocalConnection ? 1 : 2;
-
-		for (int attempt = 1; attempt <= maxAttempts; attempt++)
-		{
-			if (attempt > 1)
-			{
-				GD.Print($"[LobbyManager] Retrying connection to {connectIp}:{connectPort} (Attempt {attempt}/{maxAttempts})...");
-				if (Multiplayer.MultiplayerPeer != null)
-				{
-					try
-					{
-						Multiplayer.MultiplayerPeer.Close();
-					}
-					catch
-					{
-					}
-					Multiplayer.MultiplayerPeer = null;
-				}
-				await Task.Delay(500);
-			}
-
-			if (!isLocalConnection)
-			{
-				await UdpHolePuncher.PunchHoleAsync(connectIp, connectPort, ENetPort);
-			}
-
-			var peer = new ENetMultiplayerPeer();
-			var err = peer.CreateClient(connectIp, connectPort, localPort: isLocalConnection ? 0 : ENetPort);
-			if (err != Error.Ok && !isLocalConnection)
-			{
-				GD.Print($"[LobbyManager] CreateClient on port {ENetPort} failed ({err}), falling back to port 0...");
-				err = peer.CreateClient(connectIp, connectPort, localPort: 0);
-			}
-
-			if (err != Error.Ok)
-			{
-				GD.PrintErr($"[LobbyManager] Failed to create ENet Client: {err}");
-				ConnectionFailed?.Invoke("Failed to bind network socket.");
-				return false;
-			}
-
-			var packetPeer = peer.GetPeer(1);
-			if (packetPeer != null)
-			{
-				packetPeer.SetTimeout(32, 10000, 20000);
-			}
-
-			Multiplayer.MultiplayerPeer = peer;
-			if (Multiplayer is SceneMultiplayer sceneMultiplayer)
-			{
-				sceneMultiplayer.ServerRelay = false;
-			}
-
-			GD.Print($"[LobbyManager] ENet Client initialized. Awaiting handshake with {connectIp}:{connectPort} (Timeout 10s)...");
-
-			using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-			bool connected = await WaitForClientHandshakeAsync(cts.Token);
-			if (connected)
-			{
-				GD.Print($"[LobbyManager] Successfully established handshake with {connectIp}:{connectPort}");
-				return true;
-			}
-
-			GD.PrintErr($"[LobbyManager] Connection handshake to {connectIp}:{connectPort} timed out on attempt {attempt}.");
-		}
-
-		if (Multiplayer.MultiplayerPeer != null)
-		{
-			try
-			{
-				Multiplayer.MultiplayerPeer.Close();
-			}
-			catch
-			{
-			}
-			Multiplayer.MultiplayerPeer = null;
-		}
-
-		LobbyJoinError = "Direct connection handshake failed. The host could not be reached.";
-		ConnectionFailed?.Invoke("Direct connection handshake failed.");
-		return false;
+		PlayerInfo? player = PlayerList.Find(p => p.PeerId == peerId);
+		return player != null && !string.IsNullOrEmpty(player.SessionToken);
 	}
 
-	private async Task<bool> WaitForClientHandshakeAsync(CancellationToken cancellationToken)
+	public bool TryGetReconnectOwnerForHarness(string sessionToken, out int slot)
 	{
-		var connectedTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-		void OnConnected() => connectedTcs.TrySetResult(true);
-		void OnFailed() => connectedTcs.TrySetResult(false);
+		slot = -1;
+		if (string.IsNullOrEmpty(sessionToken)) return false;
 
-		Multiplayer.ConnectedToServer += OnConnected;
-		Multiplayer.ConnectionFailed += OnFailed;
+		PlayerInfo? owner = PlayerList.Find(p => !string.IsNullOrEmpty(p.SessionToken) && string.Equals(p.SessionToken, sessionToken, StringComparison.Ordinal));
+		if (owner == null) return false;
 
-		try
-		{
-			var completedTask = await Task.WhenAny(connectedTcs.Task, Task.Delay(-1, cancellationToken));
-			return completedTask == connectedTcs.Task && connectedTcs.Task.Result;
-		}
-		catch
-		{
-			return false;
-		}
-		finally
-		{
-			Multiplayer.ConnectedToServer -= OnConnected;
-			Multiplayer.ConnectionFailed -= OnFailed;
-		}
+		slot = owner.Slot;
+		return true;
 	}
 
-	public void UnregisterActiveLobbyFromRegistry()
-	{
-		if (IsHost && !string.IsNullOrEmpty(ActiveLobbyId) && !string.IsNullOrEmpty(_hostToken))
-		{
-			string lobbyIdToClose = ActiveLobbyId;
-			string tokenToClose = _hostToken;
-			Task.Run(async () =>
-			{
-				try
-				{
-					var payload = new { LobbyId = lobbyIdToClose, HostToken = tokenToClose };
-					var jsonContent = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
-					await _httpClient.PostAsync($"{RegistryServerUrl}/lobbies/close", jsonContent);
-				}
-				catch (Exception ex)
-				{
-					GD.PrintErr($"[LobbyManager] Failed to close lobby {lobbyIdToClose} on server: {ex.Message}");
-				}
-			});
-			_hostToken = null;
-		}
-
-		Diagnostics.StopHostListener();
-		UpnpService.Instance.ClosePort(ENetPort);
-		_wsCts?.Cancel();
-		_hostWebSocket?.Dispose();
-		_hostWebSocket = null;
-		ActiveLobbyId = null;
-	}
-
-	public void Disconnect()
-	{
-		GD.Print("[LobbyManager] Disconnecting...");
-		_countdownRemaining = 0;
-		_countdownMapName = null;
-		StopHostDiagnosticsTimer();
-		_chatHistory.Clear();
-
-		UnregisterActiveLobbyFromRegistry();
-
-
-		foreach (var kvp in _hostTransfers)
-		{
-			kvp.Value.Cts.Cancel();
-		}
-
-		_hostTransfers.Clear();
-		_activeEphemeralTransferPeerId = 0;
-
-		if (_currentClientTransfer != null)
-		{
-			try
-			{
-				_currentClientTransfer.CurrentChunkStream.Dispose();
-			}
-			catch
-			{
-			}
-
-			_currentClientTransfer = null;
-		}
-
-		if (Multiplayer.MultiplayerPeer != null)
-		{
-			Multiplayer.MultiplayerPeer.Close();
-			Multiplayer.MultiplayerPeer = null;
-		}
-
-		_isConnectedToHost = false;
-		IsHost = false;
-		IsGameStarted = false;
-		PlayerList.Clear();
-		PlayerListUpdated?.Invoke();
-	}
-
-
-	private void StartHostWebSocketSignaling(string lobbyId)
-	{
-		_wsCts = new CancellationTokenSource();
-		var token = _wsCts.Token;
-
-		Task.Run(async () =>
-		{
-			_hostWebSocket = new ClientWebSocket();
-			var wsUrl = RegistryServerUrl.Replace("http://", "ws://").Replace("https://", "wss://");
-			var uri = new Uri($"{wsUrl}/lobbies/ws?lobbyId={lobbyId}");
-
-			try
-			{
-				await _hostWebSocket.ConnectAsync(uri, token);
-				GD.Print("[LobbyManager] Host WebSocket signaling connected.");
-				await ProcessWebSocketMessagesAsync(token);
-			}
-			catch (Exception ex) when (ex is OperationCanceledException || ex is ObjectDisposedException)
-			{
-			}
-			catch (Exception ex)
-			{
-				GD.PrintErr($"[LobbyManager] Host WebSocket error: {ex.Message}");
-			}
-		}, token);
-	}
-
-	private async Task ProcessWebSocketMessagesAsync(CancellationToken token)
-	{
-		byte[] buffer = new byte[1024 * 4];
-		while (_hostWebSocket!.State == WebSocketState.Open && !token.IsCancellationRequested)
-		{
-			var result = await _hostWebSocket.ReceiveAsync(new ArraySegment<byte>(buffer), token);
-			if (result.MessageType == WebSocketMessageType.Close) break;
-
-			if (result.MessageType == WebSocketMessageType.Text)
-			{
-				var json = Encoding.UTF8.GetString(buffer, 0, result.Count);
-				HandleWebSocketMessage(json);
-			}
-		}
-		GD.Print("[LobbyManager] Host WebSocket message processing loop ended.");
-	}
-
-	private void HandleWebSocketMessage(string json)
-	{
-		try
-		{
-			using var doc = JsonDocument.Parse(json);
-			var root = doc.RootElement;
-
-			if (root.GetProperty("Action").GetString() == "Punch")
-			{
-				string clientIp = root.GetProperty("ClientIP").GetString() ?? "";
-				int clientPort = root.GetProperty("ClientPort").GetInt32();
-
-				GD.Print($"[LobbyManager] WebSocket signal: incoming client. Scheduling punch to {clientIp}:{clientPort} on main thread...");
-				Callable.From(() => PunchHostToClient(clientIp, clientPort)).CallDeferred();
-			}
-		}
-		catch (Exception ex)
-		{
-			GD.PrintErr($"[LobbyManager] Error handling WebSocket message: {ex.Message}");
-		}
-	}
-
-	private async void PunchHostToClient(string clientIp, int clientPort)
-	{
-		try
-		{
-			byte[] punchPacket = Encoding.UTF8.GetBytes("PUNCH");
-			int initialPeerCount = PlayerList.Count;
-
-			for (int burst = 0; burst < 20; burst++)
-			{
-				if (!IsHost || Multiplayer.MultiplayerPeer is not ENetMultiplayerPeer enetPeer)
-				{
-					break;
-				}
-
-				var host = enetPeer.GetHost();
-				if (host == null)
-				{
-					break;
-				}
-
-				for (int i = 0; i < 4; i++)
-				{
-					host.SocketSend(clientIp, clientPort, punchPacket);
-				}
-
-				if (burst == 0)
-				{
-					GD.Print($"[LobbyManager] Sent initial native ENet socket punch pulse to {clientIp}:{clientPort} from port {ENetPort}");
-				}
-
-				if (PlayerList.Count > initialPeerCount)
-				{
-					GD.Print($"[LobbyManager] Client connected. Stopping punch pulse to {clientIp}:{clientPort}.");
-					break;
-				}
-
-				var tree = GetTree();
-				if (tree == null)
-				{
-					break;
-				}
-
-				await ToSignal(tree.CreateTimer(0.25f), SceneTreeTimer.SignalName.Timeout);
-			}
-
-			GD.Print($"[LobbyManager] Completed punch pulsing to {clientIp}:{clientPort}");
-		}
-		catch (Exception ex)
-		{
-			GD.PrintErr($"[LobbyManager] Native ENet socket punch exception: {ex.Message}");
-		}
-	}
-
-	private void StartHeartbeatLoop(string lobbyId)
-	{
-		var token = _wsCts!.Token;
-		Task.Run(async () =>
-		{
-			while (!token.IsCancellationRequested)
-			{
-				try
-				{
-					var heartbeat = new { LobbyId = lobbyId, SlotsUsed = PlayerList.Count, IsGameInProgress = IsGameStarted };
-					var jsonContent = new StringContent(JsonSerializer.Serialize(heartbeat), Encoding.UTF8, "application/json");
-					await _httpClient.PostAsync($"{RegistryServerUrl}/lobbies/heartbeat", jsonContent, token);
-				}
-				catch
-				{
-					/* Ignore heartbeat errors */
-				}
-
-				await Task.Delay(1000, token); // every 1s
-			}
-		}, token);
-	}
-
-
-	private void OnPeerConnected(long peerId)
-	{
-		int id = (int)peerId;
-		GD.Print($"[LobbyManager] Peer connected ENet ID: {id}");
-
-		if (IsHost)
-		{
-			if (string.IsNullOrEmpty(ActiveLobbyId))
-			{
-				return;
-			}
-
-			if (IsGameStarted)
-			{
-				GD.Print($"[LobbyManager] Peer {id} connected during active match. Awaiting reconnect handshake.");
-				return;
-			}
-
-			if (PlayerList.Count >= MaxPlayers)
-			{
-				string rejectionReason = string.Format(Tr("Lobby is full ({0} of {0} playable slots in use)."), MaxPlayers);
-				LastLobbyWarning = rejectionReason;
-				GD.Print($"[LobbyManager] Rejecting peer {id}: {rejectionReason}");
-				RpcId(id, nameof(RejectConnection), rejectionReason);
-
-
-				var timer = GetTree().CreateTimer(0.1f);
-				timer.Timeout += () =>
-				{
-					if (Multiplayer.MultiplayerPeer != null)
-					{
-						Multiplayer.MultiplayerPeer.DisconnectPeer(id);
-					}
-				};
-				return;
-			}
-
-
-			int nextSlot = FindNextFreePlayableSlot();
-			if (nextSlot < 0)
-			{
-				LastLobbyWarning = Tr("No free playable player slot is available.");
-				RpcId(id, nameof(RejectConnection), LastLobbyWarning);
-
-				var slotTimer = GetTree().CreateTimer(0.1f);
-				slotTimer.Timeout += () =>
-				{
-					if (Multiplayer.MultiplayerPeer != null)
-					{
-						Multiplayer.MultiplayerPeer.DisconnectPeer(id);
-					}
-				};
-				return;
-			}
-
-			var newPlayer = new PlayerInfo
-			{
-				PeerId = id,
-				Slot = nextSlot,
-				Name = $"Player_{id}",
-				Faction = "HUMAN",
-				Team = ResolveJoinTeamName(),
-				Color = GetNextColor(),
-				IsHost = false,
-				BinaryVersion = RealmVersion.GameBinaryVersion,
-				IsMapReady = false,
-				SessionToken = Guid.NewGuid().ToString()
-			};
-			PlayerList.Add(newPlayer);
-			SendChatMessage("System", string.Format(Tr("{0} joined the lobby."), newPlayer.Name));
-
-
-			UpdateAllPeerDiagnostics();
-			BroadcastPlayerList();
-			RpcId(id, nameof(SyncSpectatorDelay), SpectatorDelay);
-			RpcId(id, nameof(SyncHostStability), HostStability);
-			RpcId(id, nameof(SyncActiveMap), ActiveMapName);
-		}
-	}
-
-	private string ResolveJoinTeamName()
-	{
-		int teamOneHumans = 0;
-		int teamTwoHumans = 0;
-		foreach (var player in PlayerList)
-		{
-			if (player.PeerId < 0) continue;
-			if (player.Team == "Team 1") teamOneHumans++;
-			else if (player.Team == "Team 2") teamTwoHumans++;
-		}
-
-		return teamTwoHumans < teamOneHumans ? "Team 2" : "Team 1";
-	}
-
-	private void OnPeerDisconnected(long peerId)
-	{
-		int id = (int)peerId;
-		GD.Print($"[LobbyManager] Peer disconnected ENet ID: {id}");
-
-		if (IsHost)
-		{
-			foreach (var kvp in _hostTransfers)
-			{
-				if (kvp.Value.PeerId == id)
-				{
-					kvp.Value.Cts.Cancel();
-					_hostTransfers.TryRemove(kvp.Key, out _);
-				}
-			}
-
-			if (_activeEphemeralTransferPeerId == id)
-			{
-				_activeEphemeralTransferPeerId = 0;
-			}
-
-			if (string.IsNullOrEmpty(ActiveLobbyId))
-			{
-				return;
-			}
-
-			if (IsGameStarted)
-			{
-				var player = PlayerList.Find(p => p.PeerId == id);
-				if (player != null)
-				{
-					player.IsDisconnected = true;
-					GD.Print($"[LobbyManager] In-game peer {id} ({player.Name}) marked as disconnected for reconnect. Slot {player.Slot} preserved.");
-					SendChatMessage("System", string.Format(Tr("{0} disconnected. Waiting for reconnect..."), player.Name));
-				}
-
-				return;
-			}
-
-			int removedIdx = PlayerList.FindIndex(p => p.PeerId == id);
-			if (removedIdx >= 0)
-			{
-				var leavingPlayer = PlayerList[removedIdx];
-				string name = leavingPlayer.Name;
-				PlayerList.RemoveAt(removedIdx);
-
-				for (int i = 0; i < PlayerList.Count; i++)
-				{
-					PlayerList[i].Slot = i + 1;
-				}
-
-				UpdateAllPeerDiagnostics();
-				SendChatMessage("System", string.Format(Tr("{0} left the lobby."), name));
-			}
-		}
-	}
-
-	private void OnConnectedToServer()
-	{
-		int myId = Multiplayer.GetUniqueId();
-		GD.Print($"[LobbyManager] Connected to Host. Assigned local ENet ID: {myId}");
-		_isConnectedToHost = true;
-	}
-
-	public async Task<bool> EnsureMapDownloadedAsync(string? mapName = null)
+	public async Task<bool> EnsureMapDownloadedAsync(string? mapName = null, string? version = null)
 	{
 		string targetMap = !string.IsNullOrWhiteSpace(mapName) ? mapName : ActiveMapName;
-		if (string.IsNullOrWhiteSpace(targetMap) || IsHost) return true;
+		string targetVersion = !string.IsNullOrWhiteSpace(version) ? version : ActiveMapVersion;
+		if (string.IsNullOrWhiteSpace(targetMap) || IsHost)
+		{
+			ReportLocalMapReadyState(true);
+			return true;
+		}
+
+		if (MapAssetManager.IsMapDownloaded(targetMap, targetVersion))
+		{
+		_downloadingMapName = null;
+		CallDeferred(nameof(EmitDownloadCompleted));
+		StartMatchPreparationForCurrentMap();
+		return true;
+	}
+
+		if (_downloadingMapName == targetMap) return false;
+
+		if (_lobbySession == null && _isConnectedToHost) return await TryDownloadMapFromHostAsync(targetMap);
+		if (_lobbySession == null) return false;
+
+		_downloadingMapName = targetMap;
 
 		await _mapDownloadLock.WaitAsync();
 		try
 		{
-			if (MapAssetManager.IsMapDownloaded(targetMap))
+			ReportLocalMapReadyState(false);
+			CallDeferred(nameof(EmitDownloadProgress), 0.0f);
+
+			MapTransferReply? manifestReply = await RequestMapTransferAsync(new MapTransferRequest
 			{
-				CallDeferred(nameof(EmitDownloadCompleted));
-				return true;
+				Kind = MapTransferRequestKind.Manifest,
+				TransferId = Guid.NewGuid().ToString("N"),
+				MapName = targetMap,
+				MissingHashes = Array.Empty<string>(),
+				ChunkIndex = 0
+			});
+
+			if (manifestReply is not { Kind: MapTransferReplyKind.Manifest } servedManifest || string.IsNullOrEmpty(servedManifest.ManifestJson))
+			{
+				GD.PrintErr($"[LobbyManager] The lobby did not serve a manifest for '{targetMap}': {manifestReply?.Refusal}");
+				CallDeferred(nameof(EmitDownloadFailed));
+				return false;
 			}
 
-			if (await TryDownloadFromHostIfConnected(targetMap)) return true;
-
-			if (MapAssetManager.IsMapDownloaded(targetMap))
+			MapManifest? manifest = MapManifest.LoadFromJson(servedManifest.ManifestJson);
+			if (manifest == null)
 			{
-				CallDeferred(nameof(EmitDownloadProgress), 1.0f);
-				CallDeferred(nameof(EmitDownloadCompleted));
-				return true;
+				CallDeferred(nameof(EmitDownloadFailed));
+				return false;
 			}
 
-			GD.PrintErr($"[LobbyManager] Map download failed for '{targetMap}'.");
+			string transferId = Guid.NewGuid().ToString("N");
+			List<string> allHashes = manifest.Files.Values.ToList();
+			int totalAssets = allHashes.Count;
+			if (totalAssets == 0)
+			{
+				GD.PrintErr($"[LobbyManager] The lobby served a manifest for '{targetMap}' that lists no files.");
+				_downloadingMapName = null;
+				CallDeferred(nameof(EmitDownloadFailed));
+				return false;
+			}
+
+			List<string> missing = await Task.Run(() => MapAssetManager.GetMissingHashes(allHashes));
+
+			int chunkIndex = 0;
+			int totalChunks = 1;
+			while (missing.Count > 0 && chunkIndex < totalChunks)
+			{
+				MapTransferReply? chunkReply = await RequestMapTransferAsync(new MapTransferRequest
+				{
+					Kind = MapTransferRequestKind.Chunk,
+					TransferId = transferId,
+					MapName = targetMap,
+					MissingHashes = missing.ToArray(),
+					ChunkIndex = chunkIndex
+				}, 60000);
+
+				if (chunkReply is not { Kind: MapTransferReplyKind.Chunk } servedChunk || servedChunk.Bundle == null)
+				{
+					GD.PrintErr($"[LobbyManager] The lobby stopped serving '{targetMap}' at bundle {chunkIndex}: {chunkReply?.Refusal}");
+					CallDeferred(nameof(EmitDownloadFailed));
+					return false;
+				}
+
+				totalChunks = Math.Max(1, servedChunk.TotalChunks);
+				List<(string AssetKey, byte[] Data, string? Metadata)> assets = await Task.Run(() => ZstdAssetBundleHelper.ExtractBundleBytes(servedChunk.Bundle));
+				await Task.Run(() =>
+				{
+					foreach (var (assetKey, data, metadata) in assets)
+					{
+						MapAssetManager.Storage.StoreAsset(data, Path.GetExtension(assetKey), metadata, precomputedBlake3: assetKey);
+					}
+				});
+
+				chunkIndex++;
+				float progress = totalChunks > 0 ? Math.Clamp((float)chunkIndex / totalChunks, 0.0f, 1.0f) : 0.0f;
+				CallDeferred(nameof(EmitDownloadProgress), progress);
+				if (totalAssets > 0 && assets.Count == 0) break;
+			}
+
+			string targetDirectory = MapAssetManager.GetMapDirectory(targetMap, targetVersion);
+			await Task.Run(() =>
+			{
+				MapAssetManager.ExtractManifestFiles(manifest, targetDirectory);
+				GameContext.AssetIndexService.RegisterManifest(manifest, Path.Combine(targetDirectory, "manifest.json"));
+			});
+
+		_downloadingMapName = null;
+		CallDeferred(nameof(EmitDownloadCompleted));
+		StartMatchPreparationForCurrentMap();
+		return true;
+	}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"[LobbyManager] Map download failed for '{targetMap}': {ex.Message}");
+			_downloadingMapName = null;
 			CallDeferred(nameof(EmitDownloadFailed));
 			return false;
 		}
@@ -1514,10 +2103,268 @@ public partial class LobbyManager : BaseMapTransferNode
 		}
 	}
 
-	private async Task<bool> TryDownloadFromHostIfConnected(string targetMap)
+	private void OnMapTransferReplied(MapTransferReply reply) => _transferReplyTcs?.TrySetResult(reply);
+
+	private async Task<MapTransferReply?> RequestMapTransferAsync(MapTransferRequest request, int timeoutMilliseconds = 20000)
 	{
-		if (IsHost || !_isConnectedToHost) return false;
-		return await TryDownloadMapFromHostAsync(targetMap);
+		ClientServerSession? session = _lobbySession;
+		if (session == null) return null;
+
+		var reply = new TaskCompletionSource<MapTransferReply>(TaskCreationOptions.RunContinuationsAsynchronously);
+		_transferReplyTcs = reply;
+		try
+		{
+			if (!session.RequestMapTransfer(request)) return null;
+
+			var completed = await Task.WhenAny(reply.Task, Task.Delay(timeoutMilliseconds));
+			return completed == reply.Task ? reply.Task.Result : null;
+		}
+		finally
+		{
+			if (ReferenceEquals(_transferReplyTcs, reply)) _transferReplyTcs = null;
+		}
+	}
+
+	private int _reportedMapProgressPercent = -1;
+
+	private void EmitDownloadProgress(float progress)
+	{
+		MapDownloadProgressChanged?.Invoke(progress);
+		ReportLocalMapProgress((int)MathF.Round(Math.Clamp(progress, 0f, 1f) * 100f));
+	}
+
+	private void EmitDownloadCompleted()
+	{
+		ReportLocalMapReadyState(true);
+		MapDownloadProgressChanged?.Invoke(1.0f);
+		MapDownloadCompleted?.Invoke();
+	}
+
+	private void EmitDownloadFailed()
+	{
+		MapDownloadFailed?.Invoke();
+	}
+
+	private List<MatchRosterSeat> BuildMatchRoster()
+	{
+		var seats = new List<MatchRosterSeat>(PlayerList.Count);
+		for (int index = 0; index < PlayerList.Count; index++)
+		{
+			PlayerInfo player = PlayerList[index];
+			if (player.Slot <= 0) continue;
+
+			bool isComputer = string.Equals(player.Faction, "AI", StringComparison.OrdinalIgnoreCase) || player.PeerId < 0;
+			seats.Add(new MatchRosterSeat(player.Slot, player.Name, ResolveSeatTeam(player.Team, player.Slot), player.Team, isComputer));
+		}
+
+		seats.Sort((left, right) => left.Slot.CompareTo(right.Slot));
+		return seats;
+	}
+
+	private static int ResolveSeatTeam(string? teamName, int slot)
+	{
+		if (!string.IsNullOrWhiteSpace(teamName)
+			&& teamName.StartsWith("Team ", StringComparison.OrdinalIgnoreCase)
+			&& int.TryParse(teamName.AsSpan(5), NumberStyles.Integer, CultureInfo.InvariantCulture, out int team)
+			&& team > 0)
+		{
+			return team;
+		}
+
+		return slot;
+	}
+
+	public async Task<int> MeasurePingToRegistryAsync()
+	{
+		var stopwatch = Stopwatch.StartNew();
+		try
+		{
+			var response = await _httpClient.GetAsync($"{RegistryServerUrl}/lobbies");
+			stopwatch.Stop();
+			if (response.IsSuccessStatusCode)
+			{
+				return (int)stopwatch.ElapsedMilliseconds;
+			}
+		}
+		catch
+		{
+		}
+
+		return 100;
+	}
+
+	private HttpListener? _authHttpListener;
+
+	public async Task<bool> StartOAuthFlowAsync(string provider)
+	{
+		int port = 8089;
+		if (!TryStartAuthListener(port)) return false;
+
+		string loginUrl = $"{RegistryServerUrl}/auth/login?provider={provider}&port={port}";
+		OS.ShellOpen(loginUrl);
+
+		try
+		{
+			var context = await _authHttpListener!.GetContextAsync();
+			return HandleOAuthCallback(context);
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"[LobbyManager] Error handling OAuth callback: {ex.Message}");
+			return false;
+		}
+		finally
+		{
+			_authHttpListener?.Stop();
+		}
+	}
+
+	private bool TryStartAuthListener(int port)
+	{
+		_authHttpListener?.Stop();
+		_authHttpListener = new HttpListener();
+		_authHttpListener.Prefixes.Add($"http://localhost:{port}/auth/callback/");
+		try
+		{
+			_authHttpListener.Start();
+			return true;
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"[LobbyManager] Failed to start local OAuth listener on port {port}: {ex.Message}");
+			return false;
+		}
+	}
+
+	private bool HandleOAuthCallback(HttpListenerContext context)
+	{
+		var request = context.Request;
+		var response = context.Response;
+
+		string? username = request.QueryString["username"];
+		string? token = request.QueryString["token"];
+		string? returnedProvider = request.QueryString["provider"];
+
+		if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(token))
+		{
+			SendAuthResponse(response, "<h1>Login Failed</h1><p>Invalid parameters received.</p>");
+			return false;
+		}
+
+		AuthenticatedUsername = username;
+		AuthToken = token;
+		AuthProvider = returnedProvider;
+		PlayerInfo? me = PlayerList.Find(IsLocalPlayer);
+		if (me != null)
+		{
+			me.Name = username;
+			SendSeatUpdate(me);
+		}
+
+		GD.Print($"[LobbyManager] OAuth Login Success! Provider: {returnedProvider}, User: {username}");
+
+		string successHtml = GetLoginSuccessHtml();
+		SendAuthResponse(response, successHtml);
+
+		_authHttpListener?.Stop();
+		return true;
+	}
+
+	private string GetLoginSuccessHtml()
+	{
+		string successHtml = string.Empty;
+		const string templatePath = "res://Templates/login_success.html";
+
+		if (Godot.FileAccess.FileExists(templatePath))
+		{
+			using var file = Godot.FileAccess.Open(templatePath, Godot.FileAccess.ModeFlags.Read);
+			if (file != null)
+			{
+				successHtml = file.GetAsText();
+			}
+		}
+		else
+		{
+			string diskPath = Path.Combine(AppContext.BaseDirectory, "Templates", "login_success.html");
+			if (File.Exists(diskPath))
+			{
+				successHtml = File.ReadAllText(diskPath);
+			}
+		}
+
+		return successHtml;
+	}
+
+	private void SendAuthResponse(HttpListenerResponse response, string htmlContent)
+	{
+		byte[] buffer = Encoding.UTF8.GetBytes(htmlContent);
+		response.ContentLength64 = buffer.Length;
+		response.OutputStream.Write(buffer, 0, buffer.Length);
+		response.OutputStream.Close();
+	}
+
+	public override void _ExitTree()
+	{
+		_authHttpListener?.Stop();
+		GameContext.UnregisterLobby(this);
+	}
+
+	private static string GetLocalIPAddress()
+	{
+		try
+		{
+			using (var socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, 0))
+			{
+				socket.Connect("8.8.8.8", 65530);
+				var endPoint = socket.LocalEndPoint as IPEndPoint;
+				if (endPoint != null)
+				{
+					return endPoint.Address.ToString();
+				}
+			}
+		}
+		catch
+		{
+			try
+			{
+				var host = Dns.GetHostEntry(Dns.GetHostName());
+				foreach (var ip in host.AddressList)
+				{
+					if (ip.AddressFamily == AddressFamily.InterNetwork)
+					{
+						return ip.ToString();
+					}
+				}
+			}
+			catch
+			{
+			}
+		}
+
+		return "127.0.0.1";
+	}
+
+	private static bool IsPrivateIp(string ip)
+	{
+		if (ip == "127.0.0.1") return true;
+		if (ip == "localhost") return true;
+		if (!IPAddress.TryParse(ip, out var address)) return false;
+
+		byte[] bytes = address.GetAddressBytes();
+		if (bytes.Length != 4) return false;
+
+		if (bytes[0] == 10) return true;
+		if (bytes[0] == 192 && bytes[1] == 168) return true;
+		if (bytes[0] == 172 && IsInRange(bytes[1], 16, 31)) return true;
+		if (bytes[0] == 100 && IsInRange(bytes[1], 64, 127)) return true;
+		if (bytes[0] == 26) return true;
+
+		return false;
+	}
+
+	private static bool IsInRange(byte value, byte min, byte max)
+	{
+		return value >= min && value <= max;
 	}
 
 	private async Task<bool> TryDownloadMapFromHostAsync(string targetMap)
@@ -1547,7 +2394,6 @@ public partial class LobbyManager : BaseMapTransferNode
 
 			if (transferSuccess)
 			{
-				GD.Print($"[LobbyManager] Map '{targetMap}' successfully extracted and registered.");
 				CallDeferred(nameof(EmitDownloadProgress), 1.0f);
 				CallDeferred(nameof(EmitDownloadCompleted));
 				return true;
@@ -1564,7 +2410,6 @@ public partial class LobbyManager : BaseMapTransferNode
 
 	private async Task<MapManifest?> RequestManifestFromHostAsync(string targetMap)
 	{
-		GD.Print($"[LobbyManager] Requesting map manifest for '{targetMap}' from host via reliable ENet RPC...");
 		_manifestTcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
 
 		Callable.From(() => RpcId(1, nameof(RequestMapManifestRpc), targetMap)).CallDeferred();
@@ -1576,7 +2421,7 @@ public partial class LobbyManager : BaseMapTransferNode
 
 		try
 		{
-			return MapManifest.LoadFromJson(manifestJson) ?? JsonSerializer.Deserialize<MapManifest>(manifestJson);
+			return MapManifest.LoadFromJson(manifestJson);
 		}
 		catch (Exception ex)
 		{
@@ -1587,7 +2432,6 @@ public partial class LobbyManager : BaseMapTransferNode
 
 	private async Task RegisterDownloadedMapAsync(string targetMap, MapManifest manifest)
 	{
-		GD.Print($"[LobbyManager] All assets for '{targetMap}' now exist locally in CAS.");
 		string targetMapDir = MapAssetManager.GetMapDirectory(targetMap, manifest.Version ?? "1.0.0");
 		await Task.Run(() =>
 		{
@@ -1602,7 +2446,6 @@ public partial class LobbyManager : BaseMapTransferNode
 
 	private async Task<bool> PerformMapAssetTransferAsync(string targetMap, MapManifest manifest, List<string> missingHashes, int totalManifestFiles)
 	{
-		GD.Print($"[LobbyManager] Missing {missingHashes.Count}/{totalManifestFiles} assets for '{targetMap}'. Requesting compressed zstd bundle from host...");
 		string transferId = Guid.NewGuid().ToString("N");
 
 		_currentClientTransfer = new ClientTransferSession
@@ -1648,7 +2491,7 @@ public partial class LobbyManager : BaseMapTransferNode
 		{
 			if (!_isConnectedToHost || Multiplayer.MultiplayerPeer == null)
 			{
-				GD.PrintErr("[LobbyManager] Disconnected from host during map download.");
+				GD.PrintErr("[LobbyManager] Disconnected from the peer serving the map.");
 				return false;
 			}
 
@@ -1665,14 +2508,10 @@ public partial class LobbyManager : BaseMapTransferNode
 		return false;
 	}
 
-	public async Task<bool> DownloadMapEphemerallyAsync(
-		string targetIp,
-		int targetPort,
-		string mapName,
-		Action<float>? progressCallback = null,
-		CancellationToken cancellationToken = default)
+	public async Task<bool> DownloadMapEphemerallyAsync(string targetIp, int targetPort, string mapName, Action<float>? progressCallback = null, CancellationToken cancellationToken = default)
 	{
 		if (string.IsNullOrWhiteSpace(mapName) || string.IsNullOrWhiteSpace(targetIp) || targetPort <= 0) return false;
+		if (_lobbySession != null) return false;
 
 		if (MapAssetManager.IsMapDownloaded(mapName))
 		{
@@ -1714,10 +2553,10 @@ public partial class LobbyManager : BaseMapTransferNode
 
 	private bool StopSeedingIfActive()
 	{
-		bool wasSeeding = PeerSeederManager.Instance != null && PeerSeederManager.Instance.IsSeeding;
+		bool wasSeeding = GameContext.PeerSeeder != null && GameContext.PeerSeeder.IsSeeding;
 		if (wasSeeding)
 		{
-			PeerSeederManager.Instance!.Stop();
+			GameContext.PeerSeeder!.Stop();
 		}
 
 		return wasSeeding;
@@ -1822,1316 +2661,33 @@ public partial class LobbyManager : BaseMapTransferNode
 
 		if (wasSeeding)
 		{
-			PeerSeederManager.Instance?.CheckIdleAndSeedStatus();
+			GameContext.PeerSeeder?.CheckIdleAndSeedStatus();
 		}
 	}
 
+	private static string FormatLinkMilliseconds(int milliseconds) => milliseconds < 0 ? "--" : $"{milliseconds} ms";
 
-	private void EmitDownloadProgress(float progress)
-	{
-		if (progress == 0.0f)
-		{
-			ReportLocalMapReadyState(false);
-		}
-
-		MapDownloadProgressChanged?.Invoke(progress);
-	}
-
-	private void EmitDownloadCompleted()
-	{
-		ReportLocalMapReadyState(true);
-		MapDownloadCompleted?.Invoke();
-	}
-
-	private void EmitDownloadFailed()
-	{
-		MapDownloadFailed?.Invoke();
-	}
-
-	private void OnConnectionFailedGodot()
-	{
-		_isConnectedToHost = false;
-		GD.PrintErr("[LobbyManager] Godot ENet connection failed.");
-		ConnectionFailed?.Invoke("Direct connection handshake failed.");
-	}
-
-	private void OnServerDisconnectedGodot()
-	{
-		_isConnectedToHost = false;
-		GD.Print("[LobbyManager] Host disconnected.");
-		if (IsGameStarted)
-		{
-			GD.Print("[LobbyManager] Allowing local play after host disconnect. Starting reconnect attempt...");
-			TriggerReconnect();
-			return;
-		}
-
-		KickReceived?.Invoke("Host closed the server.");
-		Disconnect();
-	}
-
-	public void TriggerReconnect()
-	{
-		if (_isReconnecting || !IsGameStarted || IsHost)
-		{
-			return;
-		}
-
-		_ = AttemptReconnectLoopAsync();
-	}
-
-	private async Task AttemptReconnectLoopAsync()
-	{
-		if (_isReconnecting || !IsGameStarted || IsHost) return;
-
-		_isReconnecting = true;
-		_isConnectedToHost = false;
-		string hostIp = _connectedHostIp;
-		int hostPort = _connectedHostPort;
-
-		GD.Print($"[LobbyManager] Starting match reconnect loop to {hostIp}:{hostPort}...");
-
-		DateTime startTime = DateTime.UtcNow;
-		TimeSpan maxTimeout = TimeSpan.FromSeconds(60);
-
-		while (_isReconnecting && IsGameStarted && DateTime.UtcNow - startTime < maxTimeout)
-		{
-			if (await TrySingleReconnectAttemptAsync(hostIp, hostPort))
-			{
-				GD.Print("[LobbyManager] Match reconnect handshake completed.");
-				return;
-			}
-
-			await Task.Delay(2000);
-		}
-
-		if (_isReconnecting)
-		{
-			_isReconnecting = false;
-			GD.PrintErr("[LobbyManager] Match reconnection timed out.");
-			Disconnect();
-			CallDeferred(nameof(OnReconnectFailed));
-		}
-	}
-
-	private async Task<bool> TrySingleReconnectAttemptAsync(string hostIp, int hostPort)
-	{
-		try
-		{
-			if (Multiplayer.MultiplayerPeer != null)
-			{
-				try
-				{
-					Multiplayer.MultiplayerPeer.Close();
-				}
-				catch
-				{
-				}
-
-				Multiplayer.MultiplayerPeer = null;
-			}
-
-			bool isLocal = IsPrivateIp(hostIp);
-			if (!isLocal)
-			{
-				await UdpHolePuncher.PunchHoleAsync(hostIp, hostPort, ENetPort);
-			}
-
-			var peer = new ENetMultiplayerPeer();
-			var err = peer.CreateClient(hostIp, hostPort, localPort: isLocal ? 0 : ENetPort);
-			if (err != Error.Ok) return false;
-
-			Multiplayer.MultiplayerPeer = peer;
-			if (!await WaitForPeerConnectionAsync(peer)) return false;
-
-			GD.Print("[LobbyManager] Connected socket during reconnect. Sending RequestReconnect RPC...");
-			RpcId(1, nameof(RequestReconnect), _persistentSessionToken, AuthenticatedUsername, RealmVersion.GameBinaryVersion);
-
-			if (await WaitForReconnectAckAsync()) return true;
-		}
-		catch (Exception ex)
-		{
-			GD.PrintErr($"[LobbyManager] Reconnect attempt failed: {ex.Message}");
-		}
-
-		return false;
-	}
-
-	private async Task<bool> WaitForPeerConnectionAsync(ENetMultiplayerPeer peer)
-	{
-		DateTime connectTimeout = DateTime.UtcNow.AddSeconds(4);
-		while (DateTime.UtcNow < connectTimeout && peer.GetConnectionStatus() == MultiplayerPeer.ConnectionStatus.Connecting)
-		{
-			await Task.Delay(100);
-		}
-
-		return peer.GetConnectionStatus() == MultiplayerPeer.ConnectionStatus.Connected;
-	}
-
-	private async Task<bool> WaitForReconnectAckAsync()
-	{
-		DateTime ackTimeout = DateTime.UtcNow.AddSeconds(5);
-		while (DateTime.UtcNow < ackTimeout && _isReconnecting)
-		{
-			await Task.Delay(150);
-		}
-
-		return !_isReconnecting;
-	}
-
-	private void OnReconnectFailed()
-	{
-		KickReceived?.Invoke(Tr("Connection to host lost permanently."));
-		UIManager.Instance?.TransitionTo(GameScreen.LobbyBrowser);
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void RequestReconnect(string sessionToken, string playerName, string binaryVersion)
-	{
-		if (!IsHost) return;
-		int senderId = Multiplayer.GetRemoteSenderId();
-		GD.Print($"[LobbyManager] RequestReconnect received from Peer {senderId}: Token={sessionToken}, Name={playerName}");
-
-		if (!IsGameStarted)
-		{
-			RpcId(senderId, nameof(RejectConnection), Tr("Game is not in progress."));
-			return;
-		}
-
-		if (!string.Equals(binaryVersion, RealmVersion.GameBinaryVersion, StringComparison.Ordinal))
-		{
-			RpcId(senderId, nameof(RejectConnection), Tr("Game version mismatch with host."));
-			return;
-		}
-
-		PlayerInfo? targetPlayer = null;
-		if (!string.IsNullOrEmpty(sessionToken))
-		{
-			targetPlayer = PlayerList.Find(p => p.SessionToken == sessionToken);
-		}
-
-		if (targetPlayer == null && !string.IsNullOrEmpty(playerName))
-		{
-			targetPlayer = PlayerList.Find(p => p.Name == playerName);
-		}
-
-		if (targetPlayer == null)
-		{
-			RpcId(senderId, nameof(RejectConnection), Tr("Player session not found in active match."));
-			return;
-		}
-
-		int oldPeerId = targetPlayer.PeerId;
-		targetPlayer.PeerId = senderId;
-		targetPlayer.IsDisconnected = false;
-
-		GD.Print($"[LobbyManager] Reconnected player {targetPlayer.Name} (Slot {targetPlayer.Slot}). Remapped old peer {oldPeerId} -> {senderId}");
-		SendChatMessage("System", string.Format(Tr("{0} reconnected to the match."), targetPlayer.Name));
-
-		string serializedPlayers = JsonSerializer.Serialize(PlayerList);
-		RpcId(senderId, nameof(AcceptReconnect), targetPlayer.Slot, ActiveMapName, serializedPlayers);
-
-		GameHost.Instance?.HandlePeerReconnected(oldPeerId, senderId, targetPlayer.Slot);
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	private void AcceptReconnect(int slot, string activeMapName, string serializedPlayers)
-	{
-		GD.Print($"[LobbyManager] AcceptReconnect received! Slot={slot}, Map={activeMapName}");
-		_isReconnecting = false;
-		_isConnectedToHost = true;
-		ActiveMapName = activeMapName;
-		IsGameStarted = true;
-
-		try
-		{
-			var list = JsonSerializer.Deserialize<List<PlayerInfo>>(serializedPlayers);
-			if (list != null)
-			{
-				PlayerList.Clear();
-				PlayerList.AddRange(list);
-			}
-		}
-		catch (Exception ex)
-		{
-			GD.PrintErr($"[LobbyManager] Failed to deserialize players on reconnect: {ex.Message}");
-		}
-
-		int myId = Multiplayer.GetUniqueId();
-
-		var me = PlayerList.Find(p => p.Slot == slot || p.SessionToken == _persistentSessionToken);
-		if (me != null)
-		{
-			me.PeerId = myId;
-			me.IsDisconnected = false;
-		}
-
-		PlayerListUpdated?.Invoke();
-
-		if (GameHost.Instance != null && GodotObject.IsInstanceValid(GameHost.Instance))
-		{
-			GameHost.Instance.OnClientReconnected(slot);
-		}
-		else
-		{
-			GetTree().ChangeSceneToFile("res://GameHost.tscn");
-		}
-	}
-
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	private void SyncLobbyData(string serializedData)
-	{
-		GD.Print($"[LobbyManager] SyncLobbyData received: {serializedData}");
-		try
-		{
-			var newList = JsonSerializer.Deserialize<List<PlayerInfo>>(serializedData);
-			if (newList != null)
-			{
-				PlayerList.Clear();
-				PlayerList.AddRange(newList);
-
-				PlayerListUpdated?.Invoke();
-			}
-		}
-		catch (Exception ex)
-		{
-			GD.PrintErr($"[LobbyManager] Failed to deserialize sync: {ex.Message}");
-			CallDeferred(nameof(HandleSyncDeserializationFailure));
-		}
-	}
-
-	private void HandleSyncDeserializationFailure()
-	{
-		Disconnect();
-		LobbyJoinError = "Error joining lobby: Game version mismatch with host";
-		UIManager.Instance.TransitionTo(GameScreen.LobbyBrowser);
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	private void RejectConnection(string reason)
-	{
-		GD.Print($"[LobbyManager] Connection Rejected: {reason}");
-		ConnectionFailed?.Invoke(reason);
-		Disconnect();
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	private void SyncActiveMap(string mapName)
-	{
-		ActiveMapName = mapName;
-		ActiveMapChanged?.Invoke(mapName);
-		if (!IsHost)
-		{
-			_ = EnsureMapDownloadedAsync(mapName);
-		}
-	}
-
-	public void UpdateActiveMap(string mapName)
-	{
-		if (IsHost)
-		{
-			ActiveMapName = mapName;
-			Rpc(nameof(SyncActiveMap), mapName);
-			ActiveMapChanged?.Invoke(mapName);
-		}
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void UpdatePlayerSlot(int peerId, string faction, string team, Color color, string name)
-	{
-		if (IsHost)
-		{
-			var p = PlayerList.Find(x => x.PeerId == peerId);
-			if (p != null)
-			{
-				p.Faction = faction;
-				p.Team = team;
-				p.Color = color;
-				p.Name = name;
-				BroadcastPlayerList();
-			}
-		}
-		else
-		{
-			RpcId(1, nameof(UpdatePlayerSlot), peerId, faction, team, color, name);
-		}
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void UpdateDiagnostics(int peerId, float minRtt, float maxRtt, float avgRtt, float jitter, float lossRate, int consecutiveLoss)
-	{
-		if (IsHost)
-		{
-			var p = PlayerList.Find(x => x.PeerId == peerId);
-			if (p != null)
-			{
-				p.Latency = $"{Math.Round(avgRtt)} ms";
-				p.Jitter = $"{Math.Round(jitter)} ms";
-				p.PacketLoss = $"{Math.Round(lossRate)}% (Burst: {consecutiveLoss})";
-				BroadcastPlayerList();
-			}
-		}
-		else
-		{
-			RpcId(1, nameof(UpdateDiagnostics), peerId, minRtt, maxRtt, avgRtt, jitter, lossRate, consecutiveLoss);
-		}
-	}
-
-	public void UpdateReadyState(int peerId, bool isReady)
-	{
-		if (IsHost)
-		{
-			var p = PlayerList.Find(x => x.PeerId == peerId);
-			if (p != null)
-			{
-				p.IsReady = isReady;
-				BroadcastPlayerList();
-			}
-		}
-		else
-		{
-			var p = PlayerList.Find(x => x.PeerId == peerId);
-			if (p != null)
-			{
-				p.IsReady = isReady;
-			}
-
-			RpcId(1, nameof(UpdateReadyStateOnHost), peerId, isReady);
-		}
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	private void UpdateReadyStateOnHost(int peerId, bool isReady)
-	{
-		if (IsHost)
-		{
-			var p = PlayerList.Find(x => x.PeerId == peerId);
-			if (p != null)
-			{
-				p.IsReady = isReady;
-				BroadcastPlayerList();
-			}
-		}
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	private void ReportMapReadyOnHost(int peerId, bool isMapReady)
-	{
-		if (IsHost)
-		{
-			int senderId = Multiplayer.GetRemoteSenderId();
-			int targetPeerId = senderId > 0 ? senderId : peerId;
-			var p = PlayerList.Find(x => x.PeerId == targetPeerId || (peerId > 0 && x.PeerId == peerId));
-			if (p != null)
-			{
-				p.IsMapReady = isMapReady;
-				BroadcastPlayerList();
-			}
-		}
-	}
-
-	public void ReportLocalMapReadyState(bool isMapReady)
-	{
-		if (!IsHost)
-		{
-			int myPeerId = Multiplayer.GetUniqueId();
-			var me = PlayerList.Find(p => p.PeerId == myPeerId);
-			if (me != null)
-			{
-				me.IsMapReady = isMapReady;
-			}
-			if (_isConnectedToHost && Multiplayer.MultiplayerPeer != null)
-			{
-				try
-				{
-					RpcId(1, nameof(ReportMapReadyOnHost), myPeerId, isMapReady);
-				}
-				catch (Exception ex)
-				{
-					GD.PrintErr($"[LobbyManager] Failed to report map ready state: {ex.Message}");
-				}
-			}
-		}
-	}
-
-	private string GetPlayerTeamByName(string name)
-	{
-		foreach (var player in PlayerList)
-		{
-			if (player.Name == name) return player.Team;
-		}
-
-		return "Team 1";
-	}
-
-	public void SendChatMessage(string senderName, string message, bool alliesOnly = false, long timestampUtcTicks = 0)
-	{
-		long sentAtUtcTicks = timestampUtcTicks > 0 ? timestampUtcTicks : DateTime.UtcNow.Ticks;
-		if (IsHost)
-		{
-			if (senderName == "System")
-			{
-				_chatHistory.Add((senderName, message, false, sentAtUtcTicks));
-				Rpc(nameof(ReceiveChatMessage), senderName, message, alliesOnly, sentAtUtcTicks);
-				ChatReceived?.Invoke(senderName, message, alliesOnly, sentAtUtcTicks);
-			}
-			else
-			{
-				var senderPlayer = PlayerList.Find(p => p.Name == senderName);
-				int senderSlot = senderPlayer?.Slot ?? 0;
-				ServerChatCommandReceived?.Invoke(senderSlot, message);
-				_ = ProcessAndSendChatMessageAsync(senderName, message, alliesOnly, sentAtUtcTicks);
-			}
-		}
-		else
-		{
-			RpcId(1, nameof(ReceiveChatMessage), senderName, message, alliesOnly, sentAtUtcTicks);
-		}
-	}
-
-	private static bool _isDownloadingModels = false;
-
-	private static async Task InitializeToxicityModelAsync()
-	{
-		if (_onnxSession != null || _isDownloadingModels) return;
-		_isDownloadingModels = true;
-
-		try
-		{
-			var (modelPath, vocabPath) = GetLocalModelPaths();
-
-			if (string.IsNullOrEmpty(modelPath) || !File.Exists(modelPath))
-			{
-				(modelPath, vocabPath) = await DownloadModelsAsync();
-			}
-
-			if (string.IsNullOrEmpty(modelPath) || !File.Exists(modelPath))
-			{
-				throw new FileNotFoundException("Model file not found.");
-			}
-
-			LoadModels(modelPath, vocabPath);
-		}
-		finally
-		{
-			_isDownloadingModels = false;
-		}
-	}
-
-	private static (string modelPath, string vocabPath) GetLocalModelPaths()
-	{
-		string baseDir = AppDomain.CurrentDomain.BaseDirectory;
-		string curDir = Directory.GetCurrentDirectory();
-
-		var candidates = new[]
-		{
-			(Path.Combine(baseDir, "Assets", "MLModels", "toxic-xlm-roberta", "model_quantized.onnx"),
-				Path.Combine(baseDir, "Assets", "MLModels", "toxic-xlm-roberta", "vocab.bin")),
-
-			(Path.Combine(curDir, "Realm.Client", "Assets", "MLModels", "toxic-xlm-roberta", "model_quantized.onnx"),
-				Path.Combine(curDir, "Realm.Client", "Assets", "MLModels", "toxic-xlm-roberta", "vocab.bin")),
-
-			(Path.Combine(curDir, "Assets", "MLModels", "toxic-xlm-roberta", "model_quantized.onnx"),
-				Path.Combine(curDir, "Assets", "MLModels", "toxic-xlm-roberta", "vocab.bin"))
-		};
-
-		foreach (var (mPath, vPath) in candidates)
-		{
-			if (File.Exists(mPath)) return (mPath, vPath);
-		}
-
-		try
-		{
-			string globalized = PathUtils.GlobalizePath("res://Assets/MLModels/toxic-xlm-roberta/model_quantized.onnx");
-			string globalizedVocab = PathUtils.GlobalizePath("res://Assets/MLModels/toxic-xlm-roberta/vocab.bin");
-			if (!string.IsNullOrEmpty(globalized) && File.Exists(globalized))
-			{
-				return (globalized, globalizedVocab);
-			}
-		}
-		catch
-		{
-		}
-
-		return ("", "");
-	}
-
-	private static async Task<(string modelPath, string vocabPath)> DownloadModelsAsync()
-	{
-		string globalizedUserDir = ProjectSettings.GlobalizePath("user://Assets/MLModels/toxic-xlm-roberta");
-		if (!Directory.Exists(globalizedUserDir)) Directory.CreateDirectory(globalizedUserDir);
-
-		string modelPath = Path.Combine(globalizedUserDir, "model_quantized.onnx");
-		string vocabPath = Path.Combine(globalizedUserDir, "vocab.bin");
-
-		try
-		{
-			if (!File.Exists(modelPath) || !File.Exists(vocabPath))
-			{
-				GD.Print("[LobbyManager] Downloading toxicity models...");
-				using var httpClient = new HttpClient();
-
-				if (!File.Exists(modelPath))
-				{
-					var modelBytes = await httpClient.GetByteArrayAsync("https://huggingface.co/hoan/multilingual-toxic-xlm-roberta-dynamic-quantized/resolve/main/model_quantized.onnx");
-					File.WriteAllBytes(modelPath, modelBytes);
-				}
-
-				if (!File.Exists(vocabPath))
-				{
-					var vocabBytes = await httpClient.GetByteArrayAsync("https://huggingface.co/hoan/multilingual-toxic-xlm-roberta-dynamic-quantized/resolve/main/vocab.bin");
-					File.WriteAllBytes(vocabPath, vocabBytes);
-				}
-
-				GD.Print("[LobbyManager] Successfully downloaded toxicity models.");
-			}
-		}
-		catch (Exception ex)
-		{
-			GD.PrintErr($"[LobbyManager] Error downloading toxicity models: {ex}");
-		}
-
-		return (modelPath, vocabPath);
-	}
-
-	private static void LoadModels(string modelPath, string vocabPath)
-	{
-		lock (_sessionLock)
-		{
-			_onnxSession = new InferenceSession(modelPath);
-
-			using var fs = new FileStream(vocabPath, FileMode.Open, FileAccess.Read, FileShare.Read);
-			using var reader = new BinaryReader(fs, Encoding.UTF8);
-
-			int count = reader.ReadInt32();
-			_vocab = new Dictionary<string, int>(count);
-			for (int i = 0; i < count; i++)
-			{
-				string token = reader.ReadString();
-				_vocab[token] = i;
-			}
-		}
-	}
-
-	private async Task<bool> IsMessageToxicAsync(string message)
-	{
-		if (string.IsNullOrWhiteSpace(message)) return false;
-
-		try
-		{
-			if (_onnxSession == null || _vocab == null)
-			{
-				await InitializeToxicityModelAsync();
-			}
-
-			return await Task.Run(() =>
-			{
-				if (!ValidateTokens(message)) return false;
-				if (_onnxSession == null || _vocab == null) return false;
-
-				long[] inputIds = TokenizeMessage(message);
-				long[] attentionMask = inputIds.Select(_ => 1L).ToArray();
-
-				return EvaluateToxicity(inputIds, attentionMask);
-			});
-		}
-		catch (Exception ex)
-		{
-			GD.PrintErr($"[LobbyManager] Local toxicity check failed: {ex.Message}");
-		}
-
-		return false;
-	}
-
-	private bool ValidateTokens(string message)
-	{
-		var encoding = GptEncoding.GetEncoding("cl100k_base");
-		var gptTokens = encoding.Encode(message);
-		return gptTokens != null && gptTokens.Count > 0;
-	}
-
-	private long[] TokenizeMessage(string message)
-	{
-		var tokens = new List<long> { 0 };
-
-		string normalized = message.Replace(" ", " ");
-		if (!normalized.StartsWith(" ")) normalized = " " + normalized;
+	private static string FormatLinkPercent(float percent) => percent < 0f ? "--" : $"{(int)Math.Round(percent)}%";
 
-		int i = 0;
-		while (i < normalized.Length)
-		{
-			(int longestMatchLength, int longestMatchId) = FindLongestTokenMatch(normalized, i);
-
-			if (longestMatchLength > 0)
-			{
-				tokens.Add(longestMatchId);
-				i += longestMatchLength;
-			}
-			else
-			{
-				tokens.Add(3);
-				i++;
-			}
-		}
-
-		tokens.Add(2);
-		return tokens.ToArray();
-	}
-
-	private (int length, int id) FindLongestTokenMatch(string normalized, int startIndex)
-	{
-		int longestMatchLength = 0;
-		int longestMatchId = -1;
-		int maxLen = Math.Min(normalized.Length - startIndex, 50);
-
-		for (int len = 1; len <= maxLen; len++)
-		{
-			string sub = normalized.Substring(startIndex, len);
-			if (_vocab!.TryGetValue(sub, out int id))
-			{
-				longestMatchLength = len;
-				longestMatchId = id;
-			}
-		}
-
-		return (longestMatchLength, longestMatchId);
-	}
-
-	private bool EvaluateToxicity(long[] inputIds, long[] attentionMask)
-	{
-		var inputIdsTensor = new DenseTensor<long>(inputIds, new int[] { 1, inputIds.Length });
-		var attentionMaskTensor = new DenseTensor<long>(attentionMask, new int[] { 1, inputIds.Length });
-
-		var inputs = new List<NamedOnnxValue>
-		{
-			NamedOnnxValue.CreateFromTensor("input_ids", inputIdsTensor),
-			NamedOnnxValue.CreateFromTensor("attention_mask", attentionMaskTensor)
-		};
-
-		lock (_sessionLock)
-		{
-			using var results = _onnxSession!.Run(inputs);
-			var logits = results.First(r => r.Name == "logits").AsTensor<float>();
-
-			if (logits.Length > 0)
-			{
-				float val = logits[0, 0];
-				double prob = 1.0 / (1.0 + Math.Exp(-val));
-				return prob > 0.5;
-			}
-		}
-
-		return false;
-	}
-
-	private async Task ProcessAndSendChatMessageAsync(string senderName, string message, bool alliesOnly, long timestampUtcTicks)
-	{
-		bool isToxic = await IsMessageToxicAsync(message);
-		_chatHistory.Add((senderName, message, isToxic, timestampUtcTicks));
-
-		if (!isToxic)
-		{
-			if (alliesOnly)
-			{
-				string senderTeam = GetPlayerTeamByName(senderName);
-				foreach (var player in PlayerList)
-				{
-					if (player.Team == senderTeam)
-					{
-						if (player.PeerId == 1)
-						{
-							ChatReceived?.Invoke(senderName, message, true, timestampUtcTicks);
-						}
-						else
-						{
-							RpcId(player.PeerId, nameof(ReceiveChatMessage), senderName, message, true, timestampUtcTicks);
-						}
-					}
-				}
-			}
-			else
-			{
-				Rpc(nameof(ReceiveChatMessage), senderName, message, false, timestampUtcTicks);
-				ChatReceived?.Invoke(senderName, message, false, timestampUtcTicks);
-			}
-		}
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	private void ReceiveChatMessage(string senderName, string message, bool alliesOnly, long timestampUtcTicks)
-	{
-		if (IsHost)
-		{
-			int senderPeerId = Multiplayer.GetRemoteSenderId();
-			if (senderPeerId <= 0) senderPeerId = 1;
-			var senderPlayer = PlayerList.Find(p => p.PeerId == senderPeerId);
-			int senderSlot = senderPlayer?.Slot ?? 0;
-			ServerChatCommandReceived?.Invoke(senderSlot, message);
-			_ = ProcessAndSendChatMessageAsync(senderName, message, alliesOnly, timestampUtcTicks);
-		}
-		else
-		{
-			ChatReceived?.Invoke(senderName, message, alliesOnly, timestampUtcTicks);
-		}
-	}
-
-	public void RequestChatHistory()
-	{
-		if (!IsHost && Multiplayer.MultiplayerPeer != null && Multiplayer.MultiplayerPeer.GetConnectionStatus() == MultiplayerPeer.ConnectionStatus.Connected)
-		{
-			RpcId(1, nameof(RequestChatHistoryFromHost));
-		}
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	private void RequestChatHistoryFromHost()
-	{
-		if (IsHost)
-		{
-			int senderId = Multiplayer.GetRemoteSenderId();
-			foreach (var chat in _chatHistory)
-			{
-				if (!chat.IsMuted)
-				{
-					RpcId(senderId, nameof(ReceiveChatMessage), chat.Sender, chat.Message, false, chat.TimestampUtcTicks);
-				}
-			}
-		}
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	private void LoadMap(string mapName)
-	{
-		GD.Print($"[LobbyManager] LoadMap RPC received for: {mapName}");
-		ReplayPlaybackManager.Instance.StopReplay();
-		ActiveMapName = mapName;
-
-		IsGameStarted = true;
-		GameSessionStartTime = DateTime.UtcNow;
-
-		GetTree().ChangeSceneToFile("res://GameHost.tscn");
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void UpdateSpectatorDelay(bool enabled)
-	{
-		if (IsHost)
-		{
-			SpectatorDelay = enabled;
-			Rpc(nameof(SyncSpectatorDelay), enabled);
-			SpectatorDelayChanged?.Invoke(enabled);
-		}
-		else
-		{
-			RpcId(1, nameof(UpdateSpectatorDelay), enabled);
-		}
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	private void SyncSpectatorDelay(bool enabled)
-	{
-		SpectatorDelay = enabled;
-		SpectatorDelayChanged?.Invoke(enabled);
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	private void SyncHostStability(string stability)
-	{
-		HostStability = stability;
-		HostStabilityUpdated?.Invoke(stability);
-	}
-
-
-	public void StartGame(string mapName)
-	{
-		if (IsHost)
-		{
-			if (_countdownRemaining > 0)
-			{
-				return;
-			}
-
-			Rpc(nameof(BroadcastStartCountdown), mapName);
-		}
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	private void BroadcastStartCountdown(string mapName)
-	{
-		if (IsHost)
-		{
-			SendChatMessage("System", string.Format(Tr("Game starting in 5 seconds on map: {0}."), mapName));
-		}
-
-		_countdownMapName = mapName;
-		_countdownRemaining = 5;
-		CountdownStarted?.Invoke(mapName, _countdownRemaining);
-		TickCountdown();
-	}
-
-	private void TickCountdown()
-	{
-		if (_countdownRemaining <= 0)
-		{
-			CountdownFinished?.Invoke();
-			if (IsHost && _countdownMapName != null)
-			{
-				Rpc(nameof(LoadMap), _countdownMapName);
-			}
-
-			return;
-		}
-
-		_countdownTimer = GetTree().CreateTimer(1.0f);
-		_countdownTimer.Timeout += OnCountdownTimerTimeout;
-	}
-
-	private void OnCountdownTimerTimeout()
-	{
-		if (_countdownRemaining > 0)
-		{
-			_countdownRemaining--;
-			CountdownTick?.Invoke(_countdownRemaining);
-			TickCountdown();
-		}
-	}
-
-	public void RequestCancelCountdown()
-	{
-		Rpc(nameof(BroadcastCancelCountdown));
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.AnyPeer, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	private void BroadcastCancelCountdown()
-	{
-		if (IsHost)
-		{
-			int senderId = Multiplayer.GetRemoteSenderId();
-			if (senderId == 0)
-			{
-				senderId = 1;
-			}
-
-			var player = PlayerList.Find(p => p.PeerId == senderId);
-			string name = player != null ? player.Name : "Someone";
-			SendChatMessage("System", string.Format(Tr("{0} cancelled the countdown."), name));
-		}
-
-		_countdownRemaining = 0;
-		_countdownMapName = null;
-		CountdownCancelled?.Invoke();
-	}
-
-	public bool AddAIBot()
-	{
-		if (!IsHost) return false;
-
-		if (PlayerList.Count >= MaxPlayers || FindNextFreePlayableSlot() < 0)
-		{
-			LastLobbyWarning = string.Format(Tr("Cannot add an AI player: all {0} playable slots are taken."), MaxPlayers);
-			SendChatMessage("System", LastLobbyWarning);
-			return false;
-		}
-
-		int botId = -100;
-		while (PlayerList.Exists(x => x.PeerId == botId))
-		{
-			botId--;
-		}
-
-		int nextSlot = FindNextFreePlayableSlot();
-
-		var botPlayer = new PlayerInfo
-		{
-			PeerId = botId,
-			Slot = nextSlot,
-			Name = $"AI Bot {Math.Abs(botId) - 99}",
-			Faction = "ORC",
-			Team = "Team 2",
-			Color = GetNextColor(),
-			IsHost = false,
-			Latency = "0 ms",
-			Jitter = "0 ms",
-			PacketLoss = "0%",
-			BinaryVersion = RealmVersion.GameBinaryVersion
-		};
-		PlayerList.Add(botPlayer);
-		BroadcastPlayerList();
-		SendChatMessage("System", string.Format(Tr("{0} added to the lobby."), botPlayer.Name));
-
-		return true;
-	}
-
-	public void BootPlayer(int peerId)
-	{
-		if (IsHost && peerId != 1)
-		{
-			if (peerId < 0)
-			{
-				int removedIdx = PlayerList.FindIndex(p => p.PeerId == peerId);
-				if (removedIdx >= 0)
-				{
-					PlayerList.RemoveAt(removedIdx);
-					for (int i = 0; i < PlayerList.Count; i++)
-					{
-						PlayerList[i].Slot = i + 1;
-					}
-
-					BroadcastPlayerList();
-				}
-
-				return;
-			}
-
-			RpcId(peerId, nameof(RejectConnection), "Kicked by Host");
-			var timer = GetTree().CreateTimer(0.1f);
-			timer.Timeout += () =>
-			{
-				if (Multiplayer.MultiplayerPeer != null)
-				{
-					try
-					{
-						Multiplayer.MultiplayerPeer.DisconnectPeer(peerId);
-					}
-					catch
-					{
-					}
-				}
-			};
-		}
-	}
-
-	private void BroadcastPlayerList()
-	{
-		string serialized = JsonSerializer.Serialize(PlayerList);
-		Rpc(nameof(SyncLobbyData), serialized);
-		PlayerListUpdated?.Invoke();
-	}
-
-	private Color GetNextColor()
-	{
-		int index = (PlayerList.Count % (PlayerColorConfig.Palette.Length - 1)) + 1;
-		return PlayerColorConfig.GetColor(index);
-	}
-
-	public async Task<int> MeasurePingToRegistryAsync()
-	{
-		var stopwatch = Stopwatch.StartNew();
-		try
-		{
-			var response = await _httpClient.GetAsync($"{RegistryServerUrl}/lobbies");
-			stopwatch.Stop();
-			if (response.IsSuccessStatusCode)
-			{
-				return (int)stopwatch.ElapsedMilliseconds;
-			}
-		}
-		catch
-		{
-		}
-
-		return 100;
-	}
-
-	private HttpListener? _authHttpListener;
-
-	public async Task<bool> StartOAuthFlowAsync(string provider)
-	{
-		int port = 8089;
-		if (!TryStartAuthListener(port)) return false;
-
-		string loginUrl = $"{RegistryServerUrl}/auth/login?provider={provider}&port={port}";
-		OS.ShellOpen(loginUrl);
-
-		try
-		{
-			var context = await _authHttpListener!.GetContextAsync();
-			return HandleOAuthCallback(context);
-		}
-		catch (Exception ex)
-		{
-			GD.PrintErr($"[LobbyManager] Error handling OAuth callback: {ex.Message}");
-			return false;
-		}
-		finally
-		{
-			_authHttpListener?.Stop();
-		}
-	}
-
-	private bool TryStartAuthListener(int port)
-	{
-		_authHttpListener?.Stop();
-		_authHttpListener = new HttpListener();
-		_authHttpListener.Prefixes.Add($"http://localhost:{port}/auth/callback/");
-		try
-		{
-			_authHttpListener.Start();
-			return true;
-		}
-		catch (Exception ex)
-		{
-			GD.PrintErr($"[LobbyManager] Failed to start local OAuth listener on port {port}: {ex.Message}");
-			return false;
-		}
-	}
-
-	private bool HandleOAuthCallback(HttpListenerContext context)
-	{
-		var request = context.Request;
-		var response = context.Response;
-
-		string? username = request.QueryString["username"];
-		string? token = request.QueryString["token"];
-		string? returnedProvider = request.QueryString["provider"];
-
-		if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(token))
-		{
-			SendAuthResponse(response, "<h1>Login Failed</h1><p>Invalid parameters received.</p>");
-			return false;
-		}
-
-		AuthenticatedUsername = username;
-		AuthToken = token;
-		AuthProvider = returnedProvider;
-		int myId = Multiplayer?.MultiplayerPeer != null ? Multiplayer.GetUniqueId() : 1;
-		var me = PlayerList.Find(p => p.PeerId == myId || (IsHost && p.PeerId == 1));
-		if (me != null)
-		{
-			me.Name = username;
-		}
-
-		GD.Print($"[LobbyManager] OAuth Login Success! Provider: {returnedProvider}, User: {username}");
-
-		string successHtml = GetLoginSuccessHtml();
-		SendAuthResponse(response, successHtml);
-
-		_authHttpListener?.Stop();
-		return true;
-	}
-
-	private string GetLoginSuccessHtml()
-	{
-		string successHtml = string.Empty;
-		const string templatePath = "res://Templates/login_success.html";
-
-		if (Godot.FileAccess.FileExists(templatePath))
-		{
-			using var file = Godot.FileAccess.Open(templatePath, Godot.FileAccess.ModeFlags.Read);
-			if (file != null)
-			{
-				successHtml = file.GetAsText();
-			}
-		}
-		else
-		{
-			string diskPath = Path.Combine(AppContext.BaseDirectory, "Templates", "login_success.html");
-			if (File.Exists(diskPath))
-			{
-				successHtml = File.ReadAllText(diskPath);
-			}
-		}
-
-		return successHtml;
-	}
-
-	private void SendAuthResponse(HttpListenerResponse response, string htmlContent)
-	{
-		byte[] buffer = Encoding.UTF8.GetBytes(htmlContent);
-		response.ContentLength64 = buffer.Length;
-		response.OutputStream.Write(buffer, 0, buffer.Length);
-		response.OutputStream.Close();
-	}
-
-	public override void _ExitTree()
-	{
-		_authHttpListener?.Stop();
-		StopHostDiagnosticsTimer();
-	}
-
-	private void StartHostDiagnosticsTimer()
-	{
-		StopHostDiagnosticsTimer();
-		TickHostDiagnostics();
-	}
-
-	private void StopHostDiagnosticsTimer()
+	private static uint PackColor(Color color)
 	{
-		_diagnosticsTimer = null;
+		uint red = (uint)Math.Clamp(Math.Round(color.R * 255.0), 0.0, 255.0);
+		uint green = (uint)Math.Clamp(Math.Round(color.G * 255.0), 0.0, 255.0);
+		uint blue = (uint)Math.Clamp(Math.Round(color.B * 255.0), 0.0, 255.0);
+		uint alpha = (uint)Math.Clamp(Math.Round(color.A * 255.0), 0.0, 255.0);
+		return (red << 24) | (green << 16) | (blue << 8) | alpha;
 	}
 
-	private void TickHostDiagnostics()
+	private static Color UnpackColor(uint rgba)
 	{
-		if (!IsHost)
-		{
-			return;
-		}
-
-		UpdateAllPeerDiagnostics();
-
-		_diagnosticsTimer = GetTree().CreateTimer(2.0f);
-		_diagnosticsTimer.Timeout += OnDiagnosticsTimerTimeout;
-	}
-
-	private void OnDiagnosticsTimerTimeout()
-	{
-		TickHostDiagnostics();
-	}
-
-	private void UpdateAllPeerDiagnostics()
-	{
-		if (Multiplayer.MultiplayerPeer is not ENetMultiplayerPeer enetMultiplayer)
-		{
-			BroadcastPlayerList();
-			return;
-		}
-
-		bool changed = false;
-		float totalRtt = 0f;
-		float totalJitter = 0f;
-		float totalLoss = 0f;
-		int clientCount = 0;
-
-		foreach (var p in PlayerList)
-		{
-			if (p.PeerId == 1 || p.PeerId < 0) continue;
-
-			if (UpdateSinglePeerDiagnostics(p, enetMultiplayer, ref totalRtt, ref totalJitter, ref totalLoss))
-			{
-				changed = true;
-			}
-
-			clientCount++;
-		}
-
-		if (UpdateHostDiagnostics(clientCount, totalRtt, totalJitter, totalLoss))
-		{
-			changed = true;
-		}
-
-		if (changed)
-		{
-			BroadcastPlayerList();
-		}
-	}
-
-	private bool UpdateSinglePeerDiagnostics(PlayerInfo p, ENetMultiplayerPeer enetMultiplayer, ref float totalRtt, ref float totalJitter, ref float totalLoss)
-	{
-		try
-		{
-			var peer = enetMultiplayer.GetPeer(p.PeerId);
-			if (peer == null) return false;
-
-			float rtt = (float)peer.GetStatistic(ENetPacketPeer.PeerStatistic.RoundTripTime);
-			float jitter = (float)peer.GetStatistic(ENetPacketPeer.PeerStatistic.RoundTripTimeVariance);
-			float loss = (float)peer.GetStatistic(ENetPacketPeer.PeerStatistic.PacketLoss) / 65536.0f * 100.0f;
-
-			totalRtt += rtt;
-			totalJitter += jitter;
-			totalLoss += loss;
-
-			string newLatency = $"{Math.Round(rtt)} ms";
-			string newJitter = $"{Math.Round(jitter)} ms";
-			string newLoss = $"{Math.Round(loss)}%";
+		if (rgba == 0) return PlayerColorConfig.GetColor(1);
 
-			if (p.Latency != newLatency || p.Jitter != newJitter || p.PacketLoss != newLoss)
-			{
-				p.Latency = newLatency;
-				p.Jitter = newJitter;
-				p.PacketLoss = newLoss;
-				return true;
-			}
-		}
-		catch
-		{
-		}
-
-		return false;
-	}
-
-	private bool UpdateHostDiagnostics(int clientCount, float totalRtt, float totalJitter, float totalLoss)
-	{
-		var hostInfo = PlayerList.Find(x => x.PeerId == 1);
-		if (hostInfo == null) return false;
-
-		string hostLatency = "0 ms";
-		string hostJitter = "0 ms";
-		string hostLoss = "0%";
-
-		if (clientCount > 0)
-		{
-			hostLatency = $"{Math.Round(totalRtt / clientCount)} ms";
-			hostJitter = $"{Math.Round(totalJitter / clientCount)} ms";
-			hostLoss = $"{Math.Round(totalLoss / clientCount)}%";
-		}
-
-		if (hostInfo.Latency != hostLatency || hostInfo.Jitter != hostJitter || hostInfo.PacketLoss != hostLoss)
-		{
-			hostInfo.Latency = hostLatency;
-			hostInfo.Jitter = hostJitter;
-			hostInfo.PacketLoss = hostLoss;
-			return true;
-		}
-
-		return false;
-	}
-
-	private static string GetLocalIPAddress()
-	{
-		try
-		{
-			using (var socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, 0))
-			{
-				socket.Connect("8.8.8.8", 65530);
-				var endPoint = socket.LocalEndPoint as IPEndPoint;
-				if (endPoint != null)
-				{
-					return endPoint.Address.ToString();
-				}
-			}
-		}
-		catch
-		{
-			try
-			{
-				var host = Dns.GetHostEntry(Dns.GetHostName());
-				foreach (var ip in host.AddressList)
-				{
-					if (ip.AddressFamily == AddressFamily.InterNetwork)
-					{
-						return ip.ToString();
-					}
-				}
-			}
-			catch
-			{
-			}
-		}
-
-		return "127.0.0.1";
-	}
-
-	private static bool IsPrivateIp(string ip)
-	{
-		if (ip == "127.0.0.1") return true;
-		if (ip == "localhost") return true;
-		if (!IPAddress.TryParse(ip, out var address)) return false;
-
-		byte[] bytes = address.GetAddressBytes();
-		if (bytes.Length != 4) return false;
-
-		if (bytes[0] == 10) return true;
-		if (bytes[0] == 192 && bytes[1] == 168) return true;
-		if (bytes[0] == 172 && IsInRange(bytes[1], 16, 31)) return true;
-		if (bytes[0] == 100 && IsInRange(bytes[1], 64, 127)) return true;
-		if (bytes[0] == 26) return true;
-
-		return false;
+		float red = ((rgba >> 24) & 0xFF) / 255.0f;
+		float green = ((rgba >> 16) & 0xFF) / 255.0f;
+		float blue = ((rgba >> 8) & 0xFF) / 255.0f;
+		float alpha = (rgba & 0xFF) / 255.0f;
+		return new Color(red, green, blue, alpha);
 	}
 
-	private static bool IsInRange(byte value, byte min, byte max)
-	{
-		return value >= min && value <= max;
-	}
+	private static string Tr(string text) => TranslationServer.Translate(text);
 }

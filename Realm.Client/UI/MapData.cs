@@ -11,6 +11,7 @@ public class MapData
 	public string MapId { get; set; }
 	public string Title { get; set; }
 	public string Version { get; set; } = "1.0.0";
+	public bool IsTestVersion { get; set; }
 	public string ManifestHash { get; set; } = string.Empty;
 	public List<MapData> AvailableVersions { get; set; } = new();
 	public string Creator { get; set; }
@@ -39,6 +40,7 @@ public class MapData
 
 
 	public string[] Awards { get; set; }
+	public List<string> Attribution_SourceMap { get; set; } = new();
 
 
 	public static MapData FromDto(DiscoveryMapDto dto, string? serverBaseUrl = null)
@@ -52,6 +54,7 @@ public class MapData
 			MapId = GetMapId(dto, version),
 			Title = dto.Title,
 			Version = version,
+			IsTestVersion = dto.IsTestVersion,
 			Creator = dto.Creator,
 			ThumbnailPath = GetThumbnailPath(dto),
 			Description = GetDescription(dto),
@@ -69,7 +72,8 @@ public class MapData
 			EngineVersion = GetEngineVersion(dto),
 			MaxPlayers = GetMaxPlayersSafe(dto),
 			Genre = GetGenre(dto),
-			Awards = GetAwardsFallback(dto)
+			Awards = GetAwardsFallback(dto),
+			Attribution_SourceMap = dto.Attribution_SourceMap != null ? new List<string>(dto.Attribution_SourceMap) : new List<string>()
 		};
 
 		mapData.AvailableVersions = new List<MapData> { mapData };

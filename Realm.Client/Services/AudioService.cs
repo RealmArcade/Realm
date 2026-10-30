@@ -14,21 +14,41 @@ public class AudioService
 	public const string MusicBusName = "Music";
 	public const string SfxBusName = "SFX";
 	public const string VoiceBusName = "Voice";
+	public const char RaudEntrySeparator = '#';
 
 	private const int Max2DPlayers = 16;
-	private const int Max3DPlayers = 32;
+	public const int MaxPositionalVoices = 32;
+	public const int CriticalPositionalVoices = 8;
 	private const int MaxConcurrentPerSound = 4;
+	private const float EvictionMargin = 0.5f;
+	private const ulong VoiceGracePeriodMs = 300;
+	private const float VolumeWriteThresholdDb = 0.05f;
 
 	private readonly Dictionary<string, AudioStream> _streamCache = new(StringComparer.OrdinalIgnoreCase);
 	private readonly List<AudioStreamPlayer> _player2DPool = new();
-	private readonly List<AudioStreamPlayer3D> _player3DPool = new();
-	private readonly Dictionary<AudioStreamPlayer3D, (string SoundKey, Vector3 Position)> _active3DPlayers = new();
+	private readonly AudioStreamPlayer3D?[] _positionalPlayers = new AudioStreamPlayer3D?[MaxPositionalVoices];
+	private readonly PositionalVoiceState[] _positionalVoices = new PositionalVoiceState[MaxPositionalVoices];
 	private readonly Random _random = new();
+
+	private AudioListener _listener = AudioListener.Default;
+	private AudioListener3D? _listenerNode;
+	private Transform3D _appliedListenerTransform = Transform3D.Identity;
+	private bool _hasAppliedListenerTransform;
+	private bool _followCameraListener = true;
+	private bool _listenerCurrentWarned;
 
 	private Node? _audioRoot;
 
-	public AudioService()
+	private struct PositionalVoiceState
 	{
+		public bool Active;
+		public string SoundKey;
+		public Vector3 Position;
+		public float BaseVolumeDb;
+		public float MaxDistance;
+		public float Priority;
+		public float AppliedVolumeDb;
+		public ulong StartedTicksMs;
 	}
 
 	public static void ApplyVolumeSettings()
@@ -38,6 +58,7 @@ public class AudioService
 		ApplyBusVolume(MusicBusName, GameSettings.MusicVolume);
 		ApplyBusVolume(SfxBusName, GameSettings.SfxVolume);
 		ApplyBusVolume(VoiceBusName, GameSettings.VoiceVolume);
+		GameContext.AudioService.ApplyPositionalProfile();
 	}
 
 	public static void EnsureAudioBuses()
@@ -66,14 +87,13 @@ public class AudioService
 		AudioServer.SetBusVolumeDb(busIndex, linearVolume <= 0f ? -80f : Mathf.LinearToDb(linearVolume));
 	}
 
-	public void InitializeAudioNodes(Node parentNode)
+	private void InitializeAudioNodes()
 	{
 		if (_audioRoot != null && GodotObject.IsInstanceValid(_audioRoot)) return;
 
 		EnsureAudioBuses();
 
 		_audioRoot = new Node { Name = "AudioRoot" };
-		parentNode.AddChild(_audioRoot);
 
 		_player2DPool.Clear();
 		for (int i = 0; i < Max2DPlayers; i++)
@@ -83,21 +103,95 @@ public class AudioService
 			_player2DPool.Add(p);
 		}
 
-		_player3DPool.Clear();
-		_active3DPlayers.Clear();
-		for (int i = 0; i < Max3DPlayers; i++)
+		InitializePositionalVoices();
+		InitializeListenerNode();
+	}
+
+	private void InitializePositionalVoices()
+	{
+		for (int index = 0; index < MaxPositionalVoices; index++)
 		{
-			var p = new AudioStreamPlayer3D
+			var player = new AudioStreamPlayer3D
 			{
-				Name = $"Audio3D_{i}",
+				Name = $"AudioPositional_{index}",
 				Bus = SfxBusName,
-				MaxDistance = 60f,
-				UnitSize = 10f,
-				AttenuationModel = AudioStreamPlayer3D.AttenuationModelEnum.InverseSquareDistance
+				MaxDistance = PositionalAudioProfile.DefaultMaxDistance
 			};
-			_audioRoot.AddChild(p);
-			_player3DPool.Add(p);
+			ApplyVoiceProfile(player);
+			_audioRoot!.AddChild(player);
+			_positionalPlayers[index] = player;
+			_positionalVoices[index] = default;
 		}
+	}
+
+	private void InitializeListenerNode()
+	{
+		if (_listenerNode != null && GodotObject.IsInstanceValid(_listenerNode)) return;
+
+		_listenerNode = new AudioListener3D { Name = "PositionalAudioListener", TopLevel = true };
+		_audioRoot!.AddChild(_listenerNode);
+		_listenerNode.GlobalTransform = new Transform3D(Basis.Identity, _listener.Position);
+		ApplyListenerDopplerTracking();
+		MakeListenerCurrent();
+	}
+
+	private void ApplyListenerDopplerTracking()
+	{
+		if (_listenerNode == null || !GodotObject.IsInstanceValid(_listenerNode)) return;
+
+		_listenerNode.DopplerTracking = GameSettings.PositionalDoppler
+			? AudioListener3D.DopplerTrackingEnum.IdleStep
+			: AudioListener3D.DopplerTrackingEnum.Disabled;
+	}
+
+	private static void ApplyVoiceProfile(AudioStreamPlayer3D player)
+	{
+		player.AttenuationModel = PositionalAudioProfile.AttenuationModel;
+		player.UnitSize = PositionalAudioProfile.UnitSize;
+		player.MaxDb = PositionalAudioProfile.MaxVolumeDb;
+		player.AttenuationFilterCutoffHz = GameSettings.PositionalAttenuationFilter
+			? PositionalAudioProfile.AttenuationFilterCutoffHz
+			: PositionalAudioProfile.DisabledAttenuationFilterCutoffHz;
+		player.AttenuationFilterDb = PositionalAudioProfile.AttenuationFilterDb;
+		player.DopplerTracking = GameSettings.PositionalDoppler
+			? AudioStreamPlayer3D.DopplerTrackingEnum.IdleStep
+			: AudioStreamPlayer3D.DopplerTrackingEnum.Disabled;
+	}
+
+	public void ApplyPositionalProfile()
+	{
+		if (_audioRoot == null || !GodotObject.IsInstanceValid(_audioRoot)) return;
+
+		for (int index = 0; index < _positionalPlayers.Length; index++)
+		{
+			AudioStreamPlayer3D? player = _positionalPlayers[index];
+			if (player == null || !GodotObject.IsInstanceValid(player)) continue;
+
+			ApplyVoiceProfile(player);
+		}
+
+		ApplyListenerDopplerTracking();
+
+		_listenerCurrentWarned = false;
+		MakeListenerCurrent();
+	}
+
+	private void MakeListenerCurrent()
+	{
+		if (_listenerNode == null || !GodotObject.IsInstanceValid(_listenerNode) || !_listenerNode.IsInsideTree()) return;
+
+		_listenerNode.MakeCurrent();
+		if (_listenerNode.IsCurrent()) return;
+
+		if (_listenerCurrentWarned) return;
+
+		GD.PushError("[AudioService] AudioListener3D could not be made current; the engine is falling back to the camera listener.");
+		_listenerCurrentWarned = true;
+	}
+
+	public static string BuildRaudEntryKey(string assetPath, string entryName)
+	{
+		return string.IsNullOrWhiteSpace(entryName) ? assetPath : $"{assetPath}{RaudEntrySeparator}{entryName}";
 	}
 
 	public AudioStream? LoadAudioStream(string soundPath)
@@ -109,23 +203,25 @@ public class AudioService
 			return cachedStream;
 		}
 
+		SplitRaudEntryKey(soundPath, out string assetPath, out string? entryName);
+
 		AudioStream? stream = null;
 		try
 		{
-			if (soundPath.StartsWith("res://") || soundPath.StartsWith("user://"))
+			if (assetPath.StartsWith("res://") || assetPath.StartsWith("user://"))
 			{
-				stream = TryLoadFromResourcePath(soundPath);
+				stream = TryLoadFromResourcePath(assetPath);
 			}
 			else
 			{
-				string fullPath = ResolveExternalAudioPath(soundPath);
+				string fullPath = ResolveExternalAudioPath(assetPath);
 				if (File.Exists(fullPath))
 				{
-					stream = LoadStreamFromFile(fullPath);
+					stream = LoadStreamFromFile(fullPath, entryName);
 				}
 				else
 				{
-					stream = TryLoadFallbackResource(soundPath);
+					stream = TryLoadFallbackResource(assetPath);
 				}
 			}
 		}
@@ -140,6 +236,18 @@ public class AudioService
 		}
 
 		return stream;
+	}
+
+	private static void SplitRaudEntryKey(string soundPath, out string assetPath, out string? entryName)
+	{
+		assetPath = soundPath;
+		entryName = null;
+
+		int separatorIndex = soundPath.IndexOf(RaudEntrySeparator, StringComparison.Ordinal);
+		if (separatorIndex < 0) return;
+
+		assetPath = soundPath[..separatorIndex];
+		entryName = soundPath[(separatorIndex + 1)..];
 	}
 
 	private AudioStream? TryLoadFromResourcePath(string soundPath)
@@ -174,11 +282,11 @@ public class AudioService
 		return ProjectSettings.GlobalizePath($"res://Assets/Audio/{soundPath}");
 	}
 
-	private AudioStream? LoadStreamFromFile(string fullPath)
+	private AudioStream? LoadStreamFromFile(string fullPath, string? entryName = null)
 	{
 		if (fullPath.EndsWith(".raud", StringComparison.OrdinalIgnoreCase))
 		{
-			return LoadRaudStream(fullPath);
+			return LoadRaudStream(fullPath, entryName);
 		}
 
 		if (fullPath.EndsWith(".ogg", StringComparison.OrdinalIgnoreCase))
@@ -189,10 +297,10 @@ public class AudioService
 		return GD.Load<AudioStream>(fullPath);
 	}
 
-	private AudioStream? LoadRaudStream(string fullPath)
+	private AudioStream? LoadRaudStream(string fullPath, string? entryName = null)
 	{
 		byte[] raudBytes = File.ReadAllBytes(fullPath);
-		byte[]? oggBytes = RaudFile.GetTrack(raudBytes, 0);
+		byte[]? oggBytes = RaudFile.GetEntry(raudBytes, entryName);
 		if (oggBytes != null && oggBytes.Length > 0)
 		{
 			return AudioStreamOggVorbis.LoadFromBuffer(oggBytes);
@@ -247,101 +355,205 @@ public class AudioService
 		}
 	}
 
-	public void PlaySound3D(string soundPath, Vector3 position, float volumeDb = 0f, float pitchVariation = 0.05f, float maxDistance = 60f)
+	public void SetAudioListener(in AudioListener listener)
+	{
+		Vector3 normalizedForward = listener.Forward.LengthSquared() > 0.0001f ? listener.Forward.Normalized() : Vector3.Forward;
+		Vector3 normalizedUp = listener.Up.LengthSquared() > 0.0001f ? listener.Up.Normalized() : Vector3.Up;
+
+		_followCameraListener = false;
+		ApplyListenerTransform(new Transform3D(CreateListenerBasis(normalizedForward, normalizedUp), listener.Position));
+		UpdatePositionalVoices();
+	}
+
+	private static Basis CreateListenerBasis(Vector3 forward, Vector3 up)
+	{
+		Vector3 right = forward.Cross(up);
+		if (right.LengthSquared() <= 0.0001f) return Basis.Identity;
+
+		right = right.Normalized();
+		Vector3 correctedUp = right.Cross(forward).Normalized();
+
+		return new Basis(right, correctedUp, -forward);
+	}
+
+	public AudioListener GetAudioListener()
+	{
+		return _listener;
+	}
+
+	public void UpdateListenerFromCamera(Transform3D cameraTransform)
+	{
+		if (!_followCameraListener) return;
+
+		ApplyListenerTransform(cameraTransform);
+		UpdatePositionalVoices();
+	}
+
+	private void ApplyListenerTransform(Transform3D transform)
+	{
+		if (_hasAppliedListenerTransform && transform == _appliedListenerTransform) return;
+
+		_appliedListenerTransform = transform;
+		_hasAppliedListenerTransform = true;
+
+		Basis basis = transform.Basis;
+		Vector3 forward = -basis.Z;
+		Vector3 up = basis.Y;
+
+		_listener = new AudioListener(
+			transform.Origin,
+			forward.LengthSquared() > 0.0001f ? forward.Normalized() : Vector3.Forward,
+			up.LengthSquared() > 0.0001f ? up.Normalized() : Vector3.Up);
+
+		if (_listenerNode != null && GodotObject.IsInstanceValid(_listenerNode))
+		{
+			_listenerNode.GlobalTransform = new Transform3D(CreateListenerBasis(_listener.Forward, _listener.Up), transform.Origin);
+			if (!_listenerNode.IsCurrent()) MakeListenerCurrent();
+		}
+	}
+
+	public bool IsListenerCurrent
+	{
+		get => _listenerNode != null && GodotObject.IsInstanceValid(_listenerNode) && _listenerNode.IsCurrent();
+	}
+
+	public void UpdatePositionalVoices()
+	{
+		AudioListener listener = _listener;
+
+		for (int index = 0; index < _positionalVoices.Length; index++)
+		{
+			ref PositionalVoiceState voice = ref _positionalVoices[index];
+			AudioStreamPlayer3D? player = _positionalPlayers[index];
+			if (!voice.Active || player == null || !GodotObject.IsInstanceValid(player)) continue;
+
+			if (!player.Playing)
+			{
+				voice.Active = false;
+				continue;
+			}
+
+			PositionalAudioMix mix = PositionalAudioMixer.Calculate(listener, voice.Position, voice.MaxDistance, voice.BaseVolumeDb);
+			voice.Priority = mix.PerceivedGain;
+
+			if (Mathf.Abs(mix.VolumeDb - voice.AppliedVolumeDb) < VolumeWriteThresholdDb) continue;
+
+			player.VolumeDb = mix.VolumeDb;
+			voice.AppliedVolumeDb = mix.VolumeDb;
+		}
+	}
+
+	public void PlaySound3D(string soundPath, Vector3 position, float volumeDb = 0f, float pitchVariation = 0.05f, AudioPlaybackChannel channel = AudioPlaybackChannel.Sfx, AudioPriorityTier tier = AudioPriorityTier.General, float maxDistance = PositionalAudioProfile.DefaultMaxDistance)
 	{
 		var stream = LoadAudioStream(soundPath);
 		if (stream == null) return;
 
 		EnsureAudioRoot();
 
-		var cameraPos = GameHost.Instance?.MainCamera?.GlobalPosition ?? position;
-		CleanupAndScore3DPlayers(soundPath, cameraPos, out int activeCount, out var furthestPlayer, out float maxDistSq);
+		AudioListener listener = GetAudioListener();
+		PositionalAudioMix mix = PositionalAudioMixer.Calculate(listener, position, maxDistance, volumeDb);
+		if (mix.PerceivedGain <= 0f) return;
 
-		AudioStreamPlayer3D? player = Get3DPlayer(activeCount, position, cameraPos, furthestPlayer, maxDistSq);
-		if (player == null) return;
+		int slotIndex = ReservePositionalVoice(soundPath, mix.PerceivedGain, tier);
+		if (slotIndex < 0) return;
 
-		player.Stream = stream;
-		player.GlobalPosition = position;
-		player.VolumeDb = volumeDb;
+		AudioStreamPlayer3D? player = _positionalPlayers[slotIndex];
+		if (player == null || !GodotObject.IsInstanceValid(player)) return;
+
+		_positionalVoices[slotIndex] = new PositionalVoiceState
+		{
+			Active = true,
+			SoundKey = soundPath,
+			Position = position,
+			BaseVolumeDb = volumeDb,
+			MaxDistance = maxDistance,
+			Priority = mix.PerceivedGain,
+			AppliedVolumeDb = mix.VolumeDb,
+			StartedTicksMs = Time.GetTicksMsec()
+		};
+
+		player.Bus = channel == AudioPlaybackChannel.Voice ? VoiceBusName : SfxBusName;
 		player.MaxDistance = maxDistance;
+		player.Stream = stream;
+		player.VolumeDb = mix.VolumeDb;
 		player.PitchScale = 1.0f + (pitchVariation > 0 ? (float)(_random.NextDouble() * 2 - 1) * pitchVariation : 0f);
+		player.GlobalPosition = position;
 		player.Play();
-		_active3DPlayers[player] = (soundPath, position);
 	}
 
-	private void CleanupAndScore3DPlayers(string soundPath, Vector3 cameraPos, out int activeCount, out AudioStreamPlayer3D? furthestPlayer, out float maxDistSq)
+	private int ReservePositionalVoice(string soundPath, float newPriority, AudioPriorityTier tier)
 	{
-		List<AudioStreamPlayer3D>? stopped = null;
-		activeCount = 0;
-		furthestPlayer = null;
-		maxDistSq = -1f;
+		int tierStart = tier == AudioPriorityTier.Critical ? 0 : CriticalPositionalVoices;
+		int tierEnd = tier == AudioPriorityTier.Critical ? CriticalPositionalVoices : MaxPositionalVoices;
 
-		foreach (var (p, info) in _active3DPlayers)
+		int freeSlot = -1;
+		int quietestSlot = -1;
+		float quietestPriority = float.MaxValue;
+		int sameSoundCount = 0;
+		int quietestSameSoundSlot = -1;
+		float quietestSameSoundPriority = float.MaxValue;
+		ulong nowTicksMs = Time.GetTicksMsec();
+
+		for (int index = tierStart; index < tierEnd; index++)
 		{
-			if (!p.Playing)
+			ref PositionalVoiceState voice = ref _positionalVoices[index];
+			AudioStreamPlayer3D? player = _positionalPlayers[index];
+
+			if (!voice.Active || player == null || !GodotObject.IsInstanceValid(player) || !player.Playing)
 			{
-				stopped ??= new List<AudioStreamPlayer3D>();
-				stopped.Add(p);
+				if (freeSlot < 0) freeSlot = index;
 				continue;
 			}
 
-			if (string.Equals(info.SoundKey, soundPath, StringComparison.OrdinalIgnoreCase))
+			if (voice.Priority < quietestPriority)
 			{
-				activeCount++;
-				float distSq = info.Position.DistanceSquaredTo(cameraPos);
-				if (distSq > maxDistSq)
+				quietestPriority = voice.Priority;
+				quietestSlot = index;
+			}
+
+			if (string.Equals(voice.SoundKey, soundPath, StringComparison.OrdinalIgnoreCase))
+			{
+				sameSoundCount++;
+				if (voice.Priority < quietestSameSoundPriority)
 				{
-					maxDistSq = distSq;
-					furthestPlayer = p;
+					quietestSameSoundPriority = voice.Priority;
+					quietestSameSoundSlot = index;
 				}
 			}
 		}
 
-		if (stopped != null)
+		if (sameSoundCount >= MaxConcurrentPerSound)
 		{
-			foreach (var s in stopped) _active3DPlayers.Remove(s);
+			bool canReplaceSameSound = newPriority > quietestSameSoundPriority + EvictionMargin
+				&& HasSurvivedGracePeriod(quietestSameSoundSlot, nowTicksMs);
+			return canReplaceSameSound ? quietestSameSoundSlot : -1;
 		}
+
+		if (freeSlot >= 0) return freeSlot;
+		if (quietestSlot < 0) return -1;
+
+		bool canEvict = newPriority > quietestPriority + EvictionMargin
+			&& HasSurvivedGracePeriod(quietestSlot, nowTicksMs);
+		return canEvict ? quietestSlot : -1;
 	}
 
-	private AudioStreamPlayer3D? Get3DPlayer(int activeCount, Vector3 position, Vector3 cameraPos, AudioStreamPlayer3D? furthestPlayer, float maxDistSq)
+	private bool HasSurvivedGracePeriod(int slotIndex, ulong nowTicksMs)
 	{
-		if (activeCount >= MaxConcurrentPerSound)
-		{
-			float newDistSq = position.DistanceSquaredTo(cameraPos);
-			if (furthestPlayer != null && newDistSq < maxDistSq)
-			{
-				return furthestPlayer;
-			}
+		if (slotIndex < 0) return false;
 
-			return null;
-		}
-
-		for (int i = 0; i < _player3DPool.Count; i++)
-		{
-			if (!_player3DPool[i].Playing)
-			{
-				return _player3DPool[i];
-			}
-		}
-
-		if (_player3DPool.Count > 0)
-		{
-			return _player3DPool[0];
-		}
-
-		return null;
+		return nowTicksMs - _positionalVoices[slotIndex].StartedTicksMs >= VoiceGracePeriodMs;
 	}
 
-	public void PlayUnitSound(string unitId, UnitSoundEvent eventType, Vector3 position, float volumeDb = 0f)
+	public void PlayUnitSound(string unitId, UnitSoundEvent eventType, Vector3 position, float volumeDb = 0f, AudioPriorityTier tier = AudioPriorityTier.General)
 	{
 		if (string.IsNullOrEmpty(unitId)) return;
 		if (GameHost.UnitRegistry != null && GameHost.UnitRegistry.TryGetValue(unitId, out var meta))
 		{
-			PlayUnitSound(meta, eventType, position, volumeDb);
+			PlayUnitSound(meta, eventType, position, volumeDb, tier);
 		}
 	}
 
-	public void PlayUnitSound(UnitMetadata meta, UnitSoundEvent eventType, Vector3 position, float volumeDb = 0f)
+	public void PlayUnitSound(UnitMetadata meta, UnitSoundEvent eventType, Vector3 position, float volumeDb = 0f, AudioPriorityTier tier = AudioPriorityTier.General)
 	{
 		if (meta.Sounds == null) return;
 
@@ -349,10 +561,13 @@ public class AudioService
 		if (pool == null || pool.Length == 0) return;
 
 		string clip = pool.Length == 1 ? pool[0] : pool[_random.Next(pool.Length)];
-		if (!string.IsNullOrEmpty(clip))
-		{
-			PlaySound3D(clip, position, volumeDb, 0.08f);
-		}
+		if (string.IsNullOrEmpty(clip)) return;
+
+		string soundKey = string.IsNullOrWhiteSpace(meta.Sounds.VoiceAsset)
+			? clip
+			: BuildRaudEntryKey(meta.Sounds.VoiceAsset, clip);
+
+		PlaySound3D(soundKey, position, volumeDb, 0.08f, AudioPlaybackChannel.Voice, tier, PositionalAudioProfile.VoiceMaxDistance);
 	}
 
 	private string[]? GetSoundPool(UnitSoundsMetadata sounds, UnitSoundEvent eventType)
@@ -430,16 +645,22 @@ public class AudioService
 
 	private void EnsureAudioRoot()
 	{
-		if (_audioRoot == null || !GodotObject.IsInstanceValid(_audioRoot))
+		if (_audioRoot != null && GodotObject.IsInstanceValid(_audioRoot)) return;
+
+		Node? parentNode = null;
+		if (GameContext.Host != null && GodotObject.IsInstanceValid(GameContext.Host))
 		{
-			if (GameHost.Instance != null && GodotObject.IsInstanceValid(GameHost.Instance))
-			{
-				InitializeAudioNodes(GameHost.Instance);
-			}
-			else if (Engine.GetMainLoop() is SceneTree tree && tree.Root != null)
-			{
-				InitializeAudioNodes(tree.Root);
-			}
+			parentNode = GameContext.Host;
 		}
+		else if (Engine.GetMainLoop() is SceneTree sceneTree)
+		{
+			parentNode = sceneTree.Root;
+		}
+
+		if (parentNode == null) return;
+
+		InitializeAudioNodes();
+		parentNode.AddChild(_audioRoot!);
+		MakeListenerCurrent();
 	}
 }

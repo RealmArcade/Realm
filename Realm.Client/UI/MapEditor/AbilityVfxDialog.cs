@@ -132,7 +132,6 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 		configVBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		scrollBody.AddChild(configVBox);
 
-		// SECTION 0: IDENTITY
 		AddSectionHeader(configVBox, "🆔 " + TranslationServer.Translate("IDENTITY"), new Color(0.95f, 0.8f, 0.4f));
 
 		var rowId = BuildIdentityRow(configVBox, "ability/", out _lblObjectTypePrefix);

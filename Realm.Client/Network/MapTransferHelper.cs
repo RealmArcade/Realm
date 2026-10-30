@@ -228,7 +228,7 @@ public static class MapTransferHelper
 
 	public static bool HandleBeginMapTransfer(Godot.Node context, int senderId, string transferId, ref int activeEphemeralTransferPeerId)
 	{
-		if (PeerSeederManager.Instance != null && PeerSeederManager.Instance.IsSeeding)
+		if (GameContext.PeerSeeder != null && GameContext.PeerSeeder.IsSeeding)
 		{
 			if (activeEphemeralTransferPeerId != 0 && activeEphemeralTransferPeerId != senderId)
 			{

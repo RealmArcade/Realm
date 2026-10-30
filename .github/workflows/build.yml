@@ -82,6 +82,37 @@ jobs:
           if (-not $consoleExe) { $consoleExe = "godot" }
           & $consoleExe --headless --path Realm.Client --export-release "Windows Desktop" "$PWD\publish\Realm.exe"
 
+      - name: Import Authority Assets
+        if: ${{ github.event_name == 'workflow_dispatch' && (inputs.publish == true || github.event.inputs.publish == 'true') }}
+        run: |
+          $consoleExe = (Get-ChildItem -Path "C:\Users\runneradmin\godot" -Filter "*console.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName)
+          if (-not $consoleExe) { $consoleExe = "godot" }
+          & $consoleExe --headless --path Realm.ListenServerHost --editor --quit
+          if ($LASTEXITCODE -ne 0) { throw "The authority project could not be imported (exit code $LASTEXITCODE)." }
+
+      - name: Export Authority Release
+        if: ${{ github.event_name == 'workflow_dispatch' && (inputs.publish == true || github.event.inputs.publish == 'true') }}
+        run: |
+          $consoleExe = (Get-ChildItem -Path "C:\Users\runneradmin\godot" -Filter "*console.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName)
+          if (-not $consoleExe) { $consoleExe = "godot" }
+          $staging = "$PWD\publish-authority"
+          New-Item -ItemType Directory -Force -Path $staging | Out-Null
+          & $consoleExe --headless --path Realm.ListenServerHost --export-release "Windows Desktop" "$staging\Realm.ListenServerHost.exe"
+          if (-not (Test-Path "$staging\Realm.ListenServerHost.exe")) { throw "The authority was not exported." }
+
+      - name: Place Authority in the Client's Data Folder
+        if: ${{ github.event_name == 'workflow_dispatch' && (inputs.publish == true || github.event.inputs.publish == 'true') }}
+        run: |
+          # The game finds its authority inside its own data folder, so the archive a player opens holds one executable they
+          # can double-click and the authority sits beside it where it cannot be mistaken for the game.
+          $clientData = Get-ChildItem -Path "$PWD\publish" -Directory -Filter "data_*_windows_x86_64" | Select-Object -First 1
+          if (-not $clientData) { throw "The client export produced no data folder, so there is nowhere to put the authority." }
+          $authority = Join-Path $clientData.FullName "Realm.ListenServerHost"
+          New-Item -ItemType Directory -Force -Path $authority | Out-Null
+          Copy-Item -Path "$PWD\publish-authority\*" -Destination $authority -Recurse -Force
+          if (-not (Test-Path (Join-Path $authority "Realm.ListenServerHost.exe"))) { throw "The authority was not placed in $authority." }
+          Write-Host "The authority is packaged in $authority"
+
       - name: Copy Realm.Tools.Cli to Publish Directory
         if: ${{ github.event_name == 'workflow_dispatch' && (inputs.publish == true || github.event.inputs.publish == 'true') }}
         run: |

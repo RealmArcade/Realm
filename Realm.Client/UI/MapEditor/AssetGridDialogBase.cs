@@ -33,6 +33,17 @@ public partial class AssetGridDialogBase : FloatingDialogBase
 
 	protected void BindVisibleGridCells(int startIndex, int visibleCount, int columns, List<IndexedAsset> matchingAssets, IndexedAsset selectedAsset, Action<IndexedAsset, bool> onCellClicked)
 	{
+		BindVisibleGridCells(
+			startIndex,
+			visibleCount,
+			columns,
+			matchingAssets,
+			asset => selectedAsset != null && string.Equals(selectedAsset.FilePath, asset.FilePath, StringComparison.OrdinalIgnoreCase),
+			onCellClicked);
+	}
+
+	protected void BindVisibleGridCells(int startIndex, int visibleCount, int columns, List<IndexedAsset> matchingAssets, Func<IndexedAsset, bool> isAssetSelected, Action<IndexedAsset, bool> onCellClicked)
+	{
 		for (int i = 0; i < visibleCount; i++)
 		{
 			int assetIndex = startIndex + i;
@@ -44,12 +55,12 @@ public partial class AssetGridDialogBase : FloatingDialogBase
 			float posY = GridPadding + row * (CellHeight + SpacingY);
 
 			var cell = _cellPool[i];
+			cell.CustomMinimumSize = new Vector2(CellWidth, CellHeight);
 			cell.Position = new Vector2(posX, posY);
 			cell.Size = new Vector2(CellWidth, CellHeight);
 			cell.Visible = true;
 
-			bool isSelected = selectedAsset != null && string.Equals(selectedAsset.FilePath, asset.FilePath, StringComparison.OrdinalIgnoreCase);
-			cell.Bind(asset, isSelected, onCellClicked);
+			cell.Bind(asset, isAssetSelected(asset), onCellClicked);
 		}
 	}
 

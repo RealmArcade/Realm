@@ -8,6 +8,8 @@ MapTemplate/lib/Realm.MapAPI.dll
 MapTemplate/lib/Realm.MapAPI.pdb
 MapTemplate/lib/Realm.EditorAPI.dll
 MapTemplate/lib/Realm.EditorAPI.pdb
+MapTemplate/lib/Realm.Ecs.dll
+MapTemplate/lib/Realm.Ecs.pdb
 obj/
 bin/
 *.user

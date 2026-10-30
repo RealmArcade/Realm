@@ -9,6 +9,7 @@ using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Services;
 using Realm.Client.Utils;
+using Realm.Shared.Abilities;
 
 namespace Realm.Client.UI.InGame;
 
@@ -135,10 +136,10 @@ public partial class CommandPanel
 
 	private void UpdateAbilityButtonContent(Button btn, CommandCardItem item)
 	{
-		var def = GameHost.Instance?.GetAbilityDefinition(item.AbilityId);
+		var def = GameContext.Host?.GetAbilityDefinition(item.AbilityId);
 		if (def == null) return;
 
-		string transTooltip = !string.IsNullOrEmpty(def.Tooltip) ? def.Tooltip : "";
+		string transTooltip = !string.IsNullOrEmpty(def.TooltipTemplate) ? def.TooltipTemplate : "";
 		if (!string.IsNullOrEmpty(transTooltip) && btn.TooltipText != transTooltip)
 		{
 			btn.TooltipText = transTooltip;
@@ -189,7 +190,7 @@ public partial class CommandPanel
 
 		UpdateAbilityStats(item, ref cdRemaining, ref currentMana);
 
-		var abilityDef = GameHost.Instance?.GetAbilityDefinition(item.AbilityId);
+		var abilityDef = GameContext.Host?.GetAbilityDefinition(item.AbilityId);
 		float maxCd = GetMaxCooldown(abilityDef, cdRemaining);
 		float manaCost = GetEffectiveManaCost(item, abilityDef);
 
@@ -223,16 +224,16 @@ public partial class CommandPanel
 
 	private void UpdateAbilityStats(CommandCardItem item, ref float cdRemaining, ref float currentMana)
 	{
-		GameHost tempQualifier = GameHost.Instance;
+		GameHost tempQualifier = GameContext.Host;
 		var world = (tempQualifier != null ? GameContext.World : null);
 		if (world == null) return;
 
 		var caster = item.CasterEntity != Entity.Null && world.IsAlive(item.CasterEntity) ? item.CasterEntity : _lastFocusedEntity;
 		GetCasterState(caster, world, item.AbilityId, ref currentMana, ref cdRemaining);
 
-		if (cdRemaining <= 0f && GameHost.Instance != null)
+		if (cdRemaining <= 0f && GameContext.Host != null)
 		{
-			cdRemaining = GameHost.Instance.GetPlayerSpellCooldown(GameContext.PerspectiveFilter.ControlledPlayerIndex, item.AbilityId);
+			cdRemaining = GameContext.Host.GetPlayerSpellCooldown(GameContext.PerspectiveFilter.ControlledPlayerIndex, item.AbilityId);
 		}
 	}
 
@@ -376,7 +377,7 @@ public partial class CommandPanel
 
 			if (localIdx >= 0 && localIdx < 12)
 			{
-				if (_activeItems[i].Hotkey == Key.None)
+				if (_activeItems[i].Hotkey.IsNone)
 				{
 					_activeItems[i].Hotkey = gridHotkeys[localIdx];
 				}
@@ -387,7 +388,7 @@ public partial class CommandPanel
 
 	private void FormatItemTooltipHotkey(CommandCardItem item)
 	{
-		if (item == null || item.Hotkey == Key.None || string.IsNullOrEmpty(item.Tooltip)) return;
+		if (item == null || item.Hotkey.IsNone || string.IsNullOrEmpty(item.Tooltip)) return;
 
 		string tooltip = item.Tooltip;
 		if (tooltip.StartsWith("[")) return;
@@ -468,7 +469,7 @@ public partial class CommandPanel
 			_displayedGridItems[i] = item;
 			if (item != null)
 			{
-				if (item.Hotkey == Key.None)
+				if (item.Hotkey.IsNone)
 				{
 					item.Hotkey = gridHotkeys[i];
 				}
@@ -482,10 +483,16 @@ public partial class CommandPanel
 		}
 	}
 
-	public bool HandleHotkey(Key keycode)
+	public bool HandleHotkey(Key keycode, KeyModifierMask modifiers)
 	{
 		if (_activeItems.Count == 0) return false;
 
+		if (TryInvokeHotkey(keycode, modifiers, ignoreQueueModifier: false)) return true;
+		return (modifiers & KeyModifierMask.MaskShift) != 0 && TryInvokeHotkey(keycode, modifiers, ignoreQueueModifier: true);
+	}
+
+	private bool TryInvokeHotkey(Key keycode, KeyModifierMask modifiers, bool ignoreQueueModifier)
+	{
 		GetHotkeyCheckRange(out int startIndex, out int itemsToCheck);
 
 		for (int i = 0; i < itemsToCheck; i++)
@@ -494,7 +501,11 @@ public partial class CommandPanel
 			if (itemIndex >= _activeItems.Count) break;
 
 			var item = _activeItems[itemIndex];
-			if (item.Hotkey == keycode && !(item.IsDisabled?.Invoke() ?? false))
+			bool hotkeyMatches = ignoreQueueModifier
+				? item.Hotkey.MatchesIgnoringQueueModifier(keycode, modifiers)
+				: item.Hotkey.Matches(keycode, modifiers);
+
+			if (hotkeyMatches && !(item.IsDisabled?.Invoke() ?? false))
 			{
 				item.Callback?.Invoke();
 				return true;
@@ -574,9 +585,9 @@ public partial class CommandPanel
 		btn.Pressed += () =>
 		{
 			_pageIndex = (_pageIndex + 1) % numPages;
-			if (GameHost.Instance != null)
+			if (GameContext.Host != null)
 			{
-				InGameHUD.Instance?.RefreshUI(GameHost.Instance.SelectedUnits);
+				GameContext.InGameHud?.RefreshUI(GameContext.Host.SelectedUnits);
 			}
 		};
 
@@ -599,6 +610,7 @@ public partial class CommandPanel
 	private Button CreateButtonForItem(CommandCardItem item)
 	{
 		var btn = new CommandCardButton();
+		btn.TooltipContext = item.TooltipContext;
 		SetupBaseButtonProperties(btn, item);
 		AddHotkeyLabelIfNeeded(btn, item);
 		SetButtonStyles(btn);
@@ -637,7 +649,7 @@ public partial class CommandPanel
 
 	private void AddHotkeyLabelIfNeeded(Button btn, CommandCardItem item)
 	{
-		if (item.Hotkey == Key.None) return;
+		if (item.Hotkey.IsNone) return;
 
 		var hotkeyLabel = new Label
 		{
@@ -783,7 +795,7 @@ public partial class CommandPanel
 					IconPath = "res://Assets/UI/golden_hammers.webp",
 					Tooltip = "[B] Build Structure",
 					Hotkey = Key.B,
-					Callback = () => InGameHUD.Instance?.EnterBuildSubMenu()
+					Callback = () => GameContext.InGameHud?.EnterBuildSubMenu()
 				});
 			}
 		}
@@ -817,7 +829,7 @@ public partial class CommandPanel
 			IconPath = "res://Assets/UI/cancel_button_2.webp",
 			Tooltip = "[Esc] Cancel",
 			Hotkey = Key.Escape,
-			Callback = () => InGameHUD.Instance?.ExitBuildSubMenu()
+			Callback = () => GameContext.InGameHud?.ExitBuildSubMenu()
 		});
 	}
 
@@ -855,7 +867,7 @@ public partial class CommandPanel
 				IconPath = "res://Assets/UI/move_speed.webp",
 				Tooltip = "[M] Move / Right-Click Ground",
 				Hotkey = Key.M,
-				Callback = () => GameHost.Instance?.EnterCommandTargeting("move")
+				Callback = () => GameContext.Host?.EnterCommandTargeting("move")
 			});
 
 			items.Add(CreateStopCommand());
@@ -867,7 +879,7 @@ public partial class CommandPanel
 				IconPath = "res://Assets/UI/battle_axe.webp",
 				Tooltip = "[A] Attack / Attack-Move — Click enemy to attack, click ground to attack-move",
 				Hotkey = Key.A,
-				Callback = () => GameHost.Instance?.EnterCommandTargeting("attack")
+				Callback = () => GameContext.Host?.EnterCommandTargeting("attack")
 			});
 
 			items.Add(new CommandCardItem
@@ -876,7 +888,7 @@ public partial class CommandPanel
 				IconPath = "res://Assets/UI/patrol.webp",
 				Tooltip = "[P] Patrol — Unit patrols between current position and target, engaging enemies",
 				Hotkey = Key.P,
-				Callback = () => GameHost.Instance?.EnterCommandTargeting("patrol")
+				Callback = () => GameContext.Host?.EnterCommandTargeting("patrol")
 			});
 		}
 
@@ -888,7 +900,7 @@ public partial class CommandPanel
 				IconPath = "res://Assets/UI/golden_hammers.webp",
 				Tooltip = "[B] Build Structure",
 				Hotkey = Key.B,
-				Callback = () => InGameHUD.Instance?.EnterBuildSubMenu()
+				Callback = () => GameContext.InGameHud?.EnterBuildSubMenu()
 			});
 		}
 
@@ -909,7 +921,7 @@ public partial class CommandPanel
 			IconPath = "res://Assets/UI/battle_axe.webp",
 			Tooltip = "[A] Attack / Attack-Move — Click enemy to attack, click ground to attack-move",
 			Hotkey = Key.A,
-			Callback = () => GameHost.Instance?.EnterCommandTargeting("attack")
+			Callback = () => GameContext.Host?.EnterCommandTargeting("attack")
 		});
 
 		items.Add(CreateStopCommand());
@@ -925,8 +937,8 @@ public partial class CommandPanel
 			Hotkey = Key.S,
 			Callback = () =>
 			{
-				InGameHUD.Instance?.ShowFeedbackText(TranslationServer.Translate("Command: Stop Current Action"), new Color(0.9f, 0.2f, 0.2f));
-				GameHost.Instance?.StopSelectedUnits();
+				GameContext.InGameHud?.ShowFeedbackText(TranslationServer.Translate("Command: Stop Current Action"), new Color(0.9f, 0.2f, 0.2f));
+				GameContext.Host?.StopSelectedUnits();
 			}
 		};
 	}
@@ -941,8 +953,8 @@ public partial class CommandPanel
 			Hotkey = Key.H,
 			Callback = () =>
 			{
-				InGameHUD.Instance?.ShowFeedbackText(TranslationServer.Translate("Command: Hold Position"), new Color(0.9f, 0.8f, 0.1f));
-				GameHost.Instance?.HoldSelectedUnits();
+				GameContext.InGameHud?.ShowFeedbackText(TranslationServer.Translate("Command: Hold Position"), new Color(0.9f, 0.8f, 0.1f));
+				GameContext.Host?.HoldSelectedUnits();
 			}
 		};
 	}
@@ -962,7 +974,7 @@ public partial class CommandPanel
 				IconPath = "res://Assets/UI/alliance_flag.webp",
 				Tooltip = "[Y] Set Rally Point — Set location where new units will walk",
 				Hotkey = Key.Y,
-				Callback = () => GameHost.Instance?.EnterCommandTargeting("rally")
+				Callback = () => GameContext.Host?.EnterCommandTargeting("rally")
 			});
 		}
 
@@ -1005,23 +1017,26 @@ public partial class CommandPanel
 			string iconPath = itemMeta != null && !string.IsNullOrEmpty(itemMeta.IconPath) ? itemMeta.IconPath : "res://Assets/UI/alliance_flag.webp";
 
 			string costStr = costGold > 0f ? $" (Cost: {costGold:F0} Gold)" : "";
+			string statBlock = TooltipStatBlock.ForItem(itemMeta);
 			string tooltip = $"Buy {itemName}{costStr} — {itemDesc}";
+			if (statBlock.Length > 0) tooltip += "\n" + statBlock;
 
 			items.Add(new CommandCardItem
 			{
 				Id = "buy_" + itemId,
 				IconPath = iconPath,
 				Tooltip = tooltip,
+				TooltipContext = TooltipContext.ForItem(focusedUnit.Entity, itemId),
 				Hotkey = Key.None,
 				Callback = () =>
 				{
 					var sellerEntity = focusedUnit != null && focusedUnit.Entity != Entity.Null
 						? focusedUnit.Entity
-						: (GameHost.Instance?.SelectedUnits.Count == 1 ? GameHost.Instance.SelectedUnits[0].Entity : Entity.Null);
+						: (GameContext.Host?.SelectedUnits.Count == 1 ? GameContext.Host.SelectedUnits[0].Entity : Entity.Null);
 
 					if (sellerEntity != Entity.Null)
 					{
-						GameHost.Instance?.BuyItem(itemId, sellerEntity);
+						GameContext.Host?.BuyItem(itemId, sellerEntity);
 					}
 				}
 			});
@@ -1065,25 +1080,27 @@ public partial class CommandPanel
 			if (stone > 0f) costParts.Add($"{stone:F0} Stone");
 			string costStr = costParts.Count > 0 ? $" (Cost: {string.Join(", ", costParts)})" : "";
 
-			Key hotkey = Key.None;
+			HotkeySpec hotkey = HotkeySpec.None;
 			if (upgMeta != null && !string.IsNullOrEmpty(upgMeta.Hotkey))
 			{
 				hotkey = ParseHotkey(upgMeta.Hotkey);
 			}
 
-			string hotkeyPrefix = hotkey != Key.None ? $"[{hotkey}] " : "";
+			string hotkeyPrefix = !hotkey.IsNone ? $"[{hotkey}] " : "";
+			string statBlock = TooltipStatBlock.ForUpgrade(upgMeta);
 			string tooltip = !string.IsNullOrEmpty(desc)
 				? $"{hotkeyPrefix}Upgrade {name}{costStr}\n{desc}"
 				: $"{hotkeyPrefix}Upgrade {name}{costStr}";
+			if (statBlock.Length > 0) tooltip += "\n" + statBlock;
 
 			string canonicalId = upgMeta != null && !string.IsNullOrEmpty(upgMeta.TemplateID) ? upgMeta.TemplateID : upgradeId;
 
 			Func<bool> isMaxed = () =>
 			{
-				int lvl = GameHost.Instance?.GetPlayerTechLevel(localViewingIndex, canonicalId) ?? 0;
+				int lvl = GameContext.Host?.GetPlayerTechLevel(localViewingIndex, canonicalId) ?? 0;
 				if (lvl == 0 && canonicalId != upgradeId)
 				{
-					lvl = GameHost.Instance?.GetPlayerTechLevel(localViewingIndex, upgradeId) ?? 0;
+					lvl = GameContext.Host?.GetPlayerTechLevel(localViewingIndex, upgradeId) ?? 0;
 				}
 				return lvl >= maxLevel;
 			};
@@ -1091,10 +1108,10 @@ public partial class CommandPanel
 			Func<string> getButtonText = () =>
 			{
 				if (isMaxed()) return TranslationServer.Translate("MAXED");
-				int lvl = GameHost.Instance?.GetPlayerTechLevel(localViewingIndex, canonicalId) ?? 0;
+				int lvl = GameContext.Host?.GetPlayerTechLevel(localViewingIndex, canonicalId) ?? 0;
 				if (lvl == 0 && canonicalId != upgradeId)
 				{
-					lvl = GameHost.Instance?.GetPlayerTechLevel(localViewingIndex, upgradeId) ?? 0;
+					lvl = GameContext.Host?.GetPlayerTechLevel(localViewingIndex, upgradeId) ?? 0;
 				}
 				if (lvl > 0 && maxLevel > 1) return $"Lvl {lvl}";
 				return "";
@@ -1102,7 +1119,7 @@ public partial class CommandPanel
 
 			Func<bool> cannotAfford = () =>
 			{
-				var hud = InGameHUD.Instance;
+				var hud = GameContext.InGameHud;
 				if (hud == null) return false;
 				return hud.Gold < gold || hud.Wood < wood || hud.Stone < stone;
 			};
@@ -1112,8 +1129,9 @@ public partial class CommandPanel
 				Id = "upgrade_" + upgradeId,
 				IconPath = iconPath,
 				Tooltip = tooltip,
+				TooltipContext = TooltipContext.ForUpgrade(focusedUnit.Entity, upgradeId),
 				Hotkey = hotkey,
-				Callback = () => GameHost.Instance?.BuyUpgrade(upgradeId, localViewingIndex),
+				Callback = () => GameContext.Host?.BuyUpgrade(upgradeId, localViewingIndex),
 				IsDisabled = () => isMaxed() || cannotAfford(),
 				GetButtonText = getButtonText
 			});
@@ -1122,11 +1140,11 @@ public partial class CommandPanel
 
 	private CommandCardItem? CreateBuildOptionItem(string unitId, Entity builderEntity = default)
 	{
-		var host = GameHost.Instance;
+		var host = GameContext.Host;
 		var unitWrapper = GetUnitWrapperIfAlive(host, builderEntity);
 		if (IsAbilityHidden(host, unitWrapper, unitId)) return null;
 
-		var hotkey = Key.None;
+		HotkeySpec hotkey = HotkeySpec.None;
 
 		var abilityDef = host?.GetAbilityDefinition(unitId);
 		if (abilityDef != null && !string.IsNullOrEmpty(abilityDef.Hotkey))
@@ -1135,9 +1153,9 @@ public partial class CommandPanel
 		}
 
 		string finalTooltip;
-		if (abilityDef != null && !string.IsNullOrEmpty(abilityDef.Tooltip))
+		if (abilityDef != null && !string.IsNullOrEmpty(abilityDef.TooltipTemplate))
 		{
-			finalTooltip = abilityDef.Tooltip;
+			finalTooltip = abilityDef.TooltipTemplate;
 		}
 		else
 		{
@@ -1153,17 +1171,18 @@ public partial class CommandPanel
 			Id = "build_" + unitId,
 			IconPath = iconPath,
 			Tooltip = finalTooltip,
+			TooltipContext = TooltipContext.ForUnit(builderEntity),
 			Hotkey = hotkey,
 			GridX = abilityDef?.GridX ?? -1,
 			GridY = abilityDef?.GridY ?? -1,
-			Callback = () => GameHost.Instance?.EnterBuildingPlacement(unitId),
+			Callback = () => GameContext.Host?.EnterBuildingPlacement(unitId),
 			IsDisabled = () => host != null && GameContext.RegistryService.IsAbilityDisabledForUnit(unitWrapper, unitId)
 		};
 	}
 
 	private CommandCardItem CreateTrainOptionItem(string unitId)
 	{
-		var hotkey = Key.None;
+		HotkeySpec hotkey = HotkeySpec.None;
 
 			string finalTooltip = UIHelper.GetUnitCostTooltip(unitId, hotkey, "Train");
 
@@ -1172,8 +1191,9 @@ public partial class CommandPanel
 			Id = "train_" + unitId,
 			IconPath = GetUnitIcon(unitId),
 			Tooltip = finalTooltip,
+			TooltipContext = TooltipContext.ForUnit(Entity.Null),
 			Hotkey = hotkey,
-			Callback = () => GameHost.Instance?.TrainUnitAtBuilding(unitId)
+			Callback = () => GameContext.Host?.TrainUnitAtBuilding(unitId)
 		};
 	}
 
@@ -1189,7 +1209,7 @@ public partial class CommandPanel
 
 	private CommandCardItem? CreateAbilityItem(string abilityId, Entity casterEntity)
 	{
-		var host = GameHost.Instance;
+		var host = GameContext.Host;
 		var unitWrapper = GetUnitWrapperIfAlive(host, casterEntity);
 
 		if (IsAbilityHidden(host, unitWrapper, abilityId)) return null;
@@ -1205,6 +1225,7 @@ public partial class CommandPanel
 			ManaCost = manaCost,
 			IconPath = ResolveAbilityIcon(abilityId, abilityDef),
 			Tooltip = ResolveAbilityTooltip(abilityId, abilityDef),
+			TooltipContext = TooltipContext.ForAbility(casterEntity, abilityId),
 			Hotkey = ParseHotkey(abilityDef?.Hotkey),
 			GridX = abilityDef?.GridX ?? -1,
 			GridY = abilityDef?.GridY ?? -1,
@@ -1231,9 +1252,9 @@ public partial class CommandPanel
 
 	private string ResolveAbilityTooltip(string abilityId, AbilityDefinition abilityDef)
 	{
-		if (abilityDef != null && !string.IsNullOrEmpty(abilityDef.Tooltip))
+		if (abilityDef != null && !string.IsNullOrEmpty(abilityDef.TooltipTemplate))
 		{
-			return abilityDef.Tooltip;
+			return abilityDef.TooltipTemplate;
 		}
 
 		return GetDefaultAbilityTooltip(abilityId);
@@ -1250,20 +1271,23 @@ public partial class CommandPanel
 		return host != null ? host.GetAbilityManaCostForUnit(unitWrapper, abilityId) : (abilityDef?.ManaCost ?? 0f);
 	}
 
-	private Key ParseHotkey(string hotkeyString)
+	private HotkeySpec ParseHotkey(string hotkeyString)
 	{
-		if (!string.IsNullOrEmpty(hotkeyString) && Enum.TryParse<Key>(hotkeyString, true, out var parsedKey))
+		if (string.IsNullOrWhiteSpace(hotkeyString)) return HotkeySpec.None;
+
+		if (HotkeySpec.TryParse(hotkeyString, out HotkeySpec hotkey, out string errorMessage))
 		{
-			return parsedKey;
+			return hotkey;
 		}
 
-		return Key.None;
+		GD.PrintErr($"[CommandPanel] Rejected hotkey '{hotkeyString}': {errorMessage}");
+		return HotkeySpec.None;
 	}
 
 	private Action GetAbilityCallback(string abilityId, bool isInstant)
 	{
-		if (isInstant) return () => GameHost.Instance?.CastInstantAbility(abilityId);
-		return () => GameHost.Instance?.EnterSpellTargeting(abilityId);
+		if (isInstant) return () => GameContext.Host?.CastInstantAbility(abilityId);
+		return () => GameContext.Host?.EnterSpellTargeting(abilityId);
 	}
 
 	private bool IsAbilityDisabled(GameHost host, Unit_WasmRuntime unitWrapper, Entity casterEntity, string abilityId, float manaCost)

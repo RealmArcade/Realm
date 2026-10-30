@@ -40,6 +40,7 @@ public class CustomGenreProvider : IAiGenreProvider
 		};
 	}
 
+	// IAiGenreProvider contract: the custom genre is configured through CustomScanner and CustomExecutor instead.
 	public void ConfigureFromParameters(IReadOnlyDictionary<string, string> parameters)
 	{
 	}

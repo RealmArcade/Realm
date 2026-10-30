@@ -130,6 +130,33 @@ public partial class GameHost
 		return GameContext.ModelOverrideService.GetModelCollisionCircleRatio(primaryKey, assetKey, GameContext.EditorService.NormalizeModelAssetKey);
 	}
 
+	public float ResolveTemplateCollisionRadius(string templateId)
+	{
+		if (string.IsNullOrEmpty(templateId)) return GameplayConstants.DefaultCollisionRadius;
+
+		float authoredCollisionRadius = GetModelCollisionCircleRatio(templateId);
+
+		if (UnitRegistry.ContainsKey(templateId)) return GameplayConstants.ResolveContactRadius(authoredCollisionRadius, 1f, GameplayConstants.DefaultCollisionRadius);
+		if (BuildingRegistry.ContainsKey(templateId)) return GameplayConstants.ResolveContactRadius(authoredCollisionRadius, 1f, GameplayConstants.DefaultBuildingCollisionRadius);
+
+		return GameplayConstants.ResolveContactRadius(authoredCollisionRadius, 1f, GameplayConstants.DefaultPropCollisionRadius);
+	}
+
+	/// <summary>
+	///     The body a unit occupies: the replicated radius a screen in a match was told, or what its template authors
+	///     where nothing has been stated yet. The model scale is deliberately not part of that fallback - it makes the
+	///     mesh larger, and multiplying by it here gave a body the match did not have.
+	/// </summary>
+	public float ResolveEntityBodyRadius(Entity entity, string templateId)
+	{
+		if (GameContext.World != null && entity != Entity.Null && GameContext.World.IsAlive(entity) && GameContext.World.Has<CollisionRadius>(entity))
+		{
+			return GameplayConstants.ResolveBodyRadius(GameContext.World, entity, GameplayConstants.DefaultCollisionRadius);
+		}
+
+		return ResolveTemplateCollisionRadius(templateId);
+	}
+
 	private float GetRegistryCollisionCircleRatio(string primaryKey)
 	{
 		return GameContext.RegistryService.GetRegistryCollisionCircleRatio(primaryKey);
@@ -227,6 +254,7 @@ public partial class GameHost
 		{
 			GameContext.EditorService.ModelYOffsetSavePending = true;
 			EditorHasUnsavedChanges = true;
+			GameContext.PropMultiMesh?.RefreshProceduralAnimation(assetKey);
 		});
 	}
 
@@ -349,8 +377,8 @@ public partial class GameHost
 		ApplyMaterialOverridesToUnits(normAssetKey, brightness, tint, normalizeLuminance, ignorePlayerColor);
 		ApplyMaterialOverridesToPreviewNode(normAssetKey, brightness, tint, normalizeLuminance, ignorePlayerColor);
 
-		PropMultiMeshManager.Instance?.UpdateMaterialOverrides(normAssetKey);
-		PropMultiMeshManager.Instance?.MarkDirty(normAssetKey);
+		GameContext.PropMultiMesh?.UpdateMaterialOverrides(normAssetKey);
+		GameContext.PropMultiMesh?.MarkDirty(normAssetKey);
 	}
 
 	private bool ShouldSkipMaterialOverridesUpdate(string normAssetKey)
@@ -360,7 +388,7 @@ public partial class GameHost
 		bool hasProps = AllProps.Count > 0;
 		bool hasUnits = AllUnits.Count > 0;
 		bool hasPreview = _editorPreviewNode != null;
-		bool hasMultiMesh = PropMultiMeshManager.Instance != null && PropMultiMeshManager.Instance.HasGroups;
+		bool hasMultiMesh = GameContext.PropMultiMesh != null && GameContext.PropMultiMesh.HasGroups;
 
 		return !hasProps && !hasUnits && !hasPreview && !hasMultiMesh;
 	}
@@ -401,7 +429,7 @@ public partial class GameHost
 
 	public void UpdateAllMaterialOverrides()
 	{
-		if (AllProps.Count == 0 && AllUnits.Count == 0 && _editorPreviewNode == null && (PropMultiMeshManager.Instance == null || !PropMultiMeshManager.Instance.HasGroups))
+		if (AllProps.Count == 0 && AllUnits.Count == 0 && _editorPreviewNode == null && (GameContext.PropMultiMesh == null || !GameContext.PropMultiMesh.HasGroups))
 		{
 			return;
 		}
@@ -421,7 +449,7 @@ public partial class GameHost
 			ApplyOverridesToNode(_editorPreviewNode, _editorPreviewNode is Unit3D);
 		}
 
-		PropMultiMeshManager.Instance?.UpdateAllMaterialOverrides();
+		GameContext.PropMultiMesh?.UpdateAllMaterialOverrides();
 	}
 
 	private void ApplyOverridesToNode(Node3D node, bool isUnit)
@@ -464,8 +492,11 @@ public partial class GameHost
 		float circleRatio = GetModelCollisionCircleRatio(unit);
 		unit.UpdateCollisionCircleScale(circleRatio);
 
-		float baseRadius = GetOrCalculateObstacleRadius(unit.UnitId, unit) * circleRatio;
-		GameContext.ModelOverrideService.UpdateCollisionRadius(unit.Entity, baseRadius);
+		if (GameContext.ServerSession == null)
+		{
+			float baseRadius = ResolveTemplateCollisionRadius(unit.UnitId);
+			GameContext.ModelOverrideService.UpdateCollisionRadius(unit.Entity, baseRadius);
+		}
 
 		if (unit.IsPreview) return;
 
@@ -492,7 +523,7 @@ public partial class GameHost
 		float circleRatio = GetModelCollisionCircleRatio(prop);
 		prop.UpdateCollisionCircleScale(circleRatio);
 
-		float baseRadius = GetOrCalculateObstacleRadius(prop.PropId, prop) * circleRatio;
+		float baseRadius = ResolveTemplateCollisionRadius(prop.PropId);
 		GameContext.ModelOverrideService.UpdateCollisionRadius(prop.Entity, baseRadius);
 
 		if (prop.IsPreview) return;
@@ -525,7 +556,7 @@ public partial class GameHost
 			if (cfg != null)
 			{
 				if (node is Prop3D propWithAnim) propWithAnim.HasProceduralAnimation = true;
-				ModelShaderManager.SetProceduralAnimation(node, cfg);
+				ModelShaderManager.SetProceduralAnimation(node, cfg, modelKey: GetModelAssetKey(node));
 				return;
 			}
 		}
@@ -675,8 +706,7 @@ public partial class GameHost
 			prop.UpdateCollisionCircleScale(ratio);
 			if (prop.Entity != Entity.Null && GameContext.World.IsAlive(prop.Entity))
 			{
-				float baseRadius = GetOrCalculateObstacleRadius(prop.PropId, prop) * ratio;
-				GameContext.World.SetOrAdd(prop.Entity, new CollisionRadius(baseRadius));
+				GameContext.World.SetOrAdd(prop.Entity, new CollisionRadius(ResolveTemplateCollisionRadius(prop.PropId)));
 			}
 		}
 	}
@@ -690,8 +720,7 @@ public partial class GameHost
 			unit.UpdateCollisionCircleScale(ratio);
 			if (unit.Entity != Entity.Null && GameContext.World.IsAlive(unit.Entity))
 			{
-				float baseRadius = GetOrCalculateObstacleRadius(unit.UnitId, unit) * ratio;
-				GameContext.World.SetOrAdd(unit.Entity, new CollisionRadius(baseRadius));
+				GameContext.World.SetOrAdd(unit.Entity, new CollisionRadius(ResolveTemplateCollisionRadius(unit.UnitId)));
 			}
 		}
 	}
@@ -794,14 +823,13 @@ public partial class GameHost
 
 		if (!string.IsNullOrEmpty(targetId))
 		{
-			PropMultiMeshManager.Instance?.MarkDirty(targetId);
+			GameContext.PropMultiMesh?.MarkDirty(targetId);
 		}
 	}
 
 
 	private void UpdateMetadataModelOverrides(MapMetadata meta)
 	{
-		GameContext.ModelOverrideService.UpdateMetadataModelOverrides(meta);
 		if (meta.Templates != null)
 		{
 			UpdateEntityOverrides(meta.Templates.Units);
@@ -833,6 +861,7 @@ public partial class GameHost
 			entity.IgnorePlayerColor = ignoreColor;
 			entity.SpawnShader = spawnShader;
 			entity.DeathShader = deathShader;
+			(entity.ProceduralAnimation, entity.EnableProceduralAnimation) = ResolveProceduralAnimationOverrides(entity.TemplateID, entity.ProceduralAnimation, entity.EnableProceduralAnimation);
 
 			entities[i] = entity;
 		}
@@ -859,9 +888,28 @@ public partial class GameHost
 			res.IgnorePlayerColor = ignoreColor;
 			res.SpawnShader = spawnShader;
 			res.DeathShader = deathShader;
+			(res.ProceduralAnimation, res.EnableProceduralAnimation) = ResolveProceduralAnimationOverrides(res.TemplateID, res.ProceduralAnimation, res.EnableProceduralAnimation);
 
 			resources[i] = res;
 		}
+	}
+
+	private (string? AnimationId, bool? Enabled) ResolveProceduralAnimationOverrides(string templateId, string? animationId, bool? enabled)
+	{
+		string norm = GameContext.EditorService.NormalizeModelAssetKey(templateId);
+		if (string.IsNullOrEmpty(norm)) return (animationId, enabled);
+
+		if (GameContext.ModelOverrideService.ModelProceduralAnimations.TryGetValue(norm, out string configuredAnimationId))
+		{
+			animationId = string.IsNullOrWhiteSpace(configuredAnimationId) ? null : configuredAnimationId;
+		}
+
+		if (GameContext.ModelOverrideService.ModelEnableProceduralAnimations.TryGetValue(norm, out bool configuredEnabled))
+		{
+			enabled = configuredEnabled;
+		}
+
+		return (animationId, enabled);
 	}
 
 	private void ApplyVisualOverrides(string templateId, string modelPath, ref bool despill, ref bool normLuma, ref bool ignoreColor, ref string spawnShader, ref string deathShader)
@@ -888,6 +936,7 @@ public partial class GameHost
 		ClearAllEntities();
 		ClearAllNodesAndTerrain();
 
+		_editorObjectSelection.Clear();
 		GameContext.EditorService?.ResetAllState();
 		HideSelectionHighlight();
 
@@ -895,13 +944,11 @@ public partial class GameHost
 		GameContext.EditorService.ClearHistoryAndState(ref temp);
 		EditorHasUnsavedChanges = temp;
 
-		RebuildGridOverlayMeshExternal();
-
-		EditorCameraBoundsLeft = -95.0f;
-		EditorCameraBoundsRight = 95.0f;
-		EditorCameraBoundsTop = -95.0f;
-		EditorCameraBoundsBottom = 125.0f;
-		MapEditorHUD.Instance?.UpdateCameraBoundsUI();
+		MapCameraBounds resetCameraBounds = GroundTerrain != null
+			? MapCameraBounds.FromTerrain(GroundTerrain.Width, GroundTerrain.Depth, GroundTerrain.QuadSize)
+			: MapCameraBounds.LegacyDefaults;
+		GameContext.EditorService.SetCameraBounds(GameContext.Simulation.WorldEntity, resetCameraBounds);
+		GameContext.MapEditorHud?.UpdateCameraBoundsUI();
 		RebuildCameraBoundsOverlay();
 
 		GameContext.EditorService.EditorCoordinates.Clear();
@@ -923,7 +970,7 @@ public partial class GameHost
 		AllUnits.Clear();
 		ClearAllBuildQueueGhosts();
 		AllProps.Clear();
-		PropMultiMeshManager.Instance?.Clear();
+		GameContext.PropMultiMesh?.Clear();
 		AllDecals.Clear();
 		AllVfx.Clear();
 		GameContext.FXService.ClearActivePings();
@@ -966,7 +1013,7 @@ public partial class GameHost
 		int depth = GroundTerrain.Depth;
 
 		InitializeTerrainArrays(width, depth);
-		GameContext.MapEditorTerrainImportService.PopulateTerrainCells(GroundTerrain.Cells, GroundTerrain.PathingCodes, width, depth);
+		PopulateTerrainCells(width, depth);
 		PopulateSplatMaps(width, depth);
 		UpdateEcsTerrainState();
 
@@ -977,17 +1024,34 @@ public partial class GameHost
 
 	private void InitializeTerrainArrays(int width, int depth)
 	{
-		if (GameContext.MapEditorTerrainImportService.NeedsTerrainCellArrayRecreation(GroundTerrain.Cells, width, depth))
+		TerrainCell[,] cells = GroundTerrain.Cells;
+		if (cells == null || cells.GetLength(0) != width || cells.GetLength(1) != depth)
 			GroundTerrain.Cells = new TerrainCell[width, depth];
 
-		if (GameContext.MapEditorTerrainImportService.NeedsSplatMapArrayRecreation(GroundTerrain.SplatMap, width, depth))
+		TerrainSplatWeights[,] splatMap = GroundTerrain.SplatMap;
+		if (splatMap == null || splatMap.GetLength(0) < width + 1 || splatMap.GetLength(1) < depth + 1)
 			GroundTerrain.SplatMap = new TerrainSplatWeights[width + 1, depth + 1];
 
-		if (GameContext.MapEditorTerrainImportService.NeedsSplatMapArrayRecreation(GroundTerrain.CliffSplatMap, width, depth))
+		TerrainSplatWeights[,] cliffSplatMap = GroundTerrain.CliffSplatMap;
+		if (cliffSplatMap == null || cliffSplatMap.GetLength(0) < width + 1 || cliffSplatMap.GetLength(1) < depth + 1)
 			GroundTerrain.CliffSplatMap = new TerrainSplatWeights[width + 1, depth + 1];
 
-		if (GameContext.MapEditorTerrainImportService.NeedsPathingArrayRecreation(GroundTerrain.PathingCodes, width, depth))
+		int[,] pathingCodes = GroundTerrain.PathingCodes;
+		if (pathingCodes == null || pathingCodes.GetLength(0) != width || pathingCodes.GetLength(1) != depth)
 			GroundTerrain.PathingCodes = new int[width, depth];
+	}
+
+	private void PopulateTerrainCells(int width, int depth)
+	{
+		int defaultPathingCode = EditableTerrain.GetDefaultPathingCode(WaterType.None);
+		for (int z = 0; z < depth; z++)
+		{
+			for (int x = 0; x < width; x++)
+			{
+				GroundTerrain.Cells[x, z] = new TerrainCell(0.0f);
+				GroundTerrain.PathingCodes[x, z] = defaultPathingCode;
+			}
+		}
 	}
 
 
@@ -1005,44 +1069,29 @@ public partial class GameHost
 
 	private void UpdateEcsTerrainState()
 	{
-		if (GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<TerrainState>(ECSContext.WorldEntity))
+		if (GameContext.World != null && GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) && GameContext.World.Has<TerrainState>(GameContext.Simulation.WorldEntity))
 		{
-			ref var ts = ref GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
+			ref var ts = ref GameContext.World.Get<TerrainState>(GameContext.Simulation.WorldEntity);
 			ts.Cells = GroundTerrain.Cells;
 			ts.PathingCodes = GroundTerrain.PathingCodes;
-			GameContext.World.Set(ECSContext.WorldEntity, ts);
+			GameContext.World.Set(GameContext.Simulation.WorldEntity, ts);
 		}
 	}
 
 	private void RefreshUIAndExternalState()
 	{
-		MapEditorHUD.Instance?.RefreshCoordinateListExternal();
+		GameContext.MapEditorHud?.RefreshCoordinateListExternal();
 		MapEditorHUD.ResetFolderLocations();
-		MapEditorHUD.Instance?.ClearTempWorkspaceExternal();
-		MapEditorHUD.Instance?.GenerateVSCodeFilesExternal();
-		MapEditorHUD.Instance?.ReadMetadataAndRefreshTextures();
-		MapEditorHUD.Instance?.ViewLoadMapProperties();
-		MapEditorHUD.Instance?.UpdateMapNameHeader();
-		MapEditorHUD.Instance?.SaveCurrentDirectoryBlake3();
-		MapEditorHUD.Instance?.ShowFeedbackExternal("Map reset: cleared all entities & terrain");
-		MapEditorHUD.Instance?.RegenerateMinimap();
+		GameContext.MapEditorHud?.ClearTempWorkspaceExternal();
+		GameContext.MapEditorHud?.GenerateVSCodeFilesExternal();
+		GameContext.MapEditorHud?.ReadMetadataAndRefreshTextures();
+		GameContext.MapEditorHud?.ViewLoadMapProperties();
+		GameContext.MapEditorHud?.UpdateMapNameHeader();
+		GameContext.MapEditorHud?.SaveCurrentDirectoryBlake3();
+		GameContext.MapEditorHud?.ShowFeedbackExternal("Map reset: cleared all entities & terrain");
+		GameContext.MapEditorHud?.RegenerateMinimap();
 	}
 
-
-	private long _lastTerrainMeshRebuildMs { get; set; } = long.MinValue;
-
-	private Rect2I? _terrainFlushRegion
-	{
-		get => GameContext.EditorService?.TerrainFlushRegion;
-		set
-		{
-			if (GameContext.EditorService != null) GameContext.EditorService.TerrainFlushRegion = value;
-		}
-	}
-
-	private bool _terrainGeometryDirty { get; set; }
-	private bool _terrainHeightsDirty { get; set; }
-	private bool _terrainPathingDirty { get; set; }
 
 	private void DeleteObjectAt(Node collider, Vector3 hitPos)
 	{
@@ -1074,7 +1123,7 @@ public partial class GameHost
 					GameContext.World.Destroy(prop.Entity);
 				}
 
-				PropMultiMeshManager.Instance?.MarkDirty(prop.PropId);
+				GameContext.PropMultiMesh?.MarkDirty(prop.PropId);
 				prop.QueueFree();
 				return;
 			}
@@ -1097,8 +1146,6 @@ public partial class GameHost
 
 	public Unit3D SpawnUnitExternal(string unitId, Vector3 position, float rotationY, float scale, int player = 0)
 	{
-		// Preserve the authored Y (saved maps, pasted/cloned/undone objects). Placement paths
-		// that want feet-on-terrain snap the Y to the terrain before calling this method.
 		int playerIndex = player >= 0 ? player : 0;
 		bool isBuilding = false;
 		if (!UnitRegistry.ContainsKey(unitId) && !BuildingRegistry.ContainsKey(unitId))
@@ -1169,15 +1216,13 @@ public partial class GameHost
 		float defaultAmount = GetDefaultResourceAmount(propId);
 		position.Y = GetTerrainHeightAt(position);
 
-		string propAssetKey = GameContext.EditorService.NormalizeModelAssetKey(propId);
-		float autoDetectedRadius = GetOrCalculateObstacleRadius(propId, null);
-		float baseRadius = autoDetectedRadius * GetModelCollisionCircleRatio(propAssetKey);
+		float baseRadius = ResolveTemplateCollisionRadius(propId);
 
 		var entity = GameContext.EditorService.SpawnPropDomain(propId, new System.Numerics.Vector3(position.X, position.Y, position.Z), rotationY, scale, cleanId, defaultAmount, position.Y, baseRadius);
 
 		if (!GameContext.SessionState.IsMapEditorMode && IsStaticPropAsset(propId))
 		{
-			PropMultiMeshManager.Instance?.MarkDirty(propId);
+			GameContext.PropMultiMesh?.MarkDirty(propId);
 			return null;
 		}
 
@@ -1189,7 +1234,7 @@ public partial class GameHost
 		prop.Scale = Vector3.One * (scale <= 0.001f ? 1.0f : scale);
 		AddChild(prop);
 		AllProps.Add(prop);
-		PropMultiMeshManager.Instance?.MarkDirty(propId);
+		GameContext.PropMultiMesh?.MarkDirty(propId);
 
 		EntityToProp3D[entity] = prop;
 
@@ -1233,16 +1278,7 @@ public partial class GameHost
 		return false;
 	}
 
-	private float GetDefaultResourceAmount(string propId)
-	{
-		return propId switch
-		{
-			"goldmine" => 2000f,
-			"rock" => 1000f,
-			"tree" => 500f,
-			_ => 0f
-		};
-	}
+	private float GetDefaultResourceAmount(string propId) => DefinitionCatalog.DefaultResourceAmount(propId);
 
 	public ProceduralVfxInstance3D SpawnVfxExternalWithParams(
 		string vfxId,
@@ -1390,10 +1426,10 @@ public partial class GameHost
 	public void SetUnitTeamExternal(Unit3D unit, bool isEnemy)
 	{
 		int targetPlayer = isEnemy ? 1 : 0;
-		if (LobbyManager.Instance != null && LobbyManager.Instance.PlayerList.Count > 0)
+		if (GameContext.Lobby != null && GameContext.Lobby.PlayerList.Count > 0)
 		{
 			int localPlayerIndex = GameContext.PerspectiveFilter.ControlledPlayerIndex;
-			var enemyPlayer = LobbyManager.Instance.PlayerList.Find(p => NetworkService.ArePlayerIndicesEnemies(localPlayerIndex, p.Slot));
+			var enemyPlayer = GameContext.Lobby.PlayerList.Find(p => NetworkService.ArePlayerIndicesEnemies(localPlayerIndex, p.Slot));
 			if (isEnemy && enemyPlayer != null)
 			{
 				targetPlayer = enemyPlayer.Slot;
@@ -1405,10 +1441,6 @@ public partial class GameHost
 
 	private Node3D? _editorCoverageOverlayRoot { get; set; }
 
-	/// <summary>
-	///     When enabled, the editor draws vision/attack range rings around the selected unit.
-	///     Off by default so the overlay only appears on demand.
-	/// </summary>
 	public bool EditorCoverageOverlayEnabled { get; set; } = false;
 
 	private void ClearAllUnits()
@@ -1452,8 +1484,6 @@ public partial class GameHost
 		EntityToUnit3D.Clear();
 		EntityIdToUnit3D.Clear();
 		EntityToProp3D.Clear();
-
-		ReinitializeEcsAndServices();
 	}
 
 	private MeshInstance3D _measureMeshInstance { get; set; }
@@ -1515,17 +1545,17 @@ public partial class GameHost
 
 		ScaleCoordinateBounds(scaleX, scaleZ);
 
-		EditorCameraBoundsLeft *= scaleX;
-		EditorCameraBoundsRight *= scaleX;
-		EditorCameraBoundsTop *= scaleZ;
-		EditorCameraBoundsBottom *= scaleZ;
+		MapCameraBounds oldMapBounds = MapCameraBounds.FromTerrain(oldWidth, oldDepth, quadSize);
+		MapCameraBounds newMapBounds = MapCameraBounds.FromTerrain(newWidth, newDepth, quadSize);
+		MapCameraBounds scaledCameraBounds = new MapCameraBounds(EditorCameraBoundsLeft, EditorCameraBoundsRight, EditorCameraBoundsTop, EditorCameraBoundsBottom).MapTo(oldMapBounds, newMapBounds);
+		GameContext.EditorService.SetCameraBounds(GameContext.Simulation.WorldEntity, scaledCameraBounds);
 
 		DeleteEntitiesOutsideBounds();
-		PropMultiMeshManager.Instance?.RebuildAll();
+		GameContext.PropMultiMesh?.RebuildAll();
 
 		GameContext.EditorService.SetTerrainSplatMap(GroundTerrain.SplatMap, GroundTerrain.CliffSplatMap);
 
-		UpdateScaleMetadata(newWidth, newDepth);
+		UpdateScaleMetadata(newWidth, newDepth, scaledCameraBounds);
 		RefreshUIForMapScale(newWidth, newDepth);
 
 		var after = MapStateSnapshot.CreateSnapshot();
@@ -1596,21 +1626,21 @@ public partial class GameHost
 		GameContext.EditorService.ScaleCoordinateBounds(scaleX, scaleZ);
 	}
 
-	private void UpdateScaleMetadata(int newWidth, int newDepth)
+	private void UpdateScaleMetadata(int newWidth, int newDepth, MapCameraBounds cameraBounds)
 	{
-		GameContext.EditorService.UpdateScaleMetadata(newWidth, newDepth);
+		GameContext.EditorService.UpdateScaleMetadata(newWidth, newDepth, cameraBounds);
 	}
 
 	private void RefreshUIForMapScale(int newWidth, int newDepth)
 	{
 		RebuildAllCoordinatePersistentMeshes();
-		MapEditorHUD.Instance?.RefreshCoordinateListExternal();
+		GameContext.MapEditorHud?.RefreshCoordinateListExternal();
 		RebuildCameraBoundsOverlay();
-		MapEditorHUD.Instance?.UpdateCameraBoundsUI();
-		MapEditorHUD.Instance?.RegenerateMinimap();
+		GameContext.MapEditorHud?.UpdateCameraBoundsUI();
+		GameContext.MapEditorHud?.RegenerateMinimap();
 
 		EditorHasUnsavedChanges = true;
-		MapEditorHUD.Instance?.ShowFeedbackExternal($"Map scaled to {newWidth}x{newDepth}");
+		GameContext.MapEditorHud?.ShowFeedbackExternal($"Map scaled to {newWidth}x{newDepth}");
 	}
 
 	private void DeleteEntitiesOutsideBounds()

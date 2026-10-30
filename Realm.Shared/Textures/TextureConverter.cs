@@ -366,10 +366,10 @@ public static class TextureConverter
 			for (int x = 0; x < width; x++)
 			{
 				int idx = x * 4;
-				dstRow[idx] = srcRow[idx + 2]; // Red
-				dstRow[idx + 1] = srcRow[idx + 1]; // Green
-				dstRow[idx + 2] = srcRow[idx]; // Blue
-				dstRow[idx + 3] = srcRow[idx + 3]; // Alpha
+				dstRow[idx] = srcRow[idx + 2];
+				dstRow[idx + 1] = srcRow[idx + 1];
+				dstRow[idx + 2] = srcRow[idx];
+				dstRow[idx + 3] = srcRow[idx + 3];
 			}
 		}
 	}
@@ -490,7 +490,7 @@ public static class TextureConverter
 		try
 		{
 			byte[] l0Bytes = EncodeWebp(layer0, lossless: !compressAlbedo, quality: 90);
-			byte[] l1Bytes = EncodeWebp(layer1, lossless: true); // Always lossless for PBR normal/height/roughness
+			byte[] l1Bytes = EncodeWebp(layer1, lossless: true);
 
 			string? dir = Path.GetDirectoryName(outputRtexPath);
 			if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
@@ -837,7 +837,7 @@ public static class TextureConverter
 		try
 		{
 			var metaObj = JsonNode.Parse(customMetadataJson)?.AsObject() ?? new JsonObject();
-			metaObj["created_utc"] = $"{DateTime.UtcNow:O}";
+			metaObj[AssetMetadataKeys.CreatedUtc] = $"{DateTime.UtcNow:O}";
 			metaObj["type"] = assetType;
 			metaObj["canonical_blake3"] = originalBlake3;
 			metaObj["layers"] = 1;
@@ -1020,7 +1020,7 @@ public static class TextureConverter
 			var node = JsonNode.Parse(meta);
 			if (node == null) return;
 
-			string? metaType = node["asset_type"]?.GetValue<string>()
+			string? metaType = node[AssetMetadataKeys.AssetType]?.GetValue<string>()
 			                   ?? node["type"]?.GetValue<string>();
 
 			if (!string.IsNullOrEmpty(metaType))
@@ -1034,7 +1034,6 @@ public static class TextureConverter
 		}
 		catch
 		{
-			// Ignore JSON parsing errors
 		}
 	}
 

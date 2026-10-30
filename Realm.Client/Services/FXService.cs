@@ -5,7 +5,10 @@ using Realm.Ecs;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.UI;
+using Realm.Client.VFX;
+using Realm.Shared.Metadata;
 using Realm.Shared.Textures;
+using Realm.Shared.Abilities;
 
 namespace Realm.Client.Services;
 
@@ -64,15 +67,13 @@ public class FXService
 		_activeProjectileLightsCount = Math.Max(0, _activeProjectileLightsCount - 1);
 	}
 
+	private readonly List<VfxSequenceInstance3D> _activeVfxSequences = new();
+
 	public List<MinimapPing> ActivePings { get; set; } = new();
 
 	public void ClearActivePings()
 	{
 		ActivePings.Clear();
-	}
-
-	public FXService()
-	{
 	}
 
 	public void SpawnAbilityEffect(Node3D parent, AbilityDefinition def, Vector3 position, float scale = 1.0f)
@@ -99,50 +100,229 @@ public class FXService
 		SpawnTargetIndicator(parent, position, indicatorColor);
 	}
 
+	public (SpriteFrames Frames, int FrameWidth)? TryGetSpritesheetFrames(string texturePath, int columns, int rows, float framesPerSecond, bool loop)
+	{
+		if (string.IsNullOrWhiteSpace(texturePath)) return null;
+
+		int safeColumns = Math.Max(1, columns);
+		int safeRows = Math.Max(1, rows);
+		float safeFramesPerSecond = framesPerSecond > 0.0001f ? framesPerSecond : 12.0f;
+
+		string fullPath = ResolveTexturePathCached(texturePath);
+		string framesKey = $"{fullPath}|{safeColumns}|{safeRows}|{safeFramesPerSecond:F4}|{loop}";
+
+		if (_spriteFramesCache.TryGetValue(framesKey, out var cachedFrames))
+		{
+			return cachedFrames;
+		}
+
+		Texture2D? texture = LoadTextureCached(fullPath);
+		if (texture == null) return null;
+
+		int totalFrames = safeColumns * safeRows;
+		var frames = new SpriteFrames();
+		frames.AddAnimation("play");
+		frames.SetAnimationLoopMode("play", loop ? SpriteFrames.LoopMode.Linear : SpriteFrames.LoopMode.None);
+		frames.SetAnimationSpeed("play", safeFramesPerSecond);
+
+		int frameWidth = Math.Max(1, texture.GetWidth() / safeColumns);
+		int frameHeight = Math.Max(1, texture.GetHeight() / safeRows);
+
+		for (int frameIndex = 0; frameIndex < totalFrames; frameIndex++)
+		{
+			int col = frameIndex % safeColumns;
+			int row = frameIndex / safeColumns;
+			var atlasFrame = new AtlasTexture
+			{
+				Atlas = texture,
+				Region = new Rect2(col * frameWidth, row * frameHeight, frameWidth, frameHeight)
+			};
+			frames.AddFrame("play", atlasFrame);
+		}
+
+		cachedFrames = (frames, frameWidth);
+		_spriteFramesCache[framesKey] = cachedFrames;
+		return cachedFrames;
+	}
+
+	public VfxSequenceInstance3D? SpawnVfxSequence(VfxAttachmentConfig? sequenceConfig, Node parent, Vector3 worldPosition, float scaleMultiplier, int targetEntityId = -1, Node3D? anchor = null)
+	{
+		if (sequenceConfig?.Stages == null || sequenceConfig.Stages.Count == 0) return null;
+		if (parent == null || !GodotObject.IsInstanceValid(parent)) return null;
+
+		var sequence = new VfxSequenceInstance3D();
+		sequence.Initialize(sequenceConfig, worldPosition, scaleMultiplier, targetEntityId, anchor);
+		parent.AddChild(sequence);
+		_activeVfxSequences.Add(sequence);
+		return sequence;
+	}
+
+	public void UpdateVfxSequences(float deltaSeconds)
+	{
+		for (int index = _activeVfxSequences.Count - 1; index >= 0; index--)
+		{
+			var sequence = _activeVfxSequences[index];
+			if (sequence == null || !GodotObject.IsInstanceValid(sequence))
+			{
+				_activeVfxSequences.RemoveAt(index);
+				continue;
+			}
+
+			sequence.Advance(deltaSeconds);
+			if (!sequence.IsFinished) continue;
+
+			_activeVfxSequences.RemoveAt(index);
+			sequence.QueueFree();
+		}
+	}
+
+	public void NotifyVfxTargetDied(int entityId)
+	{
+		if (entityId == -1) return;
+
+		foreach (var sequence in _activeVfxSequences)
+		{
+			if (sequence == null || !GodotObject.IsInstanceValid(sequence)) continue;
+			if (sequence.TargetEntityId != entityId) continue;
+			sequence.NotifyTargetDeath();
+		}
+	}
+
+	public float SpawnVfxStage(Node parent, VfxStageMetadata stage, Vector3 worldPosition, float scaleMultiplier)
+	{
+		if (stage == null) return 0f;
+		if (parent == null || !GodotObject.IsInstanceValid(parent)) return 0f;
+
+		if (!TrySpawnVfxStageContent(parent, stage, worldPosition, scaleMultiplier, out float naturalLifetimeSeconds)) return 0f;
+		if (stage.DurationSeconds > 0f) return stage.DurationSeconds;
+
+		return naturalLifetimeSeconds;
+	}
+
+	private bool TrySpawnVfxStageContent(Node parent, VfxStageMetadata stage, Vector3 worldPosition, float scaleMultiplier, out float naturalLifetimeSeconds)
+	{
+		naturalLifetimeSeconds = 0f;
+
+		if (stage.ParticleConfig != null)
+		{
+			naturalLifetimeSeconds = SpawnOneShotParticleImpact(parent, stage.ParticleConfig, worldPosition, scaleMultiplier);
+			return naturalLifetimeSeconds > 0f;
+		}
+
+		if (stage.SingleInstance)
+		{
+			var singleInstanceConfig = TryResolveParticleConfig(stage.EffectId);
+			if (singleInstanceConfig == null)
+			{
+				SkipVfxStage(stage, "no particle effect is registered for that id");
+				return false;
+			}
+
+			naturalLifetimeSeconds = SpawnOneShotParticleImpact(parent, singleInstanceConfig, worldPosition, scaleMultiplier);
+			return naturalLifetimeSeconds > 0f;
+		}
+
+		var stageConfig = ResolveVfxConfig(stage.EffectId);
+		if (stageConfig != null)
+		{
+			var instance = new ProceduralVfxInstance3D(stageConfig);
+			instance.Name = $"VfxStage_{stage.EffectId.Replace('/', '_')}";
+			parent.AddChild(instance);
+			instance.GlobalPosition = worldPosition;
+			instance.Scale = Vector3.One * Math.Max(0.01f, scaleMultiplier);
+			return true;
+		}
+
+		var particleConfig = TryResolveParticleConfig(stage.EffectId);
+		if (particleConfig == null)
+		{
+			SkipVfxStage(stage, "no VFX template or particle preset matches that id");
+			return false;
+		}
+
+		naturalLifetimeSeconds = SpawnOneShotParticleImpact(parent, particleConfig, worldPosition, scaleMultiplier);
+		return naturalLifetimeSeconds > 0f;
+	}
+
+	public float SpawnSingleParticleImpact(Node parent, string effectId, Vector3 worldPosition, float scaleMultiplier)
+	{
+		var particleConfig = TryResolveParticleConfig(effectId);
+		if (particleConfig == null)
+		{
+			GD.PushWarning($"[FXService] Skipping one-shot particle impact: no particle effect is registered for '{effectId}'.");
+			return 0f;
+		}
+
+		return SpawnOneShotParticleImpact(parent, particleConfig, worldPosition, scaleMultiplier);
+	}
+
+	public float SpawnOneShotParticleImpact(Node parent, SpellParticleConfig? particleConfig, Vector3 worldPosition, float scaleMultiplier)
+	{
+		if (particleConfig == null) return 0f;
+		if (parent == null || !GodotObject.IsInstanceValid(parent)) return 0f;
+
+		SpellParticleConfig config = particleConfig.Clone();
+		var instance = new SpellParticleInstance3D(config);
+		instance.Name = "ParticleImpact";
+		parent.AddChild(instance);
+		instance.GlobalPosition = worldPosition;
+		instance.Scale = Vector3.One * Math.Max(0.01f, scaleMultiplier);
+		instance.PlayOneShot();
+
+		float releaseDelaySeconds = Math.Max(0.25f, config.Lifetime + 0.5f);
+
+		var tree = parent.GetTree();
+		if (tree == null) return releaseDelaySeconds;
+
+		var releaseTimer = tree.CreateTimer(releaseDelaySeconds);
+		releaseTimer.Timeout += () =>
+		{
+			if (GodotObject.IsInstanceValid(instance)) instance.QueueFree();
+		};
+
+		return releaseDelaySeconds;
+	}
+
+	private static void SkipVfxStage(VfxStageMetadata stage, string reason)
+	{
+		GD.PushWarning($"[FXService] Skipping VFX stage '{stage.EffectId}' with trigger '{stage.Trigger}': {reason}.");
+	}
+
+	private static SpellParticleConfig? TryResolveParticleConfig(string effectId)
+	{
+		if (string.IsNullOrWhiteSpace(effectId)) return null;
+
+		var stageConfig = ResolveVfxConfig(effectId);
+		if (stageConfig?.ParticleConfig != null) return stageConfig.ParticleConfig.Clone();
+
+		return SpellParticleConfig.TryCreatePreset(effectId);
+	}
+
+	private static VfxAttachmentConfig? ResolveVfxConfig(string effectId)
+	{
+		if (string.IsNullOrWhiteSpace(effectId)) return null;
+
+		var registry = GameContext.RegistryService?.VfxRegistry;
+		if (registry == null) return null;
+		return registry.TryGetValue(effectId, out var config) && config != null ? config.Clone() : null;
+	}
+
 	public void SpawnSpritesheetEffect(Node parent, string texturePath, Vector3 worldPosition, int columns, int rows, float secondsPerFrame, float sizeInWorldUnits)
 	{
 		if (parent == null || !GodotObject.IsInstanceValid(parent)) return;
 		if (_activeSpritesCount >= MaxActiveSprites) return;
 
-		string fullPath = ResolveTexturePathCached(texturePath);
-		string framesKey = $"{fullPath}|{columns}|{rows}|{secondsPerFrame:F4}";
-
-		if (!_spriteFramesCache.TryGetValue(framesKey, out var cachedFrames))
-		{
-			Texture2D? texture = LoadTextureCached(fullPath);
-			if (texture == null) return;
-
-			int totalFrames = columns * rows;
-			var frames = new SpriteFrames();
-			frames.AddAnimation("play");
-			frames.SetAnimationLoopMode("play", SpriteFrames.LoopMode.None);
-			frames.SetAnimationSpeed("play", 1.0f / secondsPerFrame);
-
-			int frameWidth = Math.Max(1, texture.GetWidth() / columns);
-			int frameHeight = Math.Max(1, texture.GetHeight() / rows);
-
-			for (int frameIndex = 0; frameIndex < totalFrames; frameIndex++)
-			{
-				int col = frameIndex % columns;
-				int row = frameIndex / columns;
-				var atlasFrame = new AtlasTexture
-				{
-					Atlas = texture,
-					Region = new Rect2(col * frameWidth, row * frameHeight, frameWidth, frameHeight)
-				};
-				frames.AddFrame("play", atlasFrame);
-			}
-
-			cachedFrames = (frames, frameWidth);
-			_spriteFramesCache[framesKey] = cachedFrames;
-		}
+		float framesPerSecond = secondsPerFrame > 0.0001f ? 1.0f / secondsPerFrame : 12.0f;
+		var cachedFrames = TryGetSpritesheetFrames(texturePath, columns, rows, framesPerSecond, loop: false);
+		if (cachedFrames == null) return;
 
 		var sprite = RentAnimatedSprite(parent);
-		sprite.SpriteFrames = cachedFrames.Frames;
+		SpriteFrames frames = cachedFrames.Value.Frames;
+		sprite.SpriteFrames = frames;
 		sprite.Animation = "play";
 		sprite.Frame = 0;
 		sprite.Position = worldPosition;
-		sprite.PixelSize = sizeInWorldUnits / cachedFrames.FrameWidth;
+		sprite.PixelSize = sizeInWorldUnits / cachedFrames.Value.FrameWidth;
 		sprite.Play("play");
 	}
 
@@ -675,10 +855,10 @@ public class FXService
 
 		SpawnPing3DEffect(parent, position);
 
-		if (InGameHUD.Instance != null)
+		if (GameContext.InGameHud != null)
 		{
-			InGameHUD.Instance.ShowFeedbackText($"[ALERT PING] Signal at: {position.X:F0}, {position.Z:F0}", new Color(1.0f, 0.1f, 0.2f));
-			UIManager.Instance?.PlayClickSound();
+			GameContext.InGameHud.ShowFeedbackText($"[ALERT PING] Signal at: {position.X:F0}, {position.Z:F0}", new Color(1.0f, 0.1f, 0.2f));
+			GameContext.UserInterface?.PlayClickSound();
 		}
 	}
 
@@ -745,7 +925,7 @@ public class FXService
 
 	public void ClearProjectileTrails()
 	{
-		VisualProjectilePool.Instance.DeactivateAll();
+		VisualProjectilePool.DeactivateAll();
 
 		if (_batchedAddImmediateMesh != null && GodotObject.IsInstanceValid(_batchedAddImmediateMesh))
 		{
@@ -763,14 +943,14 @@ public class FXService
 
 	public void RenderBatchedRibbonTrails(Camera3D camera)
 	{
-		Node parent = GameHost.Instance ?? (Node)camera?.GetViewport();
+		Node parent = GameContext.Host ?? (Node)camera?.GetViewport();
 		if (parent == null || !GodotObject.IsInstanceValid(parent)) return;
 
 		EnsureBatchedRibbonNodes(parent);
 
 		if (_batchedAddImmediateMesh == null || _batchedMixImmediateMesh == null || _batchedAddMaterial == null || _batchedMixMaterial == null) return;
 
-		var projectiles = VisualProjectilePool.Instance?.ActiveProjectiles;
+		var projectiles = VisualProjectilePool.ActiveProjectiles;
 		if (projectiles == null || projectiles.Count == 0)
 		{
 			if (_hasDrawnAddRibbons)

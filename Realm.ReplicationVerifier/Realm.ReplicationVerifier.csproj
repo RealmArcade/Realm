@@ -11,6 +11,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Realm.Ecs\Realm.Ecs.csproj" />
+    <ProjectReference Include="..\Realm.ListenServer\Realm.ListenServer.csproj" />
   </ItemGroup>
 
 </Project>

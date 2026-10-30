@@ -1,0 +1,161 @@
+using System;
+using System.Buffers.Binary;
+using System.IO;
+using ZstdSharp;
+
+namespace Realm.Shared.Network;
+
+/// <summary>
+///     The compressors and scratch buffer one publish lane encodes with. A lane keeps its own for the life of the match
+///     and disposes them with it, so encoding no longer depends on which pool thread happens to run a lane's work, and
+///     the native compressors have an owner that can release them instead of living until the process ends.
+/// </summary>
+public class SnapshotCompressor : IDisposable
+{
+	private Compressor? _deltaCompressor;
+	private Compressor? _baselineCompressor;
+	private byte[]? _compressionBuffer;
+	private bool _disposed;
+
+	public byte[] EncodeDelta(ReadOnlySpan<byte> serialized)
+	{
+		if (serialized.Length == 0) return Array.Empty<byte>();
+
+		return SnapshotWireFormat.EncodeWith(_deltaCompressor ??= new Compressor(SnapshotWireFormat.DeltaCompressionLevel), ref _compressionBuffer, serialized);
+	}
+
+	public byte[] EncodeBaseline(ReadOnlySpan<byte> serialized)
+	{
+		if (serialized.Length == 0) return Array.Empty<byte>();
+
+		return SnapshotWireFormat.EncodeWith(_baselineCompressor ??= new Compressor(SnapshotWireFormat.DeltaCompressionLevel), ref _compressionBuffer, serialized);
+	}
+
+	public void Dispose()
+	{
+		if (_disposed) return;
+		_disposed = true;
+
+		_deltaCompressor?.Dispose();
+		_baselineCompressor?.Dispose();
+		_deltaCompressor = null;
+		_baselineCompressor = null;
+		_compressionBuffer = null;
+	}
+}
+
+/// <summary>
+///     The decompressor and scratch buffer one screen reads descriptions with. It belongs to the session that reads them
+///     and is disposed with it, so the native decompressor has an owner rather than living on whichever thread happened
+///     to decode first.
+/// </summary>
+public class SnapshotDecompressor : IDisposable
+{
+	private Decompressor? _decompressor;
+	private bool _disposed;
+
+	public ReadOnlySpan<byte> Decode(byte[] frame, ref byte[] serializedBuffer)
+	{
+		if (_disposed) throw new ObjectDisposedException(nameof(SnapshotDecompressor), "this decompressor was disposed with the session that owned it");
+
+		return SnapshotWireFormat.DecodeWith(_decompressor ??= new Decompressor(), frame, ref serializedBuffer);
+	}
+
+	public byte[] Decode(byte[] frame)
+	{
+		if (_disposed) throw new ObjectDisposedException(nameof(SnapshotDecompressor), "this decompressor was disposed with the session that owned it");
+
+		return SnapshotWireFormat.DecodeWith(_decompressor ??= new Decompressor(), frame);
+	}
+
+	public void Dispose()
+	{
+		if (_disposed) return;
+		_disposed = true;
+
+		_decompressor?.Dispose();
+		_decompressor = null;
+	}
+}
+
+public static class SnapshotWireFormat
+{
+	public const int FrameHeaderBytes = 8;
+	private static readonly uint FrameMagic = BinaryPrimitives.ReadUInt32LittleEndian("SZT1"u8);
+
+	public const int MaximumSerializedSnapshotBytes = 8 * 1024 * 1024;
+
+	public const int DeltaCompressionLevel = 1;
+
+	/// <summary>
+	///     Frames one compressed description. The frame is a fresh array rather than a slice of the scratch buffer on purpose:
+	///     the match hands it to the transport and keeps it in the peer's frame ring for repair, so it has to outlive the next
+	///     description that reuses the scratch buffer. One allocation per peer per tick is the price of that lifetime, and the
+	///     serialized buffer beside it is not allocated at all.
+	/// </summary>
+	internal static byte[] EncodeWith(Compressor compressor, ref byte[]? compressionBuffer, ReadOnlySpan<byte> serialized)
+	{
+		int bound = Compressor.GetCompressBound(serialized.Length);
+		byte[] buffer = compressionBuffer ??= new byte[bound];
+		if (buffer.Length < bound) buffer = compressionBuffer = new byte[bound];
+
+		int compressedLength = compressor.Wrap(serialized, buffer);
+		byte[] frame = new byte[FrameHeaderBytes + compressedLength];
+		BinaryPrimitives.WriteUInt32LittleEndian(frame, FrameMagic);
+		BinaryPrimitives.WriteInt32LittleEndian(frame.AsSpan(4), serialized.Length);
+		buffer.AsSpan(0, compressedLength).CopyTo(frame.AsSpan(FrameHeaderBytes));
+		return frame;
+	}
+
+	/// <summary>
+	///     Decompresses a frame into a buffer the caller keeps, so a screen reading thirty descriptions a second does not
+	///     hand the allocator a new buffer of the frame's own size for each of them. A baseline is over a hundred kilobytes,
+	///     which is a large-object allocation every time one arrives.
+	/// </summary>
+	internal static ReadOnlySpan<byte> DecodeWith(Decompressor decompressor, byte[] frame, ref byte[] serializedBuffer)
+	{
+		if (frame.Length == 0) return ReadOnlySpan<byte>.Empty;
+
+		int serializedLength = ReadSerializedLength(frame);
+		if (serializedBuffer.Length < serializedLength) serializedBuffer = new byte[serializedLength];
+
+		int written = decompressor.Unwrap(frame.AsSpan(FrameHeaderBytes), serializedBuffer.AsSpan(0, serializedLength));
+		if (written != serializedLength)
+		{
+			throw new InvalidDataException($"A snapshot frame of {frame.Length} bytes decompressed to {written} bytes instead of its declared {serializedLength}.");
+		}
+
+		return serializedBuffer.AsSpan(0, serializedLength);
+	}
+
+	internal static byte[] DecodeWith(Decompressor decompressor, byte[] frame)
+	{
+		if (frame.Length == 0) return frame;
+
+		int serializedLength = ReadSerializedLength(frame);
+		byte[] serialized = new byte[serializedLength];
+		int written = decompressor.Unwrap(frame.AsSpan(FrameHeaderBytes), serialized);
+		if (written != serializedLength)
+		{
+			throw new InvalidDataException($"A snapshot frame of {frame.Length} bytes decompressed to {written} bytes instead of its declared {serializedLength}.");
+		}
+
+		return serialized;
+	}
+
+	private static int ReadSerializedLength(byte[] frame)
+	{
+		if (frame.Length < FrameHeaderBytes || BinaryPrimitives.ReadUInt32LittleEndian(frame) != FrameMagic)
+		{
+			throw new InvalidDataException($"A snapshot frame of {frame.Length} bytes does not carry the frame magic.");
+		}
+
+		int serializedLength = BinaryPrimitives.ReadInt32LittleEndian(frame.AsSpan(4));
+		if (serializedLength <= 0 || serializedLength > MaximumSerializedSnapshotBytes)
+		{
+			throw new InvalidDataException($"A snapshot frame declares {serializedLength} serialized bytes, which is not a size a snapshot can be.");
+		}
+
+		return serializedLength;
+	}
+}

@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
-using Realm.MapAPI;
 
 namespace Realm.Ecs.Components.Core;
 
@@ -28,7 +27,7 @@ public struct ProductionQueue
 	{
 		if (index < 0 || index >= Count) return null;
 
-		int textId = InternedValueStore.GetTextListItemId(Handle, index);
+		int textId = ContentIdStore.GetTextListItemId(Handle, index);
 		return textId == 0 ? null : StringRegistry.Get(textId);
 	}
 
@@ -48,13 +47,13 @@ public struct ProductionQueue
 	{
 		if (index < 0 || index >= Count) return null;
 
-		int removedTextId = InternedValueStore.GetTextListItemId(Handle, index);
+		int removedTextId = ContentIdStore.GetTextListItemId(Handle, index);
 		Span<int> textIds = stackalloc int[Count - 1];
 		int writeIndex = 0;
 		for (int readIndex = 0; readIndex < Count; readIndex++)
 		{
 			if (readIndex == index) continue;
-			textIds[writeIndex++] = InternedValueStore.GetTextListItemId(Handle, readIndex);
+			textIds[writeIndex++] = ContentIdStore.GetTextListItemId(Handle, readIndex);
 		}
 
 		ApplyTextIds(textIds);
@@ -108,13 +107,13 @@ public struct ProductionQueue
 	{
 		for (int index = 0; index < Count; index++)
 		{
-			destination[index] = InternedValueStore.GetTextListItemId(Handle, index);
+			destination[index] = ContentIdStore.GetTextListItemId(Handle, index);
 		}
 	}
 
 	private void ApplyTextIds(ReadOnlySpan<int> textIds)
 	{
-		Handle = InternedValueStore.GetOrAddTextList(textIds);
+		Handle = ContentIdStore.GetOrAddTextList(textIds);
 		Count = textIds.Length;
 	}
 }

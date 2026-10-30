@@ -255,7 +255,7 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 			btnReinstallVSCode.Text = "⏳ " + TranslationServer.Translate("Reinstalling...");
 			if (OperatingSystem.IsWindows())
 			{
-				VSCodeManager.Instance.ForceReinstall();
+				GameContext.VSCode.ForceReinstall();
 			}
 
 			Hud?.ShowFeedback(TranslationServer.Translate("Reinstalling VS Code dependencies in background..."));

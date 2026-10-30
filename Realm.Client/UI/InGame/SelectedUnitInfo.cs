@@ -4,6 +4,8 @@ using Realm.Ecs;
 
 namespace Realm.Client.UI.InGame;
 
+public readonly record struct CarriedConsumableInfo(string DefinitionId, string SlotGroup);
+
 public class SelectedUnitInfo
 {
 	public Entity Entity { get; set; }
@@ -25,6 +27,7 @@ public class SelectedUnitInfo
 	public List<string> Abilities { get; set; } = new();
 	public int Potions { get; set; }
 	public Dictionary<string, int> InventoryItems { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+	public List<CarriedConsumableInfo> CarriedConsumables { get; set; } = new();
 	public bool HasInventory { get; set; }
 
 	public bool HasProduction { get; set; }

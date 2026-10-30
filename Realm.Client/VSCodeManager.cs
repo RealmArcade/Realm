@@ -23,7 +23,6 @@ using Realm.Client.UI;
 using Realm.Client.UI.MapEditor;
 using Realm.Ecs.Services;
 using Realm.EditorAPI;
-using Realm.MapAPI;
 using Realm.Shared.Audio;
 using Realm.Shared.ModelOptimization;
 using Realm.Shared.Services;
@@ -38,10 +37,7 @@ namespace Realm.Client;
 [SupportedOSPlatform("windows")]
 public partial class VSCodeManager
 {
-	private static VSCodeManager _instance;
-	public static VSCodeManager Instance => _instance ??= new VSCodeManager();
-
-	private VSCodeManager()
+	public VSCodeManager()
 	{
 		if (OperatingSystem.IsWindows())
 		{
@@ -61,17 +57,20 @@ public partial class VSCodeManager
 	private Task _installTask;
 	private readonly object _installLock = new object();
 
+	private static readonly string[] FutureExtensionsToConsider = new[]
+	{
+		"mechatroner.rainbow-json",	
+		"akondratiuk1-dev.texture-viewer"
+	};
 	private static readonly string[] RequiredExtensions = new[]
 	{
 		"muhammad-sammy.csharp",
 		"OHZIInteractiveStudio.ohzi-vscode-glb-viewer",
 		"Gruntfuggly.todo-tree",
-		// "mechatroner.rainbow-json",
 		"patcx.vscode-nuget-gallery",
 		"AykutSarac.jsoncrack-vscode",
 		"vadimcn.vscode-lldb",
 		"haoyangzeng.opencui"
-		// "akondratiuk1-dev.texture-viewer",
 	};
 
 	public bool IsInstalling
@@ -381,18 +380,20 @@ public partial class VSCodeManager
 				int JOBOBJECT_EXTENDED_LIMIT_INFORMATION = 9;
 				uint JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x00002000;
 
+				var extendedInfo = new JOBOBJECT_EXTENDED_LIMIT_INFORMATION_STRUCT
+				{
+					BasicLimitInformation = new JOBOBJECT_BASIC_LIMIT_INFORMATION_STRUCT
+					{
+						LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+					}
+				};
+
 				int length = Marshal.SizeOf(typeof(JOBOBJECT_EXTENDED_LIMIT_INFORMATION_STRUCT));
 				IntPtr extendedInfoPtr = Marshal.AllocHGlobal(length);
 				try
 				{
 					ZeroMemory(extendedInfoPtr, length);
-					Marshal.WriteInt32(extendedInfoPtr, 4, (int)JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE); // BasicLimitInformation.LimitFlags at offset 4 (after 4-byte PerProcessUserTimeLimit/PerJobUserTimeLimit or 8-byte alignment)
-					// Structure layout:
-					// JOBOBJECT_BASIC_LIMIT_INFORMATION (48 bytes):
-					//   LONGLONG PerProcessUserTimeLimit (8)
-					//   LONGLONG PerJobUserTimeLimit (8)
-					//   DWORD LimitFlags (4) -> offset 16
-					Marshal.WriteInt32(extendedInfoPtr, 16, (int)JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE);
+					Marshal.StructureToPtr(extendedInfo, extendedInfoPtr, false);
 					SetInformationJobObject(_jobHandle, JOBOBJECT_EXTENDED_LIMIT_INFORMATION, extendedInfoPtr, (uint)length);
 				}
 				finally
@@ -980,9 +981,9 @@ public partial class VSCodeManager
 				}
 			}
 
-			if (MapEditorHUD.Instance != null)
+			if (GameContext.MapEditorHud != null)
 			{
-				MapEditorHUD.Instance.OpenWeaponVfxDialog(weaponId, meta, (updatedMeta) => { MapEditorHUD.Instance.SaveCustomWeaponToMetadata(weaponId, updatedMeta); });
+				GameContext.MapEditorHud.OpenWeaponVfxDialog(weaponId, meta, (updatedMeta) => { GameContext.MapEditorHud.SaveCustomWeaponToMetadata(weaponId, updatedMeta); });
 			}
 		}).CallDeferred();
 
@@ -1000,9 +1001,9 @@ public partial class VSCodeManager
 
 		Callable.From(() =>
 		{
-			if (MapEditorHUD.Instance == null) return;
+			if (GameContext.MapEditorHud == null) return;
 
-			MapEditorHUD.Instance.OpenModelPickerDialog(entityId, fieldName, domain, currentPath, (updatedPath) => { MapEditorHUD.Instance.SaveEntityModelPathToMetadata(entityId, fieldName, domain, updatedPath); });
+			GameContext.MapEditorHud.OpenModelPickerDialog(entityId, fieldName, domain, currentPath, (updatedPath) => { GameContext.MapEditorHud.SaveEntityModelPathToMetadata(entityId, fieldName, domain, updatedPath); });
 		}).CallDeferred();
 
 		responseObj["action"] = "openModelPickerResult";
@@ -1017,9 +1018,9 @@ public partial class VSCodeManager
 
 		Callable.From(() =>
 		{
-			if (MapEditorHUD.Instance == null) return;
+			if (GameContext.MapEditorHud == null) return;
 
-			MapEditorHUD.Instance.OpenAbilityVfxDialog(abilityId, abilityDataNode, (updatedData) =>
+			GameContext.MapEditorHud.OpenAbilityVfxDialog(abilityId, abilityDataNode, (updatedData) =>
 			{
 				if (updatedData == null) return;
 
@@ -1028,7 +1029,7 @@ public partial class VSCodeManager
 				string icon = GetStringProperty(updatedData, "IconPath", "");
 				float aoe = GetFloatProperty(updatedData, "AreaOfEffectRadius", 0f);
 
-				MapEditorHUD.Instance.SaveCustomAbilityVfxToMetadata(abilityId, vfx, sound, icon, aoe);
+				GameContext.MapEditorHud.SaveCustomAbilityVfxToMetadata(abilityId, vfx, sound, icon, aoe);
 			});
 		}).CallDeferred();
 
@@ -1044,9 +1045,9 @@ public partial class VSCodeManager
 
 		Callable.From(() =>
 		{
-			if (MapEditorHUD.Instance != null)
+			if (GameContext.MapEditorHud != null)
 			{
-				MapEditorHUD.Instance.OpenAnimationPreviewDialog(unitId, modelPath);
+				GameContext.MapEditorHud.OpenAnimationPreviewDialog(unitId, modelPath);
 			}
 		}).CallDeferred();
 
@@ -1183,20 +1184,20 @@ public partial class VSCodeManager
 		string display = fileName == "manifest.json" ? "manifest.json" : (MapWorkspaceService.GetActiveWorkspacePath() != null ? "Workspace Metadata" : "metadata.json");
 		Action reloadAction = () =>
 		{
-			if (MapEditorHUD.Instance != null)
+			if (GameContext.MapEditorHud != null)
 			{
-				MapEditorHUD.Instance.ReadMetadataAndRefreshTextures();
-				MapEditorHUD.Instance.ShowFeedback(string.Format(TranslationServer.Translate("{0} updated externally â€” reloaded."), display));
+				GameContext.MapEditorHud.ReadMetadataAndRefreshTextures();
+				GameContext.MapEditorHud.ShowFeedback(string.Format(TranslationServer.Translate("{0} updated externally â€” reloaded."), display));
 			}
-			else if (GameHost.Instance != null && GameHost.Instance.GroundTerrain != null)
+			else if (GameContext.Host != null && GameContext.Host.GroundTerrain != null)
 			{
-				GameHost.Instance.GroundTerrain.ReloadTerrainTextures(true);
+				GameContext.Host.GroundTerrain.ReloadTerrainTextures(true);
 			}
 		};
 
-		if (FloatingDialogBase.HasAnyDialogOpen && MapEditorHUD.Instance != null)
+		if (FloatingDialogBase.HasAnyDialogOpen && GameContext.MapEditorHud != null)
 		{
-			MapEditorHUD.Instance.ShowConfirmationDialog(
+			GameContext.MapEditorHud.ShowConfirmationDialog(
 				$"External edits detected in {display}. Reload external changes or keep current dialog changes?",
 				onConfirm: reloadAction,
 				confirmText: "RELOAD",
@@ -1214,16 +1215,16 @@ public partial class VSCodeManager
 	{
 		Action reloadAction = () =>
 		{
-			if (GameHost.Instance != null && GameContext.SessionState.IsMapEditorMode)
+			if (GameContext.Host != null && GameContext.SessionState.IsMapEditorMode)
 			{
-				GameHost.Instance.LoadMapFromFile(filePath);
-				MapEditorHUD.Instance?.ShowFeedback(TranslationServer.Translate("terrain.json updated externally â€” reloaded."));
+				GameContext.Host.LoadMapFromFile(filePath);
+				GameContext.MapEditorHud?.ShowFeedback(TranslationServer.Translate("terrain.json updated externally â€” reloaded."));
 			}
 		};
 
-		if (FloatingDialogBase.HasAnyDialogOpen && MapEditorHUD.Instance != null)
+		if (FloatingDialogBase.HasAnyDialogOpen && GameContext.MapEditorHud != null)
 		{
-			MapEditorHUD.Instance.ShowConfirmationDialog(
+			GameContext.MapEditorHud.ShowConfirmationDialog(
 				"External edits detected in terrain.json. Reload external changes or keep current dialog changes?",
 				onConfirm: reloadAction,
 				confirmText: "RELOAD",
@@ -1254,20 +1255,20 @@ public partial class VSCodeManager
 		{
 			Action reloadAction = () =>
 			{
-				if (MapEditorHUD.Instance != null)
+				if (GameContext.MapEditorHud != null)
 				{
-					MapEditorHUD.Instance.ReadMetadataAndRefreshTextures();
-					MapEditorHUD.Instance.ShowFeedback(TranslationServer.Translate("metadata.json updated externally â€” reloaded."));
+					GameContext.MapEditorHud.ReadMetadataAndRefreshTextures();
+					GameContext.MapEditorHud.ShowFeedback(TranslationServer.Translate("metadata.json updated externally â€” reloaded."));
 				}
-				else if (GameHost.Instance != null && GameHost.Instance.GroundTerrain != null)
+				else if (GameContext.Host != null && GameContext.Host.GroundTerrain != null)
 				{
-					GameHost.Instance.GroundTerrain.ReloadTerrainTextures(true);
+					GameContext.Host.GroundTerrain.ReloadTerrainTextures(true);
 				}
 			};
 
-			if (FloatingDialogBase.HasAnyDialogOpen && MapEditorHUD.Instance != null)
+			if (FloatingDialogBase.HasAnyDialogOpen && GameContext.MapEditorHud != null)
 			{
-				MapEditorHUD.Instance.ShowConfirmationDialog(
+				GameContext.MapEditorHud.ShowConfirmationDialog(
 					"External edits detected in metadata.json. Reload external changes or keep current dialog changes?",
 					onConfirm: reloadAction,
 					confirmText: "RELOAD",
@@ -1477,22 +1478,22 @@ public partial class VSCodeManager
 			}
 
 			byte[] raudBytes = File.ReadAllBytes(inputPath);
-			var (metaJson, tracks, _) = RaudFile.Parse(raudBytes);
+			var (metaJson, entries, _) = RaudFile.Parse(raudBytes);
 
-			if (tracks.Count <= trackIndex)
+			if (entries.Count <= trackIndex)
 			{
 				PopulateErrorResponse(responseObj, "convertRaudResult", $"Audio track {trackIndex} not found in RAUD file.");
 				return;
 			}
 
-			if (tracks[trackIndex].Length == 0)
+			if (entries[trackIndex].Data.Length == 0)
 			{
 				PopulateErrorResponse(responseObj, "convertRaudResult", $"Audio track {trackIndex} not found in RAUD file.");
 				return;
 			}
 
-			SaveAudioTrack(outputPath, tracks[trackIndex]);
-			PopulateRaudConversionResponse(responseObj, outputPath, tracks.Count, metaJson);
+			SaveAudioTrack(outputPath, entries[trackIndex].Data);
+			PopulateRaudConversionResponse(responseObj, outputPath, entries.Count, metaJson);
 		}
 		catch (Exception ex)
 		{
@@ -1538,14 +1539,6 @@ public partial class VSCodeManager
 	public void Focus()
 	{
 		LaunchOrFocusEditor();
-	}
-
-	public void OpenDevTools()
-	{
-	}
-
-	public void UpdateBounds()
-	{
 	}
 
 	public void OpenFile(string relativePath)
@@ -2139,14 +2132,14 @@ public partial class VSCodeManager
 		if (TryGetBlankMapPath(out string blankPath))
 			return blankPath;
 
-		string fallbackMap = ECSContext.ActiveMapName ?? "melee";
+		string fallbackMap = GameContext.Simulation.ActiveMapName ?? "melee";
 		return Path.Combine(projectRoot, "Maps", fallbackMap).Replace("\\", "/");
 	}
 
 	private bool TryGetTempWorkspacePath(out string path)
 	{
 		path = string.Empty;
-		if (GameHost.Instance != null && GameContext.SessionState.IsMapEditorMode)
+		if (GameContext.Host != null && GameContext.SessionState.IsMapEditorMode)
 		{
 			string tempWorkspace = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
 			if (Directory.Exists(tempWorkspace))
@@ -2187,13 +2180,14 @@ public partial class VSCodeManager
 		path = string.Empty;
 		try
 		{
-			if (GameHost.Instance != null)
+			if (GameContext.Host != null)
 			{
 				string docPath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
 				string blankDir = Path.Combine(docPath, "blank_map");
 				if (!Directory.Exists(blankDir))
 				{
-					((IGameAPI)GameHost.Instance).GenerateMapDirectory("blank_map", docPath);
+					GameContext.EditorService.GenerateMapDirectoryDomain("blank_map", blankDir, Realm.Client.Utils.PathUtils.GetProjectRoot(), Realm.Client.Utils.PathUtils.FindPath("MapTemplate"));
+					GameHost.EnsureMapProjectFiles(blankDir);
 				}
 
 				path = blankDir.Replace("\\", "/");

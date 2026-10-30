@@ -1236,16 +1236,6 @@ var RealmMapEditorProvider = class _RealmMapEditorProvider {
                             <label for="prop-HowToPlayObjective">Lobby Objective</label>
                             <input type="text" id="prop-HowToPlayObjective" placeholder="e.g. Destroy the enemy town center" />
                         </div>
-                        <div class="form-group">
-                            <label>Lobby Instructions List (Optional)</label>
-                            <div id="instructions-container" class="tag-list-container">
-                                <div class="tags" id="instructions-tags"></div>
-                                <div class="tag-input-row">
-                                    <input type="text" id="instruction-input" placeholder="Add lobby instruction..." />
-                                    <button type="button" id="add-instruction-btn" class="btn secondary-btn">+</button>
-                                </div>
-                            </div>
-                        </div>
                     </div>
                     <div class="form-section">
                         <h3>Player Slots</h3>

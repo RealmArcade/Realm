@@ -240,7 +240,6 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 
 		BodyContainer.AddChild(topToolbar);
 
-		// ROW 2: PLAYBACK CONTROLS (PLAY, PAUSE, FRAME-FORWARD, FRAME-BACKWARD, SPEED SLIDER)
 		var playbackToolbar = new HBoxContainer();
 		playbackToolbar.Name = "PlaybackToolbar_HBoxContainer";
 		playbackToolbar.AddThemeConstantOverride("separation", 4);
@@ -289,7 +288,6 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 
 	private void BuildIdentitySection(VBoxContainer scrollBody)
 	{
-		// SECTION 0: IDENTITY
 		AddSectionHeader(scrollBody, "🆔 " + TranslationServer.Translate("IDENTITY"), new Color(0.95f, 0.8f, 0.4f));
 
 		var rowId = BuildIdentityRow(scrollBody, "weapon/", out _lblObjectTypePrefix);
@@ -325,7 +323,6 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 
 	private void BuildAudioAndImpactSection(VBoxContainer scrollBody)
 	{
-		// SECTION 1: AUDIO & IMPACT EFFECTS
 		AddSectionHeader(scrollBody, "🔊 " + TranslationServer.Translate("AUDIO & IMPACT EFFECTS"), new Color(0.3f, 0.8f, 0.7f));
 
 		(_, _setAttackSoundValue) = AddAssetFilterDropdown(
@@ -387,7 +384,6 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 
 	private void BuildProjectileMovementSectionPart1(VBoxContainer scrollBody)
 	{
-		// SECTION 2: PROGRAMMATIC PROJECTILE MOVEMENT
 		AddSectionHeader(scrollBody, "🚀 " + TranslationServer.Translate("PROJECTILE MOVEMENT"), new Color(0.35f, 0.6f, 0.85f));
 		(_, _setProjectileModelValue) = AddAssetFilterDropdown(
 			scrollBody,
@@ -619,7 +615,6 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 
 	private void BuildProceduralShaderSectionPart1(VBoxContainer scrollBody)
 	{
-		// SECTION 3: PROCEDURAL SURFACE UBER-SHADER
 		AddSectionHeader(scrollBody, "🎨 " + TranslationServer.Translate("PROCEDURAL SURFACE UBER-SHADER"), new Color(0.8f, 0.55f, 0.45f));
 		var presetFxRow = new HBoxContainer();
 		presetFxRow.Name = "PresetFxRow_HBoxContainer";
@@ -746,7 +741,6 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 
 	private void BuildRibbonTrailSection(VBoxContainer scrollBody)
 	{
-		// SECTION 4: RIBBON TRAIL EMITTER
 		AddSectionHeader(scrollBody, "🎗️ " + TranslationServer.Translate("RIBBON TRAIL EMITTER"), new Color(0.85f, 0.85f, 0.6f));
 
 		_cpRibbonColor = AddColorPicker(scrollBody, TranslationServer.Translate("Ribbon Color"), ParseColorSafe(_currentWeapon.RibbonColor, new Color(1.0f, 0.65f, 0.2f)), (c) =>
@@ -1222,20 +1216,32 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 		}
 
 		string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
-		string fullPath = Path.Combine(wsPath, "Assets", "audio", soundPath);
-		if (!File.Exists(fullPath))
-		{
-			fullPath = Path.Combine(wsPath, soundPath);
-		}
+		string fullPath = ResolveAudioFilePath(Path.Combine(wsPath, "Assets", "audio"), soundPath)
+			?? ResolveAudioFilePath(wsPath, soundPath)
+			?? ResolveAudioFilePath(ProjectSettings.GlobalizePath("res://Assets/audio"), soundPath)
+			?? ResolveAudioFilePath(ProjectSettings.GlobalizePath("res://Assets/Audio/UI"), soundPath);
 
-		if (!File.Exists(fullPath))
-		{
-			fullPath = ProjectSettings.GlobalizePath($"res://Assets/Audio/UI/{soundPath}");
-		}
-
-		if (!File.Exists(fullPath)) return null;
+		if (string.IsNullOrEmpty(fullPath)) return null;
 
 		return LoadStreamFromFile(fullPath);
+	}
+
+	private static string? ResolveAudioFilePath(string rootPath, string soundPath)
+	{
+		if (string.IsNullOrEmpty(rootPath) || !Directory.Exists(rootPath)) return null;
+
+		string directPath = Path.Combine(rootPath, soundPath);
+		if (File.Exists(directPath)) return directPath;
+
+		string fileName = Path.GetFileName(soundPath);
+		if (string.IsNullOrEmpty(fileName)) return null;
+
+		foreach (string candidatePath in Directory.EnumerateFiles(rootPath, fileName, SearchOption.AllDirectories))
+		{
+			return candidatePath;
+		}
+
+		return null;
 	}
 
 	private AudioStream LoadStreamFromFile(string fullPath)
@@ -1285,7 +1291,7 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 			_currentWeapon.Name = _txtName.Text;
 		}
 
-		if (GameHost.Instance != null && !string.IsNullOrEmpty(_weaponId))
+		if (GameContext.Host != null && !string.IsNullOrEmpty(_weaponId))
 		{
 			GameHost.WeaponRegistry[_weaponId] = _currentWeapon;
 		}
@@ -1310,7 +1316,7 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 			}
 		}
 
-		if (GameHost.Instance != null && !string.IsNullOrEmpty(targetId))
+		if (GameContext.Host != null && !string.IsNullOrEmpty(targetId))
 		{
 			if (_initialWeapon != null)
 			{

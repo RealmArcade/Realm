@@ -19,10 +19,6 @@ public struct TrimmedTextureLoadRecord
 	public int ResultHeight;
 }
 
-/// <summary>
-/// Loads UX image files that ship in their original compressed format (importer="keep"), where
-/// Godot stores the raw webp/jpg/svg bytes instead of an imported texture resource.
-/// </summary>
 public static class TrimmedTextureLoader
 {
 	private static readonly Dictionary<string, Texture2D> _cache = new(StringComparer.OrdinalIgnoreCase);

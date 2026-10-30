@@ -19,23 +19,22 @@ public class UnitMetadata
 	public float CostStone { get; set; }
 	public int PopCost { get; set; }
 	public float ProductionTime { get; set; }
-	public string? AttackType { get; set; }
-	public string? ArmorType { get; set; }
 	public float Strength { get; set; }
 	public float Agility { get; set; }
 	public float Vitality { get; set; }
 	public float Intelligence { get; set; }
 	public float Wisdom { get; set; }
 	public float Fortune { get; set; }
+	public LevelGrowthMetadata? LevelGrowth { get; set; }
 	public float HpRegen { get; set; }
 	public float HpRegenCombatDelay { get; set; }
 	public float MaxMana { get; set; }
 	public float ManaRegen { get; set; }
-	public float RatedArmor { get; set; }
+	public float MagicResistance { get; set; }
 	public float FlatArmorPenetration { get; set; }
 	public float PercentArmorPenetration { get; set; }
 	public float DamageVariance { get; set; }
-	public string DamageType { get; set; } = "normal";
+	public string DamageType { get; set; } = "physical";
 	public float CritChance { get; set; }
 	public float CritMultiplier { get; set; } = 1.0f;
 	public string SplashType { get; set; } = "None";
@@ -73,6 +72,7 @@ public class UnitMetadata
 	public string? ProjectileModelPath { get; set; }
 	public Dictionary<string, List<UnitAnimationEntry>>? Animations { get; set; }
 	public UnitObjectAttachments? ObjectAttachments { get; set; }
+	public List<PseudoSocketAnchor>? PseudoSockets { get; set; }
 	public UnitSoundsMetadata? Sounds { get; set; }
 	public string[]? StartingItems { get; set; }
 	public string[]? ShopItems { get; set; }
@@ -93,6 +93,8 @@ public class UnitMetadata
 	public const float DefaultConstructionRange = 4f;
 
 	public float ConstructionRange { get; set; } = DefaultConstructionRange;
+
+	public string? Attribution_ImportedFromMap { get; set; }
 
 	public bool TryGetObjectAttachment(HumanoidBone hand, string attachmentId, out HandAttachmentOrientation? orientation)
 	{

@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <RootNamespace>Realm.ListenServer</RootNamespace>
+    <AssemblyName>Realm.ListenServer</AssemblyName>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <RealmWasmHostAssembly>Realm.ListenServer</RealmWasmHostAssembly>
+    <RealmWasmHostNamespace>Realm.ListenServer</RealmWasmHostNamespace>
+    <RealmWasmHostType>WasmScriptHost</RealmWasmHostType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <CompilerVisibleProperty Include="RealmWasmHostAssembly" />
+    <CompilerVisibleProperty Include="RealmWasmHostNamespace" />
+    <CompilerVisibleProperty Include="RealmWasmHostType" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Realm.Shared\Realm.Shared.csproj" />
+    <ProjectReference Include="..\Realm.Ecs\Realm.Ecs.csproj" />
+    <ProjectReference Include="..\Realm.MapAPI\Realm.MapAPI.csproj" />
+    <PackageReference Include="Wasmtime" Version="44.0.0" />
+    <ProjectReference Include="..\Realm.WasmBindgen\Realm.WasmBindgen.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+</Project>

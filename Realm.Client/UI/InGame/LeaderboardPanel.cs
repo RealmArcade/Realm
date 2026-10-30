@@ -3,15 +3,13 @@ using System.Collections.Generic;
 using Godot;
 using Realm.Client.Core;
 using Realm.Ecs.Common;
-using Realm.MapAPI;
+using Realm.Client.Services;
 
 namespace Realm.Client.UI.InGame;
 
 public class LeaderboardPanel
 {
 	private VBoxContainer _customUIPanel;
-	private PanelContainer _countdownPanel;
-	private Label _countdownLabel;
 	private PanelContainer _leaderboardPanel;
 	private Label _leaderboardTitleLabel;
 	private VBoxContainer _leaderboardSelectors;
@@ -26,8 +24,6 @@ public class LeaderboardPanel
 	private readonly List<Label> _valueLabels = new();
 	private readonly List<string> _boardIds = new();
 	private readonly List<int> _groupPlayerIndices = new();
-	private string? _lastCountdownText;
-	private int _lastCountdownSeconds = int.MinValue;
 	private string? _lastLeaderboardTitle;
 
 	private string? _selectedBoardId;
@@ -37,12 +33,10 @@ public class LeaderboardPanel
 	private int _lastBoardSignature = int.MinValue;
 	private int _lastGroupSignature = int.MinValue;
 
-	public LeaderboardPanel(VBoxContainer customUIPanel, PanelContainer countdownPanel, Label countdownLabel,
+	public LeaderboardPanel(VBoxContainer customUIPanel,
 		PanelContainer leaderboardPanel, Label leaderboardTitleLabel, VBoxContainer leaderboardSelectors, VBoxContainer leaderboardContent)
 	{
 		_customUIPanel = customUIPanel;
-		_countdownPanel = countdownPanel;
-		_countdownLabel = countdownLabel;
 		_leaderboardPanel = leaderboardPanel;
 		_leaderboardTitleLabel = leaderboardTitleLabel;
 		_leaderboardSelectors = leaderboardSelectors;
@@ -100,25 +94,7 @@ public class LeaderboardPanel
 
 	public void Update(InGameHUDViewModel viewModel)
 	{
-		bool allowCountdown = InGameHUD.Instance?.IsHudElementVisible(HudElement.CountdownTimer, true) ?? true;
-		bool countdownVisible = viewModel.CountdownActive && allowCountdown;
-		if (_countdownPanel.Visible != countdownVisible)
-		{
-			_countdownPanel.Visible = countdownVisible;
-		}
-		if (countdownVisible)
-		{
-			int secs = (int)Math.Ceiling(viewModel.CountdownDuration);
-			string text = viewModel.CountdownText ?? string.Empty;
-			if (secs != _lastCountdownSeconds || text != _lastCountdownText)
-			{
-				_countdownLabel.Text = $"{text}: {secs}s";
-				_lastCountdownSeconds = secs;
-				_lastCountdownText = text;
-			}
-		}
-
-		bool allowLeaderboard = InGameHUD.Instance?.IsHudElementVisible(HudElement.Leaderboard, true) ?? true;
+		bool allowLeaderboard = GameContext.InGameHud?.IsHudElementVisible(HudElement.Leaderboard, true) ?? true;
 		LeaderboardBoards boards = viewModel.Leaderboards;
 		LeaderboardBoard? selectedBoard = ResolveSelectedBoard(boards);
 		bool leaderboardVisible = selectedBoard != null && allowLeaderboard;
@@ -314,7 +290,7 @@ public class LeaderboardPanel
 
 	private int ResolveDefaultGroupPlayerIndex()
 	{
-		int localPlayerIndex = GameHost.Instance?.LocalPlayerIndex ?? -1;
+		int localPlayerIndex = GameContext.Host?.LocalPlayerIndex ?? -1;
 		if (localPlayerIndex >= 0 && _groupPlayerIndices.Contains(localPlayerIndex))
 			return localPlayerIndex;
 
@@ -330,7 +306,7 @@ public class LeaderboardPanel
 		if (string.Equals(boardId, _selectedBoardId, StringComparison.Ordinal))
 			return;
 
-		UIManager.Instance?.PlayClickSound();
+		GameContext.UserInterface?.PlayClickSound();
 		_selectedBoardId = boardId;
 		_hasGroupSelection = false;
 		_lastRevision = -1;
@@ -345,7 +321,7 @@ public class LeaderboardPanel
 		if (playerIndex == _selectedGroupPlayerIndex)
 			return;
 
-		UIManager.Instance?.PlayClickSound();
+		GameContext.UserInterface?.PlayClickSound();
 		_selectedGroupPlayerIndex = playerIndex;
 		_hasGroupSelection = true;
 	}

@@ -9,6 +9,8 @@ namespace Realm.Client.Network;
 
 public class UdpHolePuncher
 {
+	private const int DelayBetweenBurstsMilliseconds = 25;
+
 	public static async Task PunchHoleAsync(string remoteIp, int remotePort, int localPort, int packetCount = 8)
 	{
 		GD.Print($"[HolePuncher] Punching hole to {remoteIp}:{remotePort} from local port {localPort}...");
@@ -35,7 +37,7 @@ public class UdpHolePuncher
 			for (int i = 0; i < packetCount; i++)
 			{
 				await udp.SendAsync(payload, payload.Length, remoteEp);
-				await Task.Delay(25); // wait 25ms between packet bursts
+				await Task.Delay(DelayBetweenBurstsMilliseconds);
 			}
 
 			GD.Print($"[HolePuncher] Hole punch bursts sent ({packetCount} packets).");

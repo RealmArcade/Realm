@@ -1,8 +1,10 @@
+using Realm.Ecs.Components.Terrain;
+
 namespace Realm.Shared.Metadata;
 
 public class TerrainSwatchProfileData
 {
-	public int DefaultPathingCode { get; set; } = 8 | 32 | 4; // Ground | Buildable | Flying
+	public int DefaultPathingCode { get; set; } = TerrainPathing.DefaultPathingCode_Ground;
 	public List<ProceduralBombingDecalRule> DecalBombingRules { get; set; } = new();
 	public List<ProceduralBombingVfxRule> VfxBombingRules { get; set; } = new();
 

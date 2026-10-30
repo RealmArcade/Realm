@@ -1,0 +1,1 @@
+{ "mcp": { "godot": { "type": "local", "command": ["uvx", "godot-editor-mcp"] } } }

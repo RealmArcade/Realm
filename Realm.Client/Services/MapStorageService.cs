@@ -178,11 +178,7 @@ public class MapStorageService
 		return "";
 	}
 
-	public string CurrentMapDirectory { get; set; } = MapWorkspaceService.GetDefaultWorkspaceGlobalPath();
-
-	public MapStorageService()
-	{
-	}
+	public string CurrentMapDirectory { get; set; } = string.Empty;
 
 	public static string FormatBytes(long bytes)
 	{
@@ -642,7 +638,7 @@ public class MapStorageService
 	{
 		return !string.IsNullOrWhiteSpace(registryServerUrl)
 			? registryServerUrl
-			: (GodotObject.IsInstanceValid(LobbyManager.Instance) ? LobbyManager.Instance.RegistryServerUrl : ServersConfigHelper.GetDefaultServerUrl());
+			: (GodotObject.IsInstanceValid(GameContext.Lobby) ? GameContext.Lobby.RegistryServerUrl : ServersConfigHelper.GetDefaultServerUrl());
 	}
 
 	private async Task<(bool HasNewer, string? NewerVersion, string? MapId)> CheckDiscoveryMapsAsync(DistributionClient distClient, string mapTitle, List<string> localVersions, CancellationToken cancellationToken)
@@ -682,7 +678,7 @@ public class MapStorageService
 	{
 		string serverUrl = !string.IsNullOrWhiteSpace(registryServerUrl)
 			? registryServerUrl
-			: (GodotObject.IsInstanceValid(LobbyManager.Instance) ? LobbyManager.Instance.RegistryServerUrl : ServersConfigHelper.GetDefaultServerUrl());
+			: (GodotObject.IsInstanceValid(GameContext.Lobby) ? GameContext.Lobby.RegistryServerUrl : ServersConfigHelper.GetDefaultServerUrl());
 
 		var distClient = new MapDistributionClient();
 		return await distClient.DownloadMapPackageFromRegistryAsync(mapId, serverUrl, progressCallback, cancellationToken);
@@ -1302,12 +1298,12 @@ public class MapStorageService
 		string tempTerrainPath = Path.Combine(tempWorkspacePath, "terrain.json");
 		MapWorkspaceService.EnsureLicenseFile(tempWorkspacePath);
 		MapWorkspaceService.EnsureWasmEntryPoint(tempWorkspacePath);
-		GameHost.Instance.SaveMapToFile(tempTerrainPath, performReload: false);
-		GameHost.Instance.EditorHasUnsavedChanges = false;
+		GameContext.Host.SaveMapToFile(tempTerrainPath, performReload: false);
+		GameContext.Host.EditorHasUnsavedChanges = false;
 
 		if (isWindows)
 		{
-			await VSCodeManager.Instance.SaveAllOpenFilesAsync();
+			await GameContext.VSCode.SaveAllOpenFilesAsync();
 		}
 	}
 
@@ -1376,6 +1372,7 @@ public class MapStorageService
 		mapVersion = extracted.mapVersion;
 
 		var manifest = MapManifest.CreateFromDirectory(tempWorkspacePath, mapTitle, author, mapVersion);
+		GameContext.MapAttributionService.ApplyAttribution(manifest, tempWorkspacePath);
 		string manifestJsonPath = Path.Combine(tempWorkspacePath, "manifest.json");
 		File.WriteAllText(manifestJsonPath, manifest.ToJson());
 	}
@@ -1408,10 +1405,10 @@ public class MapStorageService
 		}
 	}
 
-	public async Task CreateMapArchiveAsync(string tempWorkspacePath, string destinationPath, bool fullExport, Action<float, string> progressCallback)
+	public async Task<string> CreateMapArchiveAsync(string tempWorkspacePath, string destinationPath, bool fullExport, Action<float, string> progressCallback)
 	{
 		var excludedPaths = !fullExport ? MapNormalizationHelper.GetExcludedRelativePaths(tempWorkspacePath) : null;
-		await Task.Run(() => { MapArchiveHelper.CreateRmapArchive(tempWorkspacePath, destinationPath, progressCallback, compressionLevel: 1, fullExport: fullExport, excludedRelativePaths: excludedPaths); });
+		return await Task.Run(() => MapArchiveHelper.CreateRmapArchive(tempWorkspacePath, destinationPath, progressCallback, compressionLevel: 1, fullExport: fullExport, excludedRelativePaths: excludedPaths));
 	}
 
 	public bool HasNewerSourceFiles(string workspace, DateTime wasmTime, string currentSourceFolder)

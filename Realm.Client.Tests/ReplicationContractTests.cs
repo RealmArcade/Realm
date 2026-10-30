@@ -15,9 +15,10 @@ public partial class ReplicationContractTests
 	private static readonly string[] HostOnlyComponents =
 	{
 		"Position", "PreviousPosition", "Health", "Owner",
-		"ManaRegen", "CollisionRadius", "CollisionScale", "DefinitionId",		"CustomMetadata",
+		"ManaRegen", "DefinitionId",		"CustomMetadata",
 		"CountdownState", "DecalIdentity", "DecalSpawnRequest", "EditorState",
-		"GroundLoot", "InputState",
+		"DescribedAtSequence",
+		"InputState",
 		"NetworkMappingState", "NetworkState", "OccupiedZones",
 		"PropIdentity", "PropSpawnRequest",
 		"ReplayState", "ScriptPlayer", "SpectatorPerspective",
@@ -27,7 +28,7 @@ public partial class ReplicationContractTests
 		"TargetIntel", "Ability", "HasAbilities",
 		"AutoCastState", "CastTarget",
 		"Velocity",
-		"InterpolationTarget", "RenderPosition", "PathingFlags",
+		"LatestDescription", "RenderPosition", "PathingFlags",
 		"WaypointBuffer",
 		"Gatherer", "ResourceCost",
 		"Food", "Gold",
@@ -41,7 +42,8 @@ public partial class ReplicationContractTests
 		"PreviousRotationY", "ShroudState", "TerrainCell", "TerrainColorsState",
 		"TerrainSwatchConfig",
 		"PlayerRelationshipMatrix", "HealingTarget",
-		"ScanRadius", "AbilityTargetFilter", "CameraState", "BuildingSpawnOffset"
+		"ScanRadius", "AbilityTargetFilter", "CameraState", "BuildingSpawnOffset",
+		"SummonedUnit"
 	};
 
 	private static readonly string[] RpcReplicatedComponents =
@@ -64,7 +66,8 @@ public partial class ReplicationContractTests
 	{
 		"BuffSlot", "BuffSlotArray", "InventorySlot", "InventorySlotArray",
 		"ModifierSlotArray", "PlayerSlotArray", "StatSlot", "StatSlotArray",
-		"VFXSlotArray", "OccupiedZoneMask", "CameraLocationSlot"
+		"VFXSlotArray", "OccupiedZoneMask", "CameraLocationSlot",
+		"BuildQueueSlot", "BuildQueueSlots", "AbsorbShieldSlot", "AbsorbShieldSlotArray"
 	};
 
 	private const int MinimumComponentTypeCount = 120;

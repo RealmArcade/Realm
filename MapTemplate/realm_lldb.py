@@ -29,6 +29,11 @@ ROTATION_Y_OFFSET = 1616896
 PLAYER_RESOURCES_OFFSET = 1649664
 SCRIPT_PLAYER_OFFSET = 1650912
 PLAYER_POPULATION_OFFSET = 1651612
+MAX_LOBBY_FACTIONS = 16
+LOBBY_FACTION_NAME_CHARACTERS = 24
+LOBBY_ROSTER_HEADER_OFFSET = 1651820
+LOBBY_FACTION_NAMES_OFFSET = 1651840
+PLAYER_ROSTER_SLOTS_OFFSET = 1652608
 TOTAL_SIZE_BYTES = 4194304
 
 # Element sizes auto-calculated from struct layouts
@@ -36,7 +41,7 @@ POSITION_SIZE = 12
 HEALTH_SIZE = 20
 MANA_SIZE = 12
 ATTACK_SIZE = 72
-ARMOR_SIZE = 12
+ARMOR_SIZE = 8
 MOVEMENT_STATS_SIZE = 20
 UNIT_OWNER_PLAYER_SIZE = 4
 LEVEL_SIZE = 4
@@ -71,6 +76,7 @@ ENTITY_FIELDS = [
     ("Range", 43, ATTACK_OFFSET, ATTACK_SIZE, 4, "float"),
     ("AttackSpeed", 43, ATTACK_OFFSET, ATTACK_SIZE, 8, "float"),
     ("Armor", 48, ARMOR_OFFSET, ARMOR_SIZE, 0, "float"),
+    ("MagicResistance", 48, ARMOR_OFFSET, ARMOR_SIZE, 4, "float"),
     ("Speed", 57, MOVEMENT_STATS_OFFSET, MOVEMENT_STATS_SIZE, 0, "float"),
     ("Position", 0, POSITION_OFFSET, POSITION_SIZE, 0, "Vector3"),
     ("Player", 37, UNIT_OWNER_PLAYER_OFFSET, UNIT_OWNER_PLAYER_SIZE, 0, "int"),
@@ -96,8 +102,9 @@ def get_shared_memory_base(target):
 
     candidate_names = [
         "g_realmSharedMemoryBase",
-        "Realm_MapAPI_EcsSharedMemory_g_realmSharedMemoryBase",
-        "Realm.MapAPI.EcsSharedMemory.g_realmSharedMemoryBase",
+        "Realm_Ecs_EcsSharedMemory_g_realmSharedMemoryBase",
+        "Realm.Ecs.EcsSharedMemory.g_realmSharedMemoryBase",
+        "Realm::Ecs::EcsSharedMemory::g_realmSharedMemoryBase",
     ]
 
     process = target.GetProcess()
@@ -387,10 +394,10 @@ def UnitIdSummaryProvider(valobj, internal_dict):
 def __lldb_init_module(debugger, internal_dict):
     category = "Realm"
 
-    debugger.HandleCommand(f"type synthetic add -l realm_lldb.PlayerIdSyntheticProvider -x \"^Realm[.:]MapAPI[.:]PlayerId$\" -w {category}")
-    debugger.HandleCommand(f"type summary add -F realm_lldb.PlayerIdSummaryProvider -x \"^Realm[.:]MapAPI[.:]PlayerId$\" -w {category}")
+    debugger.HandleCommand(f"type synthetic add -l realm_lldb.PlayerIdSyntheticProvider -x \"^Realm[.:]Ecs[.:]PlayerId$\" -w {category}")
+    debugger.HandleCommand(f"type summary add -F realm_lldb.PlayerIdSummaryProvider -x \"^Realm[.:]Ecs[.:]PlayerId$\" -w {category}")
 
-    debugger.HandleCommand(f"type synthetic add -l realm_lldb.UnitIdSyntheticProvider -x \"^Realm[.:]MapAPI[.:]UnitId$\" -w {category}")
-    debugger.HandleCommand(f"type summary add -F realm_lldb.UnitIdSummaryProvider -x \"^Realm[.:]MapAPI[.:]UnitId$\" -w {category}")
+    debugger.HandleCommand(f"type synthetic add -l realm_lldb.UnitIdSyntheticProvider -x \"^Realm[.:]Ecs[.:]UnitId$\" -w {category}")
+    debugger.HandleCommand(f"type summary add -F realm_lldb.UnitIdSummaryProvider -x \"^Realm[.:]Ecs[.:]UnitId$\" -w {category}")
 
     debugger.HandleCommand(f"type category enable {category}")

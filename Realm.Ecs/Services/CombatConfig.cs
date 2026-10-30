@@ -1,56 +1,21 @@
 namespace Realm.Ecs.Services;
 
 /// <summary>
-///     Provides global combat resolution configuration and UGC-editable damage/armor type multiplier matrix.
+///     The three numbers every damage application shares: the resistance curve's K, the ceiling on
+///     how much resistance may remove, and the floor a resisted hit still deals. A map overrides
+///     them through its metadata's combat tuning block; a map that authors nothing gets these.
 /// </summary>
 public class CombatConfig
 {
 	/// <summary>
-	///     Globally configurable tuning constant K for the rated armor asymptotic curve.
+	///     K in the asymptotic curve <c>R / (R + K)</c>. Higher is flatter: at K points a unit takes
+	///     half damage, and no amount of resistance ever reaches immunity.
 	/// </summary>
-	public float TuningConstantK { get; set; } = 16.67f;
+	public float ResistTuningConstantK { get; set; } = 16.67f;
 
-	/// <summary>
-	///     Minimum damage floor for mitigated attacks.
-	/// </summary>
+	/// <summary>Hard ceiling on the fraction of damage resistance can remove. Default 90%.</summary>
+	public float MaxResistMitigation { get; set; } = 0.9f;
+
+	/// <summary>Minimum damage a resisted hit still deals, so no hit is ever free.</summary>
 	public float MinDamageFloor { get; set; } = 1.0f;
-
-	private readonly Dictionary<(string DamageType, string ArmorType), float> _matrix = new();
-
-	/// <summary>
-	///     Gets the damage multiplier for a given damage type and armor type pair.
-	///     Defaults to 1.0 if either key is null/empty or the pair is undefined in the matrix.
-	/// </summary>
-	public float GetMultiplier(string? damageType, string? armorType)
-	{
-		if (string.IsNullOrEmpty(damageType) || string.IsNullOrEmpty(armorType))
-		{
-			return 1.0f;
-		}
-
-		var key = (damageType.Trim().ToLowerInvariant(), armorType.Trim().ToLowerInvariant());
-		if (_matrix.TryGetValue(key, out float multiplier))
-		{
-			return multiplier;
-		}
-
-		return 1.0f;
-	}
-
-	/// <summary>
-	///     Sets the damage multiplier for a specific damage type and armor type pair.
-	/// </summary>
-	public void SetMultiplier(string damageType, string armorType, float multiplier)
-	{
-		var key = (damageType.Trim().ToLowerInvariant(), armorType.Trim().ToLowerInvariant());
-		_matrix[key] = multiplier;
-	}
-
-	/// <summary>
-	///     Clears all entries in the damage matrix.
-	/// </summary>
-	public void ClearMatrix()
-	{
-		_matrix.Clear();
-	}
 }

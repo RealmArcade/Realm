@@ -3,6 +3,8 @@ using System;
 using Godot;
 using Realm.Client.Core;
 using Realm.Ecs;
+using Realm.Shared.Abilities;
+using Realm.Shared.Metadata;
 
 namespace Realm.Client.UI.InGame;
 
@@ -16,12 +18,15 @@ public class InventoryPanel
 		public Label CountLabel;
 		public string LastItemId;
 		public int LastCount;
+		public bool LastIsCarriedConsumable;
 	}
 
 	private struct ItemSlotData
 	{
 		public string ItemId;
 		public int Count;
+
+		public bool IsCarriedConsumable;
 	}
 
 	private readonly GridContainer _inventoryGrid;
@@ -138,22 +143,25 @@ public class InventoryPanel
 				ItemButton = btn,
 				CountLabel = countLabel,
 				LastItemId = null,
-				LastCount = -1
+				LastCount = -1,
+				LastIsCarriedConsumable = false
 			};
 		}
 	}
 
 	private void OnSlotPressed(int slotIndex)
 	{
+		if (_slots[slotIndex].LastIsCarriedConsumable) return;
+
 		string itemId = _slots[slotIndex].LastItemId;
 		if (string.IsNullOrEmpty(itemId)) return;
 
-		var selected = GameHost.Instance?.SelectedUnits;
+		var selected = GameContext.Host?.SelectedUnits;
 		int localPlayer = GameContext.PerspectiveFilter.ControlledPlayerIndex;
 		int focusIdx = _currentFocusIdx;
 		if (selected != null && selected.Count > focusIdx && selected[focusIdx].Player == localPlayer)
 		{
-			GameHost.Instance.UseItem(selected[focusIdx], itemId);
+			GameContext.Host.UseItem(selected[focusIdx], itemId);
 		}
 	}
 
@@ -171,7 +179,9 @@ public class InventoryPanel
 		if (focusIdx < 0 || focusIdx >= viewModel.SelectedUnits.Count) focusIdx = 0;
 		var focusedUnit = viewModel.SelectedUnits[focusIdx];
 
-		if (focusedUnit.IsEnemy || (focusedUnit.IsBuilding && !focusedUnit.HasInventory && (focusedUnit.InventoryItems == null || focusedUnit.InventoryItems.Count == 0)))
+		int carriedConsumableCount = focusedUnit.CarriedConsumables?.Count ?? 0;
+		bool showsNothing = (focusedUnit.InventoryItems == null || focusedUnit.InventoryItems.Count == 0) && carriedConsumableCount == 0;
+		if (focusedUnit.IsEnemy || (focusedUnit.IsBuilding && !focusedUnit.HasInventory && showsNothing))
 		{
 			HideAllSlots();
 			return;
@@ -192,12 +202,26 @@ public class InventoryPanel
 			}
 		}
 
+		if (focusedUnit.CarriedConsumables != null)
+		{
+			foreach (CarriedConsumableInfo carried in focusedUnit.CarriedConsumables)
+			{
+				if (currentItemCount >= 6) break;
+				if (string.IsNullOrEmpty(carried.DefinitionId)) continue;
+
+				_scratchItems[currentItemCount] = new ItemSlotData { ItemId = carried.DefinitionId, Count = 1, IsCarriedConsumable = true };
+				currentItemCount++;
+			}
+		}
+
 		bool dirty = !_lastVisible || focusedUnit.Entity != _lastFocusedEntity || focusIdx != _lastFocusIdx || currentItemCount != _lastItemCount;
 		if (!dirty)
 		{
 			for (int i = 0; i < currentItemCount; i++)
 			{
-				if (_scratchItems[i].ItemId != _lastItemSlots[i].ItemId || _scratchItems[i].Count != _lastItemSlots[i].Count)
+				if (_scratchItems[i].ItemId != _lastItemSlots[i].ItemId
+				    || _scratchItems[i].Count != _lastItemSlots[i].Count
+				    || _scratchItems[i].IsCarriedConsumable != _lastItemSlots[i].IsCarriedConsumable)
 				{
 					dirty = true;
 					break;
@@ -221,9 +245,9 @@ public class InventoryPanel
 				var itemData = _scratchItems[i];
 				_lastItemSlots[i] = itemData;
 
-				if (_slots[i].LastItemId != itemData.ItemId || _slots[i].LastCount != itemData.Count)
+				if (_slots[i].LastItemId != itemData.ItemId || _slots[i].LastCount != itemData.Count || _slots[i].LastIsCarriedConsumable != itemData.IsCarriedConsumable)
 				{
-					UpdateItemSlot(i, itemData.ItemId, itemData.Count);
+					UpdateItemSlot(i, itemData);
 				}
 
 				_slots[i].BlackTile.Visible = false;
@@ -234,6 +258,7 @@ public class InventoryPanel
 				_lastItemSlots[i] = default;
 				_slots[i].LastItemId = null;
 				_slots[i].LastCount = -1;
+				_slots[i].LastIsCarriedConsumable = false;
 
 				_slots[i].BlackTile.Visible = true;
 				_slots[i].ItemButton.Visible = false;
@@ -241,28 +266,66 @@ public class InventoryPanel
 		}
 	}
 
-	private void UpdateItemSlot(int index, string itemId, int count)
+	private void UpdateItemSlot(int index, ItemSlotData itemData)
 	{
-		string name = itemId.ToUpper();
+		ref var slot = ref _slots[index];
+		slot.LastItemId = itemData.ItemId;
+		slot.LastCount = itemData.Count;
+		slot.LastIsCarriedConsumable = itemData.IsCarriedConsumable;
+
+		if (itemData.IsCarriedConsumable)
+		{
+			RenderCarriedConsumable(ref slot, itemData.ItemId);
+			return;
+		}
+
+		string name = itemData.ItemId.ToUpper();
 		string desc = "Item";
 		string iconPath = "res://Assets/UI/alliance_flag.webp";
 
-		if (GameHost.ItemRegistry.TryGetValue(itemId, out var itemMeta))
+		if (GameHost.ItemRegistry.TryGetValue(itemData.ItemId, out var itemMeta))
 		{
 			if (!string.IsNullOrEmpty(itemMeta.Name)) name = itemMeta.Name;
 			if (!string.IsNullOrEmpty(itemMeta.Description)) desc = itemMeta.Description;
 			if (!string.IsNullOrEmpty(itemMeta.IconPath)) iconPath = itemMeta.IconPath;
 		}
 
-		string rawTooltip = $"{name} (Have: {count})\n{desc}";
+		string statBlock = TooltipStatBlock.ForItem(itemMeta, itemData.Count);
+		string rawTooltip = $"{name} (Have: {itemData.Count})\n{desc}";
+		if (statBlock.Length > 0) rawTooltip += "\n" + statBlock;
 		string transTooltip = TranslationServer.Translate(rawTooltip);
 
-		ref var slot = ref _slots[index];
-		slot.LastItemId = itemId;
-		slot.LastCount = count;
 		slot.ItemButton.Icon = !string.IsNullOrEmpty(iconPath) ? RtexIconLoader.Load(iconPath) : null;
-		slot.ItemButton.TooltipText = string.IsNullOrEmpty(transTooltip) ? rawTooltip : transTooltip;
-		slot.CountLabel.Text = count.ToString();
+		slot.ItemButton.TooltipText = TooltipTemplate.Resolve(
+			string.IsNullOrEmpty(transTooltip) ? rawTooltip : transTooltip,
+			TooltipContext.ForUnit(_lastFocusedEntity));
+		slot.CountLabel.Text = itemData.Count.ToString();
+	}
+
+	private void RenderCarriedConsumable(ref SlotControls slot, string definitionId)
+	{
+		string name = definitionId.ToUpper();
+		string iconPath = "res://Assets/UI/alliance_flag.webp";
+		string tooltip = string.Empty;
+
+		var registry = GameContext.RegistryService;
+		ConsumableMetadata? consumable = registry?.GetConsumable(definitionId);
+		if (consumable != null)
+		{
+			AbilityDefinition? card = registry?.GetAbilityDefinition(consumable.CardId);
+			if (card != null)
+			{
+				if (!string.IsNullOrEmpty(card.DisplayName)) name = card.DisplayName;
+				if (!string.IsNullOrEmpty(card.IconPath)) iconPath = card.IconPath;
+				tooltip = card.TooltipTemplate;
+			}
+		}
+
+		if (tooltip.Length == 0) tooltip = $"{name}\n{TranslationServer.Translate("CARRIED")}";
+
+		slot.ItemButton.Icon = RtexIconLoader.Load(iconPath);
+		slot.ItemButton.TooltipText = TooltipTemplate.Resolve(tooltip, TooltipContext.ForAbility(_lastFocusedEntity, consumable?.CardId));
+		slot.CountLabel.Text = string.Empty;
 	}
 
 	private void HideAllSlots()
@@ -279,6 +342,7 @@ public class InventoryPanel
 			_slots[i].SlotRoot.Visible = false;
 			_slots[i].LastItemId = null;
 			_slots[i].LastCount = -1;
+			_slots[i].LastIsCarriedConsumable = false;
 			_lastItemSlots[i] = default;
 		}
 	}

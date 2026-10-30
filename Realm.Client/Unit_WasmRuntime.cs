@@ -16,7 +16,6 @@ using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Stats;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Services;
-using Realm.MapAPI;
 using Vector3 = System.Numerics.Vector3;
 
 namespace Realm.Client;
@@ -54,7 +53,7 @@ public class Unit_WasmRuntime : IEcsEntityWrapper
 
 	Entity IEcsEntityWrapper.Entity => _entity;
 	public Entity Entity => _entity;
-	public static implicit operator Realm.MapAPI.UnitId(Unit_WasmRuntime? runtime) => runtime != null ? (Realm.MapAPI.UnitId)runtime.UniqueId : Realm.MapAPI.UnitId.Invalid;
+	public static implicit operator Realm.Ecs.UnitId(Unit_WasmRuntime? runtime) => runtime != null ? (Realm.Ecs.UnitId)runtime.UniqueId : Realm.Ecs.UnitId.Invalid;
 
 	public int UniqueId => _entity.Id;
 
@@ -115,9 +114,9 @@ public class Unit_WasmRuntime : IEcsEntityWrapper
 			if (!_world.IsAlive(_entity)) return;
 			_world.SetOrAdd(_entity, new UnitOwnerPlayer(value));
 
-			if (_world.Has<Owner>(_entity) && GameHost.Instance != null)
+			if (_world.Has<Owner>(_entity) && GameContext.Host != null)
 			{
-				var playerOwner = GameHost.Instance.GetPlayerEntityForPlayerIndex(value).AsPlayerEntity(_world);
+				var playerOwner = GameContext.Host.GetPlayerEntityForPlayerIndex(value).AsPlayerEntity(_world);
 				_world.Set(_entity, new Owner(playerOwner));
 			}
 
@@ -184,7 +183,7 @@ public class Unit_WasmRuntime : IEcsEntityWrapper
 						_world.Add(_entity, new Dead());
 						if (GameHost.TryGetUnit3D(_entity, out var deadU3D))
 						{
-							GameHost.Instance.TriggerKillUnit(deadU3D);
+							GameContext.Host.TriggerKillUnit(deadU3D);
 						}
 					}
 				}
@@ -227,7 +226,7 @@ public class Unit_WasmRuntime : IEcsEntityWrapper
 		get
 		{
 			if (!_world.IsAlive(_entity)) return 0f;
-			var statService = ECSContext.StatService;
+			var statService = GameContext.Simulation.StatService;
 			if (statService != null)
 			{
 				float actualDamage = statService.GetStatValue(_entity, new StatId("Attack"));
@@ -286,16 +285,16 @@ public class Unit_WasmRuntime : IEcsEntityWrapper
 		get
 		{
 			if (!_world.IsAlive(_entity)) return 0f;
-			var statService = ECSContext.StatService;
+			var statService = GameContext.Simulation.StatService;
 			if (statService != null)
 			{
 				float actualArmor = statService.GetStatValue(_entity, new StatId("Armor"));
 				if (actualArmor > 0f) return actualArmor;
 			}
 
-			if (_world.Has<Armor>(_entity))
+			if (_world.Has<Resistances>(_entity))
 			{
-				return _world.Get<Armor>(_entity).Value;
+				return _world.Get<Resistances>(_entity).Physical;
 			}
 
 			return 0f;
@@ -303,9 +302,10 @@ public class Unit_WasmRuntime : IEcsEntityWrapper
 		set
 		{
 			if (!_world.IsAlive(_entity)) return;
-			if (_world.Has<Armor>(_entity))
+			if (_world.Has<Resistances>(_entity))
 			{
-				_world.Set(_entity, new Armor(value));
+				ref var resistances = ref _world.Get<Resistances>(_entity);
+				_world.Set(_entity, new Resistances(value, resistances.Magic));
 			}
 
 			if (_world.Has<Stats>(_entity))
@@ -321,7 +321,7 @@ public class Unit_WasmRuntime : IEcsEntityWrapper
 		get
 		{
 			if (!_world.IsAlive(_entity)) return 0f;
-			var statService = ECSContext.StatService;
+			var statService = GameContext.Simulation.StatService;
 			if (statService != null)
 			{
 				float actualSpeed = statService.GetStatValue(_entity, new StatId("MovementSpeed"));
@@ -438,74 +438,31 @@ public class Unit_WasmRuntime : IEcsEntityWrapper
 		}
 	}
 
-	public void MoveTo(Vector3 destination)
-	{
-		if (!_world.IsAlive(_entity) || IsDead) return;
-		if (_world.Has<HoldPosition>(_entity))
-		{
-			_world.Remove<HoldPosition>(_entity);
-		}
+	public void MoveTo(Vector3 destination) => UnitOrderService.MoveTo(_world, _entity, destination);
 
-		if (_world.Has<AttackMove>(_entity))
-		{
-			_world.Remove<AttackMove>(_entity);
-		}
-
-		if (_world.Has<AttackTarget>(_entity))
-		{
-			_world.Remove<AttackTarget>(_entity);
-		}
-
-		var mv = new MoveTo(destination);
-		_world.SetOrAdd(_entity, mv);
-	}
-
-	public void AttackMove(Vector3 destination)
-	{
-		if (!_world.IsAlive(_entity) || IsDead) return;
-		if (_world.Has<HoldPosition>(_entity))
-		{
-			_world.Remove<HoldPosition>(_entity);
-		}
-
-		if (_world.Has<AttackTarget>(_entity))
-		{
-			_world.Remove<AttackTarget>(_entity);
-		}
-
-		var am = new AttackMove(destination);
-		_world.SetOrAdd(_entity, am);
-		var mv = new MoveTo(destination);
-		_world.SetOrAdd(_entity, mv);
-	}
+	public void AttackMove(Vector3 destination) => UnitOrderService.AttackMove(_world, _entity, destination);
 
 	public void Attack(UnitId target)
 	{
-		if (!_world.IsAlive(_entity) || IsDead || !target.IsValid) return;
-		if (GameContext.SimulationService.TryGetEntity(target, out var targetEntity) && _world.IsAlive(targetEntity))
-		{
-			var at = new AttackTarget(targetEntity);
-			_world.SetOrAdd(_entity, at);
-		}
+		if (!target.IsValid) return;
+		if (!GameContext.SimulationService.TryGetEntity(target, out var targetEntity)) return;
+
+		UnitOrderService.Attack(_world, _entity, targetEntity);
 	}
 
 	public void Gather(ResourceNodeId resourceNode)
 	{
-		if (!_world.IsAlive(_entity) || IsDead || !resourceNode.IsValid) return;
-		if (GameHost.Instance != null && GameHost.Instance.TryGetResourceProp(resourceNode, out var propNode) && GodotObject.IsInstanceValid(propNode))
-		{
-			var gatherer = new Gatherer(propNode.PropId, propNode.Entity);
-			_world.SetOrAdd(_entity, gatherer);
-		}
+		if (!resourceNode.IsValid) return;
+		if (GameContext.Host == null) return;
+		if (!GameContext.Host.TryGetResourceProp(resourceNode, out var propNode)) return;
+		if (!GodotObject.IsInstanceValid(propNode)) return;
+
+		UnitOrderService.Gather(_world, _entity, propNode.Entity, propNode.PropId);
 	}
 
 	public void Teleport(Vector3 position)
 	{
-		if (!_world.IsAlive(_entity)) return;
-
-		var newPosComp = new Position(position);
-		_world.SetOrAdd(_entity, newPosComp);
-		_world.SetOrAdd(_entity, new PreviousPosition(position));
+		UnitOrderService.Teleport(_world, _entity, position);
 
 		if (GameHost.TryGetUnit3D(_entity, out var unit3D))
 		{
@@ -748,14 +705,17 @@ public class Unit_WasmRuntime : IEcsEntityWrapper
 		set
 		{
 			if (!_world.IsAlive(_entity)) return;
-			((IGameAPI?)GameHost.Instance)?.SetUnitFacing((Realm.MapAPI.UnitId)_entity.Id, value);
+			if (!GameHost.TryGetUnit3D(_entity, out var unit3D) || !GodotObject.IsInstanceValid(unit3D)) return;
+
+			Godot.Vector3 rotation = unit3D.Rotation;
+			rotation.Y = value;
+			unit3D.Rotation = rotation;
 		}
 	}
 
 	public void Stop()
 	{
-		if (!_world.IsAlive(_entity)) return;
-		GameHost.Instance.ClearUnitOrders(_entity);
+		UnitOrderService.Stop(_world, _entity);
 		if (GameHost.TryGetUnit3D(_entity, out var u3d))
 		{
 			if (GodotObject.IsInstanceValid(u3d))
@@ -765,15 +725,7 @@ public class Unit_WasmRuntime : IEcsEntityWrapper
 		}
 	}
 
-	public void HoldPosition()
-	{
-		if (!_world.IsAlive(_entity)) return;
-		Stop();
-		if (!_world.Has<HoldPosition>(_entity))
-		{
-			_world.Add<HoldPosition>(_entity);
-		}
-	}
+	public void HoldPosition() => UnitOrderService.HoldPosition(_world, _entity);
 
 	public void Stun(float duration)
 	{
@@ -808,12 +760,6 @@ public class Unit_WasmRuntime : IEcsEntityWrapper
 			NotifyUiInventoryChanged();
 		}
 		return success;
-	}
-
-	public bool CollectLootItem(LootItemId lootItem)
-	{
-		if (!lootItem.IsValid) return false;
-		return GameHost.Instance?.CollectLootItem(lootItem.Value, (UnitId)_entity.Id) ?? false;
 	}
 
 	public int GetItemCharges(string itemId)
@@ -863,9 +809,9 @@ public class Unit_WasmRuntime : IEcsEntityWrapper
 
 	private void NotifyUiInventoryChanged()
 	{
-		if (GameHost.Instance != null && InGameHUD.Instance != null && GameHost.TryGetUnit3D(_entity, out var u3d) && GameHost.Instance.SelectedUnits.Contains(u3d))
+		if (GameContext.Host != null && GameContext.InGameHud != null && GameHost.TryGetUnit3D(_entity, out var u3d) && GameContext.Host.SelectedUnits.Contains(u3d))
 		{
-			InGameHUD.Instance.RefreshUI(GameHost.Instance.SelectedUnits);
+			GameContext.InGameHud.RefreshUI(GameContext.Host.SelectedUnits);
 		}
 	}
 
@@ -886,64 +832,11 @@ public class Unit_WasmRuntime : IEcsEntityWrapper
 		return _world.Get<Inventory>(_entity).ToList();
 	}
 
-	public void AddBuff(string buffId, float duration)
-	{
-		if (!_world.IsAlive(_entity)) return;
+	public void AddBuff(string buffId, float duration) => UnitOrderService.ApplyBuff(_world, _entity, buffId, duration);
 
-		if (_world.Has<Buffs>(_entity))
-		{
-			_world.Get<Buffs>(_entity).Set(buffId, duration, duration);
-		}
-		else
-		{
-			var buffs = new Buffs(null);
-			buffs.Set(buffId, duration, duration);
-			_world.Add(_entity, buffs);
-		}
+	public void RemoveBuff(string buffId) => UnitOrderService.RemoveBuff(_world, _entity, buffId);
 
-		if (_world.Has<BuffState>(_entity))
-		{
-			_world.Get<BuffState>(_entity).Set(buffId, duration, duration);
-		}
-		else
-		{
-			var buffState = new BuffState(null);
-			buffState.Set(buffId, duration, duration);
-			_world.Add(_entity, buffState);
-		}
-	}
-
-	public void RemoveBuff(string buffId)
-	{
-		if (!_world.IsAlive(_entity)) return;
-
-		if (_world.Has<Buffs>(_entity))
-		{
-			_world.Get<Buffs>(_entity).Remove(buffId);
-		}
-
-		if (_world.Has<BuffState>(_entity))
-		{
-			_world.Get<BuffState>(_entity).Remove(buffId);
-		}
-	}
-
-	public bool HasBuff(string buffId)
-	{
-		if (!_world.IsAlive(_entity)) return false;
-
-		if (_world.Has<BuffState>(_entity))
-		{
-			return _world.Get<BuffState>(_entity).TryGetValue(buffId, out _);
-		}
-
-		if (_world.Has<Buffs>(_entity))
-		{
-			return _world.Get<Buffs>(_entity).TryGetValue(buffId, out _);
-		}
-
-		return false;
-	}
+	public bool HasBuff(string buffId) => UnitOrderService.HasBuff(_world, _entity, buffId);
 
 	public IEnumerable<string> GetModifiers()
 	{
@@ -980,60 +873,18 @@ public class Unit_WasmRuntime : IEcsEntityWrapper
 
 	public void SetCustomData(string key, string value) => SetCustomData(key, (object)value);
 
-	public void SetCustomData(string key, object value)
-	{
-		if (!_world.IsAlive(_entity)) return;
-		Dictionary<string, object> dict;
-		if (_world.Has<CustomMetadata>(_entity))
-		{
-			dict = _world.Get<CustomMetadata>(_entity).Value;
-		}
-		else
-		{
-			dict = new Dictionary<string, object>();
-			_world.Add(_entity, new CustomMetadata(dict));
-		}
-
-		dict[key] = value;
-	}
+	public void SetCustomData(string key, object value) => UnitOrderService.SetCustomData(_world, _entity, key, value);
 
 	public string? GetCustomDataString(string key) => GetCustomData(key)?.ToString();
 
 	public object? GetCustomData(string key)
 	{
-		if (!_world.IsAlive(_entity)) return null;
-		if (_world.Has<CustomMetadata>(_entity))
-		{
-			var dict = _world.Get<CustomMetadata>(_entity).Value;
-			if (dict.TryGetValue(key, out var val)) return val;
-		}
-
-		return null;
+		return UnitOrderService.TryGetCustomData(_world, _entity, key, out object? value) ? value : null;
 	}
 
-	public bool RemoveCustomData(string key)
-	{
-		if (!_world.IsAlive(_entity)) return false;
-		if (_world.Has<CustomMetadata>(_entity))
-		{
-			var dict = _world.Get<CustomMetadata>(_entity).Value;
-			return dict.Remove(key);
-		}
+	public bool RemoveCustomData(string key) => UnitOrderService.RemoveCustomData(_world, _entity, key);
 
-		return false;
-	}
-
-	public bool HasCustomData(string key)
-	{
-		if (!_world.IsAlive(_entity)) return false;
-		if (_world.Has<CustomMetadata>(_entity))
-		{
-			var dict = _world.Get<CustomMetadata>(_entity).Value;
-			return dict.ContainsKey(key);
-		}
-
-		return false;
-	}
+	public bool HasCustomData(string key) => UnitOrderService.HasCustomData(_world, _entity, key);
 
 	public void TriggerMeshImpulse(float strength = 1.0f, float duration = 0.5f, float frequency = 12.0f)
 	{

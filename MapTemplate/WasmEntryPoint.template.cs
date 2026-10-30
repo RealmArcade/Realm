@@ -10,57 +10,46 @@ namespace GameClientWorld;
 using System;
 using System.Numerics;
 using System.Runtime.InteropServices;
+using Realm.Ecs;
 using Realm.MapAPI;
 
 public class WasmRandomProxy
 {
-    private System.Random? _rng;
-
     private static WasmRandomProxy? _shared;
     public static WasmRandomProxy Shared => _shared ??= new WasmRandomProxy();
 
     public WasmRandomProxy()
     {
-        int seed = EcsSharedMemory.RandomSeed;
-        _rng = seed != 0 ? new System.Random(seed) : new System.Random();
     }
 
     public WasmRandomProxy(int seed)
     {
-        _rng = new System.Random(seed);
+        SeededRandom.Shared.Reset(seed);
     }
 
-    public int Next() => GetRng().Next();
-    public int Next(int maxValue) => GetRng().Next(maxValue);
-    public int Next(int minValue, int maxValue) => GetRng().Next(minValue, maxValue);
-    public double NextDouble() => GetRng().NextDouble();
-    public float NextSingle() => GetRng().NextSingle();
-    public void NextBytes(byte[] buffer) => GetRng().NextBytes(buffer);
-    public void NextBytes(Span<byte> buffer) => GetRng().NextBytes(buffer);
-    public long NextInt64() => GetRng().NextInt64();
-    public long NextInt64(long maxValue) => GetRng().NextInt64(maxValue);
-    public long NextInt64(long minValue, long maxValue) => GetRng().NextInt64(minValue, maxValue);
-    public void Shuffle<T>(T[] array) => GetRng().Shuffle(array);
-    public void Shuffle<T>(Span<T> values) => GetRng().Shuffle(values);
-    public T[] GetItems<T>(T[] choices, int length) => GetRng().GetItems(choices, length);
-    public T[] GetItems<T>(ReadOnlySpan<T> choices, int length) => GetRng().GetItems(choices, length);
-    public void GetItems<T>(ReadOnlySpan<T> choices, Span<T> destination) => GetRng().GetItems(choices, destination);
-
-    private System.Random GetRng()
-    {
-        if (_rng == null)
-        {
-            int seed = EcsSharedMemory.RandomSeed;
-            _rng = seed != 0 ? new System.Random(seed) : new System.Random();
-        }
-        return _rng;
-    }
+    public int Next() => SeededRandom.Shared.Next();
+    public int Next(int maxValue) => SeededRandom.Shared.Next(maxValue);
+    public int Next(int minValue, int maxValue) => SeededRandom.Shared.Next(minValue, maxValue);
+    public int NextInt(int minValueInclusive, int maxValueInclusive) => SeededRandom.Shared.NextInt(minValueInclusive, maxValueInclusive);
+    public double NextDouble() => SeededRandom.Shared.NextDouble();
+    public float NextSingle() => SeededRandom.Shared.NextSingle();
+    public void NextBytes(byte[] buffer) => SeededRandom.Shared.NextBytes(buffer);
+    public void NextBytes(Span<byte> buffer) => SeededRandom.Shared.NextBytes(buffer);
+    public long NextInt64() => SeededRandom.Shared.NextInt64();
+    public long NextInt64(long maxValue) => SeededRandom.Shared.NextInt64(maxValue);
+    public long NextInt64(long minValue, long maxValue) => SeededRandom.Shared.NextInt64(minValue, maxValue);
+    public void Shuffle<T>(T[] array) => SeededRandom.Shared.Shuffle(array);
+    public void Shuffle<T>(Span<T> values) => SeededRandom.Shared.Shuffle(values);
+    public T[] GetItems<T>(T[] choices, int length) => SeededRandom.Shared.GetItems(choices, length);
+    public T[] GetItems<T>(ReadOnlySpan<T> choices, int length) => SeededRandom.Shared.GetItems(choices, length);
+    public void GetItems<T>(ReadOnlySpan<T> choices, Span<T> destination) => SeededRandom.Shared.GetItems(choices, destination);
 }
 
 public class WasmEntryPoint
 {
     private static IMapScript? _mapScript;
     private static IGameAPI? _gameApi;
+    private static ILobbyAPI? _lobbyApi;
 
     private static unsafe string ReadString(nint ptr, int len)
     {
@@ -73,9 +62,10 @@ public class WasmEntryPoint
     {
         try
         {
+            SeededRandom.Shared.Reset(EcsSharedMemory.RandomSeed);
             _gameApi = new GameAPI_WasmModule();
             GameAPI.Current = _gameApi;
-            _gameApi.BroadcastMessage("Guest Initialize started");
+            _gameApi.BroadcastMessage($"Guest Initialize started with deterministic random seed {SeededRandom.Shared.Seed}");
 
             foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
             {
@@ -127,6 +117,49 @@ public class WasmEntryPoint
             }
             catch { }
             Console.WriteLine($"Error in update: {ex}");
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "lobby-init")]
+    public static int LobbyInit()
+    {
+        try
+        {
+            if (_mapScript is not ILobbyScript lobbyScript) return 0;
+
+            _lobbyApi = new LobbyAPI_WasmModule();
+            lobbyScript.LobbyInitialize(_lobbyApi);
+            return 1;
+        }
+        catch (Exception ex)
+        {
+            try
+            {
+                _gameApi?.BroadcastMessage($"[GUEST LOBBY ERROR] {ex.GetType().Name}: {ex.Message}");
+            }
+            catch { }
+            Console.WriteLine($"Error in lobby-init: {ex}");
+            return 0;
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "lobby-update")]
+    public static void LobbyUpdate(float delta)
+    {
+        if (_lobbyApi == null || _mapScript is not ILobbyScript lobbyScript) return;
+
+        try
+        {
+            lobbyScript.LobbyUpdate(_lobbyApi, delta);
+        }
+        catch (Exception ex)
+        {
+            try
+            {
+                _gameApi?.BroadcastMessage($"[GUEST LOBBY ERROR] {ex.GetType().Name}: {ex.Message}");
+            }
+            catch { }
+            Console.WriteLine($"Error in lobby-update: {ex}");
         }
     }
 

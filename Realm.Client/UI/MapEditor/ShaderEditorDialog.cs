@@ -86,7 +86,6 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 
 	private void BuildControls()
 	{
-		// 1. TOP LIVE PREVIEW (3D VIEWPORT)
 		var previewContainer = new PanelContainer();
 		previewContainer.Name = "PreviewContainer_PanelContainer";
 		previewContainer.CustomMinimumSize = new Vector2(0, 220);
@@ -97,10 +96,8 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 
 		Setup3DEnvironment();
 
-		// CAMERA TOOLBAR WITH EMBEDDED CONTROLS
 		AddCameraPresetToolbar(BodyContainer, includeBack: true, includeLightingToggle: true);
 
-		// ROW 1: MODEL PICKER
 		var modelRow = new HBoxContainer();
 		modelRow.Name = "ModelRow_HBoxContainer";
 		modelRow.AddThemeConstantOverride("separation", 6);
@@ -129,7 +126,6 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 
 		BodyContainer.AddChild(modelRow);
 
-		// ROW 2: PLAYBACK & SCRUBBING
 		var playRow = new HBoxContainer();
 		playRow.Name = "PlayRow_HBoxContainer";
 		playRow.AddThemeConstantOverride("separation", 6);
@@ -177,7 +173,6 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 
 		BodyContainer.AddChild(playRow);
 
-		// 2. CONFIGURATION CONTROLS
 		var scroll = new ScrollContainer();
 		scroll.Name = "Scroll_ScrollContainer";
 		scroll.SizeFlagsVertical = SizeFlags.ExpandFill;
@@ -191,7 +186,6 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 		scroll.AddChild(configVBox);
 		BodyContainer.AddChild(scroll);
 
-		// IDENTIFIERS
 		var rowId = new HBoxContainer();
 		rowId.Name = "RowId_HBoxContainer";
 		rowId.AddThemeConstantOverride("separation", 6);
@@ -233,7 +227,6 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 		btnRandomizeAll.Pressed += () => RandomizeAllParameters();
 		configVBox.AddChild(btnRandomizeAll);
 
-		// TRANSITION MODE & DIRECTION
 		string[] modes = new[]
 		{
 			TranslationServer.Translate("0: Vertical Slice / Wipe").ToString(),
@@ -265,7 +258,6 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 			UpdateShaderParameters();
 		}, 140f);
 
-		// COLOR & GLOW
 		(_cpkEdgeColor, _) = AddColorPicker(configVBox, TranslationServer.Translate("Edge / Glow Color:"), _config.EdgeColor, (col) =>
 		{
 			_config.EdgeColor = col;
@@ -284,7 +276,6 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 			UpdateShaderParameters();
 		}, "0.0", 140f);
 
-		// NOISE & DISTORTION
 		(_sldNoiseScale, _lblNoiseScale) = AddSlider(configVBox, TranslationServer.Translate("Noise Scale:"), 1.0f, 50.0f, 0.5f, _config.NoiseScale, (val) =>
 		{
 			_config.NoiseScale = val;
@@ -489,7 +480,6 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 		_currentModelRoot.Name = "ModelRoot";
 		_simRoot.AddChild(_currentModelRoot);
 
-		// Grid floor
 		var floor = new MeshInstance3D();
 		floor.Name = "Floor_MeshInstance3D";
 		var planeMesh = new PlaneMesh { Size = new Vector2(10, 10) };

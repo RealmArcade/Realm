@@ -43,6 +43,7 @@ public interface IReplicatedComponentCodec
 
 public interface INormalizingComponentCodec : IReplicatedComponentCodec
 {
+	int ReadReferencedServerEntityId(ReadOnlySpan<byte> source) => -1;
 }
 
 public class ReplicatedComponentCodec<T> : IReplicatedComponentCodec where T : unmanaged
@@ -280,40 +281,87 @@ public class AttackNumbersCodec : IReplicatedComponentCodec
 	}
 }
 
-public class ArmorNumbersCodec : IReplicatedComponentCodec
+public class ResistanceNumbersCodec : IReplicatedComponentCodec
 {
-	public int ComponentTypeId => ComponentType<Armor>.Id;
-	public string ComponentName => nameof(Armor);
+	public int ComponentTypeId => ComponentType<Resistances>.Id;
+	public string ComponentName => nameof(Resistances);
 	public ReplicatedScope Scope => ReplicatedScope.Unit;
 	public int SizeInBytes => 8;
 
 	public bool TryWrite(EcsWorld world, Entity entity, Span<byte> destination)
 	{
-		if (world == null || !world.IsAlive(entity) || !world.Has<Armor>(entity)) return false;
-		ref var armor = ref world.Get<Armor>(entity);
-		BitConverter.TryWriteBytes(destination.Slice(0, 4), armor.FlatArmor);
-		BitConverter.TryWriteBytes(destination.Slice(4, 4), armor.RatedArmor);
+		if (world == null || !world.IsAlive(entity) || !world.Has<Resistances>(entity)) return false;
+		ref var resistances = ref world.Get<Resistances>(entity);
+		BitConverter.TryWriteBytes(destination.Slice(0, 4), resistances.Physical);
+		BitConverter.TryWriteBytes(destination.Slice(4, 4), resistances.Magic);
 		return true;
 	}
 
 	public void Apply(EcsWorld world, Entity entity, ReadOnlySpan<byte> source)
 	{
-		if (world == null || !world.IsAlive(entity) || !world.Has<Armor>(entity)) return;
-		ref var armor = ref world.Get<Armor>(entity);
-		armor.FlatArmor = BitConverter.ToSingle(source.Slice(0, 4));
-		armor.RatedArmor = BitConverter.ToSingle(source.Slice(4, 4));
+		if (world == null || !world.IsAlive(entity) || !world.Has<Resistances>(entity)) return;
+		ref var resistances = ref world.Get<Resistances>(entity);
+		resistances.Physical = BitConverter.ToSingle(source.Slice(0, 4));
+		resistances.Magic = BitConverter.ToSingle(source.Slice(4, 4));
 	}
 
 	public void Remove(EcsWorld world, Entity entity)
 	{
-		if (world == null || !world.IsAlive(entity) || !world.Has<Armor>(entity)) return;
-		world.Remove<Armor>(entity);
+		if (world == null || !world.IsAlive(entity) || !world.Has<Resistances>(entity)) return;
+		world.Remove<Resistances>(entity);
+	}
+}
+
+public class ConsumableAttachmentCodec : IReplicatedComponentCodec
+{
+	private const int PayloadSize = 12;
+
+	public int ComponentTypeId => ComponentType<ConsumableAttachment>.Id;
+	public string ComponentName => nameof(ConsumableAttachment);
+	public ReplicatedScope Scope => ReplicatedScope.Unit;
+	public int SizeInBytes => PayloadSize;
+
+	public bool TryWrite(EcsWorld world, Entity entity, Span<byte> destination)
+	{
+		if (world == null || !world.IsAlive(entity) || !world.Has<ConsumableAttachment>(entity)) return false;
+
+		ref var attachment = ref world.Get<ConsumableAttachment>(entity);
+		if (!attachment.HasDefinition) return false;
+
+		int definitionStringId = attachment.DefinitionStringId;
+		int slotGroupStringId = attachment.SlotGroupStringId;
+		int purchasedByPlayer = attachment.PurchasedByPlayer;
+		MemoryMarshal.Write(destination.Slice(0, 4), in definitionStringId);
+		MemoryMarshal.Write(destination.Slice(4, 4), in slotGroupStringId);
+		MemoryMarshal.Write(destination.Slice(8, 4), in purchasedByPlayer);
+		return true;
+	}
+
+	/// <summary>
+	///     Rebuilds what a unit carries. The identifiers are content hashes, so a peer renders the consumable it is told
+	///     about without having registered its text itself, and no text crosses the wire.
+	/// </summary>
+	public void Apply(EcsWorld world, Entity entity, ReadOnlySpan<byte> source)
+	{
+		if (world == null || !world.IsAlive(entity)) return;
+
+		var attachment = default(ConsumableAttachment);
+		attachment.DefinitionStringId = MemoryMarshal.Read<int>(source.Slice(0, 4));
+		attachment.SlotGroupStringId = MemoryMarshal.Read<int>(source.Slice(4, 4));
+		attachment.PurchasedByPlayer = MemoryMarshal.Read<int>(source.Slice(8, 4));
+		world.SetOrAdd(entity, in attachment);
+	}
+
+	public void Remove(EcsWorld world, Entity entity)
+	{
+		if (world == null || !world.IsAlive(entity) || !world.Has<ConsumableAttachment>(entity)) return;
+		world.Remove<ConsumableAttachment>(entity);
 	}
 }
 
 public class GroundLootCodec : IReplicatedComponentCodec
 {
-	private const int PayloadSize = 4 + 4 + 4 + 4 + 1 + 4 + 12;
+	private const int PayloadSize = 4 + 4 + 4 + 4 + 4 + 1 + 4 + 12;
 
 	public int ComponentTypeId => ComponentType<GroundLoot>.Id;
 	public string ComponentName => nameof(GroundLoot);
@@ -331,14 +379,15 @@ public class GroundLootCodec : IReplicatedComponentCodec
 		MemoryMarshal.Write(destination.Slice(0, 4), in stringId);
 		MemoryMarshal.Write(destination.Slice(4, 4), in charges);
 		BitConverter.TryWriteBytes(destination.Slice(8, 4), loot.Lifetime);
-		BitConverter.TryWriteBytes(destination.Slice(12, 4), loot.PickupRadius);
-		destination[16] = loot.AutoPickupByte;
-		MemoryMarshal.Write(destination.Slice(17, 4), in ownerPlayerIndex);
+		BitConverter.TryWriteBytes(destination.Slice(12, 4), loot.RemainingLifetime);
+		BitConverter.TryWriteBytes(destination.Slice(16, 4), loot.PickupRadius);
+		destination[20] = loot.AutoPickupByte;
+		MemoryMarshal.Write(destination.Slice(21, 4), in ownerPlayerIndex);
 
 		System.Numerics.Vector3 position = world.Has<Position>(entity) ? world.Get<Position>(entity).Value : System.Numerics.Vector3.Zero;
-		BitConverter.TryWriteBytes(destination.Slice(21, 4), position.X);
-		BitConverter.TryWriteBytes(destination.Slice(25, 4), position.Y);
-		BitConverter.TryWriteBytes(destination.Slice(29, 4), position.Z);
+		BitConverter.TryWriteBytes(destination.Slice(25, 4), position.X);
+		BitConverter.TryWriteBytes(destination.Slice(29, 4), position.Y);
+		BitConverter.TryWriteBytes(destination.Slice(33, 4), position.Z);
 		return true;
 	}
 
@@ -351,16 +400,16 @@ public class GroundLootCodec : IReplicatedComponentCodec
 		loot.StringId = MemoryMarshal.Read<int>(source.Slice(0, 4));
 		loot.Charges = MemoryMarshal.Read<int>(source.Slice(4, 4));
 		loot.Lifetime = BitConverter.ToSingle(source.Slice(8, 4));
-		loot.RemainingLifetime = loot.Lifetime;
-		loot.PickupRadius = BitConverter.ToSingle(source.Slice(12, 4));
-		loot.AutoPickupByte = source[16];
-		loot.OwnerPlayerIndex = MemoryMarshal.Read<int>(source.Slice(17, 4));
+		loot.RemainingLifetime = BitConverter.ToSingle(source.Slice(12, 4));
+		loot.PickupRadius = BitConverter.ToSingle(source.Slice(16, 4));
+		loot.AutoPickupByte = source[20];
+		loot.OwnerPlayerIndex = MemoryMarshal.Read<int>(source.Slice(21, 4));
 		world.SetOrAdd(entity, in loot);
 
 		var position = new Position(new System.Numerics.Vector3(
-			BitConverter.ToSingle(source.Slice(21, 4)),
 			BitConverter.ToSingle(source.Slice(25, 4)),
-			BitConverter.ToSingle(source.Slice(29, 4))));
+			BitConverter.ToSingle(source.Slice(29, 4)),
+			BitConverter.ToSingle(source.Slice(33, 4))));
 		world.SetOrAdd(entity, in position);
 	}
 
@@ -368,6 +417,74 @@ public class GroundLootCodec : IReplicatedComponentCodec
 	{
 		if (world == null || !world.IsAlive(entity) || !world.Has<GroundLoot>(entity)) return;
 		world.Remove<GroundLoot>(entity);
+	}
+}
+
+public class AbsorbShieldCodec : INormalizingComponentCodec
+{
+	private const int SlotSize = 16;
+	private const int PayloadSize = 1 + AbsorbShieldSlotArray.Capacity * SlotSize;
+
+	public int ComponentTypeId => ComponentType<AbsorbShield>.Id;
+	public string ComponentName => nameof(AbsorbShield);
+	public ReplicatedScope Scope => ReplicatedScope.Unit;
+	public int SizeInBytes => PayloadSize;
+
+	public bool TryWrite(EcsWorld world, Entity entity, Span<byte> destination)
+	{
+		if (world == null || !world.IsAlive(entity) || !world.Has<AbsorbShield>(entity)) return false;
+
+		ref var shield = ref world.Get<AbsorbShield>(entity);
+		int count = shield.Count < 0 ? 0 : (shield.Count > AbsorbShieldSlotArray.Capacity ? AbsorbShieldSlotArray.Capacity : shield.Count);
+		destination[0] = (byte)count;
+
+		for (int index = 0; index < AbsorbShieldSlotArray.Capacity; index++)
+		{
+			int offset = 1 + index * SlotSize;
+			if (index >= count)
+			{
+				destination.Slice(offset, SlotSize).Clear();
+				continue;
+			}
+
+			int sourceStringId = shield.Slots[index].SourceStringId;
+			MemoryMarshal.Write(destination.Slice(offset, 4), in sourceStringId);
+			BitConverter.TryWriteBytes(destination.Slice(offset + 4, 4), shield.Slots[index].Amount);
+			BitConverter.TryWriteBytes(destination.Slice(offset + 8, 4), shield.Slots[index].Remaining);
+			BitConverter.TryWriteBytes(destination.Slice(offset + 12, 4), shield.Slots[index].Duration);
+		}
+
+		return true;
+	}
+
+	public void Apply(EcsWorld world, Entity entity, ReadOnlySpan<byte> source)
+	{
+		if (world == null || !world.IsAlive(entity)) return;
+
+		var shield = world.Has<AbsorbShield>(entity) ? world.Get<AbsorbShield>(entity) : default;
+		shield.Clear();
+
+		int count = source[0] > AbsorbShieldSlotArray.Capacity ? AbsorbShieldSlotArray.Capacity : source[0];
+		for (int index = 0; index < count; index++)
+		{
+			int offset = 1 + index * SlotSize;
+			shield.Slots[index] = new AbsorbShieldSlot
+			{
+				SourceStringId = MemoryMarshal.Read<int>(source.Slice(offset, 4)),
+				Amount = BitConverter.ToSingle(source.Slice(offset + 4, 4)),
+				Remaining = BitConverter.ToSingle(source.Slice(offset + 8, 4)),
+				Duration = BitConverter.ToSingle(source.Slice(offset + 12, 4))
+			};
+		}
+
+		shield.Count = count;
+		world.SetOrAdd(entity, in shield);
+	}
+
+	public void Remove(EcsWorld world, Entity entity)
+	{
+		if (world == null || !world.IsAlive(entity) || !world.Has<AbsorbShield>(entity)) return;
+		world.Remove<AbsorbShield>(entity);
 	}
 }
 
@@ -407,6 +524,11 @@ public class BuildTaskCodec : INormalizingComponentCodec
 		if (world == null || !world.IsAlive(entity) || !world.Has<BuildTask>(entity)) return;
 		world.Remove<BuildTask>(entity);
 	}
+
+	public int ReadReferencedServerEntityId(ReadOnlySpan<byte> source)
+	{
+		return source.Length < sizeof(int) ? -1 : MemoryMarshal.Read<int>(source.Slice(0, sizeof(int)));
+	}
 }
 
 public class FollowCodec : INormalizingComponentCodec
@@ -437,6 +559,11 @@ public class FollowCodec : INormalizingComponentCodec
 	{
 		if (world == null || !world.IsAlive(entity) || !world.Has<Follow>(entity)) return;
 		world.Remove<Follow>(entity);
+	}
+
+	public int ReadReferencedServerEntityId(ReadOnlySpan<byte> source)
+	{
+		return source.Length < sizeof(int) ? -1 : MemoryMarshal.Read<int>(source.Slice(0, sizeof(int)));
 	}
 }
 
@@ -469,6 +596,11 @@ public class AttackTargetCodec : INormalizingComponentCodec
 		if (world == null || !world.IsAlive(entity) || !world.Has<AttackTarget>(entity)) return;
 		world.Remove<AttackTarget>(entity);
 	}
+
+	public int ReadReferencedServerEntityId(ReadOnlySpan<byte> source)
+	{
+		return source.Length < sizeof(int) ? -1 : MemoryMarshal.Read<int>(source.Slice(0, sizeof(int)));
+	}
 }
 
 public class LastAttackerCodec : INormalizingComponentCodec
@@ -499,6 +631,11 @@ public class LastAttackerCodec : INormalizingComponentCodec
 	{
 		if (world == null || !world.IsAlive(entity) || !world.Has<LastAttacker>(entity)) return;
 		world.Remove<LastAttacker>(entity);
+	}
+
+	public int ReadReferencedServerEntityId(ReadOnlySpan<byte> source)
+	{
+		return source.Length < sizeof(int) ? -1 : MemoryMarshal.Read<int>(source.Slice(0, sizeof(int)));
 	}
 }
 
@@ -572,9 +709,11 @@ public static class ReplicatedComponents
 		Register(new TagComponentCodec<MovementSpeed>(ReplicatedScope.Unit));
 		Register(new TagComponentCodec<AttackSpeedStat>(ReplicatedScope.Unit));
 		Register(new ReplicatedComponentCodec<Inventory>(ReplicatedScope.Unit));
+		Register(new ConsumableAttachmentCodec());
 		Register(new ReplicatedComponentCodec<RallyPoint>(ReplicatedScope.Unit));
 		Register(new ReplicatedComponentCodec<ResourceNode>(ReplicatedScope.Unit));
 		Register(new GroundLootCodec());
+		Register(new AbsorbShieldCodec());
 		Register(new BuffsCodec());
 		Register(new BuffStateCodec());
 		Register(new ModifierStateCodec());
@@ -586,10 +725,12 @@ public static class ReplicatedComponents
 		Register(new ReplicatedComponentCodec<Mana>(ReplicatedScope.Unit));
 		Register(new ReplicatedComponentCodec<MovementStats>(ReplicatedScope.Unit));
 		Register(new ReplicatedComponentCodec<ModelScale>(ReplicatedScope.Unit));
+		Register(new ReplicatedComponentCodec<CollisionRadius>(ReplicatedScope.Unit));
+		Register(new ReplicatedComponentCodec<CollisionScale>(ReplicatedScope.Unit));
 		Register(new ReplicatedComponentCodec<Level>(ReplicatedScope.Unit));
 		Register(new ReplicatedComponentCodec<Experience>(ReplicatedScope.Unit));
 		Register(new AttackNumbersCodec());
-		Register(new ArmorNumbersCodec());
+		Register(new ResistanceNumbersCodec());
 		Register(new TagComponentCodec<Invulnerable>(ReplicatedScope.Unit));
 		Register(new TagComponentCodec<CommandsFrozen>(ReplicatedScope.Unit));
 		Register(new TagComponentCodec<AnimationsFrozen>(ReplicatedScope.Unit));
@@ -609,6 +750,28 @@ public static class ReplicatedComponents
 
 	public static IReadOnlyList<IReplicatedComponentCodec> All => _codecs;
 
+	public static string ComputeWireTableHash()
+	{
+		uint hash = ReplicatedStateFingerprint.Seed;
+		IReadOnlyList<IReplicatedComponentCodec> codecs = _codecs;
+		for (int index = 0; index < codecs.Count; index++)
+		{
+			IReplicatedComponentCodec codec = codecs[index];
+			hash = ReplicatedStateFingerprint.Combine(hash, codec.ComponentName);
+			hash = ReplicatedStateFingerprint.Combine(hash, codec.ComponentTypeId);
+			hash = ReplicatedStateFingerprint.Combine(hash, (int)codec.Scope);
+		}
+
+		IReadOnlyList<IReplicatedComponentCodec> slots = ReplicatedUnitComponentSlots.Slots;
+		hash = ReplicatedStateFingerprint.Combine(hash, slots.Count);
+		for (int index = 0; index < slots.Count; index++)
+		{
+			hash = ReplicatedStateFingerprint.Combine(hash, slots[index].ComponentTypeId);
+		}
+
+		return hash.ToString("x8");
+	}
+
 	public static IReplicatedComponentCodec? Find(int componentTypeId)
 	{
 		for (int i = 0; i < _codecs.Count; i++)
@@ -617,6 +780,36 @@ public static class ReplicatedComponents
 		}
 		return null;
 	}
+}
+
+public static class ReplicatedUnitComponentSlots
+{
+	public const int SlotCount = 64;
+
+	private static readonly List<IReplicatedComponentCodec> _slots = new();
+	private static readonly Dictionary<int, int> _slotByComponentTypeId = new();
+
+	static ReplicatedUnitComponentSlots()
+	{
+		IReadOnlyList<IReplicatedComponentCodec> codecs = ReplicatedComponents.All;
+		for (int index = 0; index < codecs.Count; index++)
+		{
+			var codec = codecs[index];
+			if (codec.Scope != ReplicatedScope.Unit) continue;
+
+			_slotByComponentTypeId[codec.ComponentTypeId] = _slots.Count;
+			_slots.Add(codec);
+		}
+
+		if (_slots.Count > SlotCount)
+		{
+			throw new InvalidOperationException($"{_slots.Count} unit-scoped replicated components do not fit in {SlotCount} presence bits, so a peer could not tell a component it holds from one the authority does not have.");
+		}
+	}
+
+	public static IReadOnlyList<IReplicatedComponentCodec> Slots => _slots;
+
+	public static bool TryGetSlot(int componentTypeId, out int slot) => _slotByComponentTypeId.TryGetValue(componentTypeId, out slot);
 }
 
 public static class ReplicatedStateFingerprint

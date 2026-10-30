@@ -15,8 +15,9 @@ public class UnitObjectAttachments
 	public List<Dictionary<string, HandAttachmentOrientation>>? center { get; set; }
 	public List<Dictionary<string, HandAttachmentOrientation>>? overhead { get; set; }
 	public List<Dictionary<string, HandAttachmentOrientation>>? pivot { get; set; }
+	public Dictionary<string, List<Dictionary<string, HandAttachmentOrientation>>>? custom_sockets { get; set; }
 
-	public bool HasAny() => HasAnyUpper() || HasAnyLower() || HasAnyMisc();
+	public bool HasAny() => HasAnyUpper() || HasAnyLower() || HasAnyMisc() || (custom_sockets?.Count > 0);
 
 	private bool HasAnyUpper() => (right_hand?.Count > 0) || (left_hand?.Count > 0) || (chest?.Count > 0) || (head?.Count > 0);
 	private bool HasAnyLower() => (root?.Count > 0) || (left_foot?.Count > 0) || (right_foot?.Count > 0) || (ground?.Count > 0);
@@ -30,7 +31,25 @@ public class UnitObjectAttachments
 		if (upper != null) return upper;
 		var lower = GetLowerSocketList(s);
 		if (lower != null) return lower;
-		return GetMiscSocketList(s) ?? right_hand;
+		return GetMiscSocketList(s) ?? GetCustomSocketList(s) ?? right_hand;
+	}
+
+	public List<Dictionary<string, HandAttachmentOrientation>>? GetCustomSocketList(string socket)
+	{
+		if (custom_sockets == null || string.IsNullOrEmpty(socket)) return null;
+		foreach (var kvp in custom_sockets)
+		{
+			if (NormalizeSocketKey(kvp.Key) == NormalizeSocketKey(socket)) return kvp.Value;
+		}
+
+		return null;
+	}
+
+	public IReadOnlyDictionary<string, List<Dictionary<string, HandAttachmentOrientation>>>? CustomSocketLists => custom_sockets;
+
+	private static string NormalizeSocketKey(string? socket)
+	{
+		return (socket ?? string.Empty).ToLowerInvariant().Replace("_", "").Replace(" ", "");
 	}
 
 	private List<Dictionary<string, HandAttachmentOrientation>>? GetUpperSocketList(string s) => s switch
@@ -65,7 +84,22 @@ public class UnitObjectAttachments
 		if (TrySetUpperSocketList(s, list)) return;
 		if (TrySetLowerSocketList(s, list)) return;
 		if (TrySetMiscSocketList(s, list)) return;
-		right_hand = list;
+		SetCustomSocketList(socket, list);
+	}
+
+	private void SetCustomSocketList(string socket, List<Dictionary<string, HandAttachmentOrientation>> list)
+	{
+		custom_sockets ??= new Dictionary<string, List<Dictionary<string, HandAttachmentOrientation>>>(StringComparer.OrdinalIgnoreCase);
+		foreach (var key in custom_sockets.Keys.ToList())
+		{
+			if (NormalizeSocketKey(key) == NormalizeSocketKey(socket))
+			{
+				custom_sockets[key] = list;
+				return;
+			}
+		}
+
+		custom_sockets[socket] = list;
 	}
 
 	private bool TrySetUpperSocketList(string s, List<Dictionary<string, HandAttachmentOrientation>> list)
@@ -362,7 +396,40 @@ public class UnitObjectAttachments
 			ground = CloneList(ground),
 			center = CloneList(center),
 			overhead = CloneList(overhead),
-			pivot = CloneList(pivot)
+			pivot = CloneList(pivot),
+			custom_sockets = CloneCustomSockets(custom_sockets)
 		};
+	}
+
+	private static Dictionary<string, List<Dictionary<string, HandAttachmentOrientation>>>? CloneCustomSockets(Dictionary<string, List<Dictionary<string, HandAttachmentOrientation>>>? source)
+	{
+		if (source == null) return null;
+
+		var clone = new Dictionary<string, List<Dictionary<string, HandAttachmentOrientation>>>(source.Count, StringComparer.OrdinalIgnoreCase);
+		foreach (var kvp in source)
+		{
+			clone[kvp.Key] = CloneSocketList(kvp.Value);
+		}
+
+		return clone;
+	}
+
+	private static List<Dictionary<string, HandAttachmentOrientation>> CloneSocketList(List<Dictionary<string, HandAttachmentOrientation>> source)
+	{
+		var clone = new List<Dictionary<string, HandAttachmentOrientation>>(source.Count);
+		foreach (var dict in source)
+		{
+			if (dict == null) continue;
+
+			var clonedDict = new Dictionary<string, HandAttachmentOrientation>(dict.Count, StringComparer.OrdinalIgnoreCase);
+			foreach (var kvp in dict)
+			{
+				clonedDict[kvp.Key] = kvp.Value.Clone();
+			}
+
+			clone.Add(clonedDict);
+		}
+
+		return clone;
 	}
 }

@@ -3,7 +3,10 @@ using System.Collections.Generic;
 using System.IO;
 using Godot;
 using Realm.Client.Services;
+using Realm.Client.VFX;
+using Realm.Shared.Metadata;
 using Realm.Shared.Services;
+using Realm.Shared.Terrain;
 
 namespace Realm.Client.Utils;
 
@@ -75,7 +78,19 @@ public static class ProceduralAnimationManager
 			ImpulseDecay = 3.5f,
 			ImpulseFrequency = 10.0f,
 			ImpulseAmplitude = 0.35f,
-			ImpulseDuration = 0.6f
+			ImpulseDuration = 0.6f,
+			SwayRegions = new List<ProceduralSwayRegionConfig>
+			{
+				new()
+				{
+					ModelKey = string.Empty,
+					RegionName = "Canopy",
+					NormalizedMin = new Vector3Data(0.0f, 0.55f, 0.0f),
+					NormalizedMax = new Vector3Data(1.0f, 1.0f, 1.0f),
+					Feather = 0.18f,
+					MaskPower = 1.5f
+				}
+			}
 		},
 		["palm_tree_wind"] = new ProceduralAnimationConfig
 		{
@@ -97,7 +112,19 @@ public static class ProceduralAnimationManager
 			ImpulseDecay = 3.0f,
 			ImpulseFrequency = 8.0f,
 			ImpulseAmplitude = 0.40f,
-			ImpulseDuration = 0.7f
+			ImpulseDuration = 0.7f,
+			SwayRegions = new List<ProceduralSwayRegionConfig>
+			{
+				new()
+				{
+					ModelKey = string.Empty,
+					RegionName = "Fronds",
+					NormalizedMin = new Vector3Data(0.0f, 0.45f, 0.0f),
+					NormalizedMax = new Vector3Data(1.0f, 1.0f, 1.0f),
+					Feather = 0.15f,
+					MaskPower = 1.2f
+				}
+			}
 		},
 		["creature_wings"] = new ProceduralAnimationConfig
 		{
@@ -166,6 +193,7 @@ public static class ProceduralAnimationManager
 				{
 					if (cfg != null && !string.IsNullOrEmpty(cfg.Id))
 					{
+						BackfillDefaultSwayRegions(cfg);
 						result[cfg.Id] = cfg;
 					}
 				}
@@ -177,6 +205,15 @@ public static class ProceduralAnimationManager
 		}
 
 		return result;
+	}
+
+	private static void BackfillDefaultSwayRegions(ProceduralAnimationConfig config)
+	{
+		if (config.SwayRegions != null && config.SwayRegions.Count > 0) return;
+		if (!_defaultPresets.TryGetValue(config.Id, out ProceduralAnimationConfig? builtinPreset)) return;
+		if (builtinPreset.SwayRegions == null || builtinPreset.SwayRegions.Count == 0) return;
+
+		config.SwayRegions = builtinPreset.Clone().SwayRegions;
 	}
 
 	public static ProceduralAnimationConfig? GetConfig(string id, string? workspacePath = null)
@@ -218,6 +255,7 @@ public static class ProceduralAnimationManager
 			}
 
 			GameContext.MetadataService.SaveMetadata(wsPath, metadata);
+			VfxShaderManager.ClearMotionCache();
 		}
 		catch (Exception ex)
 		{
@@ -237,6 +275,7 @@ public static class ProceduralAnimationManager
 			{
 				metadata.CustomProceduralAnimations.RemoveAll(a => string.Equals(a.Id, id, StringComparison.OrdinalIgnoreCase));
 				GameContext.MetadataService.SaveMetadata(wsPath, metadata);
+				VfxShaderManager.ClearMotionCache();
 			}
 		}
 		catch (Exception ex)
@@ -245,9 +284,30 @@ public static class ProceduralAnimationManager
 		}
 	}
 
-	public static void ApplyPreviewToNode(Node3D targetNode, ProceduralAnimationConfig config, Vector3 velocity, float impulseStrength, float impulseTime, bool showDebugMask)
+	public static void ApplyPreviewToNode(Node3D targetNode, ProceduralAnimationConfig config, Vector3 velocity, float impulseStrength, float impulseTime, bool showDebugMask, string? modelKey = null)
 	{
 		if (targetNode == null || !GodotObject.IsInstanceValid(targetNode)) return;
-		ModelShaderManager.SetProceduralAnimation(targetNode, config, velocity, impulseStrength, impulseTime, showDebugMask);
+		ModelShaderManager.SetProceduralAnimation(targetNode, config, velocity, impulseStrength, impulseTime, showDebugMask, modelKey);
+	}
+
+	public static ProceduralSwayRegionResolution ResolveSwayRegion(ProceduralAnimationConfig config, string? modelKey)
+	{
+		return ProceduralSwayRegionResolver.Resolve(config, modelKey);
+	}
+
+	public static ProceduralShaderParameters BuildShaderParameters(ProceduralAnimationConfig config)
+	{
+		if (config == null)
+		{
+			return new ProceduralShaderParameters(Vector4.Zero, Vector4.Zero, Vector4.Zero, Vector4.Zero);
+		}
+
+		float signedPower = config.MaskInvert ? -MathF.Abs(config.MaskPower) : MathF.Abs(config.MaskPower);
+		Vector4 parameters1 = new((float)config.MotionType, (float)config.MaskMode, config.MaskMin, config.MaskMax);
+		Vector4 parameters2 = new(signedPower, config.SwayFrequency, config.SwayAmplitude, config.FlutterFrequency);
+		Vector4 parameters3 = new(config.FlutterAmplitude, config.WindInfluence, config.VelocityDragInfluence, config.WaveTurbulence);
+		Vector4 shake = new(config.ImpulseAmplitude, config.ImpulseFrequency, config.ImpulseDuration, config.ImpulseDecay);
+
+		return new ProceduralShaderParameters(parameters1, parameters2, parameters3, shake);
 	}
 }

@@ -1,4 +1,5 @@
 using Godot;
+using Realm.Client.Services;
 
 namespace Realm.Client.Utils;
 
@@ -51,17 +52,15 @@ public static class VisualSelectionHelper
 	public static void CalculateSelectionRingParams(Vector3 scale, string assetKey, float baseRadius, out float sx, out float ratio, out float worldRadius)
 	{
 		sx = Mathf.Abs(scale.X) > 0.001f ? scale.X : 1.0f;
-		ratio = Core.GameHost.Instance != null ? Core.GameHost.Instance.GetModelCollisionCircleRatio(assetKey) : 1.0f;
-		if (ratio <= 0.001f) ratio = 1.0f;
-
-		worldRadius = baseRadius * ratio * Mathf.Abs(sx);
+		ratio = 1.0f;
+		worldRadius = baseRadius;
 	}
 
 	public static void UpdateSelectionRing(Node3D node, MeshInstance3D? selectionRing, MeshInstance3D? hoverRing, Vector3 scale, float baseRadius)
 	{
 		if (selectionRing == null && hoverRing == null) return;
 
-		string assetKey = Realm.Client.Core.GameHost.Instance?.GetModelAssetKey(node) ?? string.Empty;
+		string assetKey = Realm.Client.Services.GameContext.Host?.GetModelAssetKey(node) ?? string.Empty;
 		CalculateSelectionRingParams(scale, assetKey, baseRadius, out float sx, out float ratio, out float worldRadius);
 
 		var torusMesh = GetOrCreateTorusMesh(worldRadius);

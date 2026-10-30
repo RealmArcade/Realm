@@ -12,97 +12,33 @@ using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Meta;
 using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Services;
-using Realm.MapAPI;
+using Realm.Shared.Abilities;
 
 namespace Realm.Client.Services;
 
 public class RegistryService
 {
-	private const float DefaultPlacementRadius = 1.2f;
+	static RegistryService() => AbilityEffectFactory.WarningSink = GD.PushWarning;
 
-	private readonly List<(string DefinitionKey, float Radius)> _placementRadiusRules = new();
-	private readonly List<string> _resourceDropoffBuildingKeys = new();
-	private readonly List<string> _resourceWorkerUnitKeys = new();
-	private readonly List<string> _primaryBuildingIds = new();
-	private readonly Dictionary<string, string> _resourceTypeByNodeId = new(StringComparer.OrdinalIgnoreCase);
+	private static MapRulesCatalog Rules => GameContext.Simulation.MapRules;
 
-	public void RegisterPlacementRadius(string definitionKey, float radius)
-	{
-		ArgumentException.ThrowIfNullOrEmpty(definitionKey);
-		_placementRadiusRules.Add((definitionKey, radius));
-	}
+	public void RegisterPlacementRadius(string definitionKey, float radius) => Rules.RegisterPlacementRadius(definitionKey, radius);
 
-	public float GetPlacementRadius(string placeId, float scale)
-	{
-		if (string.IsNullOrEmpty(placeId)) return DefaultPlacementRadius * scale;
-		foreach (var (definitionKey, radius) in _placementRadiusRules)
-		{
-			if (placeId.Contains(definitionKey, StringComparison.OrdinalIgnoreCase)) return radius * scale;
-		}
+	public float GetPlacementRadius(string placeId, float scale) => Rules.GetPlacementRadius(placeId, scale);
 
-		return DefaultPlacementRadius * scale;
-	}
+	public void RegisterResourceDropoffBuilding(string definitionKey) => Rules.RegisterResourceDropoffBuilding(definitionKey);
 
-	public void RegisterResourceDropoffBuilding(string definitionKey)
-	{
-		ArgumentException.ThrowIfNullOrEmpty(definitionKey);
-		_resourceDropoffBuildingKeys.Add(definitionKey);
-	}
+	public void RegisterResourceWorkerUnit(string unitKey) => Rules.RegisterResourceWorkerUnit(unitKey);
 
-	public void RegisterResourceWorkerUnit(string unitKey)
-	{
-		ArgumentException.ThrowIfNullOrEmpty(unitKey);
-		_resourceWorkerUnitKeys.Add(unitKey);
-	}
+	public bool IsResourceDropoffBuilding(string definitionId) => Rules.IsResourceDropoffBuilding(definitionId);
 
-	public bool IsResourceDropoffBuilding(string definitionId)
-	{
-		if (string.IsNullOrEmpty(definitionId)) return false;
-		foreach (var key in _resourceDropoffBuildingKeys)
-		{
-			if (definitionId.Contains(key, StringComparison.OrdinalIgnoreCase)) return true;
-		}
+	public void RegisterPrimaryBuilding(string definitionId) => Rules.RegisterPrimaryBuilding(definitionId);
 
-		if (!BuildingRegistry.TryGetValue(definitionId, out var meta) || meta.BuildOptions == null) return false;
-		foreach (var option in meta.BuildOptions)
-		{
-			foreach (var workerKey in _resourceWorkerUnitKeys)
-			{
-				if (option.Contains(workerKey, StringComparison.Ordinal)) return true;
-			}
-		}
+	public bool IsPrimaryBuilding(string definitionId) => Rules.IsPrimaryBuilding(definitionId);
 
-		return false;
-	}
+	public void RegisterResourceNodeType(string nodeDefinitionId, string resourceType) => Rules.RegisterResourceNodeType(nodeDefinitionId, resourceType);
 
-	public void RegisterPrimaryBuilding(string definitionId)
-	{
-		ArgumentException.ThrowIfNullOrEmpty(definitionId);
-		_primaryBuildingIds.Add(definitionId);
-	}
-
-	public bool IsPrimaryBuilding(string definitionId)
-	{
-		if (string.IsNullOrEmpty(definitionId)) return false;
-		foreach (var primaryId in _primaryBuildingIds)
-		{
-			if (string.Equals(definitionId, primaryId, StringComparison.OrdinalIgnoreCase)) return true;
-		}
-
-		return false;
-	}
-
-	public void RegisterResourceNodeType(string nodeDefinitionId, string resourceType)
-	{
-		ArgumentException.ThrowIfNullOrEmpty(nodeDefinitionId);
-		ArgumentException.ThrowIfNullOrEmpty(resourceType);
-		_resourceTypeByNodeId[nodeDefinitionId] = resourceType;
-	}
-
-	public string? GetResourceTypeForNode(string nodeDefinitionId)
-	{
-		return _resourceTypeByNodeId.TryGetValue(nodeDefinitionId, out var resourceType) ? resourceType : null;
-	}
+	public string? GetResourceTypeForNode(string nodeDefinitionId) => Rules.GetResourceTypeForNode(nodeDefinitionId);
 
 	public bool UnitHasAbility(string unitId, string abilityId)
 	{
@@ -115,6 +51,14 @@ public class RegistryService
 		}
 
 		return false;
+	}
+
+	public UnitMetadata? FindUnitOrBuildingMetadata(string definitionId)
+	{
+		if (string.IsNullOrEmpty(definitionId)) return null;
+		if (UnitRegistry.TryGetValue(definitionId, out var unitMeta)) return unitMeta;
+		if (BuildingRegistry.TryGetValue(definitionId, out var buildingMeta)) return buildingMeta;
+		return null;
 	}
 
 	public string GetUnitTargetModel(string unitId, ref bool isBuilding)
@@ -194,6 +138,7 @@ public class RegistryService
 		if (string.IsNullOrEmpty(primaryKey)) return 1.0f;
 
 		if (UnitRegistry.TryGetValue(primaryKey, out var meta) && meta.CollisionCircle > 0f) return meta.CollisionCircle;
+		if (BuildingRegistry.TryGetValue(primaryKey, out var buildingMeta) && buildingMeta.CollisionCircle > 0f) return buildingMeta.CollisionCircle;
 		if (ResourceRegistry.TryGetValue(primaryKey, out var resMeta) && resMeta.CollisionCircle > 0f) return resMeta.CollisionCircle;
 		if (PropRegistry.TryGetValue(primaryKey, out var propMeta) && propMeta.CollisionCircle > 0f) return propMeta.CollisionCircle;
 
@@ -206,6 +151,12 @@ public class RegistryService
 		if (UnitRegistry.TryGetValue(key, out var meta) && meta.Brightness > 0f)
 		{
 			brightness = meta.Brightness;
+			return true;
+		}
+
+		if (BuildingRegistry.TryGetValue(key, out var buildingMeta) && buildingMeta.Brightness > 0f)
+		{
+			brightness = buildingMeta.Brightness;
 			return true;
 		}
 
@@ -230,6 +181,12 @@ public class RegistryService
 		if (UnitRegistry.TryGetValue(key, out var meta) && !string.IsNullOrEmpty(meta.Tint) && Color.HtmlIsValid(meta.Tint))
 		{
 			color = Color.FromHtml(meta.Tint);
+			return true;
+		}
+
+		if (BuildingRegistry.TryGetValue(key, out var buildingMeta) && !string.IsNullOrEmpty(buildingMeta.Tint) && Color.HtmlIsValid(buildingMeta.Tint))
+		{
+			color = Color.FromHtml(buildingMeta.Tint);
 			return true;
 		}
 
@@ -313,8 +270,42 @@ public class RegistryService
 	public readonly Dictionary<StringName, AttachmentMetadata> AttachmentRegistry = new();
 	public readonly Dictionary<StringName, ItemMetadata> ItemRegistry = new();
 	public readonly Dictionary<StringName, Realm.Shared.Metadata.UpgradeMetadata> UpgradeRegistry = new();
+	public readonly Dictionary<StringName, Realm.Shared.Metadata.ConsumableMetadata> ConsumableRegistry = new();
+	private readonly Dictionary<string, Realm.Shared.Metadata.ConsumableMetadata> _consumableByCard = new(StringComparer.OrdinalIgnoreCase);
 	public Dictionary<string, VfxAttachmentConfig> VfxRegistry { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 	public Dictionary<string, AbilityDefinition> AbilityDefinitions { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+	public void RegisterConsumable(Realm.Shared.Metadata.ConsumableMetadata consumable)
+	{
+		if (consumable == null || string.IsNullOrWhiteSpace(consumable.TemplateID)) return;
+
+		ConsumableRegistry[(StringName)consumable.TemplateID] = consumable;
+		if (consumable.TemplateID.StartsWith("consumable/", StringComparison.OrdinalIgnoreCase))
+		{
+			ConsumableRegistry[(StringName)consumable.TemplateID.Substring(11)] = consumable;
+		}
+
+		_consumableByCard[consumable.CardId] = consumable;
+		if (consumable.CardId.StartsWith("ability/", StringComparison.OrdinalIgnoreCase))
+		{
+			_consumableByCard[consumable.CardId.Substring(8)] = consumable;
+		}
+	}
+
+	public Realm.Shared.Metadata.ConsumableMetadata? GetConsumable(string consumableId)
+	{
+		if (string.IsNullOrWhiteSpace(consumableId)) return null;
+		return ConsumableRegistry.TryGetValue((StringName)consumableId, out var consumable) ? consumable : null;
+	}
+
+	public Realm.Shared.Metadata.ConsumableMetadata? GetConsumableForCard(string abilityId)
+	{
+		if (string.IsNullOrWhiteSpace(abilityId)) return null;
+		if (_consumableByCard.TryGetValue(abilityId, out var consumable)) return consumable;
+
+		int slash = abilityId.LastIndexOf('/');
+		return slash >= 0 && _consumableByCard.TryGetValue(abilityId[(slash + 1)..], out consumable) ? consumable : null;
+	}
 
 	public void RegisterVfxConfig(string vfxId, VfxAttachmentConfig config)
 	{
@@ -368,62 +359,58 @@ public class RegistryService
 	}
 	public Dictionary<(int UnitUniqueId, string AbilityId), (bool Disabled, bool Hidden)> UnitAbilityStates { get; set; } = new();
 
-	public IReadOnlyList<(string DefinitionKey, float Radius)> PlacementRadiusRules => _placementRadiusRules;
-	public IReadOnlyList<string> ResourceDropoffBuildingKeys => _resourceDropoffBuildingKeys;
-	public IReadOnlyList<string> ResourceWorkerUnitKeys => _resourceWorkerUnitKeys;
-	public IReadOnlyList<string> PrimaryBuildingIds => _primaryBuildingIds;
-	public IReadOnlyDictionary<string, string> ResourceNodeTypes => _resourceTypeByNodeId;
+	public IReadOnlyList<(string DefinitionKey, float Radius)> PlacementRadiusRules => Rules.PlacementRadiusRules;
+	public IReadOnlyList<string> ResourceDropoffBuildingKeys => Rules.ResourceDropoffBuildingKeys;
+	public IReadOnlyList<string> ResourceWorkerUnitKeys => Rules.ResourceWorkerUnitKeys;
+	public IReadOnlyList<string> PrimaryBuildingIds => Rules.PrimaryBuildingIds;
+	public IReadOnlyDictionary<string, string> ResourceNodeTypes => Rules.ResourceNodeTypes;
 
 	public void ApplyCatalogEntry(string channel, string key, string value, float number)
 	{
 		if (string.IsNullOrEmpty(key)) return;
 
-		switch (channel)
+		if (channel == "string")
 		{
-			case "placement_radius":
-				for (int i = 0; i < _placementRadiusRules.Count; i++)
-				{
-					if (string.Equals(_placementRadiusRules[i].DefinitionKey, key, StringComparison.OrdinalIgnoreCase)) return;
-				}
-				_placementRadiusRules.Add((key, number));
-				break;
-			case "dropoff":
-				AddKeyIfMissing(_resourceDropoffBuildingKeys, key);
-				break;
-			case "worker":
-				AddKeyIfMissing(_resourceWorkerUnitKeys, key);
-				break;
-			case "primary":
-				AddKeyIfMissing(_primaryBuildingIds, key);
-				break;
-			case "resource_node_type":
-				if (!_resourceTypeByNodeId.ContainsKey(key)) _resourceTypeByNodeId[key] = value;
-				break;
-			case "string":
-				if (int.TryParse(key, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int stringId))
-				{
-					StringRegistry.RegisterRemote(stringId, value);
-				}
-				break;
+			if (int.TryParse(key, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int stringId))
+			{
+				StringRegistry.RegisterRemote(stringId, value);
+			}
+
+			return;
 		}
+
+		Rules.ApplyCatalogEntry(channel, key, value, number);
 	}
 
-	private static void AddKeyIfMissing(List<string> keys, string key)
-	{
-		for (int i = 0; i < keys.Count; i++)
-		{
-			if (string.Equals(keys[i], key, StringComparison.OrdinalIgnoreCase)) return;
-		}
-		keys.Add(key);
-	}
 	public HashSet<(int UnitUniqueId, string AbilityId)> DirtyAbilityStates { get; } = new();
+	private readonly List<(int UnitUniqueId, string AbilityId)> _abilityStateKeysToClear = new();
 
 	public void ClearAbilityStateDirty()
 	{
 		DirtyAbilityStates.Clear();
 	}
+
+	public void ClearAbilityStateForUnit(UnitId unit)
+	{
+		if (!unit.IsValid) return;
+
+		_abilityStateKeysToClear.Clear();
+		foreach (var key in UnitAbilityStates.Keys)
+		{
+			if (key.UnitUniqueId == unit.Value) _abilityStateKeysToClear.Add(key);
+		}
+
+		for (int index = 0; index < _abilityStateKeysToClear.Count; index++)
+		{
+			var key = _abilityStateKeysToClear[index];
+			UnitAbilityStates.Remove(key);
+			DirtyAbilityStates.Remove(key);
+		}
+	}
 	public Dictionary<(int UnitUniqueId, string AbilityId), float> UnitAbilityManaCosts { get; set; } = new();
 	public Dictionary<string, string> ItemTooltips { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+	public TooltipValueStore TooltipValues { get; } = new();
 
 	public bool CheckPropRegistryForMatch(string id, string cleanId, string normTarget, Func<string, string, bool> isMatch)
 	{
@@ -571,18 +558,13 @@ public class RegistryService
 
 	public void TryAddResourceNodeComponent(Entity entity, string propId, string cleanId, float defaultAmount)
 	{
-		if ((ResourceRegistry.TryGetValue(propId, out var meta) || (!string.IsNullOrEmpty(cleanId) && ResourceRegistry.TryGetValue(cleanId, out meta))) && (meta.MaxCapacity > 0f || defaultAmount > 0f))
+		ResourceMetadata? metadata = null;
+		if (!ResourceRegistry.TryGetValue(propId, out metadata) && !string.IsNullOrEmpty(cleanId))
 		{
-			float amount = meta.MaxCapacity > 0f ? meta.MaxCapacity : defaultAmount;
-			float harvestRate = meta.HarvestRate > 0f ? meta.HarvestRate : 10f;
-			float growthRate = meta.GrowthRate;
-			int maxWorkers = meta.MaxWorkers > 0 ? meta.MaxWorkers : 5;
-			GameContext.World.Add(entity, new ResourceNode(Guid.Empty, amount, amount, harvestRate, growthRate, maxWorkers));
+			ResourceRegistry.TryGetValue(cleanId, out metadata);
 		}
-		else if (defaultAmount > 0f)
-		{
-			GameContext.World.Add(entity, new ResourceNode(Guid.Empty, defaultAmount, defaultAmount, 10f, 0f, 5));
-		}
+
+		PropEntityFactory.AddResourceNode(GameContext.World, entity, metadata, defaultAmount);
 	}
 
 
@@ -616,7 +598,7 @@ public class RegistryService
 
 		var def = GetOrCreateAbilityDefinition(abilityId);
 		def.DisplayName = displayName ?? "";
-		def.Tooltip = tooltip ?? "";
+		def.TooltipTemplate = tooltip ?? "";
 		if (!string.IsNullOrEmpty(iconPath)) def.IconPath = iconPath;
 		def.IsInstant = isInstant;
 
@@ -644,7 +626,19 @@ public class RegistryService
 		if (string.IsNullOrEmpty(abilityId)) return;
 
 		var def = GetOrCreateAbilityDefinition(abilityId);
-		def.Hotkey = hotkey ?? "";
+		if (string.IsNullOrWhiteSpace(hotkey))
+		{
+			def.Hotkey = "";
+			return;
+		}
+
+		if (!HotkeySpec.TryParse(hotkey, out _, out string errorMessage))
+		{
+			GD.PrintErr($"[RegistryService] Rejected hotkey '{hotkey}' for ability '{abilityId}': {errorMessage}");
+			return;
+		}
+
+		def.Hotkey = hotkey.Trim();
 	}
 
 	public void SetAbilityState(UnitId unit, string abilityId, bool disabled, bool hidden)
@@ -655,9 +649,9 @@ public class RegistryService
 			UnitAbilityStates[(unit.Value, key)] = (disabled, hidden);
 			DirtyAbilityStates.Add((unit.Value, key));
 		}
-		if (GameHost.Instance != null)
+		if (GameContext.Host != null)
 		{
-			Callable.From(() => InGameHUD.Instance?.RefreshUI(GameHost.Instance.SelectedUnits)).CallDeferred();
+			Callable.From(() => GameContext.InGameHud?.RefreshUI(GameContext.Host.SelectedUnits)).CallDeferred();
 		}
 	}
 
@@ -713,7 +707,7 @@ public class RegistryService
 		if (string.IsNullOrEmpty(abilityId)) return;
 
 		var def = GetOrCreateAbilityDefinition(abilityId);
-		def.Tooltip = tooltip ?? "";
+		def.TooltipTemplate = tooltip ?? "";
 	}
 
 	public AbilityDefinition GetAbilityDefinition(string abilityId)
@@ -780,6 +774,12 @@ public class RegistryService
 		return Path.GetFileNameWithoutExtension(abilityId);
 	}
 
+	private static string BuildAbilityTooltip(AbilityMetadata meta)
+	{
+		string description = meta.Description ?? string.Empty;
+		return string.IsNullOrWhiteSpace(meta.Role) ? description : $"[{meta.Role.Trim()}] {description}";
+	}
+
 	public void RegisterCustomAbilities(List<AbilityMetadata> customAbilities)
 	{
 		if (customAbilities == null) return;
@@ -790,21 +790,29 @@ public class RegistryService
 			{
 				Id = meta.TemplateID,
 				DisplayName = meta.Name ?? "",
-				Tooltip = meta.Description ?? "",
+				TooltipTemplate = BuildAbilityTooltip(meta),
 				IconPath = meta.IconPath ?? "",
 				IsInstant = string.Equals(meta.AbilityType, "instant_spell", StringComparison.OrdinalIgnoreCase),
+				AutoCastEnabled = meta.AutoCast?.Enabled ?? true,
+				AutoCastRequiresEnemy = meta.AutoCast?.RequiresEnemyTarget ?? true,
+				AutoCastAllyHealthPercentBelow = meta.AutoCast?.AllyHealthPercentBelow ?? 1f,
+				AutoCastManaReserve = meta.AutoCast?.ManaReserve ?? 0f,
+				AutoCastMinManaPercent = meta.AutoCast?.MinManaPercent ?? 0f,
 				ManaCost = meta.ManaCost,
 				Cooldown = meta.Cooldown,
 				TargetRange = meta.TargetRange,
 				AreaOfEffectRadius = meta.AreaOfEffectRadius,
-				Damage = meta.Damage,
-				Healing = meta.Healing,
 				VisualEffect = meta.VisualEffect,
 				CastSound = meta.CastSound,
 				GridX = meta.GridX,
 				GridY = meta.GridY,
 				Hotkey = meta.Hotkey ?? ""
 			};
+
+			def.Effects = AbilityEffectFactory.Create(meta, meta.AreaOfEffectRadius, out float maxDamage, out float maxHealing);
+			def.Damage = maxDamage;
+			def.Healing = maxHealing;
+
 			foreach (var key in GetNormalizedAbilityIdCandidates(meta.TemplateID))
 			{
 				AbilityDefinitions[key] = def;
@@ -1007,11 +1015,11 @@ public class RegistryService
 
 	public void ApplyAttachmentsToGameInstances(string unitId, string regKey)
 	{
-		if (GameHost.Instance == null) return;
+		if (GameContext.Host == null) return;
 
-		if (GameHost.Instance.AllUnits != null)
+		if (GameContext.Host.AllUnits != null)
 		{
-			foreach (var u in GameHost.Instance.AllUnits)
+			foreach (var u in GameContext.Host.AllUnits)
 			{
 				if (u != null && IsMatchingUnit(u.UnitId, unitId, regKey))
 				{
@@ -1020,7 +1028,7 @@ public class RegistryService
 			}
 		}
 
-		if (GameHost.Instance.SelectedEditorObject is Unit3D selUnit)
+		if (GameContext.Host.SelectedEditorObject is Unit3D selUnit)
 		{
 			if (IsMatchingUnit(selUnit.UnitId, unitId, regKey))
 			{
@@ -1041,6 +1049,11 @@ public class RegistryService
 	public void SaveAllUnitObjectAttachments(string targetId, UnitObjectAttachments? attachments, Action<string, UnitObjectAttachments?> restoreCallback)
 	{
 		restoreCallback?.Invoke(targetId, attachments);
+	}
+
+	public void SaveUnitPseudoSockets(string targetId, List<PseudoSocketAnchor>? pseudoSockets, Action<string, List<PseudoSocketAnchor>?> restoreCallback)
+	{
+		restoreCallback?.Invoke(targetId, pseudoSockets);
 	}
 
 
@@ -1097,10 +1110,13 @@ public class RegistryService
 		AttachmentRegistry.Clear();
 		ItemRegistry.Clear();
 		UpgradeRegistry.Clear();
+		ConsumableRegistry.Clear();
+		_consumableByCard.Clear();
 		VfxRegistry.Clear();
 		AbilityDefinitions.Clear();
 		UnitAbilityStates.Clear();
 		UnitAbilityManaCosts.Clear();
 		ItemTooltips.Clear();
+		TooltipValues.Clear();
 	}
 }

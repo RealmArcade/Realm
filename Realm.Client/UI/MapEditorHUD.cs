@@ -19,15 +19,13 @@ public partial class MapEditorHUD : Control
 {
 	public MapEditorHUD()
 	{
-		Instance = this;
+		GameContext.RegisterMapEditorHud(this);
 	}
 
 	public override void _EnterTree()
 	{
 		Realm.Client.Services.GameContext.EnsureServices();
 	}
-
-	public static MapEditorHUD Instance { get; set; }
 
 	public static string defaultLoadFolder
 	{
@@ -134,6 +132,7 @@ public partial class MapEditorHUD : Control
 
 	private PanelContainer _panelMeasurementHUD { get; set; }
 	private Label _lblMeasureTelemetry { get; set; }
+	private ThrottledLabelWidth _measureLabelWidth { get; set; } = new();
 
 	private Button _btnPasteAnchor { get; set; }
 	private Label _lblPasteTelemetry { get; set; }
@@ -163,6 +162,9 @@ public partial class MapEditorHUD : Control
 	private OptionButton _optTestSettings { get; set; }
 	private Button _btnExportMap { get; set; }
 	private Button _btnLoad { get; set; }
+	private Button _btnLoadMore { get; set; }
+	private PopupPanel _popupLoadMore { get; set; }
+	private Button _btnImportArchive { get; set; }
 	private Button _btnDeleteObject { get; set; }
 	private Button _btnUndo { get; set; }
 	private Button _btnRedo { get; set; }
@@ -212,6 +214,7 @@ public partial class MapEditorHUD : Control
 	private ModelPickerDialog _modelPickerDialog { get; set; }
 	private AbilityVfxDialog _abilityVfxDialog { get; set; }
 	private AssetManagerDialog _assetManagerDialog { get; set; }
+	private ImportFromMapDialog _importFromMapDialog { get; set; }
 	private TemplateManagerDialog _templateManagerDialog { get; set; }
 	private InstanceManagerDialog _instanceManagerDialog { get; set; }
 	private AssetBrowserDialog _assetBrowserDialog { get; set; }
@@ -230,12 +233,11 @@ public partial class MapEditorHUD : Control
 	private Label _lblMapNameHeader { get; set; }
 	private double _mapNameUpdateTimer { get; set; } = 0.0;
 	private Button _btnOpenGlobalOverrides { get; set; }
-	private Button _btnOpenAnimationPreview { get; set; }
 	private Button BtnEditVfx { get; set; }
-	private Button BtnEditAttachments { get; set; }
 	private Button BtnAssetsManager { get; set; }
 	private Button BtnTemplateManager { get; set; }
 	private Button BtnInstanceManager { get; set; }
+	private Button BtnImportFromMap { get; set; }
 	private Button BtnUtilities { get; set; }
 	private bool IsUpdatingInspectorUI { get; set; }
 
@@ -263,12 +265,8 @@ public partial class MapEditorHUD : Control
 	private CheckBox _chkEnvShadows { get; set; }
 	private Button _btnBrushShape { get; set; }
 	private Button _btnResetMap { get; set; }
-	private Button _btnGenerateMap { get; set; }
-	private Button _btnRandomGen { get; set; }
-	private PopupPanel _popupRandomGen { get; set; }
 	private Button _btnSaveMore { get; set; }
 	private PopupPanel _popupSaveMore { get; set; }
-	private Button _btnImportMinimap { get; set; }
 	private Button _btnEyedropper { get; set; }
 	private OptionButton _optEyedropperMode { get; set; }
 	private Button _btnNoise { get; set; }
@@ -313,6 +311,8 @@ public partial class MapEditorHUD : Control
 	private Button _btnShowCoverage { get; set; }
 	private HBoxContainer _playerOwnerContainer { get; set; }
 	private OptionButton _optPlayerOwner { get; set; }
+	private HBoxContainer _placementPlayerContainer { get; set; }
+	private OptionButton _optPlacementPlayer { get; set; }
 	private PanelContainer _rigStatusContainer { get; set; }
 	private Label _lblRigStatus { get; set; }
 
@@ -336,26 +336,6 @@ public partial class MapEditorHUD : Control
 	private Button _activeToolButton { get; set; } = null;
 	private StyleBoxFlat _highlightStyle { get; set; }
 
-	private Control _cardRaise { get; set; }
-	private Control _cardLower { get; set; }
-	private Control _cardHeight { get; set; }
-	private Control _cardSmooth { get; set; }
-	private Control _cardRamp { get; set; }
-	private Control _cardNoise { get; set; }
-	private Control _cardWater { get; set; }
-	private Control _cardPlateau { get; set; }
-	private Control _cardTextureBrush { get; set; }
-	private Control _cardFloodFill { get; set; }
-	private Control _cardPathingBrush { get; set; }
-	private Control _cardFloodFillPathing { get; set; }
-	private Control _cardAddObject { get; set; }
-	private Control _cardSelectMove { get; set; }
-	private Control _cardDeleteObject { get; set; }
-	private Control _cardSelectArea { get; set; }
-	private Control _cardCut { get; set; }
-	private Control _cardCopy { get; set; }
-	private Control _cardPaste { get; set; }
-	private Control _cardEraseArea { get; set; }
 	private Label _lblInfoText { get; set; }
 	private Label _lblTerrainTexture { get; set; }
 	private Label _lblCliffTexture { get; set; }
@@ -381,7 +361,6 @@ public partial class MapEditorHUD : Control
 	private MapEditorPathingPanel _pathingPanelController { get; set; }
 	private MapEditorMinimap _minimapController { get; set; }
 	private MapEditorEntityPaletteController _entityPaletteController { get; set; }
-	private MapEditorGenerationDialog _generationDialog { get; set; }
 
 	private bool _wasmHasErrors { get; set; } = false;
 	private string _wasmCompileLogPath { get; set; } = "";
@@ -545,7 +524,7 @@ public partial class MapEditorHUD : Control
 		tipMargin.AddThemeConstantOverride("margin_right", 10);
 		tipPanel.AddChild(tipMargin);
 
-		var tipLabel = new Label { Text = "💡 " + string.Format(TranslationServer.Translate("Optimization Advisory: We recommend clicking 'Prune Unused' and 'Normalize References' in the Asset Manager before publishing to remove unused files and reference shared greenlit assets (potential savings: {0})."), MapStorageService.FormatBytes(potentialSavedBytes)), AutowrapMode = TextServer.AutowrapMode.WordSmart };
+		var tipLabel = new Label { Text = "💡 " + string.Format(TranslationServer.Translate("Optimization Advisory: We recommend running 'Prune Unused Assets' and 'Normalize References' in the Map Utilities dialog before publishing to remove unused files and reference shared greenlit assets (potential savings: {0})."), MapStorageService.FormatBytes(potentialSavedBytes)), AutowrapMode = TextServer.AutowrapMode.WordSmart };
 		tipLabel.AddThemeFontSizeOverride("font_size", 12);
 		tipLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		tipMargin.AddChild(tipLabel);
@@ -555,7 +534,7 @@ public partial class MapEditorHUD : Control
 	private void CreatePublishMapIdentityPanel(VBoxContainer vbox)
 	{
 		string keyDir = ProjectSettings.GlobalizePath("user://appdata/keys/");
-		string defaultUsername = LobbyManager.Instance?.AuthenticatedUsername ?? System.Environment.UserName;
+		string defaultUsername = GameContext.Lobby?.AuthenticatedUsername ?? System.Environment.UserName;
 		var (_, keyData, keyPath, _) = AuthorshipKeyHelper.GetOrGenerateKeyInfo(keyDir, defaultUsername);
 		string currentAuthorName = !string.IsNullOrWhiteSpace(keyData?.UserName) ? keyData.UserName : defaultUsername;
 		string authorPubKey = !string.IsNullOrWhiteSpace(keyData?.PublicKey) ? keyData.PublicKey : "";
@@ -647,13 +626,13 @@ public partial class MapEditorHUD : Control
 
 	public void TriggerToolSelection(EditorTool tool, Button btn, string placeId = "")
 	{
-		if (GameHost.Instance == null) return;
+		if (GameContext.Host == null) return;
 
 		HandleEditorToolStateClear(tool);
 		UpdateActiveToolButton(btn);
 
-		GameHost.Instance.ActiveEditorTool = tool;
-		GameHost.Instance.ActivePlaceId = placeId;
+		GameContext.Host.ActiveEditorTool = tool;
+		GameContext.Host.ActivePlaceId = placeId;
 
 		UpdateActiveEditorModuleForTool(tool);
 		UpdatePanelVisibilityForToolPathing(tool);
@@ -667,17 +646,17 @@ public partial class MapEditorHUD : Control
 	{
 		if (tool != EditorTool.SelectMove)
 		{
-			GameHost.Instance.SelectedEditorObject = null;
+			GameContext.Host.SelectedEditorObject = null;
 		}
 
 		if (tool != EditorTool.Ramp)
 		{
-			GameHost.Instance.ClearRampStartPosExternal();
+			GameContext.Host.ClearRampStartPosExternal();
 		}
 
 		if (tool != EditorTool.Measure)
 		{
-			GameHost.Instance.ClearMeasureVisuals();
+			GameContext.Host.ClearMeasureVisuals();
 			ClearMeasureTelemetry();
 		}
 	}
@@ -759,13 +738,13 @@ public partial class MapEditorHUD : Control
 
 		if (NeedsPathingOverlay(tool))
 		{
-			GameHost.Instance?.UpdatePathingOverlay();
+			GameContext.Host?.UpdatePathingOverlay();
 		}
 	}
 
 	private void ApplyBrushStrengthForTool(EditorTool tool)
 	{
-		if (_sldBrushStrength == null || GameHost.Instance == null) return;
+		if (_sldBrushStrength == null || GameContext.Host == null) return;
 
 		if (tool == EditorTool.PaintTexture)
 		{
@@ -774,7 +753,7 @@ public partial class MapEditorHUD : Control
 			_sldBrushStrength.Step = 1.0;
 			_sldBrushStrength.Value = GameContext.SessionState.SavedTextureIntensity;
 			if (_lblBrushStrengthValue != null) _lblBrushStrengthValue.Text = GameContext.SessionState.SavedTextureIntensity.ToString("F0");
-			GameHost.Instance.EditorBrushStrength = GameContext.SessionState.SavedTextureIntensity;
+			GameContext.Host.EditorBrushStrength = GameContext.SessionState.SavedTextureIntensity;
 		}
 		else
 		{
@@ -784,7 +763,7 @@ public partial class MapEditorHUD : Control
 			float restoredStrength = Math.Max(0.5f, GameContext.SessionState.SavedBrushStrength);
 			_sldBrushStrength.Value = restoredStrength;
 			if (_lblBrushStrengthValue != null) _lblBrushStrengthValue.Text = restoredStrength.ToString("F1");
-			GameHost.Instance.EditorBrushStrength = restoredStrength;
+			GameContext.Host.EditorBrushStrength = restoredStrength;
 		}
 	}
 
@@ -811,7 +790,7 @@ public partial class MapEditorHUD : Control
 	{
 		if (tool == EditorTool.PlaceUnit)
 		{
-			string alignment = (GameHost.Instance != null && GameContext.EditorService.PlaceUnitIsEnemy) ? TranslationServer.Translate("Enemy (Orc)") : TranslationServer.Translate("Player (Alliance)");
+			string alignment = PlayerColorConfig.GetPaletteLabel(GameContext.EditorService.PlaceUnitPlayerIndex);
 			_lblInfoText.Text = string.Format(TranslationServer.Translate("TOOL: Place Unit\n\nLeft-click on the ground to spawn a {0} aligned with {1}."), shortPlaceName, alignment);
 			return;
 		}
@@ -856,7 +835,7 @@ public partial class MapEditorHUD : Control
 	private bool IsInspectorAccordionVisible(EditorModule module)
 	{
 		if (module == EditorModule.Objects) return true;
-		var host = GameHost.Instance;
+		var host = GameContext.Host;
 		bool hasSelectedObject = host != null && GodotObject.IsInstanceValid(host.SelectedEditorObject);
 		return hasSelectedObject && host?.ActiveEditorTool == EditorTool.SelectMove;
 	}
@@ -996,7 +975,7 @@ public partial class MapEditorHUD : Control
 
 	private bool IsMenuOrOverlayOpen(Vector2 mousePos)
 	{
-		if (SettingsMenu.IsOpen) return true;
+		if (GameContext.IsSettingsMenuOpen) return true;
 		if (_helpOverlayPanel != null && _helpOverlayPanel.IsVisibleInTree()) return true;
 		if (GetNodeOrNull<Control>("ConfirmationOverlay") != null) return true;
 		if (GetNodeOrNull<Control>("GenerationOverlay") != null) return true;
@@ -1051,7 +1030,7 @@ public partial class MapEditorHUD : Control
 			_popupCamera,
 			_popupEditors,
 			_popupSaveMore,
-			_popupRandomGen
+			_popupLoadMore
 		);
 	}
 
@@ -1087,6 +1066,7 @@ public partial class MapEditorHUD : Control
 
 	private bool IsPopupVisible()
 	{
+		if (_popupRandomGen?.Visible == true) return true;
 		if (IsPanelPopupVisible()) return true;
 		if (IsPrimaryOptionPopupVisible()) return true;
 		if (IsSecondaryOptionPopupVisible()) return true;
@@ -1132,7 +1112,7 @@ public partial class MapEditorHUD : Control
 		{
 			_btnLeftTab, _btnRightTab,
 			GetNodeOrNull<Control>("TopLeftBox"),
-			GetNodeOrNull<Control>("TopBar"),
+			GetNodeOrNull<Control>("BottomCenterBar/TopBar"),
 			_middleRightBox, _scaleMapDialog,
 			GetNodeOrNull<Control>("GenerationOverlay")
 		};
@@ -1170,23 +1150,26 @@ public partial class MapEditorHUD : Control
 
 	public async Task ProceedToTestMap()
 	{
-		if (GameHost.Instance == null) return;
+		if (GameContext.Host == null) return;
 
 		_wasmHasErrors = false;
 		ShowWasmConsoleModal();
+		MatchLoadTrace.Begin("test_map");
+		GameHost? tracingHost = GameContext.Host;
 		Action<string> logHandler = line => AppendWasmConsoleLog(line);
-		WasmRuntime.OnWasmLog += logHandler;
+		GameLog.OnLine += logHandler;
 
 		try
 		{
 			SaveEditorStateBeforeTest();
+			MatchLoadTrace.Mark("editor_state_saved");
 			await PrepareMapAndWorkspaceForTest();
+			MatchLoadTrace.Mark("map_saved_and_compiled");
 
 			if (_wasmHasErrors) return;
 
 			if (!TryLocateCompiledWasm(out string wasmPath)) return;
 
-			GameHost.PendingMapScriptPath = wasmPath;
 			AppendWasmConsoleLog($"[WASM] Located compiled WASM binary: {Path.GetFileName(wasmPath)}");
 
 			await LaunchTestModeEngine();
@@ -1199,7 +1182,8 @@ public partial class MapEditorHUD : Control
 		}
 		finally
 		{
-			WasmRuntime.OnWasmLog -= logHandler;
+			if (ReferenceEquals(GameContext.Host, tracingHost) && MatchLoadTrace.IsTracing) MatchLoadTrace.WriteSummary("test_map_abandoned");
+			GameLog.OnLine -= logHandler;
 		}
 	}
 
@@ -1207,19 +1191,25 @@ public partial class MapEditorHUD : Control
 	{
 		SaveCameraState();
 		SaveGameHostStates();
+		SaveEditorWorldBeforeTest();
+	}
+
+	private void SaveEditorWorldBeforeTest()
+	{
+		GameContext.SessionState.EditorWorldState = MapStateSnapshot.CreateSnapshot();
 	}
 
 	private void SaveCameraState()
 	{
-		var camera = GameHost.Instance.MainCamera;
+		var camera = GameContext.Host.MainCamera;
 		if (camera == null) return;
 
 		GameContext.SessionState.SavedCameraPosition = camera.Position;
 
-		var host = GameHost.Instance;
-		if (GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<CameraState>(ECSContext.WorldEntity))
+		var host = GameContext.Host;
+		if (GameContext.World != null && GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) && GameContext.World.Has<CameraState>(GameContext.Simulation.WorldEntity))
 		{
-			var state = GameContext.World.Get<CameraState>(ECSContext.WorldEntity);
+			var state = GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity);
 			GameContext.SessionState.SavedTargetHeight = state.TargetHeight;
 			GameContext.SessionState.SavedCurrentHeight = state.CurrentHeight;
 			GameContext.SessionState.SavedTargetYaw = state.TargetYaw;
@@ -1234,7 +1224,7 @@ public partial class MapEditorHUD : Control
 
 	private void SaveGameHostStates()
 	{
-		var host = GameHost.Instance;
+		var host = GameContext.Host;
 		GameContext.SessionState.SavedGridMode = GameContext.EditorService.EditorGridMode;
 		GameContext.SessionState.SavedActiveTool = host.ActiveEditorTool;
 		GameContext.SessionState.SavedActivePlaceId = host.ActivePlaceId;
@@ -1251,20 +1241,20 @@ public partial class MapEditorHUD : Control
 	{
 		MapWorkspaceService.EnsureWasmEntryPoint(GameContext.EditorService._tempWorkspacePath);
 		string tempTerrainPath = Path.Combine(GameContext.EditorService._tempWorkspacePath, "terrain.json");
-		GameHost.Instance.SaveMapToFile(tempTerrainPath);
-		GameHost.Instance.EditorHasUnsavedChanges = false;
+		GameContext.Host.SaveMapToFile(tempTerrainPath);
+		GameContext.Host.EditorHasUnsavedChanges = false;
 		InvalidateMetadataCache();
 
 		if (OperatingSystem.IsWindows())
 		{
 			SetWasmConsoleStatus("Auto-saving modified files in VSCode...", UIStyle.ColorCyanGlow);
 			AppendWasmConsoleLog("[VSCode] Requesting auto-save of all open workspace files...");
-			await VSCodeManager.Instance.SaveAllOpenFilesAsync();
+			await GameContext.VSCode.SaveAllOpenFilesAsync();
 		}
 
 		SetWasmConsoleStatus("Compiling WASM map script...", UIStyle.ColorCyanGlow);
 		AppendWasmConsoleLog("=== WASM COMPILATION PIPELINE STARTED ===");
-		AppendWasmConsoleLog($"[DEBUG] Godot Host Process ID: {System.Environment.ProcessId}. Select this PID in CodeLLDB when attaching.");
+		AppendWasmConsoleLog("[DEBUG] The map script runs in the authority process, not in this editor. Attach with the workspace's 'Attach to Realm Authority (Map Script WASM)' configuration; the authority reports its PID and the JIT ELF it exported once it is running.");
 
 		await CompileAndSignMapAsync(GameContext.EditorService._tempWorkspacePath, skipAttribution: true, isDebug: true);
 
@@ -1307,26 +1297,82 @@ public partial class MapEditorHUD : Control
 		SetWasmConsoleStatus("Launching test mode...", UIStyle.ColorCyanGlow);
 		AppendWasmConsoleLog("=== LAUNCHING GAME ENGINE ===");
 
-		if (UIManager.Instance != null)
+		if (GameContext.UserInterface != null)
 		{
-			await UIManager.Instance.ApplyWindowSettings(GameSettings.WindowModeIdx, GameSettings.ResolutionIdx);
+			await GameContext.UserInterface.ApplyWindowSettings(GameSettings.WindowModeIdx, GameSettings.ResolutionIdx);
 		}
 
-		GameHost.Instance.ExitMapEditorMode();
 		GameContext.SessionState.IsTestMode = true;
+		ShadowClientVerifier.IsEnabled = true;
 
-		if (UIManager.Instance != null)
+		SetWasmConsoleStatus("Starting the authority that runs this map...", UIStyle.ColorCyanGlow);
+		AppendWasmConsoleLog("[AUTHORITY] Starting the process the map script runs in; the editor stays responsive while it loads.");
+
+		bool started = false;
+		if (GameContext.Lobby != null)
 		{
-			UIManager.Instance.TransitionTo(GameScreen.InGameHUD);
+			started = await GameContext.Lobby.HostSinglePlayerGame(GameContext.EditorService.TempWorkspaceGodotPath, "Test Map", debugMapScript: true);
 		}
 
-		if (LobbyManager.Instance != null)
+		if (!started)
 		{
-			LobbyManager.Instance.HostSinglePlayerGame(GameContext.EditorService.TempWorkspaceGodotPath, "Test Map");
+			_wasmHasErrors = true;
+			SetWasmConsoleStatus("❌ Test mode could not start", new Color(1f, 0.3f, 0.3f));
+			AppendWasmConsoleLog($"[ERROR] {GameContext.Lobby?.LastHostError ?? "this build has no lobby to start a match with"}");
+			AppendAuthorityDiagnostics();
+			return;
+		}
+
+		MatchLoadTrace.Mark("authority_started");
+		MatchLoadTrace.WriteSummary("authority_started");
+
+		GameContext.Host.ExitMapEditorMode();
+
+		if (GameContext.UserInterface != null)
+		{
+			GameContext.UserInterface.TransitionTo(GameScreen.InGameHUD);
+		}
+
+		int authorityProcessId = GameContext.ServerSession?.AuthorityProcessId ?? 0;
+		if (authorityProcessId > 0)
+		{
+			string attachHint = $"[DEBUG] Authority process ID: {authorityProcessId}. Attach to it in CodeLLDB with the workspace's map script configuration.";
+			AppendWasmConsoleLog(attachHint);
+			GameLog.LogToConsole(attachHint);
 		}
 
 		await Task.Delay(500);
 		CloseWasmConsoleModal();
+	}
+
+	private const int AuthorityDiagnosticsLineCount = 20;
+
+	private void AppendAuthorityDiagnostics()
+	{
+		string consolePath = GameContext.Lobby?.LastAuthorityConsoleLogPath ?? string.Empty;
+		if (consolePath.Length == 0) return;
+
+		try
+		{
+			if (!File.Exists(consolePath))
+			{
+				AppendWasmConsoleLog($"[AUTHORITY] It wrote no console output; its log is '{GameContext.Lobby?.LastAuthorityLogPath}'.");
+				return;
+			}
+
+			string[] lines = File.ReadAllLines(consolePath);
+			int first = Math.Max(0, lines.Length - AuthorityDiagnosticsLineCount);
+			AppendWasmConsoleLog($"=== AUTHORITY CONSOLE ({consolePath}, last {lines.Length - first} of {lines.Length} line(s)) ===");
+			for (int index = first; index < lines.Length; index++) AppendWasmConsoleLog(lines[index]);
+		}
+		catch (IOException exception)
+		{
+			AppendWasmConsoleLog($"[AUTHORITY] Its console output could not be read: {exception.Message}");
+		}
+		catch (UnauthorizedAccessException exception)
+		{
+			AppendWasmConsoleLog($"[AUTHORITY] Its console output could not be read: {exception.Message}");
+		}
 	}
 
 
@@ -1343,9 +1389,6 @@ public partial class MapEditorHUD : Control
 	private Button _btnHeaderLightingTuning { get; set; }
 	private VBoxContainer _contentLightingTuning { get; set; }
 
-	private HSlider _sldCliffJitterStrength { get; set; }
-	private HSlider _sldCliffJitterScale { get; set; }
-	private HSlider _sldCliffRimNoiseStrength { get; set; }
 	private HSlider _sldHeightBlendSoftness { get; set; }
 	private HSlider _sldBlendNoiseStrength { get; set; }
 	private HSlider _sldBlendNoiseScale { get; set; }

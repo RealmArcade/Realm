@@ -12,5 +12,9 @@ public class ModelConversionResult
 	public string? PreferredFileName { get; set; }
 	public int OriginalSize { get; set; }
 	public int OptimizedSize { get; set; }
+	public int[]? LodTriangleCounts { get; set; }
+	public int UvIslandCountBefore { get; set; }
+	public int UvIslandCountAfter { get; set; }
+	public float UvChartMergeTolerance { get; set; }
 	public byte[]? OutputBytes { get; set; }
 }

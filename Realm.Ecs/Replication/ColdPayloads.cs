@@ -3,13 +3,12 @@ using System.Collections.Generic;
 using MemoryPack;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Core;
-using Realm.MapAPI;
 
 namespace Realm.Ecs.Replication;
 
 public enum ColdPayloadKind : byte
 {
-	InternedPayload = 0,
+	ContentIdPayload = 0,
 	LeaderboardBoards = 1,
 	SummaryTable = 2
 }
@@ -29,7 +28,7 @@ public partial struct ColdPayloadDelta
 	public int Key;
 	public byte Kind;
 	public byte Role;
-	public byte InternedKind;
+	public byte ContentKind;
 	public int ContentId;
 	public byte Destroyed;
 	public byte[] Bytes;

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Realm.Ecs;
+using Realm.Ecs.Utils;
 using Realm.Client.Core;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Combat;
@@ -11,6 +12,7 @@ using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Services;
+using Realm.Shared.Abilities;
 
 namespace Realm.Client.Services;
 
@@ -46,10 +48,6 @@ public class InputService
 	private int _buildingCycleIndex;
 	private int _productionRoundRobinIndex;
 
-	public InputService()
-	{
-	}
-
 	private Entity GetWorldEntity()
 	{
 		Entity worldEntity = Entity.Null;
@@ -63,11 +61,6 @@ public class InputService
 		return ref GameContext.World.Get<InputState>(worldEntity);
 	}
 
-
-	public void ExecuteClientBuildingPlacement(UnitMetadata bldMeta, string type, Vector3 position)
-	{
-		// Domain logic can be extended here if needed
-	}
 
 	public void DeductResourcesForBuilding(UnitMetadata meta, Action<float> deductGold, Action<float> deductWood, Action<float> deductStone)
 	{
@@ -122,7 +115,7 @@ public class InputService
 
 	public bool ShouldEnqueueWorkerBuild(Entity entity)
 	{
-			return Realm.Client.Utils.UnitActivityHelper.IsUnitActive(entity) || GameContext.World.Has<BuildQueue>(entity);
+			return UnitActivityHelper.IsUnitActive(GameContext.World, entity) || GameContext.World.Has<BuildQueue>(entity);
 	}
 
 	public void EnqueueBuildTask(Entity worker, string type, Vector3 pos)
@@ -145,26 +138,11 @@ public class InputService
 		}
 	}
 
-	public bool BuyWeaponsUpgrade(Entity playerEntity)
-	{
-		return GameContext.TechTreeService.BuyWeaponsUpgrade(playerEntity);
-	}
-
-	public bool BuyShieldsUpgrade(Entity playerEntity)
-	{
-		return GameContext.TechTreeService.BuyShieldsUpgrade(playerEntity);
-	}
-
-	public bool BuyHarvestingUpgrade(Entity playerEntity)
-	{
-		return GameContext.TechTreeService.BuyHarvestingUpgrade(playerEntity);
-	}
-
 	public void AssignResumeTasksToWorkers(IEnumerable<Entity> selectedWorkerEntities, Entity targetBuildingEntity, string targetBuildingUnitId, Vector3 bPos, bool shiftHeld)
 	{
 		foreach (var workerEntity in selectedWorkerEntities)
 		{
-				if (shiftHeld && (Realm.Client.Utils.UnitActivityHelper.IsUnitActive(workerEntity) || GameContext.World.Has<BuildQueue>(workerEntity)))
+				if (shiftHeld && (UnitActivityHelper.IsUnitActive(GameContext.World, workerEntity) || GameContext.World.Has<BuildQueue>(workerEntity)))
 			{
 				if (!GameContext.World.Has<BuildQueue>(workerEntity))
 				{
@@ -189,310 +167,6 @@ public class InputService
 					GameContext.World.SetOrAdd(workerEntity, new MoveTo(bPos));
 				}
 			}
-		}
-	}
-
-	public void EnqueueCommand(Entity entity, string type, Vector3 position, Entity target = default)
-	{
-		if (!GameContext.World.Has<BuildQueue>(entity))
-		{
-			GameContext.World.Add(entity, new BuildQueue());
-		}
-
-		ref var q = ref GameContext.World.Get<BuildQueue>(entity);
-		q.TryEnqueue(type, position, target);
-	}
-
-	private bool IsControllableUnit(Entity entity)
-	{
-		if (!GameContext.World.IsAlive(entity)) return false;
-		if (GameContext.World.Has<Building>(entity)) return false;
-		return true;
-	}
-
-	private void CalculateGroupMovement(List<Entity> selectedEntities, Vector3 targetPos, out Vector3 moveDir, out Vector3 right)
-	{
-		Vector3 groupCenter = Vector3.Zero;
-		int movableCount = 0;
-		foreach (var entity in selectedEntities)
-		{
-			if (!IsControllableUnit(entity)) continue;
-			if (GameContext.World.Has<Movable>(entity) && GameContext.World.Has<Position>(entity))
-			{
-				groupCenter += GameContext.World.Get<Position>(entity).Value;
-				movableCount++;
-			}
-		}
-
-		if (movableCount > 0)
-		{
-			groupCenter /= movableCount;
-		}
-
-		moveDir = targetPos - groupCenter;
-		moveDir.Y = 0f;
-		if (moveDir.LengthSquared() > 0.01f)
-		{
-			moveDir = Vector3.Normalize(moveDir);
-		}
-		else
-		{
-			moveDir = new Vector3(0f, 0f, -1f);
-		}
-
-		right = new Vector3(-moveDir.Z, 0f, moveDir.X);
-	}
-
-	private void QueueOrExecuteMove(Entity entity, Vector3 scattered)
-	{
-		bool hasNonMoveTasks = GameContext.World.Has<BuildTask>(entity) ||
-		                       GameContext.World.Has<AttackTarget>(entity) ||
-		                       GameContext.World.Has<AttackMove>(entity) ||
-		                       GameContext.World.Has<Follow>(entity) ||
-		                       GameContext.World.Has<Patrol>(entity) ||
-		                       GameContext.World.Has<Gatherer>(entity);
-
-		if (hasNonMoveTasks)
-		{
-			EnqueueCommand(entity, "move", scattered);
-			return;
-		}
-
-		bool alreadyMoving = GameContext.World.Has<MoveTo>(entity);
-		if (alreadyMoving)
-		{
-			if (GameContext.World.Has<WaypointQueue>(entity))
-			{
-				var q = GameContext.World.Get<WaypointQueue>(entity);
-				q.Add(scattered);
-				GameContext.World.Set(entity, q);
-			}
-			else
-			{
-				var q = new WaypointQueue(scattered);
-				GameContext.World.Add(entity, q);
-			}
-		}
-		else
-		{
-			GameContext.SimulationService.OnClearUnitOrdersRequested?.Invoke(entity);
-			var moveTo = new MoveTo(scattered);
-			GameContext.World.Add(entity, moveTo);
-		}
-	}
-
-	public void IssueMoveCommand(List<Entity> selectedEntities, Vector3 targetPos)
-	{
-		int unitIndex = 0;
-		int cols = (int)Math.Ceiling(Math.Sqrt(selectedEntities.Count));
-		float spacing = 2.2f;
-
-		CalculateGroupMovement(selectedEntities, targetPos, out Vector3 moveDir, out Vector3 right);
-
-		foreach (var entity in selectedEntities)
-		{
-			if (!IsControllableUnit(entity)) continue;
-
-			GameContext.SimulationService.OnClearUnitOrdersRequested?.Invoke(entity);
-
-			if (GameContext.World.Has<Movable>(entity))
-			{
-				int row = unitIndex / cols;
-				int col = unitIndex % cols;
-				float offsetX = (col - cols * 0.5f + 0.5f) * spacing;
-				float offsetZ = -row * spacing;
-				var scattered = targetPos + right * offsetX + moveDir * offsetZ;
-
-				var moveTo = new MoveTo(scattered);
-				GameContext.World.SetOrAdd(entity, moveTo);
-
-				unitIndex++;
-			}
-		}
-	}
-
-	public void IssueMoveCommandQueued(List<Entity> selectedEntities, Vector3 targetPos)
-	{
-		int unitIndex = 0;
-		int cols = (int)Math.Ceiling(Math.Sqrt(selectedEntities.Count));
-		float spacing = 2.2f;
-
-		CalculateGroupMovement(selectedEntities, targetPos, out Vector3 moveDir, out Vector3 right);
-
-		foreach (var entity in selectedEntities)
-		{
-			if (!IsControllableUnit(entity)) continue;
-			if (!GameContext.World.Has<Movable>(entity)) continue;
-
-			int row = unitIndex / cols;
-			int col = unitIndex % cols;
-			float offsetX = (col - cols * 0.5f + 0.5f) * spacing;
-			float offsetZ = -row * spacing;
-			var scattered = targetPos + right * offsetX + moveDir * offsetZ;
-
-			QueueOrExecuteMove(entity, scattered);
-
-			unitIndex++;
-		}
-	}
-
-
-	public void IssueAttackCommand(List<Entity> selectedEntities, Entity targetEntity, bool isQueued = false)
-	{
-		var targetPos = GameContext.World.Has<Position>(targetEntity) ? GameContext.World.Get<Position>(targetEntity).Value : Vector3.Zero;
-		foreach (var entity in selectedEntities)
-		{
-			if (!GameContext.World.IsAlive(entity)) continue;
-			bool isBuilding = GameContext.World.Has<Building>(entity);
-			if (isBuilding) continue;
-
-				if (isQueued && Realm.Client.Utils.UnitActivityHelper.IsUnitActive(entity))
-			{
-				EnqueueCommand(entity, "attack", targetPos, targetEntity);
-			}
-			else
-			{
-				if (!isQueued)
-				{
-					GameContext.SimulationService.OnClearUnitOrdersRequested?.Invoke(entity);
-				}
-
-				var attackTarget = new AttackTarget(targetEntity);
-				GameContext.World.SetOrAdd(entity, attackTarget);
-			}
-		}
-	}
-
-	private void AssignFollowCommand(Entity entity, Entity targetEntity, Vector3 targetPos, bool isQueued)
-	{
-			if (isQueued && Realm.Client.Utils.UnitActivityHelper.IsUnitActive(entity))
-		{
-			EnqueueCommand(entity, "follow", targetPos, targetEntity);
-			return;
-		}
-
-		if (!isQueued)
-		{
-			GameContext.SimulationService.OnClearUnitOrdersRequested?.Invoke(entity);
-		}
-
-		if (GameContext.World.Has<Movable>(entity))
-		{
-			var follow = new Follow(targetEntity);
-			GameContext.World.SetOrAdd(entity, follow);
-		}
-	}
-
-
-	public void IssueFollowCommand(List<Entity> selectedEntities, Entity targetEntity, bool isQueued = false)
-	{
-		var targetPos = GameContext.World.Has<Position>(targetEntity) ? GameContext.World.Get<Position>(targetEntity).Value : Vector3.Zero;
-		foreach (var entity in selectedEntities)
-		{
-			if (entity == targetEntity || !IsControllableUnit(entity)) continue;
-
-			AssignFollowCommand(entity, targetEntity, targetPos, isQueued);
-		}
-	}
-
-	private void AssignPatrolCommand(Entity entity, Vector3 scattered, bool isQueued)
-	{
-			if (isQueued && Realm.Client.Utils.UnitActivityHelper.IsUnitActive(entity))
-		{
-			EnqueueCommand(entity, "patrol", scattered);
-			return;
-		}
-
-		if (!isQueued)
-		{
-			GameContext.SimulationService.OnClearUnitOrdersRequested?.Invoke(entity);
-		}
-
-		if (GameContext.World.Has<Movable>(entity))
-		{
-			var unitPos = GameContext.World.Has<Position>(entity) ? GameContext.World.Get<Position>(entity).Value : Vector3.Zero;
-			var patrolA = new Vector3(unitPos.X, unitPos.Y, unitPos.Z);
-
-			var patrol = new Patrol(patrolA, scattered);
-			GameContext.World.SetOrAdd(entity, patrol);
-
-			var moveTo = new MoveTo(scattered);
-			GameContext.World.SetOrAdd(entity, moveTo);
-		}
-	}
-
-	public void IssuePatrolCommand(List<Entity> selectedEntities, Vector3 targetPos, bool isQueued = false)
-	{
-		int unitIndex = 0;
-		int cols = (int)Math.Ceiling(Math.Sqrt(selectedEntities.Count));
-		float spacing = 2.2f;
-
-		foreach (var entity in selectedEntities)
-		{
-			if (!IsControllableUnit(entity)) continue;
-
-			int row = unitIndex / cols;
-			int col = unitIndex % cols;
-			float offsetX = (col - cols * 0.5f + 0.5f) * spacing;
-			float offsetZ = row * spacing;
-			var scattered = new Vector3(targetPos.X + offsetX, targetPos.Y, targetPos.Z + offsetZ);
-
-			AssignPatrolCommand(entity, scattered, isQueued);
-
-			unitIndex++;
-		}
-	}
-
-	public void IssueAttackMoveCommand(List<Entity> selectedEntities, Vector3 targetPos, bool isQueued = false)
-	{
-		foreach (var entity in selectedEntities)
-		{
-			if (!GameContext.World.IsAlive(entity)) continue;
-			bool isBuilding = GameContext.World.Has<Building>(entity);
-			if (isBuilding) continue;
-
-				if (isQueued && Realm.Client.Utils.UnitActivityHelper.IsUnitActive(entity))
-			{
-				EnqueueCommand(entity, "attackmove", targetPos);
-			}
-			else
-			{
-				if (!isQueued)
-				{
-					GameContext.SimulationService.OnClearUnitOrdersRequested?.Invoke(entity);
-				}
-
-				var attackMove = new AttackMove(targetPos);
-				GameContext.World.SetOrAdd(entity, attackMove);
-
-				var moveTo = new MoveTo(targetPos);
-				GameContext.World.SetOrAdd(entity, moveTo);
-			}
-		}
-	}
-
-	public void HoldSelectedUnits(List<Entity> selectedEntities)
-	{
-		foreach (var entity in selectedEntities)
-		{
-			if (!GameContext.World.IsAlive(entity)) continue;
-			bool isBuilding = GameContext.World.Has<Building>(entity);
-			if (isBuilding) continue;
-
-			GameContext.SimulationService.OnClearUnitOrdersRequested?.Invoke(entity);
-
-			if (!GameContext.World.Has<HoldPosition>(entity))
-				GameContext.World.Add<HoldPosition>(entity);
-		}
-	}
-
-	public void StopSelectedUnits(List<Entity> selectedEntities)
-	{
-		foreach (var entity in selectedEntities)
-		{
-			if (!GameContext.World.IsAlive(entity)) continue;
-
-			GameContext.SimulationService.OnClearUnitOrdersRequested?.Invoke(entity);
 		}
 	}
 
@@ -639,9 +313,9 @@ public class InputService
 
 	public bool IsAreaObstructed(Vector3 position, float clearance)
 	{
-		if (GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<Realm.Ecs.Components.Terrain.TerrainState>(ECSContext.WorldEntity))
+		if (GameContext.World != null && GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) && GameContext.World.Has<Realm.Ecs.Components.Terrain.TerrainState>(GameContext.Simulation.WorldEntity))
 		{
-			ref var terrain = ref GameContext.World.Get<Realm.Ecs.Components.Terrain.TerrainState>(ECSContext.WorldEntity);
+			ref var terrain = ref GameContext.World.Get<Realm.Ecs.Components.Terrain.TerrainState>(GameContext.Simulation.WorldEntity);
 			if (terrain.PathingCodes != null && terrain.Width > 0 && terrain.Depth > 0 && terrain.QuadSize > 0f)
 			{
 				int cx = Math.Clamp((int)MathF.Floor(position.X / terrain.QuadSize + terrain.Width / 2.0f), 0, terrain.Width - 1);
@@ -782,9 +456,9 @@ public class InputService
 
 		ref var mana = ref GameContext.World.Get<Mana>(entity);
 		float cost = 0f;
-		if (GameHost.Instance != null)
+		if (GameContext.Host != null)
 		{
-			var def = GameHost.Instance.GetAbilityDefinition(spellId);
+			var def = GameContext.Host.GetAbilityDefinition(spellId);
 			if (def != null) cost = def.ManaCost;
 		}
 
@@ -816,9 +490,9 @@ public class InputService
 	public bool TryExecuteSpellCast(Entity playerEntity, Entity casterEntity, string spellId, out float cooldownMax)
 	{
 		cooldownMax = 10.0f;
-		if (GameHost.Instance != null)
+		if (GameContext.Host != null)
 		{
-			var def = GameHost.Instance.GetAbilityDefinition(spellId);
+			var def = GameContext.Host.GetAbilityDefinition(spellId);
 			if (def != null && def.Cooldown > 0f)
 			{
 				cooldownMax = def.Cooldown;
@@ -954,8 +628,8 @@ public class InputService
 			new Godot.Vector3(position.X, position.Y, position.Z), playerEntity.AsPlayerEntity(GameContext.World), playerEntity, 
 			false, false, 
 			meta.Abilities, meta.CostGold, meta.CostWood, meta.CostStone, 
-			meta.ProductionTime, 0f, meta.ArmorType, 0f, 0f, 
-			0f, meta.AttackType, 0f, 0f, 
+			meta.ProductionTime, meta.MagicResistance, 0f, 0f, 
+			0f, meta.DamageType, 0f, 0f, 
 			meta.MovementType, 0f, 1f, 0f, 
 			meta.HpRegen, 0f, 0f, false, 
 			(int)meta.GoldBounty, "Ground");
@@ -992,9 +666,9 @@ public class InputService
 
 	public bool TryGetCameraState(out CameraState state)
 	{
-		if (GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<CameraState>(ECSContext.WorldEntity))
+		if (GameContext.World != null && GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) && GameContext.World.Has<CameraState>(GameContext.Simulation.WorldEntity))
 		{
-			state = GameContext.World.Get<CameraState>(ECSContext.WorldEntity);
+			state = GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity);
 			return true;
 		}
 
@@ -1004,9 +678,9 @@ public class InputService
 
 	public void TrySaveCameraSlot(int slotIndex, Vector3 pos, float zoom)
 	{
-		if (GameContext.World == null || !GameContext.World.IsAlive(ECSContext.WorldEntity) || !GameContext.World.Has<CameraState>(ECSContext.WorldEntity)) return;
+		if (GameContext.World == null || !GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) || !GameContext.World.Has<CameraState>(GameContext.Simulation.WorldEntity)) return;
 
-		ref var state = ref GameContext.World.Get<CameraState>(ECSContext.WorldEntity);
+		ref var state = ref GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity);
 		var slot = new CameraLocationSlot
 		{
 			Position = pos,
@@ -1234,6 +908,7 @@ public class InputService
 	{
 		if (GameContext.World.IsAlive(entity))
 		{
+			PositionWriteTrace.Mark(entity, PositionWriter.Input);
 			GameContext.World.Set(entity, new Position(position));
 		}
 	}
@@ -1350,16 +1025,7 @@ public class InputService
 
 	public void ApplySpellEffect(AbilityDefinition def, Vector3 simPos, Entity target)
 	{
-		float aoe = def.AreaOfEffectRadius > 0f ? def.AreaOfEffectRadius : 4.0f;
-
-		if (def.Damage > 0f)
-		{
-			GameContext.SimulationService.DealSpellDamageAOE(simPos, aoe, def.Damage, target);
-		}
-		else if (def.Healing > 0f)
-		{
-			GameContext.SimulationService.HealAOE(simPos, aoe, def.Healing, target);
-		}
+		AbilityEffectService.Execute(target, simPos, def, simPos);
 	}
 
 	public bool TryGetCasterPosition(Entity casterEntity, out Vector3 position)

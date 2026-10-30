@@ -13,8 +13,17 @@ public partial class SpellParticleInstance3D : Node3D
 	private StandardMaterial3D _billboardMaterial;
 	private QuadMesh _quadMesh;
 	private SpellParticleConfig _config = new();
+	private Color _playerColor = Colors.White;
 
 	public SpellParticleConfig Config => _config;
+
+	public void SetPlayerColor(Color playerColor)
+	{
+		_playerColor = playerColor;
+		if (_processMaterial == null || !GodotObject.IsInstanceValid(_processMaterial)) return;
+
+		_processMaterial.Color = _playerColor;
+	}
 
 	public SpellParticleInstance3D()
 	{
@@ -92,6 +101,18 @@ public partial class SpellParticleInstance3D : Node3D
 		{
 			_particles.Emitting = false;
 		}
+	}
+
+	public void PlayOneShot()
+	{
+		EnsureComponents();
+		ApplyConfig();
+
+		if (_particles == null) return;
+
+		_particles.OneShot = true;
+		_particles.Emitting = true;
+		_particles.Restart();
 	}
 
 	public float SpeedScale
@@ -204,7 +225,7 @@ public partial class SpellParticleInstance3D : Node3D
 		var gradTex = new GradientTexture1D();
 		gradTex.Gradient = gradient;
 		_processMaterial.ColorRamp = gradTex;
-		_processMaterial.Color = Colors.White;
+		_processMaterial.Color = _playerColor;
 	}
 
 	private void ApplyScaleCurve()

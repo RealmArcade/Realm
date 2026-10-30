@@ -1,3 +1,5 @@
+using Realm.Ecs.Components.Terrain;
+
 namespace Realm.Shared.Metadata;
 
 public class TextureMetadata
@@ -23,7 +25,9 @@ public class TextureMetadata
 	public float Specular { get; set; }
 	public float Roughness { get; set; }
 	public float Metallic { get; set; }
-	public int DefaultPathingCode { get; set; } = 8 | 32 | 4;
+	public int DefaultPathingCode { get; set; } = TerrainPathing.DefaultPathingCode_Ground;
 	public List<ProceduralBombingDecalRule> DecalBombingRules { get; set; } = new();
 	public List<ProceduralBombingVfxRule> VfxBombingRules { get; set; } = new();
+
+	public string? Attribution_ImportedFromMap { get; set; }
 }

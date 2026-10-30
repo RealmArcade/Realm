@@ -156,14 +156,14 @@ public static class AnimationRetargetingService
 	private static string TryResolveInActiveMap(List<string> candidateNames)
 	{
 		string activeMap = null;
-		if (GameHost.Instance != null)
+		if (GameContext.Host != null)
 		{
-			activeMap = ECSContext.ActiveMapName;
+			activeMap = GameContext.Simulation.ActiveMapName;
 		}
 
-		if (string.IsNullOrEmpty(activeMap) && LobbyManager.Instance != null)
+		if (string.IsNullOrEmpty(activeMap) && GameContext.Lobby != null)
 		{
-			activeMap = LobbyManager.Instance.ActiveMapName;
+			activeMap = GameContext.Lobby.ActiveMapName;
 		}
 
 		if (string.IsNullOrEmpty(activeMap)) return null;
@@ -172,7 +172,7 @@ public static class AnimationRetargetingService
 		if (result != null) return result;
 
 		string currentMapDir = null;
-		if (GameHost.Instance != null)
+		if (GameContext.Host != null)
 		{
 			currentMapDir = GameContext.MapStorageService.CurrentMapDirectory;
 		}
@@ -345,7 +345,7 @@ public static class AnimationRetargetingService
 	{
 		int targetBoneIndex = -1;
 		targetBoneName = string.Empty;
-		canonicalBone = HumanoidBone.Hips; // Default, might not be used if not matched
+		canonicalBone = HumanoidBone.Hips;
 
 		if (HumanoidBoneMapper.TryMapToCanonical(track.BoneName, out canonicalBone))
 		{
@@ -606,7 +606,7 @@ public static class AnimationRetargetingService
 
 	private static Dictionary<string, List<UnitAnimationEntry>>? GetCustomAnimations(string unitId)
 	{
-		if (!string.IsNullOrEmpty(unitId) && GameHost.Instance != null && GameHost.UnitRegistry.TryGetValue(unitId, out var meta))
+		if (!string.IsNullOrEmpty(unitId) && GameContext.Host != null && GameHost.UnitRegistry.TryGetValue(unitId, out var meta))
 		{
 			return meta.Animations;
 		}

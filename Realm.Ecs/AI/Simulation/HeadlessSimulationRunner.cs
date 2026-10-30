@@ -229,6 +229,60 @@ public class HeadlessSimulationRunner
 		return finalP0Count > finalP1Count ? 0 : (finalP1Count > finalP0Count ? 1 : -1);
 	}
 
+	public string VerifyDeterminism(int seed, float[] weights, int maxTicks = 500, float epsilon = 0.1f)
+	{
+		ulong firstDigest = RunSeededMatch(seed, weights, maxTicks, epsilon, out int firstWinner, out int firstTicks);
+		ulong secondDigest = RunSeededMatch(seed, weights, maxTicks, epsilon, out int secondWinner, out int secondTicks);
+
+		bool identical = firstDigest == secondDigest && firstWinner == secondWinner && firstTicks == secondTicks;
+		if (identical)
+		{
+			return $"Determinism verified for seed {seed}: matching simulation digest {firstDigest:X16}, winner {firstWinner}, ticks {firstTicks}.";
+		}
+
+		return $"Determinism failed for seed {seed}: first digest {firstDigest:X16} (winner {firstWinner}, ticks {firstTicks}) differs from second digest {secondDigest:X16} (winner {secondWinner}, ticks {secondTicks}).";
+	}
+
+	private ulong RunSeededMatch(int seed, float[] weights, int maxTicks, float epsilon, out int winner, out int ticks)
+	{
+		SeededRandom.Shared.Reset(seed);
+		SimulationMatchResult result = RunMatch(weights, weights, maxTicks, epsilon: epsilon);
+		winner = result.WinnerPlayerIndex;
+		ticks = result.TotalTicksExecuted;
+		return MixDigest(ComputeWorldDigest(), (ulong)SeededRandom.Shared.DrawCount);
+	}
+
+	private ulong ComputeWorldDigest()
+	{
+		ulong digest = 14695981039346656037UL;
+		_world.Query(in AliveUnitsQuery, (Entity entity, ref UnitOwnerPlayer owner) =>
+		{
+			digest = MixDigest(digest, (ulong)entity.Id);
+			digest = MixDigest(digest, (ulong)(uint)owner.PlayerIndex);
+
+			if (_world.Has<Position>(entity))
+			{
+				Vector3 position = _world.Get<Position>(entity).Value;
+				digest = MixDigest(digest, BitConverter.SingleToUInt32Bits(position.X));
+				digest = MixDigest(digest, BitConverter.SingleToUInt32Bits(position.Y));
+				digest = MixDigest(digest, BitConverter.SingleToUInt32Bits(position.Z));
+			}
+
+			if (_world.Has<Health>(entity))
+			{
+				digest = MixDigest(digest, BitConverter.SingleToUInt32Bits(_world.Get<Health>(entity).CurrentHp));
+			}
+		});
+		return digest;
+	}
+
+	private static ulong MixDigest(ulong digest, ulong value)
+	{
+		digest ^= value;
+		digest *= 1099511628211UL;
+		return digest;
+	}
+
 	public SimulationMatchResult RunMatch(
 		float[] p0Weights,
 		float[] p1Weights,
@@ -238,7 +292,8 @@ public class HeadlessSimulationRunner
 		MapSimulationInitializer? customInitializer = null,
 		float p0Temperature = 0.0f,
 		float p1Temperature = 0.0f,
-		IAiGenreProvider? genreProvider = null)
+		IAiGenreProvider? genreProvider = null,
+		float epsilon = 0.0f)
 	{
 		if (genreProvider != null)
 		{
@@ -249,7 +304,7 @@ public class HeadlessSimulationRunner
 
 		for (int tick = 0; tick < maxTicks; tick++)
 		{
-			Tick(fixedDelta, p0Weights, p1Weights, p0Temperature, p1Temperature);
+			Tick(fixedDelta, p0Weights, p1Weights, p0Temperature, p1Temperature, epsilon);
 
 			float currentDuration = (tick + 1) * fixedDelta;
 			int? winner = CheckEarlyWinCondition(winConditionEvaluator, currentDuration);

@@ -308,10 +308,6 @@
         HowToPlayObjective: document.getElementById('prop-HowToPlayObjective')
     };
 
-    const instructionInput = document.getElementById('instruction-input');
-    const addInstructionBtn = document.getElementById('add-instruction-btn');
-    const instructionsTags = document.getElementById('instructions-tags');
-
     const addPlayerSlotBtn = document.getElementById('add-player-slot-btn');
     const playerSlotsList = document.getElementById('player-slots-list');
 
@@ -917,7 +913,6 @@
             }
         }
 
-        renderTags('instructions', props.HowToPlayInstructions || []);
         renderPlayerSlots();
         renderTeams();
         renderChangelog();
@@ -927,7 +922,6 @@
         let container;
         if (type === 'build-options') container = buildOptionsTags;
         else if (type === 'abilities') container = abilitiesTags;
-        else if (type === 'instructions') container = instructionsTags;
         else if (type === 'weapons') container = weaponsTags;
         else if (type === 'items') container = itemsTags;
         else if (type === 'upgrades') container = upgradesTags;
@@ -991,16 +985,6 @@
     }
 
     function removeTagItem(type, index) {
-        if (type === 'instructions') {
-            if (!units.MapProperties) units.MapProperties = {};
-            const list = units.MapProperties.HowToPlayInstructions || [];
-            list.splice(index, 1);
-            units.MapProperties.HowToPlayInstructions = list;
-            saveChanges();
-            renderTags(type, list);
-            return;
-        }
-
         const unit = getUnitById(selectedUnitId);
         if (!selectedUnitId || !unit) return;
         
@@ -1032,20 +1016,6 @@
         else if (type === 'upgrades') { inputEl = upgradeInput; key = 'Upgrades'; }
         else if (type === 'statuseffects') { inputEl = statuseffectInput; key = 'StatusEffects'; }
         else if (type === 'soundevents') { inputEl = soundeventInput; key = 'SoundEvents'; }
-        else if (type === 'instructions') {
-            if (!units.MapProperties) units.MapProperties = {};
-            const val = instructionInput.value.trim();
-            if (val) {
-                pushToUndoStack();
-                const list = units.MapProperties.HowToPlayInstructions || [];
-                list.push(val);
-                units.MapProperties.HowToPlayInstructions = list;
-                instructionInput.value = '';
-                saveChanges();
-                renderTags(type, list);
-            }
-            return;
-        }
 
         const unit = getUnitById(selectedUnitId);
         if (!selectedUnitId || !unit || !inputEl || !key) return;
@@ -3685,11 +3655,6 @@
     addSoundeventBtn.addEventListener('click', () => addTagItem('soundevents'));
     soundeventInput.addEventListener('keydown', e => {
         if (e.key === 'Enter') addTagItem('soundevents');
-    });
-
-    addInstructionBtn.addEventListener('click', () => addTagItem('instructions'));
-    instructionInput.addEventListener('keydown', e => {
-        if (e.key === 'Enter') addTagItem('instructions');
     });
 
     addPlayerSlotBtn.addEventListener('click', () => {

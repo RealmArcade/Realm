@@ -20,7 +20,9 @@ using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Meta;
 using Realm.Ecs.Components.Terrain;
 using Realm.Shared.Distribution;
+using Realm.Shared.Maps;
 using Realm.Shared.Services;
+using Realm.Shared.Textures;
 using FileAccess = System.IO.FileAccess;
 using Vector3 = System.Numerics.Vector3;
 
@@ -39,50 +41,6 @@ public class SaveLoadService
 		Converters = { new JsonStringEnumConverter() },
 		Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
 	};
-
-	public SaveLoadService()
-	{
-	}
-
-	public TerrainSplatWeights[,] GenerateSplatMapFromImages(byte[] idxBytes, byte[] wgtBytes, int splatW, int splatD, int sW, int sD, int wgtW, int wgtD)
-	{
-		var splatMap = new TerrainSplatWeights[splatW, splatD];
-		ReadOnlySpan<float> idxData = MemoryMarshal.Cast<byte, float>(idxBytes);
-		ReadOnlySpan<float> wgtData = MemoryMarshal.Cast<byte, float>(wgtBytes);
-
-		for (int z = 0; z < splatD; z++)
-		{
-			for (int x = 0; x < splatW; x++)
-			{
-				int srcIdxX = sW == splatW ? x : Math.Clamp((int)Math.Floor(x * (float)(sW - 1) / Math.Max(1, splatW - 1)), 0, sW - 1);
-				int srcIdxZ = sD == splatD ? z : Math.Clamp((int)Math.Floor(z * (float)(sD - 1) / Math.Max(1, splatD - 1)), 0, sD - 1);
-				int idxOffset = (srcIdxZ * sW + srcIdxX) * 4;
-
-				int srcWgtX = wgtW == splatW ? x : Math.Clamp((int)Math.Floor(x * (float)(wgtW - 1) / Math.Max(1, splatW - 1)), 0, wgtW - 1);
-				int srcWgtZ = wgtD == splatD ? z : Math.Clamp((int)Math.Floor(z * (float)(wgtD - 1) / Math.Max(1, splatD - 1)), 0, wgtD - 1);
-				int weightOffset = (srcWgtZ * wgtW + srcWgtX) * 4;
-
-				splatMap[x, z] = CreateTerrainSplatWeights(idxData, idxOffset, wgtData, weightOffset);
-			}
-		}
-
-		return splatMap;
-	}
-
-	private TerrainSplatWeights CreateTerrainSplatWeights(ReadOnlySpan<float> idxData, int idxOffset, ReadOnlySpan<float> wgtData, int weightOffset)
-	{
-		return new TerrainSplatWeights
-		{
-			Index0 = (int)Math.Round(idxData[idxOffset + 0]),
-			Index1 = (int)Math.Round(idxData[idxOffset + 1]),
-			Index2 = (int)Math.Round(idxData[idxOffset + 2]),
-			Index3 = (int)Math.Round(idxData[idxOffset + 3]),
-			Weight0 = wgtData[weightOffset + 0],
-			Weight1 = wgtData[weightOffset + 1],
-			Weight2 = wgtData[weightOffset + 2],
-			Weight3 = wgtData[weightOffset + 3]
-		};
-	}
 
 	public TerrainSplatWeights[,] GenerateFallbackSplatMap(int splatW, int splatD, int width, int depth)
 	{
@@ -208,114 +166,26 @@ public class SaveLoadService
 	{
 		SaveHeightsAndWater(directory, width, depth, terrain);
 		SavePathing(directory, width, depth, terrain);
-		SaveSplatData(directory, width, depth, htmlColors, "terrain_splat");
-		SaveSplatData(directory, width, depth, cliffHtmlColors, "terrain_cliff_splat");
+		SaveSplatData(directory, width, depth, htmlColors, MapTerrainFiles.SplatPrefix);
+		SaveSplatData(directory, width, depth, cliffHtmlColors, MapTerrainFiles.CliffSplatPrefix);
 	}
 
 	private void SaveHeightsAndWater(string directory, int width, int depth, TerrainState terrain)
 	{
-		byte[] heightsBytes = new byte[width * depth * 4 * sizeof(float)];
-		Span<float> heightsSpan = MemoryMarshal.Cast<byte, float>(heightsBytes.AsSpan());
-
-		byte[] waterBytes = new byte[width * depth * 4 * sizeof(float)];
-		Span<float> waterSpan = MemoryMarshal.Cast<byte, float>(waterBytes.AsSpan());
-
-		var cells = terrain.Cells;
-		for (int z = 0; z < depth; z++)
-		{
-			for (int x = 0; x < width; x++)
-			{
-				var cell = cells != null ? cells[x, z] : default;
-				int baseIdx = (z * width + x) * 4;
-
-				heightsSpan[baseIdx + 0] = cell.Y_NW;
-				heightsSpan[baseIdx + 1] = cell.Y_NE;
-				heightsSpan[baseIdx + 2] = cell.Y_SE;
-				heightsSpan[baseIdx + 3] = cell.Y_SW;
-
-				waterSpan[baseIdx + 0] = (float)cell.WaterMode;
-				waterSpan[baseIdx + 1] = (float)cell.WaterProfileIndex;
-				waterSpan[baseIdx + 2] = cell.WaterHeight;
-				waterSpan[baseIdx + 3] = 1f;
-			}
-		}
-
-		Image heightsImage = Image.CreateFromData(width, depth, false, Image.Format.Rgbaf, heightsBytes);
-		Image waterImage = Image.CreateFromData(width, depth, false, Image.Format.Rgbaf, waterBytes);
-		SaveExrSafe(heightsImage, Path.Combine(directory, "terrain_heights.exr"));
-		SaveExrSafe(waterImage, Path.Combine(directory, "terrain_water.exr"));
+		MapTerrainFiles.WriteHeightsAndWater(directory, width, depth, terrain.Cells);
 	}
 
 	private void SavePathing(string directory, int width, int depth, TerrainState terrain)
 	{
-		byte[] pathingBytes = new byte[width * depth * 4];
-		Span<byte> pathingSpan = pathingBytes.AsSpan();
-
-		for (int z = 0; z < depth; z++)
-		{
-			for (int x = 0; x < width; x++)
-			{
-				int code = terrain.PathingCodes != null ? terrain.PathingCodes[x, z] : EditableTerrain.GetDefaultPathingCode(WaterType.None);
-				int baseIdx = (z * width + x) * 4;
-
-				pathingSpan[baseIdx + 0] = (byte)code;
-				pathingSpan[baseIdx + 1] = 0;
-				pathingSpan[baseIdx + 2] = 0;
-				pathingSpan[baseIdx + 3] = 255;
-			}
-		}
-
-		Image pathingImage = Image.CreateFromData(width, depth, false, Image.Format.Rgba8, pathingBytes);
-		SavePngSafe(pathingImage, Path.Combine(directory, "terrain_pathing.png"));
+		MapTerrainFiles.WritePathing(directory, width, depth, terrain.PathingCodes, WaterType.None);
 	}
 
 	private void SaveSplatData(string directory, int width, int depth, string[] htmlColors, string prefix)
 	{
 		if (htmlColors == null) return;
+		if (!MapTerrainFiles.TryResolveSplatDimensions(width, depth, htmlColors.Length, out int splatW, out int splatD)) return;
 
-		int splatW = width;
-		int splatD = depth;
-		if (htmlColors.Length == (width + 1) * (depth + 1))
-		{
-			splatW = width + 1;
-			splatD = depth + 1;
-		}
-		else if (htmlColors.Length != width * depth)
-		{
-			return;
-		}
-
-		byte[] splatIndicesBytes = new byte[splatW * splatD * 4 * sizeof(float)];
-		Span<float> splatIndicesSpan = MemoryMarshal.Cast<byte, float>(splatIndicesBytes.AsSpan());
-
-		byte[] splatWeightsBytes = new byte[splatW * splatD * 4 * sizeof(float)];
-		Span<float> splatWeightsSpan = MemoryMarshal.Cast<byte, float>(splatWeightsBytes.AsSpan());
-
-		for (int z = 0; z < splatD; z++)
-		{
-			for (int x = 0; x < splatW; x++)
-			{
-				int idx = z * splatW + x;
-				string serialized = idx < htmlColors.Length ? htmlColors[idx] : null;
-				TerrainSplatWeights s = TerrainSplatWeights.Deserialize(serialized);
-				int baseIdx = idx * 4;
-
-				splatIndicesSpan[baseIdx + 0] = s.Index0;
-				splatIndicesSpan[baseIdx + 1] = s.Index1;
-				splatIndicesSpan[baseIdx + 2] = s.Index2;
-				splatIndicesSpan[baseIdx + 3] = s.Index3;
-
-				splatWeightsSpan[baseIdx + 0] = s.Weight0;
-				splatWeightsSpan[baseIdx + 1] = s.Weight1;
-				splatWeightsSpan[baseIdx + 2] = s.Weight2;
-				splatWeightsSpan[baseIdx + 3] = s.Weight3;
-			}
-		}
-
-		Image splatIndicesImage = Image.CreateFromData(splatW, splatD, false, Image.Format.Rgbaf, splatIndicesBytes);
-		Image splatWeightsImage = Image.CreateFromData(splatW, splatD, false, Image.Format.Rgbaf, splatWeightsBytes);
-		SaveExrSafe(splatIndicesImage, Path.Combine(directory, $"{prefix}_indices.exr"));
-		SaveExrSafe(splatWeightsImage, Path.Combine(directory, $"{prefix}_weights.exr"));
+		MapTerrainFiles.WriteSplat(directory, prefix, splatW, splatD, htmlColors);
 	}
 
 	public bool SaveMapToFile(
@@ -370,7 +240,7 @@ public class SaveLoadService
 			EditorService.LastInternalSaveTimeUtc = DateTime.UtcNow;
 			MapFileService.SaveTerrain(absolutePath, saveData);
 
-			GameHost.Instance?.SaveModelYOffsetsToMetadataJson(directory);
+			GameContext.Host?.SaveModelYOffsetsToMetadataJson(directory);
 			SyncMetadataAssetsAndPrune(directory);
 			CleanMetadataFile(directory, terrain.Width, terrain.Depth);
 			MapWorkspaceService.EnsureLicenseFile(directory);
@@ -543,7 +413,7 @@ public class SaveLoadService
 	private List<VfxSaveData> GetVfxSaveData()
 	{
 		var vfxList = new List<VfxSaveData>();
-		var allVfx = GameHost.Instance?.AllVfx;
+		var allVfx = GameContext.Host?.AllVfx;
 		if (allVfx == null) return vfxList;
 
 		foreach (var vfx in allVfx)
@@ -713,7 +583,7 @@ public class SaveLoadService
 			if (saveData == null) return false;
 
 			string mapDir = Path.GetDirectoryName(absolutePath);
-			GameHost.Instance?.LoadModelYOffsetsFromMetadataJson(mapDir);
+			GameContext.Host?.LoadModelYOffsetsFromMetadataJson(mapDir);
 
 			_lastLoadedCoordinates = saveData.Coordinates ?? new List<CoordinateSaveData>();
 
@@ -773,16 +643,8 @@ public class SaveLoadService
 
 	private void LoadTerrainHeights(string directory, int width, int depth, ref TerrainState ts, ref TerrainCell[,] unscaledCells, ref int unscaledW, ref int unscaledH)
 	{
-		string heightsPath = Path.Combine(directory, "terrain_heights.exr");
-		if (!File.Exists(heightsPath)) return;
-
-		Image heightsImage = Image.LoadFromFile(heightsPath);
-		if (heightsImage == null) return;
-
-		heightsImage.Convert(Image.Format.Rgbaf);
-		int imgW = heightsImage.GetWidth();
-		int imgH = heightsImage.GetHeight();
-		ReadOnlySpan<float> floatData = MemoryMarshal.Cast<byte, float>(heightsImage.GetData());
+		float[] floatData = MapTerrainFiles.TryReadHeights(directory, out int imgW, out int imgH);
+		if (floatData == null) return;
 
 		if (imgW == width && imgH == depth)
 		{
@@ -799,15 +661,7 @@ public class SaveLoadService
 		{
 			unscaledW = imgW;
 			unscaledH = imgH;
-			unscaledCells = new TerrainCell[imgW, imgH];
-			for (int z = 0; z < imgH; z++)
-			{
-				for (int x = 0; x < imgW; x++)
-				{
-					int baseIdx = (z * imgW + x) * 4;
-					unscaledCells[x, z] = new TerrainCell(floatData[baseIdx], floatData[baseIdx + 1], floatData[baseIdx + 2], floatData[baseIdx + 3]);
-				}
-			}
+			unscaledCells = MapTerrainFiles.CellsFromHeights(floatData, imgW, imgH);
 
 			ScaleTerrainHeights(width, depth, imgW, imgH, floatData, ref ts);
 		}
@@ -846,98 +700,41 @@ public class SaveLoadService
 
 	private void LoadTerrainWater(string directory, int width, int depth, ref TerrainState ts, ref TerrainCell[,] unscaledCells, ref int unscaledW, ref int unscaledH)
 	{
-		string waterPath = Path.Combine(directory, "terrain_water.exr");
-		if (!File.Exists(waterPath)) return;
-
-		Image waterImage = Image.LoadFromFile(waterPath);
-		if (waterImage == null) return;
-
-		waterImage.Convert(Image.Format.Rgbaf);
-		int imgW = waterImage.GetWidth();
-		int imgH = waterImage.GetHeight();
-		ReadOnlySpan<float> waterFloatData = MemoryMarshal.Cast<byte, float>(waterImage.GetData());
+		float[] waterFloatData = MapTerrainFiles.TryReadWater(directory, out int imgW, out int imgH);
+		if (waterFloatData == null) return;
 
 		if (imgW == width && imgH == depth && unscaledCells == null)
 		{
-			PopulateWaterScaled(width, depth, ref ts, waterFloatData, imgW);
+			MapTerrainFiles.ApplyWater(waterFloatData, imgW, imgH, ts.Cells);
 		}
 		else
 		{
-			PopulateWaterUnscaled(imgW, imgH, ref unscaledCells, ref unscaledW, ref unscaledH, waterFloatData);
-		}
-	}
-
-	private void PopulateWaterScaled(int width, int depth, ref TerrainState ts, ReadOnlySpan<float> waterFloatData, int imgW)
-	{
-		for (int z = 0; z < depth; z++)
-		{
-			for (int x = 0; x < width; x++)
+			if (unscaledCells == null || unscaledW != imgW || unscaledH != imgH)
 			{
-				int baseIdx = (z * imgW + x) * 4;
-				ts.Cells[x, z].WaterMode = (WaterType)Math.Clamp((int)MathF.Round(waterFloatData[baseIdx + 0]), 0, 2);
-				ts.Cells[x, z].WaterProfileIndex = (byte)Math.Clamp((int)MathF.Round(waterFloatData[baseIdx + 1]), 0, 255);
-				ts.Cells[x, z].WaterHeight = waterFloatData[baseIdx + 2];
+				unscaledCells = new TerrainCell[imgW, imgH];
+				unscaledW = imgW;
+				unscaledH = imgH;
 			}
-		}
-	}
 
-	private void PopulateWaterUnscaled(int imgW, int imgH, ref TerrainCell[,] unscaledCells, ref int unscaledW, ref int unscaledH, ReadOnlySpan<float> waterFloatData)
-	{
-		if (unscaledCells == null || unscaledW != imgW || unscaledH != imgH)
-		{
-			unscaledCells = new TerrainCell[imgW, imgH];
-			unscaledW = imgW;
-			unscaledH = imgH;
-		}
-
-		for (int z = 0; z < imgH; z++)
-		{
-			for (int x = 0; x < imgW; x++)
-			{
-				int baseIdx = (z * imgW + x) * 4;
-				unscaledCells[x, z].WaterMode = (WaterType)Math.Clamp((int)MathF.Round(waterFloatData[baseIdx + 0]), 0, 2);
-				unscaledCells[x, z].WaterProfileIndex = (byte)Math.Clamp((int)MathF.Round(waterFloatData[baseIdx + 1]), 0, 255);
-				unscaledCells[x, z].WaterHeight = waterFloatData[baseIdx + 2];
-			}
+			MapTerrainFiles.ApplyWater(waterFloatData, imgW, imgH, unscaledCells);
 		}
 	}
 
 	private void LoadTerrainPathing(string directory, int width, int depth, ref TerrainState ts)
 	{
-		string pathingPath = Path.Combine(directory, "terrain_pathing.png");
-		if (!File.Exists(pathingPath))
+		byte[]? byteData = MapTerrainFiles.TryReadPathing(directory, out int imgW, out int imgH);
+		if (byteData == null)
 		{
 			SetDefaultPathing(width, depth, ref ts);
 			return;
 		}
 
-		Image pathingImage = Image.LoadFromFile(pathingPath);
-		if (pathingImage == null)
-		{
-			SetDefaultPathing(width, depth, ref ts);
-			return;
-		}
-
-		pathingImage.Convert(Image.Format.Rgba8);
-		int imgW = pathingImage.GetWidth();
-		int imgH = pathingImage.GetHeight();
-		ReadOnlySpan<byte> byteData = pathingImage.GetData();
-
-		for (int z = 0; z < depth; z++)
-		{
-			for (int x = 0; x < width; x++)
-			{
-				int srcX = imgW == width ? x : Math.Clamp((int)Math.Floor(x * (float)imgW / width), 0, imgW - 1);
-				int srcZ = imgH == depth ? z : Math.Clamp((int)Math.Floor(z * (float)imgH / depth), 0, imgH - 1);
-				int baseIdx = (srcZ * imgW + srcX) * 4;
-				ts.PathingCodes[x, z] = byteData[baseIdx + 0];
-			}
-		}
+		MapTerrainFiles.ApplyPathing(byteData, imgW, imgH, ts.PathingCodes, width, depth);
 	}
 
 	private void SetDefaultPathing(int width, int depth, ref TerrainState ts)
 	{
-		int defaultPathing = EditableTerrain.GetDefaultPathingCode(WaterType.None);
+		int defaultPathing = TerrainPathing.DefaultPathingCodeByWaterType(WaterType.None);
 		for (int z = 0; z < depth; z++)
 		{
 			for (int x = 0; x < width; x++)
@@ -949,15 +746,8 @@ public class SaveLoadService
 
 	private void LoadSplatColors(string absolutePath, Entity worldEntity, int width, int depth)
 	{
-		string splatIndicesPath = Path.Combine(Path.GetDirectoryName(absolutePath), "terrain_splat_indices.exr");
-		string splatWeightsPath = Path.Combine(Path.GetDirectoryName(absolutePath), "terrain_splat_weights.exr");
-
-		string[] loadedColors = null;
-
-		if (File.Exists(splatIndicesPath) && File.Exists(splatWeightsPath))
-		{
-			loadedColors = ReadSplatImages(splatIndicesPath, splatWeightsPath, width, depth);
-		}
+		string directory = Path.GetDirectoryName(absolutePath);
+		string[]? loadedColors = MapTerrainFiles.ReadSplat(directory, MapTerrainFiles.SplatPrefix, width + 1, depth + 1);
 
 		if (loadedColors == null)
 		{
@@ -972,54 +762,13 @@ public class SaveLoadService
 		GameContext.World.SetOrAdd(worldEntity, new TerrainColorsState(loadedColors));
 	}
 
-	private string[] ReadSplatImages(string splatIndicesPath, string splatWeightsPath, int width, int depth)
-	{
-		Image splatIndicesImage = Image.LoadFromFile(splatIndicesPath);
-		Image splatWeightsImage = Image.LoadFromFile(splatWeightsPath);
-
-		if (splatIndicesImage == null || splatWeightsImage == null) return null;
-
-		splatIndicesImage.Convert(Image.Format.Rgbaf);
-		splatWeightsImage.Convert(Image.Format.Rgbaf);
-		int idxW = splatIndicesImage.GetWidth();
-		int idxH = splatIndicesImage.GetHeight();
-		int wgtW = splatWeightsImage.GetWidth();
-		int wgtH = splatWeightsImage.GetHeight();
-
-		ReadOnlySpan<float> idxData = MemoryMarshal.Cast<byte, float>(splatIndicesImage.GetData());
-		ReadOnlySpan<float> wgtData = MemoryMarshal.Cast<byte, float>(splatWeightsImage.GetData());
-
-		int splatW = width + 1;
-		int splatD = depth + 1;
-		string[] loadedColors = new string[splatW * splatD];
-
-		for (int z = 0; z < splatD; z++)
-		{
-			for (int x = 0; x < splatW; x++)
-			{
-				int srcIdxX = idxW == splatW ? x : Math.Clamp((int)Math.Floor(x * (float)(idxW - 1) / Math.Max(1, splatW - 1)), 0, idxW - 1);
-				int srcIdxZ = idxH == splatD ? z : Math.Clamp((int)Math.Floor(z * (float)(idxH - 1) / Math.Max(1, splatD - 1)), 0, idxH - 1);
-				int idxOffset = (srcIdxZ * idxW + srcIdxX) * 4;
-
-				int srcWgtX = wgtW == splatW ? x : Math.Clamp((int)Math.Floor(x * (float)(wgtW - 1) / Math.Max(1, splatW - 1)), 0, wgtW - 1);
-				int srcWgtZ = wgtH == splatD ? z : Math.Clamp((int)Math.Floor(z * (float)(wgtH - 1) / Math.Max(1, splatD - 1)), 0, wgtH - 1);
-				int weightOffset = (srcWgtZ * wgtW + srcWgtX) * 4;
-
-				var s = CreateTerrainSplatWeights(idxData, idxOffset, wgtData, weightOffset);
-
-				loadedColors[z * splatW + x] = s.Serialize();
-			}
-		}
-
-		return loadedColors;
-	}
-
 	private void LoadEditorAndCameraState(Entity worldEntity, MapSaveData saveData)
 	{
-		float left = saveData.CameraBoundsLeft ?? -95.0f;
-		float right = saveData.CameraBoundsRight ?? 95.0f;
-		float top = saveData.CameraBoundsTop ?? -95.0f;
-		float bottom = saveData.CameraBoundsBottom ?? 125.0f;
+		MapCameraBounds defaultBounds = MapCameraBounds.FromTerrain(saveData.Width, saveData.Depth, RuntimeTerrain.DefaultQuadSize);
+		float left = saveData.CameraBoundsLeft ?? defaultBounds.Left;
+		float right = saveData.CameraBoundsRight ?? defaultBounds.Right;
+		float top = saveData.CameraBoundsTop ?? defaultBounds.Top;
+		float bottom = saveData.CameraBoundsBottom ?? defaultBounds.Bottom;
 
 		WaterType currentWaterMode = GameContext.World.Has<EditorState>(worldEntity) ? GameContext.World.Get<EditorState>(worldEntity).WaterMode : WaterType.None;
 		byte currentWaterProf = GameContext.World.Has<EditorState>(worldEntity) ? GameContext.World.Get<EditorState>(worldEntity).WaterProfileIndex : (byte)0;
@@ -1087,10 +836,10 @@ public class SaveLoadService
 
 	private void SpawnVfx(List<VfxSaveData>? vfxList)
 	{
-		if (vfxList == null || GameHost.Instance == null) return;
+		if (vfxList == null || GameContext.Host == null) return;
 		foreach (var v in vfxList)
 		{
-			GameHost.Instance.SpawnVfxExternalWithParams(
+			GameContext.Host.SpawnVfxExternalWithParams(
 				v.VfxId, new Godot.Vector3(v.PosX, v.PosY, v.PosZ), new Godot.Vector3(v.RotationX, v.RotationY, v.RotationZ),
 				new Godot.Vector3(v.ScaleX <= 0f ? 1f : v.ScaleX, v.ScaleY <= 0f ? 1f : v.ScaleY, v.ScaleZ <= 0f ? 1f : v.ScaleZ),
 				v.NormalOffset, v.Config
@@ -1102,31 +851,16 @@ public class SaveLoadService
 	{
 		if (string.IsNullOrEmpty(mapDirectory) || remap == null || remap.Count == 0) return;
 
-		string[] indicesFiles = new[]
-		{
-			Path.Combine(mapDirectory, "terrain_splat_indices.exr"),
-			Path.Combine(mapDirectory, "terrain_cliff_splat_indices.exr")
-		};
-
-		foreach (string file in indicesFiles)
-		{
-			RemapSingleSplatExrFile(file, remap);
-		}
+		RemapSplatIndicesFile(MapTerrainFiles.SplatIndicesPath(mapDirectory, MapTerrainFiles.SplatPrefix), remap);
+		RemapSplatIndicesFile(MapTerrainFiles.SplatIndicesPath(mapDirectory, MapTerrainFiles.CliffSplatPrefix), remap);
 	}
 
-	private static void RemapSingleSplatExrFile(string file, IReadOnlyDictionary<int, int> remap)
+	private static void RemapSplatIndicesFile(string file, IReadOnlyDictionary<int, int> remap)
 	{
 		if (!File.Exists(file)) return;
 		try
 		{
-			var img = Image.LoadFromFile(file);
-			if (img == null) return;
-
-			img.Convert(Image.Format.Rgbaf);
-			int w = img.GetWidth();
-			int h = img.GetHeight();
-			byte[] data = img.GetData();
-			Span<float> floats = MemoryMarshal.Cast<byte, float>(data.AsSpan());
+			float[] floats = ExrImageCodec.DecodeRgbaFloat(file, out int width, out int height);
 			bool modified = false;
 			for (int i = 0; i < floats.Length; i++)
 			{
@@ -1140,8 +874,7 @@ public class SaveLoadService
 
 			if (modified)
 			{
-				var updatedImg = Image.CreateFromData(w, h, false, Image.Format.Rgbaf, data);
-				updatedImg.SaveExr(file);
+				ExrImageCodec.EncodeRgbaFloat(file, floats, width, height);
 			}
 		}
 		catch (Exception ex)
@@ -1448,32 +1181,6 @@ public class SaveLoadService
 		}
 
 		CopyFilesParallel(filesToCopy);
-	}
-
-	private static bool SaveExrSafe(Image image, string path, int maxRetries = 5)
-	{
-		for (int i = 0; i < maxRetries; i++)
-		{
-			var err = image.SaveExr(path);
-			if (err == Error.Ok) return true;
-			Thread.Sleep(25);
-		}
-
-		GD.PrintErr($"[SaveLoadService] Failed to save EXR file: {path}");
-		return false;
-	}
-
-	private static bool SavePngSafe(Image image, string path, int maxRetries = 5)
-	{
-		for (int i = 0; i < maxRetries; i++)
-		{
-			var err = image.SavePng(path);
-			if (err == Error.Ok) return true;
-			Thread.Sleep(25);
-		}
-
-		GD.PrintErr($"[SaveLoadService] Failed to save PNG file: {path}");
-		return false;
 	}
 
 	private static void PruneOldBackups(string backupsRoot, int maxBackups)

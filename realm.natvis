@@ -12,54 +12,6 @@
       <Item Name="Value">Value</Item>
     </Expand>
   </Type>
-  <Type Name="Realm.MapAPI.LootItemId">
-    <DisplayString>LootItem {{Value}}</DisplayString>
-    <Expand>
-      <Item Name="Value">Value</Item>
-    </Expand>
-  </Type>
-  <Type Name="Realm::MapAPI::LootItemId">
-    <DisplayString>LootItem {{Value}}</DisplayString>
-    <Expand>
-      <Item Name="Value">Value</Item>
-    </Expand>
-  </Type>
-  <Type Name="Realm.MapAPI.PlayerId">
-    <DisplayString>Player {{Value}}</DisplayString>
-    <Expand>
-      <Item Name="Value">Value</Item>
-    </Expand>
-  </Type>
-  <Type Name="Realm::MapAPI::PlayerId">
-    <DisplayString>Player {{Value}}</DisplayString>
-    <Expand>
-      <Item Name="Value">Value</Item>
-    </Expand>
-  </Type>
-  <Type Name="Realm.MapAPI.ResourceNodeId">
-    <DisplayString>ResourceNode {{Value}}</DisplayString>
-    <Expand>
-      <Item Name="Value">Value</Item>
-    </Expand>
-  </Type>
-  <Type Name="Realm::MapAPI::ResourceNodeId">
-    <DisplayString>ResourceNode {{Value}}</DisplayString>
-    <Expand>
-      <Item Name="Value">Value</Item>
-    </Expand>
-  </Type>
-  <Type Name="Realm.MapAPI.UnitId">
-    <DisplayString>Unit {{Value}}</DisplayString>
-    <Expand>
-      <Item Name="Value">Value</Item>
-    </Expand>
-  </Type>
-  <Type Name="Realm::MapAPI::UnitId">
-    <DisplayString>Unit {{Value}}</DisplayString>
-    <Expand>
-      <Item Name="Value">Value</Item>
-    </Expand>
-  </Type>
   <Type Name="Realm.MapAPI.Components.UnitOwnerPlayer">
     <DisplayString>UnitOwnerPlayer {{Value}}</DisplayString>
     <Expand>

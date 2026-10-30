@@ -5,7 +5,10 @@ using Godot;
 using Realm.Client.Animation;
 using Realm.Client.Core;
 using Realm.Client.Services;
+using Realm.Client.Utils;
+using Realm.Shared.Metadata;
 using Realm.Shared.ModelOptimization;
+using Realm.Shared.Terrain;
 
 namespace Realm.Client.UI.MapEditor;
 
@@ -33,6 +36,17 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 	private CheckBox _chkMaskInvert;
 	private CheckBox _chkShowHeatmap;
 
+	private readonly HSlider[] _sldRegionMin = new HSlider[3];
+	private readonly Label[] _lblRegionMin = new Label[3];
+	private readonly HSlider[] _sldRegionMax = new HSlider[3];
+	private readonly Label[] _lblRegionMax = new Label[3];
+	private static readonly string[] _regionAxisNames = { "X", "Y", "Z" };
+	private const float RegionAutoDetectCreaseAngleDegrees = 50.0f;
+
+	private Button _btnRegionAutoDetect;
+	private Label _lblRegionAutoDetectStatus;
+	private bool _isRegionAutoDetectActive;
+
 	private HSlider _sldSwayFrequency;
 	private Label _lblSwayFrequency;
 	private HSlider _sldSwayAmplitude;
@@ -59,6 +73,16 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 
 	private HSlider _sldSimVelocity;
 	private Label _lblSimVelocity;
+
+	private Label _lblRegionResolution;
+	private LineEdit _txtRegionName;
+	private HSlider _sldRegionLowerEdge;
+	private Label _lblRegionLowerEdge;
+	private HSlider _sldRegionUpperEdge;
+	private Label _lblRegionUpperEdge;
+	private HSlider _sldRegionFeather;
+	private Label _lblRegionFeather;
+	private bool _suppressRegionSync;
 
 	private ProceduralAnimationConfig _config = new();
 	private ProceduralAnimationConfig _snapshot = new();
@@ -236,7 +260,8 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 		{
 			TranslationServer.Translate("0: Height Gradient (Y-Axis)").ToString(),
 			TranslationServer.Translate("1: Radial Distance (Center Axis)").ToString(),
-			TranslationServer.Translate("2: Normal Incline (Facing Direction)").ToString()
+			TranslationServer.Translate("2: Normal Incline (Facing Direction)").ToString(),
+			TranslationServer.Translate("3: Region Box (Explicit Part Volume)").ToString()
 		};
 
 		_optMaskMode = AddOptionDropdown(configVBox, TranslationServer.Translate("Mask Method:"), maskModes, (int)_config.MaskMode, (idx) =>
@@ -268,6 +293,10 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 			_config.MaskInvert = pressed;
 			UpdateShaderParameters();
 		});
+
+		BuildRegionBoxControls(configVBox);
+
+		BuildSwayRegionControls(configVBox);
 
 		AddSectionHeader(configVBox, "🌊 " + TranslationServer.Translate("SWAY & WIND MOTION DYNAMICS"), new Color(0.35f, 0.75f, 0.85f));
 
@@ -617,6 +646,8 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 		UpdateMaskControls();
 		UpdateSwayAndFlutterControls();
 		UpdateImpulseControls();
+		UpdateRegionControls();
+		UpdateRegionResolutionLabel();
 	}
 
 	private void UpdateTextControls()
@@ -627,12 +658,325 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 		if (_optMaskMode != null) _optMaskMode.Selected = (int)_config.MaskMode;
 	}
 
+	private void BuildRegionBoxControls(VBoxContainer parent)
+	{
+		for (int axis = 0; axis < _regionAxisNames.Length; axis++)
+		{			int axisIndex = axis;
+			string axisName = _regionAxisNames[axisIndex];
+
+			(_sldRegionMin[axisIndex], _lblRegionMin[axisIndex]) = AddSlider(
+				parent,
+				string.Format(TranslationServer.Translate("Region Min {0}:"), axisName),
+				-10.0f, 20.0f, 0.05f, GetRegionComponent(_config.MaskRegionMin, axisIndex),
+				(val) =>
+				{
+					_config.MaskRegionMin = WithRegionComponent(_config.MaskRegionMin, axisIndex, val);
+					UpdateShaderParameters();
+				}, "0.00", 150f);
+
+			(_sldRegionMax[axisIndex], _lblRegionMax[axisIndex]) = AddSlider(
+				parent,
+				string.Format(TranslationServer.Translate("Region Max {0}:"), axisName),
+				-10.0f, 30.0f, 0.05f, GetRegionComponent(_config.MaskRegionMax, axisIndex),
+				(val) =>
+				{
+					_config.MaskRegionMax = WithRegionComponent(_config.MaskRegionMax, axisIndex, val);
+					UpdateShaderParameters();
+				}, "0.00", 150f);
+		}
+
+		_btnRegionAutoDetect = AddButton(
+			parent,
+			"🎯 " + TranslationServer.Translate("Auto-Detect Region From Click"),
+			ToggleRegionAutoDetect,
+			"Click a part in the preview to raycast it and grow a connected region across its surface edges",
+			11,
+			new Vector2(0, 26));
+
+		_lblRegionAutoDetectStatus = new Label();
+		_lblRegionAutoDetectStatus.Name = "LblRegionAutoDetectStatus_Label";
+		_lblRegionAutoDetectStatus.Text = TranslationServer.Translate("Auto-detect is idle. Press the button, then click the part you want to animate.");
+		_lblRegionAutoDetectStatus.AddThemeFontSizeOverride("font_size", 10);
+		_lblRegionAutoDetectStatus.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
+		_lblRegionAutoDetectStatus.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+		_lblRegionAutoDetectStatus.CustomMinimumSize = new Vector2(300, 0);
+		_lblRegionAutoDetectStatus.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		parent.AddChild(_lblRegionAutoDetectStatus);
+
+		var hintLabel = new Label();
+		hintLabel.Name = "LblRegionBoxHint_Label";
+		hintLabel.Text = TranslationServer.Translate("Region Box affects only vertices inside this local-space volume (e.g. the cape). Mask Lower Bound acts as the edge feather width and a negative Falloff Power inverts the selection.");
+		hintLabel.AddThemeFontSizeOverride("font_size", 10);
+		hintLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+		hintLabel.CustomMinimumSize = new Vector2(300, 0);
+		hintLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		parent.AddChild(hintLabel);
+	}
+
+	protected override void OnViewportGuiInput(InputEvent @event)
+	{
+		if (_isRegionAutoDetectActive
+		    && @event is InputEventMouseButton regionPickMouseButton
+		    && regionPickMouseButton.ButtonIndex == MouseButton.Left
+		    && regionPickMouseButton.Pressed)
+		{
+			TryDetectRegionFromPreviewClick(regionPickMouseButton.Position);
+			return;
+		}
+
+		base.OnViewportGuiInput(@event);
+	}
+
+	private void ToggleRegionAutoDetect()
+	{
+		SetRegionAutoDetectActive(!_isRegionAutoDetectActive);
+	}
+
+	private void SetRegionAutoDetectActive(bool isActive)
+	{
+		_isRegionAutoDetectActive = isActive;
+
+		if (_btnRegionAutoDetect != null)
+		{
+			_btnRegionAutoDetect.Text = isActive
+				? "🎯 " + TranslationServer.Translate("Click The Part In The Preview...")
+				: "🎯 " + TranslationServer.Translate("Auto-Detect Region From Click");
+		}
+
+		if (_lblRegionAutoDetectStatus != null)
+		{
+			_lblRegionAutoDetectStatus.Text = isActive
+				? TranslationServer.Translate("Auto-detect is armed. Click the center of the part you want and the region box will grow to its connected surface.")
+				: TranslationServer.Translate("Auto-detect is idle. Press the button, then click the part you want to animate.");
+		}
+
+		if (isActive && _chkShowHeatmap != null && !_chkShowHeatmap.ButtonPressed)
+		{
+			_chkShowHeatmap.ButtonPressed = true;
+			UpdateShaderParameters();
+		}
+	}
+
+	private void TryDetectRegionFromPreviewClick(Vector2 viewportPoint)
+	{
+		if (_currentModelRoot == null || !GodotObject.IsInstanceValid(_currentModelRoot)) return;
+
+		if (!SpatialMeshRegionPicker.TryPickRegion(PreviewCamera, _currentModelRoot, viewportPoint, RegionAutoDetectCreaseAngleDegrees, out SpatialMeshRegionPick pick))
+		{
+			if (_lblRegionAutoDetectStatus != null)
+			{
+				_lblRegionAutoDetectStatus.Text = TranslationServer.Translate("Nothing was hit. Click directly on the mesh surface of the part you want to animate.");
+			}
+
+			return;
+		}
+
+		_config.MaskMode = SpatialMaskMode.RegionBox;
+		_config.MaskRegionMin = new Vector3Data(pick.Min.X, pick.Min.Y, pick.Min.Z);
+		_config.MaskRegionMax = new Vector3Data(pick.Max.X, pick.Max.Y, pick.Max.Z);
+
+		SetRegionAutoDetectActive(false);
+		SyncControlsFromConfig();
+		UpdateShaderParameters();
+
+		if (_lblRegionAutoDetectStatus != null)
+		{
+			_lblRegionAutoDetectStatus.Text = string.Format(
+				TranslationServer.Translate("Detected region on {0}: {1} connected triangles, X {2:F2} to {3:F2}, Y {4:F2} to {5:F2}, Z {6:F2} to {7:F2}."),
+				pick.MeshName,
+				pick.TriangleCount,
+				pick.Min.X,
+				pick.Max.X,
+				pick.Min.Y,
+				pick.Max.Y,
+				pick.Min.Z,
+				pick.Max.Z);
+		}
+
+		Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Auto-detected the {0} region box from {1} connected triangles."), pick.MeshName, pick.TriangleCount));
+	}
+
+	private void BuildSwayRegionControls(VBoxContainer parent)
+	{
+		AddSectionHeader(parent, "🌳 " + TranslationServer.Translate("PER-MODEL SWAY REGION"), new Color(0.45f, 0.85f, 0.55f));
+
+		_lblRegionResolution = new Label();
+		_lblRegionResolution.Name = "LblRegionResolution_Label";
+		_lblRegionResolution.AddThemeFontSizeOverride("font_size", 10);
+		_lblRegionResolution.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
+		_lblRegionResolution.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+		_lblRegionResolution.CustomMinimumSize = new Vector2(300, 0);
+		_lblRegionResolution.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		parent.AddChild(_lblRegionResolution);
+
+		ProceduralSwayRegionConfig? currentRegion = GetCurrentRegion();
+		ProceduralSwayRegionResolution resolvedRegion = ProceduralSwayRegionResolver.Resolve(_config, GetCurrentModelKey());
+
+		_txtRegionName = AddTextInput(parent, TranslationServer.Translate("Region Name:"), currentRegion?.RegionName ?? resolvedRegion.RegionName,
+			(value) =>
+			{
+				if (_suppressRegionSync) return;
+				EnsureCurrentRegion().RegionName = value.Trim();
+				UpdateRegionResolutionLabel();
+			}, TranslationServer.Translate("Canopy").ToString(), 150f);
+
+		(_sldRegionLowerEdge, _lblRegionLowerEdge) = AddSlider(parent, TranslationServer.Translate("Region Lower Edge (%):"), 0.0f, 100.0f, 1.0f,
+			(currentRegion?.NormalizedMin.Y ?? resolvedRegion.NormalizedMin.Y) * 100.0f,
+			(value) =>
+			{
+				if (_suppressRegionSync) return;
+				EnsureCurrentRegion().NormalizedMin = new Vector3Data(0.0f, value / 100.0f, 0.0f);
+				UpdateShaderParameters();
+			}, "0", 150f);
+
+		(_sldRegionUpperEdge, _lblRegionUpperEdge) = AddSlider(parent, TranslationServer.Translate("Region Upper Edge (%):"), 0.0f, 100.0f, 1.0f,
+			(currentRegion?.NormalizedMax.Y ?? resolvedRegion.NormalizedMax.Y) * 100.0f,
+			(value) =>
+			{
+				if (_suppressRegionSync) return;
+				EnsureCurrentRegion().NormalizedMax = new Vector3Data(1.0f, value / 100.0f, 1.0f);
+				UpdateShaderParameters();
+			}, "0", 150f);
+
+		(_sldRegionFeather, _lblRegionFeather) = AddSlider(parent, TranslationServer.Translate("Region Feather (%):"), 0.0f, 50.0f, 1.0f,
+			(currentRegion?.Feather ?? resolvedRegion.Feather) * 100.0f,
+			(value) =>
+			{
+				if (_suppressRegionSync) return;
+				EnsureCurrentRegion().Feather = value / 100.0f;
+				UpdateShaderParameters();
+			}, "0", 150f);
+
+		var hintLabel = new Label();
+		hintLabel.Name = "LblRegionHint_Label";
+		hintLabel.Text = TranslationServer.Translate("The region is a percentage of the model bounds, so it follows any model scale - adjust the edges and confirm the motion in the preview.");
+		hintLabel.AddThemeFontSizeOverride("font_size", 10);
+		hintLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+		hintLabel.CustomMinimumSize = new Vector2(300, 0);
+		hintLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		parent.AddChild(hintLabel);
+	}
+
+	private string GetCurrentModelKey()
+	{
+		if (string.IsNullOrWhiteSpace(_selectedTemplateKey)) return string.Empty;
+		return _selectedTemplateKey.StartsWith("(", StringComparison.Ordinal) ? string.Empty : _selectedTemplateKey;
+	}
+
+	private ProceduralSwayRegionConfig? GetCurrentRegion()
+	{
+		if (_config.SwayRegions == null || _config.SwayRegions.Count == 0) return null;
+
+		string modelKey = GetCurrentModelKey();
+		if (string.IsNullOrWhiteSpace(modelKey)) return null;
+
+		for (int i = 0; i < _config.SwayRegions.Count; i++)
+		{
+			ProceduralSwayRegionConfig region = _config.SwayRegions[i];
+			if (region == null || string.IsNullOrWhiteSpace(region.ModelKey)) continue;
+			if (ProceduralSwayRegionResolver.MatchesModelKey(region.ModelKey, modelKey)) return region;
+		}
+
+		return null;
+	}
+
+	private ProceduralSwayRegionConfig EnsureCurrentRegion()
+	{
+		ProceduralSwayRegionConfig? currentRegion = GetCurrentRegion();
+		if (currentRegion != null) return currentRegion;
+
+		string modelKey = GetCurrentModelKey();
+		ProceduralSwayRegionResolution resolvedRegion = ProceduralSwayRegionResolver.Resolve(_config, modelKey);
+		var createdRegion = new ProceduralSwayRegionConfig
+		{
+			ModelKey = modelKey,
+			RegionName = resolvedRegion.RegionName,
+			NormalizedMin = resolvedRegion.NormalizedMin,
+			NormalizedMax = resolvedRegion.NormalizedMax,
+			Feather = resolvedRegion.Feather,
+			MaskPower = resolvedRegion.MaskPower,
+			MaskInvert = resolvedRegion.MaskInvert
+		};
+
+		_config.SwayRegions ??= new List<ProceduralSwayRegionConfig>();
+		_config.SwayRegions.Add(createdRegion);
+		return createdRegion;
+	}
+
+	private void UpdateRegionControls()
+	{
+		ProceduralSwayRegionConfig? currentRegion = GetCurrentRegion();
+		ProceduralSwayRegionResolution resolvedRegion = ProceduralSwayRegionResolver.Resolve(_config, GetCurrentModelKey());
+
+		_suppressRegionSync = true;
+		try
+		{
+			if (_txtRegionName != null) _txtRegionName.Text = currentRegion?.RegionName ?? resolvedRegion.RegionName;
+
+			SetSlider(_sldRegionLowerEdge, _lblRegionLowerEdge, (currentRegion?.NormalizedMin.Y ?? resolvedRegion.NormalizedMin.Y) * 100.0f, "0");
+			SetSlider(_sldRegionUpperEdge, _lblRegionUpperEdge, (currentRegion?.NormalizedMax.Y ?? resolvedRegion.NormalizedMax.Y) * 100.0f, "0");
+			SetSlider(_sldRegionFeather, _lblRegionFeather, (currentRegion?.Feather ?? resolvedRegion.Feather) * 100.0f, "0");
+		}
+		finally
+		{
+			_suppressRegionSync = false;
+		}
+	}
+
+	private void UpdateRegionResolutionLabel()
+	{
+		if (_lblRegionResolution == null) return;
+
+		string modelKey = GetCurrentModelKey();
+		ProceduralSwayRegionResolution resolution = ProceduralSwayRegionResolver.Resolve(_config, modelKey);
+
+		string sourceText = resolution.Source switch
+		{
+			ProceduralSwayRegionSource.DeclaredModelRegion => TranslationServer.Translate("declared for this model").ToString(),
+			ProceduralSwayRegionSource.MotionTypeFallback => TranslationServer.Translate("automatic foliage fallback").ToString(),
+			_ => TranslationServer.Translate("legacy preset mask").ToString()
+		};
+
+		string regionName = string.IsNullOrEmpty(resolution.RegionName) ? TranslationServer.Translate("Preset Mask").ToString() : resolution.RegionName;
+		string heightText = resolution.HasRegionBox
+			? string.Format(TranslationServer.Translate("height {0}% to {1}%"), (int)MathF.Round(resolution.NormalizedMin.Y * 100.0f), (int)MathF.Round(resolution.NormalizedMax.Y * 100.0f))
+			: string.Empty;
+
+		_lblRegionResolution.Text = string.Format(TranslationServer.Translate("Resolved: {0} ({1}) - {2}"), regionName, sourceText, heightText).TrimEnd(' ', '-');
+	}
+
+	private static float GetRegionComponent(Vector3Data region, int axis)
+	{
+		return axis switch
+		{
+			0 => region.X,
+			1 => region.Y,
+			_ => region.Z
+		};
+	}
+
+	private static Vector3Data WithRegionComponent(Vector3Data region, int axis, float value)
+	{
+		return axis switch
+		{
+			0 => new Vector3Data(value, region.Y, region.Z),
+			1 => new Vector3Data(region.X, value, region.Z),
+			_ => new Vector3Data(region.X, region.Y, value)
+		};
+	}
+
 	private void UpdateMaskControls()
 	{
 		SetSlider(_sldMaskMin, _lblMaskMin, _config.MaskMin, "F2");
 		SetSlider(_sldMaskMax, _lblMaskMax, _config.MaskMax, "F2");
 		SetSlider(_sldMaskPower, _lblMaskPower, _config.MaskPower, "F1");
 		if (_chkMaskInvert != null) _chkMaskInvert.ButtonPressed = _config.MaskInvert;
+
+		for (int axis = 0; axis < _regionAxisNames.Length; axis++)
+		{
+			SetSlider(_sldRegionMin[axis], _lblRegionMin[axis], GetRegionComponent(_config.MaskRegionMin, axis), "F2");
+			SetSlider(_sldRegionMax[axis], _lblRegionMax[axis], GetRegionComponent(_config.MaskRegionMax, axis), "F2");
+		}
 	}
 
 	private void UpdateSwayAndFlutterControls()
@@ -678,8 +1022,10 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 		{
 			bool showHeatmap = _chkShowHeatmap != null && _chkShowHeatmap.ButtonPressed;
 			Vector3 vel = new Vector3(_simVelocityX, 0, 0);
-			ProceduralAnimationManager.ApplyPreviewToNode(_currentModelRoot, _config, vel, _impulseStrength, _impulseTime, showHeatmap);
+			ProceduralAnimationManager.ApplyPreviewToNode(_currentModelRoot, _config, vel, _impulseStrength, _impulseTime, showHeatmap, GetCurrentModelKey());
 		}
+
+		UpdateRegionResolutionLabel();
 	}
 
 	private void Setup3DEnvironment()
@@ -715,6 +1061,7 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 			SetupLoadedModel(loadedNode3D, template);
 		}
 
+		UpdateRegionControls();
 		UpdateShaderParameters();
 	}
 
@@ -882,15 +1229,15 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 		_currentModelRoot.AddChild(loadedNode3D);
 		ModelShaderManager.RefreshShaderMaterialsForNode(loadedNode3D, false);
 
-		if (GameHost.Instance != null && !string.IsNullOrEmpty(template.Id))
+		if (GameContext.Host != null && !string.IsNullOrEmpty(template.Id))
 		{
-			float scale = GameHost.Instance.GetModelScale(template.Id);
+			float scale = GameContext.Host.GetModelScale(template.Id);
 			if (scale > 0.01f)
 			{
 				loadedNode3D.Scale = new Vector3(scale, scale, scale);
 			}
 
-			float yOffset = GameHost.Instance.GetModelYOffset(template.Id);
+			float yOffset = GameContext.Host.GetModelYOffset(template.Id);
 			loadedNode3D.Position = new Vector3(0, yOffset, 0);
 		}
 
@@ -934,6 +1281,7 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 
 	public override void CloseDialog()
 	{
+		SetRegionAutoDetectActive(false);
 		ClearCurrentModelRoot();
 		base.CloseDialog();
 	}

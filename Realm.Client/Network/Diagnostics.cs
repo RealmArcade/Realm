@@ -1,4 +1,5 @@
 using System;
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Net;
@@ -11,9 +12,9 @@ namespace Realm.Client.Network;
 
 public class Diagnostics
 {
-	private const int MagicHeader = 0x44494147; // "DIAG"
+	private static readonly int MagicHeader = BinaryPrimitives.ReadInt32LittleEndian("DIAG"u8);
 	private const int PacketCount = 50;
-	private const int DelayBetweenPacketsMs = 100; // 50 * 100ms = 5 seconds
+	private const int DelayBetweenPacketsMilliseconds = 100;
 
 
 	private static CancellationTokenSource? _serverCts;
@@ -46,7 +47,6 @@ public class Diagnostics
 		}
 		catch (OperationCanceledException)
 		{
-			/* Clean shutdown */
 		}
 		catch (Exception ex)
 		{
@@ -78,7 +78,7 @@ public class Diagnostics
 		using var udp = new UdpClient();
 		udp.ExclusiveAddressUse = false;
 		udp.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
-		udp.Client.Bind(new IPEndPoint(IPAddress.Any, 0)); // bind to any local port
+		udp.Client.Bind(new IPEndPoint(IPAddress.Any, 0));
 
 		var remoteEp = new IPEndPoint(IPAddress.Parse(hostIp), diagPort);
 
@@ -101,7 +101,7 @@ public class Diagnostics
 		}
 		catch
 		{
-			/* Ignore task cancellation error */
+			// Cancellation is the expected end of the receive loop.
 		}
 
 		stopwatch.Stop();
@@ -177,7 +177,7 @@ public class Diagnostics
 				GD.PrintErr($"[Diagnostics] Client send error: {ex.Message}");
 			}
 
-			await Task.Delay(DelayBetweenPacketsMs);
+			await Task.Delay(DelayBetweenPacketsMilliseconds);
 		}
 	}
 
@@ -186,14 +186,16 @@ public class Diagnostics
 		var result = new DiagnosticResult();
 		int receivedCount = 0;
 
+		// The receive path marks a sequence received under this gate, so the loss walk reads the same array under it
+		// rather than racing the marks it is counting.
 		lock (receivedRtts)
 		{
 			receivedCount = receivedRtts.Count;
 			ComputeRttMetrics(result, receivedRtts, receivedCount);
+			result.MaxConsecutiveLoss = ComputeMaxConsecutiveLoss(received);
 		}
 
 		result.LossPercentage = (float)(PacketCount - receivedCount) / PacketCount * 100.0f;
-		result.MaxConsecutiveLoss = ComputeMaxConsecutiveLoss(received);
 
 		return result;
 	}

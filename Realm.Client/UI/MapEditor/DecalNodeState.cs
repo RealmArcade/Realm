@@ -13,4 +13,10 @@ public struct DecalNodeState
 	public Vector3 Size;
 	public float UpperFade;
 	public float LowerFade;
+	public bool GroundProjected;
+	public float GroundOffset;
+	public float NormalFade;
+	public bool DistanceFadeEnabled;
+	public float DistanceFadeBegin;
+	public float DistanceFadeEnd;
 }

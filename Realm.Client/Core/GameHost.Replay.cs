@@ -8,6 +8,7 @@ using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Meta;
 using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Services;
+using Realm.Shared.Network;
 using Vector3 = System.Numerics.Vector3;
 
 namespace Realm.Client.Core;
@@ -22,7 +23,6 @@ public partial class GameHost
 		try
 		{
 			ReinitializeEcsAndServices();
-			InitializeMapScript();
 		}
 		finally
 		{
@@ -53,39 +53,13 @@ public partial class GameHost
 		EntityToProp3D.Clear();
 	}
 
-	private void InitializeMapScript()
-	{
-		if (_activeMapScript == null) return;
-
-		try
-		{
-			_activeMapScript.Initialize(this);
-		}
-		catch (System.Exception ex)
-		{
-			GD.PrintErr($"[GameHost.Replay] Exception during active map script Initialize: {ex.Message}");
-		}
-
-		var entitiesToDestroy = new List<Entity>();
-		foreach (var unit in AllUnits)
-		{
-			entitiesToDestroy.Add(unit.Entity);
-			if (GodotObject.IsInstanceValid(unit)) unit.QueueFree();
-		}
-
-		GameContext.SimulationService.DestroyEntitiesDomain(entitiesToDestroy);
-
-		AllUnits.Clear();
-		EntityToUnit3D.Clear();
-		EntityIdToUnit3D.Clear();
-	}
 
 	private void SetupReplayPlayers()
 	{
 		var players = new List<(int PeerId, string Name)>();
-		if (ReplayPlaybackManager.Instance.Header.Players != null)
+		if (GameContext.ReplayPlayback.Header.Players != null)
 		{
-			foreach (var p in ReplayPlaybackManager.Instance.Header.Players)
+			foreach (var p in GameContext.ReplayPlayback.Header.Players)
 			{
 				players.Add((p.PeerId, p.Name));
 			}
@@ -99,7 +73,7 @@ public partial class GameHost
 		var result = GameContext.ReplayService.SpawnUnitFromReplaySnapshot(snap);
 		if (result.Entity == Entity.Null) return;
 
-		SpawnUnit3D(result.Entity, snap.UnitId, result.ModelPath, snap.Position.ToGodot(), snap.IsBuilding, result.Player);
+		SpawnUnit3D(result.Entity, snap.UnitId, result.ModelPath, new Godot.Vector3(snap.Position.X, snap.Position.Y, snap.Position.Z), snap.IsBuilding, result.Player);
 	}
 
 	private void RecordGameplayTick()

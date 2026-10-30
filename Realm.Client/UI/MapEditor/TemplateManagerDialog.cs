@@ -112,7 +112,6 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 	{
 		BodyContainer.AddThemeConstantOverride("separation", 6);
 
-		// 1. TOP LIVE PREVIEW SECTION (3D / 2D / Audio)
 		var previewStack = new PanelContainer();
 		previewStack.Name = "PreviewStack_PanelContainer";
 		previewStack.CustomMinimumSize = new Vector2(360, 180);
@@ -120,11 +119,9 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		previewStack.AddThemeStyleboxOverride("panel", UIStyle.CreateLightInnerPanel());
 		BodyContainer.AddChild(previewStack);
 
-		// 3D Viewport
 		Add3DPreviewViewport(previewStack, new Vector2(360, 180));
 		Setup3DEnvironment();
 
-		// 2D Static Preview
 		_preview2DContainer = new PanelContainer();
 		_preview2DContainer.Name = "Preview2DContainer_PanelContainer";
 		_preview2DContainer.CustomMinimumSize = new Vector2(360, 180);
@@ -160,7 +157,6 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		_preview2DContainer.AddChild(preview2DVBox);
 		previewStack.AddChild(_preview2DContainer);
 
-		// Audio Preview
 		_previewAudioContainer = new PanelContainer();
 		_previewAudioContainer.Name = "PreviewAudioContainer_PanelContainer";
 		_previewAudioContainer.CustomMinimumSize = new Vector2(360, 180);
@@ -198,10 +194,8 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		_previewAudioContainer.AddChild(audioVBox);
 		previewStack.AddChild(_previewAudioContainer);
 
-		// 2. CAMERA PRESETS BAR
 		AddCameraPresetToolbar(BodyContainer, includeBack: true);
 
-		// 3. CATEGORY & FILTER & ADD BAR
 		var catRow = new HBoxContainer();
 		catRow.Name = "CatRow_HBoxContainer";
 		catRow.AddThemeConstantOverride("separation", 8);
@@ -285,7 +279,6 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 
 		BodyContainer.AddChild(catRow);
 
-		// 4. SEARCH FILTER INPUT
 		var searchRow = new HBoxContainer();
 		searchRow.Name = "SearchRow_HBoxContainer";
 		searchRow.AddThemeConstantOverride("separation", 6);
@@ -311,7 +304,6 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 
 		BodyContainer.AddChild(searchRow);
 
-		// 5. SCROLLABLE OBJECT LIST
 		_listVBox = CreateScrollBody(340);
 	}
 
@@ -906,7 +898,6 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		hBox.AddThemeConstantOverride("separation", 8);
 		row.AddChild(hBox);
 
-		// Clickable selection for preview
 		var selectBtn = new Button();
 		selectBtn.Name = "SelectBtn_Button";
 		selectBtn.Flat = true;
@@ -941,7 +932,6 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		contentBox.AddChild(infoVBox);
 		hBox.AddChild(selectBtn);
 
-		// Action buttons: Preview, Edit & Delete
 		var actionsHBox = new HBoxContainer();
 		actionsHBox.Name = "ActionsHBox_HBoxContainer";
 		actionsHBox.AddThemeConstantOverride("separation", 4);
@@ -1669,9 +1659,9 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		if (item.Category == "terrain")
 		{
 			Hud?.SetupTextureSwatches(false);
-			if (GameHost.Instance?.GroundTerrain != null)
+			if (GameContext.Host?.GroundTerrain != null)
 			{
-				GameHost.Instance.GroundTerrain.ReloadTerrainTextures(true);
+				GameContext.Host.GroundTerrain.ReloadTerrainTextures(true);
 			}
 		}
 
@@ -1764,8 +1754,8 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		}
 	}
 
-	private void AddUnitMetadata(MapMetadata m, string id, string slug) => m.AddOrUpdateUnit(new UnitMetadata { TemplateID = id, Name = slug, Description = "A new unit entity.", Scale = 1.0f, MaxHp = 100, Damage = 10, Range = 2.0f, Armor = 0, Speed = 5.0f, AttackCooldown = 1.5f, CostGold = 100, ProductionTime = 10.0f, PopCost = 1, AttackType = "melee", PathingType = 8 });
-	private void AddBuildingMetadata(MapMetadata m, string id, string slug) => m.AddOrUpdateBuilding(new UnitMetadata { TemplateID = id, Name = slug, Description = "A new building entity.", Scale = 1.5f, MaxHp = 1000, Armor = 10, CostGold = 200, CostWood = 100, ProductionTime = 15.0f, AttackType = "none", PathingType = 32 });
+	private void AddUnitMetadata(MapMetadata m, string id, string slug) => m.AddOrUpdateUnit(new UnitMetadata { TemplateID = id, Name = slug, Description = "A new unit entity.", Scale = 1.0f, MaxHp = 100, Damage = 10, Range = 2.0f, Armor = 0, Speed = 5.0f, AttackCooldown = 1.5f, CostGold = 100, ProductionTime = 10.0f, PopCost = 1, DamageType = "physical", PathingType = 8 });
+	private void AddBuildingMetadata(MapMetadata m, string id, string slug) => m.AddOrUpdateBuilding(new UnitMetadata { TemplateID = id, Name = slug, Description = "A new building entity.", Scale = 1.5f, MaxHp = 1000, Armor = 10, CostGold = 200, CostWood = 100, ProductionTime = 15.0f, DamageType = "physical", PathingType = 32 });
 	private void AddResourceMetadata(MapMetadata m, string id, string slug) => m.AddOrUpdateResource(new ResourceMetadata { TemplateID = id, Name = slug, Description = "Harvestable resource deposit.", Scale = 1.0f, MaxCapacity = 2000.0f, HarvestRate = 10.0f, MaxWorkers = 5, PathingType = 255 });
 	private void AddPropMetadata(MapMetadata m, string id, string slug) => m.AddOrUpdateProp(new PropMetadata { TemplateID = id, Name = slug, Description = "Decorative prop.", Scale = 1.0f, PathingType = 255 });
 	private void AddWeaponMetadata(MapMetadata m, string id, string slug) => m.AddOrUpdateWeapon(new WeaponMetadata { TemplateID = id, Name = slug, Damage = 10, Range = 8.0f, AttackCooldown = 1.5f, AttackType = "ranged", ProjectileSpeed = 25.0f, ArcHeight = 2.0f, OrientToTrajectory = true });
@@ -1819,9 +1809,9 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		if (category == "terrain")
 		{
 			Hud?.SetupTextureSwatches(false);
-			if (GameHost.Instance?.GroundTerrain != null)
+			if (GameContext.Host?.GroundTerrain != null)
 			{
-				GameHost.Instance.GroundTerrain.ReloadTerrainTextures(true);
+				GameContext.Host.GroundTerrain.ReloadTerrainTextures(true);
 			}
 		}
 
@@ -1938,9 +1928,9 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 			if (item.Category == "terrain")
 			{
 				Hud?.SetupTextureSwatches(false);
-				if (GameHost.Instance?.GroundTerrain != null)
+				if (GameContext.Host?.GroundTerrain != null)
 				{
-					GameHost.Instance.GroundTerrain.ReloadTerrainTextures(true);
+					GameContext.Host.GroundTerrain.ReloadTerrainTextures(true);
 				}
 			}
 
@@ -2093,7 +2083,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		_preview2DContainer.Visible = true;
 
 		_preview2DImage.CustomMinimumSize = new Vector2(140, 140);
-		Texture2D? decalTex = GameHost.Instance?.LoadDecalTexture(item.TemplateID) ?? LoadTexture2D(item.ModelPath, "decals");
+		Texture2D? decalTex = GameContext.Host?.LoadDecalTexture(item.TemplateID) ?? LoadTexture2D(item.ModelPath, "decals");
 		_preview2DImage.Texture = decalTex;
 		_lblPreview2DInfo.Text = item.Name;
 	}

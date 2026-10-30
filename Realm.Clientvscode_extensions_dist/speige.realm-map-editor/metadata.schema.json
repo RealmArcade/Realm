@@ -148,18 +148,6 @@
             "null"
           ]
         },
-        "HowToPlayInstructions": {
-          "type": [
-            "array",
-            "null"
-          ],
-          "items": {
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        },
         "HowToPlayObjective": {
           "type": [
             "string",
@@ -400,18 +388,6 @@
               "ProductionTime": {
                 "type": "number"
               },
-              "AttackType": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "ArmorType": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
               "Strength": {
                 "type": "number"
               },
@@ -430,6 +406,32 @@
               "Fortune": {
                 "type": "number"
               },
+              "LevelGrowth": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "StrengthPerLevel": {
+                    "type": "number"
+                  },
+                  "AgilityPerLevel": {
+                    "type": "number"
+                  },
+                  "VitalityPerLevel": {
+                    "type": "number"
+                  },
+                  "IntelligencePerLevel": {
+                    "type": "number"
+                  },
+                  "WisdomPerLevel": {
+                    "type": "number"
+                  },
+                  "FortunePerLevel": {
+                    "type": "number"
+                  }
+                }
+              },
               "HpRegen": {
                 "type": "number"
               },
@@ -442,7 +444,7 @@
               "ManaRegen": {
                 "type": "number"
               },
-              "RatedArmor": {
+              "MagicResistance": {
                 "type": "number"
               },
               "FlatArmorPenetration": {
@@ -785,6 +787,75 @@
                     "items": {
                       "$ref": "#/properties/Templates/properties/Units/items/properties/ObjectAttachments/properties/right_hand/items"
                     }
+                  },
+                  "custom_sockets": {
+                    "type": [
+                      "object",
+                      "null"
+                    ],
+                    "additionalProperties": {
+                      "type": [
+                        "array",
+                        "null"
+                      ],
+                      "items": {
+                        "$ref": "#/properties/Templates/properties/Units/items/properties/ObjectAttachments/properties/right_hand/items"
+                      }
+                    }
+                  },
+                  "CustomSocketLists": {
+                    "type": [
+                      "object",
+                      "null"
+                    ],
+                    "additionalProperties": {
+                      "$ref": "#/properties/Templates/properties/Units/items/properties/ObjectAttachments/properties/custom_sockets/additionalProperties"
+                    }
+                  }
+                }
+              },
+              "PseudoSockets": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "properties": {
+                    "SocketId": {
+                      "type": "string"
+                    },
+                    "Position": {
+                      "type": "object",
+                      "properties": {
+                        "X": {
+                          "type": "number"
+                        },
+                        "Y": {
+                          "type": "number"
+                        },
+                        "Z": {
+                          "type": "number"
+                        }
+                      }
+                    },
+                    "RotationDegrees": {
+                      "type": "object",
+                      "properties": {
+                        "X": {
+                          "type": "number"
+                        },
+                        "Y": {
+                          "type": "number"
+                        },
+                        "Z": {
+                          "type": "number"
+                        }
+                      }
+                    }
                   }
                 }
               },
@@ -794,6 +865,12 @@
                   "null"
                 ],
                 "properties": {
+                  "VoiceAsset": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
                   "OnSelect": {
                     "type": [
                       "array",
@@ -972,6 +1049,12 @@
               },
               "ConstructionRange": {
                 "type": "number"
+              },
+              "Attribution_ImportedFromMap": {
+                "type": [
+                  "string",
+                  "null"
+                ]
               }
             }
           }
@@ -1071,7 +1154,34 @@
                   "null"
                 ]
               },
+              "ProceduralAnimation": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "EnableProceduralAnimation": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "PseudoSockets": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "$ref": "#/properties/Templates/properties/Units/items/properties/PseudoSockets/items"
+                }
+              },
               "DespawnShader": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "Attribution_ImportedFromMap": {
                 "type": [
                   "string",
                   "null"
@@ -1157,7 +1267,34 @@
                   "null"
                 ]
               },
+              "ProceduralAnimation": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "EnableProceduralAnimation": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "PseudoSockets": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "$ref": "#/properties/Templates/properties/Units/items/properties/PseudoSockets/items"
+                }
+              },
               "DespawnShader": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "Attribution_ImportedFromMap": {
                 "type": [
                   "string",
                   "null"
@@ -1182,6 +1319,12 @@
               },
               "Description": {
                 "type": "string"
+              },
+              "Role": {
+                "type": [
+                  "string",
+                  "null"
+                ]
               },
               "AbilityType": {
                 "type": "string"
@@ -1213,38 +1356,160 @@
                   "null"
                 ]
               },
-              "AppliedStatusEffects": {
+              "AutoCast": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "Enabled": {
+                    "type": "boolean"
+                  },
+                  "RequiresEnemyTarget": {
+                    "type": "boolean"
+                  },
+                  "AllyHealthPercentBelow": {
+                    "type": "number"
+                  },
+                  "ManaReserve": {
+                    "type": "number"
+                  },
+                  "MinManaPercent": {
+                    "type": "number"
+                  }
+                }
+              },
+              "AreaOfEffectRadius": {
+                "type": "number"
+              },
+              "Effects": {
                 "type": [
                   "array",
                   "null"
                 ],
                 "items": {
                   "type": [
-                    "string",
+                    "object",
                     "null"
-                  ]
+                  ],
+                  "properties": {
+                    "Kind": {
+                      "type": "string"
+                    },
+                    "Delivery": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "Targets": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "Radius": {
+                      "type": "number"
+                    },
+                    "Length": {
+                      "type": "number"
+                    },
+                    "AngleDegrees": {
+                      "type": "number"
+                    },
+                    "MaxTargets": {
+                      "type": "integer"
+                    },
+                    "Amount": {
+                      "type": "number"
+                    },
+                    "Duration": {
+                      "type": "number"
+                    },
+                    "DamageType": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "BuffId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "Modifiers": {
+                      "type": [
+                        "array",
+                        "null"
+                      ],
+                      "items": {
+                        "type": [
+                          "object",
+                          "null"
+                        ],
+                        "properties": {
+                          "StatKey": {
+                            "type": "string"
+                          },
+                          "Type": {
+                            "type": "string"
+                          },
+                          "Value": {
+                            "type": "number"
+                          },
+                          "WASMFunctionName": {
+                            "type": "string"
+                          },
+                          "PerLevelScaling": {
+                            "type": "number"
+                          }
+                        }
+                      }
+                    },
+                    "SummonUnitId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "SummonCount": {
+                      "type": "integer"
+                    },
+                    "SummonCap": {
+                      "type": "integer"
+                    },
+                    "Scaling": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "Attribute": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "Shape": {
+                          "type": "string"
+                        },
+                        "Coefficient": {
+                          "type": "number"
+                        },
+                        "Divisor": {
+                          "type": "number"
+                        },
+                        "Cap": {
+                          "type": "number"
+                        },
+                        "ScalesDuration": {
+                          "type": "boolean"
+                        }
+                      }
+                    }
+                  }
                 }
-              },
-              "AreaOfEffectRadius": {
-                "type": "number"
-              },
-              "Damage": {
-                "type": "number"
-              },
-              "Healing": {
-                "type": "number"
-              },
-              "SummonedUnitId": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "SummonCount": {
-                "type": "integer"
-              },
-              "SummonDuration": {
-                "type": "number"
               },
               "GridX": {
                 "type": "integer"
@@ -1253,6 +1518,12 @@
                 "type": "integer"
               },
               "Hotkey": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "Attribution_ImportedFromMap": {
                 "type": [
                   "string",
                   "null"
@@ -1290,6 +1561,9 @@
                   "null"
                 ]
               },
+              "DamageType": {
+                "type": "string"
+              },
               "ProjectileSpeed": {
                 "type": "number"
               },
@@ -1316,6 +1590,15 @@
                   "string",
                   "null"
                 ]
+              },
+              "ImpactParticleEffect": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "ImpactParticleScale": {
+                "type": "number"
               },
               "ImpactSound": {
                 "type": [
@@ -1603,6 +1886,12 @@
                     "type": "number"
                   }
                 }
+              },
+              "Attribution_ImportedFromMap": {
+                "type": [
+                  "string",
+                  "null"
+                ]
               }
             }
           }
@@ -1669,28 +1958,14 @@
               "Modifiers": {
                 "type": "array",
                 "items": {
-                  "type": [
-                    "object",
-                    "null"
-                  ],
-                  "properties": {
-                    "StatKey": {
-                      "type": "string"
-                    },
-                    "Type": {
-                      "type": "string"
-                    },
-                    "Value": {
-                      "type": "number"
-                    },
-                    "WASMFunctionName": {
-                      "type": "string"
-                    },
-                    "PerLevelScaling": {
-                      "type": "number"
-                    }
-                  }
+                  "$ref": "#/properties/Templates/properties/Abilities/items/properties/Effects/items/properties/Modifiers/items"
                 }
+              },
+              "Attribution_ImportedFromMap": {
+                "type": [
+                  "string",
+                  "null"
+                ]
               }
             }
           }
@@ -1801,6 +2076,62 @@
               },
               "Requirements": {
                 "type": "string"
+              },
+              "Attribution_ImportedFromMap": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        },
+        "Consumables": {
+          "type": "array",
+          "items": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "TemplateID": {
+                "type": "string"
+              },
+              "AbilityId": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "CostGold": {
+                "type": "number"
+              },
+              "CostWood": {
+                "type": "number"
+              },
+              "CostStone": {
+                "type": "number"
+              },
+              "TargetScope": {
+                "type": "string"
+              },
+              "SlotGroup": {
+                "type": "string"
+              },
+              "MaxPerUnit": {
+                "type": "integer"
+              },
+              "ClearsSlot": {
+                "type": "boolean"
+              },
+              "PurchaseRange": {
+                "type": "number"
+              },
+              "CardId": {
+                "type": [
+                  "string",
+                  "null"
+                ]
               }
             }
           }
@@ -1906,6 +2237,61 @@
                     "type": "number"
                   }
                 }
+              },
+              "BillboardIcon": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "TexturePath": {
+                    "type": "string"
+                  },
+                  "Columns": {
+                    "type": "integer"
+                  },
+                  "Rows": {
+                    "type": "integer"
+                  },
+                  "FramesPerSecond": {
+                    "type": "number"
+                  },
+                  "Loop": {
+                    "type": "boolean"
+                  },
+                  "Socket": {
+                    "type": "string"
+                  },
+                  "PositionOffset": {
+                    "type": "object",
+                    "properties": {
+                      "X": {
+                        "type": "number"
+                      },
+                      "Y": {
+                        "type": "number"
+                      },
+                      "Z": {
+                        "type": "number"
+                      }
+                    }
+                  },
+                  "WorldHeight": {
+                    "type": "number"
+                  },
+                  "KeepConstantScreenSize": {
+                    "type": "boolean"
+                  },
+                  "NoDepthTest": {
+                    "type": "boolean"
+                  }
+                }
+              },
+              "Attribution_ImportedFromMap": {
+                "type": [
+                  "string",
+                  "null"
+                ]
               }
             }
           }
@@ -2087,11 +2473,162 @@
                   }
                 }
               },
+              "Stages": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "properties": {
+                    "EffectId": {
+                      "type": "string"
+                    },
+                    "Trigger": {
+                      "type": "integer"
+                    },
+                    "DelaySeconds": {
+                      "type": "number"
+                    },
+                    "DurationSeconds": {
+                      "type": "number"
+                    },
+                    "Scale": {
+                      "type": "number"
+                    },
+                    "SingleInstance": {
+                      "type": "boolean"
+                    },
+                    "ParticleConfig": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "ParticleId": {
+                          "type": "string"
+                        },
+                        "Name": {
+                          "type": "string"
+                        },
+                        "Amount": {
+                          "type": "integer"
+                        },
+                        "Lifetime": {
+                          "type": "number"
+                        },
+                        "Explosiveness": {
+                          "type": "number"
+                        },
+                        "Randomness": {
+                          "type": "number"
+                        },
+                        "LocalCoords": {
+                          "type": "boolean"
+                        },
+                        "EmitterShape": {
+                          "type": "integer"
+                        },
+                        "SphereRadius": {
+                          "type": "number"
+                        },
+                        "BoxExtents": {
+                          "$ref": "#/properties/Templates/properties/Vfx/items/properties/ParticleConfig/properties/BoxExtents"
+                        },
+                        "RingRadius": {
+                          "type": "number"
+                        },
+                        "RingInnerRadius": {
+                          "type": "number"
+                        },
+                        "RingHeight": {
+                          "type": "number"
+                        },
+                        "Direction": {
+                          "$ref": "#/properties/Templates/properties/Vfx/items/properties/ParticleConfig/properties/Direction"
+                        },
+                        "SpreadDegrees": {
+                          "type": "number"
+                        },
+                        "InitialVelocityMin": {
+                          "type": "number"
+                        },
+                        "InitialVelocityMax": {
+                          "type": "number"
+                        },
+                        "Gravity": {
+                          "$ref": "#/properties/Templates/properties/Vfx/items/properties/ParticleConfig/properties/Gravity"
+                        },
+                        "LinearAccel": {
+                          "$ref": "#/properties/Templates/properties/Vfx/items/properties/ParticleConfig/properties/LinearAccel"
+                        },
+                        "RadialAccel": {
+                          "type": "number"
+                        },
+                        "TangentialAccel": {
+                          "type": "number"
+                        },
+                        "Damping": {
+                          "type": "number"
+                        },
+                        "InitialScaleMin": {
+                          "type": "number"
+                        },
+                        "InitialScaleMax": {
+                          "type": "number"
+                        },
+                        "EndScaleRatio": {
+                          "type": "number"
+                        },
+                        "ColorStart": {
+                          "type": "string"
+                        },
+                        "ColorMid": {
+                          "type": "string"
+                        },
+                        "ColorEnd": {
+                          "type": "string"
+                        },
+                        "AlphaStart": {
+                          "type": "number"
+                        },
+                        "AlphaMid": {
+                          "type": "number"
+                        },
+                        "AlphaEnd": {
+                          "type": "number"
+                        },
+                        "EmissionEnergy": {
+                          "type": "number"
+                        },
+                        "RenderMode": {
+                          "type": "integer"
+                        },
+                        "BlendMode": {
+                          "type": "integer"
+                        },
+                        "ParticleTexture": {
+                          "type": "string"
+                        },
+                        "MeshAssetPath": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              },
               "BlendMode": {
                 "type": "integer"
               },
               "PlacementMode": {
                 "type": "integer"
+              },
+              "TintWithPlayerColor": {
+                "type": "boolean"
               },
               "TargetSocket": {
                 "type": "string"
@@ -2100,6 +2637,9 @@
                 "type": "string"
               },
               "NoiseTexture": {
+                "type": "string"
+              },
+              "ProceduralMotionId": {
                 "type": "string"
               },
               "BaseUvScroll": {
@@ -2280,9 +2820,275 @@
                     "type": "number"
                   }
                 }
+              },
+              "Attribution_ImportedFromMap": {
+                "type": [
+                  "string",
+                  "null"
+                ]
               }
             }
           }
+        }
+      }
+    },
+    "CombatTuning": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "ResistTuningConstantK": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "MaxResistMitigation": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "MinDamageFloor": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "StrengthAttackPerPoint": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "StrengthArmorPerPoint": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "StrengthTenacityK": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "MaxTenacity": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "AgilityHastePerPoint": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "HastePercentDivisor": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "AgilityMovementPerPoint": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "MovementSoftCap1": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "MovementSoftCap2": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "MovementSoftCap1Taper": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "MovementSoftCap2Taper": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "AgilityCooldownHastePerPoint": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "CooldownHasteDivisor": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "MaxCooldownReduction": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "VitalityHpPerPoint": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "VitalityManaPerPoint": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "VitalityLifeStealK": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "MaxLifeSteal": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "IntelligenceSpellAmpPerPoint": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "IntelligenceSpellAmpExponent": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "IntelligenceManaRegenPerPoint": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "IntelligenceMagicResistancePerPoint": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "WisdomMagicPenetrationK": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "MaxPercentMagicPenetration": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "WisdomHealingAmpPerPoint": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "WisdomHpRegenPerPoint": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "WisdomCritMultiplierPerPoint": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "FortuneCritChanceK": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "MaxCritChance": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "FortuneEvasionK": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "MaxEvasion": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "FortuneProcRateK": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "MaxProcRateBonus": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "FortuneBountyPerPoint": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "MaxAttackSpeed": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "MinAttackSpeed": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "MinAttackInterval": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "BaseCastPoint": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "BaseCritMultiplier": {
+          "type": [
+            "number",
+            "null"
+          ]
         }
       }
     },
@@ -2317,6 +3123,88 @@
           },
           "MaskInvert": {
             "type": "boolean"
+          },
+          "MaskRegionMin": {
+            "type": "object",
+            "properties": {
+              "X": {
+                "type": "number"
+              },
+              "Y": {
+                "type": "number"
+              },
+              "Z": {
+                "type": "number"
+              }
+            }
+          },
+          "MaskRegionMax": {
+            "type": "object",
+            "properties": {
+              "X": {
+                "type": "number"
+              },
+              "Y": {
+                "type": "number"
+              },
+              "Z": {
+                "type": "number"
+              }
+            }
+          },
+          "SwayRegions": {
+            "type": "array",
+            "items": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "ModelKey": {
+                  "type": "string"
+                },
+                "RegionName": {
+                  "type": "string"
+                },
+                "NormalizedMin": {
+                  "type": "object",
+                  "properties": {
+                    "X": {
+                      "type": "number"
+                    },
+                    "Y": {
+                      "type": "number"
+                    },
+                    "Z": {
+                      "type": "number"
+                    }
+                  }
+                },
+                "NormalizedMax": {
+                  "type": "object",
+                  "properties": {
+                    "X": {
+                      "type": "number"
+                    },
+                    "Y": {
+                      "type": "number"
+                    },
+                    "Z": {
+                      "type": "number"
+                    }
+                  }
+                },
+                "Feather": {
+                  "type": "number"
+                },
+                "MaskPower": {
+                  "type": "number"
+                },
+                "MaskInvert": {
+                  "type": "boolean"
+                }
+              }
+            }
           },
           "SwayFrequency": {
             "type": "number"
@@ -2555,11 +3443,17 @@
                     "ParticleConfig": {
                       "$ref": "#/properties/Templates/properties/Vfx/items/properties/ParticleConfig"
                     },
+                    "Stages": {
+                      "$ref": "#/properties/Templates/properties/Vfx/items/properties/Stages"
+                    },
                     "BlendMode": {
                       "type": "integer"
                     },
                     "PlacementMode": {
                       "type": "integer"
+                    },
+                    "TintWithPlayerColor": {
+                      "type": "boolean"
                     },
                     "TargetSocket": {
                       "type": "string"
@@ -2568,6 +3462,9 @@
                       "type": "string"
                     },
                     "NoiseTexture": {
+                      "type": "string"
+                    },
+                    "ProceduralMotionId": {
                       "type": "string"
                     },
                     "BaseUvScroll": {
@@ -2683,6 +3580,12 @@
                     },
                     "ScaleOffset": {
                       "$ref": "#/properties/Templates/properties/Vfx/items/properties/ScaleOffset"
+                    },
+                    "Attribution_ImportedFromMap": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     }
                   }
                 }
@@ -2893,6 +3796,12 @@
             "items": {
               "$ref": "#/properties/CustomWaterProfiles/items/properties/VfxBombingRules/items"
             }
+          },
+          "Attribution_ImportedFromMap": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       }
@@ -3009,6 +3918,36 @@
           },
           "LowerFade": {
             "type": "number"
+          },
+          "PlacementMode": {
+            "type": "integer"
+          },
+          "ProjectionSize": {
+            "type": "number"
+          },
+          "ProjectionHeight": {
+            "type": "number"
+          },
+          "GroundOffset": {
+            "type": "number"
+          },
+          "NormalFade": {
+            "type": "number"
+          },
+          "DistanceFadeEnabled": {
+            "type": "boolean"
+          },
+          "DistanceFadeBegin": {
+            "type": "number"
+          },
+          "DistanceFadeEnd": {
+            "type": "number"
+          },
+          "Attribution_ImportedFromMap": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       }
@@ -3038,6 +3977,12 @@
               "string",
               "null"
             ]
+          },
+          "Attribution_ImportedFromMap": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       }
@@ -3061,6 +4006,12 @@
               "string",
               "null"
             ]
+          },
+          "Attribution_ImportedFromMap": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       }
@@ -3078,6 +4029,12 @@
               "string",
               "null"
             ]
+          },
+          "Attribution_ImportedFromMap": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       }
@@ -3091,6 +4048,12 @@
         ],
         "properties": {
           "TexturePath": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "Attribution_ImportedFromMap": {
             "type": [
               "string",
               "null"
@@ -3145,6 +4108,12 @@
           },
           "AssetType": {
             "type": "string"
+          },
+          "Attribution_ImportedFromMap": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       }
@@ -3158,6 +4127,12 @@
         ],
         "properties": {
           "ConfigJson": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "Attribution_ImportedFromMap": {
             "type": [
               "string",
               "null"

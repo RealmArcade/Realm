@@ -1,57 +1,55 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Runtime.InteropServices;
+using System.Threading;
 using Godot;
 using Realm.Client.Core;
 using Realm.Ecs;
-using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Core;
-using Realm.Ecs.Components.Meta;
 using Realm.Ecs.Components.Movement;
-using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Replication;
 using Realm.Ecs.Services;
+using Realm.Shared.Diagnostics;
+using Realm.Shared.Network;
 using FileAccess = System.IO.FileAccess;
 
 namespace Realm.Client.Services;
 
 public static class MultiplayerSyncDiagnostics
 {
-	private const uint FileMagic = 0x504E5352;
-	private const int FileVersion = 3;
 	private const int BaselineIntervalTicks = 30;
-	private const int PlayerSlotCount = 25;
 
 	private static BinaryWriter? _writer;
 	private static byte[] _fileHeader = Array.Empty<byte>();
 	private static BinaryWriter? _presentationWriter;
 	private static byte[] _presentationHeader = Array.Empty<byte>();
 	private static string _outputDirectory = string.Empty;
-	private static bool _isHost;
 	private static int _writtenRecordCount;
 	private static int _lastRecordedSequence = -1;
 	private static int _lastPresentedSequence = -1;
 	private static float _presentationWindowStartTime = -1f;
+	private static int _presentationAnchorSequence = -1;
 	private static int _fingerprintMismatchCount;
 	private static string _fingerprintMismatchSummary = string.Empty;
 	private static readonly HashSet<int> _clientSeenSequences = new();
-	private static readonly List<ComponentDigest> _digestBuffer = new();
 	private static readonly List<(int UniqueId, Entity Entity)> _lootBuffer = new();
-	private static readonly Dictionary<int, int> _entityReferencePayloadOffsets = new()
-	{
-		{ ComponentType<AttackTarget>.Id, 0 },
-		{ ComponentType<LastAttacker>.Id, 0 },
-		{ ComponentType<Follow>.Id, 0 },
-		{ ComponentType<BuildTask>.Id, 0 }
-	};
-	private static byte[] _codecScratch = new byte[1024];
 
 	public static void RecordClientSeenSequence(int sequence)
 	{
 		_clientSeenSequences.Add(sequence);
 	}
+
+	private static int _snapshotDiscardRequested;
+	private static int _discardedSnapshotSequence = -1;
+
+	public static int DiscardedSnapshotSequence => Volatile.Read(ref _discardedSnapshotSequence);
+
+	public static void RequestSnapshotDiscard() => Interlocked.Exchange(ref _snapshotDiscardRequested, 1);
+
+	public static bool ConsumeSnapshotDiscardRequest() => Interlocked.Exchange(ref _snapshotDiscardRequested, 0) == 1;
+
+	public static void RecordDiscardedSnapshotSequence(int sequence) => Volatile.Write(ref _discardedSnapshotSequence, sequence);
 
 	public static int FingerprintMismatchCount => _fingerprintMismatchCount;
 	public static string FingerprintMismatchSummary => _fingerprintMismatchSummary;
@@ -76,34 +74,117 @@ public static class MultiplayerSyncDiagnostics
 		_fingerprintMismatchSummary += $"{sequence}:{hostFingerprint:x8}:{clientFingerprint:x8}; ";
 	}
 
+	private static int _missingUnitComponentCount;
+	private static string _missingUnitComponentSummary = string.Empty;
+
+	public static int MissingUnitComponentCount => _missingUnitComponentCount;
+
+	public static void RecordMissingUnitComponent(int serverEntityId, string componentName)
+	{
+		_missingUnitComponentCount++;
+		if (_missingUnitComponentCount > 20) return;
+		_missingUnitComponentSummary += $"{serverEntityId}:{componentName}; ";
+	}
+
+	private static int _removedUnitComponentCount;
+	private static string _removedUnitComponentSummary = string.Empty;
+	private static int _unreconciledUnitCount;
+	private static string _unreconciledUnitSummary = string.Empty;
+
+	public static int RemovedUnitComponentCount => _removedUnitComponentCount;
+	public static string RemovedUnitComponentSummary => _removedUnitComponentSummary;
+
+	public static int UnreconciledUnitCount => _unreconciledUnitCount;
+	public static string UnreconciledUnitSummary => _unreconciledUnitSummary;
+
+	public static void RecordRemovedUnitComponent(int serverEntityId, string componentName)
+	{
+		_removedUnitComponentCount++;
+		if (_removedUnitComponentCount > 20) return;
+		_removedUnitComponentSummary += $"{serverEntityId}:{componentName}; ";
+	}
+
+	public static void RecordUnreconciledUnit(int serverEntityId)
+	{
+		_unreconciledUnitCount++;
+		if (_unreconciledUnitCount > 20) return;
+		_unreconciledUnitSummary += $"{serverEntityId}; ";
+	}
+
+
+	public const int ClientUnitGapAlertSequences = 8;
+
+	private static readonly Dictionary<int, int> _clientUnitLastPresentSequence = new();
+	private static readonly Dictionary<int, int> _clientUnitLastUpdateInterval = new();
+	private static readonly List<(int EntityId, int FromSequence, int ToSequence)> _clientUnitGaps = new();
+	private static int _clientUnitGapCount;
+
+	public static int ClientUnitGapCount => _clientUnitGapCount;
+
+	public static void RecordClientSnapshotUnitPresence(int sequence, IReadOnlyList<UnitSnapshot> units)
+	{
+		if (!IsRecording) return;
+
+		for (int index = 0; index < units.Count; index++)
+		{
+			int entityId = units[index].EntityId;
+			if (_clientUnitLastPresentSequence.TryGetValue(entityId, out int lastPresentSequence))
+			{
+				int gap = sequence - lastPresentSequence;
+				_clientUnitLastUpdateInterval[entityId] = gap;
+				if (gap > ClientUnitGapAlertSequences)
+				{
+					_clientUnitGapCount++;
+					if (_clientUnitGaps.Count < 128) _clientUnitGaps.Add((entityId, lastPresentSequence, sequence));
+				}
+			}
+
+			_clientUnitLastPresentSequence[entityId] = sequence;
+		}
+	}
+
 	public static float PresentationWindowSeconds { get; set; } = 2f;
+	public static float PresentationSettleSeconds { get; set; } = 0.5f;
 	public static bool IsRecording => _writer != null;
+
+	private static bool _lastAppliedWasBaseline;
+	private static int _presentationAnchorBaselineSequence = -1;
 	public static int WrittenRecordCount => _writtenRecordCount;
 	public static string OutputDirectory => _outputDirectory;
 
-	public static void Start(string outputDirectory, bool isHost)
+	public static void Start(string outputDirectory)
 	{
 		Stop();
 		Directory.CreateDirectory(outputDirectory);
 		_outputDirectory = outputDirectory;
-		_isHost = isHost;
 		_writtenRecordCount = 0;
 		_lastRecordedSequence = -1;
 		_lastPresentedSequence = -1;
 		_presentationWindowStartTime = -1f;
+		_presentationAnchorSequence = -1;
 		_fingerprintMismatchCount = 0;
 		_fingerprintMismatchSummary = string.Empty;
+		_missingUnitComponentCount = 0;
+		_missingUnitComponentSummary = string.Empty;
+		_removedUnitComponentCount = 0;
+		_removedUnitComponentSummary = string.Empty;
+		_unreconciledUnitCount = 0;
+		_unreconciledUnitSummary = string.Empty;
+		_clientUnitGapCount = 0;
+		WorstOffNavMeshMeters = 0f;
+		OffNavMeshCount = 0;
+		_presentationGaps.Clear();
+		_presentationStepDetails.Clear();
+		_clientUnitLastPresentSequence.Clear();
+		_clientUnitLastUpdateInterval.Clear();
+		_clientUnitGaps.Clear();
 		_clientSeenSequences.Clear();
-		_digestBuffer.Clear();
-
-		string path = Path.Combine(outputDirectory, isHost ? "ECS_host_sync.bin" : "ECS_client_sync.bin");
+		string path = Path.Combine(outputDirectory, "ECS_client_sync.bin");
 		using (MemoryStream headerStream = new())
 		{
 			using (BinaryWriter headerWriter = new(headerStream, System.Text.Encoding.UTF8, leaveOpen: true))
 			{
-				headerWriter.Write(FileMagic);
-				headerWriter.Write(FileVersion);
-				headerWriter.Write(isHost);
+				SyncRecordFormat.WriteHeader(headerWriter, false);
 			}
 
 			_fileHeader = headerStream.ToArray();
@@ -114,16 +195,14 @@ public static class MultiplayerSyncDiagnostics
 		_writer.Write(_fileHeader);
 		_writer.Flush();
 
-		if (isHost) return;
+		PositionWriteTrace.IsEnabled = true;
 
 		string presentationPath = Path.Combine(outputDirectory, "ECS_client_presentation.bin");
 		using (MemoryStream presentationHeaderStream = new())
 		{
 			using (BinaryWriter presentationHeaderWriter = new(presentationHeaderStream, System.Text.Encoding.UTF8, leaveOpen: true))
 			{
-				presentationHeaderWriter.Write(FileMagic);
-				presentationHeaderWriter.Write(FileVersion);
-				presentationHeaderWriter.Write(false);
+				SyncRecordFormat.WriteHeader(presentationHeaderWriter, false);
 			}
 
 			_presentationHeader = presentationHeaderStream.ToArray();
@@ -133,6 +212,77 @@ public static class MultiplayerSyncDiagnostics
 		_presentationWriter = new BinaryWriter(presentationStream);
 		_presentationWriter.Write(_presentationHeader);
 		_presentationWriter.Flush();
+	}
+
+	private const float PresentationMatchToleranceMeters = 0.01f;
+
+	private static readonly List<string> _presentationGaps = new();
+
+	public const float OffNavMeshToleranceMeters = 0.5f;
+
+	public static float WorstOffNavMeshMeters { get; private set; }
+
+	public static int OffNavMeshCount { get; private set; }
+	private static readonly HashSet<int> _presentationSteppedEntities = new();
+	private static int _presentationSteppedSequence = -1;
+
+	private static readonly List<string> _presentationStepDetails = new();
+
+	public static void RecordPresentationStepDetail(int entityId, System.Numerics.Vector3 currentPosition, System.Numerics.Vector3 targetPosition, float stepFraction, System.Numerics.Vector3 writtenPosition)
+	{
+		if (!IsRecording || _presentationStepDetails.Count >= 240) return;
+		_presentationStepDetails.Add($"step={entityId}:{_presentationSteppedSequence}:from={currentPosition.X.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)},{currentPosition.Z.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}:to={targetPosition.X.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)},{targetPosition.Z.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}:fraction={stepFraction.ToString("F4", System.Globalization.CultureInfo.InvariantCulture)}:wrote={writtenPosition.X.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)},{writtenPosition.Z.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}");
+	}
+
+	private static int _duplicateMappingsReported;
+	private static ulong _presentationFrame = ulong.MaxValue;
+	private static int _presentationAppliesInFrame;
+
+	public static void RecordPresentationStep(int entityId, int sequence)
+	{
+		if (!IsRecording) return;
+		if (sequence != _presentationSteppedSequence)
+		{
+			_presentationSteppedSequence = sequence;
+			_presentationSteppedEntities.Clear();
+		}
+
+		_presentationSteppedEntities.Add(entityId);
+	}
+
+	private static void RecordNavMeshPlacement(EcsWorld world, Entity localEntity, bool isBuilding, System.Numerics.Vector3 presentedPosition)
+	{
+		if (isBuilding) return;
+		if (world.Has<MovementStats>(localEntity) && world.Get<MovementStats>(localEntity).Type != MovementType.Ground) return;
+
+		var movementService = GameContext.Simulation?.MovementPathfindingService;
+		if (movementService == null) return;
+		if (!movementService.TryResolveDistanceOffNavMesh(presentedPosition, out float distanceOffNavMesh)) return;
+
+		if (distanceOffNavMesh > WorstOffNavMeshMeters) WorstOffNavMeshMeters = distanceOffNavMesh;
+		if (distanceOffNavMesh > OffNavMeshToleranceMeters) OffNavMeshCount++;
+	}
+
+	private static void RecordPresentationGap(EcsWorld world, int sequence, int localEntityId, int serverEntityId, Entity localEntity, System.Numerics.Vector3 presentedPosition, bool isCulled)
+	{
+		if (!PositionWriteTrace.IsEnabled) return;
+		if (_presentationGaps.Count >= 240) return;
+
+		bool wasStepped = _presentationSteppedEntities.Contains(localEntityId);
+		if (!wasStepped) return;
+
+		System.Numerics.Vector3 writtenPosition = PositionWriteTrace.LastPresentationWrite(localEntity);
+		float presentationDrift = (writtenPosition - presentedPosition).Length();
+		bool writtenByPresentation = PositionWriteTrace.Last(localEntity) == PositionWriter.Interpolation;
+		if (writtenByPresentation && presentationDrift <= PresentationMatchToleranceMeters) return;
+
+		bool hasTarget = world.Has<LatestDescription>(localEntity);
+		System.Numerics.Vector3 targetPosition = hasTarget ? world.Get<LatestDescription>(localEntity).Position : presentedPosition;
+		bool hasPosition = world.Has<Position>(localEntity);
+		float cursorSequence = GameContext.SnapshotTimeline.CursorSequence;
+		float lagSequences = GameContext.SnapshotTimeline.NewestSequence - cursorSequence;
+		float roundTripMilliseconds = GameContext.NetworkLatencyService?.SmoothedRoundTripMilliseconds ?? -1f;
+		_presentationGaps.Add($"appliesInFrame={_presentationAppliesInFrame}:unit={serverEntityId}:{sequence}:local={localEntityId}:drift={presentationDrift.ToString("F4", System.Globalization.CultureInfo.InvariantCulture)}:writer={PositionWriteTrace.Last(localEntity)}:hasDescription={(hasTarget ? 1 : 0)}:hasPos={(hasPosition ? 1 : 0)}:stepped={(wasStepped ? 1 : 0)}:cursor={cursorSequence.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}:behind={lagSequences.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}:delay={GameContext.SnapshotTimeline.DelaySequences}:rtt={roundTripMilliseconds.ToString("F0", System.Globalization.CultureInfo.InvariantCulture)}:newest={targetPosition.X.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)},{targetPosition.Z.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}:presented={presentedPosition.X.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)},{presentedPosition.Z.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}:wrote={writtenPosition.X.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)},{writtenPosition.Z.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}:age={Godot.Engine.GetPhysicsFrames() - PositionWriteTrace.LastWriteFrame(localEntity)}:culled={(isCulled ? 1 : 0)}:frac={PositionWriteTrace.LastPresentationFraction(localEntity).ToString("F4", System.Globalization.CultureInfo.InvariantCulture)}:cur={PositionWriteTrace.LastPresentationFrom(localEntity).X.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)},{PositionWriteTrace.LastPresentationFrom(localEntity).Z.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}:back={PositionWriteTrace.LastReadBack(localEntity).X.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)},{PositionWriteTrace.LastReadBack(localEntity).Z.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}");
 	}
 
 	public static void Stop()
@@ -150,7 +300,7 @@ public static class MultiplayerSyncDiagnostics
 		_writer = null;
 
 		if (string.IsNullOrEmpty(_outputDirectory)) return;
-		if (!_isHost && _clientSeenSequences.Count > 0)
+		if (_clientSeenSequences.Count > 0)
 		{
 			try
 			{
@@ -169,87 +319,51 @@ public static class MultiplayerSyncDiagnostics
 
 		try
 		{
-			string summary = $"fingerprint_mismatches={_fingerprintMismatchCount}\nshadow_baselines={ShadowClientVerifier.VerifiedBaselines}\nshadow_replayed_deltas={ShadowClientVerifier.ReplayedDeltaCount}\nshadow_structural_failures={ShadowClientVerifier.StructuralFailures}\nshadow_fingerprint_failures={ShadowClientVerifier.FingerprintFailures}\n{_fingerprintMismatchSummary}\n";
-			File.WriteAllText(Path.Combine(_outputDirectory, _isHost ? "ECS_host_replication.txt" : "ECS_client_replication.txt"), summary);
+			string summary = $"fingerprint_mismatches={_fingerprintMismatchCount}\nmissing_unit_components={_missingUnitComponentCount}\nremoved_unit_components={_removedUnitComponentCount}\nunreconciled_units={_unreconciledUnitCount}\nbuffer_starvations={GameContext.SnapshotTimeline.StarvationCount}\ninterpolation_delay_sequences={GameContext.SnapshotTimeline.DelaySequences}\nworst_off_navmesh_meters={WorstOffNavMeshMeters.ToString("F3", System.Globalization.CultureInfo.InvariantCulture)}\noff_navmesh_units={OffNavMeshCount}\nshadow_baselines={ShadowClientVerifier.VerifiedBaselines}\nshadow_replayed_deltas={ShadowClientVerifier.ReplayedDeltaCount}\nshadow_structural_failures={ShadowClientVerifier.StructuralFailures}\nshadow_fingerprint_failures={ShadowClientVerifier.FingerprintFailures}\n{_fingerprintMismatchSummary}{_missingUnitComponentSummary}{_removedUnitComponentSummary}{_unreconciledUnitSummary}\n";
+			File.WriteAllText(Path.Combine(_outputDirectory, "ECS_client_replication.txt"), summary);
+		}
+		catch (IOException)
+		{
+		}
+
+		try
+		{
+			using StreamWriter presentationWriter = new(Path.Combine(_outputDirectory, "ECS_client_presentation_gaps.txt"), false);
+			presentationWriter.WriteLine($"count={_presentationGaps.Count}");
+			presentationWriter.WriteLine($"tolerance_meters={PresentationMatchToleranceMeters.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
+			presentationWriter.WriteLine($"delay_sequences={GameContext.SnapshotTimeline.DelaySequences}");
+			presentationWriter.WriteLine($"starvations={GameContext.SnapshotTimeline.StarvationCount}");
+			presentationWriter.WriteLine($"extrapolated_samples={GameContext.SnapshotTimeline.ExtrapolatedSampleCount}");
+			for (int index = 0; index < _presentationGaps.Count; index++) presentationWriter.WriteLine(_presentationGaps[index]);
+			for (int index = 0; index < _presentationStepDetails.Count; index++) presentationWriter.WriteLine(_presentationStepDetails[index]);
+		}
+		catch (IOException)
+		{
+		}
+
+		try
+		{
+			using StreamWriter gapWriter = new(Path.Combine(_outputDirectory, "ECS_client_unit_gaps.txt"), false);
+			gapWriter.WriteLine($"count={_clientUnitGapCount}");
+			gapWriter.WriteLine($"alert_sequences={ClientUnitGapAlertSequences}");
+			for (int index = 0; index < _clientUnitGaps.Count; index++)
+			{
+				(int entityId, int fromSequence, int toSequence) = _clientUnitGaps[index];
+				gapWriter.WriteLine($"gap={entityId}:{fromSequence}:{toSequence}");
+			}
 		}
 		catch (IOException)
 		{
 		}
 	}
 
-	public static void RecordHostSnapshot(WorldSnapshot snapshot)
+	public static void RecordClientSnapshot(bool isBaseline)
 	{
-		if (_writer == null || !_isHost) return;
-		if (snapshot.Units == null) return;
-
-		List<UnitSnapshot> units = snapshot.Units;
-		byte[] record = BuildRecord(snapshot.Sequence, snapshot.IsBaseline, writer =>
-		{
-			List<int> orderedIndices = new(units.Count);
-			for (int i = 0; i < units.Count; i++)
-			{
-				orderedIndices.Add(i);
-			}
-
-			orderedIndices.Sort((left, right) => units[left].EntityId.CompareTo(units[right].EntityId));
-
-			writer.Write(orderedIndices.Count);
-			foreach (int index in orderedIndices)
-			{
-				UnitSnapshot unit = units[index];
-				RecordAuthoritativeUnitState(unit, out System.Numerics.Vector3 position, out float rotationY, out float currentHp, out float maxHp);
-				writer.Write(unit.EntityId);
-				writer.Write(unit.OwnerPlayerIndex);
-				writer.Write(position.X);
-				writer.Write(position.Y);
-				writer.Write(position.Z);
-				writer.Write(rotationY);
-				writer.Write(currentHp);
-				writer.Write(maxHp);
-				writer.Write(BuildFlags(unit.IsDead, unit.IsBuilding, unit.IsDetailed, IsVisibleToRemoteClient(unit.EntityId)));
-				WriteComponentDigests(writer, GameContext.World, new Entity(unit.EntityId), ReplicatedScope.Unit, null);
-			}
-
-			AppendPlayerScopeState(writer, GameContext.World, null);
-		});
-
-		AppendRecord(record, snapshot.Sequence, snapshot.IsBaseline);
-	}
-
-	private static void RecordAuthoritativeUnitState(UnitSnapshot unit, out System.Numerics.Vector3 position, out float rotationY, out float currentHp, out float maxHp)
-	{
-		EcsWorld? world = GameContext.World;
-		Entity entity = new(unit.EntityId);
-		position = new System.Numerics.Vector3(unit.Position.X, unit.Position.Y, unit.Position.Z);
-		rotationY = unit.RotationY;
-		currentHp = unit.CurrentHp;
-		maxHp = unit.MaxHp;
-
-		if (world == null || !world.IsAlive(entity)) return;
-
-		if (world.Has<Position>(entity)) position = world.Get<Position>(entity).Value;
-		if (world.Has<RotationY>(entity)) rotationY = world.Get<RotationY>(entity).Value;
-		if (!world.Has<Health>(entity)) return;
-
-		Health health = world.Get<Health>(entity);
-		currentHp = health.Current;
-		maxHp = health.Max;
-	}
-
-	private static bool IsVisibleToRemoteClient(int serverEntityId)
-	{
-		NetworkService? networkService = GameContext.NetworkService;
-		if (networkService == null) return true;
-		return networkService.IsServerEntityVisibleToAnyRemoteClient(serverEntityId);
-	}
-
-	public static void RecordClientSnapshot()
-	{
-		if (_writer == null || _isHost) return;
+		if (_writer == null) return;
 
 		EcsWorld? world = GameContext.World;
 		if (world == null) return;
-		Entity worldEntity = ECSContext.WorldEntity;
+		Entity worldEntity = GameContext.Simulation.WorldEntity;
 		if (worldEntity == Entity.Null || !world.IsAlive(worldEntity)) return;
 		if (!world.Has<NetworkState>(worldEntity) || !world.Has<NetworkMappingState>(worldEntity)) return;
 
@@ -262,9 +376,9 @@ public static class MultiplayerSyncDiagnostics
 		{
 			Entity localEntity = new(kvp.Key);
 			if (!world.IsAlive(localEntity)) continue;
-			if (!world.Has<InterpolationTarget>(localEntity)) continue;
+			if (!world.Has<LatestDescription>(localEntity)) continue;
 
-			InterpolationTarget target = world.Get<InterpolationTarget>(localEntity);
+			LatestDescription target = world.Get<LatestDescription>(localEntity);
 			float currentHp = world.Has<Health>(localEntity) ? world.Get<Health>(localEntity).Current : 0f;
 			float maxHp = world.Has<Health>(localEntity) ? world.Get<Health>(localEntity).Max : 0f;
 			bool isDead = world.Has<Dead>(localEntity);
@@ -276,112 +390,42 @@ public static class MultiplayerSyncDiagnostics
 
 		units.Sort((left, right) => left.ServerEntityId.CompareTo(right.ServerEntityId));
 
-		bool isBaseline = sequence % BaselineIntervalTicks == 0;
+		_lastAppliedWasBaseline = isBaseline;
 		byte[] record = BuildRecord(sequence, isBaseline, writer =>
 		{
 			writer.Write(units.Count);
 			foreach (ClientUnitState unit in units)
 			{
-				writer.Write(unit.ServerEntityId);
-				writer.Write(unit.OwnerPlayerIndex);
-				writer.Write(unit.PositionX);
-				writer.Write(unit.PositionY);
-				writer.Write(unit.PositionZ);
-				writer.Write(unit.RotationY);
-				writer.Write(unit.CurrentHp);
-				writer.Write(unit.MaxHp);
-				writer.Write(BuildFlags(unit.IsDead, unit.IsBuilding, true, true));
-				WriteComponentDigests(writer, world, new Entity(unit.LocalEntityId), ReplicatedScope.Unit, mapping.ClientToServerEntityMap);
+				byte flags = 0;
+				if (unit.IsDead) flags |= SyncRecordFormat.FlagDead;
+				if (unit.IsBuilding) flags |= SyncRecordFormat.FlagBuilding;
+				flags |= SyncRecordFormat.FlagDetailed;
+				flags |= SyncRecordFormat.FlagVisibleToRemoteClient;
+
+				System.Numerics.Vector3 position = new(unit.PositionX, unit.PositionY, unit.PositionZ);
+				SyncRecordFormat.SyncUnitRecord unitRecord = new(unit.ServerEntityId, unit.OwnerPlayerIndex, position, unit.RotationY, unit.CurrentHp, unit.MaxHp, position, flags);
+				_comparabilityLocalEntityId = unit.LocalEntityId;
+				SyncRecordFormat.WriteUnit(writer, in unitRecord, world, new Entity(unit.LocalEntityId), ReplicatedScope.Unit, mapping.ClientToServerEntityMap, ClientComponentComparability);
 			}
 
 			AppendPlayerScopeState(writer, world, mapping.ClientToServerEntityMap);
+			AppendNavigationState(writer);
 		});
 
 		AppendRecord(record, sequence, isBaseline);
 	}
 
-	private static void WriteComponentDigests(BinaryWriter writer, EcsWorld? world, Entity entity, ReplicatedScope scope, Dictionary<int, int>? clientToServerEntityMap)
-	{
-		_digestBuffer.Clear();
-
-		if (world != null && entity != Entity.Null && world.IsAlive(entity))
-		{
-			IReadOnlyList<IReplicatedComponentCodec> codecs = ReplicatedComponents.All;
-			for (int index = 0; index < codecs.Count; index++)
-			{
-				IReplicatedComponentCodec codec = codecs[index];
-				if (codec.Scope != scope) continue;
-
-				int size = codec.SizeInBytes;
-				if (_codecScratch.Length < size) Array.Resize(ref _codecScratch, size);
-				Span<byte> payload = _codecScratch.AsSpan(0, size);
-				payload.Clear();
-				if (!codec.TryWrite(world, entity, payload)) continue;
-
-				NormalizeEntityReferences(payload, codec.ComponentTypeId, clientToServerEntityMap);
-				_digestBuffer.Add(new ComponentDigest(codec.ComponentTypeId, HashPayload(payload)));
-			}
-		}
-
-		_digestBuffer.Sort(static (left, right) => left.ComponentTypeId.CompareTo(right.ComponentTypeId));
-		writer.Write(_digestBuffer.Count);
-		for (int index = 0; index < _digestBuffer.Count; index++)
-		{
-			writer.Write(_digestBuffer[index].ComponentTypeId);
-			writer.Write(_digestBuffer[index].Hash);
-		}
-	}
-
-	private static void NormalizeEntityReferences(Span<byte> payload, int componentTypeId, Dictionary<int, int>? clientToServerEntityMap)
-	{
-		if (clientToServerEntityMap == null) return;
-		if (!_entityReferencePayloadOffsets.TryGetValue(componentTypeId, out int offset)) return;
-		if (payload.Length < offset + sizeof(int)) return;
-
-		int localEntityId = MemoryMarshal.Read<int>(payload.Slice(offset, sizeof(int)));
-		int serverEntityId = -1;
-		if (localEntityId >= 0 && !clientToServerEntityMap.TryGetValue(localEntityId, out serverEntityId)) serverEntityId = -1;
-		MemoryMarshal.Write(payload.Slice(offset, sizeof(int)), in serverEntityId);
-	}
-
-	private static uint HashPayload(ReadOnlySpan<byte> payload)
-	{
-		uint hash = 2166136261u;
-		for (int index = 0; index < payload.Length; index++)
-		{
-			hash ^= payload[index];
-			hash *= 16777619u;
-		}
-
-		return hash;
-	}
-
 	private static void AppendPlayerScopeState(BinaryWriter writer, EcsWorld? world, Dictionary<int, int>? clientToServerEntityMap)
 	{
-		Entity worldEntity = ECSContext.WorldEntity;
-		Entity[]? playerEntities = null;
-		if (world != null && worldEntity != Entity.Null && world.IsAlive(worldEntity) && world.Has<NetworkMappingState>(worldEntity))
-		{
-			playerEntities = world.Get<NetworkMappingState>(worldEntity).PlayerEntities;
-		}
-
-		int playerCount = playerEntities?.Length ?? 0;
-		if (playerCount > PlayerSlotCount) playerCount = PlayerSlotCount;
-		writer.Write(playerCount);
-		for (int playerIndex = 0; playerIndex < playerCount; playerIndex++)
-		{
-			writer.Write(playerIndex);
-			WriteComponentDigests(writer, world, playerEntities![playerIndex], ReplicatedScope.Player, clientToServerEntityMap);
-		}
-
-		WriteComponentDigests(writer, world, worldEntity, ReplicatedScope.World, clientToServerEntityMap);
-		AppendLootState(writer, world, clientToServerEntityMap);
+		Entity worldEntity = GameContext.Simulation.WorldEntity;
+		SyncRecordFormat.WritePlayerScope(writer, world, worldEntity, ReplicatedScope.Player, clientToServerEntityMap);
+		AppendLootState(writer, world);
 	}
 
-	private static void AppendLootState(BinaryWriter writer, EcsWorld? world, Dictionary<int, int>? clientToServerEntityMap)
+	private static void AppendLootState(BinaryWriter writer, EcsWorld? world)
 	{
 		_lootBuffer.Clear();
-		GameHost? host = GameHost.Instance;
+		GameHost? host = GameContext.Host;
 		if (host != null)
 		{
 			List<LootItem3D> lootItems = host.AllLootItems;
@@ -398,35 +442,50 @@ public static class MultiplayerSyncDiagnostics
 		writer.Write(_lootBuffer.Count);
 		for (int index = 0; index < _lootBuffer.Count; index++)
 		{
-			writer.Write(_lootBuffer[index].UniqueId);
-			WriteComponentDigests(writer, world, _lootBuffer[index].Entity, ReplicatedScope.Unit, clientToServerEntityMap);
+			SyncRecordFormat.WriteLootItem(writer, _lootBuffer[index].UniqueId, SyncRecordFormat.NamedByEveryPeer, world, _lootBuffer[index].Entity);
 		}
+	}
+
+	private static void AppendNavigationState(BinaryWriter writer)
+	{
+		SyncRecordFormat.WriteNavigationState(writer, NavigationParityDigest.Capture(GameContext.World, GameContext.Simulation.WorldEntity, GameContext.Simulation.TerrainNavMeshService));
 	}
 
 	public static void RecordClientPresentation()
 	{
-		if (_presentationWriter == null || _isHost) return;
+		if (_presentationWriter == null) return;
 
-		GameHost? gameHost = GameHost.Instance;
+		GameHost? gameHost = GameContext.Host;
 		if (gameHost == null) return;
-		if (_presentationWindowStartTime < 0f)
-		{
-			_presentationWindowStartTime = gameHost.GameElapsedTime;
-		}
-
-		if (gameHost.GameElapsedTime - _presentationWindowStartTime > PresentationWindowSeconds) return;
 
 		EcsWorld? world = GameContext.World;
 		if (world == null) return;
-		Entity worldEntity = ECSContext.WorldEntity;
+		Entity worldEntity = GameContext.Simulation.WorldEntity;
 		if (worldEntity == Entity.Null || !world.IsAlive(worldEntity)) return;
 		if (!world.Has<NetworkState>(worldEntity) || !world.Has<NetworkMappingState>(worldEntity)) return;
 
 		int sequence = GameContext.NetworkService.LastAppliedSnapshotSequenceForDiagnostics;
 		if (sequence < 0 || sequence == _lastPresentedSequence) return;
 
+		ulong presentationFrame = Godot.Engine.GetPhysicsFrames();
+		_presentationAppliesInFrame = presentationFrame == _presentationFrame ? _presentationAppliesInFrame + 1 : 1;
+		_presentationFrame = presentationFrame;
+
+		int baselineSequence = GameContext.NetworkService.LastAppliedBaselineSequenceForDiagnostics;
+		if (baselineSequence != _presentationAnchorBaselineSequence)
+		{
+			_presentationAnchorBaselineSequence = baselineSequence;
+			_presentationWindowStartTime = gameHost.GameElapsedTime;
+			_presentationAnchorSequence = sequence;
+		}
+
+		float presentationElapsed = gameHost.GameElapsedTime - _presentationWindowStartTime;
+		if (presentationElapsed < PresentationSettleSeconds) return;
+		if (presentationElapsed > PresentationWindowSeconds) return;
+
 		NetworkMappingState mapping = world.Get<NetworkMappingState>(worldEntity);
 		var units = new List<PresentedUnitState>();
+		HashSet<int>? recordServerIds = _duplicateMappingsReported < 20 ? new HashSet<int>() : null;
 		foreach (var kvp in mapping.ClientToServerEntityMap)
 		{
 			Entity localEntity = new(kvp.Key);
@@ -440,13 +499,24 @@ public static class MultiplayerSyncDiagnostics
 			bool isBuilding = world.Has<Building>(localEntity);
 			int ownerPlayerIndex = ResolveOwnerPlayerIndex(world, localEntity);
 
-			units.Add(new PresentedUnitState(kvp.Value, ownerPlayerIndex, unit3D.GlobalPosition, unit3D.GlobalRotation.Y, currentHp, maxHp, isDead, isBuilding));
+			System.Numerics.Vector3 appliedPosition = world.Has<Position>(localEntity) ? world.Get<Position>(localEntity).Value : new System.Numerics.Vector3(unit3D.GlobalPosition.X, unit3D.GlobalPosition.Y, unit3D.GlobalPosition.Z);
+			RecordPresentationGap(world, sequence, kvp.Key, kvp.Value, localEntity, appliedPosition, unit3D.IsCulled);
+			RecordNavMeshPlacement(world, localEntity, isBuilding, appliedPosition);
+
+			if (recordServerIds != null)
+			{
+				if (!recordServerIds.Add(kvp.Value) && _duplicateMappingsReported < 20)
+				{
+					_duplicateMappingsReported++;
+					_presentationGaps.Add($"duplicate={kvp.Value}:{sequence}:a second local entity {kvp.Key} maps to this server entity, two records for one unit will be written");
+				}
+			}
+			units.Add(new PresentedUnitState(kvp.Value, ownerPlayerIndex, unit3D.GlobalPosition, unit3D.GlobalRotation.Y, currentHp, maxHp, isDead, isBuilding, unit3D.IsCulled, appliedPosition));
 		}
 
 		units.Sort((left, right) => left.ServerEntityId.CompareTo(right.ServerEntityId));
 
-		bool isBaseline = sequence % BaselineIntervalTicks == 0;
-		byte[] record = BuildRecord(sequence, isBaseline, writer =>
+		byte[] record = BuildRecord(sequence, _lastAppliedWasBaseline, writer =>
 		{
 			writer.Write(units.Count);
 			foreach (PresentedUnitState unit in units)
@@ -459,18 +529,41 @@ public static class MultiplayerSyncDiagnostics
 				writer.Write(unit.RotationY);
 				writer.Write(unit.CurrentHp);
 				writer.Write(unit.MaxHp);
-				writer.Write(BuildFlags(unit.IsDead, unit.IsBuilding, false, true));
+				writer.Write(unit.AppliedPositionX);
+				writer.Write(unit.AppliedPositionY);
+				writer.Write(unit.AppliedPositionZ);
+				byte flags = 0;
+				if (unit.IsDead) flags |= SyncRecordFormat.FlagDead;
+				if (unit.IsBuilding) flags |= SyncRecordFormat.FlagBuilding;
+				flags |= SyncRecordFormat.FlagDetailed;
+				flags |= SyncRecordFormat.FlagVisibleToRemoteClient;
+				if (unit.IsCulled) flags |= SyncRecordFormat.FlagCulled;
+				writer.Write(flags);
+				writer.Write(SyncRecordFormat.NamedByEveryPeer);
 				writer.Write(0);
 			}
 
 			writer.Write(0);
 			writer.Write(0);
 			writer.Write(0);
+			AppendNavigationState(writer);
 		});
 
 		_presentationWriter.Write(record);
-		_presentationWriter.Flush();
 		_lastPresentedSequence = sequence;
+	}
+
+	private static int _comparabilityLocalEntityId;
+
+	private static readonly SyncRecordFormat.ComponentComparabilityMask ClientComponentComparability = IsClientComponentComparable;
+
+	private static bool IsClientComponentComparable(int componentTypeId, ReadOnlySpan<byte> payload, out ulong namedByPeers)
+	{
+		namedByPeers = SyncRecordFormat.NamedByEveryPeer;
+		NetworkService? networkService = GameContext.NetworkService;
+		if (networkService == null) return true;
+
+		return !networkService.IsReferenceUnresolved(_comparabilityLocalEntityId, componentTypeId);
 	}
 
 	private static int ResolveOwnerPlayerIndex(EcsWorld world, Entity localEntity)
@@ -479,23 +572,22 @@ public static class MultiplayerSyncDiagnostics
 		return world.Get<UnitOwnerPlayer>(localEntity).PlayerIndex;
 	}
 
-	private static byte BuildFlags(bool isDead, bool isBuilding, bool isDetailed, bool isVisibleToRemoteClient)
+	private static byte[] BuildRecord(int sequence, bool isBaseline, Action<BinaryWriter> writeUnits)
 	{
-		byte flags = 0;
-		if (isDead) flags |= 1;
-		if (isBuilding) flags |= 2;
-		if (isDetailed) flags |= 4;
-		if (isVisibleToRemoteClient) flags |= 8;
-		return flags;
+		return BuildRecord(sequence, isBaseline, Array.Empty<int>(), writeUnits);
 	}
 
-	private static byte[] BuildRecord(int sequence, bool isBaseline, Action<BinaryWriter> writeUnits)
+	private static byte[] BuildRecord(int sequence, bool isBaseline, IReadOnlyList<int> baselinePeerIds, Action<BinaryWriter> writeUnits)
 	{
 		using MemoryStream stream = new(4096);
 		using (BinaryWriter writer = new(stream, System.Text.Encoding.UTF8, leaveOpen: true))
 		{
 			writer.Write(sequence);
 			writer.Write(isBaseline);
+			writer.Write(baselinePeerIds.Count);
+			for (int index = 0; index < baselinePeerIds.Count; index++) writer.Write(baselinePeerIds[index]);
+			writer.Write(Godot.Engine.GetPhysicsFrames());
+			writer.Write(0);
 			writeUnits(writer);
 		}
 
@@ -506,29 +598,16 @@ public static class MultiplayerSyncDiagnostics
 	{
 		if (_writer == null) return;
 		_writer.Write(record);
-		_writer.Flush();
 		_writtenRecordCount++;
 		_lastRecordedSequence = sequence;
 
 		if (!isBaseline) return;
 
-		string fileName = _isHost ? $"ECS_host_snapshot_{sequence}.bin" : $"ECS_client_snapshot_{sequence}.bin";
+		string fileName = $"ECS_client_snapshot_{sequence}.bin";
 		byte[] snapshotFile = new byte[_fileHeader.Length + record.Length];
 		_fileHeader.CopyTo(snapshotFile, 0);
 		record.CopyTo(snapshotFile, _fileHeader.Length);
 		File.WriteAllBytes(Path.Combine(_outputDirectory, fileName), snapshotFile);
-	}
-
-	private readonly struct ComponentDigest
-	{
-		public readonly int ComponentTypeId;
-		public readonly uint Hash;
-
-		public ComponentDigest(int componentTypeId, uint hash)
-		{
-			ComponentTypeId = componentTypeId;
-			Hash = hash;
-		}
 	}
 
 	private readonly struct PresentedUnitState
@@ -543,8 +622,12 @@ public static class MultiplayerSyncDiagnostics
 		public readonly float MaxHp;
 		public readonly bool IsDead;
 		public readonly bool IsBuilding;
+		public readonly bool IsCulled;
+		public readonly float AppliedPositionX;
+		public readonly float AppliedPositionY;
+		public readonly float AppliedPositionZ;
 
-		public PresentedUnitState(int serverEntityId, int ownerPlayerIndex, Vector3 position, float rotationY, float currentHp, float maxHp, bool isDead, bool isBuilding)
+		public PresentedUnitState(int serverEntityId, int ownerPlayerIndex, Vector3 position, float rotationY, float currentHp, float maxHp, bool isDead, bool isBuilding, bool isCulled, System.Numerics.Vector3 appliedPosition)
 		{
 			ServerEntityId = serverEntityId;
 			OwnerPlayerIndex = ownerPlayerIndex;
@@ -556,6 +639,10 @@ public static class MultiplayerSyncDiagnostics
 			MaxHp = maxHp;
 			IsDead = isDead;
 			IsBuilding = isBuilding;
+			IsCulled = isCulled;
+			AppliedPositionX = appliedPosition.X;
+			AppliedPositionY = appliedPosition.Y;
+			AppliedPositionZ = appliedPosition.Z;
 		}
 	}
 
@@ -573,7 +660,7 @@ public static class MultiplayerSyncDiagnostics
 		public readonly bool IsDead;
 		public readonly bool IsBuilding;
 
-		public ClientUnitState(int serverEntityId, int localEntityId, int ownerPlayerIndex, InterpolationTarget target, float currentHp, float maxHp, bool isDead, bool isBuilding)
+		public ClientUnitState(int serverEntityId, int localEntityId, int ownerPlayerIndex, LatestDescription target, float currentHp, float maxHp, bool isDead, bool isBuilding)
 		{
 			ServerEntityId = serverEntityId;
 			LocalEntityId = localEntityId;

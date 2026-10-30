@@ -17,6 +17,7 @@ public class MapEditorPlacementSettings
 	private Label _lblClumpCountValue;
 	private Slider _sldClumpScale;
 	private Label _lblClumpScaleValue;
+	private bool _randomRotationBeforeClumpMode;
 
 	public MapEditorPlacementSettings(Slider sldPlacementRotate, Label lblPlacementRotateValue, Slider sldPlacementScale, Label lblPlacementScaleValue,
 		CheckBox chkRandomRotation, CheckBox chkRandomScale, CheckBox chkClumpMode,
@@ -37,36 +38,44 @@ public class MapEditorPlacementSettings
 		_sldPlacementRotate.ValueChanged += (val) =>
 		{
 			_lblPlacementRotateValue.Text = val.ToString("F0") + "°";
-			if (GameHost.Instance != null) GameContext.EditorService.EditorPlacementRotation = (float)val;
+			if (GameContext.Host != null) GameContext.EditorService.EditorPlacementRotation = (float)val;
 		};
 
 		_sldPlacementScale.ValueChanged += (val) =>
 		{
 			_lblPlacementScaleValue.Text = val.ToString("F1") + "x";
-			if (GameHost.Instance != null) GameHost.Instance.EditorPlacementScale = (float)val;
+			if (GameContext.Host != null) GameContext.Host.EditorPlacementScale = (float)val;
 		};
 
 		_chkRandomRotation.Toggled += (buttonPressed) =>
 		{
-			if (GameHost.Instance != null) GameContext.EditorService.EditorRandomRotation = buttonPressed;
+			if (GameContext.Host != null) GameContext.EditorService.EditorRandomRotation = buttonPressed;
 			UpdateVisibility();
 		};
 
 		_chkRandomScale.Toggled += (buttonPressed) =>
 		{
-			if (GameHost.Instance != null) GameContext.EditorService.EditorRandomScale = buttonPressed;
+			if (GameContext.Host != null) GameContext.EditorService.EditorRandomScale = buttonPressed;
 			UpdateVisibility();
 		};
 
 		_chkClumpMode.Toggled += (buttonPressed) =>
 		{
-			if (buttonPressed && !_chkRandomRotation.ButtonPressed)
+			if (buttonPressed)
 			{
-				_chkRandomRotation.ButtonPressed = true;
-				if (GameHost.Instance != null) GameContext.EditorService.EditorRandomRotation = true;
+				_randomRotationBeforeClumpMode = _chkRandomRotation.ButtonPressed;
+				if (!_chkRandomRotation.ButtonPressed)
+				{
+					_chkRandomRotation.SetPressedNoSignal(true);
+					if (GameContext.Host != null) GameContext.EditorService.EditorRandomRotation = true;
+				}
+			}
+			else
+			{
+				RestoreRandomRotationAfterClumpMode();
 			}
 
-			if (GameHost.Instance != null) GameHost.Instance.EditorClumpMode = buttonPressed;
+			if (GameContext.Host != null) GameContext.Host.EditorClumpMode = buttonPressed;
 			UpdateVisibility();
 		};
 
@@ -75,7 +84,7 @@ public class MapEditorPlacementSettings
 			_sldClumpCount.ValueChanged += (val) =>
 			{
 				if (_lblClumpCountValue != null) _lblClumpCountValue.Text = val.ToString("F0");
-				if (GameHost.Instance != null) GameHost.Instance.EditorClumpCount = (float)val;
+				if (GameContext.Host != null) GameContext.Host.EditorClumpCount = (float)val;
 			};
 		}
 
@@ -84,11 +93,19 @@ public class MapEditorPlacementSettings
 			_sldClumpScale.ValueChanged += (val) =>
 			{
 				if (_lblClumpScaleValue != null) _lblClumpScaleValue.Text = val.ToString("F2");
-				if (GameHost.Instance != null) GameHost.Instance.EditorClumpScale = (float)val;
+				if (GameContext.Host != null) GameContext.Host.EditorClumpScale = (float)val;
 			};
 		}
 
 		UpdateVisibility();
+	}
+
+	private void RestoreRandomRotationAfterClumpMode()
+	{
+		if (_chkRandomRotation.ButtonPressed == _randomRotationBeforeClumpMode) return;
+
+		_chkRandomRotation.SetPressedNoSignal(_randomRotationBeforeClumpMode);
+		if (GameContext.Host != null) GameContext.EditorService.EditorRandomRotation = _randomRotationBeforeClumpMode;
 	}
 
 	private void UpdateVisibility()

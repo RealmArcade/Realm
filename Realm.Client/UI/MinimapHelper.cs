@@ -10,7 +10,7 @@ public static class MinimapHelper
 {
 	public static (float physicalWidth, float physicalDepth, float quadSize) GetTerrainDimensions()
 	{
-		var terrain = GameHost.Instance?.GroundTerrain;
+		var terrain = GameContext.Host?.GroundTerrain;
 		if (terrain == null) return (250.0f, 250.0f, 2.0f);
 
 		float quadSize = terrain.QuadSize;
@@ -43,21 +43,21 @@ public static class MinimapHelper
 		float worldX = (xRatio - 0.5f) * physicalWidth;
 		float worldZ = (yRatio - 0.5f) * physicalDepth;
 
-		if (GameHost.Instance != null)
+		if (GameContext.Host != null)
 		{
-			float minX = GameHost.Instance.EditorCameraBoundsLeft;
-			float maxX = GameHost.Instance.EditorCameraBoundsRight;
-			float minZ = GameHost.Instance.EditorCameraBoundsTop;
-			float maxZ = GameHost.Instance.EditorCameraBoundsBottom;
+			float minX = GameContext.Host.EditorCameraBoundsLeft;
+			float maxX = GameContext.Host.EditorCameraBoundsRight;
+			float minZ = GameContext.Host.EditorCameraBoundsTop;
+			float maxZ = GameContext.Host.EditorCameraBoundsBottom;
 
 			worldX = Mathf.Clamp(worldX, Mathf.Min(minX, maxX), Mathf.Max(minX, maxX));
 			worldZ = Mathf.Clamp(worldZ, Mathf.Min(minZ, maxZ), Mathf.Max(minZ, maxZ));
 		}
 
 		float height = 0.0f;
-		if (GameHost.Instance?.GroundTerrain != null)
+		if (GameContext.Host?.GroundTerrain != null)
 		{
-			GameHost.Instance.GroundTerrain.GetHeightAndNormal(worldX, worldZ, out height, out _);
+			GameContext.Host.GroundTerrain.GetHeightAndNormal(worldX, worldZ, out height, out _);
 		}
 
 		return new Vector3(worldX, height, worldZ);
@@ -140,10 +140,10 @@ public static class MinimapHelper
 
 	private static void HideBrushIndicator(OverlayState state, GameHost gameHost)
 	{
-		if (!IsNodeValid((gameHost != null ? GameHost.Instance._brushIndicatorMesh : null))) return;
+		if (gameHost == null || !gameHost.IsPaintCursorVisible) return;
 
-		state.WasBrushVisible = GameHost.Instance._brushIndicatorMesh.Visible;
-		GameHost.Instance._brushIndicatorMesh.Visible = false;
+		state.WasBrushVisible = true;
+		gameHost.SetPaintCursorVisible(false);
 	}
 
 	private static void HideGridAndPathing(OverlayState state, GameHost gameHost)
@@ -152,11 +152,11 @@ public static class MinimapHelper
 		if (gameHost == null) return;
 
 		state.WasGridMode = GameContext.EditorService.EditorGridMode;
-		state.WasPathingVisible = GameHost.Instance.PathingOverlayVisible;
+		state.WasPathingVisible = GameContext.Host.PathingOverlayVisible;
 		GameContext.EditorService.EditorGridMode = GridOverlayMode.Off;
-		GameHost.Instance.PathingOverlayVisible = false;
-		GameHost.Instance.UpdateGridOverlayVisibility();
-		GameHost.Instance.UpdatePathingOverlay();
+		GameContext.Host.PathingOverlayVisible = false;
+		GameContext.Host.UpdateGridOverlayVisibility();
+		GameContext.Host.UpdatePathingOverlay();
 	}
 
 	private static void HidePathingMesh(OverlayState state, GameHost gameHost)
@@ -170,6 +170,8 @@ public static class MinimapHelper
 
 	private static void HideUnits(OverlayState state, GameHost gameHost)
 	{
+		if (GameContext.SessionState.IsMapEditorMode) return;
+
 		var unitsList = gameHost?.AllUnits;
 		if (unitsList == null) return;
 
@@ -186,7 +188,7 @@ public static class MinimapHelper
 	private static OverlayState HideOverlays()
 	{
 		var state = new OverlayState();
-		var gameHost = GameHost.Instance;
+		var gameHost = GameContext.Host;
 
 		HideBrushIndicator(state, gameHost);
 		HideGridAndPathing(state, gameHost);
@@ -203,25 +205,25 @@ public static class MinimapHelper
 			state.PathingMesh.Visible = state.WasPathingMeshVisible;
 		}
 
-		var gameHost = GameHost.Instance;
-		if (IsNodeValid((gameHost != null ? GameHost.Instance._brushIndicatorMesh : null)))
+		var gameHost = GameContext.Host;
+		if (gameHost != null && state.WasBrushVisible)
 		{
-			GameHost.Instance._brushIndicatorMesh.Visible = state.WasBrushVisible;
+			gameHost.SetPaintCursorVisible(true);
 		}
 
 		if (gameHost != null)
 		{
 			GameContext.EditorService.EditorGridMode = state.WasGridMode;
-			GameHost.Instance.PathingOverlayVisible = state.WasPathingVisible;
-			GameHost.Instance.UpdateGridOverlayVisibility();
-			GameHost.Instance.UpdatePathingOverlay();
+			GameContext.Host.PathingOverlayVisible = state.WasPathingVisible;
+			GameContext.Host.UpdateGridOverlayVisibility();
+			GameContext.Host.UpdatePathingOverlay();
 		}
 
 		foreach (var (u, vis) in state.UnitVisibility)
 		{
 			if (IsNodeValid(u))
 			{
-				u.Visible = vis || (GameContext.SessionState.IsMapEditorMode == true && GameHost.Instance.AllUnits.Contains(u));
+				u.Visible = vis;
 			}
 		}
 	}
@@ -280,10 +282,10 @@ public static class MinimapHelper
 	private static async Task<Image?> PerformCaptureWithViewportAsync(Node parentNode, SceneTree tree, SubViewport viewport)
 	{
 		RuntimeTerrain.IsMinimapRendering = true;
-		RuntimeTerrain.Instance?.BeginMinimapCapture();
-		GameHost.Instance?.BeginMinimapCapture();
+		GameContext.Terrain?.BeginMinimapCapture();
+		GameContext.Host?.BeginMinimapCapture();
 		GameContext.ShroudService?.SetPresentationSuspended(true);
-		PropMultiMeshManager.Instance?.SetAllNodesVisible(true);
+		GameContext.PropMultiMesh?.SetAllNodesVisible(true);
 
 		try
 		{
@@ -293,8 +295,8 @@ public static class MinimapHelper
 		finally
 		{
 			RuntimeTerrain.IsMinimapRendering = false;
-			GameHost.Instance?.EndMinimapCapture();
-			RuntimeTerrain.Instance?.EndMinimapCapture();
+			GameContext.Host?.EndMinimapCapture();
+			GameContext.Terrain?.EndMinimapCapture();
 			GameContext.ShroudService?.SetPresentationSuspended(false);
 		}
 	}

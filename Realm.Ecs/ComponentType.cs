@@ -12,6 +12,19 @@ using Realm.Ecs.Components.Terrain;
 
 namespace Realm.Ecs;
 
+/// <summary>
+///     The identifier each component type is known by inside this process. The canonical types are registered up front and
+///     take the index of their entry in that list, so their identifiers are fixed and comparable between builds. Any other
+///     type is assigned the next identifier the first time it is touched, which means the identifier depends on first-touch
+///     order and is therefore only meaningful in this process: canonical identifiers are the ones that cross the wire,
+///     through the replicated component table, and a dynamic identifier never does.
+///     <para>
+///         The registry is owned by whichever thread touches a type first, and the lock is what makes that first touch
+///         single. A canonical identifier is assigned once while the type is loaded, so the lock is not on any steady-state
+///         path; a dynamic type is the case to keep out of a publish lane, because assigning one there also creates the
+///         component buffer on that lane, and the world refuses a structural change made under a worker lease.
+///     </para>
+/// </summary>
 public static class ComponentTypeRegistry
 {
 	private static readonly Dictionary<string, int> _typeIds = new(StringComparer.Ordinal);
@@ -37,6 +50,7 @@ public static class ComponentTypeRegistry
 			typeof(CollisionScale),
 			typeof(Cooldowns),
 			typeof(SpellCooldowns),
+			typeof(ConsumableAttachment),
 			typeof(DefinitionId),
 			typeof(CustomMetadata),
 			typeof(CombatAlertState),
@@ -76,7 +90,7 @@ public static class ComponentTypeRegistry
 			typeof(CombatTargeting),
 			typeof(Weapon),
 			typeof(Weapons),
-			typeof(Armor),
+			typeof(Resistances),
 			typeof(TargetIntel),
 			typeof(Ability),
 			typeof(HasAbilities),
@@ -91,7 +105,7 @@ public static class ComponentTypeRegistry
 			typeof(AttackMove),
 			typeof(Follow),
 			typeof(HoldPosition),
-			typeof(InterpolationTarget),
+			typeof(LatestDescription),
 			typeof(RenderPosition),
 			typeof(Realm.Ecs.Components.Movement.PathingFlags),
 			typeof(Patrol),
@@ -155,7 +169,9 @@ public static class ComponentTypeRegistry
 			typeof(OverheadBarsHidden),
 			typeof(AnimationsFrozen),
 			typeof(AttackTarget),
-			typeof(LastAttacker)
+			typeof(LastAttacker),
+			typeof(AbsorbShield),
+			typeof(AttackSpeedStat)
 		};
 
 		for (int i = 0; i < canonicalTypes.Length; i++)

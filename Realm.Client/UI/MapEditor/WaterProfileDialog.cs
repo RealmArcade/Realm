@@ -1129,11 +1129,11 @@ public partial class WaterProfileDialog : FloatingDialogBase
 
 	private void ApplyLiveMaterialPreview()
 	{
-		if (_activeProfile == null || RuntimeTerrain.Instance == null) return;
-		var mat = RuntimeTerrain.Instance.GetWaterMaterial(_activeProfile.ProfileIndex);
+		if (_activeProfile == null || GameContext.Terrain == null) return;
+		var mat = GameContext.Terrain.GetWaterMaterial(_activeProfile.ProfileIndex);
 		if (mat != null)
 		{
-			RuntimeTerrain.Instance.ApplyWaterProfileToMaterial(mat, _activeProfile);
+			GameContext.Terrain.ApplyWaterProfileToMaterial(mat, _activeProfile);
 		}
 	}
 
@@ -1149,14 +1149,14 @@ public partial class WaterProfileDialog : FloatingDialogBase
 			Hud?.UpdateLastMetadataSyncTime(metaPath);
 		}
 
-		if (RuntimeTerrain.Instance != null)
+		if (GameContext.Terrain != null)
 		{
-			RuntimeTerrain.Instance.SetWaterProfiles(_profiles);
+			GameContext.Terrain.SetWaterProfiles(_profiles);
 		}
 
-		if (GameHost.Instance != null)
+		if (GameContext.Host != null)
 		{
-			GameHost.Instance.EditorHasUnsavedChanges = true;
+			GameContext.Host.EditorHasUnsavedChanges = true;
 		}
 
 		Hud?.RefreshWaterSwatches();
@@ -1164,9 +1164,9 @@ public partial class WaterProfileDialog : FloatingDialogBase
 
 	protected override void OnCancel()
 	{
-		if (RuntimeTerrain.Instance != null)
+		if (GameContext.Terrain != null)
 		{
-			RuntimeTerrain.Instance.SetWaterProfiles(_initialSnapshots);
+			GameContext.Terrain.SetWaterProfiles(_initialSnapshots);
 		}
 
 		Hud?.RefreshWaterSwatches();

@@ -8,16 +8,13 @@ using FileAccess = Godot.FileAccess;
 using static Godot.Control;
 using static Godot.CanvasItem;
 using Realm.Client.Utils;
+using Realm.Client.Services;
 
 namespace Realm.Client.UI;
 
 [GlobalClass]
 public partial class MapDetails : Control
 {
-	public MapDetails()
-	{
-	}
-
 	public override void _EnterTree()
 	{
 		Realm.Client.Services.GameContext.EnsureServices();
@@ -33,6 +30,8 @@ public partial class MapDetails : Control
 	private PanelContainer _headerPanel;
 	private Label _titleLabel;
 	private Label _creatorLabel;
+	private Button _attributionButton;
+	private AttributionPopover _attributionPopover;
 
 
 	private TextureRect _texLeftPeek;
@@ -104,6 +103,7 @@ public partial class MapDetails : Control
 		_headerPanel = GetNode<PanelContainer>("HeaderPanel");
 		_titleLabel = GetNode<Label>("HeaderPanel/VBoxContainer/TitleLabel");
 		_creatorLabel = GetNode<Label>("HeaderPanel/VBoxContainer/CreatorLabel");
+		SetupAttributionButton();
 
 
 		_texLeftPeek = GetNode<TextureRect>("CarouselPanel/LeftPeek");
@@ -235,6 +235,11 @@ public partial class MapDetails : Control
 		{
 			var vData = _mapData.AvailableVersions[i];
 			string vLabel = !string.IsNullOrWhiteSpace(vData.Version) ? $"v{vData.Version}" : "v1.0.0";
+			if (vData.IsTestVersion)
+			{
+				vLabel += " " + TranslationServer.Translate("(Test)");
+			}
+
 			_versionDropdown.AddItem(vLabel, i);
 			if (string.Equals(vData.Version, _mapData.Version, StringComparison.OrdinalIgnoreCase) ||
 			    string.Equals(vData.MapId, _mapData.MapId, StringComparison.OrdinalIgnoreCase))
@@ -246,6 +251,40 @@ public partial class MapDetails : Control
 		_versionDropdown.Select(selectedIndex);
 
 		UpdateVersionDisplay();
+	}
+
+	private void SetupAttributionButton()
+	{
+		_attributionButton = new Button();
+		_attributionButton.Name = "AttributionButton_Button";
+		_attributionButton.Text = LocalizationManager.Translate("ATTRIBUTION");
+		_attributionButton.Set("icon_max_width", 0);
+		_attributionButton.CustomMinimumSize = new Vector2(180, 24);
+		_attributionButton.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
+		_attributionButton.FocusMode = FocusModeEnum.None;
+		_attributionButton.TooltipText = LocalizationManager.Translate("Show maps whose content was imported into this map");
+		_attributionButton.AddThemeFontSizeOverride("font_size", 11);
+		_attributionButton.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
+		_attributionButton.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
+		_attributionButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
+		_attributionButton.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		_attributionButton.Pressed += OnAttributionPressed;
+		_headerPanel.GetNode<VBoxContainer>("VBoxContainer").AddChild(_attributionButton);
+	}
+
+	private void OnAttributionPressed()
+	{
+		GameContext.UserInterface.PlayClickSound();
+
+		if (_attributionPopover == null || !GodotObject.IsInstanceValid(_attributionPopover))
+		{
+			_attributionPopover = new AttributionPopover();
+			AddChild(_attributionPopover);
+			_attributionPopover.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+		}
+
+		IReadOnlyList<string> sourceMapNames = MapAttributionLookup.Resolve(_mapData?.Attribution_SourceMap, _mapData?.Title, _mapData?.Version);
+		_attributionPopover.ShowFor(_attributionButton, sourceMapNames);
 	}
 
 	private void OnVersionSelected(int index)
@@ -345,7 +384,7 @@ public partial class MapDetails : Control
 		ApplyWrapperStyles();
 		ApplyTextStyles();
 
-		Realm.Client.Utils.UIHelper.SetupPillarButton(_backButton, "◀ BACK", () => UIManager.Instance.TransitionTo(GameScreen.MapDiscovery));
+		Realm.Client.Utils.UIHelper.SetupPillarButton(_backButton, "◀ BACK", () => GameContext.UserInterface.TransitionTo(GameScreen.MapDiscovery));
 
 		_downloadButton.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
 		_downloadButton.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
@@ -622,7 +661,7 @@ public partial class MapDetails : Control
 			_carouselIndex = (_carouselIndex - 1 + _mapData.Screenshots.Length) % _mapData.Screenshots.Length;
 			_carouselSlider.Value = _carouselIndex;
 			UpdateCarousel();
-			UIManager.Instance.PlayClickSound();
+			GameContext.UserInterface.PlayClickSound();
 		};
 
 		_btnRightArrow.Pressed += () =>
@@ -631,7 +670,7 @@ public partial class MapDetails : Control
 			_carouselIndex = (_carouselIndex + 1) % _mapData.Screenshots.Length;
 			_carouselSlider.Value = _carouselIndex;
 			UpdateCarousel();
-			UIManager.Instance.PlayClickSound();
+			GameContext.UserInterface.PlayClickSound();
 		};
 
 		_carouselSlider.ValueChanged += (value) =>
@@ -645,17 +684,17 @@ public partial class MapDetails : Control
 	{
 		_versionDropdown.ItemSelected += (index) =>
 		{
-			UIManager.Instance.PlayClickSound();
+			GameContext.UserInterface.PlayClickSound();
 			OnVersionSelected((int)index);
 		};
 
 		_downloadButton.Pressed += () =>
 		{
-			UIManager.Instance.PlayClickSound();
+			GameContext.UserInterface.PlayClickSound();
 			if (CheckIfMapAlreadyDownloaded(_mapData))
 			{
 				GD.Print("Playing map: " + _mapData?.Title);
-				UIManager.Instance.TransitionTo(GameScreen.MainMenu);
+				GameContext.UserInterface.TransitionTo(GameScreen.MainMenu);
 			}
 			else
 			{
@@ -1078,7 +1117,7 @@ public partial class MapDetails : Control
 				}
 			}
 
-			UIManager.Instance.PlayHoverSound();
+			GameContext.UserInterface.PlayHoverSound();
 		};
 
 		node.MouseExited += () =>
@@ -1116,8 +1155,8 @@ public partial class MapDetails : Control
 		_downloadSubtitle.Text = $"0% ({_mapData.FileSize})";
 		_downloadSubtitle.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 
-		string seedServerUrl = GodotObject.IsInstanceValid(LobbyManager.Instance)
-			? LobbyManager.Instance.RegistryServerUrl
+		string seedServerUrl = GodotObject.IsInstanceValid(GameContext.Lobby)
+			? GameContext.Lobby.RegistryServerUrl
 			: ServersConfigHelper.GetDefaultServerUrl();
 
 		var distClient = new MapDistributionClient();

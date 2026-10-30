@@ -13,6 +13,7 @@ using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Services;
+using Realm.Shared.Network;
 
 namespace Realm.Client.Services;
 
@@ -21,10 +22,6 @@ public class ReplayService
 	private ReplayRecorder _replayRecorder;
 	private readonly Dictionary<int, ReplayUnitSnapshot> _lastRecordedUnits = new();
 	private readonly List<ReplayProjectileSnapshot> _tickProjectiles = new();
-
-	public ReplayService()
-	{
-	}
 
 	public bool IsResettingForReplay { get; set; } = false;
 	public bool IsRecording => _replayRecorder != null;
@@ -53,7 +50,7 @@ public class ReplayService
 			ProjectileTypeId = typeId,
 			Start = new NetworkVector3(start.X, start.Y, start.Z),
 			Target = new NetworkVector3(target.X, target.Y, target.Z),
-			Speed = 0f // We might need to handle speed later or remove it from snapshot
+			Speed = 0f
 		});
 	}
 
@@ -117,7 +114,7 @@ public class ReplayService
 
 		ref var mapping = ref GameContext.World.Get<NetworkMappingState>(worldEntity);
 
-		var entity = NetworkService.ApplySnapshotToEntity(snap.UnitId, snap.EntityId, snap.OwnerPlayerEntityId, snap.Position.ToNumerics(), snap.Velocity.ToNumerics(), snap.RotationY, snap.CurrentHp, snap.MaxHp, snap.IsBuilding, meta, ref mapping, GameContext.UnitSpawnService.GetFallbackModelPath, out string modelPath, out int playerIndex);
+		var entity = NetworkService.ApplySnapshotToEntity(snap.UnitId, snap.EntityId, snap.OwnerPlayerEntityId, snap.Position.ToNumerics(), snap.RotationY, snap.CurrentHp, snap.MaxHp, snap.IsBuilding, meta, ref mapping, GameContext.UnitSpawnService.GetFallbackModelPath, out string modelPath, out int playerIndex);
 		return (entity, modelPath, playerIndex);
 	}
 

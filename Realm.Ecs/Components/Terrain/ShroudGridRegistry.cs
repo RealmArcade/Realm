@@ -1,62 +1,54 @@
-using System.Collections.Generic;
-
 namespace Realm.Ecs.Components.Terrain;
 
+/// <summary>
+///     Resolves a shroud grid handle in the ambient world's own store. Only one world is alive per process at a time,
+///     so a component can name its grid without holding a world reference, and a second world constructed in the same
+///     process never aliases or frees the first world's grids. The world and the store resolved from it are published
+///     together as one binding, because a reader that paired a new ambient world with a store cached beside the
+///     previous one would resolve another world's handles.
+/// </summary>
 public static class ShroudGridRegistry
 {
-	private static readonly List<ShroudGridData> Store = new() { null };
-	private static readonly Queue<int> FreeHandles = new();
-
-	static ShroudGridRegistry()
+	private class StoreBinding
 	{
-		ColdPayloadRegistry.RegisterResetAction(Reset);
-	}
-
-	public static int Create()
-	{
-		var grid = new ShroudGridData();
-
-		if (FreeHandles.Count > 0)
+		public StoreBinding(EcsWorld? world, ShroudGridStore store)
 		{
-			int reusedHandle = FreeHandles.Dequeue();
-			Store[reusedHandle] = grid;
-			return reusedHandle;
+			World = world;
+			Store = store;
 		}
 
-		int handle = Store.Count;
-		Store.Add(grid);
-		return handle;
+		public EcsWorld? World { get; }
+
+		public ShroudGridStore Store { get; }
 	}
 
-	public static ShroudGridData Get(int handle)
+	private static StoreBinding? _cachedBinding;
+	private static ShroudGridStore? _worldlessStore;
+
+	private static ShroudGridStore Store
 	{
-		if (handle <= 0 || handle >= Store.Count) return null;
-		return Store[handle];
-	}
-
-	public static void Release(int handle)
-	{
-		if (handle <= 0 || handle >= Store.Count) return;
-
-		var grid = Store[handle];
-		if (grid == null) return;
-
-		grid.Release();
-		Store[handle] = null;
-		FreeHandles.Enqueue(handle);
-	}
-
-	public static void Reset()
-	{
-		for (int handle = 1; handle < Store.Count; handle++)
+		get
 		{
-			var grid = Store[handle];
-			if (grid == null) continue;
-			grid.Release();
-			Store[handle] = null;
-		}
+			EcsWorld? ambient = EcsWorld.Ambient;
+			StoreBinding? cached = Volatile.Read(ref _cachedBinding);
+			if (cached != null && ReferenceEquals(cached.World, ambient)) return cached.Store;
 
-		Store.RemoveRange(1, Store.Count - 1);
-		FreeHandles.Clear();
+			return Resolve(ambient);
+		}
 	}
+
+	private static ShroudGridStore Resolve(EcsWorld? ambient)
+	{
+		if (ambient == null) return _worldlessStore ??= new ShroudGridStore();
+
+		ShroudGridStore store = ambient.PayloadStores.ShroudGrids;
+		Volatile.Write(ref _cachedBinding, new StoreBinding(ambient, store));
+		return store;
+	}
+
+	public static int Create() => Store.Create();
+
+	public static ShroudGridData? Get(int handle) => Store.Get(handle);
+
+	public static void Release(int handle) => Store.Release(handle);
 }

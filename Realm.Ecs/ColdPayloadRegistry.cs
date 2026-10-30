@@ -1,174 +1,62 @@
-using System;
-using System.Collections.Generic;
-
 namespace Realm.Ecs;
 
-public static class ColdPayloadRegistry
-{
-	private static readonly List<Action> _resetActions = new();
-	private static readonly object _resetLock = new();
-
-	public static void RegisterResetAction(Action resetAction)
-	{
-		lock (_resetLock)
-		{
-			_resetActions.Add(resetAction);
-		}
-	}
-
-	public static void ResetAll()
-	{
-		lock (_resetLock)
-		{
-			for (int index = 0; index < _resetActions.Count; index++)
-			{
-				_resetActions[index]();
-			}
-		}
-	}
-}
-
+/// <summary>
+///     Resolves a cold payload handle in the ambient world's own store. Only one world is alive per process at a time,
+///     so a component can name its payload without holding a world reference, and a second world constructed in the
+///     same process never aliases or frees the first world's payloads. The world and the store resolved from it are
+///     published together as one binding, because a reader that paired a new ambient world with a store cached beside
+///     the previous one would resolve another world's handles.
+/// </summary>
 public static class ColdPayloadRegistry<T> where T : class
 {
-	private static readonly List<T?> _store = new List<T?> { null };
-	private static readonly Queue<int> _freeList = new Queue<int>();
-	private static readonly Dictionary<string, int> _handlesByContentKey = new Dictionary<string, int>(StringComparer.Ordinal);
-	private static readonly Dictionary<int, string> _contentKeyByHandle = new Dictionary<int, string>();
-	private static readonly Dictionary<int, int> _referenceCounts = new Dictionary<int, int>();
-	private static readonly object _lock = new object();
-
-	static ColdPayloadRegistry()
+	private class StoreBinding
 	{
-		ColdPayloadRegistry.RegisterResetAction(Reset);
+		public StoreBinding(EcsWorld? world, ColdPayloadStore<T> store)
+		{
+			World = world;
+			Store = store;
+		}
+
+		public EcsWorld? World { get; }
+
+		public ColdPayloadStore<T> Store { get; }
 	}
 
-	public static int Register(T? payload)
+	private static StoreBinding? _cachedBinding;
+	private static ColdPayloadStore<T>? _worldlessStore;
+
+	private static ColdPayloadStore<T> Store
 	{
-		if (payload == null) return 0;
-		lock (_lock)
+		get
 		{
-			return Allocate(payload);
+			EcsWorld? ambient = EcsWorld.Ambient;
+			StoreBinding? cached = Volatile.Read(ref _cachedBinding);
+			if (cached != null && ReferenceEquals(cached.World, ambient)) return cached.Store;
+
+			return Resolve(ambient);
 		}
 	}
 
-	public static int Share(T? payload, string contentKey)
+	private static ColdPayloadStore<T> Resolve(EcsWorld? ambient)
 	{
-		if (payload == null) return 0;
-		if (string.IsNullOrEmpty(contentKey)) return Register(payload);
+		if (ambient == null) return _worldlessStore ??= new ColdPayloadStore<T>();
 
-		lock (_lock)
-		{
-			if (_handlesByContentKey.TryGetValue(contentKey, out int existingHandle))
-			{
-				_referenceCounts[existingHandle] = (_referenceCounts.TryGetValue(existingHandle, out int count) ? count : 1) + 1;
-				return existingHandle;
-			}
-
-			int handle = Allocate(payload);
-			_handlesByContentKey[contentKey] = handle;
-			_contentKeyByHandle[handle] = contentKey;
-			_referenceCounts[handle] = 1;
-			return handle;
-		}
+		ColdPayloadStore<T> store = ambient.PayloadStores.GetOrCreateColdPayloadStore<T>();
+		Volatile.Write(ref _cachedBinding, new StoreBinding(ambient, store));
+		return store;
 	}
 
-	public static bool IsShared(int handle)
-	{
-		if (handle <= 0) return false;
-		lock (_lock)
-		{
-			return _referenceCounts.ContainsKey(handle);
-		}
-	}
+	public static int Register(T? payload) => Store.Register(payload);
 
-	public static int GetReferenceCount(int handle)
-	{
-		if (handle <= 0) return 0;
-		lock (_lock)
-		{
-			return _referenceCounts.TryGetValue(handle, out int count) ? count : 0;
-		}
-	}
+	public static int Share(T? payload, string contentKey) => Store.Share(payload, contentKey);
 
-	public static void Free(int handle)
-	{
-		if (handle <= 0) return;
-		lock (_lock)
-		{
-			if (_referenceCounts.TryGetValue(handle, out int count))
-			{
-				if (count > 1)
-				{
-					_referenceCounts[handle] = count - 1;
-					return;
-				}
+	public static bool IsShared(int handle) => Store.IsShared(handle);
 
-				_referenceCounts.Remove(handle);
-				if (_contentKeyByHandle.TryGetValue(handle, out string? contentKey))
-				{
-					_contentKeyByHandle.Remove(handle);
-					_handlesByContentKey.Remove(contentKey);
-				}
-			}
+	public static int GetReferenceCount(int handle) => Store.GetReferenceCount(handle);
 
-			if (handle < _store.Count && _store[handle] != null)
-			{
-				_store[handle] = null;
-				_freeList.Enqueue(handle);
-			}
-		}
-	}
+	public static void Free(int handle) => Store.Free(handle);
 
-	public static T? Get(int handle)
-	{
-		if (handle <= 0) return null;
-		lock (_lock)
-		{
-			if (handle < _store.Count)
-			{
-				return _store[handle];
-			}
-			return null;
-		}
-	}
+	public static T? Get(int handle) => Store.Get(handle);
 
-	public static void Set(int handle, T payload)
-	{
-		if (handle <= 0) return;
-		lock (_lock)
-		{
-			while (_store.Count <= handle)
-			{
-				_store.Add(null);
-			}
-			_store[handle] = payload;
-		}
-	}
-
-	public static void Reset()
-	{
-		lock (_lock)
-		{
-			_store.Clear();
-			_store.Add(null);
-			_freeList.Clear();
-			_handlesByContentKey.Clear();
-			_contentKeyByHandle.Clear();
-			_referenceCounts.Clear();
-		}
-	}
-
-	private static int Allocate(T payload)
-	{
-		if (_freeList.Count > 0)
-		{
-			int reusedId = _freeList.Dequeue();
-			_store[reusedId] = payload;
-			return reusedId;
-		}
-
-		int id = _store.Count;
-		_store.Add(payload);
-		return id;
-	}
+	public static void Set(int handle, T payload) => Store.Set(handle, payload);
 }

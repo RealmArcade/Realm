@@ -11,6 +11,7 @@ public static class GameplayConstants
 	public const int MaxProjectilesLimit = 100;
 	public const float PathfindingGridSize = 10f;
 	public const float UnitAnimationStepIntervalSeconds = 1f / 30f;
+	public const int BuildQueueCapacity = 8;
 
 	/// <summary>
 	///     Contact radius assumed when a unit has no authored CollisionRadius, expressed as a
@@ -24,6 +25,14 @@ public static class GameplayConstants
 	///     CollisionRadius, expressed as a fraction of their collision scale.
 	/// </summary>
 	public const float DefaultPropCollisionRadius = 1.5f;
+
+	/// <summary>
+	///     Contact radius assumed for a building whose template authors no collision circle,
+	///     expressed as a fraction of its collision scale. A building is a body the movement
+	///     step, the collision grid and the navigation bake all path around, so it needs a
+	///     radius even when the map never authored one.
+	/// </summary>
+	public const float DefaultBuildingCollisionRadius = 1.5f;
 
 	/// <summary>
 	///     Authored CollisionRadius values at or below this are treated as "never authored"

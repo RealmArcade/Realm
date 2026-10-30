@@ -3,8 +3,10 @@ using Godot;
 using Realm.Client.Core;
 using Realm.Client.Services;
 using Realm.Client.UI;
+using Realm.Client.VFX;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Meta;
+using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Services;
 using Vector3 = Godot.Vector3;
 
@@ -61,20 +63,29 @@ public class ObjectTransformAction : IEditorAction
 
 		if (_targetNode is Unit3D unit)
 		{
-			GameHost.Instance?.SetUnitPlayerExternal(unit, player);
+			GameContext.Host?.SetUnitPlayerExternal(unit, player);
 			UpdateEcsEntity(unit.Entity, pos, rot, scale);
 		}
 		else if (_targetNode is Prop3D prop)
 		{
 			UpdateEcsEntity(prop.Entity, pos, rot, scale);
-			PropMultiMeshManager.Instance?.MarkDirty(prop.PropId);
+			GameContext.PropMultiMesh?.MarkDirty(prop.PropId);
+		}
+		else if (_targetNode is PropEntityProxyNode proxy)
+		{
+			UpdateEcsEntity(proxy.Entity, pos, rot, scale);
+			GameContext.PropMultiMesh?.MarkDirty(proxy.PropId);
 		}
 		else if (_targetNode is Decal3D decal3D)
 		{
 			UpdateEcsEntity(decal3D.Entity, pos, rot, scale);
 		}
+		else if (_targetNode is ProceduralVfxInstance3D vfxInstance)
+		{
+			UpdateEcsEntity(vfxInstance.Entity, pos, rot, scale);
+		}
 
-		MapEditorHUD.Instance?.UpdateSelectedObjectInfo();
+		GameContext.MapEditorHud?.UpdateSelectedObjectInfo();
 	}
 
 	private static void UpdateEcsEntity(Entity entity, Vector3 pos, Vector3 rot, Vector3 scale)
@@ -102,22 +113,31 @@ public class ObjectTransformAction : IEditorAction
 		{
 			WriteEcsTransform(proxy.Entity, proxy.Position, proxy.RotationDegrees, proxy.Scale, true);
 		}
+		else if (node is ProceduralVfxInstance3D vfxInstance)
+		{
+			WriteEcsTransform(vfxInstance.Entity, vfxInstance.Position, vfxInstance.RotationDegrees, vfxInstance.Scale, true);
+		}
 	}
 
 	private static void WriteEcsTransform(Entity entity, Vector3 pos, Vector3 rot, Vector3 scale, bool writeScale)
 	{
-		GameHost tempQualifier = GameHost.Instance;
+		GameHost tempQualifier = GameContext.Host;
 		var ecsWorld = (tempQualifier != null ? GameContext.World : null);
 		if (ecsWorld == null || entity == Entity.Null || !ecsWorld.IsAlive(entity))
 			return;
 
 		ecsWorld.Set(entity, new Position(new System.Numerics.Vector3(pos.X, pos.Y, pos.Z)));
 
+		if (ecsWorld.Has<RenderPosition>(entity))
+			ecsWorld.Set(entity, new RenderPosition(new System.Numerics.Vector3(pos.X, pos.Y, pos.Z)));
+
 		if (ecsWorld.Has<RotationY>(entity))
 			ecsWorld.Set(entity, new RotationY(rot.Y));
 
 		if (ecsWorld.Has<Rotation3D>(entity))
 			ecsWorld.Set(entity, new Rotation3D(new System.Numerics.Vector3(rot.X, rot.Y, rot.Z)));
+
+		GameHost.SyncPreviousTransform(ecsWorld, entity);
 
 		if (!writeScale)
 			return;

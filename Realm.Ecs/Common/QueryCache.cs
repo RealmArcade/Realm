@@ -14,7 +14,7 @@ public static class QueryCache
 {
 	public static readonly QueryDescription AllStatModifierQuery = new QueryDescription().WithAll<StatModifier>();
 	public static readonly QueryDescription AllPositionAndDefinitionIdQuery = new QueryDescription().WithAll<Position, DefinitionId>();
-	public static readonly QueryDescription AllInterpolationTargetQuery = new QueryDescription().WithAll<InterpolationTarget>();
+	public static readonly QueryDescription AllLatestDescriptionQuery = new QueryDescription().WithAll<LatestDescription>();
 	public static readonly QueryDescription AllPositionAndMoveToAndMovementStatsNoneDeadQuery = new QueryDescription().WithAll<Position, MoveTo, MovementStats>().WithNone<Dead>();
 	public static readonly QueryDescription AllPositionAndDefinitionIdNoneDeadQuery = new QueryDescription().WithAll<Position, DefinitionId>().WithNone<Dead>();
 	public static readonly QueryDescription AllTerrainStateAndEditorStateQuery = new QueryDescription().WithAll<TerrainState, EditorState>();
@@ -40,7 +40,7 @@ public static class QueryCache
 	public static readonly QueryDescription AllReplayStateQuery = new QueryDescription().WithAll<ReplayState>();
 	public static readonly QueryDescription AllNetworkStateQuery = new QueryDescription().WithAll<NetworkState>();
 	public static readonly QueryDescription AllAttackAndOwnerNoneDeadAndBuildingQuery = new QueryDescription().WithAll<Attack, Owner>().WithNone<Dead, Building>();
-	public static readonly QueryDescription AllArmorAndOwnerNoneDeadQuery = new QueryDescription().WithAll<Armor, Owner>().WithNone<Dead>();
+	public static readonly QueryDescription AllResistancesAndOwnerNoneDeadQuery = new QueryDescription().WithAll<Resistances, Owner>().WithNone<Dead>();
 	public static readonly QueryDescription AllInputStateQuery = new QueryDescription().WithAll<InputState>();
 	public static readonly QueryDescription AllBuildingAndOwnerAndPositionNoneDeadQuery = new QueryDescription().WithAll<Building, Owner, Position>().WithNone<Dead>();
 	public static readonly QueryDescription AllOwnerAndMovableNoneDeadAndBuildingQuery = new QueryDescription().WithAll<Owner, Movable>().WithNone<Dead, Building>();
@@ -61,15 +61,20 @@ public static class QueryCache
 	public static readonly QueryDescription AllManaAndManaRegenNoneDeadQuery = new QueryDescription().WithAll<Mana, ManaRegen>().WithNone<Dead>();
 	public static readonly QueryDescription AllProductionQueueQuery = new QueryDescription().WithAll<ProductionQueue>();
 	public static readonly QueryDescription AllUnitOwnerPlayerAndDefinitionIdNoneDeadQuery = new QueryDescription().WithAll<UnitOwnerPlayer, DefinitionId>().WithNone<Dead>();
+	public static readonly QueryDescription AllPositionAndUnitOwnerPlayerNoneDeadQuery = new QueryDescription().WithAll<Position, UnitOwnerPlayer>().WithNone<Dead>();
+	public static readonly QueryDescription AllPositionAndPreviewMoveToAndMovementStatsNoneDeadQuery = new QueryDescription().WithAll<Position, PreviewMoveTo, MovementStats>().WithNone<Dead>();
+	public static readonly QueryDescription AllPreviewMoveToQuery = new QueryDescription().WithAll<PreviewMoveTo>();
 	public static readonly QueryDescription AllProductionQueueAndUnitOwnerPlayerQuery = new QueryDescription().WithAll<ProductionQueue, UnitOwnerPlayer>();
 	public static readonly QueryDescription AllSpellCooldownsQuery = new QueryDescription().WithAll<SpellCooldowns>();
 	public static readonly QueryDescription AllCooldownsQuery = new QueryDescription().WithAll<Cooldowns>();
 	public static readonly QueryDescription AllPositionQuery = new QueryDescription().WithAll<Position>();
 	public static readonly QueryDescription AllPropIdentityAndPositionQuery = new QueryDescription().WithAll<PropIdentity, Position>();
+	public static readonly QueryDescription AllPropIdentityAndPositionNoneDeadQuery = new QueryDescription().WithAll<PropIdentity, Position>().WithNone<Dead>();
+	public static readonly QueryDescription AllBuildingAndPositionNoneDeadQuery = new QueryDescription().WithAll<Building, Position>().WithNone<Dead>();
 	public static readonly QueryDescription AllDecalIdentityAndPositionQuery = new QueryDescription().WithAll<DecalIdentity, Position>();
 	public static readonly QueryDescription AllPositionAndCollisionRadiusQuery = new QueryDescription().WithAll<Position, CollisionRadius>();
-	public static readonly QueryDescription AllPositionAndCollisionRadiusAndPropIdentityQuery = new QueryDescription().WithAll<Position, CollisionRadius, PropIdentity>();
-	public static readonly QueryDescription AllPositionAndCollisionRadiusAndBuildingQuery = new QueryDescription().WithAll<Position, CollisionRadius, Building>();
+	public static readonly QueryDescription AllPositionAndCollisionRadiusAndPropIdentityNoneDeadQuery = new QueryDescription().WithAll<Position, CollisionRadius, PropIdentity>().WithNone<Dead>();
+	public static readonly QueryDescription AllPositionAndCollisionRadiusAndBuildingNoneDeadQuery = new QueryDescription().WithAll<Position, CollisionRadius, Building>().WithNone<Dead>();
 	public static readonly QueryDescription AllPositionAndBuildTaskNoneDeadQuery = new QueryDescription().WithAll<Position, BuildTask>().WithNone<Dead>();
 	public static readonly QueryDescription AllBuildingAndConstructionStateAndOwnerNoneDeadQuery = new QueryDescription().WithAll<Building, ConstructionState, Owner>().WithNone<Dead>();
 	public static readonly QueryDescription AllBuildQueueNoneDeadQuery = new QueryDescription().WithAll<BuildQueue>().WithNone<Dead>();

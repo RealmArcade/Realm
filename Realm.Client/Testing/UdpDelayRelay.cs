@@ -22,17 +22,29 @@ public sealed class UdpDelayRelay : IDisposable
 	private readonly Thread _hostReaderThread;
 	private readonly Thread _forwarderThread;
 	private readonly int _oneWayDelayMilliseconds;
+	private readonly int _jitterMilliseconds;
+	private readonly int _packetLossPercent;
+	private readonly Random _random = new(20261023);
 	private IPEndPoint? _clientEndpoint;
 	private volatile bool _stopped;
 	private long _forwardedDatagramCount;
 	private long _droppedDatagramCount;
 
 	public UdpDelayRelay(int hostPort, int roundTripDelayMilliseconds)
+		: this(hostPort, roundTripDelayMilliseconds / 2, 0, 0)
+	{
+	}
+
+	public UdpDelayRelay(int hostPort, int oneWayDelayMilliseconds, int jitterMilliseconds, int packetLossPercent)
 	{
 		if (hostPort <= 0 || hostPort > 65535) throw new ArgumentOutOfRangeException(nameof(hostPort));
-		if (roundTripDelayMilliseconds < 0) throw new ArgumentOutOfRangeException(nameof(roundTripDelayMilliseconds));
+		if (oneWayDelayMilliseconds < 0) throw new ArgumentOutOfRangeException(nameof(oneWayDelayMilliseconds));
+		if (jitterMilliseconds < 0) throw new ArgumentOutOfRangeException(nameof(jitterMilliseconds));
+		if (packetLossPercent < 0 || packetLossPercent > 100) throw new ArgumentOutOfRangeException(nameof(packetLossPercent));
 
-		_oneWayDelayMilliseconds = Math.Max(1, roundTripDelayMilliseconds / 2);
+		_oneWayDelayMilliseconds = Math.Max(1, oneWayDelayMilliseconds);
+		_jitterMilliseconds = jitterMilliseconds;
+		_packetLossPercent = packetLossPercent;
 		_hostEndpoint = new IPEndPoint(IPAddress.Loopback, hostPort);
 		_clientFacingSocket = CreateSocket();
 		_hostFacingSocket = CreateSocket();
@@ -122,7 +134,16 @@ public sealed class UdpDelayRelay : IDisposable
 
 	private void Enqueue(Queue<DelayedDatagram> queue, byte[] payload, IPEndPoint? destination)
 	{
-		long dueTimestamp = Stopwatch.GetTimestamp() + (_oneWayDelayMilliseconds * Stopwatch.Frequency / 1000);
+		if (_packetLossPercent > 0 && NextRandom(100) < _packetLossPercent)
+		{
+			Interlocked.Increment(ref _droppedDatagramCount);
+			return;
+		}
+
+		int delayMilliseconds = _oneWayDelayMilliseconds;
+		if (_jitterMilliseconds > 0) delayMilliseconds += NextRandom(_jitterMilliseconds + 1);
+
+		long dueTimestamp = Stopwatch.GetTimestamp() + (delayMilliseconds * Stopwatch.Frequency / 1000);
 		lock (_queueLock)
 		{
 			if (queue.Count >= MaximumQueuedDatagramCount)
@@ -133,6 +154,11 @@ public sealed class UdpDelayRelay : IDisposable
 
 			queue.Enqueue(new DelayedDatagram(payload, destination, dueTimestamp));
 		}
+	}
+
+	private int NextRandom(int exclusiveMaximum)
+	{
+		lock (_random) return _random.Next(exclusiveMaximum);
 	}
 
 	private void ForwardDueDatagrams()

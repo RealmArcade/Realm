@@ -9,6 +9,12 @@ public static class TimedStatusPayload
 	public const int MaxReplicatedSlots = 8;
 	public const int SlotSizeInBytes = 12;
 	public const int SizeInBytes = 1 + (MaxReplicatedSlots * SlotSizeInBytes);
+	public const float RemainingQuantumSeconds = 0.1f;
+
+	public static float QuantizeRemaining(float value)
+	{
+		return MathF.Round(value / RemainingQuantumSeconds) * RemainingQuantumSeconds;
+	}
 
 	public static void Write(ReadOnlySpan<BuffSlot> slots, int count, Span<byte> destination)
 	{
@@ -17,12 +23,14 @@ public static class TimedStatusPayload
 		for (int index = 0; index < count && written < MaxReplicatedSlots; index++)
 		{
 			var slot = slots[index];
-			if (slot.Remaining <= 0f || slot.StatusStringId == 0) continue;
+			float remaining = QuantizeRemaining(slot.Remaining);
+			if (remaining <= 0f || slot.StatusStringId == 0) continue;
 
+			float duration = QuantizeRemaining(slot.Duration);
 			int offset = 1 + (written * SlotSizeInBytes);
 			MemoryMarshal.Write(destination.Slice(offset, sizeof(int)), in slot.StatusStringId);
-			MemoryMarshal.Write(destination.Slice(offset + 4, sizeof(float)), in slot.Remaining);
-			MemoryMarshal.Write(destination.Slice(offset + 8, sizeof(float)), in slot.Duration);
+			MemoryMarshal.Write(destination.Slice(offset + 4, sizeof(float)), in remaining);
+			MemoryMarshal.Write(destination.Slice(offset + 8, sizeof(float)), in duration);
 			written++;
 		}
 

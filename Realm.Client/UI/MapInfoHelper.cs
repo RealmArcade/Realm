@@ -126,7 +126,8 @@ public static class MapInfoHelper
 			GameBuildNumber = "v0.0.0",
 			Version = "1.0.0",
 			ManifestHash = "",
-			ThumbnailPath = FindThumbnailForMap(mapFolder)
+			ThumbnailPath = FindThumbnailForMap(mapFolder),
+			Attribution_SourceMap = new List<string>()
 		};
 	}
 
@@ -136,6 +137,15 @@ public static class MapInfoHelper
 		if (name.EndsWith(".manifest.json", StringComparison.OrdinalIgnoreCase)) return name.Substring(0, name.Length - ".manifest.json".Length);
 		if (name.EndsWith(".json", StringComparison.OrdinalIgnoreCase)) return name.Substring(0, name.Length - ".json".Length);
 		return string.Empty;
+	}
+
+	private static string ResolveMapJsonDirectory(string jsonPath)
+	{
+		if (string.IsNullOrEmpty(jsonPath)) return jsonPath;
+
+		return jsonPath.EndsWith(".json", StringComparison.OrdinalIgnoreCase)
+			? Path.GetDirectoryName(jsonPath) ?? jsonPath
+			: jsonPath;
 	}
 
 	private static string TryGetManifestHash(string filePath)
@@ -205,7 +215,7 @@ public static class MapInfoHelper
 		try
 		{
 			MapManifest manifest = MapFileService.LoadManifest(filePath);
-			MapMetadata metadata = MapFileService.LoadMetadata(filePath);
+			MapMetadata metadata = MapFileService.LoadMetadata(ResolveMapJsonDirectory(filePath));
 
 			string mapName = GetMapName(manifest, metadata, fileName);
 			if (string.IsNullOrWhiteSpace(mapName)) return false;
@@ -236,7 +246,8 @@ public static class MapInfoHelper
 				GameBuildNumber = gameBuildNumber,
 				Version = version,
 				ManifestHash = manifestHash,
-				ThumbnailPath = thumbPath
+				ThumbnailPath = thumbPath,
+				Attribution_SourceMap = manifest.Attribution_SourceMap ?? new List<string>()
 			};
 			return true;
 		}
@@ -307,21 +318,20 @@ public static class MapInfoHelper
 		return displayName;
 	}
 
-	private static bool TryParseMapJson(string mapFolder, string mapFolderPath, string path, string globalPath, out MapBriefingDetails result)
+	private static bool TryParseMapJson(string mapFolder, string mapFolderPath, string globalPath, out MapBriefingDetails result)
 	{
 		result = default;
 		try
 		{
-			MapManifest manifest = MapFileService.LoadManifest(globalPath);
-			MapMetadata metadata = MapFileService.LoadMetadata(globalPath);
+			string mapDirectory = ResolveMapJsonDirectory(globalPath);
+			MapManifest manifest = MapFileService.LoadManifest(mapDirectory);
+			MapMetadata metadata = MapFileService.LoadMetadata(mapDirectory);
 
 			string displayName = ResolveDisplayName(mapFolder, manifest, metadata);
 			string description = GetMapDescription(manifest, metadata);
 			string version = GetMapVersion(manifest, metadata);
 
-			string gameBuildNumber = path.EndsWith("manifest.json", StringComparison.OrdinalIgnoreCase)
-				? RealmVersion.GameBuildNumber
-				: (!string.IsNullOrEmpty(metadata.GameBuildNumber) ? metadata.GameBuildNumber : "v0.0.0");
+			string gameBuildNumber = !string.IsNullOrEmpty(metadata.GameBuildNumber) ? metadata.GameBuildNumber : "v0.0.0";
 
 			string manifestHash = TryGetManifestHash(globalPath);
 
@@ -337,7 +347,8 @@ public static class MapInfoHelper
 				GameBuildNumber = gameBuildNumber,
 				Version = version,
 				ManifestHash = manifestHash,
-				ThumbnailPath = thumbPath
+				ThumbnailPath = thumbPath,
+				Attribution_SourceMap = manifest.Attribution_SourceMap ?? new List<string>()
 			};
 			return true;
 		}
@@ -377,7 +388,7 @@ public static class MapInfoHelper
 
 			if (!File.Exists(globalPath) && !FileAccess.FileExists(path)) continue;
 
-			if (TryParseMapJson(mapFolder, mapFolderPath, path, globalPath, out details))
+			if (TryParseMapJson(mapFolder, mapFolderPath, globalPath, out details))
 			{
 				return true;
 			}
@@ -668,7 +679,7 @@ public static class MapInfoHelper
 				var manifest = MapFileService.LoadManifest(jsonFilePath);
 				if (!string.IsNullOrEmpty(manifest.Version)) return manifest.Version.Trim();
 
-				var metadata = MapFileService.LoadMetadata(jsonFilePath);
+				var metadata = MapFileService.LoadMetadata(ResolveMapJsonDirectory(jsonFilePath));
 				if (!string.IsNullOrEmpty(metadata.MapProperties?.Version)) return metadata.MapProperties.Version.Trim();
 			}
 		}

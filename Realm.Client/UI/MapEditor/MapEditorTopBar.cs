@@ -41,13 +41,14 @@ public class MapEditorTopBar
 	}
 
 	private string _lastStatusText = null;
+	private readonly ThrottledLabelWidth _statusLabelWidth = new();
 
 	public void Update(MapEditorHUDViewModel viewModel)
 	{
 		if (_statusLabel != null && viewModel != null && viewModel.StatusText != _lastStatusText)
 		{
 			_lastStatusText = viewModel.StatusText;
-			_statusLabel.Text = viewModel.StatusText;
+			_statusLabelWidth.Apply(_statusLabel, viewModel.StatusText);
 		}
 	}
 

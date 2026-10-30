@@ -1,27 +1,21 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
-using System.Text.Json;
-using Realm.Ecs;
-using Godot;
-using MemoryPack;
-using Realm.Client.Network;
 using Realm.Client.Services;
 using Realm.Client.UI;
+using Realm.Ecs;
+using Godot;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Core;
+using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Resources;
-using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
-using Realm.MapAPI;
+using Realm.Shared.Network;
 
 namespace Realm.Client.Core;
 
 public partial class GameHost
 {
 	private int _pendingSelectUnitServerId = -1;
-	public int GetOwnerPeerId(Entity unitEntity) => GameContext.NetworkService.GetOwnerPeerId(unitEntity);
 
 	private int GetServerEntityId(Entity localEntity) =>
 		GameContext.NetworkService.GetServerEntityId(localEntity.Id);
@@ -52,42 +46,219 @@ public partial class GameHost
 		RemoveUnitFromCollections(unit);
 		GameContext.SimulationService.DestroyUnitEntityDomain(unit.Entity);
 		unit.QueueFree();
-		InGameHUD.Instance?.RefreshUI(SelectedUnits);
+		GameContext.InGameHud?.RefreshUI(SelectedUnits);
 	}
 
-	private void QueueClientCommand(string commandType, List<int> unitIds, Vector3 targetPos, int targetEntityId, string argString)
+	public void SubmitCheatOrder(string cheatKey, IEnumerable<Entity> selection)
+	{
+		if (string.IsNullOrWhiteSpace(cheatKey)) return;
+		if (GameContext.ServerSession == null || GameContext.NetworkService == null) return;
+
+		var unitIds = new List<int>();
+		if (selection != null)
+		{
+			foreach (Entity entity in selection)
+			{
+				if (entity == Entity.Null) continue;
+
+				int serverId = GetServerEntityId(entity);
+				if (serverId > 0) unitIds.Add(serverId);
+			}
+		}
+
+		var (commandId, payload) = GameContext.NetworkService.BuildClientCommand("cheat", unitIds, System.Numerics.Vector3.Zero, 0, cheatKey);
+		if (commandId <= 0) return;
+		GameContext.ServerSession.Submit(payload);
+	}
+
+	public void SubmitConsumableOrder(UnitId building, string cardId, System.Numerics.Vector3 targetPosition)
+	{
+		if (string.IsNullOrWhiteSpace(cardId)) return;
+		if (GameContext.ServerSession == null || GameContext.NetworkService == null) return;
+		if (!building.IsValid) return;
+
+		Entity localBuilding = new Entity(building.Value);
+		if (!GameContext.World.IsAlive(localBuilding)) return;
+
+		int serverBuildingId = GetServerEntityId(localBuilding);
+		if (serverBuildingId <= 0) return;
+
+		var unitIds = new List<int> { serverBuildingId };
+		var (commandId, payload) = GameContext.NetworkService.BuildClientCommand("use_consumable", unitIds, targetPosition, 0, cardId);
+		if (commandId <= 0) return;
+		GameContext.ServerSession.Submit(payload);
+	}
+
+	private int SubmitOrderCommand(string commandType, List<int> unitIds, Vector3 targetPos, int targetEntityId, string argString)
+	{
+		// An entity the authority never described has no authoritative id, so it cannot be named by an order.
+		for (int index = unitIds.Count - 1; index >= 0; index--)
+		{
+			if (unitIds[index] > 0) continue;
+
+			unitIds.RemoveAt(index);
+		}
+
+		if (unitIds.Count == 0) return 0;
+
+		var targetNumerics = new System.Numerics.Vector3(targetPos.X, targetPos.Y, targetPos.Z);
+		var (commandId, payload) = GameContext.NetworkService.BuildClientCommand(commandType, unitIds, targetNumerics, targetEntityId, argString);
+		if (commandId <= 0) return 0;
+
+		GameContext.ServerSession?.Submit(payload);
+		return commandId;
+	}
+
+	/// <summary>
+	///     Draws the route the order just sent is asking for, on the tick it was asked for. The authority decides what an
+	///     order means, so this is only ever a route to look at: the planning pass that reads it writes a path and no
+	///     position, and the match's own answer replaces it.
+	/// </summary>
+	private void PreviewRouteForOrder(int commandId, List<int> serverEntityIds, Vector3 targetPosition)
+	{
+		if (commandId <= 0 || GameContext.World == null) return;
+
+		int localPlayerIndex = LocalPlayerIndex;
+		if (localPlayerIndex < 0) return;
+
+		var target = new System.Numerics.Vector3(targetPosition.X, targetPosition.Y, targetPosition.Z);
+		for (int index = 0; index < serverEntityIds.Count; index++)
+		{
+			if (!TryGetLocalEntity(serverEntityIds[index], out Entity localEntity)) continue;
+			if (!GameContext.World.IsAlive(localEntity)) continue;
+			if (!GameContext.World.Has<UnitOwnerPlayer>(localEntity)) continue;
+			if (GameContext.World.Get<UnitOwnerPlayer>(localEntity).PlayerIndex != localPlayerIndex) continue;
+
+			GameContext.World.SetOrAdd(localEntity, new PreviewMoveTo
+			{
+				Target = target,
+				CommandId = commandId,
+				IssuedSequence = GameContext.NetworkService?.LastAppliedSnapshotSequenceForDiagnostics ?? -1
+			});
+		}
+	}
+
+	/// <summary>
+	///     The shortest a drawn route waits for the match to answer the order that drew it, in sequences. It is a floor
+	///     rather than the lifetime itself: a fixed lifetime a slow link cannot answer within takes the route back before
+	///     the answer arrives, so <see cref="ResolvePreviewLifetimeSequences" /> is what a route is actually held to.
+	/// </summary>
+	public const int PreviewLifetimeSequences = 20;
+
+	private readonly List<Entity> _previewRouteEntitiesToClear = new();
+	private EntityCallback<PreviewMoveTo>? _collectPreviewRouteToClear;
+	private int _previewCommandIdToClear;
+
+	private void ClearPreviewRoute(int commandId)
+	{
+		if (commandId <= 0 || GameContext.World == null) return;
+
+		_previewCommandIdToClear = commandId;
+		_previewRouteEntitiesToClear.Clear();
+		_collectPreviewRouteToClear ??= CollectPreviewRouteToClear;
+		GameContext.World.Query(in QueryCache.AllPreviewMoveToQuery, _collectPreviewRouteToClear);
+		for (int index = 0; index < _previewRouteEntitiesToClear.Count; index++)
+		{
+			GameContext.World.Remove<PreviewMoveTo>(_previewRouteEntitiesToClear[index]);
+		}
+
+		_previewRouteEntitiesToClear.Clear();
+	}
+
+	private void CollectPreviewRouteToClear(Entity entity, ref PreviewMoveTo preview)
+	{
+		if (preview.CommandId == _previewCommandIdToClear) _previewRouteEntitiesToClear.Add(entity);
+	}
+
+	private readonly List<Entity> _expiredPreviewRouteEntities = new();
+	private EntityCallback<PreviewMoveTo>? _collectExpiredPreviewRoute;
+	private int _previewSweepSequence;
+	private int _previewLifetimeSequences = PreviewLifetimeSequences;
+
+	/// <summary>
+	///     How long this link's drawn routes are held, in sequences. An order is answered in one round trip, so twice the
+	///     round trip this client measures is the bound a route needs and the floor covers the first probes of a match.
+	/// </summary>
+	private static int ResolvePreviewLifetimeSequences()
+	{
+		NetworkLatencyService? latency = GameContext.Host != null ? GameContext.NetworkLatencyService : null;
+		if (latency == null || !latency.HasSample) return PreviewLifetimeSequences;
+
+		float roundTripSequences = latency.SmoothedRoundTripMilliseconds / 1000f / MatchTiming.SnapshotIntervalSeconds;
+		return Math.Max(PreviewLifetimeSequences, (int)MathF.Ceiling(roundTripSequences * 2f));
+	}
+
+	/// <summary>
+	///     Takes back the routes of orders the match has not spoken about within its lifetime. A click the match accepted
+	///     without moving anything draws a route nothing supersedes, and the planning pass would keep producing it.
+	/// </summary>
+	private void ExpirePreviewRoutes()
+	{
+		if (GameContext.World == null) return;
+
+		int sequence = GameContext.NetworkService?.LastAppliedSnapshotSequenceForDiagnostics ?? -1;
+		if (sequence < 0) return;
+
+		_previewSweepSequence = sequence;
+		_previewLifetimeSequences = ResolvePreviewLifetimeSequences();
+		_expiredPreviewRouteEntities.Clear();
+		_collectExpiredPreviewRoute ??= CollectExpiredPreviewRoute;
+		GameContext.World.Query(in QueryCache.AllPreviewMoveToQuery, _collectExpiredPreviewRoute);
+		for (int index = 0; index < _expiredPreviewRouteEntities.Count; index++)
+		{
+			GameContext.World.Remove<PreviewMoveTo>(_expiredPreviewRouteEntities[index]);
+		}
+
+		_expiredPreviewRouteEntities.Clear();
+	}
+
+	private void CollectExpiredPreviewRoute(Entity entity, ref PreviewMoveTo preview)
+	{
+		if (preview.IssuedSequence >= 0 && _previewSweepSequence - preview.IssuedSequence > _previewLifetimeSequences) _expiredPreviewRouteEntities.Add(entity);
+	}
+
+	public void SubmitCommandFloodForHarness(string commandType, List<int> unitIds, Vector3 targetPos, int count)
 	{
 		var targetNumerics = new System.Numerics.Vector3(targetPos.X, targetPos.Y, targetPos.Z);
-		if (GameSettings.MovementPrediction && (commandType == "MoveTo" || commandType == "AttackMove" || commandType == "Move" || commandType == "Gather"))
+		for (int index = 0; index < count; index++)
 		{
-			GameContext.MovementPredictionService?.ApplyLocalPrediction(GameContext.World, unitIds, targetNumerics);
-		}
-
-		var (_, payload) = GameContext.NetworkService.BuildClientCommand(commandType, unitIds, targetNumerics, targetEntityId, argString);
-		RpcId(1, nameof(SubmitCommand), payload);
-	}
-
-	private void SendUnacknowledgedCommands()
-	{
-		foreach (var payload in GameContext.NetworkService.GetUnacknowledgedCommandPayloads())
-		{
-			RpcId(1, nameof(SubmitCommand), payload);
+			var (floodCommandId, payload) = GameContext.NetworkService.BuildClientCommand(commandType, unitIds, targetNumerics, 0, string.Empty);
+			if (floodCommandId <= 0) return;
+			GameContext.ServerSession?.Submit(payload);
 		}
 	}
 
-	private void UpdateClientCameraPosition()
+	private void SubmitRemoteCommand(string commandType, List<int> unitIds, Vector3 targetPos, int targetEntityId, string argString)
 	{
-		var camera = GetViewport().GetCamera3D();
-		if (camera == null) return;
-		var pos = new NetworkVector3(camera.GlobalPosition);
-		RpcId(1, nameof(UpdateClientCamera), MemoryPackSerializer.Serialize(pos));
+		for (int index = unitIds.Count - 1; index >= 0; index--)
+		{
+			if (unitIds[index] > 0) continue;
+
+			unitIds.RemoveAt(index);
+		}
+
+		if (unitIds.Count == 0) return;
+
+		var targetNumerics = new System.Numerics.Vector3(targetPos.X, targetPos.Y, targetPos.Z);
+		var (commandId, payload) = GameContext.NetworkService.BuildClientCommand(commandType, unitIds, targetNumerics, targetEntityId, argString);
+		if (commandId <= 0) return;
+		GameContext.ServerSession?.Submit(payload);
+	}
+
+	public int GetLocalPlayerIndexForHarness() => LocalPlayerIndex;
+
+	public int GetServerEntityIdForHarness(int localEntityId) => GameContext.NetworkService.GetServerEntityId(localEntityId);
+
+	public void IssueRawCommandForHarness(string commandType, List<int> serverEntityIds, Vector3 targetPosition, int targetEntityId = 0, string argString = "")
+	{
+		SubmitOrderCommand(commandType, serverEntityIds, targetPosition, targetEntityId, argString);
 	}
 
 	private void UpdateClientWorldState(float fDelta)
 	{
-		bool isEditorMode = GameContext.SessionState.IsMapEditorMode;
-		bool advanceSimulationClock = !_multiplayerActive || Multiplayer.IsServer();
-		var res = GameContext.EnvironmentService.UpdateClientWorldStateDomain(fDelta, isEditorMode, advanceSimulationClock);
+		// The client's own copy of the clock keeps running: what the authority decides about the hour arrives as a
+		// presentation request, and this is the fall of light between those requests.
+		var res = GameContext.EnvironmentService.UpdateClientWorldStateDomain(fDelta, GameContext.SessionState.IsMapEditorMode, advanceSimulationClock: true);
 		if (res.UpdateVisuals)
 		{
 			UpdateClientWorldStateViewLogic(res.Progress);
@@ -99,655 +270,301 @@ public partial class GameHost
 		UpdateDayNightVisuals(progress);
 	}
 
+	private void UpdateClientNavMesh()
+	{
+		// A peer refreshes the mesh only for the obstacle set it had to receive after its first bake - the map's props
+		// and pre-placed buildings. A building that appears mid-match is carved on both sides, and baking it into the
+		// geometry on one side only left the two meshes with a different polygon split.
+		UpdateNavMeshRefresh();
+	}
+
 	private void UpdateClientTick(float fDelta)
 	{
 		CapturePreviousStateSnapshots();
+		_fDelta = fDelta;
 
-		_commandSendTimer += fDelta;
-		if (_commandSendTimer >= 0.05f)
-		{
-			_commandSendTimer = 0f;
-			UpdateClientTickViewLogic();
-		}
+		UpdateClientNavMesh();
+
+		PollVFXQueue();
+		TickConstructionSystem(fDelta, isAuthoritative: false);
+		ProcessVisualAndEnvironment(fDelta);
 
 		GameContext.NetworkService.UpdateClientTickDomain();
+		GameContext.NetworkLatencyService.Update(fDelta);
 
-		if (GameSettings.MovementPrediction && GameContext.World != null)
-		{
-			int currentTickSeq = (int)(Time.GetTicksMsec() / 33);
-			GameContext.MovementPredictionService?.RecordTick(currentTickSeq, GameContext.World);
-		}
+		// A stream that stops takes every other recovery path with it, because each of them is entered by a description
+		// arriving. This one is entered by the tick instead.
+		GameContext.SnapshotApply.ObserveDescriptionSilence();
+
+		// A route the match never answered is taken back before the planning pass sees it, so a click that moved nothing
+		// stops drawing rather than being planned again every tick.
+		ExpirePreviewRoutes();
+
+		// Routes are planned for the units this client controls and none of them are walked: what a unit is drawn doing
+		// comes from the descriptions, and this only gives it a path to draw and a direction to face.
+		GameContext.SimulationService.StepMovementPlanOnly(fDelta);
 
 		UpdateClientWorldState(fDelta);
 
-		var query = QueryCache.AllInterpolationTargetQuery;
-		GameContext.SimulationService.SetDelta(fDelta);
-		GameContext.World.Query(in query, GameContext.SimulationService.InterpolationQueryDelegate);
 		UpdateVisualNodesFromEcs(fDelta);
 		UpdateBuildingPreview();
+
+		RecordGameplayTickIfNeeded();
 	}
 
-	private void UpdateClientTickViewLogic()
+	private void AdvancePresentationForRenderFrame(float fDelta)
 	{
-		SendUnacknowledgedCommands();
-		UpdateClientCameraPosition();
+		if (GameContext.World == null) return;
+		if (GameContext.SessionState.IsMapEditorMode || GameContext.ReplayPlayback.IsPlayingReplay) return;
+		if (!ShouldProcessPhysicsTick() || GameContext.NetworkService.IsPaused) return;
+
+		// The match clock is advanced once per tick and every replicated unit is placed from it below, so this is the only
+		// thing that moves one: the client renders the authority's own timeline from a little behind it.
+		GameContext.SnapshotTimeline.Advance(fDelta);
+
+		// Effects and unit removals share the cursor the units are drawn from, so an effect and the unit it is about are
+		// drawn at the same moment rather than a presentation delay apart.
+		FlushPresentationForCursor();
+		FlushUnitViewRemovalsForCursor();
+
+		var query = QueryCache.AllLatestDescriptionQuery;
+		GameContext.SimulationService.SetDelta(fDelta);
+		GameContext.World.Query(in query, GameContext.SimulationService.PresentationQueryDelegate);
 	}
 
-	private void StopUnitVelocities(IEnumerable<int> entityIds)
+	/// <summary>
+	///     States how far this screen has applied the world, and how long the link took to carry it. The round trip
+	///     travels with the answer because the answer names a sequence one round trip old: the match cannot tell a peer
+	///     that is keeping up from one its link is merely slow without knowing which of the two it is measuring.
+	/// </summary>
+	public void SendSnapshotAck(int sequence, ulong appliedMask)
 	{
-		foreach (int entityId in entityIds)
+		int roundTripMilliseconds = Mathf.RoundToInt(GameContext.NetworkLatencyService?.SmoothedRoundTripMilliseconds ?? 0f);
+		GameContext.ServerSession?.Acknowledge(sequence, appliedMask, roundTripMilliseconds);
+	}
+
+	public void RequestSnapshotBaseline() => GameContext.ServerSession?.RequestBaseline();
+
+	public void RequestSnapshotRepair(int firstSequence, int count) => GameContext.ServerSession?.RequestSnapshotRepair(firstSequence, count);
+
+	private void ApplyReceivedSnapshot(WorldSnapshot snapshot)
+	{
+		GameContext.SnapshotApply.Accept(snapshot);
+		FlushReplicatedSnapshotEvents();
+		MultiplayerSyncDiagnostics.RecordClientPresentation();
+	}
+
+	private const double ReplicatedUnitSpawnBudgetMilliseconds = 4.0;
+
+	private double _replicatedUnitSpawnBudgetRemainingMilliseconds;
+
+	public void FlushReplicatedSnapshotEvents()
+	{
+		// A match's first description names every unit on the board at once, and each unit that is the first of its kind
+		// costs tens of milliseconds to load, aim and dress, so building all of them in one tick froze it for close to a
+		// second. What is left over keeps its newest description and is built by the next ticks.
+		// One unit is always built when one is waiting, so a description applied outside a tick still makes progress.
+		long spawnStarted = System.Diagnostics.Stopwatch.GetTimestamp();
+		int spawned = 0;
+		while ((_replicatedUnitSpawnBudgetRemainingMilliseconds > 0 || spawned == 0)
+		       && GameContext.NetworkService.TryTakePendingUnitSpawn(out UnitSnapshot pendingSpawn))
 		{
-			foreach (var unit in AllUnits)
-			{
-				if (unit.Entity.Id == entityId)
-				{
-					unit.Velocity = Vector3.Zero;
-					break;
-				}
-			}
-		}
-	}
-
-	private void ProcessServerCommandBuild(ServerCommandResult result)
-	{
-		var stringUnitRegistry = new Dictionary<string, UnitMetadata>();
-		foreach (var kvp in UnitRegistry) stringUnitRegistry[kvp.Key.ToString()] = kvp.Value;
-		foreach (var kvp in BuildingRegistry) stringUnitRegistry[kvp.Key.ToString()] = kvp.Value;
-		var longPeerMap = new Dictionary<long, Entity>();
-		foreach (var kvp in _peerIdToPlayerEntityMap) longPeerMap[kvp.Key] = kvp.Value;
-
-		Entity buildWorkerEntity = Entity.Null;
-		if (result.BuildWorkerServerEntityId >= 0)
-		{
-			buildWorkerEntity = GameContext.NetworkService.FindServerEntity(result.BuildWorkerServerEntityId, AllUnits);
-			if (buildWorkerEntity == Entity.Null || !GameContext.World.IsAlive(buildWorkerEntity))
-			{
-				GD.PushWarning($"[Build] Rejected '{result.BuildUnitType}': worker server entity {result.BuildWorkerServerEntityId} is not a live unit on the host.");
-				return;
-			}
-		}
-
-		var domainRes = GameContext.NetworkService.ProcessServerCommandBuildDomain(result, stringUnitRegistry, longPeerMap, buildWorkerEntity);
-		if (!domainRes.Success)
-		{
-			GD.PushWarning($"[Build] Rejected '{result.BuildUnitType}': build metadata is missing from the unit registry or the worker is not owned by the commanding peer.");
-			return;
-		}
-
-		var godotPos = new Vector3(domainRes.BuildPosition.X, domainRes.BuildPosition.Y, domainRes.BuildPosition.Z);
-		if (buildWorkerEntity != Entity.Null)
-		{
-			AssignBuildTaskToWorker(buildWorkerEntity, domainRes.BuildUnitType, domainRes.BuildPosition);
-			GD.Print($"[Build] Worker {buildWorkerEntity.Id} started constructing '{domainRes.BuildUnitType}' at {domainRes.BuildPosition}.");
-			return;
-		}
-
-		var bldEntity = CreateEcsUnit(domainRes.BuildUnitType, domainRes.Name, domainRes.MaxHp, domainRes.Damage, domainRes.Range, domainRes.Armor, 0f, godotPos, domainRes.PlayerOwner);
-		ProcessServerCommandBuildViewLogic(bldEntity, domainRes.BuildUnitType, domainRes.TargetModel, godotPos, domainRes.PlayerOwner);
-	}
-
-	private void ProcessServerCommandBuildViewLogic(Entity bldEntity, string buildUnitType, string targetModel, Vector3 buildPosition, PlayerEntity playerOwner)
-	{
-		string modelPath = GetFallbackModelPath(targetModel, true);
-		int playerIndex = (playerOwner.Value != Entity.Null && GameContext.World.Has<UnitOwnerPlayer>(playerOwner.Value))
-			? GameContext.World.Get<UnitOwnerPlayer>(playerOwner.Value).PlayerIndex
-			: 0;
-		SpawnUnit3D(bldEntity, buildUnitType, modelPath, buildPosition, true, playerIndex);
-	}
-
-	private UnitId GetSpellCaster(NetworkCommand cmd)
-	{
-		var casterEntity = GameContext.NetworkService.GetSpellCasterEntityDomain(cmd, AllUnits);
-		return casterEntity != Entity.Null ? (UnitId)casterEntity.Id : UnitId.Invalid;
-	}
-
-	private void ApplySpellEffect(string spellId, Vector3 position, Entity casterEnt)
-	{
-		var pos = new System.Numerics.Vector3(position.X, position.Y, position.Z);
-		GameContext.SimulationService.ApplySpellEffectDomain(spellId, pos, casterEnt);
-	}
-
-	private void BroadcastSpellEffect(string spellId, Vector3 position)
-	{
-		var peers = GameContext.NetworkService.GetPeersToBroadcastSpellEffect(_localPeerId);
-		foreach (var peerId in peers)
-		{
-			QueueOrSendPacket(peerId, nameof(PlaySpellEffect), spellId, position);
-		}
-	}
-
-	private readonly Dictionary<int, int> _lastAppliedCommandIdPerPeer = new();
-
-	private bool IsDuplicateCommand(int peerId, int commandId)
-	{
-		if (commandId <= 0) return false;
-
-		if (_lastAppliedCommandIdPerPeer.TryGetValue(peerId, out int lastAppliedCommandId) && commandId <= lastAppliedCommandId) return true;
-
-		_lastAppliedCommandIdPerPeer[peerId] = commandId;
-		return false;
-	}
-
-	private void ProcessServerCommandSpell(NetworkCommand cmd, ServerCommandResult result)
-	{
-		if (!result.NeedsSpellEffect) return;
-
-		string spellId = result.SpellId;
-		Vector3 position = result.SpellPosition;
-		var caster = GetSpellCaster(cmd);
-		var casterEnt = GameContext.SimulationService.TryGetEntity(caster, out var ce) ? ce : Entity.Null;
-
-		OnSpellCast?.Invoke(caster, spellId, new System.Numerics.Vector3(position.X, position.Y, position.Z));
-
-		ApplySpellEffect(spellId, position, casterEnt);
-		InGameHUD.Instance?.RefreshUI(SelectedUnits);
-		BroadcastSpellEffect(spellId, position);
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void SubmitCommand(byte[] payload)
-	{
-		if (!Multiplayer.IsServer()) return;
-		var sw = Stopwatch.StartNew();
-		int senderId = Multiplayer.GetRemoteSenderId();
-		var cmd = MemoryPackSerializer.Deserialize<NetworkCommand>(payload);
-
-		if (IsDuplicateCommand(senderId, cmd.CommandId))
-		{
-			RpcId(senderId, nameof(AcknowledgeCommand), cmd.CommandId);
-			return;
+			SpawnUnitFromSnapshot(pendingSpawn);
+			spawned++;
+			_replicatedUnitSpawnBudgetRemainingMilliseconds -= (System.Diagnostics.Stopwatch.GetTimestamp() - spawnStarted)
+			                                                   * 1000.0
+			                                                   / System.Diagnostics.Stopwatch.Frequency;
+			spawnStarted = System.Diagnostics.Stopwatch.GetTimestamp();
 		}
 
-		var result = GameContext.NetworkService.ExecuteServerCommand(senderId, cmd, AllUnits, AllProps);
-
-		StopUnitVelocities(result.StopVelocityEntityIds);
-		StopUnitVelocities(result.HoldVelocityEntityIds);
-
-		ProcessServerCommandBuild(result);
-		ProcessServerCommandSpell(cmd, result);
-
-		RpcId(senderId, nameof(AcknowledgeCommand), cmd.CommandId);
-		sw.Stop();
-		float responseCpuMs = (float)sw.Elapsed.TotalMilliseconds;
-		float adjustedResponseMs = responseCpuMs + GameContext.PerformanceTrackingService.TrackerLastTickDelay;
-		if (GameContext.PerformanceTrackingService.TrackerApiDurations != null)
-		{
-			GameContext.PerformanceTrackingService.TrackerApiDurations.Add(adjustedResponseMs);
-		}
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void AcknowledgeCommand(int commandId)
-	{
-		GameContext.NetworkService.AcknowledgeCommand(commandId);
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Unreliable)]
-	public void UpdateClientCamera(byte[] payload)
-	{
-		int senderId = Multiplayer.GetRemoteSenderId();
-		var pos = MemoryPackSerializer.Deserialize<NetworkVector3>(payload);
-		GameContext.NetworkService.RecordClientCameraPosition(senderId, pos.ToGodot());
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Unreliable)]
-	public void ReceiveSnapshot(byte[] payload)
-	{
-		ApplyReceivedSnapshot(payload);
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void ReceiveBaselineSnapshot(byte[] payload)
-	{
-		ApplyReceivedSnapshot(payload);
-	}
-
-	private void ApplyReceivedSnapshot(byte[] payload)
-	{
-		if (Multiplayer.IsServer()) return;
-		GameContext.NetworkService.RecordSnapshotReceived(payload);
-
-
-		var pendingSpawns = GameContext.NetworkService.FlushPendingUnitSpawns();
-		for (int i = 0; i < pendingSpawns.Count; i++)
-		{
-			SpawnUnitFromSnapshot(pendingSpawns[i]);
-		}
-
+		// The node is not removed here. A description is applied the tick it arrives, while every other unit is drawn two
+		// to eight sequences behind it, so removing it now made a unit vanish a tenth of a second before the world
+		// reached the moment it died. The removal is held against the sequence the snapshot states and spent by the tick
+		// that draws it.
+		int removalSequence = GameContext.NetworkService.LastAppliedSnapshotSequenceForDiagnostics;
 		foreach (var localEntity in GameContext.NetworkService.FlushPendingUnitKills())
 		{
-			if (TryGetUnit3D(localEntity, out var unit3D))
-			{
-				Callable.From(() => KillUnitDeferred(unit3D)).CallDeferred();
-			}
+			if (TryGetUnit3D(localEntity, out var unit3D)) QueueUnitViewRemoval(unit3D, removalSequence, retire: false);
 		}
 
 		foreach (var localEntity in GameContext.NetworkService.FlushPendingUnitDespawns())
 		{
-			if (TryGetUnit3D(localEntity, out var unit3D))
-			{
-				Callable.From(() => RetireUnitFromView(unit3D)).CallDeferred();
-			}
+			if (TryGetUnit3D(localEntity, out var unit3D)) QueueUnitViewRemoval(unit3D, removalSequence, retire: true);
 		}
 
-		if (pendingSpawns.Count > 0)
+		if (spawned > 0)
 		{
 			GameContext.NetworkService.ReapplyAbilityStatesToUnits();
 		}
-
-		MultiplayerSyncDiagnostics.RecordClientPresentation();
 	}
 
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void PlaySpellEffect(string spellId, Vector3 position)
+	/// <summary>
+	///     One unit node waiting for the presentation clock to reach the moment its description removed it, and whether it
+	///     leaves the world entirely or only the screen. The node is held rather than the entity because the entity behind
+	///     a recycled identifier becomes a different unit, and this has to free the one that died.
+	/// </summary>
+	private readonly record struct PendingUnitViewRemoval(Unit3D Unit, int Sequence, bool Retire);
+
+	private readonly List<PendingUnitViewRemoval> _pendingUnitViewRemovals = new();
+
+	private void QueueUnitViewRemoval(Unit3D unit3D, int sequence, bool retire)
 	{
-		var def = GetAbilityDefinition(spellId);
-		if (def != null)
+		if (!GodotObject.IsInstanceValid(unit3D)) return;
+		if (sequence < 0) sequence = 0;
+
+		// A unit that dies and then leaves sight before the clock reaches either is removed once, and by the retirement:
+		// it takes the replica out of the world as well as the node off the screen.
+		for (int index = 0; index < _pendingUnitViewRemovals.Count; index++)
 		{
-			GameContext.FXService.SpawnAbilityEffect(this, def, position);
+			if (!ReferenceEquals(_pendingUnitViewRemovals[index].Unit, unit3D)) continue;
+			if (retire) _pendingUnitViewRemovals[index] = new PendingUnitViewRemoval(unit3D, sequence, true);
+			return;
 		}
+
+		_pendingUnitViewRemovals.Add(new PendingUnitViewRemoval(unit3D, sequence, retire));
 	}
 
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void ClientSpawnArrowProjectile(Vector3 start, Vector3 target, int ownerPlayerIndex = 0)
+	/// <summary>
+	///     Frees every unit node whose removal the presentation clock has reached, in the order the descriptions that
+	///     removed them arrived. It is the same gate the map's effects are shown through, so a unit and the effect of its
+	///     death are drawn at the same moment instead of one presentation delay apart.
+	/// </summary>
+	private void FlushUnitViewRemovalsForCursor()
 	{
-		GameContext.FXService.SpawnArrowProjectile(this, start, target, ownerPlayerIndex);
+		if (_pendingUnitViewRemovals.Count == 0) return;
+
+		float cursor = GameContext.SnapshotTimeline.CursorSequence;
+		if (cursor < 0f) return;
+
+		int kept = 0;
+		for (int index = 0; index < _pendingUnitViewRemovals.Count; index++)
+		{
+			PendingUnitViewRemoval removal = _pendingUnitViewRemovals[index];
+			if (removal.Sequence > cursor)
+			{
+				_pendingUnitViewRemovals[kept++] = removal;
+				continue;
+			}
+
+			if (!GodotObject.IsInstanceValid(removal.Unit)) continue;
+
+			Unit3D unit = removal.Unit;
+			if (removal.Retire) Callable.From(() => RetireUnitFromView(unit)).CallDeferred();
+			else Callable.From(() => KillUnitDeferred(unit)).CallDeferred();
+		}
+
+		if (kept < _pendingUnitViewRemovals.Count) _pendingUnitViewRemovals.RemoveRange(kept, _pendingUnitViewRemovals.Count - kept);
 	}
 
 	public void RefreshReplicatedOverlayUi()
 	{
-		InGameHUD.Instance?.InvalidateReplicatedOverlays();
-	}
-
-	public void SetReplicatedEntityVisible(Entity entity, bool visible)
-	{
-		if (!TryGetUnit3D(entity, out var unit) || !GodotObject.IsInstanceValid(unit)) return;
-		unit.Visible = visible;
-	}
-
-	private int _shadowVerificationTickCounter;
-
-	private void RunShadowClientVerification()
-	{
-		_shadowVerificationTickCounter++;
-		if (_shadowVerificationTickCounter % 60 != 0) return;
-
-		byte[] payload = GameContext.NetworkService.BuildExplicitBaselineSnapshot(1, AllUnits);
-		if (payload.Length == 0) return;
-		ShadowClientVerifier.VerifyPayload(1, payload, true);
-	}
-
-	private void UpdateServerSnapshotTick(float fDelta)
-	{
-		var snapshots = GameContext.NetworkService.BuildServerSnapshots(_localPeerId, AllUnits);
-		foreach (var (peerId, payload, isBaseline) in snapshots)
-		{
-			ShadowClientVerifier.VerifyPayload(peerId, payload, isBaseline);
-			QueueOrSendPacket(peerId, isBaseline ? nameof(ReceiveBaselineSnapshot) : nameof(ReceiveSnapshot), payload);
-		}
+		GameContext.InGameHud?.InvalidateReplicatedOverlays();
 	}
 
 	private void SpawnUnitFromSnapshot(UnitSnapshot snap)
 	{
 		var entity = GameContext.NetworkService.SpawnUnitFromSnapshot(snap, GetFallbackModelPath, out string modelPath, out int playerIndex);
 		if (entity == Entity.Null) return;
-		var unit3D = SpawnUnit3D(entity, snap.UnitId, modelPath, snap.Position.ToGodot(), snap.IsBuilding, playerIndex);
+		var unit3D = SpawnUnit3D(entity, snap.UnitId, modelPath, new Vector3(snap.Position.X, snap.Position.Y, snap.Position.Z), snap.IsBuilding, playerIndex);
 		unit3D.Rotation = new Vector3(0f, snap.RotationY, 0f);
 		if (_pendingSelectUnitServerId == snap.EntityId && GodotObject.IsInstanceValid(unit3D))
 		{
 			ClearSelection();
 			SelectUnit(unit3D);
-			InGameHUD.Instance?.RefreshUI(SelectedUnits);
+			GameContext.InGameHud?.RefreshUI(SelectedUnits);
 			_pendingSelectUnitServerId = -1;
 		}
 	}
 
-	private void QueueOrSendPacket(int peerId, string funcName, params object[] args)
-	{
-		if (GameContext.NetworkService.IsSpectatorWithDelay(peerId))
-		{
-			GameContext.NetworkService.QueueSpectatorDelayedPacket(peerId, funcName, args);
-		}
-		else
-		{
-			SendPacketImmediate(peerId, funcName, args);
-		}
-	}
-
-	private void ProcessDelayedSpectatorPackets()
-	{
-		var readyPackets = GameContext.NetworkService.FlushReadySpectatorPackets();
-		foreach (var packet in readyPackets)
-		{
-			SendPacketImmediate(packet.PeerId, packet.FunctionName, packet.Arguments);
-		}
-	}
-
-	private void SendPacketImmediate(int peerId, string funcName, object[] args)
-	{
-		if (funcName == nameof(ReceiveSnapshot))
-		{
-			RpcId(peerId, nameof(ReceiveSnapshot), (byte[])args[0]);
-		}
-		else if (funcName == nameof(ReceiveBaselineSnapshot))
-		{
-			RpcId(peerId, nameof(ReceiveBaselineSnapshot), (byte[])args[0]);
-		}
-		else if (funcName == nameof(PlaySpellEffect))
-		{
-			RpcId(peerId, nameof(PlaySpellEffect), (string)args[0], (Vector3)args[1]);
-		}
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.AnyPeer, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
 	public void NetworkPingMinimap(Vector3 position)
 	{
 		AddMinimapPing(position);
 	}
 
-	public void TogglePauseRequest()
+	/// <summary>
+	///     Asks the match to hold or let go of its clock, stating the state wanted rather than a change to make. A request
+	///     that only named a change had to read this screen's own belief first, so a screen that believed it was paused
+	///     while the match was already running sent a pause from the button that was meant to resume it.
+	/// </summary>
+	/// <param name="paused">True to hold the match, false to let it run.</param>
+	public void RequestPause(bool paused)
 	{
-		if (_multiplayerActive)
-		{
-			RpcId(1, nameof(RequestPause), Multiplayer.GetUniqueId());
-		}
-		else
-		{
-			GameContext.NetworkService.ToggleLocalPause();
-			UpdatePauseUI();
-		}
+		ClientServerSession? session = GameContext.ServerSession;
+		if (session != null && session.RequestPause(paused)) return;
+
+		GD.PushWarning("[GameHost] There is no match to ask for a pause: nothing is running this world's clock.");
 	}
 
-	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void RequestPause(int peerId)
-	{
-		GameContext.NetworkService.ProcessRequestPause(
-			peerId,
-			Multiplayer.IsServer(),
-			(paused, byPeerId, instant) => Rpc(nameof(BroadcastPauseState), paused, byPeerId, instant),
-			StartCountdown
-		);
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void RequestToggleReady(int peerId, bool ready)
-	{
-		GameContext.NetworkService.ProcessRequestToggleReady(
-			peerId, ready, Multiplayer.IsServer(),
-			CheckAllPlayersReady,
-			StartCountdown,
-			(serialized) => Rpc(nameof(BroadcastReadyStates), serialized),
-			() => Rpc(nameof(BroadcastCountdownCancel))
-		);
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void RequestSetDisallowPause(int peerId, bool disallowed)
-	{
-		GameContext.NetworkService.ProcessRequestSetDisallowPause(
-			peerId, disallowed, Multiplayer.IsServer(), Multiplayer.GetRemoteSenderId(),
-			(serialized) => Rpc(nameof(BroadcastDisallowedPausePeers), serialized)
-		);
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void RequestForceResume()
-	{
-		GameContext.NetworkService.ProcessRequestForceResume(
-			Multiplayer.IsServer(), Multiplayer.GetRemoteSenderId(), StartCountdown
-		);
-	}
-
-	private void StartCountdown(bool forcedByHost)
-	{
-		GameContext.NetworkService.ProcessStartCountdown(
-			forcedByHost,
-			(seconds, forced) => Rpc(nameof(BroadcastCountdownState), seconds, forced)
-		);
-	}
-
-	private bool CheckAllPlayersReady()
-	{
-		return GameContext.NetworkService.ProcessCheckAllPlayersReady(LobbyManager.Instance?.PlayerList);
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void BroadcastPauseState(bool paused, int pausedByPeerId, bool instantResume)
-	{
-		GameContext.NetworkService.ProcessBroadcastPauseState(
-			paused, instantResume, UpdatePauseUI
-		);
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void BroadcastReadyStates(string serializedReadyStates)
-	{
-		GameContext.NetworkService.ProcessBroadcastReadyStates(
-			serializedReadyStates, UpdatePauseUI
-		);
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void BroadcastDisallowedPausePeers(string serializedDisallowed)
-	{
-		GameContext.NetworkService.ProcessBroadcastDisallowedPausePeers(
-			serializedDisallowed, UpdatePauseUI
-		);
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void BroadcastCountdownState(int seconds, bool forcedByHost)
-	{
-		GameContext.NetworkService.ProcessBroadcastCountdownState(
-			seconds, forcedByHost, UpdatePauseUI
-		);
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void BroadcastCountdownCancel()
-	{
-		GameContext.NetworkService.BroadcastCountdownCancelDomain();
-		UpdatePauseUI();
-	}
-
-	public void GetPlayerReadyState(int peerId, out bool ready)
-	{
-		GameContext.NetworkService.GetPlayerReadyStateDomain(peerId, out ready);
-	}
-
-	public void GetPlayerDisallowPause(int peerId, out bool disallowed)
-	{
-		GameContext.NetworkService.GetPlayerDisallowPauseDomain(peerId, out disallowed);
-	}
+	/// <summary>
+	///     Asks the match for the opposite of the state this screen believes it holds. The clock belongs to the process
+	///     running the match, so this is a request: what the screen shows afterwards is the state that process answered
+	///     with.
+	/// </summary>
+	public void TogglePauseRequest() => RequestPause(!GameContext.NetworkService.IsPaused);
 
 	private void UpdatePauseUI()
 	{
-		InGameHUD.Instance?.UpdatePauseUI();
+		GameContext.InGameHud?.UpdatePauseUI();
 	}
 
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
 	public void SyncEnvironmentPresetRpc(string presetId, float durationSeconds)
 	{
 		if (durationSeconds <= 0.001f)
 		{
-			GameContext.EnvironmentService?.ApplyPresetById(this, presetId);
+			GameContext.EnvironmentService?.ApplyPresetById(presetId);
 		}
 		else
 		{
-			GameContext.EnvironmentService?.TransitionToPreset(this, presetId, durationSeconds);
+			GameContext.EnvironmentService?.TransitionToPreset(presetId, durationSeconds);
 		}
 	}
 
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
 	public void SyncWeatherRpc(string weatherType)
 	{
 		GameContext.EnvironmentService?.SetCurrentWeather(weatherType);
-		InGameHUD.Instance?.ApplyWeatherEffects(weatherType);
+		GameContext.InGameHud?.ApplyWeatherEffects(weatherType);
 	}
 
-	private void SendReconnectedBaselineSnapshot(int newPeerId)
-	{
-		var baselinePayload = GameContext.NetworkService.BuildExplicitBaselineSnapshot(newPeerId, AllUnits);
-		if (baselinePayload != null && baselinePayload.Length > 0)
-		{
-			RpcId(newPeerId, nameof(ReceiveSnapshot), baselinePayload);
-		}
-	}
-
-	private void SyncReconnectedCountdown(int newPeerId)
-	{
-		if (GameContext.NetworkService.TryGetReconnectedCountdown(out float duration, out string text))
-		{
-			RpcId(newPeerId, nameof(ClientStartCountdownTimer), duration, text);
-		}
-	}
-
-	private void RegisterReconnectedAbilities(int newPeerId)
-	{
-		foreach (var kvp in GameContext.RegistryService.AbilityDefinitions)
-		{
-			RpcId(newPeerId, nameof(ClientRegisterAbility), kvp.Key, kvp.Value.DisplayName, kvp.Value.Tooltip, kvp.Value.IconPath ?? "", kvp.Value.IsInstant);
-		}
-	}
-
-	private void SyncReconnectedPauseState(int newPeerId)
-	{
-		if (!GameContext.NetworkService.IsPaused) return;
-
-		RpcId(newPeerId, nameof(BroadcastPauseState), true, 1, false);
-		var serializedReady = JsonSerializer.Serialize(GameContext.NetworkService.PlayerReadyStates);
-		RpcId(newPeerId, nameof(BroadcastReadyStates), serializedReady);
-	}
-
-	public void HandlePeerReconnected(int oldPeerId, int newPeerId, int slot)
-	{
-		if (!Multiplayer.IsServer()) return;
-
-		GD.Print($"[GameHost] HandlePeerReconnected: OldPeer={oldPeerId}, NewPeer={newPeerId}, Slot={slot}");
-
-		Entity playerEntity = GameContext.NetworkService.ResolveReconnectedPlayerEntity(oldPeerId, newPeerId, _peerIdToPlayerEntityMap);
-		GameContext.NetworkService.UpdateReconnectedNetworkMapping(oldPeerId, newPeerId, playerEntity);
-		SendReconnectedBaselineSnapshot(newPeerId);
-		SyncReconnectedCountdown(newPeerId);
-		RegisterReconnectedAbilities(newPeerId);
-		SyncReconnectedPauseState(newPeerId);
-		SyncReconnectedCameraBounds(newPeerId, slot);
-		SyncReconnectedHudVisibility(newPeerId, slot);
-	}
-
-	private void SyncReconnectedCameraBounds(int newPeerId, int slot)
-	{
-		if (_playerCameraBoundsOverrides.TryGetValue(slot, out var bounds))
-		{
-			RpcId(newPeerId, nameof(ClientSetCameraBounds), bounds.MinX, bounds.MinZ, bounds.MaxX, bounds.MaxZ);
-		}
-	}
-
-	private void SyncReconnectedHudVisibility(int newPeerId, int slot)
-	{
-		if (_playerHudVisibilityOverrides.TryGetValue(slot, out var dict))
-		{
-			foreach (var kvp in dict)
-			{
-				RpcId(newPeerId, nameof(ClientSetHudElementVisible), (int)kvp.Key, kvp.Value);
-			}
-		}
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
 	public void ClientRegisterAbility(string abilityId, string displayName, string tooltip, string iconPath, bool isInstant)
 	{
 		if (GameContext.RegistryService.RegisterAbility(abilityId, displayName, tooltip, iconPath, isInstant))
 		{
-			InGameHUD.Instance?.RefreshUI(SelectedUnits);
+			GameContext.InGameHud?.RefreshUI(SelectedUnits);
 		}
 	}
 
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
 	public void ClientShowFeedbackText(string text, Vector3 color)
 	{
-		if (InGameHUD.Instance != null)
-		{
-			var gColor = new Color(color.X, color.Y, color.Z);
-			Callable.From(() => InGameHUD.Instance?.ShowFeedbackText(text, gColor)).CallDeferred();
-		}
+		if (GameContext.InGameHud == null) return;
+
+		var textColor = new Color(color.X, color.Y, color.Z);
+		Callable.From(() => GameContext.InGameHud?.ShowFeedbackText(text, textColor)).CallDeferred();
 	}
 
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Unreliable)]
-	public void ClientCreateFloatingText(string text, Vector3 position, Vector3 color, float duration)
-	{
-		CreateFloatingTextInternal(text, position, new Color(color.X, color.Y, color.Z), duration);
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
 	public void ClientStartCountdownTimer(float duration, string label)
 	{
-		Callable.From(() => InGameHUD.Instance?.StartCountdownTimer(duration, label)).CallDeferred();
+		Callable.From(() => GameContext.InGameHud?.StartCountdownTimer(duration, label)).CallDeferred();
 	}
 
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
 	public void ClientStopCountdownTimer()
 	{
-		Callable.From(() => InGameHUD.Instance?.StopCountdownTimer()).CallDeferred();
+		Callable.From(() => GameContext.InGameHud?.StopCountdownTimer()).CallDeferred();
 	}
 
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void ClientPanCameraTo(Vector3 position, float duration)
-	{
-		Callable.From(() => { PanCameraInternal(position, duration); }).CallDeferred();
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void ClientShakeCamera(float intensity, float duration)
-	{
-		ShakeCameraInternal(intensity, duration);
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void ClientSetCameraBounds(float minX, float minZ, float maxX, float maxZ)
-	{
-		Callable.From(() => SetCameraBoundsInternal(minX, minZ, maxX, maxZ)).CallDeferred();
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void ClientResetCameraBounds()
-	{
-		Callable.From(() => ResetCameraBoundsInternal()).CallDeferred();
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void ClientSetHudElementVisible(int elementInt, bool visible)
-	{
-		Callable.From(() =>
-		{
-			HudElement element = (HudElement)elementInt;
-			SetHudElementVisibleInternal(element, visible);
-		}).CallDeferred();
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
 	public void ClientSelectUnit(int serverEntityId)
 	{
 		Callable.From(() =>
 		{
-			Entity targetEntity = Entity.Null;
-			if (!TryGetLocalEntity(serverEntityId, out targetEntity))
-			{
-				foreach (var u in AllUnits)
-				{
-					if (GodotObject.IsInstanceValid(u) && u.Entity.Id == serverEntityId)
-					{
-						targetEntity = u.Entity;
-						break;
-					}
-				}
-			}
-
-			if (targetEntity != Entity.Null && TryGetUnit3D(targetEntity, out var unit3D) && GodotObject.IsInstanceValid(unit3D))
+			// A selection the authority named is a server entity id, so it resolves only through the mapping that keeps
+			// the two domains apart. Matching it against the client's own ids compared unrelated numbers, and in the first
+			// seconds of a match - where both start low and count up - it selected whatever unit reused the number.
+			if (TryGetLocalEntity(serverEntityId, out Entity targetEntity)
+				&& TryGetUnit3D(targetEntity, out var unit3D)
+				&& GodotObject.IsInstanceValid(unit3D))
 			{
 				ClearSelection();
 				SelectUnit(unit3D);
-				InGameHUD.Instance?.RefreshUI(SelectedUnits);
+				GameContext.InGameHud?.RefreshUI(SelectedUnits);
 			}
 			else
 			{
@@ -756,135 +573,8 @@ public partial class GameHost
 		}).CallDeferred();
 	}
 
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
 	public void ClientClearSelection()
 	{
 		ClearSelectionInternal();
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void ClientPingMinimap(Vector3 position)
-	{
-		Callable.From(() => AddMinimapPing(position)).CallDeferred();
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void ClientPlayWarningSound()
-	{
-		Callable.From(() => GameContext.AudioService?.PlayWarningSound()).CallDeferred();
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void ClientPlayClickSound()
-	{
-		Callable.From(() => GameContext.AudioService?.PlayClickSound()).CallDeferred();
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void ClientStartBuildingPlacement(string unitTypeId)
-	{
-		Callable.From(() => EnterBuildingPlacement(unitTypeId)).CallDeferred();
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void ClientGameOver(bool isVictory)
-	{
-		GameContext.NetworkService.SetGameOver();
-		Callable.From(() => UIManager.Instance?.TransitionTo(GameScreen.GameOver, isVictory)).CallDeferred();
-	}
-
-	public void OnClientReconnected(int slot)
-	{
-		_localPeerId = Multiplayer.GetUniqueId();
-		GameContext.NetworkService.LocalPeerId = _localPeerId;
-		GameContext.NetworkService.MarkClientEnteredMultiplayer();
-		GameContext.NetworkService.ResetReconnectionState();
-
-		Entity reconnectedEntity = Entity.Null;
-		if (LobbyManager.Instance != null && LobbyManager.Instance.PlayerList.Count > 0)
-		{
-			reconnectedEntity = GameContext.NetworkService.AssignReconnectedPlayerEntity(slot, LobbyManager.Instance.PlayerList, _localPeerId, _peerIdToPlayerEntityMap);
-		}
-
-		GameContext.NetworkService.UpdateReconnectedClientMapping(reconnectedEntity, _localPeerId);
-
-		if (IsMultiplayerActive() && !IsMultiplayerServerActive())
-		{
-			RpcId(1, nameof(ServerRequestDynamicPathingSync));
-		}
-
-		InGameHUD.Instance?.RefreshUI(SelectedUnits);
-		GD.Print($"[GameHost] OnClientReconnected completed for LocalPeerId={_localPeerId}, Slot={slot}");
-	}
-
-	private readonly List<(float minX, float minZ, float maxX, float maxZ, int flags, bool blocked)> _dynamicPathingOverrides = new();
-	private int _regionPathingSequence;
-	private int _appliedRegionPathingSequence;
-
-	private int NextRegionPathingSequence()
-	{
-		_regionPathingSequence++;
-		_appliedRegionPathingSequence = _regionPathingSequence;
-		return _regionPathingSequence;
-	}
-
-	public void ApplyRegionPathingInternal(float minX, float minZ, float maxX, float maxZ, int flags, bool blocked)
-	{
-		_dynamicPathingOverrides.Add((minX, minZ, maxX, maxZ, flags, blocked));
-		var world = GameContext.World;
-		var worldEntity = ECSContext.WorldEntity;
-		if (world != null && world.IsAlive(worldEntity) && world.Has<TerrainState>(worldEntity))
-		{
-			ref var state = ref world.Get<TerrainState>(worldEntity);
-			ECSContext.TerrainNavMeshService?.SetRegionPathing(ref state, minX, minZ, maxX, maxZ, flags, blocked);
-			world.Set(worldEntity, state);
-		}
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void ClientUpdateRegionPathing(float minX, float minZ, float maxX, float maxZ, int flags, bool blocked, int sequence)
-	{
-		if (sequence <= _appliedRegionPathingSequence) return;
-
-		_appliedRegionPathingSequence = sequence;
-		ApplyRegionPathingInternal(minX, minZ, maxX, maxZ, flags, blocked);
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void ServerRequestDynamicPathingSync()
-	{
-		int senderId = Multiplayer.GetRemoteSenderId();
-		if (senderId <= 1) return;
-
-		var sb = new System.Text.StringBuilder();
-		for (int i = 0; i < _dynamicPathingOverrides.Count; i++)
-		{
-			var o = _dynamicPathingOverrides[i];
-			if (i > 0) sb.Append(';');
-			sb.Append($"{o.minX:F2},{o.minZ:F2},{o.maxX:F2},{o.maxZ:F2},{o.flags},{(o.blocked ? 1 : 0)}");
-		}
-		RpcId(senderId, nameof(ClientSyncDynamicPathingOverrides), _regionPathingSequence, sb.ToString());
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void ClientSyncDynamicPathingOverrides(int sequence, string serializedData)
-	{
-		if (sequence > _appliedRegionPathingSequence) _appliedRegionPathingSequence = sequence;
-		if (string.IsNullOrEmpty(serializedData)) return;
-		var parts = serializedData.Split(';', StringSplitOptions.RemoveEmptyEntries);
-		foreach (var part in parts)
-		{
-			var tokens = part.Split(',');
-			if (tokens.Length >= 6 &&
-			    float.TryParse(tokens[0], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float x1) &&
-			    float.TryParse(tokens[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float z1) &&
-			    float.TryParse(tokens[2], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float x2) &&
-			    float.TryParse(tokens[3], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float z2) &&
-			    int.TryParse(tokens[4], out int flags) &&
-			    int.TryParse(tokens[5], out int blockedInt))
-			{
-				ApplyRegionPathingInternal(x1, z1, x2, z2, flags, blockedInt != 0);
-			}
-		}
 	}
 }

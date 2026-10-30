@@ -8,6 +8,7 @@ using Godot;
 using Realm.Client.Core;
 using FileAccess = Godot.FileAccess;
 using Timer = System.Threading.Timer;
+using Realm.Client.Services;
 
 namespace Realm.Client.UI;
 
@@ -108,9 +109,9 @@ public static class LocalizationManager
 	public static void UpdateLocale(string locale)
 	{
 		TranslationServer.SetLocale(locale);
-		if (UIManager.Instance != null)
+		if (GameContext.UserInterface != null)
 		{
-			UIManager.Instance.LayoutDirection = IsLocaleRtl(locale)
+			GameContext.UserInterface.LayoutDirection = IsLocaleRtl(locale)
 				? Control.LayoutDirectionEnum.Rtl
 				: Control.LayoutDirectionEnum.Ltr;
 		}

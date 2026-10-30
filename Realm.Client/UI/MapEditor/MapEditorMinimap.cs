@@ -5,6 +5,7 @@ using Godot;
 using Realm.Client.Core;
 using Realm.Shared.Textures;
 using SkiaSharp;
+using Realm.Client.Services;
 
 namespace Realm.Client.UI.MapEditor;
 
@@ -54,9 +55,9 @@ public class MapEditorMinimap
 
 	private void TeleportCameraToMinimapPos(Vector2 clickPos)
 	{
-		if (_minimapArea == null || GameHost.Instance == null) return;
+		if (_minimapArea == null || GameContext.Host == null) return;
 		var worldPos = MinimapHelper.MinimapToWorld(clickPos, _minimapArea.Size);
-		var camera = GameHost.Instance.GetViewport()?.GetCamera3D();
+		var camera = GameContext.Host.GetViewport()?.GetCamera3D();
 		if (camera != null)
 		{
 			camera.GlobalPosition = new Vector3(worldPos.X, camera.GlobalPosition.Y, worldPos.Z);
@@ -69,8 +70,8 @@ public class MapEditorMinimap
 
 	private void UpdateMinimapIndicator()
 	{
-		if (_cameraIndicator == null || _minimapArea == null || GameHost.Instance == null) return;
-		var camera = GameHost.Instance.GetViewport()?.GetCamera3D();
+		if (_cameraIndicator == null || _minimapArea == null || GameContext.Host == null) return;
+		var camera = GameContext.Host.GetViewport()?.GetCamera3D();
 		if (camera == null) return;
 
 		Vector3 camPos = camera.GlobalPosition;

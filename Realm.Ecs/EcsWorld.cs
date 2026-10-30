@@ -2,9 +2,10 @@ using System;
 using System.Buffers.Binary;
 using System.Numerics;
 using System.Text;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using Realm.MapAPI;
+using Realm.Ecs.Services;
 
 namespace Realm.Ecs;
 
@@ -14,6 +15,12 @@ public delegate void EntityCallback<T1, T2>(Entity entity, ref T1 c1, ref T2 c2)
 public delegate void EntityCallback<T1, T2, T3>(Entity entity, ref T1 c1, ref T2 c2, ref T3 c3);
 public delegate void EntityCallback<T1, T2, T3, T4>(Entity entity, ref T1 c1, ref T2 c2, ref T3 c3, ref T4 c4);
 
+/// <summary>
+///     The entities and component arrays of one world. Owned by a single thread: entity creation, destruction and
+///     component structure are written only by that thread, and parallel work inside a tick may read the world and write
+///     only the slots it was given. Workers announce themselves with <see cref="EnterWorkerLease" /> so a structural write
+///     from a forked lane fails loudly instead of corrupting a buffer a worker is reading.
+/// </summary>
 public class EcsWorld : IDisposable
 {
 	public const int MAX_ENTITIES = 8192;
@@ -33,12 +40,74 @@ public class EcsWorld : IDisposable
 	private readonly ulong[] _activeEntityBitset = new ulong[BITSET_CHUNKS];
 	private unsafe ulong* _externalActiveEntityBitset;
 
+	/// <summary>The base of the shared memory region this world is bound to, or <see cref="IntPtr.Zero" /> when it owns no shared region.</summary>
+	public IntPtr SharedMemoryBasePointer { get; private set; }
+
+	/// <summary>The linear memory offset the bound shared region sits at inside the WebAssembly guest.</summary>
+	public int SharedMemoryGuestBaseOffset { get; private set; }
+
+	private readonly object _componentBufferCreationLock = new object();
+	private int _activeWorkerLeases;
+
 	public int Count => _count;
 
 	public ComponentBuffer<byte> AliveBuffer => _alive;
 	public ComponentBuffer<ComponentMask> EntityMasksBuffer => _entityMasks;
 	public ulong[] ActiveEntityBitset => _activeEntityBitset;
 	public unsafe ulong* ExternalActiveEntityBitset => _externalActiveEntityBitset;
+
+	/// <summary>
+	///     The per-match simulation that owns this world, or null for a bare world. Services reach their tuning, combat
+	///     config and WASM evaluation engine through it, so two worlds in one process never read each other's settings.
+	/// </summary>
+	public SimulationContext? Context { get; set; }
+
+	/// <summary>
+	///     The world the current session runs in. Exactly one world is alive per process at a time, so a pure-data
+	///     component reaches its own world's handle stores through this instead of holding a world reference. A world
+	///     becomes ambient when it is constructed and stops being ambient when it is disposed, which is what lets the
+	///     editor save its world, hand the process to a playtest world, and restore itself afterwards. It is read from
+	///     lanes that do not own it, so it is published and read through <see cref="Volatile" /> rather than assigned.
+	/// </summary>
+	public static EcsWorld? Ambient => Volatile.Read(ref _ambientWorld);
+
+	private static EcsWorld? _ambientWorld;
+
+	/// <summary>
+	///     The cold payload and shroud grid handles this world owns. Handles are allocation indices into these stores,
+	///     so they are never sent over the wire and never shared with another world.
+	/// </summary>
+	public WorldPayloadStores PayloadStores { get; } = new WorldPayloadStores();
+
+	/// <summary>
+	///     Hands the session to the given world. A tool that deliberately holds more than one world calls this before
+	///     touching each one so its components resolve handles in the world they belong to.
+	/// </summary>
+	public static void SetAmbient(EcsWorld? world) => Volatile.Write(ref _ambientWorld, world);
+
+	public EcsWorld()
+	{
+		Volatile.Write(ref _ambientWorld, this);
+	}
+
+	/// <summary>
+	///     States that this thread is about to do parallel work over the world and may only read it. Structural writes
+	///     attempted while a lease is held are the defect this counter exists to catch, so it is asserted rather than
+	///     enforced at run time.
+	/// </summary>
+	public void EnterWorkerLease() => Interlocked.Increment(ref _activeWorkerLeases);
+
+	public void ExitWorkerLease() => Interlocked.Decrement(ref _activeWorkerLeases);
+
+	public bool IsForkedIntoWorkers => Volatile.Read(ref _activeWorkerLeases) != 0;
+
+	[Conditional("DEBUG")]
+	private void AssertNotForkedIntoWorkers(string operation)
+	{
+		Debug.Assert(
+			Volatile.Read(ref _activeWorkerLeases) == 0,
+			operation + " mutated the world while parallel workers held it; structural changes belong to the owner thread between fork and join");
+	}
 
 	public void BindExternalAliveMemory(IntPtr pointer, int lengthInBytes)
 	{
@@ -53,6 +122,9 @@ public class EcsWorld : IDisposable
 	public unsafe void BindSharedMemory(IntPtr basePtr, int guestBaseOffset = 0)
 	{
 		if (basePtr == IntPtr.Zero) return;
+
+		SharedMemoryBasePointer = basePtr;
+		SharedMemoryGuestBaseOffset = guestBaseOffset;
 
 		_externalActiveEntityBitset = (ulong*)(basePtr + EcsSharedMemory.ACTIVE_ENTITY_BITSET_OFFSET);
 		new ReadOnlySpan<ulong>(_activeEntityBitset).CopyTo(new Span<ulong>(_externalActiveEntityBitset, BITSET_CHUNKS));
@@ -79,7 +151,7 @@ public class EcsWorld : IDisposable
 		BindComponent<Health>(ComponentIds.Health, MAX_ENTITIES);
 		BindComponent<Mana>(ComponentIds.Mana, MAX_ENTITIES);
 		BindComponent<Attack>(ComponentIds.Attack, MAX_ENTITIES);
-		BindComponent<Armor>(ComponentIds.Armor, MAX_ENTITIES);
+		BindComponent<Resistances>(ComponentIds.Resistances, MAX_ENTITIES);
 		BindComponent<MovementStats>(ComponentIds.MovementStats, MAX_ENTITIES);
 		BindComponent<UnitOwnerPlayer>(ComponentIds.UnitOwnerPlayer, MAX_ENTITIES);
 		BindComponent<Level>(ComponentIds.Level, MAX_ENTITIES);
@@ -110,6 +182,8 @@ public class EcsWorld : IDisposable
 		_freeListCount = 0;
 		_nextEntityId = 0;
 		Array.Clear(_activeEntityBitset);
+		PayloadStores.Reset();
+		if (ReferenceEquals(Ambient, this)) SetAmbient(null);
 		unsafe
 		{
 			if (_externalActiveEntityBitset != null)
@@ -117,12 +191,12 @@ public class EcsWorld : IDisposable
 				new Span<ulong>(_externalActiveEntityBitset, BITSET_CHUNKS).Clear();
 			}
 		}
-		ColdPayloadRegistry.ResetAll();
-		StringRegistry.Reset();
 	}
 
 	public Entity Create()
 	{
+		AssertNotForkedIntoWorkers("Entity creation");
+
 		int id;
 		if (_freeListCount > 0)
 		{
@@ -305,6 +379,8 @@ public class EcsWorld : IDisposable
 
 	public void Destroy(Entity entity)
 	{
+		AssertNotForkedIntoWorkers("Entity destruction");
+
 		int id = entity.Id;
 		if (id < 0 || id >= MAX_ENTITIES || _alive.Get(id) == 0) return;
 
@@ -336,6 +412,8 @@ public class EcsWorld : IDisposable
 
 	public ref T Add<T>(Entity entity, in T component = default) where T : unmanaged
 	{
+		AssertNotForkedIntoWorkers("Adding a component");
+
 		int id = entity.Id;
 		int cId = ComponentType<T>.Id;
 		var buffer = GetOrCreateBuffer<T>(cId);
@@ -360,6 +438,8 @@ public class EcsWorld : IDisposable
 
 	public void Set<T>(Entity entity, in T component) where T : unmanaged
 	{
+		AssertNotForkedIntoWorkers("Setting a component");
+
 		int id = entity.Id;
 		int cId = ComponentType<T>.Id;
 		var buffer = GetOrCreateBuffer<T>(cId);
@@ -405,7 +485,8 @@ public class EcsWorld : IDisposable
 		int cId = ComponentType<T>.Id;
 		int chunk = id >> 6;
 		ulong bit = 1UL << (id & 63);
-		return _componentBitsets[cId] != null && (_componentBitsets[cId][chunk] & bit) != 0;
+		ulong[]? componentBitset = Volatile.Read(ref _componentBitsets[cId]);
+		return componentBitset != null && (componentBitset[chunk] & bit) != 0;
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -418,6 +499,8 @@ public class EcsWorld : IDisposable
 
 	public void Remove<T>(Entity entity) where T : unmanaged
 	{
+		AssertNotForkedIntoWorkers("Removing a component");
+
 		int id = entity.Id;
 		if (id < 0 || id >= MAX_ENTITIES || _alive.Get(id) == 0) return;
 		int cId = ComponentType<T>.Id;
@@ -623,16 +706,33 @@ public class EcsWorld : IDisposable
 		}
 	}
 
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private ComponentBuffer<T> GetOrCreateBuffer<T>(int cId) where T : unmanaged
 	{
-		if (_buffers[cId] == null)
+		IComponentBuffer? published = Volatile.Read(ref _buffers[cId]);
+		if (published != null) return (ComponentBuffer<T>)published;
+
+		return CreateComponentBuffer<T>(cId);
+	}
+
+	[MethodImpl(MethodImplOptions.NoInlining)]
+	private ComponentBuffer<T> CreateComponentBuffer<T>(int cId) where T : unmanaged
+	{
+		AssertNotForkedIntoWorkers("Creating a component buffer");
+
+		lock (_componentBufferCreationLock)
 		{
+			if (_buffers[cId] != null) return (ComponentBuffer<T>)_buffers[cId];
+
 			var buffer = new ComponentBuffer<T>();
 			AttachCleanupHandler(buffer);
-			_buffers[cId] = buffer;
-			_componentBitsets[cId] = new ulong[BITSET_CHUNKS];
+
+			// The bitset is published before the buffer that indexes it, so a reader that sees the buffer can never
+			// find the membership bitset missing beside it.
+			Volatile.Write(ref _componentBitsets[cId], new ulong[BITSET_CHUNKS]);
+			Volatile.Write(ref _buffers[cId], buffer);
+			return buffer;
 		}
-		return (ComponentBuffer<T>)_buffers[cId];
 	}
 
 	private static void AttachCleanupHandler<T>(ComponentBuffer<T> buffer) where T : unmanaged
@@ -669,6 +769,16 @@ public class EcsWorld : IDisposable
 				ColdPayloadRegistry<DotRecast.Detour.DtNavMeshQuery>.Free(s.NavMeshQueryHandle);
 				ColdPayloadRegistry<Realm.Ecs.Components.Terrain.TerrainSwatchConfig[]>.Free(s.SwatchConfigsHandle);
 			};
+		}
+		else if (typeof(T) == typeof(Realm.Ecs.Components.Core.CustomMetadata))
+		{
+			var b = (ComponentBuffer<Realm.Ecs.Components.Core.CustomMetadata>)(object)buffer;
+			b.ClearHandler = id => ColdPayloadRegistry<Dictionary<string, object>>.Free(b.Get(id).Handle);
+		}
+		else if (typeof(T) == typeof(Realm.Ecs.Components.Core.LeaderboardState))
+		{
+			var b = (ComponentBuffer<Realm.Ecs.Components.Core.LeaderboardState>)(object)buffer;
+			b.ClearHandler = id => ColdPayloadRegistry<Realm.Ecs.Common.LeaderboardBoards>.Free(b.Get(id).BoardsHandle);
 		}
 		else if (typeof(T) == typeof(Realm.Ecs.Components.Core.NetworkMappingState))
 		{
@@ -787,7 +897,7 @@ public class EcsWorld : IDisposable
 				CopyBufferToSpan<Health>(sharedDst, EcsSharedMemory.HEALTH_OFFSET, MAX_ENTITIES);
 				CopyBufferToSpan<Mana>(sharedDst, EcsSharedMemory.MANA_OFFSET, MAX_ENTITIES);
 				CopyBufferToSpan<Attack>(sharedDst, EcsSharedMemory.ATTACK_OFFSET, MAX_ENTITIES);
-				CopyBufferToSpan<Armor>(sharedDst, EcsSharedMemory.ARMOR_OFFSET, MAX_ENTITIES);
+				CopyBufferToSpan<Resistances>(sharedDst, EcsSharedMemory.ARMOR_OFFSET, MAX_ENTITIES);
 				CopyBufferToSpan<MovementStats>(sharedDst, EcsSharedMemory.MOVEMENT_STATS_OFFSET, MAX_ENTITIES);
 				CopyBufferToSpan<UnitOwnerPlayer>(sharedDst, EcsSharedMemory.UNIT_OWNER_PLAYER_OFFSET, MAX_ENTITIES);
 				CopyBufferToSpan<Level>(sharedDst, EcsSharedMemory.LEVEL_OFFSET, MAX_ENTITIES);
@@ -891,7 +1001,7 @@ public class EcsWorld : IDisposable
 				RestoreComponentFromTable<Health>(srcPtr, tableDir, stridesDir, baseShift, srcLen, ComponentIds.Health, MAX_ENTITIES);
 				RestoreComponentFromTable<Mana>(srcPtr, tableDir, stridesDir, baseShift, srcLen, ComponentIds.Mana, MAX_ENTITIES);
 				RestoreComponentFromTable<Attack>(srcPtr, tableDir, stridesDir, baseShift, srcLen, ComponentIds.Attack, MAX_ENTITIES);
-				RestoreComponentFromTable<Armor>(srcPtr, tableDir, stridesDir, baseShift, srcLen, ComponentIds.Armor, MAX_ENTITIES);
+				RestoreComponentFromTable<Resistances>(srcPtr, tableDir, stridesDir, baseShift, srcLen, ComponentIds.Resistances, MAX_ENTITIES);
 				RestoreComponentFromTable<MovementStats>(srcPtr, tableDir, stridesDir, baseShift, srcLen, ComponentIds.MovementStats, MAX_ENTITIES);
 				RestoreComponentFromTable<UnitOwnerPlayer>(srcPtr, tableDir, stridesDir, baseShift, srcLen, ComponentIds.UnitOwnerPlayer, MAX_ENTITIES);
 				RestoreComponentFromTable<Level>(srcPtr, tableDir, stridesDir, baseShift, srcLen, ComponentIds.Level, MAX_ENTITIES);

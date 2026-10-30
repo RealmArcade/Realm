@@ -1,0 +1,24 @@
+; The listen server's project. It carries no scenes and no assets: it exists so the authority runs inside a Godot
+; process, which is what gives it ENet and RPC that are wire-compatible with a client, and it runs headless.
+config_version=5
+
+[application]
+
+config/name="Realm.ListenServerHost"
+config/features=PackedStringArray("4.7", "C#", "Forward Plus")
+run/main_scene="res://Main.tscn"
+
+[dotnet]
+
+project/assembly_name="Realm.ListenServerHost"
+
+[autoload]
+
+RealmNetwork="*res://Network/ServerNetworkChannel.cs"
+
+; The match ticks from real time, so the engine only decides how often it is asked. At the engine's default of 60 Hz a
+; tick that has come due waits up to a frame for its turn, which is a third of a tick at 30 Hz: the process is driven
+; four times per tick instead, so a tick is delivered within a twelfth of its own period.
+[physics]
+
+common/physics_ticks_per_second=120

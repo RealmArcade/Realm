@@ -1,4 +1,5 @@
 using System;
+using System.Text.Json.Serialization;
 using Godot;
 
 namespace Realm.Client.Network;
@@ -11,7 +12,7 @@ public class PlayerInfo
 	public int PeerId { get; set; }
 	public int Slot { get; set; }
 	public string Name { get; set; } = "";
-	public string Faction { get; set; } = "HUMAN";
+	public string Faction { get; set; } = string.Empty;
 	public int TeamIndex
 	{
 		get => _teamIndex;
@@ -49,6 +50,12 @@ public class PlayerInfo
 	public bool IsReady { get; set; }
 	public string BinaryVersion { get; set; } = "";
 	public bool IsMapReady { get; set; } = true;
+
+	public int MapDownloadPercent { get; set; } = 100;
+
+	public bool IsLoadReady { get; set; }
+
+	[JsonIgnore]
 	public string SessionToken { get; set; } = Guid.NewGuid().ToString();
 	public bool IsDisconnected { get; set; } = false;
 }

@@ -8,6 +8,7 @@ interface game-api {
     add-leaderboard-board-row: func(board-id: string, group-player-index: s32, group-title: string, label: string, value: string);
     add-leaderboard-row: func(label: string, value: string, color-r: f32, color-g: f32, color-b: f32, color-has-color: bool);
     add-player-tech-level: func(player-index: s32, tech-id: string, delta: s32);
+    add-stat-modifier: func(unit-id: s32, stat-name: string, is-percentage: bool, value: f32, source-id: string);
     add-unit-type-ability: func(unit-type-id: string, ability-id: string);
     adjust-player-gold: func(player-index: s32, delta: f32);
     adjust-player-stone: func(player-index: s32, delta: f32);
@@ -27,6 +28,7 @@ interface game-api {
     count-units-owned-by-player: func(player-index: s32) -> s32;
     create-floating-text: func(text: string, position-x: f32, position-y: f32, position-z: f32, color-x: f32, color-y: f32, color-z: f32, duration: f32);
     create-static-text: func(text: string, position-x: f32, position-y: f32, position-z: f32, color-x: f32, color-y: f32, color-z: f32, font-size: s32) -> s32;
+    deal-typed-damage: func(attacker-id: s32, target-id: s32, damage: f32, damage-type: string);
     define-zone: func(min-x: f32, min-z: f32, max-x: f32, max-z: f32) -> s32;
     destroy-static-text: func(handle: s32);
     destroy-unit: func(unit-id: s32, execute-despawn-shader: bool, play-death-animation: bool);
@@ -36,8 +38,9 @@ interface game-api {
     generate-map-directory: func(map-name: string, target-directory: string);
     get-ability-cooldown: func(unit-id: s32, ability-id: string) -> f32;
     get-ability-name: func(ability-id: string) -> string;
-    get-active-players: func(exclusive-upper-bound: s32) -> list<s32>;
+    get-active-players: func() -> list<s32>;
     get-all-loot-items: func() -> list<s32>;
+    get-all-units: func() -> list<s32>;
     get-cheats-enabled: func() -> bool;
     get-coordinate-max-x: func(coordinate-name: string) -> f32;
     get-coordinate-max-y: func(coordinate-name: string) -> f32;
@@ -94,11 +97,14 @@ interface game-api {
     get-unit-template-id: func(unit-id: s32) -> string;
     get-unit-type-abilities-count: func(unit-type-id: string) -> s32;
     get-unit-type-abilities-get: func(unit-type-id: string, index: s32) -> string;
+    get-units-in-radius: func(center-x: f32, center-y: f32, center-z: f32, radius: f32) -> list<s32>;
+    get-units-owned-by-player: func(player-index: s32) -> list<s32>;
     get-weather: func() -> string;
     get-zone-center-x: func(zone-handle: s32) -> f32;
     get-zone-center-y: func(zone-handle: s32) -> f32;
     get-zone-center-z: func(zone-handle: s32) -> f32;
     has-coordinate: func(coordinate-name: string) -> bool;
+    is-host: func(player-index: s32) -> bool;
     is-loot-item-auto-pickup: func(item-id: s32) -> bool;
     is-loot-item-despawned: func(item-id: s32) -> bool;
     is-position-in-coordinate: func(position-x: f32, position-y: f32, position-z: f32, coordinate-name: string) -> bool;
@@ -132,6 +138,7 @@ interface game-api {
     remove-buff: func(unit-id: s32, buff-id: string);
     remove-item-from-unit: func(unit-id: s32, item-id: string) -> bool;
     remove-loot-item: func(loot-item-id: s32) -> bool;
+    remove-stat-modifiers: func(unit-id: s32, source-id: string);
     remove-unit-custom-data: func(unit-id: s32, key: string) -> bool;
     reset-player-camera-bounds: func(player-index: s32);
     schedule-repeating-timer: func(interval: f32) -> s32;
@@ -147,10 +154,13 @@ interface game-api {
     set-ability-mana-cost: func(unit-id: s32, ability-id: string, mana-cost: f32);
     set-ability-state: func(unit-id: s32, ability-id: string, disabled: bool, hidden: bool);
     set-ability-tooltip: func(ability-id: string, tooltip: string);
+    set-ability-tooltip-text: func(ability-id: string, key: string, value: string);
+    set-ability-tooltip-value: func(ability-id: string, key: string, value: f32);
     set-countdown-timer-label: func(label: string);
     set-day-night-cycle-enabled: func(enabled: bool);
     set-environment-preset: func(preset-id: string);
     set-item-tooltip: func(item-id: string, tooltip: string);
+    set-item-tooltip-value: func(item-id: string, key: string, value: f32);
     set-leaderboard-board: func(board-id: string, title: string, visible: bool);
     set-leaderboard-board-group: func(board-id: string, group-player-index: s32, group-title: string);
     set-leaderboard-value: func(label: string, value: string);
@@ -205,6 +215,9 @@ interface game-api {
     set-unit-scale: func(unit-id: s32, value: f32);
     set-unit-speed: func(unit-id: s32, value: f32);
     set-unit-spell-immune: func(unit-id: s32, immune: bool);
+    set-unit-tooltip-text: func(unit-id: s32, key: string, value: string);
+    set-unit-tooltip-value: func(unit-id: s32, key: string, value: f32);
+    set-upgrade-tooltip-value: func(upgrade-id: string, key: string, value: f32);
     set-weather: func(weather-type: string);
     shake-camera: func(intensity: f32, duration: f32);
     shake-player-camera: func(player-index: s32, intensity: f32, duration: f32);

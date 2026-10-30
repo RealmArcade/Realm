@@ -3,26 +3,20 @@ using Godot;
 
 namespace Realm.Client;
 
-public class VisualProjectilePool
+public static class VisualProjectilePool
 {
-	private static VisualProjectilePool _instance;
-	public static VisualProjectilePool Instance => _instance ??= new VisualProjectilePool();
-
-	private readonly Stack<VisualProjectile3D> _available = new();
-	private readonly List<VisualProjectile3D> _all = new();
-	private readonly List<VisualProjectile3D> _activeProjectiles = new();
+	private static readonly Stack<VisualProjectile3D> _available = new();
+	private static readonly List<VisualProjectile3D> _all = new();
+	private static readonly List<VisualProjectile3D> _activeProjectiles = new();
 	private const int InitialCapacity = 32;
 
-	public int TotalAllocated => _all.Count;
-	public int AvailableCount => _available.Count;
-	public int ActiveCount => _activeProjectiles.Count;
-	public IReadOnlyList<VisualProjectile3D> AllProjectiles => _all;
-	public IReadOnlyList<VisualProjectile3D> ActiveProjectiles => _activeProjectiles;
+	public static int TotalAllocated => _all.Count;
+	public static int AvailableCount => _available.Count;
+	public static int ActiveCount => _activeProjectiles.Count;
+	public static IReadOnlyList<VisualProjectile3D> AllProjectiles => _all;
+	public static IReadOnlyList<VisualProjectile3D> ActiveProjectiles => _activeProjectiles;
 
-	public static VisualProjectile3D Rent(Node3D parent) => Instance.RentInternal(parent);
-	public static void Return(VisualProjectile3D projectile) => Instance.ReturnInternal(projectile);
-
-	public VisualProjectile3D RentInternal(Node3D parent)
+	public static VisualProjectile3D Rent(Node3D parent)
 	{
 		VisualProjectile3D projectile = null;
 		while (_available.Count > 0)
@@ -61,7 +55,7 @@ public class VisualProjectilePool
 		return projectile;
 	}
 
-	public void ReturnInternal(VisualProjectile3D projectile)
+	public static void Return(VisualProjectile3D projectile)
 	{
 		if (projectile == null || !GodotObject.IsInstanceValid(projectile)) return;
 
@@ -75,7 +69,7 @@ public class VisualProjectilePool
 		}
 	}
 
-	public void DeactivateAll()
+	public static void DeactivateAll()
 	{
 		for (int i = _activeProjectiles.Count - 1; i >= 0; i--)
 		{
@@ -86,11 +80,11 @@ public class VisualProjectilePool
 				continue;
 			}
 
-			ReturnInternal(projectile);
+			Return(projectile);
 		}
 	}
 
-	public void AdvanceActiveProjectiles(float deltaSeconds)
+	public static void AdvanceActiveProjectiles(float deltaSeconds)
 	{
 		for (int i = _activeProjectiles.Count - 1; i >= 0; i--)
 		{
@@ -109,7 +103,7 @@ public class VisualProjectilePool
 		}
 	}
 
-	public void Clear()
+	public static void Clear()
 	{
 		foreach (var proj in _all)
 		{

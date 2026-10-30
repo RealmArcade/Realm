@@ -1,93 +1,64 @@
 using System.Numerics;
+using Realm.Ecs;
 
 namespace Realm.MapAPI;
 
 /// <summary>
-/// Represents a strongly-typed, unmanaged entity identifier for a dropped loot item in the game world,
-/// providing zero-allocation fluent access to loot properties and actions.
+/// Adds the map script surface of a dropped loot item: what the item is, where it lies, who may take it and how it
+/// leaves the world.
 /// </summary>
-public readonly record struct LootItemId(int Value)
+/// <remarks>
+/// The handle itself is a plain entity index owned by the shared simulation, so the simulation can name loot without
+/// the script surface. Reads answer straight out of the world the process is simulating and writes route through the
+/// authoritative host imports, which is what keeps a map script unable to invent state of its own.
+/// </remarks>
+public static class LootItemIdScriptExtensions
 {
-	/// <summary>
-	/// Implicitly converts a 32-bit integer identifier into a <see cref="LootItemId"/>.
-	/// </summary>
-	/// <param name="value">The raw integer loot item identifier.</param>
-	public static implicit operator LootItemId(int value) => new(value);
+	extension(LootItemId item)
+	{
+		/// <summary>
+		/// Gets the item archetype identifier of this dropped item.
+		/// </summary>
+		public string ItemTypeId => GameAPI.Current.GetLootItemTypeId(item);
 
-	/// <summary>
-	/// Explicitly converts a <see cref="LootItemId"/> into a 32-bit integer identifier.
-	/// </summary>
-	/// <param name="id">The loot item identifier.</param>
-	public static explicit operator int(LootItemId id) => id.Value;
+		/// <summary>
+		/// Gets the current position of the loot item in 3D world space.
+		/// </summary>
+		public Vector3 Position => GameAPI.Current.GetLootItemPosition(item);
 
-	/// <summary>
-	/// Gets an invalid or unassigned loot item identifier.
-	/// </summary>
-	public static readonly LootItemId Invalid = new(0);
+		/// <summary>
+		/// Gets the remaining charge count for consumable loot items.
+		/// </summary>
+		public int Charges => GameAPI.Current.GetLootItemCharges(item);
 
-	/// <summary>
-	/// Gets a value indicating whether this identifier represents a valid loot item index.
-	/// </summary>
-	public bool IsValid => Value > 0;
+		/// <summary>
+		/// Gets the configured lifespan duration of the loot item in seconds.
+		/// </summary>
+		public float Lifetime => GameAPI.Current.GetLootItemLifetime(item);
 
-	/// <summary>
-	/// Gets the raw integer identifier.
-	/// </summary>
-	public int UniqueId => Value;
+		/// <summary>
+		/// Gets the world-space pickup trigger radius for this loot item.
+		/// </summary>
+		public float PickupRadius => GameAPI.Current.GetLootItemPickupRadius(item);
 
-	/// <summary>
-	/// Gets the raw integer identifier (alias for <see cref="UniqueId"/>).
-	/// </summary>
-	public int Id => Value;
+		/// <summary>
+		/// Gets a value indicating whether this item automatically triggers collection upon proximity.
+		/// </summary>
+		public bool AutoPickup => GameAPI.Current.IsLootItemAutoPickup(item);
 
-	/// <summary>
-	/// Gets the item archetype identifier of this dropped item.
-	/// </summary>
-	public string ItemTypeId => GameAPI.Current.GetLootItemTypeId(this);
+		/// <summary>
+		/// Gets the owning player slot index restricted to collect this item, or -1 for unowned items.
+		/// </summary>
+		public int OwnerPlayerIndex => GameAPI.Current.GetLootItemOwner(item);
 
-	/// <summary>
-	/// Gets the current position of the loot item in 3D world space.
-	/// </summary>
-	public Vector3 Position => GameAPI.Current.GetLootItemPosition(this);
+		/// <summary>
+		/// Gets a value indicating whether this loot item has already despawned.
+		/// </summary>
+		public bool IsDespawned => GameAPI.Current.IsLootItemDespawned(item);
 
-	/// <summary>
-	/// Gets the remaining charge count for consumable loot items.
-	/// </summary>
-	public int Charges => GameAPI.Current.GetLootItemCharges(this);
-
-	/// <summary>
-	/// Gets the configured lifespan duration of the loot item in seconds.
-	/// </summary>
-	public float Lifetime => GameAPI.Current.GetLootItemLifetime(this);
-
-	/// <summary>
-	/// Gets the world-space pickup trigger radius for this loot item.
-	/// </summary>
-	public float PickupRadius => GameAPI.Current.GetLootItemPickupRadius(this);
-
-	/// <summary>
-	/// Gets a value indicating whether this item automatically triggers collection upon proximity.
-	/// </summary>
-	public bool AutoPickup => GameAPI.Current.IsLootItemAutoPickup(this);
-
-	/// <summary>
-	/// Gets the owning player slot index restricted to collect this item, or -1 for unowned items.
-	/// </summary>
-	public int OwnerPlayerIndex => GameAPI.Current.GetLootItemOwner(this);
-
-	/// <summary>
-	/// Gets a value indicating whether this loot item has already despawned.
-	/// </summary>
-	public bool IsDespawned => GameAPI.Current.IsLootItemDespawned(this);
-
-	/// <summary>
-	/// Removes and despawns the loot item from the game world.
-	/// </summary>
-	public void Despawn() => GameAPI.Current.RemoveLootItem(Value);
-
-	/// <summary>
-	/// Formats the loot item identifier as a string.
-	/// </summary>
-	/// <returns>A string representation of the loot item identifier.</returns>
-	public override string ToString() => Value.ToString();
+		/// <summary>
+		/// Removes and despawns the loot item from the game world.
+		/// </summary>
+		public void Despawn() => GameAPI.Current.RemoveLootItem(item.Value);
+	}
 }

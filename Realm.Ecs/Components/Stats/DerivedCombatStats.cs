@@ -19,19 +19,23 @@ public record struct DerivedCombatStats(
 	float CooldownReduction = 0f,
 	float SpellPower = 0f,
 	float ManaRegen = 0f,
-	float SpellWard = 0f,
+	float MagicResistance = 0f,
 	float StatusEffectBuffer = 0f,
 	float TotalArmor = 0f,
 	float TotalAttackDamage = 10f,
 	float AttackDelay = 1.5f,
 	float LifeSteal = 0f,
-	float MagicPenetration = 0f,
+	float PercentMagicPenetration = 0f,
+	float FlatMagicPenetration = 0f,
+	float PercentArmorPenetration = 0f,
 	float Evasion = 0f,
 	float ProcRateMultiplier = 1f,
 	float BountyMultiplier = 1f,
 	float HealingMultiplier = 1f)
 {
+	/// <summary>Armor points.</summary>
 	public readonly float Armor => TotalArmor;
+
 	public readonly float Attack => TotalAttackDamage;
 	public readonly float Damage => TotalAttackDamage;
 	public readonly float Speed => MovementSpeed;
@@ -43,16 +47,19 @@ public record struct DerivedCombatStats(
 		CombatStatType.MaxMana => MaxMana,
 		CombatStatType.ManaRegen => ManaRegen,
 		CombatStatType.Armor => TotalArmor,
+		CombatStatType.MagicResistance => MagicResistance,
 		CombatStatType.Damage => TotalAttackDamage,
 		CombatStatType.Attack => TotalAttackDamage,
 		CombatStatType.Speed => MovementSpeed,
 		CombatStatType.MovementSpeed => MovementSpeed,
 		CombatStatType.SpellPower => SpellPower,
 		CombatStatType.Tenacity => Tenacity,
-		CombatStatType.SpellWard => SpellWard,
 		CombatStatType.CooldownReduction => CooldownReduction,
 		CombatStatType.LifeSteal => LifeSteal,
-		CombatStatType.MagicPenetration => MagicPenetration,
+		CombatStatType.FlatArmorPenetration => FlatArmorPenetration,
+		CombatStatType.PercentArmorPenetration => PercentArmorPenetration,
+		CombatStatType.FlatMagicPenetration => FlatMagicPenetration,
+		CombatStatType.PercentMagicPenetration => PercentMagicPenetration,
 		CombatStatType.Evasion => Evasion,
 		CombatStatType.ProcRateMultiplier => ProcRateMultiplier,
 		CombatStatType.BountyMultiplier => BountyMultiplier,

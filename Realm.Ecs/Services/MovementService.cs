@@ -9,8 +9,11 @@ namespace Realm.Ecs.Services;
 /// </summary>
 public class MovementService
 {
-	public MovementService()
+	private readonly SimulationContext _context;
+
+	public MovementService(SimulationContext context)
 	{
+		_context = context;
 	}
 
 	/// <summary>
@@ -21,8 +24,9 @@ public class MovementService
 	/// </summary>
 	public void SetMoveTarget(Entity entity, Vector3 targetPosition)
 	{
-		if (ECSContext.World == null || !ECSContext.World.Has<Movable>(entity)) return;
+		EcsWorld? world = _context.World;
+		if (world == null || !world.Has<Movable>(entity)) return;
 
-		ECSContext.World.SetOrAdd(entity, new MoveTo(targetPosition));
+		world.SetOrAdd(entity, new MoveTo(targetPosition));
 	}
 }

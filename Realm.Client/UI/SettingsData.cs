@@ -12,17 +12,22 @@ public class SettingsData
 	public float MusicVolume { get; set; } = 70f;
 	public float SfxVolume { get; set; } = 90f;
 	public float VoiceVolume { get; set; } = 60f;
+	public bool PositionalDoppler { get; set; } = false;
+	public bool PositionalAttenuationFilter { get; set; } = true;
 	public float ScrollSpeed { get; set; } = 50f;
 	public float MouseSens { get; set; } = 40f;
 	public float HudScale { get; set; } = 100f;
 	public HealthBarMode ShowHealthBars { get; set; } = HealthBarMode.Damaged;
 	public GameLanguage Language { get; set; } = GameLanguage.English;
 	public bool DisplayFps { get; set; } = false;
+	public bool DisplayPing { get; set; } = false;
 	public bool RecordReplays { get; set; } = false;
 	public bool SeedMapFiles { get; set; } = false;
 	public bool DisableShadows { get; set; } = false;
 	public bool DisableDayNightLighting { get; set; } = false;
+	public bool DisableWeatherEffects { get; set; } = false;
+	public int FpsLimit { get; set; } = 0;
 	public bool FloatingCombatText { get; set; } = true;
-	public bool MovementPrediction { get; set; } = false;
+	public bool OccludedUnitOutlines { get; set; } = true;
 	public string? LastOpenedFolder { get; set; }
 }

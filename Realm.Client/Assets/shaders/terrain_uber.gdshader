@@ -8,8 +8,6 @@ uniform sampler2DArray terrain_normals_pbr : hint_default_white, filter_linear_m
 uniform float blend_softness = 0.04;
 uniform float blend_noise_strength = 0.22;
 uniform float blend_noise_scale = 0.22;
-uniform float cliff_jitter_strength = 1.0;
-uniform float cliff_jitter_scale = 0.20;
 uniform sampler2D pathing_texture : hint_default_transparent, filter_nearest;
 uniform bool pathing_visible = false;
 
@@ -357,17 +355,6 @@ void vertex() {
 	v_cliff_factor = COLOR.r;
 
 	vec3 world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
-	float cliff_mask = clamp(COLOR.a, 0.0, 1.0);
-
-	if (cliff_jitter_strength > 0.0 && cliff_mask > 0.001) {
-		vec2 jitter_uv_x = (world_pos.xz + vec2(world_pos.y * 0.75, world_pos.y * 1.25)) * cliff_jitter_scale;
-		vec2 jitter_uv_z = (world_pos.xz + vec2(world_pos.y * 1.35 + 43.1, world_pos.y * 0.65 + 19.7)) * cliff_jitter_scale;
-		float noise_x = (macro_fbm(jitter_uv_x) - 0.5) * 2.0;
-		float noise_z = (macro_fbm(jitter_uv_z) - 0.5) * 2.0;
-		vec3 world_disp = vec3(noise_x, 0.0, noise_z) * (cliff_jitter_strength * cliff_mask);
-		world_pos += world_disp;
-		VERTEX = (inverse(MODEL_MATRIX) * vec4(world_pos, 1.0)).xyz;
-	}
 
 	v_world_normal = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
 	v_world_pos = world_pos;

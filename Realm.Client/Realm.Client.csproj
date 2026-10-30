@@ -8,11 +8,11 @@
     <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
     <NoWarn>$(NoWarn);CS8600;CS8601;CS8602;CS8603;CS8604;CS8618;CS8625;CS8981</NoWarn>
     <DefaultItemExcludes>$(DefaultItemExcludes);vscode_embedded\**;wasi_sdk_embedded\**;.vscode\**;.godot\**;Maps\**\obj\**;Maps\**\bin\**;MapTemplate\**\obj\**;MapTemplate\**\bin\**</DefaultItemExcludes>
+
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Realm.Shared\Realm.Shared.csproj" />
     <ProjectReference Include="..\Realm.Ecs\Realm.Ecs.csproj" />
-    <ProjectReference Include="..\Realm.MapAPI\Realm.MapAPI.csproj" />
     <ProjectReference Include="..\Realm.EditorAPI\Realm.EditorAPI.csproj" />
   </ItemGroup>
   <ItemGroup>
@@ -21,6 +21,7 @@
     <Compile Remove=".vscode\**" />
     <Compile Remove="Maps\**\obj\**" />
     <Compile Remove="Maps\**\bin\**" />
+    <Compile Remove="Maps\**\*.cs" />
     <Compile Remove="Maps\Test final\**\*.cs" />
     <Compile Remove="Maps\Prueba torre\**\*.cs" />
     <Compile Remove="Maps\blank_map\**\*.cs" />
@@ -31,6 +32,7 @@
     <None Remove=".vscode\**" />
     <None Remove="Maps\**\obj\**" />
     <None Remove="Maps\**\bin\**" />
+    <None Remove="Maps\**\*.cs" />
     <None Remove="Maps\Test final\**\*.cs" />
     <None Remove="Maps\Prueba torre\**\*.cs" />
     <None Remove="Maps\blank_map\**\*.cs" />
@@ -76,16 +78,19 @@
     <PackageReference Include="gdUnit4.api" Version="5.1.0-rc5" />
     <PackageReference Include="gdUnit4.test.adapter" Version="3.1.1" />
     <PackageReference Include="LiteDB" Version="5.0.21" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" />
     <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.27.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.7.0" />
     <PackageReference Include="NSec.Cryptography" Version="26.4.0" />
     <PackageReference Include="MemoryPack" Version="1.21.4" />
     <PackageReference Include="SharpToken" Version="2.0.6" />
     <PackageReference Include="SkiaSharp" Version="3.116.1" />
-    <PackageReference Include="Wasmtime" Version="44.0.0" />
+    <PackageReference Include="ZstdSharp.Port" Version="0.8.8" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\Realm.WasmBindgen\Realm.WasmBindgen.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <!-- The authority is a process of its own and nothing is linked against it: it is built here so a development run
+         always has one, and it is exported separately into the folder ListenServerTarget names. -->
+    <ProjectReference Include="..\Realm.ListenServerHost\Realm.ListenServerHost.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
   <Target Name="GenerateEnglishLocalization" BeforeTargets="CoreCompile;AssignTargetPaths" Condition="'$(DesignTimeBuild)' != 'true'">
     <Exec Command="dotnet run --project &quot;$(MSBuildThisFileDirectory)..\Realm.LocalizationGenerator\Realm.LocalizationGenerator.csproj&quot; -- &quot;$(MSBuildThisFileDirectory)..\Realm.slnx&quot; &quot;$(MSBuildThisFileDirectory)locale\en.json&quot;" />

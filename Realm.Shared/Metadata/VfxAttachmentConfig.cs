@@ -9,12 +9,16 @@ public class VfxAttachmentConfig
 
 	public VfxPrimitiveType PrimitiveType { get; set; } = VfxPrimitiveType.VortexDisc;
 	public SpellParticleConfig? ParticleConfig { get; set; }
+	public List<VfxStageMetadata>? Stages { get; set; }
 	public VfxBlendMode BlendMode { get; set; } = VfxBlendMode.Additive;
 	public VfxPlacementMode PlacementMode { get; set; } = VfxPlacementMode.SurfaceSnap;
+	public bool TintWithPlayerColor { get; set; } = true;
 	public string TargetSocket { get; set; } = "Root";
 
 	public string BaseTexture { get; set; } = "";
 	public string NoiseTexture { get; set; } = "";
+
+	public string ProceduralMotionId { get; set; } = "";
 
 	public Vector2Data BaseUvScroll { get; set; } = new Vector2Data(0.2f, 0.0f);
 	public Vector2Data BaseUvScale { get; set; } = Vector2Data.One;
@@ -64,6 +68,8 @@ public class VfxAttachmentConfig
 	public Vector3Data RotationOffset { get; set; } = Vector3Data.Zero;
 	public Vector3Data ScaleOffset { get; set; } = Vector3Data.One;
 
+	public string? Attribution_ImportedFromMap { get; set; }
+
 	public VfxAttachmentConfig Clone()
 	{
 		return new VfxAttachmentConfig
@@ -73,9 +79,11 @@ public class VfxAttachmentConfig
 			PrimitiveType = PrimitiveType,
 			BlendMode = BlendMode,
 			PlacementMode = PlacementMode,
+			TintWithPlayerColor = TintWithPlayerColor,
 			TargetSocket = TargetSocket,
 			BaseTexture = BaseTexture,
 			NoiseTexture = NoiseTexture,
+			ProceduralMotionId = ProceduralMotionId,
 			BaseUvScroll = BaseUvScroll,
 			BaseUvScale = BaseUvScale,
 			UseFlipbook = UseFlipbook,
@@ -114,7 +122,8 @@ public class VfxAttachmentConfig
 			PositionOffset = PositionOffset,
 			RotationOffset = RotationOffset,
 			ScaleOffset = ScaleOffset,
-			ParticleConfig = ParticleConfig?.Clone()
+			ParticleConfig = ParticleConfig?.Clone(),
+			Stages = Stages?.Select(stage => stage.Clone()).ToList()
 		};
 	}
 }

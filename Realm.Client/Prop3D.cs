@@ -61,7 +61,7 @@ public partial class Prop3D : Node3D
 	{
 		get
 		{
-			if (GameHost.Instance != null && GameContext.World.IsAlive(Entity)
+			if (GameContext.Host != null && GameContext.World.IsAlive(Entity)
 			                              && GameContext.World.Has<PropIdentity>(Entity))
 				return GameContext.World.Get<PropIdentity>(Entity).PropId;
 			return _objectId;
@@ -70,7 +70,7 @@ public partial class Prop3D : Node3D
 		{
 			_objectId = value;
 			_cachedResolvedModelPath = null;
-			if (GameHost.Instance != null && GameContext.World.IsAlive(Entity))
+			if (GameContext.Host != null && GameContext.World.IsAlive(Entity))
 			{
 				var world = GameContext.World;
 				world.SetOrAdd(Entity, new PropIdentity(value));
@@ -103,14 +103,14 @@ public partial class Prop3D : Node3D
 	{
 		get
 		{
-			if (GameHost.Instance == null || !GameContext.World.IsAlive(Entity)) return 0f;
+			if (GameContext.Host == null || !GameContext.World.IsAlive(Entity)) return 0f;
 			if (GameContext.World.Has<ResourceNode>(Entity))
 				return GameContext.World.Get<ResourceNode>(Entity).Amount;
 			return 0f;
 		}
 		set
 		{
-			if (GameHost.Instance == null || !GameContext.World.IsAlive(Entity)) return;
+			if (GameContext.Host == null || !GameContext.World.IsAlive(Entity)) return;
 			var world = GameContext.World;
 			if (world.Has<ResourceNode>(Entity))
 			{
@@ -135,7 +135,7 @@ public partial class Prop3D : Node3D
 	{
 		get
 		{
-			if (GameHost.Instance != null && GameContext.World != null && Entity != default && GameContext.World.IsAlive(Entity))
+			if (GameContext.Host != null && GameContext.World != null && Entity != default && GameContext.World.IsAlive(Entity))
 			{
 				if (GameContext.World.Has<ResourceNode>(Entity))
 					return true;
@@ -161,9 +161,9 @@ public partial class Prop3D : Node3D
 
 	public virtual float GetBaseObstacleRadius()
 	{
-		if (GameHost.Instance != null)
+		if (GameContext.Host != null)
 		{
-			return GameHost.Instance.GetOrCalculateObstacleRadius(PropId, this);
+			return GameContext.Host.ResolveEntityBodyRadius(Entity, PropId);
 		}
 
 		return 1.4f;
@@ -294,6 +294,14 @@ public partial class Prop3D : Node3D
 
 	public bool IsPreview { get; set; } = false;
 
+	public Color? PreviewHologramColor { get; set; }
+
+	public void ApplyPreviewHologram()
+	{
+		if (!PreviewHologramColor.HasValue) return;
+		Realm.Client.Utils.PreviewHologram.Apply(this, PreviewHologramColor.Value);
+	}
+
 	public override void _Ready()
 	{
 		Name = $"Prop_{PropId}_{Guid.NewGuid().ToString().Substring(0, 4)}";
@@ -394,7 +402,7 @@ public partial class Prop3D : Node3D
 
 		if (!IsPreview)
 		{
-			PropMultiMeshManager.Instance?.MarkDirty(PropId);
+			GameContext.PropMultiMesh?.MarkDirty(PropId);
 		}
 	}
 
@@ -406,9 +414,9 @@ public partial class Prop3D : Node3D
 
 		visual = new Node3D();
 		visual.Name = "VisualModel";
-		string assetKey = GameHost.Instance != null ? GameHost.Instance.GetModelAssetKey(PropId) : "";
-		float yOffset = GameHost.Instance != null ? GameHost.Instance.GetModelYOffset(assetKey) : 0f;
-		float globalScale = GameHost.Instance != null ? GameHost.Instance.GetModelScale(this) : 1.0f;
+		string assetKey = GameContext.Host != null ? GameContext.Host.GetModelAssetKey(PropId) : "";
+		float yOffset = GameContext.Host != null ? GameContext.Host.GetModelYOffset(assetKey) : 0f;
+		float globalScale = GameContext.Host != null ? GameContext.Host.GetModelScale(this) : 1.0f;
 		float safeScale = globalScale <= 0.001f ? 1.0f : globalScale;
 		visual.Position = new Vector3(0, yOffset, 0);
 		visual.Scale = new Vector3(safeScale, safeScale, safeScale);
@@ -418,6 +426,7 @@ public partial class Prop3D : Node3D
 
 		UpdateLodVisibility();
 		UpdateSlopeAlignment();
+		ApplyPreviewHologram();
 	}
 
 	private void TryLoadAndAttachModel(Node3D visual, string modelPath)
@@ -436,7 +445,7 @@ public partial class Prop3D : Node3D
 			AnimationRetargetingService.TryApplyRiggedIdlePose(node, PropId);
 			if (!IsPreview)
 			{
-				GameHost.Instance?.ApplyAllGlobalOverridesToObject(this);
+				GameContext.Host?.ApplyAllGlobalOverridesToObject(this);
 			}
 
 			ModelShaderManager.SetHideInShroud(node, true);

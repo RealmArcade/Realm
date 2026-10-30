@@ -1,4 +1,5 @@
-using System;
+﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 using System.Threading.Tasks;
@@ -12,6 +13,7 @@ using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Services;
 using Realm.Shared;
+using Realm.Shared.Maps;
 
 namespace Realm.Client.Testing;
 
@@ -19,25 +21,49 @@ namespace Realm.Client.Testing;
 public partial class MultiplayerSimulationHarness : Node
 {
 	private const int PlayableSlotCount = 12;
-	private const int AiPlayerCount = 10;
 	private const string HostPlayerName = "HarnessHost";
-	private const string ClientPlayerName = "HarnessClient";
+	private const int HarnessMatchSeed = 12345;
+
+	public string Role
+	{
+		set
+		{
+			_role = value;
+			_roleLocked = true;
+		}
+	}
 
 	private string _role = "host";
+	private bool _roleLocked;
 	private string _hostAddress = "127.0.0.1";
 	private int _port = 8999;
 	private string _mapFolder = string.Empty;
-	private string _wasmPath = string.Empty;
 	private string _outputDirectory = string.Empty;
 	private string _listeningFile = string.Empty;
 	private string _readyFile = string.Empty;
 	private string _doneFile = string.Empty;
 	private string _sequenceFile = string.Empty;
 	private string _clientBuildId = string.Empty;
-	private string _clientTeam = string.Empty;
 	private int _drainMilliseconds = 0;
 	private int _finalSequence = -1;
 	private float _durationSeconds = 15f;
+	private string _networkProfile = "Latency";
+	private int _peerCount = 2;
+	private int _peerIndex = 1;
+	private int _botCount;
+	private int _splitUnitsBeforeCommand = -1;
+	private float _dropAtSeconds;
+	private float _pauseAtSeconds;
+	private float _discardAtSeconds;
+	private bool _startAuthority;
+	private bool _editorFirst;
+	private bool _realFlow;
+	private bool _probeOwnsProcess;
+	private bool _probesEnabled;
+	private string _waitForPeerReadyFile = string.Empty;
+	private int _hardeningFailureCount;
+	private int _recordedClientPeerId = -1;
+	private ClientServerSession? _session;
 
 	public override void _Ready()
 	{
@@ -50,7 +76,17 @@ public partial class MultiplayerSimulationHarness : Node
 		try
 		{
 			ParseArguments();
-			exitCode = _role == "host" ? await RunHostAsync() : await RunClientAsync();
+			ShadowClientVerifier.IsEnabled = true;
+			ShadowClientVerifier.Reset();
+			exitCode = _role switch
+			{
+				"host" => await RunHostAsync(),
+				"testmap" => await RunTestMapAsync(),
+				"probe" => await RunProbeAsync(),
+				"editorreturn" => await RunEditorReturnLauncherAsync(),
+				"editorreturnwork" => await RunEditorReturnWorkAsync(),
+				_ => await RunClientAsync()
+			};
 		}
 		catch (Exception exception)
 		{
@@ -59,7 +95,7 @@ public partial class MultiplayerSimulationHarness : Node
 		finally
 		{
 			TryWriteDoneFile();
-			GetTree().Quit(exitCode);
+			if (!_probeOwnsProcess) GetTree().Quit(exitCode);
 		}
 	}
 
@@ -75,7 +111,7 @@ public partial class MultiplayerSimulationHarness : Node
 			switch (key)
 			{
 				case "--role":
-					_role = value;
+					if (!_roleLocked) _role = value;
 					break;
 				case "--host":
 					_hostAddress = value;
@@ -85,9 +121,6 @@ public partial class MultiplayerSimulationHarness : Node
 					break;
 				case "--map":
 					_mapFolder = value;
-					break;
-				case "--wasm":
-					_wasmPath = value;
 					break;
 				case "--output":
 					_outputDirectory = value;
@@ -107,14 +140,47 @@ public partial class MultiplayerSimulationHarness : Node
 				case "--client-build":
 					_clientBuildId = value;
 					break;
-				case "--client-team":
-					_clientTeam = value;
-					break;
 				case "--drain-ms":
 					_drainMilliseconds = int.Parse(value);
 					break;
 				case "--duration":
 					_durationSeconds = float.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
+					break;
+				case "--profile":
+					_networkProfile = value;
+					break;
+				case "--peers":
+					_peerCount = int.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
+					break;
+				case "--peer-index":
+					_peerIndex = int.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
+					break;
+				case "--bots":
+					_botCount = int.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
+					break;
+				case "--wait-for-peer-ready":
+					_waitForPeerReadyFile = value;
+					break;
+				case "--drop-at":
+					_dropAtSeconds = float.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
+					break;
+				case "--pause-at":
+					_pauseAtSeconds = float.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
+					break;
+				case "--discard-at":
+					_discardAtSeconds = float.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
+					break;
+				case "--start-authority":
+					_startAuthority = value == "1";
+					break;
+				case "--editor-first":
+					_editorFirst = value == "1";
+					break;
+				case "--real-flow":
+					_realFlow = value == "1";
+					break;
+				case "--probes":
+					_probesEnabled = value == "1";
 					break;
 			}
 		}
@@ -124,13 +190,13 @@ public partial class MultiplayerSimulationHarness : Node
 
 	private async Task<int> RunHostAsync()
 	{
-		LobbyManager lobby = LobbyManager.Instance ?? throw new InvalidOperationException("LobbyManager autoload is unavailable.");
+		LobbyManager lobby = GameContext.Lobby ?? throw new InvalidOperationException("LobbyManager autoload is unavailable.");
 
 		lobby.IsSinglePlayer = false;
 		lobby.IsHost = true;
-		lobby.IsGameStarted = false;
+		lobby.IsGameStarted = true;
+		lobby.ActiveMapName = _mapFolder;
 		SetPrivateProperty(lobby, "MaxPlayers", PlayableSlotCount);
-		SetPrivateProperty(lobby, "ENetPort", _port);
 		SetPrivateProperty(lobby, "ActiveLobbyId", $"direct-harness-{Guid.NewGuid():N}");
 
 		lobby.PlayerList.Clear();
@@ -149,46 +215,33 @@ public partial class MultiplayerSimulationHarness : Node
 			BinaryVersion = RealmVersion.GameBinaryVersion
 		});
 
-		for (int slot = 2; slot <= 1 + AiPlayerCount; slot++)
+		MultiplayerBandwidthMeter.Reset();
+		MultiplayerBandwidthMeter.IsRecording = true;
+
+		ClientServerSession session = await StartAuthorityAsync();
+		GD.Print($"[MP_HARNESS] The authority is listening on port {session.Port}; this process plays as one of its clients.");
+		if (!string.IsNullOrEmpty(_listeningFile)) File.WriteAllText(_listeningFile, session.Port.ToString(System.Globalization.CultureInfo.InvariantCulture));
+
+		int expectedClientCount = Math.Max(1, _peerCount - 1);
+		bool clientsSeated = await WaitUntilAsync(() => CountSeatedPeers(session) >= expectedClientCount + 1, 240f);
+		if (!clientsSeated)
 		{
-			lobby.PlayerList.Add(new PlayerInfo
-			{
-				PeerId = -(slot + 100),
-				Slot = slot,
-				Name = $"HarnessAI{slot - 1}",
-				Faction = "AI",
-				Team = $"Team {slot}",
-				Color = PlayerColorConfig.GetColor(slot),
-				IsHost = false,
-				Latency = "0 ms",
-				Jitter = "0 ms",
-				PacketLoss = "0%",
-				BinaryVersion = RealmVersion.GameBinaryVersion
-			});
+			throw new InvalidOperationException($"Timed out waiting for {expectedClientCount} client peer(s) to be seated; the authority recorded {CountSeatedPeers(session)} seat(s) including this process.");
 		}
 
-		MethodInfo? createServerMethod = typeof(LobbyManager).GetMethod("TryCreateENetServerAsync", BindingFlags.NonPublic | BindingFlags.Instance);
-		if (createServerMethod == null) throw new InvalidOperationException("LobbyManager.TryCreateENetServerAsync could not be resolved.");
-		if (createServerMethod.Invoke(lobby, null) is not Task<bool> createServerTask) throw new InvalidOperationException("LobbyManager.TryCreateENetServerAsync did not return a task.");
-		if (!await createServerTask) throw new InvalidOperationException($"Failed to host ENet server on port {_port}.");
-
-		GD.Print($"[MP_HARNESS] Host listening on port {_port}. Waiting for the client peer.");
-		if (!string.IsNullOrEmpty(_listeningFile)) File.WriteAllText(_listeningFile, DateTime.UtcNow.ToString("O"));
-
-		bool clientConnected = await WaitUntilAsync(
-			() => lobby.PlayerList.Exists(player => player.PeerId > 1 && !player.IsDisconnected),
-			60f);
-		if (!clientConnected) throw new InvalidOperationException("Timed out waiting for the client peer to join the host lobby.");
 		if (!await StartSimulationAsync(lobby, true)) return 1;
 
-		_ = RunCombatProbeAsync(true);
+		GameHost gameHost = GameContext.Host ?? throw new InvalidOperationException("GameHost instance is unavailable.");
+		await RunSplitScenarioAsync(lobby, gameHost);
 
-		GameHost gameHost = GameHost.Instance ?? throw new InvalidOperationException("GameHost instance is unavailable.");
+		if (!string.IsNullOrEmpty(_clientBuildId)) IssueClientBuildRequest(gameHost);
+
+		double matchStartGameTime = await WaitForClientsToStartAsync(gameHost);
 		bool finished = false;
 		ulong simulationDeadline = Time.GetTicksMsec() + (ulong)((_durationSeconds * 4f + 120f) * 1000f);
 		while (Time.GetTicksMsec() < simulationDeadline)
 		{
-			if (gameHost.GameElapsedTime >= _durationSeconds)
+			if (gameHost.GameElapsedTime >= matchStartGameTime + _durationSeconds)
 			{
 				finished = true;
 				break;
@@ -198,7 +251,7 @@ public partial class MultiplayerSimulationHarness : Node
 			await ToSignal(GetTree().CreateTimer(1.0f), SceneTreeTimer.SignalName.Timeout);
 		}
 
-		if (!finished) throw new InvalidOperationException($"Host simulation did not reach {_durationSeconds}s of game time.");
+		if (!finished) throw new InvalidOperationException($"Host simulation did not reach {_durationSeconds}s of game time after every client started.");
 
 		if (_drainMilliseconds > 0)
 		{
@@ -206,43 +259,277 @@ public partial class MultiplayerSimulationHarness : Node
 			await ToSignal(GetTree().CreateTimer(_drainMilliseconds / 1000f), SceneTreeTimer.SignalName.Timeout);
 		}
 
+		_hardeningFailureCount = MultiplayerHardeningChecks.Run(_outputDirectory, true, _session?.LogPath ?? string.Empty);
+
 		_finalSequence = ResolveSnapshotSequence();
+		MultiplayerBandwidthMeter.WriteReport(_outputDirectory, gameHost.GameElapsedTime);
 		GD.Print($"[MP_HARNESS] Host finished at game time {gameHost.GameElapsedTime:F2}s with {gameHost.AllUnits.Count} units and snapshot sequence {_finalSequence}.");
 		MultiplayerSyncDiagnostics.Stop();
 		WriteFinalWorldSnapshot("ECS_host_final_full.bin");
+		WriteWorldSummary("world_summary_host.json", "host");
 		return 0;
+	}
+
+	private async Task<int> RunTestMapAsync()
+	{
+		LobbyManager lobby = GameContext.Lobby ?? throw new InvalidOperationException("LobbyManager autoload is unavailable.");
+
+		GameContext.SessionState.IsTestMode = true;
+		lobby.IsSinglePlayer = true;
+		lobby.IsHost = true;
+		lobby.IsGameStarted = true;
+		lobby.ActiveMapName = _mapFolder;
+
+		string? mapDirectory = GameHost.ResolveMapDirectory(_mapFolder);
+		GD.Print($"[TESTMAP] map '{_mapFolder}' resolved to '{mapDirectory}'.");
+		if (string.IsNullOrEmpty(mapDirectory)) return 1;
+
+		if (_realFlow)
+		{
+			return await RunRealTestMapFlowAsync(mapDirectory);
+		}
+
+		if (_editorFirst)
+		{
+			GameContext.SessionState.IsMapEditorMode = true;
+			PackedScene editorScene = GD.Load<PackedScene>("res://GameHost.tscn");
+			Node editorHost = editorScene.Instantiate();
+			editorHost.Name = "GameHost";
+			AddChild(editorHost);
+			await ToSignal(GetTree().CreateTimer(4.0f), SceneTreeTimer.SignalName.Timeout);
+			DescribeTerrain(-1);
+
+			GameContext.Host?.ExitMapEditorMode();
+			RemoveChild(editorHost);
+			editorHost.QueueFree();
+			await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+		}
+
+		if (_startAuthority)
+		{
+			ClientNetworkChannel channel = GetNodeOrNull<ClientNetworkChannel>("/root/RealmNetwork") ?? throw new InvalidOperationException("This build has no channel to an authority.");
+			GameContext.ServerSession?.Dispose();
+			var session = new ClientServerSession(channel);
+			var start = new ServerMatchStart(mapDirectory, "Test Map", HarnessMatchSeed, Path.Combine(_outputDirectory, "listen_server"), _outputDirectory, LocalizationManager.GetCurrentLanguageCode(), AuthorityRecordDirectory: _outputDirectory);
+			MatchStartResult started = await session.TryStartAsync(start, _port);
+			if (!started.Started) throw new InvalidOperationException($"The authority could not be started: {started.Failure}");
+			GameContext.AttachServerSession(session);
+			_session = session;
+			GD.Print($"[TESTMAP] the authority is listening on port {session.Port} with its log at {session.LogPath}.");
+		}
+
+		PackedScene scene = GD.Load<PackedScene>("res://GameHost.tscn");
+		Node gameHost = scene.Instantiate();
+		gameHost.Name = "GameHost";
+		AddChild(gameHost);
+
+		for (int second = 0; second < 12; second++)
+		{
+			await ToSignal(GetTree().CreateTimer(1.0f), SceneTreeTimer.SignalName.Timeout);
+			DescribeTerrain(second);
+		}
+
+		return 0;
+	}
+
+	private async Task<int> RunProbeAsync()
+	{
+		_probeOwnsProcess = true;
+		GD.Print("[PROBE] watching the map the playtest loads.");
+		for (int second = 0; second < 30; second++)
+		{
+			await ToSignal(GetTree().CreateTimer(1.0f), SceneTreeTimer.SignalName.Timeout);
+			DescribeTerrain(second);
+			GameHost? current = GameContext.Host;
+			int appliedSequence = GameContext.NetworkService?.LastAppliedSnapshotSequenceForDiagnostics ?? -1;
+			GD.Print($"[PROBE] {second}s: session={(GameContext.ServerSession == null ? "none" : "attached")} started={GameContext.Lobby?.IsGameStarted} sequence={appliedSequence} units={current?.AllUnits.Count ?? -1} slot={GameContext.ServerSession?.LocalPlayerSlot ?? -1}");
+		}
+
+		GetTree().Quit(0);
+		return 0;
+	}
+
+	private async Task<int> RunRealTestMapFlowAsync(string mapDirectory)
+	{
+		await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+		var probeScene = GD.Load<PackedScene>("res://Testing/MultiplayerSimulationHarness.tscn");
+		Node probe = probeScene.Instantiate();
+		probe.Name = "TestMapProbe";
+		SetPrivateProperty(probe, "Role", "probe");
+		GetTree().Root.AddChild(probe);
+
+		GameContext.SessionState.IsMapEditorMode = true;
+		PackedScene editorScene = GD.Load<PackedScene>("res://GameHost.tscn");
+		Node editorHost = editorScene.Instantiate();
+		editorHost.Name = "GameHost";
+		AddChild(editorHost);
+		await ToSignal(GetTree().CreateTimer(4.0f), SceneTreeTimer.SignalName.Timeout);
+
+		GameContext.SessionState.IsTestMode = true;
+		GD.Print($"[TESTMAP] asking the lobby for a single-player match of '{_mapFolder}' ('{mapDirectory}').");
+		bool playtestStarted = GameContext.Lobby != null && await GameContext.Lobby.HostSinglePlayerGame(_mapFolder, "Test Map");
+		GameContext.Host?.ExitMapEditorMode();
+		GD.Print($"[TESTMAP] the lobby was asked; started={playtestStarted} error={GameContext.Lobby?.LastHostError}; the probe reports what follows.");
+
+		_probeOwnsProcess = true;
+		return 0;
+	}
+
+	private static void DescribeTerrain(int second)
+	{
+		GameHost? host = GameContext.Host;
+		RuntimeTerrain? terrain = host?.GroundTerrain;
+		if (terrain == null)
+		{
+			GD.Print($"[TESTMAP] {second}s: no ground terrain node.");
+			return;
+		}
+
+		int chunks = terrain.Chunks.Count;
+		int visibleChunks = 0;
+		int surfaces = 0;
+		int vertices = 0;
+		foreach (TerrainChunk chunk in terrain.Chunks)
+		{
+			if (chunk.MeshInstance != null && GodotObject.IsInstanceValid(chunk.MeshInstance))
+			{
+				if (chunk.MeshInstance.Visible) visibleChunks++;
+				ArrayMesh? mesh = chunk.MeshInstance.Mesh as ArrayMesh;
+				if (mesh == null) continue;
+				surfaces += mesh.GetSurfaceCount();
+				for (int surface = 0; surface < mesh.GetSurfaceCount(); surface++) vertices += mesh.SurfaceGetArrays(surface)[(int)Mesh.ArrayType.Vertex].AsVector3Array().Length;
+			}
+		}
+
+		Godot.Vector3 camera = host!.MainCamera?.GlobalPosition ?? Godot.Vector3.Zero;
+		GD.Print($"[TESTMAP] {second}s: grid={terrain.Width}x{terrain.Depth} quad={terrain.QuadSize} nodeVisible={terrain.Visible} at={terrain.GlobalPosition} chunks={chunks} visibleChunks={visibleChunks} surfaces={surfaces} vertices={vertices} camera={camera} world={GameContext.World != null}");
+	}
+
+	private async Task<ClientServerSession> StartAuthorityAsync()
+	{
+		ClientNetworkChannel channel = GetNodeOrNull<ClientNetworkChannel>("/root/RealmNetwork") ?? throw new InvalidOperationException("This build has no channel to an authority.");
+		GameContext.ServerSession?.Dispose();
+
+		var session = new ClientServerSession(channel);
+		var start = new ServerMatchStart(
+			_mapFolder,
+			Path.GetFileName(Path.TrimEndingDirectorySeparator(_mapFolder)),
+			HarnessMatchSeed,
+			Path.Combine(_outputDirectory, "listen_server"),
+			_outputDirectory,
+			LocalizationManager.GetCurrentLanguageCode(),
+			OpenToOthers: true,
+			Roster: BuildHarnessRoster(),
+			AuthorityRecordDirectory: _outputDirectory);
+
+		MatchStartResult started = await session.TryStartAsync(start, _port);
+		if (!started.Started) throw new InvalidOperationException($"The authority could not be started on port {_port}: {started.Failure}");
+
+		GameContext.AttachServerSession(session);
+		_session = session;
+		return session;
+	}
+
+	private List<MatchRosterSeat> BuildHarnessRoster()
+	{
+		var roster = new List<MatchRosterSeat>(_peerCount + _botCount);
+		for (int slot = 1; slot <= _peerCount; slot++)
+		{
+			string name = slot == 1 ? HostPlayerName : $"HarnessPeer{slot}";
+			roster.Add(new MatchRosterSeat(slot, name, slot, $"Team {slot}", false));
+		}
+
+		for (int index = 0; index < _botCount; index++)
+		{
+			int slot = _peerCount + index + 1;
+			roster.Add(new MatchRosterSeat(slot, $"Bot {slot}", slot, $"Team {slot}", true));
+		}
+
+		return roster;
+	}
+
+	private ClientServerSession JoinAuthority()
+	{
+		ClientNetworkChannel channel = GetNodeOrNull<ClientNetworkChannel>("/root/RealmNetwork") ?? throw new InvalidOperationException("This build has no channel to an authority.");
+		GameContext.ServerSession?.Dispose();
+
+		var session = new ClientServerSession(channel);
+		if (!session.TryJoin(_hostAddress, _port, LocalizationManager.GetCurrentLanguageCode(), _mapFolder, out string failure))
+		{
+			throw new InvalidOperationException($"The authority at {_hostAddress}:{_port} could not be reached: {failure}");
+		}
+
+		GameContext.AttachServerSession(session);
+		_session = session;
+		return session;
+	}
+
+	private static int CountSeatedPeers(ClientServerSession session)
+	{
+		if (!File.Exists(session.LogPath)) return 0;
+
+		try
+		{
+			using var stream = new FileStream(session.LogPath, System.IO.FileMode.Open, System.IO.FileAccess.Read, System.IO.FileShare.ReadWrite | System.IO.FileShare.Delete);
+			using var reader = new StreamReader(stream);
+			string log = reader.ReadToEnd();
+			int count = 0;
+			int index = log.IndexOf("seated as player", StringComparison.Ordinal);
+			while (index >= 0)
+			{
+				count++;
+				index = log.IndexOf("seated as player", index + 1, StringComparison.Ordinal);
+			}
+
+			return count;
+		}
+		catch (IOException)
+		{
+			return 0;
+		}
 	}
 
 	private async Task<int> RunClientAsync()
 	{
-		LobbyManager lobby = LobbyManager.Instance ?? throw new InvalidOperationException("LobbyManager autoload is unavailable.");
+		LobbyManager lobby = GameContext.Lobby ?? throw new InvalidOperationException("LobbyManager autoload is unavailable.");
 
 		lobby.IsSinglePlayer = false;
+		lobby.IsHost = false;
+		lobby.IsGameStarted = true;
+		lobby.ActiveMapName = _mapFolder;
 		SetPrivateProperty(lobby, "MaxPlayers", PlayableSlotCount);
-		SetPrivateProperty(lobby, "ENetPort", _port);
 
-		bool joined = await lobby.JoinByIpAsync(_hostAddress, _port);
-		if (!joined) throw new InvalidOperationException($"Failed to connect to host at {_hostAddress}:{_port}.");
+		ClientServerSession session = JoinAuthority();
+		bool seated = await WaitUntilAsync(() => session.LocalPlayerSlot >= 0, 120f);
+		if (!seated) throw new InvalidOperationException($"The authority at {_hostAddress}:{_port} never seated this client: {session.TerminationReport ?? "it did not answer"}.");
 
-		int localPeerId = Multiplayer.GetUniqueId();
-		GD.Print($"[MP_HARNESS] Client connected with peer id {localPeerId}. Waiting for lobby sync.");
+		int localPeerId = session.LocalPeerId;
+		RecordClientPeerId(localPeerId);
+		GD.Print($"[MP_HARNESS] Client peer index {_peerIndex} was seated as player {session.LocalPlayerSlot} with peer id {localPeerId}.");
 
-		bool playerSynced = await WaitUntilAsync(
-			() => lobby.PlayerList.Exists(player => player.PeerId == localPeerId),
-			30f);
-		if (!playerSynced) throw new InvalidOperationException("Timed out waiting for the host to sync the lobby player list.");
-		if (!string.IsNullOrEmpty(_clientTeam)) await ApplyClientTeamAsync(lobby, localPeerId);
+		if (!string.IsNullOrEmpty(_waitForPeerReadyFile))
+		{
+			GD.Print($"[MP_HARNESS] Client peer index {_peerIndex} stays in the lobby until {_waitForPeerReadyFile} exists, so only two processes load the map at once.");
+			bool previousPeerReady = await WaitUntilAsync(() => File.Exists(_waitForPeerReadyFile), 240f);
+			if (!previousPeerReady) throw new InvalidOperationException($"Client peer index {_peerIndex} waited too long for the previous peer to become ready.");
+		}
+
+		MultiplayerBandwidthMeter.Reset();
+		MultiplayerBandwidthMeter.IsRecording = true;
 		if (!await StartSimulationAsync(lobby, false)) return 1;
 
-		_ = RunCombatProbeAsync(false);
 
 		GD.Print("[MP_HARNESS] Client simulation started. Recording until the host signals completion.");
 		if (!string.IsNullOrEmpty(_clientBuildId))
 		{
 			await ToSignal(GetTree().CreateTimer(2.0f), SceneTreeTimer.SignalName.Timeout);
-			IssueClientBuildRequest(GameHost.Instance);
+			IssueClientBuildRequest(GameContext.Host);
 		}
-		bool hostFinished = await WaitUntilAsync(() => File.Exists(_doneFile), _durationSeconds * 4f + 120f + (_drainMilliseconds / 1000f));
+		if (_dropAtSeconds > 0f) _ = RunConnectionLossScenarioAsync(session);
+		if (_pauseAtSeconds > 0f) _ = RunPauseScenarioAsync(session);
+		if (_discardAtSeconds > 0f) _ = RunSnapshotDiscardScenarioAsync();
+
+		bool hostFinished = await WaitUntilAsync(() => File.Exists(_doneFile), _durationSeconds * 4f + 240f + (_drainMilliseconds / 1000f));
 		if (!hostFinished) GD.PrintErr("[MP_HARNESS] Host completion marker was not observed before the timeout.");
 
 		if (_drainMilliseconds > 0)
@@ -251,23 +538,155 @@ public partial class MultiplayerSimulationHarness : Node
 		}
 
 		_finalSequence = GameContext.NetworkService.LastAppliedSnapshotSequenceForDiagnostics;
-		GD.Print($"[MP_HARNESS] Client stopped at applied snapshot sequence {_finalSequence} with game time {GameHost.Instance?.GameElapsedTime ?? 0f:F2}s.");
+		GD.Print($"[MP_HARNESS] Client stopped at applied snapshot sequence {_finalSequence} with game time {GameContext.Host?.GameElapsedTime ?? 0f:F2}s.");
+		MultiplayerBandwidthMeter.WriteReport(_outputDirectory, GameContext.Host?.GameElapsedTime ?? 0f);
 		MultiplayerSyncDiagnostics.Stop();
 		TryWriteSequenceFile(_finalSequence);
 		WriteFinalWorldSnapshot("ECS_client_final_full.bin");
+		WriteWorldSummary($"world_summary_peer{_peerIndex}.json", "client");
 		return hostFinished ? 0 : 1;
 	}
 
-	private async Task ApplyClientTeamAsync(LobbyManager lobby, int localPeerId)
+	private async Task RunPauseScenarioAsync(ClientServerSession session)
 	{
-		PlayerInfo? localPlayer = lobby.PlayerList.Find(player => player.PeerId == localPeerId);
-		if (localPlayer == null) return;
+		string path = Path.Combine(_outputDirectory, "pause.txt");
+		try
+		{
+			bool reachedPauseTime = await WaitUntilAsync(() => (GameContext.Host?.GameElapsedTime ?? 0f) >= _pauseAtSeconds, 180f);
+			if (!reachedPauseTime)
+			{
+				File.WriteAllText(path, "paused=0\nreason=game time never reached the pause point\n");
+				return;
+			}
 
-		lobby.UpdatePlayerSlot(localPeerId, localPlayer.Faction, _clientTeam, localPlayer.Color, localPlayer.Name);
-		bool applied = await WaitUntilAsync(
-			() => lobby.PlayerList.Exists(player => player.PeerId == localPeerId && player.Team == _clientTeam),
-			10f);
-		GD.Print($"[MP_HARNESS] Client team request '{_clientTeam}' applied={applied}.");
+			int obstacles = session.LatestNavMeshObstacles?.Positions?.Length ?? -1;
+			GD.Print($"[MP_HARNESS] This client holds {obstacles} obstacle volumes from the match.");
+
+			bool requested = session.RequestPause(true);
+			bool paused = await WaitUntilAsync(() => GameContext.NetworkService.IsPaused, 30f);
+			GD.Print($"[MP_HARNESS] Pause requested={requested}; the match reports paused={paused} by player {GameContext.NetworkService.PausedByPlayerIndex}.");
+
+			await ToSignal(GetTree().CreateTimer(2.0f), SceneTreeTimer.SignalName.Timeout);
+
+			bool resumeRequested = session.RequestPause(false);
+			bool resumed = await WaitUntilAsync(() => !GameContext.NetworkService.IsPaused, 30f);
+			GD.Print($"[MP_HARNESS] Resume requested={resumeRequested}; the match reports paused={GameContext.NetworkService.IsPaused}.");
+
+			File.WriteAllText(
+				path,
+				$"paused={(paused ? 1 : 0)}\nresumed={(resumed ? 1 : 0)}\nobstacle_volumes={obstacles}\nrequested_by={GameContext.NetworkService.PausedByPlayerIndex}\n");
+		}
+		catch (Exception exception)
+		{
+			GD.PrintErr($"[MP_HARNESS] Pause scenario failed: {exception.Message}");
+			try
+			{
+				File.WriteAllText(path, $"paused=0\nreason={exception.Message}\n");
+			}
+			catch
+			{
+			}
+		}
+	}
+
+	private async Task RunSnapshotDiscardScenarioAsync()
+	{
+		string path = Path.Combine(_outputDirectory, "snapshot_discard.txt");
+		try
+		{
+			bool reachedDiscardTime = await WaitUntilAsync(() => (GameContext.Host?.GameElapsedTime ?? 0f) >= _discardAtSeconds, 120f);
+			if (!reachedDiscardTime)
+			{
+				File.WriteAllText(path, "discarded=0\nreason=game time never reached the discard point\n");
+				return;
+			}
+
+			int appliedBefore = GameContext.NetworkService.LastAppliedSnapshotSequenceForDiagnostics;
+			int baselineBefore = GameContext.NetworkService.LastAppliedBaselineSequenceForDiagnostics;
+			float discardGameTime = GameContext.Host?.GameElapsedTime ?? 0f;
+			MultiplayerSyncDiagnostics.RequestSnapshotDiscard();
+
+			bool discarded = await WaitUntilAsync(() => MultiplayerSyncDiagnostics.DiscardedSnapshotSequence >= 0, 30f);
+			int discardedSequence = MultiplayerSyncDiagnostics.DiscardedSnapshotSequence;
+			var baselinesAfter = new List<int>();
+			if (discarded)
+			{
+				int lastBaseline = baselineBefore;
+				ulong observationDeadline = Time.GetTicksMsec() + RepairObservationMilliseconds;
+				while (Time.GetTicksMsec() < observationDeadline)
+				{
+					int currentBaseline = GameContext.NetworkService.LastAppliedBaselineSequenceForDiagnostics;
+					if (currentBaseline > lastBaseline)
+					{
+						lastBaseline = currentBaseline;
+						baselinesAfter.Add(currentBaseline);
+					}
+
+					await ToSignal(GetTree().CreateTimer(0.05f), SceneTreeTimer.SignalName.Timeout);
+				}
+			}
+
+			File.WriteAllText(
+				path,
+				$"discarded={(discarded ? 1 : 0)}\ndiscarded_sequence={discardedSequence}\napplied_before={appliedBefore}\nbaseline_before={baselineBefore}\nbaseline_count_after={baselinesAfter.Count}\nbaselines_after={string.Join(',', baselinesAfter)}\ndiscard_game_time={discardGameTime.ToString(System.Globalization.CultureInfo.InvariantCulture)}\n");
+			GD.Print($"[MP_HARNESS] Snapshot {discardedSequence} was discarded at game time {discardGameTime:F2}s; the authority described this peer from scratch {baselinesAfter.Count} time(s) afterwards.");
+		}
+		catch (Exception exception)
+		{
+			GD.PrintErr($"[MP_HARNESS] Snapshot discard scenario failed: {exception.Message}");
+			try
+			{
+				File.WriteAllText(path, $"discarded=0\nreason={exception.Message}\n");
+			}
+			catch
+			{
+			}
+		}
+	}
+
+	private const ulong RepairObservationMilliseconds = 4000;
+
+	private async Task RunConnectionLossScenarioAsync(ClientServerSession session)
+	{
+		string path = Path.Combine(_outputDirectory, "client_drop.txt");
+		try
+		{
+			bool reachedDropTime = await WaitUntilAsync(() => (GameContext.Host?.GameElapsedTime ?? 0f) >= _dropAtSeconds, 120f);
+			if (!reachedDropTime)
+			{
+				File.WriteAllText(path, "dropped=0\nreason=game time never reached the drop point\n");
+				return;
+			}
+
+			int dropSequence = GameContext.NetworkService.LastAppliedSnapshotSequenceForDiagnostics;
+			float dropGameTime = GameContext.Host?.GameElapsedTime ?? 0f;
+			GD.Print($"[MP_HARNESS] Dropping the client connection at game time {dropGameTime:F2}s, applied sequence {dropSequence}.");
+			session.DropConnectionForHarness();
+
+			bool resumed = await WaitUntilAsync(
+				() => GameContext.NetworkService.LastAppliedSnapshotSequenceForDiagnostics > dropSequence
+					&& GameContext.NetworkService.LastAppliedBaselineSequenceForDiagnostics > dropSequence,
+				60f);
+
+			int resumeSequence = GameContext.NetworkService.LastAppliedSnapshotSequenceForDiagnostics;
+			int resumeBaselineSequence = GameContext.NetworkService.LastAppliedBaselineSequenceForDiagnostics;
+			float resumeGameTime = GameContext.Host?.GameElapsedTime ?? 0f;
+			File.WriteAllText(
+				path,
+				$"dropped=1\nresumed={(resumed ? 1 : 0)}\ndrop_sequence={dropSequence}\nresume_sequence={resumeSequence}\nresume_baseline_sequence={resumeBaselineSequence}\noutage_sequences={Math.Max(0, resumeSequence - dropSequence)}\ndrop_game_time={dropGameTime.ToString(System.Globalization.CultureInfo.InvariantCulture)}\nresume_game_time={resumeGameTime.ToString(System.Globalization.CultureInfo.InvariantCulture)}\n");
+			GD.Print($"[MP_HARNESS] Client connection loss scenario resumed={resumed} at sequence {resumeSequence} after {Math.Max(0, resumeSequence - dropSequence)} sequences.");
+		}
+		catch (Exception exception)
+		{
+			GD.PrintErr($"[MP_HARNESS] Connection loss scenario failed: {exception.Message}");
+			try
+			{
+				File.WriteAllText(path, $"dropped=1\nresumed=0\nreason={exception.Message}\n");
+			}
+			catch
+			{
+			}
+		}
 	}
 
 	private async Task<bool> StartSimulationAsync(LobbyManager lobby, bool isHost)
@@ -275,17 +694,28 @@ public partial class MultiplayerSimulationHarness : Node
 		lobby.ActiveMapName = _mapFolder;
 		lobby.IsGameStarted = true;
 		GameSettings.RecordReplays = false;
-		GameHost.PendingMapScriptPath = isHost && !string.IsNullOrEmpty(_wasmPath) ? _wasmPath : null;
 
 		PackedScene scene = GD.Load<PackedScene>("res://GameHost.tscn");
 		Node gameHost = scene.Instantiate();
 		gameHost.Name = "GameHost";
 		AddChild(gameHost);
 
+
+		int readinessLogCounter = 0;
 		bool ready = await WaitUntilAsync(() =>
 		{
-			GameHost? host = GameHost.Instance;
-			return host != null && Math.Abs(host.GameElapsedTime) >= 0.01f && host.AllUnits.Count > 0;
+			GameHost? host = GameContext.Host;
+			int appliedSequence = GameContext.NetworkService?.LastAppliedSnapshotSequenceForDiagnostics ?? -1;
+			bool hasBaseline = GameContext.World != null && GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) && GameContext.World.Has<NetworkState>(GameContext.Simulation.WorldEntity)
+				&& GameContext.World.Get<NetworkState>(GameContext.Simulation.WorldEntity).HasReceivedInitialBaseline;
+			bool isReady = host != null && appliedSequence >= 0 && hasBaseline;
+			readinessLogCounter++;
+			if (!isReady && readinessLogCounter % 50 == 0)
+			{
+				GD.Print($"[MP_HARNESS] Readiness wait ({(isHost ? "host" : "client")}): elapsed={host?.GameElapsedTime ?? 0f:F2} units={host?.AllUnits.Count ?? 0} appliedSequence={appliedSequence} baseline={hasBaseline} peerPresent={Multiplayer.MultiplayerPeer != null}");
+			}
+
+			return isReady;
 		}, 120f);
 
 		if (!ready)
@@ -294,10 +724,10 @@ public partial class MultiplayerSimulationHarness : Node
 			return false;
 		}
 
-		MultiplayerSyncDiagnostics.Start(_outputDirectory, isHost);
+		MultiplayerSyncDiagnostics.Start(isHost ? Path.Combine(_outputDirectory, "host") : _outputDirectory);
 		PrintReplicatedCodecTable(isHost);
 		TryWriteReadyFile();
-		GameHost currentHost = GameHost.Instance!;
+		GameHost currentHost = GameContext.Host!;
 		GD.Print($"[MP_HARNESS] {(isHost ? "Host" : "Client")} simulation ready at game time {currentHost.GameElapsedTime:F2}s with {currentHost.AllUnits.Count} units.");
 		GD.Print($"[MP_HARNESS] Active workspace '{MapWorkspaceService.GetActiveWorkspacePath()}' resolved from map directory '{GameContext.MapStorageService?.CurrentMapDirectory}'.");
 		return true;
@@ -311,6 +741,11 @@ public partial class MultiplayerSimulationHarness : Node
 		}
 
 		GD.Print($"[CODECS] role={(isHost ? "host" : "client")} registryCount={Realm.Ecs.ComponentTypeRegistry.Count} scriptPlayersId={Realm.Ecs.ComponentType<ScriptPlayersState>.Id}");
+	}
+
+	private int ResolveAiPlayerCount()
+	{
+		return Math.Max(0, PlayableSlotCount - Math.Max(2, _peerCount));
 	}
 
 	private static int CountConstructionSites(GameHost gameHost)
@@ -358,6 +793,53 @@ public partial class MultiplayerSimulationHarness : Node
 		var buildPosition = worker.GlobalPosition + new Vector3(4f, 0f, 4f);
 		gameHost.PlaceBuildingAt(buildId, buildPosition);
 		GD.Print($"[MP_HARNESS] Client requested build '{buildId}' with worker '{worker.UnitId}' at {buildPosition}.");
+	}
+
+	public override void _PhysicsProcess(double delta)
+	{
+		_session?.Pump();
+		RecordClientPeerId(_session?.LocalPeerId ?? 0);
+	}
+
+	private void RecordClientPeerId(int peerId)
+	{
+		if (_role != "client" || peerId <= 0 || peerId == _recordedClientPeerId) return;
+
+		_recordedClientPeerId = peerId;
+		try
+		{
+			File.AppendAllText(Path.Combine(_outputDirectory, "client_peer_id.txt"), peerId.ToString(System.Globalization.CultureInfo.InvariantCulture) + "\n");
+		}
+		catch (IOException)
+		{
+		}
+	}
+
+	private async Task<double> WaitForClientsToStartAsync(GameHost gameHost)
+	{
+		int expectedClients = Math.Max(1, _peerCount - 1);
+		float timeoutSeconds = 60f + 90f * expectedClients;
+		ulong deadline = Time.GetTicksMsec() + (ulong)(timeoutSeconds * 1000f);
+		while (Time.GetTicksMsec() < deadline)
+		{
+			int readyClients = 0;
+			for (int peerIndex = 1; peerIndex <= expectedClients; peerIndex++)
+			{
+				string clientDirectory = peerIndex == 1 ? _outputDirectory : Path.Combine(_outputDirectory, $"client{peerIndex}");
+				if (File.Exists(Path.Combine(clientDirectory, "client_ready.txt"))) readyClients++;
+			}
+
+			if (readyClients >= expectedClients)
+		{
+				GD.Print($"[MP_HARNESS] All {expectedClients} client(s) report a running simulation at host game time {gameHost.GameElapsedTime:F2}s; the match window starts here.");
+				return gameHost.GameElapsedTime;
+			}
+
+			await ToSignal(GetTree().CreateTimer(0.5f), SceneTreeTimer.SignalName.Timeout);
+		}
+
+		GD.PrintErr($"[MP_HARNESS] Only some clients reported a running simulation within {timeoutSeconds:F0}s; the match window starts now and later clients will record a short stream.");
+		return gameHost.GameElapsedTime;
 	}
 
 	private async Task<bool> WaitUntilAsync(Func<bool> condition, float timeoutSeconds)
@@ -427,13 +909,7 @@ public partial class MultiplayerSimulationHarness : Node
 		}
 	}
 
-	private static int ResolveSnapshotSequence()
-	{
-		if (GameContext.World == null) return -1;
-		Entity worldEntity = ECSContext.WorldEntity;
-		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkState>(worldEntity)) return -1;
-		return GameContext.World.Get<NetworkState>(worldEntity).SnapshotSequence;
-	}
+	private static int ResolveSnapshotSequence() => GameContext.NetworkService?.LastAppliedSnapshotSequenceForDiagnostics ?? -1;
 
 	private static void SetPrivateProperty(object target, string propertyName, object value)
 	{

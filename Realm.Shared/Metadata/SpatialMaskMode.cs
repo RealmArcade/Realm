@@ -4,5 +4,6 @@ public enum SpatialMaskMode
 {
 	HeightGradient = 0,
 	RadialAxis = 1,
-	NormalFacing = 2
+	NormalFacing = 2,
+	RegionBox = 3
 }

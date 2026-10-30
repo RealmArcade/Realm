@@ -1,6 +1,5 @@
 using System.Runtime.InteropServices;
 using Realm.Ecs.Common;
-using Realm.MapAPI;
 
 namespace Realm.Ecs.Components.Combat;
 
@@ -41,7 +40,7 @@ public struct Attack
 		float cooldown,
 		float currentCooldown = 0,
 		float damageVariance = 0f,
-		string damageType = "normal",
+		string damageType = "physical",
 		float flatArmorPenetration = 0f,
 		float percentArmorPenetration = 0f,
 		float critChance = 0f,

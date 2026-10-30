@@ -129,10 +129,10 @@ public static partial class MapWorkspaceService
 
 	public static void TryReloadGroundTerrainTexturesSafeDomain(Action resetMapAction)
 	{
-		if (GameHost.Instance?.GroundTerrain == null) return;
+		if (GameContext.Host?.GroundTerrain == null) return;
 		try
 		{
-			GameHost.Instance.GroundTerrain.ReloadTerrainTextures(false);
+			GameContext.Host.GroundTerrain.ReloadTerrainTextures(false);
 		}
 		catch (Exception ex)
 		{
@@ -266,7 +266,7 @@ public static partial class MapWorkspaceService
 	public static string GetActiveMapDirectory()
 	{
 		string? mapDirectory = GameContext.MapStorageService?.CurrentMapDirectory;
-		if (GameHost.Instance != null && !string.IsNullOrEmpty(mapDirectory))
+		if (GameContext.Host != null && !string.IsNullOrEmpty(mapDirectory))
 			return mapDirectory;
 
 		return string.Empty;
@@ -277,7 +277,7 @@ public static partial class MapWorkspaceService
 		if (!string.IsNullOrEmpty(GameContext.EditorService._tempWorkspacePath))
 			return GameContext.EditorService._tempWorkspacePath;
 
-		return GetDefaultWorkspaceGlobalPath();
+		return string.Empty;
 	}
 
 	private static string _cachedRepoRoot;
@@ -328,6 +328,8 @@ public static partial class MapWorkspaceService
 	}
 
 	private const string MapApiDllRelativePath = "lib/Realm.MapAPI.dll";
+	private const string EcsDllRelativePath = "lib/Realm.Ecs.dll";
+	private const string EcsUsingItem = "<Using Include=\"Realm.Ecs\" />";
 
 	private static string FindBuiltApiDll()
 	{
@@ -350,7 +352,7 @@ public static partial class MapWorkspaceService
 		EnsureLldbScript(directory);
 		EnsureCsproj(directory, mapName);
 		EnsureMapScript(directory, mapName);
-		EnsureMeleeRules(directory);
+		EnsureSourceMapAttributionAttribute(directory);
 		EnsureWasmEntryPoint(directory);
 		EnsureMetadataJson(directory);
 		EnsureLicenseFile(directory);
@@ -562,6 +564,7 @@ public static partial class MapWorkspaceService
 		}
 
 		EnsureTrimmerRoot(csprojPath);
+		EnsureSourceMapGlobalUsing(csprojPath);
 
 		EnsureApiLib(directory);
 
@@ -697,6 +700,12 @@ public static partial class MapWorkspaceService
 	[GeneratedRegex(@"<HintPath>[^<]*Realm\.MapAPI\.dll</HintPath>", RegexOptions.Singleline)]
 	private static partial Regex HintPathMapApiRegex();
 
+	[GeneratedRegex(@"<Reference\s+Include=""Realm\.Ecs""\s*>.*?</Reference>", RegexOptions.Singleline)]
+	private static partial Regex ReferenceEcsRegex();
+
+	[GeneratedRegex(@"<HintPath>[^<]*Realm\.Ecs\.dll</HintPath>", RegexOptions.Singleline)]
+	private static partial Regex HintPathEcsRegex();
+
 	[GeneratedRegex(@"<IlcLlvmTarget>\s*([^<\s]+)\s*</IlcLlvmTarget>", RegexOptions.IgnoreCase)]
 	private static partial Regex IlcLlvmTargetRegex();
 
@@ -721,6 +730,13 @@ public static partial class MapWorkspaceService
 
 	private static string NormalizeMapApiReference(string csprojContent)
 	{
+		csprojContent = csprojContent.Replace("\r\n", "\n");
+
+		string mapApiReference = $"<Reference Include=\"Realm.MapAPI\">\n      <HintPath>{MapApiDllRelativePath}</HintPath>\n    </Reference>";
+		string ecsReference = $"<Reference Include=\"Realm.Ecs\">\n      <HintPath>{EcsDllRelativePath}</HintPath>\n    </Reference>";
+
+		bool hasEcsReference = ReferenceEcsRegex().IsMatch(csprojContent);
+
 		csprojContent = ProjectReferenceMapApiRegex().Replace(csprojContent,
 			$"<Reference Include=\"Realm.MapAPI\">\n      <HintPath>{MapApiDllRelativePath}</HintPath>\n    </Reference>");
 
@@ -729,6 +745,23 @@ public static partial class MapWorkspaceService
 
 		csprojContent = HintPathMapApiRegex().Replace(csprojContent,
 			$"<HintPath>{MapApiDllRelativePath}</HintPath>");
+
+		csprojContent = ReferenceEcsRegex().Replace(csprojContent, ecsReference);
+		csprojContent = HintPathEcsRegex().Replace(csprojContent, $"<HintPath>{EcsDllRelativePath}</HintPath>");
+
+		if (!hasEcsReference && csprojContent.Contains(mapApiReference, StringComparison.Ordinal))
+		{
+			csprojContent = csprojContent.Replace(mapApiReference, mapApiReference + "\n    " + ecsReference);
+		}
+
+		if (!csprojContent.Contains(EcsUsingItem, StringComparison.Ordinal))
+		{
+			string anchor = "<Using Include=\"Realm.Maps\" />";
+			if (csprojContent.Contains(anchor, StringComparison.Ordinal))
+				csprojContent = csprojContent.Replace(anchor, anchor + "\n    " + EcsUsingItem);
+			else if (csprojContent.Contains(ecsReference, StringComparison.Ordinal))
+				csprojContent = csprojContent.Replace(ecsReference, ecsReference + "\n    " + EcsUsingItem);
+		}
 
 		if (!csprojContent.Contains("TrimmerRootAssembly"))
 		{
@@ -791,7 +824,7 @@ public static partial class MapWorkspaceService
 		}
 
 		string dllName = Path.GetFileName(sourceDll);
-		string[] fileNames = { dllName, Path.ChangeExtension(dllName, ".pdb"), Path.ChangeExtension(dllName, ".xml"), "Realm.EditorAPI.xml" };
+		string[] fileNames = { dllName, Path.ChangeExtension(dllName, ".pdb"), Path.ChangeExtension(dllName, ".xml"), "Realm.Ecs.dll", "Realm.Ecs.pdb", "Realm.Ecs.xml", "Realm.EditorAPI.xml" };
 
 		foreach (var fileName in fileNames)
 		{
@@ -866,17 +899,28 @@ public static partial class MapWorkspaceService
 		}
 	}
 
-	public static void EnsureMeleeRules(string directory)
+	public static void EnsureSourceMapAttributionAttribute(string directory)
 	{
-		string meleePath = Path.Combine(directory, "MeleeRules.cs");
-		if (!File.Exists(meleePath) || new FileInfo(meleePath).Length == 0)
-		{
-			string template = GetTemplatePath("MeleeRules.cs");
-			if (File.Exists(template))
-			{
-				File.Copy(template, meleePath, true);
-			}
-		}
+		if (string.IsNullOrEmpty(directory)) return;
+
+		string sourcePath = GetTemplatePath("Attribution_SourceMapAttribute.cs");
+		if (!File.Exists(sourcePath)) return;
+
+		PathUtils.CopyFileClearingReadOnly(sourcePath, Path.Combine(directory, "Attribution_SourceMapAttribute.cs"));
+	}
+
+	private static void EnsureSourceMapGlobalUsing(string csprojPath)
+	{
+		if (string.IsNullOrEmpty(csprojPath) || !File.Exists(csprojPath)) return;
+
+		string content = File.ReadAllText(csprojPath);
+		if (content.Contains("<Using Include=\"Realm.Maps\"", StringComparison.OrdinalIgnoreCase)) return;
+
+		const string globalUsingItemGroup = "  <ItemGroup>\n    <Using Include=\"Realm.Maps\" />\n  </ItemGroup>\n";
+		int projectEnd = content.LastIndexOf("</Project>", StringComparison.OrdinalIgnoreCase);
+		content = projectEnd >= 0 ? content.Insert(projectEnd, globalUsingItemGroup) : content + globalUsingItemGroup;
+
+		File.WriteAllText(csprojPath, content);
 	}
 
 	public static void EnsureWasmEntryPoint(string directory)
@@ -1038,8 +1082,7 @@ please visit the URL above.
 			AllowedPixelError = 1.5f,
 			MaxTextureResolution = 1024,
 			ForceReDecimate = false,
-			CompressTextures = true,
-			GenerateLods = true
+			CompressTextures = true
 		};
 
 		foreach (string glbPath in glbFiles)
@@ -1328,8 +1371,7 @@ please visit the URL above.
 			AllowedPixelError = 1.5f,
 			MaxTextureResolution = 1024,
 			ForceReDecimate = false,
-			CompressTextures = true,
-			GenerateLods = true
+			CompressTextures = true
 		};
 
 		var unoptimizedList = GetUnoptimizedGlbFiles(glbFiles, optimizer);

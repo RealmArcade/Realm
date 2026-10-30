@@ -8,7 +8,7 @@ namespace Realm.Client.UI
 	{
 		public void ToggleFreeCamera()
 		{
-			var cam = GameHost.Instance?.MainCamera;
+			var cam = GameContext.Host?.MainCamera;
 			if (cam != null)
 			{
 				cam.ToggleFreeCamera();
@@ -29,11 +29,11 @@ namespace Realm.Client.UI
 
 		public void ToggleShadows()
 		{
-			if (GameHost.Instance != null)
+			if (GameContext.Host != null)
 			{
 				bool val = !GameContext.EditorService.EditorDisableShadows;
 				GameContext.EditorService.EditorDisableShadows = val;
-				GameHost.Instance.UpdateEditorShadows();
+				GameContext.Host.UpdateEditorShadows();
 				UpdateShadowsExternal(GameContext.EditorService.EditorDisableShadows);
 				ShowFeedback(GameContext.EditorService.EditorDisableShadows
 					? TranslationServer.Translate("Shadows: OFF")

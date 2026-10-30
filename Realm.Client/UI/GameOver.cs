@@ -19,10 +19,6 @@ namespace Realm.Client.UI;
 [GlobalClass]
 public partial class GameOver : Control
 {
-	public GameOver()
-	{
-	}
-
 	public override void _EnterTree()
 	{
 		Realm.Client.Services.GameContext.EnsureServices();
@@ -52,8 +48,14 @@ public partial class GameOver : Control
 	private Label _killsColHeader;
 	private Label _resourcesColHeader;
 
+	private const int OverviewTabIndex = 0;
+	private const int EconomyTabIndex = 1;
+	private const int MilitaryTabIndex = 2;
+	private const int FiveStarRatingOptionIndex = 0;
+	private const string UnknownAuthorContributorName = "Realm Builder";
+
 	private bool _isVictory = true;
-	private int _activeTab = 0; // 0=Overview, 1=Economy, 2=Military
+	private int _activeTab = OverviewTabIndex;
 
 	private readonly string[] _runes = { "ᚠ", "ᚢ", "ᚦ", "ᚨ", "ᚱ", "ᚲ", "ᚷ", "ᚹ", "ᚺ", "ᚾ", "ᛁ", "ᛃ", "ᛇ", "ᛈ", "ᛉ", "ᛊ", "ᛏ", "ᛒ", "ᛖ", "ᛗ", "ᛚ", "ᛜ", "ᛞ", "ᛟ" };
 
@@ -96,16 +98,14 @@ public partial class GameOver : Control
 
 		string mapName = GetActiveMapName();
 		double playtimeMinutes = 0.0;
-		if (GodotObject.IsInstanceValid(LobbyManager.Instance) && LobbyManager.Instance.GameSessionStartTime != null)
+		if (GodotObject.IsInstanceValid(GameContext.Lobby) && GameContext.Lobby.GameSessionStartTime != null)
 		{
-			playtimeMinutes = (DateTime.UtcNow - LobbyManager.Instance.GameSessionStartTime.Value).TotalMinutes;
+			playtimeMinutes = (DateTime.UtcNow - GameContext.Lobby.GameSessionStartTime.Value).TotalMinutes;
 		}
 
-		// Save local playtime statistics
 		AddLocalPlaytime(mapName, playtimeMinutes);
 
-		// Report baseline playtime metrics to server
-		_ = ReportMetricsAsync(mapName, playtimeMinutes, 0, true);
+		_ = ReportMetricsAsync(mapName, playtimeMinutes, stars: 0, isComplete: true);
 	}
 
 	private void ApplyThemeStyles()
@@ -163,9 +163,9 @@ public partial class GameOver : Control
 
 	private void SetupTabs()
 	{
-		SetupTabButton(_btnOverview, "OVERVIEW", 0);
-		SetupTabButton(_btnEconomy, "ECONOMY", 1);
-		SetupTabButton(_btnMilitary, "MILITARY", 2);
+		SetupTabButton(_btnOverview, "OVERVIEW", OverviewTabIndex);
+		SetupTabButton(_btnEconomy, "ECONOMY", EconomyTabIndex);
+		SetupTabButton(_btnMilitary, "MILITARY", MilitaryTabIndex);
 	}
 
 	private void SetupTabButton(Button btn, string text, int index)
@@ -201,10 +201,10 @@ public partial class GameOver : Control
 
 		btn.Pressed += () =>
 		{
-			UIManager.Instance.PlayClickSound();
+			GameContext.UserInterface.PlayClickSound();
 			SetTab(index);
 		};
-		btn.MouseEntered += () => UIManager.Instance.PlayHoverSound();
+		btn.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
 	}
 
 	private void SetTab(int tabIndex)
@@ -235,24 +235,24 @@ public partial class GameOver : Control
 
 		_btnClose.Pressed += () =>
 		{
-			UIManager.Instance.PlayClickSound();
+			GameContext.UserInterface.PlayClickSound();
 			if (GameContext.SessionState.IsTestMode)
 			{
 				GameContext.SessionState.IsTestMode = false;
 				GameContext.SessionState.ReturningFromTest = true;
-				if (LobbyManager.Instance != null)
+				if (GameContext.Lobby != null)
 				{
-					LobbyManager.Instance.Disconnect();
+					GameContext.Lobby.Disconnect();
 				}
 
-				UIManager.Instance.TransitionTo(GameScreen.MapEditorHUD);
+				GameContext.UserInterface.TransitionTo(GameScreen.MapEditorHUD);
 			}
 			else
 			{
-				UIManager.Instance.TransitionTo(GameScreen.MainMenu);
+				GameContext.UserInterface.TransitionTo(GameScreen.MainMenu);
 			}
 		};
-		_btnClose.MouseEntered += () => UIManager.Instance.PlayHoverSound();
+		_btnClose.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
 	}
 
 	private void SetupReportCopyrightButton()
@@ -274,10 +274,10 @@ public partial class GameOver : Control
 
 		_btnReportCopyright.Pressed += () =>
 		{
-			UIManager.Instance.PlayClickSound();
+			GameContext.UserInterface.PlayClickSound();
 			OS.ShellOpen("https://github.com/RealmArcade/Realm/issues/new?title=DMCA/Copyright+Infringement+Report");
 		};
-		_btnReportCopyright.MouseEntered += () => UIManager.Instance.PlayHoverSound();
+		_btnReportCopyright.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
 	}
 
 
@@ -285,9 +285,9 @@ public partial class GameOver : Control
 
 	private string GetActiveMapName()
 	{
-		if (LobbyManager.Instance != null && !string.IsNullOrEmpty(LobbyManager.Instance.ActiveMapName))
+		if (GameContext.Lobby != null && !string.IsNullOrEmpty(GameContext.Lobby.ActiveMapName))
 		{
-			return LobbyManager.Instance.ActiveMapName;
+			return GameContext.Lobby.ActiveMapName;
 		}
 
 		return "castle_td";
@@ -307,10 +307,10 @@ public partial class GameOver : Control
 
 		_btnWriteReview.Pressed += () =>
 		{
-			UIManager.Instance.PlayClickSound();
+			GameContext.UserInterface.PlayClickSound();
 			ShowReviewPopup();
 		};
-		_btnWriteReview.MouseEntered += () => UIManager.Instance.PlayHoverSound();
+		_btnWriteReview.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
 	}
 
 	private void ShowReviewPopup()
@@ -389,7 +389,7 @@ public partial class GameOver : Control
 		}
 		else
 		{
-			ratingOption.Select(0); // 5 stars default
+			ratingOption.Select(FiveStarRatingOptionIndex);
 		}
 
 		ratingHBox.AddChild(ratingOption);
@@ -450,14 +450,14 @@ public partial class GameOver : Control
 
 		btnCancel.Pressed += () =>
 		{
-			UIManager.Instance.PlayClickSound();
+			GameContext.UserInterface.PlayClickSound();
 			rootPopup.QueueFree();
 		};
-		btnCancel.MouseEntered += () => UIManager.Instance.PlayHoverSound();
+		btnCancel.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
 
 		btnSubmit.Pressed += async () =>
 		{
-			UIManager.Instance.PlayClickSound();
+			GameContext.UserInterface.PlayClickSound();
 			int selectedRating = ratingOption.GetSelectedId();
 			string commentText = commentsEdit.Text;
 
@@ -469,14 +469,14 @@ public partial class GameOver : Control
 			rootPopup.QueueFree();
 
 			double playtimeMin = 0.0;
-			if (GodotObject.IsInstanceValid(LobbyManager.Instance) && LobbyManager.Instance.GameSessionStartTime != null)
+			if (GodotObject.IsInstanceValid(GameContext.Lobby) && GameContext.Lobby.GameSessionStartTime != null)
 			{
-				playtimeMin = (DateTime.UtcNow - LobbyManager.Instance.GameSessionStartTime.Value).TotalMinutes;
+				playtimeMin = (DateTime.UtcNow - GameContext.Lobby.GameSessionStartTime.Value).TotalMinutes;
 			}
 
 			await ReportMetricsAsync(mapName, playtimeMin, selectedRating, true);
 		};
-		btnSubmit.MouseEntered += () => UIManager.Instance.PlayHoverSound();
+		btnSubmit.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
 	}
 
 	private void UpdateTabDisplay()
@@ -495,24 +495,24 @@ public partial class GameOver : Control
 			flatNorm.CornerRadiusBottomRight = 0;
 		}
 
-		_btnOverview.AddThemeStyleboxOverride("normal", _activeTab == 0 ? activeStyle : normStyle);
-		_btnEconomy.AddThemeStyleboxOverride("normal", _activeTab == 1 ? activeStyle : normStyle);
-		_btnMilitary.AddThemeStyleboxOverride("normal", _activeTab == 2 ? activeStyle : normStyle);
+		_btnOverview.AddThemeStyleboxOverride("normal", _activeTab == OverviewTabIndex ? activeStyle : normStyle);
+		_btnEconomy.AddThemeStyleboxOverride("normal", _activeTab == EconomyTabIndex ? activeStyle : normStyle);
+		_btnMilitary.AddThemeStyleboxOverride("normal", _activeTab == MilitaryTabIndex ? activeStyle : normStyle);
 
 
-		if (_activeTab == 0) // Overview
+		if (_activeTab == OverviewTabIndex)
 		{
 			_scoreColHeader.Text = Tr("TOTAL SCORE");
 			_killsColHeader.Text = Tr("UNITS KILLED");
 			_resourcesColHeader.Text = Tr("RESOURCES GATHERED") + "  ";
 		}
-		else if (_activeTab == 1) // Economy
+		else if (_activeTab == EconomyTabIndex)
 		{
 			_scoreColHeader.Text = Tr("GOLD GATHERED");
 			_killsColHeader.Text = Tr("WOOD GATHERED");
 			_resourcesColHeader.Text = Tr("TOTAL RESOURCES") + "  ";
 		}
-		else // Military
+		else
 		{
 			_scoreColHeader.Text = Tr("UNITS TRAINED");
 			_killsColHeader.Text = Tr("UNITS KILLED");
@@ -531,7 +531,7 @@ public partial class GameOver : Control
 
 		List<StatsRow> rows = new List<StatsRow>();
 
-		if (_activeTab == 0) // Overview
+		if (_activeTab == OverviewTabIndex)
 		{
 			rows.Add(new StatsRow { Player = "PLAYER 1", Faction = "HUMAN", Col3 = "1,314", Col4 = "29", Col5 = "3,000" });
 			rows.Add(new StatsRow { Player = "PLAYER 2", Faction = "HUMAN", Col3 = "592", Col4 = "24", Col5 = "2,500" });
@@ -540,7 +540,7 @@ public partial class GameOver : Control
 			rows.Add(new StatsRow { Player = "Muothea6", Faction = "UNDEAD", Col3 = "207", Col4 = "24", Col5 = "4,600" });
 			rows.Add(new StatsRow { Player = "CrawalMottros", Faction = "UNDEAD", Col3 = "163", Col4 = "2", Col5 = "1,000" });
 		}
-		else if (_activeTab == 1) // Economy
+		else if (_activeTab == EconomyTabIndex)
 		{
 			rows.Add(new StatsRow { Player = "PLAYER 1", Faction = "HUMAN", Col3 = "1,800", Col4 = "1,200", Col5 = "3,000" });
 			rows.Add(new StatsRow { Player = "PLAYER 2", Faction = "HUMAN", Col3 = "1,500", Col4 = "1,000", Col5 = "2,500" });
@@ -549,7 +549,7 @@ public partial class GameOver : Control
 			rows.Add(new StatsRow { Player = "Muothea6", Faction = "UNDEAD", Col3 = "2,600", Col4 = "2,000", Col5 = "4,600" });
 			rows.Add(new StatsRow { Player = "CrawalMottros", Faction = "UNDEAD", Col3 = "600", Col4 = "400", Col5 = "1,000" });
 		}
-		else // Military
+		else
 		{
 			rows.Add(new StatsRow { Player = "PLAYER 1", Faction = "HUMAN", Col3 = "42", Col4 = "29", Col5 = "12" });
 			rows.Add(new StatsRow { Player = "PLAYER 2", Faction = "HUMAN", Col3 = "35", Col4 = "24", Col5 = "18" });
@@ -618,7 +618,7 @@ public partial class GameOver : Control
 	private async Task ReportMetricsAsync(string mapName, double playtimeMinutes, int stars, bool isComplete)
 	{
 		string mapTitle = CleanMapName(mapName);
-		string mapVersion = LobbyManager.Instance?.ActiveMapVersion ?? "1.0.0";
+		string mapVersion = GameContext.Lobby?.ActiveMapVersion ?? "1.0.0";
 
 		ExtractManifestInfo(mapName, mapTitle, ref mapVersion, out string authorPubKey);
 
@@ -630,12 +630,12 @@ public partial class GameOver : Control
 			PlaytimeMinutes = playtimeMinutes,
 			Stars = stars,
 			IsCompleteGame = isComplete,
-			PlayerId = LobbyManager.Instance?.AuthenticatedUsername ?? "Anonymous",
-			AuthToken = LobbyManager.Instance?.AuthToken,
-			AuthProvider = LobbyManager.Instance?.AuthProvider
+			PlayerId = GameContext.Lobby?.AuthenticatedUsername ?? "Anonymous",
+			AuthToken = GameContext.Lobby?.AuthToken,
+			AuthProvider = GameContext.Lobby?.AuthProvider
 		};
 
-		string seedServerUrl = GodotObject.IsInstanceValid(LobbyManager.Instance) ? LobbyManager.Instance.RegistryServerUrl : ServersConfigHelper.GetDefaultServerUrl();
+		string seedServerUrl = GodotObject.IsInstanceValid(GameContext.Lobby) ? GameContext.Lobby.RegistryServerUrl : ServersConfigHelper.GetDefaultServerUrl();
 		try
 		{
 			using var httpClient = new HttpClient();
@@ -657,7 +657,7 @@ public partial class GameOver : Control
 
 			if (contributors.Count == 0)
 			{
-				contributors.Add("Realm Builder"); // fallback
+				contributors.Add(UnknownAuthorContributorName);
 			}
 
 			UpdatePlaytimeStats(contributors, playtimeMinutes);

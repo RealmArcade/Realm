@@ -39,9 +39,9 @@ public class TerrainTextureUndoAction : IEditorAction
 
 	private void UpdateGroundTerrain(TerrainTextureSnapshot snapshot, string tintHex)
 	{
-		if (GameHost.Instance == null || GameHost.Instance.GroundTerrain == null) return;
+		if (GameContext.Host == null || GameContext.Host.GroundTerrain == null) return;
 
-		GameHost.Instance.GroundTerrain.UpdateTextureParamDirect(
+		GameContext.Host.GroundTerrain.UpdateTextureParamDirect(
 			_textureFileName,
 			snapshot.TileMode,
 			snapshot.UvScale,
@@ -87,7 +87,7 @@ public class TerrainTextureUndoAction : IEditorAction
 			}
 
 			GameContext.MetadataService.SaveMetadata(metaPath, metadataRoot);
-			MapEditorHUD.Instance?.UpdateLastMetadataSyncTime(metaPath);
+			GameContext.MapEditorHud?.UpdateLastMetadataSyncTime(metaPath);
 		}
 		catch
 		{

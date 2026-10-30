@@ -5,16 +5,20 @@ using MemoryPack;
 using Realm.Client.Services;
 using Realm.Ecs.Replication;
 using Realm.Ecs.Services;
+using Realm.Shared.Network;
 
 namespace Realm.Client;
 
 public static class ShadowClientVerifier
 {
 	private static readonly Dictionary<int, ReplicatedStateMirror> _mirrors = new();
+	private static readonly SnapshotDecompressor MirrorDecoder = new();
 	private static int _verifiedBaselines;
 	private static int _replayedDeltaCount;
 	private static int _structuralFailures;
 	private static int _fingerprintFailures;
+
+	public static bool IsEnabled { get; set; }
 
 	public static int VerifiedBaselines => _verifiedBaselines;
 	public static int StructuralFailures => _structuralFailures;
@@ -32,13 +36,13 @@ public static class ShadowClientVerifier
 
 	public static void VerifyPayload(int peerId, byte[] payload, bool isBaseline)
 	{
-		if (!isBaseline) return;
+		if (!IsEnabled) return;
 		if (payload == null || payload.Length == 0) return;
 
 		WorldSnapshot snapshot;
 		try
 		{
-			snapshot = MemoryPackSerializer.Deserialize<WorldSnapshot>(payload);
+			snapshot = MemoryPackSerializer.Deserialize<WorldSnapshot>(MirrorDecoder.Decode(payload));
 		}
 		catch (Exception exception)
 		{
@@ -52,8 +56,6 @@ public static class ShadowClientVerifier
 			_mirrors[peerId] = mirror;
 		}
 
-		mirror.Clear();
-
 		_replayedDeltaCount += (snapshot.ComponentDeltas?.Count ?? 0) + (snapshot.AbilityStates?.Count ?? 0) + (snapshot.StaticTexts?.Count ?? 0);
 		var errors = new List<string>();
 		ReplicatedPayloadReplay.Replay(mirror, snapshot.ComponentDeltas, snapshot.AbilityStates, snapshot.StaticTexts, errors, snapshot.ColdPayloads);
@@ -62,8 +64,10 @@ public static class ShadowClientVerifier
 			RecordStructuralFailure(peerId, $"peer {peerId} {errors[i]}");
 		}
 
+		if (!isBaseline) return;
+
 		_verifiedBaselines++;
-		uint replayed = ReplicatedStateFingerprint.CombineWeatherState(mirror.ComputeFingerprint(), GameContext.World, ECSContext.WorldEntity);
+		uint replayed = ReplicatedStateFingerprint.CombineWeatherState(mirror.ComputeFingerprint(), GameContext.World, GameContext.Simulation.WorldEntity);
 		if (replayed == snapshot.StateFingerprint)
 		{
 			if (_verifiedBaselines == 1)

@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 using Godot;
-using Realm.MapAPI;
+using Realm.Client.Services;
 
 namespace Realm.Client.UI.InGame;
 
@@ -14,6 +14,8 @@ public class SummaryTablePanel
 	private readonly List<Label> _headerLabels = new();
 	private HSeparator? _separator;
 	private readonly List<HBoxContainer> _dataRows = new();
+	private readonly List<RichTextLabel> _dataRowNameCells = new();
+	private readonly List<string> _dataRowNameTexts = new();
 	private readonly List<List<Label>> _dataRowLabels = new();
 	private string? _lastTitle;
 
@@ -26,7 +28,7 @@ public class SummaryTablePanel
 
 	public void Update(InGameHUDViewModel viewModel)
 	{
-		bool allowSummary = InGameHUD.Instance?.IsHudElementVisible(HudElement.SummaryTable, true) ?? true;
+		bool allowSummary = GameContext.InGameHud?.IsHudElementVisible(HudElement.SummaryTable, true) ?? true;
 		bool visible = viewModel.SummaryTableVisible && allowSummary;
 		if (_summaryPanel.Visible != visible)
 		{
@@ -119,6 +121,21 @@ public class SummaryTablePanel
 		}
 	}
 
+	private static RichTextLabel CreatePlayerNameCell()
+	{
+		var nameCell = new RichTextLabel();
+		nameCell.Name = "CellName_RichTextLabel";
+		nameCell.BbcodeEnabled = true;
+		nameCell.ScrollActive = false;
+		nameCell.FitContent = true;
+		nameCell.AutowrapMode = TextServer.AutowrapMode.Off;
+		nameCell.CustomMinimumSize = new Vector2(100, 0);
+		nameCell.MouseFilter = Control.MouseFilterEnum.Ignore;
+		nameCell.AddThemeFontSizeOverride("normal_font_size", 12);
+		nameCell.AddThemeColorOverride("default_color", Colors.White);
+		return nameCell;
+	}
+
 	private void EnsureSeparator()
 	{
 		if (_separator == null || !GodotObject.IsInstanceValid(_separator))
@@ -131,7 +148,6 @@ public class SummaryTablePanel
 
 	private void UpdateDataRows(InGameHUDViewModel viewModel, int expectedMetrics)
 	{
-		int totalCols = 1 + expectedMetrics;
 		int rowIdx = 0;
 
 		foreach (var kvp in viewModel.SummaryTableRows)
@@ -142,7 +158,12 @@ public class SummaryTablePanel
 				newRow.Name = "NewRow_HBoxContainer";
 				newRow.AddThemeConstantOverride("separation", 15);
 				_rowsContainer.AddChild(newRow);
+
+				var nameCell = CreatePlayerNameCell();
+				newRow.AddChild(nameCell);
 				_dataRows.Add(newRow);
+				_dataRowNameCells.Add(nameCell);
+				_dataRowNameTexts.Add(string.Empty);
 				_dataRowLabels.Add(new List<Label>());
 			}
 
@@ -153,56 +174,42 @@ public class SummaryTablePanel
 				row.Visible = true;
 			}
 
-			while (labels.Count < totalCols)
+			string playerText = kvp.Key ?? string.Empty;
+			if (_dataRowNameTexts[rowIdx] != playerText)
 			{
-				int colIdx = labels.Count;
+				_dataRowNameCells[rowIdx].Text = playerText;
+				_dataRowNameTexts[rowIdx] = playerText;
+			}
+
+			while (labels.Count < expectedMetrics)
+			{
 				var cellLbl = new Label();
 				cellLbl.Name = "CellLbl_Label";
 				cellLbl.AddThemeFontSizeOverride("font_size", 12);
-				if (colIdx == 0)
-				{
-					cellLbl.AddThemeColorOverride("font_color", Colors.White);
-					cellLbl.CustomMinimumSize = new Vector2(100, 0);
-				}
-				else
-				{
-					cellLbl.CustomMinimumSize = new Vector2(80, 0);
-					cellLbl.HorizontalAlignment = HorizontalAlignment.Right;
-				}
+				cellLbl.CustomMinimumSize = new Vector2(80, 0);
+				cellLbl.HorizontalAlignment = HorizontalAlignment.Right;
 				row.AddChild(cellLbl);
 				labels.Add(cellLbl);
 			}
 
-			for (int c = 0; c < labels.Count; c++)
+			for (int metricIdx = 0; metricIdx < labels.Count; metricIdx++)
 			{
-				var cellLbl = labels[c];
-				bool colVisible = c < totalCols;
+				var cellLbl = labels[metricIdx];
+				bool colVisible = metricIdx < expectedMetrics;
 				if (cellLbl.Visible != colVisible)
 				{
 					cellLbl.Visible = colVisible;
 				}
 				if (!colVisible) continue;
 
-				if (c == 0)
+				string[] values = kvp.Value;
+				string cellText = (values != null && metricIdx < values.Length) ? (values[metricIdx] ?? string.Empty) : string.Empty;
+				if (cellLbl.Text != cellText)
 				{
-					string playerText = kvp.Key ?? string.Empty;
-					if (cellLbl.Text != playerText)
-					{
-						cellLbl.Text = playerText;
-					}
+					cellLbl.Text = cellText;
 				}
-				else
-				{
-					int metricIdx = c - 1;
-					string[] values = kvp.Value;
-					string cellText = (values != null && metricIdx < values.Length) ? (values[metricIdx] ?? string.Empty) : string.Empty;
-					if (cellLbl.Text != cellText)
-					{
-						cellLbl.Text = cellText;
-					}
-					Color desiredColor = (metricIdx == expectedMetrics - 1) ? Colors.White : UIStyle.ColorGoldDull;
-					cellLbl.AddThemeColorOverride("font_color", desiredColor);
-				}
+				Color desiredColor = (metricIdx == expectedMetrics - 1) ? Colors.White : UIStyle.ColorGoldDull;
+				cellLbl.AddThemeColorOverride("font_color", desiredColor);
 			}
 
 			rowIdx++;

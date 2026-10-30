@@ -18,8 +18,8 @@ public partial class MinimapOverlay : Control
 	private const float BuildingSquareEdge = 6.0f;
 
 	private static readonly Color EnemyColor = new Color(0.9f, 0.1f, 0.1f);
-	private static readonly Color OwnedColor = new Color(0.2f, 0.6f, 1.0f);
-	private static readonly Color FriendlyColor = new Color(1.0f, 1.0f, 1.0f);
+	private static readonly Color FriendlyColor = new Color(0.2f, 0.6f, 1.0f);
+	private static readonly Color SelfColor = new Color(1f, 1f, 1f);
 	private static readonly Color BuildingOutlineColor = new Color(0f, 0f, 0f, 0.6f);
 	private static readonly Color SelectedSpectatorColor = new Color(1.0f, 1.0f, 1.0f);
 	private static readonly Color SelectedEnemyColor = new Color(0.9f, 0.1f, 0.2f);
@@ -33,7 +33,7 @@ public partial class MinimapOverlay : Control
 
 	public override void _Draw()
 	{
-		if (GameHost.Instance == null) return;
+		if (GameContext.Host == null) return;
 
 		var size = Size;
 		var (physicalWidth, physicalDepth, _) = MinimapHelper.GetTerrainDimensions();
@@ -46,7 +46,7 @@ public partial class MinimapOverlay : Control
 
 	private void DrawRadarBackground(Vector2 size)
 	{
-		if (InGameHUD.Instance == null || InGameHUD.Instance.ShowMinimapTerrain) return;
+		if (GameContext.InGameHud == null || GameContext.InGameHud.ShowMinimapTerrain) return;
 
 		var radarTex = GetRadarTexture();
 		DrawTextureRect(radarTex, new Rect2(Vector2.Zero, size), false);
@@ -65,7 +65,7 @@ public partial class MinimapOverlay : Control
 
 	private void DrawAllUnits(Vector2 size, float physicalWidth, float physicalDepth)
 	{
-		var allUnits = GameHost.Instance?.AllUnits;
+		var allUnits = GameContext.Host?.AllUnits;
 		if (allUnits == null || allUnits.Count == 0) return;
 
 		var circleTexture = GetUnitCircleTexture();
@@ -100,7 +100,7 @@ public partial class MinimapOverlay : Control
 
 	private static bool IsUsingPlayerColors()
 	{
-		InGameHUD hud = InGameHUD.Instance;
+		InGameHUD hud = GameContext.InGameHud;
 		return hud != null && hud.MinimapColorScheme == MinimapColorScheme.PlayerColors;
 	}
 
@@ -111,17 +111,15 @@ public partial class MinimapOverlay : Control
 			return GetPlayerMinimapColor(playerIndex);
 		}
 
+		// A team is one colour on the map: the player this screen holds is white, that player's allies are blue, and
+		// anything hostile to it is red. A screen observing every player at once is nobody's enemy.
 		var perspective = GameContext.PerspectiveFilter;
-		if (perspective.ObservesAllPlayers)
+		if (!perspective.IsConfigured || perspective.ObservesAllPlayers)
 		{
 			return FriendlyColor;
 		}
 
-		if (perspective.ObservedPlayerIndex == playerIndex)
-		{
-			return OwnedColor;
-		}
-
+		if (perspective.ObservedPlayerIndex == playerIndex) return SelfColor;
 		return perspective.IsHostileToObserved(playerIndex) ? EnemyColor : FriendlyColor;
 	}
 
@@ -155,7 +153,7 @@ public partial class MinimapOverlay : Control
 
 	private Color GetPlayerMinimapColor(int playerIndex)
 	{
-		var playerList = LobbyManager.Instance?.PlayerList;
+		var playerList = GameContext.Lobby?.PlayerList;
 		if (playerList != null)
 		{
 			for (int i = 0; i < playerList.Count; i++)

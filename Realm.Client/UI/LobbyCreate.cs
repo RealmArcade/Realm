@@ -1,29 +1,23 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading.Tasks;
 using Godot;
 using Realm.Client.Network;
 using Realm.Shared;
 using static Godot.Control;
 using static Godot.CanvasItem;
 using Realm.Client.Utils;
+using Realm.Client.Services;
 
 namespace Realm.Client.UI;
 
 [GlobalClass]
 public partial class LobbyCreate : Control
 {
-	public LobbyCreate()
-	{
-	}
-
 	public override void _EnterTree()
 	{
 		Realm.Client.Services.GameContext.EnsureServices();
-	}
-
-	public override void _ExitTree()
-	{
 	}
 
 	private Panel _bgPanel;
@@ -44,6 +38,11 @@ public partial class LobbyCreate : Control
 
 	private Label _titleLabel;
 	private Label _mapSelectLabel;
+
+	private Panel? _hostProgressOverlay;
+	private ProgressBar? _hostProgressBar;
+	private Label? _hostProgressStatusLabel;
+	private double _hostProgressCeiling;
 
 	private List<MapBriefingDetails> _availableMaps = new List<MapBriefingDetails>();
 	private List<string> _availableVersions = new List<string>();
@@ -88,17 +87,17 @@ public partial class LobbyCreate : Control
 		_importMapButton.Name = "ImportMapButton";
 		_importMapButton.AddThemeConstantOverride("icon_max_width", 24);
 		_importMapButton.CustomMinimumSize = new Vector2(210, 44);
-		UIStyle.ApplyButtonText(_importMapButton, "📥 " + TranslationServer.Translate("IMPORT MAP (.ZIP / .7Z)"), 13);
+		UIStyle.ApplyButtonText(_importMapButton, "📥 " + TranslationServer.Translate("Import Map (.rmap)"), 13);
 		_importMapButton.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
 		_importMapButton.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
 		_importMapButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
 		_importMapButton.FocusMode = FocusModeEnum.None;
 		_importMapButton.MouseFilter = MouseFilterEnum.Stop;
-		_importMapButton.MouseEntered += () => UIManager.Instance?.PlayHoverSound();
+		_importMapButton.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 		_importMapButton.Pressed += () =>
 		{
-			UIManager.Instance?.PlayClickSound();
-			UIManager.Instance?.PromptAndImportMapArchive((mapTitle, mapVersion) => { RefreshAvailableMaps(mapTitle, mapVersion); });
+			GameContext.UserInterface?.PlayClickSound();
+			GameContext.UserInterface?.PromptAndImportMapArchive((mapTitle, mapVersion) => { RefreshAvailableMaps(mapTitle, mapVersion); });
 		};
 		mapSelectHBox.AddChild(_importMapButton);
 
@@ -119,7 +118,7 @@ public partial class LobbyCreate : Control
 		_versionSelectButton.Name = "VersionSelectButton";
 		_versionSelectButton.CustomMinimumSize = new Vector2(180, 44);
 		_versionSelectButton.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
-		_versionSelectButton.ItemSelected += (idx) => UIManager.Instance.PlayClickSound();
+		_versionSelectButton.ItemSelected += (idx) => GameContext.UserInterface.PlayClickSound();
 		_versionContainer.AddChild(_versionSelectButton);
 
 		contentContainer.AddChild(_versionContainer);
@@ -216,6 +215,28 @@ public partial class LobbyCreate : Control
 
 		_mapSelectButton.ItemSelected += (idx) => OnMapSelected(idx);
 		RefreshAvailableMaps();
+		SetProcess(false);
+	}
+
+	public override void _ExitTree()
+	{
+		if (GameContext.Lobby != null)
+		{
+			GameContext.Lobby.HostLobbyStageChanged -= OnHostLobbyStageChanged;
+		}
+
+		base._ExitTree();
+	}
+
+	public override void _Process(double delta)
+	{
+		if (_hostProgressBar == null || !GodotObject.IsInstanceValid(_hostProgressBar)) return;
+
+		double value = _hostProgressBar.Value;
+		if (value >= _hostProgressCeiling) return;
+
+		double creep = (_hostProgressCeiling - value) * Math.Min(1.0, delta * 1.5) + delta * 0.8;
+		_hostProgressBar.Value = Math.Min(_hostProgressCeiling, value + creep);
 	}
 
 	private void ApplyThemeStyles()
@@ -228,10 +249,10 @@ public partial class LobbyCreate : Control
 		_centralPanel.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 		_briefingPanel.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
 
-		UIStyle.ApplyTitle(_titleLabel, LobbyManager.Instance.IsSinglePlayer ? "SINGLE PLAYER" : "CREATE CUSTOM MATCH", 36);
+		UIStyle.ApplyTitle(_titleLabel, GameContext.Lobby.IsSinglePlayer ? "SINGLE PLAYER" : "CREATE CUSTOM MATCH", 36);
 		UIStyle.ApplyTitle(_mapSelectLabel, "SELECT MAP", 20);
 
-		Realm.Client.Utils.UIHelper.SetupPillarButton(_backButton, "◀", () => UIManager.Instance.TransitionTo(LobbyManager.Instance.IsSinglePlayer ? GameScreen.MainMenu : GameScreen.LobbyBrowser));
+		Realm.Client.Utils.UIHelper.SetupPillarButton(_backButton, "◀", () => GameContext.UserInterface.TransitionTo(GameContext.Lobby.IsSinglePlayer ? GameScreen.MainMenu : GameScreen.LobbyBrowser));
 		SetupCreateButton();
 
 		_mapSelectButton.AddThemeStyleboxOverride("normal", UIStyle.CreateDropdownStyle(false, false));
@@ -267,7 +288,7 @@ public partial class LobbyCreate : Control
 	{
 		_createButton.Flat = false;
 		_createButton.AddThemeConstantOverride("icon_max_width", 0);
-		UIStyle.ApplyButtonText(_createButton, LobbyManager.Instance.IsSinglePlayer ? "START GAME" : "CREATE LOBBY", 18);
+		UIStyle.ApplyButtonText(_createButton, GameContext.Lobby.IsSinglePlayer ? "START GAME" : "CREATE LOBBY", 18);
 
 		_createButton.AddThemeStyleboxOverride("normal", UIStyle.CreateCustomLobbyStartGameButton(false, false));
 		_createButton.AddThemeStyleboxOverride("hover", UIStyle.CreateCustomLobbyStartGameButton(true, false));
@@ -275,52 +296,173 @@ public partial class LobbyCreate : Control
 		_createButton.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 
 		_createButton.Pressed += OnCreatePressed;
-		_createButton.MouseEntered += () => UIManager.Instance.PlayHoverSound();
+		_createButton.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
 	}
+
 
 	private async void OnCreatePressed()
 	{
-		UIManager.Instance.PlayClickSound();
+		GameContext.UserInterface.PlayClickSound();
 
 		string selectedVersion = GetSelectedVersion();
 		var mapInfo = GetSelectedMapInfo();
 
 		if (IsMapBuildMismatch(mapInfo.BuildNumber))
 		{
-			UIManager.Instance.PlayWarningSound();
+			GameContext.UserInterface.PlayWarningSound();
 			ShowMapBuildMismatchModal(mapInfo.PathName, mapInfo.DisplayName, mapInfo.BuildNumber, RealmVersion.GameBuildNumber);
 			return;
 		}
 
-		if (LobbyManager.Instance.IsSinglePlayer)
+		await ContinueHosting(mapInfo.PathName, mapInfo.DisplayName, selectedVersion);
+	}
+
+	private async Task ContinueHosting(string pathName, string displayName, string selectedVersion)
+	{
+		if (GameContext.Lobby.IsSinglePlayer)
 		{
 			_createButton.Disabled = true;
-			LobbyManager.Instance.HostSinglePlayerGame(mapInfo.PathName, mapInfo.DisplayName, selectedVersion);
+			bool started = await GameContext.Lobby.HostSinglePlayerGame(pathName, displayName, selectedVersion);
 			_createButton.Disabled = false;
+
+			if (started) return;
+
+			GameContext.UserInterface.PlayWarningSound();
+			ShowHostErrorModal(GameContext.Lobby.LastHostError ?? Tr("Failed to start the match."));
 			return;
 		}
 
-		if (LobbyManager.Instance.LocalNatType == NatType.Symmetric)
+		if (GameContext.Lobby.LocalNatType == NatType.Symmetric)
 		{
-			UIManager.Instance.PlayWarningSound();
+			GameContext.UserInterface.PlayWarningSound();
 			ShowNatErrorModal();
 			return;
 		}
 
 		_createButton.Disabled = true;
-		bool success = await LobbyManager.Instance.HostLobbyAsync(mapInfo.PathName, mapInfo.DisplayName, selectedVersion);
+		ShowHostProgressOverlay();
+		GameContext.Lobby.HostLobbyStageChanged += OnHostLobbyStageChanged;
+		bool success = await GameContext.Lobby.HostLobbyAsync(pathName, displayName, selectedVersion);
+		GameContext.Lobby.HostLobbyStageChanged -= OnHostLobbyStageChanged;
+		HideHostProgressOverlay();
 		_createButton.Disabled = false;
 
 		if (success)
 		{
-			UIManager.Instance.TransitionTo(GameScreen.LobbyRoom);
+			GameContext.UserInterface.TransitionTo(GameScreen.LobbyRoom);
 		}
 		else
 		{
-			UIManager.Instance.PlayWarningSound();
+			GameContext.UserInterface.PlayWarningSound();
 			GD.PrintErr("[LobbyCreate] Failed to host lobby.");
-			string errorMsg = LobbyManager.Instance.LastHostError ?? Tr("Failed to host lobby on the registry server.");
+			string errorMsg = GameContext.Lobby.LastHostError ?? Tr("Failed to host lobby on the registry server.");
 			ShowHostErrorModal(errorMsg);
+		}
+	}
+
+	private void ShowHostProgressOverlay()
+	{
+		var overlay = new Panel();
+		overlay.Name = "HostProgressOverlay";
+		overlay.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+		overlay.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
+		overlay.ZIndex = 1100;
+		AddChild(overlay);
+
+		var center = new CenterContainer();
+		center.Name = "HostProgressCenter";
+		center.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+		overlay.AddChild(center);
+
+		var panel = new PanelContainer();
+		panel.Name = "HostProgressPanel";
+		panel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
+		panel.CustomMinimumSize = new Vector2(560, 0);
+		center.AddChild(panel);
+
+		var vbox = new VBoxContainer();
+		vbox.Name = "HostProgressVBox";
+		vbox.AddThemeConstantOverride("separation", 14);
+		panel.AddChild(vbox);
+
+		var titleLabel = new Label();
+		titleLabel.Name = "HostProgressTitle_Label";
+		UIStyle.ApplyTitle(titleLabel, TranslationServer.Translate("CREATING LOBBY"), 22);
+		titleLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+		titleLabel.HorizontalAlignment = HorizontalAlignment.Center;
+		vbox.AddChild(titleLabel);
+
+		var progressBar = new ProgressBar();
+		progressBar.Name = "HostProgressBar_ProgressBar";
+		progressBar.CustomMinimumSize = new Vector2(500, 20);
+		progressBar.MinValue = 0;
+		progressBar.MaxValue = 100;
+		progressBar.Value = 4;
+		progressBar.ShowPercentage = false;
+		vbox.AddChild(progressBar);
+
+		var statusLabel = new Label();
+		statusLabel.Name = "HostProgressStatus_Label";
+		statusLabel.Text = TranslationServer.Translate("Preparing the lobby...");
+		statusLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+		statusLabel.CustomMinimumSize = new Vector2(500, 0);
+		statusLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		statusLabel.HorizontalAlignment = HorizontalAlignment.Center;
+		statusLabel.AddThemeFontSizeOverride("font_size", 13);
+		statusLabel.AddThemeColorOverride("font_color", new Color(0.88f, 0.9f, 0.95f));
+		vbox.AddChild(statusLabel);
+
+		_hostProgressOverlay = overlay;
+		_hostProgressBar = progressBar;
+		_hostProgressStatusLabel = statusLabel;
+		_hostProgressCeiling = 6;
+		SetProcess(true);
+	}
+
+	private void HideHostProgressOverlay()
+	{
+		SetProcess(false);
+		_hostProgressBar = null;
+		_hostProgressStatusLabel = null;
+		_hostProgressCeiling = 0;
+
+		if (_hostProgressOverlay != null && GodotObject.IsInstanceValid(_hostProgressOverlay))
+		{
+			_hostProgressOverlay.QueueFree();
+		}
+
+		_hostProgressOverlay = null;
+	}
+
+	private void OnHostLobbyStageChanged(HostLobbyStage stage)
+	{
+		if (_hostProgressOverlay == null || !GodotObject.IsInstanceValid(_hostProgressOverlay)) return;
+		if (_hostProgressBar == null || _hostProgressStatusLabel == null) return;
+
+		(string statusText, double floor, double ceiling) = DescribeHostLobbyStage(stage);
+		if (string.IsNullOrEmpty(statusText)) return;
+
+		_hostProgressStatusLabel.Text = statusText;
+		_hostProgressBar.Value = Math.Max(_hostProgressBar.Value, floor);
+		_hostProgressCeiling = ceiling;
+	}
+
+	private static (string StatusText, double Floor, double Ceiling) DescribeHostLobbyStage(HostLobbyStage stage)
+	{
+		switch (stage)
+		{
+			case HostLobbyStage.TestingNetwork:
+				return (TranslationServer.Translate("Testing your connection and NAT type..."), 6, 25);
+			case HostLobbyStage.LoadingMap:
+				return (TranslationServer.Translate("Loading the map into the match server..."), 25, 60);
+			case HostLobbyStage.AdmittingHost:
+				return (TranslationServer.Translate("Entering the lobby as host..."), 60, 74);
+			case HostLobbyStage.OpeningPort:
+				return (TranslationServer.Translate("Opening your port for other players..."), 74, 88);
+			case HostLobbyStage.RegisteringLobby:
+				return (TranslationServer.Translate("Registering the lobby on the server..."), 88, 99);
+			default:
+				return (string.Empty, 0, 0);
 		}
 	}
 
@@ -359,7 +501,7 @@ public partial class LobbyCreate : Control
 		string promptText = Tr("This map is out of date. To host this match, download the matching game build or open the map in the Map Editor to upgrade it.");
 		string message = $"{string.Format(Tr("Map: {0}"), mapDisplayName)}\n{string.Format(Tr("Map Build: {0}"), mapBuildNumber)} | {string.Format(Tr("Current Build: {0}"), currentBuildNumber)}\n\n{promptText}";
 
-		UIManager.Instance?.ShowConfirmationDialog(message, () =>
+		GameContext.UserInterface?.ShowConfirmationDialog(message, () =>
 		{
 			if (versionExistsLocally)
 			{
@@ -373,15 +515,15 @@ public partial class LobbyCreate : Control
 
 	private void ShowNatErrorModal()
 	{
-		UIManager.Instance?.ShowPopupMessage("HOSTING ERROR", "STUN test determines you cannot host a game due to a Symmetric NAT router configuration. Please configure port forwarding or UPnP.", () =>
+		GameContext.UserInterface?.ShowPopupMessage("HOSTING ERROR", "STUN test determines you cannot host a game due to a Symmetric NAT router configuration. Please configure port forwarding or UPnP.", () =>
 		{
-			UIManager.Instance.TransitionTo(GameScreen.LobbyBrowser);
+			GameContext.UserInterface.TransitionTo(GameScreen.LobbyBrowser);
 		});
 	}
 
 	private void ShowHostErrorModal(string errorMessage)
 	{
-		UIManager.Instance?.ShowPopupMessage("LOBBY CREATION ERROR", errorMessage);
+		GameContext.UserInterface?.ShowPopupMessage("LOBBY CREATION ERROR", errorMessage);
 	}
 
 	private void RefreshAvailableMaps(string? selectMapName = null, string? selectMapVersion = null)
@@ -417,7 +559,7 @@ public partial class LobbyCreate : Control
 
 	private void OnMapSelected(long index, string? targetVersion)
 	{
-		UIManager.Instance?.PlayClickSound();
+		GameContext.UserInterface?.PlayClickSound();
 
 		if (index < 0 || index >= _availableMaps.Count)
 		{

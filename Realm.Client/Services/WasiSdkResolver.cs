@@ -8,21 +8,25 @@ namespace Realm.Client.Services;
 
 public static class WasiSdkResolver
 {
-	public static string ResolveWasiSdkPath()
+	public static string ResolveWasiSdkPath() => Resolve(askGodot: true);
+
+	public static string ResolveWasiSdkPathWithoutGodot() => Resolve(askGodot: false);
+
+	private static string Resolve(bool askGodot)
 	{
 		if (TryGetEnvironmentWasiPath(out string environmentPath))
 		{
 			return environmentPath;
 		}
 
-		if (TryGetGodotUserDataWasiPath(out string godotPath))
-		{
-			return godotPath;
-		}
-
 		if (TryGetAppDataWasiPath(out string appDataPath))
 		{
 			return appDataPath;
+		}
+
+		if (askGodot && TryGetGodotUserDataWasiPath(out string godotPath))
+		{
+			return godotPath;
 		}
 
 		if (TryGetEmbeddedWasiPath(out string embeddedPath))

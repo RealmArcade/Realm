@@ -202,7 +202,7 @@ public static class ItemGrantingUtility
 							maxRange: wMeta.Range,
 							attackInterval: wMeta.AttackCooldown > 0 ? wMeta.AttackCooldown : 1.5f,
 							projectileSpeed: wMeta.ProjectileSpeed > 0 ? wMeta.ProjectileSpeed : 20f,
-							damageType: !string.IsNullOrEmpty(wMeta.AttackType) ? wMeta.AttackType : "normal"
+							damageType: string.IsNullOrEmpty(wMeta.DamageType) ? "physical" : wMeta.DamageType
 						));
 
 						if (world.Has<Attack>(entity))
@@ -214,7 +214,7 @@ public static class ItemGrantingUtility
 								cooldown: wMeta.AttackCooldown > 0 ? wMeta.AttackCooldown : atk.Cooldown,
 								currentCooldown: atk.CurrentCooldown,
 								damageVariance: atk.DamageVariance,
-								damageType: !string.IsNullOrEmpty(wMeta.AttackType) ? wMeta.AttackType : atk.DamageType,
+								damageType: string.IsNullOrEmpty(wMeta.DamageType) ? atk.DamageType : wMeta.DamageType,
 								flatArmorPenetration: atk.FlatArmorPenetration,
 								percentArmorPenetration: atk.PercentArmorPenetration,
 								critChance: atk.CritChance,

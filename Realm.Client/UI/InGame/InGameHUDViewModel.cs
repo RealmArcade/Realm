@@ -21,38 +21,38 @@ public class InGameHUDViewModel
 {
 	private Entity GetTargetPlayerEntity()
 	{
-		GameHost tempQualifier = GameHost.Instance;
+		GameHost tempQualifier = GameContext.Host;
 		if ((tempQualifier != null ? GameContext.World : null) == null)
 			return Entity.Null;
 
 		if (IsPlayingNormally())
-			return GameHost.Instance.GetPlayerEntityForPlayerIndex(GameContext.PerspectiveFilter.ControlledPlayerIndex);
+			return GameContext.Host.GetPlayerEntityForPlayerIndex(GameContext.PerspectiveFilter.ControlledPlayerIndex);
 
-		if (ReplayPlaybackManager.Instance.IsPlayingReplay)
+		if (GameContext.ReplayPlayback.IsPlayingReplay)
 		{
-			int replayPeerId = ReplayPlaybackManager.Instance.SpectatorPerspective;
+			int replayPeerId = GameContext.ReplayPlayback.SpectatorPerspective;
 			if (replayPeerId == -1) return Entity.Null;
 			return GetSpectatedPlayer(replayPeerId);
 		}
 
-		int livePerspective = InGameHUD.Instance?.LiveSpectatorPerspective ?? -1;
+		int livePerspective = GameContext.InGameHud?.LiveSpectatorPerspective ?? -1;
 		if (livePerspective <= 0)
 			return Entity.Null;
 
-		return GameHost.Instance.GetPlayerEntityForPlayerIndex(livePerspective);
+		return GameContext.Host.GetPlayerEntityForPlayerIndex(livePerspective);
 	}
 
 	private bool IsPlayingNormally()
 	{
 		bool isSpectator = GameContext.PerspectiveFilter.IsSpectating;
-		bool isPlayingReplay = ReplayPlaybackManager.Instance.IsPlayingReplay;
+		bool isPlayingReplay = GameContext.ReplayPlayback.IsPlayingReplay;
 		return !isSpectator && !isPlayingReplay;
 	}
 
 	private Entity GetSpectatedPlayer(int targetPeerId)
 	{
 		var world = GameContext.World;
-		var worldEntity = ECSContext.WorldEntity;
+		var worldEntity = GameContext.Simulation.WorldEntity;
 		if (worldEntity == Entity.Null) throw new InvalidOperationException($"No player entity is mapped for peer {targetPeerId}.");
 		if (!world.IsAlive(worldEntity)) throw new InvalidOperationException($"No player entity is mapped for peer {targetPeerId}.");
 		if (!world.Has<NetworkMappingState>(worldEntity)) throw new InvalidOperationException($"No player entity is mapped for peer {targetPeerId}.");
@@ -68,7 +68,7 @@ public class InGameHUDViewModel
 	{
 		get
 		{
-			if (GameHost.Instance != null && GameContext.World != null)
+			if (GameContext.Host != null && GameContext.World != null)
 			{
 				var world = GameContext.World;
 				var player = GetTargetPlayerEntity();
@@ -82,7 +82,7 @@ public class InGameHUDViewModel
 		}
 		set
 		{
-			if (GameHost.Instance != null && GameContext.World != null)
+			if (GameContext.Host != null && GameContext.World != null)
 			{
 				var world = GameContext.World;
 				var player = GetTargetPlayerEntity();
@@ -99,7 +99,7 @@ public class InGameHUDViewModel
 	{
 		get
 		{
-			if (GameHost.Instance != null && GameContext.World != null)
+			if (GameContext.Host != null && GameContext.World != null)
 			{
 				var world = GameContext.World;
 				var player = GetTargetPlayerEntity();
@@ -113,7 +113,7 @@ public class InGameHUDViewModel
 		}
 		set
 		{
-			if (GameHost.Instance != null && GameContext.World != null)
+			if (GameContext.Host != null && GameContext.World != null)
 			{
 				var world = GameContext.World;
 				var player = GetTargetPlayerEntity();
@@ -130,7 +130,7 @@ public class InGameHUDViewModel
 	{
 		get
 		{
-			if (GameHost.Instance != null && GameContext.World != null)
+			if (GameContext.Host != null && GameContext.World != null)
 			{
 				var world = GameContext.World;
 				var player = GetTargetPlayerEntity();
@@ -144,7 +144,7 @@ public class InGameHUDViewModel
 		}
 		set
 		{
-			if (GameHost.Instance != null && GameContext.World != null)
+			if (GameContext.Host != null && GameContext.World != null)
 			{
 				var world = GameContext.World;
 				var player = GetTargetPlayerEntity();
@@ -161,7 +161,7 @@ public class InGameHUDViewModel
 	{
 		get
 		{
-			if (GameHost.Instance != null && GameContext.World != null)
+			if (GameContext.Host != null && GameContext.World != null)
 			{
 				var world = GameContext.World;
 				var player = GetTargetPlayerEntity();
@@ -175,7 +175,7 @@ public class InGameHUDViewModel
 		}
 		set
 		{
-			if (GameHost.Instance != null && GameContext.World != null)
+			if (GameContext.Host != null && GameContext.World != null)
 			{
 				var world = GameContext.World;
 				var player = GetTargetPlayerEntity();
@@ -202,12 +202,12 @@ public class InGameHUDViewModel
 	{
 		get
 		{
-			if (GameHost.Instance != null && GameContext.World != null && ECSContext.WorldEntity != Entity.Null)
+			if (GameContext.Host != null && GameContext.World != null && GameContext.Simulation.WorldEntity != Entity.Null)
 			{
 				var world = GameContext.World;
-				if (world.IsAlive(ECSContext.WorldEntity) && world.Has<CountdownState>(ECSContext.WorldEntity))
+				if (world.IsAlive(GameContext.Simulation.WorldEntity) && world.Has<CountdownState>(GameContext.Simulation.WorldEntity))
 				{
-					return world.Get<CountdownState>(ECSContext.WorldEntity).Active;
+					return world.Get<CountdownState>(GameContext.Simulation.WorldEntity).Active;
 				}
 			}
 
@@ -215,12 +215,12 @@ public class InGameHUDViewModel
 		}
 		set
 		{
-			if (GameHost.Instance != null && GameContext.World != null && ECSContext.WorldEntity != Entity.Null)
+			if (GameContext.Host != null && GameContext.World != null && GameContext.Simulation.WorldEntity != Entity.Null)
 			{
 				var world = GameContext.World;
-				if (world.IsAlive(ECSContext.WorldEntity) && world.Has<CountdownState>(ECSContext.WorldEntity))
+				if (world.IsAlive(GameContext.Simulation.WorldEntity) && world.Has<CountdownState>(GameContext.Simulation.WorldEntity))
 				{
-					ref var countdown = ref world.Get<CountdownState>(ECSContext.WorldEntity);
+					ref var countdown = ref world.Get<CountdownState>(GameContext.Simulation.WorldEntity);
 					countdown.Active = value;
 				}
 			}
@@ -231,12 +231,12 @@ public class InGameHUDViewModel
 	{
 		get
 		{
-			if (GameHost.Instance != null && GameContext.World != null && ECSContext.WorldEntity != Entity.Null)
+			if (GameContext.Host != null && GameContext.World != null && GameContext.Simulation.WorldEntity != Entity.Null)
 			{
 				var world = GameContext.World;
-				if (world.IsAlive(ECSContext.WorldEntity) && world.Has<CountdownState>(ECSContext.WorldEntity))
+				if (world.IsAlive(GameContext.Simulation.WorldEntity) && world.Has<CountdownState>(GameContext.Simulation.WorldEntity))
 				{
-					return world.Get<CountdownState>(ECSContext.WorldEntity).Duration;
+					return world.Get<CountdownState>(GameContext.Simulation.WorldEntity).Duration;
 				}
 			}
 
@@ -244,12 +244,12 @@ public class InGameHUDViewModel
 		}
 		set
 		{
-			if (GameHost.Instance != null && GameContext.World != null && ECSContext.WorldEntity != Entity.Null)
+			if (GameContext.Host != null && GameContext.World != null && GameContext.Simulation.WorldEntity != Entity.Null)
 			{
 				var world = GameContext.World;
-				if (world.IsAlive(ECSContext.WorldEntity) && world.Has<CountdownState>(ECSContext.WorldEntity))
+				if (world.IsAlive(GameContext.Simulation.WorldEntity) && world.Has<CountdownState>(GameContext.Simulation.WorldEntity))
 				{
-					ref var countdown = ref world.Get<CountdownState>(ECSContext.WorldEntity);
+					ref var countdown = ref world.Get<CountdownState>(GameContext.Simulation.WorldEntity);
 					countdown.Duration = value;
 				}
 			}
@@ -260,12 +260,12 @@ public class InGameHUDViewModel
 	{
 		get
 		{
-			if (GameHost.Instance != null && GameContext.World != null && ECSContext.WorldEntity != Entity.Null)
+			if (GameContext.Host != null && GameContext.World != null && GameContext.Simulation.WorldEntity != Entity.Null)
 			{
 				var world = GameContext.World;
-				if (world.IsAlive(ECSContext.WorldEntity) && world.Has<CountdownState>(ECSContext.WorldEntity))
+				if (world.IsAlive(GameContext.Simulation.WorldEntity) && world.Has<CountdownState>(GameContext.Simulation.WorldEntity))
 				{
-					return world.Get<CountdownState>(ECSContext.WorldEntity).Text;
+					return world.Get<CountdownState>(GameContext.Simulation.WorldEntity).Text;
 				}
 			}
 
@@ -273,12 +273,12 @@ public class InGameHUDViewModel
 		}
 		set
 		{
-			if (GameHost.Instance != null && GameContext.World != null && ECSContext.WorldEntity != Entity.Null)
+			if (GameContext.Host != null && GameContext.World != null && GameContext.Simulation.WorldEntity != Entity.Null)
 			{
 				var world = GameContext.World;
-				if (world.IsAlive(ECSContext.WorldEntity) && world.Has<CountdownState>(ECSContext.WorldEntity))
+				if (world.IsAlive(GameContext.Simulation.WorldEntity) && world.Has<CountdownState>(GameContext.Simulation.WorldEntity))
 				{
-					ref var countdown = ref world.Get<CountdownState>(ECSContext.WorldEntity);
+					ref var countdown = ref world.Get<CountdownState>(GameContext.Simulation.WorldEntity);
 					countdown.Text = value;
 				}
 			}
@@ -289,12 +289,12 @@ public class InGameHUDViewModel
 	{
 		get
 		{
-			if (GameHost.Instance != null && GameContext.World != null && ECSContext.WorldEntity != Entity.Null)
+			if (GameContext.Host != null && GameContext.World != null && GameContext.Simulation.WorldEntity != Entity.Null)
 			{
 				var world = GameContext.World;
-				if (world.IsAlive(ECSContext.WorldEntity) && world.Has<LeaderboardState>(ECSContext.WorldEntity))
+				if (world.IsAlive(GameContext.Simulation.WorldEntity) && world.Has<LeaderboardState>(GameContext.Simulation.WorldEntity))
 				{
-					LeaderboardBoards? boards = world.Get<LeaderboardState>(ECSContext.WorldEntity).Boards;
+					LeaderboardBoards? boards = world.Get<LeaderboardState>(GameContext.Simulation.WorldEntity).Boards;
 					if (boards != null)
 						return boards;
 				}
@@ -335,12 +335,12 @@ public class InGameHUDViewModel
 	{
 		get
 		{
-			if (GameHost.Instance != null && GameContext.World != null && ECSContext.WorldEntity != Entity.Null)
+			if (GameContext.Host != null && GameContext.World != null && GameContext.Simulation.WorldEntity != Entity.Null)
 			{
 				var world = GameContext.World;
-				if (world.IsAlive(ECSContext.WorldEntity) && world.Has<SummaryTableState>(ECSContext.WorldEntity))
+				if (world.IsAlive(GameContext.Simulation.WorldEntity) && world.Has<SummaryTableState>(GameContext.Simulation.WorldEntity))
 				{
-					return world.Get<SummaryTableState>(ECSContext.WorldEntity).Visible;
+					return world.Get<SummaryTableState>(GameContext.Simulation.WorldEntity).Visible;
 				}
 			}
 
@@ -348,12 +348,12 @@ public class InGameHUDViewModel
 		}
 		set
 		{
-			if (GameHost.Instance != null && GameContext.World != null && ECSContext.WorldEntity != Entity.Null)
+			if (GameContext.Host != null && GameContext.World != null && GameContext.Simulation.WorldEntity != Entity.Null)
 			{
 				var world = GameContext.World;
-				if (world.IsAlive(ECSContext.WorldEntity))
+				if (world.IsAlive(GameContext.Simulation.WorldEntity))
 				{
-					ref var st = ref EnsureSummaryTableState(world, ECSContext.WorldEntity);
+					ref var st = ref EnsureSummaryTableState(world, GameContext.Simulation.WorldEntity);
 					st.Visible = value;
 				}
 			}
@@ -364,12 +364,12 @@ public class InGameHUDViewModel
 	{
 		get
 		{
-			if (GameHost.Instance != null && GameContext.World != null && ECSContext.WorldEntity != Entity.Null)
+			if (GameContext.Host != null && GameContext.World != null && GameContext.Simulation.WorldEntity != Entity.Null)
 			{
 				var world = GameContext.World;
-				if (world.IsAlive(ECSContext.WorldEntity) && world.Has<SummaryTableState>(ECSContext.WorldEntity))
+				if (world.IsAlive(GameContext.Simulation.WorldEntity) && world.Has<SummaryTableState>(GameContext.Simulation.WorldEntity))
 				{
-					return world.Get<SummaryTableState>(ECSContext.WorldEntity).Title;
+					return world.Get<SummaryTableState>(GameContext.Simulation.WorldEntity).Title;
 				}
 			}
 
@@ -377,12 +377,12 @@ public class InGameHUDViewModel
 		}
 		set
 		{
-			if (GameHost.Instance != null && GameContext.World != null && ECSContext.WorldEntity != Entity.Null)
+			if (GameContext.Host != null && GameContext.World != null && GameContext.Simulation.WorldEntity != Entity.Null)
 			{
 				var world = GameContext.World;
-				if (world.IsAlive(ECSContext.WorldEntity))
+				if (world.IsAlive(GameContext.Simulation.WorldEntity))
 				{
-					ref var st = ref EnsureSummaryTableState(world, ECSContext.WorldEntity);
+					ref var st = ref EnsureSummaryTableState(world, GameContext.Simulation.WorldEntity);
 					st.Title = value;
 				}
 			}
@@ -393,12 +393,12 @@ public class InGameHUDViewModel
 	{
 		get
 		{
-			if (GameHost.Instance != null && GameContext.World != null && ECSContext.WorldEntity != Entity.Null)
+			if (GameContext.Host != null && GameContext.World != null && GameContext.Simulation.WorldEntity != Entity.Null)
 			{
 				var world = GameContext.World;
-				if (world.IsAlive(ECSContext.WorldEntity) && world.Has<SummaryTableState>(ECSContext.WorldEntity))
+				if (world.IsAlive(GameContext.Simulation.WorldEntity) && world.Has<SummaryTableState>(GameContext.Simulation.WorldEntity))
 				{
-					return world.Get<SummaryTableState>(ECSContext.WorldEntity).Headers ?? Array.Empty<string>();
+					return world.Get<SummaryTableState>(GameContext.Simulation.WorldEntity).Headers ?? Array.Empty<string>();
 				}
 			}
 
@@ -406,12 +406,12 @@ public class InGameHUDViewModel
 		}
 		set
 		{
-			if (GameHost.Instance != null && GameContext.World != null && ECSContext.WorldEntity != Entity.Null)
+			if (GameContext.Host != null && GameContext.World != null && GameContext.Simulation.WorldEntity != Entity.Null)
 			{
 				var world = GameContext.World;
-				if (world.IsAlive(ECSContext.WorldEntity))
+				if (world.IsAlive(GameContext.Simulation.WorldEntity))
 				{
-					ref var st = ref EnsureSummaryTableState(world, ECSContext.WorldEntity);
+					ref var st = ref EnsureSummaryTableState(world, GameContext.Simulation.WorldEntity);
 					st.Headers = value;
 				}
 			}
@@ -422,12 +422,12 @@ public class InGameHUDViewModel
 	{
 		get
 		{
-			if (GameHost.Instance != null && GameContext.World != null && ECSContext.WorldEntity != Entity.Null)
+			if (GameContext.Host != null && GameContext.World != null && GameContext.Simulation.WorldEntity != Entity.Null)
 			{
 				var world = GameContext.World;
-				if (world.IsAlive(ECSContext.WorldEntity))
+				if (world.IsAlive(GameContext.Simulation.WorldEntity))
 				{
-					ref var st = ref EnsureSummaryTableState(world, ECSContext.WorldEntity);
+					ref var st = ref EnsureSummaryTableState(world, GameContext.Simulation.WorldEntity);
 					return st.Rows;
 				}
 			}
@@ -461,16 +461,15 @@ public class InGameHUDViewModel
 	{
 		UpdateTactical(delta);
 		UpdateMacro(delta);
-		UpdateAmbient(delta);
 	}
 
 	public void UpdateTactical(double delta)
 	{
-		if (GameHost.Instance == null)
+		if (GameContext.Host == null)
 			return;
 
-		IsConnectionLost = GameHost.Instance.IsConnectionLost;
-		CycleSelectionIndex = GameHost.Instance.CycleSelectionIndex;
+		IsConnectionLost = GameContext.Host.IsConnectionLost;
+		CycleSelectionIndex = GameContext.Host.CycleSelectionIndex;
 	}
 
 	public void UpdateMacro(double delta)
@@ -479,16 +478,12 @@ public class InGameHUDViewModel
 		WoodPerSec = 1.0f * ResourceGatherMultiplier;
 		StonePerSec = 0.8f * ResourceGatherMultiplier;
 
-		if (GameHost.Instance == null)
+		if (GameContext.Host == null)
 			return;
 
 		UpdatePopulation();
 		UpdateClock();
 		UpdateIdleCount();
-	}
-
-	public void UpdateAmbient(double delta)
-	{
 	}
 
 	private void UpdatePopulation()
@@ -516,10 +511,10 @@ public class InGameHUDViewModel
 
 	private void UpdateClock()
 	{
-		float t = GameHost.Instance.GameElapsedTime;
+		float t = GameContext.Host.GameElapsedTime;
 		int mins = (int)(t / 60);
 		int secs = (int)(t % 60);
-		int phaseIdx = GameHost.Instance.TimeOfDayIndex;
+		int phaseIdx = GameContext.Host.TimeOfDayIndex;
 
 		if (mins == _lastClockMins && secs == _lastClockSecs && phaseIdx == _lastClockPhase)
 			return;
@@ -601,7 +596,7 @@ public class InGameHUDViewModel
 
 		InitializeUnitInfo(u, info, entityChanged);
 
-		if (GameHost.Instance == null || !GameContext.World.IsAlive(u.Entity))
+		if (GameContext.Host == null || !GameContext.World.IsAlive(u.Entity))
 			return;
 
 		var world = GameContext.World;
@@ -679,8 +674,8 @@ public class InGameHUDViewModel
 				info.Dps = atk.Damage / atk.Cooldown;
 		}
 
-		if (world.Has<Armor>(u.Entity))
-			info.Armor = world.Get<Armor>(u.Entity).Value;
+		if (world.Has<Resistances>(u.Entity))
+			info.Armor = world.Get<Resistances>(u.Entity).Physical;
 
 		if (world.Has<MovementStats>(u.Entity))
 			info.Speed = world.Get<MovementStats>(u.Entity).Speed;
@@ -749,17 +744,27 @@ public class InGameHUDViewModel
 	private void UpdateUnitInventory(EcsWorld world, Unit3D u, SelectedUnitInfo info)
 	{
 		info.InventoryItems.Clear();
+		info.CarriedConsumables.Clear();
 		info.HasInventory = world.Has<Inventory>(u.Entity);
-		if (!info.HasInventory)
-			return;
 
-		var inv = world.Get<Inventory>(u.Entity);
-		for (int itemIndex = 0; itemIndex < inv.Count; itemIndex++)
+		if (info.HasInventory)
 		{
-			string? itemId = inv.GetItemId(itemIndex);
-			if (itemId == null) continue;
-			info.InventoryItems[itemId] = inv.GetCharges(itemIndex);
+			var inv = world.Get<Inventory>(u.Entity);
+			for (int itemIndex = 0; itemIndex < inv.Count; itemIndex++)
+			{
+				string? itemId = inv.GetItemId(itemIndex);
+				if (itemId == null) continue;
+				info.InventoryItems[itemId] = inv.GetCharges(itemIndex);
+			}
 		}
+
+		if (!world.TryGet<ConsumableAttachment>(u.Entity, out ConsumableAttachment attachment)) return;
+		if (!attachment.HasDefinition) return;
+
+		string definitionId = attachment.GetDefinitionId();
+		if (definitionId.Length == 0) return;
+
+		info.CarriedConsumables.Add(new CarriedConsumableInfo(definitionId, attachment.GetSlotGroup()));
 	}
 
 	private void UpdateUnitProduction(EcsWorld world, Unit3D u, SelectedUnitInfo info)

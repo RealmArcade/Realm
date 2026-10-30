@@ -1,3 +1,4 @@
+using Realm.Shared.Maps;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -25,17 +26,16 @@ public partial class RuntimeTerrain : Node3D
 	public const uint TerrainCollisionLayer = 2;
 	public const uint TerrainVisualLayer = 1 | (1 << 2);
 	public const uint TerrainDecalCullMask = 1 << 2;
-	public static RuntimeTerrain Instance { get; protected set; }
 	public static bool IsMinimapRendering { get; set; } = false;
 
 	public override void _ExitTree()
 	{
-		if (Instance == this) Instance = null;
+		GameContext.UnregisterTerrain(this);
 	}
 
 	public RuntimeTerrain()
 	{
-		Instance = this;
+		GameContext.RegisterTerrain(this);
 	}
 
 	protected virtual bool IsRuntimeOnly => true;
@@ -64,12 +64,12 @@ public partial class RuntimeTerrain : Node3D
 
 	internal TerrainState GetTerrainStateSafe()
 	{
-		if (GameHost.Instance != null &&
+		if (GameContext.Host != null &&
 		    GameContext.World != null &&
-		    GameContext.World.IsAlive(ECSContext.WorldEntity) &&
-		    GameContext.World.Has<TerrainState>(ECSContext.WorldEntity))
+		    GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) &&
+		    GameContext.World.Has<TerrainState>(GameContext.Simulation.WorldEntity))
 		{
-			return GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
+			return GameContext.World.Get<TerrainState>(GameContext.Simulation.WorldEntity);
 		}
 
 		return new TerrainState(128, 128, DefaultQuadSize, DefaultCellSize, (TerrainCell[,])null, null, null, null);
@@ -80,8 +80,8 @@ public partial class RuntimeTerrain : Node3D
 		get => GetTerrainStateSafe().CellSize;
 		protected set
 		{
-			ref var state = ref GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
-			GameContext.World.Set(ECSContext.WorldEntity, new TerrainState(
+			ref var state = ref GameContext.World.Get<TerrainState>(GameContext.Simulation.WorldEntity);
+			GameContext.World.Set(GameContext.Simulation.WorldEntity, new TerrainState(
 				state.Width, state.Depth, state.QuadSize, value,
 				state.Cells, state.PathingCodes, state.NavMesh, state.NavMeshQuery
 			));
@@ -96,8 +96,8 @@ public partial class RuntimeTerrain : Node3D
 		get => GetTerrainStateSafe().Width;
 		protected set
 		{
-			ref var state = ref GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
-			GameContext.World.Set(ECSContext.WorldEntity, new TerrainState(
+			ref var state = ref GameContext.World.Get<TerrainState>(GameContext.Simulation.WorldEntity);
+			GameContext.World.Set(GameContext.Simulation.WorldEntity, new TerrainState(
 				value, state.Depth, state.QuadSize, state.CellSize,
 				state.Cells, state.PathingCodes, state.NavMesh, state.NavMeshQuery
 			));
@@ -109,8 +109,8 @@ public partial class RuntimeTerrain : Node3D
 		get => GetTerrainStateSafe().Depth;
 		protected set
 		{
-			ref var state = ref GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
-			GameContext.World.Set(ECSContext.WorldEntity, new TerrainState(
+			ref var state = ref GameContext.World.Get<TerrainState>(GameContext.Simulation.WorldEntity);
+			GameContext.World.Set(GameContext.Simulation.WorldEntity, new TerrainState(
 				state.Width, value, state.QuadSize, state.CellSize,
 				state.Cells, state.PathingCodes, state.NavMesh, state.NavMeshQuery
 			));
@@ -122,8 +122,8 @@ public partial class RuntimeTerrain : Node3D
 		get => GetTerrainStateSafe().QuadSize;
 		protected set
 		{
-			ref var state = ref GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
-			GameContext.World.Set(ECSContext.WorldEntity, new TerrainState(
+			ref var state = ref GameContext.World.Get<TerrainState>(GameContext.Simulation.WorldEntity);
+			GameContext.World.Set(GameContext.Simulation.WorldEntity, new TerrainState(
 				state.Width, state.Depth, value, state.CellSize,
 				state.Cells, state.PathingCodes, state.NavMesh, state.NavMeshQuery
 			));
@@ -139,25 +139,13 @@ public partial class RuntimeTerrain : Node3D
 	public const int PATHING_GROUND = (int)TerrainPathingFlags.Ground;
 	public const int PATHING_BUILDABLE = (int)TerrainPathingFlags.Buildable;
 
-	public static int GetDefaultPathingCode(WaterType waterMode)
-	{
-		switch (waterMode)
-		{
-			case WaterType.Shallow:
-				return PATHING_SHALLOW_WATER | PATHING_FLYING;
-			case WaterType.Deep:
-				return PATHING_DEEP_WATER | PATHING_FLYING;
-			case WaterType.None:
-			default:
-				return PATHING_GROUND | PATHING_BUILDABLE | PATHING_FLYING;
-		}
-	}
+	public static int GetDefaultPathingCode(WaterType waterMode) => TerrainPathing.DefaultPathingCodeByWaterType(waterMode);
 
 	public static int GetDefaultPathingCode(TerrainCell cell)
 	{
-		if (cell.WaterMode != WaterType.None && Instance != null)
+		if (cell.WaterMode != WaterType.None && GameContext.Terrain != null)
 		{
-			var prof = Instance.GetWaterProfile(cell.WaterProfileIndex);
+			var prof = GameContext.Terrain.GetWaterProfile(cell.WaterProfileIndex);
 			if (prof != null) return prof.DefaultPathingCode;
 		}
 
@@ -430,12 +418,12 @@ public partial class RuntimeTerrain : Node3D
 
 		private void UpdateTerrainState(TerrainCell[,] newCells, int[,] newPathingCodes)
 		{
-			if (GameHost.Instance != null &&
+			if (GameContext.Host != null &&
 			    GameContext.World != null &&
-			    GameContext.World.IsAlive(ECSContext.WorldEntity) &&
-			    GameContext.World.Has<TerrainState>(ECSContext.WorldEntity))
+			    GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) &&
+			    GameContext.World.Has<TerrainState>(GameContext.Simulation.WorldEntity))
 			{
-				ref var state = ref GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
+				ref var state = ref GameContext.World.Get<TerrainState>(GameContext.Simulation.WorldEntity);
 				
 				int targetWidth = state.Width;
 				int targetDepth = state.Depth;
@@ -451,7 +439,7 @@ public partial class RuntimeTerrain : Node3D
 					targetDepth = newPathingCodes.GetLength(1);
 				}
 
-				GameContext.World.Set(ECSContext.WorldEntity, new TerrainState(
+				GameContext.World.Set(GameContext.Simulation.WorldEntity, new TerrainState(
 					targetWidth, targetDepth, state.QuadSize, state.CellSize,
 					newCells ?? state.Cells, newPathingCodes ?? state.PathingCodes, state.NavMesh, state.NavMeshQuery
 				));
@@ -462,12 +450,12 @@ public partial class RuntimeTerrain : Node3D
 	{
 		get
 		{
-			if (GameHost.Instance != null &&
+			if (GameContext.Host != null &&
 			    GameContext.World != null &&
-			    GameContext.World.IsAlive(ECSContext.WorldEntity) &&
-			    GameContext.World.Has<TerrainState>(ECSContext.WorldEntity))
+			    GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) &&
+			    GameContext.World.Has<TerrainState>(GameContext.Simulation.WorldEntity))
 			{
-				ref var state = ref GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
+				ref var state = ref GameContext.World.Get<TerrainState>(GameContext.Simulation.WorldEntity);
 				if (state.Cells == null)
 				{
 					state.Cells = new TerrainCell[state.Width, state.Depth];
@@ -521,9 +509,6 @@ public partial class RuntimeTerrain : Node3D
 	public TerrainSplatWeights[,] SplatMap { get; set; }
 	public TerrainSplatWeights[,] CliffSplatMap { get; set; }
 
-	public float CliffJitterStrength { get; set; } = 1.0f;
-	public float CliffJitterScale { get; set; } = 0.20f;
-	public float CliffRimNoiseStrength { get; set; } = 0.30f;
 	public float BlendSoftness { get; set; } = 0.04f;
 	public float BlendNoiseStrength { get; set; } = 0.22f;
 	public float BlendNoiseScale { get; set; } = 0.22f;
@@ -532,12 +517,12 @@ public partial class RuntimeTerrain : Node3D
 	{
 		get
 		{
-			if (GameHost.Instance != null &&
+			if (GameContext.Host != null &&
 			    GameContext.World != null &&
-			    GameContext.World.IsAlive(ECSContext.WorldEntity) &&
-			    GameContext.World.Has<TerrainState>(ECSContext.WorldEntity))
+			    GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) &&
+			    GameContext.World.Has<TerrainState>(GameContext.Simulation.WorldEntity))
 			{
-				ref var state = ref GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
+				ref var state = ref GameContext.World.Get<TerrainState>(GameContext.Simulation.WorldEntity);
 				if (state.PathingCodes == null)
 				{
 					state.PathingCodes = new int[state.Width, state.Depth];
@@ -1240,8 +1225,6 @@ public partial class RuntimeTerrain : Node3D
 		_material.SetShaderParameter("grid_spacing", QuadSize);
 		_material.SetShaderParameter("terrain_size", new Vector2(Width * QuadSize, Depth * QuadSize));
 		_material.SetShaderParameter("texture_scale", 1.0f / QuadSize);
-		_material.SetShaderParameter("cliff_jitter_strength", CliffJitterStrength);
-		_material.SetShaderParameter("cliff_jitter_scale", CliffJitterScale);
 		_material.SetShaderParameter("blend_softness", BlendSoftness);
 		_material.SetShaderParameter("blend_noise_strength", BlendNoiseStrength);
 		_material.SetShaderParameter("blend_noise_scale", BlendNoiseScale);
@@ -1281,9 +1264,7 @@ public partial class RuntimeTerrain : Node3D
 				break;
 		}
 
-		_material.SetShaderParameter("cliff_jitter_strength", CliffJitterStrength);
 		_material.SetShaderParameter("blend_noise_strength", BlendNoiseStrength);
-		_material.SetShaderParameter("cliff_jitter_scale", CliffJitterScale);
 		_material.SetShaderParameter("blend_noise_scale", BlendNoiseScale);
 	}
 
@@ -1459,9 +1440,9 @@ public partial class RuntimeTerrain : Node3D
 
 	private void UpdateEcsTerrainSwatchConfig(int targetIndex, float heightScale, float heightOffset, float crevicePower, float normalScale)
 	{
-		if (GameHost.Instance != null && GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<TerrainState>(ECSContext.WorldEntity))
+		if (GameContext.Host != null && GameContext.World != null && GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) && GameContext.World.Has<TerrainState>(GameContext.Simulation.WorldEntity))
 		{
-			ref var ts = ref GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
+			ref var ts = ref GameContext.World.Get<TerrainState>(GameContext.Simulation.WorldEntity);
 			if (ts.SwatchConfigs == null || ts.SwatchConfigs.Length != TextureSwatchSlots.MaxSlots)
 			{
 				ts.SwatchConfigs = new TerrainSwatchConfig[TextureSwatchSlots.MaxSlots];
@@ -1829,9 +1810,9 @@ public partial class RuntimeTerrain : Node3D
 		_material.SetShaderParameter("swatch_height_params", swatchHeightParams);
 		_material.SetShaderParameter("swatch_albedo_params", swatchAlbedoParams);
 
-		if (GameHost.Instance != null && GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<TerrainState>(ECSContext.WorldEntity))
+		if (GameContext.Host != null && GameContext.World != null && GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) && GameContext.World.Has<TerrainState>(GameContext.Simulation.WorldEntity))
 		{
-			ref var ts = ref GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
+			ref var ts = ref GameContext.World.Get<TerrainState>(GameContext.Simulation.WorldEntity);
 			ts.SwatchConfigs = new TerrainSwatchConfig[TextureSwatchSlots.MaxSlots];
 			for (int i = 0; i < TextureSwatchSlots.MaxSlots; i++)
 			{
@@ -2186,6 +2167,12 @@ public partial class RuntimeTerrain : Node3D
 
 	private void UpdateAffectedChunks(bool rebuildPhysics, IEnumerable<Rect2I>? affectedRegions)
 	{
+		var cells = Cells;
+		if (cells != null)
+		{
+			_perimeterSkirtBottomY = ComputePerimeterSkirtBottomY(cells, Width, Depth);
+		}
+
 		foreach (var chunk in _chunks)
 		{
 			if (affectedRegions != null && !ChunkIntersectsAnyRegion(chunk, affectedRegions))
@@ -2332,10 +2319,6 @@ public partial class RuntimeTerrain : Node3D
 	{
 	}
 
-	public void UpdatePhysics(Rect2I? affectedRegion = null)
-	{
-	}
-
 	protected void UpdateChunkMesh(TerrainChunk chunk, bool rebuildPhysics)
 	{
 		var cells = Cells;
@@ -2404,8 +2387,132 @@ public partial class RuntimeTerrain : Node3D
 			for (int x = chunk.StartX; x < chunk.EndX; x++)
 			{
 				ProcessCellQuad(chunk, x, z, cells, w, d, quadSize, halfWQuadSize, halfDQuadSize, splatMap, cliffSplatMap, ref vertexIndex, ref indexIndex);
+				ProcessCellPerimeterSkirt(chunk, x, z, cells, w, d, quadSize, halfWQuadSize, halfDQuadSize, cliffSplatMap, ref vertexIndex, ref indexIndex);
 			}
 		}
+	}
+
+	private void ProcessCellPerimeterSkirt(
+		TerrainChunk chunk,
+		int x, int z,
+		TerrainCell[,] cells,
+		int w, int d,
+		float quadSize,
+		float halfWQuadSize,
+		float halfDQuadSize,
+		TerrainSplatWeights[,] cliffSplatMap,
+		ref int vertexIndex,
+		ref int indexIndex)
+	{
+		if (x != 0 && z != 0 && x != w - 1 && z != d - 1) return;
+
+		var cell = cells[x, z];
+		var (cliffS00, cliffS10, cliffS11, cliffS01, _) = GetSplatMapQuad(x, z, cliffSplatMap);
+		var (cliffTex0, cliffTex1, cliffTex2, cliffTex3) = GetQuadDominantTextures(cliffS00, cliffS10, cliffS11, cliffS01);
+
+		if (z == 0)
+		{
+			AddPerimeterSkirtWall(chunk,
+				GetWorldPosition(x, z, cell.Y_NW, halfWQuadSize, halfDQuadSize, quadSize),
+				GetWorldPosition(x + 1, z, cell.Y_NE, halfWQuadSize, halfDQuadSize, quadSize),
+				Vector3.Forward, cliffS00, cliffS10,
+				cliffTex0, cliffTex1, cliffTex2, cliffTex3, ref vertexIndex, ref indexIndex);
+		}
+
+		if (z == d - 1)
+		{
+			AddPerimeterSkirtWall(chunk,
+				GetWorldPosition(x + 1, z + 1, cell.Y_SE, halfWQuadSize, halfDQuadSize, quadSize),
+				GetWorldPosition(x, z + 1, cell.Y_SW, halfWQuadSize, halfDQuadSize, quadSize),
+				Vector3.Back, cliffS01, cliffS11,
+				cliffTex0, cliffTex1, cliffTex2, cliffTex3, ref vertexIndex, ref indexIndex);
+		}
+
+		if (x == 0)
+		{
+			AddPerimeterSkirtWall(chunk,
+				GetWorldPosition(x, z + 1, cell.Y_SW, halfWQuadSize, halfDQuadSize, quadSize),
+				GetWorldPosition(x, z, cell.Y_NW, halfWQuadSize, halfDQuadSize, quadSize),
+				Vector3.Left, cliffS01, cliffS00,
+				cliffTex0, cliffTex1, cliffTex2, cliffTex3, ref vertexIndex, ref indexIndex);
+		}
+
+		if (x == w - 1)
+		{
+			AddPerimeterSkirtWall(chunk,
+				GetWorldPosition(x + 1, z, cell.Y_NE, halfWQuadSize, halfDQuadSize, quadSize),
+				GetWorldPosition(x + 1, z + 1, cell.Y_SE, halfWQuadSize, halfDQuadSize, quadSize),
+				Vector3.Right, cliffS10, cliffS11,
+				cliffTex0, cliffTex1, cliffTex2, cliffTex3, ref vertexIndex, ref indexIndex);
+		}
+	}
+
+	private void AddPerimeterSkirtWall(
+		TerrainChunk chunk,
+		Vector3 topSource,
+		Vector3 topDestination,
+		Vector3 outwardNormal,
+		TerrainSplatWeights splatSource,
+		TerrainSplatWeights splatDestination,
+		int cliffTex0, int cliffTex1, int cliffTex2, int cliffTex3,
+		ref int vertexIndex,
+		ref int indexIndex)
+	{
+		int baseIndex = vertexIndex;
+		float bottomY = _perimeterSkirtBottomY;
+		Vector3 bottomSource = new Vector3(topSource.X, bottomY, topSource.Z);
+		Vector3 bottomDestination = new Vector3(topDestination.X, bottomY, topDestination.Z);
+
+		PopulatePerimeterSkirtVertex(chunk, topSource, outwardNormal, splatSource, cliffTex0, cliffTex1, cliffTex2, cliffTex3, ref vertexIndex);
+		PopulatePerimeterSkirtVertex(chunk, bottomSource, outwardNormal, splatSource, cliffTex0, cliffTex1, cliffTex2, cliffTex3, ref vertexIndex);
+		PopulatePerimeterSkirtVertex(chunk, bottomDestination, outwardNormal, splatDestination, cliffTex0, cliffTex1, cliffTex2, cliffTex3, ref vertexIndex);
+		PopulatePerimeterSkirtVertex(chunk, topDestination, outwardNormal, splatDestination, cliffTex0, cliffTex1, cliffTex2, cliffTex3, ref vertexIndex);
+
+		chunk.IndicesCache[indexIndex++] = baseIndex;
+		chunk.IndicesCache[indexIndex++] = baseIndex + 1;
+		chunk.IndicesCache[indexIndex++] = baseIndex + 2;
+		chunk.IndicesCache[indexIndex++] = baseIndex;
+		chunk.IndicesCache[indexIndex++] = baseIndex + 2;
+		chunk.IndicesCache[indexIndex++] = baseIndex + 3;
+	}
+
+	private void PopulatePerimeterSkirtVertex(
+		TerrainChunk chunk,
+		Vector3 position,
+		Vector3 normal,
+		TerrainSplatWeights splat,
+		int cliffTex0, int cliffTex1, int cliffTex2, int cliffTex3,
+		ref int vertexIndex)
+	{
+		var (weight0, weight1, weight2, weight3) = GetSplatWeightsForQuad(splat, cliffTex0, cliffTex1, cliffTex2, cliffTex3);
+
+		chunk.VerticesCache[vertexIndex] = position;
+		chunk.NormalsCache[vertexIndex] = normal;
+		chunk.UvsCache[vertexIndex] = new Vector2(position.X, position.Z);
+		chunk.ColorsCache[vertexIndex] = new Color(1.0f, 1.0f, 1.0f, 0.0f);
+
+		int splatIndex = vertexIndex * 4;
+		chunk.TexIndicesCache[splatIndex + 0] = cliffTex0;
+		chunk.TexIndicesCache[splatIndex + 1] = cliffTex1;
+		chunk.TexIndicesCache[splatIndex + 2] = cliffTex2;
+		chunk.TexIndicesCache[splatIndex + 3] = cliffTex3;
+
+		chunk.TexWeightsCache01[splatIndex + 0] = weight0;
+		chunk.TexWeightsCache01[splatIndex + 1] = weight1;
+		chunk.TexWeightsCache01[splatIndex + 2] = weight2;
+		chunk.TexWeightsCache01[splatIndex + 3] = weight3;
+
+		chunk.CliffIndicesCache[splatIndex + 0] = cliffTex0;
+		chunk.CliffIndicesCache[splatIndex + 1] = cliffTex1;
+		chunk.CliffIndicesCache[splatIndex + 2] = cliffTex2;
+		chunk.CliffIndicesCache[splatIndex + 3] = cliffTex3;
+
+		chunk.CliffWeightsCache[splatIndex + 0] = weight0;
+		chunk.CliffWeightsCache[splatIndex + 1] = weight1;
+		chunk.CliffWeightsCache[splatIndex + 2] = weight2;
+		chunk.CliffWeightsCache[splatIndex + 3] = weight3;
+
+		vertexIndex++;
 	}
 
 	private void BuildMeshArraysFromCache(TerrainChunk chunk, int vertexIndex, int indexIndex)
@@ -2678,8 +2785,43 @@ public partial class RuntimeTerrain : Node3D
 		int cellD = cells.GetLength(1);
 		if (x < 0 || x >= cellW || z < 0 || z >= cellD) return;
 
-		totalVertices += 12;
-		totalIndices += 12;
+		int perimeterEdgeCount = CountPerimeterEdges(x, z, w, d);
+
+		totalVertices += 12 + perimeterEdgeCount * 4;
+		totalIndices += 12 + perimeterEdgeCount * 6;
+	}
+
+	private const float PerimeterSkirtOvershoot = 0.5f;
+	private float _perimeterSkirtBottomY = -PerimeterSkirtOvershoot;
+
+	private float ComputePerimeterSkirtBottomY(TerrainCell[,] cells, int w, int d)
+	{
+		float lowestEdgeHeight = 0.0f;
+
+		for (int x = 0; x <= w; x++)
+		{
+			lowestEdgeHeight = Math.Min(lowestEdgeHeight, GetGridNodeHeight(x, 0, cells, w, d));
+			lowestEdgeHeight = Math.Min(lowestEdgeHeight, GetGridNodeHeight(x, d, cells, w, d));
+		}
+
+		for (int z = 0; z <= d; z++)
+		{
+			lowestEdgeHeight = Math.Min(lowestEdgeHeight, GetGridNodeHeight(0, z, cells, w, d));
+			lowestEdgeHeight = Math.Min(lowestEdgeHeight, GetGridNodeHeight(w, z, cells, w, d));
+		}
+
+		return lowestEdgeHeight - PerimeterSkirtOvershoot;
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private static int CountPerimeterEdges(int x, int z, int w, int d)
+	{
+		int edgeCount = 0;
+		if (z == 0) edgeCount++;
+		if (z == d - 1) edgeCount++;
+		if (x == 0) edgeCount++;
+		if (x == w - 1) edgeCount++;
+		return edgeCount;
 	}
 
 	private (int tex0, int tex1, int tex2, int tex3) GetQuadDominantTextures(ReadOnlySpan<TerrainSplatWeights> splats)
@@ -3247,21 +3389,60 @@ public partial class RuntimeTerrain : Node3D
 
 	public void BakeNavMesh()
 	{
-		GameHost tempQualifier = GameHost.Instance;
+		GameHost tempQualifier = GameContext.Host;
 		var world = (tempQualifier != null ? GameContext.World : null);
-		var worldEntity = GameHost.Instance != null ? ECSContext.WorldEntity : default;
+		var worldEntity = GameContext.Host != null ? GameContext.Simulation.WorldEntity : default;
 		if (world != null && world.IsAlive(worldEntity) && world.Has<TerrainState>(worldEntity))
 		{
 			ref var state = ref world.Get<TerrainState>(worldEntity);
-			var terrainNavMeshService = ECSContext.TerrainNavMeshService;
+			var terrainNavMeshService = GameContext.Simulation.TerrainNavMeshService;
 			terrainNavMeshService.BakeNavMesh(ref state);
 			world.Set(worldEntity, state);
 		}
 	}
 
+	public bool TrySampleHeight(float worldX, float worldZ, out float height)
+	{
+		height = 0.0f;
+
+		TerrainCell[,] cells = Cells;
+		if (cells == null) return false;
+
+		int cellWidth = cells.GetLength(0);
+		int cellDepth = cells.GetLength(1);
+		if (cellWidth <= 0 || cellDepth <= 0) return false;
+
+		float quadSize = QuadSize;
+		if (quadSize <= 0.0f) return false;
+
+		float localX = (worldX + (cellWidth / 2.0f) * quadSize) / quadSize;
+		float localZ = (worldZ + (cellDepth / 2.0f) * quadSize) / quadSize;
+
+		int x0 = Math.Clamp((int)MathF.Floor(localX), 0, cellWidth - 1);
+		int z0 = Math.Clamp((int)MathF.Floor(localZ), 0, cellDepth - 1);
+
+		float tx = Math.Clamp(localX - x0, 0.0f, 1.0f);
+		float tz = Math.Clamp(localZ - z0, 0.0f, 1.0f);
+
+		TerrainCell cell = cells[x0, z0];
+		height = (1 - tx) * (1 - tz) * cell.Y_NW
+		         + tx * (1 - tz) * cell.Y_NE
+		         + (1 - tx) * tz * cell.Y_SW
+		         + tx * tz * cell.Y_SE;
+		return true;
+	}
+
 	public void GetHeightAndNormal(float worldX, float worldZ, out float height, out Vector3 normal)
 	{
-		var cells = Cells;
+		SampleHeightAndNormal(Cells, QuadSize, worldX, worldZ, out height, out normal);
+	}
+
+	/// <summary>
+	///     Samples the terrain surface from the cells themselves. It takes the data rather than this node so a worker that
+	///     is only allowed to read managed state can place a unit on the ground without reaching a scene node at all.
+	/// </summary>
+	public static void SampleHeightAndNormal(TerrainCell[,]? cells, float quadSize, float worldX, float worldZ, out float height, out Vector3 normal)
+	{
 		if (cells == null)
 		{
 			height = 0.0f;
@@ -3278,11 +3459,18 @@ public partial class RuntimeTerrain : Node3D
 			return;
 		}
 
-		float halfW = (cellW / 2.0f) * QuadSize;
-		float halfD = (cellD / 2.0f) * QuadSize;
+		if (quadSize <= 0.0f)
+		{
+			height = 0.0f;
+			normal = Vector3.Up;
+			return;
+		}
 
-		float localX = (worldX + halfW) / QuadSize;
-		float localZ = (worldZ + halfD) / QuadSize;
+		float halfW = (cellW / 2.0f) * quadSize;
+		float halfD = (cellD / 2.0f) * quadSize;
+
+		float localX = (worldX + halfW) / quadSize;
+		float localZ = (worldZ + halfD) / quadSize;
 
 		int x0 = Math.Clamp((int)MathF.Floor(localX), 0, cellW - 1);
 		int z0 = Math.Clamp((int)MathF.Floor(localZ), 0, cellD - 1);
@@ -3296,10 +3484,10 @@ public partial class RuntimeTerrain : Node3D
 		float h01 = cell.Y_SW;
 		float h11 = cell.Y_SE;
 		height = (1 - tx) * (1 - tz) * h00 + tx * (1 - tz) * h10 + (1 - tx) * tz * h01 + tx * tz * h11;
-		Vector3 n00 = GetVertexNormal(x0, z0);
-		Vector3 n10 = GetVertexNormal(x0 + 1, z0);
-		Vector3 n01 = GetVertexNormal(x0, z0 + 1);
-		Vector3 n11 = GetVertexNormal(x0 + 1, z0 + 1);
+		Vector3 n00 = GetVertexNormal(x0, z0, cells, cellW, cellD, quadSize);
+		Vector3 n10 = GetVertexNormal(x0 + 1, z0, cells, cellW, cellD, quadSize);
+		Vector3 n01 = GetVertexNormal(x0, z0 + 1, cells, cellW, cellD, quadSize);
+		Vector3 n11 = GetVertexNormal(x0 + 1, z0 + 1, cells, cellW, cellD, quadSize);
 		normal = ((1 - tx) * (1 - tz) * n00 + tx * (1 - tz) * n10 + (1 - tx) * tz * n01 + tx * tz * n11).Normalized();
 	}
 

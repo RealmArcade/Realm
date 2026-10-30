@@ -14,15 +14,18 @@ public class ModelOptimizerService
 
 	public struct OptimizationOptions
 	{
+		public OptimizationOptions()
+		{
+		}
+
 		public float AllowedPixelError { get; set; } = 1.5f;
 		public float CreaseAngleDegrees { get; set; } = GlbMeshSmoother.DefaultCreaseAngleDegrees;
 		public int MaxTextureResolution { get; set; } = 1024;
 		public bool ForceReDecimate { get; set; } = false;
 		public LodTierConfig[] LodTiers { get; set; } = null;
+		public bool ReduceUvIslands { get; set; } = true;
+		public float UvChartMergeTolerance { get; set; } = UvChartReducer.DefaultTexCoordTolerance;
 
-		public OptimizationOptions()
-		{
-		}
 	}
 
 	public struct OptimizationResult
@@ -36,18 +39,17 @@ public class ModelOptimizerService
 		public bool DecimationSkipped;
 		public int TexturesProcessedCount;
 		public int ChosenTextureResolution;
+		public int UvIslandCountBefore;
+		public int UvIslandCountAfter;
+		public float UvChartMergeTolerance;
 		public string ErrorMessage;
-	}
-
-	public ModelOptimizerService()
-	{
 	}
 
 	public OptimizationResult OptimizeGlb(byte[] glbBytes, OptimizationOptions options = default)
 	{
 		if (options.MaxTextureResolution <= 0)
 		{
-			options.MaxTextureResolution = 1024;
+			options = new OptimizationOptions();
 		}
 
 		if (options.AllowedPixelError <= 0f)
@@ -60,7 +62,10 @@ public class ModelOptimizerService
 			AllowedPixelError = options.AllowedPixelError,
 			MaxTextureResolution = options.MaxTextureResolution,
 			ForceReDecimate = options.ForceReDecimate,
-			CompressTextures = true
+			CreaseAngleDegrees = options.CreaseAngleDegrees,
+			CompressTextures = true,
+			ReduceUvIslands = options.ReduceUvIslands,
+			UvChartMergeTolerance = options.UvChartMergeTolerance
 		};
 
 		var sharedOptimizer = new GlbOptimizer();
@@ -74,7 +79,10 @@ public class ModelOptimizerService
 			DecimationSkipped = sharedResult.DecimationSkipped,
 			OriginalTriangleCount = 0,
 			OptimizedTriangleCount = 0,
-			LodTriangleCounts = Array.Empty<int>(),
+			LodTriangleCounts = sharedResult.LodTriangleCounts ?? Array.Empty<int>(),
+			UvIslandCountBefore = sharedResult.UvIslandCountBefore,
+			UvIslandCountAfter = sharedResult.UvIslandCountAfter,
+			UvChartMergeTolerance = sharedResult.UvChartMergeTolerance,
 			ReductionRatio = sharedResult.OriginalSize > 0 ? ((float)sharedResult.OptimizedSize / sharedResult.OriginalSize) : 1.0f
 		};
 	}

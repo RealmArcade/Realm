@@ -144,9 +144,6 @@ public class ZstdAssetBundleHelper
 		return buffer;
 	}
 
-	/// <summary>
-	/// Streams asset files from disk directly into a Zstandard-compressed bundle output stream.
-	/// </summary>
 	public static async Task StreamAssetsToBundleAsync(
 		Stream outputStream,
 		IEnumerable<(string AssetKey, string FilePath, string? Metadata)> assetFileInfos,
@@ -197,9 +194,6 @@ public class ZstdAssetBundleHelper
 		await zstdStream.FlushAsync(cancellationToken);
 	}
 
-	/// <summary>
-	/// Decompresses and extracts asset bundle entries from an input stream on the fly.
-	/// </summary>
 	public static async Task ExtractBundleFromStreamAsync(
 		Stream inputStream,
 		Func<string, string?, byte[], Task> onAssetExtractedAsync,
@@ -225,9 +219,6 @@ public class ZstdAssetBundleHelper
 		}
 	}
 
-	/// <summary>
-	/// Asynchronously reads an exact count of bytes from a stream.
-	/// </summary>
 	public static async Task<byte[]> ReadExactBytesAsync(Stream stream, int count, CancellationToken cancellationToken = default)
 	{
 		if (count == 0) return Array.Empty<byte>();

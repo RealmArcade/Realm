@@ -33,7 +33,7 @@ public enum ProfileFunctionId
 	ProcessMiscTicks = 23,
 	TickScheduledTimers = 24,
 	TickZoneTriggers = 25,
-	TickGroundLoot = 26,
+
 	WasmRuntimeUpdate = 27,
 	UpdateBuildingPreview = 28,
 	RecordGameplayTick = 29,
@@ -42,7 +42,9 @@ public enum ProfileFunctionId
 	EnvironmentUpdateFog = 32,
 	EnvironmentUpdateWeatherParticles = 33,
 	Unit3DProcess = 34,
-	SimulationShroudStep = 35
+	SimulationShroudStep = 35,
+	AudioPositionalUpdate = 36,
+	UnitOcclusionOutlineTick = 38
 }
 
 public struct FunctionProfileMetric
@@ -126,7 +128,7 @@ public class PerformanceTrackingService
 		RegisterMetric(ProfileFunctionId.ProcessMiscTicks, "ProcessMiscTicks", "ProcessGameplayTick");
 		RegisterMetric(ProfileFunctionId.TickScheduledTimers, "TickScheduledTimers", "ProcessMiscTicks");
 		RegisterMetric(ProfileFunctionId.TickZoneTriggers, "TickZoneTriggers", "ProcessMiscTicks");
-		RegisterMetric(ProfileFunctionId.TickGroundLoot, "TickGroundLoot", "ProcessMiscTicks");
+
 		RegisterMetric(ProfileFunctionId.WasmRuntimeUpdate, "WasmRuntime.Update", "ProcessMiscTicks");
 		RegisterMetric(ProfileFunctionId.UpdateBuildingPreview, "UpdateBuildingPreview", "ProcessMiscTicks");
 		RegisterMetric(ProfileFunctionId.RecordGameplayTick, "RecordGameplayTick", "ProcessMiscTicks");
@@ -135,6 +137,8 @@ public class PerformanceTrackingService
 		RegisterMetric(ProfileFunctionId.EnvironmentUpdateFog, "EnvironmentService.UpdateEnvironmentalFog", "Godot.Process");
 		RegisterMetric(ProfileFunctionId.EnvironmentUpdateWeatherParticles, "EnvironmentService.UpdateWeatherParticlePosition", "Godot.Process");
 		RegisterMetric(ProfileFunctionId.Unit3DProcess, "Unit3D._Process", "Godot.Process");
+		RegisterMetric(ProfileFunctionId.AudioPositionalUpdate, "AudioService.UpdatePositionalVoices", "Godot.Process");
+		RegisterMetric(ProfileFunctionId.UnitOcclusionOutlineTick, "UnitOcclusionOutlineService.Tick", "Godot.Process");
 	}
 
 	private void RegisterMetric(ProfileFunctionId id, string name, string parentName)

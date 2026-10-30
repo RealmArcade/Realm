@@ -11,6 +11,7 @@ using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Meta;
 using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
+using Realm.Shared.Maps;
 using Realm.Shared.Textures;
 using Vector3 = System.Numerics.Vector3;
 
@@ -30,7 +31,9 @@ public partial class GameHost
 		var decalsData = GetDecalsData();
 		var coordinatesData = GetCoordinatesData();
 
-		string path = string.IsNullOrEmpty(customPath) ? Path.Combine(GameContext.MapStorageService.CurrentMapDirectory ?? MapWorkspaceService.GetDefaultWorkspaceGlobalPath(), "terrain.json") : customPath;
+		string currentMapDirectory = GameContext.MapStorageService.CurrentMapDirectory;
+		string defaultSaveDirectory = !string.IsNullOrEmpty(currentMapDirectory) ? currentMapDirectory : MapWorkspaceService.GetDefaultWorkspaceGlobalPath();
+		string path = string.IsNullOrEmpty(customPath) ? Path.Combine(defaultSaveDirectory, "terrain.json") : customPath;
 		string absolutePath = ProjectSettings.GlobalizePath(path);
 		GameContext.MapStorageService.CurrentMapDirectory = Path.GetDirectoryName(absolutePath);
 
@@ -46,7 +49,7 @@ public partial class GameHost
 			}
 			else
 			{
-				MapEditorHUD.Instance?.UpdateMapNameHeader();
+				GameContext.MapEditorHud?.UpdateMapNameHeader();
 			}
 		}
 	}
@@ -54,7 +57,7 @@ public partial class GameHost
 	private EditorSaveState CaptureEditorState()
 	{
 		var camera = MainCamera;
-		bool hasCameraState = GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<CameraState>(ECSContext.WorldEntity);
+		bool hasCameraState = GameContext.World != null && GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) && GameContext.World.Has<CameraState>(GameContext.Simulation.WorldEntity);
 
 		return new EditorSaveState
 		{
@@ -74,7 +77,7 @@ public partial class GameHost
 			HasCameraPosition = camera != null,
 			CameraPosition = camera != null ? camera.Position : default,
 			HasCameraState = hasCameraState,
-			CameraStateSnapshot = hasCameraState ? GameContext.World.Get<CameraState>(ECSContext.WorldEntity) : default
+			CameraStateSnapshot = hasCameraState ? GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity) : default
 		};
 	}
 
@@ -201,11 +204,11 @@ public partial class GameHost
 			savedState.SelectionEnd != null ? new System.Numerics.Vector3(savedState.SelectionEnd.Value.X, 0, savedState.SelectionEnd.Value.Y) : (System.Numerics.Vector3?)null
 		);
 
-		MapEditorHUD.Instance?.SelectToolFromHotkey(savedState.ActiveTool);
-		MapEditorHUD.Instance?.UpdateTextureLabels();
-		MapEditorHUD.Instance?.RefreshWaterSwatches();
-		MapEditorHUD.Instance?.UpdateMapNameHeader();
-		MapEditorHUD.Instance?.ShowFeedback(TranslationServer.Translate("Map saved"));
+		GameContext.MapEditorHud?.SelectToolFromHotkey(savedState.ActiveTool);
+		GameContext.MapEditorHud?.UpdateTextureLabels();
+		GameContext.MapEditorHud?.RefreshWaterSwatches();
+		GameContext.MapEditorHud?.UpdateMapNameHeader();
+		GameContext.MapEditorHud?.ShowFeedback(TranslationServer.Translate("Map saved"));
 	}
 
 	private void RestoreCameraAfterSave(EditorSaveState savedState)
@@ -215,15 +218,25 @@ public partial class GameHost
 			MainCamera.Position = savedState.CameraPosition;
 		}
 
-		bool hasCameraState = GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<CameraState>(ECSContext.WorldEntity);
+		bool hasCameraState = GameContext.World != null && GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) && GameContext.World.Has<CameraState>(GameContext.Simulation.WorldEntity);
 		if (savedState.HasCameraState && hasCameraState)
 		{
-			ref var state = ref GameContext.World.Get<CameraState>(ECSContext.WorldEntity);
+			ref var state = ref GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity);
 			state = savedState.CameraStateSnapshot;
 		}
 	}
 
 	public bool LoadMapFromFile(string customPath = "", bool terrainOnly = false, bool clearUnits = true, bool ensureGlbOptimized = true)
+	{
+		if (!BeginMapWorldLoad(customPath, terrainOnly, clearUnits, ensureGlbOptimized)) return false;
+		InstantiateMapSpawnRequests();
+		CompleteMapWorldLoad();
+		return true;
+	}
+
+	private bool _mapWorldLoadTerrainOnly;
+
+	private bool BeginMapWorldLoad(string customPath, bool terrainOnly, bool clearUnits, bool ensureGlbOptimized)
 	{
 		GameContext.SaveLoadService.IsLoadingMap = true;
 		try
@@ -234,7 +247,10 @@ public partial class GameHost
 				ClearAllUnits();
 			}
 
+			_mapWorldLoadTerrainOnly = terrainOnly;
+
 			bool success = GameContext.SaveLoadService.LoadMapFromFile(absolutePath, terrainOnly);
+			MatchLoadTrace.Mark("map_definition");
 			if (!success)
 			{
 				return HandleLoadFailure();
@@ -260,22 +276,10 @@ public partial class GameHost
 			ApplyTerrainStateView(terrain);
 			LoadSplatMapsView(absolutePath);
 			LoadCliffSplatMapsView(absolutePath);
+			MatchLoadTrace.Mark("splat_images");
 			GameContext.EditorService?.SetTerrainSplatMap(GroundTerrain.SplatMap, GroundTerrain.CliffSplatMap);
 			AlignTerrainSplatMapExternal();
-
-			if (!terrainOnly)
-			{
-				ProcessSpawnRequests();
-			}
-
-			GroundTerrain.UpdateMeshAndPhysics(true, true);
-			if (!GameContext.SessionState.IsMapEditorMode) GroundTerrain.ReloadTerrainTextures();
-			MapEditorHUD.Instance?.RegenerateMinimap();
-			RestoreLoadedCoordinates();
-
-			EditorHistoryManager.Clear();
-			EditorHasUnsavedChanges = false;
-			GameContext.EditorService?.ResetAllState();
+			NormalizeCameraBoundsToMap();
 
 			return true;
 		}
@@ -283,6 +287,76 @@ public partial class GameHost
 		{
 			GameContext.SaveLoadService.IsLoadingMap = false;
 		}
+	}
+
+	private void InstantiateMapSpawnRequests()
+	{
+		if (_mapWorldLoadTerrainOnly) return;
+
+		GameContext.SaveLoadService.IsLoadingMap = true;
+		try
+		{
+			ProcessSpawnRequests();
+		}
+		finally
+		{
+			GameContext.SaveLoadService.IsLoadingMap = false;
+		}
+	}
+
+	private void CompleteMapWorldLoad()
+	{
+		GameContext.SaveLoadService.IsLoadingMap = true;
+		try
+		{
+			GroundTerrain.UpdateMeshAndPhysics(true, true);
+			MatchLoadTrace.Mark("terrain_mesh");
+			if (!GameContext.SessionState.IsMapEditorMode)
+			{
+				GroundTerrain.ReloadTerrainTextures();
+				MatchLoadTrace.Mark("terrain_textures");
+			}
+			GameContext.MapEditorHud?.RegenerateMinimap();
+
+			RestoreLoadedCoordinates();
+
+			EditorHistoryManager.Clear();
+			EditorHasUnsavedChanges = false;
+			_editorObjectSelection.Clear();
+			GameContext.EditorService?.ResetAllState();
+		}
+		finally
+		{
+			GameContext.SaveLoadService.IsLoadingMap = false;
+		}
+	}
+
+	private bool BeginLobbyMapWorldLoad(string rawMapName)
+	{
+		string targetPath = ResolveCustomTerrainPath(rawMapName);
+
+		if (!string.IsNullOrEmpty(targetPath) && (targetPath.StartsWith("user://") || targetPath.StartsWith("res://")))
+			targetPath = ProjectSettings.GlobalizePath(targetPath);
+
+		if (string.IsNullOrEmpty(targetPath) || !File.Exists(targetPath)) return false;
+
+		// The assets are taken as they were published and downloaded: re-optimizing them here walks every file the map
+		// holds while the lobby screen waits, and changes nothing, because this machine's copy is the copy the authority
+		// published.
+		bool terrainOnly = _multiplayerActive && !Multiplayer.IsServer();
+		return BeginMapWorldLoad(targetPath, terrainOnly, true, false);
+	}
+
+	private void NormalizeCameraBoundsToMap()
+	{
+		if (GroundTerrain == null) return;
+
+		MapCameraBounds mapBounds = MapCameraBounds.FromTerrain(GroundTerrain.Width, GroundTerrain.Depth, GroundTerrain.QuadSize);
+		var currentBounds = new MapCameraBounds(EditorCameraBoundsLeft, EditorCameraBoundsRight, EditorCameraBoundsTop, EditorCameraBoundsBottom);
+		if (!currentBounds.Matches(MapCameraBounds.LegacyDefaults) || currentBounds.Matches(mapBounds)) return;
+
+		GameContext.EditorService.SetCameraBounds(GameContext.Simulation.WorldEntity, mapBounds);
+		RebuildCameraBoundsOverlay();
 	}
 
 	private string ResolveMapDirectory(string customPath, bool ensureGlbOptimized)
@@ -301,6 +375,7 @@ public partial class GameHost
 		InitializeDefaultTerrainState(defaultWidth, defaultDepth);
 		ResetGroundTerrainView(defaultWidth, defaultDepth);
 		ResetEditorUIView();
+		NormalizeCameraBoundsToMap();
 
 		return false;
 	}
@@ -322,11 +397,11 @@ public partial class GameHost
 
 	private void ResetEditorUIView()
 	{
-		if (MapEditorHUD.Instance != null)
+		if (GameContext.MapEditorHud != null)
 		{
-			MapEditorHUD.Instance.UpdateBlockModeExternal(true);
-			MapEditorHUD.Instance.UpdateBlockLevelHeightExternal(2.0f);
-			MapEditorHUD.Instance.UpdateCameraBoundsUI();
+			GameContext.MapEditorHud.UpdateBlockModeExternal(true);
+			GameContext.MapEditorHud.UpdateBlockLevelHeightExternal(2.0f);
+			GameContext.MapEditorHud.UpdateCameraBoundsUI();
 		}
 
 		UpdateCameraBoundsOverlayVisibility();
@@ -336,9 +411,9 @@ public partial class GameHost
 		GameContext.EditorService.ClearEditorCoordinates();
 		RebuildAllCoordinatePersistentMeshes();
 
-		if (MapEditorHUD.Instance != null)
+		if (GameContext.MapEditorHud != null)
 		{
-			MapEditorHUD.Instance.RefreshCoordinateListExternal();
+			GameContext.MapEditorHud.RefreshCoordinateListExternal();
 		}
 	}
 
@@ -369,9 +444,9 @@ public partial class GameHost
 
 	private void ApplyEditorStateView(EditorState editor)
 	{
-		MapEditorHUD.Instance?.UpdateBlockModeExternal(editor.BlockMode);
-		MapEditorHUD.Instance?.UpdateBlockLevelHeightExternal(editor.BlockLevelHeight);
-		MapEditorHUD.Instance?.UpdateCameraBoundsUI();
+		GameContext.MapEditorHud?.UpdateBlockModeExternal(editor.BlockMode);
+		GameContext.MapEditorHud?.UpdateBlockLevelHeightExternal(editor.BlockLevelHeight);
+		GameContext.MapEditorHud?.UpdateCameraBoundsUI();
 		UpdateCameraBoundsOverlayVisibility();
 		UpdateGridOverlayVisibility();
 		UpdatePathingOverlay();
@@ -379,19 +454,22 @@ public partial class GameHost
 		if (!string.IsNullOrEmpty(editor.SkyboxPath))
 		{
 			SetSkyboxTexture(editor.SkyboxPath);
-			MapEditorHUD.Instance?.UpdateSelectedSkyboxExternal(editor.SkyboxPath);
+			GameContext.MapEditorHud?.UpdateSelectedSkyboxExternal(editor.SkyboxPath);
 		}
 	}
 
 	private void ApplyTerrainStateView(TerrainState terrain)
 	{
-		int width = GroundTerrain.Width;
-		int depth = GroundTerrain.Depth;
-
 		if (terrain.Cells != null && GroundTerrain != null)
 		{
 			GroundTerrain.Cells = (TerrainCell[,])terrain.Cells.Clone();
 		}
+
+		// The size is read after the cells land, because the cells are what states the map's size. Reading it first on a
+		// ground built from nothing but its node returned the default size and dropped the pathing codes of every map
+		// that is not that size.
+		int width = GroundTerrain.Width;
+		int depth = GroundTerrain.Depth;
 
 		if (terrain.PathingCodes != null && terrain.PathingCodes.Length == width * depth && GroundTerrain != null)
 		{
@@ -406,39 +484,16 @@ public partial class GameHost
 		int splatW = GroundTerrain.Width + 1;
 		int splatD = GroundTerrain.Depth + 1;
 
-		string groundIndicesPath = Path.Combine(Path.GetDirectoryName(absolutePath), "terrain_splat_indices.exr");
-		string groundWeightsPath = Path.Combine(Path.GetDirectoryName(absolutePath), "terrain_splat_weights.exr");
-		bool groundSplatLoaded = false;
+		string directory = Path.GetDirectoryName(absolutePath);
+		TerrainSplatWeights[,]? splatMap = MapTerrainFiles.ReadSplatMap(directory, MapTerrainFiles.SplatPrefix, splatW, splatD);
 
-		if (File.Exists(groundIndicesPath) && File.Exists(groundWeightsPath))
-		{
-			groundSplatLoaded = TryLoadSplatMapImagesView(groundIndicesPath, groundWeightsPath, splatW, splatD);
-		}
-
-		if (!groundSplatLoaded)
+		if (splatMap == null)
 		{
 			LoadSplatMapFallbackView(splatW, splatD);
+			return;
 		}
-	}
 
-	private bool TryLoadSplatMapImagesView(string indicesPath, string weightsPath, int splatW, int splatD)
-	{
-		Image splatIdxImg = Image.LoadFromFile(indicesPath);
-		Image splatWgtImg = Image.LoadFromFile(weightsPath);
-		if (splatIdxImg == null || splatWgtImg == null) return false;
-
-		splatIdxImg.Convert(Image.Format.Rgbaf);
-		splatWgtImg.Convert(Image.Format.Rgbaf);
-		int sW = splatIdxImg.GetWidth();
-		int sD = splatIdxImg.GetHeight();
-		int wgtW = splatWgtImg.GetWidth();
-		int wgtD = splatWgtImg.GetHeight();
-
-		byte[] idxBytes = splatIdxImg.GetData();
-		byte[] wgtBytes = splatWgtImg.GetData();
-
-		GroundTerrain.SplatMap = GameContext.SaveLoadService.GenerateSplatMapFromImages(idxBytes, wgtBytes, splatW, splatD, sW, sD, wgtW, wgtD);
-		return true;
+		GroundTerrain.SplatMap = splatMap;
 	}
 
 	private void LoadSplatMapFallbackView(int splatW, int splatD)
@@ -452,53 +507,30 @@ public partial class GameHost
 
 		int targetCliffW = GroundTerrain.Width + 1;
 		int targetCliffD = GroundTerrain.Depth + 1;
-		string cliffIndicesPath = Path.Combine(Path.GetDirectoryName(absolutePath), "terrain_cliff_splat_indices.exr");
-		string cliffWeightsPath = Path.Combine(Path.GetDirectoryName(absolutePath), "terrain_cliff_splat_weights.exr");
+		string directory = Path.GetDirectoryName(absolutePath);
+		TerrainSplatWeights[,]? cliffSplatMap = MapTerrainFiles.ReadSplatMap(directory, MapTerrainFiles.CliffSplatPrefix, targetCliffW, targetCliffD);
 
-		bool loaded = false;
-		if (File.Exists(cliffIndicesPath) && File.Exists(cliffWeightsPath))
+		if (cliffSplatMap != null)
 		{
-			loaded = TryLoadCliffSplatMapImagesView(cliffIndicesPath, cliffWeightsPath, targetCliffW, targetCliffD);
+			GroundTerrain.CliffSplatMap = cliffSplatMap;
+			return;
 		}
 
-		if (!loaded)
+		GroundTerrain.CliffSplatMap = new TerrainSplatWeights[targetCliffW, targetCliffD];
+		for (int z = 0; z < targetCliffD; z++)
 		{
-			GroundTerrain.CliffSplatMap = new TerrainSplatWeights[targetCliffW, targetCliffD];
-			for (int z = 0; z < targetCliffD; z++)
+			for (int x = 0; x < targetCliffW; x++)
 			{
-				for (int x = 0; x < targetCliffW; x++)
-				{
-					GroundTerrain.CliffSplatMap[x, z] = TerrainSplatWeights.CreateSolid(1);
-				}
+				GroundTerrain.CliffSplatMap[x, z] = TerrainSplatWeights.CreateSolid(1);
 			}
 		}
-	}
-
-	private bool TryLoadCliffSplatMapImagesView(string indicesPath, string weightsPath, int targetCliffW, int targetCliffD)
-	{
-		Image cliffIdxImg = Image.LoadFromFile(indicesPath);
-		Image cliffWgtImg = Image.LoadFromFile(weightsPath);
-		if (cliffIdxImg == null || cliffWgtImg == null) return false;
-
-		cliffIdxImg.Convert(Image.Format.Rgbaf);
-		cliffWgtImg.Convert(Image.Format.Rgbaf);
-		int cW = cliffIdxImg.GetWidth();
-		int cD = cliffIdxImg.GetHeight();
-		int wgtW = cliffWgtImg.GetWidth();
-		int wgtD = cliffWgtImg.GetHeight();
-
-		byte[] idxBytes = cliffIdxImg.GetData();
-		byte[] wgtBytes = cliffWgtImg.GetData();
-
-		GroundTerrain.CliffSplatMap = GameContext.SaveLoadService.GenerateSplatMapFromImages(idxBytes, wgtBytes, targetCliffW, targetCliffD, cW, cD, wgtW, wgtD);
-		return true;
 	}
 
 	private void ProcessSpawnRequests()
 	{
 		ProcessUnitSpawnRequests();
 		ProcessPropSpawnRequests();
-		PropMultiMeshManager.Instance?.RebuildAll();
+		GameContext.PropMultiMesh?.RebuildAll();
 		ProcessDecalSpawnRequests();
 	}
 
@@ -527,7 +559,7 @@ public partial class GameHost
 	{
 		GameContext.EditorService.RestoreLoadedCoordinates();
 		RebuildAllCoordinatePersistentMeshes();
-		MapEditorHUD.Instance?.RefreshCoordinateListExternal();
+		GameContext.MapEditorHud?.RefreshCoordinateListExternal();
 	}
 
 

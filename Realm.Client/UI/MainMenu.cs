@@ -15,10 +15,6 @@ namespace Realm.Client.UI;
 [GlobalClass]
 public partial class MainMenu : Control
 {
-	public MainMenu()
-	{
-	}
-
 	public override void _EnterTree()
 	{
 		Realm.Client.Services.GameContext.EnsureServices();
@@ -120,8 +116,8 @@ public partial class MainMenu : Control
 		{
 			GameContext.SessionState.IsMapEditorMode = false;
 			GameContext.SessionState.IsTestMode = false;
-			LobbyManager.Instance.IsSinglePlayer = false;
-			UIManager.Instance.TransitionTo(GameScreen.LobbyBrowser);
+			GameContext.Lobby.IsSinglePlayer = false;
+			GameContext.UserInterface.TransitionTo(GameScreen.LobbyBrowser);
 		});
 		if (_singlePlayerButton != null)
 		{
@@ -129,33 +125,33 @@ public partial class MainMenu : Control
 			{
 				GameContext.SessionState.IsMapEditorMode = false;
 				GameContext.SessionState.IsTestMode = false;
-				if (LobbyManager.Instance != null) LobbyManager.Instance.IsSinglePlayer = true;
-				UIManager.Instance.TransitionTo(GameScreen.LobbyCreate);
+				if (GameContext.Lobby != null) GameContext.Lobby.IsSinglePlayer = true;
+				GameContext.UserInterface.TransitionTo(GameScreen.LobbyCreate);
 			}, "res://Assets/UI/menu_single_player_button.webp");
 			_singlePlayerButton.AddThemeConstantOverride("icon_max_width", 28);
 		}
 
-		SetupMenuButton(_mapDiscoveryButton, "MAP DISCOVERY", () => UIManager.Instance.TransitionTo(GameScreen.MapDiscovery), "res://Assets/UI/menu_discovery_button.webp");
+		SetupMenuButton(_mapDiscoveryButton, "MAP DISCOVERY", () => GameContext.UserInterface.TransitionTo(GameScreen.MapDiscovery), "res://Assets/UI/menu_discovery_button.webp");
 		if (_creatorDiscoveryButton != null)
 		{
-			SetupMenuButton(_creatorDiscoveryButton, "CREATOR DISCOVERY", () => UIManager.Instance.TransitionTo(GameScreen.CreatorDiscovery), "res://Assets/UI/menu_creator_button.webp");
+			SetupMenuButton(_creatorDiscoveryButton, "CREATOR DISCOVERY", () => GameContext.UserInterface.TransitionTo(GameScreen.CreatorDiscovery), "res://Assets/UI/menu_creator_button.webp");
 			_creatorDiscoveryButton.AddThemeConstantOverride("icon_max_width", 28);
 		}
 
 		SetupMenuButton(_mapEditorButton, "MAP EDITOR", () => OnMapEditorPressed(), "res://Assets/UI/menu_editor_button.webp");
 		if (_replaysButton != null)
 		{
-			SetupMenuButton(_replaysButton, "REPLAYS", () => UIManager.Instance.TransitionTo(GameScreen.ReplayList), "res://Assets/UI/menu_replays_button.webp");
+			SetupMenuButton(_replaysButton, "REPLAYS", () => GameContext.UserInterface.TransitionTo(GameScreen.ReplayList), "res://Assets/UI/menu_replays_button.webp");
 			_replaysButton.AddThemeConstantOverride("icon_max_width", 28);
 		}
 
 		if (_storageButton != null)
 		{
-			SetupMenuButton(_storageButton, "STORAGE", () => UIManager.Instance.TransitionTo(GameScreen.Storage), "res://Assets/UI/menu_storage_button.webp");
+			SetupMenuButton(_storageButton, "STORAGE", () => GameContext.UserInterface.TransitionTo(GameScreen.Storage), "res://Assets/UI/menu_storage_button.webp");
 			_storageButton.AddThemeConstantOverride("icon_max_width", 28);
 		}
 
-		SetupIconButton(_settingsButton, "OPTIONS", "res://Assets/UI/gear_icon.webp", () => UIManager.Instance.OpenSettingsOverlay(), new Vector2(22, 22));
+		SetupIconButton(_settingsButton, "OPTIONS", "res://Assets/UI/gear_icon.webp", () => GameContext.UserInterface.OpenSettingsOverlay(), new Vector2(22, 22));
 		SetupAvatarButton(_profileButton, () => ShowProfilePopup());
 		SetupButton(_quitButton, "QUIT GAME", () => GetTree().Quit());
 
@@ -541,7 +537,6 @@ public partial class MainMenu : Control
 		button.AddThemeStyleboxOverride("pressed", playPressedStyle);
 		button.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 
-		// Scale-up on hover for premium feel
 		ApplyButtonAnimations(button, 1.04f);
 
 		button.Pressed += () =>
@@ -562,12 +557,10 @@ public partial class MainMenu : Control
 		button.AddThemeStyleboxOverride("pressed", new StyleBoxEmpty());
 		button.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 
-		// Load custom textures
 		var frameNormal = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/profile_frame_normal.webp");
 		var nameplateNormal = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/profile_nameplate_normal.webp");
 		var backdropNormal = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/profile_backdrop_normal.webp");
 
-		// Fetch nodes
 		var backdrop = button.GetNode<TextureRect>("Backdrop");
 		var avatar = button.GetNode<TextureRect>("Avatar");
 		var frame = button.GetNode<TextureRect>("Frame");
@@ -595,11 +588,9 @@ public partial class MainMenu : Control
 		avatar.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
 		avatar.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 
-		// Set up dynamic player data
 		nameLabel.Text = "Horald_Topa";
 		levelLabel.Text = "LVL 50";
 
-		// Setup custom fonts & styles for labels
 		var labelFont = new SystemFont();
 		labelFont.FontNames = new string[] { "Cinzel Bold", "Cinzel", "Palatino Linotype", "Georgia", "serif" };
 		labelFont.FontWeight = 700;
@@ -789,12 +780,12 @@ public partial class MainMenu : Control
 
 	private void PlayHoverSound()
 	{
-		UIManager.Instance.PlayHoverSound();
+		GameContext.UserInterface.PlayHoverSound();
 	}
 
 	private void PlayClickSound()
 	{
-		UIManager.Instance.PlayClickSound();
+		GameContext.UserInterface.PlayClickSound();
 	}
 
 	private void ShowProfilePopup()
@@ -1084,21 +1075,21 @@ public partial class MainMenu : Control
 	{
 		if (OperatingSystem.IsWindows())
 		{
-			if (VSCodeManager.Instance.IsInstalling)
+			if (GameContext.VSCode.IsInstalling)
 			{
 				ShowInstallWaitingPopup();
 				return;
 			}
 
-			if (!VSCodeManager.Instance.IsInstalled())
+			if (!GameContext.VSCode.IsInstalled())
 			{
-				VSCodeManager.Instance.StartInstallIfNeeded();
+				GameContext.VSCode.StartInstallIfNeeded();
 				ShowInstallWaitingPopup();
 				return;
 			}
 		}
 
-		UIManager.Instance.TransitionTo(GameScreen.MapEditorHUD);
+		GameContext.UserInterface.TransitionTo(GameScreen.MapEditorHUD);
 	}
 
 	private void ShowInstallWaitingPopup()
@@ -1179,15 +1170,15 @@ public partial class MainMenu : Control
 
 		if (OperatingSystem.IsWindows())
 		{
-			if (VSCodeManager.Instance.IsInstalled())
+			if (GameContext.VSCode.IsInstalled())
 			{
 				_installWaitingPopup.QueueFree();
 				_installWaitingPopup = null;
-				UIManager.Instance.TransitionTo(GameScreen.MapEditorHUD);
+				GameContext.UserInterface.TransitionTo(GameScreen.MapEditorHUD);
 				return;
 			}
 
-			if (VSCodeManager.Instance.IsInstalling)
+			if (GameContext.VSCode.IsInstalling)
 			{
 				StartInstallWaitingPolling();
 			}

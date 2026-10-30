@@ -24,10 +24,6 @@ public class ModelOverrideService
 		return GameContext.RegistryService.GetRegistryCollisionCircleRatio(primaryKey);
 	}
 
-	public void UpdateMetadataModelOverrides(MapMetadata meta)
-	{
-	}
-
 	public Color GetModelColorTint(string primaryKey, string assetKey, Func<string, string> normalizeAssetKeyFunc)
 	{
 		if (TryGetModelColorTint(primaryKey, normalizeAssetKeyFunc, out Color c1)) return c1;
@@ -72,6 +68,7 @@ public class ModelOverrideService
 		{
 			var registry = GameContext.RegistryService;
 			if (registry.UnitRegistry.TryGetValue(primaryKey, out var meta)) return meta.DespillPlayerColor;
+			if (registry.BuildingRegistry.TryGetValue(primaryKey, out var buildingMeta)) return buildingMeta.DespillPlayerColor;
 			if (registry.ResourceRegistry.TryGetValue(primaryKey, out var resMeta)) return resMeta.DespillPlayerColor;
 			if (registry.PropRegistry.TryGetValue(primaryKey, out var propMeta)) return propMeta.DespillPlayerColor;
 		}
@@ -91,6 +88,7 @@ public class ModelOverrideService
 		{
 			var registry = GameContext.RegistryService;
 			if (registry.UnitRegistry.TryGetValue(primaryKey, out var meta)) return meta.NormalizeLuminance;
+			if (registry.BuildingRegistry.TryGetValue(primaryKey, out var buildingMeta)) return buildingMeta.NormalizeLuminance;
 			if (registry.ResourceRegistry.TryGetValue(primaryKey, out var resMeta)) return resMeta.NormalizeLuminance;
 			if (registry.PropRegistry.TryGetValue(primaryKey, out var propMeta)) return propMeta.NormalizeLuminance;
 		}
@@ -204,10 +202,10 @@ public class ModelOverrideService
 
 		if (!enable)
 		{
-			ModelEnableProceduralAnimations.Remove(norm);
+			ModelEnableProceduralAnimations[norm] = false;
 			if (!string.IsNullOrEmpty(normModel))
 			{
-				ModelEnableProceduralAnimations.Remove(normModel);
+				ModelEnableProceduralAnimations[normModel] = false;
 			}
 		}
 		else
@@ -270,8 +268,33 @@ public class ModelOverrideService
 			ProcessMetadataEntities(metadata.Templates.Buildings, 1.2f, b => b.TemplateID, b => b.ModelPath, b => b.YOffset, b => b.Scale, b => b.CollisionCircle, b => b.Brightness, b => b.Tint, b => b.DespillPlayerColor, b => b.NormalizeLuminance, normalizeModelAssetKey);
 			ProcessMetadataEntities(metadata.Templates.Props, 1.0f, p => p.TemplateID, p => p.ModelPath, p => p.YOffset, p => p.Scale, p => p.CollisionCircle, p => p.Brightness, p => p.Tint, p => p.DespillPlayerColor, p => p.NormalizeLuminance, normalizeModelAssetKey);
 			ProcessMetadataEntities(metadata.Templates.Units, 1.5f, u => u.TemplateID, u => u.ModelPath, u => u.YOffset, u => u.Scale, u => u.CollisionCircle, u => u.Brightness, u => u.Tint, u => u.DespillPlayerColor, u => u.NormalizeLuminance, normalizeModelAssetKey);
+
+			LoadProceduralAnimationOverrides(metadata.Templates.Props, p => p.TemplateID, p => p.ProceduralAnimation, p => p.EnableProceduralAnimation, normalizeModelAssetKey);
+			LoadProceduralAnimationOverrides(metadata.Templates.Resources, r => r.TemplateID, r => r.ProceduralAnimation, r => r.EnableProceduralAnimation, normalizeModelAssetKey);
+			LoadProceduralAnimationOverrides(metadata.Templates.Buildings, b => b.TemplateID, b => b.ProceduralAnimation, b => b.EnableProceduralAnimation, normalizeModelAssetKey);
+			LoadProceduralAnimationOverrides(metadata.Templates.Units, u => u.TemplateID, u => u.ProceduralAnimation, u => u.EnableProceduralAnimation, normalizeModelAssetKey);
 		}
 
+	}
+
+	private void LoadProceduralAnimationOverrides<T>(IEnumerable<T> items, Func<T, string> getId, Func<T, string?> getAnimationId, Func<T, bool?> getEnabled, Func<string, string> normalizeModelAssetKey)
+	{
+		if (items == null) return;
+
+		foreach (var item in items)
+		{
+			string templateId = getId(item);
+			if (string.IsNullOrEmpty(templateId)) continue;
+
+			string? animationId = getAnimationId(item);
+			if (string.IsNullOrWhiteSpace(animationId)) continue;
+
+			string normKey = normalizeModelAssetKey(templateId);
+			if (string.IsNullOrEmpty(normKey)) continue;
+
+			ModelProceduralAnimations[normKey] = animationId.Trim();
+			ModelEnableProceduralAnimations[normKey] = getEnabled(item) == true;
+		}
 	}
 
 	public void ProcessMetadataEntities<T>(IEnumerable<T> items, float defaultScale, Func<T, string> getId, Func<T, string> getModelPath, Func<T, float> getYOffset, Func<T, float> getScale, Func<T, float> getCollisionCircle, Func<T, float> getBrightness, Func<T, string> getTint, Func<T, bool> getDespillPlayerColor, Func<T, bool> getNormalizeLuminance, Func<string, string> normalizeModelAssetKey)

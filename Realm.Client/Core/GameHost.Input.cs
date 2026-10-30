@@ -17,8 +17,8 @@ using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
-using Realm.MapAPI;
 using Array = System.Array;
+using Realm.Shared.Abilities;
 
 namespace Realm.Client.Core;
 
@@ -32,15 +32,20 @@ public partial class GameHost
 
 	public override void _UnhandledInput(InputEvent @event)
 	{
-		if (SettingsMenu.IsOpen)
+		if (GameContext.IsSettingsMenuOpen)
 		{
+			if (@event is InputEventKey settingsToggleEvent && settingsToggleEvent.Pressed && !settingsToggleEvent.Echo && settingsToggleEvent.Keycode == Key.F12)
+			{
+				GameContext.Settings?.CancelSettings();
+			}
+
 			GetViewport().SetInputAsHandled();
 			return;
 		}
 
 		HandleGlobalMouseLeftClick(@event);
 
-		if (InGameHUD.Instance != null && InGameHUD.Instance.IsChatActive) return;
+		if (GameContext.InGameHud != null && GameContext.InGameHud.IsChatActive) return;
 
 		if (GameContext.SessionState.IsMapEditorMode)
 		{
@@ -79,7 +84,7 @@ public partial class GameHost
 				if (GameContext.SessionState.IsMapEditorMode && _is3DDragOperationActive)
 				{
 					_is3DDragOperationActive = false;
-					MapEditorHUD.Instance?.Set3DInteractionActive_ViewLogic(false);
+					GameContext.MapEditorHud?.Set3DInteractionActive_ViewLogic(false);
 				}
 			}
 		}
@@ -94,8 +99,19 @@ public partial class GameHost
 				if (editorMm.Position.DistanceTo(_leftClick3DStartPos) > 3.0f)
 				{
 					_is3DDragOperationActive = true;
-					MapEditorHUD.Instance?.Set3DInteractionActive_ViewLogic(true);
+					GameContext.MapEditorHud?.Set3DInteractionActive_ViewLogic(true);
 				}
+			}
+
+			if (_is3DDragOperationActive
+			    && ActiveEditorTool == EditorTool.SelectMove
+			    && !_isDraggingObject
+			    && GameContext.EditorService.ObjectMarqueeStart != null
+			    && !GameContext.EditorService.IsObjectMarqueeSelecting)
+			{
+				Vector2I marqueeStart = GameContext.EditorService.ObjectMarqueeStart.Value;
+				GameContext.EditorService.SetObjectMarquee(marqueeStart, marqueeStart, true);
+				UpdateEditorObjectMarqueeVisual();
 			}
 		}
 
@@ -109,7 +125,7 @@ public partial class GameHost
 				if (ActiveEditorTool == EditorTool.Measure)
 				{
 					ClearMeasureVisuals();
-					MapEditorHUD.Instance?.ClearMeasureTelemetry();
+					GameContext.MapEditorHud?.ClearMeasureTelemetry();
 					GetViewport().SetInputAsHandled();
 					return;
 				}
@@ -117,9 +133,9 @@ public partial class GameHost
 				if (ActiveEditorTool == EditorTool.PasteArea)
 				{
 					ActiveEditorTool = EditorTool.SelectArea;
-					MapEditorHUD.Instance?.SelectToolFromHotkey(EditorTool.SelectArea);
+					GameContext.MapEditorHud?.SelectToolFromHotkey(EditorTool.SelectArea);
 					HideSelectionHighlight();
-					MapEditorHUD.Instance?.ClearPasteTelemetry();
+					GameContext.MapEditorHud?.ClearPasteTelemetry();
 					GetViewport().SetInputAsHandled();
 					return;
 				}
@@ -128,13 +144,13 @@ public partial class GameHost
 				{
 					_is3DDragOperationActive = false;
 					_is3DLeftClickDown = false;
-					MapEditorHUD.Instance?.Set3DInteractionActive_ViewLogic(false);
+					GameContext.MapEditorHud?.Set3DInteractionActive_ViewLogic(false);
 				}
 
 				if (GameContext.EditorService.RampStartPos != null)
 				{
 					GameContext.EditorService.SetRampStartPos(null);
-					MapEditorHUD.Instance?.ShowFeedbackExternal("Ramp Cancelled");
+					GameContext.MapEditorHud?.ShowFeedbackExternal("Ramp Cancelled");
 					GetViewport().SetInputAsHandled();
 					return;
 				}
@@ -142,7 +158,7 @@ public partial class GameHost
 				if (SelectedEditorObject != null)
 				{
 					SelectedEditorObject = null;
-					MapEditorHUD.Instance?.ShowFeedbackExternal("Deselected Object");
+					GameContext.MapEditorHud?.ShowFeedbackExternal("Deselected Object");
 					GetViewport().SetInputAsHandled();
 					return;
 				}
@@ -157,10 +173,10 @@ public partial class GameHost
 
 			if (editorKeyEvent.Keycode == Key.H && ctrlPressed)
 			{
-				if (MapEditorHUD.Instance != null)
+				if (GameContext.MapEditorHud != null)
 				{
-					MapEditorHUD.Instance.Visible = !MapEditorHUD.Instance.Visible;
-					MapEditorHUD.Instance.ShowFeedbackExternal(MapEditorHUD.Instance.Visible ? "HUD: Visible" : "HUD: Hidden");
+					GameContext.MapEditorHud.Visible = !GameContext.MapEditorHud.Visible;
+					GameContext.MapEditorHud.ShowFeedbackExternal(GameContext.MapEditorHud.Visible ? "HUD: Visible" : "HUD: Hidden");
 				}
 
 				GetViewport().SetInputAsHandled();
@@ -169,7 +185,7 @@ public partial class GameHost
 
 			if (editorKeyEvent.Keycode == Key.H && !ctrlPressed && !shiftPressed)
 			{
-				MapEditorHUD.Instance?.ToggleHelpPanelExternal();
+				GameContext.MapEditorHud?.ToggleHelpPanelExternal();
 				GetViewport().SetInputAsHandled();
 				return;
 			}
@@ -177,7 +193,19 @@ public partial class GameHost
 			if (editorKeyEvent.Keycode == Key.M && !ctrlPressed && !shiftPressed)
 			{
 				EditorBlockMode = !EditorBlockMode;
-				MapEditorHUD.Instance?.UpdateBlockModeExternal(EditorBlockMode);
+				GameContext.MapEditorHud?.UpdateBlockModeExternal(EditorBlockMode);
+				GetViewport().SetInputAsHandled();
+				return;
+			}
+
+			if (editorKeyEvent.Keycode == Key.Q && !ctrlPressed && !shiftPressed && ActiveEditorTool == EditorTool.PaintTexture)
+			{
+				if (MainCamera is CameraControl paintFreeCameraCtrl && paintFreeCameraCtrl.IsFreeCamera)
+				{
+					return;
+				}
+
+				GameContext.MapEditorHud?.CyclePaintSurfaceMode();
 				GetViewport().SetInputAsHandled();
 				return;
 			}
@@ -189,34 +217,32 @@ public partial class GameHost
 					return;
 				}
 
-				MapEditorHUD.Instance?.SelectToolFromHotkey(EditorTool.SelectMove);
+				GameContext.MapEditorHud?.SelectToolFromHotkey(EditorTool.SelectMove);
 				GetViewport().SetInputAsHandled();
 				return;
 			}
 
 			if (editorKeyEvent.Keycode == Key.I && !ctrlPressed && !shiftPressed)
 			{
-				MapEditorHUD.Instance?.SelectToolFromHotkey(EditorTool.Eyedropper);
+				GameContext.MapEditorHud?.SelectToolFromHotkey(EditorTool.Eyedropper);
 				GetViewport().SetInputAsHandled();
 				return;
 			}
 
 			if (editorKeyEvent.Keycode == Key.Delete)
 			{
-				if (ActiveEditorTool == EditorTool.SelectMove && GodotObject.IsInstanceValid(SelectedEditorObject))
+				if (ActiveEditorTool == EditorTool.SelectMove && SelectedEditorObjectCount > 0)
 				{
-					var target = SelectedEditorObject;
-					SelectedEditorObject = null;
-					var action = DeleteObjectAtWithUndo(target, (target as Node3D).Position);
-					if (action != null)
+					var (success, deletedCount) = DeleteSelectedObjects();
+					if (success)
 					{
-						EditorHistoryManager.RecordAction(action);
-						MapEditorHUD.Instance?.ShowFeedbackExternal("Deleted Object");
-						EditorHasUnsavedChanges = true;
+						string deletedMessage = deletedCount > 1
+							? string.Format(LocalizationManager.Translate("{0} Objects Deleted"), deletedCount)
+							: LocalizationManager.Translate("Deleted Object");
+						GameContext.MapEditorHud?.ShowFeedbackExternal(deletedMessage);
+						GetViewport().SetInputAsHandled();
+						return;
 					}
-
-					GetViewport().SetInputAsHandled();
-					return;
 				}
 			}
 
@@ -225,12 +251,12 @@ public partial class GameHost
 				if (shiftPressed)
 				{
 					EditorHistoryManager.Redo();
-					MapEditorHUD.Instance?.ShowFeedbackExternal("Redo Action performed");
+					GameContext.MapEditorHud?.ShowFeedbackExternal("Redo Action performed");
 				}
 				else
 				{
 					EditorHistoryManager.Undo();
-					MapEditorHUD.Instance?.ShowFeedbackExternal("Undo Action performed");
+					GameContext.MapEditorHud?.ShowFeedbackExternal("Undo Action performed");
 				}
 
 				EditorHasUnsavedChanges = true;
@@ -241,7 +267,7 @@ public partial class GameHost
 			if (editorKeyEvent.Keycode == Key.Y && ctrlPressed)
 			{
 				EditorHistoryManager.Redo();
-				MapEditorHUD.Instance?.ShowFeedbackExternal("Redo Action performed");
+				GameContext.MapEditorHud?.ShowFeedbackExternal("Redo Action performed");
 				EditorHasUnsavedChanges = true;
 				GetViewport().SetInputAsHandled();
 				return;
@@ -249,14 +275,14 @@ public partial class GameHost
 
 			if (editorKeyEvent.Keycode == Key.S && ctrlPressed)
 			{
-				MapEditorHUD.Instance?.SaveMapActionExternal();
+				GameContext.MapEditorHud?.SaveMapActionExternal();
 				GetViewport().SetInputAsHandled();
 				return;
 			}
 
 			if (editorKeyEvent.Keycode == Key.O && ctrlPressed)
 			{
-				MapEditorHUD.Instance?.LoadMapAction();
+				GameContext.MapEditorHud?.LoadMapAction();
 				GetViewport().SetInputAsHandled();
 				return;
 			}
@@ -264,7 +290,7 @@ public partial class GameHost
 			if (editorKeyEvent.Keycode == Key.P && ctrlPressed)
 			{
 				SaveMapToFile();
-				MapEditorHUD.Instance?.ShowFeedbackExternal("Map published & compiled!");
+				GameContext.MapEditorHud?.ShowFeedbackExternal("Map published & compiled!");
 				GetViewport().SetInputAsHandled();
 				return;
 			}
@@ -280,7 +306,7 @@ public partial class GameHost
 					_ => GridOverlayMode.Off
 				};
 				UpdateGridOverlayVisibility();
-				MapEditorHUD.Instance?.UpdateGridOverlayExternal(GameContext.EditorService.EditorGridMode);
+				GameContext.MapEditorHud?.UpdateGridOverlayExternal(GameContext.EditorService.EditorGridMode);
 				string modeName = GameContext.EditorService.EditorGridMode switch
 				{
 					GridOverlayMode.Off => "OFF",
@@ -289,7 +315,7 @@ public partial class GameHost
 					GridOverlayMode.Both => "GRID + POLAR",
 					_ => "OFF"
 				};
-				MapEditorHUD.Instance?.ShowFeedbackExternal($"Overlay Mode: {modeName}");
+				GameContext.MapEditorHud?.ShowFeedbackExternal($"Overlay Mode: {modeName}");
 				GetViewport().SetInputAsHandled();
 				return;
 			}
@@ -297,15 +323,15 @@ public partial class GameHost
 			if (editorKeyEvent.Keycode == Key.U && !ctrlPressed && !shiftPressed)
 			{
 				ActiveEditorTool = ActiveEditorTool == EditorTool.Measure ? EditorTool.None : EditorTool.Measure;
-				MapEditorHUD.Instance?.SelectToolFromHotkey(ActiveEditorTool);
+				GameContext.MapEditorHud?.SelectToolFromHotkey(ActiveEditorTool);
 				if (ActiveEditorTool != EditorTool.Measure)
 				{
 					ClearMeasureVisuals();
-					MapEditorHUD.Instance?.ClearMeasureTelemetry();
+					GameContext.MapEditorHud?.ClearMeasureTelemetry();
 				}
 				else
 				{
-					MapEditorHUD.Instance?.ShowFeedbackExternal("Tape Measure Active - Click Point A then Point B");
+					GameContext.MapEditorHud?.ShowFeedbackExternal("Tape Measure Active - Click Point A then Point B");
 				}
 
 				GetViewport().SetInputAsHandled();
@@ -315,7 +341,7 @@ public partial class GameHost
 			if (editorKeyEvent.Keycode == Key.G && ctrlPressed)
 			{
 				EditorSnapToGrid = !EditorSnapToGrid;
-				MapEditorHUD.Instance?.UpdateGridSnapExternal(EditorSnapToGrid);
+				GameContext.MapEditorHud?.UpdateGridSnapExternal(EditorSnapToGrid);
 				GetViewport().SetInputAsHandled();
 				return;
 			}
@@ -332,7 +358,7 @@ public partial class GameHost
 				{
 					cam.ToggleTopDown();
 					bool topDown = cam.IsTopDown();
-					MapEditorHUD.Instance?.UpdateCameraAngleButtonText(topDown);
+					GameContext.MapEditorHud?.UpdateCameraAngleButtonText(topDown);
 					GetViewport().SetInputAsHandled();
 					return;
 				}
@@ -371,7 +397,7 @@ public partial class GameHost
 							Scale = unit.Scale.X,
 							Player = unit.Player
 						});
-						MapEditorHUD.Instance?.ShowFeedbackExternal($"Copied Unit: {unit.UnitId.ToUpper()}");
+						GameContext.MapEditorHud?.ShowFeedbackExternal($"Copied Unit: {unit.UnitId.ToUpper()}");
 					}
 					else if (SelectedEditorObject is PropEntityProxyNode propProxy)
 					{
@@ -383,7 +409,7 @@ public partial class GameHost
 							Scale = propProxy.Scale.X,
 							Player = 0
 						});
-						MapEditorHUD.Instance?.ShowFeedbackExternal($"Copied Prop: {propProxy.PropId.ToUpper()}");
+						GameContext.MapEditorHud?.ShowFeedbackExternal($"Copied Prop: {propProxy.PropId.ToUpper()}");
 					}
 					else if (SelectedEditorObject is Prop3D prop)
 					{
@@ -395,7 +421,7 @@ public partial class GameHost
 							Scale = prop.Scale.X,
 							Player = 0
 						});
-						MapEditorHUD.Instance?.ShowFeedbackExternal($"Copied Prop: {prop.PropId.ToUpper()}");
+						GameContext.MapEditorHud?.ShowFeedbackExternal($"Copied Prop: {prop.PropId.ToUpper()}");
 					}
 					else if (SelectedEditorObject is Decal decal)
 					{
@@ -408,7 +434,7 @@ public partial class GameHost
 							Scale = decal.Scale.X,
 							Player = 0
 						});
-						MapEditorHUD.Instance?.ShowFeedbackExternal($"Copied Decal: {decalId.ToUpper()}");
+						GameContext.MapEditorHud?.ShowFeedbackExternal($"Copied Decal: {decalId.ToUpper()}");
 					}
 
 					GetViewport().SetInputAsHandled();
@@ -423,8 +449,8 @@ public partial class GameHost
 					if (GameContext.EditorService.HasCopiedArea)
 					{
 						ActiveEditorTool = EditorTool.PasteArea;
-						MapEditorHUD.Instance?.SelectToolFromHotkey(EditorTool.PasteArea);
-						MapEditorHUD.Instance?.ShowFeedbackExternal("Paste Mode Active - Click to paste");
+						GameContext.MapEditorHud?.SelectToolFromHotkey(EditorTool.PasteArea);
+						GameContext.MapEditorHud?.ShowFeedbackExternal("Paste Mode Active - Click to paste");
 						GetViewport().SetInputAsHandled();
 						return;
 					}
@@ -448,7 +474,7 @@ public partial class GameHost
 							if (pastedNode != null)
 							{
 								action = new ObjectSpawnAction("unit", cop.Id, spawnPos, cop.Rotation, cop.Scale, pastedNode, cop.Player);
-								MapEditorHUD.Instance?.ShowFeedbackExternal($"Pasted Unit: {cop.Id.ToUpper()}");
+								GameContext.MapEditorHud?.ShowFeedbackExternal($"Pasted Unit: {cop.Id.ToUpper()}");
 							}
 						}
 						else if (cop.Type == "prop")
@@ -457,7 +483,7 @@ public partial class GameHost
 							if (pastedNode != null)
 							{
 								action = new ObjectSpawnAction("prop", cop.Id, spawnPos, cop.Rotation, cop.Scale, false, pastedNode);
-								MapEditorHUD.Instance?.ShowFeedbackExternal($"Pasted Prop: {cop.Id.ToUpper()}");
+								GameContext.MapEditorHud?.ShowFeedbackExternal($"Pasted Prop: {cop.Id.ToUpper()}");
 							}
 						}
 						else if (cop.Type == "decal")
@@ -466,7 +492,7 @@ public partial class GameHost
 							if (pastedNode != null)
 							{
 								action = new ObjectSpawnAction("decal", cop.Id, spawnPos, cop.Rotation, cop.Scale, false, pastedNode);
-								MapEditorHUD.Instance?.ShowFeedbackExternal($"Pasted Decal: {cop.Id.ToUpper()}");
+								GameContext.MapEditorHud?.ShowFeedbackExternal($"Pasted Decal: {cop.Id.ToUpper()}");
 							}
 						}
 
@@ -551,7 +577,7 @@ public partial class GameHost
 						if (clonedNode != null)
 						{
 							action = new ObjectSpawnAction("unit", unit.UnitId, spawnPos, rotY, scaleVal, clonedNode, unit.Player);
-							MapEditorHUD.Instance?.ShowFeedbackExternal($"Duplicated Unit: {unit.UnitId.ToUpper()}");
+							GameContext.MapEditorHud?.ShowFeedbackExternal($"Duplicated Unit: {unit.UnitId.ToUpper()}");
 						}
 					}
 					else if (SelectedEditorObject is PropEntityProxyNode propProxy)
@@ -560,7 +586,7 @@ public partial class GameHost
 						if (clonedNode != null)
 						{
 							action = new ObjectSpawnAction("prop", propProxy.PropId, spawnPos, rotY, scaleVal, false, clonedNode);
-							MapEditorHUD.Instance?.ShowFeedbackExternal($"Duplicated Prop: {propProxy.PropId.ToUpper()}");
+							GameContext.MapEditorHud?.ShowFeedbackExternal($"Duplicated Prop: {propProxy.PropId.ToUpper()}");
 						}
 					}
 					else if (SelectedEditorObject is Prop3D prop)
@@ -569,7 +595,7 @@ public partial class GameHost
 						if (clonedNode != null)
 						{
 							action = new ObjectSpawnAction("prop", prop.PropId, spawnPos, rotY, scaleVal, false, clonedNode);
-							MapEditorHUD.Instance?.ShowFeedbackExternal($"Duplicated Prop: {prop.PropId.ToUpper()}");
+							GameContext.MapEditorHud?.ShowFeedbackExternal($"Duplicated Prop: {prop.PropId.ToUpper()}");
 						}
 					}
 					else if (SelectedEditorObject is Decal decal)
@@ -579,7 +605,7 @@ public partial class GameHost
 						if (clonedNode != null)
 						{
 							action = new ObjectSpawnAction("decal", decalId, spawnPos, rotY, scaleVal, false, clonedNode);
-							MapEditorHUD.Instance?.ShowFeedbackExternal($"Duplicated Decal: {decalId.ToUpper()}");
+							GameContext.MapEditorHud?.ShowFeedbackExternal($"Duplicated Decal: {decalId.ToUpper()}");
 						}
 					}
 
@@ -598,7 +624,7 @@ public partial class GameHost
 			if (editorKeyEvent.Keycode == Key.Bracketleft)
 			{
 				EditorBrushRadius = Mathf.Max(EditorService.MIN_BRUSH_RADIUS, EditorBrushRadius - 1.0f);
-				MapEditorHUD.Instance?.UpdateBrushSizeExternal(EditorBrushRadius);
+				GameContext.MapEditorHud?.UpdateBrushSizeExternal(EditorBrushRadius);
 				GetViewport().SetInputAsHandled();
 				return;
 			}
@@ -606,7 +632,7 @@ public partial class GameHost
 			if (editorKeyEvent.Keycode == Key.Bracketright)
 			{
 				EditorBrushRadius = Mathf.Min(EditorService.MAX_BRUSH_RADIUS, EditorBrushRadius + 1.0f);
-				MapEditorHUD.Instance?.UpdateBrushSizeExternal(EditorBrushRadius);
+				GameContext.MapEditorHud?.UpdateBrushSizeExternal(EditorBrushRadius);
 				GetViewport().SetInputAsHandled();
 				return;
 			}
@@ -681,22 +707,22 @@ public partial class GameHost
 						else if (node3D is PropEntityProxyNode propProxy && GameContext.World.IsAlive(propProxy.Entity))
 						{
 							GameContext.World.Set(propProxy.Entity, new Position(new System.Numerics.Vector3(targetPos.X, targetPos.Y, targetPos.Z)));
-							PropMultiMeshManager.Instance?.UpdateInstanceTransform(propProxy.Entity, targetPos, propProxy.RotationDegrees.Y, propProxy.Scale.X);
+							GameContext.PropMultiMesh?.UpdateInstanceTransform(propProxy.Entity, targetPos, propProxy.RotationDegrees.Y, propProxy.Scale.X);
 							UpdateSelectedPropRingPosition(targetPos);
 						}
 						else if (node3D is Prop3D prop)
 						{
-							PropMultiMeshManager.Instance?.MarkDirty(prop.PropId);
+							GameContext.PropMultiMesh?.MarkDirty(prop.PropId);
 						}
 
 						EditorHistoryManager.RecordAction(action);
 						EditorHasUnsavedChanges = true;
-						MapEditorHUD.Instance?.UpdateSelectedObjectInfo();
-						MapEditorHUD.Instance?.ShowFeedbackExternal("Object nudged");
+						GameContext.MapEditorHud?.UpdateSelectedObjectInfo();
+						GameContext.MapEditorHud?.ShowFeedbackExternal("Object nudged");
 					}
 					else
 					{
-						UIManager.Instance?.PlayWarningSound();
+						GameContext.UserInterface?.PlayWarningSound();
 					}
 				}
 
@@ -707,7 +733,7 @@ public partial class GameHost
 			if (editorKeyEvent.Keycode == Key.Minus)
 			{
 				EditorBrushStrength = Mathf.Max(EditorService.MIN_BRUSH_STRENGTH, EditorBrushStrength - 0.5f);
-				MapEditorHUD.Instance?.UpdateBrushStrengthExternal(EditorBrushStrength);
+				GameContext.MapEditorHud?.UpdateBrushStrengthExternal(EditorBrushStrength);
 				GetViewport().SetInputAsHandled();
 				return;
 			}
@@ -715,14 +741,14 @@ public partial class GameHost
 			if (editorKeyEvent.Keycode == Key.Equal)
 			{
 				EditorBrushStrength = Mathf.Min(EditorService.MAX_BRUSH_STRENGTH, EditorBrushStrength + 0.5f);
-				MapEditorHUD.Instance?.UpdateBrushStrengthExternal(EditorBrushStrength);
+				GameContext.MapEditorHud?.UpdateBrushStrengthExternal(EditorBrushStrength);
 				GetViewport().SetInputAsHandled();
 				return;
 			}
 
 			if (editorKeyEvent.Keycode == Key.Key0)
 			{
-				MapEditorHUD.Instance?.SelectToolFromHotkey(EditorTool.Water);
+				GameContext.MapEditorHud?.SelectToolFromHotkey(EditorTool.Water);
 				GetViewport().SetInputAsHandled();
 				return;
 			}
@@ -745,7 +771,7 @@ public partial class GameHost
 				};
 				if (targetTool != EditorTool.None)
 				{
-					MapEditorHUD.Instance?.SelectToolFromHotkey(targetTool);
+					GameContext.MapEditorHud?.SelectToolFromHotkey(targetTool);
 					GetViewport().SetInputAsHandled();
 					return;
 				}
@@ -755,7 +781,7 @@ public partial class GameHost
 			{
 				EditorBrushIsSquare = !EditorBrushIsSquare;
 				UpdateBrushMesh();
-				MapEditorHUD.Instance?.UpdateBrushShapeExternal(EditorBrushIsSquare);
+				GameContext.MapEditorHud?.UpdateBrushShapeExternal(EditorBrushIsSquare);
 				GetViewport().SetInputAsHandled();
 				return;
 			}
@@ -763,7 +789,7 @@ public partial class GameHost
 			if (editorKeyEvent.Keycode == Key.T && !ctrlPressed && !shiftPressed)
 			{
 				GenerateNewRandomPlacementRotationAndScale();
-				MapEditorHUD.Instance?.ShowFeedbackExternal("Re-randomized Rotation & Scale");
+				GameContext.MapEditorHud?.ShowFeedbackExternal("Re-randomized Rotation & Scale");
 				GetViewport().SetInputAsHandled();
 				return;
 			}
@@ -780,8 +806,8 @@ public partial class GameHost
 					3 => "🌄",
 					_ => "☀️"
 				};
-				MapEditorHUD.Instance?.UpdateEnvLightingSelection(res.TimeOfDayIndex);
-				MapEditorHUD.Instance?.ShowFeedbackExternal(string.Format(TranslationServer.Translate("Lighting: {0} {1}"), icon, TranslationServer.Translate(timeName)));
+				GameContext.MapEditorHud?.UpdateEnvLightingSelection(res.TimeOfDayIndex);
+				GameContext.MapEditorHud?.ShowFeedbackExternal(string.Format(TranslationServer.Translate("Lighting: {0} {1}"), icon, TranslationServer.Translate(timeName)));
 				GetViewport().SetInputAsHandled();
 				return;
 			}
@@ -790,7 +816,7 @@ public partial class GameHost
 			{
 				if (GameContext.EnvironmentService != null)
 				{
-					string nextWeather = GameContext.EnvironmentService.CycleWeather(this);
+					string nextWeather = GameContext.EnvironmentService.CycleWeather();
 					string icon = nextWeather switch
 					{
 						"rain" => "🌧️",
@@ -798,8 +824,8 @@ public partial class GameHost
 						"fog" => "🌫️",
 						_ => "☀️"
 					};
-					MapEditorHUD.Instance?.UpdateEnvWeatherSelection(nextWeather);
-					MapEditorHUD.Instance?.ShowFeedbackExternal(string.Format(TranslationServer.Translate("Weather: {0} {1}"), icon, TranslationServer.Translate(nextWeather.Capitalize())));
+					GameContext.MapEditorHud?.UpdateEnvWeatherSelection(nextWeather);
+					GameContext.MapEditorHud?.ShowFeedbackExternal(string.Format(TranslationServer.Translate("Weather: {0} {1}"), icon, TranslationServer.Translate(nextWeather.Capitalize())));
 				}
 
 				GetViewport().SetInputAsHandled();
@@ -808,14 +834,14 @@ public partial class GameHost
 
 			if (editorKeyEvent.Keycode == Key.F8 || (editorKeyEvent.Keycode == Key.Y && !ctrlPressed && !shiftPressed && !editorKeyEvent.AltPressed))
 			{
-				MapEditorHUD.Instance?.ToggleFreeCamera();
+				GameContext.MapEditorHud?.ToggleFreeCamera();
 				GetViewport().SetInputAsHandled();
 				return;
 			}
 
 			if (editorKeyEvent.Keycode == Key.F9)
 			{
-				MapEditorHUD.Instance?.ToggleShadows();
+				GameContext.MapEditorHud?.ToggleShadows();
 				GetViewport().SetInputAsHandled();
 				return;
 			}
@@ -845,7 +871,7 @@ public partial class GameHost
 				{
 					float deltaSize = isUp ? 1.0f : -1.0f;
 					EditorBrushRadius = Mathf.Clamp(EditorBrushRadius + deltaSize, EditorService.MIN_BRUSH_RADIUS, EditorService.MAX_BRUSH_RADIUS);
-					MapEditorHUD.Instance?.UpdateBrushSizeExternal(EditorBrushRadius);
+					GameContext.MapEditorHud?.UpdateBrushSizeExternal(EditorBrushRadius);
 					GetViewport().SetInputAsHandled();
 					return;
 				}
@@ -854,7 +880,7 @@ public partial class GameHost
 				{
 					float deltaStr = isUp ? 0.5f : -0.5f;
 					EditorBrushStrength = Mathf.Clamp(EditorBrushStrength + deltaStr, EditorService.MIN_BRUSH_STRENGTH, EditorService.MAX_BRUSH_STRENGTH);
-					MapEditorHUD.Instance?.UpdateBrushStrengthExternal(EditorBrushStrength);
+					GameContext.MapEditorHud?.UpdateBrushStrengthExternal(EditorBrushStrength);
 					GetViewport().SetInputAsHandled();
 					return;
 				}
@@ -863,34 +889,15 @@ public partial class GameHost
 			if (shiftPressed)
 			{
 				float rotDelta = isUp ? 15.0f : -15.0f;
-				if (ActiveEditorTool == EditorTool.SelectMove && GodotObject.IsInstanceValid(SelectedEditorObject))
+				if (ActiveEditorTool == EditorTool.SelectMove && SelectedEditorObjectCount > 0)
 				{
-					var node3D = SelectedEditorObject as Node3D;
-					Vector3 oldRot = node3D.RotationDegrees;
-					Vector3 newRot = oldRot;
-					newRot.Y = (newRot.Y + rotDelta + 360.0f) % 360.0f;
-					var action = new ObjectTransformAction(
-						node3D,
-						node3D.Position, node3D.Position,
-						oldRot, newRot,
-						node3D.Scale, node3D.Scale
-					);
-					node3D.RotationDegrees = newRot;
-					ObjectTransformAction.PersistTransformToEcs(node3D);
-					if (SelectedEditorObject is PropEntityProxyNode propProxyRot)
-					{
-						if (GameContext.World != null && GameContext.World.IsAlive(propProxyRot.Entity))
-						{
-							PropMultiMeshManager.Instance?.UpdateInstanceTransform(propProxyRot.Entity, propProxyRot.Position, newRot.Y, propProxyRot.Scale.X);
-						}
-					}
-					EditorHistoryManager.RecordAction(action);
-					MapEditorHUD.Instance?.UpdateSelectedObjectInfo();
+					RotateSelectedObject(rotDelta);
+					GameContext.MapEditorHud?.UpdateSelectedObjectInfo();
 				}
 				else
 				{
 					GameContext.EditorService.EditorPlacementRotation = (GameContext.EditorService.EditorPlacementRotation + rotDelta + 360.0f) % 360.0f;
-					MapEditorHUD.Instance?.UpdateRotationExternal(GameContext.EditorService.EditorPlacementRotation);
+					GameContext.MapEditorHud?.UpdateRotationExternal(GameContext.EditorService.EditorPlacementRotation);
 				}
 
 				GetViewport().SetInputAsHandled();
@@ -900,34 +907,15 @@ public partial class GameHost
 			if (altPressed)
 			{
 				float scaleDelta = isUp ? 0.1f : -0.1f;
-				if (ActiveEditorTool == EditorTool.SelectMove && GodotObject.IsInstanceValid(SelectedEditorObject))
+				if (ActiveEditorTool == EditorTool.SelectMove && SelectedEditorObjectCount > 0)
 				{
-					var node3D = SelectedEditorObject as Node3D;
-					Vector3 oldScale = node3D.Scale;
-					float newScaleVal = Mathf.Clamp(oldScale.X + scaleDelta, 0.2f, 3.0f);
-					Vector3 newScale = Vector3.One * newScaleVal;
-					var action = new ObjectTransformAction(
-						node3D,
-						node3D.Position, node3D.Position,
-						node3D.RotationDegrees, node3D.RotationDegrees,
-						oldScale, newScale
-					);
-					node3D.Scale = newScale;
-					ObjectTransformAction.PersistTransformToEcs(node3D);
-					if (SelectedEditorObject is PropEntityProxyNode propProxyScale)
-					{
-						if (GameContext.World != null && GameContext.World.IsAlive(propProxyScale.Entity))
-						{
-							PropMultiMeshManager.Instance?.UpdateInstanceTransform(propProxyScale.Entity, propProxyScale.Position, propProxyScale.RotationDegrees.Y, newScaleVal);
-						}
-					}
-					EditorHistoryManager.RecordAction(action);
-					MapEditorHUD.Instance?.UpdateSelectedObjectInfo();
+					ScaleSelectedObject(scaleDelta);
+					GameContext.MapEditorHud?.UpdateSelectedObjectInfo();
 				}
 				else
 				{
 					EditorPlacementScale = Mathf.Clamp(EditorPlacementScale + scaleDelta, EditorService.MIN_PLACEMENT_SCALE, EditorService.MAX_PLACEMENT_SCALE);
-					MapEditorHUD.Instance?.UpdateScaleExternal(EditorPlacementScale);
+					GameContext.MapEditorHud?.UpdateScaleExternal(EditorPlacementScale);
 				}
 
 				GetViewport().SetInputAsHandled();
@@ -955,7 +943,7 @@ public partial class GameHost
 					UpdateSymmetryPivotVisuals();
 					InvalidateSelectionHighlightMesh();
 					var (cx, cz) = GameContext.EditorService.WorldPosToCellCoords(hitPos);
-					MapEditorHUD.Instance?.ShowFeedbackExternal($"Pivot set to tile ({cx}, {cz})");
+					GameContext.MapEditorHud?.ShowFeedbackExternal($"Pivot set to tile ({cx}, {cz})");
 					GetViewport().SetInputAsHandled();
 					return;
 				}
@@ -964,7 +952,7 @@ public partial class GameHost
 			if (GameContext.EditorService.RampStartPos != null)
 			{
 				GameContext.EditorService.SetRampStartPos(null);
-				MapEditorHUD.Instance?.ShowFeedbackExternal("Ramp Cancelled");
+				GameContext.MapEditorHud?.ShowFeedbackExternal("Ramp Cancelled");
 				GetViewport().SetInputAsHandled();
 				return;
 			}
@@ -972,7 +960,7 @@ public partial class GameHost
 			if (SelectedEditorObject != null)
 			{
 				SelectedEditorObject = null;
-				MapEditorHUD.Instance?.ShowFeedbackExternal("Deselected Object");
+				GameContext.MapEditorHud?.ShowFeedbackExternal("Deselected Object");
 				GetViewport().SetInputAsHandled();
 				return;
 			}
@@ -980,7 +968,7 @@ public partial class GameHost
 			if (ActiveEditorTool == EditorTool.Measure)
 			{
 				ClearMeasureVisuals();
-				MapEditorHUD.Instance?.ClearMeasureTelemetry();
+				GameContext.MapEditorHud?.ClearMeasureTelemetry();
 				GetViewport().SetInputAsHandled();
 				return;
 			}
@@ -988,9 +976,9 @@ public partial class GameHost
 			if (ActiveEditorTool == EditorTool.PasteArea)
 			{
 				ActiveEditorTool = EditorTool.SelectArea;
-				MapEditorHUD.Instance?.SelectToolFromHotkey(EditorTool.SelectArea);
+				GameContext.MapEditorHud?.SelectToolFromHotkey(EditorTool.SelectArea);
 				HideSelectionHighlight();
-				MapEditorHUD.Instance?.ClearPasteTelemetry();
+				GameContext.MapEditorHud?.ClearPasteTelemetry();
 				GetViewport().SetInputAsHandled();
 				return;
 			}
@@ -1002,12 +990,25 @@ public partial class GameHost
 			{
 				_is3DDragOperationActive = false;
 				_is3DLeftClickDown = false;
-				MapEditorHUD.Instance?.Set3DInteractionActive_ViewLogic(false);
+				GameContext.MapEditorHud?.Set3DInteractionActive_ViewLogic(false);
 			}
 
 			if (FloatingDialogBase.HasAnyDialogOpen)
 			{
 				return;
+			}
+
+			if (GameContext.EditorService.IsObjectMarqueeSelecting)
+			{
+				FinalizeEditorObjectMarquee();
+				GetViewport().SetInputAsHandled();
+				return;
+			}
+
+			if (GameContext.EditorService.ObjectMarqueeStart != null)
+			{
+				GameContext.EditorService.ClearObjectMarquee();
+				HideEditorObjectMarquee();
 			}
 
 			if (GameContext.EditorService.IsSelectingArea)
@@ -1019,7 +1020,7 @@ public partial class GameHost
 					int rMinZ = Mathf.Min(GameContext.EditorService.SelectionStart.Value.Y, GameContext.EditorService.SelectionEnd.Value.Y);
 					int rMaxX = Mathf.Max(GameContext.EditorService.SelectionStart.Value.X, GameContext.EditorService.SelectionEnd.Value.X);
 					int rMaxZ = Mathf.Max(GameContext.EditorService.SelectionStart.Value.Y, GameContext.EditorService.SelectionEnd.Value.Y);
-					MapEditorHUD.Instance?.OpenCoordinateNamingPanel(rMinX, rMinZ, rMaxX, rMaxZ);
+					GameContext.MapEditorHud?.OpenCoordinateNamingPanel(rMinX, rMinZ, rMaxX, rMaxZ);
 				}
 
 				GetViewport().SetInputAsHandled();
@@ -1053,7 +1054,7 @@ public partial class GameHost
 
 				if (IsObjectPlacementTool(ActiveEditorTool) && string.IsNullOrWhiteSpace(ActivePlaceId))
 				{
-					MapEditorHUD.Instance?.ShowConfirmationDialog("Please create a template first", null, confirmText: "OK", showCancel: false);
+					GameContext.MapEditorHud?.ShowConfirmationDialog("Please create a template first", null, confirmText: "OK", showCancel: false);
 					GetViewport().SetInputAsHandled();
 					return;
 				}
@@ -1062,7 +1063,7 @@ public partial class GameHost
 				{
 					if (!TryGetValidPlacementContext(hitPos, out float placementRot, out float scaleVal, out Vector3 spawnPos)) return;
 
-					int placePlayer = GameContext.EditorService.PlaceUnitIsEnemy ? 1 : 0;
+					int placePlayer = GameContext.EditorService.PlaceUnitPlayerIndex;
 					var unit = SpawnUnitExternal(ActivePlaceId, spawnPos, placementRot, scaleVal, placePlayer);
 					if (unit != null)
 					{
@@ -1287,7 +1288,7 @@ public partial class GameHost
 				}
 				else if (ActiveEditorTool == EditorTool.Eyedropper)
 				{
-					string mode = MapEditorHUD.Instance != null ? MapEditorHUD.Instance.GetEyedropperMode() : "all";
+					string mode = GameContext.MapEditorHud != null ? GameContext.MapEditorHud.GetEyedropperMode() : "all";
 					var collider = hit.ContainsKey("collider") ? hit["collider"].As<Node>() : null;
 					Node clickedNode = null;
 
@@ -1325,9 +1326,9 @@ public partial class GameHost
 
 							if (!string.IsNullOrEmpty(closestStaticPropId))
 							{
-								if (MapEditorHUD.Instance != null)
+								if (GameContext.MapEditorHud != null)
 								{
-									MapEditorHUD.Instance.SelectPickedUnitOrProp(closestStaticPropId, false);
+									GameContext.MapEditorHud.SelectPickedUnitOrProp(closestStaticPropId, false);
 								}
 								else
 								{
@@ -1368,24 +1369,24 @@ public partial class GameHost
 					{
 						if (clickedNode is Unit3D unit)
 						{
-							bool isEnemy = unit.Player != 0;
-							if (MapEditorHUD.Instance != null)
+							int pickedPlayer = unit.Player;
+							if (GameContext.MapEditorHud != null)
 							{
-								MapEditorHUD.Instance.SetSpawnAsEnemy(isEnemy);
-								MapEditorHUD.Instance.SelectPickedUnitOrProp(unit.UnitId, unit.IsBuilding);
+								GameContext.MapEditorHud.SetSpawnPlayer(pickedPlayer);
+								GameContext.MapEditorHud.SelectPickedUnitOrProp(unit.UnitId, unit.IsBuilding);
 							}
 							else
 							{
 								ActivePlaceId = unit.UnitId;
-								GameContext.EditorService.PlaceUnitIsEnemy = isEnemy;
+								GameContext.EditorService.SetPlaceUnitPlayerIndexDomain(pickedPlayer);
 								ActiveEditorTool = EditorTool.PlaceUnit;
 							}
 						}
 						else if (clickedNode is PropEntityProxyNode propProxy)
 						{
-							if (MapEditorHUD.Instance != null)
+							if (GameContext.MapEditorHud != null)
 							{
-								MapEditorHUD.Instance.SelectPickedUnitOrProp(propProxy.PropId, false);
+								GameContext.MapEditorHud.SelectPickedUnitOrProp(propProxy.PropId, false);
 							}
 							else
 							{
@@ -1395,9 +1396,9 @@ public partial class GameHost
 						}
 						else if (clickedNode is Prop3D prop)
 						{
-							if (MapEditorHUD.Instance != null)
+							if (GameContext.MapEditorHud != null)
 							{
-								MapEditorHUD.Instance.SelectPickedUnitOrProp(prop.PropId, false);
+								GameContext.MapEditorHud.SelectPickedUnitOrProp(prop.PropId, false);
 							}
 							else
 							{
@@ -1408,9 +1409,9 @@ public partial class GameHost
 						else if (clickedNode is Decal decal)
 						{
 							string decalId = decal is Decal3D decal3D ? decal3D.DecalId : "logo";
-							if (MapEditorHUD.Instance != null)
+							if (GameContext.MapEditorHud != null)
 							{
-								MapEditorHUD.Instance.SelectPickedDecalView(decalId);
+								GameContext.MapEditorHud.SelectPickedDecalView(decalId);
 							}
 							else
 							{
@@ -1433,18 +1434,18 @@ public partial class GameHost
 						{
 							float sampledHeight = GetTerrainHeightAt(hitPos);
 							EditorExactHeight = sampledHeight;
-							MapEditorHUD.Instance?.UpdateExactHeightExternal(sampledHeight);
+							GameContext.MapEditorHud?.UpdateExactHeightExternal(sampledHeight);
 							EditorTool targetTool = EditorTool.Height;
-							if (MapEditorHUD.Instance != null)
+							if (GameContext.MapEditorHud != null)
 							{
-								MapEditorHUD.Instance.SelectToolFromHotkey(targetTool);
+								GameContext.MapEditorHud.SelectToolFromHotkey(targetTool);
 							}
 							else
 							{
 								ActiveEditorTool = targetTool;
 							}
 
-							MapEditorHUD.Instance?.ShowFeedbackExternal($"Picked Height: {sampledHeight:F1}m");
+							GameContext.MapEditorHud?.ShowFeedbackExternal($"Picked Height: {sampledHeight:F1}m");
 						}
 						else if (wantTerrain && GroundTerrain != null)
 						{
@@ -1459,16 +1460,16 @@ public partial class GameHost
 							int z = Mathf.Clamp((int)Math.Round(fz), 0, splatD - 1);
 							int sampledIndex = GroundTerrain.SplatMap != null ? GroundTerrain.SplatMap[x, z].GetDominantIndex() : 0;
 							GameContext.EditorService.EditorPaintTextureIndex = sampledIndex;
-							if (MapEditorHUD.Instance != null)
+							if (GameContext.MapEditorHud != null)
 							{
-								MapEditorHUD.Instance.SelectPaintSwatchByIndexView(sampledIndex);
+								GameContext.MapEditorHud.SelectPaintSwatchByIndexView(sampledIndex);
 							}
 							else
 							{
 								ActiveEditorTool = EditorTool.PaintTexture;
 							}
 
-							MapEditorHUD.Instance?.ShowFeedbackExternal($"Picked Texture: #{sampledIndex}");
+							GameContext.MapEditorHud?.ShowFeedbackExternal($"Picked Texture: #{sampledIndex}");
 						}
 					}
 
@@ -1547,22 +1548,40 @@ public partial class GameHost
 						}
 					}
 
+					Vector3 terrainHitPos = (terrainHit != null && terrainHit.ContainsKey("position")) ? terrainHit["position"].AsVector3() : hitPos;
+
 					if (clickedNode != null)
 					{
-						SelectedEditorObject = clickedNode;
-						_isDraggingObject = true;
-						_dragObjectStartPos = (SelectedEditorObject as Node3D).Position;
-						_dragObjectStartRot = (SelectedEditorObject as Node3D).RotationDegrees;
-						_dragObjectStartScale = (SelectedEditorObject as Node3D).Scale;
-						GameContext.EditorService.DragStartMousePos = editorMouseBtn.Position;
-						Vector3 terrainHitPos = (terrainHit != null && terrainHit.ContainsKey("position")) ? terrainHit["position"].AsVector3() : hitPos;
-						GameContext.EditorService.DragStartGroundPos = terrainHitPos;
-						GameContext.EditorService.DragObjectStartHitPos = terrainHitPos;
-						GameContext.EditorService.DragObjectHasMoved = false;
+						bool shiftPressed = Input.IsKeyPressed(Key.Shift);
+						bool ctrlPressed = Input.IsKeyPressed(Key.Ctrl);
+
+						if (shiftPressed || ctrlPressed)
+						{
+							ToggleEditorObjectSelection(clickedNode);
+						}
+						else if (!(SelectedEditorObjectCount > 1 && IsEditorObjectSelected(clickedNode)))
+						{
+							SelectedEditorObject = clickedNode;
+						}
+
+						if (IsEditorObjectSelected(clickedNode))
+						{
+							BeginEditorObjectDrag(terrainHitPos, editorMouseBtn.Position);
+						}
 					}
 					else
 					{
-						SelectedEditorObject = null;
+						if (!Input.IsKeyPressed(Key.Shift) && !Input.IsKeyPressed(Key.Ctrl))
+						{
+							SelectedEditorObject = null;
+						}
+
+						if (GroundTerrain != null)
+						{
+							var (startCellX, startCellZ) = GameContext.EditorService.WorldPosToCellCoords(terrainHitPos);
+							var startCell = new Vector2I(startCellX, startCellZ);
+							GameContext.EditorService.SetObjectMarquee(startCell, startCell, false);
+						}
 					}
 
 					GetViewport().SetInputAsHandled();
@@ -1572,7 +1591,7 @@ public partial class GameHost
 					if (GameContext.EditorService.RampStartPos == null)
 					{
 						GameContext.EditorService.SetRampStartPos(hitPos);
-						MapEditorHUD.Instance?.ShowFeedbackExternal("Ramp Start Point Set!");
+						GameContext.MapEditorHud?.ShowFeedbackExternal("Ramp Start Point Set!");
 					}
 					else
 					{
@@ -1642,7 +1661,7 @@ public partial class GameHost
 						}
 
 						GameContext.EditorService.SetRampStartPos(null);
-						MapEditorHUD.Instance?.ShowFeedbackExternal("Ramp Created!");
+						GameContext.MapEditorHud?.ShowFeedbackExternal("Ramp Created!");
 					}
 
 					GetViewport().SetInputAsHandled();
@@ -1675,33 +1694,33 @@ public partial class GameHost
 						}
 					}
 
-					PerformFloodFill(hitPos, GameContext.EditorService.EditorPaintTextureIndex, isCliff);
+					GameContext.EditorService.FloodFillTerrainAt(hitPos.X, hitPos.Y, hitPos.Z, GameContext.EditorService.EditorPaintTextureIndex, isCliff);
 					GetViewport().SetInputAsHandled();
 				}
 				else if (ActiveEditorTool == EditorTool.FloodFillPathing)
 				{
 					int pathingMask = 0;
 					bool pathingAdd = true;
-					if (MapEditorHUD.Instance != null)
+					if (GameContext.MapEditorHud != null)
 					{
-						pathingMask = MapEditorHUD.Instance.GetSelectedPathingMask();
-						pathingAdd = MapEditorHUD.Instance.IsPathingAddMode();
+						pathingMask = GameContext.MapEditorHud.GetSelectedPathingMask();
+						pathingAdd = GameContext.MapEditorHud.IsPathingAddMode();
 					}
 
-					PerformFloodFillPathing(hitPos, pathingMask, pathingAdd);
+					GameContext.EditorService.FloodFillPathingAt(hitPos.X, hitPos.Y, hitPos.Z, pathingMask, pathingAdd);
 					GetViewport().SetInputAsHandled();
 				}
 				else if (ActiveEditorTool == EditorTool.Water)
 				{
-					bool isRemove = MapEditorHUD.Instance != null && MapEditorHUD.Instance.IsWaterRemoveAction();
-					if (MapEditorHUD.Instance != null)
+					bool isRemove = GameContext.MapEditorHud != null && GameContext.MapEditorHud.IsWaterRemoveAction();
+					if (GameContext.MapEditorHud != null)
 					{
-						EditorWaterMode = MapEditorHUD.Instance.GetSelectedWaterMode();
-						ActiveWaterProfileIndex = MapEditorHUD.Instance.GetSelectedWaterProfileIndex();
-						GameContext.EditorService.EditorWaterHeight = MapEditorHUD.Instance.GetSelectedWaterHeight();
+						EditorWaterMode = GameContext.MapEditorHud.GetSelectedWaterMode();
+						ActiveWaterProfileIndex = GameContext.MapEditorHud.GetSelectedWaterProfileIndex();
+						GameContext.EditorService.EditorWaterHeight = GameContext.MapEditorHud.GetSelectedWaterHeight();
 					}
 
-					PerformWaterFloodFill(hitPos, isRemove);
+					GameContext.EditorService.FloodFillWaterAt(hitPos.X, hitPos.Y, hitPos.Z, isRemove);
 					GetViewport().SetInputAsHandled();
 				}
 				else if (ActiveEditorTool == EditorTool.SelectArea)
@@ -1744,7 +1763,7 @@ public partial class GameHost
 						var (cx, cz) = GameContext.EditorService.WorldPosToCellCoords(hitPos);
 						var (startX, startZ, targetWidth, targetDepth) = GameContext.EditorService.GetAnchoredPasteBounds(cx, cz, GameContext.EditorService.EditorPasteRotation, GameContext.EditorService.EditorPasteReflection);
 						PerformPasteArea(startX, startZ, GameContext.EditorService.EditorPasteRotation, GameContext.EditorService.EditorPasteReflection);
-						MapEditorHUD.Instance?.ShowFeedbackExternal("Pasted clipboard contents");
+						GameContext.MapEditorHud?.ShowFeedbackExternal("Pasted clipboard contents");
 					}
 
 					GetViewport().SetInputAsHandled();
@@ -1776,9 +1795,40 @@ public partial class GameHost
 		return;
 	}
 
+	private bool TryCancelActiveConfirmationOverlay()
+	{
+		var userInterface = GameContext.UserInterface;
+		if (userInterface == null) return false;
+
+		for (int index = userInterface.GetChildCount() - 1; index >= 0; index--)
+		{
+			if (userInterface.GetChild(index) is not Control overlay || overlay.Name != "ConfirmationOverlay" || overlay.IsQueuedForDeletion()) continue;
+			if (!overlay.HasMeta("CancelAction")) return false;
+
+			overlay.GetMeta("CancelAction").AsCallable().Call();
+			return true;
+		}
+
+		return false;
+	}
+
 	private void HandleGameplayInput(InputEvent @event)
 	{
-		if (ReplayPlaybackManager.Instance.IsPlayingReplay)
+		if (@event is InputEventKey settingsKeyEvent && settingsKeyEvent.Pressed && !settingsKeyEvent.Echo && settingsKeyEvent.Keycode == Key.F12)
+		{
+			GetViewport().SetInputAsHandled();
+			GameContext.UserInterface.OpenSettingsOverlay();
+			return;
+		}
+
+		if (@event is InputEventKey confirmationEscapeEvent && confirmationEscapeEvent.Pressed && !confirmationEscapeEvent.Echo && confirmationEscapeEvent.Keycode == Key.Escape
+			&& TryCancelActiveConfirmationOverlay())
+		{
+			GetViewport().SetInputAsHandled();
+			return;
+		}
+
+		if (GameContext.ReplayPlayback.IsPlayingReplay)
 		{
 			return;
 		}
@@ -1825,8 +1875,8 @@ public partial class GameHost
 				ActiveCommandTargeting = null;
 				Input.SetCustomMouseCursor(null);
 				Input.SetDefaultCursorShape(Input.CursorShape.Arrow);
-				if (InGameHUD.Instance != null)
-					InGameHUD.Instance.ShowFeedbackText("Targeting Cancelled", new Color(0.8f, 0.8f, 0.8f));
+				if (GameContext.InGameHud != null)
+					GameContext.InGameHud.ShowFeedbackText("Targeting Cancelled", new Color(0.8f, 0.8f, 0.8f));
 				GetViewport().SetInputAsHandled();
 				return;
 			}
@@ -1841,15 +1891,15 @@ public partial class GameHost
 			if (ActivePingMode)
 			{
 				ActivePingMode = false;
-				if (InGameHUD.Instance != null)
-					InGameHUD.Instance.ShowFeedbackText("Ping Mode Cancelled", new Color(0.8f, 0.8f, 0.8f));
+				if (GameContext.InGameHud != null)
+					GameContext.InGameHud.ShowFeedbackText("Ping Mode Cancelled", new Color(0.8f, 0.8f, 0.8f));
 				GetViewport().SetInputAsHandled();
 				return;
 			}
 
-			if (InGameHUD.Instance != null && InGameHUD.Instance.IsBuildSubMenuOpen)
+			if (GameContext.InGameHud != null && GameContext.InGameHud.IsBuildSubMenuOpen)
 			{
-				InGameHUD.Instance.ExitBuildSubMenu();
+				GameContext.InGameHud.ExitBuildSubMenu();
 				GetViewport().SetInputAsHandled();
 				return;
 			}
@@ -1868,14 +1918,10 @@ public partial class GameHost
 				}
 
 				ClearSelection();
-				InGameHUD.Instance?.RefreshUI(SelectedUnits);
+				GameContext.InGameHud?.RefreshUI(SelectedUnits);
 				GetViewport().SetInputAsHandled();
 				return;
 			}
-
-			GetViewport().SetInputAsHandled();
-			UIManager.Instance.OpenSettingsOverlay();
-			return;
 		}
 
 		if (@event is InputEventKey keyReleaseEvent && !keyReleaseEvent.Pressed && keyReleaseEvent.Keycode == Key.Shift)
@@ -1883,7 +1929,7 @@ public partial class GameHost
 			if (ActiveBuildingPlacementType != null)
 			{
 				CancelBuildingPlacement();
-				InGameHUD.Instance?.ExitBuildSubMenu();
+				GameContext.InGameHud?.ExitBuildSubMenu();
 				GetViewport().SetInputAsHandled();
 				return;
 			}
@@ -1925,9 +1971,9 @@ public partial class GameHost
 
 			if (keyEvent.Keycode == Key.F4)
 			{
-				if (InGameHUD.Instance != null)
+				if (GameContext.InGameHud != null)
 				{
-					InGameHUD.Instance.ToggleMinimapTerrain();
+					GameContext.InGameHud.ToggleMinimapTerrain();
 				}
 
 				GetViewport().SetInputAsHandled();
@@ -1937,12 +1983,12 @@ public partial class GameHost
 			if (keyEvent.Keycode == Key.G && Input.IsKeyPressed(Key.Alt))
 			{
 				ActivePingMode = !ActivePingMode;
-				if (InGameHUD.Instance != null)
+				if (GameContext.InGameHud != null)
 				{
 					if (ActivePingMode)
-						InGameHUD.Instance.ShowFeedbackText("Ping Mode: Click Minimap or Ground to ping", new Color(1.0f, 0.1f, 0.2f));
+						GameContext.InGameHud.ShowFeedbackText("Ping Mode: Click Minimap or Ground to ping", new Color(1.0f, 0.1f, 0.2f));
 					else
-						InGameHUD.Instance.ShowFeedbackText("Ping Mode Cancelled", new Color(0.8f, 0.8f, 0.8f));
+						GameContext.InGameHud.ShowFeedbackText("Ping Mode Cancelled", new Color(0.8f, 0.8f, 0.8f));
 				}
 
 				GetViewport().SetInputAsHandled();
@@ -1970,7 +2016,7 @@ public partial class GameHost
 				return;
 			}
 
-			if (InGameHUD.Instance != null && InGameHUD.Instance.HandleCommandCardHotkey(keyEvent.Keycode))
+			if (GameContext.InGameHud != null && GameContext.InGameHud.HandleCommandCardHotkey(keyEvent.Keycode, keyEvent.GetModifiersMask()))
 			{
 				GetViewport().SetInputAsHandled();
 				return;
@@ -2014,7 +2060,7 @@ public partial class GameHost
 			{
 				if (WasmConsoleWindow.IsSinglePlayerOrTestMode())
 				{
-					WasmConsoleWindow.Instance.ToggleVisibility();
+					GameContext.WasmConsole.ToggleVisibility();
 					GetViewport().SetInputAsHandled();
 					return;
 				}
@@ -2230,9 +2276,9 @@ public partial class GameHost
 					GD.Print($"[GameHost] Unhandled left-click release at position: {mouseBtn.Position}");
 
 					_isDragging = false;
-					if (InGameHUD.Instance != null)
+					if (GameContext.InGameHud != null)
 					{
-						InGameHUD.Instance.UpdateDragBox(Vector2.Zero, Vector2.Zero, false);
+						GameContext.InGameHud.UpdateDragBox(Vector2.Zero, Vector2.Zero, false);
 					}
 
 					ClearTemporarySelection();
@@ -2262,8 +2308,8 @@ public partial class GameHost
 				if (ActivePingMode)
 				{
 					ActivePingMode = false;
-					if (InGameHUD.Instance != null)
-						InGameHUD.Instance.ShowFeedbackText("Ping Mode Cancelled", new Color(0.8f, 0.8f, 0.8f));
+					if (GameContext.InGameHud != null)
+						GameContext.InGameHud.ShowFeedbackText("Ping Mode Cancelled", new Color(0.8f, 0.8f, 0.8f));
 					GetViewport().SetInputAsHandled();
 					return;
 				}
@@ -2274,8 +2320,8 @@ public partial class GameHost
 					ActiveCommandTargeting = null;
 					Input.SetCustomMouseCursor(null);
 					Input.SetDefaultCursorShape(Input.CursorShape.Arrow);
-					if (InGameHUD.Instance != null)
-						InGameHUD.Instance.ShowFeedbackText("Targeting Cancelled", new Color(0.8f, 0.8f, 0.8f));
+					if (GameContext.InGameHud != null)
+						GameContext.InGameHud.ShowFeedbackText("Targeting Cancelled", new Color(0.8f, 0.8f, 0.8f));
 					return;
 				}
 
@@ -2319,9 +2365,9 @@ public partial class GameHost
 		else if (@event is InputEventMouseMotion mouseMotion && _isDragging)
 		{
 			_dragEnd = mouseMotion.Position;
-			if (InGameHUD.Instance != null)
+			if (GameContext.InGameHud != null)
 			{
-				InGameHUD.Instance.UpdateDragBox(_dragStart, _dragEnd, true);
+				GameContext.InGameHud.UpdateDragBox(_dragStart, _dragEnd, true);
 			}
 
 			UpdateTemporarySelection(_dragStart, _dragEnd);
@@ -2338,7 +2384,7 @@ public partial class GameHost
 		if (hit == null || !hit.ContainsKey("collider"))
 		{
 			ClearSelection();
-			InGameHUD.Instance?.RefreshUI(SelectedUnits);
+			GameContext.InGameHud?.RefreshUI(SelectedUnits);
 			return;
 		}
 
@@ -2354,7 +2400,7 @@ public partial class GameHost
 			HandleSinglePropSelection(collider);
 		}
 
-		InGameHUD.Instance?.RefreshUI(SelectedUnits);
+		GameContext.InGameHud?.RefreshUI(SelectedUnits);
 	}
 
 	private void ClearSelectedProp()
@@ -2456,7 +2502,7 @@ public partial class GameHost
 			SelectResourcePropInRect(camera, dragRect);
 		}
 
-		InGameHUD.Instance?.RefreshUI(SelectedUnits);
+		GameContext.InGameHud?.RefreshUI(SelectedUnits);
 	}
 
 	private Rect2 CreateDragRect(Vector2 start, Vector2 end)
@@ -2633,7 +2679,7 @@ public partial class GameHost
 		{
 			SelectedUnits.Add(unit);
 			unit.IsSelected = true;
-			GameContext.AudioService?.PlayUnitSound(unit.UnitId, UnitSoundEvent.Select, unit.GlobalPosition);
+			GameContext.AudioService?.PlayUnitSound(unit.UnitId, UnitSoundEvent.Select, unit.GlobalPosition, 0f, AudioPriorityTier.Critical);
 			OnUnitSelected?.Invoke((UnitId)unit.Entity.Id);
 		}
 	}
@@ -2750,23 +2796,23 @@ public partial class GameHost
 		ActiveSpellTargeting = null;
 		Input.SetDefaultCursorShape(Input.CursorShape.Cross);
 
-		if (InGameHUD.Instance != null)
+		if (GameContext.InGameHud != null)
 		{
 			if (mode == "attack")
 			{
-				InGameHUD.Instance.ShowFeedbackText("Attack Command: Click enemy to attack, or ground to Attack-Move", new Color(0.9f, 0.4f, 0.1f));
+				GameContext.InGameHud.ShowFeedbackText("Attack Command: Click enemy to attack, or ground to Attack-Move", new Color(0.9f, 0.4f, 0.1f));
 			}
 			else if (mode == "move")
 			{
-				InGameHUD.Instance.ShowFeedbackText("Move Command: Click ground to move", new Color(0.2f, 0.9f, 0.3f));
+				GameContext.InGameHud.ShowFeedbackText("Move Command: Click ground to move", new Color(0.2f, 0.9f, 0.3f));
 			}
 			else if (mode == "patrol")
 			{
-				InGameHUD.Instance.ShowFeedbackText("Patrol Command: Click ground to set patrol endpoint", new Color(0.7f, 0.4f, 1.0f));
+				GameContext.InGameHud.ShowFeedbackText("Patrol Command: Click ground to set patrol endpoint", new Color(0.7f, 0.4f, 1.0f));
 			}
 			else if (mode == "rally")
 			{
-				InGameHUD.Instance.ShowFeedbackText("Rally Command: Click ground to set building Rally Point", new Color(1.0f, 0.85f, 0.5f));
+				GameContext.InGameHud.ShowFeedbackText("Rally Command: Click ground to set building Rally Point", new Color(1.0f, 0.85f, 0.5f));
 			}
 		}
 	}
@@ -2782,19 +2828,8 @@ public partial class GameHost
 		var targetIds = new List<int>();
 		ViewCollectMoveCommandTargets(selectedEntities, targetIds);
 
-		if (isQueued)
-		{
-			GameContext.InputService.IssueMoveCommandQueued(selectedEntities, new System.Numerics.Vector3(targetPos.X, targetPos.Y, targetPos.Z));
-		}
-		else
-		{
-			GameContext.InputService.IssueMoveCommand(selectedEntities, new System.Numerics.Vector3(targetPos.X, targetPos.Y, targetPos.Z));
-		}
-
-		if (_multiplayerActive && !Multiplayer.IsServer())
-		{
-			QueueClientCommand(isQueued ? "move_queued" : "move", targetIds, targetPos, 0, "");
-		}
+		int commandId = SubmitOrderCommand(isQueued ? "move_queued" : "move", targetIds, targetPos, 0, "");
+		if (!isQueued) PreviewRouteForOrder(commandId, targetIds, targetPos);
 
 		ViewPlayMoveCommandSound(selectedEntities);
 	}
@@ -2804,12 +2839,12 @@ public partial class GameHost
 		if (isQueued)
 		{
 			SpawnTargetIndicator(targetPos, new Color(0.2f, 0.7f, 1.0f));
-			InGameHUD.Instance?.ShowFeedbackText("Command: Queued Move (Shift+Click)", new Color(0.2f, 0.7f, 1.0f));
+			GameContext.InGameHud?.ShowFeedbackText(TranslationServer.Translate("Command: Queued Move (Shift+Click)"), new Color(0.2f, 0.7f, 1.0f));
 		}
 		else
 		{
 			SpawnTargetIndicator(targetPos, new Color(0.22f, 0.54f, 0.26f));
-			InGameHUD.Instance?.ShowFeedbackText("Command: Move to position", new Color(0.22f, 0.54f, 0.26f));
+			GameContext.InGameHud?.ShowFeedbackText(TranslationServer.Translate("Command: Move to position"), new Color(0.22f, 0.54f, 0.26f));
 		}
 	}
 
@@ -2828,7 +2863,7 @@ public partial class GameHost
 		if (selectedEntities.Count > 0 && SelectedUnits.Count > 0)
 		{
 			var primaryUnit = SelectedUnits[0];
-			GameContext.AudioService?.PlayUnitSound(primaryUnit.UnitId, UnitSoundEvent.MoveOrder, primaryUnit.GlobalPosition);
+			GameContext.AudioService?.PlayUnitSound(primaryUnit.UnitId, UnitSoundEvent.MoveOrder, primaryUnit.GlobalPosition, 0f, AudioPriorityTier.Critical);
 		}
 	}
 
@@ -2843,12 +2878,7 @@ public partial class GameHost
 		var selectedEntities = new List<Entity>();
 		ViewCollectAttackCommandTargets(selectedEntities, targetIds);
 
-		GameContext.InputService.IssueAttackCommand(selectedEntities, target.Entity, isQueued);
-
-		if (_multiplayerActive && !Multiplayer.IsServer())
-		{
-			QueueClientCommand("attack", targetIds, target.GlobalPosition, GetServerEntityId(target.Entity), "");
-		}
+		SubmitOrderCommand(isQueued ? "attack_queued" : "attack", targetIds, target.GlobalPosition, GetServerEntityId(target.Entity), "");
 
 		ViewPlayAttackCommandSound(selectedEntities);
 	}
@@ -2857,9 +2887,9 @@ public partial class GameHost
 	{
 		SpawnTargetIndicator(target.GlobalPosition, new Color(0.9f, 0.1f, 0.1f));
 
-		if (InGameHUD.Instance != null)
+		if (GameContext.InGameHud != null)
 		{
-			InGameHUD.Instance.ShowFeedbackText($"Command: Attack {target.UnitId.ToUpper()}", new Color(0.9f, 0.2f, 0.2f));
+			GameContext.InGameHud.ShowFeedbackText($"Command: Attack {target.UnitId.ToUpper()}", new Color(0.9f, 0.2f, 0.2f));
 		}
 	}
 
@@ -2878,7 +2908,7 @@ public partial class GameHost
 		if (selectedEntities.Count > 0 && SelectedUnits.Count > 0)
 		{
 			var primaryUnit = SelectedUnits[0];
-			GameContext.AudioService?.PlayUnitSound(primaryUnit.UnitId, UnitSoundEvent.AttackOrder, primaryUnit.GlobalPosition);
+			GameContext.AudioService?.PlayUnitSound(primaryUnit.UnitId, UnitSoundEvent.AttackOrder, primaryUnit.GlobalPosition, 0f, AudioPriorityTier.Critical);
 		}
 	}
 
@@ -2894,15 +2924,14 @@ public partial class GameHost
 		var targetIds = new List<int>();
 		CollectFollowCommandTargets(target, selectedEntities, targetIds);
 
-		GameContext.InputService.IssueFollowCommand(selectedEntities, target.Entity, isQueued);
-		QueueMultiplayerFollowCommand(target, targetIds);
+		SubmitFollowCommand(target, targetIds, isQueued);
 	}
 
 	private void ShowFollowCommandFeedback(Unit3D target)
 	{
-		if (InGameHUD.Instance == null) return;
+		if (GameContext.InGameHud == null) return;
 
-		InGameHUD.Instance.ShowFeedbackText($"Command: Follow {target.UnitId.ToUpper()}", new Color(0.2f, 0.6f, 1.0f));
+		GameContext.InGameHud.ShowFeedbackText($"Command: Follow {target.UnitId.ToUpper()}", new Color(0.2f, 0.6f, 1.0f));
 	}
 
 	private void CollectFollowCommandTargets(Unit3D target, List<Entity> selectedEntities, List<int> targetIds)
@@ -2915,12 +2944,9 @@ public partial class GameHost
 		}
 	}
 
-	private void QueueMultiplayerFollowCommand(Unit3D target, List<int> targetIds)
+	private void SubmitFollowCommand(Unit3D target, List<int> targetIds, bool isQueued)
 	{
-		if (_multiplayerActive && !Multiplayer.IsServer())
-		{
-			QueueClientCommand("follow", targetIds, target.GlobalPosition, GetServerEntityId(target.Entity), "");
-		}
+		SubmitOrderCommand(isQueued ? "follow_queued" : "follow", targetIds, target.GlobalPosition, GetServerEntityId(target.Entity), "");
 	}
 
 	private void SelectAllBuildings()
@@ -2939,8 +2965,8 @@ public partial class GameHost
 			}
 		}
 
-		InGameHUD.Instance?.RefreshUI(SelectedUnits);
-		InGameHUD.Instance?.ShowFeedbackText($"Selected {count} Buildings", new Color(0.9f, 0.7f, 0.2f));
+		GameContext.InGameHud?.RefreshUI(SelectedUnits);
+		GameContext.InGameHud?.ShowFeedbackText($"Selected {count} Buildings", new Color(0.9f, 0.7f, 0.2f));
 	}
 
 	public void CycleSelectionFocus(bool reverse = false)
@@ -2952,7 +2978,7 @@ public partial class GameHost
 			unitIds.Add(u.UnitId);
 		}
 
-		int index = GameContext.InputService.CycleSelectionFocus(ECSContext.WorldEntity, unitIds, reverse);
+		int index = GameContext.InputService.CycleSelectionFocus(GameContext.Simulation.WorldEntity, unitIds, reverse);
 		var focusUnit = SelectedUnits[index];
 
 		var camera = GetViewport().GetCamera3D();
@@ -2961,8 +2987,8 @@ public partial class GameHost
 			camera.GlobalPosition = new Vector3(focusUnit.GlobalPosition.X, camera.GlobalPosition.Y, focusUnit.GlobalPosition.Z);
 		}
 
-		InGameHUD.Instance?.ShowFeedbackText($"Focused: {focusUnit.UnitId.ToUpper()} ({index + 1}/{SelectedUnits.Count})", new Color(0.5f, 1.0f, 0.5f));
-		InGameHUD.Instance?.RefreshUI(SelectedUnits);
+		GameContext.InGameHud?.ShowFeedbackText($"Focused: {focusUnit.UnitId.ToUpper()} ({index + 1}/{SelectedUnits.Count})", new Color(0.5f, 1.0f, 0.5f));
+		GameContext.InGameHud?.RefreshUI(SelectedUnits);
 	}
 
 	private void CycleThroughBuildings()
@@ -2978,7 +3004,7 @@ public partial class GameHost
 		if (camera != null)
 			camera.GlobalPosition = new Vector3(building.GlobalPosition.X, camera.GlobalPosition.Y, building.GlobalPosition.Z);
 		SelectOnlyUnit(building);
-		InGameHUD.Instance?.ShowFeedbackText($"Jumped to: {building.UnitId.ToUpper()}", new Color(0.9f, 0.8f, 0.3f));
+		GameContext.InGameHud?.ShowFeedbackText($"Jumped to: {building.UnitId.ToUpper()}", new Color(0.9f, 0.8f, 0.3f));
 	}
 
 	private void DeleteSelectedUnits()
@@ -2999,14 +3025,14 @@ public partial class GameHost
 			Callable.From(() => KillUnitDeferred(unit)).CallDeferred();
 		}
 
-		InGameHUD.Instance?.ShowFeedbackText($"Removed {toDelete.Count} unit(s)", new Color(0.9f, 0.3f, 0.3f));
+		GameContext.InGameHud?.ShowFeedbackText($"Removed {toDelete.Count} unit(s)", new Color(0.9f, 0.3f, 0.3f));
 	}
 
 	private void KillUnitDeferred(Unit3D unit)
 	{
 		if (AllUnits.Contains(unit))
 			KillUnit(unit);
-		InGameHUD.Instance?.RefreshUI(SelectedUnits);
+		GameContext.InGameHud?.RefreshUI(SelectedUnits);
 	}
 
 	public void SelectAllIdleUnits()
@@ -3025,10 +3051,10 @@ public partial class GameHost
 			}
 		}
 
-		InGameHUD.Instance?.RefreshUI(SelectedUnits);
-		if (InGameHUD.Instance != null)
+		GameContext.InGameHud?.RefreshUI(SelectedUnits);
+		if (GameContext.InGameHud != null)
 		{
-			InGameHUD.Instance.ShowFeedbackText($"Selected {selectedCount} Idle Units", new Color(0.5f, 1.0f, 0.5f));
+			GameContext.InGameHud.ShowFeedbackText($"Selected {selectedCount} Idle Units", new Color(0.5f, 1.0f, 0.5f));
 		}
 	}
 
@@ -3048,10 +3074,10 @@ public partial class GameHost
 			}
 		}
 
-		InGameHUD.Instance?.RefreshUI(SelectedUnits);
-		if (InGameHUD.Instance != null)
+		GameContext.InGameHud?.RefreshUI(SelectedUnits);
+		if (GameContext.InGameHud != null)
 		{
-			InGameHUD.Instance.ShowFeedbackText($"Selected All Army ({selectedCount} Units)", new Color(0.5f, 1.0f, 0.5f));
+			GameContext.InGameHud.ShowFeedbackText($"Selected All Army ({selectedCount} Units)", new Color(0.5f, 1.0f, 0.5f));
 		}
 	}
 
@@ -3079,8 +3105,8 @@ public partial class GameHost
 			SelectUnit(u);
 		}
 
-		InGameHUD.Instance?.RefreshUI(SelectedUnits);
-		InGameHUD.Instance?.ShowFeedbackText($"Selected {visibleUnits.Count} {type.ToUpper()}(s)", new Color(0.5f, 1.0f, 0.5f));
+		GameContext.InGameHud?.RefreshUI(SelectedUnits);
+		GameContext.InGameHud?.ShowFeedbackText($"Selected {visibleUnits.Count} {type.ToUpper()}(s)", new Color(0.5f, 1.0f, 0.5f));
 	}
 
 	public void CenterCameraOnPrimaryBuilding()
@@ -3139,7 +3165,7 @@ public partial class GameHost
 
 		if (ActiveEditorTool != EditorTool.SelectMove || !GodotObject.IsInstanceValid(SelectedEditorObject))
 		{
-			MapEditorHUD.Instance?.ShowFeedbackExternal("Nothing to Copy (select an object or area first)");
+			GameContext.MapEditorHud?.ShowFeedbackExternal("Nothing to Copy (select an object or area first)");
 			return;
 		}
 
@@ -3152,7 +3178,7 @@ public partial class GameHost
 		if (SelectedEditorObject is PropEntityProxyNode propProxy)
 		{
 			GameContext.EditorService.CopyEditorPropDomain(propProxy.PropId, propProxy.RotationDegrees.Y, propProxy.Scale.X);
-			MapEditorHUD.Instance?.ShowFeedbackExternal($"Copied Prop: {propProxy.PropId.ToUpper()}");
+			GameContext.MapEditorHud?.ShowFeedbackExternal($"Copied Prop: {propProxy.PropId.ToUpper()}");
 			return;
 		}
 
@@ -3179,20 +3205,20 @@ public partial class GameHost
 			Scale = unit.Scale.X,
 			Player = unit.Player
 		});
-		MapEditorHUD.Instance?.ShowFeedbackExternal($"Copied Unit: {unit.UnitId.ToUpper()}");
+		GameContext.MapEditorHud?.ShowFeedbackExternal($"Copied Unit: {unit.UnitId.ToUpper()}");
 	}
 
 	private void CopyEditorProp(Prop3D prop)
 	{
 		GameContext.EditorService.CopyEditorPropDomain(prop.PropId, prop.RotationDegrees.Y, prop.Scale.X);
-		MapEditorHUD.Instance?.ShowFeedbackExternal($"Copied Prop: {prop.PropId.ToUpper()}");
+		GameContext.MapEditorHud?.ShowFeedbackExternal($"Copied Prop: {prop.PropId.ToUpper()}");
 	}
 
 	private void CopyEditorDecal(Decal decal)
 	{
 		string decalId = decal is Decal3D decal3D ? decal3D.DecalId : "logo";
 		GameContext.EditorService.CopyEditorDecalDomain(decalId, decal.RotationDegrees.Y, decal.Scale.X);
-		MapEditorHUD.Instance?.ShowFeedbackExternal($"Copied Decal: {decalId.ToUpper()}");
+		GameContext.MapEditorHud?.ShowFeedbackExternal($"Copied Decal: {decalId.ToUpper()}");
 	}
 
 	public void TriggerPasteFromUI()
@@ -3202,13 +3228,13 @@ public partial class GameHost
 		var copiedObjOpt = GameContext.EditorService.GetCopiedObject();
 		if (copiedObjOpt == null)
 		{
-			MapEditorHUD.Instance?.ShowFeedbackExternal("Nothing to Paste (copy an object or area first)");
+			GameContext.MapEditorHud?.ShowFeedbackExternal("Nothing to Paste (copy an object or area first)");
 			return;
 		}
 
 		var copiedObj = copiedObjOpt.Value;
 		ApplyCopiedObjectState(copiedObj);
-		MapEditorHUD.Instance?.ShowFeedbackExternal($"Paste Mode Active - Placing {copiedObj.Id.ToUpper()}");
+		GameContext.MapEditorHud?.ShowFeedbackExternal($"Paste Mode Active - Placing {copiedObj.Id.ToUpper()}");
 	}
 
 	private bool TryActivateAreaPasteMode()
@@ -3216,8 +3242,8 @@ public partial class GameHost
 		if ((ActiveEditorTool == EditorTool.SelectArea || ActiveEditorTool == EditorTool.PasteArea) && GameContext.EditorService.HasCopiedArea)
 		{
 			ActiveEditorTool = EditorTool.PasteArea;
-			MapEditorHUD.Instance?.SelectToolFromHotkey(EditorTool.PasteArea);
-			MapEditorHUD.Instance?.ShowFeedbackExternal("Paste Mode Active - Click to paste");
+			GameContext.MapEditorHud?.SelectToolFromHotkey(EditorTool.PasteArea);
+			GameContext.MapEditorHud?.ShowFeedbackExternal("Paste Mode Active - Click to paste");
 			return true;
 		}
 
@@ -3230,7 +3256,7 @@ public partial class GameHost
 		ActivePlaceId = copiedObj.Id;
 		EditorPlacementScale = copiedObj.Scale;
 		ActiveEditorTool = newTool;
-		MapEditorHUD.Instance?.SelectToolFromHotkey(newTool);
+		GameContext.MapEditorHud?.SelectToolFromHotkey(newTool);
 	}
 
 	private void AssignControlGroup(int index)
@@ -3246,10 +3272,10 @@ public partial class GameHost
 		}
 
 		_controlGroups[index] = groupUnits;
-		if (InGameHUD.Instance != null)
+		if (GameContext.InGameHud != null)
 		{
-			InGameHUD.Instance.ShowFeedbackText($"Assigned {groupUnits.Count} units to Control Group {index}", new Color(0.5f, 0.8f, 1.0f));
-			InGameHUD.Instance.RefreshUI(SelectedUnits);
+			GameContext.InGameHud.ShowFeedbackText($"Assigned {groupUnits.Count} units to Control Group {index}", new Color(0.5f, 0.8f, 1.0f));
+			GameContext.InGameHud.RefreshUI(SelectedUnits);
 		}
 	}
 
@@ -3268,7 +3294,7 @@ public partial class GameHost
 			SelectUnit(u);
 		}
 
-		InGameHUD.Instance?.RefreshUI(SelectedUnits);
+		GameContext.InGameHud?.RefreshUI(SelectedUnits);
 
 		double now = Time.GetTicksMsec() / 1000.0;
 		if (now - _lastGroupPressTime[index] < 0.3)
@@ -3312,9 +3338,9 @@ public partial class GameHost
 		ActiveSpellTargeting = spellId;
 		Input.SetDefaultCursorShape(Input.CursorShape.Cross);
 
-		if (InGameHUD.Instance != null)
+		if (GameContext.InGameHud != null)
 		{
-			InGameHUD.Instance.ShowFeedbackText($"Casting: Select Location for {spellId.ToUpper()}", new Color(1f, 0.7f, 0.1f));
+			GameContext.InGameHud.ShowFeedbackText($"Casting: Select Location for {spellId.ToUpper()}", new Color(1f, 0.7f, 0.1f));
 		}
 	}
 
@@ -3350,7 +3376,7 @@ public partial class GameHost
 			targetIds.Add(GetServerEntityId(SelectedUnits[0].Entity));
 		}
 
-		QueueClientCommand("spell", targetIds, position, 0, spellId);
+		SubmitRemoteCommand("spell", targetIds, position, 0, spellId);
 	}
 
 	private void ExecuteLocalSpellCast(string spellId, AbilityDefinition def, Vector3 position)
@@ -3364,8 +3390,10 @@ public partial class GameHost
 		if (focusedUnit != null && GameContext.World.IsAlive(focusedUnit.Entity))
 		{
 			caster = (UnitId)focusedUnit.Entity.Id;
-			GameContext.AudioService?.PlayUnitSound(focusedUnit.UnitId, UnitSoundEvent.SpellCast, position);
+			GameContext.AudioService?.PlayUnitSound(focusedUnit.UnitId, UnitSoundEvent.SpellCast, position, 0f, AudioPriorityTier.Critical);
 		}
+
+		if (ExecuteConsumablePurchase(caster, spellId, position)) return;
 
 		OnSpellCast?.Invoke(caster, spellId, new System.Numerics.Vector3(position.X, position.Y, position.Z));
 
@@ -3385,17 +3413,17 @@ public partial class GameHost
 		if (cd <= 0f) return false;
 
 		string displayName = def?.DisplayName ?? spellId;
-		InGameHUD.Instance?.ShowFeedbackText($"{displayName} on cooldown: {cd:F1}s remaining", new Color(0.9f, 0.4f, 0.1f));
+		GameContext.InGameHud?.ShowFeedbackText($"{displayName} on cooldown: {cd:F1}s remaining", new Color(0.9f, 0.4f, 0.1f));
 		return true;
 	}
 
 	private void HandleSpellCastSuccess(string spellId, AbilityDefinition def, Vector3 position)
 	{
 		string displayName = def?.DisplayName ?? spellId;
-		if (InGameHUD.Instance != null)
+		if (GameContext.InGameHud != null)
 		{
-			InGameHUD.Instance.ShowFeedbackText($"Cast: {displayName}", new Color(0.9f, 0.3f, 0.1f));
-			UIManager.Instance.PlayClickSound();
+			GameContext.InGameHud.ShowFeedbackText($"Cast: {displayName}", new Color(0.9f, 0.3f, 0.1f));
+			GameContext.UserInterface.PlayClickSound();
 		}
 
 		if (def != null)
@@ -3406,12 +3434,10 @@ public partial class GameHost
 			GameContext.InputService.ApplySpellEffect(def, simPos, target);
 		}
 
-		InGameHUD.Instance?.RefreshUI(SelectedUnits);
+		GameContext.InGameHud?.RefreshUI(SelectedUnits);
 	}
 
 
-	// Lanza una habilidad instantánea (compras/mejoras del mapa) usando la unidad
-	// seleccionada como lanzador y su posición como objetivo; sin clic en el suelo.
 	public void CastInstantAbility(string abilityId)
 	{
 		if (GameContext.PerspectiveFilter.IsSpectating) return;
@@ -3429,12 +3455,12 @@ public partial class GameHost
 		if (GameContext.PerspectiveFilter.IsSpectating) return;
 		ResolveItemInfo(itemId, out string itemName, out float costGold);
 
-		if (InGameHUD.Instance == null) return;
+		if (GameContext.InGameHud == null) return;
 
-		if (InGameHUD.Instance.Gold < costGold)
+		if (GameContext.InGameHud.Gold < costGold)
 		{
-			InGameHUD.Instance.ShowFeedbackText("Cannot buy item: Insufficient gold!", new Color(1.0f, 0.2f, 0.2f));
-			UIManager.Instance?.PlayWarningSound();
+			GameContext.InGameHud.ShowFeedbackText("Cannot buy item: Insufficient gold!", new Color(1.0f, 0.2f, 0.2f));
+			GameContext.UserInterface?.PlayWarningSound();
 			return;
 		}
 
@@ -3454,8 +3480,8 @@ public partial class GameHost
 		}
 		else
 		{
-			InGameHUD.Instance.ShowFeedbackText("Cannot buy item: No friendly combat units nearby!", new Color(1.0f, 0.2f, 0.2f));
-			UIManager.Instance?.PlayWarningSound();
+			GameContext.InGameHud.ShowFeedbackText("Cannot buy item: No friendly combat units nearby!", new Color(1.0f, 0.2f, 0.2f));
+			GameContext.UserInterface?.PlayWarningSound();
 		}
 	}
 
@@ -3474,9 +3500,9 @@ public partial class GameHost
 	{
 		var targetUnit = (GameContext.InputService.IsUnitAlive(targetUnitEntity)) ? GameContext.SimulationService.GetUnitWrapper(targetUnitEntity) : null;
 		
-		if (InGameHUD.Instance != null)
+		if (GameContext.InGameHud != null)
 		{
-			InGameHUD.Instance.Gold -= costGold;
+			GameContext.InGameHud.Gold -= costGold;
 		}
 
 		if (targetUnit != null)
@@ -3484,9 +3510,9 @@ public partial class GameHost
 			OnItemSold?.Invoke((UnitId)targetUnit.Entity.Id, itemId);
 		}
 
-		InGameHUD.Instance?.ShowFeedbackText($"Bought {itemName} for {targetUnit?.TemplateID.ToUpper()}!", new Color(0.3f, 0.9f, 0.4f));
-		UIManager.Instance?.PlayClickSound();
-		InGameHUD.Instance?.RefreshUI(SelectedUnits);
+		GameContext.InGameHud?.ShowFeedbackText($"Bought {itemName} for {targetUnit?.TemplateID.ToUpper()}!", new Color(0.3f, 0.9f, 0.4f));
+		GameContext.UserInterface?.PlayClickSound();
+		GameContext.InGameHud?.RefreshUI(SelectedUnits);
 	}
 
 	public void UseItem(Unit3D unit, string itemId)
@@ -3514,7 +3540,7 @@ public partial class GameHost
 
 	private void ProcessSuccessfulItemUse(Unit3D unit, string itemName, ItemMetadata itemMeta, float healedAmount)
 	{
-		InGameHUD.Instance?.ShowFeedbackText($"{unit.UnitId.ToUpper()} used {itemName} (+{healedAmount:F0} HP)!", new Color(0.3f, 0.9f, 0.4f));
+		GameContext.InGameHud?.ShowFeedbackText($"{unit.UnitId.ToUpper()} used {itemName} (+{healedAmount:F0} HP)!", new Color(0.3f, 0.9f, 0.4f));
 
 		if (itemMeta != null && !string.IsNullOrEmpty(itemMeta.UseAbility) && GameContext.InputService.GetAbilityDefinition(itemMeta.UseAbility) is AbilityDefinition abDef)
 		{
@@ -3524,16 +3550,16 @@ public partial class GameHost
 		FlashHealUnit(unit);
 		GameContext.FXService.SpawnHealNumber(this, unit.GlobalPosition, healedAmount);
 
-		UIManager.Instance?.PlayClickSound();
-		InGameHUD.Instance?.RefreshUI(SelectedUnits);
+		GameContext.UserInterface?.PlayClickSound();
+		GameContext.InGameHud?.RefreshUI(SelectedUnits);
 	}
 
 	private void ProcessFailedItemUse(Unit3D unit)
 	{
 		if (GameContext.InputService.IsUnitAtFullHealth(unit.Entity))
 		{
-			InGameHUD.Instance?.ShowFeedbackText("Unit is already at full health!", new Color(0.8f, 0.8f, 0.8f));
-			UIManager.Instance?.PlayWarningSound();
+			GameContext.InGameHud?.ShowFeedbackText("Unit is already at full health!", new Color(0.8f, 0.8f, 0.8f));
+			GameContext.UserInterface?.PlayWarningSound();
 		}
 	}
 
@@ -3582,7 +3608,7 @@ public partial class GameHost
 		{
 			var mesh = new MeshInstance3D();
 			mesh.Name = "Mesh_MeshInstance3D";
-			float radius = ResolveTemplateBodyRadius(type, null);
+			float radius = ResolveTemplateBodyRadius(type);
 			float side = radius * 2f;
 			var box = new BoxMesh
 			{
@@ -3596,10 +3622,10 @@ public partial class GameHost
 
 		_buildingPreviewMesh = previewNode;
 
-		if (InGameHUD.Instance != null)
+		if (GameContext.InGameHud != null)
 		{
 			string displayName = !string.IsNullOrEmpty(meta.Name) ? meta.Name : type.ToUpper();
-			InGameHUD.Instance.ShowFeedbackText($"Place {displayName}: Click on map to construct", new Color(0.15f, 0.65f, 1.0f));
+			GameContext.InGameHud.ShowFeedbackText($"Place {displayName}: Click on map to construct", new Color(0.15f, 0.65f, 1.0f));
 		}
 	}
 
@@ -3612,9 +3638,9 @@ public partial class GameHost
 			_buildingPreviewMesh = null;
 		}
 
-		if (InGameHUD.Instance != null)
+		if (GameContext.InGameHud != null)
 		{
-			InGameHUD.Instance.ShowFeedbackText("Building Placement Cancelled", new Color(0.8f, 0.8f, 0.8f));
+			GameContext.InGameHud.ShowFeedbackText("Building Placement Cancelled", new Color(0.8f, 0.8f, 0.8f));
 		}
 
 		Input.SetDefaultCursorShape(Input.CursorShape.Arrow);
@@ -3646,13 +3672,11 @@ public partial class GameHost
 
 		if (_multiplayerActive && !Multiplayer.IsServer())
 		{
-			if (InGameHUD.Instance != null)
+			if (GameContext.InGameHud != null)
 			{
 				DeductResourcesForBuilding(meta);
-				InGameHUD.Instance.ShowFeedbackText($"Constructing {meta.Name}...", new Color(0.3f, 0.9f, 0.4f));
+				GameContext.InGameHud.ShowFeedbackText($"Constructing {meta.Name}...", new Color(0.3f, 0.9f, 0.4f));
 			}
-
-			GameContext.InputService.ExecuteClientBuildingPlacement(meta, type, new System.Numerics.Vector3(position.X, position.Y, position.Z));
 
 			var buildWorkerIds = new List<int>();
 			Unit3D? selectedWorker = SelectedUnits.Find(u => CanUnitConstructType(u, type));
@@ -3661,15 +3685,15 @@ public partial class GameHost
 				buildWorkerIds.Add(GetServerEntityId(selectedWorker.Entity));
 			}
 
-			QueueClientCommand("build", buildWorkerIds, position, 0, type);
+			SubmitRemoteCommand("build", buildWorkerIds, position, 0, type);
 
 			if (!shiftHeld) ClearBuildingPlacementState();
 			return;
 		}
 
-		if (InGameHUD.Instance == null) return;
+		if (GameContext.InGameHud == null) return;
 
-		float clearance = Math.Max(ResolveTemplateBodyRadius(type, _buildingPreviewMesh) * 1.5f, 1.5f);
+		float clearance = Math.Max(ResolveTemplateBodyRadius(type) * 1.5f, 1.5f);
 		if (!GameContext.InputService.TryPlaceBuilding(new System.Numerics.Vector3(position.X, position.Y, position.Z), clearance))
 		{
 			ViewHandleObstructedPlacement();
@@ -3678,13 +3702,13 @@ public partial class GameHost
 
 		if (!GameContext.InputService.HasSufficientResources(
 			    meta,
-			    InGameHUD.Instance.Gold,
-			    InGameHUD.Instance.Wood,
-			    InGameHUD.Instance.Stone
+			    GameContext.InGameHud.Gold,
+			    GameContext.InGameHud.Wood,
+			    GameContext.InGameHud.Stone
 		    ))
 		{
-			InGameHUD.Instance.ShowFeedbackText("Cannot construct: Insufficient resources!", new Color(1.0f, 0.2f, 0.2f));
-			UIManager.Instance?.PlayWarningSound();
+			GameContext.InGameHud.ShowFeedbackText("Cannot construct: Insufficient resources!", new Color(1.0f, 0.2f, 0.2f));
+			GameContext.UserInterface?.PlayWarningSound();
 		}
 		else
 		{
@@ -3701,7 +3725,7 @@ public partial class GameHost
 				SpawnInstantBuilding(type, position, meta);
 			}
 
-			UIManager.Instance?.PlayClickSound();
+			GameContext.UserInterface?.PlayClickSound();
 		}
 
 		if (!shiftHeld) ClearBuildingPlacementState();
@@ -3709,22 +3733,21 @@ public partial class GameHost
 
 	private void ExecuteClientBuildingPlacement(string type, Vector3 position, UnitMetadata bldMeta, bool shiftHeld)
 	{
-		if (InGameHUD.Instance != null)
+		if (GameContext.InGameHud != null)
 		{
 			DeductResourcesForBuilding(bldMeta);
-			InGameHUD.Instance.ShowFeedbackText($"Constructing {bldMeta.Name}...", new Color(0.3f, 0.9f, 0.4f));
+			GameContext.InGameHud.ShowFeedbackText($"Constructing {bldMeta.Name}...", new Color(0.3f, 0.9f, 0.4f));
 		}
 
-		GameContext.InputService.ExecuteClientBuildingPlacement(bldMeta, type, new System.Numerics.Vector3(position.X, position.Y, position.Z));
-		QueueClientCommand("build", new List<int>(), position, 0, type);
+		SubmitRemoteCommand("build", new List<int>(), position, 0, type);
 
 		if (!shiftHeld) ClearBuildingPlacementState();
 	}
 
 	private void ViewHandleObstructedPlacement()
 	{
-		InGameHUD.Instance.ShowFeedbackText("Cannot construct: Area is obstructed!", new Color(1.0f, 0.2f, 0.2f));
-		UIManager.Instance?.PlayWarningSound();
+		GameContext.InGameHud.ShowFeedbackText("Cannot construct: Area is obstructed!", new Color(1.0f, 0.2f, 0.2f));
+		GameContext.UserInterface?.PlayWarningSound();
 		ClearBuildingPlacementState();
 	}
 
@@ -3732,9 +3755,9 @@ public partial class GameHost
 	{
 		GameContext.InputService.DeductResourcesForBuilding(
 			meta,
-			amount => InGameHUD.Instance.Gold -= amount,
-			amount => InGameHUD.Instance.Wood -= amount,
-			amount => InGameHUD.Instance.Stone -= amount);
+			amount => GameContext.InGameHud.Gold -= amount,
+			amount => GameContext.InGameHud.Wood -= amount,
+			amount => GameContext.InGameHud.Stone -= amount);
 	}
 
 	private void ProcessBuildingPlacement(string type, Vector3 position, UnitMetadata meta, bool shiftHeld)
@@ -3766,11 +3789,11 @@ public partial class GameHost
 
 		if (wasQueued)
 		{
-			InGameHUD.Instance.ShowFeedbackText($"Queued: Construct {meta.Name}", new Color(0.5f, 0.8f, 1.0f));
+			GameContext.InGameHud.ShowFeedbackText($"Queued: Construct {meta.Name}", new Color(0.5f, 0.8f, 1.0f));
 		}
 		else
 		{
-			InGameHUD.Instance.ShowFeedbackText($"Constructing: {meta.Name}", new Color(0.3f, 0.9f, 0.4f));
+			GameContext.InGameHud.ShowFeedbackText($"Constructing: {meta.Name}", new Color(0.3f, 0.9f, 0.4f));
 		}
 	}
 
@@ -3794,7 +3817,7 @@ public partial class GameHost
 		var bldEntity = GameContext.InputService.CreateInstantBuildingEcsUnit(type, meta, new System.Numerics.Vector3(position.X, position.Y, position.Z), GetPlayerEntityForPlayerIndex(GameContext.PerspectiveFilter.ControlledPlayerIndex));
 		string modelPath = GetFallbackModelPath(meta.ModelPath, true);
 		SpawnUnit3D(bldEntity, type, modelPath, position, true, GameContext.PerspectiveFilter.ControlledPlayerIndex);
-		InGameHUD.Instance?.ShowFeedbackText($"Constructed: {meta.Name}", new Color(0.3f, 0.9f, 0.4f));
+		GameContext.InGameHud?.ShowFeedbackText($"Constructed: {meta.Name}", new Color(0.3f, 0.9f, 0.4f));
 	}
 
 	private void ClearBuildingPlacementState()
@@ -3806,7 +3829,7 @@ public partial class GameHost
 			_buildingPreviewMesh = null;
 		}
 
-		InGameHUD.Instance?.ExitBuildSubMenu();
+		GameContext.InGameHud?.ExitBuildSubMenu();
 	}
 
 	public void CancelLastQueuedUnit(Entity buildingEntity)
@@ -3858,15 +3881,15 @@ public partial class GameHost
 	{
 		bool queue = Input.IsKeyPressed(Key.Shift);
 		SpawnTargetIndicator(position, new Color(0.9f, 0.7f, 0.2f));
-		if (InGameHUD.Instance != null)
+		if (GameContext.InGameHud != null)
 		{
 			if (queue)
 			{
-				InGameHUD.Instance.ShowFeedbackText($"Queued Rally Point set to {position.X:F0}, {position.Z:F0}", new Color(0.9f, 0.7f, 0.2f));
+				GameContext.InGameHud.ShowFeedbackText($"Queued Rally Point set to {position.X:F0}, {position.Z:F0}", new Color(0.9f, 0.7f, 0.2f));
 			}
 			else
 			{
-				InGameHUD.Instance.ShowFeedbackText($"Rally Point set to {position.X:F0}, {position.Z:F0}", new Color(0.9f, 0.7f, 0.2f));
+				GameContext.InGameHud.ShowFeedbackText($"Rally Point set to {position.X:F0}, {position.Z:F0}", new Color(0.9f, 0.7f, 0.2f));
 			}
 		}
 
@@ -3885,131 +3908,7 @@ public partial class GameHost
 	{
 		ClearSelection();
 		SelectUnit(unit);
-		InGameHUD.Instance?.RefreshUI(SelectedUnits);
-	}
-
-	public void BuyWeaponsUpgrade(int playerIndex = 0)
-	{
-		if (playerIndex <= 0) throw new ArgumentOutOfRangeException(nameof(playerIndex), playerIndex, "An explicit player index is required.");
-		if (playerIndex <= 0) return;
-		if (HasWeaponsUpgrade(playerIndex)) return;
-
-		float costGold = 150f;
-		float costWood = 100f;
-
-		float currentGold = 0f;
-		float currentWood = 0f;
-		var playerEntity = GetPlayerEntityForPlayerIndex(playerIndex);
-		if (playerEntity != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(playerEntity) && GameContext.World.Has<PlayerResources>(playerEntity))
-		{
-			ref var res = ref GameContext.World.Get<PlayerResources>(playerEntity);
-			currentGold = res.Gold;
-			currentWood = res.Wood;
-		}
-
-		if (currentGold >= costGold && currentWood >= costWood)
-		{
-			if (GameContext.TechTreeService.BuyWeaponsUpgrade(GetPlayerEntityForPlayerIndex(playerIndex)))
-			{
-				((IGameAPI)this).SetPlayerGold(playerIndex, currentGold - costGold);
-				((IGameAPI)this).SetPlayerWood(playerIndex, currentWood - costWood);
-
-				if (GameContext.PerspectiveFilter.CanObserve(playerIndex) && InGameHUD.Instance != null)
-				{
-					InGameHUD.Instance.ShowFeedbackText("Weapons Upgrade Complete! +3 Damage to all units.", new Color(0.2f, 0.8f, 1.0f));
-					UIManager.Instance?.PlayClickSound();
-					InGameHUD.Instance.RefreshUI(SelectedUnits);
-				}
-			}
-		}
-		else if (GameContext.PerspectiveFilter.CanObserve(playerIndex) && InGameHUD.Instance != null)
-		{
-			InGameHUD.Instance.ShowFeedbackText("Cannot upgrade: Insufficient resources!", new Color(1.0f, 0.2f, 0.2f));
-			UIManager.Instance?.PlayWarningSound();
-		}
-	}
-
-	public void BuyShieldsUpgrade(int playerIndex = 0)
-	{
-		if (playerIndex <= 0) throw new ArgumentOutOfRangeException(nameof(playerIndex), playerIndex, "An explicit player index is required.");
-		if (playerIndex <= 0) return;
-		if (HasShieldsUpgrade(playerIndex)) return;
-
-		float costGold = 150f;
-		float costStone = 100f;
-
-		float currentGold = 0f;
-		float currentStone = 0f;
-		var playerEntity = GetPlayerEntityForPlayerIndex(playerIndex);
-		if (playerEntity != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(playerEntity) && GameContext.World.Has<PlayerResources>(playerEntity))
-		{
-			ref var res = ref GameContext.World.Get<PlayerResources>(playerEntity);
-			currentGold = res.Gold;
-			currentStone = res.Stone;
-		}
-
-		if (currentGold >= costGold && currentStone >= costStone)
-		{
-			if (GameContext.TechTreeService.BuyShieldsUpgrade(GetPlayerEntityForPlayerIndex(playerIndex)))
-			{
-				((IGameAPI)this).SetPlayerGold(playerIndex, currentGold - costGold);
-				((IGameAPI)this).SetPlayerStone(playerIndex, currentStone - costStone);
-
-				if (GameContext.PerspectiveFilter.CanObserve(playerIndex) && InGameHUD.Instance != null)
-				{
-					InGameHUD.Instance.ShowFeedbackText("Plated Armor Upgrade Complete! +2 Armor to all units.", new Color(0.2f, 0.8f, 1.0f));
-					UIManager.Instance?.PlayClickSound();
-					InGameHUD.Instance.RefreshUI(SelectedUnits);
-				}
-			}
-		}
-		else if (GameContext.PerspectiveFilter.CanObserve(playerIndex) && InGameHUD.Instance != null)
-		{
-			InGameHUD.Instance.ShowFeedbackText("Cannot upgrade: Insufficient resources!", new Color(1.0f, 0.2f, 0.2f));
-			UIManager.Instance?.PlayWarningSound();
-		}
-	}
-
-	public void BuyHarvestingUpgrade(int playerIndex = 0)
-	{
-		if (playerIndex <= 0) throw new ArgumentOutOfRangeException(nameof(playerIndex), playerIndex, "An explicit player index is required.");
-		if (playerIndex <= 0) return;
-		if (HasHarvestingUpgrade(playerIndex)) return;
-
-		float costWood = 150f;
-		float costStone = 100f;
-
-		float currentWood = 0f;
-		float currentStone = 0f;
-		var playerEntity = GetPlayerEntityForPlayerIndex(playerIndex);
-		if (playerEntity != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(playerEntity) && GameContext.World.Has<PlayerResources>(playerEntity))
-		{
-			ref var res = ref GameContext.World.Get<PlayerResources>(playerEntity);
-			currentWood = res.Wood;
-			currentStone = res.Stone;
-		}
-
-		if (currentWood >= costWood && currentStone >= costStone)
-		{
-			if (GameContext.TechTreeService.BuyHarvestingUpgrade(GetPlayerEntityForPlayerIndex(playerIndex)))
-			{
-				((IGameAPI)this).SetPlayerWood(playerIndex, currentWood - costWood);
-				((IGameAPI)this).SetPlayerStone(playerIndex, currentStone - costStone);
-
-				if (GameContext.PerspectiveFilter.CanObserve(playerIndex) && InGameHUD.Instance != null)
-				{
-					InGameHUD.Instance.ResourceGatherMultiplier = 1.5f;
-					InGameHUD.Instance.ShowFeedbackText("Harvesting Upgrade Complete! Passive resource accumulation +50%.", new Color(0.2f, 0.8f, 1.0f));
-					UIManager.Instance?.PlayClickSound();
-					InGameHUD.Instance.RefreshUI(SelectedUnits);
-				}
-			}
-		}
-		else if (GameContext.PerspectiveFilter.CanObserve(playerIndex) && InGameHUD.Instance != null)
-		{
-			InGameHUD.Instance.ShowFeedbackText("Cannot upgrade: Insufficient resources!", new Color(1.0f, 0.2f, 0.2f));
-			UIManager.Instance?.PlayWarningSound();
-		}
+		GameContext.InGameHud?.RefreshUI(SelectedUnits);
 	}
 
 	public void BuyUpgrade(string upgradeId, int playerIndex = 0)
@@ -4017,94 +3916,14 @@ public partial class GameHost
 		if (GameContext.PerspectiveFilter.IsSpectating) return;
 		if (playerIndex <= 0) throw new ArgumentOutOfRangeException(nameof(playerIndex), playerIndex, "An explicit player index is required.");
 		if (playerIndex <= 0) return;
+		if (string.IsNullOrWhiteSpace(upgradeId)) return;
 
-		UpgradeMetadata? upgMeta = null;
-		if (!UpgradeRegistry.TryGetValue(upgradeId, out upgMeta))
-		{
-			if (upgradeId.StartsWith("upgrade/", StringComparison.OrdinalIgnoreCase))
-			{
-				UpgradeRegistry.TryGetValue(upgradeId.Substring(8), out upgMeta);
-			}
-			else
-			{
-				UpgradeRegistry.TryGetValue("upgrade/" + upgradeId, out upgMeta);
-			}
-		}
-
-		string canonicalId = upgMeta != null && !string.IsNullOrEmpty(upgMeta.TemplateID) ? upgMeta.TemplateID : upgradeId;
-		int maxLevel = upgMeta != null && upgMeta.MaxLevel > 0 ? upgMeta.MaxLevel : 1;
-
-		int currentLevel = GameContext.TechTreeService.GetPlayerTechLevel(playerIndex, canonicalId);
-		if (currentLevel == 0 && canonicalId != upgradeId)
-		{
-			currentLevel = GameContext.TechTreeService.GetPlayerTechLevel(playerIndex, upgradeId);
-		}
-
-		if (currentLevel >= maxLevel) return;
-
-		float costGold = upgMeta?.CostGold ?? 0f;
-		float costWood = upgMeta?.CostWood ?? 0f;
-		float costStone = upgMeta?.CostStone ?? 0f;
-
-		float currentGold = 0f;
-		float currentWood = 0f;
-		float currentStone = 0f;
-		var playerEntity = GetPlayerEntityForPlayerIndex(playerIndex);
-		if (playerEntity != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(playerEntity) && GameContext.World.Has<PlayerResources>(playerEntity))
-		{
-			ref var res = ref GameContext.World.Get<PlayerResources>(playerEntity);
-			currentGold = res.Gold;
-			currentWood = res.Wood;
-			currentStone = res.Stone;
-		}
-
-		if (currentGold >= costGold && currentWood >= costWood && currentStone >= costStone)
-		{
-			if (costGold > 0) ((IGameAPI)this).SetPlayerGold(playerIndex, currentGold - costGold);
-			if (costWood > 0) ((IGameAPI)this).SetPlayerWood(playerIndex, currentWood - costWood);
-			if (costStone > 0) ((IGameAPI)this).SetPlayerStone(playerIndex, currentStone - costStone);
-
-			GameContext.TechTreeService.AddPlayerTechLevel(playerIndex, canonicalId, 1);
-
-			if (string.Equals(canonicalId, "upgrade_weapons", StringComparison.OrdinalIgnoreCase) || string.Equals(canonicalId, "weapons", StringComparison.OrdinalIgnoreCase)) SetWeaponsUpgrade(playerIndex, true);
-			if (string.Equals(canonicalId, "upgrade_shields", StringComparison.OrdinalIgnoreCase) || string.Equals(canonicalId, "shields", StringComparison.OrdinalIgnoreCase)) SetShieldsUpgrade(playerIndex, true);
-			if (string.Equals(canonicalId, "upgrade_harvesting", StringComparison.OrdinalIgnoreCase) || string.Equals(canonicalId, "harvesting", StringComparison.OrdinalIgnoreCase)) SetHarvestingUpgrade(playerIndex, true);
-
-			if (GameContext.PerspectiveFilter.CanObserve(playerIndex) && InGameHUD.Instance != null)
-			{
-				string upgName = upgMeta != null && !string.IsNullOrEmpty(upgMeta.Name) ? upgMeta.Name : canonicalId;
-				InGameHUD.Instance.ShowFeedbackText($"Research Complete: {upgName}!", new Color(0.2f, 0.8f, 1.0f));
-				UIManager.Instance?.PlayClickSound();
-				InGameHUD.Instance.RefreshUI(SelectedUnits);
-			}
-		}
-		else if (GameContext.PerspectiveFilter.CanObserve(playerIndex) && InGameHUD.Instance != null)
-		{
-			InGameHUD.Instance.ShowFeedbackText("Cannot upgrade: Insufficient resources!", new Color(1.0f, 0.2f, 0.2f));
-			UIManager.Instance?.PlayWarningSound();
-		}
+		SubmitOrderCommand("research", new List<int>(), Vector3.Zero, 0, upgradeId);
 	}
 
 	public void IssueAttackMoveCommand(Vector3 targetPos)
 	{
-		if (GameContext.PerspectiveFilter.IsSpectating) return;
-		if (SelectedUnits.Count == 0) return;
-
-		SpawnTargetIndicator(targetPos, new Color(0.9f, 0.5f, 0.1f));
-
-		if (InGameHUD.Instance != null)
-		{
-			InGameHUD.Instance.ShowFeedbackText("Command: Attack-Move to position", new Color(0.9f, 0.5f, 0.1f));
-		}
-
-		var selectedEntities = new List<Entity>();
-		foreach (var unit in SelectedUnits)
-		{
-			if (unit.IsBuilding || !GameContext.PerspectiveFilter.CanControl(unit.Player)) continue;
-			selectedEntities.Add(unit.Entity);
-		}
-
-		GameContext.InputService.IssueAttackMoveCommand(selectedEntities, new System.Numerics.Vector3(targetPos.X, targetPos.Y, targetPos.Z));
+		IssueAttackMoveCommand(targetPos, false);
 	}
 
 	public void HoldSelectedUnits()
@@ -4122,12 +3941,7 @@ public partial class GameHost
 			unit.Velocity = Vector3.Zero;
 		}
 
-		GameContext.InputService.HoldSelectedUnits(selectedEntities);
-
-		if (_multiplayerActive && !Multiplayer.IsServer())
-		{
-			QueueClientCommand("hold", targetIds, Vector3.Zero, 0, "");
-		}
+		SubmitOrderCommand("hold", targetIds, Vector3.Zero, 0, "");
 	}
 
 	public void IssuePatrolCommand(Vector3 targetPos, bool isQueued = false)
@@ -4136,7 +3950,7 @@ public partial class GameHost
 		if (SelectedUnits.Count == 0) return;
 
 		SpawnTargetIndicator(targetPos, new Color(0.6f, 0.3f, 1.0f));
-		InGameHUD.Instance?.ShowFeedbackText("Command: Patrol Route Set", new Color(0.7f, 0.4f, 1.0f));
+		GameContext.InGameHud?.ShowFeedbackText(TranslationServer.Translate("Command: Patrol Route Set"), new Color(0.7f, 0.4f, 1.0f));
 
 		var targetIds = new List<int>();
 		var selectedEntities = new List<Entity>();
@@ -4147,12 +3961,8 @@ public partial class GameHost
 			targetIds.Add(GetServerEntityId(unit.Entity));
 		}
 
-		GameContext.InputService.IssuePatrolCommand(selectedEntities, new System.Numerics.Vector3(targetPos.X, targetPos.Y, targetPos.Z), isQueued);
-
-		if (_multiplayerActive && !Multiplayer.IsServer())
-		{
-			QueueClientCommand("patrol", targetIds, targetPos, 0, "");
-		}
+		int commandId = SubmitOrderCommand(isQueued ? "patrol_queued" : "patrol", targetIds, targetPos, 0, "");
+		if (!isQueued) PreviewRouteForOrder(commandId, targetIds, targetPos);
 	}
 
 	public void IssueAttackMoveCommand(Vector3 targetPos, bool isQueued = false)
@@ -4160,8 +3970,16 @@ public partial class GameHost
 		if (GameContext.PerspectiveFilter.IsSpectating) return;
 		if (SelectedUnits.Count == 0) return;
 
-		SpawnTargetIndicator(targetPos, new Color(0.2f, 0.7f, 1.0f));
-		InGameHUD.Instance?.ShowFeedbackText("Command: Queued Move (Shift+Click)", new Color(0.2f, 0.7f, 1.0f));
+		if (isQueued)
+		{
+			SpawnTargetIndicator(targetPos, new Color(0.2f, 0.7f, 1.0f));
+			GameContext.InGameHud?.ShowFeedbackText(TranslationServer.Translate("Command: Queued Attack-Move (Shift+Click)"), new Color(0.2f, 0.7f, 1.0f));
+		}
+		else
+		{
+			SpawnTargetIndicator(targetPos, new Color(0.9f, 0.5f, 0.1f));
+			GameContext.InGameHud?.ShowFeedbackText(TranslationServer.Translate("Command: Attack-Move to position"), new Color(0.9f, 0.5f, 0.1f));
+		}
 
 		var targetIds = new List<int>();
 		var selectedEntities = new List<Entity>();
@@ -4172,12 +3990,8 @@ public partial class GameHost
 			targetIds.Add(GetServerEntityId(unit.Entity));
 		}
 
-		GameContext.InputService.IssueAttackMoveCommand(selectedEntities, new System.Numerics.Vector3(targetPos.X, targetPos.Y, targetPos.Z), isQueued);
-
-		if (_multiplayerActive && !Multiplayer.IsServer())
-		{
-			QueueClientCommand("move_queued", targetIds, targetPos, 0, "");
-		}
+		int commandId = SubmitOrderCommand(isQueued ? "attack_move_queued" : "attack_move", targetIds, targetPos, 0, "");
+		if (!isQueued) PreviewRouteForOrder(commandId, targetIds, targetPos);
 	}
 
 	private void UpdateBuildingPreview()
@@ -4193,7 +4007,7 @@ public partial class GameHost
 			_buildingPreviewMesh.GlobalPosition = pos;
 
 			string activeType = ActiveBuildingPlacementType ?? "";
-			float clearance = Math.Max(ResolveTemplateBodyRadius(activeType, _buildingPreviewMesh) * 1.5f, 1.5f);
+			float clearance = Math.Max(ResolveTemplateBodyRadius(activeType) * 1.5f, 1.5f);
 			bool blocked = GameContext.InputService.IsAreaObstructed(new System.Numerics.Vector3(pos.X, pos.Y, pos.Z), clearance);
 
 			Color targetColor = blocked ? new Color(0.9f, 0.2f, 0.2f) : new Color(0.15f, 0.65f, 1.0f);
@@ -4204,7 +4018,7 @@ public partial class GameHost
 	public void TrainUnitAtBuilding(string unitId)
 	{
 		if (GameContext.PerspectiveFilter.IsSpectating) return;
-		if (InGameHUD.Instance == null) return;
+		if (GameContext.InGameHud == null) return;
 		var meta = UnitRegistry[unitId];
 
 		if (!TryGetCandidateBuilding(out Entity targetBuildingEntity)) return;
@@ -4213,24 +4027,17 @@ public partial class GameHost
 
 		if (!GameContext.InputService.HasSufficientResources(
 			    meta,
-			    InGameHUD.Instance.Gold,
-			    InGameHUD.Instance.Wood,
-			    InGameHUD.Instance.Stone
+			    GameContext.InGameHud.Gold,
+			    GameContext.InGameHud.Wood,
+			    GameContext.InGameHud.Stone
 		    ))
 		{
 			ShowTrainingFeedback("Cannot train unit: Insufficient resources!", new Color(1f, 0.2f, 0.2f), isWarning: true);
 			return;
 		}
 
-		if (_multiplayerActive && !Multiplayer.IsServer())
-		{
-			QueueClientCommand("train", new List<int> { GetServerEntityId(targetBuildingEntity) }, Vector3.Zero, 0, unitId);
-			DeductResourcesAndNotify(meta);
-		}
-		else if (GameContext.InputService.TryQueueUnit(GetPlayerEntityForPlayerIndex(GameContext.PerspectiveFilter.ControlledPlayerIndex), targetBuildingEntity, unitId, meta.PopCost, meta.ProductionTime))
-		{
-			DeductResourcesAndNotify(meta);
-		}
+		SubmitOrderCommand("train", new List<int> { GetServerEntityId(targetBuildingEntity) }, Vector3.Zero, 0, unitId);
+		DeductResourcesAndNotify(meta);
 	}
 
 	private bool TryGetCandidateBuilding(out Entity targetBuildingEntity)
@@ -4272,31 +4079,31 @@ public partial class GameHost
 
 	private void DeductResourcesAndNotify(UnitMetadata meta)
 	{
-		float gold = InGameHUD.Instance.Gold;
-		float wood = InGameHUD.Instance.Wood;
-		float stone = InGameHUD.Instance.Stone;
+		float gold = GameContext.InGameHud.Gold;
+		float wood = GameContext.InGameHud.Wood;
+		float stone = GameContext.InGameHud.Stone;
 
 		GameContext.InputService.DeductResources(meta, ref gold, ref wood, ref stone);
 
-		InGameHUD.Instance.Gold = gold;
-		InGameHUD.Instance.Wood = wood;
-		InGameHUD.Instance.Stone = stone;
+		GameContext.InGameHud.Gold = gold;
+		GameContext.InGameHud.Wood = wood;
+		GameContext.InGameHud.Stone = stone;
 
 		int localSlot = GameContext.PerspectiveFilter.ControlledPlayerIndex;
 		int curPop = GetCurrentPopulation(localSlot);
 		int maxPop = GetMaxPopulation(localSlot);
 		string msg = string.Format(TranslationServer.Translate("Queued {0} ({1}/{2} pop)"), meta.Name, curPop, maxPop);
 		ShowTrainingFeedback(msg, new Color(0.2f, 0.8f, 1f), isWarning: false);
-		InGameHUD.Instance.RefreshUI(SelectedUnits);
+		GameContext.InGameHud.RefreshUI(SelectedUnits);
 	}
 
 	private void ShowTrainingFeedback(string message, Color color, bool isWarning)
 	{
-		InGameHUD.Instance.ShowFeedbackText(message, color);
+		GameContext.InGameHud.ShowFeedbackText(message, color);
 		if (isWarning)
-			UIManager.Instance?.PlayWarningSound();
+			GameContext.UserInterface?.PlayWarningSound();
 		else
-			UIManager.Instance?.PlayClickSound();
+			GameContext.UserInterface?.PlayClickSound();
 	}
 
 	public void SaveCameraLocation(int slotIndex)
@@ -4314,7 +4121,7 @@ public partial class GameHost
 
 	private void ShowSaveCameraFeedback(int slotIndex)
 	{
-		InGameHUD.Instance?.ShowFeedbackText($"Camera Location {slotIndex} Saved", new Color(0.5f, 0.8f, 1.0f));
+		GameContext.InGameHud?.ShowFeedbackText($"Camera Location {slotIndex} Saved", new Color(0.5f, 0.8f, 1.0f));
 	}
 
 	public void RecallCameraLocation(int slotIndex)
@@ -4365,12 +4172,7 @@ public partial class GameHost
 			unit.Velocity = Vector3.Zero;
 		}
 
-		GameContext.InputService.StopSelectedUnits(selectedEntities);
-
-		if (_multiplayerActive && !Multiplayer.IsServer())
-		{
-			QueueClientCommand("stop", targetIds, Vector3.Zero, 0, "");
-		}
+		SubmitOrderCommand("stop", targetIds, Vector3.Zero, 0, "");
 	}
 
 	public void CancelQueuedUnitAt(Entity buildingEntity, int index)
@@ -4378,33 +4180,24 @@ public partial class GameHost
 		if (GameContext.PerspectiveFilter.IsSpectating) return;
 		if (!GameContext.World.IsAlive(buildingEntity) || !GameContext.World.Has<ProductionQueue>(buildingEntity)) return;
 
-		if (_multiplayerActive && !Multiplayer.IsServer())
-		{
-			QueueClientCommand("cancel_train", new List<int> { GetServerEntityId(buildingEntity) }, Vector3.Zero, index, "");
-		}
+		SubmitOrderCommand("cancel_train", new List<int> { GetServerEntityId(buildingEntity) }, Vector3.Zero, index, "");
 
-		if (GameContext.InputService.CancelQueuedUnitAt(buildingEntity, index, out string? cancelledId, out string? nextUnitId))
-		{
-			RefundCancelledUnit(cancelledId);
-			UpdateProductionQueueAfterCancel(buildingEntity, index, nextUnitId);
-
-			UIManager.Instance?.PlayClickSound();
-			InGameHUD.Instance?.RefreshUI(SelectedUnits);
-		}
+		GameContext.UserInterface?.PlayClickSound();
+		GameContext.InGameHud?.RefreshUI(SelectedUnits);
 	}
 
 	private void RefundCancelledUnit(string? cancelledId)
 	{
-		if (cancelledId == null || InGameHUD.Instance == null) return;
+		if (cancelledId == null || GameContext.InGameHud == null) return;
 
 		var meta = UnitRegistry[cancelledId];
-		InGameHUD.Instance.Gold += meta.CostGold;
-		InGameHUD.Instance.Wood += meta.CostWood;
-		InGameHUD.Instance.Stone += meta.CostStone;
+		GameContext.InGameHud.Gold += meta.CostGold;
+		GameContext.InGameHud.Wood += meta.CostWood;
+		GameContext.InGameHud.Stone += meta.CostStone;
 		int localSlot = GameContext.PerspectiveFilter.ControlledPlayerIndex;
 		int curPop = GetCurrentPopulation(localSlot);
 		SetCurrentPopulation(localSlot, Math.Max(0, curPop - meta.PopCost));
-		InGameHUD.Instance.ShowFeedbackText($"Cancelled {meta.Name} (Refunded {meta.CostGold}G, {meta.CostWood}W, {meta.CostStone}S)", new Color(1f, 0.8f, 0.2f));
+		GameContext.InGameHud.ShowFeedbackText($"Cancelled {meta.Name} (Refunded {meta.CostGold}G, {meta.CostWood}W, {meta.CostStone}S)", new Color(1f, 0.8f, 0.2f));
 	}
 
 	private void UpdateProductionQueueAfterCancel(Entity buildingEntity, int index, string? nextUnitId)
@@ -4495,10 +4288,10 @@ public partial class GameHost
 
 		AssignResumeTasksToWorkers(targetBuilding, bPos, shiftHeld);
 
-		if (InGameHUD.Instance != null)
+		if (GameContext.InGameHud != null)
 		{
-			InGameHUD.Instance.ShowFeedbackText($"Resuming construction...", new Color(0.3f, 0.9f, 0.4f));
-			InGameHUD.Instance.RefreshUI(SelectedUnits);
+			GameContext.InGameHud.ShowFeedbackText($"Resuming construction...", new Color(0.3f, 0.9f, 0.4f));
+			GameContext.InGameHud.RefreshUI(SelectedUnits);
 		}
 	}
 
@@ -4669,14 +4462,14 @@ public partial class GameHost
 			{
 				if (scaleVal > 1.5f)
 				{
-					MapEditorHUD.Instance?.ShowFeedbackExternal($"Invalid location: The object (Scale: {scaleVal:F1}x) is too large to fit here.");
+					GameContext.MapEditorHud?.ShowFeedbackExternal($"Invalid location: The object (Scale: {scaleVal:F1}x) is too large to fit here.");
 				}
 				else
 				{
-					MapEditorHUD.Instance?.ShowFeedbackExternal("invalid location");
+					GameContext.MapEditorHud?.ShowFeedbackExternal("invalid location");
 				}
 
-				UIManager.Instance?.PlayWarningSound();
+				GameContext.UserInterface?.PlayWarningSound();
 				GetViewport().SetInputAsHandled();
 				return null;
 			}

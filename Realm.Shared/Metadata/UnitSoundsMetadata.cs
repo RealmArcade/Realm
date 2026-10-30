@@ -2,6 +2,7 @@ namespace Realm.Shared.Metadata;
 
 public class UnitSoundsMetadata
 {
+	public string? VoiceAsset { get; set; }
 	public string[]? OnSelect { get; set; }
 	public string[]? OnMoveOrder { get; set; }
 	public string[]? OnAttackOrder { get; set; }

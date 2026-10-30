@@ -1,54 +1,26 @@
-using System.Collections.Generic;
+using System;
 using Godot;
+using SharedPalette = Realm.Shared.Players.PlayerColorPalette;
+using SharedPlayerColorEntry = Realm.Shared.Players.PlayerColorEntry;
 
 namespace Realm.Client;
 
 public static class PlayerColorConfig
 {
-	public const int NEUTRAL_PLAYER_INDEX = 0;
+	public const int NEUTRAL_PLAYER_INDEX = SharedPalette.NeutralPlayerIndex;
 
+	public static readonly PlayerColorEntry[] Palette = BuildPalette();
 
-	public static readonly PlayerColorEntry[] Palette = new PlayerColorEntry[]
+	private static PlayerColorEntry[] BuildPalette()
 	{
-		new PlayerColorEntry(0, "NEUTRAL_TAN", new Color(0.620f, 0.541f, 0.431f)),
-        
-        // Primary / Base Palette (1 - 12)
-        new PlayerColorEntry(1, "Crimson", new Color(0.850f, 0.100f, 0.100f)),
-        new PlayerColorEntry(2, "Blue", new Color(0.100f, 0.400f, 0.900f)),
-        new PlayerColorEntry(3, "Emerald", new Color(0.100f, 0.750f, 0.200f)),
-        new PlayerColorEntry(4, "Yellow", new Color(0.950f, 0.850f, 0.100f)),
-        new PlayerColorEntry(5, "Orange", new Color(0.950f, 0.450f, 0.050f)),
-        new PlayerColorEntry(6, "Cyan", new Color(0.000f, 0.800f, 0.800f)),
-        new PlayerColorEntry(7, "Purple", new Color(0.600f, 0.150f, 0.850f)),
-        new PlayerColorEntry(8, "Magenta", new Color(0.950f, 0.200f, 0.600f)),
-        new PlayerColorEntry(9, "Lime", new Color(0.650f, 0.850f, 0.100f)),
-        new PlayerColorEntry(10, "Teal", new Color(0.000f, 0.550f, 0.550f)),
-        new PlayerColorEntry(11, "Coral", new Color(0.950f, 0.400f, 0.350f)),
-        new PlayerColorEntry(12, "Slate", new Color(0.400f, 0.450f, 0.550f)),
-
-        // Matched Secondary Palette (13 - 24)
-        new PlayerColorEntry(13, "Maroon", new Color(0.550f, 0.050f, 0.200f)),
-        new PlayerColorEntry(14, "Cobalt", new Color(0.150f, 0.200f, 0.750f)),
-        new PlayerColorEntry(15, "Forest", new Color(0.150f, 0.450f, 0.150f)),
-        new PlayerColorEntry(16, "Amber", new Color(0.950f, 0.680f, 0.100f)),
-        new PlayerColorEntry(17, "Russet", new Color(0.550f, 0.300f, 0.100f)),
-        new PlayerColorEntry(18, "Azure", new Color(0.000f, 0.650f, 0.950f)),
-        new PlayerColorEntry(19, "Indigo", new Color(0.400f, 0.100f, 0.550f)),
-        new PlayerColorEntry(20, "Lavender", new Color(0.750f, 0.550f, 0.950f)),
-        new PlayerColorEntry(21, "Olive", new Color(0.400f, 0.500f, 0.200f)),
-        new PlayerColorEntry(22, "Mint", new Color(0.300f, 0.750f, 0.600f)),
-        new PlayerColorEntry(23, "Ruby", new Color(0.800f, 0.250f, 0.400f)),
-        new PlayerColorEntry(24, "Silver", new Color(0.850f, 0.880f, 0.900f))
-	};
-
-	public static readonly List<Color> AvailableColors = new();
-
-	static PlayerColorConfig()
-	{
-		for (int i = 0; i < Palette.Length; i++)
+		var palette = new PlayerColorEntry[SharedPalette.Count];
+		for (int index = 0; index < palette.Length; index++)
 		{
-			AvailableColors.Add(Palette[i].Color);
+			SharedPlayerColorEntry entry = SharedPalette.Palette[index];
+			palette[index] = new PlayerColorEntry(entry.Index, entry.Name, new Color(entry.Red, entry.Green, entry.Blue));
 		}
+
+		return palette;
 	}
 
 	public static Color GetColor(int playerIndex)
@@ -61,6 +33,19 @@ public static class PlayerColorConfig
 		return Palette[NEUTRAL_PLAYER_INDEX].Color;
 	}
 
+	public static string GetPaletteLabel(int playerIndex)
+	{
+		if (playerIndex < 0 || playerIndex >= Palette.Length)
+		{
+			playerIndex = NEUTRAL_PLAYER_INDEX;
+		}
+
+		var entry = Palette[playerIndex];
+		return playerIndex == NEUTRAL_PLAYER_INDEX
+			? $"{entry.Index} {entry.Name} (gaia)"
+			: $"{entry.Index} {entry.Name}";
+	}
+
 	public static string GetName(int playerIndex)
 	{
 		if (playerIndex >= 0 && playerIndex < Palette.Length)
@@ -71,25 +56,31 @@ public static class PlayerColorConfig
 		return Palette[NEUTRAL_PLAYER_INDEX].Name;
 	}
 
+	/// <summary>
+	///     The palette index a colour stands for. The match is made on the eight bits per channel a seat's colour travels
+	///     as, because a colour that has come back from the authority no longer equals the palette's own float exactly and
+	///     a miss would read as the neutral entry, which is what a colour picker reads to choose the next colour.
+	/// </summary>
 	public static int GetColorIndex(Color color)
 	{
-		for (int i = 0; i < Palette.Length; i++)
+		int red = ToChannelByte(color.R);
+		int green = ToChannelByte(color.G);
+		int blue = ToChannelByte(color.B);
+
+		for (int index = 0; index < Palette.Length; index++)
 		{
-			if (Palette[i].Color.IsEqualApprox(color)) return i;
+			Color entryColor = Palette[index].Color;
+			if (entryColor.R8 != red || entryColor.G8 != green || entryColor.B8 != blue) continue;
+
+			return index;
 		}
 
-		return 0;
+		return NEUTRAL_PLAYER_INDEX;
 	}
 
-	public static string GetColorHex(int playerIndex)
-	{
-		if (playerIndex < 0 || playerIndex >= Palette.Length)
-		{
-			return "FFFFFF";
-		}
+	private static int ToChannelByte(float channel) => (int)Math.Round(Math.Clamp(channel, 0.0f, 1.0f) * 255.0);
 
-		return Palette[playerIndex].Color.ToHtml(false).ToUpperInvariant();
-	}
+	public static string GetColorHex(int playerIndex) => SharedPalette.GetColorHex(playerIndex);
 
 	public static Color GetColorForOwner(int? playerIndex)
 	{

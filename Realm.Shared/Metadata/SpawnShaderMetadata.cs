@@ -15,4 +15,6 @@ public class SpawnShaderMetadata
 	public float AlphaFade { get; set; } = 1.0f;
 	public float Duration { get; set; } = 1.2f;
 	public string AssetType { get; set; } = "SpawnShader";
+
+	public string? Attribution_ImportedFromMap { get; set; }
 }

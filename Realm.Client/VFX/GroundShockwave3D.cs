@@ -1,5 +1,6 @@
 using System;
 using Godot;
+using Realm.Client.Services;
 
 namespace Realm.Client.VFX;
 
@@ -117,10 +118,10 @@ public partial class GroundShockwave3D : Node3D
 			Vector3 innerPos = CenterPosition + new Vector3(cos * innerR, 0.05f, sin * innerR);
 			Vector3 outerPos = CenterPosition + new Vector3(cos * outerR, 0.05f, sin * outerR);
 
-			if (ConformToTerrain && RuntimeTerrain.Instance != null)
+			if (ConformToTerrain && GameContext.Terrain != null)
 			{
-				RuntimeTerrain.Instance.GetHeightAndNormal(innerPos.X, innerPos.Z, out float inH, out Vector3 inN);
-				RuntimeTerrain.Instance.GetHeightAndNormal(outerPos.X, outerPos.Z, out float outH, out Vector3 outN);
+				GameContext.Terrain.GetHeightAndNormal(innerPos.X, innerPos.Z, out float inH, out Vector3 inN);
+				GameContext.Terrain.GetHeightAndNormal(outerPos.X, outerPos.Z, out float outH, out Vector3 outN);
 				innerPos.Y = inH + 0.08f;
 				outerPos.Y = outH + 0.08f;
 			}
@@ -162,10 +163,10 @@ public partial class GroundShockwave3D : Node3D
 			Vector3 backPos = CenterPosition + (right * offsetW) + (fwd * Math.Max(0.0f, waveFrontDist - RingThickness));
 			Vector3 frontPos = CenterPosition + (right * offsetW) + (fwd * waveFrontDist);
 
-			if (ConformToTerrain && RuntimeTerrain.Instance != null)
+			if (ConformToTerrain && GameContext.Terrain != null)
 			{
-				RuntimeTerrain.Instance.GetHeightAndNormal(backPos.X, backPos.Z, out float bH, out Vector3 _);
-				RuntimeTerrain.Instance.GetHeightAndNormal(frontPos.X, frontPos.Z, out float fH, out Vector3 _);
+				GameContext.Terrain.GetHeightAndNormal(backPos.X, backPos.Z, out float bH, out Vector3 _);
+				GameContext.Terrain.GetHeightAndNormal(frontPos.X, frontPos.Z, out float fH, out Vector3 _);
 				backPos.Y = bH + 0.1f;
 				frontPos.Y = fH + 0.2f;
 			}

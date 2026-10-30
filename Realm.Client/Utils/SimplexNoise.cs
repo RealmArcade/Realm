@@ -42,9 +42,6 @@ public static class SimplexNoise
 		}
 	}
 
-	/// <summary>
-	/// Computes 2D Simplex Noise in range [-1.0, 1.0].
-	/// </summary>
 	public static float Simplex2D(float xin, float yin)
 	{
 		float n0, n1, n2;

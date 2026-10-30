@@ -149,13 +149,13 @@ public class PortraitPanel
 
 	private bool HasSelectedUnits()
 	{
-		return GameHost.Instance != null && GameHost.Instance.SelectedUnits != null && GameHost.Instance.SelectedUnits.Count > 0;
+		return GameContext.Host != null && GameContext.Host.SelectedUnits != null && GameContext.Host.SelectedUnits.Count > 0;
 	}
 
 	private void InvokeSelection()
 	{
-		int idx = GameHost.Instance.CycleSelectionIndex;
-		bool isValidIdx = idx >= 0 && idx < GameHost.Instance.SelectedUnits.Count;
+		int idx = GameContext.Host.CycleSelectionIndex;
+		bool isValidIdx = idx >= 0 && idx < GameContext.Host.SelectedUnits.Count;
 		UnitSelectionButtonClicked?.Invoke(isValidIdx ? idx : 0);
 	}
 
@@ -184,7 +184,7 @@ public class PortraitPanel
 	{
 		_unitsContainer.Visible = false;
 
-		if (viewModel.SelectedProp != null && GodotObject.IsInstanceValid(viewModel.SelectedProp) && GameHost.Instance != null)
+		if (viewModel.SelectedProp != null && GodotObject.IsInstanceValid(viewModel.SelectedProp) && GameContext.Host != null)
 		{
 			UpdatePropSelection(viewModel);
 		}
@@ -356,7 +356,7 @@ public class PortraitPanel
 		statsText += $"\n{info.StateText}";
 		if (!string.IsNullOrEmpty(info.Description))
 		{
-			statsText += $"\n\n{TranslationServer.Translate(info.Description)}";
+			statsText += $"\n\n{TooltipTemplate.Resolve(TranslationServer.Translate(info.Description), TooltipContext.ForUnit(info.Entity))}";
 		}
 
 		_statsLabel.Text = statsText;
@@ -518,7 +518,7 @@ public class PortraitPanel
 	{
 		if (hpBar == null) return;
 
-		if (GameHost.Instance != null && GameContext.World.IsAlive(uInfo.Entity))
+		if (GameContext.Host != null && GameContext.World.IsAlive(uInfo.Entity))
 		{
 			hpBar.Visible = true;
 			hpBar.MaxValue = uInfo.MaxHealth;
@@ -690,9 +690,9 @@ public class PortraitPanel
 	{
 		if (e is not InputEventMouseButton mouseEvent || !mouseEvent.Pressed) return;
 		if (mouseEvent.ButtonIndex != MouseButton.Left && mouseEvent.ButtonIndex != MouseButton.Right) return;
-		if (GameHost.Instance == null || !GameContext.World.IsAlive(producerEntity)) return;
+		if (GameContext.Host == null || !GameContext.World.IsAlive(producerEntity)) return;
 
-		GameHost.Instance.CancelQueuedUnitAt(producerEntity, index);
+		GameContext.Host.CancelQueuedUnitAt(producerEntity, index);
 	}
 
 	private void ClearQueueSlots()

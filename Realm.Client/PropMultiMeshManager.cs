@@ -7,6 +7,8 @@ using Realm.Client.Core;
 using Realm.Client.Services;
 using Realm.Client.Services.ModelOptimization;
 using Realm.Client.UI;
+using Realm.Client.Utils;
+using Realm.Shared.Metadata;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Meta;
@@ -17,8 +19,6 @@ namespace Realm.Client;
 [GlobalClass]
 public partial class PropMultiMeshManager : Node3D
 {
-	public static PropMultiMeshManager Instance { get; private set; }
-
 
 	private static readonly StringName _snModelBrightness = new("model_brightness");
 	private static readonly StringName _snModelColorTint = new("model_color_tint");
@@ -26,6 +26,13 @@ public partial class PropMultiMeshManager : Node3D
 	private static readonly StringName _snUnitAmbientBoost = new("unit_ambient_boost");
 	private static readonly StringName _snUnitRimIntensity = new("unit_rim_intensity");
 	private static readonly StringName _snHideInShroud = new("hide_in_shroud");
+	private static readonly StringName _snProcAnimParams1 = new("proc_anim_params1");
+	private static readonly StringName _snProcAnimParams2 = new("proc_anim_params2");
+	private static readonly StringName _snProcAnimParams3 = new("proc_anim_params3");
+	private static readonly StringName _snProcAnimImpulse = new("proc_anim_impulse");
+	private static readonly StringName _snProcAnimVelocity = new("proc_anim_velocity");
+	private static readonly StringName _snProcAnimRegionMin = new("proc_anim_region_min");
+	private static readonly StringName _snProcAnimRegionMax = new("proc_anim_region_max");
 
 	private readonly Dictionary<string, PropModelGroup> _groups = new(StringComparer.OrdinalIgnoreCase);
 	private readonly HashSet<string> _dirtyAssetKeys = new(StringComparer.OrdinalIgnoreCase);
@@ -33,12 +40,13 @@ public partial class PropMultiMeshManager : Node3D
 	private readonly Dictionary<Vector2I, List<PropData>> _reusableChunkBucketsData = new();
 	private readonly HashSet<string> _reusableKeysToRebuild = new(StringComparer.OrdinalIgnoreCase);
 	private readonly Dictionary<Entity, (PropChunkGroup ChunkGroup, int Index, PropModelGroup ModelGroup)> _entityIndexMap = new();
+	private readonly List<Entity> _reusableStaleEntities = new();
 	private bool _allDirty = false;
 	private float _appliedLodDistanceScale = 0f;
 
 	public override void _Ready()
 	{
-		Instance = this;
+		GameContext.RegisterPropMultiMesh(this);
 		Name = "PropMultiMeshManager";
 		_appliedLodDistanceScale = GameSettings.LodDistanceScale;
 	}
@@ -92,16 +100,13 @@ public partial class PropMultiMeshManager : Node3D
 
 	public override void _ExitTree()
 	{
-		if (Instance == this)
-		{
-			Instance = null;
-		}
+		GameContext.UnregisterPropMultiMesh(this);
 	}
 
 	public void MarkDirty(string assetKeyOrPropId)
 	{
 		if (string.IsNullOrEmpty(assetKeyOrPropId)) return;
-		string normKey = GameHost.Instance != null ? GameHost.Instance.GetModelAssetKey(assetKeyOrPropId) : assetKeyOrPropId.ToLowerInvariant();
+		string normKey = GameContext.Host != null ? GameContext.Host.GetModelAssetKey(assetKeyOrPropId) : assetKeyOrPropId.ToLowerInvariant();
 		if (!string.IsNullOrEmpty(normKey))
 		{
 			_dirtyAssetKeys.Add(normKey);
@@ -111,6 +116,43 @@ public partial class PropMultiMeshManager : Node3D
 	public void MarkAllDirty()
 	{
 		_allDirty = true;
+	}
+
+	public void RefreshProceduralAnimation(string assetKeyOrPropId)
+	{
+		if (string.IsNullOrEmpty(assetKeyOrPropId)) return;
+		string normKey = GameContext.Host != null ? GameContext.Host.GetModelAssetKey(assetKeyOrPropId) : assetKeyOrPropId.ToLowerInvariant();
+		if (string.IsNullOrEmpty(normKey)) return;
+
+		if (_groups.TryGetValue(normKey, out var group))
+		{
+			DisposeGroup(group);
+			_groups.Remove(normKey);
+		}
+
+		_dirtyAssetKeys.Add(normKey);
+	}
+
+	private void DisposeGroup(PropModelGroup group)
+	{
+		foreach (var chunkGroup in group.ChunkGroups.Values)
+		{
+			foreach (var node in chunkGroup.MultiMeshNodes)
+			{
+				if (GodotObject.IsInstanceValid(node)) node.QueueFree();
+			}
+		}
+
+		_reusableStaleEntities.Clear();
+		foreach (var entry in _entityIndexMap)
+		{
+			if (ReferenceEquals(entry.Value.ModelGroup, group)) _reusableStaleEntities.Add(entry.Key);
+		}
+
+		for (int i = 0; i < _reusableStaleEntities.Count; i++)
+		{
+			_entityIndexMap.Remove(_reusableStaleEntities[i]);
+		}
 	}
 
 	public void Clear()
@@ -139,8 +181,8 @@ public partial class PropMultiMeshManager : Node3D
 	{
 		if (_entityIndexMap.TryGetValue(entity, out var info))
 		{
-			float yOffset = GameHost.Instance != null ? GameHost.Instance.GetModelYOffset(ResolveEntityPropId(entity, info.ModelGroup.AssetKey)) : 0f;
-			float globalModelScale = GameHost.Instance != null ? GameHost.Instance.GetModelScale(info.ModelGroup.AssetKey) : 1f;
+			float yOffset = GameContext.Host != null ? GameContext.Host.GetModelYOffset(ResolveEntityPropId(entity, info.ModelGroup.AssetKey)) : 0f;
+			float globalModelScale = GameContext.Host != null ? GameContext.Host.GetModelScale(info.ModelGroup.AssetKey) : 1f;
 
 			Vector3 pos = position;
 			pos.Y += yOffset * scale;
@@ -158,7 +200,7 @@ public partial class PropMultiMeshManager : Node3D
 				}
 			}
 		}
-		else if (GameHost.Instance != null && GameContext.World != null && GameContext.World.IsAlive(entity) && GameContext.World.Has<PropIdentity>(entity))
+		else if (GameContext.Host != null && GameContext.World != null && GameContext.World.IsAlive(entity) && GameContext.World.Has<PropIdentity>(entity))
 		{
 			string propId = GameContext.World.Get<PropIdentity>(entity).PropId;
 			MarkDirty(propId);
@@ -234,7 +276,7 @@ public partial class PropMultiMeshManager : Node3D
 
 	private void RebuildAllInternal()
 	{
-		if (GameHost.Instance == null) return;
+		if (GameContext.Host == null) return;
 		_reusableKeysToRebuild.Clear();
 
 		CollectReusableKeysFromEcs();
@@ -253,7 +295,7 @@ public partial class PropMultiMeshManager : Node3D
 		var query = QueryCache.AllPropIdentityAndPositionQuery;
 		GameContext.World.Query(in query, (Entity _, ref PropIdentity propIdComp) =>
 		{
-			string key = GameHost.Instance.GetModelAssetKey(propIdComp.PropId);
+			string key = GameContext.Host.GetModelAssetKey(propIdComp.PropId);
 			if (!string.IsNullOrEmpty(key))
 			{
 				_reusableKeysToRebuild.Add(key);
@@ -263,11 +305,11 @@ public partial class PropMultiMeshManager : Node3D
 
 	private void CollectReusableKeysFromProps()
 	{
-		foreach (var prop in GameHost.Instance.AllProps)
+		foreach (var prop in GameContext.Host.AllProps)
 		{
 			if (!GodotObject.IsInstanceValid(prop) || prop.IsPreview || prop.GetNodeOrNull<Node3D>("VisualModel") != null) continue;
 
-			string key = GameHost.Instance.GetModelAssetKey(prop);
+			string key = GameContext.Host.GetModelAssetKey(prop);
 			if (!string.IsNullOrEmpty(key))
 			{
 				_reusableKeysToRebuild.Add(key);
@@ -285,7 +327,7 @@ public partial class PropMultiMeshManager : Node3D
 
 	private void RebuildGroupInternal(string normAssetKey)
 	{
-		if (GameHost.Instance == null || string.IsNullOrEmpty(normAssetKey)) return;
+		if (GameContext.Host == null || string.IsNullOrEmpty(normAssetKey)) return;
 
 		_reusableMatchingPropsData.Clear();
 		CollectMatchingPropsFromEcs(normAssetKey);
@@ -314,7 +356,7 @@ public partial class PropMultiMeshManager : Node3D
 		{
 			if (GameHost.EntityToProp3D.ContainsKey(entity)) return;
 
-			string key = GameHost.Instance.GetModelAssetKey(propIdComp.PropId);
+			string key = GameContext.Host.GetModelAssetKey(propIdComp.PropId);
 			if (key != normAssetKey) return;
 
 			float rotY = GameContext.World.Has<RotationY>(entity) ? GameContext.World.Get<RotationY>(entity).Value : 0f;
@@ -327,17 +369,17 @@ public partial class PropMultiMeshManager : Node3D
 				Position = new Vector3(posComp.Value.X, posComp.Value.Y, posComp.Value.Z),
 				RotationY = rotY,
 				Scale = scale,
-				YOffset = GameHost.Instance.GetModelYOffset(propIdComp.PropId)
+				YOffset = GameContext.Host.GetModelYOffset(propIdComp.PropId)
 			});
 		});
 	}
 
 	private void CollectMatchingPropsFromNodes(string normAssetKey)
 	{
-		foreach (var prop in GameHost.Instance.AllProps)
+		foreach (var prop in GameContext.Host.AllProps)
 		{
 			if (!GodotObject.IsInstanceValid(prop) || prop.IsPreview || !prop.Visible || prop.GetNodeOrNull<Node3D>("VisualModel") != null) continue;
-			if (GameHost.Instance.GetModelAssetKey(prop) != normAssetKey) continue;
+			if (GameContext.Host.GetModelAssetKey(prop) != normAssetKey) continue;
 
 			_reusableMatchingPropsData.Add(new PropData
 			{
@@ -345,7 +387,7 @@ public partial class PropMultiMeshManager : Node3D
 				Position = prop.Position,
 				RotationY = prop.RotationDegrees.Y,
 				Scale = prop.Scale.X,
-				YOffset = GameHost.Instance.GetModelYOffset(prop.PropId)
+				YOffset = GameContext.Host.GetModelYOffset(prop.PropId)
 			});
 		}
 	}
@@ -355,7 +397,7 @@ public partial class PropMultiMeshManager : Node3D
 		float quadSize = 1.0f;
 		float halfW = 64.0f;
 		float halfD = 64.0f;
-		var terrain = GameHost.Instance.GroundTerrain;
+		var terrain = GameContext.Host.GroundTerrain;
 		if (terrain != null)
 		{
 			quadSize = terrain.QuadSize;
@@ -410,7 +452,7 @@ public partial class PropMultiMeshManager : Node3D
 
 	private void RebuildActiveChunkGroups(PropModelGroup group, string normAssetKey)
 	{
-		float globalModelScale = GameHost.Instance.GetModelScale(normAssetKey);
+		float globalModelScale = GameContext.Host.GetModelScale(normAssetKey);
 
 		foreach (var kvp in _reusableChunkBucketsData)
 		{
@@ -645,7 +687,7 @@ public partial class PropMultiMeshManager : Node3D
 
 		try
 		{
-			float globalModelScale = GameHost.Instance != null ? GameHost.Instance.GetModelScale(normAssetKey) : 1.0f;
+			float globalModelScale = GameContext.Host != null ? GameContext.Host.GetModelScale(normAssetKey) : 1.0f;
 			float scaleMultiplier = Math.Max(0.01f, globalModelScale);
 			GltfDocumentExtensionMsftLod.UpdateLodVisibilityRanges(prototype, scaleMultiplier);
 
@@ -658,7 +700,11 @@ public partial class PropMultiMeshManager : Node3D
 			}
 
 			var group = new PropModelGroup { AssetKey = normAssetKey };
-			PopulateSubMeshes(group, meshNodes, prototype);
+			ProceduralAnimationConfig? proceduralAnimation = ResolveProceduralAnimation(normAssetKey);
+			ProceduralSwayRegionBinder? swayRegionBinder = proceduralAnimation != null && prototype is Node3D prototypeRoot
+				? new ProceduralSwayRegionBinder(prototypeRoot, proceduralAnimation, normAssetKey)
+				: null;
+			PopulateSubMeshes(group, meshNodes, prototype, proceduralAnimation, swayRegionBinder);
 			ConfigureVisibilityRanges(group);
 
 			return group.SubMeshes.Count > 0 ? group : null;
@@ -669,8 +715,10 @@ public partial class PropMultiMeshManager : Node3D
 		}
 	}
 
-	private static void PopulateSubMeshes(PropModelGroup group, List<MeshInstance3D> meshNodes, Node prototype)
+	private static void PopulateSubMeshes(PropModelGroup group, List<MeshInstance3D> meshNodes, Node prototype, ProceduralAnimationConfig? proceduralAnimation, ProceduralSwayRegionBinder? swayRegionBinder)
 	{
+		ProceduralShaderParameters proceduralParameters = ProceduralAnimationManager.BuildShaderParameters(proceduralAnimation);
+
 		foreach (var mi in meshNodes)
 		{
 			if (mi.Mesh == null) continue;
@@ -690,6 +738,8 @@ public partial class PropMultiMeshManager : Node3D
 				VisibilityRangeFadeMode = mi.VisibilityRangeFadeMode
 			};
 
+			ApplySubMeshProceduralAnimation(subInfo, mi, proceduralAnimation, proceduralParameters, swayRegionBinder);
+
 			int surfaceCount = mi.Mesh.GetSurfaceCount();
 			subInfo.SurfaceMaterials = new Material[surfaceCount];
 			for (int s = 0; s < surfaceCount; s++)
@@ -699,6 +749,52 @@ public partial class PropMultiMeshManager : Node3D
 
 			group.SubMeshes.Add(subInfo);
 		}
+	}
+
+	private static void ApplySubMeshProceduralAnimation(MeshSubInfo subInfo, MeshInstance3D meshInstance, ProceduralAnimationConfig? proceduralAnimation, ProceduralShaderParameters proceduralParameters, ProceduralSwayRegionBinder? swayRegionBinder)
+	{
+		if (proceduralAnimation == null)
+		{
+			subInfo.HasProceduralAnimation = false;
+			subInfo.ProceduralParameters1 = Vector4.Zero;
+			subInfo.ProceduralParameters2 = Vector4.Zero;
+			subInfo.ProceduralParameters3 = Vector4.Zero;
+			subInfo.ProceduralRegionMin = Vector3.Zero;
+			subInfo.ProceduralRegionMax = Vector3.Zero;
+			return;
+		}
+
+		Vector4 parameters1 = proceduralParameters.Parameters1;
+		Vector4 parameters2 = proceduralParameters.Parameters2;
+		Vector3 regionMin = new(proceduralAnimation.MaskRegionMin.X, proceduralAnimation.MaskRegionMin.Y, proceduralAnimation.MaskRegionMin.Z);
+		Vector3 regionMax = new(proceduralAnimation.MaskRegionMax.X, proceduralAnimation.MaskRegionMax.Y, proceduralAnimation.MaskRegionMax.Z);
+
+		if (swayRegionBinder != null)
+		{
+			ProceduralSwayMeshMask meshMask = swayRegionBinder.BuildMeshMask(meshInstance);
+			parameters1 = new Vector4(parameters1.X, (float)meshMask.MaskMode, meshMask.MaskMin, meshMask.MaskMax);
+			parameters2 = new Vector4(meshMask.SignedMaskPower, parameters2.Y, parameters2.Z, parameters2.W);
+			regionMin = meshMask.RegionMin;
+			regionMax = meshMask.RegionMax;
+		}
+
+		subInfo.HasProceduralAnimation = true;
+		subInfo.ProceduralParameters1 = parameters1;
+		subInfo.ProceduralParameters2 = parameters2;
+		subInfo.ProceduralParameters3 = proceduralParameters.Parameters3;
+		subInfo.ProceduralRegionMin = regionMin;
+		subInfo.ProceduralRegionMax = regionMax;
+	}
+
+	private static ProceduralAnimationConfig? ResolveProceduralAnimation(string normAssetKey)
+	{
+		if (GameContext.Host == null) return null;
+		if (!GameContext.Host.GetModelEnableProceduralAnimation(normAssetKey)) return null;
+
+		string animationId = GameContext.Host.GetModelProceduralAnimation(normAssetKey);
+		if (string.IsNullOrWhiteSpace(animationId)) return null;
+
+		return ProceduralAnimationManager.GetConfig(animationId);
 	}
 
 	private static void ConfigureVisibilityRanges(PropModelGroup group)
@@ -723,7 +819,7 @@ public partial class PropMultiMeshManager : Node3D
 
 	public void UpdateAllMaterialOverrides()
 	{
-		if (GameHost.Instance == null || _groups.Count == 0) return;
+		if (GameContext.Host == null || _groups.Count == 0) return;
 
 		foreach (var group in _groups.Values)
 		{
@@ -734,7 +830,7 @@ public partial class PropMultiMeshManager : Node3D
 
 	public void UpdateMaterialOverridesForAsset(string normAssetKey)
 	{
-		if (GameHost.Instance == null) return;
+		if (GameContext.Host == null) return;
 
 		foreach (var group in _groups.Values)
 		{
@@ -749,16 +845,16 @@ public partial class PropMultiMeshManager : Node3D
 	{
 		if (string.Equals(group.AssetKey, normAssetKey, StringComparison.OrdinalIgnoreCase)) return true;
 		if (string.Equals(GameContext.EditorService.NormalizeModelAssetKey(group.AssetKey), GameContext.EditorService.NormalizeModelAssetKey(normAssetKey), StringComparison.OrdinalIgnoreCase)) return true;
-		if (GameHost.Instance.MatchesEntityOrAssetKey(group.AssetKey, normAssetKey)) return true;
+		if (GameContext.Host.MatchesEntityOrAssetKey(group.AssetKey, normAssetKey)) return true;
 		return false;
 	}
 
 	private void UpdateGroupMaterialOverrides(PropModelGroup group)
 	{
-		float brightness = GameHost.Instance.GetModelBrightness(group.AssetKey);
-		Color tint = GameHost.Instance.GetModelColorTint(group.AssetKey);
-		bool ignorePlayerColor = GameHost.Instance.GetModelIgnorePlayerColor(group.AssetKey);
-		bool normalizeLuminance = GameHost.Instance.GetModelNormalizeLuminance(group.AssetKey);
+		float brightness = GameContext.Host.GetModelBrightness(group.AssetKey);
+		Color tint = GameContext.Host.GetModelColorTint(group.AssetKey);
+		bool ignorePlayerColor = GameContext.Host.GetModelIgnorePlayerColor(group.AssetKey);
+		bool normalizeLuminance = GameContext.Host.GetModelNormalizeLuminance(group.AssetKey);
 
 		foreach (var chunkGroup in group.ChunkGroups.Values)
 		{
@@ -788,7 +884,22 @@ public partial class PropMultiMeshManager : Node3D
 			{
 				ApplyShaderMaterial(mmNode, baseMatToUse, brightness, tint, ignorePlayerColor, normalizeLuminance);
 			}
+
+			ApplyProceduralAnimationParameters(mmNode, subInfo);
 		}
+	}
+
+	private static void ApplyProceduralAnimationParameters(MultiMeshInstance3D mmNode, MeshSubInfo subInfo)
+	{
+		if (!GodotObject.IsInstanceValid(mmNode)) return;
+
+		mmNode.SetInstanceShaderParameter(_snProcAnimParams1, subInfo.ProceduralParameters1);
+		mmNode.SetInstanceShaderParameter(_snProcAnimParams2, subInfo.ProceduralParameters2);
+		mmNode.SetInstanceShaderParameter(_snProcAnimParams3, subInfo.ProceduralParameters3);
+		mmNode.SetInstanceShaderParameter(_snProcAnimImpulse, Vector4.Zero);
+		mmNode.SetInstanceShaderParameter(_snProcAnimVelocity, Vector3.Zero);
+		mmNode.SetInstanceShaderParameter(_snProcAnimRegionMin, subInfo.ProceduralRegionMin);
+		mmNode.SetInstanceShaderParameter(_snProcAnimRegionMax, subInfo.ProceduralRegionMax);
 	}
 
 	private void ApplyShaderMaterial(MultiMeshInstance3D mmNode, Material baseMatToUse, float brightness, Color tint, bool ignorePlayerColor, bool normalizeLuminance)

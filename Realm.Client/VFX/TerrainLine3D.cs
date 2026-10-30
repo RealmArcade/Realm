@@ -102,7 +102,6 @@ public partial class TerrainLine3D : Node3D
 			float t0 = (float)i / segments;
 			float t1 = (float)(i + 1) / segments;
 
-			// Triangle 1
 			_immediateMesh.SurfaceSetColor(LineColor);
 			_immediateMesh.SurfaceSetUV(new Vector2(t0, 0.0f));
 			_immediateMesh.SurfaceAddVertex(ToLocal(p0L));
@@ -115,7 +114,6 @@ public partial class TerrainLine3D : Node3D
 			_immediateMesh.SurfaceSetUV(new Vector2(t1, 0.0f));
 			_immediateMesh.SurfaceAddVertex(ToLocal(p1L));
 
-			// Triangle 2
 			_immediateMesh.SurfaceSetColor(LineColor);
 			_immediateMesh.SurfaceSetUV(new Vector2(t0, 1.0f));
 			_immediateMesh.SurfaceAddVertex(ToLocal(p0R));

@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
-using Realm.MapAPI;
 
 namespace Realm.Ecs.Components.Combat;
 
@@ -24,8 +23,8 @@ public struct Weapons
 	{
 		weapon = default;
 		if (index < 0 || index >= Count) return false;
-		if (!InternedValueStore.TryGetPayload(Handle, out byte kind, out ReadOnlySpan<byte> payload)) return false;
-		if (kind != InternedValueStore.WeaponListKind) return false;
+		if (!ContentIdStore.TryGetPayload(Handle, out byte kind, out ReadOnlySpan<byte> payload)) return false;
+		if (kind != ContentIdStore.WeaponListKind) return false;
 
 		ReadOnlySpan<Weapon> slots = MemoryMarshal.Cast<byte, Weapon>(payload);
 		if (index >= slots.Length) return false;
@@ -36,8 +35,8 @@ public struct Weapons
 
 	public void CopyTo(List<Weapon> destination)
 	{
-		if (!InternedValueStore.TryGetPayload(Handle, out byte kind, out ReadOnlySpan<byte> payload)) return;
-		if (kind != InternedValueStore.WeaponListKind) return;
+		if (!ContentIdStore.TryGetPayload(Handle, out byte kind, out ReadOnlySpan<byte> payload)) return;
+		if (kind != ContentIdStore.WeaponListKind) return;
 
 		ReadOnlySpan<Weapon> slots = MemoryMarshal.Cast<byte, Weapon>(payload);
 		for (int index = 0; index < slots.Length; index++)
@@ -48,8 +47,8 @@ public struct Weapons
 
 	public Weapon[] ToArray()
 	{
-		if (!InternedValueStore.TryGetPayload(Handle, out byte kind, out ReadOnlySpan<byte> payload)) return Array.Empty<Weapon>();
-		if (kind != InternedValueStore.WeaponListKind) return Array.Empty<Weapon>();
+		if (!ContentIdStore.TryGetPayload(Handle, out byte kind, out ReadOnlySpan<byte> payload)) return Array.Empty<Weapon>();
+		if (kind != ContentIdStore.WeaponListKind) return Array.Empty<Weapon>();
 
 		return MemoryMarshal.Cast<byte, Weapon>(payload).ToArray();
 	}
@@ -66,6 +65,6 @@ public struct Weapons
 		}
 
 		count = copy.Length;
-		return InternedValueStore.GetOrAddBytes(InternedValueStore.WeaponListKind, MemoryMarshal.AsBytes(copy.AsSpan()));
+		return ContentIdStore.GetOrAddBytes(ContentIdStore.WeaponListKind, MemoryMarshal.AsBytes(copy.AsSpan()));
 	}
 }

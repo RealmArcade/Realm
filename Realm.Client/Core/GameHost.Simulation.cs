@@ -15,15 +15,13 @@ using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
-using UnitId = Realm.MapAPI.UnitId;
+using UnitId = Realm.Ecs.UnitId;
 using Vector3 = System.Numerics.Vector3;
 
 namespace Realm.Client.Core;
 
 public partial class GameHost
 {
-	// Upper bound for _warnedNonFinitePositions. Once it grows past this, stale warnings for
-	// already-destroyed entities are swept so recycled entity ids get a fresh warning later.
 
 	private void KillUnit(Unit3D unit)
 	{
@@ -49,6 +47,7 @@ public partial class GameHost
 		string unitId = unit.UnitId;
 		int unitPlayer = unit.Player;
 
+		GameContext.FXService.NotifyVfxTargetDied(unit.Entity.Id);
 		GameContext.SimulationService.DestroyUnitEntityDomain(unit.Entity);
 
 		PlayDeathEffects(unit, executeDespawnShader, playDeathAnimation, unitId);
@@ -82,7 +81,7 @@ public partial class GameHost
 
 	private void HandleUnitBountyEconomy(Unit3D unit)
 	{
-		float resCap = ECSContext.PlayerResourceService.ResourceCap;
+		float resCap = GameContext.Simulation.PlayerResourceService.ResourceCap;
 		Entity beneficiaryPlayerEntity = Entity.Null;
 
 		if (GameContext.World.IsAlive(unit.Entity) && GameContext.World.Has<LastAttacker>(unit.Entity))
@@ -94,7 +93,7 @@ public partial class GameHost
 			}
 		}
 
-		if (beneficiaryPlayerEntity == Entity.Null && (LobbyManager.Instance == null || LobbyManager.Instance.IsSinglePlayer))
+		if (beneficiaryPlayerEntity == Entity.Null && (GameContext.Lobby == null || GameContext.Lobby.IsSinglePlayer))
 		{
 			int localSlot = GameContext.PerspectiveFilter.ControlledPlayerIndex;
 			beneficiaryPlayerEntity = GetPlayerEntityForPlayerIndex(localSlot);
@@ -108,7 +107,7 @@ public partial class GameHost
 			Entity localPlayerEntity = GetPlayerEntityForPlayerIndex(localViewingSlot);
 			if (shouldRefresh && beneficiaryPlayerEntity == localPlayerEntity)
 			{
-				InGameHUD.Instance?.RefreshUI(SelectedUnits);
+				GameContext.InGameHud?.RefreshUI(SelectedUnits);
 			}
 		}
 	}
@@ -173,7 +172,7 @@ public partial class GameHost
 			EntityToProp3D.Remove(prop.Entity);
 			var (radius, propPos) = GameContext.SimulationService.DomainDepleteProp(prop.Entity, fallbackPos);
 
-			PropMultiMeshManager.Instance?.MarkDirty(propId);
+			GameContext.PropMultiMesh?.MarkDirty(propId);
 			UncarveObstacle(propPos, radius);
 
 			string deathShader = GetModelDeathShader(propId);
@@ -193,8 +192,6 @@ public partial class GameHost
 
 	private float ConstructionWorkRatePerSecond => GameContext.SimulationService.FastBuildEnabled ? SimulationService.BaseConstructionWorkRatePerSecond * 10f : SimulationService.BaseConstructionWorkRatePerSecond;
 
-	// Units face their attack/heal/build target once they are within this distance,
-	// even while still moving toward it.
 
 	private List<(Entity Worker, BuildTask UpdatedTask)> _pendingBuildTaskUpdates => GameContext.SimulationService.PendingBuildTaskUpdates;
 
@@ -216,7 +213,7 @@ public partial class GameHost
 
 			if (_pendingBuildTaskUpdates.Count > 0)
 			{
-				InGameHUD.Instance?.RefreshUI(SelectedUnits);
+				GameContext.InGameHud?.RefreshUI(SelectedUnits);
 			}
 
 			var queueQuery = QueryCache.AllBuildQueueNoneDeadQuery;
@@ -387,8 +384,8 @@ public partial class GameHost
 			OnConstructionFinished?.Invoke((UnitId)buildingEntity.Id);
 		}
 
-		InGameHUD.Instance?.ShowFeedbackText("Construction complete!", new Color(0.3f, 0.9f, 0.4f));
-		InGameHUD.Instance?.RefreshUI(SelectedUnits);
+		GameContext.InGameHud?.ShowFeedbackText("Construction complete!", new Color(0.3f, 0.9f, 0.4f));
+		GameContext.InGameHud?.RefreshUI(SelectedUnits);
 	}
 
 	private readonly HashSet<int> _activeBuildGhostWorkerIds = new();
@@ -479,7 +476,7 @@ public partial class GameHost
 	{
 		var mesh = new MeshInstance3D();
 		mesh.Name = "Mesh_MeshInstance3D";
-		float bRadius = ResolveTemplateBodyRadius(buildType, null);
+		float bRadius = ResolveTemplateBodyRadius(buildType);
 		float bWidth = bRadius * 2f;
 		float bHeight = Math.Max(4f, bRadius);
 		var box = new BoxMesh();
@@ -509,8 +506,7 @@ public partial class GameHost
 
 	internal void AssignBuildTaskToWorker(Entity workerEntity, string buildType, Vector3 targetPos)
 	{
-		bool isBuilding = false;
-		if (!UnitRegistry.TryGetValue(buildType, out var meta) && !(isBuilding = BuildingRegistry.TryGetValue(buildType, out meta))) return;
+		if (!UnitRegistry.TryGetValue(buildType, out var meta) && !BuildingRegistry.TryGetValue(buildType, out meta)) return;
 		string targetModel = meta.ModelPath;
 		if (string.IsNullOrEmpty(targetModel)) return;
 		float buildTime = Math.Max(meta.ProductionTime, 0);
@@ -527,15 +523,9 @@ public partial class GameHost
 		GameContext.World.Add(bldEntity, new ConstructionState(buildTime));
 		GameContext.World.Add(bldEntity, new UnderConstruction());
 
-		float bldRadius = GetOrCalculateObstacleRadius(buildType, null);
 		if (!GameContext.World.Has<CollisionRadius>(bldEntity))
 		{
-			GameContext.World.Add(bldEntity, new CollisionRadius(bldRadius));
-		}
-
-		if (isBuilding)
-		{
-			CarveObstacle(targetPos, bldRadius);
+			GameContext.World.Add(bldEntity, new CollisionRadius(ResolveTemplateCollisionRadius(buildType)));
 		}
 
 		EnsureBuildingModel(bldEntity, targetPos);
@@ -602,8 +592,8 @@ public partial class GameHost
 	private Plane[] _renderFrustumPlanes = Array.Empty<Plane>();
 	private bool _renderCameraFrustumChanged;
 	private float _renderCurrentGameTime;
-	private bool _renderMovementPrediction;
-	private RuntimeTerrain? _renderGroundTerrain;
+	private TerrainCell[,]? _renderGroundCells;
+	private float _renderGroundQuadSize = RuntimeTerrain.DefaultQuadSize;
 	private Action<int>? _processRenderWorkItemDelegate;
 
 	private readonly Plane[] _cachedCameraFrustumPlanes = new Plane[6];
@@ -654,13 +644,16 @@ public partial class GameHost
 		}
 
 		_renderFDelta = fDelta;
-		_renderFraction = (float)Engine.GetPhysicsInterpolationFraction();
+		_renderFraction = GameContext.ReplayPlayback.IsPlayingReplay || GameContext.SessionState.IsMapEditorMode
+			? (float)Engine.GetPhysicsInterpolationFraction()
+			: 1f;
 		_renderHasFrustum = hasFrustum;
 		_renderFrustumPlanes = hasFrustum ? _cachedCameraFrustumPlanes : Array.Empty<Plane>();
 		_renderCameraFrustumChanged = cameraFrustumChanged;
 		_renderCurrentGameTime = GameElapsedTime;
-		_renderMovementPrediction = GameSettings.MovementPrediction;
-		_renderGroundTerrain = (GroundTerrain != null && GodotObject.IsInstanceValid(GroundTerrain)) ? GroundTerrain : null;
+		RuntimeTerrain? renderTerrain = (GroundTerrain != null && GodotObject.IsInstanceValid(GroundTerrain)) ? GroundTerrain : null;
+		_renderGroundCells = renderTerrain?.Cells;
+		_renderGroundQuadSize = renderTerrain?.QuadSize ?? RuntimeTerrain.DefaultQuadSize;
 
 		_renderWorkItemCount = 0;
 		var query = QueryCache.AllPositionAndDefinitionIdQuery;
@@ -702,7 +695,7 @@ public partial class GameHost
 			return;
 
 		_processRenderWorkItemDelegate ??= ProcessRenderWorkItemParallel;
-		ParallelRunner.Execute(_renderWorkItemCount, _processRenderWorkItemDelegate);
+		ParallelRunner.Execute(_renderWorkItemCount, _processRenderWorkItemDelegate, GameContext.World);
 
 		var world = GameContext.World;
 		float currentGameTime = _renderCurrentGameTime;
@@ -780,23 +773,11 @@ public partial class GameHost
 
 		Vector3 interpPosVec = Vector3.Lerp(prevPos, posValue, fraction);
 
-		Godot.Vector3 nextPos;
-		if (_renderMovementPrediction && world.Has<RenderPosition>(entity))
+		Godot.Vector3 nextPos = new Godot.Vector3(interpPosVec.X, interpPosVec.Y, interpPosVec.Z);
+		if (world.Has<RenderPosition>(entity))
 		{
-			var currentRenderPos = world.Get<RenderPosition>(entity).Value;
-			var smoothedRenderPos = Vector3.Lerp(currentRenderPos, interpPosVec, Math.Min(1.0f, 15.0f * fDelta));
 			item.ShouldUpdateRenderPos = true;
-			item.NewRenderPos = smoothedRenderPos;
-			nextPos = new Godot.Vector3(smoothedRenderPos.X, smoothedRenderPos.Y, smoothedRenderPos.Z);
-		}
-		else
-		{
-			nextPos = new Godot.Vector3(interpPosVec.X, interpPosVec.Y, interpPosVec.Z);
-			if (world.Has<RenderPosition>(entity))
-			{
-				item.ShouldUpdateRenderPos = true;
-				item.NewRenderPos = interpPosVec;
-			}
+			item.NewRenderPos = interpPosVec;
 		}
 
 		bool posChanged = !item.HasCachedTransform || (nextPos - item.CachedPosition).LengthSquared() > 0.0001f;
@@ -830,7 +811,7 @@ public partial class GameHost
 		}
 
 		bool hasLookTarget = TryGetLookTarget(entity, out Godot.Vector3 lookTargetPos);
-		bool hasMovement = world.Has<MoveTo>(entity) || world.Has<Follow>(entity) || world.Has<InterpolationTarget>(entity);
+		bool hasMovement = world.Has<MoveTo>(entity) || world.Has<Follow>(entity) || world.Has<LatestDescription>(entity);
 		bool hasVelocityComp = world.Has<Velocity>(entity);
 		Vector3 ecsVel = hasVelocityComp ? world.Get<Velocity>(entity).Value : Vector3.Zero;
 		bool hasVelocity = hasVelocityComp && ecsVel.LengthSquared() > 0.0001f;
@@ -931,6 +912,8 @@ public partial class GameHost
 
 		if (GameContext.SimulationService.WarnedNonFinitePositions.Add(entity))
 		{
+			// Past the limit, warnings for entities that no longer exist are swept so a recycled entity id gets a fresh
+			// warning later rather than being remembered as already reported.
 			if (GameContext.SimulationService.WarnedNonFinitePositions.Count > SimulationService.WarnedNonFinitePositionsLimit)
 			{
 				GameContext.SimulationService.WarnedNonFinitePositions.RemoveWhere(warned => !GameContext.World.IsAlive(warned));
@@ -975,9 +958,9 @@ public partial class GameHost
 		{
 			return ComputeDirectionalRotationBasisParallel(ref item, entity, nextPos, dir, fDelta, out targetRotY);
 		}
-		else if (world.Has<InterpolationTarget>(entity))
+		else if (world.Has<LatestDescription>(entity))
 		{
-			var interp = world.Get<InterpolationTarget>(entity);
+			var interp = world.Get<LatestDescription>(entity);
 			targetRotY = Mathf.LerpAngle(item.CachedRotationY, interp.RotationY, 10f * fDelta);
 
 			if (world.Has<RotationY>(entity))
@@ -1061,10 +1044,10 @@ public partial class GameHost
 		Basis currentBasis = Basis.FromEuler(new Godot.Vector3(0f, targetRotY, 0f));
 
 		Godot.Vector3 normal = Godot.Vector3.Up;
-		var terrain = _renderGroundTerrain;
-		if (!isFlying && terrain != null)
+		TerrainCell[,]? groundCells = _renderGroundCells;
+		if (!isFlying && groundCells != null)
 		{
-			terrain.GetHeightAndNormal(nextPos.X, nextPos.Z, out _, out normal);
+			RuntimeTerrain.SampleHeightAndNormal(groundCells, _renderGroundQuadSize, nextPos.X, nextPos.Z, out _, out normal);
 		}
 
 		if (Mathf.Abs(normal.Y - 1f) > 0.02f)
@@ -1108,7 +1091,7 @@ public partial class GameHost
 	private bool TryGetReplayAnimation(Entity entity, out string animation)
 	{
 		animation = string.Empty;
-		if (!ReplayPlaybackManager.Instance.IsPlayingReplay) return false;
+		if (!GameContext.ReplayPlayback.IsPlayingReplay) return false;
 
 		animation = GameContext.World.Has<ReplayAnimationState>(entity)
 			? GameContext.World.Get<ReplayAnimationState>(entity).Animation

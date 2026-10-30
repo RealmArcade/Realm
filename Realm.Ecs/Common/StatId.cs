@@ -1,6 +1,5 @@
 using System.Runtime.InteropServices;
 using Realm.Ecs.Components.Stats;
-using Realm.MapAPI;
 
 namespace Realm.Ecs.Common;
 
@@ -41,16 +40,19 @@ public readonly record struct StatId
 			CombatStatType.MaxMana => nameof(CombatStatType.MaxMana),
 			CombatStatType.ManaRegen => nameof(CombatStatType.ManaRegen),
 			CombatStatType.Armor => nameof(CombatStatType.Armor),
-			CombatStatType.Damage => nameof(CombatStatType.Damage),
-			CombatStatType.Speed => nameof(CombatStatType.Speed),
+			CombatStatType.MagicResistance => nameof(CombatStatType.MagicResistance),
+			CombatStatType.Damage => StatKeys.Attack,
+			CombatStatType.Speed => StatKeys.MovementSpeed,
 			CombatStatType.Attack => nameof(CombatStatType.Attack),
 			CombatStatType.MovementSpeed => nameof(CombatStatType.MovementSpeed),
 			CombatStatType.SpellPower => nameof(CombatStatType.SpellPower),
 			CombatStatType.Tenacity => nameof(CombatStatType.Tenacity),
-			CombatStatType.SpellWard => nameof(CombatStatType.SpellWard),
 			CombatStatType.CooldownReduction => nameof(CombatStatType.CooldownReduction),
 			CombatStatType.LifeSteal => nameof(CombatStatType.LifeSteal),
-			CombatStatType.MagicPenetration => nameof(CombatStatType.MagicPenetration),
+			CombatStatType.FlatArmorPenetration => nameof(CombatStatType.FlatArmorPenetration),
+			CombatStatType.PercentArmorPenetration => nameof(CombatStatType.PercentArmorPenetration),
+			CombatStatType.FlatMagicPenetration => nameof(CombatStatType.FlatMagicPenetration),
+			CombatStatType.PercentMagicPenetration => nameof(CombatStatType.PercentMagicPenetration),
 			CombatStatType.Evasion => nameof(CombatStatType.Evasion),
 			CombatStatType.ProcRateMultiplier => nameof(CombatStatType.ProcRateMultiplier),
 			CombatStatType.BountyMultiplier => nameof(CombatStatType.BountyMultiplier),

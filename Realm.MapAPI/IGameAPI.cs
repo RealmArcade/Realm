@@ -13,20 +13,26 @@ public interface IGameAPI
 	float GameElapsedTime { get; }
 
 	/// <summary>
-	/// Gets a value indicating whether the current frame execution is a predictive local frame.
-	/// </summary>
-	bool IsPredictiveFrame => false;
-
-	/// <summary>
-	/// Gets a value indicating whether the current frame execution is an authoritative simulation frame.
-	/// </summary>
-	bool IsAuthoritativeFrame => !IsPredictiveFrame;
-
-	/// <summary>
-	/// Gets a value indicating whether cheats are available in the current session. Read-only: only the
-	/// engine can enable cheats, which are available in the map editor, in test mode and in single player.
+	/// Gets a value indicating whether the match this script runs in lets a player cheat. Read-only: only the
+	/// engine decides it, and it answers true exactly for a match a single person plays against the computer, which is
+	/// a single player match or a map being tested from the editor. A match that anyone else can join never answers
+	/// true, so a script may branch on it without having to ask who is connected.
 	/// </summary>
 	bool CheatsEnabled { get; }
+
+	/// <summary>
+	/// Answers whether the player at the given index is the one hosting this match: the seat a lobby lets administer it,
+	/// or the single player of a match only one person plays. A match nobody hosts, which is one an exported server runs
+	/// from a roster, answers false for every index. Read-only: the engine decides it, and a script may branch on it to
+	/// keep an administrative console command to the person who administers the match.
+	/// </summary>
+	/// <param name="playerIndex">The player slot to test.</param>
+	/// <remarks>
+	/// A chat command that only the host may issue is judged here rather than from the unit it was typed with, because a
+	/// console command is usually typed with nothing selected.
+	/// </remarks>
+	/// <returns>True when this slot hosts the match; otherwise false.</returns>
+	bool IsHost(int playerIndex);
 
 
 	/// <summary>
@@ -41,7 +47,7 @@ public interface IGameAPI
 	/// Retrieves all units currently alive in the game world.
 	/// </summary>
 	/// <returns>A read-only span of all active unit identifiers.</returns>
-	ReadOnlySpan<UnitId> GetAllUnits() => SpatialQueryEngine.GetAllUnits();
+	ReadOnlySpan<UnitId> GetAllUnits();
 
 	/// <summary>
 	/// Retrieves all active units within the specified radius of a 3D position.
@@ -49,7 +55,7 @@ public interface IGameAPI
 	/// <param name="center">The center point in 3D world space.</param>
 	/// <param name="radius">The radius distance check.</param>
 	/// <returns>A read-only span of unit identifiers within the radius.</returns>
-	ReadOnlySpan<UnitId> GetUnitsInRadius(Vector3 center, float radius) => SpatialQueryEngine.GetUnitsInRadius(center, radius);
+	ReadOnlySpan<UnitId> GetUnitsInRadius(Vector3 center, float radius);
 
 	/// <summary>
 	/// Gets the number of resource nodes.
@@ -128,14 +134,35 @@ public interface IGameAPI
 	event Action<UnitId, string, Vector3>? OnSpellCast;
 
 	/// <summary>
-	/// Triggered when a player types a chat message. Passes the message and the first selected unit if any.
+	/// Triggered when a player types a chat message. Passes the message, the first selected unit if any, and the slot of
+	/// the player who typed it, which is the slot to judge a console command by even when that player had nothing
+	/// selected.
 	/// </summary>
-	event Action<string, UnitId>? OnPlayerChatMessage;
+	event Action<string, UnitId, int>? OnPlayerChatMessage;
 
 	/// <summary>
 	/// Triggered when the player selects a unit.
 	/// </summary>
 	event Action<UnitId>? OnUnitSelected;
+
+	/// <summary>
+	/// Triggered after a consumable is bound to a unit or purged from one. The engine sells the
+	/// purchase; this event is where the map switches on the behaviour the consumable grants.
+	/// </summary>
+	/// <param name="unit">The unit that now carries the consumable, or just lost it.</param>
+	/// <param name="consumableId">The attached consumable's template id, or empty when the slot was cleared.</param>
+	event Action<UnitId, string>? OnConsumableChanged;
+
+	/// <summary>
+	/// Retrieves the consumable attached to a unit in the given slot group.
+	/// </summary>
+	/// <param name="unit">The unit to inspect.</param>
+	/// <param name="slotGroup">The authored slot group, for example "elixir".</param>
+	/// <returns>The consumable's template id, or an empty string when the unit carries none.</returns>
+	string GetUnitConsumable(UnitId unit, string slotGroup)
+	{
+		return string.Empty;
+	}
 
 	/// <summary>
 	/// Triggered when a unit attacks another unit. Passes the attacker unit and the target unit.
@@ -247,6 +274,25 @@ public interface IGameAPI
 	/// <param name="buffId">The identifier of the buff.</param>
 	/// <param name="duration">The duration of the buff in seconds.</param>
 	void AddBuff(UnitId unit, string buffId, float duration);
+
+	/// <summary>
+	/// Adds one permanent stat modifier to a unit, tagged with a source id so the map can remove it later.
+	/// The modifier goes through the same pipeline as upgrades and items, so it survives stat
+	/// recalculation instead of being overwritten by the next derived-stat pass.
+	/// </summary>
+	/// <param name="unit">The target unit identifier.</param>
+	/// <param name="statName">The stat key to modify (e.g. "Armor", "Attack", "MaxHp").</param>
+	/// <param name="isPercentage">True for an additive percentage, false for a flat bonus.</param>
+	/// <param name="value">The modifier value.</param>
+	/// <param name="sourceId">Source tag, typically one per map feature, such as "elixir/blood_debt".</param>
+	void AddStatModifier(UnitId unit, string statName, bool isPercentage, float value, string sourceId);
+
+	/// <summary>
+	/// Removes every stat modifier a unit received from one source id and recalculates its stats.
+	/// </summary>
+	/// <param name="unit">The target unit identifier.</param>
+	/// <param name="sourceId">The source tag passed to <see cref="AddStatModifier"/>.</param>
+	void RemoveStatModifiers(UnitId unit, string sourceId);
 
 	/// <summary>
 	/// Registers a stat modifier for a buff type.
@@ -395,6 +441,10 @@ public interface IGameAPI
 	/// <summary>
 	/// Displays or hides the multi-column stats summary table on all players' screens.
 	/// </summary>
+	/// <remarks>
+	/// Every client draws the table itself and may collapse it to its title bar, which is that player's own view of it
+	/// rather than something this call decides.
+	/// </remarks>
 	/// <param name="title">Header title of the summary table.</param>
 	/// <param name="visible">True to display the table, false to hide it.</param>
 	void ShowSummaryTable(string title, bool visible);
@@ -410,6 +460,11 @@ public interface IGameAPI
 	/// <summary>
 	/// Sets or updates a row in the stats summary table.
 	/// </summary>
+	/// <remarks>
+	/// The player column is drawn as rich text, so a row key may carry BBCode such as the markup
+	/// <see cref="FormatColoredPlayerName"/> produces. The metric columns are drawn as plain text, so numbers stay
+	/// readable in fixed-width columns whatever the localised digit glyphs are.
+	/// </remarks>
 	/// <param name="rowKey">Unique row identifier or player label (corresponds to Headers[0]).</param>
 	/// <param name="cellValues">Metric values corresponding to Headers[1..N].</param>
 	void SetSummaryTableRow(string rowKey, params string[] cellValues);
@@ -525,7 +580,7 @@ public interface IGameAPI
 	/// </summary>
 	/// <param name="playerIndex">Zero-based player slot index.</param>
 	/// <returns>A read-only span of units belonging to that player.</returns>
-	ReadOnlySpan<UnitId> GetUnitsOwnedByPlayer(int playerIndex) => SpatialQueryEngine.GetUnitsOwnedByPlayer(playerIndex);
+	ReadOnlySpan<UnitId> GetUnitsOwnedByPlayer(int playerIndex);
 
 	/// <summary>
 	/// Triggers the defeat condition for the specified player slot, playing the defeat sequence only for that player.
@@ -613,6 +668,11 @@ public interface IGameAPI
 	/// <summary>
 	/// Returns a uniformly distributed random integer in the inclusive range [<paramref name="min"/>, <paramref name="max"/>].
 	/// </summary>
+	/// <remarks>
+/// The value is drawn from the deterministic stream shared by the host simulation and the map script. Map scripts must use this method instead of
+/// <see cref="System.Random"/> so that the authority's world and the script acting on it draw the same sequence for the same match seed. Call it
+/// exactly once per decision and in the same order, otherwise the shared sequence advances differently.
+	/// </remarks>
 	/// <param name="min">Inclusive lower bound.</param>
 	/// <param name="max">Inclusive upper bound.</param>
 	int RandomInt(int min, int max);
@@ -620,6 +680,11 @@ public interface IGameAPI
 	/// <summary>
 	/// Returns a uniformly distributed random float in the range [<paramref name="min"/>, <paramref name="max"/>].
 	/// </summary>
+	/// <remarks>
+/// The value is drawn from the deterministic stream shared by the host simulation and the map script. Map scripts must use this method instead of
+/// <see cref="System.Random"/> so that the authority's world and the script acting on it draw the same sequence for the same match seed. Call it
+/// exactly once per decision and in the same order, otherwise the shared sequence advances differently.
+	/// </remarks>
 	/// <param name="min">Inclusive lower bound.</param>
 	/// <param name="max">Inclusive upper bound.</param>
 	float RandomFloat(float min, float max);
@@ -1294,15 +1359,71 @@ public interface IGameAPI
 	void SetItemTooltip(string itemId, string tooltip);
 
 	/// <summary>
+	/// Publishes one number that an ability's tooltip reads as <c>{{Ability.Key}}</c>. Use this for
+	/// values the engine cannot know, such as a scripted elixir's amount and cap, and publish them
+	/// from the same fields the effect applies so the card cannot claim a different number.
+	/// Keys the engine already owns (ManaCost, Cooldown, Range, Radius, Damage, Healing) are not
+	/// overridden.
+	/// </summary>
+	/// <param name="abilityId">The ability whose card should read this value.</param>
+	/// <param name="key">Property name, matched without regard to case.</param>
+	/// <param name="value">The number to show.</param>
+	void SetAbilityTooltipValue(string abilityId, string key, float value);
+
+	/// <summary>
+	/// Publishes one text value that an ability's tooltip reads as <c>{{Ability.Key}}</c>.
+	/// </summary>
+	/// <param name="abilityId">The ability whose card should read this value.</param>
+	/// <param name="key">Property name, matched without regard to case.</param>
+	/// <param name="value">The text to show.</param>
+	void SetAbilityTooltipText(string abilityId, string key, string value);
+
+	/// <summary>
+	/// Publishes one number that a unit's tooltip reads as <c>{{Source.Key}}</c>, for state the
+	/// engine does not model itself — a draft slot's element, a carried item's stack count.
+	/// </summary>
+	/// <param name="unit">The unit the value describes.</param>
+	/// <param name="key">Property name, matched without regard to case.</param>
+	/// <param name="value">The number to show.</param>
+	void SetUnitTooltipValue(UnitId unit, string key, float value);
+
+	/// <summary>
+	/// Publishes one text value that a unit's tooltip reads as <c>{{Source.Key}}</c>.
+	/// </summary>
+	/// <param name="unit">The unit the value describes.</param>
+	/// <param name="key">Property name, matched without regard to case.</param>
+	/// <param name="value">The text to show.</param>
+	void SetUnitTooltipText(UnitId unit, string key, string value);
+
+	/// <summary>
+	/// Publishes one number that an item's tooltip reads as <c>{{Item.Key}}</c>.
+	/// </summary>
+	/// <param name="itemId">The item whose card should read this value.</param>
+	/// <param name="key">Property name, matched without regard to case.</param>
+	/// <param name="value">The number to show.</param>
+	void SetItemTooltipValue(string itemId, string key, float value);
+
+	/// <summary>
+	/// Publishes one number that an upgrade's tooltip reads as <c>{{Upgrade.Key}}</c>.
+	/// </summary>
+	/// <param name="upgradeId">The upgrade whose card should read this value.</param>
+	/// <param name="key">Property name, matched without regard to case.</param>
+	/// <param name="value">The number to show.</param>
+	void SetUpgradeTooltipValue(string upgradeId, string key, float value);
+
+	/// <summary>
 	/// Configures the grid position (X, Y) of an ability in the command card interface.
 	/// </summary>
 	void SetAbilityGridPosition(string abilityId, int x, int y);
 
 	/// <summary>
-	/// Configures the hotkey binding string (e.g., "W", "E", "R") for an ability on the command card.
+	/// Configures the hotkey for an ability on the command card. The hotkey is one key name with
+	/// optional modifiers joined by '+', for example "W", "F1" or "Shift+Q". Names are the Godot key
+	/// names ("Q", "Escape", "F1") and the modifiers "Shift", "Ctrl", "Alt" and "Meta". Invalid
+	/// specifications are rejected and reported instead of silently never matching.
 	/// </summary>
 	/// <param name="abilityId">Unique identifier of the ability.</param>
-	/// <param name="hotkey">The key string to trigger the ability.</param>
+	/// <param name="hotkey">The key with optional modifiers that triggers the ability.</param>
 	void SetAbilityHotkey(string abilityId, string hotkey);
 
 	/// <summary>
@@ -1362,6 +1483,14 @@ public interface IGameAPI
 
 		target.Health = next;
 	}
+
+	/// <summary>
+	/// Applies damage through the combat resolver, so the target's armor, the attacker's armor
+	/// penetration and the damage/armor type matrix all apply. Use this for ability damage instead
+	/// of setting health, which bypasses mitigation.
+	/// </summary>
+	/// <param name="damageType">Damage type key, such as normal, pierce, magic, fire or frost.</param>
+	void DealTypedDamage(UnitId attacker, UnitId target, float damage, string damageType);
 
 	/// <summary>
 	/// Spawns a replacement unit of the same type at <paramref name="position"/> for the given player.
@@ -1556,18 +1685,16 @@ public interface IGameAPI
 	/// <summary>
 	/// Retrieves all active player slot identifiers in the current session.
 	/// </summary>
-	/// <param name="exclusiveUpperBound">Exclusive upper bound on the slot index. Pass a negative value to scan every slot in <see cref="PlayerCount"/>.</param>
 	/// <returns>A read-only span of active <see cref="PlayerId"/> identifiers in ascending slot order.</returns>
-	ReadOnlySpan<PlayerId> GetActivePlayers(int exclusiveUpperBound = -1);
+	ReadOnlySpan<PlayerId> GetActivePlayers();
 
 	/// <summary>
 	/// Returns the zero-based slot indices of all active players.
 	/// </summary>
-	/// <param name="exclusiveUpperBound">Exclusive upper bound on the slot index. Pass a negative value to scan every slot in <see cref="PlayerCount"/>.</param>
 	/// <returns>An enumerable sequence of active player slot indices.</returns>
-	IEnumerable<int> GetActivePlayerIndices(int exclusiveUpperBound = -1)
+	IEnumerable<int> GetActivePlayerIndices()
 	{
-		var players = GetActivePlayers(exclusiveUpperBound);
+		var players = GetActivePlayers();
 		var result = new List<int>(players.Length);
 		for (int i = 0; i < players.Length; i++)
 		{

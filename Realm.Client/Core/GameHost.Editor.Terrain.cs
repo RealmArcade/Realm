@@ -1,9 +1,11 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Runtime.InteropServices;
 using Godot;
 using Realm.Client.Services;
 using Realm.Client.UI;
+using Realm.Client.VFX;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Meta;
 using Realm.Ecs.Components.Terrain;
@@ -13,116 +15,6 @@ namespace Realm.Client.Core
 {
 	public partial class GameHost
 	{
-		private void ApplyContinuousTerrainEditing(Vector3 worldPos, float delta, bool isFirstClick = false)
-		{
-			if (GroundTerrain == null) return;
-
-			var positions = GetEditingPositions(worldPos);
-			GetPathingOptions(out int pathingMask, out bool pathingAdd);
-
-			bool applyGround = MapEditorHUD.Instance?.IsApplyGroundTextureEnabledView() ?? true;
-			bool applyCliff = MapEditorHUD.Instance?.IsApplyCliffTextureEnabled() ?? true;
-			float targetBlockHeight = ActiveEditorTool == EditorTool.Height ? EditorExactHeight : EditorBlockLevelHeight;
-
-			bool anyModified = ApplyEditsToPositions(positions, delta, targetBlockHeight, pathingMask, pathingAdd, isFirstClick, applyGround, applyCliff);
-
-			if (anyModified)
-			{
-				FlushTerrainModifications(isFirstClick);
-			}
-		}
-
-		private List<Vector3> GetEditingPositions(Vector3 worldPos)
-		{
-			var positions = new List<Vector3> { worldPos };
-			if (EditorMirrorMode != MirrorMode.None)
-			{
-				foreach (var t in GetMirroredTransforms(worldPos, 0.0f))
-					positions.Add(t.Position);
-			}
-
-			return positions;
-		}
-
-		private void GetPathingOptions(out int pathingMask, out bool pathingAdd)
-		{
-			pathingMask = 0;
-			pathingAdd = true;
-			if (ActiveEditorTool == EditorTool.PaintPathing && MapEditorHUD.Instance != null)
-			{
-				pathingMask = MapEditorHUD.Instance.GetSelectedPathingMask();
-				pathingAdd = MapEditorHUD.Instance.IsPathingAddMode();
-			}
-		}
-
-		private bool ApplyEditsToPositions(List<Vector3> positions, float delta, float targetBlockHeight, int pathingMask, bool pathingAdd, bool isFirstClick, bool applyGround, bool applyCliff)
-		{
-			bool anyModified = false;
-			foreach (var pos in positions)
-			{
-				var result = GameContext.EditorService.ApplyContinuousTerrainEditing(
-					pos, delta, ActiveEditorTool, EditorBrushRadius, EditorBrushStrength, EditorBrushIsSquare,
-					EditorBlockMode, targetBlockHeight, GameContext.EditorService.EditorPaintTextureIndex, GameContext.EditorService.EditorCliffPaintTextureIndex,
-					pathingMask, pathingAdd, isFirstClick, applyGround, applyCliff);
-
-				if (!result.HeightsModified && !result.SplatModified && !result.PathingModified) continue;
-
-				Rect2I affected = new Rect2I(result.MinX - 2, result.MinZ - 2, result.MaxX - result.MinX + 5, result.MaxZ - result.MinZ + 5);
-				_terrainFlushRegion = _terrainFlushRegion.HasValue ? _terrainFlushRegion.Value.Merge(affected) : affected;
-				_terrainGeometryDirty = true;
-				if (result.HeightsModified) _terrainHeightsDirty = true;
-				if (result.PathingModified) _terrainPathingDirty = true;
-				anyModified = true;
-			}
-
-			return anyModified;
-		}
-
-		private void FlushTerrainModifications(bool isFirstClick)
-		{
-			EditorHasUnsavedChanges = true;
-			long nowMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-			if (!isFirstClick && nowMs - _lastTerrainMeshRebuildMs < GameContext.EditorService.TerrainMeshRebuildPeriodMs)
-				return;
-
-			_lastTerrainMeshRebuildMs = nowMs;
-			if (!_terrainFlushRegion.HasValue) return;
-
-			var flushRegion = _terrainFlushRegion.Value;
-			GroundTerrain.UpdateMeshAndPhysics(false, false, flushRegion, _terrainHeightsDirty);
-			if (_terrainHeightsDirty) AlignAllEntitiesToTerrain(flushRegion);
-			if (_terrainPathingDirty && PathingOverlayVisible) RebuildPathingOverlay();
-
-			_terrainFlushRegion = null;
-			_terrainGeometryDirty = false;
-			_terrainHeightsDirty = false;
-			_terrainPathingDirty = false;
-		}
-
-		public void FlushTerrainMeshAndPhysics()
-		{
-			if (_terrainGeometryDirty && _terrainFlushRegion.HasValue && GroundTerrain != null)
-			{
-				var flushRegion = _terrainFlushRegion.Value;
-				GroundTerrain.UpdateMeshAndPhysics(_terrainHeightsDirty, false, flushRegion, _terrainHeightsDirty);
-				if (_terrainHeightsDirty)
-				{
-					AlignAllEntitiesToTerrain(flushRegion);
-				}
-
-				if (_terrainPathingDirty && PathingOverlayVisible)
-				{
-					RebuildPathingOverlay();
-				}
-
-				_terrainFlushRegion = null;
-				_terrainGeometryDirty = false;
-				_terrainHeightsDirty = false;
-				_terrainPathingDirty = false;
-				_lastTerrainMeshRebuildMs = long.MinValue;
-			}
-		}
-
 		public Decal SpawnDecalExternal(Vector3 position)
 		{
 			var entity = GameContext.World.Create();
@@ -178,7 +70,7 @@ namespace Realm.Client.Core
 
 			if (!affectedRegion.HasValue && anyPropMoved)
 			{
-				PropMultiMeshManager.Instance?.MarkAllDirty();
+				GameContext.PropMultiMesh?.MarkAllDirty();
 			}
 		}
 
@@ -243,7 +135,7 @@ namespace Realm.Client.Core
 
 			pos.Y = targetY;
 			prop.GlobalPosition = pos;
-			PropMultiMeshManager.Instance?.MarkDirty(prop.PropId);
+			GameContext.PropMultiMesh?.MarkDirty(prop.PropId);
 			return true;
 		}
 
@@ -257,6 +149,65 @@ namespace Realm.Client.Core
 
 			pos.Y = targetY;
 			decal.GlobalPosition = pos;
+		}
+
+		private readonly Dictionary<Vector2I, List<Node>> _waterProceduralNodes = new();
+		private readonly Dictionary<Vector2I, List<Node>> _terrainProceduralNodes = new();
+
+		public void ApplyProceduralSpawns(int x, int z, ReadOnlySpan<ProceduralSpawnDescriptor> descriptors, ProceduralSpawnLayer layer)
+		{
+			ClearProceduralSpawns(x, z, layer);
+			if (descriptors.Length == 0) return;
+
+			var spawnedNodes = new List<Node>(descriptors.Length);
+			for (int index = 0; index < descriptors.Length; index++)
+			{
+				ProceduralSpawnDescriptor descriptor = descriptors[index];
+				Vector3 rotationDegrees = new Vector3(0f, descriptor.RotationYDegrees, 0f);
+
+				Node spawnedNode = descriptor.Kind == ProceduralSpawnKind.Vfx
+					? SpawnVfxExternalWithParams(descriptor.Id, descriptor.Position, rotationDegrees, new Vector3(descriptor.Scale, descriptor.Scale, descriptor.Scale))
+					: SpawnDecalExternalWithParams(descriptor.Id, descriptor.Position, rotationDegrees, descriptor.Scale);
+
+				if (spawnedNode != null) spawnedNodes.Add(spawnedNode);
+			}
+
+			if (spawnedNodes.Count == 0) return;
+
+			Dictionary<Vector2I, List<Node>> store = layer == ProceduralSpawnLayer.Water ? _waterProceduralNodes : _terrainProceduralNodes;
+			store[new Vector2I(x, z)] = spawnedNodes;
+		}
+
+		public void ClearProceduralSpawns(int x, int z, ProceduralSpawnLayer layer)
+		{
+			Dictionary<Vector2I, List<Node>> store = layer == ProceduralSpawnLayer.Water ? _waterProceduralNodes : _terrainProceduralNodes;
+			var key = new Vector2I(x, z);
+			if (!store.TryGetValue(key, out var nodes)) return;
+
+			for (int index = 0; index < nodes.Count; index++)
+			{
+				ClearProceduralSpawnNode(nodes[index]);
+			}
+
+			store.Remove(key);
+		}
+
+		private void ClearProceduralSpawnNode(Node node)
+		{
+			if (node == null || !GodotObject.IsInstanceValid(node)) return;
+
+			if (node is Decal3D decal)
+			{
+				AllDecals.Remove(decal);
+				if (GameContext.World != null && GameContext.World.IsAlive(decal.Entity)) GameContext.World.Destroy(decal.Entity);
+			}
+			else if (node is ProceduralVfxInstance3D vfx)
+			{
+				AllVfx.Remove(vfx);
+				if (GameContext.World != null && GameContext.World.IsAlive(vfx.Entity)) GameContext.World.Destroy(vfx.Entity);
+			}
+
+			node.QueueFree();
 		}
 
 		public Decal SpawnDecalExternalWithParams(string decalId, Vector3 position, Vector3 rotationDegrees, float scale)
@@ -346,9 +297,9 @@ namespace Realm.Client.Core
 
 			GroundTerrain.UpdateMeshAndPhysics(false, false);
 
-			if (MapEditorHUD.Instance != null)
+			if (GameContext.MapEditorHud != null)
 			{
-				MapEditorHUD.Instance.ShowFeedbackExternal("Textures swapped successfully!");
+				GameContext.MapEditorHud.ShowFeedbackExternal("Textures swapped successfully!");
 			}
 		}
 
@@ -425,45 +376,27 @@ namespace Realm.Client.Core
 
 			int oldWidth = GroundTerrain.Width;
 			int oldDepth = GroundTerrain.Depth;
+			float quadSize = GroundTerrain.QuadSize;
 
-			float diffWidth = (newWidth - oldWidth) * GroundTerrain.QuadSize;
-			float diffDepth = (newDepth - oldDepth) * GroundTerrain.QuadSize;
-
-			EditorCameraBoundsLeft -= diffWidth / 2.0f;
-			EditorCameraBoundsRight += diffWidth / 2.0f;
-			EditorCameraBoundsTop -= diffDepth / 2.0f;
-			EditorCameraBoundsBottom += diffDepth / 2.0f;
+			MapCameraBounds oldMapBounds = MapCameraBounds.FromTerrain(oldWidth, oldDepth, quadSize);
+			MapCameraBounds newMapBounds = MapCameraBounds.FromTerrain(newWidth, newDepth, quadSize);
+			MapCameraBounds resizedCameraBounds = new MapCameraBounds(EditorCameraBoundsLeft, EditorCameraBoundsRight, EditorCameraBoundsTop, EditorCameraBoundsBottom).MapTo(oldMapBounds, newMapBounds);
+			GameContext.EditorService.SetCameraBounds(GameContext.Simulation.WorldEntity, resizedCameraBounds);
 
 			GroundTerrain.ResizeTerrain(newWidth, newDepth);
 
 			GameContext.EditorService.SetTerrainSplatMap(GroundTerrain.SplatMap, GroundTerrain.CliffSplatMap);
 			DeleteEntitiesOutsideBounds();
-			PropMultiMeshManager.Instance?.RebuildAll();
+			GameContext.PropMultiMesh?.RebuildAll();
 
 			RebuildCameraBoundsOverlay();
-			MapEditorHUD.Instance?.UpdateCameraBoundsUI();
-			MapEditorHUD.Instance?.RegenerateMinimap();
+			GameContext.MapEditorHud?.UpdateCameraBoundsUI();
+			GameContext.MapEditorHud?.RegenerateMinimap();
 
-			string activeWsPath = MapWorkspaceService.GetActiveWorkspacePath();
-			string metaPath = MetadataService.ResolveMetadataPath(activeWsPath);
-			if (File.Exists(metaPath))
-			{
-				try
-				{
-					GameContext.MetadataService.UpdateMetadata(activeWsPath, meta =>
-					{
-						meta.MapProperties.MapWidth = newWidth;
-						meta.MapProperties.MapHeight = newDepth;
-					});
-				}
-				catch (Exception ex)
-				{
-					GD.PrintErr($"Failed to update metadata.json map dimensions: {ex.Message}");
-				}
-			}
+			GameContext.EditorService.UpdateScaleMetadata(newWidth, newDepth, resizedCameraBounds);
 
 			EditorHasUnsavedChanges = true;
-			MapEditorHUD.Instance?.ShowFeedbackExternal($"Map resized to {newWidth}x{newDepth}");
+			GameContext.MapEditorHud?.ShowFeedbackExternal($"Map resized to {newWidth}x{newDepth}");
 
 			var after = MapStateSnapshot.CreateSnapshot();
 			EditorHistoryManager.RecordAction(new MapResizeAction(before, after));
@@ -481,7 +414,7 @@ namespace Realm.Client.Core
 				var action = new TerrainModifyAction((TerrainCell[,])null, (TerrainCell[,])null, null, null, result.Before, result.After);
 				EditorHistoryManager.RecordAction(action);
 				EditorHasUnsavedChanges = true;
-				MapEditorHUD.Instance?.ShowFeedbackExternal("Flood filled pathing area");
+				GameContext.MapEditorHud?.ShowFeedbackExternal("Flood filled pathing area");
 				UpdatePathingOverlay();
 			}
 		}
@@ -504,7 +437,7 @@ namespace Realm.Client.Core
 			EditorHasUnsavedChanges = true;
 
 			string statusMsg = result.WasAdded ? "Water added via flood fill" : "Water removed via flood fill";
-			MapEditorHUD.Instance?.ShowFeedbackExternal(statusMsg);
+			GameContext.MapEditorHud?.ShowFeedbackExternal(statusMsg);
 		}
 
 		private Vector3[] GenerateGridMeshVertices(int minX, int minZ, int selWidth, int selDepth, float yOffset)
@@ -662,33 +595,39 @@ namespace Realm.Client.Core
 		{
 			if (!CanEraseArea())
 			{
-				MapEditorHUD.Instance?.ShowFeedbackExternal("Nothing to Erase (select an area first)");
+				GameContext.MapEditorHud?.ShowFeedbackExternal("Nothing to Erase (select an area first)");
 				return new List<IEditorAction>();
 			}
 
 			var bounds = GameContext.EditorService.GetCurrentSelectionBounds();
 			var terrainSnapshotBefore = CreateTerrainSnapshot();
 
-			var node3Ds = new List<Node3D>();
+			var eraseTargets = new List<Node3D>();
+			var candidatePositions = new List<Vector3>();
 			foreach (var child in GetChildren())
 			{
-				if (child is Node3D n3d) node3Ds.Add(n3d);
+				if (child is not Node3D node3D || !GodotObject.IsInstanceValid(node3D)) continue;
+				if (node3D == _editorPreviewNode) continue;
+				if (node3D is not (Unit3D or Prop3D or Decal or ProceduralVfxInstance3D)) continue;
+
+				eraseTargets.Add(node3D);
+				candidatePositions.Add(node3D.Position);
 			}
 
 			var eraseResult = GameContext.EditorService.BuildEraseAreaResult(
 				bounds.Item1, bounds.Item2, bounds.Item3, bounds.Item4,
 				GameContext.EditorService.PasteOptionHeights, GameContext.EditorService.PasteOptionTextures, GameContext.EditorService.PasteOptionEntities, PasteOptionPathing,
-				node3Ds, _editorPreviewNode as Node3D, EditorBrushIsSquare);
+				CollectionsMarshal.AsSpan(candidatePositions), EditorBrushIsSquare);
 
 			ApplyEraseResultTerrainModifications(eraseResult, bounds.Item1, bounds.Item2, bounds.Item3, bounds.Item4);
 
-			var actions = BuildEraseActions(eraseResult, terrainSnapshotBefore);
+			var actions = BuildEraseActions(eraseResult, terrainSnapshotBefore, eraseTargets);
 
 			if (actions.Count > 0 && recordToHistory)
 			{
 				EditorHistoryManager.RecordAction(new CompositeAction(actions));
 				EditorHasUnsavedChanges = true;
-				MapEditorHUD.Instance?.ShowFeedbackExternal("Area Erased");
+				GameContext.MapEditorHud?.ShowFeedbackExternal("Area Erased");
 			}
 
 			return actions;
@@ -729,7 +668,7 @@ namespace Realm.Client.Core
 			}
 		}
 
-		private List<IEditorAction> BuildEraseActions(EraseAreaResult eraseResult, (TerrainCell[,] Cells, TerrainSplatWeights[,] Splat, int[,] Pathing, TerrainSplatWeights[,] Cliff) snapshotBefore)
+		private List<IEditorAction> BuildEraseActions(EraseAreaResult eraseResult, (TerrainCell[,] Cells, TerrainSplatWeights[,] Splat, int[,] Pathing, TerrainSplatWeights[,] Cliff) snapshotBefore, List<Node3D> eraseTargets)
 		{
 			var actions = new List<IEditorAction>();
 
@@ -744,8 +683,13 @@ namespace Realm.Client.Core
 				actions.Add(action);
 			}
 
-			foreach (var node in eraseResult.NodesToDelete)
+			foreach (int index in eraseResult.ErasedCandidateIndices)
 			{
+				if (index < 0 || index >= eraseTargets.Count) continue;
+
+				Node3D node = eraseTargets[index];
+				if (node == null || !GodotObject.IsInstanceValid(node)) continue;
+
 				var act = DeleteObjectAtWithUndo(node, node.Position);
 				if (act != null) actions.Add(act);
 			}
