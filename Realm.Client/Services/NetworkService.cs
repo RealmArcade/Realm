@@ -1241,14 +1241,68 @@ public class NetworkService
 				{
 					ReportReplicatedEcsDrift(slot, codec.ComponentName, "component missing");
 					continue;
-				}
-
-				if (!actual.SequenceEqual(expected))
-			{
+				}				if (!actual.SequenceEqual(expected))
+				{
 					ReportReplicatedEcsDrift(slot, codec.ComponentName, "bytes differ from the last authoritative value");
 				}
 			}
 		}
+
+		AuditReplicatedUnitDrift(mapping);
+	}
+
+	private const int UnitDriftAuditWindowEntities = 128;
+	private int _unitDriftAuditNextServerEntityId;
+
+	/// <summary>
+	///     Audits one window of the replicated unit components this screen has applied, so a whole board is swept every few
+	///     seconds rather than every tick. It runs only while a recording harness is watching, because that is where the
+	///     report is read: a unit component this screen writes itself is overwritten by the next description, which looks
+	///     exactly like a description that never arrived, and this is the only check that can say which of the two it was.
+	/// </summary>
+	private void AuditReplicatedUnitDrift(NetworkMappingState mapping)
+	{
+		if (!MultiplayerSyncDiagnostics.IsRecording) return;
+
+		IReadOnlyList<IReplicatedComponentCodec> codecs = ReplicatedUnitComponentSlots.Slots;
+		int windowEnd = _unitDriftAuditNextServerEntityId + UnitDriftAuditWindowEntities;
+		if (windowEnd > Realm.Ecs.EcsWorld.MAX_ENTITIES) windowEnd = Realm.Ecs.EcsWorld.MAX_ENTITIES;
+
+		for (int serverEntityId = _unitDriftAuditNextServerEntityId; serverEntityId < windowEnd; serverEntityId++)
+		{
+			if (!mapping.ServerToClientEntityMap.TryGetValue(serverEntityId, out Entity localEntity)) continue;
+			if (!GameContext.World.IsAlive(localEntity)) continue;
+
+			for (int codecIndex = 0; codecIndex < codecs.Count; codecIndex++)
+			{
+				var codec = codecs[codecIndex];
+				if (!_mirror.Components.TryGetValue(((byte)ReplicatedScope.Unit, serverEntityId, codec.ComponentTypeId), out var expected)) continue;
+
+				if (_replicatedEcsDriftBuffer.Length < codec.SizeInBytes) _replicatedEcsDriftBuffer = new byte[codec.SizeInBytes];
+				var actual = _replicatedEcsDriftBuffer.AsSpan(0, codec.SizeInBytes);
+				if (!codec.TryWrite(GameContext.World, localEntity, actual))
+				{
+					ReportReplicatedUnitDrift(serverEntityId, codec.ComponentName, "the component the match described is gone");
+					continue;
+				}
+
+				if (!actual.SequenceEqual(expected))
+				{
+					ReportReplicatedUnitDrift(serverEntityId, codec.ComponentName, "bytes differ from the last authoritative value");
+				}
+			}
+		}
+
+		_unitDriftAuditNextServerEntityId = windowEnd >= Realm.Ecs.EcsWorld.MAX_ENTITIES ? 0 : windowEnd;
+	}
+
+	private readonly HashSet<(int ServerEntityId, string ComponentName)> _reportedUnitEcsDrift = new();
+
+	private void ReportReplicatedUnitDrift(int serverEntityId, string componentName, string reason)
+	{
+		if (!_reportedUnitEcsDrift.Add((serverEntityId, componentName))) return;
+		GD.PushError($"[Replication] local write clobbered replicated unit state: {componentName} for unit {serverEntityId} ({reason})");
+		MultiplayerSyncDiagnostics.RecordEcsDrift(serverEntityId, componentName);
 	}
 
 	private void ReportReplicatedEcsDrift(int slot, string componentName, string reason)
