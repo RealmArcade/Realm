@@ -94,6 +94,8 @@ public partial struct LobbyStateMessage
 	public string MapName;
 	public string MapVersion;
 	public int MaxPlayers;
+	public string[] Factions;
+	public int TeamCount;
 	public bool SpectatorDelay;
 	public string HostStability;
 	public bool CountdownActive;
@@ -180,6 +182,9 @@ public static class LobbyLimits
 
 	public const int MaximumSeats = 16;
 	public const int CountdownSeconds = 5;
+
+	/// <summary>The number of teams a lobby whose map states none offers, which is the two teams lobbies have always had.</summary>
+	public const int DefaultTeamCount = 2;
 
 	public const int MaximumMapBundleBytes = 2 * 1024 * 1024;
 

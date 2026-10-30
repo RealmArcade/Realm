@@ -39,6 +39,11 @@ public partial class LobbyCreate : Control
 	private Label _titleLabel;
 	private Label _mapSelectLabel;
 
+	private Panel? _hostProgressOverlay;
+	private ProgressBar? _hostProgressBar;
+	private Label? _hostProgressStatusLabel;
+	private double _hostProgressCeiling;
+
 	private List<MapBriefingDetails> _availableMaps = new List<MapBriefingDetails>();
 	private List<string> _availableVersions = new List<string>();
 
@@ -210,6 +215,28 @@ public partial class LobbyCreate : Control
 
 		_mapSelectButton.ItemSelected += (idx) => OnMapSelected(idx);
 		RefreshAvailableMaps();
+		SetProcess(false);
+	}
+
+	public override void _ExitTree()
+	{
+		if (GameContext.Lobby != null)
+		{
+			GameContext.Lobby.HostLobbyStageChanged -= OnHostLobbyStageChanged;
+		}
+
+		base._ExitTree();
+	}
+
+	public override void _Process(double delta)
+	{
+		if (_hostProgressBar == null || !GodotObject.IsInstanceValid(_hostProgressBar)) return;
+
+		double value = _hostProgressBar.Value;
+		if (value >= _hostProgressCeiling) return;
+
+		double creep = (_hostProgressCeiling - value) * Math.Min(1.0, delta * 1.5) + delta * 0.8;
+		_hostProgressBar.Value = Math.Min(_hostProgressCeiling, value + creep);
 	}
 
 	private void ApplyThemeStyles()
@@ -313,7 +340,11 @@ public partial class LobbyCreate : Control
 		}
 
 		_createButton.Disabled = true;
+		ShowHostProgressOverlay();
+		GameContext.Lobby.HostLobbyStageChanged += OnHostLobbyStageChanged;
 		bool success = await GameContext.Lobby.HostLobbyAsync(pathName, displayName, selectedVersion);
+		GameContext.Lobby.HostLobbyStageChanged -= OnHostLobbyStageChanged;
+		HideHostProgressOverlay();
 		_createButton.Disabled = false;
 
 		if (success)
@@ -326,6 +357,112 @@ public partial class LobbyCreate : Control
 			GD.PrintErr("[LobbyCreate] Failed to host lobby.");
 			string errorMsg = GameContext.Lobby.LastHostError ?? Tr("Failed to host lobby on the registry server.");
 			ShowHostErrorModal(errorMsg);
+		}
+	}
+
+	private void ShowHostProgressOverlay()
+	{
+		var overlay = new Panel();
+		overlay.Name = "HostProgressOverlay";
+		overlay.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+		overlay.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
+		overlay.ZIndex = 1100;
+		AddChild(overlay);
+
+		var center = new CenterContainer();
+		center.Name = "HostProgressCenter";
+		center.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+		overlay.AddChild(center);
+
+		var panel = new PanelContainer();
+		panel.Name = "HostProgressPanel";
+		panel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
+		panel.CustomMinimumSize = new Vector2(560, 0);
+		center.AddChild(panel);
+
+		var vbox = new VBoxContainer();
+		vbox.Name = "HostProgressVBox";
+		vbox.AddThemeConstantOverride("separation", 14);
+		panel.AddChild(vbox);
+
+		var titleLabel = new Label();
+		titleLabel.Name = "HostProgressTitle_Label";
+		UIStyle.ApplyTitle(titleLabel, TranslationServer.Translate("CREATING LOBBY"), 22);
+		titleLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+		titleLabel.HorizontalAlignment = HorizontalAlignment.Center;
+		vbox.AddChild(titleLabel);
+
+		var progressBar = new ProgressBar();
+		progressBar.Name = "HostProgressBar_ProgressBar";
+		progressBar.CustomMinimumSize = new Vector2(500, 20);
+		progressBar.MinValue = 0;
+		progressBar.MaxValue = 100;
+		progressBar.Value = 4;
+		progressBar.ShowPercentage = false;
+		vbox.AddChild(progressBar);
+
+		var statusLabel = new Label();
+		statusLabel.Name = "HostProgressStatus_Label";
+		statusLabel.Text = TranslationServer.Translate("Preparing the lobby...");
+		statusLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+		statusLabel.CustomMinimumSize = new Vector2(500, 0);
+		statusLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		statusLabel.HorizontalAlignment = HorizontalAlignment.Center;
+		statusLabel.AddThemeFontSizeOverride("font_size", 13);
+		statusLabel.AddThemeColorOverride("font_color", new Color(0.88f, 0.9f, 0.95f));
+		vbox.AddChild(statusLabel);
+
+		_hostProgressOverlay = overlay;
+		_hostProgressBar = progressBar;
+		_hostProgressStatusLabel = statusLabel;
+		_hostProgressCeiling = 6;
+		SetProcess(true);
+	}
+
+	private void HideHostProgressOverlay()
+	{
+		SetProcess(false);
+		_hostProgressBar = null;
+		_hostProgressStatusLabel = null;
+		_hostProgressCeiling = 0;
+
+		if (_hostProgressOverlay != null && GodotObject.IsInstanceValid(_hostProgressOverlay))
+		{
+			_hostProgressOverlay.QueueFree();
+		}
+
+		_hostProgressOverlay = null;
+	}
+
+	private void OnHostLobbyStageChanged(HostLobbyStage stage)
+	{
+		if (_hostProgressOverlay == null || !GodotObject.IsInstanceValid(_hostProgressOverlay)) return;
+		if (_hostProgressBar == null || _hostProgressStatusLabel == null) return;
+
+		(string statusText, double floor, double ceiling) = DescribeHostLobbyStage(stage);
+		if (string.IsNullOrEmpty(statusText)) return;
+
+		_hostProgressStatusLabel.Text = statusText;
+		_hostProgressBar.Value = Math.Max(_hostProgressBar.Value, floor);
+		_hostProgressCeiling = ceiling;
+	}
+
+	private static (string StatusText, double Floor, double Ceiling) DescribeHostLobbyStage(HostLobbyStage stage)
+	{
+		switch (stage)
+		{
+			case HostLobbyStage.TestingNetwork:
+				return (TranslationServer.Translate("Testing your connection and NAT type..."), 6, 25);
+			case HostLobbyStage.LoadingMap:
+				return (TranslationServer.Translate("Loading the map into the match server..."), 25, 60);
+			case HostLobbyStage.AdmittingHost:
+				return (TranslationServer.Translate("Entering the lobby as host..."), 60, 74);
+			case HostLobbyStage.OpeningPort:
+				return (TranslationServer.Translate("Opening your port for other players..."), 74, 88);
+			case HostLobbyStage.RegisteringLobby:
+				return (TranslationServer.Translate("Registering the lobby on the server..."), 88, 99);
+			default:
+				return (string.Empty, 0, 0);
 		}
 	}
 

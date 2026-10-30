@@ -52,6 +52,10 @@ public class ServerLobbyAPI : ILobbyAPI
 
 	public bool SetPlayerTeam(int playerIndex, int teamIndex) => _roster.TrySetPlayerTeam(playerIndex, teamIndex);
 
+	public int TeamCount => _roster.TeamCount;
+
+	public void SetTeamCount(int teamCount) => _roster.SetTeamCount(teamCount);
+
 	public bool IsTeamLocked(int playerIndex) => _roster.IsTeamLocked(playerIndex);
 
 	public void SetTeamLocked(int playerIndex, bool locked) => _roster.SetTeamLocked(playerIndex, locked);

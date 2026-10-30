@@ -79,9 +79,9 @@ public static unsafe class EcsSharedMemory
 	/// <summary>Offset to the lobby roster header, which a map script reads directly.</summary>
 	public const int LOBBY_ROSTER_HEADER_OFFSET = 1651820;
 	/// <summary>Offset to the UTF-16 faction names the lobby offers, each padded to <see cref="LOBBY_FACTION_NAME_CHARACTERS" />.</summary>
-	public const int LOBBY_FACTION_NAMES_OFFSET = 1651836;
+	public const int LOBBY_FACTION_NAMES_OFFSET = 1651840;
 	/// <summary>Offset to the per-player roster slots, one for every player slot the lobby may seat.</summary>
-	public const int PLAYER_ROSTER_SLOTS_OFFSET = 1652604;
+	public const int PLAYER_ROSTER_SLOTS_OFFSET = 1652608;
 	/// <summary>Total byte capacity of the contiguous shared memory block.</summary>
 	public const int TOTAL_SIZE_BYTES = 4194304;
 

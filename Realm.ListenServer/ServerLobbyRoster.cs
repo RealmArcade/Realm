@@ -11,9 +11,6 @@ namespace Realm.ListenServer;
 /// </summary>
 public class ServerLobbyRoster
 {
-	/// <summary>The factions every lobby offers, so a map that states none still has a working roster.</summary>
-	public static readonly string[] DefaultFactions = ["HUMAN", "AI"];
-
 	private readonly ServerLobby _lobby;
 	private readonly ServerLog _log;
 	private readonly List<string> _factions = new(EcsSharedMemory.MAX_LOBBY_FACTIONS);
@@ -22,6 +19,7 @@ public class ServerLobbyRoster
 	private readonly bool[] _colorLocked = new bool[EcsSharedMemory.MAX_PLAYERS];
 	private IntPtr _sharedMemoryBase = IntPtr.Zero;
 	private uint _revision;
+	private int _teamCount = LobbyLimits.DefaultTeamCount;
 
 	public ServerLobbyRoster(ServerLobby lobby, ServerLog log)
 	{
@@ -31,11 +29,17 @@ public class ServerLobbyRoster
 
 	public int FactionCount => _factions.Count;
 
+	public int TeamCount => _teamCount;
+
 	public int MaximumPlayerCount => _lobby.MaximumPlayers;
 
-	public void SeedDefaultFactions()
+	public void SetTeamCount(int teamCount)
 	{
-		for (int index = 0; index < DefaultFactions.Length; index++) AddFaction(DefaultFactions[index]);
+		int clamped = Math.Clamp(teamCount, 1, LobbyLimits.MaximumSeats);
+		if (clamped == _teamCount) return;
+
+		_teamCount = clamped;
+		_log.Write($"the lobby now offers {_teamCount} team(s)");
 	}
 
 	public bool AddFaction(string? factionName)
@@ -71,6 +75,11 @@ public class ServerLobbyRoster
 	public string GetFactionName(int factionIndex)
 	{
 		return factionIndex >= 0 && factionIndex < _factions.Count ? _factions[factionIndex] : string.Empty;
+	}
+
+	public string[] GetFactionNames()
+	{
+		return _factions.ToArray();
 	}
 
 	public bool IsFactionLocked(int slot) => InRange(slot) && _factionLocked[slot];
@@ -112,7 +121,7 @@ public class ServerLobbyRoster
 	public bool TrySetPlayerTeam(int slot, int teamIndex)
 	{
 		if (!InRange(slot) || _teamLocked[slot]) return false;
-		if (teamIndex < 0 || teamIndex > _lobby.MaximumPlayers) return false;
+		if (teamIndex < 0 || teamIndex > _teamCount) return false;
 
 		return _lobby.ApplyRosterTeam(slot, teamIndex);
 	}
@@ -151,6 +160,7 @@ public class ServerLobbyRoster
 		LobbyRosterHeader* header = EcsSharedMemory.LobbyRosterHeaderAt(sharedMemoryBase);
 		header->MaximumPlayerCount = _lobby.MaximumPlayers;
 		header->FactionCount = _factions.Count;
+		header->TeamCount = _teamCount;
 		header->SlotCount = EcsSharedMemory.MAX_PLAYERS;
 		header->Revision = ++_revision;
 

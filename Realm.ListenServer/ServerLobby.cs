@@ -249,9 +249,9 @@ public class ServerLobby
 			{
 				Slot = slot,
 				Name = DefaultName(name, slot, isAdmin),
-				Faction = "HUMAN",
-				TeamName = isAdmin ? "Team 1" : ResolveJoinTeamName(),
-				ColorRgba = PackPaletteColor(slot),
+				Faction = Roster?.GetFactionName(0) ?? string.Empty,
+				TeamName = ResolveJoinTeamName(),
+				ColorRgba = ResolveJoinColorRgba(slot),
 				IsHost = isAdmin,
 				LatencyMilliseconds = -1,
 				JitterMilliseconds = -1,
@@ -449,6 +449,8 @@ public class ServerLobby
 			MapName = _mapName,
 			MapVersion = _mapVersion,
 			MaxPlayers = _maximumPlayers,
+			Factions = Roster?.GetFactionNames() ?? [],
+			TeamCount = Roster?.TeamCount ?? LobbyLimits.DefaultTeamCount,
 			SpectatorDelay = SpectatorDelay,
 			HostStability = HostStability,
 			CountdownActive = _countdownActive,
@@ -575,7 +577,7 @@ public class ServerLobby
 			if (string.Equals(target.TeamName, "Spectator", StringComparison.Ordinal)) target.IsReady = false;
 		}
 
-		if (command.ColorRgba != 0 && !IsColorLocked(target.Slot)) target.ColorRgba = command.ColorRgba;
+		if (command.ColorRgba != 0 && !IsColorLocked(target.Slot) && !IsColorHeldByAnotherSeat(target.Slot, command.ColorRgba)) target.ColorRgba = command.ColorRgba;
 
 		_seats[target.Slot] = target;
 		if (target.PeerId > 0) _slotByPeer[target.PeerId] = target.Slot;
@@ -602,9 +604,9 @@ public class ServerLobby
 			PeerId = -100 - _nextComputerNumber,
 			Slot = slot,
 			Name = $"AI Bot {_nextComputerNumber}",
-			Faction = "AI",
+			Faction = Roster?.GetFactionName(0) ?? string.Empty,
 			TeamName = ResolveJoinTeamName(),
-			ColorRgba = PackPaletteColor(slot),
+			ColorRgba = ResolveJoinColorRgba(slot),
 			IsComputer = true,
 			IsMapReady = true,
 			IsLoadReady = true,
@@ -923,16 +925,50 @@ public class ServerLobby
 
 	private string ResolveJoinTeamName()
 	{
-		int teamOne = 0;
-		int teamTwo = 0;
+		int teamCount = Roster?.TeamCount ?? LobbyLimits.DefaultTeamCount;
+		int[] members = new int[teamCount + 1];
+
 		foreach (LobbySeat seat in _seats.Values)
 		{
-			if (seat.IsComputer) continue;
-			if (string.Equals(seat.TeamName, "Team 1", StringComparison.Ordinal)) teamOne++;
-			else if (string.Equals(seat.TeamName, "Team 2", StringComparison.Ordinal)) teamTwo++;
+			if (seat.Team < 1 || seat.Team > teamCount) continue;
+			members[seat.Team]++;
 		}
 
-		return teamTwo < teamOne ? "Team 2" : "Team 1";
+		int chosenTeam = 1;
+		for (int team = 1; team <= teamCount; team++)
+		{
+			if (members[team] == 0)
+			{
+				chosenTeam = team;
+				break;
+			}
+
+			if (members[team] < members[chosenTeam]) chosenTeam = team;
+		}
+
+		return $"Team {chosenTeam}";
+	}
+
+	private uint ResolveJoinColorRgba(int slot)
+	{
+		for (int paletteIndex = PlayerColorPalette.NeutralPlayerIndex + 1; paletteIndex < PlayerColorPalette.Count; paletteIndex++)
+		{
+			uint candidate = PackPaletteColor(paletteIndex);
+			if (!IsColorHeldByAnotherSeat(slot, candidate)) return candidate;
+		}
+
+		return PackPaletteColor(slot);
+	}
+
+	private bool IsColorHeldByAnotherSeat(int slot, uint colorRgba)
+	{
+		foreach (var pair in _seats)
+		{
+			if (pair.Key == slot) continue;
+			if (pair.Value.ColorRgba == colorRgba) return true;
+		}
+
+		return false;
 	}
 
 	private static string DefaultName(string? name, int slot, bool isHost)

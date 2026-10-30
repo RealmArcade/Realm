@@ -75,6 +75,16 @@ public interface ILobbyAPI
 	/// <param name="playerIndex">The player slot.</param>
 	int GetPlayerTeam(int playerIndex);
 
+	/// <summary>How many teams the lobby offers, which is the highest team number a slot may hold.</summary>
+	int TeamCount { get; }
+
+	/// <summary>
+	///     States how many teams the lobby offers, which is what its players are offered as choices and what a slot's
+	///     team may be numbered up to. A lobby that states nothing offers two.
+	/// </summary>
+	/// <param name="teamCount">The number of teams, from one up to the seats this lobby may serve.</param>
+	void SetTeamCount(int teamCount);
+
 	/// <summary>
 	///     Puts a player slot on a team. A slot whose team is locked, a slot nobody holds and a team number outside the
 	///     lobby's seats are all refused.

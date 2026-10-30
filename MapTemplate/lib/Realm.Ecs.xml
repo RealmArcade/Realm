@@ -2821,7 +2821,8 @@
         <member name="T:Realm.Ecs.LobbyRosterHeader">
             <summary>
                 The head of the lobby roster a map script reads from shared memory: how many players the lobby seats, how many
-                factions its map offers, and a counter that moves every time the authority restates the roster.
+                factions its map offers, how many teams its seats are numbered up to, and a counter that moves every time the
+                authority restates the roster.
             </summary>
         </member>
         <member name="F:Realm.Ecs.LobbyRosterHeader.MaximumPlayerCount">
@@ -2829,6 +2830,9 @@
         </member>
         <member name="F:Realm.Ecs.LobbyRosterHeader.FactionCount">
             <summary>The number of factions in the lobby's faction table.</summary>
+        </member>
+        <member name="F:Realm.Ecs.LobbyRosterHeader.TeamCount">
+            <summary>The number of teams this lobby offers, which is the highest team number a seat may hold.</summary>
         </member>
         <member name="F:Realm.Ecs.LobbyRosterHeader.Revision">
             <summary>How many times the authority has restated the roster, so a reader can tell a fresh one from a stale one.</summary>

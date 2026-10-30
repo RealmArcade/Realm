@@ -42,6 +42,12 @@ public partial class LobbyManager : BaseMapTransferNode
 
 	public bool IsRestrictedHost { get; private set; }
 
+	/// <summary>The factions the lobby's map offers, in the order its roster numbers them.</summary>
+	public IReadOnlyList<string> LobbyFactions { get; private set; } = Array.Empty<string>();
+
+	/// <summary>The number of teams the lobby offers, which is the highest team number a seat may hold.</summary>
+	public int LobbyTeamCount { get; private set; } = LobbyLimits.DefaultTeamCount;
+
 	private static readonly JsonSerializerOptions Options = new() { PropertyNameCaseInsensitive = true };
 
 	public static string GetBaseGameDirectory()
@@ -215,6 +221,7 @@ public partial class LobbyManager : BaseMapTransferNode
 	public event Action<string>? ConnectionFailed;
 	public event Action<string>? KickReceived;
 	public event Action? NatTestCompleted;
+	public event Action<HostLobbyStage>? HostLobbyStageChanged;
 	public event Action<float>? MapDownloadProgressChanged;
 	public event Action? MapDownloadCompleted;
 	public event Action? MapDownloadFailed;
@@ -532,6 +539,17 @@ public partial class LobbyManager : BaseMapTransferNode
 		NatTestCompleted?.Invoke();
 	}
 
+	private void ReportHostLobbyStage(HostLobbyStage stage)
+	{
+		Callable.From(() =>
+		{
+			if (GodotObject.IsInstanceValid(this) && !IsQueuedForDeletion())
+			{
+				HostLobbyStageChanged?.Invoke(stage);
+			}
+		}).CallDeferred();
+	}
+
 	public async Task<bool> HostSinglePlayerGame(string mapPathName, string mapDisplayName, string? mapVersion = null, bool debugMapScript = false)
 	{
 		IsSinglePlayer = true;
@@ -690,6 +708,7 @@ public partial class LobbyManager : BaseMapTransferNode
 	{
 		InitializeHostState(mapPathName, explicitVersion);
 
+		ReportHostLobbyStage(HostLobbyStage.TestingNetwork);
 		await RunNatTypeTestAsync();
 		if (LocalNatType == NatType.Symmetric)
 		{
@@ -727,6 +746,7 @@ public partial class LobbyManager : BaseMapTransferNode
 			OS.GetUserDataDir(),
 			LocalizationManager.GetCurrentLanguageCode());
 
+		ReportHostLobbyStage(HostLobbyStage.LoadingMap);
 		MatchStartResult lobbyStarted = await session.TryStartLobbyAsync(start, ENetPort);
 		LastAuthorityLogPath = lobbyStarted.LogPath;
 		LastAuthorityConsoleLogPath = lobbyStarted.ConsoleLogPath;
@@ -738,6 +758,7 @@ public partial class LobbyManager : BaseMapTransferNode
 			return false;
 		}
 
+		ReportHostLobbyStage(HostLobbyStage.AdmittingHost);
 		string? admissionFailure = await WaitForLobbyAdmissionAsync(session);
 		if (admissionFailure != null)
 		{
@@ -757,6 +778,7 @@ public partial class LobbyManager : BaseMapTransferNode
 
 		IsHost = true;
 
+		ReportHostLobbyStage(HostLobbyStage.OpeningPort);
 		await ResolvePublicEndpointAsync(session.Port);
 
 		bool upnpSuccess = await GameContext.Upnp.OpenPortAsync(session.Port);
@@ -769,6 +791,7 @@ public partial class LobbyManager : BaseMapTransferNode
 
 		Diagnostics.StartHostListener(session.Port + 1);
 
+		ReportHostLobbyStage(HostLobbyStage.RegisteringLobby);
 		bool registered = await RegisterLobbyWithRegistryAsync(mapPathName, mapDisplayName, explicitVersion);
 		if (!registered)
 		{
@@ -983,6 +1006,8 @@ public partial class LobbyManager : BaseMapTransferNode
 		_lobbyRevision = state.Revision;
 
 		MaxPlayers = state.MaxPlayers > 0 ? state.MaxPlayers : MaxPlayers;
+		LobbyFactions = state.Factions ?? Array.Empty<string>();
+		LobbyTeamCount = state.TeamCount > 0 ? state.TeamCount : LobbyLimits.DefaultTeamCount;
 		SpectatorDelay = state.SpectatorDelay;
 		if (!string.IsNullOrEmpty(state.HostStability) && !string.Equals(state.HostStability, HostStability, StringComparison.Ordinal))
 		{
@@ -1068,9 +1093,9 @@ public partial class LobbyManager : BaseMapTransferNode
 				PeerId = seat.PeerId,
 				Slot = seat.Slot,
 				Name = seat.Name ?? string.Empty,
-				Faction = seat.Faction ?? "HUMAN",
+				Faction = seat.Faction ?? string.Empty,
 				Team = seat.TeamName ?? string.Empty,
-				Color = UnpackColor(seat.ColorRgba),
+				Color = seat.ColorRgba == 0 ? PlayerColorConfig.GetColor(seat.Slot) : UnpackColor(seat.ColorRgba),
 				IsHost = seat.IsHost,
 				IsReady = seat.IsReady,
 				IsMapReady = seat.IsMapReady,

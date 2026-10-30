@@ -12,7 +12,7 @@ public class PlayerInfo
 	public int PeerId { get; set; }
 	public int Slot { get; set; }
 	public string Name { get; set; } = "";
-	public string Faction { get; set; } = "HUMAN";
+	public string Faction { get; set; } = string.Empty;
 	public int TeamIndex
 	{
 		get => _teamIndex;

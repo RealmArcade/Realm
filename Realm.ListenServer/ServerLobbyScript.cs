@@ -9,15 +9,13 @@ namespace Realm.ListenServer;
 public class ServerLobbyScript : IDisposable
 {
 	private readonly WasmScriptHost _host;
-	private readonly ServerLobbyAPI _api;
 	private readonly ServerLobbyRoster _roster;
 	private readonly ServerLog _log;
 	private bool _disposed;
 
-	private ServerLobbyScript(WasmScriptHost host, ServerLobbyAPI api, ServerLobbyRoster roster, ServerLog log)
+	private ServerLobbyScript(WasmScriptHost host, ServerLobbyRoster roster, ServerLog log)
 	{
 		_host = host;
-		_api = api;
 		_roster = roster;
 		_log = log;
 	}
@@ -37,8 +35,7 @@ public class ServerLobbyScript : IDisposable
 	{
 		if (!ServerMapScript.TryFindScript(paths.MapPath, out string wasmPath))
 		{
-			log.Write("the lobby's map brought no compiled script; the authority's own lobby rules apply");
-			roster.SeedDefaultFactions();
+			log.Write("the lobby's map brought no compiled script; its roster states no factions of its own");
 			return null;
 		}
 
@@ -49,17 +46,14 @@ public class ServerLobbyScript : IDisposable
 			host.LobbyApi = api;
 			roster.BindSharedMemory(host.SharedMemoryPointer);
 
-			if (host.RunLobbyInit()) return new ServerLobbyScript(host, api, roster, log);
+			if (host.RunLobbyInit()) return new ServerLobbyScript(host, roster, log);
 
-			roster.SeedDefaultFactions();
-			DefaultLobbyRules.LobbyInitialize(api);
-			log.Write("the lobby's map left the roster to the authority's own rules");
-			return new ServerLobbyScript(host, api, roster, log);
+			log.Write("the lobby's map left its roster unstated; its roster states no factions of its own");
+			return new ServerLobbyScript(host, roster, log);
 		}
 		catch (Exception exception)
 		{
-			log.Write($"the lobby's map script could not be started, so its lobby runs on the authority's own rules: {exception.Message}");
-			roster.SeedDefaultFactions();
+			log.Write($"the lobby's map script could not be started, so its roster states no factions of its own: {exception.Message}");
 			return null;
 		}
 	}
@@ -76,7 +70,6 @@ public class ServerLobbyScript : IDisposable
 		_roster.Publish();
 
 		if (_host.LobbyInitHandled) _host.RunLobbyUpdate(deltaSeconds);
-		else DefaultLobbyRules.LobbyUpdate(_api, deltaSeconds);
 	}
 
 	/// <summary>

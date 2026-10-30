@@ -320,7 +320,6 @@ public class ListenServerHost : IServerTransportSink
 			peerId => _transport.TryReadPeerLink(peerId, out PeerLinkStatistics statistics) ? statistics : null);
 
 		var roster = new ServerLobbyRoster(_lobby, _log);
-		roster.SeedDefaultFactions();
 		_lobby.Roster = roster;
 
 		IsRunning = true;

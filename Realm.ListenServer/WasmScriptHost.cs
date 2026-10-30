@@ -386,6 +386,9 @@ public partial class WasmScriptHost : IWasmRuntime, IWasmEvaluationEngine, IDisp
 		_linker.DefineFunction(LobbyImportModule, "set-lobby-maximum-player-count", (int maximumPlayerCount) =>
 			LobbyApi?.SetMaximumPlayerCount(maximumPlayerCount));
 
+		_linker.DefineFunction(LobbyImportModule, "set-lobby-team-count", (int teamCount) =>
+			LobbyApi?.SetTeamCount(teamCount));
+
 		_linker.DefineFunction(LobbyImportModule, "set-lobby-player-faction", (Caller caller, int playerIndex, int namePtr, int nameLength) =>
 			LobbyApi?.SetPlayerFaction(playerIndex, ReadGuestString(caller, namePtr, nameLength)) == true ? 1 : 0);
 

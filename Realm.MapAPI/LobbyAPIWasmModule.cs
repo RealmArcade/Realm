@@ -72,6 +72,14 @@ public unsafe class LobbyAPI_WasmModule : ILobbyAPI
 		return LobbyImports.SetPlayerTeam(playerIndex, teamIndex);
 	}
 
+	public int TeamCount => EcsSharedMemory.LobbyRosterHeaderAt(SharedMemory)->TeamCount;
+
+	public void SetTeamCount(int teamCount)
+	{
+		if (teamCount <= 0) return;
+		LobbyImports.SetTeamCount(teamCount);
+	}
+
 	public bool IsTeamLocked(int playerIndex)
 	{
 		PlayerRosterSlot* slot = ResolveSlot(playerIndex);

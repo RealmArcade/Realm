@@ -19,6 +19,10 @@ internal static class LobbyImports
 	[WasmImportLinkage]
 	private static extern void ImportSetLobbyMaximumPlayerCount(int maximumPlayerCount);
 
+	[DllImport(Module, EntryPoint = "set-lobby-team-count")]
+	[WasmImportLinkage]
+	private static extern void ImportSetLobbyTeamCount(int teamCount);
+
 	[DllImport(Module, EntryPoint = "set-lobby-player-faction")]
 	[WasmImportLinkage]
 	private static extern int ImportSetLobbyPlayerFaction(int playerIndex, nint factionNamePointer, int factionNameLength);
@@ -52,6 +56,11 @@ internal static class LobbyImports
 	public static void SetMaximumPlayerCount(int maximumPlayerCount)
 	{
 		ImportSetLobbyMaximumPlayerCount(maximumPlayerCount);
+	}
+
+	public static void SetTeamCount(int teamCount)
+	{
+		ImportSetLobbyTeamCount(teamCount);
 	}
 
 	public static unsafe bool SetPlayerFaction(int playerIndex, string factionName)

@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using Godot;
 using SharedPalette = Realm.Shared.Players.PlayerColorPalette;
 using SharedPlayerColorEntry = Realm.Shared.Players.PlayerColorEntry;
@@ -22,16 +21,6 @@ public static class PlayerColorConfig
 		}
 
 		return palette;
-	}
-
-	public static readonly List<Color> AvailableColors = new();
-
-	static PlayerColorConfig()
-	{
-		for (int i = 0; i < Palette.Length; i++)
-		{
-			AvailableColors.Add(Palette[i].Color);
-		}
 	}
 
 	public static Color GetColor(int playerIndex)
