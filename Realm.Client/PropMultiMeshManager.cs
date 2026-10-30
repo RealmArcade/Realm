@@ -764,17 +764,6 @@ public partial class PropMultiMeshManager : Node3D
 			return;
 		}
 
-		if (swayRegionBinder != null && !swayRegionBinder.MatchesMesh(meshInstance))
-		{
-			subInfo.HasProceduralAnimation = false;
-			subInfo.ProceduralParameters1 = Vector4.Zero;
-			subInfo.ProceduralParameters2 = proceduralParameters.Parameters2;
-			subInfo.ProceduralParameters3 = proceduralParameters.Parameters3;
-			subInfo.ProceduralRegionMin = Vector3.Zero;
-			subInfo.ProceduralRegionMax = Vector3.Zero;
-			return;
-		}
-
 		Vector4 parameters1 = proceduralParameters.Parameters1;
 		Vector4 parameters2 = proceduralParameters.Parameters2;
 		Vector3 regionMin = new(proceduralAnimation.MaskRegionMin.X, proceduralAnimation.MaskRegionMin.Y, proceduralAnimation.MaskRegionMin.Z);

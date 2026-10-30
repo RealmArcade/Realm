@@ -6,34 +6,7 @@ using System.Linq;
 using System.Numerics;
 using Realm.MapAPI;
 
-public static class MeleeRulesExtensions
-{
-	public static MeleeRules EnableMeleeRules(this IGameAPI api)
-	{
-		var rules = new MeleeRules(api);
-		rules.Initialize();
-		return rules;
-	}
-
-	public static void HandleUnderAttackAlert(this IGameAPI api, int targetPlayer, string unitId, Vector3? position = null)
-	{
-		if (targetPlayer < 0) return;
-		var player = api.GetPlayer(targetPlayer);
-		if (!player.IsActive) return;
-
-		string alertMsg = MeleeRules.IsBaseBuilding(unitId)
-			? "⚠️ YOUR BASE IS UNDER ATTACK!"
-			: $"⚠️ {unitId.ToUpper()} is under attack!";
-
-		player.ShowFeedbackText(alertMsg, new Vector3(1.0f, 0.2f, 0.1f));
-		player.PlayWarningSound();
-		if (position.HasValue)
-		{
-			player.PingMinimap(position.Value);
-		}
-	}
-}
-
+[Export("Melee Rules", "Rules")]
 public class MeleeRules
 {
 	private const float UnderAttackAlertCooldown = 8.0f;
@@ -83,6 +56,7 @@ public class MeleeRules
 		_gameApi.RegisterResourceNodeType("tree", "wood");
 		_gameApi.RegisterResourceNodeType("rock", "stone");
 	}
+
 	private void InitializePlayerResources()
 	{
 		foreach (var player in _gameApi.GetActivePlayers())
@@ -153,7 +127,22 @@ public class MeleeRules
 		}
 
 		_lastUnderAttackAlertTimeByPlayer[targetPlayer] = currentTime;
-		_gameApi.HandleUnderAttackAlert(targetPlayer, victim.TemplateID, victim.Position);
+		SendUnderAttackAlert(targetPlayer, victim.TemplateID, victim.Position);
+	}
+
+	private void SendUnderAttackAlert(int targetPlayer, string unitId, Vector3 position)
+	{
+		if (targetPlayer < 0) return;
+		var player = _gameApi.GetPlayer(targetPlayer);
+		if (!player.IsActive) return;
+
+		string alertMsg = IsBaseBuilding(unitId)
+			? "⚠️ YOUR BASE IS UNDER ATTACK!"
+			: $"⚠️ {unitId.ToUpper()} is under attack!";
+
+		player.ShowFeedbackText(alertMsg, new Vector3(1.0f, 0.2f, 0.1f));
+		player.PlayWarningSound();
+		player.PingMinimap(position);
 	}
 
 	private void HandlePlayerElimination(PlayerId eliminatedPlayer)
@@ -198,5 +187,33 @@ public class MeleeRules
 		if (string.IsNullOrEmpty(unitId)) return false;
 		string lowerId = unitId.ToLowerInvariant();
 		return lowerId == "castle" || lowerId == "building/castle" || lowerId == "town_hall" || lowerId == "base" || lowerId == "main" || lowerId.EndsWith("/castle") || lowerId.EndsWith("/town_hall");
+	}
+}
+
+public static class MeleeRulesExtensions
+{
+	public static MeleeRules EnableMeleeRules(this IGameAPI api)
+	{
+		var rules = new MeleeRules(api);
+		rules.Initialize();
+		return rules;
+	}
+
+	public static void HandleUnderAttackAlert(this IGameAPI api, int targetPlayer, string unitId, Vector3? position = null)
+	{
+		if (targetPlayer < 0) return;
+		var player = api.GetPlayer(targetPlayer);
+		if (!player.IsActive) return;
+
+		string alertMsg = MeleeRules.IsBaseBuilding(unitId)
+			? "⚠️ YOUR BASE IS UNDER ATTACK!"
+			: $"⚠️ {unitId.ToUpper()} is under attack!";
+
+		player.ShowFeedbackText(alertMsg, new Vector3(1.0f, 0.2f, 0.1f));
+		player.PlayWarningSound();
+		if (position.HasValue)
+		{
+			player.PingMinimap(position.Value);
+		}
 	}
 }

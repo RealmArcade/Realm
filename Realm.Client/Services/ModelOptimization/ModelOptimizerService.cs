@@ -22,7 +22,6 @@ public class ModelOptimizerService
 		public float CreaseAngleDegrees { get; set; } = GlbMeshSmoother.DefaultCreaseAngleDegrees;
 		public int MaxTextureResolution { get; set; } = 1024;
 		public bool ForceReDecimate { get; set; } = false;
-		public MeshSurfaceCategory? SurfaceCategory { get; set; } = null;
 		public LodTierConfig[] LodTiers { get; set; } = null;
 		public bool ReduceUvIslands { get; set; } = true;
 		public float UvChartMergeTolerance { get; set; } = UvChartReducer.DefaultTexCoordTolerance;
@@ -65,7 +64,6 @@ public class ModelOptimizerService
 			ForceReDecimate = options.ForceReDecimate,
 			CreaseAngleDegrees = options.CreaseAngleDegrees,
 			CompressTextures = true,
-			DecimationProfile = options.SurfaceCategory.HasValue ? LodDecimationProfile.ForCategory(options.SurfaceCategory.Value) : null,
 			ReduceUvIslands = options.ReduceUvIslands,
 			UvChartMergeTolerance = options.UvChartMergeTolerance
 		};

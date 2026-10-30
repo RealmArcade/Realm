@@ -354,6 +354,9 @@
                     "DelaySeconds": {
                       "type": "number"
                     },
+                    "DurationSeconds": {
+                      "type": "number"
+                    },
                     "Scale": {
                       "type": "number"
                     },

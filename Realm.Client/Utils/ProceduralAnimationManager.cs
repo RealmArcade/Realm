@@ -88,9 +88,7 @@ public static class ProceduralAnimationManager
 					NormalizedMin = new Vector3Data(0.0f, 0.55f, 0.0f),
 					NormalizedMax = new Vector3Data(1.0f, 1.0f, 1.0f),
 					Feather = 0.18f,
-					MaskPower = 1.5f,
-					MeshNamePatterns = new List<string> { "canopy", "leaf", "leaves", "foliage" },
-					MaterialNamePatterns = new List<string> { "canopy", "leaf", "leaves", "foliage" }
+					MaskPower = 1.5f
 				}
 			}
 		},
@@ -124,9 +122,7 @@ public static class ProceduralAnimationManager
 					NormalizedMin = new Vector3Data(0.0f, 0.45f, 0.0f),
 					NormalizedMax = new Vector3Data(1.0f, 1.0f, 1.0f),
 					Feather = 0.15f,
-					MaskPower = 1.2f,
-					MeshNamePatterns = new List<string> { "frond", "leaf", "palm" },
-					MaterialNamePatterns = new List<string> { "frond", "leaf", "palm" }
+					MaskPower = 1.2f
 				}
 			}
 		},

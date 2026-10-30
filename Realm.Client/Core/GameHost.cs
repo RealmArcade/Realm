@@ -497,6 +497,7 @@ public partial class GameHost : Node3D
 	}
 
 	private MapEditorPaintCursor? _paintCursor { get; set; }
+	private bool _paintCursorSuppressed { get; set; }
 	private MeshInstance3D? _cameraBoundsOverlayMesh { get; set; }
 	private List<Vector3> _pathingVerticesCache { get; set; } = new();
 	private List<Color> _pathingColorsCache { get; set; } = new();
@@ -807,11 +808,11 @@ public partial class GameHost : Node3D
 
 	public bool IsEditorObjectSelected(Node node) => node != null && _editorObjectSelection.Contains(node);
 
-	public void ToggleEditorObjectSelection(Node node, bool remove)
+	public void ToggleEditorObjectSelection(Node node)
 	{
 		if (node == null) return;
 
-		if (remove || IsEditorObjectSelected(node))
+		if (IsEditorObjectSelected(node))
 		{
 			RemoveEditorObjectFromSelection(node);
 		}

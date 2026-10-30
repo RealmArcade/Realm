@@ -6,8 +6,6 @@ namespace Realm.Shared.ModelOptimization;
 
 public static class ModelConverter
 {
-	private const float HardEdgedCreaseAngleDegrees = 5.0f;
-
 	public static readonly string[] SupportedModelExtensions =
 	[
 		".glb", ".gltf", ".rmesh", ".fbx", ".obj"
@@ -20,7 +18,7 @@ public static class ModelConverter
 		return Array.Exists(SupportedModelExtensions, e => e.Equals(ext, StringComparison.OrdinalIgnoreCase));
 	}
 
-	public static OptimizationOptions GetAutomaticOptimizationOptions(string? assetType, bool forceReDecimate, MeshSurfaceCategory? surfaceCategory = null)
+	public static OptimizationOptions GetAutomaticOptimizationOptions(string? assetType, bool forceReDecimate)
 	{
 		int maxRes = 1024;
 		if (string.Equals(assetType, "Item", StringComparison.OrdinalIgnoreCase))
@@ -32,9 +30,7 @@ public static class ModelConverter
 		{
 			SimplificationRatio = 0.5f,
 			MaxTextureResolution = maxRes,
-			ForceReDecimate = forceReDecimate,
-			CreaseAngleDegrees = surfaceCategory == MeshSurfaceCategory.HardEdged ? HardEdgedCreaseAngleDegrees : GlbMeshSmoother.DefaultCreaseAngleDegrees,
-			DecimationProfile = surfaceCategory.HasValue ? LodDecimationProfile.ForCategory(surfaceCategory.Value) : null
+			ForceReDecimate = forceReDecimate
 		};
 	}
 

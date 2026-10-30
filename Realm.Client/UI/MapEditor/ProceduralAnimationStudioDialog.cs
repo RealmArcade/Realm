@@ -41,6 +41,11 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 	private readonly HSlider[] _sldRegionMax = new HSlider[3];
 	private readonly Label[] _lblRegionMax = new Label[3];
 	private static readonly string[] _regionAxisNames = { "X", "Y", "Z" };
+	private const float RegionAutoDetectCreaseAngleDegrees = 50.0f;
+
+	private Button _btnRegionAutoDetect;
+	private Label _lblRegionAutoDetectStatus;
+	private bool _isRegionAutoDetectActive;
 
 	private HSlider _sldSwayFrequency;
 	private Label _lblSwayFrequency;
@@ -71,7 +76,6 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 
 	private Label _lblRegionResolution;
 	private LineEdit _txtRegionName;
-	private LineEdit _txtRegionPatterns;
 	private HSlider _sldRegionLowerEdge;
 	private Label _lblRegionLowerEdge;
 	private HSlider _sldRegionUpperEdge;
@@ -657,8 +661,7 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 	private void BuildRegionBoxControls(VBoxContainer parent)
 	{
 		for (int axis = 0; axis < _regionAxisNames.Length; axis++)
-		{
-			int axisIndex = axis;
+		{			int axisIndex = axis;
 			string axisName = _regionAxisNames[axisIndex];
 
 			(_sldRegionMin[axisIndex], _lblRegionMin[axisIndex]) = AddSlider(
@@ -682,6 +685,24 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 				}, "0.00", 150f);
 		}
 
+		_btnRegionAutoDetect = AddButton(
+			parent,
+			"🎯 " + TranslationServer.Translate("Auto-Detect Region From Click"),
+			ToggleRegionAutoDetect,
+			"Click a part in the preview to raycast it and grow a connected region across its surface edges",
+			11,
+			new Vector2(0, 26));
+
+		_lblRegionAutoDetectStatus = new Label();
+		_lblRegionAutoDetectStatus.Name = "LblRegionAutoDetectStatus_Label";
+		_lblRegionAutoDetectStatus.Text = TranslationServer.Translate("Auto-detect is idle. Press the button, then click the part you want to animate.");
+		_lblRegionAutoDetectStatus.AddThemeFontSizeOverride("font_size", 10);
+		_lblRegionAutoDetectStatus.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
+		_lblRegionAutoDetectStatus.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+		_lblRegionAutoDetectStatus.CustomMinimumSize = new Vector2(300, 0);
+		_lblRegionAutoDetectStatus.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		parent.AddChild(_lblRegionAutoDetectStatus);
+
 		var hintLabel = new Label();
 		hintLabel.Name = "LblRegionBoxHint_Label";
 		hintLabel.Text = TranslationServer.Translate("Region Box affects only vertices inside this local-space volume (e.g. the cape). Mask Lower Bound acts as the edge feather width and a negative Falloff Power inverts the selection.");
@@ -690,6 +711,89 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 		hintLabel.CustomMinimumSize = new Vector2(300, 0);
 		hintLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		parent.AddChild(hintLabel);
+	}
+
+	protected override void OnViewportGuiInput(InputEvent @event)
+	{
+		if (_isRegionAutoDetectActive
+		    && @event is InputEventMouseButton regionPickMouseButton
+		    && regionPickMouseButton.ButtonIndex == MouseButton.Left
+		    && regionPickMouseButton.Pressed)
+		{
+			TryDetectRegionFromPreviewClick(regionPickMouseButton.Position);
+			return;
+		}
+
+		base.OnViewportGuiInput(@event);
+	}
+
+	private void ToggleRegionAutoDetect()
+	{
+		SetRegionAutoDetectActive(!_isRegionAutoDetectActive);
+	}
+
+	private void SetRegionAutoDetectActive(bool isActive)
+	{
+		_isRegionAutoDetectActive = isActive;
+
+		if (_btnRegionAutoDetect != null)
+		{
+			_btnRegionAutoDetect.Text = isActive
+				? "🎯 " + TranslationServer.Translate("Click The Part In The Preview...")
+				: "🎯 " + TranslationServer.Translate("Auto-Detect Region From Click");
+		}
+
+		if (_lblRegionAutoDetectStatus != null)
+		{
+			_lblRegionAutoDetectStatus.Text = isActive
+				? TranslationServer.Translate("Auto-detect is armed. Click the center of the part you want and the region box will grow to its connected surface.")
+				: TranslationServer.Translate("Auto-detect is idle. Press the button, then click the part you want to animate.");
+		}
+
+		if (isActive && _chkShowHeatmap != null && !_chkShowHeatmap.ButtonPressed)
+		{
+			_chkShowHeatmap.ButtonPressed = true;
+			UpdateShaderParameters();
+		}
+	}
+
+	private void TryDetectRegionFromPreviewClick(Vector2 viewportPoint)
+	{
+		if (_currentModelRoot == null || !GodotObject.IsInstanceValid(_currentModelRoot)) return;
+
+		if (!SpatialMeshRegionPicker.TryPickRegion(PreviewCamera, _currentModelRoot, viewportPoint, RegionAutoDetectCreaseAngleDegrees, out SpatialMeshRegionPick pick))
+		{
+			if (_lblRegionAutoDetectStatus != null)
+			{
+				_lblRegionAutoDetectStatus.Text = TranslationServer.Translate("Nothing was hit. Click directly on the mesh surface of the part you want to animate.");
+			}
+
+			return;
+		}
+
+		_config.MaskMode = SpatialMaskMode.RegionBox;
+		_config.MaskRegionMin = new Vector3Data(pick.Min.X, pick.Min.Y, pick.Min.Z);
+		_config.MaskRegionMax = new Vector3Data(pick.Max.X, pick.Max.Y, pick.Max.Z);
+
+		SetRegionAutoDetectActive(false);
+		SyncControlsFromConfig();
+		UpdateShaderParameters();
+
+		if (_lblRegionAutoDetectStatus != null)
+		{
+			_lblRegionAutoDetectStatus.Text = string.Format(
+				TranslationServer.Translate("Detected region on {0}: {1} connected triangles, X {2:F2} to {3:F2}, Y {4:F2} to {5:F2}, Z {6:F2} to {7:F2}."),
+				pick.MeshName,
+				pick.TriangleCount,
+				pick.Min.X,
+				pick.Max.X,
+				pick.Min.Y,
+				pick.Max.Y,
+				pick.Min.Z,
+				pick.Max.Z);
+		}
+
+		Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Auto-detected the {0} region box from {1} connected triangles."), pick.MeshName, pick.TriangleCount));
 	}
 
 	private void BuildSwayRegionControls(VBoxContainer parent)
@@ -715,17 +819,6 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 				EnsureCurrentRegion().RegionName = value.Trim();
 				UpdateRegionResolutionLabel();
 			}, TranslationServer.Translate("Canopy").ToString(), 150f);
-
-		string initialPatterns = currentRegion != null ? JoinRegionPatterns(currentRegion) : JoinRegionPatterns(resolvedRegion);
-		_txtRegionPatterns = AddTextInput(parent, TranslationServer.Translate("Part Name Patterns:"), initialPatterns,
-			(value) =>
-			{
-				if (_suppressRegionSync) return;
-				ProceduralSwayRegionConfig region = EnsureCurrentRegion();
-				region.MeshNamePatterns = SplitRegionPatterns(value);
-				region.MaterialNamePatterns = SplitRegionPatterns(value);
-				UpdateShaderParameters();
-			}, TranslationServer.Translate("canopy, leaf").ToString(), 150f);
 
 		(_sldRegionLowerEdge, _lblRegionLowerEdge) = AddSlider(parent, TranslationServer.Translate("Region Lower Edge (%):"), 0.0f, 100.0f, 1.0f,
 			(currentRegion?.NormalizedMin.Y ?? resolvedRegion.NormalizedMin.Y) * 100.0f,
@@ -756,7 +849,7 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 
 		var hintLabel = new Label();
 		hintLabel.Name = "LblRegionHint_Label";
-		hintLabel.Text = TranslationServer.Translate("Declare the region that moves for this model. Edges are percentages of the model bounds, so the region follows any model scale. Models with no declared region use the automatic foliage fallback or the legacy preset mask.");
+		hintLabel.Text = TranslationServer.Translate("The region is a percentage of the model bounds, so it follows any model scale - adjust the edges and confirm the motion in the preview.");
 		hintLabel.AddThemeFontSizeOverride("font_size", 10);
 		hintLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
 		hintLabel.CustomMinimumSize = new Vector2(300, 0);
@@ -802,67 +895,12 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 			NormalizedMax = resolvedRegion.NormalizedMax,
 			Feather = resolvedRegion.Feather,
 			MaskPower = resolvedRegion.MaskPower,
-			MaskInvert = resolvedRegion.MaskInvert,
-			MeshNamePatterns = new List<string>(resolvedRegion.MeshNamePatterns),
-			MaterialNamePatterns = new List<string>(resolvedRegion.MaterialNamePatterns)
+			MaskInvert = resolvedRegion.MaskInvert
 		};
 
 		_config.SwayRegions ??= new List<ProceduralSwayRegionConfig>();
 		_config.SwayRegions.Add(createdRegion);
 		return createdRegion;
-	}
-
-	private static string JoinRegionPatterns(ProceduralSwayRegionConfig region)
-	{
-		var patterns = new List<string>();
-		AppendRegionPatterns(patterns, region.MeshNamePatterns);
-		AppendRegionPatterns(patterns, region.MaterialNamePatterns);
-		return string.Join(", ", patterns);
-	}
-
-	private static string JoinRegionPatterns(ProceduralSwayRegionResolution resolution)
-	{
-		var patterns = new List<string>();
-		AppendRegionPatterns(patterns, resolution.MeshNamePatterns);
-		AppendRegionPatterns(patterns, resolution.MaterialNamePatterns);
-		return string.Join(", ", patterns);
-	}
-
-	private static void AppendRegionPatterns(List<string> patterns, IReadOnlyList<string> sourcePatterns)
-	{
-		if (sourcePatterns == null) return;
-		for (int i = 0; i < sourcePatterns.Count; i++)
-		{
-			string pattern = sourcePatterns[i]?.Trim();
-			if (!string.IsNullOrEmpty(pattern) && !ContainsPattern(patterns, pattern))
-			{
-				patterns.Add(pattern);
-			}
-		}
-	}
-
-	private static bool ContainsPattern(List<string> patterns, string pattern)
-	{
-		for (int i = 0; i < patterns.Count; i++)
-		{
-			if (string.Equals(patterns[i], pattern, StringComparison.OrdinalIgnoreCase)) return true;
-		}
-
-		return false;
-	}
-
-	private static List<string> SplitRegionPatterns(string rawPatterns)
-	{
-		var patterns = new List<string>();
-		if (string.IsNullOrWhiteSpace(rawPatterns)) return patterns;
-
-		foreach (string rawPattern in rawPatterns.Split(',', StringSplitOptions.RemoveEmptyEntries))
-		{
-			string pattern = rawPattern.Trim();
-			if (!string.IsNullOrEmpty(pattern)) patterns.Add(pattern);
-		}
-
-		return patterns;
 	}
 
 	private void UpdateRegionControls()
@@ -874,7 +912,6 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 		try
 		{
 			if (_txtRegionName != null) _txtRegionName.Text = currentRegion?.RegionName ?? resolvedRegion.RegionName;
-			if (_txtRegionPatterns != null) _txtRegionPatterns.Text = currentRegion != null ? JoinRegionPatterns(currentRegion) : JoinRegionPatterns(resolvedRegion);
 
 			SetSlider(_sldRegionLowerEdge, _lblRegionLowerEdge, (currentRegion?.NormalizedMin.Y ?? resolvedRegion.NormalizedMin.Y) * 100.0f, "0");
 			SetSlider(_sldRegionUpperEdge, _lblRegionUpperEdge, (currentRegion?.NormalizedMax.Y ?? resolvedRegion.NormalizedMax.Y) * 100.0f, "0");
@@ -893,17 +930,6 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 		string modelKey = GetCurrentModelKey();
 		ProceduralSwayRegionResolution resolution = ProceduralSwayRegionResolver.Resolve(_config, modelKey);
 
-		int matchedMeshCount = 0;
-		int totalMeshCount = 0;
-		bool patternSelectionActive = false;
-		if (_currentModelRoot != null && GodotObject.IsInstanceValid(_currentModelRoot))
-		{
-			var binder = new ProceduralSwayRegionBinder(_currentModelRoot, _config, modelKey);
-			matchedMeshCount = binder.MatchedMeshCount;
-			totalMeshCount = binder.TotalMeshCount;
-			patternSelectionActive = binder.PatternSelectionActive;
-		}
-
 		string sourceText = resolution.Source switch
 		{
 			ProceduralSwayRegionSource.DeclaredModelRegion => TranslationServer.Translate("declared for this model").ToString(),
@@ -912,14 +938,11 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 		};
 
 		string regionName = string.IsNullOrEmpty(resolution.RegionName) ? TranslationServer.Translate("Preset Mask").ToString() : resolution.RegionName;
-		string meshText = patternSelectionActive
-			? string.Format(TranslationServer.Translate("{0} of {1} meshes matched part names"), matchedMeshCount, totalMeshCount)
-			: string.Format(TranslationServer.Translate("{0} meshes use the region box"), totalMeshCount);
 		string heightText = resolution.HasRegionBox
 			? string.Format(TranslationServer.Translate("height {0}% to {1}%"), (int)MathF.Round(resolution.NormalizedMin.Y * 100.0f), (int)MathF.Round(resolution.NormalizedMax.Y * 100.0f))
 			: string.Empty;
 
-		_lblRegionResolution.Text = string.Format(TranslationServer.Translate("Resolved: {0} ({1}) - {2} - {3}"), regionName, sourceText, meshText, heightText).TrimEnd(' ', '-');
+		_lblRegionResolution.Text = string.Format(TranslationServer.Translate("Resolved: {0} ({1}) - {2}"), regionName, sourceText, heightText).TrimEnd(' ', '-');
 	}
 
 	private static float GetRegionComponent(Vector3Data region, int axis)
@@ -1258,6 +1281,7 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 
 	public override void CloseDialog()
 	{
+		SetRegionAutoDetectActive(false);
 		ClearCurrentModelRoot();
 		base.CloseDialog();
 	}

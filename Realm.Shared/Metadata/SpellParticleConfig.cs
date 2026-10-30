@@ -93,7 +93,17 @@ public class SpellParticleConfig
 
 	public static SpellParticleConfig CreatePreset(string presetName)
 	{
-		return presetName.ToLowerInvariant() switch
+		return TryCreatePreset(presetName) ?? new SpellParticleConfig();
+	}
+
+	public static SpellParticleConfig? TryCreatePreset(string presetName)
+	{
+		if (string.IsNullOrWhiteSpace(presetName)) return null;
+
+		string normalizedName = presetName.ToLowerInvariant();
+		if (normalizedName.StartsWith("particle_", StringComparison.Ordinal)) normalizedName = normalizedName.Substring("particle_".Length);
+
+		return normalizedName switch
 		{
 			"fire_sparks" or "fire" => new SpellParticleConfig
 			{
@@ -271,7 +281,7 @@ public class SpellParticleConfig
 				RenderMode = SpellParticleRenderMode.Mesh,
 				BlendMode = VfxBlendMode.AlphaBlend
 			},
-			_ => new SpellParticleConfig()
+			_ => null
 		};
 	}
 

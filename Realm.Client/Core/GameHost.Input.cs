@@ -231,20 +231,18 @@ public partial class GameHost
 
 			if (editorKeyEvent.Keycode == Key.Delete)
 			{
-				if (ActiveEditorTool == EditorTool.SelectMove && GodotObject.IsInstanceValid(SelectedEditorObject))
+				if (ActiveEditorTool == EditorTool.SelectMove && SelectedEditorObjectCount > 0)
 				{
-					var target = SelectedEditorObject;
-					SelectedEditorObject = null;
-					var action = DeleteObjectAtWithUndo(target, (target as Node3D).Position);
-					if (action != null)
+					var (success, deletedCount) = DeleteSelectedObjects();
+					if (success)
 					{
-						EditorHistoryManager.RecordAction(action);
-						GameContext.MapEditorHud?.ShowFeedbackExternal("Deleted Object");
-						EditorHasUnsavedChanges = true;
+						string deletedMessage = deletedCount > 1
+							? string.Format(LocalizationManager.Translate("{0} Objects Deleted"), deletedCount)
+							: LocalizationManager.Translate("Deleted Object");
+						GameContext.MapEditorHud?.ShowFeedbackExternal(deletedMessage);
+						GetViewport().SetInputAsHandled();
+						return;
 					}
-
-					GetViewport().SetInputAsHandled();
-					return;
 				}
 			}
 
@@ -891,28 +889,9 @@ public partial class GameHost
 			if (shiftPressed)
 			{
 				float rotDelta = isUp ? 15.0f : -15.0f;
-				if (ActiveEditorTool == EditorTool.SelectMove && GodotObject.IsInstanceValid(SelectedEditorObject))
+				if (ActiveEditorTool == EditorTool.SelectMove && SelectedEditorObjectCount > 0)
 				{
-					var node3D = SelectedEditorObject as Node3D;
-					Vector3 oldRot = node3D.RotationDegrees;
-					Vector3 newRot = oldRot;
-					newRot.Y = (newRot.Y + rotDelta + 360.0f) % 360.0f;
-					var action = new ObjectTransformAction(
-						node3D,
-						node3D.Position, node3D.Position,
-						oldRot, newRot,
-						node3D.Scale, node3D.Scale
-					);
-					node3D.RotationDegrees = newRot;
-					ObjectTransformAction.PersistTransformToEcs(node3D);
-					if (SelectedEditorObject is PropEntityProxyNode propProxyRot)
-					{
-						if (GameContext.World != null && GameContext.World.IsAlive(propProxyRot.Entity))
-						{
-							GameContext.PropMultiMesh?.UpdateInstanceTransform(propProxyRot.Entity, propProxyRot.Position, newRot.Y, propProxyRot.Scale.X);
-						}
-					}
-					EditorHistoryManager.RecordAction(action);
+					RotateSelectedObject(rotDelta);
 					GameContext.MapEditorHud?.UpdateSelectedObjectInfo();
 				}
 				else
@@ -928,28 +907,9 @@ public partial class GameHost
 			if (altPressed)
 			{
 				float scaleDelta = isUp ? 0.1f : -0.1f;
-				if (ActiveEditorTool == EditorTool.SelectMove && GodotObject.IsInstanceValid(SelectedEditorObject))
+				if (ActiveEditorTool == EditorTool.SelectMove && SelectedEditorObjectCount > 0)
 				{
-					var node3D = SelectedEditorObject as Node3D;
-					Vector3 oldScale = node3D.Scale;
-					float newScaleVal = Mathf.Clamp(oldScale.X + scaleDelta, 0.2f, 3.0f);
-					Vector3 newScale = Vector3.One * newScaleVal;
-					var action = new ObjectTransformAction(
-						node3D,
-						node3D.Position, node3D.Position,
-						node3D.RotationDegrees, node3D.RotationDegrees,
-						oldScale, newScale
-					);
-					node3D.Scale = newScale;
-					ObjectTransformAction.PersistTransformToEcs(node3D);
-					if (SelectedEditorObject is PropEntityProxyNode propProxyScale)
-					{
-						if (GameContext.World != null && GameContext.World.IsAlive(propProxyScale.Entity))
-						{
-							GameContext.PropMultiMesh?.UpdateInstanceTransform(propProxyScale.Entity, propProxyScale.Position, propProxyScale.RotationDegrees.Y, newScaleVal);
-						}
-					}
-					EditorHistoryManager.RecordAction(action);
+					ScaleSelectedObject(scaleDelta);
 					GameContext.MapEditorHud?.UpdateSelectedObjectInfo();
 				}
 				else
@@ -1597,7 +1557,7 @@ public partial class GameHost
 
 						if (shiftPressed || ctrlPressed)
 						{
-							ToggleEditorObjectSelection(clickedNode, ctrlPressed);
+							ToggleEditorObjectSelection(clickedNode);
 						}
 						else if (!(SelectedEditorObjectCount > 1 && IsEditorObjectSelected(clickedNode)))
 						{
@@ -2719,7 +2679,7 @@ public partial class GameHost
 		{
 			SelectedUnits.Add(unit);
 			unit.IsSelected = true;
-			GameContext.AudioService?.PlayUnitSound(unit.UnitId, UnitSoundEvent.Select, unit.GlobalPosition);
+			GameContext.AudioService?.PlayUnitSound(unit.UnitId, UnitSoundEvent.Select, unit.GlobalPosition, 0f, AudioPriorityTier.Critical);
 			OnUnitSelected?.Invoke((UnitId)unit.Entity.Id);
 		}
 	}
@@ -2903,7 +2863,7 @@ public partial class GameHost
 		if (selectedEntities.Count > 0 && SelectedUnits.Count > 0)
 		{
 			var primaryUnit = SelectedUnits[0];
-			GameContext.AudioService?.PlayUnitSound(primaryUnit.UnitId, UnitSoundEvent.MoveOrder, primaryUnit.GlobalPosition);
+			GameContext.AudioService?.PlayUnitSound(primaryUnit.UnitId, UnitSoundEvent.MoveOrder, primaryUnit.GlobalPosition, 0f, AudioPriorityTier.Critical);
 		}
 	}
 
@@ -2948,7 +2908,7 @@ public partial class GameHost
 		if (selectedEntities.Count > 0 && SelectedUnits.Count > 0)
 		{
 			var primaryUnit = SelectedUnits[0];
-			GameContext.AudioService?.PlayUnitSound(primaryUnit.UnitId, UnitSoundEvent.AttackOrder, primaryUnit.GlobalPosition);
+			GameContext.AudioService?.PlayUnitSound(primaryUnit.UnitId, UnitSoundEvent.AttackOrder, primaryUnit.GlobalPosition, 0f, AudioPriorityTier.Critical);
 		}
 	}
 
@@ -3430,7 +3390,7 @@ public partial class GameHost
 		if (focusedUnit != null && GameContext.World.IsAlive(focusedUnit.Entity))
 		{
 			caster = (UnitId)focusedUnit.Entity.Id;
-			GameContext.AudioService?.PlayUnitSound(focusedUnit.UnitId, UnitSoundEvent.SpellCast, position);
+			GameContext.AudioService?.PlayUnitSound(focusedUnit.UnitId, UnitSoundEvent.SpellCast, position, 0f, AudioPriorityTier.Critical);
 		}
 
 		if (ExecuteConsumablePurchase(caster, spellId, position)) return;

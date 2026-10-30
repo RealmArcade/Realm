@@ -936,40 +936,27 @@ public static class ModelShaderManager
 	{
 		if (node is GeometryInstance3D geom && !IsExcludedMesh(geom))
 		{
-			if (regionBinder != null && !regionBinder.MatchesMesh(geom))
-			{
-				geom.SetInstanceShaderParameter(_paramProcAnimParams1, Vector4.Zero);
-				geom.SetInstanceShaderParameter(_paramProcAnimParams2, p2);
-				geom.SetInstanceShaderParameter(_paramProcAnimParams3, p3);
-				geom.SetInstanceShaderParameter(_paramProcAnimImpulse, pImp);
-				geom.SetInstanceShaderParameter(_paramProcAnimVelocity, velocity);
-				geom.SetInstanceShaderParameter(_paramProcAnimRegionMin, regionMin);
-				geom.SetInstanceShaderParameter(_paramProcAnimRegionMax, regionMax);
-			}
-			else
-			{
-				Vector4 meshParams1 = p1;
-				Vector4 meshParams2 = p2;
-				Vector3 meshRegionMin = regionMin;
-				Vector3 meshRegionMax = regionMax;
+			Vector4 meshParams1 = p1;
+			Vector4 meshParams2 = p2;
+			Vector3 meshRegionMin = regionMin;
+			Vector3 meshRegionMax = regionMax;
 
-				if (regionBinder != null)
-				{
-					ProceduralSwayMeshMask meshMask = regionBinder.BuildMeshMask(geom);
-					meshParams1 = new Vector4(p1.X, (float)meshMask.MaskMode, meshMask.MaskMin, meshMask.MaskMax);
-					meshParams2 = new Vector4(meshMask.SignedMaskPower, p2.Y, p2.Z, p2.W);
-					meshRegionMin = meshMask.RegionMin;
-					meshRegionMax = meshMask.RegionMax;
-				}
-
-				geom.SetInstanceShaderParameter(_paramProcAnimParams1, meshParams1);
-				geom.SetInstanceShaderParameter(_paramProcAnimParams2, meshParams2);
-				geom.SetInstanceShaderParameter(_paramProcAnimParams3, p3);
-				geom.SetInstanceShaderParameter(_paramProcAnimImpulse, pImp);
-				geom.SetInstanceShaderParameter(_paramProcAnimVelocity, velocity);
-				geom.SetInstanceShaderParameter(_paramProcAnimRegionMin, meshRegionMin);
-				geom.SetInstanceShaderParameter(_paramProcAnimRegionMax, meshRegionMax);
+			if (regionBinder != null)
+			{
+				ProceduralSwayMeshMask meshMask = regionBinder.BuildMeshMask(geom);
+				meshParams1 = new Vector4(p1.X, (float)meshMask.MaskMode, meshMask.MaskMin, meshMask.MaskMax);
+				meshParams2 = new Vector4(meshMask.SignedMaskPower, p2.Y, p2.Z, p2.W);
+				meshRegionMin = meshMask.RegionMin;
+				meshRegionMax = meshMask.RegionMax;
 			}
+
+			geom.SetInstanceShaderParameter(_paramProcAnimParams1, meshParams1);
+			geom.SetInstanceShaderParameter(_paramProcAnimParams2, meshParams2);
+			geom.SetInstanceShaderParameter(_paramProcAnimParams3, p3);
+			geom.SetInstanceShaderParameter(_paramProcAnimImpulse, pImp);
+			geom.SetInstanceShaderParameter(_paramProcAnimVelocity, velocity);
+			geom.SetInstanceShaderParameter(_paramProcAnimRegionMin, meshRegionMin);
+			geom.SetInstanceShaderParameter(_paramProcAnimRegionMax, meshRegionMax);
 		}
 
 		int count = node.GetChildCount();

@@ -255,6 +255,50 @@
             Gets or sets arbitrary payload data or arguments passed to the execution callback.
             </summary>
         </member>
+        <member name="T:Realm.MapAPI.ExportAttribute">
+            <summary>
+            Marks a map script type as a curated export that map authors can discover and import as a
+            whole unit through the map editor's "Import From Map" code list instead of hunting through
+            namespaces and individual classes.
+            </summary>
+            <remarks>
+            The attribute is metadata only: it does not change how the type is compiled or executed. The
+            map editor reads it from the source text of the originating map and lists the marked type in the
+            "Exported" scope of the code importer, where the supplied display name and category replace the
+            raw fully qualified type name.
+            </remarks>
+            <example>
+            <code>
+            [Export("Melee Rules", "Rules")]
+            public class MeleeRules
+            {
+            }
+            </code>
+            </example>
+        </member>
+        <member name="M:Realm.MapAPI.ExportAttribute.#ctor(System.String,System.String)">
+            <summary>
+            Creates an export marker.
+            </summary>
+            <param name="displayName">
+            Friendly name shown in the import dialog. When omitted or blank, the importer falls back to the
+            type's short name.
+            </param>
+            <param name="category">
+            Optional grouping label (for example <c>Rules</c>) shown in front of the friendly name in the
+            import dialog.
+            </param>
+        </member>
+        <member name="P:Realm.MapAPI.ExportAttribute.DisplayName">
+            <summary>
+            Friendly name shown in the import dialog, or an empty string to use the type's short name.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.ExportAttribute.Category">
+            <summary>
+            Optional grouping label shown in front of <see cref="P:Realm.MapAPI.ExportAttribute.DisplayName"/> in the import dialog.
+            </summary>
+        </member>
         <member name="T:Realm.MapAPI.GameAPI">
             <summary>
             Provides global access to the current <see cref="T:Realm.MapAPI.IGameAPI"/> instance within the WebAssembly or host runtime execution context.

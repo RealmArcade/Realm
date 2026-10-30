@@ -174,7 +174,9 @@ app.MapGet("/lobbies", (LobbyRegistry registry, GeoIpService geoIp, HttpContext 
 			lobby.GameVersion,
 			lobby.LocalIP,
 			lobby.MapVersion,
-			lobby.MapSizeBytes
+			lobby.MapSizeBytes,
+			lobby.IsGreenlit,
+			lobby.MapCreator
 		);
 	});
 
@@ -234,11 +236,11 @@ app.MapPost("/lobbies/register", async (RegisterRequest req, LobbyRegistry regis
 		}
 	}
 
-	string finalMapName = req.Map;
 	string mapVersion = req.MapVersion ?? "1.0";
 	string compositeKey = $"{req.Map}_{mapVersion}";
 	var stats = MapStatsHelper.GetStats(db, req.Map, mapVersion, req.PublicKey);
 	bool isGreenlit = !isCustom || (stats != null && stats.IsGreenlit);
+	string? mapCreator = null;
 
 	if (!isGreenlit)
 	{
@@ -265,16 +267,13 @@ app.MapPost("/lobbies/register", async (RegisterRequest req, LobbyRegistry regis
 			}
 		}
 
-		if (!finalMapName.Contains("[Beta-Testing]"))
-		{
-			finalMapName = $"[Beta-Testing] {finalMapName} - {author}";
-		}
+		mapCreator = author;
 	}
 
 	var info = new LobbyInfo
 	{
 		LobbyId = lobbyId,
-		Map = finalMapName,
+		Map = req.Map,
 		MapVersion = mapVersion,
 		HostIP = hostIp,
 		HostPort = req.HostPort,
@@ -290,7 +289,9 @@ app.MapPost("/lobbies/register", async (RegisterRequest req, LobbyRegistry regis
 		HostToken = hostToken,
 		HostPingBaseline = req.HostPingBaseline,
 		LocalIP = req.LocalIP,
-		MapSizeBytes = req.MapSizeBytes ?? 0
+		MapSizeBytes = req.MapSizeBytes ?? 0,
+		IsGreenlit = isGreenlit,
+		MapCreator = mapCreator
 	};
 
 	registry.AddOrUpdate(info);

@@ -23,9 +23,6 @@ public class MeshConvertOptions
 	[Option('t', "type", Required = false, HelpText = "Asset type for model: Character, Building, Prop, Item.")]
 	public string? AssetType { get; set; }
 
-	[Option("surface_category", Required = false, HelpText = "Surface category for LOD decimation: auto (detect from mesh features), organic, or hard_edged. Defaults to auto.")]
-	public string? SurfaceCategory { get; set; }
-
 	[Option("no_uv_chart_reduction", Required = false, Default = false, HelpText = "Skip the UV chart reduction stage so LOD decimation keeps every UV seam as a hard boundary.")]
 	public bool NoUvChartReduction { get; set; }
 

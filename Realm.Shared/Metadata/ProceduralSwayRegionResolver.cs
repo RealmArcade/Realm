@@ -86,21 +86,6 @@ public static class ProceduralSwayRegionResolver
 		       || regionKey.Contains(candidate, StringComparison.OrdinalIgnoreCase);
 	}
 
-	public static bool MatchesAnyPattern(IReadOnlyList<string>? patterns, string? candidate)
-	{
-		if (patterns == null || patterns.Count == 0) return false;
-		if (string.IsNullOrWhiteSpace(candidate)) return false;
-
-		for (int i = 0; i < patterns.Count; i++)
-		{
-			string pattern = patterns[i];
-			if (string.IsNullOrWhiteSpace(pattern)) continue;
-			if (candidate.Contains(pattern.Trim(), StringComparison.OrdinalIgnoreCase)) return true;
-		}
-
-		return false;
-	}
-
 	private static ProceduralSwayRegionResolution FromDeclaredRegion(ProceduralSwayRegionConfig region)
 	{
 		return new ProceduralSwayRegionResolution
@@ -111,9 +96,7 @@ public static class ProceduralSwayRegionResolver
 			NormalizedMax = region.NormalizedMax,
 			Feather = region.Feather,
 			MaskPower = region.MaskPower,
-			MaskInvert = region.MaskInvert,
-			MeshNamePatterns = region.MeshNamePatterns ?? new List<string>(),
-			MaterialNamePatterns = region.MaterialNamePatterns ?? new List<string>()
+			MaskInvert = region.MaskInvert
 		};
 	}
 }

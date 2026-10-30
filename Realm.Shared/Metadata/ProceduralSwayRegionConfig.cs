@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using System.Text.Json.Serialization;
 using Realm.Shared.Terrain;
 
@@ -20,10 +19,6 @@ public class ProceduralSwayRegionConfig
 
 	[JsonPropertyName("MaskInvert")] public bool MaskInvert { get; set; } = false;
 
-	[JsonPropertyName("MeshNamePatterns")] public List<string> MeshNamePatterns { get; set; } = new();
-
-	[JsonPropertyName("MaterialNamePatterns")] public List<string> MaterialNamePatterns { get; set; } = new();
-
 	public ProceduralSwayRegionConfig Clone()
 	{
 		return new ProceduralSwayRegionConfig
@@ -34,9 +29,7 @@ public class ProceduralSwayRegionConfig
 			NormalizedMax = NormalizedMax,
 			Feather = Feather,
 			MaskPower = MaskPower,
-			MaskInvert = MaskInvert,
-			MeshNamePatterns = new List<string>(MeshNamePatterns ?? new List<string>()),
-			MaterialNamePatterns = new List<string>(MaterialNamePatterns ?? new List<string>())
+			MaskInvert = MaskInvert
 		};
 	}
 }

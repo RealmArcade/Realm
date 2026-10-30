@@ -2493,6 +2493,9 @@
                     "DelaySeconds": {
                       "type": "number"
                     },
+                    "DurationSeconds": {
+                      "type": "number"
+                    },
                     "Scale": {
                       "type": "number"
                     },
@@ -3199,24 +3202,6 @@
                 },
                 "MaskInvert": {
                   "type": "boolean"
-                },
-                "MeshNamePatterns": {
-                  "type": "array",
-                  "items": {
-                    "type": [
-                      "string",
-                      "null"
-                    ]
-                  }
-                },
-                "MaterialNamePatterns": {
-                  "type": "array",
-                  "items": {
-                    "type": [
-                      "string",
-                      "null"
-                    ]
-                  }
                 }
               }
             }
