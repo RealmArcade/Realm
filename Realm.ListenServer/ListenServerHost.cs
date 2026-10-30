@@ -1114,6 +1114,13 @@ public class ListenServerHost : IServerTransportSink
 
 		_publishSequence = sequence;
 
+		// A frame left over from the previous tick is not a description of this one. A lane that fails leaves the peers it had
+		// not reached holding theirs, and sending one of those under this tick's sequence would tell a peer about a world the
+		// match has moved past while filing it, and its repair history, under the wrong sequence.
+		for (int peerIndex = 0; peerIndex < peerCount; peerIndex++) _publishedFrames[peerIndex] = null;
+
+		bool everyLaneDescribedItsPeers = true;
+
 		if (laneCount == 1)
 		{
 			for (int peerIndex = 0; peerIndex < peerCount; peerIndex++) DescribeAndFrameOnePeer(peerIndex, 0);
@@ -1126,7 +1133,11 @@ public class ListenServerHost : IServerTransportSink
 
 			// The lanes are the match's own threads, not the pool's: a tick that waits for the pool to schedule its lanes
 			// spends an unbounded part of its budget in whatever else this process happens to be doing with the pool.
-			_publishLaneWorkers ??= new PublishLaneWorkers(simulation.SnapshotWorkerCount, "Realm publish lane");
+			if (_publishLaneWorkers == null)
+			{
+				_publishLaneWorkers = new PublishLaneWorkers(simulation.SnapshotWorkerCount, "Realm publish lane");
+				_publishLaneWorkers.Report = _log.Write;
+			}
 
 			// The lanes only read the world, and the lease is what says so: a lane that starts writing it instead is
 			// reported by the debug assertion a structural change raises rather than corrupting a buffer mid-description.
@@ -1134,13 +1145,15 @@ public class ListenServerHost : IServerTransportSink
 			world.EnterWorkerLease();
 			try
 			{
-				_publishLaneWorkers.DescribeInParallel(laneCount, _describeOneLane);
+				everyLaneDescribedItsPeers = _publishLaneWorkers.DescribeInParallel(laneCount, _describeOneLane);
 			}
 			finally
 			{
 				world.ExitWorkerLease();
 			}
 		}
+
+		if (!everyLaneDescribedItsPeers) OweBaselinesForPeersLaneFailureLeftUndescribed(peerCount);
 
 		for (int index = 0; index < peerCount; index++) SendPublishedSnapshot(index);
 
@@ -1149,6 +1162,26 @@ public class ListenServerHost : IServerTransportSink
 		if (_trafficRecorder != null && sequence % TrafficReportIntervalSequences == 0) QueueTrafficReport();
 
 		if (presentation.Length > 0) SendPresentation(peerCount, presentation);
+	}
+
+	/// <summary>
+	///     Answers a publish whose lane failed. The peers that lane had not described hold no frame for this tick, so they are
+	///     described from scratch on the next one: a hole in their run is repaired by name, and the description that would
+	///     fill it was never written.
+	/// </summary>
+	private void OweBaselinesForPeersLaneFailureLeftUndescribed(int peerCount)
+	{
+		ServerSimulation? simulation = _simulation;
+		if (simulation == null) return;
+
+		for (int index = 0; index < peerCount; index++)
+		{
+			if (_publishedFrames[index] != null) continue;
+
+			int undescribedPeerId = _seatedPeerIds[index];
+			_log.Write($"peer {undescribedPeerId} was not described this tick because a publish lane failed; it is described from scratch next tick");
+			simulation.RequestBaseline(undescribedPeerId);
+		}
 	}
 
 	private void DescribeOneLane(int laneIndex)
