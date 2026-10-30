@@ -506,6 +506,7 @@ public partial class GameHost : Node3D, IGameAPI
 	}
 
 	private MapEditorPaintCursor? _paintCursor { get; set; }
+	private bool _paintCursorSuppressed { get; set; }
 	private MeshInstance3D? _cameraBoundsOverlayMesh { get; set; }
 	private List<Vector3> _pathingVerticesCache { get; set; } = new();
 	private List<Color> _pathingColorsCache { get; set; } = new();

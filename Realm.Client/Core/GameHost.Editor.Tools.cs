@@ -2810,6 +2810,7 @@ namespace Realm.Client.Core
 		{
 			if (_paintCursor != null) return;
 
+			_paintCursorSuppressed = false;
 			_paintCursor = new MapEditorPaintCursor();
 			_paintCursor.Name = "EditorPaintCursor";
 			AddChild(_paintCursor);
@@ -2827,12 +2828,23 @@ namespace Realm.Client.Core
 		public void SetPaintCursorVisible(bool visible)
 		{
 			if (_paintCursor == null || !GodotObject.IsInstanceValid(_paintCursor)) return;
-			_paintCursor.Visible = visible;
+
+			_paintCursorSuppressed = !visible;
+			if (!visible)
+			{
+				_paintCursor.HideCursor();
+			}
 		}
 
 		private void UpdateBrushIndicator(Vector3 position)
 		{
 			if (_paintCursor == null) return;
+
+			if (_paintCursorSuppressed)
+			{
+				_paintCursor.HideCursor();
+				return;
+			}
 
 			bool isVertexTool = IsVertexTool(ActiveEditorTool);
 			if (!IsTerrainTool(isVertexTool) || IsMouseOverUI())
