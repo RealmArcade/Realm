@@ -1,6 +1,7 @@
 using System.IO.Compression;
 using System.Text;
 using Blake3;
+using Realm.Shared.Metadata;
 using Realm.Shared.Services;
 
 namespace Realm.Shared.Distribution;
@@ -19,6 +20,7 @@ public static class MapArchiveHelper
 		IReadOnlyCollection<string>? excludedRelativePaths = null)
 	{
 		PrepareArchiveDestination(sourceDirectory, destinationRmapPath);
+		IncludeMapSourcesInManifest(sourceDirectory);
 
 		var filesToArchive = GetFilesToArchive(sourceDirectory, fullExport, excludedRelativePaths);
 		SortFilesForArchive(filesToArchive, sourceDirectory);
@@ -76,6 +78,55 @@ public static class MapArchiveHelper
 		{
 			File.Delete(destinationRmapPath);
 		}
+	}
+
+	/// <summary>
+	///     Makes sure every C# source the map is authored in is listed in the manifest the archive carries. A map script is
+	///     part of what a map is, so a package whose manifest omits it cannot be recompiled by anyone who opens it, even
+	///     though the file itself travels in the archive.
+	/// </summary>
+	/// <param name="sourceDirectory">The workspace being archived.</param>
+	private static void IncludeMapSourcesInManifest(string sourceDirectory)
+	{
+		string manifestPath = Path.Combine(sourceDirectory, "manifest.json");
+		if (!File.Exists(manifestPath)) return;
+
+		MapManifest manifest;
+		try
+		{
+			manifest = MapManifest.LoadFromJson(File.ReadAllText(manifestPath));
+		}
+		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
+		{
+			return;
+		}
+
+		if (manifest == null) return;
+
+		Dictionary<string, string> listedFiles = manifest.Files;
+		bool added = false;
+
+		foreach (string sourcePath in Directory.EnumerateFiles(sourceDirectory, "*.cs", SearchOption.AllDirectories))
+		{
+			string relativePath = Path.GetRelativePath(sourceDirectory, sourcePath).Replace('\\', '/');
+			if (IsIgnoredPath(relativePath)) continue;
+			if (listedFiles.ContainsKey(relativePath)) continue;
+
+			var sourceFile = new FileInfo(sourcePath);
+			if (!sourceFile.Exists || sourceFile.Length == 0) continue;
+
+			string hash = RealmMetadataHelper.ComputeBlake3(File.ReadAllBytes(sourcePath), ".cs");
+			if (string.IsNullOrEmpty(hash)) continue;
+
+			manifest.Assets ??= new MapManifestAssets();
+			manifest.Assets.Other ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+			manifest.Assets.Other[relativePath] = $"{hash}.cs";
+			added = true;
+		}
+
+		if (!added) return;
+
+		MapFileService.SaveManifest(manifestPath, manifest);
 	}
 
 	private static bool IsIgnoredPath(string relPath)
