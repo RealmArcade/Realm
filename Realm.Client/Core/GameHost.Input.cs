@@ -889,28 +889,9 @@ public partial class GameHost
 			if (shiftPressed)
 			{
 				float rotDelta = isUp ? 15.0f : -15.0f;
-				if (ActiveEditorTool == EditorTool.SelectMove && GodotObject.IsInstanceValid(SelectedEditorObject))
+				if (ActiveEditorTool == EditorTool.SelectMove && SelectedEditorObjectCount > 0)
 				{
-					var node3D = SelectedEditorObject as Node3D;
-					Vector3 oldRot = node3D.RotationDegrees;
-					Vector3 newRot = oldRot;
-					newRot.Y = (newRot.Y + rotDelta + 360.0f) % 360.0f;
-					var action = new ObjectTransformAction(
-						node3D,
-						node3D.Position, node3D.Position,
-						oldRot, newRot,
-						node3D.Scale, node3D.Scale
-					);
-					node3D.RotationDegrees = newRot;
-					ObjectTransformAction.PersistTransformToEcs(node3D);
-					if (SelectedEditorObject is PropEntityProxyNode propProxyRot)
-					{
-						if (GameContext.World != null && GameContext.World.IsAlive(propProxyRot.Entity))
-						{
-							GameContext.PropMultiMesh?.UpdateInstanceTransform(propProxyRot.Entity, propProxyRot.Position, newRot.Y, propProxyRot.Scale.X);
-						}
-					}
-					EditorHistoryManager.RecordAction(action);
+					RotateSelectedObject(rotDelta);
 					GameContext.MapEditorHud?.UpdateSelectedObjectInfo();
 				}
 				else
@@ -926,28 +907,9 @@ public partial class GameHost
 			if (altPressed)
 			{
 				float scaleDelta = isUp ? 0.1f : -0.1f;
-				if (ActiveEditorTool == EditorTool.SelectMove && GodotObject.IsInstanceValid(SelectedEditorObject))
+				if (ActiveEditorTool == EditorTool.SelectMove && SelectedEditorObjectCount > 0)
 				{
-					var node3D = SelectedEditorObject as Node3D;
-					Vector3 oldScale = node3D.Scale;
-					float newScaleVal = Mathf.Clamp(oldScale.X + scaleDelta, 0.2f, 3.0f);
-					Vector3 newScale = Vector3.One * newScaleVal;
-					var action = new ObjectTransformAction(
-						node3D,
-						node3D.Position, node3D.Position,
-						node3D.RotationDegrees, node3D.RotationDegrees,
-						oldScale, newScale
-					);
-					node3D.Scale = newScale;
-					ObjectTransformAction.PersistTransformToEcs(node3D);
-					if (SelectedEditorObject is PropEntityProxyNode propProxyScale)
-					{
-						if (GameContext.World != null && GameContext.World.IsAlive(propProxyScale.Entity))
-						{
-							GameContext.PropMultiMesh?.UpdateInstanceTransform(propProxyScale.Entity, propProxyScale.Position, propProxyScale.RotationDegrees.Y, newScaleVal);
-						}
-					}
-					EditorHistoryManager.RecordAction(action);
+					ScaleSelectedObject(scaleDelta);
 					GameContext.MapEditorHud?.UpdateSelectedObjectInfo();
 				}
 				else

@@ -1051,66 +1051,131 @@ namespace Realm.Client.Core
 			);
 		}
 
+		private List<Node3D> CollectSelectedTransformNodes()
+		{
+			var nodes = new List<Node3D>();
+			for (int i = 0; i < _editorObjectSelection.Count; i++)
+			{
+				if (_editorObjectSelection[i] is Node3D node3D && GodotObject.IsInstanceValid(node3D))
+				{
+					nodes.Add(node3D);
+				}
+			}
+
+			return nodes;
+		}
+
+		private void RecordSelectionTransformActions(List<IEditorAction> actions)
+		{
+			if (actions.Count == 0) return;
+			EditorHistoryManager.RecordAction(actions.Count == 1 ? actions[0] : new CompositeAction(actions));
+		}
+
+		private void RefreshSelectionTransformVisuals(Node3D node3D)
+		{
+			if (node3D is PropEntityProxyNode proxy)
+			{
+				if (GameContext.World != null && GameContext.World.IsAlive(proxy.Entity))
+				{
+					GameContext.PropMultiMesh?.UpdateInstanceTransform(proxy.Entity, proxy.Position, proxy.RotationDegrees.Y, proxy.Scale.X);
+				}
+
+				return;
+			}
+
+			if (node3D is Prop3D prop)
+			{
+				GameContext.PropMultiMesh?.MarkDirty(prop.PropId);
+			}
+		}
+
+		private Node3D ResolveReportedTransformNode(List<Node3D> nodes)
+		{
+			if (_selectedEditorObject is Node3D primary && GodotObject.IsInstanceValid(primary) && nodes.Contains(primary))
+			{
+				return primary;
+			}
+
+			return nodes[nodes.Count - 1];
+		}
+
 		public bool ResetScaleSelectedObject()
 		{
-			if (SelectedEditorObject is not Node3D node3D) return false;
+			var nodes = CollectSelectedTransformNodes();
+			if (nodes.Count == 0) return false;
 
-			Vector3 oldScale = node3D.Scale;
-			Vector3 newScale = Vector3.One;
-			var action = new ObjectTransformAction(
-				node3D,
-				node3D.Position, node3D.Position,
-				node3D.RotationDegrees, node3D.RotationDegrees,
-				oldScale, newScale
-			);
-			node3D.Scale = newScale;
-			ObjectTransformAction.PersistTransformToEcs(node3D);
-			if (node3D is Prop3D prop) GameContext.PropMultiMesh?.MarkDirty(prop.PropId);
+			var actions = new List<IEditorAction>();
+			for (int i = 0; i < nodes.Count; i++)
+			{
+				Node3D node3D = nodes[i];
+				Vector3 oldScale = node3D.Scale;
+				actions.Add(new ObjectTransformAction(
+					node3D,
+					node3D.Position, node3D.Position,
+					node3D.RotationDegrees, node3D.RotationDegrees,
+					oldScale, Vector3.One
+				));
+				node3D.Scale = Vector3.One;
+				ObjectTransformAction.PersistTransformToEcs(node3D);
+				RefreshSelectionTransformVisuals(node3D);
+			}
 
-			EditorHistoryManager.RecordAction(action);
+			RecordSelectionTransformActions(actions);
 			return true;
 		}
 
 		public (bool success, float newScaleVal) ScaleSelectedObject(float scaleDelta)
 		{
-			if (SelectedEditorObject is not Node3D node3D) return (false, 1.0f);
+			var nodes = CollectSelectedTransformNodes();
+			if (nodes.Count == 0) return (false, 1.0f);
 
-			Vector3 oldScale = node3D.Scale;
-			float newScaleVal = Mathf.Clamp(oldScale.X + scaleDelta, 0.2f, 4.0f);
-			Vector3 newScale = Vector3.One * newScaleVal;
-			var action = new ObjectTransformAction(
-				node3D,
-				node3D.Position, node3D.Position,
-				node3D.RotationDegrees, node3D.RotationDegrees,
-				oldScale, newScale
-			);
-			node3D.Scale = newScale;
-			ObjectTransformAction.PersistTransformToEcs(node3D);
-			if (node3D is Prop3D prop) GameContext.PropMultiMesh?.MarkDirty(prop.PropId);
+			var actions = new List<IEditorAction>();
+			for (int i = 0; i < nodes.Count; i++)
+			{
+				Node3D node3D = nodes[i];
+				Vector3 oldScale = node3D.Scale;
+				float newScaleVal = Mathf.Clamp(oldScale.X + scaleDelta, 0.2f, 4.0f);
+				Vector3 newScale = Vector3.One * newScaleVal;
+				actions.Add(new ObjectTransformAction(
+					node3D,
+					node3D.Position, node3D.Position,
+					node3D.RotationDegrees, node3D.RotationDegrees,
+					oldScale, newScale
+				));
+				node3D.Scale = newScale;
+				ObjectTransformAction.PersistTransformToEcs(node3D);
+				RefreshSelectionTransformVisuals(node3D);
+			}
 
-			EditorHistoryManager.RecordAction(action);
-			return (true, newScaleVal);
+			RecordSelectionTransformActions(actions);
+			return (true, ResolveReportedTransformNode(nodes).Scale.X);
 		}
 
 		public (bool success, float newRotY) RotateSelectedObject(float angleDelta)
 		{
-			if (SelectedEditorObject is not Node3D node3D) return (false, 0f);
+			var nodes = CollectSelectedTransformNodes();
+			if (nodes.Count == 0) return (false, 0f);
 
-			Vector3 oldRotation = node3D.RotationDegrees;
-			Vector3 newRotation = oldRotation;
-			newRotation.Y = (newRotation.Y + angleDelta + 360.0f) % 360.0f;
-			var action = new ObjectTransformAction(
-				node3D,
-				node3D.Position, node3D.Position,
-				oldRotation, newRotation,
-				node3D.Scale, node3D.Scale
-			);
-			node3D.RotationDegrees = newRotation;
-			ObjectTransformAction.PersistTransformToEcs(node3D);
-			if (node3D is Prop3D prop) GameContext.PropMultiMesh?.MarkDirty(prop.PropId);
+			var actions = new List<IEditorAction>();
+			for (int i = 0; i < nodes.Count; i++)
+			{
+				Node3D node3D = nodes[i];
+				Vector3 oldRotation = node3D.RotationDegrees;
+				Vector3 newRotation = oldRotation;
+				newRotation.Y = (newRotation.Y + angleDelta + 360.0f) % 360.0f;
+				actions.Add(new ObjectTransformAction(
+					node3D,
+					node3D.Position, node3D.Position,
+					oldRotation, newRotation,
+					node3D.Scale, node3D.Scale
+				));
+				node3D.RotationDegrees = newRotation;
+				ObjectTransformAction.PersistTransformToEcs(node3D);
+				RefreshSelectionTransformVisuals(node3D);
+			}
 
-			EditorHistoryManager.RecordAction(action);
-			return (true, newRotation.Y);
+			RecordSelectionTransformActions(actions);
+			return (true, ResolveReportedTransformNode(nodes).RotationDegrees.Y);
 		}
 
 		public (bool success, string error) DeleteSelectedObject()
