@@ -34,8 +34,22 @@ public class ClientServerSession : IDisposable
 
 	private byte[] _snapshotBuffer = new byte[SnapshotWireFormat.FrameHeaderBytes];
 
-	private readonly List<QueuedFrame> _incoming = new();
-	private int _incomingIndex;
+	/// <summary>
+	///     Descriptions waiting to be applied, oldest first. They live in a ring because the oldest is dropped whenever a
+	///     screen falls behind, and shifting the rest of a list to do it was work paid on the tick that could least afford
+	///     it.
+	/// </summary>
+	private readonly QueuedFrame[] _descriptionQueue = new QueuedFrame[MaximumQueuedDescriptions];
+	private int _descriptionHead;
+	private int _descriptionCount;
+
+	/// <summary>
+	///     Frames the match cannot proceed without, in the order they arrived. Nothing waiting here is ever dropped: it
+	///     came over the stream that guarantees delivery, and discarding it would throw away the only copy of something
+	///     this screen needs.
+	/// </summary>
+	private readonly Queue<QueuedFrame> _reliableQueue = new();
+
 	private bool _descriptionsWereDropped;
 
 	private readonly struct QueuedFrame
@@ -81,7 +95,12 @@ public class ClientServerSession : IDisposable
 	private const int ReconnectIntervalMilliseconds = 250;
 	private const int MaximumReconnectAttempts = 240;
 
-	private const int MaximumQueuedFrames = 256;
+	/// <summary>
+	///     How many descriptions the ring holds before the oldest is overwritten. A screen with this many waiting has
+	///     stopped reading rather than met a link that is late, and the ones at its front describe a world the ones behind
+	///     them already supersede.
+	/// </summary>
+	private const int MaximumQueuedDescriptions = 32;
 
 	/// <summary>
 	///     How many descriptions one tick may apply. A tick that spent all of itself draining a backlog applied state the
@@ -470,33 +489,29 @@ public class ClientServerSession : IDisposable
 			return false;
 		}
 
-		int snapshotsApplied = 0;
-		while (_incomingIndex < _incoming.Count)
+		// Everything the match cannot proceed without is handed over whole and in the order it arrived. Descriptions are
+		// the only frames with a budget, because they are the only frames a later one can stand in for.
+		int reliableToDrain = _reliableQueue.Count;
+		while (reliableToDrain-- > 0 && _reliableQueue.Count > 0)
 		{
-			QueuedFrame frame = _incoming[_incomingIndex];
-			if (frame.Kind == NetworkFrameKind.Snapshot && snapshotsApplied >= MaximumSnapshotsAppliedPerPump) break;
-
-			_incomingIndex++;
-			if (frame.Kind == NetworkFrameKind.Snapshot) snapshotsApplied++;
-
-			try
-			{
-				Dispatch(frame.Kind, frame.Payload, frame.ArrivalMilliseconds);
-			}
-			catch (Exception exception) when (exception is IOException or InvalidDataException or ArgumentException or MemoryPackSerializationException)
-			{
-				GD.PushWarning($"[Network] A {frame.Kind} frame could not be read and was dropped: {exception.Message}");
-
-				if (!InLobby) GameContext.SnapshotApply.RequestBaseline();
-			}
-
+			DispatchFrame(_reliableQueue.Dequeue());
 			handed = true;
 		}
 
-		if (_incomingIndex >= _incoming.Count)
+		int snapshotsApplied = 0;
+		while (_descriptionCount > 0)
 		{
-			_incoming.Clear();
-			_incomingIndex = 0;
+			QueuedFrame frame = _descriptionQueue[_descriptionHead];
+			if (frame.Kind == NetworkFrameKind.Snapshot && snapshotsApplied >= MaximumSnapshotsAppliedPerPump) break;
+
+			_descriptionQueue[_descriptionHead] = default;
+			_descriptionHead = (_descriptionHead + 1) % _descriptionQueue.Length;
+			_descriptionCount--;
+
+			if (frame.Kind == NetworkFrameKind.Snapshot) snapshotsApplied++;
+
+			DispatchFrame(frame);
+			handed = true;
 		}
 
 		if (_descriptionsWereDropped)
@@ -567,14 +582,25 @@ public class ClientServerSession : IDisposable
 
 	private void Enqueue(NetworkFrameKind kind, byte[] payload)
 	{
-		if (_incoming.Count >= MaximumQueuedFrames && !DropOldestDescription())
+		ulong arrivalMilliseconds = kind == NetworkFrameKind.LatencyProbeEcho ? Time.GetTicksMsec() : 0UL;
+		var frame = new QueuedFrame(kind, payload, arrivalMilliseconds);
+
+		if (kind is not (NetworkFrameKind.Snapshot or NetworkFrameKind.Presentation))
 		{
-			if (kind is NetworkFrameKind.Snapshot or NetworkFrameKind.Presentation) _descriptionsWereDropped = true;
+			_reliableQueue.Enqueue(frame);
 			return;
 		}
 
-		ulong arrivalMilliseconds = kind == NetworkFrameKind.LatencyProbeEcho ? Time.GetTicksMsec() : 0UL;
-		_incoming.Add(new QueuedFrame(kind, payload, arrivalMilliseconds));
+		if (_descriptionCount == _descriptionQueue.Length)
+		{
+			_descriptionQueue[_descriptionHead] = default;
+			_descriptionHead = (_descriptionHead + 1) % _descriptionQueue.Length;
+			_descriptionCount--;
+			_descriptionsWereDropped = true;
+		}
+
+		_descriptionQueue[(_descriptionHead + _descriptionCount) % _descriptionQueue.Length] = frame;
+		_descriptionCount++;
 	}
 
 	/// <summary>
@@ -584,39 +610,41 @@ public class ClientServerSession : IDisposable
 	private void DiscardSupersededDescriptions()
 	{
 		int queuedDescriptions = 0;
-		for (int index = _incomingIndex; index < _incoming.Count; index++)
+		for (int offset = 0; offset < _descriptionCount; offset++)
 		{
-			if (_incoming[index].Kind == NetworkFrameKind.Snapshot) queuedDescriptions++;
+			if (_descriptionQueue[(_descriptionHead + offset) % _descriptionQueue.Length].Kind == NetworkFrameKind.Snapshot) queuedDescriptions++;
 		}
 
 		if (queuedDescriptions <= MaximumQueuedDescriptionsBeforeDiscard) return;
 
 		int toDiscard = queuedDescriptions - MaximumQueuedDescriptionsBeforeDiscard;
-		for (int index = _incomingIndex; index < _incoming.Count && toDiscard > 0;)
+		while (toDiscard > 0 && _descriptionCount > 0)
 		{
-			if (_incoming[index].Kind != NetworkFrameKind.Snapshot)
-			{
-				index++;
-				continue;
-			}
+			QueuedFrame oldest = _descriptionQueue[_descriptionHead];
+			_descriptionQueue[_descriptionHead] = default;
+			_descriptionHead = (_descriptionHead + 1) % _descriptionQueue.Length;
+			_descriptionCount--;
 
-			_incoming.RemoveAt(index);
-			toDiscard--;
+			if (oldest.Kind == NetworkFrameKind.Snapshot) toDiscard--;
 		}
 	}
 
-	private bool DropOldestDescription()
+	/// <summary>
+	///     Hands one queued frame to the session, and asks the match to describe the world from scratch if it could not be
+	///     read. A frame this screen cannot read is a frame it never received, and nothing else would report it missing.
+	/// </summary>
+	private void DispatchFrame(QueuedFrame frame)
 	{
-		for (int index = _incomingIndex; index < _incoming.Count; index++)
+		try
 		{
-			if (_incoming[index].Kind is not (NetworkFrameKind.Snapshot or NetworkFrameKind.Presentation)) continue;
-
-			_incoming.RemoveAt(index);
-			_descriptionsWereDropped = true;
-			return true;
+			Dispatch(frame.Kind, frame.Payload, frame.ArrivalMilliseconds);
 		}
+		catch (Exception exception) when (exception is IOException or InvalidDataException or ArgumentException or MemoryPackSerializationException)
+		{
+			GD.PushWarning($"[Network] A {frame.Kind} frame could not be read and was dropped: {exception.Message}");
 
-		return false;
+			if (!InLobby) GameContext.SnapshotApply.RequestBaseline();
+		}
 	}
 
 	private void Dispatch(NetworkFrameKind kind, byte[] payload, ulong arrivalMilliseconds)
@@ -779,8 +807,10 @@ public class ClientServerSession : IDisposable
 		_port = 0;
 		_channel.FrameArrived -= Enqueue;
 
-		_incoming.Clear();
-		_incomingIndex = 0;
+		Array.Clear(_descriptionQueue);
+		_descriptionHead = 0;
+		_descriptionCount = 0;
+		_reliableQueue.Clear();
 		_descriptionsWereDropped = false;
 
 		if (startedHere) _channel.Send(NetworkFrameKind.Shutdown, Array.Empty<byte>());
