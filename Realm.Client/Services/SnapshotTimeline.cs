@@ -11,7 +11,12 @@ public class SnapshotTimeline
 
 	public const int MinimumDelaySequences = 2;
 
-	public const int MaximumDelaySequences = 20;
+	/// <summary>
+	///     The deepest a link may be held behind the match. It is the run of descriptions the match keeps for repair and the
+	///     screen keeps for a backlog, because a delay deeper than that history is one the screen could not be repaired back
+	///     into: a hole the delay implies and the ring cannot fill is a whole world on the reliable stream instead.
+	/// </summary>
+	public const int MaximumDelaySequences = MatchTiming.SnapshotHistoryDepth;
 
 	/// <summary>
 	///     How deep the buffer may grow before a link has told this screen how long its round trip is. Inbound-only, this is
@@ -406,8 +411,6 @@ public class SnapshotTimeline
 		int deepestThisLinkNeeds = Math.Max(InitialCeilingSequences, floor) + jitterSequences + MinimumDelaySequences;
 		int ceiling = Math.Clamp(deepestThisLinkNeeds, floor, MaximumDelaySequences);
 
-		if (floor == _delayFloorSequences && ceiling == _delayCeilingSequences) return;
-
 		// A floor that rises is met at once: drawing below what the link needs is the stall the floor exists to avoid. A
 		// floor or a ceiling that falls is not applied here, because depth is only given back by the shallowing rule,
 		// one sequence per two clean windows. Taking it back in one step leaves the cursor chasing a target several
@@ -418,7 +421,11 @@ public class SnapshotTimeline
 		// The depth this link needs is its trip plus the variation around it, not its trip alone. Holding only the trip
 		// meant a link that varies by two sequences stalled first and learned about it by stalling, one starvation at a
 		// time, however clearly the variation had already been measured.
-		int neededSequences = Math.Min(_delayCeilingSequences, floor + jitterSequences);
+		//
+		// It is recomputed on every observation rather than only when the floor or the ceiling moved. Both of those are
+		// clamped, so a link whose variation grew past its ceiling moved neither of them: the target then stayed where it
+		// was set on a quieter minute, which is a depth that link has already outgrown.
+		int neededSequences = Math.Min(ceiling, floor + jitterSequences);
 		_delayTargetSequences = neededSequences;
 		if (_delaySequences < neededSequences) _delaySequences = neededSequences;
 	}

@@ -399,6 +399,44 @@ public partial class SnapshotTimelineTests
 	}
 
 	[TestCase]
+	public void ALongLinkKeepsJitterHeadroomAboveItsTrip()
+	{
+		var timeline = new SnapshotTimeline();
+
+		// A 1.2 s round trip is a 600 ms trip one way, which is eighteen sequences at 30 Hz plus the floor's own cushion:
+		// the trip alone reaches the deepest depth any match was held at before links were measured.
+		timeline.ObserveLink(1200f, 60f);
+
+		int expectedFloor = (int)MathF.Ceiling(600f / (MatchTiming.SnapshotIntervalSeconds * 1000f)) + SnapshotTimeline.MinimumDelaySequences;
+		Assertions.AssertThat(timeline.DelayFloorSequences).IsEqual(expectedFloor);
+		Assertions.AssertThat(timeline.DelayCeilingSequences > timeline.DelayFloorSequences)
+			.OverrideFailureMessage($"a link whose trip already fills the floor was left a ceiling of {timeline.DelayCeilingSequences} over a floor of {timeline.DelayFloorSequences}, so any variation at all stalls it")
+			.IsTrue();
+		Assertions.AssertThat(timeline.DelaySequences >= timeline.DelayFloorSequences)
+			.OverrideFailureMessage($"the delay settled at {timeline.DelaySequences}, below the floor of {timeline.DelayFloorSequences} the link was measured to need")
+			.IsTrue();
+	}
+
+	[TestCase]
+	public void VariationThatMovesNeitherBoundStillDeepensTheTarget()
+	{
+		var timeline = new SnapshotTimeline();
+		timeline.ObserveLink(1200f, 60f);
+
+		int floor = timeline.DelayFloorSequences;
+		int ceiling = timeline.DelayCeilingSequences;
+		int before = timeline.DelaySequences;
+
+		timeline.ObserveLink(1200f, 200f);
+
+		Assertions.AssertThat(timeline.DelayFloorSequences).IsEqual(floor);
+		Assertions.AssertThat(timeline.DelayCeilingSequences).IsEqual(ceiling);
+		Assertions.AssertThat(timeline.DelaySequences > before)
+			.OverrideFailureMessage($"a link that grew from 60 ms of variation to 200 ms with both bounds already clamped kept its depth at {timeline.DelaySequences}")
+			.IsTrue();
+	}
+
+	[TestCase]
 	public void AStarvedCursorRebuildsItsDepthInsteadOfPlayingTheWorldSlow()
 	{
 		var timeline = new SnapshotTimeline();
