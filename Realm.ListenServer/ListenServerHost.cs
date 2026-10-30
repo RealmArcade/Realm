@@ -78,6 +78,7 @@ public class ListenServerHost : IServerTransportSink
 	private readonly byte[][] _publishedFrames = new byte[EcsWorld.MAX_PLAYERS][];
 	private readonly bool[] _pendingBaselineRequests = new bool[EcsWorld.MAX_PLAYERS];
 	private readonly bool[] _pendingSkippedPeers = new bool[EcsWorld.MAX_PLAYERS];
+	private PublishLaneWorkers? _publishLaneWorkers;
 	private readonly Dictionary<int, SnapshotFrameRing> _frameRings = new();
 	private readonly SnapshotFragmentBuffer[] _fragmentBuffers = CreateFragmentBuffers();
 	private readonly SnapshotBaselineReason[] _pendingBaselineReasons = new SnapshotBaselineReason[EcsWorld.MAX_PLAYERS];
@@ -101,7 +102,7 @@ public class ListenServerHost : IServerTransportSink
 	}
 
 	private readonly SnapshotCompressor?[] _publishCompressors = new SnapshotCompressor?[SnapshotFanOut.MaximumWorkerCount];
-	private ParallelOptions? _publishParallelism;
+
 	private Action<int>? _describeOneLane;
 	private int _publishPeerCount;
 	private int _publishLaneCount;
@@ -529,6 +530,9 @@ public class ListenServerHost : IServerTransportSink
 
 		_simulation?.Dispose();
 		_simulation = null;
+
+		_publishLaneWorkers?.Dispose();
+		_publishLaneWorkers = null;
 
 		for (int index = 0; index < _publishCompressors.Length; index++)
 		{
@@ -1117,9 +1121,11 @@ public class ListenServerHost : IServerTransportSink
 		{
 			_publishPeerCount = peerCount;
 			_publishLaneCount = laneCount;
-			_publishParallelism ??= new ParallelOptions();
-			_publishParallelism.MaxDegreeOfParallelism = laneCount;
 			_describeOneLane ??= DescribeOneLane;
+
+			// The lanes are the match's own threads, not the pool's: a tick that waits for the pool to schedule its lanes
+			// spends an unbounded part of its budget in whatever else this process happens to be doing with the pool.
+			_publishLaneWorkers ??= new PublishLaneWorkers(simulation.SnapshotWorkerCount, "Realm publish lane");
 
 			// The lanes only read the world, and the lease is what says so: a lane that starts writing it instead is
 			// reported by the debug assertion a structural change raises rather than corrupting a buffer mid-description.
@@ -1127,7 +1133,7 @@ public class ListenServerHost : IServerTransportSink
 			world.EnterWorkerLease();
 			try
 			{
-				Parallel.For(0, laneCount, _publishParallelism, _describeOneLane);
+				_publishLaneWorkers.DescribeInParallel(laneCount, _describeOneLane);
 			}
 			finally
 			{
