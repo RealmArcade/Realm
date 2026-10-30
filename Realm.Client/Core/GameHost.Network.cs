@@ -482,16 +482,25 @@ public partial class GameHost
 	}
 
 	/// <summary>
-	///     Asks the match to pause or resume. The clock belongs to the process running the match, so this is a request:
-	///     what the screen shows afterwards is the state that process answered with.
+	///     Asks the match to hold or let go of its clock, stating the state wanted rather than a change to make. A request
+	///     that only named a change had to read this screen's own belief first, so a screen that believed it was paused
+	///     while the match was already running sent a pause from the button that was meant to resume it.
 	/// </summary>
-	public void TogglePauseRequest()
+	/// <param name="paused">True to hold the match, false to let it run.</param>
+	public void RequestPause(bool paused)
 	{
 		ClientServerSession? session = GameContext.ServerSession;
-		if (session != null && session.RequestPause(!GameContext.NetworkService.IsPaused)) return;
+		if (session != null && session.RequestPause(paused)) return;
 
 		GD.PushWarning("[GameHost] There is no match to ask for a pause: nothing is running this world's clock.");
 	}
+
+	/// <summary>
+	///     Asks the match for the opposite of the state this screen believes it holds. The clock belongs to the process
+	///     running the match, so this is a request: what the screen shows afterwards is the state that process answered
+	///     with.
+	/// </summary>
+	public void TogglePauseRequest() => RequestPause(!GameContext.NetworkService.IsPaused);
 
 	private void UpdatePauseUI()
 	{

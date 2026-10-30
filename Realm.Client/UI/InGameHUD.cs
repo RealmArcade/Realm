@@ -1876,6 +1876,7 @@ public partial class InGameHUD : Control
 	private bool HandlePauseKey(InputEventKey keyEvent)
 	{
 		if (keyEvent.Keycode != Key.P && keyEvent.Keycode != Key.Pause) return false;
+		if (keyEvent.Echo) return false;
 		if (IsChatActive || GameContext.Host == null) return false;
 
 		GameContext.Host.TogglePauseRequest();
@@ -2732,7 +2733,7 @@ public partial class InGameHUD : Control
 		_pauseResumeButton.Pressed += () =>
 		{
 			GameContext.UserInterface?.PlayClickSound();
-			GameContext.Host?.TogglePauseRequest();
+			GameContext.Host?.RequestPause(false);
 		};
 		mainVBox.AddChild(_pauseResumeButton);
 

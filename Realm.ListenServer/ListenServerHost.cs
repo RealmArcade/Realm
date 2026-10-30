@@ -494,10 +494,18 @@ public class ListenServerHost : IServerTransportSink
 		ServerSimulation? simulation = _simulation;
 		if (simulation == null) return;
 
+		// Whether the match is held or running, what it is doing about pausing is restated every second. A hold needs it
+		// because a match that says nothing at all for longer than a peer's liveness window is indistinguishable from one
+		// that has gone away, and a running match needs it for the opposite reason: a screen that missed the frame which
+		// lifted a pause would otherwise keep drawing a world that never moves again, with nothing left to correct it.
+		if (nowSeconds >= _nextPauseHeartbeatSeconds)
+		{
+			_nextPauseHeartbeatSeconds = nowSeconds + PauseHeartbeatSeconds;
+			BroadcastPauseState();
+		}
+
 		// A paused match holds its world where it is: nothing is stepped and nothing is published, so every screen keeps
-		// the world it was last told about instead of watching it drift while nobody can act in it. The pause itself is
-		// restated while it is held, because a match that says nothing at all for longer than a peer's liveness window is
-		// indistinguishable from one that has gone away.
+		// the world it was last told about instead of watching it drift while nobody can act in it.
 		if (_paused)
 		{
 			if (_resumeCountdownRemaining > 0)
@@ -512,12 +520,6 @@ public class ListenServerHost : IServerTransportSink
 			}
 
 			_nextTickTime = nowSeconds + MatchTiming.FixedTickSeconds;
-			if (nowSeconds >= _nextPauseHeartbeatSeconds)
-			{
-				_nextPauseHeartbeatSeconds = nowSeconds + PauseHeartbeatSeconds;
-				BroadcastPauseState();
-			}
-
 			return;
 		}
 
@@ -1912,6 +1914,11 @@ public class ListenServerHost : IServerTransportSink
 		return remaining <= 0 ? 0 : (int)Math.Ceiling(remaining);
 	}
 
+	/// <summary>
+	///     Puts pausing back to how a match starts out: every player holds its full allowance, nothing is cooling down and
+	///     the match is running. A hold belongs to the match that was stopped and not to the one starting in its place, so
+	///     it is lifted here rather than inherited.
+	/// </summary>
 	private void ResetPauseAllowances()
 	{
 		for (int slot = 0; slot < _pausesRemainingPerPlayerSlot.Length; slot++)
@@ -1920,6 +1927,8 @@ public class ListenServerHost : IServerTransportSink
 			_pauseCooldownEndsAtSeconds[slot] = 0;
 		}
 
+		_paused = false;
+		_pausedByPlayerSlot = -1;
 		_resumeCountdownRemaining = 0;
 	}
 
