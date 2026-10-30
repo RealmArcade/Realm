@@ -17,6 +17,8 @@ public class NetworkLatencyService
 
 	private const int MaximumPendingSamples = 8;
 
+	private const int FloorWindowSamples = 8;
+
 	public const int MaximumPlausibleRoundTripMilliseconds = 2000;
 
 	public const float StallFrameSeconds = 0.25f;
@@ -24,6 +26,9 @@ public class NetworkLatencyService
 	private readonly ulong[] _sentTimestamps = new ulong[MaximumPendingSamples];
 	private readonly int[] _sentSequences = new int[MaximumPendingSamples];
 	private readonly int[] _bootstrapSamples = new int[BootstrapSampleCount];
+	private readonly float[] _floorWindowMilliseconds = new float[FloorWindowSamples];
+	private int _floorWindowCount;
+	private int _floorWindowIndex;
 	private int _bootstrapCount;
 	private int _pendingCount;
 	private int _nextSequence = 1;
@@ -38,6 +43,13 @@ public class NetworkLatencyService
 	///     trip itself: a link that varies by three sequences stalls a buffer that holds exactly its round trip.
 	/// </summary>
 	public float SmoothedJitterMilliseconds { get; private set; }
+
+	/// <summary>
+	///     The shortest round trip this link has shown recently, which is the figure the presentation buffer is sized from.
+	///     A smoothed average is the wrong figure for a floor: it rises with a spike the buffer never had to cover, and the
+	///     delay that spike bought is then held until the average has fallen back.
+	/// </summary>
+	public float RoundTripFloorMilliseconds { get; private set; }
 
 	public int SamplesReceived { get; private set; }
 
@@ -89,6 +101,8 @@ public class NetworkLatencyService
 
 	private void ApplySample(ulong elapsed)
 	{
+		RecordFloorSample(elapsed);
+
 		if (!HasSample)
 		{
 			_bootstrapSamples[_bootstrapCount++] = (int)elapsed;
@@ -113,9 +127,37 @@ public class NetworkLatencyService
 		ReportLinkToPresentationBuffer();
 	}
 
+	/// <summary>
+	///     Keeps the shortest of the last few samples. The window is a handful of probes wide so one spike cannot raise the
+	///     buffer and one lucky sample cannot lower it, and the minimum is what a floor is: the least this link has needed
+	///     lately.
+	/// </summary>
+	private void RecordFloorSample(float roundTripMilliseconds)
+	{
+		_floorWindowMilliseconds[_floorWindowIndex] = roundTripMilliseconds;
+		_floorWindowIndex = (_floorWindowIndex + 1) % FloorWindowSamples;
+		if (_floorWindowCount < FloorWindowSamples) _floorWindowCount++;
+
+		float smallest = _floorWindowMilliseconds[0];
+		for (int index = 1; index < _floorWindowCount; index++)
+		{
+			if (_floorWindowMilliseconds[index] < smallest) smallest = _floorWindowMilliseconds[index];
+		}
+
+		RoundTripFloorMilliseconds = smallest;
+	}
+
 	private void ReportLinkToPresentationBuffer()
 	{
-		GameContext.SnapshotTimeline.ObserveLink(SmoothedRoundTripMilliseconds, SmoothedJitterMilliseconds);
+		// The authority this screen launched is a process on this machine: the frames still cross ENet and two message
+		// loops, but there is no transit to absorb, so a measured floor here reserves delay for a link that is not there.
+		if (GameContext.ServerSession is { IsLocalAuthority: true })
+		{
+			GameContext.SnapshotTimeline.ObserveLocalLink();
+			return;
+		}
+
+		GameContext.SnapshotTimeline.ObserveLink(RoundTripFloorMilliseconds, SmoothedJitterMilliseconds);
 	}
 
 	private void DiscardPendingSamples()
@@ -149,9 +191,13 @@ public class NetworkLatencyService
 		SmoothedRoundTripMilliseconds = 0f;
 		LastRoundTripMilliseconds = 0f;
 		SmoothedJitterMilliseconds = 0f;
+		RoundTripFloorMilliseconds = 0f;
 		SamplesReceived = 0;
+		_floorWindowCount = 0;
+		_floorWindowIndex = 0;
 		Array.Clear(_sentSequences);
 		Array.Clear(_sentTimestamps);
 		Array.Clear(_bootstrapSamples);
+		Array.Clear(_floorWindowMilliseconds);
 	}
 }

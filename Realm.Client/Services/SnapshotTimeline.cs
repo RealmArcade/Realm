@@ -297,12 +297,18 @@ public class SnapshotTimeline
 	///     the trip itself. It is told rather than inferred because a buffer that only learns from running dry learns it
 	///     by stalling: a link whose trip is three sequences long is declared too shallow before a frame has been drawn.
 	/// </summary>
+	/// <remarks>
+	///     The floor is the trip in <em>one</em> direction: a description written now reaches this screen half a round trip
+	///     from now, and that is all the buffer has to be behind by to have it in hand when the cursor reaches it. Sizing
+	///     the floor from the whole round trip held every screen an extra half trip behind the match for nothing.
+	/// </remarks>
 	public void ObserveLink(float roundTripMilliseconds, float jitterMilliseconds)
 	{
 		if (!(roundTripMilliseconds > 0f)) return;
 
 		float intervalMilliseconds = MatchTiming.SnapshotIntervalSeconds * 1000f;
-		int floor = (int)MathF.Ceiling(roundTripMilliseconds / intervalMilliseconds) + MinimumDelaySequences;
+		float oneWayMilliseconds = roundTripMilliseconds * 0.5f;
+		int floor = (int)MathF.Ceiling(oneWayMilliseconds / intervalMilliseconds) + MinimumDelaySequences;
 		floor = Math.Clamp(floor, MinimumDelaySequences, MaximumDelaySequences);
 
 		// The ceiling is a limit on how deep this link may be held, not a depth it is held at: it never falls below the
@@ -318,6 +324,24 @@ public class SnapshotTimeline
 		_delayCeilingSequences = ceiling;
 		if (_delaySequences < floor) _delaySequences = floor;
 		if (_delaySequences > ceiling) _delaySequences = ceiling;
+	}
+
+	/// <summary>
+	///     States that this link has no transit to absorb, so nothing is reserved for one. It still keeps the room a stall
+	///     needs: a screen that stopped drawing for a moment is the same problem on a loopback match as on a long link, and
+	///     the deepening rule answers both.
+	/// </summary>
+	public void ObserveLocalLink()
+	{
+		if (_delayFloorSequences == MinimumDelaySequences
+		    && _delayCeilingSequences == InitialCeilingSequences
+		    && _delaySequences >= MinimumDelaySequences
+		    && _delaySequences <= InitialCeilingSequences) return;
+
+		_delayFloorSequences = MinimumDelaySequences;
+		_delayCeilingSequences = InitialCeilingSequences;
+		if (_delaySequences < MinimumDelaySequences) _delaySequences = MinimumDelaySequences;
+		else if (_delaySequences > InitialCeilingSequences) _delaySequences = InitialCeilingSequences;
 	}
 
 	public bool TrySample(int entityId, bool mayExtrapolate, out Vector3 position, out float rotationY, out Vector3 velocity)

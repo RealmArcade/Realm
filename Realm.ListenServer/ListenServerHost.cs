@@ -683,7 +683,10 @@ public class ListenServerHost : IServerTransportSink
 				HandleSnapshotRepairRequest(peerId, payload);
 				break;
 			case NetworkFrameKind.LatencyProbe:
-				_transport.Send(peerId, NetworkFrameKind.LatencyProbeEcho, payload.ToArray());
+				// The echo travels the same stream the probe did. Answering it reliably would time the probe's loss and
+				// the retransmission that recovered it rather than the path, and that figure is what every screen sizes
+				// its presentation buffer from.
+				_transport.Send(peerId, NetworkFrameKind.LatencyProbeEcho, payload.ToArray(), FrameDelivery.UnreliableOrdered);
 				break;
 			case NetworkFrameKind.PauseRequest:
 				HandlePauseRequest(peerId, payload);
@@ -747,7 +750,10 @@ public class ListenServerHost : IServerTransportSink
 				break;
 
 			case NetworkFrameKind.LatencyProbe:
-				_transport.Send(peerId, NetworkFrameKind.LatencyProbeEcho, payload.ToArray());
+				// The echo travels the same stream the probe did. Answering it reliably would time the probe's loss and
+				// the retransmission that recovered it rather than the path, and that figure is what every screen sizes
+				// its presentation buffer from.
+				_transport.Send(peerId, NetworkFrameKind.LatencyProbeEcho, payload.ToArray(), FrameDelivery.UnreliableOrdered);
 				break;
 
 			case NetworkFrameKind.Shutdown:

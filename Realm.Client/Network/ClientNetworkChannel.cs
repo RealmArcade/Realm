@@ -67,6 +67,18 @@ public partial class ClientNetworkChannel : Node
 		RpcId(AuthorityPeerId, nameof(Frame), (int)kind, payload);
 	}
 
+	/// <summary>
+	///     Sends a frame the next one of its kind supersedes, over the stream that would rather be current than complete.
+	///     An answer that names where this screen has got to and a probe that times the path are both worth nothing once
+	///     they are late, so neither belongs behind a retransmission.
+	/// </summary>
+	public void SendUnreliable(NetworkFrameKind kind, byte[] payload)
+	{
+		if (Multiplayer.MultiplayerPeer == null) return;
+
+		RpcId(AuthorityPeerId, nameof(FrameUnreliable), (int)kind, payload);
+	}
+
 	public void Disconnect()
 	{
 		MultiplayerPeer? peer = Multiplayer.MultiplayerPeer;

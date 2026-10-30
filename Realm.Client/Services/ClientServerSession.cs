@@ -117,6 +117,13 @@ public class ClientServerSession : IDisposable
 
 	public int AuthorityProcessId => _launcher?.ProcessId ?? 0;
 
+	/// <summary>
+	///     Whether the authority this screen is talking to is the one this process launched. It is the difference between a
+	///     path that has to be masked and one that does not: a loopback match has no transit to absorb, so charging it the
+	///     latency a measurement reports would delay the host's own units behind its own clock for nothing.
+	/// </summary>
+	public bool IsLocalAuthority => _launcher != null;
+
 	public string WireTableHash => _launcher?.WireTableHash ?? string.Empty;
 
 	public event Action<PeerRosterAssignment>? Seated;
@@ -366,7 +373,7 @@ public class ClientServerSession : IDisposable
 	{
 		if (!IsRunning) return false;
 
-		_channel.Send(NetworkFrameKind.LatencyProbe, MemoryPackSerializer.Serialize(new LatencyProbe(sequence)));
+		_channel.SendUnreliable(NetworkFrameKind.LatencyProbe, MemoryPackSerializer.Serialize(new LatencyProbe(sequence)));
 		return true;
 	}
 
