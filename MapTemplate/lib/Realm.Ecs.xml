@@ -2953,6 +2953,44 @@
             Identifies a dropped loot item by the entity index it occupies in the world.
             </summary>
         </member>
+        <member name="M:Realm.Ecs.LootItemId.op_Implicit(System.Int32)~Realm.Ecs.LootItemId">
+            <summary>
+            Implicitly converts a 32-bit integer identifier into a <see cref="T:Realm.Ecs.LootItemId"/>.
+            </summary>
+            <param name="value">The raw integer loot item identifier.</param>
+        </member>
+        <member name="M:Realm.Ecs.LootItemId.op_Explicit(Realm.Ecs.LootItemId)~System.Int32">
+            <summary>
+            Explicitly converts a <see cref="T:Realm.Ecs.LootItemId"/> into a 32-bit integer identifier.
+            </summary>
+            <param name="id">The loot item identifier.</param>
+        </member>
+        <member name="F:Realm.Ecs.LootItemId.Invalid">
+            <summary>
+            Gets an invalid or unassigned loot item identifier.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.LootItemId.IsValid">
+            <summary>
+            Gets a value indicating whether this identifier represents a valid loot item index.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.LootItemId.UniqueId">
+            <summary>
+            Gets the raw integer identifier.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.LootItemId.Id">
+            <summary>
+            Gets the raw integer identifier (alias for <see cref="P:Realm.Ecs.LootItemId.UniqueId"/>).
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.LootItemId.ToString">
+            <summary>
+            Formats the loot item identifier as a string.
+            </summary>
+            <returns>A string representation of the loot item identifier.</returns>
+        </member>
         <member name="T:Realm.Ecs.PlayerId">
             <summary>
             Identifies a player slot in the running match by its zero-based index.
@@ -2963,6 +3001,79 @@
             Identifies a player slot in the running match by its zero-based index.
             </summary>
         </member>
+        <member name="M:Realm.Ecs.PlayerId.op_Implicit(System.Int32)~Realm.Ecs.PlayerId">
+            <summary>
+            Implicitly converts a 32-bit integer slot index into a <see cref="T:Realm.Ecs.PlayerId"/>.
+            </summary>
+            <param name="value">The zero-based player slot index.</param>
+        </member>
+        <member name="M:Realm.Ecs.PlayerId.op_Explicit(Realm.Ecs.PlayerId)~System.Int32">
+            <summary>
+            Explicitly converts a <see cref="T:Realm.Ecs.PlayerId"/> into a 32-bit integer slot index.
+            </summary>
+            <param name="id">The player identifier.</param>
+        </member>
+        <member name="F:Realm.Ecs.PlayerId.Invalid">
+            <summary>
+            Gets an invalid or unassigned player slot identifier.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.PlayerId.IsValid">
+            <summary>
+            Gets a value indicating whether this identifier represents a valid player slot index.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.PlayerId.Index">
+            <summary>
+            Gets the zero-based slot index of this player.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.PlayerId.Id">
+            <summary>
+            Gets the zero-based slot index of this player (alias for <see cref="P:Realm.Ecs.PlayerId.Index"/>).
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.PlayerId.ToString">
+            <summary>
+            Formats the player identifier as a string.
+            </summary>
+            <returns>A string representation of the player slot index.</returns>
+        </member>
+        <member name="P:Realm.Ecs.PlayerId.IsComputer">
+            <summary>
+            Gets or sets a value indicating whether this player slot is controlled by a computer AI.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.PlayerId.Team">
+            <summary>
+            Gets or sets the team index that this player belongs to.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.PlayerId.Gold">
+            <summary>
+            Gets or sets the current gold resource amount for this player.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.PlayerId.Wood">
+            <summary>
+            Gets or sets the current wood resource amount for this player.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.PlayerId.Stone">
+            <summary>
+            Gets or sets the current stone resource amount for this player.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.PlayerId.MaxPopulation">
+            <summary>
+            Gets or sets the maximum population supply capacity for this player.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.PlayerId.Kills">
+            <summary>
+            Gets or sets the total number of enemy unit kills credited to this player.
+            </summary>
+        </member>
         <member name="T:Realm.Ecs.ResourceNodeId">
             <summary>
             Identifies a harvestable resource node by its index in the world's resource table.
@@ -2971,6 +3082,49 @@
         <member name="M:Realm.Ecs.ResourceNodeId.#ctor(System.Int32)">
             <summary>
             Identifies a harvestable resource node by its index in the world's resource table.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.ResourceNodeId.op_Implicit(System.Int32)~Realm.Ecs.ResourceNodeId">
+            <summary>
+            Implicitly converts a 32-bit integer index into a <see cref="T:Realm.Ecs.ResourceNodeId"/>.
+            </summary>
+            <param name="value">The zero-based resource node index.</param>
+        </member>
+        <member name="M:Realm.Ecs.ResourceNodeId.op_Explicit(Realm.Ecs.ResourceNodeId)~System.Int32">
+            <summary>
+            Explicitly converts a <see cref="T:Realm.Ecs.ResourceNodeId"/> into a 32-bit integer index.
+            </summary>
+            <param name="id">The resource node identifier.</param>
+        </member>
+        <member name="F:Realm.Ecs.ResourceNodeId.Invalid">
+            <summary>
+            Gets an invalid or unassigned resource node identifier.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.ResourceNodeId.IsValid">
+            <summary>
+            Gets a value indicating whether this identifier represents a valid resource node index.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.ResourceNodeId.Index">
+            <summary>
+            Gets the zero-based index of this resource node.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.ResourceNodeId.Id">
+            <summary>
+            Gets the zero-based index of this resource node (alias for <see cref="P:Realm.Ecs.ResourceNodeId.Index"/>).
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.ResourceNodeId.ToString">
+            <summary>
+            Formats the resource node identifier as a string.
+            </summary>
+            <returns>A string representation of the resource node index.</returns>
+        </member>
+        <member name="P:Realm.Ecs.ResourceNodeId.ResourceAmount">
+            <summary>
+            Gets or sets the remaining harvestable resource amount in this node.
             </summary>
         </member>
         <member name="T:Realm.Ecs.StringRegistry">
@@ -3102,6 +3256,168 @@
         <member name="M:Realm.Ecs.UnitId.#ctor(System.Int32)">
             <summary>
             Identifies a unit by the entity index it occupies in the world.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.UnitId.op_Implicit(System.Int32)~Realm.Ecs.UnitId">
+            <summary>
+            Implicitly converts a 32-bit integer identifier into a <see cref="T:Realm.Ecs.UnitId"/>.
+            </summary>
+            <param name="value">The raw integer unit identifier.</param>
+        </member>
+        <member name="M:Realm.Ecs.UnitId.op_Explicit(Realm.Ecs.UnitId)~System.Int32">
+            <summary>
+            Explicitly converts a <see cref="T:Realm.Ecs.UnitId"/> into a 32-bit integer identifier.
+            </summary>
+            <param name="id">The unit identifier.</param>
+        </member>
+        <member name="F:Realm.Ecs.UnitId.Invalid">
+            <summary>
+            Gets an invalid or unassigned unit identifier.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.UnitId.IsValid">
+            <summary>
+            Gets a value indicating whether this identifier represents a valid unit index.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.UnitId.UniqueId">
+            <summary>
+            Gets the raw integer identifier.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.UnitId.Id">
+            <summary>
+            Gets the raw integer identifier (alias for <see cref="P:Realm.Ecs.UnitId.UniqueId"/>).
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.UnitId.ToString">
+            <summary>
+            Formats the unit identifier as a string.
+            </summary>
+            <returns>A string representation of the unit identifier.</returns>
+        </member>
+        <member name="P:Realm.Ecs.UnitId.Health">
+            <summary>
+            Gets or sets the current health point value of the unit.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.UnitId.MaxHealth">
+            <summary>
+            Gets or sets the maximum health point capacity of the unit.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.UnitId.Mana">
+            <summary>
+            Gets or sets the current mana points of the unit.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.UnitId.MaxMana">
+            <summary>
+            Gets or sets the maximum mana capacity of the unit.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.UnitId.ManaRegen">
+            <summary>
+            Gets or sets the mana regeneration rate of the unit per second.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.UnitId.Damage">
+            <summary>
+            Gets or sets the base attack damage of the unit.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.UnitId.Range">
+            <summary>
+            Gets or sets the attack range of the unit.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.UnitId.Armor">
+            <summary>
+            Gets or sets the armor points of the unit. Armor mitigates physical damage only.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.UnitId.Speed">
+            <summary>
+            Gets or sets the movement speed of the unit.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.UnitId.AttackSpeed">
+            <summary>
+            Gets or sets the attack speed multiplier of the unit.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.UnitId.Name">
+            <summary>
+            Gets or sets the display name of the unit.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.UnitId.Player">
+            <summary>
+            Gets or sets the zero-based player slot index that owns this unit.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.UnitId.Level">
+            <summary>
+            Gets or sets the experience level of the unit.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.UnitId.Experience">
+            <summary>
+            Gets or sets the experience points accumulated by the hero unit.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.UnitId.Scale">
+            <summary>
+            Gets or sets the visual scaling factor of the unit model.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.UnitId.Invulnerable">
+            <summary>
+            Gets or sets a value indicating whether the unit is invulnerable to all damage.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.UnitId.AnimationsFrozen">
+            <summary>
+            Gets or sets a value indicating whether the unit holds its current animation pose.
+            </summary>
+            <remarks>
+            An animations-frozen unit plays no locomotion, attack, idle or death animation, including
+            procedural sway, but it can still receive movement, attack and ability orders. Combine it with
+            <see cref="P:Realm.Ecs.UnitId.CommandsFrozen"/> to pin a unit in place, or use <see cref="P:Realm.Ecs.UnitId.Frozen"/> to set both.
+            </remarks>
+        </member>
+        <member name="P:Realm.Ecs.UnitId.CommandsFrozen">
+            <summary>
+            Gets or sets a value indicating whether the unit ignores movement, attack and hold orders.
+            </summary>
+            <remarks>
+            A commands-frozen unit keeps its current position, does not acquire targets and does not respond
+            to move, stop, hold or attack commands, and clients hide those command buttons for it. Ability
+            casting and ability buttons stay available, so map-authored abilities such as rerolls keep
+            working. Setting the property to the value it already has does nothing.
+            </remarks>
+        </member>
+        <member name="P:Realm.Ecs.UnitId.Frozen">
+            <summary>
+            Gets or sets a value indicating whether the unit is frozen in place with its animation suspended.
+            </summary>
+            <remarks>
+            This sets both <see cref="P:Realm.Ecs.UnitId.AnimationsFrozen"/> and <see cref="P:Realm.Ecs.UnitId.CommandsFrozen"/>. A frozen unit keeps
+            its current position and pose and ignores orders, and it does not acquire targets. Setting the
+            property to the value it already has does nothing. The flag lives on the entity, so it survives
+            level changes, element swaps and unit swaps until the entity is destroyed or the flag is cleared,
+            and it does not conflict with <see cref="P:Realm.Ecs.UnitId.Invulnerable"/>, <see cref="P:Realm.Ecs.UnitId.Facing"/> or
+            <see cref="P:Realm.Ecs.UnitId.HideHealthAndManaBars"/>.
+            </remarks>
+        </member>
+        <member name="P:Realm.Ecs.UnitId.HideHealthAndManaBars">
+            <summary>
+            Gets or sets a value indicating whether overhead health and mana bars are hidden for this unit.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.UnitId.Facing">
+            <summary>
+            Gets or sets the facing orientation of the unit in radians.
             </summary>
         </member>
     </members>

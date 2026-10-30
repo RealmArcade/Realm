@@ -91,6 +91,7 @@ public partial class GameHost
 
 	private int SubmitOrderCommand(string commandType, List<int> unitIds, Vector3 targetPos, int targetEntityId, string argString)
 	{
+		// An entity the authority never described has no authoritative id, so it cannot be named by an order.
 		for (int index = unitIds.Count - 1; index >= 0; index--)
 		{
 			if (unitIds[index] > 0) continue;
@@ -108,6 +109,11 @@ public partial class GameHost
 		return commandId;
 	}
 
+	/// <summary>
+	///     Draws the route the order just sent is asking for, on the tick it was asked for. The authority decides what an
+	///     order means, so this is only ever a route to look at: the planning pass that reads it writes a path and no
+	///     position, and the match's own answer replaces it.
+	/// </summary>
 	private void PreviewRouteForOrder(int commandId, List<int> serverEntityIds, Vector3 targetPosition)
 	{
 		if (commandId <= 0 || GameContext.World == null) return;
@@ -132,6 +138,11 @@ public partial class GameHost
 		}
 	}
 
+	/// <summary>
+	///     The shortest a drawn route waits for the match to answer the order that drew it, in sequences. It is a floor
+	///     rather than the lifetime itself: a fixed lifetime a slow link cannot answer within takes the route back before
+	///     the answer arrives, so <see cref="ResolvePreviewLifetimeSequences" /> is what a route is actually held to.
+	/// </summary>
 	public const int PreviewLifetimeSequences = 20;
 
 	private readonly List<Entity> _previewRouteEntitiesToClear = new();
@@ -164,6 +175,10 @@ public partial class GameHost
 	private int _previewSweepSequence;
 	private int _previewLifetimeSequences = PreviewLifetimeSequences;
 
+	/// <summary>
+	///     How long this link's drawn routes are held, in sequences. An order is answered in one round trip, so twice the
+	///     round trip this client measures is the bound a route needs and the floor covers the first probes of a match.
+	/// </summary>
 	private static int ResolvePreviewLifetimeSequences()
 	{
 		NetworkLatencyService? latency = GameContext.Host != null ? GameContext.NetworkLatencyService : null;
@@ -173,6 +188,10 @@ public partial class GameHost
 		return Math.Max(PreviewLifetimeSequences, (int)MathF.Ceiling(roundTripSequences * 2f));
 	}
 
+	/// <summary>
+	///     Takes back the routes of orders the match has not spoken about within its lifetime. A click the match accepted
+	///     without moving anything draws a route nothing supersedes, and the planning pass would keep producing it.
+	/// </summary>
 	private void ExpirePreviewRoutes()
 	{
 		if (GameContext.World == null) return;
@@ -237,6 +256,8 @@ public partial class GameHost
 
 	private void UpdateClientWorldState(float fDelta)
 	{
+		// The client's own copy of the clock keeps running: what the authority decides about the hour arrives as a
+		// presentation request, and this is the fall of light between those requests.
 		var res = GameContext.EnvironmentService.UpdateClientWorldStateDomain(fDelta, GameContext.SessionState.IsMapEditorMode, advanceSimulationClock: true);
 		if (res.UpdateVisuals)
 		{
@@ -251,6 +272,9 @@ public partial class GameHost
 
 	private void UpdateClientNavMesh()
 	{
+		// A peer refreshes the mesh only for the obstacle set it had to receive after its first bake - the map's props
+		// and pre-placed buildings. A building that appears mid-match is carved on both sides, and baking it into the
+		// geometry on one side only left the two meshes with a different polygon split.
 		UpdateNavMeshRefresh();
 	}
 
@@ -268,8 +292,12 @@ public partial class GameHost
 		GameContext.NetworkService.UpdateClientTickDomain();
 		GameContext.NetworkLatencyService.Update(fDelta);
 
+		// A route the match never answered is taken back before the planning pass sees it, so a click that moved nothing
+		// stops drawing rather than being planned again every tick.
 		ExpirePreviewRoutes();
 
+		// Routes are planned for the units this client controls and none of them are walked: what a unit is drawn doing
+		// comes from the descriptions, and this only gives it a path to draw and a direction to face.
 		GameContext.SimulationService.StepMovementPlanOnly(fDelta);
 
 		UpdateClientWorldState(fDelta);
@@ -286,8 +314,12 @@ public partial class GameHost
 		if (GameContext.SessionState.IsMapEditorMode || GameContext.ReplayPlayback.IsPlayingReplay) return;
 		if (!ShouldProcessPhysicsTick() || GameContext.NetworkService.IsPaused) return;
 
+		// The match clock is advanced once per tick and every replicated unit is placed from it below, so this is the only
+		// thing that moves one: the client renders the authority's own timeline from a little behind it.
 		GameContext.SnapshotTimeline.Advance(fDelta);
 
+		// Effects and unit removals share the cursor the units are drawn from, so an effect and the unit it is about are
+		// drawn at the same moment rather than a presentation delay apart.
 		FlushPresentationForCursor();
 		FlushUnitViewRemovalsForCursor();
 
@@ -296,6 +328,11 @@ public partial class GameHost
 		GameContext.World.Query(in query, GameContext.SimulationService.PresentationQueryDelegate);
 	}
 
+	/// <summary>
+	///     States how far this screen has applied the world, and how long the link took to carry it. The round trip
+	///     travels with the answer because the answer names a sequence one round trip old: the match cannot tell a peer
+	///     that is keeping up from one its link is merely slow without knowing which of the two it is measuring.
+	/// </summary>
 	public void SendSnapshotAck(int sequence, ulong appliedMask)
 	{
 		int roundTripMilliseconds = Mathf.RoundToInt(GameContext.NetworkLatencyService?.SmoothedRoundTripMilliseconds ?? 0f);
@@ -317,6 +354,10 @@ public partial class GameHost
 
 	public void FlushReplicatedSnapshotEvents()
 	{
+		// A match's first description names every unit on the board at once, and each unit that is the first of its kind
+		// costs tens of milliseconds to load, aim and dress, so building all of them in one tick froze it for close to a
+		// second. What is left over keeps its newest description and is built by the next ticks.
+		// One unit is always built when one is waiting, so a description applied outside a tick still makes progress.
 		long spawnStarted = System.Diagnostics.Stopwatch.GetTimestamp();
 		int spawned = 0;
 		while ((_replicatedUnitSpawnBudgetRemainingMilliseconds > 0 || spawned == 0)
@@ -330,6 +371,10 @@ public partial class GameHost
 			spawnStarted = System.Diagnostics.Stopwatch.GetTimestamp();
 		}
 
+		// The node is not removed here. A description is applied the tick it arrives, while every other unit is drawn two
+		// to eight sequences behind it, so removing it now made a unit vanish a tenth of a second before the world
+		// reached the moment it died. The removal is held against the sequence the snapshot states and spent by the tick
+		// that draws it.
 		int removalSequence = GameContext.NetworkService.LastAppliedSnapshotSequenceForDiagnostics;
 		foreach (var localEntity in GameContext.NetworkService.FlushPendingUnitKills())
 		{
@@ -347,6 +392,11 @@ public partial class GameHost
 		}
 	}
 
+	/// <summary>
+	///     One unit node waiting for the presentation clock to reach the moment its description removed it, and whether it
+	///     leaves the world entirely or only the screen. The node is held rather than the entity because the entity behind
+	///     a recycled identifier becomes a different unit, and this has to free the one that died.
+	/// </summary>
 	private readonly record struct PendingUnitViewRemoval(Unit3D Unit, int Sequence, bool Retire);
 
 	private readonly List<PendingUnitViewRemoval> _pendingUnitViewRemovals = new();
@@ -356,6 +406,8 @@ public partial class GameHost
 		if (!GodotObject.IsInstanceValid(unit3D)) return;
 		if (sequence < 0) sequence = 0;
 
+		// A unit that dies and then leaves sight before the clock reaches either is removed once, and by the retirement:
+		// it takes the replica out of the world as well as the node off the screen.
 		for (int index = 0; index < _pendingUnitViewRemovals.Count; index++)
 		{
 			if (!ReferenceEquals(_pendingUnitViewRemovals[index].Unit, unit3D)) continue;
@@ -366,6 +418,11 @@ public partial class GameHost
 		_pendingUnitViewRemovals.Add(new PendingUnitViewRemoval(unit3D, sequence, retire));
 	}
 
+	/// <summary>
+	///     Frees every unit node whose removal the presentation clock has reached, in the order the descriptions that
+	///     removed them arrived. It is the same gate the map's effects are shown through, so a unit and the effect of its
+	///     death are drawn at the same moment instead of one presentation delay apart.
+	/// </summary>
 	private void FlushUnitViewRemovalsForCursor()
 	{
 		if (_pendingUnitViewRemovals.Count == 0) return;
@@ -418,6 +475,10 @@ public partial class GameHost
 		AddMinimapPing(position);
 	}
 
+	/// <summary>
+	///     Asks the match to pause or resume. The clock belongs to the process running the match, so this is a request:
+	///     what the screen shows afterwards is the state that process answered with.
+	/// </summary>
 	public void TogglePauseRequest()
 	{
 		ClientServerSession? session = GameContext.ServerSession;
@@ -479,6 +540,9 @@ public partial class GameHost
 	{
 		Callable.From(() =>
 		{
+			// A selection the authority named is a server entity id, so it resolves only through the mapping that keeps
+			// the two domains apart. Matching it against the client's own ids compared unrelated numbers, and in the first
+			// seconds of a match - where both start low and count up - it selected whatever unit reused the number.
 			if (TryGetLocalEntity(serverEntityId, out Entity targetEntity)
 				&& TryGetUnit3D(targetEntity, out var unit3D)
 				&& GodotObject.IsInstanceValid(unit3D))

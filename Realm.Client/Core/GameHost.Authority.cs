@@ -37,6 +37,10 @@ public partial class GameHost
 		session.ServerLost += ReportAuthorityLost;
 		session.ChatReceived += ApplyChatLine;
 
+		// The seat and the obstacle volumes are sent the moment the authority seats this connection, which is before
+		// this screen exists, so the newest of each is applied here rather than waiting for a copy that is never sent.
+		// A connection seated with its volumes still on the way holds its first bake until they arrive, because the
+		// mesh this screen paths through has to be the one the authority built.
 		if (session.LocalPlayerSlot >= 0)
 		{
 			ApplyRosterAssignment(new PeerRosterAssignment

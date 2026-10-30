@@ -287,6 +287,12 @@ public partial class GameHost
 		return false;
 	}
 
+	/// <summary>
+	///     An ability delta names a slot in the unit's own ability list rather than an ability id, because an id is a
+	///     string the peer already holds and restating every id made the ability list 87.5 KB of a 173 KB baseline. A slot
+	///     only means the same ability while the list is unchanged, so a list that gained or lost an ability makes every
+	///     existing slot meaningless and each exception has to be restated against the new list.
+	/// </summary>
 	private void AppendAbilityStateDelta(List<AbilityStateDelta> deltas, int unitUniqueId, string abilityId, bool disabled, bool hidden, bool exceptionsOnly, bool warnOnMiss)
 	{
 		byte flags = (byte)((disabled ? 1 : 0) | (hidden ? 2 : 0));

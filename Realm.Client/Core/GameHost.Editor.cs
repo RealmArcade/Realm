@@ -142,6 +142,11 @@ public partial class GameHost
 		return GameplayConstants.ResolveContactRadius(authoredCollisionRadius, 1f, GameplayConstants.DefaultPropCollisionRadius);
 	}
 
+	/// <summary>
+	///     The body a unit occupies: the replicated radius a screen in a match was told, or what its template authors
+	///     where nothing has been stated yet. The model scale is deliberately not part of that fallback - it makes the
+	///     mesh larger, and multiplying by it here gave a body the match did not have.
+	/// </summary>
 	public float ResolveEntityBodyRadius(Entity entity, string templateId)
 	{
 		if (GameContext.World != null && entity != Entity.Null && GameContext.World.IsAlive(entity) && GameContext.World.Has<CollisionRadius>(entity))

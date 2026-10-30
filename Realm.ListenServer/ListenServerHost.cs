@@ -407,6 +407,8 @@ public class ListenServerHost : IServerTransportSink
 		ServerSimulation? simulation = _simulation;
 		if (simulation == null) return;
 
+		// A paused match holds its world where it is: nothing is stepped and nothing is published, so every screen keeps
+		// the world it was last told about instead of watching it drift while nobody can act in it.
 		if (_paused)
 		{
 			_nextTickTime = nowSeconds + MatchTiming.FixedTickSeconds;
@@ -501,6 +503,9 @@ public class ListenServerHost : IServerTransportSink
 		_connectedPeers.Add(peerId);
 		_log.Write($"peer {peerId} connected");
 
+		// The challenge is the first thing a peer is told, because the hello is the first thing it may send. The ticket
+		// has to prove itself without travelling; an open match still hands a challenge out, so a peer never has to know
+		// whether the authority it reached was started with a ticket.
 		string challenge = RealmProtocol.CreateChallenge();
 		_pendingChallenges[peerId] = challenge;
 		_transport.Send(peerId, NetworkFrameKind.HandshakeChallenge, MemoryPackSerializer.Serialize(new HandshakeChallenge { Nonce = challenge }));
@@ -524,6 +529,8 @@ public class ListenServerHost : IServerTransportSink
 		_simulation?.ForgetPeer(peerId);
 		ForgetPeerBookkeeping(peerId);
 
+		// A pause belongs to whoever asked for it. If that player is gone, nobody left can resume it, so the match resumes
+		// itself rather than staying stopped for the rest of the session.
 		if (!wasSeated || !_paused || _seatedPeers.Count == 0) return;
 		if (_pausedByPlayerSlot < 0) return;
 
@@ -589,6 +596,9 @@ public class ListenServerHost : IServerTransportSink
 
 	public void OnFrameReceived(int peerId, NetworkFrameKind kind, ReadOnlySpan<byte> payload)
 	{
+		// A session is either a lobby or a match, and a peer's role decides which traffic it may reach. While the lobby
+		// owns the session there is no world to order or acknowledge, so match frames are refused rather than queued for
+		// a match that does not exist yet.
 		if (_lobby != null && _simulation == null)
 		{
 			HandleLobbyFrame(peerId, kind, payload);
@@ -598,6 +608,8 @@ public class ListenServerHost : IServerTransportSink
 		ServerSimulation? simulation = _simulation;
 		if (simulation == null) return;
 
+		// A seat is not a match peer yet, whatever frame it sends: nothing it could say to a running match is accepted
+		// here, so the connection that said it is the thing that ends.
 		if (!_seatedPeers.ContainsKey(peerId))
 		{
 			if (kind != NetworkFrameKind.ClientHello)
@@ -1051,15 +1063,23 @@ public class ListenServerHost : IServerTransportSink
 		ServerSimulation simulation = _simulation!;
 		int peerId = _seatedPeerIds[index];
 
+		// A peer this far behind is told nothing this tick: describing it would be work its screen cannot draw. What it
+		// is owed is a baseline, which the tick that decided to skip it already asked for. The slot keeps its description
+		// fields - its containers are what the next description is written into - and a null frame is what says it was
+		// told nothing.
 		if (_pendingSkippedPeers[index])
 		{
 			_publishedFrames[index] = null;
 			return;
 		}
 
+		// The description is written into the slot this peer already has, so describing a room replaces nothing and
+		// empties what it held instead of allocating a set of lists per peer per tick.
 		simulation.BuildSnapshotForPeerInto(ref _publishedSnapshots[index], peerId, _publishSequence, _pendingBaselineRequests[index]);
 		WorldSnapshot snapshot = _publishedSnapshots[index];
 
+		// Serializing and framing is the host's cost of describing one peer, measured where it is paid, and the serializer
+		// writes into a buffer this peer's slot already owns.
 		long framingStarted = _trafficRecorder == null ? 0 : System.Diagnostics.Stopwatch.GetTimestamp();
 		ArrayBufferWriter<byte> serialized = _serializationWriters[index];
 		serialized.ResetWrittenCount();
@@ -1104,14 +1124,23 @@ public class ListenServerHost : IServerTransportSink
 				System.Diagnostics.Stopwatch.GetTimestamp());
 		}
 
+		// A delta describes a world the next delta supersedes, so it travels on the stream that would rather be current
+		// than complete; a lost one costs the change it carried until the acknowledgement reports the gap. A baseline is
+		// the only thing a peer can rebuild from, so it travels reliably whatever its size, and so does a delta too large
+		// to depend on arriving whole.
 		bool carriedUnreliably = !snapshot.IsBaseline && (_publishedFrames[index]?.Length ?? 0) <= UnreliableSnapshotLimitBytes;
 		_transport.Send(peerId, NetworkFrameKind.Snapshot, _publishedFrames[index], carriedUnreliably ? FrameDelivery.UnreliableOrdered : FrameDelivery.Reliable);
 		if (carriedUnreliably) _unreliableSnapshotCount++;
 		else _reliableSnapshotCount++;
 
+		// The first sequence this peer was described with bounds what its acknowledgement mask can claim: a bit for a
+		// sequence the match never sent was never meant to be set. A baseline starts that bound over.
 		if (snapshot.IsBaseline || !_firstSnapshotSequencePerPeer.ContainsKey(peerId)) _firstSnapshotSequencePerPeer[peerId] = _publishSequence;
 		if (snapshot.IsBaseline) _lastRefreshBaselineTickPerPeer[peerId] = simulation.TickCount;
 
+		// What the map declared about the match - cards, colours, labels and the camera it placed - is stated once, to the
+		// peer that has just been seated, and only to it. Sending it after every baseline replayed a camera pan the map
+		// made at match start every ten seconds and snapped the screen back while the player looked elsewhere.
 		if (!snapshot.IsBaseline || !isFirstFrameForPeer || !_seatedPeers.TryGetValue(peerId, out int playerSlot)) return;
 
 		ServerPresentationEvent[] description = simulation.DescribePresentationStateFor(playerSlot);
@@ -1169,6 +1198,8 @@ public class ListenServerHost : IServerTransportSink
 		ServerSimulation? simulation = _simulation;
 		if (simulation == null) return;
 
+		// A peer that answers is a peer that is reading, whatever else the answer says: the count of descriptions it has
+		// not answered starts over here, which is what tells the gate below that a screen has caught up.
 		if (_unacknowledgedPublicationsPerPeer.ContainsKey(peerId)) _unacknowledgedPublicationsPerPeer[peerId] = 0;
 
 		SnapshotAck ack;
@@ -1182,6 +1213,8 @@ public class ListenServerHost : IServerTransportSink
 			return;
 		}
 
+		// A peer that reports an older sequence than it did before is a restarted screen rather than one going
+		// backwards, so it is taken at the value it now holds.
 		if (!_acknowledgedSequencePerPeer.TryGetValue(peerId, out int acknowledgedSequence) || ack.Sequence >= acknowledgedSequence)
 		{
 			_acknowledgedSequencePerPeer[peerId] = ack.Sequence;
@@ -1196,6 +1229,8 @@ public class ListenServerHost : IServerTransportSink
 		int describedSequences = ack.Sequence - firstDescribedSequence;
 		if (describedSequences <= 0) return;
 
+		// Only sequences this peer was actually described with can be missing: the mask cannot claim a bit for a
+		// sequence the match never sent, or every acknowledgement would describe the peer from scratch.
 		int coveredBits = Math.Min(64, describedSequences + 1);
 		ulong expected = coveredBits >= 64 ? ulong.MaxValue : (1UL << coveredBits) - 1UL;
 		if ((ack.AppliedMask & expected) == expected) return;
@@ -1243,12 +1278,19 @@ public class ListenServerHost : IServerTransportSink
 
 		_unacknowledgedPublicationsPerPeer[peerId] = unacknowledged + 1;
 
+		// Behind is measured from the sequence the peer says it applied, plus one round trip, not from how many
+		// descriptions it has left unanswered: counting those measures the link rather than the screen. On a healthy long
+		// link that count settles at the round trip's worth of publishing, so past about four hundred milliseconds a peer
+		// drawing everything sent it tripped the bound and was re-baselined once a second.
 		if (_acknowledgedSequencePerPeer.TryGetValue(peerId, out int acknowledgedSequence))
 		{
 			int lagSequences = sequence - acknowledgedSequence;
 			if (lagSequences <= MaximumLagBehindSequences + RoundTripSequences(peerId)) return false;
 		}
 
+		// A baseline asked for here is the only thing this peer is sent while it stays silent. One the cooldown refuses
+		// means a description from scratch is already on its way, so this tick is skipped rather than spent describing
+		// towards a screen that is not reading.
 		if (TryClaimBaselineRequest(peerId, tick))
 		{
 			_pendingBaselineRequests[index] = true;
@@ -1302,6 +1344,9 @@ public class ListenServerHost : IServerTransportSink
 			return;
 		}
 
+		// Orders handed over since the last tick are this tick's budget. The window is cleared by the tick that consumes
+		// it rather than by the frame that happened to arrive before it: this process runs physics faster than the match
+		// ticks, and clearing on the frame let a peer hand over three times the work a tick allows.
 		int commandId = command.CommandId;
 		_commandsThisTick.TryGetValue(peerId, out int commandsThisTick);
 		if (commandsThisTick >= MaximumCommandsPerPeerPerTick)
@@ -1312,6 +1357,9 @@ public class ListenServerHost : IServerTransportSink
 			}
 
 			_commandsThisTick[peerId] = commandsThisTick + 1;
+			// A peer that floods keeps being refused, and a reader watching the match live has to see the budget doing its
+			// job. The running total is restated at most once a second rather than once per refused order, so the report
+			// cannot become the flood.
 			_rateLimitedCommandCount++;
 			long nowTicks = Environment.TickCount64;
 			if (nowTicks >= _nextRateLimitReportTicks)
@@ -1347,6 +1395,10 @@ public class ListenServerHost : IServerTransportSink
 			? $"peer {peerId} command {commandId} '{command.CommandType}' accepted"
 			: $"peer {peerId} command {commandId} '{command.CommandType}' refused: {result.RejectionReason}");
 
+		// A repeat of an order that was already answered is not answered again. The transport is reliable and ordered, so
+		// the first answer arrived unless the connection is gone, and a reconnecting peer is described from scratch under
+		// a new connection with no record to repeat. A second, negative answer took back a route preview this match had
+		// already accepted.
 		if (result.WasAlreadyAnswered) return;
 
 		SendOutcome(peerId, commandId, accepted, result.RejectionReason);

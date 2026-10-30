@@ -9,7 +9,7 @@
 - All code, variable names, and comments must be written in English.
 - Do not add comments anywhere unless explicitly requested.
 	- Structs in the `Realm.Ecs` project must have a single XML-doc `<summary />` comment at the top describing their purpose.
-	- Everything in `Realm.MapAPI` and `Realm.EditorAPI` must have full, comprehensive XML-doc comments for public consumption.
+	- Everything in `Realm.MapAPI`, `Realm.EditorAPI` and the map-script handles and primitives in `Realm.Ecs/Shared` must have full, comprehensive XML-doc comments for public consumption. Those handles belong to that surface because map authors compile against them through `MapTemplate/lib/Realm.Ecs.xml`, so the two rules meet there: a handle keeps its single `<summary />` and each of its members is documented on its own. `HandleCommands` is the sink a handle property writes to rather than something a script names, and is not part of that surface.
 - Do not use `#region` blocks.
 - All code should be self-documenting. Use verbose, descriptive names that clearly identify their purpose (avoid cryptic abbreviations).
 - Avoid the `sealed` keyword.

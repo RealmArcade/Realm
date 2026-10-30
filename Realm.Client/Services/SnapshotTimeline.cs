@@ -132,6 +132,9 @@ public class SnapshotTimeline
 	{
 		if (sequence <= NewestSequence) return;
 
+		// The gap a window records decides how it deepens the buffer, and a lost description is not lateness: a datagram
+		// that did not arrive cannot be buffered back, and counting it as lateness ratcheted the delay to its ceiling on a
+		// link that was only dropping the occasional frame.
 		if (NewestSequence >= 0 && _starvationsSinceArrival > 0)
 		{
 			int arrivalGap = sequence - NewestSequence;
@@ -153,6 +156,8 @@ public class SnapshotTimeline
 		float target = NewestSequence - _delaySequences;
 		float error = target - _cursor;
 
+		// The descriptions arrived faster than this screen consumed them - a burst after a loss, or a process that
+		// stopped for a moment. Easing across that would play the world slowly until it caught up.
 		if (error > ResynchronizeSequences)
 		{
 			_cursor = target;
@@ -166,6 +171,8 @@ public class SnapshotTimeline
 		float surplus = NewestSequence - _cursor;
 		if (surplus < -StarvationToleranceSequences)
 		{
+			// The cursor reached the end of what has arrived. Placing it at the newest description is the only option -
+			// there is no world ahead of it to show - and running out is what tells the loop to hold more.
 			StarvationCount++;
 			_starvationsSinceArrival++;
 			_cursor = NewestSequence;
@@ -180,12 +187,17 @@ public class SnapshotTimeline
 		bool linkFellBehind = _lateStarvationsInWindow > 0 || _largestStallGapInWindow > 0;
 		if (linkFellBehind)
 		{
+			// A gap wider than this buffer can ever hold is not one its depth answers: a screen that spent a second building
+			// what it had already been sent leaves exactly that gap, and deepening to the ceiling for it buys nothing while
+			// the shallowing rule then takes as many clean windows as the ceiling has sequences to give it back.
 			_cleanWindowsInARow = 0;
 			int deepenBy = _largestStallGapInWindow > MaximumDelaySequences ? 1 : Math.Max(1, _largestStallGapInWindow);
 			_delaySequences = Math.Min(MaximumDelaySequences, _delaySequences + deepenBy);
 		}
 		else
 		{
+			// Depth is only taken back once the buffer held twice what the link needed for several windows running, so a
+			// link that needs it keeps it while one deepened by a single bad second gets its headroom returned.
 			if (_shallowestSurplusInWindow >= _delaySequences * ShallowSurplusFraction) _cleanWindowsInARow++;
 			else _cleanWindowsInARow = 0;
 
@@ -216,6 +228,8 @@ public class SnapshotTimeline
 		int head = _heads[entityId];
 		int baseIndex = entityId * SamplesPerUnit;
 
+		// A confirmed order is drawn at a render time of its own, one interval ahead of the world around it, and the lead is
+		// eased rather than switched so neither the order nor its completion moves the unit.
 		float targetLead = mayExtrapolate ? ExtrapolationLeadSequences : 0f;
 		float lead = _leads[entityId];
 		lead += Math.Clamp(targetLead - lead, -LeadRampPerSample, LeadRampPerSample);
@@ -259,6 +273,8 @@ public class SnapshotTimeline
 			int span = newerSequence - olderSequence;
 			float fraction = span > 0 ? Math.Clamp((cursor - olderSequence) / span, 0f, 1f) : 1f;
 
+			// The sample and the speed come from the same pair of descriptions: a unit drawn between two of them is animated
+			// at the speed it covered that span at, not at the speed of the newest pair held.
 			position = Vector3.Lerp(_positions[olderIndex], _positions[newerIndex], fraction);
 			rotationY = InterpolateAngle(_rotations[olderIndex], _rotations[newerIndex], fraction);
 			velocity = ResolveVelocity(_positions[olderIndex], _positions[newerIndex], span);

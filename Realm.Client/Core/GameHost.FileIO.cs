@@ -340,6 +340,9 @@ public partial class GameHost
 
 		if (string.IsNullOrEmpty(targetPath) || !File.Exists(targetPath)) return false;
 
+		// The assets are taken as they were published and downloaded: re-optimizing them here walks every file the map
+		// holds while the lobby screen waits, and changes nothing, because this machine's copy is the copy the authority
+		// published.
 		bool terrainOnly = _multiplayerActive && !Multiplayer.IsServer();
 		return BeginMapWorldLoad(targetPath, terrainOnly, true, false);
 	}
@@ -462,6 +465,9 @@ public partial class GameHost
 			GroundTerrain.Cells = (TerrainCell[,])terrain.Cells.Clone();
 		}
 
+		// The size is read after the cells land, because the cells are what states the map's size. Reading it first on a
+		// ground built from nothing but its node returned the default size and dropped the pathing codes of every map
+		// that is not that size.
 		int width = GroundTerrain.Width;
 		int depth = GroundTerrain.Depth;
 

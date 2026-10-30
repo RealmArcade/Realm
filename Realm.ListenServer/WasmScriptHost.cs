@@ -16,6 +16,12 @@ using FileAccess = System.IO.FileAccess;
 
 namespace Realm.ListenServer;
 
+/// <summary>
+///     The hand-written half of the WASM runtime. Manual bindings belong here only when the linker generator cannot
+///     produce them: registrations that need a custom linker configuration or WASI override, and marshaling helpers that
+///     read and write guest memory. Standard bindings for the interface members of <see cref="Realm.MapAPI.IGameAPI" />
+///     over primitives, vectors and strings are generated into <c>WasmRuntime.g.cs</c> and must not be written here.
+/// </summary>
 public partial class WasmScriptHost : IWasmRuntime, IWasmEvaluationEngine, IDisposable
 {
 	private readonly SimulationContext? _simulation;

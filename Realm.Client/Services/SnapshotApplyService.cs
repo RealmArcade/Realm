@@ -45,6 +45,8 @@ public class SnapshotApplyService
 	public void RequestBaseline()
 	{
 		ulong now = Time.GetTicksMsec();
+		// An ask the cooldown refused is delivered on the next description rather than dropped: a repair refused a moment
+		// ago is still owed one now, and dropping it left nothing in flight and nothing asking again.
 		if (now - _lastBaselineRequestTime < (ulong)MatchTiming.BaselineRequestCooldownMilliseconds)
 		{
 			_baselineRequestDeferred = true;
@@ -68,6 +70,9 @@ public class SnapshotApplyService
 		{
 			if (snapshot.Sequence <= networkState.LastReceivedBaselineSeq) return;
 
+			// A baseline travels on the same reliable stream as the deltas, so it can arrive after deltas that already
+			// describe a newer world. Applying its units would move every replica backwards, but it is still the base the
+			// deltas in flight are written against, so it is recorded and the deltas waiting for it are applied here.
 			if (snapshot.Sequence <= networkState.LastAppliedSnapshotSequence)
 			{
 				networkState.LastReceivedBaselineSeq = snapshot.Sequence;
@@ -75,11 +80,16 @@ public class SnapshotApplyService
 				return;
 			}
 
+			// The first baseline of a match describes a world this screen has never been told about: a description left over
+			// from a previous match would be sampled as the newest one held for whichever identifier it was filed under.
 			if (!networkState.HasReceivedInitialBaseline) GameContext.SnapshotTimeline.Clear();
 
 			networkState.LastReceivedBaselineSeq = snapshot.Sequence;
 			networkState.HasReceivedInitialBaseline = true;
 			networkState.LastAppliedSnapshotSequence = snapshot.Sequence;
+			// A baseline restates the whole world, so every sequence before it is superseded rather than missing. Keeping the
+			// earlier mask reported the peer as still missing state it had just been given, and repaired it again each
+			// cooldown.
 			_queuedDeltas.RemoveAll(d => d.Sequence <= snapshot.Sequence);
 			_appliedSnapshots.Reset();
 			GameContext.NetworkService.ApplySnapshotToWorld(snapshot);
@@ -92,6 +102,9 @@ public class SnapshotApplyService
 
 		int sequencesSkipped = snapshot.Sequence - networkState.LastAppliedSnapshotSequence - 1;
 
+		// A queue deeper than the buffer is a screen that stopped reading, not a link that is merely late: applying it in
+		// one frame costs more the deeper it is, whereas a baseline is a few kilobytes and puts the screen where the
+		// authority is. The queued descriptions are the tail of the same backlog, so they go with it.
 		if (sequencesSkipped >= MaximumBacklogSequences)
 		{
 			_queuedDeltas.Clear();
@@ -99,6 +112,10 @@ public class SnapshotApplyService
 			return;
 		}
 
+		// A delta names the oldest world state it assumes, not the newest baseline the host has started sending. An exact
+		// match was required here once, so every delta built on a baseline still in flight was queued until it arrived -
+		// with a 138 KB baseline on the reliable channel that stalled the client once per baseline interval. A delta is
+		// absolute per unit, so a base the client has already superseded is harmless.
 		if (!networkState.HasReceivedInitialBaseline || snapshot.BaseSequence > networkState.LastReceivedBaselineSeq)
 		{
 			QueueDelta(snapshot);
@@ -110,6 +127,9 @@ public class SnapshotApplyService
 		GameContext.NetworkService.ApplySnapshotToWorld(snapshot);
 		DrainQueuedDeltas(ref networkState);
 
+		// One sequence missing is a datagram the unreliable stream dropped, and the acknowledgement already reports it, so
+		// asking as well repaired the same hole twice. A gap of two or more is a stall, and asking is the one thing that
+		// puts the screen back where the authority is instead of applying changes over a hole it will not be told about.
 		if (sequencesSkipped > 1) RequestBaseline();
 	}
 

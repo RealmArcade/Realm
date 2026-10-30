@@ -909,6 +909,8 @@ public partial class GameHost
 
 		if (GameContext.SimulationService.WarnedNonFinitePositions.Add(entity))
 		{
+			// Past the limit, warnings for entities that no longer exist are swept so a recycled entity id gets a fresh
+			// warning later rather than being remembered as already reported.
 			if (GameContext.SimulationService.WarnedNonFinitePositions.Count > SimulationService.WarnedNonFinitePositionsLimit)
 			{
 				GameContext.SimulationService.WarnedNonFinitePositions.RemoveWhere(warned => !GameContext.World.IsAlive(warned));

@@ -38,6 +38,8 @@ public class SimulationService
 		GameContext.RegistryService.AbilityDefinitions.TryGetValue(spellId, out var def);
 		if (def == null) return;
 
+		// A script's ability goes through the same executor the command card uses, so a spell triggered from map code
+		// cannot skip buffs, shields, scaling or summons.
 		if (AbilityEffectService.HasEffects(def))
 		{
 			AbilityEffectService.Execute(casterEnt, position, def, position);
@@ -667,6 +669,8 @@ public class SimulationService
 		_combatService.OnUnderAttackAlertRequested = (player, id) => OnUnderAttackAlertRequested?.Invoke(player, id);
 		_combatService.OnKillUnitRequested = ent => OnKillUnitRequested?.Invoke(ent);
 
+		// A summon that times out dies like any other unit for visuals and cleanup, but the expiry itself is not a kill:
+		// it has no last attacker, so no bounty or kill credit is awarded.
 		OnSummonExpired = ent =>
 		{
 			if (!GameContext.World.IsAlive(ent) || GameContext.World.Has<Dead>(ent)) return;
@@ -1217,6 +1221,8 @@ public class SimulationService
 	{
 		shield.Advance(_fDelta);
 
+		// A pool with nothing left goes with its component, so a unit that is never shielded again does not keep paying
+		// for the query.
 		if (shield.Count == 0)
 		{
 			GameContext.World.Remove<AbsorbShield>(entity);
@@ -1238,6 +1244,8 @@ public class SimulationService
 
 	private void StatsRecalcQueryAction(Entity entity, ref Stats stats)
 	{
+		// Applying or removing a modifier already recalculates the entity, so the tick only catches durations running
+		// out before handing the entity back to the one stat pipeline.
 		if (!UpdateEntityModifiers(entity)) return;
 
 		AttributeStatCalculator.RecalculateEntityStats(GameContext.World, entity);
@@ -1281,6 +1289,8 @@ public class SimulationService
 	{
 		if (!GameContext.World.IsAlive(entity)) return;
 
+		// Only the editor opens ground itself. In a match the mesh is baked from the authority's obstacle set, so a screen
+		// that uncarved here would path through a blocker the authority still has.
 		if (isBuilding && GameContext.SessionState.IsMapEditorMode)
 		{
 			if (GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) && GameContext.World.Has<TerrainState>(GameContext.Simulation.WorldEntity))
@@ -1645,12 +1655,20 @@ public class SimulationService
 
 	private const float StationaryVelocitySquared = 0.01f;
 
+	/// <summary>
+	///     The one thing that writes <see cref="Position" /> for a replicated unit, from the description sampled where the
+	///     match clock is being rendered rather than where the authority has got to. A unit is drawn between the two
+	///     descriptions either side of the cursor, so it neither trails a smoothed target nor has to be caught up.
+	/// </summary>
 	private void PresentationQueryAction(Entity entity, ref LatestDescription target)
 	{
 		if (!GameContext.World.Has<Position>(entity)) return;
 
 		if (MultiplayerSyncDiagnostics.IsRecording) MultiplayerSyncDiagnostics.RecordPresentationStep(entity.Id, GameContext.NetworkService?.LastAppliedSnapshotSequenceForDiagnostics ?? -1);
 
+		// Only a unit the match has confirmed a destination for is drawn ahead of its newest description, and the step is
+		// bounded to one interval and 0.75 m along the direction it was already moving. Everything else is drawn
+		// strictly between descriptions this screen holds.
 		bool orderConfirmed = GameContext.World.Has<MoveTo>(entity);
 		if (!GameContext.SnapshotTimeline.TrySample(entity.Id, orderConfirmed, out Vector3 sampledPosition, out float sampledRotationY, out Vector3 sampledVelocity)) return;
 
@@ -1665,6 +1683,9 @@ public class SimulationService
 		GameContext.World.Set(entity, new Position(sampledPosition));
 		GameContext.World.SetOrAdd(entity, new Velocity(sampledVelocity));
 
+		// A unit standing still is drawn facing where the authority had it facing at the moment being rendered. The
+		// renderer smooths towards this value, so a unit that turns in place turns when it is drawn rather than one
+		// presentation delay before it. A moving unit is turned along its own movement by the renderer instead.
 		if (sampledVelocity.LengthSquared() <= StationaryVelocitySquared) target.RotationY = sampledRotationY;
 	}
 
@@ -1868,6 +1889,7 @@ public class SimulationService
 	{
 		if (!autoCast.Enabled || autoCast.ActiveAbilityBitmask == 0) return;
 
+		// Auto-cast checks are staggered per entity across ticks, so idle units do not all scan at once.
 		if ((entity.Id + _tickCount) % 4 != 0) return;
 
 		if (GameContext.World.Has<BuffState>(entity))
@@ -1895,6 +1917,8 @@ public class SimulationService
 
 			string abilityId = abilities[i];
 
+			// An ability the unit has hidden or disabled is not castable: the player-facing slot is the source of truth for
+			// what this unit may use, and auto-cast has to agree with it.
 			if (GameContext.RegistryService.IsAbilityHiddenForUnit(unitWrapper, abilityId)) continue;
 			if (GameContext.RegistryService.IsAbilityDisabledForUnit(unitWrapper, abilityId)) continue;
 

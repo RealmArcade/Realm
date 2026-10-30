@@ -153,6 +153,9 @@ public class AuthoritativeSnapshotBuilder
 			{
 				held = new UnitDescriptionState(UnitCodecs.Length);
 
+				// A unit coming back into this peer's sight is one it stopped hearing about. What the peer holds for it is
+				// still what it was told before the unit left, so those components are stated again or stated gone; only the
+				// bytes are unknown, which is why they are not remembered across the gap.
 				if (state.UnseenUnitComponents.Remove(unitEntity.Id, out ulong toldBeforeLeavingSight)) held.ToldCodecMask = toldBeforeLeavingSight;
 
 				state.SentUnits[unitEntity.Id] = held;
@@ -162,6 +165,9 @@ public class AuthoritativeSnapshotBuilder
 
 			if (!isBaseline && !IsSameUnitAsSent(in described, in held.SentRecord)) held.ForgetToldPayloadBytes();
 
+			// A unit exactly where this peer was last told it is carries no information - a building, a unit holding position
+			// or one standing where its order ended all stay on the peer's screen as they are - so it is left out and its
+			// record kept, and the tick it moves it is described again. A baseline always states every unit.
 			if (!isBaseline && MatchesIn(in described, in held.SentRecord)) continue;
 
 			held.SentRecord = described;
@@ -172,6 +178,8 @@ public class AuthoritativeSnapshotBuilder
 		AppendTextEntries(state, snapshot.Catalog);
 		AppendLoot(state, ref snapshot, isBaseline);
 		AppendContentPayloads(state, snapshot);
+		// The ability registry keeps one scratch table per process rather than one per peer, so two workers describing two
+		// peers may not be inside it at once. Everything else this match spends on describing a peer is outside this lock.
 		if (Abilities != null)
 		{
 			lock (_abilityLock) snapshot.AbilityStates.AddRange(Abilities.CollectDeltas(peerId, _world, isBaseline));
@@ -536,6 +544,9 @@ public class AuthoritativeSnapshotBuilder
 			UnitId = _world.TryGet<DefinitionId>(entity, out DefinitionId definition) ? ResolveDefinitionText(definition.StringId) : string.Empty,
 			OwnerPlayerEntityId = ResolveOwnerPeerId(entity),
 			OwnerPlayerIndex = _world.TryGet<UnitOwnerPlayer>(entity, out UnitOwnerPlayer owner) ? owner.PlayerIndex : -1,
+			// Snapped to the precision the wire states a unit in, so what a peer is told is the value this match compares its
+			// own copy against: separation and formation nudge a unit by fractions it cannot show, and unsnapped every such
+			// nudge would cost a record in every peer's frame.
 			Position = new NetworkVector3(
 				UnitQuantization.SnapPosition(position.X),
 				UnitQuantization.SnapPosition(position.Y),
@@ -765,12 +776,17 @@ public class AuthoritativeSnapshotBuilder
 
 	private void ForgetUntrackedUnitComponents(SnapshotPeerState state, ref WorldSnapshot snapshot, bool isBaseline)
 	{
+		// Only the units that left this peer's sight are dropped, found by comparing the set it was described with last
+		// tick against the one it is described with now. Walking every remembered component instead cost a full pass over
+		// the peer's whole history every tick, and a peer whose sight is steady has nothing to forget at all.
 		_forgottenEntityIds.Clear();
 		foreach (int rememberedEntityId in state.DescribedEntityIds)
 		{
 			if (!_describedEntityIds.Contains(rememberedEntityId)) _forgottenEntityIds.Add(rememberedEntityId);
 		}
 
+		// The comparison is also what the peer needs in order to drop the replica. A baseline states the whole world and a
+		// peer recovers from one by forgetting what it held, so it states nothing retired.
 		if (!isBaseline) snapshot.RetiredEntityIds!.AddRange(_forgottenEntityIds);
 
 		for (int index = 0; index < _forgottenEntityIds.Count; index++)

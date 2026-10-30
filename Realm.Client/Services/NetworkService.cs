@@ -269,6 +269,9 @@ public class NetworkService
 		Entity worldEntity = FindWorldEntity();
 		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkState>(worldEntity)) return (0, Array.Empty<byte>());
 
+		// A command id is this peer's own counter, and the authority answers a repeat of one it already answered as a
+		// duplicate. Minting a fallback id here re-sent an order that had already gone out, so nothing is authored
+		// rather than something that might be a repeat.
 		int commandId = GameContext.World.Get<NetworkState>(worldEntity).NextCommandId;
 		if (commandId <= 0) return (0, Array.Empty<byte>());
 
@@ -1101,6 +1104,9 @@ public class NetworkService
 	{
 		if (!TryGetLocalEntity(serverEntityId, out var localEntity)) return;
 
+		// A delta names a slot in the unit's ability list, so a list that was replaced renumbers every slot. A change about
+		// an ability the unit does not list is named instead, which is how a build option the map withheld reaches a
+		// screen even though the unit can never cast it.
 		string? abilityId = string.IsNullOrEmpty(namedAbilityId) ? ResolveAbilityIdAt(localEntity, abilityIndex) : namedAbilityId;
 		if (abilityId == null) return;
 
