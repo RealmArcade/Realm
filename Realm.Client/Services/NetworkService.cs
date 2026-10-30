@@ -95,8 +95,6 @@ public class NetworkService
 		_referencedServerEntityIds.Clear();
 		_referencedComponentTypesByLocalEntity.Clear();
 		_untrackedServerIds.Clear();
-		_playerTeams.Clear();
-		_alliances.Clear();
 		ReplicatedEntityReferences.Clear();
 	}
 
@@ -1396,26 +1394,6 @@ public class NetworkService
 		}
 
 		IsConnectionLost = isLost;
-	}
-
-	private static readonly Dictionary<int, int> _playerTeams = new();
-	private static readonly Dictionary<(int, int), bool> _alliances = new();
-
-	public static void SetPlayerTeam(int playerIndex, int teamIndex)
-	{
-		_playerTeams[playerIndex] = teamIndex;
-	}
-
-	public static int GetPlayerTeam(int playerIndex)
-	{
-		if (_playerTeams.TryGetValue(playerIndex, out int team)) return team;
-		return playerIndex;
-	}
-
-	public static void SetPlayersAllied(int playerIndex1, int playerIndex2, bool allied)
-	{
-		_alliances[(playerIndex1, playerIndex2)] = allied;
-		_alliances[(playerIndex2, playerIndex1)] = allied;
 	}
 
 	public static bool ArePlayerIndicesEnemies(int playerIndex1, int playerIndex2)

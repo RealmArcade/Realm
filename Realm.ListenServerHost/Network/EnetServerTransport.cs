@@ -24,7 +24,12 @@ public class EnetServerTransport : IServerTransport
 
 	public int Port { get; private set; }
 
-	private const int BindAttempts = 60;
+	/// <summary>
+	///     Binds are retried at all because a port a previous match let go of is not free the instant its process ends. They
+	///     are retried for a second and no longer: this runs on the authority's main thread before it can announce itself
+	///     ready, and a port held by something else is not going to be released because the match waited six seconds for it.
+	/// </summary>
+	private const int BindAttempts = 10;
 
 	private const int BindRetryMilliseconds = 100;
 

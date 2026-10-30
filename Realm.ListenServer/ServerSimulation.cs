@@ -54,6 +54,7 @@ public class ServerSimulation : IDisposable
 		_commands.DroppedOrderSink = log.Write;
 		map.Catalog.BindTo(_commands);
 		_snapshots = new SnapshotFanOut(map.World, map.Simulation, map.WorldEntity, map.Simulation.MapRules, SnapshotFanOut.DefaultWorkerCount);
+		_snapshots.Report = log.Write;
 		EnsureMatchClock(map);
 		_production = new ServerProductionStep(map.World, map, log);
 		_construction = new ConstructionTick(map.Simulation, map.Catalog);
@@ -360,12 +361,14 @@ public class ServerSimulation : IDisposable
 		Entity viewer = TryGetPlayerEntity(peerId, out Entity playerEntity) ? playerEntity : Entity.Null;
 
 		AuthoritativeSnapshotBuilder builder = _snapshots.Rent();
+		_snapshots.EnterPeerDescription(peerId);
 		try
 		{
 			builder.BuildInto(ref snapshot, peerId, sequence, new PlayerEntity(viewer), forceBaseline);
 		}
 		finally
 		{
+			_snapshots.ExitPeerDescription(peerId);
 			_snapshots.Return(builder);
 		}
 	}

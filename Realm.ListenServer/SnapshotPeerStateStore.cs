@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Concurrent;
+using System.Threading;
 using Realm.Shared.Network;
 
 namespace Realm.ListenServer;
@@ -14,8 +16,31 @@ public class SnapshotPeerStateStore
 	public void Forget(int peerId) => _statesByPeerId.TryRemove(peerId, out _);
 }
 
+/// <summary>
+///     What one peer has already been told. Its containers are mutated in place while a description is written, which is
+///     safe only because exactly one worker describes a given peer at a time: <see cref="EnterDescription" /> is what holds
+///     that invariant at run time rather than leaving it in the comment beside the fan-out that depends on it.
+/// </summary>
 public class SnapshotPeerState
 {
+	private int _describingThreadId;
+
+	/// <summary>
+	///     States that this thread is writing a description for this peer. A second thread entering the same peer is a
+	///     defect in the fan-out, and one that would otherwise show up as two descriptions of the same peer disagreeing
+	///     about what was already sent.
+	/// </summary>
+	public void EnterDescription()
+	{
+		int current = Environment.CurrentManagedThreadId;
+		int owner = Interlocked.CompareExchange(ref _describingThreadId, current, 0);
+		if (owner == 0 || owner == current) return;
+
+		throw new InvalidOperationException($"this peer is already being described by thread {owner}; thread {current} cannot describe it at the same time");
+	}
+
+	public void ExitDescription() => Volatile.Write(ref _describingThreadId, 0);
+
 	public Dictionary<(byte Scope, int Key, int TypeId), byte[]> SentComponents { get; } = new();
 
 	public Dictionary<int, UnitDescriptionState> SentUnits { get; } = new();
