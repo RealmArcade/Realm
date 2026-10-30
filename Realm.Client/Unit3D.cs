@@ -288,6 +288,8 @@ public partial class Unit3D : Node3D
 	private float _culledGameTime = 0f;
 	private bool _hasEvaluatedFrustum = false;
 	private float _animStepAccumulator = 0f;
+	private string? _deferredAnimationName;
+	private float _deferredAnimationDelayRemaining = 0f;
 	private Aabb _cachedLocalAabb = new Aabb(new Vector3(-1.5f, 0f, -1.5f), new Vector3(3f, 4f, 3f));
 
 	public bool IsCulled => _isCulled;
@@ -324,6 +326,8 @@ public partial class Unit3D : Node3D
 		if (_isCulled || !Visible || _animationPlayer == null || !GodotObject.IsInstanceValid(_animationPlayer))
 			return;
 
+		AdvanceDeferredAnimation(fDelta);
+
 		if (!_animationPlayer.IsPlaying())
 			return;
 
@@ -348,6 +352,7 @@ public partial class Unit3D : Node3D
 			_isCulled = true;
 			_culledGameTime = currentGameTime;
 			_animStepAccumulator = 0f;
+			CancelDeferredAnimation();
 			_animationPlayer.ProcessMode = ProcessModeEnum.Disabled;
 			if (_cachedSkeleton != null && GodotObject.IsInstanceValid(_cachedSkeleton))
 			{
@@ -873,6 +878,7 @@ public partial class Unit3D : Node3D
 		_resolvedAnimCache.Clear();
 		_lastRequestedAnimName = null;
 		_currentAnimation = string.Empty;
+		CancelDeferredAnimation();
 		_lastUnitEffectiveLodScale = -1f;
 	}
 
@@ -1056,6 +1062,7 @@ public partial class Unit3D : Node3D
 
 		_lastRequestedAnimName = string.Empty;
 		_currentAnimation = string.Empty;
+		CancelDeferredAnimation();
 
 		if (_animationPlayer == null || !GodotObject.IsInstanceValid(_animationPlayer)) return;
 
@@ -1074,18 +1081,42 @@ public partial class Unit3D : Node3D
 		}
 	}
 
+	/// <summary>
+	///     Hands the unit the animation its state calls for. A unit enters every animation a little later or earlier than its
+	///     neighbours, by its own share of the transition window, so a group given the same order never moves in lockstep.
+	///     The animation is never entered partway through: whatever is playing carries on for that moment and the new one
+	///     then cross-fades in from its own first frame, which is what keeps a switch from moving to attacking a blend into a
+	///     swing instead of a jump to a frame in the middle of one.
+	/// </summary>
 	public void PlayAnimation(string animName)
 	{
 		if (AnimationsFrozen) return;
 		if (_animationPlayer == null || !GodotObject.IsInstanceValid(_animationPlayer)) return;
 		if (string.IsNullOrEmpty(animName)) return;
 
+		if (string.Equals(_deferredAnimationName, animName, StringComparison.Ordinal)) return;
 		if (string.Equals(_lastRequestedAnimName, animName, StringComparison.Ordinal) && _animationPlayer.IsPlaying())
 		{
 			return;
 		}
 
 		_lastRequestedAnimName = animName;
+
+		float entryDelay = (float)AnimationTransitionSeconds * AnimationEntryDelayShare;
+		if (entryDelay <= 0.0001f)
+		{
+			ApplyAnimation(animName);
+			return;
+		}
+
+		_deferredAnimationName = animName;
+		_deferredAnimationDelayRemaining = entryDelay;
+	}
+
+	private void ApplyAnimation(string animName)
+	{
+		_deferredAnimationName = null;
+		_deferredAnimationDelayRemaining = 0f;
 
 		StringName resolved = ResolveAnimationName(animName);
 		if (resolved == null) return;
@@ -1100,14 +1131,9 @@ public partial class Unit3D : Node3D
 		var animResource = _animationPlayer.GetAnimation(resolved);
 		if (animResource != null)
 		{
-			if (animName.Equals("Death", StringComparison.OrdinalIgnoreCase))
-			{
-				animResource.LoopMode = Godot.Animation.LoopModeEnum.None;
-			}
-			else
-			{
-				animResource.LoopMode = Godot.Animation.LoopModeEnum.Linear;
-			}
+			animResource.LoopMode = ResolveAnimationType(animName) == RealmAnimationType.Death
+				? Godot.Animation.LoopModeEnum.None
+				: Godot.Animation.LoopModeEnum.Linear;
 		}
 
 		if (_isCulled)
@@ -1126,39 +1152,43 @@ public partial class Unit3D : Node3D
 		{
 			_animationPlayer.Advance(0.0);
 		}
-
-		StaggerLocomotionPhase(animName);
 	}
 
 	/// <summary>
-	///     Starts a walking cycle a little way into itself, at a point that belongs to this unit alone, so a group that is
-	///     ordered to move together does not put every foot down on the same frame.
+	///     Runs the moment a unit waits before it enters its next animation. Nothing is entered until that moment passes, so
+	///     the unit is left in whichever animation it was already in rather than being held in an unplayed state.
 	/// </summary>
-	/// <param name="requestedAnimationName">The animation the unit was just asked to play.</param>
-	private void StaggerLocomotionPhase(string requestedAnimationName)
+	private void AdvanceDeferredAnimation(float fDelta)
 	{
-		if (_animationPlayer == null || !GodotObject.IsInstanceValid(_animationPlayer)) return;
-		if (!IsLocomotionAnimationName(requestedAnimationName)) return;
+		if (_deferredAnimationName == null) return;
 
-		double length = _animationPlayer.CurrentAnimationLength;
-		if (length <= 0.001) return;
+		_deferredAnimationDelayRemaining -= fDelta;
+		if (_deferredAnimationDelayRemaining > 0f) return;
 
-		_animationPlayer.Seek(length * LocomotionPhaseOffset, update: true);
+		ApplyAnimation(_deferredAnimationName);
 	}
 
-	private static bool IsLocomotionAnimationName(string animationName)
+	private void CancelDeferredAnimation()
 	{
-		return animationName.Contains("walk", StringComparison.OrdinalIgnoreCase)
-			|| animationName.Contains("run", StringComparison.OrdinalIgnoreCase)
-			|| animationName.Contains("sprint", StringComparison.OrdinalIgnoreCase)
-			|| animationName.Contains("move", StringComparison.OrdinalIgnoreCase);
+		_deferredAnimationName = null;
+		_deferredAnimationDelayRemaining = 0f;
+
+		// The request is dropped with the delay that carried it, so the next one is asked for again rather than being
+		// mistaken for an animation this unit is already in.
+		_lastRequestedAnimName = null;
+	}
+
+	private RealmAnimationType ResolveAnimationType(string animationName)
+	{
+		ParseAnimationName(animationName, out string actionType, out _);
+		return AnimationRetargetingService.TryParseAnimationType(actionType, out RealmAnimationType animationType) ? animationType : RealmAnimationType.Unknown;
 	}
 
 	/// <summary>
-	///     Where this unit enters its walking cycle, spread over one whole cycle and fixed for the unit's lifetime. It is
-	///     derived from the node's identity so no per-unit state or allocation is needed to keep it stable.
+	///     This unit's share of the transition window: where it falls in the spread of entries a group given one order makes,
+	///     fixed for its lifetime and derived from the node's identity, so no per-unit state or allocation keeps it stable.
 	/// </summary>
-	private float LocomotionPhaseOffset
+	private float AnimationEntryDelayShare
 	{
 		get
 		{
