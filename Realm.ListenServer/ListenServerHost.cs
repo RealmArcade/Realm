@@ -644,6 +644,10 @@ public class ListenServerHost : IServerTransportSink
 		_obstacleSignaturePerPeer.Remove(peerId);
 		_commandsThisTick.Remove(peerId);
 		_peerLanguages.Remove(peerId);
+
+		// Nothing this peer was sent may answer a repair once it is gone. The slot its description was kept in is reused
+		// by whoever takes the seat next, and Claim only clears a ring that belonged to somebody else.
+		for (int index = 0; index < _frameRings.Length; index++) _frameRings[index].Forget(peerId);
 	}
 
 	public void OnFrameReceived(int peerId, NetworkFrameKind kind, ReadOnlySpan<byte> payload)

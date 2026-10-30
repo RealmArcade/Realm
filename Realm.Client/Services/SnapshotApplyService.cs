@@ -18,10 +18,12 @@ public class SnapshotApplyService
 	private const int MaximumBacklogSequences = SnapshotTimeline.MaximumDelaySequences;
 
 	/// <summary>
-	///     The widest run of descriptions this screen asks the match to send again. A wider run is a stall rather than a
-	///     datagram that went missing, and a baseline is the only thing that puts a screen that far behind back.
+	///     The widest run of descriptions this screen asks the match to send again, which is exactly the run the match
+	///     still holds. A wider run is a stall rather than a datagram that went missing, and a baseline is the only thing
+	///     that puts a screen that far behind back. Asking for less than the match holds meant a hole the match could
+	///     have answered with a dozen deltas was paid for with a whole world on the reliable stream.
 	/// </summary>
-	private const int MaximumRepairSequences = 8;
+	private const int MaximumRepairSequences = MatchTiming.SnapshotHistoryDepth;
 
 	private const int RepairRequestIntervalMilliseconds = 120;
 

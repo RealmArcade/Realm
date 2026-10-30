@@ -24,6 +24,14 @@ public static class MatchTiming
 
 	public const int SnapshotRepairCooldownMilliseconds = 1000 * SnapshotRepairCooldownTicks / SimulationTickRateHz;
 
+	/// <summary>
+	///     How many descriptions the match keeps per peer for answering a hole by name, and therefore the widest run a
+	///     screen may ask it to send again. It is stated here because both sides have to agree on it: a screen that
+	///     asked for less than the match holds paid for a baseline where a handful of deltas would have done, which is a
+	///     whole world over the reliable stream instead of the few descriptions that went missing.
+	/// </summary>
+	public const int SnapshotHistoryDepth = 24;
+
 	public static float TicksToSeconds(int ticks) => (float)(ticks * FixedTickSeconds);
 
 	public static int SecondsToTicks(float seconds) => (int)(seconds / FixedTickSeconds);

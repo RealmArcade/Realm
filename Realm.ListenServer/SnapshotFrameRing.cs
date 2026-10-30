@@ -1,4 +1,5 @@
 using System;
+using Realm.Shared.Network;
 
 namespace Realm.ListenServer;
 
@@ -10,7 +11,7 @@ namespace Realm.ListenServer;
 /// </summary>
 public class SnapshotFrameRing
 {
-	public const int Capacity = 24;
+	public const int Capacity = MatchTiming.SnapshotHistoryDepth;
 
 	private readonly int[] _sequences = new int[Capacity];
 	private readonly byte[][] _frames = new byte[Capacity][];
@@ -20,8 +21,6 @@ public class SnapshotFrameRing
 	public SnapshotFrameRing() => Array.Fill(_sequences, -1);
 
 	public int PeerId => _ownerPeerId;
-
-	public int Count { get; private set; }
 
 	public void Claim(int peerId)
 	{
@@ -35,7 +34,19 @@ public class SnapshotFrameRing
 	{
 		Array.Clear(_frames);
 		Array.Fill(_sequences, -1);
-		Count = 0;
+	}
+
+	/// <summary>
+	///     Gives up everything kept for this peer. A peer id is not a session: a peer that leaves and comes back under the
+	///     same id would otherwise be answered with a description from the session it has already left, which states a
+	///     world that seat no longer has anything to do with.
+	/// </summary>
+	public void Forget(int peerId)
+	{
+		if (_ownerPeerId != peerId) return;
+
+		Clear();
+		_ownerPeerId = -1;
 	}
 
 	public void Add(int sequence, byte[] frame)
@@ -47,7 +58,6 @@ public class SnapshotFrameRing
 		// whole ring: a repair asks for up to a ring's worth of sequences at once, and each of those asks walked all of
 		// them again.
 		int slot = sequence % Capacity;
-		if (_sequences[slot] < 0) Count++;
 		_sequences[slot] = sequence;
 		_frames[slot] = frame;
 	}
