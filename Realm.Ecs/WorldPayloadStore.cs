@@ -53,6 +53,11 @@ public class ColdPayloadStore<T> where T : class
 		}
 	}
 
+	/// <summary>
+	///     Reports whether a handle is shared between payloads. Unlike <see cref="Get" /> this is answered from the
+	///     writer's own bookkeeping, so it waits for the simulation thread; it exists for diagnostics and for the payload
+	///     verifier, and no description lane calls it.
+	/// </summary>
 	public bool IsShared(int handle)
 	{
 		if (handle <= 0) return false;
@@ -62,6 +67,10 @@ public class ColdPayloadStore<T> where T : class
 		}
 	}
 
+	/// <summary>
+	///     Reports how many payloads share a handle. Read from the writer's bookkeeping for the same reason as
+	///     <see cref="IsShared" />: a lane that called it would wait behind the simulation thread.
+	/// </summary>
 	public int GetReferenceCount(int handle)
 	{
 		if (handle <= 0) return 0;
@@ -251,12 +260,18 @@ public class WorldPayloadStores
 
 	public void Reset()
 	{
+		// The actions are taken under the lock and run outside it. Running them here held this lock while every store's
+		// own write lock was taken beneath it, which is a lock order between a world and its stores that nothing else in the
+		// process needs to know about - and one that made a reset wait for a lane reading a payload.
+		Action[] actions;
 		lock (_lock)
 		{
-			for (int index = 0; index < _resetActions.Count; index++)
-			{
-				_resetActions[index]();
-			}
+			actions = _resetActions.ToArray();
+		}
+
+		for (int index = 0; index < actions.Length; index++)
+		{
+			actions[index]();
 		}
 	}
 }

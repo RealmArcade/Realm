@@ -1260,6 +1260,12 @@
                 type is assigned the next identifier the first time it is touched, which means the identifier depends on first-touch
                 order and is therefore only meaningful in this process: canonical identifiers are the ones that cross the wire,
                 through the replicated component table, and a dynamic identifier never does.
+                <para>
+                    The registry is owned by whichever thread touches a type first, and the lock is what makes that first touch
+                    single. A canonical identifier is assigned once while the type is loaded, so the lock is not on any steady-state
+                    path; a dynamic type is the case to keep out of a publish lane, because assigning one there also creates the
+                    component buffer on that lane, and the world refuses a structural change made under a worker lease.
+                </para>
             </summary>
         </member>
         <member name="T:Realm.Ecs.EcsWorld">
@@ -2402,12 +2408,14 @@
         <member name="P:Realm.Ecs.ContentIdStore.CollisionCount">
             <summary>
             Gets the number of payload registrations that had to move into the reserved fallback range because another
-            payload already owned their primary content hash.
+            payload already owned their primary content hash. It is read from the registering thread's bookkeeping, so it waits
+            for that thread; it is a diagnostic figure and is not called from a description lane.
             </summary>
         </member>
         <member name="P:Realm.Ecs.ContentIdStore.CollisionSummary">
             <summary>
-            Gets a human readable summary of the first few hash collisions, listing both colliding payloads.
+            Gets a human readable summary of the first few hash collisions, listing both colliding payloads. It waits for the
+            registering thread for the same reason as <see cref="P:Realm.Ecs.ContentIdStore.CollisionCount"/>.
             </summary>
         </member>
         <member name="P:Realm.Ecs.ContentIdStore.EntryCount">
@@ -3482,6 +3490,19 @@
                 confined to it - a publish lane resolving the payload behind a component handle reads here too - so a write
                 publishes a new immutable view of the table and a read takes one volatile read of it, instead of every reader
                 taking the writer's lock.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.ColdPayloadStore`1.IsShared(System.Int32)">
+            <summary>
+                Reports whether a handle is shared between payloads. Unlike <see cref="M:Realm.Ecs.ColdPayloadStore`1.Get(System.Int32)" /> this is answered from the
+                writer's own bookkeeping, so it waits for the simulation thread; it exists for diagnostics and for the payload
+                verifier, and no description lane calls it.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.ColdPayloadStore`1.GetReferenceCount(System.Int32)">
+            <summary>
+                Reports how many payloads share a handle. Read from the writer's bookkeeping for the same reason as
+                <see cref="M:Realm.Ecs.ColdPayloadStore`1.IsShared(System.Int32)" />: a lane that called it would wait behind the simulation thread.
             </summary>
         </member>
         <member name="T:Realm.Ecs.ShroudGridStore">

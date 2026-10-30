@@ -18,6 +18,12 @@ namespace Realm.Ecs;
 ///     type is assigned the next identifier the first time it is touched, which means the identifier depends on first-touch
 ///     order and is therefore only meaningful in this process: canonical identifiers are the ones that cross the wire,
 ///     through the replicated component table, and a dynamic identifier never does.
+///     <para>
+///         The registry is owned by whichever thread touches a type first, and the lock is what makes that first touch
+///         single. A canonical identifier is assigned once while the type is loaded, so the lock is not on any steady-state
+///         path; a dynamic type is the case to keep out of a publish lane, because assigning one there also creates the
+///         component buffer on that lane, and the world refuses a structural change made under a worker lease.
+///     </para>
 /// </summary>
 public static class ComponentTypeRegistry
 {

@@ -10,8 +10,11 @@ namespace Realm.ListenServer;
 ///     generation index, so a value that a reader has been handed is never rewritten while it is being consumed: the
 ///     reader takes one volatile read and no lock, and a payload span it holds stays the bytes it was given for the rest
 ///     of the tick. Writers still serialize per stripe, because two peers describing the same unit must not both be
-///     first to describe it. A stripe is taken on the first tick a unit is described and never again, and the whole board
-///     is published for the lanes by the tick thread before the fork, so a steady-state tick acquires none of them.
+///     first to describe it. A lane reads a slot without the lock first and only writes on a miss, so a stripe is taken
+///     once per changed unit per codec per tick, by whichever lane reaches it first, and a unit whose payload is already
+///     this tick's costs no lock at all. That is the contention this lock has: one short critical section per changed
+///     unit across 64 stripes, never held across a Godot call, an await or another lock, with the whole board published
+///     for the lanes by the tick thread before the fork.
 /// </summary>
 public class SnapshotDescriptionCache
 {

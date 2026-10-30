@@ -82,7 +82,8 @@ public static class ContentIdStore
 
 	/// <summary>
 	/// Gets the number of payload registrations that had to move into the reserved fallback range because another
-	/// payload already owned their primary content hash.
+	/// payload already owned their primary content hash. It is read from the registering thread's bookkeeping, so it waits
+	/// for that thread; it is a diagnostic figure and is not called from a description lane.
 	/// </summary>
 	public static int CollisionCount
 	{
@@ -96,7 +97,8 @@ public static class ContentIdStore
 	}
 
 	/// <summary>
-	/// Gets a human readable summary of the first few hash collisions, listing both colliding payloads.
+	/// Gets a human readable summary of the first few hash collisions, listing both colliding payloads. It waits for the
+	/// registering thread for the same reason as <see cref="CollisionCount"/>.
 	/// </summary>
 	public static string CollisionSummary
 	{

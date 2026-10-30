@@ -32,6 +32,18 @@ public readonly struct PseudoSocketPoint
 	}
 }
 
+/// <summary>
+///     The socket points a model exposes, derived from its bounds and from the anchors its author placed, cached per
+///     model path. Every entry is a pure function of the model and the anchors it was asked about, so an entry is only
+///     wrong when the model changes, and <see cref="Invalidate" /> is what says one did.
+///     <para>
+///         The cache is owned by the client's main thread: every caller is a unit view resolving an attachment or an
+///         editor dialog previewing one, and both are main-thread code. The lock is therefore not contention protection
+///         but a guard around the dictionaries, so that an import thread added later cannot corrupt them. A method that
+///         needs the model's bounds computes them before taking it, so no Godot call is made while it is held, and no
+///         other lock is taken beneath it.
+///     </para>
+/// </summary>
 public static class PseudoSocketCache
 {
 	public const float OverheadMargin = 0.3f;
