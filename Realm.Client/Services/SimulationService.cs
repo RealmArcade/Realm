@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
@@ -31,8 +31,6 @@ namespace Realm.Client.Services;
 
 public class SimulationService
 {
-	private float _shroudSimulationTimer;
-
 	public void ApplySpellEffectDomain(string spellId, Vector3 position, Entity casterEnt)
 	{
 		GameContext.RegistryService.AbilityDefinitions.TryGetValue(spellId, out var def);
@@ -230,66 +228,17 @@ public class SimulationService
 	private readonly ResourceEconomyService _economyService;
 
 	private float _fDelta;
-	private int _tickCount = 0;
 
-	private PlayerEntity _autoCastCasterOwnerEntity;
-	private Entity _autoCastBestFriendlyEntity;
-	private float _autoCastBestFriendlyHp;
-	private Vector3 _autoCastBestFriendlyPos;
-	private float _autoCastRange;
-	private Vector3 _autoCastCasterPos;
 	private readonly MovementAndPathfindingService.SpatialGridEntryCallback _autoCastFriendlyCallback;
 
-	private PlayerEntity _autoCastCasterOwnerEntityEnemyCheck;
-	private int _autoCastCasterPlayerIndex;
-	private Entity _autoCastBestEnemyEntity;
-	private float _autoCastClosestDist;
-	private Vector3 _autoCastBestEnemyPos;
 	private readonly MovementAndPathfindingService.SpatialGridEntryCallback _autoCastEnemyCallback;
 
-	private readonly List<(Entity Entity, Patrol Patrol)> _tickPatrolToFlip = new();
-	private readonly List<Entity> _tickFollowToStop = new();
-	private readonly List<(Entity Follower, Vector3 TargetPos)> _tickFollowToMove = new();
-	private readonly List<Entity> _tickFollowToRemoveMoveTo = new();
 	private readonly List<Entity> _tickArrivedUnits = new();
-	private readonly List<(Entity Entity, PathFollow PathFollow)> _tickAddPathFollow = new();
-	private readonly List<Entity> _tickEntitiesToClearOrders = new();
-	private readonly List<Entity> _tickEntitiesToStopGathering = new();
-	private readonly List<SpawningRequest> _tickSpawningRequests = new();
-	private bool _tickNeedsUiRefresh = false;
 	private readonly Dictionary<int, BotController> _botControllers = new();
 
-	private readonly QueryDescription _buffQuery = QueryCache.AllBuffsNoneDeadQuery;
-	private readonly QueryDescription _buffStateQuery = QueryCache.AllBuffStateNoneDeadQuery;
-	private readonly QueryDescription _absorbQuery = new QueryDescription().WithAll<AbsorbShield>();
-	private readonly QueryDescription _summonQuery = new QueryDescription().WithAll<SummonedUnit>().WithNone<Dead>();
-	private readonly QueryDescription _statsRecalcQuery = new QueryDescription().WithAll<Stats>().WithNone<Dead>();
-	private readonly QueryDescription _patrolArrivalQuery = QueryCache.AllPatrolAndPositionNoneDeadAndAttackTargetQuery;
-	private readonly QueryDescription _followQuery = QueryCache.AllFollowAndPositionNoneDeadQuery;
-	private readonly QueryDescription _attackCooldownQuery = QueryCache.AllAttackQuery;
-	private readonly QueryDescription _healthRegenQuery = QueryCache.AllHealthNoneDeadQuery;
-	private readonly QueryDescription _manaRegenQuery = QueryCache.AllManaAndManaRegenNoneDeadQuery;
-	private readonly QueryDescription _prodQuery = QueryCache.AllProductionQueueQuery;
-	private readonly QueryDescription _spellCooldownQuery = QueryCache.AllSpellCooldownsQuery;
-	private readonly QueryDescription _cooldownsQuery = QueryCache.AllCooldownsQuery;
-	private readonly QueryDescription _autoCastQuery = QueryCache.AllAutoCastQuery;
 
-	private EntityCallback<Buffs> _buffsQueryDelegate = null!;
-	private EntityCallback<BuffState> _buffStateQueryDelegate = null!;
-	private EntityCallback<AbsorbShield> _absorbQueryDelegate = null!;
-	private EntityCallback<SummonedUnit> _summonQueryDelegate = null!;
-	private EntityCallback<Stats> _statsRecalcQueryDelegate = null!;
-	private EntityCallback<Patrol, Position> _patrolArrivalQueryDelegate = null!;
-	private EntityCallback<Follow, Position> _followQueryDelegate = null!;
-	private EntityCallback<Attack> _attackCooldownQueryDelegate = null!;
-	private EntityCallback<Health> _healthRegenQueryDelegate = null!;
-	private EntityCallback<Mana, ManaRegen> _manaRegenQueryDelegate = null!;
-	private EntityCallback<ProductionQueue> _prodQueryDelegate = null!;
 	private EntityCallback<LatestDescription> _presentationQueryDelegate = null!;
 
-	private EntityCallback<SpellCooldowns> _spellCooldownQueryDelegate = null!;
-	private EntityCallback<Cooldowns> _cooldownsQueryDelegate = null!;
-	private EntityCallback<AutoCastState, Position, DefinitionId, Owner> _autoCastQueryDelegate = null!;
 
 	public Action<Vector3, Vector3> OnArrowProjectileRequested;
 	public Action<Vector3, Vector3, string?, Entity>? OnWeaponProjectileRequested;
@@ -698,27 +647,11 @@ public class SimulationService
 		_economyService.OnPropDepleted = ent => OnPropDepleted?.Invoke(ent);
 		_economyService.OnResourceHarvested = ent => OnResourceHarvested?.Invoke(ent);
 
-		_autoCastFriendlyCallback = OnAutoCastFriendlyCandidateFound;
-		_autoCastEnemyCallback = OnAutoCastEnemyCandidateFound;
 	}
 
 	public void Initialize()
 	{
-		_buffsQueryDelegate = UpdateBuffsQueryAction;
-		_buffStateQueryDelegate = UpdateBuffStateQueryAction;
-		_absorbQueryDelegate = UpdateAbsorbQueryAction;
-		_summonQueryDelegate = UpdateSummonLifespanQueryAction;
-		_statsRecalcQueryDelegate = StatsRecalcQueryAction;
-		_patrolArrivalQueryDelegate = PatrolArrivalQueryAction;
-		_followQueryDelegate = FollowQueryAction;
-		_attackCooldownQueryDelegate = AttackCooldownQueryAction;
-		_healthRegenQueryDelegate = HealthRegenQueryAction;
-		_manaRegenQueryDelegate = ManaRegenQueryAction;
-		_prodQueryDelegate = ProdQueryAction;
-		_cooldownsQueryDelegate = CooldownsQueryAction;
 		_presentationQueryDelegate = PresentationQueryAction;
-		_spellCooldownQueryDelegate = SpellCooldownQueryAction;
-		_autoCastQueryDelegate = AutoCastQueryAction;
 	}
 
 	public bool ShouldSimulateEntity(Entity entity)
@@ -731,136 +664,6 @@ public class SimulationService
 		if (localPlayerIndex < 0) return false;
 
 		return GameContext.World.Has<UnitOwnerPlayer>(entity) && GameContext.World.Get<UnitOwnerPlayer>(entity).PlayerIndex == localPlayerIndex;
-	}
-
-	public void TickEcs(float fDelta, bool advanceWorldClock = true)
-	{
-		_fDelta = fDelta;
-		_tickCount++;
-		_tickEntitiesToClearOrders.Clear();
-		_tickEntitiesToStopGathering.Clear();
-		_tickSpawningRequests.Clear();
-		_tickAddPathFollow.Clear();
-		_tickNeedsUiRefresh = false;
-
-		if (ActiveWorldEntity != Entity.Null && GameContext.World.IsAlive(ActiveWorldEntity))
-		{
-			if (advanceWorldClock && GameContext.World.Has<WorldState>(ActiveWorldEntity))
-			{
-				var state = GameContext.World.Get<WorldState>(ActiveWorldEntity);
-				float elapsed = state.GameElapsedTime + fDelta;
-				float timer = state.TimeOfDayTimer;
-				int index = state.TimeOfDayIndex;
-
-				if (state.DayNightCycleEnabled)
-				{
-					timer += fDelta;
-					const float cycleDuration = 90f;
-					if (timer >= cycleDuration)
-					{
-						timer -= cycleDuration;
-					}
-
-					float progress = timer / cycleDuration;
-					index = (int)(progress * 4f) % 4;
-				}
-
-				GameContext.World.Set(ActiveWorldEntity, new WorldState(elapsed, index, timer, state.DayNightCycleEnabled));
-			}
-
-			if (GameContext.World.Has<CountdownState>(ActiveWorldEntity))
-			{
-				var countdown = GameContext.World.Get<CountdownState>(ActiveWorldEntity);
-				if (countdown.Active)
-				{
-					float newDuration = countdown.Duration - fDelta;
-					if (newDuration <= 0f)
-					{
-						GameContext.World.Set(ActiveWorldEntity, new CountdownState(false, 0f, countdown.Text));
-					}
-					else
-					{
-						GameContext.World.Set(ActiveWorldEntity, new CountdownState(true, newDuration, countdown.Text));
-					}
-				}
-			}
-		}
-
-		using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.SimulationSpellCooldownQuery))
-		{
-			GameContext.World.Query(in _spellCooldownQuery, _spellCooldownQueryDelegate);
-		}
-
-		using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.SimulationCooldownsQuery))
-		{
-			GameContext.World.Query(in _cooldownsQuery, _cooldownsQueryDelegate);
-		}
-
-		using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.SimulationMovementStep))
-		{
-			_movementService.StepMovement(fDelta);
-		}
-
-		using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.SimulationCombatStep))
-		{
-			_combatService.StepCombat(fDelta, _movementService);
-		}
-
-		_shroudSimulationTimer += fDelta;
-		if (_shroudSimulationTimer >= ShroudSimulationService.UpdateInterval)
-		{
-			_shroudSimulationTimer = 0f;
-			using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.SimulationShroudStep))
-			{
-				ShroudSimulationService.Tick(GameContext.World, ActiveWorldEntity);
-			}
-		}
-
-		using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.SimulationBuffQueries))
-		{
-			GameContext.World.Query(in _buffQuery, _buffsQueryDelegate);
-			GameContext.World.Query(in _buffStateQuery, _buffStateQueryDelegate);
-			GameContext.World.Query(in _statsRecalcQuery, _statsRecalcQueryDelegate);
-			GameContext.World.Query(in _absorbQuery, _absorbQueryDelegate);
-			GameContext.World.Query(in _summonQuery, _summonQueryDelegate);
-		}
-
-		using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.SimulationPatrolArrivals))
-		{
-			ProcessPatrolArrivals();
-		}
-
-		using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.SimulationFollowMovements))
-		{
-			ProcessFollowMovements();
-		}
-
-		using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.SimulationUnitQueries))
-		{
-			GameContext.World.Query(in _attackCooldownQuery, _attackCooldownQueryDelegate);
-			GameContext.World.Query(in _healthRegenQuery, _healthRegenQueryDelegate);
-			GameContext.World.Query(in _manaRegenQuery, _manaRegenQueryDelegate);
-			GameContext.World.Query(in _prodQuery, _prodQueryDelegate);
-			GameContext.World.Query(in _autoCastQuery, _autoCastQueryDelegate);
-		}
-
-		foreach (var (entity, pf) in _tickAddPathFollow)
-		{
-			if (GameContext.World.IsAlive(entity))
-			{
-				GameContext.World.Add(entity, pf);
-			}
-		}
-
-		using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.SimulationBotControllers))
-		{
-			TickBotControllers(fDelta);
-		}
-
-		using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.SimulationDeferredCommands))
-		{
-			ApplyDeferredTickCommands();
-		}
 	}
 
 	private readonly Dictionary<int, List<GenericAffordance>> _customDecisionsPerPlayer = new();
@@ -1005,58 +808,10 @@ public class SimulationService
 		}
 	}
 
-	private void TickBotControllers(float fDelta)
-	{
-		if (GameContext.World == null) return;
-
-		for (int pIdx = 0; pIdx < 8; pIdx++)
-		{
-			if (!IsPlayerBot(pIdx)) continue;
-
-			if (!_botControllers.TryGetValue(pIdx, out var bot))
-			{
-				bot = InitializeDefaultBotController(pIdx);
-				_botControllers[pIdx] = bot;
-			}
-
-			bot.Tick(GameContext.World, pIdx, fDelta);
-		}
-	}
-
-	private bool IsPlayerBot(int pIdx)
-	{
-		if (GameContext.Host == null) return false;
-		return GameContext.Host.IsPlayerComputer(pIdx);
-	}
-
-	private BotController InitializeDefaultBotController(int pIdx)
-	{
-		var bot = new BotController(pIdx);
-		bot.CustomActionCallback = (botPIdx, actId, pos, intent) => { OnBotCustomActionExecuted?.Invoke(botPIdx, actId, intent, pos, string.Empty); };
-		LoadBotProfileFromDisk(bot);
-		return bot;
-	}
-
-	private void LoadBotProfileFromDisk(BotController bot)
-	{
-		string mapName = GameContext.Simulation.ActiveMapName ?? "";
-		string botPath = Path.Combine(OS.GetUserDataDir(), $"{mapName}_bot.json");
-		if (!File.Exists(botPath)) return;
-		try
-		{
-			var profile = BotProfile.FromJson(File.ReadAllText(botPath));
-			bot.LoadProfile(profile);
-		}
-		catch
-		{
-		}
-	}
-
 	public void TickEditorPhysics(float fDelta)
 	{
 		_fDelta = fDelta;
 		_tickArrivedUnits.Clear();
-		_tickAddPathFollow.Clear();
 		_movementService.RefreshTerrainState();
 		_movementService.AdvanceElapsedTime(fDelta);
 	}
@@ -1123,158 +878,7 @@ public class SimulationService
 		_economyService.SetRuntimeReferences(definitionManager, goldResourceId, woodResourceId, stoneResourceId);
 	}
 
-	private void ProcessPatrolArrivals()
-	{
-		_tickPatrolToFlip.Clear();
-		GameContext.World.Query(in _patrolArrivalQuery, _patrolArrivalQueryDelegate);
-		foreach (var (entity, patrol) in _tickPatrolToFlip)
-		{
-			if (GameContext.World.IsAlive(entity))
-			{
-				var newPatrol = patrol;
-				newPatrol.GoingToB = !patrol.GoingToB;
-				GameContext.World.Set(entity, newPatrol);
-
-				var dest = newPatrol.GoingToB ? newPatrol.PointB : newPatrol.PointA;
-				var moveTo = new MoveTo(dest);
-				GameContext.World.SetOrAdd(entity, moveTo);
-			}
-		}
-	}
-
-	private void ProcessFollowMovements()
-	{
-		_tickFollowToStop.Clear();
-		_tickFollowToMove.Clear();
-		_tickFollowToRemoveMoveTo.Clear();
-
-		GameContext.World.Query(in _followQuery, _followQueryDelegate);
-
-		foreach (var entity in _tickFollowToStop)
-		{
-			if (GameContext.World.IsAlive(entity))
-			{
-				if (GameContext.World.Has<MoveTo>(entity))
-				{
-					GameContext.World.Remove<MoveTo>(entity);
-				}
-
-				if (GameContext.World.Has<Follow>(entity))
-				{
-					GameContext.World.Remove<Follow>(entity);
-				}
-			}
-		}
-
-		foreach (var entity in _tickFollowToRemoveMoveTo)
-		{
-			if (GameContext.World.IsAlive(entity) && GameContext.World.Has<MoveTo>(entity))
-			{
-				GameContext.World.Remove<MoveTo>(entity);
-			}
-		}
-
-		foreach (var (follower, targetPos) in _tickFollowToMove)
-		{
-			if (GameContext.World.IsAlive(follower))
-			{
-				var moveTo = new MoveTo(targetPos);
-				GameContext.World.SetOrAdd(follower, moveTo);
-			}
-		}
-	}
-
-	private void ApplyDeferredTickCommands()
-	{
-		ProcessClearOrders();
-		ProcessStopGathering();
-		ProcessSpawningRequests();
-		ProcessUiRefresh();
-	}
-
-	private void ProcessClearOrders()
-	{
-		foreach (var ent in _tickEntitiesToClearOrders)
-		{
-			if (GameContext.World.IsAlive(ent)) OnClearUnitOrdersRequested?.Invoke(ent);
-		}
-	}
-
-	private void ProcessStopGathering()
-	{
-		foreach (var ent in _tickEntitiesToStopGathering)
-		{
-			if (GameContext.World.IsAlive(ent)) OnStopGatheringMovementRequested?.Invoke(ent);
-		}
-	}
-
-	private void ProcessSpawningRequests()
-	{
-		foreach (var req in _tickSpawningRequests)
-		{
-			OnSpawnUnitFromProductionRequested?.Invoke(req.UnitId, req.Position, req.BuildingEntity, req.IsFromQueue);
-		}
-	}
-
-	private void ProcessUiRefresh()
-	{
-		if (_tickNeedsUiRefresh) OnUiRefreshRequested?.Invoke();
-	}
-
-	private void UpdateBuffsQueryAction(Entity entity, ref Buffs buffs)
-	{
-		buffs.Advance(_fDelta);
-	}
-
-	private void UpdateBuffStateQueryAction(Entity entity, ref BuffState buffs)
-	{
-		buffs.Advance(_fDelta);
-	}
-
-	private void UpdateAbsorbQueryAction(Entity entity, ref AbsorbShield shield)
-	{
-		shield.Advance(_fDelta);
-
-		// A pool with nothing left goes with its component, so a unit that is never shielded again does not keep paying
-		// for the query.
-		if (shield.Count == 0)
-		{
-			GameContext.World.Remove<AbsorbShield>(entity);
-		}
-	}
-
-	private void UpdateSummonLifespanQueryAction(Entity entity, ref SummonedUnit summon)
-	{
-		if (summon.Remaining <= 0f) return;
-
-		summon.Remaining -= _fDelta;
-		if (summon.Remaining > 0f) return;
-
-		summon.Remaining = 0f;
-		OnSummonExpired?.Invoke(entity);
-	}
-
 	public Action<Entity>? OnSummonExpired;
-
-	private void StatsRecalcQueryAction(Entity entity, ref Stats stats)
-	{
-		// Applying or removing a modifier already recalculates the entity, so the tick only catches durations running
-		// out before handing the entity back to the one stat pipeline.
-		if (!UpdateEntityModifiers(entity)) return;
-
-		AttributeStatCalculator.RecalculateEntityStats(GameContext.World, entity);
-	}
-
-	private bool UpdateEntityModifiers(Entity entity)
-	{
-		if (GameContext.World.Has<ModifierState>(entity))
-		{
-			ref var modState = ref GameContext.World.Get<ModifierState>(entity);
-			return modState.Advance(_fDelta);
-		}
-		return false;
-	}
-
 
 	public void DisableShroud(Action viewAction)
 	{
@@ -1488,17 +1092,6 @@ public class SimulationService
 	public readonly List<Entity> CompletedBuildings = new();
 	public readonly List<(Entity Entity, string? Type, Vector3 Position, Entity Target)> PendingQueuedCommands = new();
 
-	private void CooldownsQueryAction(Entity entity, ref Cooldowns cooldowns)
-	{
-		if (GameContext.Host != null && GameContext.CheatService.UnlimitedPowerEnabled)
-		{
-			cooldowns.Clear();
-			return;
-		}
-
-		cooldowns.Advance(_fDelta);
-	}
-
 	public void EnqueueVFXRequest(string effectTypeId, Vector3 position, Vector3 targetPosition, float scale = 1.0f, float speed = 0f, int entityId = -1, int ownerPlayerIndex = 0)
 	{
 		var worldEntity = ActiveWorldEntity;
@@ -1509,163 +1102,7 @@ public class SimulationService
 		}
 	}
 
-	private void PatrolArrivalQueryAction(Entity entity, ref Patrol patrol, ref Position pos)
-	{
-		if (!ShouldSimulateEntity(entity)) return;
-
-		var current = pos.Value;
-		var dest = patrol.GoingToB ? patrol.PointB : patrol.PointA;
-		if (Vector3.Distance(current, dest) < 1.5f)
-		{
-			_tickPatrolToFlip.Add((entity, patrol));
-		}
-	}
-
 	private const float FollowRetargetThreshold = 1.0f;
-
-	private void FollowQueryAction(Entity entity, ref Follow follow, ref Position pos)
-	{
-		if (!ShouldSimulateEntity(entity)) return;
-
-		if (!GameContext.World.IsAlive(follow.Target) || GameContext.World.Has<Dead>(follow.Target))
-		{
-			_tickFollowToStop.Add(entity);
-			return;
-		}
-
-		var currentPos = pos.Value;
-		var targetPos = GameContext.World.Get<Position>(follow.Target).Value;
-
-		float dist = Vector3.Distance(currentPos, targetPos);
-		if (dist <= 3.0f)
-		{
-			if (GameContext.World.Has<MoveTo>(entity))
-			{
-				_tickFollowToRemoveMoveTo.Add(entity);
-			}
-		}
-		else
-		{
-			bool needsRetarget = true;
-			if (GameContext.World.Has<MoveTo>(entity))
-			{
-				var existingTarget = GameContext.World.Get<MoveTo>(entity).Target;
-				if (Vector3.Distance(existingTarget, targetPos) < FollowRetargetThreshold)
-				{
-					needsRetarget = false;
-				}
-			}
-			else if (GameContext.World.Has<PathFollow>(entity))
-			{
-				var existingTarget = GameContext.World.Get<PathFollow>(entity).Target;
-				if (Vector3.Distance(existingTarget, targetPos) < FollowRetargetThreshold)
-				{
-					needsRetarget = false;
-				}
-			}
-
-			if (needsRetarget)
-			{
-				_tickFollowToMove.Add((entity, targetPos));
-			}
-		}
-	}
-
-	private void AttackCooldownQueryAction(Entity entity, ref Attack atk)
-	{
-		if (GameContext.Host != null && GameContext.CheatService.UnlimitedPowerEnabled)
-		{
-			atk.CurrentCooldown = 0f;
-			return;
-		}
-
-		if (atk.CurrentCooldown > 0)
-		{
-			atk.CurrentCooldown = Math.Max(0, atk.CurrentCooldown - _fDelta);
-		}
-	}
-
-	private void HealthRegenQueryAction(Entity entity, ref Health health)
-	{
-		health.TimeSinceLastDamage += _fDelta;
-		if (health.HpRegen <= 0f || health.Current >= health.Max)
-		{
-			return;
-		}
-
-		if (health.HpRegenCombatDelay > 0f && health.TimeSinceLastDamage < health.HpRegenCombatDelay)
-		{
-			return;
-		}
-
-		health.Current = Math.Min(health.Max, health.Current + health.HpRegen * _fDelta);
-	}
-
-	private void ManaRegenQueryAction(Entity entity, ref Mana mana, ref ManaRegen regen)
-	{
-		if (regen.PerSecond <= 0f || mana.Current >= mana.Max)
-		{
-			return;
-		}
-
-		mana.Current = Math.Min(mana.Max, mana.Current + regen.PerSecond * _fDelta);
-	}
-
-	private void SpellCooldownQueryAction(Entity entity, ref SpellCooldowns spellCooldowns)
-	{
-		if (GameContext.Host != null && GameContext.CheatService.UnlimitedPowerEnabled)
-		{
-			spellCooldowns.Clear();
-			return;
-		}
-
-		spellCooldowns.Advance(_fDelta);
-	}
-
-	private void ProdQueryAction(Entity entity, ref ProductionQueue prod)
-	{
-		if (prod.Count == 0) return;
-
-		float multiplier = (GameContext.Host != null && GameContext.SimulationService.FastBuildEnabled) ? 10f : 1f;
-		prod.CurrentProgress += _fDelta * multiplier;
-		if (prod.CurrentProgress < prod.BuildTime) return;
-
-		string? unitToSpawn = prod.RemoveAt(0);
-		prod.CurrentProgress = 0f;
-
-		string? nextUnitId = prod.Get(0);
-		if (nextUnitId != null)
-		{
-			prod.BuildTime = GetProductionBuildTime != null ? GetProductionBuildTime(nextUnitId) : 5f;
-		}
-
-		if (unitToSpawn == null) return;
-		SpawnProductionUnit(entity, unitToSpawn);
-		_tickNeedsUiRefresh = true;
-	}
-
-	private void SpawnProductionUnit(Entity entity, string unitToSpawn)
-	{
-		if (!GameContext.World.Has<Position>(entity)) return;
-
-		var buildingPos = GameContext.World.Get<Position>(entity).Value;
-		Vector3 spawnOffset = GameContext.World.Has<BuildingSpawnOffset>(entity)
-			? GameContext.World.Get<BuildingSpawnOffset>(entity).Value
-			: new Vector3(0f, 0f, 8f);
-		var spawnPos = buildingPos + spawnOffset;
-
-		int buildingPlayerIndex = GameContext.World.Has<UnitOwnerPlayer>(entity) ? GameContext.World.Get<UnitOwnerPlayer>(entity).PlayerIndex : 0;
-
-		_tickSpawningRequests.Add(new SpawningRequest
-		{
-			UnitId = unitToSpawn,
-			Position = spawnPos,
-			BuildingEntity = entity,
-			IsFromQueue = true
-		});
-
-		OnProductionCompleted?.Invoke(buildingPlayerIndex, unitToSpawn);
-	}
 
 	private const float StationaryVelocitySquared = 0.01f;
 
@@ -1855,173 +1292,6 @@ public class SimulationService
 				}
 			}
 		}
-	}
-
-	private void OnAutoCastFriendlyCandidateFound(in MovementAndPathfindingService.SpatialGridEntry entry)
-	{
-		Entity fEnt = entry.Entity;
-		if (!GameContext.World.IsAlive(fEnt) || GameContext.World.Has<Dead>(fEnt) || !GameContext.World.Has<Health>(fEnt) || !GameContext.World.Has<Owner>(fEnt)) return;
-
-		Owner fOwner = GameContext.World.Get<Owner>(fEnt);
-		if (fOwner.PlayerEntity == _autoCastCasterOwnerEntity)
-		{
-			Health fHp = GameContext.World.Get<Health>(fEnt);
-			if (fHp.Current < fHp.Max)
-			{
-				float dist = Vector3.Distance(_autoCastCasterPos, entry.Position);
-				if (dist <= _autoCastRange && fHp.Current < _autoCastBestFriendlyHp)
-				{
-					_autoCastBestFriendlyHp = fHp.Current;
-					_autoCastBestFriendlyEntity = fEnt;
-					_autoCastBestFriendlyPos = entry.Position;
-				}
-			}
-		}
-	}
-
-	private void OnAutoCastEnemyCandidateFound(in MovementAndPathfindingService.SpatialGridEntry entry)
-	{
-		Entity eEnt = entry.Entity;
-		if (!GameContext.World.IsAlive(eEnt) || GameContext.World.Has<Dead>(eEnt) || !GameContext.World.Has<Owner>(eEnt)) return;
-
-		Owner eOwner = GameContext.World.Get<Owner>(eEnt);
-		if (eOwner.PlayerEntity != _autoCastCasterOwnerEntityEnemyCheck)
-		{
-			int targetPlayerIndex = GameContext.World.Has<UnitOwnerPlayer>(eEnt) ? GameContext.World.Get<UnitOwnerPlayer>(eEnt).PlayerIndex : 0;
-			if (NetworkService.ArePlayerIndicesEnemies(_autoCastCasterPlayerIndex, targetPlayerIndex))
-			{
-				float dist = Vector3.Distance(_autoCastCasterPos, entry.Position);
-				if (dist <= _autoCastClosestDist)
-				{
-					_autoCastClosestDist = dist;
-					_autoCastBestEnemyEntity = eEnt;
-					_autoCastBestEnemyPos = entry.Position;
-				}
-			}
-		}
-	}
-
-	private void AutoCastQueryAction(Entity entity, ref AutoCastState autoCast, ref Position pos, ref DefinitionId defId, ref Owner owner)
-	{
-		if (!autoCast.Enabled || autoCast.ActiveAbilityBitmask == 0) return;
-
-		// Auto-cast checks are staggered per entity across ticks, so idle units do not all scan at once.
-		if ((entity.Id + _tickCount) % 4 != 0) return;
-
-		if (GameContext.World.Has<BuffState>(entity))
-		{
-			ref var buffState = ref GameContext.World.Get<BuffState>(entity);
-			if (buffState.TryGetValue("silence", out _) || buffState.TryGetValue("stun", out _)) return;
-		}
-
-		if (GameContext.World.Has<Buffs>(entity))
-		{
-			ref var buffs = ref GameContext.World.Get<Buffs>(entity);
-			if (buffs.TryGetValue("silence", out _) || buffs.TryGetValue("stun", out _)) return;
-		}
-
-		string unitTypeId = defId.Value;
-		var abilities = GameContext.RegistryService.GetUnitTypeAbilities(unitTypeId);
-		if (abilities.Count == 0) return;
-
-		var unitWrapper = GetUnitWrapper(entity);
-		var casterOwnerEntity = owner.PlayerEntity;
-
-		for (int i = 0; i < abilities.Count && i < 32; i++)
-		{
-			if ((autoCast.ActiveAbilityBitmask & (1u << i)) == 0) continue;
-
-			string abilityId = abilities[i];
-
-			// An ability the unit has hidden or disabled is not castable: the player-facing slot is the source of truth for
-			// what this unit may use, and auto-cast has to agree with it.
-			if (GameContext.RegistryService.IsAbilityHiddenForUnit(unitWrapper, abilityId)) continue;
-			if (GameContext.RegistryService.IsAbilityDisabledForUnit(unitWrapper, abilityId)) continue;
-
-			if (GetAbilityCooldown(unitWrapper, abilityId) > 0f) continue;
-
-			float manaCost = GameContext.RegistryService.GetAbilityManaCostForUnit(unitWrapper, abilityId);
-
-			var def = GameContext.RegistryService.GetAbilityDefinition(abilityId);
-			if (def == null || !def.AutoCastEnabled) continue;
-
-			if (GameContext.World.Has<Mana>(entity))
-			{
-				ref var mana = ref GameContext.World.Get<Mana>(entity);
-				if (mana.Current < manaCost + def.AutoCastManaReserve) continue;
-				if (def.AutoCastMinManaPercent > 0f && mana.Max > 0f && mana.Current < mana.Max * def.AutoCastMinManaPercent) continue;
-			}
-
-			Vector3 casterPos = pos.Value;
-			float range = def.TargetRange > 0f ? def.TargetRange : (def.AreaOfEffectRadius > 0f ? def.AreaOfEffectRadius : 12f);
-
-			Vector3 targetPos = Vector3.Zero;
-			bool targetFound = false;
-
-			if (def.Healing > 0f)
-			{
-				_autoCastCasterOwnerEntity = casterOwnerEntity;
-				_autoCastBestFriendlyEntity = Entity.Null;
-				_autoCastBestFriendlyHp = float.MaxValue;
-				_autoCastBestFriendlyPos = Vector3.Zero;
-				_autoCastRange = range;
-				_autoCastCasterPos = casterPos;
-
-				_movementService.QueryUnitsInRadius(casterPos, range, _autoCastFriendlyCallback);
-
-				if (_autoCastBestFriendlyEntity != Entity.Null && IsAllyWorthHealing(_autoCastBestFriendlyEntity, def.AutoCastAllyHealthPercentBelow))
-				{
-					targetPos = _autoCastBestFriendlyPos;
-					targetFound = true;
-				}
-			}
-			else if (def.Damage > 0f || (def.AutoCastRequiresEnemy && !def.IsInstant))
-			{
-				int casterPlayerIndex = GameContext.World.Has<UnitOwnerPlayer>(entity) ? GameContext.World.Get<UnitOwnerPlayer>(entity).PlayerIndex : 0;
-
-				_autoCastCasterOwnerEntityEnemyCheck = casterOwnerEntity;
-				_autoCastCasterPlayerIndex = casterPlayerIndex;
-				_autoCastBestEnemyEntity = Entity.Null;
-				_autoCastClosestDist = range;
-				_autoCastBestEnemyPos = Vector3.Zero;
-				_autoCastCasterPos = casterPos;
-
-				_movementService.QueryUnitsInRadius(casterPos, range, _autoCastEnemyCallback);
-
-				if (_autoCastBestEnemyEntity != Entity.Null)
-				{
-					targetPos = _autoCastBestEnemyPos;
-					targetFound = true;
-				}
-			}
-			else
-			{
-				targetPos = casterPos;
-				targetFound = true;
-			}
-
-			if (targetFound)
-			{
-				if (GameContext.World.Has<Mana>(entity) && manaCost > 0f)
-				{
-					ref var mana = ref GameContext.World.Get<Mana>(entity);
-					mana.Current = Math.Max(0f, mana.Current - manaCost);
-				}
-
-				SetAbilityCooldown(unitWrapper, abilityId, def.Cooldown > 0f ? def.Cooldown : 5f);
-				CastAbility(unitWrapper, abilityId, targetPos, def, null, (d, p) => GameContext.FXService?.SpawnAbilityEffect(GameContext.Host, d, p));
-				break;
-			}
-		}
-	}
-
-	private bool IsAllyWorthHealing(Entity ally, float healthPercentBelow)
-	{
-		if (healthPercentBelow >= 1f) return true;
-		if (!GameContext.World.Has<Health>(ally)) return true;
-
-		var health = GameContext.World.Get<Health>(ally);
-		return health.Max <= 0f || health.Current / health.Max <= healthPercentBelow;
 	}
 
 	public void SetPlayerComputerControlled(int playerIndex, bool isProxy)
