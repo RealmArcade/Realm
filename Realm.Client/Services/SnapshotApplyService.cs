@@ -313,22 +313,26 @@ public class SnapshotApplyService
 
 	private const int AcknowledgementIntervalSequences = 2;
 
-	public void Acknowledge(int sequence, bool fullyApplied)
+	/// <summary>
+	///     States that a description arrived, and how far this screen has got. A description counts as present once it has
+	///     been applied, whatever its components: a unit this screen has not built yet is content it is still owed, and
+	///     reporting the description as absent answered a spawn backlog by asking the match for the world again.
+	/// </summary>
+	public void Acknowledge(int sequence)
 	{
 		if (GameContext.Host == null) return;
 
-		if (fullyApplied && MultiplayerSyncDiagnostics.ConsumeSnapshotDiscardRequest())
-		{
-			fullyApplied = false;
-			MultiplayerSyncDiagnostics.RecordDiscardedSnapshotSequence(sequence);
-		}
+		// The one absence this screen reports on purpose: a recording harness discarding a description it did apply, so
+		// the repair path is exercised through a hole that is known rather than one that is hoped for.
+		bool reportMissing = MultiplayerSyncDiagnostics.ConsumeSnapshotDiscardRequest();
+		if (reportMissing) MultiplayerSyncDiagnostics.RecordDiscardedSnapshotSequence(sequence);
 
-		if (fullyApplied) _appliedSnapshots.MarkApplied(sequence);
-		else _appliedSnapshots.Advance(sequence);
+		if (reportMissing) _appliedSnapshots.Advance(sequence);
+		else _appliedSnapshots.MarkApplied(sequence);
 		if (_appliedSnapshots.Highest < 0) return;
 
 		int highest = _appliedSnapshots.Highest;
-		if (fullyApplied && highest - _lastAcknowledgedSequence < AcknowledgementIntervalSequences) return;
+		if (!reportMissing && highest - _lastAcknowledgedSequence < AcknowledgementIntervalSequences) return;
 
 		_lastAcknowledgedSequence = highest;
 		GameContext.Host.SendSnapshotAck(highest, _appliedSnapshots.BuildMask());

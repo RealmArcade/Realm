@@ -318,7 +318,7 @@ public class NetworkService
 			ApplySnapshotToUnit(snap, snapshot.Sequence, mapping);
 		}
 
-		bool componentsFullyApplied = ApplyReplicatedComponentState(snapshot);
+		ApplyReplicatedComponentState(snapshot);
 		ApplyPendingUnitComponentDeltas(snapshot.Sequence);
 
 		if (snapshot.IsBaseline) LastAppliedBaselineSequenceForDiagnostics = snapshot.Sequence;
@@ -326,7 +326,7 @@ public class NetworkService
 		{
 			MultiplayerSyncDiagnostics.RecordClientSnapshot(snapshot.IsBaseline);
 		}
-		GameContext.SnapshotApply.Acknowledge(snapshot.Sequence, componentsFullyApplied);
+		GameContext.SnapshotApply.Acknowledge(snapshot.Sequence);
 	}
 
 	private void RetireUndescribedUnits(WorldSnapshot snapshot, NetworkMappingState mapping)
@@ -630,6 +630,8 @@ public class NetworkService
 
 	public bool HasPendingUnitSpawns => _pendingUnitSpawns.Count > 0;
 
+	public bool IsWaitingForUnitSpawn(int serverEntityId) => _pendingUnitSpawns.ContainsKey(serverEntityId);
+
 	public bool TryTakePendingUnitSpawn(out UnitSnapshot snapshot)
 	{
 		snapshot = default;
@@ -793,14 +795,18 @@ public class NetworkService
 
 
 
-	private bool ApplyReplicatedComponentState(WorldSnapshot snapshot)
+	/// <summary>
+	///     Applies the component state a description carries. A component delta for a unit this screen has not built yet is
+	///     queued by <see cref="ApplyComponentDelta" /> and retried by <see cref="ApplyPendingUnitComponentDeltas" />, which
+	///     is why this reports nothing: a component still owed is content, not a description that never arrived.
+	/// </summary>
+	private void ApplyReplicatedComponentState(WorldSnapshot snapshot)
 	{
-		bool allApplied = true;
 		if (snapshot.ComponentDeltas != null)
 		{
 			for (int i = 0; i < snapshot.ComponentDeltas.Count; i++)
 			{
-				if (!ApplyComponentDelta(snapshot.ComponentDeltas[i], snapshot.Sequence)) allApplied = false;
+				ApplyComponentDelta(snapshot.ComponentDeltas[i], snapshot.Sequence);
 			}
 		}
 
@@ -839,8 +845,6 @@ public class NetworkService
 		{
 			VerifyReplicatedStateFingerprint(snapshot.Sequence, snapshot.StateFingerprint);
 		}
-
-		return allApplied;
 	}
 
 	private void ApplyPendingUnitComponentDeltas(int sequence)
@@ -862,6 +866,12 @@ public class NetworkService
 				ApplyComponentDelta(pending.Delta, sequence);
 				continue;
 			}
+
+			// A unit this screen is still waiting to build is not one it has given up on: its description is held and will be
+			// built, so the grace below is for an identifier that resolved to nothing rather than for a spawn backlog. Those
+			// two were indistinguishable, and a full backlog spent the grace on every unit behind it and answered a slow
+			// first description with requests for the whole world.
+			if (IsWaitingForUnitSpawn(key.Key)) continue;
 
 			if (sequence - pending.FirstSeenSequence < UnplacedUnitDeltaGraceSequences) continue;
 
@@ -906,28 +916,28 @@ public class NetworkService
 		_appliedColdPayloadCount++;
 	}
 
-	private bool ApplyComponentDelta(ComponentDelta delta, int snapshotSequence)
+	private void ApplyComponentDelta(ComponentDelta delta, int snapshotSequence)
 	{
 		var codec = ReplicatedComponents.Find(delta.ComponentTypeId);
 		if (codec == null)
 		{
 			GD.PushWarning($"[Network] Received delta for unregistered component type {delta.ComponentTypeId}");
-			return false;
+			return;
 		}
 
 		if (delta.Bytes == null || (delta.Bytes.Length != 0 && delta.Bytes.Length != codec.SizeInBytes))
 		{
 			GD.PushWarning($"[Network] Discarded {codec.ComponentName} delta with {(delta.Bytes?.Length ?? 0)} bytes, expected {codec.SizeInBytes}");
-			return false;
+			return;
 		}
 
 		Entity targetEntity = Entity.Null;
 		if ((ReplicatedScope)delta.Scope == ReplicatedScope.Player)
 		{
 			Entity worldEntity = FindWorldEntity();
-			if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkMappingState>(worldEntity)) return false;
+			if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkMappingState>(worldEntity)) return;
 			var mapping = GameContext.World.Get<NetworkMappingState>(worldEntity);
-			if (mapping.PlayerEntities == null || delta.Key < 0 || delta.Key >= mapping.PlayerEntities.Length) return false;
+			if (mapping.PlayerEntities == null || delta.Key < 0 || delta.Key >= mapping.PlayerEntities.Length) return;
 			targetEntity = mapping.PlayerEntities[delta.Key];
 		}
 		else if ((ReplicatedScope)delta.Scope == ReplicatedScope.Unit)
@@ -945,10 +955,10 @@ public class NetworkService
 						};
 					}
 
-					return false;
+					return;
 				}
 				Entity worldEntity = FindWorldEntity();
-				if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkMappingState>(worldEntity)) return false;
+				if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkMappingState>(worldEntity)) return;
 				targetEntity = CreateReplicatedLootEntity(delta.Key, GameContext.World.Get<NetworkMappingState>(worldEntity));
 			}
 		}
@@ -957,7 +967,7 @@ public class NetworkService
 			targetEntity = GameContext.Simulation.WorldEntity;
 		}
 
-		if (targetEntity == Entity.Null || !GameContext.World.IsAlive(targetEntity)) return false;
+		if (targetEntity == Entity.Null || !GameContext.World.IsAlive(targetEntity)) return;
 		if (delta.Bytes.Length == 0)
 		{
 			codec.Remove(GameContext.World, targetEntity);
@@ -992,7 +1002,6 @@ public class NetworkService
 			GameContext.RegistryService?.ClearAbilityStateForUnit(new UnitId(targetEntity.Id));
 			_mirror.RemoveAbilitiesForEntity(delta.Key);
 		}
-		return true;
 	}
 
 	private void RecordReplicatedReference(ComponentDelta delta, Entity referrer, IReplicatedComponentCodec codec)
