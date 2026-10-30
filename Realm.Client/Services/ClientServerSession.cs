@@ -79,6 +79,7 @@ public class ClientServerSession : IDisposable
 
 	private string _mapHash = string.Empty;
 	private bool _helloSent;
+	private bool _started;
 
 	private string _challenge = string.Empty;
 	private bool _joined;
@@ -239,6 +240,7 @@ public class ClientServerSession : IDisposable
 		}
 
 		_launcher = launcher;
+		_started = true;
 		_language = start.Language;
 		_mapHash = launcher.MapHash;
 		_address = "127.0.0.1";
@@ -261,6 +263,7 @@ public class ClientServerSession : IDisposable
 
 		_language = language;
 		_joined = true;
+		_started = true;
 		_joinedPort = port;
 		_address = address;
 		_port = port;
@@ -315,6 +318,7 @@ public class ClientServerSession : IDisposable
 		}
 
 		_launcher = launcher;
+		_started = true;
 		_language = start.Language;
 		_mapHash = launcher.MapHash;
 		_address = "127.0.0.1";
@@ -333,6 +337,7 @@ public class ClientServerSession : IDisposable
 
 		_language = language;
 		_joined = true;
+		_started = true;
 		_joinedPort = port;
 		_address = address;
 		_port = port;
@@ -458,7 +463,7 @@ public class ClientServerSession : IDisposable
 	{
 		if (!IsRunning)
 		{
-			ReportLost(DescribeStop());
+			if (_started) ReportLost(DescribeStop());
 			return false;
 		}
 
@@ -819,10 +824,11 @@ public class ClientServerSession : IDisposable
 
 	public void Dispose()
 	{
+		Stop();
+
 		if (_disposed) return;
 		_disposed = true;
 
-		Stop();
 		_snapshotDecompressor.Dispose();
 	}
 }

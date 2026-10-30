@@ -687,7 +687,7 @@ public partial class LobbyManager : BaseMapTransferNode
 		{
 			LastHostError = lobbyStarted.Failure;
 			GD.PushError($"[LobbyManager] {lobbyStarted.Failure}");
-			TeardownHostedLobby();
+			TeardownHostedLobby(session);
 			return false;
 		}
 
@@ -696,7 +696,7 @@ public partial class LobbyManager : BaseMapTransferNode
 		{
 			LastHostError = admissionFailure;
 			GD.PushError($"[LobbyManager] {admissionFailure}");
-			TeardownHostedLobby();
+			TeardownHostedLobby(session);
 			return false;
 		}
 
@@ -704,7 +704,7 @@ public partial class LobbyManager : BaseMapTransferNode
 		{
 			LastHostError = "The lobby's authority did not grant this client the capability that administers it.";
 			GD.PushError($"[LobbyManager] {LastHostError}");
-			TeardownHostedLobby();
+			TeardownHostedLobby(session);
 			return false;
 		}
 
@@ -725,7 +725,7 @@ public partial class LobbyManager : BaseMapTransferNode
 		bool registered = await RegisterLobbyWithRegistryAsync(mapPathName, mapDisplayName, explicitVersion);
 		if (!registered)
 		{
-			TeardownHostedLobby();
+			TeardownHostedLobby(session);
 			return false;
 		}
 
@@ -1358,9 +1358,9 @@ public partial class LobbyManager : BaseMapTransferNode
 
 	private bool _matchStarted;
 
-	private void TeardownHostedLobby()
+	private void TeardownHostedLobby(ClientServerSession? launchedSession = null)
 	{
-		ClientServerSession? session = _lobbySession;
+		ClientServerSession? session = _lobbySession ?? launchedSession;
 		int hostedPort = session?.Port ?? ENetPort;
 		_lobbySession = null;
 		if (session != null)
