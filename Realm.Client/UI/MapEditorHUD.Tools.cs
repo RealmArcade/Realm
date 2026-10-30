@@ -126,7 +126,7 @@ namespace Realm.Client.UI
 				InitSidePanels();
 
 				_btnBackToHub = GetNode<Button>("TopLeftBox/BtnBack");
-				SetupButton(_btnBackToHub, $"{UnicodeIcons.SIGN_OUT} BACK TO HUB", () => BackToHubAction(), 13, "Exit editor and return to game lobby");
+				SetupButton(_btnBackToHub, $"{UnicodeIcons.SIGN_OUT} " + TranslationServer.Translate("BACK TO HUB"), () => BackToHubAction(), 13, "Exit editor and return to game lobby");
 				StyleMapEditorTopButton(_btnBackToHub);
 				_mapNameHeaderPanel = new PanelContainer();
 				_mapNameHeaderPanel.Name = "MapNameHeaderPanel";
@@ -170,7 +170,7 @@ namespace Realm.Client.UI
 				UpdateMapNameHeader();
 
 				var btnHelp = GetNode<Button>("TopLeftBox/BtnHelp");
-				SetupButton(btnHelp, $"{UnicodeIcons.HELP} HELP", () => ToggleHelpPanelExternal(), 13, "Toggle the hotkeys and editor guide overlay (H)");
+				SetupButton(btnHelp, $"{UnicodeIcons.HELP} " + TranslationServer.Translate("HELP"), () => ToggleHelpPanelExternal(), 13, "Toggle the hotkeys and editor guide overlay (H)");
 				StyleMapEditorTopButton(btnHelp);
 
 				_popupEditors = new PopupPanel();
@@ -198,7 +198,7 @@ namespace Realm.Client.UI
 
 				_btnVSCode = new Button();
 				_btnVSCode.Name = "BtnVSCode";
-				SetupOptionButton(_btnVSCode, $"{UnicodeIcons.CODE} CODE & DATA", () => ToggleVSCodeEditor(), 13, "Toggle the embedded VSCode editor (Right-click or Middle-click: DevTools)");
+				SetupOptionButton(_btnVSCode, $"{UnicodeIcons.CODE} " + TranslationServer.Translate("CODE & DATA"), () => ToggleVSCodeEditor(), 13, "Toggle the embedded VSCode editor (Right-click or Middle-click: DevTools)");
 				_btnVSCode.Pressed += () => _popupEditors.Hide();
 
 				if (OperatingSystem.IsWindows())
@@ -225,19 +225,19 @@ namespace Realm.Client.UI
 
 				BtnAssetsManager = new Button();
 				BtnAssetsManager.Name = "BtnAssetsManager";
-				SetupOptionButton(BtnAssetsManager, $"{UnicodeIcons.CUBE} ASSETS", () => _assetManagerDialog?.OpenDialog(), 13, "Open Map Assets Manager & Importer");
+				SetupOptionButton(BtnAssetsManager, $"{UnicodeIcons.CUBE} " + TranslationServer.Translate("ASSETS"), () => _assetManagerDialog?.OpenDialog(), 13, "Open Map Assets Manager & Importer");
 				BtnAssetsManager.Pressed += () => _popupEditors.Hide();
 				editorsVBox.AddChild(BtnAssetsManager);
 
 				BtnTemplateManager = new Button();
 				BtnTemplateManager.Name = "BtnTemplateManager";
-				SetupOptionButton(BtnTemplateManager, $"{UnicodeIcons.CUBES} TEMPLATES", () => OpenTemplateManagerDialog(), 13, "Open dialog to manage object template types and visual properties");
+				SetupOptionButton(BtnTemplateManager, $"{UnicodeIcons.CUBES} " + TranslationServer.Translate("TEMPLATES"), () => OpenTemplateManagerDialog(), 13, "Open dialog to manage object template types and visual properties");
 				BtnTemplateManager.Pressed += () => _popupEditors.Hide();
 				editorsVBox.AddChild(BtnTemplateManager);
 
 				BtnInstanceManager = new Button();
 				BtnInstanceManager.Name = "BtnInstanceManager";
-				SetupOptionButton(BtnInstanceManager, $"{UnicodeIcons.LIST} INSTANCES", () => OpenInstanceManagerDialog(), 13, "Open dialog to list and locate all placed instances");
+				SetupOptionButton(BtnInstanceManager, $"{UnicodeIcons.LIST} " + TranslationServer.Translate("INSTANCES"), () => OpenInstanceManagerDialog(), 13, "Open dialog to list and locate all placed instances");
 				BtnInstanceManager.Pressed += () => _popupEditors.Hide();
 				editorsVBox.AddChild(BtnInstanceManager);
 
@@ -249,7 +249,7 @@ namespace Realm.Client.UI
 
 				BtnUtilities = new Button();
 				BtnUtilities.Name = "BtnUtilities";
-				SetupOptionButton(BtnUtilities, $"{UnicodeIcons.WRENCH} UTILITIES", () => OpenUtilitiesDialog(), 13, "Open batch utilities and maintenance tools");
+				SetupOptionButton(BtnUtilities, $"{UnicodeIcons.WRENCH} " + TranslationServer.Translate("UTILITIES"), () => OpenUtilitiesDialog(), 13, "Open batch utilities and maintenance tools");
 				BtnUtilities.Pressed += () => _popupEditors.Hide();
 				editorsVBox.AddChild(BtnUtilities);
 
@@ -260,7 +260,7 @@ namespace Realm.Client.UI
 					_btnEditors.Name = "BtnEditors";
 				}
 
-				SetupButton(_btnEditors, $"WINDOWS {UnicodeIcons.CHEVRON_DOWN}", () =>
+				SetupButton(_btnEditors, TranslationServer.Translate("WINDOWS") + $" {UnicodeIcons.CHEVRON_DOWN}", () =>
 				{
 					var popupPosition = _btnEditors.GetScreenPosition() + new Vector2(0, _btnEditors.Size.Y);
 					_popupEditors.Popup(new Rect2I((Vector2I)popupPosition, Vector2I.Zero));
@@ -268,15 +268,15 @@ namespace Realm.Client.UI
 				StyleMapEditorTopButton(_btnEditors);
 
 				_btnUndo = GetNode<Button>("TopLeftBox/BtnUndo");
-				SetupButton(_btnUndo, $"{UnicodeIcons.UNDO} UNDO", () => UndoAction(), 13, "Undo the last action (Ctrl+Z)");
+				SetupButton(_btnUndo, $"{UnicodeIcons.UNDO} " + TranslationServer.Translate("UNDO"), () => UndoAction(), 13, "Undo the last action (Ctrl+Z)");
 				StyleMapEditorTopButton(_btnUndo);
 
 				_btnRedo = GetNode<Button>("TopLeftBox/BtnRedo");
-				SetupButton(_btnRedo, $"{UnicodeIcons.REDO} REDO", () => RedoAction(), 13, "Redo the last undone action (Ctrl+Y)");
+				SetupButton(_btnRedo, $"{UnicodeIcons.REDO} " + TranslationServer.Translate("REDO"), () => RedoAction(), 13, "Redo the last undone action (Ctrl+Y)");
 				StyleMapEditorTopButton(_btnRedo);
 
 				_btnEyedropper = GetNode<Button>("TopLeftBox/BtnEyedropper");
-				SetupButton(_btnEyedropper, $"{UnicodeIcons.EYEDROPPER} EYEDROPPER", () => TriggerToolSelection(EditorTool.Eyedropper, _btnEyedropper), 13, "Pick / sample entities, terrain height (Shift+Click), or vertex color under cursor (I)");
+				SetupButton(_btnEyedropper, $"{UnicodeIcons.EYEDROPPER} " + TranslationServer.Translate("EYEDROPPER"), () => TriggerToolSelection(EditorTool.Eyedropper, _btnEyedropper), 13, "Pick / sample entities, terrain height (Shift+Click), or vertex color under cursor (I)");
 				StyleMapEditorTopButton(_btnEyedropper);
 
 				_optModule = GetNode<OptionButton>("TopLeftBox/OptModule");
@@ -308,7 +308,7 @@ namespace Realm.Client.UI
 					}
 				}
 
-				SetupButton(_btnTestMap, $"{UnicodeIcons.GAMEPAD} TEST", () => TestMapAction(), 13, "Launch single-player mode on the current editor map");
+				SetupButton(_btnTestMap, $"{UnicodeIcons.GAMEPAD} " + TranslationServer.Translate("TEST"), () => TestMapAction(), 13, "Launch single-player mode on the current editor map");
 				StyleMapEditorTopButton(_btnTestMap);
 
 				_optTestSettings = new OptionButton();
@@ -356,7 +356,7 @@ namespace Realm.Client.UI
 
 					_btnResetLayout = new Button();
 					_btnResetLayout.Name = "BtnResetLayout";
-					SetupButton(_btnResetLayout, $"{UnicodeIcons.PIN} RESET LAYOUT", () => ResetAllPanelPositions(), 12, "Reset all floating panels back to default sidebar positions");
+					SetupButton(_btnResetLayout, $"{UnicodeIcons.PIN} " + TranslationServer.Translate("RESET LAYOUT"), () => ResetAllPanelPositions(), 12, "Reset all floating panels back to default sidebar positions");
 					StyleMapEditorTopButton(_btnResetLayout);
 					_topLeftBox.AddChild(_btnResetLayout);
 					if (_btnGameSettings != null)
@@ -393,7 +393,7 @@ namespace Realm.Client.UI
 				SetupAccordion(_btnHeaderFile, _contentFile, TranslationServer.Translate("File"));
 
 				_btnLoad = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BoxFileOps/RowFileSaveLoad/RowLoadGroup/BtnLoad");
-				SetupOptionButton(_btnLoad, $"{UnicodeIcons.FOLDER_OPEN} LOAD", () => LoadMapAction(), 11, "Load heights, colors, and entities from a saved json file (Ctrl+O)");
+				SetupOptionButton(_btnLoad, $"{UnicodeIcons.FOLDER_OPEN} " + TranslationServer.Translate("LOAD"), () => LoadMapAction(), 11, "Load heights, colors, and entities from a saved json file (Ctrl+O)");
 
 				_popupLoadMore = GetNode<PopupPanel>("PopupLoadMore");
 				var loadMorePopupStyle = new StyleBoxFlat();
@@ -418,19 +418,19 @@ namespace Realm.Client.UI
 				}, 10, "More load options (Import map package)");
 
 				_btnSave = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BoxFileOps/RowFileSaveLoad/RowSaveGroup/BtnSave");
-				SetupOptionButton(_btnSave, $"{UnicodeIcons.SAVE} SAVE", () => SaveMapActionExternal(), 11, "Save current heightmap, textures, and entities (Ctrl+S)");
+				SetupOptionButton(_btnSave, $"{UnicodeIcons.SAVE} " + TranslationServer.Translate("SAVE"), () => SaveMapActionExternal(), 11, "Save current heightmap, textures, and entities (Ctrl+S)");
 
 				_btnSaveAs = GetNode<Button>("PopupSaveMore/SaveMoreVBox_VBoxContainer/BtnSaveAs");
 				_btnSaveAs.Set("icon_max_width", 0);
-				SetupOptionButton(_btnSaveAs, $"{UnicodeIcons.SAVE} SAVE AS", () => SaveAsMapAction(), 13, "Save map to a new folder location");
+				SetupOptionButton(_btnSaveAs, $"{UnicodeIcons.SAVE} " + TranslationServer.Translate("SAVE AS"), () => SaveAsMapAction(), 13, "Save map to a new folder location");
 
 				_btnPublish = GetNode<Button>("PopupSaveMore/SaveMoreVBox_VBoxContainer/BtnPublish");
-				SetupOptionButton(_btnPublish, $"{UnicodeIcons.UPLOAD} PUBLISH", () => PublishMapActionExternal(), 13, "Publish/export map to custom map registry");
+				SetupOptionButton(_btnPublish, $"{UnicodeIcons.UPLOAD} " + TranslationServer.Translate("PUBLISH"), () => PublishMapActionExternal(), 13, "Publish/export map to custom map registry");
 
 				_btnExportMap = GetNode<Button>("PopupSaveMore/SaveMoreVBox_VBoxContainer/BtnExportMap");
 				_btnExportMap.Set("icon_max_width", 0);
 
-				SetupOptionButton(_btnExportMap, $"{UnicodeIcons.FILE_EXPORT} EXPORT (.RMAP)", () => ExportMapAction(), 13, "Export prepared map package (.rmap) with compiled WASM for hosting and CAS storage");
+				SetupOptionButton(_btnExportMap, $"{UnicodeIcons.FILE_EXPORT} " + TranslationServer.Translate("EXPORT (.RMAP)"), () => ExportMapAction(), 13, "Export prepared map package (.rmap) with compiled WASM for hosting and CAS storage");
 
 				_popupSaveMore = GetNode<PopupPanel>("PopupSaveMore");
 				var saveMorePopupStyle = new StyleBoxFlat();
@@ -453,7 +453,7 @@ namespace Realm.Client.UI
 				}, 10, "More save & export options (Save As, Export, Publish)");
 
 				_btnResetMap = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BoxGenOps/FileGrid2_GridContainer/BtnResetMap");
-				SetupOptionButton(_btnResetMap, $"{UnicodeIcons.TRASH} RESET MAP", () =>
+				SetupOptionButton(_btnResetMap, $"{UnicodeIcons.TRASH} " + TranslationServer.Translate("RESET MAP"), () =>
 				{
 					ShowConfirmationDialog(
 						"Are you sure you want to clear the entire map? This will delete all placed entities and reset terrain heights.",

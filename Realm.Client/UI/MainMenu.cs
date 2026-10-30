@@ -359,7 +359,7 @@ public partial class MainMenu : Control
 
 		var lbl = new Label();
 		lbl.Name = "Lbl_Label";
-		lbl.Text = "Version: ";
+		lbl.Text = TranslationServer.Translate("Version: ");
 		lbl.AddThemeColorOverride("font_color", Color.FromHtml("#D1C4AE"));
 		lbl.AddThemeFontOverride("font", _norseFont);
 		lbl.AddThemeFontSizeOverride("font_size", 16);
@@ -377,7 +377,7 @@ public partial class MainMenu : Control
 
 		_outdatedLabel = new Label();
 		_outdatedLabel.Name = "OutdatedLabel_Label";
-		_outdatedLabel.Text = "Outdated";
+		_outdatedLabel.Text = TranslationServer.Translate("Outdated");
 		_outdatedLabel.AddThemeColorOverride("font_color", new Color(0.95f, 0.35f, 0.35f));
 		_outdatedLabel.AddThemeFontOverride("font", _norseFont);
 		_outdatedLabel.AddThemeFontSizeOverride("font_size", 14);
@@ -387,7 +387,7 @@ public partial class MainMenu : Control
 
 		var downloadBtn = new Button();
 		downloadBtn.Name = "DownloadBtn_Button";
-		downloadBtn.Text = "DOWNLOAD...";
+		downloadBtn.Text = TranslationServer.Translate("DOWNLOAD...");
 		downloadBtn.AddThemeFontOverride("font", _norseBoldFont);
 		downloadBtn.AddThemeFontSizeOverride("font_size", 12);
 		downloadBtn.AddThemeColorOverride("font_color", Color.FromHtml("#D1C4AE"));
@@ -968,13 +968,13 @@ public partial class MainMenu : Control
 
 		var profileDataRows = new (string Key, string Value, Color ValueColor)[]
 		{
-			("Username", "Horald_Topa", profileInfoColor),
-			("Faction", "Human Alliance", profileInfoColor),
-			("Matches Played", "142", profileInfoColor),
-			("Victories", "89", new Color(0.55f, 0.95f, 0.55f)),
-			("Defeats", "53", new Color(0.95f, 0.5f, 0.45f)),
-			("Win Rate", "62.7%", new Color(0.6f, 0.85f, 1.0f)),
-			("Rank", "Grand Marshal", profileInfoColor)
+			(LocalizationManager.Translate("Username"), "Horald_Topa", profileInfoColor),
+			(LocalizationManager.Translate("Faction"), LocalizationManager.Translate("Human Alliance"), profileInfoColor),
+			(LocalizationManager.Translate("Matches Played"), "142", profileInfoColor),
+			(LocalizationManager.Translate("Victories"), "89", new Color(0.55f, 0.95f, 0.55f)),
+			(LocalizationManager.Translate("Defeats"), "53", new Color(0.95f, 0.5f, 0.45f)),
+			(LocalizationManager.Translate("Win Rate"), "62.7%", new Color(0.6f, 0.85f, 1.0f)),
+			(LocalizationManager.Translate("Rank"), LocalizationManager.Translate("Grand Marshal"), profileInfoColor)
 		};
 
 		foreach (var row in profileDataRows)
@@ -987,7 +987,7 @@ public partial class MainMenu : Control
 
 			var keyLabel = new Label();
 			keyLabel.Name = "KeyLabel_Label";
-			keyLabel.Text = TranslationServer.Translate(row.Key) + ":";
+			keyLabel.Text = row.Key + ":";
 			keyLabel.HorizontalAlignment = HorizontalAlignment.Right;
 			keyLabel.AddThemeFontOverride("font", profileFont);
 			keyLabel.AddThemeColorOverride("font_color", profileInfoColor);
@@ -998,7 +998,7 @@ public partial class MainMenu : Control
 
 			var valueLabel = new Label();
 			valueLabel.Name = "ValueLabel_Label";
-			valueLabel.Text = TranslationServer.Translate(row.Value);
+			valueLabel.Text = row.Value;
 			valueLabel.HorizontalAlignment = HorizontalAlignment.Left;
 			valueLabel.AddThemeFontOverride("font", profileFont);
 			valueLabel.AddThemeColorOverride("font_color", row.ValueColor);
@@ -1132,7 +1132,7 @@ public partial class MainMenu : Control
 
 		var msg = new Label();
 		msg.Name = "Msg_Label";
-		msg.Text = "The Map Data Editor is currently installing in the background.\nPlease wait for it to complete.";
+		msg.Text = TranslationServer.Translate("The Map Data Editor is currently installing in the background.\nPlease wait for it to complete.");
 		msg.HorizontalAlignment = HorizontalAlignment.Center;
 		msg.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.95f));
 		msg.AddThemeFontSizeOverride("font_size", 14);

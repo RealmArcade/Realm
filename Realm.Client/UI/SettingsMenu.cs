@@ -426,25 +426,25 @@ public partial class SettingsMenu : Control
 	private void ApplyCheckboxStyles()
 	{
 		UIStyle.ApplyCheckboxStyle(_disableShadowsChk);
-		_disableShadowsChk.Text = TranslationServer.Translate(_disableShadowsChk.Text);
+		_disableShadowsChk.Text = LocalizationManager.Translate("Disable shadows");
 		UIStyle.ApplyCheckboxStyle(_disableDayNightLightingChk);
-		_disableDayNightLightingChk.Text = TranslationServer.Translate(_disableDayNightLightingChk.Text);
+		_disableDayNightLightingChk.Text = LocalizationManager.Translate("Disable day/night lighting");
 		UIStyle.ApplyCheckboxStyle(_disableWeatherEffectsChk);
 		_disableWeatherEffectsChk.Text = TranslationServer.Translate(_disableWeatherEffectsChk.Text);
 		UIStyle.ApplyCheckboxStyle(_floatingCombatTextChk);
-		_floatingCombatTextChk.Text = TranslationServer.Translate(_floatingCombatTextChk.Text);
+		_floatingCombatTextChk.Text = LocalizationManager.Translate("Floating Combat Text");
 		UIStyle.ApplyCheckboxStyle(_displayFpsChk);
-		_displayFpsChk.Text = TranslationServer.Translate(_displayFpsChk.Text);
+		_displayFpsChk.Text = LocalizationManager.Translate("Display FPS");
 		UIStyle.ApplyCheckboxStyle(_displayPingChk);
 		_displayPingChk.Text = TranslationServer.Translate(_displayPingChk.Text);
 		UIStyle.ApplyCheckboxStyle(_unitOutlineChk);
 		_unitOutlineChk.Text = TranslationServer.Translate(_unitOutlineChk.Text);
 		_unitOutlineChk.TooltipText = TranslationServer.Translate(_unitOutlineChk.TooltipText);
 		UIStyle.ApplyCheckboxStyle(_recordReplaysChk);
-		_recordReplaysChk.Text = TranslationServer.Translate(_recordReplaysChk.Text);
+		_recordReplaysChk.Text = LocalizationManager.Translate("Record replays");
 		UIStyle.ApplyCheckboxStyle(_seedMapFilesChk);
-		_seedMapFilesChk.Text = TranslationServer.Translate(_seedMapFilesChk.Text);
-		_seedMapFilesChk.TooltipText = TranslationServer.Translate(_seedMapFilesChk.TooltipText);
+		_seedMapFilesChk.Text = LocalizationManager.Translate("Seed map files to other players");
+		_seedMapFilesChk.TooltipText = LocalizationManager.Translate("Volunteers a tiny portion of your internet to help players download maps, reducing server costs. Uncheck this if you have a capped internet data plan or a very slow connection");
 
 		if (_dopplerChk != null)
 		{

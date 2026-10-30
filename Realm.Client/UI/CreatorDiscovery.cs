@@ -444,8 +444,9 @@ public partial class CreatorDiscovery : Control
 			var actionBtn = new Button();
 			actionBtn.Name = "ActionBtn_Button";
 			actionBtn.AddThemeConstantOverride("icon_max_width", 20);
-			actionBtn.CustomMinimumSize = new Vector2(110, 36);
+			actionBtn.CustomMinimumSize = new Vector2(170, 36);
 			actionBtn.SizeFlagsVertical = SizeFlags.ShrinkCenter;
+			actionBtn.SizeFlagsHorizontal = SizeFlags.ShrinkEnd;
 			UIStyle.ApplyButtonText(actionBtn, "VIEW PORTFOLIO", 12);
 			actionBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateFlatButtonStyle(false, false));
 			actionBtn.AddThemeStyleboxOverride("hover", UIStyle.CreateFlatButtonStyle(true, false));

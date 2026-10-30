@@ -27,16 +27,16 @@ public class MapEditorTopBar
 		_statusLabel = statusLabel;
 		_feedbackLabel = feedbackLabel;
 
-		_btnBackToHub.TooltipText = "Return to Main Menu / Hub";
-		_btnPublish.TooltipText = "Publish/export map to custom map registry";
-		_btnSave.TooltipText = "Save current heightmap, textures, and entities (Ctrl+S)";
-		_btnLoad.TooltipText = "Load heightmap, textures, and entities from a saved json file (Ctrl+O)";
-		_btnUndo.TooltipText = "Undo the last action (Ctrl+Z)";
-		_btnRedo.TooltipText = "Redo the last undone action (Ctrl+Y)";
+		_btnBackToHub.TooltipText = TranslationServer.Translate("Return to Main Menu / Hub");
+		_btnPublish.TooltipText = TranslationServer.Translate("Publish/export map to custom map registry");
+		_btnSave.TooltipText = TranslationServer.Translate("Save current heightmap, textures, and entities (Ctrl+S)");
+		_btnLoad.TooltipText = TranslationServer.Translate("Load heightmap, textures, and entities from a saved json file (Ctrl+O)");
+		_btnUndo.TooltipText = TranslationServer.Translate("Undo the last action (Ctrl+Z)");
+		_btnRedo.TooltipText = TranslationServer.Translate("Redo the last undone action (Ctrl+Y)");
 
 		if (_btnVSCode != null)
 		{
-			_btnVSCode.TooltipText = "Toggle Embedded VSCode JSON / Script editor";
+			_btnVSCode.TooltipText = TranslationServer.Translate("Toggle Embedded VSCode JSON / Script editor");
 		}
 	}
 

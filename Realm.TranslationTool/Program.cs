@@ -1,580 +1,376 @@
-﻿using System.Security.Cryptography;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace Realm.TranslationTool
 {
-	class Program
+	partial class Program
 	{
-		private static readonly string BaseModel = "gemma4:12b-it-q4_K_M";
+		private const int MaximumReportedEntries = 20;
 
-		private static readonly Dictionary<string, string> LanguageLocaleMap = new()
+		[GeneratedRegex(@"\{[^{}]*\}")]
+		private static partial Regex PlaceholderTokenRegex();
+
+		[GeneratedRegex(@"\[[^\[\]]*\]")]
+		private static partial Regex BracketTokenRegex();
+
+		private static readonly JsonSerializerOptions SerializerOptions = new()
 		{
-			{ "Español", "es" },
-			{ "Français", "fr" },
-			{ "Deutsch", "de" },
-			{ "Português", "pt" },
-			{ "Русский", "ru" },
-			{ "中文", "zh" },
-			{ "日本語", "ja" },
-			{ "العربية", "ar" },
-			{ "हिन्दी", "hi" }
+			WriteIndented = true,
+			Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+			NewLine = "\n",
+			IndentCharacter = ' ',
+			IndentSize = 2
 		};
 
-		private static readonly Dictionary<string, string> StorePageLanguageKeyToNameMap = new()
+		private static readonly UTF8Encoding CatalogEncoding = new(encoderShouldEmitUTF8Identifier: false);
+
+		private static readonly HashSet<string> BbCodeTagNames = new(StringComparer.Ordinal)
 		{
-			{ "french", "French" },
-			{ "italian", "Italian" },
-			{ "german", "German" },
-			{ "spanish", "Spanish (Spain)" },
-			{ "bulgarian", "Bulgarian" },
-			{ "czech", "Czech" },
-			{ "danish", "Danish" },
-			{ "dutch", "Dutch" },
-			{ "finnish", "Finnish" },
-			{ "greek", "Greek" },
-			{ "hungarian", "Hungarian" },
-			{ "indonesian", "Indonesian" },
-			{ "japanese", "Japanese" },
-			{ "koreana", "Korean" },
-			{ "malay", "Malay" },
-			{ "norwegian", "Norwegian" },
-			{ "polish", "Polish" },
-			{ "brazilian", "Portuguese (Brazil)" },
-			{ "portuguese", "Portuguese (Portugal)" },
-			{ "romanian", "Romanian" },
-			{ "russian", "Russian" },
-			{ "schinese", "Simplified Chinese" },
-			{ "latam", "Spanish (Latin America)" },
-			{ "swedish", "Swedish" },
-			{ "thai", "Thai" },
-			{ "tchinese", "Traditional Chinese" },
-			{ "turkish", "Turkish" },
-			{ "ukrainian", "Ukrainian" },
-			{ "vietnamese", "Vietnamese" }
+			"b", "i", "u", "s", "strike", "url", "img", "list", "olist", "hr", "p",
+			"h1", "h2", "h3", "noparse", "code", "quote", "color", "table", "spoiler",
+			"center", "right", "left", "size", "font", "sub", "sup", "*"
 		};
 
-		private static readonly OllamaClient _ollama = new OllamaClient();
-
-		static async Task Main(string[] args)
+		static int Main(string[] args)
 		{
-			string workingDir = Directory.GetCurrentDirectory();
-			string cacheDir = Path.Combine(workingDir, ".translation_cache");
-			if (!Directory.Exists(cacheDir))
+			string command = args.Length > 0 ? args[0].TrimStart('-').ToLowerInvariant() : "verify";
+			string localeDirectory = ResolveLocaleDirectory(Directory.GetCurrentDirectory());
+
+			if (!Directory.Exists(localeDirectory))
 			{
-				Directory.CreateDirectory(cacheDir);
+				WriteError($"Error: Locale directory not found at: {localeDirectory}");
+				return 2;
 			}
 
-			await _ollama.EnsureOllama();
+			string englishPath = Path.Combine(localeDirectory, "en.json");
+			Dictionary<string, string>? englishCatalog = LoadCatalog(englishPath);
 
-			string firstArg = args.Length > 0 ? args[0] : string.Empty;
-
-			if (firstArg.Equals("--storepage", StringComparison.OrdinalIgnoreCase))
+			if (englishCatalog == null)
 			{
-				string storePageFile = args.Length > 1 ? args[1] : FindStorePageFile(workingDir);
-				await ProcessStorePage(storePageFile, cacheDir);
-				return;
+				return 2;
 			}
 
-			if (firstArg.Equals("--all", StringComparison.OrdinalIgnoreCase))
-			{
-				await ProcessGameLocalization(workingDir, cacheDir);
-				await ProcessAutoStorePage(workingDir, cacheDir);
-				return;
-			}
+			string[] localePaths = Directory.GetFiles(localeDirectory, "*.json")
+				.Where(path => !Path.GetFileName(path).Equals("en.json", StringComparison.OrdinalIgnoreCase))
+				.OrderBy(path => path, StringComparer.Ordinal)
+				.ToArray();
 
-			if (!string.IsNullOrEmpty(firstArg) && File.Exists(firstArg) && Path.GetExtension(firstArg).Equals(".json", StringComparison.OrdinalIgnoreCase) && Path.GetFileName(firstArg).Contains("storepage", StringComparison.OrdinalIgnoreCase))
-			{
-				await ProcessStorePage(firstArg, cacheDir);
-				return;
-			}
-
-			await ProcessGameLocalization(workingDir, cacheDir);
-			await ProcessAutoStorePage(workingDir, cacheDir);
-		}
-
-		private static async Task ProcessAutoStorePage(string workingDir, string cacheDir)
-		{
-			string autoStorePageFile = FindStorePageFile(workingDir);
-			if (File.Exists(autoStorePageFile))
-			{
-				await ProcessStorePage(autoStorePageFile, cacheDir);
-			}
-		}
-
-		private static string FindStorePageFile(string workingDir)
-		{
-			string localPath = Path.GetFullPath(Path.Combine(workingDir, "storepage_1357037_all.json"));
-			if (File.Exists(localPath))
-			{
-				return localPath;
-			}
-
-			string toolDirPath = Path.GetFullPath(Path.Combine(workingDir, "Realm.TranslationTool", "storepage_1357037_all.json"));
-			if (File.Exists(toolDirPath))
-			{
-				return toolDirPath;
-			}
-
-			string parentDirPath = Path.GetFullPath(Path.Combine(workingDir, "..", "Realm.TranslationTool", "storepage_1357037_all.json"));
-			if (File.Exists(parentDirPath))
-			{
-				return parentDirPath;
-			}
-
-			return localPath;
-		}
-
-		private static async Task ProcessStorePage(string storePageFilePath, string cacheDir)
-		{
-			if (!File.Exists(storePageFilePath))
-			{
-				Console.ForegroundColor = ConsoleColor.Red;
-				Console.WriteLine($"Error: Store page file not found at: {storePageFilePath}");
-				Console.ResetColor();
-				return;
-			}
-
-			Console.ForegroundColor = ConsoleColor.Magenta;
-			Console.WriteLine($"=== Processing Store Page Translations: {storePageFilePath} ===");
+			Console.ForegroundColor = ConsoleColor.White;
+			Console.WriteLine($"Locale directory: {localeDirectory}");
+			Console.WriteLine($"en.json: {englishCatalog.Count} keys across {localePaths.Length} locale catalogs");
 			Console.ResetColor();
 
-			string jsonContent = File.ReadAllText(storePageFilePath, Encoding.UTF8);
-			using var doc = JsonDocument.Parse(jsonContent);
-			var root = doc.RootElement;
-
-			if (!TryGetEnglishSourceDict(root, out var englishDict, out string itemId, out var languagesProp))
+			switch (command)
 			{
-				return;
+				case "verify":
+					return Verify(englishCatalog, localePaths);
+				case "prune":
+					return Prune(englishCatalog, localePaths);
+				default:
+					WriteError($"Error: Unknown command '{args[0]}'.");
+					Console.WriteLine("Usage: Realm.TranslationTool [verify|prune]");
+					return 2;
 			}
+		}
 
-			var languagesResult = new Dictionary<string, Dictionary<string, string>>();
-			languagesResult["english"] = englishDict;
+		private static int Verify(Dictionary<string, string> englishCatalog, string[] localePaths)
+		{
+			int issueCount = 0;
 
-			bool anyModified = false;
-
-			foreach (var langProp in languagesProp.EnumerateObject())
+			foreach (string localePath in localePaths)
 			{
-				string langKey = langProp.Name;
-				if (langKey.Equals("english", StringComparison.OrdinalIgnoreCase))
+				string locale = Path.GetFileNameWithoutExtension(localePath);
+				Dictionary<string, string>? localeCatalog = LoadCatalog(localePath);
+
+				Console.WriteLine();
+				Console.ForegroundColor = ConsoleColor.Cyan;
+				Console.WriteLine($"--- {locale} ({Path.GetFileName(localePath)}) ---");
+				Console.ResetColor();
+
+				if (localeCatalog == null)
 				{
+					issueCount++;
 					continue;
 				}
 
-				bool modified = await ProcessStorePageLanguage(langKey, langProp, englishDict, languagesResult, cacheDir);
-				if (modified)
+				var missingKeys = new List<string>();
+				var emptyValues = new List<string>();
+				var placeholderMismatches = new List<string>();
+				var bbCodeMismatches = new List<string>();
+				var bracketHintDifferences = new List<string>();
+				var untranslatedValues = new List<string>();
+
+				foreach (var englishEntry in englishCatalog)
 				{
-					anyModified = true;
-				}
-			}
+					string key = englishEntry.Key;
+					string englishText = englishEntry.Value;
 
-			if (anyModified)
-			{
-				SaveStorePageData(storePageFilePath, itemId, languagesResult);
-			}
-			else
-			{
-				Console.ForegroundColor = ConsoleColor.Green;
-				Console.WriteLine($"Store page file is already up to date: {storePageFilePath}");
-				Console.ResetColor();
-			}
-		}
-
-		private static bool TryGetEnglishSourceDict(JsonElement root, out Dictionary<string, string> englishDict, out string itemId, out JsonElement languagesProp)
-		{
-			englishDict = new Dictionary<string, string>();
-			itemId = root.TryGetProperty("itemid", out var itemIdProp) ? itemIdProp.GetString() ?? "" : "";
-
-			if (!root.TryGetProperty("languages", out languagesProp) || languagesProp.ValueKind != JsonValueKind.Object)
-			{
-				Console.ForegroundColor = ConsoleColor.Red;
-				Console.WriteLine("Error: Store page json missing 'languages' object.");
-				Console.ResetColor();
-				return false;
-			}
-
-			if (!languagesProp.TryGetProperty("english", out var englishProp) || englishProp.ValueKind != JsonValueKind.Object)
-			{
-				Console.ForegroundColor = ConsoleColor.Red;
-				Console.WriteLine("Error: Store page json missing 'languages.english' source object.");
-				Console.ResetColor();
-				return false;
-			}
-
-			foreach (var prop in englishProp.EnumerateObject())
-			{
-				englishDict[prop.Name] = prop.Value.GetString() ?? "";
-			}
-
-			return true;
-		}
-
-		private static async Task<bool> ProcessStorePageLanguage(string langKey, JsonProperty langProp, Dictionary<string, string> englishDict, Dictionary<string, Dictionary<string, string>> languagesResult, string cacheDir)
-		{
-			string targetLanguageName = StorePageLanguageKeyToNameMap.TryGetValue(langKey, out var mappedName) ? mappedName : langKey;
-
-			Console.ForegroundColor = ConsoleColor.Cyan;
-			Console.WriteLine($"--- Processing Store Page Language: {langKey} ({targetLanguageName}) ---");
-			Console.ResetColor();
-
-			var currentTargetDict = new Dictionary<string, string>();
-			if (langProp.Value.ValueKind == JsonValueKind.Object)
-			{
-				foreach (var p in langProp.Value.EnumerateObject())
-				{
-					currentTargetDict[p.Name] = p.Value.GetString() ?? "";
-				}
-			}
-
-			bool modified = false;
-			foreach (var englishKvp in englishDict)
-			{
-				string key = englishKvp.Key;
-				string englishText = englishKvp.Value;
-
-				if (currentTargetDict.TryGetValue(key, out var existingValue) && !string.IsNullOrWhiteSpace(existingValue))
-				{
-					continue;
-				}
-
-				string context = GetStorePageContextForKey(key);
-				string translatedText = await TranslateStorePageLine(englishText, targetLanguageName, langKey, context, cacheDir);
-				currentTargetDict[key] = translatedText;
-				modified = true;
-			}
-
-			languagesResult[langKey] = currentTargetDict;
-			return modified;
-		}
-
-		private static void SaveStorePageData(string storePageFilePath, string itemId, Dictionary<string, Dictionary<string, string>> languagesResult)
-		{
-			var outputStorePage = new StorePageData
-			{
-				ItemId = itemId,
-				Languages = languagesResult
-			};
-
-			var serializeOptions = new JsonSerializerOptions
-			{
-				WriteIndented = false,
-				Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
-			};
-
-			string outputJson = JsonSerializer.Serialize(outputStorePage, serializeOptions);
-			File.WriteAllText(storePageFilePath, outputJson, Encoding.UTF8);
-
-			Console.ForegroundColor = ConsoleColor.Green;
-			Console.WriteLine($"Saved updated store page file: {storePageFilePath}");
-			Console.ResetColor();
-		}
-
-		private static string GetStorePageContextForKey(string key)
-		{
-			if (key.Contains("earlyaccess", StringComparison.OrdinalIgnoreCase))
-			{
-				return "Steam store page Early Access description section for an open-source tactical RTS arcade game";
-			}
-
-			if (key.Contains("about", StringComparison.OrdinalIgnoreCase))
-			{
-				return "Steam store page 'About This Game' description section with BBCode tags (such as [p], [/p], [b], [/b], [h2], [/h2], [list], [*]) for an open-source tactical RTS arcade game";
-			}
-
-			if (key.Contains("short_description", StringComparison.OrdinalIgnoreCase))
-			{
-				return "Steam store page short description for an open-source tactical RTS arcade game";
-			}
-
-			if (key.Contains("sysreqs", StringComparison.OrdinalIgnoreCase))
-			{
-				return "Steam store page PC system requirements specification";
-			}
-
-			return "Steam store page content for an open-source tactical RTS arcade game";
-		}
-
-		private static async Task ProcessGameLocalization(string workingDir, string cacheDir)
-		{
-			string godotLocaleDir = GetGodotLocaleDir(workingDir);
-
-			if (!Directory.Exists(godotLocaleDir))
-			{
-				Console.ForegroundColor = ConsoleColor.Red;
-				Console.WriteLine($"Error: Locale directory not found at: {godotLocaleDir}");
-				Console.ResetColor();
-				return;
-			}
-
-			string enFilePath = Path.Combine(godotLocaleDir, "en.json");
-			if (!File.Exists(enFilePath))
-			{
-				Console.ForegroundColor = ConsoleColor.Red;
-				Console.WriteLine($"Error: English source file en.json not found at: {enFilePath}");
-				Console.ResetColor();
-				return;
-			}
-
-			string enJson = File.ReadAllText(enFilePath, Encoding.UTF8);
-			var sourceStrings = JsonSerializer.Deserialize<Dictionary<string, string>>(enJson);
-			if (sourceStrings == null)
-			{
-				Console.WriteLine("Error: Failed to deserialize en.json");
-				return;
-			}
-
-			foreach (var kvp in LanguageLocaleMap)
-			{
-				await ProcessLanguageLocale(kvp.Key, kvp.Value, godotLocaleDir, sourceStrings, cacheDir);
-			}
-
-			Console.ForegroundColor = ConsoleColor.Green;
-			Console.WriteLine("\nAll game translations completed successfully.");
-			Console.ResetColor();
-		}
-
-		private static string GetGodotLocaleDir(string workingDir)
-		{
-			string godotLocaleDir = Path.GetFullPath(Path.Combine(workingDir, "Realm.Client", "locale"));
-			if (!Directory.Exists(godotLocaleDir))
-			{
-				godotLocaleDir = Path.GetFullPath(Path.Combine(workingDir, "..", "Realm.Client", "locale"));
-			}
-
-			return godotLocaleDir;
-		}
-
-		private static async Task ProcessLanguageLocale(string languageName, string locale, string godotLocaleDir, Dictionary<string, string> sourceStrings, string cacheDir)
-		{
-			Console.ForegroundColor = ConsoleColor.Cyan;
-			Console.WriteLine($"--- Processing Language: {languageName} ({locale}) ---");
-			Console.ResetColor();
-
-			string outFilePath = Path.Combine(godotLocaleDir, $"{locale}.json");
-			Dictionary<string, string> targetStrings = new();
-			if (File.Exists(outFilePath))
-			{
-				try
-				{
-					string existingContent = File.ReadAllText(outFilePath, Encoding.UTF8);
-					var existingDict = JsonSerializer.Deserialize<Dictionary<string, string>>(existingContent);
-					if (existingDict != null)
+					if (!localeCatalog.TryGetValue(key, out string? localizedText))
 					{
-						targetStrings = existingDict;
-					}
-				}
-				catch
-				{
-				}
-			}
-
-			bool modified = false;
-			foreach (var sourceKvp in sourceStrings)
-			{
-				string key = sourceKvp.Key;
-				string englishText = sourceKvp.Value;
-
-				if (targetStrings.ContainsKey(key) && !string.IsNullOrWhiteSpace(targetStrings[key]))
-				{
-					continue;
-				}
-
-				string translatedText = await TranslateLine(englishText, languageName, locale, "RTS game user interface string", cacheDir);
-				targetStrings[key] = translatedText;
-				modified = true;
-			}
-
-			if (modified || !File.Exists(outFilePath))
-			{
-				var options = new JsonSerializerOptions { WriteIndented = true, Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
-				string outputJson = JsonSerializer.Serialize(targetStrings, options);
-				File.WriteAllText(outFilePath, outputJson, Encoding.UTF8);
-				Console.ForegroundColor = ConsoleColor.Green;
-				Console.WriteLine($"Saved: {locale}.json");
-				Console.ResetColor();
-			}
-		}
-
-		private static async Task<string> TranslateStorePageLine(string text, string targetLanguage, string locale, string context, string cacheDirectory)
-		{
-			if (string.IsNullOrWhiteSpace(text))
-			{
-				return text;
-			}
-
-			string stringHash = GetStringHash($"{text}-{context}");
-			string cacheFile = Path.Combine(cacheDirectory, $"storepage_{locale}_{stringHash}.json");
-
-			if (!File.Exists(cacheFile))
-			{
-				await GenerateAndCacheStorePageTranslation(text, targetLanguage, locale, context, cacheFile);
-			}
-
-			return ReadTranslationFromCache(cacheFile, text);
-		}
-
-		private static async Task GenerateAndCacheStorePageTranslation(string text, string targetLanguage, string locale, string context, string cacheFile)
-		{
-			string preview = text.Length > 60 ? text.Substring(0, 60) + "..." : text;
-			Console.ForegroundColor = ConsoleColor.Yellow;
-			Console.WriteLine($"Translating store page line ({locale}): '{preview}' to {targetLanguage}...");
-			Console.ResetColor();
-
-			string prompt = $"Translate the following text from English to {targetLanguage}.\n" +
-			                $"Maintain the correct style and formatting for a Steam store page for a real-time strategy (RTS) video game.\n" +
-			                $"Preserve all BBCode tags intact exactly as formatted (for example: [p], [/p], [b], [/b], [h2], [/h2], [list], [*], [/*]). Do not remove or alter tags.\n" +
-			                $"Output ONLY the translated text, do not include outer quotes, markdown code blocks, explanations, or any preamble.\n" +
-			                $"Context: {context}\n" +
-			                $"Text:\n{text}";
-
-			string response = await _ollama.GenerateText(prompt);
-			string translatedText = response.Trim();
-
-			if (translatedText.StartsWith("```") && translatedText.EndsWith("```"))
-			{
-				int firstNewline = translatedText.IndexOf('\n');
-				int lastBackticks = translatedText.LastIndexOf("```", StringComparison.Ordinal);
-				if (firstNewline != -1 && lastBackticks > firstNewline)
-				{
-					translatedText = translatedText.Substring(firstNewline + 1, lastBackticks - firstNewline - 1).Trim();
-				}
-			}
-
-			if (translatedText.StartsWith("\"") && translatedText.EndsWith("\"") && translatedText.Length >= 2)
-			{
-				translatedText = translatedText.Substring(1, translatedText.Length - 2);
-			}
-
-			var cacheObj = new CacheEntry
-			{
-				Original = text,
-				TranslatedText = translatedText,
-				Locale = locale,
-				Context = context,
-				Timestamp = DateTime.Now.ToString()
-			};
-
-			string cacheJson = JsonSerializer.Serialize(cacheObj, new JsonSerializerOptions { WriteIndented = true });
-			File.WriteAllText(cacheFile, cacheJson, Encoding.UTF8);
-		}
-
-		private static string ReadTranslationFromCache(string cacheFile, string originalText)
-		{
-			try
-			{
-				string cacheContent = File.ReadAllText(cacheFile, Encoding.UTF8);
-				var cacheEntry = JsonSerializer.Deserialize<CacheEntry>(cacheContent);
-				if (cacheEntry != null)
-				{
-					if (cacheEntry.Original.Trim().Replace(" ", "") != originalText.Trim().Replace(" ", ""))
-					{
-						throw new Exception("Source mismatch");
+						missingKeys.Add(key);
+						continue;
 					}
 
-					return cacheEntry.TranslatedText;
+					if (string.IsNullOrWhiteSpace(localizedText))
+					{
+						emptyValues.Add(key);
+						continue;
+					}
+
+					string expectedPlaceholders = DescribeTokens(PlaceholderTokenRegex(), englishText);
+					string actualPlaceholders = DescribeTokens(PlaceholderTokenRegex(), localizedText);
+					if (!expectedPlaceholders.Equals(actualPlaceholders, StringComparison.Ordinal))
+					{
+						placeholderMismatches.Add($"\"{key}\" expected [{expectedPlaceholders}] but found [{actualPlaceholders}]");
+					}
+
+					DescribeBrackets(englishText, out string expectedBbCode, out string expectedHints);
+					DescribeBrackets(localizedText, out string actualBbCode, out string actualHints);
+					if (!expectedBbCode.Equals(actualBbCode, StringComparison.Ordinal))
+					{
+						bbCodeMismatches.Add($"\"{key}\" expected [{expectedBbCode}] but found [{actualBbCode}]");
+					}
+
+					if (!expectedHints.Equals(actualHints, StringComparison.Ordinal))
+					{
+						bracketHintDifferences.Add($"\"{key}\" expected [{expectedHints}] but found [{actualHints}]");
+					}
+
+					if (localizedText.Equals(englishText, StringComparison.Ordinal))
+					{
+						untranslatedValues.Add(key);
+					}
 				}
-			}
-			catch
-			{
-				Console.ForegroundColor = ConsoleColor.Red;
-				Console.WriteLine($"Warning: Cache file {cacheFile} is corrupted. Deleting.");
-				Console.ResetColor();
-				try
-				{
-					File.Delete(cacheFile);
-				}
-				catch
-				{
-				}
+
+				var orphanKeys = localeCatalog.Keys
+					.Where(key => !englishCatalog.ContainsKey(key))
+					.ToList();
+
+				issueCount += ReportIssues("Missing keys", missingKeys, true);
+				issueCount += ReportIssues("Empty values", emptyValues, true);
+				issueCount += ReportIssues("Placeholder mismatches", placeholderMismatches, true);
+				issueCount += ReportIssues("BBCode tag mismatches", bbCodeMismatches, true);
+				ReportIssues("Bracket hint differences (hotkeys and flags)", bracketHintDifferences, false);
+				issueCount += ReportIssues("Orphan keys (absent from en.json)", orphanKeys, true);
+				ReportIssues("Values identical to English", untranslatedValues, false);
 			}
 
-			return originalText;
+			Console.WriteLine();
+			if (issueCount == 0)
+			{
+				WriteSuccess("All locale catalogs are valid.");
+				return 0;
+			}
+
+			WriteError($"Verification failed with {issueCount} issue(s).");
+			return 1;
 		}
 
-		private static async Task<string> TranslateLine(string text, string targetLanguage, string locale, string context, string cacheDirectory)
+		private static int Prune(Dictionary<string, string> englishCatalog, string[] localePaths)
 		{
-			if (string.IsNullOrWhiteSpace(text))
+			if (englishCatalog.Count == 0)
 			{
-				return text;
+				WriteError("Error: en.json contains no keys. Refusing to prune every catalog.");
+				return 2;
 			}
 
-			string stringHash = GetStringHash($"{text}-{context}");
-			string cacheFile = Path.Combine(cacheDirectory, $"{locale}_{stringHash}.json");
+			int totalRemoved = 0;
 
-			if (!File.Exists(cacheFile))
+			foreach (string localePath in localePaths)
 			{
-				string preview = text.Length > 40 ? text.Substring(0, 40) + "..." : text;
-				Console.ForegroundColor = ConsoleColor.Yellow;
-				Console.WriteLine($"Translating: '{preview}' to {targetLanguage}...");
-				Console.ResetColor();
+				string locale = Path.GetFileNameWithoutExtension(localePath);
+				Dictionary<string, string>? localeCatalog = LoadCatalog(localePath);
 
-				string prompt = $"Translate the following text from English to {targetLanguage}.\n" +
-				                $"Maintain the correct context for a real-time strategy (RTS) video game.\n" +
-				                $"Output ONLY the translated text, do not include quotes, explanations, or any preamble.\n" +
-				                $"Context: {context}\n" +
-				                $"Text: \"{text}\"";
-
-				string response = await _ollama.GenerateText(prompt);
-				string translatedText = response.Trim().Replace("\"", "");
-
-				var cacheObj = new CacheEntry
+				if (localeCatalog == null)
 				{
-					Original = text,
-					TranslatedText = translatedText,
-					Locale = locale,
-					Context = context,
-					Timestamp = DateTime.Now.ToString()
-				};
+					return 2;
+				}
 
-				string cacheJson = JsonSerializer.Serialize(cacheObj, new JsonSerializerOptions { WriteIndented = true });
-				File.WriteAllText(cacheFile, cacheJson, Encoding.UTF8);
+				var orphanKeys = localeCatalog.Keys
+					.Where(key => !englishCatalog.ContainsKey(key))
+					.ToList();
+
+				if (orphanKeys.Count == 0)
+				{
+					Console.WriteLine($"{locale}: nothing to prune");
+					continue;
+				}
+
+				if (orphanKeys.Count * 2 > localeCatalog.Count)
+				{
+					WriteError($"Error: pruning {locale} would remove {orphanKeys.Count} of {localeCatalog.Count} keys. Verify en.json is complete before pruning again.");
+					return 2;
+				}
+
+				foreach (string orphanKey in orphanKeys)
+				{
+					Console.WriteLine($"  {locale}: removed \"{orphanKey}\"");
+					localeCatalog.Remove(orphanKey);
+				}
+
+				if (!SaveCatalog(localePath, localeCatalog))
+				{
+					return 2;
+				}
+
+				WriteSuccess($"{locale}: pruned {orphanKeys.Count} key(s)");
+				totalRemoved += orphanKeys.Count;
+			}
+
+			Console.WriteLine();
+			WriteSuccess($"Pruned {totalRemoved} orphan key(s) across {localePaths.Length} locale catalogs.");
+			return 0;
+		}
+
+		private static int ReportIssues(string title, List<string> issues, bool isError)
+		{
+			if (issues.Count == 0)
+			{
+				Console.ForegroundColor = ConsoleColor.DarkGreen;
+				Console.WriteLine($"  {title}: 0");
+				Console.ResetColor();
+				return 0;
+			}
+
+			Console.ForegroundColor = isError ? ConsoleColor.Red : ConsoleColor.Yellow;
+			Console.WriteLine($"  {title}: {issues.Count}");
+			Console.ResetColor();
+
+			foreach (string issue in issues.Take(MaximumReportedEntries))
+			{
+				Console.WriteLine($"    {issue}");
+			}
+
+			if (issues.Count > MaximumReportedEntries)
+			{
+				Console.WriteLine($"    ... and {issues.Count - MaximumReportedEntries} more");
+			}
+
+			return isError ? issues.Count : 0;
+		}
+
+		private static void DescribeBrackets(string text, out string bbCodeSignature, out string hintSignature)
+		{
+			var bbCodeTags = new List<string>();
+			var bracketHints = new List<string>();
+
+			foreach (Match match in BracketTokenRegex().Matches(text))
+			{
+				string? bbCodeTag = NormalizeBbCodeTag(match.Value);
+				if (bbCodeTag != null)
+				{
+					bbCodeTags.Add(bbCodeTag);
+				}
+				else
+				{
+					bracketHints.Add(match.Value);
+				}
+			}
+
+			bbCodeTags.Sort(StringComparer.Ordinal);
+			bracketHints.Sort(StringComparer.Ordinal);
+			bbCodeSignature = string.Join(" ", bbCodeTags);
+			hintSignature = string.Join(" ", bracketHints);
+		}
+
+		private static string? NormalizeBbCodeTag(string token)
+		{
+			string inner = token.Substring(1, token.Length - 2).Trim();
+			bool isClosingTag = inner.StartsWith('/');
+			if (isClosingTag)
+			{
+				inner = inner.Substring(1).Trim();
+			}
+
+			int attributeIndex = inner.IndexOf('=');
+			if (attributeIndex >= 0)
+			{
+				inner = inner.Substring(0, attributeIndex).Trim();
+			}
+
+			string tagName = inner.ToLowerInvariant();
+			if (!BbCodeTagNames.Contains(tagName))
+			{
+				return null;
+			}
+
+			return isClosingTag ? "/" + tagName : tagName;
+		}
+
+		private static string DescribeTokens(Regex regex, string text)
+		{
+			var tokens = regex.Matches(text)
+				.Select(match => match.Value)
+				.OrderBy(token => token, StringComparer.Ordinal);
+
+			return string.Join(" ", tokens);
+		}
+
+		private static Dictionary<string, string>? LoadCatalog(string path)
+		{
+			if (!File.Exists(path))
+			{
+				WriteError($"Error: Catalog not found at: {path}");
+				return null;
 			}
 
 			try
 			{
-				string cacheContent = File.ReadAllText(cacheFile, Encoding.UTF8);
-				var cacheEntry = JsonSerializer.Deserialize<CacheEntry>(cacheContent);
-				if (cacheEntry != null)
+				Dictionary<string, string>? catalog = JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(path, Encoding.UTF8));
+				if (catalog == null)
 				{
-					if (cacheEntry.Original.Trim().Replace(" ", "") != text.Trim().Replace(" ", ""))
-					{
-						throw new Exception("Source mismatch");
-					}
-
-					return cacheEntry.TranslatedText;
+					WriteError($"Error: Catalog deserialized to null: {path}");
 				}
+
+				return catalog;
 			}
-			catch
+			catch (Exception exception)
 			{
-				Console.ForegroundColor = ConsoleColor.Red;
-				Console.WriteLine($"Warning: Cache file {cacheFile} is corrupted. Deleting.");
-				Console.ResetColor();
-				try
-				{
-					File.Delete(cacheFile);
-				}
-				catch
-				{
-				}
+				WriteError($"Error: Failed to parse {path}: {exception.Message}");
+				return null;
 			}
-
-			return text;
 		}
 
-		private static string GetStringHash(string input)
+		private static bool SaveCatalog(string path, Dictionary<string, string> catalog)
 		{
-			using (var sha256 = SHA256.Create())
+			try
 			{
-				byte[] bytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(input));
-				var builder = new StringBuilder();
-				foreach (var b in bytes)
-				{
-					builder.Append(b.ToString("X2"));
-				}
-
-				return builder.ToString();
+				string json = JsonSerializer.Serialize(catalog, SerializerOptions) + "\n";
+				File.WriteAllText(path, json, CatalogEncoding);
+				return true;
 			}
+			catch (Exception exception)
+			{
+				WriteError($"Error: Failed to write {path}: {exception.Message}");
+				return false;
+			}
+		}
+
+		private static string ResolveLocaleDirectory(string workingDirectory)
+		{
+			string localeDirectory = Path.GetFullPath(Path.Combine(workingDirectory, "Realm.Client", "locale"));
+			if (!Directory.Exists(localeDirectory))
+			{
+				localeDirectory = Path.GetFullPath(Path.Combine(workingDirectory, "..", "Realm.Client", "locale"));
+			}
+
+			return localeDirectory;
+		}
+
+		private static void WriteError(string message)
+		{
+			Console.ForegroundColor = ConsoleColor.Red;
+			Console.WriteLine(message);
+			Console.ResetColor();
+		}
+
+		private static void WriteSuccess(string message)
+		{
+			Console.ForegroundColor = ConsoleColor.Green;
+			Console.WriteLine(message);
+			Console.ResetColor();
 		}
 	}
 }

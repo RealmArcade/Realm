@@ -240,6 +240,10 @@ public partial class LobbyBrowser : Control
 
 	private void SetupCheckboxes()
 	{
+		_campaignCheck.Text = Tr("Campaign");
+		_meleeCheck.Text = Tr("Melee");
+		_tutorialCheck.Text = Tr("Tutorial");
+		_arcadeCheck.Text = Tr("Arcade");
 		_betaTestingMapsCheck.Text = Tr("Show beta-testing maps");
 		_betaTestingMapsCheck.TooltipText = Tr("Also list lobbies for maps that are still in Beta-Testing and have not been greenlit yet");
 		_betaTestingMapsCheck.ButtonPressed = false;

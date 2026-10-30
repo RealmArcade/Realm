@@ -536,7 +536,7 @@ public partial class GameHost : Node3D
 
 	public string GetTerrainStatusString(Vector3 hitPos)
 	{
-		return GameContext.EditorService.GetTerrainStatusString(hitPos, ActiveEditorTool.ToString(), ActivePlaceId);
+		return GameContext.EditorService.GetTerrainStatusString(hitPos, ActiveEditorTool, ActivePlaceId);
 	}
 
 	public void LoadMapProperties(string path)

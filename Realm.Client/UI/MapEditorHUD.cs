@@ -385,14 +385,14 @@ public partial class MapEditorHUD : Control
 
 		var vbox = BuildPublishMapUI(panel);
 
-		var title = new Label { Text = "Publish Map Instructions", HorizontalAlignment = HorizontalAlignment.Center };
+		var title = new Label { Text = TranslationServer.Translate("Publish Map Instructions"), HorizontalAlignment = HorizontalAlignment.Center };
 		title.AddThemeFontSizeOverride("font_size", 24);
 		vbox.AddChild(title);
 
 		var optType = new OptionButton();
 		optType.Name = "OptType_OptionButton";
-		optType.AddItem("Custom Arcade Map", 0);
-		optType.AddItem("Reusable Asset Pack", 1);
+		optType.AddItem(TranslationServer.Translate("Custom Arcade Map"), 0);
+		optType.AddItem(TranslationServer.Translate("Reusable Asset Pack"), 1);
 		optType.Selected = _mapSettingsDialog?.SelectedMapTypeIndex ?? 0;
 		vbox.AddChild(optType);
 
@@ -780,10 +780,10 @@ public partial class MapEditorHUD : Control
 	{
 		if (_statusLabel == null) return;
 
-		string toolName = tool.ToString().ToUpper();
+		string toolName = Realm.Client.Services.EditorService.GetLocalizedToolName(tool);
 		if (!string.IsNullOrEmpty(shortPlaceName)) toolName += $" ({shortPlaceName})";
 
-		_statusLabel.Text = $"ACTIVE TOOL: {toolName}";
+		_statusLabel.Text = string.Format(TranslationServer.Translate("ACTIVE TOOL: {0}"), toolName);
 	}
 
 	private void UpdateToolInfoText(EditorTool tool, string shortPlaceName)
