@@ -222,6 +222,14 @@ namespace Realm.Client.UI
 
 		private void CheckUnsavedSessionOnLaunch(Action onCompleted = null)
 		{
+			if (GameContext.SessionState.EditorSessionResumedAfterTest)
+			{
+				GameContext.SessionState.EditorSessionResumedAfterTest = false;
+				SaveCurrentDirectoryBlake3();
+				onCompleted?.Invoke();
+				return;
+			}
+
 			if (GameContext.SessionState.ReturningFromTest || !string.IsNullOrEmpty(GameContext.EditorService.PendingCasSourceDirectory))
 			{
 				onCompleted?.Invoke();

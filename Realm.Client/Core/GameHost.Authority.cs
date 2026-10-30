@@ -68,6 +68,12 @@ public partial class GameHost
 		GameContext.DetachServerSession();
 	}
 
+	public void EndMatchAndClearWorld()
+	{
+		EndJoinedMatch();
+		ResetWorldAndState();
+	}
+
 	private void ApplyChatLine(ChatLine line)
 	{
 		GameContext.Lobby?.ReceiveChatFromAuthority(line.Sender, line.Message, line.AlliesOnly, line.TimestampUtcTicks);

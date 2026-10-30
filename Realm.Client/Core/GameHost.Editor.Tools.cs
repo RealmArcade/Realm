@@ -2662,6 +2662,7 @@ namespace Realm.Client.Core
 		public void StartMapEditorMode()
 		{
 			GameContext.ReplayPlayback.StopReplay();
+			EndJoinedMatch();
 			GameContext.SessionState.IsMapEditorMode = true;
 			GameContext.EditorService.OpenTempWorkspaceSessionDomain();
 
@@ -2748,6 +2749,8 @@ namespace Realm.Client.Core
 						state.PitchSwing = GameContext.SessionState.SavedPitchSwing;
 					}
 				}
+
+				GameContext.SessionState.EditorSessionResumedAfterTest = true;
 			}
 			catch (Exception ex)
 			{

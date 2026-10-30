@@ -7,6 +7,7 @@ public class SessionState
 	public bool IsMapEditorMode { get; set; }
 	public bool IsTestMode { get; set; } = false;
 	public bool ReturningFromTest { get; set; } = false;
+	public bool EditorSessionResumedAfterTest { get; set; } = false;
 
 	public MapStateSnapshot EditorWorldState { get; set; }
 	public bool SavedEditorHasUnsavedChanges { get; set; } = false;

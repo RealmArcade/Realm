@@ -1353,7 +1353,7 @@ public partial class LobbyManager : BaseMapTransferNode
 		PlayerListUpdated?.Invoke();
 
 		GameContext.Host?.DiscardPreparedMatchWorld();
-		if (hadPreparedWorld) GameContext.Host?.ResetWorldAndState();
+		if (hadPreparedWorld) GameContext.Host?.EndMatchAndClearWorld();
 	}
 
 	private bool _matchStarted;
