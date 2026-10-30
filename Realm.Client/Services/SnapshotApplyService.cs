@@ -37,6 +37,8 @@ public class SnapshotApplyService
 
 	private readonly List<WorldSnapshot> _queuedDeltas = new();
 
+	private int _queuedDeltaHead;
+
 	private ulong _lastBaselineRequestTime;
 
 	private bool _baselineRequestDeferred;
@@ -89,9 +91,9 @@ public class SnapshotApplyService
 
 		// Descriptions held behind a run that never arrived are a world this screen cannot reach by applying them: the
 		// run was asked for, and once the grace to answer it has passed the only thing left is the world itself.
-		if (_queuedDeltas.Count > 0 && HasWaitedPastRepairGrace())
+		if (QueuedDeltaCount > 0 && HasWaitedPastRepairGrace())
 		{
-			_queuedDeltas.Clear();
+			ClearQueuedDeltas();
 			RequestBaseline();
 			return;
 		}
@@ -120,7 +122,8 @@ public class SnapshotApplyService
 			// A baseline restates the whole world, so every sequence before it is superseded rather than missing. Keeping the
 			// earlier mask reported the peer as still missing state it had just been given, and repaired it again each
 			// cooldown.
-			_queuedDeltas.RemoveAll(d => d.Sequence <= snapshot.Sequence);
+			while (_queuedDeltaHead < _queuedDeltas.Count && _queuedDeltas[_queuedDeltaHead].Sequence <= snapshot.Sequence) _queuedDeltaHead++;
+			CompactQueuedDeltas();
 			ForgetRepairRun();
 			_appliedSnapshots.Reset();
 			GameContext.NetworkService.ApplySnapshotToWorld(snapshot);
@@ -146,7 +149,7 @@ public class SnapshotApplyService
 		// authority is. The queued descriptions are the tail of the same backlog, so they go with it.
 		if (sequencesSkipped >= MaximumBacklogSequences)
 		{
-			_queuedDeltas.Clear();
+			ClearQueuedDeltas();
 			ForgetRepairRun();
 			RequestBaseline();
 			return;
@@ -176,27 +179,48 @@ public class SnapshotApplyService
 		networkState.LastAppliedSnapshotSequence = snapshot.Sequence;
 		GameContext.NetworkService.ApplySnapshotToWorld(snapshot);
 		DrainQueuedDeltas(ref networkState);
-		if (_queuedDeltas.Count == 0) ForgetRepairRun();
+		if (QueuedDeltaCount == 0) ForgetRepairRun();
+	}
+
+	/// <summary>
+	///     How many descriptions are still waiting to be applied. The queue is consumed from its head rather than by
+	///     removing the first element, because every held description is several kilobytes and shifting a list of them was
+	///     work done once per description on the tick that could least afford it.
+	/// </summary>
+	private int QueuedDeltaCount => _queuedDeltas.Count - _queuedDeltaHead;
+
+	private void ClearQueuedDeltas()
+	{
+		_queuedDeltas.Clear();
+		_queuedDeltaHead = 0;
+	}
+
+	private void CompactQueuedDeltas()
+	{
+		if (_queuedDeltaHead == 0) return;
+
+		_queuedDeltas.RemoveRange(0, _queuedDeltaHead);
+		_queuedDeltaHead = 0;
 	}
 
 	private void DrainQueuedDeltas(ref NetworkState networkState)
 	{
-		if (_queuedDeltas.Count > 0
+		if (QueuedDeltaCount > 0
 		    && _queuedDeltas[^1].Sequence - networkState.LastAppliedSnapshotSequence > MaximumBacklogSequences)
 		{
-			_queuedDeltas.Clear();
+			ClearQueuedDeltas();
 			RequestBaseline();
 			return;
 		}
 
-		while (_queuedDeltas.Count > 0)
+		while (_queuedDeltaHead < _queuedDeltas.Count)
 		{
-			WorldSnapshot nextDelta = _queuedDeltas[0];
+			WorldSnapshot nextDelta = _queuedDeltas[_queuedDeltaHead];
 			if (nextDelta.BaseSequence > networkState.LastReceivedBaselineSeq) break;
 
 			if (nextDelta.Sequence <= networkState.LastAppliedSnapshotSequence)
 			{
-				_queuedDeltas.RemoveAt(0);
+				_queuedDeltaHead++;
 				continue;
 			}
 
@@ -205,10 +229,12 @@ public class SnapshotApplyService
 			// never had, so the queue waits for the head to be contiguous with what this screen applied.
 			if (nextDelta.Sequence != networkState.LastAppliedSnapshotSequence + 1) break;
 
-			_queuedDeltas.RemoveAt(0);
+			_queuedDeltaHead++;
 			networkState.LastAppliedSnapshotSequence = nextDelta.Sequence;
 			GameContext.NetworkService.ApplySnapshotToWorld(nextDelta);
 		}
+
+		CompactQueuedDeltas();
 	}
 
 	private AppliedSequenceWindow _appliedSnapshots;
@@ -287,16 +313,20 @@ public class SnapshotApplyService
 
 	private void QueueDelta(WorldSnapshot snapshot)
 	{
-		if (_queuedDeltas.Count >= MaximumQueuedDeltas) _queuedDeltas.RemoveAt(0);
+		if (QueuedDeltaCount >= MaximumQueuedDeltas)
+		{
+			_queuedDeltaHead++;
+			if (_queuedDeltaHead >= MaximumQueuedDeltas) CompactQueuedDeltas();
+		}
 
 		int insertIndex = _queuedDeltas.Count;
-		while (insertIndex > 0 && _queuedDeltas[insertIndex - 1].Sequence > snapshot.Sequence) insertIndex--;
+		while (insertIndex > _queuedDeltaHead && _queuedDeltas[insertIndex - 1].Sequence > snapshot.Sequence) insertIndex--;
 		_queuedDeltas.Insert(insertIndex, snapshot);
 	}
 
 	public void Clear()
 	{
-		_queuedDeltas.Clear();
+		ClearQueuedDeltas();
 		_appliedSnapshots.Reset();
 		_lastAcknowledgedSequence = -1;
 		_lastBaselineRequestTime = 0;

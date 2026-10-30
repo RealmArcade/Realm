@@ -16,7 +16,6 @@ public class SnapshotFrameRing
 	private readonly byte[][] _frames = new byte[Capacity][];
 
 	private int _ownerPeerId = -1;
-	private int _next;
 
 	public SnapshotFrameRing() => Array.Fill(_sequences, -1);
 
@@ -36,31 +35,35 @@ public class SnapshotFrameRing
 	{
 		Array.Clear(_frames);
 		Array.Fill(_sequences, -1);
-		_next = 0;
 		Count = 0;
 	}
 
 	public void Add(int sequence, byte[] frame)
 	{
 		if (frame == null || frame.Length == 0) return;
+		if (sequence <= 0) return;
 
-		_sequences[_next] = sequence;
-		_frames[_next] = frame;
-		_next = (_next + 1) % Capacity;
-		if (Count < Capacity) Count++;
+		// A sequence lives in the slot its own value names, so finding one again is an index rather than a walk of the
+		// whole ring: a repair asks for up to a ring's worth of sequences at once, and each of those asks walked all of
+		// them again.
+		int slot = sequence % Capacity;
+		if (_sequences[slot] < 0) Count++;
+		_sequences[slot] = sequence;
+		_frames[slot] = frame;
 	}
 
 	public bool TryGet(int sequence, out byte[] frame)
 	{
-		for (int index = 0; index < Capacity; index++)
-		{
-			if (_sequences[index] != sequence) continue;
-
-			frame = _frames[index];
-			return frame != null;
-		}
-
 		frame = Array.Empty<byte>();
-		return false;
+		if (sequence <= 0) return false;
+
+		int slot = sequence % Capacity;
+		if (_sequences[slot] != sequence) return false;
+
+		byte[]? held = _frames[slot];
+		if (held == null) return false;
+
+		frame = held;
+		return true;
 	}
 }

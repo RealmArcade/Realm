@@ -13,15 +13,26 @@ public class SnapshotPeerStateStore
 {
 	private readonly Dictionary<int, SnapshotPeerState> _statesByPeerId = new();
 
+	private readonly object _creationLock = new();
+
 	public int Count => _statesByPeerId.Count;
 
 	public SnapshotPeerState Get(int peerId)
 	{
 		if (_statesByPeerId.TryGetValue(peerId, out SnapshotPeerState? state)) return state;
 
-		state = new SnapshotPeerState();
-		_statesByPeerId[peerId] = state;
-		return state;
+		// Reached only for a peer the tick thread did not ensure, which is once per peer rather than once per description.
+		// It is taken under a lock because the fast path above is read by every publish lane at once, and a plain
+		// dictionary cannot be written while another lane is reading it: the alternative was creating the state where the
+		// description is written, which is exactly the lane that must only read.
+		lock (_creationLock)
+		{
+			if (_statesByPeerId.TryGetValue(peerId, out state)) return state;
+
+			state = new SnapshotPeerState();
+			_statesByPeerId[peerId] = state;
+			return state;
+		}
 	}
 
 	public void Ensure(int peerId) => _statesByPeerId.TryAdd(peerId, new SnapshotPeerState());

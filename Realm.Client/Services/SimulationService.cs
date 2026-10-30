@@ -626,12 +626,26 @@ public class SimulationService
 	public Action<int, string> OnProductionCompleted;
 	public Func<string, float> GetProductionBuildTime;
 
+	private bool _positionWriterInvariantReported;
 
 	public SimulationService()
 	{
 		_movementService = GameContext.Simulation.MovementPathfindingService;
 		_movementService.SimulateEntityFilter = ShouldSimulateEntity;
-		_movementService.PositionWrittenSink = entity => PositionWriteTrace.Mark(entity, PositionWriter.Movement);
+		_movementService.PositionWrittenSink = entity =>
+		{
+			PositionWriteTrace.Mark(entity, PositionWriter.Movement);
+
+			// The planning pass runs with positions withheld so that it cannot be a second writer of Position beside the
+			// presentation step, which places every replicated unit from the descriptions it was sent. If this reports,
+			// some path has started advancing a replicated unit's own route locally and the units it touches are pinned
+			// where their descriptions last put them.
+			if (!_positionWriterInvariantReported && GameContext.Host != null && GameContext.Host.IsMultiplayerActive())
+			{
+				_positionWriterInvariantReported = true;
+				Godot.GD.PushWarning("[Simulation] The movement pass wrote a position for a replicated unit; the presentation step is the only writer of Position on a client.");
+			}
+		};
 		_movementService.WarningSink = message => Godot.GD.PushWarning(message);
 		_combatService = GameContext.Simulation.CombatDamageService;
 		_combatService.UnlimitedPowerProvider = () => GameContext.Host != null && GameContext.CheatService.UnlimitedPowerEnabled;
