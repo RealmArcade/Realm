@@ -313,9 +313,10 @@ public class NetworkService
 
 		RetireUndescribedUnits(snapshot, mapping);
 
+		int localPlayerIndex = GameContext.Host?.LocalPlayerIndex ?? -1;
 		foreach (var snap in snapshot.Units)
 		{
-			ApplySnapshotToUnit(snap, snapshot.Sequence, mapping);
+			ApplySnapshotToUnit(snap, snapshot.Sequence, mapping, localPlayerIndex);
 		}
 
 		ApplyReplicatedComponentState(snapshot);
@@ -516,7 +517,7 @@ public class NetworkService
 		ReplicatedEntityReferences.Unregister(serverEntityId);
 	}
 
-	private void ApplySnapshotToUnit(UnitSnapshot snap, int sequence, NetworkMappingState mapping)
+	private void ApplySnapshotToUnit(UnitSnapshot snap, int sequence, NetworkMappingState mapping, int localPlayerIndex)
 	{
 		if (!mapping.ServerToClientEntityMap.TryGetValue(snap.EntityId, out var localEntity))
 		{
@@ -575,6 +576,17 @@ public class NetworkService
 		});
 
 		GameContext.World.SetOrAdd(localEntity, new DescribedAtSequence(sequence));
+
+		// Whether an order this screen issued is still held is stated here, where the description that states it has been
+		// applied and the sequence it came at are both in hand. The lead such an order draws is released by the description
+		// the cursor is showing, so it has to be stamped with the sequence that description belongs to and not with
+		// whatever the newest sample happened to be when a later frame asked.
+		if (localPlayerIndex >= 0
+		    && GameContext.World.Has<UnitOwnerPlayer>(localEntity)
+		    && GameContext.World.Get<UnitOwnerPlayer>(localEntity).PlayerIndex == localPlayerIndex)
+		{
+			GameContext.SnapshotTimeline.NoteConfirmedOrder(localEntity.Id, GameContext.World.Has<MoveTo>(localEntity), sequence);
+		}
 	}
 
 	public const int UnobservedUnitGapSequences = 10;

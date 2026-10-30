@@ -161,12 +161,14 @@ public class SnapshotTimeline
 	///     ended rather than by the moment that end was described, so a unit stops being drawn ahead of itself exactly when
 	///     the completion reaches the cursor.
 	/// </summary>
-	public void NoteConfirmedOrder(int entityId, bool confirmed)
+	/// <param name="sequence">
+	///     The sequence of the description this was read from. It is stated by the caller rather than read from the newest
+	///     sample the ring holds, because a description is applied where the match has got to while it is drawn a delay
+	///     behind that: stamping the newest sample released the lead a whole buffer depth after the completion was drawn.
+	/// </param>
+	public void NoteConfirmedOrder(int entityId, bool confirmed, int sequence)
 	{
 		if ((uint)entityId >= EcsWorld.MAX_ENTITIES) return;
-		if (_counts[entityId] == 0) return;
-
-		int sequence = _sequences[entityId * SamplesPerUnit + _heads[entityId]];
 		if (sequence < 0) return;
 
 		if (confirmed)

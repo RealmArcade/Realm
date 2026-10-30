@@ -325,6 +325,56 @@ public partial class SnapshotTimelineTests
 			.IsEqual(SnapshotTimeline.MinimumDelaySequences);
 	}
 
+	/// <summary>
+	///     A unit that moves one metre per sequence, described once per sequence, carrying an order the local player's
+	///     match confirmed. Two of these drawn through the same ticks differ only in what the match has said about the
+	///     end of that order.
+	/// </summary>
+	private static SnapshotTimeline MovingUnitWithAConfirmedOrder()
+	{
+		var timeline = new SnapshotTimeline();
+		int sequence = 100;
+
+		timeline.AdvanceTo(sequence);
+		timeline.Record(Unit, new Vector3(sequence, 0f, 0f), 0f, sequence);
+		timeline.NoteConfirmedOrder(Unit, true, sequence);
+
+		for (int tick = 0; tick < 30; tick++)
+		{
+			timeline.Advance(Step());
+			sequence++;
+			timeline.AdvanceTo(sequence);
+			timeline.Record(Unit, new Vector3(sequence, 0f, 0f), 0f, sequence);
+		}
+
+		return timeline;
+	}
+
+	[TestCase]
+	public void TheLeadIsReleasedByTheDescriptionTheCursorIsShowing()
+	{
+		SnapshotTimeline stillHeld = MovingUnitWithAConfirmedOrder();
+		SnapshotTimeline completed = MovingUnitWithAConfirmedOrder();
+
+		// The same end of the same order, stamped where the match applied it. One is stated for a sequence the cursor has
+		// not reached yet, so this screen has not drawn the moment the unit arrived; the other was already drawn past.
+		stillHeld.NoteConfirmedOrder(Unit, false, stillHeld.NewestSequence + 5);
+		completed.NoteConfirmedOrder(Unit, false, completed.NewestSequence - 5);
+
+		for (int tick = 0; tick < 12; tick++)
+		{
+			stillHeld.Advance(Step());
+			completed.Advance(Step());
+		}
+
+		Assertions.AssertThat(stillHeld.TrySample(Unit, false, out Vector3 ledPosition, out _, out _)).IsTrue();
+		Assertions.AssertThat(completed.TrySample(Unit, false, out Vector3 unledPosition, out _, out _)).IsTrue();
+
+		Assertions.AssertThat(ledPosition.X - unledPosition.X > 0.05f)
+			.OverrideFailureMessage($"an order whose end the cursor has not reached drew x={ledPosition.X:F3}, the same as the x={unledPosition.X:F3} of an order whose end it has, so the lead was released by the newest description held rather than by the one being drawn")
+			.IsTrue();
+	}
+
 	[TestCase]
 	public void AWorldThatStopsArrivingForAFewTicksDeepensTheDelay()
 	{
