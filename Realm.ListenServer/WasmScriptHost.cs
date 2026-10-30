@@ -68,6 +68,8 @@ public partial class WasmScriptHost : IWasmRuntime, IWasmEvaluationEngine, IDisp
 	private long _executingStartTimestamp;
 	private int _executingTimeoutMs;
 	private readonly System.Threading.Timer _watchdogTimer;
+	private readonly object _watchdogGate = new();
+	private bool _watchdogStopped;
 	private readonly bool _isDebugMode;
 
 	public const int MAX_WARNING_CALLS_PER_TICK = 1000;
@@ -136,19 +138,7 @@ public partial class WasmScriptHost : IWasmRuntime, IWasmEvaluationEngine, IDisp
 				ExportJitDebugElf(wasmPath);
 			}
 
-			_watchdogTimer = new System.Threading.Timer(_ =>
-			{
-				long start = Interlocked.Read(ref _executingStartTimestamp);
-				int timeout = _executingTimeoutMs;
-				if (start != 0 && timeout > 0)
-				{
-					double elapsedMs = (Stopwatch.GetTimestamp() - start) * 1000.0 / Stopwatch.Frequency;
-					if (elapsedMs > timeout)
-					{
-						_engine.IncrementEpoch();
-					}
-				}
-			}, null, 100, 100);
+			_watchdogTimer = new System.Threading.Timer(RunWatchdog, null, 100, 100);
 
 			var wasiInitialize = _instance.GetFunction("_initialize");
 			if (wasiInitialize != null)
@@ -217,7 +207,7 @@ public partial class WasmScriptHost : IWasmRuntime, IWasmEvaluationEngine, IDisp
 			_store.SetEpochDeadline(1);
 			if (!_isDebugMode)
 			{
-				_executingTimeoutMs = timeoutMs;
+				Volatile.Write(ref _executingTimeoutMs, timeoutMs);
 				Interlocked.Exchange(ref _executingStartTimestamp, Stopwatch.GetTimestamp());
 			}
 			action();
@@ -252,7 +242,7 @@ public partial class WasmScriptHost : IWasmRuntime, IWasmEvaluationEngine, IDisp
 			_store.SetEpochDeadline(1);
 			if (!_isDebugMode)
 			{
-				_executingTimeoutMs = timeoutMs;
+				Volatile.Write(ref _executingTimeoutMs, timeoutMs);
 				Interlocked.Exchange(ref _executingStartTimestamp, Stopwatch.GetTimestamp());
 			}
 			return func();
@@ -701,6 +691,28 @@ public partial class WasmScriptHost : IWasmRuntime, IWasmEvaluationEngine, IDisp
 		return ExecuteGuardedFunc(() => funcDelegate(baseValue, modifierValue, level), 0f, $"custom formula '{functionName}'");
 	}
 
+	/// <summary>
+	///     Interrupts a guest call that has run past the deadline the executing thread stated for it. It runs on the
+	///     thread pool and is stopped through the same gate disposal holds, because a timer that is merely disposed does
+	///     not wait for a callback already in flight, and the engine that callback interrupts is freed next.
+	/// </summary>
+	private void RunWatchdog(object? state)
+	{
+		lock (_watchdogGate)
+		{
+			if (_watchdogStopped) return;
+
+			long start = Interlocked.Read(ref _executingStartTimestamp);
+			int timeout = Volatile.Read(ref _executingTimeoutMs);
+			if (start == 0 || timeout <= 0) return;
+
+			double elapsedMs = (Stopwatch.GetTimestamp() - start) * 1000.0 / Stopwatch.Frequency;
+			if (elapsedMs <= timeout) return;
+
+			_engine.IncrementEpoch();
+		}
+	}
+
 	public void Dispose()
 	{
 		if (_cachedApi != null)
@@ -714,6 +726,13 @@ public partial class WasmScriptHost : IWasmRuntime, IWasmEvaluationEngine, IDisp
 		_formulaFuncCache.Clear();
 		FlushWasiLogFile();
 		UnsubscribeAutoEvents();
+
+		// Waits out a callback that is already interrupting a guest call, and turns away any that the pool has queued,
+		// before the engine they call into is freed.
+		lock (_watchdogGate)
+		{
+			_watchdogStopped = true;
+		}
 		_watchdogTimer?.Dispose();
 		_store.Dispose();
 		_module.Dispose();

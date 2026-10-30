@@ -1,3 +1,6 @@
+using System.Buffers;
+using System.Collections.Concurrent;
+using System.Text;
 using System.Numerics;
 using Realm.Ecs;
 using Realm.Ecs.Components.Core;
@@ -19,7 +22,12 @@ public class AuthoritySyncRecorder : IDisposable
 	private readonly EcsWorld _world;
 	private readonly Entity _worldEntity;
 	private readonly TerrainNavMeshService? _navMeshService;
+	private readonly FileStream _recordStream;
+	private readonly MemoryStream _staging;
 	private readonly BinaryWriter _writer;
+	private readonly BlockingCollection<(byte[] Buffer, int Length)> _pendingRecords = new(new ConcurrentQueue<(byte[] Buffer, int Length)>(), MaximumPendingRecords);
+	private readonly Thread _recordWriterThread;
+	private int _droppedRecordCount;
 	private readonly Dictionary<int, RecordedUnit> _units = new(256);
 	private readonly List<Entity> _worldUnits = new(256);
 	private readonly List<(int UniqueId, Entity Entity)> _loot = new(64);
@@ -52,10 +60,62 @@ public class AuthoritySyncRecorder : IDisposable
 		Directory.CreateDirectory(folder);
 		path = Path.Combine(folder, "ECS_host_sync.bin");
 
-		FileStream stream = new(path, FileMode.Create, FileAccess.Write, FileShare.Read, 1 << 16);
-		_writer = new BinaryWriter(stream);
+		_recordStream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.Read, 1 << 16);
+		_staging = new MemoryStream(1 << 16);
+		_writer = new BinaryWriter(_staging, Encoding.UTF8, true);
 		SyncRecordFormat.WriteHeader(_writer, true);
 		_writer.Flush();
+		EnqueueRecord();
+
+		_recordWriterThread = new Thread(WritePendingRecords)
+		{
+			IsBackground = true,
+			Name = "AuthoritySyncRecordWriter"
+		};
+		_recordWriterThread.Start();
+	}
+
+	private const int MaximumPendingRecords = 240;
+	private const int ShutdownJoinMilliseconds = 5000;
+
+	/// <summary>
+	///     Hands the record this tick rendered to the writer thread. The record is rendered on the tick thread because
+	///     rendering it reads the world, and only the file write is moved off; a record that arrives when the queue is
+	///     full is counted and dropped rather than holding the tick for the disk.
+	/// </summary>
+	private void EnqueueRecord()
+	{
+		int length = (int)_staging.Length;
+		if (length == 0) return;
+
+		byte[] buffer = ArrayPool<byte>.Shared.Rent(length);
+		Buffer.BlockCopy(_staging.GetBuffer(), 0, buffer, 0, length);
+		_staging.SetLength(0);
+
+		if (!_pendingRecords.TryAdd((buffer, length)))
+		{
+			ArrayPool<byte>.Shared.Return(buffer);
+			Interlocked.Increment(ref _droppedRecordCount);
+		}
+	}
+
+	private void WritePendingRecords()
+	{
+		foreach ((byte[] buffer, int length) in _pendingRecords.GetConsumingEnumerable())
+		{
+			try
+			{
+				_recordStream.Write(buffer, 0, length);
+			}
+			catch (IOException)
+			{
+				Interlocked.Increment(ref _droppedRecordCount);
+			}
+			finally
+			{
+				ArrayPool<byte>.Shared.Return(buffer);
+			}
+		}
 	}
 
 	public void BeginSequence(int sequence, long tick)
@@ -128,6 +188,7 @@ public class AuthoritySyncRecorder : IDisposable
 		WriteLoot();
 		SyncRecordFormat.WriteNavigationState(_writer, NavigationParityDigest.Capture(_world, _worldEntity, _navMeshService));
 		_writer.Flush();
+		EnqueueRecord();
 	}
 
 	private void WriteUnits()
@@ -294,12 +355,19 @@ public class AuthoritySyncRecorder : IDisposable
 		public ulong NamedByMask;
 	}
 
+	public int DroppedRecordCount => Volatile.Read(ref _droppedRecordCount);
+
 	public void Dispose()
 	{
 		if (_disposed) return;
 		_disposed = true;
 
-		_writer.Flush();
+		_pendingRecords.CompleteAdding();
+		if (_recordWriterThread.IsAlive) _recordWriterThread.Join(ShutdownJoinMilliseconds);
+
 		_writer.Dispose();
+		_staging.Dispose();
+		_recordStream.Dispose();
+		_pendingRecords.Dispose();
 	}
 }
