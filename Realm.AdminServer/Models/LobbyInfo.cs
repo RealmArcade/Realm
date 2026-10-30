@@ -12,6 +12,8 @@ public class LobbyInfo
 	public required int SlotsUsed { get; set; }
 	public string? GameVersion { get; set; }
 	public string? MapVersion { get; set; }
+	public bool IsGreenlit { get; set; }
+	public string? MapCreator { get; set; }
 	public double Latitude { get; set; }
 	public double Longitude { get; set; }
 	public DateTime LastHeartbeat { get; set; }

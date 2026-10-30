@@ -137,10 +137,10 @@ layout_mode = 2
 focus_mode = 0
 text = "Arcade"
 
-[node name="UnofficialMapsCheck" type="CheckBox" parent="FilterPanel/VBoxContainer"]
+[node name="BetaTestingMapsCheck" type="CheckBox" parent="FilterPanel/VBoxContainer"]
 layout_mode = 2
 focus_mode = 0
-text = "Show unofficial maps"
+text = "Show beta-testing maps"
 
 [node name="LobbyPanel" type="PanelContainer" parent="."]
 layout_mode = 0
