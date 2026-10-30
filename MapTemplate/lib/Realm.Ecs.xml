@@ -2541,246 +2541,6 @@
             <param name="kind">The kind tag to describe.</param>
             <returns>The kind name, or the numeric tag when the kind has no name yet.</returns>
         </member>
-        <member name="T:Realm.Ecs.DeterministicRandom">
-            <summary>
-            Provides a deterministic pseudo random stream whose sequence is identical on the host simulation and in WebAssembly map scripts for the same seed.
-            </summary>
-            <remarks>
-            The generator is a fixed SplitMix64 implementation rather than <see cref="T:System.Random"/>, so the produced sequence does not depend on the runtime version,
-            the platform, or whether the code executes inside WebAssembly. Host code and map scripts must draw from <see cref="P:Realm.Ecs.DeterministicRandom.Shared"/> so that both sides advance the
-            same logical stream, because a map's script and the world it acts on agree only while every draw is taken the same way and in the same order.
-            </remarks>
-        </member>
-        <member name="M:Realm.Ecs.DeterministicRandom.#ctor(System.Int32)">
-            <summary>
-            Initializes a new deterministic stream with the given seed.
-            </summary>
-            <param name="seed">The seed that determines the sequence. The same seed always produces the same sequence.</param>
-        </member>
-        <member name="P:Realm.Ecs.DeterministicRandom.Shared">
-            <summary>
-            Gets the single stream shared by the host simulation and the WebAssembly map script.
-            </summary>
-            <remarks>
-            The stream seeds itself from <see cref="P:Realm.Ecs.EcsSharedMemory.RandomSeed"/> on first access, so the seed published by the host is the one the map script uses.
-            </remarks>
-        </member>
-        <member name="M:Realm.Ecs.DeterministicRandom.SeedShared(System.Int32)">
-            <summary>
-            Starts the shared stream at the given seed. The match calls this before it steps, so the stream the simulation
-            draws from is established by the owner of the match rather than by whichever thread happens to read it first.
-            </summary>
-            <param name="seed">The seed that determines the sequence.</param>
-        </member>
-        <member name="P:Realm.Ecs.DeterministicRandom.Seed">
-            <summary>
-            Gets the seed currently driving this stream.
-            </summary>
-            <value>The seed supplied to <see cref="M:Realm.Ecs.DeterministicRandom.Reset(System.Int32)"/> or to the constructor.</value>
-        </member>
-        <member name="P:Realm.Ecs.DeterministicRandom.DrawCount">
-            <summary>
-            Gets the number of values drawn from this stream since it was last reset.
-            </summary>
-            <value>A monotonically increasing draw counter that is useful when debugging sequence divergence.</value>
-        </member>
-        <member name="M:Realm.Ecs.DeterministicRandom.Reset(System.Int32)">
-            <summary>
-            Restarts the stream at the given seed, discarding any previously drawn values.
-            </summary>
-            <param name="seed">The seed that determines the sequence. Two streams reset with the same seed produce identical values.</param>
-        </member>
-        <member name="M:Realm.Ecs.DeterministicRandom.NextUInt64">
-            <summary>
-            Returns the next raw 64-bit value from the stream and advances the stream exactly once.
-            </summary>
-            <returns>A pseudo random 64-bit value.</returns>
-        </member>
-        <member name="M:Realm.Ecs.DeterministicRandom.NextUInt32">
-            <summary>
-            Returns the next raw 32-bit value from the stream and advances the stream exactly once.
-            </summary>
-            <returns>A pseudo random 32-bit value.</returns>
-        </member>
-        <member name="M:Realm.Ecs.DeterministicRandom.Next">
-            <summary>
-            Returns a non-negative random integer below <see cref="F:System.Int32.MaxValue"/>.
-            </summary>
-            <returns>A pseudo random integer in the range [0, <see cref="F:System.Int32.MaxValue"/>).</returns>
-        </member>
-        <member name="M:Realm.Ecs.DeterministicRandom.Next(System.Int32)">
-            <summary>
-            Returns a non-negative random integer below the exclusive upper bound.
-            </summary>
-            <param name="maxValueExclusive">The exclusive upper bound. Values of zero or less return zero.</param>
-            <returns>A pseudo random integer in the range [0, <paramref name="maxValueExclusive"/>).</returns>
-        </member>
-        <member name="M:Realm.Ecs.DeterministicRandom.Next(System.Int32,System.Int32)">
-            <summary>
-            Returns a random integer in the half-open range [<paramref name="minValueInclusive"/>, <paramref name="maxValueExclusive"/>).
-            </summary>
-            <param name="minValueInclusive">The inclusive lower bound.</param>
-            <param name="maxValueExclusive">The exclusive upper bound.</param>
-            <returns>A pseudo random integer in the requested range; the lower bound when the range is empty.</returns>
-        </member>
-        <member name="M:Realm.Ecs.DeterministicRandom.NextInt(System.Int32,System.Int32)">
-            <summary>
-            Returns a random integer in the inclusive range [<paramref name="minValueInclusive"/>, <paramref name="maxValueInclusive"/>].
-            </summary>
-            <param name="minValueInclusive">The inclusive lower bound.</param>
-            <param name="maxValueInclusive">The inclusive upper bound.</param>
-            <returns>A pseudo random integer in the requested range; the lower bound when the range is empty.</returns>
-        </member>
-        <member name="M:Realm.Ecs.DeterministicRandom.NextDouble">
-            <summary>
-            Returns a random double in the range [0, 1).
-            </summary>
-            <returns>A pseudo random double with 53 bits of precision.</returns>
-        </member>
-        <member name="M:Realm.Ecs.DeterministicRandom.NextSingle">
-            <summary>
-            Returns a random single-precision value in the range [0, 1).
-            </summary>
-            <returns>A pseudo random float with 24 bits of precision.</returns>
-        </member>
-        <member name="M:Realm.Ecs.DeterministicRandom.NextInt64">
-            <summary>
-            Returns a non-negative random 64-bit integer below <see cref="F:System.Int64.MaxValue"/>.
-            </summary>
-            <returns>A pseudo random 64-bit integer in the range [0, <see cref="F:System.Int64.MaxValue"/>).</returns>
-        </member>
-        <member name="M:Realm.Ecs.DeterministicRandom.NextInt64(System.Int64)">
-            <summary>
-            Returns a non-negative random 64-bit integer below the exclusive upper bound.
-            </summary>
-            <param name="maxValueExclusive">The exclusive upper bound. Values of zero or less return zero.</param>
-            <returns>A pseudo random 64-bit integer in the range [0, <paramref name="maxValueExclusive"/>).</returns>
-        </member>
-        <member name="M:Realm.Ecs.DeterministicRandom.NextInt64(System.Int64,System.Int64)">
-            <summary>
-            Returns a random 64-bit integer in the half-open range [<paramref name="minValueInclusive"/>, <paramref name="maxValueExclusive"/>).
-            </summary>
-            <param name="minValueInclusive">The inclusive lower bound.</param>
-            <param name="maxValueExclusive">The exclusive upper bound.</param>
-            <returns>A pseudo random 64-bit integer in the requested range; the lower bound when the range is empty.</returns>
-        </member>
-        <member name="M:Realm.Ecs.DeterministicRandom.NextBytes(System.Span{System.Byte})">
-            <summary>
-            Fills the destination buffer with random bytes and advances the stream once per filled 64-bit chunk.
-            </summary>
-            <param name="buffer">The buffer to fill.</param>
-        </member>
-        <member name="M:Realm.Ecs.DeterministicRandom.NextBytes(System.Byte[])">
-            <summary>
-            Fills the destination buffer with random bytes.
-            </summary>
-            <param name="buffer">The buffer to fill.</param>
-        </member>
-        <member name="M:Realm.Ecs.DeterministicRandom.Shuffle``1(System.Span{``0})">
-            <summary>
-            Shuffles the given span in place using a Fisher-Yates shuffle driven by this stream.
-            </summary>
-            <typeparam name="T">The element type.</typeparam>
-            <param name="values">The values to shuffle in place.</param>
-        </member>
-        <member name="M:Realm.Ecs.DeterministicRandom.Shuffle``1(``0[])">
-            <summary>
-            Shuffles the given array in place using a Fisher-Yates shuffle driven by this stream.
-            </summary>
-            <typeparam name="T">The element type.</typeparam>
-            <param name="values">The values to shuffle in place.</param>
-        </member>
-        <member name="M:Realm.Ecs.DeterministicRandom.GetItems``1(System.ReadOnlySpan{``0},System.Int32)">
-            <summary>
-            Copies a random selection of values into a new array.
-            </summary>
-            <typeparam name="T">The element type.</typeparam>
-            <param name="choices">The values to select from.</param>
-            <param name="length">The number of values to select. Selection is with replacement, matching <see cref="M:System.Random.GetItems``1(System.ReadOnlySpan{``0},System.Int32)"/>.</param>
-            <returns>A new array containing the selected values.</returns>
-        </member>
-        <member name="M:Realm.Ecs.DeterministicRandom.GetItems``1(``0[],System.Int32)">
-            <summary>
-            Copies a random selection of values into a new array.
-            </summary>
-            <typeparam name="T">The element type.</typeparam>
-            <param name="choices">The values to select from.</param>
-            <param name="length">The number of values to select. Selection is with replacement.</param>
-            <returns>A new array containing the selected values.</returns>
-        </member>
-        <member name="M:Realm.Ecs.DeterministicRandom.GetItems``1(System.ReadOnlySpan{``0},System.Span{``0})">
-            <summary>
-            Fills the destination with a random selection of values.
-            </summary>
-            <typeparam name="T">The element type.</typeparam>
-            <param name="choices">The values to select from. Nothing is written when this span is empty.</param>
-            <param name="destination">The destination to fill. Selection is with replacement.</param>
-        </member>
-        <member name="M:Realm.Ecs.DeterministicRandom.Verify(System.Int32,System.Int32)">
-            <summary>
-            Verifies that two streams built from the same seed produce the same sequence of values.
-            </summary>
-            <param name="seed">The seed to verify.</param>
-            <param name="drawCount">The number of values to compare. Values of zero or less are treated as one.</param>
-            <returns>A report describing whether the sequence is deterministic and where the first divergence occurred.</returns>
-        </member>
-        <member name="T:Realm.Ecs.RandomDeterminismReport">
-            <summary>
-            Describes the outcome of a deterministic random sequence verification.
-            </summary>
-        </member>
-        <member name="M:Realm.Ecs.RandomDeterminismReport.#ctor(System.Int32,System.Int32,System.Int32,System.UInt64,System.UInt64)">
-            <summary>
-            Initializes a new report for the given verification run.
-            </summary>
-            <param name="seed">The verified seed.</param>
-            <param name="drawCount">The number of compared values.</param>
-            <param name="divergenceIndex">The zero-based index of the first divergence, or -1 when the sequences matched.</param>
-            <param name="firstSequenceValue">The value produced by the first sequence at the divergence point.</param>
-            <param name="secondSequenceValue">The value produced by the second sequence at the divergence point.</param>
-        </member>
-        <member name="P:Realm.Ecs.RandomDeterminismReport.Seed">
-            <summary>
-            Gets the verified seed.
-            </summary>
-            <value>The seed both sequences were started with.</value>
-        </member>
-        <member name="P:Realm.Ecs.RandomDeterminismReport.DrawCount">
-            <summary>
-            Gets the number of compared values.
-            </summary>
-            <value>The requested comparison count.</value>
-        </member>
-        <member name="P:Realm.Ecs.RandomDeterminismReport.DivergenceIndex">
-            <summary>
-            Gets the zero-based index of the first divergence.
-            </summary>
-            <value>The divergence index, or -1 when both sequences matched for the whole comparison.</value>
-        </member>
-        <member name="P:Realm.Ecs.RandomDeterminismReport.FirstSequenceValue">
-            <summary>
-            Gets the value produced by the first sequence at the divergence point.
-            </summary>
-            <value>The first sequence value, or zero when no divergence occurred.</value>
-        </member>
-        <member name="P:Realm.Ecs.RandomDeterminismReport.SecondSequenceValue">
-            <summary>
-            Gets the value produced by the second sequence at the divergence point.
-            </summary>
-            <value>The second sequence value, or zero when no divergence occurred.</value>
-        </member>
-        <member name="P:Realm.Ecs.RandomDeterminismReport.IsDeterministic">
-            <summary>
-            Gets a value indicating whether both sequences were identical for the whole comparison.
-            </summary>
-            <value><see langword="true"/> when no divergence occurred; otherwise <see langword="false"/>.</value>
-        </member>
-        <member name="M:Realm.Ecs.RandomDeterminismReport.Describe">
-            <summary>
-            Produces a human readable description of the verification outcome.
-            </summary>
-            <returns>A message stating whether the sequence is deterministic and, on divergence, where it diverged.</returns>
-        </member>
         <member name="T:Realm.Ecs.EcsSharedMemory">
             <summary>
             Manages the zero-allocation Structure-of-Arrays (SoA) shared linear memory region between WebAssembly guest and host runtime contexts.
@@ -3189,6 +2949,246 @@
             <summary>
             Gets or sets the remaining harvestable resource amount in this node.
             </summary>
+        </member>
+        <member name="T:Realm.Ecs.SeededRandom">
+            <summary>
+            Provides a deterministic pseudo random stream whose sequence is identical on the host simulation and in WebAssembly map scripts for the same seed.
+            </summary>
+            <remarks>
+            The generator is a fixed SplitMix64 implementation rather than <see cref="T:System.Random"/>, so the produced sequence does not depend on the runtime version,
+            the platform, or whether the code executes inside WebAssembly. Host code and map scripts must draw from <see cref="P:Realm.Ecs.SeededRandom.Shared"/> so that both sides advance the
+            same logical stream, because a map's script and the world it acts on agree only while every draw is taken the same way and in the same order.
+            </remarks>
+        </member>
+        <member name="M:Realm.Ecs.SeededRandom.#ctor(System.Int32)">
+            <summary>
+            Initializes a new deterministic stream with the given seed.
+            </summary>
+            <param name="seed">The seed that determines the sequence. The same seed always produces the same sequence.</param>
+        </member>
+        <member name="P:Realm.Ecs.SeededRandom.Shared">
+            <summary>
+            Gets the single stream shared by the host simulation and the WebAssembly map script.
+            </summary>
+            <remarks>
+            The stream seeds itself from <see cref="P:Realm.Ecs.EcsSharedMemory.RandomSeed"/> on first access, so the seed published by the host is the one the map script uses.
+            </remarks>
+        </member>
+        <member name="M:Realm.Ecs.SeededRandom.SeedShared(System.Int32)">
+            <summary>
+            Starts the shared stream at the given seed. The match calls this before it steps, so the stream the simulation
+            draws from is established by the owner of the match rather than by whichever thread happens to read it first.
+            </summary>
+            <param name="seed">The seed that determines the sequence.</param>
+        </member>
+        <member name="P:Realm.Ecs.SeededRandom.Seed">
+            <summary>
+            Gets the seed currently driving this stream.
+            </summary>
+            <value>The seed supplied to <see cref="M:Realm.Ecs.SeededRandom.Reset(System.Int32)"/> or to the constructor.</value>
+        </member>
+        <member name="P:Realm.Ecs.SeededRandom.DrawCount">
+            <summary>
+            Gets the number of values drawn from this stream since it was last reset.
+            </summary>
+            <value>A monotonically increasing draw counter that is useful when debugging sequence divergence.</value>
+        </member>
+        <member name="M:Realm.Ecs.SeededRandom.Reset(System.Int32)">
+            <summary>
+            Restarts the stream at the given seed, discarding any previously drawn values.
+            </summary>
+            <param name="seed">The seed that determines the sequence. Two streams reset with the same seed produce identical values.</param>
+        </member>
+        <member name="M:Realm.Ecs.SeededRandom.NextUInt64">
+            <summary>
+            Returns the next raw 64-bit value from the stream and advances the stream exactly once.
+            </summary>
+            <returns>A pseudo random 64-bit value.</returns>
+        </member>
+        <member name="M:Realm.Ecs.SeededRandom.NextUInt32">
+            <summary>
+            Returns the next raw 32-bit value from the stream and advances the stream exactly once.
+            </summary>
+            <returns>A pseudo random 32-bit value.</returns>
+        </member>
+        <member name="M:Realm.Ecs.SeededRandom.Next">
+            <summary>
+            Returns a non-negative random integer below <see cref="F:System.Int32.MaxValue"/>.
+            </summary>
+            <returns>A pseudo random integer in the range [0, <see cref="F:System.Int32.MaxValue"/>).</returns>
+        </member>
+        <member name="M:Realm.Ecs.SeededRandom.Next(System.Int32)">
+            <summary>
+            Returns a non-negative random integer below the exclusive upper bound.
+            </summary>
+            <param name="maxValueExclusive">The exclusive upper bound. Values of zero or less return zero.</param>
+            <returns>A pseudo random integer in the range [0, <paramref name="maxValueExclusive"/>).</returns>
+        </member>
+        <member name="M:Realm.Ecs.SeededRandom.Next(System.Int32,System.Int32)">
+            <summary>
+            Returns a random integer in the half-open range [<paramref name="minValueInclusive"/>, <paramref name="maxValueExclusive"/>).
+            </summary>
+            <param name="minValueInclusive">The inclusive lower bound.</param>
+            <param name="maxValueExclusive">The exclusive upper bound.</param>
+            <returns>A pseudo random integer in the requested range; the lower bound when the range is empty.</returns>
+        </member>
+        <member name="M:Realm.Ecs.SeededRandom.NextInt(System.Int32,System.Int32)">
+            <summary>
+            Returns a random integer in the inclusive range [<paramref name="minValueInclusive"/>, <paramref name="maxValueInclusive"/>].
+            </summary>
+            <param name="minValueInclusive">The inclusive lower bound.</param>
+            <param name="maxValueInclusive">The inclusive upper bound.</param>
+            <returns>A pseudo random integer in the requested range; the lower bound when the range is empty.</returns>
+        </member>
+        <member name="M:Realm.Ecs.SeededRandom.NextDouble">
+            <summary>
+            Returns a random double in the range [0, 1).
+            </summary>
+            <returns>A pseudo random double with 53 bits of precision.</returns>
+        </member>
+        <member name="M:Realm.Ecs.SeededRandom.NextSingle">
+            <summary>
+            Returns a random single-precision value in the range [0, 1).
+            </summary>
+            <returns>A pseudo random float with 24 bits of precision.</returns>
+        </member>
+        <member name="M:Realm.Ecs.SeededRandom.NextInt64">
+            <summary>
+            Returns a non-negative random 64-bit integer below <see cref="F:System.Int64.MaxValue"/>.
+            </summary>
+            <returns>A pseudo random 64-bit integer in the range [0, <see cref="F:System.Int64.MaxValue"/>).</returns>
+        </member>
+        <member name="M:Realm.Ecs.SeededRandom.NextInt64(System.Int64)">
+            <summary>
+            Returns a non-negative random 64-bit integer below the exclusive upper bound.
+            </summary>
+            <param name="maxValueExclusive">The exclusive upper bound. Values of zero or less return zero.</param>
+            <returns>A pseudo random 64-bit integer in the range [0, <paramref name="maxValueExclusive"/>).</returns>
+        </member>
+        <member name="M:Realm.Ecs.SeededRandom.NextInt64(System.Int64,System.Int64)">
+            <summary>
+            Returns a random 64-bit integer in the half-open range [<paramref name="minValueInclusive"/>, <paramref name="maxValueExclusive"/>).
+            </summary>
+            <param name="minValueInclusive">The inclusive lower bound.</param>
+            <param name="maxValueExclusive">The exclusive upper bound.</param>
+            <returns>A pseudo random 64-bit integer in the requested range; the lower bound when the range is empty.</returns>
+        </member>
+        <member name="M:Realm.Ecs.SeededRandom.NextBytes(System.Span{System.Byte})">
+            <summary>
+            Fills the destination buffer with random bytes and advances the stream once per filled 64-bit chunk.
+            </summary>
+            <param name="buffer">The buffer to fill.</param>
+        </member>
+        <member name="M:Realm.Ecs.SeededRandom.NextBytes(System.Byte[])">
+            <summary>
+            Fills the destination buffer with random bytes.
+            </summary>
+            <param name="buffer">The buffer to fill.</param>
+        </member>
+        <member name="M:Realm.Ecs.SeededRandom.Shuffle``1(System.Span{``0})">
+            <summary>
+            Shuffles the given span in place using a Fisher-Yates shuffle driven by this stream.
+            </summary>
+            <typeparam name="T">The element type.</typeparam>
+            <param name="values">The values to shuffle in place.</param>
+        </member>
+        <member name="M:Realm.Ecs.SeededRandom.Shuffle``1(``0[])">
+            <summary>
+            Shuffles the given array in place using a Fisher-Yates shuffle driven by this stream.
+            </summary>
+            <typeparam name="T">The element type.</typeparam>
+            <param name="values">The values to shuffle in place.</param>
+        </member>
+        <member name="M:Realm.Ecs.SeededRandom.GetItems``1(System.ReadOnlySpan{``0},System.Int32)">
+            <summary>
+            Copies a random selection of values into a new array.
+            </summary>
+            <typeparam name="T">The element type.</typeparam>
+            <param name="choices">The values to select from.</param>
+            <param name="length">The number of values to select. Selection is with replacement, matching <see cref="M:System.Random.GetItems``1(System.ReadOnlySpan{``0},System.Int32)"/>.</param>
+            <returns>A new array containing the selected values.</returns>
+        </member>
+        <member name="M:Realm.Ecs.SeededRandom.GetItems``1(``0[],System.Int32)">
+            <summary>
+            Copies a random selection of values into a new array.
+            </summary>
+            <typeparam name="T">The element type.</typeparam>
+            <param name="choices">The values to select from.</param>
+            <param name="length">The number of values to select. Selection is with replacement.</param>
+            <returns>A new array containing the selected values.</returns>
+        </member>
+        <member name="M:Realm.Ecs.SeededRandom.GetItems``1(System.ReadOnlySpan{``0},System.Span{``0})">
+            <summary>
+            Fills the destination with a random selection of values.
+            </summary>
+            <typeparam name="T">The element type.</typeparam>
+            <param name="choices">The values to select from. Nothing is written when this span is empty.</param>
+            <param name="destination">The destination to fill. Selection is with replacement.</param>
+        </member>
+        <member name="M:Realm.Ecs.SeededRandom.Verify(System.Int32,System.Int32)">
+            <summary>
+            Verifies that two streams built from the same seed produce the same sequence of values.
+            </summary>
+            <param name="seed">The seed to verify.</param>
+            <param name="drawCount">The number of values to compare. Values of zero or less are treated as one.</param>
+            <returns>A report describing whether the sequence is deterministic and where the first divergence occurred.</returns>
+        </member>
+        <member name="T:Realm.Ecs.RandomDeterminismReport">
+            <summary>
+            Describes the outcome of a deterministic random sequence verification.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.RandomDeterminismReport.#ctor(System.Int32,System.Int32,System.Int32,System.UInt64,System.UInt64)">
+            <summary>
+            Initializes a new report for the given verification run.
+            </summary>
+            <param name="seed">The verified seed.</param>
+            <param name="drawCount">The number of compared values.</param>
+            <param name="divergenceIndex">The zero-based index of the first divergence, or -1 when the sequences matched.</param>
+            <param name="firstSequenceValue">The value produced by the first sequence at the divergence point.</param>
+            <param name="secondSequenceValue">The value produced by the second sequence at the divergence point.</param>
+        </member>
+        <member name="P:Realm.Ecs.RandomDeterminismReport.Seed">
+            <summary>
+            Gets the verified seed.
+            </summary>
+            <value>The seed both sequences were started with.</value>
+        </member>
+        <member name="P:Realm.Ecs.RandomDeterminismReport.DrawCount">
+            <summary>
+            Gets the number of compared values.
+            </summary>
+            <value>The requested comparison count.</value>
+        </member>
+        <member name="P:Realm.Ecs.RandomDeterminismReport.DivergenceIndex">
+            <summary>
+            Gets the zero-based index of the first divergence.
+            </summary>
+            <value>The divergence index, or -1 when both sequences matched for the whole comparison.</value>
+        </member>
+        <member name="P:Realm.Ecs.RandomDeterminismReport.FirstSequenceValue">
+            <summary>
+            Gets the value produced by the first sequence at the divergence point.
+            </summary>
+            <value>The first sequence value, or zero when no divergence occurred.</value>
+        </member>
+        <member name="P:Realm.Ecs.RandomDeterminismReport.SecondSequenceValue">
+            <summary>
+            Gets the value produced by the second sequence at the divergence point.
+            </summary>
+            <value>The second sequence value, or zero when no divergence occurred.</value>
+        </member>
+        <member name="P:Realm.Ecs.RandomDeterminismReport.IsDeterministic">
+            <summary>
+            Gets a value indicating whether both sequences were identical for the whole comparison.
+            </summary>
+            <value><see langword="true"/> when no divergence occurred; otherwise <see langword="false"/>.</value>
+        </member>
+        <member name="M:Realm.Ecs.RandomDeterminismReport.Describe">
+            <summary>
+            Produces a human readable description of the verification outcome.
+            </summary>
+            <returns>A message stating whether the sequence is deterministic and, on divergence, where it diverged.</returns>
         </member>
         <member name="T:Realm.Ecs.StringRegistry">
             <summary>

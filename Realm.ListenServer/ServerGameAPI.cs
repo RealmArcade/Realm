@@ -573,12 +573,12 @@ public partial class ServerGameAPI : IGameAPI, IDisposable
 	public int RandomInt(int min, int max)
 	{
 		if (max <= min) return min;
-		return DeterministicRandom.Shared.NextInt(min, max);
+		return SeededRandom.Shared.NextInt(min, max);
 	}
 
 	public float RandomFloat(float min, float max)
 	{
 		if (max <= min) return min;
-		return min + DeterministicRandom.Shared.NextSingle() * (max - min);
+		return min + SeededRandom.Shared.NextSingle() * (max - min);
 	}
 }

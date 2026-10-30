@@ -66,7 +66,7 @@ public class StrategicAutoBalancer
 		float[] vec = parent.ToVector();
 		for (int i = 0; i < vec.Length; i++)
 		{
-			float mutation = (float)(DeterministicRandom.Shared.NextDouble() * 0.2 - 0.1) * vec[i];
+			float mutation = (float)(SeededRandom.Shared.NextDouble() * 0.2 - 0.1) * vec[i];
 			vec[i] += mutation;
 		}
 

@@ -24,25 +24,25 @@ public class WasmRandomProxy
 
     public WasmRandomProxy(int seed)
     {
-        DeterministicRandom.Shared.Reset(seed);
+        SeededRandom.Shared.Reset(seed);
     }
 
-    public int Next() => DeterministicRandom.Shared.Next();
-    public int Next(int maxValue) => DeterministicRandom.Shared.Next(maxValue);
-    public int Next(int minValue, int maxValue) => DeterministicRandom.Shared.Next(minValue, maxValue);
-    public int NextInt(int minValueInclusive, int maxValueInclusive) => DeterministicRandom.Shared.NextInt(minValueInclusive, maxValueInclusive);
-    public double NextDouble() => DeterministicRandom.Shared.NextDouble();
-    public float NextSingle() => DeterministicRandom.Shared.NextSingle();
-    public void NextBytes(byte[] buffer) => DeterministicRandom.Shared.NextBytes(buffer);
-    public void NextBytes(Span<byte> buffer) => DeterministicRandom.Shared.NextBytes(buffer);
-    public long NextInt64() => DeterministicRandom.Shared.NextInt64();
-    public long NextInt64(long maxValue) => DeterministicRandom.Shared.NextInt64(maxValue);
-    public long NextInt64(long minValue, long maxValue) => DeterministicRandom.Shared.NextInt64(minValue, maxValue);
-    public void Shuffle<T>(T[] array) => DeterministicRandom.Shared.Shuffle(array);
-    public void Shuffle<T>(Span<T> values) => DeterministicRandom.Shared.Shuffle(values);
-    public T[] GetItems<T>(T[] choices, int length) => DeterministicRandom.Shared.GetItems(choices, length);
-    public T[] GetItems<T>(ReadOnlySpan<T> choices, int length) => DeterministicRandom.Shared.GetItems(choices, length);
-    public void GetItems<T>(ReadOnlySpan<T> choices, Span<T> destination) => DeterministicRandom.Shared.GetItems(choices, destination);
+    public int Next() => SeededRandom.Shared.Next();
+    public int Next(int maxValue) => SeededRandom.Shared.Next(maxValue);
+    public int Next(int minValue, int maxValue) => SeededRandom.Shared.Next(minValue, maxValue);
+    public int NextInt(int minValueInclusive, int maxValueInclusive) => SeededRandom.Shared.NextInt(minValueInclusive, maxValueInclusive);
+    public double NextDouble() => SeededRandom.Shared.NextDouble();
+    public float NextSingle() => SeededRandom.Shared.NextSingle();
+    public void NextBytes(byte[] buffer) => SeededRandom.Shared.NextBytes(buffer);
+    public void NextBytes(Span<byte> buffer) => SeededRandom.Shared.NextBytes(buffer);
+    public long NextInt64() => SeededRandom.Shared.NextInt64();
+    public long NextInt64(long maxValue) => SeededRandom.Shared.NextInt64(maxValue);
+    public long NextInt64(long minValue, long maxValue) => SeededRandom.Shared.NextInt64(minValue, maxValue);
+    public void Shuffle<T>(T[] array) => SeededRandom.Shared.Shuffle(array);
+    public void Shuffle<T>(Span<T> values) => SeededRandom.Shared.Shuffle(values);
+    public T[] GetItems<T>(T[] choices, int length) => SeededRandom.Shared.GetItems(choices, length);
+    public T[] GetItems<T>(ReadOnlySpan<T> choices, int length) => SeededRandom.Shared.GetItems(choices, length);
+    public void GetItems<T>(ReadOnlySpan<T> choices, Span<T> destination) => SeededRandom.Shared.GetItems(choices, destination);
 }
 
 public class WasmEntryPoint
@@ -61,10 +61,10 @@ public class WasmEntryPoint
     {
         try
         {
-            DeterministicRandom.Shared.Reset(EcsSharedMemory.RandomSeed);
+            SeededRandom.Shared.Reset(EcsSharedMemory.RandomSeed);
             _gameApi = new GameAPI_WasmModule();
             GameAPI.Current = _gameApi;
-            _gameApi.BroadcastMessage($"Guest Initialize started with deterministic random seed {DeterministicRandom.Shared.Seed}");
+            _gameApi.BroadcastMessage($"Guest Initialize started with deterministic random seed {SeededRandom.Shared.Seed}");
 
             foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
             {

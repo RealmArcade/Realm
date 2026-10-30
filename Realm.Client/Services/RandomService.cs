@@ -6,21 +6,21 @@ namespace Realm.Client.Services
 	public class RandomProxy
 	{
 		private static RandomProxy? _shared;
-		private readonly DeterministicRandom _stream;
+		private readonly SeededRandom _stream;
 
-		public static RandomProxy Shared => _shared ??= new RandomProxy(DeterministicRandom.Shared);
+		public static RandomProxy Shared => _shared ??= new RandomProxy(SeededRandom.Shared);
 
-		public RandomProxy() : this(new DeterministicRandom(CreateIndependentSeed()))
+		public RandomProxy() : this(new SeededRandom(CreateIndependentSeed()))
 		{
 		}
 
 		private static int CreateIndependentSeed() => System.Random.Shared.Next(int.MinValue, int.MaxValue);
 
-		public RandomProxy(int seed) : this(new DeterministicRandom(seed))
+		public RandomProxy(int seed) : this(new SeededRandom(seed))
 		{
 		}
 
-		private RandomProxy(DeterministicRandom stream)
+		private RandomProxy(SeededRandom stream)
 		{
 			_stream = stream;
 		}
@@ -47,15 +47,15 @@ namespace Realm.Client.Services
 	{
 		public RandomProxy Rng { get; private set; } = RandomProxy.Shared;
 
-		public int Seed => DeterministicRandom.Shared.Seed;
+		public int Seed => SeededRandom.Shared.Seed;
 
-		public long DrawCount => DeterministicRandom.Shared.DrawCount;
+		public long DrawCount => SeededRandom.Shared.DrawCount;
 
 		public void SetSeed(int? seed)
 		{
 			int resolvedSeed = seed.HasValue && seed.Value != 0 ? seed.Value : System.Random.Shared.Next(1, int.MaxValue);
 			EcsSharedMemory.RandomSeed = resolvedSeed;
-			DeterministicRandom.Shared.Reset(resolvedSeed);
+			SeededRandom.Shared.Reset(resolvedSeed);
 			Rng = RandomProxy.Shared;
 			Godot.GD.Print($"[RandomService] Deterministic random seed {resolvedSeed}.");
 		}

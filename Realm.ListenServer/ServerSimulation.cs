@@ -53,7 +53,7 @@ public class ServerSimulation : IDisposable
 
 		// The stream the simulation and its script draw from is established here, by the owner of the match, before
 		// anything can step or describe it.
-		DeterministicRandom.SeedShared(randomSeed);
+		SeededRandom.SeedShared(randomSeed);
 		_matchTick = new MatchTick(map.Simulation);
 		_commands = new CommandAuthorityService(map.Simulation);
 		_commands.DroppedOrderSink = log.Write;

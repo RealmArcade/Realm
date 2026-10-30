@@ -11,7 +11,7 @@ namespace Realm.Ecs;
 /// the platform, or whether the code executes inside WebAssembly. Host code and map scripts must draw from <see cref="Shared"/> so that both sides advance the
 /// same logical stream, because a map's script and the world it acts on agree only while every draw is taken the same way and in the same order.
 /// </remarks>
-public class DeterministicRandom
+public class SeededRandom
 {
 	private const ulong GOLDEN_GAMMA = 0x9E3779B97F4A7C15UL;
 	private const ulong MULTIPLIER_ONE = 0xBF58476D1CE4E5B9UL;
@@ -19,7 +19,7 @@ public class DeterministicRandom
 	private const double DOUBLE_SCALE = 1.0 / 9007199254740992.0;
 	private const float SINGLE_SCALE = 1.0f / 16777216.0f;
 
-	private static DeterministicRandom? _shared;
+	private static SeededRandom? _shared;
 
 	private ulong _state;
 	private int _seed;
@@ -29,7 +29,7 @@ public class DeterministicRandom
 	/// Initializes a new deterministic stream with the given seed.
 	/// </summary>
 	/// <param name="seed">The seed that determines the sequence. The same seed always produces the same sequence.</param>
-	public DeterministicRandom(int seed)
+	public SeededRandom(int seed)
 	{
 		Reset(seed);
 	}
@@ -40,14 +40,14 @@ public class DeterministicRandom
 	/// <remarks>
 	/// The stream seeds itself from <see cref="EcsSharedMemory.RandomSeed"/> on first access, so the seed published by the host is the one the map script uses.
 	/// </remarks>
-	public static DeterministicRandom Shared
+	public static SeededRandom Shared
 	{
 		get
 		{
-			DeterministicRandom? shared = Volatile.Read(ref _shared);
+			SeededRandom? shared = Volatile.Read(ref _shared);
 			if (shared != null) return shared;
 
-			var created = new DeterministicRandom(EcsSharedMemory.RandomSeed);
+			var created = new SeededRandom(EcsSharedMemory.RandomSeed);
 			return Interlocked.CompareExchange(ref _shared, created, null) ?? created;
 		}
 	}
@@ -285,8 +285,8 @@ public class DeterministicRandom
 	public static RandomDeterminismReport Verify(int seed, int drawCount = 256)
 	{
 		int comparisons = drawCount <= 0 ? 1 : drawCount;
-		var first = new DeterministicRandom(seed);
-		var second = new DeterministicRandom(seed);
+		var first = new SeededRandom(seed);
+		var second = new SeededRandom(seed);
 
 		for (int index = 0; index < comparisons; index++)
 		{

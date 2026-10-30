@@ -12,9 +12,9 @@ public class LinearUtilityPolicy
 		}
 
 		int count = affordances.Count;
-		if (epsilon > 0.0f && DeterministicRandom.Shared.NextDouble() < epsilon)
+		if (epsilon > 0.0f && SeededRandom.Shared.NextDouble() < epsilon)
 		{
-			return affordances[DeterministicRandom.Shared.Next(count)];
+			return affordances[SeededRandom.Shared.Next(count)];
 		}
 
 		if (temperature <= 0.0001f)
@@ -75,7 +75,7 @@ public class LinearUtilityPolicy
 			return affordances[0];
 		}
 
-		float randVal = (float)DeterministicRandom.Shared.NextDouble() * sumExp;
+		float randVal = (float)SeededRandom.Shared.NextDouble() * sumExp;
 		float cumulative = 0.0f;
 
 		for (int i = 0; i < count; i++)

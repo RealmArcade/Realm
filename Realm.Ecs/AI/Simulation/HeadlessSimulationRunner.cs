@@ -245,11 +245,11 @@ public class HeadlessSimulationRunner
 
 	private ulong RunSeededMatch(int seed, float[] weights, int maxTicks, float epsilon, out int winner, out int ticks)
 	{
-		DeterministicRandom.Shared.Reset(seed);
+		SeededRandom.Shared.Reset(seed);
 		SimulationMatchResult result = RunMatch(weights, weights, maxTicks, epsilon: epsilon);
 		winner = result.WinnerPlayerIndex;
 		ticks = result.TotalTicksExecuted;
-		return MixDigest(ComputeWorldDigest(), (ulong)DeterministicRandom.Shared.DrawCount);
+		return MixDigest(ComputeWorldDigest(), (ulong)SeededRandom.Shared.DrawCount);
 	}
 
 	private ulong ComputeWorldDigest()

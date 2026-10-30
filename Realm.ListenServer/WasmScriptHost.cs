@@ -176,7 +176,7 @@ public partial class WasmScriptHost : IWasmRuntime, IWasmEvaluationEngine, IDisp
 							ExecuteGuardedAction(() => setStridesFn.Invoke(_sharedMemoryOffset + Realm.Ecs.EcsSharedMemory.COMPONENT_STRIDES_OFFSET), "set_realm_shared_memory_strides");
 						}
 
-						PublishDeterministicRandomSeed();
+						PublishSeededRandomSeed();
 					}
 				}
 			}
@@ -631,7 +631,7 @@ public partial class WasmScriptHost : IWasmRuntime, IWasmEvaluationEngine, IDisp
 		}
 	}
 
-	private void PublishDeterministicRandomSeed()
+	private void PublishSeededRandomSeed()
 	{
 		var memory = _instance.GetMemory("memory");
 		if (memory == null || _sharedMemoryOffset <= 0) return;
