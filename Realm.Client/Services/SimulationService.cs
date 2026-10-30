@@ -1121,14 +1121,15 @@ public class SimulationService
 		// interval and 0.75 m along the direction it was already moving. Everything else is drawn strictly between
 		// descriptions this screen holds. Drawing another player's unit ahead of its description would invent motion this
 		// screen was never told about, so the step masks one interval of the delay for the local player's own orders only.
-		// Whether such an order is held was stamped by the description this screen applied, where the sequence it came at
-		// is known. All this frame does is read it, so the lead a completed order leaves behind is released when the
-		// completion is drawn rather than when some later frame happened to notice it.
+		// What this frame reads is the order this screen believes it holds, which a unit it has just ordered holds from the
+		// moment the order went out; the answer the match gave to that order is stamped where the description carrying it is
+		// applied, so the lead a completed order leaves behind is released when the completion is drawn rather than when
+		// some later frame happened to notice it.
 		int localPlayerIndex = GameContext.Host?.LocalPlayerIndex ?? -1;
-		bool localOrderConfirmed = GameContext.World.Has<MoveTo>(entity)
-		                           && GameContext.World.Has<UnitOwnerPlayer>(entity)
-		                           && GameContext.World.Get<UnitOwnerPlayer>(entity).PlayerIndex == localPlayerIndex;
-		if (!GameContext.SnapshotTimeline.TrySample(entity.Id, localOrderConfirmed, out Vector3 sampledPosition, out float sampledRotationY, out Vector3 sampledVelocity)) return;
+		bool localOrderBelievedHeld = GameContext.World.Has<MoveTo>(entity)
+		                              && GameContext.World.Has<UnitOwnerPlayer>(entity)
+		                              && GameContext.World.Get<UnitOwnerPlayer>(entity).PlayerIndex == localPlayerIndex;
+		if (!GameContext.SnapshotTimeline.TrySample(entity.Id, localOrderBelievedHeld, out Vector3 sampledPosition, out float sampledRotationY, out Vector3 sampledVelocity)) return;
 
 		Vector3 currentPos = GameContext.World.Get<Position>(entity).Value;
 

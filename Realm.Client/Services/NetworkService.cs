@@ -313,10 +313,9 @@ public class NetworkService
 
 		RetireUndescribedUnits(snapshot, mapping);
 
-		int localPlayerIndex = GameContext.Host?.LocalPlayerIndex ?? -1;
 		foreach (var snap in snapshot.Units)
 		{
-			ApplySnapshotToUnit(snap, snapshot.Sequence, mapping, localPlayerIndex);
+			ApplySnapshotToUnit(snap, snapshot.Sequence, mapping);
 		}
 
 		ApplyReplicatedComponentState(snapshot);
@@ -517,7 +516,22 @@ public class NetworkService
 		ReplicatedEntityReferences.Unregister(serverEntityId);
 	}
 
-	private void ApplySnapshotToUnit(UnitSnapshot snap, int sequence, NetworkMappingState mapping, int localPlayerIndex)
+	/// <summary>
+	///     States, for the presentation clock, whether this unit holds a move order the match confirmed, stamped with the
+	///     sequence of the description that said so. Only this player's own units are drawn ahead of their descriptions, so
+	///     only their order state is worth stamping.
+	/// </summary>
+	private static void NoteLocalOrderState(Entity localEntity, bool holdsMoveOrder, int sequence)
+	{
+		int localPlayerIndex = GameContext.Host?.LocalPlayerIndex ?? -1;
+		if (localPlayerIndex < 0) return;
+		if (!GameContext.World.Has<UnitOwnerPlayer>(localEntity)) return;
+		if (GameContext.World.Get<UnitOwnerPlayer>(localEntity).PlayerIndex != localPlayerIndex) return;
+
+		GameContext.SnapshotTimeline.NoteConfirmedOrder(localEntity.Id, holdsMoveOrder, sequence);
+	}
+
+	private void ApplySnapshotToUnit(UnitSnapshot snap, int sequence, NetworkMappingState mapping)
 	{
 		if (!mapping.ServerToClientEntityMap.TryGetValue(snap.EntityId, out var localEntity))
 		{
@@ -576,17 +590,6 @@ public class NetworkService
 		});
 
 		GameContext.World.SetOrAdd(localEntity, new DescribedAtSequence(sequence));
-
-		// Whether an order this screen issued is still held is stated here, where the description that states it has been
-		// applied and the sequence it came at are both in hand. The lead such an order draws is released by the description
-		// the cursor is showing, so it has to be stamped with the sequence that description belongs to and not with
-		// whatever the newest sample happened to be when a later frame asked.
-		if (localPlayerIndex >= 0
-		    && GameContext.World.Has<UnitOwnerPlayer>(localEntity)
-		    && GameContext.World.Get<UnitOwnerPlayer>(localEntity).PlayerIndex == localPlayerIndex)
-		{
-			GameContext.SnapshotTimeline.NoteConfirmedOrder(localEntity.Id, GameContext.World.Has<MoveTo>(localEntity), sequence);
-		}
 	}
 
 	public const int UnobservedUnitGapSequences = 10;
@@ -1003,6 +1006,15 @@ public class NetworkService
 			}
 
 			if (codec.ComponentTypeId == ComponentType<GroundLoot>.Id) GameContext.Host?.SyncReplicatedLootNode(delta.Key, targetEntity);
+		}
+
+		// Whether this unit still holds a move order is stated by the delta that changed it rather than by asking the world
+		// once the whole description is applied. A description's unit records are applied before its component state, so
+		// asking there answered what the description before it had said: the lead an order draws was acquired a sequence
+		// late and released one sequence past the moment the completion was drawn.
+		if (codec.ComponentTypeId == ComponentType<MoveTo>.Id && (ReplicatedScope)delta.Scope == ReplicatedScope.Unit)
+		{
+			NoteLocalOrderState(targetEntity, delta.Bytes.Length != 0, snapshotSequence);
 		}
 
 		RecordReplicatedReference(delta, targetEntity, codec);
