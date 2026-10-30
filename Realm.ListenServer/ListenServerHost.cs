@@ -59,7 +59,8 @@ public class ListenServerHost : IServerTransportSink
 	private const int SnapshotRefreshTicks = MatchTiming.SimulationTickRateHz * 10;
 	private readonly Dictionary<int, int> _obstacleSignaturePerPeer = new();
 	private readonly int[] _seatedPeerIds = new int[EcsWorld.MAX_PLAYERS];
-	private readonly List<(int PlayerIndex, byte[] Payload)> _presentationPayloads = new();
+	private readonly List<PresentationMessage> _statePresentationBatch = new();
+	private readonly List<PresentationMessage> _momentPresentationBatch = new();
 	private readonly WorldSnapshot[] _publishedSnapshots = new WorldSnapshot[EcsWorld.MAX_PLAYERS];
 	private readonly byte[][] _publishedFrames = new byte[EcsWorld.MAX_PLAYERS][];
 	private readonly bool[] _pendingBaselineRequests = new bool[EcsWorld.MAX_PLAYERS];
@@ -1277,32 +1278,59 @@ public class ListenServerHost : IServerTransportSink
 	{
 		Span<int> singlePeer = stackalloc int[1];
 		singlePeer[0] = peerId;
-		SendPresentation(singlePeer, events, PresentationMessage.StateDescriptionSequence);
+
+		// What a map declares about a match is stated once to the peer that has just been seated, so all of it travels on
+		// the stream that cannot lose it: there is no later request to state it again.
+		_statePresentationBatch.Clear();
+		for (int index = 0; index < events.Length; index++) _statePresentationBatch.Add(events[index].ToMessage(PresentationMessage.StateDescriptionSequence));
+
+		SendPresentationBatch(peerId, _statePresentationBatch, FrameDelivery.Reliable);
 	}
 
+	/// <summary>
+	///     Tells each of these peers what the map raised this tick, in one frame per peer and per stream. A request that
+	///     states something the screen cannot be left without travels on the stream that cannot lose it, and a moment it is
+	///     only allowed to miss travels on the stream that would rather be current: putting an effect behind a baseline
+	///     held every effect queued after it, and giving each one its own reliable frame cost a header apiece for a shower
+	///     of sparks.
+	/// </summary>
 	private void SendPresentation(ReadOnlySpan<int> peerIds, ServerPresentationEvent[] events, int sequence)
 	{
-		_presentationPayloads.Clear();
-		for (int eventIndex = 0; eventIndex < events.Length; eventIndex++)
-		{
-			ServerPresentationEvent request = events[eventIndex];
-			_presentationPayloads.Add((request.PlayerIndex, MemoryPackSerializer.Serialize(request.ToMessage(sequence))));
-		}
-
 		for (int peerIndex = 0; peerIndex < peerIds.Length; peerIndex++)
 		{
 			int peerId = peerIds[peerIndex];
 			bool seated = _seatedPeers.TryGetValue(peerId, out int playerSlot);
 
-			for (int payloadIndex = 0; payloadIndex < _presentationPayloads.Count; payloadIndex++)
-			{
-				(int playerIndex, byte[] payload) = _presentationPayloads[payloadIndex];
-				if (playerIndex != ServerPresentationEvent.Everyone && (!seated || playerIndex != playerSlot)) continue;
+			_statePresentationBatch.Clear();
+			_momentPresentationBatch.Clear();
 
-				_transport.Send(peerId, NetworkFrameKind.Presentation, payload);
-				_deliveredPresentationCount++;
+			for (int eventIndex = 0; eventIndex < events.Length; eventIndex++)
+			{
+				ServerPresentationEvent request = events[eventIndex];
+				if (request.PlayerIndex != ServerPresentationEvent.Everyone && (!seated || request.PlayerIndex != playerSlot)) continue;
+
+				if (PresentationBatch.IsState(request.Kind)) _statePresentationBatch.Add(request.ToMessage(sequence));
+				else _momentPresentationBatch.Add(request.ToMessage(sequence));
 			}
+
+			SendPresentationBatch(peerId, _statePresentationBatch, FrameDelivery.Reliable);
+			SendPresentationBatch(peerId, _momentPresentationBatch, FrameDelivery.UnreliableOrdered);
 		}
+	}
+
+	private void SendPresentationBatch(int peerId, List<PresentationMessage> messages, FrameDelivery delivery)
+	{
+		if (messages.Count == 0) return;
+
+		var batch = new PresentationBatch
+		{
+			Messages = new PresentationMessage[messages.Count]
+		};
+
+		for (int index = 0; index < messages.Count; index++) batch.Messages[index] = messages[index];
+
+		_transport.Send(peerId, NetworkFrameKind.Presentation, MemoryPackSerializer.Serialize(batch), delivery);
+		_deliveredPresentationCount += messages.Count;
 	}
 
 	/// <summary>

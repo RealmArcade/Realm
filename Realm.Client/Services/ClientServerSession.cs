@@ -640,7 +640,7 @@ public class ClientServerSession : IDisposable
 				break;
 
 			case NetworkFrameKind.Presentation:
-				PresentationReceived?.Invoke(MemoryPackSerializer.Deserialize<PresentationMessage>(payload));
+				ApplyPresentationBatch(payload);
 				break;
 
 			case NetworkFrameKind.CommandOutcome:
@@ -699,6 +699,20 @@ public class ClientServerSession : IDisposable
 				ReportLost("the authority ended the match");
 				break;
 		}
+	}
+
+	/// <summary>
+	///     Hands on every request a tick's batch carried, in the order the map raised them. A screen applies the ones that
+	///     name a description sequence where that sequence is drawn, so a batch arriving late describes a moment in the
+	///     past that is either still ahead of the cursor or already behind it.
+	/// </summary>
+	private void ApplyPresentationBatch(byte[] payload)
+	{
+		PresentationBatch batch = MemoryPackSerializer.Deserialize<PresentationBatch>(payload);
+		PresentationMessage[] messages = batch.Messages;
+		if (messages == null) return;
+
+		for (int index = 0; index < messages.Length; index++) PresentationReceived?.Invoke(messages[index]);
 	}
 
 	private void ApplyHello(byte[] payload)
