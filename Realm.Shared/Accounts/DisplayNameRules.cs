@@ -28,7 +28,7 @@ public static class DisplayNameRules
 
 	public const int MaximumUtf8Bytes = 128;
 
-	public const int MinimumPasswordLength = 10;
+	public const int MinimumPasswordLength = 8;
 
 	private const char SpaceCharacter = ' ';
 

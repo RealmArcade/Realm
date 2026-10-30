@@ -2,6 +2,7 @@ using System;
 using System.Threading.Tasks;
 using Godot;
 using Realm.Client.Services;
+using Realm.Client.Utils;
 using Realm.Shared.Accounts;
 
 namespace Realm.Client.UI;
@@ -20,6 +21,9 @@ public partial class AccountDialog : Control
 		ChooseProviderDisplayName,
 		Account
 	}
+
+	private const string DiscordIconPath = "res://Assets/UI/discord_icon.webp";
+	private const string SteamIconPath = "res://Assets/UI/steam_icon.webp";
 
 	private DialogMode _mode = DialogMode.SignIn;
 
@@ -111,7 +115,7 @@ public partial class AccountDialog : Control
 		_credentialsBox.AddThemeConstantOverride("separation", 8);
 		column.AddChild(_credentialsBox);
 
-		_displayNameEdit = CreateField(_credentialsBox, "DisplayNameField", TranslationServer.Translate("Display name"), out _);
+		_displayNameEdit = CreateField(_credentialsBox, "DisplayNameField", TranslationServer.Translate("UserName"), out _);
 		_passwordEdit = CreateField(_credentialsBox, "PasswordField", TranslationServer.Translate("Password"), out _passwordFieldLabel);
 		_passwordEdit.Secret = true;
 
@@ -119,9 +123,9 @@ public partial class AccountDialog : Control
 		_providerBox.AddThemeConstantOverride("separation", 8);
 		column.AddChild(_providerBox);
 
-		_discordButton = CreateActionButton(_providerBox, "CONTINUE WITH DISCORD");
+		_discordButton = CreateActionButton(_providerBox, "CONTINUE WITH DISCORD", DiscordIconPath);
 		_discordButton.Pressed += () => _ = StartProviderAsync(AccountProviderNames.Discord, false);
-		_steamButton = CreateActionButton(_providerBox, "CONTINUE WITH STEAM");
+		_steamButton = CreateActionButton(_providerBox, "CONTINUE WITH STEAM", SteamIconPath);
 		_steamButton.Pressed += () => _ = StartProviderAsync(AccountProviderNames.Steam, false);
 
 		_submitButton = CreateActionButton(column, "SIGN IN");
@@ -134,17 +138,21 @@ public partial class AccountDialog : Control
 		_accountIdentityLabel = CreateBodyLabel(_accountBox, string.Empty);
 		_accountIdentityLabel.Name = "AccountDialogIdentity";
 
-		_renameEdit = CreateField(_accountBox, "RenameField", TranslationServer.Translate("New display name"), out _);
-		_renameButton = CreateActionButton(_accountBox, "CHANGE DISPLAY NAME");
+		_renameEdit = CreateField(_accountBox, "RenameField", TranslationServer.Translate("New UserName"), out _);
+		_renameButton = CreateActionButton(_accountBox, "CHANGE USERNAME");
 		_renameButton.Pressed += () => _ = RenameAsync();
 
-		_linkDiscordButton = CreateActionButton(_accountBox, "LINK DISCORD ACCOUNT");
+		_linkDiscordButton = CreateActionButton(_accountBox, "LINK DISCORD ACCOUNT", DiscordIconPath);
 		_linkDiscordButton.Pressed += () => _ = StartProviderAsync(AccountProviderNames.Discord, true);
-		_linkSteamButton = CreateActionButton(_accountBox, "LINK STEAM ACCOUNT");
+		_linkSteamButton = CreateActionButton(_accountBox, "LINK STEAM ACCOUNT", SteamIconPath);
 		_linkSteamButton.Pressed += () => _ = StartProviderAsync(AccountProviderNames.Steam, true);
 
 		_signOutButton = CreateActionButton(_accountBox, "SIGN OUT");
 		_signOutButton.Pressed += () => _ = SignOutAsync();
+
+		var loginExplanationLabel = CreateBodyLabel(column, TranslationServer.Translate("Login only required for multi-player. Offline play is supported without login."));
+		loginExplanationLabel.Name = "AccountDialogLoginExplanation";
+		loginExplanationLabel.HorizontalAlignment = HorizontalAlignment.Center;
 
 		_warningLabel = CreateBodyLabel(column, string.Empty);
 		_warningLabel.Name = "AccountDialogWarning";
@@ -233,13 +241,22 @@ public partial class AccountDialog : Control
 		return label;
 	}
 
-	private Button CreateActionButton(VBoxContainer parent, string textKey)
+	private Button CreateActionButton(VBoxContainer parent, string textKey, string iconPath = "")
 	{
 		var button = new Button { Name = $"AccountDialog{textKey.Replace(" ", string.Empty)}Button" };
 		UIStyle.ApplyButtonStyleBoxes(button);
 		UIStyle.ApplyButtonText(button, textKey, 14);
 		button.CustomMinimumSize = new Vector2(0, 40);
 		button.AddThemeConstantOverride("icon_max_width", 20);
+
+		if (iconPath.Length > 0)
+		{
+			button.Icon = TrimmedTextureLoader.LoadTrimmedTexture(iconPath);
+			button.IconAlignment = HorizontalAlignment.Left;
+			button.VerticalIconAlignment = VerticalAlignment.Center;
+			button.AddThemeConstantOverride("h_separation", 8);
+		}
+
 		parent.AddChild(button);
 		return button;
 	}
@@ -265,7 +282,7 @@ public partial class AccountDialog : Control
 			: _mode == DialogMode.Register
 				? TranslationServer.Translate("CREATE ACCOUNT")
 				: choosingName
-					? TranslationServer.Translate("CHOOSE YOUR DISPLAY NAME")
+					? TranslationServer.Translate("CHOOSE YOUR USERNAME")
 					: TranslationServer.Translate("SIGN IN TO REALM");
 
 		_submitButton.Text = _mode == DialogMode.Register || choosingName
@@ -310,7 +327,7 @@ public partial class AccountDialog : Control
 			}
 		}
 
-		_warningLabel.Text = BuildProviderWarningText(providers.Warnings);
+		_warningLabel.Text = string.Empty;
 	}
 
 	private static string ProviderLabel(string provider)
@@ -318,25 +335,6 @@ public partial class AccountDialog : Control
 		if (string.Equals(provider, AccountProviderNames.Discord, StringComparison.OrdinalIgnoreCase)) return TranslationServer.Translate("Discord");
 		if (string.Equals(provider, AccountProviderNames.Steam, StringComparison.OrdinalIgnoreCase)) return TranslationServer.Translate("Steam");
 		return provider;
-	}
-
-	private static string BuildProviderWarningText(string[] warningCodes)
-	{
-		var lines = new System.Collections.Generic.List<string>();
-		foreach (string code in warningCodes)
-		{
-			if (code == "basicauth_has_no_password_reset") lines.Add(TranslationServer.Translate("BasicAuth has no password reset."));
-			else if (code == "basicauth_has_no_two_factor") lines.Add(TranslationServer.Translate("BasicAuth has no two-factor sign-in."));
-			else if (code == "basicauth_lost_password_without_linked_provider_makes_the_account_unreachable") lines.Add(TranslationServer.Translate("If you lose the password and linked no provider, the account cannot be recovered."));
-			else if (code == "account_node_is_not_the_authority") lines.Add(TranslationServer.Translate("This server does not own accounts and will refuse account changes."));
-			else if (code.StartsWith("provider_not_configured:", StringComparison.Ordinal))
-			{
-				string providerName = code[(code.IndexOf(':') + 1)..].Capitalize();
-				lines.Add(string.Format(TranslationServer.Translate("{0} sign-in is not configured on this server."), ProviderLabel(providerName)));
-			}
-		}
-
-		return string.Join("\n", lines);
 	}
 
 	private async Task LoadProvidersAsync()
@@ -430,7 +428,7 @@ public partial class AccountDialog : Control
 
 			if (result.SuggestedDisplayNameErrorCode.Length > 0)
 			{
-				ShowStatus(string.Format(TranslationServer.Translate("Your {0} name cannot be used: {1} Choose a different display name."),
+				ShowStatus(string.Format(TranslationServer.Translate("Your {0} name cannot be used: {1} Choose a different username."),
 					ProviderLabel(result.Provider), DescribeErrorCode(result.SuggestedDisplayNameErrorCode)), new Color(0.95f, 0.6f, 0.4f));
 			}
 			else
@@ -465,7 +463,7 @@ public partial class AccountDialog : Control
 
 		_renameEdit.Text = string.Empty;
 		RefreshAccount();
-		ShowStatus(TranslationServer.Translate("Your display name was changed."), new Color(0.55f, 0.95f, 0.55f));
+		ShowStatus(TranslationServer.Translate("Your username was changed."), new Color(0.55f, 0.95f, 0.55f));
 	}
 
 	private async Task SignOutAsync()
@@ -498,27 +496,27 @@ public partial class AccountDialog : Control
 		switch (code)
 		{
 			case AccountErrorCodes.DisplayNameEmpty:
-				return TranslationServer.Translate("A display name is required.");
+				return TranslationServer.Translate("A username is required.");
 			case AccountErrorCodes.DisplayNameTooShort:
-				return TranslationServer.Translate("A display name must be at least 3 characters long.");
+				return TranslationServer.Translate("A username must be at least 3 characters long.");
 			case AccountErrorCodes.DisplayNameTooLong:
-				return TranslationServer.Translate("A display name must be at most 20 characters long.");
+				return TranslationServer.Translate("A username must be at most 20 characters long.");
 			case AccountErrorCodes.DisplayNameTooManyBytes:
-				return TranslationServer.Translate("A display name must be at most 128 bytes when encoded as UTF-8.");
+				return TranslationServer.Translate("A username must be at most 128 bytes when encoded as UTF-8.");
 			case AccountErrorCodes.DisplayNameDisallowedCharacter:
-				return TranslationServer.Translate("A display name may only contain letters, digits, single spaces, hyphens, underscores, periods and apostrophes.");
+				return TranslationServer.Translate("A username may only contain letters, digits, single spaces, hyphens, underscores, periods and apostrophes.");
 			case AccountErrorCodes.DisplayNameCombiningMarkWithoutBase:
 				return TranslationServer.Translate("A combining mark must follow the character it belongs to.");
 			case AccountErrorCodes.DisplayNameNeedsLetterOrDigit:
-				return TranslationServer.Translate("A display name must contain at least one letter or digit.");
+				return TranslationServer.Translate("A username must contain at least one letter or digit.");
 			case AccountErrorCodes.DisplayNameAlreadyTaken:
-				return TranslationServer.Translate("That display name is already taken.");
+				return TranslationServer.Translate("That username is already taken.");
 			case AccountErrorCodes.DisplayNameVisuallySimilar:
-				return TranslationServer.Translate("That display name looks too similar to a name another account already uses.");
+				return TranslationServer.Translate("That username looks too similar to a name another account already uses.");
 			case AccountErrorCodes.CredentialsInvalid:
-				return TranslationServer.Translate("The display name or password is incorrect.");
+				return TranslationServer.Translate("The username or password is incorrect.");
 			case AccountErrorCodes.PasswordTooShort:
-				return TranslationServer.Translate("A password must be at least 10 characters long.");
+				return TranslationServer.Translate("A password must be at least 8 characters long.");
 			case AccountErrorCodes.Throttled:
 				return TranslationServer.Translate("Too many failed attempts. Try again later.");
 			case AccountErrorCodes.SessionInvalid:
