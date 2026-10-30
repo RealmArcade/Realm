@@ -32,6 +32,13 @@ public class NetworkLatencyService
 	public bool HasSample { get; private set; }
 	public float SmoothedRoundTripMilliseconds { get; private set; }
 	public float LastRoundTripMilliseconds { get; private set; }
+
+	/// <summary>
+	///     How far each round trip lands from the smoothed one, smoothed in turn. A buffer has to cover this besides the
+	///     trip itself: a link that varies by three sequences stalls a buffer that holds exactly its round trip.
+	/// </summary>
+	public float SmoothedJitterMilliseconds { get; private set; }
+
 	public int SamplesReceived { get; private set; }
 
 	public void Update(float delta)
@@ -93,11 +100,22 @@ public class NetworkLatencyService
 
 			SmoothedRoundTripMilliseconds = smallest;
 			HasSample = _bootstrapCount >= BootstrapSampleCount;
+			if (HasSample) ReportLinkToPresentationBuffer();
 			return;
 		}
 
+		float jitter = MathF.Abs(elapsed - SmoothedRoundTripMilliseconds);
+		SmoothedJitterMilliseconds += (jitter - SmoothedJitterMilliseconds) * SmoothingFactor;
+
 		float factor = elapsed < SmoothedRoundTripMilliseconds ? RecoverySmoothingFactor : SmoothingFactor;
 		SmoothedRoundTripMilliseconds += ((float)elapsed - SmoothedRoundTripMilliseconds) * factor;
+
+		ReportLinkToPresentationBuffer();
+	}
+
+	private void ReportLinkToPresentationBuffer()
+	{
+		GameContext.SnapshotTimeline.ObserveLink(SmoothedRoundTripMilliseconds, SmoothedJitterMilliseconds);
 	}
 
 	private void DiscardPendingSamples()
@@ -130,6 +148,7 @@ public class NetworkLatencyService
 		HasSample = false;
 		SmoothedRoundTripMilliseconds = 0f;
 		LastRoundTripMilliseconds = 0f;
+		SmoothedJitterMilliseconds = 0f;
 		SamplesReceived = 0;
 		Array.Clear(_sentSequences);
 		Array.Clear(_sentTimestamps);

@@ -11,13 +11,19 @@ public class SnapshotTimeline
 
 	public const int MinimumDelaySequences = 2;
 
-	public const int MaximumDelaySequences = 8;
+	public const int MaximumDelaySequences = 20;
+
+	/// <summary>
+	///     How deep the buffer may grow before a link has told this screen how long its round trip is. Inbound-only, this is
+	///     the depth a match used to be fixed at; a measured link widens it as far as it needs.
+	/// </summary>
+	private const int InitialCeilingSequences = 8;
 
 	private const float DelayEvaluationSeconds = 1f;
 
-	private const float StarvationToleranceSequences = 0.25f;
-
 	private const float ResynchronizeSequences = MaximumDelaySequences;
+
+	private const int MaximumDeepenPerWindow = 8;
 
 	private const float MaximumRateCorrection = 0.15f;
 
@@ -50,6 +56,9 @@ public class SnapshotTimeline
 	private int _lateStarvationsInWindow;
 	private int _largestStallGapInWindow;
 	private int _delaySequences = MinimumDelaySequences;
+	private int _delayFloorSequences = MinimumDelaySequences;
+	private int _delayCeilingSequences = InitialCeilingSequences;
+	private bool _isStarved;
 
 	public SnapshotTimeline()
 	{
@@ -64,6 +73,10 @@ public class SnapshotTimeline
 
 	public float DelayMilliseconds => _delaySequences * MatchTiming.SnapshotIntervalSeconds * 1000f;
 
+	public int DelayFloorSequences => _delayFloorSequences;
+
+	public int DelayCeilingSequences => _delayCeilingSequences;
+
 	public int StarvationCount { get; private set; }
 
 	public int ExtrapolatedSampleCount { get; private set; }
@@ -77,6 +90,9 @@ public class SnapshotTimeline
 		_cursor = -1f;
 		NewestSequence = -1;
 		_delaySequences = MinimumDelaySequences;
+		_delayFloorSequences = MinimumDelaySequences;
+		_delayCeilingSequences = InitialCeilingSequences;
+		_isStarved = false;
 		_evaluationSeconds = 0f;
 		_cleanWindowsInARow = 0;
 		_shallowestSurplusInWindow = float.MaxValue;
@@ -161,23 +177,35 @@ public class SnapshotTimeline
 		if (error > ResynchronizeSequences)
 		{
 			_cursor = target;
+			_isStarved = false;
 		}
 		else
 		{
 			float rateCorrection = Math.Clamp(error * RateCorrectionGain, -MaximumRateCorrection, MaximumRateCorrection);
-			_cursor += delta / MatchTiming.SnapshotIntervalSeconds * (1f + rateCorrection);
+			float advance = delta / MatchTiming.SnapshotIntervalSeconds * (1f + rateCorrection);
+
+			// Running out of descriptions is a stall to hold against, not a moment to move the clock backwards: the
+			// clock stops where the world it can draw stops, so a unit holds its ground for the frames it takes to
+			// catch up instead of jumping back to where it was a moment ago.
+			if (_cursor + advance > NewestSequence)
+			{
+				if (!_isStarved)
+				{
+					StarvationCount++;
+					_starvationsSinceArrival++;
+					_isStarved = true;
+				}
+
+				_cursor = NewestSequence;
+			}
+			else
+			{
+				_cursor += advance;
+				_isStarved = false;
+			}
 		}
 
 		float surplus = NewestSequence - _cursor;
-		if (surplus < -StarvationToleranceSequences)
-		{
-			// The cursor reached the end of what has arrived. Placing it at the newest description is the only option -
-			// there is no world ahead of it to show - and running out is what tells the loop to hold more.
-			StarvationCount++;
-			_starvationsSinceArrival++;
-			_cursor = NewestSequence;
-			surplus = 0f;
-		}
 
 		if (surplus < _shallowestSurplusInWindow) _shallowestSurplusInWindow = surplus;
 
@@ -191,8 +219,13 @@ public class SnapshotTimeline
 			// what it had already been sent leaves exactly that gap, and deepening to the ceiling for it buys nothing while
 			// the shallowing rule then takes as many clean windows as the ceiling has sequences to give it back.
 			_cleanWindowsInARow = 0;
-			int deepenBy = _largestStallGapInWindow > MaximumDelaySequences ? 1 : Math.Max(1, _largestStallGapInWindow);
-			_delaySequences = Math.Min(MaximumDelaySequences, _delaySequences + deepenBy);
+
+			// The window that starved says how much it was short by as well as how wide the stalls in it were, and the
+			// buffer grows to cover the larger of the two - a link that was a tenth of a sequence short needs one more,
+			// and one that ran dry for a whole second needs the room that second left it missing.
+			int shortfall = (int)MathF.Ceiling(_delaySequences - _shallowestSurplusInWindow);
+			int deepenBy = Math.Clamp(Math.Max(shortfall, _largestStallGapInWindow), 1, MaximumDeepenPerWindow);
+			_delaySequences = Math.Min(_delayCeilingSequences, _delaySequences + deepenBy);
 		}
 		else
 		{
@@ -201,7 +234,7 @@ public class SnapshotTimeline
 			if (_shallowestSurplusInWindow >= _delaySequences * ShallowSurplusFraction) _cleanWindowsInARow++;
 			else _cleanWindowsInARow = 0;
 
-			if (_cleanWindowsInARow >= ShallowConfirmWindows && _delaySequences > MinimumDelaySequences)
+			if (_cleanWindowsInARow >= ShallowConfirmWindows && _delaySequences > _delayFloorSequences)
 			{
 				_delaySequences--;
 				_cleanWindowsInARow = 0;
@@ -212,6 +245,34 @@ public class SnapshotTimeline
 		_shallowestSurplusInWindow = float.MaxValue;
 		_lateStarvationsInWindow = 0;
 		_largestStallGapInWindow = 0;
+	}
+
+	/// <summary>
+	///     States how long this link's round trip is and how much it varies, which is what the buffer has to hold besides
+	///     the trip itself. It is told rather than inferred because a buffer that only learns from running dry learns it
+	///     by stalling: a link whose trip is three sequences long is declared too shallow before a frame has been drawn.
+	/// </summary>
+	public void ObserveLink(float roundTripMilliseconds, float jitterMilliseconds)
+	{
+		if (!(roundTripMilliseconds > 0f)) return;
+
+		float intervalMilliseconds = MatchTiming.SnapshotIntervalSeconds * 1000f;
+		int floor = (int)MathF.Ceiling(roundTripMilliseconds / intervalMilliseconds) + MinimumDelaySequences;
+		floor = Math.Clamp(floor, MinimumDelaySequences, MaximumDelaySequences);
+
+		// The ceiling is a limit on how deep this link may be held, not a depth it is held at: it never falls below the
+		// depth a match was fixed at before links were measured, so a link that turns out to need more than its trip
+		// still has the room to be given it.
+		int jitterSequences = jitterMilliseconds > 0f ? (int)MathF.Ceiling(jitterMilliseconds / intervalMilliseconds) : 0;
+		int deepestThisLinkNeeds = Math.Max(InitialCeilingSequences, floor) + jitterSequences + MinimumDelaySequences;
+		int ceiling = Math.Clamp(deepestThisLinkNeeds, floor, MaximumDelaySequences);
+
+		if (floor == _delayFloorSequences && ceiling == _delayCeilingSequences) return;
+
+		_delayFloorSequences = floor;
+		_delayCeilingSequences = ceiling;
+		if (_delaySequences < floor) _delaySequences = floor;
+		if (_delaySequences > ceiling) _delaySequences = ceiling;
 	}
 
 	public bool TrySample(int entityId, bool mayExtrapolate, out Vector3 position, out float rotationY, out Vector3 velocity)
