@@ -9,7 +9,7 @@
 - All code, variable names, and comments must be written in English.
 - Do not add comments anywhere unless explicitly requested.
 	- Structs in the `Realm.Ecs` project must have a single XML-doc `<summary />` comment at the top describing their purpose.
-	- Everything in `Realm.MapAPI`, `Realm.EditorAPI` and the map-script handles and primitives in `Realm.Ecs/Shared` must have full, comprehensive XML-doc comments for public consumption. Those handles belong to that surface because map authors compile against them through `MapTemplate/lib/Realm.Ecs.xml`, so the two rules meet there: a handle keeps its single `<summary />` and each of its members is documented on its own. `HandleCommands` is the sink a handle property writes to rather than something a script names, and is not part of that surface.
+	- Everything in `Realm.MapAPI`, `Realm.EditorAPI` and the map-script handles and primitives in `Realm.Ecs/Shared` must have full, comprehensive XML-doc comments for public consumption.
 - Do not use `#region` blocks.
 - All code should be self-documenting. Use verbose, descriptive names that clearly identify their purpose (avoid cryptic abbreviations).
 - Avoid the `sealed` keyword.
@@ -51,8 +51,8 @@ The client renders the authority's own timeline. It does not simulate or predict
 
 ### Realm.ECS Data Layer (Flat Bitmask SoA Shared Memory):
 - Core simulation component buffers (`PlayerResource`, `Health`, etc.) are implemented as a custom Flat Bitmask Structure-of-Arrays (SoA) ECS where component arrays are stored in contiguous unmanaged memory mapped directly into WASM linear memory (`Wasmtime.Memory`).
-- Only the authoritative process simulates. `GameHost.cs` renders the replicated world it receives: its physics tick applies snapshots, runs the client tick, and moves `Unit3D` / `Prop3D` nodes to the state the authority described. It never steps movement, combat, economy, production, shroud, or AI. Applying a snapshot stores what the authority said and places nothing; the client tick's presentation step is what turns the stored descriptions into a position, and it runs for every replicated unit exactly once.
-- One world per process. The client owns exactly one client world and the authority owns exactly one authoritative world; there is no static accessor that can name the other. A menu screen owns no world at all, and a world is created when a match or the editor starts and torn down when it ends (the editor serialises its world before a playtest and restores it afterwards).
+- Only the authoritative process simulates. `GameHost.cs` renders the replicated world it receives: its physics tick applies snapshots, runs the client tick, and moves `Unit3D` / `Prop3D` nodes to the state the authority described. It never steps authoritative data, only cosmetic.
+- The client and authority data are stored in separate processes to prevent direct access without replication.
 - Do not store Godot lifecycle elements, scene nodes, or UI references directly inside ECS components. Components must remain pure unmanaged, blittable data structures (`[StructLayout(LayoutKind.Sequential, Pack = 4)]`).
 - Entity creation, lifecycle recycling, and queries use hardware bit manipulation (`BitOperations.TrailingZeroCount`) over entity bitmasks for zero-allocation performance.
 
@@ -101,6 +101,14 @@ The client renders the authority's own timeline. It does not simulate or predict
 - `FrameDelivery.UnreliableOrdered` is for anything smaller than `UnreliableSnapshotLimitBytes` which can recover from a future delta or baseline. `FrameDelivery.Reliable` is for everything else which the match cannot proceed without.
 - The client never runs WASM and does not reference `Realm.MapAPI` or `Wasmtime`. Map scripts, `IGameAPI`, `EcsSharedMemory` and the `Wasmtime` host live only in the authority. The editor compiles a map to WASM and the authority executes that artifact; `IEditorAPI` (`Realm.EditorAPI`) remains the client's map-editing surface and is unrelated to `IGameAPI`.
 - Authority-only components are never replicated, and the wire component ids are part of the handshake (`wireTableHash`). Adding a replicated component means adding it to the canonical table in `Realm.Ecs.Replication.ReplicatedComponents`.
+
+## Concurrency & Thread Synchronization:
+- Prefer ownership-based, lock-free concurrency over blocking synchronization: Design systems around single-writer ownership, immutable snapshots, atomic operations (Interlocked / Volatile), and asynchronous producer-consumer queues (Channel<T>); use ReaderWriterLockSlim for genuinely read-heavy shared resources and lock / Monitor only as a last resort for extremely short, low-contention critical sections. Never allow frequently accessed resources or simulation-critical threads to spend time blocked waiting for locks.
+- Never hold locks across await, I/O, callbacks, external API calls, Godot engine calls, or other operations with unpredictable execution time. Avoid nested locks, lock-order dependencies, and synchronization designs that can cause deadlocks or priority inversion.
+- Carefully protect shared ECS component arrays, entity bitmasks, entity allocation/recycling, and structural changes. Concurrent reads and writes to shared memory must have explicit ownership, synchronization, or snapshot semantics; never assume that unmanaged memory or shared WASM linear memory is inherently thread-safe.
+- Simulation tick handlers, snapshot generation, replication, and other time-sensitive operations must avoid blocking synchronization. Prefer batching, thread ownership, double-buffering, and atomic publication of completed data over having threads wait for shared resources.
+- Godot SceneTree and GodotObject operations must respect Godot's main-thread requirements. Perform background calculations using thread-safe data and marshal only the necessary results back to the main thread.
+- Every shared mutable resource must have an explicit concurrency strategy. Do not introduce synchronization primitives without understanding their contention characteristics, memory visibility guarantees, and lifecycle implications.
 
 ## AI "Vibe" Coding & Maintenance Instructions:
 - Avoid using proprietary or copyrighted terms from other games.
