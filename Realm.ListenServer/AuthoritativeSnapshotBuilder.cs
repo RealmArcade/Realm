@@ -53,7 +53,6 @@ public class AuthoritativeSnapshotBuilder
 	private readonly MapRulesCatalog _rules;
 	private readonly SnapshotPeerStateStore _peerStates;
 	private readonly SnapshotDescriptionCache _descriptions;
-	private readonly object _abilityLock;
 	private readonly int[] _peerIdByPlayerSlot = new int[EcsWorld.MAX_PLAYERS];
 	private readonly EntityCallback<UnitOwnerPlayer, Position> _collectCandidates;
 	private readonly EntityCallback<GroundLoot, Position> _collectLootItems;
@@ -71,7 +70,7 @@ public class AuthoritativeSnapshotBuilder
 	private Entity[] _playerEntities = Array.Empty<Entity>();
 	private Entity _viewer = Entity.Null;
 
-	public AuthoritativeSnapshotBuilder(EcsWorld world, SimulationContext context, Entity worldEntity, MapRulesCatalog rules, SnapshotPeerStateStore peerStates, SnapshotDescriptionCache descriptions, object abilityLock)
+	public AuthoritativeSnapshotBuilder(EcsWorld world, SimulationContext context, Entity worldEntity, MapRulesCatalog rules, SnapshotPeerStateStore peerStates, SnapshotDescriptionCache descriptions)
 	{
 		_world = world;
 		_context = context;
@@ -79,7 +78,6 @@ public class AuthoritativeSnapshotBuilder
 		_rules = rules;
 		_peerStates = peerStates;
 		_descriptions = descriptions;
-		_abilityLock = abilityLock;
 		_collectLootItems = CollectLootItem;
 		_collectCandidates = CollectCandidate;
 	}
@@ -105,6 +103,18 @@ public class AuthoritativeSnapshotBuilder
 
 	public void PrepareFor(ReadOnlySpan<int> peerIdByPlayerSlot) => peerIdByPlayerSlot.CopyTo(_peerIdByPlayerSlot);
 
+	/// <summary>
+	///     Creates the component buffers a description reads while the world is still the owner's alone, so the first
+	///     publish never opens the shared buffer store from inside a lane.
+	/// </summary>
+	public void WarmDescriptionQueries()
+	{
+		_world.GetBuffer<UnitOwnerPlayer>();
+		_world.GetBuffer<Health>();
+		_world.GetBuffer<Position>();
+		_world.GetBuffer<GroundLoot>();
+	}
+
 	public ScriptAbilityRegistry? Abilities { get; set; }
 
 	public ServerTechLevels? TechLevels { get; set; }
@@ -118,20 +128,18 @@ public class AuthoritativeSnapshotBuilder
 	public WorldSnapshot Build(int peerId, int sequence, PlayerEntity viewer, bool forceBaseline = false)
 	{
 		var snapshot = new WorldSnapshot();
-		BuildInto(ref snapshot, peerId, sequence, viewer, forceBaseline);
+		bool isBaseline = forceBaseline || _peerStates.Get(peerId).LastBaselineSequence < 0;
+		List<AbilityStateDelta> preparedAbilityDeltas = Abilities?.CollectDeltas(peerId, _world, isBaseline) ?? new List<AbilityStateDelta>();
+		BuildInto(ref snapshot, peerId, sequence, viewer, forceBaseline, preparedAbilityDeltas);
 		return snapshot;
 	}
 
-	public void BuildInto(ref WorldSnapshot snapshot, int peerId, int sequence, PlayerEntity viewer, bool forceBaseline = false)
-	{
-		BuildInto(ref snapshot, peerId, sequence, viewer, forceBaseline, null);
-	}
-
 	/// <summary>
-	///     Describes one peer. A lane that was handed this peer's ability deltas has already had them collected on its
-	///     behalf, because the registry keeps one scratch table per process and could not be entered by two lanes at once.
+	///     Describes one peer. The ability deltas are handed in rather than collected here, because the registry keeps
+	///     one scratch table per process and could not be entered by two lanes at once: the tick collects them for every
+	///     peer before the lanes are forked, and a single-threaded caller collects them for itself.
 	/// </summary>
-	public void BuildInto(ref WorldSnapshot snapshot, int peerId, int sequence, PlayerEntity viewer, bool forceBaseline, List<AbilityStateDelta>? preparedAbilityDeltas)
+	public void BuildInto(ref WorldSnapshot snapshot, int peerId, int sequence, PlayerEntity viewer, bool forceBaseline, List<AbilityStateDelta> preparedAbilityDeltas)
 	{
 		SnapshotPeerState state = _peerStates.Get(peerId);
 		bool isBaseline = forceBaseline || state.LastBaselineSequence < 0;
@@ -202,17 +210,7 @@ public class AuthoritativeSnapshotBuilder
 		AppendTextEntries(state, snapshot.Catalog);
 		AppendLoot(state, ref snapshot, isBaseline);
 		AppendContentPayloads(state, snapshot);
-		// The ability registry keeps one scratch table per process rather than one per peer, so it is entered once for
-		// every peer before the lanes are forked. A caller that built no such list describes on its own thread and can
-		// enter the registry itself.
-		if (preparedAbilityDeltas != null)
-		{
-			if (preparedAbilityDeltas.Count > 0) snapshot.AbilityStates.AddRange(preparedAbilityDeltas);
-		}
-		else if (Abilities != null)
-		{
-			lock (_abilityLock) snapshot.AbilityStates.AddRange(Abilities.CollectDeltas(peerId, _world, isBaseline));
-		}
+		if (preparedAbilityDeltas.Count > 0) snapshot.AbilityStates.AddRange(preparedAbilityDeltas);
 
 		AppendComponentDeltas(state, snapshot, sequence, isBaseline);
 		ForgetUntrackedUnitComponents(state, ref snapshot, isBaseline);
@@ -441,36 +439,32 @@ public class AuthoritativeSnapshotBuilder
 		AppendVisibleCandidates();
 	}
 
+	/// <summary>
+	///     Collects the units a whole-board description covers, once for the sequence, on the tick thread before the
+	///     lanes are forked. Every lane then copies the same published list instead of taking a lock to read it.
+	/// </summary>
+	public WholeBoardDescription PrepareWholeBoard(int sequence)
+	{
+		WholeBoardDescription? published = _descriptions.ReadWholeBoard(sequence);
+		if (published != null) return published;
+
+		_candidates.Clear();
+		_world.Query(in DescribedUnitsQuery, _collectCandidates);
+
+		Span<WholeBoardEntry> units = _descriptions.RentWholeBoard(sequence, _candidates.Count);
+		for (int index = 0; index < units.Length; index++) units[index] = new WholeBoardEntry(_candidates[index].Entity, _candidates[index].Position);
+
+		return _descriptions.PublishWholeBoard(sequence, units.Length);
+	}
+
 	private void CollectWholeBoard(int tick)
 	{
-		lock (_descriptions.WholeBoardGate)
+		WholeBoardDescription description = PrepareWholeBoard(tick);
+		for (int index = 0; index < description.Count; index++)
 		{
-			if (_descriptions.WholeBoardTick != tick)
-			{
-				_candidates.Clear();
-				_world.Query(in DescribedUnitsQuery, _collectCandidates);
-
-				List<(Entity Entity, Vector3 Position)> wholeBoardUnits = _descriptions.WholeBoardUnits;
-				List<int> wholeBoardEntityIds = _descriptions.WholeBoardEntityIds;
-				wholeBoardUnits.Clear();
-				wholeBoardEntityIds.Clear();
-
-				for (int index = 0; index < _candidates.Count; index++)
-				{
-					wholeBoardUnits.Add(_candidates[index]);
-					wholeBoardEntityIds.Add(_candidates[index].Entity.Id);
-					_describedUnits.Add(_candidates[index]);
-					_describedEntityIds.Add(_candidates[index].Entity.Id);
-				}
-
-				_descriptions.PublishWholeBoard(tick);
-				return;
-			}
-
-			List<(Entity Entity, Vector3 Position)> sharedUnits = _descriptions.WholeBoardUnits;
-			List<int> sharedEntityIds = _descriptions.WholeBoardEntityIds;
-			for (int index = 0; index < sharedUnits.Count; index++) _describedUnits.Add(sharedUnits[index]);
-			for (int index = 0; index < sharedEntityIds.Count; index++) _describedEntityIds.Add(sharedEntityIds[index]);
+			WholeBoardEntry entry = description.Units[index];
+			_describedUnits.Add((entry.Entity, entry.Position));
+			_describedEntityIds.Add(entry.Entity.Id);
 		}
 	}
 

@@ -13,6 +13,8 @@ public class SnapshotPeerStateStore
 
 	public SnapshotPeerState Get(int peerId) => _statesByPeerId.GetOrAdd(peerId, static _ => new SnapshotPeerState());
 
+	public void Ensure(int peerId) => _statesByPeerId.TryAdd(peerId, new SnapshotPeerState());
+
 	public void Forget(int peerId) => _statesByPeerId.TryRemove(peerId, out _);
 }
 

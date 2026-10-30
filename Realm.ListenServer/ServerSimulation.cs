@@ -56,6 +56,7 @@ public class ServerSimulation : IDisposable
 		map.Catalog.BindTo(_commands);
 		_snapshots = new SnapshotFanOut(map.World, map.Simulation, map.WorldEntity, map.Simulation.MapRules, SnapshotFanOut.DefaultWorkerCount);
 		_snapshots.Report = log.Write;
+		_snapshots.WarmDescriptionQueries();
 		EnsureMatchClock(map);
 		_production = new ServerProductionStep(map.World, map, log);
 		_construction = new ConstructionTick(map.Simulation, map.Catalog);
@@ -340,7 +341,7 @@ public class ServerSimulation : IDisposable
 
 	private static readonly List<AbilityStateDelta> NoAbilityDeltas = new();
 
-	public void PreparePeerDescriptions()
+	public void PreparePeerDescriptions(int sequence)
 	{
 		Span<int> peerIdsByPlayerSlot = stackalloc int[EcsWorld.MAX_PLAYERS];
 		peerIdsByPlayerSlot.Clear();
@@ -352,13 +353,24 @@ public class ServerSimulation : IDisposable
 		}
 
 		_snapshots.PrepareFor(peerIdsByPlayerSlot);
+
+		// A board every peer is told about whole is collected once here rather than by each lane in turn, so the
+		// description of a peer never waits on another lane describing the same board.
+		if (_map.Simulation.ShroudDisabled) _snapshots.PrepareWholeBoard(sequence);
 	}
 
 	public WorldSnapshot BuildSnapshotForPeer(int peerId, int sequence, bool forceBaseline)
 	{
-		var snapshot = new WorldSnapshot();
-		BuildSnapshotForPeerInto(ref snapshot, peerId, sequence, forceBaseline);
-		return snapshot;
+		Entity viewer = TryGetPlayerEntity(peerId, out Entity playerEntity) ? playerEntity : Entity.Null;
+		_snapshots.EnterPeerDescription(peerId);
+		try
+		{
+			return _snapshots.GetLane(0).Build(peerId, sequence, new PlayerEntity(viewer), forceBaseline);
+		}
+		finally
+		{
+			_snapshots.ExitPeerDescription(peerId);
+		}
 	}
 
 	/// <summary>
@@ -384,15 +396,12 @@ public class ServerSimulation : IDisposable
 		}
 	}
 
-	public void BuildSnapshotForPeerInto(ref WorldSnapshot snapshot, int peerId, int sequence, bool forceBaseline)
-	{
-		BuildSnapshotForPeerInto(ref snapshot, peerId, sequence, forceBaseline, 0, -1);
-	}
-
 	public void BuildSnapshotForPeerInto(ref WorldSnapshot snapshot, int peerId, int sequence, bool forceBaseline, int laneIndex, int peerSlot)
 	{
 		Entity viewer = TryGetPlayerEntity(peerId, out Entity playerEntity) ? playerEntity : Entity.Null;
-		List<AbilityStateDelta>? preparedAbilityDeltas = (uint)peerSlot < (uint)_abilityDeltasByPeerSlot.Length ? _abilityDeltasByPeerSlot[peerSlot] : null;
+		List<AbilityStateDelta> preparedAbilityDeltas = (uint)peerSlot < (uint)_abilityDeltasByPeerSlot.Length
+			? _abilityDeltasByPeerSlot[peerSlot] ?? NoAbilityDeltas
+			: NoAbilityDeltas;
 
 		AuthoritativeSnapshotBuilder builder = _snapshots.GetLane(laneIndex);
 		_snapshots.EnterPeerDescription(peerId);

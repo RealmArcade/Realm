@@ -1081,7 +1081,7 @@ public class ListenServerHost : IServerTransportSink
 			_pendingSkippedPeers[index] = ShouldSkipSlowPeer(seatedPeerId, sequence, simulation.TickCount, index);
 		}
 
-		simulation.PreparePeerDescriptions();
+		simulation.PreparePeerDescriptions(sequence);
 
 		// Peer work is split over fixed lanes, so a lane owns its builder for the whole match instead of queuing for one.
 		// The ability deltas are collected for every peer here, on the tick thread, because the registry behind them keeps
@@ -1102,7 +1102,19 @@ public class ListenServerHost : IServerTransportSink
 			_publishParallelism ??= new ParallelOptions();
 			_publishParallelism.MaxDegreeOfParallelism = laneCount;
 			_describeOneLane ??= DescribeOneLane;
-			Parallel.For(0, laneCount, _publishParallelism, _describeOneLane);
+
+			// The lanes only read the world, and the lease is what says so: a lane that starts writing it instead is
+			// reported by the debug assertion a structural change raises rather than corrupting a buffer mid-description.
+			EcsWorld world = simulation.Map.World;
+			world.EnterWorkerLease();
+			try
+			{
+				Parallel.For(0, laneCount, _publishParallelism, _describeOneLane);
+			}
+			finally
+			{
+				world.ExitWorkerLease();
+			}
 		}
 
 		for (int index = 0; index < peerCount; index++) SendPublishedSnapshot(index);

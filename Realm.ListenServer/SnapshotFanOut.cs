@@ -19,7 +19,6 @@ public class SnapshotFanOut
 	private readonly AuthoritativeSnapshotBuilder[] _builders;
 	private readonly SnapshotPeerStateStore _peerStates = new();
 	private readonly SnapshotDescriptionCache _descriptions = new(AuthoritativeSnapshotBuilder.UnitCodecCount);
-	private readonly object _abilityLock = new();
 	private readonly int[] _peerIdByPlayerSlot = new int[EcsWorld.MAX_PLAYERS];
 
 	private readonly EcsWorld _world;
@@ -39,7 +38,7 @@ public class SnapshotFanOut
 
 		for (int index = 0; index < WorkerCount; index++)
 		{
-			_builders[index] = new AuthoritativeSnapshotBuilder(_world, _context, _worldEntity, _rules, _peerStates, _descriptions, _abilityLock);
+			_builders[index] = new AuthoritativeSnapshotBuilder(_world, _context, _worldEntity, _rules, _peerStates, _descriptions);
 		}
 	}
 
@@ -75,8 +74,17 @@ public class SnapshotFanOut
 	public void PrepareFor(ReadOnlySpan<int> peerIdByPlayerSlot)
 	{
 		peerIdByPlayerSlot.CopyTo(_peerIdByPlayerSlot);
+		for (int index = 0; index < _peerIdByPlayerSlot.Length; index++)
+		{
+			if (_peerIdByPlayerSlot[index] != 0) _peerStates.Ensure(_peerIdByPlayerSlot[index]);
+		}
+
 		for (int index = 0; index < _builders.Length; index++) _builders[index].PrepareFor(peerIdByPlayerSlot);
 	}
+
+	public void PrepareWholeBoard(int sequence) => _builders[0].PrepareWholeBoard(sequence);
+
+	public void WarmDescriptionQueries() => _builders[0].WarmDescriptionQueries();
 
 	/// <summary>
 	///     The builder belonging to a lane. Outside the pool's lanes a description is built on lane zero, which is the

@@ -35,16 +35,37 @@ public class SnapshotDescriptionCache
 
 	private readonly int _unitCodecCount;
 
-	private readonly object _wholeBoardLock = new();
-	private int _wholeBoardTick = int.MinValue;
+	private WholeBoardDescription? _wholeBoard;
 
-	public List<(Entity Entity, Vector3 Position)> WholeBoardUnits { get; } = new();
+	private readonly WholeBoardEntry[][] _wholeBoardBuffers = [Array.Empty<WholeBoardEntry>(), Array.Empty<WholeBoardEntry>()];
 
-	public List<int> WholeBoardEntityIds { get; } = new();
+	/// <summary>
+	///     The units a whole-board description covers, published once per sequence so every lane copies the same list
+	///     instead of announcing a shared one.
+	/// </summary>
+	public WholeBoardDescription? ReadWholeBoard(int sequence)
+	{
+		WholeBoardDescription? published = Volatile.Read(ref _wholeBoard);
+		return published != null && published.Sequence == sequence ? published : null;
+	}
 
-	public int WholeBoardTick => Volatile.Read(ref _wholeBoardTick);
+	/// <summary>
+	///     The entries a description of the given sequence is written into. The two buffers alternate with the sequence,
+	///     so the one a lane is reading is only ever rewritten two sequences later, after the fork that read it joined.
+	/// </summary>
+	public Span<WholeBoardEntry> RentWholeBoard(int sequence, int count)
+	{
+		int slot = sequence & 1;
+		if (_wholeBoardBuffers[slot].Length < count) _wholeBoardBuffers[slot] = new WholeBoardEntry[count];
+		return _wholeBoardBuffers[slot].AsSpan(0, count);
+	}
 
-	public object WholeBoardGate => _wholeBoardLock;
+	public WholeBoardDescription PublishWholeBoard(int sequence, int count)
+	{
+		var description = new WholeBoardDescription(sequence, _wholeBoardBuffers[sequence & 1], count);
+		Volatile.Write(ref _wholeBoard, description);
+		return description;
+	}
 
 	public SnapshotDescriptionCache(int unitCodecCount)
 	{
@@ -77,7 +98,7 @@ public class SnapshotDescriptionCache
 
 	private object Stripe(int entityId) => _stripes[entityId & (StripeCount - 1)];
 
-	public void PublishWholeBoard(int tick) => Volatile.Write(ref _wholeBoardTick, tick);
+
 
 	public bool TryGetUnitRecord(int tick, int entityId, out UnitSnapshot described)
 	{
@@ -175,3 +196,21 @@ public class SnapshotDescriptionCache
 		}
 	}
 }
+
+public class WholeBoardDescription
+{
+	public WholeBoardDescription(int sequence, WholeBoardEntry[] units, int count)
+	{
+		Sequence = sequence;
+		Units = units;
+		Count = count;
+	}
+
+	public int Sequence { get; }
+
+	public WholeBoardEntry[] Units { get; }
+
+	public int Count { get; }
+}
+
+public readonly record struct WholeBoardEntry(Entity Entity, Vector3 Position);
