@@ -1100,7 +1100,8 @@ public class ListenServerHost : IServerTransportSink
 			_pendingBaselineReasons[index] = resyncRequested
 				? SnapshotBaselineReason.Resync
 				: refreshRequested ? SnapshotBaselineReason.Safety : SnapshotBaselineReason.None;
-			_pendingSkippedPeers[index] = ShouldSkipSlowPeer(seatedPeerId, sequence, simulation.TickCount, index);
+			_pendingSkippedPeers[index] = false;
+			DropPeerIfItStoppedReading(seatedPeerId, simulation.TickCount);
 		}
 
 		simulation.PreparePeerDescriptions(sequence);
@@ -1508,7 +1509,7 @@ public class ListenServerHost : IServerTransportSink
 		if (_lastLoggedAckSequencePerPeer.TryGetValue(peerId, out long lastLogged) && ack.Sequence - lastLogged < AckReportInterval) return;
 
 		_lastLoggedAckSequencePerPeer[peerId] = ack.Sequence;
-		_log.Write($"peer {peerId} acknowledged sequence {ack.Sequence} with mask {ack.AppliedMask:x16}");
+		_log.Write($"peer {peerId} acknowledged sequence {ack.Sequence} with mask {ack.AppliedMask:x16} across a round trip of {ack.RoundTripMilliseconds} ms");
 	}
 
 	/// <summary>
@@ -1531,14 +1532,21 @@ public class ListenServerHost : IServerTransportSink
 		return true;
 	}
 
-	private bool ShouldSkipSlowPeer(int peerId, int sequence, long tick, int index)
+	/// <summary>
+	///     Drops a peer that has stopped reading altogether, as opposed to one that has merely fallen behind. A peer that is
+	///     behind is still described on every tick: a description is a few hundred bytes, while the only thing a skip can
+	///     escalate to is a baseline, which is over a hundred times larger and is paid again on every cooldown. A skip also
+	///     leaves a sequence the peer was never sent, which its acknowledgement reports as a hole no ring can fill, so the
+	///     description that would have filled the hole is replaced by the baseline the skip was meant to avoid.
+	/// </summary>
+	private void DropPeerIfItStoppedReading(int peerId, long tick)
 	{
-		if (!_unacknowledgedPublicationsPerPeer.TryGetValue(peerId, out int unacknowledged)) return false;
+		if (!_unacknowledgedPublicationsPerPeer.TryGetValue(peerId, out int unacknowledged)) return;
 
 		if (unacknowledged < 0)
 		{
-			if (!_seatedAtTickPerPeer.TryGetValue(peerId, out long seatedAtTick)) return false;
-			if (tick - seatedAtTick < NeverAnsweredGraceTicks) return false;
+			if (!_seatedAtTickPerPeer.TryGetValue(peerId, out long seatedAtTick)) return;
+			if (tick - seatedAtTick < NeverAnsweredGraceTicks) return;
 
 			_log.Write($"peer {peerId} has been described for {NeverAnsweredGraceTicks / MatchTiming.SimulationTickRateHz}s without answering once; it is measured as a peer that is behind");
 			_unacknowledgedPublicationsPerPeer[peerId] = 0;
@@ -1547,39 +1555,11 @@ public class ListenServerHost : IServerTransportSink
 
 		_unacknowledgedPublicationsPerPeer[peerId] = unacknowledged + 1;
 
-		// Behind is measured from the sequence the peer says it applied, plus one round trip, not from how many
-		// descriptions it has left unanswered: counting those measures the link rather than the screen. On a healthy long
-		// link that count settles at the round trip's worth of publishing, so past about four hundred milliseconds a peer
-		// drawing everything sent it tripped the bound and was re-baselined once a second.
-		if (_acknowledgedSequencePerPeer.TryGetValue(peerId, out int acknowledgedSequence))
-		{
-			int lagSequences = sequence - acknowledgedSequence;
-			if (lagSequences <= MaximumLagBehindSequences + RoundTripSequences(peerId)) return false;
-		}
-
-		// A baseline asked for here is the only thing this peer is sent while it stays silent. One the cooldown refuses
-		// means a description from scratch is already on its way, so this tick is skipped rather than spent describing
-		// towards a screen that is not reading.
-		if (TryClaimBaselineRequest(peerId, tick))
-		{
-			_pendingBaselineRequests[index] = true;
-			_pendingBaselineReasons[index] = SnapshotBaselineReason.Resync;
-			return false;
-		}
-
-		if (unacknowledged < MaximumUnacknowledgedBeforeDisconnect) return true;
+		if (unacknowledged < MaximumUnacknowledgedBeforeDisconnect) return;
 
 		_log.Write($"peer {peerId} has left {unacknowledged} descriptions unanswered; the match drops it");
 		_seatedPeers.Remove(peerId);
 		_transport.Disconnect(peerId);
-		return true;
-	}
-
-	private int RoundTripSequences(int peerId)
-	{
-		if (!_roundTripMillisecondsPerPeer.TryGetValue(peerId, out int roundTripMilliseconds)) return 0;
-
-		return (int)MathF.Ceiling(roundTripMilliseconds * 0.001f * MatchTiming.SnapshotRateHz);
 	}
 
 	private const long AckReportInterval = 100;
@@ -1587,8 +1567,6 @@ public class ListenServerHost : IServerTransportSink
 	private const long BaselineRequestCooldownTicks = MatchTiming.BaselineRequestCooldownTicks;
 
 	private const int NeverAnsweredGraceTicks = MatchTiming.SimulationTickRateHz * 45;
-
-	private const int MaximumLagBehindSequences = MatchTiming.SnapshotRateHz / 2;
 
 	private const int MaximumUnacknowledgedBeforeDisconnect = MatchTiming.SnapshotRateHz * 15;
 
