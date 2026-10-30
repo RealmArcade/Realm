@@ -54,6 +54,10 @@ public class LobbyMatchPreparation
 			return;
 		}
 
+		// The models are warmed before the match loads this map's metadata, so the map has to be named here for their
+		// paths to resolve against it rather than against whatever the process last looked at.
+		GameContext.MapStorageService.CurrentMapDirectory = mapDirectory;
+
 		MapMetadata metadata;
 		try
 		{

@@ -91,6 +91,26 @@ public class EnetServerTransport : IServerTransport
 		_peer.DisconnectPeer(peerId);
 	}
 
+	public bool TryReadPeerLink(int peerId, out PeerLinkStatistics statistics)
+	{
+		statistics = default;
+		if (_peer == null || peerId <= 0) return false;
+
+		ENetPacketPeer? peer = _peer.GetPeer(peerId);
+		if (peer == null) return false;
+		if (peer.GetState() != ENetPacketPeer.PeerState.Connected) return false;
+
+		int roundTripMilliseconds = (int)Math.Round(peer.GetStatistic(ENetPacketPeer.PeerStatistic.RoundTripTime));
+		int jitterMilliseconds = (int)Math.Round(peer.GetStatistic(ENetPacketPeer.PeerStatistic.RoundTripTimeVariance));
+		float packetLossPercent = (float)peer.GetStatistic(ENetPacketPeer.PeerStatistic.PacketLoss) / 65536f * 100f;
+
+		statistics = new PeerLinkStatistics(
+			Math.Clamp(roundTripMilliseconds, 0, int.MaxValue),
+			Math.Clamp(jitterMilliseconds, 0, int.MaxValue),
+			Math.Clamp(packetLossPercent, 0f, 100f));
+		return true;
+	}
+
 	public bool SendToAddress(string address, int port, ReadOnlySpan<byte> payload)
 	{
 		if (_peer == null || string.IsNullOrWhiteSpace(address) || port <= 0) return false;

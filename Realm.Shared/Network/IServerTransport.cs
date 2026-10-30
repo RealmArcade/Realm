@@ -11,6 +11,13 @@ public interface IServerTransportSink
 	void OnPeerDisconnected(int peerId, string reason);
 }
 
+/// <summary>
+///     What the transport itself has measured about one peer's link. ENet keeps these per connection, so they are read
+///     rather than guessed: a round trip the authority observed, how far those trips land from each other, and how much
+///     of what it sent that peer never acknowledged.
+/// </summary>
+public readonly record struct PeerLinkStatistics(int RoundTripMilliseconds, int JitterMilliseconds, float PacketLossPercent);
+
 public interface IServerTransport : IDisposable
 {
 	int Port { get; }
@@ -22,6 +29,12 @@ public interface IServerTransport : IDisposable
 	void Disconnect(int peerId);
 
 	bool SendToAddress(string address, int port, ReadOnlySpan<byte> payload);
+
+	/// <summary>
+	///     Reads the link quality of one connected peer, or answers false when this transport holds no measurement for it
+	///     yet.
+	/// </summary>
+	bool TryReadPeerLink(int peerId, out PeerLinkStatistics statistics);
 
 	void Stop();
 }

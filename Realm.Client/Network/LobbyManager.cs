@@ -127,6 +127,13 @@ public partial class LobbyManager : BaseMapTransferNode
 
 	public bool IsCountdownActive => _countdownActive;
 
+	/// <summary>
+	///     Whether the lobby's authority has described this lobby to this screen yet. A screen that has one is connected: it
+	///     has its seat, it can chat, and whatever else it is waiting for (a map package, a warmed world) is work already
+	///     running behind a lobby it is free to use.
+	/// </summary>
+	public bool HasLobbyState => _lobbyRevision > 0;
+
 	public int CountdownRemainingSeconds => _countdownRemaining;
 
 	private readonly LobbyMatchPreparation _preparation = new();
@@ -477,7 +484,28 @@ public partial class LobbyManager : BaseMapTransferNode
 
 	public void RunNatTypeTest()
 	{
-		Task.Run(RunNatTypeTestAsync);
+		_natTypeTest = Task.Run(RunNatTypeTestAsync);
+	}
+
+	private Task? _natTypeTest;
+
+	/// <summary>
+	///     The public endpoint this screen advertises is measured once when it starts and reused until it is missing, so
+	///     joining a lobby does not first wait out a NAT test: the join is the screen's own business, and the test that
+	///     was already running is joined rather than repeated.
+	/// </summary>
+	private async Task EnsureNatTypeMeasuredAsync()
+	{
+		if (!string.IsNullOrEmpty(_hostPublicIp)) return;
+
+		Task? running = _natTypeTest;
+		if (running is { IsCompleted: false })
+		{
+			await running;
+			if (!string.IsNullOrEmpty(_hostPublicIp)) return;
+		}
+
+		await RunNatTypeTestAsync();
 	}
 
 	private void EmitNatTestCompleted()
@@ -769,7 +797,7 @@ public partial class LobbyManager : BaseMapTransferNode
 	public async Task<bool> JoinLobbyAsync(string lobbyId)
 	{
 		InitializeClientState(lobbyId);
-		await RunNatTypeTestAsync();
+		await EnsureNatTypeMeasuredAsync();
 
 		string clientPublicIp = _hostPublicIp ?? "127.0.0.1";
 		int clientPublicPort = _hostPublicPort > 0 ? _hostPublicPort : ENetPort;
@@ -1027,9 +1055,9 @@ public partial class LobbyManager : BaseMapTransferNode
 				IsMapReady = seat.IsMapReady,
 				IsLoadReady = seat.IsLoadReady,
 				IsDisconnected = seat.IsDisconnected,
-				Latency = "0 ms",
-				Jitter = "0 ms",
-				PacketLoss = "0%",
+				Latency = FormatLinkMilliseconds(seat.LatencyMilliseconds),
+				Jitter = FormatLinkMilliseconds(seat.JitterMilliseconds),
+				PacketLoss = FormatLinkPercent(seat.PacketLossPercent),
 				BinaryVersion = RealmVersion.GameBinaryVersion,
 				SessionToken = seat.SessionToken ?? string.Empty
 			});
@@ -1143,9 +1171,12 @@ public partial class LobbyManager : BaseMapTransferNode
 	{
 		if (_matchStarted) return;
 
+		// A kicked connection drops before its reason has been read, and the reconnect that follows is refused by
+		// name. That refusal is the kick arriving late rather than a lobby that failed.
+		bool kicked = reason.Contains(LobbyLimits.KickedRejection, StringComparison.Ordinal);
 		bool wasBuilding = _matchPresentationOpen;
 		bool administeredHere = IsHost;
-		if (administeredHere)
+		if (administeredHere && !kicked)
 		{
 			LastHostError = reason;
 			GD.PrintErr($"[LobbyManager] The lobby's authority is gone: {reason}");
@@ -1162,6 +1193,13 @@ public partial class LobbyManager : BaseMapTransferNode
 
 		ReleaseHostedEndpoint(hostedPort);
 		ResetLobbyState();
+
+		if (kicked)
+		{
+			KickReceived?.Invoke("Kicked by Host");
+			return;
+		}
+
 		ConnectionFailed?.Invoke(administeredHere ? reason : "The host's lobby is no longer running.");
 		if (wasBuilding) GameContext.UserInterface?.TransitionTo(GameScreen.MainMenu);
 	}
@@ -2561,6 +2599,10 @@ public partial class LobbyManager : BaseMapTransferNode
 			GameContext.PeerSeeder?.CheckIdleAndSeedStatus();
 		}
 	}
+
+	private static string FormatLinkMilliseconds(int milliseconds) => milliseconds < 0 ? "--" : $"{milliseconds} ms";
+
+	private static string FormatLinkPercent(float percent) => percent < 0f ? "--" : $"{(int)Math.Round(percent)}%";
 
 	private static uint PackColor(Color color)
 	{

@@ -31,14 +31,54 @@ namespace Realm.Client.Utils
 		{
 			if (string.IsNullOrEmpty(modelPath)) return null;
 
+			if (ResolutionContextChanged()) ForgetResolutionsUnderThePreviousMap();
+
 			if (_resolvedModelPaths.TryGetValue(modelPath, out var cachedPath))
 			{
 				return string.IsNullOrEmpty(cachedPath) ? null : cachedPath;
 			}
 
 			string resolved = ResolveModelPathInternal(modelPath);
-			_resolvedModelPaths[modelPath] = resolved ?? string.Empty;
+
+			// Only a path that was found is cached. A path that was not found is answered against whichever map the
+			// process is looking at, and the map a lobby pre-warms resolves after the models it names are queued, so
+			// caching the miss would leave every mesh of that match looking for a file in the previous map.
+			if (!string.IsNullOrEmpty(resolved)) _resolvedModelPaths[modelPath] = resolved;
 			return resolved;
+		}
+
+		private static string _resolutionMapDirectory = string.Empty;
+		private static string _resolutionMapName = string.Empty;
+
+		private static bool ResolutionContextChanged()
+		{
+			string mapDirectory = GameContext.MapStorageService?.CurrentMapDirectory ?? string.Empty;
+			string mapName = GameContext.Simulation.ActiveMapName ?? string.Empty;
+
+			if (string.Equals(mapDirectory, _resolutionMapDirectory, StringComparison.Ordinal)
+			    && string.Equals(mapName, _resolutionMapName, StringComparison.Ordinal))
+			{
+				return false;
+			}
+
+			_resolutionMapDirectory = mapDirectory;
+			_resolutionMapName = mapName;
+			return true;
+		}
+
+		private static void ForgetResolutionsUnderThePreviousMap()
+		{
+			_resolvedModelPaths.Clear();
+
+			_modelCacheLock.EnterWriteLock();
+			try
+			{
+				_failedModelPaths.Clear();
+			}
+			finally
+			{
+				_modelCacheLock.ExitWriteLock();
+			}
 		}
 
 		private static string ResolveModelPathInternal(string modelPath)

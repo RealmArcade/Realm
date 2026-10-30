@@ -104,6 +104,7 @@ interface game-api {
     get-zone-center-y: func(zone-handle: s32) -> f32;
     get-zone-center-z: func(zone-handle: s32) -> f32;
     has-coordinate: func(coordinate-name: string) -> bool;
+    is-host: func(player-index: s32) -> bool;
     is-loot-item-auto-pickup: func(item-id: s32) -> bool;
     is-loot-item-despawned: func(item-id: s32) -> bool;
     is-position-in-coordinate: func(position-x: f32, position-y: f32, position-z: f32, coordinate-name: string) -> bool;

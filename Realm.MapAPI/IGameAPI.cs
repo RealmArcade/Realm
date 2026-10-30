@@ -20,6 +20,20 @@ public interface IGameAPI
 	/// </summary>
 	bool CheatsEnabled { get; }
 
+	/// <summary>
+	/// Answers whether the player at the given index is the one hosting this match: the seat a lobby lets administer it,
+	/// or the single player of a match only one person plays. A match nobody hosts, which is one an exported server runs
+	/// from a roster, answers false for every index. Read-only: the engine decides it, and a script may branch on it to
+	/// keep an administrative console command to the person who administers the match.
+	/// </summary>
+	/// <param name="playerIndex">The player slot to test.</param>
+	/// <remarks>
+	/// A chat command that only the host may issue is judged here rather than from the unit it was typed with, because a
+	/// console command is usually typed with nothing selected.
+	/// </remarks>
+	/// <returns>True when this slot hosts the match; otherwise false.</returns>
+	bool IsHost(int playerIndex);
+
 
 	/// <summary>
 	/// Spawns a resource node at the given position.
@@ -120,9 +134,11 @@ public interface IGameAPI
 	event Action<UnitId, string, Vector3>? OnSpellCast;
 
 	/// <summary>
-	/// Triggered when a player types a chat message. Passes the message and the first selected unit if any.
+	/// Triggered when a player types a chat message. Passes the message, the first selected unit if any, and the slot of
+	/// the player who typed it, which is the slot to judge a console command by even when that player had nothing
+	/// selected.
 	/// </summary>
-	event Action<string, UnitId>? OnPlayerChatMessage;
+	event Action<string, UnitId, int>? OnPlayerChatMessage;
 
 	/// <summary>
 	/// Triggered when the player selects a unit.

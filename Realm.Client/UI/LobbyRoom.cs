@@ -182,7 +182,10 @@ public partial class LobbyRoom : Control
 
 		PopulatePlayersList();
 
-		if (!GameContext.Lobby.IsHost)
+		// The lobby is drawn first and covers the screen only while this screen has no seat in it yet. Once the authority
+		// has described the lobby there is nothing left to connect to: the map package and the world are prepared behind
+		// a lobby the player can already read and chat in, so the cover is not raised over them.
+		if (!GameContext.Lobby.IsHost && !GameContext.Lobby.HasLobbyState)
 		{
 			ShowConnectingPopup();
 		}
@@ -1509,11 +1512,12 @@ public partial class LobbyRoom : Control
 
 		if (colorBtn.GetThemeStylebox("normal") is not StyleBoxFlat colorStyle) return;
 
-		if (colorStyle.BgColor != p.Color)
-		{
-			colorStyle.BgColor = p.Color;
-			colorBtn.AddThemeStyleboxOverride("normal", colorStyle);
-		}
+		if (colorStyle.BgColor == p.Color) return;
+
+		colorStyle.BgColor = p.Color;
+		colorBtn.AddThemeStyleboxOverride("normal", colorStyle);
+		colorBtn.AddThemeStyleboxOverride("hover", colorStyle);
+		colorBtn.AddThemeStyleboxOverride("pressed", colorStyle);
 	}
 
 	private void UpdateRowNameElements(HBoxContainer hBox, PlayerInfo p)

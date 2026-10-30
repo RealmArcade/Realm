@@ -80,6 +80,8 @@ public partial class ServerGameAPI : IGameAPI, IDisposable
 
 	public bool CheatsEnabled => _context.CheatsEnabled;
 
+	public bool IsHost(int playerIndex) => playerIndex > 0 && playerIndex == _context.HostPlayerSlot;
+
 	public int PlayerCount
 	{
 		get

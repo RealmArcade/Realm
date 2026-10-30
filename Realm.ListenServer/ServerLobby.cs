@@ -21,6 +21,8 @@ public class ServerLobby
 
 	private readonly Action<string, int> _punchAddress;
 
+	private readonly Func<int, PeerLinkStatistics?> _readPeerLink;
+
 	private readonly ServerLog _log;
 	private readonly string _mapFolder;
 	private readonly string _mapName;
@@ -31,7 +33,19 @@ public class ServerLobby
 	private readonly Dictionary<int, int> _slotByPeer = new();
 	private readonly List<LobbyChatMessage> _chatHistory = new();
 
+	/// <summary>
+	///     Sessions this lobby removed by name. A connection that drops because it was kicked spends no time deciding to
+	///     come back, so a kicked client reconnects before it has read the reason; that reconnect is answered with the
+	///     refusal instead of a fresh seat.
+	/// </summary>
+	private readonly HashSet<string> _refusedSessionTokens = new(StringComparer.Ordinal);
+
 	private const int MaximumChatHistory = 200;
+
+	/// <summary>How often the lobby republishes the link quality it measures for each seat.</summary>
+	private const double LinkStatisticsIntervalSeconds = 1.0;
+
+	private double _linkStatisticsTimer;
 
 	private const int MaximumSessionTokenLength = 64;
 
@@ -44,7 +58,8 @@ public class ServerLobby
 	private bool _matchStarted;
 
 	public ServerLobby(ServerArguments arguments, ServerLog log, Action<int, NetworkFrameKind, byte[], FrameDelivery> send, Action<int> disconnect,
-		Func<IReadOnlyList<MatchRosterSeat>, IReadOnlyList<(int PeerId, int Slot)>, IReadOnlyDictionary<string, int>, int, string?> startMatch, Action lobbyAbandoned, Action<string, int> punchAddress)
+		Func<IReadOnlyList<MatchRosterSeat>, IReadOnlyList<(int PeerId, int Slot)>, IReadOnlyDictionary<string, int>, int, string?> startMatch, Action lobbyAbandoned, Action<string, int> punchAddress,
+		Func<int, PeerLinkStatistics?> readPeerLink)
 	{
 		_log = log;
 		_send = send;
@@ -52,6 +67,7 @@ public class ServerLobby
 		_startMatch = startMatch;
 		_lobbyAbandoned = lobbyAbandoned;
 		_punchAddress = punchAddress;
+		_readPeerLink = readPeerLink;
 		_mapFolder = arguments.MapPath;
 		_mapName = ResolveMapName(arguments);
 		_mapVersion = ResolveMapVersion(arguments);
@@ -112,6 +128,12 @@ public class ServerLobby
 		isAdmin = false;
 		if (_matchStarted) return "server_rejected_lobby_is_closed";
 
+		if (!proveAdmin && !string.IsNullOrEmpty(sessionToken) && _refusedSessionTokens.Contains(sessionToken))
+		{
+			_log.Write($"peer {peerId} asked to sit in a lobby that removed its session; the connection is refused");
+			return LobbyLimits.KickedRejection;
+		}
+
 		if (proveAdmin && _adminPeerId == 0)
 		{
 			_adminPeerId = peerId;
@@ -150,6 +172,9 @@ public class ServerLobby
 				TeamName = isAdmin ? "Team 1" : ResolveJoinTeamName(),
 				ColorRgba = PackPaletteColor(slot),
 				IsHost = isAdmin,
+				LatencyMilliseconds = -1,
+				JitterMilliseconds = -1,
+				PacketLossPercent = -1f,
 				SessionToken = LobbyLimits.Sanitize(sessionToken, MaximumSessionTokenLength)
 			};
 			seat.Team = ResolveTeamNumber(seat.TeamName, slot);
@@ -265,6 +290,8 @@ public class ServerLobby
 
 	public void Tick(double deltaSeconds)
 	{
+		if (!_matchStarted) RefreshLinkStatistics(deltaSeconds);
+
 		if (_matchStarted || !_countdownActive) return;
 
 		_countdownRemainingSeconds -= Math.Max(0.0, deltaSeconds);
@@ -348,6 +375,84 @@ public class ServerLobby
 
 	public bool SpectatorDelay { get; private set; }
 
+	/// <summary>
+	///     Republishes the measured link of every seat on an interval, because nothing else in a quiet lobby changes: the
+	///     round trip a peer is waiting on is not an event the lobby is told about.
+	/// </summary>
+	private void RefreshLinkStatistics(double deltaSeconds)
+	{
+		_linkStatisticsTimer += Math.Max(0.0, deltaSeconds);
+		if (_linkStatisticsTimer < LinkStatisticsIntervalSeconds) return;
+
+		_linkStatisticsTimer = 0.0;
+		if (!ApplyLinkStatistics()) return;
+
+		BroadcastState();
+	}
+
+	private bool ApplyLinkStatistics()
+	{
+		bool changed = false;
+		int measuredPeers = 0;
+		long totalRoundTrip = 0;
+		long totalJitter = 0;
+		double totalLoss = 0.0;
+
+		foreach (var pair in _seats)
+		{
+			LobbySeat seat = pair.Value;
+			if (seat.IsComputer || seat.IsDisconnected) continue;
+			if (seat.PeerId <= 0 || seat.PeerId == _adminPeerId) continue;
+
+			PeerLinkStatistics? statistics = _readPeerLink(seat.PeerId);
+			if (statistics == null) continue;
+
+			measuredPeers++;
+			totalRoundTrip += statistics.Value.RoundTripMilliseconds;
+			totalJitter += statistics.Value.JitterMilliseconds;
+			totalLoss += statistics.Value.PacketLossPercent;
+
+			changed |= PublishSeatLink(seat, statistics.Value.RoundTripMilliseconds, statistics.Value.JitterMilliseconds, statistics.Value.PacketLossPercent);
+		}
+
+		// The administrator runs its own authority, so its row states what the worst of its links comes to: an average of
+		// what it measured against everyone it is serving, and nothing at all while it serves nobody.
+		foreach (var pair in _seats)
+		{
+			LobbySeat seat = pair.Value;
+			if (seat.PeerId != _adminPeerId) continue;
+
+			if (measuredPeers == 0)
+			{
+				changed |= PublishSeatLink(seat, 0, 0, 0f);
+				break;
+			}
+
+			changed |= PublishSeatLink(seat,
+				(int)Math.Round((double)totalRoundTrip / measuredPeers),
+				(int)Math.Round((double)totalJitter / measuredPeers),
+				(float)(totalLoss / measuredPeers));
+			break;
+		}
+
+		return changed;
+	}
+
+	private bool PublishSeatLink(LobbySeat seat, int roundTripMilliseconds, int jitterMilliseconds, float packetLossPercent)
+	{
+		bool unchanged = seat.LatencyMilliseconds == roundTripMilliseconds
+			&& seat.JitterMilliseconds == jitterMilliseconds
+			&& MathF.Abs(seat.PacketLossPercent - packetLossPercent) < 0.5f;
+		if (unchanged) return false;
+
+		seat.LatencyMilliseconds = roundTripMilliseconds;
+		seat.JitterMilliseconds = jitterMilliseconds;
+		seat.PacketLossPercent = packetLossPercent;
+		_seats[seat.Slot] = seat;
+		return true;
+	}
+
+
 	public string HostStability { get; private set; } = "Excellent";
 
 	private void SetReady(LobbySeat sender, bool ready)
@@ -409,7 +514,10 @@ public class ServerLobby
 			ColorRgba = PackPaletteColor(slot),
 			IsComputer = true,
 			IsMapReady = true,
-			IsLoadReady = true
+			IsLoadReady = true,
+			LatencyMilliseconds = 0,
+			JitterMilliseconds = 0,
+			PacketLossPercent = 0f
 		};
 		computer.Team = ResolveTeamNumber(computer.TeamName, slot);
 
@@ -438,6 +546,7 @@ public class ServerLobby
 		}
 
 		_log.Write($"peer {targetPeerId} ('{target.Name}') was removed from the lobby by its administrator");
+		if (!string.IsNullOrEmpty(target.SessionToken)) _refusedSessionTokens.Add(target.SessionToken);
 		bool stillConnected = _slotByPeer.ContainsKey(target.PeerId);
 		RemoveSeat(target.PeerId, $"{target.Name} was removed from the lobby.");
 

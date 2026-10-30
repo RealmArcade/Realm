@@ -46,7 +46,7 @@ public partial class ServerGameAPI
 		if (string.IsNullOrWhiteSpace(message)) return;
 
 		UnitId sender = senderUnitId > 0 && _context.World.IsAlive(new Entity(senderUnitId)) ? new UnitId(senderUnitId) : UnitId.Invalid;
-		OnPlayerChatMessage?.Invoke(message, sender);
+		OnPlayerChatMessage?.Invoke(message, sender, playerIndex);
 		_log.Write($"player {playerIndex} sent the map a console command");
 	}
 

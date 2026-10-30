@@ -37,7 +37,7 @@ public class ServerSimulation : IDisposable
 	private bool _disposed;
 	private long _navMeshRebakeTick = -1;
 
-	public ServerSimulation(LoadedMap map, ServerMatchPaths paths, ServerLog log, int randomSeed = 0, bool cheatsEnabled = false, bool wasmDebug = false, string? mapWorkspacePath = null, IReadOnlyList<MatchRosterSeat>? roster = null)
+	public ServerSimulation(LoadedMap map, ServerMatchPaths paths, ServerLog log, int randomSeed = 0, bool cheatsEnabled = false, bool wasmDebug = false, string? mapWorkspacePath = null, IReadOnlyList<MatchRosterSeat>? roster = null, int hostPlayerSlot = 0)
 	{
 		_map = map;
 		_hasRoster = roster is { Count: > 0 };
@@ -50,6 +50,7 @@ public class ServerSimulation : IDisposable
 		}
 		_log = log;
 		map.Simulation.CheatsEnabled = cheatsEnabled;
+		map.Simulation.HostPlayerSlot = hostPlayerSlot;
 
 		// The stream the simulation and its script draw from is established here, by the owner of the match, before
 		// anything can step or describe it.

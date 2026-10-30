@@ -228,7 +228,7 @@ public class ListenServerHost : IServerTransportSink
 		try
 		{
 			var paths = ServerMatchPaths.From(_arguments);
-			_simulation = new ServerSimulation(map, paths, _log, _arguments.Seed, _arguments.Cheats, _arguments.WasmDebug, _arguments.WorkspacePath, roster);
+			_simulation = new ServerSimulation(map, paths, _log, _arguments.Seed, _arguments.Cheats, _arguments.WasmDebug, _arguments.WorkspacePath, roster, _arguments.Cheats ? 1 : 0);
 			MarkStartStage("simulation built");
 			_simulation.PeerDropped += DisconnectPeer;
 			_log.Write($"map '{paths.MapName}' keeps its saved data under '{_simulation.MapSavedDataDirectory()}'");
@@ -291,7 +291,8 @@ public class ListenServerHost : IServerTransportSink
 			peerId => _transport.Disconnect(peerId),
 			StartMatchFromLobby,
 			Stop,
-			(address, port) => _transport.SendToAddress(address, port, Encoding.UTF8.GetBytes("PUNCH")));
+			(address, port) => _transport.SendToAddress(address, port, Encoding.UTF8.GetBytes("PUNCH")),
+			peerId => _transport.TryReadPeerLink(peerId, out PeerLinkStatistics statistics) ? statistics : null);
 
 		IsRunning = true;
 		_mapHash = MapContentHash.Compute(_arguments.MapPath, _arguments.LogPath);
@@ -314,7 +315,9 @@ public class ListenServerHost : IServerTransportSink
 			worldOwnedHere = TakePreparedLobbyWorldOrLoad(roster);
 			MarkStartStage("map loaded");
 			var paths = ServerMatchPaths.From(_arguments);
-			_simulation = new ServerSimulation(worldOwnedHere, paths, _log, seed, _arguments.Cheats, _arguments.WasmDebug, _arguments.WorkspacePath, roster);
+			int hostPlayerSlot = ResolveLobbyHostPlayerSlot(assignments);
+			_simulation = new ServerSimulation(worldOwnedHere, paths, _log, seed, _arguments.Cheats, _arguments.WasmDebug, _arguments.WorkspacePath, roster, hostPlayerSlot);
+			if (hostPlayerSlot > 0) _log.Write($"player slot {hostPlayerSlot} hosts this match: its seat is the one that administered the lobby");
 
 			worldOwnedHere = null;
 			MarkStartStage("simulation built");
@@ -386,6 +389,25 @@ public class ListenServerHost : IServerTransportSink
 		_log.Write($"the lobby handed {_seatedPeers.Count} connection(s) to the match; the port it was reached on belongs to the match now");
 		MarkStartStage("match ready to describe");
 		return null;
+	}
+
+	/// <summary>
+	///     The seat a match is hosted from: the lobby's administrator, named by the assignment it was seated under. A lobby
+	///     whose administrator was not seated (it dropped before the countdown ended) hosts the match from nowhere, which
+	///     is what a map reads to refuse an administrative command.
+	/// </summary>
+	private int ResolveLobbyHostPlayerSlot(IReadOnlyList<(int PeerId, int Slot)> assignments)
+	{
+		int adminPeerId = _lobby?.AdminPeerId ?? 0;
+		if (adminPeerId <= 0) return 0;
+
+		for (int index = 0; index < assignments.Count; index++)
+		{
+			if (assignments[index].PeerId != adminPeerId) continue;
+			return assignments[index].Slot;
+		}
+
+		return 0;
 	}
 
 	private MatchRosterSeat[] ReadRoster()

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Godot;
 using SharedPalette = Realm.Shared.Players.PlayerColorPalette;
@@ -66,7 +67,29 @@ public static class PlayerColorConfig
 		return Palette[NEUTRAL_PLAYER_INDEX].Name;
 	}
 
-	public static int GetColorIndex(Color color) => SharedPalette.IndexOfColor(color.R, color.G, color.B);
+	/// <summary>
+	///     The palette index a colour stands for. The match is made on the eight bits per channel a seat's colour travels
+	///     as, because a colour that has come back from the authority no longer equals the palette's own float exactly and
+	///     a miss would read as the neutral entry, which is what a colour picker reads to choose the next colour.
+	/// </summary>
+	public static int GetColorIndex(Color color)
+	{
+		int red = ToChannelByte(color.R);
+		int green = ToChannelByte(color.G);
+		int blue = ToChannelByte(color.B);
+
+		for (int index = 0; index < Palette.Length; index++)
+		{
+			Color entryColor = Palette[index].Color;
+			if (entryColor.R8 != red || entryColor.G8 != green || entryColor.B8 != blue) continue;
+
+			return index;
+		}
+
+		return NEUTRAL_PLAYER_INDEX;
+	}
+
+	private static int ToChannelByte(float channel) => (int)Math.Round(Math.Clamp(channel, 0.0f, 1.0f) * 255.0);
 
 	public static string GetColorHex(int playerIndex) => SharedPalette.GetColorHex(playerIndex);
 

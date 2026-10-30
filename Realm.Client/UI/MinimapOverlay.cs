@@ -18,7 +18,6 @@ public partial class MinimapOverlay : Control
 	private const float BuildingSquareEdge = 6.0f;
 
 	private static readonly Color EnemyColor = new Color(0.9f, 0.1f, 0.1f);
-	private static readonly Color SelfColor = new Color(1.0f, 1.0f, 1.0f);
 	private static readonly Color FriendlyColor = new Color(0.2f, 0.6f, 1.0f);
 	private static readonly Color BuildingOutlineColor = new Color(0f, 0f, 0f, 0.6f);
 	private static readonly Color SelectedSpectatorColor = new Color(1.0f, 1.0f, 1.0f);
@@ -111,15 +110,12 @@ public partial class MinimapOverlay : Control
 			return GetPlayerMinimapColor(playerIndex);
 		}
 
+		// A team is one colour on the map: this screen's own units and its allies are the same blue, and anything that is
+		// hostile to the perspective this screen holds is red.
 		var perspective = GameContext.PerspectiveFilter;
 		if (perspective.ObservesAllPlayers)
 		{
 			return FriendlyColor;
-		}
-
-		if (perspective.ObservedPlayerIndex == playerIndex)
-		{
-			return SelfColor;
 		}
 
 		return perspective.IsHostileToObserved(playerIndex) ? EnemyColor : FriendlyColor;

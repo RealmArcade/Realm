@@ -26,6 +26,12 @@ public static unsafe class PlayerIdScriptExtensions
 	public bool IsActive => playerId.Value >= 0 && playerId.Value < EcsSharedMemory.MAX_PLAYERS && EcsSharedMemory.GetComponent<ScriptPlayer>(ComponentIds.ScriptPlayer, playerId.Value)->Active;
 
 	/// <summary>
+	/// Gets a value indicating whether this player hosts the match: the seat a lobby lets administer it, or the single
+	/// player of a match only one person plays. A match nobody hosts answers false.
+	/// </summary>
+	public bool IsHost => GameAPI.Current.IsHost(playerId.Value);
+
+	/// <summary>
 	/// Sets whether this player slot is active in the game session.
 	/// </summary>
 	/// <param name="active">True if the slot is active; otherwise false.</param>

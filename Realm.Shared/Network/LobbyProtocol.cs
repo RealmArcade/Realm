@@ -75,6 +75,12 @@ public partial struct LobbySeat
 	public bool IsDisconnected;
 
 	public string SessionToken;
+
+	public int LatencyMilliseconds;
+
+	public int JitterMilliseconds;
+
+	public float PacketLossPercent;
 }
 
 [MemoryPackable]
@@ -170,6 +176,11 @@ public static class LobbyLimits
 	public const int CountdownSeconds = 5;
 
 	public const int MaximumMapBundleBytes = 2 * 1024 * 1024;
+
+	/// <summary>
+	///     The refusal a peer is answered with when it asks to be seated in a lobby that removed it.
+	/// </summary>
+	public const string KickedRejection = "server_rejected_kicked";
 
 	public static string Sanitize(string? value, int maximumLength)
 	{

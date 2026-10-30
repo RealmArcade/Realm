@@ -60,6 +60,13 @@ public class SimulationContext : IDisposable
 	/// </summary>
 	public bool CheatsEnabled { get; set; }
 
+	/// <summary>
+	///     The player slot that hosts this match, or zero when nobody does. A lobby names the seat it lets administer the
+	///     match, and a match one person plays against the computer hosts itself; an exported server started from a roster
+	///     has no host, so a script that keeps an administrative command to the host refuses it there.
+	/// </summary>
+	public int HostPlayerSlot { get; set; }
+
 	/// <summary>Whether construction runs at the rate a cheat asked for rather than the map's own production times.</summary>
 	public bool FastBuildEnabled { get; set; }
 
