@@ -788,28 +788,9 @@ public static class ReplicatedUnitComponentSlots
 
 	private static readonly List<IReplicatedComponentCodec> _slots = new();
 	private static readonly Dictionary<int, int> _slotByComponentTypeId = new();
-	private static bool _initialized;
 
-	public static IReadOnlyList<IReplicatedComponentCodec> Slots
+	static ReplicatedUnitComponentSlots()
 	{
-		get
-		{
-			EnsureInitialized();
-			return _slots;
-		}
-	}
-
-	public static bool TryGetSlot(int componentTypeId, out int slot)
-	{
-		EnsureInitialized();
-		return _slotByComponentTypeId.TryGetValue(componentTypeId, out slot);
-	}
-
-	private static void EnsureInitialized()
-	{
-		if (_initialized) return;
-		_initialized = true;
-
 		IReadOnlyList<IReplicatedComponentCodec> codecs = ReplicatedComponents.All;
 		for (int index = 0; index < codecs.Count; index++)
 		{
@@ -825,6 +806,10 @@ public static class ReplicatedUnitComponentSlots
 			throw new InvalidOperationException($"{_slots.Count} unit-scoped replicated components do not fit in {SlotCount} presence bits, so a peer could not tell a component it holds from one the authority does not have.");
 		}
 	}
+
+	public static IReadOnlyList<IReplicatedComponentCodec> Slots => _slots;
+
+	public static bool TryGetSlot(int componentTypeId, out int slot) => _slotByComponentTypeId.TryGetValue(componentTypeId, out slot);
 }
 
 public static class ReplicatedStateFingerprint

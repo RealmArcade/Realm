@@ -54,6 +54,8 @@ public sealed class AuthorityBenchmark : IDisposable
 	private readonly bool[] _peerIsBaseline;
 	private readonly ParallelOptions _parallelOptions = new();
 	private readonly Action<int> _describeOneLane;
+	private readonly SnapshotCompressor[] _laneCompressors;
+	private readonly SnapshotCompressor _measurementCompressor = new();
 	private readonly int _laneCount;
 	private bool _measuredForceBaseline;
 	private readonly Random _random = new(20261028);
@@ -93,6 +95,8 @@ public sealed class AuthorityBenchmark : IDisposable
 		_snapshots.PrepareFor(PeerIdByPlayerSlot());
 		_laneCount = Math.Min(options.Players, _snapshots.WorkerCount);
 		_parallelOptions.MaxDegreeOfParallelism = _laneCount;
+		_laneCompressors = new SnapshotCompressor[_laneCount];
+		for (int index = 0; index < _laneCompressors.Length; index++) _laneCompressors[index] = new SnapshotCompressor();
 	}
 
 	private static int TeamOf(int playerIndex) => playerIndex < EcsWorld.MAX_PLAYERS / 2 ? 0 : 1;
@@ -137,7 +141,8 @@ public sealed class AuthorityBenchmark : IDisposable
 		_peerSerializeMicros[playerSlot] = Elapsed(start);
 
 		start = Stopwatch.GetTimestamp();
-		byte[] frame = snapshot.IsBaseline ? SnapshotWireFormat.EncodeBaseline(serialized) : SnapshotWireFormat.EncodeDelta(serialized);
+		SnapshotCompressor compressor = _laneCompressors[laneIndex];
+		byte[] frame = snapshot.IsBaseline ? compressor.EncodeBaseline(serialized) : compressor.EncodeDelta(serialized);
 		_peerCompressMicros[playerSlot] = Elapsed(start);
 		_peerFrameBytes[playerSlot] = frame.Length;
 	}
@@ -390,7 +395,7 @@ public sealed class AuthorityBenchmark : IDisposable
 		for (int index = 0; index < frameCount; index++)
 		{
 			long start = Stopwatch.GetTimestamp();
-			SnapshotWireFormat.EncodeDelta(payloads[index]);
+			_measurementCompressor.EncodeDelta(payloads[index]);
 			encodeMicros[index] = Elapsed(start);
 		}
 
@@ -570,7 +575,7 @@ public sealed class AuthorityBenchmark : IDisposable
 
 		WorldSnapshot snapshot = DescribePeer(0, _sequence, false);
 		byte[] serialized = MemoryPackSerializer.Serialize(snapshot);
-		double frameBytes = SnapshotWireFormat.EncodeDelta(serialized).Length;
+		double frameBytes = _measurementCompressor.EncodeDelta(serialized).Length;
 
 		return new DeltaComposition(
 			frameBytes,
@@ -597,7 +602,7 @@ public sealed class AuthorityBenchmark : IDisposable
 		for (int slot = 0; slot < _options.Players; slot++)
 		{
 			WorldSnapshot snapshot = DescribePeer(slot, _sequence + 1, false);
-			byte[] frame = SnapshotWireFormat.EncodeDelta(MemoryPackSerializer.Serialize(snapshot));
+			byte[] frame = _measurementCompressor.EncodeDelta(MemoryPackSerializer.Serialize(snapshot));
 			bytes += frame.Length;
 		}
 

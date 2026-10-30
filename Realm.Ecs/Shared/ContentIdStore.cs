@@ -527,11 +527,6 @@ public static class ContentIdStore
 		Volatile.Write(ref _textView, new TextTableView(entries, published.Count + 1));
 	}
 
-	/// <summary>
-	/// The text entries a cursor walks, published as one immutable pair so a reader that takes the view sees the same
-	/// array and the same count. The array is appended to in place and only replaced when it has to grow, which is safe
-	/// because a reader never reads a slot beyond the count belonging to the view it took.
-	/// </summary>
 	private sealed class TextTableView
 	{
 		public TextTableView((int Id, string Text)[] entries, int count)

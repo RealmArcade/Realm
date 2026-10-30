@@ -44,6 +44,40 @@ public class SnapshotCompressor : IDisposable
 	}
 }
 
+/// <summary>
+///     The decompressor and scratch buffer one screen reads descriptions with. It belongs to the session that reads them
+///     and is disposed with it, so the native decompressor has an owner rather than living on whichever thread happened
+///     to decode first.
+/// </summary>
+public class SnapshotDecompressor : IDisposable
+{
+	private Decompressor? _decompressor;
+	private bool _disposed;
+
+	public ReadOnlySpan<byte> Decode(byte[] frame, ref byte[] serializedBuffer)
+	{
+		if (_disposed) throw new ObjectDisposedException(nameof(SnapshotDecompressor), "this decompressor was disposed with the session that owned it");
+
+		return SnapshotWireFormat.DecodeWith(_decompressor ??= new Decompressor(), frame, ref serializedBuffer);
+	}
+
+	public byte[] Decode(byte[] frame)
+	{
+		if (_disposed) throw new ObjectDisposedException(nameof(SnapshotDecompressor), "this decompressor was disposed with the session that owned it");
+
+		return SnapshotWireFormat.DecodeWith(_decompressor ??= new Decompressor(), frame);
+	}
+
+	public void Dispose()
+	{
+		if (_disposed) return;
+		_disposed = true;
+
+		_decompressor?.Dispose();
+		_decompressor = null;
+	}
+}
+
 public static class SnapshotWireFormat
 {
 	public const int FrameHeaderBytes = 8;
@@ -52,41 +86,6 @@ public static class SnapshotWireFormat
 	public const int MaximumSerializedSnapshotBytes = 8 * 1024 * 1024;
 
 	public const int DeltaCompressionLevel = 1;
-
-	private const int BaselineCompressionLevel = 1;
-
-	[ThreadStatic]
-	private static Compressor? _deltaCompressor;
-
-	[ThreadStatic]
-	private static Compressor? _baselineCompressor;
-
-	[ThreadStatic]
-	private static Decompressor? _decompressor;
-
-	[ThreadStatic]
-	private static byte[]? _compressionBuffer;
-
-	public static byte[] EncodeBaseline(ReadOnlySpan<byte> serialized)
-	{
-		return Encode(serialized, isBaseline: true);
-	}
-
-	public static byte[] EncodeDelta(ReadOnlySpan<byte> serialized)
-	{
-		return Encode(serialized, isBaseline: false);
-	}
-
-	private static byte[] Encode(ReadOnlySpan<byte> serialized, bool isBaseline)
-	{
-		if (serialized.Length == 0) return Array.Empty<byte>();
-
-		Compressor compressor = isBaseline
-			? _baselineCompressor ??= new Compressor(BaselineCompressionLevel)
-			: _deltaCompressor ??= new Compressor(DeltaCompressionLevel);
-
-		return EncodeWith(compressor, ref _compressionBuffer, serialized);
-	}
 
 	/// <summary>
 	///     Frames one compressed description. The frame is a fresh array rather than a slice of the scratch buffer on purpose:
@@ -113,24 +112,13 @@ public static class SnapshotWireFormat
 	///     hand the allocator a new buffer of the frame's own size for each of them. A baseline is over a hundred kilobytes,
 	///     which is a large-object allocation every time one arrives.
 	/// </summary>
-	public static ReadOnlySpan<byte> Decode(byte[] frame, ref byte[] serializedBuffer)
+	internal static ReadOnlySpan<byte> DecodeWith(Decompressor decompressor, byte[] frame, ref byte[] serializedBuffer)
 	{
 		if (frame.Length == 0) return ReadOnlySpan<byte>.Empty;
 
-		if (frame.Length < FrameHeaderBytes || BinaryPrimitives.ReadUInt32LittleEndian(frame) != FrameMagic)
-		{
-			throw new InvalidDataException($"A snapshot frame of {frame.Length} bytes does not carry the frame magic.");
-		}
-
-		int serializedLength = BinaryPrimitives.ReadInt32LittleEndian(frame.AsSpan(4));
-		if (serializedLength <= 0 || serializedLength > MaximumSerializedSnapshotBytes)
-		{
-			throw new InvalidDataException($"A snapshot frame declares {serializedLength} serialized bytes, which is not a size a snapshot can be.");
-		}
-
+		int serializedLength = ReadSerializedLength(frame);
 		if (serializedBuffer.Length < serializedLength) serializedBuffer = new byte[serializedLength];
 
-		Decompressor decompressor = _decompressor ??= new Decompressor();
 		int written = decompressor.Unwrap(frame.AsSpan(FrameHeaderBytes), serializedBuffer.AsSpan(0, serializedLength));
 		if (written != serializedLength)
 		{
@@ -140,10 +128,23 @@ public static class SnapshotWireFormat
 		return serializedBuffer.AsSpan(0, serializedLength);
 	}
 
-	public static byte[] Decode(byte[] frame)
+	internal static byte[] DecodeWith(Decompressor decompressor, byte[] frame)
 	{
 		if (frame.Length == 0) return frame;
 
+		int serializedLength = ReadSerializedLength(frame);
+		byte[] serialized = new byte[serializedLength];
+		int written = decompressor.Unwrap(frame.AsSpan(FrameHeaderBytes), serialized);
+		if (written != serializedLength)
+		{
+			throw new InvalidDataException($"A snapshot frame of {frame.Length} bytes decompressed to {written} bytes instead of its declared {serializedLength}.");
+		}
+
+		return serialized;
+	}
+
+	private static int ReadSerializedLength(byte[] frame)
+	{
 		if (frame.Length < FrameHeaderBytes || BinaryPrimitives.ReadUInt32LittleEndian(frame) != FrameMagic)
 		{
 			throw new InvalidDataException($"A snapshot frame of {frame.Length} bytes does not carry the frame magic.");
@@ -155,14 +156,6 @@ public static class SnapshotWireFormat
 			throw new InvalidDataException($"A snapshot frame declares {serializedLength} serialized bytes, which is not a size a snapshot can be.");
 		}
 
-		Decompressor decompressor = _decompressor ??= new Decompressor();
-		byte[] serialized = new byte[serializedLength];
-		int written = decompressor.Unwrap(frame.AsSpan(FrameHeaderBytes), serialized);
-		if (written != serializedLength)
-		{
-			throw new InvalidDataException($"A snapshot frame of {frame.Length} bytes decompressed to {written} bytes instead of its declared {serializedLength}.");
-		}
-
-		return serialized;
+		return serializedLength;
 	}
 }

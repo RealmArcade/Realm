@@ -40,8 +40,6 @@ public class SnapshotApplyService
 	private int _repairFirstSequence = -1;
 	private ulong _lastRepairRequestTime;
 
-	public void Accept(byte[] payload) => Accept(MemoryPackSerializer.Deserialize<WorldSnapshot>(SnapshotWireFormat.Decode(payload)));
-
 	public void Accept(WorldSnapshot snapshot)
 	{
 		if (_baselineRequestDeferred) RequestBaseline();

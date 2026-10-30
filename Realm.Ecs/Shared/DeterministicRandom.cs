@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 
 namespace Realm.Ecs;
 
@@ -43,14 +44,23 @@ public class DeterministicRandom
 	{
 		get
 		{
-			DeterministicRandom? shared = _shared;
-			if (shared == null)
-			{
-				shared = new DeterministicRandom(EcsSharedMemory.RandomSeed);
-				_shared = shared;
-			}
-			return shared;
+			DeterministicRandom? shared = Volatile.Read(ref _shared);
+			if (shared != null) return shared;
+
+			var created = new DeterministicRandom(EcsSharedMemory.RandomSeed);
+			return Interlocked.CompareExchange(ref _shared, created, null) ?? created;
 		}
+	}
+
+	/// <summary>
+	/// Starts the shared stream at the given seed. The match calls this before it steps, so the stream the simulation
+	/// draws from is established by the owner of the match rather than by whichever thread happens to read it first.
+	/// </summary>
+	/// <param name="seed">The seed that determines the sequence.</param>
+	public static void SeedShared(int seed)
+	{
+		EcsSharedMemory.RandomSeed = seed;
+		Shared.Reset(seed);
 	}
 
 	/// <summary>

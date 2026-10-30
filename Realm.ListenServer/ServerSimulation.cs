@@ -50,6 +50,10 @@ public class ServerSimulation : IDisposable
 		}
 		_log = log;
 		map.Simulation.CheatsEnabled = cheatsEnabled;
+
+		// The stream the simulation and its script draw from is established here, by the owner of the match, before
+		// anything can step or describe it.
+		DeterministicRandom.SeedShared(randomSeed);
 		_matchTick = new MatchTick(map.Simulation);
 		_commands = new CommandAuthorityService(map.Simulation);
 		_commands.DroppedOrderSink = log.Write;

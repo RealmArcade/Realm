@@ -12,6 +12,7 @@ namespace Realm.Client;
 public static class ShadowClientVerifier
 {
 	private static readonly Dictionary<int, ReplicatedStateMirror> _mirrors = new();
+	private static readonly SnapshotDecompressor MirrorDecoder = new();
 	private static int _verifiedBaselines;
 	private static int _replayedDeltaCount;
 	private static int _structuralFailures;
@@ -41,7 +42,7 @@ public static class ShadowClientVerifier
 		WorldSnapshot snapshot;
 		try
 		{
-			snapshot = MemoryPackSerializer.Deserialize<WorldSnapshot>(SnapshotWireFormat.Decode(payload));
+			snapshot = MemoryPackSerializer.Deserialize<WorldSnapshot>(MirrorDecoder.Decode(payload));
 		}
 		catch (Exception exception)
 		{

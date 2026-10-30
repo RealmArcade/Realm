@@ -2557,6 +2557,13 @@
             The stream seeds itself from <see cref="P:Realm.Ecs.EcsSharedMemory.RandomSeed"/> on first access, so the seed published by the host is the one the map script uses.
             </remarks>
         </member>
+        <member name="M:Realm.Ecs.DeterministicRandom.SeedShared(System.Int32)">
+            <summary>
+            Starts the shared stream at the given seed. The match calls this before it steps, so the stream the simulation
+            draws from is established by the owner of the match rather than by whichever thread happens to read it first.
+            </summary>
+            <param name="seed">The seed that determines the sequence.</param>
+        </member>
         <member name="P:Realm.Ecs.DeterministicRandom.Seed">
             <summary>
             Gets the seed currently driving this stream.
