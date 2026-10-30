@@ -6,6 +6,15 @@ namespace Realm.Client.Services;
 public class NetworkLatencyService
 {
 	public const float SampleIntervalSeconds = 1f;
+
+	/// <summary>
+	///     How often a link is probed before it has been measured at all. The buffer is not sized from a measurement until
+	///     three samples agree, so the match is drawn at the depth a match was fixed at for as long as that takes; at this
+	///     interval the link is known about a second in rather than three, which is a second less of a remote link being
+	///     discovered by stalling.
+	/// </summary>
+	public const float BootstrapSampleIntervalSeconds = 0.5f;
+
 	public const float SmoothingFactor = 0.35f;
 
 	public const float RecoverySmoothingFactor = 0.7f;
@@ -32,7 +41,12 @@ public class NetworkLatencyService
 	private int _bootstrapCount;
 	private int _pendingCount;
 	private int _nextSequence = 1;
-	private float _sampleTimer = SampleIntervalSeconds;
+
+	/// <summary>
+	///     A probe is owed from the first tick rather than a sample interval in, because the interval before the first probe
+	///     is a whole second of the match drawn at a depth nothing has measured.
+	/// </summary>
+	private float _sampleTimer;
 
 	public bool HasSample { get; private set; }
 	public float SmoothedRoundTripMilliseconds { get; private set; }
@@ -63,7 +77,7 @@ public class NetworkLatencyService
 		_sampleTimer -= delta;
 		if (_sampleTimer > 0f) return;
 
-		_sampleTimer = SampleIntervalSeconds;
+		_sampleTimer = HasSample ? SampleIntervalSeconds : BootstrapSampleIntervalSeconds;
 		session.SendLatencyProbe(BeginSample());
 	}
 
@@ -186,7 +200,7 @@ public class NetworkLatencyService
 		_pendingCount = 0;
 		_bootstrapCount = 0;
 		_nextSequence = 1;
-		_sampleTimer = SampleIntervalSeconds;
+		_sampleTimer = 0f;
 		HasSample = false;
 		SmoothedRoundTripMilliseconds = 0f;
 		LastRoundTripMilliseconds = 0f;
