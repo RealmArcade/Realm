@@ -65,6 +65,7 @@ public class ListenServerHost : IServerTransportSink
 	private readonly bool[] _pendingBaselineRequests = new bool[EcsWorld.MAX_PLAYERS];
 	private readonly bool[] _pendingSkippedPeers = new bool[EcsWorld.MAX_PLAYERS];
 	private readonly SnapshotFrameRing[] _frameRings = CreateFrameRings();
+	private readonly SnapshotFragmentBuffer[] _fragmentBuffers = CreateFragmentBuffers();
 	private readonly SnapshotBaselineReason[] _pendingBaselineReasons = new SnapshotBaselineReason[EcsWorld.MAX_PLAYERS];
 	private readonly int[] _publishedSerializedBytes = new int[EcsWorld.MAX_PLAYERS];
 	private readonly double[] _publishedFramingMilliseconds = new double[EcsWorld.MAX_PLAYERS];
@@ -83,6 +84,13 @@ public class ListenServerHost : IServerTransportSink
 		var rings = new SnapshotFrameRing[EcsWorld.MAX_PLAYERS];
 		for (int index = 0; index < rings.Length; index++) rings[index] = new SnapshotFrameRing();
 		return rings;
+	}
+
+	private static SnapshotFragmentBuffer[] CreateFragmentBuffers()
+	{
+		var buffers = new SnapshotFragmentBuffer[EcsWorld.MAX_PLAYERS];
+		for (int index = 0; index < buffers.Length; index++) buffers[index] = new SnapshotFragmentBuffer();
+		return buffers;
 	}
 
 	private ParallelOptions? _publishParallelism;
@@ -467,7 +475,7 @@ public class ListenServerHost : IServerTransportSink
 
 		if (_readyAnnounced) _log.Write($"the match delivered {_deliveredPresentationCount} presentation messages");
 		if (_readyAnnounced) _log.Write($"the command rate limit refused {_rateLimitedCommandCount} command(s)");
-		if (_readyAnnounced) _log.Write($"snapshots: {_unreliableSnapshotCount} carried as deltas on the current stream, {_reliableSnapshotCount} carried in order");
+		if (_readyAnnounced) _log.Write($"snapshots: {_unreliableSnapshotCount} carried as deltas on the current stream, {_reliableSnapshotCount} carried in order, {_fragmentedSnapshotCount} split across datagrams");
 
 		WriteTrafficReport();
 
@@ -1139,10 +1147,32 @@ public class ListenServerHost : IServerTransportSink
 
 		// A delta describes a world the next delta supersedes, so it travels on the stream that would rather be current
 		// than complete; a lost one costs the change it carried until the acknowledgement reports the gap. A baseline is
-		// the only thing a peer can rebuild from, so it travels reliably whatever its size, and so does a delta too large
-		// to depend on arriving whole.
-		bool carriedUnreliably = !snapshot.IsBaseline && (_publishedFrames[index]?.Length ?? 0) <= UnreliableSnapshotLimitBytes;
-		_transport.Send(peerId, NetworkFrameKind.Snapshot, _publishedFrames[index], carriedUnreliably ? FrameDelivery.UnreliableOrdered : FrameDelivery.Reliable);
+		// the only thing a peer can rebuild from, so it travels reliably whatever its size.
+		// A delta too large for one datagram is split rather than moved to the reliable stream: on the reliable stream it
+		// would hold every description queued behind it, which on a busy match turns one large frame into the stall that
+		// costs the peer everything it was about to be told.
+		bool carriedUnreliably = !snapshot.IsBaseline;
+		if (snapshot.IsBaseline)
+		{
+			_transport.Send(peerId, NetworkFrameKind.Snapshot, _publishedFrames[index]);
+		}
+		else if (_publishedFrames[index].Length <= SnapshotFragment.MaximumDatagramBytes)
+		{
+			_transport.Send(peerId, NetworkFrameKind.Snapshot, _publishedFrames[index], FrameDelivery.UnreliableOrdered);
+		}
+		else
+		{
+			SnapshotFragmentBuffer fragments = _fragmentBuffers[index];
+			fragments.Split(_publishedFrames[index], _publishSequence);
+			ReadOnlySpan<byte[]> datagrams = fragments.Datagrams;
+			for (int datagramIndex = 0; datagramIndex < datagrams.Length; datagramIndex++)
+			{
+				_transport.Send(peerId, NetworkFrameKind.Snapshot, datagrams[datagramIndex], FrameDelivery.UnreliableOrdered);
+			}
+
+			_fragmentedSnapshotCount++;
+		}
+
 		if (carriedUnreliably) _unreliableSnapshotCount++;
 		else _reliableSnapshotCount++;
 
@@ -1448,14 +1478,13 @@ public class ListenServerHost : IServerTransportSink
 
 	private const int MaximumUnacknowledgedBeforeDisconnect = MatchTiming.SnapshotRateHz * 15;
 
-	private const int UnreliableSnapshotLimitBytes = 1400;
-
 	private const long RepairCooldownTicks = MatchTiming.SimulationTickRateHz / 4;
 
 	private readonly Dictionary<int, long> _lastRepairSentTickPerPeer = new();
 
 	private long _unreliableSnapshotCount;
 	private long _reliableSnapshotCount;
+	private long _fragmentedSnapshotCount;
 
 	private void HandleCommand(int peerId, ReadOnlySpan<byte> payload)
 	{

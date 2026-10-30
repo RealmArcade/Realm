@@ -28,6 +28,8 @@ public class ClientServerSession : IDisposable
 {
 	private readonly ClientNetworkChannel _channel;
 
+	private readonly SnapshotReassembler _snapshotReassembler = new();
+
 	private readonly List<QueuedFrame> _incoming = new();
 	private int _incomingIndex;
 	private bool _descriptionsWereDropped;
@@ -667,9 +669,13 @@ public class ClientServerSession : IDisposable
 
 	private void ApplySnapshot(byte[] payload)
 	{
-		WorldSnapshot snapshot = MemoryPackSerializer.Deserialize<WorldSnapshot>(SnapshotWireFormat.Decode(payload));
+		// A description too large for one datagram arrives as several. A group a piece short is a description this screen
+		// was not told: nothing is applied for it, the acknowledgement reports the hole, and the match sends it again.
+		if (!_snapshotReassembler.TryTake(payload, out byte[] frame)) return;
 
-		if (MultiplayerBandwidthMeter.IsRecording) MultiplayerBandwidthMeter.RecordReceivedSnapshot(payload.Length, snapshot.IsBaseline);
+		WorldSnapshot snapshot = MemoryPackSerializer.Deserialize<WorldSnapshot>(SnapshotWireFormat.Decode(frame));
+
+		if (MultiplayerBandwidthMeter.IsRecording) MultiplayerBandwidthMeter.RecordReceivedSnapshot(frame.Length, snapshot.IsBaseline);
 
 		SnapshotReceived?.Invoke(snapshot);
 	}
