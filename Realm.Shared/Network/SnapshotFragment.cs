@@ -19,14 +19,36 @@ public static class SnapshotFragment
 	/// </summary>
 	public const int MaximumDatagramBytes = 1200;
 
+	/// <summary>
+	///     The bytes one piece carries once the header is taken out of the datagram.
+	/// </summary>
+	public const int FragmentPayloadBytes = MaximumDatagramBytes - HeaderBytes;
+
+	/// <summary>
+	///     The most pieces one description may be split into. Both ends of the link state it, so a description this match
+	///     splits is one the screen it is sent to is built to put back together: a piece count the receiver refused would be
+	///     dropped on arrival, asked for again by the acknowledgement, and sent again as the same unassemblable run. It is
+	///     far wider than a description reaches in a busy match and far narrower than the serialized snapshot cap, so it
+	///     bounds the pieces a screen holds while still leaving the size of a description to be a property of the match.
+	/// </summary>
+	public const int MaximumFragmentsPerDescription = 1024;
+
+	/// <summary>
+	///     The widest description one peer can reassemble, which is what the piece ceiling amounts to in bytes.
+	/// </summary>
+	public const int MaximumReassembledBytes = MaximumFragmentsPerDescription * FragmentPayloadBytes;
+
 	private static readonly uint FragmentMagic = BinaryPrimitives.ReadUInt32LittleEndian("SZF1"u8);
 
+	/// <summary>
+	///     How many datagrams a description of this length travels in. One means it travels as itself, with no header, so
+	///     the whole-datagram case and the split case are stated by one rule rather than by each caller deciding.
+	/// </summary>
 	public static int CountFor(int frameLength)
 	{
-		int payloadBytes = MaximumDatagramBytes - HeaderBytes;
-		if (frameLength <= payloadBytes) return 1;
+		if (frameLength <= MaximumDatagramBytes) return 1;
 
-		return (frameLength + payloadBytes - 1) / payloadBytes;
+		return (frameLength + FragmentPayloadBytes - 1) / FragmentPayloadBytes;
 	}
 
 	public static void Write(byte[] frame, int sequence, int fragmentIndex, int fragmentCount, Span<byte> destination)
@@ -36,16 +58,14 @@ public static class SnapshotFragment
 		BinaryPrimitives.WriteUInt16LittleEndian(destination.Slice(8), (ushort)fragmentIndex);
 		BinaryPrimitives.WriteUInt16LittleEndian(destination.Slice(10), (ushort)fragmentCount);
 
-		int payloadBytes = MaximumDatagramBytes - HeaderBytes;
-		int offset = fragmentIndex * payloadBytes;
-		int length = Math.Min(payloadBytes, frame.Length - offset);
+		int offset = fragmentIndex * FragmentPayloadBytes;
+		int length = Math.Min(FragmentPayloadBytes, frame.Length - offset);
 		frame.AsSpan(offset, length).CopyTo(destination.Slice(HeaderBytes));
 	}
 
 	public static int PayloadLengthFor(int frameLength, int fragmentIndex)
 	{
-		int payloadBytes = MaximumDatagramBytes - HeaderBytes;
-		return Math.Min(payloadBytes, frameLength - fragmentIndex * payloadBytes);
+		return Math.Min(FragmentPayloadBytes, frameLength - fragmentIndex * FragmentPayloadBytes);
 	}
 
 	public static bool TryReadHeader(ReadOnlySpan<byte> payload, out int sequence, out int fragmentIndex, out int fragmentCount)

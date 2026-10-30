@@ -1205,6 +1205,21 @@ public class ListenServerHost : IServerTransportSink
 
 		WorldSnapshot snapshot = _publishedSnapshots[index];
 
+		// A description this match would have to split into more pieces than a screen is built to put back together is one
+		// it must not send at all. The screen would drop every piece of it, report the hole the missing description left,
+		// and be answered with the same unassemblable run on every repair, which is a peer that can never catch up while
+		// looking exactly like a link that is losing datagrams. It is described from scratch on the next tick instead,
+		// which travels on the reliable stream and is fragmented by the transport rather than by this match.
+		if (!snapshot.IsBaseline
+		    && _publishedFrames[index].Length > SnapshotFragment.MaximumDatagramBytes
+		    && SnapshotFragment.CountFor(_publishedFrames[index].Length) > SnapshotFragment.MaximumFragmentsPerDescription)
+		{
+			_log.Write($"peer {peerId} would be described in more than the {SnapshotFragment.MaximumFragmentsPerDescription} pieces a screen can reassemble ({_publishedFrames[index].Length} bytes, {SnapshotFragment.MaximumReassembledBytes} is the widest); it is described from scratch instead");
+			_publishedFrames[index] = null;
+			simulation.RequestBaseline(peerId);
+			return;
+		}
+
 		bool isFirstFrameForPeer = !_firstSnapshotSequencePerPeer.ContainsKey(peerId);
 
 		_syncRecorder?.AddPeerSnapshot(peerId, in snapshot);

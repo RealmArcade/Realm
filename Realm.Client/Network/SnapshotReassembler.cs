@@ -9,17 +9,25 @@ namespace Realm.Client.Network;
 ///     next one needs the space, and the description it belonged to is reported missing by the acknowledgement like any
 ///     other that never arrived.
 /// </summary>
+/// <remarks>
+///     A piece of an <em>older</em> description is still put back together, because a repair is exactly that: the screen
+///     held a description behind a hole it named, and the match answers by sending that older run again. Whether a
+///     description that arrives is one the world has already moved past is decided by the apply path, which knows what it
+///     has applied; this only decides whether the pieces form a description at all.
+/// </remarks>
 public class SnapshotReassembler
 {
 	private const int MaximumPendingGroups = 4;
 
-	private const int MaximumFragmentsPerGroup = 128;
+	/// <summary>
+	///     The widest description this screen is built to put back together, stated by the same constant the match splits
+	///     with so the two ends cannot disagree about it.
+	/// </summary>
+	private const int MaximumFragmentsPerGroup = SnapshotFragment.MaximumFragmentsPerDescription;
 
 	private const long StaleGroupMilliseconds = 2000;
 
 	private readonly FragmentGroup[] _groups = new FragmentGroup[MaximumPendingGroups];
-
-	private int _newestCompletedSequence;
 
 	public SnapshotReassembler()
 	{
@@ -40,7 +48,7 @@ public class SnapshotReassembler
 			return true;
 		}
 
-		if (fragmentCount > MaximumFragmentsPerGroup || sequence <= _newestCompletedSequence) return false;
+		if (fragmentCount > MaximumFragmentsPerGroup) return false;
 
 		FragmentGroup group = FindOrCreate(sequence, fragmentCount);
 		if (group == null) return false;
@@ -55,7 +63,6 @@ public class SnapshotReassembler
 		if (group.Received < group.Count) return false;
 
 		frame = Assemble(group);
-		_newestCompletedSequence = group.Sequence;
 		group.Forget();
 		return true;
 	}
