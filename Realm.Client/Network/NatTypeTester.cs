@@ -8,6 +8,20 @@ namespace Realm.Client.Network;
 
 public class NatTypeTester
 {
+	private const int StunPort = 19302;
+	private const int StunResponseTimeoutMilliseconds = 1000;
+
+	private const int StunBindingSuccessResponseType = 0x0101;
+	private const int StunBindingErrorResponseType = 0x0111;
+
+	private const int StunAttributeMappedAddress = 0x0001;
+	private const int StunAttributeXorMappedAddress = 0x0020;
+	private const int StunAttributeChangedAddress = 0x0005;
+
+	private const byte StunAddressFamilyIpv4 = 0x01;
+
+	private static readonly IPAddress GoogleStunAlternateServerAddress = IPAddress.Parse("74.125.200.127");
+
 	public static async Task<NatType> DetermineNatTypeAsync(int testLocalPort = 0)
 	{
 		try
@@ -15,10 +29,10 @@ public class NatTypeTester
 			var stunAddresses = await Dns.GetHostAddressesAsync("stun.l.google.com");
 			if (stunAddresses.Length == 0) return NatType.Open;
 
-			var serverIp1 = stunAddresses[0];
-			var serverIp2 = stunAddresses.Length > 1 ? stunAddresses[1] : IPAddress.Parse("74.125.200.127"); // google stun alternate
+			var primaryServerAddress = stunAddresses[0];
+			var alternateServerAddress = stunAddresses.Length > 1 ? stunAddresses[1] : GoogleStunAlternateServerAddress;
 
-			return await EvaluateNatTypeAsync(serverIp1, serverIp2, testLocalPort);
+			return await EvaluateNatTypeAsync(primaryServerAddress, alternateServerAddress, testLocalPort);
 		}
 		catch (Exception ex)
 		{
@@ -32,29 +46,29 @@ public class NatTypeTester
 		return await QueryStunAsync(serverIp, serverPort, localPort);
 	}
 
-	private static async Task<NatType> EvaluateNatTypeAsync(IPAddress serverIp1, IPAddress serverIp2, int testLocalPort)
+	private static async Task<NatType> EvaluateNatTypeAsync(IPAddress primaryServerAddress, IPAddress alternateServerAddress, int testLocalPort)
 	{
-		var test1 = await QueryStunAsync(serverIp1, 19302, testLocalPort);
+		var test1 = await QueryStunAsync(primaryServerAddress, StunPort, testLocalPort);
 		if (!test1.Success) return NatType.RestrictedCone;
 
 		int boundPort = test1.LocalEndPoint != null ? test1.LocalEndPoint.Port : testLocalPort;
 
 		if (IsSameEndPoint(test1.MappedEndPoint, test1.LocalEndPoint))
 		{
-			var test2Open = await QueryStunWithChangeRequestAsync(serverIp1, 19302, boundPort, changeIP: true, changePort: true);
+			var test2Open = await QueryStunWithChangeRequestAsync(primaryServerAddress, StunPort, boundPort, changeIP: true, changePort: true);
 			return test2Open.Success ? NatType.Open : NatType.Symmetric;
 		}
 
-		var test2 = await QueryStunWithChangeRequestAsync(serverIp1, 19302, boundPort, changeIP: true, changePort: true);
+		var test2 = await QueryStunWithChangeRequestAsync(primaryServerAddress, StunPort, boundPort, changeIP: true, changePort: true);
 		if (test2.Success) return NatType.FullCone;
 
-		var test1Alt = await QueryStunAsync(serverIp2, 19302, boundPort);
+		var test1Alt = await QueryStunAsync(alternateServerAddress, StunPort, boundPort);
 		if (test1Alt.Success && !IsSameEndPoint(test1.MappedEndPoint, test1Alt.MappedEndPoint))
 		{
 			return NatType.Symmetric;
 		}
 
-		var test3 = await QueryStunWithChangeRequestAsync(serverIp1, 19302, boundPort, changeIP: false, changePort: true);
+		var test3 = await QueryStunWithChangeRequestAsync(primaryServerAddress, StunPort, boundPort, changeIP: false, changePort: true);
 		if (test3.Success) return NatType.RestrictedCone;
 
 		return NatType.PortRestrictedCone;
@@ -84,7 +98,7 @@ public class NatTypeTester
 			await udp.SendAsync(request, request.Length, serverEp);
 
 			var receiveTask = udp.ReceiveAsync();
-			var timeoutTask = Task.Delay(1000);
+			var timeoutTask = Task.Delay(StunResponseTimeoutMilliseconds);
 
 			if (await Task.WhenAny(receiveTask, timeoutTask) == receiveTask)
 			{
@@ -94,7 +108,6 @@ public class NatTypeTester
 		}
 		catch
 		{
-			/* Ignore errors and return success=false */
 		}
 
 		result.Success = false;
@@ -119,7 +132,7 @@ public class NatTypeTester
 			await udp.SendAsync(request, request.Length, serverEp);
 
 			var receiveTask = udp.ReceiveAsync();
-			var timeoutTask = Task.Delay(1000);
+			var timeoutTask = Task.Delay(StunResponseTimeoutMilliseconds);
 
 			if (await Task.WhenAny(receiveTask, timeoutTask) == receiveTask)
 			{
@@ -129,7 +142,6 @@ public class NatTypeTester
 		}
 		catch
 		{
-			/* Ignore */
 		}
 
 		result.Success = false;
@@ -192,8 +204,8 @@ public class NatTypeTester
 		}
 
 
-		int type = (response[0] << 8) | response[1];
-		if (type != 0x0101 && type != 0x0111) // standard response or XOR response
+		int messageType = (response[0] << 8) | response[1];
+		if (messageType != StunBindingSuccessResponseType && messageType != StunBindingErrorResponseType)
 		{
 			result.Success = false;
 			return result;
@@ -211,11 +223,11 @@ public class NatTypeTester
 			if (offset + attrLength > response.Length)
 				break;
 
-			if (attrType == 0x0001 || attrType == 0x0020) // MAPPED-ADDRESS or XOR-MAPPED-ADDRESS
+			if (attrType == StunAttributeMappedAddress || attrType == StunAttributeXorMappedAddress)
 			{
-				result.MappedEndPoint = ParseAddress(response, offset, attrLength, attrType == 0x0020);
+				result.MappedEndPoint = ParseAddress(response, offset, attrLength, attrType == StunAttributeXorMappedAddress);
 			}
-			else if (attrType == 0x0005) // CHANGED-ADDRESS
+			else if (attrType == StunAttributeChangedAddress)
 			{
 				result.ChangedEndPoint = ParseAddress(response, offset, attrLength, false);
 			}
@@ -232,8 +244,8 @@ public class NatTypeTester
 	{
 		if (length < 8) return null;
 
-		byte family = response[offset + 1];
-		if (family != 0x01) return null; // IPv4 only for now
+		byte addressFamily = response[offset + 1];
+		if (addressFamily != StunAddressFamilyIpv4) return null;
 
 		int port = (response[offset + 2] << 8) | response[offset + 3];
 		if (isXor)

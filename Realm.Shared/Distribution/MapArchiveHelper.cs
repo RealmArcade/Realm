@@ -7,7 +7,7 @@ namespace Realm.Shared.Distribution;
 
 public static class MapArchiveHelper
 {
-	public static readonly byte[] RmapMagic = [0x52, 0x4D, 0x41, 0x50]; // "RMAP"
+	public static readonly byte[] RmapMagic = "RMAP"u8.ToArray();
 	public const uint CurrentVersion = 1;
 
 	public static string CreateRmapArchive(

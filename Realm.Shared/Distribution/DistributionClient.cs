@@ -10,6 +10,9 @@ namespace Realm.Shared.Distribution;
 
 public class DistributionClient
 {
+	private const int FailedAssetIndex = 0;
+	private const int FailureMessageIndex = 1;
+
 	private readonly HttpClient _httpClient;
 	private readonly string _registryServerUrl;
 	private readonly TokenBucketThrottle? _throttle;
@@ -959,7 +962,7 @@ public class DistributionClient
 	{
 		int totalMissing = missingHashes.Count;
 		int[] completedCountWrapper = new int[1];
-		string?[] errorWrapper = new string?[2]; // [0] = firstErrorAsset, [1] = firstErrorMessage
+		string?[] errorWrapper = new string?[2];
 		var errorLock = new object();
 
 		using var semaphore = new SemaphoreSlim(Math.Max(1, maximumConcurrency));
@@ -987,9 +990,9 @@ public class DistributionClient
 
 		await Task.WhenAll(tasks);
 
-		if (errorWrapper[0] != null)
+		if (errorWrapper[FailedAssetIndex] != null)
 		{
-			return (false, errorWrapper[0], errorWrapper[1]);
+			return (false, errorWrapper[FailedAssetIndex], errorWrapper[FailureMessageIndex]);
 		}
 
 		return (true, null, null);
@@ -1013,7 +1016,7 @@ public class DistributionClient
 		SemaphoreSlim semaphore,
 		CancellationToken cancellationToken)
 	{
-		if (errorWrapper[0] != null || cancellationToken.IsCancellationRequested) return;
+		if (errorWrapper[FailedAssetIndex] != null || cancellationToken.IsCancellationRequested) return;
 
 		if (!hashToRelativePath.TryGetValue(missingHash, out var relPath) &&
 		    !hashToRelativePath.TryGetValue(ContentAddressableStorage.NormalizeBlake3Hash(missingHash), out relPath))
@@ -1032,7 +1035,7 @@ public class DistributionClient
 		await semaphore.WaitAsync(cancellationToken);
 		try
 		{
-			if (errorWrapper[0] != null || cancellationToken.IsCancellationRequested) return;
+			if (errorWrapper[FailedAssetIndex] != null || cancellationToken.IsCancellationRequested) return;
 
 			byte[] fileBytes = await File.ReadAllBytesAsync(fullFilePath, cancellationToken);
 			if (!ValidateAssetBytes(fileBytes, relPath, missingHash, fullFilePath, errorLock, errorWrapper))
@@ -1110,8 +1113,8 @@ public class DistributionClient
 	{
 		lock (errorLock)
 		{
-			errorWrapper[0] ??= asset;
-			errorWrapper[1] ??= message;
+			errorWrapper[FailedAssetIndex] ??= asset;
+			errorWrapper[FailureMessageIndex] ??= message;
 		}
 	}
 

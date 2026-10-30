@@ -195,7 +195,7 @@ public static class MapWorldLoader
 		byte[]? pathing = MapTerrainFiles.TryReadPathing(folder, out int imageWidth, out int imageHeight);
 		if (pathing == null)
 		{
-			int defaultCode = TerrainPathing.DefaultCode(WaterType.None);
+			int defaultCode = TerrainPathing.DefaultPathingCodeByWaterType(WaterType.None);
 			for (int z = 0; z < depth; z++)
 			{
 				for (int x = 0; x < width; x++)

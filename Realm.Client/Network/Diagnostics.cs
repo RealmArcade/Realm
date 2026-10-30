@@ -1,4 +1,5 @@
 using System;
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Net;
@@ -11,9 +12,9 @@ namespace Realm.Client.Network;
 
 public class Diagnostics
 {
-	private const int MagicHeader = 0x44494147; // "DIAG"
+	private static readonly int MagicHeader = BinaryPrimitives.ReadInt32LittleEndian("DIAG"u8);
 	private const int PacketCount = 50;
-	private const int DelayBetweenPacketsMs = 100; // 50 * 100ms = 5 seconds
+	private const int DelayBetweenPacketsMilliseconds = 100;
 
 
 	private static CancellationTokenSource? _serverCts;
@@ -46,7 +47,6 @@ public class Diagnostics
 		}
 		catch (OperationCanceledException)
 		{
-			/* Clean shutdown */
 		}
 		catch (Exception ex)
 		{
@@ -59,7 +59,7 @@ public class Diagnostics
 		var data = receiveResult.Buffer;
 		if (data.Length < 16) return;
 
-		int magic = BitConverter.ToInt32(data, 0); // bind to any local port
+		int magic = BitConverter.ToInt32(data, 0);
 		if (magic != MagicHeader) return;
 
 		await udp.SendAsync(data, data.Length, receiveResult.RemoteEndPoint);
@@ -101,7 +101,7 @@ public class Diagnostics
 		}
 		catch
 		{
-			/* Ignore task cancellation error */
+			// Cancellation is the expected end of the receive loop.
 		}
 
 		stopwatch.Stop();
@@ -177,7 +177,7 @@ public class Diagnostics
 				GD.PrintErr($"[Diagnostics] Client send error: {ex.Message}");
 			}
 
-			await Task.Delay(DelayBetweenPacketsMs);
+			await Task.Delay(DelayBetweenPacketsMilliseconds);
 		}
 	}
 

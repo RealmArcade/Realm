@@ -8,7 +8,7 @@ public readonly record struct RaudEntry(string Name, byte[] Data);
 
 public class RaudFile : RealmContainerFile
 {
-	public static readonly byte[] MagicBytes = [0x52, 0x41, 0x55, 0x44]; // "RAUD"
+	public static readonly byte[] MagicBytes = "RAUD"u8.ToArray();
 	public static byte[] Magic => MagicBytes;
 	public const uint CurrentVersion = 2;
 	public const uint NamedEntriesVersion = 2;

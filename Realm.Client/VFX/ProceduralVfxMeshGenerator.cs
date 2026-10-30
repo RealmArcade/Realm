@@ -65,44 +65,63 @@ public class ProceduralVfxMeshGenerator
 		var surfaceTool = new SurfaceTool();
 		surfaceTool.Begin(Mesh.PrimitiveType.Triangles);
 
-		Vector3[] vertices = new Vector3[]
-		{
-			// Front face (Z = 0.5)
+		Vector3[] frontFaceVertices =
+		[
 			new Vector3(-0.5f, -0.5f, 0.5f),
 			new Vector3(0.5f, -0.5f, 0.5f),
 			new Vector3(0.5f, 0.5f, 0.5f),
-			new Vector3(-0.5f, 0.5f, 0.5f),
+			new Vector3(-0.5f, 0.5f, 0.5f)
+		];
 
-			// Back face (Z = -0.5)
+		Vector3[] backFaceVertices =
+		[
 			new Vector3(0.5f, -0.5f, -0.5f),
 			new Vector3(-0.5f, -0.5f, -0.5f),
 			new Vector3(-0.5f, 0.5f, -0.5f),
-			new Vector3(0.5f, 0.5f, -0.5f),
+			new Vector3(0.5f, 0.5f, -0.5f)
+		];
 
-			// Left face (X = -0.5)
+		Vector3[] leftFaceVertices =
+		[
 			new Vector3(-0.5f, -0.5f, -0.5f),
 			new Vector3(-0.5f, -0.5f, 0.5f),
 			new Vector3(-0.5f, 0.5f, 0.5f),
-			new Vector3(-0.5f, 0.5f, -0.5f),
+			new Vector3(-0.5f, 0.5f, -0.5f)
+		];
 
-			// Right face (X = 0.5)
+		Vector3[] rightFaceVertices =
+		[
 			new Vector3(0.5f, -0.5f, 0.5f),
 			new Vector3(0.5f, -0.5f, -0.5f),
 			new Vector3(0.5f, 0.5f, -0.5f),
-			new Vector3(0.5f, 0.5f, 0.5f),
+			new Vector3(0.5f, 0.5f, 0.5f)
+		];
 
-			// Top face (Y = 0.5)
+		Vector3[] topFaceVertices =
+		[
 			new Vector3(-0.5f, 0.5f, 0.5f),
 			new Vector3(0.5f, 0.5f, 0.5f),
 			new Vector3(0.5f, 0.5f, -0.5f),
-			new Vector3(-0.5f, 0.5f, -0.5f),
+			new Vector3(-0.5f, 0.5f, -0.5f)
+		];
 
-			// Bottom face (Y = -0.5)
+		Vector3[] bottomFaceVertices =
+		[
 			new Vector3(-0.5f, -0.5f, -0.5f),
 			new Vector3(0.5f, -0.5f, -0.5f),
 			new Vector3(0.5f, -0.5f, 0.5f),
 			new Vector3(-0.5f, -0.5f, 0.5f)
-		};
+		];
+
+		Vector3[] vertices =
+		[
+			.. frontFaceVertices,
+			.. backFaceVertices,
+			.. leftFaceVertices,
+			.. rightFaceVertices,
+			.. topFaceVertices,
+			.. bottomFaceVertices
+		];
 
 		Vector3[] normals = new Vector3[]
 		{

@@ -151,9 +151,10 @@ app.MapGet("/lobbies", (LobbyRegistry registry, GeoIpService geoIp, HttpContext 
 
 
 		int estimatedPing = 15 + (int)(distance / 100);
+		const int localConnectionPingMilliseconds = 5;
 		if (clientIpStr == lobby.HostIP || clientIpStr == "127.0.0.1" || lobby.HostIP == "127.0.0.1")
 		{
-			estimatedPing = 5; // Local connection ping
+			estimatedPing = localConnectionPingMilliseconds;
 		}
 
 		return new LobbyResponseDto(

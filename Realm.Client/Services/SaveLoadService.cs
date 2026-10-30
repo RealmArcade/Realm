@@ -734,7 +734,7 @@ public class SaveLoadService
 
 	private void SetDefaultPathing(int width, int depth, ref TerrainState ts)
 	{
-		int defaultPathing = TerrainPathing.DefaultCode(WaterType.None);
+		int defaultPathing = TerrainPathing.DefaultPathingCodeByWaterType(WaterType.None);
 		for (int z = 0; z < depth; z++)
 		{
 			for (int x = 0; x < width; x++)

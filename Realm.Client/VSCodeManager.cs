@@ -57,17 +57,20 @@ public partial class VSCodeManager
 	private Task _installTask;
 	private readonly object _installLock = new object();
 
+	private static readonly string[] FutureExtensionsToConsider = new[]
+	{
+		"mechatroner.rainbow-json",	
+		"akondratiuk1-dev.texture-viewer"
+	};
 	private static readonly string[] RequiredExtensions = new[]
 	{
 		"muhammad-sammy.csharp",
 		"OHZIInteractiveStudio.ohzi-vscode-glb-viewer",
 		"Gruntfuggly.todo-tree",
-		// "mechatroner.rainbow-json",
 		"patcx.vscode-nuget-gallery",
 		"AykutSarac.jsoncrack-vscode",
 		"vadimcn.vscode-lldb",
 		"haoyangzeng.opencui"
-		// "akondratiuk1-dev.texture-viewer",
 	};
 
 	public bool IsInstalling
@@ -377,18 +380,20 @@ public partial class VSCodeManager
 				int JOBOBJECT_EXTENDED_LIMIT_INFORMATION = 9;
 				uint JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x00002000;
 
+				var extendedInfo = new JOBOBJECT_EXTENDED_LIMIT_INFORMATION_STRUCT
+				{
+					BasicLimitInformation = new JOBOBJECT_BASIC_LIMIT_INFORMATION_STRUCT
+					{
+						LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+					}
+				};
+
 				int length = Marshal.SizeOf(typeof(JOBOBJECT_EXTENDED_LIMIT_INFORMATION_STRUCT));
 				IntPtr extendedInfoPtr = Marshal.AllocHGlobal(length);
 				try
 				{
 					ZeroMemory(extendedInfoPtr, length);
-					// Structure layout:
-					// JOBOBJECT_BASIC_LIMIT_INFORMATION (48 bytes):
-					//   LONGLONG PerProcessUserTimeLimit (8)
-					//   LONGLONG PerJobUserTimeLimit (8)
-					//   DWORD LimitFlags (4) -> offset 16					
-					Marshal.WriteInt32(extendedInfoPtr, 4, (int)JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE);
-					Marshal.WriteInt32(extendedInfoPtr, 16, (int)JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE);
+					Marshal.StructureToPtr(extendedInfo, extendedInfoPtr, false);
 					SetInformationJobObject(_jobHandle, JOBOBJECT_EXTENDED_LIMIT_INFORMATION, extendedInfoPtr, (uint)length);
 				}
 				finally

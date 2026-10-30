@@ -158,7 +158,6 @@ public class RaycastService
 		float rangeMaxT = 0f;
 		bool anyChunkHit = false;
 
-		// Broad-phase chunk AABB intersection
 		if (terrain.Chunks != null)
 		{
 			foreach (var chunk in terrain.Chunks)

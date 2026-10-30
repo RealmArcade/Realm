@@ -48,8 +48,14 @@ public partial class GameOver : Control
 	private Label _killsColHeader;
 	private Label _resourcesColHeader;
 
+	private const int OverviewTabIndex = 0;
+	private const int EconomyTabIndex = 1;
+	private const int MilitaryTabIndex = 2;
+	private const int FiveStarRatingOptionIndex = 0;
+	private const string UnknownAuthorContributorName = "Realm Builder";
+
 	private bool _isVictory = true;
-	private int _activeTab = 0; // 0=Overview, 1=Economy, 2=Military
+	private int _activeTab = OverviewTabIndex;
 
 	private readonly string[] _runes = { "ᚠ", "ᚢ", "ᚦ", "ᚨ", "ᚱ", "ᚲ", "ᚷ", "ᚹ", "ᚺ", "ᚾ", "ᛁ", "ᛃ", "ᛇ", "ᛈ", "ᛉ", "ᛊ", "ᛏ", "ᛒ", "ᛖ", "ᛗ", "ᛚ", "ᛜ", "ᛞ", "ᛟ" };
 
@@ -97,11 +103,9 @@ public partial class GameOver : Control
 			playtimeMinutes = (DateTime.UtcNow - GameContext.Lobby.GameSessionStartTime.Value).TotalMinutes;
 		}
 
-		// Save local playtime statistics
 		AddLocalPlaytime(mapName, playtimeMinutes);
 
-		// Report baseline playtime metrics to server
-		_ = ReportMetricsAsync(mapName, playtimeMinutes, 0, true);
+		_ = ReportMetricsAsync(mapName, playtimeMinutes, stars: 0, isComplete: true);
 	}
 
 	private void ApplyThemeStyles()
@@ -159,9 +163,9 @@ public partial class GameOver : Control
 
 	private void SetupTabs()
 	{
-		SetupTabButton(_btnOverview, "OVERVIEW", 0);
-		SetupTabButton(_btnEconomy, "ECONOMY", 1);
-		SetupTabButton(_btnMilitary, "MILITARY", 2);
+		SetupTabButton(_btnOverview, "OVERVIEW", OverviewTabIndex);
+		SetupTabButton(_btnEconomy, "ECONOMY", EconomyTabIndex);
+		SetupTabButton(_btnMilitary, "MILITARY", MilitaryTabIndex);
 	}
 
 	private void SetupTabButton(Button btn, string text, int index)
@@ -385,7 +389,7 @@ public partial class GameOver : Control
 		}
 		else
 		{
-			ratingOption.Select(0); // 5 stars default
+			ratingOption.Select(FiveStarRatingOptionIndex);
 		}
 
 		ratingHBox.AddChild(ratingOption);
@@ -491,24 +495,24 @@ public partial class GameOver : Control
 			flatNorm.CornerRadiusBottomRight = 0;
 		}
 
-		_btnOverview.AddThemeStyleboxOverride("normal", _activeTab == 0 ? activeStyle : normStyle);
-		_btnEconomy.AddThemeStyleboxOverride("normal", _activeTab == 1 ? activeStyle : normStyle);
-		_btnMilitary.AddThemeStyleboxOverride("normal", _activeTab == 2 ? activeStyle : normStyle);
+		_btnOverview.AddThemeStyleboxOverride("normal", _activeTab == OverviewTabIndex ? activeStyle : normStyle);
+		_btnEconomy.AddThemeStyleboxOverride("normal", _activeTab == EconomyTabIndex ? activeStyle : normStyle);
+		_btnMilitary.AddThemeStyleboxOverride("normal", _activeTab == MilitaryTabIndex ? activeStyle : normStyle);
 
 
-		if (_activeTab == 0) // Overview
+		if (_activeTab == OverviewTabIndex)
 		{
 			_scoreColHeader.Text = Tr("TOTAL SCORE");
 			_killsColHeader.Text = Tr("UNITS KILLED");
 			_resourcesColHeader.Text = Tr("RESOURCES GATHERED") + "  ";
 		}
-		else if (_activeTab == 1) // Economy
+		else if (_activeTab == EconomyTabIndex)
 		{
 			_scoreColHeader.Text = Tr("GOLD GATHERED");
 			_killsColHeader.Text = Tr("WOOD GATHERED");
 			_resourcesColHeader.Text = Tr("TOTAL RESOURCES") + "  ";
 		}
-		else // Military
+		else
 		{
 			_scoreColHeader.Text = Tr("UNITS TRAINED");
 			_killsColHeader.Text = Tr("UNITS KILLED");
@@ -527,7 +531,7 @@ public partial class GameOver : Control
 
 		List<StatsRow> rows = new List<StatsRow>();
 
-		if (_activeTab == 0) // Overview
+		if (_activeTab == OverviewTabIndex)
 		{
 			rows.Add(new StatsRow { Player = "PLAYER 1", Faction = "HUMAN", Col3 = "1,314", Col4 = "29", Col5 = "3,000" });
 			rows.Add(new StatsRow { Player = "PLAYER 2", Faction = "HUMAN", Col3 = "592", Col4 = "24", Col5 = "2,500" });
@@ -536,7 +540,7 @@ public partial class GameOver : Control
 			rows.Add(new StatsRow { Player = "Muothea6", Faction = "UNDEAD", Col3 = "207", Col4 = "24", Col5 = "4,600" });
 			rows.Add(new StatsRow { Player = "CrawalMottros", Faction = "UNDEAD", Col3 = "163", Col4 = "2", Col5 = "1,000" });
 		}
-		else if (_activeTab == 1) // Economy
+		else if (_activeTab == EconomyTabIndex)
 		{
 			rows.Add(new StatsRow { Player = "PLAYER 1", Faction = "HUMAN", Col3 = "1,800", Col4 = "1,200", Col5 = "3,000" });
 			rows.Add(new StatsRow { Player = "PLAYER 2", Faction = "HUMAN", Col3 = "1,500", Col4 = "1,000", Col5 = "2,500" });
@@ -545,7 +549,7 @@ public partial class GameOver : Control
 			rows.Add(new StatsRow { Player = "Muothea6", Faction = "UNDEAD", Col3 = "2,600", Col4 = "2,000", Col5 = "4,600" });
 			rows.Add(new StatsRow { Player = "CrawalMottros", Faction = "UNDEAD", Col3 = "600", Col4 = "400", Col5 = "1,000" });
 		}
-		else // Military
+		else
 		{
 			rows.Add(new StatsRow { Player = "PLAYER 1", Faction = "HUMAN", Col3 = "42", Col4 = "29", Col5 = "12" });
 			rows.Add(new StatsRow { Player = "PLAYER 2", Faction = "HUMAN", Col3 = "35", Col4 = "24", Col5 = "18" });
@@ -653,7 +657,7 @@ public partial class GameOver : Control
 
 			if (contributors.Count == 0)
 			{
-				contributors.Add("Realm Builder"); // fallback
+				contributors.Add(UnknownAuthorContributorName);
 			}
 
 			UpdatePlaytimeStats(contributors, playtimeMinutes);

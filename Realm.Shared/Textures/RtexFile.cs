@@ -5,7 +5,7 @@ namespace Realm.Shared.Textures;
 
 public class RtexFile : RealmContainerFile
 {
-	public static readonly byte[] MagicBytes = [0x52, 0x54, 0x45, 0x58]; // "RTEX"
+	public static readonly byte[] MagicBytes = "RTEX"u8.ToArray();
 	public static byte[] Magic => MagicBytes;
 	public const uint CurrentVersion = 1;
 	public const string Format = "rtex";

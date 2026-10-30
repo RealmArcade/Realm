@@ -7,17 +7,17 @@ namespace Realm.Ecs.Components.Terrain;
 /// </summary>
 public static class TerrainPathing
 {
-	public static readonly int ShallowWaterCode = (int)TerrainPathingFlags.ShallowWater | (int)TerrainPathingFlags.Flying;
-	public static readonly int DeepWaterCode = (int)TerrainPathingFlags.DeepWater | (int)TerrainPathingFlags.Flying;
-	public static readonly int GroundCode = (int)TerrainPathingFlags.Ground | (int)TerrainPathingFlags.Buildable | (int)TerrainPathingFlags.Flying;
+	public static readonly int DefaultPathingCode_ShallowWater = (int)TerrainPathingFlags.ShallowWater | (int)TerrainPathingFlags.Flying;
+	public static readonly int DefaultPathingCode_DeepWater = (int)TerrainPathingFlags.DeepWater | (int)TerrainPathingFlags.Flying;
+	public static readonly int DefaultPathingCode_Ground = (int)TerrainPathingFlags.Ground | (int)TerrainPathingFlags.Buildable | (int)TerrainPathingFlags.Flying;
 
-	public static int DefaultCode(WaterType waterMode)
+	public static int DefaultPathingCodeByWaterType(WaterType waterMode)
 	{
 		return waterMode switch
 		{
-			WaterType.Shallow => ShallowWaterCode,
-			WaterType.Deep => DeepWaterCode,
-			_ => GroundCode
+			WaterType.Shallow => DefaultPathingCode_ShallowWater,
+			WaterType.Deep => DefaultPathingCode_DeepWater,
+			_ => DefaultPathingCode_Ground
 		};
 	}
 }

@@ -7,6 +7,10 @@ namespace Realm.Client.UI;
 [GlobalClass]
 public partial class TimelineGraph : Control
 {
+	private const float ArmyValueAxisMaximum = 30f;
+	private const float GoldAxisMaximum = 3000f;
+	private const float UnitCountAxisMaximum = 50f;
+
 	private int _activeTab = 0;
 	private float _drawProgress = 0f;
 
@@ -88,8 +92,10 @@ public partial class TimelineGraph : Control
 
 
 		Color axisColor = new Color(0.7f, 0.7f, 0.7f, 0.8f);
-		DrawLine(graphOrigin, new Vector2(graphOrigin.X + graphSize.X, graphOrigin.Y), axisColor, 3.0f); // X Axis
-		DrawLine(graphOrigin, new Vector2(graphOrigin.X, graphOrigin.Y - graphSize.Y), axisColor, 3.0f); // Y Axis
+		Vector2 horizontalAxisEnd = new Vector2(graphOrigin.X + graphSize.X, graphOrigin.Y);
+		Vector2 verticalAxisEnd = new Vector2(graphOrigin.X, graphOrigin.Y - graphSize.Y);
+		DrawLine(graphOrigin, horizontalAxisEnd, axisColor, 3.0f);
+		DrawLine(graphOrigin, verticalAxisEnd, axisColor, 3.0f);
 
 
 		List<Vector2> p1Points = GetActiveData(true);
@@ -164,9 +170,9 @@ public partial class TimelineGraph : Control
 
 	private float GetMaxY()
 	{
-		if (_activeTab == 0) return 30f; // Army value 0..30
-		if (_activeTab == 1) return 3000f; // Gold 0..3000
-		return 50f; // Units 0..50
+		if (_activeTab == 0) return ArmyValueAxisMaximum;
+		if (_activeTab == 1) return GoldAxisMaximum;
+		return UnitCountAxisMaximum;
 	}
 
 	private string GetYLabel(float ratio)

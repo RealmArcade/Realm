@@ -12,7 +12,7 @@ namespace Realm.AdminServer.Helpers
     public static class MapMaintainerEndpointsHelper
     {
                 
-        private static IResult? ValidateMaintainerRequest(
+        private static IResult? FindMaintainerRequestError(
             string reqMapTitle,
             string routeMapTitle,
             string actionPrefix,
@@ -65,7 +65,7 @@ namespace Realm.AdminServer.Helpers
                 });
             }
 
-            return null; // indicates success
+            return null;
         }
 
         public static IResult HandleAddMapMaintainer(
@@ -80,10 +80,10 @@ namespace Realm.AdminServer.Helpers
         {
             try
             {
-                var validationResult = ValidateMaintainerRequest(reqMapTitle, routeMapTitle, "add", req.MaintainerPublicKey, req.RequesterPublicKey, req.Signature, db, adminPublicKeys, out string targetMap);
-                if (validationResult != null)
+                var requestError = FindMaintainerRequestError(reqMapTitle, routeMapTitle, "add", req.MaintainerPublicKey, req.RequesterPublicKey, req.Signature, db, adminPublicKeys, out string targetMap);
+                if (requestError != null)
                 {
-                    return validationResult;
+                    return requestError;
                 }
 
                 var updatedMaintainers = MapMaintainerHelper.AddMaintainer(db, targetMap, req.MaintainerPublicKey);
@@ -139,10 +139,10 @@ namespace Realm.AdminServer.Helpers
         {
             try
             {
-                var validationResult = ValidateMaintainerRequest(reqMapTitle, routeMapTitle, "remove", req.MaintainerPublicKey, req.RequesterPublicKey, req.Signature, db, adminPublicKeys, out string targetMap);
-                if (validationResult != null)
+                var requestError = FindMaintainerRequestError(reqMapTitle, routeMapTitle, "remove", req.MaintainerPublicKey, req.RequesterPublicKey, req.Signature, db, adminPublicKeys, out string targetMap);
+                if (requestError != null)
                 {
-                    return validationResult;
+                    return requestError;
                 }
 
                 bool isAdmin = adminPublicKeys.Count > 0 && adminPublicKeys.Contains(req.RequesterPublicKey.Trim());

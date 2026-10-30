@@ -81,7 +81,7 @@ public static class MapTerrainFiles
 	public static byte[] PackPathing(int width, int depth, int[,]? pathingCodes, WaterType defaultWaterMode)
 	{
 		byte[] rgba = new byte[width * depth * PngImageCodec.BytesPerPixel];
-		int defaultCode = TerrainPathing.DefaultCode(defaultWaterMode);
+		int defaultCode = TerrainPathing.DefaultPathingCodeByWaterType(defaultWaterMode);
 
 		for (int z = 0; z < depth; z++)
 		{

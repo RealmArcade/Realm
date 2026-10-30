@@ -1638,7 +1638,7 @@ public partial class EditorService : IEditorAPI
 	{
 		if (ctx.ActiveTool == EditorTool.PaintTexture)
 		{
-			ProcessBlockPaint(ref terrain, ref ctx, -1, -1); // Let ProcessBlockPaint handle its own bounds
+			ProcessBlockPaint(ref terrain, ref ctx);
 			return;
 		}
 
@@ -1823,7 +1823,7 @@ public partial class EditorService : IEditorAPI
 		}
 	}
 
-	private void ProcessBlockPaint(ref TerrainState terrain, ref ContinuousEditContext ctx, int x, int z)
+	private void ProcessBlockPaint(ref TerrainState terrain, ref ContinuousEditContext ctx)
 	{
 		int splatW = _terrainSplatMap!.GetLength(0);
 		int splatD = _terrainSplatMap.GetLength(1);

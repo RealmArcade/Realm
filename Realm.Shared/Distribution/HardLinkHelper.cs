@@ -4,6 +4,8 @@ namespace Realm.Shared.Distribution;
 
 public static class HardLinkHelper
 {
+	private const int ErrorAlreadyExists = 183;
+
 	[DllImport("kernel32.dll", EntryPoint = "CreateHardLinkW", CharSet = CharSet.Unicode, SetLastError = true)]
 	private static extern bool CreateHardLinkW(
 		string lpFileName,
@@ -72,7 +74,7 @@ public static class HardLinkHelper
 			return true;
 		}
 
-		if (!overwrite && Marshal.GetLastWin32Error() == 183) // ERROR_ALREADY_EXISTS
+		if (!overwrite && Marshal.GetLastWin32Error() == ErrorAlreadyExists)
 		{
 			return true;
 		}

@@ -12,6 +12,7 @@ public static class ProcessPerformanceOptimizer
 	private const int RelationProcessorCore = 0;
 	private const int ProcessPowerThrottling = 4;
 	private const uint PROCESS_POWER_THROTTLING_EXECUTION_SPEED = 0x1;
+	private const uint SpeedThrottlingDisabledStateMask = 0;
 
 	[StructLayout(LayoutKind.Sequential)]
 	private struct PROCESS_POWER_THROTTLING_STATE
@@ -77,7 +78,7 @@ public static class ProcessPerformanceOptimizer
 			{
 				Version = 1,
 				ControlMask = PROCESS_POWER_THROTTLING_EXECUTION_SPEED,
-				StateMask = 0 // Explicitly disable speed throttling
+				StateMask = SpeedThrottlingDisabledStateMask
 			};
 
 			bool success = SetProcessInformation(

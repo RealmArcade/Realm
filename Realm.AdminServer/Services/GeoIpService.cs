@@ -6,6 +6,14 @@ namespace Realm.AdminServer.Services;
 
 public class GeoIpService
 {
+	private static readonly (double Latitude, double Longitude) WashingtonDcCoordinates = (38.9072, -77.0369);
+	private static readonly (double Latitude, double Longitude) SanFranciscoCoordinates = (37.7749, -122.4194);
+	private static readonly (double Latitude, double Longitude) NewYorkCoordinates = (40.7128, -74.0060);
+	private static readonly (double Latitude, double Longitude) LondonCoordinates = (51.5074, -0.1278);
+	private static readonly (double Latitude, double Longitude) TokyoCoordinates = (35.6762, 139.6503);
+
+	private const double EarthRadiusKilometers = 6371;
+
 	private readonly DatabaseReader? _reader;
 
 	public GeoIpService()
@@ -36,7 +44,7 @@ public class GeoIpService
 			return dbCoords.Value;
 
 		if (IsLocalhost(ipAddress))
-			return (38.9072, -77.0369);
+			return WashingtonDcCoordinates;
 
 		return GetSimulatedCoordinates(ipAddress);
 	}
@@ -57,7 +65,7 @@ public class GeoIpService
 		}
 		catch (AddressNotFoundException)
 		{
-			/* Fallback */
+			// Expected for addresses the database does not cover; the caller falls back to simulated coordinates.
 		}
 		catch (Exception ex)
 		{
@@ -80,27 +88,26 @@ public class GeoIpService
 			int bucket = firstOctet % 4;
 			return bucket switch
 			{
-				0 => (37.7749, -122.4194), // US West (San Francisco)
-				1 => (40.7128, -74.0060), // US East (New York)
-				2 => (51.5074, -0.1278), // Europe (London)
-				3 => (35.6762, 139.6503), // Asia (Tokyo)
-				_ => (38.9072, -77.0369)
+				0 => SanFranciscoCoordinates,
+				1 => NewYorkCoordinates,
+				2 => LondonCoordinates,
+				3 => TokyoCoordinates,
+				_ => WashingtonDcCoordinates
 			};
 		}
 
-		return (38.9072, -77.0369);
+		return WashingtonDcCoordinates;
 	}
 
 	public static double CalculateDistance(double lat1, double lon1, double lat2, double lon2)
 	{
-		var r = 6371; // In kilometers
 		var dLat = ToRadians(lat2 - lat1);
 		var dLon = ToRadians(lon2 - lon1);
 		var a = Math.Sin(dLat / 2) * Math.Sin(dLat / 2) +
 		        Math.Cos(ToRadians(lat1)) * Math.Cos(ToRadians(lat2)) *
 		        Math.Sin(dLon / 2) * Math.Sin(dLon / 2);
 		var c = 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
-		return r * c;
+		return EarthRadiusKilometers * c;
 	}
 
 	private static double ToRadians(double val) => (Math.PI / 180) * val;

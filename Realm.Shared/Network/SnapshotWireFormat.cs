@@ -8,7 +8,7 @@ namespace Realm.Shared.Network;
 public static class SnapshotWireFormat
 {
 	public const int FrameHeaderBytes = 8;
-	private const uint FrameMagic = 0x31545A53;
+	private static readonly uint FrameMagic = BinaryPrimitives.ReadUInt32LittleEndian("SZT1"u8);
 
 	public const int MaximumSerializedSnapshotBytes = 8 * 1024 * 1024;
 

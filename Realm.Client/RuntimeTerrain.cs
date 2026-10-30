@@ -139,7 +139,7 @@ public partial class RuntimeTerrain : Node3D
 	public const int PATHING_GROUND = (int)TerrainPathingFlags.Ground;
 	public const int PATHING_BUILDABLE = (int)TerrainPathingFlags.Buildable;
 
-	public static int GetDefaultPathingCode(WaterType waterMode) => TerrainPathing.DefaultCode(waterMode);
+	public static int GetDefaultPathingCode(WaterType waterMode) => TerrainPathing.DefaultPathingCodeByWaterType(waterMode);
 
 	public static int GetDefaultPathingCode(TerrainCell cell)
 	{
@@ -2279,7 +2279,6 @@ public partial class RuntimeTerrain : Node3D
 		return heights[cellX, cellZ];
 	}
 
-	// NOTE: Overridable no-op hook: only the editable terrain has a pathing overlay to show.
 	public virtual void SetPathingVisible(bool visible)
 	{
 	}

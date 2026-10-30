@@ -1,4 +1,5 @@
 using System;
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.IO;
 using System.Numerics;
@@ -15,7 +16,7 @@ namespace Realm.Shared.Diagnostics;
 
 public static class SyncRecordFormat
 {
-	public const uint Magic = 0x504E5352;
+	public static readonly uint Magic = BinaryPrimitives.ReadUInt32LittleEndian("RSNP"u8);
 
 	public const int Version = 12;
 
