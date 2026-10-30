@@ -60,8 +60,15 @@ public class ListenServerHost : IServerTransportSink
 	///     How long a peer may go without acknowledging a description it had not acknowledged before. An acknowledgement is
 	///     what proves a screen is still holding a world, so a peer that has stopped answering is the only peer the safety
 	///     refresh is still for.
+	///     <para>
+	///         It is a span of match time rather than an absence of fresh answers, because a screen working through the
+	///         description it was just sent answers nothing in the meantime, and the refresh shares one cooldown with the
+	///         resync a peer that far behind is owed. A stall short enough to spend that cooldown on a screen that was only
+	///         catching up left the resync to starve: the peer was skipped every tick, re-described from scratch once per
+	///         cooldown, and never described in between.
+	///     </para>
 	/// </summary>
-	private const int SnapshotRefreshStallTicks = MatchTiming.SimulationTickRateHz * 3;
+	private const int SnapshotRefreshStallTicks = MatchTiming.SimulationTickRateHz * 10;
 	private readonly Dictionary<int, int> _obstacleSignaturePerPeer = new();
 	private readonly int[] _seatedPeerIds = new int[EcsWorld.MAX_PLAYERS];
 	private readonly int[] _peersOwedObstacleVolumes = new int[EcsWorld.MAX_PLAYERS];
