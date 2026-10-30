@@ -151,7 +151,7 @@ namespace Realm.Ecs.Services
 		private const float ChaseRetargetDistance = 1.0f;
 		private readonly Dictionary<Entity, float> _chaseStuckTime = new();
 		private readonly Dictionary<Entity, float> _lastChaseDist = new();
-		private readonly ConcurrentDictionary<Entity, (Entity Target, float Remaining)> _abandonedTargetCooldown = new();
+		private readonly Dictionary<Entity, (Entity Target, float Remaining)> _abandonedTargetCooldown = new();
 
 		// Route reachability is cached per (attacker, target) pair so the real navmesh route is
 		// NOT recomputed every combat tick. The cache is invalidated when geometry changes: the
@@ -165,7 +165,7 @@ namespace Realm.Ecs.Services
 		private const float RouteReachMargin = 1.5f;
 		private const float RouteCacheMaxAge = 1.5f;
 		private const float RouteCacheNegativeMaxAge = 6.0f;
-		private readonly ConcurrentDictionary<(Entity Attacker, Entity Target), RouteReachabilityEntry> _routeReachabilityCache = new();
+		private readonly Dictionary<(Entity Attacker, Entity Target), RouteReachabilityEntry> _routeReachabilityCache = new();
 
 		// Acquisition considers the few closest enemies, not just the single closest one.
 		// The closest candidate can be unreachable (a flyer at altitude, a unit on a plateau) and
@@ -315,7 +315,7 @@ namespace Realm.Ecs.Services
 
 		private void PruneRouteReachabilityCache()
 		{
-			if (_routeReachabilityCache.IsEmpty) return;
+			if (_routeReachabilityCache.Count == 0) return;
 			_staleRouteReachabilityEntries.Clear();
 			foreach (var kvp in _routeReachabilityCache)
 			{
@@ -334,13 +334,13 @@ namespace Realm.Ecs.Services
 
 			for (int i = 0; i < _staleRouteReachabilityEntries.Count; i++)
 			{
-				_routeReachabilityCache.TryRemove(_staleRouteReachabilityEntries[i], out _);
+				_routeReachabilityCache.Remove(_staleRouteReachabilityEntries[i]);
 			}
 		}
 
 		private void TickAbandonedTargetCooldowns(float delta)
 		{
-			if (_abandonedTargetCooldown.IsEmpty) return;
+			if (_abandonedTargetCooldown.Count == 0) return;
 			_tickExpiredAbandonedCooldowns.Clear();
 			foreach (var kvp in _abandonedTargetCooldown)
 			{
@@ -358,7 +358,7 @@ namespace Realm.Ecs.Services
 
 			for (int i = 0; i < _tickExpiredAbandonedCooldowns.Count; i++)
 			{
-				_abandonedTargetCooldown.TryRemove(_tickExpiredAbandonedCooldowns[i], out _);
+				_abandonedTargetCooldown.Remove(_tickExpiredAbandonedCooldowns[i]);
 			}
 		}
 
@@ -806,7 +806,7 @@ namespace Realm.Ecs.Services
 			foreach (var targetEntity in _tickUnitsToKill)
 			{
 				ClearChaseTracking(targetEntity);
-				_abandonedTargetCooldown.TryRemove(targetEntity, out _);
+				_abandonedTargetCooldown.Remove(targetEntity);
 				if (!_context.World.IsAlive(targetEntity) || _context.World.Has<Dead>(targetEntity)) continue;
 
 				_context.World.Add<Dead>(targetEntity);

@@ -5,6 +5,45 @@ using ZstdSharp;
 
 namespace Realm.Shared.Network;
 
+/// <summary>
+///     The compressors and scratch buffer one publish lane encodes with. A lane keeps its own for the life of the match
+///     and disposes them with it, so encoding no longer depends on which pool thread happens to run a lane's work, and
+///     the native compressors have an owner that can release them instead of living until the process ends.
+/// </summary>
+public class SnapshotCompressor : IDisposable
+{
+	private Compressor? _deltaCompressor;
+	private Compressor? _baselineCompressor;
+	private byte[]? _compressionBuffer;
+	private bool _disposed;
+
+	public byte[] EncodeDelta(ReadOnlySpan<byte> serialized)
+	{
+		if (serialized.Length == 0) return Array.Empty<byte>();
+
+		return SnapshotWireFormat.EncodeWith(_deltaCompressor ??= new Compressor(SnapshotWireFormat.DeltaCompressionLevel), ref _compressionBuffer, serialized);
+	}
+
+	public byte[] EncodeBaseline(ReadOnlySpan<byte> serialized)
+	{
+		if (serialized.Length == 0) return Array.Empty<byte>();
+
+		return SnapshotWireFormat.EncodeWith(_baselineCompressor ??= new Compressor(SnapshotWireFormat.DeltaCompressionLevel), ref _compressionBuffer, serialized);
+	}
+
+	public void Dispose()
+	{
+		if (_disposed) return;
+		_disposed = true;
+
+		_deltaCompressor?.Dispose();
+		_baselineCompressor?.Dispose();
+		_deltaCompressor = null;
+		_baselineCompressor = null;
+		_compressionBuffer = null;
+	}
+}
+
 public static class SnapshotWireFormat
 {
 	public const int FrameHeaderBytes = 8;
@@ -45,9 +84,15 @@ public static class SnapshotWireFormat
 		Compressor compressor = isBaseline
 			? _baselineCompressor ??= new Compressor(BaselineCompressionLevel)
 			: _deltaCompressor ??= new Compressor(DeltaCompressionLevel);
+
+		return EncodeWith(compressor, ref _compressionBuffer, serialized);
+	}
+
+	internal static byte[] EncodeWith(Compressor compressor, ref byte[]? compressionBuffer, ReadOnlySpan<byte> serialized)
+	{
 		int bound = Compressor.GetCompressBound(serialized.Length);
-		byte[] buffer = _compressionBuffer ??= new byte[bound];
-		if (buffer.Length < bound) buffer = _compressionBuffer = new byte[bound];
+		byte[] buffer = compressionBuffer ??= new byte[bound];
+		if (buffer.Length < bound) buffer = compressionBuffer = new byte[bound];
 
 		int compressedLength = compressor.Wrap(serialized, buffer);
 		byte[] frame = new byte[FrameHeaderBytes + compressedLength];

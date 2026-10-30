@@ -7,6 +7,11 @@ namespace Realm.Ecs;
 /// <summary>
 /// Manages the zero-allocation Structure-of-Arrays (SoA) shared linear memory region between WebAssembly guest and host runtime contexts.
 /// </summary>
+/// <remarks>
+/// This memory has one writer: the authority simulation thread, which binds the region and then lets the map script write
+/// components straight into it. Another lane may read it only between the fork and the join of parallel work inside a
+/// tick, because outside that window the simulation thread is free to be writing the very array it would be reading.
+/// </remarks>
 public static unsafe class EcsSharedMemory
 {
 	/// <summary>The maximum number of player slots allocated in shared memory.</summary>

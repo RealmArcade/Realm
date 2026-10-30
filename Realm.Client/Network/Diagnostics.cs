@@ -186,14 +186,16 @@ public class Diagnostics
 		var result = new DiagnosticResult();
 		int receivedCount = 0;
 
+		// The receive path marks a sequence received under this gate, so the loss walk reads the same array under it
+		// rather than racing the marks it is counting.
 		lock (receivedRtts)
 		{
 			receivedCount = receivedRtts.Count;
 			ComputeRttMetrics(result, receivedRtts, receivedCount);
+			result.MaxConsecutiveLoss = ComputeMaxConsecutiveLoss(received);
 		}
 
 		result.LossPercentage = (float)(PacketCount - receivedCount) / PacketCount * 100.0f;
-		result.MaxConsecutiveLoss = ComputeMaxConsecutiveLoss(received);
 
 		return result;
 	}

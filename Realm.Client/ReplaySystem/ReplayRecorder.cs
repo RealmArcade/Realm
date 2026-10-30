@@ -105,7 +105,10 @@ namespace Realm.Client.ReplaySystem
 
 			_queue.Enqueue(frame);
 			_signal.Set();
-			_tickCount = tick + 1;
+
+			// Read by the writer thread when it patches the frame count into the header, so it is published rather than
+			// left for the two threads to settle between themselves.
+			Volatile.Write(ref _tickCount, tick + 1);
 		}
 
 		private void WriteLoop()
@@ -167,7 +170,7 @@ namespace Realm.Client.ReplaySystem
 				}
 
 				fs.Seek(ticksOffset, SeekOrigin.Begin);
-				fs.Write(BitConverter.GetBytes(_tickCount), 0, 4);
+				fs.Write(BitConverter.GetBytes(Volatile.Read(ref _tickCount)), 0, 4);
 			}
 			catch (Exception ex)
 			{

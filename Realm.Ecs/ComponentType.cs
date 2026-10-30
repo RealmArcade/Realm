@@ -12,6 +12,13 @@ using Realm.Ecs.Components.Terrain;
 
 namespace Realm.Ecs;
 
+/// <summary>
+///     The identifier each component type is known by inside this process. The canonical types are registered up front and
+///     take the index of their entry in that list, so their identifiers are fixed and comparable between builds. Any other
+///     type is assigned the next identifier the first time it is touched, which means the identifier depends on first-touch
+///     order and is therefore only meaningful in this process: canonical identifiers are the ones that cross the wire,
+///     through the replicated component table, and a dynamic identifier never does.
+/// </summary>
 public static class ComponentTypeRegistry
 {
 	private static readonly Dictionary<string, int> _typeIds = new(StringComparer.Ordinal);

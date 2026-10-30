@@ -93,6 +93,7 @@ public class ListenServerHost : IServerTransportSink
 		return buffers;
 	}
 
+	private readonly SnapshotCompressor?[] _publishCompressors = new SnapshotCompressor?[SnapshotFanOut.MaximumWorkerCount];
 	private ParallelOptions? _publishParallelism;
 	private Action<int>? _describeOneLane;
 	private int _publishPeerCount;
@@ -517,6 +518,12 @@ public class ListenServerHost : IServerTransportSink
 
 		_simulation?.Dispose();
 		_simulation = null;
+
+		for (int index = 0; index < _publishCompressors.Length; index++)
+		{
+			_publishCompressors[index]?.Dispose();
+			_publishCompressors[index] = null;
+		}
 
 		_syncRecorder?.Dispose();
 		_syncRecorder = null;
@@ -1135,9 +1142,10 @@ public class ListenServerHost : IServerTransportSink
 		ArrayBufferWriter<byte> serialized = _serializationWriters[index];
 		serialized.ResetWrittenCount();
 		MemoryPackSerializer.Serialize(serialized, snapshot);
+		SnapshotCompressor compressor = _publishCompressors[laneIndex] ??= new SnapshotCompressor();
 		_publishedFrames[index] = snapshot.IsBaseline
-			? SnapshotWireFormat.EncodeBaseline(serialized.WrittenSpan)
-			: SnapshotWireFormat.EncodeDelta(serialized.WrittenSpan);
+			? compressor.EncodeBaseline(serialized.WrittenSpan)
+			: compressor.EncodeDelta(serialized.WrittenSpan);
 		if (_trafficRecorder == null) return;
 
 		_publishedSerializedBytes[index] = serialized.WrittenCount;
