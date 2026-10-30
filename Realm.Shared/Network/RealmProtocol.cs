@@ -5,8 +5,6 @@ namespace Realm.Shared.Network;
 
 public static class RealmProtocol
 {
-	public const string ReadyLinePrefix = "REALM_SERVER_READY ";
-
 	public const int TokenCharacters = 64;
 
 	public const int ChallengeCharacters = 64;

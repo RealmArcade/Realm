@@ -67,7 +67,15 @@ public class ClientServerSession : IDisposable
 		public ulong ArrivalMilliseconds { get; }
 	}
 
-	private ServerProcessLauncher? _launcher;
+	/// <summary>
+	///     Whether the match this session is talking to was put on the authority this screen owns. It is the difference
+	///     between a path that has to be masked and one that does not: a loopback match has no transit to absorb, so
+	///     charging it the latency a measurement reports would delay the host's own units behind its own clock for nothing.
+	/// </summary>
+	private bool _local;
+	private int _localPort;
+	private string _localWireTableHash = string.Empty;
+
 	private string _language = string.Empty;
 	private string _token = string.Empty;
 
@@ -117,7 +125,7 @@ public class ClientServerSession : IDisposable
 	/// </summary>
 	private const int MaximumQueuedDescriptionsBeforeDiscard = 6;
 
-	public bool IsRunning => TerminationReport == null && (_launcher == null ? _joined : _launcher.IsRunning);
+	public bool IsRunning => TerminationReport == null && (_local ? GameContext.LocalAuthority.IsRunning : _joined);
 
 	public int LocalPeerId { get; private set; }
 
@@ -133,18 +141,13 @@ public class ClientServerSession : IDisposable
 
 	public string ConsoleLogPath { get; private set; } = string.Empty;
 
-	public int Port => _launcher?.Port ?? _joinedPort;
+	public int Port => _local ? _localPort : _joinedPort;
 
-	public int AuthorityProcessId => _launcher?.ProcessId ?? 0;
+	public int AuthorityProcessId => _local ? GameContext.LocalAuthority.ProcessId : 0;
 
-	/// <summary>
-	///     Whether the authority this screen is talking to is the one this process launched. It is the difference between a
-	///     path that has to be masked and one that does not: a loopback match has no transit to absorb, so charging it the
-	///     latency a measurement reports would delay the host's own units behind its own clock for nothing.
-	/// </summary>
-	public bool IsLocalAuthority => _launcher != null;
+	public bool IsLocalAuthority => _local;
 
-	public string WireTableHash => _launcher?.WireTableHash ?? string.Empty;
+	public string WireTableHash => _local ? _localWireTableHash : string.Empty;
 
 	public event Action<PeerRosterAssignment>? Seated;
 
@@ -192,10 +195,14 @@ public class ClientServerSession : IDisposable
 
 	private const int FailedLaunchDetailLineCount = 8;
 
-	private static MatchStartResult FailedLaunch(ServerLaunchAttempt attempt, string logPath)
+	/// <summary>
+	///     A start that failed names what the authority said, and the tail of the authority's console behind it, because a
+	///     screen that asked for a match and did not get one has nowhere else to look.
+	/// </summary>
+	private static MatchStartResult FailedLaunch(string failure, string logPath)
 	{
 		string detail = ServerConsoleCapture.ReadLastLines(logPath, FailedLaunchDetailLineCount);
-		return MatchStartResult.Failed(detail.Length == 0 ? attempt.Failure : $"{attempt.Failure}\n\n{detail}", logPath);
+		return MatchStartResult.Failed(detail.Length == 0 ? failure : $"{failure}\n\n{detail}", logPath);
 	}
 
 	public async Task<MatchStartResult> TryStartAsync(ServerMatchStart start, int authorityPort = 0)
@@ -204,14 +211,14 @@ public class ClientServerSession : IDisposable
 
 		string logName = Path.GetFileName(Path.TrimEndingDirectorySeparator(start.MapFolderPath));
 		if (string.IsNullOrEmpty(logName)) logName = "map";
-		string logPath = Path.Combine(start.LogDirectory, $"{logName}.listen_server.log");
+		string authorityLogPath = Path.Combine(start.LogDirectory, LocalAuthority.LogFileName);
 		try
 		{
 			Directory.CreateDirectory(start.LogDirectory);
 		}
 		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
 		{
-			return MatchStartResult.Failed($"the match log folder '{start.LogDirectory}' could not be created: {exception.Message}", logPath);
+			return MatchStartResult.Failed($"the match log folder '{start.LogDirectory}' could not be created: {exception.Message}", authorityLogPath);
 		}
 
 		_token = start.OpenToOthers ? string.Empty : RealmProtocol.CreateToken();
@@ -222,36 +229,21 @@ public class ClientServerSession : IDisposable
 			MatchRosterFile.Write(rosterPath, start.Roster);
 		}
 
-		var request = new ServerLaunchRequest(target, start.MapFolderPath, logPath, _token, start.Seed)
+		var command = new ServerControlCommand
 		{
-			DataFolderPath = start.DataFolderPath,
+			Kind = ServerControlKind.StartMatch,
+			MapFolderPath = start.MapFolderPath,
+			Port = authorityPort,
+			Seed = start.Seed,
+			Token = _token,
 			Cheats = start.Cheats,
 			WasmDebug = start.WasmDebug,
-			MapWorkspacePath = start.WasmDebug ? start.MapFolderPath : null,
-			RosterPath = rosterPath,
-			AuthorityRecordFolderPath = start.AuthorityRecordDirectory,
-			Port = authorityPort
+			MapWorkspacePath = start.WasmDebug ? start.MapFolderPath : string.Empty,
+			RosterPath = rosterPath ?? string.Empty,
+			AuthorityRecordFolderPath = start.AuthorityRecordDirectory ?? string.Empty
 		};
 
-		ServerLaunchAttempt attempt = await ServerProcessLauncher.TryLaunchAsync(request);
-		if (!attempt.Started || attempt.Launcher == null) return FailedLaunch(attempt, logPath);
-
-		ServerProcessLauncher launcher = attempt.Launcher;
-		if (!_channel.TryConnect("127.0.0.1", launcher.Port, out failure))
-		{
-			launcher.Dispose();
-			return MatchStartResult.Failed(failure, logPath);
-		}
-
-		_launcher = launcher;
-		_started = true;
-		_language = start.Language;
-		_mapHash = launcher.MapHash;
-		_address = "127.0.0.1";
-		_port = launcher.Port;
-		LogPath = launcher.LogPath;
-		ConsoleLogPath = launcher.ConsoleLogPath;
-		return MatchStartResult.Success(LogPath, ConsoleLogPath);
+		return await StartOnLocalAuthorityAsync(target, command, start.LogDirectory, start.DataFolderPath, start.Language);
 	}
 
 	public bool TryJoin(string address, int port, string language, string? mapFolder, out string failure)
@@ -284,51 +276,63 @@ public class ClientServerSession : IDisposable
 	{
 		if (!ListenServerTarget.TryResolve(out ServerLaunchTarget? target, out string failure) || target == null) return MatchStartResult.Failed(failure, string.Empty);
 
-		string logName = Path.GetFileName(Path.TrimEndingDirectorySeparator(start.MapFolderPath));
-		if (string.IsNullOrEmpty(logName)) logName = "map";
-		string logPath = Path.Combine(start.LogDirectory, $"{logName}.listen_server.log");
+		string authorityLogPath = Path.Combine(start.LogDirectory, LocalAuthority.LogFileName);
 		try
 		{
 			Directory.CreateDirectory(start.LogDirectory);
 		}
 		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
 		{
-			return MatchStartResult.Failed($"the lobby log folder '{start.LogDirectory}' could not be created: {exception.Message}", logPath);
+			return MatchStartResult.Failed($"the lobby log folder '{start.LogDirectory}' could not be created: {exception.Message}", authorityLogPath);
 		}
 
 		_token = string.Empty;
 		_adminToken = RealmProtocol.CreateToken();
 
-		var request = new ServerLaunchRequest(target, start.MapFolderPath, logPath, string.Empty, 0)
+		var command = new ServerControlCommand
 		{
-			DataFolderPath = start.DataFolderPath,
-			WasmDebug = start.WasmDebug,
-			MapWorkspacePath = start.WasmDebug ? start.MapFolderPath : null,
+			Kind = ServerControlKind.StartMatch,
+			MapFolderPath = start.MapFolderPath,
 			Port = lobbyPort,
+			WasmDebug = start.WasmDebug,
+			MapWorkspacePath = start.WasmDebug ? start.MapFolderPath : string.Empty,
 			Lobby = true,
 			AdminToken = _adminToken,
 			MapName = start.MapName,
 			MaxPlayers = start.MaxPlayers
 		};
 
-		ServerLaunchAttempt attempt = await ServerProcessLauncher.TryLaunchAsync(request);
-		if (!attempt.Started || attempt.Launcher == null) return FailedLaunch(attempt, logPath);
+		return await StartOnLocalAuthorityAsync(target, command, start.LogDirectory, start.DataFolderPath, start.Language);
+	}
 
-		ServerProcessLauncher launcher = attempt.Launcher;
-		if (!_channel.TryConnect("127.0.0.1", launcher.Port, 0, out failure))
+	/// <summary>
+	///     Puts a match on the authority this screen owns and joins it. The authority is already running - it came up while
+	///     the screen was in its menus - so this hands it the match rather than starting a process to hold it.
+	/// </summary>
+	private async Task<MatchStartResult> StartOnLocalAuthorityAsync(ServerLaunchTarget target, ServerControlCommand command, string logDirectory, string dataFolderPath, string language)
+	{
+		LocalAuthority authority = GameContext.LocalAuthority;
+		authority.Configure(target, logDirectory, dataFolderPath);
+
+		LocalAuthorityReply started = await authority.StartMatchAsync(command);
+		if (!started.Started) return FailedLaunch(started.Failure, started.LogPath);
+
+		if (!_channel.TryConnect("127.0.0.1", started.Port, out string failure))
 		{
-			launcher.Dispose();
-			return MatchStartResult.Failed(failure, logPath);
+			authority.Pause();
+			return MatchStartResult.Failed(failure, started.LogPath);
 		}
 
-		_launcher = launcher;
+		_local = true;
+		_localPort = started.Port;
+		_localWireTableHash = started.WireTableHash;
 		_started = true;
-		_language = start.Language;
-		_mapHash = launcher.MapHash;
+		_language = language;
+		_mapHash = started.MapHash;
 		_address = "127.0.0.1";
-		_port = launcher.Port;
-		LogPath = launcher.LogPath;
-		ConsoleLogPath = launcher.ConsoleLogPath;
+		_port = started.Port;
+		LogPath = started.LogPath;
+		ConsoleLogPath = started.ConsoleLogPath;
 		return MatchStartResult.Success(LogPath, ConsoleLogPath);
 	}
 
@@ -471,7 +475,7 @@ public class ClientServerSession : IDisposable
 			return false;
 		}
 
-		if (_launcher == null && !_joined) return false;
+		if (!_local && !_joined) return false;
 
 		bool handed = false;
 
@@ -560,15 +564,16 @@ public class ClientServerSession : IDisposable
 		return true;
 	}
 
-	public bool HasServerEnded() => _launcher != null && !_launcher.IsRunning;
-
 	public string DescribeStop()
 	{
-		if (_launcher == null) return _joined ? "the connection to the match ended" : "the match was never started";
+		if (_local)
+		{
+			return GameContext.LocalAuthority.IsRunning
+				? "the connection to the match ended"
+				: $"the local authority this match ran on ended; see '{LogPath}' and '{ConsoleLogPath}'";
+		}
 
-		return _launcher.IsRunning
-			? "the connection to the match ended"
-			: $"the process running this match ended with code {_launcher.ExitCode}; see '{LogPath}' and '{ConsoleLogPath}'";
+		return _joined ? "the connection to the match ended" : "the match was never started";
 	}
 
 	private void SendHello()
@@ -578,8 +583,8 @@ public class ClientServerSession : IDisposable
 			Build = RealmVersion.GameBuildNumber,
 			TokenProof = _token.Length > 0 && _challenge.Length > 0 ? RealmProtocol.ProveToken(_token, _challenge) : string.Empty,
 			AdminProof = _adminToken.Length > 0 && _challenge.Length > 0 ? RealmProtocol.ProveToken(_adminToken, _challenge) : string.Empty,
-			WireTableHash = _launcher?.WireTableHash ?? ReplicatedComponents.ComputeWireTableHash(),
-			MapHash = _launcher?.MapHash ?? _mapHash,
+			WireTableHash = _local ? _localWireTableHash : ReplicatedComponents.ComputeWireTableHash(),
+			MapHash = _mapHash,
 			Language = _language,
 			PlayerName = _playerName,
 			SessionToken = _sessionToken
@@ -810,14 +815,20 @@ public class ClientServerSession : IDisposable
 		ServerLost?.Invoke(report);
 	}
 
+	/// <summary>
+	///     Lets go of the match. A match that was put on this screen's own authority is not killed with it: the authority is
+	///     told to pause, which gives the match up and keeps the process that served it, so nothing has to be started or
+	///     stopped between one session and the next.
+	/// </summary>
 	public void Stop()
 	{
-		ServerProcessLauncher? launcher = _launcher;
-		if (launcher == null && !_joined) return;
+		if (!_local && !_joined) return;
 
-		bool startedHere = launcher != null;
-		_launcher = null;
+		bool heldHere = _local;
+		_local = false;
 		_joined = false;
+		_localPort = 0;
+		_localWireTableHash = string.Empty;
 		_mapHash = string.Empty;
 		_address = string.Empty;
 		_port = 0;
@@ -829,9 +840,8 @@ public class ClientServerSession : IDisposable
 		_reliableQueue.Clear();
 		_descriptionsWereDropped = false;
 
-		if (startedHere) _channel.Send(NetworkFrameKind.Shutdown, Array.Empty<byte>());
+		if (heldHere) GameContext.LocalAuthority.Pause();
 		_channel.Disconnect();
-		launcher?.Dispose();
 	}
 
 	public void Dispose()

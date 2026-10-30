@@ -218,6 +218,13 @@ public class ListenServerHost : IServerTransportSink
 
 	public int Port => _transport.Port;
 
+	/// <summary>
+	///     The map this match was started on, hashed the same way every other process hashes it. The screen that put the
+	///     match here is told it in the answer to its start command, so its handshake states the map it expects rather than
+	///     recomputing one it just handed over.
+	/// </summary>
+	public string MapHash => _mapHash;
+
 	public ServerLog Log => _log;
 
 	public void Start()
@@ -466,11 +473,8 @@ public class ListenServerHost : IServerTransportSink
 
 		if (_mapHash.Length == 0) _mapHash = MapContentHash.Compute(_arguments.MapPath, _arguments.LogPath);
 		string wireTableHash = ReplicatedComponents.ComputeWireTableHash();
-		var readyInfo = new ServerReadyInfo(Port, RealmVersion.GameBuildNumber, _mapHash, wireTableHash);
 
-		_log.Write($"ready build={readyInfo.Build} mapHash={_mapHash} wireTableHash={wireTableHash}");
-		Console.Out.WriteLine(readyInfo.ToReadyLine());
-		Console.Out.Flush();
+		_log.Write($"ready build={RealmVersion.GameBuildNumber} mapHash={_mapHash} wireTableHash={wireTableHash}");
 	}
 
 	public void Tick(double nowSeconds)

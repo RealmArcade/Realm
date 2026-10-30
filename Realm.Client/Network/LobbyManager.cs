@@ -244,6 +244,24 @@ public partial class LobbyManager : BaseMapTransferNode
 		AppDomain.CurrentDomain.ProcessExit += OnProcessExit;
 
 		StartPeerSeederLoop();
+		WarmUpLocalAuthority();
+	}
+
+	/// <summary>
+	///     Brings this screen's own authority up while the screen is still in its menus. It is started once here and stays
+	///     up for the whole session: matches are put on it and taken off it, so hosting never pays for a process start and
+	///     nothing is killed between one session and the next.
+	/// </summary>
+	private void WarmUpLocalAuthority()
+	{
+		if (!ListenServerTarget.TryResolve(out ServerLaunchTarget? target, out string failure) || target == null)
+		{
+			GD.PushWarning($"[LobbyManager] This screen cannot host a match: {failure}");
+			return;
+		}
+
+		GameContext.LocalAuthority.Configure(target, Path.Combine(OS.GetUserDataDir(), "logs"), OS.GetUserDataDir());
+		_ = GameContext.LocalAuthority.EnsureStartedAsync();
 	}
 
 	private void StartPeerSeederLoop()
@@ -379,6 +397,7 @@ public partial class LobbyManager : BaseMapTransferNode
 		{
 			GameContext.PeerSeeder.Stop();
 			GameContext.Upnp.ClosePort(BoundPort);
+			GameContext.LocalAuthority.Dispose();
 			_lobbySession?.Dispose();
 		}
 		catch
