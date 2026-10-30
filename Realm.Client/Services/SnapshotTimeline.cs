@@ -393,7 +393,7 @@ public class SnapshotTimeline
 		if (_delaySequences < MinimumDelaySequences) _delaySequences = MinimumDelaySequences;
 	}
 
-	public bool TrySample(int entityId, bool mayExtrapolate, out Vector3 position, out float rotationY, out Vector3 velocity)
+	public bool TrySample(int entityId, bool localOrderConfirmed, out Vector3 position, out float rotationY, out Vector3 velocity)
 	{
 		position = Vector3.Zero;
 		rotationY = 0f;
@@ -407,12 +407,13 @@ public class SnapshotTimeline
 		int head = _heads[entityId];
 		int baseIndex = entityId * SamplesPerUnit;
 
-		// A confirmed order is drawn at a render time of its own, one interval ahead of the world around it, and the lead is
-		// eased rather than switched so neither the order nor its completion moves the unit. What decides whether it is
-		// drawn that way is the description the cursor is showing, not the newest one held: a unit whose order is already
-		// described as finished keeps its lead until the moment that finish is drawn.
+		// An order this screen issued and the match confirmed is drawn at a render time of its own, one interval ahead of
+		// the world around it, which is the interval of delay it masks for that unit. The lead is eased rather than switched
+		// so neither the order nor its completion moves the unit. What decides whether it is drawn that way is the
+		// description the cursor is showing, not the newest one held: a unit whose order is already described as finished
+		// keeps its lead until the moment that finish is drawn.
 		int drawnSequence = (int)MathF.Floor(_cursor);
-		bool orderStillHeld = mayExtrapolate
+		bool orderStillHeld = localOrderConfirmed
 		                      || (_orderConfirmedFrom[entityId] >= 0 && drawnSequence <= _orderClearedAt[entityId]);
 
 		float targetLead = orderStillHeld ? ExtrapolationLeadSequences : 0f;
