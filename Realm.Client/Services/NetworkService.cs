@@ -37,8 +37,8 @@ public class NetworkService
 	private bool _fingerprintMatchLogged;
 
 	private readonly Dictionary<int, UnitSnapshot> _pendingUnitSpawns = new();
-	private readonly List<Entity> _pendingUnitKills = new();
-	private readonly List<Entity> _pendingUnitDespawns = new();
+	private List<Entity> _pendingUnitKills = new();
+	private List<Entity> _pendingUnitDespawns = new();
 
 	private readonly Dictionary<(int Key, int ComponentTypeId), PendingUnitComponentDelta> _pendingUnitComponentDeltas = new();
 	private readonly List<(int Key, int ComponentTypeId)> _pendingUnitComponentDeltaKeys = new();
@@ -662,17 +662,26 @@ public class NetworkService
 		return _pendingUnitSpawns.Remove(serverEntityId, out snapshot);
 	}
 
-	public IReadOnlyList<Entity> FlushPendingUnitKills() => TakePending(_pendingUnitKills);
+	public IReadOnlyList<Entity> FlushPendingUnitKills() => SwapPending(ref _pendingUnitKills, ref _pendingUnitKillsTaken);
 
-	public IReadOnlyList<Entity> FlushPendingUnitDespawns() => TakePending(_pendingUnitDespawns);
+	public IReadOnlyList<Entity> FlushPendingUnitDespawns() => SwapPending(ref _pendingUnitDespawns, ref _pendingUnitDespawnsTaken);
 
-	private static IReadOnlyList<Entity> TakePending(List<Entity> pending)
+	private List<Entity> _pendingUnitKillsTaken = new();
+	private List<Entity> _pendingUnitDespawnsTaken = new();
+
+	/// <summary>
+	///     Hands back everything waiting in <paramref name="pending" /> and empties it by exchanging the two buffers rather
+	///     than copying: a description that buries an army is read on every render frame, and a copy of it per frame is an
+	///     allocation the size of the army. The buffer handed back belongs to this service and is refilled by the swap on the
+	///     next call, so the caller reads what it was handed before calling again.
+	/// </summary>
+	private static IReadOnlyList<Entity> SwapPending(ref List<Entity> pending, ref List<Entity> taken)
 	{
 		if (pending.Count == 0) return Array.Empty<Entity>();
 
-		var result = new List<Entity>(pending);
-		pending.Clear();
-		return result;
+		taken.Clear();
+		(pending, taken) = (taken, pending);
+		return taken;
 	}
 
 	public Entity SpawnUnitFromSnapshot(UnitSnapshot snap, Func<string, bool, string> getFallbackModelPath, out string modelPath, out int playerIndex)
