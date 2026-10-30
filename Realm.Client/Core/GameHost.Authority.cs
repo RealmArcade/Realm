@@ -157,6 +157,7 @@ public partial class GameHost
 
 		network.IsPaused = state.Paused;
 		network.PausedByPlayerIndex = state.Paused ? state.RequestedByPlayer : -1;
+		network.NoteAuthorityAlive();
 		UpdatePauseUI();
 	}
 

@@ -424,10 +424,18 @@ public class ListenServerHost : IServerTransportSink
 		if (simulation == null) return;
 
 		// A paused match holds its world where it is: nothing is stepped and nothing is published, so every screen keeps
-		// the world it was last told about instead of watching it drift while nobody can act in it.
+		// the world it was last told about instead of watching it drift while nobody can act in it. The pause itself is
+		// restated while it is held, because a match that says nothing at all for longer than a peer's liveness window is
+		// indistinguishable from one that has gone away.
 		if (_paused)
 		{
 			_nextTickTime = nowSeconds + MatchTiming.FixedTickSeconds;
+			if (nowSeconds >= _nextPauseHeartbeatSeconds)
+			{
+				_nextPauseHeartbeatSeconds = nowSeconds + PauseHeartbeatSeconds;
+				BroadcastPauseState(-1);
+			}
+
 			return;
 		}
 
@@ -454,6 +462,10 @@ public class ListenServerHost : IServerTransportSink
 	}
 
 	private const int MaximumTicksPerCall = 5;
+
+	private const double PauseHeartbeatSeconds = 1.0;
+
+	private double _nextPauseHeartbeatSeconds;
 
 	private const int MaximumCommandsPerPeerPerTick = 32;
 

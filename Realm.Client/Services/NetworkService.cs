@@ -1362,6 +1362,13 @@ public class NetworkService
 		LastSnapshotReceivedTime = Time.GetTicksMsec();
 	}
 
+	/// <summary>
+	///     States that the authority said something, whatever it was. A paused match publishes no world, so the pause it
+	///     keeps restating is the only thing arriving: counting only descriptions made a pause longer than the liveness
+	///     window read as a match that had gone away.
+	/// </summary>
+	public void NoteAuthorityAlive() => LastSnapshotReceivedTime = Time.GetTicksMsec();
+
 	public void BroadcastMessageDomainLogic(string message) => GameLog.LogToConsole($"[HOST BROADCAST] {message}");
 
 	public void ReportAuthorityLost() => IsConnectionLost = true;
