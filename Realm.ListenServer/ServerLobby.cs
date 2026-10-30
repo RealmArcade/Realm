@@ -415,8 +415,8 @@ public class ServerLobby
 			changed |= PublishSeatLink(seat, statistics.Value.RoundTripMilliseconds, statistics.Value.JitterMilliseconds, statistics.Value.PacketLossPercent);
 		}
 
-		// The administrator runs its own authority, so its row states what the worst of its links comes to: an average of
-		// what it measured against everyone it is serving, and nothing at all while it serves nobody.
+		// The administrator runs its own authority, so no transit belongs to its own row: it states the average of the links
+		// it serves, and nothing at all while it serves nobody.
 		foreach (var pair in _seats)
 		{
 			LobbySeat seat = pair.Value;

@@ -880,7 +880,9 @@ public partial class LobbyManager : BaseMapTransferNode
 		string? admissionFailure = await WaitForLobbyAdmissionAsync(session);
 		if (admissionFailure != null)
 		{
-			LobbyJoinError = admissionFailure;
+			LobbyJoinError = string.Equals(admissionFailure, LobbyLimits.KickedRejection, StringComparison.Ordinal)
+				? "You were removed from this lobby."
+				: admissionFailure;
 			GD.PrintErr($"[LobbyManager] {admissionFailure}");
 			Disconnect();
 			ConnectionFailed?.Invoke("Direct connection handshake failed.");

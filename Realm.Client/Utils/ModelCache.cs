@@ -52,7 +52,7 @@ namespace Realm.Client.Utils
 
 		private static bool ResolutionContextChanged()
 		{
-			string mapDirectory = GameContext.MapStorageService?.CurrentMapDirectory ?? string.Empty;
+			string mapDirectory = ReadCurrentMapDirectory();
 			string mapName = GameContext.Simulation.ActiveMapName ?? string.Empty;
 
 			if (string.Equals(mapDirectory, _resolutionMapDirectory, StringComparison.Ordinal)
@@ -64,6 +64,22 @@ namespace Realm.Client.Utils
 			_resolutionMapDirectory = mapDirectory;
 			_resolutionMapName = mapName;
 			return true;
+		}
+
+		/// <summary>
+		///     Reads which map the process is resolving against. It is read during shutdown as well, when the scope holding the
+		///     storage service has already been disposed, so a closed scope reads as no map rather than as a fault.
+		/// </summary>
+		private static string ReadCurrentMapDirectory()
+		{
+			try
+			{
+				return GameContext.MapStorageService.CurrentMapDirectory ?? string.Empty;
+			}
+			catch (ObjectDisposedException)
+			{
+				return string.Empty;
+			}
 		}
 
 		private static void ForgetResolutionsUnderThePreviousMap()
