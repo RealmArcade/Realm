@@ -2,6 +2,7 @@ using System;
 using System.Buffers.Binary;
 using System.Numerics;
 using System.Text;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Realm.Ecs.Services;
@@ -14,6 +15,12 @@ public delegate void EntityCallback<T1, T2>(Entity entity, ref T1 c1, ref T2 c2)
 public delegate void EntityCallback<T1, T2, T3>(Entity entity, ref T1 c1, ref T2 c2, ref T3 c3);
 public delegate void EntityCallback<T1, T2, T3, T4>(Entity entity, ref T1 c1, ref T2 c2, ref T3 c3, ref T4 c4);
 
+/// <summary>
+///     The entities and component arrays of one world. Owned by a single thread: entity creation, destruction and
+///     component structure are written only by that thread, and parallel work inside a tick may read the world and write
+///     only the slots it was given. Workers announce themselves with <see cref="EnterWorkerLease" /> so a structural write
+///     from a forked lane fails loudly instead of corrupting a buffer a worker is reading.
+/// </summary>
 public class EcsWorld : IDisposable
 {
 	public const int MAX_ENTITIES = 8192;
@@ -32,6 +39,9 @@ public class EcsWorld : IDisposable
 	private readonly IComponentBuffer[] _buffers = new IComponentBuffer[MAX_COMPONENT_TYPES];
 	private readonly ulong[] _activeEntityBitset = new ulong[BITSET_CHUNKS];
 	private unsafe ulong* _externalActiveEntityBitset;
+
+	private readonly object _componentBufferCreationLock = new object();
+	private int _activeWorkerLeases;
 
 	public int Count => _count;
 
@@ -69,6 +79,25 @@ public class EcsWorld : IDisposable
 	public EcsWorld()
 	{
 		Ambient = this;
+	}
+
+	/// <summary>
+	///     States that this thread is about to do parallel work over the world and may only read it. Structural writes
+	///     attempted while a lease is held are the defect this counter exists to catch, so it is asserted rather than
+	///     enforced at run time.
+	/// </summary>
+	public void EnterWorkerLease() => Interlocked.Increment(ref _activeWorkerLeases);
+
+	public void ExitWorkerLease() => Interlocked.Decrement(ref _activeWorkerLeases);
+
+	public bool IsForkedIntoWorkers => Volatile.Read(ref _activeWorkerLeases) != 0;
+
+	[Conditional("DEBUG")]
+	private void AssertNotForkedIntoWorkers(string operation)
+	{
+		Debug.Assert(
+			Volatile.Read(ref _activeWorkerLeases) == 0,
+			operation + " mutated the world while parallel workers held it; structural changes belong to the owner thread between fork and join");
 	}
 
 	public void BindExternalAliveMemory(IntPtr pointer, int lengthInBytes)
@@ -154,6 +183,8 @@ public class EcsWorld : IDisposable
 
 	public Entity Create()
 	{
+		AssertNotForkedIntoWorkers("Entity creation");
+
 		int id;
 		if (_freeListCount > 0)
 		{
@@ -336,6 +367,8 @@ public class EcsWorld : IDisposable
 
 	public void Destroy(Entity entity)
 	{
+		AssertNotForkedIntoWorkers("Entity destruction");
+
 		int id = entity.Id;
 		if (id < 0 || id >= MAX_ENTITIES || _alive.Get(id) == 0) return;
 
@@ -367,6 +400,8 @@ public class EcsWorld : IDisposable
 
 	public ref T Add<T>(Entity entity, in T component = default) where T : unmanaged
 	{
+		AssertNotForkedIntoWorkers("Adding a component");
+
 		int id = entity.Id;
 		int cId = ComponentType<T>.Id;
 		var buffer = GetOrCreateBuffer<T>(cId);
@@ -391,6 +426,8 @@ public class EcsWorld : IDisposable
 
 	public void Set<T>(Entity entity, in T component) where T : unmanaged
 	{
+		AssertNotForkedIntoWorkers("Setting a component");
+
 		int id = entity.Id;
 		int cId = ComponentType<T>.Id;
 		var buffer = GetOrCreateBuffer<T>(cId);
@@ -436,7 +473,8 @@ public class EcsWorld : IDisposable
 		int cId = ComponentType<T>.Id;
 		int chunk = id >> 6;
 		ulong bit = 1UL << (id & 63);
-		return _componentBitsets[cId] != null && (_componentBitsets[cId][chunk] & bit) != 0;
+		ulong[]? componentBitset = Volatile.Read(ref _componentBitsets[cId]);
+		return componentBitset != null && (componentBitset[chunk] & bit) != 0;
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -449,6 +487,8 @@ public class EcsWorld : IDisposable
 
 	public void Remove<T>(Entity entity) where T : unmanaged
 	{
+		AssertNotForkedIntoWorkers("Removing a component");
+
 		int id = entity.Id;
 		if (id < 0 || id >= MAX_ENTITIES || _alive.Get(id) == 0) return;
 		int cId = ComponentType<T>.Id;
@@ -654,16 +694,33 @@ public class EcsWorld : IDisposable
 		}
 	}
 
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private ComponentBuffer<T> GetOrCreateBuffer<T>(int cId) where T : unmanaged
 	{
-		if (_buffers[cId] == null)
+		IComponentBuffer? published = Volatile.Read(ref _buffers[cId]);
+		if (published != null) return (ComponentBuffer<T>)published;
+
+		return CreateComponentBuffer<T>(cId);
+	}
+
+	[MethodImpl(MethodImplOptions.NoInlining)]
+	private ComponentBuffer<T> CreateComponentBuffer<T>(int cId) where T : unmanaged
+	{
+		AssertNotForkedIntoWorkers("Creating a component buffer");
+
+		lock (_componentBufferCreationLock)
 		{
+			if (_buffers[cId] != null) return (ComponentBuffer<T>)_buffers[cId];
+
 			var buffer = new ComponentBuffer<T>();
 			AttachCleanupHandler(buffer);
-			_buffers[cId] = buffer;
-			_componentBitsets[cId] = new ulong[BITSET_CHUNKS];
+
+			// The bitset is published before the buffer that indexes it, so a reader that sees the buffer can never
+			// find the membership bitset missing beside it.
+			Volatile.Write(ref _componentBitsets[cId], new ulong[BITSET_CHUNKS]);
+			Volatile.Write(ref _buffers[cId], buffer);
+			return buffer;
 		}
-		return (ComponentBuffer<T>)_buffers[cId];
 	}
 
 	private static void AttachCleanupHandler<T>(ComponentBuffer<T> buffer) where T : unmanaged

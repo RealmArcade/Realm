@@ -531,11 +531,11 @@ namespace Realm.Ecs.Services
 
 			if (_currentMovementService != null)
 			{
-				ParallelRunner.Execute(_attackerCount, _evaluateAttackerSpatialDelegate);
+				ParallelRunner.Execute(_attackerCount, _evaluateAttackerSpatialDelegate, _context.World);
 			}
 			else
 			{
-				ParallelRunner.Execute(_attackerCount, _evaluateAttackerFallbackDelegate);
+				ParallelRunner.Execute(_attackerCount, _evaluateAttackerFallbackDelegate, _context.World);
 			}
 
 			for (int i = 0; i < _attackerCount; i++)

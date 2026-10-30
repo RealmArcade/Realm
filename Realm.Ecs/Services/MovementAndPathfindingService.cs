@@ -267,7 +267,7 @@ namespace Realm.Ecs.Services
 
 			if (_movementWorkCount > 0)
 			{
-				ParallelRunner.Execute(_movementWorkCount, _processMovementWorkItemDelegate);
+				ParallelRunner.Execute(_movementWorkCount, _processMovementWorkItemDelegate, _context.World);
 
 				var world = _context.World;
 				for (int i = 0; i < _movementWorkCount; i++)

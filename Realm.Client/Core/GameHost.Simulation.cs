@@ -692,7 +692,7 @@ public partial class GameHost
 			return;
 
 		_processRenderWorkItemDelegate ??= ProcessRenderWorkItemParallel;
-		ParallelRunner.Execute(_renderWorkItemCount, _processRenderWorkItemDelegate);
+		ParallelRunner.Execute(_renderWorkItemCount, _processRenderWorkItemDelegate, GameContext.World);
 
 		var world = GameContext.World;
 		float currentGameTime = _renderCurrentGameTime;
