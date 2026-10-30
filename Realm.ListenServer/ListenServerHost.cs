@@ -78,7 +78,7 @@ public class ListenServerHost : IServerTransportSink
 	private readonly byte[][] _publishedFrames = new byte[EcsWorld.MAX_PLAYERS][];
 	private readonly bool[] _pendingBaselineRequests = new bool[EcsWorld.MAX_PLAYERS];
 	private readonly bool[] _pendingSkippedPeers = new bool[EcsWorld.MAX_PLAYERS];
-	private readonly SnapshotFrameRing[] _frameRings = CreateFrameRings();
+	private readonly Dictionary<int, SnapshotFrameRing> _frameRings = new();
 	private readonly SnapshotFragmentBuffer[] _fragmentBuffers = CreateFragmentBuffers();
 	private readonly SnapshotBaselineReason[] _pendingBaselineReasons = new SnapshotBaselineReason[EcsWorld.MAX_PLAYERS];
 	private readonly int[] _publishedSerializedBytes = new int[EcsWorld.MAX_PLAYERS];
@@ -91,13 +91,6 @@ public class ListenServerHost : IServerTransportSink
 		var writers = new ArrayBufferWriter<byte>[EcsWorld.MAX_PLAYERS];
 		for (int index = 0; index < writers.Length; index++) writers[index] = new ArrayBufferWriter<byte>(4096);
 		return writers;
-	}
-
-	private static SnapshotFrameRing[] CreateFrameRings()
-	{
-		var rings = new SnapshotFrameRing[EcsWorld.MAX_PLAYERS];
-		for (int index = 0; index < rings.Length; index++) rings[index] = new SnapshotFrameRing();
-		return rings;
 	}
 
 	private static SnapshotFragmentBuffer[] CreateFragmentBuffers()
@@ -512,6 +505,7 @@ public class ListenServerHost : IServerTransportSink
 		QueueTrafficReport(includeSequenceCoverage: true);
 
 		_seatedPeers.Clear();
+		_frameRings.Clear();
 		_connectedPeers.Clear();
 		_peerLanguages.Clear();
 		_sessionTokenSlots.Clear();
@@ -652,9 +646,9 @@ public class ListenServerHost : IServerTransportSink
 		_commandsThisTick.Remove(peerId);
 		_peerLanguages.Remove(peerId);
 
-		// Nothing this peer was sent may answer a repair once it is gone. The slot its description was kept in is reused
-		// by whoever takes the seat next, and Claim only clears a ring that belonged to somebody else.
-		for (int index = 0; index < _frameRings.Length; index++) _frameRings[index].Forget(peerId);
+		// Nothing this peer was sent may answer a repair once it is gone, and a peer id is not a session: one that leaves
+		// and comes back under the same id must not be answered from the descriptions it was sent before it went.
+		_frameRings.Remove(peerId);
 	}
 
 	public void OnFrameReceived(int peerId, NetworkFrameKind kind, ReadOnlySpan<byte> payload)
@@ -1259,9 +1253,7 @@ public class ListenServerHost : IServerTransportSink
 		// The description this peer was just sent is kept until the ring's width has passed it, so a hole the
 		// acknowledgement reports is answered with the description that went missing rather than with the whole world.
 		// The frame is the peer's own buffer and the next tick writes a new one, so the ring holds it unshared.
-		SnapshotFrameRing ring = _frameRings[index];
-		ring.Claim(peerId);
-		ring.Add(_publishSequence, _publishedFrames[index]);
+		FrameRingFor(peerId).Add(_publishSequence, _publishedFrames[index]);
 
 		// The first sequence this peer was described with bounds what its acknowledgement mask can claim: a bit for a
 		// sequence the match never sent was never meant to be set. A baseline starts that bound over.
@@ -1397,11 +1389,8 @@ public class ListenServerHost : IServerTransportSink
 	/// </summary>
 	private bool TryResendMissingDescriptions(int peerId, ReadOnlySpan<int> missingSequences)
 	{
-		int peerIndex = FindSeatedPeerIndex(peerId);
-		if (peerIndex < 0 || missingSequences.Length == 0) return false;
-
-		SnapshotFrameRing ring = _frameRings[peerIndex];
-		ring.Claim(peerId);
+		if (missingSequences.Length == 0) return false;
+		if (!_frameRings.TryGetValue(peerId, out SnapshotFrameRing? ring)) return false;
 
 		for (int index = 0; index < missingSequences.Length; index++)
 		{
@@ -1421,22 +1410,16 @@ public class ListenServerHost : IServerTransportSink
 	}
 
 	/// <summary>
-	///     The slot this peer's description is kept in. It is found by walking the seats in the order they are numbered,
-	///     which is the order a publish numbers them, rather than by reading the array a publish filled: a seat taken or
-	///     given up between two publishes leaves that array describing a different set of peers than the one this is asking
-	///     about, and answering with the wrong peer's slot hands one screen another's description.
+	///     The ring this peer's descriptions are kept in, created the first time the peer is described. A ring belongs to
+	///     the peer rather than to the seat it was published in, so no seat taken or given up elsewhere can address it.
 	/// </summary>
-	private int FindSeatedPeerIndex(int peerId)
+	private SnapshotFrameRing FrameRingFor(int peerId)
 	{
-		int index = 0;
-		foreach (int seatedPeerId in _seatedPeers.Keys)
-		{
-			if (index >= _seatedPeerIds.Length) return -1;
-			if (seatedPeerId == peerId) return index;
-			index++;
-		}
+		if (_frameRings.TryGetValue(peerId, out SnapshotFrameRing? ring)) return ring;
 
-		return -1;
+		ring = new SnapshotFrameRing(peerId);
+		_frameRings[peerId] = ring;
+		return ring;
 	}
 
 	private void HandleSnapshotAck(int peerId, ReadOnlySpan<byte> payload)

@@ -9,6 +9,11 @@ namespace Realm.ListenServer;
 ///     repair takes and no more: a hole deeper than it is a peer that stopped reading, and only a baseline puts that
 ///     screen where the match is.
 /// </summary>
+/// <remarks>
+///     One ring is created per seat and it knows the peer it belongs to, so it cannot be claimed, reused or cleared by
+///     any other peer. Addressing the ring by the peer rather than by the peer's place in a publish is what keeps a seat
+///     taken or given up between two publishes from answering one screen with another's repair history.
+/// </remarks>
 public class SnapshotFrameRing
 {
 	public const int Capacity = MatchTiming.SnapshotHistoryDepth;
@@ -16,38 +21,14 @@ public class SnapshotFrameRing
 	private readonly int[] _sequences = new int[Capacity];
 	private readonly byte[][] _frames = new byte[Capacity][];
 
-	private int _ownerPeerId = -1;
-
-	public SnapshotFrameRing() => Array.Fill(_sequences, -1);
-
-	public int PeerId => _ownerPeerId;
-
-	public void Claim(int peerId)
+	/// <param name="peerId">The one peer this ring keeps descriptions for, for as long as it exists.</param>
+	public SnapshotFrameRing(int peerId)
 	{
-		if (_ownerPeerId == peerId) return;
-
-		Clear();
-		_ownerPeerId = peerId;
-	}
-
-	public void Clear()
-	{
-		Array.Clear(_frames);
+		PeerId = peerId;
 		Array.Fill(_sequences, -1);
 	}
 
-	/// <summary>
-	///     Gives up everything kept for this peer. A peer id is not a session: a peer that leaves and comes back under the
-	///     same id would otherwise be answered with a description from the session it has already left, which states a
-	///     world that seat no longer has anything to do with.
-	/// </summary>
-	public void Forget(int peerId)
-	{
-		if (_ownerPeerId != peerId) return;
-
-		Clear();
-		_ownerPeerId = -1;
-	}
+	public int PeerId { get; }
 
 	public void Add(int sequence, byte[] frame)
 	{
