@@ -110,5 +110,24 @@ namespace Realm.Client.ReplaySystem
 			list.Clear();
 			_intListPool.Add(list);
 		}
+
+		public static void Trim()
+		{
+			while (_framePool.TryTake(out _))
+			{
+			}
+
+			while (_listPool.TryTake(out _))
+			{
+			}
+
+			while (_projectileListPool.TryTake(out _))
+			{
+			}
+
+			while (_intListPool.TryTake(out _))
+			{
+			}
+		}
 	}
 }
