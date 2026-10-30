@@ -397,4 +397,83 @@ public partial class SnapshotTimelineTests
 			.OverrideFailureMessage($"a world that stopped for four sequences at a time left the delay at {timeline.DelaySequences}")
 			.IsTrue();
 	}
+
+	[TestCase]
+	public void AStarvedCursorRebuildsItsDepthInsteadOfPlayingTheWorldSlow()
+	{
+		var timeline = new SnapshotTimeline();
+		timeline.ObserveLink(400f, 0f);
+		int sequence = 100;
+		timeline.AdvanceTo(sequence);
+		timeline.Record(Unit, new Vector3(0f, 0f, 0f), 0f, sequence);
+
+		for (int tick = 0; tick < 20; tick++)
+		{
+			timeline.Advance(Step());
+			sequence++;
+			timeline.AdvanceTo(sequence);
+			timeline.Record(Unit, new Vector3(0f, 0f, 0f), 0f, sequence);
+		}
+
+		for (int tick = 0; tick < 40; tick++) timeline.Advance(Step());
+		Assertions.AssertThat(timeline.StarvationCount > 0).OverrideFailureMessage("the buffer was never run dry, so there was no depth to rebuild").IsTrue();
+
+		float pinnedCursor = timeline.CursorSequence;
+		int sequencesToRebuild = 0;
+		while (timeline.NewestSequence - timeline.CursorSequence < timeline.DelaySequences - 0.001f && sequencesToRebuild <= 200)
+		{
+			timeline.Advance(Step());
+			sequence++;
+			timeline.AdvanceTo(sequence);
+			timeline.Record(Unit, new Vector3(0f, 0f, 0f), 0f, sequence);
+			sequencesToRebuild++;
+
+			Assertions.AssertThat(timeline.CursorSequence >= pinnedCursor)
+				.OverrideFailureMessage($"the cursor moved back from {pinnedCursor:F3} to {timeline.CursorSequence:F3} while rebuilding its depth")
+				.IsTrue();
+		}
+
+		Assertions.AssertThat(sequencesToRebuild <= timeline.DelaySequences + 1)
+			.OverrideFailureMessage($"a delay of {timeline.DelaySequences} took {sequencesToRebuild} sequences to come back after a starvation")
+			.IsTrue();
+	}
+
+	[TestCase]
+	public void TheStepPastTheNewestDescriptionIsGivenBackRatherThanSnapped()
+	{
+		var timeline = new SnapshotTimeline();
+		timeline.Record(Other, new Vector3(0f, 0f, 0f), 0f, 102);
+		timeline.Record(Unit, new Vector3(0f, 0f, 0f), 0f, 100);
+		timeline.Record(Unit, new Vector3(10f, 0f, 0f), 0f, 101);
+		timeline.AdvanceTo(102);
+		timeline.Advance(Step());
+
+		Assertions.AssertThat(timeline.TrySample(Unit, true, out Vector3 guessed, out _, out _)).IsTrue();
+		Assertions.AssertThat(guessed.X - 10f > 0.5f)
+			.OverrideFailureMessage($"the first sample drew only {guessed.X - 10f:F4} m past the description, so there was no step to give back")
+			.IsTrue();
+
+		timeline.Record(Unit, new Vector3(10f, 0f, 0f), 0f, 103);
+
+		Assertions.AssertThat(timeline.TrySample(Unit, true, out Vector3 released, out _, out _)).IsTrue();
+		Assertions.AssertThat(released.X < guessed.X).OverrideFailureMessage("the step was not given back at all").IsTrue();
+		Assertions.AssertThat(released.X > 10f + 0.001f)
+			.OverrideFailureMessage($"the step was taken back in the frame the descriptions arrived: the sample went straight to {released.X:F4}")
+			.IsTrue();
+
+		float previous = released.X;
+		for (int frame = 0; frame < 30; frame++)
+		{
+			timeline.Advance(Step());
+			Assertions.AssertThat(timeline.TrySample(Unit, true, out Vector3 settling, out _, out _)).IsTrue();
+			Assertions.AssertThat(settling.X <= previous + 0.0001f)
+				.OverrideFailureMessage($"the sample moved forward while it was being given back: {previous:F4} then {settling.X:F4}")
+				.IsTrue();
+			previous = settling.X;
+		}
+
+		Assertions.AssertThat(Near(previous, 10f, 0.05f))
+			.OverrideFailureMessage($"the step never settled onto the description, and was still at {previous:F4} where the unit is described at 10")
+			.IsTrue();
+	}
 }
