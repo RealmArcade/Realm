@@ -1819,11 +1819,13 @@ public partial class LobbyManager : BaseMapTransferNode
 	{
 		if (!IsHost || peerId == LocalPeerId) return;
 
-		_lobbySession?.SendLobbyCommand(new LobbyCommand
+		bool sent = _lobbySession?.SendLobbyCommand(new LobbyCommand
 		{
 			Kind = LobbyCommandKind.Kick,
 			TargetPeerId = peerId
-		});
+		}) == true;
+
+		if (!sent) GD.PushWarning($"[LobbyManager] The lobby session did not carry a kick for peer {peerId}.");
 	}
 
 	public void RequestChatHistory()

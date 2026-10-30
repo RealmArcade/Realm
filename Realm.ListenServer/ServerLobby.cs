@@ -90,6 +90,21 @@ public class ServerLobby
 		return true;
 	}
 
+	private bool TryFindSeat(int seatPeerId, out LobbySeat seat)
+	{
+		if (TryGetSeat(seatPeerId, out seat)) return true;
+
+		foreach (LobbySeat candidate in _seats.Values)
+		{
+			if (candidate.PeerId != seatPeerId) continue;
+			seat = candidate;
+			return true;
+		}
+
+		seat = default;
+		return false;
+	}
+
 	public IReadOnlyList<LobbyChatMessage> ChatHistory => _chatHistory;
 
 	public string AdmitPeer(int peerId, string name, string sessionToken, bool proveAdmin, out bool isAdmin)
@@ -346,12 +361,13 @@ public class ServerLobby
 
 	private void UpdateSeat(int peerId, bool isAdmin, LobbySeat sender, LobbyCommand command)
 	{
-		int targetPeerId = command.TargetPeerId > 0 ? command.TargetPeerId : peerId;
+		int targetPeerId = command.TargetPeerId != 0 ? command.TargetPeerId : peerId;
 		if (!isAdmin && targetPeerId != peerId) return;
 
-		if (!TryGetSeat(targetPeerId, out LobbySeat target))
+		if (!TryFindSeat(targetPeerId, out LobbySeat target))
 		{
-			if (!TryGetComputerSeat(command.TargetPeerId, out target)) return;
+			_log.Write($"peer {peerId} asked to change a seat this lobby does not hold (target {targetPeerId}); the command is refused");
+			return;
 		}
 
 		string name = LobbyLimits.Sanitize(command.Name, LobbyLimits.MaximumPlayerNameLength);
@@ -415,19 +431,26 @@ public class ServerLobby
 		}
 
 		if (targetPeerId == _adminPeerId) return;
-		if (!TryGetSeat(targetPeerId, out LobbySeat target)) return;
+		if (!TryFindSeat(targetPeerId, out LobbySeat target))
+		{
+			_log.Write($"the administrator asked to remove peer {targetPeerId}, which holds no seat in this lobby");
+			return;
+		}
 
-		RemoveSeat(targetPeerId, $"{target.Name} was removed from the lobby.");
+		_log.Write($"peer {targetPeerId} ('{target.Name}') was removed from the lobby by its administrator");
+		bool stillConnected = _slotByPeer.ContainsKey(target.PeerId);
+		RemoveSeat(target.PeerId, $"{target.Name} was removed from the lobby.");
+
+		if (!stillConnected) return;
 
 		var kicked = new LobbyKickedMessage { Reason = "Kicked by Host" };
-		_send(targetPeerId, NetworkFrameKind.LobbyKicked, MemoryPackSerializer.Serialize(kicked), FrameDelivery.Reliable);
-		_disconnect(targetPeerId);
-		_log.Write($"peer {targetPeerId} ('{target.Name}') was removed from the lobby by its administrator");
+		_send(target.PeerId, NetworkFrameKind.LobbyKicked, MemoryPackSerializer.Serialize(kicked), FrameDelivery.Reliable);
+		_disconnect(target.PeerId);
 	}
 
 	private void RemoveSeat(int peerId, string message)
 	{
-		if (!TryGetSeat(peerId, out LobbySeat seat)) return;
+		if (!TryFindSeat(peerId, out LobbySeat seat)) return;
 
 		_seats.Remove(seat.Slot);
 		_slotByPeer.Remove(peerId);

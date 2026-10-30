@@ -3153,7 +3153,7 @@ public partial class GameHost : Node3D
 				using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.ShroudServiceTick))
 				{
 					bool isReplay = GameContext.ReplayPlayback.IsPlayingReplay;
-					bool isSpectator = GameContext.PerspectiveFilter.IsSpectating;
+					bool isSpectator = GameContext.PerspectiveFilter.IsConfigured && GameContext.PerspectiveFilter.IsSpectating;
 					int spectatorPerspective = GameContext.InGameHud?.LiveSpectatorPerspective ?? -1;
 					GameContext.ShroudService.Tick(fDelta, AllUnits, AllProps, AllDecals, AllVfx, VisualProjectilePool.ActiveProjectiles, spectatorPerspective, isReplay, isSpectator);
 				}
