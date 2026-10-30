@@ -63,7 +63,7 @@ public class ServerMapShares
 
 	public MapTransferReply Handle(int peerId, MapTransferRequest request)
 	{
-		if (_manifest == null) return Refused(request, "this lobby cannot serve a map it could not read");
+		if (_manifest == null) return Refused(peerId, request, "this lobby cannot serve a map it could not read");
 
 		if (request.Kind == MapTransferRequestKind.Manifest)
 		{
@@ -78,7 +78,7 @@ public class ServerMapShares
 		}
 
 		string[] requested = request.MissingHashes ?? Array.Empty<string>();
-		if (requested.Length == 0 || requested.Length > MaximumRequestedHashes) return Refused(request, "the requested file list is not a map transfer");
+		if (requested.Length == 0 || requested.Length > MaximumRequestedHashes) return Refused(peerId, request, "the requested file list is not a map transfer");
 
 		var missing = new List<(string Hash, string Path, long Size)>(requested.Length);
 		foreach (string hash in requested)
@@ -95,11 +95,11 @@ public class ServerMapShares
 			}
 		}
 
-		if (missing.Count == 0) return Refused(request, "none of the requested files belong to this lobby's map");
+		if (missing.Count == 0) return Refused(peerId, request, "none of the requested files belong to this lobby's map");
 		missing.Sort((left, right) => string.CompareOrdinal(left.Hash, right.Hash));
 
 		List<List<(string Hash, string Path, long Size)>> chunks = Partition(missing);
-		if (request.ChunkIndex < 0 || request.ChunkIndex >= chunks.Count) return Refused(request, "that bundle is not part of this transfer");
+		if (request.ChunkIndex < 0 || request.ChunkIndex >= chunks.Count) return Refused(peerId, request, "that bundle is not part of this transfer");
 
 		var assets = new List<(string AssetKey, byte[] Data, string? Metadata)>(chunks[request.ChunkIndex].Count);
 		foreach (var item in chunks[request.ChunkIndex])
@@ -153,11 +153,16 @@ public class ServerMapShares
 		return chunks;
 	}
 
-	private static MapTransferReply Refused(MapTransferRequest request, string reason) => new()
+	private MapTransferReply Refused(int peerId, MapTransferRequest request, string reason)
 	{
-		Kind = MapTransferReplyKind.Refused,
-		TransferId = request.TransferId,
-		MapName = request.MapName,
-		Refusal = reason
-	};
+		_log.Write($"peer {peerId} was refused a map transfer: {reason}");
+
+		return new MapTransferReply
+		{
+			Kind = MapTransferReplyKind.Refused,
+			TransferId = request.TransferId,
+			MapName = request.MapName,
+			Refusal = reason
+		};
+	}
 }

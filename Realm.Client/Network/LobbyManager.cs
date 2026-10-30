@@ -1930,11 +1930,19 @@ public partial class LobbyManager : BaseMapTransferNode
 			string transferId = Guid.NewGuid().ToString("N");
 			List<string> allHashes = manifest.Files.Values.ToList();
 			int totalAssets = allHashes.Count;
+			if (totalAssets == 0)
+			{
+				GD.PrintErr($"[LobbyManager] The lobby served a manifest for '{targetMap}' that lists no files.");
+				_downloadingMapName = null;
+				CallDeferred(nameof(EmitDownloadFailed));
+				return false;
+			}
+
 			List<string> missing = await Task.Run(() => MapAssetManager.GetMissingHashes(allHashes));
 
 			int chunkIndex = 0;
 			int totalChunks = 1;
-			while (chunkIndex < totalChunks)
+			while (missing.Count > 0 && chunkIndex < totalChunks)
 			{
 				MapTransferReply? chunkReply = await RequestMapTransferAsync(new MapTransferRequest
 				{
