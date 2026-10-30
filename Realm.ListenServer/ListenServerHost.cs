@@ -64,6 +64,7 @@ public class ListenServerHost : IServerTransportSink
 	private readonly byte[][] _publishedFrames = new byte[EcsWorld.MAX_PLAYERS][];
 	private readonly bool[] _pendingBaselineRequests = new bool[EcsWorld.MAX_PLAYERS];
 	private readonly bool[] _pendingSkippedPeers = new bool[EcsWorld.MAX_PLAYERS];
+	private readonly SnapshotFrameRing[] _frameRings = CreateFrameRings();
 	private readonly SnapshotBaselineReason[] _pendingBaselineReasons = new SnapshotBaselineReason[EcsWorld.MAX_PLAYERS];
 	private readonly int[] _publishedSerializedBytes = new int[EcsWorld.MAX_PLAYERS];
 	private readonly double[] _publishedFramingMilliseconds = new double[EcsWorld.MAX_PLAYERS];
@@ -75,6 +76,13 @@ public class ListenServerHost : IServerTransportSink
 		var writers = new ArrayBufferWriter<byte>[EcsWorld.MAX_PLAYERS];
 		for (int index = 0; index < writers.Length; index++) writers[index] = new ArrayBufferWriter<byte>(4096);
 		return writers;
+	}
+
+	private static SnapshotFrameRing[] CreateFrameRings()
+	{
+		var rings = new SnapshotFrameRing[EcsWorld.MAX_PLAYERS];
+		for (int index = 0; index < rings.Length; index++) rings[index] = new SnapshotFrameRing();
+		return rings;
 	}
 
 	private ParallelOptions? _publishParallelism;
@@ -575,6 +583,7 @@ public class ListenServerHost : IServerTransportSink
 		_lastLoggedAckSequencePerPeer.Remove(peerId);
 		_lastBaselineRequestTickPerPeer.Remove(peerId);
 		_lastRefreshBaselineTickPerPeer.Remove(peerId);
+		_lastRepairSentTickPerPeer.Remove(peerId);
 		_obstacleSignaturePerPeer.Remove(peerId);
 	}
 
@@ -589,6 +598,7 @@ public class ListenServerHost : IServerTransportSink
 		_acknowledgedSequencePerPeer.Remove(peerId);
 		_roundTripMillisecondsPerPeer.Remove(peerId);
 		_seatedAtTickPerPeer.Remove(peerId);
+		_lastRepairSentTickPerPeer.Remove(peerId);
 		_obstacleSignaturePerPeer.Remove(peerId);
 		_commandsThisTick.Remove(peerId);
 		_peerLanguages.Remove(peerId);
@@ -633,6 +643,9 @@ public class ListenServerHost : IServerTransportSink
 				break;
 			case NetworkFrameKind.BaselineRequest:
 				if (TryClaimBaselineRequest(peerId, simulation.TickCount)) simulation.RequestBaseline(peerId);
+				break;
+			case NetworkFrameKind.SnapshotRepairRequest:
+				HandleSnapshotRepairRequest(peerId, payload);
 				break;
 			case NetworkFrameKind.LatencyProbe:
 				_transport.Send(peerId, NetworkFrameKind.LatencyProbeEcho, payload.ToArray());
@@ -1133,6 +1146,13 @@ public class ListenServerHost : IServerTransportSink
 		if (carriedUnreliably) _unreliableSnapshotCount++;
 		else _reliableSnapshotCount++;
 
+		// The description this peer was just sent is kept until the ring's width has passed it, so a hole the
+		// acknowledgement reports is answered with the description that went missing rather than with the whole world.
+		// The frame is the peer's own buffer and the next tick writes a new one, so the ring holds it unshared.
+		SnapshotFrameRing ring = _frameRings[index];
+		ring.Claim(peerId);
+		ring.Add(_publishSequence, _publishedFrames[index]);
+
 		// The first sequence this peer was described with bounds what its acknowledgement mask can claim: a bit for a
 		// sequence the match never sent was never meant to be set. A baseline starts that bound over.
 		if (snapshot.IsBaseline || !_firstSnapshotSequencePerPeer.ContainsKey(peerId)) _firstSnapshotSequencePerPeer[peerId] = _publishSequence;
@@ -1193,6 +1213,87 @@ public class ListenServerHost : IServerTransportSink
 		}
 	}
 
+	/// <summary>
+	///     Answers a peer that names a run of descriptions it never received. The run is only answered while this match still
+	///     holds every one of them: a run wider than the ring, or one the ring has already passed, says the peer stopped
+	///     reading rather than that a datagram went missing, and nothing short of a baseline puts that screen back.
+	/// </summary>
+	private void HandleSnapshotRepairRequest(int peerId, ReadOnlySpan<byte> payload)
+	{
+		ServerSimulation? simulation = _simulation;
+		if (simulation == null) return;
+
+		SnapshotRepairRequest request;
+		try
+		{
+			request = MemoryPackSerializer.Deserialize<SnapshotRepairRequest>(payload.ToArray());
+		}
+		catch (Exception exception) when (exception is IOException or InvalidDataException or ArgumentException)
+		{
+			_log.Write($"peer {peerId} sent a repair request that could not be read: {exception.Message}");
+			return;
+		}
+
+		if (request.Count <= 0 || request.Count > SnapshotFrameRing.Capacity || request.FirstSequence <= 0) return;
+
+		long tick = simulation.TickCount;
+		if (_lastRepairSentTickPerPeer.TryGetValue(peerId, out long lastRepairTick) && tick - lastRepairTick < RepairCooldownTicks) return;
+
+		Span<int> missingSequences = stackalloc int[request.Count];
+		for (int index = 0; index < missingSequences.Length; index++) missingSequences[index] = request.FirstSequence + index;
+
+		if (TryResendMissingDescriptions(peerId, missingSequences))
+		{
+			_lastRepairSentTickPerPeer[peerId] = tick;
+			_log.Write($"peer {peerId} asked for {request.Count} description(s) from sequence {request.FirstSequence}; they are sent again");
+			return;
+		}
+
+		if (!TryClaimBaselineRequest(peerId, tick)) return;
+
+		simulation.RequestBaseline(peerId);
+		_log.Write($"peer {peerId} asked for a run this match no longer holds; it is described from scratch");
+	}
+
+	/// <summary>
+	///     Sends each of these descriptions again, exactly as the peer was first sent them. Every one is checked before any
+	///     is sent, because half a repaired run is a peer told the wrong thing about where the world is.
+	/// </summary>
+	private bool TryResendMissingDescriptions(int peerId, ReadOnlySpan<int> missingSequences)
+	{
+		int peerIndex = FindSeatedPeerIndex(peerId);
+		if (peerIndex < 0 || missingSequences.Length == 0) return false;
+
+		SnapshotFrameRing ring = _frameRings[peerIndex];
+		ring.Claim(peerId);
+
+		for (int index = 0; index < missingSequences.Length; index++)
+		{
+			if (!ring.TryGet(missingSequences[index], out _)) return false;
+		}
+
+		for (int index = 0; index < missingSequences.Length; index++)
+		{
+			ring.TryGet(missingSequences[index], out byte[] frame);
+
+			// A repair is asked for once and answered over the stream that cannot lose it: the peer has already shown
+			// that it is missing state, and losing the repair as well would cost another round trip to learn the same.
+			_transport.Send(peerId, NetworkFrameKind.Snapshot, frame, FrameDelivery.Reliable);
+		}
+
+		return true;
+	}
+
+	private int FindSeatedPeerIndex(int peerId)
+	{
+		for (int index = 0; index < _seatedPeers.Count && index < _seatedPeerIds.Length; index++)
+		{
+			if (_seatedPeerIds[index] == peerId) return index;
+		}
+
+		return -1;
+	}
+
 	private void HandleSnapshotAck(int peerId, ReadOnlySpan<byte> payload)
 	{
 		ServerSimulation? simulation = _simulation;
@@ -1233,12 +1334,36 @@ public class ListenServerHost : IServerTransportSink
 		// sequence the match never sent, or every acknowledgement would describe the peer from scratch.
 		int coveredBits = Math.Min(64, describedSequences + 1);
 		ulong expected = coveredBits >= 64 ? ulong.MaxValue : (1UL << coveredBits) - 1UL;
+		ulong missing = expected & ~ack.AppliedMask;
 		if ((ack.AppliedMask & expected) == expected) return;
 
-		if (!TryClaimBaselineRequest(peerId, simulation.TickCount)) return;
+		int missingCount = 0;
+		int missingBits = 0;
+		Span<int> missingSequences = stackalloc int[SnapshotFrameRing.Capacity];
+		for (int bit = 0; bit < 64; bit++)
+		{
+			if ((missing & (1UL << bit)) == 0) continue;
+
+			missingBits++;
+			if (missingCount < missingSequences.Length) missingSequences[missingCount++] = ack.Sequence - bit;
+		}
+
+		// A repair answered once is not asked for again on every answer that still reports the same hole: the
+		// description is already on its way, and asking again each time spent the request budget on nothing.
+		long tick = simulation.TickCount;
+		if (_lastRepairSentTickPerPeer.TryGetValue(peerId, out long lastRepairTick) && tick - lastRepairTick < RepairCooldownTicks) return;
+
+		if (missingBits <= SnapshotFrameRing.Capacity && TryResendMissingDescriptions(peerId, missingSequences.Slice(0, missingCount)))
+		{
+			_lastRepairSentTickPerPeer[peerId] = tick;
+			_log.Write($"peer {peerId} is missing {missingBits} description(s); the missing ones are sent again");
+			return;
+		}
+
+		if (!TryClaimBaselineRequest(peerId, tick)) return;
 
 		simulation.RequestBaseline(peerId);
-		_log.Write($"peer {peerId} is missing a snapshot it was sent; it is described from scratch");
+		_log.Write($"peer {peerId} is missing a description this match no longer holds; it is described from scratch");
 	}
 
 	private void LogAcknowledgedSequence(int peerId, in SnapshotAck ack)
@@ -1324,6 +1449,10 @@ public class ListenServerHost : IServerTransportSink
 	private const int MaximumUnacknowledgedBeforeDisconnect = MatchTiming.SnapshotRateHz * 15;
 
 	private const int UnreliableSnapshotLimitBytes = 1400;
+
+	private const long RepairCooldownTicks = MatchTiming.SimulationTickRateHz / 4;
+
+	private readonly Dictionary<int, long> _lastRepairSentTickPerPeer = new();
 
 	private long _unreliableSnapshotCount;
 	private long _reliableSnapshotCount;

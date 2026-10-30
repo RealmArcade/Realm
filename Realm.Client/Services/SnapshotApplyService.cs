@@ -16,11 +16,29 @@ public class SnapshotApplyService
 
 	private const int MaximumBacklogSequences = SnapshotTimeline.MaximumDelaySequences;
 
+	/// <summary>
+	///     The widest run of descriptions this screen asks the match to send again. A wider run is a stall rather than a
+	///     datagram that went missing, and a baseline is the only thing that puts a screen that far behind back.
+	/// </summary>
+	private const int MaximumRepairSequences = 8;
+
+	private const int RepairRequestIntervalMilliseconds = 120;
+
+	/// <summary>
+	///     How long a description that arrived ahead of a missing one is held before the screen gives up on the run and asks
+	///     for the world instead. It has to cover a repair's round trip, which is the request out and the description back.
+	/// </summary>
+	private const int RepairGraceMilliseconds = 250;
+
 	private readonly List<WorldSnapshot> _queuedDeltas = new();
 
 	private ulong _lastBaselineRequestTime;
 
 	private bool _baselineRequestDeferred;
+
+	private ulong _repairDeadlineMilliseconds;
+	private int _repairFirstSequence = -1;
+	private ulong _lastRepairRequestTime;
 
 	public void Accept(byte[] payload) => Accept(MemoryPackSerializer.Deserialize<WorldSnapshot>(SnapshotWireFormat.Decode(payload)));
 
@@ -66,6 +84,15 @@ public class SnapshotApplyService
 
 		ref var networkState = ref GameContext.World.Get<NetworkState>(worldEntity);
 
+		// Descriptions held behind a run that never arrived are a world this screen cannot reach by applying them: the
+		// run was asked for, and once the grace to answer it has passed the only thing left is the world itself.
+		if (_queuedDeltas.Count > 0 && HasWaitedPastRepairGrace())
+		{
+			_queuedDeltas.Clear();
+			RequestBaseline();
+			return;
+		}
+
 		if (snapshot.IsBaseline)
 		{
 			if (snapshot.Sequence <= networkState.LastReceivedBaselineSeq) return;
@@ -91,6 +118,7 @@ public class SnapshotApplyService
 			// earlier mask reported the peer as still missing state it had just been given, and repaired it again each
 			// cooldown.
 			_queuedDeltas.RemoveAll(d => d.Sequence <= snapshot.Sequence);
+			ForgetRepairRun();
 			_appliedSnapshots.Reset();
 			GameContext.NetworkService.ApplySnapshotToWorld(snapshot);
 
@@ -98,7 +126,15 @@ public class SnapshotApplyService
 			return;
 		}
 
-		if (snapshot.Sequence <= networkState.LastAppliedSnapshotSequence) return;
+		// A description already behind this screen is not missing from it: it arrived after the world moved past it, so
+		// its content is superseded by what was applied in its place. Recording it keeps the acknowledgement about what
+		// this screen is still owed rather than about the order the descriptions happened to be used in - a repair that
+		// arrives too late heals the mask it was asked for, and the hole is not reported forever.
+		if (snapshot.Sequence <= networkState.LastAppliedSnapshotSequence)
+		{
+			_appliedSnapshots.MarkApplied(snapshot.Sequence);
+			return;
+		}
 
 		int sequencesSkipped = snapshot.Sequence - networkState.LastAppliedSnapshotSequence - 1;
 
@@ -108,6 +144,7 @@ public class SnapshotApplyService
 		if (sequencesSkipped >= MaximumBacklogSequences)
 		{
 			_queuedDeltas.Clear();
+			ForgetRepairRun();
 			RequestBaseline();
 			return;
 		}
@@ -123,14 +160,20 @@ public class SnapshotApplyService
 			return;
 		}
 
+		// A run this screen was never told is not lateness it can wait out. A delta states the units it mentions as they
+		// are at that moment and mentions only what changed since the description before it, so one applied over a hole
+		// leaves exactly those units behind that only the missing descriptions mentioned. The run is asked for by name
+		// and this description is held behind it until it arrives or the grace to answer it runs out.
+		if (sequencesSkipped > 0)
+		{
+			HoldForRepair(snapshot, networkState.LastAppliedSnapshotSequence + 1, sequencesSkipped);
+			return;
+		}
+
 		networkState.LastAppliedSnapshotSequence = snapshot.Sequence;
 		GameContext.NetworkService.ApplySnapshotToWorld(snapshot);
 		DrainQueuedDeltas(ref networkState);
-
-		// One sequence missing is a datagram the unreliable stream dropped, and the acknowledgement already reports it, so
-		// asking as well repaired the same hole twice. A gap of two or more is a stall, and asking is the one thing that
-		// puts the screen back where the authority is instead of applying changes over a hole it will not be told about.
-		if (sequencesSkipped > 1) RequestBaseline();
+		if (_queuedDeltas.Count == 0) ForgetRepairRun();
 	}
 
 	private void DrainQueuedDeltas(ref NetworkState networkState)
@@ -147,9 +190,19 @@ public class SnapshotApplyService
 		{
 			WorldSnapshot nextDelta = _queuedDeltas[0];
 			if (nextDelta.BaseSequence > networkState.LastReceivedBaselineSeq) break;
-			_queuedDeltas.RemoveAt(0);
-			if (nextDelta.Sequence <= networkState.LastAppliedSnapshotSequence) continue;
 
+			if (nextDelta.Sequence <= networkState.LastAppliedSnapshotSequence)
+			{
+				_queuedDeltas.RemoveAt(0);
+				continue;
+			}
+
+			// Held descriptions are only usable in the order they were written: each one states the units it mentions and
+			// mentions only what changed since the one before it. One applied across a hole describes a world the match
+			// never had, so the queue waits for the head to be contiguous with what this screen applied.
+			if (nextDelta.Sequence != networkState.LastAppliedSnapshotSequence + 1) break;
+
+			_queuedDeltas.RemoveAt(0);
 			networkState.LastAppliedSnapshotSequence = nextDelta.Sequence;
 			GameContext.NetworkService.ApplySnapshotToWorld(nextDelta);
 		}
@@ -181,6 +234,43 @@ public class SnapshotApplyService
 		GameContext.Host.SendSnapshotAck(highest, _appliedSnapshots.BuildMask());
 	}
 
+	private void HoldForRepair(WorldSnapshot snapshot, int firstMissingSequence, int missingCount)
+	{
+		QueueDelta(snapshot);
+
+		ulong now = Time.GetTicksMsec();
+		if (_repairDeadlineMilliseconds == 0) _repairDeadlineMilliseconds = now + RepairGraceMilliseconds;
+
+		if (_repairFirstSequence == firstMissingSequence)
+		{
+			if (now - _lastRepairRequestTime < RepairRequestIntervalMilliseconds) return;
+		}
+		else if (missingCount > MaximumRepairSequences)
+		{
+			RequestBaseline();
+			return;
+		}
+
+		_repairFirstSequence = firstMissingSequence;
+		_lastRepairRequestTime = now;
+		GameContext.Host?.RequestSnapshotRepair(firstMissingSequence, missingCount);
+	}
+
+	private bool HasWaitedPastRepairGrace()
+	{
+		if (_repairDeadlineMilliseconds == 0) return false;
+		if (Time.GetTicksMsec() < _repairDeadlineMilliseconds) return false;
+
+		ForgetRepairRun();
+		return true;
+	}
+
+	private void ForgetRepairRun()
+	{
+		_repairDeadlineMilliseconds = 0;
+		_repairFirstSequence = -1;
+	}
+
 	private void QueueDelta(WorldSnapshot snapshot)
 	{
 		if (_queuedDeltas.Count >= MaximumQueuedDeltas) _queuedDeltas.RemoveAt(0);
@@ -197,5 +287,7 @@ public class SnapshotApplyService
 		_lastAcknowledgedSequence = -1;
 		_lastBaselineRequestTime = 0;
 		_baselineRequestDeferred = false;
+		_lastRepairRequestTime = 0;
+		ForgetRepairRun();
 	}
 }

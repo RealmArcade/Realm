@@ -325,6 +325,23 @@ public class ClientServerSession : IDisposable
 		return true;
 	}
 
+	/// <summary>
+	///     Names a run of descriptions this screen never received, so the match can send exactly those again instead of
+	///     describing the whole world to it.
+	/// </summary>
+	public bool RequestSnapshotRepair(int firstSequence, int count)
+	{
+		if (!IsRunning || firstSequence <= 0 || count <= 0) return false;
+
+		var request = new SnapshotRepairRequest
+		{
+			FirstSequence = firstSequence,
+			Count = count
+		};
+		_channel.Send(NetworkFrameKind.SnapshotRepairRequest, MemoryPackSerializer.Serialize(request));
+		return true;
+	}
+
 	public bool SendLatencyProbe(int sequence)
 	{
 		if (!IsRunning) return false;

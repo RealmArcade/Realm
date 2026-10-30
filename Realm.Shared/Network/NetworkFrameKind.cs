@@ -48,5 +48,7 @@ public enum NetworkFrameKind : byte
 
 	MapTransferRequest = 24,
 
-	MapTransferReply = 25
+	MapTransferReply = 25,
+
+	SnapshotRepairRequest = 26
 }
