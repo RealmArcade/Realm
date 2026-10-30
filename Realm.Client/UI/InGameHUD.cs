@@ -178,9 +178,7 @@ public partial class InGameHUD : Control
 	private VBoxContainer _leaderboardSelectors;
 	private VBoxContainer _leaderboardContent;
 	private Label _leaderboardTitleLabel;
-	private PanelContainer _countdownPanel;
-	private Button _countdownCancelButton;
-	private Label _countdownLabel;
+	private CountdownOverlayPanel _countdownOverlayPanelController;
 
 	private Label _unitDescLabel;
 
@@ -225,6 +223,8 @@ public partial class InGameHUD : Control
 	private LeaderboardPanel _leaderboardPanelController;
 	private PanelContainer _summaryPanel;
 	private Label _summaryTitleLabel;
+	private Button _summaryCollapseButton;
+	private bool _summaryCollapsed;
 	private VBoxContainer _summaryContent;
 	private SummaryTablePanel _summaryTablePanelController;
 	private PortraitPanel _portraitPanelController;
@@ -738,59 +738,14 @@ public partial class InGameHUD : Control
 		_customUIPanel.AddThemeConstantOverride("separation", 10);
 		AddChild(_customUIPanel);
 
-		SetupCountdownPanel();
+		SetupCountdownOverlay();
 		SetupLeaderboardPanel();
 		SetupSummaryPanel();
 	}
 
-	private void SetupCountdownPanel()
+	private void SetupCountdownOverlay()
 	{
-		_countdownPanel = new PanelContainer();
-		_countdownPanel.Name = "CountdownPanel";
-		_countdownPanel.Visible = false;
-		_countdownPanel.SizeFlagsHorizontal = SizeFlags.ShrinkEnd;
-		var countdownStyle = new StyleBoxFlat();
-		countdownStyle.BgColor = new Color(0.12f, 0.12f, 0.12f, 0.85f);
-		countdownStyle.SetBorderWidthAll(1);
-		countdownStyle.BorderColor = UIStyle.ColorBronze;
-		countdownStyle.CornerRadiusTopLeft = 4;
-		countdownStyle.CornerRadiusTopRight = 4;
-		countdownStyle.CornerRadiusBottomLeft = 4;
-		countdownStyle.CornerRadiusBottomRight = 4;
-		countdownStyle.ContentMarginLeft = 8;
-		countdownStyle.ContentMarginRight = 8;
-		countdownStyle.ContentMarginTop = 6;
-		countdownStyle.ContentMarginBottom = 6;
-		_countdownPanel.AddThemeStyleboxOverride("panel", countdownStyle);
-
-		var countdownRow = new HBoxContainer();
-		countdownRow.Name = "CountdownRow";
-		countdownRow.AddThemeConstantOverride("separation", 8);
-
-		_countdownLabel = new Label();
-		_countdownLabel.Name = "CountdownLabel";
-		_countdownLabel.Text = "";
-		_countdownLabel.HorizontalAlignment = HorizontalAlignment.Center;
-		_countdownLabel.VerticalAlignment = VerticalAlignment.Center;
-		_countdownLabel.AddThemeFontSizeOverride("font_size", 14);
-		_countdownLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-		countdownRow.AddChild(_countdownLabel);
-
-		_countdownCancelButton = new Button();
-		_countdownCancelButton.Name = "CountdownCancelButton";
-		_countdownCancelButton.CustomMinimumSize = new Vector2(0, 24);
-		_countdownCancelButton.AddThemeConstantOverride("icon_max_width", 0);
-		_countdownCancelButton.FocusMode = FocusModeEnum.None;
-		_countdownCancelButton.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		_countdownCancelButton.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		_countdownCancelButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		_countdownCancelButton.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-		UIStyle.ApplyButtonText(_countdownCancelButton, TranslationServer.Translate("CANCEL"), 12);
-		_countdownCancelButton.Pressed += OnCountdownCancelPressed;
-		countdownRow.AddChild(_countdownCancelButton);
-
-		_countdownPanel.AddChild(countdownRow);
-		_customUIPanel.AddChild(_countdownPanel);
+		_countdownOverlayPanelController = new CountdownOverlayPanel(this, _customUIPanel, OnCountdownCancelPressed);
 	}
 
 	private void SetupLeaderboardPanel()
@@ -859,16 +814,51 @@ public partial class InGameHUD : Control
 		summaryVBox.Name = "SummaryVBox_VBoxContainer";
 		_summaryPanel.AddChild(summaryVBox);
 
+		var summaryHeader = new HBoxContainer();
+		summaryHeader.Name = "SummaryHeader_HBoxContainer";
+		summaryHeader.AddThemeConstantOverride("separation", 6);
+		summaryVBox.AddChild(summaryHeader);
+
+		var headerInset = new Control();
+		headerInset.Name = "SummaryHeaderInset";
+		headerInset.CustomMinimumSize = new Vector2(26, 0);
+		summaryHeader.AddChild(headerInset);
+
 		_summaryTitleLabel = new Label();
 		_summaryTitleLabel.Name = "SummaryTitle";
 		_summaryTitleLabel.Text = TranslationServer.Translate("SUMMARY");
 		UIStyle.ApplyTitle(_summaryTitleLabel, TranslationServer.Translate("SUMMARY"), 14);
 		_summaryTitleLabel.HorizontalAlignment = HorizontalAlignment.Center;
-		summaryVBox.AddChild(_summaryTitleLabel);
+		_summaryTitleLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		summaryHeader.AddChild(_summaryTitleLabel);
+
+		_summaryCollapseButton = new Button();
+		_summaryCollapseButton.Name = "SummaryCollapse_Button";
+		_summaryCollapseButton.Flat = false;
+		_summaryCollapseButton.FocusMode = FocusModeEnum.None;
+		_summaryCollapseButton.CustomMinimumSize = new Vector2(26, 22);
+		_summaryCollapseButton.AddThemeConstantOverride("icon_max_width", 0);
+		Font collapseIconFont = UIStyle.FontAwesome;
+		if (collapseIconFont != null)
+		{
+			_summaryCollapseButton.AddThemeFontOverride("font", collapseIconFont);
+		}
+
+		_summaryCollapseButton.AddThemeFontSizeOverride("font_size", 12);
+		_summaryCollapseButton.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
+		_summaryCollapseButton.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
+		_summaryCollapseButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
+		_summaryCollapseButton.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		_summaryCollapseButton.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
+		_summaryCollapseButton.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
+		_summaryCollapseButton.Pressed += ToggleSummaryCollapsed;
+		summaryHeader.AddChild(_summaryCollapseButton);
 
 		_summaryContent = new VBoxContainer();
 		_summaryContent.Name = "SummaryContent";
 		summaryVBox.AddChild(_summaryContent);
+
+		ApplySummaryCollapsedState();
 		_customUIPanel.AddChild(_summaryPanel);
 	}
 
@@ -913,7 +903,7 @@ public partial class InGameHUD : Control
 		_camera3D = GameContext.Host?.MainCamera;
 		_minimapPanelController = new MinimapPanel(_minimapFrame, _minimapArea, _cameraIndicator, _camera3D);
 		_chatPanelController = new ChatPanel(_chatPanel, _chatInput, _chatLog);
-		_leaderboardPanelController = new LeaderboardPanel(_customUIPanel, _countdownPanel, _countdownLabel, _leaderboardPanel, _leaderboardTitleLabel, _leaderboardSelectors, _leaderboardContent);
+		_leaderboardPanelController = new LeaderboardPanel(_customUIPanel, _leaderboardPanel, _leaderboardTitleLabel, _leaderboardSelectors, _leaderboardContent);
 		_summaryTablePanelController = new SummaryTablePanel(_summaryPanel, _summaryTitleLabel, _summaryContent);
 
 		_portraitPanelController = new PortraitPanel(
@@ -1560,6 +1550,7 @@ public partial class InGameHUD : Control
 			_commandPanelController?.Update(_viewModel);
 			_inventoryPanelController?.Update(_viewModel);
 			_controlGroupsUIController?.Update();
+			_countdownOverlayPanelController?.Update(_viewModel);
 		}
 
 		_macroTimer += dt;
@@ -2244,11 +2235,7 @@ public partial class InGameHUD : Control
 		_viewModel.CountdownDuration = duration;
 		_viewModel.CountdownText = labelText;
 		_viewModel.CountdownActive = true;
-
-		if (_countdownCancelButton != null && GodotObject.IsInstanceValid(_countdownCancelButton))
-		{
-			_countdownCancelButton.Visible = GameContext.Lobby?.IsHost == true;
-		}
+		_countdownOverlayPanelController?.Update(_viewModel);
 	}
 
 	private void OnCountdownCancelPressed()
@@ -2260,6 +2247,7 @@ public partial class InGameHUD : Control
 	public void StopCountdownTimer()
 	{
 		_viewModel.CountdownActive = false;
+		_countdownOverlayPanelController?.Update(_viewModel);
 	}
 
 	public void UpdateCountdownLabel(string labelText)
@@ -2334,10 +2322,7 @@ public partial class InGameHUD : Control
 				if (_inventoryGrid != null) _inventoryGrid.Visible = visible;
 				break;
 			case HudElement.CountdownTimer:
-				if (_countdownPanel != null)
-				{
-					_countdownPanel.Visible = visible && _viewModel.CountdownActive;
-				}
+				_countdownOverlayPanelController?.Update(_viewModel);
 				break;
 		}
 	}
@@ -2377,6 +2362,28 @@ public partial class InGameHUD : Control
 	public void AddLeaderboardBoardRow(string boardId, int groupPlayerIndex, string groupTitle, string label, string value)
 	{
 		_viewModel.Leaderboards.AddRow(boardId, groupPlayerIndex, groupTitle, label, value);
+	}
+
+	private void ToggleSummaryCollapsed()
+	{
+		GameContext.UserInterface?.PlayClickSound();
+		_summaryCollapsed = !_summaryCollapsed;
+		ApplySummaryCollapsedState();
+	}
+
+	private void ApplySummaryCollapsedState()
+	{
+		if (_summaryContent != null && GodotObject.IsInstanceValid(_summaryContent))
+		{
+			_summaryContent.Visible = !_summaryCollapsed;
+		}
+
+		if (_summaryCollapseButton == null || !GodotObject.IsInstanceValid(_summaryCollapseButton)) return;
+
+		_summaryCollapseButton.Text = _summaryCollapsed ? UnicodeIcons.CARET_RIGHT : UnicodeIcons.CARET_DOWN;
+		_summaryCollapseButton.TooltipText = _summaryCollapsed
+			? TranslationServer.Translate("Expand summary table")
+			: TranslationServer.Translate("Collapse summary table");
 	}
 
 	public void ShowSummaryTable(string title, bool visible)

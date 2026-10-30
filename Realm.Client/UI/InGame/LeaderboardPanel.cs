@@ -10,8 +10,6 @@ namespace Realm.Client.UI.InGame;
 public class LeaderboardPanel
 {
 	private VBoxContainer _customUIPanel;
-	private PanelContainer _countdownPanel;
-	private Label _countdownLabel;
 	private PanelContainer _leaderboardPanel;
 	private Label _leaderboardTitleLabel;
 	private VBoxContainer _leaderboardSelectors;
@@ -26,8 +24,6 @@ public class LeaderboardPanel
 	private readonly List<Label> _valueLabels = new();
 	private readonly List<string> _boardIds = new();
 	private readonly List<int> _groupPlayerIndices = new();
-	private string? _lastCountdownText;
-	private int _lastCountdownSeconds = int.MinValue;
 	private string? _lastLeaderboardTitle;
 
 	private string? _selectedBoardId;
@@ -37,12 +33,10 @@ public class LeaderboardPanel
 	private int _lastBoardSignature = int.MinValue;
 	private int _lastGroupSignature = int.MinValue;
 
-	public LeaderboardPanel(VBoxContainer customUIPanel, PanelContainer countdownPanel, Label countdownLabel,
+	public LeaderboardPanel(VBoxContainer customUIPanel,
 		PanelContainer leaderboardPanel, Label leaderboardTitleLabel, VBoxContainer leaderboardSelectors, VBoxContainer leaderboardContent)
 	{
 		_customUIPanel = customUIPanel;
-		_countdownPanel = countdownPanel;
-		_countdownLabel = countdownLabel;
 		_leaderboardPanel = leaderboardPanel;
 		_leaderboardTitleLabel = leaderboardTitleLabel;
 		_leaderboardSelectors = leaderboardSelectors;
@@ -100,24 +94,6 @@ public class LeaderboardPanel
 
 	public void Update(InGameHUDViewModel viewModel)
 	{
-		bool allowCountdown = GameContext.InGameHud?.IsHudElementVisible(HudElement.CountdownTimer, true) ?? true;
-		bool countdownVisible = viewModel.CountdownActive && allowCountdown;
-		if (_countdownPanel.Visible != countdownVisible)
-		{
-			_countdownPanel.Visible = countdownVisible;
-		}
-		if (countdownVisible)
-		{
-			int secs = (int)Math.Ceiling(viewModel.CountdownDuration);
-			string text = viewModel.CountdownText ?? string.Empty;
-			if (secs != _lastCountdownSeconds || text != _lastCountdownText)
-			{
-				_countdownLabel.Text = $"{text}: {secs}s";
-				_lastCountdownSeconds = secs;
-				_lastCountdownText = text;
-			}
-		}
-
 		bool allowLeaderboard = GameContext.InGameHud?.IsHudElementVisible(HudElement.Leaderboard, true) ?? true;
 		LeaderboardBoards boards = viewModel.Leaderboards;
 		LeaderboardBoard? selectedBoard = ResolveSelectedBoard(boards);

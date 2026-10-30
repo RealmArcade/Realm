@@ -441,6 +441,10 @@ public interface IGameAPI
 	/// <summary>
 	/// Displays or hides the multi-column stats summary table on all players' screens.
 	/// </summary>
+	/// <remarks>
+	/// Every client draws the table itself and may collapse it to its title bar, which is that player's own view of it
+	/// rather than something this call decides.
+	/// </remarks>
 	/// <param name="title">Header title of the summary table.</param>
 	/// <param name="visible">True to display the table, false to hide it.</param>
 	void ShowSummaryTable(string title, bool visible);
@@ -456,6 +460,11 @@ public interface IGameAPI
 	/// <summary>
 	/// Sets or updates a row in the stats summary table.
 	/// </summary>
+	/// <remarks>
+	/// The player column is drawn as rich text, so a row key may carry BBCode such as the markup
+	/// <see cref="FormatColoredPlayerName"/> produces. The metric columns are drawn as plain text, so numbers stay
+	/// readable in fixed-width columns whatever the localised digit glyphs are.
+	/// </remarks>
 	/// <param name="rowKey">Unique row identifier or player label (corresponds to Headers[0]).</param>
 	/// <param name="cellValues">Metric values corresponding to Headers[1..N].</param>
 	void SetSummaryTableRow(string rowKey, params string[] cellValues);

@@ -1027,6 +1027,10 @@
             <summary>
             Displays or hides the multi-column stats summary table on all players' screens.
             </summary>
+            <remarks>
+            Every client draws the table itself and may collapse it to its title bar, which is that player's own view of it
+            rather than something this call decides.
+            </remarks>
             <param name="title">Header title of the summary table.</param>
             <param name="visible">True to display the table, false to hide it.</param>
         </member>
@@ -1042,6 +1046,11 @@
             <summary>
             Sets or updates a row in the stats summary table.
             </summary>
+            <remarks>
+            The player column is drawn as rich text, so a row key may carry BBCode such as the markup
+            <see cref="M:Realm.MapAPI.IGameAPI.FormatColoredPlayerName(System.Int32)"/> produces. The metric columns are drawn as plain text, so numbers stay
+            readable in fixed-width columns whatever the localised digit glyphs are.
+            </remarks>
             <param name="rowKey">Unique row identifier or player label (corresponds to Headers[0]).</param>
             <param name="cellValues">Metric values corresponding to Headers[1..N].</param>
         </member>
@@ -2906,6 +2915,16 @@
         <member name="M:Realm.MapAPI.ILobbyAPI.GetPlayerTeam(System.Int32)">
             <summary>The team number the slot plays on, where 0 means it plays on no team.</summary>
             <param name="playerIndex">The player slot.</param>
+        </member>
+        <member name="P:Realm.MapAPI.ILobbyAPI.TeamCount">
+            <summary>How many teams the lobby offers, which is the highest team number a slot may hold.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.ILobbyAPI.SetTeamCount(System.Int32)">
+            <summary>
+                States how many teams the lobby offers, which is what its players are offered as choices and what a slot's
+                team may be numbered up to. A lobby that states nothing offers two.
+            </summary>
+            <param name="teamCount">The number of teams, from one up to the seats this lobby may serve.</param>
         </member>
         <member name="M:Realm.MapAPI.ILobbyAPI.SetPlayerTeam(System.Int32,System.Int32)">
             <summary>
