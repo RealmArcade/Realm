@@ -3,6 +3,7 @@ using Godot;
 using Realm.Client.Core;
 using Realm.Client.Services;
 using Realm.Client.UI;
+using Realm.Client.VFX;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Meta;
 using Realm.Ecs.Components.Movement;
@@ -79,6 +80,10 @@ public class ObjectTransformAction : IEditorAction
 		{
 			UpdateEcsEntity(decal3D.Entity, pos, rot, scale);
 		}
+		else if (_targetNode is ProceduralVfxInstance3D vfxInstance)
+		{
+			UpdateEcsEntity(vfxInstance.Entity, pos, rot, scale);
+		}
 
 		GameContext.MapEditorHud?.UpdateSelectedObjectInfo();
 	}
@@ -107,6 +112,10 @@ public class ObjectTransformAction : IEditorAction
 		else if (node is PropEntityProxyNode proxy)
 		{
 			WriteEcsTransform(proxy.Entity, proxy.Position, proxy.RotationDegrees, proxy.Scale, true);
+		}
+		else if (node is ProceduralVfxInstance3D vfxInstance)
+		{
+			WriteEcsTransform(vfxInstance.Entity, vfxInstance.Position, vfxInstance.RotationDegrees, vfxInstance.Scale, true);
 		}
 	}
 
