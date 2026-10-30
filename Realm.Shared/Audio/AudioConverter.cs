@@ -66,7 +66,7 @@ public static class AudioConverter
 			result.OutputBytes = finalRaudBytes;
 			result.AssetType = effectiveAssetType;
 			result.Author = metaObj["author"]?.ToString();
-			result.PreferredFileName = metaObj["preferred_file_name"]?.ToString();
+			result.PreferredFileName = metaObj[AssetMetadataKeys.PreferredFileName]?.ToString();
 			return result;
 		}
 		catch (Exception ex)
@@ -79,14 +79,14 @@ public static class AudioConverter
 
 	private static void PopulateRaudMetadata(JsonObject metaObj, string effectiveAssetType, string fullInput, string? author, IEnumerable<string>? tags)
 	{
-		if (!metaObj.ContainsKey("created_utc") || metaObj["created_utc"] == null)
+		if (!metaObj.ContainsKey(AssetMetadataKeys.CreatedUtc) || metaObj[AssetMetadataKeys.CreatedUtc] == null)
 		{
-			metaObj["created_utc"] = DateTime.UtcNow.ToString("O");
+			metaObj[AssetMetadataKeys.CreatedUtc] = DateTime.UtcNow.ToString("O");
 		}
 
 		metaObj["format"] = "raud";
-		metaObj["asset_type"] = effectiveAssetType;
-		metaObj["preferred_file_name"] = Path.GetFileName(fullInput);
+		metaObj[AssetMetadataKeys.AssetType] = effectiveAssetType;
+		metaObj[AssetMetadataKeys.PreferredFileName] = Path.GetFileName(fullInput);
 
 		if (!string.IsNullOrEmpty(author) && (!metaObj.ContainsKey("author") || string.IsNullOrWhiteSpace(metaObj["author"]?.ToString())))
 		{
@@ -218,7 +218,7 @@ public static class AudioConverter
 
 	private static string? ExtractExistingAssetType(JsonObject metaObj)
 	{
-		return metaObj["asset_type"]?.ToString();
+		return metaObj[AssetMetadataKeys.AssetType]?.ToString();
 	}
 
 	private static bool IsValidExistingAssetType(string? existingType, out string canonical)

@@ -1,4 +1,5 @@
 using Realm.EditorAPI;
+using Realm.Shared.Metadata;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -108,8 +109,24 @@ public class MapManifestAssets
 
 	private static readonly string[] CategoryProperties =
 	{
-		"Animation", "Building", "Character", "Decal", "Icon", "Item", "Music", "Noise", "other",
-		"Prop", "Ribbon", "Shader", "Skybox", "SoundEffect", "Spritesheet", "Terrain", "vfx_radial", "vfx_vertical"
+		AssetType.Animation.ToCanonicalString(),
+		AssetType.Building.ToCanonicalString(),
+		AssetType.Character.ToCanonicalString(),
+		AssetType.Decal.ToCanonicalString(),
+		AssetType.Icon.ToCanonicalString(),
+		AssetType.Item.ToCanonicalString(),
+		AssetType.Music.ToCanonicalString(),
+		AssetType.Noise.ToCanonicalString(),
+		"other",
+		AssetType.Prop.ToCanonicalString(),
+		AssetType.Ribbon.ToCanonicalString(),
+		AssetType.Shader.ToCanonicalString(),
+		AssetType.Skybox.ToCanonicalString(),
+		AssetType.SoundEffect.ToCanonicalString(),
+		AssetType.Spritesheet.ToCanonicalString(),
+		AssetType.Terrain.ToCanonicalString(),
+		AssetType.VfxRadial.ToCanonicalString(),
+		AssetType.VfxVertical.ToCanonicalString()
 	};
 
 	public Dictionary<string, string>? GetCategory(string category)
@@ -181,7 +198,7 @@ public class MapManifestAssets
 		{
 			if (pair.Value is System.Text.Json.Nodes.JsonObject sourceObj)
 			{
-				string hash = sourceObj["hash"]?.ToString() ?? sourceObj["blake3"]?.ToString() ?? string.Empty;
+				string hash = sourceObj["hash"]?.ToString() ?? sourceObj[AssetMetadataKeys.Blake3Hash]?.ToString() ?? string.Empty;
 				if (!string.IsNullOrEmpty(hash))
 				{
 					categoryTarget[pair.Key] = hash;

@@ -837,7 +837,7 @@ public static class TextureConverter
 		try
 		{
 			var metaObj = JsonNode.Parse(customMetadataJson)?.AsObject() ?? new JsonObject();
-			metaObj["created_utc"] = $"{DateTime.UtcNow:O}";
+			metaObj[AssetMetadataKeys.CreatedUtc] = $"{DateTime.UtcNow:O}";
 			metaObj["type"] = assetType;
 			metaObj["canonical_blake3"] = originalBlake3;
 			metaObj["layers"] = 1;
@@ -1020,7 +1020,7 @@ public static class TextureConverter
 			var node = JsonNode.Parse(meta);
 			if (node == null) return;
 
-			string? metaType = node["asset_type"]?.GetValue<string>()
+			string? metaType = node[AssetMetadataKeys.AssetType]?.GetValue<string>()
 			                   ?? node["type"]?.GetValue<string>();
 
 			if (!string.IsNullOrEmpty(metaType))

@@ -446,9 +446,9 @@ public class AssetIndexService : IDisposable
 
 		try
 		{
-			if (JsonNode.Parse(diskMetadataJson) is JsonObject obj && obj.ContainsKey("blake3"))
+			if (JsonNode.Parse(diskMetadataJson) is JsonObject obj && obj.ContainsKey(AssetMetadataKeys.Blake3Hash))
 			{
-				string? embeddedHash = obj["blake3"]?.ToString();
+				string? embeddedHash = obj[AssetMetadataKeys.Blake3Hash]?.ToString();
 				if (!string.IsNullOrEmpty(embeddedHash) &&
 				    !string.Equals(ContentAddressableStorage.NormalizeBlake3Hash(embeddedHash), recordedHash, StringComparison.OrdinalIgnoreCase))
 				{
@@ -766,7 +766,7 @@ public class AssetIndexService : IDisposable
 				string existingJson = File.ReadAllText(casSidecarPath);
 				if (JsonNode.Parse(existingJson) is JsonObject obj)
 				{
-					if (obj.ContainsKey("asset_type"))
+					if (obj.ContainsKey(AssetMetadataKeys.AssetType))
 					{
 						return;
 					}
@@ -2099,7 +2099,7 @@ public class AssetIndexService : IDisposable
 			if (node is JsonObject obj)
 			{
 				AssetType? assetType = ExtractAssetTypeFromJson(obj, normalizedFilePath);
-				string? normBlake3 = obj.TryGetPropertyValue("blake3", out var blake3Node) ? blake3Node?.ToString() : null;
+				string? normBlake3 = obj.TryGetPropertyValue(AssetMetadataKeys.Blake3Hash, out var blake3Node) ? blake3Node?.ToString() : null;
 				var embeddedTags = ExtractTagsFromJson(obj);
 
 				return (assetType, normBlake3, embeddedTags, null, null);
@@ -2114,7 +2114,7 @@ public class AssetIndexService : IDisposable
 
 	private AssetType? ExtractAssetTypeFromJson(JsonObject obj, string normalizedFilePath)
 	{
-		string? typeVal = obj["asset_type"]?.ToString();
+		string? typeVal = obj[AssetMetadataKeys.AssetType]?.ToString();
 		if (!string.IsNullOrEmpty(typeVal))
 		{
 			var norm = RealmMetadataHelper.NormalizeAssetType(typeVal);
@@ -2228,7 +2228,7 @@ public class AssetIndexService : IDisposable
 
 	private static AssetType? ExtractAssetTypeFromMetadata(JsonObject obj, string filePath)
 	{
-		string? typeVal = obj["asset_type"]?.ToString();
+		string? typeVal = obj[AssetMetadataKeys.AssetType]?.ToString();
 		if (!string.IsNullOrEmpty(typeVal))
 		{
 			var norm = RealmMetadataHelper.NormalizeAssetType(typeVal);

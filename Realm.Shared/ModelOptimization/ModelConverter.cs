@@ -60,7 +60,7 @@ public static class ModelConverter
 			return assetType;
 		}
 
-		string? existingType = metaObj["asset_type"]?.ToString();
+		string? existingType = metaObj[AssetMetadataKeys.AssetType]?.ToString();
 		if (!string.IsNullOrEmpty(existingType))
 		{
 			if (RealmMetadataHelper.IsValidAssetTypeForExtension(".rmesh", existingType, out string canonicalMeta, out _))
@@ -246,7 +246,7 @@ public static class ModelConverter
 		result.SupportsTeamColor = supportsTeamColor;
 		result.AssetType = effectiveAssetType;
 		result.Author = metaObj["author"]?.ToString();
-		result.PreferredFileName = metaObj["preferred_file_name"]?.ToString();
+		result.PreferredFileName = metaObj[AssetMetadataKeys.PreferredFileName]?.ToString();
 		return result;
 	}
 
@@ -263,7 +263,7 @@ public static class ModelConverter
 		UpdateCreatedUtc(metaObj);
 
 		metaObj["format"] = "rmesh";
-		metaObj["asset_type"] = effectiveAssetType;
+		metaObj[AssetMetadataKeys.AssetType] = effectiveAssetType;
 		metaObj["team_color"] = supportsTeamColor;
 		metaObj["is_compressed"] = true;
 
@@ -292,12 +292,12 @@ public static class ModelConverter
 
 	private static void UpdateCreatedUtc(JsonObject metaObj)
 	{
-		if (metaObj.ContainsKey("created_utc") && metaObj["created_utc"] != null)
+		if (metaObj.ContainsKey(AssetMetadataKeys.CreatedUtc) && metaObj[AssetMetadataKeys.CreatedUtc] != null)
 		{
 			return;
 		}
 
-		metaObj["created_utc"] = DateTime.UtcNow.ToString("O");
+		metaObj[AssetMetadataKeys.CreatedUtc] = DateTime.UtcNow.ToString("O");
 	}
 
 	private static void UpdatePreferredFileName(JsonObject metaObj, string? inputFileName)
@@ -307,13 +307,13 @@ public static class ModelConverter
 			return;
 		}
 
-		string currentPreferred = metaObj["preferred_file_name"]?.ToString() ?? string.Empty;
+		string currentPreferred = metaObj[AssetMetadataKeys.PreferredFileName]?.ToString() ?? string.Empty;
 		if (!string.IsNullOrEmpty(currentPreferred) && inputFileName.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase))
 		{
 			return;
 		}
 
-		metaObj["preferred_file_name"] = Path.GetFileName(inputFileName);
+		metaObj[AssetMetadataKeys.PreferredFileName] = Path.GetFileName(inputFileName);
 	}
 
 	private static void UpdateAuthor(JsonObject metaObj, string? author)

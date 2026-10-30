@@ -37,7 +37,7 @@ public class RanimFile : RealmContainerFile
 			compressed,
 			version,
 			defaultCompressed: true,
-			configureMetadata: metaObj => metaObj["asset_type"] ??= "Animation");
+			configureMetadata: metaObj => metaObj[AssetMetadataKeys.AssetType] ??= "Animation");
 	}
 
 	public static byte[] Build(string? metadataJson, RealmAnimationData animationData, bool? compressed = null, uint version = CurrentVersion)

@@ -177,14 +177,14 @@ public abstract class RealmContainerFile
 
 		JsonObject metaObj = ParseMetadataSafe(metadataJson);
 
-		if (!metaObj.ContainsKey("created_utc") || metaObj["created_utc"] == null)
+		if (!metaObj.ContainsKey(AssetMetadataKeys.CreatedUtc) || metaObj[AssetMetadataKeys.CreatedUtc] == null)
 		{
-			metaObj["created_utc"] = DateTime.UtcNow.ToString("O");
+			metaObj[AssetMetadataKeys.CreatedUtc] = DateTime.UtcNow.ToString("O");
 		}
 
 		metaObj["format"] = formatExtension.ToLowerInvariant().TrimStart('.');
 		metaObj["is_compressed"] = isCompressed;
-		metaObj["blake3"] = canonicalBlake3;
+		metaObj[AssetMetadataKeys.Blake3Hash] = canonicalBlake3;
 
 		configureMetadata?.Invoke(metaObj);
 
@@ -246,17 +246,17 @@ public abstract class RealmContainerFile
 
 	private static void UpdateCreatedUtc(JsonObject metaObj, string? oldMetadataJson)
 	{
-		if (metaObj.ContainsKey("created_utc") && metaObj["created_utc"] != null) return;
+		if (metaObj.ContainsKey(AssetMetadataKeys.CreatedUtc) && metaObj[AssetMetadataKeys.CreatedUtc] != null) return;
 
 		string? oldCreatedUtc = ExtractCreatedUtcSafe(oldMetadataJson);
-		metaObj["created_utc"] = oldCreatedUtc ?? DateTime.UtcNow.ToString("O");
+		metaObj[AssetMetadataKeys.CreatedUtc] = oldCreatedUtc ?? DateTime.UtcNow.ToString("O");
 	}
 
 	private static void UpdateBlake3(JsonObject metaObj, ReadOnlySpan<byte> payloadSpan)
 	{
-		if (metaObj.ContainsKey("blake3") && !string.IsNullOrWhiteSpace(metaObj["blake3"]?.ToString())) return;
+		if (metaObj.ContainsKey(AssetMetadataKeys.Blake3Hash) && !string.IsNullOrWhiteSpace(metaObj[AssetMetadataKeys.Blake3Hash]?.ToString())) return;
 
-		metaObj["blake3"] = Hasher.Hash(payloadSpan).ToString();
+		metaObj[AssetMetadataKeys.Blake3Hash] = Hasher.Hash(payloadSpan).ToString();
 	}
 
 	public static string? ExtractMetadataFromBytes(ReadOnlySpan<byte> bytes, ReadOnlySpan<byte> expectedMagic)
@@ -292,7 +292,7 @@ public abstract class RealmContainerFile
 		if (string.IsNullOrWhiteSpace(metadataJson)) return null;
 		try
 		{
-			return JsonNode.Parse(metadataJson)?["created_utc"]?.ToString();
+			return JsonNode.Parse(metadataJson)?[AssetMetadataKeys.CreatedUtc]?.ToString();
 		}
 		catch
 		{
