@@ -291,12 +291,13 @@ if ($shouldInstallVSCode) {
 
 $activeCliPath = $codiumCliPath
 
-$extSrc = Join-Path $godotDir "vscode_extensions_dist\speige.realm-map-editor"
-if (-not (Test-Path $extSrc)) {
-    $altSrc = Join-Path $godotDir "..\Realm.MapEditorExtension"
-    if (Test-Path $altSrc) {
-        $extSrc = $altSrc
-    }
+$extSrcCandidates = @(
+    (Join-Path $godotDir "vscode_extensions_dist\speige.realm-map-editor"),
+    (Join-Path $godotDir "..\Realm.MapEditorExtension")
+)
+$extSrc = $extSrcCandidates | Where-Object { Test-Path (Join-Path $_ "package.json") } | Select-Object -First 1
+if (-not $extSrc) {
+    throw "Realm Map Editor extension package was not found in any configured build output."
 }
 
 $extVersion = "0.0.1"
@@ -313,7 +314,7 @@ if (Test-Path $extPkgJson) {
 $extDest = Join-Path $extsDir "speige.realm-map-editor-$extVersion"
 New-Item -ItemType Directory -Force -Path $extDest | Out-Null
 
-$shouldInstallExt = $Force -or (-not (Test-Path (Join-Path $extDest "package.json")))
+$shouldInstallExt = $true
 if ($shouldInstallExt -and $extSrc -and (Test-Path $extSrc)) {
     foreach ($item in @("package.json", "metadata.schema.json", "terrain.schema.json", "manifest.schema.json", "dist", "media")) {
         $srcItem = Join-Path $extSrc $item

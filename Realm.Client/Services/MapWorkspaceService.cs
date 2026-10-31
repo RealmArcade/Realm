@@ -222,10 +222,52 @@ public static partial class MapWorkspaceService
 		File.WriteAllText(cleanExitFilePath, GameContext.EditorService.CurrentDirectoryBlake3 ?? string.Empty);
 	}
 
+	public const string EditorSourceFolderFileName = "editor_source_folder.txt";
+
+	public static string GetEditorSourceFolderPersistencePath()
+	{
+		return ProjectSettings.GlobalizePath($"user://{EditorSourceFolderFileName}");
+	}
+
+	public static void SaveEditorSourceFolder(string? sourceFolder)
+	{
+		string persistencePath = GetEditorSourceFolderPersistencePath();
+		try
+		{
+			if (string.IsNullOrWhiteSpace(sourceFolder))
+			{
+				if (File.Exists(persistencePath)) File.Delete(persistencePath);
+				return;
+			}
+
+			File.WriteAllText(persistencePath, sourceFolder);
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"[MapWorkspaceService] Could not persist the editor source folder: {ex.Message}");
+		}
+	}
+
+	public static string? ReadEditorSourceFolder()
+	{
+		string persistencePath = GetEditorSourceFolderPersistencePath();
+		try
+		{
+			if (!File.Exists(persistencePath)) return null;
+			string sourceFolder = File.ReadAllText(persistencePath).Trim();
+			return Directory.Exists(sourceFolder) ? sourceFolder : null;
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"[MapWorkspaceService] Could not read the editor source folder: {ex.Message}");
+			return null;
+		}
+	}
+
 	public static void OpenFromCasDomain(string defaultSaveFolder, Func<string, bool> isRestrictedSaveDirectoryFunc, Action<string> saveSettingsAction)
 	{
 		GameContext.EditorService.LastUsedFolder = defaultSaveFolder;
-		GameContext.EditorService.CurrentSourceFolder = defaultSaveFolder;
+		GameContext.EditorService.SetCurrentSourceFolder(defaultSaveFolder);
 		if (!isRestrictedSaveDirectoryFunc(defaultSaveFolder))
 		{
 			saveSettingsAction?.Invoke(defaultSaveFolder);
@@ -435,6 +477,122 @@ public static partial class MapWorkspaceService
 			PathUtils.CopyFileClearingReadOnly(item.Source, item.Target);
 		else
 			PathUtils.LinkOrCopyFile(item.Source, item.Target, preferHardLink: true);
+	}
+
+	public static int SyncNewerSourcesFromMapFolder(string sourceFolder, string workspace)
+	{
+		if (string.IsNullOrEmpty(sourceFolder) || string.IsNullOrEmpty(workspace)) return 0;
+		if (!Directory.Exists(sourceFolder) || !Directory.Exists(workspace)) return 0;
+		if (IsSameDirectory(sourceFolder, workspace)) return 0;
+
+		List<string> relativePaths;
+		try
+		{
+			relativePaths = CollectSyncableSourceFiles(sourceFolder);
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"[MapWorkspaceService] Could not scan the map folder {sourceFolder} for changed sources: {ex.Message}");
+			return 0;
+		}
+
+		int refreshedCount = 0;
+		foreach (string relativePath in relativePaths)
+		{
+			if (RefreshWorkspaceFileIfSourceIsNewer(sourceFolder, workspace, relativePath))
+				refreshedCount++;
+		}
+
+		if (refreshedCount > 0)
+		{
+			GD.Print($"[MapWorkspaceService] Refreshed {refreshedCount} changed source file(s) from the map folder into the workspace before compiling.");
+		}
+
+		return refreshedCount;
+	}
+
+	private static bool IsSameDirectory(string firstPath, string secondPath)
+	{
+		string first = Path.GetFullPath(firstPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+		string second = Path.GetFullPath(secondPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+		return string.Equals(first, second, StringComparison.OrdinalIgnoreCase);
+	}
+
+	private static List<string> CollectSyncableSourceFiles(string sourceFolder)
+	{
+		var relativePaths = new List<string>();
+
+		foreach (string file in Directory.GetFiles(sourceFolder, "*.cs", SearchOption.AllDirectories))
+		{
+			string relativePath = Path.GetRelativePath(sourceFolder, file).Replace('\\', '/');
+			if (IsIgnoredDirectoryDomain(relativePath)) continue;
+			relativePaths.Add(relativePath);
+		}
+
+		foreach (string file in Directory.GetFiles(sourceFolder, "*.csproj", SearchOption.TopDirectoryOnly))
+		{
+			relativePaths.Add(Path.GetFileName(file));
+		}
+
+		if (File.Exists(Path.Combine(sourceFolder, "metadata.json")))
+		{
+			relativePaths.Add("metadata.json");
+		}
+
+		foreach (string file in GetFilesFromOptionalDirectory(Path.Combine(sourceFolder, "lib"), "*.dll"))
+		{
+			relativePaths.Add($"lib/{Path.GetFileName(file)}");
+		}
+
+		foreach (string file in GetFilesFromOptionalDirectory(Path.Combine(sourceFolder, "wit"), "*.wit"))
+		{
+			relativePaths.Add($"wit/{Path.GetFileName(file)}");
+		}
+
+		return relativePaths;
+	}
+
+	private static string[] GetFilesFromOptionalDirectory(string directory, string searchPattern)
+	{
+		return Directory.Exists(directory)
+			? Directory.GetFiles(directory, searchPattern, SearchOption.TopDirectoryOnly)
+			: Array.Empty<string>();
+	}
+
+	private static bool RefreshWorkspaceFileIfSourceIsNewer(string sourceFolder, string workspace, string relativePath)
+	{
+		string sourceFile = Path.Combine(sourceFolder, relativePath);
+		string targetFile = Path.Combine(workspace, relativePath);
+
+		if (!File.Exists(sourceFile)) return false;
+
+		if (File.Exists(targetFile))
+		{
+			var sourceInfo = new FileInfo(sourceFile);
+			var targetInfo = new FileInfo(targetFile);
+
+			if (sourceInfo.LastWriteTimeUtc <= targetInfo.LastWriteTimeUtc) return false;
+			if (sourceInfo.Length == targetInfo.Length && FilesHaveSameContent(sourceFile, targetFile)) return false;
+		}
+
+		try
+		{
+			PathUtils.CopyFileClearingReadOnly(sourceFile, targetFile);
+			GD.Print($"[MapWorkspaceService] Refreshed '{relativePath}' in the workspace because the map folder copy was newer.");
+			return true;
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"[MapWorkspaceService] Could not refresh '{relativePath}' in the workspace: {ex.Message}");
+			return false;
+		}
+	}
+
+	private static bool FilesHaveSameContent(string firstPath, string secondPath)
+	{
+		byte[] firstBytes = File.ReadAllBytes(firstPath);
+		byte[] secondBytes = File.ReadAllBytes(secondPath);
+		return firstBytes.AsSpan().SequenceEqual(secondBytes);
 	}
 
 	public static void CleanWorkspaceBinaries(string directory)

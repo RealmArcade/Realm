@@ -729,7 +729,7 @@ namespace Realm.Client.UI
 		private void ProceedWithSaveToFolder(string fullSelectedPath)
 		{
 			GameContext.EditorService.LastUsedFolder = fullSelectedPath;
-			GameContext.EditorService.CurrentSourceFolder = fullSelectedPath;
+			GameContext.EditorService.SetCurrentSourceFolder(fullSelectedPath);
 			defaultLoadFolder = fullSelectedPath;
 			defaultSaveFolder = fullSelectedPath;
 			mapSaveFolder = fullSelectedPath;
@@ -911,7 +911,7 @@ namespace Realm.Client.UI
 
 				GameContext.BaseMapFolderWatchService?.Stop();
 				GameContext.EditorService.LastUsedFolder = null;
-				GameContext.EditorService.CurrentSourceFolder = string.Empty;
+				GameContext.EditorService.SetCurrentSourceFolder(string.Empty);
 				GameContext.EditorService.StartWorkspaceWatcher(workspacePath);
 				mapSaveFolder = null;
 				defaultSaveFolder = GetDocumentsDirectory();
@@ -979,7 +979,7 @@ namespace Realm.Client.UI
 		{
 			GameContext.Host?.ClearMapEntirely();
 			GameContext.EditorService.LastUsedFolder = selectedFolder;
-			GameContext.EditorService.CurrentSourceFolder = selectedFolder;
+			GameContext.EditorService.SetCurrentSourceFolder(selectedFolder);
 			if (!IsRestrictedSaveDirectory(selectedFolder))
 			{
 				GameSettings.LastOpenedFolder = selectedFolder;
@@ -1016,6 +1016,7 @@ namespace Realm.Client.UI
 			if (OperatingSystem.IsWindows())
 			{
 				GameContext.VSCode.SaveRecentMapDir(selectedFolder);
+				GameContext.VSCode.QueueWorkspaceMetadataReload();
 			}
 
 			GameContext.EditorService.LastTerrainSyncTime = GameContext.EditorService.GetMaxTerrainWriteTime(terrainPath);
@@ -1095,7 +1096,7 @@ namespace Realm.Client.UI
 			PathUtils.ClearCache();
 
 			GameContext.EditorService.LastUsedFolder = selectedFolder;
-			GameContext.EditorService.CurrentSourceFolder = selectedFolder;
+			GameContext.EditorService.SetCurrentSourceFolder(selectedFolder);
 			if (!IsRestrictedSaveDirectory(selectedFolder))
 			{
 				GameSettings.LastOpenedFolder = selectedFolder;
@@ -1131,6 +1132,7 @@ namespace Realm.Client.UI
 				if (OperatingSystem.IsWindows())
 				{
 					GameContext.VSCode.SaveRecentMapDir(selectedFolder);
+					GameContext.VSCode.QueueWorkspaceMetadataReload();
 				}
 
 				GameContext.EditorService.LastTerrainSyncTime = GameContext.EditorService.GetMaxTerrainWriteTime(terrainPath);
@@ -1154,7 +1156,7 @@ namespace Realm.Client.UI
 			mapSaveFolder = null;
 			defaultSaveFolder = GetDocumentsDirectory();
 			GameContext.EditorService.LastUsedFolder = null;
-			GameContext.EditorService.CurrentSourceFolder = null;
+			GameContext.EditorService.SetCurrentSourceFolder(null);
 			GameContext.EditorService.PendingCasSourceDirectory = null;
 			GameContext.EditorService.PendingDefaultSaveFolder = null;
 		}
@@ -2350,11 +2352,28 @@ namespace Realm.Client.UI
 		private void LoadTempWorkspaceMap()
 		{
 			var editorService = GameContext.EditorService;
+			editorService.SetCurrentSourceFolder(ResolveRestoredSourceFolder(editorService._tempWorkspacePath));
 			editorService.PreLoadTempWorkspaceMapDomain();
 			ViewLoadMapProperties();
 			ReadMetadataAndRefreshTextures();
 			editorService.PostLoadTempWorkspaceMapDomain();
 			ShowFeedback(TranslationServer.Translate("Restored map workspace from last session!"));
+		}
+
+		private static string? ResolveRestoredSourceFolder(string workspacePath)
+		{
+			string? persistedFolder = MapWorkspaceService.ReadEditorSourceFolder();
+			if (!string.IsNullOrEmpty(persistedFolder)) return persistedFolder;
+
+			string lastOpenedFolder = GameSettings.LastOpenedFolder;
+			if (string.IsNullOrEmpty(lastOpenedFolder) || !Directory.Exists(lastOpenedFolder)) return null;
+			if (IsRestrictedSaveDirectory(lastOpenedFolder)) return null;
+
+			var editorService = GameContext.EditorService;
+			if (!editorService.TryGetMapNameFromMetadata(workspacePath, out string workspaceMapName)) return null;
+			if (!editorService.TryGetMapNameFromMetadata(lastOpenedFolder, out string lastOpenedMapName)) return null;
+
+			return string.Equals(workspaceMapName, lastOpenedMapName, StringComparison.OrdinalIgnoreCase) ? lastOpenedFolder : null;
 		}
 
 

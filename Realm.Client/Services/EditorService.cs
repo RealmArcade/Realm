@@ -833,6 +833,7 @@ public partial class EditorService : IEditorAPI
 		if (HasTempWorkspaceSession) return;
 
 		_tempWorkspacePath = MapWorkspaceService.GetDefaultWorkspaceGlobalPath();
+		SetCurrentSourceFolder(MapWorkspaceService.ReadEditorSourceFolder());
 	}
 
 	public int LastSelectionMinX { get; set; } = -1;
@@ -1026,6 +1027,12 @@ public partial class EditorService : IEditorAPI
 	public string? CurrentSourceFolder { get; set; } = null;
 	public string? PendingCasSourceDirectory { get; set; } = null;
 	public string? PendingDefaultSaveFolder { get; set; } = null;
+
+	public void SetCurrentSourceFolder(string? folder)
+	{
+		CurrentSourceFolder = folder;
+		MapWorkspaceService.SaveEditorSourceFolder(folder);
+	}
 
 	public const float MIN_BRUSH_RADIUS = 1.0f;
 	public const float MAX_BRUSH_RADIUS = 20.0f;
@@ -6549,6 +6556,8 @@ public class {mapName} : IMapScript
 		try
 		{
 			if (!Directory.Exists(workspace)) return true;
+
+			Realm.Client.Services.MapWorkspaceService.SyncNewerSourcesFromMapFolder(CurrentSourceFolder, workspace);
 
 			Realm.Client.Services.MapWorkspaceService.EnsureWitFile(workspace);
 			Realm.Client.Services.MapWorkspaceService.EnsureWasmEntryPoint(workspace);
