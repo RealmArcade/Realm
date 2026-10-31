@@ -428,6 +428,58 @@ public static class PathUtils
 		CopyFileClearingReadOnly(sourceFile, targetFile);
 	}
 
+	public static bool CopyFileClearingReadOnlyIfChanged(string sourceFile, string targetFile)
+	{
+		if (string.IsNullOrEmpty(sourceFile) || string.IsNullOrEmpty(targetFile)) return false;
+		if (!File.Exists(sourceFile)) return false;
+
+		string fullSource = Path.GetFullPath(sourceFile);
+		string fullTarget = Path.GetFullPath(targetFile);
+
+		if (AreSameFileOrHardLink(fullSource, fullTarget))
+		{
+			return false;
+		}
+
+		if (FilesHaveIdenticalContent(fullSource, fullTarget))
+		{
+			return false;
+		}
+
+		CopyFileClearingReadOnly(fullSource, fullTarget);
+		return true;
+	}
+
+	public static bool FilesHaveIdenticalContent(string firstPath, string secondPath)
+	{
+		try
+		{
+			var firstInfo = new FileInfo(firstPath);
+			var secondInfo = new FileInfo(secondPath);
+			if (!firstInfo.Exists || !secondInfo.Exists) return false;
+			if (firstInfo.Length != secondInfo.Length) return false;
+
+			using var firstStream = new FileStream(firstPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+			using var secondStream = new FileStream(secondPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+
+			byte[] firstBuffer = new byte[81920];
+			byte[] secondBuffer = new byte[81920];
+
+			while (true)
+			{
+				int firstRead = firstStream.ReadAtLeast(firstBuffer, firstBuffer.Length, false);
+				int secondRead = secondStream.ReadAtLeast(secondBuffer, secondBuffer.Length, false);
+				if (firstRead != secondRead) return false;
+				if (!firstBuffer.AsSpan(0, firstRead).SequenceEqual(secondBuffer.AsSpan(0, secondRead))) return false;
+				if (firstRead == 0) return true;
+			}
+		}
+		catch (IOException)
+		{
+			return false;
+		}
+	}
+
 	public static void CopyFileClearingReadOnly(string sourceFile, string targetFile)
 	{
 		if (string.IsNullOrEmpty(sourceFile) || string.IsNullOrEmpty(targetFile)) return;

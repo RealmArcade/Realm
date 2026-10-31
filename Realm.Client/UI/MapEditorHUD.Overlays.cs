@@ -30,8 +30,6 @@ namespace Realm.Client.UI
 		public override void _ExitTree()
 		{
 			GameContext.MetadataService.MetadataSaved -= OnMetadataSaved;
-			GameContext.BaseMapFolderWatchService?.BaseFolderFilesChanged -= OnBaseMapFolderFilesChanged;
-			GameContext.BaseMapFolderWatchService?.Stop();
 			GameContext.EditorService?.StopWorkspaceWatcher();
 			CloseWasmConsoleModal();
 			GameContext.UnregisterMapEditorHud(this);
@@ -97,7 +95,6 @@ namespace Realm.Client.UI
 			}
 
 			UpdateAutoBackup(delta);
-			TryShowPendingBaseMapFolderWarning();
 		}
 
 		private float _lastStatusX = float.NaN;
@@ -165,7 +162,7 @@ namespace Realm.Client.UI
 
 		private void UpdateAutoBackup(double delta)
 		{
-			int intervalMins = EditorSettingsDialog.CurrentSettings?.AutoBackupIntervalMinutes ?? 30;
+			int intervalMins = EditorSettingsDialog.CurrentSettings?.AutoBackupIntervalMinutes ?? 5;
 			if (GameContext.EditorService.CheckAutoBackup(intervalMins, delta))
 			{
 				PerformAutoBackup();

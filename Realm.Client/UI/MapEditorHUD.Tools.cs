@@ -13,6 +13,7 @@ using Realm.Client.Animation;
 using Realm.Client.Core;
 using Realm.Client.Network;
 using Realm.Client.Services;
+using Realm.Client.Services.MapHistory;
 using Realm.Client.Services.ModelOptimization;
 using Realm.Client.UI.MapEditor;
 using Realm.Client.VFX;
@@ -42,11 +43,6 @@ namespace Realm.Client.UI
 		{
 			GameContext.RegisterMapEditorHud(this);
 			GameContext.MetadataService.MetadataSaved += OnMetadataSaved;
-			if (GameContext.BaseMapFolderWatchService != null)
-			{
-				GameContext.BaseMapFolderWatchService.BaseFolderFilesChanged -= OnBaseMapFolderFilesChanged;
-				GameContext.BaseMapFolderWatchService.BaseFolderFilesChanged += OnBaseMapFolderFilesChanged;
-			}
 
 			UpdateFPSVisibility();
 
@@ -469,6 +465,24 @@ namespace Realm.Client.UI
 				SetupOptionButton(_btnEditorSettings, "⚙️ " + TranslationServer.Translate("EDITOR SETTINGS"), () => _editorSettingsDialog?.OpenDialog(), 13, "Configure editor preferences, chrome border, and display overlays");
 				_contentFile.AddChild(_btnEditorSettings);
 				_contentFile.MoveChild(_btnEditorSettings, 1);
+
+				_btnMapVersions = new Button();
+				_btnMapVersions.Name = "BtnMapVersions";
+				_btnMapVersions.Set("icon_max_width", 0);
+				SetupOptionButton(_btnMapVersions, $"{UnicodeIcons.USER_CLOCK} " + TranslationServer.Translate("MAP VERSIONS"), () => OpenMapVersionsDialog(), 13, "Go back to earlier versions of this map, or recover it from a backup");
+				_contentFile.AddChild(_btnMapVersions);
+				_contentFile.MoveChild(_btnMapVersions, 2);
+
+				_mapHistoryStatusLabel = new Label();
+				_mapHistoryStatusLabel.Name = "MapHistoryStatusLabel";
+				_mapHistoryStatusLabel.Text = string.Empty;
+				_mapHistoryStatusLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+				_mapHistoryStatusLabel.CustomMinimumSize = new Vector2(200, 0);
+				_mapHistoryStatusLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+				_mapHistoryStatusLabel.AddThemeFontSizeOverride("font_size", 10);
+				_mapHistoryStatusLabel.AddThemeColorOverride("font_color", new Color(0.68f, 0.71f, 0.7f));
+				_contentFile.AddChild(_mapHistoryStatusLabel);
+				_contentFile.MoveChild(_mapHistoryStatusLabel, 3);
 
 				_accordionViewport = GetNode<VBoxContainer>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion");
 				_btnHeaderViewport = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/BtnHeaderViewport");
@@ -2291,6 +2305,8 @@ namespace Realm.Client.UI
 					progressBar.Value = update.TotalSteps > 0 ? (double)update.StepIndex / update.TotalSteps * 100.0 : 0;
 					statusLabel.Text = $"[{update.StepIndex}/{update.TotalSteps}] {update.CurrentMigration}: {update.Message}";
 				});
+
+				await GameContext.MapHistoryService.CreateVersionAsync(selectedFolder, MapVersionKind.BeforeMapUpgrade, TranslationServer.Translate("Before map upgrade"));
 
 				var upgradeResult = await upgradeService.UpgradeMapAsync(selectedFolder, progress);
 
@@ -4760,6 +4776,37 @@ namespace Realm.Client.UI
 		public void OpenEditorSettingsDialog()
 		{
 			_editorSettingsDialog?.OpenDialog();
+		}
+
+		public void OpenMapVersionsDialog()
+		{
+			if (_mapVersionsDialog == null || !GodotObject.IsInstanceValid(_mapVersionsDialog))
+			{
+				_mapVersionsDialog = new MapVersionsDialog(this);
+			}
+
+			_mapVersionsDialog.OpenDialog();
+		}
+
+		public void RefreshMapHistoryStatus()
+		{
+			if (_mapHistoryStatusLabel == null || !GodotObject.IsInstanceValid(_mapHistoryStatusLabel)) return;
+
+			MapHistoryStatus status = GameContext.MapHistoryService.CachedStatus;
+			if (!status.IsRepositoryReady)
+			{
+				_mapHistoryStatusLabel.Text = string.Empty;
+				return;
+			}
+
+			string savedText = status.LastVersionAt.HasValue
+				? string.Format(TranslationServer.Translate("Saved {0}"), status.LastVersionAt.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm"))
+				: TranslationServer.Translate("No version saved yet");
+			string backupText = status.BackupAvailable
+				? TranslationServer.Translate("backed up")
+				: TranslationServer.Translate("not backed up yet");
+
+			_mapHistoryStatusLabel.Text = $"{savedText}  •  {backupText}";
 		}
 
 		public void OpenUtilitiesDialog()
