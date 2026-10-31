@@ -82,11 +82,17 @@ public class MatchMetrics
 		for (int seat = 1; seat <= resolvedSeatCount; seat++)
 		{
 			ref SeatCounters counters = ref _seats[seat];
+			float damage = counters.DamageDealt;
+			if (seat + 12 < MaxSeats)
+			{
+				damage += _seats[seat + 12].DamageDealt;
+			}
+
 			perSeat[seat - 1] = new MatchSeatOutcome
 			{
 				Seat = seat,
 				GoldSpent = counters.GoldSpent,
-				DamageDealt = counters.DamageDealt,
+				DamageDealt = damage,
 				UnitsDrafted = counters.UnitsDrafted,
 				HeroesPicked = counters.HeroesPicked,
 				UpgradesBought = counters.UpgradesBought,
