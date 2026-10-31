@@ -77,12 +77,12 @@ public class MatchMetrics
 		float durationSeconds,
 		int seatCount)
 	{
-		int resolvedSeatCount = Math.Clamp(seatCount, 0, MaxSeats);
+		int resolvedSeatCount = Math.Clamp(seatCount, 0, MaxSeats - 1);
 		MatchSeatOutcome[] perSeat = new MatchSeatOutcome[resolvedSeatCount];
-		for (int seat = 0; seat < resolvedSeatCount; seat++)
+		for (int seat = 1; seat <= resolvedSeatCount; seat++)
 		{
 			ref SeatCounters counters = ref _seats[seat];
-			perSeat[seat] = new MatchSeatOutcome
+			perSeat[seat - 1] = new MatchSeatOutcome
 			{
 				Seat = seat,
 				GoldSpent = counters.GoldSpent,
@@ -107,7 +107,7 @@ public class MatchMetrics
 		};
 	}
 
-	private static bool IsTrackedSeat(int seat) => seat >= 0 && seat < MaxSeats;
+	private static bool IsTrackedSeat(int seat) => seat > 0 && seat < MaxSeats;
 
 	private struct SeatCounters
 	{
