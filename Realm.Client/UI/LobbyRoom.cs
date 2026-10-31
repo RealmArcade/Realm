@@ -86,6 +86,8 @@ public partial class LobbyRoom : Control
 
 	private static int TeamCount => Math.Max(1, GameContext.Lobby?.LobbyTeamCount ?? LobbyLimits.DefaultTeamCount);
 
+	private int _renderedTeamCount = -1;
+
 	public override void _Ready()
 	{
 		_bgPanel = GetNode<Panel>("Background");
@@ -1026,6 +1028,17 @@ public partial class LobbyRoom : Control
 		UpdateFactionColumnVisibility();
 
 		var existingRows = GetExistingPlayerRows();
+		if (_renderedTeamCount != TeamCount)
+		{
+			foreach (var row in existingRows.Values)
+			{
+				if (GodotObject.IsInstanceValid(row)) row.QueueFree();
+			}
+
+			existingRows.Clear();
+			_renderedTeamCount = TeamCount;
+		}
+
 		var activePeerIds = SyncPlayerRows(existingRows);
 
 		CleanupStalePlayerRows(existingRows, activePeerIds);
