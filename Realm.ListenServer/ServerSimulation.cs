@@ -4,6 +4,7 @@ using Realm.Ecs;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Core;
+using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Replication;
 using Realm.Ecs.Services;
@@ -470,8 +471,7 @@ public class ServerSimulation : IDisposable
 		}
 
 		ServerCommandResult result = _commands.ExecuteServerCommand(peerId, command);
-		PlaceBuildingOrderedBy(command, result);
-		return result;
+		return PlaceBuildingOrderedBy(command, result);
 	}
 
 	public void ApplyConsoleCommand(int peerId, ScriptConsoleCommand command)
@@ -501,29 +501,51 @@ public class ServerSimulation : IDisposable
 		return false;
 	}
 
-	private void PlaceBuildingOrderedBy(NetworkCommand command, in ServerCommandResult result)
+	private ServerCommandResult PlaceBuildingOrderedBy(NetworkCommand command, in ServerCommandResult result)
 	{
-		if (!result.NeedsBuildUnit) return;
-		if (!TryGetPlayerEntity(result.BuildPeerOwner, out Entity playerEntity)) return;
+		if (!result.NeedsBuildUnit) return result;
+		if (!TryGetPlayerEntity(result.BuildPeerOwner, out Entity playerEntity)) return RefusePlacement($"'{command.CommandType}' naming '{result.BuildUnitType}' arrived from peer {result.BuildPeerOwner}, which holds no player entity");
 
 		Entity workerEntity = Entity.Null;
 		if (result.BuildWorkerServerEntityId >= 0)
 		{
 			workerEntity = new Entity(result.BuildWorkerServerEntityId);
-			if (!_map.World.IsAlive(workerEntity)) return;
-			if (!_map.World.TryGet<Owner>(workerEntity, out Owner owner) || owner.PlayerEntity.Value != playerEntity) return;
+			if (!_map.World.IsAlive(workerEntity)) return RefusePlacement($"'{command.CommandType}' naming '{result.BuildUnitType}' named worker {result.BuildWorkerServerEntityId}, which is not a live unit");
+			if (!_map.World.TryGet<Owner>(workerEntity, out Owner owner) || owner.PlayerEntity.Value != playerEntity)
+			{
+				return RefusePlacement($"'{command.CommandType}' naming '{result.BuildUnitType}' named worker {result.BuildWorkerServerEntityId}, which this player does not own");
+			}
 		}
 
 		var buildPosition = new Vector3(result.BuildPosition.X, result.BuildPosition.Y, result.BuildPosition.Z);
 		if (!BuildingPlacementService.TryPlace(_map.World, _map.Catalog, result.BuildUnitType, buildPosition, new PlayerEntity(playerEntity), workerEntity, out Entity buildingEntity))
 		{
-			_log.Write($"'{command.CommandType}' naming '{result.BuildUnitType}' could not be placed: the player cannot pay for it");
-			return;
+			return RefusePlacement(_map.Catalog.FindUnitOrBuilding(result.BuildUnitType) == null
+				? $"'{command.CommandType}' naming '{result.BuildUnitType}' could not be placed: this map defines no such template"
+				: $"'{command.CommandType}' naming '{result.BuildUnitType}' could not be placed: the player cannot pay for it");
 		}
 
 		_log.Write(workerEntity == Entity.Null
 			? $"placed building {buildingEntity.Id} '{result.BuildUnitType}' for entity {playerEntity.Id}"
 			: $"worker {workerEntity.Id} is building {buildingEntity.Id} '{result.BuildUnitType}' for entity {playerEntity.Id}");
+
+		// A placement nothing has to be built for is finished the moment it is made, and the tick that builds sites never
+		// sees it, so its completion is raised here. A map that reacts to a finished construction - a draft that is played
+		// out by the site it consumes, a building that unlocks something - would otherwise never hear about a placement it
+		// accepted, and the site would stand there finished and inert.
+		if (!_map.World.Has<ConstructionState>(buildingEntity)) _script.Api.RaiseConstructionFinished(buildingEntity.Id);
+
+		return result;
+	}
+
+	/// <summary>
+	///     Answers a placement this match will not make. Returning from the placement without an answer reported it as
+	///     accepted, so the screen that sent it had nothing to show and the player only saw a click do nothing.
+	/// </summary>
+	private ServerCommandResult RefusePlacement(string reason)
+	{
+		_log.Write(reason);
+		return NoResult(reason);
 	}
 
 	private bool TryGetPlayerEntity(int peerId, out Entity playerEntity)

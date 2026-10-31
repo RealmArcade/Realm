@@ -108,6 +108,12 @@ public partial class GameHost
 
 		RefusedCommandCount++;
 		ClearPreviewRoute(outcome.CommandId);
+
+		// Taking the route back was the only sign a refused order gave. A player who placed something and watched nothing
+		// happen had no way to tell a refusal from a click the match never heard.
+		if (string.IsNullOrEmpty(outcome.RejectionReason)) return;
+
+		GameContext.InGameHud?.ShowFeedbackText(TranslationServer.Translate(outcome.RejectionReason), new Color(1.0f, 0.3f, 0.25f));
 	}
 
 	public int RefusedCommandCount { get; private set; }
@@ -322,6 +328,10 @@ public partial class GameHost
 			case PresentationKind.SummaryTableRow:
 			case PresentationKind.SummaryTableCleared:
 				PresentSummaryTable(message);
+				break;
+
+			case PresentationKind.InstructionsSectionAdded:
+				PresentInstructionsSection(message);
 				break;
 
 			case PresentationKind.CountdownStarted:
@@ -698,6 +708,15 @@ public partial class GameHost
 					break;
 			}
 		}).CallDeferred();
+	}
+
+	private void PresentInstructionsSection(PresentationMessage message)
+	{
+		if (string.IsNullOrWhiteSpace(message.Key)) return;
+
+		string title = message.Key;
+		string body = message.Text;
+		Callable.From(() => GameContext.InGameHud?.AddInstructionsSection(title, body)).CallDeferred();
 	}
 
 	private void PresentUnitColor(PresentationMessage message)
