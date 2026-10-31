@@ -108,6 +108,9 @@ public static class LocalizationManager
 
 	public static void UpdateLocale(string locale)
 	{
+		string previousLocale = TranslationServer.GetLocale();
+		Dictionary<string, string>? keysByTranslatedText = previousLocale == locale ? null : BuildTranslationKeyLookup(previousLocale);
+
 		TranslationServer.SetLocale(locale);
 		if (GameContext.UserInterface != null)
 		{
@@ -115,6 +118,77 @@ public static class LocalizationManager
 				? Control.LayoutDirectionEnum.Rtl
 				: Control.LayoutDirectionEnum.Ltr;
 		}
+
+		if (keysByTranslatedText != null) RetranslateCurrentScene(keysByTranslatedText);
+	}
+
+	private static Dictionary<string, string> BuildTranslationKeyLookup(string locale)
+	{
+		var lookup = new Dictionary<string, string>(StringComparer.Ordinal);
+		Translation? translation = TranslationServer.GetTranslationObject(locale);
+		if (translation == null) return lookup;
+
+		foreach (string key in translation.GetMessageList())
+		{
+			string translated = translation.GetMessage(key);
+			if (string.IsNullOrEmpty(translated) || translated == key) continue;
+			if (!lookup.ContainsKey(translated)) lookup[translated] = key;
+		}
+
+		return lookup;
+	}
+
+	private static void RetranslateCurrentScene(Dictionary<string, string> keysByTranslatedText)
+	{
+		if (Engine.GetMainLoop() is not SceneTree tree) return;
+		Node? root = tree.Root;
+		if (root == null) return;
+
+		RetranslateNode(root, keysByTranslatedText);
+	}
+
+	private static void RetranslateNode(Node node, Dictionary<string, string> keysByTranslatedText)
+	{
+		RetranslateNodeText(node, keysByTranslatedText);
+
+		int childCount = node.GetChildCount();
+		for (int index = 0; index < childCount; index++)
+		{
+			RetranslateNode(node.GetChild(index), keysByTranslatedText);
+		}
+	}
+
+	private static void RetranslateNodeText(Node node, Dictionary<string, string> keysByTranslatedText)
+	{
+		if (node is OptionButton optionButton)
+		{
+			for (int index = 0; index < optionButton.ItemCount; index++)
+			{
+				optionButton.SetItemText(index, TranslateTextForNewLocale(optionButton.GetItemText(index), keysByTranslatedText));
+			}
+		}
+		else if (node is PopupMenu popupMenu)
+		{
+			for (int index = 0; index < popupMenu.ItemCount; index++)
+			{
+				popupMenu.SetItemText(index, TranslateTextForNewLocale(popupMenu.GetItemText(index), keysByTranslatedText));
+			}
+		}
+
+		if (node is Label label) label.Text = TranslateTextForNewLocale(label.Text, keysByTranslatedText);
+		else if (node is RichTextLabel richTextLabel) richTextLabel.Text = TranslateTextForNewLocale(richTextLabel.Text, keysByTranslatedText);
+		else if (node is Button button) button.Text = TranslateTextForNewLocale(button.Text, keysByTranslatedText);
+
+		if (node is LineEdit lineEdit) lineEdit.PlaceholderText = TranslateTextForNewLocale(lineEdit.PlaceholderText, keysByTranslatedText);
+		if (node is TextEdit textEdit) textEdit.PlaceholderText = TranslateTextForNewLocale(textEdit.PlaceholderText, keysByTranslatedText);
+		if (node is Control control && !string.IsNullOrEmpty(control.TooltipText)) control.TooltipText = TranslateTextForNewLocale(control.TooltipText, keysByTranslatedText);
+		if (node is Window window && !string.IsNullOrEmpty(window.Title)) window.Title = TranslateTextForNewLocale(window.Title, keysByTranslatedText);
+	}
+
+	private static string TranslateTextForNewLocale(string text, Dictionary<string, string> keysByTranslatedText)
+	{
+		if (string.IsNullOrEmpty(text)) return text;
+		return keysByTranslatedText.TryGetValue(text, out string? key) ? TranslationServer.Translate(key) : text;
 	}
 
 	public static Dictionary<string, string> GetDictionary(string locale)
