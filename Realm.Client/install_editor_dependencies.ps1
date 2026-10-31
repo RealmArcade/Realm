@@ -6,6 +6,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 $godotDir = $PSScriptRoot
+$rootDir = Split-Path -Parent $godotDir
 $appDataDir = Join-Path $env:APPDATA "Godot\app_userdata\Realm"
 $embedDir = Join-Path $appDataDir "vscode"
 $userDataDir = Join-Path $embedDir "user-data-dir"
@@ -121,7 +122,11 @@ function Patch-ProductJson {
 
 $oldExtDest = Join-Path $extsDir "realm-map-editor"
 if (Test-Path $oldExtDest) {
-    Remove-Item -Path $oldExtDest -Recurse -Force
+    try {
+        Remove-Item -Path $oldExtDest -Recurse -Force
+    } catch {
+        Write-Warning "Could not remove the previous Realm Map Editor extension at $oldExtDest : $($_.Exception.Message)"
+    }
 }
 
 $extensionsJsonCheck = Join-Path $extsDir "extensions.json"
@@ -151,18 +156,27 @@ $wasiClang = Join-Path $wasiTargetDir "bin\clang.exe"
 $shouldInstallWasi = $Force -or (-not (Test-Path $wasiClang)) -or ((Get-Item $wasiClang).Length -eq 0)
 
 if ($shouldInstallWasi) {
-    Write-Host "Downloading WASI SDK $wasiVersion..."
-    New-Item -ItemType Directory -Force -Path $wasiTargetDir | Out-Null
     $wasiTar = Join-Path $wasiSdkBaseDir "wasi-sdk-$wasiVersion.tar.gz"
-    $wasiUrl = "https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-$wasiVersion/wasi-sdk-$wasiVersion.0-x86_64-windows.tar.gz"
-    curl.exe -L $wasiUrl -o $wasiTar
+    try {
+        Write-Host "Downloading WASI SDK $wasiVersion..."
+        New-Item -ItemType Directory -Force -Path $wasiTargetDir | Out-Null
+        $wasiUrl = "https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-$wasiVersion/wasi-sdk-$wasiVersion.0-x86_64-windows.tar.gz"
+        curl.exe -L $wasiUrl -o $wasiTar
 
-    Write-Host "Extracting WASI SDK $wasiVersion..."
-    tar.exe -xf $wasiTar -C $wasiTargetDir --strip-components=1
-    if (Test-Path $wasiTar) {
-        Remove-Item -Path $wasiTar -Force
+        if (-not (Test-Path $wasiTar) -or (Get-Item $wasiTar).Length -eq 0) {
+            throw "The WASI SDK archive could not be downloaded from $wasiUrl"
+        }
+
+        Write-Host "Extracting WASI SDK $wasiVersion..."
+        tar.exe -xf $wasiTar -C $wasiTargetDir --strip-components=1
+        Write-Host "WASI SDK $wasiVersion installed to $wasiTargetDir successfully."
+    } catch {
+        Write-Warning "WASI SDK $wasiVersion could not be installed: $($_.Exception.Message). The editor still opens; map compilation stays unavailable until it is installed."
+    } finally {
+        if (Test-Path $wasiTar) {
+            Remove-Item -Path $wasiTar -Force -ErrorAction SilentlyContinue
+        }
     }
-    Write-Host "WASI SDK $wasiVersion installed to $wasiTargetDir successfully."
 } else {
     Write-Host "WASI SDK verified at $wasiTargetDir"
 }
@@ -243,29 +257,53 @@ if ($shouldInstallVSCode) {
 
     $fallbackVersion = if ($remoteStableName) { $remoteStableName } else { "1.135.06055" }
 
-    Write-Host "Downloading VSCodium CLI..."
-    $cliArchive = Join-Path $embedDir "vscodium-cli.tar.gz"
-    $cliDownloadUrl = if ($remoteCliUrl) { $remoteCliUrl } else { "https://github.com/VSCodium/vscodium/releases/download/$fallbackVersion/vscodium-cli-win32-x64-$fallbackVersion.tar.gz" }
-    curl.exe -L $cliDownloadUrl -o $cliArchive
+    $cliArchive = $null
+    try {
+        Write-Host "Downloading VSCodium CLI..."
+        $cliArchive = Join-Path $embedDir "vscodium-cli.tar.gz"
+        $cliDownloadUrl = if ($remoteCliUrl) { $remoteCliUrl } else { "https://github.com/VSCodium/vscodium/releases/download/$fallbackVersion/vscodium-cli-win32-x64-$fallbackVersion.tar.gz" }
+        curl.exe -L $cliDownloadUrl -o $cliArchive
 
-    Write-Host "Extracting VSCodium CLI..."
-    tar.exe -xf $cliArchive -C $binDir
-    if (Test-Path $cliArchive) {
-        Remove-Item -Path $cliArchive -Force
+        if (-not (Test-Path $cliArchive) -or (Get-Item $cliArchive).Length -eq 0) {
+            throw "The VSCodium CLI archive could not be downloaded from $cliDownloadUrl"
+        }
+
+        Write-Host "Extracting VSCodium CLI..."
+        tar.exe -xf $cliArchive -C $binDir
+        Write-Host "VSCodium CLI installed successfully."
+    } catch {
+        Write-Warning "VSCodium CLI could not be installed: $($_.Exception.Message). Extensions stay uninstalled until it is available."
+    } finally {
+        if ($cliArchive -and (Test-Path $cliArchive)) {
+            Remove-Item -Path $cliArchive -Force -ErrorAction SilentlyContinue
+        }
     }
-    Write-Host "VSCodium CLI installed successfully."
 
-    Write-Host "Downloading VSCodium Desktop..."
-    $desktopZip = Join-Path $embedDir "vscodium-desktop.zip"
-    $desktopDownloadUrl = if ($remoteDesktopUrl) { $remoteDesktopUrl } else { "https://github.com/VSCodium/vscodium/releases/download/$fallbackVersion/VSCodium-win32-x64-$fallbackVersion.zip" }
-    curl.exe -L $desktopDownloadUrl -o $desktopZip
+    $desktopZip = $null
+    try {
+        Write-Host "Downloading VSCodium Desktop..."
+        $desktopZip = Join-Path $embedDir "vscodium-desktop.zip"
+        $desktopDownloadUrl = if ($remoteDesktopUrl) { $remoteDesktopUrl } else { "https://github.com/VSCodium/vscodium/releases/download/$fallbackVersion/VSCodium-win32-x64-$fallbackVersion.zip" }
+        curl.exe -L $desktopDownloadUrl -o $desktopZip
 
-    Write-Host "Extracting VSCodium Desktop..."
-    Expand-Archive -Path $desktopZip -DestinationPath $editorDir -Force
-    if (Test-Path $desktopZip) {
-        Remove-Item -Path $desktopZip -Force
+        if (-not (Test-Path $desktopZip) -or (Get-Item $desktopZip).Length -eq 0) {
+            throw "The VSCodium desktop archive could not be downloaded from $desktopDownloadUrl"
+        }
+
+        Write-Host "Extracting VSCodium Desktop..."
+        Expand-Archive -Path $desktopZip -DestinationPath $editorDir -Force
+        Write-Host "VSCodium Desktop installed successfully."
+    } catch {
+        Write-Warning "VSCodium Desktop could not be installed: $($_.Exception.Message)"
+    } finally {
+        if ($desktopZip -and (Test-Path $desktopZip)) {
+            Remove-Item -Path $desktopZip -Force -ErrorAction SilentlyContinue
+        }
     }
-    Write-Host "VSCodium Desktop installed successfully."
+
+    if (-not (Test-Path $codiumEditorExe)) {
+        Write-Warning "VSCodium is not present at $codiumEditorExe. The embedded editor cannot be opened until it is installed."
+    }
 
 
     if ($remoteStableName -and $remoteStableSha) {
@@ -298,6 +336,9 @@ if (-not (Test-Path $extSrc)) {
         $extSrc = $altSrc
     }
 }
+if (-not (Test-Path $extSrc)) {
+    Write-Warning "The Realm Map Editor extension files were not found. The editor still opens, without map editing support."
+}
 
 $extVersion = "0.0.1"
 $extPkgJson = Join-Path $extSrc "package.json"
@@ -315,17 +356,21 @@ New-Item -ItemType Directory -Force -Path $extDest | Out-Null
 
 $shouldInstallExt = $Force -or (-not (Test-Path (Join-Path $extDest "package.json")))
 if ($shouldInstallExt -and $extSrc -and (Test-Path $extSrc)) {
-    foreach ($item in @("package.json", "metadata.schema.json", "terrain.schema.json", "manifest.schema.json", "dist", "media")) {
-        $srcItem = Join-Path $extSrc $item
-        if (Test-Path $srcItem) {
-            $destItem = Join-Path $extDest $item
-            if (Test-Path $srcItem -PathType Container) {
-                New-Item -ItemType Directory -Force -Path $destItem | Out-Null
-                Copy-Item -Path (Join-Path $srcItem "*") -Destination $destItem -Recurse -Force
-            } else {
-                Copy-Item -Path $srcItem -Destination $destItem -Force
+    try {
+        foreach ($item in @("package.json", "metadata.schema.json", "terrain.schema.json", "manifest.schema.json", "dist", "media")) {
+            $srcItem = Join-Path $extSrc $item
+            if (Test-Path $srcItem) {
+                $destItem = Join-Path $extDest $item
+                if (Test-Path $srcItem -PathType Container) {
+                    New-Item -ItemType Directory -Force -Path $destItem | Out-Null
+                    Copy-Item -Path (Join-Path $srcItem "*") -Destination $destItem -Recurse -Force
+                } else {
+                    Copy-Item -Path $srcItem -Destination $destItem -Force
+                }
             }
         }
+    } catch {
+        Write-Warning "The Realm Map Editor extension could not be copied to $extDest : $($_.Exception.Message)"
     }
 } else {
     Write-Host "Realm Map Editor extension ($extVersion) verified at $extDest"
@@ -346,8 +391,20 @@ $requiredExtensions = @(
 foreach ($extId in $requiredExtensions) {
     $extMatch = Get-ChildItem -Path $extsDir -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "$extId*" -or $_.Name -like "*$extId*" }
     if ((-not $extMatch) -or $Force) {
+        if (-not (Test-Path $activeCliPath)) {
+            Write-Warning "Skipping extension $extId because the VSCodium CLI is missing at $activeCliPath. The editor still opens without it."
+            continue
+        }
+
         Write-Host "Installing extension $extId from Open VSX..."
-        & $activeCliPath --extensions-dir $extsDir --user-data-dir $userDataDir --install-extension $extId --force
+        try {
+            & $activeCliPath --extensions-dir $extsDir --user-data-dir $userDataDir --install-extension $extId --force
+            if ($LASTEXITCODE -ne 0) {
+                Write-Warning "Extension $extId could not be installed (exit code $LASTEXITCODE). The editor still opens without it."
+            }
+        } catch {
+            Write-Warning "Extension $extId could not be installed: $($_.Exception.Message). The editor still opens without it."
+        }
     } else {
         Write-Host "Extension $extId already installed."
     }
@@ -393,8 +450,12 @@ if (Test-Path $ohziPatchFile) {
             }
         }
         if ($needsPatch) {
-            Copy-Item -Path $ohziPatchFile -Destination $extJsPath -Force
-            Write-Host "Patched OHZI GLB viewer extension in $($ohziDir.FullName)"
+            try {
+                Copy-Item -Path $ohziPatchFile -Destination $extJsPath -Force
+                Write-Host "Patched OHZI GLB viewer extension in $($ohziDir.FullName)"
+            } catch {
+                Write-Warning "Could not patch the OHZI GLB viewer extension in $($ohziDir.FullName): $($_.Exception.Message)"
+            }
         }
     }
 }
@@ -516,32 +577,36 @@ foreach ($opencuiDir in $opencuiDirs) {
     }
 }
 
-$userDir = Join-Path $userDataDir "User"
-New-Item -ItemType Directory -Force -Path $userDir | Out-Null
-$userSettingsPath = Join-Path $userDir "settings.json"
-$settingsObj = [ordered]@{
-    "security.workspace.trust.enabled" = $false
-    "security.workspace.trust.startupPrompt" = "never"
-    "security.workspace.trust.banner" = "never"
-    "security.workspace.trust.emptyWindow" = $false
-    "security.workspace.trust.untrustedFiles" = "open"
-}
-if ($resolvedOpencodeCli) {
-    $settingsObj["opencui.binaryPath"] = $resolvedOpencodeCli
-}
-if (Test-Path $userSettingsPath) {
-    try {
-        $existing = [System.IO.File]::ReadAllText($userSettingsPath, [System.Text.Encoding]::UTF8) | ConvertFrom-Json
-        foreach ($prop in $existing.PSObject.Properties) {
-            if (-not $settingsObj.Contains($prop.Name)) {
-                $settingsObj[$prop.Name] = $prop.Value
+try {
+    $userDir = Join-Path $userDataDir "User"
+    New-Item -ItemType Directory -Force -Path $userDir | Out-Null
+    $userSettingsPath = Join-Path $userDir "settings.json"
+    $settingsObj = [ordered]@{
+        "security.workspace.trust.enabled" = $false
+        "security.workspace.trust.startupPrompt" = "never"
+        "security.workspace.trust.banner" = "never"
+        "security.workspace.trust.emptyWindow" = $false
+        "security.workspace.trust.untrustedFiles" = "open"
+    }
+    if ($resolvedOpencodeCli) {
+        $settingsObj["opencui.binaryPath"] = $resolvedOpencodeCli
+    }
+    if (Test-Path $userSettingsPath) {
+        try {
+            $existing = [System.IO.File]::ReadAllText($userSettingsPath, [System.Text.Encoding]::UTF8) | ConvertFrom-Json
+            foreach ($prop in $existing.PSObject.Properties) {
+                if (-not $settingsObj.Contains($prop.Name)) {
+                    $settingsObj[$prop.Name] = $prop.Value
+                }
             }
-        }
-    } catch {}
+        } catch {}
+    }
+    $settingsJson = $settingsObj | ConvertTo-Json -Depth 10
+    [System.IO.File]::WriteAllText($userSettingsPath, $settingsJson, [System.Text.UTF8Encoding]::new($false))
+    Write-Host "Ensured user settings at $userSettingsPath"
+} catch {
+    Write-Warning "Could not write the editor user settings: $($_.Exception.Message)"
 }
-$settingsJson = $settingsObj | ConvertTo-Json -Depth 10
-[System.IO.File]::WriteAllText($userSettingsPath, $settingsJson, [System.Text.UTF8Encoding]::new($false))
-Write-Host "Ensured user settings at $userSettingsPath"
 
 $cliDataDir = Join-Path $embedDir "cli-data-dir"
 New-Item -ItemType Directory -Force -Path $cliDataDir | Out-Null
@@ -557,6 +622,11 @@ foreach ($root in $roots) {
     }
 }
 
-Get-Date -Format "o" | Out-File -FilePath $completedMarkerPath -Encoding utf8
-Write-Host "VS Code Embedded and Extension setup completed successfully!"
+try {
+    Get-Date -Format "o" | Out-File -FilePath $completedMarkerPath -Encoding utf8
+} catch {
+    Write-Warning "Could not write the editor install marker at $completedMarkerPath : $($_.Exception.Message)"
+}
+
+Write-Host "VS Code Embedded and Extension setup completed. Anything that could not be installed is listed in the warnings above."
 
