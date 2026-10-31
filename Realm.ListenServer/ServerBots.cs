@@ -79,6 +79,10 @@ public class ServerBots
 
 		BotController bot = GetOrCreateController(playerIndex, profile);
 		bot.LoadProfile(profile);
+		if (!_injectedPolicyPlayers.Contains(playerIndex))
+		{
+			bot.DecisionPolicy = new LinearUtilityDecisionPolicy();
+		}
 		ConfigureCustomScanner(bot.GenreProvider, playerIndex);
 		_log.Write($"player {playerIndex} now plays the profile the map handed it");
 	}
@@ -178,6 +182,7 @@ public class ServerBots
 		try
 		{
 			bot.LoadProfile(BotProfile.FromJson(File.ReadAllText(path)));
+			bot.DecisionPolicy = new LinearUtilityDecisionPolicy();
 			_log.Write($"player {playerIndex} plays the profile saved as '{path}'");
 		}
 		catch (Exception exception) when (exception is IOException or JsonException or UnauthorizedAccessException)
