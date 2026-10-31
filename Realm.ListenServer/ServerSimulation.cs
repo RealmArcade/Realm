@@ -58,6 +58,7 @@ public class ServerSimulation : IDisposable
 		_matchTick = new MatchTick(map.Simulation);
 		_commands = new CommandAuthorityService(map.Simulation);
 		_commands.DroppedOrderSink = log.Write;
+		_commands.CostsPaidSink = (playerSlot, goldAmount) => Metrics.RecordGoldSpent(playerSlot, goldAmount);
 		map.Catalog.BindTo(_commands);
 		_snapshots = new SnapshotFanOut(map.World, map.Simulation, map.WorldEntity, map.Simulation.MapRules, SnapshotFanOut.DefaultWorkerCount);
 		_snapshots.Report = log.Write;
@@ -68,6 +69,7 @@ public class ServerSimulation : IDisposable
 		Items = new ItemGrantService(map.Simulation, map.Catalog);
 		_loot = new GroundLootService(map.Simulation, Items);
 		_script = ServerMapScript.Load(map, paths, randomSeed, log, _presentation, Items, _loot, wasmDebug, mapWorkspacePath, preparedScriptHost);
+		_script.Api.Metrics = Metrics;
 		_snapshots.Abilities = _script.Api.Abilities;
 		_snapshots.TechLevels = _script.Api.TechLevels;
 		_script.Api.PlayerDroppedSink = DropPlayer;
@@ -106,6 +108,10 @@ public class ServerSimulation : IDisposable
 	public ItemGrantService Items { get; }
 
 	public GroundLootService Loot => _loot;
+
+	public MatchMetrics Metrics { get; } = new();
+
+	public bool IsGameOver => _map.Simulation.IsGameOver;
 
 	public MatchTick MatchTick => _matchTick;
 
@@ -157,7 +163,14 @@ public class ServerSimulation : IDisposable
 		simulation.CombatDamageService.UnlimitedPowerProvider = () => simulation.UnlimitedPowerEnabled;
 		simulation.CombatDamageService.OnKillUnitRequested = KillUnit;
 		simulation.CombatDamageService.OnUnitDamagedCallback = (target, attacker, damage) =>
+		{
+			if (_map.World.TryGet<UnitOwnerPlayer>(attacker, out UnitOwnerPlayer damagingOwner))
+			{
+				Metrics.RecordDamageDealt(damagingOwner.Value, damage);
+			}
+
 			_script.Api.RaiseUnitDamaged(target.Id, attacker.Id, damage);
+		};
 		simulation.CombatDamageService.OnUnitAttackedCallback = (attacker, target) =>
 			_script.Api.RaiseUnitAttacked(attacker.Id, target.Id);
 
@@ -490,6 +503,7 @@ public class ServerSimulation : IDisposable
 	private void WritePlayerTechLevel(int playerIndex, string techId, int level)
 	{
 		_script.Api.SetPlayerTechLevel(playerIndex, techId, level);
+		Metrics.RecordUpgradeBought(playerIndex);
 	}
 
 	private bool IsAlreadyAnswered(int peerId, int commandId)

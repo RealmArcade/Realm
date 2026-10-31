@@ -14,6 +14,7 @@ namespace Realm.ListenServer;
 public class ServerBots
 {
 	public const string DefaultGenreName = "rts";
+	public const string CustomGenreName = "custom";
 
 	private readonly SimulationContext _context;
 	private readonly string _mapName;
@@ -21,6 +22,7 @@ public class ServerBots
 	private readonly ServerLog _log;
 	private readonly Dictionary<int, BotController> _controllers = new();
 	private readonly Dictionary<int, List<GenericAffordance>> _customDecisionsPerPlayer = new();
+	private readonly HashSet<int> _injectedPolicyPlayers = new();
 
 	public ServerBots(SimulationContext context, string mapName, string dataDirectory, ServerLog log)
 	{
@@ -77,7 +79,18 @@ public class ServerBots
 
 		BotController bot = GetOrCreateController(playerIndex, profile);
 		bot.LoadProfile(profile);
+		ConfigureCustomScanner(bot.GenreProvider, playerIndex);
 		_log.Write($"player {playerIndex} now plays the profile the map handed it");
+	}
+
+	public void SetDecisionPolicy(int playerIndex, IBotDecisionPolicy policy)
+	{
+		if (policy == null) return;
+
+		BotController bot = GetOrCreateController(playerIndex, BotProfile.CreateDefault(_mapName, DefaultGenreName));
+		bot.DecisionPolicy = policy;
+		_injectedPolicyPlayers.Add(playerIndex);
+		_log.Write($"player {playerIndex} now decides through an injected policy");
 	}
 
 	public string GetProfile(int playerIndex)
@@ -97,14 +110,24 @@ public class ServerBots
 		{
 			bot.GenreProvider = genre;
 			bot.LoadProfile(genre.CreateDefaultProfile(_mapName));
+			ApplyGenreDefaultPolicy(playerIndex, genreName, bot);
 			_log.Write($"player {playerIndex} now plays the '{genreName}' genre");
 			return;
 		}
 
 		var created = new BotController(playerIndex, genre.CreateDefaultProfile(_mapName), genre);
 		created.CustomActionCallback = AnnounceCustomAction;
+		ApplyGenreDefaultPolicy(playerIndex, genreName, created);
 		_controllers[playerIndex] = created;
 		_log.Write($"player {playerIndex} seated with the '{genreName}' genre");
+	}
+
+	private void ApplyGenreDefaultPolicy(int playerIndex, string genreName, BotController bot)
+	{
+		if (!string.Equals(genreName, CustomGenreName, StringComparison.OrdinalIgnoreCase)) return;
+		if (_injectedPolicyPlayers.Contains(playerIndex)) return;
+
+		bot.DecisionPolicy = new UniformRandomDecisionPolicy();
 	}
 
 	public string GetGenre(int playerIndex)
@@ -120,8 +143,13 @@ public class ServerBots
 			_customDecisionsPerPlayer[playerIndex] = decisions;
 		}
 
-		var parsedIntent = Enum.TryParse(intent, true, out CommandIntent commandIntent) ? commandIntent : CommandIntent.Interact;
-		decisions.Add(new GenericAffordance(Entity.Null, parsedIntent, Entity.Null, position, actionId, featureVector));
+		if (!Enum.TryParse(intent, true, out CommandIntent commandIntent) || !Enum.IsDefined(commandIntent))
+		{
+			_log.Write($"player {playerIndex} registered a bot decision with an intent this build does not know: '{intent}'");
+			return;
+		}
+
+		decisions.Add(new GenericAffordance(Entity.Null, commandIntent, Entity.Null, position, actionId, featureVector));
 	}
 
 	public void ClearCustomDecisions(int playerIndex)
@@ -179,6 +207,7 @@ public class ServerBots
 	private void AnnounceCustomAction(int playerIndex, string actionId, Vector3 position, string intent)
 	{
 		CustomActionExecuted?.Invoke(playerIndex, actionId, intent, position, string.Empty);
+		ClearCustomDecisions(playerIndex);
 	}
 
 	private static void ConfigureGenre(IAiGenreProvider genre, string? configJson)
