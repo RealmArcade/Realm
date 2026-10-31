@@ -17,6 +17,7 @@
   <Project Path="Realm.MapEditorExtension/Realm.MapEditorExtension.csproj" />
   <Project Path="Realm.Tools.Admin/Realm.Tools.Admin.csproj" />
   <Project Path="Realm.ReplicationVerifier/Realm.ReplicationVerifier.csproj" />
+  <Project Path="Realm.Tools.MatchRunner/Realm.Tools.MatchRunner.csproj" />
   <Project Path="Realm.Tools.Cli/Realm.Tools.Cli.csproj" />
   <Project Path="Realm.Benchmarks/Realm.Benchmarks.csproj" />
   <Project Path="Realm.LocalizationGenerator/Realm.LocalizationGenerator.csproj" />
