@@ -15,6 +15,7 @@ public class MatchBatchSummary
 		var seatHeroes = new Dictionary<int, double>();
 		var seatUpgrades = new Dictionary<int, double>();
 		var heroPicks = new Dictionary<string, int>();
+		var heroWins = new Dictionary<string, int>();
 		var winners = new Dictionary<int, int>();
 		var failures = new List<(int Seed, string Error)>();
 
@@ -56,11 +57,16 @@ public class MatchBatchSummary
 				Accumulate(seatUpgrades, seatIndex, seat, "upgradesBought");
 
 				if (!seat.TryGetProperty("heroPickIds", out JsonElement picks)) continue;
+				bool isWinner = seatIndex == winner;
 				foreach (JsonElement pick in picks.EnumerateArray())
 				{
 					string heroId = pick.GetString() ?? string.Empty;
 					if (heroId.Length == 0) continue;
 					heroPicks[heroId] = heroPicks.TryGetValue(heroId, out int picksOfHero) ? picksOfHero + 1 : 1;
+					if (isWinner)
+					{
+						heroWins[heroId] = heroWins.TryGetValue(heroId, out int winsOfHero) ? winsOfHero + 1 : 1;
+					}
 				}
 			}
 		}
@@ -115,6 +121,24 @@ public class MatchBatchSummary
 			}
 
 			writer.WriteEndObject();
+
+			writer.WriteStartArray("heroStats");
+			foreach (KeyValuePair<string, int> entry in heroPicks.OrderByDescending(entry => entry.Value))
+			{
+				string heroId = entry.Key;
+				int picks = entry.Value;
+				int wins = heroWins.TryGetValue(heroId, out int w) ? w : 0;
+				double rate = picks > 0 ? (double)wins / picks : 0.0;
+				writer.WriteStartObject();
+				writer.WriteString("heroId", heroId);
+				writer.WriteNumber("picks", picks);
+				writer.WriteNumber("wins", wins);
+				writer.WriteNumber("winRate", Math.Round(rate, 4));
+				writer.WriteNumber("winRatePercent", Math.Round(rate * 100.0, 2));
+				writer.WriteEndObject();
+			}
+
+			writer.WriteEndArray();
 
 			writer.WriteNumber("wallClockSeconds", Math.Round(wallClockSeconds, 3));
 			writer.WriteNumber("matchesPerSecond", Math.Round(matchesPerSecond, 3));
