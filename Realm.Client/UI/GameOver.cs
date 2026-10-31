@@ -57,6 +57,8 @@ public partial class GameOver : Control
 	private bool _isVictory = true;
 	private int _activeTab = OverviewTabIndex;
 
+	private readonly List<MatchPlayerResult> _results = new();
+
 	private readonly string[] _runes = { "ᚠ", "ᚢ", "ᚦ", "ᚨ", "ᚱ", "ᚲ", "ᚷ", "ᚹ", "ᚺ", "ᚾ", "ᛁ", "ᛃ", "ᛇ", "ᛈ", "ᛉ", "ᛊ", "ᛏ", "ᛒ", "ᛖ", "ᛗ", "ᛚ", "ᛜ", "ᛞ", "ᛟ" };
 
 
@@ -530,21 +532,21 @@ public partial class GameOver : Control
 
 		if (_activeTab == OverviewTabIndex)
 		{
-			_scoreColHeader.Text = Tr("TOTAL SCORE");
-			_killsColHeader.Text = Tr("UNITS KILLED");
-			_resourcesColHeader.Text = Tr("RESOURCES GATHERED") + "  ";
+			_scoreColHeader.Text = TranslationServer.Translate("TOTAL RESOURCES");
+			_killsColHeader.Text = TranslationServer.Translate("UNITS KILLED");
+			_resourcesColHeader.Text = TranslationServer.Translate("POPULATION");
 		}
 		else if (_activeTab == EconomyTabIndex)
 		{
-			_scoreColHeader.Text = Tr("GOLD GATHERED");
-			_killsColHeader.Text = Tr("WOOD GATHERED");
-			_resourcesColHeader.Text = Tr("TOTAL RESOURCES") + "  ";
+			_scoreColHeader.Text = TranslationServer.Translate("GOLD");
+			_killsColHeader.Text = TranslationServer.Translate("WOOD");
+			_resourcesColHeader.Text = TranslationServer.Translate("STONE");
 		}
 		else
 		{
-			_scoreColHeader.Text = Tr("UNITS TRAINED");
-			_killsColHeader.Text = Tr("UNITS KILLED");
-			_resourcesColHeader.Text = Tr("UNITS LOST") + "  ";
+			_scoreColHeader.Text = TranslationServer.Translate("UNITS KILLED");
+			_killsColHeader.Text = TranslationServer.Translate("ARMY");
+			_resourcesColHeader.Text = TranslationServer.Translate("POPULATION");
 		}
 
 		PopulateRows();
@@ -557,34 +559,44 @@ public partial class GameOver : Control
 			child.QueueFree();
 		}
 
-		List<StatsRow> rows = new List<StatsRow>();
+		MatchScoreboardReader.Collect(_results);
+		_results.Sort(_activeTab == MilitaryTabIndex ? CompareByKills : CompareByTotalResources);
 
-		if (_activeTab == OverviewTabIndex)
+		var rows = new List<StatsRow>(_results.Count);
+		for (int index = 0; index < _results.Count; index++)
 		{
-			rows.Add(new StatsRow { Player = "PLAYER 1", Faction = "HUMAN", Col3 = "1,314", Col4 = "29", Col5 = "3,000" });
-			rows.Add(new StatsRow { Player = "PLAYER 2", Faction = "HUMAN", Col3 = "592", Col4 = "24", Col5 = "2,500" });
-			rows.Add(new StatsRow { Player = "PLAYER KILLED", Faction = "HUMAN", Col3 = "365", Col4 = "29", Col5 = "2,500" });
-			rows.Add(new StatsRow { Player = "PLAYER KILLED", Faction = "HUMAN", Col3 = "207", Col4 = "35", Col5 = "4,600" });
-			rows.Add(new StatsRow { Player = "Muothea6", Faction = "UNDEAD", Col3 = "207", Col4 = "24", Col5 = "4,600" });
-			rows.Add(new StatsRow { Player = "CrawalMottros", Faction = "UNDEAD", Col3 = "163", Col4 = "2", Col5 = "1,000" });
-		}
-		else if (_activeTab == EconomyTabIndex)
-		{
-			rows.Add(new StatsRow { Player = "PLAYER 1", Faction = "HUMAN", Col3 = "1,800", Col4 = "1,200", Col5 = "3,000" });
-			rows.Add(new StatsRow { Player = "PLAYER 2", Faction = "HUMAN", Col3 = "1,500", Col4 = "1,000", Col5 = "2,500" });
-			rows.Add(new StatsRow { Player = "PLAYER KILLED", Faction = "HUMAN", Col3 = "1,500", Col4 = "1,000", Col5 = "2,500" });
-			rows.Add(new StatsRow { Player = "PLAYER KILLED", Faction = "HUMAN", Col3 = "2,600", Col4 = "2,000", Col5 = "4,600" });
-			rows.Add(new StatsRow { Player = "Muothea6", Faction = "UNDEAD", Col3 = "2,600", Col4 = "2,000", Col5 = "4,600" });
-			rows.Add(new StatsRow { Player = "CrawalMottros", Faction = "UNDEAD", Col3 = "600", Col4 = "400", Col5 = "1,000" });
-		}
-		else
-		{
-			rows.Add(new StatsRow { Player = "PLAYER 1", Faction = "HUMAN", Col3 = "42", Col4 = "29", Col5 = "12" });
-			rows.Add(new StatsRow { Player = "PLAYER 2", Faction = "HUMAN", Col3 = "35", Col4 = "24", Col5 = "18" });
-			rows.Add(new StatsRow { Player = "PLAYER KILLED", Faction = "HUMAN", Col3 = "38", Col4 = "29", Col5 = "26" });
-			rows.Add(new StatsRow { Player = "PLAYER KILLED", Faction = "HUMAN", Col3 = "55", Col4 = "35", Col5 = "48" });
-			rows.Add(new StatsRow { Player = "Muothea6", Faction = "UNDEAD", Col3 = "49", Col4 = "24", Col5 = "38" });
-			rows.Add(new StatsRow { Player = "CrawalMottros", Faction = "UNDEAD", Col3 = "15", Col4 = "2", Col5 = "14" });
+			MatchPlayerResult result = _results[index];
+			string thirdColumn;
+			string fourthColumn;
+			string fifthColumn;
+
+			if (_activeTab == OverviewTabIndex)
+			{
+				thirdColumn = FormatNumber(result.TotalResources);
+				fourthColumn = FormatNumber(result.Kills);
+				fifthColumn = FormatPopulation(result);
+			}
+			else if (_activeTab == EconomyTabIndex)
+			{
+				thirdColumn = FormatNumber(result.Gold);
+				fourthColumn = FormatNumber(result.Wood);
+				fifthColumn = FormatNumber(result.Stone);
+			}
+			else
+			{
+				thirdColumn = FormatNumber(result.Kills);
+				fourthColumn = FormatNumber(result.ArmySize);
+				fifthColumn = FormatPopulation(result);
+			}
+
+			rows.Add(new StatsRow
+			{
+				Player = result.Name,
+				Faction = string.IsNullOrWhiteSpace(result.Faction) ? result.TeamName : result.Faction,
+				Col3 = thirdColumn,
+				Col4 = fourthColumn,
+				Col5 = fifthColumn
+			});
 		}
 
 		foreach (var r in rows)
@@ -642,6 +654,22 @@ public partial class GameOver : Control
 			_tableRowsContainer.AddChild(rowContainer);
 		}
 	}
+
+	private static int CompareByKills(MatchPlayerResult left, MatchPlayerResult right)
+	{
+		int comparison = right.Kills.CompareTo(left.Kills);
+		return comparison != 0 ? comparison : left.Slot.CompareTo(right.Slot);
+	}
+
+	private static int CompareByTotalResources(MatchPlayerResult left, MatchPlayerResult right)
+	{
+		int comparison = right.TotalResources.CompareTo(left.TotalResources);
+		return comparison != 0 ? comparison : left.Slot.CompareTo(right.Slot);
+	}
+
+	private static string FormatNumber(int value) => value.ToString("N0");
+
+	private static string FormatPopulation(MatchPlayerResult result) => $"{result.PopulationUsed} / {result.PopulationCapacity}";
 
 	private async Task ReportMetricsAsync(string mapName, double playtimeMinutes, int stars, bool isComplete)
 	{

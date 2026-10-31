@@ -79,8 +79,9 @@ public partial class MainMenu : Control
 
 	private void OnAccountChanged()
 	{
-		if (!GodotObject.IsInstanceValid(this)) return;
-		RefreshAccountPresentation();
+		if (!GodotObject.IsInstanceValid(this) || !IsInsideTree()) return;
+
+		Callable.From(RefreshAccountPresentation).CallDeferred();
 	}
 
 	/// <summary>
@@ -90,9 +91,9 @@ public partial class MainMenu : Control
 	private async void RestoreAccountSessionAsync()
 	{
 		await GameContext.Account.RestoreAsync();
-		if (!GodotObject.IsInstanceValid(this)) return;
+		if (!GodotObject.IsInstanceValid(this) || !IsInsideTree()) return;
 
-		RefreshAccountPresentation();
+		Callable.From(RefreshAccountPresentation).CallDeferred();
 	}
 
 	private void RefreshAccountPresentation()

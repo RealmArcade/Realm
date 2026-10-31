@@ -258,6 +258,13 @@ public partial class LobbyManager : BaseMapTransferNode
 	/// </summary>
 	private void OnAccountChanged()
 	{
+		if (!GodotObject.IsInstanceValid(this) || !IsInsideTree()) return;
+
+		Callable.From(ApplyAccountChange).CallDeferred();
+	}
+
+	private void ApplyAccountChange()
+	{
 		PlayerInfo? me = PlayerList.Find(IsLocalPlayer);
 		if (me == null) return;
 

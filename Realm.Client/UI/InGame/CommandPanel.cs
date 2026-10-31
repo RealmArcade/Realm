@@ -69,6 +69,7 @@ public partial class CommandPanel
 	private int _lastAbilityCount = -1;
 	private int _lastPageIndex = -1;
 	private bool _lastIsBuildSubMenuOpen = false;
+	private int _lastAbilityStateRevision = int.MinValue;
 
 	private const string BuildCommandAbilityId = "ability/build";
 
@@ -88,6 +89,7 @@ public partial class CommandPanel
 
 		foreach (Node child in _commandGrid.GetChildren())
 		{
+			_commandGrid.RemoveChild(child);
 			child.QueueFree();
 		}
 	}
@@ -324,7 +326,8 @@ public partial class CommandPanel
 			|| focusedUnit.UnitId != _lastFocusedUnitId
 			|| focusedUnit.IsUnderConstruction != _lastIsUnderConstruction
 			|| isMobile != _lastIsMobile
-			|| abilityCount != _lastAbilityCount;
+			|| abilityCount != _lastAbilityCount
+			|| GameContext.RegistryService.AbilityStateRevision != _lastAbilityStateRevision;
 
 		bool subMenuChanged = subMenuOpen != _lastIsBuildSubMenuOpen;
 
@@ -343,6 +346,7 @@ public partial class CommandPanel
 			_lastIsMobile = isMobile;
 			_lastAbilityCount = abilityCount;
 			_lastIsBuildSubMenuOpen = subMenuOpen;
+			_lastAbilityStateRevision = GameContext.RegistryService.AbilityStateRevision;
 
 			_activeItems = GetCommandCardItems(focusedUnit, subMenuOpen);
 			UpdateItemHotkeys();

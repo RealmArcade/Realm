@@ -19,7 +19,6 @@ public class PortraitPanel
 	private List<Button> _unitButtons;
 	private HBoxContainer _statsContainer;
 	private Label _statsLabel;
-	private VBoxContainer _itemsBox;
 	private VBoxContainer _productionBox;
 	private Label _productionTitle;
 	private ProgressBar _productionProgress;
@@ -67,7 +66,7 @@ public class PortraitPanel
 
 	public PortraitPanel(PanelContainer portraitFrame, PanelContainer selectionFrame,
 		HBoxContainer unitsContainer, List<Button> unitButtons, HBoxContainer statsContainer,
-		Label statsLabel, VBoxContainer itemsBox,
+		Label statsLabel,
 		VBoxContainer productionBox, Label productionTitle, ProgressBar productionProgress,
 		Label productionQueueLabel, HBoxContainer queueSlotsContainer, Label armyCompositionLabel,
 		Label unitNameLabel, TextureRect portraitTexture)
@@ -78,7 +77,6 @@ public class PortraitPanel
 		_unitButtons = unitButtons;
 		_statsContainer = statsContainer;
 		_statsLabel = statsLabel;
-		_itemsBox = itemsBox;
 		_productionBox = productionBox;
 		_productionTitle = productionTitle;
 		_productionProgress = productionProgress;
@@ -220,7 +218,6 @@ public class PortraitPanel
 			}
 
 			_statsLabel.Text = $"{TranslationServer.Translate("REMAINING")}: {remainingAmount:F0}";
-			_itemsBox.Visible = false;
 			_productionBox.Visible = false;
 		}
 	}
@@ -293,11 +290,6 @@ public class PortraitPanel
 		}
 
 		UpdateSingleSelectionStatsLabel(info, unitHeaderChanged);
-
-		if (info.IsBuilding)
-		{
-			_itemsBox.Visible = false;
-		}
 
 		if (info.IsBuilding && !info.IsEnemy && info.HasProduction)
 		{

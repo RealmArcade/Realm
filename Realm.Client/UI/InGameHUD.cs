@@ -156,7 +156,6 @@ public partial class InGameHUD : Control
 	private HBoxContainer _statsContainer;
 	private Label _statsLabel;
 	private VBoxContainer _spellsBox;
-	private VBoxContainer _itemsBox;
 
 	private Vector2 _dragStart;
 	private Vector2 _dragEnd;
@@ -990,7 +989,7 @@ public partial class InGameHUD : Control
 
 		_portraitPanelController = new PortraitPanel(
 			_portraitFrame, _selectionFrame, _unitsContainer, _unitButtons, _statsContainer,
-			_statsLabel, _itemsBox,
+			_statsLabel,
 			_productionBox, _productionTitle, _productionProgress, _productionQueueLabel, _queueSlotsContainer,
 			_armyCompositionLabel, GetNode<Label>("BottomConsole/HBox/PortraitFrame/VBox/UnitName"),
 			GetNodeOrNull<TextureRect>("BottomConsole/HBox/PortraitFrame/VBox/PortraitTexture") != null ? GetNode<TextureRect>("BottomConsole/HBox/PortraitFrame/VBox/PortraitTexture") : null
@@ -1357,35 +1356,6 @@ public partial class InGameHUD : Control
 			vScroll.AddThemeStyleboxOverride("scroll", scrollTrack);
 		}
 
-		_itemsBox = new VBoxContainer();
-		_itemsBox.Name = "ItemsBox_VBoxContainer";
-		_itemsBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		_itemsBox.Alignment = BoxContainer.AlignmentMode.Center;
-		_itemsBox.Visible = false;
-		_statsContainer.AddChild(_itemsBox);
-
-		var itemsTitle = new Label();
-		itemsTitle.Name = "ItemsTitle_Label";
-		itemsTitle.Text = TranslationServer.Translate("ITEMS");
-		UIStyle.ApplyTitle(itemsTitle, TranslationServer.Translate("ITEMS"), 12);
-		itemsTitle.AddThemeColorOverride("font_color", UIStyle.ColorBronze);
-		_itemsBox.AddChild(itemsTitle);
-
-		var itemsHBox = new HBoxContainer();
-		itemsHBox.Name = "ItemsHBox_HBoxContainer";
-		itemsHBox.AddThemeConstantOverride("separation", 8);
-		_itemsBox.AddChild(itemsHBox);
-
-		var itemAxe = new TextureRect();
-		itemAxe.Name = "ItemAxe_TextureRect";
-		SetupItemIcon(itemAxe, "res://Assets/UI/battle_axe.webp", "Battle Axe\n+5 Attack Damage (Equipped)");
-		itemsHBox.AddChild(itemAxe);
-
-		var itemShield = new TextureRect();
-		itemShield.Name = "ItemShield_TextureRect";
-		SetupItemIcon(itemShield, "res://Assets/UI/battle_shield.webp", "Battle Shield\n+3 Armor Block (Equipped)");
-		itemsHBox.AddChild(itemShield);
-
 		_productionBox = new VBoxContainer();
 		_productionBox.Name = "ProductionBox_VBoxContainer";
 		_productionBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
@@ -1444,15 +1414,6 @@ public partial class InGameHUD : Control
 				GameContext.Host.EnterSpellTargeting(spellId);
 			}
 		};
-	}
-
-	private void SetupItemIcon(TextureRect rect, string iconPath, string tooltip)
-	{
-		rect.Texture = TrimmedTextureLoader.LoadTrimmedTexture(iconPath);
-		rect.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
-		rect.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
-		rect.CustomMinimumSize = new Vector2(60, 60);
-		rect.TooltipText = tooltip;
 	}
 
 	public void RefreshUI(List<Unit3D> selectedUnits)

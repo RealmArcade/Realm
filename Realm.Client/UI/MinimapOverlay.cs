@@ -25,12 +25,6 @@ public partial class MinimapOverlay : Control
 	private static readonly Color SelectedEnemyColor = new Color(0.9f, 0.1f, 0.2f);
 	private static readonly Color SelectedAllyColor = new Color(0.22f, 0.54f, 0.26f);
 
-	private static readonly Color PlayerOneColor = new Color(0.2f, 0.6f, 1.0f);
-	private static readonly Color PlayerTwoColor = new Color(0.9f, 0.2f, 0.2f);
-	private static readonly Color PlayerThreeColor = new Color(0.2f, 0.8f, 0.3f);
-	private static readonly Color PlayerFourColor = new Color(0.9f, 0.8f, 0.2f);
-	private static readonly Color DefaultPlayerColor = new Color(0.7f, 0.7f, 0.7f);
-
 	public override void _Draw()
 	{
 		if (GameContext.Host == null) return;
@@ -70,6 +64,8 @@ public partial class MinimapOverlay : Control
 
 		var circleTexture = GetUnitCircleTexture();
 		bool usesPlayerColors = IsUsingPlayerColors();
+		if (usesPlayerColors) MatchPlayerColorAssignment.RefreshIfSeatsChanged(GameContext.Lobby?.PlayerList);
+
 		float invPhysicalWidth = physicalWidth > 0f ? 1f / physicalWidth : 0f;
 		float invPhysicalDepth = physicalDepth > 0f ? 1f / physicalDepth : 0f;
 
@@ -153,27 +149,7 @@ public partial class MinimapOverlay : Control
 
 	private Color GetPlayerMinimapColor(int playerIndex)
 	{
-		var playerList = GameContext.Lobby?.PlayerList;
-		if (playerList != null)
-		{
-			for (int i = 0; i < playerList.Count; i++)
-			{
-				var p = playerList[i];
-				if (p != null && p.Slot == playerIndex)
-				{
-					return p.Color;
-				}
-			}
-		}
-
-		return playerIndex switch
-		{
-			1 => PlayerOneColor,
-			2 => PlayerTwoColor,
-			3 => PlayerThreeColor,
-			4 => PlayerFourColor,
-			_ => DefaultPlayerColor
-		};
+		return MatchPlayerColorAssignment.Get(playerIndex);
 	}
 
 	private void DrawSelectionRing(Unit3D unit, Vector2 drawPos, float iconSize)
