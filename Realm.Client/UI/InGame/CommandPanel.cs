@@ -70,6 +70,8 @@ public partial class CommandPanel
 	private int _lastPageIndex = -1;
 	private bool _lastIsBuildSubMenuOpen = false;
 
+	private const string BuildCommandAbilityId = "ability/build";
+
 	private void ClearCommandGrid()
 	{
 		foreach (var btn in _dynamicBuildButtons)
@@ -214,7 +216,7 @@ public partial class CommandPanel
 	{
 		bool notEnoughMana = currentMana < manaCost;
 		bool isItemDisabled = item.IsDisabled?.Invoke() ?? false;
-		bool disabled = cdRemaining > 0f || notEnoughMana || isItemDisabled;
+		bool disabled = (!item.IgnoresCooldownGate && cdRemaining > 0f) || notEnoughMana || isItemDisabled;
 
 		if (btn.Disabled != disabled) btn.Disabled = disabled;
 
@@ -873,14 +875,17 @@ public partial class CommandPanel
 			items.Add(CreateStopCommand());
 			items.Add(CreateHoldCommand());
 
-			items.Add(new CommandCardItem
+			if (focusedUnit.Damage > 0f)
 			{
-				Id = "attack",
-				IconPath = "res://Assets/UI/battle_axe.webp",
-				Tooltip = "[A] Attack / Attack-Move — Click enemy to attack, click ground to attack-move",
-				Hotkey = Key.A,
-				Callback = () => GameContext.Host?.EnterCommandTargeting("attack")
-			});
+				items.Add(new CommandCardItem
+				{
+					Id = "attack",
+					IconPath = "res://Assets/UI/battle_axe.webp",
+					Tooltip = "[A] Attack / Attack-Move — Click enemy to attack, click ground to attack-move",
+					Hotkey = Key.A,
+					Callback = () => GameContext.Host?.EnterCommandTargeting("attack")
+				});
+			}
 
 			items.Add(new CommandCardItem
 			{
@@ -900,6 +905,9 @@ public partial class CommandPanel
 				IconPath = "res://Assets/UI/golden_hammers.webp",
 				Tooltip = "[B] Build Structure",
 				Hotkey = Key.B,
+				AbilityId = BuildCommandAbilityId,
+				CasterEntity = focusedUnit.Entity,
+				IgnoresCooldownGate = true,
 				Callback = () => GameContext.InGameHud?.EnterBuildSubMenu()
 			});
 		}

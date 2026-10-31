@@ -16,6 +16,7 @@ public class CommandCardItem
 	public Func<bool> IsDisabled { get; set; }
 	public Func<string> GetButtonText { get; set; }
 	public string AbilityId { get; set; }
+	public bool IgnoresCooldownGate { get; set; }
 	public Entity CasterEntity { get; set; } = Entity.Null;
 	public float ManaCost { get; set; } = 0f;
 	public int GridX { get; set; } = -1;
