@@ -17,6 +17,7 @@ using NSec.Cryptography;
 using Realm.Client.Animation;
 using Realm.Client.Core;
 using Realm.Client.Network;
+using Realm.Client.Services.MapHistory;
 using Realm.Client.UI;
 using Realm.Client.UI.MapEditor;
 using Realm.Client.VFX;
@@ -826,13 +827,30 @@ public partial class EditorService : IEditorAPI
 	public string TempWorkspaceGodotPath { get; set; } = MapWorkspaceService.DefaultWorkspaceGodotPath;
 	public string _tempWorkspacePath { get; set; } = string.Empty;
 
+	public bool IsEditingMapFolderInPlace { get; set; }
+
 	public bool HasTempWorkspaceSession => !string.IsNullOrEmpty(_tempWorkspacePath);
+
+	public void SetActiveMapDirectory(string absoluteDirectory, bool editingMapFolderInPlace)
+	{
+		_tempWorkspacePath = absoluteDirectory;
+		TempWorkspaceGodotPath = absoluteDirectory.Replace('\\', '/');
+		IsEditingMapFolderInPlace = editingMapFolderInPlace;
+	}
+
+	public void UseScratchWorkspaceDomain()
+	{
+		TempWorkspaceGodotPath = MapWorkspaceService.DefaultWorkspaceGodotPath;
+		_tempWorkspacePath = MapWorkspaceService.GetDefaultWorkspaceGlobalPath();
+		IsEditingMapFolderInPlace = false;
+	}
 
 	public void OpenTempWorkspaceSessionDomain()
 	{
 		if (HasTempWorkspaceSession) return;
 
 		_tempWorkspacePath = MapWorkspaceService.GetDefaultWorkspaceGlobalPath();
+		SetCurrentSourceFolder(MapWorkspaceService.ReadEditorSourceFolder());
 	}
 
 	public int LastSelectionMinX { get; set; } = -1;
@@ -1026,6 +1044,12 @@ public partial class EditorService : IEditorAPI
 	public string? CurrentSourceFolder { get; set; } = null;
 	public string? PendingCasSourceDirectory { get; set; } = null;
 	public string? PendingDefaultSaveFolder { get; set; } = null;
+
+	public void SetCurrentSourceFolder(string? folder)
+	{
+		CurrentSourceFolder = folder;
+		MapWorkspaceService.SaveEditorSourceFolder(folder);
+	}
 
 	public const float MIN_BRUSH_RADIUS = 1.0f;
 	public const float MAX_BRUSH_RADIUS = 20.0f;
@@ -5079,7 +5103,13 @@ public partial class EditorService : IEditorAPI
 	private readonly object _watcherLock = new();
 	private long _lastProcessedMetadataWriteTime;
 	private long _lastProcessedTerrainWriteTime;
-	public static DateTime LastInternalSaveTimeUtc { get; set; } = DateTime.MinValue;
+	private static long _lastInternalSaveTimeUtcTicks = DateTime.MinValue.Ticks;
+
+	public static DateTime LastInternalSaveTimeUtc
+	{
+		get => new(Volatile.Read(ref _lastInternalSaveTimeUtcTicks), DateTimeKind.Utc);
+		set => Volatile.Write(ref _lastInternalSaveTimeUtcTicks, value.Ticks);
+	}
 	public bool PasteOptionEntities { get; set; } = true;
 	public bool PasteOptionPathing { get; set; } = true;
 	public float EditorPasteRotation { get; set; } = 0.0f;
@@ -5260,6 +5290,7 @@ public partial class EditorService : IEditorAPI
 	{
 		try
 		{
+			GameContext.MapHistoryService.CreateVersion(Path.GetDirectoryName(fullPath) ?? string.Empty, MapVersionKind.ExternalChange, TranslationServer.Translate("Change made outside the editor"), null, true);
 			string name = Path.GetFileName(fullPath);
 			GameContext.MapEditorHud?.ReadMetadataAndRefreshTextures();
 			GameContext.MapEditorHud?.ShowFeedback(string.Format(TranslationServer.Translate("{0} updated externally — reloaded."), name));
@@ -5280,6 +5311,7 @@ public partial class EditorService : IEditorAPI
 
 		try
 		{
+			GameContext.MapHistoryService.CreateVersion(Path.GetDirectoryName(fullPath) ?? string.Empty, MapVersionKind.ExternalChange, TranslationServer.Translate("Change made outside the editor"), null, true);
 			GameContext.Host?.LoadMapFromFile(fullPath);
 			GameContext.MapEditorHud?.ShowFeedback(TranslationServer.Translate("terrain.json updated externally — reloaded."));
 			customCallback?.Invoke();
@@ -5341,12 +5373,6 @@ public partial class EditorService : IEditorAPI
 		this.LastMetadataSyncTime = Math.Max(writeTimeTicks, DateTime.UtcNow.Ticks);
 	}
 
-	public void PerformAutoBackupDomain(long terrainWriteTime, long metadataWriteTime)
-	{
-		this.LastTerrainSyncTime = terrainWriteTime;
-		this.LastMetadataSyncTime = metadataWriteTime;
-	}
-
 	public void InitializeTempWorkspaceDomain(long terrainTime, long metadataTime)
 	{
 		this.LastTerrainSyncTime = terrainTime;
@@ -5372,6 +5398,7 @@ public partial class EditorService : IEditorAPI
 
 	public void CleanTempWorkspaceRmapFilesDomain()
 	{
+		if (IsEditingMapFolderInPlace) return;
 		if (!Directory.Exists(this._tempWorkspacePath)) return;
 		foreach (var rmapFile in Directory.GetFiles(this._tempWorkspacePath, "*.rmap", SearchOption.TopDirectoryOnly))
 		{
@@ -6223,6 +6250,7 @@ public partial class EditorService : IEditorAPI
 
 	public void ClearTempWorkspaceExternalDomain(Action<string> onError)
 	{
+		if (IsEditingMapFolderInPlace) return;
 		if (string.IsNullOrEmpty(this._tempWorkspacePath) || !Directory.Exists(this._tempWorkspacePath)) return;
 		try
 		{

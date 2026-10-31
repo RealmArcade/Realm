@@ -222,10 +222,52 @@ public static partial class MapWorkspaceService
 		File.WriteAllText(cleanExitFilePath, GameContext.EditorService.CurrentDirectoryBlake3 ?? string.Empty);
 	}
 
+	public const string EditorSourceFolderFileName = "editor_source_folder.txt";
+
+	public static string GetEditorSourceFolderPersistencePath()
+	{
+		return ProjectSettings.GlobalizePath($"user://{EditorSourceFolderFileName}");
+	}
+
+	public static void SaveEditorSourceFolder(string? sourceFolder)
+	{
+		string persistencePath = GetEditorSourceFolderPersistencePath();
+		try
+		{
+			if (string.IsNullOrWhiteSpace(sourceFolder))
+			{
+				if (File.Exists(persistencePath)) File.Delete(persistencePath);
+				return;
+			}
+
+			File.WriteAllText(persistencePath, sourceFolder);
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"[MapWorkspaceService] Could not persist the editor source folder: {ex.Message}");
+		}
+	}
+
+	public static string? ReadEditorSourceFolder()
+	{
+		string persistencePath = GetEditorSourceFolderPersistencePath();
+		try
+		{
+			if (!File.Exists(persistencePath)) return null;
+			string sourceFolder = File.ReadAllText(persistencePath).Trim();
+			return Directory.Exists(sourceFolder) ? sourceFolder : null;
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"[MapWorkspaceService] Could not read the editor source folder: {ex.Message}");
+			return null;
+		}
+	}
+
 	public static void OpenFromCasDomain(string defaultSaveFolder, Func<string, bool> isRestrictedSaveDirectoryFunc, Action<string> saveSettingsAction)
 	{
 		GameContext.EditorService.LastUsedFolder = defaultSaveFolder;
-		GameContext.EditorService.CurrentSourceFolder = defaultSaveFolder;
+		GameContext.EditorService.SetCurrentSourceFolder(defaultSaveFolder);
 		if (!isRestrictedSaveDirectoryFunc(defaultSaveFolder))
 		{
 			saveSettingsAction?.Invoke(defaultSaveFolder);

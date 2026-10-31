@@ -541,6 +541,11 @@ public partial class VSCodeManager
 
 	private readonly ConcurrentQueue<string> _pendingExtensionCommands = new ConcurrentQueue<string>();
 
+	public void QueueWorkspaceMetadataReload()
+	{
+		_pendingExtensionCommands.Enqueue("reloadWorkspaceMetadata");
+	}
+
 	public async Task SaveAllOpenFilesAsync()
 	{
 		_pendingExtensionCommands.Enqueue("saveAll");
@@ -745,6 +750,11 @@ public partial class VSCodeManager
 		while (_pendingExtensionCommands.TryDequeue(out var cmd))
 		{
 			commandsArray.Add(cmd);
+		}
+
+		if (GameContext.SessionState.IsMapEditorMode && !string.IsNullOrEmpty(GameContext.EditorService._tempWorkspacePath))
+		{
+			pollResponseObj["workspaceMetadataPath"] = Path.Combine(GameContext.EditorService._tempWorkspacePath, "metadata.json");
 		}
 
 		pollResponseObj["commands"] = commandsArray;
