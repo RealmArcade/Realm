@@ -585,11 +585,10 @@ public class NetworkService
 		int lastDescribedSequence = GameContext.World.Has<DescribedAtSequence>(localEntity)
 			? GameContext.World.Get<DescribedAtSequence>(localEntity).Sequence
 			: -1;
-		bool descriptionResumed = lastDescribedSequence >= 0 && sequence - lastDescribedSequence > UnobservedUnitGapSequences;
 
 		bool targetJumped = (describedPosition - previousTargetPosition).Length() > PlausibleStepMeters(localEntity, sequence, lastDescribedSequence);
 
-		if (targetJumped || descriptionResumed) GameContext.SnapshotTimeline.Reset(localEntity.Id);
+		if (targetJumped) GameContext.SnapshotTimeline.Reset(localEntity.Id);
 		GameContext.SnapshotTimeline.Record(localEntity.Id, describedPosition, snap.RotationY, sequence);
 
 		GameContext.World.SetOrAdd(localEntity, new LatestDescription
@@ -600,8 +599,6 @@ public class NetworkService
 
 		GameContext.World.SetOrAdd(localEntity, new DescribedAtSequence(sequence));
 	}
-
-	public const int UnobservedUnitGapSequences = 10;
 
 	public const float MaximumPlausibleTargetStepMeters = 2f;
 
@@ -697,6 +694,12 @@ public class NetworkService
 	{
 		modelPath = string.Empty;
 		playerIndex = 0;
+
+		if (string.IsNullOrEmpty(snap.UnitId))
+		{
+			GD.PushError($"[Network] Cannot spawn replicated entity {snap.EntityId}: the description named no definition, and this screen holds no copy of it.");
+			return Entity.Null;
+		}
 
 		if (!GameHost.UnitRegistry.TryGetValue(snap.UnitId, out var meta) && !GameHost.BuildingRegistry.TryGetValue(snap.UnitId, out meta))
 		{
@@ -1017,6 +1020,11 @@ public class NetworkService
 		else
 		{
 			codec.Apply(GameContext.World, targetEntity, delta.Bytes);
+
+			if (codec.ComponentTypeId == ComponentType<PlayerRelationshipMatrix>.Id)
+			{
+				GameContext.SimulationService?.MarkRelationshipsAuthoritative();
+			}
 
 			if (codec.ComponentTypeId == ComponentType<MoveTo>.Id && GameContext.World.Has<PreviewMoveTo>(targetEntity))
 			{

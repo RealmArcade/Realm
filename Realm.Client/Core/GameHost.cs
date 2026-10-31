@@ -2221,7 +2221,6 @@ public partial class GameHost : Node3D
 	{
 		_localPeerId = Multiplayer.GetUniqueId();
 		if (!Multiplayer.IsServer()) GameContext.NetworkService.MarkClientEnteredMultiplayer();
-		if (Multiplayer is SceneMultiplayer sceneMultiplayer) sceneMultiplayer.ServerRelay = false;
 
 		if (GameContext.Lobby != null && GameContext.Lobby.PlayerList.Count > 0)
 			SetupLobbyPlayers();
