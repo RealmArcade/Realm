@@ -563,6 +563,7 @@ public partial class ServerGameAPI : IGameAPI, IDisposable
 
 	public void TriggerPlayerVictory(int playerIndex)
 	{
+		_context.IsGameOver = true;
 		Metrics?.RecordVictory(playerIndex);
 		_presentation.Write(PresentationKind.PlayerVictory, playerIndex, Vector3.Zero);
 		_log.Write($"player {playerIndex} victorious");
