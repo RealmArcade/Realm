@@ -187,7 +187,13 @@ public class AuthoritativeSnapshotBuilder
 
 			_describedUnitStates.Add(held);
 
-			if (!isBaseline && !IsSameUnitAsSent(in described, in held.SentRecord)) held.ForgetToldPayloadBytes();
+			// Whether this peer holds the same unit under this identifier is decided once, because it answers two questions:
+			// whether the components it was given still belong to this unit, and whether it still knows what the unit is built
+			// from. A match recycles a server entity identifier the moment a unit is destroyed, so the second question is not
+			// the same as "was this identifier described before".
+			bool sameUnitAsSent = IsSameUnitAsSent(in described, in held.SentRecord);
+
+			if (!isBaseline && !sameUnitAsSent) held.ForgetToldPayloadBytes();
 
 			// A unit exactly where this peer was last told it is carries no information - a building, a unit holding position
 			// or one standing where its order ended all stay on the peer's screen as they are - so it is left out and its
@@ -200,8 +206,11 @@ public class AuthoritativeSnapshotBuilder
 			// described thirty times a second, and the same text was encoded, carried and allocated on the screen each time;
 			// the record this match keeps still holds it, so the next description can tell whether the peer has been told.
 			// A unit that leaves this peer's sight loses its record here and is named again when it comes back, which is the
-			// moment the screen has thrown its copy away.
-			if (!isBaseline && held.ToldDefinition != null && string.Equals(held.ToldDefinition, described.UnitId, StringComparison.Ordinal))
+			// moment the screen has thrown its copy away. A different unit under the same identifier - the usual case, since a
+			// drafted circle frees its identifier and the hero and the circle that replace it take the freed ones - is another
+			// such moment: the screen compares the record with what it holds, throws its copy away and builds the unit again,
+			// and a description that left the definition out would leave that unit standing nowhere on its screen for good.
+			if (!isBaseline && sameUnitAsSent && held.ToldDefinition != null && string.Equals(held.ToldDefinition, described.UnitId, StringComparison.Ordinal))
 			{
 				described.UnitId = string.Empty;
 			}
@@ -225,6 +234,10 @@ public class AuthoritativeSnapshotBuilder
 
 	private static bool IsSameUnitAsSent(in UnitSnapshot described, in UnitSnapshot sent)
 	{
+		// A unit this peer was told is dead is not a unit it holds: it freezes the corpse, frees it once the presentation
+		// clock reaches that description, and treats anything described under the identifier afterwards as a different
+		// unit. The same holds for a unit it never built, whose record is the default one.
+		if (sent.IsDead || string.IsNullOrEmpty(sent.UnitId)) return false;
 		if (!string.Equals(described.UnitId, sent.UnitId, StringComparison.Ordinal)) return false;
 		if (described.OwnerPlayerIndex != sent.OwnerPlayerIndex) return false;
 		return described.IsBuilding == sent.IsBuilding;

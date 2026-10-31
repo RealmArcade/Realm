@@ -132,6 +132,7 @@ public class WorldInitService
 		AddOrSet(worldEntity, new ScriptPlayersState(defaultPlayers));
 		AddOrSet(worldEntity, new CombatAlertState(0f));
 		AddOrSet(worldEntity, new PlayerRelationshipMatrix());
+		GameContext.SimulationService?.RestartRelationshipDerivation();
 		GameContext.SimulationService?.RecalculatePlayerRelationships();
 	}
 

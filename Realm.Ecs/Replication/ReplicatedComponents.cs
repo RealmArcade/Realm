@@ -720,6 +720,7 @@ public static class ReplicatedComponents
 		Register(new ReplicatedComponentCodec<AbilityState>(ReplicatedScope.Unit));
 		Register(new ReplicatedComponentCodec<ScriptZonesState>(ReplicatedScope.World));
 		Register(new ReplicatedComponentCodec<ScriptPlayersState>(ReplicatedScope.World));
+		Register(new ReplicatedComponentCodec<PlayerRelationshipMatrix>(ReplicatedScope.World));
 		Register(new ReplicatedComponentCodec<ProductionQueue>(ReplicatedScope.Unit));
 		Register(new PlayerTeamCodec());
 		Register(new ReplicatedComponentCodec<Mana>(ReplicatedScope.Unit));
