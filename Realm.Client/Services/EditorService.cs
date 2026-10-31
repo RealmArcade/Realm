@@ -6557,8 +6557,6 @@ public class {mapName} : IMapScript
 		{
 			if (!Directory.Exists(workspace)) return true;
 
-			Realm.Client.Services.MapWorkspaceService.SyncNewerSourcesFromMapFolder(CurrentSourceFolder, workspace);
-
 			Realm.Client.Services.MapWorkspaceService.EnsureWitFile(workspace);
 			Realm.Client.Services.MapWorkspaceService.EnsureWasmEntryPoint(workspace);
 			Realm.Client.Services.MapWorkspaceService.EnsureCsproj(workspace, Path.GetFileName(workspace));
