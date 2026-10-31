@@ -36,6 +36,8 @@ public class CommandAuthorityService
 
 	public Action<string>? DroppedOrderSink { get; set; }
 
+	public Action<int, float>? CostsPaidSink { get; set; }
+
 	public CommandTargetResolver Targets => _targets;
 
 	public CommandAuthorityService(SimulationContext context)
@@ -822,6 +824,7 @@ public ServerCommandResult ExecuteServerCommand(int peerId, NetworkCommand cmd)
 		resources[woodResourceId] -= costWood;
 		resources[stoneResourceId] -= costStone;
 		_context.World.Set(playerEntity, resources);
+		CostsPaidSink?.Invoke(_context.PlayerSlotForEntity(playerEntity), costGold);
 		return true;
 	}
 

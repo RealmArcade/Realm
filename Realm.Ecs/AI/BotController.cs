@@ -8,7 +8,7 @@ namespace Realm.Ecs.AI;
 public class BotController
 {
 	private IAiGenreProvider _genreProvider = new StandardRtsGenreProvider();
-	private readonly LinearUtilityPolicy _policy = new();
+	private IBotDecisionPolicy _decisionPolicy = new LinearUtilityDecisionPolicy();
 	private readonly List<GenericAffordance> _affordanceBuffer = new(64);
 
 	private BotProfile _profile = BotProfile.CreateDefault();
@@ -32,6 +32,12 @@ public class BotController
 		set => _genreProvider = value ?? new StandardRtsGenreProvider();
 	}
 
+	public IBotDecisionPolicy DecisionPolicy
+	{
+		get => _decisionPolicy;
+		set => _decisionPolicy = value ?? new LinearUtilityDecisionPolicy();
+	}
+
 	public Action<int, string, Vector3, string>? CustomActionCallback { get; set; }
 
 	public BotController(int playerIndex = 0, BotProfile? profile = null, IAiGenreProvider? genreProvider = null)
@@ -53,7 +59,8 @@ public class BotController
 		}
 
 		_profile = profile;
-		if (!string.IsNullOrWhiteSpace(profile.Genre))
+		if (!string.IsNullOrWhiteSpace(profile.Genre)
+			&& !string.Equals(_genreProvider.GenreName, profile.Genre, StringComparison.OrdinalIgnoreCase))
 		{
 			_genreProvider = AiGenreRegistry.Get(profile.Genre);
 		}
@@ -90,11 +97,20 @@ public class BotController
 		_timer = 0.0f;
 
 		_genreProvider.ScanAffordances(world, playerIndex, _affordanceBuffer);
-		var action = _policy.SelectAction(_affordanceBuffer, _weights, 0.0f, _actionTemperature, _aggressionMultiplier);
+		var action = _decisionPolicy.SelectAction(_affordanceBuffer, _weights, _actionTemperature, _aggressionMultiplier, SeededRandom.Shared);
 
-		if (action.HasValue)
+		if (!action.HasValue)
 		{
-			_genreProvider.ExecuteAction(world, playerIndex, action.Value, CustomActionCallback);
+			return;
 		}
+
+		GenericAffordance selected = action.Value;
+		if (selected.SourceEntity.IsNull && CustomActionCallback != null)
+		{
+			CustomActionCallback(playerIndex, selected.PayloadId, selected.TargetPosition, selected.Intent.ToString());
+			return;
+		}
+
+		_genreProvider.ExecuteAction(world, playerIndex, selected, CustomActionCallback);
 	}
 }

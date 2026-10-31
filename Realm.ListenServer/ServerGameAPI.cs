@@ -66,6 +66,8 @@ public partial class ServerGameAPI : IGameAPI, IDisposable
 
 	public GroundLootService Loot { get; }
 
+	public MatchMetrics? Metrics { get; set; }
+
 	public float GameElapsedTime
 	{
 		get
@@ -541,12 +543,14 @@ public partial class ServerGameAPI : IGameAPI, IDisposable
 	public void TriggerVictory()
 	{
 		_context.IsGameOver = true;
+		Metrics?.RecordMatchEnded();
 		_log.Write("the map declared victory");
 	}
 
 	public void TriggerDefeat()
 	{
 		_context.IsGameOver = true;
+		Metrics?.RecordMatchEnded();
 		_log.Write("the map declared defeat");
 	}
 
@@ -559,6 +563,8 @@ public partial class ServerGameAPI : IGameAPI, IDisposable
 
 	public void TriggerPlayerVictory(int playerIndex)
 	{
+		_context.IsGameOver = true;
+		Metrics?.RecordVictory(playerIndex);
 		_presentation.Write(PresentationKind.PlayerVictory, playerIndex, Vector3.Zero);
 		_log.Write($"player {playerIndex} victorious");
 	}
