@@ -250,8 +250,38 @@ public static class MapWorldLoader
 
 		loaded.PlayerCount = loaded.PlayerEntities.Length;
 		world.SetOrAdd(loaded.WorldEntity, new ScriptPlayersState(players));
-		world.SetOrAdd(loaded.WorldEntity, new PlayerRelationshipMatrix());
+		world.SetOrAdd(loaded.WorldEntity, BuildTeamRelationshipMatrix(players));
 		world.SetOrAdd(loaded.WorldEntity, mappingState);
+	}
+
+	/// <summary>
+	///     Answers who starts out as whose ally from the seats the match was given. A team is a side, so two seated players
+	///     sharing a non-zero team are allied and the rest are enemies, which is the same reading a lobby's team selector
+	///     is making. The result is written as the world's relationship table rather than left to the fallback, because a
+	///     table that exists is the one combat and every screen ask, and an empty one would overrule the teams with
+	///     "nobody is anything to anybody". Every pair is decided, so the answer a screen draws from the table is the same
+	///     answer the authority fights by, and a slot that belongs to no team, such as the neutral slot, is nobody's ally.
+	/// </summary>
+	/// <param name="players">The seated player slots, with their teams already applied.</param>
+	private static PlayerRelationshipMatrix BuildTeamRelationshipMatrix(ScriptPlayer[] players)
+	{
+		var relationships = new PlayerRelationshipMatrix();
+
+		for (int playerIndex = 0; playerIndex < players.Length; playerIndex++)
+		{
+			for (int otherPlayerIndex = playerIndex + 1; otherPlayerIndex < players.Length; otherPlayerIndex++)
+			{
+				int team = players[playerIndex].Team;
+				int otherTeam = players[otherPlayerIndex].Team;
+
+				relationships.SetRelationship(
+					playerIndex,
+					otherPlayerIndex,
+					team != 0 && team == otherTeam ? PlayerRelationship.Ally : PlayerRelationship.Enemy);
+			}
+		}
+
+		return relationships;
 	}
 
 	private static void SpawnPlacedUnits(LoadedMap loaded)
