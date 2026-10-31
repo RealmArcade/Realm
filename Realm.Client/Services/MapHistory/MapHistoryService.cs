@@ -6,7 +6,6 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using Godot;
 using Realm.Client.Utils;
-using Realm.Shared.Metadata;
 
 namespace Realm.Client.Services.MapHistory;
 
@@ -215,7 +214,13 @@ public class MapHistoryService
 					var repository = new MapGitRepository(mapDirectory);
 					if (repository.Exists)
 					{
-						PushBackupOrigin(repository, index);
+						var treeFiles = new List<string>();
+						if (repository.ReadHead().CommitId is { } headCommitId && repository.TryReadCommit(headCommitId, out MapGitCommitInfo headCommit))
+						{
+							treeFiles.AddRange(repository.ReadTreeFiles(headCommit.TreeId).Values);
+						}
+
+						PushBackupOrigin(repository, index, treeFiles);
 						SaveIndex(mapDirectory, index);
 					}
 				}
@@ -520,7 +525,7 @@ public class MapHistoryService
 		UpdateManifest(index, fingerprints);
 		SaveIndex(mapDirectory, index);
 
-		PushBackupOrigin(repository, index);
+		PushBackupOrigin(repository, index, blobIdByPath.Values);
 		SaveIndex(mapDirectory, index);
 
 		return new MapHistoryVersionResult
@@ -732,13 +737,13 @@ public class MapHistoryService
 		}
 	}
 
-	private void PushBackupOrigin(MapGitRepository repository, MapHistoryIndexFile index)
+	private void PushBackupOrigin(MapGitRepository repository, MapHistoryIndexFile index, IEnumerable<string> requiredBlobIds = null)
 	{
 		if (string.IsNullOrEmpty(index.MapGuid)) return;
 
 		try
 		{
-			repository.PushToBareRepository(GetBackupOriginPath(index.MapGuid));
+			repository.PushToBareRepository(GetBackupOriginPath(index.MapGuid), requiredBlobIds);
 			index.LastBackupAt = DateTimeOffset.Now;
 			WriteBackupOriginRecord(index);
 		}
@@ -879,18 +884,10 @@ public class MapHistoryService
 			metadataChanged = true;
 		}
 
-		long saveVersion = 0;
-		if (metadataRoot["SaveVersion"] is System.Text.Json.Nodes.JsonValue saveVersionNode &&
-		    saveVersionNode.TryGetValue(out long parsedSaveVersion))
-		{
-			saveVersion = parsedSaveVersion;
-		}
-
+		long saveVersion = index.SaveVersion;
 		if (incrementSaveVersion && saveVersion < long.MaxValue)
 		{
 			saveVersion++;
-			metadataRoot["SaveVersion"] = saveVersion;
-			metadataChanged = true;
 		}
 
 		if (metadataChanged)

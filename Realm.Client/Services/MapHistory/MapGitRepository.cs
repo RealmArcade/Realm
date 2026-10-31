@@ -549,12 +549,22 @@ public class MapGitRepository
 		}
 	}
 
-	public void PushToBareRepository(string bareRepositoryPath)
+	public void PushToBareRepository(string bareRepositoryPath, IEnumerable<string> requiredBlobIds = null)
 	{
 		InitializeBareRepository(bareRepositoryPath);
 
 		var originObjects = new MapGitObjectDatabase(bareRepositoryPath);
 		_objects.CopyMissingObjectsTo(originObjects);
+
+		if (requiredBlobIds != null)
+		{
+			foreach (string blobId in requiredBlobIds)
+			{
+				if (string.IsNullOrEmpty(blobId) || originObjects.Exists(blobId)) continue;
+				if (!_objects.TryRead(blobId, out MapGitObjectType objectType, out byte[] content)) continue;
+				originObjects.Write(objectType, content);
+			}
+		}
 
 		MapGitHeadState head = ReadHead();
 		string? latestCommitId = head.CommitId;

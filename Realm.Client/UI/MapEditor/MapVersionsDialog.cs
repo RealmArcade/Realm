@@ -29,7 +29,7 @@ public partial class MapVersionsDialog : FloatingDialogBase
 		: base(hud, TranslationServer.Translate("MAP VERSIONS"), new Vector2(560, 520))
 	{
 		Name = "MapVersionsDialog";
-		SetFooterCloseOnly("CLOSE");
+		SetFooterCloseOnly(TranslationServer.Translate("CLOSE"));
 		BuildControls();
 	}
 
