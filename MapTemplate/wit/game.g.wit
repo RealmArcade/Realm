@@ -3,6 +3,7 @@
 interface game-api {
     add-buff: func(unit-id: s32, buff-id: string, duration: f32);
     add-computer-player: func(player-index: s32, name: string, team-index: s32) -> bool;
+    add-instructions-section: func(title: string, body: string);
     add-item-to-unit: func(unit-id: s32, item-id: string) -> bool;
     add-item-to-unit-with-charges: func(unit-id: s32, item-id: string, charges: s32) -> bool;
     add-leaderboard-board-row: func(board-id: string, group-player-index: s32, group-title: string, label: string, value: string);

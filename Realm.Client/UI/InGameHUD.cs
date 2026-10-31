@@ -110,6 +110,8 @@ public partial class InGameHUD : Control
 	private Button _btnCenter;
 	private Button _btnSettings;
 	private Button _btnQuitMatch;
+	private Button _btnInstructions;
+	private InstructionsDialog _instructionsDialog;
 	public bool ShowMinimapTerrain => _viewModel.ShowMinimapTerrain;
 	public MinimapColorScheme MinimapColorScheme => _viewModel.MinimapColorScheme;
 
@@ -388,8 +390,88 @@ public partial class InGameHUD : Control
 			};
 		}
 
+		SetupInstructionsButton();
 		SetupPauseMatchButton();
 		SetupQuitMatchButton();
+	}
+
+	/// <summary>
+	///     The entry point to the map's own rules reference. The toolbar only offers it once the map has published a page,
+	///     because a menu with nothing in it is not a menu: the authority decides what there is to read, and this button
+	///     reports whether it has anything to show rather than deciding itself.
+	/// </summary>
+	private void SetupInstructionsButton()
+	{
+		if (_btnSettings == null) return;
+
+		_btnInstructions = new Button();
+		_btnInstructions.Name = "BtnInstructions";
+		_btnInstructions.Set("icon_max_width", 0);
+		_btnInstructions.Text = UnicodeIcons.HELP;
+		_btnInstructions.CustomMinimumSize = new Vector2(32, 32);
+		_btnInstructions.SizeFlagsVertical = SizeFlags.ShrinkCenter;
+		_btnInstructions.FocusMode = FocusModeEnum.None;
+		_btnInstructions.Visible = _viewModel.InstructionSections.Count > 0;
+		Font instructionsIconFont = UIStyle.FontAwesome;
+		if (instructionsIconFont != null)
+		{
+			_btnInstructions.AddThemeFontOverride("font", instructionsIconFont);
+		}
+
+		_btnInstructions.AddThemeFontSizeOverride("font_size", 16);
+		_btnInstructions.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
+		_btnInstructions.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
+		_btnInstructions.AddThemeColorOverride("font_pressed_color", UIStyle.ColorCyanGlow);
+		_btnInstructions.AddThemeColorOverride("font_focus_color", UIStyle.ColorGoldDull);
+		_btnInstructions.AddThemeStyleboxOverride("normal", UIStyle.CreateHUDButtonStyle(false, false));
+		_btnInstructions.AddThemeStyleboxOverride("hover", UIStyle.CreateHUDButtonStyle(true, false));
+		_btnInstructions.AddThemeStyleboxOverride("pressed", UIStyle.CreateHUDButtonStyle(false, true));
+		_btnInstructions.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		_btnInstructions.TooltipText = TranslationServer.Translate("Instructions");
+		_btnInstructions.Pressed += OnInstructionsPressed;
+		_btnInstructions.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
+
+		var resourceRow = _btnSettings.GetParent();
+		resourceRow.AddChild(_btnInstructions);
+		resourceRow.MoveChild(_btnInstructions, _btnSettings.GetIndex());
+	}
+
+	private void OnInstructionsPressed()
+	{
+		GameContext.UserInterface?.PlayClickSound();
+
+		if (_instructionsDialog != null && GodotObject.IsInstanceValid(_instructionsDialog))
+		{
+			_instructionsDialog.QueueFree();
+		}
+
+		_instructionsDialog = new InstructionsDialog { Name = "InstructionsDialog" };
+		AddChild(_instructionsDialog);
+		_instructionsDialog.Open(_viewModel.InstructionSections);
+	}
+
+	/// <summary>
+	///     Takes one page the map published for the Instructions menu. Pages keep the order they arrive in, and a page
+	///     whose title is already listed is restated in place, so a rule that changes during a match does not become a
+	///     second entry.
+	/// </summary>
+	public void AddInstructionsSection(string title, string body)
+	{
+		if (string.IsNullOrWhiteSpace(title)) return;
+
+		List<InstructionsSection> sections = _viewModel.InstructionSections;
+		sections.RemoveAll(section => string.Equals(section.Title, title, StringComparison.Ordinal));
+		sections.Add(new InstructionsSection(title, body ?? string.Empty));
+
+		if (_btnInstructions != null && GodotObject.IsInstanceValid(_btnInstructions))
+		{
+			_btnInstructions.Visible = sections.Count > 0;
+		}
+
+		if (_instructionsDialog != null && GodotObject.IsInstanceValid(_instructionsDialog) && _instructionsDialog.Visible)
+		{
+			_instructionsDialog.Refresh(sections);
+		}
 	}
 
 	private Button _btnPauseMatch;

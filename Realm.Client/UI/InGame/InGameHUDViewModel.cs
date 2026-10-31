@@ -321,6 +321,12 @@ public class InGameHUDViewModel
 
 	private static readonly LeaderboardBoards EmptyLeaderboards = new();
 
+	/// <summary>
+	///     The pages the Instructions menu offers, in the order the authority published them. They belong to this screen's
+	///     presentation only: a page states a rule, it does not change one.
+	/// </summary>
+	public List<InstructionsSection> InstructionSections { get; } = new();
+
 	private static ref SummaryTableState EnsureSummaryTableState(EcsWorld world, Entity entity)
 	{
 		if (!world.Has<SummaryTableState>(entity))

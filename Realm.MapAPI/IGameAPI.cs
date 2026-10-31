@@ -475,6 +475,20 @@ public interface IGameAPI
 	void ClearSummaryTable();
 
 	/// <summary>
+	/// Adds one titled page to the Instructions menu that every player can open from the in-game toolbar.
+	/// </summary>
+	/// <remarks>
+	/// Pages are ordered by the order these calls are made, so a script that explains its rules in a fixed sequence
+	/// registers them in that sequence, typically once from <see cref="IMapScript.Initialize"/>: the first call becomes
+	/// the entry the menu selects when it opens. Publishing a title that is already registered replaces that page's text
+	/// where it stands, so a rule that changes during a match is restated rather than duplicated. The toolbar button stays
+	/// hidden until at least one page exists, and a player who joins late is sent every page registered so far.
+	/// </remarks>
+	/// <param name="title">Short heading shown in the menu's ordering selector, such as "Drafting".</param>
+	/// <param name="body">The page text shown under the selector. BBCode is allowed, so a page can bold a term or list its rules.</param>
+	void AddInstructionsSection(string title, string body);
+
+	/// <summary>
 	/// Retrieves the preferred language code of the specified player (e.g. "en", "es").
 	/// </summary>
 	/// <param name="playerIndex">Zero-based player index.</param>

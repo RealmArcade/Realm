@@ -1059,6 +1059,20 @@
             Clears all rows from the active stats summary table.
             </summary>
         </member>
+        <member name="M:Realm.MapAPI.IGameAPI.AddInstructionsSection(System.String,System.String)">
+            <summary>
+            Adds one titled page to the Instructions menu that every player can open from the in-game toolbar.
+            </summary>
+            <remarks>
+            Pages are ordered by the order these calls are made, so a script that explains its rules in a fixed sequence
+            registers them in that sequence, typically once from <see cref="M:Realm.MapAPI.IMapScript.Initialize(Realm.MapAPI.IGameAPI)"/>: the first call becomes
+            the entry the menu selects when it opens. Publishing a title that is already registered replaces that page's text
+            where it stands, so a rule that changes during a match is restated rather than duplicated. The toolbar button stays
+            hidden until at least one page exists, and a player who joins late is sent every page registered so far.
+            </remarks>
+            <param name="title">Short heading shown in the menu's ordering selector, such as "Drafting".</param>
+            <param name="body">The page text shown under the selector. BBCode is allowed, so a page can bold a term or list its rules.</param>
+        </member>
         <member name="M:Realm.MapAPI.IGameAPI.GetPlayerLanguage(System.Int32)">
             <summary>
             Retrieves the preferred language code of the specified player (e.g. "en", "es").

@@ -150,6 +150,14 @@ public partial class ServerGameAPI
 		_presentation.Write(PresentationKind.SummaryTableCleared, AllPlayers, Vector3.Zero);
 	}
 
+	public void AddInstructionsSection(string title, string body)
+	{
+		if (string.IsNullOrWhiteSpace(title)) return;
+
+		_presentation.Write(PresentationKind.InstructionsSectionAdded, AllPlayers, 0, title, body ?? string.Empty, string.Empty, string.Empty, null,
+			Vector3.Zero, Vector3.Zero, Vector3.Zero, 0, 0, 0f, 0f, 0f, false);
+	}
+
 	public void StartCountdownTimer(float duration, string label)
 	{
 		Entity worldEntity = _context.WorldEntity;
