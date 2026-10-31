@@ -103,6 +103,12 @@ public partial class GameHost
 				}
 			}
 
+			if (ActiveEditorTool == EditorTool.Ramp
+			    && _rampPressActive
+			    && editorMm.Position.DistanceTo(_rampPressScreenPosition) > RampDragScreenThreshold) _rampPressDragging = true;
+
+			UpdateRampHoverPreview(editorMm.Position);
+
 			if (_is3DDragOperationActive
 			    && ActiveEditorTool == EditorTool.SelectMove
 			    && !_isDraggingObject
@@ -150,6 +156,7 @@ public partial class GameHost
 				if (GameContext.EditorService.RampStartPos != null)
 				{
 					GameContext.EditorService.SetRampStartPos(null);
+					ClearRampPreviewVisuals();
 					GameContext.MapEditorHud?.ShowFeedbackExternal("Ramp Cancelled");
 					GetViewport().SetInputAsHandled();
 					return;
@@ -952,6 +959,7 @@ public partial class GameHost
 			if (GameContext.EditorService.RampStartPos != null)
 			{
 				GameContext.EditorService.SetRampStartPos(null);
+				ClearRampPreviewVisuals();
 				GameContext.MapEditorHud?.ShowFeedbackExternal("Ramp Cancelled");
 				GetViewport().SetInputAsHandled();
 				return;
@@ -986,6 +994,13 @@ public partial class GameHost
 
 		if (@event is InputEventMouseButton releaseEvent && !releaseEvent.Pressed && releaseEvent.ButtonIndex == MouseButton.Left)
 		{
+			if (ActiveEditorTool == EditorTool.Ramp && _rampPressActive)
+			{
+				FinishRampInteraction(releaseEvent.Position);
+				GetViewport().SetInputAsHandled();
+				return;
+			}
+
 			if (_is3DDragOperationActive)
 			{
 				_is3DDragOperationActive = false;
@@ -1588,82 +1603,7 @@ public partial class GameHost
 				}
 				else if (ActiveEditorTool == EditorTool.Ramp)
 				{
-					if (GameContext.EditorService.RampStartPos == null)
-					{
-						GameContext.EditorService.SetRampStartPos(hitPos);
-						GameContext.MapEditorHud?.ShowFeedbackExternal("Ramp Start Point Set!");
-					}
-					else
-					{
-						Vector3 start = GameContext.EditorService.RampStartPos.Value;
-						Vector3 end = hitPos;
-						if (GroundTerrain != null && GroundTerrain.Cells != null && GroundTerrain.SplatMap != null && GroundTerrain.PathingCodes != null)
-						{
-							var cellsBefore = (TerrainCell[,])GroundTerrain.Cells.Clone();
-							var splatBefore = (TerrainSplatWeights[,])GroundTerrain.SplatMap.Clone();
-							var cliffBefore = GroundTerrain.CliffSplatMap != null ? (TerrainSplatWeights[,])GroundTerrain.CliffSplatMap.Clone() : null;
-							var pathingBefore = (int[,])GroundTerrain.PathingCodes.Clone();
-							bool modified = ApplyRampInternal(start, end);
-							if (EditorMirrorMode != MirrorMode.None)
-							{
-								var startMirrored = GetMirroredTransforms(start, 0.0f);
-								var endMirrored = GetMirroredTransforms(end, 0.0f);
-								for (int i = 0; i < startMirrored.Count; i++)
-								{
-									bool mResult = ApplyRampInternal(startMirrored[i].Position, endMirrored[i].Position);
-									if (mResult) modified = true;
-								}
-							}
-
-							if (modified)
-							{
-								float minX = Mathf.Min(start.X, end.X);
-								float maxX = Mathf.Max(start.X, end.X);
-								float minZ = Mathf.Min(start.Z, end.Z);
-								float maxZ = Mathf.Max(start.Z, end.Z);
-
-								if (EditorMirrorMode != MirrorMode.None)
-								{
-									var startMirrored = GetMirroredTransforms(start, 0.0f);
-									var endMirrored = GetMirroredTransforms(end, 0.0f);
-									for (int i = 0; i < startMirrored.Count; i++)
-									{
-										minX = Mathf.Min(minX, Mathf.Min(startMirrored[i].Position.X, endMirrored[i].Position.X));
-										maxX = Mathf.Max(maxX, Mathf.Max(startMirrored[i].Position.X, endMirrored[i].Position.X));
-										minZ = Mathf.Min(minZ, Mathf.Min(startMirrored[i].Position.Z, endMirrored[i].Position.Z));
-										maxZ = Mathf.Max(maxZ, Mathf.Max(startMirrored[i].Position.Z, endMirrored[i].Position.Z));
-									}
-								}
-
-								float brushRadius = EditorBrushRadius;
-								float quadSize = GroundTerrain.QuadSize;
-								int width = GroundTerrain.Width;
-								int depth = GroundTerrain.Depth;
-
-								int minGridX = Mathf.Clamp(Mathf.FloorToInt((minX - brushRadius) / quadSize + (width - 1) / 2.0f), 0, width - 1);
-								int maxGridX = Mathf.Clamp(Mathf.CeilToInt((maxX + brushRadius) / quadSize + (width - 1) / 2.0f), 0, width - 1);
-								int minGridZ = Mathf.Clamp(Mathf.FloorToInt((minZ - brushRadius) / quadSize + (depth - 1) / 2.0f), 0, depth - 1);
-								int maxGridZ = Mathf.Clamp(Mathf.CeilToInt((maxZ + brushRadius) / quadSize + (depth - 1) / 2.0f), 0, depth - 1);
-
-								Rect2I affected = new Rect2I(minGridX - 2, minGridZ - 2, maxGridX - minGridX + 4, maxGridZ - minGridZ + 4);
-
-								GroundTerrain.UpdateMeshAndPhysics(true, false, affected);
-								AlignAllEntitiesToTerrain(affected);
-								var cellsAfter = (TerrainCell[,])GroundTerrain.Cells.Clone();
-								var splatAfter = (TerrainSplatWeights[,])GroundTerrain.SplatMap.Clone();
-								var cliffAfter = GroundTerrain.CliffSplatMap != null ? (TerrainSplatWeights[,])GroundTerrain.CliffSplatMap.Clone() : null;
-								var pathingAfter = (int[,])GroundTerrain.PathingCodes.Clone();
-								var action = new TerrainModifyAction(cellsBefore, cellsAfter, splatBefore, splatAfter, pathingBefore, pathingAfter, cliffBefore, cliffAfter);
-								EditorHistoryManager.RecordAction(action);
-								EditorHasUnsavedChanges = true;
-								UpdatePathingOverlay();
-							}
-						}
-
-						GameContext.EditorService.SetRampStartPos(null);
-						GameContext.MapEditorHud?.ShowFeedbackExternal("Ramp Created!");
-					}
-
+					BeginRampInteraction(hitPos, editorMouseBtn.Position);
 					GetViewport().SetInputAsHandled();
 				}
 				else if (ActiveEditorTool == EditorTool.FloodFill)
@@ -2381,15 +2321,22 @@ public partial class GameHost
 		ClearSelectedProp();
 
 		var hit = RaycastFromMouse(clickPos);
-		if (hit == null || !hit.ContainsKey("collider"))
+		Node collider = null;
+		Unit3D clickedUnit = null;
+		if (hit != null && hit.ContainsKey("collider"))
+		{
+			collider = hit["collider"].As<Node>();
+			clickedUnit = FindUnit3DInParentChain(collider);
+		}
+
+		clickedUnit ??= FindUnitNearScreenPoint(clickPos);
+
+		if (clickedUnit == null && collider == null)
 		{
 			ClearSelection();
 			GameContext.InGameHud?.RefreshUI(SelectedUnits);
 			return;
 		}
-
-		var collider = hit["collider"].As<Node>();
-		var clickedUnit = FindUnit3DInParentChain(collider);
 
 		if (clickedUnit != null)
 		{
@@ -2492,9 +2439,23 @@ public partial class GameHost
 		var enemyUnits = new List<Unit3D>();
 		CollectUnitsInRect(camera, dragRect, friendlyUnits, enemyUnits);
 
+		// A box that catches anything of this screen's own is a command in the making, so it takes only what can be
+		// commanded. A box that catches nothing of its own is a look: the enemy units it sweeps are selected so their
+		// details can be read, and every order path skips a unit this screen does not own, so the selection stays read-only.
 		if (friendlyUnits.Count > 0)
 		{
 			SelectUnits(friendlyUnits);
+		}
+		else if (enemyUnits.Count > 0)
+		{
+			// A shift-drag that sweeps a second enemy extends what is being read, but it never turns a command into a look:
+			// a selection this screen can order around is dropped rather than mixed with units it cannot.
+			if (SelectedUnits.Count > 0 && GameContext.PerspectiveFilter.CanControl(SelectedUnits[0].Player))
+			{
+				ClearSelection();
+			}
+
+			SelectUnits(enemyUnits);
 		}
 		else
 		{
@@ -2774,6 +2735,108 @@ public partial class GameHost
 	public Dictionary RaycastTerrainFromMouse(Vector2 mousePos)
 	{
 		return RaycastFromMouse(mousePos, RaycastService.TerrainLayer);
+	}
+
+	private const float RampDragScreenThreshold = 6f;
+	private const float RampClickMaximumMovement = 2f;
+	private const ulong RampDragHoldMilliseconds = 350;
+	private const float SelectionPickAssistMeters = 0.8f;
+	private const float SelectionPickAssistPixels = 28f;
+
+	private bool _rampPressActive;
+	private bool _rampPressDragging;
+	private bool _rampPressStartedNewRamp;
+	private Vector2 _rampPressScreenPosition;
+	private ulong _rampPressStartedMilliseconds;
+
+	private void BeginRampInteraction(Vector3 startPosition, Vector2 screenPosition)
+	{
+		_rampPressActive = true;
+		_rampPressDragging = false;
+		_rampPressStartedNewRamp = GameContext.EditorService.RampStartPos == null;
+		_rampPressScreenPosition = screenPosition;
+		_rampPressStartedMilliseconds = Time.GetTicksMsec();
+
+		if (_rampPressStartedNewRamp)
+		{
+			GameContext.EditorService.SetRampStartPos(startPosition);
+			GameContext.MapEditorHud?.ShowFeedbackExternal("Ramp Start Point Set!");
+		}
+
+		UpdateRampPreviewVisuals(GameContext.EditorService.RampStartPos ?? startPosition, startPosition);
+	}
+
+	private void UpdateRampHoverPreview(Vector2 screenPosition)
+	{
+		if (ActiveEditorTool != EditorTool.Ramp) return;
+
+		Vector3? startPosition = GameContext.EditorService.RampStartPos;
+		if (startPosition == null) return;
+
+		var hoverHit = RaycastTerrainFromMouse(screenPosition);
+		if (hoverHit == null || !hoverHit.ContainsKey("position")) return;
+
+		UpdateRampPreviewVisuals(startPosition.Value, SnapEditorHitToGrid(hoverHit["position"].AsVector3()));
+	}
+
+	private void FinishRampInteraction(Vector2 releaseScreenPosition)
+	{
+		ulong heldMilliseconds = Time.GetTicksMsec() - _rampPressStartedMilliseconds;
+		float movedPixels = releaseScreenPosition.DistanceTo(_rampPressScreenPosition);
+		bool dragIntent = _rampPressDragging
+		                  || movedPixels > RampDragScreenThreshold
+		                  || (heldMilliseconds >= RampDragHoldMilliseconds && movedPixels > RampClickMaximumMovement);
+
+		bool startedNewRamp = _rampPressStartedNewRamp;
+		_rampPressActive = false;
+		_rampPressDragging = false;
+		_rampPressStartedNewRamp = false;
+
+		Vector3? startPosition = GameContext.EditorService.RampStartPos;
+		if (startPosition == null) return;
+		if (!dragIntent && startedNewRamp) return;
+
+		var releaseHit = RaycastTerrainFromMouse(releaseScreenPosition);
+		if (releaseHit == null || !releaseHit.ContainsKey("position")) return;
+
+		Vector3 endPosition = SnapEditorHitToGrid(releaseHit["position"].AsVector3());
+		if (CommitRamp(startPosition.Value, endPosition)) GameContext.MapEditorHud?.ShowFeedbackExternal("Ramp Created!");
+
+		GameContext.EditorService.SetRampStartPos(null);
+		ClearRampPreviewVisuals();
+	}
+
+	private Vector3 SnapEditorHitToGrid(Vector3 hitPosition)
+	{
+		if (!EditorSnapToGrid || GroundTerrain == null) return hitPosition;
+
+		float quadSize = GroundTerrain.QuadSize;
+		int width = GroundTerrain.Width;
+		int depth = GroundTerrain.Depth;
+		float gridX = Mathf.Round(hitPosition.X / quadSize + (width - 1) / 2.0f);
+		hitPosition.X = (Mathf.Clamp(gridX, 0, width - 1) - (width - 1) / 2.0f) * quadSize;
+		float gridZ = Mathf.Round(hitPosition.Z / quadSize + (depth - 1) / 2.0f);
+		hitPosition.Z = (Mathf.Clamp(gridZ, 0, depth - 1) - (depth - 1) / 2.0f) * quadSize;
+		return hitPosition;
+	}
+
+	private Unit3D FindUnitNearScreenPoint(Vector2 screenPosition)
+	{
+		var camera = GetViewport()?.GetCamera3D();
+		if (camera == null) return null;
+
+		Vector3 from = camera.ProjectRayOrigin(screenPosition);
+		Vector3 direction = camera.ProjectRayNormal(screenPosition);
+		var tolerantHit = GameContext.RaycastService.RaycastUnits(from, direction, 1000f, SelectionPickAssistMeters);
+		if (tolerantHit == null || !tolerantHit.HasHit) return null;
+
+		var candidate = FindUnit3DInParentChain(tolerantHit.Collider);
+		if (candidate == null) return null;
+
+		Vector3 worldPoint = candidate.GlobalPosition + new Vector3(0f, 0.5f, 0f);
+		if (camera.IsPositionBehind(worldPoint)) return null;
+
+		return camera.UnprojectPosition(worldPoint).DistanceTo(screenPosition) <= SelectionPickAssistPixels ? candidate : null;
 	}
 
 	public Dictionary RaycastFromMouse(Vector2 mousePos, uint collisionMask = uint.MaxValue)
@@ -3646,6 +3709,38 @@ public partial class GameHost
 		Input.SetDefaultCursorShape(Input.CursorShape.Arrow);
 	}
 
+	/// <summary>
+	///     The unit that should carry out a placement order: one of this player's selection when it can build the type,
+	///     otherwise the player's own builder nearest the spot. A placement is ordered from a builder's build menu, so the
+	///     order must not be lost when that builder is not selected the frame the click lands.
+	/// </summary>
+	private Unit3D? FindWorkerForPlacement(string type, Vector3 position)
+	{
+		Unit3D? selectedWorker = SelectedUnits.Find(u => CanUnitConstructType(u, type));
+		if (selectedWorker != null && GameContext.World.IsAlive(selectedWorker.Entity)) return selectedWorker;
+
+		int playerIndex = GameContext.PerspectiveFilter.ControlledPlayerIndex;
+		if (!PlayerToUnits.TryGetValue(playerIndex, out List<Unit3D>? ownedUnits)) return null;
+
+		Unit3D? nearestWorker = null;
+		float nearestDistanceSquared = float.MaxValue;
+		for (int index = 0; index < ownedUnits.Count; index++)
+		{
+			Unit3D candidate = ownedUnits[index];
+			if (!GodotObject.IsInstanceValid(candidate)) continue;
+			if (!GameContext.World.IsAlive(candidate.Entity)) continue;
+			if (!CanUnitConstructType(candidate, type)) continue;
+
+			float distanceSquared = candidate.Position.DistanceSquaredTo(position);
+			if (distanceSquared >= nearestDistanceSquared) continue;
+
+			nearestDistanceSquared = distanceSquared;
+			nearestWorker = candidate;
+		}
+
+		return nearestWorker;
+	}
+
 	private bool CanUnitConstructType(Unit3D u, string type)
 	{
 		if (u == null || u.IsBuilding || !GameContext.PerspectiveFilter.CanControl(u.Player)) return false;
@@ -3672,20 +3767,26 @@ public partial class GameHost
 
 		if (_multiplayerActive && !Multiplayer.IsServer())
 		{
+			// The worker is resolved before the order is announced or paid for: an order the screen cannot name a worker for
+			// is one the match will refuse, and telling the player it is constructing something it never asked for is worse
+			// than saying nothing.
+			Unit3D? placementWorker = FindWorkerForPlacement(type, position);
+			int placementWorkerServerId = placementWorker != null ? GetServerEntityId(placementWorker.Entity) : -1;
+			if (placementWorkerServerId <= 0)
+			{
+				GameContext.InGameHud?.ShowFeedbackText(TranslationServer.Translate("Cannot construct: no builder is available"), new Color(1.0f, 0.2f, 0.2f));
+				GameContext.UserInterface?.PlayWarningSound();
+				ClearBuildingPlacementState();
+				return;
+			}
+
 			if (GameContext.InGameHud != null)
 			{
 				DeductResourcesForBuilding(meta);
 				GameContext.InGameHud.ShowFeedbackText($"Constructing {meta.Name}...", new Color(0.3f, 0.9f, 0.4f));
 			}
 
-			var buildWorkerIds = new List<int>();
-			Unit3D? selectedWorker = SelectedUnits.Find(u => CanUnitConstructType(u, type));
-			if (selectedWorker != null && GameContext.World.IsAlive(selectedWorker.Entity))
-			{
-				buildWorkerIds.Add(GetServerEntityId(selectedWorker.Entity));
-			}
-
-			SubmitRemoteCommand("build", buildWorkerIds, position, 0, type);
+			SubmitRemoteCommand("build", new List<int> { placementWorkerServerId }, position, 0, type);
 
 			if (!shiftHeld) ClearBuildingPlacementState();
 			return;

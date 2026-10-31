@@ -2984,6 +2984,9 @@ namespace Realm.Client.Core
 		public void ClearRampStartPosExternal()
 		{
 			GameContext.EditorService.SetRampStartPos(null);
+			_rampPressActive = false;
+			_rampPressDragging = false;
+			ClearRampPreviewVisuals();
 		}
 
 		public List<MirroredTransform> GetMirroredTransforms(Vector3 pos, float rotation)
@@ -2994,6 +2997,71 @@ namespace Realm.Client.Core
 		private bool ApplyRampInternal(Vector3 start, Vector3 end)
 		{
 			return GameContext.EditorService.ApplyRamp(start, end, EditorBrushRadius, EditorBlockMode, EditorBlockLevelHeight);
+		}
+
+		private bool CommitRamp(Vector3 start, Vector3 end)
+		{
+			if (GroundTerrain == null || GroundTerrain.Cells == null || GroundTerrain.SplatMap == null || GroundTerrain.PathingCodes == null) return false;
+
+			var cellsBefore = (TerrainCell[,])GroundTerrain.Cells.Clone();
+			var splatBefore = (TerrainSplatWeights[,])GroundTerrain.SplatMap.Clone();
+			var cliffBefore = GroundTerrain.CliffSplatMap != null ? (TerrainSplatWeights[,])GroundTerrain.CliffSplatMap.Clone() : null;
+			var pathingBefore = (int[,])GroundTerrain.PathingCodes.Clone();
+			bool modified = ApplyRampInternal(start, end);
+
+			if (EditorMirrorMode != MirrorMode.None)
+			{
+				var startMirrored = GetMirroredTransforms(start, 0.0f);
+				var endMirrored = GetMirroredTransforms(end, 0.0f);
+				for (int index = 0; index < startMirrored.Count; index++)
+				{
+					if (ApplyRampInternal(startMirrored[index].Position, endMirrored[index].Position)) modified = true;
+				}
+			}
+
+			if (!modified) return false;
+
+			float minX = Mathf.Min(start.X, end.X);
+			float maxX = Mathf.Max(start.X, end.X);
+			float minZ = Mathf.Min(start.Z, end.Z);
+			float maxZ = Mathf.Max(start.Z, end.Z);
+
+			if (EditorMirrorMode != MirrorMode.None)
+			{
+				var startMirrored = GetMirroredTransforms(start, 0.0f);
+				var endMirrored = GetMirroredTransforms(end, 0.0f);
+				for (int index = 0; index < startMirrored.Count; index++)
+				{
+					minX = Mathf.Min(minX, Mathf.Min(startMirrored[index].Position.X, endMirrored[index].Position.X));
+					maxX = Mathf.Max(maxX, Mathf.Max(startMirrored[index].Position.X, endMirrored[index].Position.X));
+					minZ = Mathf.Min(minZ, Mathf.Min(startMirrored[index].Position.Z, endMirrored[index].Position.Z));
+					maxZ = Mathf.Max(maxZ, Mathf.Max(startMirrored[index].Position.Z, endMirrored[index].Position.Z));
+				}
+			}
+
+			float brushRadius = EditorBrushRadius;
+			float quadSize = GroundTerrain.QuadSize;
+			int width = GroundTerrain.Width;
+			int depth = GroundTerrain.Depth;
+
+			int minGridX = Mathf.Clamp(Mathf.FloorToInt((minX - brushRadius) / quadSize + (width - 1) / 2.0f), 0, width - 1);
+			int maxGridX = Mathf.Clamp(Mathf.CeilToInt((maxX + brushRadius) / quadSize + (width - 1) / 2.0f), 0, width - 1);
+			int minGridZ = Mathf.Clamp(Mathf.FloorToInt((minZ - brushRadius) / quadSize + (depth - 1) / 2.0f), 0, depth - 1);
+			int maxGridZ = Mathf.Clamp(Mathf.CeilToInt((maxZ + brushRadius) / quadSize + (depth - 1) / 2.0f), 0, depth - 1);
+
+			Rect2I affected = new Rect2I(minGridX - 2, minGridZ - 2, maxGridX - minGridX + 4, maxGridZ - minGridZ + 4);
+
+			GroundTerrain.UpdateMeshAndPhysics(true, false, affected);
+			AlignAllEntitiesToTerrain(affected);
+			var cellsAfter = (TerrainCell[,])GroundTerrain.Cells.Clone();
+			var splatAfter = (TerrainSplatWeights[,])GroundTerrain.SplatMap.Clone();
+			var cliffAfter = GroundTerrain.CliffSplatMap != null ? (TerrainSplatWeights[,])GroundTerrain.CliffSplatMap.Clone() : null;
+			var pathingAfter = (int[,])GroundTerrain.PathingCodes.Clone();
+			var action = new TerrainModifyAction(cellsBefore, cellsAfter, splatBefore, splatAfter, pathingBefore, pathingAfter, cliffBefore, cliffAfter);
+			EditorHistoryManager.RecordAction(action);
+			EditorHasUnsavedChanges = true;
+			UpdatePathingOverlay();
+			return true;
 		}
 
 		private void ApplyGeneralClumpSpawn(Vector3 centerPos)

@@ -261,7 +261,7 @@ public class RaycastService
 		return null;
 	}
 
-	public RaycastResult RaycastUnits(Vector3 origin, Vector3 dir, float maxDist)
+	public RaycastResult RaycastUnits(Vector3 origin, Vector3 dir, float maxDist, float radiusPadding = 0f)
 	{
 		var gameHost = GameContext.Host;
 		if (gameHost == null) return null;
@@ -273,7 +273,7 @@ public class RaycastService
 		{
 			if (unit == null || !GodotObject.IsInstanceValid(unit) || !unit.Visible) continue;
 
-			float radius = MathF.Max(GameplayConstants.ResolveBodyRadius(GameContext.World, unit.Entity, GameplayConstants.DefaultCollisionRadius), 0.5f);
+			float radius = MathF.Max(GameplayConstants.ResolveBodyRadius(GameContext.World, unit.Entity, GameplayConstants.DefaultCollisionRadius), 0.5f) + radiusPadding;
 			float height = unit.IsBuilding ? MathF.Max(2.0f, radius * 2.5f) : 2.5f;
 			Vector3 center = unit.GlobalPosition;
 
