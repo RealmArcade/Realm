@@ -250,8 +250,6 @@ public class SaveLoadService
 				UpdateEditorState(editor, worldQuery2);
 			}
 
-			BackupWorkspaceIfNeeded(directory);
-
 			return true;
 		}
 		catch (Exception ex)
@@ -482,16 +480,6 @@ public class SaveLoadService
 		);
 
 		GameContext.World.Query(in worldQuery2, (Entity entity, ref TerrainState t, ref EditorState e) => { GameContext.World.Set(entity, updatedEditor); });
-	}
-
-	private void BackupWorkspaceIfNeeded(string directory)
-	{
-		int maxBackups = EditorSettingsDialog.CurrentSettings?.MaxBackupSnapshots ?? 3;
-		if (maxBackups > 0)
-		{
-			string backupSourceDir = directory;
-			_ = Task.Run(() => CreateWorkspaceBackup(backupSourceDir, maxBackups));
-		}
 	}
 
 	private void CleanupOldMapEntities()

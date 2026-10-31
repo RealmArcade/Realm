@@ -17,6 +17,7 @@ using NSec.Cryptography;
 using Realm.Client.Animation;
 using Realm.Client.Core;
 using Realm.Client.Network;
+using Realm.Client.Services.MapHistory;
 using Realm.Client.UI;
 using Realm.Client.UI.MapEditor;
 using Realm.Client.VFX;
@@ -826,7 +827,23 @@ public partial class EditorService : IEditorAPI
 	public string TempWorkspaceGodotPath { get; set; } = MapWorkspaceService.DefaultWorkspaceGodotPath;
 	public string _tempWorkspacePath { get; set; } = string.Empty;
 
+	public bool IsEditingMapFolderInPlace { get; set; }
+
 	public bool HasTempWorkspaceSession => !string.IsNullOrEmpty(_tempWorkspacePath);
+
+	public void SetActiveMapDirectory(string absoluteDirectory, bool editingMapFolderInPlace)
+	{
+		_tempWorkspacePath = absoluteDirectory;
+		TempWorkspaceGodotPath = absoluteDirectory.Replace('\\', '/');
+		IsEditingMapFolderInPlace = editingMapFolderInPlace;
+	}
+
+	public void UseScratchWorkspaceDomain()
+	{
+		TempWorkspaceGodotPath = MapWorkspaceService.DefaultWorkspaceGodotPath;
+		_tempWorkspacePath = MapWorkspaceService.GetDefaultWorkspaceGlobalPath();
+		IsEditingMapFolderInPlace = false;
+	}
 
 	public void OpenTempWorkspaceSessionDomain()
 	{
@@ -5080,13 +5097,29 @@ public partial class EditorService : IEditorAPI
 		return false;
 	}
 
+	private static readonly string[] MonitoredFileNames = { "metadata.json", "manifest.json", "terrain.json" };
+	private static readonly Dictionary<string, MapFileState> KnownFileStates = new(StringComparer.OrdinalIgnoreCase);
+	private static readonly object _watcherLock = new();
+
 	private FileSystemWatcher? _workspaceWatcher;
-	private string? _watchedDirectory;
+	private static string? _watchedDirectory;
 	private Timer? _debounceTimer;
-	private readonly object _watcherLock = new();
-	private long _lastProcessedMetadataWriteTime;
-	private long _lastProcessedTerrainWriteTime;
-	public static DateTime LastInternalSaveTimeUtc { get; set; } = DateTime.MinValue;
+	private static bool _metadataChangePending;
+	private static bool _terrainChangePending;
+	private static volatile bool _hasPendingExternalChanges;
+	private static long _lastInternalSaveTimeUtcTicks = DateTime.MinValue.Ticks;
+
+	public static DateTime LastInternalSaveTimeUtc
+	{
+		get => new(Volatile.Read(ref _lastInternalSaveTimeUtcTicks), DateTimeKind.Utc);
+		set
+		{
+			Volatile.Write(ref _lastInternalSaveTimeUtcTicks, value.Ticks);
+			ReconcileKnownFileStatesFromDisk();
+		}
+	}
+
+	private readonly record struct MapFileState(long Size, long LastWriteTicks);
 	public bool PasteOptionEntities { get; set; } = true;
 	public bool PasteOptionPathing { get; set; } = true;
 	public float EditorPasteRotation { get; set; } = 0.0f;
@@ -5119,19 +5152,59 @@ public partial class EditorService : IEditorAPI
 
 	public void UpdateWatchedFileTimestamps()
 	{
+		ReconcileKnownFileStatesFromDisk();
+	}
+
+	public static void ReconcileKnownFileStatesFromDisk()
+	{
 		lock (_watcherLock)
 		{
-			if (!string.IsNullOrEmpty(_watchedDirectory) && Directory.Exists(_watchedDirectory))
+			if (string.IsNullOrEmpty(_watchedDirectory) || !Directory.Exists(_watchedDirectory)) return;
+
+			foreach (string fileName in MonitoredFileNames)
 			{
-				string metaPath = Path.Combine(_watchedDirectory, "metadata.json");
-				string terrainPath = Path.Combine(_watchedDirectory, "terrain.json");
-				if (File.Exists(metaPath)) _lastProcessedMetadataWriteTime = File.GetLastWriteTimeUtc(metaPath).Ticks;
-				if (File.Exists(terrainPath)) _lastProcessedTerrainWriteTime = File.GetLastWriteTimeUtc(terrainPath).Ticks;
+				string filePath = Path.Combine(_watchedDirectory, fileName);
+				if (!TryReadFileState(filePath, out MapFileState state))
+				{
+					KnownFileStates.Remove(filePath);
+					continue;
+				}
+
+				bool wasRewritten = KnownFileStates.TryGetValue(filePath, out MapFileState previous) && !previous.Equals(state);
+				KnownFileStates[filePath] = state;
+
+				if (!wasRewritten) continue;
+
+				if (IsMetadataFile(fileName))
+				{
+					_metadataChangePending = false;
+				}
+				else if (IsTerrainFile(fileName))
+				{
+					_terrainChangePending = false;
+				}
+
+				_hasPendingExternalChanges = _metadataChangePending || _terrainChangePending;
 			}
 		}
 	}
 
-	public void StartWorkspaceWatcher(string directory, Action? onMetadataChanged = null, Action? onTerrainChanged = null)
+	public static bool HasPendingExternalChanges => _hasPendingExternalChanges;
+
+	public bool TryTakePendingExternalChanges(out bool metadataChanged, out bool terrainChanged)
+	{
+		lock (_watcherLock)
+		{
+			metadataChanged = _metadataChangePending;
+			terrainChanged = _terrainChangePending;
+			_metadataChangePending = false;
+			_terrainChangePending = false;
+			_hasPendingExternalChanges = false;
+			return metadataChanged || terrainChanged;
+		}
+	}
+
+	public void StartWorkspaceWatcher(string directory)
 	{
 		lock (_watcherLock)
 		{
@@ -5143,12 +5216,21 @@ public partial class EditorService : IEditorAPI
 			}
 
 			_watchedDirectory = directory;
+			KnownFileStates.Clear();
+			_metadataChangePending = false;
+			_terrainChangePending = false;
+			_hasPendingExternalChanges = false;
+
 			try
 			{
-				string metaPath = Path.Combine(directory, "metadata.json");
-				string terrainPath = Path.Combine(directory, "terrain.json");
-				if (File.Exists(metaPath)) _lastProcessedMetadataWriteTime = File.GetLastWriteTimeUtc(metaPath).Ticks;
-				if (File.Exists(terrainPath)) _lastProcessedTerrainWriteTime = File.GetLastWriteTimeUtc(terrainPath).Ticks;
+				foreach (string fileName in MonitoredFileNames)
+				{
+					string filePath = Path.Combine(directory, fileName);
+					if (TryReadFileState(filePath, out MapFileState state))
+					{
+						KnownFileStates[filePath] = state;
+					}
+				}
 
 				_workspaceWatcher = new FileSystemWatcher(directory)
 				{
@@ -5157,8 +5239,8 @@ public partial class EditorService : IEditorAPI
 					EnableRaisingEvents = true
 				};
 
-				_workspaceWatcher.Changed += (s, e) => OnWorkspaceFileChanged(e.FullPath, onMetadataChanged, onTerrainChanged);
-				_workspaceWatcher.Created += (s, e) => OnWorkspaceFileChanged(e.FullPath, onMetadataChanged, onTerrainChanged);
+				_workspaceWatcher.Changed += (s, e) => OnWorkspaceFileChanged(e.FullPath);
+				_workspaceWatcher.Created += (s, e) => OnWorkspaceFileChanged(e.FullPath);
 			}
 			catch (Exception ex)
 			{
@@ -5183,117 +5265,73 @@ public partial class EditorService : IEditorAPI
 		}
 	}
 
-	private void OnWorkspaceFileChanged(string fullPath, Action? onMetadataChanged, Action? onTerrainChanged)
+	private void OnWorkspaceFileChanged(string fullPath)
 	{
-		if (IsPaused || (GameContext.MapEditorHud != null && GameContext.EditorService.IsSyncing))
-		{
-			return;
-		}
-
-		string fileName = Path.GetFileName(fullPath).ToLowerInvariant();
-		if (fileName != "metadata.json" && fileName != "manifest.json" && fileName != "terrain.json")
-		{
-			return;
-		}
+		string fileName = Path.GetFileName(fullPath);
+		if (!IsMetadataFile(fileName) && !IsTerrainFile(fileName)) return;
 
 		lock (_watcherLock)
 		{
 			_debounceTimer?.Dispose();
-			_debounceTimer = new Timer(_ => { ProcessDebouncedFileChange(fullPath, fileName, onMetadataChanged, onTerrainChanged); }, null, 150, Timeout.Infinite);
+			_debounceTimer = new Timer(_ => EvaluateFileChange(fullPath, fileName), null, 200, Timeout.Infinite);
 		}
 	}
 
-	private void ProcessDebouncedFileChange(string fullPath, string fileName, Action? onMetadataChanged, Action? onTerrainChanged)
+	private void EvaluateFileChange(string fullPath, string fileName)
 	{
 		try
 		{
-			if (!ShouldProcessFileChange(fullPath)) return;
+			if (IsPaused || IsSyncing) return;
+			if (!TryReadFileState(fullPath, out MapFileState current)) return;
 
-			long writeTime = File.GetLastWriteTimeUtc(fullPath).Ticks;
-			bool isMetadata = fileName == "metadata.json" || fileName == "manifest.json";
-
-			if (isMetadata)
+			lock (_watcherLock)
 			{
-				ProcessMetadataChange(fullPath, writeTime, onMetadataChanged);
-			}
-			else if (fileName == "terrain.json")
-			{
-				ProcessTerrainChange(fullPath, writeTime, onTerrainChanged);
+				if (KnownFileStates.TryGetValue(fullPath, out MapFileState known) && known.Equals(current)) return;
+
+				KnownFileStates[fullPath] = current;
+				if (IsMetadataFile(fileName))
+				{
+					_metadataChangePending = true;
+				}
+				else
+				{
+					_terrainChangePending = true;
+				}
+
+				_hasPendingExternalChanges = true;
 			}
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[EditorService] ProcessDebouncedFileChange error: {ex.Message}");
+			GD.PrintErr($"[EditorService] EvaluateFileChange error: {ex.Message}");
 		}
 	}
 
-	private bool ShouldProcessFileChange(string fullPath)
+	private static bool IsMetadataFile(string fileName)
 	{
-		MapEditorHUD tempQualifier = GameContext.MapEditorHud;
-		if (IsPaused || ((tempQualifier != null ? GameContext.EditorService.IsSyncing : (bool?)null) ?? false) || !File.Exists(fullPath)) return false;
-		if ((DateTime.UtcNow - LastInternalSaveTimeUtc).TotalMilliseconds < 1500) return false;
-		return true;
+		return fileName.Equals("metadata.json", StringComparison.OrdinalIgnoreCase) ||
+		       fileName.Equals("manifest.json", StringComparison.OrdinalIgnoreCase);
 	}
 
-	private void ProcessMetadataChange(string fullPath, long writeTime, Action? onMetadataChanged)
+	private static bool IsTerrainFile(string fileName)
 	{
-		if (writeTime > _lastProcessedMetadataWriteTime)
-		{
-			_lastProcessedMetadataWriteTime = writeTime;
-			Callable.From(() => HandleExternalMetadataChange(fullPath, onMetadataChanged)).CallDeferred();
-		}
+		return fileName.Equals("terrain.json", StringComparison.OrdinalIgnoreCase);
 	}
 
-	private void ProcessTerrainChange(string fullPath, long writeTime, Action? onTerrainChanged)
+	private static bool TryReadFileState(string filePath, out MapFileState state)
 	{
-		if (writeTime > _lastProcessedTerrainWriteTime)
-		{
-			_lastProcessedTerrainWriteTime = writeTime;
-			Callable.From(() => HandleExternalTerrainChange(fullPath, onTerrainChanged)).CallDeferred();
-		}
-	}
-
-	private void HandleExternalMetadataChange(string fullPath, Action? customCallback)
-	{
-		if (FloatingDialogBase.HasAnyDialogOpen)
-		{
-			return;
-		}
-
-		ExecuteMetadataReload(fullPath, customCallback);
-	}
-
-	private void ExecuteMetadataReload(string fullPath, Action? customCallback)
-	{
+		state = default;
 		try
 		{
-			string name = Path.GetFileName(fullPath);
-			GameContext.MapEditorHud?.ReadMetadataAndRefreshTextures();
-			GameContext.MapEditorHud?.ShowFeedback(string.Format(TranslationServer.Translate("{0} updated externally — reloaded."), name));
-			customCallback?.Invoke();
-		}
-		catch (Exception ex)
-		{
-			GD.PrintErr($"[EditorService] ExecuteMetadataReload error: {ex.Message}");
-		}
-	}
+			var fileInfo = new FileInfo(filePath);
+			if (!fileInfo.Exists) return false;
 
-	private void HandleExternalTerrainChange(string fullPath, Action? customCallback)
-	{
-		if (FloatingDialogBase.HasAnyDialogOpen)
-		{
-			return;
+			state = new MapFileState(fileInfo.Length, fileInfo.LastWriteTimeUtc.Ticks);
+			return true;
 		}
-
-		try
+		catch (IOException)
 		{
-			GameContext.Host?.LoadMapFromFile(fullPath);
-			GameContext.MapEditorHud?.ShowFeedback(TranslationServer.Translate("terrain.json updated externally — reloaded."));
-			customCallback?.Invoke();
-		}
-		catch (Exception ex)
-		{
-			GD.PrintErr($"[EditorService] HandleExternalTerrainChange error: {ex.Message}");
+			return false;
 		}
 	}
 
@@ -5348,12 +5386,6 @@ public partial class EditorService : IEditorAPI
 		this.LastMetadataSyncTime = Math.Max(writeTimeTicks, DateTime.UtcNow.Ticks);
 	}
 
-	public void PerformAutoBackupDomain(long terrainWriteTime, long metadataWriteTime)
-	{
-		this.LastTerrainSyncTime = terrainWriteTime;
-		this.LastMetadataSyncTime = metadataWriteTime;
-	}
-
 	public void InitializeTempWorkspaceDomain(long terrainTime, long metadataTime)
 	{
 		this.LastTerrainSyncTime = terrainTime;
@@ -5379,6 +5411,7 @@ public partial class EditorService : IEditorAPI
 
 	public void CleanTempWorkspaceRmapFilesDomain()
 	{
+		if (IsEditingMapFolderInPlace) return;
 		if (!Directory.Exists(this._tempWorkspacePath)) return;
 		foreach (var rmapFile in Directory.GetFiles(this._tempWorkspacePath, "*.rmap", SearchOption.TopDirectoryOnly))
 		{
@@ -6230,6 +6263,7 @@ public partial class EditorService : IEditorAPI
 
 	public void ClearTempWorkspaceExternalDomain(Action<string> onError)
 	{
+		if (IsEditingMapFolderInPlace) return;
 		if (string.IsNullOrEmpty(this._tempWorkspacePath) || !Directory.Exists(this._tempWorkspacePath)) return;
 		try
 		{

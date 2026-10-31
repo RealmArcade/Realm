@@ -25,9 +25,10 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 
 	private HSlider _sldPanelOpacity;
 	private Label _lblPanelOpacity;
-	private HSlider _sldMaxBackups;
-	private Label _lblMaxBackups;
 	private OptionButton _optAutoBackup;
+	private CheckBox _chkHistoryCleanup;
+	private Action<float> _setHistoryKeepDays;
+	private Action<float> _setHistoryKeepVersions;
 
 	public EditorSettingsDialog(MapEditorHUD hud)
 		: base(hud, TranslationServer.Translate("Map Editor Usability Settings"), new Vector2(510, 500))
@@ -117,72 +118,105 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 		spacer1.CustomMinimumSize = new Vector2(0, 10);
 		contentVBox.AddChild(spacer1);
 
-		AddSectionHeader(contentVBox, "💾 " + TranslationServer.Translate("BACKUPS & WORKFLOW"), new Color(0.7f, 0.95f, 0.6f));
+		AddSectionHeader(contentVBox, "💾 " + TranslationServer.Translate("AUTOSAVE & VERSIONS"), new Color(0.7f, 0.95f, 0.6f));
 
-		string[] autoBackupOptions = new[]
+		string[] autosaveOptions = new[]
 		{
-			TranslationServer.Translate("15 minutes").ToString(),
-			TranslationServer.Translate("30 minutes").ToString(),
-			TranslationServer.Translate("1 hour").ToString()
+			TranslationServer.Translate("1 minute").ToString(),
+			TranslationServer.Translate("2 minutes").ToString(),
+			TranslationServer.Translate("5 minutes").ToString(),
+			TranslationServer.Translate("15 minutes").ToString()
 		};
 
-		int autoBackupIdx = CurrentSettings.AutoBackupIntervalMinutes switch
+		int autosaveIndex = CurrentSettings.AutoBackupIntervalMinutes switch
 		{
-			15 => 0,
-			30 => 1,
-			60 => 2,
-			_ => 1
+			1 => 0,
+			2 => 1,
+			5 => 2,
+			15 => 3,
+			_ => 2
 		};
 
 		_optAutoBackup = AddOptionDropdown(
 			contentVBox,
-			TranslationServer.Translate("Auto-Backup Interval:"),
-			autoBackupOptions,
-			autoBackupIdx,
+			TranslationServer.Translate("Save a version every:"),
+			autosaveOptions,
+			autosaveIndex,
 			(idx) =>
 			{
 				CurrentSettings.AutoBackupIntervalMinutes = idx switch
 				{
-					0 => 15,
-					1 => 30,
-					2 => 60,
-					_ => 30
+					0 => 1,
+					1 => 2,
+					2 => 5,
+					3 => 15,
+					_ => 5
 				};
 				ApplyLiveSettings();
 			},
 			140f
 		);
 
-		(_sldMaxBackups, _lblMaxBackups) = AddSlider(
+		AddDescription(contentVBox, TranslationServer.Translate("Your edits are written to the map folder as you work, and a version you can go back to is kept at this interval. Versions are kept by the editor on this computer, outside the map folder, so a mistake never costs you the whole map and your folder stays clean."));
+
+		_chkHistoryCleanup = AddCheckBox(
 			contentVBox,
-			TranslationServer.Translate("Max Backup Snapshots:"),
-			1.0f,
-			20.0f,
-			1.0f,
-			CurrentSettings.MaxBackupSnapshots,
+			TranslationServer.Translate("Clean up older versions when the editor starts"),
+			CurrentSettings.CleanUpHistoryAutomatically,
 			(val) =>
 			{
-				CurrentSettings.MaxBackupSnapshots = (int)val;
+				CurrentSettings.CleanUpHistoryAutomatically = val;
 				ApplyLiveSettings();
 			},
-			"0",
-			140f
+			TranslationServer.Translate("Condenses versions that are old enough and no longer among the most recent ones, so the history does not grow forever")
 		);
 
-		var btnBackupsRow = new HBoxContainer();
-		btnBackupsRow.Name = "BtnBackupsRow_HBoxContainer";
-		btnBackupsRow.AddThemeConstantOverride("separation", 10);
-		contentVBox.AddChild(btnBackupsRow);
+		var (historyDaysInput, setHistoryKeepDays) = AddNumberInput(
+			contentVBox,
+			TranslationServer.Translate("Keep every version newer than (days):"),
+			CurrentSettings.HistoryKeepDays,
+			(val) =>
+			{
+				CurrentSettings.HistoryKeepDays = Math.Max(0, (int)Math.Round(val));
+			},
+			1f,
+			"60",
+			200f
+		);
+		historyDaysInput.Name = "HistoryKeepDays_LineEdit";
+		_setHistoryKeepDays = setHistoryKeepDays;
 
-		var btnOpenBackups = new Button();
-		btnOpenBackups.Name = "BtnOpenBackups_Button";
-		btnOpenBackups.Set("icon_max_width", 0);
-		btnOpenBackups.Text = "📁 " + TranslationServer.Translate("Open map_backups folder");
-		btnOpenBackups.TooltipText = TranslationServer.Translate("Reveals the map_backups folder in Windows Explorer");
-		btnOpenBackups.FocusMode = FocusModeEnum.None;
-		btnOpenBackups.CustomMinimumSize = new Vector2(220, 32);
-		btnOpenBackups.Pressed += OpenMapBackupsFolder;
-		btnBackupsRow.AddChild(btnOpenBackups);
+		var (historyVersionsInput, setHistoryKeepVersions) = AddNumberInput(
+			contentVBox,
+			TranslationServer.Translate("Always keep the newest (versions):"),
+			CurrentSettings.HistoryKeepVersions,
+			(val) =>
+			{
+				CurrentSettings.HistoryKeepVersions = Math.Max(0, (int)Math.Round(val));
+			},
+			1f,
+			"200",
+			200f
+		);
+		historyVersionsInput.Name = "HistoryKeepVersions_LineEdit";
+		_setHistoryKeepVersions = setHistoryKeepVersions;
+
+		AddDescription(contentVBox, TranslationServer.Translate("A version is only condensed when it is older than the first rule and outside the newest versions of the second rule. Use 0 to ignore a rule. Condensed versions are merged into a single starting point, so the map itself is never lost."));
+
+		var btnVersionsRow = new HBoxContainer();
+		btnVersionsRow.Name = "BtnVersionsRow_HBoxContainer";
+		btnVersionsRow.AddThemeConstantOverride("separation", 10);
+		contentVBox.AddChild(btnVersionsRow);
+
+		var btnOpenVersions = new Button();
+		btnOpenVersions.Name = "BtnOpenVersions_Button";
+		btnOpenVersions.Set("icon_max_width", 0);
+		btnOpenVersions.Text = "🕘 " + TranslationServer.Translate("MAP VERSIONS");
+		btnOpenVersions.TooltipText = TranslationServer.Translate("Go back to an earlier version of this map");
+		btnOpenVersions.FocusMode = FocusModeEnum.None;
+		btnOpenVersions.CustomMinimumSize = new Vector2(220, 32);
+		btnOpenVersions.Pressed += () => Hud?.OpenMapVersionsDialog();
+		btnVersionsRow.AddChild(btnOpenVersions);
 	}
 
 	private void BuildDeveloperToolsSection(VBoxContainer contentVBox)
@@ -263,44 +297,6 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 		btnReinstallRow.AddChild(btnReinstallVSCode);
 	}
 
-	private void OpenMapBackupsFolder()
-	{
-		string targetFolder = Path.Combine(OS.GetUserDataDir(), "map_backups");
-
-		if (!Directory.Exists(targetFolder))
-		{
-			Directory.CreateDirectory(targetFolder);
-		}
-
-		string fullPath = Path.GetFullPath(targetFolder);
-		if (OperatingSystem.IsWindows())
-		{
-			try
-			{
-				Process.Start(new ProcessStartInfo
-				{
-					FileName = "explorer.exe",
-					Arguments = $"\"{fullPath}\"",
-					UseShellExecute = true
-				});
-				return;
-			}
-			catch (Exception ex)
-			{
-				GD.PrintErr($"[EditorSettingsDialog] Failed to open explorer.exe: {ex.Message}");
-			}
-		}
-
-		OS.ShellOpen(fullPath);
-	}
-
-	public override void OpenDialog()
-	{
-		_snapshot = CurrentSettings.Clone();
-		SyncControls();
-		base.OpenDialog();
-	}
-
 	private void SyncControls()
 	{
 		if (_chkHideChromeBorder != null) _chkHideChromeBorder.ButtonPressed = CurrentSettings.HideChromeBorderOverlay;
@@ -315,24 +311,23 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 		{
 			_optAutoBackup.Selected = CurrentSettings.AutoBackupIntervalMinutes switch
 			{
-				15 => 0,
-				30 => 1,
-				60 => 2,
-				_ => 1
+				1 => 0,
+				2 => 1,
+				5 => 2,
+				15 => 3,
+				_ => 2
 			};
 		}
 
-		if (_sldMaxBackups != null)
-		{
-			_sldMaxBackups.Value = CurrentSettings.MaxBackupSnapshots;
-			_lblMaxBackups.Text = $"{CurrentSettings.MaxBackupSnapshots}";
-		}
+		if (_chkHistoryCleanup != null) _chkHistoryCleanup.ButtonPressed = CurrentSettings.CleanUpHistoryAutomatically;
+		_setHistoryKeepDays?.Invoke(CurrentSettings.HistoryKeepDays);
+		_setHistoryKeepVersions?.Invoke(CurrentSettings.HistoryKeepVersions);
+
 	}
 
 	public void ApplyLiveSettings()
 	{
 		if (_lblPanelOpacity != null) _lblPanelOpacity.Text = $"{CurrentSettings.PanelOpacity:F2}";
-		if (_lblMaxBackups != null) _lblMaxBackups.Text = $"{CurrentSettings.MaxBackupSnapshots}";
 
 		Hud?.ApplyEditorPreferences(CurrentSettings);
 	}

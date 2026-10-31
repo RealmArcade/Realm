@@ -3,6 +3,7 @@ using Realm.Client.Core;
 using Realm.Client.Network;
 using Realm.Client.ReplaySystem;
 using Realm.Client.UI;
+using Realm.Client.Services.MapHistory;
 using Realm.Client.Services.ModelOptimization;
 using Realm.Ecs;
 using Realm.Ecs.Services;
@@ -154,7 +155,7 @@ namespace Realm.Client.Services
 		public static MapAttributionService MapAttributionService => GlobalScope.Get<MapAttributionService>();
 		public static ModelOptimizerService ModelOptimizerService => GlobalScope.Get<ModelOptimizerService>();
 		public static CheatService CheatService => GlobalScope.Get<CheatService>();
-		public static BaseMapFolderWatchService BaseMapFolderWatchService => GlobalScope.Get<BaseMapFolderWatchService>();
+		public static MapHistoryService MapHistoryService => GlobalScope.Get<MapHistoryService>();
 
 		public static FXService FXService => ScreenScope.Get<FXService>();
 		public static SaveLoadService SaveLoadService => ScreenScope.Get<SaveLoadService>();

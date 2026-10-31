@@ -1,0 +1,551 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text;
+using LibGit2Sharp;
+
+namespace Realm.Client.Services.MapHistory;
+
+public readonly record struct MapGitSignature(string Name, string Email, DateTimeOffset When);
+
+public readonly record struct MapHistoryRepositorySize(long TotalBytes, long LooseObjectBytes, long PackedBytes, int LooseObjectCount, int ObjectPackCount);
+
+public class MapGitCommitInfo
+{
+	public string Id { get; init; } = string.Empty;
+	public string TreeId { get; init; } = string.Empty;
+	public string? ParentId { get; init; }
+	public DateTimeOffset CommittedAt { get; init; }
+	public string Message { get; init; } = string.Empty;
+}
+
+public class MapGitRepository
+{
+	public const string DefaultBranchName = "main";
+	public const string BranchReferenceName = "refs/heads/" + DefaultBranchName;
+	public const string NotesReferenceName = "refs/notes/commits";
+
+	private const string LooseObjectDirectoryName = "objects";
+	private const string PackedObjectDirectoryName = "pack";
+	private const string TemporaryPackDirectoryName = "realm-repack";
+	private const string SweepHoldingDirectoryName = "realm-sweep-holding";
+
+	public MapGitRepository(string repositoryDirectory)
+	{
+		RepositoryDirectory = Path.GetFullPath(repositoryDirectory);
+	}
+
+	public string RepositoryDirectory { get; }
+	public string ObjectsDirectory => Path.Combine(RepositoryDirectory, LooseObjectDirectoryName);
+
+	public bool Exists
+	{
+		get
+		{
+			if (!Directory.Exists(ObjectsDirectory)) return false;
+			if (!File.Exists(Path.Combine(RepositoryDirectory, "HEAD"))) return false;
+			return Repository.IsValid(RepositoryDirectory);
+		}
+	}
+
+	public static string ComputeBlobId(ReadOnlySpan<byte> content)
+	{
+		byte[] header = Encoding.ASCII.GetBytes($"blob {content.Length}\0");
+		using var hasher = System.Security.Cryptography.IncrementalHash.CreateHash(System.Security.Cryptography.HashAlgorithmName.SHA1);
+		hasher.AppendData(header);
+		hasher.AppendData(content);
+		return Convert.ToHexStringLower(hasher.GetHashAndReset());
+	}
+
+	public string? ReadHeadCommitId()
+	{
+		if (!Exists) return null;
+
+		using Repository repository = OpenRepository();
+		return ReadDirectTarget(repository, BranchReferenceName);
+	}
+
+	public void UpdateHead(string commitId)
+	{
+		if (!Exists || string.IsNullOrEmpty(commitId)) return;
+
+		using Repository repository = OpenRepository();
+		WriteReference(repository, BranchReferenceName, commitId);
+		if (repository.Refs["HEAD"] is not SymbolicReference)
+		{
+			repository.Refs.UpdateTarget("HEAD", BranchReferenceName);
+		}
+	}
+
+	public string? ReadVersionLabel(string commitId)
+	{
+		if (!Exists || string.IsNullOrEmpty(commitId)) return null;
+
+		using Repository repository = OpenRepository();
+		Note? note = repository.Notes[new ObjectId(commitId)].FirstOrDefault();
+		string? message = note?.Message?.Trim();
+		return string.IsNullOrEmpty(message) ? null : message;
+	}
+
+	public void WriteVersionLabel(string commitId, MapGitSignature signature, string? label)
+	{
+		if (!Exists || string.IsNullOrEmpty(commitId)) return;
+
+		using Repository repository = OpenRepository();
+		var targetObjectId = new ObjectId(commitId);
+		var author = new Signature(signature.Name, signature.Email, signature.When);
+		Note? existingNote = repository.Notes[targetObjectId].FirstOrDefault();
+
+		if (string.IsNullOrWhiteSpace(label))
+		{
+			if (existingNote != null)
+			{
+				repository.Notes.Remove(targetObjectId, author, author, existingNote.Namespace);
+			}
+
+			return;
+		}
+
+		repository.Notes.Add(targetObjectId, label.Trim(), author, author, existingNote?.Namespace ?? repository.Notes.DefaultNamespace);
+	}
+
+	public void ClearVersionLabels()
+	{
+		if (!Exists) return;
+
+		using Repository repository = OpenRepository();
+		if (repository.Refs[NotesReferenceName] != null)
+		{
+			repository.Refs.Remove(NotesReferenceName);
+		}
+	}
+
+	public bool TryReadCommit(string commitId, out MapGitCommitInfo commit)
+	{
+		commit = new MapGitCommitInfo();
+		if (!Exists || string.IsNullOrEmpty(commitId)) return false;
+
+		using Repository repository = OpenRepository();
+		Commit? foundCommit = LookupCommit(repository, commitId);
+		if (foundCommit == null) return false;
+
+		commit = ToCommitInfo(foundCommit);
+		return true;
+	}
+
+	public IReadOnlyList<MapGitCommitInfo> ReadVersionHistory(int maximumCount)
+	{
+		var commits = new List<MapGitCommitInfo>();
+		if (!Exists || maximumCount <= 0) return commits;
+
+		using Repository repository = OpenRepository();
+		string? commitId = ReadDirectTarget(repository, BranchReferenceName);
+		while (!string.IsNullOrEmpty(commitId) && commits.Count < maximumCount)
+		{
+			Commit? commit = LookupCommit(repository, commitId);
+			if (commit == null) break;
+
+			commits.Add(ToCommitInfo(commit));
+			commitId = commit.Parents.FirstOrDefault()?.Sha;
+		}
+
+		return commits;
+	}
+
+	public Dictionary<string, string> ReadTreeFiles(string treeId)
+	{
+		var files = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+		if (!Exists || string.IsNullOrEmpty(treeId)) return files;
+
+		using Repository repository = OpenRepository();
+		Tree? tree = repository.Lookup<Tree>(new ObjectId(treeId));
+		if (tree == null) return files;
+
+		CollectTreeFiles(tree, string.Empty, files);
+		return files;
+	}
+
+	public bool TryReadBlob(string blobId, out byte[] content)
+	{
+		content = Array.Empty<byte>();
+		if (!Exists || string.IsNullOrEmpty(blobId)) return false;
+
+		using Repository repository = OpenRepository();
+		Blob? blob = repository.Lookup<Blob>(new ObjectId(blobId));
+		if (blob == null) return false;
+
+		using Stream contentStream = blob.GetContentStream();
+		using var buffer = new MemoryStream();
+		contentStream.CopyTo(buffer);
+		content = buffer.ToArray();
+		return true;
+	}
+
+	public bool HasBlob(string blobId)
+	{
+		if (!Exists || string.IsNullOrEmpty(blobId)) return false;
+
+		using Repository repository = OpenRepository();
+		return repository.ObjectDatabase.Contains(new ObjectId(blobId));
+	}
+
+	public string WriteBlob(byte[] content, out bool wasCreated)
+	{
+		string blobId = ComputeBlobId(content);
+		using Repository repository = OpenRepository();
+		if (repository.ObjectDatabase.Contains(new ObjectId(blobId)))
+		{
+			wasCreated = false;
+			return blobId;
+		}
+
+		using var contentStream = new MemoryStream(content, false);
+		Blob blob = repository.ObjectDatabase.CreateBlob(contentStream);
+		wasCreated = true;
+		return blob.Sha.Length == 40 ? blob.Sha : blobId;
+	}
+
+	public string WriteCommit(IReadOnlyDictionary<string, string> blobIdByPath, string? parentId, MapGitSignature signature, string message)
+	{
+		using Repository repository = OpenRepository();
+		Tree tree = BuildTree(repository, blobIdByPath);
+		return CreateCommit(repository, tree, parentId, signature, message);
+	}
+
+	public string WriteCommitForTree(string treeId, string? parentId, MapGitSignature signature, string message)
+	{
+		using Repository repository = OpenRepository();
+		Tree? tree = repository.Lookup<Tree>(new ObjectId(treeId));
+		if (tree == null)
+		{
+			throw new InvalidOperationException($"The stored tree {treeId} could not be read.");
+		}
+
+		return CreateCommit(repository, tree, parentId, signature, message);
+	}
+
+	public MapHistoryRepositorySize ReadSize()
+	{
+		if (!Directory.Exists(ObjectsDirectory)) return default;
+
+		long totalBytes = 0;
+		long looseObjectBytes = 0;
+		long packedBytes = 0;
+		int looseObjectCount = 0;
+		int objectPackCount = 0;
+
+		foreach (string filePath in Directory.EnumerateFiles(ObjectsDirectory, "*", SearchOption.AllDirectories))
+		{
+			long length = 0;
+			try
+			{
+				length = new FileInfo(filePath).Length;
+			}
+			catch (IOException)
+			{
+				continue;
+			}
+
+			totalBytes += length;
+			string relativePath = Path.GetRelativePath(ObjectsDirectory, filePath).Replace('\\', '/');
+
+			if (relativePath.StartsWith(PackedObjectDirectoryName + "/", StringComparison.Ordinal) &&
+			    relativePath.EndsWith(".pack", StringComparison.Ordinal))
+			{
+				packedBytes += length;
+				objectPackCount++;
+			}
+			else if (relativePath.Length == 41 && relativePath[2] == '/')
+			{
+				looseObjectBytes += length;
+				looseObjectCount++;
+			}
+		}
+
+		return new MapHistoryRepositorySize(totalBytes, looseObjectBytes, packedBytes, looseObjectCount, objectPackCount);
+	}
+
+	public MapHistoryRepositorySize Compact()
+	{
+		return SweepUnreachableObjects();
+	}
+
+	public MapHistoryRepositorySize SweepUnreachableObjects()
+	{
+		if (!Exists) return default;
+
+		var tipCommitIds = new List<string>();
+		using (Repository repository = OpenRepository())
+		{
+			string? head = ReadDirectTarget(repository, BranchReferenceName);
+			if (!string.IsNullOrEmpty(head)) tipCommitIds.Add(head);
+
+			string? notes = ReadDirectTarget(repository, NotesReferenceName);
+			if (!string.IsNullOrEmpty(notes)) tipCommitIds.Add(notes);
+		}
+
+		if (tipCommitIds.Count == 0) return ReadSize();
+
+		var reachableCommitIds = new List<string>();
+		using (Repository repository = OpenRepository())
+		{
+			CollectReachableCommitIds(repository, tipCommitIds, reachableCommitIds);
+		}
+
+		if (reachableCommitIds.Count == 0) return ReadSize();
+
+		string temporaryPackDirectory = Path.Combine(RepositoryDirectory, TemporaryPackDirectoryName);
+		DeleteDirectoryRecursively(temporaryPackDirectory);
+		Directory.CreateDirectory(temporaryPackDirectory);
+
+		try
+		{
+			using (Repository repository = OpenRepository())
+			{
+				var packOptions = new PackBuilderOptions(temporaryPackDirectory);
+				repository.ObjectDatabase.Pack(packOptions, packer =>
+				{
+					foreach (string reachableCommitId in reachableCommitIds)
+					{
+						packer.AddRecursively(new ObjectId(reachableCommitId));
+					}
+				});
+			}
+
+			string[] producedPackFiles = Directory.GetFiles(temporaryPackDirectory);
+			if (producedPackFiles.Length == 0)
+			{
+				throw new InvalidOperationException("The history could not be packed.");
+			}
+
+			InstallPackFilesAndVerify(reachableCommitIds, producedPackFiles);
+		}
+		finally
+		{
+			DeleteDirectoryRecursively(temporaryPackDirectory);
+		}
+
+		return ReadSize();
+	}
+
+	private static void CollectReachableCommitIds(Repository repository, IEnumerable<string> tipCommitIds, List<string> reachableCommitIds)
+	{
+		var visitedCommitIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+		var pendingCommitIds = new Queue<string>(tipCommitIds);
+		while (pendingCommitIds.Count > 0 && visitedCommitIds.Count < 1_000_000)
+		{
+			string commitId = pendingCommitIds.Dequeue();
+			if (!visitedCommitIds.Add(commitId)) continue;
+
+			Commit? commit = LookupCommit(repository, commitId);
+			if (commit == null) continue;
+
+			reachableCommitIds.Add(commit.Sha);
+			foreach (Commit parent in commit.Parents)
+			{
+				pendingCommitIds.Enqueue(parent.Sha);
+			}
+		}
+	}
+
+	private void InstallPackFilesAndVerify(List<string> tipCommitIds, string[] producedPackFiles)
+	{
+		string packDirectory = Path.Combine(ObjectsDirectory, PackedObjectDirectoryName);
+		string holdingDirectory = Path.Combine(RepositoryDirectory, SweepHoldingDirectoryName);
+		DeleteDirectoryRecursively(holdingDirectory);
+		Directory.CreateDirectory(holdingDirectory);
+
+		try
+		{
+			MoveObjectStorageAside(holdingDirectory);
+			Directory.CreateDirectory(packDirectory);
+			foreach (string producedPackFile in producedPackFiles)
+			{
+				File.Move(producedPackFile, Path.Combine(packDirectory, Path.GetFileName(producedPackFile)), true);
+			}
+
+			VerifyReachableObjects(tipCommitIds);
+		}
+		catch (Exception)
+		{
+			RestoreObjectStorage(holdingDirectory, packDirectory);
+			throw;
+		}
+
+		DeleteDirectoryRecursively(holdingDirectory);
+	}
+
+	private void MoveObjectStorageAside(string holdingDirectory)
+	{
+		if (Directory.Exists(Path.Combine(ObjectsDirectory, PackedObjectDirectoryName)))
+		{
+			Directory.Move(Path.Combine(ObjectsDirectory, PackedObjectDirectoryName), Path.Combine(holdingDirectory, PackedObjectDirectoryName));
+		}
+
+		foreach (string looseDirectory in Directory.EnumerateDirectories(ObjectsDirectory))
+		{
+			if (Path.GetFileName(looseDirectory).Length != 2) continue;
+			Directory.Move(looseDirectory, Path.Combine(holdingDirectory, Path.GetFileName(looseDirectory)));
+		}
+	}
+
+	private void RestoreObjectStorage(string holdingDirectory, string packDirectory)
+	{
+		try
+		{
+			DeleteDirectoryRecursively(packDirectory);
+		}
+		catch (IOException)
+		{
+		}
+
+		if (!Directory.Exists(holdingDirectory)) return;
+
+		foreach (string heldDirectory in Directory.EnumerateDirectories(holdingDirectory))
+		{
+			string destination = Path.Combine(ObjectsDirectory, Path.GetFileName(heldDirectory));
+			try
+			{
+				if (Directory.Exists(destination))
+				{
+					DeleteDirectoryRecursively(destination);
+				}
+
+				Directory.Move(heldDirectory, destination);
+			}
+			catch (IOException exception)
+			{
+				Godot.GD.PrintErr($"[MapGitRepository] Could not restore {destination}: {exception.Message}");
+			}
+		}
+	}
+
+	private void VerifyReachableObjects(List<string> commitIds)
+	{
+		using Repository repository = OpenRepository();
+		foreach (string commitId in commitIds)
+		{
+			Commit? commit = LookupCommit(repository, commitId);
+			if (commit == null)
+			{
+				throw new InvalidOperationException($"Commit {commitId} could not be read after packing.");
+			}
+
+			var files = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+			CollectTreeFiles(commit.Tree, string.Empty, files);
+			foreach (string blobId in files.Values)
+			{
+				if (!repository.ObjectDatabase.Contains(new ObjectId(blobId)))
+				{
+					throw new InvalidOperationException($"Object {blobId} could not be read after packing.");
+				}
+			}
+		}
+	}
+
+	private Repository OpenRepository()
+	{
+		return new Repository(RepositoryDirectory);
+	}
+
+	private static string CreateCommit(Repository repository, Tree tree, string? parentId, MapGitSignature signature, string message)
+	{
+		var parents = new List<Commit>();
+		if (!string.IsNullOrEmpty(parentId))
+		{
+			Commit? parentCommit = LookupCommit(repository, parentId);
+			if (parentCommit != null) parents.Add(parentCommit);
+		}
+
+		var author = new Signature(signature.Name, signature.Email, signature.When);
+		string normalizedMessage = message.EndsWith('\n') ? message : message + "\n";
+		Commit commit = repository.ObjectDatabase.CreateCommit(author, author, normalizedMessage, tree, parents, false);
+		return commit.Sha;
+	}
+
+	private static string? ReadDirectTarget(Repository repository, string referenceName)
+	{
+		return repository.Refs[referenceName] is DirectReference directReference ? directReference.TargetIdentifier : null;
+	}
+
+	private static void WriteReference(Repository repository, string referenceName, string commitId)
+	{
+		if (repository.Refs[referenceName] is DirectReference existingReference)
+		{
+			repository.Refs.UpdateTarget(existingReference, new ObjectId(commitId));
+			return;
+		}
+
+		repository.Refs.Add(referenceName, new ObjectId(commitId));
+	}
+
+	private static Commit? LookupCommit(Repository repository, string commitId)
+	{
+		try
+		{
+			return repository.Lookup<Commit>(new ObjectId(commitId));
+		}
+		catch (Exception exception) when (exception is LibGit2SharpException or ArgumentException or FormatException)
+		{
+			return null;
+		}
+	}
+
+	private static MapGitCommitInfo ToCommitInfo(Commit commit)
+	{
+		return new MapGitCommitInfo
+		{
+			Id = commit.Sha,
+			TreeId = commit.Tree.Sha,
+			ParentId = commit.Parents.FirstOrDefault()?.Sha,
+			CommittedAt = commit.Committer.When,
+			Message = commit.Message.TrimEnd('\n')
+		};
+	}
+
+	private static void CollectTreeFiles(Tree tree, string prefix, Dictionary<string, string> files)
+	{
+		foreach (TreeEntry entry in tree)
+		{
+			if (entry.TargetType == TreeEntryTargetType.Tree && entry.Target is Tree childTree)
+			{
+				CollectTreeFiles(childTree, prefix + entry.Name + "/", files);
+			}
+			else if (entry.TargetType == TreeEntryTargetType.Blob && entry.Target is Blob blob)
+			{
+				files[prefix + entry.Name] = blob.Sha;
+			}
+		}
+	}
+
+	private static Tree BuildTree(Repository repository, IReadOnlyDictionary<string, string> blobIdByPath)
+	{
+		var treeDefinition = new TreeDefinition();
+		foreach (var pair in blobIdByPath)
+		{
+			treeDefinition.Add(pair.Key.Replace('\\', '/'), new ObjectId(pair.Value), Mode.NonExecutableFile);
+		}
+
+		return repository.ObjectDatabase.CreateTree(treeDefinition);
+	}
+
+	private static void DeleteDirectoryRecursively(string directoryPath)
+	{
+		try
+		{
+			if (!Directory.Exists(directoryPath)) return;
+
+			foreach (string filePath in Directory.EnumerateFiles(directoryPath, "*", SearchOption.AllDirectories))
+			{
+				File.SetAttributes(filePath, FileAttributes.Normal);
+			}
+
+			Directory.Delete(directoryPath, true);
+		}
+		catch (IOException exception)
+		{
+			Godot.GD.PrintErr($"[MapGitRepository] Could not remove {directoryPath}: {exception.Message}");
+		}
+	}
+}

@@ -10,6 +10,7 @@ using NSec.Cryptography;
 using Realm.Client.Core;
 using Realm.Client.Network;
 using Realm.Client.Services;
+using Realm.Client.Services.MapHistory;
 using Realm.Client.UI.MapEditor;
 using Realm.Ecs.Services;
 using Realm.EditorAPI;
@@ -30,8 +31,6 @@ namespace Realm.Client.UI
 		public override void _ExitTree()
 		{
 			GameContext.MetadataService.MetadataSaved -= OnMetadataSaved;
-			GameContext.BaseMapFolderWatchService?.BaseFolderFilesChanged -= OnBaseMapFolderFilesChanged;
-			GameContext.BaseMapFolderWatchService?.Stop();
 			GameContext.EditorService?.StopWorkspaceWatcher();
 			CloseWasmConsoleModal();
 			GameContext.UnregisterMapEditorHud(this);
@@ -97,7 +96,79 @@ namespace Realm.Client.UI
 			}
 
 			UpdateAutoBackup(delta);
-			TryShowPendingBaseMapFolderWarning();
+			ApplyPendingExternalChanges();
+		}
+
+		private void ApplyPendingExternalChanges()
+		{
+			if (!EditorService.HasPendingExternalChanges) return;
+			if (GameContext.Host == null) return;
+			if (GameContext.EditorService.IsSyncing || GameContext.EditorService.IsPaused) return;
+			if (FloatingDialogBase.HasAnyDialogOpen) return;
+			if (Input.IsMouseButtonPressed(MouseButton.Left) || Input.IsMouseButtonPressed(MouseButton.Right)) return;
+
+			string editingDirectory = GetActiveEditingDirectory();
+			if (string.IsNullOrEmpty(editingDirectory) || !File.Exists(Path.Combine(editingDirectory, "metadata.json"))) return;
+			if (!GameContext.EditorService.TryTakePendingExternalChanges(out bool metadataChanged, out bool terrainChanged)) return;
+
+			if (metadataChanged)
+			{
+				ReadMetadataAndRefreshTextures();
+				ViewLoadMapProperties();
+				UpdateMapNameHeader();
+				ShowFeedback(TranslationServer.Translate("metadata.json changed outside the editor — reloaded."));
+			}
+
+			if (!terrainChanged) return;
+
+			RecordMapVersion(MapVersionKind.ExternalChange, TranslationServer.Translate("Change made outside the editor"));
+
+			if (!GameContext.Host.EditorHasUnsavedChanges)
+			{
+				ReloadTerrainFromDisk(editingDirectory);
+				return;
+			}
+
+			ShowExternalChangeConflictDialog(editingDirectory);
+		}
+
+		private void ShowExternalChangeConflictDialog(string editingDirectory)
+		{
+			ShowConfirmationDialog(
+				TranslationServer.Translate("terrain.json was changed by another program while this window has unsaved edits.\n\nThe file on disk is already kept in your version history. Reload it and lose the edits in this window, or keep your edits and let the next save replace the file?"),
+				onConfirm: () => ReloadTerrainFromDisk(editingDirectory),
+				confirmText: TranslationServer.Translate("RELOAD FROM DISK"),
+				cancelText: TranslationServer.Translate("KEEP MY EDITS"),
+				onCancel: () => ShowFeedback(TranslationServer.Translate("Kept your edits. The next save replaces the file on disk; the outside change stays in your version history.")));
+		}
+
+		private void ReloadTerrainFromDisk(string editingDirectory)
+		{
+			string terrainPath = Path.Combine(editingDirectory, "terrain.json");
+			if (!File.Exists(terrainPath)) return;
+
+			GameContext.EditorService.IsSyncing = true;
+			try
+			{
+				bool loaded = GameContext.Host?.LoadMapFromFile(terrainPath, ensureGlbOptimized: false) ?? false;
+				if (loaded)
+				{
+					GameContext.Host.EditorHasUnsavedChanges = false;
+					ShowFeedback(TranslationServer.Translate("terrain.json changed outside the editor — reloaded."));
+				}
+				else
+				{
+					ShowFeedback(TranslationServer.Translate("The changed terrain.json could not be read, so the map in this window was left untouched."));
+				}
+			}
+			catch (Exception ex)
+			{
+				GD.PrintErr($"[MapEditorHUD] Reloading terrain from disk failed: {ex.Message}");
+			}
+			finally
+			{
+				GameContext.EditorService.IsSyncing = false;
+			}
 		}
 
 		private float _lastStatusX = float.NaN;
@@ -165,7 +236,7 @@ namespace Realm.Client.UI
 
 		private void UpdateAutoBackup(double delta)
 		{
-			int intervalMins = EditorSettingsDialog.CurrentSettings?.AutoBackupIntervalMinutes ?? 30;
+			int intervalMins = EditorSettingsDialog.CurrentSettings?.AutoBackupIntervalMinutes ?? 5;
 			if (GameContext.EditorService.CheckAutoBackup(intervalMins, delta))
 			{
 				PerformAutoBackup();
