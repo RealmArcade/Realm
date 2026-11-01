@@ -118,20 +118,20 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 
 		AddDescription(contentVBox, TranslationServer.Translate("Your edits are written to the map folder as you work, and the map is saved as a version you can go back to every 5 minutes. Older versions are thinned out as they age - every 5 minutes for the last day, then hourly, daily, weekly and monthly further back - so the history stays small. Versions you name yourself are always kept exactly as they are."));
 
-		var btnVersionsRow = new HBoxContainer();
-		btnVersionsRow.Name = "BtnVersionsRow_HBoxContainer";
-		btnVersionsRow.AddThemeConstantOverride("separation", 10);
-		contentVBox.AddChild(btnVersionsRow);
+		var btnManageStoresRow = new HBoxContainer();
+		btnManageStoresRow.Name = "BtnManageStoresRow_HBoxContainer";
+		btnManageStoresRow.AddThemeConstantOverride("separation", 10);
+		contentVBox.AddChild(btnManageStoresRow);
 
-		var btnOpenVersions = new Button();
-		btnOpenVersions.Name = "BtnOpenVersions_Button";
-		btnOpenVersions.Set("icon_max_width", 0);
-		btnOpenVersions.Text = "🕘 " + TranslationServer.Translate("MAP VERSIONS");
-		btnOpenVersions.TooltipText = TranslationServer.Translate("Go back to an earlier version of this map");
-		btnOpenVersions.FocusMode = FocusModeEnum.None;
-		btnOpenVersions.CustomMinimumSize = new Vector2(220, 32);
-		btnOpenVersions.Pressed += () => Hud?.OpenMapVersionsDialog();
-		btnVersionsRow.AddChild(btnOpenVersions);
+		var btnManageStores = new Button();
+		btnManageStores.Name = "BtnManageStores_Button";
+		btnManageStores.Set("icon_max_width", 0);
+		btnManageStores.Text = "🗄️ " + TranslationServer.Translate("MANAGE STORAGE");
+		btnManageStores.TooltipText = TranslationServer.Translate("See how much space each map's history uses and remove the ones you no longer need");
+		btnManageStores.FocusMode = FocusModeEnum.None;
+		btnManageStores.CustomMinimumSize = new Vector2(220, 32);
+		btnManageStores.Pressed += () => Hud?.OpenMapHistoryStoresDialog();
+		btnManageStoresRow.AddChild(btnManageStores);
 	}
 
 	private void BuildDeveloperToolsSection(VBoxContainer contentVBox)

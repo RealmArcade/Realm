@@ -19,9 +19,7 @@ public partial class MapVersionsDialog : FloatingDialogBase
 	private HBoxContainer _labelEditorRow;
 	private LineEdit _labelEdit;
 	private Button _btnCreateVersion;
-	private Button _btnToggleAllVersions;
 	private bool _isBusy;
-	private bool _showAllVersions;
 	private string _searchText = string.Empty;
 	private string _labelTargetCommitId = string.Empty;
 	private IReadOnlyList<MapVersionEntry> _versions = Array.Empty<MapVersionEntry>();
@@ -36,7 +34,6 @@ public partial class MapVersionsDialog : FloatingDialogBase
 
 	public override void OpenDialog()
 	{
-		_showAllVersions = false;
 		_searchText = string.Empty;
 		if (_searchEdit != null && GodotObject.IsInstanceValid(_searchEdit))
 		{
@@ -88,9 +85,6 @@ public partial class MapVersionsDialog : FloatingDialogBase
 		_searchEdit.TextChanged += OnSearchTextChanged;
 		searchRow.AddChild(_searchEdit);
 
-		_btnToggleAllVersions = AddButton(searchRow, TranslationServer.Translate("SHOW ALL"), () => ToggleAllVersions(), TranslationServer.Translate("Show every saved version instead of the summary"), 10, new Vector2(96, 24));
-		_btnToggleAllVersions.Name = "BtnToggleAllVersions";
-
 		_labelEditorRow = new HBoxContainer();
 		_labelEditorRow.Name = "LabelEditorRow_HBoxContainer";
 		_labelEditorRow.AddThemeConstantOverride("separation", 6);
@@ -106,9 +100,6 @@ public partial class MapVersionsDialog : FloatingDialogBase
 
 		var btnSaveLabel = AddButton(_labelEditorRow, TranslationServer.Translate("SAVE NAME"), () => RequestRenameVersion(_labelEdit.Text), TranslationServer.Translate("Names the selected version so you can find it later"), 10, new Vector2(96, 24));
 		btnSaveLabel.Name = "BtnSaveLabel";
-
-		var btnClearLabel = AddButton(_labelEditorRow, TranslationServer.Translate("CLEAR"), () => RequestRenameVersion(string.Empty), TranslationServer.Translate("Removes the name from the selected version"), 10, new Vector2(70, 24));
-		btnClearLabel.Name = "BtnClearLabel";
 
 		var btnCancelLabel = AddButton(_labelEditorRow, TranslationServer.Translate("CANCEL"), () => HideLabelEditor(), TranslationServer.Translate("Close the name field"), 10, new Vector2(70, 24));
 		btnCancelLabel.Name = "BtnCancelLabel";
@@ -136,15 +127,6 @@ public partial class MapVersionsDialog : FloatingDialogBase
 		_storageLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
 		_storageLabel.CustomMinimumSize = new Vector2(260, 0);
 		_storageLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-
-		var btnManageStores = AddButton(
-			storageRow,
-			TranslationServer.Translate("MANAGE STORAGE"),
-			() => Hud.OpenMapHistoryStoresDialog(),
-			TranslationServer.Translate("See how much space each map's history uses and remove the ones you no longer need"),
-			10,
-			new Vector2(130, 24));
-		btnManageStores.Name = "BtnManageStores";
 	}
 
 	private static string ResolveEditingDirectory()
@@ -243,22 +225,6 @@ public partial class MapVersionsDialog : FloatingDialogBase
 		{
 			BuildVersionRow(version);
 		}
-
-		int hiddenCount = _versions.Count - visibleVersions.Count;
-		if (hiddenCount > 0)
-		{
-			AddWrappedLabel(
-				_versionList,
-				string.Format(TranslationServer.Translate("{0} older version(s) hidden by the summary. Use SHOW ALL or search."), hiddenCount),
-				"HiddenVersionsLabel_Label");
-		}
-
-		if (_btnToggleAllVersions != null && GodotObject.IsInstanceValid(_btnToggleAllVersions))
-		{
-			_btnToggleAllVersions.Text = _showAllVersions
-				? TranslationServer.Translate("SHOW SUMMARY")
-				: TranslationServer.Translate("SHOW ALL");
-		}
 	}
 
 	private void AddWrappedLabel(VBoxContainer parent, string text, string nodeName)
@@ -272,35 +238,10 @@ public partial class MapVersionsDialog : FloatingDialogBase
 
 	private List<MapVersionEntry> SelectVisibleVersions()
 	{
-		if (!string.IsNullOrWhiteSpace(_searchText))
-		{
-			string search = _searchText.Trim();
-			return _versions.Where(version => MatchesSearch(version, search)).ToList();
-		}
+		if (string.IsNullOrWhiteSpace(_searchText)) return _versions.ToList();
 
-		if (_showAllVersions) return _versions.ToList();
-
-		var summary = new List<MapVersionEntry>();
-		var seenDays = new HashSet<DateTime>();
-		foreach (MapVersionEntry version in _versions)
-		{
-			bool isNewestInDay = !seenDays.Contains(version.CreatedAt.ToLocalTime().Date);
-			bool isLabelled = !string.IsNullOrWhiteSpace(version.Label);
-			if (isNewestInDay || isLabelled)
-			{
-				summary.Add(version);
-			}
-
-			seenDays.Add(version.CreatedAt.ToLocalTime().Date);
-		}
-
-		MapVersionEntry? oldestVersion = _versions.LastOrDefault();
-		if (oldestVersion != null && !summary.Contains(oldestVersion))
-		{
-			summary.Add(oldestVersion);
-		}
-
-		return summary;
+		string search = _searchText.Trim();
+		return _versions.Where(version => MatchesSearch(version, search)).ToList();
 	}
 
 	private static bool MatchesSearch(MapVersionEntry version, string search)
@@ -326,12 +267,6 @@ public partial class MapVersionsDialog : FloatingDialogBase
 	private void OnSearchTextChanged(string searchText)
 	{
 		_searchText = searchText ?? string.Empty;
-		RenderVersionRows();
-	}
-
-	private void ToggleAllVersions()
-	{
-		_showAllVersions = !_showAllVersions;
 		RenderVersionRows();
 	}
 
