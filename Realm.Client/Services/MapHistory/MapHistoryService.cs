@@ -959,8 +959,15 @@ public class MapHistoryService
 	{
 		var repository = new MapGitRepository(session.Layout.RepositoryDirectory);
 		MapHistoryStateFile state = LoadState(session.Layout);
+		if (state.LastCondenseAt.HasValue && DateTimeOffset.Now - state.LastCondenseAt.Value < MapHistoryPolicy.MinimumTimeBetweenCondenses) return;
+
 		MapHistoryCondensePlan plan = BuildCondensePlan(repository, state);
-		if (plan.DroppedCount < MapHistoryPolicy.MinimumDroppedVersionsPerCondense) return;
+		if (plan.DroppedCount < MapHistoryPolicy.MinimumDroppedVersionsPerCondense)
+		{
+			state.LastCondenseAt = DateTimeOffset.Now;
+			SaveState(session.Layout, state);
+			return;
+		}
 
 		MapHistoryCleanupResult cleanup = MakeHistoryLessGranularInStore(session, repository, state, plan);
 		if (cleanup.DroppedAnything)
@@ -1075,6 +1082,7 @@ public class MapHistoryService
 		repository.SweepUnreachableObjects();
 
 		state.Entries = rewrittenEntries;
+		state.LastCondenseAt = DateTimeOffset.Now;
 		SaveState(session.Layout, state);
 
 		return new MapHistoryCleanupResult
@@ -1536,6 +1544,7 @@ public class MapHistoryService
 	{
 		public string? MapName { get; set; }
 		public long SaveVersion { get; set; }
+		public DateTimeOffset? LastCondenseAt { get; set; }
 		public string? FilesSourceFolder { get; set; }
 		public List<MapHistoryStateEntry> Entries { get; set; } = new();
 		public Dictionary<string, MapHistoryFileFingerprint> Files { get; set; } = new(StringComparer.OrdinalIgnoreCase);

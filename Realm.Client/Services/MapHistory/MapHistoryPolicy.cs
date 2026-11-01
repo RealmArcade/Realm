@@ -10,6 +10,8 @@ public static class MapHistoryPolicy
 
 	public const int MinimumDroppedVersionsPerCondense = 10;
 
+	public static readonly TimeSpan MinimumTimeBetweenCondenses = TimeSpan.FromMinutes(45);
+
 	public static readonly MapHistoryGranularityBucket[] GranularityBuckets =
 	{
 		new(TimeSpan.FromMinutes(5), TimeSpan.FromHours(24)),
