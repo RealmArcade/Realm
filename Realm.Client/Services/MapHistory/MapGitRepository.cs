@@ -29,7 +29,6 @@ public class MapGitRepository
 	private const string LooseObjectDirectoryName = "objects";
 	private const string PackedObjectDirectoryName = "pack";
 	private const string TemporaryPackDirectoryName = "realm-repack";
-	private const string SweepHoldingDirectoryName = "realm-sweep-holding";
 
 	public MapGitRepository(string repositoryDirectory)
 	{
@@ -310,7 +309,7 @@ public class MapGitRepository
 				throw new InvalidOperationException("The history could not be packed.");
 			}
 
-			InstallPackFilesAndVerify(reachableCommitIds, producedPackFiles);
+			InstallPackFiles(reachableCommitIds, producedPackFiles);
 		}
 		finally
 		{
@@ -340,75 +339,47 @@ public class MapGitRepository
 		}
 	}
 
-	private void InstallPackFilesAndVerify(List<string> tipCommitIds, string[] producedPackFiles)
+	private void InstallPackFiles(List<string> tipCommitIds, string[] producedPackFiles)
 	{
 		string packDirectory = Path.Combine(ObjectsDirectory, PackedObjectDirectoryName);
-		string holdingDirectory = Path.Combine(RepositoryDirectory, SweepHoldingDirectoryName);
-		DeleteDirectoryRecursively(holdingDirectory);
-		Directory.CreateDirectory(holdingDirectory);
+		Directory.CreateDirectory(packDirectory);
 
-		try
+		foreach (string producedPackFile in producedPackFiles)
 		{
-			MoveObjectStorageAside(holdingDirectory);
-			Directory.CreateDirectory(packDirectory);
-			foreach (string producedPackFile in producedPackFiles)
-			{
-				File.Move(producedPackFile, Path.Combine(packDirectory, Path.GetFileName(producedPackFile)), true);
-			}
-
-			VerifyReachableObjects(tipCommitIds);
-		}
-		catch (Exception)
-		{
-			RestoreObjectStorage(holdingDirectory, packDirectory);
-			throw;
+			File.Move(producedPackFile, Path.Combine(packDirectory, Path.GetFileName(producedPackFile)), true);
 		}
 
-		DeleteDirectoryRecursively(holdingDirectory);
+		VerifyReachableObjects(tipCommitIds);
+		PruneSupersededPackFiles(producedPackFiles);
+		VerifyReachableObjects(tipCommitIds);
+		PruneLooseObjectDirectories();
+		VerifyReachableObjects(tipCommitIds);
 	}
 
-	private void MoveObjectStorageAside(string holdingDirectory)
+	private void PruneSupersededPackFiles(string[] producedPackFiles)
 	{
-		if (Directory.Exists(Path.Combine(ObjectsDirectory, PackedObjectDirectoryName)))
+		var producedPackFileNames = new HashSet<string>(StringComparer.Ordinal);
+		foreach (string producedPackFile in producedPackFiles)
 		{
-			Directory.Move(Path.Combine(ObjectsDirectory, PackedObjectDirectoryName), Path.Combine(holdingDirectory, PackedObjectDirectoryName));
+			producedPackFileNames.Add(Path.GetFileName(producedPackFile));
 		}
 
+		string packDirectory = Path.Combine(ObjectsDirectory, PackedObjectDirectoryName);
+		if (!Directory.Exists(packDirectory)) return;
+
+		foreach (string packFile in Directory.GetFiles(packDirectory))
+		{
+			if (producedPackFileNames.Contains(Path.GetFileName(packFile))) continue;
+			DeleteFileQuietly(packFile);
+		}
+	}
+
+	private void PruneLooseObjectDirectories()
+	{
 		foreach (string looseDirectory in Directory.EnumerateDirectories(ObjectsDirectory))
 		{
 			if (Path.GetFileName(looseDirectory).Length != 2) continue;
-			Directory.Move(looseDirectory, Path.Combine(holdingDirectory, Path.GetFileName(looseDirectory)));
-		}
-	}
-
-	private void RestoreObjectStorage(string holdingDirectory, string packDirectory)
-	{
-		try
-		{
-			DeleteDirectoryRecursively(packDirectory);
-		}
-		catch (IOException)
-		{
-		}
-
-		if (!Directory.Exists(holdingDirectory)) return;
-
-		foreach (string heldDirectory in Directory.EnumerateDirectories(holdingDirectory))
-		{
-			string destination = Path.Combine(ObjectsDirectory, Path.GetFileName(heldDirectory));
-			try
-			{
-				if (Directory.Exists(destination))
-				{
-					DeleteDirectoryRecursively(destination);
-				}
-
-				Directory.Move(heldDirectory, destination);
-			}
-			catch (IOException exception)
-			{
-				Godot.GD.PrintErr($"[MapGitRepository] Could not restore {destination}: {exception.Message}");
-			}
+			DeleteDirectoryRecursively(looseDirectory);
 		}
 	}
 
@@ -519,6 +490,19 @@ public class MapGitRepository
 		}
 
 		return repository.ObjectDatabase.CreateTree(treeDefinition);
+	}
+
+	private static void DeleteFileQuietly(string filePath)
+	{
+		try
+		{
+			File.SetAttributes(filePath, FileAttributes.Normal);
+			File.Delete(filePath);
+		}
+		catch (IOException exception)
+		{
+			Godot.GD.PrintErr($"[MapGitRepository] Could not remove {filePath}: {exception.Message}");
+		}
 	}
 
 	private static void DeleteDirectoryRecursively(string directoryPath)
