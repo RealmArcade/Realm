@@ -31,7 +31,7 @@ namespace Realm.Client.UI
 			return GameContext.EditorService._editingDirectory;
 		}
 
-		private void PrimeMapHistory()
+		public void PrimeMapHistory()
 		{
 			GameContext.MapHistoryService.PrimeForMap(GetActiveEditingDirectory());
 		}

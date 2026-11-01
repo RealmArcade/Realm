@@ -143,7 +143,7 @@ public class MapHistoryService
 		});
 	}
 
-	public void DeleteStore(string storeDirectoryPath, string currentMapDirectory, Action<MapHistoryStoreDeleteResult> onCompleted)
+	public void DeleteStore(string storeDirectoryPath, Action<MapHistoryStoreDeleteResult> onCompleted)
 	{
 		RefreshMessages();
 
@@ -152,7 +152,7 @@ public class MapHistoryService
 			MapHistoryStoreDeleteResult result;
 			try
 			{
-				result = DeleteStoreOnDisk(storeDirectoryPath, currentMapDirectory);
+				result = DeleteStoreOnDisk(storeDirectoryPath);
 			}
 			catch (Exception exception)
 			{
@@ -276,7 +276,7 @@ public class MapHistoryService
 		return totalBytes;
 	}
 
-	private MapHistoryStoreDeleteResult DeleteStoreOnDisk(string storeDirectoryPath, string currentMapDirectory)
+	private MapHistoryStoreDeleteResult DeleteStoreOnDisk(string storeDirectoryPath)
 	{
 		if (string.IsNullOrWhiteSpace(storeDirectoryPath))
 		{
@@ -291,15 +291,6 @@ public class MapHistoryService
 		}
 
 		if (!Directory.Exists(fullPath)) return new MapHistoryStoreDeleteResult { Success = true };
-
-		if (HasMapFolder(currentMapDirectory))
-		{
-			MapHistoryStoreLayout openLayout = MapHistoryStore.Resolve(currentMapDirectory);
-			if (string.Equals(Path.GetFullPath(openLayout.StoreDirectory), fullPath, StringComparison.OrdinalIgnoreCase))
-			{
-				return new MapHistoryStoreDeleteResult { Success = false, ErrorMessage = _messages.OpenMapUsesThisHistory };
-			}
-		}
 
 		bool isStoredMap = string.Equals(Path.GetDirectoryName(fullPath), root, StringComparison.OrdinalIgnoreCase);
 		if (isStoredMap)

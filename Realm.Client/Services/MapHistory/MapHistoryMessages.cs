@@ -19,7 +19,6 @@ public class MapHistoryMessages
 		HistoryUnavailableInBuild = TranslationServer.Translate("Version history is not available in this build. Saving still works, but earlier versions cannot be opened.");
 		NoHistoryFolderChosen = TranslationServer.Translate("No history folder was chosen.");
 		NotPartOfHistoryStorage = TranslationServer.Translate("That folder is not part of the map history storage.");
-		OpenMapUsesThisHistory = TranslationServer.Translate("The map you have open is using this history right now.");
 		AnotherWindowUsesThisHistory = TranslationServer.Translate("Another editor window is using this history right now.");
 		HistoryFolderNotRemoved = TranslationServer.Translate("The history folder could not be removed completely.");
 		HistoryStillBusy = TranslationServer.Translate("The version history is still saving another version. Try again in a moment.");
@@ -38,7 +37,6 @@ public class MapHistoryMessages
 	public string HistoryUnavailableInBuild { get; }
 	public string NoHistoryFolderChosen { get; }
 	public string NotPartOfHistoryStorage { get; }
-	public string OpenMapUsesThisHistory { get; }
 	public string AnotherWindowUsesThisHistory { get; }
 	public string HistoryFolderNotRemoved { get; }
 	public string HistoryStillBusy { get; }

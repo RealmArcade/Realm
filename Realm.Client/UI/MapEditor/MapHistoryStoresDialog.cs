@@ -12,6 +12,7 @@ namespace Realm.Client.UI.MapEditor;
 public partial class MapHistoryStoresDialog : FloatingDialogBase
 {
 	private Label _summaryLabel;
+	private Label _noticeLabel;
 	private VBoxContainer _storeList;
 	private IReadOnlyList<MapHistoryStoreInfo> _stores = Array.Empty<MapHistoryStoreInfo>();
 
@@ -25,6 +26,11 @@ public partial class MapHistoryStoresDialog : FloatingDialogBase
 
 	public override void OpenDialog()
 	{
+		if (_noticeLabel != null && GodotObject.IsInstanceValid(_noticeLabel))
+		{
+			_noticeLabel.Text = string.Empty;
+		}
+
 		RefreshStores();
 		base.OpenDialog();
 	}
@@ -43,6 +49,12 @@ public partial class MapHistoryStoresDialog : FloatingDialogBase
 		_summaryLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
 		_summaryLabel.CustomMinimumSize = new Vector2(460, 0);
 		_summaryLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+
+		_noticeLabel = AddLabel(scrollBody, string.Empty, 10, new Color(0.95f, 0.78f, 0.45f));
+		_noticeLabel.Name = "NoticeLabel_Label";
+		_noticeLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+		_noticeLabel.CustomMinimumSize = new Vector2(460, 0);
+		_noticeLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 
 		AddSectionHeader(scrollBody, TranslationServer.Translate("MAPS SORTED BY SIZE"), UIStyle.ColorGold);
 
@@ -163,21 +175,28 @@ public partial class MapHistoryStoresDialog : FloatingDialogBase
 
 	private void RequestDelete(MapHistoryStoreInfo store)
 	{
-		GameContext.MapHistoryService.DeleteStore(store.DirectoryPath, ResolveEditingDirectory(), result =>
+		string storeName = DescribeStoreName(store);
+		bool removesOpenMapHistory = IsOpenMapStore(store);
+
+		GameContext.MapHistoryService.DeleteStore(store.DirectoryPath, result =>
 		{
 			Callable.From(() =>
 			{
-				if (result.Success)
+				string message = result.Success
+					? string.Format(TranslationServer.Translate("Removed the stored versions of '{0}'."), storeName) +
+					  (removesOpenMapHistory ? " " + TranslationServer.Translate("A new history for the open map starts now.") : string.Empty)
+					: string.Format(TranslationServer.Translate("Could not remove that history: {0}"), result.ErrorMessage ?? string.Empty);
+
+				if (_noticeLabel != null && GodotObject.IsInstanceValid(_noticeLabel))
 				{
-					Hud.ShowFeedback(string.Format(
-						TranslationServer.Translate("Removed the stored versions of '{0}'."),
-						DescribeStoreName(store)));
+					_noticeLabel.Text = message;
 				}
-				else
+
+				Hud.ShowFeedback(message);
+
+				if (result.Success && removesOpenMapHistory)
 				{
-					Hud.ShowFeedback(string.Format(
-						TranslationServer.Translate("Could not remove that history: {0}"),
-						result.ErrorMessage ?? string.Empty));
+					Hud.PrimeMapHistory();
 				}
 
 				RefreshStores();
