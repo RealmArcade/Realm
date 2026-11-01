@@ -129,6 +129,7 @@ interface game-api {
     read-saved-data: func(file-name: string, source-map-name: string) -> string;
     register-ability: func(ability-id: string, display-name: string, tooltip: string, icon-path: string, is-instant: bool);
     register-buff-modifier: func(buff-id: string, stat-name: string, is-percentage: bool, value: f32);
+    register-custom-bot-decision: func(player-index: s32, action-id: string, intent: string, feature-vector: list<f32>, position-x: f32, position-y: f32, position-z: f32, payload: string);
     register-placement-radius: func(definition-key: string, radius: f32);
     register-player-ability: func(player-index: s32, ability-id: string, display-name: string, tooltip: string, icon-path: string, is-instant: bool);
     register-primary-building: func(definition-id: string);

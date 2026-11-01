@@ -563,6 +563,21 @@ public partial class WasmScriptHost : IWasmRuntime, IWasmEvaluationEngine, IDisp
 		return result;
 	}
 
+	private float[] ReadGuestFloatList(Caller caller, int address, int count)
+	{
+		var memory = caller.GetMemory("memory");
+		if (memory == null || count <= 0) return Array.Empty<float>();
+
+		ReadOnlySpan<byte> source = memory.GetSpan(address, count * 4);
+		var result = new float[count];
+		for (int i = 0; i < count; i++)
+		{
+			result[i] = BinaryPrimitives.ReadSingleLittleEndian(source.Slice(i * 4, 4));
+		}
+
+		return result;
+	}
+
 	public void Initialize(IGameAPI api)
 	{
 		_cachedApi = api;

@@ -38,7 +38,8 @@ public class ServerMapScript : IDisposable
 	/// <param name="wasmDebug">Whether a script this call has to instantiate is built for a debugger.</param>
 	/// <param name="mapWorkspacePath">The workspace a script this call has to instantiate was published from.</param>
 	/// <param name="preparedHost">A script the lobby already instantiated and warmed on this same world, which the match takes over instead of instantiating its own.</param>
-	public static ServerMapScript Load(LoadedMap map, ServerMatchPaths paths, int randomSeed, ServerLog log, ServerPresentationQueue presentation, ItemGrantService items, GroundLootService loot, bool wasmDebug = false, string? mapWorkspacePath = null, WasmScriptHost? preparedHost = null)
+	/// <param name="scriptPathOverride">The exact script this match must run, which replaces the search for one inside the map folder and fails loudly when it is missing.</param>
+	public static ServerMapScript Load(LoadedMap map, ServerMatchPaths paths, int randomSeed, ServerLog log, ServerPresentationQueue presentation, ItemGrantService items, GroundLootService loot, bool wasmDebug = false, string? mapWorkspacePath = null, WasmScriptHost? preparedHost = null, string? scriptPathOverride = null)
 	{
 		var api = new ServerGameAPI(map, log, presentation, items, loot, paths);
 
@@ -51,7 +52,16 @@ public class ServerMapScript : IDisposable
 			return new ServerMapScript(api, preparedHost, preparedHost.ScriptPath, log);
 		}
 
-		if (!TryFindScript(paths.MapPath, out string wasmPath))
+		string wasmPath;
+		if (!string.IsNullOrWhiteSpace(scriptPathOverride))
+		{
+			wasmPath = scriptPathOverride;
+			if (!File.Exists(wasmPath))
+			{
+				throw new FileNotFoundException($"the match was handed the map script '{wasmPath}' and there is no such file", wasmPath);
+			}
+		}
+		else if (!TryFindScript(paths.MapPath, out wasmPath))
 		{
 			log.Write("the map brought no compiled script; the match runs on what its files describe");
 			return new ServerMapScript(api, null, string.Empty, log);

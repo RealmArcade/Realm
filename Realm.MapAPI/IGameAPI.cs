@@ -1573,9 +1573,7 @@ public interface IGameAPI
 	/// <param name="featureVector">The normalized feature vector scored against the AI weights.</param>
 	/// <param name="position">The target world coordinate for the action.</param>
 	/// <param name="payload">Optional metadata or argument string passed when the action executes.</param>
-	void RegisterCustomBotDecision(int playerIndex, string actionId, string intent, float[] featureVector, Vector3 position, string payload = "")
-	{
-	}
+	void RegisterCustomBotDecision(int playerIndex, string actionId, string intent, float[] featureVector, Vector3 position, string payload = "");
 
 	/// <summary>
 	/// Clears all registered custom bot candidate actions for the specified player slot.
