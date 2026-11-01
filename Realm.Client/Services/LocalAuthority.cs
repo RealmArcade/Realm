@@ -18,7 +18,12 @@ public readonly record struct LocalAuthorityReply(bool Started, string Failure, 
 /// </summary>
 public class LocalAuthority : IDisposable
 {
-	public const string LogFileName = "local_authority.listen_server.log";
+	/// <summary>
+	///     The file this screen's authority writes, named after the screen's own process. A screen is one process, and
+	///     two screens of the same user share the log folder, so a fixed name made the second screen's console capture
+	///     collide with the first screen's resident authority and fail the whole match start.
+	/// </summary>
+	public static string LogFileName { get; } = $"local_authority.listen_server.{Environment.ProcessId}.log";
 
 	private readonly SemaphoreSlim _launchGate = new(1, 1);
 
