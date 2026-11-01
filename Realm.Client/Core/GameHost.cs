@@ -2547,8 +2547,9 @@ public partial class GameHost : Node3D
 		bool wasMapEditorMode = GameContext.SessionState.IsMapEditorMode;
 		bool wasLoadingMap = GameContext.SaveLoadService.IsLoadingMap;
 		bool wasProfilingEnabled = GameContext.PerformanceTrackingService?.IsFunctionProfilingEnabled ?? false;
-		string preservedEditorDirectory = GameContext.SessionState.IsTestMode ? GameContext.EditorService._editingDirectory : string.Empty;
-		string? preservedEditorSourceFolder = GameContext.SessionState.IsTestMode ? GameContext.EditorService.CurrentSourceFolder : null;
+		bool editorWorldIsSetAside = GameContext.SessionState.EditorWorldState != null;
+		string preservedEditorDirectory = editorWorldIsSetAside ? GameContext.EditorService._editingDirectory : string.Empty;
+		string? preservedEditorSourceFolder = editorWorldIsSetAside ? GameContext.EditorService.CurrentSourceFolder : null;
 
 		GameContext.EndScreenScope();
 		ResolveServices();
