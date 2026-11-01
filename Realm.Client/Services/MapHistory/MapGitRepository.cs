@@ -152,6 +152,25 @@ public class MapGitRepository
 		return commits;
 	}
 
+	public int CountVersions(int maximumCount)
+	{
+		if (!Exists || maximumCount <= 0) return 0;
+
+		int versionCount = 0;
+		using Repository repository = OpenRepository();
+		string? commitId = ReadDirectTarget(repository, BranchReferenceName);
+		while (!string.IsNullOrEmpty(commitId) && versionCount < maximumCount)
+		{
+			Commit? commit = LookupCommit(repository, commitId);
+			if (commit == null) break;
+
+			versionCount++;
+			commitId = commit.Parents.FirstOrDefault()?.Sha;
+		}
+
+		return versionCount;
+	}
+
 	public Dictionary<string, string> ReadTreeFiles(string treeId)
 	{
 		var files = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);

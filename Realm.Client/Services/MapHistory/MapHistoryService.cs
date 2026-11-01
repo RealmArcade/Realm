@@ -38,8 +38,19 @@ public class MapHistoryService
 
 	public MapHistoryStatus CachedStatus => _cachedStatus;
 
+	private static bool HasMapFolder(string mapDirectory)
+	{
+		return !string.IsNullOrWhiteSpace(mapDirectory) && Directory.Exists(mapDirectory);
+	}
+
 	public void PrimeForMap(string mapDirectory, Action<MapHistoryStatus> onCompleted = null)
 	{
+		if (!HasMapFolder(mapDirectory))
+		{
+			onCompleted?.Invoke(MapHistoryStatus.Unavailable("No map folder is open."));
+			return;
+		}
+
 		Enqueue(() =>
 		{
 			MapHistoryStatus status;
@@ -59,6 +70,12 @@ public class MapHistoryService
 
 	public void CreateVersion(string mapDirectory, MapVersionKind kind, string? label, Action<MapHistoryVersionResult> onCompleted = null, bool coalesce = false, string? sourceFolder = null)
 	{
+		if (!HasMapFolder(mapDirectory))
+		{
+			onCompleted?.Invoke(new MapHistoryVersionResult { Success = false, ErrorMessage = "No map folder is open." });
+			return;
+		}
+
 		Enqueue(() =>
 		{
 			MapHistoryVersionResult result;
@@ -83,13 +100,19 @@ public class MapHistoryService
 
 	public Task<MapHistoryVersionResult> CreateVersionAsync(string mapDirectory, MapVersionKind kind, string? label, string? sourceFolder = null)
 	{
-		var completion = new TaskCompletionSource<MapHistoryVersionResult>();
+		var completion = new TaskCompletionSource<MapHistoryVersionResult>(TaskCreationOptions.RunContinuationsAsynchronously);
 		CreateVersion(mapDirectory, kind, label, result => completion.TrySetResult(result), sourceFolder: sourceFolder);
 		return completion.Task;
 	}
 
 	public void ReadVersions(string mapDirectory, Action<IReadOnlyList<MapVersionEntry>> onCompleted)
 	{
+		if (!HasMapFolder(mapDirectory))
+		{
+			onCompleted?.Invoke(Array.Empty<MapVersionEntry>());
+			return;
+		}
+
 		Enqueue(() =>
 		{
 			IReadOnlyList<MapVersionEntry> versions = Array.Empty<MapVersionEntry>();
@@ -108,6 +131,12 @@ public class MapHistoryService
 
 	public void RenameVersion(string mapDirectory, string commitId, string? label, Action<MapHistoryVersionResult> onCompleted = null)
 	{
+		if (!HasMapFolder(mapDirectory))
+		{
+			onCompleted?.Invoke(new MapHistoryVersionResult { Success = false, ErrorMessage = "No map folder is open." });
+			return;
+		}
+
 		Enqueue(() =>
 		{
 			MapHistoryVersionResult result;
@@ -126,6 +155,12 @@ public class MapHistoryService
 
 	public void ReadStorageUsage(string mapDirectory, Action<MapHistoryStorageInfo> onCompleted)
 	{
+		if (!HasMapFolder(mapDirectory))
+		{
+			onCompleted?.Invoke(new MapHistoryStorageInfo());
+			return;
+		}
+
 		Enqueue(() =>
 		{
 			MapHistoryStorageInfo info;
@@ -144,6 +179,12 @@ public class MapHistoryService
 
 	public void ReadStatus(string mapDirectory, Action<MapHistoryStatus> onCompleted)
 	{
+		if (!HasMapFolder(mapDirectory))
+		{
+			onCompleted?.Invoke(MapHistoryStatus.Unavailable("No map folder is open."));
+			return;
+		}
+
 		Enqueue(() =>
 		{
 			MapHistoryStatus status;
@@ -163,6 +204,12 @@ public class MapHistoryService
 
 	public void RestoreVersion(string mapDirectory, string commitId, Action<MapHistoryRestoreResult> onCompleted)
 	{
+		if (!HasMapFolder(mapDirectory))
+		{
+			onCompleted?.Invoke(new MapHistoryRestoreResult { Success = false, ErrorMessage = "No map folder is open." });
+			return;
+		}
+
 		Enqueue(() =>
 		{
 			MapHistoryRestoreResult result;
@@ -234,7 +281,7 @@ public class MapHistoryService
 			GD.PrintErr($"[MapHistoryService] Could not clean up this map's history: {exception.Message}");
 		}
 
-		MapHistoryStatus status = BuildStatus(mapDirectory, session.Layout);
+		MapHistoryStatus status = BuildStatus(session.Layout);
 		return session.WasReset
 			? WithNotice(status, "The stored version history of this map could not be read, so a new one was started. The previous files were kept in the history folder.")
 			: status;
@@ -254,22 +301,22 @@ public class MapHistoryService
 			return new MapHistoryStatus { IsRepositoryReady = false };
 		}
 
-		return BuildStatus(mapDirectory, layout);
+		return BuildStatus(layout);
 	}
 
-	private static MapHistoryStatus BuildStatus(string mapDirectory, MapHistoryStoreLayout layout)
+	private static MapHistoryStatus BuildStatus(MapHistoryStoreLayout layout)
 	{
 		var repository = new MapGitRepository(layout.RepositoryDirectory);
-		IReadOnlyList<MapGitCommitInfo> commits = repository.ReadVersionHistory(int.MaxValue);
+		IReadOnlyList<MapGitCommitInfo> newestVersion = repository.ReadVersionHistory(1);
 		MapHistoryStateFile state = LoadState(layout);
-		MapVersionEntry? latestVersion = commits.Count == 0 ? null : ToVersionEntry(commits[0], FindEntry(state, commits[0].Id), null);
+		MapVersionEntry? latestVersion = newestVersion.Count == 0 ? null : ToVersionEntry(newestVersion[0], FindEntry(state, newestVersion[0].Id), null);
 
 		return new MapHistoryStatus
 		{
 			IsRepositoryReady = true,
 			LastVersionCommitId = latestVersion?.CommitId,
 			LastVersionAt = latestVersion?.CreatedAt,
-			VersionCount = commits.Count
+			VersionCount = repository.CountVersions(int.MaxValue)
 		};
 	}
 
@@ -349,7 +396,7 @@ public class MapHistoryService
 		{
 			TotalBytes = size.TotalBytes,
 			PackedBytes = size.PackedBytes,
-			VersionCount = repository.ReadVersionHistory(int.MaxValue).Count
+			VersionCount = repository.CountVersions(int.MaxValue)
 		};
 	}
 
@@ -388,14 +435,13 @@ public class MapHistoryService
 				continue;
 			}
 
-			byte[] content;
-			try
+			if (!TryReadStableContent(absolutePath, out byte[] content))
 			{
-				content = File.ReadAllBytes(absolutePath);
-			}
-			catch (IOException)
-			{
-				continue;
+				return new MapHistoryVersionResult
+				{
+					Success = false,
+					ErrorMessage = $"'{relativePath}' was being written by another program while the version was created. Try again in a moment."
+				};
 			}
 
 			string blobId = repository.WriteBlob(content, out bool blobWasCreated);
@@ -582,11 +628,17 @@ public class MapHistoryService
 	private MapHistoryCondensePlan BuildCondensePlan(MapGitRepository repository, MapHistoryStateFile state)
 	{
 		IReadOnlyList<MapGitCommitInfo> commitsNewestFirst = repository.ReadVersionHistory(int.MaxValue);
+		var entryByCommitId = new Dictionary<string, MapHistoryStateEntry>(StringComparer.OrdinalIgnoreCase);
+		foreach (MapHistoryStateEntry stateEntry in state.Entries)
+		{
+			entryByCommitId[stateEntry.CommitId] = stateEntry;
+		}
+
 		var slotsNewestFirst = new List<MapVersionSlot>(commitsNewestFirst.Count);
 		for (int rank = 0; rank < commitsNewestFirst.Count; rank++)
 		{
 			MapGitCommitInfo commit = commitsNewestFirst[rank];
-			MapHistoryStateEntry? entry = FindEntry(state, commit.Id);
+			entryByCommitId.TryGetValue(commit.Id, out MapHistoryStateEntry? entry);
 			string? label = entry?.Label ?? repository.ReadVersionLabel(commit.Id);
 			long saveVersion = entry != null && entry.SaveVersion > 0 ? entry.SaveVersion : commitsNewestFirst.Count - rank;
 			slotsNewestFirst.Add(new MapVersionSlot(commit, entry, label, saveVersion));
@@ -838,6 +890,44 @@ public class MapHistoryService
 		string fileName = Path.GetFileName(trimmed);
 		if (fileName.StartsWith("~", StringComparison.Ordinal)) return true;
 		return fileName.Equals("WasmEntryPoint.cs", StringComparison.OrdinalIgnoreCase);
+	}
+
+	private static bool TryReadStableContent(string absolutePath, out byte[] content)
+	{
+		content = Array.Empty<byte>();
+		for (int attempt = 0; attempt < 3; attempt++)
+		{
+			try
+			{
+				var before = new FileInfo(absolutePath);
+				if (!before.Exists) return false;
+
+				long lengthBefore = before.Length;
+				long writeTicksBefore = before.LastWriteTimeUtc.Ticks;
+				byte[] readContent = File.ReadAllBytes(absolutePath);
+				var after = new FileInfo(absolutePath);
+				if (!after.Exists) return false;
+
+				if (readContent.Length == lengthBefore &&
+				    after.Length == lengthBefore &&
+				    after.LastWriteTimeUtc.Ticks == writeTicksBefore)
+				{
+					content = readContent;
+					return true;
+				}
+			}
+			catch (IOException)
+			{
+			}
+			catch (UnauthorizedAccessException)
+			{
+				return false;
+			}
+
+			System.Threading.Thread.Sleep(50);
+		}
+
+		return false;
 	}
 
 	private static bool FileLengthMatches(string path, int length)
