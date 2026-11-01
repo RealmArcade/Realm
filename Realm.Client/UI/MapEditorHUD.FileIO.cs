@@ -97,6 +97,7 @@ namespace Realm.Client.UI
 		private DateTime _lastAutosaveWriteUtc = DateTime.MinValue;
 		private bool _hasChangesSinceLastVersion;
 		private string? _reportedAutosaveFailure;
+		private DateTime _autosaveRetryNotBeforeUtc = DateTime.MinValue;
 		private int _historyStatusRefreshSeconds;
 
 		public void PerformAutoBackup()
@@ -133,6 +134,7 @@ namespace Realm.Client.UI
 			if (!GameContext.Host.EditorHasUnsavedChanges) return;
 			if (GameContext.EditorService.IsSyncing) return;
 			if (GameContext.MapAutosaveService.HasPendingWrite) return;
+			if (DateTime.UtcNow < _autosaveRetryNotBeforeUtc) return;
 
 			string editingDirectory = GetActiveEditingDirectory();
 			if (string.IsNullOrEmpty(editingDirectory) || !Directory.Exists(editingDirectory)) return;
@@ -171,6 +173,7 @@ namespace Realm.Client.UI
 			}
 
 			GameContext.Host.EditorHasUnsavedChanges = true;
+			_autosaveRetryNotBeforeUtc = DateTime.UtcNow + AutosaveRetryBackoff;
 
 			if (string.Equals(failure, _reportedAutosaveFailure, StringComparison.Ordinal)) return;
 
@@ -322,6 +325,8 @@ namespace Realm.Client.UI
 			RefreshSavedDirectoryHash();
 			onCompleted?.Invoke();
 		}
+
+		private static readonly TimeSpan AutosaveRetryBackoff = TimeSpan.FromSeconds(10);
 
 		private const int HistoryStatusRefreshSeconds = 15;
 
