@@ -11,6 +11,7 @@ using Realm.Client.Core;
 using Realm.Client.Network;
 using Realm.Client.Services;
 using Realm.Client.Services.MapHistory;
+using Realm.Client.Services.MapHistory;
 using Realm.Client.UI.MapEditor;
 using Realm.Ecs.Services;
 using Realm.EditorAPI;
@@ -236,8 +237,7 @@ namespace Realm.Client.UI
 
 		private void UpdateAutoBackup(double delta)
 		{
-			int intervalMins = EditorSettingsDialog.CurrentSettings?.AutoBackupIntervalMinutes ?? 5;
-			if (GameContext.EditorService.CheckAutoBackup(intervalMins, delta))
+			if (GameContext.EditorService.CheckAutoBackup(MapHistoryPolicy.AutosaveIntervalMinutes, delta))
 			{
 				PerformAutoBackup();
 			}

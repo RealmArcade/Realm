@@ -20,8 +20,6 @@ public partial class MapVersionsDialog : FloatingDialogBase
 	private LineEdit _labelEdit;
 	private Button _btnCreateVersion;
 	private Button _btnToggleAllVersions;
-	private Button _btnCompact;
-	private Button _btnCleanUp;
 	private bool _isBusy;
 	private bool _showAllVersions;
 	private string _searchText = string.Empty;
@@ -138,12 +136,6 @@ public partial class MapVersionsDialog : FloatingDialogBase
 		_storageLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
 		_storageLabel.CustomMinimumSize = new Vector2(260, 0);
 		_storageLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-
-		_btnCompact = AddButton(storageRow, TranslationServer.Translate("PACK"), () => RequestCompaction(), TranslationServer.Translate("Packs stored versions to use less disk space. Nothing is deleted."), 10, new Vector2(74, 24));
-		_btnCompact.Name = "BtnCompact";
-
-		_btnCleanUp = AddButton(storageRow, TranslationServer.Translate("CLEAN UP"), () => ConfirmCleanUp(), TranslationServer.Translate("Condenses older versions into one starting point, following your cleaning rule in the editor settings"), 10, new Vector2(86, 24));
-		_btnCleanUp.Name = "BtnCleanUp";
 	}
 
 	private static string ResolveEditingDirectory()
@@ -154,12 +146,9 @@ public partial class MapVersionsDialog : FloatingDialogBase
 	private void SetBusy(bool isBusy, string? message = null)
 	{
 		_isBusy = isBusy;
-		foreach (Button button in new[] { _btnCreateVersion, _btnCompact, _btnCleanUp })
+		if (_btnCreateVersion != null && GodotObject.IsInstanceValid(_btnCreateVersion))
 		{
-			if (button != null && GodotObject.IsInstanceValid(button))
-			{
-				button.Disabled = isBusy;
-			}
+			_btnCreateVersion.Disabled = isBusy;
 		}
 
 		if (!string.IsNullOrEmpty(message) && _statusLabel != null && GodotObject.IsInstanceValid(_statusLabel))
@@ -468,71 +457,6 @@ public partial class MapVersionsDialog : FloatingDialogBase
 			FormatBytes(info.PackedBytes));
 	}
 
-	private void RequestCompaction()
-	{
-		if (_isBusy) return;
-
-		string editingDirectory = ResolveEditingDirectory();
-		SetBusy(true, TranslationServer.Translate("Packing the history..."));
-		GameContext.MapHistoryService.CompactHistory(editingDirectory, info =>
-		{
-			Callable.From(() =>
-			{
-				SetBusy(false, null);
-				ApplyStorageInfo(info);
-				Hud.ShowFeedback(string.IsNullOrEmpty(info.ErrorMessage)
-					? TranslationServer.Translate("History packed. Nothing was deleted.")
-					: string.Format(TranslationServer.Translate("Could not pack the history: {0}"), info.ErrorMessage));
-				RefreshStatus();
-			}).CallDeferred();
-		});
-	}
-
-	private void ConfirmCleanUp()
-	{
-		if (_isBusy) return;
-
-		MapHistoryRetention retention = EditorSettingsDialog.CurrentSettings.ToHistoryRetention();
-		if (!retention.IsEnabled)
-		{
-			Hud.ShowFeedback(TranslationServer.Translate("Set how much history to keep in the editor settings first."));
-			return;
-		}
-
-		Hud.ShowConfirmationDialog(
-			TranslationServer.Translate("Condense the older versions this map no longer needs? They are merged into a single starting point so you keep the map itself and the versions inside your cleaning rule."),
-			RequestCleanUp,
-			confirmText: TranslationServer.Translate("CLEAN UP"),
-			cancelText: TranslationServer.Translate("CANCEL"));
-	}
-
-	private void RequestCleanUp()
-	{
-		if (_isBusy) return;
-
-		string editingDirectory = ResolveEditingDirectory();
-		SetBusy(true, TranslationServer.Translate("Cleaning up the history..."));
-		GameContext.MapHistoryService.CleanUpHistory(editingDirectory, EditorSettingsDialog.CurrentSettings.ToHistoryRetention(), result =>
-		{
-			Callable.From(() =>
-			{
-				SetBusy(false, null);
-				if (!result.Success)
-				{
-					Hud.ShowFeedback(string.Format(TranslationServer.Translate("Could not clean up the history: {0}"), result.ErrorMessage ?? string.Empty));
-					return;
-				}
-
-				Hud.ShowFeedback(result.CondensedAnything
-					? string.Format(TranslationServer.Translate("Condensed {0} older version(s). {1} version(s) kept."), result.CondensedVersionCount, result.RemainingVersionCount)
-					: TranslationServer.Translate("Nothing was old enough to condense."));
-				RefreshStatus();
-				RefreshVersions();
-				RefreshStorage();
-			}).CallDeferred();
-		});
-	}
-
 	private void ConfirmRestore(MapVersionEntry version)
 	{
 		if (_isBusy) return;
@@ -621,7 +545,7 @@ public partial class MapVersionsDialog : FloatingDialogBase
 				RefreshVersions();
 				RefreshStorage();
 			}).CallDeferred();
-		}, retention: EditorSettingsDialog.CurrentSettings.ToHistoryRetention());
+		});
 	}
 
 	private static string DescribeKind(MapVersionKind kind)

@@ -13,7 +13,6 @@ public class MapHistoryService
 {
 	private const string AuthorName = "Realm Map Editor";
 	private const string AuthorEmail = "map-editor@realm.local";
-	private const int MinimumPrunableVersionsPerTrim = 20;
 
 	private static readonly string[] ExcludedDirectoryNames =
 	{
@@ -39,14 +38,14 @@ public class MapHistoryService
 
 	public MapHistoryStatus CachedStatus => _cachedStatus;
 
-	public void PrimeForMap(string mapDirectory, MapHistoryRetention retention, Action<MapHistoryStatus> onCompleted = null)
+	public void PrimeForMap(string mapDirectory, Action<MapHistoryStatus> onCompleted = null)
 	{
 		Enqueue(() =>
 		{
 			MapHistoryStatus status;
 			try
 			{
-				status = PrimeInStore(mapDirectory, retention);
+				status = PrimeInStore(mapDirectory);
 			}
 			catch (Exception exception)
 			{
@@ -58,7 +57,7 @@ public class MapHistoryService
 		});
 	}
 
-	public void CreateVersion(string mapDirectory, MapVersionKind kind, string? label, Action<MapHistoryVersionResult> onCompleted = null, bool coalesce = false, string? sourceFolder = null, MapHistoryRetention? retention = null)
+	public void CreateVersion(string mapDirectory, MapVersionKind kind, string? label, Action<MapHistoryVersionResult> onCompleted = null, bool coalesce = false, string? sourceFolder = null)
 	{
 		Enqueue(() =>
 		{
@@ -67,9 +66,9 @@ public class MapHistoryService
 			{
 				using MapHistoryStoreSession session = MapHistoryStore.Acquire(mapDirectory);
 				result = CreateVersionInStore(session, mapDirectory, kind, label, sourceFolder);
-				if (result.Success && retention != null)
+				if (result.Success)
 				{
-					TrimHistoryAfterCommit(session, retention);
+					TrimHistoryAfterCommit(session);
 				}
 			}
 			catch (Exception exception)
@@ -82,10 +81,10 @@ public class MapHistoryService
 		}, coalesce);
 	}
 
-	public Task<MapHistoryVersionResult> CreateVersionAsync(string mapDirectory, MapVersionKind kind, string? label, string? sourceFolder = null, MapHistoryRetention? retention = null)
+	public Task<MapHistoryVersionResult> CreateVersionAsync(string mapDirectory, MapVersionKind kind, string? label, string? sourceFolder = null)
 	{
 		var completion = new TaskCompletionSource<MapHistoryVersionResult>();
-		CreateVersion(mapDirectory, kind, label, result => completion.TrySetResult(result), sourceFolder: sourceFolder, retention: retention);
+		CreateVersion(mapDirectory, kind, label, result => completion.TrySetResult(result), sourceFolder: sourceFolder);
 		return completion.Task;
 	}
 
@@ -143,37 +142,6 @@ public class MapHistoryService
 		});
 	}
 
-	public void CompactHistory(string mapDirectory, Action<MapHistoryStorageInfo> onCompleted)
-	{
-		Enqueue(() =>
-		{
-			MapHistoryStorageInfo info;
-			try
-			{
-				MapHistoryStoreLayout layout = MapHistoryStore.Resolve(mapDirectory);
-				if (!MapHistoryStore.RepositoryExists(layout))
-				{
-					info = new MapHistoryStorageInfo { ErrorMessage = "This map has no versions yet." };
-				}
-				else
-				{
-					using (MapHistoryStore.Acquire(mapDirectory))
-					{
-						new MapGitRepository(layout.RepositoryDirectory).Compact();
-					}
-
-					info = BuildStorageInfo(mapDirectory);
-				}
-			}
-			catch (Exception exception)
-			{
-				info = new MapHistoryStorageInfo { ErrorMessage = exception.Message };
-			}
-
-			onCompleted?.Invoke(info);
-		});
-	}
-
 	public void ReadStatus(string mapDirectory, Action<MapHistoryStatus> onCompleted)
 	{
 		Enqueue(() =>
@@ -212,37 +180,8 @@ public class MapHistoryService
 		});
 	}
 
-	public void CleanUpHistory(string mapDirectory, MapHistoryRetention retention, Action<MapHistoryCleanupResult> onCompleted)
+	public void MaintainAllStoresInBackground()
 	{
-		Enqueue(() =>
-		{
-			MapHistoryCleanupResult result;
-			try
-			{
-				MapHistoryStoreLayout layout = MapHistoryStore.Resolve(mapDirectory);
-				if (!MapHistoryStore.RepositoryExists(layout))
-				{
-					result = new MapHistoryCleanupResult { Success = true };
-				}
-				else
-				{
-					using MapHistoryStoreSession session = MapHistoryStore.Acquire(mapDirectory);
-					result = CondenseHistoryInStore(session, retention);
-				}
-			}
-			catch (Exception exception)
-			{
-				result = new MapHistoryCleanupResult { Success = false, ErrorMessage = exception.Message };
-			}
-
-			onCompleted?.Invoke(result);
-		});
-	}
-
-	public void CleanUpAllStoresInBackground(MapHistoryRetention retention)
-	{
-		if (!retention.IsEnabled) return;
-
 		Enqueue(() =>
 		{
 			string root = MapHistoryStore.GetRootDirectory();
@@ -258,10 +197,10 @@ public class MapHistoryService
 					using MapHistoryStoreSession? session = MapHistoryStore.TryAcquireExisting(layout, TimeSpan.FromMilliseconds(250));
 					if (session == null) continue;
 
-					MapHistoryCleanupResult result = CondenseHistoryInStore(session, retention);
-					if (result.CondensedAnything)
+					MapHistoryCleanupResult result = CondenseHistoryInStore(session);
+					if (result.DroppedAnything)
 					{
-						GD.Print($"[MapHistoryService] Condensed {result.CondensedVersionCount} older version(s) of {layout.StoreKey}.");
+						GD.Print($"[MapHistoryService] Condensed {result.DroppedVersionCount} older version(s) of {layout.StoreKey}.");
 					}
 				}
 				catch (Exception exception) when (exception is IOException or InvalidOperationException)
@@ -272,7 +211,7 @@ public class MapHistoryService
 		});
 	}
 
-	private MapHistoryStatus PrimeInStore(string mapDirectory, MapHistoryRetention retention)
+	private MapHistoryStatus PrimeInStore(string mapDirectory)
 	{
 		if (!File.Exists(Path.Combine(mapDirectory, "metadata.json")))
 		{
@@ -286,16 +225,13 @@ public class MapHistoryService
 			CreateVersionInStore(session, mapDirectory, MapVersionKind.Initial, "First version", mapDirectory);
 		}
 
-		if (retention.IsEnabled)
+		try
 		{
-			try
-			{
-				CondenseHistoryInStore(session, retention);
-			}
-			catch (Exception exception)
-			{
-				GD.PrintErr($"[MapHistoryService] Could not clean up this map's history: {exception.Message}");
-			}
+			CondenseHistoryInStore(session);
+		}
+		catch (Exception exception)
+		{
+			GD.PrintErr($"[MapHistoryService] Could not clean up this map's history: {exception.Message}");
 		}
 
 		MapHistoryStatus status = BuildStatus(mapDirectory, session.Layout);
@@ -621,111 +557,93 @@ public class MapHistoryService
 		};
 	}
 
-	private void TrimHistoryAfterCommit(MapHistoryStoreSession session, MapHistoryRetention retention)
+	private void TrimHistoryAfterCommit(MapHistoryStoreSession session)
 	{
-		if (!retention.IsEnabled) return;
-
 		var repository = new MapGitRepository(session.Layout.RepositoryDirectory);
-		IReadOnlyList<MapGitCommitInfo> commits = repository.ReadVersionHistory(int.MaxValue);
-		DateTimeOffset now = DateTimeOffset.Now;
-		int prunableCount = 0;
-		for (int rank = 0; rank < commits.Count; rank++)
-		{
-			if (!retention.ShouldKeep(rank, now - commits[rank].CommittedAt))
-			{
-				prunableCount++;
-			}
-		}
+		MapHistoryStateFile state = LoadState(session.Layout);
+		MapHistoryCondensePlan plan = BuildCondensePlan(repository, state);
+		if (plan.DroppedCount < MapHistoryPolicy.MinimumDroppedVersionsPerCondense) return;
 
-		if (prunableCount < MinimumPrunableVersionsPerTrim) return;
-
-		MapHistoryCleanupResult cleanup = CondenseHistoryInStore(session, retention);
-		if (cleanup.CondensedAnything)
+		MapHistoryCleanupResult cleanup = MakeHistoryLessGranularInStore(session, repository, state, plan);
+		if (cleanup.DroppedAnything)
 		{
-			GD.Print($"[MapHistoryService] Condensed {cleanup.CondensedVersionCount} older version(s) while saving.");
+			GD.Print($"[MapHistoryService] Condensed {cleanup.DroppedVersionCount} older version(s) while saving.");
 		}
 	}
 
-	private MapHistoryCleanupResult CondenseHistoryInStore(MapHistoryStoreSession session, MapHistoryRetention retention)
+	private MapHistoryCleanupResult CondenseHistoryInStore(MapHistoryStoreSession session)
 	{
-		if (!retention.IsEnabled)
-		{
-			return new MapHistoryCleanupResult { Success = true };
-		}
-
 		var repository = new MapGitRepository(session.Layout.RepositoryDirectory);
-		IReadOnlyList<MapGitCommitInfo> commits = repository.ReadVersionHistory(int.MaxValue);
-		if (commits.Count <= 1)
-		{
-			return new MapHistoryCleanupResult { Success = true, RemainingVersionCount = commits.Count };
-		}
-
 		MapHistoryStateFile state = LoadState(session.Layout);
-		var slots = new List<MapVersionSlot>(commits.Count);
-		for (int rank = 0; rank < commits.Count; rank++)
+		MapHistoryCondensePlan plan = BuildCondensePlan(repository, state);
+		return MakeHistoryLessGranularInStore(session, repository, state, plan);
+	}
+
+	private MapHistoryCondensePlan BuildCondensePlan(MapGitRepository repository, MapHistoryStateFile state)
+	{
+		IReadOnlyList<MapGitCommitInfo> commitsNewestFirst = repository.ReadVersionHistory(int.MaxValue);
+		var slotsNewestFirst = new List<MapVersionSlot>(commitsNewestFirst.Count);
+		for (int rank = 0; rank < commitsNewestFirst.Count; rank++)
 		{
-			MapGitCommitInfo commit = commits[rank];
+			MapGitCommitInfo commit = commitsNewestFirst[rank];
 			MapHistoryStateEntry? entry = FindEntry(state, commit.Id);
 			string? label = entry?.Label ?? repository.ReadVersionLabel(commit.Id);
-			long saveVersion = entry != null && entry.SaveVersion > 0 ? entry.SaveVersion : commits.Count - rank;
-			slots.Add(new MapVersionSlot(commit, entry, label, saveVersion));
+			long saveVersion = entry != null && entry.SaveVersion > 0 ? entry.SaveVersion : commitsNewestFirst.Count - rank;
+			slotsNewestFirst.Add(new MapVersionSlot(commit, entry, label, saveVersion));
 		}
 
-		var keptSlots = new List<MapVersionSlot>();
+		var keptNewestFirst = new List<MapVersionSlot>(slotsNewestFirst.Count);
 		DateTimeOffset now = DateTimeOffset.Now;
-		for (int rank = 0; rank < slots.Count; rank++)
+		foreach (MapVersionSlot slot in slotsNewestFirst)
 		{
-			TimeSpan age = now - slots[rank].Commit.CommittedAt;
-			if (retention.ShouldKeep(rank, age))
+			if (keptNewestFirst.Count == 0 || IsPinnedVersion(slot))
 			{
-				keptSlots.Add(slots[rank]);
+				keptNewestFirst.Add(slot);
+				continue;
 			}
+
+			MapVersionSlot newestKeptSlot = keptNewestFirst[^1];
+			TimeSpan age = now - slot.Commit.CommittedAt;
+			TimeSpan granularity = MapHistoryPolicy.GetGranularity(age);
+			if (newestKeptSlot.Commit.CommittedAt - slot.Commit.CommittedAt < granularity) continue;
+
+			keptNewestFirst.Add(slot);
 		}
 
-		int prunedCount = slots.Count - keptSlots.Count;
-		if (prunedCount == 0)
+		keptNewestFirst.Reverse();
+		return new MapHistoryCondensePlan(keptNewestFirst, slotsNewestFirst.Count - keptNewestFirst.Count);
+	}
+
+	private static bool IsPinnedVersion(MapVersionSlot slot)
+	{
+		if (!string.IsNullOrWhiteSpace(slot.Label)) return true;
+		return slot.Entry?.Kind == MapVersionKind.BeforeRestore;
+	}
+
+	private MapHistoryCleanupResult MakeHistoryLessGranularInStore(MapHistoryStoreSession session, MapGitRepository repository, MapHistoryStateFile state, MapHistoryCondensePlan plan)
+	{
+		if (plan.DroppedCount == 0)
 		{
-			return new MapHistoryCleanupResult { Success = true, RemainingVersionCount = slots.Count };
+			return new MapHistoryCleanupResult { Success = true, RemainingVersionCount = plan.KeptOldestFirst.Count };
 		}
 
-		MapVersionSlot condensedSlot = slots[prunedCount - 1];
-		var signature = new MapGitSignature(AuthorName, AuthorEmail, condensedSlot.Commit.CommittedAt);
-		string condensedMessage = BuildCondensedMessage(prunedCount, condensedSlot.Label);
-		string condensedCommitId = repository.WriteCommitForTree(condensedSlot.Commit.TreeId, null, signature, condensedMessage);
+		var rewrittenEntries = new List<MapHistoryStateEntry>(plan.KeptOldestFirst.Count);
+		var labelsToWrite = new List<(string CommitId, string Label)>();
+		string? parentCommitId = null;
 
-		var rewrittenEntries = new List<MapHistoryStateEntry>(keptSlots.Count + 1)
+		foreach (MapVersionSlot slot in plan.KeptOldestFirst)
 		{
-			new()
+			string commitId = slot.Commit.Id;
+			if (!string.Equals(slot.Commit.ParentId, parentCommitId, StringComparison.OrdinalIgnoreCase))
 			{
-				CommitId = condensedCommitId,
-				CreatedAt = condensedSlot.Commit.CommittedAt,
-				Kind = MapVersionKind.Condensed,
-				Label = condensedSlot.Label,
-				SaveVersion = condensedSlot.SaveVersion,
-				ChangedFileCount = condensedSlot.Entry?.ChangedFileCount ?? 0,
-				ChangedBytes = condensedSlot.Entry?.ChangedBytes ?? 0,
-				SourceFolder = condensedSlot.Entry?.SourceFolder
+				string message = !string.IsNullOrWhiteSpace(slot.Label) ? slot.Label : slot.Commit.Message;
+				var signature = new MapGitSignature(AuthorName, AuthorEmail, slot.Commit.CommittedAt);
+				commitId = repository.WriteCommitForTree(slot.Commit.TreeId, parentCommitId, signature, message);
 			}
-		};
-
-		var writtenLabels = new List<(string CommitId, string Label)>();
-		if (!string.IsNullOrWhiteSpace(condensedSlot.Label))
-		{
-			writtenLabels.Add((condensedCommitId, condensedSlot.Label));
-		}
-
-		string? previousCommitId = condensedCommitId;
-		for (int index = keptSlots.Count - 1; index >= 0; index--)
-		{
-			MapVersionSlot slot = keptSlots[index];
-			string message = !string.IsNullOrWhiteSpace(slot.Label) ? slot.Label : GetDefaultCommitMessage(slot.Entry?.Kind ?? MapVersionKind.ExternalChange);
-			var slotSignature = new MapGitSignature(AuthorName, AuthorEmail, slot.Commit.CommittedAt);
-			string newCommitId = repository.WriteCommitForTree(slot.Commit.TreeId, previousCommitId, slotSignature, message);
-			previousCommitId = newCommitId;
 
 			rewrittenEntries.Add(new MapHistoryStateEntry
 			{
-				CommitId = newCommitId,
+				CommitId = commitId,
 				CreatedAt = slot.Commit.CommittedAt,
 				Kind = slot.Entry?.Kind ?? MapVersionKind.ExternalChange,
 				Label = slot.Label,
@@ -737,14 +655,16 @@ public class MapHistoryService
 
 			if (!string.IsNullOrWhiteSpace(slot.Label))
 			{
-				writtenLabels.Add((newCommitId, slot.Label));
+				labelsToWrite.Add((commitId, slot.Label));
 			}
+
+			parentCommitId = commitId;
 		}
 
-		repository.UpdateHead(previousCommitId ?? condensedCommitId);
+		repository.UpdateHead(parentCommitId ?? string.Empty);
 		repository.ClearVersionLabels();
 		var labelSignature = new MapGitSignature(AuthorName, AuthorEmail, DateTimeOffset.Now);
-		foreach (var (labelCommitId, label) in writtenLabels)
+		foreach (var (labelCommitId, label) in labelsToWrite)
 		{
 			repository.WriteVersionLabel(labelCommitId, labelSignature, label);
 		}
@@ -752,7 +672,7 @@ public class MapHistoryService
 		repository.Compact();
 
 		state.Entries = rewrittenEntries;
-		state.LastCommitId = previousCommitId ?? condensedCommitId;
+		state.LastCommitId = parentCommitId;
 		state.Files.Clear();
 		state.FilesSourceFolder = null;
 		SaveState(session.Layout, state);
@@ -760,16 +680,21 @@ public class MapHistoryService
 		return new MapHistoryCleanupResult
 		{
 			Success = true,
-			CondensedVersionCount = prunedCount,
+			DroppedVersionCount = plan.DroppedCount,
 			RemainingVersionCount = rewrittenEntries.Count
 		};
 	}
 
-	private static string BuildCondensedMessage(int condensedCount, string? newestLabel)
+	private class MapHistoryCondensePlan
 	{
-		return string.IsNullOrWhiteSpace(newestLabel)
-			? $"{condensedCount} earlier versions condensed"
-			: $"{newestLabel} and {condensedCount - 1} earlier versions condensed";
+		public MapHistoryCondensePlan(List<MapVersionSlot> keptOldestFirst, int droppedCount)
+		{
+			KeptOldestFirst = keptOldestFirst;
+			DroppedCount = droppedCount;
+		}
+
+		public List<MapVersionSlot> KeptOldestFirst { get; }
+		public int DroppedCount { get; }
 	}
 
 	private void UpdateCachedStatus(string mapDirectory)

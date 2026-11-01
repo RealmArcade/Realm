@@ -68,27 +68,12 @@ public class MapHistoryStorageInfo
 	public string? ErrorMessage { get; init; }
 }
 
-public class MapHistoryRetention
-{
-	public int KeepDays { get; init; }
-	public int KeepVersions { get; init; }
-	public bool IsEnabled => KeepDays > 0 || KeepVersions > 0;
-
-	public bool ShouldKeep(int rankFromNewest, TimeSpan age)
-	{
-		if (rankFromNewest <= 0) return true;
-		if (KeepDays > 0 && age.TotalDays <= KeepDays) return true;
-		if (KeepVersions > 0 && rankFromNewest < KeepVersions) return true;
-		return false;
-	}
-}
-
 public class MapHistoryCleanupResult
 {
 	public bool Success { get; init; }
 	public string? ErrorMessage { get; init; }
-	public int CondensedVersionCount { get; init; }
+	public int DroppedVersionCount { get; init; }
 	public int RemainingVersionCount { get; init; }
 
-	public bool CondensedAnything => CondensedVersionCount > 0;
+	public bool DroppedAnything => DroppedVersionCount > 0;
 }

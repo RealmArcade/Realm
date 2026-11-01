@@ -2,7 +2,6 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Text.Json;
-using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using Godot;
 using Realm.Client.Services;
@@ -25,10 +24,7 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 
 	private HSlider _sldPanelOpacity;
 	private Label _lblPanelOpacity;
-	private OptionButton _optAutoBackup;
-	private CheckBox _chkHistoryCleanup;
-	private Action<float> _setHistoryKeepDays;
-	private Action<float> _setHistoryKeepVersions;
+
 
 	public EditorSettingsDialog(MapEditorHUD hud)
 		: base(hud, TranslationServer.Translate("Map Editor Usability Settings"), new Vector2(510, 500))
@@ -120,88 +116,7 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 
 		AddSectionHeader(contentVBox, "💾 " + TranslationServer.Translate("AUTOSAVE & VERSIONS"), new Color(0.7f, 0.95f, 0.6f));
 
-		string[] autosaveOptions = new[]
-		{
-			TranslationServer.Translate("1 minute").ToString(),
-			TranslationServer.Translate("2 minutes").ToString(),
-			TranslationServer.Translate("5 minutes").ToString(),
-			TranslationServer.Translate("15 minutes").ToString()
-		};
-
-		int autosaveIndex = CurrentSettings.AutoBackupIntervalMinutes switch
-		{
-			1 => 0,
-			2 => 1,
-			5 => 2,
-			15 => 3,
-			_ => 2
-		};
-
-		_optAutoBackup = AddOptionDropdown(
-			contentVBox,
-			TranslationServer.Translate("Save a version every:"),
-			autosaveOptions,
-			autosaveIndex,
-			(idx) =>
-			{
-				CurrentSettings.AutoBackupIntervalMinutes = idx switch
-				{
-					0 => 1,
-					1 => 2,
-					2 => 5,
-					3 => 15,
-					_ => 5
-				};
-				ApplyLiveSettings();
-			},
-			140f
-		);
-
-		AddDescription(contentVBox, TranslationServer.Translate("Your edits are written to the map folder as you work, and a version you can go back to is kept at this interval. Versions are kept by the editor on this computer, outside the map folder, so a mistake never costs you the whole map and your folder stays clean."));
-
-		_chkHistoryCleanup = AddCheckBox(
-			contentVBox,
-			TranslationServer.Translate("Clean up older versions as you work"),
-			CurrentSettings.CleanUpHistoryAutomatically,
-			(val) =>
-			{
-				CurrentSettings.CleanUpHistoryAutomatically = val;
-				ApplyLiveSettings();
-			},
-			TranslationServer.Translate("Condenses versions that are old enough and no longer among the most recent ones, so the history does not grow forever")
-		);
-
-		var (historyDaysInput, setHistoryKeepDays) = AddNumberInput(
-			contentVBox,
-			TranslationServer.Translate("Keep every version newer than (days):"),
-			CurrentSettings.HistoryKeepDays,
-			(val) =>
-			{
-				CurrentSettings.HistoryKeepDays = Math.Max(0, (int)Math.Round(val));
-			},
-			1f,
-			"60",
-			200f
-		);
-		historyDaysInput.Name = "HistoryKeepDays_LineEdit";
-		_setHistoryKeepDays = setHistoryKeepDays;
-
-		var (historyVersionsInput, setHistoryKeepVersions) = AddNumberInput(
-			contentVBox,
-			TranslationServer.Translate("Always keep the newest (versions):"),
-			CurrentSettings.HistoryKeepVersions,
-			(val) =>
-			{
-				CurrentSettings.HistoryKeepVersions = Math.Max(0, (int)Math.Round(val));
-			},
-			1f,
-			"200",
-			200f
-		);
-		historyVersionsInput.Name = "HistoryKeepVersions_LineEdit";
-		_setHistoryKeepVersions = setHistoryKeepVersions;
-
-		AddDescription(contentVBox, TranslationServer.Translate("A version is only condensed when it is older than the first rule and outside the newest versions of the second rule. Use 0 to ignore a rule. Condensed versions are merged into a single starting point, so the map itself is never lost."));
+		AddDescription(contentVBox, TranslationServer.Translate("Your edits are written to the map folder as you work, and a version you can go back to is kept automatically a few minutes apart. Older versions become less detailed as they age, so the history stays small without ever losing the map. Versions you name yourself are always kept exactly as they are."));
 
 		var btnVersionsRow = new HBoxContainer();
 		btnVersionsRow.Name = "BtnVersionsRow_HBoxContainer";
@@ -314,22 +229,6 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 			_lblPanelOpacity.Text = $"{CurrentSettings.PanelOpacity:F2}";
 		}
 
-		if (_optAutoBackup != null)
-		{
-			_optAutoBackup.Selected = CurrentSettings.AutoBackupIntervalMinutes switch
-			{
-				1 => 0,
-				2 => 1,
-				5 => 2,
-				15 => 3,
-				_ => 2
-			};
-		}
-
-		if (_chkHistoryCleanup != null) _chkHistoryCleanup.ButtonPressed = CurrentSettings.CleanUpHistoryAutomatically;
-		_setHistoryKeepDays?.Invoke(CurrentSettings.HistoryKeepDays);
-		_setHistoryKeepVersions?.Invoke(CurrentSettings.HistoryKeepVersions);
-
 	}
 
 	public void ApplyLiveSettings()
@@ -368,49 +267,12 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 			var loaded = JsonSerializer.Deserialize<EditorPreferencesData>(json);
 			if (loaded == null) return;
 
-			HandleLegacySettings(json, loaded);
-
 			CurrentSettings = loaded;
 		}
 		catch (Exception ex)
 		{
 			GD.PrintErr($"[EditorSettingsDialog] Load error: {ex.Message}");
 		}
-	}
-
-	private static void HandleLegacySettings(string json, EditorPreferencesData loaded)
-	{
-		JsonNode parsedNode = JsonNode.Parse(json);
-		if (parsedNode == null) return;
-
-		JsonObject jNode = parsedNode.AsObject();
-		if (jNode == null) return;
-
-		if (jNode.ContainsKey(nameof(EditorPreferencesData.AutoBackupIntervalMinutes))) return;
-		if (!jNode.ContainsKey("AutoSaveIntervalMinutes")) return;
-
-		int legacyVal = GetLegacyIntervalValue(jNode);
-		loaded.AutoBackupIntervalMinutes = GetMigratedBackupInterval(legacyVal);
-	}
-
-	private static int GetLegacyIntervalValue(JsonObject jNode)
-	{
-		if (jNode.TryGetPropertyValue("AutoSaveIntervalMinutes", out JsonNode valueNode))
-		{
-			if (valueNode != null)
-			{
-				return (int)valueNode;
-			}
-		}
-
-		return 30;
-	}
-
-	private static int GetMigratedBackupInterval(int legacyVal)
-	{
-		if (legacyVal <= 15) return 15;
-		if (legacyVal <= 30) return 30;
-		return 60;
 	}
 
 	private static void SaveSettingsToFile()

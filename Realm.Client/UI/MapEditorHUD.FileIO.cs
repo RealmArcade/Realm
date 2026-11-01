@@ -34,16 +34,15 @@ namespace Realm.Client.UI
 		private void PrimeMapHistory()
 		{
 			string editingDirectory = GetActiveEditingDirectory();
-			GameContext.MapHistoryService.PrimeForMap(editingDirectory, EditorSettingsDialog.CurrentSettings.ToHistoryRetention(), _ =>
+			GameContext.MapHistoryService.PrimeForMap(editingDirectory, _ =>
 			{
 				Callable.From(RefreshMapHistoryStatus).CallDeferred();
 			});
 		}
 
-		private static void ScheduleHistoryCleanUpOnLaunch()
+		private static void ScheduleHistoryMaintenanceOnLaunch()
 		{
-			if (!EditorSettingsDialog.CurrentSettings.CleanUpHistoryAutomatically) return;
-			GameContext.MapHistoryService.CleanUpAllStoresInBackground(EditorSettingsDialog.CurrentSettings.ToHistoryRetention());
+			GameContext.MapHistoryService.MaintainAllStoresInBackground();
 		}
 
 		private void RecordMapVersion(MapVersionKind kind, string label, bool coalesce = false)
@@ -53,7 +52,7 @@ namespace Realm.Client.UI
 			GameContext.MapHistoryService.CreateVersion(editingDirectory, kind, label, _ =>
 			{
 				Callable.From(RefreshMapHistoryStatus).CallDeferred();
-			}, coalesce, sourceFolder, EditorSettingsDialog.CurrentSettings.ToHistoryRetention());
+			}, coalesce, sourceFolder);
 		}
 
 		public static void RequestOpenFromCas(string casSourceDirectory, string? defaultSaveFolder)
@@ -159,7 +158,7 @@ namespace Realm.Client.UI
 			long metadataTime = string.IsNullOrEmpty(initMetadataPath) ? 0 : GameContext.EditorService.GetLastWriteTimeSafe(initMetadataPath);
 
 			GameContext.EditorService.InitializeEditingDirectoryDomain(terrainTime, metadataTime);
-			ScheduleHistoryCleanUpOnLaunch();
+			ScheduleHistoryMaintenanceOnLaunch();
 
 			EnsureDefaultTemplateAnimationsSafe();
 
