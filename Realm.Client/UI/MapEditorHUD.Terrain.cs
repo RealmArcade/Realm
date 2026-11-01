@@ -54,8 +54,42 @@ namespace Realm.Client.UI
 			_ = CreateBlankMapAsync();
 		}
 
+		private void StartStartupMapIfPending()
+		{
+			if (!GameContext.SessionState.PendingNewMapOnEditorOpen) return;
+
+			GameContext.SessionState.PendingNewMapOnEditorOpen = false;
+			_ = OpenStartupMapAsync();
+		}
+
+		private async Task OpenStartupMapAsync()
+		{
+			await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+
+			string untitledDirectory = MapWorkspaceService.GetUntitledMapDirectory();
+			bool untitledMapExists = File.Exists(Path.Combine(untitledDirectory, "terrain.json")) && File.Exists(Path.Combine(untitledDirectory, "metadata.json"));
+
+			string? previouslyOpenedFolder = GameSettings.LastOpenedFolder;
+			bool opened = untitledMapExists && await LoadMapFolderAsync(untitledDirectory);
+			RestoreLastOpenedFolder(previouslyOpenedFolder);
+			if (opened) return;
+
+			await CreateBlankMapAsync();
+		}
+
+		private static void RestoreLastOpenedFolder(string? previouslyOpenedFolder)
+		{
+			if (string.IsNullOrEmpty(previouslyOpenedFolder)) return;
+			if (string.Equals(GameSettings.LastOpenedFolder, previouslyOpenedFolder, StringComparison.Ordinal)) return;
+
+			GameSettings.LastOpenedFolder = previouslyOpenedFolder;
+			GameSettings.Save();
+		}
+
 		private async Task CreateBlankMapAsync()
 		{
+			ShowFeedback(TranslationServer.Translate("Loading map..."));
+
 			string untitledDirectory = MapWorkspaceService.GetUntitledMapDirectory();
 			KeepUntitledMapInHistory(untitledDirectory);
 
@@ -71,17 +105,14 @@ namespace Realm.Client.UI
 				string? previouslyOpenedFolder = GameSettings.LastOpenedFolder;
 				ResetFolderLocations();
 
-				if (!await LoadMapFolderAsync(untitledDirectory))
+				bool opened = await LoadMapFolderAsync(untitledDirectory);
+				RestoreLastOpenedFolder(previouslyOpenedFolder);
+
+				if (!opened)
 				{
 					string reason = !string.IsNullOrEmpty(_lastMapLoadFailure) ? _lastMapLoadFailure : TranslationServer.Translate("Unknown error.");
 					ShowFeedback(string.Format(TranslationServer.Translate("The new map folder was created at {0} but could not be opened: {1}"), untitledDirectory, reason));
 					return;
-				}
-
-				if (!string.IsNullOrEmpty(previouslyOpenedFolder))
-				{
-					GameSettings.LastOpenedFolder = previouslyOpenedFolder;
-					GameSettings.Save();
 				}
 
 				ShowFeedback(TranslationServer.Translate("Started a new untitled map. Give it a name when you save it somewhere of your own."));

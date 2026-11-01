@@ -2683,6 +2683,8 @@ namespace Realm.Client.Core
 			ActiveEditorTool = EditorTool.None;
 			EditorHistoryManager.Clear();
 
+			GameContext.SessionState.PendingNewMapOnEditorOpen = false;
+
 			if (GameContext.SessionState.ReturningFromTest)
 			{
 				RestoreMapEditorStateFromTest();
@@ -2691,6 +2693,7 @@ namespace Realm.Client.Core
 			{
 				ResetWorldAndState();
 				ClearMapEntirely();
+				GameContext.SessionState.PendingNewMapOnEditorOpen = true;
 			}
 
 			CreateBrushIndicator();

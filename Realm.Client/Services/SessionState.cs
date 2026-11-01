@@ -5,6 +5,7 @@ namespace Realm.Client.Services;
 public class SessionState
 {
 	public bool IsMapEditorMode { get; set; }
+	public bool PendingNewMapOnEditorOpen { get; set; } = false;
 	public bool IsTestMode { get; set; } = false;
 	public bool ReturningFromTest { get; set; } = false;
 	public bool EditorSessionResumedAfterTest { get; set; } = false;

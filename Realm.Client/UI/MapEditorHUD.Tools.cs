@@ -1642,6 +1642,8 @@ namespace Realm.Client.UI
 				{
 					SwitchModuleView(EditorModule.Terrain);
 				}
+
+				StartStartupMapIfPending();
 			}
 			catch (Exception ex)
 			{
