@@ -1,4 +1,5 @@
 using System.IO;
+using System.Threading.Tasks;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.Services;
@@ -48,12 +49,35 @@ namespace Realm.Client.UI
 
 		public void ResetToBlankMapView()
 		{
+			_ = CreateBlankMapAsync();
+		}
+
+		private async Task CreateBlankMapAsync()
+		{
+			string? folderPath = MapWorkspaceService.CreateBlankMapFolder(MapWorkspaceService.GetBlankMapRootDirectory(), out string errorMessage);
+			if (string.IsNullOrEmpty(folderPath))
+			{
+				ShowFeedback(string.Format(TranslationServer.Translate("Could not create a new map folder: {0}"), errorMessage));
+				return;
+			}
+
+			string? previouslyOpenedFolder = GameSettings.LastOpenedFolder;
 			ResetFolderLocations();
-			GameContext.EditorService.ResetToBlankMapDomain();
-			string terrainPath = Path.Combine(GameContext.EditorService._editingDirectory, "terrain.json");
-			string metadataPath = Path.Combine(GameContext.EditorService._editingDirectory, "metadata.json");
-			GameContext.EditorService.LastTerrainSyncTime = GameContext.EditorService.GetMaxTerrainWriteTime(terrainPath);
-			GameContext.EditorService.LastMetadataSyncTime = GameContext.EditorService.GetLastWriteTimeSafe(metadataPath);
+
+			bool loaded = await LoadMapFolderAsync(folderPath);
+			if (!loaded)
+			{
+				ShowFeedback(string.Format(TranslationServer.Translate("The new map folder was created at {0} but could not be opened."), folderPath));
+				return;
+			}
+
+			if (!string.IsNullOrEmpty(previouslyOpenedFolder))
+			{
+				GameSettings.LastOpenedFolder = previouslyOpenedFolder;
+				GameSettings.Save();
+			}
+
+			ShowFeedback(string.Format(TranslationServer.Translate("Started a new map in {0}."), folderPath));
 		}
 
 		public void ViewLoadMapProperties()

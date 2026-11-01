@@ -285,6 +285,12 @@ public static partial class MapWorkspaceService
 		return FindRootFile("MapTemplate/" + fileName);
 	}
 
+	public static string? GetTemplateRoot()
+	{
+		string templateRoot = FindRootFile("MapTemplate");
+		return Directory.Exists(templateRoot) ? templateRoot : null;
+	}
+
 	private const string MapApiDllRelativePath = "lib/Realm.MapAPI.dll";
 	private const string EcsDllRelativePath = "lib/Realm.Ecs.dll";
 	private const string EcsUsingItem = "<Using Include=\"Realm.Ecs\" />";
@@ -891,6 +897,47 @@ public static partial class MapWorkspaceService
 	public static string CreateUntitledMapName()
 	{
 		return $"{UntitledMapNamePrefix}_{Guid.NewGuid().ToString("N")[..8]}";
+	}
+
+	public const string BlankMapRootFolderName = "Realm Maps";
+
+	public static string GetBlankMapRootDirectory()
+	{
+		return Path.Combine(GetDefaultMapFolderGlobalPath(), BlankMapRootFolderName);
+	}
+
+	public static string? CreateBlankMapFolder(string parentDirectory, out string errorMessage)
+	{
+		errorMessage = string.Empty;
+
+		string? templateRoot = GetTemplateRoot();
+		if (string.IsNullOrEmpty(templateRoot))
+		{
+			errorMessage = "the map template could not be found";
+			return null;
+		}
+
+		string mapName = CreateUntitledMapName();
+		try
+		{
+			Directory.CreateDirectory(parentDirectory);
+			string folderPath = Path.Combine(parentDirectory, mapName);
+			CopyFolderToWorkspace(templateRoot, folderPath, mapName);
+
+			GameContext.MetadataService.UpdateMetadata(folderPath, metadata =>
+			{
+				metadata.MapProperties ??= new MapInfoMetadata();
+				metadata.MapProperties.MapName = mapName;
+				metadata.GameBuildNumber = RealmVersion.GameBuildNumber;
+			});
+
+			return folderPath;
+		}
+		catch (Exception exception)
+		{
+			errorMessage = exception.Message;
+			return null;
+		}
 	}
 
 	public static bool IsUntitledMapName(string? mapName)

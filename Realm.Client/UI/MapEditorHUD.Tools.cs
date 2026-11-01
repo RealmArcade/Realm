@@ -452,10 +452,10 @@ namespace Realm.Client.UI
 				SetupOptionButton(_btnResetMap, $"{UnicodeIcons.TRASH} " + TranslationServer.Translate("RESET MAP"), () =>
 				{
 					ShowConfirmationDialog(
-						"Are you sure you want to clear the entire map? This will delete all placed entities and reset terrain heights.",
+						TranslationServer.Translate("Start a new blank map in its own folder? The map you have open stays in its folder and can be opened again later."),
 						() => ResetToBlankMapView()
 					);
-				}, 13, "Clear all terrain heights, colors, and placed entities");
+				}, 13, TranslationServer.Translate("Start a new blank map in its own folder"));
 
 				SetupRandomGenerationMenu();
 
