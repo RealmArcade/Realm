@@ -2034,6 +2034,7 @@
   "The selected image has no pixels.": "The selected image has no pixels.",
   "The selected map package or folder no longer exists.": "The selected map package or folder no longer exists.",
   "The stored version history of this map could not be read, so a new one was started. The previous files were kept in the history folder.": "The stored version history of this map could not be read, so a new one was started. The previous files were kept in the history folder.",
+  "The version history is still saving another version. Try again in a moment.": "The version history is still saving another version. Try again in a moment.",
   "This animation already exists in this action.": "This animation already exists in this action.",
   "This folder has no metadata.json yet.": "This folder has no metadata.json yet.",
   "This map contains content imported from:": "This map contains content imported from:",

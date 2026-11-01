@@ -22,6 +22,7 @@ public class MapHistoryMessages
 		OpenMapUsesThisHistory = TranslationServer.Translate("The map you have open is using this history right now.");
 		AnotherWindowUsesThisHistory = TranslationServer.Translate("Another editor window is using this history right now.");
 		HistoryFolderNotRemoved = TranslationServer.Translate("The history folder could not be removed completely.");
+		HistoryStillBusy = TranslationServer.Translate("The version history is still saving another version. Try again in a moment.");
 	}
 
 	public StringName Locale { get; }
@@ -40,6 +41,7 @@ public class MapHistoryMessages
 	public string OpenMapUsesThisHistory { get; }
 	public string AnotherWindowUsesThisHistory { get; }
 	public string HistoryFolderNotRemoved { get; }
+	public string HistoryStillBusy { get; }
 
 	public static MapHistoryMessages Capture()
 	{

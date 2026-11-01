@@ -28,6 +28,13 @@ public class MapHistoryStoreLayout
 	public string LockFilePath { get; }
 }
 
+public class MapHistoryStoreBusyException : Exception
+{
+	public MapHistoryStoreBusyException(Exception innerException) : base("Another editor window is using this map's version history right now.", innerException)
+	{
+	}
+}
+
 public class MapHistoryStoreSession : IDisposable
 {
 	private readonly FileStream? _lockStream;
@@ -95,11 +102,11 @@ public static class MapHistoryStore
 		return string.IsNullOrWhiteSpace(folderName) ? "Untitled Map" : folderName;
 	}
 
-	public static MapHistoryStoreSession Acquire(string mapDirectory)
+	public static MapHistoryStoreSession Acquire(string mapDirectory, TimeSpan? lockTimeout = null)
 	{
 		MapHistoryStoreLayout layout = Resolve(mapDirectory);
 		Directory.CreateDirectory(layout.StoreDirectory);
-		FileStream lockStream = AcquireLock(layout.LockFilePath);
+		FileStream lockStream = AcquireLock(layout.LockFilePath, lockTimeout ?? LockTimeout);
 		try
 		{
 			bool wasReset = EnsureRepository(layout);
@@ -202,9 +209,9 @@ public static class MapHistoryStore
 		}
 	}
 
-	private static FileStream AcquireLock(string lockFilePath)
+	private static FileStream AcquireLock(string lockFilePath, TimeSpan timeout)
 	{
-		DateTime deadline = DateTime.UtcNow + LockTimeout;
+		DateTime deadline = DateTime.UtcNow + timeout;
 		while (true)
 		{
 			try
@@ -217,7 +224,7 @@ public static class MapHistoryStore
 			}
 			catch (IOException exception)
 			{
-				throw new InvalidOperationException("Another editor window is using this map's version history right now.", exception);
+				throw new MapHistoryStoreBusyException(exception);
 			}
 		}
 	}

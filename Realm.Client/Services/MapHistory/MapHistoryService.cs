@@ -16,6 +16,8 @@ public class MapHistoryService
 	private const string AuthorName = "Realm Map Editor";
 	private const string AuthorEmail = "map-editor@realm.local";
 
+	private static readonly TimeSpan SynchronousLockTimeout = TimeSpan.FromSeconds(4);
+
 	private static readonly string[] HistoryOnlyDirectoryNames = { ".vscode" };
 
 	private static readonly string[] HistoryOnlyFileSuffixes = { ".pem", ".rkey", ".user", ".suo", AtomicFileWriter.TemporarySuffix };
@@ -93,15 +95,15 @@ public class MapHistoryService
 			return new MapHistoryVersionResult { Success = false, ErrorMessage = _messages.NoMapFolderOpen };
 		}
 
-		return CreateVersionNow(mapDirectory, kind, label, sourceFolder);
+		return CreateVersionNow(mapDirectory, kind, label, sourceFolder, SynchronousLockTimeout);
 	}
 
-	private MapHistoryVersionResult CreateVersionNow(string mapDirectory, MapVersionKind kind, string? label, string? sourceFolder)
+	private MapHistoryVersionResult CreateVersionNow(string mapDirectory, MapVersionKind kind, string? label, string? sourceFolder, TimeSpan? lockTimeout = null)
 	{
 		MapHistoryVersionResult result;
 		try
 		{
-			using MapHistoryStoreSession session = MapHistoryStore.Acquire(mapDirectory);
+			using MapHistoryStoreSession session = MapHistoryStore.Acquire(mapDirectory, lockTimeout);
 			result = CreateVersionInStore(session, mapDirectory, kind, label, sourceFolder);
 			if (result.Success)
 			{
@@ -358,7 +360,9 @@ public class MapHistoryService
 			MapHistoryStoreLayout layout = MapHistoryStore.Resolve(mapDirectory);
 			if (!MapHistoryStore.RepositoryExists(layout)) return false;
 
-			var repository = new MapGitRepository(layout.RepositoryDirectory);
+			using MapHistoryStoreSession? session = MapHistoryStore.TryAcquireExisting(layout, TimeSpan.FromMilliseconds(250));
+			string repositoryDirectory = session?.Layout.RepositoryDirectory ?? layout.RepositoryDirectory;
+			var repository = new MapGitRepository(repositoryDirectory);
 			return !string.IsNullOrEmpty(repository.ReadHeadCommitId());
 		}
 		catch (Exception exception)
@@ -1090,6 +1094,11 @@ public class MapHistoryService
 		while (rootCause is TypeInitializationException or AggregateException && rootCause.InnerException != null)
 		{
 			rootCause = rootCause.InnerException;
+		}
+
+		if (rootCause is MapHistoryStoreBusyException)
+		{
+			return _messages.HistoryStillBusy;
 		}
 
 		if (rootCause is not (DllNotFoundException or BadImageFormatException))
