@@ -1603,6 +1603,7 @@ namespace Realm.Client.UI
 
 				if (GameContext.SessionState.ReturningFromTest)
 				{
+					ReadMetadataAndRefreshTextures();
 					_sldBrushSize.Value = GameContext.SessionState.SavedBrushRadius;
 					_sldBrushStrength.Value = GameContext.SessionState.SavedBrushStrength;
 

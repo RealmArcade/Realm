@@ -2768,10 +2768,19 @@ namespace Realm.Client.Core
 
 		private void RestoreEditorDirtyStateAfterTest()
 		{
+			string editingDirectory = GameContext.EditorService._editingDirectory;
+
 			EditorHasUnsavedChanges = GameContext.SessionState.SavedEditorHasUnsavedChanges;
 			GameContext.EditorService.CurrentDirectoryBlake3 = MapWorkspaceService.ComputeDirectoryBlake3Domain(
-				GameContext.EditorService._editingDirectory,
+				editingDirectory,
 				MapEditorHUD.IsIgnoredPath);
+
+			if (string.IsNullOrEmpty(editingDirectory)) return;
+
+			string terrainPath = Path.Combine(editingDirectory, "terrain.json");
+			GameContext.EditorService.LastTerrainSyncTime = GameContext.EditorService.GetMaxTerrainWriteTime(terrainPath);
+			GameContext.EditorService.LastMetadataSyncTime = GameContext.EditorService.GetLastWriteTimeSafe(Path.Combine(editingDirectory, "metadata.json"));
+			GameContext.EditorService.StartWorkspaceWatcher(editingDirectory);
 		}
 
 		public void ExitMapEditorMode()

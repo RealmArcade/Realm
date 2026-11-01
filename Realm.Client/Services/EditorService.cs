@@ -6522,7 +6522,12 @@ public class {mapName} : IMapScript
 	{
 		try
 		{
-			if (!Directory.Exists(workspace)) return true;
+			if (!Directory.Exists(workspace))
+			{
+				onStatusError($"[MapEditorHUD] ERROR: The map folder '{workspace}' is not open, so there is nothing to compile");
+				onLog($"[MapEditorHUD] The compilation step was asked for a workspace that does not exist: '{workspace}'");
+				return false;
+			}
 
 			Realm.Client.Services.MapWorkspaceService.EnsureWitFile(workspace);
 			Realm.Client.Services.MapWorkspaceService.EnsureWasmEntryPoint(workspace);

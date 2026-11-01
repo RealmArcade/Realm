@@ -2547,12 +2547,19 @@ public partial class GameHost : Node3D
 		bool wasMapEditorMode = GameContext.SessionState.IsMapEditorMode;
 		bool wasLoadingMap = GameContext.SaveLoadService.IsLoadingMap;
 		bool wasProfilingEnabled = GameContext.PerformanceTrackingService?.IsFunctionProfilingEnabled ?? false;
+		string preservedEditorDirectory = GameContext.SessionState.IsTestMode ? GameContext.EditorService._editingDirectory : string.Empty;
+		string? preservedEditorSourceFolder = GameContext.SessionState.IsTestMode ? GameContext.EditorService.CurrentSourceFolder : null;
 
 		GameContext.EndScreenScope();
 		ResolveServices();
 
 		GameContext.SessionState.IsMapEditorMode = wasMapEditorMode;
-		if (wasMapEditorMode)
+		if (!string.IsNullOrEmpty(preservedEditorDirectory))
+		{
+			GameContext.EditorService.SetActiveMapDirectory(preservedEditorDirectory);
+			GameContext.EditorService.SetCurrentSourceFolder(preservedEditorSourceFolder);
+		}
+		else if (wasMapEditorMode)
 		{
 			GameContext.EditorService.EnsureEditingDirectoryDomain();
 		}
