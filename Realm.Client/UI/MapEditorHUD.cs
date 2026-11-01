@@ -1252,7 +1252,7 @@ public partial class MapEditorHUD : Control
 	{
 		MapWorkspaceService.EnsureWasmEntryPoint(GameContext.EditorService._editingDirectory);
 		string tempTerrainPath = Path.Combine(GameContext.EditorService._editingDirectory, "terrain.json");
-		GameContext.Host.SaveMapToFile(tempTerrainPath);
+		GameContext.Host.SaveMapToFile(tempTerrainPath, performReload: false);
 		GameContext.Host.EditorHasUnsavedChanges = false;
 		InvalidateMetadataCache();
 
