@@ -6324,25 +6324,6 @@ public class {mapName} : IMapScript
 		this.LastMetadataSyncTime = GetLastWriteTimeSafe(unitsPath);
 	}
 
-	public bool CheckAndHandleEditorClosure()
-	{
-		string cleanExitFile = ProjectSettings.GlobalizePath("user://editor_clean_exit.txt");
-		if (File.Exists(cleanExitFile))
-		{
-			try
-			{
-				File.Delete(cleanExitFile);
-			}
-			catch
-			{
-			}
-
-			return true;
-		}
-
-		return false;
-	}
-
 	public void SyncWasmFiles()
 	{
 		try

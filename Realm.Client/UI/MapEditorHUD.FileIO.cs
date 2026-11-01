@@ -271,13 +271,10 @@ namespace Realm.Client.UI
 			var editorService = GameContext.EditorService;
 			if (string.IsNullOrEmpty(editorService._editingDirectory) || !Directory.Exists(editorService._editingDirectory)) return;
 
-			if (editorService.CheckAndHandleEditorClosure()) return;
-
 			editorService.SyncWasmFiles();
 			editorService.UpdateWorkspaceModTime();
 			AutosaveEditorStateIfNeeded();
 		}
-
 
 		private static bool IsSameDirectory(string firstPath, string secondPath)
 		{
