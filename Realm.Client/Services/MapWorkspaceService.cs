@@ -464,37 +464,42 @@ public static partial class MapWorkspaceService
 
 		string templatePath = GetTemplatePath("MapScript.csproj");
 
+		if (!File.Exists(csprojPath) && !File.Exists(templatePath))
+		{
+			GD.PushWarning($"[MapWorkspaceService] Could not generate {Path.GetFileName(csprojPath)}: map script template not found at {templatePath ?? "n/a"}");
+			return;
+		}
+
+		RunScaffoldingStep(() => WriteOrRepairCsproj(csprojPath, templatePath), "map project file");
+
+		RunScaffoldingStep(() => EnsureTrimmerRoot(csprojPath), "map project file");
+		RunScaffoldingStep(() => EnsureSourceMapGlobalUsing(csprojPath), "map project file");
+		RunScaffoldingStep(() => EnsureApiLib(directory), "map API library");
+		RunScaffoldingStep(() => EnsureDirectoryBuildTargets(directory), "build targets");
+		RunScaffoldingStep(() => EnsureNugetConfig(directory), "NuGet configuration");
+	}
+
+	private static void WriteOrRepairCsproj(string csprojPath, string templatePath)
+	{
 		if (!File.Exists(csprojPath))
 		{
-			if (!File.Exists(templatePath))
-			{
-				GD.PushWarning($"[MapWorkspaceService] Could not generate {Path.GetFileName(csprojPath)}: map script template not found at {templatePath ?? "n/a"}");
-				return;
-			}
-
-			string csprojContent = File.ReadAllText(templatePath);
-			csprojContent = NormalizeMapApiReference(csprojContent);
-			File.WriteAllText(csprojPath, csprojContent);
-		}
-		else
-		{
-			string csprojContent = File.ReadAllText(csprojPath);
-			string normalized = NormalizeMapApiReference(csprojContent);
-			if (normalized != csprojContent)
-			{
-				File.WriteAllText(csprojPath, normalized);
-				GD.Print($"[MapWorkspaceService] Repaired MapAPI reference in {Path.GetFileName(csprojPath)} to use the portable relative DLL path.");
-			}
+			File.WriteAllText(csprojPath, NormalizeMapApiReference(File.ReadAllText(templatePath)));
+			return;
 		}
 
-		EnsureTrimmerRoot(csprojPath);
-		EnsureSourceMapGlobalUsing(csprojPath);
+		string csprojContent = File.ReadAllText(csprojPath);
+		string normalized = NormalizeMapApiReference(csprojContent);
+		if (normalized == csprojContent) return;
 
-		EnsureApiLib(directory);
+		File.WriteAllText(csprojPath, normalized);
+		GD.Print($"[MapWorkspaceService] Repaired MapAPI reference in {Path.GetFileName(csprojPath)} to use the portable relative DLL path.");
+	}
 
-		EnsureDirectoryBuildTargets(directory);
+	private static void RunScaffoldingStep(Action step, string description)
+	{
+		if (TryRunFileOperation(step)) return;
 
-		EnsureNugetConfig(directory);
+		GD.PrintErr($"[MapWorkspaceService] Could not update the {description} because another program is holding the file open. The copy already in the map folder is kept.");
 	}
 
 	private const string CanonicalNugetConfigContent =
@@ -594,10 +599,13 @@ public static partial class MapWorkspaceService
 		string targetsTemplate = GetTemplatePath("Directory.Build.targets");
 		if (string.IsNullOrEmpty(targetsTemplate) || !File.Exists(targetsTemplate))
 		{
-			throw new Exception($"File not found: {targetsTemplate}");
+			throw new FileNotFoundException($"Directory.Build.targets template was not found: {targetsTemplate}");
 		}
 
-		File.Copy(targetsTemplate, targetsPath, true);
+		if (TryRunFileOperation(() => File.Copy(targetsTemplate, targetsPath, true))) return;
+		if (File.Exists(targetsPath)) return;
+
+		throw new IOException($"Directory.Build.targets could not be written into {directory}.");
 	}
 
 	private static void EnsureTrimmerRoot(string csprojPath)

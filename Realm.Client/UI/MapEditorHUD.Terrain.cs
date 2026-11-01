@@ -73,7 +73,8 @@ namespace Realm.Client.UI
 
 				if (!await LoadMapFolderAsync(untitledDirectory))
 				{
-					ShowFeedback(string.Format(TranslationServer.Translate("The new map folder was created at {0} but could not be opened."), untitledDirectory));
+					string reason = !string.IsNullOrEmpty(_lastMapLoadFailure) ? _lastMapLoadFailure : TranslationServer.Translate("Unknown error.");
+					ShowFeedback(string.Format(TranslationServer.Translate("The new map folder was created at {0} but could not be opened: {1}"), untitledDirectory, reason));
 					return;
 				}
 

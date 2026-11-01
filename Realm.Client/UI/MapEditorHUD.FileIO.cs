@@ -983,10 +983,17 @@ namespace Realm.Client.UI
 
 		private static void EnsureEditingFolderScaffolding(string editingDirectory, string mapName)
 		{
-			MapWorkspaceService.EnsureWitFile(editingDirectory);
-			MapWorkspaceService.EnsureWasmEntryPoint(editingDirectory);
-			MapWorkspaceService.EnsureCsproj(editingDirectory, mapName);
-			CopyVsCodeFolderFromMapTemplate(editingDirectory);
+			try
+			{
+				MapWorkspaceService.EnsureWitFile(editingDirectory);
+				MapWorkspaceService.EnsureWasmEntryPoint(editingDirectory);
+				MapWorkspaceService.EnsureCsproj(editingDirectory, mapName);
+				CopyVsCodeFolderFromMapTemplate(editingDirectory);
+			}
+			catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+			{
+				GD.PrintErr($"[MapEditorHUD] The scaffolding in '{editingDirectory}' is incomplete because another program is holding a file open: {exception.Message}. The map still opens and the scaffolding is repaired on its next load.");
+			}
 		}
 
 		private bool PerformMapLoad(string selectedFolder)
@@ -1028,6 +1035,7 @@ namespace Realm.Client.UI
 
 		public async Task<bool> LoadMapFolderAsync(string selectedFolder)
 		{
+			_lastMapLoadFailure = null;
 			if (!Directory.Exists(selectedFolder)) return false;
 
 			if (!GameContext.EditorService.IsValidMapFolder(selectedFolder))
@@ -1065,8 +1073,11 @@ namespace Realm.Client.UI
 			GameContext.EditorService.IsSyncing = true;
 			try
 			{
-				if (!PrepareForMapLoadAsync(selectedFolder)) return false;
-
+				if (!PrepareForMapLoadAsync(selectedFolder))
+				{
+					_lastMapLoadFailure = TranslationServer.Translate("The map folder cannot be written to.");
+					return false;
+				}
 				string terrainPath = Path.Combine(GameContext.EditorService._editingDirectory, "terrain.json");
 				string metadataPath = Path.Combine(GameContext.EditorService._editingDirectory, "metadata.json");
 				GameContext.EditorService.LastTerrainSyncTime = GameContext.EditorService.GetMaxTerrainWriteTime(terrainPath);
@@ -1081,6 +1092,7 @@ namespace Realm.Client.UI
 			catch (Exception ex)
 			{
 				GD.PrintErr($"[MapEditorHUD] Failed to load map folder: {ex.Message}");
+				_lastMapLoadFailure = ex.Message;
 				return false;
 			}
 			finally
@@ -1144,7 +1156,8 @@ namespace Realm.Client.UI
 			}
 			else
 			{
-				ShowFeedback(TranslationServer.Translate("Failed to load map files from folder!"));
+				_lastMapLoadFailure = TranslationServer.Translate("Failed to load map files from folder!");
+				ShowFeedback(_lastMapLoadFailure);
 			}
 
 			return success;

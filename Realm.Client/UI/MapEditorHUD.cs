@@ -46,6 +46,8 @@ public partial class MapEditorHUD : Control
 
 	private static bool _agreementShownThisSession { get; set; } = false;
 
+	private static string? _lastMapLoadFailure { get; set; } = null;
+
 
 	public MapEditorHUDViewModel _viewModel { get; set; } = new();
 
