@@ -57,19 +57,36 @@ public class MapGitRepository
 		return Convert.ToHexStringLower(hasher.GetHashAndReset());
 	}
 
-	public string? ReadHeadCommitId()
+	public Repository OpenRepositoryScope()
+	{
+		return OpenRepository();
+	}
+
+	public string? ReadHeadCommitId(Repository? openRepository = null)
 	{
 		if (!Exists) return null;
+		if (openRepository != null) return ReadDirectTarget(openRepository, BranchReferenceName);
 
 		using Repository repository = OpenRepository();
 		return ReadDirectTarget(repository, BranchReferenceName);
 	}
 
-	public void UpdateHead(string commitId)
+	public void UpdateHead(string commitId, Repository? openRepository = null)
 	{
 		if (!Exists || string.IsNullOrEmpty(commitId)) return;
 
+		if (openRepository != null)
+		{
+			UpdateHeadInRepository(openRepository, commitId);
+			return;
+		}
+
 		using Repository repository = OpenRepository();
+		UpdateHeadInRepository(repository, commitId);
+	}
+
+	private static void UpdateHeadInRepository(Repository repository, string commitId)
+	{
 		WriteReference(repository, BranchReferenceName, commitId);
 		if (repository.Refs["HEAD"] is not SymbolicReference)
 		{
@@ -120,12 +137,23 @@ public class MapGitRepository
 		}
 	}
 
-	public bool TryReadCommit(string commitId, out MapGitCommitInfo commit)
+	public bool TryReadCommit(string commitId, out MapGitCommitInfo commit, Repository? openRepository = null)
 	{
 		commit = new MapGitCommitInfo();
 		if (!Exists || string.IsNullOrEmpty(commitId)) return false;
 
+		if (openRepository != null)
+		{
+			return TryReadCommitInRepository(openRepository, commitId, out commit);
+		}
+
 		using Repository repository = OpenRepository();
+		return TryReadCommitInRepository(repository, commitId, out commit);
+	}
+
+	private static bool TryReadCommitInRepository(Repository repository, string commitId, out MapGitCommitInfo commit)
+	{
+		commit = new MapGitCommitInfo();
 		Commit? foundCommit = LookupCommit(repository, commitId);
 		if (foundCommit == null) return false;
 
@@ -171,25 +199,47 @@ public class MapGitRepository
 		return versionCount;
 	}
 
-	public Dictionary<string, string> ReadTreeFiles(string treeId)
+	public Dictionary<string, string> ReadTreeFiles(string treeId, Repository? openRepository = null)
 	{
 		var files = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 		if (!Exists || string.IsNullOrEmpty(treeId)) return files;
 
-		using Repository repository = OpenRepository();
-		Tree? tree = repository.Lookup<Tree>(new ObjectId(treeId));
-		if (tree == null) return files;
+		if (openRepository != null)
+		{
+			ReadTreeFilesInRepository(openRepository, treeId, files);
+			return files;
+		}
 
-		CollectTreeFiles(tree, string.Empty, files);
+		using Repository repository = OpenRepository();
+		ReadTreeFilesInRepository(repository, treeId, files);
 		return files;
 	}
 
-	public bool TryReadBlob(string blobId, out byte[] content)
+	private static void ReadTreeFilesInRepository(Repository repository, string treeId, Dictionary<string, string> files)
+	{
+		Tree? tree = repository.Lookup<Tree>(new ObjectId(treeId));
+		if (tree == null) return;
+
+		CollectTreeFiles(tree, string.Empty, files);
+	}
+
+	public bool TryReadBlob(string blobId, out byte[] content, Repository? openRepository = null)
 	{
 		content = Array.Empty<byte>();
 		if (!Exists || string.IsNullOrEmpty(blobId)) return false;
 
+		if (openRepository != null)
+		{
+			return TryReadBlobInRepository(openRepository, blobId, out content);
+		}
+
 		using Repository repository = OpenRepository();
+		return TryReadBlobInRepository(repository, blobId, out content);
+	}
+
+	private static bool TryReadBlobInRepository(Repository repository, string blobId, out byte[] content)
+	{
+		content = Array.Empty<byte>();
 		Blob? blob = repository.Lookup<Blob>(new ObjectId(blobId));
 		if (blob == null) return false;
 
@@ -200,18 +250,30 @@ public class MapGitRepository
 		return true;
 	}
 
-	public bool HasBlob(string blobId)
+	public bool HasBlob(string blobId, Repository? openRepository = null)
 	{
 		if (!Exists || string.IsNullOrEmpty(blobId)) return false;
+		if (openRepository != null) return openRepository.ObjectDatabase.Contains(new ObjectId(blobId));
 
 		using Repository repository = OpenRepository();
 		return repository.ObjectDatabase.Contains(new ObjectId(blobId));
 	}
 
-	public string WriteBlob(byte[] content, out bool wasCreated)
+	public string WriteBlob(byte[] content, out bool wasCreated, Repository? openRepository = null)
 	{
 		string blobId = ComputeBlobId(content);
+
+		if (openRepository != null)
+		{
+			return WriteBlobInRepository(openRepository, content, blobId, out wasCreated);
+		}
+
 		using Repository repository = OpenRepository();
+		return WriteBlobInRepository(repository, content, blobId, out wasCreated);
+	}
+
+	private static string WriteBlobInRepository(Repository repository, byte[] content, string blobId, out bool wasCreated)
+	{
 		if (repository.ObjectDatabase.Contains(new ObjectId(blobId)))
 		{
 			wasCreated = false;
@@ -224,8 +286,14 @@ public class MapGitRepository
 		return blob.Sha.Length == 40 ? blob.Sha : blobId;
 	}
 
-	public string WriteCommit(IReadOnlyDictionary<string, string> blobIdByPath, string? parentId, MapGitSignature signature, string message)
+	public string WriteCommit(IReadOnlyDictionary<string, string> blobIdByPath, string? parentId, MapGitSignature signature, string message, Repository? openRepository = null)
 	{
+		if (openRepository != null)
+		{
+			Tree openTree = BuildTree(openRepository, blobIdByPath);
+			return CreateCommit(openRepository, openTree, parentId, signature, message);
+		}
+
 		using Repository repository = OpenRepository();
 		Tree tree = BuildTree(repository, blobIdByPath);
 		return CreateCommit(repository, tree, parentId, signature, message);

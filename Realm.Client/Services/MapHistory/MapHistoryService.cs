@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Godot;
+using LibGit2Sharp;
 using Realm.Client.Utils;
 
 namespace Realm.Client.Services.MapHistory;
@@ -408,6 +409,12 @@ public class MapHistoryService
 		}
 
 		var repository = new MapGitRepository(session.Layout.RepositoryDirectory);
+		if (!repository.Exists)
+		{
+			return new MapHistoryVersionResult { Success = false, ErrorMessage = "This map's version history could not be opened." };
+		}
+
+		using Repository repositoryScope = repository.OpenRepositoryScope();
 		MapHistoryStateFile state = LoadState(session.Layout);
 
 		bool incrementsSaveVersion = kind is MapVersionKind.ManualSave or MapVersionKind.AutosaveCheckpoint or MapVersionKind.BeforePublish;
@@ -428,7 +435,7 @@ public class MapHistoryService
 			    state.Files.TryGetValue(relativePath, out MapHistoryFileFingerprint? existing) &&
 			    existing.Size == fileInfo.Length &&
 			    existing.LastWriteTicks == fileInfo.LastWriteTimeUtc.Ticks &&
-			    repository.HasBlob(existing.BlobId))
+			    repository.HasBlob(existing.BlobId, repositoryScope))
 			{
 				blobIdByPath[relativePath] = existing.BlobId;
 				fingerprints[relativePath] = existing;
@@ -444,7 +451,7 @@ public class MapHistoryService
 				};
 			}
 
-			string blobId = repository.WriteBlob(content, out bool blobWasCreated);
+			string blobId = repository.WriteBlob(content, out bool blobWasCreated, repositoryScope);
 			if (blobWasCreated)
 			{
 				writtenBytes += content.Length;
@@ -459,11 +466,11 @@ public class MapHistoryService
 			};
 		}
 
-		string? headCommitId = repository.ReadHeadCommitId();
+		string? headCommitId = repository.ReadHeadCommitId(repositoryScope);
 		var parentFiles = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-		if (!string.IsNullOrEmpty(headCommitId) && repository.TryReadCommit(headCommitId, out MapGitCommitInfo parentCommit))
+		if (!string.IsNullOrEmpty(headCommitId) && repository.TryReadCommit(headCommitId, out MapGitCommitInfo parentCommit, repositoryScope))
 		{
-			parentFiles = repository.ReadTreeFiles(parentCommit.TreeId);
+			parentFiles = repository.ReadTreeFiles(parentCommit.TreeId, repositoryScope);
 		}
 
 		int changedFileCount = CountChangedPaths(parentFiles, blobIdByPath);
@@ -482,8 +489,8 @@ public class MapHistoryService
 
 		string commitMessage = string.IsNullOrEmpty(label) ? GetDefaultCommitMessage(kind) : label;
 		var signature = new MapGitSignature(AuthorName, AuthorEmail, DateTimeOffset.Now);
-		string commitId = repository.WriteCommit(blobIdByPath, headCommitId, signature, commitMessage);
-		repository.UpdateHead(commitId);
+		string commitId = repository.WriteCommit(blobIdByPath, headCommitId, signature, commitMessage, repositoryScope);
+		repository.UpdateHead(commitId, repositoryScope);
 
 		var versionEntry = new MapHistoryStateEntry
 		{
@@ -527,7 +534,8 @@ public class MapHistoryService
 
 		using MapHistoryStoreSession session = MapHistoryStore.Acquire(mapDirectory);
 		var repository = new MapGitRepository(session.Layout.RepositoryDirectory);
-		if (!repository.TryReadCommit(commitId, out MapGitCommitInfo targetCommit))
+		using Repository repositoryScope = repository.OpenRepositoryScope();
+		if (!repository.TryReadCommit(commitId, out MapGitCommitInfo targetCommit, repositoryScope))
 		{
 			return new MapHistoryRestoreResult { Success = false, ErrorMessage = "That version can no longer be read." };
 		}
@@ -538,19 +546,19 @@ public class MapHistoryService
 			return new MapHistoryRestoreResult { Success = false, ErrorMessage = beforeRestoreVersion.ErrorMessage };
 		}
 
-		Dictionary<string, string> targetFiles = repository.ReadTreeFiles(targetCommit.TreeId);
-		string? currentHeadCommitId = repository.ReadHeadCommitId();
+		Dictionary<string, string> targetFiles = repository.ReadTreeFiles(targetCommit.TreeId, repositoryScope);
+		string? currentHeadCommitId = repository.ReadHeadCommitId(repositoryScope);
 		var currentFiles = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-		if (!string.IsNullOrEmpty(currentHeadCommitId) && repository.TryReadCommit(currentHeadCommitId, out MapGitCommitInfo currentCommit))
+		if (!string.IsNullOrEmpty(currentHeadCommitId) && repository.TryReadCommit(currentHeadCommitId, out MapGitCommitInfo currentCommit, repositoryScope))
 		{
-			currentFiles = repository.ReadTreeFiles(currentCommit.TreeId);
+			currentFiles = repository.ReadTreeFiles(currentCommit.TreeId, repositoryScope);
 		}
 
 		int filesWritten = 0;
 		foreach (var pair in targetFiles)
 		{
 			string absolutePath = Path.Combine(mapDirectory, pair.Key.Replace('/', Path.DirectorySeparatorChar));
-			if (!repository.TryReadBlob(pair.Value, out byte[] content))
+			if (!repository.TryReadBlob(pair.Value, out byte[] content, repositoryScope))
 			{
 				continue;
 			}
