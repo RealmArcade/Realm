@@ -462,10 +462,14 @@ public partial class MapVersionsDialog : FloatingDialogBase
 				GameContext.Host.EditorHasUnsavedChanges = false;
 			}
 
-			Hud.NotifyHistoryRestoreApplied(result.VersionRecorded);
+			Hud.NotifyHistoryRestoreApplied(result.VersionRecorded || result.AlreadyInHistory);
 
 			string restoredText = string.Format(TranslationServer.Translate("Restored the version from {0}. {1} file(s) restored, {2} removed."), FormatTimestamp(result.NewVersion?.CreatedAt ?? DateTimeOffset.Now), result.FilesWritten, result.FilesRemoved);
-			if (!result.VersionRecorded)
+			if (result.AlreadyInHistory)
+			{
+				restoredText += " " + TranslationServer.Translate("This version is already in the history, so nothing new was saved.");
+			}
+			else if (!result.VersionRecorded)
 			{
 				restoredText += " " + string.Format(TranslationServer.Translate("The restored files could not be recorded in the history: {0}"), result.ErrorMessage ?? string.Empty);
 			}
@@ -500,9 +504,11 @@ public partial class MapVersionsDialog : FloatingDialogBase
 			Callable.From(() =>
 			{
 				SetBusy(false, null);
-				Hud.ShowFeedback(result.Success
-					? TranslationServer.Translate("Saved a new version of the map.")
-					: string.Format(TranslationServer.Translate("Could not save a version: {0}"), result.ErrorMessage ?? string.Empty));
+				Hud.ShowFeedback(!result.Success
+					? string.Format(TranslationServer.Translate("Could not save a version: {0}"), result.ErrorMessage ?? string.Empty)
+					: result.AlreadyInHistory
+						? TranslationServer.Translate("This map already matches a version in the history, so nothing new was saved.")
+						: TranslationServer.Translate("Saved a new version of the map."));
 				RefreshStatus();
 				RefreshVersions();
 				RefreshStorage();

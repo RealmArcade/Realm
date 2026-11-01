@@ -829,10 +829,13 @@ public class MapHistoryService
 		int changedFileCount = CountChangedPaths(parentFiles, blobIdByPath);
 		if (!string.IsNullOrEmpty(headCommitId) && changedFileCount == 0)
 		{
-			state.Files = fingerprints;
-			state.FilesSourceFolder = mapDirectory;
-			SaveState(session.Layout, state);
-			return new MapHistoryVersionResult { Success = true };
+			return RememberFilesAlreadyInHistory(session, state, fingerprints, mapDirectory);
+		}
+
+		string treeId = repository.WriteTree(blobIdByPath, repositoryScope);
+		if (!string.IsNullOrEmpty(headCommitId) && !string.IsNullOrEmpty(repository.FindCommitIdWithTree(treeId, repositoryScope)))
+		{
+			return RememberFilesAlreadyInHistory(session, state, fingerprints, mapDirectory);
 		}
 
 		if (incrementsSaveVersion && state.SaveVersion < long.MaxValue)
@@ -842,7 +845,7 @@ public class MapHistoryService
 
 		string commitMessage = string.IsNullOrEmpty(label) ? GetDefaultCommitMessage(kind) : label;
 		var signature = new MapGitSignature(AuthorName, AuthorEmail, DateTimeOffset.Now);
-		string commitId = repository.WriteCommit(blobIdByPath, headCommitId, signature, commitMessage, repositoryScope);
+		string commitId = repository.WriteCommitForTree(treeId, headCommitId, signature, commitMessage);
 		repository.UpdateHead(commitId, repositoryScope);
 
 		var versionEntry = new MapHistoryStateEntry
@@ -872,6 +875,15 @@ public class MapHistoryService
 				Message = commitMessage
 			}, versionEntry, versionEntry.Label)
 		};
+	}
+
+	private MapHistoryVersionResult RememberFilesAlreadyInHistory(MapHistoryStoreSession session, MapHistoryStateFile state, Dictionary<string, MapHistoryFileFingerprint> fingerprints, string mapDirectory)
+	{
+		state.Files = fingerprints;
+		state.FilesSourceFolder = mapDirectory;
+		SaveState(session.Layout, state);
+
+		return new MapHistoryVersionResult { Success = true, AlreadyInHistory = true };
 	}
 
 	private MapHistoryRestoreResult RestoreVersionInStore(string mapDirectory, string commitId)
@@ -962,8 +974,9 @@ public class MapHistoryService
 		return new MapHistoryRestoreResult
 		{
 			Success = true,
-			VersionRecorded = restoredVersion.Success,
-			ErrorMessage = restoredVersion.ErrorMessage,
+			VersionRecorded = restoredVersion.Entry != null,
+			AlreadyInHistory = restoredVersion.AlreadyInHistory,
+			ErrorMessage = restoredVersion.Entry != null ? null : restoredVersion.ErrorMessage,
 			NewVersion = restoredVersion.Entry,
 			FilesWritten = filesWritten,
 			FilesRemoved = filesRemoved,
@@ -1004,6 +1017,7 @@ public class MapHistoryService
 
 	private MapHistoryCondensePlan BuildCondensePlan(MapGitRepository repository, MapHistoryStateFile state)
 	{
+		using Repository versionScope = repository.OpenRepositoryScope();
 		IReadOnlyList<MapGitCommitInfo> commitsNewestFirst = repository.ReadVersionHistory(int.MaxValue);
 		var entryByCommitId = new Dictionary<string, MapHistoryStateEntry>(StringComparer.OrdinalIgnoreCase);
 		foreach (MapHistoryStateEntry stateEntry in state.Entries)
@@ -1016,27 +1030,33 @@ public class MapHistoryService
 		{
 			MapGitCommitInfo commit = commitsNewestFirst[rank];
 			entryByCommitId.TryGetValue(commit.Id, out MapHistoryStateEntry? entry);
-			string? label = entry?.Label ?? repository.ReadVersionLabel(commit.Id);
+			string? noteLabel = repository.ReadVersionLabel(commit.Id, versionScope);
+			string? label = entry?.Label ?? noteLabel;
 			long saveVersion = entry != null && entry.SaveVersion > 0 ? entry.SaveVersion : commitsNewestFirst.Count - rank;
-			slotsNewestFirst.Add(new MapVersionSlot(commit, entry, label, saveVersion));
+			slotsNewestFirst.Add(new MapVersionSlot(commit, entry, label, saveVersion, !string.IsNullOrWhiteSpace(noteLabel)));
 		}
 
 		var keptNewestFirst = new List<MapVersionSlot>(slotsNewestFirst.Count);
+		var keptTreeIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 		DateTimeOffset now = DateTimeOffset.Now;
 		foreach (MapVersionSlot slot in slotsNewestFirst)
 		{
-			if (keptNewestFirst.Count == 0 || IsPinnedVersion(slot))
+			bool isPinned = IsPinnedVersion(slot);
+			if (keptNewestFirst.Count > 0)
 			{
-				keptNewestFirst.Add(slot);
-				continue;
+				if (!isPinned && keptTreeIds.Contains(slot.Commit.TreeId)) continue;
+
+				if (!isPinned)
+				{
+					MapVersionSlot newestKeptSlot = keptNewestFirst[^1];
+					TimeSpan age = now - slot.Commit.CommittedAt;
+					TimeSpan granularity = MapHistoryPolicy.GetGranularity(age);
+					if (newestKeptSlot.Commit.CommittedAt - slot.Commit.CommittedAt < granularity) continue;
+				}
 			}
 
-			MapVersionSlot newestKeptSlot = keptNewestFirst[^1];
-			TimeSpan age = now - slot.Commit.CommittedAt;
-			TimeSpan granularity = MapHistoryPolicy.GetGranularity(age);
-			if (newestKeptSlot.Commit.CommittedAt - slot.Commit.CommittedAt < granularity) continue;
-
 			keptNewestFirst.Add(slot);
+			keptTreeIds.Add(slot.Commit.TreeId);
 		}
 
 		keptNewestFirst.Reverse();
@@ -1045,8 +1065,10 @@ public class MapHistoryService
 
 	private static bool IsPinnedVersion(MapVersionSlot slot)
 	{
-		if (!string.IsNullOrWhiteSpace(slot.Label)) return true;
-		return slot.Entry?.Kind is MapVersionKind.BeforeRestore or MapVersionKind.BeforeNewMap;
+		if (slot.HasManualLabel) return true;
+		if (slot.Entry?.Kind == MapVersionKind.RestoredVersion) return false;
+
+		return !string.IsNullOrWhiteSpace(slot.Label) || slot.Entry?.Kind is MapVersionKind.BeforeRestore or MapVersionKind.BeforeNewMap;
 	}
 
 	private MapHistoryCleanupResult MakeHistoryLessGranularInStore(MapHistoryStoreSession session, MapGitRepository repository, MapHistoryStateFile state, MapHistoryCondensePlan plan)
@@ -1587,5 +1609,5 @@ public class MapHistoryService
 		public long LastWriteTicks { get; set; }
 	}
 
-	private readonly record struct MapVersionSlot(MapGitCommitInfo Commit, MapHistoryStateEntry? Entry, string? Label, long SaveVersion);
+	private readonly record struct MapVersionSlot(MapGitCommitInfo Commit, MapHistoryStateEntry? Entry, string? Label, long SaveVersion, bool HasManualLabel);
 }

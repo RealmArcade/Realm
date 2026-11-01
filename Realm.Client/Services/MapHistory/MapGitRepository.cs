@@ -96,11 +96,17 @@ public class MapGitRepository
 		}
 	}
 
-	public string? ReadVersionLabel(string commitId)
+	public string? ReadVersionLabel(string commitId, Repository? openRepository = null)
 	{
 		if (!Exists || string.IsNullOrEmpty(commitId)) return null;
+		if (openRepository != null) return ReadVersionLabelInRepository(openRepository, commitId);
 
 		using Repository repository = OpenRepository();
+		return ReadVersionLabelInRepository(repository, commitId);
+	}
+
+	private static string? ReadVersionLabelInRepository(Repository repository, string commitId)
+	{
 		Note? note = repository.Notes[new ObjectId(commitId)].FirstOrDefault();
 		string? message = note?.Message?.Trim();
 		return string.IsNullOrEmpty(message) ? null : message;
@@ -300,17 +306,41 @@ public class MapGitRepository
 		return blobId;
 	}
 
-	public string WriteCommit(IReadOnlyDictionary<string, string> blobIdByPath, string? parentId, MapGitSignature signature, string message, Repository? openRepository = null)
+	public string WriteTree(IReadOnlyDictionary<string, string> blobIdByPath, Repository? openRepository = null)
 	{
 		if (openRepository != null)
 		{
-			Tree openTree = BuildTree(openRepository, blobIdByPath);
-			return CreateCommit(openRepository, openTree, parentId, signature, message);
+			return BuildTree(openRepository, blobIdByPath).Sha;
 		}
 
 		using Repository repository = OpenRepository();
-		Tree tree = BuildTree(repository, blobIdByPath);
-		return CreateCommit(repository, tree, parentId, signature, message);
+		return BuildTree(repository, blobIdByPath).Sha;
+	}
+
+	public string? FindCommitIdWithTree(string treeId, Repository? openRepository = null)
+	{
+		if (!Exists || string.IsNullOrEmpty(treeId)) return null;
+		if (openRepository != null) return FindCommitIdWithTreeInRepository(openRepository, treeId);
+
+		using Repository repository = OpenRepository();
+		return FindCommitIdWithTreeInRepository(repository, treeId);
+	}
+
+	private static string? FindCommitIdWithTreeInRepository(Repository repository, string treeId)
+	{
+		string? commitId = ReadDirectTarget(repository, BranchReferenceName);
+		int visitedCommitCount = 0;
+		while (!string.IsNullOrEmpty(commitId) && visitedCommitCount < MaximumVerifiedCommitCount)
+		{
+			Commit? commit = LookupCommit(repository, commitId);
+			if (commit == null) return null;
+			if (string.Equals(commit.Tree.Sha, treeId, StringComparison.OrdinalIgnoreCase)) return commit.Sha;
+
+			visitedCommitCount++;
+			commitId = commit.Parents.FirstOrDefault()?.Sha;
+		}
+
+		return null;
 	}
 
 	public string WriteCommitForTree(string treeId, string? parentId, MapGitSignature signature, string message)

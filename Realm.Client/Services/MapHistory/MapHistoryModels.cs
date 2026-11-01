@@ -48,6 +48,7 @@ public class MapHistoryRestoreResult
 {
 	public bool Success { get; init; }
 	public bool VersionRecorded { get; init; }
+	public bool AlreadyInHistory { get; init; }
 	public string? ErrorMessage { get; init; }
 	public MapVersionEntry? NewVersion { get; init; }
 	public int FilesWritten { get; init; }
@@ -62,6 +63,7 @@ public class MapHistoryVersionResult
 	public bool Success { get; init; }
 	public string? ErrorMessage { get; init; }
 	public MapVersionEntry? Entry { get; init; }
+	public bool AlreadyInHistory { get; init; }
 }
 
 public class MapHistoryStoreInfo
