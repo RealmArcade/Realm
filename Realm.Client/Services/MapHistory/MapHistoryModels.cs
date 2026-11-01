@@ -8,6 +8,7 @@ public enum MapVersionKind
 	ManualSave,
 	AutosaveCheckpoint,
 	BeforePublish,
+	BeforePlaytest,
 	BeforeMapUpgrade,
 	BeforeRestore,
 	BeforeNewMap,

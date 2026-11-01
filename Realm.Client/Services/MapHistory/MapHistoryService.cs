@@ -1466,6 +1466,7 @@ public class MapHistoryService
 			MapVersionKind.ManualSave => "Save point",
 			MapVersionKind.AutosaveCheckpoint => "Autosave checkpoint",
 			MapVersionKind.BeforePublish => "Before publish",
+			MapVersionKind.BeforePlaytest => "Before playtest",
 			MapVersionKind.BeforeMapUpgrade => "Before map upgrade",
 			MapVersionKind.AfterMapUpgrade => "After map upgrade",
 			MapVersionKind.BeforeRestore => "Before restore",

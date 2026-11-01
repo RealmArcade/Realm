@@ -7,6 +7,7 @@ using Godot;
 using Realm.Client.Core;
 using Realm.Client.Network;
 using Realm.Client.Services;
+using Realm.Client.Services.MapHistory;
 using Realm.Client.UI.MapEditor;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Services;
@@ -1254,6 +1255,12 @@ public partial class MapEditorHUD : Control
 		GameContext.Host.SaveMapToFile(tempTerrainPath);
 		GameContext.Host.EditorHasUnsavedChanges = false;
 		InvalidateMetadataCache();
+
+		await GameContext.MapHistoryService.CreateVersionAsync(
+			GameContext.EditorService._editingDirectory,
+			MapVersionKind.BeforePlaytest,
+			null,
+			GameContext.EditorService.CurrentSourceFolder);
 
 		if (OperatingSystem.IsWindows())
 		{
