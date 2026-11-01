@@ -2,7 +2,6 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Text.Json;
-using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using Godot;
 using Realm.Client.Services;
@@ -25,9 +24,7 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 
 	private HSlider _sldPanelOpacity;
 	private Label _lblPanelOpacity;
-	private HSlider _sldMaxBackups;
-	private Label _lblMaxBackups;
-	private OptionButton _optAutoBackup;
+
 
 	public EditorSettingsDialog(MapEditorHUD hud)
 		: base(hud, TranslationServer.Translate("Map Editor Usability Settings"), new Vector2(510, 500))
@@ -61,7 +58,6 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 		contentVBox.AddChild(topInfoSpacer);
 
 		BuildInterfaceSection(contentVBox);
-		BuildWorkflowSection(contentVBox);
 		BuildDeveloperToolsSection(contentVBox);
 	}
 
@@ -110,81 +106,6 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 		);
 	}
 
-	private void BuildWorkflowSection(VBoxContainer contentVBox)
-	{
-		var spacer1 = new Control();
-		spacer1.Name = "Spacer1_Control";
-		spacer1.CustomMinimumSize = new Vector2(0, 10);
-		contentVBox.AddChild(spacer1);
-
-		AddSectionHeader(contentVBox, "💾 " + TranslationServer.Translate("BACKUPS & WORKFLOW"), new Color(0.7f, 0.95f, 0.6f));
-
-		string[] autoBackupOptions = new[]
-		{
-			TranslationServer.Translate("15 minutes").ToString(),
-			TranslationServer.Translate("30 minutes").ToString(),
-			TranslationServer.Translate("1 hour").ToString()
-		};
-
-		int autoBackupIdx = CurrentSettings.AutoBackupIntervalMinutes switch
-		{
-			15 => 0,
-			30 => 1,
-			60 => 2,
-			_ => 1
-		};
-
-		_optAutoBackup = AddOptionDropdown(
-			contentVBox,
-			TranslationServer.Translate("Auto-Backup Interval:"),
-			autoBackupOptions,
-			autoBackupIdx,
-			(idx) =>
-			{
-				CurrentSettings.AutoBackupIntervalMinutes = idx switch
-				{
-					0 => 15,
-					1 => 30,
-					2 => 60,
-					_ => 30
-				};
-				ApplyLiveSettings();
-			},
-			140f
-		);
-
-		(_sldMaxBackups, _lblMaxBackups) = AddSlider(
-			contentVBox,
-			TranslationServer.Translate("Max Backup Snapshots:"),
-			1.0f,
-			20.0f,
-			1.0f,
-			CurrentSettings.MaxBackupSnapshots,
-			(val) =>
-			{
-				CurrentSettings.MaxBackupSnapshots = (int)val;
-				ApplyLiveSettings();
-			},
-			"0",
-			140f
-		);
-
-		var btnBackupsRow = new HBoxContainer();
-		btnBackupsRow.Name = "BtnBackupsRow_HBoxContainer";
-		btnBackupsRow.AddThemeConstantOverride("separation", 10);
-		contentVBox.AddChild(btnBackupsRow);
-
-		var btnOpenBackups = new Button();
-		btnOpenBackups.Name = "BtnOpenBackups_Button";
-		btnOpenBackups.Set("icon_max_width", 0);
-		btnOpenBackups.Text = "📁 " + TranslationServer.Translate("Open map_backups folder");
-		btnOpenBackups.TooltipText = TranslationServer.Translate("Reveals the map_backups folder in Windows Explorer");
-		btnOpenBackups.FocusMode = FocusModeEnum.None;
-		btnOpenBackups.CustomMinimumSize = new Vector2(220, 32);
-		btnOpenBackups.Pressed += OpenMapBackupsFolder;
-		btnBackupsRow.AddChild(btnOpenBackups);
-	}
-
 	private void BuildDeveloperToolsSection(VBoxContainer contentVBox)
 	{
 		var spacer2 = new Control();
@@ -193,6 +114,21 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 		contentVBox.AddChild(spacer2);
 
 		AddSectionHeader(contentVBox, "🛠️ " + TranslationServer.Translate("DEVELOPER & EDITOR TOOLS"), new Color(0.6f, 0.85f, 0.95f));
+
+		var btnManageStoresRow = new HBoxContainer();
+		btnManageStoresRow.Name = "BtnManageStoresRow_HBoxContainer";
+		btnManageStoresRow.AddThemeConstantOverride("separation", 10);
+		contentVBox.AddChild(btnManageStoresRow);
+
+		var btnManageStores = new Button();
+		btnManageStores.Name = "BtnManageStores_Button";
+		btnManageStores.Set("icon_max_width", 0);
+		btnManageStores.Text = "🗄️ " + TranslationServer.Translate("MANAGE BACKUP STORAGE");
+		btnManageStores.TooltipText = TranslationServer.Translate("See how much space each map's history uses and remove the ones you no longer need");
+		btnManageStores.FocusMode = FocusModeEnum.None;
+		btnManageStores.CustomMinimumSize = new Vector2(220, 32);
+		btnManageStores.Pressed += () => Hud?.OpenMapHistoryStoresDialog();
+		btnManageStoresRow.AddChild(btnManageStores);
 
 		var btnAuthorSignatureRow = new HBoxContainer();
 		btnAuthorSignatureRow.Name = "BtnAuthorSignatureRow_HBoxContainer";
@@ -245,7 +181,7 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 		var btnReinstallVSCode = new Button();
 		btnReinstallVSCode.Name = "BtnReinstallVSCode_Button";
 		btnReinstallVSCode.Set("icon_max_width", 0);
-		btnReinstallVSCode.Text = "🔄 " + TranslationServer.Translate("Reinstall / Repair VS Code");
+		btnReinstallVSCode.Text = "🔄 " + TranslationServer.Translate("Reinstall / Repair VS Codium");
 		btnReinstallVSCode.TooltipText = TranslationServer.Translate("Forces a fresh download and installation of VS Code and editor dependencies into application user data");
 		btnReinstallVSCode.FocusMode = FocusModeEnum.None;
 		btnReinstallVSCode.CustomMinimumSize = new Vector2(240, 32);
@@ -261,37 +197,6 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 			Hud?.ShowFeedback(TranslationServer.Translate("Reinstalling VS Code dependencies in background..."));
 		};
 		btnReinstallRow.AddChild(btnReinstallVSCode);
-	}
-
-	private void OpenMapBackupsFolder()
-	{
-		string targetFolder = Path.Combine(OS.GetUserDataDir(), "map_backups");
-
-		if (!Directory.Exists(targetFolder))
-		{
-			Directory.CreateDirectory(targetFolder);
-		}
-
-		string fullPath = Path.GetFullPath(targetFolder);
-		if (OperatingSystem.IsWindows())
-		{
-			try
-			{
-				Process.Start(new ProcessStartInfo
-				{
-					FileName = "explorer.exe",
-					Arguments = $"\"{fullPath}\"",
-					UseShellExecute = true
-				});
-				return;
-			}
-			catch (Exception ex)
-			{
-				GD.PrintErr($"[EditorSettingsDialog] Failed to open explorer.exe: {ex.Message}");
-			}
-		}
-
-		OS.ShellOpen(fullPath);
 	}
 
 	public override void OpenDialog()
@@ -311,28 +216,11 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 			_lblPanelOpacity.Text = $"{CurrentSettings.PanelOpacity:F2}";
 		}
 
-		if (_optAutoBackup != null)
-		{
-			_optAutoBackup.Selected = CurrentSettings.AutoBackupIntervalMinutes switch
-			{
-				15 => 0,
-				30 => 1,
-				60 => 2,
-				_ => 1
-			};
-		}
-
-		if (_sldMaxBackups != null)
-		{
-			_sldMaxBackups.Value = CurrentSettings.MaxBackupSnapshots;
-			_lblMaxBackups.Text = $"{CurrentSettings.MaxBackupSnapshots}";
-		}
 	}
 
 	public void ApplyLiveSettings()
 	{
 		if (_lblPanelOpacity != null) _lblPanelOpacity.Text = $"{CurrentSettings.PanelOpacity:F2}";
-		if (_lblMaxBackups != null) _lblMaxBackups.Text = $"{CurrentSettings.MaxBackupSnapshots}";
 
 		Hud?.ApplyEditorPreferences(CurrentSettings);
 	}
@@ -366,49 +254,12 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 			var loaded = JsonSerializer.Deserialize<EditorPreferencesData>(json);
 			if (loaded == null) return;
 
-			HandleLegacySettings(json, loaded);
-
 			CurrentSettings = loaded;
 		}
 		catch (Exception ex)
 		{
 			GD.PrintErr($"[EditorSettingsDialog] Load error: {ex.Message}");
 		}
-	}
-
-	private static void HandleLegacySettings(string json, EditorPreferencesData loaded)
-	{
-		JsonNode parsedNode = JsonNode.Parse(json);
-		if (parsedNode == null) return;
-
-		JsonObject jNode = parsedNode.AsObject();
-		if (jNode == null) return;
-
-		if (jNode.ContainsKey(nameof(EditorPreferencesData.AutoBackupIntervalMinutes))) return;
-		if (!jNode.ContainsKey("AutoSaveIntervalMinutes")) return;
-
-		int legacyVal = GetLegacyIntervalValue(jNode);
-		loaded.AutoBackupIntervalMinutes = GetMigratedBackupInterval(legacyVal);
-	}
-
-	private static int GetLegacyIntervalValue(JsonObject jNode)
-	{
-		if (jNode.TryGetPropertyValue("AutoSaveIntervalMinutes", out JsonNode valueNode))
-		{
-			if (valueNode != null)
-			{
-				return (int)valueNode;
-			}
-		}
-
-		return 30;
-	}
-
-	private static int GetMigratedBackupInterval(int legacyVal)
-	{
-		if (legacyVal <= 15) return 15;
-		if (legacyVal <= 30) return 30;
-		return 60;
 	}
 
 	private static void SaveSettingsToFile()

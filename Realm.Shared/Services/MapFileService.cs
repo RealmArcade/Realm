@@ -9,6 +9,8 @@ namespace Realm.Shared.Services;
 
 public static class MapFileService
 {
+	public static Action<string>? FileWritten { get; set; }
+
 	private static readonly JsonSerializerOptions ManifestJsonOptions = new()
 	{
 		AllowTrailingCommas = true,
@@ -91,7 +93,7 @@ public static class MapFileService
 		}
 
 		string json = SaveManifestToJson(manifest);
-		File.WriteAllText(targetPath, json);
+		WriteAllTextAtomically(targetPath, json);
 	}
 
 	public static string SaveManifestToJson(MapManifest manifest)
@@ -139,7 +141,7 @@ public static class MapFileService
 		}
 
 		string json = SaveMetadataToJson(metadata);
-		File.WriteAllText(targetPath, json);
+		WriteAllTextAtomically(targetPath, json);
 	}
 
 	public static string SaveMetadataToJson(MapMetadata metadata)
@@ -187,11 +189,22 @@ public static class MapFileService
 		}
 
 		string json = SaveTerrainToJson(terrain);
-		File.WriteAllText(targetPath, json);
+		WriteAllTextAtomically(targetPath, json);
 	}
 
 	public static string SaveTerrainToJson(MapSaveData terrain)
 	{
 		return JsonSerializer.Serialize(terrain, TerrainJsonOptions);
+	}
+
+	public static void WriteAllTextAtomically(string targetPath, string contents)
+	{
+		AtomicFileWriter.WriteAllText(targetPath, contents);
+		NotifyFileWritten(targetPath);
+	}
+
+	public static void NotifyFileWritten(string targetPath)
+	{
+		FileWritten?.Invoke(targetPath);
 	}
 }

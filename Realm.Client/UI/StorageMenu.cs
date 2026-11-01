@@ -769,7 +769,7 @@ public partial class StorageMenu : Control
 	private string GetCleanMapName(string mapTitle)
 	{
 		string cleanMapName = string.Join("_", mapTitle.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries)).Trim();
-		if (string.IsNullOrEmpty(cleanMapName) || cleanMapName.Equals("Untitled Map", StringComparison.OrdinalIgnoreCase))
+		if (string.IsNullOrEmpty(cleanMapName) || MapWorkspaceService.IsUntitledMapName(cleanMapName))
 		{
 			return "MapExport";
 		}

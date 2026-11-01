@@ -4,17 +4,18 @@ namespace Realm.Ecs.AI.Policy;
 
 public class LinearUtilityPolicy
 {
-	public GenericAffordance? SelectAction(IReadOnlyList<GenericAffordance> affordances, float[] weights, float epsilon = 0.0f, float temperature = 0.0f, float aggressionMultiplier = 1.0f)
+	public GenericAffordance? SelectAction(IReadOnlyList<GenericAffordance> affordances, float[] weights, float epsilon = 0.0f, float temperature = 0.0f, float aggressionMultiplier = 1.0f, SeededRandom? random = null)
 	{
 		if (affordances == null || affordances.Count == 0 || weights == null || weights.Length == 0)
 		{
 			return null;
 		}
 
+		SeededRandom stream = random ?? SeededRandom.Shared;
 		int count = affordances.Count;
-		if (epsilon > 0.0f && SeededRandom.Shared.NextDouble() < epsilon)
+		if (epsilon > 0.0f && stream.NextDouble() < epsilon)
 		{
-			return affordances[SeededRandom.Shared.Next(count)];
+			return affordances[stream.Next(count)];
 		}
 
 		if (temperature <= 0.0001f)
@@ -22,7 +23,7 @@ public class LinearUtilityPolicy
 			return SelectGreedyAction(affordances, weights, aggressionMultiplier);
 		}
 
-		return SelectSoftmaxAction(affordances, weights, temperature, aggressionMultiplier);
+		return SelectSoftmaxAction(affordances, weights, temperature, aggressionMultiplier, stream);
 	}
 
 	private GenericAffordance SelectGreedyAction(IReadOnlyList<GenericAffordance> affordances, float[] weights, float aggressionMultiplier)
@@ -44,7 +45,7 @@ public class LinearUtilityPolicy
 		return affordances[bestIdx];
 	}
 
-	private GenericAffordance SelectSoftmaxAction(IReadOnlyList<GenericAffordance> affordances, float[] weights, float temperature, float aggressionMultiplier)
+	private GenericAffordance SelectSoftmaxAction(IReadOnlyList<GenericAffordance> affordances, float[] weights, float temperature, float aggressionMultiplier, SeededRandom stream)
 	{
 		int count = affordances.Count;
 		Span<float> scores = count <= 128 ? stackalloc float[count] : new float[count];
@@ -75,7 +76,7 @@ public class LinearUtilityPolicy
 			return affordances[0];
 		}
 
-		float randVal = (float)SeededRandom.Shared.NextDouble() * sumExp;
+		float randVal = (float)stream.NextDouble() * sumExp;
 		float cumulative = 0.0f;
 
 		for (int i = 0; i < count; i++)

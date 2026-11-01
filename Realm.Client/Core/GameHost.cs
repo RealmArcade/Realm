@@ -1664,7 +1664,7 @@ public partial class GameHost : Node3D
 	public void LoadUnitMetadata(string mapName = null)
 	{
 		ResetAbilityCatalog();
-		mapName = !string.IsNullOrEmpty(mapName) ? mapName : (!string.IsNullOrEmpty(GameContext.Simulation.ActiveMapName) ? GameContext.Simulation.ActiveMapName : MapWorkspaceService.DefaultWorkspaceFolder);
+		mapName = !string.IsNullOrEmpty(mapName) ? mapName : (!string.IsNullOrEmpty(GameContext.Simulation.ActiveMapName) ? GameContext.Simulation.ActiveMapName : "Untitled Map");
 		GameContext.Simulation.ActiveMapName = mapName;
 		LocalizationManager.CurrentMapName = mapName;
 		LocalizationManager.SetupTranslations();
@@ -1826,7 +1826,7 @@ public partial class GameHost : Node3D
 	{
 		try
 		{
-			string dir = !string.IsNullOrEmpty(GameContext.MapStorageService.CurrentMapDirectory) ? GameContext.MapStorageService.CurrentMapDirectory : ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
+			string dir = !string.IsNullOrEmpty(GameContext.MapStorageService.CurrentMapDirectory) ? GameContext.MapStorageService.CurrentMapDirectory : GameContext.EditorService._editingDirectory;
 			var metadata = MapFileService.LoadMetadata(dir);
 			metadata.Templates ??= new TemplateContainer();
 			metadata.Templates.Attachments ??= new List<AttachmentMetadata>();
@@ -1859,7 +1859,7 @@ public partial class GameHost : Node3D
 	{
 		try
 		{
-			string dir = !string.IsNullOrEmpty(GameContext.MapStorageService.CurrentMapDirectory) ? GameContext.MapStorageService.CurrentMapDirectory : ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
+			string dir = !string.IsNullOrEmpty(GameContext.MapStorageService.CurrentMapDirectory) ? GameContext.MapStorageService.CurrentMapDirectory : GameContext.EditorService._editingDirectory;
 			var metadata = MapFileService.LoadMetadata(dir);
 			var unit = metadata.GetUnit(unitId);
 			if (unit != null)
@@ -2547,14 +2547,22 @@ public partial class GameHost : Node3D
 		bool wasMapEditorMode = GameContext.SessionState.IsMapEditorMode;
 		bool wasLoadingMap = GameContext.SaveLoadService.IsLoadingMap;
 		bool wasProfilingEnabled = GameContext.PerformanceTrackingService?.IsFunctionProfilingEnabled ?? false;
+		bool editorWorldIsSetAside = GameContext.SessionState.EditorWorldState != null;
+		string preservedEditorDirectory = editorWorldIsSetAside ? GameContext.EditorService._editingDirectory : string.Empty;
+		string? preservedEditorSourceFolder = editorWorldIsSetAside ? GameContext.EditorService.CurrentSourceFolder : null;
 
 		GameContext.EndScreenScope();
 		ResolveServices();
 
 		GameContext.SessionState.IsMapEditorMode = wasMapEditorMode;
-		if (wasMapEditorMode)
+		if (!string.IsNullOrEmpty(preservedEditorDirectory))
 		{
-			GameContext.EditorService.OpenTempWorkspaceSessionDomain();
+			GameContext.EditorService.SetActiveMapDirectory(preservedEditorDirectory);
+			GameContext.EditorService.SetCurrentSourceFolder(preservedEditorSourceFolder);
+		}
+		else if (wasMapEditorMode)
+		{
+			GameContext.EditorService.EnsureEditingDirectoryDomain();
 		}
 		GameContext.SaveLoadService.IsLoadingMap = wasLoadingMap;
 		if (wasProfilingEnabled)
@@ -2591,6 +2599,12 @@ public partial class GameHost : Node3D
 
 		// A removal held against a clock this screen no longer has would free a node of whatever match comes next.
 		_pendingUnitViewRemovals.Clear();
+
+		if (!GameContext.GlobalScope.IsDisposed)
+		{
+			GameContext.MapAutosaveService.FlushPendingWrites(TimeSpan.FromSeconds(2));
+			GameContext.MapHistoryService.WaitForQueue(TimeSpan.FromSeconds(2));
+		}
 
 		GameContext.Dispose();
 		GameContext.UnregisterHost(this);

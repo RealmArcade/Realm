@@ -449,8 +449,8 @@ public class MapTemplateImportService
 	{
 		try
 		{
-			EditorService.LastInternalSaveTimeUtc = DateTime.UtcNow;
 			File.WriteAllText(metadataPath, destinationRoot.ToJsonString(MetadataWriteOptions));
+			EditorService.NoteInternalFileWrite(metadataPath);
 		}
 		catch (Exception ex)
 		{

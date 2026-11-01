@@ -16,6 +16,7 @@ using Realm.Client.UI;
 using Realm.Ecs.Services;
 using Realm.Shared;
 using Realm.Shared.Distribution;
+using Realm.Shared.Metadata;
 using Realm.Shared.Services;
 using Realm.Shared.Textures;
 
@@ -93,40 +94,6 @@ public static partial class MapWorkspaceService
 			   ?? wasmFiles.OrderByDescending(f => File.GetLastWriteTimeUtc(f)).FirstOrDefault();
 	}
 
-	public static bool CheckAndCleanCleanExitFileDomain(string cleanExitFile, Action saveCurrentDirectoryBlake3)
-	{
-		if (File.Exists(cleanExitFile))
-		{
-			try
-			{
-				File.Delete(cleanExitFile);
-			}
-			catch
-			{
-			}
-
-			saveCurrentDirectoryBlake3?.Invoke();
-			return true;
-		}
-
-		return false;
-	}
-
-	public static (bool HasSavedFile, bool HasChanges, string SavedHash) CheckLastSaveFileDomain(string editorLastSaveFile, string tempWorkspacePath, Func<string, string> computeDirectoryBlake3)
-	{
-		if (!File.Exists(editorLastSaveFile))
-		{
-			return (false, false, string.Empty);
-		}
-
-		string savedHash = File.ReadAllText(editorLastSaveFile).Trim();
-		string currentHash = computeDirectoryBlake3(tempWorkspacePath);
-
-		bool hasChanges = !string.IsNullOrEmpty(savedHash) && !currentHash.Equals(savedHash, StringComparison.OrdinalIgnoreCase);
-		
-		return (true, hasChanges, savedHash);
-	}
-
 	public static void TryReloadGroundTerrainTexturesSafeDomain(Action resetMapAction)
 	{
 		if (GameContext.Host?.GroundTerrain == null) return;
@@ -201,48 +168,39 @@ public static partial class MapWorkspaceService
 		}
 	}
 
-	public static void SaveCurrentDirectoryBlake3Domain(string saveFilePath, Func<string, bool> isIgnoredPathFunc)
+	public static void RefreshSavedDirectoryHashDomain(Func<string, bool> isIgnoredPathFunc)
 	{
-		string workspacePath = GameContext.EditorService._tempWorkspacePath;
+		string workspacePath = GameContext.EditorService._editingDirectory;
 		if (string.IsNullOrEmpty(workspacePath) || !Directory.Exists(workspacePath)) return;
 		try
 		{
-			string hash = ComputeDirectoryBlake3Domain(workspacePath, isIgnoredPathFunc);
-			GameContext.EditorService.CurrentDirectoryBlake3 = hash;
-			File.WriteAllText(saveFilePath, hash);
+			GameContext.EditorService.CurrentDirectoryBlake3 = ComputeDirectoryBlake3Domain(workspacePath, isIgnoredPathFunc);
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[SaveCurrentDirectoryBlake3] Error writing editor_last_save.txt: {ex.Message}");
+			GD.PrintErr($"[RefreshSavedDirectoryHash] Error hashing the map folder: {ex.Message}");
 		}
-	}
-
-	public static void WriteCleanExitMarkerDomain(string cleanExitFilePath)
-	{
-		File.WriteAllText(cleanExitFilePath, GameContext.EditorService.CurrentDirectoryBlake3 ?? string.Empty);
 	}
 
 	public static void OpenFromCasDomain(string defaultSaveFolder, Func<string, bool> isRestrictedSaveDirectoryFunc, Action<string> saveSettingsAction)
 	{
 		GameContext.EditorService.LastUsedFolder = defaultSaveFolder;
-		GameContext.EditorService.CurrentSourceFolder = defaultSaveFolder;
+		GameContext.EditorService.SetCurrentSourceFolder(defaultSaveFolder);
 		if (!isRestrictedSaveDirectoryFunc(defaultSaveFolder))
 		{
 			saveSettingsAction?.Invoke(defaultSaveFolder);
 		}
 	}
 
-	public const string DefaultWorkspaceFolder = "temp_map_workspace";
-	public const string DefaultWorkspaceGodotPath = "user://temp_map_workspace";
-
-	public static string GetDefaultWorkspaceGlobalPath()
+	public static string GetDefaultMapFolderGlobalPath()
 	{
-		if (AppDomain.CurrentDomain.FriendlyName.Contains("testhost", StringComparison.OrdinalIgnoreCase))
+		string documentsDirectory = System.Environment.GetFolderPath(System.Environment.SpecialFolder.MyDocuments);
+		if (!string.IsNullOrEmpty(documentsDirectory))
 		{
-			return Path.Combine(Path.GetTempPath(), DefaultWorkspaceFolder);
+			return documentsDirectory;
 		}
 
-		return ProjectSettings.GlobalizePath(DefaultWorkspaceGodotPath);
+		return ProjectSettings.GlobalizePath("user://");
 	}
 
 	private static string? _testActiveWorkspacePath;
@@ -274,8 +232,8 @@ public static partial class MapWorkspaceService
 
 	public static string GetEditorWorkspacePath()
 	{
-		if (!string.IsNullOrEmpty(GameContext.EditorService._tempWorkspacePath))
-			return GameContext.EditorService._tempWorkspacePath;
+		if (!string.IsNullOrEmpty(GameContext.EditorService._editingDirectory))
+			return GameContext.EditorService._editingDirectory;
 
 		return string.Empty;
 	}
@@ -325,6 +283,12 @@ public static partial class MapWorkspaceService
 	public static string GetTemplatePath(string fileName)
 	{
 		return FindRootFile("MapTemplate/" + fileName);
+	}
+
+	public static string? GetTemplateRoot()
+	{
+		string templateRoot = FindRootFile("MapTemplate");
+		return Directory.Exists(templateRoot) ? templateRoot : null;
 	}
 
 	private const string MapApiDllRelativePath = "lib/Realm.MapAPI.dll";
@@ -395,46 +359,6 @@ public static partial class MapWorkspaceService
 		{
 			GD.PrintErr($"[MapWorkspaceService] CleanWorkspaceDirectory error: {ex.Message}");
 		}
-	}
-
-	public static void CopyFolderToWorkspace(string sourceFolder, string targetWorkspacePath, string? mapName = null)
-	{
-		if (string.IsNullOrEmpty(sourceFolder) || !Directory.Exists(sourceFolder) || string.IsNullOrEmpty(targetWorkspacePath)) return;
-
-		CleanWorkspaceDirectory(targetWorkspacePath);
-		Directory.CreateDirectory(targetWorkspacePath);
-
-		string resolvedMapName = !string.IsNullOrWhiteSpace(mapName) ? mapName : Path.GetFileName(sourceFolder) ?? "MapScript";
-
-		var allFiles = Directory.GetFiles(sourceFolder, "*", SearchOption.AllDirectories);
-		var filesToProcess = new List<(string Source, string Target, bool IsMutable)>(allFiles.Length);
-		var createdDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-		foreach (var file in allFiles)
-		{
-			string relativePath = file.Substring(sourceFolder.Length + 1);
-			if (MapEditorHUD.IsIgnoredPath(relativePath)) continue;
-
-			string targetFile = Path.Combine(targetWorkspacePath, relativePath);
-			string? targetDir = Path.GetDirectoryName(targetFile);
-
-			if (!string.IsNullOrEmpty(targetDir) && createdDirs.Add(targetDir))
-				Directory.CreateDirectory(targetDir);
-
-			filesToProcess.Add((file, targetFile, PathUtils.IsMutableMapFileType(relativePath)));
-		}
-
-		Parallel.ForEach(filesToProcess, ProcessFileItem);
-
-		SetupWorkspace(targetWorkspacePath, resolvedMapName);
-	}
-
-	private static void ProcessFileItem((string Source, string Target, bool IsMutable) item)
-	{
-		if (item.IsMutable)
-			PathUtils.CopyFileClearingReadOnly(item.Source, item.Target);
-		else
-			PathUtils.LinkOrCopyFile(item.Source, item.Target, preferHardLink: true);
 	}
 
 	public static void CleanWorkspaceBinaries(string directory)
@@ -540,37 +464,42 @@ public static partial class MapWorkspaceService
 
 		string templatePath = GetTemplatePath("MapScript.csproj");
 
+		if (!File.Exists(csprojPath) && !File.Exists(templatePath))
+		{
+			GD.PushWarning($"[MapWorkspaceService] Could not generate {Path.GetFileName(csprojPath)}: map script template not found at {templatePath ?? "n/a"}");
+			return;
+		}
+
+		RunScaffoldingStep(() => WriteOrRepairCsproj(csprojPath, templatePath), "map project file");
+
+		RunScaffoldingStep(() => EnsureTrimmerRoot(csprojPath), "map project file");
+		RunScaffoldingStep(() => EnsureSourceMapGlobalUsing(csprojPath), "map project file");
+		RunScaffoldingStep(() => EnsureApiLib(directory), "map API library");
+		RunScaffoldingStep(() => EnsureDirectoryBuildTargets(directory), "build targets");
+		RunScaffoldingStep(() => EnsureNugetConfig(directory), "NuGet configuration");
+	}
+
+	private static void WriteOrRepairCsproj(string csprojPath, string templatePath)
+	{
 		if (!File.Exists(csprojPath))
 		{
-			if (!File.Exists(templatePath))
-			{
-				GD.PushWarning($"[MapWorkspaceService] Could not generate {Path.GetFileName(csprojPath)}: map script template not found at {templatePath ?? "n/a"}");
-				return;
-			}
-
-			string csprojContent = File.ReadAllText(templatePath);
-			csprojContent = NormalizeMapApiReference(csprojContent);
-			File.WriteAllText(csprojPath, csprojContent);
-		}
-		else
-		{
-			string csprojContent = File.ReadAllText(csprojPath);
-			string normalized = NormalizeMapApiReference(csprojContent);
-			if (normalized != csprojContent)
-			{
-				File.WriteAllText(csprojPath, normalized);
-				GD.Print($"[MapWorkspaceService] Repaired MapAPI reference in {Path.GetFileName(csprojPath)} to use the portable relative DLL path.");
-			}
+			File.WriteAllText(csprojPath, NormalizeMapApiReference(File.ReadAllText(templatePath)));
+			return;
 		}
 
-		EnsureTrimmerRoot(csprojPath);
-		EnsureSourceMapGlobalUsing(csprojPath);
+		string csprojContent = File.ReadAllText(csprojPath);
+		string normalized = NormalizeMapApiReference(csprojContent);
+		if (normalized == csprojContent) return;
 
-		EnsureApiLib(directory);
+		File.WriteAllText(csprojPath, normalized);
+		GD.Print($"[MapWorkspaceService] Repaired MapAPI reference in {Path.GetFileName(csprojPath)} to use the portable relative DLL path.");
+	}
 
-		EnsureDirectoryBuildTargets(directory);
+	private static void RunScaffoldingStep(Action step, string description)
+	{
+		if (TryRunFileOperation(step)) return;
 
-		EnsureNugetConfig(directory);
+		GD.PrintErr($"[MapWorkspaceService] Could not update the {description} because another program is holding the file open. The copy already in the map folder is kept.");
 	}
 
 	private const string CanonicalNugetConfigContent =
@@ -670,10 +599,13 @@ public static partial class MapWorkspaceService
 		string targetsTemplate = GetTemplatePath("Directory.Build.targets");
 		if (string.IsNullOrEmpty(targetsTemplate) || !File.Exists(targetsTemplate))
 		{
-			throw new Exception($"File not found: {targetsTemplate}");
+			throw new FileNotFoundException($"Directory.Build.targets template was not found: {targetsTemplate}");
 		}
 
-		File.Copy(targetsTemplate, targetsPath, true);
+		if (TryRunFileOperation(() => File.Copy(targetsTemplate, targetsPath, true))) return;
+		if (File.Exists(targetsPath)) return;
+
+		throw new IOException($"Directory.Build.targets could not be written into {directory}.");
 	}
 
 	private static void EnsureTrimmerRoot(string csprojPath)
@@ -928,6 +860,170 @@ public static partial class MapWorkspaceService
 		MapTemplateGeneratorService.EnsureWasmEntryPoint(directory);
 	}
 
+	public const string UntitledMapNamePrefix = "Untitled Map";
+
+	public static string CreateUntitledMapName()
+	{
+		return UntitledMapNamePrefix;
+	}
+
+	public static string GetUntitledMapDirectory()
+	{
+		string localAppDataDirectory = System.Environment.GetFolderPath(System.Environment.SpecialFolder.LocalApplicationData);
+		if (string.IsNullOrEmpty(localAppDataDirectory))
+		{
+			localAppDataDirectory = ProjectSettings.GlobalizePath("user://");
+		}
+
+		return Path.Combine(localAppDataDirectory, "Realm", UntitledMapNamePrefix);
+	}
+
+	private const int FileLockRetryAttempts = 4;
+	private const int FileLockRetryDelayMilliseconds = 100;
+
+	public static bool RebuildUntitledMapFolder(string folderPath, out string errorMessage)
+	{
+		errorMessage = string.Empty;
+
+		string? templateRoot = GetTemplateRoot();
+		if (string.IsNullOrEmpty(templateRoot))
+		{
+			errorMessage = "the map template could not be found";
+			return false;
+		}
+
+		string mapName = CreateUntitledMapName();
+		try
+		{
+			Directory.CreateDirectory(folderPath);
+			ClearFolderBestEffort(folderPath);
+			CopyFolderBestEffort(templateRoot, folderPath);
+		}
+		catch (Exception exception)
+		{
+			errorMessage = exception.Message;
+			return false;
+		}
+
+		try
+		{
+			SetupWorkspace(folderPath, mapName);
+		}
+		catch (Exception exception)
+		{
+			GD.PrintErr($"[MapWorkspaceService] Could not finish setting up the untitled map folder: {exception.Message}");
+		}
+
+		bool mapHasItsName = TryRunFileOperation(() => GameContext.MetadataService.UpdateMetadata(folderPath, metadata =>
+		{
+			metadata.MapProperties ??= new MapInfoMetadata();
+			metadata.MapProperties.MapName = mapName;
+			metadata.GameBuildNumber = RealmVersion.GameBuildNumber;
+		}));
+
+		if (!mapHasItsName || !TerrainFileMatchesTemplate(folderPath, templateRoot))
+		{
+			errorMessage = "another program is holding a file in the untitled map folder open. Close the embedded editor or stop the build, then try again.";
+			return false;
+		}
+
+		return true;
+	}
+
+	private static bool TerrainFileMatchesTemplate(string folderPath, string templateRoot)
+	{
+		var writtenTerrain = new FileInfo(Path.Combine(folderPath, "terrain.json"));
+		var templateTerrain = new FileInfo(Path.Combine(templateRoot, "terrain.json"));
+		if (!writtenTerrain.Exists || !templateTerrain.Exists) return false;
+
+		return writtenTerrain.Length == templateTerrain.Length;
+	}
+
+	private static bool TryRunFileOperation(Action operation)
+	{
+		for (int attempt = 0; attempt < FileLockRetryAttempts; attempt++)
+		{
+			try
+			{
+				operation();
+				return true;
+			}
+			catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+			{
+				System.Threading.Thread.Sleep(FileLockRetryDelayMilliseconds);
+			}
+		}
+
+		return false;
+	}
+
+	private static void ClearFolderBestEffort(string folderPath)
+	{
+		foreach (string filePath in Directory.GetFiles(folderPath, "*", SearchOption.AllDirectories))
+		{
+			string fileToClear = filePath;
+			if (TryRunFileOperation(() => DeleteFileClearingReadOnly(fileToClear))) continue;
+
+			GD.PrintErr($"[MapWorkspaceService] '{fileToClear}' is held open by another program, so the untitled map keeps the version the template is about to replace it with.");
+		}
+
+		foreach (string directoryPath in Directory.GetDirectories(folderPath))
+		{
+			string directoryToClear = directoryPath;
+			TryRunFileOperation(() => Directory.Delete(directoryToClear, true));
+		}
+	}
+
+	private static void DeleteFileClearingReadOnly(string filePath)
+	{
+		if (!File.Exists(filePath)) return;
+
+		FileAttributes attributes = File.GetAttributes(filePath);
+		if ((attributes & FileAttributes.ReadOnly) != 0)
+		{
+			File.SetAttributes(filePath, attributes & ~FileAttributes.ReadOnly);
+		}
+
+		File.Delete(filePath);
+	}
+
+	private static void CopyFolderBestEffort(string sourceFolder, string targetFolder)
+	{
+		foreach (string sourcePath in Directory.GetFiles(sourceFolder, "*", SearchOption.AllDirectories))
+		{
+			string relativePath = sourcePath.Substring(sourceFolder.Length + 1);
+			if (IsIgnoredPathDomain(relativePath)) continue;
+
+			string targetPath = Path.Combine(targetFolder, relativePath);
+			string? targetDirectory = Path.GetDirectoryName(targetPath);
+			if (!string.IsNullOrEmpty(targetDirectory))
+			{
+				Directory.CreateDirectory(targetDirectory);
+			}
+
+			bool copyIsMutable = PathUtils.IsMutableMapFileType(relativePath);
+			if (TryRunFileOperation(() => CopyTemplateFile(sourcePath, targetPath, copyIsMutable))) continue;
+
+			GD.PrintErr($"[MapWorkspaceService] Could not write '{relativePath}' into the untitled map because another program is holding it open. The file already in the folder is kept.");
+		}
+	}
+
+	private static void CopyTemplateFile(string sourcePath, string targetPath, bool copyIsMutable)
+	{
+		if (copyIsMutable)
+		{
+			PathUtils.CopyFileClearingReadOnly(sourcePath, targetPath);
+			return;
+		}
+
+		PathUtils.LinkOrCopyFile(sourcePath, targetPath, preferHardLink: true);
+	}
+
+	public static bool IsUntitledMapName(string? mapName)
+	{
+		return !string.IsNullOrWhiteSpace(mapName) && mapName.StartsWith(UntitledMapNamePrefix, StringComparison.OrdinalIgnoreCase);
+	}
+
 	public static void EnsureMetadataJson(string directory)
 	{
 		string metadataPath = MetadataService.ResolveMetadataPath(directory);
@@ -948,7 +1044,16 @@ public static partial class MapWorkspaceService
 		{
 			try
 			{
-				GameContext.MetadataService.UpdateMetadata(directory, meta => GameContext.MetadataService.CleanMetadata(meta));
+				GameContext.MetadataService.UpdateMetadata(directory, meta =>
+				{
+					meta.MapProperties ??= new MapInfoMetadata();
+					if (string.IsNullOrWhiteSpace(meta.MapProperties.MapName))
+					{
+						meta.MapProperties.MapName = CreateUntitledMapName();
+					}
+
+					GameContext.MetadataService.CleanMetadata(meta);
+				});
 			}
 			catch (Exception ex)
 			{
@@ -1032,18 +1137,25 @@ please visit the URL above.
 
 	public static void EnsureSolutionFile(string directory, string mapName)
 	{
-		string slnPath = Path.Combine(directory, $"{DefaultWorkspaceFolder}.slnx");
+		string solutionName = QuoteToolArgument(mapName);
+		string projectName = QuoteToolArgument($"{mapName}.csproj");
+		string slnPath = Path.Combine(directory, $"{mapName}.slnx");
 		if (!File.Exists(slnPath))
 		{
 			try
 			{
-				NativeToolRunner.RunTool("dotnet", $"new sln -n {DefaultWorkspaceFolder}", timeoutMs: 15000, workingDir: directory);
-				NativeToolRunner.RunTool("dotnet", $"sln add {mapName}.csproj", timeoutMs: 15000, workingDir: directory);
+				NativeToolRunner.RunTool("dotnet", $"new sln -n {solutionName}", timeoutMs: 15000, workingDir: directory);
+				NativeToolRunner.RunTool("dotnet", $"sln add {projectName}", timeoutMs: 15000, workingDir: directory);
 			}
 			catch
 			{
 			}
 		}
+	}
+
+	private static string QuoteToolArgument(string argument)
+	{
+		return argument.Contains(' ') ? $"\"{argument}\"" : argument;
 	}
 
 	private static readonly ConcurrentDictionary<string, (DateTime LastWriteTime, bool HasFlag)> _optimizedFlagCache = new(StringComparer.OrdinalIgnoreCase);

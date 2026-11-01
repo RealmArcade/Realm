@@ -559,6 +559,11 @@ public partial class VSCodeManager
 
 	private readonly ConcurrentQueue<string> _pendingExtensionCommands = new ConcurrentQueue<string>();
 
+	public void QueueWorkspaceMetadataReload()
+	{
+		_pendingExtensionCommands.Enqueue("reloadWorkspaceMetadata");
+	}
+
 	public async Task SaveAllOpenFilesAsync()
 	{
 		_pendingExtensionCommands.Enqueue("saveAll");
@@ -763,6 +768,11 @@ public partial class VSCodeManager
 		while (_pendingExtensionCommands.TryDequeue(out var cmd))
 		{
 			commandsArray.Add(cmd);
+		}
+
+		if (GameContext.SessionState.IsMapEditorMode && !string.IsNullOrEmpty(GameContext.EditorService._editingDirectory))
+		{
+			pollResponseObj["workspaceMetadataPath"] = Path.Combine(GameContext.EditorService._editingDirectory, "metadata.json");
 		}
 
 		pollResponseObj["commands"] = commandsArray;
@@ -1113,7 +1123,6 @@ public partial class VSCodeManager
 		try
 		{
 			string fileName = Path.GetFileName(filePath).ToLowerInvariant();
-			EditorService.LastInternalSaveTimeUtc = DateTime.UtcNow;
 
 			string formattedContent = FormatSpecialJsonFile(fileName, filePath, content);
 
@@ -2136,7 +2145,7 @@ public partial class VSCodeManager
 
 	private string GetMapFolderToOpen(string projectRoot)
 	{
-		if (TryGetTempWorkspacePath(out string tempPath))
+		if (TryGetEditingDirectoryPath(out string tempPath))
 			return tempPath;
 
 		if (TryGetRecentMapPath(out string recentPath))
@@ -2149,15 +2158,15 @@ public partial class VSCodeManager
 		return Path.Combine(projectRoot, "Maps", fallbackMap).Replace("\\", "/");
 	}
 
-	private bool TryGetTempWorkspacePath(out string path)
+	private bool TryGetEditingDirectoryPath(out string path)
 	{
 		path = string.Empty;
 		if (GameContext.Host != null && GameContext.SessionState.IsMapEditorMode)
 		{
-			string tempWorkspace = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
-			if (Directory.Exists(tempWorkspace))
+			string editingDirectory = GameContext.EditorService._editingDirectory;
+			if (Directory.Exists(editingDirectory))
 			{
-				path = tempWorkspace.Replace("\\", "/");
+				path = editingDirectory.Replace("\\", "/");
 				return true;
 			}
 		}

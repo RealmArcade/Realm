@@ -1612,7 +1612,7 @@ public class AssetIndexService : IDisposable
 	{
 		if (string.IsNullOrWhiteSpace(path)) return true;
 		string norm = path.Replace('\\', '/').ToLowerInvariant();
-		return norm.Contains(MapWorkspaceService.DefaultWorkspaceFolder) || norm.Contains("maptemplate");
+		return norm.Contains("maptemplate");
 	}
 
 	public bool IsDirectoryIndexing(string directoryPath)
