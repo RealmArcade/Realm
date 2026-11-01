@@ -522,13 +522,21 @@ namespace Realm.Client.UI
 		{
 			if (GameContext.Host == null) return;
 
-			if (!string.IsNullOrEmpty(mapSaveFolder))
+			if (!string.IsNullOrEmpty(mapSaveFolder) && !IsUntitledMapFolder())
 			{
 				_ = SaveMapToFolderAsync(mapSaveFolder);
 				return;
 			}
 
 			PromptSaveMapFolder();
+		}
+
+		private static bool IsUntitledMapFolder()
+		{
+			string editingDirectory = GetActiveEditingDirectory();
+			if (string.IsNullOrEmpty(editingDirectory)) return false;
+
+			return IsSameDirectory(editingDirectory, MapWorkspaceService.GetUntitledMapDirectory());
 		}
 
 		private void SaveAsMapAction()
