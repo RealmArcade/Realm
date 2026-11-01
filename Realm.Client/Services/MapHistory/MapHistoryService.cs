@@ -275,7 +275,7 @@ public class MapHistoryService
 			GD.PrintErr($"[MapHistoryService] Could not clean up this map's history: {exception.Message}");
 		}
 
-		MapHistoryStatus status = BuildStatus(session.Layout);
+		MapHistoryStatus status = BuildStatus(session.Layout, mapDirectory);
 		return session.WasReset
 			? WithNotice(status, "The stored version history of this map could not be read, so a new one was started. The previous files were kept in the history folder.")
 			: status;
@@ -295,23 +295,59 @@ public class MapHistoryService
 			return new MapHistoryStatus { IsRepositoryReady = false };
 		}
 
-		return BuildStatus(layout);
+		return BuildStatus(layout, mapDirectory);
 	}
 
-	private static MapHistoryStatus BuildStatus(MapHistoryStoreLayout layout)
+	private static MapHistoryStatus BuildStatus(MapHistoryStoreLayout layout, string mapDirectory)
 	{
 		var repository = new MapGitRepository(layout.RepositoryDirectory);
 		IReadOnlyList<MapGitCommitInfo> newestVersion = repository.ReadVersionHistory(1);
 		MapHistoryStateFile state = LoadState(layout);
-		MapVersionEntry? latestVersion = newestVersion.Count == 0 ? null : ToVersionEntry(newestVersion[0], FindEntry(state, newestVersion[0].Id), null);
+		MapGitCommitInfo? newestCommit = newestVersion.Count == 0 ? null : newestVersion[0];
+		MapVersionEntry? latestVersion = newestCommit == null ? null : ToVersionEntry(newestCommit, FindEntry(state, newestCommit.Id), null);
 
 		return new MapHistoryStatus
 		{
 			IsRepositoryReady = true,
 			LastVersionCommitId = latestVersion?.CommitId,
 			LastVersionAt = latestVersion?.CreatedAt,
-			VersionCount = repository.CountVersions(int.MaxValue)
+			VersionCount = repository.CountVersions(int.MaxValue),
+			HasUnversionedChanges = DetectUnversionedChanges(repository, state, mapDirectory, newestCommit)
 		};
+	}
+
+	private static bool DetectUnversionedChanges(MapGitRepository repository, MapHistoryStateFile state, string mapDirectory, MapGitCommitInfo? newestCommit)
+	{
+		if (newestCommit == null || !Directory.Exists(mapDirectory)) return false;
+
+		using Repository repositoryScope = repository.OpenRepositoryScope();
+		Dictionary<string, string> versionedFiles = repository.ReadTreeFiles(newestCommit.TreeId, repositoryScope);
+		List<string> workingFiles = CollectMapFiles(mapDirectory);
+		if (workingFiles.Count != versionedFiles.Count) return true;
+
+		bool canTrustFingerprints = string.Equals(state.FilesSourceFolder, mapDirectory, StringComparison.OrdinalIgnoreCase);
+		foreach (string relativePath in workingFiles)
+		{
+			if (!versionedFiles.TryGetValue(relativePath, out string? versionedBlobId)) return true;
+
+			string absolutePath = Path.Combine(mapDirectory, relativePath.Replace('/', Path.DirectorySeparatorChar));
+			var fileInfo = new FileInfo(absolutePath);
+			if (!fileInfo.Exists) return true;
+
+			if (canTrustFingerprints &&
+			    state.Files.TryGetValue(relativePath, out MapHistoryFileFingerprint? fingerprint) &&
+			    fingerprint.Size == fileInfo.Length &&
+			    fingerprint.LastWriteTicks == fileInfo.LastWriteTimeUtc.Ticks)
+			{
+				if (!string.Equals(fingerprint.BlobId, versionedBlobId, StringComparison.OrdinalIgnoreCase)) return true;
+				continue;
+			}
+
+			if (!TryReadStableContent(absolutePath, out byte[] content)) continue;
+			if (!string.Equals(MapGitRepository.ComputeBlobId(content), versionedBlobId, StringComparison.OrdinalIgnoreCase)) return true;
+		}
+
+		return false;
 	}
 
 	private static MapHistoryStatus WithNotice(MapHistoryStatus status, string notice)
@@ -322,6 +358,7 @@ public class MapHistoryService
 			LastVersionCommitId = status.LastVersionCommitId,
 			LastVersionAt = status.LastVersionAt,
 			VersionCount = status.VersionCount,
+			HasUnversionedChanges = status.HasUnversionedChanges,
 			Notice = notice,
 			ErrorMessage = status.ErrorMessage
 		};

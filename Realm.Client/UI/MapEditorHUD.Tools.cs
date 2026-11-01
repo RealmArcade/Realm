@@ -4803,8 +4803,11 @@ namespace Realm.Client.UI
 				? string.Format(TranslationServer.Translate("Saved {0}"), status.LastVersionAt.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm"))
 				: TranslationServer.Translate("No version saved yet");
 			string countText = string.Format(TranslationServer.Translate("{0} version(s)"), status.VersionCount);
+			string unversionedText = status.HasUnversionedChanges
+				? $"  •  {TranslationServer.Translate("Changes since the last version")}"
+				: string.Empty;
 
-			_mapHistoryStatusLabel.Text = $"{savedText}  •  {countText}";
+			_mapHistoryStatusLabel.Text = $"{savedText}  •  {countText}{unversionedText}";
 		}
 
 		public void OpenUtilitiesDialog()

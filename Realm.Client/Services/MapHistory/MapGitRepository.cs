@@ -48,7 +48,7 @@ public class MapGitRepository
 		}
 	}
 
-	private static string ComputeBlobId(ReadOnlySpan<byte> content)
+	public static string ComputeBlobId(ReadOnlySpan<byte> content)
 	{
 		byte[] header = Encoding.ASCII.GetBytes($"blob {content.Length}\0");
 		using var hasher = System.Security.Cryptography.IncrementalHash.CreateHash(System.Security.Cryptography.HashAlgorithmName.SHA1);
