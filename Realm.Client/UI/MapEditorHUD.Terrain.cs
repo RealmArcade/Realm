@@ -66,15 +66,42 @@ namespace Realm.Client.UI
 		{
 			await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
+			string? previouslyOpenedFolder = GameSettings.LastOpenedFolder;
+
+			string? folderToResume = GetMapFolderToResume();
+			if (folderToResume != null && await LoadMapFolderAsync(folderToResume))
+			{
+				RestoreLastOpenedFolder(previouslyOpenedFolder);
+				return;
+			}
+
 			string untitledDirectory = MapWorkspaceService.GetUntitledMapDirectory();
 			bool untitledMapExists = File.Exists(Path.Combine(untitledDirectory, "terrain.json")) && File.Exists(Path.Combine(untitledDirectory, "metadata.json"));
-
-			string? previouslyOpenedFolder = GameSettings.LastOpenedFolder;
-			bool opened = untitledMapExists && await LoadMapFolderAsync(untitledDirectory);
-			RestoreLastOpenedFolder(previouslyOpenedFolder);
-			if (opened) return;
+			if (untitledMapExists && await LoadMapFolderAsync(untitledDirectory))
+			{
+				RestoreLastOpenedFolder(previouslyOpenedFolder);
+				return;
+			}
 
 			await CreateBlankMapAsync();
+		}
+
+		private static string? GetMapFolderToResume()
+		{
+			string? folder = GameSettings.LastOpenedFolder;
+			if (string.IsNullOrWhiteSpace(folder) || !Directory.Exists(folder)) return null;
+			if (IsSameDirectory(folder, MapWorkspaceService.GetUntitledMapDirectory())) return null;
+			if (!GameContext.EditorService.IsValidMapFolder(folder)) return null;
+
+			return folder;
+		}
+
+		private static void ClearLastOpenedFolder()
+		{
+			if (string.IsNullOrEmpty(GameSettings.LastOpenedFolder)) return;
+
+			GameSettings.LastOpenedFolder = string.Empty;
+			GameSettings.Save();
 		}
 
 		private static void RestoreLastOpenedFolder(string? previouslyOpenedFolder)
@@ -102,11 +129,10 @@ namespace Realm.Client.UI
 					return;
 				}
 
-				string? previouslyOpenedFolder = GameSettings.LastOpenedFolder;
 				ResetFolderLocations();
 
 				bool opened = await LoadMapFolderAsync(untitledDirectory);
-				RestoreLastOpenedFolder(previouslyOpenedFolder);
+				ClearLastOpenedFolder();
 
 				if (!opened)
 				{
