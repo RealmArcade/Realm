@@ -5,10 +5,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
-using Godot;
 using Realm.Shared;
-using Realm.Shared.Distribution;
-using Environment = System.Environment;
 
 namespace Realm.Client.Services;
 
@@ -204,8 +201,6 @@ public class MapUpgradeService
 			};
 		}
 
-		CreateMapBackup(mapDirectory, initialVersion);
-
 		var result = new UpgradeResult
 		{
 			InitialVersion = initialVersion,
@@ -244,108 +239,4 @@ public class MapUpgradeService
 		return Task.Run(() => UpgradeMap(mapDirectory, progress));
 	}
 
-	private static void CreateMapBackup(string mapDirectory, string currentVersion)
-	{
-		try
-		{
-			string loadedFolderName = Path.GetFileName(mapDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
-			if (string.IsNullOrEmpty(loadedFolderName))
-			{
-				loadedFolderName = "map";
-			}
-
-			string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-			string userDataDir;
-			try
-			{
-				userDataDir = OS.GetUserDataDir();
-				if (string.IsNullOrEmpty(userDataDir))
-				{
-					userDataDir = ProjectSettings.GlobalizePath("user://");
-				}
-			}
-			catch
-			{
-				string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-				userDataDir = Path.Combine(appData, "Godot", "app_userdata", "Realm");
-			}
-
-			string fullUserDataDir = Path.GetFullPath(userDataDir).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-			string upgradeBackupsRoot = Path.GetFullPath(Path.Combine(fullUserDataDir, "map_upgrades")).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-			string targetBackupDir = Path.GetFullPath(Path.Combine(upgradeBackupsRoot, $"{loadedFolderName}_{timestamp}")).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-
-			CopyDirectoryContentsSafe(mapDirectory, targetBackupDir, upgradeBackupsRoot);
-		}
-		catch (Exception ex)
-		{
-			GD.PrintErr($"[MapUpgradeService] Warning: Failed to create map backup: {ex.Message}");
-		}
-	}
-
-	private static void CopyDirectoryContentsSafe(string sourceDir, string targetDir, string? backupsRoot = null)
-	{
-		var source = new DirectoryInfo(sourceDir);
-		if (!source.Exists) return;
-
-		string normalizedTarget = Path.GetFullPath(targetDir).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-		string? normalizedBackupsRoot = !string.IsNullOrEmpty(backupsRoot) ? Path.GetFullPath(backupsRoot).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) : null;
-
-		Directory.CreateDirectory(targetDir);
-		CopyFilesSafe(source, targetDir);
-		CopySubDirectoriesSafe(source, targetDir, normalizedTarget, normalizedBackupsRoot, backupsRoot);
-	}
-
-	private static void CopyFilesSafe(DirectoryInfo source, string targetDir)
-	{
-		foreach (var file in source.GetFiles())
-		{
-			if (file.Extension.Equals(".tmp", StringComparison.OrdinalIgnoreCase)) continue;
-			file.CopyTo(Path.Combine(targetDir, file.Name), true);
-		}
-	}
-
-	private static void CopySubDirectoriesSafe(DirectoryInfo source, string targetDir, string normalizedTarget, string? normalizedBackupsRoot, string? backupsRoot)
-	{
-		var excludedFolders = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-		{
-			".git", "bin", "obj", ".godot", ".vs", ".vscode", ".idea", "map_upgrades", "map_backups", "backups", ".backups", ".dotnet", ".wasi", ".sidecarcache", ".cache"
-		};
-
-		foreach (var dir in source.GetDirectories())
-		{
-			if (excludedFolders.Contains(dir.Name) || dir.Name.StartsWith("backup_", StringComparison.OrdinalIgnoreCase)) continue;
-
-			string subDirFull = Path.GetFullPath(dir.FullName).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-
-			if (ShouldIgnoreDirectory(subDirFull, normalizedTarget, normalizedBackupsRoot)) continue;
-
-			CopyDirectoryContentsSafe(dir.FullName, Path.Combine(targetDir, dir.Name), backupsRoot);
-		}
-	}
-
-	private static bool ShouldIgnoreDirectory(string subDirFull, string normalizedTarget, string? normalizedBackupsRoot)
-	{
-		if (subDirFull.IndexOf("map_backups", StringComparison.OrdinalIgnoreCase) >= 0 ||
-		    subDirFull.IndexOf("map_upgrades", StringComparison.OrdinalIgnoreCase) >= 0 ||
-		    subDirFull.IndexOf(".backups", StringComparison.OrdinalIgnoreCase) >= 0)
-		{
-			return true;
-		}
-
-		if (!string.IsNullOrEmpty(normalizedBackupsRoot) &&
-		    (string.Equals(subDirFull, normalizedBackupsRoot, StringComparison.OrdinalIgnoreCase) ||
-		     subDirFull.StartsWith(normalizedBackupsRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)))
-		{
-			return true;
-		}
-
-		if (string.Equals(subDirFull, normalizedTarget, StringComparison.OrdinalIgnoreCase) ||
-		    subDirFull.StartsWith(normalizedTarget + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ||
-		    normalizedTarget.StartsWith(subDirFull + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
-		{
-			return true;
-		}
-
-		return false;
-	}
 }

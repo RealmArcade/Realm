@@ -12,6 +12,7 @@ using NSec.Cryptography;
 using Realm.Client.Core;
 using Realm.Client.Network;
 using Realm.Client.Services;
+using Realm.Client.Services.MapHistory;
 using Realm.Client.UI.MapEditor;
 using Realm.Ecs.Services;
 using Realm.Shared.Distribution;
@@ -25,6 +26,50 @@ namespace Realm.Client.UI
 {
 	public partial class MapEditorHUD
 	{
+		private static string GetActiveEditingDirectory()
+		{
+			return GameContext.EditorService._editingDirectory;
+		}
+
+		public void PrimeMapHistory()
+		{
+			GameContext.MapHistoryService.PrimeForMap(GetActiveEditingDirectory());
+		}
+
+		private static void ScheduleHistoryMaintenanceOnLaunch()
+		{
+			GameContext.MapHistoryService.MaintainAllStoresInBackground();
+		}
+
+		public void PersistEditorStateBeforeRestore()
+		{
+			string editingDirectory = GetActiveEditingDirectory();
+			if (string.IsNullOrEmpty(editingDirectory) || !Directory.Exists(editingDirectory)) return;
+			if (!File.Exists(Path.Combine(editingDirectory, "metadata.json"))) return;
+			if (GameContext.Host == null || GameContext.Host.GroundTerrain == null) return;
+
+			try
+			{
+				GameContext.Host.SaveMapToFile(Path.Combine(editingDirectory, "terrain.json"), performReload: false);
+				GameContext.Host.EditorHasUnsavedChanges = false;
+			}
+			catch (Exception ex)
+			{
+				GD.PrintErr($"[MapEditorHUD] Could not write the current map before restoring a version: {ex.Message}");
+			}
+
+			GameContext.MapAutosaveService.FlushPendingWrites(TimeSpan.FromSeconds(3));
+		}
+
+		private void RecordMapVersion(MapVersionKind kind, string label, bool coalesce = false)
+		{
+			GameContext.MapAutosaveService.FlushPendingWrites(TimeSpan.FromSeconds(3));
+
+			string editingDirectory = GetActiveEditingDirectory();
+			string? sourceFolder = string.IsNullOrEmpty(GameContext.EditorService.CurrentSourceFolder) ? null : GameContext.EditorService.CurrentSourceFolder;
+			GameContext.MapHistoryService.CreateVersion(editingDirectory, kind, label, coalesce: coalesce, sourceFolder: sourceFolder);
+		}
+
 		public static void RequestOpenFromCas(string casSourceDirectory, string? defaultSaveFolder)
 		{
 			GameContext.EditorService.RequestOpenFromCasDomain(casSourceDirectory, defaultSaveFolder);
@@ -35,9 +80,7 @@ namespace Realm.Client.UI
 			long writeTimeTicks = 0;
 			try
 			{
-				string wsPath = string.IsNullOrEmpty(GameContext.EditorService._tempWorkspacePath)
-					? ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath)
-					: GameContext.EditorService._tempWorkspacePath;
+				string wsPath = GameContext.EditorService._editingDirectory;
 				string metadataPath = string.IsNullOrEmpty(path) ? Path.Combine(wsPath, "metadata.json") : path;
 				writeTimeTicks = GameContext.EditorService.GetLastWriteTimeSafe(metadataPath);
 			}
@@ -60,31 +103,94 @@ namespace Realm.Client.UI
 			RefreshEntityPalette();
 		}
 
+		private const int AutosaveQuietMilliseconds = 1500;
+		private const int AutosaveMinimumGapMilliseconds = 1500;
+		private const int AutosaveMaximumDelayMilliseconds = 20000;
+
+		private DateTime _lastAutosaveWriteUtc = DateTime.MinValue;
+		private bool _hasChangesSinceLastVersion;
+		private string? _reportedAutosaveFailure;
+		private DateTime _autosaveRetryNotBeforeUtc = DateTime.MinValue;
+
 		public void PerformAutoBackup()
 		{
 			try
 			{
 				if (GameContext.Host == null || GameContext.Host.GroundTerrain == null) return;
-				string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
-				if (string.IsNullOrEmpty(wsPath) || !Directory.Exists(wsPath)) return;
+				if (!_hasChangesSinceLastVersion) return;
 
-				MapWorkspaceService.EnsureWasmEntryPoint(wsPath);
+				string editingDirectory = GetActiveEditingDirectory();
+				if (string.IsNullOrEmpty(editingDirectory) || !Directory.Exists(editingDirectory)) return;
+				if (!File.Exists(Path.Combine(editingDirectory, "metadata.json"))) return;
 
-				string tempTerrainPath = Path.Combine(wsPath, "terrain.json");
-				GameContext.Host.SaveMapToFile(tempTerrainPath, performReload: false);
+				MapWorkspaceService.EnsureWasmEntryPoint(editingDirectory);
+				GameContext.Host.SaveMapToFile(Path.Combine(editingDirectory, "terrain.json"), performReload: false);
+				GameContext.Host.EditorHasUnsavedChanges = false;
+				_hasChangesSinceLastVersion = false;
 
-				long terrainWriteTime = GameContext.EditorService.GetMaxTerrainWriteTime(tempTerrainPath);
-				long metadataWriteTime = GameContext.EditorService.GetLastWriteTimeSafe(Path.Combine(wsPath, "metadata.json"));
-
-				GameContext.EditorService.PerformAutoBackupDomain(terrainWriteTime, metadataWriteTime);
-
-				ShowFeedback(TranslationServer.Translate("Auto-backup snapshot saved."));
-				GD.Print("[MapEditorHUD] Auto-backup snapshot saved.");
+				RecordMapVersion(MapVersionKind.AutosaveCheckpoint, TranslationServer.Translate("Autosave"), coalesce: true);
+				ShowFeedback(TranslationServer.Translate("Autosave version saved."));
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"[MapEditorHUD] Auto-backup failed: {ex.Message}");
+				GD.PrintErr($"[MapEditorHUD] Autosave failed: {ex.Message}");
 			}
+		}
+
+		private void AutosaveEditorStateIfNeeded()
+		{
+			if (GameContext.Host == null) return;
+
+			ReportFailedAutosaveWrite();
+
+			if (!GameContext.Host.EditorHasUnsavedChanges) return;
+			if (GameContext.EditorService.IsSyncing) return;
+			if (GameContext.MapAutosaveService.HasPendingWrite) return;
+			if (DateTime.UtcNow < _autosaveRetryNotBeforeUtc) return;
+
+			string editingDirectory = GetActiveEditingDirectory();
+			if (string.IsNullOrEmpty(editingDirectory) || !Directory.Exists(editingDirectory)) return;
+			if (!File.Exists(Path.Combine(editingDirectory, "metadata.json"))) return;
+
+			DateTime now = DateTime.UtcNow;
+			if ((now - _lastAutosaveWriteUtc).TotalMilliseconds < AutosaveMinimumGapMilliseconds) return;
+
+			bool editsHaveSettled = (now - EditorService.LastEditorChangeUtc).TotalMilliseconds >= AutosaveQuietMilliseconds;
+			bool writeIsOverdue = (now - _lastAutosaveWriteUtc).TotalMilliseconds >= AutosaveMaximumDelayMilliseconds;
+			if (!editsHaveSettled && !writeIsOverdue) return;
+
+			try
+			{
+				_lastAutosaveWriteUtc = now;
+				GameContext.Host.SaveMapToFile(
+					Path.Combine(editingDirectory, "terrain.json"),
+					performReload: false,
+					terrainWriter: GameContext.MapAutosaveService.EnqueueTerrainWrite);
+				GameContext.Host.EditorHasUnsavedChanges = false;
+				_hasChangesSinceLastVersion = true;
+			}
+			catch (Exception ex)
+			{
+				GD.PrintErr($"[MapEditorHUD] Autosave write failed: {ex.Message}");
+			}
+		}
+
+		private void ReportFailedAutosaveWrite()
+		{
+			string? failure = GameContext.MapAutosaveService.TakeFailedWriteMessage();
+			if (failure == null)
+			{
+				_reportedAutosaveFailure = null;
+				return;
+			}
+
+			GameContext.Host.EditorHasUnsavedChanges = true;
+			_autosaveRetryNotBeforeUtc = DateTime.UtcNow + AutosaveRetryBackoff;
+
+			if (string.Equals(failure, _reportedAutosaveFailure, StringComparison.Ordinal)) return;
+
+			_reportedAutosaveFailure = failure;
+			ShowFeedback(string.Format(TranslationServer.Translate("The map could not be written to its folder: {0}"), failure));
 		}
 
 		public void SaveMapActionExternal()
@@ -92,22 +198,22 @@ namespace Realm.Client.UI
 			SaveMapAction();
 		}
 
-		private void InitializeTempWorkspace()
+		private void InitializeEditingDirectory()
 		{
 			if (!GameContext.SessionState.ReturningFromTest)
 			{
-				TryCreateTempWorkspaceDirectory();
+				EnsureEditingDirectoryReady();
 			}
 
-			CleanTempWorkspaceRmapFiles();
+			string editingDirectory = GameContext.EditorService._editingDirectory;
+			string initTerrainPath = string.IsNullOrEmpty(editingDirectory) ? string.Empty : Path.Combine(editingDirectory, "terrain.json");
+			string initMetadataPath = string.IsNullOrEmpty(editingDirectory) ? string.Empty : Path.Combine(editingDirectory, "metadata.json");
 
-			string initTerrainPath = Path.Combine(GameContext.EditorService._tempWorkspacePath, "terrain.json");
-			string initMetadataPath = Path.Combine(GameContext.EditorService._tempWorkspacePath, "metadata.json");
+			long terrainTime = string.IsNullOrEmpty(initTerrainPath) ? 0 : GameContext.EditorService.GetMaxTerrainWriteTime(initTerrainPath);
+			long metadataTime = string.IsNullOrEmpty(initMetadataPath) ? 0 : GameContext.EditorService.GetLastWriteTimeSafe(initMetadataPath);
 
-			long terrainTime = GameContext.EditorService.GetMaxTerrainWriteTime(initTerrainPath);
-			long metadataTime = GameContext.EditorService.GetLastWriteTimeSafe(initMetadataPath);
-
-			GameContext.EditorService.InitializeTempWorkspaceDomain(terrainTime, metadataTime);
+			GameContext.EditorService.InitializeEditingDirectoryDomain(terrainTime, metadataTime);
+			ScheduleHistoryMaintenanceOnLaunch();
 
 			EnsureDefaultTemplateAnimationsSafe();
 
@@ -130,27 +236,35 @@ namespace Realm.Client.UI
 			}
 		}
 
-		private void TryCreateTempWorkspaceDirectory()
+		private void EnsureEditingDirectoryReady()
 		{
 			try
 			{
-				GameContext.EditorService.TryCreateTempWorkspaceDirectoryDomain();
+				GameContext.EditorService.EnsureEditingDirectoryDomain();
+				string editingDirectory = GameContext.EditorService._editingDirectory;
+				if (string.IsNullOrEmpty(editingDirectory)) return;
+
+				Directory.CreateDirectory(editingDirectory);
+				CaptureVersionAroundAssetCleanup(editingDirectory, MapVersionKind.BeforeAssetOptimization, TranslationServer.Translate("Before asset cleanup"));
+				MapWorkspaceService.SetupWorkspace(editingDirectory, "MapScript");
+				CaptureVersionAroundAssetCleanup(editingDirectory, MapVersionKind.AfterAssetOptimization, TranslationServer.Translate("After asset cleanup"));
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"Failed initializing temp workspace: {ex.Message}");
+				GD.PrintErr($"Failed initializing the editing directory: {ex.Message}");
 			}
 		}
 
-		private void CleanTempWorkspaceRmapFiles()
+		private static void CaptureVersionAroundAssetCleanup(string editingDirectory, MapVersionKind kind, string label)
 		{
-			try
-			{
-				GameContext.EditorService.CleanTempWorkspaceRmapFilesDomain();
-			}
-			catch
-			{
-			}
+			if (!File.Exists(Path.Combine(editingDirectory, "metadata.json"))) return;
+
+			bool firstVersion = kind == MapVersionKind.BeforeAssetOptimization && !GameContext.MapHistoryService.HasExistingVersions(editingDirectory);
+			GameContext.MapHistoryService.CaptureVersionSynchronously(
+				editingDirectory,
+				firstVersion ? MapVersionKind.Initial : kind,
+				firstVersion ? TranslationServer.Translate("First version") : label,
+				editingDirectory);
 		}
 
 		private void EnsureDefaultTemplateAnimationsSafe()
@@ -189,43 +303,27 @@ namespace Realm.Client.UI
 			}
 		}
 
-		public static string ComputeDirectoryBlake3(string directoryPath)
-		{
-			return MapWorkspaceService.ComputeDirectoryBlake3Domain(directoryPath, IsIgnoredPath);
-		}
-
 		public static bool HasUnsavedChangesStatic()
 		{
-			string tempPath = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
-			return MapWorkspaceService.HasUnsavedChangesDomain(IsIgnoredPath, tempPath);
+			string editingDirectory = GameContext.EditorService._editingDirectory;
+			if (string.IsNullOrEmpty(editingDirectory)) return false;
+
+			return MapWorkspaceService.HasUnsavedChangesDomain(IsIgnoredPath, editingDirectory);
 		}
 
 		public bool HasUnsavedChanges() => HasUnsavedChangesStatic();
 
-		public void SaveCurrentDirectoryBlake3()
+		public void RefreshSavedDirectoryHash()
 		{
-			MapWorkspaceService.SaveCurrentDirectoryBlake3Domain(ProjectSettings.GlobalizePath("user://editor_last_save.txt"), IsIgnoredPath);
+			MapWorkspaceService.RefreshSavedDirectoryHashDomain(IsIgnoredPath);
 		}
 
-		private void WriteCleanExitMarker()
-		{
-			try
-			{
-				SaveCurrentDirectoryBlake3();
-				MapWorkspaceService.WriteCleanExitMarkerDomain(ProjectSettings.GlobalizePath("user://editor_clean_exit.txt"));
-			}
-			catch (Exception ex)
-			{
-				GD.PrintErr($"[MapEditorHUD] Error writing editor_clean_exit.txt: {ex.Message}");
-			}
-		}
-
-		private void CheckUnsavedSessionOnLaunch(Action onCompleted = null)
+		private void EstablishLaunchSavedState(Action onCompleted = null)
 		{
 			if (GameContext.SessionState.EditorSessionResumedAfterTest)
 			{
 				GameContext.SessionState.EditorSessionResumedAfterTest = false;
-				SaveCurrentDirectoryBlake3();
+				RefreshSavedDirectoryHash();
 				onCompleted?.Invoke();
 				return;
 			}
@@ -236,201 +334,34 @@ namespace Realm.Client.UI
 				return;
 			}
 
-			if (CheckAndCleanCleanExitFile())
-			{
-				onCompleted?.Invoke();
-				return;
-			}
-
-			CheckLastSaveFile(onCompleted);
+			RefreshSavedDirectoryHash();
+			onCompleted?.Invoke();
 		}
 
-		private bool CheckAndCleanCleanExitFile()
-		{
-			string cleanExitFile = ProjectSettings.GlobalizePath("user://editor_clean_exit.txt");
-			return MapWorkspaceService.CheckAndCleanCleanExitFileDomain(cleanExitFile, SaveCurrentDirectoryBlake3);
-		}
-
-		private void CheckLastSaveFile(Action onCompleted)
-		{
-			string editorLastSaveFile = ProjectSettings.GlobalizePath("user://editor_last_save.txt");
-			var result = MapWorkspaceService.CheckLastSaveFileDomain(editorLastSaveFile, GameContext.EditorService._tempWorkspacePath, ComputeDirectoryBlake3);
-			
-			if (!result.HasSavedFile)
-			{
-				SaveCurrentDirectoryBlake3();
-				onCompleted?.Invoke();
-				return;
-			}
-
-			GameContext.EditorService.CurrentDirectoryBlake3 = result.SavedHash;
-
-			if (result.HasChanges)
-			{
-				ShowUnsavedSessionModal(onCompleted);
-			}
-			else
-			{
-				onCompleted?.Invoke();
-			}
-		}
-
-		private void ShowUnsavedSessionModal(Action onCompleted = null)
-		{
-			ShowConfirmationDialog(
-				"There were unsaved changes in last editor session.",
-				onConfirm: () =>
-				{
-					LoadTempWorkspaceMap();
-					SaveCurrentDirectoryBlake3();
-				},
-				confirmText: "Restore",
-				cancelText: "Discard",
-				onCancel: () =>
-				{
-					GameContext.EditorService.IsSyncing = true;
-					try
-					{
-						ResetFolderLocations();
-						ClearTempWorkspaceExternal();
-						MapWorkspaceService.SetupWorkspace(GameContext.EditorService._tempWorkspacePath, "MapScript");
-						GameContext.Host?.ClearMapEntirely();
-						string terrainPath = Path.Combine(GameContext.EditorService._tempWorkspacePath, "terrain.json");
-						string metadataPath = Path.Combine(GameContext.EditorService._tempWorkspacePath, "metadata.json");
-						GameContext.EditorService.LastTerrainSyncTime = GameContext.EditorService.GetMaxTerrainWriteTime(terrainPath);
-						GameContext.EditorService.LastMetadataSyncTime = GameContext.EditorService.GetLastWriteTimeSafe(metadataPath);
-						SaveCurrentDirectoryBlake3();
-						ReadMetadataAndRefreshTextures();
-						ViewLoadMapProperties();
-						UpdateMapNameHeader();
-					}
-					catch (Exception ex)
-					{
-						GD.PrintErr($"[ShowUnsavedSessionModal] Error discarding session: {ex.Message}");
-					}
-					finally
-					{
-						GameContext.EditorService.IsSyncing = false;
-					}
-				},
-				onDismissed: () => { onCompleted?.Invoke(); }
-			);
-		}
+		private static readonly TimeSpan AutosaveRetryBackoff = TimeSpan.FromSeconds(10);
 
 		private void OnSyncTimerTimeout()
 		{
 			var editorService = GameContext.EditorService;
-			if (string.IsNullOrEmpty(editorService._tempWorkspacePath) || !Directory.Exists(editorService._tempWorkspacePath)) return;
-
-			if (editorService.CheckAndHandleEditorClosure()) return;
+			if (string.IsNullOrEmpty(editorService._editingDirectory) || !Directory.Exists(editorService._editingDirectory)) return;
 
 			editorService.SyncWasmFiles();
 			editorService.UpdateWorkspaceModTime();
+			AutosaveEditorStateIfNeeded();
 		}
 
-
-		private readonly HashSet<string> _pendingBaseMapFolderChanges = new(StringComparer.OrdinalIgnoreCase);
-		private bool _baseMapFolderWarningVisible;
-
-		private void StartBaseMapFolderMonitor(string baseFolder)
+		private static bool IsSameDirectory(string firstPath, string secondPath)
 		{
-			var watchService = GameContext.BaseMapFolderWatchService;
-			if (watchService == null || string.IsNullOrWhiteSpace(baseFolder))
-			{
-				return;
-			}
-
-			string workspace = GameContext.EditorService._tempWorkspacePath;
 			try
 			{
-				if (!string.IsNullOrWhiteSpace(workspace) && string.Equals(Path.GetFullPath(baseFolder), Path.GetFullPath(workspace), StringComparison.OrdinalIgnoreCase))
-				{
-					watchService.Stop();
-					return;
-				}
+				string first = Path.GetFullPath(firstPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+				string second = Path.GetFullPath(secondPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+				return string.Equals(first, second, StringComparison.OrdinalIgnoreCase);
 			}
-			catch
+			catch (Exception)
 			{
+				return false;
 			}
-
-			watchService.Start(baseFolder, workspace);
-		}
-
-		private void OnBaseMapFolderFilesChanged(IReadOnlyList<string> relativePaths)
-		{
-			if (relativePaths == null || relativePaths.Count == 0) return;
-
-			foreach (string relativePath in relativePaths)
-			{
-				_pendingBaseMapFolderChanges.Add(relativePath);
-			}
-
-			TryShowPendingBaseMapFolderWarning();
-		}
-
-		private void TryShowPendingBaseMapFolderWarning()
-		{
-			if (_pendingBaseMapFolderChanges.Count == 0 || _baseMapFolderWarningVisible) return;
-			if (FloatingDialogBase.HasAnyDialogOpen) return;
-
-			var changedFiles = Enumerable.OrderBy(_pendingBaseMapFolderChanges, relativePath => relativePath, StringComparer.OrdinalIgnoreCase).ToList();
-			_pendingBaseMapFolderChanges.Clear();
-			ShowBaseMapFolderChangeWarning(changedFiles);
-		}
-
-		private void ShowBaseMapFolderChangeWarning(IReadOnlyList<string> relativePaths)
-		{
-			const int maxListedFiles = 6;
-
-			string fileListing = string.Join("\n", Enumerable.Take(relativePaths, maxListedFiles).Select(relativePath => "• " + relativePath));
-			if (relativePaths.Count > maxListedFiles)
-			{
-				fileListing += "\n" + string.Format(TranslationServer.Translate("...and {0} more file(s)."), relativePaths.Count - maxListedFiles);
-			}
-
-			string message = TranslationServer.Translate("The map folder changed outside the editor. The editor is working on a copy in its temporary workspace, so these changes are not applied yet:")
-			                 + "\n\n" + fileListing + "\n\n"
-			                 + TranslationServer.Translate("Reload them into the editor? Choosing IGNORE keeps the editor copy, and the next save will overwrite the map folder copy.");
-
-			_baseMapFolderWarningVisible = true;
-			ShowConfirmationDialog(
-				message,
-				onConfirm: () =>
-				{
-					_baseMapFolderWarningVisible = false;
-					ReloadBaseMapFolderChanges(relativePaths);
-				},
-				confirmText: TranslationServer.Translate("RELOAD"),
-				cancelText: TranslationServer.Translate("IGNORE"),
-				onCancel: () =>
-				{
-					_baseMapFolderWarningVisible = false;
-					ShowFeedback(TranslationServer.Translate("Ignored the external map folder changes. The editor copy still differs from the map folder and the next save will overwrite it."));
-				},
-				onDismissed: () => { _baseMapFolderWarningVisible = false; });
-		}
-
-		private void ReloadBaseMapFolderChanges(IReadOnlyList<string> relativePaths)
-		{
-			var watchService = GameContext.BaseMapFolderWatchService;
-			int reloadedCount = watchService?.ReloadChangedFiles(relativePaths) ?? 0;
-			watchService?.MarkInternalWrite();
-
-			bool terrainChanged = relativePaths.Any(relativePath => string.Equals(relativePath, "terrain.json", StringComparison.OrdinalIgnoreCase));
-			bool metadataChanged = relativePaths.Any(relativePath => string.Equals(relativePath, "metadata.json", StringComparison.OrdinalIgnoreCase) || string.Equals(relativePath, "manifest.json", StringComparison.OrdinalIgnoreCase));
-
-			if (terrainChanged && GameContext.Host != null)
-			{
-				string terrainPath = Path.Combine(GameContext.EditorService._tempWorkspacePath, "terrain.json");
-				GameContext.Host.LoadMapFromFile(terrainPath, ensureGlbOptimized: false);
-			}
-
-			if (metadataChanged)
-			{
-				ReadMetadataAndRefreshTextures();
-			}
-
-			ShowFeedback(string.Format(TranslationServer.Translate("Reloaded {0} file(s) from the map folder into the editor copy."), reloadedCount));
 		}
 
 		public static bool IsIgnoredPath(string relativePath)
@@ -441,56 +372,6 @@ namespace Realm.Client.UI
 		public static bool IsPathIgnoredByRule(string normalized)
 		{
 			return MapWorkspaceService.IsPathIgnoredByRuleDomain(normalized);
-		}
-
-		private static void CopyFileClearingReadOnly(string sourceFile, string targetFile)
-		{
-			PathUtils.CopyFileClearingReadOnly(sourceFile, targetFile);
-		}
-
-		private void CopyFolderToTempWorkspace(string sourceFolder)
-		{
-			ClearTempWorkspaceExternal();
-			if (!Directory.Exists(GameContext.EditorService._tempWorkspacePath))
-			{
-				Directory.CreateDirectory(GameContext.EditorService._tempWorkspacePath);
-			}
-
-			var allFiles = Directory.GetFiles(sourceFolder, "*", SearchOption.AllDirectories);
-			var filesToProcess = new List<(string Source, string Target, bool IsMutable)>(allFiles.Length);
-			var createdDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-			foreach (var file in allFiles)
-			{
-				string relativePath = file.Substring(sourceFolder.Length + 1);
-				if (IsIgnoredPath(relativePath)) continue;
-
-				string targetFile = Path.Combine(GameContext.EditorService._tempWorkspacePath, relativePath);
-				string targetDir = Path.GetDirectoryName(targetFile);
-				if (!string.IsNullOrEmpty(targetDir) && createdDirs.Add(targetDir))
-				{
-					Directory.CreateDirectory(targetDir);
-				}
-
-				filesToProcess.Add((file, targetFile, PathUtils.IsMutableMapFileType(relativePath)));
-			}
-
-			Parallel.ForEach(filesToProcess, item =>
-			{
-				if (item.IsMutable)
-				{
-					PathUtils.CopyFileClearingReadOnly(item.Source, item.Target);
-				}
-				else
-				{
-					PathUtils.LinkOrCopyFile(item.Source, item.Target, preferHardLink: true);
-				}
-			});
-
-			MapWorkspaceService.EnsureWitFile(GameContext.EditorService._tempWorkspacePath);
-			MapWorkspaceService.EnsureWasmEntryPoint(GameContext.EditorService._tempWorkspacePath);
-			MapWorkspaceService.EnsureCsproj(GameContext.EditorService._tempWorkspacePath, Path.GetFileName(sourceFolder));
-			CopyVsCodeFolderFromMapTemplate(GameContext.EditorService._tempWorkspacePath);
 		}
 
 		private static void CopyVsCodeFolderFromMapTemplate(string targetWorkspacePath)
@@ -522,23 +403,23 @@ namespace Realm.Client.UI
 			}
 		}
 
-		private void CopyTempWorkspaceToFolder(string targetFolder)
+		private void CopyEditingDirectoryToFolder(string targetFolder)
 		{
 			if (!Directory.Exists(targetFolder))
 			{
 				Directory.CreateDirectory(targetFolder);
 			}
 
-			string tempTerrainPath = Path.Combine(GameContext.EditorService._tempWorkspacePath, "terrain.json");
+			string tempTerrainPath = Path.Combine(GameContext.EditorService._editingDirectory, "terrain.json");
 			GameContext.EditorService.LastTerrainSyncTime = GameContext.EditorService.GetMaxTerrainWriteTime(tempTerrainPath);
 
-			var allFiles = Directory.GetFiles(GameContext.EditorService._tempWorkspacePath, "*", SearchOption.AllDirectories);
+			var allFiles = Directory.GetFiles(GameContext.EditorService._editingDirectory, "*", SearchOption.AllDirectories);
 			var filesToCopy = new List<(string Source, string Target)>(allFiles.Length);
 			var createdDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
 			foreach (var file in allFiles)
 			{
-				string relativePath = file.Substring(GameContext.EditorService._tempWorkspacePath.Length + 1);
+				string relativePath = file.Substring(GameContext.EditorService._editingDirectory.Length + 1);
 				if (IsIgnoredPath(relativePath)) continue;
 				string targetFile = Path.Combine(targetFolder, relativePath);
 				string targetDir = Path.GetDirectoryName(targetFile);
@@ -550,7 +431,7 @@ namespace Realm.Client.UI
 				filesToCopy.Add((file, targetFile));
 			}
 
-			Parallel.ForEach(filesToCopy, pair => { PathUtils.CopyFileClearingReadOnly(pair.Source, pair.Target); });
+			Parallel.ForEach(filesToCopy, pair => { PathUtils.CopyFileClearingReadOnlyIfChanged(pair.Source, pair.Target); });
 
 			if (OperatingSystem.IsWindows())
 			{
@@ -558,12 +439,33 @@ namespace Realm.Client.UI
 			}
 		}
 
+		private void AdoptMapFolderAsEditingDirectory(string targetFolder)
+		{
+			string fullTarget = Path.GetFullPath(targetFolder);
+			Directory.CreateDirectory(fullTarget);
+
+			GameContext.EditorService.SetActiveMapDirectory(fullTarget);
+			GameContext.EditorService.SetCurrentSourceFolder(fullTarget);
+			MapWorkspaceService.SetupWorkspace(fullTarget, "MapScript");
+			GameContext.EditorService.StartWorkspaceWatcher(fullTarget);
+
+			defaultLoadFolder = fullTarget;
+			defaultSaveFolder = fullTarget;
+			mapSaveFolder = fullTarget;
+		}
+
 		private async Task SaveMapToFolderAsync(string targetFolder)
 		{
-			MapWorkspaceService.EnsureLicenseFile(GameContext.EditorService._tempWorkspacePath);
-			MapWorkspaceService.EnsureSourceMapAttributionAttribute(GameContext.EditorService._tempWorkspacePath);
-			MapWorkspaceService.EnsureWasmEntryPoint(GameContext.EditorService._tempWorkspacePath);
-			string tempTerrainPath = Path.Combine(GameContext.EditorService._tempWorkspacePath, "terrain.json");
+			string editingDirectory = GetActiveEditingDirectory();
+			if (string.IsNullOrEmpty(editingDirectory) || !Directory.Exists(editingDirectory))
+			{
+				AdoptMapFolderAsEditingDirectory(targetFolder);
+			}
+
+			MapWorkspaceService.EnsureLicenseFile(GameContext.EditorService._editingDirectory);
+			MapWorkspaceService.EnsureSourceMapAttributionAttribute(GameContext.EditorService._editingDirectory);
+			MapWorkspaceService.EnsureWasmEntryPoint(GameContext.EditorService._editingDirectory);
+			string tempTerrainPath = Path.Combine(GameContext.EditorService._editingDirectory, "terrain.json");
 			if (GameContext.Host != null)
 			{
 				GameContext.Host.SaveMapToFile(tempTerrainPath);
@@ -575,28 +477,44 @@ namespace Realm.Client.UI
 
 			try
 			{
-				GameContext.BaseMapFolderWatchService?.MarkInternalWrite();
+				editingDirectory = GetActiveEditingDirectory();
+				bool savesIntoEditingFolder = IsSameDirectory(targetFolder, editingDirectory);
+
+				GameContext.EditorService.IsSyncing = true;
 				await Task.Run(() =>
 				{
-					GameContext.MapAttributionService.UpdateManifestAttribution(GameContext.EditorService._tempWorkspacePath);
-					CopyTempWorkspaceToFolder(targetFolder);
+					GameContext.MapAttributionService.UpdateManifestAttribution(editingDirectory);
+					if (!savesIntoEditingFolder)
+					{
+						CopyEditingDirectoryToFolder(targetFolder);
+					}
 				});
+
+				if (!savesIntoEditingFolder)
+				{
+					GameContext.EditorService.SetActiveMapDirectory(Path.GetFullPath(targetFolder));
+					GameContext.EditorService.SetCurrentSourceFolder(Path.GetFullPath(targetFolder));
+					GameContext.EditorService.StartWorkspaceWatcher(Path.GetFullPath(targetFolder));
+				}
 
 				MapWorkspaceService.EnsureLicenseFile(targetFolder);
 				MapWorkspaceService.EnsureWasmEntryPoint(targetFolder);
 
-				SaveCurrentDirectoryBlake3();
+				RefreshSavedDirectoryHash();
 				GameContext.EditorService.LastTerrainSyncTime = GameContext.EditorService.GetMaxTerrainWriteTime(tempTerrainPath);
-				GameContext.EditorService.LastMetadataSyncTime = GameContext.EditorService.GetLastWriteTimeSafe(Path.Combine(GameContext.EditorService._tempWorkspacePath, "metadata.json"));
-				EditorService.LastInternalSaveTimeUtc = DateTime.UtcNow;
-				GameContext.BaseMapFolderWatchService?.MarkInternalWrite();
+				GameContext.EditorService.LastMetadataSyncTime = GameContext.EditorService.GetLastWriteTimeSafe(Path.Combine(GameContext.EditorService._editingDirectory, "metadata.json"));
 
 				ShowFeedback(string.Format(TranslationServer.Translate("Map saved successfully to folder {0}!"), Path.GetFileName(targetFolder)));
+				RecordMapVersion(MapVersionKind.ManualSave, TranslationServer.Translate("Save"));
 			}
 			catch (Exception ex)
 			{
 				GD.PrintErr($"[MapEditorHUD] SaveMapToFolderAsync failed: {ex}");
 				ShowFeedback(string.Format(TranslationServer.Translate("Failed to save map: {0}"), ex.Message));
+			}
+			finally
+			{
+				GameContext.EditorService.IsSyncing = false;
 			}
 		}
 
@@ -604,13 +522,21 @@ namespace Realm.Client.UI
 		{
 			if (GameContext.Host == null) return;
 
-			if (!string.IsNullOrEmpty(mapSaveFolder))
+			if (!string.IsNullOrEmpty(mapSaveFolder) && !IsUntitledMapFolder())
 			{
 				_ = SaveMapToFolderAsync(mapSaveFolder);
 				return;
 			}
 
 			PromptSaveMapFolder();
+		}
+
+		private static bool IsUntitledMapFolder()
+		{
+			string editingDirectory = GetActiveEditingDirectory();
+			if (string.IsNullOrEmpty(editingDirectory)) return false;
+
+			return IsSameDirectory(editingDirectory, MapWorkspaceService.GetUntitledMapDirectory());
 		}
 
 		private void SaveAsMapAction()
@@ -623,7 +549,45 @@ namespace Realm.Client.UI
 		{
 			if (GameContext.Host == null) return;
 
-			string initialDir = !string.IsNullOrEmpty(defaultSaveFolder) ? defaultSaveFolder : GetDocumentsDirectory();
+			EnsureMapHasRealName(mapName => OpenSaveMapFolderPicker(GetDefaultDevelopmentMapDirectory(mapName)));
+		}
+
+		private void EnsureMapHasRealName(Action<string> onReady)
+		{
+			string mapName = GetMapNameFromMetadata();
+			if (!MapWorkspaceService.IsUntitledMapName(mapName))
+			{
+				onReady?.Invoke(mapName);
+				return;
+			}
+
+			ShowMapNamePrompt(named =>
+			{
+				ApplyMapName(named);
+				onReady?.Invoke(named);
+			});
+		}
+
+		private void ApplyMapName(string mapName)
+		{
+			string editingDirectory = GetActiveEditingDirectory();
+			if (string.IsNullOrEmpty(editingDirectory) || !File.Exists(Path.Combine(editingDirectory, "metadata.json"))) return;
+
+			GameContext.MetadataService.UpdateMetadata(editingDirectory, metadata =>
+			{
+				metadata.MapProperties ??= new MapInfoMetadata();
+				metadata.MapProperties.MapName = mapName;
+			});
+
+			GameContext.EditorService.CachedMapName = null;
+			GameContext.EditorService.LastMapNameCacheTicks = 0;
+			UpdateMapNameHeader();
+			_mapSettingsDialog?.LoadMapProperties();
+		}
+
+		private void OpenSaveMapFolderPicker(string suggestedDirectory)
+		{
+			string initialDir = !string.IsNullOrEmpty(suggestedDirectory) ? suggestedDirectory : (!string.IsNullOrEmpty(defaultSaveFolder) ? defaultSaveFolder : GetDocumentsDirectory());
 			try
 			{
 				if (!Directory.Exists(initialDir))
@@ -729,12 +693,11 @@ namespace Realm.Client.UI
 		private void ProceedWithSaveToFolder(string fullSelectedPath)
 		{
 			GameContext.EditorService.LastUsedFolder = fullSelectedPath;
-			GameContext.EditorService.CurrentSourceFolder = fullSelectedPath;
+			GameContext.EditorService.SetCurrentSourceFolder(fullSelectedPath);
 			defaultLoadFolder = fullSelectedPath;
 			defaultSaveFolder = fullSelectedPath;
 			mapSaveFolder = fullSelectedPath;
 
-			StartBaseMapFolderMonitor(fullSelectedPath);
 			_ = SaveMapToFolderAsync(fullSelectedPath);
 		}
 
@@ -824,11 +787,11 @@ namespace Realm.Client.UI
 				return false;
 			}
 
-			string workspacePath = GameContext.EditorService._tempWorkspacePath;
+			string workspacePath = GameContext.EditorService._editingDirectory;
 			if (string.IsNullOrEmpty(workspacePath))
 			{
-				TryCreateTempWorkspaceDirectory();
-				workspacePath = GameContext.EditorService._tempWorkspacePath;
+				EnsureEditingDirectoryReady();
+				workspacePath = GameContext.EditorService._editingDirectory;
 			}
 
 			if (string.IsNullOrEmpty(workspacePath))
@@ -909,13 +872,12 @@ namespace Realm.Client.UI
 					return false;
 				}
 
-				GameContext.BaseMapFolderWatchService?.Stop();
 				GameContext.EditorService.LastUsedFolder = null;
-				GameContext.EditorService.CurrentSourceFolder = string.Empty;
+				GameContext.EditorService.SetCurrentSourceFolder(string.Empty);
 				GameContext.EditorService.StartWorkspaceWatcher(workspacePath);
 				mapSaveFolder = null;
 				defaultSaveFolder = GetDocumentsDirectory();
-				SaveCurrentDirectoryBlake3();
+				RefreshSavedDirectoryHash();
 				ShowFeedback(TranslationServer.Translate("Map package imported. Choose a destination folder when you save."));
 				return true;
 			}
@@ -962,7 +924,7 @@ namespace Realm.Client.UI
 				return true;
 			}
 
-			PrepareForMapLoad(selectedFolder);
+			if (!PrepareForMapLoad(selectedFolder)) return false;
 
 			try
 			{
@@ -975,11 +937,11 @@ namespace Realm.Client.UI
 			}
 		}
 
-		private void PrepareForMapLoad(string selectedFolder)
+		private bool PrepareForMapLoad(string selectedFolder)
 		{
 			GameContext.Host?.ClearMapEntirely();
 			GameContext.EditorService.LastUsedFolder = selectedFolder;
-			GameContext.EditorService.CurrentSourceFolder = selectedFolder;
+			GameContext.EditorService.SetCurrentSourceFolder(selectedFolder);
 			if (!IsRestrictedSaveDirectory(selectedFolder))
 			{
 				GameSettings.LastOpenedFolder = selectedFolder;
@@ -987,16 +949,62 @@ namespace Realm.Client.UI
 			}
 
 			ShowFeedback(TranslationServer.Translate("Loading map..."));
-			CopyFolderToTempWorkspace(selectedFolder);
+			return PrepareMapDirectoryForEditing(selectedFolder);
+		}
+
+		private bool PrepareMapDirectoryForEditing(string selectedFolder)
+		{
+			string fullSelectedPath = Path.GetFullPath(selectedFolder);
+			if (!CanWriteToMapFolder(fullSelectedPath))
+			{
+				GameContext.EditorService.ClearEditingDirectoryDomain();
+				ShowFeedback(TranslationServer.Translate("This map folder cannot be written to. Copy it to a folder you can write to and open that folder instead."));
+				return false;
+			}
+
+			GameContext.EditorService.SetActiveMapDirectory(fullSelectedPath);
+			GameContext.EditorService.CurrentSourceFolder = fullSelectedPath;
+			EnsureEditingFolderScaffolding(fullSelectedPath, Path.GetFileName(fullSelectedPath));
+			return true;
+		}
+
+		private static bool CanWriteToMapFolder(string folder)
+		{
+			try
+			{
+				string probePath = Path.Combine(folder, ".realm_write_probe");
+				File.WriteAllText(probePath, string.Empty);
+				File.Delete(probePath);
+				return true;
+			}
+			catch (Exception)
+			{
+				return false;
+			}
+		}
+
+		private static void EnsureEditingFolderScaffolding(string editingDirectory, string mapName)
+		{
+			try
+			{
+				MapWorkspaceService.EnsureWitFile(editingDirectory);
+				MapWorkspaceService.EnsureWasmEntryPoint(editingDirectory);
+				MapWorkspaceService.EnsureCsproj(editingDirectory, mapName);
+				CopyVsCodeFolderFromMapTemplate(editingDirectory);
+			}
+			catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+			{
+				GD.PrintErr($"[MapEditorHUD] The scaffolding in '{editingDirectory}' is incomplete because another program is holding a file open: {exception.Message}. The map still opens and the scaffolding is repaired on its next load.");
+			}
 		}
 
 		private bool PerformMapLoad(string selectedFolder)
 		{
-			MapWorkspaceService.EnsureGlbAssetsOptimized(GameContext.EditorService._tempWorkspacePath);
-			MapWorkspaceService.EnsurePngAssetsConverted(GameContext.EditorService._tempWorkspacePath);
+			MapWorkspaceService.EnsureGlbAssetsOptimized(GameContext.EditorService._editingDirectory);
+			MapWorkspaceService.EnsurePngAssetsConverted(GameContext.EditorService._editingDirectory);
 			ViewLoadMapProperties();
 			ReadMetadataAndRefreshTextures();
-			string terrainPath = Path.Combine(GameContext.EditorService._tempWorkspacePath, "terrain.json");
+			string terrainPath = Path.Combine(GameContext.EditorService._editingDirectory, "terrain.json");
 			bool success = GameContext.Host?.LoadMapFromFile(terrainPath, ensureGlbOptimized: false) ?? false;
 
 			if (success)
@@ -1016,18 +1024,20 @@ namespace Realm.Client.UI
 			if (OperatingSystem.IsWindows())
 			{
 				GameContext.VSCode.SaveRecentMapDir(selectedFolder);
+				GameContext.VSCode.QueueWorkspaceMetadataReload();
 			}
 
 			GameContext.EditorService.LastTerrainSyncTime = GameContext.EditorService.GetMaxTerrainWriteTime(terrainPath);
-			GameContext.EditorService.LastMetadataSyncTime = GameContext.EditorService.GetLastWriteTimeSafe(Path.Combine(GameContext.EditorService._tempWorkspacePath, "metadata.json"));
-			GameContext.EditorService?.StartWorkspaceWatcher(GameContext.EditorService._tempWorkspacePath);
-			StartBaseMapFolderMonitor(selectedFolder);
+			GameContext.EditorService.LastMetadataSyncTime = GameContext.EditorService.GetLastWriteTimeSafe(Path.Combine(GameContext.EditorService._editingDirectory, "metadata.json"));
+			GameContext.EditorService?.StartWorkspaceWatcher(GameContext.EditorService._editingDirectory);
 			ShowFeedback(string.Format(TranslationServer.Translate("Map loaded successfully from folder {0}!"), Path.GetFileName(selectedFolder)));
-			SaveCurrentDirectoryBlake3();
+			RefreshSavedDirectoryHash();
+			PrimeMapHistory();
 		}
 
 		public async Task<bool> LoadMapFolderAsync(string selectedFolder)
 		{
+			_lastMapLoadFailure = null;
 			if (!Directory.Exists(selectedFolder)) return false;
 
 			if (!GameContext.EditorService.IsValidMapFolder(selectedFolder))
@@ -1065,14 +1075,17 @@ namespace Realm.Client.UI
 			GameContext.EditorService.IsSyncing = true;
 			try
 			{
-				PrepareForMapLoadAsync(selectedFolder);
-
-				await Task.Run(() => CopyFolderToTempWorkspace(selectedFolder));
-
-				string terrainPath = Path.Combine(GameContext.EditorService._tempWorkspacePath, "terrain.json");
-				string metadataPath = Path.Combine(GameContext.EditorService._tempWorkspacePath, "metadata.json");
+				if (!PrepareForMapLoadAsync(selectedFolder))
+				{
+					_lastMapLoadFailure = TranslationServer.Translate("The map folder cannot be written to.");
+					return false;
+				}
+				string terrainPath = Path.Combine(GameContext.EditorService._editingDirectory, "terrain.json");
+				string metadataPath = Path.Combine(GameContext.EditorService._editingDirectory, "metadata.json");
 				GameContext.EditorService.LastTerrainSyncTime = GameContext.EditorService.GetMaxTerrainWriteTime(terrainPath);
 				GameContext.EditorService.LastMetadataSyncTime = GameContext.EditorService.GetLastWriteTimeSafe(metadataPath);
+
+				await GameContext.MapHistoryService.CreateVersionAsync(GetActiveEditingDirectory(), MapVersionKind.Initial, TranslationServer.Translate("First version"), GameContext.EditorService.CurrentSourceFolder);
 
 				await ProcessMapAssetsAsync();
 
@@ -1081,6 +1094,7 @@ namespace Realm.Client.UI
 			catch (Exception ex)
 			{
 				GD.PrintErr($"[MapEditorHUD] Failed to load map folder: {ex.Message}");
+				_lastMapLoadFailure = ex.Message;
 				return false;
 			}
 			finally
@@ -1089,13 +1103,13 @@ namespace Realm.Client.UI
 			}
 		}
 
-		private void PrepareForMapLoadAsync(string selectedFolder)
+		private bool PrepareForMapLoadAsync(string selectedFolder)
 		{
 			ModelCache.Clear();
 			PathUtils.ClearCache();
 
 			GameContext.EditorService.LastUsedFolder = selectedFolder;
-			GameContext.EditorService.CurrentSourceFolder = selectedFolder;
+			GameContext.EditorService.SetCurrentSourceFolder(selectedFolder);
 			if (!IsRestrictedSaveDirectory(selectedFolder))
 			{
 				GameSettings.LastOpenedFolder = selectedFolder;
@@ -1103,17 +1117,18 @@ namespace Realm.Client.UI
 			}
 
 			ShowFeedback(TranslationServer.Translate("Loading map..."));
+			return PrepareMapDirectoryForEditing(selectedFolder);
 		}
 
 		private async Task ProcessMapAssetsAsync()
 		{
-			await MapWorkspaceService.EnsureGlbAssetsOptimizedCooperativeAsync(GameContext.EditorService._tempWorkspacePath, async (current, total, fileName) =>
+			await MapWorkspaceService.EnsureGlbAssetsOptimizedCooperativeAsync(GameContext.EditorService._editingDirectory, async (current, total, fileName) =>
 			{
 				ShowFeedback(string.Format(TranslationServer.Translate("Optimizing 3D asset {0}/{1}: {2}..."), current, total, fileName));
 				await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 			});
 
-			await MapWorkspaceService.EnsurePngAssetsConvertedCooperativeAsync(GameContext.EditorService._tempWorkspacePath, async (current, total, fileName) =>
+			await MapWorkspaceService.EnsurePngAssetsConvertedCooperativeAsync(GameContext.EditorService._editingDirectory, async (current, total, fileName) =>
 			{
 				ShowFeedback(string.Format(TranslationServer.Translate("Converting texture {0}/{1}: {2}..."), current, total, fileName));
 				await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
@@ -1131,18 +1146,20 @@ namespace Realm.Client.UI
 				if (OperatingSystem.IsWindows())
 				{
 					GameContext.VSCode.SaveRecentMapDir(selectedFolder);
+					GameContext.VSCode.QueueWorkspaceMetadataReload();
 				}
 
 				GameContext.EditorService.LastTerrainSyncTime = GameContext.EditorService.GetMaxTerrainWriteTime(terrainPath);
 				GameContext.EditorService.LastMetadataSyncTime = GameContext.EditorService.GetLastWriteTimeSafe(metadataPath);
-				GameContext.EditorService?.StartWorkspaceWatcher(GameContext.EditorService._tempWorkspacePath);
-				StartBaseMapFolderMonitor(selectedFolder);
-				ShowFeedback(string.Format(TranslationServer.Translate("Map loaded successfully from folder {0}!"), Path.GetFileName(selectedFolder)));
-				SaveCurrentDirectoryBlake3();
+				GameContext.EditorService?.StartWorkspaceWatcher(GameContext.EditorService._editingDirectory);
+					ShowFeedback(string.Format(TranslationServer.Translate("Map loaded successfully from folder {0}!"), Path.GetFileName(selectedFolder)));
+				RefreshSavedDirectoryHash();
+				PrimeMapHistory();
 			}
 			else
 			{
-				ShowFeedback(TranslationServer.Translate("Failed to load map files from folder!"));
+				_lastMapLoadFailure = TranslationServer.Translate("Failed to load map files from folder!");
+				ShowFeedback(_lastMapLoadFailure);
 			}
 
 			return success;
@@ -1150,13 +1167,13 @@ namespace Realm.Client.UI
 
 		public static void ResetFolderLocations()
 		{
-			GameContext.BaseMapFolderWatchService?.Stop();
 			mapSaveFolder = null;
 			defaultSaveFolder = GetDocumentsDirectory();
 			GameContext.EditorService.LastUsedFolder = null;
-			GameContext.EditorService.CurrentSourceFolder = null;
+			GameContext.EditorService.SetCurrentSourceFolder(null);
 			GameContext.EditorService.PendingCasSourceDirectory = null;
 			GameContext.EditorService.PendingDefaultSaveFolder = null;
+			GameContext.EditorService.ClearEditingDirectoryDomain();
 		}
 
 		public static string GetDocumentsDirectory()
@@ -1182,7 +1199,7 @@ namespace Realm.Client.UI
 			return docs;
 		}
 
-		private string GetInitialDirectory()
+		public string GetInitialDirectory()
 		{
 			return GameContext.EditorService.GetInitialDirectoryDomain(GameSettings.LastOpenedFolder, GetDocumentsDirectory(), IsRestrictedSaveDirectory);
 		}
@@ -1210,12 +1227,11 @@ namespace Realm.Client.UI
 
 		private static bool CheckRestrictedPaths(string fullPath)
 		{
-			string tempWorkspace = Path.GetFullPath(ProjectSettings.GlobalizePath("user://temp_map_workspace")).Replace("\\", "/").TrimEnd('/');
 			string mapBackups = Path.GetFullPath(ProjectSettings.GlobalizePath("user://map_backups")).Replace("\\", "/").TrimEnd('/');
 			string userDir = Path.GetFullPath(ProjectSettings.GlobalizePath("user://")).Replace("\\", "/").TrimEnd('/');
 			string resDir = Path.GetFullPath(ProjectSettings.GlobalizePath("res://")).Replace("\\", "/").TrimEnd('/');
 
-			return GameContext.EditorService.IsRestrictedSaveDirectoryDomain(fullPath, tempWorkspace, mapBackups, userDir, resDir);
+			return GameContext.EditorService.IsRestrictedSaveDirectoryDomain(fullPath, mapBackups, userDir, resDir);
 		}
 
 
@@ -1243,6 +1259,11 @@ namespace Realm.Client.UI
 		private async Task CompileAndSignMapAsync(string workspace, bool skipAttribution = true, bool isDebug = false)
 		{
 			_wasmHasErrors = false;
+
+			if (!skipAttribution)
+			{
+				await GameContext.MapHistoryService.CreateVersionAsync(workspace, MapVersionKind.BeforePublish, TranslationServer.Translate("Before publish"), GameContext.EditorService.CurrentSourceFolder);
+			}
 
 			bool compiledSuccessfully = await PerformCompilationStepAsync(workspace, skipAttribution, isDebug);
 			if (compiledSuccessfully)
@@ -1443,9 +1464,7 @@ namespace Realm.Client.UI
 
 		public void SaveUnitObjectAttachment(string unitId, HumanoidBone hand, string attachmentId, HandAttachmentOrientation orientation)
 		{
-			string wsPath = string.IsNullOrEmpty(GameContext.EditorService._tempWorkspacePath)
-				? ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath)
-				: GameContext.EditorService._tempWorkspacePath;
+			string wsPath = GameContext.EditorService._editingDirectory;
 			GameContext.RegistryService.SaveUnitObjectAttachment(unitId, hand, attachmentId, orientation, wsPath);
 		}
 
@@ -1453,9 +1472,7 @@ namespace Realm.Client.UI
 		{
 			try
 			{
-				string wsPath = string.IsNullOrEmpty(GameContext.EditorService._tempWorkspacePath)
-					? ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath)
-					: GameContext.EditorService._tempWorkspacePath;
+				string wsPath = GameContext.EditorService._editingDirectory;
 				GameContext.RegistryService.SaveUnitObjectAttachment(unitId, socket, attachmentId, orientation, wsPath);
 			}
 			catch (Exception ex)
@@ -1483,9 +1500,7 @@ namespace Realm.Client.UI
 		{
 			if (wsPath == null)
 			{
-				wsPath = string.IsNullOrEmpty(GameContext.EditorService._tempWorkspacePath)
-					? ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath)
-					: GameContext.EditorService._tempWorkspacePath;
+				wsPath = GameContext.EditorService._editingDirectory;
 			}
 
 			GameContext.RegistryService.UpdateMetadataFile(unitId, regKey, socket, attachmentId, orientation, wsPath);
@@ -1515,9 +1530,7 @@ namespace Realm.Client.UI
 		{
 			try
 			{
-				string wsPath = string.IsNullOrEmpty(GameContext.EditorService._tempWorkspacePath)
-					? ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath)
-					: GameContext.EditorService._tempWorkspacePath;
+				string wsPath = GameContext.EditorService._editingDirectory;
 				GameContext.RegistryService.SaveCustomWeaponToMetadata(weaponId, weapon, wsPath);
 			}
 			catch (Exception ex)
@@ -1530,9 +1543,7 @@ namespace Realm.Client.UI
 		{
 			try
 			{
-				string wsPath = string.IsNullOrEmpty(GameContext.EditorService._tempWorkspacePath)
-					? ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath)
-					: GameContext.EditorService._tempWorkspacePath;
+				string wsPath = GameContext.EditorService._editingDirectory;
 				GameContext.RegistryService.SaveCustomVfxToMetadata(vfxId, config, wsPath);
 			}
 			catch (Exception ex)
@@ -1545,9 +1556,7 @@ namespace Realm.Client.UI
 		{
 			try
 			{
-				string wsPath = string.IsNullOrEmpty(GameContext.EditorService._tempWorkspacePath)
-					? ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath)
-					: GameContext.EditorService._tempWorkspacePath;
+				string wsPath = GameContext.EditorService._editingDirectory;
 				GameContext.RegistryService.RemoveCustomVfxFromMetadata(vfxId, wsPath);
 			}
 			catch (Exception ex)
@@ -1621,7 +1630,12 @@ namespace Realm.Client.UI
 		{
 			if (GameContext.Host == null) return;
 
-			string wsPath = !string.IsNullOrEmpty(GameContext.EditorService._tempWorkspacePath) ? GameContext.EditorService._tempWorkspacePath : MapWorkspaceService.GetActiveWorkspacePath();
+			EnsureMapHasRealName(_ => OpenExportFileDialogForCurrentMap());
+		}
+
+		private void OpenExportFileDialogForCurrentMap()
+		{
+			string wsPath = !string.IsNullOrEmpty(GameContext.EditorService._editingDirectory) ? GameContext.EditorService._editingDirectory : MapWorkspaceService.GetActiveWorkspacePath();
 
 			if (!ValidateWorkspaceForExport(wsPath)) return;
 
@@ -1744,7 +1758,7 @@ namespace Realm.Client.UI
 
 			if (!await CompileMapScriptAsync(progressBar, statusLabel, closeBtn)) return null;
 
-			GameContext.MapStorageService.DeduplicateWorkspaceBuildArtifacts(GameContext.EditorService._tempWorkspacePath);
+			GameContext.MapStorageService.DeduplicateWorkspaceBuildArtifacts(GameContext.EditorService._editingDirectory);
 
 			await OptimizeMapAssetsAsync(progressBar, statusLabel);
 
@@ -1759,8 +1773,8 @@ namespace Realm.Client.UI
 			statusLabel.Text = TranslationServer.Translate("Saving map state & workspace...");
 			await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
-			string tempWorkspacePath = GameContext.EditorService._tempWorkspacePath;
-			await GameContext.MapStorageService.SaveMapStateForExportAsync(tempWorkspacePath, OperatingSystem.IsWindows());
+			string editingDirectory = GameContext.EditorService._editingDirectory;
+			await GameContext.MapStorageService.SaveMapStateForExportAsync(editingDirectory, OperatingSystem.IsWindows());
 		}
 
 		private async Task<bool> VerifyMapAssetsAsync(ProgressBar progressBar, Label statusLabel, Button closeBtn)
@@ -1769,8 +1783,8 @@ namespace Realm.Client.UI
 			statusLabel.Text = TranslationServer.Translate("Verifying map assets...");
 			await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
-			string tempWorkspacePath = GameContext.EditorService._tempWorkspacePath;
-			var validationResult = GameContext.MapStorageService.ValidateMapAssetsForExport(tempWorkspacePath);
+			string editingDirectory = GameContext.EditorService._editingDirectory;
+			var validationResult = GameContext.MapStorageService.ValidateMapAssetsForExport(editingDirectory);
 
 			if (!validationResult.assetsValid)
 			{
@@ -1800,8 +1814,8 @@ namespace Realm.Client.UI
 			statusLabel.Text = TranslationServer.Translate("Compiling WASM map script...");
 			await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
-			string tempWorkspacePath = GameContext.EditorService._tempWorkspacePath;
-			await CompileAndSignMapAsync(tempWorkspacePath, skipAttribution: true);
+			string editingDirectory = GameContext.EditorService._editingDirectory;
+			await CompileAndSignMapAsync(editingDirectory, skipAttribution: true);
 
 			if (_wasmHasErrors)
 			{
@@ -1810,7 +1824,7 @@ namespace Realm.Client.UI
 				return false;
 			}
 
-			if (!GameContext.MapStorageService.CheckCompiledWasmBinaryExists(tempWorkspacePath))
+			if (!GameContext.MapStorageService.CheckCompiledWasmBinaryExists(editingDirectory))
 			{
 				AbortExport(progressBar, statusLabel, closeBtn, "Compiled WASM binary missing. Export aborted.", null);
 				ShowFeedback(TranslationServer.Translate("Compiled WASM binary missing. Export aborted."));
@@ -1826,10 +1840,10 @@ namespace Realm.Client.UI
 			statusLabel.Text = TranslationServer.Translate("Optimizing 3D assets...");
 			await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
-			string tempWorkspacePath = GameContext.EditorService._tempWorkspacePath;
+			string editingDirectory = GameContext.EditorService._editingDirectory;
 			var storageService = GameContext.MapStorageService;
 
-			await storageService.OptimizeMapAssetsCooperativeAsync(tempWorkspacePath, async (current, total, fileName) =>
+			await storageService.OptimizeMapAssetsCooperativeAsync(editingDirectory, async (current, total, fileName) =>
 			{
 				float fraction = total > 0 ? (float)current / total : 1.0f;
 				progressBar.Value = 35 + fraction * 20;
@@ -1841,7 +1855,7 @@ namespace Realm.Client.UI
 			statusLabel.Text = TranslationServer.Translate("Converting textures...");
 			await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
-			await storageService.ConvertMapTexturesCooperativeAsync(tempWorkspacePath, async (current, total, fileName) =>
+			await storageService.ConvertMapTexturesCooperativeAsync(editingDirectory, async (current, total, fileName) =>
 			{
 				float fraction = total > 0 ? (float)current / total : 1.0f;
 				progressBar.Value = 55 + fraction * 15;
@@ -1856,10 +1870,10 @@ namespace Realm.Client.UI
 			statusLabel.Text = TranslationServer.Translate("Generating map thumbnail...");
 			await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
-			string tempWorkspacePath = GameContext.EditorService._tempWorkspacePath;
+			string editingDirectory = GameContext.EditorService._editingDirectory;
 			if (_minimapController != null)
 			{
-				await _minimapController.GenerateAndSaveMinimapThumbnailAsync(tempWorkspacePath);
+				await _minimapController.GenerateAndSaveMinimapThumbnailAsync(editingDirectory);
 			}
 
 			progressBar.Value = 75;
@@ -1870,7 +1884,7 @@ namespace Realm.Client.UI
 			string mapVersion = GetMapVersionFromMetadata();
 			string author = GameContext.Lobby?.AuthenticatedUsername ?? "MapAuthor";
 
-			GameContext.MapStorageService.GenerateMapManifest(tempWorkspacePath, mapTitle, mapVersion, author);
+			GameContext.MapStorageService.GenerateMapManifest(editingDirectory, mapTitle, mapVersion, author);
 		}
 
 
@@ -1880,10 +1894,10 @@ namespace Realm.Client.UI
 			statusLabel.Text = TranslationServer.Translate("Compressing package into .rmap archive...");
 			await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
-			string tempWorkspacePath = GameContext.EditorService._tempWorkspacePath;
+			string editingDirectory = GameContext.EditorService._editingDirectory;
 			long lastProgressUpdateTicks = 0;
 
-			return await GameContext.MapStorageService.CreateMapArchiveAsync(tempWorkspacePath, destinationPath, fullExport, (pct, file) =>
+			return await GameContext.MapStorageService.CreateMapArchiveAsync(editingDirectory, destinationPath, fullExport, (pct, file) =>
 			{
 				long now = Environment.TickCount64;
 				if (now - lastProgressUpdateTicks < 50 && pct < 1.0f)
@@ -1971,9 +1985,7 @@ namespace Realm.Client.UI
 
 		private Texture2D LoadSwatchTextureInternal(int i)
 		{
-			string wsPath = string.IsNullOrEmpty(GameContext.EditorService._tempWorkspacePath)
-				? ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath)
-				: GameContext.EditorService._tempWorkspacePath;
+			string wsPath = GameContext.EditorService._editingDirectory;
 			if (i >= 0 && i < GameContext.EditorService.SwatchDisplayNames.Count && GameContext.EditorService.SwatchDisplayNames[i].EndsWith("(Empty)"))
 			{
 				return null;
@@ -2083,18 +2095,18 @@ namespace Realm.Client.UI
 
 		public static string SanitizeMapName(string? candidateName)
 		{
-			return GameContext.EditorService.SanitizeMapName(candidateName, MapWorkspaceService.DefaultWorkspaceFolder);
+			return GameContext.EditorService.SanitizeMapName(candidateName);
 		}
 
 		public string GetMapVersionFromMetadata(bool forceReload = false)
 		{
-			string workspacePath = !string.IsNullOrEmpty(GameContext.EditorService._tempWorkspacePath) ? GameContext.EditorService._tempWorkspacePath : MapWorkspaceService.GetActiveWorkspacePath();
+			string workspacePath = !string.IsNullOrEmpty(GameContext.EditorService._editingDirectory) ? GameContext.EditorService._editingDirectory : MapWorkspaceService.GetActiveWorkspacePath();
 			return GameContext.EditorService.GetMapVersionFromMetadata(forceReload, workspacePath);
 		}
 
 		public string GetManifestBlake3()
 		{
-			string workspacePath = !string.IsNullOrEmpty(GameContext.EditorService._tempWorkspacePath) ? GameContext.EditorService._tempWorkspacePath : MapWorkspaceService.GetActiveWorkspacePath();
+			string workspacePath = !string.IsNullOrEmpty(GameContext.EditorService._editingDirectory) ? GameContext.EditorService._editingDirectory : MapWorkspaceService.GetActiveWorkspacePath();
 			string mapTitle = GetMapNameFromMetadata();
 			string mapVersion = GetMapVersionFromMetadata();
 			string author = GameContext.Lobby?.AuthenticatedUsername ?? "MapAuthor";
@@ -2105,9 +2117,7 @@ namespace Realm.Client.UI
 		{
 			try
 			{
-				string wsPath = string.IsNullOrEmpty(GameContext.EditorService._tempWorkspacePath)
-					? ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath)
-					: GameContext.EditorService._tempWorkspacePath;
+				string wsPath = GameContext.EditorService._editingDirectory;
 
 				bool success = GameContext.EditorService.ImportTextureAssetFromExtensionDomain(
 					sourceFilePath, slotIndex, wsPath, GameContext.Host,
@@ -2136,9 +2146,7 @@ namespace Realm.Client.UI
 		{
 			try
 			{
-				string wsPath = string.IsNullOrEmpty(GameContext.EditorService._tempWorkspacePath)
-					? ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath)
-					: GameContext.EditorService._tempWorkspacePath;
+				string wsPath = GameContext.EditorService._editingDirectory;
 				string metadataPath = Path.Combine(wsPath, "metadata.json");
 
 				string texDir = Path.Combine(wsPath, "Assets", "textures");
@@ -2182,9 +2190,7 @@ namespace Realm.Client.UI
 		{
 			try
 			{
-				string wsPath = string.IsNullOrEmpty(GameContext.EditorService._tempWorkspacePath)
-					? ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath)
-					: GameContext.EditorService._tempWorkspacePath;
+				string wsPath = GameContext.EditorService._editingDirectory;
 				string ext = Path.GetExtension(sourceFilePath).ToLowerInvariant();
 				string animsDir = GameContext.EditorService.PrepareAnimationsDirectory(wsPath);
 
@@ -2255,9 +2261,7 @@ namespace Realm.Client.UI
 
 		public void ImportDecalAssetFromExtension(string sourceFilePath)
 		{
-			string wsPath = string.IsNullOrEmpty(GameContext.EditorService._tempWorkspacePath)
-				? ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath)
-				: GameContext.EditorService._tempWorkspacePath;
+			string wsPath = GameContext.EditorService._editingDirectory;
 
 			var result = GameContext.EditorService.ImportDecalAssetDomain(sourceFilePath, wsPath);
 			if (result.Success)
@@ -2274,9 +2278,7 @@ namespace Realm.Client.UI
 
 		public void ImportSkyboxAssetFromExtension(string sourceFilePath)
 		{
-			string wsPath = string.IsNullOrEmpty(GameContext.EditorService._tempWorkspacePath)
-				? ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath)
-				: GameContext.EditorService._tempWorkspacePath;
+			string wsPath = GameContext.EditorService._editingDirectory;
 			var result = GameContext.EditorService.ImportSkyboxAsset(sourceFilePath, wsPath);
 			if (result.Success)
 			{
@@ -2293,9 +2295,7 @@ namespace Realm.Client.UI
 
 		public void ImportSpritesheetAssetFromExtension(string sourceFilePath, int columns = 4, int rows = 4)
 		{
-			string wsPath = string.IsNullOrEmpty(GameContext.EditorService._tempWorkspacePath)
-				? ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath)
-				: GameContext.EditorService._tempWorkspacePath;
+			string wsPath = GameContext.EditorService._editingDirectory;
 			var result = GameContext.EditorService.ImportSpritesheetAsset(sourceFilePath, wsPath);
 			if (result.Success)
 			{
@@ -2311,9 +2311,7 @@ namespace Realm.Client.UI
 
 		public void ImportIconAssetFromExtension(string sourceFilePath)
 		{
-			string wsPath = string.IsNullOrEmpty(GameContext.EditorService._tempWorkspacePath)
-				? ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath)
-				: GameContext.EditorService._tempWorkspacePath;
+			string wsPath = GameContext.EditorService._editingDirectory;
 			var result = GameContext.EditorService.ImportIconAsset(sourceFilePath, wsPath);
 			if (result.Success)
 			{
@@ -2329,9 +2327,7 @@ namespace Realm.Client.UI
 
 		public void ImportAudioAssetFromExtension(string sourceFilePath, string audioType)
 		{
-			string wsPath = string.IsNullOrEmpty(GameContext.EditorService._tempWorkspacePath)
-				? ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath)
-				: GameContext.EditorService._tempWorkspacePath;
+			string wsPath = GameContext.EditorService._editingDirectory;
 
 			var result = GameContext.AudioService.ImportAudioAsset(sourceFilePath, audioType, wsPath);
 
@@ -2347,20 +2343,9 @@ namespace Realm.Client.UI
 			}
 		}
 
-		private void LoadTempWorkspaceMap()
+		public void ResetEditingDirectorySyncState()
 		{
-			var editorService = GameContext.EditorService;
-			editorService.PreLoadTempWorkspaceMapDomain();
-			ViewLoadMapProperties();
-			ReadMetadataAndRefreshTextures();
-			editorService.PostLoadTempWorkspaceMapDomain();
-			ShowFeedback(TranslationServer.Translate("Restored map workspace from last session!"));
-		}
-
-
-		public void ClearTempWorkspaceExternal()
-		{
-			GameContext.EditorService.ClearTempWorkspaceExternalDomain(msg => GD.PrintErr($"[ClearTempWorkspaceExternal] Error: {msg}"));
+			GameContext.EditorService.ResetEditingDirectorySyncStateDomain();
 			_wasmHasErrors = false;
 			_wasmCompileLogPath = "";
 		}

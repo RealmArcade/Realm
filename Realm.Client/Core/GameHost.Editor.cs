@@ -1082,12 +1082,12 @@ public partial class GameHost
 	{
 		GameContext.MapEditorHud?.RefreshCoordinateListExternal();
 		MapEditorHUD.ResetFolderLocations();
-		GameContext.MapEditorHud?.ClearTempWorkspaceExternal();
+		GameContext.MapEditorHud?.ResetEditingDirectorySyncState();
 		GameContext.MapEditorHud?.GenerateVSCodeFilesExternal();
 		GameContext.MapEditorHud?.ReadMetadataAndRefreshTextures();
 		GameContext.MapEditorHud?.ViewLoadMapProperties();
 		GameContext.MapEditorHud?.UpdateMapNameHeader();
-		GameContext.MapEditorHud?.SaveCurrentDirectoryBlake3();
+		GameContext.MapEditorHud?.RefreshSavedDirectoryHash();
 		GameContext.MapEditorHud?.ShowFeedbackExternal("Map reset: cleared all entities & terrain");
 		GameContext.MapEditorHud?.RegenerateMinimap();
 	}
@@ -1150,7 +1150,7 @@ public partial class GameHost
 		bool isBuilding = false;
 		if (!UnitRegistry.ContainsKey(unitId) && !BuildingRegistry.ContainsKey(unitId))
 		{
-			LoadUnitMetadata(!string.IsNullOrEmpty(GameContext.MapStorageService.CurrentMapDirectory) ? GameContext.MapStorageService.CurrentMapDirectory : ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath));
+			LoadUnitMetadata(!string.IsNullOrEmpty(GameContext.MapStorageService.CurrentMapDirectory) ? GameContext.MapStorageService.CurrentMapDirectory : GameContext.EditorService._editingDirectory);
 		}
 
 		UnitMetadata meta;
@@ -1195,7 +1195,7 @@ public partial class GameHost
 		bool inRes = CheckIfInRegistry(ResourceRegistry, propId, cleanId);
 		if (inProp || inRes) return true;
 
-		LoadUnitMetadata(!string.IsNullOrEmpty(GameContext.MapStorageService.CurrentMapDirectory) ? GameContext.MapStorageService.CurrentMapDirectory : ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath));
+		LoadUnitMetadata(!string.IsNullOrEmpty(GameContext.MapStorageService.CurrentMapDirectory) ? GameContext.MapStorageService.CurrentMapDirectory : GameContext.EditorService._editingDirectory);
 		inProp = CheckIfInRegistry(PropRegistry, propId, cleanId);
 		inRes = CheckIfInRegistry(ResourceRegistry, propId, cleanId);
 		if (inProp || inRes) return true;

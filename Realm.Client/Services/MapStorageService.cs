@@ -30,7 +30,7 @@ public class MapStorageService
 	public string GetExportMapDefaultFileName(string mapTitle, string mapVersion, string manifestBlake3)
 	{
 		string cleanMapName = string.Join("_", mapTitle.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries)).Trim();
-		if (string.IsNullOrEmpty(cleanMapName) || cleanMapName.Equals("Untitled Map", StringComparison.OrdinalIgnoreCase)) cleanMapName = "MapExport";
+		if (string.IsNullOrEmpty(cleanMapName) || MapWorkspaceService.IsUntitledMapName(cleanMapName)) cleanMapName = "MapExport";
 
 		string cleanMapVersion = string.Join("_", mapVersion.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries)).Trim();
 		if (string.IsNullOrEmpty(cleanMapVersion)) cleanMapVersion = "1.0.0";
@@ -71,7 +71,7 @@ public class MapStorageService
 
 			mapDoc["signature"] = Convert.ToBase64String(mapSigBytes);
 			string finalMetadataJson = mapDoc.ToJsonString(options);
-			File.WriteAllText(metadataJsonPath, finalMetadataJson);
+			MapFileService.WriteAllTextAtomically(metadataJsonPath, finalMetadataJson);
 
 			UploadMapMetadata(mapBytes, mapHash, mapSigBytes, currentUsername, pubKeyStr, seedServerUrl, httpClient);
 			PublishMapMetadata(finalMetadataJson, referencedHashes, mapSigBytes, pubKeyStr, seedServerUrl, httpClient);
@@ -286,7 +286,6 @@ public class MapStorageService
 	{
 		return folderName.StartsWith(".") ||
 		       string.Equals(folderName, "assets", StringComparison.OrdinalIgnoreCase) ||
-		       string.Equals(folderName, "temp_map_workspace", StringComparison.OrdinalIgnoreCase) ||
 		       string.Equals(folderName, "user_p2p_cache", StringComparison.OrdinalIgnoreCase) ||
 		       string.Equals(folderName, "p2p_cache", StringComparison.OrdinalIgnoreCase) ||
 		       string.Equals(folderName, "bin", StringComparison.OrdinalIgnoreCase) ||
@@ -795,7 +794,7 @@ public class MapStorageService
 		);
 
 		string targetManifestPath = Path.Combine(targetDirectory, "manifest.json");
-		File.WriteAllText(targetManifestPath, manifest.ToJson());
+		MapFileService.WriteAllTextAtomically(targetManifestPath, manifest.ToJson());
 
 		var validation = ValidateImportedMap(targetDirectory, manifest);
 		if (!validation.IsValid)
@@ -909,7 +908,7 @@ public class MapStorageService
 		Directory.CreateDirectory(targetDirectory);
 
 		string targetManifestPath = Path.Combine(targetDirectory, "manifest.json");
-		File.WriteAllText(targetManifestPath, manifest.ToJson());
+		MapFileService.WriteAllTextAtomically(targetManifestPath, manifest.ToJson());
 
 		ProcessImportedManifestFiles(manifest, manifestSourceDir, targetDirectory, progressCallback);
 
@@ -1293,11 +1292,11 @@ public class MapStorageService
 	}
 
 
-	public async Task SaveMapStateForExportAsync(string tempWorkspacePath, bool isWindows)
+	public async Task SaveMapStateForExportAsync(string editingDirectory, bool isWindows)
 	{
-		string tempTerrainPath = Path.Combine(tempWorkspacePath, "terrain.json");
-		MapWorkspaceService.EnsureLicenseFile(tempWorkspacePath);
-		MapWorkspaceService.EnsureWasmEntryPoint(tempWorkspacePath);
+		string tempTerrainPath = Path.Combine(editingDirectory, "terrain.json");
+		MapWorkspaceService.EnsureLicenseFile(editingDirectory);
+		MapWorkspaceService.EnsureWasmEntryPoint(editingDirectory);
 		GameContext.Host.SaveMapToFile(tempTerrainPath, performReload: false);
 		GameContext.Host.EditorHasUnsavedChanges = false;
 
@@ -1307,17 +1306,17 @@ public class MapStorageService
 		}
 	}
 
-	public (bool assetsValid, List<string> missingAssets, bool sizesValid, List<(string RelativePath, long SizeBytes, double SizeMB)> oversizedAssets) ValidateMapAssetsForExport(string tempWorkspacePath)
+	public (bool assetsValid, List<string> missingAssets, bool sizesValid, List<(string RelativePath, long SizeBytes, double SizeMB)> oversizedAssets) ValidateMapAssetsForExport(string editingDirectory)
 	{
-		MapAssetHelper.PruneNonExistentAssetsFromManifest(tempWorkspacePath);
-		var (assetsValid, missingAssets) = MapAssetHelper.ValidateWorkspaceAssets(tempWorkspacePath);
-		var (sizesValid, oversizedAssets) = MapAssetHelper.ValidateWorkspaceAssetSizes(tempWorkspacePath);
+		MapAssetHelper.PruneNonExistentAssetsFromManifest(editingDirectory);
+		var (assetsValid, missingAssets) = MapAssetHelper.ValidateWorkspaceAssets(editingDirectory);
+		var (sizesValid, oversizedAssets) = MapAssetHelper.ValidateWorkspaceAssetSizes(editingDirectory);
 		return (assetsValid, missingAssets, sizesValid, oversizedAssets);
 	}
 
-	public static string FindWasmPath(string tempWorkspacePath)
+	public static string FindWasmPath(string editingDirectory)
 	{
-		string binDir = Path.Combine(tempWorkspacePath, "bin");
+		string binDir = Path.Combine(editingDirectory, "bin");
 		string wasmPath = null;
 		if (Directory.Exists(binDir))
 		{
@@ -1333,12 +1332,12 @@ public class MapStorageService
 		return wasmPath;
 	}
 
-	public bool CheckCompiledWasmBinaryExists(string tempWorkspacePath)
+	public bool CheckCompiledWasmBinaryExists(string editingDirectory)
 	{
-		var csprojFiles = Directory.GetFiles(tempWorkspacePath, "*.csproj", SearchOption.TopDirectoryOnly);
-		if (csprojFiles.Length > 0 || File.Exists(Path.Combine(tempWorkspacePath, "MapScript.cs")))
+		var csprojFiles = Directory.GetFiles(editingDirectory, "*.csproj", SearchOption.TopDirectoryOnly);
+		if (csprojFiles.Length > 0 || File.Exists(Path.Combine(editingDirectory, "MapScript.cs")))
 		{
-			string wasmPath = FindWasmPath(tempWorkspacePath);
+			string wasmPath = FindWasmPath(editingDirectory);
 
 			if (string.IsNullOrEmpty(wasmPath) || !File.Exists(wasmPath))
 			{
@@ -1349,32 +1348,32 @@ public class MapStorageService
 		return true;
 	}
 
-	public void DeduplicateWorkspaceBuildArtifacts(string tempWorkspacePath)
+	public void DeduplicateWorkspaceBuildArtifacts(string editingDirectory)
 	{
-		MapWorkspaceService.DeduplicateWorkspaceBuildArtifacts(tempWorkspacePath);
+		MapWorkspaceService.DeduplicateWorkspaceBuildArtifacts(editingDirectory);
 	}
 
-	public async Task OptimizeMapAssetsCooperativeAsync(string tempWorkspacePath, Func<int, int, string, Task> progressCallback)
+	public async Task OptimizeMapAssetsCooperativeAsync(string editingDirectory, Func<int, int, string, Task> progressCallback)
 	{
-		await MapWorkspaceService.EnsureGlbAssetsOptimizedCooperativeAsync(tempWorkspacePath, progressCallback);
+		await MapWorkspaceService.EnsureGlbAssetsOptimizedCooperativeAsync(editingDirectory, progressCallback);
 	}
 
-	public async Task ConvertMapTexturesCooperativeAsync(string tempWorkspacePath, Func<int, int, string, Task> progressCallback)
+	public async Task ConvertMapTexturesCooperativeAsync(string editingDirectory, Func<int, int, string, Task> progressCallback)
 	{
-		await MapWorkspaceService.EnsurePngAssetsConvertedCooperativeAsync(tempWorkspacePath, progressCallback);
+		await MapWorkspaceService.EnsurePngAssetsConvertedCooperativeAsync(editingDirectory, progressCallback);
 	}
 
-	public void GenerateMapManifest(string tempWorkspacePath, string mapTitle, string mapVersion, string author)
+	public void GenerateMapManifest(string editingDirectory, string mapTitle, string mapVersion, string author)
 	{
-		string metaJsonPath = Path.Combine(tempWorkspacePath, "metadata.json");
+		string metaJsonPath = Path.Combine(editingDirectory, "metadata.json");
 		var extracted = ExtractTitleAndVersionFromMetadataFile(metaJsonPath, mapTitle, mapVersion);
 		mapTitle = extracted.mapTitle;
 		mapVersion = extracted.mapVersion;
 
-		var manifest = MapManifest.CreateFromDirectory(tempWorkspacePath, mapTitle, author, mapVersion);
-		GameContext.MapAttributionService.ApplyAttribution(manifest, tempWorkspacePath);
-		string manifestJsonPath = Path.Combine(tempWorkspacePath, "manifest.json");
-		File.WriteAllText(manifestJsonPath, manifest.ToJson());
+		var manifest = MapManifest.CreateFromDirectory(editingDirectory, mapTitle, author, mapVersion);
+		GameContext.MapAttributionService.ApplyAttribution(manifest, editingDirectory);
+		string manifestJsonPath = Path.Combine(editingDirectory, "manifest.json");
+		MapFileService.WriteAllTextAtomically(manifestJsonPath, manifest.ToJson());
 	}
 
 	public (string mapTitle, string mapVersion) ExtractTitleAndVersionFromMetadataFile(string metaJsonPath, string defaultTitle, string defaultVersion)
@@ -1405,10 +1404,10 @@ public class MapStorageService
 		}
 	}
 
-	public async Task<string> CreateMapArchiveAsync(string tempWorkspacePath, string destinationPath, bool fullExport, Action<float, string> progressCallback)
+	public async Task<string> CreateMapArchiveAsync(string editingDirectory, string destinationPath, bool fullExport, Action<float, string> progressCallback)
 	{
-		var excludedPaths = !fullExport ? MapNormalizationHelper.GetExcludedRelativePaths(tempWorkspacePath) : null;
-		return await Task.Run(() => MapArchiveHelper.CreateRmapArchive(tempWorkspacePath, destinationPath, progressCallback, compressionLevel: 1, fullExport: fullExport, excludedRelativePaths: excludedPaths));
+		var excludedPaths = !fullExport ? MapNormalizationHelper.GetExcludedRelativePaths(editingDirectory) : null;
+		return await Task.Run(() => MapArchiveHelper.CreateRmapArchive(editingDirectory, destinationPath, progressCallback, compressionLevel: 1, fullExport: fullExport, excludedRelativePaths: excludedPaths));
 	}
 
 	public bool HasNewerSourceFiles(string workspace, DateTime wasmTime, string currentSourceFolder)
@@ -1588,7 +1587,7 @@ public class MapStorageService
 		UpdateMetadataContributorsAndAttributions(mapDoc, contributorsList, authorCounts, pubKeyStr);
 
 		string updatedMetadataJson = mapDoc.ToJsonString(options);
-		File.WriteAllText(metadataJsonPath, updatedMetadataJson);
+		MapFileService.WriteAllTextAtomically(metadataJsonPath, updatedMetadataJson);
 
 		signAndUploadMapMetadataCallback?.Invoke(metadataJsonPath, mapDoc, authorshipKey, currentUsername, pubKeyStr, seedServerUrl, httpClient, options, referencedHashes);
 	}

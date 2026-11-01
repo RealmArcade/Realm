@@ -12,6 +12,7 @@ using Realm.Ecs.Components.Meta;
 using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
 using Realm.Shared.Maps;
+using Realm.Shared.Terrain;
 using Realm.Shared.Textures;
 using Vector3 = System.Numerics.Vector3;
 
@@ -19,10 +20,14 @@ namespace Realm.Client.Core;
 
 public partial class GameHost
 {
-	public void SaveMapToFile(string customPath = "", bool performReload = true)
+	public void SaveMapToFile(string customPath = "", bool performReload = true, Action<MapTerrainSaveRequest>? terrainWriter = null)
 	{
 		if (GroundTerrain == null) return;
-		EditorService.LastInternalSaveTimeUtc = DateTime.UtcNow;
+
+		if (terrainWriter == null)
+		{
+			GameContext.MapAutosaveService.FlushPendingWrites(TimeSpan.FromSeconds(3));
+		}
 
 		var savedState = CaptureEditorState();
 		string[] splatData = GetSplatData();
@@ -32,14 +37,14 @@ public partial class GameHost
 		var coordinatesData = GetCoordinatesData();
 
 		string currentMapDirectory = GameContext.MapStorageService.CurrentMapDirectory;
-		string defaultSaveDirectory = !string.IsNullOrEmpty(currentMapDirectory) ? currentMapDirectory : MapWorkspaceService.GetDefaultWorkspaceGlobalPath();
+		string defaultSaveDirectory = !string.IsNullOrEmpty(currentMapDirectory) ? currentMapDirectory : MapWorkspaceService.GetDefaultMapFolderGlobalPath();
 		string path = string.IsNullOrEmpty(customPath) ? Path.Combine(defaultSaveDirectory, "terrain.json") : customPath;
 		string absolutePath = ProjectSettings.GlobalizePath(path);
 		GameContext.MapStorageService.CurrentMapDirectory = Path.GetDirectoryName(absolutePath);
 
 		string[] cliffSplatData = GetCliffSplatData();
 
-		bool success = GameContext.SaveLoadService.SaveMapToFile(absolutePath, splatData, unitsData, propsData, decalsData, coordinatesData, cliffSplatData);
+		bool success = GameContext.SaveLoadService.SaveMapToFile(absolutePath, splatData, unitsData, propsData, decalsData, coordinatesData, cliffSplatData, terrainWriter);
 		if (success)
 		{
 			if (performReload)
@@ -362,7 +367,7 @@ public partial class GameHost
 	private string ResolveMapDirectory(string customPath, bool ensureGlbOptimized)
 	{
 		string currentDir = GameContext.MapStorageService.CurrentMapDirectory;
-		string defaultPath = MapWorkspaceService.GetDefaultWorkspaceGlobalPath();
+		string defaultPath = MapWorkspaceService.GetDefaultMapFolderGlobalPath();
 		string absolutePath = GameContext.MapStorageService.ResolveMapDirectoryDomain(customPath, currentDir, defaultPath, ensureGlbOptimized, ProjectSettings.GlobalizePath);
 		return absolutePath;
 	}
@@ -475,8 +480,6 @@ public partial class GameHost
 		{
 			GameContext.SaveLoadService.CopyPathingCodes(terrain.PathingCodes, GroundTerrain.PathingCodes, width, depth);
 		}
-
-		GroundTerrain.UpdateWaterSize();
 	}
 
 	private void LoadSplatMapsView(string absolutePath)
@@ -585,7 +588,7 @@ public partial class GameHost
 			string mapDir = !string.IsNullOrEmpty(directory) ? directory : GameContext.MapStorageService.CurrentMapDirectory;
 			if (string.IsNullOrEmpty(mapDir))
 			{
-				mapDir = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
+				mapDir = GameContext.EditorService._editingDirectory;
 			}
 
 			LoadUnitMetadata(mapDir);
@@ -616,7 +619,7 @@ public partial class GameHost
 		try
 		{
 			string mapDir = !string.IsNullOrEmpty(directory) ? directory : GameContext.MapStorageService.CurrentMapDirectory;
-			if (string.IsNullOrEmpty(mapDir)) mapDir = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
+			if (string.IsNullOrEmpty(mapDir)) mapDir = GameContext.EditorService._editingDirectory;
 
 			var metaService = GameContext.MetadataService ?? GameContext.MetadataService;
 			metaService.UpdateMetadata(mapDir, UpdateMetadataModelOverrides);
@@ -767,7 +770,7 @@ public partial class GameHost
 
 		string filename = Path.GetFileName(decalId);
 		string baseKey = Path.GetFileNameWithoutExtension(decalId);
-		string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
+		string wsPath = GameContext.EditorService._editingDirectory;
 
 		var meta = GameContext.EditorService.ParseDecalMetadata(decalId, filename, baseKey, wsPath);
 		var loaded = TryLoadDecalFromCandidates(decalId, meta.cols, meta.rows, meta.explicitPath, wsPath, cacheKey);
@@ -828,7 +831,7 @@ public partial class GameHost
 		if (string.IsNullOrEmpty(decalId)) decalId = "logo";
 		if (decalId.StartsWith("res://")) return decalId;
 
-		string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
+		string wsPath = GameContext.EditorService._editingDirectory;
 		string targetKey = GameContext.EditorService.ResolveDecalKeyFromMetadata(decalId, wsPath);
 
 		return GameContext.EditorService.FindDecalFile(targetKey, wsPath);
