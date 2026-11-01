@@ -429,7 +429,7 @@ public partial class MapVersionsDialog : FloatingDialogBase
 		GameContext.MapHistoryService.RestoreVersion(editingDirectory, version.CommitId, result =>
 		{
 			Callable.From(() => CompleteRestore(editingDirectory, result)).CallDeferred();
-		}, () => GameContext.MapAutosaveService.FlushPendingWrites(TimeSpan.FromSeconds(3)));
+		}, Hud.PersistEditorStateBeforeRestore);
 	}
 
 	private void CompleteRestore(string editingDirectory, MapHistoryRestoreResult result)

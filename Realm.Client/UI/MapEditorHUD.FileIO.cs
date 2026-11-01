@@ -45,6 +45,26 @@ namespace Realm.Client.UI
 			GameContext.MapHistoryService.MaintainAllStoresInBackground();
 		}
 
+		public void PersistEditorStateBeforeRestore()
+		{
+			string editingDirectory = GetActiveEditingDirectory();
+			if (string.IsNullOrEmpty(editingDirectory) || !Directory.Exists(editingDirectory)) return;
+			if (!File.Exists(Path.Combine(editingDirectory, "metadata.json"))) return;
+			if (GameContext.Host == null || GameContext.Host.GroundTerrain == null) return;
+
+			try
+			{
+				GameContext.Host.SaveMapToFile(Path.Combine(editingDirectory, "terrain.json"), performReload: false);
+				GameContext.Host.EditorHasUnsavedChanges = false;
+			}
+			catch (Exception ex)
+			{
+				GD.PrintErr($"[MapEditorHUD] Could not write the current map before restoring a version: {ex.Message}");
+			}
+
+			GameContext.MapAutosaveService.FlushPendingWrites(TimeSpan.FromSeconds(3));
+		}
+
 		private void RecordMapVersion(MapVersionKind kind, string label, bool coalesce = false)
 		{
 			GameContext.MapAutosaveService.FlushPendingWrites(TimeSpan.FromSeconds(3));
