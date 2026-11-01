@@ -547,6 +547,7 @@ public class MapHistoryService
 		}
 
 		int filesWritten = 0;
+		bool scriptSourcesRestored = false;
 		foreach (var pair in targetFiles)
 		{
 			string absolutePath = Path.Combine(mapDirectory, pair.Key.Replace('/', Path.DirectorySeparatorChar));
@@ -562,6 +563,7 @@ public class MapHistoryService
 
 			WriteFileAtomically(absolutePath, content);
 			filesWritten++;
+			if (IsScriptSourcePath(pair.Key)) scriptSourcesRestored = true;
 		}
 
 		int filesRemoved = 0;
@@ -598,6 +600,7 @@ public class MapHistoryService
 			NewVersion = restoredVersion.Entry,
 			FilesWritten = filesWritten,
 			FilesRemoved = filesRemoved,
+			ScriptSourcesRestored = scriptSourcesRestored,
 			TerrainRestored = filesWritten > 0 && targetFiles.ContainsKey("terrain.json"),
 			MetadataRestored = targetFiles.ContainsKey("metadata.json") && filesWritten > 0
 		};
@@ -921,6 +924,12 @@ public class MapHistoryService
 		}
 
 		return false;
+	}
+
+	private static bool IsScriptSourcePath(string relativePath)
+	{
+		return relativePath.EndsWith(".cs", StringComparison.OrdinalIgnoreCase) ||
+		       relativePath.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase);
 	}
 
 	private static bool FileLengthMatches(string path, int length)

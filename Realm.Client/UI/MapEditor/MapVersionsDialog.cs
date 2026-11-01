@@ -506,8 +506,11 @@ public partial class MapVersionsDialog : FloatingDialogBase
 
 			if (result.MetadataRestored)
 			{
+				Hud.InvalidateMetadataCache();
 				Hud.ReadMetadataAndRefreshTextures();
 				Hud.ViewLoadMapProperties();
+				Hud.RefreshEntityPalette();
+				Hud.UpdateMapNameHeader();
 			}
 
 			if (GameContext.Host != null)
@@ -516,6 +519,12 @@ public partial class MapVersionsDialog : FloatingDialogBase
 			}
 
 			Hud.ShowFeedback(string.Format(TranslationServer.Translate("Restored the version from {0}. {1} file(s) restored, {2} removed."), FormatTimestamp(result.NewVersion?.CreatedAt ?? DateTimeOffset.Now), result.FilesWritten, result.FilesRemoved));
+
+			if (result.ScriptSourcesRestored)
+			{
+				Hud.ShowFeedback(TranslationServer.Translate("The restored version changed the map script. Publish or test the map to compile it again."));
+			}
+
 			RefreshVersions();
 		}
 		finally

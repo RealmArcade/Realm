@@ -49,6 +49,7 @@ public class MapHistoryRestoreResult
 	public int FilesWritten { get; init; }
 	public int FilesRemoved { get; init; }
 	public bool TerrainRestored { get; init; }
+	public bool ScriptSourcesRestored { get; init; }
 	public bool MetadataRestored { get; init; }
 }
 
