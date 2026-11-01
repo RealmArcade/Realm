@@ -156,6 +156,7 @@ namespace Realm.Client.UI
 
 			GameContext.EditorService.InitializeEditingDirectoryDomain(terrainTime, metadataTime);
 			ScheduleHistoryMaintenanceOnLaunch();
+			OfferRecoveryAfterUncleanExit();
 
 			EnsureDefaultTemplateAnimationsSafe();
 
@@ -176,6 +177,32 @@ namespace Realm.Client.UI
 					_ = OpenFromCasAsync(consumed.casDir, consumed.defaultSave);
 				}
 			}
+		}
+
+		private void OfferRecoveryAfterUncleanExit()
+		{
+			string cleanExitFile = ProjectSettings.GlobalizePath("user://editor_clean_exit.txt");
+			if (File.Exists(cleanExitFile)) return;
+
+			string editingDirectory = GameContext.EditorService._editingDirectory;
+			if (string.IsNullOrEmpty(editingDirectory)) return;
+			if (!File.Exists(Path.Combine(editingDirectory, "metadata.json"))) return;
+
+			GameContext.MapHistoryService.ReadStatus(editingDirectory, status =>
+			{
+				if (!status.IsRepositoryReady || status.VersionCount == 0) return;
+
+				Callable.From(ShowUncleanExitRecoveryDialog).CallDeferred();
+			});
+		}
+
+		private void ShowUncleanExitRecoveryDialog()
+		{
+			ShowConfirmationDialog(
+				TranslationServer.Translate("The editor closed unexpectedly the last time you worked on this map. Your last edits may be missing from the folder. Open your version history to go back to an earlier version?"),
+				onConfirm: () => OpenMapVersionsDialog(),
+				confirmText: TranslationServer.Translate("SHOW VERSIONS"),
+				cancelText: TranslationServer.Translate("NOT NOW"));
 		}
 
 		private void EnsureEditingDirectoryReady()
