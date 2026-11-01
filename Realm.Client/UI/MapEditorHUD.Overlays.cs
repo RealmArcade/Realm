@@ -139,7 +139,7 @@ namespace Realm.Client.UI
 				return;
 			}
 
-			ShowFeedback(TranslationServer.Translate("terrain.json changed outside the editor - your map was left as it is. The other version is in MAP VERSIONS."));
+			ShowFeedback(TranslationServer.Translate("The terrain files changed outside the editor - your map was left as it is. The other version is in MAP VERSIONS."));
 		}
 
 		private void ReloadTerrainFromDisk(string editingDirectory)
@@ -154,11 +154,11 @@ namespace Realm.Client.UI
 				if (loaded)
 				{
 					GameContext.Host.EditorHasUnsavedChanges = false;
-					ShowFeedback(TranslationServer.Translate("terrain.json changed outside the editor — reloaded."));
+					ShowFeedback(TranslationServer.Translate("The terrain changed outside the editor — reloaded."));
 				}
 				else
 				{
-					ShowFeedback(TranslationServer.Translate("The changed terrain.json could not be read, so the map in this window was left untouched."));
+					ShowFeedback(TranslationServer.Translate("The changed terrain files could not be read, so the map in this window was left untouched."));
 				}
 			}
 			catch (Exception ex)

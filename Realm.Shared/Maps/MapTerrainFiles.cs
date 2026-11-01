@@ -13,6 +13,24 @@ public static class MapTerrainFiles
 	public const string CliffSplatPrefix = "terrain_cliff_splat";
 	public const int ChannelsPerTexel = ExrImageCodec.ChannelsPerPixel;
 
+	public static readonly string[] TerrainDataFileNames =
+	{
+		HeightsFileName,
+		WaterFileName,
+		PathingFileName,
+		$"{SplatPrefix}_indices.exr",
+		$"{SplatPrefix}_weights.exr",
+		$"{CliffSplatPrefix}_indices.exr",
+		$"{CliffSplatPrefix}_weights.exr"
+	};
+
+	private static readonly HashSet<string> TerrainDataFileNamesLookup = new(TerrainDataFileNames, StringComparer.OrdinalIgnoreCase);
+
+	public static bool IsTerrainDataFileName(string fileName)
+	{
+		return !string.IsNullOrEmpty(fileName) && TerrainDataFileNamesLookup.Contains(fileName);
+	}
+
 	public static string HeightsPath(string directory) => Path.Combine(directory, HeightsFileName);
 	public static string WaterPath(string directory) => Path.Combine(directory, WaterFileName);
 	public static string PathingPath(string directory) => Path.Combine(directory, PathingFileName);

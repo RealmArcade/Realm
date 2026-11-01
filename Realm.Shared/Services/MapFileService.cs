@@ -200,6 +200,11 @@ public static class MapFileService
 	public static void WriteAllTextAtomically(string targetPath, string contents)
 	{
 		AtomicFileWriter.WriteAllText(targetPath, contents);
+		NotifyFileWritten(targetPath);
+	}
+
+	public static void NotifyFileWritten(string targetPath)
+	{
 		FileWritten?.Invoke(targetPath);
 	}
 }

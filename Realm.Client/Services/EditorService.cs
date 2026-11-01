@@ -5093,7 +5093,7 @@ public partial class EditorService : IEditorAPI
 		return false;
 	}
 
-	private static readonly string[] MonitoredFileNames = { "metadata.json", "manifest.json", "terrain.json" };
+	private static readonly string[] MonitoredFileNames = BuildMonitoredFileNames();
 	private static readonly Dictionary<string, MapFileState> KnownFileStates = new(StringComparer.OrdinalIgnoreCase);
 	private static readonly object _watcherLock = new();
 
@@ -5342,9 +5342,17 @@ public partial class EditorService : IEditorAPI
 		       fileName.Equals("manifest.json", StringComparison.OrdinalIgnoreCase);
 	}
 
+	private static string[] BuildMonitoredFileNames()
+	{
+		var fileNames = new List<string> { "metadata.json", "manifest.json", "terrain.json" };
+		fileNames.AddRange(MapTerrainFiles.TerrainDataFileNames);
+		return fileNames.ToArray();
+	}
+
 	private static bool IsTerrainFile(string fileName)
 	{
-		return fileName.Equals("terrain.json", StringComparison.OrdinalIgnoreCase);
+		return fileName.Equals("terrain.json", StringComparison.OrdinalIgnoreCase) ||
+		       MapTerrainFiles.IsTerrainDataFileName(fileName);
 	}
 
 	private static bool TryReadFileState(string filePath, out MapFileState state)

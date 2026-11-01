@@ -69,6 +69,7 @@ public static class PngImageCodec
 	public static void EncodeRgba8(string path, ReadOnlySpan<byte> rgba, int width, int height)
 	{
 		AtomicFileWriter.WriteAllBytes(path, EncodeRgba8(rgba, width, height));
+		MapFileService.NotifyFileWritten(path);
 	}
 
 	private static unsafe SKCodecResult DecodeInto(SKCodec codec, SKImageInfo info, byte[] pixels, int width, int height)

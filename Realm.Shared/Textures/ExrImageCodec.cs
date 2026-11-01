@@ -52,6 +52,7 @@ public static class ExrImageCodec
 	public static void EncodeRgbaFloat(string path, ReadOnlySpan<float> rgba, int width, int height)
 	{
 		AtomicFileWriter.WriteAllBytes(path, EncodeRgbaFloat(rgba, width, height));
+		MapFileService.NotifyFileWritten(path);
 	}
 
 	private static void EnsurePixelCount(int actualFloats, int width, int height)
