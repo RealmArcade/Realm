@@ -139,7 +139,6 @@ public class MatchBatchSummary
 			}
 
 			writer.WriteEndArray();
-
 			writer.WriteNumber("wallClockSeconds", Math.Round(wallClockSeconds, 3));
 			writer.WriteNumber("matchesPerSecond", Math.Round(matchesPerSecond, 3));
 

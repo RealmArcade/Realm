@@ -10,6 +10,7 @@ using NSec.Cryptography;
 using Realm.Client.Core;
 using Realm.Client.Network;
 using Realm.Client.Services;
+using Realm.Client.Services.MapHistory;
 using Realm.Client.UI.MapEditor;
 using Realm.Ecs.Services;
 using Realm.EditorAPI;
@@ -29,9 +30,16 @@ namespace Realm.Client.UI
 	{
 		public override void _ExitTree()
 		{
+			try
+			{
+				GameContext.MapAutosaveService.FlushPendingWrites(TimeSpan.FromSeconds(3));
+			}
+			catch (Exception exception)
+			{
+				GD.PrintErr($"[MapEditorHUD] Could not finish the pending autosave on exit: {exception.Message}");
+			}
+
 			GameContext.MetadataService.MetadataSaved -= OnMetadataSaved;
-			GameContext.BaseMapFolderWatchService?.BaseFolderFilesChanged -= OnBaseMapFolderFilesChanged;
-			GameContext.BaseMapFolderWatchService?.Stop();
 			GameContext.EditorService?.StopWorkspaceWatcher();
 			CloseWasmConsoleModal();
 			GameContext.UnregisterMapEditorHud(this);
@@ -97,7 +105,70 @@ namespace Realm.Client.UI
 			}
 
 			UpdateAutoBackup(delta);
-			TryShowPendingBaseMapFolderWarning();
+			ApplyPendingExternalChanges();
+		}
+
+		private void ApplyPendingExternalChanges()
+		{
+			if (!EditorService.HasPendingExternalChanges) return;
+			if (GameContext.Host == null) return;
+			if (GameContext.EditorService.IsSyncing || GameContext.EditorService.IsPaused) return;
+			if (FloatingDialogBase.HasAnyDialogOpen) return;
+			if (Input.IsMouseButtonPressed(MouseButton.Left) || Input.IsMouseButtonPressed(MouseButton.Right)) return;
+			if (GameContext.MapAutosaveService.HasPendingWrite) return;
+
+			string editingDirectory = GetActiveEditingDirectory();
+			if (string.IsNullOrEmpty(editingDirectory) || !File.Exists(Path.Combine(editingDirectory, "metadata.json"))) return;
+			if (!GameContext.EditorService.TryTakePendingExternalChanges(out bool metadataChanged, out bool terrainChanged)) return;
+
+			if (metadataChanged)
+			{
+				ReadMetadataAndRefreshTextures();
+				ViewLoadMapProperties();
+				UpdateMapNameHeader();
+				ShowFeedback(TranslationServer.Translate("metadata.json changed outside the editor — reloaded."));
+			}
+
+			if (!terrainChanged) return;
+
+			RecordMapVersion(MapVersionKind.ExternalChange, TranslationServer.Translate("Change made outside the editor"));
+
+			if (!GameContext.Host.EditorHasUnsavedChanges)
+			{
+				ReloadTerrainFromDisk(editingDirectory);
+				return;
+			}
+
+			ShowFeedback(TranslationServer.Translate("The terrain files changed outside the editor - your map was left as it is. The other version is in MAP VERSIONS."));
+		}
+
+		private void ReloadTerrainFromDisk(string editingDirectory)
+		{
+			string terrainPath = Path.Combine(editingDirectory, "terrain.json");
+			if (!File.Exists(terrainPath)) return;
+
+			GameContext.EditorService.IsSyncing = true;
+			try
+			{
+				bool loaded = GameContext.Host?.LoadMapFromFile(terrainPath, ensureGlbOptimized: false) ?? false;
+				if (loaded)
+				{
+					GameContext.Host.EditorHasUnsavedChanges = false;
+					ShowFeedback(TranslationServer.Translate("The terrain changed outside the editor — reloaded."));
+				}
+				else
+				{
+					ShowFeedback(TranslationServer.Translate("The changed terrain files could not be read, so the map in this window was left untouched."));
+				}
+			}
+			catch (Exception ex)
+			{
+				GD.PrintErr($"[MapEditorHUD] Reloading terrain from disk failed: {ex.Message}");
+			}
+			finally
+			{
+				GameContext.EditorService.IsSyncing = false;
+			}
 		}
 
 		private float _lastStatusX = float.NaN;
@@ -165,8 +236,7 @@ namespace Realm.Client.UI
 
 		private void UpdateAutoBackup(double delta)
 		{
-			int intervalMins = EditorSettingsDialog.CurrentSettings?.AutoBackupIntervalMinutes ?? 30;
-			if (GameContext.EditorService.CheckAutoBackup(intervalMins, delta))
+			if (GameContext.EditorService.CheckAutoBackup(MapHistoryPolicy.AutosaveIntervalMinutes, delta))
 			{
 				PerformAutoBackup();
 			}
@@ -777,7 +847,6 @@ namespace Realm.Client.UI
 					"You haven't saved yet",
 					onConfirm: () =>
 					{
-						WriteCleanExitMarker();
 						GameContext.UserInterface.TransitionTo(GameScreen.MainMenu);
 					},
 					confirmText: "Quit",
@@ -786,7 +855,6 @@ namespace Realm.Client.UI
 			}
 			else
 			{
-				WriteCleanExitMarker();
 				GameContext.UserInterface.TransitionTo(GameScreen.MainMenu);
 			}
 		}
@@ -799,7 +867,6 @@ namespace Realm.Client.UI
 					"You haven't saved yet",
 					onConfirm: () =>
 					{
-						WriteCleanExitMarker();
 						GetTree().Quit();
 					},
 					confirmText: "Quit",
@@ -808,7 +875,6 @@ namespace Realm.Client.UI
 			}
 			else
 			{
-				WriteCleanExitMarker();
 				GetTree().Quit();
 			}
 		}
@@ -969,18 +1035,18 @@ namespace Realm.Client.UI
 		{
 			if (GameContext.AssetIndexService.IsIndexVersionMismatch())
 			{
-				_ = ShowAssetIndexRepairModalAsync(() => { CheckUnsavedSessionOnLaunch(() => { CheckCreatorRegistrationAndPrompt(); }); });
+				_ = ShowAssetIndexRepairModalAsync(() => { EstablishLaunchSavedState(() => { CheckCreatorRegistrationAndPrompt(); }); });
 				return;
 			}
 
 			var verification = GameContext.AssetIndexService.VerifyIndex();
 			if (verification.IsHealthy)
 			{
-				CheckUnsavedSessionOnLaunch(() => { CheckCreatorRegistrationAndPrompt(); });
+				EstablishLaunchSavedState(() => { CheckCreatorRegistrationAndPrompt(); });
 				return;
 			}
 
-			_ = RepairFailedAssetIndexEntriesAsync(verification, () => { CheckUnsavedSessionOnLaunch(() => { CheckCreatorRegistrationAndPrompt(); }); });
+			_ = RepairFailedAssetIndexEntriesAsync(verification, () => { EstablishLaunchSavedState(() => { CheckCreatorRegistrationAndPrompt(); }); });
 		}
 
 		private async Task RepairFailedAssetIndexEntriesAsync(AssetIndexVerificationResult verification, Action onCompleted)
@@ -1243,6 +1309,103 @@ namespace Realm.Client.UI
 				btnCancel.AddThemeColorOverride("font_color", new Color(0.9f, 0.3f, 0.3f));
 				hbox.AddChild(btnCancel);
 			}
+		}
+
+		public void ShowMapNamePrompt(Action<string> onNamed)
+		{
+			var overlay = new ColorRect();
+			overlay.Name = "MapNamePromptOverlay";
+			overlay.Color = new Color(0, 0, 0, 0.65f);
+			overlay.SetAnchorsPreset(LayoutPreset.FullRect);
+			overlay.MouseFilter = MouseFilterEnum.Stop;
+			overlay.ZIndex = 1100;
+			AddChild(overlay);
+
+			var center = new CenterContainer();
+			center.Name = "MapNamePromptCenter_CenterContainer";
+			center.SetAnchorsPreset(LayoutPreset.FullRect);
+			overlay.AddChild(center);
+
+			var panel = new PanelContainer();
+			panel.Name = "MapNamePromptPanel_PanelContainer";
+			panel.CustomMinimumSize = new Vector2(520, 260);
+			panel.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
+			center.AddChild(panel);
+
+			var margin = new MarginContainer();
+			margin.Name = "MapNamePromptMargin_MarginContainer";
+			margin.AddThemeConstantOverride("margin_top", 24);
+			margin.AddThemeConstantOverride("margin_bottom", 22);
+			margin.AddThemeConstantOverride("margin_left", 32);
+			margin.AddThemeConstantOverride("margin_right", 32);
+			panel.AddChild(margin);
+
+			var vbox = new VBoxContainer();
+			vbox.Name = "MapNamePromptVBox_VBoxContainer";
+			vbox.AddThemeConstantOverride("separation", 14);
+			margin.AddChild(vbox);
+
+			var title = new Label();
+			title.Name = "MapNamePromptTitle_Label";
+			UIStyle.ApplyTitle(title, TranslationServer.Translate("NAME THIS MAP"), 16);
+			title.HorizontalAlignment = HorizontalAlignment.Center;
+			title.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+			vbox.AddChild(title);
+
+			var message = new Label();
+			message.Name = "MapNamePromptMessage_Label";
+			message.Text = TranslationServer.Translate("An untitled map is a prototype. Give it a name and the folder it is saved to will default to Documents under that name.");
+			message.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+			message.HorizontalAlignment = HorizontalAlignment.Center;
+			message.CustomMinimumSize = new Vector2(440, 0);
+			message.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+			message.AddThemeFontSizeOverride("font_size", 12);
+			vbox.AddChild(message);
+
+			var nameInput = new LineEdit();
+			nameInput.Name = "MapNameInput_LineEdit";
+			nameInput.PlaceholderText = TranslationServer.Translate("Map name");
+			nameInput.CustomMinimumSize = new Vector2(0, 34);
+			vbox.AddChild(nameInput);
+
+			var buttons = new HBoxContainer();
+			buttons.Name = "MapNamePromptButtons_HBoxContainer";
+			buttons.AddThemeConstantOverride("separation", 24);
+			buttons.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
+			vbox.AddChild(buttons);
+
+			Action submit = () =>
+			{
+				string enteredName = nameInput.Text.Trim();
+				if (string.IsNullOrEmpty(enteredName))
+				{
+					ShowFeedback(TranslationServer.Translate("Please enter a name for the map."));
+					return;
+				}
+
+				overlay.QueueFree();
+				onNamed?.Invoke(enteredName);
+			};
+
+			nameInput.TextSubmitted += _ => submit();
+
+			var btnConfirm = new Button();
+			btnConfirm.Name = "BtnConfirmMapName_Button";
+			btnConfirm.Set("icon_max_width", 0);
+			btnConfirm.CustomMinimumSize = new Vector2(110, 34);
+			SetupButton(btnConfirm, TranslationServer.Translate("NAME IT"), submit, 13);
+			btnConfirm.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
+			buttons.AddChild(btnConfirm);
+
+			var btnCancel = new Button();
+			btnCancel.Name = "BtnCancelMapName_Button";
+			btnCancel.Set("icon_max_width", 0);
+			btnCancel.CustomMinimumSize = new Vector2(110, 34);
+			SetupButton(btnCancel, TranslationServer.Translate("CANCEL"), () => overlay.QueueFree(), 13);
+			btnCancel.AddThemeColorOverride("font_color", new Color(0.9f, 0.3f, 0.3f));
+			buttons.AddChild(btnCancel);
+
+			nameInput.CallDeferred(LineEdit.MethodName.GrabFocus);
 		}
 
 		private void ShowWasmConsoleModal()
@@ -3292,7 +3455,7 @@ namespace Realm.Client.UI
 
 			try
 			{
-				string workspacePath = !string.IsNullOrEmpty(GameContext.EditorService._tempWorkspacePath) ? GameContext.EditorService._tempWorkspacePath : MapWorkspaceService.GetActiveWorkspacePath();
+				string workspacePath = !string.IsNullOrEmpty(GameContext.EditorService._editingDirectory) ? GameContext.EditorService._editingDirectory : MapWorkspaceService.GetActiveWorkspacePath();
 
 				if (GameContext.EditorService.TryGetMapNameFromManifest(workspacePath, out string manifestMapName))
 				{
@@ -3309,12 +3472,12 @@ namespace Realm.Client.UI
 					return GameContext.EditorService.UpdateCachedMapName(activeMapName, now);
 				}
 
-				return GameContext.EditorService.UpdateCachedMapName("Unnamed Map", now);
+				return GameContext.EditorService.UpdateCachedMapName(TranslationServer.Translate("Unnamed Map"), now);
 			}
 			catch (Exception ex)
 			{
 				GD.PrintErr($"[MapEditorHUD] Error getting map name: {ex.Message}");
-				return GameContext.EditorService.UpdateCachedMapName("Unnamed Map", now);
+				return GameContext.EditorService.UpdateCachedMapName(TranslationServer.Translate("Unnamed Map"), now);
 			}
 		}
 
@@ -3323,7 +3486,9 @@ namespace Realm.Client.UI
 		{
 			if (_lblMapNameHeader == null) return;
 			string mapName = GetMapNameFromMetadata();
-			string displayMapName = mapName == "Untitled Map" ? TranslationServer.Translate("Untitled Map") : mapName;
+			string displayMapName = MapWorkspaceService.IsUntitledMapName(mapName)
+				? TranslationServer.Translate("Untitled Map")
+				: mapName;
 			bool hasUnsaved = GameContext.Host?.EditorHasUnsavedChanges ?? false;
 
 			string displayText = hasUnsaved ? $"🗺️ {displayMapName} *" : $"🗺️ {displayMapName}";

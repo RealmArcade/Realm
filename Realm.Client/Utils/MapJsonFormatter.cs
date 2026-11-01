@@ -298,8 +298,8 @@ public static class MapJsonFormatter
 			return;
 		}
 
-		EditorService.LastInternalSaveTimeUtc = DateTime.UtcNow;
 		File.WriteAllText(filePath, formatted);
+		EditorService.NoteInternalFileWrite(filePath);
 	}
 
 	public static void SaveFormattedJson(string filePath, string jsonText)

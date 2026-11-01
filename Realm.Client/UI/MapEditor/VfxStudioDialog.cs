@@ -1904,7 +1904,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 	private List<string> ScanNoiseAssets()
 	{
 		var results = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-		string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
+		string wsPath = GameContext.EditorService._editingDirectory;
 
 		ScanNoiseFolder(wsPath, results);
 		ScanNoiseAssetsObj(wsPath, results);
@@ -1954,7 +1954,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 	private List<string> ScanProjectileMeshAssets()
 	{
 		var results = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-		string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
+		string wsPath = GameContext.EditorService._editingDirectory;
 
 		ScanProjectileAssetsObj(wsPath, results);
 
@@ -2128,7 +2128,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 
 	private string GenerateHeadlessRandomNoise()
 	{
-		string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
+		string wsPath = GameContext.EditorService._editingDirectory;
 		string noiseDir = Path.Combine(wsPath, "Assets", "noise");
 		Directory.CreateDirectory(noiseDir);
 
@@ -2208,7 +2208,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		{
 			try
 			{
-				string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
+				string wsPath = GameContext.EditorService._editingDirectory;
 				string filePath = Path.Combine(wsPath, "Assets", "noise", _tempGeneratedNoiseFileName);
 				if (File.Exists(filePath))
 				{
@@ -2234,7 +2234,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		{
 			try
 			{
-				string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
+				string wsPath = GameContext.EditorService._editingDirectory;
 				string outputRtex = Path.Combine(wsPath, "Assets", "noise", _tempGeneratedNoiseFileName);
 				string blake3Hash = NoiseTextureGenerator.GenerateAndSaveRtex(_tempGeneratedNoiseConfig, outputRtex);
 
@@ -2277,7 +2277,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 
 	private void SaveSpritesheetGrid(string key, int columns, int rows, float fps = 20.0f, bool subframeBlend = true)
 	{
-		string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
+		string wsPath = GameContext.EditorService._editingDirectory;
 
 		try
 		{

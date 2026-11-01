@@ -130,7 +130,7 @@ static void PlayInChildProcesses(MatchRunOptions options, string partsDirectory,
 
 				using Process process = Process.Start(start) ?? throw new InvalidOperationException($"could not start the runner for seed {capturedSeed}");
 				process.WaitForExit();
-				if (process.ExitCode != 0 && !File.Exists(Path.Combine(partsDirectory, $"{capturedSeed}.jsonl")))
+				if (process.ExitCode != 0)
 				{
 					lock (failureSeeds) failureSeeds.Add(capturedSeed.ToString(CultureInfo.InvariantCulture));
 				}
@@ -157,9 +157,15 @@ static List<string> MergeParts(MatchRunOptions options, string partsDirectory)
 			continue;
 		}
 
+		int lineCountBeforePart = lines.Count;
 		foreach (string line in File.ReadAllLines(partPath))
 		{
 			if (line.Length > 0) lines.Add(line);
+		}
+
+		if (lines.Count == lineCountBeforePart)
+		{
+			lines.Add(MatchBatchSummary.BuildErrorLine(seed, "the runner process for this seed wrote no outcome"));
 		}
 	}
 

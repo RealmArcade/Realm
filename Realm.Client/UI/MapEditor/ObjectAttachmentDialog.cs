@@ -2036,7 +2036,7 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 
 		string wsPath = !string.IsNullOrEmpty(MapWorkspaceService.GetActiveWorkspacePath())
 			? MapWorkspaceService.GetActiveWorkspacePath()
-			: ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
+			: GameContext.EditorService._editingDirectory;
 
 		AddUnionedAssets(wsPath, seen, result);
 		AddMetadataAssets(wsPath, seen, result);
