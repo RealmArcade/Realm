@@ -43,23 +43,12 @@ public partial class MapSettingsDialog : FloatingDialogBase
 		{
 			titleMargin.AddThemeConstantOverride("margin_top", -42);
 		}
-		MoveCloseButtonToCenteredRow();
+		if (CloseButton?.GetParent() is MarginContainer closeMargin)
+		{
+			closeMargin.AddThemeConstantOverride("margin_top", -32);
+		}
 		SetFooterCloseOnly("CLOSE");
 		BuildControls();
-	}
-
-	private void MoveCloseButtonToCenteredRow()
-	{
-		if (CloseButton?.GetParent() is not Node closeContainer) return;
-
-		var closeRow = new HBoxContainer();
-		closeRow.Name = "CloseRow_HBoxContainer";
-		closeRow.Alignment = BoxContainer.AlignmentMode.Center;
-		closeRow.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		closeContainer.RemoveChild(CloseButton);
-		closeRow.AddChild(CloseButton);
-		BodyContainer.AddChild(closeRow);
-		BodyContainer.MoveChild(closeRow, 0);
 	}
 
 	private void BuildControls()
