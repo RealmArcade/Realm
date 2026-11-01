@@ -29,9 +29,15 @@ public class MapHistoryService
 	private readonly object _queueLock = new();
 	private Task _queueTail = Task.CompletedTask;
 	private bool _versionRequestPending;
-	private volatile MapHistoryStatus _cachedStatus = MapHistoryStatus.Unavailable(TranslationServer.Translate("No map is open."));
+	private volatile MapHistoryStatus _cachedStatus = new() { IsRepositoryReady = false };
+	private MapHistoryMessages _messages = MapHistoryMessages.Capture();
 
 	public MapHistoryStatus CachedStatus => _cachedStatus;
+
+	private void RefreshMessages()
+	{
+		_messages = MapHistoryMessages.KeepCurrent(_messages);
+	}
 
 	private static bool HasMapFolder(string mapDirectory)
 	{
@@ -40,9 +46,11 @@ public class MapHistoryService
 
 	public void PrimeForMap(string mapDirectory, Action<MapHistoryStatus> onCompleted = null)
 	{
+		RefreshMessages();
+
 		if (!HasMapFolder(mapDirectory))
 		{
-			onCompleted?.Invoke(MapHistoryStatus.Unavailable(TranslationServer.Translate("No map folder is open.")));
+			onCompleted?.Invoke(MapHistoryStatus.Unavailable(_messages.NoMapFolderOpen));
 			return;
 		}
 
@@ -65,9 +73,11 @@ public class MapHistoryService
 
 	public void CreateVersion(string mapDirectory, MapVersionKind kind, string? label, Action<MapHistoryVersionResult> onCompleted = null, bool coalesce = false, string? sourceFolder = null)
 	{
+		RefreshMessages();
+
 		if (!HasMapFolder(mapDirectory))
 		{
-			onCompleted?.Invoke(new MapHistoryVersionResult { Success = false, ErrorMessage = TranslationServer.Translate("No map folder is open.") });
+			onCompleted?.Invoke(new MapHistoryVersionResult { Success = false, ErrorMessage = _messages.NoMapFolderOpen });
 			return;
 		}
 
@@ -76,9 +86,11 @@ public class MapHistoryService
 
 	public MapHistoryVersionResult CaptureVersionSynchronously(string mapDirectory, MapVersionKind kind, string? label, string? sourceFolder = null)
 	{
+		RefreshMessages();
+
 		if (!HasMapFolder(mapDirectory))
 		{
-			return new MapHistoryVersionResult { Success = false, ErrorMessage = TranslationServer.Translate("No map folder is open.") };
+			return new MapHistoryVersionResult { Success = false, ErrorMessage = _messages.NoMapFolderOpen };
 		}
 
 		return CreateVersionNow(mapDirectory, kind, label, sourceFolder);
@@ -114,6 +126,8 @@ public class MapHistoryService
 
 	public void ReadStores(Action<IReadOnlyList<MapHistoryStoreInfo>> onCompleted)
 	{
+		RefreshMessages();
+
 		Enqueue(() =>
 		{
 			IReadOnlyList<MapHistoryStoreInfo> stores;
@@ -133,6 +147,8 @@ public class MapHistoryService
 
 	public void DeleteStore(string storeDirectoryPath, string currentMapDirectory, Action<MapHistoryStoreDeleteResult> onCompleted)
 	{
+		RefreshMessages();
+
 		Enqueue(() =>
 		{
 			MapHistoryStoreDeleteResult result;
@@ -262,18 +278,18 @@ public class MapHistoryService
 		return totalBytes;
 	}
 
-	private static MapHistoryStoreDeleteResult DeleteStoreOnDisk(string storeDirectoryPath, string currentMapDirectory)
+	private MapHistoryStoreDeleteResult DeleteStoreOnDisk(string storeDirectoryPath, string currentMapDirectory)
 	{
 		if (string.IsNullOrWhiteSpace(storeDirectoryPath))
 		{
-			return new MapHistoryStoreDeleteResult { Success = false, ErrorMessage = TranslationServer.Translate("No history folder was chosen.") };
+			return new MapHistoryStoreDeleteResult { Success = false, ErrorMessage = _messages.NoHistoryFolderChosen };
 		}
 
 		string root = Path.GetFullPath(MapHistoryStore.GetRootDirectory());
 		string fullPath = Path.GetFullPath(storeDirectoryPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 		if (!fullPath.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
 		{
-			return new MapHistoryStoreDeleteResult { Success = false, ErrorMessage = TranslationServer.Translate("That folder is not part of the map history storage.") };
+			return new MapHistoryStoreDeleteResult { Success = false, ErrorMessage = _messages.NotPartOfHistoryStorage };
 		}
 
 		if (!Directory.Exists(fullPath)) return new MapHistoryStoreDeleteResult { Success = true };
@@ -283,7 +299,7 @@ public class MapHistoryService
 			MapHistoryStoreLayout openLayout = MapHistoryStore.Resolve(currentMapDirectory);
 			if (string.Equals(Path.GetFullPath(openLayout.StoreDirectory), fullPath, StringComparison.OrdinalIgnoreCase))
 			{
-				return new MapHistoryStoreDeleteResult { Success = false, ErrorMessage = TranslationServer.Translate("The map you have open is using this history right now.") };
+				return new MapHistoryStoreDeleteResult { Success = false, ErrorMessage = _messages.OpenMapUsesThisHistory };
 			}
 		}
 
@@ -297,7 +313,7 @@ public class MapHistoryService
 				{
 					if (session == null)
 					{
-						return new MapHistoryStoreDeleteResult { Success = false, ErrorMessage = TranslationServer.Translate("Another editor window is using this history right now.") };
+						return new MapHistoryStoreDeleteResult { Success = false, ErrorMessage = _messages.AnotherWindowUsesThisHistory };
 					}
 				}
 			}
@@ -305,7 +321,7 @@ public class MapHistoryService
 
 		DeleteStoreDirectory(fullPath);
 
-		return new MapHistoryStoreDeleteResult { Success = Directory.Exists(fullPath) == false, ErrorMessage = Directory.Exists(fullPath) ? TranslationServer.Translate("The history folder could not be removed completely.") : null };
+		return new MapHistoryStoreDeleteResult { Success = Directory.Exists(fullPath) == false, ErrorMessage = Directory.Exists(fullPath) ? _messages.HistoryFolderNotRemoved : null };
 	}
 
 	private static void DeleteStoreDirectory(string directoryPath)
@@ -333,6 +349,8 @@ public class MapHistoryService
 
 	public bool HasExistingVersions(string mapDirectory)
 	{
+		RefreshMessages();
+
 		if (!HasMapFolder(mapDirectory)) return false;
 
 		try
@@ -352,6 +370,8 @@ public class MapHistoryService
 
 	public void ReadVersions(string mapDirectory, Action<IReadOnlyList<MapVersionEntry>> onCompleted)
 	{
+		RefreshMessages();
+
 		if (!HasMapFolder(mapDirectory))
 		{
 			onCompleted?.Invoke(Array.Empty<MapVersionEntry>());
@@ -376,9 +396,11 @@ public class MapHistoryService
 
 	public void RenameVersion(string mapDirectory, string commitId, string? label, Action<MapHistoryVersionResult> onCompleted = null)
 	{
+		RefreshMessages();
+
 		if (!HasMapFolder(mapDirectory))
 		{
-			onCompleted?.Invoke(new MapHistoryVersionResult { Success = false, ErrorMessage = "No map folder is open." });
+			onCompleted?.Invoke(new MapHistoryVersionResult { Success = false, ErrorMessage = _messages.NoMapFolderOpen });
 			return;
 		}
 
@@ -400,6 +422,8 @@ public class MapHistoryService
 
 	public void ReadStorageUsage(string mapDirectory, Action<MapHistoryStorageInfo> onCompleted)
 	{
+		RefreshMessages();
+
 		if (!HasMapFolder(mapDirectory))
 		{
 			onCompleted?.Invoke(new MapHistoryStorageInfo());
@@ -424,9 +448,11 @@ public class MapHistoryService
 
 	public void ReadStatus(string mapDirectory, Action<MapHistoryStatus> onCompleted)
 	{
+		RefreshMessages();
+
 		if (!HasMapFolder(mapDirectory))
 		{
-			onCompleted?.Invoke(MapHistoryStatus.Unavailable(TranslationServer.Translate("No map folder is open.")));
+			onCompleted?.Invoke(MapHistoryStatus.Unavailable(_messages.NoMapFolderOpen));
 			return;
 		}
 
@@ -449,9 +475,11 @@ public class MapHistoryService
 
 	public void RestoreVersion(string mapDirectory, string commitId, Action<MapHistoryRestoreResult> onCompleted, Action beforeRestore = null)
 	{
+		RefreshMessages();
+
 		if (!HasMapFolder(mapDirectory))
 		{
-			onCompleted?.Invoke(new MapHistoryRestoreResult { Success = false, ErrorMessage = TranslationServer.Translate("No map folder is open.") });
+			onCompleted?.Invoke(new MapHistoryRestoreResult { Success = false, ErrorMessage = _messages.NoMapFolderOpen });
 			return;
 		}
 
@@ -476,6 +504,8 @@ public class MapHistoryService
 
 	public void MaintainAllStoresInBackground()
 	{
+		RefreshMessages();
+
 		Enqueue(() =>
 		{
 			string root = MapHistoryStore.GetRootDirectory();
@@ -509,7 +539,7 @@ public class MapHistoryService
 	{
 		if (!File.Exists(Path.Combine(mapDirectory, "metadata.json")))
 		{
-			return MapHistoryStatus.Unavailable(TranslationServer.Translate("This folder has no metadata.json yet."));
+			return MapHistoryStatus.Unavailable(_messages.NoMetadataYet);
 		}
 
 		using MapHistoryStoreSession session = MapHistoryStore.Acquire(mapDirectory);
@@ -530,7 +560,7 @@ public class MapHistoryService
 
 		MapHistoryStatus status = BuildStatus(session.Layout, mapDirectory);
 		return session.WasReset
-			? WithNotice(status, TranslationServer.Translate("The stored version history of this map could not be read, so a new one was started. The previous files were kept in the history folder."))
+			? WithNotice(status, _messages.HistoryUnreadableReset)
 			: status;
 	}
 
@@ -539,7 +569,7 @@ public class MapHistoryService
 		string metadataPath = Path.Combine(mapDirectory, "metadata.json");
 		if (!File.Exists(metadataPath))
 		{
-			return MapHistoryStatus.Unavailable(TranslationServer.Translate("This folder has no metadata.json yet."));
+			return MapHistoryStatus.Unavailable(_messages.NoMetadataYet);
 		}
 
 		MapHistoryStoreLayout layout = MapHistoryStore.Resolve(mapDirectory);
@@ -639,14 +669,14 @@ public class MapHistoryService
 		MapHistoryStoreLayout layout = MapHistoryStore.Resolve(mapDirectory);
 		if (!MapHistoryStore.RepositoryExists(layout))
 		{
-			return new MapHistoryVersionResult { Success = false, ErrorMessage = TranslationServer.Translate("This map has no versions yet.") };
+			return new MapHistoryVersionResult { Success = false, ErrorMessage = _messages.NoVersionsYet };
 		}
 
 		using MapHistoryStoreSession session = MapHistoryStore.Acquire(mapDirectory);
 		var repository = new MapGitRepository(session.Layout.RepositoryDirectory);
 		if (!repository.TryReadCommit(commitId, out MapGitCommitInfo commit))
 		{
-			return new MapHistoryVersionResult { Success = false, ErrorMessage = TranslationServer.Translate("That version can no longer be read.") };
+			return new MapHistoryVersionResult { Success = false, ErrorMessage = _messages.VersionUnreadable };
 		}
 
 		string? normalizedLabel = string.IsNullOrWhiteSpace(label) ? null : label.Trim();
@@ -686,13 +716,13 @@ public class MapHistoryService
 	{
 		if (!File.Exists(Path.Combine(mapDirectory, "metadata.json")))
 		{
-			return new MapHistoryVersionResult { Success = false, ErrorMessage = TranslationServer.Translate("This folder has no metadata.json yet.") };
+			return new MapHistoryVersionResult { Success = false, ErrorMessage = _messages.NoMetadataYet };
 		}
 
 		var repository = new MapGitRepository(session.Layout.RepositoryDirectory);
 		if (!repository.Exists)
 		{
-			return new MapHistoryVersionResult { Success = false, ErrorMessage = TranslationServer.Translate("This map's version history could not be opened.") };
+			return new MapHistoryVersionResult { Success = false, ErrorMessage = _messages.HistoryCouldNotBeOpened };
 		}
 
 		using Repository repositoryScope = repository.OpenRepositoryScope();
@@ -731,7 +761,7 @@ public class MapHistoryService
 				return new MapHistoryVersionResult
 				{
 					Success = false,
-					ErrorMessage = string.Format(TranslationServer.Translate("'{0}' was being written by another program while the version was created. Try again in a moment."), relativePath)
+					ErrorMessage = string.Format(_messages.FileBeingWritten, relativePath)
 				};
 			}
 
@@ -806,7 +836,7 @@ public class MapHistoryService
 		MapHistoryStoreLayout layout = MapHistoryStore.Resolve(mapDirectory);
 		if (!MapHistoryStore.RepositoryExists(layout))
 		{
-			return new MapHistoryRestoreResult { Success = false, ErrorMessage = TranslationServer.Translate("This map has no versions yet.") };
+			return new MapHistoryRestoreResult { Success = false, ErrorMessage = _messages.NoVersionsYet };
 		}
 
 		using MapHistoryStoreSession session = MapHistoryStore.Acquire(mapDirectory);
@@ -814,7 +844,7 @@ public class MapHistoryService
 		using Repository repositoryScope = repository.OpenRepositoryScope();
 		if (!repository.TryReadCommit(commitId, out MapGitCommitInfo targetCommit, repositoryScope))
 		{
-			return new MapHistoryRestoreResult { Success = false, ErrorMessage = TranslationServer.Translate("That version can no longer be read.") };
+			return new MapHistoryRestoreResult { Success = false, ErrorMessage = _messages.VersionUnreadable };
 		}
 
 		MapHistoryVersionResult beforeRestoreVersion = CreateVersionInStore(session, mapDirectory, MapVersionKind.BeforeRestore, "Before restore", mapDirectory);
@@ -845,7 +875,7 @@ public class MapHistoryService
 				return new MapHistoryRestoreResult
 				{
 					Success = false,
-					ErrorMessage = string.Format(TranslationServer.Translate("That version is missing '{0}', so the map was left untouched."), pair.Key)
+					ErrorMessage = string.Format(_messages.VersionIsMissingFile, pair.Key)
 				};
 			}
 
@@ -1073,7 +1103,7 @@ public class MapHistoryService
 			GD.PrintErr($"[MapHistoryService] libgit2 could not be loaded, so the version history is unavailable: {rootCause.Message}");
 		}
 
-		return TranslationServer.Translate("Version history is not available in this build. Saving still works, but earlier versions cannot be opened.");
+		return _messages.HistoryUnavailableInBuild;
 	}
 
 	private void Enqueue(Action action, bool coalesce = false)
@@ -1272,7 +1302,7 @@ public class MapHistoryService
 	private const string RestoreStagingSuffix = ".realm-restore.tmp";
 	private const string RestoreBackupSuffix = ".realm-restore.bak";
 
-	private static bool ApplyRestoreTransactionally(
+	private bool ApplyRestoreTransactionally(
 		string mapDirectory,
 		List<(string RelativePath, byte[] Content)> filesToWrite,
 		List<string> relativePathsToRemove,
@@ -1318,7 +1348,7 @@ public class MapHistoryService
 			RollBackRestore(touchedPaths, stagedPaths);
 			filesWritten = 0;
 			filesRemoved = 0;
-			errorMessage = string.Format(TranslationServer.Translate("Could not restore the map: {0}. The map was put back the way it was."), exception.Message);
+			errorMessage = string.Format(_messages.RestoreFailed, exception.Message);
 			return false;
 		}
 
@@ -1424,11 +1454,11 @@ public class MapHistoryService
 			MapVersionKind.BeforePublish => "Before publish",
 			MapVersionKind.BeforeMapUpgrade => "Before map upgrade",
 			MapVersionKind.AfterMapUpgrade => "After map upgrade",
-			MapVersionKind.BeforeRestore => TranslationServer.Translate("Before restore"),
-			MapVersionKind.RestoredVersion => TranslationServer.Translate("Restored version"),
-			MapVersionKind.BeforeAssetOptimization => TranslationServer.Translate("Before asset cleanup"),
-			MapVersionKind.AfterAssetOptimization => TranslationServer.Translate("After asset cleanup"),
-			_ => TranslationServer.Translate("Map change")
+			MapVersionKind.BeforeRestore => "Before restore",
+			MapVersionKind.RestoredVersion => "Restored version",
+			MapVersionKind.BeforeAssetOptimization => "Before asset cleanup",
+			MapVersionKind.AfterAssetOptimization => "After asset cleanup",
+			_ => "Map change"
 		};
 	}
 
