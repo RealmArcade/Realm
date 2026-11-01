@@ -116,7 +116,7 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 
 		AddSectionHeader(contentVBox, "💾 " + TranslationServer.Translate("AUTOSAVE & VERSIONS"), new Color(0.7f, 0.95f, 0.6f));
 
-		AddDescription(contentVBox, TranslationServer.Translate("Your edits are written to the map folder as you work, and a version you can go back to is kept automatically a few minutes apart. Older versions become less detailed as they age, so the history stays small without ever losing the map. Versions you name yourself are always kept exactly as they are."));
+		AddDescription(contentVBox, TranslationServer.Translate("Your edits are written to the map folder as you work, and the map is saved as a version you can go back to every 5 minutes. Older versions are thinned out as they age - every 5 minutes for the last day, then hourly, daily, weekly and monthly further back - so the history stays small. Versions you name yourself are always kept exactly as they are."));
 
 		var btnVersionsRow = new HBoxContainer();
 		btnVersionsRow.Name = "BtnVersionsRow_HBoxContainer";
