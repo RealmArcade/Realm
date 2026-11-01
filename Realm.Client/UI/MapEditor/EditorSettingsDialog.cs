@@ -58,7 +58,6 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 		contentVBox.AddChild(topInfoSpacer);
 
 		BuildInterfaceSection(contentVBox);
-		BuildWorkflowSection(contentVBox);
 		BuildDeveloperToolsSection(contentVBox);
 	}
 
@@ -107,16 +106,14 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 		);
 	}
 
-	private void BuildWorkflowSection(VBoxContainer contentVBox)
+	private void BuildDeveloperToolsSection(VBoxContainer contentVBox)
 	{
-		var spacer1 = new Control();
-		spacer1.Name = "Spacer1_Control";
-		spacer1.CustomMinimumSize = new Vector2(0, 10);
-		contentVBox.AddChild(spacer1);
+		var spacer2 = new Control();
+		spacer2.Name = "Spacer2_Control";
+		spacer2.CustomMinimumSize = new Vector2(0, 10);
+		contentVBox.AddChild(spacer2);
 
-		AddSectionHeader(contentVBox, "💾 " + TranslationServer.Translate("AUTOSAVE & VERSIONS"), new Color(0.7f, 0.95f, 0.6f));
-
-		AddDescription(contentVBox, TranslationServer.Translate("Your edits are written to the map folder as you work, and the map is saved as a version you can go back to every 5 minutes. Older versions are thinned out as they age - every 5 minutes for the last day, then hourly, daily, weekly and monthly further back - so the history stays small. Versions you name yourself are always kept exactly as they are."));
+		AddSectionHeader(contentVBox, "🛠️ " + TranslationServer.Translate("DEVELOPER & EDITOR TOOLS"), new Color(0.6f, 0.85f, 0.95f));
 
 		var btnManageStoresRow = new HBoxContainer();
 		btnManageStoresRow.Name = "BtnManageStoresRow_HBoxContainer";
@@ -126,22 +123,12 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 		var btnManageStores = new Button();
 		btnManageStores.Name = "BtnManageStores_Button";
 		btnManageStores.Set("icon_max_width", 0);
-		btnManageStores.Text = "🗄️ " + TranslationServer.Translate("MANAGE STORAGE");
+		btnManageStores.Text = "🗄️ " + TranslationServer.Translate("MANAGE BACKUP STORAGE");
 		btnManageStores.TooltipText = TranslationServer.Translate("See how much space each map's history uses and remove the ones you no longer need");
 		btnManageStores.FocusMode = FocusModeEnum.None;
 		btnManageStores.CustomMinimumSize = new Vector2(220, 32);
 		btnManageStores.Pressed += () => Hud?.OpenMapHistoryStoresDialog();
 		btnManageStoresRow.AddChild(btnManageStores);
-	}
-
-	private void BuildDeveloperToolsSection(VBoxContainer contentVBox)
-	{
-		var spacer2 = new Control();
-		spacer2.Name = "Spacer2_Control";
-		spacer2.CustomMinimumSize = new Vector2(0, 10);
-		contentVBox.AddChild(spacer2);
-
-		AddSectionHeader(contentVBox, "🛠️ " + TranslationServer.Translate("DEVELOPER & EDITOR TOOLS"), new Color(0.6f, 0.85f, 0.95f));
 
 		var btnAuthorSignatureRow = new HBoxContainer();
 		btnAuthorSignatureRow.Name = "BtnAuthorSignatureRow_HBoxContainer";
@@ -194,7 +181,7 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 		var btnReinstallVSCode = new Button();
 		btnReinstallVSCode.Name = "BtnReinstallVSCode_Button";
 		btnReinstallVSCode.Set("icon_max_width", 0);
-		btnReinstallVSCode.Text = "🔄 " + TranslationServer.Translate("Reinstall / Repair VS Code");
+		btnReinstallVSCode.Text = "🔄 " + TranslationServer.Translate("Reinstall / Repair VS Codium");
 		btnReinstallVSCode.TooltipText = TranslationServer.Translate("Forces a fresh download and installation of VS Code and editor dependencies into application user data");
 		btnReinstallVSCode.FocusMode = FocusModeEnum.None;
 		btnReinstallVSCode.CustomMinimumSize = new Vector2(240, 32);
