@@ -128,7 +128,7 @@ namespace Realm.Client.Utils
 
 		private static string TryResolveAdditionalPaths(string cleanPath, string withRmesh)
 		{
-			string result = TryResolveTempWorkspace(cleanPath, withRmesh);
+			string result = TryResolveEditingDirectory(cleanPath, withRmesh);
 			if (result != null) return result;
 
 			result = TryResolveActiveMapPath(cleanPath, withRmesh);
@@ -187,15 +187,15 @@ namespace Realm.Client.Utils
 			return null;
 		}
 
-		private static string TryResolveTempWorkspace(string cleanPath, string withRmesh)
+		private static string TryResolveEditingDirectory(string cleanPath, string withRmesh)
 		{
-			string tempWs = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
-			if (string.IsNullOrEmpty(tempWs)) return null;
+			string editingDirectory = ProjectSettings.GlobalizePath(GameContext.EditorService.EditingDirectoryGodotPath);
+			if (string.IsNullOrEmpty(editingDirectory)) return null;
 
-			string candTemp = Path.Combine(tempWs, cleanPath);
+			string candTemp = Path.Combine(editingDirectory, cleanPath);
 			if (candTemp.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) && File.Exists(candTemp)) return candTemp;
 
-			string candTempRmesh = Path.Combine(tempWs, withRmesh);
+			string candTempRmesh = Path.Combine(editingDirectory, withRmesh);
 			if (candTempRmesh.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) && File.Exists(candTempRmesh)) return candTempRmesh;
 			return null;
 		}
@@ -278,13 +278,13 @@ namespace Realm.Client.Utils
 		private static string TryResolveInBaseLocations(string cleanPath, string withRmesh)
 		{
 			string[] subDirs = new[] { "attachments", "items", "projectiles", "weapons", "props", "resources", "units", "buildings" };
-			string tempWs = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
+			string editingDirectory = ProjectSettings.GlobalizePath(GameContext.EditorService.EditingDirectoryGodotPath);
 			string activeMap = GetActiveMapName();
 			string currentMapDir = GetCurrentMapDirectory();
 			string resDir = ProjectSettings.GlobalizePath("res://");
 			string userDir = ProjectSettings.GlobalizePath("user://");
 
-			string[] baseLocations = new[] { tempWs, activeMap, currentMapDir, resDir, userDir };
+			string[] baseLocations = new[] { editingDirectory, activeMap, currentMapDir, resDir, userDir };
 			foreach (var loc in baseLocations)
 			{
 				string result = TryResolveInLocation(loc, cleanPath, withRmesh, subDirs);

@@ -13,6 +13,7 @@ public class MapHistoryService
 {
 	private const string AuthorName = "Realm Map Editor";
 	private const string AuthorEmail = "map-editor@realm.local";
+	private const int MinimumPrunableVersionsPerTrim = 20;
 
 	private static readonly string[] ExcludedDirectoryNames =
 	{
@@ -38,11 +39,6 @@ public class MapHistoryService
 
 	public MapHistoryStatus CachedStatus => _cachedStatus;
 
-	public static string GetStoreRootPath()
-	{
-		return MapHistoryStore.GetRootDirectory();
-	}
-
 	public void PrimeForMap(string mapDirectory, MapHistoryRetention retention, Action<MapHistoryStatus> onCompleted = null)
 	{
 		Enqueue(() =>
@@ -62,7 +58,7 @@ public class MapHistoryService
 		});
 	}
 
-	public void CreateVersion(string mapDirectory, MapVersionKind kind, string? label, Action<MapHistoryVersionResult> onCompleted = null, bool coalesce = false, string? sourceFolder = null)
+	public void CreateVersion(string mapDirectory, MapVersionKind kind, string? label, Action<MapHistoryVersionResult> onCompleted = null, bool coalesce = false, string? sourceFolder = null, MapHistoryRetention? retention = null)
 	{
 		Enqueue(() =>
 		{
@@ -71,6 +67,10 @@ public class MapHistoryService
 			{
 				using MapHistoryStoreSession session = MapHistoryStore.Acquire(mapDirectory);
 				result = CreateVersionInStore(session, mapDirectory, kind, label, sourceFolder);
+				if (result.Success && retention != null)
+				{
+					TrimHistoryAfterCommit(session, retention);
+				}
 			}
 			catch (Exception exception)
 			{
@@ -82,10 +82,10 @@ public class MapHistoryService
 		}, coalesce);
 	}
 
-	public Task<MapHistoryVersionResult> CreateVersionAsync(string mapDirectory, MapVersionKind kind, string? label, string? sourceFolder = null)
+	public Task<MapHistoryVersionResult> CreateVersionAsync(string mapDirectory, MapVersionKind kind, string? label, string? sourceFolder = null, MapHistoryRetention? retention = null)
 	{
 		var completion = new TaskCompletionSource<MapHistoryVersionResult>();
-		CreateVersion(mapDirectory, kind, label, result => completion.TrySetResult(result), sourceFolder: sourceFolder);
+		CreateVersion(mapDirectory, kind, label, result => completion.TrySetResult(result), sourceFolder: sourceFolder, retention: retention);
 		return completion.Task;
 	}
 
@@ -132,7 +132,7 @@ public class MapHistoryService
 			MapHistoryStorageInfo info;
 			try
 			{
-				info = BuildStorageInfo(mapDirectory, wasCompacted: false);
+				info = BuildStorageInfo(mapDirectory);
 			}
 			catch (Exception exception)
 			{
@@ -162,7 +162,7 @@ public class MapHistoryService
 						new MapGitRepository(layout.RepositoryDirectory).Compact();
 					}
 
-					info = BuildStorageInfo(mapDirectory, wasCompacted: true);
+					info = BuildStorageInfo(mapDirectory);
 				}
 			}
 			catch (Exception exception)
@@ -315,7 +315,7 @@ public class MapHistoryService
 		MapHistoryStoreLayout layout = MapHistoryStore.Resolve(mapDirectory);
 		if (!MapHistoryStore.RepositoryExists(layout))
 		{
-			return new MapHistoryStatus { IsRepositoryReady = false, StoreDirectory = layout.StoreDirectory };
+			return new MapHistoryStatus { IsRepositoryReady = false };
 		}
 
 		return BuildStatus(mapDirectory, layout);
@@ -333,9 +333,7 @@ public class MapHistoryService
 			IsRepositoryReady = true,
 			LastVersionCommitId = latestVersion?.CommitId,
 			LastVersionAt = latestVersion?.CreatedAt,
-			LastVersionKind = latestVersion?.Kind,
-			VersionCount = commits.Count,
-			StoreDirectory = layout.StoreDirectory
+			VersionCount = commits.Count
 		};
 	}
 
@@ -346,9 +344,7 @@ public class MapHistoryService
 			IsRepositoryReady = status.IsRepositoryReady,
 			LastVersionCommitId = status.LastVersionCommitId,
 			LastVersionAt = status.LastVersionAt,
-			LastVersionKind = status.LastVersionKind,
 			VersionCount = status.VersionCount,
-			StoreDirectory = status.StoreDirectory,
 			Notice = notice,
 			ErrorMessage = status.ErrorMessage
 		};
@@ -402,12 +398,12 @@ public class MapHistoryService
 		return new MapHistoryVersionResult { Success = true, Entry = ToVersionEntry(commit, entry, normalizedLabel) };
 	}
 
-	private static MapHistoryStorageInfo BuildStorageInfo(string mapDirectory, bool wasCompacted)
+	private static MapHistoryStorageInfo BuildStorageInfo(string mapDirectory)
 	{
 		MapHistoryStoreLayout layout = MapHistoryStore.Resolve(mapDirectory);
 		if (!MapHistoryStore.RepositoryExists(layout))
 		{
-			return new MapHistoryStorageInfo { WasCompacted = wasCompacted };
+			return new MapHistoryStorageInfo();
 		}
 
 		var repository = new MapGitRepository(layout.RepositoryDirectory);
@@ -416,12 +412,8 @@ public class MapHistoryService
 		return new MapHistoryStorageInfo
 		{
 			TotalBytes = size.TotalBytes,
-			LooseObjectBytes = size.LooseObjectBytes,
 			PackedBytes = size.PackedBytes,
-			LooseObjectCount = size.LooseObjectCount,
-			ObjectPackCount = size.ObjectPackCount,
-			VersionCount = repository.ReadVersionHistory(int.MaxValue).Count,
-			WasCompacted = wasCompacted
+			VersionCount = repository.ReadVersionHistory(int.MaxValue).Count
 		};
 	}
 
@@ -435,7 +427,7 @@ public class MapHistoryService
 		var repository = new MapGitRepository(session.Layout.RepositoryDirectory);
 		MapHistoryStateFile state = LoadState(session.Layout);
 
-		bool incrementsSaveVersion = kind is MapVersionKind.ManualSave or MapVersionKind.SaveAs or MapVersionKind.AutosaveCheckpoint or MapVersionKind.BeforePublish;
+		bool incrementsSaveVersion = kind is MapVersionKind.ManualSave or MapVersionKind.AutosaveCheckpoint or MapVersionKind.BeforePublish;
 		bool canTrustFingerprints = string.Equals(state.FilesSourceFolder, mapDirectory, StringComparison.OrdinalIgnoreCase);
 
 		List<string> workingFiles = CollectMapFiles(mapDirectory);
@@ -498,7 +490,7 @@ public class MapHistoryService
 			state.Files = fingerprints;
 			state.FilesSourceFolder = mapDirectory;
 			SaveState(session.Layout, state);
-			return new MapHistoryVersionResult { Success = true, NothingToCommit = true };
+			return new MapHistoryVersionResult { Success = true };
 		}
 
 		if (incrementsSaveVersion && state.SaveVersion < long.MaxValue)
@@ -627,6 +619,31 @@ public class MapHistoryService
 			TerrainRestored = filesWritten > 0 && targetFiles.ContainsKey("terrain.json"),
 			MetadataRestored = targetFiles.ContainsKey("metadata.json") && filesWritten > 0
 		};
+	}
+
+	private void TrimHistoryAfterCommit(MapHistoryStoreSession session, MapHistoryRetention retention)
+	{
+		if (!retention.IsEnabled) return;
+
+		var repository = new MapGitRepository(session.Layout.RepositoryDirectory);
+		IReadOnlyList<MapGitCommitInfo> commits = repository.ReadVersionHistory(int.MaxValue);
+		DateTimeOffset now = DateTimeOffset.Now;
+		int prunableCount = 0;
+		for (int rank = 0; rank < commits.Count; rank++)
+		{
+			if (!retention.ShouldKeep(rank, now - commits[rank].CommittedAt))
+			{
+				prunableCount++;
+			}
+		}
+
+		if (prunableCount < MinimumPrunableVersionsPerTrim) return;
+
+		MapHistoryCleanupResult cleanup = CondenseHistoryInStore(session, retention);
+		if (cleanup.CondensedAnything)
+		{
+			GD.Print($"[MapHistoryService] Condensed {cleanup.CondensedVersionCount} older version(s) while saving.");
+		}
 	}
 
 	private MapHistoryCleanupResult CondenseHistoryInStore(MapHistoryStoreSession session, MapHistoryRetention retention)
@@ -978,7 +995,6 @@ public class MapHistoryService
 		{
 			MapVersionKind.Initial => "Initial version",
 			MapVersionKind.ManualSave => "Save point",
-			MapVersionKind.SaveAs => "Save point (save as)",
 			MapVersionKind.AutosaveCheckpoint => "Autosave checkpoint",
 			MapVersionKind.BeforePublish => "Before publish",
 			MapVersionKind.BeforeMapUpgrade => "Before map upgrade",

@@ -222,9 +222,9 @@ public partial class UtilitiesDialog : FloatingDialogBase
 
 	private static string GetWorkspacePath()
 	{
-		if (!string.IsNullOrEmpty(GameContext.EditorService._tempWorkspacePath))
+		if (!string.IsNullOrEmpty(GameContext.EditorService._editingDirectory))
 		{
-			return GameContext.EditorService._tempWorkspacePath;
+			return GameContext.EditorService._editingDirectory;
 		}
 
 		return MapWorkspaceService.GetActiveWorkspacePath();

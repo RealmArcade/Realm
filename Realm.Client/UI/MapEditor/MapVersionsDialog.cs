@@ -148,13 +148,7 @@ public partial class MapVersionsDialog : FloatingDialogBase
 
 	private static string ResolveEditingDirectory()
 	{
-		string workspace = GameContext.EditorService._tempWorkspacePath;
-		if (!string.IsNullOrEmpty(workspace))
-		{
-			return workspace;
-		}
-
-		return ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
+		return GameContext.EditorService._editingDirectory;
 	}
 
 	private void SetBusy(bool isBusy, string? message = null)
@@ -313,6 +307,11 @@ public partial class MapVersionsDialog : FloatingDialogBase
 
 	private static bool MatchesSearch(MapVersionEntry version, string search)
 	{
+		if (version.SaveVersion > 0 && $"#{version.SaveVersion}".Contains(search, StringComparison.OrdinalIgnoreCase))
+		{
+			return true;
+		}
+
 		if (!string.IsNullOrWhiteSpace(version.Label) && version.Label.Contains(search, StringComparison.OrdinalIgnoreCase))
 		{
 			return true;
@@ -349,10 +348,11 @@ public partial class MapVersionsDialog : FloatingDialogBase
 		string kindLabel = DescribeKind(version.Kind);
 		string sourceSuffix = BuildSourceFolderSuffix(version.SourceFolder);
 		string labelPrefix = string.IsNullOrWhiteSpace(version.Label) ? string.Empty : $"{version.Label}  •  ";
+		string saveVersionPrefix = version.SaveVersion > 0 ? $"#{version.SaveVersion}  •  " : string.Empty;
 
 		var descriptionLabel = new Label();
 		descriptionLabel.Name = "DescriptionLabel_Label";
-		descriptionLabel.Text = $"{labelPrefix}{FormatTimestamp(version.CreatedAt)}  •  {kindLabel}{sourceSuffix}";
+		descriptionLabel.Text = $"{saveVersionPrefix}{labelPrefix}{FormatTimestamp(version.CreatedAt)}  •  {kindLabel}{sourceSuffix}";
 		descriptionLabel.AddThemeFontSizeOverride("font_size", 11);
 		descriptionLabel.AddThemeColorOverride("font_color", string.IsNullOrWhiteSpace(version.Label) ? new Color(0.93f, 0.93f, 0.9f) : new Color(0.98f, 0.9f, 0.6f));
 		descriptionLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
@@ -586,6 +586,11 @@ public partial class MapVersionsDialog : FloatingDialogBase
 				Hud.ViewLoadMapProperties();
 			}
 
+			if (GameContext.Host != null)
+			{
+				GameContext.Host.EditorHasUnsavedChanges = false;
+			}
+
 			Hud.ShowFeedback(string.Format(TranslationServer.Translate("Restored the version from {0}. {1} file(s) restored, {2} removed."), FormatTimestamp(result.NewVersion?.CreatedAt ?? DateTimeOffset.Now), result.FilesWritten, result.FilesRemoved));
 			RefreshVersions();
 		}
@@ -616,7 +621,7 @@ public partial class MapVersionsDialog : FloatingDialogBase
 				RefreshVersions();
 				RefreshStorage();
 			}).CallDeferred();
-		});
+		}, retention: EditorSettingsDialog.CurrentSettings.ToHistoryRetention());
 	}
 
 	private static string DescribeKind(MapVersionKind kind)
@@ -625,7 +630,6 @@ public partial class MapVersionsDialog : FloatingDialogBase
 		{
 			MapVersionKind.Initial => TranslationServer.Translate("First version"),
 			MapVersionKind.ManualSave => TranslationServer.Translate("Save"),
-			MapVersionKind.SaveAs => TranslationServer.Translate("Save as"),
 			MapVersionKind.AutosaveCheckpoint => TranslationServer.Translate("Autosave"),
 			MapVersionKind.BeforePublish => TranslationServer.Translate("Before publish"),
 			MapVersionKind.BeforeMapUpgrade => TranslationServer.Translate("Before map upgrade"),

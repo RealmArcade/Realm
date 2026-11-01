@@ -72,12 +72,7 @@ public static class MapHistoryStore
 
 	public static MapHistoryStoreLayout Resolve(string mapDirectory)
 	{
-		return Resolve(mapDirectory, ResolveMapName(mapDirectory));
-	}
-
-	public static MapHistoryStoreLayout Resolve(string mapDirectory, string mapName)
-	{
-		return new MapHistoryStoreLayout(GetRootDirectory(), BuildStoreKey(mapName));
+		return new MapHistoryStoreLayout(GetRootDirectory(), BuildStoreKey(ResolveMapName(mapDirectory)));
 	}
 
 	public static string BuildStoreKey(string mapName)

@@ -3363,7 +3363,7 @@ namespace Realm.Client.UI
 
 			try
 			{
-				string workspacePath = !string.IsNullOrEmpty(GameContext.EditorService._tempWorkspacePath) ? GameContext.EditorService._tempWorkspacePath : MapWorkspaceService.GetActiveWorkspacePath();
+				string workspacePath = !string.IsNullOrEmpty(GameContext.EditorService._editingDirectory) ? GameContext.EditorService._editingDirectory : MapWorkspaceService.GetActiveWorkspacePath();
 
 				if (GameContext.EditorService.TryGetMapNameFromManifest(workspacePath, out string manifestMapName))
 				{

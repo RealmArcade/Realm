@@ -161,7 +161,7 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 
 		_chkHistoryCleanup = AddCheckBox(
 			contentVBox,
-			TranslationServer.Translate("Clean up older versions when the editor starts"),
+			TranslationServer.Translate("Clean up older versions as you work"),
 			CurrentSettings.CleanUpHistoryAutomatically,
 			(val) =>
 			{
@@ -295,6 +295,13 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 			Hud?.ShowFeedback(TranslationServer.Translate("Reinstalling VS Code dependencies in background..."));
 		};
 		btnReinstallRow.AddChild(btnReinstallVSCode);
+	}
+
+	public override void OpenDialog()
+	{
+		_snapshot = CurrentSettings.Clone();
+		SyncControls();
+		base.OpenDialog();
 	}
 
 	private void SyncControls()

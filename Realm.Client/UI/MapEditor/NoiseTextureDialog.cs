@@ -428,7 +428,7 @@ public partial class NoiseTextureDialog : FloatingDialogBase
 
 	private string GetUniqueDefaultAssetName(string baseName = "procedural_noise_1")
 	{
-		string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
+		string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.EditingDirectoryGodotPath);
 		var assetsObj = MapAssetHelper.LoadAssets(wsPath);
 		var noiseObj = assetsObj.GetCategory("Noise");
 
@@ -467,7 +467,7 @@ public partial class NoiseTextureDialog : FloatingDialogBase
 		}
 
 		string cleanBase = rawName.ToLowerInvariant().Replace(" ", "_").Replace(".rtex", "");
-		string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
+		string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.EditingDirectoryGodotPath);
 
 		var assetsObj = MapAssetHelper.LoadAssets(wsPath);
 		var noiseObj = assetsObj.GetCategory("Noise");

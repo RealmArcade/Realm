@@ -752,9 +752,9 @@ public partial class VSCodeManager
 			commandsArray.Add(cmd);
 		}
 
-		if (GameContext.SessionState.IsMapEditorMode && !string.IsNullOrEmpty(GameContext.EditorService._tempWorkspacePath))
+		if (GameContext.SessionState.IsMapEditorMode && !string.IsNullOrEmpty(GameContext.EditorService._editingDirectory))
 		{
-			pollResponseObj["workspaceMetadataPath"] = Path.Combine(GameContext.EditorService._tempWorkspacePath, "metadata.json");
+			pollResponseObj["workspaceMetadataPath"] = Path.Combine(GameContext.EditorService._editingDirectory, "metadata.json");
 		}
 
 		pollResponseObj["commands"] = commandsArray;
@@ -2133,7 +2133,7 @@ public partial class VSCodeManager
 
 	private string GetMapFolderToOpen(string projectRoot)
 	{
-		if (TryGetTempWorkspacePath(out string tempPath))
+		if (TryGetEditingDirectoryPath(out string tempPath))
 			return tempPath;
 
 		if (TryGetRecentMapPath(out string recentPath))
@@ -2146,15 +2146,15 @@ public partial class VSCodeManager
 		return Path.Combine(projectRoot, "Maps", fallbackMap).Replace("\\", "/");
 	}
 
-	private bool TryGetTempWorkspacePath(out string path)
+	private bool TryGetEditingDirectoryPath(out string path)
 	{
 		path = string.Empty;
 		if (GameContext.Host != null && GameContext.SessionState.IsMapEditorMode)
 		{
-			string tempWorkspace = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
-			if (Directory.Exists(tempWorkspace))
+			string editingDirectory = ProjectSettings.GlobalizePath(GameContext.EditorService.EditingDirectoryGodotPath);
+			if (Directory.Exists(editingDirectory))
 			{
-				path = tempWorkspace.Replace("\\", "/");
+				path = editingDirectory.Replace("\\", "/");
 				return true;
 			}
 		}

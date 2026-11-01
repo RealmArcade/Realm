@@ -436,7 +436,7 @@ public partial class EditorService : IEditorAPI
 	{
 		try
 		{
-			RealmDefaultAnimations.EnsureDefaultTemplateAnimations(_tempWorkspacePath);
+			RealmDefaultAnimations.EnsureDefaultTemplateAnimations(_editingDirectory);
 		}
 		catch (Exception ex)
 		{
@@ -824,33 +824,39 @@ public partial class EditorService : IEditorAPI
 		return false;
 	}
 
-	public string TempWorkspaceGodotPath { get; set; } = MapWorkspaceService.DefaultWorkspaceGodotPath;
-	public string _tempWorkspacePath { get; set; } = string.Empty;
+	public string EditingDirectoryGodotPath => string.IsNullOrEmpty(_editingDirectory) ? string.Empty : _editingDirectory.Replace('\\', '/');
+	public string _editingDirectory { get; set; } = string.Empty;
 
 	public bool IsEditingMapFolderInPlace { get; set; }
 
-	public bool HasTempWorkspaceSession => !string.IsNullOrEmpty(_tempWorkspacePath);
+	public bool HasEditingDirectory => !string.IsNullOrEmpty(_editingDirectory);
 
 	public void SetActiveMapDirectory(string absoluteDirectory, bool editingMapFolderInPlace)
 	{
-		_tempWorkspacePath = absoluteDirectory;
-		TempWorkspaceGodotPath = absoluteDirectory.Replace('\\', '/');
+		_editingDirectory = absoluteDirectory;
 		IsEditingMapFolderInPlace = editingMapFolderInPlace;
 	}
 
-	public void UseScratchWorkspaceDomain()
+	public void ClearEditingDirectoryDomain()
 	{
-		TempWorkspaceGodotPath = MapWorkspaceService.DefaultWorkspaceGodotPath;
-		_tempWorkspacePath = MapWorkspaceService.GetDefaultWorkspaceGlobalPath();
+		_editingDirectory = string.Empty;
 		IsEditingMapFolderInPlace = false;
 	}
 
-	public void OpenTempWorkspaceSessionDomain()
+	public void EnsureEditingDirectoryDomain()
 	{
-		if (HasTempWorkspaceSession) return;
+		if (HasEditingDirectory) return;
 
-		_tempWorkspacePath = MapWorkspaceService.GetDefaultWorkspaceGlobalPath();
-		SetCurrentSourceFolder(MapWorkspaceService.ReadEditorSourceFolder());
+		string? sourceFolder = CurrentSourceFolder;
+		if (string.IsNullOrEmpty(sourceFolder) || !Directory.Exists(sourceFolder))
+		{
+			sourceFolder = MapWorkspaceService.ReadEditorSourceFolder();
+		}
+
+		if (string.IsNullOrEmpty(sourceFolder) || !Directory.Exists(sourceFolder)) return;
+
+		SetActiveMapDirectory(Path.GetFullPath(sourceFolder), true);
+		SetCurrentSourceFolder(sourceFolder);
 	}
 
 	public int LastSelectionMinX { get; set; } = -1;
@@ -5386,11 +5392,12 @@ public partial class EditorService : IEditorAPI
 		this.LastMetadataSyncTime = Math.Max(writeTimeTicks, DateTime.UtcNow.Ticks);
 	}
 
-	public void InitializeTempWorkspaceDomain(long terrainTime, long metadataTime)
+	public void InitializeEditingDirectoryDomain(long terrainTime, long metadataTime)
 	{
 		this.LastTerrainSyncTime = terrainTime;
 		this.LastMetadataSyncTime = metadataTime;
-		this.StartWorkspaceWatcher(this._tempWorkspacePath);
+		if (!HasEditingDirectory) return;
+		this.StartWorkspaceWatcher(this._editingDirectory);
 	}
 
 	public (string? casDir, string? defaultSave) ConsumePendingCasSourceDomain()
@@ -5402,27 +5409,13 @@ public partial class EditorService : IEditorAPI
 		return (casDir, defaultSave);
 	}
 
-	public void TryCreateTempWorkspaceDirectoryDomain()
+	public void EnsureEditingDirectoryScaffoldingDomain()
 	{
-		OpenTempWorkspaceSessionDomain();
-		Directory.CreateDirectory(this._tempWorkspacePath);
-		MapWorkspaceService.SetupWorkspace(this._tempWorkspacePath, "MapScript");
-	}
+		EnsureEditingDirectoryDomain();
+		if (!HasEditingDirectory) return;
 
-	public void CleanTempWorkspaceRmapFilesDomain()
-	{
-		if (IsEditingMapFolderInPlace) return;
-		if (!Directory.Exists(this._tempWorkspacePath)) return;
-		foreach (var rmapFile in Directory.GetFiles(this._tempWorkspacePath, "*.rmap", SearchOption.TopDirectoryOnly))
-		{
-			try
-			{
-				File.Delete(rmapFile);
-			}
-			catch
-			{
-			}
-		}
+		Directory.CreateDirectory(this._editingDirectory);
+		MapWorkspaceService.SetupWorkspace(this._editingDirectory, "MapScript");
 	}
 
 	public void RedoDomain()
@@ -5695,9 +5688,9 @@ public partial class EditorService : IEditorAPI
 
 	public string PrepareTextureOutputDir(string cleanBaseName)
 	{
-		string wsPath = string.IsNullOrEmpty(this._tempWorkspacePath)
-			? ProjectSettings.GlobalizePath(this.TempWorkspaceGodotPath)
-			: this._tempWorkspacePath;
+		string wsPath = string.IsNullOrEmpty(this._editingDirectory)
+			? ProjectSettings.GlobalizePath(this.EditingDirectoryGodotPath)
+			: this._editingDirectory;
 		string texDir = Path.Combine(wsPath, "Assets", "textures");
 		Directory.CreateDirectory(texDir);
 		return Path.Combine(texDir, cleanBaseName);
@@ -5773,14 +5766,14 @@ public partial class EditorService : IEditorAPI
 	}
 
 
-	public string SanitizeMapName(string? candidateName, string defaultWorkspaceFolder)
+	public string SanitizeMapName(string? candidateName)
 	{
 		if (string.IsNullOrWhiteSpace(candidateName))
 		{
 			return "Untitled Map";
 		}
 
-		string sanitized = candidateName.Replace(defaultWorkspaceFolder, string.Empty, StringComparison.OrdinalIgnoreCase).Trim();
+		string sanitized = candidateName.Trim();
 		return string.IsNullOrEmpty(sanitized) ? "Untitled Map" : sanitized;
 	}
 
@@ -5824,7 +5817,7 @@ public partial class EditorService : IEditorAPI
 			return false;
 		}
 
-		string cleaned = candidateName.Replace(MapWorkspaceService.DefaultWorkspaceFolder, string.Empty, StringComparison.OrdinalIgnoreCase).Trim();
+		string cleaned = candidateName.Trim();
 		if (string.IsNullOrEmpty(cleaned))
 		{
 			return false;
@@ -5910,9 +5903,9 @@ public partial class EditorService : IEditorAPI
 			unitRegistry[(StringName)regKey] = uMeta;
 		}
 
-		string wsPath = string.IsNullOrEmpty(this._tempWorkspacePath)
-			? ProjectSettings.GlobalizePath(this.TempWorkspaceGodotPath)
-			: this._tempWorkspacePath;
+		string wsPath = string.IsNullOrEmpty(this._editingDirectory)
+			? ProjectSettings.GlobalizePath(this.EditingDirectoryGodotPath)
+			: this._editingDirectory;
 		string metadataPath = MetadataService.ResolveMetadataPath(wsPath);
 		if (!File.Exists(metadataPath)) return regKey;
 
@@ -6024,9 +6017,9 @@ public partial class EditorService : IEditorAPI
 			unitRegistry[(StringName)regKey] = uMeta;
 		}
 
-		string wsPath = string.IsNullOrEmpty(this._tempWorkspacePath)
-			? ProjectSettings.GlobalizePath(this.TempWorkspaceGodotPath)
-			: this._tempWorkspacePath;
+		string wsPath = string.IsNullOrEmpty(this._editingDirectory)
+			? ProjectSettings.GlobalizePath(this.EditingDirectoryGodotPath)
+			: this._editingDirectory;
 		string metadataPath = MetadataService.ResolveMetadataPath(wsPath);
 		if (File.Exists(metadataPath))
 		{
@@ -6076,9 +6069,9 @@ public partial class EditorService : IEditorAPI
 		ApplyPseudoSocketsToRegistry(regKey, snapshot, registryService);
 		PseudoSocketCache.Clear();
 
-		string wsPath = string.IsNullOrEmpty(this._tempWorkspacePath)
-			? ProjectSettings.GlobalizePath(this.TempWorkspaceGodotPath)
-			: this._tempWorkspacePath;
+		string wsPath = string.IsNullOrEmpty(this._editingDirectory)
+			? ProjectSettings.GlobalizePath(this.EditingDirectoryGodotPath)
+			: this._editingDirectory;
 		string metadataPath = MetadataService.ResolveMetadataPath(wsPath);
 		if (File.Exists(metadataPath))
 		{
@@ -6249,66 +6242,28 @@ public partial class EditorService : IEditorAPI
 		return maxTime;
 	}
 
-	public void ClearDirectoryReadOnly(string targetDir)
+	public void ResetEditingDirectorySyncStateDomain()
 	{
-		foreach (var file in Directory.GetFiles(targetDir, "*", SearchOption.AllDirectories))
-		{
-			var attrs = File.GetAttributes(file);
-			if ((attrs & FileAttributes.ReadOnly) != 0)
-			{
-				File.SetAttributes(file, attrs & ~FileAttributes.ReadOnly);
-			}
-		}
-	}
-
-	public void ClearTempWorkspaceExternalDomain(Action<string> onError)
-	{
-		if (IsEditingMapFolderInPlace) return;
-		if (string.IsNullOrEmpty(this._tempWorkspacePath) || !Directory.Exists(this._tempWorkspacePath)) return;
-		try
-		{
-			ClearDirectoryReadOnly(this._tempWorkspacePath);
-			foreach (var file in Directory.GetFiles(this._tempWorkspacePath, "*", SearchOption.AllDirectories))
-			{
-				var fileAttributes = File.GetAttributes(file);
-				if ((fileAttributes & FileAttributes.ReadOnly) == FileAttributes.ReadOnly)
-				{
-					File.SetAttributes(file, fileAttributes & ~FileAttributes.ReadOnly);
-				}
-
-				File.Delete(file);
-			}
-
-			foreach (var directory in Directory.GetDirectories(this._tempWorkspacePath))
-			{
-				Directory.Delete(directory, true);
-			}
-		}
-		catch (Exception ex)
-		{
-			onError?.Invoke(ex.Message);
-		}
-
 		this.LastTerrainSyncTime = 0;
 		this.LastMetadataSyncTime = 0;
 	}
 
-	public void PreLoadTempWorkspaceMapDomain()
+	public void PreLoadEditingDirectoryMapDomain()
 	{
-		MapWorkspaceService.EnsureGlbAssetsOptimized(this._tempWorkspacePath);
-		MapWorkspaceService.EnsurePngAssetsConverted(this._tempWorkspacePath);
+		MapWorkspaceService.EnsureGlbAssetsOptimized(this._editingDirectory);
+		MapWorkspaceService.EnsurePngAssetsConverted(this._editingDirectory);
 	}
 
-	public void PostLoadTempWorkspaceMapDomain()
+	public void PostLoadEditingDirectoryMapDomain()
 	{
-		string terrainPath = Path.Combine(this._tempWorkspacePath, "terrain.json");
+		string terrainPath = Path.Combine(this._editingDirectory, "terrain.json");
 		if (GameContext.Host != null && File.Exists(terrainPath))
 		{
 			GameContext.Host.LoadMapFromFile(terrainPath);
 		}
 
 		this.LastTerrainSyncTime = GetMaxTerrainWriteTime(terrainPath);
-		this.LastMetadataSyncTime = GetLastWriteTimeSafe(Path.Combine(this._tempWorkspacePath, "metadata.json"));
+		this.LastMetadataSyncTime = GetLastWriteTimeSafe(Path.Combine(this._editingDirectory, "metadata.json"));
 	}
 
 	public void GenerateMapDirectoryDomain(string mapName, string mapDir, string projectRoot, string templateDirSearch)
@@ -6353,11 +6308,11 @@ public class {mapName} : IMapScript
 
 	public void GenerateVSCodeFilesExternalDomain()
 	{
-		if (string.IsNullOrEmpty(this._tempWorkspacePath)) return;
-		string unitsPath = Path.Combine(this._tempWorkspacePath, "metadata.json");
-		Directory.CreateDirectory(this._tempWorkspacePath);
-		MapWorkspaceService.SetupWorkspace(this._tempWorkspacePath, "MapScript");
-		string terrainPath = Path.Combine(this._tempWorkspacePath, "terrain.json");
+		if (string.IsNullOrEmpty(this._editingDirectory)) return;
+		string unitsPath = Path.Combine(this._editingDirectory, "metadata.json");
+		Directory.CreateDirectory(this._editingDirectory);
+		MapWorkspaceService.SetupWorkspace(this._editingDirectory, "MapScript");
+		string terrainPath = Path.Combine(this._editingDirectory, "terrain.json");
 		this.LastTerrainSyncTime = GetMaxTerrainWriteTime(terrainPath);
 		this.LastMetadataSyncTime = GetLastWriteTimeSafe(unitsPath);
 	}
@@ -6385,8 +6340,8 @@ public class {mapName} : IMapScript
 	{
 		try
 		{
-			var wasmPath = Path.Combine(this._tempWorkspacePath, "src", "bin", "Release", "net10.0", "wasi-wasm", "native", "Realm.MapProject.wasm");
-			var wasmDest = Path.Combine(this._tempWorkspacePath, "Map.wasm");
+			var wasmPath = Path.Combine(this._editingDirectory, "src", "bin", "Release", "net10.0", "wasi-wasm", "native", "Realm.MapProject.wasm");
+			var wasmDest = Path.Combine(this._editingDirectory, "Map.wasm");
 			if (File.Exists(wasmPath))
 			{
 				var fileInfo = new FileInfo(wasmPath);
@@ -6406,7 +6361,7 @@ public class {mapName} : IMapScript
 	{
 		try
 		{
-			var wsDir = new DirectoryInfo(this._tempWorkspacePath);
+			var wsDir = new DirectoryInfo(this._editingDirectory);
 			wsDir.LastWriteTimeUtc = DateTime.UtcNow;
 		}
 		catch
@@ -6555,10 +6510,9 @@ public class {mapName} : IMapScript
 		return documentsDir;
 	}
 
-	public bool IsRestrictedSaveDirectoryDomain(string fullPath, string tempWorkspace, string mapBackups, string userDir, string resDir)
+	public bool IsRestrictedSaveDirectoryDomain(string fullPath, string mapBackups, string userDir, string resDir)
 	{
-		if (fullPath.Equals(tempWorkspace, StringComparison.OrdinalIgnoreCase) || fullPath.StartsWith(tempWorkspace + "/", StringComparison.OrdinalIgnoreCase) ||
-			fullPath.Equals(mapBackups, StringComparison.OrdinalIgnoreCase) || fullPath.StartsWith(mapBackups + "/", StringComparison.OrdinalIgnoreCase))
+		if (fullPath.Equals(mapBackups, StringComparison.OrdinalIgnoreCase) || fullPath.StartsWith(mapBackups + "/", StringComparison.OrdinalIgnoreCase))
 		{
 			return false;
 		}
@@ -6678,9 +6632,9 @@ public class {mapName} : IMapScript
 	{
 		try
 		{
-			string wsPath = string.IsNullOrEmpty(_tempWorkspacePath)
-				? ProjectSettings.GlobalizePath(TempWorkspaceGodotPath)
-				: _tempWorkspacePath;
+			string wsPath = string.IsNullOrEmpty(_editingDirectory)
+				? ProjectSettings.GlobalizePath(EditingDirectoryGodotPath)
+				: _editingDirectory;
 
 			var metadata = MapFileService.LoadMetadata(wsPath);
 

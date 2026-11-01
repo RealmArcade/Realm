@@ -490,7 +490,7 @@ namespace Realm.Client.UI
 				StyleAccordionHeader(_btnHeaderViewport);
 				SetupAccordion(_btnHeaderViewport, _contentViewport, TranslationServer.Translate("Viewport & Navigation"));
 
-				InitializeTempWorkspace();
+				InitializeEditingDirectory();
 
 
 				_popupOverlayMode = new PopupMenu();
@@ -2517,7 +2517,7 @@ namespace Realm.Client.UI
 				GameContext.EditorService.IsPaused = true;
 			}
 
-			string workspace = !string.IsNullOrEmpty(GameContext.EditorService._tempWorkspacePath) ? GameContext.EditorService._tempWorkspacePath : MapWorkspaceService.GetActiveWorkspacePath();
+			string workspace = !string.IsNullOrEmpty(GameContext.EditorService._editingDirectory) ? GameContext.EditorService._editingDirectory : MapWorkspaceService.GetActiveWorkspacePath();
 
 			var (assetsValid, missingAssets) = MapAssetHelper.ValidateWorkspaceAssets(workspace);
 			if (!assetsValid)
@@ -4874,9 +4874,9 @@ namespace Realm.Client.UI
 		{
 			try
 			{
-				string wsPath = string.IsNullOrEmpty(GameContext.EditorService._tempWorkspacePath)
-					? ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath)
-					: GameContext.EditorService._tempWorkspacePath;
+				string wsPath = string.IsNullOrEmpty(GameContext.EditorService._editingDirectory)
+					? ProjectSettings.GlobalizePath(GameContext.EditorService.EditingDirectoryGodotPath)
+					: GameContext.EditorService._editingDirectory;
 
 				var result = GameContext.EditorService.ImportGlbAssetFromExtensionDomain(sourceFilePath, category, wsPath, (cat, fName, hash, sub) => UpdateMetadataJsonAsset(cat, fName, hash, subCategory: sub));
 

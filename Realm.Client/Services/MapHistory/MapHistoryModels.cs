@@ -6,7 +6,6 @@ public enum MapVersionKind
 {
 	Initial,
 	ManualSave,
-	SaveAs,
 	AutosaveCheckpoint,
 	BeforePublish,
 	BeforeMapUpgrade,
@@ -33,9 +32,7 @@ public class MapHistoryStatus
 	public bool IsRepositoryReady { get; init; }
 	public string? LastVersionCommitId { get; init; }
 	public DateTimeOffset? LastVersionAt { get; init; }
-	public MapVersionKind? LastVersionKind { get; init; }
 	public int VersionCount { get; init; }
-	public string? StoreDirectory { get; init; }
 	public string? Notice { get; init; }
 	public string? ErrorMessage { get; init; }
 
@@ -61,18 +58,13 @@ public class MapHistoryVersionResult
 	public bool Success { get; init; }
 	public string? ErrorMessage { get; init; }
 	public MapVersionEntry? Entry { get; init; }
-	public bool NothingToCommit { get; init; }
 }
 
 public class MapHistoryStorageInfo
 {
 	public long TotalBytes { get; init; }
-	public long LooseObjectBytes { get; init; }
 	public long PackedBytes { get; init; }
-	public int LooseObjectCount { get; init; }
-	public int ObjectPackCount { get; init; }
 	public int VersionCount { get; init; }
-	public bool WasCompacted { get; init; }
 	public string? ErrorMessage { get; init; }
 }
 

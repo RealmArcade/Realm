@@ -1733,7 +1733,7 @@ namespace Realm.Client.Core
 		{
 			if (!UnitRegistry.ContainsKey(reqId) && !BuildingRegistry.ContainsKey(reqId))
 			{
-				LoadUnitMetadata(!string.IsNullOrEmpty(GameContext.MapStorageService.CurrentMapDirectory) ? GameContext.MapStorageService.CurrentMapDirectory : ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath));
+				LoadUnitMetadata(!string.IsNullOrEmpty(GameContext.MapStorageService.CurrentMapDirectory) ? GameContext.MapStorageService.CurrentMapDirectory : ProjectSettings.GlobalizePath(GameContext.EditorService.EditingDirectoryGodotPath));
 			}
 
 			bool isBuilding = false;
@@ -1765,7 +1765,7 @@ namespace Realm.Client.Core
 		{
 			if (!HasPreviewPropRequirement(reqId))
 			{
-				LoadUnitMetadata(!string.IsNullOrEmpty(GameContext.MapStorageService.CurrentMapDirectory) ? GameContext.MapStorageService.CurrentMapDirectory : ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath));
+				LoadUnitMetadata(!string.IsNullOrEmpty(GameContext.MapStorageService.CurrentMapDirectory) ? GameContext.MapStorageService.CurrentMapDirectory : ProjectSettings.GlobalizePath(GameContext.EditorService.EditingDirectoryGodotPath));
 				if (!HasPreviewPropRequirement(reqId))
 				{
 					return;
@@ -2664,19 +2664,20 @@ namespace Realm.Client.Core
 			GameContext.ReplayPlayback.StopReplay();
 			EndJoinedMatch();
 			GameContext.SessionState.IsMapEditorMode = true;
-			GameContext.EditorService.OpenTempWorkspaceSessionDomain();
+			GameContext.EditorService.EnsureEditingDirectoryDomain();
 
-			string wsPath = !string.IsNullOrEmpty(GameContext.EditorService._tempWorkspacePath)
-				? GameContext.EditorService._tempWorkspacePath
-				: ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
-			try
+			string wsPath = GameContext.EditorService._editingDirectory;
+			if (!string.IsNullOrEmpty(wsPath))
 			{
-				Directory.CreateDirectory(wsPath);
-				MapWorkspaceService.SetupWorkspace(wsPath, "MapScript");
-			}
-			catch (Exception ex)
-			{
-				GD.PrintErr($"Failed setting up map workspace: {ex.Message}");
+				try
+				{
+					Directory.CreateDirectory(wsPath);
+					MapWorkspaceService.SetupWorkspace(wsPath, "MapScript");
+				}
+				catch (Exception ex)
+				{
+					GD.PrintErr($"Failed setting up map workspace: {ex.Message}");
+				}
 			}
 
 			ActiveEditorTool = EditorTool.None;
@@ -2766,7 +2767,7 @@ namespace Realm.Client.Core
 		{
 			EditorHasUnsavedChanges = GameContext.SessionState.SavedEditorHasUnsavedChanges;
 			GameContext.EditorService.CurrentDirectoryBlake3 = MapWorkspaceService.ComputeDirectoryBlake3Domain(
-				ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath),
+				ProjectSettings.GlobalizePath(GameContext.EditorService.EditingDirectoryGodotPath),
 				MapEditorHUD.IsIgnoredPath);
 		}
 

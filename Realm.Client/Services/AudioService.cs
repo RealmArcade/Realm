@@ -585,13 +585,13 @@ public class AudioService
 		};
 	}
 
-	public (bool Success, string Message, string FileName, string Blake3, string AudioCategory) ImportAudioAsset(string sourceFilePath, string audioType, string tempWorkspacePath)
+	public (bool Success, string Message, string FileName, string Blake3, string AudioCategory) ImportAudioAsset(string sourceFilePath, string audioType, string editingDirectory)
 	{
 		try
 		{
 			string baseName = Path.GetFileNameWithoutExtension(sourceFilePath);
 			string fileName = baseName + ".ogg";
-			string targetPath = Path.Combine(tempWorkspacePath, fileName);
+			string targetPath = Path.Combine(editingDirectory, fileName);
 
 			if (sourceFilePath.EndsWith(".ogg", StringComparison.OrdinalIgnoreCase))
 			{

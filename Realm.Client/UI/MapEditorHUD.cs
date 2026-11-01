@@ -371,7 +371,7 @@ public partial class MapEditorHUD : Control
 
 	public void PublishMapActionExternal()
 	{
-		string wsPath = !string.IsNullOrEmpty(GameContext.EditorService._tempWorkspacePath) ? GameContext.EditorService._tempWorkspacePath : MapWorkspaceService.GetActiveWorkspacePath();
+		string wsPath = !string.IsNullOrEmpty(GameContext.EditorService._editingDirectory) ? GameContext.EditorService._editingDirectory : MapWorkspaceService.GetActiveWorkspacePath();
 
 		if (!TryValidateMapPublishRequirements(wsPath)) return;
 
@@ -1242,8 +1242,8 @@ public partial class MapEditorHUD : Control
 
 	private async Task PrepareMapAndWorkspaceForTest()
 	{
-		MapWorkspaceService.EnsureWasmEntryPoint(GameContext.EditorService._tempWorkspacePath);
-		string tempTerrainPath = Path.Combine(GameContext.EditorService._tempWorkspacePath, "terrain.json");
+		MapWorkspaceService.EnsureWasmEntryPoint(GameContext.EditorService._editingDirectory);
+		string tempTerrainPath = Path.Combine(GameContext.EditorService._editingDirectory, "terrain.json");
 		GameContext.Host.SaveMapToFile(tempTerrainPath);
 		GameContext.Host.EditorHasUnsavedChanges = false;
 		InvalidateMetadataCache();
@@ -1259,7 +1259,7 @@ public partial class MapEditorHUD : Control
 		AppendWasmConsoleLog("=== WASM COMPILATION PIPELINE STARTED ===");
 		AppendWasmConsoleLog("[DEBUG] The map script runs in the authority process, not in this editor. Attach with the workspace's 'Attach to Realm Authority (Map Script WASM)' configuration; the authority reports its PID and the JIT ELF it exported once it is running.");
 
-		await CompileAndSignMapAsync(GameContext.EditorService._tempWorkspacePath, skipAttribution: true, isDebug: true);
+		await CompileAndSignMapAsync(GameContext.EditorService._editingDirectory, skipAttribution: true, isDebug: true);
 
 		if (_wasmHasErrors)
 		{
@@ -1270,7 +1270,7 @@ public partial class MapEditorHUD : Control
 
 	private bool TryLocateCompiledWasm(out string wasmPath)
 	{
-		string binDir = Path.Combine(GameContext.EditorService._tempWorkspacePath, "bin");
+		string binDir = Path.Combine(GameContext.EditorService._editingDirectory, "bin");
 		wasmPath = null;
 		if (Directory.Exists(binDir))
 		{
@@ -1314,7 +1314,7 @@ public partial class MapEditorHUD : Control
 		bool started = false;
 		if (GameContext.Lobby != null)
 		{
-			started = await GameContext.Lobby.HostSinglePlayerGame(GameContext.EditorService.TempWorkspaceGodotPath, "Test Map", debugMapScript: true);
+			started = await GameContext.Lobby.HostSinglePlayerGame(GameContext.EditorService.EditingDirectoryGodotPath, "Test Map", debugMapScript: true);
 		}
 
 		if (!started)

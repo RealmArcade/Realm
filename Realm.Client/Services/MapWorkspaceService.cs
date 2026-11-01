@@ -112,7 +112,7 @@ public static partial class MapWorkspaceService
 		return false;
 	}
 
-	public static (bool HasSavedFile, bool HasChanges, string SavedHash) CheckLastSaveFileDomain(string editorLastSaveFile, string tempWorkspacePath, Func<string, string> computeDirectoryBlake3)
+	public static (bool HasSavedFile, bool HasChanges, string SavedHash) CheckLastSaveFileDomain(string editorLastSaveFile, string editingDirectory, Func<string, string> computeDirectoryBlake3)
 	{
 		if (!File.Exists(editorLastSaveFile))
 		{
@@ -120,7 +120,7 @@ public static partial class MapWorkspaceService
 		}
 
 		string savedHash = File.ReadAllText(editorLastSaveFile).Trim();
-		string currentHash = computeDirectoryBlake3(tempWorkspacePath);
+		string currentHash = computeDirectoryBlake3(editingDirectory);
 
 		bool hasChanges = !string.IsNullOrEmpty(savedHash) && !currentHash.Equals(savedHash, StringComparison.OrdinalIgnoreCase);
 		
@@ -203,7 +203,7 @@ public static partial class MapWorkspaceService
 
 	public static void SaveCurrentDirectoryBlake3Domain(string saveFilePath, Func<string, bool> isIgnoredPathFunc)
 	{
-		string workspacePath = GameContext.EditorService._tempWorkspacePath;
+		string workspacePath = GameContext.EditorService._editingDirectory;
 		if (string.IsNullOrEmpty(workspacePath) || !Directory.Exists(workspacePath)) return;
 		try
 		{
@@ -274,17 +274,15 @@ public static partial class MapWorkspaceService
 		}
 	}
 
-	public const string DefaultWorkspaceFolder = "temp_map_workspace";
-	public const string DefaultWorkspaceGodotPath = "user://temp_map_workspace";
-
-	public static string GetDefaultWorkspaceGlobalPath()
+	public static string GetDefaultMapFolderGlobalPath()
 	{
-		if (AppDomain.CurrentDomain.FriendlyName.Contains("testhost", StringComparison.OrdinalIgnoreCase))
+		string documentsDirectory = System.Environment.GetFolderPath(System.Environment.SpecialFolder.MyDocuments);
+		if (!string.IsNullOrEmpty(documentsDirectory))
 		{
-			return Path.Combine(Path.GetTempPath(), DefaultWorkspaceFolder);
+			return documentsDirectory;
 		}
 
-		return ProjectSettings.GlobalizePath(DefaultWorkspaceGodotPath);
+		return ProjectSettings.GlobalizePath("user://");
 	}
 
 	private static string? _testActiveWorkspacePath;
@@ -316,8 +314,8 @@ public static partial class MapWorkspaceService
 
 	public static string GetEditorWorkspacePath()
 	{
-		if (!string.IsNullOrEmpty(GameContext.EditorService._tempWorkspacePath))
-			return GameContext.EditorService._tempWorkspacePath;
+		if (!string.IsNullOrEmpty(GameContext.EditorService._editingDirectory))
+			return GameContext.EditorService._editingDirectory;
 
 		return string.Empty;
 	}
@@ -1074,12 +1072,12 @@ please visit the URL above.
 
 	public static void EnsureSolutionFile(string directory, string mapName)
 	{
-		string slnPath = Path.Combine(directory, $"{DefaultWorkspaceFolder}.slnx");
+		string slnPath = Path.Combine(directory, $"{mapName}.slnx");
 		if (!File.Exists(slnPath))
 		{
 			try
 			{
-				NativeToolRunner.RunTool("dotnet", $"new sln -n {DefaultWorkspaceFolder}", timeoutMs: 15000, workingDir: directory);
+				NativeToolRunner.RunTool("dotnet", $"new sln -n {mapName}", timeoutMs: 15000, workingDir: directory);
 				NativeToolRunner.RunTool("dotnet", $"sln add {mapName}.csproj", timeoutMs: 15000, workingDir: directory);
 			}
 			catch

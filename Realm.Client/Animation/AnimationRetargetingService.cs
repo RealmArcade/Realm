@@ -137,7 +137,7 @@ public static class AnimationRetargetingService
 	{
 		string wsPath = !string.IsNullOrEmpty(MapWorkspaceService.GetActiveWorkspacePath())
 			? MapWorkspaceService.GetActiveWorkspacePath()
-			: ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
+			: ProjectSettings.GlobalizePath(GameContext.EditorService.EditingDirectoryGodotPath);
 
 		if (string.IsNullOrEmpty(wsPath)) return null;
 

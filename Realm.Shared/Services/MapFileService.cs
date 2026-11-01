@@ -91,7 +91,7 @@ public static class MapFileService
 		}
 
 		string json = SaveManifestToJson(manifest);
-		File.WriteAllText(targetPath, json);
+		WriteAllTextAtomically(targetPath, json);
 	}
 
 	public static string SaveManifestToJson(MapManifest manifest)
@@ -139,7 +139,7 @@ public static class MapFileService
 		}
 
 		string json = SaveMetadataToJson(metadata);
-		File.WriteAllText(targetPath, json);
+		WriteAllTextAtomically(targetPath, json);
 	}
 
 	public static string SaveMetadataToJson(MapMetadata metadata)
@@ -187,11 +187,40 @@ public static class MapFileService
 		}
 
 		string json = SaveTerrainToJson(terrain);
-		File.WriteAllText(targetPath, json);
+		WriteAllTextAtomically(targetPath, json);
 	}
 
 	public static string SaveTerrainToJson(MapSaveData terrain)
 	{
 		return JsonSerializer.Serialize(terrain, TerrainJsonOptions);
+	}
+
+	private static void WriteAllTextAtomically(string targetPath, string contents)
+	{
+		string? directory = Path.GetDirectoryName(targetPath);
+		if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+		{
+			Directory.CreateDirectory(directory);
+		}
+
+		string temporaryPath = targetPath + ".realm-save.tmp";
+		try
+		{
+			File.WriteAllText(temporaryPath, contents);
+			File.Move(temporaryPath, targetPath, true);
+		}
+		finally
+		{
+			if (File.Exists(temporaryPath))
+			{
+				try
+				{
+					File.Delete(temporaryPath);
+				}
+				catch (IOException)
+				{
+				}
+			}
+		}
 	}
 }

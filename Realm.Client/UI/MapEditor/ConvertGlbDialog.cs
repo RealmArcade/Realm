@@ -530,7 +530,7 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 		}
 
 		string subCategory = GetSubCategoryForApply();
-		string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
+		string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.EditingDirectoryGodotPath);
 		string destDir = Path.Combine(wsPath, "Assets", "models", subCategory);
 		Directory.CreateDirectory(destDir);
 		string destPath = Path.Combine(destDir, fileName);
@@ -822,7 +822,7 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 	private void CalculateAndSaveMetadata(string resultPath, string fileName, string subCategory, float defaultScale)
 	{
 		var (minY, autoYOffset) = ModelCache.CalculateModelBounds(resultPath, defaultScale);
-		string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
+		string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.EditingDirectoryGodotPath);
 		string unitId = Path.GetFileNameWithoutExtension(fileName);
 
 		GameContext.MetadataService.UpdateMetadata(wsPath, meta =>

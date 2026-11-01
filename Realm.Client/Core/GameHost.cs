@@ -1664,7 +1664,7 @@ public partial class GameHost : Node3D
 	public void LoadUnitMetadata(string mapName = null)
 	{
 		ResetAbilityCatalog();
-		mapName = !string.IsNullOrEmpty(mapName) ? mapName : (!string.IsNullOrEmpty(GameContext.Simulation.ActiveMapName) ? GameContext.Simulation.ActiveMapName : MapWorkspaceService.DefaultWorkspaceFolder);
+		mapName = !string.IsNullOrEmpty(mapName) ? mapName : (!string.IsNullOrEmpty(GameContext.Simulation.ActiveMapName) ? GameContext.Simulation.ActiveMapName : "Untitled Map");
 		GameContext.Simulation.ActiveMapName = mapName;
 		LocalizationManager.CurrentMapName = mapName;
 		LocalizationManager.SetupTranslations();
@@ -1826,7 +1826,7 @@ public partial class GameHost : Node3D
 	{
 		try
 		{
-			string dir = !string.IsNullOrEmpty(GameContext.MapStorageService.CurrentMapDirectory) ? GameContext.MapStorageService.CurrentMapDirectory : ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
+			string dir = !string.IsNullOrEmpty(GameContext.MapStorageService.CurrentMapDirectory) ? GameContext.MapStorageService.CurrentMapDirectory : ProjectSettings.GlobalizePath(GameContext.EditorService.EditingDirectoryGodotPath);
 			var metadata = MapFileService.LoadMetadata(dir);
 			metadata.Templates ??= new TemplateContainer();
 			metadata.Templates.Attachments ??= new List<AttachmentMetadata>();
@@ -1859,7 +1859,7 @@ public partial class GameHost : Node3D
 	{
 		try
 		{
-			string dir = !string.IsNullOrEmpty(GameContext.MapStorageService.CurrentMapDirectory) ? GameContext.MapStorageService.CurrentMapDirectory : ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
+			string dir = !string.IsNullOrEmpty(GameContext.MapStorageService.CurrentMapDirectory) ? GameContext.MapStorageService.CurrentMapDirectory : ProjectSettings.GlobalizePath(GameContext.EditorService.EditingDirectoryGodotPath);
 			var metadata = MapFileService.LoadMetadata(dir);
 			var unit = metadata.GetUnit(unitId);
 			if (unit != null)
@@ -2554,7 +2554,7 @@ public partial class GameHost : Node3D
 		GameContext.SessionState.IsMapEditorMode = wasMapEditorMode;
 		if (wasMapEditorMode)
 		{
-			GameContext.EditorService.OpenTempWorkspaceSessionDomain();
+			GameContext.EditorService.EnsureEditingDirectoryDomain();
 		}
 		GameContext.SaveLoadService.IsLoadingMap = wasLoadingMap;
 		if (wasProfilingEnabled)

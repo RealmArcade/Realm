@@ -9,7 +9,7 @@ namespace Realm.Client.Services.MapHistory;
 
 public readonly record struct MapGitSignature(string Name, string Email, DateTimeOffset When);
 
-public readonly record struct MapHistoryRepositorySize(long TotalBytes, long LooseObjectBytes, long PackedBytes, int LooseObjectCount, int ObjectPackCount);
+public readonly record struct MapHistoryRepositorySize(long TotalBytes, long PackedBytes);
 
 public class MapGitCommitInfo
 {
@@ -230,10 +230,7 @@ public class MapGitRepository
 		if (!Directory.Exists(ObjectsDirectory)) return default;
 
 		long totalBytes = 0;
-		long looseObjectBytes = 0;
 		long packedBytes = 0;
-		int looseObjectCount = 0;
-		int objectPackCount = 0;
 
 		foreach (string filePath in Directory.EnumerateFiles(ObjectsDirectory, "*", SearchOption.AllDirectories))
 		{
@@ -254,16 +251,10 @@ public class MapGitRepository
 			    relativePath.EndsWith(".pack", StringComparison.Ordinal))
 			{
 				packedBytes += length;
-				objectPackCount++;
-			}
-			else if (relativePath.Length == 41 && relativePath[2] == '/')
-			{
-				looseObjectBytes += length;
-				looseObjectCount++;
 			}
 		}
 
-		return new MapHistoryRepositorySize(totalBytes, looseObjectBytes, packedBytes, looseObjectCount, objectPackCount);
+		return new MapHistoryRepositorySize(totalBytes, packedBytes);
 	}
 
 	public MapHistoryRepositorySize Compact()

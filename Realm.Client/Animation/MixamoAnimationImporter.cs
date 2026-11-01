@@ -390,7 +390,7 @@ public static class MixamoAnimationImporter
 			}
 
 			string ws = string.IsNullOrEmpty(workspacePath)
-				? ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath)
+				? ProjectSettings.GlobalizePath(GameContext.EditorService.EditingDirectoryGodotPath)
 				: workspacePath;
 
 			string fileName = Path.GetFileName(sourceGlbPath);

@@ -50,8 +50,8 @@ namespace Realm.Client.UI
 		{
 			ResetFolderLocations();
 			GameContext.EditorService.ResetToBlankMapDomain();
-			string terrainPath = Path.Combine(GameContext.EditorService._tempWorkspacePath, "terrain.json");
-			string metadataPath = Path.Combine(GameContext.EditorService._tempWorkspacePath, "metadata.json");
+			string terrainPath = Path.Combine(GameContext.EditorService._editingDirectory, "terrain.json");
+			string metadataPath = Path.Combine(GameContext.EditorService._editingDirectory, "metadata.json");
 			GameContext.EditorService.LastTerrainSyncTime = GameContext.EditorService.GetMaxTerrainWriteTime(terrainPath);
 			GameContext.EditorService.LastMetadataSyncTime = GameContext.EditorService.GetLastWriteTimeSafe(metadataPath);
 		}
