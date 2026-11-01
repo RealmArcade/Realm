@@ -96,6 +96,7 @@ namespace Realm.Client.UI
 
 		private DateTime _lastAutosaveWriteUtc = DateTime.MinValue;
 		private bool _hasChangesSinceLastVersion;
+		private string? _reportedAutosaveFailure;
 
 		public void PerformAutoBackup()
 		{
@@ -124,8 +125,13 @@ namespace Realm.Client.UI
 
 		private void AutosaveEditorStateIfNeeded()
 		{
-			if (GameContext.Host == null || !GameContext.Host.EditorHasUnsavedChanges) return;
+			if (GameContext.Host == null) return;
+
+			ReportFailedAutosaveWrite();
+
+			if (!GameContext.Host.EditorHasUnsavedChanges) return;
 			if (GameContext.EditorService.IsSyncing) return;
+			if (GameContext.MapAutosaveService.HasPendingWrite) return;
 
 			string editingDirectory = GetActiveEditingDirectory();
 			if (string.IsNullOrEmpty(editingDirectory) || !Directory.Exists(editingDirectory)) return;
@@ -152,6 +158,23 @@ namespace Realm.Client.UI
 			{
 				GD.PrintErr($"[MapEditorHUD] Autosave write failed: {ex.Message}");
 			}
+		}
+
+		private void ReportFailedAutosaveWrite()
+		{
+			string? failure = GameContext.MapAutosaveService.TakeFailedWriteMessage();
+			if (failure == null)
+			{
+				_reportedAutosaveFailure = null;
+				return;
+			}
+
+			GameContext.Host.EditorHasUnsavedChanges = true;
+
+			if (string.Equals(failure, _reportedAutosaveFailure, StringComparison.Ordinal)) return;
+
+			_reportedAutosaveFailure = failure;
+			ShowFeedback(string.Format(TranslationServer.Translate("The map could not be written to its folder: {0}"), failure));
 		}
 
 		public void SaveMapActionExternal()

@@ -350,6 +350,24 @@ public class MapHistoryService
 		}
 	}
 
+	public void WaitForQueue(TimeSpan timeout)
+	{
+		Task queuedWork;
+		lock (_queueLock)
+		{
+			queuedWork = _queueTail;
+		}
+
+		try
+		{
+			queuedWork.Wait(timeout);
+		}
+		catch (AggregateException exception)
+		{
+			GD.PrintErr($"[MapHistoryService] A queued history operation did not finish cleanly: {exception.GetBaseException().Message}");
+		}
+	}
+
 	public bool HasExistingVersions(string mapDirectory)
 	{
 		RefreshMessages();

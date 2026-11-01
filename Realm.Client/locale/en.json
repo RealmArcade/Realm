@@ -2016,6 +2016,7 @@
   "The host's router may be blocking incoming UDP traffic on port 8999. Ensure UPnP is enabled on the host's router, configure UDP port 8999 forwarding, or connect via a Virtual LAN (Tailscale / Radmin).": "The host's router may be blocking incoming UDP traffic on port 8999. Ensure UPnP is enabled on the host's router, configure UDP port 8999 forwarding, or connect via a Virtual LAN (Tailscale / Radmin).",
   "The imported terrain did not match the editor grid.": "The imported terrain did not match the editor grid.",
   "The map could not be added: {0}": "The map could not be added: {0}",
+  "The map could not be written to its folder: {0}": "The map could not be written to its folder: {0}",
   "The map file '{0}' is corrupt or contains invalid JSON syntax and failed to parse.": "The map file '{0}' is corrupt or contains invalid JSON syntax and failed to parse.",
   "The map package does not contain a readable map.": "The map package does not contain a readable map.",
   "The map picker could not be opened.": "The map picker could not be opened.",

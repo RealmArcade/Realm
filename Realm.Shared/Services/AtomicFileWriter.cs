@@ -7,9 +7,11 @@ public static class AtomicFileWriter
 {
 	public const string TemporarySuffix = ".realm-save.tmp";
 
+	private static readonly string ProcessTemporarySuffix = "." + Environment.ProcessId + TemporarySuffix;
+
 	public static void WriteAllBytes(string targetPath, byte[] contents)
 	{
-		string temporaryPath = targetPath + TemporarySuffix;
+		string temporaryPath = targetPath + ProcessTemporarySuffix;
 		EnsureDirectoryExists(targetPath);
 		try
 		{
@@ -24,7 +26,7 @@ public static class AtomicFileWriter
 
 	public static void WriteAllText(string targetPath, string contents)
 	{
-		string temporaryPath = targetPath + TemporarySuffix;
+		string temporaryPath = targetPath + ProcessTemporarySuffix;
 		EnsureDirectoryExists(targetPath);
 		try
 		{

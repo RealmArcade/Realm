@@ -14,6 +14,7 @@ public class MapAutosaveService
 	private MapTerrainSaveRequest? _pendingWrite;
 	private bool _isWriting;
 	private Task? _worker;
+	private volatile string? _failedWriteMessage;
 
 	public bool HasPendingWrite
 	{
@@ -38,6 +39,13 @@ public class MapAutosaveService
 			_isWriting = true;
 			_worker = Task.Run(DrainPendingWrites);
 		}
+	}
+
+	public string? TakeFailedWriteMessage()
+	{
+		string? failure = _failedWriteMessage;
+		_failedWriteMessage = null;
+		return failure;
 	}
 
 	public void FlushPendingWrites(TimeSpan timeout)
@@ -91,6 +99,7 @@ public class MapAutosaveService
 			catch (Exception exception)
 			{
 				GD.PrintErr($"[MapAutosaveService] Could not write '{write.AbsolutePath}': {exception.Message}");
+				_failedWriteMessage = exception.Message;
 			}
 		}
 	}

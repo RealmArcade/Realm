@@ -2592,6 +2592,9 @@ public partial class GameHost : Node3D
 		// A removal held against a clock this screen no longer has would free a node of whatever match comes next.
 		_pendingUnitViewRemovals.Clear();
 
+		GameContext.MapAutosaveService.FlushPendingWrites(TimeSpan.FromSeconds(2));
+		GameContext.MapHistoryService.WaitForQueue(TimeSpan.FromSeconds(2));
+
 		GameContext.Dispose();
 		GameContext.UnregisterHost(this);
 	}
