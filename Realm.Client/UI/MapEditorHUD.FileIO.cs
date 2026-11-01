@@ -231,11 +231,6 @@ namespace Realm.Client.UI
 			}
 		}
 
-		public static string ComputeDirectoryBlake3(string directoryPath)
-		{
-			return MapWorkspaceService.ComputeDirectoryBlake3Domain(directoryPath, IsIgnoredPath);
-		}
-
 		public static bool HasUnsavedChangesStatic()
 		{
 			string editingDirectory = GameContext.EditorService._editingDirectory;
@@ -246,30 +241,17 @@ namespace Realm.Client.UI
 
 		public bool HasUnsavedChanges() => HasUnsavedChangesStatic();
 
-		public void SaveCurrentDirectoryBlake3()
+		public void RefreshSavedDirectoryHash()
 		{
-			MapWorkspaceService.SaveCurrentDirectoryBlake3Domain(ProjectSettings.GlobalizePath("user://editor_last_save.txt"), IsIgnoredPath);
+			MapWorkspaceService.RefreshSavedDirectoryHashDomain(IsIgnoredPath);
 		}
 
-		private void WriteCleanExitMarker()
-		{
-			try
-			{
-				SaveCurrentDirectoryBlake3();
-				MapWorkspaceService.WriteCleanExitMarkerDomain(ProjectSettings.GlobalizePath("user://editor_clean_exit.txt"));
-			}
-			catch (Exception ex)
-			{
-				GD.PrintErr($"[MapEditorHUD] Error writing editor_clean_exit.txt: {ex.Message}");
-			}
-		}
-
-		private void CheckUnsavedSessionOnLaunch(Action onCompleted = null)
+		private void EstablishLaunchSavedState(Action onCompleted = null)
 		{
 			if (GameContext.SessionState.EditorSessionResumedAfterTest)
 			{
 				GameContext.SessionState.EditorSessionResumedAfterTest = false;
-				SaveCurrentDirectoryBlake3();
+				RefreshSavedDirectoryHash();
 				onCompleted?.Invoke();
 				return;
 			}
@@ -280,85 +262,8 @@ namespace Realm.Client.UI
 				return;
 			}
 
-			if (CheckAndCleanCleanExitFile())
-			{
-				onCompleted?.Invoke();
-				return;
-			}
-
-			CheckLastSaveFile(onCompleted);
-		}
-
-		private bool CheckAndCleanCleanExitFile()
-		{
-			string cleanExitFile = ProjectSettings.GlobalizePath("user://editor_clean_exit.txt");
-			return MapWorkspaceService.CheckAndCleanCleanExitFileDomain(cleanExitFile, SaveCurrentDirectoryBlake3);
-		}
-
-		private void CheckLastSaveFile(Action onCompleted)
-		{
-			string editorLastSaveFile = ProjectSettings.GlobalizePath("user://editor_last_save.txt");
-			var result = MapWorkspaceService.CheckLastSaveFileDomain(editorLastSaveFile, GameContext.EditorService._editingDirectory, ComputeDirectoryBlake3);
-			
-			if (!result.HasSavedFile)
-			{
-				SaveCurrentDirectoryBlake3();
-				onCompleted?.Invoke();
-				return;
-			}
-
-			GameContext.EditorService.CurrentDirectoryBlake3 = result.SavedHash;
-
-			if (result.HasChanges)
-			{
-				ShowUnsavedSessionModal(onCompleted);
-			}
-			else
-			{
-				onCompleted?.Invoke();
-			}
-		}
-
-		private void ShowUnsavedSessionModal(Action onCompleted = null)
-		{
-			ShowConfirmationDialog(
-				"There were unsaved changes in last editor session.",
-				onConfirm: () =>
-				{
-					LoadEditingDirectoryMap();
-					SaveCurrentDirectoryBlake3();
-				},
-				confirmText: "Restore",
-				cancelText: "Discard",
-				onCancel: () =>
-				{
-					GameContext.EditorService.IsSyncing = true;
-					try
-					{
-						ResetFolderLocations();
-						ResetEditingDirectorySyncState();
-						MapWorkspaceService.SetupWorkspace(GameContext.EditorService._editingDirectory, "MapScript");
-						GameContext.Host?.ClearMapEntirely();
-						string terrainPath = Path.Combine(GameContext.EditorService._editingDirectory, "terrain.json");
-						string metadataPath = Path.Combine(GameContext.EditorService._editingDirectory, "metadata.json");
-						GameContext.EditorService.LastTerrainSyncTime = GameContext.EditorService.GetMaxTerrainWriteTime(terrainPath);
-						GameContext.EditorService.LastMetadataSyncTime = GameContext.EditorService.GetLastWriteTimeSafe(metadataPath);
-						SaveCurrentDirectoryBlake3();
-						ReadMetadataAndRefreshTextures();
-						ViewLoadMapProperties();
-						UpdateMapNameHeader();
-					}
-					catch (Exception ex)
-					{
-						GD.PrintErr($"[ShowUnsavedSessionModal] Error discarding session: {ex.Message}");
-					}
-					finally
-					{
-						GameContext.EditorService.IsSyncing = false;
-					}
-				},
-				onDismissed: () => { onCompleted?.Invoke(); }
-			);
+			RefreshSavedDirectoryHash();
+			onCompleted?.Invoke();
 		}
 
 		private void OnSyncTimerTimeout()
@@ -503,7 +408,7 @@ namespace Realm.Client.UI
 				MapWorkspaceService.EnsureLicenseFile(targetFolder);
 				MapWorkspaceService.EnsureWasmEntryPoint(targetFolder);
 
-				SaveCurrentDirectoryBlake3();
+				RefreshSavedDirectoryHash();
 				GameContext.EditorService.LastTerrainSyncTime = GameContext.EditorService.GetMaxTerrainWriteTime(tempTerrainPath);
 				GameContext.EditorService.LastMetadataSyncTime = GameContext.EditorService.GetLastWriteTimeSafe(Path.Combine(GameContext.EditorService._editingDirectory, "metadata.json"));
 				EditorService.LastInternalSaveTimeUtc = DateTime.UtcNow;
@@ -835,7 +740,7 @@ namespace Realm.Client.UI
 				GameContext.EditorService.StartWorkspaceWatcher(workspacePath);
 				mapSaveFolder = null;
 				defaultSaveFolder = GetDocumentsDirectory();
-				SaveCurrentDirectoryBlake3();
+				RefreshSavedDirectoryHash();
 				ShowFeedback(TranslationServer.Translate("Map package imported. Choose a destination folder when you save."));
 				return true;
 			}
@@ -982,7 +887,7 @@ namespace Realm.Client.UI
 			GameContext.EditorService.LastMetadataSyncTime = GameContext.EditorService.GetLastWriteTimeSafe(Path.Combine(GameContext.EditorService._editingDirectory, "metadata.json"));
 			GameContext.EditorService?.StartWorkspaceWatcher(GameContext.EditorService._editingDirectory);
 			ShowFeedback(string.Format(TranslationServer.Translate("Map loaded successfully from folder {0}!"), Path.GetFileName(selectedFolder)));
-			SaveCurrentDirectoryBlake3();
+			RefreshSavedDirectoryHash();
 			PrimeMapHistory();
 		}
 
@@ -1099,7 +1004,7 @@ namespace Realm.Client.UI
 				GameContext.EditorService.LastMetadataSyncTime = GameContext.EditorService.GetLastWriteTimeSafe(metadataPath);
 				GameContext.EditorService?.StartWorkspaceWatcher(GameContext.EditorService._editingDirectory);
 					ShowFeedback(string.Format(TranslationServer.Translate("Map loaded successfully from folder {0}!"), Path.GetFileName(selectedFolder)));
-				SaveCurrentDirectoryBlake3();
+				RefreshSavedDirectoryHash();
 				PrimeMapHistory();
 			}
 			else

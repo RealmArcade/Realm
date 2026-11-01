@@ -848,7 +848,6 @@ namespace Realm.Client.UI
 					"You haven't saved yet",
 					onConfirm: () =>
 					{
-						WriteCleanExitMarker();
 						GameContext.UserInterface.TransitionTo(GameScreen.MainMenu);
 					},
 					confirmText: "Quit",
@@ -857,7 +856,6 @@ namespace Realm.Client.UI
 			}
 			else
 			{
-				WriteCleanExitMarker();
 				GameContext.UserInterface.TransitionTo(GameScreen.MainMenu);
 			}
 		}
@@ -870,7 +868,6 @@ namespace Realm.Client.UI
 					"You haven't saved yet",
 					onConfirm: () =>
 					{
-						WriteCleanExitMarker();
 						GetTree().Quit();
 					},
 					confirmText: "Quit",
@@ -879,7 +876,6 @@ namespace Realm.Client.UI
 			}
 			else
 			{
-				WriteCleanExitMarker();
 				GetTree().Quit();
 			}
 		}
@@ -1040,18 +1036,18 @@ namespace Realm.Client.UI
 		{
 			if (GameContext.AssetIndexService.IsIndexVersionMismatch())
 			{
-				_ = ShowAssetIndexRepairModalAsync(() => { CheckUnsavedSessionOnLaunch(() => { CheckCreatorRegistrationAndPrompt(); }); });
+				_ = ShowAssetIndexRepairModalAsync(() => { EstablishLaunchSavedState(() => { CheckCreatorRegistrationAndPrompt(); }); });
 				return;
 			}
 
 			var verification = GameContext.AssetIndexService.VerifyIndex();
 			if (verification.IsHealthy)
 			{
-				CheckUnsavedSessionOnLaunch(() => { CheckCreatorRegistrationAndPrompt(); });
+				EstablishLaunchSavedState(() => { CheckCreatorRegistrationAndPrompt(); });
 				return;
 			}
 
-			_ = RepairFailedAssetIndexEntriesAsync(verification, () => { CheckUnsavedSessionOnLaunch(() => { CheckCreatorRegistrationAndPrompt(); }); });
+			_ = RepairFailedAssetIndexEntriesAsync(verification, () => { EstablishLaunchSavedState(() => { CheckCreatorRegistrationAndPrompt(); }); });
 		}
 
 		private async Task RepairFailedAssetIndexEntriesAsync(AssetIndexVerificationResult verification, Action onCompleted)

@@ -93,40 +93,6 @@ public static partial class MapWorkspaceService
 			   ?? wasmFiles.OrderByDescending(f => File.GetLastWriteTimeUtc(f)).FirstOrDefault();
 	}
 
-	public static bool CheckAndCleanCleanExitFileDomain(string cleanExitFile, Action saveCurrentDirectoryBlake3)
-	{
-		if (File.Exists(cleanExitFile))
-		{
-			try
-			{
-				File.Delete(cleanExitFile);
-			}
-			catch
-			{
-			}
-
-			saveCurrentDirectoryBlake3?.Invoke();
-			return true;
-		}
-
-		return false;
-	}
-
-	public static (bool HasSavedFile, bool HasChanges, string SavedHash) CheckLastSaveFileDomain(string editorLastSaveFile, string editingDirectory, Func<string, string> computeDirectoryBlake3)
-	{
-		if (!File.Exists(editorLastSaveFile))
-		{
-			return (false, false, string.Empty);
-		}
-
-		string savedHash = File.ReadAllText(editorLastSaveFile).Trim();
-		string currentHash = computeDirectoryBlake3(editingDirectory);
-
-		bool hasChanges = !string.IsNullOrEmpty(savedHash) && !currentHash.Equals(savedHash, StringComparison.OrdinalIgnoreCase);
-		
-		return (true, hasChanges, savedHash);
-	}
-
 	public static void TryReloadGroundTerrainTexturesSafeDomain(Action resetMapAction)
 	{
 		if (GameContext.Host?.GroundTerrain == null) return;
@@ -201,25 +167,18 @@ public static partial class MapWorkspaceService
 		}
 	}
 
-	public static void SaveCurrentDirectoryBlake3Domain(string saveFilePath, Func<string, bool> isIgnoredPathFunc)
+	public static void RefreshSavedDirectoryHashDomain(Func<string, bool> isIgnoredPathFunc)
 	{
 		string workspacePath = GameContext.EditorService._editingDirectory;
 		if (string.IsNullOrEmpty(workspacePath) || !Directory.Exists(workspacePath)) return;
 		try
 		{
-			string hash = ComputeDirectoryBlake3Domain(workspacePath, isIgnoredPathFunc);
-			GameContext.EditorService.CurrentDirectoryBlake3 = hash;
-			File.WriteAllText(saveFilePath, hash);
+			GameContext.EditorService.CurrentDirectoryBlake3 = ComputeDirectoryBlake3Domain(workspacePath, isIgnoredPathFunc);
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[SaveCurrentDirectoryBlake3] Error writing editor_last_save.txt: {ex.Message}");
+			GD.PrintErr($"[RefreshSavedDirectoryHash] Error hashing the map folder: {ex.Message}");
 		}
-	}
-
-	public static void WriteCleanExitMarkerDomain(string cleanExitFilePath)
-	{
-		File.WriteAllText(cleanExitFilePath, GameContext.EditorService.CurrentDirectoryBlake3 ?? string.Empty);
 	}
 
 	public const string EditorSourceFolderFileName = "editor_source_folder.txt";

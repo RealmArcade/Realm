@@ -1087,7 +1087,7 @@ public partial class GameHost
 		GameContext.MapEditorHud?.ReadMetadataAndRefreshTextures();
 		GameContext.MapEditorHud?.ViewLoadMapProperties();
 		GameContext.MapEditorHud?.UpdateMapNameHeader();
-		GameContext.MapEditorHud?.SaveCurrentDirectoryBlake3();
+		GameContext.MapEditorHud?.RefreshSavedDirectoryHash();
 		GameContext.MapEditorHud?.ShowFeedbackExternal("Map reset: cleared all entities & terrain");
 		GameContext.MapEditorHud?.RegenerateMinimap();
 	}
