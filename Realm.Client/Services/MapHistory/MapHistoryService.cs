@@ -309,7 +309,6 @@ public class MapHistoryService
 		return new MapHistoryStatus
 		{
 			IsRepositoryReady = true,
-			LastVersionCommitId = latestVersion?.CommitId,
 			LastVersionAt = latestVersion?.CreatedAt,
 			VersionCount = repository.CountVersions(int.MaxValue),
 			HasUnversionedChanges = DetectUnversionedChanges(repository, state, mapDirectory, newestCommit)
@@ -355,7 +354,6 @@ public class MapHistoryService
 		return new MapHistoryStatus
 		{
 			IsRepositoryReady = status.IsRepositoryReady,
-			LastVersionCommitId = status.LastVersionCommitId,
 			LastVersionAt = status.LastVersionAt,
 			VersionCount = status.VersionCount,
 			HasUnversionedChanges = status.HasUnversionedChanges,
