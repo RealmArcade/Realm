@@ -48,6 +48,7 @@ public partial class MapSettingsDialog : FloatingDialogBase
 			closeMargin.AddThemeConstantOverride("margin_top", -32);
 		}
 		SetFooterCloseOnly("CLOSE");
+		FooterHBox.Alignment = BoxContainer.AlignmentMode.Center;
 		BuildControls();
 	}
 
