@@ -97,6 +97,7 @@ namespace Realm.Client.UI
 		private DateTime _lastAutosaveWriteUtc = DateTime.MinValue;
 		private bool _hasChangesSinceLastVersion;
 		private string? _reportedAutosaveFailure;
+		private int _historyStatusRefreshSeconds;
 
 		public void PerformAutoBackup()
 		{
@@ -322,6 +323,8 @@ namespace Realm.Client.UI
 			onCompleted?.Invoke();
 		}
 
+		private const int HistoryStatusRefreshSeconds = 15;
+
 		private void OnSyncTimerTimeout()
 		{
 			var editorService = GameContext.EditorService;
@@ -330,6 +333,22 @@ namespace Realm.Client.UI
 			editorService.SyncWasmFiles();
 			editorService.UpdateWorkspaceModTime();
 			AutosaveEditorStateIfNeeded();
+
+			_historyStatusRefreshSeconds++;
+			if (_historyStatusRefreshSeconds < HistoryStatusRefreshSeconds) return;
+
+			_historyStatusRefreshSeconds = 0;
+			RequestMapHistoryStatusRefresh();
+		}
+
+		private void RequestMapHistoryStatusRefresh()
+		{
+			if (GameContext.MapAutosaveService.HasPendingWrite || GameContext.EditorService.IsSyncing) return;
+
+			string editingDirectory = GetActiveEditingDirectory();
+			if (string.IsNullOrEmpty(editingDirectory) || !Directory.Exists(editingDirectory)) return;
+
+			GameContext.MapHistoryService.ReadStatus(editingDirectory, _ => Callable.From(RefreshMapHistoryStatus).CallDeferred());
 		}
 
 		private static bool IsSameDirectory(string firstPath, string secondPath)
