@@ -31,6 +31,7 @@ public class MapHistoryService
 	private readonly object _queueLock = new();
 	private Task _queueTail = Task.CompletedTask;
 	private bool _versionRequestPending;
+	private int _isMaintainingStores;
 	private volatile MapHistoryStatus _cachedStatus = new() { IsRepositoryReady = false };
 	private MapHistoryMessages _messages = MapHistoryMessages.Capture();
 
@@ -510,33 +511,53 @@ public class MapHistoryService
 	{
 		RefreshMessages();
 
-		Enqueue(() =>
+		if (System.Threading.Interlocked.CompareExchange(ref _isMaintainingStores, 1, 0) != 0) return;
+
+		Task queuedWork;
+		lock (_queueLock)
 		{
-			string root = MapHistoryStore.GetRootDirectory();
-			if (!Directory.Exists(root)) return;
+			queuedWork = _queueTail;
+		}
 
-			foreach (string storeDirectory in Directory.EnumerateDirectories(root))
+		queuedWork.ContinueWith(_ =>
+		{
+			try
 			{
-				if (string.Equals(Path.GetFileName(storeDirectory), "_damaged", StringComparison.OrdinalIgnoreCase)) continue;
+				MaintainAllStores();
+			}
+			finally
+			{
+				System.Threading.Volatile.Write(ref _isMaintainingStores, 0);
+			}
+		}, TaskScheduler.Default);
+	}
 
-				try
-				{
-					var layout = new MapHistoryStoreLayout(root, Path.GetFileName(storeDirectory));
-					using MapHistoryStoreSession? session = MapHistoryStore.TryAcquireExisting(layout, TimeSpan.FromMilliseconds(250));
-					if (session == null) continue;
+	private void MaintainAllStores()
+	{
+		string root = MapHistoryStore.GetRootDirectory();
+		if (!Directory.Exists(root)) return;
 
-					MapHistoryCleanupResult result = CondenseHistoryInStore(session);
-					if (result.DroppedAnything)
-					{
-						GD.Print($"[MapHistoryService] Condensed {result.DroppedVersionCount} older version(s) of {layout.StoreKey}.");
-					}
-				}
-				catch (Exception exception) when (exception is IOException or InvalidOperationException)
+		foreach (string storeDirectory in Directory.EnumerateDirectories(root))
+		{
+			if (string.Equals(Path.GetFileName(storeDirectory), MapHistoryStore.DamagedDirectoryName, StringComparison.OrdinalIgnoreCase)) continue;
+
+			try
+			{
+				var layout = new MapHistoryStoreLayout(root, Path.GetFileName(storeDirectory));
+				using MapHistoryStoreSession? session = MapHistoryStore.TryAcquireExisting(layout, TimeSpan.FromMilliseconds(250));
+				if (session == null) continue;
+
+				MapHistoryCleanupResult result = CondenseHistoryInStore(session);
+				if (result.DroppedAnything)
 				{
-					GD.PrintErr($"[MapHistoryService] Could not clean up {storeDirectory}: {exception.Message}");
+					GD.Print($"[MapHistoryService] Condensed {result.DroppedVersionCount} older version(s) of {layout.StoreKey}.");
 				}
 			}
-		});
+			catch (Exception exception) when (exception is IOException or InvalidOperationException)
+			{
+				GD.PrintErr($"[MapHistoryService] Could not clean up {storeDirectory}: {exception.Message}");
+			}
+		}
 	}
 
 	private MapHistoryStatus PrimeInStore(string mapDirectory)
