@@ -765,8 +765,6 @@ public class MapHistoryService
 
 		state.Entries = rewrittenEntries;
 		state.LastCommitId = parentCommitId;
-		state.Files.Clear();
-		state.FilesSourceFolder = null;
 		SaveState(session.Layout, state);
 
 		return new MapHistoryCleanupResult
