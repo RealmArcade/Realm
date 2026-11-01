@@ -71,7 +71,7 @@ public class MapStorageService
 
 			mapDoc["signature"] = Convert.ToBase64String(mapSigBytes);
 			string finalMetadataJson = mapDoc.ToJsonString(options);
-			File.WriteAllText(metadataJsonPath, finalMetadataJson);
+			MapFileService.WriteAllTextAtomically(metadataJsonPath, finalMetadataJson);
 
 			UploadMapMetadata(mapBytes, mapHash, mapSigBytes, currentUsername, pubKeyStr, seedServerUrl, httpClient);
 			PublishMapMetadata(finalMetadataJson, referencedHashes, mapSigBytes, pubKeyStr, seedServerUrl, httpClient);
@@ -794,7 +794,7 @@ public class MapStorageService
 		);
 
 		string targetManifestPath = Path.Combine(targetDirectory, "manifest.json");
-		File.WriteAllText(targetManifestPath, manifest.ToJson());
+		MapFileService.WriteAllTextAtomically(targetManifestPath, manifest.ToJson());
 
 		var validation = ValidateImportedMap(targetDirectory, manifest);
 		if (!validation.IsValid)
@@ -908,7 +908,7 @@ public class MapStorageService
 		Directory.CreateDirectory(targetDirectory);
 
 		string targetManifestPath = Path.Combine(targetDirectory, "manifest.json");
-		File.WriteAllText(targetManifestPath, manifest.ToJson());
+		MapFileService.WriteAllTextAtomically(targetManifestPath, manifest.ToJson());
 
 		ProcessImportedManifestFiles(manifest, manifestSourceDir, targetDirectory, progressCallback);
 
@@ -1373,7 +1373,7 @@ public class MapStorageService
 		var manifest = MapManifest.CreateFromDirectory(editingDirectory, mapTitle, author, mapVersion);
 		GameContext.MapAttributionService.ApplyAttribution(manifest, editingDirectory);
 		string manifestJsonPath = Path.Combine(editingDirectory, "manifest.json");
-		File.WriteAllText(manifestJsonPath, manifest.ToJson());
+		MapFileService.WriteAllTextAtomically(manifestJsonPath, manifest.ToJson());
 	}
 
 	public (string mapTitle, string mapVersion) ExtractTitleAndVersionFromMetadataFile(string metaJsonPath, string defaultTitle, string defaultVersion)
@@ -1587,7 +1587,7 @@ public class MapStorageService
 		UpdateMetadataContributorsAndAttributions(mapDoc, contributorsList, authorCounts, pubKeyStr);
 
 		string updatedMetadataJson = mapDoc.ToJsonString(options);
-		File.WriteAllText(metadataJsonPath, updatedMetadataJson);
+		MapFileService.WriteAllTextAtomically(metadataJsonPath, updatedMetadataJson);
 
 		signAndUploadMapMetadataCallback?.Invoke(metadataJsonPath, mapDoc, authorshipKey, currentUsername, pubKeyStr, seedServerUrl, httpClient, options, referencedHashes);
 	}

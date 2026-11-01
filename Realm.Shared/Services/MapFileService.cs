@@ -195,7 +195,7 @@ public static class MapFileService
 		return JsonSerializer.Serialize(terrain, TerrainJsonOptions);
 	}
 
-	private static void WriteAllTextAtomically(string targetPath, string contents)
+	public static void WriteAllTextAtomically(string targetPath, string contents)
 	{
 		string? directory = Path.GetDirectoryName(targetPath);
 		if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
