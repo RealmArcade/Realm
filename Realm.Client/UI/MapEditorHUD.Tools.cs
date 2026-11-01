@@ -451,11 +451,12 @@ namespace Realm.Client.UI
 				_btnResetMap = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BoxGenOps/FileGrid2_GridContainer/BtnResetMap");
 				SetupOptionButton(_btnResetMap, $"{UnicodeIcons.TRASH} " + TranslationServer.Translate("RESET MAP"), () =>
 				{
-					ShowConfirmationDialog(
-						TranslationServer.Translate("Start a new blank map in its own folder? The map you have open stays in its folder and can be opened again later."),
-						() => ResetToBlankMapView()
-					);
-				}, 13, TranslationServer.Translate("Start a new blank map in its own folder"));
+					string confirmMessage = MapWorkspaceService.IsUntitledMapName(GetMapNameFromMetadata())
+						? TranslationServer.Translate("Start a new blank map? Everything in the untitled map is replaced, and its last state is kept in MAP VERSIONS.")
+						: TranslationServer.Translate("Start a new blank map? The map you have open stays in its folder and can be opened again later.");
+
+					ShowConfirmationDialog(confirmMessage, () => ResetToBlankMapView());
+				}, 13, TranslationServer.Translate("Start a new untitled map from the template"));
 
 				SetupRandomGenerationMenu();
 

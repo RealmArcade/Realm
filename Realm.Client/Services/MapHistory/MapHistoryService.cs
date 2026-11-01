@@ -1046,7 +1046,7 @@ public class MapHistoryService
 	private static bool IsPinnedVersion(MapVersionSlot slot)
 	{
 		if (!string.IsNullOrWhiteSpace(slot.Label)) return true;
-		return slot.Entry?.Kind == MapVersionKind.BeforeRestore;
+		return slot.Entry?.Kind is MapVersionKind.BeforeRestore or MapVersionKind.BeforeNewMap;
 	}
 
 	private MapHistoryCleanupResult MakeHistoryLessGranularInStore(MapHistoryStoreSession session, MapGitRepository repository, MapHistoryStateFile state, MapHistoryCondensePlan plan)
@@ -1511,6 +1511,7 @@ public class MapHistoryService
 			MapVersionKind.BeforeMapUpgrade => "Before map upgrade",
 			MapVersionKind.AfterMapUpgrade => "After map upgrade",
 			MapVersionKind.BeforeRestore => "Before restore",
+			MapVersionKind.BeforeNewMap => "Before a new map",
 			MapVersionKind.RestoredVersion => "Restored version",
 			MapVersionKind.BeforeAssetOptimization => "Before asset cleanup",
 			MapVersionKind.AfterAssetOptimization => "After asset cleanup",

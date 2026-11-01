@@ -1,7 +1,10 @@
+using System;
+using System.IO;
 using System.Threading.Tasks;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.Services;
+using Realm.Client.Services.MapHistory;
 
 namespace Realm.Client.UI
 {
@@ -53,30 +56,57 @@ namespace Realm.Client.UI
 
 		private async Task CreateBlankMapAsync()
 		{
-			string? folderPath = MapWorkspaceService.CreateBlankMapFolder(MapWorkspaceService.GetBlankMapRootDirectory(), out string errorMessage);
-			if (string.IsNullOrEmpty(folderPath))
+			string untitledDirectory = MapWorkspaceService.GetUntitledMapDirectory();
+			KeepUntitledMapInHistory(untitledDirectory);
+
+			GameContext.EditorService.IsSyncing = true;
+			try
 			{
-				ShowFeedback(string.Format(TranslationServer.Translate("Could not create a new map folder: {0}"), errorMessage));
-				return;
+				if (!MapWorkspaceService.RebuildUntitledMapFolder(untitledDirectory, out string errorMessage))
+				{
+					ShowFeedback(string.Format(TranslationServer.Translate("Could not create a new map folder: {0}"), errorMessage));
+					return;
+				}
+
+				string? previouslyOpenedFolder = GameSettings.LastOpenedFolder;
+				ResetFolderLocations();
+
+				if (!await LoadMapFolderAsync(untitledDirectory))
+				{
+					ShowFeedback(string.Format(TranslationServer.Translate("The new map folder was created at {0} but could not be opened."), untitledDirectory));
+					return;
+				}
+
+				if (!string.IsNullOrEmpty(previouslyOpenedFolder))
+				{
+					GameSettings.LastOpenedFolder = previouslyOpenedFolder;
+					GameSettings.Save();
+				}
+
+				ShowFeedback(TranslationServer.Translate("Started a new untitled map. Give it a name when you save it somewhere of your own."));
+			}
+			finally
+			{
+				GameContext.EditorService.IsSyncing = false;
+			}
+		}
+
+		private static void KeepUntitledMapInHistory(string untitledDirectory)
+		{
+			if (GameContext.Host == null) return;
+			if (!File.Exists(Path.Combine(untitledDirectory, "metadata.json"))) return;
+
+			if (IsSameDirectory(GameContext.EditorService._editingDirectory, untitledDirectory))
+			{
+				GameContext.Host.SaveMapToFile(Path.Combine(untitledDirectory, "terrain.json"), performReload: false);
+				GameContext.Host.EditorHasUnsavedChanges = false;
+			}
+			else
+			{
+				GameContext.MapAutosaveService.FlushPendingWrites(TimeSpan.FromSeconds(3));
 			}
 
-			string? previouslyOpenedFolder = GameSettings.LastOpenedFolder;
-			ResetFolderLocations();
-
-			bool loaded = await LoadMapFolderAsync(folderPath);
-			if (!loaded)
-			{
-				ShowFeedback(string.Format(TranslationServer.Translate("The new map folder was created at {0} but could not be opened."), folderPath));
-				return;
-			}
-
-			if (!string.IsNullOrEmpty(previouslyOpenedFolder))
-			{
-				GameSettings.LastOpenedFolder = previouslyOpenedFolder;
-				GameSettings.Save();
-			}
-
-			ShowFeedback(string.Format(TranslationServer.Translate("Started a new map in {0}."), folderPath));
+			GameContext.MapHistoryService.CaptureVersionSynchronously(untitledDirectory, MapVersionKind.BeforeNewMap, TranslationServer.Translate("Before a new map"), untitledDirectory);
 		}
 
 		public void ViewLoadMapProperties()

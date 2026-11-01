@@ -372,6 +372,11 @@ public partial class MapEditorHUD : Control
 
 	public void PublishMapActionExternal()
 	{
+		EnsureMapHasRealName(_ => OpenPublishMapPanel());
+	}
+
+	private void OpenPublishMapPanel()
+	{
 		string wsPath = !string.IsNullOrEmpty(GameContext.EditorService._editingDirectory) ? GameContext.EditorService._editingDirectory : MapWorkspaceService.GetActiveWorkspacePath();
 
 		if (!TryValidateMapPublishRequirements(wsPath)) return;

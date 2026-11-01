@@ -588,6 +588,7 @@ public partial class MapVersionsDialog : FloatingDialogBase
 			MapVersionKind.BeforeAssetOptimization => TranslationServer.Translate("Before asset cleanup"),
 			MapVersionKind.AfterAssetOptimization => TranslationServer.Translate("After asset cleanup"),
 			MapVersionKind.BeforeRestore => TranslationServer.Translate("Before restore"),
+			MapVersionKind.BeforeNewMap => TranslationServer.Translate("Before a new map"),
 			MapVersionKind.RestoredVersion => TranslationServer.Translate("Restored"),
 			_ => TranslationServer.Translate("Change")
 		};

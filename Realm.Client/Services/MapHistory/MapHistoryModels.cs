@@ -10,6 +10,7 @@ public enum MapVersionKind
 	BeforePublish,
 	BeforeMapUpgrade,
 	BeforeRestore,
+	BeforeNewMap,
 	RestoredVersion,
 	ExternalChange,
 	AfterMapUpgrade,

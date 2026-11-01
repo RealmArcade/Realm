@@ -547,7 +547,45 @@ namespace Realm.Client.UI
 		{
 			if (GameContext.Host == null) return;
 
-			string initialDir = !string.IsNullOrEmpty(defaultSaveFolder) ? defaultSaveFolder : GetDocumentsDirectory();
+			EnsureMapHasRealName(mapName => OpenSaveMapFolderPicker(GetDefaultDevelopmentMapDirectory(mapName)));
+		}
+
+		private void EnsureMapHasRealName(Action<string> onReady)
+		{
+			string mapName = GetMapNameFromMetadata();
+			if (!MapWorkspaceService.IsUntitledMapName(mapName))
+			{
+				onReady?.Invoke(mapName);
+				return;
+			}
+
+			ShowMapNamePrompt(named =>
+			{
+				ApplyMapName(named);
+				onReady?.Invoke(named);
+			});
+		}
+
+		private void ApplyMapName(string mapName)
+		{
+			string editingDirectory = GetActiveEditingDirectory();
+			if (string.IsNullOrEmpty(editingDirectory) || !File.Exists(Path.Combine(editingDirectory, "metadata.json"))) return;
+
+			GameContext.MetadataService.UpdateMetadata(editingDirectory, metadata =>
+			{
+				metadata.MapProperties ??= new MapInfoMetadata();
+				metadata.MapProperties.MapName = mapName;
+			});
+
+			GameContext.EditorService.CachedMapName = null;
+			GameContext.EditorService.LastMapNameCacheTicks = 0;
+			UpdateMapNameHeader();
+			_mapSettingsDialog?.LoadMapProperties();
+		}
+
+		private void OpenSaveMapFolderPicker(string suggestedDirectory)
+		{
+			string initialDir = !string.IsNullOrEmpty(suggestedDirectory) ? suggestedDirectory : (!string.IsNullOrEmpty(defaultSaveFolder) ? defaultSaveFolder : GetDocumentsDirectory());
 			try
 			{
 				if (!Directory.Exists(initialDir))
@@ -1577,6 +1615,11 @@ namespace Realm.Client.UI
 		{
 			if (GameContext.Host == null) return;
 
+			EnsureMapHasRealName(_ => OpenExportFileDialogForCurrentMap());
+		}
+
+		private void OpenExportFileDialogForCurrentMap()
+		{
 			string wsPath = !string.IsNullOrEmpty(GameContext.EditorService._editingDirectory) ? GameContext.EditorService._editingDirectory : MapWorkspaceService.GetActiveWorkspacePath();
 
 			if (!ValidateWorkspaceForExport(wsPath)) return;

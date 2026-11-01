@@ -1311,6 +1311,103 @@ namespace Realm.Client.UI
 			}
 		}
 
+		public void ShowMapNamePrompt(Action<string> onNamed)
+		{
+			var overlay = new ColorRect();
+			overlay.Name = "MapNamePromptOverlay";
+			overlay.Color = new Color(0, 0, 0, 0.65f);
+			overlay.SetAnchorsPreset(LayoutPreset.FullRect);
+			overlay.MouseFilter = MouseFilterEnum.Stop;
+			overlay.ZIndex = 1100;
+			AddChild(overlay);
+
+			var center = new CenterContainer();
+			center.Name = "MapNamePromptCenter_CenterContainer";
+			center.SetAnchorsPreset(LayoutPreset.FullRect);
+			overlay.AddChild(center);
+
+			var panel = new PanelContainer();
+			panel.Name = "MapNamePromptPanel_PanelContainer";
+			panel.CustomMinimumSize = new Vector2(520, 260);
+			panel.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
+			center.AddChild(panel);
+
+			var margin = new MarginContainer();
+			margin.Name = "MapNamePromptMargin_MarginContainer";
+			margin.AddThemeConstantOverride("margin_top", 24);
+			margin.AddThemeConstantOverride("margin_bottom", 22);
+			margin.AddThemeConstantOverride("margin_left", 32);
+			margin.AddThemeConstantOverride("margin_right", 32);
+			panel.AddChild(margin);
+
+			var vbox = new VBoxContainer();
+			vbox.Name = "MapNamePromptVBox_VBoxContainer";
+			vbox.AddThemeConstantOverride("separation", 14);
+			margin.AddChild(vbox);
+
+			var title = new Label();
+			title.Name = "MapNamePromptTitle_Label";
+			UIStyle.ApplyTitle(title, TranslationServer.Translate("NAME THIS MAP"), 16);
+			title.HorizontalAlignment = HorizontalAlignment.Center;
+			title.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+			vbox.AddChild(title);
+
+			var message = new Label();
+			message.Name = "MapNamePromptMessage_Label";
+			message.Text = TranslationServer.Translate("An untitled map is a prototype. Give it a name and the folder it is saved to will default to Documents under that name.");
+			message.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+			message.HorizontalAlignment = HorizontalAlignment.Center;
+			message.CustomMinimumSize = new Vector2(440, 0);
+			message.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+			message.AddThemeFontSizeOverride("font_size", 12);
+			vbox.AddChild(message);
+
+			var nameInput = new LineEdit();
+			nameInput.Name = "MapNameInput_LineEdit";
+			nameInput.PlaceholderText = TranslationServer.Translate("Map name");
+			nameInput.CustomMinimumSize = new Vector2(0, 34);
+			vbox.AddChild(nameInput);
+
+			var buttons = new HBoxContainer();
+			buttons.Name = "MapNamePromptButtons_HBoxContainer";
+			buttons.AddThemeConstantOverride("separation", 24);
+			buttons.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
+			vbox.AddChild(buttons);
+
+			Action submit = () =>
+			{
+				string enteredName = nameInput.Text.Trim();
+				if (string.IsNullOrEmpty(enteredName))
+				{
+					ShowFeedback(TranslationServer.Translate("Please enter a name for the map."));
+					return;
+				}
+
+				overlay.QueueFree();
+				onNamed?.Invoke(enteredName);
+			};
+
+			nameInput.TextSubmitted += _ => submit();
+
+			var btnConfirm = new Button();
+			btnConfirm.Name = "BtnConfirmMapName_Button";
+			btnConfirm.Set("icon_max_width", 0);
+			btnConfirm.CustomMinimumSize = new Vector2(110, 34);
+			SetupButton(btnConfirm, TranslationServer.Translate("NAME IT"), submit, 13);
+			btnConfirm.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
+			buttons.AddChild(btnConfirm);
+
+			var btnCancel = new Button();
+			btnCancel.Name = "BtnCancelMapName_Button";
+			btnCancel.Set("icon_max_width", 0);
+			btnCancel.CustomMinimumSize = new Vector2(110, 34);
+			SetupButton(btnCancel, TranslationServer.Translate("CANCEL"), () => overlay.QueueFree(), 13);
+			btnCancel.AddThemeColorOverride("font_color", new Color(0.9f, 0.3f, 0.3f));
+			buttons.AddChild(btnCancel);
+
+			nameInput.CallDeferred(LineEdit.MethodName.GrabFocus);
+		}
+
 		private void ShowWasmConsoleModal()
 		{
 			GameContext.WasmConsole.ClearLogs();
@@ -3390,7 +3487,7 @@ namespace Realm.Client.UI
 			if (_lblMapNameHeader == null) return;
 			string mapName = GetMapNameFromMetadata();
 			string displayMapName = MapWorkspaceService.IsUntitledMapName(mapName)
-				? TranslationServer.Translate("Untitled Map") + mapName[MapWorkspaceService.UntitledMapNamePrefix.Length..]
+				? TranslationServer.Translate("Untitled Map")
 				: mapName;
 			bool hasUnsaved = GameContext.Host?.EditorHasUnsavedChanges ?? false;
 
