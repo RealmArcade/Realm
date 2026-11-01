@@ -237,8 +237,8 @@ public class SaveLoadService
 			PopulateMapSaveData(saveData, directory, validDecalEntities);
 
 			SortMapSaveData(saveData);
-			EditorService.LastInternalSaveTimeUtc = DateTime.UtcNow;
 			MapFileService.SaveTerrain(absolutePath, saveData);
+			EditorService.LastInternalSaveTimeUtc = DateTime.UtcNow;
 
 			GameContext.Host?.SaveModelYOffsetsToMetadataJson(directory);
 			SyncMetadataAssetsAndPrune(directory);

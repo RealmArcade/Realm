@@ -5114,6 +5114,9 @@ public partial class EditorService : IEditorAPI
 	private static bool _terrainChangePending;
 	private static volatile bool _hasPendingExternalChanges;
 	private static long _lastInternalSaveTimeUtcTicks = DateTime.MinValue.Ticks;
+	private static long _internalWriteSuppressionUntilUtcTicks = DateTime.MinValue.Ticks;
+
+	private const int InternalWriteSuppressionMilliseconds = 3000;
 
 	public static DateTime LastInternalSaveTimeUtc
 	{
@@ -5121,7 +5124,25 @@ public partial class EditorService : IEditorAPI
 		set
 		{
 			Volatile.Write(ref _lastInternalSaveTimeUtcTicks, value.Ticks);
-			ReconcileKnownFileStatesFromDisk();
+			ExtendInternalWriteSuppressionWindow();
+		}
+	}
+
+	public static bool IsWithinInternalWriteSuppressionWindow
+	{
+		get => DateTime.UtcNow.Ticks < Volatile.Read(ref _internalWriteSuppressionUntilUtcTicks);
+	}
+
+	private static void ExtendInternalWriteSuppressionWindow()
+	{
+		long suppressedUntilTicks = DateTime.UtcNow.AddMilliseconds(InternalWriteSuppressionMilliseconds).Ticks;
+		long currentUntilTicks = Volatile.Read(ref _internalWriteSuppressionUntilUtcTicks);
+		while (suppressedUntilTicks > currentUntilTicks)
+		{
+			long previousUntilTicks = Interlocked.CompareExchange(ref _internalWriteSuppressionUntilUtcTicks, suppressedUntilTicks, currentUntilTicks);
+			if (previousUntilTicks == currentUntilTicks) return;
+
+			currentUntilTicks = previousUntilTicks;
 		}
 	}
 
@@ -5161,7 +5182,7 @@ public partial class EditorService : IEditorAPI
 		ReconcileKnownFileStatesFromDisk();
 	}
 
-	public static void ReconcileKnownFileStatesFromDisk()
+	public static void ReconcileKnownFileStatesFromDisk(bool clearPendingChanges = true)
 	{
 		lock (_watcherLock)
 		{
@@ -5179,7 +5200,7 @@ public partial class EditorService : IEditorAPI
 				bool wasRewritten = KnownFileStates.TryGetValue(filePath, out MapFileState previous) && !previous.Equals(state);
 				KnownFileStates[filePath] = state;
 
-				if (!wasRewritten) continue;
+				if (!wasRewritten || !clearPendingChanges) continue;
 
 				if (IsMetadataFile(fileName))
 				{
@@ -5289,6 +5310,12 @@ public partial class EditorService : IEditorAPI
 		{
 			if (IsPaused || IsSyncing) return;
 			if (!TryReadFileState(fullPath, out MapFileState current)) return;
+
+			if (IsWithinInternalWriteSuppressionWindow)
+			{
+				ReconcileKnownFileStatesFromDisk(clearPendingChanges: false);
+				return;
+			}
 
 			lock (_watcherLock)
 			{
