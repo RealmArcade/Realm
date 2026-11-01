@@ -480,8 +480,6 @@ public partial class GameHost
 		{
 			GameContext.SaveLoadService.CopyPathingCodes(terrain.PathingCodes, GroundTerrain.PathingCodes, width, depth);
 		}
-
-		GroundTerrain.UpdateWaterSize();
 	}
 
 	private void LoadSplatMapsView(string absolutePath)
