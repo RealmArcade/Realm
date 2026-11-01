@@ -474,17 +474,6 @@ namespace Realm.Client.UI
 				_contentFile.AddChild(_btnMapVersions);
 				_contentFile.MoveChild(_btnMapVersions, 2);
 
-				_mapHistoryStatusLabel = new Label();
-				_mapHistoryStatusLabel.Name = "MapHistoryStatusLabel";
-				_mapHistoryStatusLabel.Text = string.Empty;
-				_mapHistoryStatusLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-				_mapHistoryStatusLabel.CustomMinimumSize = new Vector2(200, 0);
-				_mapHistoryStatusLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-				_mapHistoryStatusLabel.AddThemeFontSizeOverride("font_size", 10);
-				_mapHistoryStatusLabel.AddThemeColorOverride("font_color", new Color(0.68f, 0.71f, 0.7f));
-				_contentFile.AddChild(_mapHistoryStatusLabel);
-				_contentFile.MoveChild(_mapHistoryStatusLabel, 3);
-
 				_accordionViewport = GetNode<VBoxContainer>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion");
 				_btnHeaderViewport = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/BtnHeaderViewport");
 				_contentViewport = GetNode<VBoxContainer>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport");
@@ -4806,28 +4795,6 @@ namespace Realm.Client.UI
 			}
 
 			_mapHistoryStoresDialog.OpenDialog();
-		}
-
-		public void RefreshMapHistoryStatus()
-		{
-			if (_mapHistoryStatusLabel == null || !GodotObject.IsInstanceValid(_mapHistoryStatusLabel)) return;
-
-			MapHistoryStatus status = GameContext.MapHistoryService.CachedStatus;
-			if (!status.IsRepositoryReady)
-			{
-				_mapHistoryStatusLabel.Text = string.Empty;
-				return;
-			}
-
-			string savedText = status.LastVersionAt.HasValue
-				? string.Format(TranslationServer.Translate("Saved {0}"), status.LastVersionAt.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm"))
-				: TranslationServer.Translate("No version saved yet");
-			string countText = string.Format(TranslationServer.Translate("{0} version(s)"), status.VersionCount);
-			string unversionedText = status.HasUnversionedChanges
-				? $"  •  {TranslationServer.Translate("Changes since the last version")}"
-				: string.Empty;
-
-			_mapHistoryStatusLabel.Text = $"{savedText}  •  {countText}{unversionedText}";
 		}
 
 		public void NotifyHistoryRestoreApplied(bool versionRecorded)

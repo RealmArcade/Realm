@@ -33,11 +33,7 @@ namespace Realm.Client.UI
 
 		private void PrimeMapHistory()
 		{
-			string editingDirectory = GetActiveEditingDirectory();
-			GameContext.MapHistoryService.PrimeForMap(editingDirectory, _ =>
-			{
-				Callable.From(RefreshMapHistoryStatus).CallDeferred();
-			});
+			GameContext.MapHistoryService.PrimeForMap(GetActiveEditingDirectory());
 		}
 
 		private static void ScheduleHistoryMaintenanceOnLaunch()
@@ -71,10 +67,7 @@ namespace Realm.Client.UI
 
 			string editingDirectory = GetActiveEditingDirectory();
 			string? sourceFolder = string.IsNullOrEmpty(GameContext.EditorService.CurrentSourceFolder) ? null : GameContext.EditorService.CurrentSourceFolder;
-			GameContext.MapHistoryService.CreateVersion(editingDirectory, kind, label, _ =>
-			{
-				Callable.From(RefreshMapHistoryStatus).CallDeferred();
-			}, coalesce, sourceFolder);
+			GameContext.MapHistoryService.CreateVersion(editingDirectory, kind, label, coalesce: coalesce, sourceFolder: sourceFolder);
 		}
 
 		public static void RequestOpenFromCas(string casSourceDirectory, string? defaultSaveFolder)
@@ -118,7 +111,6 @@ namespace Realm.Client.UI
 		private bool _hasChangesSinceLastVersion;
 		private string? _reportedAutosaveFailure;
 		private DateTime _autosaveRetryNotBeforeUtc = DateTime.MinValue;
-		private int _historyStatusRefreshSeconds;
 
 		public void PerformAutoBackup()
 		{
@@ -348,8 +340,6 @@ namespace Realm.Client.UI
 
 		private static readonly TimeSpan AutosaveRetryBackoff = TimeSpan.FromSeconds(10);
 
-		private const int HistoryStatusRefreshSeconds = 15;
-
 		private void OnSyncTimerTimeout()
 		{
 			var editorService = GameContext.EditorService;
@@ -358,22 +348,6 @@ namespace Realm.Client.UI
 			editorService.SyncWasmFiles();
 			editorService.UpdateWorkspaceModTime();
 			AutosaveEditorStateIfNeeded();
-
-			_historyStatusRefreshSeconds++;
-			if (_historyStatusRefreshSeconds < HistoryStatusRefreshSeconds) return;
-
-			_historyStatusRefreshSeconds = 0;
-			RequestMapHistoryStatusRefresh();
-		}
-
-		private void RequestMapHistoryStatusRefresh()
-		{
-			if (GameContext.MapAutosaveService.HasPendingWrite || GameContext.EditorService.IsSyncing) return;
-
-			string editingDirectory = GetActiveEditingDirectory();
-			if (string.IsNullOrEmpty(editingDirectory) || !Directory.Exists(editingDirectory)) return;
-
-			GameContext.MapHistoryService.ReadStatus(editingDirectory, _ => Callable.From(RefreshMapHistoryStatus).CallDeferred());
 		}
 
 		private static bool IsSameDirectory(string firstPath, string secondPath)

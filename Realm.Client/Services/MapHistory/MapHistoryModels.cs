@@ -34,7 +34,6 @@ public class MapHistoryStatus
 	public bool IsRepositoryReady { get; init; }
 	public DateTimeOffset? LastVersionAt { get; init; }
 	public int VersionCount { get; init; }
-	public bool HasUnversionedChanges { get; init; }
 	public string? Notice { get; init; }
 	public string? ErrorMessage { get; init; }
 

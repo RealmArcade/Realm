@@ -234,7 +234,6 @@ public partial class MapEditorHUD : Control
 	private MapHistoryStoresDialog _mapHistoryStoresDialog { get; set; }
 	private Button _btnEditorSettings { get; set; }
 	private Button _btnMapVersions { get; set; }
-	private Label _mapHistoryStatusLabel { get; set; }
 	private PanelContainer _mapNameHeaderPanel { get; set; }
 	private Label _lblMapNameHeader { get; set; }
 	private double _mapNameUpdateTimer { get; set; } = 0.0;

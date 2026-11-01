@@ -32,10 +32,7 @@ public class MapHistoryService
 	private Task _queueTail = Task.CompletedTask;
 	private bool _versionRequestPending;
 	private int _isMaintainingStores;
-	private volatile MapHistoryStatus _cachedStatus = new() { IsRepositoryReady = false };
 	private MapHistoryMessages _messages = MapHistoryMessages.Capture();
-
-	public MapHistoryStatus CachedStatus => _cachedStatus;
 
 	private void RefreshMessages()
 	{
@@ -69,7 +66,6 @@ public class MapHistoryService
 				status = MapHistoryStatus.Unavailable(exception.Message);
 			}
 
-			_cachedStatus = status;
 			onCompleted?.Invoke(status);
 		});
 	}
@@ -116,7 +112,6 @@ public class MapHistoryService
 			result = new MapHistoryVersionResult { Success = false, ErrorMessage = DescribeFailure(exception) };
 		}
 
-		UpdateCachedStatus(mapDirectory);
 		return result;
 	}
 
@@ -491,7 +486,6 @@ public class MapHistoryService
 				status = MapHistoryStatus.Unavailable(DescribeFailure(exception));
 			}
 
-			_cachedStatus = status;
 			onCompleted?.Invoke(status);
 		});
 	}
@@ -520,7 +514,6 @@ public class MapHistoryService
 				result = new MapHistoryRestoreResult { Success = false, ErrorMessage = DescribeFailure(exception) };
 			}
 
-			UpdateCachedStatus(mapDirectory);
 			onCompleted?.Invoke(result);
 		});
 	}
@@ -636,43 +629,8 @@ public class MapHistoryService
 		{
 			IsRepositoryReady = true,
 			LastVersionAt = latestVersion?.CreatedAt,
-			VersionCount = versionsNewestFirst.Count,
-			HasUnversionedChanges = DetectUnversionedChanges(repository, state, mapDirectory, newestCommit)
+			VersionCount = versionsNewestFirst.Count
 		};
-	}
-
-	private static bool DetectUnversionedChanges(MapGitRepository repository, MapHistoryStateFile state, string mapDirectory, MapGitCommitInfo? newestCommit)
-	{
-		if (newestCommit == null || !Directory.Exists(mapDirectory)) return false;
-
-		using Repository repositoryScope = repository.OpenRepositoryScope();
-		Dictionary<string, string> versionedFiles = repository.ReadTreeFiles(newestCommit.TreeId, repositoryScope);
-		List<string> workingFiles = CollectMapFiles(mapDirectory);
-		if (workingFiles.Count != versionedFiles.Count) return true;
-
-		bool canTrustFingerprints = string.Equals(state.FilesSourceFolder, mapDirectory, StringComparison.OrdinalIgnoreCase);
-		foreach (string relativePath in workingFiles)
-		{
-			if (!versionedFiles.TryGetValue(relativePath, out string? versionedBlobId)) return true;
-
-			string absolutePath = Path.Combine(mapDirectory, relativePath.Replace('/', Path.DirectorySeparatorChar));
-			var fileInfo = new FileInfo(absolutePath);
-			if (!fileInfo.Exists) return true;
-
-			if (canTrustFingerprints &&
-			    state.Files.TryGetValue(relativePath, out MapHistoryFileFingerprint? fingerprint) &&
-			    fingerprint.Size == fileInfo.Length &&
-			    fingerprint.LastWriteTicks == fileInfo.LastWriteTimeUtc.Ticks)
-			{
-				if (!string.Equals(fingerprint.BlobId, versionedBlobId, StringComparison.OrdinalIgnoreCase)) return true;
-				continue;
-			}
-
-			if (!TryReadStableContent(absolutePath, out byte[] content)) continue;
-			if (!string.Equals(MapGitRepository.ComputeBlobId(content), versionedBlobId, StringComparison.OrdinalIgnoreCase)) return true;
-		}
-
-		return false;
 	}
 
 	private static MapHistoryStatus WithNotice(MapHistoryStatus status, string notice)
@@ -682,7 +640,6 @@ public class MapHistoryService
 			IsRepositoryReady = status.IsRepositoryReady,
 			LastVersionAt = status.LastVersionAt,
 			VersionCount = status.VersionCount,
-			HasUnversionedChanges = status.HasUnversionedChanges,
 			Notice = notice,
 			ErrorMessage = status.ErrorMessage
 		};
@@ -1141,18 +1098,6 @@ public class MapHistoryService
 
 		public List<MapVersionSlot> KeptOldestFirst { get; }
 		public int DroppedCount { get; }
-	}
-
-	private void UpdateCachedStatus(string mapDirectory)
-	{
-		try
-		{
-			_cachedStatus = ReadStatusInStore(mapDirectory);
-		}
-		catch (Exception exception)
-		{
-			_cachedStatus = MapHistoryStatus.Unavailable(DescribeFailure(exception));
-		}
 	}
 
 	private bool _nativeLibraryFailureReported;

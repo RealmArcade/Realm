@@ -489,7 +489,6 @@ public partial class MapVersionsDialog : FloatingDialogBase
 			SetBusy(false, null);
 			RefreshStatus();
 			RefreshStorage();
-			Hud.RefreshMapHistoryStatus();
 		}
 	}
 

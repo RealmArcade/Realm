@@ -180,7 +180,6 @@ public partial class MapHistoryStoresDialog : FloatingDialogBase
 						result.ErrorMessage ?? string.Empty));
 				}
 
-				Hud.RefreshMapHistoryStatus();
 				RefreshStores();
 			}).CallDeferred();
 		});
