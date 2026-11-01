@@ -11,8 +11,7 @@ public enum MapVersionKind
 	BeforeMapUpgrade,
 	BeforeRestore,
 	RestoredVersion,
-	ExternalChange,
-	Condensed
+	ExternalChange
 }
 
 public class MapVersionEntry
@@ -70,7 +69,6 @@ public class MapHistoryStorageInfo
 
 public class MapHistoryCleanupResult
 {
-	public bool Success { get; init; }
 	public string? ErrorMessage { get; init; }
 	public int DroppedVersionCount { get; init; }
 	public int RemainingVersionCount { get; init; }

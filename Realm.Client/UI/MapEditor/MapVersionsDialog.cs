@@ -559,7 +559,6 @@ public partial class MapVersionsDialog : FloatingDialogBase
 			MapVersionKind.BeforeMapUpgrade => TranslationServer.Translate("Before map upgrade"),
 			MapVersionKind.BeforeRestore => TranslationServer.Translate("Before restore"),
 			MapVersionKind.RestoredVersion => TranslationServer.Translate("Restored"),
-			MapVersionKind.Condensed => TranslationServer.Translate("Condensed earlier versions"),
 			_ => TranslationServer.Translate("Change")
 		};
 	}

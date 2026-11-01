@@ -826,20 +826,16 @@ public partial class EditorService : IEditorAPI
 
 	public string _editingDirectory { get; set; } = string.Empty;
 
-	public bool IsEditingMapFolderInPlace { get; set; }
-
 	public bool HasEditingDirectory => !string.IsNullOrEmpty(_editingDirectory);
 
-	public void SetActiveMapDirectory(string absoluteDirectory, bool editingMapFolderInPlace)
+	public void SetActiveMapDirectory(string absoluteDirectory)
 	{
 		_editingDirectory = absoluteDirectory;
-		IsEditingMapFolderInPlace = editingMapFolderInPlace;
 	}
 
 	public void ClearEditingDirectoryDomain()
 	{
 		_editingDirectory = string.Empty;
-		IsEditingMapFolderInPlace = false;
 	}
 
 	public void EnsureEditingDirectoryDomain()
@@ -854,7 +850,7 @@ public partial class EditorService : IEditorAPI
 
 		if (string.IsNullOrEmpty(sourceFolder) || !Directory.Exists(sourceFolder)) return;
 
-		SetActiveMapDirectory(Path.GetFullPath(sourceFolder), true);
+		SetActiveMapDirectory(Path.GetFullPath(sourceFolder));
 		SetCurrentSourceFolder(sourceFolder);
 	}
 
@@ -5433,15 +5429,6 @@ public partial class EditorService : IEditorAPI
 		this.PendingCasSourceDirectory = null;
 		this.PendingDefaultSaveFolder = null;
 		return (casDir, defaultSave);
-	}
-
-	public void EnsureEditingDirectoryScaffoldingDomain()
-	{
-		EnsureEditingDirectoryDomain();
-		if (!HasEditingDirectory) return;
-
-		Directory.CreateDirectory(this._editingDirectory);
-		MapWorkspaceService.SetupWorkspace(this._editingDirectory, "MapScript");
 	}
 
 	public void RedoDomain()

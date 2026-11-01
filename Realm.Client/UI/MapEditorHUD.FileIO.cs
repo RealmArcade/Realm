@@ -116,7 +116,6 @@ namespace Realm.Client.UI
 		private void AutosaveEditorStateIfNeeded()
 		{
 			if (GameContext.Host == null || !GameContext.Host.EditorHasUnsavedChanges) return;
-			if (!GameContext.EditorService.IsEditingMapFolderInPlace) return;
 			if (GameContext.EditorService.IsSyncing) return;
 			if ((DateTime.UtcNow - _lastAutosaveWriteUtc).TotalSeconds < 5) return;
 
@@ -183,7 +182,12 @@ namespace Realm.Client.UI
 		{
 			try
 			{
-				GameContext.EditorService.EnsureEditingDirectoryScaffoldingDomain();
+				GameContext.EditorService.EnsureEditingDirectoryDomain();
+				string editingDirectory = GameContext.EditorService._editingDirectory;
+				if (string.IsNullOrEmpty(editingDirectory)) return;
+
+				Directory.CreateDirectory(editingDirectory);
+				MapWorkspaceService.SetupWorkspace(editingDirectory, "MapScript");
 			}
 			catch (Exception ex)
 			{
@@ -491,7 +495,7 @@ namespace Realm.Client.UI
 
 				if (!savesIntoEditingFolder)
 				{
-					GameContext.EditorService.SetActiveMapDirectory(Path.GetFullPath(targetFolder), true);
+					GameContext.EditorService.SetActiveMapDirectory(Path.GetFullPath(targetFolder));
 					GameContext.EditorService.SetCurrentSourceFolder(Path.GetFullPath(targetFolder));
 					GameContext.EditorService.StartWorkspaceWatcher(Path.GetFullPath(targetFolder));
 				}
@@ -916,7 +920,7 @@ namespace Realm.Client.UI
 				return false;
 			}
 
-			GameContext.EditorService.SetActiveMapDirectory(fullSelectedPath, true);
+			GameContext.EditorService.SetActiveMapDirectory(fullSelectedPath);
 			GameContext.EditorService.CurrentSourceFolder = fullSelectedPath;
 			EnsureEditingFolderScaffolding(fullSelectedPath, Path.GetFileName(fullSelectedPath));
 			return true;

@@ -500,7 +500,6 @@ public class MapHistoryService
 		state.Entries.RemoveAll(entry => string.Equals(entry.CommitId, commitId, StringComparison.OrdinalIgnoreCase));
 		state.Entries.Add(versionEntry);
 		state.LastCommitId = commitId;
-		state.MapName = MapHistoryStore.ResolveMapName(mapDirectory);
 		state.Files = fingerprints;
 		state.FilesSourceFolder = mapDirectory;
 		SaveState(session.Layout, state);
@@ -677,7 +676,7 @@ public class MapHistoryService
 	{
 		if (plan.DroppedCount == 0)
 		{
-			return new MapHistoryCleanupResult { Success = true, RemainingVersionCount = plan.KeptOldestFirst.Count };
+			return new MapHistoryCleanupResult { RemainingVersionCount = plan.KeptOldestFirst.Count };
 		}
 
 		var rewrittenEntries = new List<MapHistoryStateEntry>(plan.KeptOldestFirst.Count);
@@ -722,7 +721,7 @@ public class MapHistoryService
 			repository.WriteVersionLabel(labelCommitId, labelSignature, label);
 		}
 
-		repository.Compact();
+		repository.SweepUnreachableObjects();
 
 		state.Entries = rewrittenEntries;
 		state.LastCommitId = parentCommitId;
@@ -732,7 +731,6 @@ public class MapHistoryService
 
 		return new MapHistoryCleanupResult
 		{
-			Success = true,
 			DroppedVersionCount = plan.DroppedCount,
 			RemainingVersionCount = rewrittenEntries.Count
 		};
@@ -1010,7 +1008,6 @@ public class MapHistoryService
 			MapVersionKind.BeforeMapUpgrade => "Before map upgrade",
 			MapVersionKind.BeforeRestore => "Before restore",
 			MapVersionKind.RestoredVersion => "Restored version",
-			MapVersionKind.Condensed => "Earlier versions",
 			_ => "Map change"
 		};
 	}
@@ -1059,7 +1056,6 @@ public class MapHistoryService
 	public class MapHistoryStateFile
 	{
 		public string StoreKey { get; set; } = string.Empty;
-		public string MapName { get; set; } = string.Empty;
 		public long SaveVersion { get; set; }
 		public string? LastCommitId { get; set; }
 		public string? FilesSourceFolder { get; set; }
