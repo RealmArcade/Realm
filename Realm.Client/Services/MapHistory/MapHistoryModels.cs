@@ -91,7 +91,6 @@ public class MapHistoryStorageInfo
 
 public class MapHistoryCleanupResult
 {
-	public string? ErrorMessage { get; init; }
 	public int DroppedVersionCount { get; init; }
 
 	public bool DroppedAnything => DroppedVersionCount > 0;

@@ -808,7 +808,7 @@ public class MapHistoryService
 				};
 			}
 
-			string blobId = repository.WriteBlob(content, out _, repositoryScope);
+			string blobId = repository.WriteBlob(content, repositoryScope);
 
 			blobIdByPath[relativePath] = blobId;
 			fingerprints[relativePath] = new MapHistoryFileFingerprint

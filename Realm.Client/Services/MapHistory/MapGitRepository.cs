@@ -275,31 +275,29 @@ public class MapGitRepository
 		return repository.ObjectDatabase.Contains(new ObjectId(blobId));
 	}
 
-	public string WriteBlob(byte[] content, out bool wasCreated, Repository? openRepository = null)
+	public string WriteBlob(byte[] content, Repository? openRepository = null)
 	{
 		string blobId = ComputeBlobId(content);
 
 		if (openRepository != null)
 		{
-			return WriteBlobInRepository(openRepository, content, blobId, out wasCreated);
+			return WriteBlobInRepository(openRepository, content, blobId);
 		}
 
 		using Repository repository = OpenRepository();
-		return WriteBlobInRepository(repository, content, blobId, out wasCreated);
+		return WriteBlobInRepository(repository, content, blobId);
 	}
 
-	private static string WriteBlobInRepository(Repository repository, byte[] content, string blobId, out bool wasCreated)
+	private static string WriteBlobInRepository(Repository repository, byte[] content, string blobId)
 	{
 		if (repository.ObjectDatabase.Contains(new ObjectId(blobId)))
 		{
-			wasCreated = false;
 			return blobId;
 		}
 
 		using var contentStream = new MemoryStream(content, false);
-		Blob blob = repository.ObjectDatabase.CreateBlob(contentStream);
-		wasCreated = true;
-		return blob.Sha.Length == 40 ? blob.Sha : blobId;
+		repository.ObjectDatabase.CreateBlob(contentStream);
+		return blobId;
 	}
 
 	public string WriteCommit(IReadOnlyDictionary<string, string> blobIdByPath, string? parentId, MapGitSignature signature, string message, Repository? openRepository = null)
