@@ -1105,7 +1105,6 @@ public partial class VSCodeManager
 		try
 		{
 			string fileName = Path.GetFileName(filePath).ToLowerInvariant();
-			EditorService.LastInternalSaveTimeUtc = DateTime.UtcNow;
 
 			string formattedContent = FormatSpecialJsonFile(fileName, filePath, content);
 

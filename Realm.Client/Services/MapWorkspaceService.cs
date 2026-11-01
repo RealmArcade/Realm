@@ -16,6 +16,7 @@ using Realm.Client.UI;
 using Realm.Ecs.Services;
 using Realm.Shared;
 using Realm.Shared.Distribution;
+using Realm.Shared.Metadata;
 using Realm.Shared.Services;
 using Realm.Shared.Textures;
 
@@ -178,48 +179,6 @@ public static partial class MapWorkspaceService
 		catch (Exception ex)
 		{
 			GD.PrintErr($"[RefreshSavedDirectoryHash] Error hashing the map folder: {ex.Message}");
-		}
-	}
-
-	public const string EditorSourceFolderFileName = "editor_source_folder.txt";
-
-	public static string GetEditorSourceFolderPersistencePath()
-	{
-		return ProjectSettings.GlobalizePath($"user://{EditorSourceFolderFileName}");
-	}
-
-	public static void SaveEditorSourceFolder(string? sourceFolder)
-	{
-		string persistencePath = GetEditorSourceFolderPersistencePath();
-		try
-		{
-			if (string.IsNullOrWhiteSpace(sourceFolder))
-			{
-				if (File.Exists(persistencePath)) File.Delete(persistencePath);
-				return;
-			}
-
-			File.WriteAllText(persistencePath, sourceFolder);
-		}
-		catch (Exception ex)
-		{
-			GD.PrintErr($"[MapWorkspaceService] Could not persist the editor source folder: {ex.Message}");
-		}
-	}
-
-	public static string? ReadEditorSourceFolder()
-	{
-		string persistencePath = GetEditorSourceFolderPersistencePath();
-		try
-		{
-			if (!File.Exists(persistencePath)) return null;
-			string sourceFolder = File.ReadAllText(persistencePath).Trim();
-			return Directory.Exists(sourceFolder) ? sourceFolder : null;
-		}
-		catch (Exception ex)
-		{
-			GD.PrintErr($"[MapWorkspaceService] Could not read the editor source folder: {ex.Message}");
-			return null;
 		}
 	}
 
@@ -927,6 +886,18 @@ public static partial class MapWorkspaceService
 		MapTemplateGeneratorService.EnsureWasmEntryPoint(directory);
 	}
 
+	public const string UntitledMapNamePrefix = "Untitled Map";
+
+	public static string CreateUntitledMapName()
+	{
+		return $"{UntitledMapNamePrefix}_{Guid.NewGuid().ToString("N")[..8]}";
+	}
+
+	public static bool IsUntitledMapName(string? mapName)
+	{
+		return !string.IsNullOrWhiteSpace(mapName) && mapName.StartsWith(UntitledMapNamePrefix, StringComparison.OrdinalIgnoreCase);
+	}
+
 	public static void EnsureMetadataJson(string directory)
 	{
 		string metadataPath = MetadataService.ResolveMetadataPath(directory);
@@ -947,7 +918,16 @@ public static partial class MapWorkspaceService
 		{
 			try
 			{
-				GameContext.MetadataService.UpdateMetadata(directory, meta => GameContext.MetadataService.CleanMetadata(meta));
+				GameContext.MetadataService.UpdateMetadata(directory, meta =>
+				{
+					meta.MapProperties ??= new MapInfoMetadata();
+					if (string.IsNullOrWhiteSpace(meta.MapProperties.MapName))
+					{
+						meta.MapProperties.MapName = CreateUntitledMapName();
+					}
+
+					GameContext.MetadataService.CleanMetadata(meta);
+				});
 			}
 			catch (Exception ex)
 			{
@@ -1031,18 +1011,25 @@ please visit the URL above.
 
 	public static void EnsureSolutionFile(string directory, string mapName)
 	{
+		string solutionName = QuoteToolArgument(mapName);
+		string projectName = QuoteToolArgument($"{mapName}.csproj");
 		string slnPath = Path.Combine(directory, $"{mapName}.slnx");
 		if (!File.Exists(slnPath))
 		{
 			try
 			{
-				NativeToolRunner.RunTool("dotnet", $"new sln -n {mapName}", timeoutMs: 15000, workingDir: directory);
-				NativeToolRunner.RunTool("dotnet", $"sln add {mapName}.csproj", timeoutMs: 15000, workingDir: directory);
+				NativeToolRunner.RunTool("dotnet", $"new sln -n {solutionName}", timeoutMs: 15000, workingDir: directory);
+				NativeToolRunner.RunTool("dotnet", $"sln add {projectName}", timeoutMs: 15000, workingDir: directory);
 			}
 			catch
 			{
 			}
 		}
+	}
+
+	private static string QuoteToolArgument(string argument)
+	{
+		return argument.Contains(' ') ? $"\"{argument}\"" : argument;
 	}
 
 	private static readonly ConcurrentDictionary<string, (DateTime LastWriteTime, bool HasFlag)> _optimizedFlagCache = new(StringComparer.OrdinalIgnoreCase);

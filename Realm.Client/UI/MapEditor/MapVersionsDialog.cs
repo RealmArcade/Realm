@@ -136,6 +136,15 @@ public partial class MapVersionsDialog : FloatingDialogBase
 		_storageLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
 		_storageLabel.CustomMinimumSize = new Vector2(260, 0);
 		_storageLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+
+		var btnManageStores = AddButton(
+			storageRow,
+			TranslationServer.Translate("MANAGE STORAGE"),
+			() => Hud.OpenMapHistoryStoresDialog(),
+			TranslationServer.Translate("See how much space each map's history uses and remove the ones you no longer need"),
+			10,
+			new Vector2(130, 24));
+		btnManageStores.Name = "BtnManageStores";
 	}
 
 	private static string ResolveEditingDirectory()
@@ -533,6 +542,7 @@ public partial class MapVersionsDialog : FloatingDialogBase
 			SetBusy(false, null);
 			RefreshStatus();
 			RefreshStorage();
+			Hud.RefreshMapHistoryStatus();
 		}
 	}
 
@@ -567,6 +577,8 @@ public partial class MapVersionsDialog : FloatingDialogBase
 			MapVersionKind.BeforePublish => TranslationServer.Translate("Before publish"),
 			MapVersionKind.BeforeMapUpgrade => TranslationServer.Translate("Before map upgrade"),
 			MapVersionKind.AfterMapUpgrade => TranslationServer.Translate("After map upgrade"),
+			MapVersionKind.BeforeAssetOptimization => TranslationServer.Translate("Before asset cleanup"),
+			MapVersionKind.AfterAssetOptimization => TranslationServer.Translate("After asset cleanup"),
 			MapVersionKind.BeforeRestore => TranslationServer.Translate("Before restore"),
 			MapVersionKind.RestoredVersion => TranslationServer.Translate("Restored"),
 			_ => TranslationServer.Translate("Change")

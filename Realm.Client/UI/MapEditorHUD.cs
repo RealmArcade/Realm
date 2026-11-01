@@ -229,6 +229,7 @@ public partial class MapEditorHUD : Control
 	private UtilitiesDialog _utilitiesDialog { get; set; }
 	private TestSettingsDialog _testSettingsDialog { get; set; }
 	private MapVersionsDialog _mapVersionsDialog { get; set; }
+	private MapHistoryStoresDialog _mapHistoryStoresDialog { get; set; }
 	private Button _btnEditorSettings { get; set; }
 	private Button _btnMapVersions { get; set; }
 	private Label _mapHistoryStatusLabel { get; set; }

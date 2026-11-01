@@ -9,6 +9,8 @@ namespace Realm.Shared.Services;
 
 public static class MapFileService
 {
+	public static Action<string>? FileWritten { get; set; }
+
 	private static readonly JsonSerializerOptions ManifestJsonOptions = new()
 	{
 		AllowTrailingCommas = true,
@@ -197,30 +199,7 @@ public static class MapFileService
 
 	public static void WriteAllTextAtomically(string targetPath, string contents)
 	{
-		string? directory = Path.GetDirectoryName(targetPath);
-		if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
-		{
-			Directory.CreateDirectory(directory);
-		}
-
-		string temporaryPath = targetPath + ".realm-save.tmp";
-		try
-		{
-			File.WriteAllText(temporaryPath, contents);
-			File.Move(temporaryPath, targetPath, true);
-		}
-		finally
-		{
-			if (File.Exists(temporaryPath))
-			{
-				try
-				{
-					File.Delete(temporaryPath);
-				}
-				catch (IOException)
-				{
-				}
-			}
-		}
+		AtomicFileWriter.WriteAllText(targetPath, contents);
+		FileWritten?.Invoke(targetPath);
 	}
 }

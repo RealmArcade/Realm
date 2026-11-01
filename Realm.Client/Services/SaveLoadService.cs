@@ -162,32 +162,6 @@ public class SaveLoadService
 		}
 	}
 
-	private void SaveTerrainData(string directory, int width, int depth, TerrainState terrain, string[] htmlColors, string[] cliffHtmlColors)
-	{
-		SaveHeightsAndWater(directory, width, depth, terrain);
-		SavePathing(directory, width, depth, terrain);
-		SaveSplatData(directory, width, depth, htmlColors, MapTerrainFiles.SplatPrefix);
-		SaveSplatData(directory, width, depth, cliffHtmlColors, MapTerrainFiles.CliffSplatPrefix);
-	}
-
-	private void SaveHeightsAndWater(string directory, int width, int depth, TerrainState terrain)
-	{
-		MapTerrainFiles.WriteHeightsAndWater(directory, width, depth, terrain.Cells);
-	}
-
-	private void SavePathing(string directory, int width, int depth, TerrainState terrain)
-	{
-		MapTerrainFiles.WritePathing(directory, width, depth, terrain.PathingCodes, WaterType.None);
-	}
-
-	private void SaveSplatData(string directory, int width, int depth, string[] htmlColors, string prefix)
-	{
-		if (htmlColors == null) return;
-		if (!MapTerrainFiles.TryResolveSplatDimensions(width, depth, htmlColors.Length, out int splatW, out int splatD)) return;
-
-		MapTerrainFiles.WriteSplat(directory, prefix, splatW, splatD, htmlColors);
-	}
-
 	public bool SaveMapToFile(
 		string absolutePath,
 		string[] htmlColors,
@@ -195,7 +169,8 @@ public class SaveLoadService
 		(Entity Entity, float RotationY, float Scale)[] propsData,
 		(Entity Entity, Vector3 Position, float RotationY, float Scale)[] decalsData,
 		List<CoordinateSaveData> coordinatesData = null,
-		string[] cliffHtmlColors = null)
+		string[] cliffHtmlColors = null,
+		Action<MapTerrainSaveRequest>? terrainWriter = null)
 	{
 		try
 		{
@@ -231,14 +206,34 @@ public class SaveLoadService
 			string directory = Path.GetDirectoryName(absolutePath);
 			if (!Directory.Exists(directory)) Directory.CreateDirectory(directory);
 
-			SaveTerrainData(directory, terrain.Width, terrain.Depth, terrain, htmlColors, cliffHtmlColors);
+			var terrainImages = new MapTerrainImageData(
+				directory,
+				terrain.Width,
+				terrain.Depth,
+				CloneTerrainCells(terrain.Cells),
+				ClonePathingCodes(terrain.PathingCodes),
+				htmlColors,
+				cliffHtmlColors);
 
 			var saveData = CreateInitialMapSaveData(terrain, editor, coordinatesData);
 			PopulateMapSaveData(saveData, directory, validDecalEntities);
 
 			SortMapSaveData(saveData);
-			MapFileService.SaveTerrain(absolutePath, saveData);
-			EditorService.LastInternalSaveTimeUtc = DateTime.UtcNow;
+			var terrainSaveRequest = new MapTerrainSaveRequest
+			{
+				AbsolutePath = absolutePath,
+				SaveData = saveData,
+				Images = terrainImages
+			};
+
+			if (terrainWriter != null)
+			{
+				terrainWriter(terrainSaveRequest);
+			}
+			else
+			{
+				terrainSaveRequest.WriteToDisk();
+			}
 
 			GameContext.Host?.SaveModelYOffsetsToMetadataJson(directory);
 			SyncMetadataAssetsAndPrune(directory);
@@ -257,6 +252,16 @@ public class SaveLoadService
 			Console.Error.WriteLine(ex.Message);
 			return false;
 		}
+	}
+
+	private static TerrainCell[,]? CloneTerrainCells(TerrainCell[,]? cells)
+	{
+		return cells == null ? null : (TerrainCell[,])cells.Clone();
+	}
+
+	private static int[,]? ClonePathingCodes(int[,]? pathingCodes)
+	{
+		return pathingCodes == null ? null : (int[,])pathingCodes.Clone();
 	}
 
 	private void UpdateEntityTransforms(

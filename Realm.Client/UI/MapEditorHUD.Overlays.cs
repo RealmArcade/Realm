@@ -11,7 +11,6 @@ using Realm.Client.Core;
 using Realm.Client.Network;
 using Realm.Client.Services;
 using Realm.Client.Services.MapHistory;
-using Realm.Client.Services.MapHistory;
 using Realm.Client.UI.MapEditor;
 using Realm.Ecs.Services;
 using Realm.EditorAPI;
@@ -31,6 +30,15 @@ namespace Realm.Client.UI
 	{
 		public override void _ExitTree()
 		{
+			try
+			{
+				GameContext.MapAutosaveService.FlushPendingWrites(TimeSpan.FromSeconds(3));
+			}
+			catch (Exception exception)
+			{
+				GD.PrintErr($"[MapEditorHUD] Could not finish the pending autosave on exit: {exception.Message}");
+			}
+
 			GameContext.MetadataService.MetadataSaved -= OnMetadataSaved;
 			GameContext.EditorService?.StopWorkspaceWatcher();
 			CloseWasmConsoleModal();
@@ -107,6 +115,7 @@ namespace Realm.Client.UI
 			if (GameContext.EditorService.IsSyncing || GameContext.EditorService.IsPaused) return;
 			if (FloatingDialogBase.HasAnyDialogOpen) return;
 			if (Input.IsMouseButtonPressed(MouseButton.Left) || Input.IsMouseButtonPressed(MouseButton.Right)) return;
+			if (GameContext.MapAutosaveService.HasPendingWrite) return;
 
 			string editingDirectory = GetActiveEditingDirectory();
 			if (string.IsNullOrEmpty(editingDirectory) || !File.Exists(Path.Combine(editingDirectory, "metadata.json"))) return;
@@ -130,17 +139,7 @@ namespace Realm.Client.UI
 				return;
 			}
 
-			ShowExternalChangeConflictDialog(editingDirectory);
-		}
-
-		private void ShowExternalChangeConflictDialog(string editingDirectory)
-		{
-			ShowConfirmationDialog(
-				TranslationServer.Translate("terrain.json was changed by another program while this window has unsaved edits.\n\nThe file on disk is already kept in your version history. Reload it and lose the edits in this window, or keep your edits and let the next save replace the file?"),
-				onConfirm: () => ReloadTerrainFromDisk(editingDirectory),
-				confirmText: TranslationServer.Translate("RELOAD FROM DISK"),
-				cancelText: TranslationServer.Translate("KEEP MY EDITS"),
-				onCancel: () => ShowFeedback(TranslationServer.Translate("Kept your edits. The next save replaces the file on disk; the outside change stays in your version history.")));
+			ShowFeedback(TranslationServer.Translate("terrain.json changed outside the editor - your map was left as it is. The other version is in MAP VERSIONS."));
 		}
 
 		private void ReloadTerrainFromDisk(string editingDirectory)
@@ -3376,12 +3375,12 @@ namespace Realm.Client.UI
 					return GameContext.EditorService.UpdateCachedMapName(activeMapName, now);
 				}
 
-				return GameContext.EditorService.UpdateCachedMapName("Unnamed Map", now);
+				return GameContext.EditorService.UpdateCachedMapName(TranslationServer.Translate("Unnamed Map"), now);
 			}
 			catch (Exception ex)
 			{
 				GD.PrintErr($"[MapEditorHUD] Error getting map name: {ex.Message}");
-				return GameContext.EditorService.UpdateCachedMapName("Unnamed Map", now);
+				return GameContext.EditorService.UpdateCachedMapName(TranslationServer.Translate("Unnamed Map"), now);
 			}
 		}
 
@@ -3390,7 +3389,9 @@ namespace Realm.Client.UI
 		{
 			if (_lblMapNameHeader == null) return;
 			string mapName = GetMapNameFromMetadata();
-			string displayMapName = mapName == "Untitled Map" ? TranslationServer.Translate("Untitled Map") : mapName;
+			string displayMapName = MapWorkspaceService.IsUntitledMapName(mapName)
+				? TranslationServer.Translate("Untitled Map") + mapName[MapWorkspaceService.UntitledMapNamePrefix.Length..]
+				: mapName;
 			bool hasUnsaved = GameContext.Host?.EditorHasUnsavedChanges ?? false;
 
 			string displayText = hasUnsaved ? $"🗺️ {displayMapName} *" : $"🗺️ {displayMapName}";

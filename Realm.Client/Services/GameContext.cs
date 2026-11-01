@@ -156,6 +156,7 @@ namespace Realm.Client.Services
 		public static ModelOptimizerService ModelOptimizerService => GlobalScope.Get<ModelOptimizerService>();
 		public static CheatService CheatService => GlobalScope.Get<CheatService>();
 		public static MapHistoryService MapHistoryService => GlobalScope.Get<MapHistoryService>();
+		public static MapAutosaveService MapAutosaveService => GlobalScope.Get<MapAutosaveService>();
 
 		public static FXService FXService => ScreenScope.Get<FXService>();
 		public static SaveLoadService SaveLoadService => ScreenScope.Get<SaveLoadService>();

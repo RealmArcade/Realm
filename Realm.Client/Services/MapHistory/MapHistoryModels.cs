@@ -12,7 +12,9 @@ public enum MapVersionKind
 	BeforeRestore,
 	RestoredVersion,
 	ExternalChange,
-	AfterMapUpgrade
+	AfterMapUpgrade,
+	BeforeAssetOptimization,
+	AfterAssetOptimization
 }
 
 public class MapVersionEntry
@@ -23,7 +25,6 @@ public class MapVersionEntry
 	public string? Label { get; init; }
 	public long SaveVersion { get; init; }
 	public int ChangedFileCount { get; init; }
-	public long ChangedBytes { get; init; }
 	public string? SourceFolder { get; init; }
 }
 
@@ -61,6 +62,24 @@ public class MapHistoryVersionResult
 	public MapVersionEntry? Entry { get; init; }
 }
 
+public class MapHistoryStoreInfo
+{
+	public string StoreKey { get; init; } = string.Empty;
+	public string DirectoryPath { get; init; } = string.Empty;
+	public string? MapName { get; init; }
+	public long TotalBytes { get; init; }
+	public int VersionCount { get; init; }
+	public DateTimeOffset? LastVersionAt { get; init; }
+	public bool IsRecovery { get; init; }
+	public bool IsUnreadable { get; init; }
+}
+
+public class MapHistoryStoreDeleteResult
+{
+	public bool Success { get; init; }
+	public string? ErrorMessage { get; init; }
+}
+
 public class MapHistoryStorageInfo
 {
 	public long TotalBytes { get; init; }
@@ -73,7 +92,6 @@ public class MapHistoryCleanupResult
 {
 	public string? ErrorMessage { get; init; }
 	public int DroppedVersionCount { get; init; }
-	public int RemainingVersionCount { get; init; }
 
 	public bool DroppedAnything => DroppedVersionCount > 0;
 }

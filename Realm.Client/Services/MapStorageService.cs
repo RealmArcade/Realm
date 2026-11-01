@@ -30,7 +30,7 @@ public class MapStorageService
 	public string GetExportMapDefaultFileName(string mapTitle, string mapVersion, string manifestBlake3)
 	{
 		string cleanMapName = string.Join("_", mapTitle.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries)).Trim();
-		if (string.IsNullOrEmpty(cleanMapName) || cleanMapName.Equals("Untitled Map", StringComparison.OrdinalIgnoreCase)) cleanMapName = "MapExport";
+		if (string.IsNullOrEmpty(cleanMapName) || MapWorkspaceService.IsUntitledMapName(cleanMapName)) cleanMapName = "MapExport";
 
 		string cleanMapVersion = string.Join("_", mapVersion.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries)).Trim();
 		if (string.IsNullOrEmpty(cleanMapVersion)) cleanMapVersion = "1.0.0";

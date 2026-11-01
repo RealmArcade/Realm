@@ -1,5 +1,6 @@
 using System.IO;
 using System.Runtime.InteropServices;
+using Realm.Shared.Services;
 using SkiaSharp;
 
 namespace Realm.Shared.Textures;
@@ -67,10 +68,7 @@ public static class PngImageCodec
 
 	public static void EncodeRgba8(string path, ReadOnlySpan<byte> rgba, int width, int height)
 	{
-		string? directory = Path.GetDirectoryName(path);
-		if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory)) Directory.CreateDirectory(directory);
-
-		File.WriteAllBytes(path, EncodeRgba8(rgba, width, height));
+		AtomicFileWriter.WriteAllBytes(path, EncodeRgba8(rgba, width, height));
 	}
 
 	private static unsafe SKCodecResult DecodeInto(SKCodec codec, SKImageInfo info, byte[] pixels, int width, int height)

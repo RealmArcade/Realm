@@ -843,11 +843,6 @@ public partial class EditorService : IEditorAPI
 		if (HasEditingDirectory) return;
 
 		string? sourceFolder = CurrentSourceFolder;
-		if (string.IsNullOrEmpty(sourceFolder) || !Directory.Exists(sourceFolder))
-		{
-			sourceFolder = MapWorkspaceService.ReadEditorSourceFolder();
-		}
-
 		if (string.IsNullOrEmpty(sourceFolder) || !Directory.Exists(sourceFolder)) return;
 
 		SetActiveMapDirectory(Path.GetFullPath(sourceFolder));
@@ -1049,7 +1044,6 @@ public partial class EditorService : IEditorAPI
 	public void SetCurrentSourceFolder(string? folder)
 	{
 		CurrentSourceFolder = folder;
-		MapWorkspaceService.SaveEditorSourceFolder(folder);
 	}
 
 	public const float MIN_BRUSH_RADIUS = 1.0f;
@@ -4857,6 +4851,7 @@ public partial class EditorService : IEditorAPI
 
 	public void SetHasUnsavedChanges(Entity worldEntity, bool value)
 	{
+		if (value) NoteEditorChange();
 		GameContext.World.Mutate<EditorState>(worldEntity, (ref EditorState s) => s.HasUnsavedChanges = value);
 	}
 
@@ -5108,37 +5103,47 @@ public partial class EditorService : IEditorAPI
 	private static bool _metadataChangePending;
 	private static bool _terrainChangePending;
 	private static volatile bool _hasPendingExternalChanges;
-	private static long _lastInternalSaveTimeUtcTicks = DateTime.MinValue.Ticks;
-	private static long _internalWriteSuppressionUntilUtcTicks = DateTime.MinValue.Ticks;
+	private static long _lastEditorChangeUtcTicks = DateTime.MinValue.Ticks;
 
-	private const int InternalWriteSuppressionMilliseconds = 3000;
+	public static DateTime LastEditorChangeUtc => new(Volatile.Read(ref _lastEditorChangeUtcTicks), DateTimeKind.Utc);
 
-	public static DateTime LastInternalSaveTimeUtc
+	private static void NoteEditorChange()
 	{
-		get => new(Volatile.Read(ref _lastInternalSaveTimeUtcTicks), DateTimeKind.Utc);
-		set
+		Volatile.Write(ref _lastEditorChangeUtcTicks, DateTime.UtcNow.Ticks);
+	}
+
+	public static void NoteInternalFileWrite(string filePath)
+	{
+		if (string.IsNullOrEmpty(filePath)) return;
+		string fileName = Path.GetFileName(filePath);
+		if (!IsMetadataFile(fileName) && !IsTerrainFile(fileName)) return;
+
+		lock (_watcherLock)
 		{
-			Volatile.Write(ref _lastInternalSaveTimeUtcTicks, value.Ticks);
-			ExtendInternalWriteSuppressionWindow();
+			if (!TryReadFileState(filePath, out MapFileState state))
+			{
+				KnownFileStates.Remove(filePath);
+				return;
+			}
+
+			KnownFileStates[filePath] = state;
+
+			if (IsMetadataFile(fileName))
+			{
+				_metadataChangePending = false;
+			}
+			else
+			{
+				_terrainChangePending = false;
+			}
+
+			_hasPendingExternalChanges = _metadataChangePending || _terrainChangePending;
 		}
 	}
 
-	public static bool IsWithinInternalWriteSuppressionWindow
+	private static void TrackFileWritesFromWriters()
 	{
-		get => DateTime.UtcNow.Ticks < Volatile.Read(ref _internalWriteSuppressionUntilUtcTicks);
-	}
-
-	private static void ExtendInternalWriteSuppressionWindow()
-	{
-		long suppressedUntilTicks = DateTime.UtcNow.AddMilliseconds(InternalWriteSuppressionMilliseconds).Ticks;
-		long currentUntilTicks = Volatile.Read(ref _internalWriteSuppressionUntilUtcTicks);
-		while (suppressedUntilTicks > currentUntilTicks)
-		{
-			long previousUntilTicks = Interlocked.CompareExchange(ref _internalWriteSuppressionUntilUtcTicks, suppressedUntilTicks, currentUntilTicks);
-			if (previousUntilTicks == currentUntilTicks) return;
-
-			currentUntilTicks = previousUntilTicks;
-		}
+		MapFileService.FileWritten = NoteInternalFileWrite;
 	}
 
 	private readonly record struct MapFileState(long Size, long LastWriteTicks);
@@ -5228,6 +5233,8 @@ public partial class EditorService : IEditorAPI
 
 	public void StartWorkspaceWatcher(string directory)
 	{
+		TrackFileWritesFromWriters();
+
 		lock (_watcherLock)
 		{
 			StopWorkspaceWatcher();
@@ -5305,12 +5312,6 @@ public partial class EditorService : IEditorAPI
 		{
 			if (IsPaused || IsSyncing) return;
 			if (!TryReadFileState(fullPath, out MapFileState current)) return;
-
-			if (IsWithinInternalWriteSuppressionWindow)
-			{
-				ReconcileKnownFileStatesFromDisk(clearPendingChanges: false);
-				return;
-			}
 
 			lock (_watcherLock)
 			{
@@ -5783,11 +5784,11 @@ public partial class EditorService : IEditorAPI
 	{
 		if (string.IsNullOrWhiteSpace(candidateName))
 		{
-			return "Untitled Map";
+			return MapWorkspaceService.CreateUntitledMapName();
 		}
 
 		string sanitized = candidateName.Trim();
-		return string.IsNullOrEmpty(sanitized) ? "Untitled Map" : sanitized;
+		return string.IsNullOrEmpty(sanitized) ? MapWorkspaceService.CreateUntitledMapName() : sanitized;
 	}
 
 	public bool TryGetMapNameFromManifest(string workspacePath, out string mapName)
@@ -6255,24 +6256,6 @@ public partial class EditorService : IEditorAPI
 		this.LastMetadataSyncTime = 0;
 	}
 
-	public void PreLoadEditingDirectoryMapDomain()
-	{
-		MapWorkspaceService.EnsureGlbAssetsOptimized(this._editingDirectory);
-		MapWorkspaceService.EnsurePngAssetsConverted(this._editingDirectory);
-	}
-
-	public void PostLoadEditingDirectoryMapDomain()
-	{
-		string terrainPath = Path.Combine(this._editingDirectory, "terrain.json");
-		if (GameContext.Host != null && File.Exists(terrainPath))
-		{
-			GameContext.Host.LoadMapFromFile(terrainPath);
-		}
-
-		this.LastTerrainSyncTime = GetMaxTerrainWriteTime(terrainPath);
-		this.LastMetadataSyncTime = GetLastWriteTimeSafe(Path.Combine(this._editingDirectory, "metadata.json"));
-	}
-
 	public void GenerateMapDirectoryDomain(string mapName, string mapDir, string projectRoot, string templateDirSearch)
 	{
 		Directory.CreateDirectory(mapDir);
@@ -6517,7 +6500,7 @@ public class {mapName} : IMapScript
 	public string GetDefaultDevelopmentMapDirectoryDomain(string mapName, string docsDir)
 	{
 		string cleanName = string.Join("_", mapName.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries)).Trim();
-		if (string.IsNullOrEmpty(cleanName) || cleanName.Equals("Untitled Map", StringComparison.OrdinalIgnoreCase)) cleanName = "new_map";
+		if (string.IsNullOrEmpty(cleanName) || MapWorkspaceService.IsUntitledMapName(cleanName)) cleanName = "new_map";
 
 		return Path.Combine(docsDir, cleanName);
 	}

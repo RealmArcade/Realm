@@ -2440,7 +2440,7 @@ namespace Realm.Client.UI
 			vbox.AddChild(titleLabel);
 
 			string mapTitle = GetMapNameFromMetadata();
-			if (string.IsNullOrWhiteSpace(mapTitle) || mapTitle.Equals("Untitled Map", StringComparison.OrdinalIgnoreCase)) mapTitle = "UntitledMap";
+			if (string.IsNullOrWhiteSpace(mapTitle) || MapWorkspaceService.IsUntitledMapName(mapTitle)) mapTitle = "UntitledMap";
 			string mapVersion = GetMapVersionFromMetadata();
 			if (string.IsNullOrWhiteSpace(mapVersion)) mapVersion = "1.0.0";
 
@@ -2546,7 +2546,7 @@ namespace Realm.Client.UI
 			}
 
 			string mapTitle = GetMapNameFromMetadata();
-			if (string.IsNullOrWhiteSpace(mapTitle) || mapTitle.Equals("Untitled Map", StringComparison.OrdinalIgnoreCase)) mapTitle = "UntitledMap";
+			if (string.IsNullOrWhiteSpace(mapTitle) || MapWorkspaceService.IsUntitledMapName(mapTitle)) mapTitle = "UntitledMap";
 
 			string mapVersion = GetMapVersionFromMetadata();
 			if (string.IsNullOrWhiteSpace(mapVersion)) mapVersion = "1.0.0";
@@ -2757,7 +2757,6 @@ namespace Realm.Client.UI
 					GameContext.EditorService.LastMetadataSyncTime = GameContext.EditorService.GetLastWriteTimeSafe(activeConfigPath);
 				}
 
-				EditorService.LastInternalSaveTimeUtc = DateTime.UtcNow;
 
 				var manifest = MapManifest.CreateFromDirectory(workspace, mapTitle, currentUsername, mapVersion);
 				manifest.Attribution_SourceMap = GameContext.MapAttributionService.CollectSortedSourceMapNames(workspace).ToList();
@@ -2765,7 +2764,6 @@ namespace Realm.Client.UI
 				manifestJsonPath = Path.Combine(workspace, "manifest.json");
 				string manifestJsonContent = manifest.ToJson();
 				File.WriteAllText(manifestJsonPath, manifestJsonContent);
-				EditorService.LastInternalSaveTimeUtc = DateTime.UtcNow;
 
 				byte[] manifestBytes = Encoding.UTF8.GetBytes(manifestJsonContent);
 				string manifestBlake3 = RealmMetadataHelper.ComputeBlake3(manifestBytes, ".json");
@@ -4795,6 +4793,16 @@ namespace Realm.Client.UI
 			}
 
 			_mapVersionsDialog.OpenDialog();
+		}
+
+		public void OpenMapHistoryStoresDialog()
+		{
+			if (_mapHistoryStoresDialog == null || !GodotObject.IsInstanceValid(_mapHistoryStoresDialog))
+			{
+				_mapHistoryStoresDialog = new MapHistoryStoresDialog(this);
+			}
+
+			_mapHistoryStoresDialog.OpenDialog();
 		}
 
 		public void RefreshMapHistoryStatus()

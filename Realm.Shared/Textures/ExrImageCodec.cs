@@ -1,4 +1,5 @@
 using System.IO;
+using Realm.Shared.Services;
 using TinyEXR;
 
 namespace Realm.Shared.Textures;
@@ -50,16 +51,7 @@ public static class ExrImageCodec
 
 	public static void EncodeRgbaFloat(string path, ReadOnlySpan<float> rgba, int width, int height)
 	{
-		EnsurePixelCount(rgba.Length, width, height);
-
-		string? directory = Path.GetDirectoryName(path);
-		if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory)) Directory.CreateDirectory(directory);
-
-		ResultCode result = Exr.SaveEXR(rgba, width, height, ChannelsPerPixel, asFp16: false, path);
-		if (result != ResultCode.Success)
-		{
-			throw new InvalidDataException($"A {width}x{height} EXR did not encode to '{path}': {result}.");
-		}
+		AtomicFileWriter.WriteAllBytes(path, EncodeRgbaFloat(rgba, width, height));
 	}
 
 	private static void EnsurePixelCount(int actualFloats, int width, int height)

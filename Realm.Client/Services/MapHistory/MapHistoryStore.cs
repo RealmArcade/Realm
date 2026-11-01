@@ -52,7 +52,7 @@ public static class MapHistoryStore
 {
 	private const string ApplicationDirectoryName = "Realm";
 	private const string StoreRootDirectoryName = "map_history";
-	private const string DamagedDirectoryName = "_damaged";
+	public const string DamagedDirectoryName = "_damaged";
 	private const int MaximumReadableKeyLength = 48;
 	private const int KeyHashLength = 8;
 
@@ -193,9 +193,10 @@ public static class MapHistoryStore
 		try
 		{
 			using Repository repository = new(repositoryDirectory);
-			return true;
+			var mapRepository = new MapGitRepository(repositoryDirectory);
+			return mapRepository.IsHistoryReadable(repository);
 		}
-		catch (Exception exception) when (exception is LibGit2SharpException or ArgumentException)
+		catch (Exception exception) when (exception is LibGit2SharpException or ArgumentException or FormatException or IOException)
 		{
 			return false;
 		}

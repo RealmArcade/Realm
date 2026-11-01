@@ -29,6 +29,8 @@ public class MapGitRepository
 	private const string LooseObjectDirectoryName = "objects";
 	private const string PackedObjectDirectoryName = "pack";
 	private const string TemporaryPackDirectoryName = "realm-repack";
+	private const string VerificationRepositoryDirectoryName = "realm-repack-verify";
+	private const int MaximumVerifiedCommitCount = 100000;
 
 	public MapGitRepository(string repositoryDirectory)
 	{
@@ -180,23 +182,37 @@ public class MapGitRepository
 		return commits;
 	}
 
-	public int CountVersions(int maximumCount)
+	public bool IsHistoryReadable(Repository? openRepository = null)
 	{
-		if (!Exists || maximumCount <= 0) return 0;
+		if (!Exists) return false;
+		if (openRepository != null) return IsHistoryReadableInRepository(openRepository);
 
-		int versionCount = 0;
 		using Repository repository = OpenRepository();
-		string? commitId = ReadDirectTarget(repository, BranchReferenceName);
-		while (!string.IsNullOrEmpty(commitId) && versionCount < maximumCount)
+		return IsHistoryReadableInRepository(repository);
+	}
+
+	private bool IsHistoryReadableInRepository(Repository repository)
+	{
+		try
 		{
-			Commit? commit = LookupCommit(repository, commitId);
-			if (commit == null) break;
+			string? commitId = ReadDirectTarget(repository, BranchReferenceName);
+			int visitedCommitCount = 0;
+			while (!string.IsNullOrEmpty(commitId) && visitedCommitCount < MaximumVerifiedCommitCount)
+			{
+				Commit? commit = LookupCommit(repository, commitId);
+				if (commit == null) return false;
+				if (repository.Lookup<Tree>(new ObjectId(commit.Tree.Sha)) == null) return false;
 
-			versionCount++;
-			commitId = commit.Parents.FirstOrDefault()?.Sha;
+				visitedCommitCount++;
+				commitId = commit.Parents.FirstOrDefault()?.Sha;
+			}
+
+			return true;
 		}
-
-		return versionCount;
+		catch (Exception exception) when (exception is LibGit2SharpException or ArgumentException or FormatException)
+		{
+			return false;
+		}
 	}
 
 	public Dictionary<string, string> ReadTreeFiles(string treeId, Repository? openRepository = null)
@@ -368,7 +384,9 @@ public class MapGitRepository
 		if (reachableCommitIds.Count == 0) return ReadSize();
 
 		string temporaryPackDirectory = Path.Combine(RepositoryDirectory, TemporaryPackDirectoryName);
+		string verificationRepositoryDirectory = Path.Combine(RepositoryDirectory, VerificationRepositoryDirectoryName);
 		DeleteDirectoryRecursively(temporaryPackDirectory);
+		DeleteDirectoryRecursively(verificationRepositoryDirectory);
 		Directory.CreateDirectory(temporaryPackDirectory);
 
 		try
@@ -391,14 +409,33 @@ public class MapGitRepository
 				throw new InvalidOperationException("The history could not be packed.");
 			}
 
+			VerifyPackIsSelfContained(verificationRepositoryDirectory, reachableCommitIds, producedPackFiles);
 			InstallPackFiles(reachableCommitIds, producedPackFiles);
 		}
 		finally
 		{
 			DeleteDirectoryRecursively(temporaryPackDirectory);
+			DeleteDirectoryRecursively(verificationRepositoryDirectory);
 		}
 
 		return ReadSize();
+	}
+
+	private void VerifyPackIsSelfContained(string verificationRepositoryDirectory, List<string> reachableCommitIds, string[] producedPackFiles)
+	{
+		DeleteDirectoryRecursively(verificationRepositoryDirectory);
+		Directory.CreateDirectory(verificationRepositoryDirectory);
+		Repository.Init(verificationRepositoryDirectory, true);
+
+		string verificationPackDirectory = Path.Combine(verificationRepositoryDirectory, LooseObjectDirectoryName, PackedObjectDirectoryName);
+		Directory.CreateDirectory(verificationPackDirectory);
+		foreach (string producedPackFile in producedPackFiles)
+		{
+			File.Copy(producedPackFile, Path.Combine(verificationPackDirectory, Path.GetFileName(producedPackFile)), true);
+		}
+
+		using Repository verificationRepository = new(verificationRepositoryDirectory);
+		VerifyReachableObjects(verificationRepository, reachableCommitIds);
 	}
 
 	private static void CollectReachableCommitIds(Repository repository, IEnumerable<string> tipCommitIds, List<string> reachableCommitIds)
@@ -431,11 +468,22 @@ public class MapGitRepository
 			File.Move(producedPackFile, Path.Combine(packDirectory, Path.GetFileName(producedPackFile)), true);
 		}
 
-		VerifyReachableObjects(tipCommitIds);
+		using (Repository repository = OpenRepository())
+		{
+			VerifyReachableObjects(repository, tipCommitIds);
+		}
+
 		PruneSupersededPackFiles(producedPackFiles);
-		VerifyReachableObjects(tipCommitIds);
+		using (Repository repository = OpenRepository())
+		{
+			VerifyReachableObjects(repository, tipCommitIds);
+		}
+
 		PruneLooseObjectDirectories();
-		VerifyReachableObjects(tipCommitIds);
+		using (Repository repository = OpenRepository())
+		{
+			VerifyReachableObjects(repository, tipCommitIds);
+		}
 	}
 
 	private void PruneSupersededPackFiles(string[] producedPackFiles)
@@ -465,9 +513,8 @@ public class MapGitRepository
 		}
 	}
 
-	private void VerifyReachableObjects(List<string> commitIds)
+	private static void VerifyReachableObjects(Repository repository, List<string> commitIds)
 	{
-		using Repository repository = OpenRepository();
 		foreach (string commitId in commitIds)
 		{
 			Commit? commit = LookupCommit(repository, commitId);

@@ -84,7 +84,6 @@ public class MetadataService
 		try
 		{
 			MapFileService.SaveMetadata(targetPath, metadata);
-			EditorService.LastInternalSaveTimeUtc = DateTime.UtcNow;
 			string? targetDir = Path.GetDirectoryName(targetPath);
 			if (!string.IsNullOrEmpty(targetDir))
 			{

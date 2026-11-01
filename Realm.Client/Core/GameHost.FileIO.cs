@@ -12,6 +12,7 @@ using Realm.Ecs.Components.Meta;
 using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
 using Realm.Shared.Maps;
+using Realm.Shared.Terrain;
 using Realm.Shared.Textures;
 using Vector3 = System.Numerics.Vector3;
 
@@ -19,10 +20,14 @@ namespace Realm.Client.Core;
 
 public partial class GameHost
 {
-	public void SaveMapToFile(string customPath = "", bool performReload = true)
+	public void SaveMapToFile(string customPath = "", bool performReload = true, Action<MapTerrainSaveRequest>? terrainWriter = null)
 	{
 		if (GroundTerrain == null) return;
-		EditorService.LastInternalSaveTimeUtc = DateTime.UtcNow;
+
+		if (terrainWriter == null)
+		{
+			GameContext.MapAutosaveService.FlushPendingWrites(TimeSpan.FromSeconds(3));
+		}
 
 		var savedState = CaptureEditorState();
 		string[] splatData = GetSplatData();
@@ -39,7 +44,7 @@ public partial class GameHost
 
 		string[] cliffSplatData = GetCliffSplatData();
 
-		bool success = GameContext.SaveLoadService.SaveMapToFile(absolutePath, splatData, unitsData, propsData, decalsData, coordinatesData, cliffSplatData);
+		bool success = GameContext.SaveLoadService.SaveMapToFile(absolutePath, splatData, unitsData, propsData, decalsData, coordinatesData, cliffSplatData, terrainWriter);
 		if (success)
 		{
 			if (performReload)

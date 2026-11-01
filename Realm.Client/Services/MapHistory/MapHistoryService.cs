@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Godot;
 using LibGit2Sharp;
 using Realm.Client.Utils;
+using Realm.Shared.Services;
 
 namespace Realm.Client.Services.MapHistory;
 
@@ -17,7 +18,7 @@ public class MapHistoryService
 
 	private static readonly string[] HistoryOnlyDirectoryNames = { ".vscode" };
 
-	private static readonly string[] HistoryOnlyFileSuffixes = { ".pem", ".rkey", ".user", ".suo" };
+	private static readonly string[] HistoryOnlyFileSuffixes = { ".pem", ".rkey", ".user", ".suo", AtomicFileWriter.TemporarySuffix };
 
 	private static readonly JsonSerializerOptions JsonOptions = new()
 	{
@@ -28,7 +29,7 @@ public class MapHistoryService
 	private readonly object _queueLock = new();
 	private Task _queueTail = Task.CompletedTask;
 	private bool _versionRequestPending;
-	private volatile MapHistoryStatus _cachedStatus = MapHistoryStatus.Unavailable("No map is open.");
+	private volatile MapHistoryStatus _cachedStatus = MapHistoryStatus.Unavailable(TranslationServer.Translate("No map is open."));
 
 	public MapHistoryStatus CachedStatus => _cachedStatus;
 
@@ -41,7 +42,7 @@ public class MapHistoryService
 	{
 		if (!HasMapFolder(mapDirectory))
 		{
-			onCompleted?.Invoke(MapHistoryStatus.Unavailable("No map folder is open."));
+			onCompleted?.Invoke(MapHistoryStatus.Unavailable(TranslationServer.Translate("No map folder is open.")));
 			return;
 		}
 
@@ -66,30 +67,42 @@ public class MapHistoryService
 	{
 		if (!HasMapFolder(mapDirectory))
 		{
-			onCompleted?.Invoke(new MapHistoryVersionResult { Success = false, ErrorMessage = "No map folder is open." });
+			onCompleted?.Invoke(new MapHistoryVersionResult { Success = false, ErrorMessage = TranslationServer.Translate("No map folder is open.") });
 			return;
 		}
 
-		Enqueue(() =>
-		{
-			MapHistoryVersionResult result;
-			try
-			{
-				using MapHistoryStoreSession session = MapHistoryStore.Acquire(mapDirectory);
-				result = CreateVersionInStore(session, mapDirectory, kind, label, sourceFolder);
-				if (result.Success)
-				{
-					TrimHistoryAfterCommit(session);
-				}
-			}
-			catch (Exception exception)
-			{
-				result = new MapHistoryVersionResult { Success = false, ErrorMessage = exception.Message };
-			}
+		Enqueue(() => onCompleted?.Invoke(CreateVersionNow(mapDirectory, kind, label, sourceFolder)), coalesce);
+	}
 
-			UpdateCachedStatus(mapDirectory);
-			onCompleted?.Invoke(result);
-		}, coalesce);
+	public MapHistoryVersionResult CaptureVersionSynchronously(string mapDirectory, MapVersionKind kind, string? label, string? sourceFolder = null)
+	{
+		if (!HasMapFolder(mapDirectory))
+		{
+			return new MapHistoryVersionResult { Success = false, ErrorMessage = TranslationServer.Translate("No map folder is open.") };
+		}
+
+		return CreateVersionNow(mapDirectory, kind, label, sourceFolder);
+	}
+
+	private MapHistoryVersionResult CreateVersionNow(string mapDirectory, MapVersionKind kind, string? label, string? sourceFolder)
+	{
+		MapHistoryVersionResult result;
+		try
+		{
+			using MapHistoryStoreSession session = MapHistoryStore.Acquire(mapDirectory);
+			result = CreateVersionInStore(session, mapDirectory, kind, label, sourceFolder);
+			if (result.Success)
+			{
+				TrimHistoryAfterCommit(session);
+			}
+		}
+		catch (Exception exception)
+		{
+			result = new MapHistoryVersionResult { Success = false, ErrorMessage = DescribeFailure(exception) };
+		}
+
+		UpdateCachedStatus(mapDirectory);
+		return result;
 	}
 
 	public Task<MapHistoryVersionResult> CreateVersionAsync(string mapDirectory, MapVersionKind kind, string? label, string? sourceFolder = null)
@@ -97,6 +110,244 @@ public class MapHistoryService
 		var completion = new TaskCompletionSource<MapHistoryVersionResult>(TaskCreationOptions.RunContinuationsAsynchronously);
 		CreateVersion(mapDirectory, kind, label, result => completion.TrySetResult(result), sourceFolder: sourceFolder);
 		return completion.Task;
+	}
+
+	public void ReadStores(Action<IReadOnlyList<MapHistoryStoreInfo>> onCompleted)
+	{
+		Enqueue(() =>
+		{
+			IReadOnlyList<MapHistoryStoreInfo> stores;
+			try
+			{
+				stores = ReadStoresOnDisk();
+			}
+			catch (Exception exception)
+			{
+				GD.PrintErr($"[MapHistoryService] Could not read the stored histories: {exception.Message}");
+				stores = Array.Empty<MapHistoryStoreInfo>();
+			}
+
+			onCompleted?.Invoke(stores);
+		});
+	}
+
+	public void DeleteStore(string storeDirectoryPath, string currentMapDirectory, Action<MapHistoryStoreDeleteResult> onCompleted)
+	{
+		Enqueue(() =>
+		{
+			MapHistoryStoreDeleteResult result;
+			try
+			{
+				result = DeleteStoreOnDisk(storeDirectoryPath, currentMapDirectory);
+			}
+			catch (Exception exception)
+			{
+				result = new MapHistoryStoreDeleteResult { Success = false, ErrorMessage = DescribeFailure(exception) };
+			}
+
+			onCompleted?.Invoke(result);
+		});
+	}
+
+	private static IReadOnlyList<MapHistoryStoreInfo> ReadStoresOnDisk()
+	{
+		var stores = new List<MapHistoryStoreInfo>();
+		string root = MapHistoryStore.GetRootDirectory();
+		if (!Directory.Exists(root)) return stores;
+
+		foreach (string storeDirectory in Directory.EnumerateDirectories(root))
+		{
+			string storeName = Path.GetFileName(storeDirectory);
+			if (string.Equals(storeName, MapHistoryStore.DamagedDirectoryName, StringComparison.OrdinalIgnoreCase))
+			{
+				foreach (string recoveryDirectory in Directory.EnumerateDirectories(storeDirectory))
+				{
+					stores.Add(DescribeStore(Path.GetFileName(recoveryDirectory), recoveryDirectory, isRecovery: true));
+				}
+
+				continue;
+			}
+
+			stores.Add(DescribeStore(storeName, storeDirectory, isRecovery: false));
+		}
+
+		return stores.OrderByDescending(store => store.TotalBytes).ToList();
+	}
+
+	private static MapHistoryStoreInfo DescribeStore(string storeName, string storeDirectory, bool isRecovery)
+	{
+		long totalBytes = MeasureDirectoryBytes(storeDirectory);
+		string? storedMapName = TryReadStoredMapName(storeDirectory);
+		if (isRecovery) return DescribeUnreadableStore(storeName, storeDirectory, storedMapName, totalBytes, isRecovery: true, isUnreadable: false);
+
+		string repositoryDirectory = Path.Combine(storeDirectory, "repository");
+		if (!Directory.Exists(repositoryDirectory)) return DescribeUnreadableStore(storeName, storeDirectory, storedMapName, totalBytes, isRecovery: false, isUnreadable: true);
+
+		try
+		{
+			var repository = new MapGitRepository(repositoryDirectory);
+			if (!repository.Exists) return DescribeUnreadableStore(storeName, storeDirectory, storedMapName, totalBytes, isRecovery: false, isUnreadable: true);
+
+			IReadOnlyList<MapGitCommitInfo> versions = repository.ReadVersionHistory(int.MaxValue);
+			return new MapHistoryStoreInfo
+			{
+				StoreKey = storeName,
+				DirectoryPath = storeDirectory,
+				MapName = storedMapName,
+				TotalBytes = totalBytes,
+				VersionCount = versions.Count,
+				LastVersionAt = versions.Count == 0 ? null : versions[0].CommittedAt,
+				IsRecovery = isRecovery
+			};
+		}
+		catch (Exception exception) when (exception is LibGit2SharpException or IOException or ArgumentException or FormatException)
+		{
+			return DescribeUnreadableStore(storeName, storeDirectory, storedMapName, totalBytes, isRecovery: false, isUnreadable: true);
+		}
+	}
+
+	private static MapHistoryStoreInfo DescribeUnreadableStore(string storeName, string storeDirectory, string? mapName, long totalBytes, bool isRecovery, bool isUnreadable)
+	{
+		return new MapHistoryStoreInfo
+		{
+			StoreKey = storeName,
+			DirectoryPath = storeDirectory,
+			MapName = mapName,
+			TotalBytes = totalBytes,
+			IsRecovery = isRecovery,
+			IsUnreadable = isUnreadable
+		};
+	}
+
+	private static string? TryReadStoredMapName(string storeDirectory)
+	{
+		try
+		{
+			string statePath = Path.Combine(storeDirectory, "state.json");
+			if (!File.Exists(statePath)) return null;
+
+			MapHistoryStateFile? state = JsonSerializer.Deserialize<MapHistoryStateFile>(File.ReadAllText(statePath), JsonOptions);
+			return string.IsNullOrWhiteSpace(state?.MapName) ? null : state.MapName;
+		}
+		catch (Exception exception) when (exception is IOException or JsonException)
+		{
+			return null;
+		}
+	}
+
+	private static long MeasureDirectoryBytes(string directoryPath)
+	{
+		long totalBytes = 0;
+		try
+		{
+			foreach (string filePath in Directory.EnumerateFiles(directoryPath, "*", SearchOption.AllDirectories))
+			{
+				try
+				{
+					totalBytes += new FileInfo(filePath).Length;
+				}
+				catch (IOException)
+				{
+				}
+				catch (UnauthorizedAccessException)
+				{
+				}
+			}
+		}
+		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+		{
+			GD.PrintErr($"[MapHistoryService] Could not measure '{directoryPath}': {exception.Message}");
+		}
+
+		return totalBytes;
+	}
+
+	private static MapHistoryStoreDeleteResult DeleteStoreOnDisk(string storeDirectoryPath, string currentMapDirectory)
+	{
+		if (string.IsNullOrWhiteSpace(storeDirectoryPath))
+		{
+			return new MapHistoryStoreDeleteResult { Success = false, ErrorMessage = TranslationServer.Translate("No history folder was chosen.") };
+		}
+
+		string root = Path.GetFullPath(MapHistoryStore.GetRootDirectory());
+		string fullPath = Path.GetFullPath(storeDirectoryPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+		if (!fullPath.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+		{
+			return new MapHistoryStoreDeleteResult { Success = false, ErrorMessage = TranslationServer.Translate("That folder is not part of the map history storage.") };
+		}
+
+		if (!Directory.Exists(fullPath)) return new MapHistoryStoreDeleteResult { Success = true };
+
+		if (HasMapFolder(currentMapDirectory))
+		{
+			MapHistoryStoreLayout openLayout = MapHistoryStore.Resolve(currentMapDirectory);
+			if (string.Equals(Path.GetFullPath(openLayout.StoreDirectory), fullPath, StringComparison.OrdinalIgnoreCase))
+			{
+				return new MapHistoryStoreDeleteResult { Success = false, ErrorMessage = TranslationServer.Translate("The map you have open is using this history right now.") };
+			}
+		}
+
+		bool isStoredMap = string.Equals(Path.GetDirectoryName(fullPath), root, StringComparison.OrdinalIgnoreCase);
+		if (isStoredMap)
+		{
+			var layout = new MapHistoryStoreLayout(root, Path.GetFileName(fullPath));
+			if (MapHistoryStore.RepositoryExists(layout))
+			{
+				using (MapHistoryStoreSession? session = MapHistoryStore.TryAcquireExisting(layout, TimeSpan.FromMilliseconds(300)))
+				{
+					if (session == null)
+					{
+						return new MapHistoryStoreDeleteResult { Success = false, ErrorMessage = TranslationServer.Translate("Another editor window is using this history right now.") };
+					}
+				}
+			}
+		}
+
+		DeleteStoreDirectory(fullPath);
+
+		return new MapHistoryStoreDeleteResult { Success = Directory.Exists(fullPath) == false, ErrorMessage = Directory.Exists(fullPath) ? TranslationServer.Translate("The history folder could not be removed completely.") : null };
+	}
+
+	private static void DeleteStoreDirectory(string directoryPath)
+	{
+		try
+		{
+			foreach (string filePath in Directory.EnumerateFiles(directoryPath, "*", SearchOption.AllDirectories))
+			{
+				try
+				{
+					ClearReadOnlyAttribute(filePath);
+				}
+				catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+				{
+				}
+			}
+
+			Directory.Delete(directoryPath, true);
+		}
+		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+		{
+			GD.PrintErr($"[MapHistoryService] Could not remove '{directoryPath}': {exception.Message}");
+		}
+	}
+
+	public bool HasExistingVersions(string mapDirectory)
+	{
+		if (!HasMapFolder(mapDirectory)) return false;
+
+		try
+		{
+			MapHistoryStoreLayout layout = MapHistoryStore.Resolve(mapDirectory);
+			if (!MapHistoryStore.RepositoryExists(layout)) return false;
+
+			var repository = new MapGitRepository(layout.RepositoryDirectory);
+			return !string.IsNullOrEmpty(repository.ReadHeadCommitId());
+		}
+		catch (Exception exception)
+		{
+			GD.PrintErr($"[MapHistoryService] Could not read this map's version history: {exception.Message}");
+			return false;
+		}
 	}
 
 	public void ReadVersions(string mapDirectory, Action<IReadOnlyList<MapVersionEntry>> onCompleted)
@@ -140,7 +391,7 @@ public class MapHistoryService
 			}
 			catch (Exception exception)
 			{
-				result = new MapHistoryVersionResult { Success = false, ErrorMessage = exception.Message };
+				result = new MapHistoryVersionResult { Success = false, ErrorMessage = DescribeFailure(exception) };
 			}
 
 			onCompleted?.Invoke(result);
@@ -164,7 +415,7 @@ public class MapHistoryService
 			}
 			catch (Exception exception)
 			{
-				info = new MapHistoryStorageInfo { ErrorMessage = exception.Message };
+				info = new MapHistoryStorageInfo { ErrorMessage = DescribeFailure(exception) };
 			}
 
 			onCompleted?.Invoke(info);
@@ -175,7 +426,7 @@ public class MapHistoryService
 	{
 		if (!HasMapFolder(mapDirectory))
 		{
-			onCompleted?.Invoke(MapHistoryStatus.Unavailable("No map folder is open."));
+			onCompleted?.Invoke(MapHistoryStatus.Unavailable(TranslationServer.Translate("No map folder is open.")));
 			return;
 		}
 
@@ -188,7 +439,7 @@ public class MapHistoryService
 			}
 			catch (Exception exception)
 			{
-				status = MapHistoryStatus.Unavailable(exception.Message);
+				status = MapHistoryStatus.Unavailable(DescribeFailure(exception));
 			}
 
 			_cachedStatus = status;
@@ -200,7 +451,7 @@ public class MapHistoryService
 	{
 		if (!HasMapFolder(mapDirectory))
 		{
-			onCompleted?.Invoke(new MapHistoryRestoreResult { Success = false, ErrorMessage = "No map folder is open." });
+			onCompleted?.Invoke(new MapHistoryRestoreResult { Success = false, ErrorMessage = TranslationServer.Translate("No map folder is open.") });
 			return;
 		}
 
@@ -213,7 +464,7 @@ public class MapHistoryService
 			}
 			catch (Exception exception)
 			{
-				result = new MapHistoryRestoreResult { Success = false, ErrorMessage = exception.Message };
+				result = new MapHistoryRestoreResult { Success = false, ErrorMessage = DescribeFailure(exception) };
 			}
 
 			UpdateCachedStatus(mapDirectory);
@@ -256,7 +507,7 @@ public class MapHistoryService
 	{
 		if (!File.Exists(Path.Combine(mapDirectory, "metadata.json")))
 		{
-			return MapHistoryStatus.Unavailable("This folder has no metadata.json yet.");
+			return MapHistoryStatus.Unavailable(TranslationServer.Translate("This folder has no metadata.json yet."));
 		}
 
 		using MapHistoryStoreSession session = MapHistoryStore.Acquire(mapDirectory);
@@ -277,7 +528,7 @@ public class MapHistoryService
 
 		MapHistoryStatus status = BuildStatus(session.Layout, mapDirectory);
 		return session.WasReset
-			? WithNotice(status, "The stored version history of this map could not be read, so a new one was started. The previous files were kept in the history folder.")
+			? WithNotice(status, TranslationServer.Translate("The stored version history of this map could not be read, so a new one was started. The previous files were kept in the history folder."))
 			: status;
 	}
 
@@ -286,7 +537,7 @@ public class MapHistoryService
 		string metadataPath = Path.Combine(mapDirectory, "metadata.json");
 		if (!File.Exists(metadataPath))
 		{
-			return MapHistoryStatus.Unavailable("This folder has no metadata.json yet.");
+			return MapHistoryStatus.Unavailable(TranslationServer.Translate("This folder has no metadata.json yet."));
 		}
 
 		MapHistoryStoreLayout layout = MapHistoryStore.Resolve(mapDirectory);
@@ -301,16 +552,16 @@ public class MapHistoryService
 	private static MapHistoryStatus BuildStatus(MapHistoryStoreLayout layout, string mapDirectory)
 	{
 		var repository = new MapGitRepository(layout.RepositoryDirectory);
-		IReadOnlyList<MapGitCommitInfo> newestVersion = repository.ReadVersionHistory(1);
+		IReadOnlyList<MapGitCommitInfo> versionsNewestFirst = repository.ReadVersionHistory(int.MaxValue);
 		MapHistoryStateFile state = LoadState(layout);
-		MapGitCommitInfo? newestCommit = newestVersion.Count == 0 ? null : newestVersion[0];
+		MapGitCommitInfo? newestCommit = versionsNewestFirst.Count == 0 ? null : versionsNewestFirst[0];
 		MapVersionEntry? latestVersion = newestCommit == null ? null : ToVersionEntry(newestCommit, FindEntry(state, newestCommit.Id), null);
 
 		return new MapHistoryStatus
 		{
 			IsRepositoryReady = true,
 			LastVersionAt = latestVersion?.CreatedAt,
-			VersionCount = repository.CountVersions(int.MaxValue),
+			VersionCount = versionsNewestFirst.Count,
 			HasUnversionedChanges = DetectUnversionedChanges(repository, state, mapDirectory, newestCommit)
 		};
 	}
@@ -386,14 +637,14 @@ public class MapHistoryService
 		MapHistoryStoreLayout layout = MapHistoryStore.Resolve(mapDirectory);
 		if (!MapHistoryStore.RepositoryExists(layout))
 		{
-			return new MapHistoryVersionResult { Success = false, ErrorMessage = "This map has no versions yet." };
+			return new MapHistoryVersionResult { Success = false, ErrorMessage = TranslationServer.Translate("This map has no versions yet.") };
 		}
 
 		using MapHistoryStoreSession session = MapHistoryStore.Acquire(mapDirectory);
 		var repository = new MapGitRepository(session.Layout.RepositoryDirectory);
 		if (!repository.TryReadCommit(commitId, out MapGitCommitInfo commit))
 		{
-			return new MapHistoryVersionResult { Success = false, ErrorMessage = "That version can no longer be read." };
+			return new MapHistoryVersionResult { Success = false, ErrorMessage = TranslationServer.Translate("That version can no longer be read.") };
 		}
 
 		string? normalizedLabel = string.IsNullOrWhiteSpace(label) ? null : label.Trim();
@@ -425,7 +676,7 @@ public class MapHistoryService
 		{
 			TotalBytes = size.TotalBytes,
 			PackedBytes = size.PackedBytes,
-			VersionCount = repository.CountVersions(int.MaxValue)
+			VersionCount = repository.ReadVersionHistory(int.MaxValue).Count
 		};
 	}
 
@@ -433,17 +684,21 @@ public class MapHistoryService
 	{
 		if (!File.Exists(Path.Combine(mapDirectory, "metadata.json")))
 		{
-			return new MapHistoryVersionResult { Success = false, ErrorMessage = "This folder has no metadata.json yet." };
+			return new MapHistoryVersionResult { Success = false, ErrorMessage = TranslationServer.Translate("This folder has no metadata.json yet.") };
 		}
 
 		var repository = new MapGitRepository(session.Layout.RepositoryDirectory);
 		if (!repository.Exists)
 		{
-			return new MapHistoryVersionResult { Success = false, ErrorMessage = "This map's version history could not be opened." };
+			return new MapHistoryVersionResult { Success = false, ErrorMessage = TranslationServer.Translate("This map's version history could not be opened.") };
 		}
 
 		using Repository repositoryScope = repository.OpenRepositoryScope();
 		MapHistoryStateFile state = LoadState(session.Layout);
+		if (string.IsNullOrWhiteSpace(state.MapName))
+		{
+			state.MapName = MapHistoryStore.ResolveMapName(mapDirectory);
+		}
 
 		bool incrementsSaveVersion = kind is MapVersionKind.ManualSave or MapVersionKind.AutosaveCheckpoint or MapVersionKind.BeforePublish;
 		bool canTrustFingerprints = string.Equals(state.FilesSourceFolder, mapDirectory, StringComparison.OrdinalIgnoreCase);
@@ -451,7 +706,6 @@ public class MapHistoryService
 		List<string> workingFiles = CollectMapFiles(mapDirectory);
 		var blobIdByPath = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 		var fingerprints = new Dictionary<string, MapHistoryFileFingerprint>(StringComparer.OrdinalIgnoreCase);
-		long writtenBytes = 0;
 
 		foreach (string relativePath in workingFiles)
 		{
@@ -475,15 +729,11 @@ public class MapHistoryService
 				return new MapHistoryVersionResult
 				{
 					Success = false,
-					ErrorMessage = $"'{relativePath}' was being written by another program while the version was created. Try again in a moment."
+					ErrorMessage = string.Format(TranslationServer.Translate("'{0}' was being written by another program while the version was created. Try again in a moment."), relativePath)
 				};
 			}
 
-			string blobId = repository.WriteBlob(content, out bool blobWasCreated, repositoryScope);
-			if (blobWasCreated)
-			{
-				writtenBytes += content.Length;
-			}
+			string blobId = repository.WriteBlob(content, out _, repositoryScope);
 
 			blobIdByPath[relativePath] = blobId;
 			fingerprints[relativePath] = new MapHistoryFileFingerprint
@@ -528,13 +778,11 @@ public class MapHistoryService
 			Label = label,
 			SaveVersion = state.SaveVersion,
 			ChangedFileCount = changedFileCount,
-			ChangedBytes = writtenBytes,
 			SourceFolder = sourceFolder ?? mapDirectory
 		};
 
 		state.Entries.RemoveAll(entry => string.Equals(entry.CommitId, commitId, StringComparison.OrdinalIgnoreCase));
 		state.Entries.Add(versionEntry);
-		state.LastCommitId = commitId;
 		state.Files = fingerprints;
 		state.FilesSourceFolder = mapDirectory;
 		SaveState(session.Layout, state);
@@ -556,7 +804,7 @@ public class MapHistoryService
 		MapHistoryStoreLayout layout = MapHistoryStore.Resolve(mapDirectory);
 		if (!MapHistoryStore.RepositoryExists(layout))
 		{
-			return new MapHistoryRestoreResult { Success = false, ErrorMessage = "This map has no versions yet." };
+			return new MapHistoryRestoreResult { Success = false, ErrorMessage = TranslationServer.Translate("This map has no versions yet.") };
 		}
 
 		using MapHistoryStoreSession session = MapHistoryStore.Acquire(mapDirectory);
@@ -564,7 +812,7 @@ public class MapHistoryService
 		using Repository repositoryScope = repository.OpenRepositoryScope();
 		if (!repository.TryReadCommit(commitId, out MapGitCommitInfo targetCommit, repositoryScope))
 		{
-			return new MapHistoryRestoreResult { Success = false, ErrorMessage = "That version can no longer be read." };
+			return new MapHistoryRestoreResult { Success = false, ErrorMessage = TranslationServer.Translate("That version can no longer be read.") };
 		}
 
 		MapHistoryVersionResult beforeRestoreVersion = CreateVersionInStore(session, mapDirectory, MapVersionKind.BeforeRestore, "Before restore", mapDirectory);
@@ -582,43 +830,51 @@ public class MapHistoryService
 		}
 
 		int filesWritten = 0;
+		int filesRemoved = 0;
 		bool scriptSourcesRestored = false;
+		bool terrainRestored = false;
+		bool metadataRestored = false;
+
+		var filesToWrite = new List<(string RelativePath, byte[] Content)>();
 		foreach (var pair in targetFiles)
 		{
-			string absolutePath = Path.Combine(mapDirectory, pair.Key.Replace('/', Path.DirectorySeparatorChar));
 			if (!repository.TryReadBlob(pair.Value, out byte[] content, repositoryScope))
 			{
-				continue;
+				return new MapHistoryRestoreResult
+				{
+					Success = false,
+					ErrorMessage = string.Format(TranslationServer.Translate("That version is missing '{0}', so the map was left untouched."), pair.Key)
+				};
 			}
 
+			string absolutePath = Path.Combine(mapDirectory, pair.Key.Replace('/', Path.DirectorySeparatorChar));
 			if (File.Exists(absolutePath) && FileLengthMatches(absolutePath, content.Length) && FileContentMatches(absolutePath, content))
 			{
 				continue;
 			}
 
-			WriteFileAtomically(absolutePath, content);
-			filesWritten++;
-			if (IsScriptSourcePath(pair.Key)) scriptSourcesRestored = true;
+			filesToWrite.Add((pair.Key, content));
 		}
 
-		int filesRemoved = 0;
+		var relativePathsToRemove = new List<string>();
 		foreach (string currentPath in currentFiles.Keys)
 		{
 			if (targetFiles.ContainsKey(currentPath)) continue;
 
 			string absolutePath = Path.Combine(mapDirectory, currentPath.Replace('/', Path.DirectorySeparatorChar));
-			if (!File.Exists(absolutePath)) continue;
+			if (File.Exists(absolutePath)) relativePathsToRemove.Add(currentPath);
+		}
 
-			try
-			{
-				ClearReadOnlyAttribute(absolutePath);
-				File.Delete(absolutePath);
-				filesRemoved++;
-			}
-			catch (IOException exception)
-			{
-				GD.PrintErr($"[MapHistoryService] Could not remove '{currentPath}' during restore: {exception.Message}");
-			}
+		if (!ApplyRestoreTransactionally(mapDirectory, filesToWrite, relativePathsToRemove, out filesWritten, out filesRemoved, out string? restoreError))
+		{
+			return new MapHistoryRestoreResult { Success = false, ErrorMessage = restoreError };
+		}
+
+		foreach (var (relativePath, _) in filesToWrite)
+		{
+			if (IsScriptSourcePath(relativePath)) scriptSourcesRestored = true;
+			if (string.Equals(relativePath, "terrain.json", StringComparison.OrdinalIgnoreCase)) terrainRestored = true;
+			if (string.Equals(relativePath, "metadata.json", StringComparison.OrdinalIgnoreCase)) metadataRestored = true;
 		}
 
 		MapHistoryVersionResult restoredVersion = CreateVersionInStore(
@@ -636,8 +892,8 @@ public class MapHistoryService
 			FilesWritten = filesWritten,
 			FilesRemoved = filesRemoved,
 			ScriptSourcesRestored = scriptSourcesRestored,
-			TerrainRestored = filesWritten > 0 && targetFiles.ContainsKey("terrain.json"),
-			MetadataRestored = targetFiles.ContainsKey("metadata.json") && filesWritten > 0
+			TerrainRestored = terrainRestored,
+			MetadataRestored = metadataRestored
 		};
 	}
 
@@ -714,7 +970,7 @@ public class MapHistoryService
 	{
 		if (plan.DroppedCount == 0)
 		{
-			return new MapHistoryCleanupResult { RemainingVersionCount = plan.KeptOldestFirst.Count };
+			return new MapHistoryCleanupResult();
 		}
 
 		var rewrittenEntries = new List<MapHistoryStateEntry>(plan.KeptOldestFirst.Count);
@@ -739,7 +995,6 @@ public class MapHistoryService
 				Label = slot.Label,
 				SaveVersion = slot.SaveVersion,
 				ChangedFileCount = slot.Entry?.ChangedFileCount ?? 0,
-				ChangedBytes = slot.Entry?.ChangedBytes ?? 0,
 				SourceFolder = slot.Entry?.SourceFolder
 			});
 
@@ -762,13 +1017,11 @@ public class MapHistoryService
 		repository.SweepUnreachableObjects();
 
 		state.Entries = rewrittenEntries;
-		state.LastCommitId = parentCommitId;
 		SaveState(session.Layout, state);
 
 		return new MapHistoryCleanupResult
 		{
-			DroppedVersionCount = plan.DroppedCount,
-			RemainingVersionCount = rewrittenEntries.Count
+			DroppedVersionCount = plan.DroppedCount
 		};
 	}
 
@@ -792,8 +1045,32 @@ public class MapHistoryService
 		}
 		catch (Exception exception)
 		{
-			_cachedStatus = MapHistoryStatus.Unavailable(exception.Message);
+			_cachedStatus = MapHistoryStatus.Unavailable(DescribeFailure(exception));
 		}
+	}
+
+	private bool _nativeLibraryFailureReported;
+
+	private string DescribeFailure(Exception exception)
+	{
+		Exception rootCause = exception;
+		while (rootCause is TypeInitializationException or AggregateException && rootCause.InnerException != null)
+		{
+			rootCause = rootCause.InnerException;
+		}
+
+		if (rootCause is not (DllNotFoundException or BadImageFormatException))
+		{
+			return exception.Message;
+		}
+
+		if (!_nativeLibraryFailureReported)
+		{
+			_nativeLibraryFailureReported = true;
+			GD.PrintErr($"[MapHistoryService] libgit2 could not be loaded, so the version history is unavailable: {rootCause.Message}");
+		}
+
+		return TranslationServer.Translate("Version history is not available in this build. Saving still works, but earlier versions cannot be opened.");
 	}
 
 	private void Enqueue(Action action, bool coalesce = false)
@@ -842,7 +1119,6 @@ public class MapHistoryService
 			Label = entry?.Label ?? noteLabel,
 			SaveVersion = entry?.SaveVersion ?? 0,
 			ChangedFileCount = entry?.ChangedFileCount ?? 0,
-			ChangedBytes = entry?.ChangedBytes ?? 0,
 			SourceFolder = entry?.SourceFolder
 		};
 	}
@@ -990,7 +1266,73 @@ public class MapHistoryService
 		}
 	}
 
-	private static void WriteFileAtomically(string absolutePath, byte[] content)
+	private const string RestoreStagingSuffix = ".realm-restore.tmp";
+	private const string RestoreBackupSuffix = ".realm-restore.bak";
+
+	private static bool ApplyRestoreTransactionally(
+		string mapDirectory,
+		List<(string RelativePath, byte[] Content)> filesToWrite,
+		List<string> relativePathsToRemove,
+		out int filesWritten,
+		out int filesRemoved,
+		out string? errorMessage)
+	{
+		filesWritten = 0;
+		filesRemoved = 0;
+		errorMessage = null;
+
+		var stagedPaths = new List<string>(filesToWrite.Count);
+		var touchedPaths = new List<string>(filesToWrite.Count + relativePathsToRemove.Count);
+
+		try
+		{
+			foreach (var (relativePath, content) in filesToWrite)
+			{
+				string absolutePath = Path.Combine(mapDirectory, relativePath.Replace('/', Path.DirectorySeparatorChar));
+				StageRestoreContent(absolutePath, content);
+				stagedPaths.Add(absolutePath);
+			}
+
+			foreach (string absolutePath in stagedPaths)
+			{
+				BackUpOriginalFile(absolutePath, touchedPaths);
+				File.Move(absolutePath + RestoreStagingSuffix, absolutePath, true);
+				if (!touchedPaths.Contains(absolutePath)) touchedPaths.Add(absolutePath);
+				filesWritten++;
+			}
+
+			foreach (string relativePath in relativePathsToRemove)
+		{
+				string absolutePath = Path.Combine(mapDirectory, relativePath.Replace('/', Path.DirectorySeparatorChar));
+				if (!File.Exists(absolutePath)) continue;
+
+				BackUpOriginalFile(absolutePath, touchedPaths);
+				filesRemoved++;
+			}
+		}
+		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+		{
+			RollBackRestore(touchedPaths, stagedPaths);
+			filesWritten = 0;
+			filesRemoved = 0;
+			errorMessage = string.Format(TranslationServer.Translate("Could not restore the map: {0}. The map was put back the way it was."), exception.Message);
+			return false;
+		}
+
+		foreach (string touchedPath in touchedPaths)
+		{
+			DeleteFileQuietly(touchedPath + RestoreBackupSuffix);
+		}
+
+		foreach (string stagedPath in stagedPaths)
+		{
+			DeleteFileQuietly(stagedPath + RestoreStagingSuffix);
+		}
+
+		return true;
+	}
+
+	private static void StageRestoreContent(string absolutePath, byte[] content)
 	{
 		string directory = Path.GetDirectoryName(absolutePath);
 		if (!string.IsNullOrEmpty(directory))
@@ -998,29 +1340,59 @@ public class MapHistoryService
 			Directory.CreateDirectory(directory);
 		}
 
-		string temporaryPath = absolutePath + ".realm-restore.tmp";
+		string stagingPath = absolutePath + RestoreStagingSuffix;
+		DeleteFileQuietly(stagingPath);
+		File.WriteAllBytes(stagingPath, content);
+	}
+
+	private static void BackUpOriginalFile(string absolutePath, List<string> touchedPaths)
+	{
+		if (!File.Exists(absolutePath)) return;
+
+		string backupPath = absolutePath + RestoreBackupSuffix;
+		DeleteFileQuietly(backupPath);
+		ClearReadOnlyAttribute(absolutePath);
+		File.Move(absolutePath, backupPath, true);
+		touchedPaths.Add(absolutePath);
+	}
+
+	private static void RollBackRestore(List<string> touchedPaths, List<string> stagedPaths)
+	{
+		foreach (string touchedPath in touchedPaths)
+		{
+			string backupPath = touchedPath + RestoreBackupSuffix;
+			try
+			{
+				File.Delete(touchedPath);
+				if (File.Exists(backupPath))
+				{
+					File.Move(backupPath, touchedPath, true);
+				}
+			}
+			catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+			{
+				GD.PrintErr($"[MapHistoryService] Could not put '{touchedPath}' back: {exception.Message}");
+			}
+		}
+
+		foreach (string stagedPath in stagedPaths)
+		{
+			DeleteFileQuietly(stagedPath + RestoreStagingSuffix);
+		}
+	}
+
+	private static void DeleteFileQuietly(string absolutePath)
+	{
+		if (!File.Exists(absolutePath)) return;
+
 		try
 		{
-			File.WriteAllBytes(temporaryPath, content);
-			if (File.Exists(absolutePath))
-			{
-				ClearReadOnlyAttribute(absolutePath);
-			}
-
-			File.Move(temporaryPath, absolutePath, true);
+			ClearReadOnlyAttribute(absolutePath);
+			File.Delete(absolutePath);
 		}
-		finally
+		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
 		{
-			if (File.Exists(temporaryPath))
-			{
-				try
-				{
-					File.Delete(temporaryPath);
-				}
-				catch (IOException)
-				{
-				}
-			}
+			GD.PrintErr($"[MapHistoryService] Could not remove '{absolutePath}': {exception.Message}");
 		}
 	}
 
@@ -1049,9 +1421,11 @@ public class MapHistoryService
 			MapVersionKind.BeforePublish => "Before publish",
 			MapVersionKind.BeforeMapUpgrade => "Before map upgrade",
 			MapVersionKind.AfterMapUpgrade => "After map upgrade",
-			MapVersionKind.BeforeRestore => "Before restore",
-			MapVersionKind.RestoredVersion => "Restored version",
-			_ => "Map change"
+			MapVersionKind.BeforeRestore => TranslationServer.Translate("Before restore"),
+			MapVersionKind.RestoredVersion => TranslationServer.Translate("Restored version"),
+			MapVersionKind.BeforeAssetOptimization => TranslationServer.Translate("Before asset cleanup"),
+			MapVersionKind.AfterAssetOptimization => TranslationServer.Translate("After asset cleanup"),
+			_ => TranslationServer.Translate("Map change")
 		};
 	}
 
@@ -1074,7 +1448,7 @@ public class MapHistoryService
 			GD.PrintErr($"[MapHistoryService] Could not read the history state: {exception.Message}");
 		}
 
-		return new MapHistoryStateFile { StoreKey = layout.StoreKey };
+		return new MapHistoryStateFile();
 	}
 
 	private static void Normalize(MapHistoryStateFile state)
@@ -1090,7 +1464,6 @@ public class MapHistoryService
 	private static void SaveState(MapHistoryStoreLayout layout, MapHistoryStateFile state)
 	{
 		Directory.CreateDirectory(layout.StoreDirectory);
-		state.StoreKey = layout.StoreKey;
 		string temporaryPath = layout.StateFilePath + ".tmp";
 		File.WriteAllText(temporaryPath, JsonSerializer.Serialize(state, JsonOptions));
 		File.Move(temporaryPath, layout.StateFilePath, true);
@@ -1098,9 +1471,8 @@ public class MapHistoryService
 
 	public class MapHistoryStateFile
 	{
-		public string StoreKey { get; set; } = string.Empty;
+		public string? MapName { get; set; }
 		public long SaveVersion { get; set; }
-		public string? LastCommitId { get; set; }
 		public string? FilesSourceFolder { get; set; }
 		public List<MapHistoryStateEntry> Entries { get; set; } = new();
 		public Dictionary<string, MapHistoryFileFingerprint> Files { get; set; } = new(StringComparer.OrdinalIgnoreCase);
@@ -1114,7 +1486,6 @@ public class MapHistoryService
 		public string? Label { get; set; }
 		public long SaveVersion { get; set; }
 		public int ChangedFileCount { get; set; }
-		public long ChangedBytes { get; set; }
 		public string? SourceFolder { get; set; }
 	}
 
