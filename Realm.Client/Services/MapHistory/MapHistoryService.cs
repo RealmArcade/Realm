@@ -15,16 +15,9 @@ public class MapHistoryService
 	private const string AuthorName = "Realm Map Editor";
 	private const string AuthorEmail = "map-editor@realm.local";
 
-	private static readonly string[] ExcludedDirectoryNames =
-	{
-		".git", ".vs", ".idea", ".vscode", ".godot", ".dotnet", ".wasi", ".sidecarcache", ".cache",
-		"bin", "obj", "lib", "map_backups", "map_upgrades"
-	};
+	private static readonly string[] HistoryOnlyDirectoryNames = { ".vscode" };
 
-	private static readonly string[] ExcludedFileSuffixes =
-	{
-		".rmap", ".tmp", ".log", ".bak", ".elf", ".jit.elf", ".wasm", ".dll", ".pdb", ".pem", ".rkey", ".user", ".suo"
-	};
+	private static readonly string[] HistoryOnlyFileSuffixes = { ".pem", ".rkey", ".user", ".suo" };
 
 	private static readonly JsonSerializerOptions JsonOptions = new()
 	{
@@ -878,26 +871,20 @@ public class MapHistoryService
 		if (string.IsNullOrWhiteSpace(normalized)) return true;
 		if (MapWorkspaceService.IsIgnoredPathDomain(normalized)) return true;
 
-		bool isDirectory = normalized.EndsWith('/');
 		string trimmed = normalized.TrimEnd('/');
-
-		foreach (string directoryName in ExcludedDirectoryNames)
+		foreach (string directoryName in HistoryOnlyDirectoryNames)
 		{
 			if (trimmed.Equals(directoryName, StringComparison.OrdinalIgnoreCase)) return true;
 			if (trimmed.StartsWith(directoryName + "/", StringComparison.OrdinalIgnoreCase)) return true;
 			if (trimmed.Contains("/" + directoryName + "/", StringComparison.OrdinalIgnoreCase)) return true;
 		}
 
-		if (isDirectory) return false;
-
-		foreach (string suffix in ExcludedFileSuffixes)
+		foreach (string suffix in HistoryOnlyFileSuffixes)
 		{
 			if (trimmed.EndsWith(suffix, StringComparison.OrdinalIgnoreCase)) return true;
 		}
 
-		string fileName = Path.GetFileName(trimmed);
-		if (fileName.StartsWith("~", StringComparison.Ordinal)) return true;
-		return fileName.Equals("WasmEntryPoint.cs", StringComparison.OrdinalIgnoreCase);
+		return false;
 	}
 
 	private static bool TryReadStableContent(string absolutePath, out byte[] content)
