@@ -1050,6 +1050,7 @@ public class MapHistoryService
 			MapVersionKind.AutosaveCheckpoint => "Autosave checkpoint",
 			MapVersionKind.BeforePublish => "Before publish",
 			MapVersionKind.BeforeMapUpgrade => "Before map upgrade",
+			MapVersionKind.AfterMapUpgrade => "After map upgrade",
 			MapVersionKind.BeforeRestore => "Before restore",
 			MapVersionKind.RestoredVersion => "Restored version",
 			_ => "Map change"

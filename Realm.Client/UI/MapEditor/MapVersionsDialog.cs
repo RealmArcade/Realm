@@ -566,6 +566,7 @@ public partial class MapVersionsDialog : FloatingDialogBase
 			MapVersionKind.AutosaveCheckpoint => TranslationServer.Translate("Autosave"),
 			MapVersionKind.BeforePublish => TranslationServer.Translate("Before publish"),
 			MapVersionKind.BeforeMapUpgrade => TranslationServer.Translate("Before map upgrade"),
+			MapVersionKind.AfterMapUpgrade => TranslationServer.Translate("After map upgrade"),
 			MapVersionKind.BeforeRestore => TranslationServer.Translate("Before restore"),
 			MapVersionKind.RestoredVersion => TranslationServer.Translate("Restored"),
 			_ => TranslationServer.Translate("Change")

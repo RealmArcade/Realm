@@ -2306,12 +2306,21 @@ namespace Realm.Client.UI
 					statusLabel.Text = $"[{update.StepIndex}/{update.TotalSteps}] {update.CurrentMigration}: {update.Message}";
 				});
 
-				await GameContext.MapHistoryService.CreateVersionAsync(selectedFolder, MapVersionKind.BeforeMapUpgrade, TranslationServer.Translate("Before map upgrade"));
+				var versionBeforeUpgrade = await GameContext.MapHistoryService.CreateVersionAsync(selectedFolder, MapVersionKind.BeforeMapUpgrade, TranslationServer.Translate("Before map upgrade"));
+				if (!versionBeforeUpgrade.Success)
+				{
+					statusLabel.Text = $"{TranslationServer.Translate("Could not save a version before the upgrade:")} {versionBeforeUpgrade.ErrorMessage}";
+					statusLabel.AddThemeColorOverride("font_color", new Color(0.95f, 0.3f, 0.3f));
+					cancelBtn.Disabled = false;
+					UIStyle.ApplyButtonText(cancelBtn, Tr("CLOSE"), 14);
+					return;
+				}
 
 				var upgradeResult = await upgradeService.UpgradeMapAsync(selectedFolder, progress);
 
 				if (upgradeResult.Success)
 				{
+					await GameContext.MapHistoryService.CreateVersionAsync(selectedFolder, MapVersionKind.AfterMapUpgrade, TranslationServer.Translate("After map upgrade"));
 					statusLabel.Text = Tr("Upgrade completed successfully!");
 					statusLabel.AddThemeColorOverride("font_color", new Color(0.3f, 0.9f, 0.3f));
 					await ToSignal(GetTree().CreateTimer(0.6f), SceneTreeTimer.SignalName.Timeout);

@@ -11,7 +11,8 @@ public enum MapVersionKind
 	BeforeMapUpgrade,
 	BeforeRestore,
 	RestoredVersion,
-	ExternalChange
+	ExternalChange,
+	AfterMapUpgrade
 }
 
 public class MapVersionEntry
