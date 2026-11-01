@@ -1826,7 +1826,7 @@ public partial class GameHost : Node3D
 	{
 		try
 		{
-			string dir = !string.IsNullOrEmpty(GameContext.MapStorageService.CurrentMapDirectory) ? GameContext.MapStorageService.CurrentMapDirectory : ProjectSettings.GlobalizePath(GameContext.EditorService.EditingDirectoryGodotPath);
+			string dir = !string.IsNullOrEmpty(GameContext.MapStorageService.CurrentMapDirectory) ? GameContext.MapStorageService.CurrentMapDirectory : GameContext.EditorService._editingDirectory;
 			var metadata = MapFileService.LoadMetadata(dir);
 			metadata.Templates ??= new TemplateContainer();
 			metadata.Templates.Attachments ??= new List<AttachmentMetadata>();
@@ -1859,7 +1859,7 @@ public partial class GameHost : Node3D
 	{
 		try
 		{
-			string dir = !string.IsNullOrEmpty(GameContext.MapStorageService.CurrentMapDirectory) ? GameContext.MapStorageService.CurrentMapDirectory : ProjectSettings.GlobalizePath(GameContext.EditorService.EditingDirectoryGodotPath);
+			string dir = !string.IsNullOrEmpty(GameContext.MapStorageService.CurrentMapDirectory) ? GameContext.MapStorageService.CurrentMapDirectory : GameContext.EditorService._editingDirectory;
 			var metadata = MapFileService.LoadMetadata(dir);
 			var unit = metadata.GetUnit(unitId);
 			if (unit != null)

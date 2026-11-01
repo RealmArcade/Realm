@@ -341,7 +341,7 @@ public class MapEditorEntityPaletteController
 
 	private void LoadMetadataForCategory(string category)
 	{
-		string wsPath = GameContext.EditorService.EditingDirectoryGodotPath;
+		string wsPath = GameContext.EditorService._editingDirectory;
 		string globalWs = ProjectSettings.GlobalizePath(wsPath);
 
 		if (!GameContext.MetadataService.TryLoadMetadata(globalWs, out var metadata)) return;

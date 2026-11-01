@@ -824,7 +824,6 @@ public partial class EditorService : IEditorAPI
 		return false;
 	}
 
-	public string EditingDirectoryGodotPath => string.IsNullOrEmpty(_editingDirectory) ? string.Empty : _editingDirectory.Replace('\\', '/');
 	public string _editingDirectory { get; set; } = string.Empty;
 
 	public bool IsEditingMapFolderInPlace { get; set; }
@@ -5716,7 +5715,7 @@ public partial class EditorService : IEditorAPI
 	public string PrepareTextureOutputDir(string cleanBaseName)
 	{
 		string wsPath = string.IsNullOrEmpty(this._editingDirectory)
-			? ProjectSettings.GlobalizePath(this.EditingDirectoryGodotPath)
+			? MapWorkspaceService.GetDefaultMapFolderGlobalPath()
 			: this._editingDirectory;
 		string texDir = Path.Combine(wsPath, "Assets", "textures");
 		Directory.CreateDirectory(texDir);
@@ -5930,9 +5929,7 @@ public partial class EditorService : IEditorAPI
 			unitRegistry[(StringName)regKey] = uMeta;
 		}
 
-		string wsPath = string.IsNullOrEmpty(this._editingDirectory)
-			? ProjectSettings.GlobalizePath(this.EditingDirectoryGodotPath)
-			: this._editingDirectory;
+		string wsPath = this._editingDirectory;
 		string metadataPath = MetadataService.ResolveMetadataPath(wsPath);
 		if (!File.Exists(metadataPath)) return regKey;
 
@@ -6044,9 +6041,7 @@ public partial class EditorService : IEditorAPI
 			unitRegistry[(StringName)regKey] = uMeta;
 		}
 
-		string wsPath = string.IsNullOrEmpty(this._editingDirectory)
-			? ProjectSettings.GlobalizePath(this.EditingDirectoryGodotPath)
-			: this._editingDirectory;
+		string wsPath = this._editingDirectory;
 		string metadataPath = MetadataService.ResolveMetadataPath(wsPath);
 		if (File.Exists(metadataPath))
 		{
@@ -6096,9 +6091,7 @@ public partial class EditorService : IEditorAPI
 		ApplyPseudoSocketsToRegistry(regKey, snapshot, registryService);
 		PseudoSocketCache.Clear();
 
-		string wsPath = string.IsNullOrEmpty(this._editingDirectory)
-			? ProjectSettings.GlobalizePath(this.EditingDirectoryGodotPath)
-			: this._editingDirectory;
+		string wsPath = this._editingDirectory;
 		string metadataPath = MetadataService.ResolveMetadataPath(wsPath);
 		if (File.Exists(metadataPath))
 		{
@@ -6659,9 +6652,7 @@ public class {mapName} : IMapScript
 	{
 		try
 		{
-			string wsPath = string.IsNullOrEmpty(_editingDirectory)
-				? ProjectSettings.GlobalizePath(EditingDirectoryGodotPath)
-				: _editingDirectory;
+			string wsPath = _editingDirectory;
 
 			var metadata = MapFileService.LoadMetadata(wsPath);
 

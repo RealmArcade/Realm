@@ -189,7 +189,7 @@ namespace Realm.Client.Utils
 
 		private static string TryResolveEditingDirectory(string cleanPath, string withRmesh)
 		{
-			string editingDirectory = ProjectSettings.GlobalizePath(GameContext.EditorService.EditingDirectoryGodotPath);
+			string editingDirectory = GameContext.EditorService._editingDirectory;
 			if (string.IsNullOrEmpty(editingDirectory)) return null;
 
 			string candTemp = Path.Combine(editingDirectory, cleanPath);
@@ -278,7 +278,7 @@ namespace Realm.Client.Utils
 		private static string TryResolveInBaseLocations(string cleanPath, string withRmesh)
 		{
 			string[] subDirs = new[] { "attachments", "items", "projectiles", "weapons", "props", "resources", "units", "buildings" };
-			string editingDirectory = ProjectSettings.GlobalizePath(GameContext.EditorService.EditingDirectoryGodotPath);
+			string editingDirectory = GameContext.EditorService._editingDirectory;
 			string activeMap = GetActiveMapName();
 			string currentMapDir = GetCurrentMapDirectory();
 			string resDir = ProjectSettings.GlobalizePath("res://");

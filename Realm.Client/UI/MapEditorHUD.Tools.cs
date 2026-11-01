@@ -4874,9 +4874,7 @@ namespace Realm.Client.UI
 		{
 			try
 			{
-				string wsPath = string.IsNullOrEmpty(GameContext.EditorService._editingDirectory)
-					? ProjectSettings.GlobalizePath(GameContext.EditorService.EditingDirectoryGodotPath)
-					: GameContext.EditorService._editingDirectory;
+				string wsPath = GameContext.EditorService._editingDirectory;
 
 				var result = GameContext.EditorService.ImportGlbAssetFromExtensionDomain(sourceFilePath, category, wsPath, (cat, fName, hash, sub) => UpdateMetadataJsonAsset(cat, fName, hash, subCategory: sub));
 

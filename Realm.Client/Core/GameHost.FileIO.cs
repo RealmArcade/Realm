@@ -585,7 +585,7 @@ public partial class GameHost
 			string mapDir = !string.IsNullOrEmpty(directory) ? directory : GameContext.MapStorageService.CurrentMapDirectory;
 			if (string.IsNullOrEmpty(mapDir))
 			{
-				mapDir = ProjectSettings.GlobalizePath(GameContext.EditorService.EditingDirectoryGodotPath);
+				mapDir = GameContext.EditorService._editingDirectory;
 			}
 
 			LoadUnitMetadata(mapDir);
@@ -616,7 +616,7 @@ public partial class GameHost
 		try
 		{
 			string mapDir = !string.IsNullOrEmpty(directory) ? directory : GameContext.MapStorageService.CurrentMapDirectory;
-			if (string.IsNullOrEmpty(mapDir)) mapDir = ProjectSettings.GlobalizePath(GameContext.EditorService.EditingDirectoryGodotPath);
+			if (string.IsNullOrEmpty(mapDir)) mapDir = GameContext.EditorService._editingDirectory;
 
 			var metaService = GameContext.MetadataService ?? GameContext.MetadataService;
 			metaService.UpdateMetadata(mapDir, UpdateMetadataModelOverrides);
@@ -767,7 +767,7 @@ public partial class GameHost
 
 		string filename = Path.GetFileName(decalId);
 		string baseKey = Path.GetFileNameWithoutExtension(decalId);
-		string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.EditingDirectoryGodotPath);
+		string wsPath = GameContext.EditorService._editingDirectory;
 
 		var meta = GameContext.EditorService.ParseDecalMetadata(decalId, filename, baseKey, wsPath);
 		var loaded = TryLoadDecalFromCandidates(decalId, meta.cols, meta.rows, meta.explicitPath, wsPath, cacheKey);
@@ -828,7 +828,7 @@ public partial class GameHost
 		if (string.IsNullOrEmpty(decalId)) decalId = "logo";
 		if (decalId.StartsWith("res://")) return decalId;
 
-		string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.EditingDirectoryGodotPath);
+		string wsPath = GameContext.EditorService._editingDirectory;
 		string targetKey = GameContext.EditorService.ResolveDecalKeyFromMetadata(decalId, wsPath);
 
 		return GameContext.EditorService.FindDecalFile(targetKey, wsPath);

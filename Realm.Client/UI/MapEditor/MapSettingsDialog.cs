@@ -613,7 +613,7 @@ public partial class MapSettingsDialog : FloatingDialogBase
 		_skyboxFiles.Clear();
 		_optSkybox.Clear();
 
-		string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.EditingDirectoryGodotPath);
+		string wsPath = GameContext.EditorService._editingDirectory;
 		try
 		{
 			var unionedAssets = MapAssetHelper.LoadAssets(wsPath);

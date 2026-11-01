@@ -65,9 +65,7 @@ namespace Realm.Client.UI
 			long writeTimeTicks = 0;
 			try
 			{
-				string wsPath = string.IsNullOrEmpty(GameContext.EditorService._editingDirectory)
-					? ProjectSettings.GlobalizePath(GameContext.EditorService.EditingDirectoryGodotPath)
-					: GameContext.EditorService._editingDirectory;
+				string wsPath = GameContext.EditorService._editingDirectory;
 				string metadataPath = string.IsNullOrEmpty(path) ? Path.Combine(wsPath, "metadata.json") : path;
 				writeTimeTicks = GameContext.EditorService.GetLastWriteTimeSafe(metadataPath);
 			}
@@ -236,8 +234,10 @@ namespace Realm.Client.UI
 
 		public static bool HasUnsavedChangesStatic()
 		{
-			string tempPath = ProjectSettings.GlobalizePath(GameContext.EditorService.EditingDirectoryGodotPath);
-			return MapWorkspaceService.HasUnsavedChangesDomain(IsIgnoredPath, tempPath);
+			string editingDirectory = GameContext.EditorService._editingDirectory;
+			if (string.IsNullOrEmpty(editingDirectory)) return false;
+
+			return MapWorkspaceService.HasUnsavedChangesDomain(IsIgnoredPath, editingDirectory);
 		}
 
 		public bool HasUnsavedChanges() => HasUnsavedChangesStatic();
@@ -449,7 +449,9 @@ namespace Realm.Client.UI
 				}
 
 				filesToCopy.Add((file, targetFile));
-			}				Parallel.ForEach(filesToCopy, pair => { PathUtils.CopyFileClearingReadOnlyIfChanged(pair.Source, pair.Target); });
+			}
+
+			Parallel.ForEach(filesToCopy, pair => { PathUtils.CopyFileClearingReadOnlyIfChanged(pair.Source, pair.Target); });
 
 			if (OperatingSystem.IsWindows())
 			{
@@ -1403,9 +1405,7 @@ namespace Realm.Client.UI
 
 		public void SaveUnitObjectAttachment(string unitId, HumanoidBone hand, string attachmentId, HandAttachmentOrientation orientation)
 		{
-			string wsPath = string.IsNullOrEmpty(GameContext.EditorService._editingDirectory)
-				? ProjectSettings.GlobalizePath(GameContext.EditorService.EditingDirectoryGodotPath)
-				: GameContext.EditorService._editingDirectory;
+			string wsPath = GameContext.EditorService._editingDirectory;
 			GameContext.RegistryService.SaveUnitObjectAttachment(unitId, hand, attachmentId, orientation, wsPath);
 		}
 
@@ -1413,9 +1413,7 @@ namespace Realm.Client.UI
 		{
 			try
 			{
-				string wsPath = string.IsNullOrEmpty(GameContext.EditorService._editingDirectory)
-					? ProjectSettings.GlobalizePath(GameContext.EditorService.EditingDirectoryGodotPath)
-					: GameContext.EditorService._editingDirectory;
+				string wsPath = GameContext.EditorService._editingDirectory;
 				GameContext.RegistryService.SaveUnitObjectAttachment(unitId, socket, attachmentId, orientation, wsPath);
 			}
 			catch (Exception ex)
@@ -1443,9 +1441,7 @@ namespace Realm.Client.UI
 		{
 			if (wsPath == null)
 			{
-				wsPath = string.IsNullOrEmpty(GameContext.EditorService._editingDirectory)
-					? ProjectSettings.GlobalizePath(GameContext.EditorService.EditingDirectoryGodotPath)
-					: GameContext.EditorService._editingDirectory;
+				wsPath = GameContext.EditorService._editingDirectory;
 			}
 
 			GameContext.RegistryService.UpdateMetadataFile(unitId, regKey, socket, attachmentId, orientation, wsPath);
@@ -1475,9 +1471,7 @@ namespace Realm.Client.UI
 		{
 			try
 			{
-				string wsPath = string.IsNullOrEmpty(GameContext.EditorService._editingDirectory)
-					? ProjectSettings.GlobalizePath(GameContext.EditorService.EditingDirectoryGodotPath)
-					: GameContext.EditorService._editingDirectory;
+				string wsPath = GameContext.EditorService._editingDirectory;
 				GameContext.RegistryService.SaveCustomWeaponToMetadata(weaponId, weapon, wsPath);
 			}
 			catch (Exception ex)
@@ -1490,9 +1484,7 @@ namespace Realm.Client.UI
 		{
 			try
 			{
-				string wsPath = string.IsNullOrEmpty(GameContext.EditorService._editingDirectory)
-					? ProjectSettings.GlobalizePath(GameContext.EditorService.EditingDirectoryGodotPath)
-					: GameContext.EditorService._editingDirectory;
+				string wsPath = GameContext.EditorService._editingDirectory;
 				GameContext.RegistryService.SaveCustomVfxToMetadata(vfxId, config, wsPath);
 			}
 			catch (Exception ex)
@@ -1505,9 +1497,7 @@ namespace Realm.Client.UI
 		{
 			try
 			{
-				string wsPath = string.IsNullOrEmpty(GameContext.EditorService._editingDirectory)
-					? ProjectSettings.GlobalizePath(GameContext.EditorService.EditingDirectoryGodotPath)
-					: GameContext.EditorService._editingDirectory;
+				string wsPath = GameContext.EditorService._editingDirectory;
 				GameContext.RegistryService.RemoveCustomVfxFromMetadata(vfxId, wsPath);
 			}
 			catch (Exception ex)
@@ -1931,9 +1921,7 @@ namespace Realm.Client.UI
 
 		private Texture2D LoadSwatchTextureInternal(int i)
 		{
-			string wsPath = string.IsNullOrEmpty(GameContext.EditorService._editingDirectory)
-				? ProjectSettings.GlobalizePath(GameContext.EditorService.EditingDirectoryGodotPath)
-				: GameContext.EditorService._editingDirectory;
+			string wsPath = GameContext.EditorService._editingDirectory;
 			if (i >= 0 && i < GameContext.EditorService.SwatchDisplayNames.Count && GameContext.EditorService.SwatchDisplayNames[i].EndsWith("(Empty)"))
 			{
 				return null;
@@ -2065,9 +2053,7 @@ namespace Realm.Client.UI
 		{
 			try
 			{
-				string wsPath = string.IsNullOrEmpty(GameContext.EditorService._editingDirectory)
-					? ProjectSettings.GlobalizePath(GameContext.EditorService.EditingDirectoryGodotPath)
-					: GameContext.EditorService._editingDirectory;
+				string wsPath = GameContext.EditorService._editingDirectory;
 
 				bool success = GameContext.EditorService.ImportTextureAssetFromExtensionDomain(
 					sourceFilePath, slotIndex, wsPath, GameContext.Host,
@@ -2096,9 +2082,7 @@ namespace Realm.Client.UI
 		{
 			try
 			{
-				string wsPath = string.IsNullOrEmpty(GameContext.EditorService._editingDirectory)
-					? ProjectSettings.GlobalizePath(GameContext.EditorService.EditingDirectoryGodotPath)
-					: GameContext.EditorService._editingDirectory;
+				string wsPath = GameContext.EditorService._editingDirectory;
 				string metadataPath = Path.Combine(wsPath, "metadata.json");
 
 				string texDir = Path.Combine(wsPath, "Assets", "textures");
@@ -2142,9 +2126,7 @@ namespace Realm.Client.UI
 		{
 			try
 			{
-				string wsPath = string.IsNullOrEmpty(GameContext.EditorService._editingDirectory)
-					? ProjectSettings.GlobalizePath(GameContext.EditorService.EditingDirectoryGodotPath)
-					: GameContext.EditorService._editingDirectory;
+				string wsPath = GameContext.EditorService._editingDirectory;
 				string ext = Path.GetExtension(sourceFilePath).ToLowerInvariant();
 				string animsDir = GameContext.EditorService.PrepareAnimationsDirectory(wsPath);
 
@@ -2215,9 +2197,7 @@ namespace Realm.Client.UI
 
 		public void ImportDecalAssetFromExtension(string sourceFilePath)
 		{
-			string wsPath = string.IsNullOrEmpty(GameContext.EditorService._editingDirectory)
-				? ProjectSettings.GlobalizePath(GameContext.EditorService.EditingDirectoryGodotPath)
-				: GameContext.EditorService._editingDirectory;
+			string wsPath = GameContext.EditorService._editingDirectory;
 
 			var result = GameContext.EditorService.ImportDecalAssetDomain(sourceFilePath, wsPath);
 			if (result.Success)
@@ -2234,9 +2214,7 @@ namespace Realm.Client.UI
 
 		public void ImportSkyboxAssetFromExtension(string sourceFilePath)
 		{
-			string wsPath = string.IsNullOrEmpty(GameContext.EditorService._editingDirectory)
-				? ProjectSettings.GlobalizePath(GameContext.EditorService.EditingDirectoryGodotPath)
-				: GameContext.EditorService._editingDirectory;
+			string wsPath = GameContext.EditorService._editingDirectory;
 			var result = GameContext.EditorService.ImportSkyboxAsset(sourceFilePath, wsPath);
 			if (result.Success)
 			{
@@ -2253,9 +2231,7 @@ namespace Realm.Client.UI
 
 		public void ImportSpritesheetAssetFromExtension(string sourceFilePath, int columns = 4, int rows = 4)
 		{
-			string wsPath = string.IsNullOrEmpty(GameContext.EditorService._editingDirectory)
-				? ProjectSettings.GlobalizePath(GameContext.EditorService.EditingDirectoryGodotPath)
-				: GameContext.EditorService._editingDirectory;
+			string wsPath = GameContext.EditorService._editingDirectory;
 			var result = GameContext.EditorService.ImportSpritesheetAsset(sourceFilePath, wsPath);
 			if (result.Success)
 			{
@@ -2271,9 +2247,7 @@ namespace Realm.Client.UI
 
 		public void ImportIconAssetFromExtension(string sourceFilePath)
 		{
-			string wsPath = string.IsNullOrEmpty(GameContext.EditorService._editingDirectory)
-				? ProjectSettings.GlobalizePath(GameContext.EditorService.EditingDirectoryGodotPath)
-				: GameContext.EditorService._editingDirectory;
+			string wsPath = GameContext.EditorService._editingDirectory;
 			var result = GameContext.EditorService.ImportIconAsset(sourceFilePath, wsPath);
 			if (result.Success)
 			{
@@ -2289,9 +2263,7 @@ namespace Realm.Client.UI
 
 		public void ImportAudioAssetFromExtension(string sourceFilePath, string audioType)
 		{
-			string wsPath = string.IsNullOrEmpty(GameContext.EditorService._editingDirectory)
-				? ProjectSettings.GlobalizePath(GameContext.EditorService.EditingDirectoryGodotPath)
-				: GameContext.EditorService._editingDirectory;
+			string wsPath = GameContext.EditorService._editingDirectory;
 
 			var result = GameContext.AudioService.ImportAudioAsset(sourceFilePath, audioType, wsPath);
 

@@ -286,7 +286,7 @@ public class MapStorageService
 	{
 		return folderName.StartsWith(".") ||
 		       string.Equals(folderName, "assets", StringComparison.OrdinalIgnoreCase) ||
-		       		       string.Equals(folderName, "user_p2p_cache", StringComparison.OrdinalIgnoreCase) ||
+		       string.Equals(folderName, "user_p2p_cache", StringComparison.OrdinalIgnoreCase) ||
 		       string.Equals(folderName, "p2p_cache", StringComparison.OrdinalIgnoreCase) ||
 		       string.Equals(folderName, "bin", StringComparison.OrdinalIgnoreCase) ||
 		       string.Equals(folderName, "obj", StringComparison.OrdinalIgnoreCase) ||

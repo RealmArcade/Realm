@@ -2154,7 +2154,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		_previewAudioContainer.Visible = false;
 		PreviewSubViewport.GetParent<Control>().Visible = true;
 
-		string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.EditingDirectoryGodotPath);
+		string wsPath = GameContext.EditorService._editingDirectory;
 
 		ResolveSpritesheetMeta(wsPath, item, out int columns, out int rows, out float fps, out string spritePath);
 
@@ -2288,7 +2288,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		if (meshKey.StartsWith("(")) return GetFallbackMesh(meshKey);
 		if (string.IsNullOrEmpty(meshKey)) return null;
 
-		string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.EditingDirectoryGodotPath);
+		string wsPath = GameContext.EditorService._editingDirectory;
 		string? modelPath = TryFindModelPath(wsPath, meshKey);
 
 		return modelPath != null ? TryLoadRMeshOrGlb(modelPath, meshKey) : null;
@@ -2300,7 +2300,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		_previewAudioContainer.Visible = false;
 		PreviewSubViewport.GetParent<Control>().Visible = true;
 
-		string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.EditingDirectoryGodotPath);
+		string wsPath = GameContext.EditorService._editingDirectory;
 		WeaponMetadata? weaponMeta = null;
 		if (GameContext.MetadataService.TryLoadMetadata(wsPath, out var meta) && meta?.Templates?.Weapons != null)
 		{
@@ -2323,7 +2323,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		_previewAudioContainer.Visible = false;
 		PreviewSubViewport.GetParent<Control>().Visible = true;
 
-		string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.EditingDirectoryGodotPath);
+		string wsPath = GameContext.EditorService._editingDirectory;
 		if (GameContext.MetadataService.TryLoadMetadata(wsPath, out var meta) && meta?.Templates?.Vfx != null)
 		{
 			var vfxConfig = meta.Templates.Vfx.FirstOrDefault(v => string.Equals(v.VfxId, item.TemplateID, StringComparison.OrdinalIgnoreCase));
@@ -2422,7 +2422,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		var loaded = RtexIconLoader.Load(assetPath);
 		if (loaded != null) return loaded;
 
-		string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.EditingDirectoryGodotPath);
+		string wsPath = GameContext.EditorService._editingDirectory;
 		string? diskPath = MapAssetHelper.FindAssetOnDisk(wsPath, defaultSubFolder, assetPath);
 
 		if (string.IsNullOrEmpty(diskPath))

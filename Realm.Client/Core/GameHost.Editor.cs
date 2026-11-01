@@ -1150,7 +1150,7 @@ public partial class GameHost
 		bool isBuilding = false;
 		if (!UnitRegistry.ContainsKey(unitId) && !BuildingRegistry.ContainsKey(unitId))
 		{
-			LoadUnitMetadata(!string.IsNullOrEmpty(GameContext.MapStorageService.CurrentMapDirectory) ? GameContext.MapStorageService.CurrentMapDirectory : ProjectSettings.GlobalizePath(GameContext.EditorService.EditingDirectoryGodotPath));
+			LoadUnitMetadata(!string.IsNullOrEmpty(GameContext.MapStorageService.CurrentMapDirectory) ? GameContext.MapStorageService.CurrentMapDirectory : GameContext.EditorService._editingDirectory);
 		}
 
 		UnitMetadata meta;
@@ -1195,7 +1195,7 @@ public partial class GameHost
 		bool inRes = CheckIfInRegistry(ResourceRegistry, propId, cleanId);
 		if (inProp || inRes) return true;
 
-		LoadUnitMetadata(!string.IsNullOrEmpty(GameContext.MapStorageService.CurrentMapDirectory) ? GameContext.MapStorageService.CurrentMapDirectory : ProjectSettings.GlobalizePath(GameContext.EditorService.EditingDirectoryGodotPath));
+		LoadUnitMetadata(!string.IsNullOrEmpty(GameContext.MapStorageService.CurrentMapDirectory) ? GameContext.MapStorageService.CurrentMapDirectory : GameContext.EditorService._editingDirectory);
 		inProp = CheckIfInRegistry(PropRegistry, propId, cleanId);
 		inRes = CheckIfInRegistry(ResourceRegistry, propId, cleanId);
 		if (inProp || inRes) return true;

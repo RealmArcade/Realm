@@ -1175,7 +1175,7 @@ public partial class WaterProfileDialog : FloatingDialogBase
 	private List<string> ScanRtexAssets(bool includeAllFolders = true)
 	{
 		var results = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-		string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.EditingDirectoryGodotPath);
+		string wsPath = GameContext.EditorService._editingDirectory;
 
 		if (!string.IsNullOrEmpty(wsPath))
 		{

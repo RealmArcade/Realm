@@ -218,7 +218,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 
 		try
 		{
-			string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.EditingDirectoryGodotPath);
+			string wsPath = GameContext.EditorService._editingDirectory;
 			var metadata = GameContext.MetadataService.LoadMetadata(wsPath);
 			var unit = metadata.GetUnit(unitId);
 			if (unit != null && !string.IsNullOrEmpty(unit.ModelPath))
@@ -295,7 +295,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 		{
 			try
 			{
-				string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.EditingDirectoryGodotPath);
+				string wsPath = GameContext.EditorService._editingDirectory;
 				var metadata = GameContext.MetadataService.LoadMetadata(wsPath);
 				var unit = metadata.GetUnit(_currentUnitId);
 				if (unit != null)

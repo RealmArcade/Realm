@@ -2151,7 +2151,7 @@ public partial class VSCodeManager
 		path = string.Empty;
 		if (GameContext.Host != null && GameContext.SessionState.IsMapEditorMode)
 		{
-			string editingDirectory = ProjectSettings.GlobalizePath(GameContext.EditorService.EditingDirectoryGodotPath);
+			string editingDirectory = GameContext.EditorService._editingDirectory;
 			if (Directory.Exists(editingDirectory))
 			{
 				path = editingDirectory.Replace("\\", "/");

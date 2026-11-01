@@ -731,7 +731,7 @@ public partial class GameOver : Control
 		{
 			ProjectSettings.GlobalizePath($"user://maps/{mapTitle}/metadata.json"),
 			ProjectSettings.GlobalizePath($"res://Maps/{mapTitle}/metadata.json"),
-			ProjectSettings.GlobalizePath($"{GameContext.EditorService.EditingDirectoryGodotPath}/metadata.json")
+			Path.Combine(GameContext.EditorService._editingDirectory, "metadata.json")
 		};
 
 		foreach (var p in possiblePaths)
@@ -757,7 +757,7 @@ public partial class GameOver : Control
 		{
 			ProjectSettings.GlobalizePath($"res://Maps/{rawName}/metadata.json"),
 			ProjectSettings.GlobalizePath($"user://maps/{rawName}/metadata.json"),
-			ProjectSettings.GlobalizePath($"{GameContext.EditorService.EditingDirectoryGodotPath}/metadata.json")
+			Path.Combine(GameContext.EditorService._editingDirectory, "metadata.json")
 		};
 
 		foreach (var path in paths)

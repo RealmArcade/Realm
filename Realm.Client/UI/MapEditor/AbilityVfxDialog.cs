@@ -485,7 +485,7 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 
 	private AudioStream TryLoadSoundFromWorkspace(string soundPath)
 	{
-		string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.EditingDirectoryGodotPath);
+		string wsPath = GameContext.EditorService._editingDirectory;
 		string cleanPath = soundPath.Trim().TrimStart('/', '\\').Replace('\\', '/');
 		string fileName = Path.GetFileName(cleanPath);
 
@@ -583,7 +583,7 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 
 	private Texture2D TryLoadTextureFromWorkspace(string path)
 	{
-		string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.EditingDirectoryGodotPath);
+		string wsPath = GameContext.EditorService._editingDirectory;
 		string cleanPath = path.Trim().TrimStart('/', '\\').Replace('\\', '/');
 		string fileName = Path.GetFileName(cleanPath);
 

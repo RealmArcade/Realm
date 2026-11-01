@@ -344,7 +344,7 @@ public partial class SpellParticleInstance3D : Node3D
 			string fullPath = assetPath;
 			if (!fullPath.StartsWith("res://") && !fullPath.StartsWith("user://") && !File.Exists(fullPath))
 			{
-				string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.EditingDirectoryGodotPath);
+				string wsPath = GameContext.EditorService._editingDirectory;
 				string[] candidates = new[]
 				{
 					Path.Combine(wsPath, "Assets", "models", "projectiles", Path.GetFileName(assetPath)),

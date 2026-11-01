@@ -1314,7 +1314,7 @@ public partial class MapEditorHUD : Control
 		bool started = false;
 		if (GameContext.Lobby != null)
 		{
-			started = await GameContext.Lobby.HostSinglePlayerGame(GameContext.EditorService.EditingDirectoryGodotPath, "Test Map", debugMapScript: true);
+			started = await GameContext.Lobby.HostSinglePlayerGame(GameContext.EditorService._editingDirectory, "Test Map", debugMapScript: true);
 		}
 
 		if (!started)

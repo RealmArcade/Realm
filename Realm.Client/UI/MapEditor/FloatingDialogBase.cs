@@ -1287,7 +1287,7 @@ public partial class FloatingDialogBase : PanelContainer
 		var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 		string wsPath = !string.IsNullOrEmpty(MapWorkspaceService.GetActiveWorkspacePath())
 			? MapWorkspaceService.GetActiveWorkspacePath()
-			: ProjectSettings.GlobalizePath(GameContext.EditorService.EditingDirectoryGodotPath);
+			: GameContext.EditorService._editingDirectory;
 
 		try
 		{

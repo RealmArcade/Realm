@@ -1215,7 +1215,7 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 			return ResourceLoader.Exists(soundPath) ? GD.Load<AudioStream>(soundPath) : null;
 		}
 
-		string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.EditingDirectoryGodotPath);
+		string wsPath = GameContext.EditorService._editingDirectory;
 		string fullPath = ResolveAudioFilePath(Path.Combine(wsPath, "Assets", "audio"), soundPath)
 			?? ResolveAudioFilePath(wsPath, soundPath)
 			?? ResolveAudioFilePath(ProjectSettings.GlobalizePath("res://Assets/audio"), soundPath)

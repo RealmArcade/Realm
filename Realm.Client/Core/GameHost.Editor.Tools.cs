@@ -1733,7 +1733,7 @@ namespace Realm.Client.Core
 		{
 			if (!UnitRegistry.ContainsKey(reqId) && !BuildingRegistry.ContainsKey(reqId))
 			{
-				LoadUnitMetadata(!string.IsNullOrEmpty(GameContext.MapStorageService.CurrentMapDirectory) ? GameContext.MapStorageService.CurrentMapDirectory : ProjectSettings.GlobalizePath(GameContext.EditorService.EditingDirectoryGodotPath));
+				LoadUnitMetadata(!string.IsNullOrEmpty(GameContext.MapStorageService.CurrentMapDirectory) ? GameContext.MapStorageService.CurrentMapDirectory : GameContext.EditorService._editingDirectory);
 			}
 
 			bool isBuilding = false;
@@ -1765,7 +1765,7 @@ namespace Realm.Client.Core
 		{
 			if (!HasPreviewPropRequirement(reqId))
 			{
-				LoadUnitMetadata(!string.IsNullOrEmpty(GameContext.MapStorageService.CurrentMapDirectory) ? GameContext.MapStorageService.CurrentMapDirectory : ProjectSettings.GlobalizePath(GameContext.EditorService.EditingDirectoryGodotPath));
+				LoadUnitMetadata(!string.IsNullOrEmpty(GameContext.MapStorageService.CurrentMapDirectory) ? GameContext.MapStorageService.CurrentMapDirectory : GameContext.EditorService._editingDirectory);
 				if (!HasPreviewPropRequirement(reqId))
 				{
 					return;
@@ -2767,7 +2767,7 @@ namespace Realm.Client.Core
 		{
 			EditorHasUnsavedChanges = GameContext.SessionState.SavedEditorHasUnsavedChanges;
 			GameContext.EditorService.CurrentDirectoryBlake3 = MapWorkspaceService.ComputeDirectoryBlake3Domain(
-				ProjectSettings.GlobalizePath(GameContext.EditorService.EditingDirectoryGodotPath),
+				GameContext.EditorService._editingDirectory,
 				MapEditorHUD.IsIgnoredPath);
 		}
 
