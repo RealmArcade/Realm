@@ -447,13 +447,15 @@ public class MapHistoryService
 		});
 	}
 
-	public void RestoreVersion(string mapDirectory, string commitId, Action<MapHistoryRestoreResult> onCompleted)
+	public void RestoreVersion(string mapDirectory, string commitId, Action<MapHistoryRestoreResult> onCompleted, Action beforeRestore = null)
 	{
 		if (!HasMapFolder(mapDirectory))
 		{
 			onCompleted?.Invoke(new MapHistoryRestoreResult { Success = false, ErrorMessage = TranslationServer.Translate("No map folder is open.") });
 			return;
 		}
+
+		beforeRestore?.Invoke();
 
 		Enqueue(() =>
 		{
@@ -886,7 +888,8 @@ public class MapHistoryService
 
 		return new MapHistoryRestoreResult
 		{
-			Success = restoredVersion.Success,
+			Success = true,
+			VersionRecorded = restoredVersion.Success,
 			ErrorMessage = restoredVersion.ErrorMessage,
 			NewVersion = restoredVersion.Entry,
 			FilesWritten = filesWritten,

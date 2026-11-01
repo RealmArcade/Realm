@@ -46,6 +46,7 @@ public class MapHistoryStatus
 public class MapHistoryRestoreResult
 {
 	public bool Success { get; init; }
+	public bool VersionRecorded { get; init; }
 	public string? ErrorMessage { get; init; }
 	public MapVersionEntry? NewVersion { get; init; }
 	public int FilesWritten { get; init; }

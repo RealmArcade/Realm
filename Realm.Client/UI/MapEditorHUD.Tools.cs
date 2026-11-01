@@ -4827,6 +4827,18 @@ namespace Realm.Client.UI
 			_mapHistoryStatusLabel.Text = $"{savedText}  •  {countText}{unversionedText}";
 		}
 
+		public void NotifyHistoryRestoreApplied(bool versionRecorded)
+		{
+			_hasChangesSinceLastVersion = !versionRecorded;
+			GameContext.EditorService.UpdateWatchedFileTimestamps();
+		}
+
+		public void MarkScriptSourcesChangedByRestore()
+		{
+			SetWasmConsoleStatus(TranslationServer.Translate("Script sources changed — publish or test the map to compile them again."), UIStyle.ColorCyanGlow);
+			ShowFeedback(TranslationServer.Translate("The restored version changed the map script. Publish or test the map to compile it again."));
+		}
+
 		public void OpenUtilitiesDialog()
 		{
 			if (_utilitiesDialog == null)

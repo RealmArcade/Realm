@@ -494,7 +494,7 @@ public partial class MapVersionsDialog : FloatingDialogBase
 		GameContext.MapHistoryService.RestoreVersion(editingDirectory, version.CommitId, result =>
 		{
 			Callable.From(() => CompleteRestore(editingDirectory, result)).CallDeferred();
-		});
+		}, () => GameContext.MapAutosaveService.FlushPendingWrites(TimeSpan.FromSeconds(3)));
 	}
 
 	private void CompleteRestore(string editingDirectory, MapHistoryRestoreResult result)
@@ -527,11 +527,19 @@ public partial class MapVersionsDialog : FloatingDialogBase
 				GameContext.Host.EditorHasUnsavedChanges = false;
 			}
 
-			Hud.ShowFeedback(string.Format(TranslationServer.Translate("Restored the version from {0}. {1} file(s) restored, {2} removed."), FormatTimestamp(result.NewVersion?.CreatedAt ?? DateTimeOffset.Now), result.FilesWritten, result.FilesRemoved));
+			Hud.NotifyHistoryRestoreApplied(result.VersionRecorded);
+
+			string restoredText = string.Format(TranslationServer.Translate("Restored the version from {0}. {1} file(s) restored, {2} removed."), FormatTimestamp(result.NewVersion?.CreatedAt ?? DateTimeOffset.Now), result.FilesWritten, result.FilesRemoved);
+			if (!result.VersionRecorded)
+			{
+				restoredText += " " + string.Format(TranslationServer.Translate("The restored files could not be recorded in the history: {0}"), result.ErrorMessage ?? string.Empty);
+			}
+
+			Hud.ShowFeedback(restoredText);
 
 			if (result.ScriptSourcesRestored)
 			{
-				Hud.ShowFeedback(TranslationServer.Translate("The restored version changed the map script. Publish or test the map to compile it again."));
+				Hud.MarkScriptSourcesChangedByRestore();
 			}
 
 			RefreshVersions();
