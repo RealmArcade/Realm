@@ -361,46 +361,6 @@ public static partial class MapWorkspaceService
 		}
 	}
 
-	public static void CopyFolderToWorkspace(string sourceFolder, string targetWorkspacePath, string? mapName = null)
-	{
-		if (string.IsNullOrEmpty(sourceFolder) || !Directory.Exists(sourceFolder) || string.IsNullOrEmpty(targetWorkspacePath)) return;
-
-		CleanWorkspaceDirectory(targetWorkspacePath);
-		Directory.CreateDirectory(targetWorkspacePath);
-
-		string resolvedMapName = !string.IsNullOrWhiteSpace(mapName) ? mapName : Path.GetFileName(sourceFolder) ?? "MapScript";
-
-		var allFiles = Directory.GetFiles(sourceFolder, "*", SearchOption.AllDirectories);
-		var filesToProcess = new List<(string Source, string Target, bool IsMutable)>(allFiles.Length);
-		var createdDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-		foreach (var file in allFiles)
-		{
-			string relativePath = file.Substring(sourceFolder.Length + 1);
-			if (MapEditorHUD.IsIgnoredPath(relativePath)) continue;
-
-			string targetFile = Path.Combine(targetWorkspacePath, relativePath);
-			string? targetDir = Path.GetDirectoryName(targetFile);
-
-			if (!string.IsNullOrEmpty(targetDir) && createdDirs.Add(targetDir))
-				Directory.CreateDirectory(targetDir);
-
-			filesToProcess.Add((file, targetFile, PathUtils.IsMutableMapFileType(relativePath)));
-		}
-
-		Parallel.ForEach(filesToProcess, ProcessFileItem);
-
-		SetupWorkspace(targetWorkspacePath, resolvedMapName);
-	}
-
-	private static void ProcessFileItem((string Source, string Target, bool IsMutable) item)
-	{
-		if (item.IsMutable)
-			PathUtils.CopyFileClearingReadOnly(item.Source, item.Target);
-		else
-			PathUtils.LinkOrCopyFile(item.Source, item.Target, preferHardLink: true);
-	}
-
 	public static void CleanWorkspaceBinaries(string directory)
 	{
 		if (string.IsNullOrEmpty(directory) || !Directory.Exists(directory)) return;
@@ -910,6 +870,9 @@ public static partial class MapWorkspaceService
 		return Path.Combine(localAppDataDirectory, "Realm", UntitledMapNamePrefix);
 	}
 
+	private const int FileLockRetryAttempts = 4;
+	private const int FileLockRetryDelayMilliseconds = 100;
+
 	public static bool RebuildUntitledMapFolder(string folderPath, out string errorMessage)
 	{
 		errorMessage = string.Empty;
@@ -924,22 +887,128 @@ public static partial class MapWorkspaceService
 		string mapName = CreateUntitledMapName();
 		try
 		{
-			CopyFolderToWorkspace(templateRoot, folderPath, mapName);
-
-			GameContext.MetadataService.UpdateMetadata(folderPath, metadata =>
-			{
-				metadata.MapProperties ??= new MapInfoMetadata();
-				metadata.MapProperties.MapName = mapName;
-				metadata.GameBuildNumber = RealmVersion.GameBuildNumber;
-			});
-
-			return true;
+			Directory.CreateDirectory(folderPath);
+			ClearFolderBestEffort(folderPath);
+			CopyFolderBestEffort(templateRoot, folderPath);
 		}
 		catch (Exception exception)
 		{
 			errorMessage = exception.Message;
 			return false;
 		}
+
+		try
+		{
+			SetupWorkspace(folderPath, mapName);
+		}
+		catch (Exception exception)
+		{
+			GD.PrintErr($"[MapWorkspaceService] Could not finish setting up the untitled map folder: {exception.Message}");
+		}
+
+		bool mapHasItsName = TryRunFileOperation(() => GameContext.MetadataService.UpdateMetadata(folderPath, metadata =>
+		{
+			metadata.MapProperties ??= new MapInfoMetadata();
+			metadata.MapProperties.MapName = mapName;
+			metadata.GameBuildNumber = RealmVersion.GameBuildNumber;
+		}));
+
+		if (!mapHasItsName || !TerrainFileMatchesTemplate(folderPath, templateRoot))
+		{
+			errorMessage = "another program is holding a file in the untitled map folder open. Close the embedded editor or stop the build, then try again.";
+			return false;
+		}
+
+		return true;
+	}
+
+	private static bool TerrainFileMatchesTemplate(string folderPath, string templateRoot)
+	{
+		var writtenTerrain = new FileInfo(Path.Combine(folderPath, "terrain.json"));
+		var templateTerrain = new FileInfo(Path.Combine(templateRoot, "terrain.json"));
+		if (!writtenTerrain.Exists || !templateTerrain.Exists) return false;
+
+		return writtenTerrain.Length == templateTerrain.Length;
+	}
+
+	private static bool TryRunFileOperation(Action operation)
+	{
+		for (int attempt = 0; attempt < FileLockRetryAttempts; attempt++)
+		{
+			try
+			{
+				operation();
+				return true;
+			}
+			catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+			{
+				System.Threading.Thread.Sleep(FileLockRetryDelayMilliseconds);
+			}
+		}
+
+		return false;
+	}
+
+	private static void ClearFolderBestEffort(string folderPath)
+	{
+		foreach (string filePath in Directory.GetFiles(folderPath, "*", SearchOption.AllDirectories))
+		{
+			string fileToClear = filePath;
+			if (TryRunFileOperation(() => DeleteFileClearingReadOnly(fileToClear))) continue;
+
+			GD.PrintErr($"[MapWorkspaceService] '{fileToClear}' is held open by another program, so the untitled map keeps the version the template is about to replace it with.");
+		}
+
+		foreach (string directoryPath in Directory.GetDirectories(folderPath))
+		{
+			string directoryToClear = directoryPath;
+			TryRunFileOperation(() => Directory.Delete(directoryToClear, true));
+		}
+	}
+
+	private static void DeleteFileClearingReadOnly(string filePath)
+	{
+		if (!File.Exists(filePath)) return;
+
+		FileAttributes attributes = File.GetAttributes(filePath);
+		if ((attributes & FileAttributes.ReadOnly) != 0)
+		{
+			File.SetAttributes(filePath, attributes & ~FileAttributes.ReadOnly);
+		}
+
+		File.Delete(filePath);
+	}
+
+	private static void CopyFolderBestEffort(string sourceFolder, string targetFolder)
+	{
+		foreach (string sourcePath in Directory.GetFiles(sourceFolder, "*", SearchOption.AllDirectories))
+		{
+			string relativePath = sourcePath.Substring(sourceFolder.Length + 1);
+			if (IsIgnoredPathDomain(relativePath)) continue;
+
+			string targetPath = Path.Combine(targetFolder, relativePath);
+			string? targetDirectory = Path.GetDirectoryName(targetPath);
+			if (!string.IsNullOrEmpty(targetDirectory))
+			{
+				Directory.CreateDirectory(targetDirectory);
+			}
+
+			bool copyIsMutable = PathUtils.IsMutableMapFileType(relativePath);
+			if (TryRunFileOperation(() => CopyTemplateFile(sourcePath, targetPath, copyIsMutable))) continue;
+
+			GD.PrintErr($"[MapWorkspaceService] Could not write '{relativePath}' into the untitled map because another program is holding it open. The file already in the folder is kept.");
+		}
+	}
+
+	private static void CopyTemplateFile(string sourcePath, string targetPath, bool copyIsMutable)
+	{
+		if (copyIsMutable)
+		{
+			PathUtils.CopyFileClearingReadOnly(sourcePath, targetPath);
+			return;
+		}
+
+		PathUtils.LinkOrCopyFile(sourcePath, targetPath, preferHardLink: true);
 	}
 
 	public static bool IsUntitledMapName(string? mapName)
