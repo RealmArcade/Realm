@@ -2664,6 +2664,12 @@ namespace Realm.Client.Core
 			GameContext.ReplayPlayback.StopReplay();
 			EndJoinedMatch();
 			GameContext.SessionState.IsMapEditorMode = true;
+			if (GameContext.SessionState.EditorWorldState != null && !string.IsNullOrEmpty(GameContext.SessionState.SavedEditorDirectory))
+			{
+				GameContext.EditorService.SetActiveMapDirectory(GameContext.SessionState.SavedEditorDirectory);
+				GameContext.EditorService.SetCurrentSourceFolder(GameContext.SessionState.SavedEditorSourceFolder);
+			}
+
 			GameContext.EditorService.EnsureEditingDirectoryDomain();
 
 			string wsPath = GameContext.EditorService._editingDirectory;

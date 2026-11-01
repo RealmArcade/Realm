@@ -1208,6 +1208,8 @@ public partial class MapEditorHUD : Control
 	private void SaveEditorWorldBeforeTest()
 	{
 		GameContext.SessionState.EditorWorldState = MapStateSnapshot.CreateSnapshot();
+		GameContext.SessionState.SavedEditorDirectory = GameContext.EditorService._editingDirectory;
+		GameContext.SessionState.SavedEditorSourceFolder = GameContext.EditorService.CurrentSourceFolder;
 	}
 
 	private void SaveCameraState()

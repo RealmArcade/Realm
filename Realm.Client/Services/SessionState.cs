@@ -11,6 +11,8 @@ public class SessionState
 	public bool EditorSessionResumedAfterTest { get; set; } = false;
 
 	public MapStateSnapshot EditorWorldState { get; set; }
+	public string SavedEditorDirectory { get; set; } = string.Empty;
+	public string? SavedEditorSourceFolder { get; set; }
 	public bool SavedEditorHasUnsavedChanges { get; set; } = false;
 	public Godot.Vector3 SavedCameraPosition { get; set; }
 	public float SavedTargetHeight { get; set; }
