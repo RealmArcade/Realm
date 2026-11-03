@@ -577,7 +577,7 @@ public partial class CommandPanel
 
 		var label = new Label();
 		label.Name = "Label_Label";
-		label.Text = TranslationServer.Translate("CYCLE");
+		label.Text = TranslationServer.Translate("Next");
 		label.AddThemeFontSizeOverride("font_size", 10);
 		label.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		label.AddThemeColorOverride("font_outline_color", new Color(0f, 0f, 0f, 0.9f));

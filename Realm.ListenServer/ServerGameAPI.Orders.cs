@@ -331,6 +331,33 @@ public partial class ServerGameAPI
 
 	public void SetUnitHideHealthAndManaBars(UnitId unit, bool value) => SetUnitFlag<OverheadBarsHidden>(unit, value);
 
+	public void SetUnitOverheadBadge(UnitId unit, int value, Vector3 color)
+	{
+		Entity entity = ResolveUnit(unit);
+		if (entity == Entity.Null) return;
+
+		if (value <= 0)
+		{
+			if (_context.World.Has<OverheadBadge>(entity)) _context.World.Remove<OverheadBadge>(entity);
+			return;
+		}
+
+		_context.World.SetOrAdd(entity, new OverheadBadge
+		{
+			Value = Math.Clamp(value, 1, 999),
+			ColorRgb = PackColorRgb(color)
+		});
+	}
+
+	private static uint PackColorRgb(Vector3 color)
+	{
+		uint red = (uint)Math.Clamp((int)MathF.Round(color.X * 255f), 0, 255);
+		uint green = (uint)Math.Clamp((int)MathF.Round(color.Y * 255f), 0, 255);
+		uint blue = (uint)Math.Clamp((int)MathF.Round(color.Z * 255f), 0, 255);
+
+		return red << 16 | green << 8 | blue;
+	}
+
 	public void DealTypedDamage(UnitId attacker, UnitId target, float damage, string damageType)
 	{
 		Entity targetEntity = ResolveUnit(target);

@@ -154,7 +154,8 @@ public partial class InGameHUD : Control
 	private HBoxContainer _unitsContainer;
 
 	private HBoxContainer _statsContainer;
-	private Label _statsLabel;
+	private UnitStatsPanel _unitStatsPanel;
+	private UnitVitalsBars _unitVitalsBars;
 	private VBoxContainer _spellsBox;
 
 	private Vector2 _dragStart;
@@ -506,7 +507,7 @@ public partial class InGameHUD : Control
 		_btnPauseMatch.AddThemeStyleboxOverride("hover", UIStyle.CreateHUDButtonStyle(true, false));
 		_btnPauseMatch.AddThemeStyleboxOverride("pressed", UIStyle.CreateHUDButtonStyle(false, true));
 		_btnPauseMatch.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-		_btnPauseMatch.TooltipText = TranslationServer.Translate("Pause Match [P]");
+		_btnPauseMatch.TooltipText = TranslationServer.Translate("Pause Match");
 		_btnPauseMatch.Pressed += OnPauseMatchButtonPressed;
 		_btnPauseMatch.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 
@@ -515,10 +516,25 @@ public partial class InGameHUD : Control
 		resourceRow.MoveChild(_btnPauseMatch, _btnSettings.GetIndex());
 	}
 
+	/// <summary>
+	///     Holds the match for everyone, which is a request the whole lobby cannot undo by accident, so it is asked for
+	///     once before it is sent. Resuming is not: a held match has nothing left to lose by being released.
+	/// </summary>
 	private void OnPauseMatchButtonPressed()
 	{
 		GameContext.UserInterface?.PlayClickSound();
-		GameContext.Host?.TogglePauseRequest();
+
+		if (GameContext.NetworkService?.IsPaused == true)
+		{
+			GameContext.Host?.TogglePauseRequest();
+			return;
+		}
+
+		GameContext.UserInterface?.ShowConfirmationDialog(
+			TranslationServer.Translate("Pause game for everyone?"),
+			() => GameContext.Host?.TogglePauseRequest(),
+			confirmText: "PAUSE",
+			cancelText: "CANCEL");
 	}
 
 	private void RefreshPauseMatchButton()
@@ -530,8 +546,8 @@ public partial class InGameHUD : Control
 
 		_btnPauseMatch.Text = paused ? UnicodeIcons.PLAY : UnicodeIcons.PAUSE;
 		_btnPauseMatch.TooltipText = paused
-			? TranslationServer.Translate("Resume Match [P]")
-			: string.Format(TranslationServer.Translate("Pause Match [P] - {0} pause(s) left this match"), network?.RemainingPauses ?? 0);
+			? TranslationServer.Translate("Resume Match")
+			: string.Format(TranslationServer.Translate("Pause Match - {0} pause(s) left this match"), network?.RemainingPauses ?? 0);
 
 		// The cooldown is deliberately left to the authority: the button that could tell a player it is still recharging is
 		// the one it has to press to be told, so only a player with nothing left to spend is stopped here.
@@ -989,12 +1005,16 @@ public partial class InGameHUD : Control
 
 		_portraitPanelController = new PortraitPanel(
 			_portraitFrame, _selectionFrame, _unitsContainer, _unitButtons, _statsContainer,
-			_statsLabel,
+			_unitStatsPanel,
 			_productionBox, _productionTitle, _productionProgress, _productionQueueLabel, _queueSlotsContainer,
 			_armyCompositionLabel, GetNode<Label>("BottomConsole/HBox/PortraitFrame/VBox/UnitName"),
 			GetNodeOrNull<TextureRect>("BottomConsole/HBox/PortraitFrame/VBox/PortraitTexture") != null ? GetNode<TextureRect>("BottomConsole/HBox/PortraitFrame/VBox/PortraitTexture") : null
 		);
 		_portraitPanelController.UnitSelectionButtonClicked += OnUnitSelectionButtonClicked;
+
+		_unitVitalsBars = new UnitVitalsBars();
+		_bottomConsole.AddChild(_unitVitalsBars.Root);
+		UpdateBottomConsoleHeight();
 
 		_inventoryPanelController = new InventoryPanel(_inventoryGrid);
 
@@ -1054,6 +1074,12 @@ public partial class InGameHUD : Control
 	}
 
 	private const float BaseConsoleHeight = 240f;
+	private const float ConsoleArtworkHeight = 240f;
+	private const float PortraitSlotLeft = 370f;
+	private const float PortraitSlotTop = 75f;
+	private const float PortraitSlotRight = 515f;
+	private const float PortraitSlotBottom = 195f;
+	private const float PortraitNameHeight = 20f;
 
 	private void UpdateBottomConsoleHeight()
 	{
@@ -1070,6 +1096,8 @@ public partial class InGameHUD : Control
 			{
 				mat.SetShaderParameter("u_console_size", new Vector2(viewportWidth, proportionalHeight));
 			}
+
+			_unitVitalsBars?.ApplyLayout(proportionalHeight);
 
 			float s = proportionalHeight / 433f;
 			float wLeft = 935f * s;
@@ -1101,19 +1129,22 @@ public partial class InGameHUD : Control
 
 			if (_portraitFrame != null)
 			{
+				float artworkScale = proportionalHeight / ConsoleArtworkHeight;
 				_portraitFrame.AnchorLeft = 0;
 				_portraitFrame.AnchorRight = 0;
 				_portraitFrame.AnchorTop = 0;
 				_portraitFrame.AnchorBottom = 0;
-				_portraitFrame.OffsetLeft = Mathf.Round(660f * s);
-				_portraitFrame.OffsetRight = Mathf.Round(935f * s);
-				_portraitFrame.OffsetTop = Mathf.Round(110f * s);
-				_portraitFrame.OffsetBottom = Mathf.Round(428f * s);
+				_portraitFrame.OffsetLeft = Mathf.Round(PortraitSlotLeft * artworkScale);
+				_portraitFrame.OffsetRight = Mathf.Round(PortraitSlotRight * artworkScale);
+				_portraitFrame.OffsetTop = Mathf.Round(PortraitSlotTop * artworkScale);
+				_portraitFrame.OffsetBottom = Mathf.Round(PortraitSlotBottom * artworkScale);
 
 				var pTexture = _portraitFrame.GetNodeOrNull<TextureRect>("VBox/PortraitTexture");
 				if (pTexture != null)
 				{
-					float portraitSize = Mathf.Round(180f * s);
+					float slotHeight = (PortraitSlotBottom - PortraitSlotTop - PortraitNameHeight) * artworkScale;
+					float slotWidth = (PortraitSlotRight - PortraitSlotLeft) * artworkScale;
+					float portraitSize = Mathf.Round(Mathf.Min(slotWidth, slotHeight));
 					pTexture.CustomMinimumSize = new Vector2(portraitSize, portraitSize);
 				}
 			}
@@ -1129,10 +1160,10 @@ public partial class InGameHUD : Control
 				_selectionFrame.OffsetTop = Mathf.Round(165f * s);
 				_selectionFrame.OffsetBottom = Mathf.Round(415f * s);
 
-				if (_statsLabel != null)
+				if (_unitStatsPanel != null)
 				{
 					float labelW = Mathf.Max(200f, _selectionFrame.OffsetRight - _selectionFrame.OffsetLeft - 20f);
-					_statsLabel.CustomMinimumSize = new Vector2(labelW, 0);
+					_unitStatsPanel.Root.CustomMinimumSize = new Vector2(labelW, 0);
 				}
 			}
 
@@ -1306,18 +1337,8 @@ public partial class InGameHUD : Control
 		statsVBox.SizeFlagsVertical = SizeFlags.ShrinkBegin;
 		statsScroll.AddChild(statsVBox);
 
-		_statsLabel = new Label();
-		_statsLabel.Name = "StatsLabel_Label";
-		_statsLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-		_statsLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		_statsLabel.CustomMinimumSize = new Vector2(300, 0);
-		_statsLabel.Text = TranslationServer.Translate("HP: 100/100\nDamage: 10\nArmor: 2\nSpeed: 5");
-		_statsLabel.AddThemeFontSizeOverride("font_size", 13);
-		_statsLabel.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		_statsLabel.AddThemeConstantOverride("line_spacing", 2);
-		_statsLabel.AddThemeConstantOverride("outline_size", 2);
-		_statsLabel.AddThemeColorOverride("font_outline_color", new Color(0f, 0f, 0f, 0.9f));
-		statsVBox.AddChild(_statsLabel);
+		_unitStatsPanel = new UnitStatsPanel();
+		statsVBox.AddChild(_unitStatsPanel.Root);
 
 		var vScroll = statsScroll.GetVScrollBar();
 		if (vScroll != null)
@@ -1416,6 +1437,21 @@ public partial class InGameHUD : Control
 		};
 	}
 
+	private void UpdateUnitVitalsBars()
+	{
+		if (_unitVitalsBars == null) return;
+
+		List<SelectedUnitInfo> selectedUnits = _viewModel.SelectedUnits;
+		if (selectedUnits == null || selectedUnits.Count != 1)
+		{
+			_unitVitalsBars.Hide();
+			return;
+		}
+
+		int index = _viewModel.CycleSelectionIndex < selectedUnits.Count ? _viewModel.CycleSelectionIndex : 0;
+		_unitVitalsBars.UpdateSingleSelection(selectedUnits[index]);
+	}
+
 	public void RefreshUI(List<Unit3D> selectedUnits)
 	{
 		InvalidateCadence(tactical: true, macro: false);
@@ -1431,6 +1467,7 @@ public partial class InGameHUD : Control
 		_viewModel.SelectedProp = GameContext.Host?.SelectedProp;
 		_viewModel.UpdateSelectedUnits(selectedUnits);
 		_portraitPanelController?.Update(_viewModel);
+		UpdateUnitVitalsBars();
 		_commandPanelController?.Update(_viewModel);
 		_inventoryPanelController?.Update(_viewModel);
 
@@ -1491,6 +1528,17 @@ public partial class InGameHUD : Control
 		_bottomConsole.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
 		_minimapFrame.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
 		_portraitFrame.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
+		_portraitFrame.ZIndex = -1;
+
+		if (_portraitFrame.GetNodeOrNull<ColorRect>("PortraitBacking") == null)
+		{
+			var portraitBacking = new ColorRect();
+			portraitBacking.Name = "PortraitBacking";
+			portraitBacking.Color = new Color(0.03f, 0.03f, 0.04f, 1.0f);
+			portraitBacking.MouseFilter = MouseFilterEnum.Ignore;
+			_portraitFrame.AddChild(portraitBacking);
+			_portraitFrame.MoveChild(portraitBacking, 0);
+		}
 		_selectionFrame.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
 		_selectionFrame.ClipContents = true;
 		
@@ -1590,6 +1638,7 @@ public partial class InGameHUD : Control
 			_viewModel.UpdateTactical(accumulated);
 			UpdateSelectedUnitVisuals();
 			_portraitPanelController?.Update(_viewModel);
+			UpdateUnitVitalsBars();
 			_commandPanelController?.Update(_viewModel);
 			_inventoryPanelController?.Update(_viewModel);
 			_controlGroupsUIController?.Update();
@@ -1880,7 +1929,6 @@ public partial class InGameHUD : Control
 
 			if (HandleSpaceKey(keyEvent)) return;
 			if (HandleEnterKey(keyEvent)) return;
-			if (HandlePauseKey(keyEvent)) return;
 			if (HandleTildeKey(keyEvent)) return;
 		}
 	}
@@ -1912,17 +1960,6 @@ public partial class InGameHUD : Control
 		if (!IsHudElementVisible(HudElement.Chat, true)) return false;
 
 		_chatPanelController?.ShowChatInput(keyEvent.ShiftPressed);
-		GetViewport().SetInputAsHandled();
-		return true;
-	}
-
-	private bool HandlePauseKey(InputEventKey keyEvent)
-	{
-		if (keyEvent.Keycode != Key.P && keyEvent.Keycode != Key.Pause) return false;
-		if (keyEvent.Echo) return false;
-		if (IsChatActive || GameContext.Host == null) return false;
-
-		GameContext.Host.TogglePauseRequest();
 		GetViewport().SetInputAsHandled();
 		return true;
 	}
@@ -2143,7 +2180,6 @@ public partial class InGameHUD : Control
 					("Enter", "Open Chat (Shift: All Chat)"),
 					("Esc", "Clear Selection / Cancel Targeting"),
 					("F12", "Settings"),
-					("P / Pause", "Pause / Resume Match"),
 					("~ (Tilde)", "Developer Console"),
 				}
 			),

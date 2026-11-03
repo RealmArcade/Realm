@@ -1316,20 +1316,7 @@ public class MapStorageService
 
 	public static string FindWasmPath(string editingDirectory)
 	{
-		string binDir = Path.Combine(editingDirectory, "bin");
-		string wasmPath = null;
-		if (Directory.Exists(binDir))
-		{
-			var wasmFiles = Directory.GetFiles(
-				binDir,
-				"*.wasm",
-				SearchOption.AllDirectories
-			).Where(f => !f.Contains("native") && !f.Contains("obj")).ToList();
-
-			wasmPath = wasmFiles.FirstOrDefault(f => f.Contains("publish"))
-					   ?? wasmFiles.OrderByDescending(f => File.GetLastWriteTimeUtc(f)).FirstOrDefault();
-		}
-		return wasmPath;
+		return MapWorkspaceService.SearchForWasmInDirectoryDomain(Path.Combine(editingDirectory, "bin"));
 	}
 
 	public bool CheckCompiledWasmBinaryExists(string editingDirectory)
@@ -1462,10 +1449,14 @@ public class MapStorageService
 			bool streamHadErrors = false;
 			string resolvedWasiSdk = WasiSdkResolver.ResolveWasiSdkPath();
 			string csprojName = Path.GetFileName(csproj);
-			string configuration = isDebug ? "Debug" : "Release";
+			string configuration = isDebug ? MapWorkspaceService.DebugBuildFlavor : MapWorkspaceService.ReleaseBuildFlavor;
+			string scriptOutputDirectory = MapWorkspaceService.GetScriptOutputDirectory(workspace);
+
+			ClearScriptOutput(workspace, scriptOutputDirectory);
+
 			var compileProcess = new Process();
 			compileProcess.StartInfo.FileName = "dotnet";
-			compileProcess.StartInfo.Arguments = $"publish \"{csprojName}\" -c {configuration} -r wasi-wasm -p:WASI_SDK_PATH=\"{resolvedWasiSdk}\"";
+			compileProcess.StartInfo.Arguments = $"publish \"{csprojName}\" -c {configuration} -r wasi-wasm -o \"{scriptOutputDirectory}\" -p:WASI_SDK_PATH=\"{resolvedWasiSdk}\"";
 			compileProcess.StartInfo.EnvironmentVariables["WASI_SDK_PATH"] = resolvedWasiSdk;
 			compileProcess.StartInfo.WorkingDirectory = workspace;
 			compileProcess.StartInfo.CreateNoWindow = true;
@@ -1501,8 +1492,47 @@ public class MapStorageService
 			compileProcess.BeginErrorReadLine();
 			compileProcess.WaitForExit();
 
-			return (compileProcess.ExitCode == 0 && !streamHadErrors, compileProcess.ExitCode, streamHadErrors);
+			bool succeeded = compileProcess.ExitCode == 0 && !streamHadErrors;
+			if (succeeded) RecordScriptOutput(workspace, scriptOutputDirectory, isDebug);
+
+			return (succeeded, compileProcess.ExitCode, streamHadErrors);
 		});
+	}
+
+	private static void ClearScriptOutput(string workspace, string scriptOutputDirectory)
+	{
+		try
+		{
+			if (Directory.Exists(scriptOutputDirectory)) Directory.Delete(scriptOutputDirectory, true);
+			string legacyBinRoot = Path.Combine(workspace, "bin");
+			if (!Directory.Exists(legacyBinRoot)) return;
+
+			foreach (string strayScript in Directory.GetFiles(legacyBinRoot, "*.wasm", SearchOption.TopDirectoryOnly))
+			{
+				File.Delete(strayScript);
+			}
+		}
+		catch (Exception exception)
+		{
+			GD.PrintErr($"[MapStorageService] Could not clear the previous script output: {exception.Message}");
+		}
+	}
+
+	private static void RecordScriptOutput(string workspace, string scriptOutputDirectory, bool isDebug)
+	{
+		try
+		{
+			MapWorkspaceService.WriteBuildFlavorDomain(workspace, isDebug);
+
+			foreach (string copiedLibraryFile in Directory.GetFiles(scriptOutputDirectory, "Realm.*", SearchOption.TopDirectoryOnly))
+			{
+				File.Delete(copiedLibraryFile);
+			}
+		}
+		catch (Exception exception)
+		{
+			GD.PrintErr($"[MapStorageService] Could not record the script output of '{workspace}': {exception.Message}");
+		}
 	}
 
 	public async Task<string> FetchCurrentUsernameAsync(string pubKeyStr, string seedServerUrl)

@@ -22,6 +22,7 @@ public class MeleeRules
 	public void Initialize()
 	{
 		RegisterMeleeDefinitions();
+		_gameApi.EnablePassiveResourceIncome();
 		InitializePlayerResources();
 		_gameApi.OnUnitCreated += HandleUnitCreated;
 		_gameApi.OnUnitDied += HandleUnitDied;

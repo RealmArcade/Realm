@@ -345,7 +345,6 @@ namespace Realm.Client.UI
 			var editorService = GameContext.EditorService;
 			if (string.IsNullOrEmpty(editorService._editingDirectory) || !Directory.Exists(editorService._editingDirectory)) return;
 
-			editorService.SyncWasmFiles();
 			editorService.UpdateWorkspaceModTime();
 			AutosaveEditorStateIfNeeded();
 		}
@@ -1278,14 +1277,14 @@ namespace Realm.Client.UI
 			return GameContext.EditorService.FindProjectFileDomain(workspace, msg => { _wasmHasErrors = true; SetWasmConsoleStatus("❌ " + msg, new Color(1.0f, 0.3f, 0.3f)); AppendWasmConsoleLog(msg); GD.PrintErr(msg); });
 		}
 
-		private bool TryBypassCompilation(string workspace)
+		private bool TryBypassCompilation(string workspace, bool isDebug)
 		{
-			return GameContext.EditorService.TryBypassCompilationDomain(workspace, FindExistingWasmFile, HasNewerSourceFiles, () => { _wasmHasErrors = false; SetWasmConsoleStatus("✓ WASM Compilation Bypassed (Unchanged)", UIStyle.ColorCyanGlow); AppendWasmConsoleLog("[INFO] .cs files unchanged since last build. Bypassing compilation using existing WASM binary."); });
+			return GameContext.EditorService.TryBypassCompilationDomain(workspace, FindExistingWasmFile, HasNewerSourceFiles, () => { _wasmHasErrors = false; SetWasmConsoleStatus("✓ WASM Compilation Bypassed (Unchanged)", UIStyle.ColorCyanGlow); AppendWasmConsoleLog($"[INFO] The script sources are unchanged since the last {(isDebug ? "debug" : "release")} build. Bypassing compilation using the WASM binary already in bin/script."); }, isDebug);
 		}
 
 		private string FindExistingWasmFile(string workspace)
 		{
-			return MapWorkspaceService.FindExistingWasmFileDomain(workspace, GameContext.EditorService.CurrentSourceFolder);
+			return MapWorkspaceService.FindExistingWasmFileDomain(workspace);
 		}
 
 		private string SearchForWasmInDirectory(string dir)

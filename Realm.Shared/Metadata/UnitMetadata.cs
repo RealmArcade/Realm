@@ -33,6 +33,7 @@ public class UnitMetadata
 	public float MagicResistance { get; set; }
 	public float FlatArmorPenetration { get; set; }
 	public float PercentArmorPenetration { get; set; }
+	public float FlatMagicPenetration { get; set; }
 	public float DamageVariance { get; set; }
 	public string DamageType { get; set; } = "physical";
 	public float CritChance { get; set; }
@@ -65,6 +66,7 @@ public class UnitMetadata
 	public bool IsHero { get; set; }
 	public string[]? Abilities { get; set; }
 	public float XpBounty { get; set; }
+	public float ExperiencePerLevel { get; set; }
 	public string[]? PathingCapabilities { get; set; }
 	public int PathingType { get; set; }
 	public string[]? Targets { get; set; }

@@ -6308,27 +6308,6 @@ public class {mapName} : IMapScript
 		this.LastMetadataSyncTime = GetLastWriteTimeSafe(unitsPath);
 	}
 
-	public void SyncWasmFiles()
-	{
-		try
-		{
-			var wasmPath = Path.Combine(this._editingDirectory, "src", "bin", "Release", "net10.0", "wasi-wasm", "native", "Realm.MapProject.wasm");
-			var wasmDest = Path.Combine(this._editingDirectory, "Map.wasm");
-			if (File.Exists(wasmPath))
-			{
-				var fileInfo = new FileInfo(wasmPath);
-				if (fileInfo.LastWriteTimeUtc.Ticks > this.LastMetadataSyncTime)
-				{
-					File.Copy(wasmPath, wasmDest, true);
-					this.LastMetadataSyncTime = fileInfo.LastWriteTimeUtc.Ticks;
-				}
-			}
-		}
-		catch
-		{
-		}
-	}
-
 	public void UpdateWorkspaceModTime()
 	{
 		try
@@ -6506,7 +6485,7 @@ public class {mapName} : IMapScript
 		return Path.Combine(docsDir, cleanName);
 	}
 
-	public async Task<bool> PerformCompilationStepAsyncDomain(string workspace, Func<string, string> findProjectFile, Func<string, bool> tryBypassCompilation, Func<string, bool> checkMapApiDependency, Func<string, string, bool, Task<bool>> executeDotnetPublishAsync, Action<string> onStatusError, Action<string> onLog, bool isDebug = false)
+	public async Task<bool> PerformCompilationStepAsyncDomain(string workspace, Func<string, string> findProjectFile, Func<string, bool, bool> tryBypassCompilation, Func<string, bool> checkMapApiDependency, Func<string, string, bool, Task<bool>> executeDotnetPublishAsync, Action<string> onStatusError, Action<string> onLog, bool isDebug = false)
 	{
 		try
 		{
@@ -6520,11 +6499,12 @@ public class {mapName} : IMapScript
 			Realm.Client.Services.MapWorkspaceService.EnsureWitFile(workspace);
 			Realm.Client.Services.MapWorkspaceService.EnsureWasmEntryPoint(workspace);
 			Realm.Client.Services.MapWorkspaceService.EnsureCsproj(workspace, Path.GetFileName(workspace));
+			Realm.Client.Services.MapWorkspaceService.EnsureSingleScriptOutput(workspace);
 
 			string csproj = findProjectFile(workspace);
 			if (string.IsNullOrEmpty(csproj)) return false;
 
-			if (!isDebug && tryBypassCompilation(workspace)) return true;
+			if (!isDebug && tryBypassCompilation(workspace, isDebug)) return true;
 
 			if (!checkMapApiDependency(workspace)) return false;
 
@@ -6550,20 +6530,15 @@ public class {mapName} : IMapScript
 		return System.Linq.Enumerable.FirstOrDefault(csprojFiles, f => Path.GetFileName(f).Equals("MapScript.csproj", StringComparison.OrdinalIgnoreCase)) ?? csprojFiles[0];
 	}
 
-	public bool TryBypassCompilationDomain(string workspace, Func<string, string> findExistingWasmFile, Func<string, DateTime, bool> hasNewerSourceFiles, Action onBypassSuccess)
+	public bool TryBypassCompilationDomain(string workspace, Func<string, string> findExistingWasmFile, Func<string, DateTime, bool> hasNewerSourceFiles, Action onBypassSuccess, bool isDebug = false)
 	{
 		string existingWasm = findExistingWasmFile(workspace);
 		if (string.IsNullOrEmpty(existingWasm) || !File.Exists(existingWasm)) return false;
 
+		if (!string.Equals(MapWorkspaceService.ReadBuildFlavorDomain(workspace), isDebug ? MapWorkspaceService.DebugBuildFlavor : MapWorkspaceService.ReleaseBuildFlavor, StringComparison.OrdinalIgnoreCase)) return false;
+
 		DateTime wasmTime = File.GetLastWriteTimeUtc(existingWasm);
 		if (hasNewerSourceFiles(workspace, wasmTime)) return false;
-
-		string targetWasmInTemp = Path.Combine(workspace, "bin", Path.GetFileName(existingWasm));
-		if (!File.Exists(targetWasmInTemp))
-		{
-			Directory.CreateDirectory(Path.GetDirectoryName(targetWasmInTemp));
-			File.Copy(existingWasm, targetWasmInTemp, true);
-		}
 
 		onBypassSuccess();
 		return true;

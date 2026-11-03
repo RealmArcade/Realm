@@ -10,7 +10,6 @@ namespace Realm.Client.UI;
 public partial class MinimapOverlay : Control
 {
 	private static Texture2D? _unitCircleTexture;
-	private static Texture2D? _selectionRingTexture;
 	private static Texture2D? _radarTexture;
 	private static Texture2D? _pingTexture;
 	private const float UnitCircleTextureScale = 32f / 30f;
@@ -21,9 +20,6 @@ public partial class MinimapOverlay : Control
 	private static readonly Color FriendlyColor = new Color(0.2f, 0.6f, 1.0f);
 	private static readonly Color SelfColor = new Color(1f, 1f, 1f);
 	private static readonly Color BuildingOutlineColor = new Color(0f, 0f, 0f, 0.6f);
-	private static readonly Color SelectedSpectatorColor = new Color(1.0f, 1.0f, 1.0f);
-	private static readonly Color SelectedEnemyColor = new Color(0.9f, 0.1f, 0.2f);
-	private static readonly Color SelectedAllyColor = new Color(0.22f, 0.54f, 0.26f);
 
 	public override void _Draw()
 	{
@@ -91,7 +87,6 @@ public partial class MinimapOverlay : Control
 		var drawPos = new Vector2(drawX, drawY);
 
 		DrawUnitIcon(unit, drawPos, circleTexture, usesPlayerColors);
-		DrawSelectionRing(unit, drawPos, unit.IsBuilding ? BuildingSquareEdge : UnitCircleRadius);
 	}
 
 	private static bool IsUsingPlayerColors()
@@ -152,26 +147,6 @@ public partial class MinimapOverlay : Control
 		return MatchPlayerColorAssignment.Get(playerIndex);
 	}
 
-	private void DrawSelectionRing(Unit3D unit, Vector2 drawPos, float iconSize)
-	{
-		if (!unit.IsSelected) return;
-
-		Color selColor;
-		if (GameContext.PerspectiveFilter.IsSpectating)
-		{
-			selColor = SelectedSpectatorColor;
-		}
-		else
-		{
-			bool isEnemy = GameContext.PerspectiveFilter.IsHostileToObserved(unit.Player);
-			selColor = isEnemy ? SelectedEnemyColor : SelectedAllyColor;
-		}
-
-		float ringRadius = iconSize + 2.5f;
-		var ringRect = new Rect2(drawPos.X - ringRadius, drawPos.Y - ringRadius, ringRadius * 2f, ringRadius * 2f);
-		DrawTextureRect(GetSelectionRingTexture(), ringRect, false, selColor);
-	}
-
 	private void DrawActivePings(Vector2 size)
 	{
 		var pingTex = GetPingTexture();
@@ -185,17 +160,6 @@ public partial class MinimapOverlay : Control
 			var pingRect = new Rect2(drawPos.X - radius, drawPos.Y - radius, radius * 2f, radius * 2f);
 			DrawTextureRect(pingTex, pingRect, false, new Color(1f, 0.1f, 0.1f, 0.8f));
 		}
-	}
-
-	public static Texture2D GetSelectionRingTexture()
-	{
-		if (_selectionRingTexture != null && GodotObject.IsInstanceValid(_selectionRingTexture))
-		{
-			return _selectionRingTexture;
-		}
-
-		_selectionRingTexture = GenerateCircleTexture(strokeWidth: 5f, isSolidCore: false);
-		return _selectionRingTexture;
 	}
 
 	private static ImageTexture GenerateCircleTexture(float strokeWidth, bool isSolidCore)
@@ -368,7 +332,6 @@ public partial class MinimapOverlay : Control
 	public static void ClearCache()
 	{
 		_unitCircleTexture = null;
-		_selectionRingTexture = null;
 		_radarTexture = null;
 		_pingTexture = null;
 	}

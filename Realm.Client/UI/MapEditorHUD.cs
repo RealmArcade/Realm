@@ -1360,7 +1360,7 @@ public partial class MapEditorHUD : Control
 
 			if (!TryLocateCompiledWasm(out string wasmPath)) return;
 
-			AppendWasmConsoleLog($"[WASM] Located compiled WASM binary: {Path.GetFileName(wasmPath)}");
+			AppendWasmConsoleLog($"[WASM] Running {Path.GetFileName(wasmPath)} from {Path.GetDirectoryName(wasmPath)} ({MapWorkspaceService.ReadBuildFlavorDomain(GameContext.EditorService._editingDirectory) ?? "unrecorded"} build)");
 
 			await LaunchTestModeEngine();
 		}
@@ -1465,25 +1465,14 @@ public partial class MapEditorHUD : Control
 
 	private bool TryLocateCompiledWasm(out string wasmPath)
 	{
-		string binDir = Path.Combine(GameContext.EditorService._editingDirectory, "bin");
-		wasmPath = null;
-		if (Directory.Exists(binDir))
-		{
-			var wasmFiles = Directory.GetFiles(
-				binDir,
-				"*.wasm",
-				SearchOption.AllDirectories
-			).Where(f => !f.Contains("native") && !f.Contains("obj")).ToList();
+		string editingDirectory = GameContext.EditorService._editingDirectory;
+		wasmPath = MapWorkspaceService.SearchForWasmInDirectoryDomain(Path.Combine(editingDirectory, "bin"));
 
-			wasmPath = wasmFiles.FirstOrDefault(f => f.Contains("publish"))
-			           ?? wasmFiles.OrderByDescending(f => File.GetLastWriteTimeUtc(f)).FirstOrDefault();
-		}
-
-		if (!File.Exists(wasmPath))
+		if (string.IsNullOrEmpty(wasmPath) || !File.Exists(wasmPath))
 		{
 			_wasmHasErrors = true;
 			SetWasmConsoleStatus("❌ WASM Compilation Failed: Output binary missing", new Color(1.0f, 0.3f, 0.3f));
-			AppendWasmConsoleLog($"[ERROR] Could not find compiled WASM in {binDir}. Test mode aborted.");
+			AppendWasmConsoleLog($"[ERROR] Could not find the compiled WASM in {MapWorkspaceService.GetScriptOutputDirectory(editingDirectory)}. Test mode aborted.");
 			return false;
 		}
 

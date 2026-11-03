@@ -336,6 +336,24 @@ public interface IGameAPI
 	void RegisterResourceNodeType(string nodeDefinitionId, string resourceType);
 
 	/// <summary>
+	/// Enables the match's passive resource income, which pays every player gold, wood and stone on a timer.
+	/// Nothing is paid on a timer unless a map asks for it, so a map that awards resources from its own script
+	/// leaves this off and every resource a player holds comes from that script.
+	/// </summary>
+	void EnablePassiveResourceIncome();
+
+	/// <summary>
+	/// Chooses which parts of every unit's overhead plate the match draws: its health bar, its mana bar and its level
+	/// badge. A map that never calls this draws the health bar alone, which is what its metadata declares when it says
+	/// nothing. Every combination is valid: the bars stack when both are on, the badge leads them when the level is on,
+	/// and asking for the level alone draws the badge by itself.
+	/// </summary>
+	/// <param name="healthBar">Whether to draw the health bar, the top bar of the plate.</param>
+	/// <param name="manaBar">Whether to draw the mana bar, which sits under the health bar.</param>
+	/// <param name="levelBadge">Whether to draw the unit's level to the left of the bars.</param>
+	void SetUnitBarVisibility(bool healthBar, bool manaBar, bool levelBadge);
+
+	/// <summary>
 	/// Executes an ability generically by ID on a unit targeting a position.
 	/// </summary>
 	/// <param name="unit">The unit casting the ability.</param>
@@ -2276,6 +2294,23 @@ public interface IGameAPI
 	/// <param name="unit">The unit identifier.</param>
 	/// <param name="value">True to never draw bars for the unit; false to draw them according to the player's settings.</param>
 	void SetUnitHideHealthAndManaBars(UnitId unit, bool value);
+
+	/// <summary>
+	/// Draws a number in a unit's overhead plate, or changes the number and colour it is drawn with.
+	/// </summary>
+	/// <remarks>
+	/// The badge is how a map states a rank on the board itself rather than in a panel: it is drawn in the same plate as
+	/// the health and mana bars, sized like a level, and tinted with the colour given here, so a map can colour it by the
+	/// player, the element or the unit's role. It draws even for a unit that
+	/// <see cref="SetUnitHideHealthAndManaBars"/> hides the bars of, which is what makes a badge for a board square
+	/// possible, and it draws only when the map shows badges at all through <see cref="SetUnitBarVisibility"/>.
+	/// The badge lives on the unit entity, so it follows the unit through element swaps, level changes and swaps of two
+	/// units' places, and it is gone when the entity is destroyed. A value of zero or below hides it.
+	/// </remarks>
+	/// <param name="unit">The unit identifier.</param>
+	/// <param name="value">The number to draw above a zero-hiding threshold, from 1 to 999.</param>
+	/// <param name="color">The tint of the badge, in the same 0-1 channel range as every other colour a map gives.</param>
+	void SetUnitOverheadBadge(UnitId unit, int value, System.Numerics.Vector3 color);
 
 	/// <summary>
 	/// Issues an attack order targeting a specific enemy unit.

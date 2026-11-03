@@ -68,30 +68,129 @@ public static partial class MapWorkspaceService
 		return false;
 	}
 
-	public static string? FindExistingWasmFileDomain(string workspace, string? currentSourceFolder)
+	public const string ScriptOutputDirectoryName = MapFileService.ScriptOutputDirectoryName;
+
+	public const string BuildFlavorFileName = MapFileService.BuildFlavorFileName;
+
+	public const string DebugBuildFlavor = MapFileService.DebugBuildFlavor;
+
+	public const string ReleaseBuildFlavor = MapFileService.ReleaseBuildFlavor;
+
+	public static string GetScriptOutputDirectory(string workspace) => MapFileService.ResolveScriptOutputDirectory(workspace);
+
+	public static string GetBuildFlavorPath(string workspace) => MapFileService.ResolveBuildFlavorPath(workspace);
+
+	public static string? FindExistingWasmFileDomain(string workspace)
 	{
-		string? existingWasm = SearchForWasmInDirectoryDomain(Path.Combine(workspace, "bin"));
-
-		if (string.IsNullOrEmpty(existingWasm) && !string.IsNullOrEmpty(currentSourceFolder) && Directory.Exists(currentSourceFolder))
-		{
-			existingWasm = SearchForWasmInDirectoryDomain(Path.Combine(currentSourceFolder, "bin"));
-		}
-
-		return existingWasm;
+		return SearchForWasmInDirectoryDomain(Path.Combine(workspace, "bin"));
 	}
 
-	public static string? SearchForWasmInDirectoryDomain(string dir)
+	/// <summary>
+	///     Finds the compiled script in the folder a build writes it to, and nowhere else. There is no second location and
+	///     no newest-file guess: a compile overwrites the artifact that was already there, so the one present is the last
+	///     one built.
+	/// </summary>
+	/// <param name="binDirectory">The workspace's <c>bin</c> folder.</param>
+	/// <returns>The compiled script, or nothing when the workspace has never been compiled.</returns>
+	public static string? SearchForWasmInDirectoryDomain(string binDirectory)
 	{
-		if (!Directory.Exists(dir)) return null;
+		string scriptDirectory = Path.Combine(binDirectory, ScriptOutputDirectoryName);
+		if (!Directory.Exists(scriptDirectory)) return null;
 
-		var wasmFiles = Directory.GetFiles(
-			dir,
-			"*.wasm",
-			SearchOption.AllDirectories
-		).Where(f => !f.Contains("native") && !f.Contains("obj")).ToList();
+		return Directory.GetFiles(scriptDirectory, "*.wasm", SearchOption.TopDirectoryOnly).FirstOrDefault();
+	}
 
-		return wasmFiles.FirstOrDefault(f => f.Contains("publish"))
-			   ?? wasmFiles.OrderByDescending(f => File.GetLastWriteTimeUtc(f)).FirstOrDefault();
+	/// <summary>
+	///     Reports which configuration produced the artifact in the script output folder.
+	/// </summary>
+	/// <param name="workspace">The map workspace.</param>
+	/// <returns>The recorded flavor, or nothing when the artifact was not produced by a publish this build recorded.</returns>
+	public static string? ReadBuildFlavorDomain(string workspace)
+	{
+		string flavorPath = GetBuildFlavorPath(workspace);
+		if (!File.Exists(flavorPath)) return null;
+
+		try
+		{
+			return File.ReadAllText(flavorPath).Trim();
+		}
+		catch (IOException)
+		{
+			return null;
+		}
+	}
+
+	public static void WriteBuildFlavorDomain(string workspace, bool isDebug)
+	{
+		string scriptDirectory = GetScriptOutputDirectory(workspace);
+		Directory.CreateDirectory(scriptDirectory);
+		File.WriteAllText(Path.Combine(scriptDirectory, BuildFlavorFileName), isDebug ? DebugBuildFlavor : ReleaseBuildFlavor);
+	}
+
+	/// <summary>
+	///     Brings a workspace that was built before the script had a single output folder onto it: the last compiled
+	///     artifact built under the older per-configuration folders is moved into the script output folder, and the folders
+	///     it came from are removed so nothing can run or ship a second, staler copy.
+	/// </summary>
+	/// <param name="workspace">The map workspace.</param>
+	public static void EnsureSingleScriptOutput(string workspace)
+	{
+		string binDirectory = Path.Combine(workspace, "bin");
+		if (!Directory.Exists(binDirectory)) return;
+
+		string scriptDirectory = GetScriptOutputDirectory(workspace);
+
+		try
+		{
+			if (SearchForWasmInDirectoryDomain(binDirectory) == null)
+			{
+				string? relocated = FindNewestLegacyScript(binDirectory);
+				if (relocated != null)
+				{
+					Directory.CreateDirectory(scriptDirectory);
+					File.Copy(relocated, Path.Combine(scriptDirectory, Path.GetFileName(relocated)), true);
+					GD.Print($"[MapWorkspaceService] Moved the compiled script '{relocated}' into '{scriptDirectory}'.");
+				}
+			}
+
+			foreach (string legacyConfigurationFolder in Directory.GetDirectories(binDirectory, "*", SearchOption.TopDirectoryOnly))
+			{
+				if (string.Equals(Path.GetFileName(legacyConfigurationFolder), ScriptOutputDirectoryName, StringComparison.OrdinalIgnoreCase)) continue;
+				if (!IsBuildConfigurationFolder(Path.GetFileName(legacyConfigurationFolder))) continue;
+
+				Directory.Delete(legacyConfigurationFolder, true);
+			}
+		}
+		catch (Exception exception)
+		{
+			GD.PrintErr($"[MapWorkspaceService] Could not single out the script output folder of '{workspace}': {exception.Message}");
+		}
+	}
+
+	private static string? FindNewestLegacyScript(string binDirectory)
+	{
+		string? newest = null;
+
+		foreach (string configurationFolder in Directory.GetDirectories(binDirectory, "*", SearchOption.TopDirectoryOnly))
+		{
+			if (!IsBuildConfigurationFolder(Path.GetFileName(configurationFolder))) continue;
+
+			foreach (string candidate in Directory.GetFiles(configurationFolder, "*.wasm", SearchOption.AllDirectories))
+			{
+				string normalized = candidate.Replace('\\', '/');
+				if (!normalized.Contains("/publish/", StringComparison.OrdinalIgnoreCase)) continue;
+
+				if (newest == null || File.GetLastWriteTimeUtc(candidate) > File.GetLastWriteTimeUtc(newest)) newest = candidate;
+			}
+		}
+
+		return newest;
+	}
+
+	private static bool IsBuildConfigurationFolder(string directoryName)
+	{
+		return string.Equals(directoryName, DebugBuildFlavor, StringComparison.OrdinalIgnoreCase) ||
+		       string.Equals(directoryName, ReleaseBuildFlavor, StringComparison.OrdinalIgnoreCase);
 	}
 
 	public static void TryReloadGroundTerrainTexturesSafeDomain(Action resetMapAction)

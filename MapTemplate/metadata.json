@@ -30,7 +30,10 @@
     "PlayerSlots": null,
     "Teams": null,
     "Tags": null,
-    "MapType": null
+    "MapType": null,
+    "ShowUnitHealthBar": true,
+    "ShowUnitManaBar": false,
+    "ShowUnitLevel": false
   },
   "Dependencies": [],
   "Templates": {

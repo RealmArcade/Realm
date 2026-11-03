@@ -2954,7 +2954,8 @@ public partial class GameHost : Node3D
 			meta.CritChance, meta.CritMultiplier > 0f ? meta.CritMultiplier : 1f,
 			meta.SplashType, meta.SplashInnerRadius, meta.SplashMediumRadius, meta.SplashOuterRadius,
 			meta.SplashInnerRatio, meta.SplashMediumRatio, meta.SplashOuterRatio, meta.FriendlyFire,
-			meta.PushPriority, !string.IsNullOrEmpty(meta.MovementType) ? meta.MovementType : "Ground"
+			meta.PushPriority, !string.IsNullOrEmpty(meta.MovementType) ? meta.MovementType : "Ground",
+			meta.FlatMagicPenetration
 		);
 	}
 

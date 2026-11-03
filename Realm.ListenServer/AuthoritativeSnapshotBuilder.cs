@@ -289,6 +289,10 @@ public class AuthoritativeSnapshotBuilder
 			entries.Add(new CatalogEntry { Channel = "resource_node_type", Key = nodeType.Key, Value = nodeType.Value });
 		}
 
+		entries.Add(new CatalogEntry { Channel = "unit_bar", Key = "health", Number = _rules.UnitHealthBarEnabled ? 1f : 0f });
+		entries.Add(new CatalogEntry { Channel = "unit_bar", Key = "mana", Number = _rules.UnitManaBarEnabled ? 1f : 0f });
+		entries.Add(new CatalogEntry { Channel = "unit_bar", Key = "level", Number = _rules.UnitLevelBadgeEnabled ? 1f : 0f });
+
 		TechLevels?.AppendDescription(entries);
 	}
 
@@ -317,6 +321,34 @@ public class AuthoritativeSnapshotBuilder
 	}
 
 	private readonly List<(int Id, string Text)> _stringTableEntries = new();
+
+	/// <summary>
+	///     Describes the text a text-list payload names in the same snapshot that describes the payload itself.
+	/// </summary>
+	/// <remarks>
+	///     The incremental text table only tells a peer about text registered since its cursor, and the cursor advances on
+	///     the snapshot that carries those entries. A payload whose text was registered long before it — an ability list a
+	///     unit type only ever fields when it is first spawned, for instance — therefore arrives with handles this peer has
+	///     never been given the text for, and every slot renders as a blank named slot until the next baseline. Pairing the
+	///     two makes the payload carry its own text, so a payload arriving is enough to render it.
+	/// </remarks>
+	private void AppendTextBehindPayload(WorldSnapshot snapshot, int handle)
+	{
+		int textCount = ContentIdStore.GetTextListCount(handle);
+		for (int index = 0; index < textCount; index++)
+		{
+			int textId = ContentIdStore.GetTextListItemId(handle, index);
+			if (textId == 0) continue;
+			if (!StringRegistry.TryGetText(textId, out string text) || string.IsNullOrEmpty(text)) continue;
+
+			snapshot.Catalog.Add(new CatalogEntry
+			{
+				Channel = TextChannel,
+				Key = textId.ToString(System.Globalization.CultureInfo.InvariantCulture),
+				Value = text
+			});
+		}
+	}
 
 	private void CollectLootItem(Entity entity, ref GroundLoot loot, ref Position position) => _lootItems.Add((entity, loot, position.Value));
 
@@ -422,6 +454,8 @@ public class AuthoritativeSnapshotBuilder
 	{
 		if (handle == 0 || !state.SentContentIds.Add(handle)) return;
 		if (!ContentIdStore.TryGetPayload(handle, out byte contentKind, out ReadOnlySpan<byte> payload)) return;
+
+		AppendTextBehindPayload(snapshot, handle);
 
 		snapshot.ColdPayloads.Add(new ColdPayloadDelta
 		{

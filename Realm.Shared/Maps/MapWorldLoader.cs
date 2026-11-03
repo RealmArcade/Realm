@@ -97,6 +97,7 @@ public static class MapWorldLoader
 		{
 			MapCombatTuning.Apply(simulation, metadata, loaded.Warnings);
 			catalog.BindTo(simulation.MapRules);
+			ApplyUnitBarVisibility(simulation.MapRules, metadata.MapProperties);
 
 			DetermineGridSize(metadata, saveData, out int width, out int depth);
 			loaded.Width = width;
@@ -127,6 +128,14 @@ public static class MapWorldLoader
 
 		SpawnPlayers(loaded, roster);
 		SpawnPlacedUnits(loaded);
+	}
+
+	private static void ApplyUnitBarVisibility(MapRulesCatalog rules, MapInfoMetadata? properties)
+	{
+		rules.SetUnitBarVisibility(
+			properties?.ShowUnitHealthBar ?? true,
+			properties?.ShowUnitManaBar ?? false,
+			properties?.ShowUnitLevel ?? false);
 	}
 
 	public static void DetermineGridSize(MapMetadata? metadata, MapSaveData? saveData, out int width, out int depth)

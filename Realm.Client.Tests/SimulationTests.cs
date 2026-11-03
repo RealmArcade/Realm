@@ -156,7 +156,7 @@ public partial class SimulationTests
 		}
 
 		string chaosArenaDir = @"c:\temp\ugc-ChaosArena";
-		string wasmPath = Path.Combine(chaosArenaDir, "bin", "Release", "net10.0", "wasi-wasm", "publish", "MapScript.wasm");
+		string wasmPath = Path.Combine(chaosArenaDir, "bin", Realm.Shared.Services.MapFileService.ScriptOutputDirectoryName, "MapScript.wasm");
 
 		GameContext.Lobby.IsSinglePlayer = true;
 		PropertyInfo isHostProp = typeof(LobbyManager).GetProperty("IsHost", BindingFlags.Public | BindingFlags.Instance);

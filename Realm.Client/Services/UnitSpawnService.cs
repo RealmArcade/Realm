@@ -114,7 +114,8 @@ public class UnitSpawnService
 				regMeta.CritChance, regMeta.CritMultiplier > 0f ? regMeta.CritMultiplier : 1f,
 				regMeta.SplashType, regMeta.SplashInnerRadius, regMeta.SplashMediumRadius, regMeta.SplashOuterRadius,
 				regMeta.SplashInnerRatio, regMeta.SplashMediumRatio, regMeta.SplashOuterRatio, regMeta.FriendlyFire,
-				regMeta.PushPriority, !string.IsNullOrEmpty(regMeta.MovementType) ? regMeta.MovementType : "Ground"
+				regMeta.PushPriority, !string.IsNullOrEmpty(regMeta.MovementType) ? regMeta.MovementType : "Ground",
+				regMeta.FlatMagicPenetration
 			);
 			
 			if (regMeta.Abilities != null && regMeta.Abilities.Length > 0)
@@ -158,14 +159,14 @@ public class UnitSpawnService
 		float damageVariance = 0f, string damageType = "physical", float critChance = 0f, float critMultiplier = 1f,
 		string splashTypeStr = "None", float splashInnerRadius = 0f, float splashMediumRadius = 0f, float splashOuterRadius = 0f,
 		float splashInnerRatio = 1f, float splashMediumRatio = 0.5f, float splashOuterRatio = 0.25f, bool friendlyFire = false,
-		int pushPriority = 0, string movementType = "Ground")
+		int pushPriority = 0, string movementType = "Ground", float flatMagicPen = 0f)
 	{
 		Entity entity = UnitEntityFactory.CreateCore(
 			GameContext.World, id, name, hp, damage, range, armor, speed, scanRadius, isHero, attackCooldown, pathingFlags,
 			new System.Numerics.Vector3(pos.X, pos.Y, pos.Z), owner, targets, hpRegen, hpRegenCombatDelay, maxMana, manaRegen,
 			magicResistance, flatArmorPen, percentArmorPen, damageVariance, damageType, critChance, critMultiplier,
 			splashTypeStr, splashInnerRadius, splashMediumRadius, splashOuterRadius, splashInnerRatio, splashMediumRatio,
-			splashOuterRatio, friendlyFire, pushPriority, movementType);
+			splashOuterRatio, friendlyFire, pushPriority, movementType, flatMagicPen);
 
 		AttributeStatCalculator.RecalculateEntityStats(GameContext.World, entity);
 		return entity;

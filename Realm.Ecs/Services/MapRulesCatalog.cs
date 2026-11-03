@@ -18,6 +18,10 @@ public class MapRulesCatalog
 	private readonly List<string> _resourceWorkerUnitKeys = new();
 	private readonly List<string> _primaryBuildingIds = new();
 	private readonly Dictionary<string, string> _resourceTypeByNodeId = new(StringComparer.OrdinalIgnoreCase);
+	private bool _passiveResourceIncomeEnabled;
+	private bool _unitHealthBarEnabled = true;
+	private bool _unitManaBarEnabled;
+	private bool _unitLevelBadgeEnabled;
 
 	/// <summary>
 	///     Answers a building's build options. A building that trains a resource worker counts as a delivery point even
@@ -33,6 +37,44 @@ public class MapRulesCatalog
 	public IReadOnlyList<string> ResourceWorkerUnitKeys => _resourceWorkerUnitKeys;
 	public IReadOnlyList<string> PrimaryBuildingIds => _primaryBuildingIds;
 	public IReadOnlyDictionary<string, string> ResourceNodeTypes => _resourceTypeByNodeId;
+
+	/// <summary>
+	///     Whether the match pays its players resources on a timer. Nothing is paid unless a map's rules asked for it,
+	///     so a map that hands out its own resources pays exactly what its own script pays.
+	/// </summary>
+	public bool PassiveResourceIncomeEnabled => _passiveResourceIncomeEnabled;
+
+	/// <summary>
+	///     Whether the match draws each unit's health bar, which is the top bar of its overhead plate. It is on unless
+	///     a map says otherwise.
+	/// </summary>
+	public bool UnitHealthBarEnabled => _unitHealthBarEnabled;
+
+	/// <summary>
+	///     Whether the match draws each unit's mana bar, which sits under the health bar. It is off unless a map asks
+	///     for it, because most units carry no mana worth showing.
+	/// </summary>
+	public bool UnitManaBarEnabled => _unitManaBarEnabled;
+
+	/// <summary>Whether the match draws the overhead badge a script gives a unit, which sits left of the bars. It is off by default.</summary>
+	public bool UnitLevelBadgeEnabled => _unitLevelBadgeEnabled;
+
+	public void EnablePassiveResourceIncome()
+	{
+		_passiveResourceIncomeEnabled = true;
+	}
+
+	/// <summary>
+	///     Chooses which parts of a unit's overhead plate the match draws. Any combination is a valid plate: the bars
+	///     stack when both bars are on, the badge leads them when the level is on, and a map that shows the level alone
+	///     gets the badge on its own.
+	/// </summary>
+	public void SetUnitBarVisibility(bool healthBar, bool manaBar, bool levelBadge)
+	{
+		_unitHealthBarEnabled = healthBar;
+		_unitManaBarEnabled = manaBar;
+		_unitLevelBadgeEnabled = levelBadge;
+	}
 
 	public void RegisterPlacementRadius(string definitionKey, float radius)
 	{
@@ -141,6 +183,21 @@ public class MapRulesCatalog
 				break;
 			case "resource_node_type":
 				if (!_resourceTypeByNodeId.ContainsKey(key)) _resourceTypeByNodeId[key] = value;
+				break;
+			case "unit_bar":
+				switch (key)
+				{
+					case "health":
+						_unitHealthBarEnabled = number != 0f;
+						break;
+					case "mana":
+						_unitManaBarEnabled = number != 0f;
+						break;
+					case "level":
+						_unitLevelBadgeEnabled = number != 0f;
+						break;
+				}
+
 				break;
 		}
 	}

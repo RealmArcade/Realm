@@ -1,3 +1,5 @@
 bin/
 obj/
 *.jit.elf
+realm_lldb.py
+*.pdb

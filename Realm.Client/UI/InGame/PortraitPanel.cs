@@ -18,7 +18,7 @@ public class PortraitPanel
 	private HBoxContainer _unitsContainer;
 	private List<Button> _unitButtons;
 	private HBoxContainer _statsContainer;
-	private Label _statsLabel;
+	private UnitStatsPanel _unitStatsPanel;
 	private VBoxContainer _productionBox;
 	private Label _productionTitle;
 	private ProgressBar _productionProgress;
@@ -43,15 +43,6 @@ public class PortraitPanel
 	private Entity _lastSingleEntity = Entity.Null;
 	private string _lastSingleName;
 	private string _lastSingleUnitId;
-	private float _lastSingleHp = -1f;
-	private float _lastSingleMaxHp = -1f;
-	private float _lastSingleDamage = -1f;
-	private float _lastSingleRange = -1f;
-	private float _lastSingleDps = -1f;
-	private float _lastSingleArmor = -1f;
-	private float _lastSingleSpeed = -1f;
-	private string _lastSingleStateText;
-	private string _lastSingleDescription;
 
 	private Entity _lastPropEntity = Entity.Null;
 	private string _lastPropId;
@@ -66,7 +57,7 @@ public class PortraitPanel
 
 	public PortraitPanel(PanelContainer portraitFrame, PanelContainer selectionFrame,
 		HBoxContainer unitsContainer, List<Button> unitButtons, HBoxContainer statsContainer,
-		Label statsLabel,
+		UnitStatsPanel unitStatsPanel,
 		VBoxContainer productionBox, Label productionTitle, ProgressBar productionProgress,
 		Label productionQueueLabel, HBoxContainer queueSlotsContainer, Label armyCompositionLabel,
 		Label unitNameLabel, TextureRect portraitTexture)
@@ -76,7 +67,7 @@ public class PortraitPanel
 		_unitsContainer = unitsContainer;
 		_unitButtons = unitButtons;
 		_statsContainer = statsContainer;
-		_statsLabel = statsLabel;
+		_unitStatsPanel = unitStatsPanel;
 		_productionBox = productionBox;
 		_productionTitle = productionTitle;
 		_productionProgress = productionProgress;
@@ -217,7 +208,7 @@ public class PortraitPanel
 				_portraitTexture.Texture = RtexIconLoader.Load(iconPath);
 			}
 
-			_statsLabel.Text = $"{TranslationServer.Translate("REMAINING")}: {remainingAmount:F0}";
+			_unitStatsPanel.ShowMessage($"{TranslationServer.Translate("REMAINING")}: {remainingAmount:F0}");
 			_productionBox.Visible = false;
 		}
 	}
@@ -289,7 +280,7 @@ public class PortraitPanel
 			}
 		}
 
-		UpdateSingleSelectionStatsLabel(info, unitHeaderChanged);
+		_unitStatsPanel.UpdateSingleSelection(info, unitHeaderChanged);
 
 		if (info.IsBuilding && !info.IsEnemy && info.HasProduction)
 		{
@@ -304,54 +295,6 @@ public class PortraitPanel
 				_lastProductionQueue.Clear();
 			}
 		}
-	}
-
-	private void UpdateSingleSelectionStatsLabel(SelectedUnitInfo info, bool forceRefresh)
-	{
-		bool statsChanged = forceRefresh
-			|| Math.Abs(info.Health - _lastSingleHp) > 0.1f
-			|| Math.Abs(info.MaxHealth - _lastSingleMaxHp) > 0.1f
-			|| Math.Abs(info.Damage - _lastSingleDamage) > 0.1f
-			|| Math.Abs(info.Range - _lastSingleRange) > 0.1f
-			|| Math.Abs(info.Dps - _lastSingleDps) > 0.1f
-			|| Math.Abs(info.Armor - _lastSingleArmor) > 0.1f
-			|| Math.Abs(info.Speed - _lastSingleSpeed) > 0.1f
-			|| info.StateText != _lastSingleStateText
-			|| info.Description != _lastSingleDescription;
-
-		if (!statsChanged) return;
-
-		_lastSingleHp = info.Health;
-		_lastSingleMaxHp = info.MaxHealth;
-		_lastSingleDamage = info.Damage;
-		_lastSingleRange = info.Range;
-		_lastSingleDps = info.Dps;
-		_lastSingleArmor = info.Armor;
-		_lastSingleSpeed = info.Speed;
-		_lastSingleStateText = info.StateText;
-		_lastSingleDescription = info.Description;
-
-		string statsText = $"{TranslationServer.Translate("HP")}: {info.Health:F0} / {info.MaxHealth:F0}";
-		if (info.Damage > 0)
-		{
-			string label = TranslationServer.Translate("ATK");
-			statsText += $"   {label}: {info.Damage:F0}   {TranslationServer.Translate("RNG")}: {info.Range:F0}";
-			if (info.Dps > 0)
-			{
-				statsText += $"   {TranslationServer.Translate("DPS")}: {info.Dps:F1}";
-			}
-		}
-
-		statsText += $"\n{TranslationServer.Translate("Armor")}: {info.Armor:F0}";
-		if (info.Speed > 0) statsText += $"   {TranslationServer.Translate("Speed")}: {info.Speed:F0}";
-
-		statsText += $"\n{info.StateText}";
-		if (!string.IsNullOrEmpty(info.Description))
-		{
-			statsText += $"\n\n{TooltipTemplate.Resolve(TranslationServer.Translate(info.Description), TooltipContext.ForUnit(info.Entity))}";
-		}
-
-		_statsLabel.Text = statsText;
 	}
 
 	private void UpdateProductionBox(SelectedUnitInfo info)
