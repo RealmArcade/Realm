@@ -34,6 +34,10 @@ public static class AccountErrorCodes
 
 	public const string CredentialsInvalid = "credentials_invalid";
 
+	public const string StepUpRequired = "step_up_required";
+
+	public const string StepUpUnavailable = "step_up_unavailable";
+
 	public const string PasswordTooShort = "password_too_short";
 
 	public const string Throttled = "auth_throttled";

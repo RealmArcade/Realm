@@ -220,7 +220,7 @@ public partial class EditorService : IEditorAPI
 
 	public async Task<string> RegisterCreatorAsync(string username, string pubKeyStr, Key key)
 	{
-		byte[] payloadBytes = Encoding.UTF8.GetBytes(username + ":" + pubKeyStr);
+		byte[] payloadBytes = Encoding.UTF8.GetBytes(CreatorRegistrationProof.BuildPayload(username, pubKeyStr, null, null));
 		byte[] sigBytes = SignatureAlgorithm.Ed25519.Sign(key, payloadBytes);
 		string signatureStr = Convert.ToBase64String(sigBytes);
 

@@ -43,7 +43,9 @@ public enum AccountMutationOutcome
 
 	AdminProofStale = 14,
 
-	AdminProofReplayed = 15
+	AdminProofReplayed = 15,
+
+	StepUpUnavailable = 16
 }
 
 public class AccountMutationResult
@@ -477,14 +479,16 @@ public class AccountStoreService
 
 	public AccountSessionDto IssueSession(AccountRecord account)
 	{
+		DateTime now = DateTime.UtcNow;
 		string token = CreateSessionToken();
 		string tokenHash = HashSessionToken(token);
-		DateTime expiresAt = DateTime.UtcNow.AddHours(_options.SessionLifetimeHours);
+		DateTime? expiresAt = _options.SessionLifetimeHours == 0 ? null : now.AddHours(_options.SessionLifetimeHours);
 		_dataStore.Upsert(SessionsCollection, tokenHash, new AccountSessionRecord
 		{
 			TokenHash = tokenHash,
 			AccountId = account.AccountId,
-			CreatedAtUtc = DateTime.UtcNow,
+			CreatedAtUtc = now,
+			AuthenticatedAtUtc = now,
 			ExpiresAtUtc = expiresAt
 		});
 
@@ -501,23 +505,80 @@ public class AccountStoreService
 		session = null;
 		refusal = AccountMutationOutcome.SessionInvalid;
 
-		if (string.IsNullOrWhiteSpace(token)) return false;
+		if (!TryReadSessionRecord(token, out AccountSessionRecord? record, out _) || record == null) return false;
 
-		string tokenHash = HashSessionToken(token.Trim());
-		AccountSessionRecord? record = _dataStore.Get<AccountSessionRecord>(SessionsCollection, tokenHash);
-		if (record == null || record.RevokedAtUtc != null) return false;
+		AccountRecord? found = _dataStore.Get<AccountRecord>(AccountsCollection, record.AccountId.ToString());
+		if (found == null) return false;
 
-		if (record.ExpiresAtUtc <= DateTime.UtcNow)
+		account = found;
+		session = BuildSessionDto(token!.Trim(), found, record.ExpiresAtUtc);
+		return true;
+	}
+
+	/// <summary>
+	///     Whether the session behind this token was proved recently enough for a change that outlives it.
+	/// </summary>
+	public bool HasRecentCredentialProof(string? token)
+	{
+		if (!TryReadSessionRecord(token, out AccountSessionRecord? record, out _) || record == null) return false;
+		return record.AuthenticatedAtUtc.AddMinutes(_options.SensitiveActionWindowMinutes) > DateTime.UtcNow;
+	}
+
+	/// <summary>
+	///     Records that the holder of this session entered the password for the account it belongs to, so a following sensitive
+	///     action does not have to ask again inside the window. The session token is not replaced.
+	/// </summary>
+	public AccountMutationResult ConfirmPassword(string? token, string? password, string? sourceKey)
+	{
+		if (!IsAuthority) return NotAuthority();
+
+		if (!TryReadSessionRecord(token, out AccountSessionRecord? record, out string tokenHash) || record == null)
 		{
-			refusal = AccountMutationOutcome.SessionInvalid;
-			return false;
+			return AccountMutationResult.Refused(AccountMutationOutcome.SessionInvalid, "The session is no longer valid.");
 		}
 
-		account = _dataStore.Get<AccountRecord>(AccountsCollection, record.AccountId.ToString());
-		if (account == null) return false;
+		AccountRecord? account = FindAccount(record.AccountId);
+		if (account == null) return AccountMutationResult.Refused(AccountMutationOutcome.AccountNotFound, "That account no longer exists.");
 
-		session = BuildSessionDto(token.Trim(), account, record.ExpiresAtUtc);
-		return true;
+		AccountCredentialRecord? credential = FindBasicAuthCredential(account);
+		if (credential == null)
+		{
+			return AccountMutationResult.Refused(AccountMutationOutcome.StepUpUnavailable, "This account has no password to confirm. Sign in with its provider again instead.");
+		}
+
+		string throttleKey = $"confirm|{account.AccountId}|{sourceKey ?? "unknown"}";
+		if (IsThrottled(throttleKey)) return AccountMutationResult.Refused(AccountMutationOutcome.Throttled, "Too many failed confirmations. Try again later.");
+
+		if (string.IsNullOrEmpty(password) || !ScryptPasswordHasher.Verify(password, credential.PasswordHash))
+		{
+			RecordFailure(throttleKey);
+			return AccountMutationResult.Refused(AccountMutationOutcome.CredentialsInvalid, "The password is incorrect.");
+		}
+
+		DateTime now = DateTime.UtcNow;
+		ClearFailures(throttleKey);
+
+		credential.LastVerifiedAtUtc = now;
+		_dataStore.Upsert(CredentialsCollection, credential.CredentialId, credential);
+
+		record.AuthenticatedAtUtc = now;
+		_dataStore.Upsert(SessionsCollection, tokenHash, record);
+
+		return AccountMutationResult.Success(account, BuildSessionDto(token!.Trim(), account, record.ExpiresAtUtc));
+	}
+
+	private bool TryReadSessionRecord(string? token, out AccountSessionRecord? record, out string tokenHash)
+	{
+		record = null;
+		tokenHash = string.Empty;
+
+		if (string.IsNullOrWhiteSpace(token)) return false;
+
+		tokenHash = HashSessionToken(token.Trim());
+		record = _dataStore.Get<AccountSessionRecord>(SessionsCollection, tokenHash);
+		if (record == null || record.RevokedAtUtc != null) return false;
+
+		return !record.ExpiresAtUtc.HasValue || record.ExpiresAtUtc.Value > DateTime.UtcNow;
 	}
 
 	public bool RevokeSession(string? token)
@@ -609,7 +670,7 @@ public class AccountStoreService
 		return AccountMutationResult.Refused(AccountMutationOutcome.CredentialsInvalid, "The display name or password is incorrect.");
 	}
 
-	private static AccountSessionDto BuildSessionDto(string token, AccountRecord account, DateTime expiresAt)
+	private static AccountSessionDto BuildSessionDto(string token, AccountRecord account, DateTime? expiresAt)
 	{
 		return new AccountSessionDto
 		{

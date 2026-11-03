@@ -7,10 +7,13 @@ namespace Realm.Client.Services;
 /// <summary>
 ///     Owns the one Steamworks context this process ever has. Every account feature works without it, so a build that is not
 ///     launched by Steam, a machine without the Steam client and a development run that has no native library all continue
-///     with <see cref="IsAvailable" /> false instead of failing.
+///     with <see cref="IsAvailable" /> false instead of failing. While it is false, Steam is not offered as a sign-in provider at
+///     all, because the only identity the browser hand-off could link is one this process cannot confirm it is playing on.
 /// </summary>
 public class SteamService
 {
+	private const string NativeLibraryName = "steam_api64";
+
 	private bool _initialized;
 
 	private bool _stopped;
@@ -42,10 +45,25 @@ public class SteamService
 			_initialized = true;
 			GD.Print($"[Steam] running as application {SteamUtils.GetAppID().m_AppId}");
 		}
+		catch (Exception exception) when (IsMissingNativeLibrary(exception))
+		{
+			GD.Print($"[Steam] {NativeLibraryName} is not shipped with this build, so Steamworks stays off and Steam is not offered as a sign-in provider");
+		}
 		catch (Exception exception)
 		{
 			GD.PrintErr($"[Steam] Steamworks is not usable in this build: {exception.Message}");
 		}
+	}
+
+	/// <summary>
+	///     Whether this process failed because the native library is not there, which is an ordinary property of a build that does
+	///     not ship Steamworks rather than something that went wrong. The check runs on the call itself instead of on a probe of its
+	///     own, because only the loader that the P/Invoke uses knows where it looks.
+	/// </summary>
+	private static bool IsMissingNativeLibrary(Exception exception)
+	{
+		return exception is DllNotFoundException
+		       || (exception is TypeInitializationException && exception.InnerException is DllNotFoundException);
 	}
 
 	public void Pump()

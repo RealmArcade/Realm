@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Net.Http;
-using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -41,8 +40,9 @@ public class SteamOpenIdService
 	}
 
 	/// <summary>
-	///     Verifies the assertion Steam redirected back with and returns the SteamID64, with the persona name when the API key
-	///     lets it be read for prefill purposes. The persona name is never stored or used as identity.
+	///     Verifies the assertion Steam redirected back with and returns the SteamID64. Steam's provider answers with the claimed
+	///     id and nothing else, so no display name is offered: a Steam build prefills the registration form with the persona name
+	///     Steamworks already holds locally.
 	/// </summary>
 	public async Task<ProviderIdentity?> VerifyAssertionAsync(IReadOnlyDictionary<string, string> assertion, AuthFlowRecord flow, CancellationToken cancellationToken)
 	{
@@ -68,33 +68,6 @@ public class SteamOpenIdService
 		string body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
 		if (!body.Contains("is_valid:true", StringComparison.Ordinal)) return null;
 
-		string personaName = await ReadPersonaNameAsync(client, steamId64, cancellationToken).ConfigureAwait(false) ?? string.Empty;
-		return new ProviderIdentity(steamId64, personaName);
-	}
-
-	private async Task<string?> ReadPersonaNameAsync(HttpClient client, string steamId64, CancellationToken cancellationToken)
-	{
-		if (string.IsNullOrEmpty(_options.Steam.WebApiKey)) return null;
-
-		string url = "https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v2/"
-		             + $"?key={Uri.EscapeDataString(_options.Steam.WebApiKey)}"
-		             + $"&steamids={Uri.EscapeDataString(steamId64)}";
-
-		try
-		{
-			string json = await client.GetStringAsync(url, cancellationToken).ConfigureAwait(false);
-			using JsonDocument document = JsonDocument.Parse(json);
-			if (!document.RootElement.TryGetProperty("response", out JsonElement response)) return null;
-			if (!response.TryGetProperty("players", out JsonElement players) || players.ValueKind != JsonValueKind.Array || players.GetArrayLength() == 0) return null;
-			return players[0].TryGetProperty("personaname", out JsonElement name) ? name.GetString() : null;
-		}
-		catch (HttpRequestException)
-		{
-			return null;
-		}
-		catch (JsonException)
-		{
-			return null;
-		}
+		return new ProviderIdentity(steamId64, string.Empty);
 	}
 }

@@ -16,7 +16,18 @@ public class AccountAuthorityOptions
 
 	public string AuthorityUrl { get; init; } = string.Empty;
 
-	public int SessionLifetimeHours { get; init; } = 720;
+	/// <summary>
+	///     How long a session stays accepted, or <c>0</c> for a session that never expires. A player is signed in until they sign
+	///     out or the authority revokes the session, and every action that outlives the sign-in asks for the credentials again.
+	/// </summary>
+	public int SessionLifetimeHours { get; init; }
+
+	/// <summary>
+	///     How recently the account holder must have proved their credentials for a change that outlives the session, such as a
+	///     rename or a provider link. It is never zero: the proof is entered before the change it unlocks, so a window that
+	///     accepted nothing would make every such change impossible.
+	/// </summary>
+	public int SensitiveActionWindowMinutes { get; init; } = 15;
 
 	public int ProviderFlowTimeoutSeconds { get; init; } = 600;
 
@@ -28,11 +39,14 @@ public class AccountAuthorityOptions
 
 	public SteamProviderOptions Steam { get; init; } = new();
 
-	public static AccountAuthorityOptions FromConfiguration(IConfiguration configuration, string? selfUrl)
+	public static AccountAuthorityOptions FromConfiguration(IConfiguration configuration, string? selfUrl, bool hasConfiguredPeers)
 	{
 		string authorityUrl = configuration.GetValue<string>("AccountAuthorityUrl")?.Trim() ?? string.Empty;
 		bool? declaredAuthority = configuration.GetValue<bool?>("AccountAuthority");
-		bool isAuthority = declaredAuthority ?? (authorityUrl.Length == 0 || IsSameNode(authorityUrl, selfUrl));
+
+		// Being the authority is never inferred on a node that declares peers: two nodes that each guessed they own account
+		// writes would fork DisplayName uniqueness. A single standalone node keeps working without any setting.
+		bool isAuthority = declaredAuthority ?? (!hasConfiguredPeers && (authorityUrl.Length == 0 || IsSameNode(authorityUrl, selfUrl)));
 
 		var authorityPublicKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 		foreach (string key in configuration.GetSection("AccountAuthorityPublicKeys").Get<List<string>>() ?? new List<string>())
@@ -44,7 +58,8 @@ public class AccountAuthorityOptions
 		{
 			IsAuthority = isAuthority,
 			AuthorityUrl = authorityUrl,
-			SessionLifetimeHours = Math.Clamp(configuration.GetValue<int?>("AccountSessionLifetimeHours") ?? 720, 1, 24 * 365),
+			SessionLifetimeHours = Math.Clamp(configuration.GetValue<int?>("AccountSessionLifetimeHours") ?? 0, 0, 24 * 365),
+			SensitiveActionWindowMinutes = Math.Clamp(configuration.GetValue<int?>("AccountSensitiveActionWindowMinutes") ?? 15, 1, 24 * 60),
 			ProviderFlowTimeoutSeconds = Math.Clamp(configuration.GetValue<int?>("AccountProviderFlowTimeoutSeconds") ?? 600, 60, 3600),
 			SigningPrivateKeyBase64 = configuration.GetValue<string>("AccountAuthoritySigningPrivateKey")?.Trim() ?? string.Empty,
 			AuthorityPublicKeys = authorityPublicKeys,
@@ -56,7 +71,6 @@ public class AccountAuthorityOptions
 			},
 			Steam = new SteamProviderOptions
 			{
-				WebApiKey = configuration.GetValue<string>("Steam:WebApiKey")?.Trim() ?? string.Empty,
 				Realm = configuration.GetValue<string>("Steam:Realm")?.Trim() ?? string.Empty,
 				ReturnUrl = configuration.GetValue<string>("Steam:ReturnUrl")?.Trim() ?? string.Empty
 			}
@@ -90,8 +104,6 @@ public class DiscordProviderOptions
 
 public class SteamProviderOptions
 {
-	public string WebApiKey { get; init; } = string.Empty;
-
 	public string Realm { get; init; } = string.Empty;
 
 	public string ReturnUrl { get; init; } = string.Empty;
@@ -99,8 +111,8 @@ public class SteamProviderOptions
 	public bool IsConfigured => Realm.Length > 0 && ReturnUrl.Length > 0;
 
 	/// <summary>
-	///     The settings a Steam sign-in cannot run without. <c>WebApiKey</c> is not among them: it only prefills the registration
-	///     form with the player's current persona name, and the identity comes from the verified assertion.
+	///     The settings a Steam sign-in cannot run without. There is no API key among them: Steam's OpenID provider returns the
+	///     SteamID64 and no profile data, and the player's own Steamworks persona name is what prefills the registration form.
 	/// </summary>
 	public IEnumerable<string> MissingSettings()
 	{

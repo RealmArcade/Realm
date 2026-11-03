@@ -31,7 +31,11 @@ public class AccountSessionDto
 
 	public string[] LinkedProviders { get; set; } = Array.Empty<string>();
 
-	public DateTime ExpiresAtUtc { get; set; }
+	/// <summary>
+	///     When the session stops being accepted, or <c>null</c> when it stays valid until it is revoked. A client that holds one
+	///     keeps it across launches, so a null expiry is what an ordinary player sees: signed in until they sign out.
+	/// </summary>
+	public DateTime? ExpiresAtUtc { get; set; }
 }
 
 public class AccountErrorDto
@@ -63,6 +67,15 @@ public class LoginBasicAuthRequest
 public class RenameAccountRequest
 {
 	public string DisplayName { get; set; } = string.Empty;
+}
+
+/// <summary>
+///     The password behind an account that is already signed in. Confirming it never replaces the session: it only records that
+///     the account holder was present, which is what an action that outlives the sign-in is allowed to ask for.
+/// </summary>
+public class PasswordConfirmationRequest
+{
+	public string Password { get; set; } = string.Empty;
 }
 
 /// <summary>

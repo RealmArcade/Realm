@@ -1599,7 +1599,7 @@ public static class Program
 	{
 		string serverUrl = !string.IsNullOrWhiteSpace(options.Server) ? options.Server : ServersConfigHelper.GetDefaultServerUrl();
 		string username = !string.IsNullOrWhiteSpace(options.Username) ? options.Username.Trim() : "Creator_" + Guid.NewGuid().ToString("N")[..6];
-		string payload = $"{username}:{publicKeyBase64}";
+		string payload = CreatorRegistrationProof.BuildPayload(username, publicKeyBase64, null, null);
 		string signature = AuthorSignatureHelper.SignMessage(privateKeyBase64, payload);
 
 		Console.WriteLine($"Registering username '{username}' with {serverUrl}...");

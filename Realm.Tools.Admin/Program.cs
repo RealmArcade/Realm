@@ -586,7 +586,7 @@ public static class Program
 		string? targetKey = ParsePublicKeyFromFile(options.TargetKey);
 		if (string.IsNullOrWhiteSpace(targetKey)) return 1;
 
-		string signature = keyPair.CreateSignature($"{username}:{targetKey}");
+		string signature = keyPair.CreateSignature(CreatorRegistrationProof.BuildPayload(username, targetKey, null, null));
 
 		Console.WriteLine("=================================================");
 		Console.WriteLine("Realm Admin Tool - Unlock / Reassign Creator Name");
@@ -634,9 +634,13 @@ public static class Program
 	private static int ExecuteInfo(AdminInfoOptions options)
 	{
 		string serverUrl = ResolveServerUrl(options.Server);
+		using var keyPair = ParseAdminKey(options.Key);
+		if (keyPair == null) return 1;
+
 		try
 		{
 			using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+			httpClient.DefaultRequestHeaders.Add(AdminBypassAuth.BypassTokenHeaderName, keyPair.CreateBypassToken("admin", "info"));
 			var response = httpClient.GetAsync($"{serverUrl.TrimEnd('/')}/api/admin/info").GetAwaiter().GetResult();
 			string json = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
 

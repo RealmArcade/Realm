@@ -22,6 +22,13 @@ public partial class AccountDialog : Control
 		Account
 	}
 
+	private enum PendingSensitiveAction
+	{
+		None,
+		Rename,
+		LinkProvider
+	}
+
 	private const string DiscordIconPath = "res://Assets/UI/discord_icon.webp";
 	private const string SteamIconPath = "res://Assets/UI/steam_icon.webp";
 
@@ -42,6 +49,9 @@ public partial class AccountDialog : Control
 	private LineEdit _renameEdit;
 	private Button _renameButton;
 	private Button _signOutButton;
+	private VBoxContainer _stepUpBox;
+	private LineEdit _stepUpPasswordEdit;
+	private Button _stepUpButton;
 	private Button _discordButton;
 	private Button _steamButton;
 	private Button _linkDiscordButton;
@@ -51,6 +61,8 @@ public partial class AccountDialog : Control
 
 	private string _registrationTicket = string.Empty;
 	private string _providerSuggestedNameErrorCode = string.Empty;
+	private PendingSensitiveAction _pendingAction = PendingSensitiveAction.None;
+	private string _pendingProvider = string.Empty;
 
 	public Action? SignedIn { get; set; }
 
@@ -80,6 +92,8 @@ public partial class AccountDialog : Control
 		RefreshMode();
 		RefreshAccount();
 		_ = LoadProvidersAsync();
+
+		if (GameContext.Account.IsSignedIn) _ = GameContext.Account.RefreshAsync();
 	}
 
 	private void BuildLayout()
@@ -150,6 +164,16 @@ public partial class AccountDialog : Control
 
 		_signOutButton = CreateActionButton(_accountBox, "SIGN OUT");
 		_signOutButton.Pressed += () => _ = SignOutAsync();
+
+		_stepUpBox = new VBoxContainer { Name = "AccountDialogStepUp" };
+		_stepUpBox.AddThemeConstantOverride("separation", 8);
+		_accountBox.AddChild(_stepUpBox);
+
+		_stepUpPasswordEdit = CreateField(_stepUpBox, "ConfirmPasswordField", TranslationServer.Translate("Password"), out _);
+		_stepUpPasswordEdit.Secret = true;
+
+		_stepUpButton = CreateActionButton(_stepUpBox, "CONFIRM PASSWORD");
+		_stepUpButton.Pressed += () => _ = ConfirmStepUpAsync();
 
 		var loginExplanationLabel = CreateBodyLabel(column, TranslationServer.Translate("Login only required for multi-player. Offline play is supported without login."));
 		loginExplanationLabel.Name = "AccountDialogLoginExplanation";
@@ -278,6 +302,7 @@ public partial class AccountDialog : Control
 	{
 		bool signedIn = GameContext.Account.IsSignedIn;
 		bool choosingName = _mode == DialogMode.ChooseProviderDisplayName;
+		bool steamAvailable = GameContext.Steam.IsAvailable;
 
 		_signInTabButton.Visible = !signedIn;
 		_registerTabButton.Visible = !signedIn;
@@ -287,8 +312,10 @@ public partial class AccountDialog : Control
 		_submitButton.Visible = !signedIn;
 		_accountBox.Visible = signedIn;
 		_providerBox.Visible = !signedIn && !choosingName;
+		_steamButton.Visible = steamAvailable;
 		_linkDiscordButton.Visible = signedIn;
-		_linkSteamButton.Visible = signedIn;
+		_linkSteamButton.Visible = signedIn && steamAvailable;
+		_stepUpBox.Visible = signedIn && _pendingAction != PendingSensitiveAction.None;
 
 		_titleLabel.Text = signedIn
 			? TranslationServer.Translate("ACCOUNT")
@@ -427,6 +454,12 @@ public partial class AccountDialog : Control
 
 		if (!result.Succeeded)
 		{
+			if (linkToCurrentAccount && result.ErrorCode == AccountErrorCodes.StepUpRequired)
+			{
+				RequireStepUp(PendingSensitiveAction.LinkProvider, provider);
+				return;
+			}
+
 			ShowFailure(result);
 			return;
 		}
@@ -444,7 +477,7 @@ public partial class AccountDialog : Control
 				ShowStatus(string.Format(TranslationServer.Translate("Your {0} name cannot be used: {1} Choose a different username."),
 					ProviderLabel(result.Provider), DescribeErrorCode(result.SuggestedDisplayNameErrorCode)), new Color(0.95f, 0.6f, 0.4f));
 			}
-			else
+			else if (result.SuggestedDisplayName.Length > 0)
 			{
 				ShowStatus(TranslationServer.Translate("You can keep the suggested name or choose your own."), UIStyle.ColorGoldDull);
 			}
@@ -470,6 +503,12 @@ public partial class AccountDialog : Control
 
 		if (!result.Succeeded)
 		{
+			if (result.ErrorCode == AccountErrorCodes.StepUpRequired)
+			{
+				RequireStepUp(PendingSensitiveAction.Rename, string.Empty);
+				return;
+			}
+
 			ShowFailure(result);
 			return;
 		}
@@ -479,8 +518,54 @@ public partial class AccountDialog : Control
 		ShowStatus(TranslationServer.Translate("Your username was changed."), new Color(0.55f, 0.95f, 0.55f));
 	}
 
+	private void RequireStepUp(PendingSensitiveAction action, string provider)
+	{
+		_pendingAction = action;
+		_pendingProvider = provider;
+		_stepUpPasswordEdit.Text = string.Empty;
+		RefreshMode();
+		_stepUpPasswordEdit.GrabFocus();
+		ShowStatus(DescribeErrorCode(AccountErrorCodes.StepUpRequired), UIStyle.ColorGoldDull);
+	}
+
+	private async Task ConfirmStepUpAsync()
+	{
+		if (_busy || _pendingAction == PendingSensitiveAction.None) return;
+
+		SetBusy(true);
+		ClearStatus();
+		AccountOperationResult result = await GameContext.Account.ConfirmPasswordAsync(_stepUpPasswordEdit.Text);
+		SetBusy(false);
+		if (!GodotObject.IsInstanceValid(this)) return;
+
+		if (!result.Succeeded)
+		{
+			if (result.ErrorCode == AccountErrorCodes.StepUpUnavailable)
+			{
+				_pendingAction = PendingSensitiveAction.None;
+				_pendingProvider = string.Empty;
+				RefreshMode();
+			}
+
+			ShowFailure(result);
+			return;
+		}
+
+		PendingSensitiveAction action = _pendingAction;
+		string provider = _pendingProvider;
+		_pendingAction = PendingSensitiveAction.None;
+		_pendingProvider = string.Empty;
+		_stepUpPasswordEdit.Text = string.Empty;
+		RefreshMode();
+
+		if (action == PendingSensitiveAction.Rename) await RenameAsync();
+		else if (action == PendingSensitiveAction.LinkProvider) await StartProviderAsync(provider, true);
+	}
+
 	private async Task SignOutAsync()
 	{
+		_pendingAction = PendingSensitiveAction.None;
+		_pendingProvider = string.Empty;
 		SetBusy(true);
 		await GameContext.Account.SignOutAsync();
 		SetBusy(false);
@@ -528,6 +613,10 @@ public partial class AccountDialog : Control
 				return TranslationServer.Translate("That username looks too similar to a name another account already uses.");
 			case AccountErrorCodes.CredentialsInvalid:
 				return TranslationServer.Translate("The username or password is incorrect.");
+			case AccountErrorCodes.StepUpRequired:
+				return TranslationServer.Translate("Confirm your password to continue.");
+			case AccountErrorCodes.StepUpUnavailable:
+				return TranslationServer.Translate("This account has no password. Sign out and sign in again to continue.");
 			case AccountErrorCodes.PasswordTooShort:
 				return TranslationServer.Translate("A password must be at least 8 characters long.");
 			case AccountErrorCodes.Throttled:
@@ -560,6 +649,7 @@ public partial class AccountDialog : Control
 		_steamButton.Disabled = busy;
 		_renameButton.Disabled = busy;
 		_signOutButton.Disabled = busy;
+		_stepUpButton.Disabled = busy;
 	}
 
 	private void ShowStatus(string text, Color color)

@@ -1195,7 +1195,7 @@ public class ClusterEventService
 		if (!ValidateCreatorRequiredFields(username, publicKey, signature))
 			return false;
 
-		if (!VerifyCreatorRegisteredSignature(username, publicKey, signature))
+		if (!VerifyCreatorRegisteredSignature(username, publicKey, payload?.DonationLink, payload?.ContactInfo, signature))
 			return false;
 
 		slug = GetUsernameSlug(username);
@@ -1238,10 +1238,9 @@ public class ClusterEventService
 		}
 	}
 
-	private bool VerifyCreatorRegisteredSignature(string username, string publicKey, string signature)
+	private bool VerifyCreatorRegisteredSignature(string username, string publicKey, string? donationLink, string? contactInfo, string signature)
 	{
-		bool sigValid = AuthorSignatureHelper.VerifySignature(publicKey, $"{username}:{publicKey}", signature)
-		                || AuthorSignatureHelper.VerifySignature(publicKey, username, signature);
+		bool sigValid = CreatorRegistrationProof.Verify(publicKey, username, donationLink, contactInfo, signature);
 
 		if (!sigValid)
 			Console.WriteLine($"[ClusterEventService] Rejected creator_registered event: Invalid signature for {username}");

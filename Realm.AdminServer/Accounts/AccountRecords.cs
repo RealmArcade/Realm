@@ -45,7 +45,8 @@ public class AccountRecord
 
 /// <summary>
 ///     A bearer session as the authority keeps it. The token itself is never stored: the record is keyed by the SHA-256 hash of
-///     the token the client holds, and it carries the account, the expiry and any revocation.
+///     the token the client holds, and it carries the account, an optional expiry, the moment the account holder last proved
+///     themselves, and any revocation.
 /// </summary>
 public class AccountSessionRecord
 {
@@ -55,11 +56,18 @@ public class AccountSessionRecord
 
 	public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
 
-	public DateTime ExpiresAtUtc { get; set; }
+	public DateTime? ExpiresAtUtc { get; set; }
 
 	public DateTime? RevokedAtUtc { get; set; }
 
 	public string? RotatedFromTokenHash { get; set; }
+
+	/// <summary>
+	///     When the credentials behind this session were last proved, either when it was issued or by a later password
+	///     confirmation. A session can outlive the proof, and an action that changes who can reach the account requires one that
+	///     is recent.
+	/// </summary>
+	public DateTime AuthenticatedAtUtc { get; set; } = DateTime.UtcNow;
 }
 
 /// <summary>

@@ -31,7 +31,13 @@ Steam Next Fest appearance possible.
 | Steamworks SDK version | keep `Steamworks.NET` and the native library from the same SDK release |
 
 `steam_api64.dll` is required only at runtime, so a build without it still compiles; the publish workflow refuses to
-produce a Steam build without it.
+produce a Steam build without it. Every build copies it from `ThirdPartyBinaries/` into `Realm.Client/`, which is where
+the engine looks for an unmanaged library in a run from the editor. An exported build looks beside `Realm.exe` instead,
+which is where the publish job puts it. Placing it only in the assembly output folder is not enough: the game starts
+normally and reports Steamworks as unavailable.
+
+The 32-bit `steam_api.dll` and the two `.lib` import libraries are not used by this project: the game ships x64 only, and
+`Steamworks.NET` reaches the library through P/Invoke rather than linking against it.
 
 ## 3. Configure the authority the demo talks to
 
@@ -39,7 +45,8 @@ A Steam player installs the demo, presses Play and must sign in, so the account 
 public and reachable over TLS. Follow `docs/account-setup.md`, then:
 
 1. Set the repository variable `SERVERS_JSON` to the registry list the demo should contain. The publish workflow writes it
-   to `Realm.Client/servers.json`, which is not committed.
+   to `Realm.Client/servers.json`, which is not committed. Include `AccountAuthorityUrl` pointing at the authority so a
+   client bootstrapped from any other node still signs in against the right one.
 2. Confirm `GET /auth/providers` on that authority reports `discord` and/or `steam` as available, and that
    `AccountAuthority` is `true` there.
 3. Set a session lifetime long enough for a play session; sessions are restored on launch and rejected silently when they

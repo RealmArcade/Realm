@@ -36,6 +36,15 @@ builder.Services.AddSingleton(cas);
 var capacityPercent = builder.Configuration.GetValue<int?>("CapacityPercentage") ?? 100;
 var seederId = builder.Configuration.GetValue<string>("SeederId") ?? "seed_node_server";
 
+// A node that serves accounts is usually a small private instance, and the bandwidth that map and asset downloads cost belongs
+// on the community nodes that volunteer for it. This flag lets the same binary decline that traffic instead of being sized for it.
+var servesClientDownloads = builder.Configuration.GetValue<bool?>("ServeClientDownloads") ?? true;
+const string ContentNotServedError = "content_not_served_by_this_node";
+
+Console.WriteLine(servesClientDownloads
+	? "[Distribution] This node serves map and asset downloads to clients."
+	: "[Distribution] This node refuses map and asset download requests; clients take them from the nodes that do serve them.");
+
 var serversConfigFile = builder.Configuration.GetValue<string>("ServersConfigFile");
 var serversConfig = ServersConfigHelper.Load(serversConfigFile);
 
@@ -66,6 +75,8 @@ if (adminKeysList != null)
 	}
 }
 
+Console.WriteLine($"[AdminAuth] {adminPublicKeys.Count} admin public key(s) configured; administrative routes accept only requests signed by one of them.");
+
 builder.Services.AddHttpClient();
 builder.Services.AddSingleton(serversConfig);
 
@@ -94,7 +105,7 @@ var peerRegistry = new PeerRegistry
 };
 builder.Services.AddSingleton(peerRegistry);
 
-var accountAuthorityOptions = AccountAuthorityOptions.FromConfiguration(builder.Configuration, selfUrl);
+var accountAuthorityOptions = AccountAuthorityOptions.FromConfiguration(builder.Configuration, selfUrl, peersStr.Length > 0);
 builder.Services.AddSingleton(accountAuthorityOptions);
 builder.Services.AddSingleton<AccountStoreService>();
 builder.Services.AddSingleton<AuthFlowService>();
@@ -116,10 +127,19 @@ AccountEndpoints.MapAccountEndpoints(app, accountAuthorityOptions, adminPublicKe
 if (accountAuthorityOptions.IsAuthority)
 {
 	Console.WriteLine($"[AccountAuthority] This node owns account and display-name writes. Signing key configured: {(accountAuthorityOptions.SigningPrivateKeyBase64.Length > 0 ? "yes" : "no")}.");
+
+	if (!builder.Configuration.GetValue<bool?>("AccountAuthority").HasValue && peerUrls.Count > 0)
+	{
+		Console.WriteLine("[AccountAuthority] This node inferred that it owns account writes because AccountAuthority is not set, while its server list names other nodes. If another node is the authority, set AccountAuthority to false here and AccountAuthorityUrl to that node.");
+	}
+}
+else if (accountAuthorityOptions.AuthorityUrl.Length > 0)
+{
+	Console.WriteLine($"[AccountAuthority] Account writes belong to {accountAuthorityOptions.AuthorityUrl}; this node will refuse them.");
 }
 else
 {
-	Console.WriteLine($"[AccountAuthority] Account writes belong to {accountAuthorityOptions.AuthorityUrl}; this node will refuse them.");
+	Console.WriteLine("[AccountAuthority] This node is not the account authority and AccountAuthorityUrl is empty, so every account request is refused. Set AccountAuthority to true on exactly one node and AccountAuthorityUrl on the rest.");
 }
 
 
@@ -646,6 +666,13 @@ app.MapMethods("/api/assets/{hash}", new[] { "HEAD" }, (string hash, ContentAddr
 
 app.MapPost("/api/assets/bundle", async (HttpContext context, ContentAddressableStorage cas) =>
 {
+	if (!servesClientDownloads)
+	{
+		context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+		await context.Response.WriteAsJsonAsync(new { Error = ContentNotServedError }, context.RequestAborted);
+		return;
+	}
+
 	var syncIoFeature = context.Features.Get<IHttpBodyControlFeature>();
 	if (syncIoFeature != null)
 	{
@@ -712,6 +739,8 @@ app.MapPost("/api/assets/bundle", async (HttpContext context, ContentAddressable
 
 app.MapGet("/api/assets/{hash}", (string hash, ContentAddressableStorage cas, HttpContext context) =>
 {
+	if (!servesClientDownloads) return Results.Json(new { Error = ContentNotServedError }, statusCode: StatusCodes.Status503ServiceUnavailable);
+
 	string normalized = ContentAddressableStorage.NormalizeBlake3Hash(hash);
 	var bytes = cas.GetAssetBytes(normalized);
 	if (bytes == null) return Results.NotFound();
@@ -1935,8 +1964,7 @@ app.MapPost("/api/creators/register", async (HttpRequest request, RegisterCreato
 	string pubKey = req.PublicKey.Trim();
 	string signature = req.Signature.Trim();
 
-	bool sigValid = AuthorSignatureHelper.VerifySignature(pubKey, $"{username}:{pubKey}", signature)
-	                || AuthorSignatureHelper.VerifySignature(pubKey, username, signature);
+	bool sigValid = CreatorRegistrationProof.Verify(pubKey, username, req.DonationLink, req.ContactInfo, signature);
 
 	if (!sigValid)
 	{
@@ -2312,8 +2340,9 @@ app.MapGet("/api/discovery/maps", (DataStoreService db, ContentAddressableStorag
 	return Results.Ok(discoveryList);
 });
 
-app.MapGet("/api/admin/info", (DataStoreService db, ContentAddressableStorage cas) =>
+app.MapGet("/api/admin/info", (DataStoreService db, ContentAddressableStorage cas, HttpContext context) =>
 {
+	if (!AdminRequestAuthorization.IsAuthorized(context.Request, adminPublicKeys, "admin", "info")) return Results.Unauthorized();
 	var adminsList = new List<object>();
 	string? primaryAdminUsername = null;
 	string? primaryAdminPublicKey = adminPublicKeys.FirstOrDefault();
@@ -2347,6 +2376,7 @@ app.MapGet("/api/admin/info", (DataStoreService db, ContentAddressableStorage ca
 		Admins = adminsList,
 		IsGraduatedAdmin = adminPublicKeys.Count > 0,
 		DataDirectory = dataDirectory,
+		ServesClientDownloads = servesClientDownloads,
 		CasTotalSizeBytes = casTotalBytes,
 		CasTotalSizeFormatted = ContentAddressableStorage.FormatByteSize(casTotalBytes)
 	});
@@ -2492,7 +2522,7 @@ app.MapPost("/api/maps/maintainers/remove", (RemoveMapMaintainerRequest req, Dat
 
 app.MapGet("/api/data/{collection}/{id}", (string collection, string id, DataStoreService db, HttpContext context) =>
 {
-	if (!context.Request.Headers.TryGetValue("Authorization", out var authHeader) || !authHeader.ToString().StartsWith("Bearer ")) return Results.Unauthorized();
+	if (!AdminRequestAuthorization.IsAuthorized(context.Request, adminPublicKeys, "admin", collection)) return Results.Unauthorized();
 	var item = db.Get<JsonDocument>(collection, id);
 	if (item != null)
 	{
@@ -2504,14 +2534,14 @@ app.MapGet("/api/data/{collection}/{id}", (string collection, string id, DataSto
 
 app.MapGet("/api/data/{collection}", (string collection, DataStoreService db, HttpContext context) =>
 {
-	if (!context.Request.Headers.TryGetValue("Authorization", out var authHeader) || !authHeader.ToString().StartsWith("Bearer ")) return Results.Unauthorized();
+	if (!AdminRequestAuthorization.IsAuthorized(context.Request, adminPublicKeys, "admin", collection)) return Results.Unauthorized();
 	var items = db.GetAll<JsonDocument>(collection);
 	return Results.Ok(items);
 });
 
 app.MapPost("/api/data/{collection}", (string collection, JsonDocument data, DataStoreService db, HttpContext context) =>
 {
-	if (!context.Request.Headers.TryGetValue("Authorization", out var authHeader) || !authHeader.ToString().StartsWith("Bearer ")) return Results.Unauthorized();
+	if (!AdminRequestAuthorization.IsAuthorized(context.Request, adminPublicKeys, "admin", collection)) return Results.Unauthorized();
 	var id = Guid.NewGuid().ToString("N");
 	db.Upsert(collection, id, data);
 	return Results.Ok(new { Id = id });
@@ -2519,107 +2549,107 @@ app.MapPost("/api/data/{collection}", (string collection, JsonDocument data, Dat
 
 app.MapPut("/api/data/{collection}/{id}", (string collection, string id, JsonDocument data, DataStoreService db, HttpContext context) =>
 {
-	if (!context.Request.Headers.TryGetValue("Authorization", out var authHeader) || !authHeader.ToString().StartsWith("Bearer ")) return Results.Unauthorized();
+	if (!AdminRequestAuthorization.IsAuthorized(context.Request, adminPublicKeys, "admin", collection)) return Results.Unauthorized();
 	db.Upsert(collection, id, data);
 	return Results.Ok(new { Status = "Updated" });
 });
 
 app.MapDelete("/api/data/{collection}/{id}", (string collection, string id, DataStoreService db, HttpContext context) =>
 {
-	if (!context.Request.Headers.TryGetValue("Authorization", out var authHeader) || !authHeader.ToString().StartsWith("Bearer ")) return Results.Unauthorized();
+	if (!AdminRequestAuthorization.IsAuthorized(context.Request, adminPublicKeys, "admin", collection)) return Results.Unauthorized();
 	db.Delete(collection, id);
 	return Results.Ok(new { Status = "Deleted" });
 });
 
 app.MapGet("/api/players", (DataStoreService db, HttpContext context) =>
 {
-	if (!context.Request.Headers.TryGetValue("Authorization", out var authHeader) || !authHeader.ToString().StartsWith("Bearer ")) return Results.Unauthorized();
+	if (!AdminRequestAuthorization.IsAuthorized(context.Request, adminPublicKeys, "admin", "players")) return Results.Unauthorized();
 	return Results.Ok(db.GetAll<JsonDocument>("players"));
 });
 app.MapGet("/api/players/{id}", (string id, DataStoreService db, HttpContext context) =>
 {
-	if (!context.Request.Headers.TryGetValue("Authorization", out var authHeader) || !authHeader.ToString().StartsWith("Bearer ")) return Results.Unauthorized();
+	if (!AdminRequestAuthorization.IsAuthorized(context.Request, adminPublicKeys, "admin", "players")) return Results.Unauthorized();
 	var p = db.Get<JsonDocument>("players", id);
 	return p != null ? Results.Ok(p) : Results.NotFound();
 });
 app.MapPost("/api/players", (JsonDocument data, DataStoreService db, HttpContext context) =>
 {
-	if (!context.Request.Headers.TryGetValue("Authorization", out var authHeader) || !authHeader.ToString().StartsWith("Bearer ")) return Results.Unauthorized();
+	if (!AdminRequestAuthorization.IsAuthorized(context.Request, adminPublicKeys, "admin", "players")) return Results.Unauthorized();
 	var id = Guid.NewGuid().ToString("N");
 	db.Upsert("players", id, data);
 	return Results.Ok(new { Id = id });
 });
 app.MapPut("/api/players/{id}", (string id, JsonDocument data, DataStoreService db, HttpContext context) =>
 {
-	if (!context.Request.Headers.TryGetValue("Authorization", out var authHeader) || !authHeader.ToString().StartsWith("Bearer ")) return Results.Unauthorized();
+	if (!AdminRequestAuthorization.IsAuthorized(context.Request, adminPublicKeys, "admin", "players")) return Results.Unauthorized();
 	db.Upsert("players", id, data);
 	return Results.Ok();
 });
 app.MapDelete("/api/players/{id}", (string id, DataStoreService db, HttpContext context) =>
 {
-	if (!context.Request.Headers.TryGetValue("Authorization", out var authHeader) || !authHeader.ToString().StartsWith("Bearer ")) return Results.Unauthorized();
+	if (!AdminRequestAuthorization.IsAuthorized(context.Request, adminPublicKeys, "admin", "players")) return Results.Unauthorized();
 	db.Delete("players", id);
 	return Results.Ok();
 });
 
 app.MapGet("/api/maps", (DataStoreService db, HttpContext context) =>
 {
-	if (!context.Request.Headers.TryGetValue("Authorization", out var authHeader) || !authHeader.ToString().StartsWith("Bearer ")) return Results.Unauthorized();
+	if (!AdminRequestAuthorization.IsAuthorized(context.Request, adminPublicKeys, "admin", "maps")) return Results.Unauthorized();
 	return Results.Ok(db.GetAll<JsonDocument>("maps"));
 });
 app.MapGet("/api/maps/{id}", (string id, DataStoreService db, HttpContext context) =>
 {
-	if (!context.Request.Headers.TryGetValue("Authorization", out var authHeader) || !authHeader.ToString().StartsWith("Bearer ")) return Results.Unauthorized();
+	if (!AdminRequestAuthorization.IsAuthorized(context.Request, adminPublicKeys, "admin", "maps")) return Results.Unauthorized();
 	var m = db.Get<JsonDocument>("maps", id);
 	return m != null ? Results.Ok(m) : Results.NotFound();
 });
 app.MapPost("/api/maps", (JsonDocument data, DataStoreService db, HttpContext context) =>
 {
-	if (!context.Request.Headers.TryGetValue("Authorization", out var authHeader) || !authHeader.ToString().StartsWith("Bearer ")) return Results.Unauthorized();
+	if (!AdminRequestAuthorization.IsAuthorized(context.Request, adminPublicKeys, "admin", "maps")) return Results.Unauthorized();
 	var id = Guid.NewGuid().ToString("N");
 	db.Upsert("maps", id, data);
 	return Results.Ok(new { Id = id });
 });
 app.MapPut("/api/maps/{id}", (string id, JsonDocument data, DataStoreService db, HttpContext context) =>
 {
-	if (!context.Request.Headers.TryGetValue("Authorization", out var authHeader) || !authHeader.ToString().StartsWith("Bearer ")) return Results.Unauthorized();
+	if (!AdminRequestAuthorization.IsAuthorized(context.Request, adminPublicKeys, "admin", "maps")) return Results.Unauthorized();
 	db.Upsert("maps", id, data);
 	return Results.Ok();
 });
 app.MapDelete("/api/maps/{id}", (string id, DataStoreService db, HttpContext context) =>
 {
-	if (!context.Request.Headers.TryGetValue("Authorization", out var authHeader) || !authHeader.ToString().StartsWith("Bearer ")) return Results.Unauthorized();
+	if (!AdminRequestAuthorization.IsAuthorized(context.Request, adminPublicKeys, "admin", "maps")) return Results.Unauthorized();
 	db.Delete("maps", id);
 	return Results.Ok();
 });
 
 app.MapGet("/api/admin/bans", (DataStoreService db, HttpContext context) =>
 {
-	if (!context.Request.Headers.TryGetValue("Authorization", out var authHeader) || !authHeader.ToString().StartsWith("Bearer ")) return Results.Unauthorized();
+	if (!AdminRequestAuthorization.IsAuthorized(context.Request, adminPublicKeys, "admin", "bans")) return Results.Unauthorized();
 	return Results.Ok(db.GetAll<JsonDocument>("bans"));
 });
 app.MapGet("/api/admin/bans/{id}", (string id, DataStoreService db, HttpContext context) =>
 {
-	if (!context.Request.Headers.TryGetValue("Authorization", out var authHeader) || !authHeader.ToString().StartsWith("Bearer ")) return Results.Unauthorized();
+	if (!AdminRequestAuthorization.IsAuthorized(context.Request, adminPublicKeys, "admin", "bans")) return Results.Unauthorized();
 	var b = db.Get<JsonDocument>("bans", id);
 	return b != null ? Results.Ok(b) : Results.NotFound();
 });
 app.MapPost("/api/admin/bans", (JsonDocument data, DataStoreService db, HttpContext context) =>
 {
-	if (!context.Request.Headers.TryGetValue("Authorization", out var authHeader) || !authHeader.ToString().StartsWith("Bearer ")) return Results.Unauthorized();
+	if (!AdminRequestAuthorization.IsAuthorized(context.Request, adminPublicKeys, "admin", "bans")) return Results.Unauthorized();
 	var id = Guid.NewGuid().ToString("N");
 	db.Upsert("bans", id, data);
 	return Results.Ok(new { Id = id });
 });
 app.MapPut("/api/admin/bans/{id}", (string id, JsonDocument data, DataStoreService db, HttpContext context) =>
 {
-	if (!context.Request.Headers.TryGetValue("Authorization", out var authHeader) || !authHeader.ToString().StartsWith("Bearer ")) return Results.Unauthorized();
+	if (!AdminRequestAuthorization.IsAuthorized(context.Request, adminPublicKeys, "admin", "bans")) return Results.Unauthorized();
 	db.Upsert("bans", id, data);
 	return Results.Ok();
 });
 app.MapDelete("/api/admin/bans/{id}", (string id, DataStoreService db, HttpContext context) =>
 {
-	if (!context.Request.Headers.TryGetValue("Authorization", out var authHeader) || !authHeader.ToString().StartsWith("Bearer ")) return Results.Unauthorized();
+	if (!AdminRequestAuthorization.IsAuthorized(context.Request, adminPublicKeys, "admin", "bans")) return Results.Unauthorized();
 	db.Delete("bans", id);
 	return Results.Ok();
 });

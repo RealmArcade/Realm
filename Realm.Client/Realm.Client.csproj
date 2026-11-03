@@ -38,6 +38,7 @@
     <None Remove="Maps\blank_map\**\*.cs" />
     <None Remove="MapTemplate\**\*.cs" />
     <None Remove=".godot\**" />
+    <None Remove="steam_api64.dll" />
     <None Include="install_editor_dependencies.ps1" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\ThirdPartyBinaries\steam_api64.dll" Condition="Exists('..\ThirdPartyBinaries\steam_api64.dll')">
       <Link>steam_api64.dll</Link>
@@ -104,6 +105,10 @@
   <ItemGroup>
     <AdditionalFiles Include="..\Realm.MapAPI\wit\game.wit" />
   </ItemGroup>
+  <Target Name="PlaceSteamworksNativeLibrary" AfterTargets="Build" Condition="Exists('$(MSBuildThisFileDirectory)..\ThirdPartyBinaries\steam_api64.dll')">
+    <!-- Godot resolves an unmanaged library from the project directory, not from the assembly output folder. -->
+    <Copy SourceFiles="$(MSBuildThisFileDirectory)..\ThirdPartyBinaries\steam_api64.dll" DestinationFolder="$(MSBuildThisFileDirectory)" SkipUnchangedFiles="true" />
+  </Target>
   <Target Name="PlaceSteamworksManagedLibrary" AfterTargets="Build">
     <!-- The package carries Steamworks.NET only under runtimes/, and an exported Godot build gathers assemblies flat. -->
     <Copy SourceFiles="$(PkgSteamworks_NET)\runtimes\win-x64\lib\netstandard2.1\Steamworks.NET.dll" DestinationFolder="$(OutputPath)" SkipUnchangedFiles="true" />

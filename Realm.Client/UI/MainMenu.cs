@@ -69,7 +69,7 @@ public partial class MainMenu : Control
 
 		GameContext.Account.Changed += OnAccountChanged;
 		RefreshAccountPresentation();
-		RestoreAccountSessionAsync();
+		RestoreAccountSession();
 	}
 
 	public override void _ExitTree()
@@ -85,12 +85,13 @@ public partial class MainMenu : Control
 	}
 
 	/// <summary>
-	///     Restores the stored session before the player asks for anything. A rejected token simply leaves the menu signed out;
-	///     the Play gate asks for a sign-in only when the player chooses to play online, so a slow authority never blocks the menu.
+	///     Adopts the session stored at the last sign-in before the player asks for anything. Nothing is asked of the authority
+	///     here, so the menu is signed in just as quickly whether or not it is reachable, and the account screen is what confirms
+	///     the session afterwards.
 	/// </summary>
-	private async void RestoreAccountSessionAsync()
+	private void RestoreAccountSession()
 	{
-		await GameContext.Account.RestoreAsync();
+		GameContext.Account.Restore();
 		if (!GodotObject.IsInstanceValid(this) || !IsInsideTree()) return;
 
 		Callable.From(RefreshAccountPresentation).CallDeferred();

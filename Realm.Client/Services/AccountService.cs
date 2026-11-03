@@ -76,13 +76,18 @@ public class AccountSession
 
 	public string[] LinkedProviders { get; set; } = Array.Empty<string>();
 
-	public DateTime ExpiresAtUtc { get; set; }
+	/// <summary>
+	///     When the session stops being accepted, or <c>null</c> when it lasts until it is revoked. An ordinary sign-in is the
+	///     second case, so the stored token keeps working on the next launch.
+	/// </summary>
+	public DateTime? ExpiresAtUtc { get; set; }
 }
 
 /// <summary>
-///     The client's view of the account it is signed in as. The session token is the only credential here; it is stored in the
-///     user data directory, validated on every launch, and silently dropped when the authority no longer accepts it. Every name
-///     this service reports is the authority's, so no screen has to invent one.
+///     The client's view of the account it is signed in as. The session token is the only credential here; it and the account it
+///     describes are stored in the user data directory and restored at launch without asking the authority anything, because an
+///     unreachable authority must not leave a player unable to play, and nothing an unconfirmed token can reach is sensitive.
+///     Every name this service reports is still the authority's, and the first answer that says the session is gone drops it.
 /// </summary>
 public class AccountService
 {
@@ -140,26 +145,44 @@ public class AccountService
 		}
 	}
 
-	public static string AuthorityUrl => GameContext.Lobby?.RegistryServerUrl ?? ServersConfigHelper.GetDefaultServerUrl();
+	/// <summary>
+	///     The one node this client signs in against, resolved once from `servers.json` rather than from whichever bootstrap
+	///     server the lobby list happened to pick.
+	/// </summary>
+	public static string AuthorityUrl { get; } = ServersConfigHelper.GetAccountAuthorityUrl();
 
-	public async Task<AccountOperationResult> RestoreAsync()
+	/// <summary>
+	///     Adopts the session this client stored when it signed in, without a request. The stored copy carries its own expiry, so a
+	///     session that has aged out is dropped here; everything else waits until the authority is actually consulted, which is when
+	///     the player opens the account screen or asks for something that outlives the session.
+	/// </summary>
+	public void Restore()
 	{
-		string? storedToken = ReadStoredToken();
-		if (string.IsNullOrEmpty(storedToken)) return AccountOperationResult.Ok(null);
+		AccountSession? stored = ReadStoredSession();
+		if (stored == null) return;
 
-		AccountOperationResult validated = await ValidateTokenAsync(storedToken).ConfigureAwait(false);
-		if (validated.Succeeded && validated.Session != null)
+		if (stored.ExpiresAtUtc.HasValue && stored.ExpiresAtUtc.Value <= DateTime.UtcNow)
 		{
-			SetSession(validated.Session);
-			return validated;
+			ClearStoredToken();
+			return;
 		}
 
-		// Only the authority saying no ends the stored session. An unreachable authority is unknown, so the token is kept for the
-		// next launch instead of being thrown away because the network was down.
-		if (validated.Status == AccountOperationStatus.Unreachable) return AccountOperationResult.Ok(null);
+		SetSession(stored);
+	}
 
-		SetSession(null);
-		return AccountOperationResult.Ok(null);
+	/// <summary>
+	///     Asks the authority whether the session is still accepted and adopts what it answers. Opened by the account screen rather
+	///     than at launch, so a renamed account or a session revoked elsewhere is noticed exactly when the player looks at it.
+	/// </summary>
+	public async Task<AccountOperationResult> RefreshAsync()
+	{
+		string token = SessionToken;
+		if (string.IsNullOrEmpty(token)) return AccountOperationResult.Ok(null);
+
+		AccountOperationResult validated = await ValidateTokenAsync(token).ConfigureAwait(false);
+		if (validated.Succeeded && validated.Session != null) SetSession(validated.Session);
+
+		return validated;
 	}
 
 	public async Task<AccountOperationResult> RegisterAsync(string displayName, string password)
@@ -170,6 +193,18 @@ public class AccountService
 	public async Task<AccountOperationResult> SignInAsync(string displayName, string password)
 	{
 		return await PostAsync("/auth/basicauth/login", new LoginBasicAuthRequest { DisplayName = displayName, Password = password }, null).ConfigureAwait(false);
+	}
+
+	/// <summary>
+	///     Proves the password behind the account that is already signed in. The authority answers with the same session, so this
+	///     only unlocks a change it would otherwise refuse; it is not a second sign-in.
+	/// </summary>
+	public async Task<AccountOperationResult> ConfirmPasswordAsync(string password)
+	{
+		string token = SessionToken;
+		if (string.IsNullOrEmpty(token)) return AccountOperationResult.Rejected(AccountErrorCodes.SessionRequired, "Sign in before confirming your password.");
+
+		return await PostAsync("/auth/verify", new PasswordConfirmationRequest { Password = password }, token).ConfigureAwait(false);
 	}
 
 	public async Task<AccountOperationResult> RenameAsync(string displayName)
@@ -286,7 +321,12 @@ public class AccountService
 			using HttpResponseMessage response = await _httpClient.SendAsync(request).ConfigureAwait(false);
 			string json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
 
-			if (!response.IsSuccessStatusCode) return RejectedOrUnreachable(response, json);
+			if (!response.IsSuccessStatusCode)
+			{
+				AccountOperationResult rejection = RejectedOrUnreachable(response, json);
+				if (rejection.ErrorCode == AccountErrorCodes.SessionInvalid) SetSession(null);
+				return rejection;
+			}
 
 			SessionValidation? validation = JsonSerializer.Deserialize<SessionValidation>(json, JsonOptions);
 			if (validation == null) return AccountOperationResult.Rejected(AccountErrorCodes.SessionInvalid, "The account authority answered a session this build cannot read.");
@@ -443,7 +483,12 @@ public class AccountService
 
 			using HttpResponseMessage response = await _httpClient.SendAsync(request).ConfigureAwait(false);
 			string json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-			if (!response.IsSuccessStatusCode) return RejectedOrUnreachable(response, json);
+			if (!response.IsSuccessStatusCode)
+			{
+				AccountOperationResult rejection = RejectedOrUnreachable(response, json);
+				if (rejection.ErrorCode == AccountErrorCodes.SessionInvalid) SetSession(null);
+				return rejection;
+			}
 
 			AccountSessionDto? session = JsonSerializer.Deserialize<AccountSessionDto>(json, JsonOptions);
 			if (session == null || string.IsNullOrEmpty(session.SessionToken))
@@ -498,22 +543,22 @@ public class AccountService
 		lock (_sessionLock) _session = session;
 
 		if (session == null) ClearStoredToken();
-		else WriteStoredToken(session.Token);
+		else WriteStoredSession(session);
 
 		Changed?.Invoke();
 	}
 
 	private static string SessionFilePath => Path.Combine(OS.GetUserDataDir(), "auth", SessionFileName);
 
-	private static string? ReadStoredToken()
+	private static AccountSession? ReadStoredSession()
 	{
 		try
 		{
 			string path = SessionFilePath;
 			if (!File.Exists(path)) return null;
 
-			StoredSession? stored = JsonSerializer.Deserialize<StoredSession>(File.ReadAllText(path), JsonOptions);
-			return string.IsNullOrWhiteSpace(stored?.SessionToken) ? null : stored.SessionToken;
+			AccountSession? stored = JsonSerializer.Deserialize<AccountSession>(File.ReadAllText(path), JsonOptions);
+			return string.IsNullOrWhiteSpace(stored?.Token) ? null : stored;
 		}
 		catch (IOException)
 		{
@@ -525,18 +570,18 @@ public class AccountService
 		}
 	}
 
-	private static void WriteStoredToken(string token)
+	private static void WriteStoredSession(AccountSession session)
 	{
 		try
 		{
 			string path = SessionFilePath;
 			string? directory = Path.GetDirectoryName(path);
 			if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
-			File.WriteAllText(path, JsonSerializer.Serialize(new StoredSession { SessionToken = token }));
+			File.WriteAllText(path, JsonSerializer.Serialize(session, JsonOptions));
 		}
 		catch (IOException exception)
 		{
-			GD.PrintErr($"[AccountService] Could not persist the session token: {exception.Message}");
+			GD.PrintErr($"[AccountService] Could not persist the session: {exception.Message}");
 		}
 	}
 
@@ -621,11 +666,6 @@ public class AccountService
 		response.OutputStream.Write(buffer, 0, buffer.Length);
 	}
 
-	private class StoredSession
-	{
-		public string SessionToken { get; set; } = string.Empty;
-	}
-
 	private class SessionValidation
 	{
 		public string AccountId { get; set; } = string.Empty;
@@ -634,7 +674,7 @@ public class AccountService
 
 		public string[]? LinkedProviders { get; set; }
 
-		public DateTime ExpiresAtUtc { get; set; } = DateTime.MaxValue;
+		public DateTime? ExpiresAtUtc { get; set; }
 	}
 }
 

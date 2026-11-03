@@ -34,6 +34,13 @@ public static class AccountEndpoints
 			return result.Succeeded && result.Session != null ? Results.Ok(result.Session) : Refusal(result);
 		});
 
+		app.MapPost("/auth/verify", (HttpRequest request, PasswordConfirmationRequest confirmation, HttpContext context, AccountStoreService store) =>
+		{
+			string sourceKey = context.Connection.RemoteIpAddress?.MapToIPv4().ToString() ?? "unknown";
+			AccountMutationResult result = store.ConfirmPassword(ReadSessionToken(request), confirmation.Password, sourceKey);
+			return result.Succeeded && result.Session != null ? Results.Ok(result.Session) : Refusal(result);
+		});
+
 		app.MapPost("/auth/providers/start", (AuthFlowStartRequest request, HttpRequest httpRequest, AuthFlowService flows, DiscordOAuthService discord, SteamOpenIdService steam, AccountStoreService store) =>
 		{
 			if (!store.IsAuthority) return Refusal(AccountMutationResult.Refused(AccountMutationOutcome.RefusedNotAuthority, "This node is not the configured account authority."));
@@ -49,6 +56,11 @@ public static class AccountEndpoints
 				if (!store.TryValidateSession(sessionToken, out AccountRecord? linkAccount, out _, out _) || linkAccount == null)
 				{
 					return Results.Json(AccountErrorDto.Of(AccountErrorCodes.SessionInvalid, "The session is no longer valid."), statusCode: StatusCodes.Status401Unauthorized);
+				}
+
+				if (!store.HasRecentCredentialProof(sessionToken))
+				{
+					return Results.Json(AccountErrorDto.Of(AccountErrorCodes.StepUpRequired, "Confirm your password before linking a provider to the account you are signed in to."), statusCode: StatusCodes.Status401Unauthorized);
 				}
 
 				linkToAccountId = linkAccount.AccountId;
@@ -152,6 +164,10 @@ public static class AccountEndpoints
 		app.MapPost("/auth/rename", (HttpRequest request, RenameAccountRequest rename, AccountStoreService store) =>
 		{
 			if (!TryReadSignedInAccount(request, store, out AccountRecord account)) return Results.Json(AccountErrorDto.Of(AccountErrorCodes.SessionInvalid, "The session is no longer valid."), statusCode: StatusCodes.Status401Unauthorized);
+			if (!store.HasRecentCredentialProof(ReadSessionToken(request)))
+			{
+				return Results.Json(AccountErrorDto.Of(AccountErrorCodes.StepUpRequired, "Confirm your password before changing the account you are signed in to."), statusCode: StatusCodes.Status401Unauthorized);
+			}
 
 			AccountMutationResult result = store.Rename(account.AccountId, rename.DisplayName, $"account:{account.AccountId}");
 			if (!result.Succeeded || result.Account == null) return Refusal(result);
@@ -257,15 +273,20 @@ public static class AccountEndpoints
 			return Results.Redirect(BuildSignedInCallbackUrl(flows, flow, store.IssueSession(existing)));
 		}
 
-		bool nameIsUsable = DisplayNameRules.TryCanonicalize(providerDisplayName, out string suggestedName, out DisplayNameError nameError);
-		string ticket = flows.CreatePendingRegistration(flow, providerAccountToken, nameIsUsable ? suggestedName : string.Empty, nameIsUsable ? null : AccountErrorCodes.ForDisplayNameError(nameError));
+		string suggestedName = string.Empty;
+		DisplayNameError nameError = default;
+		bool providerOfferedName = providerDisplayName.Length > 0;
+		bool nameIsUsable = providerOfferedName && DisplayNameRules.TryCanonicalize(providerDisplayName, out suggestedName, out nameError);
+		string suggestedNameErrorCode = providerOfferedName && !nameIsUsable ? AccountErrorCodes.ForDisplayNameError(nameError) : string.Empty;
+
+		string ticket = flows.CreatePendingRegistration(flow, providerAccountToken, nameIsUsable ? suggestedName : string.Empty, suggestedNameErrorCode.Length > 0 ? suggestedNameErrorCode : null);
 
 		string query = $"{AccountQueryParameters.ClientState}={Uri.EscapeDataString(flow.ClientState)}"
 		               + $"&{AccountQueryParameters.Provider}={Uri.EscapeDataString(provider.ToWireName())}"
 		               + $"&registration_ticket={Uri.EscapeDataString(ticket)}"
 		               + $"&suggested_display_name={Uri.EscapeDataString(nameIsUsable ? suggestedName : string.Empty)}";
 
-		if (!nameIsUsable) query += $"&suggested_display_name_error={Uri.EscapeDataString(AccountErrorCodes.ForDisplayNameError(nameError))}";
+		if (suggestedNameErrorCode.Length > 0) query += $"&suggested_display_name_error={Uri.EscapeDataString(suggestedNameErrorCode)}";
 
 		return Results.Redirect(flows.BuildLoopbackCallbackUrl(flow, query));
 	}
@@ -330,6 +351,7 @@ public static class AccountEndpoints
 			AccountMutationOutcome.AdminProofInvalid => AccountErrorCodes.AdminProofInvalid,
 			AccountMutationOutcome.AdminProofStale => AccountErrorCodes.AdminProofStale,
 			AccountMutationOutcome.AdminProofReplayed => AccountErrorCodes.AdminProofReplayed,
+			AccountMutationOutcome.StepUpUnavailable => AccountErrorCodes.StepUpUnavailable,
 			_ => AccountErrorCodes.RequestMalformed
 		};
 
@@ -341,6 +363,7 @@ public static class AccountEndpoints
 			AccountMutationOutcome.RefusedNotAuthority => StatusCodes.Status403Forbidden,
 			AccountMutationOutcome.AccountNotFound => StatusCodes.Status404NotFound,
 			AccountMutationOutcome.Throttled => StatusCodes.Status429TooManyRequests,
+			AccountMutationOutcome.StepUpUnavailable => StatusCodes.Status403Forbidden,
 			_ => StatusCodes.Status400BadRequest
 		};
 
