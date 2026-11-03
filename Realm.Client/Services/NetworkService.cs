@@ -1134,16 +1134,20 @@ public class NetworkService
 	{
 		if (!_referrersByServerEntityId.TryGetValue(serverEntityId, out var referrers)) return;
 
-		Span<byte> payload = stackalloc byte[sizeof(int)];
-		BitConverter.TryWriteBytes(payload, serverEntityId);
+		// The identifier names a different unit now, so every component still pointing at the unit it named before is
+		// pointed at the one it names now. The codec does it rather than a payload of the identifier alone: a build task
+		// carries the timings of the work beside the site, so applying one from four bytes of identifier threw, and the
+		// description that carried the unit the identifier had been given to was dropped whole.
+		Entity reference = ReplicatedEntityReferences.Resolve(new Entity(serverEntityId));
 
 		for (int index = 0; index < referrers.Count; index++)
 		{
 			var referrer = referrers[index];
 			Entity localEntity = new(referrer.LocalEntityId);
 			if (!GameContext.World.IsAlive(localEntity)) continue;
+			if (referrer.Codec is not INormalizingComponentCodec normalizing) continue;
 
-			referrer.Codec.Apply(GameContext.World, localEntity, payload);
+			normalizing.Repoint(GameContext.World, localEntity, reference);
 		}
 	}
 

@@ -658,10 +658,22 @@ public class ClientServerSession : IDisposable
 		}
 		catch (Exception exception) when (exception is IOException or InvalidDataException or ArgumentException or MemoryPackSerializationException)
 		{
-			GD.PushWarning($"[Network] A {frame.Kind} frame could not be read and was dropped: {exception.Message}");
+			GD.PushWarning($"[Network] A {frame.Kind} frame could not be read and was dropped: {exception.GetType().Name}: {exception.Message}\n{FirstFramesOf(exception)}");
 
 			if (!InLobby) GameContext.SnapshotApply.RequestBaseline();
 		}
+	}
+
+	private static string FirstFramesOf(Exception exception)
+	{
+		string? stack = exception.StackTrace;
+		if (string.IsNullOrEmpty(stack)) return "no stack";
+
+		string[] lines = stack.Split('\n');
+		int shown = Math.Min(4, lines.Length);
+		var text = new System.Text.StringBuilder();
+		for (int index = 0; index < shown; index++) text.Append(lines[index].Trim()).Append("\n");
+		return text.ToString();
 	}
 
 	private void Dispatch(NetworkFrameKind kind, byte[] payload, ulong arrivalMilliseconds)

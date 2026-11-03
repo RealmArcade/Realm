@@ -1469,6 +1469,17 @@
             </code>
             </remarks>
         </member>
+        <member name="M:Realm.Ecs.Replication.INormalizingComponentCodec.Repoint(Realm.Ecs.EcsWorld,Realm.Ecs.Entity,Realm.Ecs.Entity)">
+            <summary>
+                Points the reference this component holds at the unit an identifier now names. It stands beside
+                <see cref="M:Realm.Ecs.Replication.IReplicatedComponentCodec.Apply(Realm.Ecs.EcsWorld,Realm.Ecs.Entity,System.ReadOnlySpan{System.Byte})" /> because a component that carries more than its reference - a
+                build task carries the timings of the work beside the site - cannot be applied from a payload holding only
+                the identifier, and applying the rest of it would state values this screen was never told.
+            </summary>
+            <param name="world">The world the referring unit lives in.</param>
+            <param name="entity">The unit holding the component, which keeps every value it carries except the reference.</param>
+            <param name="reference">The unit the reference resolves to now.</param>
+        </member>
         <member name="M:Realm.Ecs.Replication.ConsumableAttachmentCodec.Apply(Realm.Ecs.EcsWorld,Realm.Ecs.Entity,System.ReadOnlySpan{System.Byte})">
             <summary>
                 Rebuilds what a unit carries. The identifiers are content hashes, so a peer renders the consumable it is told
