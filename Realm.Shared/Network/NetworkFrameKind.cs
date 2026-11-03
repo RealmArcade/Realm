@@ -52,5 +52,7 @@ public enum NetworkFrameKind : byte
 
 	SnapshotRepairRequest = 26,
 
-	PauseAllowance = 27
+	PauseAllowance = 27,
+
+	SnapshotDescriptionRepeat = 28
 }

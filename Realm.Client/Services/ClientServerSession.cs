@@ -388,6 +388,20 @@ public class ClientServerSession : IDisposable
 	}
 
 	/// <summary>
+	///     Reports a description that arrived and could not be applied here, so the match states every unit and every text
+	///     again. Sending it again would be the same bytes this screen has just failed on, and waiting for a baseline pays
+	///     for one unreadable description with the whole world: what this screen is missing is what that one description
+	///     carried, and a description stated from nothing carries all of it.
+	/// </summary>
+	public bool RequestDescriptionRepeat()
+	{
+		if (!IsRunning) return false;
+
+		_channel.Send(NetworkFrameKind.SnapshotDescriptionRepeat, Array.Empty<byte>());
+		return true;
+	}
+
+	/// <summary>
 	///     Names a run of descriptions this screen never received, so the match can send exactly those again instead of
 	///     describing the whole world to it.
 	/// </summary>
@@ -647,8 +661,10 @@ public class ClientServerSession : IDisposable
 	}
 
 	/// <summary>
-	///     Hands one queued frame to the session, and asks the match to describe the world from scratch if it could not be
-	///     read. A frame this screen cannot read is a frame it never received, and nothing else would report it missing.
+	///     Hands one queued frame to the session, and reports what it could make of it. A description this screen cannot
+	///     apply is state it never held, so the match is asked to state every unit and text again; only a screen that fails
+	///     the one it is sent in answer asks for the world instead. Any other frame it cannot read is one it never received,
+	///     and nothing else would report it missing.
 	/// </summary>
 	private void DispatchFrame(QueuedFrame frame)
 	{
@@ -660,7 +676,18 @@ public class ClientServerSession : IDisposable
 		{
 			GD.PushWarning($"[Network] A {frame.Kind} frame could not be read and was dropped: {exception.GetType().Name}: {exception.Message}\n{FirstFramesOf(exception)}");
 
-			if (!InLobby) GameContext.SnapshotApply.RequestBaseline();
+			if (frame.Kind != NetworkFrameKind.Snapshot)
+			{
+				if (!InLobby) GameContext.SnapshotApply.RequestBaseline();
+				return;
+			}
+
+			// The first description this screen fails on is answered by stating the world to it again, which is one ordinary
+			// description rather than a world rebuilt on the reliable stream. A screen that fails the one after that too is
+			// not being told something it can apply at all, and a baseline is the only statement left that differs.
+			_unreadableDescriptions++;
+			if (_unreadableDescriptions == 1) RequestDescriptionRepeat();
+			else if (!InLobby) GameContext.SnapshotApply.RequestBaseline();
 		}
 	}
 
@@ -809,6 +836,8 @@ public class ClientServerSession : IDisposable
 		Seated?.Invoke(assignment);
 	}
 
+	private int _unreadableDescriptions;
+
 	private void ApplySnapshot(byte[] payload)
 	{
 		// A description too large for one datagram arrives as several. A group a piece short is a description this screen
@@ -821,6 +850,8 @@ public class ClientServerSession : IDisposable
 		if (MultiplayerBandwidthMeter.IsRecording) MultiplayerBandwidthMeter.RecordReceivedSnapshot(frame.Length, snapshot.IsBaseline);
 
 		SnapshotReceived?.Invoke(snapshot);
+
+		_unreadableDescriptions = 0;
 	}
 
 	private void ReportLost(string report)

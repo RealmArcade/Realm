@@ -30,6 +30,7 @@ public class ServerSimulation : IDisposable
 	private readonly ServerMapScript _script;
 	private readonly GroundLootService _loot;
 	private readonly HashSet<int> _peersNeedingBaseline = new();
+	private readonly HashSet<int> _peersNeedingDescriptionRepeat = new();
 	private readonly SortedSet<int> _unseatedPlayerSlots = new();
 	private readonly bool _hasRoster;
 	private int _snapshotSequence;
@@ -440,11 +441,27 @@ public class ServerSimulation : IDisposable
 		if (_hasRoster && _peerPlayerSlots.Remove(peerId, out int releasedSlot)) _unseatedPlayerSlots.Add(releasedSlot);
 		_lastAnsweredCommandIdPerPeer.Remove(peerId);
 		_peersNeedingBaseline.Remove(peerId);
+		_peersNeedingDescriptionRepeat.Remove(peerId);
 	}
 
 	public void RequestBaseline(int peerId) => _peersNeedingBaseline.Add(peerId);
 
 	public bool ConsumeBaselineRequest(int peerId) => _peersNeedingBaseline.Remove(peerId);
+
+	/// <summary>
+	///     Asks for this peer to be told about every unit and every text again. It is the answer to a description the
+	///     screen reported it could not apply, and it is stated as an ordinary description rather than as a baseline: the
+	///     screen is missing what one description carried, not the world it was built from.
+	/// </summary>
+	public void RequestDescriptionRepeat(int peerId) => _peersNeedingDescriptionRepeat.Add(peerId);
+
+	public bool ConsumeDescriptionRepeatRequest(int peerId) => _peersNeedingDescriptionRepeat.Remove(peerId);
+
+	/// <summary>
+	///     Drops what this peer is remembered as having been told, so the next description restates it all. It is written on
+	///     the tick thread before the publish lanes are forked, which is the only thread that may write a peer's record.
+	/// </summary>
+	public void ResetPeerDescription(int peerId) => _snapshots.ResetPeerDescription(peerId);
 
 	public string ReadPlayerName(int playerSlot)
 	{

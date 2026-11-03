@@ -79,6 +79,7 @@ public class ListenServerHost : IServerTransportSink
 	private readonly WorldSnapshot[] _publishedSnapshots = new WorldSnapshot[EcsWorld.MAX_PLAYERS];
 	private readonly byte[][] _publishedFrames = new byte[EcsWorld.MAX_PLAYERS][];
 	private readonly bool[] _pendingBaselineRequests = new bool[EcsWorld.MAX_PLAYERS];
+	private readonly bool[] _pendingDescribeInFull = new bool[EcsWorld.MAX_PLAYERS];
 	private readonly bool[] _pendingSkippedPeers = new bool[EcsWorld.MAX_PLAYERS];
 	private PublishLaneWorkers? _publishLaneWorkers;
 	private readonly Dictionary<int, SnapshotFrameRing> _frameRings = new();
@@ -781,6 +782,9 @@ public class ListenServerHost : IServerTransportSink
 			case NetworkFrameKind.SnapshotRepairRequest:
 				HandleSnapshotRepairRequest(peerId, payload);
 				break;
+			case NetworkFrameKind.SnapshotDescriptionRepeat:
+				HandleDescriptionRepeatRequest(peerId);
+				break;
 			case NetworkFrameKind.LatencyProbe:
 				// The echo travels the same stream the probe did. Answering it reliably would time the probe's loss and
 				// the retransmission that recovered it rather than the path, and that figure is what every screen sizes
@@ -1174,15 +1178,22 @@ public class ListenServerHost : IServerTransportSink
 		{
 			int seatedPeerId = _seatedPeerIds[index];
 			bool resyncRequested = simulation.ConsumeBaselineRequest(seatedPeerId);
+			bool repeatRequested = !resyncRequested && simulation.ConsumeDescriptionRepeatRequest(seatedPeerId);
 			bool refreshRequested = !resyncRequested
 				&& IsRefreshDue(seatedPeerId, simulation.TickCount)
 				&& TryClaimBaselineRequest(seatedPeerId, simulation.TickCount);
 			_pendingBaselineRequests[index] = resyncRequested || refreshRequested;
+			_pendingDescribeInFull[index] = _pendingBaselineRequests[index] || repeatRequested;
 			_pendingBaselineReasons[index] = resyncRequested
 				? SnapshotBaselineReason.Resync
 				: refreshRequested ? SnapshotBaselineReason.Safety : SnapshotBaselineReason.None;
 			_pendingSkippedPeers[index] = false;
 			DropPeerIfItStoppedReading(seatedPeerId, simulation.TickCount);
+
+			// A description this peer could not apply is state it never held, so its record of what it was told is dropped
+			// here, on the tick thread, before any lane reads it: the next description then carries every unit and text
+			// rather than only the ones that changed since a description the screen never applied.
+			if (repeatRequested) simulation.ResetPeerDescription(seatedPeerId);
 		}
 
 		simulation.PreparePeerDescriptions(sequence);
@@ -1191,7 +1202,7 @@ public class ListenServerHost : IServerTransportSink
 		// The ability deltas are collected for every peer here, on the tick thread, because the registry behind them keeps
 		// one scratch table per process and cannot be entered by two lanes at once.
 		int laneCount = Math.Min(peerCount, simulation.SnapshotWorkerCount);
-		simulation.PrepareAbilityDeltas(_seatedPeerIds.AsSpan(0, peerCount), _pendingBaselineRequests.AsSpan(0, peerCount), _pendingSkippedPeers.AsSpan(0, peerCount));
+		simulation.PrepareAbilityDeltas(_seatedPeerIds.AsSpan(0, peerCount), _pendingDescribeInFull.AsSpan(0, peerCount), _pendingSkippedPeers.AsSpan(0, peerCount));
 
 		_publishSequence = sequence;
 
@@ -1475,6 +1486,20 @@ public class ListenServerHost : IServerTransportSink
 
 		_transport.Send(peerId, NetworkFrameKind.Presentation, MemoryPackSerializer.Serialize(batch), delivery);
 		_deliveredPresentationCount += messages.Count;
+	}
+
+	/// <summary>
+	///     Answers a screen that received a description it could not apply. The description is not sent again: it arrived,
+	///     and whatever this screen could not make of it would be made again of the same bytes. What it carried is state the
+	///     screen does not hold, so the match forgets what it was told and describes all of it once more.
+	/// </summary>
+	private void HandleDescriptionRepeatRequest(int peerId)
+	{
+		ServerSimulation? simulation = _simulation;
+		if (simulation == null) return;
+
+		simulation.RequestDescriptionRepeat(peerId);
+		_log.Write($"peer {peerId} could not apply a description; it is told about every unit and text again next tick");
 	}
 
 	/// <summary>
