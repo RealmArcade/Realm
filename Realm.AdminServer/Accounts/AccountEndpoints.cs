@@ -161,6 +161,32 @@ public static class AccountEndpoints
 			});
 		});
 
+		app.MapGet("/profile/stats", (HttpRequest request, AccountStoreService store) =>
+		{
+			if (!TryReadSignedInAccount(request, store, out AccountRecord statsAccount))
+			{
+				return Results.Json(AccountErrorDto.Of(AccountErrorCodes.SessionInvalid, "The session is no longer valid."), statusCode: StatusCodes.Status401Unauthorized);
+			}
+
+			return Results.Ok(store.GetMatchStats(statsAccount.AccountId));
+		});
+
+		app.MapPost("/profile/match_result", (HttpRequest request, MatchResultReport report, AccountStoreService store) =>
+		{
+			if (!store.IsAuthority) return Refusal(AccountMutationResult.Refused(AccountMutationOutcome.RefusedNotAuthority, "This node is not the configured account authority."));
+			if (!TryReadSignedInAccount(request, store, out AccountRecord playingAccount))
+			{
+				return Results.Json(AccountErrorDto.Of(AccountErrorCodes.SessionInvalid, "The session is no longer valid."), statusCode: StatusCodes.Status401Unauthorized);
+			}
+
+			if (!store.TryRecordMatchResult(playingAccount.AccountId, report.MatchId, report.Victory, out PlayerMatchStatsDto stats))
+			{
+				return Results.BadRequest(AccountErrorDto.Of(AccountErrorCodes.RequestMalformed, "A match result has to name the match it belongs to."));
+			}
+
+			return Results.Ok(stats);
+		});
+
 		app.MapPost("/auth/rename", (HttpRequest request, RenameAccountRequest rename, AccountStoreService store) =>
 		{
 			if (!TryReadSignedInAccount(request, store, out AccountRecord account)) return Results.Json(AccountErrorDto.Of(AccountErrorCodes.SessionInvalid, "The session is no longer valid."), statusCode: StatusCodes.Status401Unauthorized);

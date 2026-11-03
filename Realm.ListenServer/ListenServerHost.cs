@@ -556,6 +556,13 @@ public class ListenServerHost : IServerTransportSink
 	/// <summary>How many times one player may pause a match before it has to carry on without it.</summary>
 	private const int PausesPerPlayerPerMatch = 3;
 
+	/// <summary>
+	///     True when this match belongs to the one screen playing it: a single-player game or a playtest started from the
+	///     map editor. Such a match is reachable on the loopback address only and seats the one player it was started for,
+	///     so a pause holds nobody else up and is not metered.
+	/// </summary>
+	private bool IsSinglePlayerMatch => _arguments.Cheats;
+
 	/// <summary>How long everyone is warned for before a paused match resumes.</summary>
 	private const int ResumeCountdownSeconds = 5;
 
@@ -1844,8 +1851,10 @@ public class ListenServerHost : IServerTransportSink
 	}
 
 	/// <summary>
-	///     Holds the match for one player. Every player may pause, but only within what it has left: a pause costs one of
-	///     its three for the match and starts a minute of recovery, so a match cannot be held by one screen indefinitely.
+	///     Holds the match for one player. In a match shared with others every player may pause, but only within what it has
+	///     left: a pause costs one of its three for the match and starts a minute of recovery, so a match cannot be held by
+	///     one screen indefinitely. A match of one holds only the screen that asked, so it pays nothing and waits for
+	///     nothing.
 	/// </summary>
 	/// <param name="peerId">The peer that asked.</param>
 	/// <param name="playerSlot">The slot it is seated in.</param>
@@ -1858,28 +1867,34 @@ public class ListenServerHost : IServerTransportSink
 			return;
 		}
 
-		int pausesRemaining = PausesRemainingFor(playerSlot);
-		if (pausesRemaining <= 0)
+		if (!IsSinglePlayerMatch)
 		{
-			_log.Write($"player {playerSlot} asked to pause the match but has used every pause it is allowed");
-			SendPauseAllowance(peerId, MatchPauseAllowance.RefusalExhausted);
-			return;
+			int pausesRemaining = PausesRemainingFor(playerSlot);
+			if (pausesRemaining <= 0)
+			{
+				_log.Write($"player {playerSlot} asked to pause the match but has used every pause it is allowed");
+				SendPauseAllowance(peerId, MatchPauseAllowance.RefusalExhausted);
+				return;
+			}
+
+			int cooldownSeconds = CooldownSecondsRemaining(playerSlot);
+			if (cooldownSeconds > 0)
+			{
+				_log.Write($"player {playerSlot} asked to pause the match {cooldownSeconds} second(s) before its pause recovers");
+				SendPauseAllowance(peerId, MatchPauseAllowance.RefusalCooldown);
+				return;
+			}
+
+			_pausesRemainingPerPlayerSlot[playerSlot] = pausesRemaining - 1;
+			_pauseCooldownEndsAtSeconds[playerSlot] = _lastTickSeconds + PauseCooldownSeconds;
 		}
 
-		int cooldownSeconds = CooldownSecondsRemaining(playerSlot);
-		if (cooldownSeconds > 0)
-		{
-			_log.Write($"player {playerSlot} asked to pause the match {cooldownSeconds} second(s) before its pause recovers");
-			SendPauseAllowance(peerId, MatchPauseAllowance.RefusalCooldown);
-			return;
-		}
-
-		_pausesRemainingPerPlayerSlot[playerSlot] = pausesRemaining - 1;
-		_pauseCooldownEndsAtSeconds[playerSlot] = _lastTickSeconds + PauseCooldownSeconds;
 		_paused = true;
 		_pausedByPlayerSlot = playerSlot;
 		_resumeCountdownRemaining = 0;
-		_log.Write($"player {playerSlot} paused the match; it has {pausesRemaining - 1} pause(s) left and may pause again in {PauseCooldownSeconds} second(s)");
+		_log.Write(IsSinglePlayerMatch
+			? $"player {playerSlot} paused a single-player match"
+			: $"player {playerSlot} paused the match; it has {PausesRemainingFor(playerSlot)} pause(s) left and may pause again in {PauseCooldownSeconds} second(s)");
 
 		BroadcastPauseState();
 		SendPauseAllowance(peerId, string.Empty);

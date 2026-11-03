@@ -948,6 +948,19 @@ public partial class GameHost : Node3D
 	public bool CheatsEnabled
 		=> GameContext.SessionState.IsMapEditorMode || GameContext.SessionState.IsTestMode || (GameContext.Lobby?.IsSinglePlayer ?? false);
 
+	/// <summary>
+	///     True when this match belongs to the one screen playing it: a single-player game or a playtest started from the
+	///     map editor. Nobody else is waiting on it, so what the match asks of a player who might be holding other people up
+	///     does not apply.
+	/// </summary>
+	public bool IsSinglePlayerMatch => CheatsEnabled;
+
+	/// <summary>
+	///     True when this match is played with other people, and its outcome is therefore part of a player's record. A
+	///     single-player game and a playtest are one screen's own practice: they are not counted anywhere.
+	/// </summary>
+	public bool IsRankedMultiplayerMatch => !IsSinglePlayerMatch && (GameContext.Lobby?.IsGameStarted ?? false);
+
 	public string GetStringText(int stringId) => Realm.Ecs.StringRegistry.Get(stringId);
 
 	public float GameElapsedTime

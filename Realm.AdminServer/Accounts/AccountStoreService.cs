@@ -108,6 +108,10 @@ public class AccountStoreService
 
 	public const string AdminNoncesCollection = "account_admin_proof_nonces";
 
+	public const string MatchStatsCollection = "account_match_stats";
+
+	public const string MatchResultsCollection = "account_match_results";
+
 	/// <summary>
 	///     Creator names live in the same namespace as account DisplayNames. The legacy creator index is read here so an
 	///     account cannot claim a name a creator already owns.
@@ -117,6 +121,8 @@ public class AccountStoreService
 	private const int MaximumFailuresPerWindow = 8;
 
 	private const long FailureWindowMilliseconds = 15 * 60 * 1000;
+
+	private const int MaximumMatchIdLength = 128;
 
 	private readonly DataStoreService _dataStore;
 	private readonly AccountAuthorityOptions _options;
@@ -141,7 +147,9 @@ public class AccountStoreService
 		CredentialsCollection,
 		RenameHistoryCollection,
 		AdminNoncesCollection,
-		LegacyCreatorNamesCollection
+		LegacyCreatorNamesCollection,
+		MatchStatsCollection,
+		MatchResultsCollection
 	};
 
 	public AccountMutationResult RegisterBasicAuth(string? displayName, string? password)
@@ -565,6 +573,96 @@ public class AccountStoreService
 		_dataStore.Upsert(SessionsCollection, tokenHash, record);
 
 		return AccountMutationResult.Success(account, BuildSessionDto(token!.Trim(), account, record.ExpiresAtUtc));
+	}
+
+	/// <summary>
+	///     The multiplayer record this account has built up. An account that has never finished a match reads as zeros
+	///     with no win rate, which is what the profile screen shows when it has nothing to report.
+	/// </summary>
+	public PlayerMatchStatsDto GetMatchStats(long accountId)
+	{
+		if (accountId <= 0) return new PlayerMatchStatsDto();
+
+		AccountMatchStatsRecord? record = _dataStore.Get<AccountMatchStatsRecord>(MatchStatsCollection, accountId.ToString());
+		return record == null ? new PlayerMatchStatsDto() : ToMatchStats(record);
+	}
+
+	/// <summary>
+	///     Counts one finished multiplayer match for the account that played it. The match id is the screen's own, so the
+	///     same match reported twice is counted once; a report without one cannot be told apart from a replay and is
+	///     refused. The authority's own store keeps the record, and the report is answered with the record as it now
+	///     stands so the screen does not need a second request to show it.
+	/// </summary>
+	/// <param name="accountId">The account the match was played on.</param>
+	/// <param name="matchId">What the screen called this match, unique to it.</param>
+	/// <param name="victory">Whether the player won it.</param>
+	/// <param name="stats">The record after the report, whether it counted or had already been counted.</param>
+	public bool TryRecordMatchResult(long accountId, string? matchId, bool victory, out PlayerMatchStatsDto stats)
+	{
+		stats = new PlayerMatchStatsDto();
+		if (accountId <= 0) return false;
+
+		string normalizedMatchId = NormalizeMatchId(matchId);
+		if (normalizedMatchId.Length == 0) return false;
+
+		string resultKey = $"{accountId}:{normalizedMatchId}";
+		AccountMatchStatsRecord counted = new() { AccountId = accountId };
+		bool alreadyCounted = false;
+
+		bool stored = _dataStore.TryMutate(MutatedCollections, transaction =>
+		{
+			if (DataStoreService.ReadFrom<AccountMatchResultRecord>(transaction, MatchResultsCollection, resultKey) != null)
+			{
+				alreadyCounted = true;
+				return true;
+			}
+
+			AccountMatchStatsRecord record = DataStoreService.ReadFrom<AccountMatchStatsRecord>(transaction, MatchStatsCollection, accountId.ToString())
+			                                   ?? new AccountMatchStatsRecord { AccountId = accountId };
+
+			record.MatchesPlayed++;
+			if (victory) record.Victories++;
+			else record.Defeats++;
+			record.UpdatedAtUtc = DateTime.UtcNow;
+
+			DataStoreService.WriteTo(transaction, MatchStatsCollection, accountId.ToString(), record);
+			DataStoreService.WriteTo(transaction, MatchResultsCollection, resultKey, new AccountMatchResultRecord
+			{
+				AccountId = accountId,
+				MatchId = normalizedMatchId,
+				Victory = victory,
+				RecordedAtUtc = record.UpdatedAtUtc
+			});
+
+			counted = record;
+			return true;
+		});
+
+		stats = stored && !alreadyCounted ? ToMatchStats(counted) : GetMatchStats(accountId);
+		return stored;
+	}
+
+	private static PlayerMatchStatsDto ToMatchStats(AccountMatchStatsRecord record)
+	{
+		return new PlayerMatchStatsDto
+		{
+			MatchesPlayed = record.MatchesPlayed,
+			Victories = record.Victories,
+			Defeats = record.Defeats,
+			WinRatePercent = record.MatchesPlayed > 0 ? Math.Round(record.Victories * 100.0 / record.MatchesPlayed, 1) : null
+		};
+	}
+
+	/// <summary>
+	///     Reduces a reported match id to what a store key can hold: trimmed, bounded in length, and refused when nothing
+	///     is left. The id is only ever an opaque label here, so no other shape is required of it.
+	/// </summary>
+	private static string NormalizeMatchId(string? matchId)
+	{
+		if (string.IsNullOrWhiteSpace(matchId)) return string.Empty;
+
+		string trimmed = matchId.Trim();
+		return trimmed.Length <= MaximumMatchIdLength ? trimmed : trimmed[..MaximumMatchIdLength];
 	}
 
 	private bool TryReadSessionRecord(string? token, out AccountSessionRecord? record, out string tokenHash)
