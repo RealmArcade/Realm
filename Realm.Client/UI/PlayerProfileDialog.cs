@@ -32,6 +32,8 @@ public partial class PlayerProfileDialog : Control
 	private LineEdit _userNameEdit;
 	private VBoxContainer _statsRows;
 	private VBoxContainer _signedOutBox;
+	private VBoxContainer _nameChoiceBox;
+	private LineEdit _registrationNameEdit;
 	private Button _signInButton;
 	private VBoxContainer _signedInBox;
 	private Label _identityLabel;
@@ -46,6 +48,7 @@ public partial class PlayerProfileDialog : Control
 	private bool _verifyThenRename;
 	private bool _serverRefusesSteam;
 	private bool _authorityUnreachable;
+	private bool _registrationNameRefused;
 	private int _statsRequestGeneration;
 
 	public Action? SignedIn { get; set; }
@@ -227,6 +230,27 @@ public partial class PlayerProfileDialog : Control
 		_signedOutBox = new VBoxContainer { Name = "PlayerProfileSignedOut" };
 		_signedOutBox.AddThemeConstantOverride("separation", 10);
 
+		_nameChoiceBox = new VBoxContainer { Name = "PlayerProfileNameChoice" };
+		_nameChoiceBox.AddThemeConstantOverride("separation", 6);
+		_nameChoiceBox.Visible = false;
+		_signedOutBox.AddChild(_nameChoiceBox);
+
+		Label nameChoiceHint = CreateBodyLabel(_nameChoiceBox, TranslationServer.Translate("That name cannot be used. Choose the username this account will use:"));
+		nameChoiceHint.Name = "PlayerProfileNameChoiceHint";
+		nameChoiceHint.HorizontalAlignment = HorizontalAlignment.Center;
+
+		_registrationNameEdit = new LineEdit { Name = "PlayerProfileNameChoiceEdit" };
+		_registrationNameEdit.CustomMinimumSize = new Vector2(0, 36);
+		_registrationNameEdit.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		_registrationNameEdit.MaxLength = DisplayNameRules.MaximumUtf8Bytes;
+		_registrationNameEdit.PlaceholderText = TranslationServer.Translate("Username");
+		UIStyle.ApplyTextInput(_registrationNameEdit);
+		_registrationNameEdit.TextSubmitted += submittedName =>
+		{
+			_ = SignInWithSteamAsync(false);
+		};
+		_nameChoiceBox.AddChild(_registrationNameEdit);
+
 		_signInButton = CreateActionButton(_signedOutBox, "SIGN IN WITH STEAM", SteamIconPath);
 		_signInButton.Pressed += () => _ = SignInWithSteamAsync(false);
 
@@ -251,7 +275,7 @@ public partial class PlayerProfileDialog : Control
 		_signedInBox.AddChild(renameContainer);
 
 		_renameEdit = CreateField(renameContainer, "PlayerProfileRename", TranslationServer.Translate("New Username"));
-		_renameEdit.MaxLength = DisplayNameRules.MaximumGraphemeClusters;
+		_renameEdit.MaxLength = DisplayNameRules.MaximumUtf8Bytes;
 
 		_renameButton = CreateActionButton(renameContainer, "CHANGE USERNAME");
 		_renameButton.Pressed += () => _ = RenameAsync();
@@ -355,6 +379,7 @@ public partial class PlayerProfileDialog : Control
 		_userNameValueLabel.Visible = signedIn;
 		_userNameEdit.Visible = !signedIn;
 		_signedOutBox.Visible = !signedIn;
+		_nameChoiceBox.Visible = !signedIn && _registrationNameRefused;
 		_signedInBox.Visible = signedIn;
 		_signInButton.Visible = steamAvailable;
 		_signInButton.Disabled = _busy || _serverRefusesSteam;
@@ -362,6 +387,7 @@ public partial class PlayerProfileDialog : Control
 
 		if (signedIn)
 		{
+			AdoptAccountNameAsLocalName();
 			_userNameValueLabel.Text = GameContext.Account.EffectiveUserName;
 			RefreshWarning();
 			return;
@@ -373,6 +399,21 @@ public partial class PlayerProfileDialog : Control
 		_userNameEdit.PlaceholderText = steamUserName.Length > 0 ? steamUserName : TranslationServer.Translate("Guest");
 
 		RefreshWarning();
+	}
+
+	/// <summary>
+	///     Makes the name the account goes by the name this machine falls back to when it is signed out, so the local name tracks
+	///     the most recent name the player actually used instead of freezing whatever was typed before the first sign-in. The
+	///     account's name is canonical already, so it is stored as it stands and never re-validated here.
+	/// </summary>
+	private static void AdoptAccountNameAsLocalName()
+	{
+		string accountName = GameContext.Account.DisplayName;
+		if (accountName.Length == 0) return;
+		if (string.Equals(accountName, GameSettings.PlayerName, StringComparison.Ordinal)) return;
+
+		GameSettings.PlayerName = accountName;
+		GameSettings.Save();
 	}
 
 	private void RefreshWarning()
@@ -530,8 +571,10 @@ public partial class PlayerProfileDialog : Control
 			return;
 		}
 
-		string requestedName = reauthenticate ? GameContext.Account.DisplayName : GameContext.Steam.UserName.Trim();
-		if (requestedName.Length == 0) requestedName = _userNameEdit.Text.Trim();
+		string requestedName = reauthenticate
+			? GameContext.Account.DisplayName
+			: _registrationNameRefused ? _registrationNameEdit.Text.Trim() : GameContext.Steam.UserName.Trim();
+		if (requestedName.Length == 0) requestedName = GameContext.Steam.UserName.Trim();
 
 		SetBusy(true);
 		ClearStatus();
@@ -553,9 +596,18 @@ public partial class PlayerProfileDialog : Control
 
 		if (!result.Succeeded)
 		{
+			if (!reauthenticate && IsDisplayNameRefusal(result.ErrorCode))
+			{
+				BeginChoosingAnotherName();
+				ShowStatus(DescribeErrorCode(result.ErrorCode, result.Message), FailureColor);
+				return;
+			}
+
 			ShowFailure(result);
 			return;
 		}
+
+		_registrationNameRefused = false;
 
 		if (_verifyThenRename)
 		{
@@ -568,6 +620,35 @@ public partial class PlayerProfileDialog : Control
 		RefreshAccount();
 		ShowStatus(TranslationServer.Translate("You are signed in with Steam."), SuccessColor);
 		SignedIn?.Invoke();
+	}
+
+	/// <summary>
+	///     The authority refused the persona name as a DisplayName, which is the one case where the Steam name cannot register an
+	///     account. The chooser becomes the source of the next attempt, so the player is asked for a name instead of the same
+	///     refused persona being sent again on every retry, and the refused persona is offered as the starting point to edit.
+	/// </summary>
+	private void BeginChoosingAnotherName()
+	{
+		_registrationNameRefused = true;
+		_nameChoiceBox.Visible = true;
+
+		_registrationNameEdit.Text = GameContext.Steam.UserName.Trim();
+		_registrationNameEdit.CaretColumn = _registrationNameEdit.Text.Length;
+		_registrationNameEdit.GrabFocus();
+		_registrationNameEdit.SelectAll();
+	}
+
+	private static bool IsDisplayNameRefusal(string errorCode)
+	{
+		return errorCode is AccountErrorCodes.DisplayNameEmpty
+			or AccountErrorCodes.DisplayNameTooShort
+			or AccountErrorCodes.DisplayNameTooLong
+			or AccountErrorCodes.DisplayNameTooManyBytes
+			or AccountErrorCodes.DisplayNameDisallowedCharacter
+			or AccountErrorCodes.DisplayNameCombiningMarkWithoutBase
+			or AccountErrorCodes.DisplayNameNeedsLetterOrDigit
+			or AccountErrorCodes.DisplayNameAlreadyTaken
+			or AccountErrorCodes.DisplayNameVisuallySimilar;
 	}
 
 	private async Task BeginVerifyThenRenameAsync()
@@ -612,6 +693,7 @@ public partial class PlayerProfileDialog : Control
 	private async Task SignOutAsync()
 	{
 		_verifyThenRename = false;
+		_registrationNameRefused = false;
 		SetBusy(true);
 		await GameContext.Account.SignOutAsync();
 		SetBusy(false);
@@ -641,7 +723,7 @@ public partial class PlayerProfileDialog : Control
 			case AccountErrorCodes.DisplayNameEmpty:
 				return TranslationServer.Translate("A username is required.");
 			case AccountErrorCodes.DisplayNameTooShort:
-				return TranslationServer.Translate("A username must be at least 3 characters long.");
+				return TranslationServer.Translate("A username must be at least 3 characters long, or 2 when it is written entirely in Han, kana or Hangul.");
 			case AccountErrorCodes.DisplayNameTooLong:
 				return TranslationServer.Translate("A username must be at most 20 characters long.");
 			case AccountErrorCodes.DisplayNameTooManyBytes:
@@ -667,6 +749,8 @@ public partial class PlayerProfileDialog : Control
 				return TranslationServer.Translate("This server does not own accounts and refused the change.");
 			case AccountErrorCodes.AccountNotFound:
 				return TranslationServer.Translate("That account no longer exists.");
+			case AccountErrorCodes.AccountStoreUnavailable:
+				return TranslationServer.Translate("The account server could not save that. Try again in a moment.");
 			default:
 				return string.IsNullOrEmpty(fallback) ? TranslationServer.Translate("The request was refused.") : fallback;
 		}

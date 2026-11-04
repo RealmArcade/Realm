@@ -18,6 +18,7 @@ using Realm.Client.Services;
 using Realm.Client.UI;
 using Realm.Client.Utils;
 using Realm.Shared;
+using Realm.Shared.Accounts;
 using Realm.Shared.Distribution;
 using Realm.Shared.Maps;
 using Realm.Shared.Metadata;
@@ -1222,6 +1223,8 @@ public partial class LobbyManager : BaseMapTransferNode
 	private void OnLobbyChat(LobbyChatMessage line)
 	{
 		string sender = string.IsNullOrEmpty(line.SenderName) ? "System" : line.SenderName;
+		if (line.SenderPeerId > 0 && line.SenderAccountId == 0) sender = UnverifiedNameMark.Apply(sender);
+
 		int senderSlot = PlayerList.Find(p => p.PeerId == line.SenderPeerId)?.Slot ?? 0;
 		if (line.SenderPeerId > 0) ServerChatCommandReceived?.Invoke(senderSlot, line.Message);
 		ChatReceived?.Invoke(sender, line.Message, false, line.TimestampUtcTicks);

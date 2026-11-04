@@ -11,7 +11,9 @@ namespace Realm.Shared.Accounts;
 ///     canonical bytes and the same uniqueness key must be produced everywhere.
 ///     <para>
 ///         The steps always run in this fixed order: trim and collapse whitespace, reject forbidden code points, normalize to
-///         NFC, measure grapheme clusters and UTF-8 bytes, fold for the uniqueness key.
+///         NFC, measure grapheme clusters and UTF-8 bytes, fold for the uniqueness key. A name written entirely in Han, kana or
+///         Hangul may be two characters long, because two characters is a complete name in those scripts; every other name
+///         needs three.
 ///     </para>
 ///     <para>
 ///         Two separate concepts live here on purpose. The <b>uniqueness key</b> is the folded canonical form and decides
@@ -24,11 +26,15 @@ public static class DisplayNameRules
 {
 	public const int MinimumGraphemeClusters = 3;
 
+	public const int MinimumCjkGraphemeClusters = 2;
+
 	public const int MaximumGraphemeClusters = 20;
 
 	public const int MaximumUtf8Bytes = 128;
 
 	private const char SpaceCharacter = ' ';
+
+	private const char SkeletonWordSeparator = ' ';
 
 	private static readonly HashSet<int> AllowedPunctuationCodePoints = new() { '-', '_', '.', '\'' };
 
@@ -86,7 +92,7 @@ public static class DisplayNameRules
 		}
 
 		int graphemeClusters = CountGraphemeClusters(normalised);
-		if (graphemeClusters < MinimumGraphemeClusters)
+		if (graphemeClusters < MinimumGraphemeClusters && !IsShortCjkName(normalised, graphemeClusters))
 		{
 			error = DisplayNameError.TooShort;
 			return false;
@@ -120,17 +126,29 @@ public static class DisplayNameRules
 	}
 
 	/// <summary>
-	///     The case fold the uniqueness index is keyed on. .NET exposes no full Unicode case-folding API, so this folds by
-	///     upper-casing each rune invariantly (which collapses the Greek final sigma and the micro sign exactly as case folding
-	///     does) plus a table for the expansions case folding performs and upper-casing does not (sharp s, ligatures, dotted
-	///     capital I). The result is re-normalised to NFC so a decomposed variant of the same folded text keys identically.
+	///     The case fold the uniqueness index is keyed on. The name is normalised to NFKC first, so a full-width or mathematical
+	///     spelling cannot claim a name its plain spelling already owns while the account keeps the characters it was given.
+	///     .NET exposes no full Unicode case-folding API, so this then folds by upper-casing each rune invariantly (which
+	///     collapses the Greek final sigma and the micro sign exactly as case folding does) plus a table for the expansions case
+	///     folding performs and upper-casing does not (sharp s, dotted capital I). The result is re-normalised to NFC so a
+	///     decomposed variant of the same folded text keys identically.
 	/// </summary>
 	public static string Fold(string canonical)
 	{
 		if (string.IsNullOrEmpty(canonical)) return string.Empty;
 
-		var builder = new StringBuilder(canonical.Length);
-		foreach (Rune rune in canonical.EnumerateRunes())
+		string foldedSource;
+		try
+		{
+			foldedSource = canonical.Normalize(NormalizationForm.FormKC);
+		}
+		catch (ArgumentException)
+		{
+			foldedSource = canonical;
+		}
+
+		var builder = new StringBuilder(foldedSource.Length);
+		foreach (Rune rune in foldedSource.EnumerateRunes())
 		{
 			if (FoldExpansions.TryGetValue(rune.Value, out string? expansion))
 			{
@@ -151,32 +169,42 @@ public static class DisplayNameRules
 
 	/// <summary>
 	///     Reduces a name to the shapes a reader cannot tell apart: the common Greek and Cyrillic homoglyphs of Latin letters
-	///     are mapped onto their Latin lookalike, and spacing and punctuation are dropped so they cannot be used to slip a name
-	///     past it. Combining marks are kept, because a mark genuinely changes what a reader sees, so a name with an accent does
-	///     not collapse onto the same word without it. This is deliberately a bounded, documented approximation; it is a separate
-	///     check from the folded uniqueness key and never replaces it.
+	///     are mapped onto their Latin lookalike, and any run of spaces and punctuation between words becomes one word break, so
+	///     punctuation cannot be used to slip a name past it while a name that reads as two words stays apart from the same name
+	///     run together. Combining marks are kept, because a mark genuinely changes what a reader sees, so a name with an accent
+	///     does not collapse onto the same word without it. This is deliberately a bounded, documented approximation; it is a
+	///     separate check from the folded uniqueness key and never replaces it.
 	/// </summary>
 	public static string ComputeConfusableSkeleton(string canonical)
 	{
 		if (string.IsNullOrEmpty(canonical)) return string.Empty;
 
 		var builder = new StringBuilder(canonical.Length);
+		bool previousWasSeparator = false;
 		foreach (Rune rune in Fold(canonical).EnumerateRunes())
 		{
 			UnicodeCategory category = Rune.GetUnicodeCategory(rune);
 			bool isCombiningMark = category is UnicodeCategory.NonSpacingMark or UnicodeCategory.SpacingCombiningMark or UnicodeCategory.EnclosingMark;
-			if (!isCombiningMark && !Rune.IsLetterOrDigit(rune)) continue;
+			if (!isCombiningMark && !Rune.IsLetterOrDigit(rune))
+			{
+				if (previousWasSeparator || builder.Length == 0) continue;
+				builder.Append(SkeletonWordSeparator);
+				previousWasSeparator = true;
+				continue;
+			}
 
 			if (ConfusableLatinSkeletonMap.TryGetValue(rune.Value, out char latinLookalike))
 			{
 				builder.Append(char.ToLowerInvariant(latinLookalike));
+				previousWasSeparator = false;
 				continue;
 			}
 
 			builder.Append(Rune.ToLowerInvariant(rune).ToString());
+			previousWasSeparator = false;
 		}
 
-		return builder.ToString();
+		return builder.ToString().TrimEnd(SkeletonWordSeparator);
 	}
 
 	public static bool AreVisuallyConfusable(string canonicalA, string canonicalB)
@@ -225,7 +253,7 @@ public static class DisplayNameRules
 		return error switch
 		{
 			DisplayNameError.Empty => "A display name is required.",
-			DisplayNameError.TooShort => $"A display name must be at least {MinimumGraphemeClusters} characters long.",
+			DisplayNameError.TooShort => $"A display name must be at least {MinimumGraphemeClusters} characters long, or {MinimumCjkGraphemeClusters} when it is written entirely in Han, kana or Hangul.",
 			DisplayNameError.TooLong => $"A display name must be at most {MaximumGraphemeClusters} characters long.",
 			DisplayNameError.TooManyBytes => $"A display name must be at most {MaximumUtf8Bytes} bytes when encoded as UTF-8.",
 			DisplayNameError.DisallowedCharacter => "A display name may only contain letters, digits, single spaces, hyphens, underscores, periods and apostrophes.",
@@ -338,6 +366,37 @@ public static class DisplayNameRules
 		}
 
 		return false;
+	}
+
+	private static bool IsShortCjkName(string value, int graphemeClusters)
+	{
+		if (graphemeClusters != MinimumCjkGraphemeClusters) return false;
+
+		foreach (Rune rune in value.EnumerateRunes())
+		{
+			if (IsCjkCodePoint(rune.Value)) continue;
+
+			UnicodeCategory category = Rune.GetUnicodeCategory(rune);
+			if (category is UnicodeCategory.NonSpacingMark or UnicodeCategory.SpacingCombiningMark or UnicodeCategory.EnclosingMark) continue;
+
+			return false;
+		}
+
+		return true;
+	}
+
+	private static bool IsCjkCodePoint(int codePoint)
+	{
+		return codePoint is >= 0x1100 and <= 0x11FF
+			or >= 0x3005 and <= 0x3011
+			or >= 0x3040 and <= 0x31FF
+			or >= 0x3400 and <= 0x4DBF
+			or >= 0x4E00 and <= 0x9FFF
+			or >= 0xA960 and <= 0xA97F
+			or >= 0xAC00 and <= 0xD7FF
+			or >= 0xF900 and <= 0xFAFF
+			or >= 0xFF66 and <= 0xFF9F
+			or >= 0x20000 and <= 0x2FA1F;
 	}
 
 	private static Dictionary<int, char> BuildConfusableLatinSkeletonMap()

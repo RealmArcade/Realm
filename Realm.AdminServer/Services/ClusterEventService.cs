@@ -2065,7 +2065,8 @@ public class ClusterEventService
 
 			case AccountClusterEventPayload.RenamedEvent:
 				if (existing == null) return false;
-				if (string.Equals(existing.UniquenessKey, payload.UniquenessKey, StringComparison.Ordinal)) return true;
+				if (string.Equals(existing.UniquenessKey, payload.UniquenessKey, StringComparison.Ordinal)
+				    && string.Equals(existing.DisplayName, payload.DisplayName, StringComparison.Ordinal)) return true;
 
 				if (!string.IsNullOrEmpty(payload.PreviousUniquenessKey) && !string.Equals(payload.PreviousUniquenessKey, payload.UniquenessKey, StringComparison.Ordinal))
 				{

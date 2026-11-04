@@ -4,6 +4,7 @@ using Godot;
 using Realm.Client.Core;
 using Realm.Client.Network;
 using Realm.Client.Services;
+using Realm.Shared.Accounts;
 
 namespace Realm.Client.UI.InGame;
 
@@ -205,7 +206,9 @@ public class ChatPanel
 
 	private void DispatchChatMessage(string trimmedText)
 	{
-		string sender = GameContext.Lobby?.PlayerDisplayName ?? TranslationServer.Translate("Guest");
+		string sender = GameContext.Lobby?.PlayerDisplayName ?? GameContext.Account.EffectiveUserName;
+		if (GameContext.Lobby == null && !GameContext.Account.IsSignedIn) sender = UnverifiedNameMark.Apply(sender);
+
 		bool alliesOnly = _currentMode == ChatMode.Allies;
 
 		if (GameContext.Lobby != null)
@@ -238,12 +241,13 @@ public class ChatPanel
 	public void OnLobbyChatReceived(string senderName, string message, bool alliesOnly = false, long timestampUtcTicks = 0)
 	{
 		if (_chatLog == null) return;
+		string cleanSender = (senderName ?? string.Empty).Replace("[", "[[").Replace("]", "]]");
 		string cleanMsg = message.Replace("[", "[[").Replace("]", "]]");
 		string prefix = alliesOnly ? "[color=#00a2ff](Allies)[/color] " : "";
 		string timestamp = GameContext.Host != null
 			? FormatElapsedTimestamp(GameContext.Host.GameElapsedTime)
 			: FormatTimestamp(timestampUtcTicks);
-		string textToAppend = $"[color=#a0a0a0][{timestamp}][/color] {prefix}[color=#00ffc8]{senderName}:[/color] {cleanMsg}\n";
+		string textToAppend = $"[color=#a0a0a0][{timestamp}][/color] {prefix}[color=#00ffc8]{cleanSender}:[/color] {cleanMsg}\n";
 		_chatLog.AppendText(textToAppend);
 	}
 }

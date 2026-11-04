@@ -191,6 +191,7 @@ public static class AccountEndpoints
 			AccountMutationOutcome.AdminProofInvalid => AccountErrorCodes.AdminProofInvalid,
 			AccountMutationOutcome.AdminProofStale => AccountErrorCodes.AdminProofStale,
 			AccountMutationOutcome.AdminProofReplayed => AccountErrorCodes.AdminProofReplayed,
+			AccountMutationOutcome.StorageFailure => AccountErrorCodes.AccountStoreUnavailable,
 			_ => AccountErrorCodes.RequestMalformed
 		};
 
@@ -200,6 +201,7 @@ public static class AccountEndpoints
 			AccountMutationOutcome.CredentialsInvalid or AccountMutationOutcome.SessionInvalid => StatusCodes.Status401Unauthorized,
 			AccountMutationOutcome.RefusedNotAuthority => StatusCodes.Status403Forbidden,
 			AccountMutationOutcome.AccountNotFound => StatusCodes.Status404NotFound,
+			AccountMutationOutcome.StorageFailure => StatusCodes.Status503ServiceUnavailable,
 			_ => StatusCodes.Status400BadRequest
 		};
 

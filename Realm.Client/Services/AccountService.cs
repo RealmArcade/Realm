@@ -121,8 +121,9 @@ public class AccountService
 
 	/// <summary>
 	///     The name this screen goes by right now. An account owns its name, so signing in replaces whatever was typed while
-	///     signed out; without an account the typed name stands, and only when it was left empty does the Steam persona show
-	///     through, so a player who never touched the field is still described by the name Steam knows them by.
+	///     signed out, and the name the account last went by is kept as the local fallback, so a player who signs out carries on
+	///     under the name they were just using. Without an account the typed name stands, and only when it was left empty does the
+	///     Steam persona show through, so a player who never touched the field is still described by the name Steam knows them by.
 	/// </summary>
 	public string EffectiveUserName
 	{
@@ -431,6 +432,11 @@ public class AccountService
 
 	private static AccountOperationResult RejectedOrUnreachable(HttpResponseMessage response, string json)
 	{
+		if (response.StatusCode == System.Net.HttpStatusCode.ServiceUnavailable)
+		{
+			return AccountOperationResult.Rejected(AccountErrorCodes.AccountStoreUnavailable, "The account authority could not write to its store.");
+		}
+
 		if ((int)response.StatusCode >= 500) return AccountOperationResult.Unreachable("The account authority reported a problem.");
 
 		try

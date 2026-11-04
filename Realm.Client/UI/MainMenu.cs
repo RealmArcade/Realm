@@ -12,6 +12,7 @@ using static Godot.Control;
 using static Godot.CanvasItem;
 using Realm.Client.Services;
 using Realm.Client.Utils;
+using Realm.Shared.Accounts;
 
 namespace Realm.Client.UI;
 
@@ -107,15 +108,34 @@ public partial class MainMenu : Control
 	{
 		if (!GodotObject.IsInstanceValid(this)) return;
 
-		Label nameLabel = _profileButton?.GetNodeOrNull<Label>("Nameplate/Label");
-		if (nameLabel != null)
-		{
-			nameLabel.Text = GameContext.Account.IsSignedIn
-				? GameContext.Account.DisplayName
-				: TranslationServer.Translate("SIGNED OUT");
-		}
+		ApplyProfileNameLabels();
 
 		if (_profileDialog != null && GodotObject.IsInstanceValid(_profileDialog)) _profileDialog.RefreshPresentation();
+	}
+
+	/// <summary>
+	///     The profile button states the name this screen plays under and, when no account owns it, that it is unverified, so the
+	///     name other players will see is readable without opening the profile screen.
+	/// </summary>
+	private void ApplyProfileNameLabels()
+	{
+		if (_profileButton == null) return;
+
+		Label nameLabel = _profileButton.GetNodeOrNull<Label>("Nameplate/Label");
+		Label statusLabel = _profileButton.GetNodeOrNull<Label>("Badge/Label");
+		bool signedIn = GameContext.Account.IsSignedIn;
+
+		if (nameLabel != null)
+		{
+			nameLabel.Text = signedIn
+				? GameContext.Account.DisplayName
+				: UnverifiedNameMark.Apply(GameContext.Account.EffectiveUserName);
+		}
+
+		if (statusLabel != null)
+		{
+			statusLabel.Text = signedIn ? string.Empty : TranslationServer.Translate("SIGNED OUT");
+		}
 	}
 
 	/// <summary>
@@ -713,8 +733,7 @@ public partial class MainMenu : Control
 		avatar.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
 		avatar.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 
-		nameLabel.Text = GameContext.Account.IsSignedIn ? GameContext.Account.DisplayName : TranslationServer.Translate("SIGNED OUT");
-		levelLabel.Text = "";
+		ApplyProfileNameLabels();
 
 		var labelFont = new SystemFont();
 		labelFont.FontNames = new string[] { "Cinzel Bold", "Cinzel", "Palatino Linotype", "Georgia", "serif" };

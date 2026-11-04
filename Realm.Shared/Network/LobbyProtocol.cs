@@ -227,11 +227,12 @@ public static class LobbyLimits
 	/// <summary>
 	///     The name a lobby carries for a peer. A legal DisplayName is passed through untouched; anything else is reduced to a
 	///     control-free, grapheme-safe rendering so a seat can never hold a name the account authority would refuse or a string
-	///     cut in the middle of a surrogate pair.
+	///     cut in the middle of a surrogate pair. The unverified mark is stripped, because whether a name is marked is what the
+	///     screen knows about the seat, never something the seat declares about itself.
 	/// </summary>
 	public static string SanitizeDisplayName(string? value)
 	{
-		return DisplayNameRules.AdmitForLobby(value, MaximumPlayerNameLength);
+		return UnverifiedNameMark.Remove(DisplayNameRules.AdmitForLobby(value, MaximumPlayerNameLength));
 	}
 
 	public static bool IsAcceptableTeamName(string? teamName)

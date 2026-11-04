@@ -15,6 +15,7 @@ using static Godot.CanvasItem;
 using Realm.Client.Utils;
 using Realm.Client.UI.InGame;
 using Realm.Client.Services;
+using Realm.Shared.Accounts;
 
 namespace Realm.Client.UI;
 
@@ -1723,9 +1724,11 @@ public partial class LobbyRoom : Control
 
 	private static string GetPlayerRowDisplayName(PlayerInfo player)
 	{
+		string name = player.AccountId == 0 && player.PeerId > 0 ? UnverifiedNameMark.Apply(player.Name) : player.Name;
+
 		return player.IsDisconnected
-			? string.Format(TranslationServer.Translate("{0} (reconnecting)"), player.Name)
-			: player.Name;
+			? string.Format(TranslationServer.Translate("{0} (reconnecting)"), name)
+			: name;
 	}
 
 	private void UpdateRowFactionOption(HBoxContainer hBox, PlayerInfo p, bool canEditSeat)

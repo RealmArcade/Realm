@@ -34,7 +34,9 @@ public enum AccountMutationOutcome
 
 	AdminProofStale = 14,
 
-	AdminProofReplayed = 15
+	AdminProofReplayed = 15,
+
+	StorageFailure = 16
 }
 
 public class AccountMutationResult
@@ -224,6 +226,7 @@ public class AccountStoreService
 		AccountRecord? renamed = null;
 		AccountMutationOutcome failure = AccountMutationOutcome.Success;
 		string previousUniquenessKey = string.Empty;
+		string previousDisplayName = string.Empty;
 
 		bool stored = _dataStore.TryMutate(MutatedCollections, transaction =>
 		{
@@ -241,6 +244,7 @@ public class AccountStoreService
 			}
 
 			previousUniquenessKey = account.UniquenessKey;
+			previousDisplayName = account.DisplayName;
 
 			if (!string.IsNullOrEmpty(adminNonce))
 			{
@@ -256,6 +260,28 @@ public class AccountStoreService
 
 			if (string.Equals(account.UniquenessKey, newUniquenessKey, StringComparison.Ordinal))
 			{
+				if (string.Equals(account.DisplayName, canonical, StringComparison.Ordinal))
+				{
+					renamed = account;
+					return true;
+				}
+
+				AccountRenameHistoryRecord casingHistory = new()
+				{
+					AccountId = accountId,
+					PreviousDisplayName = account.DisplayName,
+					PreviousUniquenessKey = account.UniquenessKey,
+					NewDisplayName = canonical,
+					NewUniquenessKey = newUniquenessKey,
+					Actor = actor,
+					RecordedAtUtc = DateTime.UtcNow
+				};
+
+				account.DisplayName = canonical;
+				account.UpdatedAtUtc = DateTime.UtcNow;
+
+				DataStoreService.WriteTo(transaction, AccountsCollection, accountId.ToString(), account);
+				DataStoreService.WriteTo(transaction, RenameHistoryCollection, casingHistory.HistoryId, casingHistory);
 				renamed = account;
 				return true;
 			}
@@ -309,7 +335,8 @@ public class AccountStoreService
 			};
 		}
 
-		if (!string.Equals(previousUniquenessKey, renamed.UniquenessKey, StringComparison.Ordinal))
+		if (!string.Equals(previousUniquenessKey, renamed.UniquenessKey, StringComparison.Ordinal)
+		    || !string.Equals(previousDisplayName, renamed.DisplayName, StringComparison.Ordinal))
 		{
 			AccountClusterEventPayload payload = BuildEventPayload(renamed, previousUniquenessKey, null);
 			_replication.Publish(AccountClusterEventPayload.RenamedEvent, payload);
@@ -594,7 +621,7 @@ public class AccountStoreService
 
 		if (IsCreatorNameTaken(canonical)) return AccountMutationResult.InvalidName(DisplayNameError.AlreadyTaken);
 
-		return AccountMutationResult.Refused(AccountMutationOutcome.CredentialsInvalid, "The account could not be created.");
+		return AccountMutationResult.Refused(AccountMutationOutcome.StorageFailure, "The account store did not accept the new account.");
 	}
 
 	private long MintAccountId(Transaction transaction)

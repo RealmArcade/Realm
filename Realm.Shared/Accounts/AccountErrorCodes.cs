@@ -50,6 +50,8 @@ public static class AccountErrorCodes
 
 	public const string RequestMalformed = "request_malformed";
 
+	public const string AccountStoreUnavailable = "account_store_unavailable";
+
 	private static readonly Dictionary<DisplayNameError, string> DisplayNameErrorCodes = new()
 	{
 		{ DisplayNameError.Empty, DisplayNameEmpty },

@@ -125,7 +125,7 @@ public class SummaryTablePanel
 	{
 		var nameCell = new RichTextLabel();
 		nameCell.Name = "CellName_RichTextLabel";
-		nameCell.BbcodeEnabled = true;
+		nameCell.BbcodeEnabled = false;
 		nameCell.ScrollActive = false;
 		nameCell.FitContent = true;
 		nameCell.AutowrapMode = TextServer.AutowrapMode.Off;
