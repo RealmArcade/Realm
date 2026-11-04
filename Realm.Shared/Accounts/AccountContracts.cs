@@ -102,3 +102,34 @@ public class AccountProvidersDto
 
 	public string[] Warnings { get; set; } = Array.Empty<string>();
 }
+
+/// <summary>
+///     A player's multiplayer record as the account authority keeps it. Only matches played against other people are
+///     counted: a single-player game or a playtest started from the editor never reaches the authority, so it can never
+///     move these numbers.
+/// </summary>
+public class PlayerMatchStatsDto
+{
+	public int MatchesPlayed { get; set; }
+
+	public int Victories { get; set; }
+
+	public int Defeats { get; set; }
+
+	/// <summary>
+	///     Victories as a percentage of the matches played, or <c>null</c> when no match has been recorded and there is
+	///     therefore no rate to report.
+	/// </summary>
+	public double? WinRatePercent { get; set; }
+}
+
+/// <summary>
+///     One finished multiplayer match, as the screen that played it reports it. The match id is what makes the report
+///     safe to repeat: the authority counts a given match for an account once, so a retried request cannot count twice.
+/// </summary>
+public class MatchResultReport
+{
+	public string MatchId { get; set; } = string.Empty;
+
+	public bool Victory { get; set; }
+}

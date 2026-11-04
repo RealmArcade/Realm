@@ -518,13 +518,14 @@ public partial class InGameHUD : Control
 
 	/// <summary>
 	///     Holds the match for everyone, which is a request the whole lobby cannot undo by accident, so it is asked for
-	///     once before it is sent. Resuming is not: a held match has nothing left to lose by being released.
+	///     once before it is sent. Resuming is not: a held match has nothing left to lose by being released. A match with
+	///     nobody else in it holds only the screen pressing the button, so that one is not asked at all.
 	/// </summary>
 	private void OnPauseMatchButtonPressed()
 	{
 		GameContext.UserInterface?.PlayClickSound();
 
-		if (GameContext.NetworkService?.IsPaused == true)
+		if (GameContext.NetworkService?.IsPaused == true || GameContext.Host?.IsSinglePlayerMatch == true)
 		{
 			GameContext.Host?.TogglePauseRequest();
 			return;
@@ -545,13 +546,18 @@ public partial class InGameHUD : Control
 		bool paused = network != null && network.IsPaused;
 
 		_btnPauseMatch.Text = paused ? UnicodeIcons.PLAY : UnicodeIcons.PAUSE;
+
+		bool singlePlayer = GameContext.Host?.IsSinglePlayerMatch == true;
 		_btnPauseMatch.TooltipText = paused
 			? TranslationServer.Translate("Resume Match")
-			: string.Format(TranslationServer.Translate("Pause Match - {0} pause(s) left this match"), network?.RemainingPauses ?? 0);
+			: singlePlayer
+				? TranslationServer.Translate("Pause Match")
+				: string.Format(TranslationServer.Translate("Pause Match - {0} pause(s) left this match"), network?.RemainingPauses ?? 0);
 
 		// The cooldown is deliberately left to the authority: the button that could tell a player it is still recharging is
-		// the one it has to press to be told, so only a player with nothing left to spend is stopped here.
-		_btnPauseMatch.Disabled = !paused && network != null && network.RemainingPauses <= 0;
+		// the one it has to press to be told, so only a player with nothing left to spend is stopped here. A match of one
+		// spends nothing, so its button is never taken away.
+		_btnPauseMatch.Disabled = !paused && !singlePlayer && network != null && network.RemainingPauses <= 0;
 	}
 
 	private void SetupQuitMatchButton()

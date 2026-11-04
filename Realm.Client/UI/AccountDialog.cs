@@ -185,6 +185,7 @@ public partial class AccountDialog : Control
 		edit.CustomMinimumSize = new Vector2(0, 36);
 		edit.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		edit.PlaceholderText = fieldLabel;
+		UIStyle.ApplyTextInput(edit);
 		parent.AddChild(edit);
 		return edit;
 	}

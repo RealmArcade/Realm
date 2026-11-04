@@ -1,10 +1,14 @@
 using System;
+using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Text.Json;
+using System.Threading.Tasks;
 using Godot;
 using Realm.Client.Network;
 using Realm.Shared;
 using Realm.Shared.Network;
+using Realm.Shared.Accounts;
 using HttpClient = System.Net.Http.HttpClient;
 using static Godot.Control;
 using static Godot.CanvasItem;
@@ -47,12 +51,16 @@ public partial class MainMenu : Control
 	private Button _announcementsButton;
 	private Button _bugReportButton;
 	private Control _profilePopup;
+	private VBoxContainer _profileStatsRows;
 	private AccountDialog _accountDialog;
+	private AnnouncementsDialog _announcementsDialog;
 	private OptionButton _versionDropdown;
 	private Label _outdatedLabel;
 
 	private static Font _norseFont;
 	private static Font _norseBoldFont;
+
+	private static readonly Color ProfileKeyColor = new(0.95f, 0.78f, 0.52f);
 
 	private readonly string[] _runes = { "ᚠ", "ᚢ", "ᚦ", "ᚨ", "ᚱ", "ᚲ", "ᚷ", "ᚹ", "ᚺ", "ᚾ", "ᛁ", "ᛃ", "ᛇ", "ᛈ", "ᛉ", "ᛊ", "ᛏ", "ᛒ", "ᛖ", "ᛗ", "ᛚ", "ᛜ", "ᛞ", "ᛟ" };
 
@@ -246,8 +254,30 @@ public partial class MainMenu : Control
 		SetupSocialLinkButton(_discordButton, "DISCORD", "http://discord.realm-game.com", "res://Assets/UI/discord_icon.webp");
 		SetupSocialLinkButton(_youtubeButton, "YOUTUBE", "https://www.youtube.com/@Realm-Game", "res://Assets/UI/youtube_icon.webp");
 		SetupSocialLinkButton(_donateButton, "DONATE", "http://realm-game.com/#donate", "res://Assets/UI/donate_icon.webp");
-		SetupSocialLinkButton(_announcementsButton, "ANNOUNCEMENTS", "https://realm-game.com/#subscribe", "res://Assets/UI/email_icon.webp");
 		SetupSocialLinkButton(_bugReportButton, "BUG REPORT", "https://github.com/RealmArcade/Realm/issues", "res://Assets/UI/bug_icon.webp");
+		SetupAnnouncementsButton();
+	}
+
+	private void SetupAnnouncementsButton()
+	{
+		if (_announcementsButton == null) return;
+		SetupMenuButton(_announcementsButton, "ANNOUNCEMENTS", () =>
+		{
+			HideSocialPopover();
+			OpenAnnouncementsDialog();
+		}, "res://Assets/UI/options_menu_button.webp", null, "res://Assets/UI/email_icon.webp");
+	}
+
+	private void OpenAnnouncementsDialog()
+	{
+		if (_announcementsDialog != null && GodotObject.IsInstanceValid(_announcementsDialog))
+		{
+			_announcementsDialog.QueueFree();
+		}
+
+		_announcementsDialog = new AnnouncementsDialog { Name = "AnnouncementsDialog" };
+		AddChild(_announcementsDialog);
+		_announcementsDialog.Open();
 	}
 
 	private void SetupSocialLinkButton(Button button, string text, string url, string iconPath)
@@ -898,6 +928,7 @@ public partial class MainMenu : Control
 		}
 
 		_profilePopup = CreateProfilePopupBase();
+		_profileStatsRows = null;
 		AddChild(_profilePopup);
 
 		var cardPanel = CreateProfileCardPanel();
@@ -1063,57 +1094,76 @@ public partial class MainMenu : Control
 
 	private void CreateProfileDataRows(VBoxContainer vbox)
 	{
-		var profileInfoColor = new Color(0.95f, 0.78f, 0.52f);
-
 		var profileFont = new SystemFont();
 		profileFont.FontNames = new string[] { "Cinzel Bold", "Cinzel", "Palatino Linotype", "Garamond", "Georgia", "serif" };
 		profileFont.FontWeight = 700;
 
-		AddProfileNameRow(vbox, profileFont, profileInfoColor);
+		AddProfileNameRow(vbox, profileFont, ProfileKeyColor);
 
-		var profileDataRows = new (string Key, string Value, Color ValueColor)[]
+		_profileStatsRows = new VBoxContainer { Name = "ProfileStatsRows_VBoxContainer" };
+		vbox.AddChild(_profileStatsRows);
+
+		if (GameContext.Account.IsSignedIn) _ = PopulateProfileStatsAsync(_profileStatsRows, profileFont);
+	}
+
+	/// <summary>
+	///     Fills in the multiplayer record once the authority has answered it. The rows arrive after the card is already on
+	///     screen, and nothing is shown when there is no record to show: signed out, an authority that could not be reached,
+	///     or a card that was closed and reopened since the request went out, which asks for its own record instead.
+	/// </summary>
+	private async Task PopulateProfileStatsAsync(VBoxContainer rows, Font profileFont)
+	{
+		PlayerMatchStatsDto? stats = await GameContext.Account.GetMatchStatsAsync();
+		if (stats == null || !GodotObject.IsInstanceValid(rows)) return;
+		if (rows != _profileStatsRows) return;
+
+		var entries = new List<(string Key, string Value, Color ValueColor)>
 		{
-			(LocalizationManager.Translate("Faction"), LocalizationManager.Translate("Human Alliance"), profileInfoColor),
-			(LocalizationManager.Translate("Matches Played"), "142", profileInfoColor),
-			(LocalizationManager.Translate("Victories"), "89", new Color(0.55f, 0.95f, 0.55f)),
-			(LocalizationManager.Translate("Defeats"), "53", new Color(0.95f, 0.5f, 0.45f)),
-			(LocalizationManager.Translate("Win Rate"), "62.7%", new Color(0.6f, 0.85f, 1.0f)),
-			(LocalizationManager.Translate("Rank"), LocalizationManager.Translate("Grand Marshal"), profileInfoColor)
+			(LocalizationManager.Translate("Matches Played"), stats.MatchesPlayed.ToString("N0"), ProfileKeyColor),
+			(LocalizationManager.Translate("Victories"), stats.Victories.ToString("N0"), new Color(0.55f, 0.95f, 0.55f)),
+			(LocalizationManager.Translate("Defeats"), stats.Defeats.ToString("N0"), new Color(0.95f, 0.5f, 0.45f))
 		};
 
-		foreach (var row in profileDataRows)
+		if (stats.WinRatePercent.HasValue)
 		{
-			var rowContainer = new HBoxContainer();
-			rowContainer.Name = "RowContainer_HBoxContainer";
-			rowContainer.Alignment = BoxContainer.AlignmentMode.Center;
-			rowContainer.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
-			rowContainer.AddThemeConstantOverride("separation", 8);
-
-			var keyLabel = new Label();
-			keyLabel.Name = "KeyLabel_Label";
-			keyLabel.Text = row.Key + ":";
-			keyLabel.HorizontalAlignment = HorizontalAlignment.Right;
-			keyLabel.AddThemeFontOverride("font", profileFont);
-			keyLabel.AddThemeColorOverride("font_color", profileInfoColor);
-			keyLabel.AddThemeColorOverride("font_outline_color", new Color(0.02f, 0.02f, 0.04f));
-			keyLabel.AddThemeConstantOverride("outline_size", 4);
-			keyLabel.AddThemeFontSizeOverride("font_size", 23);
-			rowContainer.AddChild(keyLabel);
-
-			var valueLabel = new Label();
-			valueLabel.Name = "ValueLabel_Label";
-			valueLabel.Text = row.Value;
-			valueLabel.HorizontalAlignment = HorizontalAlignment.Left;
-			valueLabel.AddThemeFontOverride("font", profileFont);
-			valueLabel.AddThemeColorOverride("font_color", row.ValueColor);
-			valueLabel.AddThemeColorOverride("font_outline_color", new Color(0.02f, 0.02f, 0.04f));
-			valueLabel.AddThemeConstantOverride("outline_size", 5);
-			valueLabel.AddThemeFontSizeOverride("font_size", 23);
-			rowContainer.AddChild(valueLabel);
-
-			vbox.AddChild(rowContainer);
-			vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 4) });
+			entries.Add((LocalizationManager.Translate("Win Rate"), string.Format(CultureInfo.CurrentCulture, "{0:0.#}%", stats.WinRatePercent.Value), new Color(0.6f, 0.85f, 1.0f)));
 		}
+
+		foreach (var entry in entries) CreateProfileDataRow(rows, entry.Key, entry.Value, entry.ValueColor, profileFont);
+	}
+
+	private void CreateProfileDataRow(VBoxContainer parent, string key, string value, Color valueColor, Font profileFont)
+	{
+		var rowContainer = new HBoxContainer();
+		rowContainer.Name = "RowContainer_HBoxContainer";
+		rowContainer.Alignment = BoxContainer.AlignmentMode.Center;
+		rowContainer.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
+		rowContainer.AddThemeConstantOverride("separation", 8);
+
+		var keyLabel = new Label();
+		keyLabel.Name = "KeyLabel_Label";
+		keyLabel.Text = key + ":";
+		keyLabel.HorizontalAlignment = HorizontalAlignment.Right;
+		keyLabel.AddThemeFontOverride("font", profileFont);
+		keyLabel.AddThemeColorOverride("font_color", ProfileKeyColor);
+		keyLabel.AddThemeColorOverride("font_outline_color", new Color(0.02f, 0.02f, 0.04f));
+		keyLabel.AddThemeConstantOverride("outline_size", 4);
+		keyLabel.AddThemeFontSizeOverride("font_size", 23);
+		rowContainer.AddChild(keyLabel);
+
+		var valueLabel = new Label();
+		valueLabel.Name = "ValueLabel_Label";
+		valueLabel.Text = value;
+		valueLabel.HorizontalAlignment = HorizontalAlignment.Left;
+		valueLabel.AddThemeFontOverride("font", profileFont);
+		valueLabel.AddThemeColorOverride("font_color", valueColor);
+		valueLabel.AddThemeColorOverride("font_outline_color", new Color(0.02f, 0.02f, 0.04f));
+		valueLabel.AddThemeConstantOverride("outline_size", 5);
+		valueLabel.AddThemeFontSizeOverride("font_size", 23);
+		rowContainer.AddChild(valueLabel);
+
+		parent.AddChild(rowContainer);
+		parent.AddChild(new Control { CustomMinimumSize = new Vector2(0, 4) });
 	}
 
 	private void AddProfileNameRow(VBoxContainer vbox, Font profileFont, Color labelColor)

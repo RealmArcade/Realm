@@ -543,6 +543,7 @@ public partial class UIManager : Control
 		if (_currentScreen is GameOver gameOver)
 		{
 			gameOver.SetStatus(_isVictory);
+			gameOver.ReportMatchResult();
 		}
 		else if (_currentScreen is MapDetails mapDetails)
 		{

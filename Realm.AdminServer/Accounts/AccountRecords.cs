@@ -71,6 +71,38 @@ public class AccountSessionRecord
 }
 
 /// <summary>
+///     A player's multiplayer record as the authority keeps it. Only matches played with other people are counted, so
+///     these numbers never move for a single-player game or a playtest.
+/// </summary>
+public class AccountMatchStatsRecord
+{
+	public long AccountId { get; set; }
+
+	public int MatchesPlayed { get; set; }
+
+	public int Victories { get; set; }
+
+	public int Defeats { get; set; }
+
+	public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;
+}
+
+/// <summary>
+///     One match result an account has already had counted. It is keyed by the account and the match the screen named,
+///     so the same finished match reported twice — a reload, a retried request — is counted exactly once.
+/// </summary>
+public class AccountMatchResultRecord
+{
+	public long AccountId { get; set; }
+
+	public string MatchId { get; set; } = string.Empty;
+
+	public bool Victory { get; set; }
+
+	public DateTime RecordedAtUtc { get; set; } = DateTime.UtcNow;
+}
+
+/// <summary>
 ///     An audit entry for a name that moved. History never blocks a registration; it only records who held a name and when, so a
 ///     later take-over can be adjudicated.
 /// </summary>

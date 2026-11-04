@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Net.Http;
 using System.Text;
@@ -152,6 +153,41 @@ public partial class GameOver : Control
 	private void PopulateRunicPillar(VBoxContainer container)
 	{
 		container.Visible = false;
+	}
+
+	private bool _matchResultReported;
+
+	/// <summary>
+	///     Records how this multiplayer match ended against the signed-in player's record, once. A single-player game or a
+	///     playtest is not counted, and neither is a screen with no account: the record is the authority's, and it is only
+	///     asked for something it can attribute. Called once the outcome is known, because a card that is built before it is
+	///     told how the match ended would report the wrong one.
+	/// </summary>
+	public void ReportMatchResult()
+	{
+		if (_matchResultReported) return;
+		_matchResultReported = true;
+
+		if (GameContext.Host?.IsRankedMultiplayerMatch != true) return;
+		if (!GameContext.Account.IsSignedIn) return;
+
+		string matchId = DescribeMatchForRecord();
+		if (matchId.Length == 0) return;
+
+		_ = GameContext.Account.ReportMatchResultAsync(matchId, _isVictory);
+	}
+
+	/// <summary>
+	///     Names this match for the record it is counted in. The seed alone repeats across matches, so the moment the match
+	///     began is carried with it: the pair is what the authority uses to count one match once however often it is told.
+	/// </summary>
+	private static string DescribeMatchForRecord()
+	{
+		LobbyManager? lobby = GameContext.Lobby;
+		if (lobby == null || !GodotObject.IsInstanceValid(lobby)) return string.Empty;
+
+		string startedAt = lobby.GameSessionStartTime?.ToString("O", CultureInfo.InvariantCulture) ?? string.Empty;
+		return $"{lobby.ActiveMapName}|{lobby.MatchSeed}|{startedAt}";
 	}
 
 	public void SetStatus(bool isVictory)

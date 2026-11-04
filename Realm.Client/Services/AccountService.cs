@@ -246,6 +246,76 @@ public class AccountService
 		}
 	}
 
+	/// <summary>
+	///     The multiplayer record the authority holds for the account this screen is signed in as, or <c>null</c> when it
+	///     cannot be told: signed out, unreachable, or an answer this build cannot read. Nothing the profile screen shows is
+	///     ever guessed from a failure.
+	/// </summary>
+	public async Task<PlayerMatchStatsDto?> GetMatchStatsAsync()
+	{
+		string token = SessionToken;
+		if (string.IsNullOrEmpty(token)) return null;
+
+		try
+		{
+			using var request = new HttpRequestMessage(HttpMethod.Get, $"{AuthorityUrl}/profile/stats");
+			request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+			using HttpResponseMessage response = await _httpClient.SendAsync(request).ConfigureAwait(false);
+			if (!response.IsSuccessStatusCode) return null;
+
+			string json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+			return JsonSerializer.Deserialize<PlayerMatchStatsDto>(json, JsonOptions);
+		}
+		catch (HttpRequestException)
+		{
+			return null;
+		}
+		catch (TaskCanceledException)
+		{
+			return null;
+		}
+		catch (JsonException)
+		{
+			return null;
+		}
+	}
+
+	/// <summary>
+	///     Reports one finished multiplayer match against the record of the account this screen is signed in as. The match id
+	///     is what makes this safe to repeat: the authority counts a given match once, so a retried report does not move the
+	///     record twice. The record as it now stands comes back, or <c>null</c> when nothing was recorded.
+	/// </summary>
+	public async Task<PlayerMatchStatsDto?> ReportMatchResultAsync(string matchId, bool victory)
+	{
+		string token = SessionToken;
+		if (string.IsNullOrEmpty(token) || string.IsNullOrWhiteSpace(matchId)) return null;
+
+		try
+		{
+			using var request = new HttpRequestMessage(HttpMethod.Post, $"{AuthorityUrl}/profile/match_result");
+			request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+			request.Content = new StringContent(JsonSerializer.Serialize(new MatchResultReport { MatchId = matchId, Victory = victory }), Encoding.UTF8, "application/json");
+
+			using HttpResponseMessage response = await _httpClient.SendAsync(request).ConfigureAwait(false);
+			if (!response.IsSuccessStatusCode) return null;
+
+			string json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+			return JsonSerializer.Deserialize<PlayerMatchStatsDto>(json, JsonOptions);
+		}
+		catch (HttpRequestException)
+		{
+			return null;
+		}
+		catch (TaskCanceledException)
+		{
+			return null;
+		}
+		catch (JsonException)
+		{
+			return null;
+		}
+	}
+
 	private async Task<AccountOperationResult> ValidateTokenAsync(string token)
 	{
 		if (string.IsNullOrWhiteSpace(token)) return AccountOperationResult.Rejected(AccountErrorCodes.SessionRequired, "No session was presented.");

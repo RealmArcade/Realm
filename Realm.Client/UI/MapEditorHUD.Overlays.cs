@@ -1366,6 +1366,7 @@ namespace Realm.Client.UI
 			nameInput.Name = "MapNameInput_LineEdit";
 			nameInput.PlaceholderText = TranslationServer.Translate("Map name");
 			nameInput.CustomMinimumSize = new Vector2(0, 34);
+			UIStyle.ApplyTextInput(nameInput);
 			vbox.AddChild(nameInput);
 
 			var buttons = new HBoxContainer();
@@ -1638,6 +1639,7 @@ namespace Realm.Client.UI
 			var vbox = CreateCreatorRegistrationContainer(overlay);
 
 			var lineEdit = new LineEdit { PlaceholderText = TranslationServer.Translate("Enter Username"), Alignment = HorizontalAlignment.Center, Text = GameContext.Account.DisplayName };
+			UIStyle.ApplyTextInput(lineEdit);
 			vbox.AddChild(lineEdit);
 
 			var errLabel = new Label { HorizontalAlignment = HorizontalAlignment.Center };
