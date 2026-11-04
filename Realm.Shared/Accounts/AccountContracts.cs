@@ -50,32 +50,24 @@ public class AccountErrorDto
 	}
 }
 
-public class RegisterBasicAuthRequest
+/// <summary>
+///     A Steam sign-in the client already holds a ticket for. Steamworks mints the ticket on the player's own machine, so no
+///     browser is opened and no Valve web page has to be reachable from the player's network; the authority is the only party
+///     that exchanges it for a SteamID64, using the publisher key it holds. The suggested name is only read when the ticket
+///     belongs to a Steam account no Realm account has seen before.
+/// </summary>
+public class SteamTicketSignInRequest
 {
+	public string Ticket { get; set; } = string.Empty;
+
+	public uint AppId { get; set; }
+
 	public string DisplayName { get; set; } = string.Empty;
-
-	public string Password { get; set; } = string.Empty;
-}
-
-public class LoginBasicAuthRequest
-{
-	public string DisplayName { get; set; } = string.Empty;
-
-	public string Password { get; set; } = string.Empty;
 }
 
 public class RenameAccountRequest
 {
 	public string DisplayName { get; set; } = string.Empty;
-}
-
-/// <summary>
-///     The password behind an account that is already signed in. Confirming it never replaces the session: it only records that
-///     the account holder was present, which is what an action that outlives the sign-in is allowed to ask for.
-/// </summary>
-public class PasswordConfirmationRequest
-{
-	public string Password { get; set; } = string.Empty;
 }
 
 /// <summary>
@@ -97,48 +89,11 @@ public class AdminRenameAccountRequest
 	public string AdminPublicKey { get; set; } = string.Empty;
 }
 
-/// <summary>
-///     A browser sign-in flow the client is waiting on. The port is the client's own loopback listener, chosen when the flow
-///     starts, and the client state is echoed back so the client can refuse a callback it did not ask for.
-/// </summary>
-public class AuthFlowStartRequest
-{
-	public int LoopbackPort { get; set; }
-
-	public string ClientState { get; set; } = string.Empty;
-
-	public string Provider { get; set; } = string.Empty;
-}
-
-public class AuthFlowStartResponse
-{
-	public string Provider { get; set; } = string.Empty;
-
-	public string AuthorizationUrl { get; set; } = string.Empty;
-
-	public string State { get; set; } = string.Empty;
-}
-
-/// <summary>
-///     The name a provider suggests during registration. The player may edit it, but it is never silently replaced: an
-///     unusable suggestion is reported so the player picks their own name.
-/// </summary>
-public class ProviderRegistrationPreviewDto
-{
-	public string Provider { get; set; } = string.Empty;
-
-	public string SuggestedDisplayName { get; set; } = string.Empty;
-
-	public string? SuggestedDisplayNameErrorCode { get; set; }
-}
-
 public class AccountProviderInfoDto
 {
 	public string Kind { get; set; } = string.Empty;
 
 	public bool Available { get; set; }
-
-	public bool Recommended { get; set; }
 }
 
 public class AccountProvidersDto
@@ -146,30 +101,4 @@ public class AccountProvidersDto
 	public AccountProviderInfoDto[] Providers { get; set; } = Array.Empty<AccountProviderInfoDto>();
 
 	public string[] Warnings { get; set; } = Array.Empty<string>();
-}
-
-/// <summary>
-///     The second half of a provider registration: the one-shot ticket the authority issued for a verified provider identity,
-///     and the DisplayName the player chose. The provider's account token never reaches the client.
-/// </summary>
-public class ProviderRegistrationRequest
-{
-	public string RegistrationTicket { get; set; } = string.Empty;
-
-	public string DisplayName { get; set; } = string.Empty;
-}
-
-public static class AccountQueryParameters
-{
-	public const string SessionToken = "token";
-
-	public const string ClientState = "state";
-
-	public const string DisplayName = "display_name";
-
-	public const string AccountId = "account_id";
-
-	public const string ErrorCode = "error_code";
-
-	public const string Provider = "provider";
 }

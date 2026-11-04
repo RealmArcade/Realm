@@ -6,29 +6,37 @@ configuration or partner-site work; none of it is committed.
 The demo is its own Steam application with its own depot. The base game stays unpublished, which is what keeps a later
 Steam Next Fest appearance possible.
 
+The base game is free to play, so the two applications differ in nothing but the id Steam launches the process under: the
+same build is uploaded to both, and no feature may branch on which one is running.
+
 ## 1. What the build already does
 
-- `Realm.Client/Services/Steam/SteamApplicationIds.cs` holds the demo's application id and the base game's application id
-  in one place.
+- `Realm.Client/Services/Steam/SteamApplicationIds.cs` holds the demo's application id (`5537420`) and the base game's
+  application id (`5372260`) in one place.
 - `SteamRuntime` (an autoload in `project.godot`) starts Steamworks once per process, pumps its callbacks every frame and
   shuts it down when the window closes.
-- A published build asks Steam to restart it under the demo's id, then initialises against that id. A development run skips
-  the restart and initialises directly, so pressing Play in the editor works when the Steam client is running.
-- Without Steam the game still runs: every account feature is independent of Steamworks, so `IsAvailable` false is a normal
-  state rather than an error.
+- Steamworks initialises against whichever application Steam launched the process as, and the process never relaunches
+  itself into a fixed id. One build is shipped as both applications, so a relaunch would drag a retail install back to the
+  demo. Running `Realm.exe` directly, outside Steam, leaves Steamworks off and Steam unoffered: those players play unverified
+  under their local name and cannot sign in, because a ticket is the only identity the authority accepts.
+- Without Steam the game still runs: play, lobbies and offline matches are independent of Steamworks, so `IsAvailable` false
+  is a normal state rather than an error. Only sign-in needs it.
 - The main menu and the post-match screen show `WISHLIST ON STEAM` and open the base game's store page in the overlay,
   but only when the base game's application id is configured and Steamworks initialised.
 - The registration form prefills the DisplayName with the Steam persona name. It is still validated by
   `DisplayNameRules` like any other name, so an unusable persona name is reported instead of being rewritten.
 
-## 2. Values still to be supplied
+## 2. Values
+
+The two application ids are committed in `SteamApplicationIds`. Leaving `FullGameAppId` at `0` hides the wishlist buttons,
+so a wrong value here removes them from the menu and the post-match screen rather than breaking a build.
 
 | Value | Where it goes |
 | --- | --- |
-| Demo application id (expected `1416294`) | `SteamApplicationIds.DemoAppId` — confirm it on the demo's App Admin page |
-| Base game application id | `SteamApplicationIds.FullGameAppId` — `0` hides the wishlist buttons |
 | `steam_api64.dll` | `ThirdPartyBinaries/steam_api64.dll`, copied from the Steamworks SDK under `redistributable_bin/win64/` |
 | Steamworks SDK version | keep `Steamworks.NET` and the native library from the same SDK release |
+| Steam publisher Web API key | `Steam:WebApiKey` on the account authority only, never in the build (see `docs/account-setup.md`) |
+| Accepted application ids | `Steam:AppIds` on the account authority, both ids, so a ticket from either application verifies |
 
 `steam_api64.dll` is required only at runtime, so a build without it still compiles; the publish workflow refuses to
 produce a Steam build without it. Every build copies it from `ThirdPartyBinaries/` into `Realm.Client/`, which is where
@@ -47,8 +55,8 @@ public and reachable over TLS. Follow `docs/account-setup.md`, then:
 1. Set the repository variable `SERVERS_JSON` to the registry list the demo should contain. The publish workflow writes it
    to `Realm.Client/servers.json`, which is not committed. Include `AccountAuthorityUrl` pointing at the authority so a
    client bootstrapped from any other node still signs in against the right one.
-2. Confirm `GET /auth/providers` on that authority reports `discord` and/or `steam` as available, and that
-   `AccountAuthority` is `true` there.
+2. Confirm `GET /auth/providers` on that authority reports `steam` as available, and that `AccountAuthority` is `true`
+   there. An unavailable provider means `Steam:WebApiKey` or `Steam:AppIds` is missing.
 3. Set a session lifetime long enough for a play session; sessions are restored on launch and rejected silently when they
    expire.
 
@@ -64,8 +72,11 @@ Run the `Build` workflow with `publish` enabled and a version number. It produce
 The publish job copies `steam_api64.dll` beside `Realm.exe` and fails if it is missing or if `steam_appid.txt` would ship.
 `steam_appid.txt` is gitignored and must never appear in a depot: it makes every install behave like a development run.
 
-For local testing, place `steam_appid.txt` containing `1416294` next to `Realm.exe` (or in the project directory when
-running from the editor) with the Steam client running and the demo's Developer Comp package on your account.
+For local testing, place `steam_appid.txt` containing the id you are testing under (`5537420` for the demo, `5372260` for
+the base game) next to `Realm.exe`, or in the project directory when running from the editor, with the Steam client
+running and that application's Developer Comp package on your account. This file is the only thing that tells a direct
+executable launch which application it is, which is why it must never be shipped and why an install without it has to be
+started through Steam.
 
 ## 5. Upload with SteamPipe
 
@@ -75,7 +86,7 @@ account's credentials, so run it from a trusted machine:
 ```vdf
 "AppBuild"
 {
-	"AppID" "1416294"
+	"AppID" "5537420"
 	"Desc" "Realm Demo <version>"
 	"BuildOutput" ".\build_output"
 	"ContentRoot" ".\content"
@@ -109,7 +120,7 @@ account's credentials, so run it from a trusted machine:
 Then:
 
 ```
-steamcmd +login <build account> +run_app_build ..\scripts\app_build_1416294.vdf +quit
+steamcmd +login <build account> +run_app_build ..\scripts\app_build_5537420.vdf +quit
 ```
 
 The build account needs *Upload* rights on the demo's depot and must complete Steam Guard on the machine once.
@@ -121,9 +132,9 @@ The build account needs *Upload* rights on the demo's depot and must complete St
 3. Complete the demo's build and store-presence checklists, submit for review, then choose **Release Demo…** on the demo's
    landing page. The base game remains Coming Soon.
 4. Republish the base game's store page so its **Download Demo** button appears.
-5. Install the demo from a clean Steam account and check: the overlay opens from the wishlist button, the registration form
-   prefills the persona name, sign-in reaches the authority, and a match starts (the authority is spawned from the install
-   directory beside `Realm.exe`).
+5. Install the demo from a clean Steam account and check: the overlay opens from the wishlist button, the account screen
+   prefills the persona name, `CONTINUE WITH STEAM` signs in without opening a browser, and a match starts (the authority is
+   spawned from the install directory beside `Realm.exe`).
 
 ## 7. Next Fest
 

@@ -6,7 +6,7 @@ using Microsoft.Extensions.Configuration;
 namespace Realm.AdminServer.Accounts;
 
 /// <summary>
-///     The one node that owns account and DisplayName writes, and the provider secrets it needs to verify an identity itself.
+///     The one node that owns account and DisplayName writes, and the provider secret it needs to verify an identity itself.
 ///     Only key names live in the committed configuration template; the values come from the environment or an uncommitted
 ///     settings file.
 /// </summary>
@@ -18,24 +18,20 @@ public class AccountAuthorityOptions
 
 	/// <summary>
 	///     How long a session stays accepted, or <c>0</c> for a session that never expires. A player is signed in until they sign
-	///     out or the authority revokes the session, and every action that outlives the sign-in asks for the credentials again.
+	///     out or the authority revokes the session, and every action that outlives the sign-in asks for the provider again.
 	/// </summary>
 	public int SessionLifetimeHours { get; init; }
 
 	/// <summary>
-	///     How recently the account holder must have proved their credentials for a change that outlives the session, such as a
-	///     rename or a provider link. It is never zero: the proof is entered before the change it unlocks, so a window that
-	///     accepted nothing would make every such change impossible.
+	///     How recently the account holder must have proved their identity for a change that outlives the session, such as a
+	///     rename. The proof is a fresh Steam ticket, which costs the player nothing and opens no window, so the window only
+	///     decides how long one sign-in keeps authorising such changes.
 	/// </summary>
 	public int SensitiveActionWindowMinutes { get; init; } = 15;
-
-	public int ProviderFlowTimeoutSeconds { get; init; } = 600;
 
 	public string SigningPrivateKeyBase64 { get; init; } = string.Empty;
 
 	public HashSet<string> AuthorityPublicKeys { get; init; } = new(StringComparer.OrdinalIgnoreCase);
-
-	public DiscordProviderOptions Discord { get; init; } = new();
 
 	public SteamProviderOptions Steam { get; init; } = new();
 
@@ -54,25 +50,24 @@ public class AccountAuthorityOptions
 			if (!string.IsNullOrWhiteSpace(key)) authorityPublicKeys.Add(key.Trim());
 		}
 
+		var steamAppIds = new List<uint>();
+		foreach (long appId in configuration.GetSection("Steam:AppIds").Get<List<long>>() ?? new List<long>())
+		{
+			if (appId > 0 && appId <= uint.MaxValue) steamAppIds.Add((uint)appId);
+		}
+
 		return new AccountAuthorityOptions
 		{
 			IsAuthority = isAuthority,
 			AuthorityUrl = authorityUrl,
 			SessionLifetimeHours = Math.Clamp(configuration.GetValue<int?>("AccountSessionLifetimeHours") ?? 0, 0, 24 * 365),
 			SensitiveActionWindowMinutes = Math.Clamp(configuration.GetValue<int?>("AccountSensitiveActionWindowMinutes") ?? 15, 1, 24 * 60),
-			ProviderFlowTimeoutSeconds = Math.Clamp(configuration.GetValue<int?>("AccountProviderFlowTimeoutSeconds") ?? 600, 60, 3600),
 			SigningPrivateKeyBase64 = configuration.GetValue<string>("AccountAuthoritySigningPrivateKey")?.Trim() ?? string.Empty,
 			AuthorityPublicKeys = authorityPublicKeys,
-			Discord = new DiscordProviderOptions
-			{
-				ClientId = configuration.GetValue<string>("Discord:ClientId")?.Trim() ?? string.Empty,
-				ClientSecret = configuration.GetValue<string>("Discord:ClientSecret")?.Trim() ?? string.Empty,
-				RedirectUri = configuration.GetValue<string>("Discord:RedirectUri")?.Trim() ?? string.Empty
-			},
 			Steam = new SteamProviderOptions
 			{
-				Realm = configuration.GetValue<string>("Steam:Realm")?.Trim() ?? string.Empty,
-				ReturnUrl = configuration.GetValue<string>("Steam:ReturnUrl")?.Trim() ?? string.Empty
+				WebApiKey = configuration.GetValue<string>("Steam:WebApiKey")?.Trim() ?? string.Empty,
+				AppIds = steamAppIds.ToArray()
 			}
 		};
 	}
@@ -84,39 +79,26 @@ public class AccountAuthorityOptions
 	}
 }
 
-public class DiscordProviderOptions
-{
-	public string ClientId { get; init; } = string.Empty;
-
-	public string ClientSecret { get; init; } = string.Empty;
-
-	public string RedirectUri { get; init; } = string.Empty;
-
-	public bool IsConfigured => ClientId.Length > 0 && ClientSecret.Length > 0 && RedirectUri.Length > 0;
-
-	public IEnumerable<string> MissingSettings()
-	{
-		if (ClientId.Length == 0) yield return "Discord:ClientId";
-		if (ClientSecret.Length == 0) yield return "Discord:ClientSecret";
-		if (RedirectUri.Length == 0) yield return "Discord:RedirectUri";
-	}
-}
-
+/// <summary>
+///     The publisher key and the applications this authority accepts tickets for. A ticket is minted for exactly one Steam
+///     application, so the list is what stops a ticket for an unrelated game from being exchanged here.
+/// </summary>
 public class SteamProviderOptions
 {
-	public string Realm { get; init; } = string.Empty;
+	public string WebApiKey { get; init; } = string.Empty;
 
-	public string ReturnUrl { get; init; } = string.Empty;
+	public uint[] AppIds { get; init; } = Array.Empty<uint>();
 
-	public bool IsConfigured => Realm.Length > 0 && ReturnUrl.Length > 0;
+	public bool IsConfigured => WebApiKey.Length > 0 && AppIds.Length > 0;
 
-	/// <summary>
-	///     The settings a Steam sign-in cannot run without. There is no API key among them: Steam's OpenID provider returns the
-	///     SteamID64 and no profile data, and the player's own Steamworks persona name is what prefills the registration form.
-	/// </summary>
+	public bool AcceptsAppId(uint appId)
+	{
+		return Array.IndexOf(AppIds, appId) >= 0;
+	}
+
 	public IEnumerable<string> MissingSettings()
 	{
-		if (Realm.Length == 0) yield return "Steam:Realm";
-		if (ReturnUrl.Length == 0) yield return "Steam:ReturnUrl";
+		if (WebApiKey.Length == 0) yield return "Steam:WebApiKey";
+		if (AppIds.Length == 0) yield return "Steam:AppIds";
 	}
 }

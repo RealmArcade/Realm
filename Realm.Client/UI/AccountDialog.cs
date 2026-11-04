@@ -8,61 +8,31 @@ using Realm.Shared.Accounts;
 namespace Realm.Client.UI;
 
 /// <summary>
-///     The in-game register, sign-in and account screen. It never invents a name: every value it shows comes from the account
-///     authority, and every refusal it reports is the typed code the authority answered with.
+///     The in-game account screen. It never invents a name: every value it shows comes from the account authority, and every
+///     refusal it reports is the typed code the authority answered with. Signing in proves the player's Steam identity with a
+///     ticket Steamworks mints on their own machine, so the screen opens no browser and asks for no password; a player who stays
+///     signed out keeps playing under the local name from the settings screen, which reaches Tier 0 and Tier 1 features only.
 /// </summary>
 [GlobalClass]
 public partial class AccountDialog : Control
 {
-	private enum DialogMode
-	{
-		SignIn,
-		Register,
-		ChooseProviderDisplayName,
-		Account
-	}
-
-	private enum PendingSensitiveAction
-	{
-		None,
-		Rename,
-		LinkProvider
-	}
-
-	private const string DiscordIconPath = "res://Assets/UI/discord_icon.webp";
 	private const string SteamIconPath = "res://Assets/UI/steam_icon.webp";
-
-	private DialogMode _mode = DialogMode.SignIn;
 
 	private Label _titleLabel;
 	private Label _statusLabel;
 	private Label _warningLabel;
 	private Label _accountIdentityLabel;
-	private Button _signInTabButton;
-	private Button _registerTabButton;
-	private VBoxContainer _credentialsBox;
+	private VBoxContainer _signedOutBox;
 	private LineEdit _displayNameEdit;
-	private Label _passwordFieldLabel;
-	private LineEdit _passwordEdit;
-	private Button _submitButton;
-	private VBoxContainer _accountBox;
+	private Button _steamButton;
+	private VBoxContainer _signedInBox;
 	private LineEdit _renameEdit;
 	private Button _renameButton;
 	private Button _signOutButton;
 	private VBoxContainer _stepUpBox;
-	private LineEdit _stepUpPasswordEdit;
 	private Button _stepUpButton;
-	private Button _discordButton;
-	private Button _steamButton;
-	private Button _linkDiscordButton;
-	private Button _linkSteamButton;
-	private VBoxContainer _providerBox;
 	private bool _busy;
-
-	private string _registrationTicket = string.Empty;
-	private string _providerSuggestedNameErrorCode = string.Empty;
-	private PendingSensitiveAction _pendingAction = PendingSensitiveAction.None;
-	private string _pendingProvider = string.Empty;
+	private bool _verifyThenRename;
 
 	public Action? SignedIn { get; set; }
 
@@ -73,7 +43,7 @@ public partial class AccountDialog : Control
 		MouseFilter = MouseFilterEnum.Stop;
 
 		BuildLayout();
-		RefreshMode();
+		RefreshState();
 		RefreshAccount();
 	}
 
@@ -85,11 +55,10 @@ public partial class AccountDialog : Control
 
 	public void Open()
 	{
-		_mode = GameContext.Account.IsSignedIn ? DialogMode.Account : DialogMode.SignIn;
 		Visible = true;
 		ClearStatus();
 		PrefillDisplayNameFromSteam();
-		RefreshMode();
+		RefreshState();
 		RefreshAccount();
 		_ = LoadProvidersAsync();
 
@@ -124,56 +93,47 @@ public partial class AccountDialog : Control
 		margin.AddChild(column);
 
 		_titleLabel = CreateTitleLabel(column);
-		column.AddChild(CreateTabRow());
 
-		_credentialsBox = new VBoxContainer { Name = "AccountDialogCredentials" };
-		_credentialsBox.AddThemeConstantOverride("separation", 8);
-		column.AddChild(_credentialsBox);
+		_signedOutBox = new VBoxContainer { Name = "AccountDialogSignedOut" };
+		_signedOutBox.AddThemeConstantOverride("separation", 8);
+		column.AddChild(_signedOutBox);
 
-		_displayNameEdit = CreateField(_credentialsBox, "DisplayNameField", TranslationServer.Translate("UserName"), out _);
-		_passwordEdit = CreateField(_credentialsBox, "PasswordField", TranslationServer.Translate("Password"), out _passwordFieldLabel);
-		_passwordEdit.Secret = true;
+		_displayNameEdit = CreateField(_signedOutBox, "DisplayNameField", TranslationServer.Translate("UserName"), out _);
+		_displayNameEdit.MaxLength = DisplayNameRules.MaximumGraphemeClusters;
 
-		_providerBox = new VBoxContainer { Name = "AccountDialogProviders" };
-		_providerBox.AddThemeConstantOverride("separation", 8);
-		column.AddChild(_providerBox);
+		var nameHintLabel = CreateBodyLabel(_signedOutBox, TranslationServer.Translate("This is the name other players see once you sign in."));
+		nameHintLabel.Name = "AccountDialogNameHint";
 
-		_discordButton = CreateActionButton(_providerBox, "CONTINUE WITH DISCORD", DiscordIconPath);
-		_discordButton.Pressed += () => _ = StartProviderAsync(AccountProviderNames.Discord, false);
-		_steamButton = CreateActionButton(_providerBox, "CONTINUE WITH STEAM", SteamIconPath);
-		_steamButton.Pressed += () => _ = StartProviderAsync(AccountProviderNames.Steam, false);
+		_steamButton = CreateActionButton(_signedOutBox, "CONTINUE WITH STEAM", SteamIconPath);
+		_steamButton.Pressed += () => _ = ConnectWithSteamAsync(false);
 
-		_submitButton = CreateActionButton(column, "SIGN IN");
-		_submitButton.Pressed += () => _ = SubmitCredentialsAsync();
+		var unverifiedLabel = CreateBodyLabel(_signedOutBox, TranslationServer.Translate("You can also stay signed out and play under the name from your settings. Verified reviews and map publishing need a Steam sign-in."));
+		unverifiedLabel.Name = "AccountDialogUnverifiedHint";
 
-		_accountBox = new VBoxContainer { Name = "AccountDialogAccount" };
-		_accountBox.AddThemeConstantOverride("separation", 10);
-		column.AddChild(_accountBox);
+		_signedInBox = new VBoxContainer { Name = "AccountDialogSignedIn" };
+		_signedInBox.AddThemeConstantOverride("separation", 10);
+		column.AddChild(_signedInBox);
 
-		_accountIdentityLabel = CreateBodyLabel(_accountBox, string.Empty);
+		_accountIdentityLabel = CreateBodyLabel(_signedInBox, string.Empty);
 		_accountIdentityLabel.Name = "AccountDialogIdentity";
 
-		_renameEdit = CreateField(_accountBox, "RenameField", TranslationServer.Translate("New UserName"), out _);
-		_renameButton = CreateActionButton(_accountBox, "CHANGE USERNAME");
+		_renameEdit = CreateField(_signedInBox, "RenameField", TranslationServer.Translate("New UserName"), out _);
+		_renameEdit.MaxLength = DisplayNameRules.MaximumGraphemeClusters;
+		_renameButton = CreateActionButton(_signedInBox, "CHANGE USERNAME");
 		_renameButton.Pressed += () => _ = RenameAsync();
-
-		_linkDiscordButton = CreateActionButton(_accountBox, "LINK DISCORD ACCOUNT", DiscordIconPath);
-		_linkDiscordButton.Pressed += () => _ = StartProviderAsync(AccountProviderNames.Discord, true);
-		_linkSteamButton = CreateActionButton(_accountBox, "LINK STEAM ACCOUNT", SteamIconPath);
-		_linkSteamButton.Pressed += () => _ = StartProviderAsync(AccountProviderNames.Steam, true);
-
-		_signOutButton = CreateActionButton(_accountBox, "SIGN OUT");
-		_signOutButton.Pressed += () => _ = SignOutAsync();
 
 		_stepUpBox = new VBoxContainer { Name = "AccountDialogStepUp" };
 		_stepUpBox.AddThemeConstantOverride("separation", 8);
-		_accountBox.AddChild(_stepUpBox);
+		_signedInBox.AddChild(_stepUpBox);
 
-		_stepUpPasswordEdit = CreateField(_stepUpBox, "ConfirmPasswordField", TranslationServer.Translate("Password"), out _);
-		_stepUpPasswordEdit.Secret = true;
+		var stepUpLabel = CreateBodyLabel(_stepUpBox, TranslationServer.Translate("Confirm it is you with Steam before changing your username."));
+		stepUpLabel.Name = "AccountDialogStepUpHint";
 
-		_stepUpButton = CreateActionButton(_stepUpBox, "CONFIRM PASSWORD");
-		_stepUpButton.Pressed += () => _ = ConfirmStepUpAsync();
+		_stepUpButton = CreateActionButton(_stepUpBox, "VERIFY WITH STEAM", SteamIconPath);
+		_stepUpButton.Pressed += () => _ = BeginVerifyThenRenameAsync();
+
+		_signOutButton = CreateActionButton(_signedInBox, "SIGN OUT");
+		_signOutButton.Pressed += () => _ = SignOutAsync();
 
 		var loginExplanationLabel = CreateBodyLabel(column, TranslationServer.Translate("Login only required for multi-player. Offline play is supported without login."));
 		loginExplanationLabel.Name = "AccountDialogLoginExplanation";
@@ -199,42 +159,6 @@ public partial class AccountDialog : Control
 		label.AddThemeFontSizeOverride("font_size", 24);
 		parent.AddChild(label);
 		return label;
-	}
-
-	private HBoxContainer CreateTabRow()
-	{
-		var row = new HBoxContainer { Name = "AccountDialogTabs" };
-		row.Alignment = BoxContainer.AlignmentMode.Center;
-		row.AddThemeConstantOverride("separation", 8);
-
-		_signInTabButton = new Button { Name = "AccountDialogSignInTab" };
-		UIStyle.ApplyButtonStyleBoxes(_signInTabButton);
-		UIStyle.ApplyButtonText(_signInTabButton, "SIGN IN", 14);
-		_signInTabButton.CustomMinimumSize = new Vector2(150, 38);
-		_signInTabButton.AddThemeConstantOverride("icon_max_width", 20);
-		_signInTabButton.Pressed += () =>
-		{
-			_mode = DialogMode.SignIn;
-			ClearStatus();
-			RefreshMode();
-		};
-		row.AddChild(_signInTabButton);
-
-		_registerTabButton = new Button { Name = "AccountDialogRegisterTab" };
-		UIStyle.ApplyButtonStyleBoxes(_registerTabButton);
-		UIStyle.ApplyButtonText(_registerTabButton, "REGISTER", 14);
-		_registerTabButton.CustomMinimumSize = new Vector2(150, 38);
-		_registerTabButton.AddThemeConstantOverride("icon_max_width", 20);
-		_registerTabButton.Pressed += () =>
-		{
-			_mode = DialogMode.Register;
-			ClearStatus();
-			PrefillDisplayNameFromSteam();
-			RefreshMode();
-		};
-		row.AddChild(_registerTabButton);
-
-		return row;
 	}
 
 	private void PrefillDisplayNameFromSteam()
@@ -298,37 +222,22 @@ public partial class AccountDialog : Control
 		return button;
 	}
 
-	private void RefreshMode()
+	private void RefreshState()
 	{
 		bool signedIn = GameContext.Account.IsSignedIn;
-		bool choosingName = _mode == DialogMode.ChooseProviderDisplayName;
 		bool steamAvailable = GameContext.Steam.IsAvailable;
 
-		_signInTabButton.Visible = !signedIn;
-		_registerTabButton.Visible = !signedIn;
-		_credentialsBox.Visible = !signedIn;
-		_passwordEdit.Visible = !choosingName;
-		_passwordFieldLabel.Visible = !choosingName;
-		_submitButton.Visible = !signedIn;
-		_accountBox.Visible = signedIn;
-		_providerBox.Visible = !signedIn && !choosingName;
+		_signedOutBox.Visible = !signedIn;
+		_signedInBox.Visible = signedIn;
 		_steamButton.Visible = steamAvailable;
-		_linkDiscordButton.Visible = signedIn;
-		_linkSteamButton.Visible = signedIn && steamAvailable;
-		_stepUpBox.Visible = signedIn && _pendingAction != PendingSensitiveAction.None;
+		_stepUpBox.Visible = _verifyThenRename;
 
-		_titleLabel.Text = signedIn
-			? TranslationServer.Translate("ACCOUNT")
-			: _mode == DialogMode.Register
-				? TranslationServer.Translate("CREATE ACCOUNT")
-				: choosingName
-					? TranslationServer.Translate("CHOOSE YOUR USERNAME")
-					: TranslationServer.Translate("SIGN IN TO REALM");
+		_titleLabel.Text = signedIn ? TranslationServer.Translate("ACCOUNT") : TranslationServer.Translate("SIGN IN TO REALM");
 
-		_submitButton.Text = _mode == DialogMode.Register || choosingName
-			? TranslationServer.Translate("CREATE ACCOUNT")
-			: TranslationServer.Translate("SIGN IN");
-
+		if (!signedIn && !steamAvailable)
+		{
+			_warningLabel.Text = TranslationServer.Translate("Steamworks is not available in this build, so this screen cannot sign you in. Start the game through Steam, or keep playing under your own name.");
+		}
 	}
 
 	private void RefreshAccount()
@@ -338,15 +247,16 @@ public partial class AccountDialog : Control
 			string displayName = GameContext.Account.DisplayName;
 			string accountId = GameContext.Account.AccountId.ToString(System.Globalization.CultureInfo.InvariantCulture);
 			_accountIdentityLabel.Text = string.Format(TranslationServer.Translate("Signed in as {0} (account {1})"), displayName, accountId);
-			_linkDiscordButton.Disabled = Array.IndexOf(GameContext.Account.LinkedProviders, AccountProviderNames.Discord) >= 0;
-			_linkSteamButton.Disabled = Array.IndexOf(GameContext.Account.LinkedProviders, AccountProviderNames.Steam) >= 0;
+			_stepUpBox.Visible = _verifyThenRename;
 		}
 
-		RefreshMode();
+		RefreshState();
 	}
 
-	private void ApplyProviderAvailability(AccountProvidersDto? providers)
+	private async Task LoadProvidersAsync()
 	{
+		AccountProvidersDto? providers = await GameContext.Account.GetProvidersAsync();
+		if (!GodotObject.IsInstanceValid(this)) return;
 		if (providers == null)
 		{
 			_warningLabel.Text = TranslationServer.Translate("The account authority could not be reached.");
@@ -355,140 +265,77 @@ public partial class AccountDialog : Control
 
 		foreach (AccountProviderInfoDto provider in providers.Providers)
 		{
-			if (provider.Kind == AccountProviderNames.Discord)
-			{
-				_discordButton.Disabled = !provider.Available;
-				_linkDiscordButton.Disabled |= !provider.Available;
-			}
-			else if (provider.Kind == AccountProviderNames.Steam)
-			{
-				_steamButton.Disabled = !provider.Available;
-				_linkSteamButton.Disabled |= !provider.Available;
-			}
-		}
+			if (provider.Kind != AccountProviderNames.Steam) continue;
+			if (provider.Available) return;
 
-		_warningLabel.Text = string.Empty;
-	}
-
-	private static string ProviderLabel(string provider)
-	{
-		if (string.Equals(provider, AccountProviderNames.Discord, StringComparison.OrdinalIgnoreCase)) return TranslationServer.Translate("Discord");
-		if (string.Equals(provider, AccountProviderNames.Steam, StringComparison.OrdinalIgnoreCase)) return TranslationServer.Translate("Steam");
-		return provider;
-	}
-
-	private async Task LoadProvidersAsync()
-	{
-		AccountProvidersDto? providers = await GameContext.Account.GetProvidersAsync();
-		if (!GodotObject.IsInstanceValid(this)) return;
-		ApplyProviderAvailability(providers);
-	}
-
-	private async Task SubmitCredentialsAsync()
-	{
-		if (_busy || GameContext.Account.IsSignedIn) return;
-
-		string displayName = _displayNameEdit.Text.Trim();
-		if (_mode == DialogMode.ChooseProviderDisplayName)
-		{
-			await CompleteProviderRegistrationAsync(displayName);
+			_steamButton.Disabled = true;
+			_warningLabel.Text = TranslationServer.Translate("This server does not accept Steam sign-in yet, so only unverified play is available.");
 			return;
 		}
-
-		SetBusy(true);
-		ClearStatus();
-		string password = _passwordEdit.Text;
-
-		AccountOperationResult result = _mode == DialogMode.Register
-			? await GameContext.Account.RegisterAsync(displayName, password)
-			: await GameContext.Account.SignInAsync(displayName, password);
-
-		SetBusy(false);
-		if (!GodotObject.IsInstanceValid(this)) return;
-
-		if (!result.Succeeded)
-		{
-			ShowFailure(result);
-			return;
-		}
-
-		_passwordEdit.Text = string.Empty;
-		_mode = DialogMode.Account;
-		RefreshAccount();
-		SignedIn?.Invoke();
 	}
 
-	private async Task CompleteProviderRegistrationAsync(string displayName)
-	{
-		if (_registrationTicket.Length == 0) return;
-
-		SetBusy(true);
-		ClearStatus();
-		AccountOperationResult result = await GameContext.Account.CompleteProviderRegistrationAsync(_registrationTicket, displayName);
-		SetBusy(false);
-		if (!GodotObject.IsInstanceValid(this)) return;
-
-		if (!result.Succeeded)
-		{
-			ShowFailure(result);
-			return;
-		}
-
-		_registrationTicket = string.Empty;
-		_mode = DialogMode.Account;
-		RefreshAccount();
-		SignedIn?.Invoke();
-	}
-
-	private async Task StartProviderAsync(string provider, bool linkToCurrentAccount)
+	/// <summary>
+	///     Mints one ticket on this machine, hands it to the authority and adopts the session it answers. A ticket is spent by
+	///     the attempt, so a refused name is retried with a fresh one; <paramref name="reauthenticate" /> repeats the same call for
+	///     the account already signed in, which is the second proof a rename asks for.
+	/// </summary>
+	private async Task ConnectWithSteamAsync(bool reauthenticate)
 	{
 		if (_busy) return;
 
+		if (!GameContext.Steam.IsAvailable)
+		{
+			ShowStatus(TranslationServer.Translate("Steamworks is not available in this build, so this screen cannot sign you in. Start the game through Steam, or keep playing under your own name."), UIStyle.ColorGoldDull);
+			return;
+		}
+
+		string displayName = reauthenticate ? GameContext.Account.DisplayName : _displayNameEdit.Text.Trim();
+
 		SetBusy(true);
 		ClearStatus();
-		ShowStatus(TranslationServer.Translate("Finish signing in with your browser."), UIStyle.ColorGoldDull);
+		ShowStatus(TranslationServer.Translate("Checking your Steam sign-in..."), UIStyle.ColorGoldDull);
 
-		AccountOperationResult result = await GameContext.Account.StartProviderSignInAsync(provider, linkToCurrentAccount);
+		string ticket = await GameContext.Steam.RequestWebApiTicketAsync();
+		if (!GodotObject.IsInstanceValid(this)) return;
+
+		if (ticket.Length == 0)
+		{
+			SetBusy(false);
+			ShowStatus(TranslationServer.Translate("Steam did not provide a sign-in ticket. Start the game through Steam and try again."), new Color(0.95f, 0.6f, 0.4f));
+			return;
+		}
+
+		AccountOperationResult result = await GameContext.Account.SignInWithSteamAsync(displayName, ticket, GameContext.Steam.AppId);
 		SetBusy(false);
 		if (!GodotObject.IsInstanceValid(this)) return;
 
 		if (!result.Succeeded)
 		{
-			if (linkToCurrentAccount && result.ErrorCode == AccountErrorCodes.StepUpRequired)
-			{
-				RequireStepUp(PendingSensitiveAction.LinkProvider, provider);
-				return;
-			}
-
 			ShowFailure(result);
 			return;
 		}
 
-		if (result.RegistrationTicket.Length > 0)
+		if (_verifyThenRename)
 		{
-			_registrationTicket = result.RegistrationTicket;
-			_mode = DialogMode.ChooseProviderDisplayName;
-			_displayNameEdit.Text = result.SuggestedDisplayName;
-			_passwordEdit.Text = string.Empty;
-			RefreshMode();
-
-			if (result.SuggestedDisplayNameErrorCode.Length > 0)
-			{
-				ShowStatus(string.Format(TranslationServer.Translate("Your {0} name cannot be used: {1} Choose a different username."),
-					ProviderLabel(result.Provider), DescribeErrorCode(result.SuggestedDisplayNameErrorCode)), new Color(0.95f, 0.6f, 0.4f));
-			}
-			else if (result.SuggestedDisplayName.Length > 0)
-			{
-				ShowStatus(TranslationServer.Translate("You can keep the suggested name or choose your own."), UIStyle.ColorGoldDull);
-			}
-
+			_verifyThenRename = false;
+			RefreshAccount();
+			await RenameAsync();
 			return;
 		}
 
-		_registrationTicket = string.Empty;
-		_mode = DialogMode.Account;
+		_displayNameEdit.Text = string.Empty;
 		RefreshAccount();
+		ShowStatus(TranslationServer.Translate("You are signed in with Steam."), new Color(0.55f, 0.95f, 0.55f));
 		SignedIn?.Invoke();
+	}
+
+	private async Task BeginVerifyThenRenameAsync()
+	{
+		if (_busy) return;
+
+		_verifyThenRename = true;
+		RefreshState();
+		await ConnectWithSteamAsync(true);
 	}
 
 	private async Task RenameAsync()
@@ -505,7 +352,9 @@ public partial class AccountDialog : Control
 		{
 			if (result.ErrorCode == AccountErrorCodes.StepUpRequired)
 			{
-				RequireStepUp(PendingSensitiveAction.Rename, string.Empty);
+				_verifyThenRename = false;
+				_stepUpBox.Visible = true;
+				ShowStatus(DescribeErrorCode(AccountErrorCodes.StepUpRequired), UIStyle.ColorGoldDull);
 				return;
 			}
 
@@ -514,64 +363,19 @@ public partial class AccountDialog : Control
 		}
 
 		_renameEdit.Text = string.Empty;
+		_stepUpBox.Visible = false;
 		RefreshAccount();
 		ShowStatus(TranslationServer.Translate("Your username was changed."), new Color(0.55f, 0.95f, 0.55f));
 	}
 
-	private void RequireStepUp(PendingSensitiveAction action, string provider)
-	{
-		_pendingAction = action;
-		_pendingProvider = provider;
-		_stepUpPasswordEdit.Text = string.Empty;
-		RefreshMode();
-		_stepUpPasswordEdit.GrabFocus();
-		ShowStatus(DescribeErrorCode(AccountErrorCodes.StepUpRequired), UIStyle.ColorGoldDull);
-	}
-
-	private async Task ConfirmStepUpAsync()
-	{
-		if (_busy || _pendingAction == PendingSensitiveAction.None) return;
-
-		SetBusy(true);
-		ClearStatus();
-		AccountOperationResult result = await GameContext.Account.ConfirmPasswordAsync(_stepUpPasswordEdit.Text);
-		SetBusy(false);
-		if (!GodotObject.IsInstanceValid(this)) return;
-
-		if (!result.Succeeded)
-		{
-			if (result.ErrorCode == AccountErrorCodes.StepUpUnavailable)
-			{
-				_pendingAction = PendingSensitiveAction.None;
-				_pendingProvider = string.Empty;
-				RefreshMode();
-			}
-
-			ShowFailure(result);
-			return;
-		}
-
-		PendingSensitiveAction action = _pendingAction;
-		string provider = _pendingProvider;
-		_pendingAction = PendingSensitiveAction.None;
-		_pendingProvider = string.Empty;
-		_stepUpPasswordEdit.Text = string.Empty;
-		RefreshMode();
-
-		if (action == PendingSensitiveAction.Rename) await RenameAsync();
-		else if (action == PendingSensitiveAction.LinkProvider) await StartProviderAsync(provider, true);
-	}
-
 	private async Task SignOutAsync()
 	{
-		_pendingAction = PendingSensitiveAction.None;
-		_pendingProvider = string.Empty;
+		_verifyThenRename = false;
 		SetBusy(true);
 		await GameContext.Account.SignOutAsync();
 		SetBusy(false);
 		if (!GodotObject.IsInstanceValid(this)) return;
 
-		_mode = DialogMode.SignIn;
 		ClearStatus();
 		RefreshAccount();
 	}
@@ -612,26 +416,12 @@ public partial class AccountDialog : Control
 			case AccountErrorCodes.DisplayNameVisuallySimilar:
 				return TranslationServer.Translate("That username looks too similar to a name another account already uses.");
 			case AccountErrorCodes.CredentialsInvalid:
-				return TranslationServer.Translate("The username or password is incorrect.");
+				return TranslationServer.Translate("Steam did not confirm this sign-in. Start the game through Steam and try again.");
 			case AccountErrorCodes.StepUpRequired:
-				return TranslationServer.Translate("Confirm your password to continue.");
-			case AccountErrorCodes.StepUpUnavailable:
-				return TranslationServer.Translate("This account has no password. Sign out and sign in again to continue.");
-			case AccountErrorCodes.PasswordTooShort:
-				return TranslationServer.Translate("A password must be at least 8 characters long.");
-			case AccountErrorCodes.Throttled:
-				return TranslationServer.Translate("Too many failed attempts. Try again later.");
+				return TranslationServer.Translate("Confirm it is you with Steam to continue.");
 			case AccountErrorCodes.SessionInvalid:
 			case AccountErrorCodes.SessionRequired:
 				return TranslationServer.Translate("Your session is no longer valid. Sign in again.");
-			case AccountErrorCodes.ProviderUnavailable:
-				return TranslationServer.Translate("That provider is not available on this server.");
-			case AccountErrorCodes.ProviderAlreadyLinked:
-				return TranslationServer.Translate("This account already links that provider.");
-			case AccountErrorCodes.ProviderLinkOwnedByAnotherAccount:
-				return TranslationServer.Translate("That provider account already belongs to another Realm account.");
-			case AccountErrorCodes.AuthorizationStateExpired:
-				return TranslationServer.Translate("The sign-in timed out. Try again.");
 			case AccountErrorCodes.AccountNotAuthority:
 				return TranslationServer.Translate("This server does not own accounts and refused the change.");
 			case AccountErrorCodes.AccountNotFound:
@@ -644,8 +434,6 @@ public partial class AccountDialog : Control
 	private void SetBusy(bool busy)
 	{
 		_busy = busy;
-		_submitButton.Disabled = busy;
-		_discordButton.Disabled = busy;
 		_steamButton.Disabled = busy;
 		_renameButton.Disabled = busy;
 		_signOutButton.Disabled = busy;

@@ -1,9 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.Linq;
 using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Realm.Shared.Accounts;
@@ -13,7 +11,7 @@ namespace Realm.AdminServer.Accounts;
 
 /// <summary>
 ///     The account authority's HTTP surface. Every mutation either succeeds with an account or a session, or answers a typed
-///     error code; nothing here returns a password, a provider secret or a credential hash.
+///     error code; nothing here returns a provider secret, a Steam ticket or a credential.
 /// </summary>
 public static class AccountEndpoints
 {
@@ -21,125 +19,19 @@ public static class AccountEndpoints
 	{
 		app.MapGet("/auth/providers", (AccountStoreService store) => Results.Ok(BuildProviders(options, store)));
 
-		app.MapPost("/auth/basicauth/register", (RegisterBasicAuthRequest request, AccountStoreService store) =>
-		{
-			AccountMutationResult result = store.RegisterBasicAuth(request.DisplayName, request.Password);
-			return result.Succeeded && result.Session != null ? Results.Ok(result.Session) : Refusal(result);
-		});
-
-		app.MapPost("/auth/basicauth/login", (LoginBasicAuthRequest request, HttpContext context, AccountStoreService store) =>
-		{
-			string sourceKey = context.Connection.RemoteIpAddress?.MapToIPv4().ToString() ?? "unknown";
-			AccountMutationResult result = store.SignInBasicAuth(request.DisplayName, request.Password, sourceKey);
-			return result.Succeeded && result.Session != null ? Results.Ok(result.Session) : Refusal(result);
-		});
-
-		app.MapPost("/auth/verify", (HttpRequest request, PasswordConfirmationRequest confirmation, HttpContext context, AccountStoreService store) =>
-		{
-			string sourceKey = context.Connection.RemoteIpAddress?.MapToIPv4().ToString() ?? "unknown";
-			AccountMutationResult result = store.ConfirmPassword(ReadSessionToken(request), confirmation.Password, sourceKey);
-			return result.Succeeded && result.Session != null ? Results.Ok(result.Session) : Refusal(result);
-		});
-
-		app.MapPost("/auth/providers/start", (AuthFlowStartRequest request, HttpRequest httpRequest, AuthFlowService flows, DiscordOAuthService discord, SteamOpenIdService steam, AccountStoreService store) =>
-		{
-			if (!store.IsAuthority) return Refusal(AccountMutationResult.Refused(AccountMutationOutcome.RefusedNotAuthority, "This node is not the configured account authority."));
-			if (!AccountProviderNames.TryParse(request.Provider, out AccountProviderKind provider) || provider == AccountProviderKind.BasicAuth)
-			{
-				return Results.BadRequest(AccountErrorDto.Of(AccountErrorCodes.ProviderUnknown, "Only Discord and Steam sign-in open a browser flow."));
-			}
-
-			long linkToAccountId = 0;
-			string? sessionToken = ReadSessionToken(httpRequest);
-			if (!string.IsNullOrEmpty(sessionToken))
-			{
-				if (!store.TryValidateSession(sessionToken, out AccountRecord? linkAccount, out _, out _) || linkAccount == null)
-				{
-					return Results.Json(AccountErrorDto.Of(AccountErrorCodes.SessionInvalid, "The session is no longer valid."), statusCode: StatusCodes.Status401Unauthorized);
-				}
-
-				if (!store.HasRecentCredentialProof(sessionToken))
-				{
-					return Results.Json(AccountErrorDto.Of(AccountErrorCodes.StepUpRequired, "Confirm your password before linking a provider to the account you are signed in to."), statusCode: StatusCodes.Status401Unauthorized);
-				}
-
-				linkToAccountId = linkAccount.AccountId;
-			}
-
-			bool providerConfigured = provider == AccountProviderKind.Discord ? options.Discord.IsConfigured : options.Steam.IsConfigured;
-			if (!providerConfigured)
-			{
-				return Results.Json(AccountErrorDto.Of(AccountErrorCodes.ProviderUnavailable, "This provider is not configured on the account authority."), statusCode: StatusCodes.Status503ServiceUnavailable);
-			}
-
-			if (!flows.TryStart(provider, request.LoopbackPort, request.ClientState, linkToAccountId, out AuthFlowRecord? flow, out string errorCode) || flow == null)
-			{
-				return Results.BadRequest(AccountErrorDto.Of(errorCode, "The sign-in flow could not be started."));
-			}
-
-			string authorizationUrl = provider == AccountProviderKind.Discord ? discord.BuildAuthorizationUrl(flow) : steam.BuildAuthorizationUrl(flow);
-			return Results.Ok(new AuthFlowStartResponse
-			{
-				Provider = provider.ToWireName(),
-				AuthorizationUrl = authorizationUrl,
-				State = flow.State
-			});
-		});
-
-		app.MapGet("/auth/discord/callback", async (string? code, string? state, string? error, AuthFlowService flows, DiscordOAuthService discord, AccountStoreService store, CancellationToken cancellationToken) =>
-		{
-			if (!flows.TryConsume(state, out AuthFlowRecord? flow) || flow == null || flow.Provider != AccountProviderKind.Discord)
-			{
-				return ProviderCallbackPage(false, "This sign-in could not be verified. Start it again from the game.");
-			}
-
-			if (!string.IsNullOrEmpty(error) || string.IsNullOrWhiteSpace(code))
-			{
-				return Results.Redirect(flows.BuildLoopbackFailureUrl(flow, AccountErrorCodes.ProviderUnavailable));
-			}
-
-			ProviderIdentity? identity = await discord.ExchangeCodeAsync(code, flow, cancellationToken);
-			if (identity == null)
-			{
-				return Results.Redirect(flows.BuildLoopbackFailureUrl(flow, AccountErrorCodes.ProviderUnavailable));
-			}
-
-			return CompleteProviderCallback(flow, AccountProviderKind.Discord, identity.Value.ProviderAccountToken, identity.Value.DisplayName, flows, store);
-		});
-
-		app.MapGet("/auth/steam/callback", async (HttpRequest request, AuthFlowService flows, SteamOpenIdService steam, AccountStoreService store, CancellationToken cancellationToken) =>
-		{
-			string? state = request.Query["state"];
-			if (!flows.TryConsume(state, out AuthFlowRecord? flow) || flow == null || flow.Provider != AccountProviderKind.Steam)
-			{
-				return ProviderCallbackPage(false, "This sign-in could not be verified. Start it again from the game.");
-			}
-
-			var assertion = new Dictionary<string, string>(StringComparer.Ordinal);
-			foreach (string key in request.Query.Keys)
-			{
-				if (key.StartsWith("openid.", StringComparison.Ordinal)) assertion[key] = request.Query[key].ToString();
-			}
-
-			ProviderIdentity? identity = await steam.VerifyAssertionAsync(assertion, flow, cancellationToken);
-			if (identity == null)
-			{
-				return Results.Redirect(flows.BuildLoopbackFailureUrl(flow, AccountErrorCodes.ProviderUnavailable));
-			}
-
-			return CompleteProviderCallback(flow, AccountProviderKind.Steam, identity.Value.ProviderAccountToken, identity.Value.DisplayName, flows, store);
-		});
-
-		app.MapPost("/auth/providers/register", (ProviderRegistrationRequest request, AuthFlowService flows, AccountStoreService store) =>
+		app.MapPost("/auth/steam/ticket", async (SteamTicketSignInRequest signIn, SteamTicketService steam, AccountStoreService store, CancellationToken cancellationToken) =>
 		{
 			if (!store.IsAuthority) return Refusal(AccountMutationResult.Refused(AccountMutationOutcome.RefusedNotAuthority, "This node is not the configured account authority."));
 
-			if (!flows.TryTakePendingRegistration(request.RegistrationTicket, out PendingProviderRegistration? pending) || pending == null)
+			string? steamId = await steam.ResolveSteamIdAsync(signIn.AppId, signIn.Ticket, cancellationToken);
+			if (steamId == null)
 			{
-				return Results.BadRequest(AccountErrorDto.Of(AccountErrorCodes.AuthorizationStateInvalid, "That registration has expired. Start the sign-in again."));
+				return Results.Json(
+					AccountErrorDto.Of(AccountErrorCodes.CredentialsInvalid, "Steam did not accept this sign-in. Start the game through Steam and try again."),
+					statusCode: StatusCodes.Status401Unauthorized);
 			}
 
-			AccountMutationResult result = store.SignInOrRegisterProvider(pending.Provider, pending.ProviderAccountToken, request.DisplayName);
+			AccountMutationResult result = store.SignInOrRegisterProvider(AccountProviderKind.Steam, steamId, signIn.DisplayName);
 			return result.Succeeded && result.Session != null ? Results.Ok(result.Session) : Refusal(result);
 		});
 
@@ -166,7 +58,7 @@ public static class AccountEndpoints
 			if (!TryReadSignedInAccount(request, store, out AccountRecord account)) return Results.Json(AccountErrorDto.Of(AccountErrorCodes.SessionInvalid, "The session is no longer valid."), statusCode: StatusCodes.Status401Unauthorized);
 			if (!store.HasRecentCredentialProof(ReadSessionToken(request)))
 			{
-				return Results.Json(AccountErrorDto.Of(AccountErrorCodes.StepUpRequired, "Confirm your password before changing the account you are signed in to."), statusCode: StatusCodes.Status401Unauthorized);
+				return Results.Json(AccountErrorDto.Of(AccountErrorCodes.StepUpRequired, "Sign in with Steam again before changing the account you are signed in to."), statusCode: StatusCodes.Status401Unauthorized);
 			}
 
 			AccountMutationResult result = store.Rename(account.AccountId, rename.DisplayName, $"account:{account.AccountId}");
@@ -223,92 +115,18 @@ public static class AccountEndpoints
 
 	private static AccountProvidersDto BuildProviders(AccountAuthorityOptions options, AccountStoreService store)
 	{
-		var warnings = new List<string>
-		{
-			"basicauth_has_no_password_reset",
-			"basicauth_has_no_two_factor",
-			"basicauth_lost_password_without_linked_provider_makes_the_account_unreachable"
-		};
-
-		if (!options.Discord.IsConfigured) warnings.Add($"provider_not_configured:{AccountProviderNames.Discord}");
-		if (!options.Steam.IsConfigured) warnings.Add($"provider_not_configured:{AccountProviderNames.Steam}");
+		var warnings = new List<string>();
+		foreach (string missing in options.Steam.MissingSettings()) warnings.Add($"provider_not_configured:{AccountProviderNames.Steam}:{missing}");
 		if (!store.IsAuthority) warnings.Add("account_node_is_not_the_authority");
 
 		return new AccountProvidersDto
 		{
 			Providers = new[]
 			{
-				new AccountProviderInfoDto { Kind = AccountProviderNames.Discord, Available = options.Discord.IsConfigured, Recommended = true },
-				new AccountProviderInfoDto { Kind = AccountProviderNames.Steam, Available = options.Steam.IsConfigured, Recommended = true },
-				new AccountProviderInfoDto { Kind = AccountProviderNames.BasicAuth, Available = true, Recommended = false }
+				new AccountProviderInfoDto { Kind = AccountProviderNames.Steam, Available = options.Steam.IsConfigured }
 			},
 			Warnings = warnings.ToArray()
 		};
-	}
-
-	private static IResult CompleteProviderCallback(AuthFlowRecord flow, AccountProviderKind provider, string providerAccountToken, string providerDisplayName, AuthFlowService flows, AccountStoreService store)
-	{
-		if (flow.LinkToAccountId != 0)
-		{
-			AccountMutationResult linkResult = store.LinkProvider(flow.LinkToAccountId, provider, providerAccountToken);
-			if (!linkResult.Succeeded || linkResult.Account == null)
-			{
-				string errorCode = linkResult.Outcome switch
-				{
-					AccountMutationOutcome.ProviderAlreadyLinked => AccountErrorCodes.ProviderAlreadyLinked,
-					AccountMutationOutcome.ProviderLinkOwnedByAnotherAccount => AccountErrorCodes.ProviderLinkOwnedByAnotherAccount,
-					_ => AccountErrorCodes.ProviderUnavailable
-				};
-
-				return Results.Redirect(flows.BuildLoopbackFailureUrl(flow, errorCode));
-			}
-
-			AccountSessionDto session = store.IssueSession(linkResult.Account);
-			return Results.Redirect(BuildSignedInCallbackUrl(flows, flow, session));
-		}
-
-		AccountRecord? existing = store.FindAccountByProviderLink(provider, providerAccountToken);
-		if (existing != null)
-		{
-			return Results.Redirect(BuildSignedInCallbackUrl(flows, flow, store.IssueSession(existing)));
-		}
-
-		string suggestedName = string.Empty;
-		DisplayNameError nameError = default;
-		bool providerOfferedName = providerDisplayName.Length > 0;
-		bool nameIsUsable = providerOfferedName && DisplayNameRules.TryCanonicalize(providerDisplayName, out suggestedName, out nameError);
-		string suggestedNameErrorCode = providerOfferedName && !nameIsUsable ? AccountErrorCodes.ForDisplayNameError(nameError) : string.Empty;
-
-		string ticket = flows.CreatePendingRegistration(flow, providerAccountToken, nameIsUsable ? suggestedName : string.Empty, suggestedNameErrorCode.Length > 0 ? suggestedNameErrorCode : null);
-
-		string query = $"{AccountQueryParameters.ClientState}={Uri.EscapeDataString(flow.ClientState)}"
-		               + $"&{AccountQueryParameters.Provider}={Uri.EscapeDataString(provider.ToWireName())}"
-		               + $"&registration_ticket={Uri.EscapeDataString(ticket)}"
-		               + $"&suggested_display_name={Uri.EscapeDataString(nameIsUsable ? suggestedName : string.Empty)}";
-
-		if (suggestedNameErrorCode.Length > 0) query += $"&suggested_display_name_error={Uri.EscapeDataString(suggestedNameErrorCode)}";
-
-		return Results.Redirect(flows.BuildLoopbackCallbackUrl(flow, query));
-	}
-
-	private static string BuildSignedInCallbackUrl(AuthFlowService flows, AuthFlowRecord flow, AccountSessionDto session)
-	{
-		string query = $"{AccountQueryParameters.ClientState}={Uri.EscapeDataString(flow.ClientState)}"
-		               + $"&{AccountQueryParameters.SessionToken}={Uri.EscapeDataString(session.SessionToken)}"
-		               + $"&{AccountQueryParameters.AccountId}={Uri.EscapeDataString(session.AccountId.ToString(CultureInfo.InvariantCulture))}"
-		               + $"&{AccountQueryParameters.DisplayName}={Uri.EscapeDataString(session.DisplayName)}";
-
-		return flows.BuildLoopbackCallbackUrl(flow, query);
-	}
-
-	private static IResult ProviderCallbackPage(bool succeeded, string message)
-	{
-		string title = succeeded ? "Signed in to Realm" : "Realm sign-in failed";
-		string html = $"<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>{title}</title></head>"
-		              + "<body style=\"background:#0f111a;color:#e2e8f0;font-family:Segoe UI,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0\">"
-		              + $"<div style=\"max-width:420px;text-align:center\"><h2 style=\"color:#ffd700\">{title}</h2><p>{message}</p></div></body></html>";
-
-		return Results.Content(html, "text/html; charset=utf-8", statusCode: succeeded ? StatusCodes.Status200OK : StatusCodes.Status400BadRequest);
 	}
 
 	private static bool TryReadSignedInAccount(HttpRequest request, AccountStoreService store, out AccountRecord account)
@@ -339,31 +157,23 @@ public static class AccountEndpoints
 		string code = result.Outcome switch
 		{
 			AccountMutationOutcome.DisplayNameInvalid or AccountMutationOutcome.DisplayNameTaken or AccountMutationOutcome.DisplayNameVisuallySimilar => AccountErrorCodes.ForDisplayNameError(result.DisplayNameError),
-			AccountMutationOutcome.PasswordTooShort => AccountErrorCodes.PasswordTooShort,
-			AccountMutationOutcome.Throttled => AccountErrorCodes.Throttled,
 			AccountMutationOutcome.RefusedNotAuthority => AccountErrorCodes.AccountNotAuthority,
 			AccountMutationOutcome.CredentialsInvalid => AccountErrorCodes.CredentialsInvalid,
 			AccountMutationOutcome.SessionInvalid => AccountErrorCodes.SessionInvalid,
-			AccountMutationOutcome.ProviderAlreadyLinked => AccountErrorCodes.ProviderAlreadyLinked,
-			AccountMutationOutcome.ProviderLinkOwnedByAnotherAccount => AccountErrorCodes.ProviderLinkOwnedByAnotherAccount,
 			AccountMutationOutcome.AccountNotFound => AccountErrorCodes.AccountNotFound,
 			AccountMutationOutcome.AdminProofMalformed => AccountErrorCodes.AdminProofMalformed,
 			AccountMutationOutcome.AdminProofInvalid => AccountErrorCodes.AdminProofInvalid,
 			AccountMutationOutcome.AdminProofStale => AccountErrorCodes.AdminProofStale,
 			AccountMutationOutcome.AdminProofReplayed => AccountErrorCodes.AdminProofReplayed,
-			AccountMutationOutcome.StepUpUnavailable => AccountErrorCodes.StepUpUnavailable,
 			_ => AccountErrorCodes.RequestMalformed
 		};
 
 		int statusCode = result.Outcome switch
 		{
 			AccountMutationOutcome.DisplayNameTaken or AccountMutationOutcome.DisplayNameVisuallySimilar => StatusCodes.Status409Conflict,
-			AccountMutationOutcome.ProviderLinkOwnedByAnotherAccount or AccountMutationOutcome.ProviderAlreadyLinked => StatusCodes.Status409Conflict,
 			AccountMutationOutcome.CredentialsInvalid or AccountMutationOutcome.SessionInvalid => StatusCodes.Status401Unauthorized,
 			AccountMutationOutcome.RefusedNotAuthority => StatusCodes.Status403Forbidden,
 			AccountMutationOutcome.AccountNotFound => StatusCodes.Status404NotFound,
-			AccountMutationOutcome.Throttled => StatusCodes.Status429TooManyRequests,
-			AccountMutationOutcome.StepUpUnavailable => StatusCodes.Status403Forbidden,
 			_ => StatusCodes.Status400BadRequest
 		};
 

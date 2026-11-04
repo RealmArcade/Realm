@@ -108,9 +108,7 @@ builder.Services.AddSingleton(peerRegistry);
 var accountAuthorityOptions = AccountAuthorityOptions.FromConfiguration(builder.Configuration, selfUrl, peersStr.Length > 0);
 builder.Services.AddSingleton(accountAuthorityOptions);
 builder.Services.AddSingleton<AccountStoreService>();
-builder.Services.AddSingleton<AuthFlowService>();
-builder.Services.AddSingleton<DiscordOAuthService>();
-builder.Services.AddSingleton<SteamOpenIdService>();
+builder.Services.AddSingleton<SteamTicketService>();
 builder.Services.AddSingleton<IAccountReplicationSink, AccountClusterPublisher>();
 builder.Services.AddSingleton<ClusterEventService>();
 

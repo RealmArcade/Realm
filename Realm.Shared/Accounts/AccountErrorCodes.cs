@@ -36,25 +36,7 @@ public static class AccountErrorCodes
 
 	public const string StepUpRequired = "step_up_required";
 
-	public const string StepUpUnavailable = "step_up_unavailable";
-
-	public const string PasswordTooShort = "password_too_short";
-
-	public const string Throttled = "auth_throttled";
-
 	public const string AccountNotAuthority = "account_not_authority";
-
-	public const string ProviderUnknown = "provider_unknown";
-
-	public const string ProviderUnavailable = "provider_unavailable";
-
-	public const string ProviderAlreadyLinked = "provider_already_linked";
-
-	public const string ProviderLinkOwnedByAnotherAccount = "provider_link_owned_by_another_account";
-
-	public const string AuthorizationStateInvalid = "auth_state_invalid";
-
-	public const string AuthorizationStateExpired = "auth_state_expired";
 
 	public const string AdminProofMalformed = "admin_proof_malformed";
 

@@ -1,59 +1,42 @@
 namespace Realm.Shared.Accounts;
 
 /// <summary>
-///     The identity provider an account link was created through. The wire form is the lower-case name, so a provider can be
-///     named in a URL, a log line and an HTTP payload without a second spelling.
+///     The identity provider an account link was created through. An account only ever exists because the authority itself
+///     verified a provider identity, so this names the one check that happened. A player who cannot complete it plays unverified
+///     under their own name instead of holding an account.
 /// </summary>
 public enum AccountProviderKind
 {
-	BasicAuth = 1,
-
-	Discord = 2,
-
-	Steam = 3
+	Steam = 1
 }
 
 public static class AccountProviderNames
 {
-	public const string BasicAuth = "basicauth";
-
-	public const string Discord = "discord";
-
 	public const string Steam = "steam";
 
 	/// <summary>
-	///     Providers whose sign-in the game client can hand to a browser. BasicAuth is answered in the game itself.
+	///     The providers an account can be created through. Steam is the only one because it is the only identity the authority
+	///     can verify without a browser, which is what keeps sign-in reachable from networks where Valve's web pages are not.
 	/// </summary>
-	public static readonly string[] RecommendedProviders = { Discord, Steam };
+	public static readonly string[] All = { Steam };
 
 	public static bool TryParse(string? value, out AccountProviderKind provider)
 	{
 		provider = default;
 		if (string.IsNullOrWhiteSpace(value)) return false;
 
-		switch (value.Trim().ToLowerInvariant())
-		{
-			case BasicAuth:
-				provider = AccountProviderKind.BasicAuth;
-				return true;
-			case Discord:
-				provider = AccountProviderKind.Discord;
-				return true;
-			case Steam:
-				provider = AccountProviderKind.Steam;
-				return true;
-			default:
-				return false;
-		}
+		if (!string.Equals(value.Trim(), Steam, System.StringComparison.OrdinalIgnoreCase)) return false;
+
+		provider = AccountProviderKind.Steam;
+		return true;
 	}
 
 	public static string ToWireName(this AccountProviderKind provider)
 	{
 		return provider switch
 		{
-			AccountProviderKind.Discord => Discord,
 			AccountProviderKind.Steam => Steam,
-			_ => BasicAuth
+			_ => Steam
 		};
 	}
 }

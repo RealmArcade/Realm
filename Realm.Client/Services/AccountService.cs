@@ -1,10 +1,7 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
-using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -39,14 +36,6 @@ public class AccountOperationResult
 	public string Message { get; init; } = string.Empty;
 
 	public AccountSession? Session { get; init; }
-
-	public string RegistrationTicket { get; init; } = string.Empty;
-
-	public string SuggestedDisplayName { get; init; } = string.Empty;
-
-	public string SuggestedDisplayNameErrorCode { get; init; } = string.Empty;
-
-	public string Provider { get; init; } = string.Empty;
 
 	public bool Succeeded => Status == AccountOperationStatus.Success;
 
@@ -88,6 +77,8 @@ public class AccountSession
 ///     describes are stored in the user data directory and restored at launch without asking the authority anything, because an
 ///     unreachable authority must not leave a player unable to play, and nothing an unconfirmed token can reach is sensitive.
 ///     Every name this service reports is still the authority's, and the first answer that says the session is gone drops it.
+///     Signing in needs nothing but a Steam ticket: Steamworks mints it on this machine and the authority exchanges it for the
+///     SteamID64 it links, so no browser, redirect or password is involved at any point.
 /// </summary>
 public class AccountService
 {
@@ -98,8 +89,6 @@ public class AccountService
 	private readonly HttpClient _httpClient = new() { Timeout = TimeSpan.FromSeconds(15) };
 
 	private readonly object _sessionLock = new();
-
-	private HttpListener? _callbackListener;
 
 	private AccountSession? _session;
 
@@ -185,26 +174,21 @@ public class AccountService
 		return validated;
 	}
 
-	public async Task<AccountOperationResult> RegisterAsync(string displayName, string password)
-	{
-		return await PostAsync("/auth/basicauth/register", new RegisterBasicAuthRequest { DisplayName = displayName, Password = password }, null).ConfigureAwait(false);
-	}
-
-	public async Task<AccountOperationResult> SignInAsync(string displayName, string password)
-	{
-		return await PostAsync("/auth/basicauth/login", new LoginBasicAuthRequest { DisplayName = displayName, Password = password }, null).ConfigureAwait(false);
-	}
-
 	/// <summary>
-	///     Proves the password behind the account that is already signed in. The authority answers with the same session, so this
-	///     only unlocks a change it would otherwise refuse; it is not a second sign-in.
+	///     Signs in with a Steam ticket this machine minted. A SteamID64 no account has seen yet registers one under the name
+	///     supplied here, so the same call also carries a player's chosen name on their first sign-in; the authority refuses a name
+	///     it cannot accept and the player simply tries another, which costs one more ticket.
 	/// </summary>
-	public async Task<AccountOperationResult> ConfirmPasswordAsync(string password)
+	public async Task<AccountOperationResult> SignInWithSteamAsync(string displayName, string ticket, uint appId)
 	{
-		string token = SessionToken;
-		if (string.IsNullOrEmpty(token)) return AccountOperationResult.Rejected(AccountErrorCodes.SessionRequired, "Sign in before confirming your password.");
+		if (string.IsNullOrEmpty(ticket)) return AccountOperationResult.Rejected(AccountErrorCodes.CredentialsInvalid, "Steam did not return a sign-in ticket.");
 
-		return await PostAsync("/auth/verify", new PasswordConfirmationRequest { Password = password }, token).ConfigureAwait(false);
+		return await PostAsync("/auth/steam/ticket", new SteamTicketSignInRequest
+		{
+			Ticket = ticket,
+			AppId = appId,
+			DisplayName = displayName ?? string.Empty
+		}, null).ConfigureAwait(false);
 	}
 
 	public async Task<AccountOperationResult> RenameAsync(string displayName)
@@ -262,55 +246,7 @@ public class AccountService
 		}
 	}
 
-	/// <summary>
-	///     Opens the provider's sign-in page in the browser and waits for the authority to hand the result back to a loopback
-	///     listener this call has just claimed. The port is chosen now from the free ephemeral range, the request carries an
-	///     opaque client state that the answer must echo, and the listener only ever accepts that one callback.
-	/// </summary>
-	public async Task<AccountOperationResult> StartProviderSignInAsync(string provider, bool linkToCurrentAccount)
-	{
-		if (!TryOpenCallbackListener(out int port))
-		{
-			return AccountOperationResult.Unreachable("A local sign-in listener could not be opened.");
-		}
-
-		string clientState = AccountClientState.CreateOpaqueValue();
-		string token = linkToCurrentAccount ? SessionToken : string.Empty;
-
-		(AccountOperationResult started, AuthFlowStartResponse? startResponse) = await PostForJsonAsync<AuthFlowStartRequest, AuthFlowStartResponse>("/auth/providers/start", new AuthFlowStartRequest
-		{
-			Provider = provider,
-			LoopbackPort = port,
-			ClientState = clientState
-		}, token).ConfigureAwait(false);
-
-		if (!started.Succeeded)
-		{
-			CloseCallbackListener();
-			return started;
-		}
-
-		if (startResponse == null || string.IsNullOrEmpty(startResponse.AuthorizationUrl))
-		{
-			CloseCallbackListener();
-			return AccountOperationResult.Rejected(AccountErrorCodes.ProviderUnavailable, "The authority did not return a sign-in address.");
-		}
-
-		OS.ShellOpen(startResponse.AuthorizationUrl);
-
-		return await AwaitProviderCallbackAsync(clientState).ConfigureAwait(false);
-	}
-
-	public async Task<AccountOperationResult> CompleteProviderRegistrationAsync(string registrationTicket, string displayName)
-	{
-		return await PostAsync("/auth/providers/register", new ProviderRegistrationRequest
-		{
-			RegistrationTicket = registrationTicket,
-			DisplayName = displayName
-		}, null).ConfigureAwait(false);
-	}
-
-	public async Task<AccountOperationResult> ValidateTokenAsync(string token)
+	private async Task<AccountOperationResult> ValidateTokenAsync(string token)
 	{
 		if (string.IsNullOrWhiteSpace(token)) return AccountOperationResult.Rejected(AccountErrorCodes.SessionRequired, "No session was presented.");
 
@@ -351,125 +287,6 @@ public class AccountService
 		catch (JsonException)
 		{
 			return AccountOperationResult.Rejected(AccountErrorCodes.RequestMalformed, "The account authority answered something this build cannot read.");
-		}
-	}
-
-	private async Task<AccountOperationResult> AwaitProviderCallbackAsync(string clientState)
-	{
-		HttpListener? listener = _callbackListener;
-		if (listener == null) return AccountOperationResult.Unreachable("The local sign-in listener is not running.");
-
-		try
-		{
-			Task<HttpListenerContext> contextTask = listener.GetContextAsync();
-			Task finished = await Task.WhenAny(contextTask, Task.Delay(TimeSpan.FromMinutes(5))).ConfigureAwait(false);
-			if (finished != contextTask)
-			{
-				CloseCallbackListener();
-				return AccountOperationResult.Rejected(AccountErrorCodes.AuthorizationStateExpired, "The sign-in timed out.");
-			}
-
-			HttpListenerContext context = await contextTask.ConfigureAwait(false);
-			return await HandleCallbackAsync(context, clientState).ConfigureAwait(false);
-		}
-		catch (HttpListenerException)
-		{
-			return AccountOperationResult.Unreachable("The local sign-in listener stopped before the answer arrived.");
-		}
-		catch (ObjectDisposedException)
-		{
-			return AccountOperationResult.Unreachable("The local sign-in listener stopped before the answer arrived.");
-		}
-		finally
-		{
-			CloseCallbackListener();
-		}
-	}
-
-	private async Task<AccountOperationResult> HandleCallbackAsync(HttpListenerContext context, string clientState)
-	{
-		try
-		{
-			string returnedState = context.Request.QueryString[AccountQueryParameters.ClientState] ?? string.Empty;
-			if (!string.Equals(returnedState, clientState, StringComparison.Ordinal))
-			{
-				WriteCallbackPage(context.Response, false, "This answer does not belong to the sign-in this game started.");
-				return AccountOperationResult.Rejected(AccountErrorCodes.AuthorizationStateInvalid, "The sign-in answer did not belong to this request.");
-			}
-
-			string errorCode = context.Request.QueryString[AccountQueryParameters.ErrorCode] ?? string.Empty;
-			if (errorCode.Length > 0)
-			{
-				WriteCallbackPage(context.Response, false, "The provider did not confirm the sign-in.");
-				return AccountOperationResult.Rejected(errorCode, "The provider did not confirm the sign-in.");
-			}
-
-			string token = context.Request.QueryString[AccountQueryParameters.SessionToken] ?? string.Empty;
-			if (token.Length > 0)
-			{
-				AccountOperationResult validated = await ValidateTokenAsync(token).ConfigureAwait(false);
-				if (!validated.Succeeded || validated.Session == null)
-				{
-					WriteCallbackPage(context.Response, false, "The account authority did not accept the new session.");
-					return validated.Status == AccountOperationStatus.Unreachable ? validated : AccountOperationResult.Rejected(AccountErrorCodes.SessionInvalid, "The account authority did not accept the new session.");
-				}
-
-				SetSession(validated.Session);
-				WriteCallbackPage(context.Response, true, "You can close this tab and return to the game.");
-				return validated;
-			}
-
-			string ticket = context.Request.QueryString["registration_ticket"] ?? string.Empty;
-			if (ticket.Length > 0)
-			{
-				WriteCallbackPage(context.Response, true, "Choose a display name in the game to finish registering.");
-				return new AccountOperationResult
-				{
-					Status = AccountOperationStatus.Success,
-					RegistrationTicket = ticket,
-					Provider = context.Request.QueryString[AccountQueryParameters.Provider] ?? string.Empty,
-					SuggestedDisplayName = context.Request.QueryString["suggested_display_name"] ?? string.Empty,
-					SuggestedDisplayNameErrorCode = context.Request.QueryString["suggested_display_name_error"] ?? string.Empty
-				};
-			}
-
-			WriteCallbackPage(context.Response, false, "The answer did not carry a session or a registration.");
-			return AccountOperationResult.Rejected(AccountErrorCodes.RequestMalformed, "The sign-in answer carried nothing this build can use.");
-		}
-		finally
-		{
-			context.Response.Close();
-		}
-	}
-
-	private async Task<(AccountOperationResult Result, TResponse? Body)> PostForJsonAsync<TRequest, TResponse>(string path, TRequest body, string? sessionToken)
-	{
-		try
-		{
-			using var request = new HttpRequestMessage(HttpMethod.Post, $"{AuthorityUrl}{path}");
-			if (!string.IsNullOrEmpty(sessionToken)) request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", sessionToken);
-			request.Content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json");
-
-			using HttpResponseMessage response = await _httpClient.SendAsync(request).ConfigureAwait(false);
-			string json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-			if (!response.IsSuccessStatusCode) return (RejectedOrUnreachable(response, json), default);
-
-			TResponse? parsed = JsonSerializer.Deserialize<TResponse>(json, JsonOptions);
-			return (parsed == null
-				? AccountOperationResult.Rejected(AccountErrorCodes.RequestMalformed, "The account authority answered something this build cannot read.")
-				: AccountOperationResult.Ok(null), parsed);
-		}
-		catch (HttpRequestException)
-		{
-			return (AccountOperationResult.Unreachable("The account authority could not be reached."), default);
-		}
-		catch (TaskCanceledException)
-		{
-			return (AccountOperationResult.Unreachable("The account authority did not answer in time."), default);
-		}
-		catch (JsonException)
-		{
-			return (AccountOperationResult.Rejected(AccountErrorCodes.RequestMalformed, "The account authority answered something this build cannot read."), default);
 		}
 	}
 
@@ -597,75 +414,6 @@ public class AccountService
 		}
 	}
 
-	private bool TryOpenCallbackListener(out int port)
-	{
-		port = 0;
-		CloseCallbackListener();
-
-		int freePort = FindFreeLoopbackPort();
-		if (freePort <= 0) return false;
-
-		var listener = new HttpListener();
-		listener.Prefixes.Add($"http://localhost:{freePort}/auth/callback/");
-		try
-		{
-			listener.Start();
-		}
-		catch (HttpListenerException)
-		{
-			return false;
-		}
-
-		_callbackListener = listener;
-		port = freePort;
-		return true;
-	}
-
-	private static int FindFreeLoopbackPort()
-	{
-		try
-		{
-			var probe = new TcpListener(IPAddress.Loopback, 0);
-			probe.Start();
-			int port = ((IPEndPoint)probe.LocalEndpoint).Port;
-			probe.Stop();
-			return port;
-		}
-		catch (SocketException)
-		{
-			return 0;
-		}
-	}
-
-	private void CloseCallbackListener()
-	{
-		HttpListener? listener = _callbackListener;
-		_callbackListener = null;
-		if (listener == null) return;
-
-		try
-		{
-			listener.Stop();
-			listener.Close();
-		}
-		catch (ObjectDisposedException)
-		{
-		}
-	}
-
-	private static void WriteCallbackPage(HttpListenerResponse response, bool succeeded, string message)
-	{
-		string title = succeeded ? "Realm" : "Realm sign-in";
-		string html = $"<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>{title}</title></head>"
-		              + "<body style=\"background:#0f111a;color:#e2e8f0;font-family:Segoe UI,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0\">"
-		              + $"<div style=\"max-width:420px;text-align:center\"><h2 style=\"color:#ffd700\">{title}</h2><p>{message}</p></div></body></html>";
-
-		byte[] buffer = Encoding.UTF8.GetBytes(html);
-		response.ContentType = "text/html; charset=utf-8";
-		response.ContentLength64 = buffer.Length;
-		response.OutputStream.Write(buffer, 0, buffer.Length);
-	}
-
 	private class SessionValidation
 	{
 		public string AccountId { get; set; } = string.Empty;
@@ -675,17 +423,5 @@ public class AccountService
 		public string[]? LinkedProviders { get; set; }
 
 		public DateTime? ExpiresAtUtc { get; set; }
-	}
-}
-
-/// <summary>
-///     The opaque value a flow is bound to. The authority mints the state it hands to the provider; the client only needs a
-///     value of its own for the answer to echo, so that a callback for another request is refused.
-/// </summary>
-public static class AccountClientState
-{
-	public static string CreateOpaqueValue()
-	{
-		return Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(24)).TrimEnd('=').Replace('+', '-').Replace('/', '_');
 	}
 }

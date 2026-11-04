@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Security.Cryptography;
 using System.Text;
@@ -17,23 +16,15 @@ public enum AccountMutationOutcome
 
 	RefusedNotAuthority = 1,
 
-	Throttled = 2,
-
 	DisplayNameInvalid = 3,
 
 	DisplayNameTaken = 4,
 
 	DisplayNameVisuallySimilar = 5,
 
-	PasswordTooShort = 6,
-
 	AccountNotFound = 7,
 
 	CredentialsInvalid = 8,
-
-	ProviderLinkOwnedByAnotherAccount = 9,
-
-	ProviderAlreadyLinked = 10,
 
 	SessionInvalid = 11,
 
@@ -43,9 +34,7 @@ public enum AccountMutationOutcome
 
 	AdminProofStale = 14,
 
-	AdminProofReplayed = 15,
-
-	StepUpUnavailable = 16
+	AdminProofReplayed = 15
 }
 
 public class AccountMutationResult
@@ -100,8 +89,6 @@ public class AccountStoreService
 
 	public const string LinksCollection = "account_links";
 
-	public const string CredentialsCollection = "account_credentials";
-
 	public const string SessionsCollection = "account_sessions";
 
 	public const string RenameHistoryCollection = "account_rename_history";
@@ -114,14 +101,9 @@ public class AccountStoreService
 	/// </summary>
 	public const string LegacyCreatorNamesCollection = "name_locks";
 
-	private const int MaximumFailuresPerWindow = 8;
-
-	private const long FailureWindowMilliseconds = 15 * 60 * 1000;
-
 	private readonly DataStoreService _dataStore;
 	private readonly AccountAuthorityOptions _options;
 	private readonly IAccountReplicationSink _replication;
-	private readonly ConcurrentDictionary<string, (long WindowStartMilliseconds, int FailureCount)> _basicAuthFailures = new(StringComparer.Ordinal);
 
 	public AccountStoreService(DataStoreService dataStore, AccountAuthorityOptions options, IAccountReplicationSink replication)
 	{
@@ -138,103 +120,10 @@ public class AccountStoreService
 		DisplayNamesCollection,
 		ConfusableNamesCollection,
 		LinksCollection,
-		CredentialsCollection,
 		RenameHistoryCollection,
 		AdminNoncesCollection,
 		LegacyCreatorNamesCollection
 	};
-
-	public AccountMutationResult RegisterBasicAuth(string? displayName, string? password)
-	{
-		if (!IsAuthority) return NotAuthority();
-
-		if (!DisplayNameRules.TryCanonicalize(displayName, out string canonical, out DisplayNameError nameError))
-		{
-			return AccountMutationResult.InvalidName(nameError);
-		}
-
-		if (string.IsNullOrEmpty(password) || password.Length < DisplayNameRules.MinimumPasswordLength)
-		{
-			return AccountMutationResult.Refused(AccountMutationOutcome.PasswordTooShort, $"A password must be at least {DisplayNameRules.MinimumPasswordLength} characters long.");
-		}
-
-		string uniquenessKey = DisplayNameRules.ComputeUniquenessKey(canonical);
-		string skeleton = DisplayNameRules.ComputeConfusableSkeleton(canonical);
-		string credentialId = Guid.NewGuid().ToString("N");
-		string passwordHash = ScryptPasswordHasher.Hash(password);
-
-		AccountRecord? created = null;
-		bool stored = _dataStore.TryMutate(MutatedCollections, transaction =>
-		{
-			AccountMutationResult nameConflict = CheckNameAvailability(transaction, canonical, uniquenessKey, skeleton, 0);
-			if (nameConflict.Outcome != AccountMutationOutcome.Success) return false;
-
-			long accountId = MintAccountId(transaction);
-			AccountRecord account = new()
-			{
-				AccountId = accountId,
-				DisplayName = canonical,
-				UniquenessKey = uniquenessKey,
-				CreatedAtUtc = DateTime.UtcNow,
-				UpdatedAtUtc = DateTime.UtcNow,
-				Links = { new AccountProviderLinkRecord { Provider = AccountProviderNames.BasicAuth, ProviderAccountToken = credentialId } }
-			};
-
-			DataStoreService.WriteTo(transaction, AccountsCollection, accountId.ToString(), account);
-			DataStoreService.WriteTo(transaction, DisplayNamesCollection, uniquenessKey, accountId);
-			DataStoreService.WriteTo(transaction, ConfusableNamesCollection, skeleton, accountId);
-			DataStoreService.WriteTo(transaction, LinksCollection, BuildLinkKey(AccountProviderNames.BasicAuth, credentialId), accountId);
-			DataStoreService.WriteTo(transaction, CredentialsCollection, credentialId, new AccountCredentialRecord
-			{
-				CredentialId = credentialId,
-				AccountId = accountId,
-				PasswordHash = passwordHash,
-				CreatedAtUtc = DateTime.UtcNow
-			});
-
-			created = account;
-			return true;
-		});
-
-		if (!stored || created == null) return ResolveNameConflict(canonical, uniquenessKey, skeleton, 0);
-
-		_replication.Publish(AccountClusterEventPayload.CreatedEvent, BuildEventPayload(created, null, null));
-		return AccountMutationResult.Success(created, IssueSession(created));
-	}
-
-	public AccountMutationResult SignInBasicAuth(string? displayName, string? password, string? sourceKey)
-	{
-		if (!IsAuthority) return NotAuthority();
-
-		string lookupKey = DisplayNameRules.TryCanonicalize(displayName, out string canonical, out _)
-			? DisplayNameRules.ComputeUniquenessKey(canonical)
-			: string.Empty;
-
-		if (lookupKey.Length == 0 || string.IsNullOrEmpty(password)) return CredentialsRefused();
-
-		string throttleKey = $"{lookupKey}|{sourceKey ?? "unknown"}";
-		if (IsThrottled(throttleKey)) return AccountMutationResult.Refused(AccountMutationOutcome.Throttled, "Too many failed sign-in attempts. Try again later.");
-
-		AccountRecord? account = FindAccountByUniquenessKey(lookupKey);
-		if (account == null)
-		{
-			RecordFailure(throttleKey);
-			return CredentialsRefused();
-		}
-
-		AccountProviderLinkRecord? link = account.Links.Find(candidate => string.Equals(candidate.Provider, AccountProviderNames.BasicAuth, StringComparison.Ordinal));
-		AccountCredentialRecord? credential = link == null ? null : _dataStore.Get<AccountCredentialRecord>(CredentialsCollection, link.ProviderAccountToken);
-		if (credential == null || !ScryptPasswordHasher.Verify(password, credential.PasswordHash))
-		{
-			RecordFailure(throttleKey);
-			return CredentialsRefused();
-		}
-
-		ClearFailures(throttleKey);
-		credential.LastVerifiedAtUtc = DateTime.UtcNow;
-		_dataStore.Upsert(CredentialsCollection, credential.CredentialId, credential);
-		return AccountMutationResult.Success(account, IssueSession(account));
-	}
 
 	/// <summary>
 	///     Signs a verified provider identity in. A provider token that is already linked signs straight into its account and
@@ -304,62 +193,6 @@ public class AccountStoreService
 		}
 
 		return ResolveNameConflict(canonical, uniquenessKey, skeleton, 0);
-	}
-
-	public AccountMutationResult LinkProvider(long accountId, AccountProviderKind provider, string providerAccountToken)
-	{
-		if (!IsAuthority) return NotAuthority();
-		if (accountId <= 0) return AccountMutationResult.Refused(AccountMutationOutcome.AccountNotFound, "No account was named.");
-		if (string.IsNullOrWhiteSpace(providerAccountToken)) return AccountMutationResult.Refused(AccountMutationOutcome.CredentialsInvalid, "The provider did not return an account token.");
-
-		string providerName = provider.ToWireName();
-		AccountRecord? linkedAccount = null;
-		AccountMutationOutcome failure = AccountMutationOutcome.Success;
-
-		bool stored = _dataStore.TryMutate(new[] { AccountsCollection, LinksCollection }, transaction =>
-		{
-			AccountRecord? account = DataStoreService.ReadFrom<AccountRecord>(transaction, AccountsCollection, accountId.ToString());
-			if (account == null)
-			{
-				failure = AccountMutationOutcome.AccountNotFound;
-				return false;
-			}
-
-			if (account.Links.Exists(existing => string.Equals(existing.Provider, providerName, StringComparison.Ordinal)))
-			{
-				failure = AccountMutationOutcome.ProviderAlreadyLinked;
-				return false;
-			}
-
-			long owner = DataStoreService.ReadFrom<long>(transaction, LinksCollection, BuildLinkKey(providerName, providerAccountToken));
-			if (owner != 0 && owner != accountId)
-			{
-				failure = AccountMutationOutcome.ProviderLinkOwnedByAnotherAccount;
-				return false;
-			}
-
-			account.Links.Add(new AccountProviderLinkRecord { Provider = providerName, ProviderAccountToken = providerAccountToken, LinkedAtUtc = DateTime.UtcNow });
-			account.UpdatedAtUtc = DateTime.UtcNow;
-			DataStoreService.WriteTo(transaction, AccountsCollection, accountId.ToString(), account);
-			DataStoreService.WriteTo(transaction, LinksCollection, BuildLinkKey(providerName, providerAccountToken), accountId);
-			linkedAccount = account;
-			return true;
-		});
-
-		if (!stored || linkedAccount == null)
-		{
-			return AccountMutationResult.Refused(failure == AccountMutationOutcome.Success ? AccountMutationOutcome.ProviderAlreadyLinked : failure,
-				failure switch
-				{
-					AccountMutationOutcome.AccountNotFound => "No such account.",
-					AccountMutationOutcome.ProviderAlreadyLinked => "This account already holds a link to that provider.",
-					AccountMutationOutcome.ProviderLinkOwnedByAnotherAccount => "That provider account already belongs to another Realm account.",
-					_ => "The link could not be created."
-				});
-		}
-
-		_replication.Publish(AccountClusterEventPayload.LinkAddedEvent, BuildEventPayload(linkedAccount, null, linkedAccount.Links.Find(link => string.Equals(link.Provider, providerName, StringComparison.Ordinal))));
-		return AccountMutationResult.Success(linkedAccount);
 	}
 
 	/// <summary>
@@ -524,49 +357,6 @@ public class AccountStoreService
 		return record.AuthenticatedAtUtc.AddMinutes(_options.SensitiveActionWindowMinutes) > DateTime.UtcNow;
 	}
 
-	/// <summary>
-	///     Records that the holder of this session entered the password for the account it belongs to, so a following sensitive
-	///     action does not have to ask again inside the window. The session token is not replaced.
-	/// </summary>
-	public AccountMutationResult ConfirmPassword(string? token, string? password, string? sourceKey)
-	{
-		if (!IsAuthority) return NotAuthority();
-
-		if (!TryReadSessionRecord(token, out AccountSessionRecord? record, out string tokenHash) || record == null)
-		{
-			return AccountMutationResult.Refused(AccountMutationOutcome.SessionInvalid, "The session is no longer valid.");
-		}
-
-		AccountRecord? account = FindAccount(record.AccountId);
-		if (account == null) return AccountMutationResult.Refused(AccountMutationOutcome.AccountNotFound, "That account no longer exists.");
-
-		AccountCredentialRecord? credential = FindBasicAuthCredential(account);
-		if (credential == null)
-		{
-			return AccountMutationResult.Refused(AccountMutationOutcome.StepUpUnavailable, "This account has no password to confirm. Sign in with its provider again instead.");
-		}
-
-		string throttleKey = $"confirm|{account.AccountId}|{sourceKey ?? "unknown"}";
-		if (IsThrottled(throttleKey)) return AccountMutationResult.Refused(AccountMutationOutcome.Throttled, "Too many failed confirmations. Try again later.");
-
-		if (string.IsNullOrEmpty(password) || !ScryptPasswordHasher.Verify(password, credential.PasswordHash))
-		{
-			RecordFailure(throttleKey);
-			return AccountMutationResult.Refused(AccountMutationOutcome.CredentialsInvalid, "The password is incorrect.");
-		}
-
-		DateTime now = DateTime.UtcNow;
-		ClearFailures(throttleKey);
-
-		credential.LastVerifiedAtUtc = now;
-		_dataStore.Upsert(CredentialsCollection, credential.CredentialId, credential);
-
-		record.AuthenticatedAtUtc = now;
-		_dataStore.Upsert(SessionsCollection, tokenHash, record);
-
-		return AccountMutationResult.Success(account, BuildSessionDto(token!.Trim(), account, record.ExpiresAtUtc));
-	}
-
 	private bool TryReadSessionRecord(string? token, out AccountSessionRecord? record, out string tokenHash)
 	{
 		record = null;
@@ -605,12 +395,6 @@ public class AccountStoreService
 		return accountId <= 0 ? null : _dataStore.Get<AccountRecord>(AccountsCollection, accountId.ToString());
 	}
 
-	public AccountRecord? FindAccountByProviderLink(AccountProviderKind provider, string providerAccountToken)
-	{
-		long accountId = _dataStore.Get<long>(LinksCollection, BuildLinkKey(provider.ToWireName(), providerAccountToken));
-		return FindAccount(accountId);
-	}
-
 	public AccountRecord? FindAccountByDisplayName(string? displayName)
 	{
 		if (!DisplayNameRules.TryCanonicalize(displayName, out string canonical, out _)) return null;
@@ -626,12 +410,6 @@ public class AccountStoreService
 		string legacySlug = NameNormalizationHelper.NormalizeUsername(canonicalDisplayName);
 		if (legacySlug.Length == 0) return false;
 		return _dataStore.Get<System.Text.Json.JsonDocument>(LegacyCreatorNamesCollection, legacySlug) != null;
-	}
-
-	public AccountCredentialRecord? FindBasicAuthCredential(AccountRecord account)
-	{
-		AccountProviderLinkRecord? link = account.Links.Find(candidate => string.Equals(candidate.Provider, AccountProviderNames.BasicAuth, StringComparison.Ordinal));
-		return link == null ? null : _dataStore.Get<AccountCredentialRecord>(CredentialsCollection, link.ProviderAccountToken);
 	}
 
 	public static AccountProfileDto ToProfile(AccountRecord account)
@@ -663,11 +441,6 @@ public class AccountStoreService
 	private AccountMutationResult NotAuthority()
 	{
 		return AccountMutationResult.Refused(AccountMutationOutcome.RefusedNotAuthority, "This node is not the configured account authority.");
-	}
-
-	private static AccountMutationResult CredentialsRefused()
-	{
-		return AccountMutationResult.Refused(AccountMutationOutcome.CredentialsInvalid, "The display name or password is incorrect.");
 	}
 
 	private static AccountSessionDto BuildSessionDto(string token, AccountRecord account, DateTime? expiresAt)
@@ -737,25 +510,5 @@ public class AccountStoreService
 			if (DataStoreService.ReadFrom<AccountRecord>(transaction, AccountsCollection, candidate.ToString()) != null) continue;
 			return candidate;
 		}
-	}
-
-	private bool IsThrottled(string throttleKey)
-	{
-		if (!_basicAuthFailures.TryGetValue(throttleKey, out var window)) return false;
-		if (Environment.TickCount64 - window.WindowStartMilliseconds > FailureWindowMilliseconds) return false;
-		return window.FailureCount >= MaximumFailuresPerWindow;
-	}
-
-	private void RecordFailure(string throttleKey)
-	{
-		long now = Environment.TickCount64;
-		_basicAuthFailures.AddOrUpdate(throttleKey,
-			_ => (now, 1),
-			(_, existing) => now - existing.WindowStartMilliseconds > FailureWindowMilliseconds ? (now, 1) : (existing.WindowStartMilliseconds, existing.FailureCount + 1));
-	}
-
-	private void ClearFailures(string throttleKey)
-	{
-		_basicAuthFailures.TryRemove(throttleKey, out _);
 	}
 }

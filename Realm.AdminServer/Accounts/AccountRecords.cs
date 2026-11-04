@@ -4,9 +4,9 @@ using System.Collections.Generic;
 namespace Realm.AdminServer.Accounts;
 
 /// <summary>
-///     One link from an account to a provider. The link is keyed on the provider's permanent account token only: a Discord user
-///     id, a SteamID64 or the id of a Realm.BasicAuth credential record. Provider names, e-mails and tokens are never stored,
-///     so a provider-side profile rename cannot move a Realm account.
+///     One link from an account to a provider. The link is keyed on the provider's permanent account token only, which for the
+///     one provider is a SteamID64. Persona names, e-mails and tickets are never stored, so a Steam-side profile rename cannot
+///     move a Realm account.
 /// </summary>
 public class AccountProviderLinkRecord
 {
@@ -18,8 +18,8 @@ public class AccountProviderLinkRecord
 }
 
 /// <summary>
-///     What the authority stores for an account. It holds no e-mail, real name, phone, address, IP history, provider profile
-///     data or password material beyond the linked credential record's identifier, so it is safe to hand to a peer.
+///     What the authority stores for an account. It holds no e-mail, real name, phone, address, IP history or provider profile
+///     data beyond the linked SteamID64, so it is safe to hand to a peer.
 /// </summary>
 public class AccountRecord
 {
@@ -63,28 +63,11 @@ public class AccountSessionRecord
 	public string? RotatedFromTokenHash { get; set; }
 
 	/// <summary>
-	///     When the credentials behind this session were last proved, either when it was issued or by a later password
+	///     When the identity behind this session was last proved by a Steam ticket, either when it was issued or by a later
 	///     confirmation. A session can outlive the proof, and an action that changes who can reach the account requires one that
 	///     is recent.
 	/// </summary>
 	public DateTime AuthenticatedAtUtc { get; set; } = DateTime.UtcNow;
-}
-
-/// <summary>
-///     The Realm.BasicAuth credential record. Its identifier is the provider account token the account links on, and the
-///     password material is a salted, memory-hard scrypt hash verified in constant time.
-/// </summary>
-public class AccountCredentialRecord
-{
-	public string CredentialId { get; set; } = string.Empty;
-
-	public long AccountId { get; set; }
-
-	public string PasswordHash { get; set; } = string.Empty;
-
-	public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
-
-	public DateTime? LastVerifiedAtUtc { get; set; }
 }
 
 /// <summary>

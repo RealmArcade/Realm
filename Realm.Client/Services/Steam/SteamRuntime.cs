@@ -7,13 +7,7 @@ public partial class SteamRuntime : Node
 {
 	public override void _Ready()
 	{
-		GameContext.Steam.Start(OS.HasFeature("editor"));
-
-		if (GameContext.Steam.RestartRequested)
-		{
-			GetTree().Quit();
-			return;
-		}
+		GameContext.Steam.Start();
 
 		SetProcess(true);
 	}

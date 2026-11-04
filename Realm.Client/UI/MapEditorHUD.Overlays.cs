@@ -1176,7 +1176,7 @@ namespace Realm.Client.UI
 
 			var tip = new Label();
 			tip.Name = "Tip_Label";
-			tip.Text = TranslationServer.Translate("How Verified Good Reviews are determined:\nA review qualifies as Verified & Good when submitted by a player who:\n  1. Is logged in with a verified account (Steam, Discord, etc.)\n  2. Has played your map for at least 30 minutes across 3 or more completed games\n  3. Gives your map a rating of 3 stars or higher\n\nHost multiplayer lobbies or share your map peer-to-peer to build verified reviews from your community.");
+			tip.Text = TranslationServer.Translate("How Verified Good Reviews are determined:\nA review qualifies as Verified & Good when submitted by a player who:\n  1. Is signed in with Steam\n  2. Has played your map for at least 30 minutes across 3 or more completed games\n  3. Gives your map a rating of 3 stars or higher\n\nHost multiplayer lobbies or share your map peer-to-peer to build verified reviews from your community.");
 			tip.AutowrapMode = TextServer.AutowrapMode.WordSmart;
 			tip.AddThemeFontSizeOverride("font_size", 11);
 			tip.AddThemeColorOverride("font_color", new Color(0.65f, 0.7f, 0.8f));
