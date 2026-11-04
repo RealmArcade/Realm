@@ -6,6 +6,7 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Godot;
+using Realm.Client.UI;
 using Realm.Shared.Accounts;
 using Realm.Shared.Distribution;
 using HttpClient = System.Net.Http.HttpClient;
@@ -115,6 +116,25 @@ public class AccountService
 		get
 		{
 			lock (_sessionLock) return _session?.DisplayName ?? string.Empty;
+		}
+	}
+
+	/// <summary>
+	///     The name this screen goes by right now. An account owns its name, so signing in replaces whatever was typed while
+	///     signed out; without an account the typed name stands, and only when it was left empty does the Steam persona show
+	///     through, so a player who never touched the field is still described by the name Steam knows them by.
+	/// </summary>
+	public string EffectiveUserName
+	{
+		get
+		{
+			if (IsSignedIn) return DisplayName;
+
+			string chosenName = GameSettings.PlayerName.Trim();
+			if (chosenName.Length > 0) return chosenName;
+
+			string steamUserName = GameContext.Steam.UserName.Trim();
+			return steamUserName.Length > 0 ? steamUserName : TranslationServer.Translate("Guest");
 		}
 	}
 

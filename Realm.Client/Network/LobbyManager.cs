@@ -95,30 +95,11 @@ public partial class LobbyManager : BaseMapTransferNode
 	public string AuthenticatedUsername => GameContext.Account.DisplayName;
 
 	/// <summary>
-	///     The name a lobby seat carries. A signed-in player is seated under the account's current DisplayName; a signed-out
-	///     player is seated under the name this machine goes by, so two players who never signed in are still described apart.
-	///     The lobby appends the seat number when two peers turn out to carry the same name.
+	///     The name a lobby seat carries, resolved by the same rule the profile screen shows, so the name on the card and the
+	///     name in the lobby can never describe the player differently. The lobby appends the seat number when two peers turn out
+	///     to carry the same name.
 	/// </summary>
-	public string PlayerDisplayName => GameContext.Account.IsSignedIn ? GameContext.Account.DisplayName : LocalDisplayName;
-
-	private string LocalDisplayName
-	{
-		get
-		{
-			string chosenName = GameSettings.PlayerName.Trim();
-			if (chosenName.Length > 0) return chosenName;
-
-			if (_steamPersonaName == null)
-			{
-				string personaName = GameContext.Steam.GetPersonaName().Trim();
-				if (personaName.Length > 0) _steamPersonaName = personaName;
-			}
-
-			return _steamPersonaName ?? TranslationServer.Translate("Guest");
-		}
-	}
-
-	private string? _steamPersonaName;
+	public string PlayerDisplayName => GameContext.Account.EffectiveUserName;
 
 	private readonly string _guestLobbySessionToken = Guid.NewGuid().ToString();
 

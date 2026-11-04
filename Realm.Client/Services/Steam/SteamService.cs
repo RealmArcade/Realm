@@ -197,18 +197,25 @@ public class SteamService
 		_initialized = false;
 	}
 
-	public string GetPersonaName()
+	/// <summary>
+	///     The name Steam knows this player by, or an empty string when Steamworks is not running. It is the name a sign-in
+	///     claims, because the ticket proves the Steam account and not a name typed on this machine.
+	/// </summary>
+	public string UserName
 	{
-		if (!_initialized) return string.Empty;
+		get
+		{
+			if (!_initialized) return string.Empty;
 
-		try
-		{
-			return SteamFriends.GetPersonaName();
-		}
-		catch (Exception exception)
-		{
-			GD.PrintErr($"[Steam] the persona name could not be read: {exception.Message}");
-			return string.Empty;
+			try
+			{
+				return SteamFriends.GetPersonaName();
+			}
+			catch (Exception exception)
+			{
+				GD.PrintErr($"[Steam] the persona name could not be read: {exception.Message}");
+				return string.Empty;
+			}
 		}
 	}
 

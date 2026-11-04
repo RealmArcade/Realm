@@ -206,7 +206,7 @@ public partial class AnnouncementsDialog : Control
 	{
 		if (GameContext.Account.IsSignedIn) return GameContext.Account.DisplayName;
 
-		return GameContext.Steam.GetPersonaName();
+		return GameContext.Steam.UserName;
 	}
 
 	private void StartSubscribe()

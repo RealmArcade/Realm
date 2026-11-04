@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.IO;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -8,7 +7,6 @@ using Godot;
 using Realm.Client.Network;
 using Realm.Shared;
 using Realm.Shared.Network;
-using Realm.Shared.Accounts;
 using HttpClient = System.Net.Http.HttpClient;
 using static Godot.Control;
 using static Godot.CanvasItem;
@@ -50,9 +48,7 @@ public partial class MainMenu : Control
 	private Button _donateButton;
 	private Button _announcementsButton;
 	private Button _bugReportButton;
-	private Control _profilePopup;
-	private VBoxContainer _profileStatsRows;
-	private AccountDialog _accountDialog;
+	private PlayerProfileDialog _profileDialog;
 	private AnnouncementsDialog _announcementsDialog;
 	private OptionButton _versionDropdown;
 	private Label _outdatedLabel;
@@ -118,26 +114,27 @@ public partial class MainMenu : Control
 				: TranslationServer.Translate("SIGNED OUT");
 		}
 
-		if (_accountDialog != null && GodotObject.IsInstanceValid(_accountDialog)) _accountDialog.RefreshPresentation();
+		if (_profileDialog != null && GodotObject.IsInstanceValid(_profileDialog)) _profileDialog.RefreshPresentation();
 	}
 
-	private void OpenAccountDialog(Action onSignedIn = null)
+	/// <summary>
+	///     Opens the one identity screen, which shows the name, the multiplayer record and the Steam account actions together.
+	///     A caller that needs the player signed in, such as Play, passes what to continue with once the sign-in succeeds.
+	/// </summary>
+	private void OpenProfileDialog(Action onSignedIn = null)
 	{
-		if (_accountDialog != null && GodotObject.IsInstanceValid(_accountDialog))
-		{
-			_accountDialog.QueueFree();
-		}
+		if (_profileDialog != null && GodotObject.IsInstanceValid(_profileDialog)) _profileDialog.QueueFree();
 
-		_accountDialog = new AccountDialog { Name = "AccountDialog" };
-		_accountDialog.SignedIn = () =>
+		_profileDialog = new PlayerProfileDialog { Name = "PlayerProfileDialog" };
+		_profileDialog.SignedIn = () =>
 		{
 			RefreshAccountPresentation();
-			_accountDialog?.QueueFree();
-			_accountDialog = null;
+			_profileDialog?.QueueFree();
+			_profileDialog = null;
 			onSignedIn?.Invoke();
 		};
-		AddChild(_accountDialog);
-		_accountDialog.Open();
+		AddChild(_profileDialog);
+		_profileDialog.Open();
 	}
 
 	private void BindNodes()
@@ -220,7 +217,7 @@ public partial class MainMenu : Control
 		}
 
 		SetupIconButton(_settingsButton, "OPTIONS", "res://Assets/UI/gear_icon.webp", () => GameContext.UserInterface.OpenSettingsOverlay(), new Vector2(22, 22));
-		SetupAvatarButton(_profileButton, () => ShowProfilePopup());
+		SetupAvatarButton(_profileButton, () => OpenProfileDialog());
 		SetupButton(_quitButton, "QUIT GAME", () => GetTree().Quit());
 
 		_mapDiscoveryButton.AddThemeConstantOverride("icon_max_width", 28);
@@ -577,7 +574,7 @@ public partial class MainMenu : Control
 
 		if (!GameContext.Account.IsSignedIn)
 		{
-			OpenAccountDialog(() => GameContext.UserInterface.TransitionTo(GameScreen.LobbyBrowser));
+			OpenProfileDialog(() => GameContext.UserInterface.TransitionTo(GameScreen.LobbyBrowser));
 			return;
 		}
 
@@ -918,391 +915,6 @@ public partial class MainMenu : Control
 	private void PlayClickSound()
 	{
 		GameContext.UserInterface.PlayClickSound();
-	}
-
-	private void ShowProfilePopup()
-	{
-		if (_profilePopup != null)
-		{
-			_profilePopup.QueueFree();
-		}
-
-		_profilePopup = CreateProfilePopupBase();
-		_profileStatsRows = null;
-		AddChild(_profilePopup);
-
-		var cardPanel = CreateProfileCardPanel();
-		_profilePopup.AddChild(cardPanel);
-
-		var marginContainer = CreateProfileMarginContainer();
-		cardPanel.AddChild(marginContainer);
-
-		var vbox = CreateProfileVBox();
-		marginContainer.AddChild(vbox);
-
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 15) });
-		vbox.AddChild(CreateProfileTitle());
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 20) });
-		vbox.AddChild(CreateProfileFactionFlag());
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 18) });
-
-		CreateProfileDataRows(vbox);
-
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 8) });
-		vbox.AddChild(CreateProfileAccountButton());
-		vbox.AddChild(CreateProfileBackButton());
-	}
-
-	private Panel CreateProfilePopupBase()
-	{
-		var popup = new Panel();
-		popup.Name = "Popup_Panel";
-		popup.AnchorLeft = 0.0f;
-		popup.AnchorRight = 1.0f;
-		popup.AnchorTop = 0.0f;
-		popup.AnchorBottom = 1.0f;
-		popup.OffsetLeft = 0.0f;
-		popup.OffsetRight = 0.0f;
-		popup.OffsetTop = 0.0f;
-		popup.OffsetBottom = 0.0f;
-		popup.GrowHorizontal = GrowDirection.Both;
-		popup.GrowVertical = GrowDirection.Both;
-
-		Texture2D profileBgTexture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/player_profile_bg.webp");
-
-		if (profileBgTexture != null)
-		{
-			var bgStyle = new StyleBoxTexture();
-			bgStyle.Texture = profileBgTexture;
-			popup.AddThemeStyleboxOverride("panel", bgStyle);
-			popup.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
-		}
-		else
-		{
-			popup.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
-		}
-
-		return popup;
-	}
-
-	private Panel CreateProfileCardPanel()
-	{
-		Texture2D cardTexture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/player_profile_card_bg.webp");
-
-		var cardStyle = new StyleBoxTexture();
-		if (cardTexture != null)
-		{
-			cardStyle.Texture = cardTexture;
-			cardStyle.TextureMarginLeft = 40;
-			cardStyle.TextureMarginRight = 40;
-			cardStyle.TextureMarginTop = 40;
-			cardStyle.TextureMarginBottom = 40;
-
-			cardStyle.ContentMarginLeft = 24;
-			cardStyle.ContentMarginRight = 24;
-			cardStyle.ContentMarginTop = 24;
-			cardStyle.ContentMarginBottom = 24;
-		}
-		else
-		{
-			var stonePanel = UIStyle.CreateStonePanel();
-			if (stonePanel is StyleBoxTexture sbt)
-			{
-				cardStyle = sbt;
-			}
-		}
-
-		var cardPanel = new Panel();
-		cardPanel.Name = "CardPanel_Panel";
-		cardPanel.CustomMinimumSize = new Vector2(600, 700);
-		cardPanel.AnchorLeft = 0.5f;
-		cardPanel.AnchorRight = 0.5f;
-		cardPanel.AnchorTop = 0.5f;
-		cardPanel.AnchorBottom = 0.5f;
-		cardPanel.OffsetLeft = -300.0f;
-		cardPanel.OffsetRight = 300.0f;
-		cardPanel.OffsetTop = -350.0f;
-		cardPanel.OffsetBottom = 350.0f;
-		cardPanel.GrowHorizontal = GrowDirection.Both;
-		cardPanel.GrowVertical = GrowDirection.Both;
-		cardPanel.ClipContents = true;
-		cardPanel.AddThemeStyleboxOverride("panel", cardStyle);
-		return cardPanel;
-	}
-
-	private MarginContainer CreateProfileMarginContainer()
-	{
-		var marginContainer = new MarginContainer();
-		marginContainer.Name = "MarginContainer_MarginContainer";
-		marginContainer.AnchorLeft = 0.0f;
-		marginContainer.AnchorRight = 1.0f;
-		marginContainer.AnchorTop = 0.0f;
-		marginContainer.AnchorBottom = 1.0f;
-		marginContainer.OffsetLeft = 30.0f;
-		marginContainer.OffsetRight = -30.0f;
-		marginContainer.OffsetTop = 30.0f;
-		marginContainer.OffsetBottom = -30.0f;
-		marginContainer.GrowHorizontal = GrowDirection.Both;
-		marginContainer.GrowVertical = GrowDirection.Both;
-		return marginContainer;
-	}
-
-	private VBoxContainer CreateProfileVBox()
-	{
-		var vbox = new VBoxContainer();
-		vbox.Name = "Vbox_VBoxContainer";
-		vbox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		vbox.SizeFlagsVertical = SizeFlags.ExpandFill;
-		vbox.Alignment = BoxContainer.AlignmentMode.Begin;
-		return vbox;
-	}
-
-	private Label CreateProfileTitle()
-	{
-		var title = new Label();
-		title.Name = "Title_Label";
-		UIStyle.ApplyTitle(title, "PLAYER PROFILE", 26);
-
-		var titleFont = new SystemFont();
-		titleFont.FontNames = new string[] { "Cinzel Bold", "Cinzel", "Palatino Linotype", "Garamond", "Georgia", "serif" };
-		titleFont.FontWeight = 700;
-		title.AddThemeFontOverride("font", titleFont);
-		title.AddThemeColorOverride("font_color", new Color(0.85f, 0.65f, 0.4f));
-		title.AddThemeFontSizeOverride("font_size", 28);
-
-		return title;
-	}
-
-	private TextureRect CreateProfileFactionFlag()
-	{
-		var factionFlag = new TextureRect();
-		factionFlag.Name = "FactionFlag_TextureRect";
-		Texture2D flagTexture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/alliance_flag.webp");
-		if (flagTexture == null)
-		{
-			flagTexture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/profile_frame_normal.webp");
-		}
-
-		factionFlag.Texture = flagTexture;
-		factionFlag.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
-		factionFlag.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
-		factionFlag.CustomMinimumSize = new Vector2(210, 210);
-		factionFlag.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
-		factionFlag.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
-		return factionFlag;
-	}
-
-	private void CreateProfileDataRows(VBoxContainer vbox)
-	{
-		var profileFont = new SystemFont();
-		profileFont.FontNames = new string[] { "Cinzel Bold", "Cinzel", "Palatino Linotype", "Garamond", "Georgia", "serif" };
-		profileFont.FontWeight = 700;
-
-		AddProfileNameRow(vbox, profileFont, ProfileKeyColor);
-
-		_profileStatsRows = new VBoxContainer { Name = "ProfileStatsRows_VBoxContainer" };
-		vbox.AddChild(_profileStatsRows);
-
-		if (GameContext.Account.IsSignedIn) _ = PopulateProfileStatsAsync(_profileStatsRows, profileFont);
-	}
-
-	/// <summary>
-	///     Fills in the multiplayer record once the authority has answered it. The rows arrive after the card is already on
-	///     screen, and nothing is shown when there is no record to show: signed out, an authority that could not be reached,
-	///     or a card that was closed and reopened since the request went out, which asks for its own record instead.
-	/// </summary>
-	private async Task PopulateProfileStatsAsync(VBoxContainer rows, Font profileFont)
-	{
-		PlayerMatchStatsDto? stats = await GameContext.Account.GetMatchStatsAsync();
-		if (stats == null || !GodotObject.IsInstanceValid(rows)) return;
-		if (rows != _profileStatsRows) return;
-
-		var entries = new List<(string Key, string Value, Color ValueColor)>
-		{
-			(LocalizationManager.Translate("Matches Played"), stats.MatchesPlayed.ToString("N0"), ProfileKeyColor),
-			(LocalizationManager.Translate("Victories"), stats.Victories.ToString("N0"), new Color(0.55f, 0.95f, 0.55f)),
-			(LocalizationManager.Translate("Defeats"), stats.Defeats.ToString("N0"), new Color(0.95f, 0.5f, 0.45f))
-		};
-
-		if (stats.WinRatePercent.HasValue)
-		{
-			entries.Add((LocalizationManager.Translate("Win Rate"), string.Format(CultureInfo.CurrentCulture, "{0:0.#}%", stats.WinRatePercent.Value), new Color(0.6f, 0.85f, 1.0f)));
-		}
-
-		foreach (var entry in entries) CreateProfileDataRow(rows, entry.Key, entry.Value, entry.ValueColor, profileFont);
-	}
-
-	private void CreateProfileDataRow(VBoxContainer parent, string key, string value, Color valueColor, Font profileFont)
-	{
-		var rowContainer = new HBoxContainer();
-		rowContainer.Name = "RowContainer_HBoxContainer";
-		rowContainer.Alignment = BoxContainer.AlignmentMode.Center;
-		rowContainer.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
-		rowContainer.AddThemeConstantOverride("separation", 8);
-
-		var keyLabel = new Label();
-		keyLabel.Name = "KeyLabel_Label";
-		keyLabel.Text = key + ":";
-		keyLabel.HorizontalAlignment = HorizontalAlignment.Right;
-		keyLabel.AddThemeFontOverride("font", profileFont);
-		keyLabel.AddThemeColorOverride("font_color", ProfileKeyColor);
-		keyLabel.AddThemeColorOverride("font_outline_color", new Color(0.02f, 0.02f, 0.04f));
-		keyLabel.AddThemeConstantOverride("outline_size", 4);
-		keyLabel.AddThemeFontSizeOverride("font_size", 23);
-		rowContainer.AddChild(keyLabel);
-
-		var valueLabel = new Label();
-		valueLabel.Name = "ValueLabel_Label";
-		valueLabel.Text = value;
-		valueLabel.HorizontalAlignment = HorizontalAlignment.Left;
-		valueLabel.AddThemeFontOverride("font", profileFont);
-		valueLabel.AddThemeColorOverride("font_color", valueColor);
-		valueLabel.AddThemeColorOverride("font_outline_color", new Color(0.02f, 0.02f, 0.04f));
-		valueLabel.AddThemeConstantOverride("outline_size", 5);
-		valueLabel.AddThemeFontSizeOverride("font_size", 23);
-		rowContainer.AddChild(valueLabel);
-
-		parent.AddChild(rowContainer);
-		parent.AddChild(new Control { CustomMinimumSize = new Vector2(0, 4) });
-	}
-
-	private void AddProfileNameRow(VBoxContainer vbox, Font profileFont, Color labelColor)
-	{
-		var rowContainer = new HBoxContainer();
-		rowContainer.Name = "NameRow_HBoxContainer";
-		rowContainer.Alignment = BoxContainer.AlignmentMode.Center;
-		rowContainer.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
-		rowContainer.AddThemeConstantOverride("separation", 8);
-
-		var keyLabel = new Label();
-		keyLabel.Name = "KeyLabel_Label";
-		keyLabel.Text = LocalizationManager.Translate("Username") + ":";
-		keyLabel.HorizontalAlignment = HorizontalAlignment.Right;
-		keyLabel.AddThemeFontOverride("font", profileFont);
-		keyLabel.AddThemeColorOverride("font_color", labelColor);
-		keyLabel.AddThemeColorOverride("font_outline_color", new Color(0.02f, 0.02f, 0.04f));
-		keyLabel.AddThemeConstantOverride("outline_size", 4);
-		keyLabel.AddThemeFontSizeOverride("font_size", 23);
-		rowContainer.AddChild(keyLabel);
-
-		if (GameContext.Account.IsSignedIn)
-		{
-			var valueLabel = new Label();
-			valueLabel.Name = "ValueLabel_Label";
-			valueLabel.Text = GameContext.Account.DisplayName;
-			valueLabel.HorizontalAlignment = HorizontalAlignment.Left;
-			valueLabel.AddThemeFontOverride("font", profileFont);
-			valueLabel.AddThemeColorOverride("font_color", labelColor);
-			valueLabel.AddThemeColorOverride("font_outline_color", new Color(0.02f, 0.02f, 0.04f));
-			valueLabel.AddThemeConstantOverride("outline_size", 5);
-			valueLabel.AddThemeFontSizeOverride("font_size", 23);
-			rowContainer.AddChild(valueLabel);
-		}
-		else
-		{
-			string personaName = GameContext.Steam.GetPersonaName();
-
-			var nameEdit = new LineEdit();
-			nameEdit.Name = "PlayerNameEdit";
-			nameEdit.CustomMinimumSize = new Vector2(220, 0);
-			nameEdit.MaxLength = LobbyLimits.MaximumPlayerNameLength;
-			nameEdit.Text = GameSettings.PlayerName;
-			nameEdit.PlaceholderText = personaName.Length > 0 ? personaName : TranslationServer.Translate("Guest");
-			nameEdit.TooltipText = TranslationServer.Translate("The name other players see before you sign in. Empty means your Steam name.");
-			nameEdit.AddThemeFontOverride("font", profileFont);
-			nameEdit.AddThemeFontSizeOverride("font_size", 20);
-			nameEdit.TextSubmitted += _ => CommitProfilePlayerName(nameEdit);
-			nameEdit.FocusExited += () => CommitProfilePlayerName(nameEdit);
-			rowContainer.AddChild(nameEdit);
-		}
-
-		vbox.AddChild(rowContainer);
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 4) });
-	}
-
-	private static void CommitProfilePlayerName(LineEdit nameEdit)
-	{
-		string chosenName = nameEdit.Text.Trim();
-		if (string.Equals(chosenName, GameSettings.PlayerName, StringComparison.Ordinal)) return;
-
-		GameSettings.PlayerName = chosenName;
-		GameSettings.Save();
-	}
-
-	private Button CreateProfileAccountButton()
-	{
-		var accountBtn = new Button { Name = "AccountBtn_Button" };
-		UIStyle.ApplyButtonStyleBoxes(accountBtn);
-		UIStyle.ApplyButtonText(accountBtn, GameContext.Account.IsSignedIn ? "ACCOUNT" : "SIGN IN", 15);
-		accountBtn.CustomMinimumSize = new Vector2(210, 44);
-		accountBtn.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
-		accountBtn.AddThemeConstantOverride("icon_max_width", 20);
-		accountBtn.Pressed += () =>
-		{
-			PlayClickSound();
-			_profilePopup?.QueueFree();
-			_profilePopup = null;
-			OpenAccountDialog();
-		};
-		accountBtn.MouseEntered += PlayHoverSound;
-		return accountBtn;
-	}
-
-	private Button CreateProfileBackButton()
-	{
-		var backBtn = new Button();
-		backBtn.Name = "BackBtn_Button";
-
-		backBtn.Flat = false;
-		backBtn.Text = TranslationServer.Translate("BACK");
-
-		backBtn.Pressed += () =>
-		{
-			PlayClickSound();
-			_profilePopup?.QueueFree();
-			_profilePopup = null;
-		};
-		backBtn.MouseEntered += () => PlayHoverSound();
-
-		Texture2D profileBtnTex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/player_profile_button.webp");
-
-		backBtn.CustomMinimumSize = new Vector2(210, 48);
-		backBtn.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
-		backBtn.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
-
-		if (profileBtnTex != null)
-		{
-			var normalStyle = new StyleBoxTexture();
-			normalStyle.Texture = profileBtnTex;
-			normalStyle.TextureMarginLeft = 0;
-			normalStyle.TextureMarginRight = 0;
-			normalStyle.TextureMarginTop = 0;
-			normalStyle.TextureMarginBottom = 0;
-			normalStyle.ContentMarginLeft = 16;
-			normalStyle.ContentMarginRight = 16;
-			normalStyle.ContentMarginTop = 8;
-			normalStyle.ContentMarginBottom = 8;
-
-			var hoverStyle = (StyleBoxTexture)normalStyle.Duplicate();
-			hoverStyle.ModulateColor = new Color(1.15f, 1.15f, 1.2f);
-
-			var pressedStyle = (StyleBoxTexture)normalStyle.Duplicate();
-			pressedStyle.ModulateColor = new Color(0.85f, 0.85f, 0.9f);
-
-			backBtn.AddThemeStyleboxOverride("normal", normalStyle);
-			backBtn.AddThemeStyleboxOverride("hover", hoverStyle);
-			backBtn.AddThemeStyleboxOverride("pressed", pressedStyle);
-			backBtn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-		}
-
-		backBtn.AddThemeFontOverride("font", _norseBoldFont);
-		backBtn.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		backBtn.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
-		backBtn.AddThemeColorOverride("font_pressed_color", UIStyle.ColorGold);
-		backBtn.AddThemeColorOverride("font_focus_color", UIStyle.ColorGold);
-		backBtn.AddThemeFontSizeOverride("font_size", 18);
-
-		return backBtn;
 	}
 
 	private void OnMapEditorPressed()
