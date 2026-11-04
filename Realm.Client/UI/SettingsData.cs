@@ -30,4 +30,5 @@ public class SettingsData
 	public bool FloatingCombatText { get; set; } = true;
 	public bool OccludedUnitOutlines { get; set; } = true;
 	public string? LastOpenedFolder { get; set; }
+	public string PlayerName { get; set; } = string.Empty;
 }

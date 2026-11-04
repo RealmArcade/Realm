@@ -57,6 +57,12 @@ public static class GameSettings
 	public static bool DisplayPing { get; set; } = false;
 	public static bool RecordReplays { get; set; } = false;
 	public static bool SeedMapFiles { get; set; } = false;
+
+	/// <summary>
+	///     The name this machine plays under before an account is signed in. It is empty by default, which means the Steam
+	///     persona name is used when Steamworks is available.
+	/// </summary>
+	public static string PlayerName { get; set; } = string.Empty;
 	public static bool DisableShadows { get; private set; } = false;
 	public static bool DisableDayNightLighting { get; private set; } = false;
 	public static bool DisableWeatherEffects { get; private set; } = false;
@@ -260,6 +266,7 @@ public static class GameSettings
 		DisplayPing = data.DisplayPing;
 		RecordReplays = data.RecordReplays;
 		SeedMapFiles = data.SeedMapFiles;
+		PlayerName = data.PlayerName ?? string.Empty;
 		DisableShadows = data.DisableShadows;
 		DisableDayNightLighting = data.DisableDayNightLighting;
 		DisableWeatherEffects = data.DisableWeatherEffects;
@@ -316,6 +323,7 @@ public static class GameSettings
 			DisplayPing = DisplayPing,
 			RecordReplays = RecordReplays,
 			SeedMapFiles = SeedMapFiles,
+			PlayerName = PlayerName,
 			DisableShadows = DisableShadows,
 			DisableDayNightLighting = DisableDayNightLighting,
 			DisableWeatherEffects = DisableWeatherEffects,

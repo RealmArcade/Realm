@@ -4,6 +4,7 @@ using System.Text.Json;
 using Godot;
 using Realm.Client.Network;
 using Realm.Shared;
+using Realm.Shared.Network;
 using HttpClient = System.Net.Http.HttpClient;
 using static Godot.Control;
 using static Godot.CanvasItem;
@@ -1068,9 +1069,10 @@ public partial class MainMenu : Control
 		profileFont.FontNames = new string[] { "Cinzel Bold", "Cinzel", "Palatino Linotype", "Garamond", "Georgia", "serif" };
 		profileFont.FontWeight = 700;
 
+		AddProfileNameRow(vbox, profileFont, profileInfoColor);
+
 		var profileDataRows = new (string Key, string Value, Color ValueColor)[]
 		{
-			(LocalizationManager.Translate("Username"), GameContext.Account.IsSignedIn ? GameContext.Account.DisplayName : TranslationServer.Translate("SIGNED OUT"), profileInfoColor),
 			(LocalizationManager.Translate("Faction"), LocalizationManager.Translate("Human Alliance"), profileInfoColor),
 			(LocalizationManager.Translate("Matches Played"), "142", profileInfoColor),
 			(LocalizationManager.Translate("Victories"), "89", new Color(0.55f, 0.95f, 0.55f)),
@@ -1112,6 +1114,69 @@ public partial class MainMenu : Control
 			vbox.AddChild(rowContainer);
 			vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 4) });
 		}
+	}
+
+	private void AddProfileNameRow(VBoxContainer vbox, Font profileFont, Color labelColor)
+	{
+		var rowContainer = new HBoxContainer();
+		rowContainer.Name = "NameRow_HBoxContainer";
+		rowContainer.Alignment = BoxContainer.AlignmentMode.Center;
+		rowContainer.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
+		rowContainer.AddThemeConstantOverride("separation", 8);
+
+		var keyLabel = new Label();
+		keyLabel.Name = "KeyLabel_Label";
+		keyLabel.Text = LocalizationManager.Translate("Username") + ":";
+		keyLabel.HorizontalAlignment = HorizontalAlignment.Right;
+		keyLabel.AddThemeFontOverride("font", profileFont);
+		keyLabel.AddThemeColorOverride("font_color", labelColor);
+		keyLabel.AddThemeColorOverride("font_outline_color", new Color(0.02f, 0.02f, 0.04f));
+		keyLabel.AddThemeConstantOverride("outline_size", 4);
+		keyLabel.AddThemeFontSizeOverride("font_size", 23);
+		rowContainer.AddChild(keyLabel);
+
+		if (GameContext.Account.IsSignedIn)
+		{
+			var valueLabel = new Label();
+			valueLabel.Name = "ValueLabel_Label";
+			valueLabel.Text = GameContext.Account.DisplayName;
+			valueLabel.HorizontalAlignment = HorizontalAlignment.Left;
+			valueLabel.AddThemeFontOverride("font", profileFont);
+			valueLabel.AddThemeColorOverride("font_color", labelColor);
+			valueLabel.AddThemeColorOverride("font_outline_color", new Color(0.02f, 0.02f, 0.04f));
+			valueLabel.AddThemeConstantOverride("outline_size", 5);
+			valueLabel.AddThemeFontSizeOverride("font_size", 23);
+			rowContainer.AddChild(valueLabel);
+		}
+		else
+		{
+			string personaName = GameContext.Steam.GetPersonaName();
+
+			var nameEdit = new LineEdit();
+			nameEdit.Name = "PlayerNameEdit";
+			nameEdit.CustomMinimumSize = new Vector2(220, 0);
+			nameEdit.MaxLength = LobbyLimits.MaximumPlayerNameLength;
+			nameEdit.Text = GameSettings.PlayerName;
+			nameEdit.PlaceholderText = personaName.Length > 0 ? personaName : TranslationServer.Translate("Guest");
+			nameEdit.TooltipText = TranslationServer.Translate("The name other players see before you sign in. Empty means your Steam name.");
+			nameEdit.AddThemeFontOverride("font", profileFont);
+			nameEdit.AddThemeFontSizeOverride("font_size", 20);
+			nameEdit.TextSubmitted += _ => CommitProfilePlayerName(nameEdit);
+			nameEdit.FocusExited += () => CommitProfilePlayerName(nameEdit);
+			rowContainer.AddChild(nameEdit);
+		}
+
+		vbox.AddChild(rowContainer);
+		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 4) });
+	}
+
+	private static void CommitProfilePlayerName(LineEdit nameEdit)
+	{
+		string chosenName = nameEdit.Text.Trim();
+		if (string.Equals(chosenName, GameSettings.PlayerName, StringComparison.Ordinal)) return;
+
+		GameSettings.PlayerName = chosenName;
+		GameSettings.Save();
 	}
 
 	private Button CreateProfileAccountButton()

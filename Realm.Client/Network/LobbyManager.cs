@@ -96,9 +96,29 @@ public partial class LobbyManager : BaseMapTransferNode
 
 	/// <summary>
 	///     The name a lobby seat carries. A signed-in player is seated under the account's current DisplayName; a signed-out
-	///     player is seated under a neutral guest label, never under an invented player name.
+	///     player is seated under the name this machine goes by, so two players who never signed in are still described apart.
+	///     The lobby appends the seat number when two peers turn out to carry the same name.
 	/// </summary>
-	public string PlayerDisplayName => GameContext.Account.IsSignedIn ? GameContext.Account.DisplayName : TranslationServer.Translate("Guest");
+	public string PlayerDisplayName => GameContext.Account.IsSignedIn ? GameContext.Account.DisplayName : LocalDisplayName;
+
+	private string LocalDisplayName
+	{
+		get
+		{
+			string chosenName = GameSettings.PlayerName.Trim();
+			if (chosenName.Length > 0) return chosenName;
+
+			if (_steamPersonaName == null)
+			{
+				string personaName = GameContext.Steam.GetPersonaName().Trim();
+				if (personaName.Length > 0) _steamPersonaName = personaName;
+			}
+
+			return _steamPersonaName ?? TranslationServer.Translate("Guest");
+		}
+	}
+
+	private string? _steamPersonaName;
 
 	private readonly string _guestLobbySessionToken = Guid.NewGuid().ToString();
 
@@ -574,6 +594,8 @@ public partial class LobbyManager : BaseMapTransferNode
 
 	public async Task<bool> HostSinglePlayerGame(string mapPathName, string mapDisplayName, string? mapVersion = null, bool debugMapScript = false)
 	{
+		ReleaseSeedingSlot();
+
 		IsSinglePlayer = true;
 		IsHost = true;
 		ActiveMapName = mapPathName;
@@ -828,6 +850,8 @@ public partial class LobbyManager : BaseMapTransferNode
 
 	private void InitializeHostState(string mapPathName, string? explicitVersion)
 	{
+		ReleaseSeedingSlot();
+
 		IsHost = true;
 		MaxPlayers = ResolvePlayablePlayerSlots(mapPathName, explicitVersion);
 		LastLobbyWarning = null;
@@ -900,6 +924,8 @@ public partial class LobbyManager : BaseMapTransferNode
 
 	private void InitializeClientState(string lobbyId)
 	{
+		ReleaseSeedingSlot();
+
 		IsHost = false;
 		IsGameStarted = false;
 		ActiveLobbyId = lobbyId;
@@ -2463,6 +2489,15 @@ public partial class LobbyManager : BaseMapTransferNode
 		progressCallback?.Invoke(1.0f);
 		MapDownloadProgressChanged?.Invoke(1.0f);
 		MapDownloadCompleted?.Invoke();
+	}
+
+	/// <summary>
+	///     Gives the multiplayer peer slot back before a lobby or a match claims it, so a seeder that is winding down can never
+	///     leave the registry advertising an address whose socket has already been replaced.
+	/// </summary>
+	private static void ReleaseSeedingSlot()
+	{
+		GameContext.PeerSeeder?.Stop();
 	}
 
 	private bool StopSeedingIfActive()

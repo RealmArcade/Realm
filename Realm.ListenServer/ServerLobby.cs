@@ -268,6 +268,7 @@ public class ServerLobby
 		seat.IsDisconnected = false;
 		if (!string.IsNullOrWhiteSpace(name)) seat.Name = LobbyLimits.SanitizeDisplayName(name);
 		if (string.IsNullOrEmpty(seat.Name)) seat.Name = DefaultName(name, seat.Slot, seat.IsHost);
+		seat.Name = MakeNameDistinct(seat.Name, seat.Slot);
 
 		_seats[seat.Slot] = seat;
 		_slotByPeer[peerId] = seat.Slot;
@@ -564,7 +565,7 @@ public class ServerLobby
 		}
 
 		string name = LobbyLimits.SanitizeDisplayName(command.Name);
-		if (!string.IsNullOrEmpty(name)) target.Name = name;
+		if (!string.IsNullOrEmpty(name)) target.Name = MakeNameDistinct(name, target.Slot);
 
 		string faction = LobbyLimits.Sanitize(command.Faction, LobbyLimits.MaximumFactionLength);
 		if (!string.IsNullOrEmpty(faction) && !IsFactionLocked(target.Slot))
@@ -972,6 +973,27 @@ public class ServerLobby
 		}
 
 		return false;
+	}
+
+	/// <summary>
+	///     Leaves a name alone unless another seat already holds it, in which case this seat's number is appended. Two peers
+	///     that never signed in, or that share a Steam persona name, would otherwise be described by the same string in the
+	///     roster and in chat.
+	/// </summary>
+	private string MakeNameDistinct(string name, int slot)
+	{
+		if (string.IsNullOrEmpty(name)) return name;
+
+		foreach (var pair in _seats)
+		{
+			if (pair.Key == slot) continue;
+			if (!string.Equals(pair.Value.Name, name, StringComparison.OrdinalIgnoreCase)) continue;
+
+			string suffix = $" {slot}";
+			return LobbyLimits.Sanitize(name, LobbyLimits.MaximumPlayerNameLength - suffix.Length) + suffix;
+		}
+
+		return name;
 	}
 
 	private static string DefaultName(string? name, int slot, bool isHost)
