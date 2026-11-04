@@ -31,6 +31,8 @@ public class SteamService
 
 	private TaskCompletionSource<string>? _pendingTicketResult;
 
+	public SteamUnavailableReason UnavailableReason { get; private set; } = SteamUnavailableReason.NotStarted;
+
 	public bool IsAvailable => _initialized;
 
 	public bool CanOpenStorePage => _initialized && SteamApplicationIds.FullGameAppId != 0;
@@ -47,21 +49,31 @@ public class SteamService
 
 		try
 		{
-			if (!SteamAPI.Init())
+			ESteamAPIInitResult result = SteamAPI.InitEx(out string message);
+			if (result != ESteamAPIInitResult.k_ESteamAPIInitResult_OK)
 			{
-				GD.Print("[Steam] the Steam client did not accept this process, so the game continues without Steamworks");
+				UnavailableReason = DescribeUnavailableReason(result);
+				GD.Print($"[Steam] Steamworks stays off: {UnavailableReason} ({result}) {message}");
 				return;
 			}
 
 			_initialized = true;
+			UnavailableReason = SteamUnavailableReason.Available;
 			GD.Print($"[Steam] running as application {SteamUtils.GetAppID().m_AppId}");
 		}
 		catch (Exception exception) when (IsMissingNativeLibrary(exception))
 		{
+			UnavailableReason = SteamUnavailableReason.NativeLibraryMissing;
 			GD.Print($"[Steam] {NativeLibraryName} is not shipped with this build, so Steamworks stays off and Steam is not offered as a sign-in provider");
+		}
+		catch (Exception exception) when (IsMismatchedNativeLibrary(exception))
+		{
+			UnavailableReason = SteamUnavailableReason.NativeLibraryMismatch;
+			GD.PrintErr($"[Steam] the {NativeLibraryName} shipped with this build does not match Steamworks.NET: {exception.Message}");
 		}
 		catch (Exception exception)
 		{
+			UnavailableReason = SteamUnavailableReason.InitializationFailed;
 			GD.PrintErr($"[Steam] Steamworks is not usable in this build: {exception.Message}");
 		}
 	}
@@ -77,6 +89,23 @@ public class SteamService
 		       || (exception is TypeInitializationException && exception.InnerException is DllNotFoundException);
 	}
 
+	private static bool IsMismatchedNativeLibrary(Exception exception)
+	{
+		return exception is EntryPointNotFoundException or BadImageFormatException
+		       || (exception is TypeInitializationException && exception.InnerException is EntryPointNotFoundException or BadImageFormatException);
+	}
+
+	private static SteamUnavailableReason DescribeUnavailableReason(ESteamAPIInitResult result)
+	{
+		return result switch
+		{
+			ESteamAPIInitResult.k_ESteamAPIInitResult_NoSteamClient => SteamUnavailableReason.SteamClientNotRunning,
+			ESteamAPIInitResult.k_ESteamAPIInitResult_VersionMismatch => SteamUnavailableReason.NativeLibraryMismatch,
+			ESteamAPIInitResult.k_ESteamAPIInitResult_OK => SteamUnavailableReason.Available,
+			_ => SteamUnavailableReason.SteamRejectedThisProcess
+		};
+	}
+
 	public void Pump()
 	{
 		if (!_initialized || _stopped) return;
@@ -89,6 +118,7 @@ public class SteamService
 		{
 			GD.PrintErr($"[Steam] callbacks stopped: {exception.Message}");
 			_initialized = false;
+			UnavailableReason = SteamUnavailableReason.InitializationFailed;
 			CancelPendingTicket(string.Empty);
 		}
 	}

@@ -42,6 +42,7 @@ public partial class MainMenu : Control
 	private Button _socialButton;
 	private Control _socialPopoverOverlay;
 	private Control _socialPopover;
+	private Button _wishlistButton;
 	private Button _websiteButton;
 	private Button _discordButton;
 	private Button _youtubeButton;
@@ -163,6 +164,7 @@ public partial class MainMenu : Control
 		_socialButton = GetNodeOrNull<Button>("SocialButton");
 		_socialPopoverOverlay = GetNodeOrNull<Control>("SocialPopoverOverlay");
 		_socialPopover = GetNodeOrNull<Control>("SocialPopover");
+		_wishlistButton = GetNodeOrNull<Button>("SocialPopover/MarginContainer/PopoverVBox/WishlistButton") ?? GetNodeOrNull<Button>("SocialPopover/PopoverVBox/WishlistButton");
 		_websiteButton = GetNodeOrNull<Button>("SocialPopover/MarginContainer/PopoverVBox/WebsiteButton") ?? GetNodeOrNull<Button>("SocialPopover/PopoverVBox/WebsiteButton");
 		_discordButton = GetNodeOrNull<Button>("SocialPopover/MarginContainer/PopoverVBox/DiscordButton") ?? GetNodeOrNull<Button>("SocialPopover/PopoverVBox/DiscordButton");
 		_youtubeButton = GetNodeOrNull<Button>("SocialPopover/MarginContainer/PopoverVBox/YoutubeButton") ?? GetNodeOrNull<Button>("SocialPopover/PopoverVBox/YoutubeButton");
@@ -183,7 +185,6 @@ public partial class MainMenu : Control
 	private void SetupButtons()
 	{
 		SetupPlayButton(_playButton, OnPlayPressed);
-		CreateSteamWishlistButton();
 		if (_singlePlayerButton != null)
 		{
 			SetupMenuButton(_singlePlayerButton, "SINGLE PLAYER", () =>
@@ -247,12 +248,30 @@ public partial class MainMenu : Control
 
 	private void SetupSocialButtons()
 	{
+		SetupWishlistButton();
 		SetupSocialLinkButton(_websiteButton, "WEBSITE", "https://www.realm-game.com/", "res://Assets/UI/globe_icon.webp");
 		SetupSocialLinkButton(_discordButton, "DISCORD", "http://discord.realm-game.com", "res://Assets/UI/discord_icon.webp");
 		SetupSocialLinkButton(_youtubeButton, "YOUTUBE", "https://www.youtube.com/@Realm-Game", "res://Assets/UI/youtube_icon.webp");
 		SetupSocialLinkButton(_donateButton, "DONATE", "http://realm-game.com/#donate", "res://Assets/UI/donate_icon.webp");
 		SetupSocialLinkButton(_bugReportButton, "BUG REPORT", "https://github.com/RealmArcade/Realm/issues", "res://Assets/UI/bug_icon.webp");
 		SetupAnnouncementsButton();
+	}
+
+	private void SetupWishlistButton()
+	{
+		if (_wishlistButton == null) return;
+
+		if (!GameContext.Steam.CanOpenStorePage)
+		{
+			_wishlistButton.Visible = false;
+			return;
+		}
+
+		SetupMenuButton(_wishlistButton, "WISHLIST ON STEAM", () =>
+		{
+			GameContext.Steam.OpenFullGameStorePage();
+			HideSocialPopover();
+		}, "res://Assets/UI/options_menu_button.webp", null, "res://Assets/UI/steam_icon.webp");
 	}
 
 	private void SetupAnnouncementsButton()
@@ -579,29 +598,6 @@ public partial class MainMenu : Control
 		}
 
 		GameContext.UserInterface.TransitionTo(GameScreen.LobbyBrowser);
-	}
-
-	private void CreateSteamWishlistButton()
-	{
-		if (!GameContext.Steam.CanOpenStorePage) return;
-
-		var wishlistButton = new Button { Name = "WishlistButton" };
-		wishlistButton.CustomMinimumSize = new Vector2(240, 40);
-		wishlistButton.Icon = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/steam_icon.webp");
-		wishlistButton.ExpandIcon = true;
-		wishlistButton.AddThemeConstantOverride("icon_max_width", 24);
-		UIStyle.ApplyButtonStyleBoxes(wishlistButton);
-		UIStyle.ApplyButtonText(wishlistButton, TranslationServer.Translate("WISHLIST ON STEAM"), 16);
-		wishlistButton.Pressed += () =>
-		{
-			PlayClickSound();
-			GameContext.Steam.OpenFullGameStorePage();
-		};
-		wishlistButton.MouseEntered += PlayHoverSound;
-
-		VBoxContainer column = GetNode<VBoxContainer>("CentralPanel/VBoxContainer");
-		column.AddChild(wishlistButton);
-		column.MoveChild(wishlistButton, _playButton.GetIndex() + 1);
 	}
 
 	private void SetupPlayButton(Button button, Action onClick)

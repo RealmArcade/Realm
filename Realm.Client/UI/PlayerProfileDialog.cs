@@ -385,7 +385,7 @@ public partial class PlayerProfileDialog : Control
 
 		if (!GameContext.Steam.IsAvailable)
 		{
-			_warningLabel.Text = TranslationServer.Translate("Steamworks is not available in this build, so this screen cannot sign you in. Start the game through Steam, or keep playing under your own name.");
+			_warningLabel.Text = DescribeUnavailableSteam();
 			return;
 		}
 
@@ -396,6 +396,18 @@ public partial class PlayerProfileDialog : Control
 		}
 
 		_warningLabel.Text = _authorityUnreachable ? TranslationServer.Translate("The account authority could not be reached.") : string.Empty;
+	}
+
+	private static string DescribeUnavailableSteam()
+	{
+		return GameContext.Steam.UnavailableReason switch
+		{
+			SteamUnavailableReason.SteamClientNotRunning => TranslationServer.Translate("Steam is not running, so Realm cannot sign you in. Start the Steam client and reopen the game, or keep playing under your own name."),
+			SteamUnavailableReason.NativeLibraryMissing => TranslationServer.Translate("This build does not include the Steamworks library, so it cannot sign you in. Play under your own name, or start a Steam build."),
+			SteamUnavailableReason.NativeLibraryMismatch => TranslationServer.Translate("The Steamworks library in this build does not match the game, so sign-in is unavailable. Play under your own name, or start a current Steam build."),
+			SteamUnavailableReason.SteamRejectedThisProcess => TranslationServer.Translate("Steam did not accept this copy of the game, so it cannot sign you in. Start the game from your Steam library, or keep playing under your own name."),
+			_ => TranslationServer.Translate("Steamworks is not available in this build, so this screen cannot sign you in. Play under your own name, or start the game through Steam.")
+		};
 	}
 
 	private void RefreshAccount()
@@ -514,7 +526,7 @@ public partial class PlayerProfileDialog : Control
 
 		if (!GameContext.Steam.IsAvailable)
 		{
-			ShowStatus(TranslationServer.Translate("Steamworks is not available in this build, so this screen cannot sign you in. Start the game through Steam, or keep playing under your own name."), UIStyle.ColorGoldDull);
+			ShowStatus(DescribeUnavailableSteam(), UIStyle.ColorGoldDull);
 			return;
 		}
 

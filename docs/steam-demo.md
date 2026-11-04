@@ -21,20 +21,21 @@ same build is uploaded to both, and no feature may branch on which one is runnin
   under their local name and cannot sign in, because a ticket is the only identity the authority accepts.
 - Without Steam the game still runs: play, lobbies and offline matches are independent of Steamworks, so `IsAvailable` false
   is a normal state rather than an error. Only sign-in needs it.
-- The main menu and the post-match screen show `WISHLIST ON STEAM` and open the base game's store page in the overlay,
-  but only when the base game's application id is configured and Steamworks initialised.
+- The social popover offers `WISHLIST ON STEAM`, which opens the base game's store page in the overlay. It is shown only
+  while Steamworks is initialised and the base game's application id is configured.
 - The registration form prefills the DisplayName with the Steam persona name. It is still validated by
   `DisplayNameRules` like any other name, so an unusable persona name is reported instead of being rewritten.
 
 ## 2. Values
 
-The two application ids are committed in `SteamApplicationIds`. Leaving `FullGameAppId` at `0` hides the wishlist buttons,
-so a wrong value here removes them from the menu and the post-match screen rather than breaking a build.
+The two application ids are committed in `SteamApplicationIds`, which is where the build states the applications it is
+shipped as. The authority accepts both ids from `Steam:AppIds`, so a ticket from either edition verifies. Leaving
+`FullGameAppId` at `0` hides the wishlist button rather than breaking a build.
 
 | Value | Where it goes |
 | --- | --- |
 | `steam_api64.dll` | `ThirdPartyBinaries/steam_api64.dll`, copied from the Steamworks SDK under `redistributable_bin/win64/` |
-| Steamworks SDK version | keep `Steamworks.NET` and the native library from the same SDK release |
+| Steamworks SDK version | keep `Steamworks.NET` and the native library from the same SDK release (`Steamworks.NET` 2024.8.0 is SDK 1.60) |
 | Steam publisher Web API key | `Steam:WebApiKey` on the account authority only, never in the build (see `docs/account-setup.md`) |
 | Accepted application ids | `Steam:AppIds` on the account authority, both ids, so a ticket from either application verifies |
 
@@ -43,6 +44,12 @@ produce a Steam build without it. Every build copies it from `ThirdPartyBinaries
 the engine looks for an unmanaged library in a run from the editor. An exported build looks beside `Realm.exe` instead,
 which is where the publish job puts it. Placing it only in the assembly output folder is not enough: the game starts
 normally and reports Steamworks as unavailable.
+
+The library must also come from the SDK release the managed wrapper was built against. A mismatched pair still loads, so
+the failure is not a missing file: a pre-1.60 library under the 2024.8.0 wrapper makes `SteamAPI.Init()` throw
+`EntryPointNotFoundException` for `SteamAPI_ISteamClient_GetISteamGameSearch`, which leaves Steamworks off with the
+reason visible only in the output log. `steam_appid.txt` and a running Steam client cannot help with that; only the
+matching library can.
 
 The 32-bit `steam_api.dll` and the two `.lib` import libraries are not used by this project: the game ships x64 only, and
 `Steamworks.NET` reaches the library through P/Invoke rather than linking against it.
@@ -132,9 +139,9 @@ The build account needs *Upload* rights on the demo's depot and must complete St
 3. Complete the demo's build and store-presence checklists, submit for review, then choose **Release Demo…** on the demo's
    landing page. The base game remains Coming Soon.
 4. Republish the base game's store page so its **Download Demo** button appears.
-5. Install the demo from a clean Steam account and check: the overlay opens from the wishlist button, the account screen
-   prefills the persona name, `CONTINUE WITH STEAM` signs in without opening a browser, and a match starts (the authority is
-   spawned from the install directory beside `Realm.exe`).
+5. Install the demo from a clean Steam account and check: the account screen prefills the persona name, `SIGN IN WITH STEAM`
+   signs in without opening a browser, and a match starts (the authority is spawned from the install directory beside
+   `Realm.exe`).
 
 ## 7. Next Fest
 
