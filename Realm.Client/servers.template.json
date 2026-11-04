@@ -1,5 +1,5 @@
 {
-  "accountAuthorityUrl": "",
+  "accountAuthorityUrl": "http://node1.realm-game.com:5000",
   "servers": [
     "http://node1.realm-game.com:5000"
   ]
