@@ -26,6 +26,8 @@ public partial class MapEditorHUD : Control
 	public override void _EnterTree()
 	{
 		Realm.Client.Services.GameContext.EnsureServices();
+
+		if (OperatingSystem.IsWindows()) DotnetSdkInstaller.EnsureInstalledInBackground();
 	}
 
 	public static string defaultLoadFolder

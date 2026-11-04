@@ -1233,14 +1233,29 @@ public partial class GameHost : Node3D
 		string mapApiCsproj = Path.Combine(repoRoot, "Realm.MapAPI", "Realm.MapAPI.csproj");
 		if (!File.Exists(mapApiCsproj)) return;
 
+		string dotnetExecutablePath = DotnetSdkResolver.ResolveSdkExecutablePath();
+		if (string.IsNullOrEmpty(dotnetExecutablePath))
+		{
+			GD.PrintErr("Realm.MapAPI.dll is missing and the .NET SDK (map compiler) is not installed yet, so it cannot be built.");
+			return;
+		}
+
 		GD.Print("Realm.MapAPI.dll not found. Auto-building Realm.MapAPI...");
-		using var buildProcess = new Process();
-		buildProcess.StartInfo.FileName = "dotnet";
-		buildProcess.StartInfo.Arguments = $"build \"{mapApiCsproj}\" -c Debug";
-		buildProcess.StartInfo.CreateNoWindow = true;
-		buildProcess.StartInfo.UseShellExecute = false;
-		buildProcess.Start();
-		buildProcess.WaitForExit();
+		try
+		{
+			using var buildProcess = new Process();
+			buildProcess.StartInfo.FileName = dotnetExecutablePath;
+			buildProcess.StartInfo.Arguments = $"build \"{mapApiCsproj}\" -c Debug";
+			buildProcess.StartInfo.CreateNoWindow = true;
+			buildProcess.StartInfo.UseShellExecute = false;
+			buildProcess.Start();
+			buildProcess.WaitForExit();
+		}
+		catch (Exception exception)
+		{
+			GD.PrintErr("Realm.MapAPI.dll could not be built: " + exception.Message);
+			return;
+		}
 
 		TryCopyMapApiDll(Path.Combine(repoRoot, "Realm.MapAPI", "bin", "Debug", "net10.0", "Realm.MapAPI.dll"), Path.Combine(repoRoot, "Realm.MapAPI", "bin", "Debug", "net10.0", "Realm.MapAPI.xml"), libDir);
 	}
@@ -1279,8 +1294,11 @@ public partial class GameHost : Node3D
 	{
 		try
 		{
+			string dotnetExecutablePath = DotnetSdkResolver.ResolveSdkExecutablePath();
+			if (string.IsNullOrEmpty(dotnetExecutablePath)) return;
+
 			using var restoreProcess = new Process();
-			restoreProcess.StartInfo.FileName = "dotnet";
+			restoreProcess.StartInfo.FileName = dotnetExecutablePath;
 			restoreProcess.StartInfo.Arguments = $"restore \"{csprojPath}\"";
 			restoreProcess.StartInfo.WorkingDirectory = mapDir;
 			restoreProcess.StartInfo.CreateNoWindow = true;

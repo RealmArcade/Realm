@@ -739,8 +739,11 @@ public partial class LobbyBrowser : Control
 		if (_connectionFailed)
 		{
 			var lbl = new Label();
-			lbl.Name = "Lbl_Label";
-			lbl.Text = Tr("⚠️ Failed to connect to the lobby registry server. Please check your internet connection or try again later.");
+			lbl.Name = "RegistryUnavailable_Label";
+			lbl.Text = TranslationServer.Translate("⚠️ Failed to connect to the lobby registry server. Please check your internet connection or try again later.\n\nSingle player against AI bots is always available from the main menu.");
+			lbl.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+			lbl.CustomMinimumSize = new Vector2(760, 0);
+			lbl.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 			lbl.HorizontalAlignment = HorizontalAlignment.Center;
 			lbl.VerticalAlignment = VerticalAlignment.Center;
 			lbl.AddThemeColorOverride("font_color", new Color(0.9f, 0.3f, 0.3f));
@@ -749,9 +752,15 @@ public partial class LobbyBrowser : Control
 		}
 		else if (_filteredLobbies.Count == 0)
 		{
+			bool noLobbiesOnline = _allLobbies.Count == 0;
 			var lbl = new Label();
-			lbl.Name = "Lbl_Label";
-			lbl.Text = Tr("Lobby server connected. No active games online. Host a game to start playing!");
+			lbl.Name = noLobbiesOnline ? "NoLobbiesOnline_Label" : "NoLobbiesMatched_Label";
+			lbl.Text = noLobbiesOnline
+				? TranslationServer.Translate("No lobbies are open right now. Realm is new, so the player base is still growing.\n\nStart a lobby and invite friends, or play single player against AI bots.")
+				: TranslationServer.Translate("No lobbies match your search or filters.");
+			lbl.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+			lbl.CustomMinimumSize = new Vector2(760, 0);
+			lbl.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 			lbl.HorizontalAlignment = HorizontalAlignment.Center;
 			lbl.VerticalAlignment = VerticalAlignment.Center;
 			lbl.AddThemeColorOverride("font_color", new Color(0.75f, 0.75f, 0.8f));

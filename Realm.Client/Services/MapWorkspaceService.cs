@@ -1239,12 +1239,13 @@ please visit the URL above.
 		string solutionName = QuoteToolArgument(mapName);
 		string projectName = QuoteToolArgument($"{mapName}.csproj");
 		string slnPath = Path.Combine(directory, $"{mapName}.slnx");
-		if (!File.Exists(slnPath))
+		string dotnetExecutablePath = DotnetSdkResolver.ResolveSdkExecutablePath();
+		if (!File.Exists(slnPath) && !string.IsNullOrEmpty(dotnetExecutablePath))
 		{
 			try
 			{
-				NativeToolRunner.RunTool("dotnet", $"new sln -n {solutionName}", timeoutMs: 15000, workingDir: directory);
-				NativeToolRunner.RunTool("dotnet", $"sln add {projectName}", timeoutMs: 15000, workingDir: directory);
+				NativeToolRunner.RunTool(dotnetExecutablePath, $"new sln -n {solutionName}", timeoutMs: 15000, workingDir: directory);
+				NativeToolRunner.RunTool(dotnetExecutablePath, $"sln add {projectName}", timeoutMs: 15000, workingDir: directory);
 			}
 			catch
 			{

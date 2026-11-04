@@ -11,9 +11,10 @@ namespace Realm.Client.UI;
 
 /// <summary>
 ///     The one place a player sees who they are. The username, the multiplayer record and every Steam account action live on
-///     this card, so the name is shown and changed in a single spot instead of being asked for again by a second screen. Signed
-///     out, the name is the one this machine plays under and stays editable; signed in, the Steam name is what the card states
-///     and the field is gone, so there is nothing to edit that the account would not overwrite.
+///     this card, so the name is stated once and changed in a single spot. The name is always a label with a pencil beside it,
+///     because the username card is the only surface that ever asks for a name: a first sign-in whose Steam persona is already
+///     taken, a later rename and the local name a signed-out player plays under all arrive at the same card, so a conflict
+///     never looks like a second, unexplained place to type.
 /// </summary>
 [GlobalClass]
 public partial class PlayerProfileDialog : Control
@@ -29,29 +30,27 @@ public partial class PlayerProfileDialog : Control
 	private static readonly Color FailureColor = new(0.95f, 0.6f, 0.4f);
 
 	private Label _userNameValueLabel;
-	private LineEdit _userNameEdit;
 	private VBoxContainer _statsRows;
 	private VBoxContainer _signedOutBox;
-	private VBoxContainer _nameChoiceBox;
-	private LineEdit _registrationNameEdit;
 	private Button _signInButton;
 	private VBoxContainer _signedInBox;
 	private Label _identityLabel;
-	private LineEdit _renameEdit;
-	private Button _renameButton;
-	private VBoxContainer _stepUpBox;
-	private Button _stepUpButton;
 	private Button _signOutButton;
 	private Label _warningLabel;
 	private Label _statusLabel;
+	private UserNameChangeDialog _nameChangeDialog;
 	private bool _busy;
-	private bool _verifyThenRename;
 	private bool _serverRefusesSteam;
 	private bool _authorityUnreachable;
-	private bool _registrationNameRefused;
 	private int _statsRequestGeneration;
 
 	public Action? SignedIn { get; set; }
+
+	/// <summary>
+	///     Raised once a username change is in force, so whoever shows the name outside this card repaints it. A rename is the
+	///     authority's and a local name is this machine's, but both are the name other players will see.
+	/// </summary>
+	public Action? UserNameChanged { get; set; }
 
 	public override void _Ready()
 	{
@@ -209,20 +208,63 @@ public partial class PlayerProfileDialog : Control
 		_userNameValueLabel = new Label { Name = "PlayerProfileUserNameValue" };
 		ApplyProfileLabelStyle(_userNameValueLabel, StatValueColor, 23);
 
-		_userNameEdit = new LineEdit { Name = "PlayerProfileUserNameEdit" };
-		_userNameEdit.CustomMinimumSize = new Vector2(230, 34);
-		_userNameEdit.MaxLength = LobbyLimits.MaximumPlayerNameLength;
-		_userNameEdit.PlaceholderText = TranslationServer.Translate("Guest");
-		_userNameEdit.TooltipText = TranslationServer.Translate("The name other players see while you are signed out. Signing in with Steam replaces it with your Steam name.");
-		UIStyle.ApplyTextInput(_userNameEdit, 19);
-		_userNameEdit.TextSubmitted += _ => CommitUserName();
-		_userNameEdit.FocusExited += CommitUserName;
-
 		row.AddChild(keyLabel);
 		row.AddChild(_userNameValueLabel);
-		row.AddChild(_userNameEdit);
+		row.AddChild(CreateUserNameEditButton());
 
 		return row;
+	}
+
+	/// <summary>
+	///     The pencil the name is changed with. Signed out it edits the name this machine plays under; signed in it renames the
+	///     account. Either way the name is typed into the username card, so the profile card itself never holds an editable copy
+	///     of a value the account would overwrite.
+	/// </summary>
+	private Button CreateUserNameEditButton()
+	{
+		var button = new Button { Name = "PlayerProfileUserNameEditButton" };
+		button.Text = UnicodeIcons.EDIT;
+		button.AddThemeConstantOverride("icon_max_width", 0);
+		if (UIStyle.FontAwesome != null) button.AddThemeFontOverride("font", UIStyle.FontAwesome);
+		button.AddThemeFontSizeOverride("font_size", 15);
+		button.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
+		button.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
+		button.AddThemeColorOverride("font_pressed_color", UIStyle.ColorGold);
+		button.CustomMinimumSize = new Vector2(34, 34);
+		button.TooltipText = TranslationServer.Translate("Change your username");
+		button.FocusMode = FocusModeEnum.None;
+		button.MouseDefaultCursorShape = CursorShape.PointingHand;
+		button.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
+		UIStyle.ApplyButtonStyleBoxes(button);
+		button.Pressed += () =>
+		{
+			GameContext.UserInterface.PlayClickSound();
+			OpenUserNameChangeDialog();
+		};
+
+		return button;
+	}
+
+	private void OpenUserNameChangeDialog()
+	{
+		bool signedIn = GameContext.Account.IsSignedIn;
+		OpenUserNameChangeDialog(
+			TranslationServer.Translate("CHANGE USERNAME"),
+			signedIn ? GameContext.Account.DisplayName : UnverifiedNameMark.Apply(GameContext.Account.EffectiveUserName),
+			signedIn ? GameContext.Account.DisplayName : GameContext.Account.EffectiveUserName,
+			signedIn
+				? TranslationServer.Translate("At least 3 characters. Letters, digits, single spaces, hyphens, underscores, periods and apostrophes are allowed.")
+				: TranslationServer.Translate("This name is stored on this machine only, and other players see it with an unverified mark."),
+			ApplyUserNameAsync);
+	}
+
+	private void OpenUserNameChangeDialog(string titleText, string currentName, string suggestedName, string hintText, Func<string, Task<UserNameChangeResult>> submitAsync)
+	{
+		if (_nameChangeDialog != null && GodotObject.IsInstanceValid(_nameChangeDialog)) _nameChangeDialog.QueueFree();
+
+		_nameChangeDialog = new UserNameChangeDialog { Name = "UserNameChangeDialog" };
+		AddChild(_nameChangeDialog);
+		_nameChangeDialog.Open(titleText, currentName, suggestedName, hintText, submitAsync);
 	}
 
 	private VBoxContainer CreateSignedOutBox()
@@ -230,29 +272,8 @@ public partial class PlayerProfileDialog : Control
 		_signedOutBox = new VBoxContainer { Name = "PlayerProfileSignedOut" };
 		_signedOutBox.AddThemeConstantOverride("separation", 10);
 
-		_nameChoiceBox = new VBoxContainer { Name = "PlayerProfileNameChoice" };
-		_nameChoiceBox.AddThemeConstantOverride("separation", 6);
-		_nameChoiceBox.Visible = false;
-		_signedOutBox.AddChild(_nameChoiceBox);
-
-		Label nameChoiceHint = CreateBodyLabel(_nameChoiceBox, TranslationServer.Translate("That name cannot be used. Choose the username this account will use:"));
-		nameChoiceHint.Name = "PlayerProfileNameChoiceHint";
-		nameChoiceHint.HorizontalAlignment = HorizontalAlignment.Center;
-
-		_registrationNameEdit = new LineEdit { Name = "PlayerProfileNameChoiceEdit" };
-		_registrationNameEdit.CustomMinimumSize = new Vector2(0, 36);
-		_registrationNameEdit.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		_registrationNameEdit.MaxLength = DisplayNameRules.MaximumUtf8Bytes;
-		_registrationNameEdit.PlaceholderText = TranslationServer.Translate("Username");
-		UIStyle.ApplyTextInput(_registrationNameEdit);
-		_registrationNameEdit.TextSubmitted += submittedName =>
-		{
-			_ = SignInWithSteamAsync(false);
-		};
-		_nameChoiceBox.AddChild(_registrationNameEdit);
-
 		_signInButton = CreateActionButton(_signedOutBox, "SIGN IN WITH STEAM", SteamIconPath);
-		_signInButton.Pressed += () => _ = SignInWithSteamAsync(false);
+		_signInButton.Pressed += StartSteamSignIn;
 
 		Label signedOutHintLabel = CreateBodyLabel(_signedOutBox, TranslationServer.Translate("A Steam sign-in proves this name is yours, which verified reviews and map publishing need. Everything else stays available signed out."));
 		signedOutHintLabel.Name = "PlayerProfileSignedOutHint";
@@ -269,27 +290,6 @@ public partial class PlayerProfileDialog : Control
 		_identityLabel = CreateBodyLabel(_signedInBox, string.Empty);
 		_identityLabel.Name = "PlayerProfileIdentity";
 		_identityLabel.HorizontalAlignment = HorizontalAlignment.Center;
-
-		var renameContainer = new VBoxContainer { Name = "PlayerProfileRename" };
-		renameContainer.AddThemeConstantOverride("separation", 6);
-		_signedInBox.AddChild(renameContainer);
-
-		_renameEdit = CreateField(renameContainer, "PlayerProfileRename", TranslationServer.Translate("New Username"));
-		_renameEdit.MaxLength = DisplayNameRules.MaximumUtf8Bytes;
-
-		_renameButton = CreateActionButton(renameContainer, "CHANGE USERNAME");
-		_renameButton.Pressed += () => _ = RenameAsync();
-
-		_stepUpBox = new VBoxContainer { Name = "PlayerProfileStepUp" };
-		_stepUpBox.AddThemeConstantOverride("separation", 8);
-		_signedInBox.AddChild(_stepUpBox);
-
-		var stepUpLabel = CreateBodyLabel(_stepUpBox, TranslationServer.Translate("Confirm it is you with Steam before changing your username."));
-		stepUpLabel.Name = "PlayerProfileStepUpHint";
-		stepUpLabel.HorizontalAlignment = HorizontalAlignment.Center;
-
-		_stepUpButton = CreateActionButton(_stepUpBox, "VERIFY WITH STEAM", SteamIconPath);
-		_stepUpButton.Pressed += () => _ = BeginVerifyThenRenameAsync();
 
 		_signOutButton = CreateActionButton(_signedInBox, "SIGN OUT");
 		_signOutButton.Pressed += () => _ = SignOutAsync();
@@ -308,23 +308,6 @@ public partial class PlayerProfileDialog : Control
 		label.AddThemeFontSizeOverride("font_size", 13);
 		parent.AddChild(label);
 		return label;
-	}
-
-	private LineEdit CreateField(Node parent, string fieldName, string fieldLabel)
-	{
-		var label = new Label { Name = $"{fieldName}Label" };
-		label.Text = fieldLabel;
-		label.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		label.AddThemeFontSizeOverride("font_size", 13);
-		parent.AddChild(label);
-
-		var edit = new LineEdit { Name = $"{fieldName}Edit" };
-		edit.CustomMinimumSize = new Vector2(0, 36);
-		edit.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		edit.PlaceholderText = fieldLabel;
-		UIStyle.ApplyTextInput(edit);
-		parent.AddChild(edit);
-		return edit;
 	}
 
 	private Button CreateActionButton(Node parent, string textKey, string iconPath = "")
@@ -360,15 +343,6 @@ public partial class PlayerProfileDialog : Control
 		label.AddThemeFontSizeOverride("font_size", fontSize);
 	}
 
-	private void CommitUserName()
-	{
-		string chosenName = _userNameEdit.Text.Trim();
-		if (string.Equals(chosenName, GameSettings.PlayerName, StringComparison.Ordinal)) return;
-
-		GameSettings.PlayerName = chosenName;
-		GameSettings.Save();
-	}
-
 	private void RefreshState()
 	{
 		if (!GodotObject.IsInstanceValid(this)) return;
@@ -376,27 +350,16 @@ public partial class PlayerProfileDialog : Control
 		bool signedIn = GameContext.Account.IsSignedIn;
 		bool steamAvailable = GameContext.Steam.IsAvailable;
 
-		_userNameValueLabel.Visible = signedIn;
-		_userNameEdit.Visible = !signedIn;
+		if (signedIn) AdoptAccountNameAsLocalName();
+
+		_userNameValueLabel.Text = signedIn
+			? GameContext.Account.DisplayName
+			: UnverifiedNameMark.Apply(GameContext.Account.EffectiveUserName);
+
 		_signedOutBox.Visible = !signedIn;
-		_nameChoiceBox.Visible = !signedIn && _registrationNameRefused;
 		_signedInBox.Visible = signedIn;
 		_signInButton.Visible = steamAvailable;
 		_signInButton.Disabled = _busy || _serverRefusesSteam;
-		_stepUpBox.Visible = _verifyThenRename;
-
-		if (signedIn)
-		{
-			AdoptAccountNameAsLocalName();
-			_userNameValueLabel.Text = GameContext.Account.EffectiveUserName;
-			RefreshWarning();
-			return;
-		}
-
-		_userNameEdit.Text = GameSettings.PlayerName;
-
-		string steamUserName = GameContext.Steam.UserName.Trim();
-		_userNameEdit.PlaceholderText = steamUserName.Length > 0 ? steamUserName : TranslationServer.Translate("Guest");
 
 		RefreshWarning();
 	}
@@ -555,87 +518,142 @@ public partial class PlayerProfileDialog : Control
 		RefreshState();
 	}
 
+	private void StartSteamSignIn()
+	{
+		_ = SignInOrAskForANameAsync();
+	}
+
 	/// <summary>
-	///     Mints one ticket on this machine and hands it to the authority with the Steam name, so a name typed while signed out
-	///     never outlives the sign-in that replaces it. A ticket is spent by the attempt, so a refused name is retried with a
-	///     fresh one; <paramref name="reauthenticate" /> repeats the call for the account already signed in, which is the second
-	///     proof a rename asks for.
+	///     Signs in under the Steam persona. A persona that cannot be registered is not a dead end: the username card opens
+	///     already holding the refused name, and what the player types there is the name the next attempt registers, so the
+	///     conflict is answered by the one surface that ever asks for a name.
 	/// </summary>
-	private async Task SignInWithSteamAsync(bool reauthenticate)
+	private async Task SignInOrAskForANameAsync()
 	{
 		if (_busy) return;
 
-		if (!GameContext.Steam.IsAvailable)
+		AccountOperationResult result = await SignInWithSteamAsync(GameContext.Steam.UserName.Trim(), false);
+		if (!GodotObject.IsInstanceValid(this) || result.Succeeded) return;
+
+		if (IsDisplayNameRefusal(result.ErrorCode))
 		{
-			ShowStatus(DescribeUnavailableSteam(), UIStyle.ColorGoldDull);
+			ClearStatus();
+			OpenNameConflictDialog(result);
 			return;
 		}
 
-		string requestedName = reauthenticate
-			? GameContext.Account.DisplayName
-			: _registrationNameRefused ? _registrationNameEdit.Text.Trim() : GameContext.Steam.UserName.Trim();
+		ShowFailure(result);
+	}
+
+	/// <summary>
+	///     Mints one ticket on this machine and hands it to the authority with the name being registered. A ticket is spent by
+	///     the attempt, so a refused name is retried with a fresh one. <paramref name="reauthenticate" /> repeats the call for the
+	///     account already signed in, which is the second proof a rename asks for; that path leaves the card as it stands, because
+	///     the player is in the middle of a change rather than arriving.
+	/// </summary>
+	private async Task<AccountOperationResult> SignInWithSteamAsync(string requestedName, bool reauthenticate)
+	{
+		if (_busy) return AccountOperationResult.Rejected(string.Empty, TranslationServer.Translate("Another account request is still in progress."));
+
+		if (!GameContext.Steam.IsAvailable)
+		{
+			return AccountOperationResult.Rejected(string.Empty, DescribeUnavailableSteam());
+		}
+
 		if (requestedName.Length == 0) requestedName = GameContext.Steam.UserName.Trim();
 
 		SetBusy(true);
 		ClearStatus();
-		ShowStatus(TranslationServer.Translate("Checking your Steam sign-in..."), UIStyle.ColorGoldDull);
+		ShowStatus(
+			reauthenticate ? TranslationServer.Translate("Confirming your Steam sign-in...") : TranslationServer.Translate("Checking your Steam sign-in..."),
+			UIStyle.ColorGoldDull);
 
 		string ticket = await GameContext.Steam.RequestWebApiTicketAsync();
-		if (!GodotObject.IsInstanceValid(this)) return;
+		if (!GodotObject.IsInstanceValid(this)) return AccountOperationResult.Rejected(string.Empty, string.Empty);
 
 		if (ticket.Length == 0)
 		{
 			SetBusy(false);
-			ShowStatus(TranslationServer.Translate("Steam did not provide a sign-in ticket. Start the game through Steam and try again."), FailureColor);
-			return;
+			return AccountOperationResult.Rejected(string.Empty, TranslationServer.Translate("Steam did not provide a sign-in ticket. Start the game through Steam and try again."));
 		}
 
 		AccountOperationResult result = await GameContext.Account.SignInWithSteamAsync(requestedName, ticket, GameContext.Steam.AppId);
 		SetBusy(false);
-		if (!GodotObject.IsInstanceValid(this)) return;
+		if (!GodotObject.IsInstanceValid(this)) return result;
 
-		if (!result.Succeeded)
-		{
-			if (!reauthenticate && IsDisplayNameRefusal(result.ErrorCode))
-			{
-				BeginChoosingAnotherName();
-				ShowStatus(DescribeErrorCode(result.ErrorCode, result.Message), FailureColor);
-				return;
-			}
-
-			ShowFailure(result);
-			return;
-		}
-
-		_registrationNameRefused = false;
-
-		if (_verifyThenRename)
-		{
-			_verifyThenRename = false;
-			RefreshAccount();
-			await RenameAsync();
-			return;
-		}
+		if (!result.Succeeded) return result;
 
 		RefreshAccount();
+		if (reauthenticate) return result;
+
 		ShowStatus(TranslationServer.Translate("You are signed in with Steam."), SuccessColor);
 		SignedIn?.Invoke();
+		return result;
 	}
 
 	/// <summary>
-	///     The authority refused the persona name as a DisplayName, which is the one case where the Steam name cannot register an
-	///     account. The chooser becomes the source of the next attempt, so the player is asked for a name instead of the same
-	///     refused persona being sent again on every retry, and the refused persona is offered as the starting point to edit.
+	///     Applies the name the username card collected. Signed out it is the name this machine plays under and is stored as
+	///     typed, because nothing about an unverified name is a claim the authority has to accept. Signed in it is a rename,
+	///     which the authority may answer with a step-up demand; that proof is asked for and spent here, so the player presses
+	///     Change once and the Steam confirmation the attempt already needs finishes the rename instead of becoming a second
+	///     button on the card.
 	/// </summary>
-	private void BeginChoosingAnotherName()
+	private async Task<UserNameChangeResult> ApplyUserNameAsync(string requestedName)
 	{
-		_registrationNameRefused = true;
-		_nameChoiceBox.Visible = true;
+		if (!GameContext.Account.IsSignedIn)
+		{
+			GameSettings.PlayerName = requestedName;
+			GameSettings.Save();
+			ClearStatus();
+			RefreshState();
+			UserNameChanged?.Invoke();
+			return UserNameChangeResult.Succeeded;
+		}
 
-		_registrationNameEdit.Text = GameContext.Steam.UserName.Trim();
-		_registrationNameEdit.CaretColumn = _registrationNameEdit.Text.Length;
-		_registrationNameEdit.GrabFocus();
-		_registrationNameEdit.SelectAll();
+		AccountOperationResult result = await GameContext.Account.RenameAsync(requestedName);
+		if (!GodotObject.IsInstanceValid(this)) return UserNameChangeResult.Refused(TranslationServer.Translate("The request was refused."));
+
+		if (result.ErrorCode == AccountErrorCodes.StepUpRequired)
+		{
+			AccountOperationResult proof = await SignInWithSteamAsync(GameContext.Account.DisplayName, true);
+			if (!GodotObject.IsInstanceValid(this)) return UserNameChangeResult.Refused(TranslationServer.Translate("The request was refused."));
+			if (!proof.Succeeded) return UserNameChangeResult.Refused(DescribeErrorCode(proof.ErrorCode, proof.Message));
+
+			result = await GameContext.Account.RenameAsync(requestedName);
+			if (!GodotObject.IsInstanceValid(this)) return UserNameChangeResult.Refused(TranslationServer.Translate("The request was refused."));
+		}
+
+		if (!result.Succeeded) return UserNameChangeResult.Refused(DescribeErrorCode(result.ErrorCode, result.Message));
+
+		ClearStatus();
+		RefreshAccount();
+		ShowStatus(TranslationServer.Translate("Your username was changed."), SuccessColor);
+		UserNameChanged?.Invoke();
+		return UserNameChangeResult.Succeeded;
+	}
+
+	private void OpenNameConflictDialog(AccountOperationResult refusal)
+	{
+		string refusedName = GameContext.Steam.UserName.Trim();
+		string hintText = string.Format(
+			TranslationServer.Translate("{0} Choose the username this account will use."),
+			DescribeErrorCode(refusal.ErrorCode, refusal.Message));
+
+		OpenUserNameChangeDialog(
+			TranslationServer.Translate("CHOOSE YOUR USERNAME"),
+			refusedName.Length > 0 ? refusedName : GameContext.Account.EffectiveUserName,
+			refusedName,
+			hintText,
+			RegisterWithChosenNameAsync);
+	}
+
+	private async Task<UserNameChangeResult> RegisterWithChosenNameAsync(string chosenName)
+	{
+		AccountOperationResult result = await SignInWithSteamAsync(chosenName, false);
+		if (!GodotObject.IsInstanceValid(this)) return UserNameChangeResult.Refused(TranslationServer.Translate("The request was refused."));
+		if (result.Succeeded) return UserNameChangeResult.Succeeded;
+
+		return UserNameChangeResult.Refused(DescribeErrorCode(result.ErrorCode, result.Message));
 	}
 
 	private static bool IsDisplayNameRefusal(string errorCode)
@@ -651,49 +669,8 @@ public partial class PlayerProfileDialog : Control
 			or AccountErrorCodes.DisplayNameVisuallySimilar;
 	}
 
-	private async Task BeginVerifyThenRenameAsync()
-	{
-		if (_busy) return;
-
-		_verifyThenRename = true;
-		RefreshState();
-		await SignInWithSteamAsync(true);
-	}
-
-	private async Task RenameAsync()
-	{
-		if (_busy || !GameContext.Account.IsSignedIn) return;
-
-		SetBusy(true);
-		ClearStatus();
-		AccountOperationResult result = await GameContext.Account.RenameAsync(_renameEdit.Text);
-		SetBusy(false);
-		if (!GodotObject.IsInstanceValid(this)) return;
-
-		if (!result.Succeeded)
-		{
-			if (result.ErrorCode == AccountErrorCodes.StepUpRequired)
-			{
-				_verifyThenRename = false;
-				_stepUpBox.Visible = true;
-				ShowStatus(DescribeErrorCode(AccountErrorCodes.StepUpRequired), UIStyle.ColorGoldDull);
-				return;
-			}
-
-			ShowFailure(result);
-			return;
-		}
-
-		_renameEdit.Text = string.Empty;
-		_stepUpBox.Visible = false;
-		RefreshAccount();
-		ShowStatus(TranslationServer.Translate("Your username was changed."), SuccessColor);
-	}
-
 	private async Task SignOutAsync()
 	{
-		_verifyThenRename = false;
-		_registrationNameRefused = false;
 		SetBusy(true);
 		await GameContext.Account.SignOutAsync();
 		SetBusy(false);
@@ -760,9 +737,11 @@ public partial class PlayerProfileDialog : Control
 	{
 		_busy = busy;
 		_signInButton.Disabled = busy || _serverRefusesSteam;
-		_renameButton.Disabled = busy;
 		_signOutButton.Disabled = busy;
-		_stepUpButton.Disabled = busy;
+		UIStyle.ApplyButtonText(
+			_signInButton,
+			busy ? TranslationServer.Translate("SIGNING IN...") : TranslationServer.Translate("SIGN IN WITH STEAM"),
+			14);
 	}
 
 	private void ShowStatus(string text, Color color)

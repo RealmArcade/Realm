@@ -1314,6 +1314,16 @@ namespace Realm.Client.UI
 
 		private async Task<bool> ExecuteDotnetPublishAsync(string workspace, string csproj, bool isDebug = false)
 		{
+			if (!DotnetSdkResolver.IsSdkAvailable())
+			{
+				_wasmHasErrors = true;
+				SetWasmConsoleStatus("⏳ " + TranslationServer.Translate("WASM Compilation Waiting: the map compiler is still installing"), UIStyle.ColorCyanGlow);
+				AppendWasmConsoleLog("[WAIT] " + TranslationServer.Translate("The .NET SDK that compiles map scripts is not installed yet, so the download was started in the background. Terrain and object editing work without it."));
+				AppendWasmConsoleLog("[WAIT] " + TranslationServer.Translate("Choose Test Map again once the map compiler has finished installing. If the download cannot start, check your internet connection and reopen the Map Editor to retry."));
+				DotnetSdkInstaller.EnsureInstalledInBackground();
+				return false;
+			}
+
 			var result = await GameContext.MapStorageService.ExecuteDotnetPublishDomainAsync(workspace, csproj,
 				(output) => AppendWasmConsoleLog(output),
 				(error) => AppendWasmConsoleLog(error),

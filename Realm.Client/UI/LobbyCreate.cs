@@ -355,6 +355,13 @@ public partial class LobbyCreate : Control
 		{
 			GameContext.UserInterface.PlayWarningSound();
 			GD.PrintErr("[LobbyCreate] Failed to host lobby.");
+
+			if (GameContext.Lobby.LocalNatType == NatType.Symmetric)
+			{
+				ShowNatErrorModal();
+				return;
+			}
+
 			string errorMsg = GameContext.Lobby.LastHostError ?? Tr("Failed to host lobby on the registry server.");
 			ShowHostErrorModal(errorMsg);
 		}
@@ -515,10 +522,10 @@ public partial class LobbyCreate : Control
 
 	private void ShowNatErrorModal()
 	{
-		GameContext.UserInterface?.ShowPopupMessage("HOSTING ERROR", "STUN test determines you cannot host a game due to a Symmetric NAT router configuration. Please configure port forwarding or UPnP.", () =>
-		{
-			GameContext.UserInterface.TransitionTo(GameScreen.LobbyBrowser);
-		});
+		GameContext.UserInterface?.ShowPopupMessage(
+			TranslationServer.Translate("CANNOT HOST A GAME"),
+			TranslationServer.Translate("Your internet provider's network prevents other players from connecting to a game you host.\n\nYou can join another player's lobby, or play single player against AI bots."),
+			() => GameContext.UserInterface.TransitionTo(GameScreen.LobbyBrowser));
 	}
 
 	private void ShowHostErrorModal(string errorMessage)

@@ -1451,11 +1451,17 @@ public class MapStorageService
 			string csprojName = Path.GetFileName(csproj);
 			string configuration = isDebug ? MapWorkspaceService.DebugBuildFlavor : MapWorkspaceService.ReleaseBuildFlavor;
 			string scriptOutputDirectory = MapWorkspaceService.GetScriptOutputDirectory(workspace);
+			string dotnetExecutablePath = DotnetSdkResolver.ResolveSdkExecutablePath();
+			if (string.IsNullOrEmpty(dotnetExecutablePath))
+			{
+				onError?.Invoke("[COMPILER ERROR] The .NET SDK that compiles map scripts is not installed. Choose Test Map again once the background download completes.");
+				return (false, -1, true);
+			}
 
 			ClearScriptOutput(workspace, scriptOutputDirectory);
 
 			var compileProcess = new Process();
-			compileProcess.StartInfo.FileName = "dotnet";
+			compileProcess.StartInfo.FileName = dotnetExecutablePath;
 			compileProcess.StartInfo.Arguments = $"publish \"{csprojName}\" -c {configuration} -r wasi-wasm -o \"{scriptOutputDirectory}\" -p:WASI_SDK_PATH=\"{resolvedWasiSdk}\"";
 			compileProcess.StartInfo.EnvironmentVariables["WASI_SDK_PATH"] = resolvedWasiSdk;
 			compileProcess.StartInfo.WorkingDirectory = workspace;
@@ -1487,7 +1493,16 @@ public class MapStorageService
 				}
 			};
 
-			compileProcess.Start();
+			try
+			{
+				compileProcess.Start();
+			}
+			catch (Exception exception)
+			{
+				onError?.Invoke("[COMPILER ERROR] The map compiler could not be started: " + exception.Message);
+				return (false, -1, true);
+			}
+
 			compileProcess.BeginOutputReadLine();
 			compileProcess.BeginErrorReadLine();
 			compileProcess.WaitForExit();
