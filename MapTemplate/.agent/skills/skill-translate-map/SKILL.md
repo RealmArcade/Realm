@@ -26,7 +26,7 @@ Activates whenever the work is about this **map's** text in another language:
   - Ability `Role` (`"Damage"`) → a key of its own, printed in front of the tooltip as `[Damage]`. Translate it to translate that tag.
   - If a description already carries its own prefix (`"[Damage] Deals …"`), key either the whole line or the two parts (`"Damage"` and `"Deals …"`); the client accepts both.
 - Translations travel inside the map package: `locale/*.json` is picked up by the manifest on the next save/export and is never trimmed out of an `.rmap`. No manifest edit is required.
-- Only the languages the client ships are loaded: `en`, `es`, `fr`, `de`, `pt`, `ru`, `zh`, `ja`, `ar` (right-to-left, handled by the client), `hi`. A file named for any other code is ignored.
+- Only the languages the client ships are loaded: `en`, `es`, `fr`, `de`, `pt`, `ru`, `zh`, `ja`, `ar` (right-to-left, handled by the client), `hi`, `ko`. A file named for any other code is ignored.
 
 ## Invariants
 1. **Keys are copied, never rewritten.** A key must match the source text character for character — punctuation, casing, apostrophes, and the text after BBCode removal for names.
@@ -103,4 +103,4 @@ The keys are the game's own source text and are how the game finds the translati
 - **One tooltip is still English.** Compare the key against `metadata.json` exactly — trailing punctuation, casing and apostrophes all count. For a name, remember the key has no BBCode.
 - **A tooltip shows a red `{{Ability.…}}`.** The map script has not published that tooltip value, so there is nothing to substitute. That is a map-script issue (`SetAbilityTooltipValues`), not a translation defect.
 - **`prune` refuses to run.** It would delete more than half of the catalog, which usually means `metadata.json` is missing or being read from the wrong folder. Run the command from the map folder, or pass `--map <folder>`.
-- **A language file is ignored.** Only `en`, `es`, `fr`, `de`, `pt`, `ru`, `zh`, `ja`, `ar` and `hi` are loaded; `verify` warns about any other file name.
+- **A language file is ignored.** Only `en`, `es`, `fr`, `de`, `pt`, `ru`, `zh`, `ja`, `ar`, `hi` and `ko` are loaded; `verify` warns about any other file name.

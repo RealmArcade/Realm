@@ -14,7 +14,7 @@ namespace Realm.Client.UI;
 
 public static class LocalizationManager
 {
-	private static readonly string[] Locales = { "en", "es", "fr", "de", "pt", "ru", "zh", "ja", "ar", "hi" };
+	private static readonly string[] Locales = { "en", "es", "fr", "de", "pt", "ru", "zh", "ja", "ar", "hi", "ko" };
 
 	public static string CurrentMapName { get; set; } = "";
 

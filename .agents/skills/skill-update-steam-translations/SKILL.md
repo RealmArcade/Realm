@@ -119,7 +119,7 @@ Only handle keys that actually appear in the export. Steam store language keys a
 | `thai` | Thai | `vietnamese` | Vietnamese |
 | `indonesian` | Indonesian | `malay` | Malay |
 
-Realm ships in-game locales `es`, `fr`, `de`, `pt`, `ru`, `zh`, `ja`, `ar`, `hi`. The store page has no Arabic or Hindi tab, so those two locales have no store counterpart; `zh` maps to whichever Chinese variant the store actually enables.
+Realm ships in-game locales `es`, `fr`, `de`, `pt`, `ru`, `zh`, `ja`, `ar`, `hi`, `ko`. The store page has no Arabic or Hindi tab, so those two locales have no store counterpart; `zh` maps to whichever Chinese variant the store actually enables.
 
 ---
 

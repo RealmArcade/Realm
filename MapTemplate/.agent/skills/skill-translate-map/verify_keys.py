@@ -27,7 +27,7 @@ from pathlib import Path
 
 # The languages the Realm client ships catalogs for; a file named for any other
 # code is never loaded, so its translations would silently do nothing.
-SUPPORTED_LOCALES = ("en", "es", "fr", "de", "pt", "ru", "zh", "ja", "ar", "hi")
+SUPPORTED_LOCALES = ("en", "es", "fr", "de", "pt", "ru", "zh", "ja", "ar", "hi", "ko")
 
 # Template collections whose Name/Description the client renders in-game. Weapons,
 # props and resources are editor-facing, so translating them only creates keys
