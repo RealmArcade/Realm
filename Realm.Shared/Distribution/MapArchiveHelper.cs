@@ -142,13 +142,18 @@ public static class MapArchiveHelper
 		return string.Equals(Path.GetFileName(relPath), "authorship_key.pem", StringComparison.OrdinalIgnoreCase);
 	}
 
-	private static bool IsAllowedExcludedFile(string fn)
+	private static bool IsAllowedExcludedFile(string relativePath)
 	{
+		string fn = Path.GetFileName(relativePath);
 		string[] allowedExact = ["manifest.json", "metadata.json", "terrain.json"];
 		string[] allowedSuffixes = [".cs", ".wasm", ".csproj"];
 
 		if (allowedExact.Any(a => fn.Equals(a, StringComparison.OrdinalIgnoreCase))) return true;
 		if (allowedSuffixes.Any(s => fn.EndsWith(s, StringComparison.OrdinalIgnoreCase))) return true;
+
+		// A map's locale/*.json is read by name (the file name is the language), so it is text the package carries rather
+		// than an asset anything references. Trimming it away would strip the map's translations from a published copy.
+		if (relativePath.StartsWith("locale/", StringComparison.OrdinalIgnoreCase)) return true;
 
 		return false;
 	}
@@ -177,8 +182,7 @@ public static class MapArchiveHelper
 
 		if (!fullExport && excludedRelativePaths != null && excludedRelativePaths.Contains(relativePath))
 		{
-			string fn = Path.GetFileName(relativePath);
-			if (!IsAllowedExcludedFile(fn)) return false;
+			if (!IsAllowedExcludedFile(relativePath)) return false;
 		}
 
 		var fileInfo = new FileInfo(file);

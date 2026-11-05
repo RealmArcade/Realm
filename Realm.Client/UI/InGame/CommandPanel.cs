@@ -1105,8 +1105,8 @@ public partial class CommandPanel
 				}
 			}
 
-			string itemName = itemMeta != null && !string.IsNullOrEmpty(itemMeta.Name) ? itemMeta.Name : itemId;
-			string itemDesc = itemMeta != null && !string.IsNullOrEmpty(itemMeta.Description) ? itemMeta.Description : $"Buy {itemName} for a nearby combat unit";
+			string itemName = itemMeta != null && !string.IsNullOrEmpty(itemMeta.Name) ? MapText.TranslateName(itemMeta.Name) : itemId;
+			string itemDesc = itemMeta != null && !string.IsNullOrEmpty(itemMeta.Description) ? MapText.Translate(itemMeta.Description) : $"Buy {itemName} for a nearby combat unit";
 			float costGold = itemMeta?.CostGold ?? 0f;
 			string iconPath = itemMeta != null && !string.IsNullOrEmpty(itemMeta.IconPath) ? itemMeta.IconPath : "res://Assets/UI/alliance_flag.webp";
 
@@ -1160,8 +1160,8 @@ public partial class CommandPanel
 				}
 			}
 
-			string name = upgMeta != null && !string.IsNullOrEmpty(upgMeta.Name) ? upgMeta.Name : upgradeId;
-			string desc = upgMeta?.Description ?? "";
+			string name = upgMeta != null && !string.IsNullOrEmpty(upgMeta.Name) ? MapText.TranslateName(upgMeta.Name) : upgradeId;
+			string desc = MapText.Translate(upgMeta?.Description);
 			float gold = upgMeta?.CostGold ?? 0f;
 			float wood = upgMeta?.CostWood ?? 0f;
 			float stone = upgMeta?.CostStone ?? 0f;
@@ -1284,7 +1284,7 @@ public partial class CommandPanel
 		string finalTooltip;
 		if (abilityDef != null && !string.IsNullOrEmpty(abilityDef.TooltipTemplate))
 		{
-			finalTooltip = abilityDef.TooltipTemplate;
+			finalTooltip = MapText.TranslateTemplate(abilityDef.TooltipTemplate);
 		}
 		else
 		{
@@ -1381,8 +1381,10 @@ public partial class CommandPanel
 
 	private string ResolveAbilityTooltip(string abilityId, AbilityDefinition abilityDef, bool disabled, float manaCost)
 	{
+		// The description is map text, so it is looked up in the player's catalog before its placeholders are resolved:
+		// a translation keeps the {{tokens}} it was given, and TooltipTemplate fills them in on the way to the tooltip.
 		string body = abilityDef != null && !string.IsNullOrEmpty(abilityDef.TooltipTemplate)
-			? abilityDef.TooltipTemplate
+			? MapText.TranslateTemplate(abilityDef.TooltipTemplate)
 			: GetDefaultAbilityTooltip(abilityId);
 
 		return UIHelper.PrependAbilityHeader(abilityId, abilityDef, body, manaCost, disabled);

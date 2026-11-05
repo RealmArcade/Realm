@@ -92,8 +92,9 @@ public static class UIHelper
 	public static string PrependAbilityHeader(string? abilityId, AbilityDefinition? definition, string? body, float manaCost = -1f, bool disabled = false)
 	{
 		// Only an ability the map actually names gets a header. The command card also shows engine commands such as
-		// the Build menu under a reserved id, and those keep the tooltip the card item was built with.
-		string name = definition?.DisplayName ?? string.Empty;
+		// the Build menu under a reserved id, and those keep the tooltip the card item was built with. The name is map
+		// text, so it is read in the player's own language; any BBCode it carries survives the lookup.
+		string name = MapText.TranslateName(definition?.DisplayName);
 		if (string.IsNullOrWhiteSpace(name)) return body ?? string.Empty;
 
 		string header = BuildHeader(
@@ -134,12 +135,12 @@ public static class UIHelper
 		string desc = "";
 		if (Realm.Client.Core.GameHost.TryGetUnitOrBuildingMetadata(unitId, out var meta))
 		{
-			if (!string.IsNullOrEmpty(meta.Name)) name = meta.Name;
+			if (!string.IsNullOrEmpty(meta.Name)) name = MapText.TranslateName(meta.Name);
 			gold = meta.CostGold;
 			wood = meta.CostWood;
 			stone = meta.CostStone;
 			pop = meta.PopCost;
-			desc = meta.Description ?? "";
+			desc = MapText.Translate(meta.Description);
 		}
 
 		string costStr = $"Cost: {gold} Gold";

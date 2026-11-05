@@ -759,18 +759,19 @@ public class RegistryService
 	{
 		if (string.IsNullOrEmpty(unitTypeId)) return string.Empty;
 
+		// The name a map wrote is map text, so it is read in the player's own language wherever the HUD shows it.
 		if (UnitRegistry.TryGetValue((StringName)unitTypeId, out var meta) && !string.IsNullOrWhiteSpace(meta.Name))
-			return meta.Name;
+			return MapText.TranslateName(meta.Name);
 
 		if (BuildingRegistry.TryGetValue((StringName)unitTypeId, out var bldMeta) && !string.IsNullOrWhiteSpace(bldMeta.Name))
-			return bldMeta.Name;
+			return MapText.TranslateName(bldMeta.Name);
 
 		string cleanId = Path.GetFileNameWithoutExtension(unitTypeId);
 		if (UnitRegistry.TryGetValue((StringName)cleanId, out meta) && !string.IsNullOrWhiteSpace(meta.Name))
-			return meta.Name;
+			return MapText.TranslateName(meta.Name);
 
 		if (BuildingRegistry.TryGetValue((StringName)cleanId, out bldMeta) && !string.IsNullOrWhiteSpace(bldMeta.Name))
-			return bldMeta.Name;
+			return MapText.TranslateName(bldMeta.Name);
 
 		return cleanId;
 	}
@@ -781,7 +782,7 @@ public class RegistryService
 
 		var def = GetAbilityDefinition(abilityId);
 		if (def != null && !string.IsNullOrWhiteSpace(def.DisplayName))
-			return def.DisplayName;
+			return MapText.TranslateName(def.DisplayName);
 
 		return Path.GetFileNameWithoutExtension(abilityId);
 	}

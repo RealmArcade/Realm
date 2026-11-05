@@ -416,7 +416,7 @@ public static class TooltipTemplate
 		if (!GameHost.ItemRegistry.TryGetValue(itemId, out var item) || item == null) return false;
 		if (string.IsNullOrWhiteSpace(item.Name)) return false;
 
-		value = item.Name;
+		value = MapText.TranslateName(item.Name);
 		return true;
 	}
 
@@ -455,7 +455,7 @@ public static class TooltipTemplate
 		if (!GameHost.UpgradeRegistry.TryGetValue(upgradeId, out var upgrade) || upgrade == null) return false;
 		if (string.IsNullOrWhiteSpace(upgrade.Name)) return false;
 
-		value = upgrade.Name;
+		value = MapText.TranslateName(upgrade.Name);
 		return true;
 	}
 
