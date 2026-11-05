@@ -7,6 +7,9 @@ public struct MapBriefingDetails
 	public string PathName;
 	public string DisplayName;
 	public string Description;
+	public string SuggestedPlayers;
+	public string HowToPlayObjective;
+	public List<string> Tags;
 	public string GameBuildNumber;
 	public string Version;
 	public string ManifestHash;

@@ -203,6 +203,8 @@ public partial class LobbyCreate : Control
 		_briefingText.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
 		_briefingText.FitContent = false;
 		_briefingText.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+		_briefingText.ScrollActive = true;
+		_briefingText.ScrollFollowing = false;
 
 		briefingVBox.AddChild(textPanelWrapper);
 
@@ -628,6 +630,7 @@ public partial class LobbyCreate : Control
 
 		var selectedMap = _availableMaps[(int)index];
 		_briefingText.Text = selectedMap.Description;
+		_briefingText.ScrollToLine(0);
 		RefreshVersionsForSelectedMap(selectedMap, targetVersion);
 
 		string thumbPath = GetMapThumbnailPath(selectedMap);

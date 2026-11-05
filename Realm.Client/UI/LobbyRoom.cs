@@ -180,7 +180,6 @@ public partial class LobbyRoom : Control
 
 
 		ApplyThemeStyles();
-		ApplyFestivalLayout();
 
 
 		GameContext.Lobby.PlayerListUpdated += PopulatePlayersList;
@@ -302,6 +301,8 @@ public partial class LobbyRoom : Control
 		}
 
 		_briefingLabel.AddThemeColorOverride("default_color", new Color(0.85f, 0.85f, 0.9f));
+		_briefingLabel.ScrollActive = true;
+		_briefingLabel.ScrollFollowing = false;
 
 
 		string[] headers =
@@ -382,14 +383,6 @@ public partial class LobbyRoom : Control
 		GameContext.Lobby.Disconnect();
 		if (singlePlayer) GameContext.Lobby.IsSinglePlayer = false;
 		GameContext.UserInterface.TransitionTo(singlePlayer ? GameScreen.MainMenu : GameScreen.LobbyBrowser);
-	}
-
-	private void ApplyFestivalLayout()
-	{
-		_briefingPanel.Visible = !BuildFlags.IS_AUTOBATTLE_FESTIVAL_ACTIVE;
-		if (_briefingPanel.Visible) return;
-
-		_playersPanel.OffsetRight = 1825;
 	}
 
 	private void ApplyTableHeaderLayout()
@@ -876,12 +869,45 @@ public partial class LobbyRoom : Control
 		int selectedIndex = GetSelectedMapIndex();
 		if (selectedIndex >= 0)
 		{
-			_mapNameLabel.Text = _lobbyRoomMaps[selectedIndex].DisplayName.ToUpper();
-			_briefingLabel.Text = _lobbyRoomMaps[selectedIndex].Description;
-			VerifyMapAuthorship(_lobbyRoomMaps[selectedIndex].PathName);
+			MapBriefingDetails selectedMap = _lobbyRoomMaps[selectedIndex];
+			_mapNameLabel.Text = selectedMap.DisplayName.ToUpper();
+			_briefingLabel.Text = BuildBriefingText(selectedMap);
+			_briefingLabel.ScrollToLine(0);
+			VerifyMapAuthorship(selectedMap.PathName);
 		}
 
 		_attributionPopover?.Close();
+	}
+
+	/// <summary>
+	///     Composes the briefing this screen shows from the selected map's own metadata, so a map describes itself and the
+	///     lobby never states something the map did not say.
+	/// </summary>
+	private static string BuildBriefingText(MapBriefingDetails selectedMap)
+	{
+		var builder = new StringBuilder();
+		AppendBriefingParagraph(builder, selectedMap.Description);
+		AppendBriefingSection(builder, TranslationServer.Translate("OBJECTIVE").ToString(), selectedMap.HowToPlayObjective);
+		AppendBriefingSection(builder, TranslationServer.Translate("PLAYERS").ToString(), selectedMap.SuggestedPlayers);
+		AppendBriefingSection(builder, TranslationServer.Translate("TAGS").ToString(), selectedMap.Tags is { Count: > 0 } ? string.Join(" · ", selectedMap.Tags) : string.Empty);
+
+		return builder.Length > 0 ? builder.ToString() : TranslationServer.Translate("This map has not described itself yet.").ToString();
+	}
+
+	private static void AppendBriefingParagraph(StringBuilder builder, string? text)
+	{
+		if (string.IsNullOrWhiteSpace(text)) return;
+
+		if (builder.Length > 0) builder.Append("\n\n");
+		builder.Append(text.Trim());
+	}
+
+	private static void AppendBriefingSection(StringBuilder builder, string label, string? text)
+	{
+		if (string.IsNullOrWhiteSpace(text)) return;
+
+		if (builder.Length > 0) builder.Append("\n\n");
+		builder.Append($"[b][color={UIStyle.ColorGold.ToHtml(false)}]{label}[/color][/b]\n{text.Trim()}");
 	}
 
 	private void OpenInviteFriendsDialog()
@@ -1097,12 +1123,12 @@ public partial class LobbyRoom : Control
 
 	private void UpdateAddBotAvailability()
 	{
+		_playersTitle.Text = $"{TranslationServer.Translate("TEAMS & PLAYERS")} ({GameContext.Lobby.PlayingPlayerCount}/{GameContext.Lobby.MaxPlayers})";
+
 		if (_addBotButton == null || !GodotObject.IsInstanceValid(_addBotButton)) return;
 		if (!GameContext.Lobby.IsHost) return;
 
-		bool lobbyHasFreeSlot = GameContext.Lobby.PlayerList.Count < GameContext.Lobby.MaxPlayers;
-		_addBotButton.Disabled = !lobbyHasFreeSlot;
-		_playersTitle.Text = $"{TranslationServer.Translate("TEAMS & PLAYERS")} ({GameContext.Lobby.PlayerList.Count}/{GameContext.Lobby.MaxPlayers})";
+		_addBotButton.Disabled = GameContext.Lobby.PlayingPlayerCount >= GameContext.Lobby.MaxPlayers;
 	}
 
 	private bool CheckHostVersionMismatch()
