@@ -6,6 +6,8 @@ namespace Realm.Ecs.AI.Training;
 
 public class SelfPlayTrainer
 {
+	public List<float> GenerationBestFitness { get; } = new();
+
 	public BotProfile TrainSelfPlay(
 		string mapName,
 		int generations = 5,
@@ -14,10 +16,14 @@ public class SelfPlayTrainer
 		WinConditionEvaluator? winConditionEvaluator = null,
 		MapSimulationInitializer? customInitializer = null,
 		int maxTicks = 400,
-		IAiGenreProvider? genreProvider = null)
+		IAiGenreProvider? genreProvider = null,
+		int seed = 0,
+		string gameBuildNumber = "")
 	{
 		var provider = genreProvider ?? new StandardRtsGenreProvider();
-		var population = InitializePopulation(populationSize, provider.FeatureCount);
+		GenerationBestFitness.Clear();
+		int baseSeed = RandomStreams.CreateBaseSeed(seed);
+		var population = InitializePopulation(populationSize, provider.FeatureCount, RandomStreams.Derive(baseSeed, 0));
 
 		var historicalPool = new List<float[]> { population[0] };
 
@@ -33,26 +39,79 @@ public class SelfPlayTrainer
 				provider.GenreName,
 				maxTicks,
 				winConditionEvaluator,
-				customInitializer
+				customInitializer,
+				baseSeed,
+				gen
 			);
 
 			UpdateBestGenome(population, fitnessScores, ref bestGenome, ref maxFitness);
+			GenerationBestFitness.Add(maxFitness);
 			UpdateHistoricalPool(historicalPool, bestGenome);
-			population = CreateNextGeneration(populationSize, population, bestGenome);
+			population = CreateNextGeneration(populationSize, population, bestGenome, RandomStreams.Derive(baseSeed, gen + 100000));
 		}
 
-		return CreateBotProfile(mapName, provider.GenreName, bestGenome, maxFitness, generations);
+		return CreateBotProfile(mapName, provider.GenreName, bestGenome, maxFitness, generations, gameBuildNumber);
 	}
 
-	private static List<float[]> InitializePopulation(int populationSize, int featureCount)
+	public BotProfile TrainAgainstEvaluator(
+		string mapName,
+		int generations,
+		int populationSize,
+		int matchesPerEvaluation,
+		int featureCount,
+		string genreName,
+		Func<float[], int, float> evaluateCandidate,
+		int seed = 0,
+		string gameBuildNumber = "",
+		float[]? initialWeights = null)
 	{
+		int baseSeed = RandomStreams.CreateBaseSeed(seed);
+		GenerationBestFitness.Clear();
+		var population = InitializePopulation(populationSize, featureCount, RandomStreams.Derive(baseSeed, 0), initialWeights);
+
+		float[] bestGenome = population[0];
+		float maxFitness = float.MinValue;
+
+		for (int generation = 0; generation < generations; generation++)
+		{
+			var fitnessScores = new float[population.Count];
+			int[] evaluationSeeds = DeriveEvaluationSeeds(baseSeed, generation, matchesPerEvaluation);
+			for (int candidateIndex = 0; candidateIndex < population.Count; candidateIndex++)
+			{
+				float totalScore = 0.0f;
+				for (int matchIndex = 0; matchIndex < evaluationSeeds.Length; matchIndex++)
+				{
+					totalScore += evaluateCandidate(population[candidateIndex], evaluationSeeds[matchIndex]);
+				}
+
+				fitnessScores[candidateIndex] = totalScore / evaluationSeeds.Length;
+			}
+
+			UpdateBestGenome(population, fitnessScores, ref bestGenome, ref maxFitness);
+			GenerationBestFitness.Add(maxFitness);
+			population = CreateNextGeneration(populationSize, population, bestGenome, RandomStreams.Derive(baseSeed, generation + 100000));
+		}
+
+		return CreateBotProfile(mapName, genreName, bestGenome, maxFitness, generations, gameBuildNumber);
+	}
+
+	private static List<float[]> InitializePopulation(int populationSize, int featureCount, SeededRandom random, float[]? initialWeights = null)
+	{
+		bool startFromPrior = initialWeights != null && initialWeights.Length == featureCount;
 		var population = new List<float[]>();
 		for (int i = 0; i < populationSize; i++)
 		{
 			var weights = new float[featureCount];
 			for (int f = 0; f < featureCount; f++)
 			{
-				weights[f] = (float)(SeededRandom.Shared.NextDouble() * 2.0 - 1.0);
+				if (!startFromPrior)
+				{
+					weights[f] = (float)(random.NextDouble() * 2.0 - 1.0);
+					continue;
+				}
+
+				float jitter = i == 0 ? 0.0f : (float)(random.NextDouble() * 0.5 - 0.25);
+				weights[f] = Math.Clamp(initialWeights![f] + jitter, -2.0f, 2.0f);
 			}
 
 			population.Add(weights);
@@ -68,11 +127,14 @@ public class SelfPlayTrainer
 		string genreName,
 		int maxTicks,
 		WinConditionEvaluator? winConditionEvaluator,
-		MapSimulationInitializer? customInitializer)
+		MapSimulationInitializer? customInitializer,
+		int baseSeed,
+		int generation)
 	{
 		var fitnessScores = new float[population.Count];
 		Parallel.For(0, population.Count, popIdx =>
 		{
+			SeededRandom random = RandomStreams.Derive(baseSeed, generation * 1000 + popIdx + 1);
 			fitnessScores[popIdx] = EvaluateCandidate(
 				population[popIdx],
 				historicalPool,
@@ -80,7 +142,8 @@ public class SelfPlayTrainer
 				genreName,
 				maxTicks,
 				winConditionEvaluator,
-				customInitializer
+				customInitializer,
+				random
 			);
 		});
 		return fitnessScores;
@@ -93,24 +156,25 @@ public class SelfPlayTrainer
 		string genreName,
 		int maxTicks,
 		WinConditionEvaluator? winConditionEvaluator,
-		MapSimulationInitializer? customInitializer)
+		MapSimulationInitializer? customInitializer,
+		SeededRandom random)
 	{
 		float totalScore = 0.0f;
 		for (int m = 0; m < matchesPerEvaluation; m++)
 		{
-			float[] opponent = GetRandomOpponent(historicalPool);
+			float[] opponent = GetRandomOpponent(historicalPool, random);
 			totalScore += RunMatchAndGetScore(
-				candidate, opponent, genreName, maxTicks, winConditionEvaluator, customInitializer);
+				candidate, opponent, genreName, maxTicks, winConditionEvaluator, customInitializer, random);
 		}
 
 		return totalScore / matchesPerEvaluation;
 	}
 
-	private static float[] GetRandomOpponent(List<float[]> historicalPool)
+	private static float[] GetRandomOpponent(List<float[]> historicalPool, SeededRandom random)
 	{
 		lock (historicalPool)
 		{
-			return historicalPool[SeededRandom.Shared.Next(historicalPool.Count)];
+			return historicalPool[random.Next(historicalPool.Count)];
 		}
 	}
 
@@ -120,10 +184,11 @@ public class SelfPlayTrainer
 		string genreName,
 		int maxTicks,
 		WinConditionEvaluator? winConditionEvaluator,
-		MapSimulationInitializer? customInitializer)
+		MapSimulationInitializer? customInitializer,
+		SeededRandom random)
 	{
 		var matchProvider = AiGenreRegistry.Get(genreName);
-		var runner = new HeadlessSimulationRunner(matchProvider);
+		var runner = new HeadlessSimulationRunner(matchProvider, random);
 		var result = runner.RunMatch(
 			candidate,
 			opponent,
@@ -138,6 +203,18 @@ public class SelfPlayTrainer
 		if (result.WinnerPlayerIndex == 0) return 1.0f;
 		if (result.WinnerPlayerIndex == -1) return 0.5f;
 		return 0.0f;
+	}
+
+	private static int[] DeriveEvaluationSeeds(int baseSeed, int generation, int matchesPerEvaluation)
+	{
+		var seeds = new int[matchesPerEvaluation];
+		SeededRandom random = RandomStreams.Derive(baseSeed, generation * 100000 + 7);
+		for (int matchIndex = 0; matchIndex < seeds.Length; matchIndex++)
+		{
+			seeds[matchIndex] = random.Next(1, int.MaxValue);
+		}
+
+		return seeds;
 	}
 
 	private static void UpdateBestGenome(List<float[]> population, float[] fitnessScores, ref float[] bestGenome, ref float maxFitness)
@@ -164,7 +241,7 @@ public class SelfPlayTrainer
 		}
 	}
 
-	private static List<float[]> CreateNextGeneration(int populationSize, List<float[]> currentPopulation, float[] bestGenome)
+	private static List<float[]> CreateNextGeneration(int populationSize, List<float[]> currentPopulation, float[] bestGenome, SeededRandom random)
 	{
 		var newPopulation = new List<float[]>
 		{
@@ -173,22 +250,21 @@ public class SelfPlayTrainer
 
 		while (newPopulation.Count < populationSize)
 		{
-			float[] parent = currentPopulation[SeededRandom.Shared.Next(populationSize)];
-			float[] child = MutateGenome(parent);
+			float[] parent = currentPopulation[random.Next(populationSize)];
+			float[] child = MutateGenome(parent, random);
 			newPopulation.Add(child);
 		}
 
 		return newPopulation;
 	}
 
-	private static BotProfile CreateBotProfile(string mapName, string genreName, float[] bestGenome, float maxFitness, int trainedEpochs)
+	private static BotProfile CreateBotProfile(string mapName, string genreName, float[] bestGenome, float maxFitness, int trainedEpochs, string gameBuildNumber)
 	{
-		return new BotProfile
+		var profile = new BotProfile
 		{
 			SchemaVersion = "1.0.0",
 			MapName = mapName,
 			Genre = genreName,
-			GameBuildNumber = "0.0.1",
 			ProfileId = $"{mapName}_AutoTrained",
 			Author = "SelfPlayTrainer",
 			DecisionIntervalSeconds = 1.0f,
@@ -198,14 +274,17 @@ public class SelfPlayTrainer
 			FitnessScore = maxFitness,
 			TrainedEpochs = trainedEpochs
 		};
+
+		if (gameBuildNumber.Length > 0) profile.GameBuildNumber = gameBuildNumber;
+		return profile;
 	}
 
-	private static float[] MutateGenome(float[] parent)
+	private static float[] MutateGenome(float[] parent, SeededRandom random)
 	{
 		var child = new float[parent.Length];
 		for (int i = 0; i < parent.Length; i++)
 		{
-			float mutation = (float)(SeededRandom.Shared.NextDouble() * 0.4 - 0.2);
+			float mutation = (float)(random.NextDouble() * 0.4 - 0.2);
 			child[i] = Math.Clamp(parent[i] + mutation, -2.0f, 2.0f);
 		}
 

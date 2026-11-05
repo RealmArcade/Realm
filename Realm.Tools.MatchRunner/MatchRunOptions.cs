@@ -8,6 +8,7 @@ public class MatchRunOptions
 
 	public string MapPath { get; private set; } = string.Empty;
 	public string? WasmPath { get; private set; }
+	public string? DataProfilePath { get; private set; }
 	public int SeedStart { get; private set; } = 1;
 	public int SeedEnd { get; private set; } = 1;
 	public int Seats { get; private set; } = 2;
@@ -18,6 +19,14 @@ public class MatchRunOptions
 	public int Parallel { get; private set; } = 1;
 	public bool IsBlockChild { get; private set; }
 	public bool ShowHelp { get; private set; }
+	public bool Train { get; private set; }
+	public int TrainGenerations { get; private set; } = 3;
+	public int TrainPopulation { get; private set; } = 6;
+	public int TrainEvaluations { get; private set; } = 4;
+	public string TrainGenre { get; private set; } = "custom";
+	public int TrainSeed { get; private set; }
+	public string? TrainOutputPath { get; private set; }
+	public float[]? TrainInitialWeights { get; private set; }
 
 	public int SeedCount => SeedEnd - SeedStart + 1;
 
@@ -27,13 +36,22 @@ public class MatchRunOptions
 
 		  --map <path>            map folder to play (required)
 		  --wasm <path>           exact map script to run instead of the one found in the map folder
+		  --data-profile <path>   seed a saved bot profile into the match data directory
 		  --seed-range <a-b>      seeds to play, inclusive (default 1-1)
 		  --seats <n>             computer seats to seat on slots 1..n (default 2)
 		  --max-seconds <value>   stop a match after this many simulated seconds (default 1800)
-		  --policy <spec>         policy for every seat: uniform, fixed:<payloadId>, profile:<path> (default uniform)
+		  --policy <spec>         policy for every seat: uniform, none, fixed:<payloadId>, profile:<path> (default uniform)
 		  --seat-policy <s>=<spec> override the policy of one seat (repeatable)
 		  --output <path>         jsonl file that receives one line per match (default match-outcomes.jsonl)
 		  --parallel <n>          matches played at the same time, one process each (default 1)
+		  --train                 evolve a bot profile by playing real matches instead of a batch
+		  --train-generations <n> generations of the evolution (default 3)
+		  --train-population <n>  candidate weight vectors per generation (default 6)
+		  --train-evaluations <n> matches played by each candidate per generation (default 4)
+		  --train-genre <name>    genre whose feature count the profile carries (default custom)
+		  --train-seed <n>        seed of the evolution; zero selects the fixed default
+		  --train-output <path>   profile file to write (default <map>/<mapName>_bot.json)
+		  --train-initial-weights <a,b,...> start the population around this weight vector instead of pure noise
 		  --help                  show this text
 		""";
 
@@ -55,6 +73,9 @@ public class MatchRunOptions
 					break;
 				case "--wasm":
 					options.WasmPath = ReadValue(args, ref index, argument);
+					break;
+				case "--data-profile":
+					options.DataProfilePath = ReadValue(args, ref index, argument);
 					break;
 				case "--seed-range":
 					ReadSeedRange(options, ReadValue(args, ref index, argument));
@@ -79,6 +100,30 @@ public class MatchRunOptions
 					break;
 				case "--block-child":
 					options.IsBlockChild = true;
+					break;
+				case "--train":
+					options.Train = true;
+					break;
+				case "--train-generations":
+					options.TrainGenerations = ReadInt(args, ref index, argument, minimum: 1);
+					break;
+				case "--train-population":
+					options.TrainPopulation = ReadInt(args, ref index, argument, minimum: 2);
+					break;
+				case "--train-evaluations":
+					options.TrainEvaluations = ReadInt(args, ref index, argument, minimum: 1);
+					break;
+				case "--train-genre":
+					options.TrainGenre = ReadValue(args, ref index, argument);
+					break;
+				case "--train-seed":
+					options.TrainSeed = ReadNonNegativeInt(args, ref index, argument);
+					break;
+				case "--train-output":
+					options.TrainOutputPath = ReadValue(args, ref index, argument);
+					break;
+				case "--train-initial-weights":
+					options.TrainInitialWeights = ReadFloatList(args, ref index, argument);
 					break;
 				default:
 					throw new ArgumentException($"unknown argument '{argument}'");
@@ -122,6 +167,38 @@ public class MatchRunOptions
 		if (!float.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out float value) || !float.IsFinite(value) || value <= 0f)
 		{
 			throw new ArgumentException($"'{argument}' needs a positive number, not '{text}'");
+		}
+
+		return value;
+	}
+
+	private static float[] ReadFloatList(string[] args, ref int index, string argument)
+	{
+		string text = ReadValue(args, ref index, argument);
+		string[] parts = text.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+		if (parts.Length == 0)
+		{
+			throw new ArgumentException($"'{argument}' needs at least one number");
+		}
+
+		var values = new float[parts.Length];
+		for (int position = 0; position < parts.Length; position++)
+		{
+			if (!float.TryParse(parts[position], NumberStyles.Float, CultureInfo.InvariantCulture, out values[position]) || !float.IsFinite(values[position]))
+			{
+				throw new ArgumentException($"'{argument}' expects numbers separated by commas, not '{parts[position]}'");
+			}
+		}
+
+		return values;
+	}
+
+	private static int ReadNonNegativeInt(string[] args, ref int index, string argument)
+	{
+		string text = ReadValue(args, ref index, argument);
+		if (!int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int value) || value < 0)
+		{
+			throw new ArgumentException($"'{argument}' needs a whole number of at least 0, not '{text}'");
 		}
 
 		return value;
