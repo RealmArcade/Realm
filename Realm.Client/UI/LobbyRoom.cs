@@ -76,7 +76,7 @@ public partial class LobbyRoom : Control
 	private List<MapBriefingDetails> _lobbyRoomMaps = new List<MapBriefingDetails>();
 	private readonly string[] _runes = { "ᚠ", "ᚢ", "ᚦ", "ᚨ", "ᚱ", "ᚲ", "ᚷ", "ᚹ", "ᚺ", "ᚾ", "ᛁ", "ᛃ", "ᛇ", "ᛈ", "ᛉ", "ᛊ", "ᛏ", "ᛒ", "ᛖ", "ᛗ", "ᛚ", "ᛜ", "ᛞ", "ᛟ" };
 	private const int ReadyColumnWidth = 100;
-	private const int TeamColumnWidth = 110;
+	private const int TeamColumnWidth = 150;
 	private const int ColorColumnWidth = 56;
 	private const int NameColumnWidth = 140;
 	private const int FactionColumnWidth = 100;
