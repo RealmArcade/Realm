@@ -213,7 +213,7 @@ public partial class LobbyRoom : Control
 		CreateSpectatorDelayUI();
 		GameContext.Lobby.SpectatorDelayChanged += OnSpectatorDelayChanged;
 
-		_chatLog.Text = $"[color=#ffd700]{Tr("System: Connected to Lobby. Pre-Match Setup is active.")}[/color]\n";
+		_chatLog.Text = $"[color=#ffd700]{Tr("System: Connected to Lobby.")}[/color]\n";
 		_chatInput.TextSubmitted += OnChatSubmitted;
 
 
@@ -291,7 +291,7 @@ public partial class LobbyRoom : Control
 		_chatPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateLobbyRoomChatPanel());
 
 
-		UIStyle.ApplyTitle(_lobbyTitle, "PRE-MATCH SETUP", 36);
+		UIStyle.ApplyTitle(_lobbyTitle, "LOBBY" + (GameContext.Lobby.IsSinglePlayer ? " (Offline / Single Player)" : ""), 36);
 		UIStyle.ApplyTitle(_playersTitle, "TEAMS & PLAYERS", 20);
 		UIStyle.ApplyTitle(_briefingTitle, "MATCH INFO & BRIEFING", 20);
 

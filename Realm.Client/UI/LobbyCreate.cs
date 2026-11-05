@@ -289,7 +289,7 @@ public partial class LobbyCreate : Control
 	{
 		_createButton.Flat = false;
 		_createButton.AddThemeConstantOverride("icon_max_width", 0);
-		UIStyle.ApplyButtonText(_createButton, GameContext.Lobby.IsSinglePlayer ? "START GAME" : "CREATE LOBBY", 18);
+		UIStyle.ApplyButtonText(_createButton, "CREATE LOBBY", 18);
 
 		_createButton.AddThemeStyleboxOverride("normal", UIStyle.CreateCustomLobbyStartGameButton(false, false));
 		_createButton.AddThemeStyleboxOverride("hover", UIStyle.CreateCustomLobbyStartGameButton(true, false));
