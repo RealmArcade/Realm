@@ -840,8 +840,13 @@ public class RegistryService
 		if (string.IsNullOrEmpty(abilityId)) return;
 
 		var def = GetOrCreateAbilityDefinition(abilityId);
+		if (def.GridX == x && def.GridY == y) return;
+
 		def.GridX = x;
 		def.GridY = y;
+
+		// A card's hotkey is the key of the slot it is drawn in, so a card that moves has to be rebuilt to keep it.
+		AbilityStateRevision++;
 	}
 
 	public void SetAbilityManaCost(UnitId unit, string abilityId, float manaCost)

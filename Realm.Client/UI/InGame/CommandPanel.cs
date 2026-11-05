@@ -418,36 +418,43 @@ public partial class CommandPanel
 		return builder.ToString();
 	}
 
+	private static readonly Key[] GridHotkeys =
+	{
+		Key.Q, Key.W, Key.E, Key.R,
+		Key.A, Key.S, Key.D, Key.F,
+		Key.Z, Key.X, Key.C, Key.V
+	};
+
+	/// <summary>
+	///     A card's key follows its icon: anything the map did not give a hotkey of its own answers to the key of the grid
+	///     slot it is drawn in, so moving or reordering an ability moves its key with it.
+	/// </summary>
 	private void UpdateItemHotkeys()
 	{
 		int totalItems = _activeItems.Count;
-		int pageOffset = _pageIndex * 11;
+		if (totalItems == 0) return;
 
-		Key[] gridHotkeys =
+		GetHotkeyCheckRange(out int startIndex, out int itemsToCheck);
+		CommandCardItem?[] slots = PlaceItemsOnGrid(startIndex, itemsToCheck, totalItems);
+		for (int i = 0; i < itemsToCheck; i++)
 		{
-			Key.Q, Key.W, Key.E, Key.R,
-			Key.A, Key.S, Key.D, Key.F,
-			Key.Z, Key.X, Key.C, Key.V
-		};
-
-		for (int i = 0; i < totalItems; i++)
-		{
-			int localIdx = GetLocalGridIndex(i, totalItems, pageOffset);
-
-			if (localIdx >= 0 && localIdx < 12)
-			{
-				if (_activeItems[i].Hotkey.IsNone)
-				{
-					_activeItems[i].Hotkey = gridHotkeys[localIdx];
-				}
-				FormatItemTooltipHotkey(_activeItems[i]);
-			}
+			if (slots[i] != null) ApplyGridHotkey(slots[i]!, GridHotkeys[i]);
 		}
 	}
 
-	private void FormatItemTooltipHotkey(CommandCardItem item)
+	private static void ApplyGridHotkey(CommandCardItem item, Key key)
+	{
+		if (item.Hotkey.IsNone) item.Hotkey = key;
+		FormatItemTooltipHotkey(item);
+	}
+
+	private static void FormatItemTooltipHotkey(CommandCardItem item)
 	{
 		if (item == null || item.Hotkey.IsNone || string.IsNullOrEmpty(item.Tooltip)) return;
+
+		// A core command is written with a stand-in letter so its localized text can be looked up by that exact string;
+		// the real key replaces it after translation, in SetupBaseButtonProperties.
+		if (item.HotkeyFromGrid) return;
 
 		string tooltip = item.Tooltip;
 		if (tooltip.StartsWith("[")) return;
@@ -455,11 +462,45 @@ public partial class CommandPanel
 		item.Tooltip = $"[{item.Hotkey}] {tooltip}";
 	}
 
-	private int GetLocalGridIndex(int globalIndex, int totalItems, int pageOffset)
+	/// <summary>
+	///     Where each card of the current page is drawn: a card that names a grid slot takes it, and the rest fill what is
+	///     left in the order they were added. Drawing the page and reading its hotkeys both go through here, so a card's
+	///     key can never describe a slot other than the one its icon sits in.
+	/// </summary>
+	private CommandCardItem?[] PlaceItemsOnGrid(int startIndex, int maxItems, int totalItems)
 	{
-		if (totalItems <= 12) return globalIndex;
-		if (globalIndex >= pageOffset && globalIndex < pageOffset + 11) return globalIndex - pageOffset;
-		return -1;
+		var slots = new CommandCardItem?[12];
+		var unslotted = new List<CommandCardItem>();
+
+		for (int i = 0; i < maxItems; i++)
+		{
+			int itemIndex = startIndex + i;
+			if (itemIndex >= totalItems) break;
+
+			var item = _activeItems[itemIndex];
+			if (item.GridX >= 0 && item.GridX < 4 && item.GridY >= 0 && item.GridY < 3)
+			{
+				int slotIndex = item.GridY * 4 + item.GridX;
+				if (slots[slotIndex] == null)
+				{
+					slots[slotIndex] = item;
+					continue;
+				}
+			}
+
+			unslotted.Add(item);
+		}
+
+		int unslottedIdx = 0;
+		for (int i = 0; i < maxItems; i++)
+		{
+			if (slots[i] == null && unslottedIdx < unslotted.Count)
+			{
+				slots[i] = unslotted[unslottedIdx++];
+			}
+		}
+
+		return slots;
 	}
 
 	private void RebuildCommandGrid()
@@ -484,43 +525,7 @@ public partial class CommandPanel
 
 	private void PopulateGridPage(int startIndex, int maxItems, int totalItems, bool hasCycleButton)
 	{
-		Key[] gridHotkeys =
-		{
-			Key.Q, Key.W, Key.E, Key.R,
-			Key.A, Key.S, Key.D, Key.F,
-			Key.Z, Key.X, Key.C, Key.V
-		};
-
-		var gridSlots = new CommandCardItem[12];
-		var unslotted = new List<CommandCardItem>();
-
-		for (int i = 0; i < maxItems; i++)
-		{
-			int itemIndex = startIndex + i;
-			if (itemIndex >= totalItems) break;
-
-			var item = _activeItems[itemIndex];
-			if (item.GridX >= 0 && item.GridX < 4 && item.GridY >= 0 && item.GridY < 3)
-			{
-				int slotIndex = item.GridY * 4 + item.GridX;
-				if (gridSlots[slotIndex] == null)
-				{
-					gridSlots[slotIndex] = item;
-					continue;
-				}
-			}
-
-			unslotted.Add(item);
-		}
-
-		int unslottedIdx = 0;
-		for (int i = 0; i < maxItems; i++)
-		{
-			if (gridSlots[i] == null && unslottedIdx < unslotted.Count)
-			{
-				gridSlots[i] = unslotted[unslottedIdx++];
-			}
-		}
+		CommandCardItem?[] gridSlots = PlaceItemsOnGrid(startIndex, maxItems, totalItems);
 
 		for (int i = 0; i < maxItems; i++)
 		{
@@ -528,11 +533,7 @@ public partial class CommandPanel
 			_displayedGridItems[i] = item;
 			if (item != null)
 			{
-				if (item.Hotkey.IsNone)
-				{
-					item.Hotkey = gridHotkeys[i];
-				}
-				FormatItemTooltipHotkey(item);
+				ApplyGridHotkey(item, GridHotkeys[i]);
 				_commandGrid.AddChild(CreateButtonForItem(item));
 			}
 			else
@@ -704,7 +705,9 @@ public partial class CommandPanel
 		btn.Icon = !string.IsNullOrEmpty(item.IconPath) ? LoadCommandIcon(item.IconPath) : null;
 
 		string transTooltip = TranslationServer.Translate(item.Tooltip);
-		btn.TooltipText = string.IsNullOrEmpty(transTooltip) ? item.Tooltip : transTooltip;
+		if (string.IsNullOrEmpty(transTooltip)) transTooltip = item.Tooltip;
+		if (item.HotkeyFromGrid) transTooltip = WithGridHotkey(transTooltip, item.Hotkey);
+		btn.TooltipText = transTooltip;
 
 		btn.CustomMinimumSize = new Vector2(56, 56);
 		btn.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
@@ -712,6 +715,21 @@ public partial class CommandPanel
 		btn.FocusMode = Control.FocusModeEnum.None;
 		btn.ClipContents = true;
 		btn.AddThemeConstantOverride("icon_max_width", 50);
+	}
+
+	/// <summary>
+	///     Swaps the stand-in letter a core command's tooltip is written with for the key its card actually answers to.
+	///     The substitution happens on the translated text because a tooltip can only be looked up by the exact string it
+	///     was authored with, and the letter is not something a translation should have to carry.
+	/// </summary>
+	private static string WithGridHotkey(string tooltip, HotkeySpec hotkey)
+	{
+		if (string.IsNullOrEmpty(tooltip)) return tooltip;
+
+		int close = tooltip.StartsWith('[') ? tooltip.IndexOf(']') : -1;
+		string body = close > 0 ? tooltip[(close + 1)..].TrimStart() : tooltip;
+
+		return hotkey.IsNone ? body : $"[{hotkey}] {body}";
 	}
 
 	private void AddHotkeyLabelIfNeeded(Button btn, CommandCardItem item)
@@ -836,7 +854,7 @@ public partial class CommandPanel
 			Id = "stop",
 			IconPath = "res://Assets/UI/cancel_button_2.webp",
 			Tooltip = "[S] Cancel Construction",
-			Hotkey = Key.S,
+			HotkeyFromGrid = true,
 			Callback = () => { }
 		};
 	}
@@ -861,7 +879,7 @@ public partial class CommandPanel
 					Id = "build",
 					IconPath = "res://Assets/UI/golden_hammers.webp",
 					Tooltip = "[B] Build Structure",
-					Hotkey = Key.B,
+					HotkeyFromGrid = true,
 					AbilityId = BuildCommandAbilityId,
 					CasterEntity = focusedUnit.Entity,
 					IgnoresCooldownGate = true,
@@ -936,7 +954,7 @@ public partial class CommandPanel
 				Id = "move",
 				IconPath = "res://Assets/UI/move_speed.webp",
 				Tooltip = "[M] Move / Right-Click Ground",
-				Hotkey = Key.M,
+				HotkeyFromGrid = true,
 				Callback = () => GameContext.Host?.EnterCommandTargeting("move")
 			});
 
@@ -950,7 +968,7 @@ public partial class CommandPanel
 					Id = "attack",
 					IconPath = "res://Assets/UI/battle_axe.webp",
 					Tooltip = "[A] Attack / Attack-Move — Click enemy to attack, click ground to attack-move",
-					Hotkey = Key.A,
+					HotkeyFromGrid = true,
 					Callback = () => GameContext.Host?.EnterCommandTargeting("attack")
 				});
 			}
@@ -960,7 +978,7 @@ public partial class CommandPanel
 				Id = "patrol",
 				IconPath = "res://Assets/UI/patrol.webp",
 				Tooltip = "[P] Patrol — Unit patrols between current position and target, engaging enemies",
-				Hotkey = Key.P,
+				HotkeyFromGrid = true,
 				Callback = () => GameContext.Host?.EnterCommandTargeting("patrol")
 			});
 		}
@@ -972,7 +990,7 @@ public partial class CommandPanel
 				Id = "build",
 				IconPath = "res://Assets/UI/golden_hammers.webp",
 				Tooltip = "[B] Build Structure",
-				Hotkey = Key.B,
+				HotkeyFromGrid = true,
 				AbilityId = BuildCommandAbilityId,
 				CasterEntity = focusedUnit.Entity,
 				IgnoresCooldownGate = true,
@@ -996,7 +1014,7 @@ public partial class CommandPanel
 			Id = "attack",
 			IconPath = "res://Assets/UI/battle_axe.webp",
 			Tooltip = "[A] Attack / Attack-Move — Click enemy to attack, click ground to attack-move",
-			Hotkey = Key.A,
+			HotkeyFromGrid = true,
 			Callback = () => GameContext.Host?.EnterCommandTargeting("attack")
 		});
 
@@ -1010,7 +1028,7 @@ public partial class CommandPanel
 			Id = "stop",
 			IconPath = "res://Assets/UI/cancel_button_2.webp",
 			Tooltip = "[S] Stop Selected Units",
-			Hotkey = Key.S,
+			HotkeyFromGrid = true,
 			Callback = () =>
 			{
 				GameContext.InGameHud?.ShowFeedbackText(TranslationServer.Translate("Command: Stop Current Action"), new Color(0.9f, 0.2f, 0.2f));
@@ -1026,7 +1044,7 @@ public partial class CommandPanel
 			Id = "hold",
 			IconPath = "res://Assets/UI/magic_upgrade_arrow.webp",
 			Tooltip = "[H] Hold Position — Unit stays put and attacks in place",
-			Hotkey = Key.H,
+			HotkeyFromGrid = true,
 			Callback = () =>
 			{
 				GameContext.InGameHud?.ShowFeedbackText(TranslationServer.Translate("Command: Hold Position"), new Color(0.9f, 0.8f, 0.1f));
