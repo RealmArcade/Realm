@@ -1709,7 +1709,7 @@ public partial class InGameHUD : Control
 
 	public void ShowFeedbackText(string text, Color color)
 	{
-		_feedbackLabel.Text = TranslationServer.Translate(text);
+		_feedbackLabel.Text = UIHelper.StripBbCode(TranslationServer.Translate(text));
 		_feedbackLabel.AddThemeColorOverride("font_color", color);
 		_feedbackLabel.Modulate = new Color(color.R, color.G, color.B, 1.0f);
 

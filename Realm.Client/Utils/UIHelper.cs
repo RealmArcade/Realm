@@ -1,5 +1,6 @@
 using System;
 using System.Text;
+using System.Text.RegularExpressions;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.UI;
@@ -15,6 +16,17 @@ public static class UIHelper
 	public const string StoneIconPath = "res://Assets/UI/stone.webp";
 
 	private const int CostIconSizePixels = 16;
+
+	private static readonly Regex BbCodeTagRegex = new(@"\[/?[^\]]*\]", RegexOptions.Compiled);
+
+	/// <summary>
+	///     Drops BBCode tags from text bound for a plain control. Template names may carry colour markup, and the
+	///     plain labels (feedback toasts, chat lines) would otherwise show the tags themselves.
+	/// </summary>
+	public static string StripBbCode(string? text)
+	{
+		return string.IsNullOrEmpty(text) ? string.Empty : BbCodeTagRegex.Replace(text, string.Empty);
+	}
 
 	public static void SetupPillarButton(Button btn, string text, Action onClick)
 	{
