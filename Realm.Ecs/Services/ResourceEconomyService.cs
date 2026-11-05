@@ -402,11 +402,24 @@ public class ResourceEconomyService
 
 	public float GetPlayerWood(int playerIndex)
 	{
+		return GetPlayerStockpile(playerIndex, wood: true);
+	}
+
+	// The stockpile component is authoritative; the script slot is only a mirror kept up to date by script writes.
+	private float GetPlayerStockpile(int playerIndex, bool wood)
+	{
+		var playerEntity = _context.GetPlayerEntity(playerIndex);
+		if (playerEntity != Entity.Null && _context.World != null && _context.World.IsAlive(playerEntity) && _context.World.Has<PlayerResources>(playerEntity))
+		{
+			ref var resources = ref _context.World.Get<PlayerResources>(playerEntity);
+			return resources[wood ? _context.PlayerResourceService.WoodResourceId : _context.PlayerResourceService.StoneResourceId];
+		}
+
 		var worldEntity = _context.WorldEntity;
 		if (_context.World != null && _context.World.IsAlive(worldEntity) && _context.World.Has<ScriptPlayersState>(worldEntity))
 		{
 			ref var playersState = ref _context.World.Get<ScriptPlayersState>(worldEntity);
-			if (playersState.IsValidSlot(playerIndex)) return playersState.Get(playerIndex).Wood;
+			if (playersState.IsValidSlot(playerIndex)) return wood ? playersState.Get(playerIndex).Wood : playersState.Get(playerIndex).Stone;
 		}
 
 		return 0f;
@@ -449,31 +462,23 @@ public class ResourceEconomyService
 
 	public void AdjustPlayerWood(int playerIndex, float delta)
 	{
-		var worldEntity = _context.WorldEntity;
-		if (_context.World != null && _context.World.IsAlive(worldEntity) && _context.World.Has<ScriptPlayersState>(worldEntity))
-		{
-			ref var playersState = ref _context.World.Get<ScriptPlayersState>(worldEntity);
-			if (playersState.IsValidSlot(playerIndex)) SetPlayerWood(playerIndex, playersState.Get(playerIndex).Wood + delta);
-		}
+		SetPlayerWood(playerIndex, GetPlayerStockpile(playerIndex, wood: true) + delta);
 	}
-
-	private readonly Dictionary<int, float> _playerStoneState = new();
 
 	public float GetPlayerStone(int playerIndex)
 	{
-		return _playerStoneState.GetValueOrDefault(playerIndex, 0f);
+		return GetPlayerStockpile(playerIndex, wood: false);
 	}
 
 	public void SetPlayerStone(int playerIndex, float amount)
 	{
 		float clamped = Math.Max(0f, amount);
-		_playerStoneState[playerIndex] = clamped;
 		UpdatePlayerResourceECS(playerIndex, clamped, false);
 	}
 
 	public void AdjustPlayerStone(int playerIndex, float delta)
 	{
-		SetPlayerStone(playerIndex, _playerStoneState.GetValueOrDefault(playerIndex, 0f) + delta);
+		SetPlayerStone(playerIndex, GetPlayerStockpile(playerIndex, wood: false) + delta);
 	}
 
 	private readonly int[] _populationTotals = new int[EcsWorld.MAX_PLAYERS];
