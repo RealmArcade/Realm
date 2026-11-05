@@ -38,6 +38,13 @@ public class CommandAuthorityService
 
 	public Action<int, float>? CostsPaidSink { get; set; }
 
+	/// <summary>
+	///     Raised with the unit whose consumable just changed and the consumable it now carries, or an empty id when it
+	///     lost one. The attachment lives in the world, so a map script watching its own consumables would otherwise never
+	///     hear that a purchase landed.
+	/// </summary>
+	public Action<int, string>? ConsumableChangedSink { get; set; }
+
 	public CommandTargetResolver Targets => _targets;
 
 	public CommandAuthorityService(SimulationContext context)
@@ -916,10 +923,12 @@ public ServerCommandResult ExecuteServerCommand(int peerId, NetworkCommand cmd)
 		if (consumable.ClearsSlot)
 		{
 			_context.World.Remove<ConsumableAttachment>(target);
+			ConsumableChangedSink?.Invoke(target.Id, string.Empty);
 			return;
 		}
 
 		_context.World.SetOrAdd(target, new ConsumableAttachment(consumable.TemplateID, consumable.SlotGroup, _context.PlayerSlotForEntity(playerEntity)));
+		ConsumableChangedSink?.Invoke(target.Id, consumable.TemplateID);
 	}
 
 	private Entity FindConsumableTarget(Entity building, Entity playerEntity, ConsumableMetadata consumable, Vector3 position)

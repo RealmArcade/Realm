@@ -3416,6 +3416,11 @@ public partial class GameHost
 	private void ExecuteSpellCast(string spellId, Vector3 position)
 	{
 		if (GameContext.PerspectiveFilter.IsSpectating) return;
+
+		// A card that sells a consumable is not a spell to resolve: it is a purchase order aimed at the unit under the
+		// cursor, which only the authority can price and attach. Offered here so a client buys it too, not just a host.
+		if (ExecuteConsumablePurchase(GetFocusedSelectedUnitId(), spellId, position)) return;
+
 		var def = GetAbilityDefinition(spellId);
 
 		if (_multiplayerActive && !Multiplayer.IsServer())
@@ -3425,6 +3430,20 @@ public partial class GameHost
 		}
 
 		ExecuteLocalSpellCast(spellId, def, position);
+	}
+
+	private Unit3D GetFocusedSelectedUnit()
+	{
+		int focusedIdx = Math.Clamp(CycleSelectionIndex, 0, Math.Max(0, SelectedUnits.Count - 1));
+		return SelectedUnits.Count > focusedIdx ? SelectedUnits[focusedIdx] : null;
+	}
+
+	private UnitId GetFocusedSelectedUnitId()
+	{
+		Unit3D focusedUnit = GetFocusedSelectedUnit();
+		return focusedUnit != null && GameContext.World.IsAlive(focusedUnit.Entity)
+			? (UnitId)focusedUnit.Entity.Id
+			: UnitId.Invalid;
 	}
 
 	private void ExecuteClientMultiplayerSpellCast(string spellId, AbilityDefinition def, Vector3 position)
@@ -3450,15 +3469,12 @@ public partial class GameHost
 
 	private void ExecuteLocalSpellCast(string spellId, AbilityDefinition def, Vector3 position)
 	{
-		int focusedIdx = Math.Clamp(CycleSelectionIndex, 0, Math.Max(0, SelectedUnits.Count - 1));
-		Unit3D focusedUnit = SelectedUnits.Count > focusedIdx ? SelectedUnits[focusedIdx] : null;
+		Unit3D focusedUnit = GetFocusedSelectedUnit();
 
 		if (_multiplayerActive && focusedUnit != null && !GameContext.PerspectiveFilter.CanControl(focusedUnit.Player)) return;
 
 		bool hasCaster = focusedUnit != null && GameContext.World.IsAlive(focusedUnit.Entity);
 		UnitId caster = hasCaster ? (UnitId)focusedUnit.Entity.Id : UnitId.Invalid;
-
-		if (ExecuteConsumablePurchase(caster, spellId, position)) return;
 
 		// Affordability and cooldown are settled before the script hears about the cast, matching the authoritative server
 		// path. Raising OnSpellCast first let a refused cast still run its map-side effects and left a cooldown behind.

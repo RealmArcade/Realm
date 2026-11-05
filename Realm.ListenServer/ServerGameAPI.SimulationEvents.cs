@@ -73,6 +73,13 @@ public partial class ServerGameAPI
 		OnUnitSelected?.Invoke(new UnitId(unitId));
 	}
 
+	internal void RaiseConsumableChanged(int unitId, string consumableId)
+	{
+		if (unitId <= 0) return;
+
+		OnConsumableChanged?.Invoke(new UnitId(unitId), consumableId ?? string.Empty);
+	}
+
 	internal void RaiseUnitOrdered(int unitId, string order, Vector3 position)
 	{
 		if (unitId <= 0) return;
