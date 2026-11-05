@@ -411,8 +411,8 @@ public partial class LobbyCreate : Control
 
 		_createButton.Disabled = true;
 		ShowHostProgressOverlay(
-			TranslationServer.Translate("PREPARING THE FESTIVAL MAP"),
-			TranslationServer.Translate("Looking for the newest version of the festival map..."));
+			TranslationServer.Translate("PREPARING MAP"),
+			TranslationServer.Translate("Looking for the newest version of `Chaos Arena` map..."));
 
 		bool installed = await MapProvisioningService.DownloadLatestAsync(BuildFlags.FESTIVAL_FEATURED_MAP_NAME, ReportFestivalMapDownloadProgress);
 		if (!GodotObject.IsInstanceValid(this) || !IsInsideTree()) return;
@@ -440,7 +440,7 @@ public partial class LobbyCreate : Control
 		if (!GodotObject.IsInstanceValid(_hostProgressBar) || !GodotObject.IsInstanceValid(_hostProgressStatusLabel)) return;
 
 		double percent = Math.Clamp(progress * 100.0, 0, 100);
-		_hostProgressStatusLabel.Text = string.Format(TranslationServer.Translate("Downloading the festival map... {0}%"), (int)percent);
+		_hostProgressStatusLabel.Text = string.Format(TranslationServer.Translate("Downloading map... {0}%"), (int)percent);
 		_hostProgressBar.Value = Math.Max(_hostProgressBar.Value, percent);
 		_hostProgressCeiling = _hostProgressBar.Value;
 	}
@@ -448,8 +448,8 @@ public partial class LobbyCreate : Control
 	private void ShowFestivalMapUnavailableModal()
 	{
 		GameContext.UserInterface?.ShowPopupMessage(
-			TranslationServer.Translate("FESTIVAL MAP UNAVAILABLE"),
-			TranslationServer.Translate("The festival map could not be downloaded. Check your internet connection, then open this screen again."));
+			TranslationServer.Translate("MAP UNAVAILABLE"),
+			TranslationServer.Translate("The map (Chaos Arena) could not be downloaded. Check your internet connection, then open this screen again."));
 	}
 
 	private void ShowHostProgressOverlay(string? titleText = null, string? initialStatus = null)
