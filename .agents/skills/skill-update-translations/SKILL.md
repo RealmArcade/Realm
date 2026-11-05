@@ -8,7 +8,7 @@ description: Automatically extracts, synchronizes, translates, and validates gam
 ## Trigger Conditions
 Activates whenever:
 - Adding, updating, or fixing UI localization strings across `Realm.Client/locale/*.json`.
-- Synchronizing missing translation keys between `en.json` and target language catalogs (`es`, `fr`, `de`, `pt`, `ru`, `zh`, `ja`, `ar`, `hi`).
+- Synchronizing missing translation keys between `en.json` and target language catalogs (`es`, `fr`, `de`, `pt`, `ru`, `zh`, `ja`, `ar`, `hi`, `ko`).
 - Auditing UI screens for unlocalized or overflowed text in the Godot client.
 
 ---

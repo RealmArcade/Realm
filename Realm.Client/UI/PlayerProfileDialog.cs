@@ -631,6 +631,16 @@ public partial class PlayerProfileDialog : Control
 			RegisterWithChosenNameAsync);
 	}
 
+	/// <summary>
+	///     Answers a first sign-in the authority refused on the name, when nobody pressed anything: the card is already open
+	///     because the launch attempt got this far, and the username dialog is the surface that refusal is resolved on. What the
+	///     player types there registers the account, exactly as it does from the sign-in button.
+	/// </summary>
+	public void OpenNameConflict(AccountOperationResult refusal)
+	{
+		OpenNameConflictDialog(refusal);
+	}
+
 	private async Task<UserNameChangeResult> RegisterWithChosenNameAsync(string chosenName)
 	{
 		AccountOperationResult result = await SignInWithSteamAsync(chosenName, false);
@@ -640,7 +650,7 @@ public partial class PlayerProfileDialog : Control
 		return UserNameChangeResult.Refused(DescribeErrorCode(result.ErrorCode, result.Message));
 	}
 
-	private static bool IsDisplayNameRefusal(string errorCode)
+	public static bool IsDisplayNameRefusal(string errorCode)
 	{
 		return errorCode is AccountErrorCodes.DisplayNameEmpty
 			or AccountErrorCodes.DisplayNameTooShort

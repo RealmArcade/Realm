@@ -94,7 +94,8 @@ public partial class MainMenu : Control
 	/// <summary>
 	///     Adopts the session stored at the last sign-in before the player asks for anything. Nothing is asked of the authority
 	///     here, so the menu is signed in just as quickly whether or not it is reachable, and the account screen is what confirms
-	///     the session afterwards.
+	///     the session afterwards. With no session to adopt, the Steam identity this machine already has is signed in quietly in
+	///     the background, so a player who owns the game through Steam never has to find the sign-in button.
 	/// </summary>
 	private void RestoreAccountSession()
 	{
@@ -102,6 +103,26 @@ public partial class MainMenu : Control
 		if (!GodotObject.IsInstanceValid(this) || !IsInsideTree()) return;
 
 		Callable.From(RefreshAccountPresentation).CallDeferred();
+
+		if (!GameContext.Account.IsSignedIn) _ = SignInWithSteamAtLaunchAsync();
+	}
+
+	/// <summary>
+	///     Signs in with Steam on its own, and says nothing about how it went: the name on the profile button simply stops being
+	///     unverified, and a launch where Steamworks is absent, the authority is unreachable or the ticket is refused leaves the
+	///     screen exactly as it was. The one outcome that asks for the player is a Steam persona the authority will not register,
+	///     which opens the card already showing the username dialog, because that card is the only surface that ever asks for a name.
+	/// </summary>
+	private async Task SignInWithSteamAtLaunchAsync()
+	{
+		AccountOperationResult result = await GameContext.Account.SignInWithSteamIdentityAsync();
+		if (!GodotObject.IsInstanceValid(this) || !IsInsideTree()) return;
+		if (result.Succeeded) return;
+		if (!PlayerProfileDialog.IsDisplayNameRefusal(result.ErrorCode)) return;
+
+		OpenProfileDialog();
+
+		if (_profileDialog != null && GodotObject.IsInstanceValid(_profileDialog)) _profileDialog.OpenNameConflict(result);
 	}
 
 	private void RefreshAccountPresentation()
@@ -140,9 +161,8 @@ public partial class MainMenu : Control
 
 	/// <summary>
 	///     Opens the one identity screen, which shows the name, the multiplayer record and the Steam account actions together.
-	///     A caller that needs the player signed in, such as Play, passes what to continue with once the sign-in succeeds.
 	/// </summary>
-	private void OpenProfileDialog(Action onSignedIn = null)
+	private void OpenProfileDialog()
 	{
 		if (_profileDialog != null && GodotObject.IsInstanceValid(_profileDialog)) _profileDialog.QueueFree();
 
@@ -152,7 +172,6 @@ public partial class MainMenu : Control
 			RefreshAccountPresentation();
 			_profileDialog?.QueueFree();
 			_profileDialog = null;
-			onSignedIn?.Invoke();
 		};
 		_profileDialog.UserNameChanged = RefreshAccountPresentation;
 		AddChild(_profileDialog);
@@ -606,20 +625,15 @@ public partial class MainMenu : Control
 	}
 
 	/// <summary>
-	///     Play is the one entry that needs an online identity, so a signed-out player is asked to sign in first and is taken to
-	///     the lobby browser once that succeeds. Every other menu entry stays usable while signed out.
+	///     Play opens the lobby browser without an account, because browsing lobbies and joining multiplayer matches need no
+	///     online identity; a signed-out player plays under the unverified name shown on the profile button. Only publishing a
+	///     map and submitting a verified review at the end of a match ask for a sign-in.
 	/// </summary>
 	private void OnPlayPressed()
 	{
 		GameContext.SessionState.IsMapEditorMode = false;
 		GameContext.SessionState.IsTestMode = false;
 		GameContext.Lobby.IsSinglePlayer = false;
-
-		if (!GameContext.Account.IsSignedIn)
-		{
-			OpenProfileDialog(() => GameContext.UserInterface.TransitionTo(GameScreen.LobbyBrowser));
-			return;
-		}
 
 		GameContext.UserInterface.TransitionTo(GameScreen.LobbyBrowser);
 	}

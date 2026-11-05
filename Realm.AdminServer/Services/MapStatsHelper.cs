@@ -17,19 +17,35 @@ public static class MapStatsHelper
 
 		var keys = BuildKeys(authorCompositeKey, authorKey, compositeKey, trimmedTitle, authorPublicKey);
 
-		var exactStats = FindExactMatch(dataStore, keys);
-		if (exactStats != null)
+		var stats = FindExactMatch(dataStore, keys) ?? FindLowerMatch(dataStore, keys) ?? FindCaseInsensitiveMatch(dataStore, keys);
+		if (stats == null)
 		{
-			return exactStats;
+			return null;
 		}
 
-		var lowerStats = FindLowerMatch(dataStore, keys);
-		if (lowerStats != null)
+		ApplyTitleAdminOverride(dataStore, stats, trimmedTitle);
+		return stats;
+	}
+
+	private static void ApplyTitleAdminOverride(DataStoreService dataStore, MapStats stats, string trimmedTitle)
+	{
+		if (stats.AdminOverrideGreenlit)
 		{
-			return lowerStats;
+			return;
 		}
 
-		return FindCaseInsensitiveMatch(dataStore, keys);
+		var titleStats = dataStore.Get<MapStats>("map_stats", trimmedTitle);
+		if (titleStats != null && titleStats.AdminOverrideGreenlit)
+		{
+			stats.AdminOverrideGreenlit = true;
+			return;
+		}
+
+		var lowercaseTitleStats = dataStore.Get<MapStats>("map_stats", trimmedTitle.ToLowerInvariant());
+		if (lowercaseTitleStats != null && lowercaseTitleStats.AdminOverrideGreenlit)
+		{
+			stats.AdminOverrideGreenlit = true;
+		}
 	}
 
 	private static string[] BuildKeys(string authorCompositeKey, string authorKey, string compositeKey, string trimmedTitle, string? authorPublicKey)

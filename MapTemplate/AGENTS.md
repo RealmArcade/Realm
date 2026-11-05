@@ -4,6 +4,7 @@ Realm is an RTS Game Engine with a custom map editor for UGC arcade maps.
 ## Skills
 Separate skill files are located in the `.agents/skills` folder.
 - `skill-assign-asset`: Automatically queries storage and assigns random matching assets to templates. **Always call `skill-assign-asset` (`AssignRandomAssetsToTemplates(false)` via IPC) after creating a new template in `metadata.json`** to populate missing asset references.
+- `skill-translate-map`: Extracts, translates, verifies and prunes this map's own `locale/*.json` catalogs so template names and tooltips render in each player's language. Map text only — it never touches the Realm client's catalogs.
 
 ## Map Scripting & Editor API
 - Implements `IMapScript`.
@@ -51,6 +52,17 @@ Tracks map asset registrations Schema at `.vscode/manifest.schema.json`.
 
 ### terrain.json
 Defines the terrain layout: prop/unit/decal placements, map dimensions (`Width`, `Depth`), camera bounds, `Coordinates` (named map regions), and skybox path. Schema at `.vscode/terrain.schema.json`.
+
+## Localization
+
+A map is read in the language each player picks in Settings → Game → Language. The map folder carries its own catalogs:
+
+- **`locale/{code}.json`** — flat `{"English text": "translated text"}`, one file per supported language (`en`, `es`, `fr`, `de`, `pt`, `ru`, `zh`, `ja`, `ar`, `hi`). The client merges the map's catalog over the game's own when the map loads, so every player reads the same map in their own language and nothing has to run in WASM. A missing entry reads as the English text, and English itself needs no file.
+- **Keys are the text `metadata.json` already holds**, so a translation needs no key naming scheme:
+  - `Name` fields are keyed by the plain name, without its BBCode: `"[color=#FF0000]Seismic Rupture[/color]"` is translated by an entry keyed `"Seismic Rupture"`, and the colour markup stays as written.
+  - `Description` fields and tooltips are keyed by the whole string, `{{...}}` tokens included. A translation may move the tokens and keep its own BBCode; the client fills the tokens in afterwards, so `{{Ability.Effect0.Amount}}` and `[color]`/`[b]` survive the lookup.
+  - An ability tooltip that opens with a role tag, `[Damage] Deals ...`, can be translated as two entries (`"Damage"` and the sentence) instead of one.
+- **Anything the script shows itself** — `SendMessage`, summary-table headers and rows, instructions pages — is translated on the authority with `api.Translate(key, playerIndex)`, keyed the same way, so one host serves players in different languages. `api.GetPlayerLanguage(playerIndex)` reports what each player asked for.
 
 ## Terrain Binary Files
 

@@ -52,6 +52,7 @@ interface game-api {
     get-coordinate-min-z: func(coordinate-name: string) -> f32;
     get-current-environment-preset: func() -> string;
     get-game-elapsed-time: func() -> f32;
+    get-idle-units-owned-by-player: func(player-index: s32) -> list<s32>;
     get-loot-item-by-id: func(unique-id: s32) -> s32;
     get-loot-item-charges: func(item-id: s32) -> s32;
     get-loot-item-lifetime: func(item-id: s32) -> f32;

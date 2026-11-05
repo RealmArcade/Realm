@@ -536,6 +536,7 @@ public partial class SettingsMenu : Control
 		_languageOpt.AddItem("日本語", 7);
 		_languageOpt.AddItem("العربية", 8);
 		_languageOpt.AddItem("हिन्दी", 9);
+		_languageOpt.AddItem("한국어", 10);
 	}
 
 	private void SetupWindowModeEvent()

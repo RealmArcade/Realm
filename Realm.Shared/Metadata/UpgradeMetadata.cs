@@ -13,6 +13,10 @@ public class UpgradeMetadata
 	public float ResearchTime { get; set; }
 	public string Requirement { get; set; } = string.Empty;
 	public int MaxLevel { get; set; } = 1;
+	/// <summary>
+	///     The unit templates this upgrade applies to. Null or empty means the player's whole army, now and for units
+	///     fielded later; "*" says the same thing explicitly.
+	/// </summary>
 	public string[]? AffectedUnitIds { get; set; }
 	public List<StatModifierDefinition> Modifiers { get; set; } = new();
 

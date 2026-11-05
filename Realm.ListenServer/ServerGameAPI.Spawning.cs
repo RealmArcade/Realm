@@ -3,6 +3,7 @@ using Realm.Ecs;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Terrain;
+using Realm.Shared.Abilities;
 using Realm.Shared.Maps;
 using Realm.MapAPI;
 
@@ -18,6 +19,109 @@ public partial class ServerGameAPI
 		public float Interval;
 		public float Remaining;
 		public bool Repeating;
+	}
+
+	private const float DefaultProjectileSpeed = 25f;
+
+	/// <summary>
+	///     A projectile an ability fired as its own visual, in flight. It carries the ability that launched it, so the map
+	///     hears about the landing through OnSpellImpact and nothing else in the game has to care: an ordinary attack
+	///     flies no projectile here and costs this list nothing.
+	/// </summary>
+	private struct AbilityProjectile
+	{
+		public Vector3 Position;
+		public Vector3 Direction;
+		public Vector3 Target;
+		public float RemainingDistance;
+		public float Speed;
+		public UnitId Caster;
+		public string AbilityId;
+		public int PlayerIndex;
+	}
+
+	private readonly List<AbilityProjectile> _abilityProjectiles = new();
+	private readonly List<AbilityProjectile> _landedProjectiles = new();
+
+	/// <summary>
+	///     Flies an ability's projectile as that ability's own visual: the client draws it and the engine advances the same
+	///     flight at the speed the weapon template carries, so its landing and the landing the player sees are one moment.
+	/// </summary>
+	private void LaunchAbilityProjectile(UnitId caster, AbilityDefinition definition, Vector3 from, Vector3 to)
+	{
+		if (string.IsNullOrEmpty(definition.ProjectileId)) return;
+
+		// The weapon template owns the speed, so nothing here repeats a number the templates already define.
+		float speed = _map.Catalog.FindWeapon(definition.ProjectileId)?.ProjectileSpeed ?? 0f;
+		if (speed <= 0f) speed = DefaultProjectileSpeed;
+
+		Vector3 delta = to - from;
+		float distance = delta.Length();
+		if (distance <= 0.001f)
+		{
+			SpawnProjectile(definition.ProjectileId, from, to, speed);
+			RaiseSpellImpact(caster, definition.Id, to);
+			return;
+		}
+
+		SpawnProjectile(definition.ProjectileId, from, to, speed);
+
+		_abilityProjectiles.Add(new AbilityProjectile
+		{
+			Position = from,
+			Direction = delta / distance,
+			Target = to,
+			RemainingDistance = distance,
+			Speed = speed,
+			Caster = caster,
+			AbilityId = definition.Id,
+			PlayerIndex = ResolveProjectilePlayerIndex(caster)
+		});
+	}
+
+	private void AdvanceAbilityProjectiles(float deltaSeconds)
+	{
+		if (_abilityProjectiles.Count == 0) return;
+
+		for (int index = _abilityProjectiles.Count - 1; index >= 0; index--)
+		{
+			AbilityProjectile projectile = _abilityProjectiles[index];
+			float travelled = projectile.Speed * deltaSeconds;
+			if (travelled < projectile.RemainingDistance)
+			{
+				projectile.RemainingDistance -= travelled;
+				projectile.Position += projectile.Direction * travelled;
+				_abilityProjectiles[index] = projectile;
+				continue;
+			}
+
+			_abilityProjectiles.RemoveAt(index);
+			_landedProjectiles.Add(projectile);
+		}
+
+		if (_landedProjectiles.Count == 0) return;
+
+		// Landing is reported after the flight list is settled: a map handler is free to cast again from inside it.
+		for (int index = 0; index < _landedProjectiles.Count; index++)
+		{
+			AbilityProjectile landed = _landedProjectiles[index];
+			OnSpellImpact?.Invoke(landed.Caster, landed.AbilityId, landed.Target, landed.PlayerIndex);
+		}
+
+		_landedProjectiles.Clear();
+	}
+
+	private void RaiseSpellImpact(UnitId caster, string abilityId, Vector3 position)
+	{
+		OnSpellImpact?.Invoke(caster, abilityId ?? string.Empty, position, ResolveProjectilePlayerIndex(caster));
+	}
+
+	private int ResolveProjectilePlayerIndex(UnitId caster)
+	{
+		Entity casterEntity = ResolveUnit(caster);
+		if (casterEntity != Entity.Null && _context.World.TryGet<UnitOwnerPlayer>(casterEntity, out UnitOwnerPlayer owner)) return owner.Value;
+
+		return -1;
 	}
 
 	public UnitId SpawnUnitForPlayer(string unitTypeId, Vector2 position, int playerIndex, bool executeSpawnShader = true, bool bypassPopulation = false)
@@ -73,6 +177,8 @@ public partial class ServerGameAPI
 
 	public void AdvanceTimers(float deltaSeconds)
 	{
+		AdvanceAbilityProjectiles(deltaSeconds);
+
 		if (_timers.Count == 0) return;
 
 		_nextDueTimers.Clear();

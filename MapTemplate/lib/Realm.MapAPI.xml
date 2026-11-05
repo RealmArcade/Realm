@@ -725,6 +725,17 @@
             Triggered when a unit casts or channels a spell. Passes the caster unit, the spell ID, and the target position.
             </summary>
         </member>
+        <member name="E:Realm.MapAPI.IGameAPI.OnSpellImpact">
+            <summary>
+            Triggered when a projectile an ability fired as its own visual reaches the point the ability was cast at, which
+            is when the ability's effect belongs on the ground rather than on the click. Only abilities whose template names
+            a projectile raise this, so the shots of ordinary attacks cost nothing.
+            </summary>
+            <param name="caster">The unit that cast the ability. It may have moved or died during the flight.</param>
+            <param name="abilityId">The ability whose projectile landed.</param>
+            <param name="position">Where the projectile landed: the point the ability was cast at.</param>
+            <param name="playerIndex">The player that owned the caster when it was cast.</param>
+        </member>
         <member name="E:Realm.MapAPI.IGameAPI.OnPlayerChatMessage">
             <summary>
             Triggered when a player types a chat message. Passes the message, the first selected unit if any, and the slot of
@@ -978,7 +989,9 @@
         </member>
         <member name="M:Realm.MapAPI.IGameAPI.SpawnProjectile(System.String,System.Numerics.Vector3,System.Numerics.Vector3,System.Single)">
             <summary>
-            Spawns a visual projectile moving from a starting position to a target position.
+            Spawns a visual projectile moving from a starting position to a target position. A shot an ability fires belongs in
+            that ability's template as ProjectileId instead, which lets the engine fly it and report its landing through
+            <see cref="E:Realm.MapAPI.IGameAPI.OnSpellImpact"/>; a projectile spawned here is only ever seen.
             </summary>
             <param name="projectileTypeId">The type identifier of the projectile (e.g., "arrow", "fireball").</param>
             <param name="start">The starting 3D coordinates.</param>
@@ -1197,6 +1210,15 @@
             </summary>
             <param name="playerIndex">Zero-based player slot index.</param>
             <returns>A read-only span of units belonging to that player.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.GetIdleUnitsOwnedByPlayer(System.Int32)">
+            <summary>
+            Retrieves the units a player owns that have nothing to do: no move order, no attack-move order, no attack target
+            and no gathering trip. It is the set the engine's own idle-unit selection offers, so a map that sweeps idle units
+            agrees with the player who asks for them.
+            </summary>
+            <param name="playerIndex">Zero-based player slot index.</param>
+            <returns>A read-only span of that player's idle units.</returns>
         </member>
         <member name="M:Realm.MapAPI.IGameAPI.TriggerPlayerDefeat(System.Int32,System.String)">
             <summary>

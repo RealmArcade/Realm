@@ -285,8 +285,8 @@ public class InventoryPanel
 
 		if (GameHost.ItemRegistry.TryGetValue(itemData.ItemId, out var itemMeta))
 		{
-			if (!string.IsNullOrEmpty(itemMeta.Name)) name = itemMeta.Name;
-			if (!string.IsNullOrEmpty(itemMeta.Description)) desc = itemMeta.Description;
+			if (!string.IsNullOrEmpty(itemMeta.Name)) name = MapText.TranslateName(itemMeta.Name);
+			if (!string.IsNullOrEmpty(itemMeta.Description)) desc = MapText.Translate(itemMeta.Description);
 			if (!string.IsNullOrEmpty(itemMeta.IconPath)) iconPath = itemMeta.IconPath;
 		}
 
@@ -315,9 +315,9 @@ public class InventoryPanel
 			AbilityDefinition? card = registry?.GetAbilityDefinition(consumable.CardId);
 			if (card != null)
 			{
-				if (!string.IsNullOrEmpty(card.DisplayName)) name = card.DisplayName;
+				if (!string.IsNullOrEmpty(card.DisplayName)) name = MapText.TranslateName(card.DisplayName);
 				if (!string.IsNullOrEmpty(card.IconPath)) iconPath = card.IconPath;
-				tooltip = card.TooltipTemplate;
+				tooltip = MapText.TranslateTemplate(card.TooltipTemplate);
 			}
 		}
 

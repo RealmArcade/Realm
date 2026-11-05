@@ -282,6 +282,7 @@ public partial class LobbyManager : BaseMapTransferNode
 		RunNatTypeTest();
 
 		MapAssetManager.PruneGlobalArchive();
+		GameContext.MapStorageService.ImportEmbeddedMaps();
 		AppDomain.CurrentDomain.ProcessExit += OnProcessExit;
 
 		StartPeerSeederLoop();

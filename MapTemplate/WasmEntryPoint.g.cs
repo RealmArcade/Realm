@@ -262,6 +262,13 @@ public class WasmEntryPoint
         if (_gameApi is GameAPI_WasmModule api) api.TriggerOnSpellCast(param, text, new Vector3(positionX, positionY, positionZ));
     }
 
+    [UnmanagedCallersOnly(EntryPoint = "on-spell-impact")]
+    public static void OnSpellImpact(int param, nint textPtr, int textLen, float positionX, float positionY, float positionZ, int value)
+    {
+        string text = ReadString(textPtr, textLen);
+        if (_gameApi is GameAPI_WasmModule api) api.TriggerOnSpellImpact(param, text, new Vector3(positionX, positionY, positionZ), value);
+    }
+
     [UnmanagedCallersOnly(EntryPoint = "on-timer-expired")]
     public static void OnTimerExpired(int value)
     {

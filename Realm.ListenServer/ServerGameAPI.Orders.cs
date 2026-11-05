@@ -4,11 +4,14 @@ using System.Numerics;
 using Realm.Ecs;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Abilities;
+using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Core;
+using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Meta;
 using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Stats;
 using Realm.Ecs.Components.Tags;
+using Realm.Ecs.Replication;
 using Realm.Ecs.Services;
 using Realm.Shared.Maps;
 using Realm.Shared.Metadata;
@@ -22,9 +25,14 @@ public partial class ServerGameAPI
 
 	private static readonly QueryDescription ResourceNodeEntitiesQuery = new QueryDescription().WithAll<ResourceNode>();
 
+	// The units that could be doing something: a unit without MoveTo, AttackMove, AttackTarget or a gathering trip is
+	// idle, which is how the engine's own idle selection reads a unit.
+	private static readonly QueryDescription IdleUnitsQuery = new QueryDescription().WithAll<Owner, UnitOwnerPlayer, Movable>().WithNone<Dead, Building>();
+
 	private readonly UnitId[] _ownedUnitsBuffer = new UnitId[OwnedUnitsBufferCapacity];
 	private readonly ResourceNodeId[] _resourceNodeBuffer = new ResourceNodeId[OwnedUnitsBufferCapacity];
 	private readonly EntityCallback<Owner, UnitOwnerPlayer> _collectOwnedUnits;
+	private readonly EntityCallback<Owner, UnitOwnerPlayer> _collectIdleUnits;
 	private readonly EntityCallback<ResourceNode> _collectResourceNodes;
 	private const int AnyPlayer = -1;
 
@@ -36,6 +44,15 @@ public partial class ServerGameAPI
 	public ReadOnlySpan<UnitId> GetUnitsOwnedByPlayer(int playerIndex) => CollectWorldUnits(playerIndex);
 
 	public ReadOnlySpan<UnitId> GetAllUnits() => CollectWorldUnits(AnyPlayer);
+
+	public ReadOnlySpan<UnitId> GetIdleUnitsOwnedByPlayer(int playerIndex)
+	{
+		_collectedCount = 0;
+		_requestedPlayerIndex = playerIndex;
+		_context.World.Query(in IdleUnitsQuery, _collectIdleUnits);
+
+		return new ReadOnlySpan<UnitId>(_ownedUnitsBuffer, 0, _collectedCount);
+	}
 
 	public ReadOnlySpan<UnitId> GetUnitsInRadius(Vector3 center, float radius)
 	{
@@ -291,12 +308,30 @@ public partial class ServerGameAPI
 		return UnitOrderService.GetAbilityCooldownRemaining(_context.World, entity, abilityId);
 	}
 
+	private readonly HashSet<int> _cooldownOverflowWarned = new();
+
 	public void SetAbilityCooldown(UnitId unit, string abilityId, float cooldown)
 	{
 		Entity entity = ResolveUnit(unit);
 		if (entity == Entity.Null) return;
 
 		UnitOrderService.SetAbilityCooldown(_context.World, entity, abilityId, cooldown);
+		WarnIfCooldownsExceedReplication(entity, abilityId);
+	}
+
+	/// <summary>
+	///     Only a fixed number of cooldown slots travel to clients, so a script that parks more timers than that on one
+	///     unit loses the tail and the command cards for those entries show no indicator at all. Say so once per unit
+	///     rather than letting the missing indicator look like a rendering fault.
+	/// </summary>
+	private void WarnIfCooldownsExceedReplication(Entity entity, string abilityId)
+	{
+		if (!_context.World.TryGet<Cooldowns>(entity, out Cooldowns cooldowns)) return;
+		if (cooldowns.Count <= TimedStatusPayload.MaxReplicatedSlots) return;
+		if (!_cooldownOverflowWarned.Add(entity.Id)) return;
+
+		_log.Write($"[Cooldowns] Unit {entity.Id} now holds {cooldowns.Count} cooldowns (newest '{abilityId}'), but only " +
+			$"{TimedStatusPayload.MaxReplicatedSlots} replicate to clients, so the rest show no timer on command cards.");
 	}
 
 	public void SetAbilityAutoCast(UnitId unit, string abilityId, bool active)
@@ -469,6 +504,16 @@ public partial class ServerGameAPI
 	{
 		if (_requestedPlayerIndex != AnyPlayer && unitOwner.Value != _requestedPlayerIndex) return;
 		if (_collectedCount >= OwnedUnitsBufferCapacity) return;
+
+		_ownedUnitsBuffer[_collectedCount++] = new UnitId(entity.Id);
+	}
+
+	private void CollectIdleUnits(Entity entity, ref Owner owner, ref UnitOwnerPlayer unitOwner)
+	{
+		if (_requestedPlayerIndex != AnyPlayer && unitOwner.Value != _requestedPlayerIndex) return;
+		if (_collectedCount >= OwnedUnitsBufferCapacity) return;
+		if (_context.World.Has<MoveTo>(entity) || _context.World.Has<AttackMove>(entity) || _context.World.Has<AttackTarget>(entity)) return;
+		if (_context.World.Has<Gatherer>(entity) && _context.World.Get<Gatherer>(entity).TargetEntity != Entity.Null) return;
 
 		_ownedUnitsBuffer[_collectedCount++] = new UnitId(entity.Id);
 	}

@@ -411,6 +411,7 @@ public static partial class MapWorkspaceService
 		Directory.CreateDirectory(directory);
 
 		GenerateVSCodeConfig(directory);
+		EnsureAgentSkills(directory);
 		EnsureWitFile(directory);
 		EnsureLldbScript(directory);
 		EnsureCsproj(directory, mapName);
@@ -524,6 +525,34 @@ public static partial class MapWorkspaceService
 		if (File.Exists(agentsTemplate) && !File.Exists(agentsTarget))
 		{
 			File.Copy(agentsTemplate, agentsTarget, true);
+		}
+	}
+
+	/// <summary>
+	///     Copies the template's agent skills into a map workspace, so a new map arrives with the skills its author's agent
+	///     needs (asset assignment, translation) instead of instructions to fetch them. A file that already exists is kept:
+	///     a skill a map has adapted to its own pipeline is never overwritten by the next workspace setup.
+	/// </summary>
+	public static void EnsureAgentSkills(string directory)
+	{
+		string templateSkills = GetTemplatePath(".agent/skills");
+		if (string.IsNullOrEmpty(templateSkills) || !Directory.Exists(templateSkills)) return;
+
+		string skillsRoot = Path.Combine(directory, ".agent", "skills");
+		foreach (string source in Directory.GetFiles(templateSkills, "*", SearchOption.AllDirectories))
+		{
+			string target = Path.Combine(skillsRoot, Path.GetRelativePath(templateSkills, source));
+			if (File.Exists(target)) continue;
+
+			try
+			{
+				Directory.CreateDirectory(Path.GetDirectoryName(target) ?? skillsRoot);
+				PathUtils.CopyFileClearingReadOnly(source, target);
+			}
+			catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+			{
+				GD.PushWarning($"[MapWorkspaceService] Could not copy agent skill '{source}': {exception.Message}");
+			}
 		}
 	}
 

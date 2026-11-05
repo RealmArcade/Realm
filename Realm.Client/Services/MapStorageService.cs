@@ -715,6 +715,132 @@ public class MapStorageService
 		}
 	}
 
+	private const string EmbeddedMapsDirectoryName = "EmbeddedMaps";
+
+	public int ImportEmbeddedMaps()
+	{
+		int importedCount = 0;
+		foreach (string embeddedMapsDirectory in GetEmbeddedMapDirectories())
+		{
+			string[] archivePaths;
+			try
+			{
+				archivePaths = Directory.GetFiles(embeddedMapsDirectory, "*.rmap", SearchOption.TopDirectoryOnly);
+			}
+			catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+			{
+				MapAssetManager.LogErr($"[MapStorageService] Embedded map folder '{embeddedMapsDirectory}' could not be read: {exception.Message}");
+				continue;
+			}
+
+			foreach (string archivePath in archivePaths)
+			{
+				if (ImportEmbeddedMap(archivePath))
+				{
+					importedCount++;
+				}
+			}
+		}
+
+		return importedCount;
+	}
+
+	private static IEnumerable<string> GetEmbeddedMapDirectories()
+	{
+		string executableDirectory = Path.GetDirectoryName(OS.GetExecutablePath()) ?? string.Empty;
+		if (string.IsNullOrEmpty(executableDirectory) || !Directory.Exists(executableDirectory))
+		{
+			yield break;
+		}
+
+		string executableSiblingDirectory = Path.Combine(executableDirectory, EmbeddedMapsDirectoryName);
+		if (Directory.Exists(executableSiblingDirectory))
+		{
+			yield return executableSiblingDirectory;
+		}
+
+		string[] exportDataDirectories;
+		try
+		{
+			exportDataDirectories = Directory.GetDirectories(executableDirectory, "data_*", SearchOption.TopDirectoryOnly);
+		}
+		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+		{
+			MapAssetManager.LogErr($"[MapStorageService] Embedded map folders could not be discovered: {exception.Message}");
+			yield break;
+		}
+
+		foreach (string exportDataDirectory in exportDataDirectories)
+		{
+			string exportEmbeddedMapsDirectory = Path.Combine(exportDataDirectory, EmbeddedMapsDirectoryName);
+			if (Directory.Exists(exportEmbeddedMapsDirectory))
+			{
+				yield return exportEmbeddedMapsDirectory;
+			}
+		}
+	}
+
+	private bool ImportEmbeddedMap(string archivePath)
+	{
+		string archiveFileName = Path.GetFileName(archivePath);
+
+		try
+		{
+			using ZipArchive zipArchive = ZipFile.OpenRead(archivePath);
+			var (manifestJson, _) = MapArchiveHelper.ReadManifestFromArchive(zipArchive);
+			if (string.IsNullOrWhiteSpace(manifestJson))
+			{
+				MapAssetManager.LogErr($"[MapStorageService] Embedded map '{archiveFileName}' carries no manifest.json and was skipped.");
+				return false;
+			}
+
+			var manifest = MapManifest.LoadFromJson(manifestJson);
+			if (manifest == null)
+			{
+				MapAssetManager.LogErr($"[MapStorageService] Embedded map '{archiveFileName}' has a manifest.json that could not be parsed and was skipped.");
+				return false;
+			}
+
+			var headerInfo = MapArchiveHelper.ReadHeaderFromManifest(manifest);
+			(string mapTitle, string mapVersion) = DetermineMapTitleAndVersion(manifest, headerInfo, archivePath);
+			manifest.MapName = mapTitle;
+			manifest.Version = mapVersion;
+
+			string manifestBlake3 = MapAssetManager.ComputeManifestBlake3(manifest);
+			string targetDirectory = Path.Combine(MapAssetManager.GlobalArchiveDirectory, mapTitle, mapVersion, manifestBlake3);
+			if (IsImportedMapComplete(targetDirectory, manifest))
+			{
+				MapAssetManager.Log($"[MapStorageService] Embedded map '{mapTitle}' v{mapVersion} is already imported.");
+				return false;
+			}
+
+			var importResult = ImportMapFromArchiveAsync(archivePath, null).GetAwaiter().GetResult();
+			if (!importResult.Success)
+			{
+				MapAssetManager.LogErr($"[MapStorageService] Embedded map '{mapTitle}' v{mapVersion} could not be imported: {importResult.Message}");
+				return false;
+			}
+
+			MapAssetManager.Log($"[MapStorageService] Imported embedded map '{mapTitle}' v{mapVersion} from '{archiveFileName}'.");
+			return true;
+		}
+		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or JsonException)
+		{
+			MapAssetManager.LogErr($"[MapStorageService] Embedded map '{archiveFileName}' could not be imported: {exception.Message}");
+			return false;
+		}
+	}
+
+	private static bool IsImportedMapComplete(string targetDirectory, MapManifest manifest)
+	{
+		if (!Directory.Exists(targetDirectory) || !File.Exists(Path.Combine(targetDirectory, "manifest.json")))
+		{
+			return false;
+		}
+
+		return ValidateImportedMap(targetDirectory, manifest).IsValid;
+	}
+
 	private Task<(bool Success, string Message, string? MapTitle, string? MapVersion)> ImportMapFromArchiveAsync(
 		string archivePath,
 		Action<float>? progressCallback)

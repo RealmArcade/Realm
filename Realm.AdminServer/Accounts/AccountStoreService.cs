@@ -168,7 +168,7 @@ public class AccountStoreService
 			long alreadyLinked = DataStoreService.ReadFrom<long>(transaction, LinksCollection, BuildLinkKey(providerName, providerAccountToken));
 			if (alreadyLinked != 0) return false;
 
-			if (CheckNameAvailability(transaction, canonical, uniquenessKey, skeleton, 0).Outcome != AccountMutationOutcome.Success) return false;
+			if (CheckNameAvailability(transaction, canonical, uniquenessKey, skeleton, 0, false).Outcome != AccountMutationOutcome.Success) return false;
 
 			long accountId = MintAccountId(transaction);
 			AccountRecord account = new()
@@ -209,9 +209,10 @@ public class AccountStoreService
 	///     Moves a DisplayName in one transaction: the old fold entry is released, the new one installed, the account record and
 	///     the audit history updated, and (for an administrator) the signed proof's nonce consumed. There is no window in which
 	///     the old name is unregistrable or owned twice, and a case-only change of an account's own name is a success that
-	///     changes nothing.
+	///     changes nothing. A name a creator registered is out of reach unless the rename carries a signature from that
+	///     creator's registered key, which is what proves the account belongs to the creator rather than to a stranger.
 	/// </summary>
-	public AccountMutationResult Rename(long accountId, string? newDisplayName, string actor, string? adminNonce = null)
+	public AccountMutationResult Rename(long accountId, string? newDisplayName, string actor, string? adminNonce = null, string? authorshipPublicKey = null, string? authorshipSignature = null)
 	{
 		if (!IsAuthority) return NotAuthority();
 
@@ -222,6 +223,7 @@ public class AccountStoreService
 
 		string newUniquenessKey = DisplayNameRules.ComputeUniquenessKey(canonical);
 		string newSkeleton = DisplayNameRules.ComputeConfusableSkeleton(canonical);
+		bool creatorNameClaimVerified = IsCreatorNameClaimVerified(authorshipPublicKey, authorshipSignature, accountId, canonical);
 
 		AccountRecord? renamed = null;
 		AccountMutationOutcome failure = AccountMutationOutcome.Success;
@@ -286,7 +288,7 @@ public class AccountStoreService
 				return true;
 			}
 
-			AccountMutationResult conflict = CheckNameAvailability(transaction, canonical, newUniquenessKey, newSkeleton, accountId);
+			AccountMutationResult conflict = CheckNameAvailability(transaction, canonical, newUniquenessKey, newSkeleton, accountId, creatorNameClaimVerified);
 			if (conflict.Outcome != AccountMutationOutcome.Success)
 			{
 				failure = conflict.Outcome;
@@ -594,7 +596,20 @@ public class AccountStoreService
 		};
 	}
 
-	private AccountMutationResult CheckNameAvailability(Transaction transaction, string canonical, string uniquenessKey, string skeleton, long ownAccountId)
+	/// <summary>
+	///     Whether the rename presents the key the creator name is registered to together with a signature only that key's owner
+	///     could produce. A name a creator registered is therefore claimable by its creator and by nobody else.
+	/// </summary>
+	private bool IsCreatorNameClaimVerified(string? authorshipPublicKey, string? authorshipSignature, long accountId, string canonical)
+	{
+		if (string.IsNullOrWhiteSpace(authorshipPublicKey) || string.IsNullOrWhiteSpace(authorshipSignature)) return false;
+		if (!CreatorNamePolicy.TryReadNameLockOwner(_dataStore, canonical, out string ownerPublicKey)) return false;
+		if (!string.Equals(ownerPublicKey, authorshipPublicKey.Trim(), StringComparison.OrdinalIgnoreCase)) return false;
+
+		return CreatorNameClaimProof.Verify(ownerPublicKey, accountId, canonical, authorshipSignature);
+	}
+
+	private AccountMutationResult CheckNameAvailability(Transaction transaction, string canonical, string uniquenessKey, string skeleton, long ownAccountId, bool creatorNameClaimVerified)
 	{
 		long nameOwner = DataStoreService.ReadFrom<long>(transaction, DisplayNamesCollection, uniquenessKey);
 		if (nameOwner != 0 && nameOwner != ownAccountId) return AccountMutationResult.InvalidName(DisplayNameError.AlreadyTaken);
@@ -602,10 +617,13 @@ public class AccountStoreService
 		long skeletonOwner = DataStoreService.ReadFrom<long>(transaction, ConfusableNamesCollection, skeleton);
 		if (skeletonOwner != 0 && skeletonOwner != ownAccountId) return AccountMutationResult.InvalidName(DisplayNameError.VisuallySimilar);
 
-		string legacySlug = NameNormalizationHelper.NormalizeUsername(canonical);
-		if (legacySlug.Length > 0 && DataStoreService.ReadFrom<System.Text.Json.JsonDocument>(transaction, LegacyCreatorNamesCollection, legacySlug) != null)
+		if (!creatorNameClaimVerified)
 		{
-			return AccountMutationResult.InvalidName(DisplayNameError.AlreadyTaken);
+			string legacySlug = NameNormalizationHelper.NormalizeUsername(canonical);
+			if (legacySlug.Length > 0 && DataStoreService.ReadFrom<System.Text.Json.JsonDocument>(transaction, LegacyCreatorNamesCollection, legacySlug) != null)
+			{
+				return AccountMutationResult.InvalidName(DisplayNameError.AlreadyTaken);
+			}
 		}
 
 		return AccountMutationResult.Success(new AccountRecord { AccountId = ownAccountId, DisplayName = canonical, UniquenessKey = uniquenessKey });
