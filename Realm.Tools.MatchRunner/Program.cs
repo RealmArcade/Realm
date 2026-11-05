@@ -50,6 +50,14 @@ bool isChild = string.Equals(Environment.GetEnvironmentVariable("REALM_MATCH_RUN
 string outputPath = Path.GetFullPath(options.OutputPath);
 string outputDirectory = Path.GetDirectoryName(outputPath) ?? Directory.GetCurrentDirectory();
 Directory.CreateDirectory(outputDirectory);
+
+if (isChild)
+{
+	var childFailures = new List<string>();
+	PlaySeeds([options.SeedStart], options, string.Empty, outputPath, childFailures);
+	return childFailures.Count > 0 ? 1 : 0;
+}
+
 string partsDirectory = Path.Combine(outputDirectory, $"{Path.GetFileName(outputPath)}.parts-{Environment.ProcessId}");
 Directory.CreateDirectory(partsDirectory);
 
@@ -58,7 +66,7 @@ List<string> failureSeeds = new();
 
 if (options.SeedCount == 1)
 {
-	PlaySeeds([options.SeedStart], options, partsDirectory, failureSeeds);
+	PlaySeeds([options.SeedStart], options, partsDirectory, outputPath, failureSeeds);
 }
 else
 {
@@ -83,11 +91,11 @@ if (!isChild)
 Directory.Delete(partsDirectory, recursive: true);
 return failureSeeds.Count > 0 ? 1 : 0;
 
-static void PlaySeeds(IReadOnlyList<int> seeds, MatchRunOptions options, string partsDirectory, List<string> failureSeeds)
+static void PlaySeeds(IReadOnlyList<int> seeds, MatchRunOptions options, string partsDirectory, string directOutputPath, List<string> failureSeeds)
 {
 	foreach (int seed in seeds)
 	{
-		string partPath = Path.Combine(partsDirectory, $"{seed}.jsonl");
+		string partPath = partsDirectory.Length == 0 ? directOutputPath : Path.Combine(partsDirectory, $"{seed}.jsonl");
 		try
 		{
 			var outcome = MatchPlayer.Run(options, seed);
