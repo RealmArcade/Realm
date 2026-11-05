@@ -532,10 +532,21 @@ public static class TooltipTemplate
 		AbilityEffectDefinition effect = definition.Effects[index];
 		if (effect == null) return false;
 
+		// 'Effect0.Modifier0' is the modifier's value; 'Effect0.Modifier0.Value' names it explicitly. Anything else
+		// after 'modifier' (such as 'ModifierCount') falls through to the field switch below.
 		int fieldDot = field.IndexOf('.');
-		if (fieldDot > 0 && field.StartsWith("modifier", StringComparison.OrdinalIgnoreCase))
+		if (field.StartsWith("modifier", StringComparison.OrdinalIgnoreCase))
 		{
-			return TryResolveEffectModifier(effect, field[(fieldDot + 1)..], out value);
+			string modifierIndex = fieldDot > 0 ? field["modifier".Length..fieldDot] : field["modifier".Length..];
+			if (int.TryParse(modifierIndex, NumberStyles.None, CultureInfo.InvariantCulture, out _))
+			{
+				if (fieldDot <= 0 || string.Equals(field[(fieldDot + 1)..], "Value", StringComparison.OrdinalIgnoreCase))
+				{
+					return TryResolveEffectModifier(effect, modifierIndex, out value);
+				}
+
+				return false;
+			}
 		}
 
 		switch (field.ToLowerInvariant())
