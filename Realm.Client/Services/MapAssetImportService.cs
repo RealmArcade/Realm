@@ -15,7 +15,7 @@ public class MapAssetImportService
 	{
 		var sources = new List<MapAssetImportSource>();
 
-		foreach (var downloadedMap in GameContext.MapStorageService.GetDownloadedMaps())
+		foreach (var downloadedMap in GameContext.MapStorageService.GetMapsAvailableForImport())
 		{
 			foreach (var version in downloadedMap.Versions)
 			{

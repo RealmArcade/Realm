@@ -190,6 +190,16 @@ public class MapStorageService
 
 	public IReadOnlyList<DownloadedMapInfo> GetDownloadedMaps()
 	{
+		return CollectMaps(includeBundledMaps: false);
+	}
+
+	public IReadOnlyList<DownloadedMapInfo> GetMapsAvailableForImport()
+	{
+		return CollectMaps(includeBundledMaps: true);
+	}
+
+	private IReadOnlyList<DownloadedMapInfo> CollectMaps(bool includeBundledMaps)
+	{
 		var mapDictionary = new Dictionary<string, DownloadedMapInfo>(StringComparer.OrdinalIgnoreCase);
 		var searchRoots = new List<string>();
 
@@ -199,16 +209,19 @@ public class MapStorageService
 			searchRoots.Add(globalArchive);
 		}
 
-		try
+		if (includeBundledMaps)
 		{
-			string resMaps = ProjectSettings.GlobalizePath("res://Maps");
-			if (Directory.Exists(resMaps) && !searchRoots.Contains(resMaps, StringComparer.OrdinalIgnoreCase))
+			try
 			{
-				searchRoots.Add(resMaps);
+				string resMaps = ProjectSettings.GlobalizePath("res://Maps");
+				if (Directory.Exists(resMaps) && !searchRoots.Contains(resMaps, StringComparer.OrdinalIgnoreCase))
+				{
+					searchRoots.Add(resMaps);
+				}
 			}
-		}
-		catch
-		{
+			catch
+			{
+			}
 		}
 
 		foreach (string root in searchRoots)

@@ -10,6 +10,7 @@ public struct MapBriefingDetails
 	public string GameBuildNumber;
 	public string Version;
 	public string ManifestHash;
+	public string MapType;
 	public string ThumbnailPath;
 	public List<string> Attribution_SourceMap;
 }

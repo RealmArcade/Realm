@@ -12,16 +12,36 @@ namespace Realm.Client.UI;
 
 public static class MapInfoHelper
 {
+	private const string AssetPackMapType = "AssetPack";
+
 	public static List<MapBriefingDetails> GetAvailableMaps()
 	{
 		var maps = new List<MapBriefingDetails>();
 		var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-		ScanDir("res://Maps", maps, seen);
 		ScanDir("user://maps", maps, seen);
+		AppendBundledPlayableMaps(maps, seen);
 
 		maps.Sort((a, b) => string.Compare(a.DisplayName, b.DisplayName, StringComparison.OrdinalIgnoreCase));
 		return maps;
+	}
+
+	private static void AppendBundledPlayableMaps(List<MapBriefingDetails> maps, HashSet<string> seen)
+	{
+		var bundledMaps = new List<MapBriefingDetails>();
+		ScanDir("res://Maps", bundledMaps, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+
+		foreach (var bundledMap in bundledMaps)
+		{
+			if (IsEditorOnlyMapType(bundledMap.MapType)) continue;
+
+			ProcessMapDetails(bundledMap, maps, seen);
+		}
+	}
+
+	private static bool IsEditorOnlyMapType(string? mapType)
+	{
+		return !string.IsNullOrWhiteSpace(mapType) && string.Equals(mapType.Trim(), AssetPackMapType, StringComparison.OrdinalIgnoreCase);
 	}
 
 	private static bool IsValidDirName(string name) =>
@@ -246,6 +266,7 @@ public static class MapInfoHelper
 				GameBuildNumber = gameBuildNumber,
 				Version = version,
 				ManifestHash = manifestHash,
+				MapType = metadata.MapProperties?.MapType ?? string.Empty,
 				ThumbnailPath = thumbPath,
 				Attribution_SourceMap = manifest.Attribution_SourceMap ?? new List<string>()
 			};
@@ -347,6 +368,7 @@ public static class MapInfoHelper
 				GameBuildNumber = gameBuildNumber,
 				Version = version,
 				ManifestHash = manifestHash,
+				MapType = metadata.MapProperties?.MapType ?? string.Empty,
 				ThumbnailPath = thumbPath,
 				Attribution_SourceMap = manifest.Attribution_SourceMap ?? new List<string>()
 			};

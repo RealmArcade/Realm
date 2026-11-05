@@ -216,6 +216,7 @@ public partial class LobbyCreate : Control
 		_mapSelectButton.ItemSelected += (idx) => OnMapSelected(idx);
 		RefreshAvailableMaps();
 		SetProcess(false);
+		EnsureFestivalFeaturedMapInstalledAsync();
 	}
 
 	public override void _ExitTree()
@@ -367,7 +368,55 @@ public partial class LobbyCreate : Control
 		}
 	}
 
-	private void ShowHostProgressOverlay()
+	private async void EnsureFestivalFeaturedMapInstalledAsync()
+	{
+		if (!BuildFlags.IS_AUTOBATTLE_FESTIVAL_ACTIVE) return;
+		if (MapProvisioningService.IsInstalled(BuildFlags.FESTIVAL_FEATURED_MAP_NAME)) return;
+
+		_createButton.Disabled = true;
+		ShowHostProgressOverlay(
+			TranslationServer.Translate("PREPARING THE FESTIVAL MAP"),
+			TranslationServer.Translate("Looking for the newest version of the festival map..."));
+
+		bool installed = await MapProvisioningService.DownloadLatestAsync(BuildFlags.FESTIVAL_FEATURED_MAP_NAME, ReportFestivalMapDownloadProgress);
+		if (!GodotObject.IsInstanceValid(this) || !IsInsideTree()) return;
+
+		HideHostProgressOverlay();
+		_createButton.Disabled = false;
+
+		if (installed)
+		{
+			RefreshAvailableMaps();
+			return;
+		}
+
+		ShowFestivalMapUnavailableModal();
+	}
+
+	private void ReportFestivalMapDownloadProgress(float progress)
+	{
+		Callable.From(() => UpdateFestivalMapDownloadProgress(progress)).CallDeferred();
+	}
+
+	private void UpdateFestivalMapDownloadProgress(float progress)
+	{
+		if (_hostProgressBar == null || _hostProgressStatusLabel == null) return;
+		if (!GodotObject.IsInstanceValid(_hostProgressBar) || !GodotObject.IsInstanceValid(_hostProgressStatusLabel)) return;
+
+		double percent = Math.Clamp(progress * 100.0, 0, 100);
+		_hostProgressStatusLabel.Text = string.Format(TranslationServer.Translate("Downloading the festival map... {0}%"), (int)percent);
+		_hostProgressBar.Value = Math.Max(_hostProgressBar.Value, percent);
+		_hostProgressCeiling = _hostProgressBar.Value;
+	}
+
+	private void ShowFestivalMapUnavailableModal()
+	{
+		GameContext.UserInterface?.ShowPopupMessage(
+			TranslationServer.Translate("FESTIVAL MAP UNAVAILABLE"),
+			TranslationServer.Translate("The festival map could not be downloaded. Check your internet connection, then open this screen again."));
+	}
+
+	private void ShowHostProgressOverlay(string? titleText = null, string? initialStatus = null)
 	{
 		var overlay = new Panel();
 		overlay.Name = "HostProgressOverlay";
@@ -394,7 +443,7 @@ public partial class LobbyCreate : Control
 
 		var titleLabel = new Label();
 		titleLabel.Name = "HostProgressTitle_Label";
-		UIStyle.ApplyTitle(titleLabel, TranslationServer.Translate("CREATING LOBBY"), 22);
+		UIStyle.ApplyTitle(titleLabel, titleText ?? TranslationServer.Translate("CREATING LOBBY"), 22);
 		titleLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		titleLabel.HorizontalAlignment = HorizontalAlignment.Center;
 		vbox.AddChild(titleLabel);
@@ -410,7 +459,7 @@ public partial class LobbyCreate : Control
 
 		var statusLabel = new Label();
 		statusLabel.Name = "HostProgressStatus_Label";
-		statusLabel.Text = TranslationServer.Translate("Preparing the lobby...");
+		statusLabel.Text = initialStatus ?? TranslationServer.Translate("Preparing the lobby...");
 		statusLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
 		statusLabel.CustomMinimumSize = new Vector2(500, 0);
 		statusLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
