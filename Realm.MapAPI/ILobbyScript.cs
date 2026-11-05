@@ -27,4 +27,18 @@ public interface ILobbyScript
 	/// <param name="api">The roster this lobby currently holds.</param>
 	/// <param name="deltaSeconds">The time since the previous lobby tick.</param>
 	void LobbyUpdate(ILobbyAPI api, float deltaSeconds);
+
+	/// <summary>
+	///     The warning the lobby's host must read and accept before the match starts, which is how a map stops a start its
+	///     seats make unfair - one team with nobody to fight, or one team larger than another. It is asked only when the
+	///     host asks to start, never on a lobby tick, so it costs nothing while the lobby fills.
+	/// </summary>
+	/// <remarks>
+	///     Only the host reads the answer, because only the host can start or abandon the match it warns about. Accepting
+	///     the warning starts the match the host asked for; declining leaves the lobby exactly as it was.
+	/// </remarks>
+	/// <param name="api">The roster this lobby currently holds.</param>
+	/// <param name="message">The warning the host should read, or empty when there is nothing to warn about.</param>
+	/// <returns>Whether the host must read a warning before the match starts.</returns>
+	bool TryGetStartWarning(ILobbyAPI api, out string message);
 }

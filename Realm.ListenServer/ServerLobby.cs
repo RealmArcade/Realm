@@ -23,6 +23,12 @@ public class ServerLobby
 
 	private readonly Func<int, PeerLinkStatistics?> _readPeerLink;
 
+	/// <summary>
+	///     Asks the lobby's map whether the host must read a warning before the match starts. It answers the text the host
+	///     has to accept, or nothing when the map has nothing to warn about.
+	/// </summary>
+	private readonly Func<string?> _readStartWarning;
+
 	private readonly ServerLog _log;
 	private readonly string _mapFolder;
 	private readonly string _mapName;
@@ -59,7 +65,7 @@ public class ServerLobby
 
 	public ServerLobby(ServerArguments arguments, ServerLog log, Action<int, NetworkFrameKind, byte[], FrameDelivery> send, Action<int> disconnect,
 		Func<IReadOnlyList<MatchRosterSeat>, IReadOnlyList<(int PeerId, int Slot)>, IReadOnlyDictionary<string, int>, int, string?> startMatch, Action lobbyAbandoned, Action<string, int> punchAddress,
-		Func<int, PeerLinkStatistics?> readPeerLink)
+		Func<int, PeerLinkStatistics?> readPeerLink, Func<string?> readStartWarning)
 	{
 		_log = log;
 		_send = send;
@@ -68,6 +74,7 @@ public class ServerLobby
 		_lobbyAbandoned = lobbyAbandoned;
 		_punchAddress = punchAddress;
 		_readPeerLink = readPeerLink;
+		_readStartWarning = readStartWarning;
 		_mapFolder = arguments.MapPath;
 		_mapName = ResolveMapName(arguments);
 		_mapVersion = ResolveMapVersion(arguments);
@@ -353,6 +360,12 @@ public class ServerLobby
 				break;
 			case LobbyCommandKind.StartCountdown:
 				if (!RequireAdmin(peerId, isAdmin, out int starterSlot, "start the match")) return;
+				if (!command.AcknowledgeStartWarning && TryDescribeStartWarning(out string warning))
+				{
+					SendStartWarning(peerId, warning);
+					return;
+				}
+
 				StartCountdown(starterSlot, command.Flag);
 				break;
 			case LobbyCommandKind.CancelCountdown:
@@ -735,6 +748,37 @@ public class ServerLobby
 
 		AddSystemChat(message);
 		BroadcastState();
+	}
+
+	/// <summary>
+	///     Asks the lobby's map whether the host must read a warning before the match starts, which is how a map stops a
+	///     start its seats make unfair. A map that declines or answers nothing lets the start through.
+	/// </summary>
+	/// <param name="warning">The text the host has to accept, or empty when the map has nothing to warn about.</param>
+	/// <returns>Whether the host must accept a warning first.</returns>
+	private bool TryDescribeStartWarning(out string warning)
+	{
+		warning = string.Empty;
+
+		string? described = _readStartWarning();
+		if (string.IsNullOrWhiteSpace(described)) return false;
+
+		warning = LobbyLimits.Sanitize(described, LobbyLimits.MaximumStartWarningLength);
+		return warning.Length > 0;
+	}
+
+	/// <summary>
+	///     Sends the map's start warning to the host alone, because the host is the only player who can start or abandon
+	///     the match it warns about.
+	/// </summary>
+	/// <param name="peerId">The host's connection.</param>
+	/// <param name="warning">The text the host has to accept.</param>
+	private void SendStartWarning(int peerId, string warning)
+	{
+		_log.Write($"the lobby's map asks its host to read a warning before the match starts; the countdown waits for it");
+
+		var message = new LobbyStartWarningMessage { Message = warning };
+		_send(peerId, NetworkFrameKind.LobbyStartWarning, MemoryPackSerializer.Serialize(message), FrameDelivery.Reliable);
 	}
 
 	private void StartCountdown(int starterSlot, bool ignoreReadiness)

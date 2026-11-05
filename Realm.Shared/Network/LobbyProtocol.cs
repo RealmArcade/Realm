@@ -123,6 +123,12 @@ public partial struct LobbyCommand
 	public string Text;
 	public bool Flag;
 
+	/// <summary>
+	///     Whether the host has already read and accepted the warning its map asks to show before the match starts. A
+	///     start the host has not acknowledged is answered with that warning instead of a countdown.
+	/// </summary>
+	public bool AcknowledgeStartWarning;
+
 	public string Address;
 	public int Port;
 
@@ -155,6 +161,16 @@ public partial struct LobbyMatchStartedMessage
 public partial struct LobbyKickedMessage
 {
 	public string Reason;
+}
+
+/// <summary>
+///     The warning a lobby's map asks its host to read before the match starts. It is sent only to the host, and the
+///     match does not begin until that host starts again with the warning acknowledged.
+/// </summary>
+[MemoryPackable]
+public partial struct LobbyStartWarningMessage
+{
+	public string Message;
 }
 
 [MemoryPackable]
@@ -195,6 +211,9 @@ public static class LobbyLimits
 	public const int MaximumFactionLength = 48;
 	public const int MaximumTeamNameLength = 48;
 	public const int MaximumChatMessageLength = 400;
+
+	/// <summary>The ceiling on the warning a map may ask its lobby's host to read before the match starts.</summary>
+	public const int MaximumStartWarningLength = 300;
 
 	public const int MaximumSeats = 16;
 	public const int CountdownSeconds = 5;

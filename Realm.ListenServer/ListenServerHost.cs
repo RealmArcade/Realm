@@ -147,6 +147,19 @@ public class ListenServerHost : IServerTransportSink
 	}
 
 	/// <summary>
+	///     Asks the lobby's map whether its host must read a warning before the match starts. The script is started after
+	///     the lobby that asks about it, so this resolves the script every time rather than holding it.
+	/// </summary>
+	/// <returns>The text the host has to accept, or nothing when the map has no warning.</returns>
+	private string? DescribeLobbyStartWarning()
+	{
+		ServerLobbyScript? script = _lobbyScript;
+		if (script == null) return null;
+
+		return script.TryGetStartWarning(out string warning) ? warning : null;
+	}
+
+	/// <summary>
 	///     Starts the lobby's script at tick zero, on the world the lobby prepared, so the roster it states is already in
 	///     force while the lobby fills and the match has nothing left to initialize when it starts.
 	/// </summary>
@@ -318,7 +331,8 @@ public class ListenServerHost : IServerTransportSink
 			StartMatchFromLobby,
 			Stop,
 			(address, port) => _transport.SendToAddress(address, port, Encoding.UTF8.GetBytes("PUNCH")),
-			peerId => _transport.TryReadPeerLink(peerId, out PeerLinkStatistics statistics) ? statistics : null);
+			peerId => _transport.TryReadPeerLink(peerId, out PeerLinkStatistics statistics) ? statistics : null,
+			DescribeLobbyStartWarning);
 
 		var roster = new ServerLobbyRoster(_lobby, _log);
 		_lobby.Roster = roster;

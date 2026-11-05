@@ -249,6 +249,12 @@ public partial class LobbyManager : BaseMapTransferNode
 	public event Action? CountdownFinished;
 	public event Action<string>? ActiveMapChanged;
 
+	/// <summary>
+	///     Raised when the lobby's map asks its host to read a warning before the match starts, with the text that host has
+	///     to accept. The match stays at tick zero until it is accepted or the start is abandoned.
+	/// </summary>
+	public event Action<string>? StartWarningReceived;
+
 	protected override string TransferLogPrefix => "LobbyManager";
 
 	protected override bool IsMapTransferAllowed() => IsHost || (GameContext.PeerSeeder != null && GameContext.PeerSeeder.IsSeeding);
@@ -1097,6 +1103,7 @@ public partial class LobbyManager : BaseMapTransferNode
 		session.LobbyChatReceived += OnLobbyChat;
 		session.LobbyMatchStartedEvent += OnLobbyMatchStarted;
 		session.LobbyKickedEvent += OnLobbyKicked;
+		session.LobbyStartWarningReceived += OnLobbyStartWarning;
 		session.MapTransferReplied += OnMapTransferReplied;
 		session.ServerLost += OnLobbyAuthorityLost;
 	}
@@ -1108,8 +1115,16 @@ public partial class LobbyManager : BaseMapTransferNode
 		session.LobbyChatReceived -= OnLobbyChat;
 		session.LobbyMatchStartedEvent -= OnLobbyMatchStarted;
 		session.LobbyKickedEvent -= OnLobbyKicked;
+		session.LobbyStartWarningReceived -= OnLobbyStartWarning;
 		session.MapTransferReplied -= OnMapTransferReplied;
 		session.ServerLost -= OnLobbyAuthorityLost;
+	}
+
+	private void OnLobbyStartWarning(LobbyStartWarningMessage warning)
+	{
+		if (!IsHost) return;
+
+		StartWarningReceived?.Invoke(warning.Message ?? string.Empty);
 	}
 
 	private void OnLobbyHelloAnswered(ServerHello hello)
@@ -2019,7 +2034,7 @@ public partial class LobbyManager : BaseMapTransferNode
 		});
 	}
 
-	public void StartGame(string mapName, bool ignoreReadiness = false)
+	public void StartGame(string mapName, bool ignoreReadiness = false, bool acknowledgeStartWarning = false)
 	{
 		if (!IsHost) return;
 
@@ -2027,7 +2042,8 @@ public partial class LobbyManager : BaseMapTransferNode
 		{
 			Kind = LobbyCommandKind.StartCountdown,
 			Text = mapName,
-			Flag = ignoreReadiness
+			Flag = ignoreReadiness,
+			AcknowledgeStartWarning = acknowledgeStartWarning
 		});
 	}
 

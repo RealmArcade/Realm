@@ -54,5 +54,7 @@ public enum NetworkFrameKind : byte
 
 	PauseAllowance = 27,
 
-	SnapshotDescriptionRepeat = 28
+	SnapshotDescriptionRepeat = 28,
+
+	LobbyStartWarning = 29
 }

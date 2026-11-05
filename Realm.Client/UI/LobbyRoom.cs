@@ -57,6 +57,7 @@ public partial class LobbyRoom : Control
 	private RichTextLabel _briefingLabel;
 	private Panel _mapFrame;
 	private bool _versionMismatchDetected;
+	private bool _ignoreReadinessOnStart;
 	private Label? _unstableWarningLabel;
 	private Label? _hostStabilityLabel;
 
@@ -193,6 +194,7 @@ public partial class LobbyRoom : Control
 		GameContext.Lobby.CountdownCancelled += OnCountdownCancelled;
 		GameContext.Lobby.CountdownFinished += OnCountdownFinished;
 		GameContext.Lobby.ActiveMapChanged += OnActiveMapChanged;
+		GameContext.Lobby.StartWarningReceived += OnStartWarningReceived;
 
 
 		if (!GameContext.Lobby.IsHost)
@@ -609,6 +611,7 @@ public partial class LobbyRoom : Control
 	private void OnStartPressed()
 	{
 		GameContext.UserInterface.PlayClickSound();
+		_ignoreReadinessOnStart = false;
 		string mapName = GameContext.Lobby.ActiveMapName ?? "melee";
 
 		bool anyDownloading = false;
@@ -673,10 +676,31 @@ public partial class LobbyRoom : Control
 
 	private void ShowStartWarningPopup(string mapName)
 	{
-		GameContext.UserInterface?.ShowConfirmationDialog(Tr("Not all players are ready, start anyway?"), () =>
+		_ignoreReadinessOnStart = true;
+
+		GameContext.UserInterface?.ShowConfirmationDialog(TranslationServer.Translate("Not all players are ready, start anyway?"), () =>
 		{
 			GameContext.Lobby.StartGame(mapName, ignoreReadiness: true);
-		}, confirmText: "START GAME", cancelText: "CANCEL", titleOverride: "NOT ALL PLAYERS READY");
+		}, confirmText: TranslationServer.Translate("START GAME"), cancelText: TranslationServer.Translate("CANCEL"), titleOverride: TranslationServer.Translate("NOT ALL PLAYERS READY"));
+	}
+
+	/// <summary>
+	///     Shows the warning the lobby's map asked its host to read before the match starts. The authority has not begun
+	///     its countdown, so leaving the dialog alone abandons the start and accepting it starts the match the host asked
+	///     for, on the reading of readiness it had already chosen.
+	/// </summary>
+	/// <param name="warning">The text the map wants its host to read.</param>
+	private void OnStartWarningReceived(string warning)
+	{
+		if (!GameContext.Lobby.IsHost) return;
+
+		string mapName = GameContext.Lobby.ActiveMapName ?? "melee";
+		bool ignoreReadiness = _ignoreReadinessOnStart;
+
+		GameContext.UserInterface?.ShowConfirmationDialog(TranslationServer.Translate(warning), () =>
+		{
+			GameContext.Lobby.StartGame(mapName, ignoreReadiness, acknowledgeStartWarning: true);
+		}, confirmText: TranslationServer.Translate("START GAME"), cancelText: TranslationServer.Translate("CANCEL"), titleOverride: TranslationServer.Translate("MAP START WARNING"));
 	}
 
 	private void ShowDownloadingClientsPopup()
@@ -1031,6 +1055,7 @@ public partial class LobbyRoom : Control
 			GameContext.Lobby.CountdownFinished -= OnCountdownFinished;
 			GameContext.Lobby.HostStabilityUpdated -= UpdateHostStabilityLabel;
 			GameContext.Lobby.ActiveMapChanged -= OnActiveMapChanged;
+			GameContext.Lobby.StartWarningReceived -= OnStartWarningReceived;
 		}
 
 		base._ExitTree();

@@ -187,6 +187,12 @@ public class ClientServerSession : IDisposable
 
 	public event Action<LobbyKickedMessage>? LobbyKickedEvent;
 
+	/// <summary>
+	///     Raised when the lobby's map asks its host to read a warning before the match starts. The authority sends it to
+	///     the host alone, and the match does not begin until that host starts again with the warning accepted.
+	/// </summary>
+	public event Action<LobbyStartWarningMessage>? LobbyStartWarningReceived;
+
 	public event Action<MapTransferReply>? MapTransferReplied;
 
 	public ClientServerSession(ClientNetworkChannel channel)
@@ -783,6 +789,10 @@ public class ClientServerSession : IDisposable
 
 			case NetworkFrameKind.LobbyKicked:
 				LobbyKickedEvent?.Invoke(MemoryPackSerializer.Deserialize<LobbyKickedMessage>(payload));
+				break;
+
+			case NetworkFrameKind.LobbyStartWarning:
+				LobbyStartWarningReceived?.Invoke(MemoryPackSerializer.Deserialize<LobbyStartWarningMessage>(payload));
 				break;
 
 			case NetworkFrameKind.MapTransferReply:
