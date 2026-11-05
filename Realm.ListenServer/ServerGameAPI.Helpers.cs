@@ -69,6 +69,15 @@ public partial class ServerGameAPI
 	{
 		float clamped = Math.Max(0f, amount);
 
+		if (kind == PlayerResourceKind.Gold)
+		{
+			float previousGold = ReadPlayerResource(playerIndex, PlayerResourceKind.Gold);
+			if (clamped < previousGold)
+			{
+				Metrics?.RecordGoldSpent(playerIndex, previousGold - clamped);
+			}
+		}
+
 		MutatePlayersState(playerIndex, (ref ScriptPlayersState playersState, int playerSlot) =>
 		{
 			switch (kind)

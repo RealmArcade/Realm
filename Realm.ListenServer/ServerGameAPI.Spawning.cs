@@ -54,7 +54,7 @@ public partial class ServerGameAPI
 			Metrics.RecordUnitSpawned(playerIndex);
 			if (_map.Catalog.FindUnitOrBuilding(unitTypeId)?.IsHero == true)
 			{
-				Metrics.RecordHeroPick(playerIndex, unitTypeId);
+				Metrics.RecordHeroPick(playerIndex, unitTypeId, placed.X, placed.Z);
 			}
 		}
 

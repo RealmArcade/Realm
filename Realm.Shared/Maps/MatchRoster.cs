@@ -25,7 +25,7 @@ public static class MatchRoster
 			Wood = 0f,
 			Stone = 0f,
 			Active = true,
-			IsComputer = true,
+			IsComputer = false,
 			Team = 0,
 			Name = "Neutral",
 			KillCount = 0,

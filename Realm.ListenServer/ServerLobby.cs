@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using MemoryPack;
 using Realm.Shared.Distribution;
 using Realm.Shared.Maps;
+using Realm.Shared.Metadata;
 using Realm.Shared.Network;
 using Realm.Shared.Players;
 using Realm.Shared.Services;
@@ -72,6 +73,7 @@ public class ServerLobby
 		_mapName = ResolveMapName(arguments);
 		_mapVersion = ResolveMapVersion(arguments);
 		_maximumPlayers = ResolveMaximumPlayers(arguments);
+		SeatDeclaredComputers();
 	}
 
 	public bool MatchStarted => _matchStarted;
@@ -589,6 +591,59 @@ public class ServerLobby
 	private bool IsTeamLocked(int slot) => Roster?.IsTeamLocked(slot) ?? false;
 
 	private bool IsColorLocked(int slot) => Roster?.IsColorLocked(slot) ?? false;
+
+	private void SeatDeclaredComputers()
+	{
+		try
+		{
+			var metadata = MapFileService.LoadMetadata(_mapFolder);
+			List<MapPlayerSlotConfig>? declaredSlots = metadata.MapProperties?.PlayerSlots;
+			if (declaredSlots == null) return;
+
+			int seated = 0;
+			for (int index = 0; index < declaredSlots.Count; index++)
+			{
+				MapPlayerSlotConfig config = declaredSlots[index];
+				if (string.IsNullOrWhiteSpace(config.AiType)) continue;
+				if (string.Equals(config.AiType, "HumanPlayer", StringComparison.OrdinalIgnoreCase)) continue;
+
+				int slot = config.SlotId;
+				if (slot <= 0 || slot > _maximumPlayers || _seats.ContainsKey(slot)) continue;
+
+				string name = LobbyLimits.Sanitize(config.Name, LobbyLimits.MaximumPlayerNameLength);
+				if (name.Length == 0) name = $"AI Bot {_nextComputerNumber}";
+
+				var computer = new LobbySeat
+				{
+					PeerId = -100 - _nextComputerNumber,
+					Slot = slot,
+					Name = name,
+					Faction = string.IsNullOrWhiteSpace(config.Faction) ? string.Empty : config.Faction,
+					TeamName = $"Team {slot}",
+					Team = slot,
+					ColorRgba = ResolveJoinColorRgba(slot),
+					IsComputer = true,
+					IsReady = true,
+					IsMapReady = true,
+					IsLoadReady = true,
+					MapDownloadPercent = 100,
+					LatencyMilliseconds = 0,
+					JitterMilliseconds = 0,
+					PacketLossPercent = 0f
+				};
+
+				_seats[slot] = computer;
+				_nextComputerNumber++;
+				seated++;
+			}
+
+			if (seated > 0) _log.Write($"the map declared {seated} computer seat(s); the lobby seated them before anyone joined");
+		}
+		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
+		{
+			_log.Write($"the lobby could not read its map's declared player slots: {exception.Message}");
+		}
+	}
 
 	private void AddComputer(int adminSlot)
 	{

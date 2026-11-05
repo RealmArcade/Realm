@@ -40,13 +40,20 @@ public class MatchMetrics
 		_seats[seat].UnitsDrafted++;
 	}
 
-	public void RecordHeroPick(int seat, string heroId)
+	public void RecordHeroPick(int seat, string heroId, float tileX, float tileZ)
 	{
 		if (!IsTrackedSeat(seat)) return;
 		ref SeatCounters counters = ref _seats[seat];
 		counters.HeroesPicked++;
 		counters.HeroPickIds ??= new List<string>();
 		counters.HeroPickIds.Add(heroId);
+
+		if (counters.FirstDraftHeroId == null && !heroId.EndsWith("builder", StringComparison.OrdinalIgnoreCase))
+		{
+			counters.FirstDraftHeroId = heroId;
+			counters.FirstDraftTileX = tileX;
+			counters.FirstDraftTileZ = tileZ;
+		}
 	}
 
 	public void RecordUpgradeBought(int seat)
@@ -96,6 +103,9 @@ public class MatchMetrics
 				UnitsDrafted = counters.UnitsDrafted,
 				HeroesPicked = counters.HeroesPicked,
 				UpgradesBought = counters.UpgradesBought,
+				FirstDraftHeroId = counters.FirstDraftHeroId ?? string.Empty,
+				FirstDraftTileX = counters.FirstDraftTileX,
+				FirstDraftTileZ = counters.FirstDraftTileZ,
 				HeroPickIds = counters.HeroPickIds != null ? new List<string>(counters.HeroPickIds) : new List<string>()
 			};
 		}
@@ -122,6 +132,9 @@ public class MatchMetrics
 		public int UnitsDrafted;
 		public int HeroesPicked;
 		public int UpgradesBought;
+		public string? FirstDraftHeroId;
+		public float FirstDraftTileX;
+		public float FirstDraftTileZ;
 		public List<string>? HeroPickIds;
 	}
 }

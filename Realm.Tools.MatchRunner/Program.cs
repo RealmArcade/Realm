@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Text;
+using Realm.Ecs.AI.Policy;
 using Realm.Tools.MatchRunner;
 
 MatchRunOptions options;
@@ -19,6 +20,29 @@ catch (ArgumentException exception)
 if (options.ShowHelp)
 {
 	Console.WriteLine(MatchRunOptions.Usage);
+	return 0;
+}
+
+if (options.Train)
+{
+	TrainingRunResult result = MatchTrainer.Train(options);
+	BotProfile profile = result.Profile;
+	string profilePath = options.TrainOutputPath ?? Path.Combine(options.MapPath, $"{profile.MapName}_bot.json");
+	string profileDirectory = Path.GetDirectoryName(Path.GetFullPath(profilePath)) ?? Directory.GetCurrentDirectory();
+	Directory.CreateDirectory(profileDirectory);
+	File.WriteAllText(profilePath, profile.ToJson(), new UTF8Encoding(false));
+
+	string manifestPath = Path.ChangeExtension(profilePath, ".run.json");
+	File.WriteAllText(manifestPath, MatchTrainer.BuildManifest(options, result, profilePath), new UTF8Encoding(false));
+
+	Console.WriteLine($"trained profile: {profilePath}");
+	Console.WriteLine($"run manifest:    {manifestPath}");
+	Console.WriteLine($"fitness {profile.FitnessScore:F3} after {profile.TrainedEpochs} generation(s)");
+	for (int generation = 0; generation < result.GenerationBestFitness.Count; generation++)
+	{
+		Console.WriteLine($"  generation {generation + 1} best fitness {result.GenerationBestFitness[generation]:F3}");
+	}
+
 	return 0;
 }
 
@@ -109,6 +133,12 @@ static void PlayInChildProcesses(MatchRunOptions options, string partsDirectory,
 				{
 					start.ArgumentList.Add("--wasm");
 					start.ArgumentList.Add(options.WasmPath);
+				}
+
+				if (!string.IsNullOrWhiteSpace(options.DataProfilePath))
+				{
+					start.ArgumentList.Add("--data-profile");
+					start.ArgumentList.Add(options.DataProfilePath);
 				}
 
 				start.ArgumentList.Add("--seed-range");

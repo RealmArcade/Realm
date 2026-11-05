@@ -1595,8 +1595,9 @@ public interface IGameAPI
 	/// <param name="populationSize">The candidate population size per generation.</param>
 	/// <param name="matchesPerEvaluation">The number of evaluation matches each candidate plays per generation.</param>
 	/// <param name="genre">The AI sub-genre provider identifier (e.g. "rts", "tower_defense", "auto_battler").</param>
+	/// <param name="seed">The deterministic seed that drives the training run. Zero selects the fixed default seed, so two runs over the same content produce the same profile.</param>
 	/// <returns>The serialized JSON string of the best evolved bot profile.</returns>
-	string TrainBotProfile(string mapName, int generations = 5, int populationSize = 8, int matchesPerEvaluation = 4, string genre = "rts");
+	string TrainBotProfile(string mapName, int generations = 5, int populationSize = 8, int matchesPerEvaluation = 4, string genre = "rts", int seed = 0);
 
 	/// <summary>
 	/// Sets the active environment lighting, fog, and atmospheric preset immediately without transition interpolation.

@@ -16,6 +16,10 @@ public class MatchBatchSummary
 		var seatUpgrades = new Dictionary<int, double>();
 		var heroPicks = new Dictionary<string, int>();
 		var heroWins = new Dictionary<string, int>();
+		var firstPickPicks = new Dictionary<string, int>();
+		var firstPickWins = new Dictionary<string, int>();
+		var firstPickTilePicks = new Dictionary<(string HeroId, float TileX, float TileZ), int>();
+		var firstPickTileWins = new Dictionary<(string HeroId, float TileX, float TileZ), int>();
 		var winners = new Dictionary<int, int>();
 		var failures = new List<(int Seed, string Error)>();
 
@@ -56,8 +60,30 @@ public class MatchBatchSummary
 				Accumulate(seatHeroes, seatIndex, seat, "heroesPicked");
 				Accumulate(seatUpgrades, seatIndex, seat, "upgradesBought");
 
-				if (!seat.TryGetProperty("heroPickIds", out JsonElement picks)) continue;
 				bool isWinner = seatIndex == winner;
+				if (seat.TryGetProperty("firstDraftHeroId", out JsonElement firstDraftValue))
+				{
+					string firstDraftHeroId = firstDraftValue.GetString() ?? string.Empty;
+					if (firstDraftHeroId.Length > 0)
+					{
+						firstPickPicks[firstDraftHeroId] = firstPickPicks.TryGetValue(firstDraftHeroId, out int firstPicksOfHero) ? firstPicksOfHero + 1 : 1;
+						if (isWinner)
+						{
+							firstPickWins[firstDraftHeroId] = firstPickWins.TryGetValue(firstDraftHeroId, out int firstWinsOfHero) ? firstWinsOfHero + 1 : 1;
+						}
+
+						float tileX = seat.TryGetProperty("firstDraftTileX", out JsonElement tileXValue) ? tileXValue.GetSingle() : 0f;
+						float tileZ = seat.TryGetProperty("firstDraftTileZ", out JsonElement tileZValue) ? tileZValue.GetSingle() : 0f;
+						var tileKey = (firstDraftHeroId, MathF.Round(tileX, 1), MathF.Round(tileZ, 1));
+						firstPickTilePicks[tileKey] = firstPickTilePicks.TryGetValue(tileKey, out int tilePicks) ? tilePicks + 1 : 1;
+						if (isWinner)
+						{
+							firstPickTileWins[tileKey] = firstPickTileWins.TryGetValue(tileKey, out int tileWins) ? tileWins + 1 : 1;
+						}
+					}
+				}
+
+				if (!seat.TryGetProperty("heroPickIds", out JsonElement picks)) continue;
 				foreach (JsonElement pick in picks.EnumerateArray())
 				{
 					string heroId = pick.GetString() ?? string.Empty;
@@ -131,6 +157,45 @@ public class MatchBatchSummary
 				double rate = picks > 0 ? (double)wins / picks : 0.0;
 				writer.WriteStartObject();
 				writer.WriteString("heroId", heroId);
+				writer.WriteNumber("picks", picks);
+				writer.WriteNumber("wins", wins);
+				writer.WriteNumber("winRate", Math.Round(rate, 4));
+				writer.WriteNumber("winRatePercent", Math.Round(rate * 100.0, 2));
+				writer.WriteEndObject();
+			}
+
+			writer.WriteEndArray();
+
+			writer.WriteStartArray("firstPickStats");
+			foreach (KeyValuePair<string, int> entry in firstPickPicks.OrderByDescending(entry => entry.Value))
+			{
+				string heroId = entry.Key;
+				int picks = entry.Value;
+				int wins = firstPickWins.TryGetValue(heroId, out int firstWins) ? firstWins : 0;
+				double rate = picks > 0 ? (double)wins / picks : 0.0;
+				double ci95 = picks > 0 ? 1.96 * Math.Sqrt(rate * (1.0 - rate) / picks) : 0.0;
+				writer.WriteStartObject();
+				writer.WriteString("heroId", heroId);
+				writer.WriteNumber("picks", picks);
+				writer.WriteNumber("wins", wins);
+				writer.WriteNumber("winRate", Math.Round(rate, 4));
+				writer.WriteNumber("winRatePercent", Math.Round(rate * 100.0, 2));
+				writer.WriteNumber("ci95Percent", Math.Round(ci95 * 100.0, 2));
+				writer.WriteEndObject();
+			}
+
+			writer.WriteEndArray();
+
+			writer.WriteStartArray("firstPickTiles");
+			foreach (KeyValuePair<(string HeroId, float TileX, float TileZ), int> entry in firstPickTilePicks.OrderByDescending(entry => entry.Value))
+			{
+				int picks = entry.Value;
+				int wins = firstPickTileWins.TryGetValue(entry.Key, out int tileWins) ? tileWins : 0;
+				double rate = picks > 0 ? (double)wins / picks : 0.0;
+				writer.WriteStartObject();
+				writer.WriteString("heroId", entry.Key.HeroId);
+				writer.WriteNumber("tileX", Math.Round(entry.Key.TileX, 1));
+				writer.WriteNumber("tileZ", Math.Round(entry.Key.TileZ, 1));
 				writer.WriteNumber("picks", picks);
 				writer.WriteNumber("wins", wins);
 				writer.WriteNumber("winRate", Math.Round(rate, 4));

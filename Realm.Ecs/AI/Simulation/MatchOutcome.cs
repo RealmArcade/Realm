@@ -14,6 +14,9 @@ public class MatchSeatOutcome
 	public int UnitsDrafted { get; set; }
 	public int HeroesPicked { get; set; }
 	public int UpgradesBought { get; set; }
+	public string FirstDraftHeroId { get; set; } = string.Empty;
+	public float FirstDraftTileX { get; set; }
+	public float FirstDraftTileZ { get; set; }
 	public List<string> HeroPickIds { get; set; } = new();
 }
 
@@ -52,6 +55,9 @@ public class MatchOutcome
 				writer.WriteNumber("unitsDrafted", seat.UnitsDrafted);
 				writer.WriteNumber("heroesPicked", seat.HeroesPicked);
 				writer.WriteNumber("upgradesBought", seat.UpgradesBought);
+				writer.WriteString("firstDraftHeroId", seat.FirstDraftHeroId);
+				writer.WriteNumber("firstDraftTileX", Sanitize(seat.FirstDraftTileX));
+				writer.WriteNumber("firstDraftTileZ", Sanitize(seat.FirstDraftTileZ));
 				writer.WriteStartArray("heroPickIds");
 				for (int pickIndex = 0; pickIndex < seat.HeroPickIds.Count; pickIndex++)
 					writer.WriteStringValue(seat.HeroPickIds[pickIndex]);

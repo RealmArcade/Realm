@@ -25,8 +25,11 @@ public class HeadlessSimulationRunner
 	private readonly LinearUtilityPolicy _policy = new();
 	private readonly List<GenericAffordance> _affordanceBuffer = new(64);
 	private readonly List<Entity> _deadEntitiesBuffer = new(32);
+	private readonly SeededRandom _random;
 
 	public EcsWorld World => _world;
+
+	public SeededRandom Random => _random;
 
 	public IAiGenreProvider GenreProvider
 	{
@@ -36,8 +39,9 @@ public class HeadlessSimulationRunner
 
 	public Action<int, string, Vector3, string>? CustomActionCallback { get; set; }
 
-	public HeadlessSimulationRunner(IAiGenreProvider? genreProvider = null)
+	public HeadlessSimulationRunner(IAiGenreProvider? genreProvider = null, SeededRandom? random = null)
 	{
+		_random = random ?? SeededRandom.Shared;
 		_genreProvider = genreProvider ?? new StandardRtsGenreProvider();
 		ResetGame();
 	}
@@ -110,7 +114,7 @@ public class HeadlessSimulationRunner
 		if (weights == null || weights.Length == 0) return;
 
 		_genreProvider.ScanAffordances(_world, playerIndex, _affordanceBuffer);
-		var action = _policy.SelectAction(_affordanceBuffer, weights, epsilon, temperature);
+		var action = _policy.SelectAction(_affordanceBuffer, weights, epsilon, temperature, 1.0f, _random);
 
 		if (action.HasValue)
 		{
@@ -245,11 +249,11 @@ public class HeadlessSimulationRunner
 
 	private ulong RunSeededMatch(int seed, float[] weights, int maxTicks, float epsilon, out int winner, out int ticks)
 	{
-		SeededRandom.Shared.Reset(seed);
+		_random.Reset(seed);
 		SimulationMatchResult result = RunMatch(weights, weights, maxTicks, epsilon: epsilon);
 		winner = result.WinnerPlayerIndex;
 		ticks = result.TotalTicksExecuted;
-		return MixDigest(ComputeWorldDigest(), (ulong)SeededRandom.Shared.DrawCount);
+		return MixDigest(ComputeWorldDigest(), (ulong)_random.DrawCount);
 	}
 
 	private ulong ComputeWorldDigest()

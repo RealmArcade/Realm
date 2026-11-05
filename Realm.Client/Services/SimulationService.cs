@@ -13,6 +13,7 @@ using Realm.Ecs.AI.Genres;
 using Realm.Ecs.AI.Policy;
 using Realm.Ecs.AI.Training;
 using Realm.Ecs.Common;
+using Realm.Shared;
 using Realm.Ecs.Components.Abilities;
 using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Core;
@@ -1429,11 +1430,11 @@ public class SimulationService
 		spawnView?.Invoke(projectileTypeId, start, target, speed);
 	}
 
-	public string TrainBotProfile(string mapName, int generations, int populationSize, int matchesPerEvaluation, string genre)
+	public string TrainBotProfile(string mapName, int generations, int populationSize, int matchesPerEvaluation, string genre, int seed = 0)
 	{
 		var genreProvider = AiGenreRegistry.Get(genre);
 		var trainer = new SelfPlayTrainer();
-		var profile = trainer.TrainSelfPlay(mapName, generations, populationSize, matchesPerEvaluation, genreProvider: genreProvider);
+		var profile = trainer.TrainSelfPlay(mapName, generations, populationSize, matchesPerEvaluation, genreProvider: genreProvider, seed: seed, gameBuildNumber: RealmVersion.GameBuildNumber);
 		return profile.ToJson();
 	}
 

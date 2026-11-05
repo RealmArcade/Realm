@@ -8,6 +8,7 @@ using Realm.Ecs.AI.Policy;
 using Realm.Ecs.AI.Training;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Services;
+using Realm.Shared;
 
 namespace Realm.ListenServer;
 
@@ -52,8 +53,6 @@ public class ServerBots
 
 	public bool IsComputerControlled(int playerIndex)
 	{
-		if (playerIndex == 0) return true;
-
 		Entity worldEntity = _context.WorldEntity;
 		if (worldEntity == Entity.Null || !_context.World.IsAlive(worldEntity)) return false;
 		if (!_context.World.Has<ScriptPlayersState>(worldEntity)) return false;
@@ -74,6 +73,13 @@ public class ServerBots
 		catch (JsonException exception)
 		{
 			_log.Write($"a map handed player {playerIndex} a bot profile this build cannot read: {exception.Message}");
+			return;
+		}
+
+		int expectedWeights = AiGenreRegistry.Get(profile.Genre).FeatureCount;
+		if (profile.Weights == null || profile.Weights.Length != expectedWeights)
+		{
+			_log.Write($"player {playerIndex} handed a profile with {profile.Weights?.Length ?? 0} weights, but the '{profile.Genre}' genre scores {expectedWeights}; the profile was rejected");
 			return;
 		}
 
@@ -115,6 +121,7 @@ public class ServerBots
 			bot.GenreProvider = genre;
 			bot.LoadProfile(genre.CreateDefaultProfile(_mapName));
 			ApplyGenreDefaultPolicy(playerIndex, genreName, bot);
+			LoadSavedProfile(playerIndex, bot);
 			_log.Write($"player {playerIndex} now plays the '{genreName}' genre");
 			return;
 		}
@@ -122,6 +129,7 @@ public class ServerBots
 		var created = new BotController(playerIndex, genre.CreateDefaultProfile(_mapName), genre);
 		created.CustomActionCallback = AnnounceCustomAction;
 		ApplyGenreDefaultPolicy(playerIndex, genreName, created);
+		LoadSavedProfile(playerIndex, created);
 		_controllers[playerIndex] = created;
 		_log.Write($"player {playerIndex} seated with the '{genreName}' genre");
 	}
@@ -167,27 +175,37 @@ public class ServerBots
 		_customDecisionsPerPlayer.Remove(playerIndex);
 	}
 
-	public static string Train(string mapName, int generations, int populationSize, int matchesPerEvaluation, string genre)
+	public static string Train(string mapName, int generations, int populationSize, int matchesPerEvaluation, string genre, int seed)
 	{
 		IAiGenreProvider provider = AiGenreRegistry.Get(genre);
 		var trainer = new SelfPlayTrainer();
-		return trainer.TrainSelfPlay(mapName, generations, populationSize, matchesPerEvaluation, genreProvider: provider).ToJson();
+		return trainer.TrainSelfPlay(mapName, generations, populationSize, matchesPerEvaluation, genreProvider: provider, seed: seed, gameBuildNumber: RealmVersion.GameBuildNumber).ToJson();
 	}
 
-	public void LoadSavedProfile(int playerIndex, BotController bot)
+	public bool LoadSavedProfile(int playerIndex, BotController bot)
 	{
 		string path = Path.Combine(_dataDirectory, $"{_mapName}_bot.json");
-		if (!File.Exists(path)) return;
+		if (!File.Exists(path)) return false;
 
 		try
 		{
-			bot.LoadProfile(BotProfile.FromJson(File.ReadAllText(path)));
+			BotProfile profile = BotProfile.FromJson(File.ReadAllText(path));
+			int expectedWeights = AiGenreRegistry.Get(profile.Genre).FeatureCount;
+			if (profile.Weights == null || profile.Weights.Length != expectedWeights)
+			{
+				_log.Write($"the saved profile '{path}' carries {profile.Weights?.Length ?? 0} weights, but the '{profile.Genre}' genre scores {expectedWeights}; the profile was rejected");
+				return false;
+			}
+
+			bot.LoadProfile(profile);
 			bot.DecisionPolicy = new LinearUtilityDecisionPolicy();
 			_log.Write($"player {playerIndex} plays the profile saved as '{path}'");
+			return true;
 		}
 		catch (Exception exception) when (exception is IOException or JsonException or UnauthorizedAccessException)
 		{
 			_log.Write($"could not read the saved bot profile '{path}': {exception.Message}");
+			return false;
 		}
 	}
 
