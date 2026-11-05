@@ -151,7 +151,7 @@ public partial class CommandPanel
 		// pointer is on the card so the tooltip stays up for as long as the player keeps hovering.
 		if (!IsPointerOver(btn))
 		{
-			string transTooltip = ResolveAbilityTooltip(item.AbilityId, def, IsAbilityStateDisabled(item.CasterEntity, item.AbilityId));
+			string transTooltip = ResolveAbilityTooltip(item.AbilityId, def, IsAbilityStateDisabled(item.CasterEntity, item.AbilityId), item.ManaCost);
 			if (!string.IsNullOrEmpty(transTooltip) && !item.Hotkey.IsNone)
 			{
 				transTooltip = $"[{item.Hotkey}] {transTooltip}";
@@ -1288,7 +1288,7 @@ public partial class CommandPanel
 			CasterEntity = casterEntity,
 			ManaCost = manaCost,
 			IconPath = ResolveAbilityIcon(abilityId, abilityDef),
-			Tooltip = ResolveAbilityTooltip(abilityId, abilityDef, IsAbilityStateDisabled(casterEntity, abilityId)),
+			Tooltip = ResolveAbilityTooltip(abilityId, abilityDef, IsAbilityStateDisabled(casterEntity, abilityId), manaCost),
 			TooltipContext = TooltipContext.ForAbility(casterEntity, abilityId),
 			Hotkey = ParseHotkey(abilityDef?.Hotkey),
 			GridX = abilityDef?.GridX ?? -1,
@@ -1314,13 +1314,13 @@ public partial class CommandPanel
 		return GetDefaultAbilityIcon(abilityId);
 	}
 
-	private string ResolveAbilityTooltip(string abilityId, AbilityDefinition abilityDef, bool disabled)
+	private string ResolveAbilityTooltip(string abilityId, AbilityDefinition abilityDef, bool disabled, float manaCost)
 	{
 		string body = abilityDef != null && !string.IsNullOrEmpty(abilityDef.TooltipTemplate)
 			? abilityDef.TooltipTemplate
 			: GetDefaultAbilityTooltip(abilityId);
 
-		return UIHelper.PrependAbilityHeader(abilityId, abilityDef, body, disabled);
+		return UIHelper.PrependAbilityHeader(abilityId, abilityDef, body, manaCost, disabled);
 	}
 
 	/// <summary>

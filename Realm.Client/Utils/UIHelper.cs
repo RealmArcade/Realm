@@ -55,7 +55,7 @@ public static class UIHelper
 	///     Builds the first line of a command card tooltip: the template name followed by its resource costs, each
 	///     resource drawn with its own icon instead of a written resource name.
 	/// </summary>
-	public static string BuildHeader(string? name, float gold, float wood, float stone, int pop = 0)
+	public static string BuildHeader(string? name, float gold, float wood, float stone, float mana = 0f, int pop = 0)
 	{
 		var builder = new StringBuilder(64);
 		builder.Append("[b]");
@@ -65,6 +65,7 @@ public static class UIHelper
 		AppendCost(builder, gold, GoldIconPath);
 		AppendCost(builder, wood, WoodIconPath);
 		AppendCost(builder, stone, StoneIconPath);
+		AppendCost(builder, mana, PlaceholderIcons.ManaPath);
 
 		if (pop > 0)
 		{
@@ -80,11 +81,15 @@ public static class UIHelper
 	///     Puts an ability's template name and costs above its description, keeping any resolved tooltip tokens in the
 	///     description untouched.
 	/// </summary>
+	/// <param name="manaCost">
+	///     The cost the casting unit actually pays, which a map script can override per unit; the header falls back to
+	///     the template's own cost when it is not supplied.
+	/// </param>
 	/// <param name="disabled">
 	///     Whether the map script has currently disabled this ability for the casting unit, which tags the header so the
 	///     reason a card cannot be pressed is visible in its tooltip.
 	/// </param>
-	public static string PrependAbilityHeader(string? abilityId, AbilityDefinition? definition, string? body, bool disabled = false)
+	public static string PrependAbilityHeader(string? abilityId, AbilityDefinition? definition, string? body, float manaCost = -1f, bool disabled = false)
 	{
 		// Only an ability the map actually names gets a header. The command card also shows engine commands such as
 		// the Build menu under a reserved id, and those keep the tooltip the card item was built with.
@@ -95,7 +100,8 @@ public static class UIHelper
 			name,
 			definition!.CostGold,
 			definition.CostWood,
-			definition.CostStone);
+			definition.CostStone,
+			manaCost >= 0f ? manaCost : definition.ManaCost);
 
 		if (disabled)
 		{

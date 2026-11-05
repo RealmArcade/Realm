@@ -16,6 +16,9 @@ public static class RtexIconLoader
 	{
 		if (string.IsNullOrWhiteSpace(iconPath)) return null;
 
+		// Generated stand-ins resolve before any disk lookup, so tooltip markup can name them like a real icon.
+		if (PlaceholderIcons.TryResolve(iconPath, out var placeholder)) return placeholder;
+
 		if (_negativeCache.Contains(iconPath)) return null;
 
 		if (_cache.TryGetValue(iconPath, out var cachedTexture)) return cachedTexture;
