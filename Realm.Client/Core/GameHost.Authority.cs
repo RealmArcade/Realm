@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Godot;
 using Realm.Client.Services;
+using Realm.Client.UI;
 using Realm.Client.VFX;
 using Realm.Ecs;
 using Realm.Ecs.Components.Core;
@@ -149,6 +150,10 @@ public partial class GameHost
 		ApplyStoredObstacleVolumes();
 		RebakeNavMesh();
 	}
+
+	private readonly List<PresentationMessage> _heldHudPresentation = new();
+
+	private const int MaximumHeldHudPresentation = 256;
 
 	private System.Numerics.Vector3[] _authoritativeObstaclePositions = System.Array.Empty<System.Numerics.Vector3>();
 	private float[] _authoritativeObstacleRadii = System.Array.Empty<float>();
@@ -683,40 +688,75 @@ public partial class GameHost
 
 	private void PresentSummaryTable(PresentationMessage message)
 	{
-		string title = message.Key;
-		string rowKey = message.Key;
-		string[] values = message.Values ?? Array.Empty<string>();
-		bool visible = message.Flag;
-		PresentationKind kind = (PresentationKind)message.Kind;
-
-		Callable.From(() =>
-		{
-			switch (kind)
-			{
-				case PresentationKind.SummaryTableVisible:
-					GameContext.InGameHud?.ShowSummaryTable(title, visible);
-					break;
-				case PresentationKind.SummaryTableHeaders:
-					GameContext.InGameHud?.ClearSummaryTable();
-					GameContext.InGameHud?.SetSummaryTableHeaders(values);
-					break;
-				case PresentationKind.SummaryTableRow:
-					GameContext.InGameHud?.SetSummaryTableRow(rowKey, values);
-					break;
-				case PresentationKind.SummaryTableCleared:
-					GameContext.InGameHud?.ClearSummaryTable();
-					break;
-			}
-		}).CallDeferred();
+		HoldHudPresentation(message);
 	}
 
 	private void PresentInstructionsSection(PresentationMessage message)
 	{
 		if (string.IsNullOrWhiteSpace(message.Key)) return;
 
-		string title = message.Key;
-		string body = message.Text;
-		Callable.From(() => GameContext.InGameHud?.AddInstructionsSection(title, body)).CallDeferred();
+		HoldHudPresentation(message);
+	}
+
+	/// <summary>
+	///     What a map declares about a match - its rules page and the card its standings share - is stated once, to the
+	///     peer that has just been seated. A screen that starts its match on an authority already running, which is what
+	///     testing a map from the editor does, is seated before its HUD is built, so those declarations are held here and
+	///     replayed into the HUD rather than dropped for the want of a screen to draw them on.
+	/// </summary>
+	private void HoldHudPresentation(PresentationMessage message)
+	{
+		InGameHUD? hud = GameContext.InGameHud;
+		if (hud == null || !GodotObject.IsInstanceValid(hud))
+		{
+			if (_heldHudPresentation.Count >= MaximumHeldHudPresentation) _heldHudPresentation.RemoveAt(0);
+			_heldHudPresentation.Add(message);
+			return;
+		}
+
+		ApplyHudPresentation(hud, message);
+	}
+
+	private static void ApplyHudPresentation(InGameHUD hud, PresentationMessage message)
+	{
+		string[] values = message.Values ?? Array.Empty<string>();
+
+		switch ((PresentationKind)message.Kind)
+		{
+			case PresentationKind.SummaryTableVisible:
+				hud.ShowSummaryTable(message.Key, message.Flag);
+				break;
+			case PresentationKind.SummaryTableHeaders:
+				hud.ClearSummaryTable();
+				hud.SetSummaryTableHeaders(values);
+				break;
+			case PresentationKind.SummaryTableRow:
+				hud.SetSummaryTableRow(message.Key, values);
+				break;
+			case PresentationKind.SummaryTableCleared:
+				hud.ClearSummaryTable();
+				break;
+			case PresentationKind.InstructionsSectionAdded:
+				hud.AddInstructionsSection(message.Key, message.Text);
+				break;
+		}
+	}
+
+	/// <summary>
+	///     Replays onto a HUD that has just been built every declaration this client was handed before it existed.
+	/// </summary>
+	public void OnInGameHudReady()
+	{
+		InGameHUD? hud = GameContext.InGameHud;
+		if (hud == null || !GodotObject.IsInstanceValid(hud)) return;
+
+		for (int index = 0; index < _heldHudPresentation.Count; index++)
+		{
+			ApplyHudPresentation(hud, _heldHudPresentation[index]);
+		}
+
+		_heldHudPresentation.Clear();
+		FlushLeaderboardUpdates();
 	}
 
 	private void PresentUnitColor(PresentationMessage message)

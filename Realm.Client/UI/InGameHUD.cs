@@ -294,6 +294,10 @@ public partial class InGameHUD : Control
 		ApplySpectatorAndReplayOverrides();
 		ApplySavedHudVisibilityOverrides();
 		SubscribeToLobbyCountdown();
+
+		// The match may have been running before this screen was built - a map tested from the editor starts its
+		// authority first - so what it declared about its rules and its standings is replayed now that there is a HUD.
+		GameContext.Host?.OnInGameHudReady();
 	}
 
 	private void SubscribeToLobbyCountdown()
