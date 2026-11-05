@@ -210,7 +210,11 @@ public partial class CommandPanel
 
 		var abilityDef = GameContext.Host?.GetAbilityDefinition(item.AbilityId);
 		float maxCd = GetMaxCooldown(item, abilityDef, cdRemaining);
-		float manaCost = GetEffectiveManaCost(item, abilityDef);
+
+		// The card carries the caster's effective cost: the per-unit cost the map set, which is what the tooltip
+		// header shows and what the cast gate compares against. The ability definition's cost is shared by every
+		// unit, so reading that here replaced a unit's own number with whichever unit the map set last.
+		float manaCost = item.ManaCost;
 
 		UpdateAbilityLabelsAndSweep(btn, manaCost, cdRemaining, maxCd);
 		UpdateAbilityButtonState(btn, item, currentMana, manaCost, cdRemaining);
@@ -234,12 +238,6 @@ public partial class CommandPanel
 		}
 
 		return Math.Max(10f, cdRemaining);
-	}
-
-	private float GetEffectiveManaCost(CommandCardItem item, AbilityDefinition abilityDef)
-	{
-		if (abilityDef != null && abilityDef.ManaCost > 0f) return abilityDef.ManaCost;
-		return item.ManaCost;
 	}
 
 	private void UpdateAbilityButtonState(Button btn, CommandCardItem item, float currentMana, float manaCost, float cdRemaining)
