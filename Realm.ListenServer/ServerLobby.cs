@@ -85,6 +85,24 @@ public class ServerLobby
 	public int MaximumPlayers => _maximumPlayers;
 
 	/// <summary>
+	///     How many seats are playing rather than watching. A spectator holds no player seat, so the players a lobby seats
+	///     is a count of these and never of the seats it holds.
+	/// </summary>
+	public int PlayingSeatCount
+	{
+		get
+		{
+			int count = 0;
+			foreach (LobbySeat seat in _seats.Values)
+			{
+				if (seat.Team >= 1) count++;
+			}
+
+			return count;
+		}
+	}
+
+	/// <summary>
 	///     The roster rules this lobby's map states, or nothing while the lobby runs on the authority's own rules. The
 	///     roster refuses a change to a field it locked, so every way a seat can change is filtered through it.
 	/// </summary>
@@ -119,9 +137,16 @@ public class ServerLobby
 	{
 		if (!_seats.TryGetValue(slot, out LobbySeat seat)) return false;
 
-		seat.Team = Math.Max(0, team);
-		seat.TeamName = seat.Team == 0 ? "Spectator" : $"Team {seat.Team}";
-		if (seat.Team == 0) seat.IsReady = false;
+		int chosenTeam = Math.Max(0, team);
+		if (!CanSeatPlayTeam(slot, chosenTeam, seat.Team))
+		{
+			_log.Write($"seat {slot} was put on team {chosenTeam}, which needs a free player seat this lobby does not have; the order is refused");
+			return false;
+		}
+
+		seat.Team = chosenTeam;
+		seat.TeamName = chosenTeam == 0 ? LobbyLimits.SpectatorTeamName : $"Team {chosenTeam}";
+		if (chosenTeam == 0) seat.IsReady = false;
 		_seats[slot] = seat;
 		BroadcastState();
 		return true;
@@ -152,10 +177,11 @@ public class ServerLobby
 		int clamped = Math.Clamp(maximumPlayers, 1, LobbyLimits.MaximumSeats);
 		if (clamped == _maximumPlayers) return true;
 
-		foreach (int slot in _seats.Keys)
+		foreach (var pair in _seats)
 		{
-			if (slot <= clamped) continue;
-			_log.Write($"the lobby cannot seat {clamped} player(s) while seat {slot} is taken; the count is refused");
+			if (pair.Value.Team < 1) continue;
+			if (pair.Key <= clamped) continue;
+			_log.Write($"the lobby cannot seat {clamped} player(s) while seat {pair.Key} is playing; the count is refused");
 			return false;
 		}
 
@@ -242,7 +268,9 @@ public class ServerLobby
 
 		if (!restored)
 		{
-			int slot = FindFreeSlot(isAdmin ? 1 : 0);
+			int slot = FindFreePlayingSlot(isAdmin ? 1 : 0);
+			bool playingSeat = slot > 0;
+			if (!playingSeat) slot = FindFreeSpectatorSlot();
 			if (slot <= 0) return "server_rejected_no_free_slot";
 
 			seat = new LobbySeat
@@ -251,7 +279,7 @@ public class ServerLobby
 				AccountId = accountId,
 				Name = DefaultName(name, slot, isAdmin),
 				Faction = Roster?.GetFactionName(0) ?? string.Empty,
-				TeamName = ResolveJoinTeamName(),
+				TeamName = playingSeat ? ResolveJoinTeamName() : LobbyLimits.SpectatorTeamName,
 				ColorRgba = ResolveJoinColorRgba(slot),
 				IsHost = isAdmin,
 				LatencyMilliseconds = -1,
@@ -575,9 +603,18 @@ public class ServerLobby
 
 		if (LobbyLimits.IsAcceptableTeamName(command.TeamName) && !IsTeamLocked(target.Slot))
 		{
-			target.TeamName = LobbyLimits.Sanitize(command.TeamName, LobbyLimits.MaximumTeamNameLength);
-			target.Team = ResolveTeamNumber(target.TeamName, target.Slot);
-			if (string.Equals(target.TeamName, "Spectator", StringComparison.Ordinal)) target.IsReady = false;
+			string teamName = LobbyLimits.Sanitize(command.TeamName, LobbyLimits.MaximumTeamNameLength);
+			int team = ResolveTeamNumber(teamName, target.Slot);
+			if (CanSeatPlayTeam(target.Slot, team, target.Team))
+			{
+				target.TeamName = teamName;
+				target.Team = team;
+				if (team == 0) target.IsReady = false;
+			}
+			else
+			{
+				_log.Write($"seat {target.Slot} was offered team '{teamName}', which needs a free player seat this lobby does not have; the order is refused");
+			}
 		}
 
 		if (command.ColorRgba != 0 && !IsColorLocked(target.Slot) && !IsColorHeldByAnotherSeat(target.Slot, command.ColorRgba)) target.ColorRgba = command.ColorRgba;
@@ -595,10 +632,16 @@ public class ServerLobby
 
 	private void AddComputer(int adminSlot)
 	{
-		int slot = FindFreeSlot(0);
+		if (PlayingSeatCount >= _maximumPlayers)
+		{
+			AddSystemChat($"Cannot add an AI player: all {_maximumPlayers} player seats are taken.");
+			return;
+		}
+
+		int slot = FindFreePlayingSlot(0);
 		if (slot <= 0)
 		{
-			AddSystemChat($"Cannot add an AI player: all {_maximumPlayers} playable slots are taken.");
+			AddSystemChat($"Cannot add an AI player: all {_maximumPlayers} player seats are taken.");
 			return;
 		}
 
@@ -698,19 +741,20 @@ public class ServerLobby
 		if (string.IsNullOrEmpty(_mapName)) return "This lobby has no map to play.";
 		if (!Directory.Exists(_mapFolder)) return "The lobby's map folder is no longer available.";
 
-		bool hasHuman = false;
+		bool hasPlayingPlayer = false;
 		foreach (LobbySeat seat in _seats.Values)
 		{
 			if (seat.IsComputer) continue;
 			if (seat.IsDisconnected) continue;
+			if (seat.Team < 1) continue;
 
-			hasHuman = true;
+			hasPlayingPlayer = true;
 			if (!seat.IsMapReady) return "Some players are still downloading the map. Wait for them or remove them before starting the game.";
 			if (!seat.IsLoadReady) return "Some players are still loading the match. Wait for them or remove them before starting the game.";
 			if (!ignoreReadiness && !seat.IsHost && !seat.IsReady) return "Not all players are ready to start.";
 		}
 
-		return hasHuman ? null : "A match needs at least one connected player.";
+		return hasPlayingPlayer ? null : "A match needs at least one connected player.";
 	}
 
 	private string? StartMatch()
@@ -915,8 +959,9 @@ public class ServerLobby
 		return false;
 	}
 
-	private int FindFreeSlot(int preferredSlot)
+	private int FindFreePlayingSlot(int preferredSlot)
 	{
+		if (PlayingSeatCount >= _maximumPlayers) return -1;
 		if (preferredSlot > 0 && preferredSlot <= _maximumPlayers && !_seats.ContainsKey(preferredSlot)) return preferredSlot;
 
 		for (int slot = 1; slot <= _maximumPlayers; slot++)
@@ -925,6 +970,33 @@ public class ServerLobby
 		}
 
 		return -1;
+	}
+
+	/// <summary>
+	///     Finds a seat a spectator may hold. Spectators sit outside the player seats, so the seats above the player count
+	///     are offered first and the player seats are left for players.
+	/// </summary>
+	private int FindFreeSpectatorSlot()
+	{
+		for (int slot = _maximumPlayers + 1; slot <= LobbyLimits.MaximumSeats; slot++)
+		{
+			if (!_seats.ContainsKey(slot)) return slot;
+		}
+
+		return -1;
+	}
+
+	/// <summary>
+	///     Whether the seat may hold a team. A seat on team zero is a spectator, which takes no player seat and so is always
+	///     allowed; a seat that plays has to sit inside the player seats and has to find one free.
+	/// </summary>
+	private bool CanSeatPlayTeam(int slot, int team, int heldTeam)
+	{
+		if (team < 1) return true;
+		if (heldTeam >= 1) return true;
+		if (slot > _maximumPlayers) return false;
+
+		return PlayingSeatCount < _maximumPlayers;
 	}
 
 	private string ResolveJoinTeamName()
@@ -1005,6 +1077,8 @@ public class ServerLobby
 
 	private static int ResolveTeamNumber(string? teamName, int slot)
 	{
+		if (string.Equals(teamName, LobbyLimits.SpectatorTeamName, StringComparison.Ordinal)) return 0;
+
 		if (!string.IsNullOrWhiteSpace(teamName) && teamName.StartsWith("Team ", StringComparison.Ordinal)
 			&& int.TryParse(teamName.AsSpan(5), System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int team) && team > 0)
 		{

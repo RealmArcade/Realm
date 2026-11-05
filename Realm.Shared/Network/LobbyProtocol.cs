@@ -202,6 +202,12 @@ public static class LobbyLimits
 	/// <summary>The number of teams a lobby whose map states none offers, which is the two teams lobbies have always had.</summary>
 	public const int DefaultTeamCount = 2;
 
+	/// <summary>
+	///     The team name a seat carries while it watches the match instead of playing it. Such a seat holds no player seat,
+	///     so it is not counted against the players a map seats.
+	/// </summary>
+	public const string SpectatorTeamName = "Spectator";
+
 	public const int MaximumMapBundleBytes = 2 * 1024 * 1024;
 
 	/// <summary>
@@ -238,7 +244,7 @@ public static class LobbyLimits
 	public static bool IsAcceptableTeamName(string? teamName)
 	{
 		if (string.IsNullOrWhiteSpace(teamName)) return false;
-		if (string.Equals(teamName, "Spectator", StringComparison.Ordinal)) return true;
+		if (string.Equals(teamName, SpectatorTeamName, StringComparison.Ordinal)) return true;
 		if (!teamName.StartsWith("Team ", StringComparison.Ordinal)) return false;
 		return int.TryParse(teamName.AsSpan(5), System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int team) && team > 0 && team <= MaximumSeats;
 	}

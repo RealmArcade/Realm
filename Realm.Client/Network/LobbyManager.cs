@@ -87,6 +87,25 @@ public partial class LobbyManager : BaseMapTransferNode
 
 	public int ENetPort { get; private set; } = DefaultGamePort;
 	public int MaxPlayers { get; private set; } = MapInfoMetadata.DefaultPlayablePlayerSlots;
+
+	/// <summary>
+	///     How many seats in this lobby are playing rather than watching. A spectator holds no player seat, so it is not
+	///     counted against the players this map seats.
+	/// </summary>
+	public int PlayingPlayerCount
+	{
+		get
+		{
+			int count = 0;
+			for (int index = 0; index < PlayerList.Count; index++)
+			{
+				if (PlayerList[index].TeamIndex >= 1) count++;
+			}
+
+			return count;
+		}
+	}
+
 	public string? LastLobbyWarning { get; private set; }
 
 	public bool IsSignedIn => GameContext.Account.IsSignedIn;
@@ -2020,7 +2039,7 @@ public partial class LobbyManager : BaseMapTransferNode
 	public bool AddAIBot()
 	{
 		if (!IsHost) return false;
-		if (PlayerList.Count >= MaxPlayers)
+		if (PlayingPlayerCount >= MaxPlayers)
 		{
 			LastLobbyWarning = string.Format(Tr("Cannot add an AI player: all {0} playable slots are taken."), MaxPlayers);
 			return false;
@@ -2278,6 +2297,8 @@ public partial class LobbyManager : BaseMapTransferNode
 
 	private static int ResolveSeatTeam(string? teamName, int slot)
 	{
+		if (string.Equals(teamName, LobbyLimits.SpectatorTeamName, StringComparison.Ordinal)) return 0;
+
 		if (!string.IsNullOrWhiteSpace(teamName)
 			&& teamName.StartsWith("Team ", StringComparison.OrdinalIgnoreCase)
 			&& int.TryParse(teamName.AsSpan(5), NumberStyles.Integer, CultureInfo.InvariantCulture, out int team)

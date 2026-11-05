@@ -57,6 +57,29 @@ public class WasmEntryPoint
         return System.Text.Encoding.UTF8.GetString((byte*)ptr, len);
     }
 
+    private static void EnsureMapScript()
+    {
+        if (_mapScript != null) return;
+
+        foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+        {
+            try
+            {
+                foreach (var type in assembly.GetTypes())
+                {
+                    if ((typeof(IWasmModule).IsAssignableFrom(type) || typeof(IMapScript).IsAssignableFrom(type)) && !type.IsInterface && !type.IsAbstract)
+                    {
+                        _mapScript = (IMapScript)Activator.CreateInstance(type)!;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _gameApi?.BroadcastMessage($"Error loading types from {assembly.GetName().Name}: {ex.Message}");
+            }
+        }
+    }
+
     [UnmanagedCallersOnly(EntryPoint = "initialize")]
     public static void Initialize()
     {
@@ -67,23 +90,7 @@ public class WasmEntryPoint
             GameAPI.Current = _gameApi;
             _gameApi.BroadcastMessage($"Guest Initialize started with deterministic random seed {SeededRandom.Shared.Seed}");
 
-            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
-            {
-                try
-                {
-                    foreach (var type in assembly.GetTypes())
-                    {
-                        if ((typeof(IWasmModule).IsAssignableFrom(type) || typeof(IMapScript).IsAssignableFrom(type)) && !type.IsInterface && !type.IsAbstract)
-                        {
-                            _mapScript = (IMapScript)Activator.CreateInstance(type)!;
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _gameApi.BroadcastMessage($"Error loading types from {assembly.GetName().Name}: {ex.Message}");
-                }
-            }
+            EnsureMapScript();
 
             if (_mapScript != null)
             {
@@ -125,6 +132,7 @@ public class WasmEntryPoint
     {
         try
         {
+            EnsureMapScript();
             if (_mapScript is not ILobbyScript lobbyScript) return 0;
 
             _lobbyApi = new LobbyAPI_WasmModule();
