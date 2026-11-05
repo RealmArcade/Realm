@@ -430,7 +430,9 @@ public partial class ServerGameAPI : IGameAPI, IDisposable
 	{
 		if (!_context.World.TryGet<DefinitionId>(entity, out DefinitionId definitionId)) return LevelGrowth.None;
 
-		return _map.Catalog.FindUnitOrBuilding(definitionId.Value)?.LevelGrowth.ToLevelGrowth() ?? LevelGrowth.None;
+		// Growth is optional per template, and the templates a map moves levels onto - circles, draft slots - often
+		// define none, so the curve itself has to be null-checked and not just the lookup that finds it.
+		return _map.Catalog.FindUnitOrBuilding(definitionId.Value)?.LevelGrowth?.ToLevelGrowth() ?? LevelGrowth.None;
 	}
 
 	public void SetUnitSpellImmune(UnitId unit, bool immune) => SetUnitFlag<SpellImmune>(unit, immune);
