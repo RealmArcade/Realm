@@ -484,6 +484,7 @@ public partial class MainMenu : Control
 		versionBox.SetAnchorsAndOffsetsPreset(LayoutPreset.TopLeft);
 		versionBox.Position = new Vector2(110, 10);
 		versionBox.AddThemeConstantOverride("separation", 10);
+		versionBox.Visible = !BuildFlags.IS_AUTOBATTLE_FESTIVAL_ACTIVE;
 		AddChild(versionBox);
 
 		var lbl = new Label();

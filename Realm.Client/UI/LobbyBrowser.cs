@@ -765,6 +765,15 @@ public partial class LobbyBrowser : Control
 			lbl.VerticalAlignment = VerticalAlignment.Center;
 			lbl.AddThemeColorOverride("font_color", new Color(0.75f, 0.75f, 0.8f));
 			lbl.AddThemeFontSizeOverride("font_size", 15);
+
+			if (noLobbiesOnline)
+			{
+				var spacer = new Control();
+				spacer.Name = "NoLobbiesOnline_Spacer";
+				spacer.CustomMinimumSize = new Vector2(0, 50);
+				_lobbyListContainer.AddChild(spacer);
+			}
+
 			_lobbyListContainer.AddChild(lbl);
 		}
 		else
