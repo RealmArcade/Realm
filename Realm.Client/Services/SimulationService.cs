@@ -1231,16 +1231,7 @@ public class SimulationService
 		string definitionId = GameContext.World.Get<DefinitionId>(entity).Value;
 		if (!GameContext.RegistryService.UnitRegistry.TryGetValue(definitionId, out var metadata)) return LevelGrowth.None;
 
-		var growth = metadata.LevelGrowth;
-		if (growth == null) return LevelGrowth.None;
-
-		return new LevelGrowth(
-			growth.StrengthPerLevel,
-			growth.AgilityPerLevel,
-			growth.VitalityPerLevel,
-			growth.IntelligencePerLevel,
-			growth.WisdomPerLevel,
-			growth.FortunePerLevel);
+		return metadata.LevelGrowth?.ToLevelGrowth() ?? LevelGrowth.None;
 	}
 
 	public void IssueAttackMoveOrderToPlayer(Vector3 destination, ReadOnlySpan<UnitId> units)

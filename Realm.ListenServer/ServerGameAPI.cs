@@ -417,8 +417,20 @@ public partial class ServerGameAPI : IGameAPI, IDisposable
 		Entity entity = ResolveUnit(unit);
 		if (entity == Entity.Null) return;
 
+		level = Math.Max(1, level);
 		_context.World.SetOrAdd(entity, new Level(level));
-		LevelService.Apply(_context.World, entity, level, LevelGrowth.None);
+		LevelService.Apply(_context.World, entity, level, ResolveLevelGrowth(entity));
+	}
+
+	/// <summary>
+	///     Growth is a property of the unit's own template, so assigning a level applies that template's attribute
+	///     curve — a script moving a level between two heroes moves each hero's growth with it.
+	/// </summary>
+	private LevelGrowth ResolveLevelGrowth(Entity entity)
+	{
+		if (!_context.World.TryGet<DefinitionId>(entity, out DefinitionId definitionId)) return LevelGrowth.None;
+
+		return _map.Catalog.FindUnitOrBuilding(definitionId.Value)?.LevelGrowth.ToLevelGrowth() ?? LevelGrowth.None;
 	}
 
 	public void SetUnitSpellImmune(UnitId unit, bool immune) => SetUnitFlag<SpellImmune>(unit, immune);

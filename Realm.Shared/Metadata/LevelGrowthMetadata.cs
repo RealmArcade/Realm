@@ -1,3 +1,5 @@
+using Realm.Ecs.Services;
+
 namespace Realm.Shared.Metadata;
 
 public class LevelGrowthMetadata
@@ -8,4 +10,12 @@ public class LevelGrowthMetadata
 	public float IntelligencePerLevel { get; set; }
 	public float WisdomPerLevel { get; set; }
 	public float FortunePerLevel { get; set; }
+
+	public LevelGrowth ToLevelGrowth() => new(
+		StrengthPerLevel,
+		AgilityPerLevel,
+		VitalityPerLevel,
+		IntelligencePerLevel,
+		WisdomPerLevel,
+		FortunePerLevel);
 }
