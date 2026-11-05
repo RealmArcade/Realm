@@ -130,21 +130,6 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 		btnManageStores.Pressed += () => Hud?.OpenMapHistoryStoresDialog();
 		btnManageStoresRow.AddChild(btnManageStores);
 
-		var btnAuthorSignatureRow = new HBoxContainer();
-		btnAuthorSignatureRow.Name = "BtnAuthorSignatureRow_HBoxContainer";
-		btnAuthorSignatureRow.AddThemeConstantOverride("separation", 10);
-		contentVBox.AddChild(btnAuthorSignatureRow);
-
-		var btnAuthorSignature = new Button();
-		btnAuthorSignature.Name = "BtnAuthorSignature_Button";
-		btnAuthorSignature.Set("icon_max_width", 0);
-		btnAuthorSignature.Text = "✍️ " + TranslationServer.Translate("Author Signature");
-		btnAuthorSignature.TooltipText = TranslationServer.Translate("View author identity key, signature details, and backup location");
-		btnAuthorSignature.FocusMode = FocusModeEnum.None;
-		btnAuthorSignature.CustomMinimumSize = new Vector2(240, 32);
-		btnAuthorSignature.Pressed += () => Hud?.OpenAuthorSignatureDialog();
-		btnAuthorSignatureRow.AddChild(btnAuthorSignature);
-
 		var btnRepairRow = new HBoxContainer();
 		btnRepairRow.Name = "BtnRepairRow_HBoxContainer";
 		btnRepairRow.AddThemeConstantOverride("separation", 10);

@@ -68,6 +68,19 @@ public class SteamTicketSignInRequest
 public class RenameAccountRequest
 {
 	public string DisplayName { get; set; } = string.Empty;
+
+	/// <summary>
+	///     The creator key the requesting account holds when the new name is already registered to a creator. Signing the
+	///     claim with that key is what lets an account take a name a creator registered before accounts existed, and is absent
+	///     for an ordinary rename.
+	/// </summary>
+	public string? AuthorshipPublicKey { get; set; }
+
+	/// <summary>
+	/// <summary>
+	///     The signature the creator key named by <see cref="AuthorshipPublicKey" /> produced over the name claim.
+	/// </summary>
+	public string? AuthorshipSignature { get; set; }
 }
 
 /// <summary>

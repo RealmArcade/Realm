@@ -1177,36 +1177,32 @@ public class ClusterEventService
 
 	private bool ApplyCreatorRegistered(ClusterEventDto evt, DataStoreService db, HashSet<string> adminPublicKeys)
 	{
-		if (!TryGetCreatorContext(evt, db, adminPublicKeys, out var username, out var publicKey, out var payload, out var slug))
+		if (!TryGetCreatorContext(evt, db, adminPublicKeys, out var username, out var publicKey, out var payload, out var slug, out string previousOwnerPublicKey))
 			return false;
 
+		CreatorNamePolicy.ReleaseCreatorKey(db, previousOwnerPublicKey, username);
 		UpsertNameLock(db, slug, username, publicKey, payload?.RegisteredAt);
 		UpsertCreatorInfo(db, username, publicKey, payload?.DonationLink, payload?.ContactInfo, payload?.RegisteredAt);
 
 		return true;
 	}
 
-	private bool TryGetCreatorContext(ClusterEventDto evt, DataStoreService db, HashSet<string> adminPublicKeys, out string username, out string publicKey, out CreatorRegisteredEventPayload? payload, out string slug)
+	private bool TryGetCreatorContext(ClusterEventDto evt, DataStoreService db, HashSet<string> adminPublicKeys, out string username, out string publicKey, out CreatorRegisteredEventPayload? payload, out string slug, out string previousOwnerPublicKey)
 	{
 		PopulateCreatorValues(evt, out username, out publicKey, out payload, out var signature);
 
 		slug = "";
+		previousOwnerPublicKey = "";
 
 		if (!ValidateCreatorRequiredFields(username, publicKey, signature))
 			return false;
 
-		if (!VerifyCreatorRegisteredSignature(username, publicKey, payload?.DonationLink, payload?.ContactInfo, signature))
+		if (!VerifyCreatorRegisteredSignature(username, publicKey, payload?.DonationLink, payload?.ContactInfo, signature, payload?.AdminBypassToken, adminPublicKeys))
 			return false;
 
 		slug = GetUsernameSlug(username);
 
-		if (IsDisplayNameOwnedByAccount(db, username))
-		{
-			Console.WriteLine($"[ClusterEventService] Rejected creator_registered event: Username '{username}' belongs to a Realm account");
-			return false;
-		}
-
-		return ValidateNameLock(db, slug, username, publicKey, payload?.AdminBypassToken, adminPublicKeys);
+		return ValidateNameLock(db, slug, username, publicKey, payload?.AdminBypassToken, adminPublicKeys, out previousOwnerPublicKey);
 	}
 
 	private void PopulateCreatorValues(ClusterEventDto evt, out string username, out string publicKey, out CreatorRegisteredEventPayload? payload, out string signature)
@@ -1238,9 +1234,17 @@ public class ClusterEventService
 		}
 	}
 
-	private bool VerifyCreatorRegisteredSignature(string username, string publicKey, string? donationLink, string? contactInfo, string signature)
+	private bool VerifyCreatorRegisteredSignature(string username, string publicKey, string? donationLink, string? contactInfo, string signature, string? adminBypassToken, HashSet<string> adminPublicKeys)
 	{
 		bool sigValid = CreatorRegistrationProof.Verify(publicKey, username, donationLink, contactInfo, signature);
+
+		if (!sigValid
+		    && !string.IsNullOrEmpty(adminBypassToken)
+		    && adminPublicKeys.Count > 0
+		    && AdminBypassAuth.VerifyBypassToken(adminPublicKeys, "admin", "override", adminBypassToken))
+		{
+			sigValid = CreatorRegistrationProof.VerifyByAnyAuthority(adminPublicKeys, publicKey, username, donationLink, contactInfo, signature);
+		}
 
 		if (!sigValid)
 			Console.WriteLine($"[ClusterEventService] Rejected creator_registered event: Invalid signature for {username}");
@@ -1248,32 +1252,17 @@ public class ClusterEventService
 		return sigValid;
 	}
 
-	/// <summary>
-	///     Creator names and account DisplayNames share one namespace, so a creator name may not be granted to a name an
-	///     account already owns. Only names that are valid DisplayNames can collide with the account fold index.
-	/// </summary>
-	private static bool IsDisplayNameOwnedByAccount(DataStoreService db, string username)
-	{
-		if (!DisplayNameRules.TryCanonicalize(username, out string canonical, out _)) return false;
-		long owner = db.Get<long>(AccountStoreService.DisplayNamesCollection, DisplayNameRules.ComputeUniquenessKey(canonical));
-		return owner != 0;
-	}
-
 	private string GetUsernameSlug(string username)
 	{
-		string slug = NameNormalizationHelper.NormalizeUsername(username);
-		if (string.IsNullOrEmpty(slug))
-		{
-			slug = username.ToLowerInvariant().Replace(" ", "-");
-		}
-
-		return slug;
+		return CreatorNamePolicy.GetSlug(username);
 	}
 
-	private bool ValidateNameLock(DataStoreService db, string slug, string username, string publicKey, string? adminBypassToken, HashSet<string> adminPublicKeys)
+	private bool ValidateNameLock(DataStoreService db, string slug, string username, string publicKey, string? adminBypassToken, HashSet<string> adminPublicKeys, out string previousOwnerPublicKey)
 	{
-		var existingLock = db.Get<JsonDocument>("name_locks", slug)
-		                   ?? db.Get<JsonDocument>("name_locks", username.ToLowerInvariant().Replace(" ", "-"));
+		previousOwnerPublicKey = "";
+
+		var existingLock = db.Get<JsonDocument>(CreatorNamePolicy.NameLocksCollection, slug)
+		                   ?? db.Get<JsonDocument>(CreatorNamePolicy.NameLocksCollection, username.ToLowerInvariant().Replace(" ", "-"));
 
 		if (existingLock == null) return true;
 
@@ -1285,13 +1274,14 @@ public class ClusterEventService
 		                   && adminPublicKeys.Count > 0
 		                   && AdminBypassAuth.VerifyBypassToken(adminPublicKeys, "admin", "override", adminBypassToken);
 
-		if (!bypassValid)
+		if (bypassValid || !CreatorNamePolicy.HasGreenlitPublishedMap(db, owner))
 		{
-			Console.WriteLine($"[ClusterEventService] Rejected creator_registered event: Username '{username}' already registered");
-			return false;
+			previousOwnerPublicKey = owner;
+			return true;
 		}
 
-		return true;
+		Console.WriteLine($"[ClusterEventService] Rejected creator_registered event: Username '{username}' belongs to a creator with a greenlit map");
+		return false;
 	}
 
 	private void UpsertNameLock(DataStoreService db, string slug, string username, string publicKey, DateTime? registeredAt)

@@ -10,10 +10,4 @@ public class KeygenOptions
 
 	[Option('o', "output", Required = false, HelpText = "Output path to write .rkey file. If omitted, saves to default %appdata%\\Godot\\app_userdata\\Realm\\appdata\\keys\\authorship_key_DO-NOT-SHARE_<username>.rkey")]
 	public string? Output { get; set; }
-
-	[Option('s', "server", Required = false, HelpText = "Registry server URL to register unique username.")]
-	public string? Server { get; set; }
-
-	[Option("register", Required = false, Default = false, HelpText = "Register the generated key pair and username with the official registry server.")]
-	public bool Register { get; set; }
 }

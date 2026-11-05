@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -215,6 +216,11 @@ public partial class EditorService : IEditorAPI
 			return JsonSerializer.Serialize(new { Message = validationError ?? "Invalid username." });
 		}
 
+		if (!GameContext.Account.IsSignedIn || string.IsNullOrEmpty(GameContext.Account.SessionToken))
+		{
+			return JsonSerializer.Serialize(new { Message = "Sign in with Steam before registering a map key." });
+		}
+
 		return await RegisterCreatorAsync(username, pubKeyStr, key);
 	}
 
@@ -225,11 +231,12 @@ public partial class EditorService : IEditorAPI
 		string signatureStr = Convert.ToBase64String(sigBytes);
 
 		var regPayload = new { Username = username, PublicKey = pubKeyStr, Signature = signatureStr };
-		string seedServerUrl = GameContext.Host != null && GodotObject.IsInstanceValid(GameContext.Lobby) ? GameContext.Lobby.RegistryServerUrl : ServersConfigHelper.GetDefaultServerUrl();
+		string registrationServerUrl = AccountService.AuthorityUrl;
 
 		using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+		httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", GameContext.Account.SessionToken);
 		var content = new StringContent(JsonSerializer.Serialize(regPayload), Encoding.UTF8, "application/json");
-		var res = await httpClient.PostAsync(seedServerUrl + "/api/creators/register", content);
+		var res = await httpClient.PostAsync(registrationServerUrl + "/api/creators/register", content);
 
 		if (res.IsSuccessStatusCode)
 		{
