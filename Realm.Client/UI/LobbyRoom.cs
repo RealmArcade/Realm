@@ -44,6 +44,7 @@ public partial class LobbyRoom : Control
 	private ColorPickerPopover? _colorPickerPopover;
 	private RichTextLabel _chatLog;
 	private VBoxContainer _playersContainer;
+	private readonly Dictionary<int, PanelContainer> _playerRowsByPeerId = new();
 	private Label _inviteFeedback;
 	private CheckBox _spectatorDelayCheck;
 	private Panel? _countdownPopup;
@@ -1159,12 +1160,10 @@ public partial class LobbyRoom : Control
 		var existingRows = GetExistingPlayerRows();
 		if (_renderedTeamCount != TeamCount)
 		{
-			foreach (var row in existingRows.Values)
-			{
-				if (GodotObject.IsInstanceValid(row)) row.QueueFree();
-			}
+			foreach (var row in existingRows.Values) ReleasePlayerRow(row);
 
 			existingRows.Clear();
+			_playerRowsByPeerId.Clear();
 			_renderedTeamCount = TeamCount;
 		}
 
@@ -1212,20 +1211,25 @@ public partial class LobbyRoom : Control
 
 	private Dictionary<int, PanelContainer> GetExistingPlayerRows()
 	{
-		var existingRows = new Dictionary<int, PanelContainer>();
-		foreach (Node child in _playersContainer.GetChildren())
+		var existingRows = new Dictionary<int, PanelContainer>(_playerRowsByPeerId.Count);
+		foreach (var pair in _playerRowsByPeerId)
 		{
-			if (child is PanelContainer pc && pc.Name.ToString().StartsWith("PlayerRow_"))
-			{
-				string idStr = pc.Name.ToString().Substring("PlayerRow_".Length);
-				if (int.TryParse(idStr, out int peerId))
-				{
-					existingRows[peerId] = pc;
-				}
-			}
+			if (!GodotObject.IsInstanceValid(pair.Value)) continue;
+			existingRows[pair.Key] = pair.Value;
 		}
 
+		_playerRowsByPeerId.Clear();
+		foreach (var pair in existingRows) _playerRowsByPeerId[pair.Key] = pair.Value;
+
 		return existingRows;
+	}
+
+	private void ReleasePlayerRow(PanelContainer row)
+	{
+		if (!GodotObject.IsInstanceValid(row)) return;
+
+		if (row.GetParent() == _playersContainer) _playersContainer.RemoveChild(row);
+		row.QueueFree();
 	}
 
 	private HashSet<int> SyncPlayerRows(Dictionary<int, PanelContainer> existingRows)
@@ -1248,6 +1252,8 @@ public partial class LobbyRoom : Control
 				newRow.Name = $"PlayerRow_{player.PeerId}";
 				_playersContainer.AddChild(newRow);
 				_playersContainer.MoveChild(newRow, i);
+				existingRows[player.PeerId] = newRow;
+				_playerRowsByPeerId[player.PeerId] = newRow;
 			}
 		}
 
@@ -1260,7 +1266,8 @@ public partial class LobbyRoom : Control
 		{
 			if (!activePeerIds.Contains(kvp.Key))
 			{
-				kvp.Value.QueueFree();
+				_playerRowsByPeerId.Remove(kvp.Key);
+				ReleasePlayerRow(kvp.Value);
 			}
 		}
 	}

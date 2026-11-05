@@ -251,18 +251,19 @@ public class ServerLobby
 		LobbySeat seat = default;
 		bool restored = false;
 
-		if (!isAdmin && !string.IsNullOrEmpty(sessionToken))
+		if (!string.IsNullOrEmpty(sessionToken))
 		{
-			foreach (var pair in _seats)
-			{
-				if (pair.Value.IsComputer) continue;
-				if (!string.Equals(pair.Value.SessionToken, sessionToken, StringComparison.Ordinal)) continue;
-				if (!pair.Value.IsDisconnected) continue;
+			string sanitizedSessionToken = LobbyLimits.Sanitize(sessionToken, MaximumSessionTokenLength);
 
-				seat = pair.Value;
-				_slotByPeer.Remove(seat.PeerId);
-				restored = true;
-				break;
+			restored = TryFindSeatBySessionToken(sanitizedSessionToken, requireDisconnected: true, out seat) ||
+			           TryFindSeatBySessionToken(sanitizedSessionToken, requireDisconnected: false, out seat);
+
+			if (restored)
+			{
+				int previousPeerId = seat.PeerId;
+				bool previousPeerStood = !seat.IsDisconnected;
+				_slotByPeer.Remove(previousPeerId);
+				if (previousPeerStood && previousPeerId != peerId) _disconnect(previousPeerId);
 			}
 		}
 
@@ -290,6 +291,8 @@ public class ServerLobby
 			seat.Team = ResolveTeamNumber(seat.TeamName, slot);
 		}
 
+		if (restored && proveAdmin && seat.IsHost) _adminPeerId = peerId;
+
 		seat.PeerId = peerId;
 		seat.AccountId = accountId;
 		seat.IsHost = isAdmin || peerId == _adminPeerId;
@@ -307,6 +310,22 @@ public class ServerLobby
 		AddSystemChat($"{seat.Name} joined the lobby.");
 		BroadcastState();
 		return string.Empty;
+	}
+
+	private bool TryFindSeatBySessionToken(string sessionToken, bool requireDisconnected, out LobbySeat seat)
+	{
+		foreach (var pair in _seats)
+		{
+			if (pair.Value.IsComputer) continue;
+			if (requireDisconnected && !pair.Value.IsDisconnected) continue;
+			if (!string.Equals(pair.Value.SessionToken, sessionToken, StringComparison.Ordinal)) continue;
+
+			seat = pair.Value;
+			return true;
+		}
+
+		seat = default;
+		return false;
 	}
 
 	public void HandleCommand(int peerId, LobbyCommand command)
