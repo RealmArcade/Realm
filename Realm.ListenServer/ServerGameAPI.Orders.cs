@@ -9,6 +9,7 @@ using Realm.Ecs.Components.Meta;
 using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Stats;
 using Realm.Ecs.Components.Tags;
+using Realm.Ecs.Replication;
 using Realm.Ecs.Services;
 using Realm.Shared.Maps;
 using Realm.Shared.Metadata;
@@ -291,12 +292,30 @@ public partial class ServerGameAPI
 		return UnitOrderService.GetAbilityCooldownRemaining(_context.World, entity, abilityId);
 	}
 
+	private readonly HashSet<int> _cooldownOverflowWarned = new();
+
 	public void SetAbilityCooldown(UnitId unit, string abilityId, float cooldown)
 	{
 		Entity entity = ResolveUnit(unit);
 		if (entity == Entity.Null) return;
 
 		UnitOrderService.SetAbilityCooldown(_context.World, entity, abilityId, cooldown);
+		WarnIfCooldownsExceedReplication(entity, abilityId);
+	}
+
+	/// <summary>
+	///     Only a fixed number of cooldown slots travel to clients, so a script that parks more timers than that on one
+	///     unit loses the tail and the command cards for those entries show no indicator at all. Say so once per unit
+	///     rather than letting the missing indicator look like a rendering fault.
+	/// </summary>
+	private void WarnIfCooldownsExceedReplication(Entity entity, string abilityId)
+	{
+		if (!_context.World.TryGet<Cooldowns>(entity, out Cooldowns cooldowns)) return;
+		if (cooldowns.Count <= TimedStatusPayload.MaxReplicatedSlots) return;
+		if (!_cooldownOverflowWarned.Add(entity.Id)) return;
+
+		_log.Write($"[Cooldowns] Unit {entity.Id} now holds {cooldowns.Count} cooldowns (newest '{abilityId}'), but only " +
+			$"{TimedStatusPayload.MaxReplicatedSlots} replicate to clients, so the rest show no timer on command cards.");
 	}
 
 	public void SetAbilityAutoCast(UnitId unit, string abilityId, bool active)

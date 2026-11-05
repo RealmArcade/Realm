@@ -209,16 +209,30 @@ public partial class CommandPanel
 		UpdateAbilityStats(item, ref cdRemaining, ref currentMana);
 
 		var abilityDef = GameContext.Host?.GetAbilityDefinition(item.AbilityId);
-		float maxCd = GetMaxCooldown(abilityDef, cdRemaining);
+		float maxCd = GetMaxCooldown(item, abilityDef, cdRemaining);
 		float manaCost = GetEffectiveManaCost(item, abilityDef);
 
 		UpdateAbilityLabelsAndSweep(btn, manaCost, cdRemaining, maxCd);
 		UpdateAbilityButtonState(btn, item, currentMana, manaCost, cdRemaining);
 	}
 
-	private float GetMaxCooldown(AbilityDefinition abilityDef, float cdRemaining)
+	private float GetMaxCooldown(CommandCardItem item, AbilityDefinition abilityDef, float cdRemaining)
 	{
 		if (abilityDef != null && abilityDef.Cooldown > 0f) return abilityDef.Cooldown;
+
+		// A script-set cooldown carries its own duration, which is the only scale available for a command the map
+		// timed but never defined as an ability. Guessing one made the sweep sit full until the last ten seconds.
+		EcsWorld world = GameContext.World;
+		Entity caster = item.CasterEntity != Entity.Null && world != null && world.IsAlive(item.CasterEntity)
+			? item.CasterEntity
+			: _lastFocusedEntity;
+
+		if (world != null && caster != Entity.Null && world.IsAlive(caster) && world.Has<Cooldowns>(caster))
+		{
+			ref Cooldowns cooldowns = ref world.Get<Cooldowns>(caster);
+			if (cooldowns.TryGetDuration(item.AbilityId, out float duration) && duration > 0f) return duration;
+		}
+
 		return Math.Max(10f, cdRemaining);
 	}
 
