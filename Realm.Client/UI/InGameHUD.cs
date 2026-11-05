@@ -34,6 +34,7 @@ public partial class InGameHUD : Control
 	}
 
 	private InGameHUDViewModel _viewModel = new();
+	private string _lastSelectionSignature = string.Empty;
 
 	public float Gold
 	{
@@ -1436,6 +1437,8 @@ public partial class InGameHUD : Control
 			_commandFrame.Visible = !isSpectator && hasPlayerSelection && commandCardAllowed;
 		}
 
+		ResetBuildSubMenuOnSelectionChange(selectedUnits);
+
 		_viewModel.SelectedProp = GameContext.Host?.SelectedProp;
 		_viewModel.UpdateSelectedUnits(selectedUnits);
 		_portraitPanelController?.Update(_viewModel);
@@ -1641,7 +1644,23 @@ public partial class InGameHUD : Control
 		if (GameContext.Host?.SelectedUnits == null) return;
 
 		var selected = GameContext.Host.SelectedUnits;
+		ResetBuildSubMenuOnSelectionChange(selected);
 		_viewModel.UpdateSelectedUnits(selected);
+	}
+
+	/// <summary>
+	///     The Build submenu belongs to the unit that opened it, so a new selection closes it instead of leaving a
+	///     builder's build options on another unit's command card.
+	/// </summary>
+	private void ResetBuildSubMenuOnSelectionChange(List<Unit3D> selectedUnits)
+	{
+		if (selectedUnits == null) return;
+
+		string signature = string.Join(";", selectedUnits.Select(unit => unit.Entity.Id));
+		if (string.Equals(signature, _lastSelectionSignature, StringComparison.Ordinal)) return;
+
+		_lastSelectionSignature = signature;
+		if (_viewModel.IsBuildSubMenuOpen) _viewModel.IsBuildSubMenuOpen = false;
 	}
 
 	private void UpdateShroudMinimapTimer(double delta)
