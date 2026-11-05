@@ -1,13 +1,21 @@
 using System;
+using System.Text;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.UI;
 using Realm.Client.Services;
+using Realm.Shared.Abilities;
 
 namespace Realm.Client.Utils;
 
 public static class UIHelper
 {
+	public const string GoldIconPath = "res://Assets/UI/gold_coin.webp";
+	public const string WoodIconPath = "res://Assets/UI/wood_logs.webp";
+	public const string StoneIconPath = "res://Assets/UI/stone.webp";
+
+	private const int CostIconSizePixels = 16;
+
 	public static void SetupPillarButton(Button btn, string text, Action onClick)
 	{
 		btn.Flat = false;
@@ -29,6 +37,66 @@ public static class UIHelper
 			onClick?.Invoke();
 		};
 		btn.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
+	}
+
+	/// <summary>
+	///     Builds the first line of a command card tooltip: the template name followed by its resource costs, each
+	///     resource drawn with its own icon instead of a written resource name.
+	/// </summary>
+	public static string BuildHeader(string? name, float gold, float wood, float stone, int pop = 0)
+	{
+		var builder = new StringBuilder(64);
+		builder.Append("[b]");
+		builder.Append(string.IsNullOrWhiteSpace(name) ? "?" : name);
+		builder.Append("[/b]");
+
+		AppendCost(builder, gold, GoldIconPath);
+		AppendCost(builder, wood, WoodIconPath);
+		AppendCost(builder, stone, StoneIconPath);
+
+		if (pop > 0)
+		{
+			builder.Append("  ");
+			builder.Append(pop);
+			builder.Append(" Pop");
+		}
+
+		return builder.ToString();
+	}
+
+	/// <summary>
+	///     Puts an ability's template name and costs above its description, keeping any resolved tooltip tokens in the
+	///     description untouched.
+	/// </summary>
+	public static string PrependAbilityHeader(string? abilityId, AbilityDefinition? definition, string? body)
+	{
+		// Only an ability the map actually names gets a header. The command card also shows engine commands such as
+		// the Build menu under a reserved id, and those keep the tooltip the card item was built with.
+		string name = definition?.DisplayName ?? string.Empty;
+		if (string.IsNullOrWhiteSpace(name)) return body ?? string.Empty;
+
+		string header = BuildHeader(
+			name,
+			definition!.CostGold,
+			definition.CostWood,
+			definition.CostStone);
+
+		if (string.IsNullOrWhiteSpace(body)) return header;
+		return $"{header}\n{body}";
+	}
+
+	private static void AppendCost(StringBuilder builder, float amount, string iconPath)
+	{
+		if (amount <= 0f) return;
+
+		builder.Append("  [img=");
+		builder.Append(CostIconSizePixels);
+		builder.Append('x');
+		builder.Append(CostIconSizePixels);
+		builder.Append(']');
+		builder.Append(iconPath);
+		builder.Append("[/img] ");
+		builder.Append(amount.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture));
 	}
 
 	public static string GetUnitCostTooltip(string unitId, HotkeySpec hotkey, string actionPrefix)
@@ -53,7 +121,7 @@ public static class UIHelper
 		if (pop > 0) costStr += $", {pop} Pop";
 
 		string translatedActionPrefix = TranslationServer.Translate(actionPrefix);
-		
+
 		string tooltipFormat = !hotkey.IsNone
 			? (string.IsNullOrEmpty(desc) ? "[{0}] {4} {1} ({2})" : "[{0}] {4} {1} ({2}) — {3}")
 			: (string.IsNullOrEmpty(desc) ? "{4} {1} ({2})" : "{4} {1} ({2}) — {3}");

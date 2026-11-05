@@ -143,7 +143,7 @@ public partial class CommandPanel
 		var def = GameContext.Host?.GetAbilityDefinition(item.AbilityId);
 		if (def == null) return;
 
-		string transTooltip = !string.IsNullOrEmpty(def.TooltipTemplate) ? def.TooltipTemplate : "";
+		string transTooltip = ResolveAbilityTooltip(item.AbilityId, def);
 		if (!string.IsNullOrEmpty(transTooltip) && btn.TooltipText != transTooltip)
 		{
 			btn.TooltipText = transTooltip;
@@ -600,13 +600,21 @@ public partial class CommandPanel
 		return btn;
 	}
 
+	private static readonly HashSet<string> s_reportedMissingIcons = new(StringComparer.OrdinalIgnoreCase);
+
 	private Texture2D LoadCommandIcon(string iconPath)
 	{
 		if (string.IsNullOrEmpty(iconPath)) return null;
 		var tex = RtexIconLoader.Load(iconPath);
 		if (tex == null)
 		{
-			GD.PushWarning($"[CommandPanel] Failed to load ability icon at '{iconPath}', using fallback.");
+			// A map can name an icon it never shipped, and the card is rebuilt on every selection. Say it once per
+			// icon instead of once per rebuild, so a genuinely missing asset is still visible in the log.
+			if (s_reportedMissingIcons.Add(iconPath))
+			{
+				GD.PushWarning($"[CommandPanel] Failed to load ability icon at '{iconPath}', using fallback.");
+			}
+
 			tex = RtexIconLoader.Load("res://Assets/UI/alliance_flag.webp");
 		}
 
@@ -801,6 +809,9 @@ public partial class CommandPanel
 					IconPath = "res://Assets/UI/golden_hammers.webp",
 					Tooltip = "[B] Build Structure",
 					Hotkey = Key.B,
+					AbilityId = BuildCommandAbilityId,
+					CasterEntity = focusedUnit.Entity,
+					IgnoresCooldownGate = true,
 					Callback = () => GameContext.InGameHud?.EnterBuildSubMenu()
 				});
 			}
@@ -1264,12 +1275,11 @@ public partial class CommandPanel
 
 	private string ResolveAbilityTooltip(string abilityId, AbilityDefinition abilityDef)
 	{
-		if (abilityDef != null && !string.IsNullOrEmpty(abilityDef.TooltipTemplate))
-		{
-			return abilityDef.TooltipTemplate;
-		}
+		string body = abilityDef != null && !string.IsNullOrEmpty(abilityDef.TooltipTemplate)
+			? abilityDef.TooltipTemplate
+			: GetDefaultAbilityTooltip(abilityId);
 
-		return GetDefaultAbilityTooltip(abilityId);
+		return UIHelper.PrependAbilityHeader(abilityId, abilityDef, body);
 	}
 
 	private Unit_WasmRuntime GetUnitWrapperIfAlive(GameHost host, Entity casterEntity)
