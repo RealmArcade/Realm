@@ -262,19 +262,13 @@ public class ServerLobby
 		{
 			string sanitizedSessionToken = LobbyLimits.Sanitize(sessionToken, MaximumSessionTokenLength);
 
-			restored = TryFindSeatBySessionToken(sanitizedSessionToken, requireDisconnected: true, out seat);
-
-			if (!restored && TryFindSeatBySessionToken(sanitizedSessionToken, requireDisconnected: false, out LobbySeat liveSeat))
-			{
-				// A seat still held by a live connection is given up only by the peer that administers this lobby, whose own
-				// reconnect can outrun the authority noticing its old socket is gone, or by that same socket saying hello
-				// again. Anybody else is seated afresh rather than allowed to evict a player who is still sitting there.
-				if (proveAdmin || liveSeat.PeerId == peerId)
-				{
-					seat = liveSeat;
-					restored = true;
-				}
-			}
+			// The seat secret is minted on the seat's own client and every other peer's copy of it is blanked before the
+			// lobby state goes out, so presenting it is what proves the seat belongs to this peer. A seat a live connection
+			// still holds is taken back as well, because a reconnect always arrives as a new peer id and can outrun the
+			// authority noticing the old socket is gone; seating that peer afresh would cost it its slot, team and colour,
+			// or refuse it outright when the lobby has no playing slot left.
+			restored = TryFindSeatBySessionToken(sanitizedSessionToken, requireDisconnected: true, out seat) ||
+			           TryFindSeatBySessionToken(sanitizedSessionToken, requireDisconnected: false, out seat);
 
 			if (restored)
 			{
