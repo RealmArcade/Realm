@@ -45,6 +45,9 @@ public partial class ServerGameAPI
 
 	private void PublishCast(UnitId unit, AbilityDefinition definition, Vector3 casterPosition, Vector3 targetPosition)
 	{
+		// An ability that names a projectile fires it as its own visual, and its landing is reported back to the map.
+		LaunchAbilityProjectile(unit, definition, casterPosition, targetPosition);
+
 		if (!string.IsNullOrEmpty(definition.VisualEffect))
 		{
 			_presentation.Write(PresentationKind.VisualEffect, ServerPresentationEvent.Everyone, unit.Value, definition.VisualEffect, string.Empty, string.Empty, string.Empty, null,

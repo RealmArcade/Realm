@@ -4,10 +4,12 @@ using Realm.Client.Services;
 
 namespace Realm.Client.UI.InGame;
 
+/// <summary>
+///     Renders the rows of a summary table into a container the scoreboard owns. Visibility and collapsing belong to
+///     the scoreboard, so this only draws what the last update described.
+/// </summary>
 public class SummaryTablePanel
 {
-	private PanelContainer _summaryPanel;
-	private Label _titleLabel;
 	private VBoxContainer _rowsContainer;
 
 	private HBoxContainer? _headerRow;
@@ -19,30 +21,16 @@ public class SummaryTablePanel
 	private readonly List<List<Label>> _dataRowLabels = new();
 	private string? _lastTitle;
 
-	public SummaryTablePanel(PanelContainer summaryPanel, Label titleLabel, VBoxContainer rowsContainer)
+	public SummaryTablePanel(VBoxContainer rowsContainer)
 	{
-		_summaryPanel = summaryPanel;
-		_titleLabel = titleLabel;
 		_rowsContainer = rowsContainer;
 	}
 
 	public void Update(InGameHUDViewModel viewModel)
 	{
-		bool allowSummary = GameContext.InGameHud?.IsHudElementVisible(HudElement.SummaryTable, true) ?? true;
-		bool visible = viewModel.SummaryTableVisible && allowSummary;
-		if (_summaryPanel.Visible != visible)
-		{
-			_summaryPanel.Visible = visible;
-		}
-		if (!visible)
-		{
-			return;
-		}
-
 		string title = viewModel.SummaryTableTitle ?? string.Empty;
 		if (_lastTitle != title)
 		{
-			_titleLabel.Text = title;
 			_lastTitle = title;
 		}
 

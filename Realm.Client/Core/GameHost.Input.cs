@@ -2377,30 +2377,25 @@ public partial class GameHost
 			return;
 		}
 
-		if (!filter.CanControl(clickedUnit.Player))
-		{
-			ClearSelection();
-			if (filter.IsHostileToObserved(clickedUnit.Player))
-				SelectUnit(clickedUnit);
-			return;
-		}
-
-		if (!IsSelectableByLocalPlayer(clickedUnit))
-		{
-			ClearSelection();
-			return;
-		}
-
 		if (Input.IsKeyPressed(Key.Ctrl))
 		{
 			PerformDoubleClickSelection(clickPos);
 			return;
 		}
 
-		bool shiftPressed = Input.IsKeyPressed(Key.Shift);
-		bool selectingEnemy = SelectedUnits.Count > 0 && !filter.CanControl(SelectedUnits[0].Player);
+		// A unit this screen cannot command is still selectable so its details can be read, whether it belongs to an ally
+		// or an enemy. Every order path skips a unit this screen does not own, so the selection stays read-only.
+		if (!filter.CanControl(clickedUnit.Player))
+		{
+			ClearSelection();
+			SelectUnit(clickedUnit);
+			return;
+		}
 
-		if (selectingEnemy || !shiftPressed)
+		bool shiftPressed = Input.IsKeyPressed(Key.Shift);
+		bool selectingViewOnlyUnits = SelectedUnits.Count > 0 && !filter.CanControl(SelectedUnits[0].Player);
+
+		if (selectingViewOnlyUnits || !shiftPressed)
 		{
 			ClearSelection();
 			SelectUnit(clickedUnit);
@@ -2435,27 +2430,28 @@ public partial class GameHost
 		var dragRect = CreateDragRect(start, end);
 		HandleBoxSelectionState();
 
-		var friendlyUnits = new List<Unit3D>();
-		var enemyUnits = new List<Unit3D>();
-		CollectUnitsInRect(camera, dragRect, friendlyUnits, enemyUnits);
+		var commandableUnits = new List<Unit3D>();
+		var viewOnlyUnits = new List<Unit3D>();
+		CollectUnitsInRect(camera, dragRect, commandableUnits, viewOnlyUnits);
 
 		// A box that catches anything of this screen's own is a command in the making, so it takes only what can be
-		// commanded. A box that catches nothing of its own is a look: the enemy units it sweeps are selected so their
-		// details can be read, and every order path skips a unit this screen does not own, so the selection stays read-only.
-		if (friendlyUnits.Count > 0)
+		// commanded. A box that catches nothing of its own is a look: every visible unit it sweeps is selected, whatever
+		// player owns it, so allied and enemy units alike can be read. Every order path skips a unit this screen does not
+		// own, so the selection stays read-only.
+		if (commandableUnits.Count > 0)
 		{
-			SelectUnits(friendlyUnits);
+			SelectUnits(commandableUnits);
 		}
-		else if (enemyUnits.Count > 0)
+		else if (viewOnlyUnits.Count > 0)
 		{
-			// A shift-drag that sweeps a second enemy extends what is being read, but it never turns a command into a look:
+			// A shift-drag that sweeps more units extends what is being read, but it never turns a command into a look:
 			// a selection this screen can order around is dropped rather than mixed with units it cannot.
 			if (SelectedUnits.Count > 0 && GameContext.PerspectiveFilter.CanControl(SelectedUnits[0].Player))
 			{
 				ClearSelection();
 			}
 
-			SelectUnits(enemyUnits);
+			SelectUnits(viewOnlyUnits);
 		}
 		else
 		{
@@ -2476,15 +2472,15 @@ public partial class GameHost
 	private void HandleBoxSelectionState()
 	{
 		bool shiftPressed = Input.IsKeyPressed(Key.Shift);
-		bool selectingEnemy = SelectedUnits.Count > 0 && !GameContext.PerspectiveFilter.CanControl(SelectedUnits[0].Player);
+		bool selectingViewOnlyUnits = SelectedUnits.Count > 0 && !GameContext.PerspectiveFilter.CanControl(SelectedUnits[0].Player);
 
-		if (selectingEnemy || !shiftPressed)
+		if (selectingViewOnlyUnits || !shiftPressed)
 		{
 			ClearSelection();
 		}
 	}
 
-	private void CollectUnitsInRect(Camera3D camera, Rect2 dragRect, List<Unit3D> friendlyUnits, List<Unit3D> enemyUnits)
+	private void CollectUnitsInRect(Camera3D camera, Rect2 dragRect, List<Unit3D> commandableUnits, List<Unit3D> viewOnlyUnits)
 	{
 		var filter = GameContext.PerspectiveFilter;
 
@@ -2497,18 +2493,17 @@ public partial class GameHost
 
 			if (filter.IsSpectating)
 			{
-				if (filter.CanObserve(unit.Player)) friendlyUnits.Add(unit);
+				if (filter.CanObserve(unit.Player)) commandableUnits.Add(unit);
 				continue;
 			}
 
 			if (filter.CanControl(unit.Player))
 			{
-				if (IsSelectableByLocalPlayer(unit)) friendlyUnits.Add(unit);
+				if (IsSelectableByLocalPlayer(unit)) commandableUnits.Add(unit);
 				continue;
 			}
 
-			if (filter.IsHostileToObserved(unit.Player))
-				enemyUnits.Add(unit);
+			viewOnlyUnits.Add(unit);
 		}
 	}
 
@@ -2556,17 +2551,17 @@ public partial class GameHost
 
 		var dragRect = CreateDragRect(start, end);
 
-		var friendlyUnits = new List<Unit3D>();
-		var enemyUnits = new List<Unit3D>();
+		var commandableUnits = new List<Unit3D>();
+		var viewOnlyUnits = new List<Unit3D>();
 		var resourceProps = new List<Prop3D>();
 
-		CollectUnitsForTemporarySelection(camera, dragRect, friendlyUnits, enemyUnits);
+		CollectUnitsForTemporarySelection(camera, dragRect, commandableUnits, viewOnlyUnits);
 		CollectPropsForTemporarySelection(camera, dragRect, resourceProps);
 
-		ApplyTemporarySelectionHighlights(friendlyUnits, enemyUnits, resourceProps);
+		ApplyTemporarySelectionHighlights(commandableUnits, viewOnlyUnits, resourceProps);
 	}
 
-	private void CollectUnitsForTemporarySelection(Camera3D camera, Rect2 dragRect, List<Unit3D> friendlyUnits, List<Unit3D> enemyUnits)
+	private void CollectUnitsForTemporarySelection(Camera3D camera, Rect2 dragRect, List<Unit3D> commandableUnits, List<Unit3D> viewOnlyUnits)
 	{
 		foreach (var unit in AllUnits)
 		{
@@ -2574,7 +2569,7 @@ public partial class GameHost
 
 			if (dragRect.HasPoint(camera.UnprojectPosition(unit.GlobalPosition)))
 			{
-				((!GameContext.PerspectiveFilter.CanControl(unit.Player)) ? enemyUnits : friendlyUnits).Add(unit);
+				((!GameContext.PerspectiveFilter.CanControl(unit.Player)) ? viewOnlyUnits : commandableUnits).Add(unit);
 			}
 
 			unit.SetTemporarySelectionHighlight(false);
@@ -2599,15 +2594,15 @@ public partial class GameHost
 		}
 	}
 
-	private void ApplyTemporarySelectionHighlights(List<Unit3D> friendlyUnits, List<Unit3D> enemyUnits, List<Prop3D> resourceProps)
+	private void ApplyTemporarySelectionHighlights(List<Unit3D> commandableUnits, List<Unit3D> viewOnlyUnits, List<Prop3D> resourceProps)
 	{
-		if (friendlyUnits.Count > 0)
+		if (commandableUnits.Count > 0)
 		{
-			foreach (var unit in friendlyUnits) unit.SetTemporarySelectionHighlight(true);
+			foreach (var unit in commandableUnits) unit.SetTemporarySelectionHighlight(true);
 		}
-		else if (enemyUnits.Count > 0)
+		else if (viewOnlyUnits.Count > 0)
 		{
-			foreach (var unit in enemyUnits) unit.SetTemporarySelectionHighlight(true);
+			foreach (var unit in viewOnlyUnits) unit.SetTemporarySelectionHighlight(true);
 		}
 		else if (resourceProps.Count > 0)
 		{
@@ -3147,21 +3142,32 @@ public partial class GameHost
 	private void PerformDoubleClickSelection(Vector2 clickPos)
 	{
 		if (GameContext.PerspectiveFilter.IsSpectating) return;
-		var hit = RaycastFromMouse(clickPos);
-		if (hit == null || !hit.ContainsKey("collider")) return;
 
-		var clickedUnit = FindUnit3DInParentChain(hit["collider"].As<Node>());
-		if (clickedUnit == null || !GameContext.PerspectiveFilter.CanControl(clickedUnit.Player)) return;
+		var hit = RaycastFromMouse(clickPos);
+		Unit3D clickedUnit = null;
+		if (hit != null && hit.ContainsKey("collider"))
+		{
+			clickedUnit = FindUnit3DInParentChain(hit["collider"].As<Node>());
+		}
+
+		clickedUnit ??= FindUnitNearScreenPoint(clickPos);
+		if (!IsValidVisibleUnit(clickedUnit)) return;
 
 		var camera = GetViewport().GetCamera3D();
 		if (camera == null) return;
 
-		SelectSimilarVisibleUnits(clickedUnit.UnitId, camera, GetViewport().GetVisibleRect());
+		SelectSimilarVisibleUnits(clickedUnit, camera, GetViewport().GetVisibleRect());
 	}
 
-	private void SelectSimilarVisibleUnits(string type, Camera3D camera, Rect2 viewportRect)
+	private void SelectSimilarVisibleUnits(Unit3D clickedUnit, Camera3D camera, Rect2 viewportRect)
 	{
-		var visibleUnits = AllUnits.FindAll(u => GameContext.PerspectiveFilter.CanControl(u.Player) && !u.IsBuilding && u.UnitId == type && viewportRect.HasPoint(camera.UnprojectPosition(u.GlobalPosition)));
+		int clickedPlayer = clickedUnit.Player;
+		string type = clickedUnit.UnitId;
+		var visibleUnits = AllUnits.FindAll(u => IsValidVisibleUnit(u) && !u.IsBuilding && u.Player == clickedPlayer && u.UnitId == type && viewportRect.HasPoint(camera.UnprojectPosition(u.GlobalPosition)));
+
+		// The template selection belongs to the clicked unit's player, so collapsing the current selection first keeps a
+		// read-only selection from mixing with units this screen can command.
+		ClearSelection();
 
 		foreach (var u in visibleUnits)
 		{
@@ -3410,6 +3416,11 @@ public partial class GameHost
 	private void ExecuteSpellCast(string spellId, Vector3 position)
 	{
 		if (GameContext.PerspectiveFilter.IsSpectating) return;
+
+		// A card that sells a consumable is not a spell to resolve: it is a purchase order aimed at the unit under the
+		// cursor, which only the authority can price and attach. Offered here so a client buys it too, not just a host.
+		if (ExecuteConsumablePurchase(GetFocusedSelectedUnitId(), spellId, position)) return;
+
 		var def = GetAbilityDefinition(spellId);
 
 		if (_multiplayerActive && !Multiplayer.IsServer())
@@ -3419,6 +3430,20 @@ public partial class GameHost
 		}
 
 		ExecuteLocalSpellCast(spellId, def, position);
+	}
+
+	private Unit3D GetFocusedSelectedUnit()
+	{
+		int focusedIdx = Math.Clamp(CycleSelectionIndex, 0, Math.Max(0, SelectedUnits.Count - 1));
+		return SelectedUnits.Count > focusedIdx ? SelectedUnits[focusedIdx] : null;
+	}
+
+	private UnitId GetFocusedSelectedUnitId()
+	{
+		Unit3D focusedUnit = GetFocusedSelectedUnit();
+		return focusedUnit != null && GameContext.World.IsAlive(focusedUnit.Entity)
+			? (UnitId)focusedUnit.Entity.Id
+			: UnitId.Invalid;
 	}
 
 	private void ExecuteClientMultiplayerSpellCast(string spellId, AbilityDefinition def, Vector3 position)
@@ -3444,30 +3469,41 @@ public partial class GameHost
 
 	private void ExecuteLocalSpellCast(string spellId, AbilityDefinition def, Vector3 position)
 	{
-		int focusedIdx = Math.Clamp(CycleSelectionIndex, 0, Math.Max(0, SelectedUnits.Count - 1));
-		Unit3D focusedUnit = SelectedUnits.Count > focusedIdx ? SelectedUnits[focusedIdx] : null;
+		Unit3D focusedUnit = GetFocusedSelectedUnit();
 
 		if (_multiplayerActive && focusedUnit != null && !GameContext.PerspectiveFilter.CanControl(focusedUnit.Player)) return;
 
-		UnitId caster = UnitId.Invalid;
-		if (focusedUnit != null && GameContext.World.IsAlive(focusedUnit.Entity))
+		bool hasCaster = focusedUnit != null && GameContext.World.IsAlive(focusedUnit.Entity);
+		UnitId caster = hasCaster ? (UnitId)focusedUnit.Entity.Id : UnitId.Invalid;
+
+		// Affordability and cooldown are settled before the script hears about the cast, matching the authoritative server
+		// path. Raising OnSpellCast first let a refused cast still run its map-side effects and left a cooldown behind.
+		if (IsSpellOnCooldown(spellId, def)) return;
+
+		Entity casterEntity = hasCaster ? focusedUnit.Entity : Entity.Null;
+		if (!GameContext.InputService.TryExecuteSpellCast(GetPlayerEntityForPlayerIndex(GameContext.PerspectiveFilter.ControlledPlayerIndex), casterEntity, spellId, out float maxCd))
 		{
-			caster = (UnitId)focusedUnit.Entity.Id;
+			ShowInsufficientManaFeedback(spellId, def);
+			return;
+		}
+
+		if (hasCaster)
+		{
 			GameContext.AudioService?.PlayUnitSound(focusedUnit.UnitId, UnitSoundEvent.SpellCast, position, 0f, AudioPriorityTier.Critical);
 		}
 
-		if (ExecuteConsumablePurchase(caster, spellId, position)) return;
-
 		OnSpellCast?.Invoke(caster, spellId, new System.Numerics.Vector3(position.X, position.Y, position.Z));
 
-		Entity casterEntity = focusedUnit != null && GameContext.World.IsAlive(focusedUnit.Entity) ? focusedUnit.Entity : Entity.Null;
+		HandleSpellCastSuccess(spellId, def, position);
+	}
 
-		if (IsSpellOnCooldown(spellId, def)) return;
+	private void ShowInsufficientManaFeedback(string spellId, AbilityDefinition def)
+	{
+		float cost = def?.ManaCost ?? 0f;
+		if (cost <= 0f) return;
 
-		if (GameContext.InputService.TryExecuteSpellCast(GetPlayerEntityForPlayerIndex(GameContext.PerspectiveFilter.ControlledPlayerIndex), casterEntity, spellId, out float maxCd))
-		{
-			HandleSpellCastSuccess(spellId, def, position);
-		}
+		string displayName = def?.DisplayName ?? spellId;
+		GameContext.InGameHud?.ShowFeedbackText($"{displayName} requires {(int)cost} mana", new Color(0.9f, 0.4f, 0.1f));
 	}
 
 	private bool IsSpellOnCooldown(string spellId, AbilityDefinition def)
@@ -4019,7 +4055,7 @@ public partial class GameHost
 		if (playerIndex <= 0) return;
 		if (string.IsNullOrWhiteSpace(upgradeId)) return;
 
-		SubmitOrderCommand("research", new List<int>(), Vector3.Zero, 0, upgradeId);
+		SubmitOrderCommand("research", new List<int>(), Vector3.Zero, 0, upgradeId, requiresUnits: false);
 	}
 
 	public void IssueAttackMoveCommand(Vector3 targetPos)
@@ -4280,6 +4316,8 @@ public partial class GameHost
 	{
 		if (GameContext.PerspectiveFilter.IsSpectating) return;
 		if (!GameContext.World.IsAlive(buildingEntity) || !GameContext.World.Has<ProductionQueue>(buildingEntity)) return;
+		// A building read through a view-only selection shows its queue, but only a building this screen owns answers.
+		if (!TryGetUnit3D(buildingEntity, out var building3D) || !GameContext.PerspectiveFilter.CanControl(building3D.Player)) return;
 
 		SubmitOrderCommand("cancel_train", new List<int> { GetServerEntityId(buildingEntity) }, Vector3.Zero, index, "");
 

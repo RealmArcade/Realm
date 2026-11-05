@@ -54,6 +54,8 @@ public partial class GameHost
 		public bool Visible;
 	}
 
+	private const int MaximumPendingLeaderboardOperations = 512;
+
 	private readonly List<LeaderboardOperation> _pendingLeaderboardOperations = new();
 	private bool _leaderboardFlushQueued;
 
@@ -387,7 +389,13 @@ public partial class GameHost
 		var hud = GameContext.InGameHud;
 		if (hud == null || !GodotObject.IsInstanceValid(hud))
 		{
-			_pendingLeaderboardOperations.Clear();
+			// A screen seated on an authority that is already running is told its boards before its HUD is built, which
+			// is how testing a map from the editor starts. Keep them for the HUD that is about to exist.
+			if (_pendingLeaderboardOperations.Count > MaximumPendingLeaderboardOperations)
+			{
+				_pendingLeaderboardOperations.RemoveRange(0, _pendingLeaderboardOperations.Count - MaximumPendingLeaderboardOperations);
+			}
+
 			return;
 		}
 

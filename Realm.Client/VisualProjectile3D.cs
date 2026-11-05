@@ -86,6 +86,7 @@ public partial class VisualProjectile3D : Node3D
 	private float _totalFlightDuration;
 	private float _elapsedTime;
 	private bool _isFlying;
+	private bool _honourDestination;
 	private bool _isImpacted;
 	private float _fadeTimer;
 	private float _fadeDuration;
@@ -168,20 +169,20 @@ public partial class VisualProjectile3D : Node3D
 			: new Shader { Code = shaderCode };
 	}
 
-	public void Initialize(WeaponMetadata weapon, Vector3 start, Vector3 target, Entity targetEntity = default, Action<VisualProjectile3D> recycleCallback = null, int ownerPlayerIndex = 0)
+	public void Initialize(WeaponMetadata weapon, Vector3 start, Vector3 target, Entity targetEntity = default, Action<VisualProjectile3D> recycleCallback = null, int ownerPlayerIndex = 0, bool honourDestination = false)
 	{
 		if (recycleCallback != null) OnRecycleRequested = recycleCallback;
 		PlayerIndex = ownerPlayerIndex;
-		Initialize(start, target, weapon, targetEntity);
+		Initialize(start, target, weapon, targetEntity, honourDestination);
 	}
 
-	public void Initialize(string weaponId, Vector3 start, Vector3 target, Entity targetEntity = default, Action<VisualProjectile3D> recycleCallback = null, int ownerPlayerIndex = 0)
+	public void Initialize(string weaponId, Vector3 start, Vector3 target, Entity targetEntity = default, Action<VisualProjectile3D> recycleCallback = null, int ownerPlayerIndex = 0, bool honourDestination = false)
 	{
 		if (recycleCallback != null) OnRecycleRequested = recycleCallback;
 		PlayerIndex = ownerPlayerIndex;
 		if (GameHost.WeaponRegistry.TryGetValue(weaponId ?? "arrow", out var meta))
 		{
-			Initialize(start, target, meta, targetEntity);
+			Initialize(start, target, meta, targetEntity, honourDestination);
 		}
 		else
 		{
@@ -191,11 +192,16 @@ public partial class VisualProjectile3D : Node3D
 				ProjectileSpeed = 25f,
 				OrientToTrajectory = true
 			};
-			Initialize(start, target, fallback, targetEntity);
+			Initialize(start, target, fallback, targetEntity, honourDestination);
 		}
 	}
 
-	public void Initialize(Vector3 start, Vector3 target, WeaponMetadata weapon, Entity targetEntity = default)
+	/// <param name="honourDestination">
+	///     When true the flight always runs to completion at the requested destination instead of being cut short by the
+	///     weapon's MaxLifetime/FailsafeRange, which exist to clean up projectiles whose moving target vanished. Script-spawned
+	///     projectiles (Spawning a projectile at a fixed point) need the visual to stay alive until it actually arrives.
+	/// </param>
+	public void Initialize(Vector3 start, Vector3 target, WeaponMetadata weapon, Entity targetEntity = default, bool honourDestination = false)
 	{
 		if (_vfxSequence != null && GodotObject.IsInstanceValid(_vfxSequence))
 		{
@@ -203,6 +209,7 @@ public partial class VisualProjectile3D : Node3D
 		}
 
 		_weapon = weapon;
+		_honourDestination = honourDestination;
 		_startPosition = start;
 		_targetPosition = target;
 		_initialTargetPosition = target;
@@ -669,8 +676,12 @@ public partial class VisualProjectile3D : Node3D
 
 	private bool CheckFlightFailsafes()
 	{
-		if (_weapon.MaxLifetime > 0.0f && _elapsedTime >= _weapon.MaxLifetime) return true;
-		if (_weapon.FailsafeRange > 0.0f && _cachedGlobalPosition.DistanceTo(_startPosition) >= _weapon.FailsafeRange) return true;
+		if (!_honourDestination)
+		{
+			if (_weapon.MaxLifetime > 0.0f && _elapsedTime >= _weapon.MaxLifetime) return true;
+			if (_weapon.FailsafeRange > 0.0f && _cachedGlobalPosition.DistanceTo(_startPosition) >= _weapon.FailsafeRange) return true;
+		}
+
 		if (_elapsedTime >= _totalFlightDuration * 3.0f + 5.0f) return true;
 		return false;
 	}

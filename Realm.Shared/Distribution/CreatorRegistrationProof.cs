@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace Realm.Shared.Distribution;
 
@@ -26,6 +27,28 @@ public static class CreatorRegistrationProof
 		if (string.IsNullOrWhiteSpace(publicKeyBase64) || string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(signature)) return false;
 
 		return AuthorSignatureHelper.VerifySignature(publicKeyBase64, BuildPayload(username, publicKeyBase64, donationLink, contactInfo), signature);
+	}
+
+	/// <summary>
+	///     Verifies a registration an administrator signed on the registered key's behalf, which is how a name is reassigned
+	///     to a key that was generated after the old one was lost. The payload still names the key being registered, so the
+	///     administrator's signature cannot be reused for a different key or name.
+	/// </summary>
+	public static bool VerifyByAuthority(string authorityPublicKeyBase64, string registeredPublicKeyBase64, string username, string? donationLink, string? contactInfo, string signature)
+	{
+		if (string.IsNullOrWhiteSpace(authorityPublicKeyBase64) || string.IsNullOrWhiteSpace(registeredPublicKeyBase64) || string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(signature)) return false;
+
+		return AuthorSignatureHelper.VerifySignature(authorityPublicKeyBase64, BuildPayload(username, registeredPublicKeyBase64, donationLink, contactInfo), signature);
+	}
+
+	public static bool VerifyByAnyAuthority(IEnumerable<string> authorityPublicKeys, string registeredPublicKeyBase64, string username, string? donationLink, string? contactInfo, string signature)
+	{
+		foreach (string authorityPublicKey in authorityPublicKeys)
+		{
+			if (VerifyByAuthority(authorityPublicKey, registeredPublicKeyBase64, username, donationLink, contactInfo, signature)) return true;
+		}
+
+		return false;
 	}
 
 	private static string NormalizeValue(string? value)

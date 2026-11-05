@@ -13,6 +13,12 @@ public class CommandCardItem
 	public TooltipContext TooltipContext { get; set; }
 	public Action Callback { get; set; }
 	public HotkeySpec Hotkey { get; set; }
+
+	/// <summary>
+	///     A core command with no hotkey of its own: its key comes from the grid slot it is drawn in, and its tooltip
+	///     carries the letter of that slot rather than one written into the text.
+	/// </summary>
+	public bool HotkeyFromGrid { get; set; }
 	public Func<bool> IsDisabled { get; set; }
 	public Func<string> GetButtonText { get; set; }
 	public string AbilityId { get; set; }

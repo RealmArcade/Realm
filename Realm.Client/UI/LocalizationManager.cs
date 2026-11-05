@@ -14,12 +14,21 @@ namespace Realm.Client.UI;
 
 public static class LocalizationManager
 {
-	private static readonly string[] Locales = { "en", "es", "fr", "de", "pt", "ru", "zh", "ja", "ar", "hi" };
+	private static readonly string[] Locales = { "en", "es", "fr", "de", "pt", "ru", "zh", "ja", "ar", "hi", "ko" };
 
 	public static string CurrentMapName { get; set; } = "";
 
+	private static readonly List<Translation> InstalledTranslations = new();
+
+	/// <summary>
+	///     Installs the game's catalogs plus the loaded map's own locale/*.json for every language, then applies the
+	///     language chosen in the settings menu. It runs again whenever a map loads, so the catalogs installed last time
+	///     are dropped first: the map that was open must not answer for the one that replaces it.
+	/// </summary>
 	public static void SetupTranslations()
 	{
+		RemoveInstalledTranslations();
+
 		foreach (var locale in Locales)
 		{
 			var mergedDict = new Dictionary<string, string>();
@@ -36,10 +45,21 @@ public static class LocalizationManager
 				translation.AddMessage(kvp.Key, kvp.Value);
 			}
 
+			InstalledTranslations.Add(translation);
 			TranslationServer.AddTranslation(translation);
 		}
 
 		UpdateLocale(GameSettings.Language);
+	}
+
+	private static void RemoveInstalledTranslations()
+	{
+		foreach (Translation translation in InstalledTranslations)
+		{
+			TranslationServer.RemoveTranslation(translation);
+		}
+
+		InstalledTranslations.Clear();
 	}
 
 	private static void LoadMapTranslations(string locale, Dictionary<string, string> mergedDict)

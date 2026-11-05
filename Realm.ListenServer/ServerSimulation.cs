@@ -72,6 +72,7 @@ public class ServerSimulation : IDisposable
 		_loot = new GroundLootService(map.Simulation, Items);
 		_script = ServerMapScript.Load(map, paths, randomSeed, log, _presentation, Items, _loot, wasmDebug, mapWorkspacePath, preparedScriptHost, scriptPathOverride);
 		_script.Api.Metrics = Metrics;
+		_commands.ConsumableChangedSink = (unitId, consumableId) => _script.Api.RaiseConsumableChanged(unitId, consumableId);
 		_snapshots.Abilities = _script.Api.Abilities;
 		_snapshots.TechLevels = _script.Api.TechLevels;
 		_script.Api.PlayerDroppedSink = DropPlayer;
@@ -501,7 +502,8 @@ public class ServerSimulation : IDisposable
 		}
 
 		ServerCommandResult result = _commands.ExecuteServerCommand(peerId, command);
-		return PlaceBuildingOrderedBy(command, result);
+		result = PlaceBuildingOrderedBy(command, result);
+		return CastSpellOrderedBy(command, result);
 	}
 
 	public void ApplyConsoleCommand(int peerId, ScriptConsoleCommand command)
@@ -566,6 +568,24 @@ public class ServerSimulation : IDisposable
 		// accepted, and the site would stand there finished and inert.
 		if (!_map.World.Has<ConstructionState>(buildingEntity)) _script.Api.RaiseConstructionFinished(buildingEntity.Id);
 
+		return result;
+	}
+
+	/// <summary>
+	///     Runs an accepted spell order through the map script. Command authority has already checked that the peer owns
+	///     the caster, can pay for the spell and is aiming inside its range; this is where the cast actually happens, so a
+	///     script that reacts to <see cref="ServerGameAPI.OnSpellCast"/> - a tile reroll, a swap, a script-defined spell -
+	///     sees the order instead of the click being authorized and then dropped.
+	/// </summary>
+	private ServerCommandResult CastSpellOrderedBy(NetworkCommand command, in ServerCommandResult result)
+	{
+		if (!result.NeedsSpellEffect) return result;
+		if (command.UnitEntityIds == null || command.UnitEntityIds.Count == 0) return result;
+
+		Entity casterEntity = _commands.Targets.Resolve(command.UnitEntityIds[0]);
+		if (casterEntity == Entity.Null) return result;
+
+		_script.Api.CastAbility(new UnitId(casterEntity.Id), result.SpellId ?? string.Empty, result.SpellPosition);
 		return result;
 	}
 

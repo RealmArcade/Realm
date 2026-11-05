@@ -6,6 +6,7 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Godot;
+using NSec.Cryptography;
 using Realm.Client.UI;
 using Realm.Shared.Accounts;
 using Realm.Shared.Distribution;
@@ -236,7 +237,47 @@ public class AccountService
 		string token = SessionToken;
 		if (string.IsNullOrEmpty(token)) return AccountOperationResult.Rejected(AccountErrorCodes.SessionRequired, "Sign in before changing your display name.");
 
-		return await PostAsync("/auth/rename", new RenameAccountRequest { DisplayName = displayName }, token).ConfigureAwait(false);
+		TryCreateCreatorNameClaim(displayName, out string authorshipPublicKey, out string authorshipSignature);
+
+		return await PostAsync("/auth/rename", new RenameAccountRequest
+		{
+			DisplayName = displayName,
+			AuthorshipPublicKey = authorshipPublicKey.Length > 0 ? authorshipPublicKey : null,
+			AuthorshipSignature = authorshipSignature.Length > 0 ? authorshipSignature : null
+		}, token).ConfigureAwait(false);
+	}
+
+	/// <summary>
+	///     Signs the claim that this account already owns the creator name it is taking, using the key file the keys folder
+	///     holds for that name. A name no creator registered is claimed by the rename alone, so nothing is signed unless a key
+	///     named after the requested name is actually present.
+	/// </summary>
+	private bool TryCreateCreatorNameClaim(string displayName, out string authorshipPublicKey, out string authorshipSignature)
+	{
+		authorshipPublicKey = string.Empty;
+		authorshipSignature = string.Empty;
+
+		long accountId = AccountId;
+		if (accountId <= 0) return false;
+		if (!DisplayNameRules.TryCanonicalize(displayName, out string canonical, out _)) return false;
+
+		string keysDirectory = ProjectSettings.GlobalizePath("user://appdata/keys/");
+		foreach (AuthorshipKeyInfo keyInfo in AuthorshipKeyHelper.EnumerateAuthorshipKeys(keysDirectory))
+		{
+			if (!string.Equals(keyInfo.UserName, canonical, StringComparison.OrdinalIgnoreCase)) continue;
+			if (!AuthorshipKeyHelper.TryLoadAuthorshipKey(keyInfo.Path, out NSec.Cryptography.Key? key, out _) || key == null) continue;
+
+			using (key)
+			{
+				string payload = CreatorNameClaimProof.BuildPayload(accountId, canonical);
+				authorshipSignature = Convert.ToBase64String(SignatureAlgorithm.Ed25519.Sign(key, Encoding.UTF8.GetBytes(payload)));
+				authorshipPublicKey = Convert.ToBase64String(key.PublicKey.Export(KeyBlobFormat.RawPublicKey));
+			}
+
+			return true;
+		}
+
+		return false;
 	}
 
 	public async Task SignOutAsync()

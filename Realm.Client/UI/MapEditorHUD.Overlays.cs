@@ -1354,7 +1354,7 @@ namespace Realm.Client.UI
 
 			var message = new Label();
 			message.Name = "MapNamePromptMessage_Label";
-			message.Text = TranslationServer.Translate("An untitled map is a prototype. Give it a name and the folder it is saved to will default to Documents under that name.");
+			message.Text = TranslationServer.Translate("Map needs a valid name, rather than 'Untitled Map' before it can be saved.");
 			message.AutowrapMode = TextServer.AutowrapMode.WordSmart;
 			message.HorizontalAlignment = HorizontalAlignment.Center;
 			message.CustomMinimumSize = new Vector2(440, 0);
@@ -1618,9 +1618,9 @@ namespace Realm.Client.UI
 
 			string pubKeyStr = Convert.ToBase64String(key.PublicKey.Export(KeyBlobFormat.RawPublicKey));
 
-			string seedServerUrl = GameContext.Host != null && GodotObject.IsInstanceValid(GameContext.Lobby) ? GameContext.Lobby.RegistryServerUrl : ServersConfigHelper.GetDefaultServerUrl();
+			string accountAuthorityUrl = AccountService.AuthorityUrl;
 
-			await GameContext.NetworkService.CheckCreatorRegistrationAsync(pubKeyStr, seedServerUrl, (keyStr) => { TryShowCreatorRegistrationDialog(keyStr, key); });
+			await GameContext.NetworkService.CheckCreatorRegistrationAsync(pubKeyStr, accountAuthorityUrl, (keyStr) => { TryShowCreatorRegistrationDialog(keyStr, key); });
 		}
 
 		private void TryShowCreatorRegistrationDialog(string pubKeyStr, Key key)
@@ -1635,10 +1635,17 @@ namespace Realm.Client.UI
 		{
 			if (GetNodeOrNull("CreatorRegistrationOverlay") != null) return;
 
+			string accountUserName = GameContext.Account.DisplayName;
+			if (!GameContext.Account.IsSignedIn || string.IsNullOrWhiteSpace(accountUserName))
+			{
+				ShowFeedback(TranslationServer.Translate("Sign in with Steam before registering a map key."));
+				return;
+			}
+
 			var overlay = CreateCreatorRegistrationOverlay();
 			var vbox = CreateCreatorRegistrationContainer(overlay);
 
-			var lineEdit = new LineEdit { PlaceholderText = TranslationServer.Translate("Enter Username"), Alignment = HorizontalAlignment.Center, Text = GameContext.Account.DisplayName };
+			var lineEdit = new LineEdit { PlaceholderText = accountUserName, Alignment = HorizontalAlignment.Center, Text = accountUserName, Editable = false };
 			UIStyle.ApplyTextInput(lineEdit);
 			vbox.AddChild(lineEdit);
 
@@ -1719,7 +1726,7 @@ namespace Realm.Client.UI
 
 			var desc = new Label
 			{
-				Text = TranslationServer.Translate("A new cryptographic key pair has been generated for your machine. Please choose a unique display name to lock to this key."),
+				Text = TranslationServer.Translate("A new map key has been generated for your machine. It is registered under the Steam name this account is signed in with."),
 				HorizontalAlignment = HorizontalAlignment.Center,
 				AutowrapMode = TextServer.AutowrapMode.WordSmart
 			};
@@ -3377,13 +3384,6 @@ namespace Realm.Client.UI
 
 			_instanceManagerDialog.OpenDialog(initialTypeFilter);
 		}
-
-		public void OpenAuthorSignatureDialog()
-		{
-			_authorSignatureDialog ??= new AuthorSignatureDialog(this);
-			_authorSignatureDialog.OpenForKey(GetSelectedAuthorshipKeyPath());
-		}
-
 
 		public void ApplyEditorPreferences(EditorPreferencesData prefs)
 		{

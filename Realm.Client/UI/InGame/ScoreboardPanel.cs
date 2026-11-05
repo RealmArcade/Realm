@@ -2,53 +2,70 @@ using System;
 using System.Collections.Generic;
 using Godot;
 using Realm.Client.Core;
-using Realm.Ecs.Common;
 using Realm.Client.Services;
+using Realm.Ecs.Common;
 
 namespace Realm.Client.UI.InGame;
 
-public class LeaderboardPanel
+/// <summary>
+///     Owns the one scoreboard panel a match shows. Its dropdown holds every visible leaderboard board and, when the
+///     match publishes one, the summary table, so the combat statistics and the standings share a single collapsible
+///     card instead of stacking two panels on the same corner of the screen.
+/// </summary>
+public class ScoreboardPanel
 {
-	private VBoxContainer _customUIPanel;
-	private PanelContainer _leaderboardPanel;
-	private Label _leaderboardTitleLabel;
-	private VBoxContainer _leaderboardSelectors;
-	private VBoxContainer _leaderboardContent;
+	private const string SummaryEntryId = "__summary";
 
-	private OptionButton _boardSelectButton;
-	private HBoxContainer _groupSelectRow;
-	private OptionButton _groupSelectButton;
+	private readonly PanelContainer _panel;
+	private readonly Label _titleLabel;
+	private readonly Button _collapseButton;
+	private readonly VBoxContainer _content;
+	private readonly VBoxContainer _selectors;
+	private readonly VBoxContainer _leaderboardContent;
+	private readonly VBoxContainer _summaryContent;
+	private readonly SummaryTablePanel _summaryTable;
+
+	private readonly OptionButton _boardSelectButton;
+	private readonly HBoxContainer _groupSelectRow;
+	private readonly OptionButton _groupSelectButton;
 
 	private readonly List<HBoxContainer> _rows = new();
 	private readonly List<Label> _nameLabels = new();
 	private readonly List<Label> _valueLabels = new();
-	private readonly List<string> _boardIds = new();
+	private readonly List<string> _entryIds = new();
 	private readonly List<int> _groupPlayerIndices = new();
-	private string? _lastLeaderboardTitle;
 
-	private string? _selectedBoardId;
+	private readonly List<(string Id, string Title)> _entries = new();
+
+	private bool _collapsed = true;
+	private string? _selectedEntryId;
 	private int _selectedGroupPlayerIndex;
 	private bool _hasGroupSelection;
 	private int _lastRevision = -1;
 	private int _lastBoardSignature = int.MinValue;
 	private int _lastGroupSignature = int.MinValue;
 
-	public LeaderboardPanel(VBoxContainer customUIPanel,
-		PanelContainer leaderboardPanel, Label leaderboardTitleLabel, VBoxContainer leaderboardSelectors, VBoxContainer leaderboardContent)
+	public ScoreboardPanel(
+		PanelContainer panel,
+		Label titleLabel,
+		Button collapseButton,
+		VBoxContainer content,
+		VBoxContainer selectors,
+		VBoxContainer leaderboardContent,
+		VBoxContainer summaryContent)
 	{
-		_customUIPanel = customUIPanel;
-		_leaderboardPanel = leaderboardPanel;
-		_leaderboardTitleLabel = leaderboardTitleLabel;
-		_leaderboardSelectors = leaderboardSelectors;
+		_panel = panel;
+		_titleLabel = titleLabel;
+		_collapseButton = collapseButton;
+		_content = content;
+		_selectors = selectors;
 		_leaderboardContent = leaderboardContent;
-		CreateSelectors();
-	}
+		_summaryContent = summaryContent;
+		_summaryTable = new SummaryTablePanel(summaryContent);
 
-	private void CreateSelectors()
-	{
 		_boardSelectButton = CreateSelectorButton("BoardSelectButton");
 		_boardSelectButton.ItemSelected += OnBoardSelected;
-		_leaderboardSelectors.AddChild(_boardSelectButton);
+		_selectors.AddChild(_boardSelectButton);
 
 		_groupSelectRow = new HBoxContainer();
 		_groupSelectRow.Name = "GroupSelectRow";
@@ -66,7 +83,14 @@ public class LeaderboardPanel
 		_groupSelectButton = CreateSelectorButton("GroupSelectButton");
 		_groupSelectButton.ItemSelected += OnGroupSelected;
 		_groupSelectRow.AddChild(_groupSelectButton);
-		_leaderboardSelectors.AddChild(_groupSelectRow);
+		_selectors.AddChild(_groupSelectRow);
+
+		if (_collapseButton != null)
+		{
+			_collapseButton.Pressed += ToggleCollapsed;
+		}
+
+		ApplyCollapsedState();
 	}
 
 	private static OptionButton CreateSelectorButton(string nodeName)
@@ -92,70 +116,189 @@ public class LeaderboardPanel
 		return button;
 	}
 
+	private void ToggleCollapsed()
+	{
+		GameContext.UserInterface?.PlayClickSound();
+		_collapsed = !_collapsed;
+		ApplyCollapsedState();
+	}
+
+	private void ApplyCollapsedState()
+	{
+		if (_content != null && GodotObject.IsInstanceValid(_content))
+		{
+			_content.Visible = !_collapsed;
+		}
+
+		if (_collapseButton == null || !GodotObject.IsInstanceValid(_collapseButton)) return;
+
+		_collapseButton.Text = _collapsed ? UnicodeIcons.CARET_RIGHT : UnicodeIcons.CARET_DOWN;
+		_collapseButton.TooltipText = _collapsed
+			? TranslationServer.Translate("Expand scoreboard")
+			: TranslationServer.Translate("Collapse scoreboard");
+	}
+
 	public void Update(InGameHUDViewModel viewModel)
 	{
 		bool allowLeaderboard = GameContext.InGameHud?.IsHudElementVisible(HudElement.Leaderboard, true) ?? true;
+		bool allowSummary = GameContext.InGameHud?.IsHudElementVisible(HudElement.SummaryTable, true) ?? true;
+
 		LeaderboardBoards boards = viewModel.Leaderboards;
-		LeaderboardBoard? selectedBoard = ResolveSelectedBoard(boards);
-		bool leaderboardVisible = selectedBoard != null && allowLeaderboard;
-		if (_leaderboardPanel.Visible != leaderboardVisible)
+		RebuildEntries(boards, allowLeaderboard, allowSummary, viewModel);
+		ResolveSelection();
+
+		bool visible = _entries.Count > 0;
+		if (_panel.Visible != visible)
 		{
-			_leaderboardPanel.Visible = leaderboardVisible;
+			_panel.Visible = visible;
 		}
-		if (!leaderboardVisible || selectedBoard == null)
+
+		if (!visible)
 		{
+			_lastRevision = boards.Revision;
 			return;
 		}
 
 		bool revisionChanged = boards.Revision != _lastRevision;
 		_lastRevision = boards.Revision;
 
-		bool boardChanged = !string.Equals(_selectedBoardId, selectedBoard.Id, StringComparison.Ordinal);
-		if (boardChanged)
-		{
-			_selectedBoardId = selectedBoard.Id;
-			_hasGroupSelection = false;
-		}
-
-		int boardSignature = ComputeBoardSignature(boards);
-		if (revisionChanged || boardChanged || boardSignature != _lastBoardSignature)
+		int boardSignature = ComputeBoardSignature(_entries, boards);
+		if (revisionChanged || boardSignature != _lastBoardSignature)
 		{
 			_lastBoardSignature = boardSignature;
-			RebuildBoardOptions(boards);
+			RebuildBoardOptions();
 		}
 
+		bool showingSummary = string.Equals(_selectedEntryId, SummaryEntryId, StringComparison.Ordinal);
+		if (showingSummary)
+		{
+			ApplyBodyVisibility(leaderboard: false, summary: true);
+			_groupSelectRow.Visible = false;
+			EnsureTitle(viewModel.SummaryTableTitle);
+			_summaryTable.Update(viewModel);
+			return;
+		}
+
+		LeaderboardBoard? selectedBoard = FindBoard(boards, _selectedEntryId);
+		if (selectedBoard == null)
+		{
+			return;
+		}
+
+		ApplyBodyVisibility(leaderboard: true, summary: false);
+		EnsureTitle(selectedBoard.Title);
+
 		int groupSignature = ComputeGroupSignature(selectedBoard);
-		if (revisionChanged || boardChanged || groupSignature != _lastGroupSignature)
+		if (revisionChanged || groupSignature != _lastGroupSignature)
 		{
 			_lastGroupSignature = groupSignature;
 			RebuildGroupOptions(selectedBoard);
 		}
 
-		string title = TranslationServer.Translate(selectedBoard.Title ?? string.Empty);
-		if (_lastLeaderboardTitle != title)
-		{
-			_leaderboardTitleLabel.Text = title;
-			_lastLeaderboardTitle = title;
-		}
-
 		RenderRows(selectedBoard);
 	}
 
-	private static int ComputeBoardSignature(LeaderboardBoards boards)
+	private void ApplyBodyVisibility(bool leaderboard, bool summary)
+	{
+		if (_leaderboardContent != null && GodotObject.IsInstanceValid(_leaderboardContent) && _leaderboardContent.Visible != leaderboard)
+		{
+			_leaderboardContent.Visible = leaderboard;
+		}
+
+		if (_summaryContent != null && GodotObject.IsInstanceValid(_summaryContent) && _summaryContent.Visible != summary)
+		{
+			_summaryContent.Visible = summary;
+		}
+	}
+
+	private void EnsureTitle(string? title)
+	{
+		string shown = string.IsNullOrWhiteSpace(title) ? TranslationServer.Translate("SCOREBOARD") : title;
+		if (_titleLabel.Text != shown)
+		{
+			_titleLabel.Text = shown;
+		}
+	}
+
+	private void RebuildEntries(LeaderboardBoards boards, bool allowLeaderboard, bool allowSummary, InGameHUDViewModel viewModel)
+	{
+		_entries.Clear();
+
+		if (allowLeaderboard)
+		{
+			IReadOnlyList<LeaderboardBoard> allBoards = boards.Boards;
+			for (int index = 0; index < allBoards.Count; index++)
+			{
+				LeaderboardBoard board = allBoards[index];
+				if (!board.Visible) continue;
+
+				_entries.Add((board.Id, board.Title ?? string.Empty));
+			}
+		}
+
+		if (allowSummary && viewModel.SummaryTableVisible)
+		{
+			string summaryTitle = string.IsNullOrWhiteSpace(viewModel.SummaryTableTitle)
+				? TranslationServer.Translate("COMBAT STATISTICS")
+				: viewModel.SummaryTableTitle;
+			_entries.Add((SummaryEntryId, summaryTitle));
+		}
+	}
+
+	private void ResolveSelection()
+	{
+		for (int index = 0; index < _entries.Count; index++)
+		{
+			if (string.Equals(_entries[index].Id, _selectedEntryId, StringComparison.Ordinal))
+			{
+				return;
+			}
+		}
+
+		_selectedEntryId = _entries.Count > 0 ? _entries[0].Id : null;
+		_hasGroupSelection = false;
+		_lastGroupSignature = int.MinValue;
+	}
+
+	private void RebuildBoardOptions()
+	{
+		_entryIds.Clear();
+		_boardSelectButton.Clear();
+
+		int selectedIndex = 0;
+		for (int index = 0; index < _entries.Count; index++)
+		{
+			(string id, string title) = _entries[index];
+			if (string.Equals(id, _selectedEntryId, StringComparison.Ordinal))
+				selectedIndex = _entryIds.Count;
+
+			_entryIds.Add(id);
+			_boardSelectButton.AddItem(title);
+		}
+
+		_boardSelectButton.Visible = _entryIds.Count > 1;
+		if (_entryIds.Count > 0)
+			_boardSelectButton.Select(selectedIndex);
+	}
+
+	private static int ComputeBoardSignature(List<(string Id, string Title)> entries, LeaderboardBoards boards)
 	{
 		int signature = 17;
-		IReadOnlyList<LeaderboardBoard> allBoards = boards.Boards;
-		for (int index = 0; index < allBoards.Count; index++)
+		for (int index = 0; index < entries.Count; index++)
 		{
-			LeaderboardBoard board = allBoards[index];
-			if (!board.Visible)
-				continue;
-
-			signature = (signature * 31) + board.Id.GetHashCode();
-			signature = (signature * 31) + (board.Title?.GetHashCode() ?? 0);
+			signature = (signature * 31) + entries[index].Id.GetHashCode();
+			signature = (signature * 31) + entries[index].Title.GetHashCode();
 		}
 
 		return signature;
+	}
+
+	private static LeaderboardBoard? FindBoard(LeaderboardBoards boards, string? boardId)
+	{
+		if (string.IsNullOrEmpty(boardId)) return null;
+
+		LeaderboardBoard? board = boards.FindBoard(boardId);
+		return board != null && board.Visible ? board : null;
 	}
 
 	private static int ComputeGroupSignature(LeaderboardBoard board)
@@ -184,56 +327,6 @@ public class LeaderboardPanel
 		}
 
 		return signature;
-	}
-
-	private LeaderboardBoard? ResolveSelectedBoard(LeaderboardBoards boards)
-	{
-		LeaderboardBoard? selected = null;
-		if (!string.IsNullOrEmpty(_selectedBoardId))
-		{
-			selected = boards.FindBoard(_selectedBoardId);
-			if (selected != null && selected.Visible)
-				return selected;
-		}
-
-		IReadOnlyList<LeaderboardBoard> allBoards = boards.Boards;
-		for (int index = 0; index < allBoards.Count; index++)
-		{
-			if (allBoards[index].Visible)
-			{
-				selected = allBoards[index];
-				_selectedBoardId = selected.Id;
-				_hasGroupSelection = false;
-				return selected;
-			}
-		}
-
-		return null;
-	}
-
-	private void RebuildBoardOptions(LeaderboardBoards boards)
-	{
-		_boardIds.Clear();
-		_boardSelectButton.Clear();
-
-		int selectedIndex = 0;
-		IReadOnlyList<LeaderboardBoard> allBoards = boards.Boards;
-		for (int index = 0; index < allBoards.Count; index++)
-		{
-			LeaderboardBoard board = allBoards[index];
-			if (!board.Visible)
-				continue;
-
-			if (string.Equals(board.Id, _selectedBoardId, StringComparison.Ordinal))
-				selectedIndex = _boardIds.Count;
-
-			_boardIds.Add(board.Id);
-			_boardSelectButton.AddItem(TranslationServer.Translate(board.Title ?? string.Empty));
-		}
-
-		_boardSelectButton.Visible = _boardIds.Count > 1;
-		if (_boardIds.Count > 0)
-			_boardSelectButton.Select(selectedIndex);
 	}
 
 	private void RebuildGroupOptions(LeaderboardBoard board)
@@ -299,17 +392,18 @@ public class LeaderboardPanel
 
 	private void OnBoardSelected(long index)
 	{
-		if (index < 0 || index >= _boardIds.Count)
+		if (index < 0 || index >= _entryIds.Count)
 			return;
 
-		string boardId = _boardIds[(int)index];
-		if (string.Equals(boardId, _selectedBoardId, StringComparison.Ordinal))
+		string boardId = _entryIds[(int)index];
+		if (string.Equals(boardId, _selectedEntryId, StringComparison.Ordinal))
 			return;
 
 		GameContext.UserInterface?.PlayClickSound();
-		_selectedBoardId = boardId;
+		_selectedEntryId = boardId;
 		_hasGroupSelection = false;
 		_lastRevision = -1;
+		_lastGroupSignature = int.MinValue;
 	}
 
 	private void OnGroupSelected(long index)
@@ -367,7 +461,6 @@ public class LeaderboardPanel
 				_rows[i].Visible = false;
 			}
 		}
-
 	}
 
 	private void EnsureRowWidgets(int rowIdx)

@@ -10,6 +10,7 @@ using Realm.AdminServer.Accounts;
 using Realm.AdminServer.Models;
 using Realm.AdminServer.Services;
 using Realm.Shared;
+using Realm.Shared.Accounts;
 using Realm.Shared.Distribution;
 using Realm.Shared.Metadata;
 using Realm.AdminServer.Helpers;
@@ -1962,41 +1963,50 @@ app.MapPost("/api/creators/register", async (HttpRequest request, RegisterCreato
 	string pubKey = req.PublicKey.Trim();
 	string signature = req.Signature.Trim();
 
-	bool sigValid = CreatorRegistrationProof.Verify(pubKey, username, req.DonationLink, req.ContactInfo, signature);
+	string? bypassToken = request.Headers["X-Admin-Bypass"];
+	bool bypassValid = adminPublicKeys.Count > 0 &&
+	                   AdminBypassAuth.VerifyBypassToken(adminPublicKeys, "admin", "override", bypassToken);
+
+	bool sigValid = CreatorRegistrationProof.Verify(pubKey, username, req.DonationLink, req.ContactInfo, signature)
+	                || (bypassValid && CreatorRegistrationProof.VerifyByAnyAuthority(adminPublicKeys, pubKey, username, req.DonationLink, req.ContactInfo, signature));
 
 	if (!sigValid)
 	{
 		return Results.BadRequest(new { Message = "Invalid cryptographic signature for public key." });
 	}
 
-	if (accounts.FindAccountByDisplayName(username) != null)
+	if (!bypassValid)
 	{
-		return Results.Conflict(new { Message = "This username belongs to a Realm account and cannot be registered as a creator name." });
-	}
-
-	string slug = NameNormalizationHelper.NormalizeUsername(username);
-	if (string.IsNullOrEmpty(slug))
-	{
-		slug = username.ToLowerInvariant().Replace(" ", "-");
-	}
-
-	var existingLock = db.Get<JsonDocument>("name_locks", slug)
-	                   ?? db.Get<JsonDocument>("name_locks", username.ToLowerInvariant().Replace(" ", "-"));
-	if (existingLock != null)
-	{
-		var root = existingLock.RootElement;
-		string owner = root.TryGetProperty("owner_public_key", out var op) ? op.GetString() ?? "" : "";
-		if (!string.Equals(owner, pubKey, StringComparison.OrdinalIgnoreCase))
+		string? sessionToken = AccountEndpoints.ReadSessionToken(request);
+		if (!accounts.TryValidateSession(sessionToken, out AccountRecord? signingInAccount, out _, out _) || signingInAccount == null)
 		{
-			string? bypassToken = request.Headers["X-Admin-Bypass"];
-			bool bypassValid = adminPublicKeys.Count > 0 &&
-			                   AdminBypassAuth.VerifyBypassToken(adminPublicKeys, "admin", "override", bypassToken);
-
-			if (!bypassValid)
-			{
-				return Results.Conflict(new { Message = "This username is already officially registered to another creator key." });
-			}
+			return Results.Json(
+				AccountErrorDto.Of(AccountErrorCodes.SessionInvalid, "Sign in with Steam before registering a map key."),
+				statusCode: StatusCodes.Status401Unauthorized);
 		}
+
+		if (!DisplayNameRules.TryCanonicalize(username, out string canonicalUsername, out _))
+		{
+			return Results.BadRequest(new { Message = "The username is not a valid creator name." });
+		}
+
+		if (!string.Equals(signingInAccount.UniquenessKey, DisplayNameRules.ComputeUniquenessKey(canonicalUsername), StringComparison.Ordinal))
+		{
+			return Results.Conflict(new { Message = "A map key can only be registered under the name this Steam account is signed in with." });
+		}
+	}
+
+	string slug = CreatorNamePolicy.GetSlug(username);
+
+	if (CreatorNamePolicy.TryReadNameLockOwner(db, username, out string existingOwner)
+	    && !string.Equals(existingOwner, pubKey, StringComparison.OrdinalIgnoreCase))
+	{
+		if (!bypassValid && CreatorNamePolicy.HasGreenlitPublishedMap(db, existingOwner))
+		{
+			return Results.Conflict(new { Message = "This username belongs to a creator with a greenlit map. A Realm administrator has to release it before another key can claim it." });
+		}
+
+		CreatorNamePolicy.ReleaseCreatorKey(db, existingOwner, username);
 	}
 
 	var lockDoc = JsonSerializer.SerializeToDocument(new
@@ -2005,7 +2015,7 @@ app.MapPost("/api/creators/register", async (HttpRequest request, RegisterCreato
 		owner_public_key = pubKey,
 		registered_at = DateTime.UtcNow
 	});
-	db.Upsert("name_locks", slug, lockDoc);
+	db.Upsert(CreatorNamePolicy.NameLocksCollection, slug, lockDoc);
 
 	var creatorDoc = JsonSerializer.SerializeToDocument(new
 	{
@@ -2015,7 +2025,7 @@ app.MapPost("/api/creators/register", async (HttpRequest request, RegisterCreato
 		contact_info = req.ContactInfo ?? "",
 		registered_at = DateTime.UtcNow
 	});
-	db.Upsert("creators", pubKey, creatorDoc);
+	db.Upsert(CreatorNamePolicy.CreatorsCollection, pubKey, creatorDoc);
 
 	var creatorEvent = new ClusterEventDto
 	{
