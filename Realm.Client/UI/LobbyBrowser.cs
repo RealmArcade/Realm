@@ -40,10 +40,7 @@ public partial class LobbyBrowser : Control
 	private Button _hostButton;
 	private Button _directConnectButton;
 	private LineEdit _searchBar;
-	private CheckBox _campaignCheck;
-	private CheckBox _meleeCheck;
-	private CheckBox _tutorialCheck;
-	private CheckBox _arcadeCheck;
+	private readonly List<(string Tag, CheckBox CheckBox)> _tagFilters = new();
 	private CheckBox _betaTestingMapsCheck;
 	private VBoxContainer _lobbyListContainer;
 
@@ -79,10 +76,6 @@ public partial class LobbyBrowser : Control
 		AddChild(_directConnectButton);
 
 		_searchBar = GetNode<LineEdit>("SearchBar");
-		_campaignCheck = GetNode<CheckBox>("FilterPanel/VBoxContainer/CampaignCheck");
-		_meleeCheck = GetNode<CheckBox>("FilterPanel/VBoxContainer/MeleeCheck");
-		_tutorialCheck = GetNode<CheckBox>("FilterPanel/VBoxContainer/TutorialCheck");
-		_arcadeCheck = GetNode<CheckBox>("FilterPanel/VBoxContainer/ArcadeCheck");
 		_betaTestingMapsCheck = GetNode<CheckBox>("FilterPanel/VBoxContainer/BetaTestingMapsCheck");
 		_lobbyListContainer = GetNode<VBoxContainer>("LobbyPanel/VBoxContainer/ScrollContainer/LobbyListContainer");
 
@@ -249,25 +242,35 @@ public partial class LobbyBrowser : Control
 
 	private void SetupCheckboxes()
 	{
-		_campaignCheck.Text = Tr("Campaign");
-		_meleeCheck.Text = Tr("Melee");
-		_tutorialCheck.Text = Tr("Tutorial");
-		_arcadeCheck.Text = Tr("Arcade");
+		var tagFilterColumn = GetNode<VBoxContainer>("FilterPanel/VBoxContainer/TagFilters");
+		foreach (string tag in MapTagCatalog.MapFilters)
+		{
+			var checkBox = new CheckBox
+			{
+				Name = "TagCheck_" + tag.Replace(" ", string.Empty),
+				Text = MapTagCatalog.GetDisplayName(tag),
+				FocusMode = FocusModeEnum.None
+			};
+			SetupFilterCheckbox(checkBox);
+			tagFilterColumn.AddChild(checkBox);
+			_tagFilters.Add((tag, checkBox));
+		}
+
 		_betaTestingMapsCheck.Text = Tr("Show beta-testing maps");
 		_betaTestingMapsCheck.TooltipText = Tr("Also list lobbies for maps that are still in Beta-Testing and have not been greenlit yet");
 		_betaTestingMapsCheck.ButtonPressed = true;
+		SetupFilterCheckbox(_betaTestingMapsCheck);
+	}
 
-		var checkBoxes = new[] { _campaignCheck, _meleeCheck, _tutorialCheck, _arcadeCheck, _betaTestingMapsCheck };
-		foreach (var cb in checkBoxes)
+	private void SetupFilterCheckbox(CheckBox checkBox)
+	{
+		checkBox.Pressed += () =>
 		{
-			cb.Pressed += () =>
-			{
-				GameContext.UserInterface.PlayClickSound();
-				ApplyFilters();
-			};
-			cb.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
-			UIStyle.ApplyCheckboxStyle(cb);
-		}
+			GameContext.UserInterface.PlayClickSound();
+			ApplyFilters();
+		};
+		checkBox.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
+		UIStyle.ApplyCheckboxStyle(checkBox);
 	}
 
 	private void SetupSearchBar()
@@ -731,10 +734,11 @@ public partial class LobbyBrowser : Control
 	private HashSet<string> GetActiveModes()
 	{
 		var modes = new HashSet<string>();
-		if (_campaignCheck.ButtonPressed) modes.Add("campaign");
-		if (_meleeCheck.ButtonPressed) modes.Add("melee");
-		if (_tutorialCheck.ButtonPressed) modes.Add("tutorial");
-		if (_arcadeCheck.ButtonPressed) modes.Add("arcade");
+		foreach (var (tag, checkBox) in _tagFilters)
+		{
+			if (checkBox.ButtonPressed) modes.Add(tag.ToLowerInvariant());
+		}
+
 		return modes;
 	}
 

@@ -117,25 +117,9 @@ horizontal_alignment = 1
 custom_minimum_size = Vector2(0, 135)
 layout_mode = 2
 
-[node name="CampaignCheck" type="CheckBox" parent="FilterPanel/VBoxContainer"]
+[node name="TagFilters" type="VBoxContainer" parent="FilterPanel/VBoxContainer"]
 layout_mode = 2
-focus_mode = 0
-text = "Campaign"
-
-[node name="MeleeCheck" type="CheckBox" parent="FilterPanel/VBoxContainer"]
-layout_mode = 2
-focus_mode = 0
-text = "Melee"
-
-[node name="TutorialCheck" type="CheckBox" parent="FilterPanel/VBoxContainer"]
-layout_mode = 2
-focus_mode = 0
-text = "Tutorial"
-
-[node name="ArcadeCheck" type="CheckBox" parent="FilterPanel/VBoxContainer"]
-layout_mode = 2
-focus_mode = 0
-text = "Arcade"
+theme_override_constants/separation = 16
 
 [node name="BetaTestingMapsCheck" type="CheckBox" parent="FilterPanel/VBoxContainer"]
 layout_mode = 2
