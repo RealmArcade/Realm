@@ -21,6 +21,14 @@ public class AbilityMetadata
 	public float Cooldown { get; set; }
 	public float TargetRange { get; set; }
 	public string? VisualEffect { get; set; }
+
+	/// <summary>
+	///     A weapon template this ability fires as its own visual, from the caster towards the point it was cast at. The
+	///     engine flies it at the weapon's own speed and reports the landing through OnSpellImpact, so a map neither
+	///     repeats a speed its weapon template already carries nor guesses how long the flight takes.
+	/// </summary>
+	public string? ProjectileId { get; set; }
+
 	public string? CastSound { get; set; }
 
 	public AutoCastMetadata? AutoCast { get; set; }

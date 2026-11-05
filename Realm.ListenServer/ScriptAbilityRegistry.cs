@@ -110,6 +110,7 @@ public class ScriptAbilityRegistry
 		definition.TargetRange = metadata.TargetRange;
 		definition.AreaOfEffectRadius = metadata.AreaOfEffectRadius;
 		definition.VisualEffect = metadata.VisualEffect;
+		definition.ProjectileId = metadata.ProjectileId;
 		definition.CastSound = metadata.CastSound;
 		definition.GridX = metadata.GridX;
 		definition.GridY = metadata.GridY;

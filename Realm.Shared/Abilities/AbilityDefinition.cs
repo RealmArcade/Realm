@@ -32,5 +32,11 @@ public class AbilityDefinition
 	public float AutoCastManaReserve { get; set; }
 	public float AutoCastMinManaPercent { get; set; }
 	public string? VisualEffect { get; set; }
+
+	/// <summary>
+	///     The weapon template this ability flies as its visual, if any. A cast spawns it and its landing is reported
+	///     through <c>OnSpellImpact</c>.
+	/// </summary>
+	public string? ProjectileId { get; set; }
 	public string? CastSound { get; set; }
 }

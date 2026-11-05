@@ -134,6 +134,17 @@ public interface IGameAPI
 	event Action<UnitId, string, Vector3>? OnSpellCast;
 
 	/// <summary>
+	/// Triggered when a projectile an ability fired as its own visual reaches the point the ability was cast at, which
+	/// is when the ability's effect belongs on the ground rather than on the click. Only abilities whose template names
+	/// a projectile raise this, so the shots of ordinary attacks cost nothing.
+	/// </summary>
+	/// <param name="caster">The unit that cast the ability. It may have moved or died during the flight.</param>
+	/// <param name="abilityId">The ability whose projectile landed.</param>
+	/// <param name="position">Where the projectile landed: the point the ability was cast at.</param>
+	/// <param name="playerIndex">The player that owned the caster when it was cast.</param>
+	event Action<UnitId, string, Vector3, int>? OnSpellImpact;
+
+	/// <summary>
 	/// Triggered when a player types a chat message. Passes the message, the first selected unit if any, and the slot of
 	/// the player who typed it, which is the slot to judge a console command by even when that player had nothing
 	/// selected.
@@ -392,7 +403,9 @@ public interface IGameAPI
 	IEnumerable<string> GetModifiers(UnitId unit);
 
 	/// <summary>
-	/// Spawns a visual projectile moving from a starting position to a target position.
+	/// Spawns a visual projectile moving from a starting position to a target position. A shot an ability fires belongs in
+	/// that ability's template as ProjectileId instead, which lets the engine fly it and report its landing through
+	/// <see cref="OnSpellImpact"/>; a projectile spawned here is only ever seen.
 	/// </summary>
 	/// <param name="projectileTypeId">The type identifier of the projectile (e.g., "arrow", "fireball").</param>
 	/// <param name="start">The starting 3D coordinates.</param>
