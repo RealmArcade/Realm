@@ -1,7 +1,25 @@
 namespace Realm.Shared.Distribution;
 
+/// <summary>
+///     The timestamped token an administrator presents instead of signing every administrative request by hand.
+/// </summary>
 public static class AdminBypassAuth
 {
+	/// <summary>
+	///     The header that carries <see cref="CreateBypassToken(string,string,string)" />.
+	/// </summary>
+	public const string BypassTokenHeaderName = "X-Admin-Bypass";
+
+	/// <summary>
+	///     The header that carries an Ed25519 signature over the requested resource and action.
+	/// </summary>
+	public const string SignatureHeaderName = "X-Admin-Signature";
+
+	/// <summary>
+	///     The header that carries the base64 public key a signature is expected to verify against.
+	/// </summary>
+	public const string PublicKeyHeaderName = "X-Admin-PublicKey";
+
 	public static (string PrivateKeyBase64, string PublicKeyBase64) GenerateAdminKeyPair()
 	{
 		return AuthorSignatureHelper.GenerateKeyPair();

@@ -62,7 +62,7 @@ public partial class ClientNetworkChannel : Node
 
 	public void Send(NetworkFrameKind kind, byte[] payload)
 	{
-		if (Multiplayer.MultiplayerPeer == null) return;
+		if (!IsConnected) return;
 
 		RpcId(AuthorityPeerId, nameof(Frame), (int)kind, payload);
 	}
@@ -74,7 +74,7 @@ public partial class ClientNetworkChannel : Node
 	/// </summary>
 	public void SendUnreliable(NetworkFrameKind kind, byte[] payload)
 	{
-		if (Multiplayer.MultiplayerPeer == null) return;
+		if (!IsConnected) return;
 
 		RpcId(AuthorityPeerId, nameof(FrameUnreliable), (int)kind, payload);
 	}

@@ -40,6 +40,7 @@ public class ServerLobbyRoster
 
 		_teamCount = clamped;
 		_log.Write($"the lobby now offers {_teamCount} team(s)");
+		_lobby.BroadcastState();
 	}
 
 	public bool AddFaction(string? factionName)

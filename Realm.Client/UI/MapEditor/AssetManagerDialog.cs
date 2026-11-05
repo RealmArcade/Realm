@@ -40,6 +40,8 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 	private DropdownSuggestionList _generateAiAssetMenu;
 
 	private Label _lblEmptyState;
+	private Label _lblAssetPackStatus;
+	private bool _assetPackDownloadRunning;
 
 	private PanelContainer _footerPanel;
 	private TextureRect _footerThumbnail;
@@ -211,6 +213,17 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 		_btnGenerateAiAsset.Name = "BtnGenerateAiAsset_Button";
 
 		BodyContainer.AddChild(actionsRow);
+
+		_lblAssetPackStatus = new Label();
+		_lblAssetPackStatus.Name = "AssetPackStatus_Label";
+		_lblAssetPackStatus.Text = string.Empty;
+		_lblAssetPackStatus.Visible = false;
+		_lblAssetPackStatus.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+		_lblAssetPackStatus.CustomMinimumSize = new Vector2(700, 0);
+		_lblAssetPackStatus.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		_lblAssetPackStatus.AddThemeFontSizeOverride("font_size", 11);
+		_lblAssetPackStatus.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
+		BodyContainer.AddChild(_lblAssetPackStatus);
 
 		if (Hud != null)
 		{
@@ -1136,6 +1149,69 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 	}
 
 	private void OpenImportFileDialog()
+	{
+		if (!AssetPackService.IsInstalled())
+		{
+			ShowAssetPackDownloadPrompt();
+			return;
+		}
+
+		OpenAssetBrowserForImport();
+	}
+
+	private void ShowAssetPackDownloadPrompt()
+	{
+		GameContext.UserInterface?.ShowConfirmationDialog(
+			TranslationServer.Translate("The editor art assets (models, textures, audio and effects) are published as a separate ASSET_PACK download. Download the newest version now to import them into this map."),
+			onConfirm: StartAssetPackDownload,
+			confirmText: TranslationServer.Translate("DOWNLOAD ASSET_PACK"),
+			cancelText: TranslationServer.Translate("NOT NOW"),
+			onCancel: OpenAssetBrowserForImport,
+			showCancel: true,
+			titleOverride: TranslationServer.Translate("Download Editor Art Assets?"));
+	}
+
+	private async void StartAssetPackDownload()
+	{
+		if (_assetPackDownloadRunning) return;
+
+		_assetPackDownloadRunning = true;
+		_btnImportAsset.Disabled = true;
+		UpdateAssetPackStatus(TranslationServer.Translate("Searching the server for the newest ASSET_PACK version..."), UIStyle.ColorGoldDull);
+
+		bool downloaded = await AssetPackService.DownloadLatestAsync(progress =>
+		{
+			int percent = (int)MathF.Round(progress * 100.0f);
+			string progressText = string.Format(TranslationServer.Translate("Downloading ASSET_PACK... {0}%"), percent);
+			Callable.From(() => UpdateAssetPackStatus(progressText, UIStyle.ColorCyanGlow)).CallDeferred();
+		});
+
+		_assetPackDownloadRunning = false;
+		if (!GodotObject.IsInstanceValid(this)) return;
+
+		_btnImportAsset.Disabled = false;
+
+		if (!downloaded)
+		{
+			UpdateAssetPackStatus(TranslationServer.Translate("ASSET_PACK could not be downloaded. Check your internet connection and try again."), new Color(0.9f, 0.3f, 0.3f));
+			return;
+		}
+
+		UpdateAssetPackStatus(TranslationServer.Translate("ASSET_PACK downloaded. Refreshing the asset index..."), UIStyle.ColorCyanGlow);
+		RefreshAssetList();
+		OpenAssetBrowserForImport();
+	}
+
+	private void UpdateAssetPackStatus(string statusText, Color statusColor)
+	{
+		if (_lblAssetPackStatus == null || !GodotObject.IsInstanceValid(_lblAssetPackStatus)) return;
+
+		_lblAssetPackStatus.Text = statusText;
+		_lblAssetPackStatus.AddThemeColorOverride("font_color", statusColor);
+		_lblAssetPackStatus.Visible = true;
+	}
+
+	private void OpenAssetBrowserForImport()
 	{
 		string[] extensions = _selectedAssetType switch
 		{

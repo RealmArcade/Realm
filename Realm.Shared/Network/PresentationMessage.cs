@@ -74,7 +74,9 @@ public enum PresentationKind : byte
 
 	TechLevelSet,
 
-	CastSound
+	CastSound,
+
+	InstructionsSectionAdded
 }
 
 [MemoryPackable]

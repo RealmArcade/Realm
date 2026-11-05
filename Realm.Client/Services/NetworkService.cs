@@ -585,11 +585,10 @@ public class NetworkService
 		int lastDescribedSequence = GameContext.World.Has<DescribedAtSequence>(localEntity)
 			? GameContext.World.Get<DescribedAtSequence>(localEntity).Sequence
 			: -1;
-		bool descriptionResumed = lastDescribedSequence >= 0 && sequence - lastDescribedSequence > UnobservedUnitGapSequences;
 
 		bool targetJumped = (describedPosition - previousTargetPosition).Length() > PlausibleStepMeters(localEntity, sequence, lastDescribedSequence);
 
-		if (targetJumped || descriptionResumed) GameContext.SnapshotTimeline.Reset(localEntity.Id);
+		if (targetJumped) GameContext.SnapshotTimeline.Reset(localEntity.Id);
 		GameContext.SnapshotTimeline.Record(localEntity.Id, describedPosition, snap.RotationY, sequence);
 
 		GameContext.World.SetOrAdd(localEntity, new LatestDescription
@@ -600,8 +599,6 @@ public class NetworkService
 
 		GameContext.World.SetOrAdd(localEntity, new DescribedAtSequence(sequence));
 	}
-
-	public const int UnobservedUnitGapSequences = 10;
 
 	public const float MaximumPlausibleTargetStepMeters = 2f;
 
@@ -697,6 +694,12 @@ public class NetworkService
 	{
 		modelPath = string.Empty;
 		playerIndex = 0;
+
+		if (string.IsNullOrEmpty(snap.UnitId))
+		{
+			GD.PushError($"[Network] Cannot spawn replicated entity {snap.EntityId}: the description named no definition, and this screen holds no copy of it.");
+			return Entity.Null;
+		}
 
 		if (!GameHost.UnitRegistry.TryGetValue(snap.UnitId, out var meta) && !GameHost.BuildingRegistry.TryGetValue(snap.UnitId, out meta))
 		{
@@ -1018,6 +1021,11 @@ public class NetworkService
 		{
 			codec.Apply(GameContext.World, targetEntity, delta.Bytes);
 
+			if (codec.ComponentTypeId == ComponentType<PlayerRelationshipMatrix>.Id)
+			{
+				GameContext.SimulationService?.MarkRelationshipsAuthoritative();
+			}
+
 			if (codec.ComponentTypeId == ComponentType<MoveTo>.Id && GameContext.World.Has<PreviewMoveTo>(targetEntity))
 			{
 				GameContext.World.Remove<PreviewMoveTo>(targetEntity);
@@ -1126,16 +1134,20 @@ public class NetworkService
 	{
 		if (!_referrersByServerEntityId.TryGetValue(serverEntityId, out var referrers)) return;
 
-		Span<byte> payload = stackalloc byte[sizeof(int)];
-		BitConverter.TryWriteBytes(payload, serverEntityId);
+		// The identifier names a different unit now, so every component still pointing at the unit it named before is
+		// pointed at the one it names now. The codec does it rather than a payload of the identifier alone: a build task
+		// carries the timings of the work beside the site, so applying one from four bytes of identifier threw, and the
+		// description that carried the unit the identifier had been given to was dropped whole.
+		Entity reference = ReplicatedEntityReferences.Resolve(new Entity(serverEntityId));
 
 		for (int index = 0; index < referrers.Count; index++)
 		{
 			var referrer = referrers[index];
 			Entity localEntity = new(referrer.LocalEntityId);
 			if (!GameContext.World.IsAlive(localEntity)) continue;
+			if (referrer.Codec is not INormalizingComponentCodec normalizing) continue;
 
-			referrer.Codec.Apply(GameContext.World, localEntity, payload);
+			normalizing.Repoint(GameContext.World, localEntity, reference);
 		}
 	}
 

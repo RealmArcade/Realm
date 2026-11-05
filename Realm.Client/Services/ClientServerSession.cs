@@ -15,7 +15,7 @@ namespace Realm.Client.Services;
 
 public record ServerMatchStart(string MapFolderPath, string MapName, int Seed, string LogDirectory, string DataFolderPath, string Language, bool Cheats = false, bool OpenToOthers = false, bool WasmDebug = false, IReadOnlyList<MatchRosterSeat>? Roster = null, string? AuthorityRecordDirectory = null);
 
-public record ServerLobbyStart(string MapFolderPath, string MapName, int MaxPlayers, string LogDirectory, string DataFolderPath, string Language, bool WasmDebug = false);
+public record ServerLobbyStart(string MapFolderPath, string MapName, int MaxPlayers, string LogDirectory, string DataFolderPath, string Language, bool WasmDebug = false, bool Cheats = false, bool LoopbackOnly = false);
 
 public readonly record struct MatchStartResult(bool Started, string Failure, string LogPath, string ConsoleLogPath)
 {
@@ -82,6 +82,8 @@ public class ClientServerSession : IDisposable
 	private string _adminToken = string.Empty;
 
 	private string _playerName = string.Empty;
+
+	private long _accountId;
 
 	private string _sessionToken = string.Empty;
 
@@ -185,6 +187,12 @@ public class ClientServerSession : IDisposable
 
 	public event Action<LobbyKickedMessage>? LobbyKickedEvent;
 
+	/// <summary>
+	///     Raised when the lobby's map asks its host to read a warning before the match starts. The authority sends it to
+	///     the host alone, and the match does not begin until that host starts again with the warning accepted.
+	/// </summary>
+	public event Action<LobbyStartWarningMessage>? LobbyStartWarningReceived;
+
 	public event Action<MapTransferReply>? MapTransferReplied;
 
 	public ClientServerSession(ClientNetworkChannel channel)
@@ -266,10 +274,11 @@ public class ClientServerSession : IDisposable
 		return true;
 	}
 
-	public void ConfigureLobbyIdentity(string playerName, string sessionToken)
+	public void ConfigureLobbyIdentity(string playerName, string sessionToken, long accountId)
 	{
 		_playerName = playerName ?? string.Empty;
 		_sessionToken = sessionToken ?? string.Empty;
+		_accountId = accountId;
 	}
 
 	public async Task<MatchStartResult> TryStartLobbyAsync(ServerLobbyStart start, int lobbyPort = 0)
@@ -296,7 +305,9 @@ public class ClientServerSession : IDisposable
 			Port = lobbyPort,
 			WasmDebug = start.WasmDebug,
 			MapWorkspacePath = start.WasmDebug ? start.MapFolderPath : string.Empty,
+			Cheats = start.Cheats,
 			Lobby = true,
+			LoopbackOnly = start.LoopbackOnly,
 			AdminToken = _adminToken,
 			MapName = start.MapName,
 			MaxPlayers = start.MaxPlayers
@@ -381,6 +392,20 @@ public class ClientServerSession : IDisposable
 		if (!IsRunning) return false;
 
 		_channel.Send(NetworkFrameKind.BaselineRequest, Array.Empty<byte>());
+		return true;
+	}
+
+	/// <summary>
+	///     Reports a description that arrived and could not be applied here, so the match states every unit and every text
+	///     again. Sending it again would be the same bytes this screen has just failed on, and waiting for a baseline pays
+	///     for one unreadable description with the whole world: what this screen is missing is what that one description
+	///     carried, and a description stated from nothing carries all of it.
+	/// </summary>
+	public bool RequestDescriptionRepeat()
+	{
+		if (!IsRunning) return false;
+
+		_channel.Send(NetworkFrameKind.SnapshotDescriptionRepeat, Array.Empty<byte>());
 		return true;
 	}
 
@@ -587,6 +612,7 @@ public class ClientServerSession : IDisposable
 			MapHash = _mapHash,
 			Language = _language,
 			PlayerName = _playerName,
+			AccountId = _accountId,
 			SessionToken = _sessionToken
 		};
 
@@ -643,8 +669,10 @@ public class ClientServerSession : IDisposable
 	}
 
 	/// <summary>
-	///     Hands one queued frame to the session, and asks the match to describe the world from scratch if it could not be
-	///     read. A frame this screen cannot read is a frame it never received, and nothing else would report it missing.
+	///     Hands one queued frame to the session, and reports what it could make of it. A description this screen cannot
+	///     apply is state it never held, so the match is asked to state every unit and text again; only a screen that fails
+	///     the one it is sent in answer asks for the world instead. Any other frame it cannot read is one it never received,
+	///     and nothing else would report it missing.
 	/// </summary>
 	private void DispatchFrame(QueuedFrame frame)
 	{
@@ -654,10 +682,33 @@ public class ClientServerSession : IDisposable
 		}
 		catch (Exception exception) when (exception is IOException or InvalidDataException or ArgumentException or MemoryPackSerializationException)
 		{
-			GD.PushWarning($"[Network] A {frame.Kind} frame could not be read and was dropped: {exception.Message}");
+			GD.PushWarning($"[Network] A {frame.Kind} frame could not be read and was dropped: {exception.GetType().Name}: {exception.Message}\n{FirstFramesOf(exception)}");
 
-			if (!InLobby) GameContext.SnapshotApply.RequestBaseline();
+			if (frame.Kind != NetworkFrameKind.Snapshot)
+			{
+				if (!InLobby) GameContext.SnapshotApply.RequestBaseline();
+				return;
+			}
+
+			// The first description this screen fails on is answered by stating the world to it again, which is one ordinary
+			// description rather than a world rebuilt on the reliable stream. A screen that fails the one after that too is
+			// not being told something it can apply at all, and a baseline is the only statement left that differs.
+			_unreadableDescriptions++;
+			if (_unreadableDescriptions == 1) RequestDescriptionRepeat();
+			else if (!InLobby) GameContext.SnapshotApply.RequestBaseline();
 		}
+	}
+
+	private static string FirstFramesOf(Exception exception)
+	{
+		string? stack = exception.StackTrace;
+		if (string.IsNullOrEmpty(stack)) return "no stack";
+
+		string[] lines = stack.Split('\n');
+		int shown = Math.Min(4, lines.Length);
+		var text = new System.Text.StringBuilder();
+		for (int index = 0; index < shown; index++) text.Append(lines[index].Trim()).Append("\n");
+		return text.ToString();
 	}
 
 	private void Dispatch(NetworkFrameKind kind, byte[] payload, ulong arrivalMilliseconds)
@@ -740,6 +791,10 @@ public class ClientServerSession : IDisposable
 				LobbyKickedEvent?.Invoke(MemoryPackSerializer.Deserialize<LobbyKickedMessage>(payload));
 				break;
 
+			case NetworkFrameKind.LobbyStartWarning:
+				LobbyStartWarningReceived?.Invoke(MemoryPackSerializer.Deserialize<LobbyStartWarningMessage>(payload));
+				break;
+
 			case NetworkFrameKind.MapTransferReply:
 				MapTransferReplied?.Invoke(MemoryPackSerializer.Deserialize<MapTransferReply>(payload));
 				break;
@@ -793,6 +848,8 @@ public class ClientServerSession : IDisposable
 		Seated?.Invoke(assignment);
 	}
 
+	private int _unreadableDescriptions;
+
 	private void ApplySnapshot(byte[] payload)
 	{
 		// A description too large for one datagram arrives as several. A group a piece short is a description this screen
@@ -805,6 +862,8 @@ public class ClientServerSession : IDisposable
 		if (MultiplayerBandwidthMeter.IsRecording) MultiplayerBandwidthMeter.RecordReceivedSnapshot(frame.Length, snapshot.IsBaseline);
 
 		SnapshotReceived?.Invoke(snapshot);
+
+		_unreadableDescriptions = 0;
 	}
 
 	private void ReportLost(string report)

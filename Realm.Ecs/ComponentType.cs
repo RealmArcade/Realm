@@ -171,7 +171,8 @@ public static class ComponentTypeRegistry
 			typeof(AttackTarget),
 			typeof(LastAttacker),
 			typeof(AbsorbShield),
-			typeof(AttackSpeedStat)
+			typeof(AttackSpeedStat),
+			typeof(OverheadBadge)
 		};
 
 		for (int i = 0; i < canonicalTypes.Length; i++)

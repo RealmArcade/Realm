@@ -43,6 +43,15 @@ public class MapInfoMetadata
 	public int? TestRandomSeed { get; set; }
 	public int? PlayablePlayerSlots { get; set; }
 
+	/// <summary>Whether units draw an overhead health bar. On unless the map says otherwise.</summary>
+	public bool? ShowUnitHealthBar { get; set; }
+
+	/// <summary>Whether units draw an overhead mana bar beneath the health bar. Off unless the map says otherwise.</summary>
+	public bool? ShowUnitManaBar { get; set; }
+
+	/// <summary>Whether units the script gives an overhead badge to draw it to the left of their overhead bars. Off unless the map says otherwise.</summary>
+	public bool? ShowUnitLevel { get; set; }
+
 	[JsonExtensionData] public Dictionary<string, JsonElement>? ExtensionData { get; set; }
 
 	public int GetPlayablePlayerSlots()

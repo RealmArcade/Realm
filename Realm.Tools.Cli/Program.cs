@@ -1549,9 +1549,17 @@ public static class Program
 
 		PrintKeygenHeader(publicKeyBase64, privateKeyBase64);
 
+		string keyUsername = !string.IsNullOrWhiteSpace(options.Username) ? options.Username.Trim() : string.Empty;
+
+		if (string.IsNullOrWhiteSpace(options.Output) && keyUsername.Length == 0)
+		{
+			Console.Error.WriteLine("Error: An authorship key is named after its user, so keygen needs --username (or an explicit --output path).");
+			return 1;
+		}
+
 		string outputPath = !string.IsNullOrWhiteSpace(options.Output)
 			? options.Output.Trim()
-			: AuthorshipKeyHelper.GetDefaultAuthorshipKeyPath();
+			: AuthorshipKeyHelper.GetDefaultAuthorshipKeyPath(null, keyUsername);
 
 		string? outDir = Path.GetDirectoryName(outputPath);
 		if (!string.IsNullOrEmpty(outDir) && !Directory.Exists(outDir))
@@ -1559,7 +1567,6 @@ public static class Program
 			Directory.CreateDirectory(outDir);
 		}
 
-		string keyUsername = !string.IsNullOrWhiteSpace(options.Username) ? options.Username.Trim() : string.Empty;
 		byte[] rkeyBytes = RkeyFile.Build(keyUsername, publicKeyBase64, privateKeyBase64);
 		File.WriteAllBytes(outputPath, rkeyBytes);
 		Console.WriteLine($"Saved key container to: {outputPath}");
@@ -1592,7 +1599,7 @@ public static class Program
 	{
 		string serverUrl = !string.IsNullOrWhiteSpace(options.Server) ? options.Server : ServersConfigHelper.GetDefaultServerUrl();
 		string username = !string.IsNullOrWhiteSpace(options.Username) ? options.Username.Trim() : "Creator_" + Guid.NewGuid().ToString("N")[..6];
-		string payload = $"{username}:{publicKeyBase64}";
+		string payload = CreatorRegistrationProof.BuildPayload(username, publicKeyBase64, null, null);
 		string signature = AuthorSignatureHelper.SignMessage(privateKeyBase64, payload);
 
 		Console.WriteLine($"Registering username '{username}' with {serverUrl}...");

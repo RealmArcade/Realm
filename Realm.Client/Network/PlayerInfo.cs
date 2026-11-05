@@ -11,6 +11,12 @@ public class PlayerInfo
 
 	public int PeerId { get; set; }
 	public int Slot { get; set; }
+
+	/// <summary>
+	///     The account the seat belongs to, or 0 for a guest or computer seat. The name is only ever a display value; this is
+	///     the identity.
+	/// </summary>
+	public long AccountId { get; set; }
 	public string Name { get; set; } = "";
 	public string Faction { get; set; } = string.Empty;
 	public int TeamIndex

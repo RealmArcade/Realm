@@ -321,6 +321,12 @@ public class InGameHUDViewModel
 
 	private static readonly LeaderboardBoards EmptyLeaderboards = new();
 
+	/// <summary>
+	///     The pages the Instructions menu offers, in the order the authority published them. They belong to this screen's
+	///     presentation only: a page states a rule, it does not change one.
+	/// </summary>
+	public List<InstructionsSection> InstructionSections { get; } = new();
+
 	private static ref SummaryTableState EnsureSummaryTableState(EcsWorld world, Entity entity)
 	{
 		if (!world.Has<SummaryTableState>(entity))
@@ -700,7 +706,7 @@ public class InGameHUDViewModel
 		if (world.Has<BuildTask>(u.Entity))
 			return GetBuildTaskStateText(world.Get<BuildTask>(u.Entity));
 
-		return GetMovementOrAttackStateText(world, u.Entity);
+		return null;
 	}
 
 	private string GetGathererStateText(Gatherer gather)
@@ -716,29 +722,6 @@ public class InGameHUDViewModel
 		string cachedConstructing = TranslationServer.Translate("CONSTRUCTING");
 		int pct = (int)(bt.Progress / Mathf.Max(bt.TotalBuildTime, 0.001f) * 100f);
 		return $"🔨 {cachedConstructing} ({pct}%)";
-	}
-
-	private string GetMovementOrAttackStateText(EcsWorld world, Entity entity)
-	{
-		if (world.Has<HoldPosition>(entity))
-			return "● " + TranslationServer.Translate("HOLDING");
-
-		if (world.Has<Patrol>(entity))
-			return "● " + TranslationServer.Translate("PATROLLING");
-
-		if (world.Has<AttackMove>(entity))
-			return "● " + TranslationServer.Translate("ATTACK-MOVE");
-
-		if (world.Has<Follow>(entity))
-			return "● " + TranslationServer.Translate("FOLLOWING");
-
-		if (world.Has<MoveTo>(entity))
-			return "● " + TranslationServer.Translate("MOVING");
-
-		if (world.Has<AttackTarget>(entity))
-			return "● " + TranslationServer.Translate("ATTACKING");
-
-		return "○ " + TranslationServer.Translate("IDLE");
 	}
 
 	private void UpdateUnitInventory(EcsWorld world, Unit3D u, SelectedUnitInfo info)

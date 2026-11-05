@@ -60,7 +60,7 @@ public class ResourceEconomyService
 	{
 		_fDelta = delta;
 
-		_context.World.Query(in _passiveIncomeQuery, _passiveIncomeQueryDelegate);
+		if (_context.MapRules.PassiveResourceIncomeEnabled) _context.World.Query(in _passiveIncomeQuery, _passiveIncomeQueryDelegate);
 		ProcessGatheringTicks();
 	}
 

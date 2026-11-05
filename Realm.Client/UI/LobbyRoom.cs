@@ -15,6 +15,7 @@ using static Godot.CanvasItem;
 using Realm.Client.Utils;
 using Realm.Client.UI.InGame;
 using Realm.Client.Services;
+using Realm.Shared.Accounts;
 
 namespace Realm.Client.UI;
 
@@ -35,6 +36,7 @@ public partial class LobbyRoom : Control
 
 	private Button _backButton;
 	private Button _inviteButton;
+	private SteamFriendsDialog? _friendsDialog;
 	private Button _addBotButton;
 	private Button _startButton;
 	private Label _mapNameLabel;
@@ -42,6 +44,7 @@ public partial class LobbyRoom : Control
 	private ColorPickerPopover? _colorPickerPopover;
 	private RichTextLabel _chatLog;
 	private VBoxContainer _playersContainer;
+	private readonly Dictionary<int, PanelContainer> _playerRowsByPeerId = new();
 	private Label _inviteFeedback;
 	private CheckBox _spectatorDelayCheck;
 	private Panel? _countdownPopup;
@@ -54,11 +57,13 @@ public partial class LobbyRoom : Control
 	private RichTextLabel _briefingLabel;
 	private Panel _mapFrame;
 	private bool _versionMismatchDetected;
+	private bool _ignoreReadinessOnStart;
 	private Label? _unstableWarningLabel;
 	private Label? _hostStabilityLabel;
 
 	private Label _authorshipWarningLabel;
 	private Label _primaryAuthorLabel;
+	private string? _authorshipMapJsonPath;
 	private Button _otherAuthorsButton;
 	private Button _attributionButton;
 	private AttributionPopover _attributionPopover;
@@ -73,7 +78,7 @@ public partial class LobbyRoom : Control
 	private List<MapBriefingDetails> _lobbyRoomMaps = new List<MapBriefingDetails>();
 	private readonly string[] _runes = { "ᚠ", "ᚢ", "ᚦ", "ᚨ", "ᚱ", "ᚲ", "ᚷ", "ᚹ", "ᚺ", "ᚾ", "ᛁ", "ᛃ", "ᛇ", "ᛈ", "ᛉ", "ᛊ", "ᛏ", "ᛒ", "ᛖ", "ᛗ", "ᛚ", "ᛜ", "ᛞ", "ᛟ" };
 	private const int ReadyColumnWidth = 100;
-	private const int TeamColumnWidth = 110;
+	private const int TeamColumnWidth = 150;
 	private const int ColorColumnWidth = 56;
 	private const int NameColumnWidth = 140;
 	private const int FactionColumnWidth = 100;
@@ -85,6 +90,8 @@ public partial class LobbyRoom : Control
 	private static bool HasFactions => FactionList.Count > 0;
 
 	private static int TeamCount => Math.Max(1, GameContext.Lobby?.LobbyTeamCount ?? LobbyLimits.DefaultTeamCount);
+
+	private int _renderedTeamCount = -1;
 
 	public override void _Ready()
 	{
@@ -101,6 +108,7 @@ public partial class LobbyRoom : Control
 		_addBotButton = GetNode<Button>("AddBotButton");
 		_startButton = GetNode<Button>("StartButton");
 		_addBotButton.Visible = GameContext.Lobby.IsHost;
+		_inviteButton.Visible = !GameContext.Lobby.IsSinglePlayer;
 
 
 		_mapNameLabel = GetNode<Label>("MapNameLabel");
@@ -186,6 +194,7 @@ public partial class LobbyRoom : Control
 		GameContext.Lobby.CountdownCancelled += OnCountdownCancelled;
 		GameContext.Lobby.CountdownFinished += OnCountdownFinished;
 		GameContext.Lobby.ActiveMapChanged += OnActiveMapChanged;
+		GameContext.Lobby.StartWarningReceived += OnStartWarningReceived;
 
 
 		if (!GameContext.Lobby.IsHost)
@@ -207,7 +216,7 @@ public partial class LobbyRoom : Control
 		CreateSpectatorDelayUI();
 		GameContext.Lobby.SpectatorDelayChanged += OnSpectatorDelayChanged;
 
-		_chatLog.Text = $"[color=#ffd700]{Tr("System: Connected to Lobby. Pre-Match Setup is active.")}[/color]\n";
+		_chatLog.Text = $"[color=#ffd700]{Tr("System: Connected to Lobby.")}[/color]\n";
 		_chatInput.TextSubmitted += OnChatSubmitted;
 
 
@@ -240,6 +249,7 @@ public partial class LobbyRoom : Control
 		_primaryAuthorLabel.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 		_primaryAuthorLabel.AddThemeFontSizeOverride("font_size", 12);
 		_primaryAuthorLabel.HorizontalAlignment = HorizontalAlignment.Center;
+		_primaryAuthorLabel.Visible = false;
 		GetNode<VBoxContainer>("BriefingPanel/VBoxContainer").AddChild(_primaryAuthorLabel);
 
 		var authorsSpacer = new Control { CustomMinimumSize = new Vector2(0, 24) };
@@ -250,6 +260,7 @@ public partial class LobbyRoom : Control
 		_otherAuthorsButton.Text = Tr("Other Authors");
 		_otherAuthorsButton.CustomMinimumSize = new Vector2(160, 32);
 		_otherAuthorsButton.SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter;
+		_otherAuthorsButton.Visible = false;
 		_otherAuthorsButton.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
 		_otherAuthorsButton.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
 		_otherAuthorsButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
@@ -285,7 +296,7 @@ public partial class LobbyRoom : Control
 		_chatPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateLobbyRoomChatPanel());
 
 
-		UIStyle.ApplyTitle(_lobbyTitle, "PRE-MATCH SETUP", 36);
+		UIStyle.ApplyTitle(_lobbyTitle, "LOBBY" + (GameContext.Lobby.IsSinglePlayer ? " (Offline / Single Player)" : ""), 36);
 		UIStyle.ApplyTitle(_playersTitle, "TEAMS & PLAYERS", 20);
 		UIStyle.ApplyTitle(_briefingTitle, "MATCH INFO & BRIEFING", 20);
 
@@ -296,6 +307,8 @@ public partial class LobbyRoom : Control
 		}
 
 		_briefingLabel.AddThemeColorOverride("default_color", new Color(0.85f, 0.85f, 0.9f));
+		_briefingLabel.ScrollActive = true;
+		_briefingLabel.ScrollFollowing = false;
 
 
 		string[] headers =
@@ -324,12 +337,8 @@ public partial class LobbyRoom : Control
 		_inviteFeedback.Modulate = new Color(1, 1, 1, 0);
 
 
-		SetupLobbyButton(_backButton, " LEAVE LOBBY", () =>
-		{
-			GameContext.Lobby.Disconnect();
-			GameContext.UserInterface.TransitionTo(GameScreen.LobbyBrowser);
-		});
-		SetupLobbyButton(_inviteButton, "INVITE FRIEND", TriggerInviteFeedback);
+		SetupLobbyButton(_backButton, " LEAVE LOBBY", ReturnFromLobby);
+		SetupLobbyButton(_inviteButton, "INVITE FRIEND", OpenInviteFriendsDialog);
 		SetupLobbyButton(_addBotButton, "ADD AI BOT", () => GameContext.Lobby.AddAIBot());
 		SetupStartButton();
 
@@ -368,6 +377,18 @@ public partial class LobbyRoom : Control
 
 		PopulateRunicPillar(GetNode<VBoxContainer>("LeftPillar/RuneContainer"));
 		PopulateRunicPillar(GetNode<VBoxContainer>("RightPillar/RuneContainer"));
+	}
+
+	/// <summary>
+	///     Leaves this lobby for the screen that led here: a hosted lobby is one of several in the lobby browser, while a
+	///     single-player lobby was opened straight from the main menu and has no browser behind it.
+	/// </summary>
+	private static void ReturnFromLobby()
+	{
+		bool singlePlayer = GameContext.Lobby.IsSinglePlayer;
+		GameContext.Lobby.Disconnect();
+		if (singlePlayer) GameContext.Lobby.IsSinglePlayer = false;
+		GameContext.UserInterface.TransitionTo(singlePlayer ? GameScreen.MainMenu : GameScreen.LobbyBrowser);
 	}
 
 	private void ApplyTableHeaderLayout()
@@ -590,6 +611,7 @@ public partial class LobbyRoom : Control
 	private void OnStartPressed()
 	{
 		GameContext.UserInterface.PlayClickSound();
+		_ignoreReadinessOnStart = false;
 		string mapName = GameContext.Lobby.ActiveMapName ?? "melee";
 
 		bool anyDownloading = false;
@@ -627,7 +649,9 @@ public partial class LobbyRoom : Control
 		bool anyNotReady = false;
 		foreach (var player in GameContext.Lobby.PlayerList)
 		{
-			if (player.PeerId > 1 && !player.IsReady)
+			if (player.IsHost || player.IsDisconnected) continue;
+			if (player.PeerId <= 0) continue;
+			if (!player.IsReady)
 			{
 				anyNotReady = true;
 				break;
@@ -647,19 +671,36 @@ public partial class LobbyRoom : Control
 	private void ShowVersionMismatchPopup(string hostVersion, string clientVersion)
 	{
 		string msg = $"{string.Format(Tr("Host Version: {0}"), hostVersion)}\n{string.Format(Tr("Client Version: {0}"), clientVersion)}\n\n{Tr("Connection aborted.")}";
-		GameContext.UserInterface?.ShowPopupMessage(Tr("VERSION MISMATCH"), msg, () =>
-		{
-			GameContext.Lobby.Disconnect();
-			GameContext.UserInterface.TransitionTo(GameScreen.LobbyBrowser);
-		});
+		GameContext.UserInterface?.ShowPopupMessage(Tr("VERSION MISMATCH"), msg, ReturnFromLobby);
 	}
 
 	private void ShowStartWarningPopup(string mapName)
 	{
-		GameContext.UserInterface?.ShowConfirmationDialog(Tr("Not all players are ready, start anyway?"), () =>
+		_ignoreReadinessOnStart = true;
+
+		GameContext.UserInterface?.ShowConfirmationDialog(TranslationServer.Translate("Not all players are ready, start anyway?"), () =>
 		{
 			GameContext.Lobby.StartGame(mapName, ignoreReadiness: true);
-		}, confirmText: "START GAME", cancelText: "CANCEL", titleOverride: "NOT ALL PLAYERS READY");
+		}, confirmText: TranslationServer.Translate("START GAME"), cancelText: TranslationServer.Translate("CANCEL"), titleOverride: TranslationServer.Translate("NOT ALL PLAYERS READY"));
+	}
+
+	/// <summary>
+	///     Shows the warning the lobby's map asked its host to read before the match starts. The authority has not begun
+	///     its countdown, so leaving the dialog alone abandons the start and accepting it starts the match the host asked
+	///     for, on the reading of readiness it had already chosen.
+	/// </summary>
+	/// <param name="warning">The text the map wants its host to read.</param>
+	private void OnStartWarningReceived(string warning)
+	{
+		if (!GameContext.Lobby.IsHost) return;
+
+		string mapName = GameContext.Lobby.ActiveMapName ?? "melee";
+		bool ignoreReadiness = _ignoreReadinessOnStart;
+
+		GameContext.UserInterface?.ShowConfirmationDialog(TranslationServer.Translate(warning), () =>
+		{
+			GameContext.Lobby.StartGame(mapName, ignoreReadiness, acknowledgeStartWarning: true);
+		}, confirmText: TranslationServer.Translate("START GAME"), cancelText: TranslationServer.Translate("CANCEL"), titleOverride: TranslationServer.Translate("MAP START WARNING"));
 	}
 
 	private void ShowDownloadingClientsPopup()
@@ -698,10 +739,13 @@ public partial class LobbyRoom : Control
 	private async void VerifyMapAuthorship(string mapName)
 	{
 		_authorshipWarningLabel.Visible = false;
+		_primaryAuthorLabel.Visible = false;
 		_primaryAuthorLabel.Text = Tr("Author: Unknown");
+		_otherAuthorsButton.Visible = false;
 		_otherAuthorsList.Clear();
 
 		string? mapJsonPath = TryGetMapJsonPath(mapName);
+		_authorshipMapJsonPath = mapJsonPath;
 		if (mapJsonPath == null) return;
 
 		try
@@ -711,8 +755,13 @@ public partial class LobbyRoom : Control
 		}
 		catch
 		{
-			_authorshipWarningLabel.Visible = true;
+			if (IsCurrentAuthorshipMap(mapJsonPath)) _authorshipWarningLabel.Visible = true;
 		}
+	}
+
+	private bool IsCurrentAuthorshipMap(string mapJsonPath)
+	{
+		return string.Equals(_authorshipMapJsonPath, mapJsonPath, StringComparison.OrdinalIgnoreCase);
 	}
 
 	private string? TryGetMapJsonPath(string mapName)
@@ -742,13 +791,40 @@ public partial class LobbyRoom : Control
 				}
 			}
 		}
-		else if (mapDoc["Author"] != null)
+
+		ShowStatedAuthor(ReadStatedAuthor(mapDoc, mapJsonPath));
+		_otherAuthorsButton.Visible = _otherAuthorsList.Count > 0;
+	}
+
+	private void ShowStatedAuthor(string? author)
+	{
+		if (string.IsNullOrWhiteSpace(author)) return;
+
+		_primaryAuthorLabel.Text = Tr("Author:") + " " + author.Trim();
+		_primaryAuthorLabel.Visible = true;
+	}
+
+	/// <summary>
+	///     The author a map folder states about itself. A metadata file keeps its display properties under MapProperties,
+	///     while the manifest beside it is the file the lobby browser and the archive headers read the author from, so the
+	///     folder is asked in the order its own files describe it.
+	/// </summary>
+	private static string? ReadStatedAuthor(JsonNode mapDoc, string mapJsonPath)
+	{
+		string? statedAuthor = mapDoc["MapProperties"]?["Author"]?.ToString();
+		if (string.IsNullOrWhiteSpace(statedAuthor)) statedAuthor = mapDoc["Author"]?.ToString();
+		if (!string.IsNullOrWhiteSpace(statedAuthor)) return statedAuthor;
+
+		string manifestJsonPath = Path.Combine(Path.GetDirectoryName(mapJsonPath) ?? string.Empty, "manifest.json");
+		if (!File.Exists(manifestJsonPath)) return null;
+
+		try
 		{
-			string auth = mapDoc["Author"]!.ToString();
-			if (!string.IsNullOrEmpty(auth))
-			{
-				_primaryAuthorLabel.Text = Tr("Author:") + " " + auth;
-			}
+			return JsonNode.Parse(File.ReadAllText(manifestJsonPath))?["Author"]?.ToString();
+		}
+		catch
+		{
+			return null;
 		}
 	}
 
@@ -758,29 +834,43 @@ public partial class LobbyRoom : Control
 		string mapBlake3 = RealmMetadataHelper.ComputeBlake3(fileBytes, ".json");
 		string hash = $"{mapBlake3}.json";
 
+		var mapDoc = JsonNode.Parse(fileBytes);
+		bool claimsAuthorship = mapDoc?["signature"] != null || mapDoc?["author_key"] != null;
+
 		string adminServerUrl = GameContext.Lobby.RegistryServerUrl;
-		var assetAuthorRes = await _sharedHttpClient.GetAsync(adminServerUrl + "/api/publish_map/asset_author/" + hash);
-		if (!assetAuthorRes.IsSuccessStatusCode)
+		if (string.IsNullOrWhiteSpace(adminServerUrl)) return;
+
+		string assetAuthorJson;
+		try
 		{
-			_authorshipWarningLabel.Visible = true;
+			using var assetAuthorRes = await _sharedHttpClient.GetAsync(adminServerUrl + "/api/publish_map/asset_author/" + hash);
+			if (!assetAuthorRes.IsSuccessStatusCode)
+			{
+				if (claimsAuthorship && IsCurrentAuthorshipMap(mapJsonPath)) _authorshipWarningLabel.Visible = true;
+				return;
+			}
+
+			assetAuthorJson = await assetAuthorRes.Content.ReadAsStringAsync();
+		}
+		catch
+		{
 			return;
 		}
 
-		string assetAuthorJson = await assetAuthorRes.Content.ReadAsStringAsync();
 		var assetMeta = JsonNode.Parse(assetAuthorJson);
 		if (assetMeta == null)
 		{
-			_authorshipWarningLabel.Visible = true;
+			if (IsCurrentAuthorshipMap(mapJsonPath)) _authorshipWarningLabel.Visible = true;
 			return;
 		}
 
-		string author = assetMeta["AuthorUsername"]?.GetValue<string>() ?? "Unknown";
+		string? author = assetMeta["AuthorUsername"]?.GetValue<string>();
 		string? signatureB64 = assetMeta["Signature"]?.GetValue<string>();
 		string? pubKeyB64 = assetMeta["PublicKey"]?.GetValue<string>();
 
 		if (string.IsNullOrEmpty(signatureB64) || string.IsNullOrEmpty(pubKeyB64))
 		{
-			_authorshipWarningLabel.Visible = true;
+			if (IsCurrentAuthorshipMap(mapJsonPath)) _authorshipWarningLabel.Visible = true;
 			return;
 		}
 
@@ -791,9 +881,12 @@ public partial class LobbyRoom : Control
 		var publicKey = PublicKey.Import(SignatureAlgorithm.Ed25519, pubKeyBytes, KeyBlobFormat.RawPublicKey);
 		bool isValid = SignatureAlgorithm.Ed25519.Verify(publicKey, hashBytes, signatureBytes);
 
+		if (!IsCurrentAuthorshipMap(mapJsonPath)) return;
+
 		if (isValid)
 		{
-			_primaryAuthorLabel.Text = Tr("Author:") + " " + author;
+			_authorshipWarningLabel.Visible = false;
+			ShowStatedAuthor(string.IsNullOrWhiteSpace(author) ? null : author);
 		}
 		else
 		{
@@ -856,21 +949,82 @@ public partial class LobbyRoom : Control
 		int selectedIndex = GetSelectedMapIndex();
 		if (selectedIndex >= 0)
 		{
-			_mapNameLabel.Text = _lobbyRoomMaps[selectedIndex].DisplayName.ToUpper();
-			_briefingLabel.Text = _lobbyRoomMaps[selectedIndex].Description;
-			VerifyMapAuthorship(_lobbyRoomMaps[selectedIndex].PathName);
+			MapBriefingDetails selectedMap = _lobbyRoomMaps[selectedIndex];
+			_mapNameLabel.Text = selectedMap.DisplayName.ToUpper();
+			_briefingLabel.Text = BuildBriefingText(selectedMap);
+			_briefingLabel.ScrollToLine(0);
+			VerifyMapAuthorship(selectedMap.PathName);
 		}
 
 		_attributionPopover?.Close();
 	}
 
-	private void TriggerInviteFeedback()
+	/// <summary>
+	///     Composes the briefing this screen shows from the selected map's own metadata, so a map describes itself and the
+	///     lobby never states something the map did not say.
+	/// </summary>
+	private static string BuildBriefingText(MapBriefingDetails selectedMap)
 	{
-		_inviteFeedback.Text = Tr("Friend Invite Sent!");
+		var builder = new StringBuilder();
+		AppendBriefingParagraph(builder, selectedMap.Description);
+		AppendBriefingSection(builder, TranslationServer.Translate("OBJECTIVE").ToString(), selectedMap.HowToPlayObjective);
+		AppendBriefingSection(builder, TranslationServer.Translate("PLAYERS").ToString(), selectedMap.SuggestedPlayers);
+		AppendBriefingSection(builder, TranslationServer.Translate("TAGS").ToString(), selectedMap.Tags is { Count: > 0 } ? string.Join(" · ", selectedMap.Tags) : string.Empty);
+
+		return builder.Length > 0 ? builder.ToString() : TranslationServer.Translate("This map has not described itself yet.").ToString();
+	}
+
+	private static void AppendBriefingParagraph(StringBuilder builder, string? text)
+	{
+		if (string.IsNullOrWhiteSpace(text)) return;
+
+		if (builder.Length > 0) builder.Append("\n\n");
+		builder.Append(text.Trim());
+	}
+
+	private static void AppendBriefingSection(StringBuilder builder, string label, string? text)
+	{
+		if (string.IsNullOrWhiteSpace(text)) return;
+
+		if (builder.Length > 0) builder.Append("\n\n");
+		builder.Append($"[b][color={UIStyle.ColorGold.ToHtml(false)}]{label}[/color][/b]\n{text.Trim()}");
+	}
+
+	private void OpenInviteFriendsDialog()
+	{
+		if (GameContext.Lobby.ActiveLobbyId is not { Length: > 0 } lobbyId || lobbyId.StartsWith("direct-", StringComparison.Ordinal))
+		{
+			GameContext.UserInterface?.ShowPopupMessage(
+				Tr("LOBBY INVITES"),
+				Tr("Invites need a lobby the server lists. A direct connection cannot be invited to."));
+			return;
+		}
+
+		if (_friendsDialog == null || !GodotObject.IsInstanceValid(_friendsDialog))
+		{
+			_friendsDialog = new SteamFriendsDialog();
+			AddChild(_friendsDialog);
+			_friendsDialog.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+			_friendsDialog.InvitesSent += OnFriendInvitesSent;
+		}
+
+		_friendsDialog.ShowFor(lobbyId, GameContext.Lobby.MaxPlayers);
+	}
+
+	private void OnFriendInvitesSent(int sentCount)
+	{
+		ShowInviteFeedback(sentCount == 1
+			? Tr("Invited 1 friend.")
+			: string.Format(Tr("Invited {0} friends."), sentCount));
+	}
+
+	private void ShowInviteFeedback(string text)
+	{
+		_inviteFeedback.Text = text;
 		_inviteFeedback.Modulate = new Color(0.3f, 0.8f, 1.0f, 1.0f);
 
 		var tween = CreateTween();
-		tween.TweenProperty(_inviteFeedback, "modulate:a", 0.0f, 2.0f).SetDelay(1.0f);
+		tween.TweenProperty(_inviteFeedback, "modulate:a", 0.0f, 2.0f).SetDelay(2.0f);
 	}
 
 	private void PopulateRunicPillar(VBoxContainer container)
@@ -880,6 +1034,8 @@ public partial class LobbyRoom : Control
 
 	public override void _ExitTree()
 	{
+		GameContext.Steam.CloseInviteLobby();
+
 		if (GameContext.Lobby != null)
 		{
 			GameContext.Lobby.PlayerListUpdated -= PopulatePlayersList;
@@ -899,6 +1055,7 @@ public partial class LobbyRoom : Control
 			GameContext.Lobby.CountdownFinished -= OnCountdownFinished;
 			GameContext.Lobby.HostStabilityUpdated -= UpdateHostStabilityLabel;
 			GameContext.Lobby.ActiveMapChanged -= OnActiveMapChanged;
+			GameContext.Lobby.StartWarningReceived -= OnStartWarningReceived;
 		}
 
 		base._ExitTree();
@@ -1026,6 +1183,15 @@ public partial class LobbyRoom : Control
 		UpdateFactionColumnVisibility();
 
 		var existingRows = GetExistingPlayerRows();
+		if (_renderedTeamCount != TeamCount)
+		{
+			foreach (var row in existingRows.Values) ReleasePlayerRow(row);
+
+			existingRows.Clear();
+			_playerRowsByPeerId.Clear();
+			_renderedTeamCount = TeamCount;
+		}
+
 		var activePeerIds = SyncPlayerRows(existingRows);
 
 		CleanupStalePlayerRows(existingRows, activePeerIds);
@@ -1036,12 +1202,12 @@ public partial class LobbyRoom : Control
 
 	private void UpdateAddBotAvailability()
 	{
+		_playersTitle.Text = $"{TranslationServer.Translate("TEAMS & PLAYERS")} ({GameContext.Lobby.PlayingPlayerCount}/{GameContext.Lobby.MaxPlayers})";
+
 		if (_addBotButton == null || !GodotObject.IsInstanceValid(_addBotButton)) return;
 		if (!GameContext.Lobby.IsHost) return;
 
-		bool lobbyHasFreeSlot = GameContext.Lobby.PlayerList.Count < GameContext.Lobby.MaxPlayers;
-		_addBotButton.Disabled = !lobbyHasFreeSlot;
-		_playersTitle.Text = $"{TranslationServer.Translate("TEAMS & PLAYERS")} ({GameContext.Lobby.PlayerList.Count}/{GameContext.Lobby.MaxPlayers})";
+		_addBotButton.Disabled = GameContext.Lobby.PlayingPlayerCount >= GameContext.Lobby.MaxPlayers;
 	}
 
 	private bool CheckHostVersionMismatch()
@@ -1070,20 +1236,25 @@ public partial class LobbyRoom : Control
 
 	private Dictionary<int, PanelContainer> GetExistingPlayerRows()
 	{
-		var existingRows = new Dictionary<int, PanelContainer>();
-		foreach (Node child in _playersContainer.GetChildren())
+		var existingRows = new Dictionary<int, PanelContainer>(_playerRowsByPeerId.Count);
+		foreach (var pair in _playerRowsByPeerId)
 		{
-			if (child is PanelContainer pc && pc.Name.ToString().StartsWith("PlayerRow_"))
-			{
-				string idStr = pc.Name.ToString().Substring("PlayerRow_".Length);
-				if (int.TryParse(idStr, out int peerId))
-				{
-					existingRows[peerId] = pc;
-				}
-			}
+			if (!GodotObject.IsInstanceValid(pair.Value)) continue;
+			existingRows[pair.Key] = pair.Value;
 		}
 
+		_playerRowsByPeerId.Clear();
+		foreach (var pair in existingRows) _playerRowsByPeerId[pair.Key] = pair.Value;
+
 		return existingRows;
+	}
+
+	private void ReleasePlayerRow(PanelContainer row)
+	{
+		if (!GodotObject.IsInstanceValid(row)) return;
+
+		if (row.GetParent() == _playersContainer) _playersContainer.RemoveChild(row);
+		row.QueueFree();
 	}
 
 	private HashSet<int> SyncPlayerRows(Dictionary<int, PanelContainer> existingRows)
@@ -1106,6 +1277,8 @@ public partial class LobbyRoom : Control
 				newRow.Name = $"PlayerRow_{player.PeerId}";
 				_playersContainer.AddChild(newRow);
 				_playersContainer.MoveChild(newRow, i);
+				existingRows[player.PeerId] = newRow;
+				_playerRowsByPeerId[player.PeerId] = newRow;
 			}
 		}
 
@@ -1118,7 +1291,8 @@ public partial class LobbyRoom : Control
 		{
 			if (!activePeerIds.Contains(kvp.Key))
 			{
-				kvp.Value.QueueFree();
+				_playerRowsByPeerId.Remove(kvp.Key);
+				ReleasePlayerRow(kvp.Value);
 			}
 		}
 	}
@@ -1710,9 +1884,11 @@ public partial class LobbyRoom : Control
 
 	private static string GetPlayerRowDisplayName(PlayerInfo player)
 	{
+		string name = player.AccountId == 0 && player.PeerId > 0 ? UnverifiedNameMark.Apply(player.Name) : player.Name;
+
 		return player.IsDisconnected
-			? string.Format(TranslationServer.Translate("{0} (reconnecting)"), player.Name)
-			: player.Name;
+			? string.Format(TranslationServer.Translate("{0} (reconnecting)"), name)
+			: name;
 	}
 
 	private void UpdateRowFactionOption(HBoxContainer hBox, PlayerInfo p, bool canEditSeat)
@@ -1769,13 +1945,13 @@ public partial class LobbyRoom : Control
 	{
 		if (string.IsNullOrEmpty(text.Trim())) return;
 		_chatInput.Clear();
-		string myName = GetLocalPlayer()?.Name ?? GameContext.Lobby.AuthenticatedUsername;
+		string myName = GetLocalPlayer()?.Name ?? GameContext.Lobby.PlayerDisplayName;
 		GameContext.Lobby.SendChatMessage(myName, text);
 	}
 
 	private void OnLobbyChatReceived(string senderName, string message, bool alliesOnly, long timestampUtcTicks)
 	{
-		string myName = GetLocalPlayer()?.Name ?? GameContext.Lobby.AuthenticatedUsername;
+		string myName = GetLocalPlayer()?.Name ?? GameContext.Lobby.PlayerDisplayName;
 		string color = senderName == "System" ? "#ffd700" : (senderName == myName ? "#5cd6ff" : "#d4a0a0");
 		string timestamp = ChatPanel.FormatTimestamp(timestampUtcTicks);
 		_chatLog.Text += $"[color=#a0a0a0][{timestamp}][/color] [color={color}]{senderName}[/color]: {message}\n";
@@ -1799,8 +1975,7 @@ public partial class LobbyRoom : Control
 
 		GameContext.UserInterface?.ShowPopupMessage(Tr("CONNECTION FAILED"), $"{Tr("Failed to connect to host.")}\n\n{string.Format(Tr("Reason: {0}"), displayReason)}", () =>
 		{
-			GameContext.Lobby.Disconnect();
-			GameContext.UserInterface.TransitionTo(GameScreen.LobbyBrowser);
+			ReturnFromLobby();
 		});
 	}
 
@@ -1808,7 +1983,7 @@ public partial class LobbyRoom : Control
 	{
 		GD.Print($"[LobbyRoom] Disconnected / Kicked: {reason}");
 		GameContext.UserInterface.PlayWarningSound();
-		GameContext.UserInterface.TransitionTo(GameScreen.LobbyBrowser);
+		ReturnFromLobby();
 	}
 
 	private ProgressBar _downloadProgress;

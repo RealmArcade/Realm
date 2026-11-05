@@ -89,6 +89,8 @@ public record ServerControlCommand
 
 	public bool Lobby { get; init; }
 
+	public bool LoopbackOnly { get; init; }
+
 	public string AdminToken { get; init; } = string.Empty;
 
 	public string MapName { get; init; } = string.Empty;

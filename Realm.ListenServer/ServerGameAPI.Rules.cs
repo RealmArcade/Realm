@@ -31,4 +31,14 @@ public partial class ServerGameAPI
 		if (string.IsNullOrEmpty(nodeDefinitionId) || string.IsNullOrEmpty(resourceType)) return;
 		_context.MapRules.RegisterResourceNodeType(nodeDefinitionId, resourceType);
 	}
+
+	public void EnablePassiveResourceIncome()
+	{
+		_context.MapRules.EnablePassiveResourceIncome();
+	}
+
+	public void SetUnitBarVisibility(bool healthBar, bool manaBar, bool levelBadge)
+	{
+		_context.MapRules.SetUnitBarVisibility(healthBar, manaBar, levelBadge);
+	}
 }

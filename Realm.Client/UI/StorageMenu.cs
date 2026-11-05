@@ -87,20 +87,7 @@ public partial class StorageMenu : Control
 
 		_backButton = new Button();
 		_backButton.Name = "BackButton_Button";
-		_backButton.AddThemeConstantOverride("icon_max_width", 24);
-		_backButton.CustomMinimumSize = new Vector2(130, 42);
-		UIStyle.ApplyButtonText(_backButton, "◀ " + TranslationServer.Translate("BACK"), 16);
-		_backButton.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		_backButton.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		_backButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		_backButton.FocusMode = FocusModeEnum.None;
-		_backButton.MouseFilter = MouseFilterEnum.Stop;
-		_backButton.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
-		_backButton.Pressed += () =>
-		{
-			GameContext.UserInterface?.PlayClickSound();
-			GameContext.UserInterface.TransitionTo(GameScreen.MainMenu);
-		};
+		UIStyle.ApplyBackButton(_backButton, () => GameContext.UserInterface.TransitionTo(GameScreen.MainMenu));
 		topHeaderHBox.AddChild(_backButton);
 
 		_titleLabel = new Label();

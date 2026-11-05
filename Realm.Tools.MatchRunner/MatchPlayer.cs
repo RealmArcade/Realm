@@ -58,7 +58,7 @@ public static class MatchPlayer
 		var roster = new MatchRosterSeat[seats];
 		for (int seat = 1; seat <= seats; seat++)
 		{
-			roster[seat - 1] = new MatchRosterSeat(seat, $"Bot {seat}", seat, $"Team {seat}", IsComputer: true);
+			roster[seat - 1] = new MatchRosterSeat(seat, 0, $"Bot {seat}", seat, $"Team {seat}", IsComputer: true);
 		}
 
 		return roster;

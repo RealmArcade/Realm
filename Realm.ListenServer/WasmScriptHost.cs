@@ -58,6 +58,7 @@ public partial class WasmScriptHost : IWasmRuntime, IWasmEvaluationEngine, IDisp
 	private readonly Action<float>? _update;
 	private readonly Func<int>? _lobbyInit;
 	private readonly Action<float>? _lobbyUpdate;
+	private readonly Func<long>? _lobbyStartWarning;
 	private int _sharedMemoryOffset = 0;
 	private IntPtr _sharedMemoryPointer = IntPtr.Zero;
 
@@ -219,6 +220,9 @@ public partial class WasmScriptHost : IWasmRuntime, IWasmEvaluationEngine, IDisp
 
 			var lobbyUpdateFn = _instance.GetFunction("lobby-update");
 			if (lobbyUpdateFn != null) _lobbyUpdate = lobbyUpdateFn.WrapAction<float>();
+
+			var lobbyStartWarningFn = _instance.GetFunction("lobby-start-warning");
+			if (lobbyStartWarningFn != null) _lobbyStartWarning = lobbyStartWarningFn.WrapFunc<long>();
 
 			FlushWasiLogFile();
 			_simulation.EvaluationEngine = this;
@@ -436,6 +440,31 @@ public partial class WasmScriptHost : IWasmRuntime, IWasmEvaluationEngine, IDisp
 		if (!LobbyInitHandled || IsFaulted || _lobbyUpdate == null) return;
 
 		ExecuteGuardedAction(() => _lobbyUpdate.Invoke(deltaSeconds), "lobby-update()");
+	}
+
+	/// <summary>
+	///     Asks the map whether the lobby's host must read a warning before the match starts. The guest answers with one
+	///     value that carries the length of its message in its upper half and the address of the message in its lower half,
+	///     which is read straight out of the guest's memory; zero means there is nothing to warn about.
+	/// </summary>
+	/// <param name="message">The warning the map wants the host to read, or empty when there is none.</param>
+	/// <returns>Whether the map asks for a warning.</returns>
+	public bool TryGetLobbyStartWarning(out string message)
+	{
+		message = string.Empty;
+		if (!LobbyInitHandled || IsFaulted || _lobbyStartWarning == null) return false;
+
+		long packed = ExecuteGuardedFunc(() => _lobbyStartWarning.Invoke(), 0L, "lobby-start-warning()");
+		int length = (int)(packed >> 32);
+		int address = unchecked((int)(packed & 0xFFFFFFFFL));
+		if (length <= 0 || address <= 0) return false;
+
+		var memory = _instance.GetMemory("memory");
+		if (memory == null) return false;
+		if ((long)address + length > memory.GetLength()) return false;
+
+		message = memory.ReadString(address, length, Encoding.UTF8);
+		return message.Length > 0;
 	}
 
 	public readonly struct ApiProfileScope : IDisposable

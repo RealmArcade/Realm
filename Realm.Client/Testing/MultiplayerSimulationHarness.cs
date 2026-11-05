@@ -436,13 +436,13 @@ public partial class MultiplayerSimulationHarness : Node
 		for (int slot = 1; slot <= _peerCount; slot++)
 		{
 			string name = slot == 1 ? HostPlayerName : $"HarnessPeer{slot}";
-			roster.Add(new MatchRosterSeat(slot, name, slot, $"Team {slot}", false));
+			roster.Add(new MatchRosterSeat(slot, 0, name, slot, $"Team {slot}", false));
 		}
 
 		for (int index = 0; index < _botCount; index++)
 		{
 			int slot = _peerCount + index + 1;
-			roster.Add(new MatchRosterSeat(slot, $"Bot {slot}", slot, $"Team {slot}", true));
+			roster.Add(new MatchRosterSeat(slot, 0, $"Bot {slot}", slot, $"Team {slot}", true));
 		}
 
 		return roster;

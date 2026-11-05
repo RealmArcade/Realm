@@ -9,7 +9,7 @@ using Realm.Ecs.Components.Core;
 
 namespace Realm.Shared.Maps;
 
-public readonly record struct MatchRosterSeat(int Slot, string Name, int Team, string TeamName, bool IsComputer);
+public readonly record struct MatchRosterSeat(int Slot, long AccountId, string Name, int Team, string TeamName, bool IsComputer);
 
 public static class MatchRoster
 {
@@ -92,9 +92,9 @@ public static class MatchRosterFile
 {
 	public const string FileSuffix = ".roster.txt";
 
-	private const string Header = "realm-match-roster 1";
+	private const string Header = "realm-match-roster 2";
 	private const char Separator = '\t';
-	private const int ColumnCount = 5;
+	private const int ColumnCount = 6;
 
 	public static void Write(string path, IReadOnlyList<MatchRosterSeat> seats)
 	{
@@ -105,6 +105,7 @@ public static class MatchRosterFile
 		{
 			MatchRosterSeat seat = seats[index];
 			builder.Append(seat.Slot.ToString(CultureInfo.InvariantCulture)).Append(Separator);
+			builder.Append(seat.AccountId.ToString(CultureInfo.InvariantCulture)).Append(Separator);
 			builder.Append(Sanitize(seat.Name)).Append(Separator);
 			builder.Append(seat.Team.ToString(CultureInfo.InvariantCulture)).Append(Separator);
 			builder.Append(Sanitize(seat.TeamName)).Append(Separator);
@@ -152,19 +153,20 @@ public static class MatchRosterFile
 			}
 
 			if (!int.TryParse(columns[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out int slot)
-				|| !int.TryParse(columns[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out int team))
+				|| !long.TryParse(columns[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out long accountId)
+				|| !int.TryParse(columns[3], NumberStyles.Integer, CultureInfo.InvariantCulture, out int team))
 			{
 				error = $"the match roster line {index + 1} of '{path}' does not name a slot and a team.";
 				return false;
 			}
 
-			if (columns[4].Length != 1 || (columns[4][0] != '0' && columns[4][0] != '1'))
+			if (columns[5].Length != 1 || (columns[5][0] != '0' && columns[5][0] != '1'))
 			{
 				error = $"the match roster line {index + 1} of '{path}' does not say whether the seat is a computer.";
 				return false;
 			}
 
-			parsed.Add(new MatchRosterSeat(slot, columns[1], team, columns[3], columns[4][0] == '1'));
+			parsed.Add(new MatchRosterSeat(slot, accountId, columns[2], team, columns[4], columns[5][0] == '1'));
 		}
 
 		seats = parsed.ToArray();
