@@ -153,7 +153,9 @@ public partial class GameHost
 
 	private readonly List<PresentationMessage> _heldHudPresentation = new();
 
-	private const int MaximumHeldHudPresentation = 256;
+	// A map states everything it declares about itself once, and a HUD that arrives after it holds all of it until the
+	// screen that draws it exists, so the bound has to clear a large map's whole set of declarations rather than a burst.
+	private const int MaximumHeldHudPresentation = 1024;
 
 	private System.Numerics.Vector3[] _authoritativeObstaclePositions = System.Array.Empty<System.Numerics.Vector3>();
 	private float[] _authoritativeObstacleRadii = System.Array.Empty<float>();
@@ -458,13 +460,11 @@ public partial class GameHost
 				break;
 
 			case PresentationKind.TooltipNumberSet:
-				GameContext.RegistryService.TooltipValues.SetNumber(
-					TooltipValueStore.OwnerKey(message.Key, message.Text), message.Text2, message.Value);
-				break;
-
 			case PresentationKind.TooltipTextSet:
-				GameContext.RegistryService.TooltipValues.SetText(
-					TooltipValueStore.OwnerKey(message.Key, message.Text), message.Text2, message.Text3);
+				// A map declares the numbers its cards tooltips quote as the match starts, which can be before this screen
+				// has a HUD holding a registry to publish them into, so they are held and replayed like the rest of what a
+				// map declares about itself.
+				HoldHudPresentation(message);
 				break;
 
 			case PresentationKind.TechLevelSet:
@@ -740,6 +740,14 @@ public partial class GameHost
 				break;
 			case PresentationKind.InstructionsSectionAdded:
 				hud.AddInstructionsSection(message.Key, message.Text);
+				break;
+			case PresentationKind.TooltipNumberSet:
+				GameContext.RegistryService?.TooltipValues.SetNumber(
+					TooltipValueStore.OwnerKey(message.Key, message.Text), message.Text2, message.Value);
+				break;
+			case PresentationKind.TooltipTextSet:
+				GameContext.RegistryService?.TooltipValues.SetText(
+					TooltipValueStore.OwnerKey(message.Key, message.Text), message.Text2, message.Text3);
 				break;
 		}
 	}
