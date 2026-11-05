@@ -240,7 +240,7 @@ interface game-api {
     stop-countdown-timer: func();
     stun-unit: func(unit-id: s32, duration: f32);
     teleport-unit: func(unit-id: s32, position-x: f32, position-y: f32, position-z: f32);
-    train-bot-profile: func(map-name: string, generations: s32, population-size: s32, matches-per-evaluation: s32, genre: string) -> string;
+    train-bot-profile: func(map-name: string, generations: s32, population-size: s32, matches-per-evaluation: s32, genre: string, seed: s32) -> string;
     transition-environment-preset: func(preset-id: string, duration-seconds: f32);
     translate: func(key: string, player-index: s32) -> string;
     trigger-defeat: func();
