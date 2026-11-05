@@ -581,7 +581,9 @@ public partial class GameHost
 		var start = new Vector3(message.Position.X, message.Position.Y, message.Position.Z);
 		var target = new Vector3(message.Secondary.X, message.Secondary.Y, message.Secondary.Z);
 
-		Callable.From(() => GameContext.FXService.SpawnWeaponProjectile(this, start, target, message.Key, default, message.PlayerIndex)).CallDeferred();
+		// Script-spawned projectiles target a fixed point the server already resolved, so the visual must fly all the way there;
+		// the weapon's MaxLifetime/FailsafeRange would otherwise cut it short on long casts.
+		Callable.From(() => GameContext.FXService.SpawnWeaponProjectile(this, start, target, message.Key, default, message.PlayerIndex, true)).CallDeferred();
 	}
 
 	private void PresentStaticText(PresentationMessage message)

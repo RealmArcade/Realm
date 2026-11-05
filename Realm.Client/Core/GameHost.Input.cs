@@ -3449,25 +3449,39 @@ public partial class GameHost
 
 		if (_multiplayerActive && focusedUnit != null && !GameContext.PerspectiveFilter.CanControl(focusedUnit.Player)) return;
 
-		UnitId caster = UnitId.Invalid;
-		if (focusedUnit != null && GameContext.World.IsAlive(focusedUnit.Entity))
-		{
-			caster = (UnitId)focusedUnit.Entity.Id;
-			GameContext.AudioService?.PlayUnitSound(focusedUnit.UnitId, UnitSoundEvent.SpellCast, position, 0f, AudioPriorityTier.Critical);
-		}
+		bool hasCaster = focusedUnit != null && GameContext.World.IsAlive(focusedUnit.Entity);
+		UnitId caster = hasCaster ? (UnitId)focusedUnit.Entity.Id : UnitId.Invalid;
 
 		if (ExecuteConsumablePurchase(caster, spellId, position)) return;
 
-		OnSpellCast?.Invoke(caster, spellId, new System.Numerics.Vector3(position.X, position.Y, position.Z));
-
-		Entity casterEntity = focusedUnit != null && GameContext.World.IsAlive(focusedUnit.Entity) ? focusedUnit.Entity : Entity.Null;
-
+		// Affordability and cooldown are settled before the script hears about the cast, matching the authoritative server
+		// path. Raising OnSpellCast first let a refused cast still run its map-side effects and left a cooldown behind.
 		if (IsSpellOnCooldown(spellId, def)) return;
 
-		if (GameContext.InputService.TryExecuteSpellCast(GetPlayerEntityForPlayerIndex(GameContext.PerspectiveFilter.ControlledPlayerIndex), casterEntity, spellId, out float maxCd))
+		Entity casterEntity = hasCaster ? focusedUnit.Entity : Entity.Null;
+		if (!GameContext.InputService.TryExecuteSpellCast(GetPlayerEntityForPlayerIndex(GameContext.PerspectiveFilter.ControlledPlayerIndex), casterEntity, spellId, out float maxCd))
 		{
-			HandleSpellCastSuccess(spellId, def, position);
+			ShowInsufficientManaFeedback(spellId, def);
+			return;
 		}
+
+		if (hasCaster)
+		{
+			GameContext.AudioService?.PlayUnitSound(focusedUnit.UnitId, UnitSoundEvent.SpellCast, position, 0f, AudioPriorityTier.Critical);
+		}
+
+		OnSpellCast?.Invoke(caster, spellId, new System.Numerics.Vector3(position.X, position.Y, position.Z));
+
+		HandleSpellCastSuccess(spellId, def, position);
+	}
+
+	private void ShowInsufficientManaFeedback(string spellId, AbilityDefinition def)
+	{
+		float cost = def?.ManaCost ?? 0f;
+		if (cost <= 0f) return;
+
+		string displayName = def?.DisplayName ?? spellId;
+		GameContext.InGameHud?.ShowFeedbackText($"{displayName} requires {(int)cost} mana", new Color(0.9f, 0.4f, 0.1f));
 	}
 
 	private bool IsSpellOnCooldown(string spellId, AbilityDefinition def)
