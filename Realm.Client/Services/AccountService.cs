@@ -232,6 +232,27 @@ public class AccountService
 		}, null).ConfigureAwait(false);
 	}
 
+	/// <summary>
+	///     Signs in with the Steam identity this machine already has, without asking the player and without reporting anything.
+	///     Launch calls it when no session was restored, because a player who starts the game through Steam already holds
+	///     everything a sign-in needs; a SteamID64 the authority has not seen registers under the Steam persona, which is the
+	///     default name. A persona the authority will not register comes back as an ordinary refusal, so the one surface that
+	///     ever asks for a name can answer it. Nothing is requested when Steamworks is unavailable, which is not a failure: the
+	///     player simply keeps the unverified name they play under.
+	/// </summary>
+	public async Task<AccountOperationResult> SignInWithSteamIdentityAsync()
+	{
+		if (IsSignedIn) return AccountOperationResult.Ok(null);
+		if (!GameContext.Steam.IsAvailable) return AccountOperationResult.Rejected(string.Empty, GameContext.Steam.UnavailableExplanation);
+
+		uint appId = GameContext.Steam.AppId;
+		string requestedName = GameContext.Steam.UserName.Trim();
+		string ticket = await GameContext.Steam.RequestWebApiTicketAsync();
+		if (string.IsNullOrEmpty(ticket)) return AccountOperationResult.Rejected(AccountErrorCodes.CredentialsInvalid, "Steam did not return a sign-in ticket.");
+
+		return await SignInWithSteamAsync(requestedName, ticket, appId);
+	}
+
 	public async Task<AccountOperationResult> RenameAsync(string displayName)
 	{
 		string token = SessionToken;
