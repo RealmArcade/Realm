@@ -1354,7 +1354,7 @@ namespace Realm.Client.UI
 
 			var message = new Label();
 			message.Name = "MapNamePromptMessage_Label";
-			message.Text = TranslationServer.Translate("An untitled map is a prototype. Give it a name and the folder it is saved to will default to Documents under that name.");
+			message.Text = TranslationServer.Translate("Map needs a valid name, rather than 'Untitled Map' before it can be saved.");
 			message.AutowrapMode = TextServer.AutowrapMode.WordSmart;
 			message.HorizontalAlignment = HorizontalAlignment.Center;
 			message.CustomMinimumSize = new Vector2(440, 0);
