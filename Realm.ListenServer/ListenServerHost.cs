@@ -304,7 +304,7 @@ public class ListenServerHost : IServerTransportSink
 
 	private void StartLobby()
 	{
-		if (!_transport.TryStart(EcsWorld.MAX_PLAYERS, loopbackOnly: false, this, out string failure))
+		if (!_transport.TryStart(EcsWorld.MAX_PLAYERS, loopbackOnly: _arguments.LoopbackOnly, this, out string failure))
 		{
 			throw new IOException($"the lobby could not listen for peers: {failure}");
 		}
@@ -327,6 +327,7 @@ public class ListenServerHost : IServerTransportSink
 		_mapHash = MapContentHash.Compute(_arguments.MapPath, _arguments.LogPath);
 		MarkStartStage("lobby listening");
 		_log.Write($"lobby opened for map '{_lobby.MapName}' version {_lobby.MapVersion} with {_lobby.MaximumPlayers} playable slot(s)");
+		if (_arguments.LoopbackOnly) _log.Write("this lobby listens on the loopback address only: nothing outside this screen can reach it");
 		AnnounceReady();
 	}
 

@@ -733,6 +733,7 @@ public partial class LobbyManager : BaseMapTransferNode
 
 	public async Task<bool> HostLobbyAsync(string mapPathName, string mapDisplayName, string? explicitVersion = null)
 	{
+		IsSinglePlayer = false;
 		InitializeHostState(mapPathName, explicitVersion);
 
 		ReportHostLobbyStage(HostLobbyStage.TestingNetwork);
@@ -826,6 +827,85 @@ public partial class LobbyManager : BaseMapTransferNode
 			return false;
 		}
 
+		PlayerListUpdated?.Invoke();
+		return true;
+	}
+
+	/// <summary>
+	///     Opens a lobby only this screen can reach, so a single player picks a map, adds the AI players they want and starts
+	///     the match from the same screen a hosted match begins in. Nothing about the machine's network is used: the authority
+	///     binds the loopback address, takes whatever port it finds free, and no registry is told the lobby exists.
+	/// </summary>
+	/// <param name="mapPathName">The map whose lobby is opened.</param>
+	/// <param name="explicitVersion">The map version to play, or the newest the screen holds when omitted.</param>
+	/// <returns>Whether the lobby is open and administered by this screen.</returns>
+	public async Task<bool> HostSinglePlayerLobbyAsync(string mapPathName, string? explicitVersion = null)
+	{
+		IsSinglePlayer = true;
+		InitializeHostState(mapPathName, explicitVersion);
+
+		string? mapDirectory = GameHost.ResolveMapDirectory(mapPathName, ActiveMapVersion);
+		if (string.IsNullOrEmpty(mapDirectory))
+		{
+			LastHostError = $"The map folder for '{mapPathName}' could not be found.";
+			GD.PushError($"[LobbyManager] {LastHostError}");
+			return false;
+		}
+
+		var channel = GetNodeOrNull<ClientNetworkChannel>("/root/RealmNetwork");
+		if (channel == null)
+		{
+			LastHostError = "This build has no channel to an authority.";
+			GD.PushError($"[LobbyManager] {LastHostError}");
+			return false;
+		}
+
+		GameContext.ServerSession?.Dispose();
+		GameContext.DetachServerSession();
+
+		var session = new ClientServerSession(channel);
+		session.ConfigureLobbyIdentity(PlayerDisplayName, LobbySessionToken, AccountId);
+		AttachLobbySession(session);
+
+		var start = new ServerLobbyStart(
+			ProjectSettings.GlobalizePath(mapDirectory),
+			mapPathName,
+			MaxPlayers,
+			Path.Combine(OS.GetUserDataDir(), "logs"),
+			OS.GetUserDataDir(),
+			LocalizationManager.GetCurrentLanguageCode(),
+			Cheats: true,
+			LoopbackOnly: true);
+
+		MatchStartResult lobbyStarted = await session.TryStartLobbyAsync(start);
+		LastAuthorityLogPath = lobbyStarted.LogPath;
+		LastAuthorityConsoleLogPath = lobbyStarted.ConsoleLogPath;
+		if (!lobbyStarted.Started)
+		{
+			LastHostError = lobbyStarted.Failure;
+			GD.PushError($"[LobbyManager] {lobbyStarted.Failure}");
+			TeardownHostedLobby(session);
+			return false;
+		}
+
+		string? admissionFailure = await WaitForLobbyAdmissionAsync(session);
+		if (admissionFailure != null)
+		{
+			LastHostError = admissionFailure;
+			GD.PushError($"[LobbyManager] {admissionFailure}");
+			TeardownHostedLobby(session);
+			return false;
+		}
+
+		if (!session.IsAdmin)
+		{
+			LastHostError = "The lobby's authority did not grant this client the capability that administers it.";
+			GD.PushError($"[LobbyManager] {LastHostError}");
+			TeardownHostedLobby(session);
+			return false;
+		}
+
+		IsHost = true;
 		PlayerListUpdated?.Invoke();
 		return true;
 	}
@@ -1420,6 +1500,7 @@ public partial class LobbyManager : BaseMapTransferNode
 	private void ReleaseHostedEndpoint(int port)
 	{
 		if (!IsHost) return;
+		if (IsSinglePlayer) return;
 
 		Diagnostics.StopHostListener();
 		GameContext.Upnp.ClosePort(port > 0 ? port : ENetPort);

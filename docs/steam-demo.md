@@ -25,6 +25,11 @@ same build is uploaded to both, and no feature may branch on which one is runnin
   while Steamworks is initialised and the base game's application id is configured.
 - The registration form prefills the DisplayName with the Steam persona name. It is still validated by
   `DisplayNameRules` like any other name, so an unusable persona name is reported instead of being rewritten.
+- `INVITE FRIEND` in a lobby room lists this player's Steam friends and invites the ticked ones through a private Steam
+  lobby of that player's own, which carries the match lobby's id as metadata. Accepting the invitation in Steam turns
+  that id into the ordinary registry join, so the host and every guest can invite and the match keeps its one lobby. A
+  Steam lobby belongs to the application that created it, so an invitation between a demo player and a base-game player
+  is not guaranteed to work; during the demo that costs nothing, because everyone plays the demo.
 
 ## 2. Values
 

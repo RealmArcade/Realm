@@ -15,7 +15,7 @@ namespace Realm.Client.Services;
 
 public record ServerMatchStart(string MapFolderPath, string MapName, int Seed, string LogDirectory, string DataFolderPath, string Language, bool Cheats = false, bool OpenToOthers = false, bool WasmDebug = false, IReadOnlyList<MatchRosterSeat>? Roster = null, string? AuthorityRecordDirectory = null);
 
-public record ServerLobbyStart(string MapFolderPath, string MapName, int MaxPlayers, string LogDirectory, string DataFolderPath, string Language, bool WasmDebug = false);
+public record ServerLobbyStart(string MapFolderPath, string MapName, int MaxPlayers, string LogDirectory, string DataFolderPath, string Language, bool WasmDebug = false, bool Cheats = false, bool LoopbackOnly = false);
 
 public readonly record struct MatchStartResult(bool Started, string Failure, string LogPath, string ConsoleLogPath)
 {
@@ -299,7 +299,9 @@ public class ClientServerSession : IDisposable
 			Port = lobbyPort,
 			WasmDebug = start.WasmDebug,
 			MapWorkspacePath = start.WasmDebug ? start.MapFolderPath : string.Empty,
+			Cheats = start.Cheats,
 			Lobby = true,
+			LoopbackOnly = start.LoopbackOnly,
 			AdminToken = _adminToken,
 			MapName = start.MapName,
 			MaxPlayers = start.MaxPlayers

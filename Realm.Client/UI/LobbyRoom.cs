@@ -36,6 +36,7 @@ public partial class LobbyRoom : Control
 
 	private Button _backButton;
 	private Button _inviteButton;
+	private SteamFriendsDialog? _friendsDialog;
 	private Button _addBotButton;
 	private Button _startButton;
 	private Label _mapNameLabel;
@@ -104,6 +105,7 @@ public partial class LobbyRoom : Control
 		_addBotButton = GetNode<Button>("AddBotButton");
 		_startButton = GetNode<Button>("StartButton");
 		_addBotButton.Visible = GameContext.Lobby.IsHost;
+		_inviteButton.Visible = !GameContext.Lobby.IsSinglePlayer;
 
 
 		_mapNameLabel = GetNode<Label>("MapNameLabel");
@@ -178,6 +180,7 @@ public partial class LobbyRoom : Control
 
 
 		ApplyThemeStyles();
+		ApplyFestivalLayout();
 
 
 		GameContext.Lobby.PlayerListUpdated += PopulatePlayersList;
@@ -327,12 +330,8 @@ public partial class LobbyRoom : Control
 		_inviteFeedback.Modulate = new Color(1, 1, 1, 0);
 
 
-		SetupLobbyButton(_backButton, " LEAVE LOBBY", () =>
-		{
-			GameContext.Lobby.Disconnect();
-			GameContext.UserInterface.TransitionTo(GameScreen.LobbyBrowser);
-		});
-		SetupLobbyButton(_inviteButton, "INVITE FRIEND", TriggerInviteFeedback);
+		SetupLobbyButton(_backButton, " LEAVE LOBBY", ReturnFromLobby);
+		SetupLobbyButton(_inviteButton, "INVITE FRIEND", OpenInviteFriendsDialog);
 		SetupLobbyButton(_addBotButton, "ADD AI BOT", () => GameContext.Lobby.AddAIBot());
 		SetupStartButton();
 
@@ -371,6 +370,26 @@ public partial class LobbyRoom : Control
 
 		PopulateRunicPillar(GetNode<VBoxContainer>("LeftPillar/RuneContainer"));
 		PopulateRunicPillar(GetNode<VBoxContainer>("RightPillar/RuneContainer"));
+	}
+
+	/// <summary>
+	///     Leaves this lobby for the screen that led here: a hosted lobby is one of several in the lobby browser, while a
+	///     single-player lobby was opened straight from the main menu and has no browser behind it.
+	/// </summary>
+	private static void ReturnFromLobby()
+	{
+		bool singlePlayer = GameContext.Lobby.IsSinglePlayer;
+		GameContext.Lobby.Disconnect();
+		if (singlePlayer) GameContext.Lobby.IsSinglePlayer = false;
+		GameContext.UserInterface.TransitionTo(singlePlayer ? GameScreen.MainMenu : GameScreen.LobbyBrowser);
+	}
+
+	private void ApplyFestivalLayout()
+	{
+		_briefingPanel.Visible = !BuildFlags.IS_AUTOBATTLE_FESTIVAL_ACTIVE;
+		if (_briefingPanel.Visible) return;
+
+		_playersPanel.OffsetRight = 1825;
 	}
 
 	private void ApplyTableHeaderLayout()
@@ -630,7 +649,9 @@ public partial class LobbyRoom : Control
 		bool anyNotReady = false;
 		foreach (var player in GameContext.Lobby.PlayerList)
 		{
-			if (player.PeerId > 1 && !player.IsReady)
+			if (player.IsHost || player.IsDisconnected) continue;
+			if (player.PeerId <= 0) continue;
+			if (!player.IsReady)
 			{
 				anyNotReady = true;
 				break;
@@ -650,11 +671,7 @@ public partial class LobbyRoom : Control
 	private void ShowVersionMismatchPopup(string hostVersion, string clientVersion)
 	{
 		string msg = $"{string.Format(Tr("Host Version: {0}"), hostVersion)}\n{string.Format(Tr("Client Version: {0}"), clientVersion)}\n\n{Tr("Connection aborted.")}";
-		GameContext.UserInterface?.ShowPopupMessage(Tr("VERSION MISMATCH"), msg, () =>
-		{
-			GameContext.Lobby.Disconnect();
-			GameContext.UserInterface.TransitionTo(GameScreen.LobbyBrowser);
-		});
+		GameContext.UserInterface?.ShowPopupMessage(Tr("VERSION MISMATCH"), msg, ReturnFromLobby);
 	}
 
 	private void ShowStartWarningPopup(string mapName)
@@ -867,13 +884,41 @@ public partial class LobbyRoom : Control
 		_attributionPopover?.Close();
 	}
 
-	private void TriggerInviteFeedback()
+	private void OpenInviteFriendsDialog()
 	{
-		_inviteFeedback.Text = Tr("Friend Invite Sent!");
+		if (GameContext.Lobby.ActiveLobbyId is not { Length: > 0 } lobbyId || lobbyId.StartsWith("direct-", StringComparison.Ordinal))
+		{
+			GameContext.UserInterface?.ShowPopupMessage(
+				Tr("LOBBY INVITES"),
+				Tr("Invites need a lobby the server lists. A direct connection cannot be invited to."));
+			return;
+		}
+
+		if (_friendsDialog == null || !GodotObject.IsInstanceValid(_friendsDialog))
+		{
+			_friendsDialog = new SteamFriendsDialog();
+			AddChild(_friendsDialog);
+			_friendsDialog.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+			_friendsDialog.InvitesSent += OnFriendInvitesSent;
+		}
+
+		_friendsDialog.ShowFor(lobbyId, GameContext.Lobby.MaxPlayers);
+	}
+
+	private void OnFriendInvitesSent(int sentCount)
+	{
+		ShowInviteFeedback(sentCount == 1
+			? Tr("Invited 1 friend.")
+			: string.Format(Tr("Invited {0} friends."), sentCount));
+	}
+
+	private void ShowInviteFeedback(string text)
+	{
+		_inviteFeedback.Text = text;
 		_inviteFeedback.Modulate = new Color(0.3f, 0.8f, 1.0f, 1.0f);
 
 		var tween = CreateTween();
-		tween.TweenProperty(_inviteFeedback, "modulate:a", 0.0f, 2.0f).SetDelay(1.0f);
+		tween.TweenProperty(_inviteFeedback, "modulate:a", 0.0f, 2.0f).SetDelay(2.0f);
 	}
 
 	private void PopulateRunicPillar(VBoxContainer container)
@@ -883,6 +928,8 @@ public partial class LobbyRoom : Control
 
 	public override void _ExitTree()
 	{
+		GameContext.Steam.CloseInviteLobby();
+
 		if (GameContext.Lobby != null)
 		{
 			GameContext.Lobby.PlayerListUpdated -= PopulatePlayersList;
@@ -1815,8 +1862,7 @@ public partial class LobbyRoom : Control
 
 		GameContext.UserInterface?.ShowPopupMessage(Tr("CONNECTION FAILED"), $"{Tr("Failed to connect to host.")}\n\n{string.Format(Tr("Reason: {0}"), displayReason)}", () =>
 		{
-			GameContext.Lobby.Disconnect();
-			GameContext.UserInterface.TransitionTo(GameScreen.LobbyBrowser);
+			ReturnFromLobby();
 		});
 	}
 
@@ -1824,7 +1870,7 @@ public partial class LobbyRoom : Control
 	{
 		GD.Print($"[LobbyRoom] Disconnected / Kicked: {reason}");
 		GameContext.UserInterface.PlayWarningSound();
-		GameContext.UserInterface.TransitionTo(GameScreen.LobbyBrowser);
+		ReturnFromLobby();
 	}
 
 	private ProgressBar _downloadProgress;

@@ -1054,20 +1054,19 @@ public static class UIStyle
 		{
 			var style = new StyleBoxTexture();
 			style.Texture = tex;
-			style.TextureMarginLeft = 350;
-			style.TextureMarginRight = 200;
-			style.TextureMarginTop = 140;
-			style.TextureMarginBottom = 140;
-			style.ContentMarginLeft = 45;
-			style.ContentMarginRight = 25;
+			style.TextureMarginLeft = 0;
+			style.TextureMarginRight = 0;
+			style.TextureMarginTop = 0;
+			style.TextureMarginBottom = 0;
+			style.ContentMarginLeft = 34;
+			style.ContentMarginRight = 86;
 			style.ContentMarginTop = 8;
 			style.ContentMarginBottom = 8;
 			style.AxisStretchHorizontal = StyleBoxTexture.AxisStretchMode.Stretch;
 			style.AxisStretchVertical = StyleBoxTexture.AxisStretchMode.Stretch;
-			if (hasFocus)
-			{
-				style.ModulateColor = new Color(1.15f, 1.15f, 1.25f);
-			}
+			style.ModulateColor = hasFocus
+				? new Color(1.12f, 1.12f, 1.16f)
+				: Colors.White;
 
 			return style;
 		}
