@@ -143,7 +143,7 @@ public partial class CommandPanel
 		var def = GameContext.Host?.GetAbilityDefinition(item.AbilityId);
 		if (def == null) return;
 
-		string transTooltip = ResolveAbilityTooltip(item.AbilityId, def);
+		string transTooltip = ResolveAbilityTooltip(item.AbilityId, def, IsAbilityStateDisabled(item.CasterEntity, item.AbilityId));
 		if (!string.IsNullOrEmpty(transTooltip) && btn.TooltipText != transTooltip)
 		{
 			btn.TooltipText = transTooltip;
@@ -1247,7 +1247,7 @@ public partial class CommandPanel
 			CasterEntity = casterEntity,
 			ManaCost = manaCost,
 			IconPath = ResolveAbilityIcon(abilityId, abilityDef),
-			Tooltip = ResolveAbilityTooltip(abilityId, abilityDef),
+			Tooltip = ResolveAbilityTooltip(abilityId, abilityDef, IsAbilityStateDisabled(casterEntity, abilityId)),
 			TooltipContext = TooltipContext.ForAbility(casterEntity, abilityId),
 			Hotkey = ParseHotkey(abilityDef?.Hotkey),
 			GridX = abilityDef?.GridX ?? -1,
@@ -1273,13 +1273,23 @@ public partial class CommandPanel
 		return GetDefaultAbilityIcon(abilityId);
 	}
 
-	private string ResolveAbilityTooltip(string abilityId, AbilityDefinition abilityDef)
+	private string ResolveAbilityTooltip(string abilityId, AbilityDefinition abilityDef, bool disabled)
 	{
 		string body = abilityDef != null && !string.IsNullOrEmpty(abilityDef.TooltipTemplate)
 			? abilityDef.TooltipTemplate
 			: GetDefaultAbilityTooltip(abilityId);
 
-		return UIHelper.PrependAbilityHeader(abilityId, abilityDef, body);
+		return UIHelper.PrependAbilityHeader(abilityId, abilityDef, body, disabled);
+	}
+
+	/// <summary>
+	///     Whether the map script has disabled this ability for the casting unit through SetAbilityState, as opposed to a
+	///     cooldown or mana shortfall.
+	/// </summary>
+	private static bool IsAbilityStateDisabled(Entity casterEntity, string abilityId)
+	{
+		if (casterEntity == Entity.Null) return false;
+		return GameContext.RegistryService.IsAbilityDisabledForUnit(new UnitId(casterEntity.Id), abilityId);
 	}
 
 	private Unit_WasmRuntime GetUnitWrapperIfAlive(GameHost host, Entity casterEntity)

@@ -68,7 +68,11 @@ public static class UIHelper
 	///     Puts an ability's template name and costs above its description, keeping any resolved tooltip tokens in the
 	///     description untouched.
 	/// </summary>
-	public static string PrependAbilityHeader(string? abilityId, AbilityDefinition? definition, string? body)
+	/// <param name="disabled">
+	///     Whether the map script has currently disabled this ability for the casting unit, which tags the header so the
+	///     reason a card cannot be pressed is visible in its tooltip.
+	/// </param>
+	public static string PrependAbilityHeader(string? abilityId, AbilityDefinition? definition, string? body, bool disabled = false)
 	{
 		// Only an ability the map actually names gets a header. The command card also shows engine commands such as
 		// the Build menu under a reserved id, and those keep the tooltip the card item was built with.
@@ -80,6 +84,11 @@ public static class UIHelper
 			definition!.CostGold,
 			definition.CostWood,
 			definition.CostStone);
+
+		if (disabled)
+		{
+			header += " [Disabled]";
+		}
 
 		if (string.IsNullOrWhiteSpace(body)) return header;
 		return $"{header}\n{body}";
