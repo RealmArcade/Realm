@@ -271,7 +271,7 @@ public partial class PlayerProfileDialog : Control
 		_signInButton = CreateActionButton(_signedOutBox, "SIGN IN WITH STEAM", SteamIconPath);
 		_signInButton.Pressed += StartSteamSignIn;
 
-		Label signedOutHintLabel = CreateBodyLabel(_signedOutBox, TranslationServer.Translate("Some features are unavailable when logged out. ⯑ indicates a logged out or un-verified user."));
+		Label signedOutHintLabel = CreateBodyLabel(_signedOutBox, TranslationServer.Translate("Some features are unavailable when logged out. ⍰ indicates a logged out or un-verified user."));
 		signedOutHintLabel.Name = "PlayerProfileSignedOutHint";
 		signedOutHintLabel.HorizontalAlignment = HorizontalAlignment.Center;
 

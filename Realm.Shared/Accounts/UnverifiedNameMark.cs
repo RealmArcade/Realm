@@ -9,7 +9,7 @@ namespace Realm.Shared.Accounts;
 /// </summary>
 public static class UnverifiedNameMark
 {
-	public const string Glyph = "\u29B8";
+	public const string Glyph = "\u2370";
 
 	public static string Apply(string? name)
 	{
