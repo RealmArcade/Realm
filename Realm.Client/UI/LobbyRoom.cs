@@ -61,6 +61,7 @@ public partial class LobbyRoom : Control
 
 	private Label _authorshipWarningLabel;
 	private Label _primaryAuthorLabel;
+	private string? _authorshipMapJsonPath;
 	private Button _otherAuthorsButton;
 	private Button _attributionButton;
 	private AttributionPopover _attributionPopover;
@@ -245,6 +246,7 @@ public partial class LobbyRoom : Control
 		_primaryAuthorLabel.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 		_primaryAuthorLabel.AddThemeFontSizeOverride("font_size", 12);
 		_primaryAuthorLabel.HorizontalAlignment = HorizontalAlignment.Center;
+		_primaryAuthorLabel.Visible = false;
 		GetNode<VBoxContainer>("BriefingPanel/VBoxContainer").AddChild(_primaryAuthorLabel);
 
 		var authorsSpacer = new Control { CustomMinimumSize = new Vector2(0, 24) };
@@ -255,6 +257,7 @@ public partial class LobbyRoom : Control
 		_otherAuthorsButton.Text = Tr("Other Authors");
 		_otherAuthorsButton.CustomMinimumSize = new Vector2(160, 32);
 		_otherAuthorsButton.SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter;
+		_otherAuthorsButton.Visible = false;
 		_otherAuthorsButton.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
 		_otherAuthorsButton.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
 		_otherAuthorsButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
@@ -711,10 +714,13 @@ public partial class LobbyRoom : Control
 	private async void VerifyMapAuthorship(string mapName)
 	{
 		_authorshipWarningLabel.Visible = false;
+		_primaryAuthorLabel.Visible = false;
 		_primaryAuthorLabel.Text = Tr("Author: Unknown");
+		_otherAuthorsButton.Visible = false;
 		_otherAuthorsList.Clear();
 
 		string? mapJsonPath = TryGetMapJsonPath(mapName);
+		_authorshipMapJsonPath = mapJsonPath;
 		if (mapJsonPath == null) return;
 
 		try
@@ -724,8 +730,13 @@ public partial class LobbyRoom : Control
 		}
 		catch
 		{
-			_authorshipWarningLabel.Visible = true;
+			if (IsCurrentAuthorshipMap(mapJsonPath)) _authorshipWarningLabel.Visible = true;
 		}
+	}
+
+	private bool IsCurrentAuthorshipMap(string mapJsonPath)
+	{
+		return string.Equals(_authorshipMapJsonPath, mapJsonPath, StringComparison.OrdinalIgnoreCase);
 	}
 
 	private string? TryGetMapJsonPath(string mapName)
@@ -755,13 +766,40 @@ public partial class LobbyRoom : Control
 				}
 			}
 		}
-		else if (mapDoc["Author"] != null)
+
+		ShowStatedAuthor(ReadStatedAuthor(mapDoc, mapJsonPath));
+		_otherAuthorsButton.Visible = _otherAuthorsList.Count > 0;
+	}
+
+	private void ShowStatedAuthor(string? author)
+	{
+		if (string.IsNullOrWhiteSpace(author)) return;
+
+		_primaryAuthorLabel.Text = Tr("Author:") + " " + author.Trim();
+		_primaryAuthorLabel.Visible = true;
+	}
+
+	/// <summary>
+	///     The author a map folder states about itself. A metadata file keeps its display properties under MapProperties,
+	///     while the manifest beside it is the file the lobby browser and the archive headers read the author from, so the
+	///     folder is asked in the order its own files describe it.
+	/// </summary>
+	private static string? ReadStatedAuthor(JsonNode mapDoc, string mapJsonPath)
+	{
+		string? statedAuthor = mapDoc["MapProperties"]?["Author"]?.ToString();
+		if (string.IsNullOrWhiteSpace(statedAuthor)) statedAuthor = mapDoc["Author"]?.ToString();
+		if (!string.IsNullOrWhiteSpace(statedAuthor)) return statedAuthor;
+
+		string manifestJsonPath = Path.Combine(Path.GetDirectoryName(mapJsonPath) ?? string.Empty, "manifest.json");
+		if (!File.Exists(manifestJsonPath)) return null;
+
+		try
 		{
-			string auth = mapDoc["Author"]!.ToString();
-			if (!string.IsNullOrEmpty(auth))
-			{
-				_primaryAuthorLabel.Text = Tr("Author:") + " " + auth;
-			}
+			return JsonNode.Parse(File.ReadAllText(manifestJsonPath))?["Author"]?.ToString();
+		}
+		catch
+		{
+			return null;
 		}
 	}
 
@@ -771,29 +809,43 @@ public partial class LobbyRoom : Control
 		string mapBlake3 = RealmMetadataHelper.ComputeBlake3(fileBytes, ".json");
 		string hash = $"{mapBlake3}.json";
 
+		var mapDoc = JsonNode.Parse(fileBytes);
+		bool claimsAuthorship = mapDoc?["signature"] != null || mapDoc?["author_key"] != null;
+
 		string adminServerUrl = GameContext.Lobby.RegistryServerUrl;
-		var assetAuthorRes = await _sharedHttpClient.GetAsync(adminServerUrl + "/api/publish_map/asset_author/" + hash);
-		if (!assetAuthorRes.IsSuccessStatusCode)
+		if (string.IsNullOrWhiteSpace(adminServerUrl)) return;
+
+		string assetAuthorJson;
+		try
 		{
-			_authorshipWarningLabel.Visible = true;
+			using var assetAuthorRes = await _sharedHttpClient.GetAsync(adminServerUrl + "/api/publish_map/asset_author/" + hash);
+			if (!assetAuthorRes.IsSuccessStatusCode)
+			{
+				if (claimsAuthorship && IsCurrentAuthorshipMap(mapJsonPath)) _authorshipWarningLabel.Visible = true;
+				return;
+			}
+
+			assetAuthorJson = await assetAuthorRes.Content.ReadAsStringAsync();
+		}
+		catch
+		{
 			return;
 		}
 
-		string assetAuthorJson = await assetAuthorRes.Content.ReadAsStringAsync();
 		var assetMeta = JsonNode.Parse(assetAuthorJson);
 		if (assetMeta == null)
 		{
-			_authorshipWarningLabel.Visible = true;
+			if (IsCurrentAuthorshipMap(mapJsonPath)) _authorshipWarningLabel.Visible = true;
 			return;
 		}
 
-		string author = assetMeta["AuthorUsername"]?.GetValue<string>() ?? "Unknown";
+		string? author = assetMeta["AuthorUsername"]?.GetValue<string>();
 		string? signatureB64 = assetMeta["Signature"]?.GetValue<string>();
 		string? pubKeyB64 = assetMeta["PublicKey"]?.GetValue<string>();
 
 		if (string.IsNullOrEmpty(signatureB64) || string.IsNullOrEmpty(pubKeyB64))
 		{
-			_authorshipWarningLabel.Visible = true;
+			if (IsCurrentAuthorshipMap(mapJsonPath)) _authorshipWarningLabel.Visible = true;
 			return;
 		}
 
@@ -804,9 +856,12 @@ public partial class LobbyRoom : Control
 		var publicKey = PublicKey.Import(SignatureAlgorithm.Ed25519, pubKeyBytes, KeyBlobFormat.RawPublicKey);
 		bool isValid = SignatureAlgorithm.Ed25519.Verify(publicKey, hashBytes, signatureBytes);
 
+		if (!IsCurrentAuthorshipMap(mapJsonPath)) return;
+
 		if (isValid)
 		{
-			_primaryAuthorLabel.Text = Tr("Author:") + " " + author;
+			_authorshipWarningLabel.Visible = false;
+			ShowStatedAuthor(string.IsNullOrWhiteSpace(author) ? null : author);
 		}
 		else
 		{
