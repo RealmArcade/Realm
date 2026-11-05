@@ -2790,7 +2790,7 @@ namespace Realm.Client.UI
 				statusLabel.Text = TranslationServer.Translate("Compiling WASM map script...");
 				await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
-				await CompileAndSignMapAsync(workspace, skipAttribution: true);
+				await CompileWorkspaceScriptAsync(workspace);
 
 				if (_wasmHasErrors)
 				{
@@ -2882,6 +2882,8 @@ namespace Realm.Client.UI
 					GameContext.EditorService.LastMetadataSyncTime = GameContext.EditorService.GetLastWriteTimeSafe(activeConfigPath);
 				}
 
+
+				await SignMapMetadataAsync(workspace, mapTitle, mapVersion, currentUsername);
 
 				var manifest = MapManifest.CreateFromDirectory(workspace, mapTitle, currentUsername, mapVersion);
 				manifest.Attribution_SourceMap = GameContext.MapAttributionService.CollectSortedSourceMapNames(workspace).ToList();

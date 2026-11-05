@@ -1247,27 +1247,18 @@ namespace Realm.Client.UI
 			_mapSettingsDialog?.SaveMapProperties();
 		}
 
-		private async Task CompileAndSignMapAsync(string workspace, bool skipAttribution = true, bool isDebug = false)
+		private async Task CompileWorkspaceScriptAsync(string workspace, bool isDebug = false)
 		{
 			_wasmHasErrors = false;
 
-			if (!skipAttribution)
-			{
-				await GameContext.MapHistoryService.CreateVersionAsync(workspace, MapVersionKind.BeforePublish, TranslationServer.Translate("Before publish"), GameContext.EditorService.CurrentSourceFolder);
-			}
-
-			bool compiledSuccessfully = await PerformCompilationStepAsync(workspace, skipAttribution, isDebug);
+			bool compiledSuccessfully = await PerformCompilationStepAsync(workspace, isDebug);
 			if (compiledSuccessfully)
 			{
 				GameContext.MapStorageService.DeduplicateWorkspaceBuildArtifacts(workspace);
 			}
-
-			if (!compiledSuccessfully || skipAttribution) return;
-
-			await PerformSigningStepAsync(workspace);
 		}
 
-		private async Task<bool> PerformCompilationStepAsync(string workspace, bool skipAttribution, bool isDebug = false)
+		private async Task<bool> PerformCompilationStepAsync(string workspace, bool isDebug = false)
 		{
 			return await GameContext.EditorService.PerformCompilationStepAsyncDomain(workspace, FindProjectFile, TryBypassCompilation, CheckMapApiDependency, ExecuteDotnetPublishAsync, msg => { _wasmHasErrors = true; SetWasmConsoleStatus($"❌ WASM Compilation Failed: {msg}", new Color(1.0f, 0.3f, 0.3f)); GD.PrintErr($"[MapEditorHUD] Trigger compilation failed: {msg}"); }, err => AppendWasmConsoleLog($"[COMPILER EXCEPTION] {err}"), isDebug);
 		}
@@ -1346,88 +1337,20 @@ namespace Realm.Client.UI
 			}
 		}
 
-		private async Task PerformSigningStepAsync(string workspace)
+		private async Task SignMapMetadataAsync(string workspace, string mapTitle, string mapVersion, string author)
 		{
-			try
+			NSec.Cryptography.Key? authorshipKey = GetSelectedAuthorshipKey();
+			if (authorshipKey == null)
 			{
-				var authorshipKey = GetSelectedAuthorshipKey();
-				if (authorshipKey == null)
-				{
-					ShowFeedback(TranslationServer.Translate("Sign in and choose an authorship key to sign this export."));
-					GD.PrintErr("[MapEditorHUD] Signing skipped: no authorship key is selected.");
-					return;
-				}
-
-				string pubKeyStr = Convert.ToBase64String(authorshipKey.PublicKey.Export(KeyBlobFormat.RawPublicKey));
-				string seedServerUrl = GameContext.Host != null && GodotObject.IsInstanceValid(GameContext.Lobby) ? GameContext.Lobby.RegistryServerUrl : ServersConfigHelper.GetDefaultServerUrl();
-				string currentUsername = await FetchCurrentUsernameAsync(pubKeyStr, seedServerUrl) ?? GetPublishAuthorName();
-
-				var referencedHashes = new List<string>();
-				using (var httpClient = new HttpClient())
-				{
-					var allFiles = Directory.GetFiles(workspace, "*", SearchOption.AllDirectories);
-					foreach (var file in allFiles)
-					{
-						if (IsMetadataOrKeyFile(file)) continue;
-
-						string hash = SignAndUploadAsset(file, authorshipKey, currentUsername, pubKeyStr, seedServerUrl, httpClient);
-						if (!string.IsNullOrEmpty(hash)) referencedHashes.Add(hash);
-					}
-
-					await UpdateMetadataAndSignMapAsync(workspace, referencedHashes, authorshipKey, currentUsername, pubKeyStr, seedServerUrl, httpClient);
-				}
+				ShowFeedback(TranslationServer.Translate("Sign in and choose an authorship key to sign this export."));
+				AppendWasmConsoleLog("[WARN] The map was left unsigned: no authorship key is selected.");
+				return;
 			}
-			catch (Exception ex)
-			{
-				GD.PrintErr($"[MapEditorHUD] Error signing/compiling map: {ex.Message}");
-			}
-		}
 
-		private async Task<string> FetchCurrentUsernameAsync(string pubKeyStr, string seedServerUrl)
-		{
-			return await GameContext.MapStorageService.FetchCurrentUsernameAsync(pubKeyStr, seedServerUrl);
-		}
-
-		private bool IsMetadataOrKeyFile(string file)
-		{
-			return GameContext.MapStorageService.IsMetadataOrKeyFile(file);
-		}
-
-		private string SignAndUploadAsset(string file, Key authorshipKey, string currentUsername, string pubKeyStr, string seedServerUrl, HttpClient httpClient)
-		{
-			return GameContext.MapStorageService.SignAndUploadAsset(file, authorshipKey, currentUsername, pubKeyStr, seedServerUrl, httpClient);
-		}
-
-		private async Task UpdateMetadataAndSignMapAsync(string workspace, List<string> referencedHashes, Key authorshipKey, string currentUsername, string pubKeyStr, string seedServerUrl, HttpClient httpClient)
-		{
-			await GameContext.MapStorageService.UpdateMetadataAndSignMapAsync(workspace, referencedHashes, authorshipKey, currentUsername, pubKeyStr, seedServerUrl, httpClient,
-				(path, doc, key, user, pubKey, serverUrl, client, opts, hashes) => { SignAndUploadMapMetadata(path, (JsonObject)doc, key, user, pubKey, serverUrl, client, opts, hashes); });
-		}
-
-		private HashSet<string> ExtractExistingContributors(JsonObject mapDoc)
-		{
-			return GameContext.MapStorageService.ExtractExistingContributors((JsonObject)mapDoc);
-		}
-
-		private async Task<Dictionary<string, int>> CollectAssetAuthorsAsync(List<string> referencedHashes, string seedServerUrl, HttpClient httpClient, HashSet<string> contributorsList)
-		{
-			return await GameContext.MapStorageService.CollectAssetAuthorsAsync(referencedHashes, seedServerUrl, httpClient, contributorsList);
-		}
-
-
-		private void SignAndUploadMapMetadata(string metadataJsonPath, JsonObject mapDoc, Key authorshipKey, string currentUsername, string pubKeyStr, string seedServerUrl, HttpClient httpClient, JsonSerializerOptions options, List<string> referencedHashes)
-		{
-			GameContext.MapStorageService.SignAndUploadMapMetadata(metadataJsonPath, mapDoc, authorshipKey, currentUsername, pubKeyStr, seedServerUrl, httpClient, options, referencedHashes);
-		}
-
-		private void UploadMapMetadata(byte[] mapBytes, string mapHash, byte[] mapSigBytes, string currentUsername, string pubKeyStr, string seedServerUrl, HttpClient httpClient)
-		{
-			GameContext.MapStorageService.UploadMapMetadata(mapBytes, mapHash, mapSigBytes, currentUsername, pubKeyStr, seedServerUrl, httpClient);
-		}
-
-		private void PublishMapMetadata(string finalMetadataJson, List<string> referencedHashes, byte[] mapSigBytes, string pubKeyStr, string seedServerUrl, HttpClient httpClient)
-		{
-			GameContext.MapStorageService.PublishMapMetadata(finalMetadataJson, referencedHashes, mapSigBytes, pubKeyStr, seedServerUrl, httpClient);
+			string publicKeyBase64 = Convert.ToBase64String(authorshipKey.PublicKey.Export(KeyBlobFormat.RawPublicKey));
+			string seedServerUrl = GameContext.Host != null && GodotObject.IsInstanceValid(GameContext.Lobby) ? GameContext.Lobby.RegistryServerUrl : ServersConfigHelper.GetDefaultServerUrl();
+			bool signed = await GameContext.MapStorageService.SignMapMetadataAsync(workspace, mapTitle, mapVersion, author, authorshipKey, publicKeyBase64, seedServerUrl);
+			AppendWasmConsoleLog(signed ? "[INFO] metadata.json carries its author key, its contributor list and its signature." : "[WARN] metadata.json could not be signed.");
 		}
 
 		public void OpenAssetBrowser(string title, IEnumerable<string> allowedExtensions, Action<string> onAssetSelected, bool requireRealmMetadata = false, string? requiredAssetType = null)
@@ -1823,7 +1746,7 @@ namespace Realm.Client.UI
 			await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
 			string editingDirectory = GameContext.EditorService._editingDirectory;
-			await CompileAndSignMapAsync(editingDirectory, skipAttribution: true);
+			await CompileWorkspaceScriptAsync(editingDirectory);
 
 			if (_wasmHasErrors)
 			{
@@ -1891,6 +1814,8 @@ namespace Realm.Client.UI
 			string mapTitle = GetMapNameFromMetadata();
 			string mapVersion = GetMapVersionFromMetadata();
 			string author = GetPublishAuthorName();
+
+			await SignMapMetadataAsync(editingDirectory, mapTitle, mapVersion, author);
 
 			GameContext.MapStorageService.GenerateMapManifest(editingDirectory, mapTitle, mapVersion, author);
 		}

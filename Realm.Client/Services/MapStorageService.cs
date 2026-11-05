@@ -15,6 +15,7 @@ using Godot;
 using NSec.Cryptography;
 using Realm.Client.Core;
 using Realm.Client.Network;
+using Realm.Client.Utils;
 using Realm.Shared;
 using Realm.Shared.Distribution;
 using Realm.Shared.Services;
@@ -57,55 +58,6 @@ public class MapStorageService
 		}
 
 		return (true, new List<string>(), new List<(string RelativePath, long SizeBytes, double SizeMB)>());
-	}
-
-	public void SignAndUploadMapMetadata(string metadataJsonPath, JsonObject mapDoc, Key authorshipKey, string currentUsername, string pubKeyStr, string seedServerUrl, HttpClient httpClient, JsonSerializerOptions options, List<string> referencedHashes)
-	{
-		try
-		{
-			byte[] mapBytes = File.ReadAllBytes(metadataJsonPath);
-			string mapBlake3 = RealmMetadataHelper.ComputeBlake3(mapBytes, ".json");
-			string mapHash = $"{mapBlake3}.json";
-			byte[] mapHashBytes = Encoding.UTF8.GetBytes(mapHash);
-			byte[] mapSigBytes = SignatureAlgorithm.Ed25519.Sign(authorshipKey, mapHashBytes);
-
-			mapDoc["signature"] = Convert.ToBase64String(mapSigBytes);
-			string finalMetadataJson = mapDoc.ToJsonString(options);
-			MapFileService.WriteAllTextAtomically(metadataJsonPath, finalMetadataJson);
-
-			UploadMapMetadata(mapBytes, mapHash, mapSigBytes, currentUsername, pubKeyStr, seedServerUrl, httpClient);
-			PublishMapMetadata(finalMetadataJson, referencedHashes, mapSigBytes, pubKeyStr, seedServerUrl, httpClient);
-		}
-		catch
-		{
-		}
-	}
-
-	public void UploadMapMetadata(byte[] mapBytes, string mapHash, byte[] mapSigBytes, string currentUsername, string pubKeyStr, string seedServerUrl, HttpClient httpClient)
-	{
-		using var form = new MultipartFormDataContent();
-		form.Add(new StringContent(mapHash), "Hash");
-		form.Add(new StringContent(Convert.ToBase64String(mapSigBytes)), "Signature");
-		form.Add(new StringContent(currentUsername), "AuthorUsername");
-		form.Add(new StringContent(pubKeyStr), "PublicKey");
-		var fileContent = new ByteArrayContent(mapBytes);
-		form.Add(fileContent, "File", "metadata.json");
-		var uploadMapTask = httpClient.PostAsync(seedServerUrl + "/api/publish_map/upload_asset", form);
-		uploadMapTask.Wait();
-	}
-
-	public void PublishMapMetadata(string finalMetadataJson, List<string> referencedHashes, byte[] mapSigBytes, string pubKeyStr, string seedServerUrl, HttpClient httpClient)
-	{
-		var publishReq = new
-		{
-			MapJson = finalMetadataJson,
-			ReferencedHashes = referencedHashes,
-			Signature = Convert.ToBase64String(mapSigBytes),
-			PublicKey = pubKeyStr
-		};
-		var pubContent = new StringContent(JsonSerializer.Serialize(publishReq), Encoding.UTF8, "application/json");
-		var pubTask = httpClient.PostAsync(seedServerUrl + "/api/publish_map", pubContent);
-		pubTask.Wait();
 	}
 
 	public string ResolveExportDestinationPath(string destinationPath, string mapTitle, string mapVersion, string manifestBlake3)
@@ -1563,91 +1515,62 @@ public class MapStorageService
 		}
 	}
 
-	public async Task<string> FetchCurrentUsernameAsync(string pubKeyStr, string seedServerUrl)
-	{
-		try
-		{
-			using var httpClient = new HttpClient();
-			var res = await httpClient.GetAsync(seedServerUrl + "/api/creators/check/" + Uri.EscapeDataString(pubKeyStr));
-			if (res.IsSuccessStatusCode)
-			{
-				var jsonStr = await res.Content.ReadAsStringAsync();
-				using var creatorDoc = JsonDocument.Parse(jsonStr);
-				if (creatorDoc.RootElement.TryGetProperty("username", out var uProp))
-				{
-					return uProp.GetString();
-				}
-			}
-		}
-		catch
-		{
-		}
-
-		return null;
-	}
-
-	public bool IsMetadataOrKeyFile(string file)
-	{
-		return file.EndsWith("metadata.json") || file.EndsWith("manifest.json") || file.EndsWith("authorship_key.pem") || file.EndsWith("authorship_key_DO-NOT-SHARE.rkey") || file.EndsWith(".rkey");
-	}
-
-	public string SignAndUploadAsset(string file, Key authorshipKey, string currentUsername, string pubKeyStr, string seedServerUrl, HttpClient httpClient)
-	{
-		try
-		{
-			byte[] fileBytes = File.ReadAllBytes(file);
-			string ext = Path.GetExtension(file).ToLowerInvariant();
-			string blake3 = RealmMetadataHelper.ComputeBlake3(fileBytes, ext);
-			string hash = string.IsNullOrEmpty(ext) ? blake3 : $"{blake3}{ext}";
-
-			byte[] hashBytes = Encoding.UTF8.GetBytes(hash);
-			byte[] signatureBytes = SignatureAlgorithm.Ed25519.Sign(authorshipKey, hashBytes);
-			string signatureStr = Convert.ToBase64String(signatureBytes);
-
-			var existsResTask = httpClient.GetAsync(seedServerUrl + "/api/publish_map/asset_author/" + hash);
-			existsResTask.Wait();
-			var existsRes = existsResTask.Result;
-			if (!existsRes.IsSuccessStatusCode)
-			{
-				using var form = new MultipartFormDataContent();
-				form.Add(new StringContent(hash), "Hash");
-				form.Add(new StringContent(signatureStr), "Signature");
-				form.Add(new StringContent(currentUsername), "AuthorUsername");
-				form.Add(new StringContent(pubKeyStr), "PublicKey");
-				var fileContent = new ByteArrayContent(fileBytes);
-				form.Add(fileContent, "File", Path.GetFileName(file));
-
-				var uploadTask = httpClient.PostAsync(seedServerUrl + "/api/publish_map/upload_asset", form);
-				uploadTask.Wait();
-			}
-
-			return hash;
-		}
-		catch
-		{
-			return null;
-		}
-	}
-
-	public async Task UpdateMetadataAndSignMapAsync(string workspace, List<string> referencedHashes, Key authorshipKey, string currentUsername, string pubKeyStr, string seedServerUrl, HttpClient httpClient, Action<string, JsonObject, Key, string, string, string, HttpClient, JsonSerializerOptions, List<string>> signAndUploadMapMetadataCallback)
+	public async Task<bool> SignMapMetadataAsync(string workspace, string mapTitle, string mapVersion, string authorName, Key authorshipKey, string publicKeyBase64, string seedServerUrl)
 	{
 		string metadataJsonPath = Path.Combine(workspace, "metadata.json");
-		if (!File.Exists(metadataJsonPath)) return;
+		if (!File.Exists(metadataJsonPath)) return false;
 
-		string metadataJsonContent = File.ReadAllText(metadataJsonPath);
-		var options = new JsonSerializerOptions { WriteIndented = true, Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
-		if (!(JsonNode.Parse(metadataJsonContent) is JsonObject mapDoc)) return;
+		try
+		{
+			if (JsonNode.Parse(File.ReadAllText(metadataJsonPath)) is not JsonObject mapDoc) return false;
 
-		var contributorsList = ExtractExistingContributors(mapDoc);
-		var authorCounts = await CollectAssetAuthorsAsync(referencedHashes, seedServerUrl, httpClient, contributorsList);
-		contributorsList.Add(currentUsername);
+			var contributorsList = ExtractExistingContributors(mapDoc);
+			if (!string.IsNullOrWhiteSpace(authorName)) contributorsList.Add(authorName);
 
-		UpdateMetadataContributorsAndAttributions(mapDoc, contributorsList, authorCounts, pubKeyStr);
+			var authorCounts = await CollectWorkspaceAssetAuthorsAsync(workspace, mapTitle, mapVersion, authorName, seedServerUrl, contributorsList);
 
-		string updatedMetadataJson = mapDoc.ToJsonString(options);
-		MapFileService.WriteAllTextAtomically(metadataJsonPath, updatedMetadataJson);
+			UpdateMetadataContributorsAndAttributions(mapDoc, contributorsList, authorCounts, publicKeyBase64);
 
-		signAndUploadMapMetadataCallback?.Invoke(metadataJsonPath, mapDoc, authorshipKey, currentUsername, pubKeyStr, seedServerUrl, httpClient, options, referencedHashes);
+			string lineEnding = MapJsonFormatter.DetectLineEnding(metadataJsonPath);
+			byte[] unsignedBytes = Encoding.UTF8.GetBytes(ApplyLineEnding(MapJsonFormatter.FormatNode(mapDoc), lineEnding));
+			string mapBlake3 = RealmMetadataHelper.ComputeBlake3(unsignedBytes, ".json");
+			byte[] signatureBytes = SignatureAlgorithm.Ed25519.Sign(authorshipKey, Encoding.UTF8.GetBytes($"{mapBlake3}.json"));
+
+			mapDoc["signature"] = Convert.ToBase64String(signatureBytes);
+			AtomicFileWriter.WriteAllBytes(metadataJsonPath, Encoding.UTF8.GetBytes(ApplyLineEnding(MapJsonFormatter.FormatNode(mapDoc), lineEnding)));
+			MapFileService.NotifyFileWritten(metadataJsonPath);
+			return true;
+		}
+		catch (Exception exception)
+		{
+			GD.PrintErr($"[MapStorageService] Could not sign '{metadataJsonPath}': {exception.Message}");
+			return false;
+		}
+	}
+
+	private static string ApplyLineEnding(string text, string lineEnding)
+	{
+		return lineEnding == "\r\n" ? text.Replace("\n", "\r\n") : text;
+	}
+
+	private async Task<Dictionary<string, int>> CollectWorkspaceAssetAuthorsAsync(string workspace, string mapTitle, string mapVersion, string authorName, string seedServerUrl, HashSet<string> contributorsList)
+	{
+		var authorCounts = new Dictionary<string, int>();
+		if (string.IsNullOrWhiteSpace(seedServerUrl)) return authorCounts;
+
+		List<string> referencedHashes;
+		try
+		{
+			referencedHashes = MapManifest.CreateFromDirectory(workspace, mapTitle, authorName, mapVersion).Files.Values.ToList();
+		}
+		catch (Exception exception)
+		{
+			GD.PrintErr($"[MapStorageService] Could not index the assets of '{workspace}' for attribution: {exception.Message}");
+			return authorCounts;
+		}
+
+		using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+		return await CollectAssetAuthorsAsync(referencedHashes, seedServerUrl, httpClient, contributorsList);
 	}
 
 	public HashSet<string> ExtractExistingContributors(JsonObject mapDoc)
