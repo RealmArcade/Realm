@@ -127,10 +127,6 @@ public partial class PlayerProfileDialog : Control
 		_statusLabel.Name = "PlayerProfileStatus";
 		_statusLabel.HorizontalAlignment = HorizontalAlignment.Center;
 
-		Label signedOutExplanationLabel = CreateBodyLabel(column, TranslationServer.Translate("Login only required for multi-player. Offline play is supported without login."));
-		signedOutExplanationLabel.Name = "PlayerProfileLoginExplanation";
-		signedOutExplanationLabel.HorizontalAlignment = HorizontalAlignment.Center;
-
 		column.AddChild(CreateBackButton());
 	}
 
@@ -275,7 +271,7 @@ public partial class PlayerProfileDialog : Control
 		_signInButton = CreateActionButton(_signedOutBox, "SIGN IN WITH STEAM", SteamIconPath);
 		_signInButton.Pressed += StartSteamSignIn;
 
-		Label signedOutHintLabel = CreateBodyLabel(_signedOutBox, TranslationServer.Translate("A Steam sign-in proves this name is yours, which verified reviews and map publishing need. Everything else stays available signed out."));
+		Label signedOutHintLabel = CreateBodyLabel(_signedOutBox, TranslationServer.Translate("Some features are unavailable when logged out. ⯑ indicates a logged out or un-verified user."));
 		signedOutHintLabel.Name = "PlayerProfileSignedOutHint";
 		signedOutHintLabel.HorizontalAlignment = HorizontalAlignment.Center;
 
