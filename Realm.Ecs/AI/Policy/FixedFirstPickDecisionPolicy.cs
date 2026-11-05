@@ -6,10 +6,13 @@ public class FixedFirstPickDecisionPolicy : IBotDecisionPolicy
 {
 	private readonly string _preferredPayloadId;
 	private readonly LinearUtilityPolicy _uniformPolicy = new();
+	private readonly bool _onlyFirstDecision;
+	private bool _preferredServed;
 
-	public FixedFirstPickDecisionPolicy(string preferredPayloadId)
+	public FixedFirstPickDecisionPolicy(string preferredPayloadId, bool onlyFirstDecision = false)
 	{
 		_preferredPayloadId = preferredPayloadId ?? string.Empty;
+		_onlyFirstDecision = onlyFirstDecision;
 	}
 
 	public GenericAffordance? SelectAction(
@@ -24,12 +27,13 @@ public class FixedFirstPickDecisionPolicy : IBotDecisionPolicy
 			return null;
 		}
 
-		if (!string.IsNullOrEmpty(_preferredPayloadId))
+		if (!string.IsNullOrEmpty(_preferredPayloadId) && !(_onlyFirstDecision && _preferredServed))
 		{
 			for (int index = 0; index < affordances.Count; index++)
 			{
 				if (string.Equals(affordances[index].PayloadId, _preferredPayloadId, StringComparison.OrdinalIgnoreCase))
 				{
+					_preferredServed = true;
 					return affordances[index];
 				}
 			}
