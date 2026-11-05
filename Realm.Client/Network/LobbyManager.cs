@@ -124,10 +124,21 @@ public partial class LobbyManager : BaseMapTransferNode
 	private readonly string _guestLobbySessionToken = Guid.NewGuid().ToString();
 
 	/// <summary>
-	///     The token a lobby uses to give a seat back to the peer that held it. A signed-in player's seat belongs to the account,
-	///     so reconnecting from the same account takes the seat back.
+	///     The secret a lobby holds this screen's seat by. A signed-in player's secret is minted on this machine when the
+	///     session is adopted and kept beside it, so it outlives a restart and is replaced only by signing out; a player
+	///     playing without an account carries one made for this run. Neither is derived from anything the lobby shows, so
+	///     no other peer can name a seat it does not hold.
 	/// </summary>
-	public string LobbySessionToken => GameContext.Account.IsSignedIn ? $"account_{GameContext.Account.AccountId}" : _guestLobbySessionToken;
+	public string LobbySessionToken
+	{
+		get
+		{
+			if (!GameContext.Account.IsSignedIn) return _guestLobbySessionToken;
+
+			string seatToken = GameContext.Account.LobbySeatToken;
+			return seatToken.Length > 0 ? seatToken : _guestLobbySessionToken;
+		}
+	}
 
 	public NatType LocalNatType { get; private set; } = NatType.Open;
 	public bool IsHost { get; set; }

@@ -262,8 +262,19 @@ public class ServerLobby
 		{
 			string sanitizedSessionToken = LobbyLimits.Sanitize(sessionToken, MaximumSessionTokenLength);
 
-			restored = TryFindSeatBySessionToken(sanitizedSessionToken, requireDisconnected: true, out seat) ||
-			           TryFindSeatBySessionToken(sanitizedSessionToken, requireDisconnected: false, out seat);
+			restored = TryFindSeatBySessionToken(sanitizedSessionToken, requireDisconnected: true, out seat);
+
+			if (!restored && TryFindSeatBySessionToken(sanitizedSessionToken, requireDisconnected: false, out LobbySeat liveSeat))
+			{
+				// A seat still held by a live connection is given up only by the peer that administers this lobby, whose own
+				// reconnect can outrun the authority noticing its old socket is gone, or by that same socket saying hello
+				// again. Anybody else is seated afresh rather than allowed to evict a player who is still sitting there.
+				if (proveAdmin || liveSeat.PeerId == peerId)
+				{
+					seat = liveSeat;
+					restored = true;
+				}
+			}
 
 			if (restored)
 			{
@@ -317,6 +328,29 @@ public class ServerLobby
 		AddSystemChat($"{seat.Name} joined the lobby.");
 		BroadcastState();
 		return string.Empty;
+	}
+
+	/// <summary>
+	///     Whether the session a dropped seat was held by is already seated on a live connection, which is a reconnect that
+	///     arrived before the authority noticed the old socket was gone. The dropped seat is then gone rather than held,
+	///     so one player is never counted twice.
+	/// </summary>
+	/// <param name="dropped">The seat whose connection just dropped.</param>
+	/// <returns>Whether another connected seat holds the same session.</returns>
+	private bool IsSessionSeatedOnAnotherConnection(in LobbySeat dropped)
+	{
+		if (dropped.SessionToken.Length == 0) return false;
+
+		foreach (var pair in _seats)
+		{
+			if (pair.Value.Slot == dropped.Slot) continue;
+			if (pair.Value.IsDisconnected) continue;
+			if (!string.Equals(pair.Value.SessionToken, dropped.SessionToken, StringComparison.Ordinal)) continue;
+
+			return true;
+		}
+
+		return false;
 	}
 
 	private bool TryFindSeatBySessionToken(string sessionToken, bool requireDisconnected, out LobbySeat seat)
@@ -420,6 +454,15 @@ public class ServerLobby
 		{
 			_log.Write("the peer administering the lobby is gone; the lobby is being destroyed");
 			_lobbyAbandoned();
+			return;
+		}
+
+		if (IsSessionSeatedOnAnotherConnection(seat))
+		{
+			_seats.Remove(seat.Slot);
+			_slotByPeer.Remove(peerId);
+			_log.Write($"lobby seat {seat.Slot} ('{seat.Name}') is gone: its session is already seated on another connection");
+			BroadcastState();
 			return;
 		}
 

@@ -60,6 +60,13 @@ public class AccountSession
 {
 	public string Token { get; set; } = string.Empty;
 
+	/// <summary>
+	///     The secret a lobby seat is held by, minted on this machine when the session was adopted and stored beside the
+	///     session until the player signs out. It names the seat and nothing else, so no other peer can hold a seat this one
+	///     has not given up, and it is never derived from anything the lobby shows.
+	/// </summary>
+	public string LobbySeatToken { get; set; } = string.Empty;
+
 	public long AccountId { get; set; }
 
 	public string DisplayName { get; set; } = string.Empty;
@@ -144,6 +151,18 @@ public class AccountService
 		get
 		{
 			lock (_sessionLock) return _session?.Token ?? string.Empty;
+		}
+	}
+
+	/// <summary>
+	///     The secret a lobby uses to give this screen's seat back to it. It is minted on this machine when the session is
+	///     adopted and kept beside the session, so it outlives a restart and only a sign-out replaces it.
+	/// </summary>
+	public string LobbySeatToken
+	{
+		get
+		{
+			lock (_sessionLock) return _session?.LobbySeatToken ?? string.Empty;
 		}
 	}
 
@@ -453,6 +472,8 @@ public class AccountService
 
 	private void SetSession(AccountSession? session)
 	{
+		AdoptLobbySeatToken(session);
+
 		lock (_sessionLock) _session = session;
 
 		if (session == null) ClearStoredToken();
@@ -460,6 +481,27 @@ public class AccountService
 
 		Changed?.Invoke();
 	}
+
+	/// <summary>
+	///     Gives a session the lobby seat secret it is held by. A refresh restates the session without one, so the secret
+	///     the same account already holds is carried over rather than minted again; a session for another account, or a
+	///     first sign-in, gets a fresh one. A sign-out deletes the stored session, so the next one starts from a new secret.
+	/// </summary>
+	/// <param name="session">The session being adopted, or nothing when the screen is signing out.</param>
+	private void AdoptLobbySeatToken(AccountSession? session)
+	{
+		if (session == null) return;
+		if (session.LobbySeatToken.Length > 0) return;
+
+		lock (_sessionLock)
+		{
+			if (_session != null && _session.AccountId == session.AccountId) session.LobbySeatToken = _session.LobbySeatToken;
+		}
+
+		if (session.LobbySeatToken.Length == 0) session.LobbySeatToken = CreateLobbySeatToken();
+	}
+
+	private static string CreateLobbySeatToken() => Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(16));
 
 	private static string SessionFilePath => Path.Combine(OS.GetUserDataDir(), "auth", SessionFileName);
 
