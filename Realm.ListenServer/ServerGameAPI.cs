@@ -49,6 +49,7 @@ public partial class ServerGameAPI : IGameAPI, IDisposable
 		_countResourceNodes = CountResourceNodes;
 		_countOwnedUnits = CountOwnedUnits;
 		_collectOwnedUnits = CollectOwnedUnits;
+		_collectIdleUnits = CollectIdleUnits;
 		_collectResourceNodes = CollectResourceNodes;
 	}
 

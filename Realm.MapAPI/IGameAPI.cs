@@ -628,6 +628,15 @@ public interface IGameAPI
 	ReadOnlySpan<UnitId> GetUnitsOwnedByPlayer(int playerIndex);
 
 	/// <summary>
+	/// Retrieves the units a player owns that have nothing to do: no move order, no attack-move order, no attack target
+	/// and no gathering trip. It is the set the engine's own idle-unit selection offers, so a map that sweeps idle units
+	/// agrees with the player who asks for them.
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index.</param>
+	/// <returns>A read-only span of that player's idle units.</returns>
+	ReadOnlySpan<UnitId> GetIdleUnitsOwnedByPlayer(int playerIndex);
+
+	/// <summary>
 	/// Triggers the defeat condition for the specified player slot, playing the defeat sequence only for that player.
 	/// </summary>
 	/// <param name="playerIndex">Zero-based player slot index.</param>
