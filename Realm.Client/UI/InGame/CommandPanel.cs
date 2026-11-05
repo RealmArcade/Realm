@@ -1193,13 +1193,9 @@ public partial class CommandPanel
 				return "";
 			};
 
-			Func<bool> cannotAfford = () =>
-			{
-				var hud = GameContext.InGameHud;
-				if (hud == null) return false;
-				return hud.Gold < gold || hud.Wood < wood || hud.Stone < stone;
-			};
-
+			// What an upgrade costs is not a reason to darken its card: a greyed card says no without saying why, and the
+			// map's resources move while the card is on screen. A player who cannot pay is told so when they ask to buy,
+			// and one who has just been paid for it can always try.
 			items.Add(new CommandCardItem
 			{
 				Id = "upgrade_" + upgradeId,
@@ -1207,11 +1203,50 @@ public partial class CommandPanel
 				Tooltip = tooltip,
 				TooltipContext = TooltipContext.ForUpgrade(focusedUnit.Entity, upgradeId),
 				Hotkey = hotkey,
-				Callback = () => GameContext.Host?.BuyUpgrade(upgradeId, localViewingIndex),
-				IsDisabled = () => isMaxed() || cannotAfford(),
+				Callback = () => PurchaseUpgrade(upgradeId, name, gold, wood, stone, localViewingIndex),
+				IsDisabled = isMaxed,
 				GetButtonText = getButtonText
 			});
 		}
+	}
+
+	/// <summary>
+	///     Asks for an upgrade, and answers for it when the player cannot pay: the cost is named along with what is
+	///     missing, rather than the card being pre-emptively dark and silent.
+	/// </summary>
+	private void PurchaseUpgrade(string upgradeId, string name, float gold, float wood, float stone, int playerIndex)
+	{
+		InGameHUD? hud = GameContext.InGameHud;
+		if (hud != null)
+		{
+			if (hud.Gold < gold)
+			{
+				ReportUpgradeShortfall(name, hud.Gold, gold, TranslationServer.Translate("Gold"));
+				return;
+			}
+
+			if (hud.Wood < wood)
+			{
+				ReportUpgradeShortfall(name, hud.Wood, wood, TranslationServer.Translate("Wood"));
+				return;
+			}
+
+			if (hud.Stone < stone)
+			{
+				ReportUpgradeShortfall(name, hud.Stone, stone, TranslationServer.Translate("Stone"));
+				return;
+			}
+		}
+
+		GameContext.Host?.BuyUpgrade(upgradeId, playerIndex);
+	}
+
+	private static void ReportUpgradeShortfall(string name, float held, float cost, string resourceName)
+	{
+		string shortfall = MathF.Ceiling(cost - held).ToString("F0");
+		string message = string.Format(TranslationServer.Translate("{0} needs {1} more {2}"), name, shortfall, resourceName);
+
+		GameContext.InGameHud?.ShowFeedbackText(message, new Color(1.0f, 0.3f, 0.25f));
 	}
 
 	private CommandCardItem? CreateBuildOptionItem(string unitId, Entity builderEntity = default)
