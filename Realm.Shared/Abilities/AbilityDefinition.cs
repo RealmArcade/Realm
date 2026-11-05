@@ -16,6 +16,9 @@ public class AbilityDefinition
 	public int GridX { get; set; } = -1;
 	public int GridY { get; set; } = -1;
 	public float ManaCost { get; set; } = 0f;
+	public float CostGold { get; set; } = 0f;
+	public float CostWood { get; set; } = 0f;
+	public float CostStone { get; set; } = 0f;
 	public float Cooldown { get; set; } = 0f;
 	public float TargetRange { get; set; } = 0f;
 	public float AreaOfEffectRadius { get; set; } = 0f;

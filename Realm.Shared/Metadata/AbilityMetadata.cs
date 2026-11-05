@@ -13,6 +13,11 @@ public class AbilityMetadata
 	public string AbilityType { get; set; } = "target_spell";
 	public string? IconPath { get; set; }
 	public float ManaCost { get; set; }
+
+	// A script-defined spell can charge resources of its own. They are shown in the command card tooltip header.
+	public float CostGold { get; set; }
+	public float CostWood { get; set; }
+	public float CostStone { get; set; }
 	public float Cooldown { get; set; }
 	public float TargetRange { get; set; }
 	public string? VisualEffect { get; set; }

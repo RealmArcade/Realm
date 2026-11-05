@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Text;
 using Realm.Ecs;
 using Godot;
 using Realm.Client.Core;
@@ -70,6 +71,7 @@ public partial class CommandPanel
 	private int _lastPageIndex = -1;
 	private bool _lastIsBuildSubMenuOpen = false;
 	private int _lastAbilityStateRevision = int.MinValue;
+	private string _lastItemSignature = string.Empty;
 
 	private const string BuildCommandAbilityId = "ability/build";
 
@@ -84,6 +86,7 @@ public partial class CommandPanel
 		}
 
 		_dynamicBuildButtons.Clear();
+		_lastItemSignature = string.Empty;
 
 		Array.Clear(_displayedGridItems);
 
@@ -143,10 +146,21 @@ public partial class CommandPanel
 		var def = GameContext.Host?.GetAbilityDefinition(item.AbilityId);
 		if (def == null) return;
 
-		string transTooltip = !string.IsNullOrEmpty(def.TooltipTemplate) ? def.TooltipTemplate : "";
-		if (!string.IsNullOrEmpty(transTooltip) && btn.TooltipText != transTooltip)
+		// Godot drops the tooltip popup as soon as its text changes while it is on screen, and a server sync can
+		// resolve a slightly different string moments after the hover opened it. Leave the text alone while the
+		// pointer is on the card so the tooltip stays up for as long as the player keeps hovering.
+		if (!IsPointerOver(btn))
 		{
-			btn.TooltipText = transTooltip;
+			string transTooltip = ResolveAbilityTooltip(item.AbilityId, def, IsAbilityStateDisabled(item.CasterEntity, item.AbilityId));
+			if (!string.IsNullOrEmpty(transTooltip) && !item.Hotkey.IsNone)
+			{
+				transTooltip = $"[{item.Hotkey}] {transTooltip}";
+			}
+
+			if (!string.IsNullOrEmpty(transTooltip) && btn.TooltipText != transTooltip)
+			{
+				btn.TooltipText = transTooltip;
+			}
 		}
 
 		if (!string.IsNullOrEmpty(def.IconPath))
@@ -308,6 +322,14 @@ public partial class CommandPanel
 		UpdateCommandPanelState(focusedUnit, viewModel.IsBuildSubMenuOpen);
 	}
 
+	private static bool IsPointerOver(Control control)
+	{
+		if (!GodotObject.IsInstanceValid(control) || !control.IsVisibleInTree()) return false;
+		if (control.GetViewport() == null) return false;
+
+		return new Rect2(Vector2.Zero, control.Size).HasPoint(control.GetLocalMousePosition());
+	}
+
 	private bool GetFocusedUnit(InGameHUDViewModel viewModel, out SelectedUnitInfo focusedUnit)
 	{
 		int focusIdx = viewModel.CycleSelectionIndex;
@@ -355,14 +377,33 @@ public partial class CommandPanel
 		bool pageChanged = _pageIndex != _lastPageIndex;
 		_lastPageIndex = _pageIndex;
 
-		if (needRebuildItems || pageChanged || _commandGrid.GetChildCount() == 0)
+		string itemSignature = ComputeItemSignature();
+	bool itemsChanged = itemSignature != _lastItemSignature;
+
+		if (_commandGrid.GetChildCount() == 0 || itemsChanged || pageChanged)
 		{
 			RebuildCommandGrid();
+			_lastItemSignature = itemSignature;
 		}
 		else
 		{
+			// The same cards are on screen, so refresh them in place. Recreating them would free the node under the
+			// pointer and take its open tooltip with it, which made ability tooltips vanish during a hover.
 			UpdateExistingButtons();
 		}
+	}
+
+	private string ComputeItemSignature()
+	{
+		var builder = new StringBuilder(64);
+		builder.Append(_pageIndex).Append('|');
+		for (int i = 0; i < _activeItems.Count; i++)
+		{
+			CommandCardItem item = _activeItems[i];
+			builder.Append(item.Id).Append('@').Append(item.GridX).Append(',').Append(item.GridY).Append(';');
+		}
+
+		return builder.ToString();
 	}
 
 	private void UpdateItemHotkeys()
@@ -600,13 +641,21 @@ public partial class CommandPanel
 		return btn;
 	}
 
+	private static readonly HashSet<string> s_reportedMissingIcons = new(StringComparer.OrdinalIgnoreCase);
+
 	private Texture2D LoadCommandIcon(string iconPath)
 	{
 		if (string.IsNullOrEmpty(iconPath)) return null;
 		var tex = RtexIconLoader.Load(iconPath);
 		if (tex == null)
 		{
-			GD.PushWarning($"[CommandPanel] Failed to load ability icon at '{iconPath}', using fallback.");
+			// A map can name an icon it never shipped, and the card is rebuilt on every selection. Say it once per
+			// icon instead of once per rebuild, so a genuinely missing asset is still visible in the log.
+			if (s_reportedMissingIcons.Add(iconPath))
+			{
+				GD.PushWarning($"[CommandPanel] Failed to load ability icon at '{iconPath}', using fallback.");
+			}
+
 			tex = RtexIconLoader.Load("res://Assets/UI/alliance_flag.webp");
 		}
 
@@ -801,6 +850,9 @@ public partial class CommandPanel
 					IconPath = "res://Assets/UI/golden_hammers.webp",
 					Tooltip = "[B] Build Structure",
 					Hotkey = Key.B,
+					AbilityId = BuildCommandAbilityId,
+					CasterEntity = focusedUnit.Entity,
+					IgnoresCooldownGate = true,
 					Callback = () => GameContext.InGameHud?.EnterBuildSubMenu()
 				});
 			}
@@ -1236,7 +1288,7 @@ public partial class CommandPanel
 			CasterEntity = casterEntity,
 			ManaCost = manaCost,
 			IconPath = ResolveAbilityIcon(abilityId, abilityDef),
-			Tooltip = ResolveAbilityTooltip(abilityId, abilityDef),
+			Tooltip = ResolveAbilityTooltip(abilityId, abilityDef, IsAbilityStateDisabled(casterEntity, abilityId)),
 			TooltipContext = TooltipContext.ForAbility(casterEntity, abilityId),
 			Hotkey = ParseHotkey(abilityDef?.Hotkey),
 			GridX = abilityDef?.GridX ?? -1,
@@ -1262,14 +1314,23 @@ public partial class CommandPanel
 		return GetDefaultAbilityIcon(abilityId);
 	}
 
-	private string ResolveAbilityTooltip(string abilityId, AbilityDefinition abilityDef)
+	private string ResolveAbilityTooltip(string abilityId, AbilityDefinition abilityDef, bool disabled)
 	{
-		if (abilityDef != null && !string.IsNullOrEmpty(abilityDef.TooltipTemplate))
-		{
-			return abilityDef.TooltipTemplate;
-		}
+		string body = abilityDef != null && !string.IsNullOrEmpty(abilityDef.TooltipTemplate)
+			? abilityDef.TooltipTemplate
+			: GetDefaultAbilityTooltip(abilityId);
 
-		return GetDefaultAbilityTooltip(abilityId);
+		return UIHelper.PrependAbilityHeader(abilityId, abilityDef, body, disabled);
+	}
+
+	/// <summary>
+	///     Whether the map script has disabled this ability for the casting unit through SetAbilityState, as opposed to a
+	///     cooldown or mana shortfall.
+	/// </summary>
+	private static bool IsAbilityStateDisabled(Entity casterEntity, string abilityId)
+	{
+		if (casterEntity == Entity.Null) return false;
+		return GameContext.RegistryService.IsAbilityDisabledForUnit(new UnitId(casterEntity.Id), abilityId);
 	}
 
 	private Unit_WasmRuntime GetUnitWrapperIfAlive(GameHost host, Entity casterEntity)
