@@ -156,14 +156,6 @@ jobs:
             throw "steam_appid.txt must never be shipped inside the published build."
           }
 
-      - name: Upload SteamPipe Content
-        if: ${{ github.event_name == 'workflow_dispatch' && (inputs.publish == true || github.event.inputs.publish == 'true') }}
-        uses: actions/upload-artifact@v6
-        with:
-          name: Realm-SteamPipe-Windows-x64
-          path: publish/**
-          if-no-files-found: error
-
       - name: Create 7z Ultra Archive
         if: ${{ github.event_name == 'workflow_dispatch' && (inputs.publish == true || github.event.inputs.publish == 'true') }}
         id: create_archive
