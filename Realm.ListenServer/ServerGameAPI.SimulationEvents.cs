@@ -1,5 +1,6 @@
 using System.Numerics;
 using Realm.Ecs;
+using Realm.Ecs.Components.Core;
 
 namespace Realm.ListenServer;
 
@@ -9,7 +10,22 @@ public partial class ServerGameAPI
 	{
 		if (unitId <= 0) return;
 
+		ApplyResearchedUpgrades(unitId);
+
 		OnUnitCreated?.Invoke(new UnitId(unitId));
+	}
+
+	/// <summary>
+	///     Research belongs to a player's army rather than to the units that happened to exist when it was bought, so a
+	///     unit that appears afterwards - trained, built or spawned by the map - is given the same modifiers now.
+	/// </summary>
+	private void ApplyResearchedUpgrades(int unitId)
+	{
+		var entity = new Entity(unitId);
+		if (!_context.World.IsAlive(entity)) return;
+		if (!_context.World.TryGet<UnitOwnerPlayer>(entity, out UnitOwnerPlayer owner)) return;
+
+		TechLevels.ApplyAllToEntity(owner.Value, entity);
 	}
 
 	internal void RaiseUnitDied(int unitId, int killerUnitId)

@@ -89,7 +89,7 @@ public partial class GameHost
 		GameContext.ServerSession.Submit(payload);
 	}
 
-	private int SubmitOrderCommand(string commandType, List<int> unitIds, Vector3 targetPos, int targetEntityId, string argString)
+	private int SubmitOrderCommand(string commandType, List<int> unitIds, Vector3 targetPos, int targetEntityId, string argString, bool requiresUnits = true)
 	{
 		// An entity the authority never described has no authoritative id, so it cannot be named by an order.
 		for (int index = unitIds.Count - 1; index >= 0; index--)
@@ -99,7 +99,9 @@ public partial class GameHost
 			unitIds.RemoveAt(index);
 		}
 
-		if (unitIds.Count == 0) return 0;
+		// Orders that act on the player rather than on a unit - a research purchase is one - name no entity at all,
+		// so the empty list is the order, not a broken one.
+		if (requiresUnits && unitIds.Count == 0) return 0;
 
 		var targetNumerics = new System.Numerics.Vector3(targetPos.X, targetPos.Y, targetPos.Z);
 		var (commandId, payload) = GameContext.NetworkService.BuildClientCommand(commandType, unitIds, targetNumerics, targetEntityId, argString);

@@ -4019,7 +4019,7 @@ public partial class GameHost
 		if (playerIndex <= 0) return;
 		if (string.IsNullOrWhiteSpace(upgradeId)) return;
 
-		SubmitOrderCommand("research", new List<int>(), Vector3.Zero, 0, upgradeId);
+		SubmitOrderCommand("research", new List<int>(), Vector3.Zero, 0, upgradeId, requiresUnits: false);
 	}
 
 	public void IssueAttackMoveCommand(Vector3 targetPos)
