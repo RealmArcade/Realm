@@ -73,14 +73,43 @@ public partial class LobbyCreate : Control
 		_briefingText = GetNode<RichTextLabel>("CentralPanel/ContentContainer/BriefingPanel/TextPanelWrapper/BriefingText");
 
 		var contentContainer = _openMapLibraryButton.GetParent();
+		int mapHeaderIndex = _openMapLibraryButton.GetIndex();
+		contentContainer.RemoveChild(_openMapLibraryButton);
+
+		var mapLibraryButtonLiftFill = new Control();
+		mapLibraryButtonLiftFill.Name = "MapLibraryButtonLiftFill";
+		mapLibraryButtonLiftFill.CustomMinimumSize = new Vector2(0, 50);
+
+		var mapLibraryButtonLift = new VBoxContainer();
+		mapLibraryButtonLift.Name = "MapLibraryButtonLift";
+		mapLibraryButtonLift.AddThemeConstantOverride("separation", 0);
+		mapLibraryButtonLift.AddChild(_openMapLibraryButton);
+		mapLibraryButtonLift.AddChild(mapLibraryButtonLiftFill);
+
+		var mapLibraryButtonLiftOffset = new MarginContainer();
+		mapLibraryButtonLiftOffset.Name = "MapLibraryButtonLiftOffset";
+		mapLibraryButtonLiftOffset.AddThemeConstantOverride("margin_top", -50);
+		mapLibraryButtonLiftOffset.AddChild(mapLibraryButtonLift);
+
+		var mapHeaderVBox = new VBoxContainer();
+		mapHeaderVBox.Name = "MapHeaderVBox";
+		mapHeaderVBox.AddThemeConstantOverride("separation", 9);
+		mapHeaderVBox.AddChild(mapLibraryButtonLiftOffset);
+		contentContainer.AddChild(mapHeaderVBox);
+		contentContainer.MoveChild(mapHeaderVBox, mapHeaderIndex);
 
 		var selectedMapRow = new HBoxContainer();
 		selectedMapRow.Name = "SelectedMapRow";
 		selectedMapRow.Alignment = BoxContainer.AlignmentMode.Center;
 		selectedMapRow.CustomMinimumSize = new Vector2(620, 40);
 		selectedMapRow.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
-		contentContainer.AddChild(selectedMapRow);
-		contentContainer.MoveChild(selectedMapRow, _openMapLibraryButton.GetIndex() + 1);
+
+		var selectedMapRowOffset = new MarginContainer();
+		selectedMapRowOffset.Name = "SelectedMapRowOffset";
+		selectedMapRowOffset.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
+		selectedMapRowOffset.AddThemeConstantOverride("margin_top", -15);
+		selectedMapRowOffset.AddChild(selectedMapRow);
+		mapHeaderVBox.AddChild(selectedMapRowOffset);
 
 		_selectedMapNameLabel = new Label();
 		_selectedMapNameLabel.Name = "SelectedMapNameLabel";
@@ -113,7 +142,7 @@ public partial class LobbyCreate : Control
 		_versionContainer.AddChild(_versionSelectButton);
 
 		contentContainer.AddChild(_versionContainer);
-		contentContainer.MoveChild(_versionContainer, selectedMapRow.GetIndex() + 1);
+		contentContainer.MoveChild(_versionContainer, mapHeaderVBox.GetIndex() + 1);
 
 		var textPanelWrapper = GetNode<PanelContainer>("CentralPanel/ContentContainer/BriefingPanel/TextPanelWrapper");
 		var textPanelStyle = UIStyle.CreateBackdropPanel();
@@ -248,12 +277,18 @@ public partial class LobbyCreate : Control
 
 		UIStyle.ApplyTitle(_titleLabel, GameContext.Lobby.IsSinglePlayer ? "SINGLE PLAYER" : "CREATE CUSTOM MATCH", 36);
 
-		_openMapLibraryButton.Flat = true;
-		_openMapLibraryButton.AddThemeConstantOverride("icon_max_width", 22);
-		_openMapLibraryButton.Icon = UIStyle.GetUnicodeIconTexture(UnicodeIcons.GRID_QUAD, 22, UIStyle.ColorGold);
+		_openMapLibraryButton.Flat = false;
+		_openMapLibraryButton.CustomMinimumSize = new Vector2(240, 46);
+		_openMapLibraryButton.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
+		_openMapLibraryButton.AddThemeConstantOverride("icon_max_width", 20);
+		_openMapLibraryButton.AddThemeConstantOverride("h_separation", 12);
+		_openMapLibraryButton.Icon = UIStyle.GetUnicodeIconTexture(UnicodeIcons.FOLDER_OPEN, 20, UIStyle.ColorGold);
 		UIStyle.ApplyButtonText(_openMapLibraryButton, TranslationServer.Translate("SELECT MAP"), 20);
-		_openMapLibraryButton.AddThemeStyleboxOverride("normal", new StyleBoxEmpty());
+		_openMapLibraryButton.AddThemeStyleboxOverride("normal", UIStyle.CreateDropdownStyle(false, false));
+		_openMapLibraryButton.AddThemeStyleboxOverride("hover", UIStyle.CreateDropdownStyle(true, false));
+		_openMapLibraryButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateDropdownStyle(false, true));
 		_openMapLibraryButton.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		_openMapLibraryButton.AddThemeColorOverride("font_pressed_color", UIStyle.ColorCyanGlow);
 
 		UIStyle.ApplyBackButton(_backButton, () => GameContext.UserInterface.TransitionTo(GameContext.Lobby.IsSinglePlayer ? GameScreen.MainMenu : GameScreen.LobbyBrowser));
 		SetupCreateButton();
