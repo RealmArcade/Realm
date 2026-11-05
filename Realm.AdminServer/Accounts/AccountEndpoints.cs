@@ -87,7 +87,7 @@ public static class AccountEndpoints
 				return Results.Json(AccountErrorDto.Of(AccountErrorCodes.StepUpRequired, "Sign in with Steam again before changing the account you are signed in to."), statusCode: StatusCodes.Status401Unauthorized);
 			}
 
-			AccountMutationResult result = store.Rename(account.AccountId, rename.DisplayName, $"account:{account.AccountId}");
+			AccountMutationResult result = store.Rename(account.AccountId, rename.DisplayName, $"account:{account.AccountId}", null, rename.AuthorshipPublicKey, rename.AuthorshipSignature);
 			if (!result.Succeeded || result.Account == null) return Refusal(result);
 
 			string? previousToken = ReadSessionToken(request);
@@ -165,7 +165,7 @@ public static class AccountEndpoints
 		return true;
 	}
 
-	private static string? ReadSessionToken(HttpRequest request)
+	public static string? ReadSessionToken(HttpRequest request)
 	{
 		string authorization = request.Headers.Authorization.ToString();
 		if (authorization.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))

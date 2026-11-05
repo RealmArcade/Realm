@@ -772,7 +772,7 @@ public partial class MapEditorHUD : Control
 				return;
 			}
 
-			var (_, _, createdKeyPath, createdNew) = AuthorshipKeyHelper.GetOrGenerateKeyInfo(keysDirectory, accountUserName);
+			var (createdKey, _, createdKeyPath, createdNew) = AuthorshipKeyHelper.GetOrGenerateKeyInfo(keysDirectory, accountUserName);
 			_publishAuthorshipKeyPath = createdKeyPath;
 			RefreshKeyOptions();
 			RefreshSelectedKeyDetails();
@@ -780,6 +780,11 @@ public partial class MapEditorHUD : Control
 			ShowFeedback(createdNew
 				? string.Format(TranslationServer.Translate("A new authorship key has been generated for {0} at {1}. Please back up this file to keep ownership of your maps."), accountUserName, createdKeyPath)
 				: string.Format(TranslationServer.Translate("Using the existing authorship key for {0} at {1}."), accountUserName, createdKeyPath));
+
+			if (createdNew && createdKey != null)
+			{
+				CheckCreatorRegistrationAndPrompt(createdKey);
+			}
 		};
 
 		RefreshKeyOptions();
