@@ -50,11 +50,35 @@ public class WasmEntryPoint
     private static IMapScript? _mapScript;
     private static IGameAPI? _gameApi;
     private static ILobbyAPI? _lobbyApi;
+    private static nint _startWarningMessagePointer;
 
     private static unsafe string ReadString(nint ptr, int len)
     {
         if (ptr == IntPtr.Zero || len <= 0) return string.Empty;
         return System.Text.Encoding.UTF8.GetString((byte*)ptr, len);
+    }
+
+    private static void EnsureMapScript()
+    {
+        if (_mapScript != null) return;
+
+        foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+        {
+            try
+            {
+                foreach (var type in assembly.GetTypes())
+                {
+                    if ((typeof(IWasmModule).IsAssignableFrom(type) || typeof(IMapScript).IsAssignableFrom(type)) && !type.IsInterface && !type.IsAbstract)
+                    {
+                        _mapScript = (IMapScript)Activator.CreateInstance(type)!;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _gameApi?.BroadcastMessage($"Error loading types from {assembly.GetName().Name}: {ex.Message}");
+            }
+        }
     }
 
     [UnmanagedCallersOnly(EntryPoint = "initialize")]
@@ -67,23 +91,7 @@ public class WasmEntryPoint
             GameAPI.Current = _gameApi;
             _gameApi.BroadcastMessage($"Guest Initialize started with deterministic random seed {SeededRandom.Shared.Seed}");
 
-            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
-            {
-                try
-                {
-                    foreach (var type in assembly.GetTypes())
-                    {
-                        if ((typeof(IWasmModule).IsAssignableFrom(type) || typeof(IMapScript).IsAssignableFrom(type)) && !type.IsInterface && !type.IsAbstract)
-                        {
-                            _mapScript = (IMapScript)Activator.CreateInstance(type)!;
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _gameApi.BroadcastMessage($"Error loading types from {assembly.GetName().Name}: {ex.Message}");
-                }
-            }
+            EnsureMapScript();
 
             if (_mapScript != null)
             {
@@ -125,6 +133,7 @@ public class WasmEntryPoint
     {
         try
         {
+            EnsureMapScript();
             if (_mapScript is not ILobbyScript lobbyScript) return 0;
 
             _lobbyApi = new LobbyAPI_WasmModule();
@@ -160,6 +169,41 @@ public class WasmEntryPoint
             }
             catch { }
             Console.WriteLine($"Error in lobby-update: {ex}");
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "lobby-start-warning")]
+    public static unsafe long LobbyStartWarning()
+    {
+        if (_startWarningMessagePointer != IntPtr.Zero)
+        {
+            NativeMemory.Free((void*)_startWarningMessagePointer);
+            _startWarningMessagePointer = IntPtr.Zero;
+        }
+
+        if (_lobbyApi == null || _mapScript is not ILobbyScript lobbyScript) return 0;
+
+        try
+        {
+            if (!lobbyScript.TryGetStartWarning(_lobbyApi, out string message)) return 0;
+            if (string.IsNullOrEmpty(message)) return 0;
+
+            int length = System.Text.Encoding.UTF8.GetByteCount(message);
+            void* buffer = NativeMemory.Alloc((nuint)length);
+            fixed (char* text = message) System.Text.Encoding.UTF8.GetBytes(text, message.Length, (byte*)buffer, length);
+            _startWarningMessagePointer = (nint)buffer;
+
+            return ((long)length << 32) | (uint)(int)buffer;
+        }
+        catch (Exception ex)
+        {
+            try
+            {
+                _gameApi?.BroadcastMessage($"[GUEST LOBBY ERROR] {ex.GetType().Name}: {ex.Message}");
+            }
+            catch { }
+            Console.WriteLine($"Error in lobby-start-warning: {ex}");
+            return 0;
         }
     }
 

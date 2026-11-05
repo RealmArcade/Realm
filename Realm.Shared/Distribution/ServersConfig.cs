@@ -2,6 +2,8 @@ namespace Realm.Shared.Distribution;
 
 public class ServersConfig
 {
+	public string AccountAuthorityUrl { get; set; } = string.Empty;
+
 	public List<string> AdminPublicKeys { get; set; } = new();
 
 	public List<string> AdminPublicKey

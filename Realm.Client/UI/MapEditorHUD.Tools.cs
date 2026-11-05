@@ -1931,18 +1931,149 @@ namespace Realm.Client.UI
 
 		public void ToggleVSCodeEditor()
 		{
-			if (OperatingSystem.IsWindows())
+			if (!OperatingSystem.IsWindows())
 			{
-				if (GameContext.VSCode.IsVisible)
-				{
-					GameContext.VSCode.Focus();
-				}
-				else
-				{
-					GenerateVSCodeFilesExternal();
-					GameContext.VSCode.SetVisible(true);
-				}
+				return;
 			}
+
+			if (GameContext.VSCode.IsVisible)
+			{
+				GameContext.VSCode.Focus();
+				return;
+			}
+
+			if (!GameContext.VSCode.IsInstalled())
+			{
+				if (!GameContext.VSCode.IsInstalling) GameContext.VSCode.StartInstallIfNeeded();
+				ShowEditorInstallingCard();
+				return;
+			}
+
+			GenerateVSCodeFilesExternal();
+			GameContext.VSCode.SetVisible(true);
+			Callable.From(ReportEditorDependencyState).CallDeferred();
+		}
+
+		private Control _editorInstallingCard;
+
+		private void ShowEditorInstallingCard()
+		{
+			if (_editorInstallingCard != null && GodotObject.IsInstanceValid(_editorInstallingCard)) return;
+
+			var overlay = new ColorRect();
+			overlay.Name = "EditorInstallingOverlay";
+			overlay.Color = new Color(0, 0, 0, 0.75f);
+			overlay.SetAnchorsPreset(LayoutPreset.FullRect);
+			overlay.MouseFilter = MouseFilterEnum.Stop;
+			overlay.ZIndex = 1100;
+			AddChild(overlay);
+			_editorInstallingCard = overlay;
+
+			var center = new CenterContainer();
+			center.Name = "EditorInstallingCenter";
+			center.SetAnchorsPreset(LayoutPreset.FullRect);
+			overlay.AddChild(center);
+
+			var panel = new PanelContainer();
+			panel.Name = "EditorInstallingPanel";
+			panel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
+			panel.CustomMinimumSize = new Vector2(520, 200);
+			center.AddChild(panel);
+
+			var vbox = new VBoxContainer();
+			vbox.Name = "EditorInstallingVBox";
+			vbox.AddThemeConstantOverride("separation", 12);
+			panel.AddChild(vbox);
+
+			var titleLabel = new Label();
+			titleLabel.Name = "EditorInstallingTitle";
+			UIStyle.ApplyTitle(titleLabel, TranslationServer.Translate("⚠️ EDITOR INSTALLING"), 20);
+			titleLabel.HorizontalAlignment = HorizontalAlignment.Center;
+			vbox.AddChild(titleLabel);
+
+			var messageLabel = new Label();
+			messageLabel.Name = "EditorInstallingMessage";
+			messageLabel.Text = TranslationServer.Translate("The Map Data Editor is currently installing in the background.\nPlease wait for it to complete.");
+			messageLabel.HorizontalAlignment = HorizontalAlignment.Center;
+			messageLabel.AutowrapMode = TextServer.AutowrapMode.Word;
+			messageLabel.CustomMinimumSize = new Vector2(460, 0);
+			messageLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+			messageLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.95f));
+			messageLabel.AddThemeFontSizeOverride("font_size", 13);
+			vbox.AddChild(messageLabel);
+
+			var dismissButton = new Button();
+			dismissButton.Name = "EditorInstallingDismiss";
+			dismissButton.AddThemeConstantOverride("icon_max_width", 0);
+			SetupButton(dismissButton, "OK", CloseEditorInstallingCard);
+			dismissButton.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
+			vbox.AddChild(dismissButton);
+
+			StartEditorInstallingPolling();
+		}
+
+		private void CloseEditorInstallingCard()
+		{
+			if (_editorInstallingCard != null && GodotObject.IsInstanceValid(_editorInstallingCard)) _editorInstallingCard.QueueFree();
+			_editorInstallingCard = null;
+		}
+
+		private void StartEditorInstallingPolling()
+		{
+			GetTree().CreateTimer(0.5f).Timeout += OnEditorInstallingPollTimeout;
+		}
+
+		private void OnEditorInstallingPollTimeout()
+		{
+			if (!GodotObject.IsInstanceValid(this)) return;
+			if (_editorInstallingCard == null || !GodotObject.IsInstanceValid(_editorInstallingCard)) return;
+
+			if (GameContext.VSCode.IsInstalled())
+			{
+				CloseEditorInstallingCard();
+				ToggleVSCodeEditor();
+				return;
+			}
+
+			if (GameContext.VSCode.IsInstalling)
+			{
+				StartEditorInstallingPolling();
+				return;
+			}
+
+			CloseEditorInstallingCard();
+			GameContext.UserInterface?.ShowPopupMessage(
+				TranslationServer.Translate("EDITOR UNAVAILABLE"),
+				TranslationServer.Translate("The code editor could not be installed. Check your internet connection and open the Map Editor again to retry the download.")
+			);
+		}
+
+		private void ReportEditorDependencyState()
+		{
+			if (!OperatingSystem.IsWindows() || !GodotObject.IsInstanceValid(this))
+			{
+				return;
+			}
+
+			if (!GameContext.VSCode.IsInstalled())
+			{
+				GameContext.UserInterface?.ShowPopupMessage(
+					TranslationServer.Translate("EDITOR UNAVAILABLE"),
+					TranslationServer.Translate("The code editor could not be installed. Check your internet connection and open the Map Editor again to retry the download.")
+				);
+				return;
+			}
+
+			IReadOnlyList<string> missingDependencies = GameContext.VSCode.GetMissingDependencies();
+			if (missingDependencies.Count == 0)
+			{
+				return;
+			}
+
+			GameContext.UserInterface?.ShowPopupMessage(
+				TranslationServer.Translate("EDITOR DEPENDENCIES INCOMPLETE"),
+				string.Format(TranslationServer.Translate("The code editor opened, but these editor components could not be installed: {0}\n\nEditing and saving maps still work. Choose Reinstall Editor in Editor Settings to install them once the download works."), string.Join(", ", missingDependencies))
+			);
 		}
 
 
@@ -2513,6 +2644,15 @@ namespace Realm.Client.UI
 		private async void PublishMapActionView(bool fullExport = false)
 		{
 			if (GameContext.Host == null || GameContext.EditorService.IsSyncing) return;
+
+			if (!EnsureSignedInForPublishing()) return;
+
+			if (!TryGetSelectedAuthorshipKey(out NSec.Cryptography.Key? publishAuthorshipKey, out _, out _) || publishAuthorshipKey == null)
+			{
+				ShowFeedback(TranslationServer.Translate("Select an authorship key before publishing."));
+				return;
+			}
+
 			GameContext.EditorService.IsSyncing = true;
 			if (GameContext.EditorService != null)
 			{
@@ -2574,15 +2714,7 @@ namespace Realm.Client.UI
 				try
 				{
 					using var checkClient = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
-					string creatorPubKey = "";
-					try
-					{
-						var key = GetOrGenerateAuthorshipKey();
-						creatorPubKey = Convert.ToBase64String(key.PublicKey.Export(KeyBlobFormat.RawPublicKey));
-					}
-					catch
-					{
-					}
+					string creatorPubKey = Convert.ToBase64String(publishAuthorshipKey.PublicKey.Export(KeyBlobFormat.RawPublicKey));
 
 					string statusKey = !string.IsNullOrEmpty(creatorPubKey)
 						? $"{Uri.EscapeDataString(mapTitle)}_{Uri.EscapeDataString(mapVersion)}_{Uri.EscapeDataString(creatorPubKey)}"
@@ -2658,7 +2790,7 @@ namespace Realm.Client.UI
 				statusLabel.Text = TranslationServer.Translate("Compiling WASM map script...");
 				await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
-				await CompileAndSignMapAsync(workspace, skipAttribution: true);
+				await CompileWorkspaceScriptAsync(workspace);
 
 				if (_wasmHasErrors)
 				{
@@ -2726,8 +2858,8 @@ namespace Realm.Client.UI
 				statusLabel.Text = TranslationServer.Translate("Generating manifest & indexing asset hashes...");
 				await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
-				var authorshipKey = GetOrGenerateAuthorshipKey();
-				string currentUsername = GameContext.Lobby?.AuthenticatedUsername ?? "MapAuthor";
+				var authorshipKey = publishAuthorshipKey;
+				string currentUsername = GetPublishAuthorName();
 				string pubKeyBase64 = Convert.ToBase64String(authorshipKey.PublicKey.Export(KeyBlobFormat.RawPublicKey));
 
 				MapWorkspaceService.NormalizeMetadataTextureEntries(workspace);
@@ -2750,6 +2882,8 @@ namespace Realm.Client.UI
 					GameContext.EditorService.LastMetadataSyncTime = GameContext.EditorService.GetLastWriteTimeSafe(activeConfigPath);
 				}
 
+
+				await SignMapMetadataAsync(workspace, mapTitle, mapVersion, currentUsername);
 
 				var manifest = MapManifest.CreateFromDirectory(workspace, mapTitle, currentUsername, mapVersion);
 				manifest.Attribution_SourceMap = GameContext.MapAttributionService.CollectSortedSourceMapNames(workspace).ToList();

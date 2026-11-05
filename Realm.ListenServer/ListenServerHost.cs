@@ -79,6 +79,7 @@ public class ListenServerHost : IServerTransportSink
 	private readonly WorldSnapshot[] _publishedSnapshots = new WorldSnapshot[EcsWorld.MAX_PLAYERS];
 	private readonly byte[][] _publishedFrames = new byte[EcsWorld.MAX_PLAYERS][];
 	private readonly bool[] _pendingBaselineRequests = new bool[EcsWorld.MAX_PLAYERS];
+	private readonly bool[] _pendingDescribeInFull = new bool[EcsWorld.MAX_PLAYERS];
 	private readonly bool[] _pendingSkippedPeers = new bool[EcsWorld.MAX_PLAYERS];
 	private PublishLaneWorkers? _publishLaneWorkers;
 	private readonly Dictionary<int, SnapshotFrameRing> _frameRings = new();
@@ -143,6 +144,19 @@ public class ListenServerHost : IServerTransportSink
 			_preparedLobbyWorld = null;
 			_log.Write($"the map's world could not be prepared, so the match will load it when it starts: {exception.Message}");
 		}
+	}
+
+	/// <summary>
+	///     Asks the lobby's map whether its host must read a warning before the match starts. The script is started after
+	///     the lobby that asks about it, so this resolves the script every time rather than holding it.
+	/// </summary>
+	/// <returns>The text the host has to accept, or nothing when the map has no warning.</returns>
+	private string? DescribeLobbyStartWarning()
+	{
+		ServerLobbyScript? script = _lobbyScript;
+		if (script == null) return null;
+
+		return script.TryGetStartWarning(out string warning) ? warning : null;
 	}
 
 	/// <summary>
@@ -303,7 +317,7 @@ public class ListenServerHost : IServerTransportSink
 
 	private void StartLobby()
 	{
-		if (!_transport.TryStart(EcsWorld.MAX_PLAYERS, loopbackOnly: false, this, out string failure))
+		if (!_transport.TryStart(EcsWorld.MAX_PLAYERS, loopbackOnly: _arguments.LoopbackOnly, this, out string failure))
 		{
 			throw new IOException($"the lobby could not listen for peers: {failure}");
 		}
@@ -317,7 +331,8 @@ public class ListenServerHost : IServerTransportSink
 			StartMatchFromLobby,
 			Stop,
 			(address, port) => _transport.SendToAddress(address, port, Encoding.UTF8.GetBytes("PUNCH")),
-			peerId => _transport.TryReadPeerLink(peerId, out PeerLinkStatistics statistics) ? statistics : null);
+			peerId => _transport.TryReadPeerLink(peerId, out PeerLinkStatistics statistics) ? statistics : null,
+			DescribeLobbyStartWarning);
 
 		var roster = new ServerLobbyRoster(_lobby, _log);
 		_lobby.Roster = roster;
@@ -326,6 +341,7 @@ public class ListenServerHost : IServerTransportSink
 		_mapHash = MapContentHash.Compute(_arguments.MapPath, _arguments.LogPath);
 		MarkStartStage("lobby listening");
 		_log.Write($"lobby opened for map '{_lobby.MapName}' version {_lobby.MapVersion} with {_lobby.MaximumPlayers} playable slot(s)");
+		if (_arguments.LoopbackOnly) _log.Write("this lobby listens on the loopback address only: nothing outside this screen can reach it");
 		AnnounceReady();
 	}
 
@@ -555,6 +571,13 @@ public class ListenServerHost : IServerTransportSink
 	/// <summary>How many times one player may pause a match before it has to carry on without it.</summary>
 	private const int PausesPerPlayerPerMatch = 3;
 
+	/// <summary>
+	///     True when this match belongs to the one screen playing it: a single-player game or a playtest started from the
+	///     map editor. Such a match is reachable on the loopback address only and seats the one player it was started for,
+	///     so a pause holds nobody else up and is not metered.
+	/// </summary>
+	private bool IsSinglePlayerMatch => _arguments.Cheats;
+
 	/// <summary>How long everyone is warned for before a paused match resumes.</summary>
 	private const int ResumeCountdownSeconds = 5;
 
@@ -781,6 +804,9 @@ public class ListenServerHost : IServerTransportSink
 			case NetworkFrameKind.SnapshotRepairRequest:
 				HandleSnapshotRepairRequest(peerId, payload);
 				break;
+			case NetworkFrameKind.SnapshotDescriptionRepeat:
+				HandleDescriptionRepeatRequest(peerId);
+				break;
 			case NetworkFrameKind.LatencyProbe:
 				// The echo travels the same stream the probe did. Answering it reliably would time the probe's loss and
 				// the retransmission that recovered it rather than the path, and that figure is what every screen sizes
@@ -900,7 +926,7 @@ public class ListenServerHost : IServerTransportSink
 		}
 
 		bool proveAdmin = ProvesAdmin(peerId, hello.AdminProof);
-		string admitted = lobby.AdmitPeer(peerId, hello.PlayerName, hello.SessionToken, proveAdmin, out bool isAdmin);
+		string admitted = lobby.AdmitPeer(peerId, hello.PlayerName, hello.AccountId, hello.SessionToken, proveAdmin, out bool isAdmin);
 		if (admitted.Length > 0)
 		{
 			_log.Write($"peer {peerId} refused by the lobby: {admitted}");
@@ -1174,15 +1200,22 @@ public class ListenServerHost : IServerTransportSink
 		{
 			int seatedPeerId = _seatedPeerIds[index];
 			bool resyncRequested = simulation.ConsumeBaselineRequest(seatedPeerId);
+			bool repeatRequested = !resyncRequested && simulation.ConsumeDescriptionRepeatRequest(seatedPeerId);
 			bool refreshRequested = !resyncRequested
 				&& IsRefreshDue(seatedPeerId, simulation.TickCount)
 				&& TryClaimBaselineRequest(seatedPeerId, simulation.TickCount);
 			_pendingBaselineRequests[index] = resyncRequested || refreshRequested;
+			_pendingDescribeInFull[index] = _pendingBaselineRequests[index] || repeatRequested;
 			_pendingBaselineReasons[index] = resyncRequested
 				? SnapshotBaselineReason.Resync
 				: refreshRequested ? SnapshotBaselineReason.Safety : SnapshotBaselineReason.None;
 			_pendingSkippedPeers[index] = false;
 			DropPeerIfItStoppedReading(seatedPeerId, simulation.TickCount);
+
+			// A description this peer could not apply is state it never held, so its record of what it was told is dropped
+			// here, on the tick thread, before any lane reads it: the next description then carries every unit and text
+			// rather than only the ones that changed since a description the screen never applied.
+			if (repeatRequested) simulation.ResetPeerDescription(seatedPeerId);
 		}
 
 		simulation.PreparePeerDescriptions(sequence);
@@ -1191,7 +1224,7 @@ public class ListenServerHost : IServerTransportSink
 		// The ability deltas are collected for every peer here, on the tick thread, because the registry behind them keeps
 		// one scratch table per process and cannot be entered by two lanes at once.
 		int laneCount = Math.Min(peerCount, simulation.SnapshotWorkerCount);
-		simulation.PrepareAbilityDeltas(_seatedPeerIds.AsSpan(0, peerCount), _pendingBaselineRequests.AsSpan(0, peerCount), _pendingSkippedPeers.AsSpan(0, peerCount));
+		simulation.PrepareAbilityDeltas(_seatedPeerIds.AsSpan(0, peerCount), _pendingDescribeInFull.AsSpan(0, peerCount), _pendingSkippedPeers.AsSpan(0, peerCount));
 
 		_publishSequence = sequence;
 
@@ -1475,6 +1508,20 @@ public class ListenServerHost : IServerTransportSink
 
 		_transport.Send(peerId, NetworkFrameKind.Presentation, MemoryPackSerializer.Serialize(batch), delivery);
 		_deliveredPresentationCount += messages.Count;
+	}
+
+	/// <summary>
+	///     Answers a screen that received a description it could not apply. The description is not sent again: it arrived,
+	///     and whatever this screen could not make of it would be made again of the same bytes. What it carried is state the
+	///     screen does not hold, so the match forgets what it was told and describes all of it once more.
+	/// </summary>
+	private void HandleDescriptionRepeatRequest(int peerId)
+	{
+		ServerSimulation? simulation = _simulation;
+		if (simulation == null) return;
+
+		simulation.RequestDescriptionRepeat(peerId);
+		_log.Write($"peer {peerId} could not apply a description; it is told about every unit and text again next tick");
 	}
 
 	/// <summary>
@@ -1819,8 +1866,10 @@ public class ListenServerHost : IServerTransportSink
 	}
 
 	/// <summary>
-	///     Holds the match for one player. Every player may pause, but only within what it has left: a pause costs one of
-	///     its three for the match and starts a minute of recovery, so a match cannot be held by one screen indefinitely.
+	///     Holds the match for one player. In a match shared with others every player may pause, but only within what it has
+	///     left: a pause costs one of its three for the match and starts a minute of recovery, so a match cannot be held by
+	///     one screen indefinitely. A match of one holds only the screen that asked, so it pays nothing and waits for
+	///     nothing.
 	/// </summary>
 	/// <param name="peerId">The peer that asked.</param>
 	/// <param name="playerSlot">The slot it is seated in.</param>
@@ -1833,28 +1882,34 @@ public class ListenServerHost : IServerTransportSink
 			return;
 		}
 
-		int pausesRemaining = PausesRemainingFor(playerSlot);
-		if (pausesRemaining <= 0)
+		if (!IsSinglePlayerMatch)
 		{
-			_log.Write($"player {playerSlot} asked to pause the match but has used every pause it is allowed");
-			SendPauseAllowance(peerId, MatchPauseAllowance.RefusalExhausted);
-			return;
+			int pausesRemaining = PausesRemainingFor(playerSlot);
+			if (pausesRemaining <= 0)
+			{
+				_log.Write($"player {playerSlot} asked to pause the match but has used every pause it is allowed");
+				SendPauseAllowance(peerId, MatchPauseAllowance.RefusalExhausted);
+				return;
+			}
+
+			int cooldownSeconds = CooldownSecondsRemaining(playerSlot);
+			if (cooldownSeconds > 0)
+			{
+				_log.Write($"player {playerSlot} asked to pause the match {cooldownSeconds} second(s) before its pause recovers");
+				SendPauseAllowance(peerId, MatchPauseAllowance.RefusalCooldown);
+				return;
+			}
+
+			_pausesRemainingPerPlayerSlot[playerSlot] = pausesRemaining - 1;
+			_pauseCooldownEndsAtSeconds[playerSlot] = _lastTickSeconds + PauseCooldownSeconds;
 		}
 
-		int cooldownSeconds = CooldownSecondsRemaining(playerSlot);
-		if (cooldownSeconds > 0)
-		{
-			_log.Write($"player {playerSlot} asked to pause the match {cooldownSeconds} second(s) before its pause recovers");
-			SendPauseAllowance(peerId, MatchPauseAllowance.RefusalCooldown);
-			return;
-		}
-
-		_pausesRemainingPerPlayerSlot[playerSlot] = pausesRemaining - 1;
-		_pauseCooldownEndsAtSeconds[playerSlot] = _lastTickSeconds + PauseCooldownSeconds;
 		_paused = true;
 		_pausedByPlayerSlot = playerSlot;
 		_resumeCountdownRemaining = 0;
-		_log.Write($"player {playerSlot} paused the match; it has {pausesRemaining - 1} pause(s) left and may pause again in {PauseCooldownSeconds} second(s)");
+		_log.Write(IsSinglePlayerMatch
+			? $"player {playerSlot} paused a single-player match"
+			: $"player {playerSlot} paused the match; it has {PausesRemainingFor(playerSlot)} pause(s) left and may pause again in {PauseCooldownSeconds} second(s)");
 
 		BroadcastPauseState();
 		SendPauseAllowance(peerId, string.Empty);

@@ -24,6 +24,12 @@ public class ServerLobby
 
 	private readonly Func<int, PeerLinkStatistics?> _readPeerLink;
 
+	/// <summary>
+	///     Asks the lobby's map whether the host must read a warning before the match starts. It answers the text the host
+	///     has to accept, or nothing when the map has nothing to warn about.
+	/// </summary>
+	private readonly Func<string?> _readStartWarning;
+
 	private readonly ServerLog _log;
 	private readonly string _mapFolder;
 	private readonly string _mapName;
@@ -60,7 +66,7 @@ public class ServerLobby
 
 	public ServerLobby(ServerArguments arguments, ServerLog log, Action<int, NetworkFrameKind, byte[], FrameDelivery> send, Action<int> disconnect,
 		Func<IReadOnlyList<MatchRosterSeat>, IReadOnlyList<(int PeerId, int Slot)>, IReadOnlyDictionary<string, int>, int, string?> startMatch, Action lobbyAbandoned, Action<string, int> punchAddress,
-		Func<int, PeerLinkStatistics?> readPeerLink)
+		Func<int, PeerLinkStatistics?> readPeerLink, Func<string?> readStartWarning)
 	{
 		_log = log;
 		_send = send;
@@ -69,6 +75,7 @@ public class ServerLobby
 		_lobbyAbandoned = lobbyAbandoned;
 		_punchAddress = punchAddress;
 		_readPeerLink = readPeerLink;
+		_readStartWarning = readStartWarning;
 		_mapFolder = arguments.MapPath;
 		_mapName = ResolveMapName(arguments);
 		_mapVersion = ResolveMapVersion(arguments);
@@ -85,6 +92,24 @@ public class ServerLobby
 	public string MapVersion => _mapVersion;
 
 	public int MaximumPlayers => _maximumPlayers;
+
+	/// <summary>
+	///     How many seats are playing rather than watching. A spectator holds no player seat, so the players a lobby seats
+	///     is a count of these and never of the seats it holds.
+	/// </summary>
+	public int PlayingSeatCount
+	{
+		get
+		{
+			int count = 0;
+			foreach (LobbySeat seat in _seats.Values)
+			{
+				if (seat.Team >= 1) count++;
+			}
+
+			return count;
+		}
+	}
 
 	/// <summary>
 	///     The roster rules this lobby's map states, or nothing while the lobby runs on the authority's own rules. The
@@ -121,9 +146,16 @@ public class ServerLobby
 	{
 		if (!_seats.TryGetValue(slot, out LobbySeat seat)) return false;
 
-		seat.Team = Math.Max(0, team);
-		seat.TeamName = seat.Team == 0 ? "Spectator" : $"Team {seat.Team}";
-		if (seat.Team == 0) seat.IsReady = false;
+		int chosenTeam = Math.Max(0, team);
+		if (!CanSeatPlayTeam(slot, chosenTeam, seat.Team))
+		{
+			_log.Write($"seat {slot} was put on team {chosenTeam}, which needs a free player seat this lobby does not have; the order is refused");
+			return false;
+		}
+
+		seat.Team = chosenTeam;
+		seat.TeamName = chosenTeam == 0 ? LobbyLimits.SpectatorTeamName : $"Team {chosenTeam}";
+		if (chosenTeam == 0) seat.IsReady = false;
 		_seats[slot] = seat;
 		BroadcastState();
 		return true;
@@ -154,10 +186,11 @@ public class ServerLobby
 		int clamped = Math.Clamp(maximumPlayers, 1, LobbyLimits.MaximumSeats);
 		if (clamped == _maximumPlayers) return true;
 
-		foreach (int slot in _seats.Keys)
+		foreach (var pair in _seats)
 		{
-			if (slot <= clamped) continue;
-			_log.Write($"the lobby cannot seat {clamped} player(s) while seat {slot} is taken; the count is refused");
+			if (pair.Value.Team < 1) continue;
+			if (pair.Key <= clamped) continue;
+			_log.Write($"the lobby cannot seat {clamped} player(s) while seat {pair.Key} is playing; the count is refused");
 			return false;
 		}
 
@@ -206,7 +239,7 @@ public class ServerLobby
 
 	public IReadOnlyList<LobbyChatMessage> ChatHistory => _chatHistory;
 
-	public string AdmitPeer(int peerId, string name, string sessionToken, bool proveAdmin, out bool isAdmin)
+	public string AdmitPeer(int peerId, string name, long accountId, string sessionToken, bool proveAdmin, out bool isAdmin)
 	{
 		isAdmin = false;
 		if (_matchStarted) return "server_rejected_lobby_is_closed";
@@ -227,32 +260,41 @@ public class ServerLobby
 		LobbySeat seat = default;
 		bool restored = false;
 
-		if (!isAdmin && !string.IsNullOrEmpty(sessionToken))
+		if (!string.IsNullOrEmpty(sessionToken))
 		{
-			foreach (var pair in _seats)
-			{
-				if (pair.Value.IsComputer) continue;
-				if (!string.Equals(pair.Value.SessionToken, sessionToken, StringComparison.Ordinal)) continue;
-				if (!pair.Value.IsDisconnected) continue;
+			string sanitizedSessionToken = LobbyLimits.Sanitize(sessionToken, MaximumSessionTokenLength);
 
-				seat = pair.Value;
-				_slotByPeer.Remove(seat.PeerId);
-				restored = true;
-				break;
+			// The seat secret is minted on the seat's own client and every other peer's copy of it is blanked before the
+			// lobby state goes out, so presenting it is what proves the seat belongs to this peer. A seat a live connection
+			// still holds is taken back as well, because a reconnect always arrives as a new peer id and can outrun the
+			// authority noticing the old socket is gone; seating that peer afresh would cost it its slot, team and colour,
+			// or refuse it outright when the lobby has no playing slot left.
+			restored = TryFindSeatBySessionToken(sanitizedSessionToken, requireDisconnected: true, out seat) ||
+			           TryFindSeatBySessionToken(sanitizedSessionToken, requireDisconnected: false, out seat);
+
+			if (restored)
+			{
+				int previousPeerId = seat.PeerId;
+				bool previousPeerStood = !seat.IsDisconnected;
+				_slotByPeer.Remove(previousPeerId);
+				if (previousPeerStood && previousPeerId != peerId) _disconnect(previousPeerId);
 			}
 		}
 
 		if (!restored)
 		{
-			int slot = FindFreeSlot(isAdmin ? 1 : 0);
+			int slot = FindFreePlayingSlot(isAdmin ? 1 : 0);
+			bool playingSeat = slot > 0;
+			if (!playingSeat) slot = FindFreeSpectatorSlot();
 			if (slot <= 0) return "server_rejected_no_free_slot";
 
 			seat = new LobbySeat
 			{
 				Slot = slot,
+				AccountId = accountId,
 				Name = DefaultName(name, slot, isAdmin),
 				Faction = Roster?.GetFactionName(0) ?? string.Empty,
-				TeamName = ResolveJoinTeamName(),
+				TeamName = playingSeat ? ResolveJoinTeamName() : LobbyLimits.SpectatorTeamName,
 				ColorRgba = ResolveJoinColorRgba(slot),
 				IsHost = isAdmin,
 				LatencyMilliseconds = -1,
@@ -263,11 +305,15 @@ public class ServerLobby
 			seat.Team = ResolveTeamNumber(seat.TeamName, slot);
 		}
 
+		if (restored && proveAdmin && seat.IsHost) _adminPeerId = peerId;
+
 		seat.PeerId = peerId;
+		seat.AccountId = accountId;
 		seat.IsHost = isAdmin || peerId == _adminPeerId;
 		seat.IsDisconnected = false;
-		if (!string.IsNullOrWhiteSpace(name)) seat.Name = LobbyLimits.Sanitize(name, LobbyLimits.MaximumPlayerNameLength);
+		if (!string.IsNullOrWhiteSpace(name)) seat.Name = LobbyLimits.SanitizeDisplayName(name);
 		if (string.IsNullOrEmpty(seat.Name)) seat.Name = DefaultName(name, seat.Slot, seat.IsHost);
+		seat.Name = MakeNameDistinct(seat.Name, seat.Slot);
 
 		_seats[seat.Slot] = seat;
 		_slotByPeer[peerId] = seat.Slot;
@@ -278,6 +324,45 @@ public class ServerLobby
 		AddSystemChat($"{seat.Name} joined the lobby.");
 		BroadcastState();
 		return string.Empty;
+	}
+
+	/// <summary>
+	///     Whether the session a dropped seat was held by is already seated on a live connection, which is a reconnect that
+	///     arrived before the authority noticed the old socket was gone. The dropped seat is then gone rather than held,
+	///     so one player is never counted twice.
+	/// </summary>
+	/// <param name="dropped">The seat whose connection just dropped.</param>
+	/// <returns>Whether another connected seat holds the same session.</returns>
+	private bool IsSessionSeatedOnAnotherConnection(in LobbySeat dropped)
+	{
+		if (dropped.SessionToken.Length == 0) return false;
+
+		foreach (var pair in _seats)
+		{
+			if (pair.Value.Slot == dropped.Slot) continue;
+			if (pair.Value.IsDisconnected) continue;
+			if (!string.Equals(pair.Value.SessionToken, dropped.SessionToken, StringComparison.Ordinal)) continue;
+
+			return true;
+		}
+
+		return false;
+	}
+
+	private bool TryFindSeatBySessionToken(string sessionToken, bool requireDisconnected, out LobbySeat seat)
+	{
+		foreach (var pair in _seats)
+		{
+			if (pair.Value.IsComputer) continue;
+			if (requireDisconnected && !pair.Value.IsDisconnected) continue;
+			if (!string.Equals(pair.Value.SessionToken, sessionToken, StringComparison.Ordinal)) continue;
+
+			seat = pair.Value;
+			return true;
+		}
+
+		seat = default;
+		return false;
 	}
 
 	public void HandleCommand(int peerId, LobbyCommand command)
@@ -305,6 +390,12 @@ public class ServerLobby
 				break;
 			case LobbyCommandKind.StartCountdown:
 				if (!RequireAdmin(peerId, isAdmin, out int starterSlot, "start the match")) return;
+				if (!command.AcknowledgeStartWarning && TryDescribeStartWarning(out string warning))
+				{
+					SendStartWarning(peerId, warning);
+					return;
+				}
+
 				StartCountdown(starterSlot, command.Flag);
 				break;
 			case LobbyCommandKind.CancelCountdown:
@@ -359,6 +450,15 @@ public class ServerLobby
 		{
 			_log.Write("the peer administering the lobby is gone; the lobby is being destroyed");
 			_lobbyAbandoned();
+			return;
+		}
+
+		if (IsSessionSeatedOnAnotherConnection(seat))
+		{
+			_seats.Remove(seat.Slot);
+			_slotByPeer.Remove(peerId);
+			_log.Write($"lobby seat {seat.Slot} ('{seat.Name}') is gone: its session is already seated on another connection");
+			BroadcastState();
 			return;
 		}
 
@@ -563,8 +663,8 @@ public class ServerLobby
 			return;
 		}
 
-		string name = LobbyLimits.Sanitize(command.Name, LobbyLimits.MaximumPlayerNameLength);
-		if (!string.IsNullOrEmpty(name)) target.Name = name;
+		string name = LobbyLimits.SanitizeDisplayName(command.Name);
+		if (!string.IsNullOrEmpty(name)) target.Name = MakeNameDistinct(name, target.Slot);
 
 		string faction = LobbyLimits.Sanitize(command.Faction, LobbyLimits.MaximumFactionLength);
 		if (!string.IsNullOrEmpty(faction) && !IsFactionLocked(target.Slot))
@@ -574,9 +674,18 @@ public class ServerLobby
 
 		if (LobbyLimits.IsAcceptableTeamName(command.TeamName) && !IsTeamLocked(target.Slot))
 		{
-			target.TeamName = LobbyLimits.Sanitize(command.TeamName, LobbyLimits.MaximumTeamNameLength);
-			target.Team = ResolveTeamNumber(target.TeamName, target.Slot);
-			if (string.Equals(target.TeamName, "Spectator", StringComparison.Ordinal)) target.IsReady = false;
+			string teamName = LobbyLimits.Sanitize(command.TeamName, LobbyLimits.MaximumTeamNameLength);
+			int team = ResolveTeamNumber(teamName, target.Slot);
+			if (CanSeatPlayTeam(target.Slot, team, target.Team))
+			{
+				target.TeamName = teamName;
+				target.Team = team;
+				if (team == 0) target.IsReady = false;
+			}
+			else
+			{
+				_log.Write($"seat {target.Slot} was offered team '{teamName}', which needs a free player seat this lobby does not have; the order is refused");
+			}
 		}
 
 		if (command.ColorRgba != 0 && !IsColorLocked(target.Slot) && !IsColorHeldByAnotherSeat(target.Slot, command.ColorRgba)) target.ColorRgba = command.ColorRgba;
@@ -647,10 +756,16 @@ public class ServerLobby
 
 	private void AddComputer(int adminSlot)
 	{
-		int slot = FindFreeSlot(0);
+		if (PlayingSeatCount >= _maximumPlayers)
+		{
+			AddSystemChat($"Cannot add an AI player: all {_maximumPlayers} player seats are taken.");
+			return;
+		}
+
+		int slot = FindFreePlayingSlot(0);
 		if (slot <= 0)
 		{
-			AddSystemChat($"Cannot add an AI player: all {_maximumPlayers} playable slots are taken.");
+			AddSystemChat($"Cannot add an AI player: all {_maximumPlayers} player seats are taken.");
 			return;
 		}
 
@@ -727,6 +842,37 @@ public class ServerLobby
 		BroadcastState();
 	}
 
+	/// <summary>
+	///     Asks the lobby's map whether the host must read a warning before the match starts, which is how a map stops a
+	///     start its seats make unfair. A map that declines or answers nothing lets the start through.
+	/// </summary>
+	/// <param name="warning">The text the host has to accept, or empty when the map has nothing to warn about.</param>
+	/// <returns>Whether the host must accept a warning first.</returns>
+	private bool TryDescribeStartWarning(out string warning)
+	{
+		warning = string.Empty;
+
+		string? described = _readStartWarning();
+		if (string.IsNullOrWhiteSpace(described)) return false;
+
+		warning = LobbyLimits.Sanitize(described, LobbyLimits.MaximumStartWarningLength);
+		return warning.Length > 0;
+	}
+
+	/// <summary>
+	///     Sends the map's start warning to the host alone, because the host is the only player who can start or abandon
+	///     the match it warns about.
+	/// </summary>
+	/// <param name="peerId">The host's connection.</param>
+	/// <param name="warning">The text the host has to accept.</param>
+	private void SendStartWarning(int peerId, string warning)
+	{
+		_log.Write($"the lobby's map asks its host to read a warning before the match starts; the countdown waits for it");
+
+		var message = new LobbyStartWarningMessage { Message = warning };
+		_send(peerId, NetworkFrameKind.LobbyStartWarning, MemoryPackSerializer.Serialize(message), FrameDelivery.Reliable);
+	}
+
 	private void StartCountdown(int starterSlot, bool ignoreReadiness)
 	{
 		if (_countdownActive) return;
@@ -750,19 +896,20 @@ public class ServerLobby
 		if (string.IsNullOrEmpty(_mapName)) return "This lobby has no map to play.";
 		if (!Directory.Exists(_mapFolder)) return "The lobby's map folder is no longer available.";
 
-		bool hasHuman = false;
+		bool hasPlayingPlayer = false;
 		foreach (LobbySeat seat in _seats.Values)
 		{
 			if (seat.IsComputer) continue;
 			if (seat.IsDisconnected) continue;
+			if (seat.Team < 1) continue;
 
-			hasHuman = true;
+			hasPlayingPlayer = true;
 			if (!seat.IsMapReady) return "Some players are still downloading the map. Wait for them or remove them before starting the game.";
 			if (!seat.IsLoadReady) return "Some players are still loading the match. Wait for them or remove them before starting the game.";
 			if (!ignoreReadiness && !seat.IsHost && !seat.IsReady) return "Not all players are ready to start.";
 		}
 
-		return hasHuman ? null : "A match needs at least one connected player.";
+		return hasPlayingPlayer ? null : "A match needs at least one connected player.";
 	}
 
 	private string? StartMatch()
@@ -775,7 +922,7 @@ public class ServerLobby
 		var sessionSeats = new Dictionary<string, int>(_seats.Count, StringComparer.Ordinal);
 		foreach (LobbySeat seat in _seats.Values)
 		{
-			roster.Add(new MatchRosterSeat(seat.Slot, seat.Name, seat.Team, seat.TeamName, seat.IsComputer));
+			roster.Add(new MatchRosterSeat(seat.Slot, seat.AccountId, seat.Name, seat.Team, seat.TeamName, seat.IsComputer));
 			if (!seat.IsComputer && seat.SessionToken.Length > 0) sessionSeats[seat.SessionToken] = seat.Slot;
 			if (!seat.IsComputer && !seat.IsDisconnected && seat.PeerId > 0) assignments.Add((seat.PeerId, seat.Slot));
 		}
@@ -891,6 +1038,7 @@ public class ServerLobby
 		var line = new LobbyChatMessage
 		{
 			SenderPeerId = sender.PeerId,
+			SenderAccountId = sender.AccountId,
 			SenderName = sender.Name,
 			Message = text,
 			TimestampUtcTicks = DateTime.UtcNow.Ticks
@@ -966,8 +1114,9 @@ public class ServerLobby
 		return false;
 	}
 
-	private int FindFreeSlot(int preferredSlot)
+	private int FindFreePlayingSlot(int preferredSlot)
 	{
+		if (PlayingSeatCount >= _maximumPlayers) return -1;
 		if (preferredSlot > 0 && preferredSlot <= _maximumPlayers && !_seats.ContainsKey(preferredSlot)) return preferredSlot;
 
 		for (int slot = 1; slot <= _maximumPlayers; slot++)
@@ -976,6 +1125,33 @@ public class ServerLobby
 		}
 
 		return -1;
+	}
+
+	/// <summary>
+	///     Finds a seat a spectator may hold. Spectators sit outside the player seats, so the seats above the player count
+	///     are offered first and the player seats are left for players.
+	/// </summary>
+	private int FindFreeSpectatorSlot()
+	{
+		for (int slot = _maximumPlayers + 1; slot <= LobbyLimits.MaximumSeats; slot++)
+		{
+			if (!_seats.ContainsKey(slot)) return slot;
+		}
+
+		return -1;
+	}
+
+	/// <summary>
+	///     Whether the seat may hold a team. A seat on team zero is a spectator, which takes no player seat and so is always
+	///     allowed; a seat that plays has to sit inside the player seats and has to find one free.
+	/// </summary>
+	private bool CanSeatPlayTeam(int slot, int team, int heldTeam)
+	{
+		if (team < 1) return true;
+		if (heldTeam >= 1) return true;
+		if (slot > _maximumPlayers) return false;
+
+		return PlayingSeatCount < _maximumPlayers;
 	}
 
 	private string ResolveJoinTeamName()
@@ -1026,15 +1202,38 @@ public class ServerLobby
 		return false;
 	}
 
+	/// <summary>
+	///     Leaves a name alone unless another seat already holds it, in which case this seat's number is appended. Two peers
+	///     that never signed in, or that share a Steam persona name, would otherwise be described by the same string in the
+	///     roster and in chat.
+	/// </summary>
+	private string MakeNameDistinct(string name, int slot)
+	{
+		if (string.IsNullOrEmpty(name)) return name;
+
+		foreach (var pair in _seats)
+		{
+			if (pair.Key == slot) continue;
+			if (!string.Equals(pair.Value.Name, name, StringComparison.OrdinalIgnoreCase)) continue;
+
+			string suffix = $" {slot}";
+			return LobbyLimits.Sanitize(name, LobbyLimits.MaximumPlayerNameLength - suffix.Length) + suffix;
+		}
+
+		return name;
+	}
+
 	private static string DefaultName(string? name, int slot, bool isHost)
 	{
-		string sanitized = LobbyLimits.Sanitize(name, LobbyLimits.MaximumPlayerNameLength);
+		string sanitized = LobbyLimits.SanitizeDisplayName(name);
 		if (sanitized.Length > 0) return sanitized;
 		return isHost ? "Host" : $"Player {slot}";
 	}
 
 	private static int ResolveTeamNumber(string? teamName, int slot)
 	{
+		if (string.Equals(teamName, LobbyLimits.SpectatorTeamName, StringComparison.Ordinal)) return 0;
+
 		if (!string.IsNullOrWhiteSpace(teamName) && teamName.StartsWith("Team ", StringComparison.Ordinal)
 			&& int.TryParse(teamName.AsSpan(5), System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int team) && team > 0)
 		{

@@ -61,6 +61,20 @@ public class ServerLobbyScript : IDisposable
 	public bool HandlesLobby => _host.LobbyInitHandled;
 
 	/// <summary>
+	///     Asks the map whether the lobby's host must read a warning before the match starts, which is the map's chance to
+	///     stop a start its seats make unfair. A map that brought no script, or answered nothing, has no warning.
+	/// </summary>
+	/// <param name="message">The warning the map wants the host to read, or empty when there is none.</param>
+	/// <returns>Whether the map asks for a warning.</returns>
+	public bool TryGetStartWarning(out string message)
+	{
+		message = string.Empty;
+		if (_disposed) return false;
+
+		return _host.TryGetLobbyStartWarning(out message);
+	}
+
+	/// <summary>
 	///     Runs one lobby tick. The roster is published before the script runs, so what it reads is the lobby as it stands
 	///     this tick rather than as it stood last tick.
 	/// </summary>

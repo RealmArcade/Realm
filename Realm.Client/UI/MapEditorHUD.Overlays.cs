@@ -1035,18 +1035,18 @@ namespace Realm.Client.UI
 		{
 			if (GameContext.AssetIndexService.IsIndexVersionMismatch())
 			{
-				_ = ShowAssetIndexRepairModalAsync(() => { EstablishLaunchSavedState(() => { CheckCreatorRegistrationAndPrompt(); }); });
+				_ = ShowAssetIndexRepairModalAsync(() => EstablishLaunchSavedState());
 				return;
 			}
 
 			var verification = GameContext.AssetIndexService.VerifyIndex();
 			if (verification.IsHealthy)
 			{
-				EstablishLaunchSavedState(() => { CheckCreatorRegistrationAndPrompt(); });
+				EstablishLaunchSavedState();
 				return;
 			}
 
-			_ = RepairFailedAssetIndexEntriesAsync(verification, () => { EstablishLaunchSavedState(() => { CheckCreatorRegistrationAndPrompt(); }); });
+			_ = RepairFailedAssetIndexEntriesAsync(verification, () => EstablishLaunchSavedState());
 		}
 
 		private async Task RepairFailedAssetIndexEntriesAsync(AssetIndexVerificationResult verification, Action onCompleted)
@@ -1176,7 +1176,7 @@ namespace Realm.Client.UI
 
 			var tip = new Label();
 			tip.Name = "Tip_Label";
-			tip.Text = TranslationServer.Translate("How Verified Good Reviews are determined:\nA review qualifies as Verified & Good when submitted by a player who:\n  1. Is logged in with a verified account (Steam, Discord, etc.)\n  2. Has played your map for at least 30 minutes across 3 or more completed games\n  3. Gives your map a rating of 3 stars or higher\n\nHost multiplayer lobbies or share your map peer-to-peer to build verified reviews from your community.");
+			tip.Text = TranslationServer.Translate("How Verified Good Reviews are determined:\nA review qualifies as Verified & Good when submitted by a player who:\n  1. Is signed in with Steam\n  2. Has played your map for at least 30 minutes across 3 or more completed games\n  3. Gives your map a rating of 3 stars or higher\n\nHost multiplayer lobbies or share your map peer-to-peer to build verified reviews from your community.");
 			tip.AutowrapMode = TextServer.AutowrapMode.WordSmart;
 			tip.AddThemeFontSizeOverride("font_size", 11);
 			tip.AddThemeColorOverride("font_color", new Color(0.65f, 0.7f, 0.8f));
@@ -1366,6 +1366,7 @@ namespace Realm.Client.UI
 			nameInput.Name = "MapNameInput_LineEdit";
 			nameInput.PlaceholderText = TranslationServer.Translate("Map name");
 			nameInput.CustomMinimumSize = new Vector2(0, 34);
+			UIStyle.ApplyTextInput(nameInput);
 			vbox.AddChild(nameInput);
 
 			var buttons = new HBoxContainer();
@@ -1608,14 +1609,13 @@ namespace Realm.Client.UI
 		}
 
 
-		private async void CheckCreatorRegistrationAndPrompt()
+		private async void CheckCreatorRegistrationAndPrompt(Key key)
 		{
 			if (GetNodeOrNull("AgreementOverlay") != null || GetNodeOrNull("CreatorRegistrationOverlay") != null)
 			{
 				return;
 			}
 
-			var key = GetOrGenerateAuthorshipKey();
 			string pubKeyStr = Convert.ToBase64String(key.PublicKey.Export(KeyBlobFormat.RawPublicKey));
 
 			string seedServerUrl = GameContext.Host != null && GodotObject.IsInstanceValid(GameContext.Lobby) ? GameContext.Lobby.RegistryServerUrl : ServersConfigHelper.GetDefaultServerUrl();
@@ -1638,7 +1638,8 @@ namespace Realm.Client.UI
 			var overlay = CreateCreatorRegistrationOverlay();
 			var vbox = CreateCreatorRegistrationContainer(overlay);
 
-			var lineEdit = new LineEdit { PlaceholderText = TranslationServer.Translate("Enter Username"), Alignment = HorizontalAlignment.Center };
+			var lineEdit = new LineEdit { PlaceholderText = TranslationServer.Translate("Enter Username"), Alignment = HorizontalAlignment.Center, Text = GameContext.Account.DisplayName };
+			UIStyle.ApplyTextInput(lineEdit);
 			vbox.AddChild(lineEdit);
 
 			var errLabel = new Label { HorizontalAlignment = HorizontalAlignment.Center };
@@ -3164,7 +3165,6 @@ namespace Realm.Client.UI
 				}
 
 				overlay.QueueFree();
-				CheckCreatorRegistrationAndPrompt();
 			}, 13);
 			btnAccept.Position = new Vector2(300, 692);
 			btnAccept.Size = new Vector2(165, 42);
@@ -3380,7 +3380,8 @@ namespace Realm.Client.UI
 
 		public void OpenAuthorSignatureDialog()
 		{
-			_authorSignatureDialog?.OpenDialog();
+			_authorSignatureDialog ??= new AuthorSignatureDialog(this);
+			_authorSignatureDialog.OpenForKey(GetSelectedAuthorshipKeyPath());
 		}
 
 

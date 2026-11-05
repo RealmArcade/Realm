@@ -50,6 +50,12 @@ public partial class UIManager : Control
 
 	private MapData _selectedMapData;
 
+	/// <summary>
+	///     Whether the first screen has been built. A screen named before this point races the startup transition that shows
+	///     the main menu, so anything that wants to send the player somewhere waits for it.
+	/// </summary>
+	public bool HasVisibleScreen => _currentScreen != null && GodotObject.IsInstanceValid(_currentScreen);
+
 	public void TransitionToMapDetails(MapData mapData)
 	{
 		_selectedMapData = mapData;
@@ -543,6 +549,7 @@ public partial class UIManager : Control
 		if (_currentScreen is GameOver gameOver)
 		{
 			gameOver.SetStatus(_isVictory);
+			gameOver.ReportMatchResult();
 		}
 		else if (_currentScreen is MapDetails mapDetails)
 		{

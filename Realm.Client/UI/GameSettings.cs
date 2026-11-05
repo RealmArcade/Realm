@@ -57,6 +57,12 @@ public static class GameSettings
 	public static bool DisplayPing { get; set; } = false;
 	public static bool RecordReplays { get; set; } = false;
 	public static bool SeedMapFiles { get; set; } = false;
+
+	/// <summary>
+	///     The name this machine plays under before an account is signed in. It is empty by default, which means the Steam
+	///     persona name is used when Steamworks is available.
+	/// </summary>
+	public static string PlayerName { get; set; } = string.Empty;
 	public static bool DisableShadows { get; private set; } = false;
 	public static bool DisableDayNightLighting { get; private set; } = false;
 	public static bool DisableWeatherEffects { get; private set; } = false;
@@ -86,6 +92,12 @@ public static class GameSettings
 	public static bool OccludedUnitOutlines { get; set; } = true;
 
 	public static string LastOpenedFolder { get; set; } = string.Empty;
+
+	/// <summary>
+	///     The map and version this machine last hosted, so the create-match screen can open on that same choice.
+	/// </summary>
+	public static string LastHostedMapName { get; set; } = string.Empty;
+	public static string LastHostedMapVersion { get; set; } = string.Empty;
 
 	public static int GetSafeScreenIndex()
 	{
@@ -260,6 +272,7 @@ public static class GameSettings
 		DisplayPing = data.DisplayPing;
 		RecordReplays = data.RecordReplays;
 		SeedMapFiles = data.SeedMapFiles;
+		PlayerName = data.PlayerName ?? string.Empty;
 		DisableShadows = data.DisableShadows;
 		DisableDayNightLighting = data.DisableDayNightLighting;
 		DisableWeatherEffects = data.DisableWeatherEffects;
@@ -268,6 +281,8 @@ public static class GameSettings
 		OccludedUnitOutlines = data.OccludedUnitOutlines;
 		ShowHealthBars = data.ShowHealthBars;
 		LastOpenedFolder = data.LastOpenedFolder ?? string.Empty;
+		LastHostedMapName = data.LastHostedMapName ?? string.Empty;
+		LastHostedMapVersion = data.LastHostedMapVersion ?? string.Empty;
 
 		ValidateResolution();
 	}
@@ -316,13 +331,16 @@ public static class GameSettings
 			DisplayPing = DisplayPing,
 			RecordReplays = RecordReplays,
 			SeedMapFiles = SeedMapFiles,
+			PlayerName = PlayerName,
 			DisableShadows = DisableShadows,
 			DisableDayNightLighting = DisableDayNightLighting,
 			DisableWeatherEffects = DisableWeatherEffects,
 			FpsLimit = FpsLimit,
 			FloatingCombatText = FloatingCombatText,
 			OccludedUnitOutlines = OccludedUnitOutlines,
-			LastOpenedFolder = LastOpenedFolder
+			LastOpenedFolder = LastOpenedFolder,
+			LastHostedMapName = LastHostedMapName,
+			LastHostedMapVersion = LastHostedMapVersion
 		};
 
 		string json = JsonSerializer.Serialize(data, JsonOptions);

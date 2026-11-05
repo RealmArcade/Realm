@@ -110,6 +110,8 @@ public partial class InGameHUD : Control
 	private Button _btnCenter;
 	private Button _btnSettings;
 	private Button _btnQuitMatch;
+	private Button _btnInstructions;
+	private InstructionsDialog _instructionsDialog;
 	public bool ShowMinimapTerrain => _viewModel.ShowMinimapTerrain;
 	public MinimapColorScheme MinimapColorScheme => _viewModel.MinimapColorScheme;
 
@@ -152,9 +154,9 @@ public partial class InGameHUD : Control
 	private HBoxContainer _unitsContainer;
 
 	private HBoxContainer _statsContainer;
-	private Label _statsLabel;
+	private UnitStatsPanel _unitStatsPanel;
+	private UnitVitalsBars _unitVitalsBars;
 	private VBoxContainer _spellsBox;
-	private VBoxContainer _itemsBox;
 
 	private Vector2 _dragStart;
 	private Vector2 _dragEnd;
@@ -388,8 +390,88 @@ public partial class InGameHUD : Control
 			};
 		}
 
+		SetupInstructionsButton();
 		SetupPauseMatchButton();
 		SetupQuitMatchButton();
+	}
+
+	/// <summary>
+	///     The entry point to the map's own rules reference. The toolbar only offers it once the map has published a page,
+	///     because a menu with nothing in it is not a menu: the authority decides what there is to read, and this button
+	///     reports whether it has anything to show rather than deciding itself.
+	/// </summary>
+	private void SetupInstructionsButton()
+	{
+		if (_btnSettings == null) return;
+
+		_btnInstructions = new Button();
+		_btnInstructions.Name = "BtnInstructions";
+		_btnInstructions.Set("icon_max_width", 0);
+		_btnInstructions.Text = UnicodeIcons.HELP;
+		_btnInstructions.CustomMinimumSize = new Vector2(32, 32);
+		_btnInstructions.SizeFlagsVertical = SizeFlags.ShrinkCenter;
+		_btnInstructions.FocusMode = FocusModeEnum.None;
+		_btnInstructions.Visible = _viewModel.InstructionSections.Count > 0;
+		Font instructionsIconFont = UIStyle.FontAwesome;
+		if (instructionsIconFont != null)
+		{
+			_btnInstructions.AddThemeFontOverride("font", instructionsIconFont);
+		}
+
+		_btnInstructions.AddThemeFontSizeOverride("font_size", 16);
+		_btnInstructions.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
+		_btnInstructions.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
+		_btnInstructions.AddThemeColorOverride("font_pressed_color", UIStyle.ColorCyanGlow);
+		_btnInstructions.AddThemeColorOverride("font_focus_color", UIStyle.ColorGoldDull);
+		_btnInstructions.AddThemeStyleboxOverride("normal", UIStyle.CreateHUDButtonStyle(false, false));
+		_btnInstructions.AddThemeStyleboxOverride("hover", UIStyle.CreateHUDButtonStyle(true, false));
+		_btnInstructions.AddThemeStyleboxOverride("pressed", UIStyle.CreateHUDButtonStyle(false, true));
+		_btnInstructions.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		_btnInstructions.TooltipText = TranslationServer.Translate("Instructions");
+		_btnInstructions.Pressed += OnInstructionsPressed;
+		_btnInstructions.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
+
+		var resourceRow = _btnSettings.GetParent();
+		resourceRow.AddChild(_btnInstructions);
+		resourceRow.MoveChild(_btnInstructions, _btnSettings.GetIndex());
+	}
+
+	private void OnInstructionsPressed()
+	{
+		GameContext.UserInterface?.PlayClickSound();
+
+		if (_instructionsDialog != null && GodotObject.IsInstanceValid(_instructionsDialog))
+		{
+			_instructionsDialog.QueueFree();
+		}
+
+		_instructionsDialog = new InstructionsDialog { Name = "InstructionsDialog" };
+		AddChild(_instructionsDialog);
+		_instructionsDialog.Open(_viewModel.InstructionSections);
+	}
+
+	/// <summary>
+	///     Takes one page the map published for the Instructions menu. Pages keep the order they arrive in, and a page
+	///     whose title is already listed is restated in place, so a rule that changes during a match does not become a
+	///     second entry.
+	/// </summary>
+	public void AddInstructionsSection(string title, string body)
+	{
+		if (string.IsNullOrWhiteSpace(title)) return;
+
+		List<InstructionsSection> sections = _viewModel.InstructionSections;
+		sections.RemoveAll(section => string.Equals(section.Title, title, StringComparison.Ordinal));
+		sections.Add(new InstructionsSection(title, body ?? string.Empty));
+
+		if (_btnInstructions != null && GodotObject.IsInstanceValid(_btnInstructions))
+		{
+			_btnInstructions.Visible = sections.Count > 0;
+		}
+
+		if (_instructionsDialog != null && GodotObject.IsInstanceValid(_instructionsDialog) && _instructionsDialog.Visible)
+		{
+			_instructionsDialog.Refresh(sections);
+		}
 	}
 
 	private Button _btnPauseMatch;
@@ -425,7 +507,7 @@ public partial class InGameHUD : Control
 		_btnPauseMatch.AddThemeStyleboxOverride("hover", UIStyle.CreateHUDButtonStyle(true, false));
 		_btnPauseMatch.AddThemeStyleboxOverride("pressed", UIStyle.CreateHUDButtonStyle(false, true));
 		_btnPauseMatch.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-		_btnPauseMatch.TooltipText = TranslationServer.Translate("Pause Match [P]");
+		_btnPauseMatch.TooltipText = TranslationServer.Translate("Pause Match");
 		_btnPauseMatch.Pressed += OnPauseMatchButtonPressed;
 		_btnPauseMatch.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 
@@ -434,10 +516,26 @@ public partial class InGameHUD : Control
 		resourceRow.MoveChild(_btnPauseMatch, _btnSettings.GetIndex());
 	}
 
+	/// <summary>
+	///     Holds the match for everyone, which is a request the whole lobby cannot undo by accident, so it is asked for
+	///     once before it is sent. Resuming is not: a held match has nothing left to lose by being released. A match with
+	///     nobody else in it holds only the screen pressing the button, so that one is not asked at all.
+	/// </summary>
 	private void OnPauseMatchButtonPressed()
 	{
 		GameContext.UserInterface?.PlayClickSound();
-		GameContext.Host?.TogglePauseRequest();
+
+		if (GameContext.NetworkService?.IsPaused == true || GameContext.Host?.IsSinglePlayerMatch == true)
+		{
+			GameContext.Host?.TogglePauseRequest();
+			return;
+		}
+
+		GameContext.UserInterface?.ShowConfirmationDialog(
+			TranslationServer.Translate("Pause game for everyone?"),
+			() => GameContext.Host?.TogglePauseRequest(),
+			confirmText: "PAUSE",
+			cancelText: "CANCEL");
 	}
 
 	private void RefreshPauseMatchButton()
@@ -448,13 +546,18 @@ public partial class InGameHUD : Control
 		bool paused = network != null && network.IsPaused;
 
 		_btnPauseMatch.Text = paused ? UnicodeIcons.PLAY : UnicodeIcons.PAUSE;
+
+		bool singlePlayer = GameContext.Host?.IsSinglePlayerMatch == true;
 		_btnPauseMatch.TooltipText = paused
-			? TranslationServer.Translate("Resume Match [P]")
-			: string.Format(TranslationServer.Translate("Pause Match [P] - {0} pause(s) left this match"), network?.RemainingPauses ?? 0);
+			? TranslationServer.Translate("Resume Match")
+			: singlePlayer
+				? TranslationServer.Translate("Pause Match")
+				: string.Format(TranslationServer.Translate("Pause Match - {0} pause(s) left this match"), network?.RemainingPauses ?? 0);
 
 		// The cooldown is deliberately left to the authority: the button that could tell a player it is still recharging is
-		// the one it has to press to be told, so only a player with nothing left to spend is stopped here.
-		_btnPauseMatch.Disabled = !paused && network != null && network.RemainingPauses <= 0;
+		// the one it has to press to be told, so only a player with nothing left to spend is stopped here. A match of one
+		// spends nothing, so its button is never taken away.
+		_btnPauseMatch.Disabled = !paused && !singlePlayer && network != null && network.RemainingPauses <= 0;
 	}
 
 	private void SetupQuitMatchButton()
@@ -908,12 +1011,16 @@ public partial class InGameHUD : Control
 
 		_portraitPanelController = new PortraitPanel(
 			_portraitFrame, _selectionFrame, _unitsContainer, _unitButtons, _statsContainer,
-			_statsLabel, _itemsBox,
+			_unitStatsPanel,
 			_productionBox, _productionTitle, _productionProgress, _productionQueueLabel, _queueSlotsContainer,
 			_armyCompositionLabel, GetNode<Label>("BottomConsole/HBox/PortraitFrame/VBox/UnitName"),
 			GetNodeOrNull<TextureRect>("BottomConsole/HBox/PortraitFrame/VBox/PortraitTexture") != null ? GetNode<TextureRect>("BottomConsole/HBox/PortraitFrame/VBox/PortraitTexture") : null
 		);
 		_portraitPanelController.UnitSelectionButtonClicked += OnUnitSelectionButtonClicked;
+
+		_unitVitalsBars = new UnitVitalsBars();
+		_bottomConsole.AddChild(_unitVitalsBars.Root);
+		UpdateBottomConsoleHeight();
 
 		_inventoryPanelController = new InventoryPanel(_inventoryGrid);
 
@@ -973,6 +1080,12 @@ public partial class InGameHUD : Control
 	}
 
 	private const float BaseConsoleHeight = 240f;
+	private const float ConsoleArtworkHeight = 240f;
+	private const float PortraitSlotLeft = 370f;
+	private const float PortraitSlotTop = 75f;
+	private const float PortraitSlotRight = 515f;
+	private const float PortraitSlotBottom = 195f;
+	private const float PortraitNameHeight = 20f;
 
 	private void UpdateBottomConsoleHeight()
 	{
@@ -989,6 +1102,8 @@ public partial class InGameHUD : Control
 			{
 				mat.SetShaderParameter("u_console_size", new Vector2(viewportWidth, proportionalHeight));
 			}
+
+			_unitVitalsBars?.ApplyLayout(proportionalHeight);
 
 			float s = proportionalHeight / 433f;
 			float wLeft = 935f * s;
@@ -1020,19 +1135,22 @@ public partial class InGameHUD : Control
 
 			if (_portraitFrame != null)
 			{
+				float artworkScale = proportionalHeight / ConsoleArtworkHeight;
 				_portraitFrame.AnchorLeft = 0;
 				_portraitFrame.AnchorRight = 0;
 				_portraitFrame.AnchorTop = 0;
 				_portraitFrame.AnchorBottom = 0;
-				_portraitFrame.OffsetLeft = Mathf.Round(660f * s);
-				_portraitFrame.OffsetRight = Mathf.Round(935f * s);
-				_portraitFrame.OffsetTop = Mathf.Round(110f * s);
-				_portraitFrame.OffsetBottom = Mathf.Round(428f * s);
+				_portraitFrame.OffsetLeft = Mathf.Round(PortraitSlotLeft * artworkScale);
+				_portraitFrame.OffsetRight = Mathf.Round(PortraitSlotRight * artworkScale);
+				_portraitFrame.OffsetTop = Mathf.Round(PortraitSlotTop * artworkScale);
+				_portraitFrame.OffsetBottom = Mathf.Round(PortraitSlotBottom * artworkScale);
 
 				var pTexture = _portraitFrame.GetNodeOrNull<TextureRect>("VBox/PortraitTexture");
 				if (pTexture != null)
 				{
-					float portraitSize = Mathf.Round(180f * s);
+					float slotHeight = (PortraitSlotBottom - PortraitSlotTop - PortraitNameHeight) * artworkScale;
+					float slotWidth = (PortraitSlotRight - PortraitSlotLeft) * artworkScale;
+					float portraitSize = Mathf.Round(Mathf.Min(slotWidth, slotHeight));
 					pTexture.CustomMinimumSize = new Vector2(portraitSize, portraitSize);
 				}
 			}
@@ -1048,10 +1166,10 @@ public partial class InGameHUD : Control
 				_selectionFrame.OffsetTop = Mathf.Round(165f * s);
 				_selectionFrame.OffsetBottom = Mathf.Round(415f * s);
 
-				if (_statsLabel != null)
+				if (_unitStatsPanel != null)
 				{
 					float labelW = Mathf.Max(200f, _selectionFrame.OffsetRight - _selectionFrame.OffsetLeft - 20f);
-					_statsLabel.CustomMinimumSize = new Vector2(labelW, 0);
+					_unitStatsPanel.Root.CustomMinimumSize = new Vector2(labelW, 0);
 				}
 			}
 
@@ -1225,18 +1343,8 @@ public partial class InGameHUD : Control
 		statsVBox.SizeFlagsVertical = SizeFlags.ShrinkBegin;
 		statsScroll.AddChild(statsVBox);
 
-		_statsLabel = new Label();
-		_statsLabel.Name = "StatsLabel_Label";
-		_statsLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-		_statsLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		_statsLabel.CustomMinimumSize = new Vector2(300, 0);
-		_statsLabel.Text = TranslationServer.Translate("HP: 100/100\nDamage: 10\nArmor: 2\nSpeed: 5");
-		_statsLabel.AddThemeFontSizeOverride("font_size", 13);
-		_statsLabel.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		_statsLabel.AddThemeConstantOverride("line_spacing", 2);
-		_statsLabel.AddThemeConstantOverride("outline_size", 2);
-		_statsLabel.AddThemeColorOverride("font_outline_color", new Color(0f, 0f, 0f, 0.9f));
-		statsVBox.AddChild(_statsLabel);
+		_unitStatsPanel = new UnitStatsPanel();
+		statsVBox.AddChild(_unitStatsPanel.Root);
 
 		var vScroll = statsScroll.GetVScrollBar();
 		if (vScroll != null)
@@ -1274,35 +1382,6 @@ public partial class InGameHUD : Control
 			scrollTrack.CornerRadiusBottomRight = 3;
 			vScroll.AddThemeStyleboxOverride("scroll", scrollTrack);
 		}
-
-		_itemsBox = new VBoxContainer();
-		_itemsBox.Name = "ItemsBox_VBoxContainer";
-		_itemsBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		_itemsBox.Alignment = BoxContainer.AlignmentMode.Center;
-		_itemsBox.Visible = false;
-		_statsContainer.AddChild(_itemsBox);
-
-		var itemsTitle = new Label();
-		itemsTitle.Name = "ItemsTitle_Label";
-		itemsTitle.Text = TranslationServer.Translate("ITEMS");
-		UIStyle.ApplyTitle(itemsTitle, TranslationServer.Translate("ITEMS"), 12);
-		itemsTitle.AddThemeColorOverride("font_color", UIStyle.ColorBronze);
-		_itemsBox.AddChild(itemsTitle);
-
-		var itemsHBox = new HBoxContainer();
-		itemsHBox.Name = "ItemsHBox_HBoxContainer";
-		itemsHBox.AddThemeConstantOverride("separation", 8);
-		_itemsBox.AddChild(itemsHBox);
-
-		var itemAxe = new TextureRect();
-		itemAxe.Name = "ItemAxe_TextureRect";
-		SetupItemIcon(itemAxe, "res://Assets/UI/battle_axe.webp", "Battle Axe\n+5 Attack Damage (Equipped)");
-		itemsHBox.AddChild(itemAxe);
-
-		var itemShield = new TextureRect();
-		itemShield.Name = "ItemShield_TextureRect";
-		SetupItemIcon(itemShield, "res://Assets/UI/battle_shield.webp", "Battle Shield\n+3 Armor Block (Equipped)");
-		itemsHBox.AddChild(itemShield);
 
 		_productionBox = new VBoxContainer();
 		_productionBox.Name = "ProductionBox_VBoxContainer";
@@ -1364,13 +1443,19 @@ public partial class InGameHUD : Control
 		};
 	}
 
-	private void SetupItemIcon(TextureRect rect, string iconPath, string tooltip)
+	private void UpdateUnitVitalsBars()
 	{
-		rect.Texture = TrimmedTextureLoader.LoadTrimmedTexture(iconPath);
-		rect.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
-		rect.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
-		rect.CustomMinimumSize = new Vector2(60, 60);
-		rect.TooltipText = tooltip;
+		if (_unitVitalsBars == null) return;
+
+		List<SelectedUnitInfo> selectedUnits = _viewModel.SelectedUnits;
+		if (selectedUnits == null || selectedUnits.Count != 1)
+		{
+			_unitVitalsBars.Hide();
+			return;
+		}
+
+		int index = _viewModel.CycleSelectionIndex < selectedUnits.Count ? _viewModel.CycleSelectionIndex : 0;
+		_unitVitalsBars.UpdateSingleSelection(selectedUnits[index]);
 	}
 
 	public void RefreshUI(List<Unit3D> selectedUnits)
@@ -1388,6 +1473,7 @@ public partial class InGameHUD : Control
 		_viewModel.SelectedProp = GameContext.Host?.SelectedProp;
 		_viewModel.UpdateSelectedUnits(selectedUnits);
 		_portraitPanelController?.Update(_viewModel);
+		UpdateUnitVitalsBars();
 		_commandPanelController?.Update(_viewModel);
 		_inventoryPanelController?.Update(_viewModel);
 
@@ -1448,6 +1534,17 @@ public partial class InGameHUD : Control
 		_bottomConsole.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
 		_minimapFrame.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
 		_portraitFrame.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
+		_portraitFrame.ZIndex = -1;
+
+		if (_portraitFrame.GetNodeOrNull<ColorRect>("PortraitBacking") == null)
+		{
+			var portraitBacking = new ColorRect();
+			portraitBacking.Name = "PortraitBacking";
+			portraitBacking.Color = new Color(0.03f, 0.03f, 0.04f, 1.0f);
+			portraitBacking.MouseFilter = MouseFilterEnum.Ignore;
+			_portraitFrame.AddChild(portraitBacking);
+			_portraitFrame.MoveChild(portraitBacking, 0);
+		}
 		_selectionFrame.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
 		_selectionFrame.ClipContents = true;
 		
@@ -1547,6 +1644,7 @@ public partial class InGameHUD : Control
 			_viewModel.UpdateTactical(accumulated);
 			UpdateSelectedUnitVisuals();
 			_portraitPanelController?.Update(_viewModel);
+			UpdateUnitVitalsBars();
 			_commandPanelController?.Update(_viewModel);
 			_inventoryPanelController?.Update(_viewModel);
 			_controlGroupsUIController?.Update();
@@ -1837,7 +1935,6 @@ public partial class InGameHUD : Control
 
 			if (HandleSpaceKey(keyEvent)) return;
 			if (HandleEnterKey(keyEvent)) return;
-			if (HandlePauseKey(keyEvent)) return;
 			if (HandleTildeKey(keyEvent)) return;
 		}
 	}
@@ -1869,17 +1966,6 @@ public partial class InGameHUD : Control
 		if (!IsHudElementVisible(HudElement.Chat, true)) return false;
 
 		_chatPanelController?.ShowChatInput(keyEvent.ShiftPressed);
-		GetViewport().SetInputAsHandled();
-		return true;
-	}
-
-	private bool HandlePauseKey(InputEventKey keyEvent)
-	{
-		if (keyEvent.Keycode != Key.P && keyEvent.Keycode != Key.Pause) return false;
-		if (keyEvent.Echo) return false;
-		if (IsChatActive || GameContext.Host == null) return false;
-
-		GameContext.Host.TogglePauseRequest();
 		GetViewport().SetInputAsHandled();
 		return true;
 	}
@@ -2100,7 +2186,6 @@ public partial class InGameHUD : Control
 					("Enter", "Open Chat (Shift: All Chat)"),
 					("Esc", "Clear Selection / Cancel Targeting"),
 					("F12", "Settings"),
-					("P / Pause", "Pause / Resume Match"),
 					("~ (Tilde)", "Developer Console"),
 				}
 			),

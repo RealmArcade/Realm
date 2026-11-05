@@ -12,16 +12,36 @@ namespace Realm.Client.UI;
 
 public static class MapInfoHelper
 {
+	private const string AssetPackMapType = "AssetPack";
+
 	public static List<MapBriefingDetails> GetAvailableMaps()
 	{
 		var maps = new List<MapBriefingDetails>();
 		var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-		ScanDir("res://Maps", maps, seen);
 		ScanDir("user://maps", maps, seen);
+		AppendBundledPlayableMaps(maps, seen);
 
 		maps.Sort((a, b) => string.Compare(a.DisplayName, b.DisplayName, StringComparison.OrdinalIgnoreCase));
 		return maps;
+	}
+
+	private static void AppendBundledPlayableMaps(List<MapBriefingDetails> maps, HashSet<string> seen)
+	{
+		var bundledMaps = new List<MapBriefingDetails>();
+		ScanDir("res://Maps", bundledMaps, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+
+		foreach (var bundledMap in bundledMaps)
+		{
+			if (IsEditorOnlyMapType(bundledMap.MapType)) continue;
+
+			ProcessMapDetails(bundledMap, maps, seen);
+		}
+	}
+
+	private static bool IsEditorOnlyMapType(string? mapType)
+	{
+		return !string.IsNullOrWhiteSpace(mapType) && string.Equals(mapType.Trim(), AssetPackMapType, StringComparison.OrdinalIgnoreCase);
 	}
 
 	private static bool IsValidDirName(string name) =>
@@ -123,6 +143,9 @@ public static class MapInfoHelper
 			PathName = mapFolder,
 			DisplayName = FormatMapDisplayName(mapFolder),
 			Description = "",
+			SuggestedPlayers = "",
+			HowToPlayObjective = "",
+			Tags = new List<string>(),
 			GameBuildNumber = "v0.0.0",
 			Version = "1.0.0",
 			ManifestHash = "",
@@ -243,9 +266,13 @@ public static class MapInfoHelper
 				PathName = mapName,
 				DisplayName = displayName,
 				Description = description,
+				SuggestedPlayers = metadata.MapProperties?.SuggestedPlayers ?? string.Empty,
+				HowToPlayObjective = metadata.MapProperties?.HowToPlayObjective ?? string.Empty,
+				Tags = ResolveMapTags(manifest, metadata),
 				GameBuildNumber = gameBuildNumber,
 				Version = version,
 				ManifestHash = manifestHash,
+				MapType = metadata.MapProperties?.MapType ?? string.Empty,
 				ThumbnailPath = thumbPath,
 				Attribution_SourceMap = manifest.Attribution_SourceMap ?? new List<string>()
 			};
@@ -344,9 +371,13 @@ public static class MapInfoHelper
 				PathName = mapFolder,
 				DisplayName = displayName,
 				Description = description,
+				SuggestedPlayers = metadata.MapProperties?.SuggestedPlayers ?? string.Empty,
+				HowToPlayObjective = metadata.MapProperties?.HowToPlayObjective ?? string.Empty,
+				Tags = ResolveMapTags(manifest, metadata),
 				GameBuildNumber = gameBuildNumber,
 				Version = version,
 				ManifestHash = manifestHash,
+				MapType = metadata.MapProperties?.MapType ?? string.Empty,
 				ThumbnailPath = thumbPath,
 				Attribution_SourceMap = manifest.Attribution_SourceMap ?? new List<string>()
 			};
@@ -355,6 +386,30 @@ public static class MapInfoHelper
 		catch
 		{
 			return false;
+		}
+	}
+
+	private static List<string> ResolveMapTags(MapManifest manifest, MapMetadata metadata)
+	{
+		var tags = new List<string>();
+		var seenTags = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+		AppendDistinctTags(tags, seenTags, metadata.MapProperties?.Tags);
+		AppendDistinctTags(tags, seenTags, manifest.Tags);
+
+		return tags;
+	}
+
+	private static void AppendDistinctTags(List<string> tags, HashSet<string> seenTags, List<string>? sourceTags)
+	{
+		if (sourceTags == null) return;
+
+		foreach (string sourceTag in sourceTags)
+		{
+			if (string.IsNullOrWhiteSpace(sourceTag)) continue;
+
+			string trimmedTag = sourceTag.Trim();
+			if (seenTags.Add(trimmedTag)) tags.Add(trimmedTag);
 		}
 	}
 

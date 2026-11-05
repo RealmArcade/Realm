@@ -40,10 +40,7 @@ public partial class LobbyBrowser : Control
 	private Button _hostButton;
 	private Button _directConnectButton;
 	private LineEdit _searchBar;
-	private CheckBox _campaignCheck;
-	private CheckBox _meleeCheck;
-	private CheckBox _tutorialCheck;
-	private CheckBox _arcadeCheck;
+	private readonly List<(string Tag, CheckBox CheckBox)> _tagFilters = new();
 	private CheckBox _betaTestingMapsCheck;
 	private VBoxContainer _lobbyListContainer;
 
@@ -79,10 +76,6 @@ public partial class LobbyBrowser : Control
 		AddChild(_directConnectButton);
 
 		_searchBar = GetNode<LineEdit>("SearchBar");
-		_campaignCheck = GetNode<CheckBox>("FilterPanel/VBoxContainer/CampaignCheck");
-		_meleeCheck = GetNode<CheckBox>("FilterPanel/VBoxContainer/MeleeCheck");
-		_tutorialCheck = GetNode<CheckBox>("FilterPanel/VBoxContainer/TutorialCheck");
-		_arcadeCheck = GetNode<CheckBox>("FilterPanel/VBoxContainer/ArcadeCheck");
 		_betaTestingMapsCheck = GetNode<CheckBox>("FilterPanel/VBoxContainer/BetaTestingMapsCheck");
 		_lobbyListContainer = GetNode<VBoxContainer>("LobbyPanel/VBoxContainer/ScrollContainer/LobbyListContainer");
 
@@ -97,6 +90,7 @@ public partial class LobbyBrowser : Control
 
 
 		ApplyStyles();
+		ApplyFestivalLayout();
 		CenterFpsCounter();
 
 
@@ -162,6 +156,14 @@ public partial class LobbyBrowser : Control
 		{
 			_bgPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
 		}
+	}
+
+	private void ApplyFestivalLayout()
+	{
+		_filterPanel.Visible = !BuildFlags.IS_AUTOBATTLE_FESTIVAL_ACTIVE;
+		if (_filterPanel.Visible) return;
+
+		_lobbyPanel.OffsetLeft = 130;
 	}
 
 	private void ApplyFilterPanelStyle()
@@ -240,25 +242,35 @@ public partial class LobbyBrowser : Control
 
 	private void SetupCheckboxes()
 	{
-		_campaignCheck.Text = Tr("Campaign");
-		_meleeCheck.Text = Tr("Melee");
-		_tutorialCheck.Text = Tr("Tutorial");
-		_arcadeCheck.Text = Tr("Arcade");
+		var tagFilterColumn = GetNode<VBoxContainer>("FilterPanel/VBoxContainer/TagFilters");
+		foreach (string tag in MapTagCatalog.MapFilters)
+		{
+			var checkBox = new CheckBox
+			{
+				Name = "TagCheck_" + tag.Replace(" ", string.Empty),
+				Text = MapTagCatalog.GetDisplayName(tag),
+				FocusMode = FocusModeEnum.None
+			};
+			SetupFilterCheckbox(checkBox);
+			tagFilterColumn.AddChild(checkBox);
+			_tagFilters.Add((tag, checkBox));
+		}
+
 		_betaTestingMapsCheck.Text = Tr("Show beta-testing maps");
 		_betaTestingMapsCheck.TooltipText = Tr("Also list lobbies for maps that are still in Beta-Testing and have not been greenlit yet");
 		_betaTestingMapsCheck.ButtonPressed = true;
+		SetupFilterCheckbox(_betaTestingMapsCheck);
+	}
 
-		var checkBoxes = new[] { _campaignCheck, _meleeCheck, _tutorialCheck, _arcadeCheck, _betaTestingMapsCheck };
-		foreach (var cb in checkBoxes)
+	private void SetupFilterCheckbox(CheckBox checkBox)
+	{
+		checkBox.Pressed += () =>
 		{
-			cb.Pressed += () =>
-			{
-				GameContext.UserInterface.PlayClickSound();
-				ApplyFilters();
-			};
-			cb.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
-			UIStyle.ApplyCheckboxStyle(cb);
-		}
+			GameContext.UserInterface.PlayClickSound();
+			ApplyFilters();
+		};
+		checkBox.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
+		UIStyle.ApplyCheckboxStyle(checkBox);
 	}
 
 	private void SetupSearchBar()
@@ -722,10 +734,11 @@ public partial class LobbyBrowser : Control
 	private HashSet<string> GetActiveModes()
 	{
 		var modes = new HashSet<string>();
-		if (_campaignCheck.ButtonPressed) modes.Add("campaign");
-		if (_meleeCheck.ButtonPressed) modes.Add("melee");
-		if (_tutorialCheck.ButtonPressed) modes.Add("tutorial");
-		if (_arcadeCheck.ButtonPressed) modes.Add("arcade");
+		foreach (var (tag, checkBox) in _tagFilters)
+		{
+			if (checkBox.ButtonPressed) modes.Add(tag.ToLowerInvariant());
+		}
+
 		return modes;
 	}
 
@@ -739,8 +752,11 @@ public partial class LobbyBrowser : Control
 		if (_connectionFailed)
 		{
 			var lbl = new Label();
-			lbl.Name = "Lbl_Label";
-			lbl.Text = Tr("⚠️ Failed to connect to the lobby registry server. Please check your internet connection or try again later.");
+			lbl.Name = "RegistryUnavailable_Label";
+			lbl.Text = TranslationServer.Translate("⚠️ Failed to connect to the lobby registry server. Please check your internet connection or try again later.\n\nSingle player against AI bots is always available from the main menu.");
+			lbl.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+			lbl.CustomMinimumSize = new Vector2(760, 0);
+			lbl.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 			lbl.HorizontalAlignment = HorizontalAlignment.Center;
 			lbl.VerticalAlignment = VerticalAlignment.Center;
 			lbl.AddThemeColorOverride("font_color", new Color(0.9f, 0.3f, 0.3f));
@@ -749,13 +765,28 @@ public partial class LobbyBrowser : Control
 		}
 		else if (_filteredLobbies.Count == 0)
 		{
+			bool noLobbiesOnline = _allLobbies.Count == 0;
 			var lbl = new Label();
-			lbl.Name = "Lbl_Label";
-			lbl.Text = Tr("Lobby server connected. No active games online. Host a game to start playing!");
+			lbl.Name = noLobbiesOnline ? "NoLobbiesOnline_Label" : "NoLobbiesMatched_Label";
+			lbl.Text = noLobbiesOnline
+				? TranslationServer.Translate("No lobbies are open right now. Realm is new, so the player base is still growing.\n\nStart a lobby and invite friends, or play single player against AI bots.")
+				: TranslationServer.Translate("No lobbies match your search or filters.");
+			lbl.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+			lbl.CustomMinimumSize = new Vector2(760, 0);
+			lbl.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 			lbl.HorizontalAlignment = HorizontalAlignment.Center;
 			lbl.VerticalAlignment = VerticalAlignment.Center;
 			lbl.AddThemeColorOverride("font_color", new Color(0.75f, 0.75f, 0.8f));
 			lbl.AddThemeFontSizeOverride("font_size", 15);
+
+			if (noLobbiesOnline)
+			{
+				var spacer = new Control();
+				spacer.Name = "NoLobbiesOnline_Spacer";
+				spacer.CustomMinimumSize = new Vector2(0, 50);
+				_lobbyListContainer.AddChild(spacer);
+			}
+
 			_lobbyListContainer.AddChild(lbl);
 		}
 		else

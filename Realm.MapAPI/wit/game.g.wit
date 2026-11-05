@@ -3,6 +3,7 @@
 interface game-api {
     add-buff: func(unit-id: s32, buff-id: string, duration: f32);
     add-computer-player: func(player-index: s32, name: string, team-index: s32) -> bool;
+    add-instructions-section: func(title: string, body: string);
     add-item-to-unit: func(unit-id: s32, item-id: string) -> bool;
     add-item-to-unit-with-charges: func(unit-id: s32, item-id: string, charges: s32) -> bool;
     add-leaderboard-board-row: func(board-id: string, group-player-index: s32, group-title: string, label: string, value: string);
@@ -34,6 +35,7 @@ interface game-api {
     destroy-unit: func(unit-id: s32, execute-despawn-shader: bool, play-death-animation: bool);
     disable-shroud: func();
     draw-line-on-terrain: func(start-x: f32, start-y: f32, end-x: f32, end-y: f32, color-r: f32, color-g: f32, color-b: f32, color-has-color: bool, duration: f32, width: f32);
+    enable-passive-resource-income: func();
     enable-unit-auto-combat: func(unit-id: s32, enabled: bool);
     generate-map-directory: func(map-name: string, target-directory: string);
     get-ability-cooldown: func(unit-id: s32, ability-id: string) -> f32;
@@ -192,6 +194,7 @@ interface game-api {
     set-unit-animations-frozen: func(unit-id: s32, value: bool);
     set-unit-armor: func(unit-id: s32, value: f32);
     set-unit-attack-speed: func(unit-id: s32, value: f32);
+    set-unit-bar-visibility: func(health-bar: bool, mana-bar: bool, level-badge: bool);
     set-unit-color: func(unit-id: s32, color-x: f32, color-y: f32, color-z: f32);
     set-unit-commands-frozen: func(unit-id: s32, value: bool);
     set-unit-custom-data: func(unit-id: s32, key: string, value: string);
@@ -210,6 +213,7 @@ interface game-api {
     set-unit-max-health: func(unit-id: s32, value: f32);
     set-unit-max-mana: func(unit-id: s32, value: f32);
     set-unit-name: func(unit-id: s32, value: string);
+    set-unit-overhead-badge: func(unit-id: s32, value: s32, color-x: f32, color-y: f32, color-z: f32);
     set-unit-owner: func(unit-id: s32, player-index: s32);
     set-unit-range: func(unit-id: s32, value: f32);
     set-unit-route-state: func(unit-id: s32, state: s32);

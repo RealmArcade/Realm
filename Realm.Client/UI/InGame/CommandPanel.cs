@@ -69,6 +69,9 @@ public partial class CommandPanel
 	private int _lastAbilityCount = -1;
 	private int _lastPageIndex = -1;
 	private bool _lastIsBuildSubMenuOpen = false;
+	private int _lastAbilityStateRevision = int.MinValue;
+
+	private const string BuildCommandAbilityId = "ability/build";
 
 	private void ClearCommandGrid()
 	{
@@ -86,6 +89,7 @@ public partial class CommandPanel
 
 		foreach (Node child in _commandGrid.GetChildren())
 		{
+			_commandGrid.RemoveChild(child);
 			child.QueueFree();
 		}
 	}
@@ -214,7 +218,7 @@ public partial class CommandPanel
 	{
 		bool notEnoughMana = currentMana < manaCost;
 		bool isItemDisabled = item.IsDisabled?.Invoke() ?? false;
-		bool disabled = cdRemaining > 0f || notEnoughMana || isItemDisabled;
+		bool disabled = (!item.IgnoresCooldownGate && cdRemaining > 0f) || notEnoughMana || isItemDisabled;
 
 		if (btn.Disabled != disabled) btn.Disabled = disabled;
 
@@ -322,7 +326,8 @@ public partial class CommandPanel
 			|| focusedUnit.UnitId != _lastFocusedUnitId
 			|| focusedUnit.IsUnderConstruction != _lastIsUnderConstruction
 			|| isMobile != _lastIsMobile
-			|| abilityCount != _lastAbilityCount;
+			|| abilityCount != _lastAbilityCount
+			|| GameContext.RegistryService.AbilityStateRevision != _lastAbilityStateRevision;
 
 		bool subMenuChanged = subMenuOpen != _lastIsBuildSubMenuOpen;
 
@@ -341,6 +346,7 @@ public partial class CommandPanel
 			_lastIsMobile = isMobile;
 			_lastAbilityCount = abilityCount;
 			_lastIsBuildSubMenuOpen = subMenuOpen;
+			_lastAbilityStateRevision = GameContext.RegistryService.AbilityStateRevision;
 
 			_activeItems = GetCommandCardItems(focusedUnit, subMenuOpen);
 			UpdateItemHotkeys();
@@ -571,7 +577,7 @@ public partial class CommandPanel
 
 		var label = new Label();
 		label.Name = "Label_Label";
-		label.Text = TranslationServer.Translate("CYCLE");
+		label.Text = TranslationServer.Translate("Next");
 		label.AddThemeFontSizeOverride("font_size", 10);
 		label.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		label.AddThemeColorOverride("font_outline_color", new Color(0f, 0f, 0f, 0.9f));
@@ -873,14 +879,17 @@ public partial class CommandPanel
 			items.Add(CreateStopCommand());
 			items.Add(CreateHoldCommand());
 
-			items.Add(new CommandCardItem
+			if (focusedUnit.Damage > 0f)
 			{
-				Id = "attack",
-				IconPath = "res://Assets/UI/battle_axe.webp",
-				Tooltip = "[A] Attack / Attack-Move — Click enemy to attack, click ground to attack-move",
-				Hotkey = Key.A,
-				Callback = () => GameContext.Host?.EnterCommandTargeting("attack")
-			});
+				items.Add(new CommandCardItem
+				{
+					Id = "attack",
+					IconPath = "res://Assets/UI/battle_axe.webp",
+					Tooltip = "[A] Attack / Attack-Move — Click enemy to attack, click ground to attack-move",
+					Hotkey = Key.A,
+					Callback = () => GameContext.Host?.EnterCommandTargeting("attack")
+				});
+			}
 
 			items.Add(new CommandCardItem
 			{
@@ -900,6 +909,9 @@ public partial class CommandPanel
 				IconPath = "res://Assets/UI/golden_hammers.webp",
 				Tooltip = "[B] Build Structure",
 				Hotkey = Key.B,
+				AbilityId = BuildCommandAbilityId,
+				CasterEntity = focusedUnit.Entity,
+				IgnoresCooldownGate = true,
 				Callback = () => GameContext.InGameHud?.EnterBuildSubMenu()
 			});
 		}

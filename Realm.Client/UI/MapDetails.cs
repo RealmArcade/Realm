@@ -384,7 +384,7 @@ public partial class MapDetails : Control
 		ApplyWrapperStyles();
 		ApplyTextStyles();
 
-		Realm.Client.Utils.UIHelper.SetupPillarButton(_backButton, "◀ BACK", () => GameContext.UserInterface.TransitionTo(GameScreen.MapDiscovery));
+		UIStyle.ApplyBackButton(_backButton, () => GameContext.UserInterface.TransitionTo(GameScreen.MapDiscovery));
 
 		_downloadButton.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
 		_downloadButton.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());

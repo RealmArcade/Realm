@@ -6,8 +6,6 @@ namespace Realm.ListenServer;
 
 public class ServerMapScript : IDisposable
 {
-	private const string PublishRelativePath = "bin/Release/net10.0/wasi-wasm/publish/MapScript.wasm";
-
 	private static readonly string[] ScriptFileNames = ["MapScript.wasm", "CustomMap.wasm"];
 
 	private readonly ServerGameAPI _api;
@@ -83,39 +81,32 @@ public class ServerMapScript : IDisposable
 
 	public ServerGameAPI Api => _api;
 
+	/// <summary>
+	///     Finds the compiled script the map ships. A map carries exactly one, in the single folder the editor publishes
+	///     every configuration into, so the match runs the bytes that were built last rather than the newest of several
+	///     candidates.
+	/// </summary>
+	/// <param name="mapPath">The map folder.</param>
+	/// <param name="wasmPath">The compiled script, or nothing when the map ships none.</param>
+	/// <returns>Whether the map ships a compiled script.</returns>
 	public static bool TryFindScript(string mapPath, out string wasmPath)
 	{
 		wasmPath = string.Empty;
 		if (string.IsNullOrEmpty(mapPath) || !Directory.Exists(mapPath)) return false;
 
-		string published = Path.Combine(mapPath, PublishRelativePath.Replace('/', Path.DirectorySeparatorChar));
-		if (File.Exists(published))
+		string scriptDirectory = Path.Combine(mapPath, "bin", "script");
+		if (!Directory.Exists(scriptDirectory)) return false;
+
+		foreach (string scriptFileName in ScriptFileNames)
 		{
-			wasmPath = published;
+			string candidate = Path.Combine(scriptDirectory, scriptFileName);
+			if (!File.Exists(candidate)) continue;
+
+			wasmPath = candidate;
 			return true;
 		}
 
-		string binDirectory = Path.Combine(mapPath, "bin");
-		if (!Directory.Exists(binDirectory)) return false;
-
-		string? publishedElsewhere = null;
-		string? anyScript = null;
-		foreach (string scriptFileName in ScriptFileNames)
-		{
-			foreach (string candidate in Directory.EnumerateFiles(binDirectory, scriptFileName, SearchOption.AllDirectories))
-			{
-				publishedElsewhere ??= candidate;
-				anyScript = candidate;
-				if (candidate.Replace('\\', '/').Contains("/publish/", StringComparison.OrdinalIgnoreCase))
-				{
-					wasmPath = candidate;
-					return true;
-				}
-			}
-		}
-
-		wasmPath = publishedElsewhere ?? anyScript ?? string.Empty;
-		return wasmPath.Length > 0;
+		return false;
 	}
 
 	public void Dispose()

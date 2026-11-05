@@ -17,6 +17,7 @@ namespace Realm.Client.Network;
 public class PeerSeederManager
 {
 	private ENetMultiplayerPeer? _enetPeer;
+	private MultiplayerPeer? _previousPeer;
 	private CancellationTokenSource? _cts;
 	private bool _isSeeding;
 	private string _seederId = "";
@@ -56,8 +57,8 @@ public class PeerSeederManager
 				return;
 			}
 
+			_previousPeer = GameContext.Lobby.Multiplayer.MultiplayerPeer;
 			GameContext.Lobby.Multiplayer.MultiplayerPeer = _enetPeer;
-			GameContext.Lobby.IsHost = true;
 
 			GD.Print($"[PeerSeeder] Bound ENet seeder listener on port {localPort}");
 		}
@@ -77,20 +78,19 @@ public class PeerSeederManager
 		_isSeeding = false;
 		_cts?.Cancel();
 
+		ENetMultiplayerPeer? seederPeer = _enetPeer;
+		MultiplayerPeer? previousPeer = _previousPeer;
+		_enetPeer = null;
+		_previousPeer = null;
+
 		try
 		{
-			if (GameContext.Lobby != null && GameContext.Lobby.Multiplayer.MultiplayerPeer == _enetPeer)
-			{
-				_enetPeer?.Close();
-				GameContext.Lobby.Multiplayer.MultiplayerPeer = null;
-				GameContext.Lobby.IsHost = false;
-			}
-			else
-			{
-				_enetPeer?.Close();
-			}
+			LobbyManager? lobby = GameContext.Lobby;
+			bool stillInstalled = lobby != null && lobby.Multiplayer.MultiplayerPeer == seederPeer;
 
-			_enetPeer = null;
+			seederPeer?.Close();
+
+			if (stillInstalled && lobby != null) lobby.Multiplayer.MultiplayerPeer = previousPeer;
 		}
 		catch
 		{
@@ -216,13 +216,13 @@ public class PeerSeederManager
 	{
 		if (!GameSettings.SeedMapFiles) return false;
 		if (GameContext.Lobby == null) return false;
+		if (GameContext.Lobby.IsSinglePlayer || GameContext.Lobby.IsGameStarted) return false;
 
-		bool loggedIn = !string.IsNullOrEmpty(GameContext.Lobby.AuthenticatedUsername);
-		if (!loggedIn) return false;
-
+		MultiplayerPeer? activePeer = GameContext.Lobby.Multiplayer.MultiplayerPeer;
 		bool idle = string.IsNullOrEmpty(GameContext.Lobby.ActiveLobbyId) &&
-		            (GameContext.Lobby.Multiplayer.MultiplayerPeer == null ||
-		             GameContext.Lobby.Multiplayer.MultiplayerPeer is OfflineMultiplayerPeer);
+		            (activePeer == null ||
+		             activePeer is OfflineMultiplayerPeer ||
+		             activePeer == _enetPeer);
 		if (!idle) return false;
 
 		bool canHost = GameContext.Lobby.LocalNatType != NatType.Symmetric;

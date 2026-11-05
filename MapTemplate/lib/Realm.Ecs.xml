@@ -823,6 +823,12 @@
             Holds the human-readable display name string for an entity.
             </summary>
         </member>
+        <member name="T:Realm.Ecs.Components.Meta.OverheadBadge">
+            <summary>
+                Carries the number and colour a unit's overhead badge is drawn with, which a map script sets for the units that
+                state a rank above themselves.
+            </summary>
+        </member>
         <member name="T:Realm.Ecs.Components.Meta.PreviousRotationY">
             <summary>
             Stores prior simulation tick rotational azimuth heading around the vertical Y-axis in radians for visual state-snapshot interpolation.
@@ -1469,6 +1475,17 @@
             </code>
             </remarks>
         </member>
+        <member name="M:Realm.Ecs.Replication.INormalizingComponentCodec.Repoint(Realm.Ecs.EcsWorld,Realm.Ecs.Entity,Realm.Ecs.Entity)">
+            <summary>
+                Points the reference this component holds at the unit an identifier now names. It stands beside
+                <see cref="M:Realm.Ecs.Replication.IReplicatedComponentCodec.Apply(Realm.Ecs.EcsWorld,Realm.Ecs.Entity,System.ReadOnlySpan{System.Byte})" /> because a component that carries more than its reference - a
+                build task carries the timings of the work beside the site - cannot be applied from a payload holding only
+                the identifier, and applying the rest of it would state values this screen was never told.
+            </summary>
+            <param name="world">The world the referring unit lives in.</param>
+            <param name="entity">The unit holding the component, which keeps every value it carries except the reference.</param>
+            <param name="reference">The unit the reference resolves to now.</param>
+        </member>
         <member name="M:Realm.Ecs.Replication.ConsumableAttachmentCodec.Apply(Realm.Ecs.EcsWorld,Realm.Ecs.Entity,System.ReadOnlySpan{System.Byte})">
             <summary>
                 Rebuilds what a unit carries. The identifiers are content hashes, so a peer renders the consumable it is told
@@ -1826,6 +1843,34 @@
         </member>
         <member name="P:Realm.Ecs.Services.MapRulesCatalog.PopulationCostProvider">
             <summary>Answers the population a unit costs, which the per-player population totals are summed from.</summary>
+        </member>
+        <member name="P:Realm.Ecs.Services.MapRulesCatalog.PassiveResourceIncomeEnabled">
+            <summary>
+                Whether the match pays its players resources on a timer. Nothing is paid unless a map's rules asked for it,
+                so a map that hands out its own resources pays exactly what its own script pays.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.Services.MapRulesCatalog.UnitHealthBarEnabled">
+            <summary>
+                Whether the match draws each unit's health bar, which is the top bar of its overhead plate. It is on unless
+                a map says otherwise.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.Services.MapRulesCatalog.UnitManaBarEnabled">
+            <summary>
+                Whether the match draws each unit's mana bar, which sits under the health bar. It is off unless a map asks
+                for it, because most units carry no mana worth showing.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.Services.MapRulesCatalog.UnitLevelBadgeEnabled">
+            <summary>Whether the match draws the overhead badge a script gives a unit, which sits left of the bars. It is off by default.</summary>
+        </member>
+        <member name="M:Realm.Ecs.Services.MapRulesCatalog.SetUnitBarVisibility(System.Boolean,System.Boolean,System.Boolean)">
+            <summary>
+                Chooses which parts of a unit's overhead plate the match draws. Any combination is a valid plate: the bars
+                stack when both bars are on, the badge leads them when the level is on, and a map that shows the level alone
+                gets the badge on its own.
+            </summary>
         </member>
         <member name="M:Realm.Ecs.Services.MapRulesCatalog.ApplyCatalogEntry(System.String,System.String,System.String,System.Single)">
             <summary>

@@ -10,7 +10,6 @@ namespace Realm.Client.UI;
 public partial class MinimapOverlay : Control
 {
 	private static Texture2D? _unitCircleTexture;
-	private static Texture2D? _selectionRingTexture;
 	private static Texture2D? _radarTexture;
 	private static Texture2D? _pingTexture;
 	private const float UnitCircleTextureScale = 32f / 30f;
@@ -21,15 +20,6 @@ public partial class MinimapOverlay : Control
 	private static readonly Color FriendlyColor = new Color(0.2f, 0.6f, 1.0f);
 	private static readonly Color SelfColor = new Color(1f, 1f, 1f);
 	private static readonly Color BuildingOutlineColor = new Color(0f, 0f, 0f, 0.6f);
-	private static readonly Color SelectedSpectatorColor = new Color(1.0f, 1.0f, 1.0f);
-	private static readonly Color SelectedEnemyColor = new Color(0.9f, 0.1f, 0.2f);
-	private static readonly Color SelectedAllyColor = new Color(0.22f, 0.54f, 0.26f);
-
-	private static readonly Color PlayerOneColor = new Color(0.2f, 0.6f, 1.0f);
-	private static readonly Color PlayerTwoColor = new Color(0.9f, 0.2f, 0.2f);
-	private static readonly Color PlayerThreeColor = new Color(0.2f, 0.8f, 0.3f);
-	private static readonly Color PlayerFourColor = new Color(0.9f, 0.8f, 0.2f);
-	private static readonly Color DefaultPlayerColor = new Color(0.7f, 0.7f, 0.7f);
 
 	public override void _Draw()
 	{
@@ -70,6 +60,8 @@ public partial class MinimapOverlay : Control
 
 		var circleTexture = GetUnitCircleTexture();
 		bool usesPlayerColors = IsUsingPlayerColors();
+		if (usesPlayerColors) MatchPlayerColorAssignment.RefreshIfSeatsChanged(GameContext.Lobby?.PlayerList);
+
 		float invPhysicalWidth = physicalWidth > 0f ? 1f / physicalWidth : 0f;
 		float invPhysicalDepth = physicalDepth > 0f ? 1f / physicalDepth : 0f;
 
@@ -95,7 +87,6 @@ public partial class MinimapOverlay : Control
 		var drawPos = new Vector2(drawX, drawY);
 
 		DrawUnitIcon(unit, drawPos, circleTexture, usesPlayerColors);
-		DrawSelectionRing(unit, drawPos, unit.IsBuilding ? BuildingSquareEdge : UnitCircleRadius);
 	}
 
 	private static bool IsUsingPlayerColors()
@@ -153,47 +144,7 @@ public partial class MinimapOverlay : Control
 
 	private Color GetPlayerMinimapColor(int playerIndex)
 	{
-		var playerList = GameContext.Lobby?.PlayerList;
-		if (playerList != null)
-		{
-			for (int i = 0; i < playerList.Count; i++)
-			{
-				var p = playerList[i];
-				if (p != null && p.Slot == playerIndex)
-				{
-					return p.Color;
-				}
-			}
-		}
-
-		return playerIndex switch
-		{
-			1 => PlayerOneColor,
-			2 => PlayerTwoColor,
-			3 => PlayerThreeColor,
-			4 => PlayerFourColor,
-			_ => DefaultPlayerColor
-		};
-	}
-
-	private void DrawSelectionRing(Unit3D unit, Vector2 drawPos, float iconSize)
-	{
-		if (!unit.IsSelected) return;
-
-		Color selColor;
-		if (GameContext.PerspectiveFilter.IsSpectating)
-		{
-			selColor = SelectedSpectatorColor;
-		}
-		else
-		{
-			bool isEnemy = GameContext.PerspectiveFilter.IsHostileToObserved(unit.Player);
-			selColor = isEnemy ? SelectedEnemyColor : SelectedAllyColor;
-		}
-
-		float ringRadius = iconSize + 2.5f;
-		var ringRect = new Rect2(drawPos.X - ringRadius, drawPos.Y - ringRadius, ringRadius * 2f, ringRadius * 2f);
-		DrawTextureRect(GetSelectionRingTexture(), ringRect, false, selColor);
+		return MatchPlayerColorAssignment.Get(playerIndex);
 	}
 
 	private void DrawActivePings(Vector2 size)
@@ -209,17 +160,6 @@ public partial class MinimapOverlay : Control
 			var pingRect = new Rect2(drawPos.X - radius, drawPos.Y - radius, radius * 2f, radius * 2f);
 			DrawTextureRect(pingTex, pingRect, false, new Color(1f, 0.1f, 0.1f, 0.8f));
 		}
-	}
-
-	public static Texture2D GetSelectionRingTexture()
-	{
-		if (_selectionRingTexture != null && GodotObject.IsInstanceValid(_selectionRingTexture))
-		{
-			return _selectionRingTexture;
-		}
-
-		_selectionRingTexture = GenerateCircleTexture(strokeWidth: 5f, isSolidCore: false);
-		return _selectionRingTexture;
 	}
 
 	private static ImageTexture GenerateCircleTexture(float strokeWidth, bool isSolidCore)
@@ -392,7 +332,6 @@ public partial class MinimapOverlay : Control
 	public static void ClearCache()
 	{
 		_unitCircleTexture = null;
-		_selectionRingTexture = null;
 		_radarTexture = null;
 		_pingTexture = null;
 	}

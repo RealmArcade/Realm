@@ -44,6 +44,17 @@ public interface IReplicatedComponentCodec
 public interface INormalizingComponentCodec : IReplicatedComponentCodec
 {
 	int ReadReferencedServerEntityId(ReadOnlySpan<byte> source) => -1;
+
+	/// <summary>
+	///     Points the reference this component holds at the unit an identifier now names. It stands beside
+	///     <see cref="IReplicatedComponentCodec.Apply" /> because a component that carries more than its reference - a
+	///     build task carries the timings of the work beside the site - cannot be applied from a payload holding only
+	///     the identifier, and applying the rest of it would state values this screen was never told.
+	/// </summary>
+	/// <param name="world">The world the referring unit lives in.</param>
+	/// <param name="entity">The unit holding the component, which keeps every value it carries except the reference.</param>
+	/// <param name="reference">The unit the reference resolves to now.</param>
+	void Repoint(EcsWorld world, Entity entity, Entity reference) { }
 }
 
 public class ReplicatedComponentCodec<T> : IReplicatedComponentCodec where T : unmanaged
@@ -529,6 +540,18 @@ public class BuildTaskCodec : INormalizingComponentCodec
 	{
 		return source.Length < sizeof(int) ? -1 : MemoryMarshal.Read<int>(source.Slice(0, sizeof(int)));
 	}
+
+	public void Repoint(EcsWorld world, Entity entity, Entity reference)
+	{
+		if (world == null || !world.IsAlive(entity) || !world.Has<BuildTask>(entity)) return;
+
+		ref var held = ref world.Get<BuildTask>(entity);
+		var task = new BuildTask(reference, held.TotalBuildTime)
+		{
+			Progress = held.Progress
+		};
+		world.SetOrAdd(entity, in task);
+	}
 }
 
 public class FollowCodec : INormalizingComponentCodec
@@ -564,6 +587,14 @@ public class FollowCodec : INormalizingComponentCodec
 	public int ReadReferencedServerEntityId(ReadOnlySpan<byte> source)
 	{
 		return source.Length < sizeof(int) ? -1 : MemoryMarshal.Read<int>(source.Slice(0, sizeof(int)));
+	}
+
+	public void Repoint(EcsWorld world, Entity entity, Entity reference)
+	{
+		if (world == null || !world.IsAlive(entity) || !world.Has<Follow>(entity)) return;
+
+		var follow = new Follow(reference);
+		world.SetOrAdd(entity, in follow);
 	}
 }
 
@@ -601,6 +632,14 @@ public class AttackTargetCodec : INormalizingComponentCodec
 	{
 		return source.Length < sizeof(int) ? -1 : MemoryMarshal.Read<int>(source.Slice(0, sizeof(int)));
 	}
+
+	public void Repoint(EcsWorld world, Entity entity, Entity reference)
+	{
+		if (world == null || !world.IsAlive(entity) || !world.Has<AttackTarget>(entity)) return;
+
+		var target = new AttackTarget(reference);
+		world.SetOrAdd(entity, in target);
+	}
 }
 
 public class LastAttackerCodec : INormalizingComponentCodec
@@ -636,6 +675,14 @@ public class LastAttackerCodec : INormalizingComponentCodec
 	public int ReadReferencedServerEntityId(ReadOnlySpan<byte> source)
 	{
 		return source.Length < sizeof(int) ? -1 : MemoryMarshal.Read<int>(source.Slice(0, sizeof(int)));
+	}
+
+	public void Repoint(EcsWorld world, Entity entity, Entity reference)
+	{
+		if (world == null || !world.IsAlive(entity) || !world.Has<LastAttacker>(entity)) return;
+
+		var attacker = new LastAttacker(reference);
+		world.SetOrAdd(entity, in attacker);
 	}
 }
 
@@ -720,6 +767,7 @@ public static class ReplicatedComponents
 		Register(new ReplicatedComponentCodec<AbilityState>(ReplicatedScope.Unit));
 		Register(new ReplicatedComponentCodec<ScriptZonesState>(ReplicatedScope.World));
 		Register(new ReplicatedComponentCodec<ScriptPlayersState>(ReplicatedScope.World));
+		Register(new ReplicatedComponentCodec<PlayerRelationshipMatrix>(ReplicatedScope.World));
 		Register(new ReplicatedComponentCodec<ProductionQueue>(ReplicatedScope.Unit));
 		Register(new PlayerTeamCodec());
 		Register(new ReplicatedComponentCodec<Mana>(ReplicatedScope.Unit));
@@ -735,6 +783,7 @@ public static class ReplicatedComponents
 		Register(new TagComponentCodec<CommandsFrozen>(ReplicatedScope.Unit));
 		Register(new TagComponentCodec<AnimationsFrozen>(ReplicatedScope.Unit));
 		Register(new TagComponentCodec<OverheadBarsHidden>(ReplicatedScope.Unit));
+		Register(new ReplicatedComponentCodec<OverheadBadge>(ReplicatedScope.Unit));
 		Register(new TagComponentCodec<SpellImmune>(ReplicatedScope.Unit));
 		Register(new TagComponentCodec<UnderConstruction>(ReplicatedScope.Unit));
 	}

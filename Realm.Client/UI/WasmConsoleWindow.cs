@@ -157,6 +157,7 @@ public partial class WasmConsoleWindow : Window
 		_commandInput.Name = "CommandInput_LineEdit";
 		_commandInput.PlaceholderText = "Enter command or chat message...";
 		_commandInput.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		UIStyle.ApplyTextInput(_commandInput, 13);
 		_commandInput.TextSubmitted += OnCommandSubmitted;
 		bottomHBox.AddChild(_commandInput);
 
@@ -252,7 +253,7 @@ public partial class WasmConsoleWindow : Window
 				}
 				else if (GodotObject.IsInstanceValid(GameContext.Lobby))
 				{
-					GameContext.Lobby.SendChatMessage(GameContext.Lobby.AuthenticatedUsername ?? "Player", cmd);
+					GameContext.Lobby.SendChatMessage(GameContext.Lobby.PlayerDisplayName, cmd);
 				}
 			}
 			catch (Exception ex)
