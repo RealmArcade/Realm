@@ -268,7 +268,7 @@ public static class MapInfoHelper
 				Description = description,
 				SuggestedPlayers = metadata.MapProperties?.SuggestedPlayers ?? string.Empty,
 				HowToPlayObjective = metadata.MapProperties?.HowToPlayObjective ?? string.Empty,
-				Tags = metadata.MapProperties?.Tags ?? new List<string>(),
+				Tags = ResolveMapTags(manifest, metadata),
 				GameBuildNumber = gameBuildNumber,
 				Version = version,
 				ManifestHash = manifestHash,
@@ -373,7 +373,7 @@ public static class MapInfoHelper
 				Description = description,
 				SuggestedPlayers = metadata.MapProperties?.SuggestedPlayers ?? string.Empty,
 				HowToPlayObjective = metadata.MapProperties?.HowToPlayObjective ?? string.Empty,
-				Tags = metadata.MapProperties?.Tags ?? new List<string>(),
+				Tags = ResolveMapTags(manifest, metadata),
 				GameBuildNumber = gameBuildNumber,
 				Version = version,
 				ManifestHash = manifestHash,
@@ -386,6 +386,30 @@ public static class MapInfoHelper
 		catch
 		{
 			return false;
+		}
+	}
+
+	private static List<string> ResolveMapTags(MapManifest manifest, MapMetadata metadata)
+	{
+		var tags = new List<string>();
+		var seenTags = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+		AppendDistinctTags(tags, seenTags, metadata.MapProperties?.Tags);
+		AppendDistinctTags(tags, seenTags, manifest.Tags);
+
+		return tags;
+	}
+
+	private static void AppendDistinctTags(List<string> tags, HashSet<string> seenTags, List<string>? sourceTags)
+	{
+		if (sourceTags == null) return;
+
+		foreach (string sourceTag in sourceTags)
+		{
+			if (string.IsNullOrWhiteSpace(sourceTag)) continue;
+
+			string trimmedTag = sourceTag.Trim();
+			if (seenTags.Add(trimmedTag)) tags.Add(trimmedTag);
 		}
 	}
 

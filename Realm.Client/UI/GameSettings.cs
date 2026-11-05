@@ -93,6 +93,12 @@ public static class GameSettings
 
 	public static string LastOpenedFolder { get; set; } = string.Empty;
 
+	/// <summary>
+	///     The map and version this machine last hosted, so the create-match screen can open on that same choice.
+	/// </summary>
+	public static string LastHostedMapName { get; set; } = string.Empty;
+	public static string LastHostedMapVersion { get; set; } = string.Empty;
+
 	public static int GetSafeScreenIndex()
 	{
 		int screen = DisplayServer.WindowGetCurrentScreen();
@@ -275,6 +281,8 @@ public static class GameSettings
 		OccludedUnitOutlines = data.OccludedUnitOutlines;
 		ShowHealthBars = data.ShowHealthBars;
 		LastOpenedFolder = data.LastOpenedFolder ?? string.Empty;
+		LastHostedMapName = data.LastHostedMapName ?? string.Empty;
+		LastHostedMapVersion = data.LastHostedMapVersion ?? string.Empty;
 
 		ValidateResolution();
 	}
@@ -330,7 +338,9 @@ public static class GameSettings
 			FpsLimit = FpsLimit,
 			FloatingCombatText = FloatingCombatText,
 			OccludedUnitOutlines = OccludedUnitOutlines,
-			LastOpenedFolder = LastOpenedFolder
+			LastOpenedFolder = LastOpenedFolder,
+			LastHostedMapName = LastHostedMapName,
+			LastHostedMapVersion = LastHostedMapVersion
 		};
 
 		string json = JsonSerializer.Serialize(data, JsonOptions);

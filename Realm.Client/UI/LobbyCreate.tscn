@@ -101,15 +101,11 @@ layout_mode = 2
 theme_override_constants/separation = 24
 alignment = 1
 
-[node name="MapSelectLabel" type="Label" parent="CentralPanel/ContentContainer"]
-layout_mode = 2
-text = "SELECT MAP"
-horizontal_alignment = 1
-
-[node name="MapSelectButton" type="OptionButton" parent="CentralPanel/ContentContainer"]
-custom_minimumSize = Vector2(400, 50)
+[node name="MapLibraryButton" type="Button" parent="CentralPanel/ContentContainer"]
 layout_mode = 2
 size_flags_horizontal = 4
+text = "SELECT MAP"
+flat = true
 focus_mode = 0
 
 [node name="BriefingPanel" type="PanelContainer" parent="CentralPanel/ContentContainer"]
