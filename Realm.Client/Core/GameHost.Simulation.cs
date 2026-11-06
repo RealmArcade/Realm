@@ -52,7 +52,7 @@ public partial class GameHost
 
 		PlayDeathEffects(unit, executeDespawnShader, playDeathAnimation, unitId);
 
-		GD.Print($"Unit {unit.Name} died.");
+		GameLog.LogToConsole($"Unit {unit.Name} died.");
 	}
 
 	private void RemoveUnitFromCollections(Unit3D unit)
