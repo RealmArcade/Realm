@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Godot;
 using Environment = System.Environment;
+using Realm.Client.Services;
 
 namespace Realm.Client.Utils;
 
@@ -206,11 +207,11 @@ public static class ProcessPerformanceOptimizer
 	{
 		try
 		{
-			GD.Print(message);
+			GameLog.LogToConsole(message);
 		}
 		catch
 		{
-			Console.WriteLine(message);
+			GameLog.LogToConsole(message);
 		}
 	}
 }
