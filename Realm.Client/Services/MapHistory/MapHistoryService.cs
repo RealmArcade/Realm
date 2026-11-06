@@ -135,7 +135,7 @@ public class MapHistoryService
 			}
 			catch (Exception exception)
 			{
-				GD.PrintErr($"[MapHistoryService] Could not read the stored histories: {exception.Message}");
+				GameLog.LogError($"[MapHistoryService] Could not read the stored histories: {exception.Message}");
 				stores = Array.Empty<MapHistoryStoreInfo>();
 			}
 
@@ -270,7 +270,7 @@ public class MapHistoryService
 		}
 		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
 		{
-			GD.PrintErr($"[MapHistoryService] Could not measure '{directoryPath}': {exception.Message}");
+			GameLog.LogError($"[MapHistoryService] Could not measure '{directoryPath}': {exception.Message}");
 		}
 
 		return totalBytes;
@@ -332,7 +332,7 @@ public class MapHistoryService
 		}
 		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
 		{
-			GD.PrintErr($"[MapHistoryService] Could not remove '{directoryPath}': {exception.Message}");
+			GameLog.LogError($"[MapHistoryService] Could not remove '{directoryPath}': {exception.Message}");
 		}
 	}
 
@@ -350,7 +350,7 @@ public class MapHistoryService
 		}
 		catch (AggregateException exception)
 		{
-			GD.PrintErr($"[MapHistoryService] A queued history operation did not finish cleanly: {exception.GetBaseException().Message}");
+			GameLog.LogError($"[MapHistoryService] A queued history operation did not finish cleanly: {exception.GetBaseException().Message}");
 		}
 	}
 
@@ -372,7 +372,7 @@ public class MapHistoryService
 		}
 		catch (Exception exception)
 		{
-			GD.PrintErr($"[MapHistoryService] Could not read this map's version history: {exception.Message}");
+			GameLog.LogError($"[MapHistoryService] Could not read this map's version history: {exception.Message}");
 			return false;
 		}
 	}
@@ -396,7 +396,7 @@ public class MapHistoryService
 			}
 			catch (Exception exception)
 			{
-				GD.PrintErr($"[MapHistoryService] Could not read versions: {exception.Message}");
+				GameLog.LogError($"[MapHistoryService] Could not read versions: {exception.Message}");
 			}
 
 			onCompleted?.Invoke(versions);
@@ -552,12 +552,12 @@ public class MapHistoryService
 				MapHistoryCleanupResult result = CondenseHistoryInStore(session);
 				if (result.DroppedAnything)
 				{
-					GD.Print($"[MapHistoryService] Condensed {result.DroppedVersionCount} older version(s) of {layout.StoreKey}.");
+					GameLog.LogToConsole($"[MapHistoryService] Condensed {result.DroppedVersionCount} older version(s) of {layout.StoreKey}.");
 				}
 			}
 			catch (Exception exception) when (exception is IOException or InvalidOperationException)
 			{
-				GD.PrintErr($"[MapHistoryService] Could not clean up {storeDirectory}: {exception.Message}");
+				GameLog.LogError($"[MapHistoryService] Could not clean up {storeDirectory}: {exception.Message}");
 			}
 		}
 	}
@@ -582,7 +582,7 @@ public class MapHistoryService
 		}
 		catch (Exception exception)
 		{
-			GD.PrintErr($"[MapHistoryService] Could not clean up this map's history: {exception.Message}");
+			GameLog.LogError($"[MapHistoryService] Could not clean up this map's history: {exception.Message}");
 		}
 
 		MapHistoryStatus status = BuildStatus(session.Layout, mapDirectory);
@@ -951,7 +951,7 @@ public class MapHistoryService
 		MapHistoryCleanupResult cleanup = MakeHistoryLessGranularInStore(session, repository, state, plan);
 		if (cleanup.DroppedAnything)
 		{
-			GD.Print($"[MapHistoryService] Condensed {cleanup.DroppedVersionCount} older version(s) while saving.");
+			GameLog.LogToConsole($"[MapHistoryService] Condensed {cleanup.DroppedVersionCount} older version(s) while saving.");
 		}
 	}
 
@@ -1114,7 +1114,7 @@ public class MapHistoryService
 		if (!_nativeLibraryFailureReported)
 		{
 			_nativeLibraryFailureReported = true;
-			GD.PrintErr($"[MapHistoryService] libgit2 could not be loaded, so the version history is unavailable: {rootCause.Message}");
+			GameLog.LogError($"[MapHistoryService] libgit2 could not be loaded, so the version history is unavailable: {rootCause.Message}");
 		}
 
 		return _messages.HistoryUnavailableInBuild;
@@ -1135,7 +1135,7 @@ public class MapHistoryService
 				}
 				catch (Exception exception)
 				{
-					GD.PrintErr($"[MapHistoryService] History operation failed: {exception}");
+					GameLog.LogError($"[MapHistoryService] History operation failed: {exception}");
 				}
 				finally
 				{
@@ -1418,7 +1418,7 @@ public class MapHistoryService
 			}
 			catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
 			{
-				GD.PrintErr($"[MapHistoryService] Could not put '{touchedPath}' back: {exception.Message}");
+				GameLog.LogError($"[MapHistoryService] Could not put '{touchedPath}' back: {exception.Message}");
 			}
 		}
 
@@ -1439,7 +1439,7 @@ public class MapHistoryService
 		}
 		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
 		{
-			GD.PrintErr($"[MapHistoryService] Could not remove '{absolutePath}': {exception.Message}");
+			GameLog.LogError($"[MapHistoryService] Could not remove '{absolutePath}': {exception.Message}");
 		}
 	}
 
@@ -1494,7 +1494,7 @@ public class MapHistoryService
 		}
 		catch (Exception exception) when (exception is IOException or JsonException)
 		{
-			GD.PrintErr($"[MapHistoryService] Could not read the history state: {exception.Message}");
+			GameLog.LogError($"[MapHistoryService] Could not read the history state: {exception.Message}");
 		}
 
 		return new MapHistoryStateFile();
