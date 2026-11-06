@@ -65,7 +65,7 @@ public static class OpencodeCliInstaller
 
 		try
 		{
-			GD.Print("[OpencodeCliInstaller] opencode CLI not found. Downloading the managed CLI...");
+			GameLog.LogToConsole("[OpencodeCliInstaller] opencode CLI not found. Downloading the managed CLI...");
 			Directory.CreateDirectory(managedExecutableDirectory);
 			Directory.CreateDirectory(downloadDirectory);
 
@@ -73,7 +73,7 @@ public static class OpencodeCliInstaller
 			string downloadUrl = ResolveReleaseAssetUrl(releaseJson);
 			if (string.IsNullOrEmpty(downloadUrl))
 			{
-				GD.PrintErr($"[OpencodeCliInstaller] Release asset '{WindowsReleaseAssetName}' was not found in the latest opencode release.");
+				GameLog.LogError($"[OpencodeCliInstaller] Release asset '{WindowsReleaseAssetName}' was not found in the latest opencode release.");
 				return false;
 			}
 
@@ -82,17 +82,17 @@ public static class OpencodeCliInstaller
 			string extractedExecutablePath = ExtractExecutable(archivePath, downloadDirectory);
 			if (string.IsNullOrEmpty(extractedExecutablePath))
 			{
-				GD.PrintErr($"[OpencodeCliInstaller] '{ExecutableFileName}' was not found inside the downloaded opencode archive.");
+				GameLog.LogError($"[OpencodeCliInstaller] '{ExecutableFileName}' was not found inside the downloaded opencode archive.");
 				return false;
 			}
 
 			File.Move(extractedExecutablePath, managedExecutablePath, overwrite: true);
-			GD.Print($"[OpencodeCliInstaller] opencode CLI installed at {managedExecutablePath}");
+			GameLog.LogToConsole($"[OpencodeCliInstaller] opencode CLI installed at {managedExecutablePath}");
 			return OpencodeCliResolver.IsAvailable();
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[OpencodeCliInstaller] Failed to install opencode CLI: {ex.Message}");
+			GameLog.LogError($"[OpencodeCliInstaller] Failed to install opencode CLI: {ex.Message}");
 			return false;
 		}
 		finally
@@ -162,7 +162,7 @@ public static class OpencodeCliInstaller
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[OpencodeCliInstaller] Failed to clean up '{directoryPath}': {ex.Message}");
+			GameLog.LogError($"[OpencodeCliInstaller] Failed to clean up '{directoryPath}': {ex.Message}");
 		}
 	}
 
