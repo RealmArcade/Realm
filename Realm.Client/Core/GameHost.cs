@@ -3175,6 +3175,10 @@ public partial class GameHost : Node3D
 	private double _lastProbedRenderSeconds;
 	private double _lastProbedPhysicsSeconds;
 
+	private TimeSpan _lastProbedGcPause;
+	private int _lastProbedGcPauseTicks;
+	private long _lastProbedAllocatedBytes = -1;
+
 	public override void _Process(double delta)
 	{
 		long renderStarted = LagProbe.IsEnabled ? LagProbe.Timestamp() : 0L;
@@ -3194,6 +3198,18 @@ public partial class GameHost : Node3D
 			LagProbe.ObserveGauge(LagGauge.ClientGcPauseMilliseconds, GC.GetTotalPauseDuration().TotalMilliseconds, nowSeconds);
 			LagProbe.ObserveGauge(LagGauge.ClientGen0Collections, GC.CollectionCount(0), nowSeconds);
 			LagProbe.ObserveGauge(LagGauge.ClientGen2Collections, GC.CollectionCount(2), nowSeconds);
+
+			// What this frame paid to the collector and what it allocated, both as the frame's own share rather than as a
+			// running total: a total says a match collected for two hundred milliseconds, and only the share says whether the
+			// frame that arrived late was the one that paid for it.
+			TimeSpan gcPaused = GC.GetTotalPauseDuration();
+			if (_lastProbedGcPauseTicks > 0) LagProbe.Add(LagStage.ClientGcPausePerFrameMilliseconds, (gcPaused - _lastProbedGcPause).TotalMilliseconds);
+			_lastProbedGcPause = gcPaused;
+			_lastProbedGcPauseTicks++;
+
+			long allocatedBytes = GC.GetAllocatedBytesForCurrentThread();
+			if (_lastProbedAllocatedBytes >= 0) LagProbe.Add(LagStage.ClientAllocatedKilobytesPerFrame, (allocatedBytes - _lastProbedAllocatedBytes) / 1024d);
+			_lastProbedAllocatedBytes = allocatedBytes;
 
 			_lastProbedRenderSeconds = nowSeconds;
 		}

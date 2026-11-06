@@ -77,14 +77,23 @@ public class SnapshotTimeline
 	public const float MaximumExtrapolationMeters = 0.75f;
 
 	/// <summary>
-	///     How far past its target a starved cursor may be held still, in sequences, rather than drained at the corrected
-	///     rate. A starvation leaves the cursor at the end of the buffer, so the depth this link needs can only be rebuilt by
-	///     time passing without the world advancing: a pause a few sequences wide is that, while one the width of a whole
-	///     buffer is a freeze this rule would be inventing. It covers the depth a measured link settles at on anything up to
-	///     a bad link; a deficit wider than this keeps the gentle drain, because a pause longer than this is worse than the
-	///     slow motion it replaces.
+	///     How far past its target a starved cursor may be drained slowly rather than played at the corrected rate, in
+	///     sequences. A starvation leaves the cursor at the end of the buffer, so the depth this link needs can only be
+	///     rebuilt by the world advancing slower than the descriptions arrive; the deficit is what is left over once the
+	///     cursor is back on its target. A burst wider than this is resynchronized instead, because draining it would spend
+	///     seconds playing the world at a speed a player notices as slow rather than as settling.
 	/// </summary>
-	private const int MaximumCatchUpHoldSequences = 8;
+	private const int MaximumCatchUpDrainSequences = 8;
+
+	/// <summary>
+	///     How much of its own speed a starved cursor gives up while it rebuilds the depth this link needs. Stopping the
+	///     clock is the fastest way to rebuild it - the deficit closes at the full publish rate - and it is the only way to
+	///     freeze what is on screen; the cost is that the freeze is as long as the deficit is wide, and at a high round trip
+	///     the deficit is the whole depth the link needs. Giving up a third of the speed rebuilds that depth at a third of
+	///     the publish rate while the units on screen keep moving, so the same room is bought without a moment where the
+	///     match has visibly stopped.
+	/// </summary>
+	private const float CatchUpDrainRateCorrection = 0.34f;
 
 	/// <summary>
 	///     How fast a sample may give back distance the descriptions no longer support, in metres per second. A step past the
@@ -140,6 +149,9 @@ public class SnapshotTimeline
 	private int _delayFloorSequences = MinimumDelaySequences;
 	private int _delayCeilingSequences = InitialCeilingSequences;
 	private bool _isStarved;
+
+	/// <summary>The share of a stall in which the clock could not move at all, which is the part a player sees as a freeze.</summary>
+	private double _starvationStillSeconds;
 
 	public SnapshotTimeline()
 	{
@@ -326,22 +338,26 @@ public class SnapshotTimeline
 			_cursor = target;
 			EndStarvation();
 		}
-		else if (error < 0f && _isStarved && _cursor - target <= MaximumCatchUpHoldSequences)
+		else if (error < 0f && _isStarved && _cursor - target <= MaximumCatchUpDrainSequences)
 		{
 			// A starvation leaves the cursor where the world it could draw stopped, which is the end of the buffer, so the
-			// next description that arrives puts it ahead of the depth this link needs. Easing that back at a fifteenth of
-			// the deficit per sequence kept the depth short - and so the screen starving - for over a second after every
-			// stall. Holding the clock still rebuilds the depth at the rate the target advances, which costs one pause the
-			// width of the deficit instead of a long stretch of slow motion.
+			// next description that arrives puts it ahead of the depth this link needs. Stopping the clock rebuilds that depth
+			// at the full publish rate and freezes the world for exactly as long as the deficit is wide - which at a high
+			// round trip is the whole depth the link needs, and reads as the match cutting out. Draining it instead plays the
+			// world a third slower for the same stretch and hands the buffer the same room, so the player sees units still
+			// moving rather than a match that has stopped.
 			//
 			// This only answers a cursor that ran out of world. A cursor with a description ahead of it that merely has less
 			// room behind it than the link was measured to need is a buffer being consumed as a buffer, and stopping it
 			// there would also be stopping the run-out that tells this screen how deep the link really has to be held.
-			// The starvation stays set for as long as the hold lasts, so the cursor does not creep forward between frames.
-
-			// A window the cursor spent ahead of its target is not a window with room to spare: the buffer was over-drawn,
-			// and the shallowing rule reads a deep buffer as depth this link does not need.
+			// The starvation stays set for as long as the drain lasts, so the cursor does not jump back to full speed the
+			// frame after it starts and then starve again.
 			_cleanWindowsInARow = 0;
+
+			float drainAdvance = delta / MatchTiming.SnapshotIntervalSeconds * (1f - CatchUpDrainRateCorrection);
+			float drained = Math.Min(NewestSequence, _cursor + drainAdvance) - _cursor;
+			_cursor += drained;
+			if (drained <= 0f) _starvationStillSeconds += delta;
 		}
 		else
 		{
@@ -373,6 +389,7 @@ public class SnapshotTimeline
 				}
 
 				_cursor = NewestSequence;
+				_starvationStillSeconds += delta;
 			}
 			else
 			{
@@ -585,15 +602,18 @@ public class SnapshotTimeline
 	/// <summary>
 	///     Records how long a screen spent holding its clock still, which is how long the units it was drawing stood in place.
 	///     The count of stalls says how often the buffer ran out; this says whether any of them lasted long enough to be seen,
-	///     which is the only part of a stall a player can perceive.
+	///     which is the only part of a stall a player can perceive. Only the frames the cursor could not move at all are
+	///     counted, so a stall this screen drains through at a slower speed is not reported as a freeze it never showed.
 	/// </summary>
 	private void EndStarvation()
 	{
 		if (!_isStarved) return;
 
 		_isStarved = false;
-		if (_starvationMeasured) LagProbe.RecordWorst(LagEvent.ClientStarvationHoldMilliseconds, (_timelineSeconds - _starvationStartedSeconds) * 1000d);
+		if (_starvationMeasured) LagProbe.RecordWorst(LagEvent.ClientStarvationHoldMilliseconds, _starvationStillSeconds * 1000d);
+		if (_starvationMeasured) LagProbe.RecordWorst(LagEvent.ClientCatchUpDrainMilliseconds, (_timelineSeconds - _starvationStartedSeconds) * 1000d);
 		_starvationMeasured = false;
+		_starvationStillSeconds = 0d;
 	}
 
 	/// <summary>

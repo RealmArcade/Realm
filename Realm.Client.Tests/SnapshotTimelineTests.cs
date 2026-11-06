@@ -462,7 +462,7 @@ public partial class SnapshotTimelineTests
 	}
 
 	[TestCase]
-	public void AStarvedCursorRebuildsItsDepthInsteadOfPlayingTheWorldSlow()
+	public void AStarvedCursorDrainsItsDeficitInsteadOfFreezingTheWorld()
 	{
 		var timeline = new SnapshotTimeline();
 		timeline.ObserveLink(400f, 0f);
@@ -483,20 +483,30 @@ public partial class SnapshotTimelineTests
 
 		float pinnedCursor = timeline.CursorSequence;
 		int sequencesToRebuild = 0;
+		int stillFrames = 0;
+		int longestStillStretch = 0;
 		while (timeline.NewestSequence - timeline.CursorSequence < timeline.DelaySequences - 0.001f && sequencesToRebuild <= 200)
 		{
+			float cursorBeforeFrame = timeline.CursorSequence;
 			timeline.Advance(Step());
 			sequence++;
 			timeline.AdvanceTo(sequence);
 			timeline.Record(Unit, new Vector3(0f, 0f, 0f), 0f, sequence);
 			sequencesToRebuild++;
 
+			stillFrames = timeline.CursorSequence > cursorBeforeFrame ? 0 : stillFrames + 1;
+			if (stillFrames > longestStillStretch) longestStillStretch = stillFrames;
+
 			Assertions.AssertThat(timeline.CursorSequence >= pinnedCursor)
 				.OverrideFailureMessage($"the cursor moved back from {pinnedCursor:F3} to {timeline.CursorSequence:F3} while rebuilding its depth")
 				.IsTrue();
 		}
 
-		Assertions.AssertThat(sequencesToRebuild <= timeline.DelaySequences + 1)
+		Assertions.AssertThat(longestStillStretch <= 2)
+			.OverrideFailureMessage($"the world stood still for {longestStillStretch} frames in a row while the depth was rebuilt, which is the freeze the drain exists to avoid")
+			.IsTrue();
+
+		Assertions.AssertThat(sequencesToRebuild <= timeline.DelaySequences * 3)
 			.OverrideFailureMessage($"a delay of {timeline.DelaySequences} took {sequencesToRebuild} sequences to come back after a starvation")
 			.IsTrue();
 	}

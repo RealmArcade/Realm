@@ -21,6 +21,8 @@ public enum LagStage
 	ClientDeserializeMilliseconds,
 	ClientApplyMilliseconds,
 	ClientRenderIntervalMilliseconds,
+	ClientGcPausePerFrameMilliseconds,
+	ClientAllocatedKilobytesPerFrame,
 	ClientDescriptionIntervalMilliseconds,
 	ClientPlacementMilliseconds
 }
@@ -62,6 +64,7 @@ public enum LagEvent
 	ClientWorstSkippedSequences,
 	ClientStarvations,
 	ClientStarvationHoldMilliseconds,
+	ClientCatchUpDrainMilliseconds,
 	ClientExtrapolatedSamples,
 	ClientDescriptionsDiscardedByQueue,
 	ClientDescriptionsSuperseded,
