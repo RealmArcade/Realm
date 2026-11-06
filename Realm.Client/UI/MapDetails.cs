@@ -326,13 +326,13 @@ public partial class MapDetails : Control
 		_downloadButton.Disabled = false;
 		if (isDownloaded)
 		{
-			UIStyle.ApplyButtonText(_downloadButton, "PLAY MAP", 18);
+			UIStyle.ApplyButtonText(_downloadButton, TranslationServer.Translate("PLAY MAP"), 18);
 			_downloadSubtitle.Text = Tr("Ready to Play");
 			_downloadSubtitle.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
 		}
 		else
 		{
-			UIStyle.ApplyButtonText(_downloadButton, "DOWNLOAD MAP", 18);
+			UIStyle.ApplyButtonText(_downloadButton, TranslationServer.Translate("DOWNLOAD MAP"), 18);
 			_downloadSubtitle.Text = $"File Size: {_mapData.FileSize}";
 			_downloadSubtitle.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 		}
@@ -1142,7 +1142,7 @@ public partial class MapDetails : Control
 
 		if (!MapAssetManager.Storage.CheckFreeDiskSpaceAcceptingDownloads())
 		{
-			UIStyle.ApplyButtonText(_downloadButton, "RETRY DOWNLOAD", 18);
+			UIStyle.ApplyButtonText(_downloadButton, TranslationServer.Translate("RETRY DOWNLOAD"), 18);
 			_downloadSubtitle.Text = Tr("Insufficient disk space (at least 1% free required).");
 			_downloadSubtitle.AddThemeColorOverride("font_color", new Color(0.9f, 0.3f, 0.3f));
 			return;
@@ -1151,7 +1151,7 @@ public partial class MapDetails : Control
 		_isDownloading = true;
 		_downloadButton.Disabled = true;
 		_downloadProgress = 0.0f;
-		UIStyle.ApplyButtonText(_downloadButton, "Downloading... 0%", 16);
+		UIStyle.ApplyButtonText(_downloadButton, TranslationServer.Translate("Downloading... 0%"), 16);
 		_downloadSubtitle.Text = $"0% ({_mapData.FileSize})";
 		_downloadSubtitle.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 
@@ -1182,13 +1182,13 @@ public partial class MapDetails : Control
 
 		if (success || CheckIfMapAlreadyDownloaded(_mapData))
 		{
-			UIStyle.ApplyButtonText(_downloadButton, "PLAY MAP", 18);
+			UIStyle.ApplyButtonText(_downloadButton, TranslationServer.Translate("PLAY MAP"), 18);
 			_downloadSubtitle.Text = Tr("Ready to Play");
 			_downloadSubtitle.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
 		}
 		else
 		{
-			UIStyle.ApplyButtonText(_downloadButton, "RETRY DOWNLOAD", 18);
+			UIStyle.ApplyButtonText(_downloadButton, TranslationServer.Translate("RETRY DOWNLOAD"), 18);
 			if (!MapAssetManager.Storage.CheckFreeDiskSpaceAcceptingDownloads())
 			{
 				_downloadSubtitle.Text = Tr("Insufficient disk space (at least 1% free required).");

@@ -263,7 +263,7 @@ public partial class StorageMenu : Control
 
 		_selectedTitleLabel = new Label();
 		_selectedTitleLabel.Name = "SelectedTitleLabel_Label";
-		UIStyle.ApplyTitle(_selectedTitleLabel, "Map Title", 22);
+		UIStyle.ApplyTitle(_selectedTitleLabel, TranslationServer.Translate("Map Title"), 22);
 		_selectedTitleLabel.MouseFilter = MouseFilterEnum.Ignore;
 		metaVBox.AddChild(_selectedTitleLabel);
 

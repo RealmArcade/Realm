@@ -299,8 +299,8 @@ public partial class LobbyRoom : Control
 
 
 		UIStyle.ApplyTitle(_lobbyTitle, "LOBBY" + (GameContext.Lobby.IsSinglePlayer ? " (Offline / Single Player)" : ""), 36);
-		UIStyle.ApplyTitle(_playersTitle, "TEAMS & PLAYERS", 20);
-		UIStyle.ApplyTitle(_briefingTitle, "MATCH INFO & BRIEFING", 20);
+		UIStyle.ApplyTitle(_playersTitle, TranslationServer.Translate("TEAMS & PLAYERS"), 20);
+		UIStyle.ApplyTitle(_briefingTitle, TranslationServer.Translate("MATCH INFO & BRIEFING"), 20);
 
 		var playersVBox = GetNodeOrNull<VBoxContainer>("PlayersPanel/VBoxContainer");
 		if (playersVBox != null)
@@ -550,7 +550,7 @@ public partial class LobbyRoom : Control
 
 	private void ApplyHostStartButtonState()
 	{
-		UIStyle.ApplyButtonText(_startButton, "START GAME", 22);
+		UIStyle.ApplyButtonText(_startButton, TranslationServer.Translate("START GAME"), 22);
 		_startButton.Disabled = false;
 		_startButton.Pressed += OnStartPressed;
 	}
@@ -1117,7 +1117,7 @@ public partial class LobbyRoom : Control
 
 		var titleLabel = new Label();
 		titleLabel.Name = "TitleLabel_Label";
-		UIStyle.ApplyTitle(titleLabel, "GAME STARTING", 26);
+		UIStyle.ApplyTitle(titleLabel, TranslationServer.Translate("GAME STARTING"), 26);
 		titleLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		vbox.AddChild(titleLabel);
 
@@ -1146,7 +1146,7 @@ public partial class LobbyRoom : Control
 		cancelBtn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
 		cancelBtn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
 		cancelBtn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-		UIStyle.ApplyButtonText(cancelBtn, "CANCEL", 16);
+		UIStyle.ApplyButtonText(cancelBtn, TranslationServer.Translate("CANCEL"), 16);
 
 		cancelBtn.CustomMinimumSize = new Vector2(180, 48);
 		cancelBtn.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;

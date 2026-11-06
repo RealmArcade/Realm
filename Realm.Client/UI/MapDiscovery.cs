@@ -150,11 +150,11 @@ public partial class MapDiscovery : Control
 		ApplyBackButtonStyle();
 		ApplySearchBarStyle();
 
-		SetupCategoryButton(_btnAll, "ALL MAPS", "All");
-		SetupCategoryButton(_btnFeatured, "FEATURED", "Featured");
-		SetupCategoryButton(_btnTD, "TOWER DEFENSE", "TD");
-		SetupCategoryButton(_btnMelee, "MELEE", "Melee");
-		SetupCategoryButton(_btnCampaign, "CAMPAIGN", "Campaign");
+		SetupCategoryButton(_btnAll, TranslationServer.Translate("ALL MAPS"), "All");
+		SetupCategoryButton(_btnFeatured, TranslationServer.Translate("FEATURED"), "Featured");
+		SetupCategoryButton(_btnTD, TranslationServer.Translate("TOWER DEFENSE"), "TD");
+		SetupCategoryButton(_btnMelee, TranslationServer.Translate("MELEE"), "Melee");
+		SetupCategoryButton(_btnCampaign, TranslationServer.Translate("CAMPAIGN"), "Campaign");
 
 		UpdateButtonHighlight();
 	}

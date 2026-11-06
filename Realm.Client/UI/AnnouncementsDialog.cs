@@ -95,7 +95,7 @@ public partial class AnnouncementsDialog : Control
 		margin.AddChild(column);
 
 		var titleLabel = new Label { Name = "AnnouncementsDialogTitle" };
-		UIStyle.ApplyTitle(titleLabel, "FOLLOW REALM'S DEVELOPMENT", 28);
+		UIStyle.ApplyTitle(titleLabel, TranslationServer.Translate("FOLLOW REALM'S DEVELOPMENT"), 28);
 		titleLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
 		titleLabel.CustomMinimumSize = new Vector2(ContentWidth, 0);
 		titleLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
@@ -129,7 +129,7 @@ public partial class AnnouncementsDialog : Control
 		_subscribeButton.CustomMinimumSize = new Vector2(0, 46);
 		_subscribeButton.AddThemeConstantOverride("icon_max_width", 0);
 		UIStyle.ApplyButtonStyleBoxes(_subscribeButton);
-		UIStyle.ApplyButtonText(_subscribeButton, "SUBSCRIBE", 17);
+		UIStyle.ApplyButtonText(_subscribeButton, TranslationServer.Translate("SUBSCRIBE"), 17);
 		_subscribeButton.Pressed += StartSubscribe;
 		_subscribeButton.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 		_formBox.AddChild(_subscribeButton);
@@ -158,7 +158,7 @@ public partial class AnnouncementsDialog : Control
 		closeButton.AddThemeConstantOverride("icon_max_width", 0);
 		closeButton.FocusMode = FocusModeEnum.None;
 		UIStyle.ApplyButtonStyleBoxes(closeButton);
-		UIStyle.ApplyButtonText(closeButton, "CLOSE", 14);
+		UIStyle.ApplyButtonText(closeButton, TranslationServer.Translate("CLOSE"), 14);
 		closeButton.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
 		closeButton.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
 		closeButton.AddThemeColorOverride("font_pressed_color", UIStyle.ColorCyanGlow);

@@ -183,37 +183,37 @@ public class MapEditorEntityPaletteController
 		_btnChars = new Button();
 		_btnChars.Name = "BtnChars_Button";
 		_btnChars.Set("icon_max_width", 0);
-		UIStyle.SetupButton(_btnChars, "👥 Units", () => SelectCategory("Units"), 12, "Select Units category");
+		UIStyle.SetupButton(_btnChars, TranslationServer.Translate("👥 Units"), () => SelectCategory("Units"), 12, TranslationServer.Translate("Select Units category"));
 		categoryGrid.AddChild(_btnChars);
 
 		_btnBuilds = new Button();
 		_btnBuilds.Name = "BtnBuilds_Button";
 		_btnBuilds.Set("icon_max_width", 0);
-		UIStyle.SetupButton(_btnBuilds, "🏢 Buildings", () => SelectCategory("Buildings"), 12, "Select Buildings category");
+		UIStyle.SetupButton(_btnBuilds, TranslationServer.Translate("🏢 Buildings"), () => SelectCategory("Buildings"), 12, TranslationServer.Translate("Select Buildings category"));
 		categoryGrid.AddChild(_btnBuilds);
 
 		_btnEnv = new Button();
 		_btnEnv.Name = "BtnEnv_Button";
 		_btnEnv.Set("icon_max_width", 0);
-		UIStyle.SetupButton(_btnEnv, "🪵 Resources", () => SelectCategory("Resources"), 12, "Select Resources category");
+		UIStyle.SetupButton(_btnEnv, TranslationServer.Translate("🪵 Resources"), () => SelectCategory("Resources"), 12, TranslationServer.Translate("Select Resources category"));
 		categoryGrid.AddChild(_btnEnv);
 
 		_btnProps = new Button();
 		_btnProps.Name = "BtnProps_Button";
 		_btnProps.Set("icon_max_width", 0);
-		UIStyle.SetupButton(_btnProps, "📦 Props", () => SelectCategory("Props"), 12, "Select Props category");
+		UIStyle.SetupButton(_btnProps, TranslationServer.Translate("📦 Props"), () => SelectCategory("Props"), 12, TranslationServer.Translate("Select Props category"));
 		categoryGrid.AddChild(_btnProps);
 
 		_btnDecals = new Button();
 		_btnDecals.Name = "BtnDecals_Button";
 		_btnDecals.Set("icon_max_width", 0);
-		UIStyle.SetupButton(_btnDecals, "🎨 Decals", () => SelectCategory("Decals"), 12, "Select Decals category");
+		UIStyle.SetupButton(_btnDecals, TranslationServer.Translate("🎨 Decals"), () => SelectCategory("Decals"), 12, TranslationServer.Translate("Select Decals category"));
 		categoryGrid.AddChild(_btnDecals);
 
 		_btnVfx = new Button();
 		_btnVfx.Name = "BtnVfx_Button";
 		_btnVfx.Set("icon_max_width", 0);
-		UIStyle.SetupButton(_btnVfx, "✨ VFX", () => SelectCategory("VFX"), 12, "Select VFX category");
+		UIStyle.SetupButton(_btnVfx, TranslationServer.Translate("✨ VFX"), () => SelectCategory("VFX"), 12, TranslationServer.Translate("Select VFX category"));
 		categoryGrid.AddChild(_btnVfx);
 
 		SelectCategory("Units", triggerAddObject: false);

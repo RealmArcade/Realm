@@ -126,8 +126,8 @@ public partial class LobbyBrowser : Control
 		_searchBar.AddThemeStyleboxOverride("normal", UIStyle.CreateCustomLobbySearchInput(false));
 		_searchBar.AddThemeStyleboxOverride("focus", UIStyle.CreateCustomLobbySearchInput(true));
 
-		UIStyle.ApplyTitle(_browserTitle, "CUSTOM LOBBY BROWSER", 36);
-		UIStyle.ApplyTitle(_filterTitle, "FILTER", 20);
+		UIStyle.ApplyTitle(_browserTitle, TranslationServer.Translate("CUSTOM LOBBY BROWSER"), 36);
+		UIStyle.ApplyTitle(_filterTitle, TranslationServer.Translate("FILTER"), 20);
 
 		ApplyTableHeaderStyle();
 
@@ -293,7 +293,7 @@ public partial class LobbyBrowser : Control
 	{
 		_hostButton.Flat = false;
 		_hostButton.CustomMinimumSize = new Vector2(300, 86);
-		UIStyle.ApplyButtonText(_hostButton, "HOST A GAME", 24);
+		UIStyle.ApplyButtonText(_hostButton, TranslationServer.Translate("HOST A GAME"), 24);
 		_hostButton.AddThemeFontOverride("font", UIStyle.FontNorseBold);
 
 		_hostButton.AddThemeStyleboxOverride("normal", UIStyle.CreateCustomLobbyStartGameButton(false, false));

@@ -3086,7 +3086,7 @@ namespace Realm.Client.UI
 
 			var lblTitle = new Label();
 			lblTitle.Name = "LblTitle_Label";
-			UIStyle.ApplyTitle(lblTitle, "Realm Creator Agreement", 20);
+			UIStyle.ApplyTitle(lblTitle, TranslationServer.Translate("Realm Creator Agreement"), 20);
 			lblTitle.Text = TranslationServer.Translate("Realm Creator Agreement").ToString().ToUpperInvariant();
 			lblTitle.HorizontalAlignment = HorizontalAlignment.Center;
 			lblTitle.Position = new Vector2(140, 48);

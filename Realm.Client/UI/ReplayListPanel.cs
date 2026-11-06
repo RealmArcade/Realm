@@ -63,10 +63,10 @@ public partial class ReplayListPanel : Control
 
 	private void ApplyStyles()
 	{
-		UIStyle.ApplyTitle(_titleLabel, "REPLAYS", 28);
+		UIStyle.ApplyTitle(_titleLabel, TranslationServer.Translate("REPLAYS"), 28);
 		UIStyle.ApplyBackButton(_backBtn, OnBackPressed);
 
-		UIStyle.ApplyButtonText(_deleteAllBtn, "DELETE ALL", 14);
+		UIStyle.ApplyButtonText(_deleteAllBtn, TranslationServer.Translate("DELETE ALL"), 14);
 		_deleteAllBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
 		_deleteAllBtn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
 		_deleteAllBtn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
@@ -290,7 +290,7 @@ public partial class ReplayListPanel : Control
 		playBtn.Name = "PlayBtn_Button";
 		playBtn.CustomMinimumSize = new Vector2(100, 40);
 		playBtn.SizeFlagsVertical = SizeFlags.ShrinkCenter;
-		UIStyle.ApplyButtonText(playBtn, "WATCH", 13);
+		UIStyle.ApplyButtonText(playBtn, TranslationServer.Translate("WATCH"), 13);
 		playBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
 		playBtn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
 		playBtn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
@@ -304,7 +304,7 @@ public partial class ReplayListPanel : Control
 		deleteBtn.Name = "DeleteBtn_Button";
 		deleteBtn.CustomMinimumSize = new Vector2(100, 40);
 		deleteBtn.SizeFlagsVertical = SizeFlags.ShrinkCenter;
-		UIStyle.ApplyButtonText(deleteBtn, "DELETE", 13);
+		UIStyle.ApplyButtonText(deleteBtn, TranslationServer.Translate("DELETE"), 13);
 		deleteBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
 		deleteBtn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
 		deleteBtn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());

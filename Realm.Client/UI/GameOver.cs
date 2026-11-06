@@ -467,7 +467,7 @@ public partial class GameOver : Control
 		btnSubmit.Name = "BtnSubmit_Button";
 		btnSubmit.AddThemeConstantOverride("icon_max_width", 0);
 		btnSubmit.CustomMinimumSize = new Vector2(150, 42);
-		UIStyle.ApplyButtonText(btnSubmit, "Submit", 16);
+		UIStyle.ApplyButtonText(btnSubmit, TranslationServer.Translate("Submit"), 16);
 		btnSubmit.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
 		btnSubmit.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
 		btnSubmit.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
@@ -478,7 +478,7 @@ public partial class GameOver : Control
 		btnCancel.Name = "BtnCancel_Button";
 		btnCancel.AddThemeConstantOverride("icon_max_width", 0);
 		btnCancel.CustomMinimumSize = new Vector2(150, 42);
-		UIStyle.ApplyButtonText(btnCancel, "Cancel", 16);
+		UIStyle.ApplyButtonText(btnCancel, TranslationServer.Translate("Cancel"), 16);
 		btnCancel.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
 		btnCancel.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
 		btnCancel.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
@@ -503,7 +503,7 @@ public partial class GameOver : Control
 			_loadedReviews[mapName] = entry;
 
 
-			UIStyle.ApplyButtonText(_btnWriteReview, "Edit Your Review", 18);
+			UIStyle.ApplyButtonText(_btnWriteReview, TranslationServer.Translate("Edit Your Review"), 18);
 			rootPopup.QueueFree();
 
 			double playtimeMin = 0.0;

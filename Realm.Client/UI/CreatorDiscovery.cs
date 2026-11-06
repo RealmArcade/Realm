@@ -103,7 +103,7 @@ public partial class CreatorDiscovery : Control
 
 		var titleLabel = new Label();
 		titleLabel.Name = "TitleLabel_Label";
-		UIStyle.ApplyTitle(titleLabel, "CREATOR DISCOVERY", 28);
+		UIStyle.ApplyTitle(titleLabel, TranslationServer.Translate("CREATOR DISCOVERY"), 28);
 		titleLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		titleLabel.HorizontalAlignment = HorizontalAlignment.Left;
 		topHeaderHBox.AddChild(titleLabel);
@@ -144,7 +144,7 @@ public partial class CreatorDiscovery : Control
 		_forYouTabBtn.Name = "ForYouTabBtn_Button";
 		_forYouTabBtn.AddThemeConstantOverride("icon_max_width", 20);
 		_forYouTabBtn.CustomMinimumSize = new Vector2(150, 38);
-		UIStyle.ApplyButtonText(_forYouTabBtn, "FOR YOU", 14);
+		UIStyle.ApplyButtonText(_forYouTabBtn, TranslationServer.Translate("FOR YOU"), 14);
 		_forYouTabBtn.Pressed += () => SelectTab(0);
 		navHBox.AddChild(_forYouTabBtn);
 
@@ -152,7 +152,7 @@ public partial class CreatorDiscovery : Control
 		_portfolioTabBtn.Name = "PortfolioTabBtn_Button";
 		_portfolioTabBtn.AddThemeConstantOverride("icon_max_width", 20);
 		_portfolioTabBtn.CustomMinimumSize = new Vector2(180, 38);
-		UIStyle.ApplyButtonText(_portfolioTabBtn, "PORTFOLIO BROWSER", 14);
+		UIStyle.ApplyButtonText(_portfolioTabBtn, TranslationServer.Translate("PORTFOLIO BROWSER"), 14);
 		_portfolioTabBtn.Pressed += () => SelectTab(1);
 		navHBox.AddChild(_portfolioTabBtn);
 
@@ -441,7 +441,7 @@ public partial class CreatorDiscovery : Control
 			actionBtn.CustomMinimumSize = new Vector2(170, 36);
 			actionBtn.SizeFlagsVertical = SizeFlags.ShrinkCenter;
 			actionBtn.SizeFlagsHorizontal = SizeFlags.ShrinkEnd;
-			UIStyle.ApplyButtonText(actionBtn, "VIEW PORTFOLIO", 12);
+			UIStyle.ApplyButtonText(actionBtn, TranslationServer.Translate("VIEW PORTFOLIO"), 12);
 			actionBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateFlatButtonStyle(false, false));
 			actionBtn.AddThemeStyleboxOverride("hover", UIStyle.CreateFlatButtonStyle(true, false));
 			actionBtn.AddThemeStyleboxOverride("pressed", UIStyle.CreateFlatButtonStyle(false, true));
