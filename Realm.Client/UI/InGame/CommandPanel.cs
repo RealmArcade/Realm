@@ -624,9 +624,7 @@ public partial class CommandPanel
 		btn.FocusMode = Control.FocusModeEnum.None;
 		btn.AddThemeConstantOverride("icon_max_width", 50);
 
-		btn.AddThemeStyleboxOverride("normal", UIStyle.CreateHUDButtonStyle(false, false));
-		btn.AddThemeStyleboxOverride("hover", UIStyle.CreateHUDButtonStyle(true, false));
-		btn.AddThemeStyleboxOverride("pressed", UIStyle.CreateHUDButtonStyle(false, true));
+		UIStyle.ApplyHudButtonStyleboxes(btn);
 		btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 
 		var label = new Label();
@@ -756,9 +754,7 @@ public partial class CommandPanel
 
 	private void SetButtonStyles(Button btn)
 	{
-		btn.AddThemeStyleboxOverride("normal", UIStyle.CreateHUDButtonStyle(false, false));
-		btn.AddThemeStyleboxOverride("hover", UIStyle.CreateHUDButtonStyle(true, false));
-		btn.AddThemeStyleboxOverride("pressed", UIStyle.CreateHUDButtonStyle(false, true));
+		UIStyle.ApplyHudButtonStyleboxes(btn);
 		btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 	}
 
@@ -1487,9 +1483,7 @@ public partial class CommandPanel
 		btn.FocusMode = Control.FocusModeEnum.None;
 		UIStyle.SetupHUDButton(btn, tooltip);
 
-		btn.AddThemeStyleboxOverride("normal", UIStyle.CreateHUDButtonStyle(false, false));
-		btn.AddThemeStyleboxOverride("hover", UIStyle.CreateHUDButtonStyle(true, false));
-		btn.AddThemeStyleboxOverride("pressed", UIStyle.CreateHUDButtonStyle(false, true));
+		UIStyle.ApplyHudButtonStyleboxes(btn);
 		btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 
 		btn.Pressed += () => onClick?.Invoke();
