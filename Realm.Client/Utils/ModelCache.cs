@@ -521,7 +521,7 @@ namespace Realm.Client.Utils
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"ModelCache error loading '{modelPath}': {ex.Message}");
+				GameLog.LogError($"ModelCache error loading '{modelPath}': {ex.Message}");
 			}
 
 			return null;
@@ -562,7 +562,7 @@ namespace Realm.Client.Utils
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"[ModelCache] GenerateScene failed for '{modelPath}': {ex.Message}");
+				GameLog.LogError($"[ModelCache] GenerateScene failed for '{modelPath}': {ex.Message}");
 				return null;
 			}
 
@@ -604,7 +604,7 @@ namespace Realm.Client.Utils
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"[ModelCache] Error building primitive mesh scene for '{texturePath}': {ex.Message}");
+				GameLog.LogError($"[ModelCache] Error building primitive mesh scene for '{texturePath}': {ex.Message}");
 			}
 
 			return null;
@@ -740,7 +740,7 @@ namespace Realm.Client.Utils
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"[ModelCache] CalculateModelBounds error for '{modelPath}': {ex.Message}");
+				GameLog.LogError($"[ModelCache] CalculateModelBounds error for '{modelPath}': {ex.Message}");
 			}
 
 			return (0f, 0f);
@@ -761,7 +761,7 @@ namespace Realm.Client.Utils
 				}
 				catch (Exception ex)
 				{
-					GD.PrintErr($"[ModelCache] GenerateScene failed: {ex.Message}");
+					GameLog.LogError($"[ModelCache] GenerateScene failed: {ex.Message}");
 					return null;
 				}
 			}
