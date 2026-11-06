@@ -646,23 +646,6 @@ public partial class SettingsMenu : Control
 		}
 	}
 
-	private void OnWindowModeSelected(long idx)
-	{
-		var mode = (WindowMode)idx;
-		bool isWindowed = mode == WindowMode.Windowed;
-		_resolutionOpt.Disabled = !isWindowed;
-
-		if (GameSettings.Resolutions == null || GameSettings.Resolutions.Count == 0) return;
-
-		if (!isWindowed)
-		{
-			_resolutionOpt.Select(0);
-			return;
-		}
-
-		_resolutionOpt.Select(Math.Clamp(GameSettings.ResolutionIdx, 0, GameSettings.Resolutions.Count - 1));
-	}
-
 	private void SetupSliders()
 	{
 		_scrollSpeedSlider.MinValue = 0;
