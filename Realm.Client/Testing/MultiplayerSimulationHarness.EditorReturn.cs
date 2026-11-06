@@ -107,7 +107,7 @@ public partial class MultiplayerSimulationHarness
 		}
 		finally
 		{
-			foreach (string line in report) GD.Print($"[EDITOR_RETURN] {line}");
+			foreach (string line in report) GameLog.LogToConsole($"[EDITOR_RETURN] {line}");
 			try
 			{
 				File.WriteAllText(Path.Combine(_outputDirectory, "editor_return_report.txt"), new StringBuilder().AppendJoin('\n', report).ToString());
