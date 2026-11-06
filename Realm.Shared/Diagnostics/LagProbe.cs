@@ -71,6 +71,8 @@ public enum LagEvent
 	ClientStarvations,
 	ClientStarvationHoldMilliseconds,
 	ClientCatchUpDrainMilliseconds,
+	ClientStarvationDepthSequences,
+	ClientStarvationSilenceMilliseconds,
 	ClientExtrapolatedSamples,
 	ClientDescriptionsDiscardedByQueue,
 	ClientDescriptionsSuperseded,

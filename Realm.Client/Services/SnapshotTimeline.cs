@@ -386,6 +386,15 @@ public class SnapshotTimeline
 					_starvationStartedSeconds = _timelineSeconds;
 					_starvationMeasured = LagProbe.IsEnabled;
 					LagProbe.Count(LagEvent.ClientStarvations);
+
+					// What a stall costs is decided by two things and this is where they are told apart: how long the link had
+					// said nothing at all, which no buffer answers, and how deep the buffer was when it ran out, which is the
+					// part a rule can change.
+					if (LagProbe.IsEnabled)
+					{
+						LagProbe.RecordWorst(LagEvent.ClientStarvationDepthSequences, _delaySequences);
+						LagProbe.RecordWorst(LagEvent.ClientStarvationSilenceMilliseconds, (_timelineSeconds - _lastArrivalTimelineSeconds) * 1000d);
+					}
 				}
 
 				_cursor = NewestSequence;
