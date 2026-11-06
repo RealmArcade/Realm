@@ -125,6 +125,7 @@ public static class LagMetricCatalog
 		new("authority.events.AuthorityBaselinesBecauseAcknowledgementMissed.count", "authority baselines because ack missed", "count"),
 		new("authority.events.AuthorityBaselinesBecauseDescriptionTooWide.count", "authority baselines because too wide", "count"),
 		new("authority.events.AuthorityRepairDescriptionsSent.count", "authority repair descriptions sent", "count"),
+		new("authority.events.AuthorityDuplicatedDescriptions.count", "authority descriptions sent twice", "count"),
 		new("authority.events.AuthorityFragmentedDescriptions.count", "authority fragmented descriptions", "count"),
 		new("client.stages.ClientPhysicsIntervalMilliseconds.p50", "client physics interval p50", "ms"),
 		new("client.stages.ClientPhysicsIntervalMilliseconds.p99", "client physics interval p99", "ms"),

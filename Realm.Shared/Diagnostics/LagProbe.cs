@@ -45,6 +45,7 @@ public enum LagEvent
 	AuthorityBaselinesBecauseDescriptionTooWide,
 	AuthorityPeerToldNothing,
 	AuthorityRepairDescriptionsSent,
+	AuthorityDuplicatedDescriptions,
 	AuthorityFragmentedDescriptions,
 	ClientBaselinesApplied,
 	ClientDeltasApplied,

@@ -83,6 +83,16 @@ public class ListenServerHost : IServerTransportSink
 	private readonly bool[] _pendingSkippedPeers = new bool[EcsWorld.MAX_PLAYERS];
 	private PublishLaneWorkers? _publishLaneWorkers;
 	private readonly Dictionary<int, SnapshotFrameRing> _frameRings = new();
+
+	/// <summary>Peers that have asked for a description they never received, and are therefore sent each one twice.</summary>
+	private readonly HashSet<int> _peersThatLoseDescriptions = new();
+
+	/// <summary>
+	///     How long a peer that has lost a description keeps being sent every description twice after the last one it asked
+	///     for. A link that has stopped naming lost descriptions has stopped losing them; keeping the repeat on after that
+	///     doubles its bandwidth for a fault that has gone.
+	/// </summary>
+	private const long LossyPeerMemoryTicks = MatchTiming.SimulationTickRateHz * 5;
 	private readonly SnapshotFragmentBuffer[] _fragmentBuffers = CreateFragmentBuffers();
 	private readonly SnapshotBaselineReason[] _pendingBaselineReasons = new SnapshotBaselineReason[EcsWorld.MAX_PLAYERS];
 	private readonly int[] _publishedSerializedBytes = new int[EcsWorld.MAX_PLAYERS];
@@ -795,6 +805,7 @@ public class ListenServerHost : IServerTransportSink
 		// Nothing this peer was sent may answer a repair once it is gone, and a peer id is not a session: one that leaves
 		// and comes back under the same id must not be answered from the descriptions it was sent before it went.
 		_frameRings.Remove(peerId);
+		_peersThatLoseDescriptions.Remove(peerId);
 	}
 
 	public void OnFrameReceived(int peerId, NetworkFrameKind kind, ReadOnlySpan<byte> payload)
@@ -1497,6 +1508,33 @@ public class ListenServerHost : IServerTransportSink
 		// costs the peer everything it was about to be told.
 		bool carriedUnreliably = !snapshot.IsBaseline;
 		long sendStarted = LagProbe.IsEnabled ? LagProbe.Timestamp() : 0L;
+
+		// A peer that has named a lost description is sent the description before this one again, ahead of this one so the
+		// ordered stream keeps both: the copy a tick behind fills a description that went missing without a round trip,
+		// and one that did arrive is discarded by the stream as older than what it already delivered. Only a description
+		// that fits a datagram is repeated - one that already needs fragments is where a second copy costs real bandwidth,
+		// and a lost fragment is not what a repeat of the whole frame answers.
+		if (!snapshot.IsBaseline && _peersThatLoseDescriptions.Contains(peerId))
+		{
+			// A link that has stopped asking for lost descriptions has stopped losing them, and every description sent
+			// twice after that is bandwidth spent on a fault that is gone.
+			if (_lastRepairSentTickPerPeer.TryGetValue(peerId, out long lastRepairTick)
+			    && simulation.TickCount - lastRepairTick > LossyPeerMemoryTicks)
+			{
+				_peersThatLoseDescriptions.Remove(peerId);
+			}
+
+			if (_peersThatLoseDescriptions.Contains(peerId)
+			    && _publishSequence > 1
+		    && FrameRingFor(peerId).TryGet(_publishSequence - 1, out byte[] previousFrame)
+			    && previousFrame != null
+			    && previousFrame.Length <= SnapshotFragment.MaximumDatagramBytes)
+			{
+				_transport.Send(peerId, NetworkFrameKind.Snapshot, previousFrame, FrameDelivery.UnreliableOrdered);
+				LagProbe.Count(LagEvent.AuthorityDuplicatedDescriptions);
+			}
+		}
+
 		if (snapshot.IsBaseline)
 		{
 			_transport.Send(peerId, NetworkFrameKind.Snapshot, _publishedFrames[index]);
@@ -1650,6 +1688,12 @@ public class ListenServerHost : IServerTransportSink
 		}
 
 		if (request.Count <= 0 || request.Count > SnapshotFrameRing.Capacity || request.FirstSequence <= 0) return;
+
+		// A request naming a hole is this peer telling the match that a description never reached it, which is the only
+		// loss measurement available on this side: a screen heals the acknowledgement mask with every repair it receives,
+		// so a link that loses a quarter of its datagrams can answer with a mask that reports nothing missing at all.
+		// From here this peer is sent every description twice.
+		_peersThatLoseDescriptions.Add(peerId);
 
 		long tick = simulation.TickCount;
 
