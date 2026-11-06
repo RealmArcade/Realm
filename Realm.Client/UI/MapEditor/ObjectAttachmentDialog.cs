@@ -1720,17 +1720,6 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 		return parentMesh ?? targetAnchor;
 	}
 
-	private void AttachModelToSocket(string socketId, string attachmentId, Vector3 pos, Vector3 rot, Vector3 scale, float normalOffset)
-	{
-		_currentSocketId = NormalizeSocketId(socketId);
-		_currentAttachmentId = attachmentId;
-		_currentPosOffset = pos;
-		_currentRotOffset = rot;
-		_currentScaleOffset = scale;
-		_currentNormalOffset = normalOffset;
-		PreviewCurrentAttachment();
-	}
-
 	private void UpdateActiveAttachmentTransform()
 	{
 		if (_currentActiveModelNode != null && GodotObject.IsInstanceValid(_currentActiveModelNode))
