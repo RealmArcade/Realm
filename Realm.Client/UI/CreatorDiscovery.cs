@@ -186,30 +186,6 @@ public partial class CreatorDiscovery : Control
 		_portfolioTabBtn.AddThemeStyleboxOverride("pressed", UIStyle.CreateCreatorDiscoveryTabButtonStyle(index == 1, false, true));
 	}
 
-	private StyleBoxFlat CreateTabButtonStyle(bool isActive, bool isHover)
-	{
-		var style = new StyleBoxFlat();
-		style.BgColor = isActive
-			? new Color(0.14f, 0.16f, 0.22f, 0.95f)
-			: (isHover ? new Color(0.10f, 0.11f, 0.15f, 0.85f) : new Color(0.07f, 0.08f, 0.11f, 0.75f));
-		style.BorderColor = isActive ? UIStyle.ColorGold : (isHover ? UIStyle.ColorCyanGlowDim : new Color(0.35f, 0.35f, 0.40f, 0.6f));
-		style.SetBorderWidthAll(1);
-		if (isActive)
-		{
-			style.BorderWidthBottom = 3;
-		}
-
-		style.CornerRadiusTopLeft = 6;
-		style.CornerRadiusTopRight = 6;
-		style.CornerRadiusBottomLeft = 6;
-		style.CornerRadiusBottomRight = 6;
-		style.ContentMarginLeft = 16;
-		style.ContentMarginRight = 16;
-		style.ContentMarginTop = 8;
-		style.ContentMarginBottom = 8;
-		return style;
-	}
-
 	private void BuildForYouTab()
 	{
 		var forYouTab = new MarginContainer();
