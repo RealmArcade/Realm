@@ -619,7 +619,7 @@ public partial class MapSettingsDialog : FloatingDialogBase
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"RefreshSkyboxList error: {ex.Message}");
+			GameLog.LogError($"RefreshSkyboxList error: {ex.Message}");
 		}
 
 		if (_skyboxFiles.Count == 0)
