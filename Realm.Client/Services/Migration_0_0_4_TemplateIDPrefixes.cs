@@ -749,7 +749,7 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[Migration_0_0_4] Failed to migrate terrain.json: {ex.Message}");
+			GameLog.LogError($"[Migration_0_0_4] Failed to migrate terrain.json: {ex.Message}");
 		}
 	}
 
