@@ -1274,9 +1274,7 @@ namespace Realm.Client.UI
 
 			if (showCancel)
 			{
-				var btnCancel = new Button();
-				btnCancel.Name = "BtnCancel_Button";
-				btnCancel.Set("icon_max_width", 0);
+				var btnCancel = UIStyle.CreateBareButton("BtnCancel_Button");
 				btnCancel.CustomMinimumSize = new Vector2(110, 34);
 				btnCancel.MouseFilter = MouseFilterEnum.Stop;
 				Action cancelAction = () =>
@@ -1631,9 +1629,7 @@ namespace Realm.Client.UI
 			var btnRow = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
 			btnRow.AddThemeConstantOverride("separation", 12);
 
-			var btnCancel = new Button();
-			btnCancel.Name = "BtnCancel_Button";
-			btnCancel.Set("icon_max_width", 0);
+			var btnCancel = UIStyle.CreateBareButton("BtnCancel_Button");
 			SetupOptionButton(btnCancel, TranslationServer.Translate("Cancel / Skip"), () => overlay.QueueFree(), 13);
 			btnCancel.CustomMinimumSize = new Vector2(130, 36);
 			btnRow.AddChild(btnCancel);

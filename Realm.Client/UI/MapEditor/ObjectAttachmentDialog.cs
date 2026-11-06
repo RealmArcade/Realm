@@ -1824,9 +1824,7 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 			btnEdit.Pressed += () => SelectConfiguredAttachment(capturedSocket, capturedAtt, capturedIndex);
 			row.AddChild(btnEdit);
 
-			var btnRemove = new Button();
-			btnRemove.Name = "BtnRemove_Button";
-			btnRemove.Set("icon_max_width", 0);
+			var btnRemove = UIStyle.CreateBareButton("BtnRemove_Button");
 			btnRemove.Text = $"{UnicodeIcons.TRASH} " + TranslationServer.Translate("Remove");
 			btnRemove.AddThemeFontSizeOverride("font_size", 11);
 			btnRemove.AddThemeColorOverride("font_color", new Color(1.0f, 0.45f, 0.45f));

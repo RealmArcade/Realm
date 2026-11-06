@@ -4237,9 +4237,7 @@ namespace Realm.Client.UI
 			buttonRow.Name = "ButtonRow_HBoxContainer";
 			buttonRow.AddThemeConstantOverride("separation", 8);
 
-			var btnCancel = new Button();
-			btnCancel.Name = "BtnCancel_Button";
-			btnCancel.Set("icon_max_width", 0);
+			var btnCancel = UIStyle.CreateBareButton("BtnCancel_Button");
 			btnCancel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 			SetupButton(btnCancel, "✖ CANCEL", () =>
 			{

@@ -763,9 +763,7 @@ public partial class AssetBrowserDialog : AssetGridDialogBase
 		lblName.AddThemeColorOverride("font_color", isIndexing ? UIStyle.ColorCyanGlow : UIStyle.ColorGold);
 		chipHBox.AddChild(lblName);
 
-		var btnRemove = new Button();
-		btnRemove.Name = "BtnRemove_Button";
-		btnRemove.Set("icon_max_width", 0);
+		var btnRemove = UIStyle.CreateBareButton("BtnRemove_Button");
 		btnRemove.Text = "✕";
 		btnRemove.AddThemeFontSizeOverride("font_size", 9);
 		btnRemove.CustomMinimumSize = new Vector2(16, 16);

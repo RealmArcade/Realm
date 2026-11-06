@@ -154,9 +154,7 @@ public partial class TagEditorDialog : FloatingDialogBase
 			lblTag.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 			row.AddChild(lblTag);
 
-			var btnRemove = new Button();
-			btnRemove.Name = "BtnRemove_Button";
-			btnRemove.Set("icon_max_width", 0);
+			var btnRemove = UIStyle.CreateBareButton("BtnRemove_Button");
 			btnRemove.Text = "✕";
 			btnRemove.CustomMinimumSize = new Vector2(22, 20);
 			btnRemove.AddThemeFontSizeOverride("font_size", 9);

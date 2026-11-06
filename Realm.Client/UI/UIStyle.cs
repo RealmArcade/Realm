@@ -918,6 +918,14 @@ public static class UIStyle
 		button.AddThemeStyleboxOverride("pressed", CreateHUDButtonStyle(false, true));
 	}
 
+	public static Button CreateBareButton(string nodeName)
+	{
+		var button = new Button();
+		button.Name = nodeName;
+		button.Set("icon_max_width", 0);
+		return button;
+	}
+
 	/// <summary>
 	/// Binds the three-panel chrome (background plus both pillars) that the lobby,
 	/// map and menu scenes all declare with the same node names.

@@ -706,9 +706,7 @@ public partial class UIManager : Control
 
 		if (showCancel)
 		{
-			var btnCancel = new Button();
-			btnCancel.Name = "BtnCancel_Button";
-			btnCancel.Set("icon_max_width", 0);
+			var btnCancel = UIStyle.CreateBareButton("BtnCancel_Button");
 			UIStyle.ApplyButtonText(btnCancel, TranslationServer.Translate(cancelText), 13);
 			UIStyle.ApplyButtonStyleBoxes(btnCancel);
 			btnCancel.AddThemeColorOverride("font_color", new Color(0.9f, 0.3f, 0.3f));

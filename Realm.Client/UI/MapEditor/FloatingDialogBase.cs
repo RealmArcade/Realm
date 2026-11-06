@@ -1892,10 +1892,7 @@ public partial class FloatingDialogBase : PanelContainer
 
 	public Button CreateDialogButton()
 	{
-		var btn = new Button();
-		btn.Name = "Btn_Button";
-		btn.Set("icon_max_width", 0);
-		return btn;
+		return UIStyle.CreateBareButton("Btn_Button");
 	}
 
 	public LineEdit CreateSlugField(string placeholderKey)
