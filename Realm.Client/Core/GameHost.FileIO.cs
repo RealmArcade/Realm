@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -601,7 +601,7 @@ public partial class GameHost
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"Failed to load metadata overrides from JSON: {ex.Message}");
+			GameLog.LogError($"Failed to load metadata overrides from JSON: {ex.Message}");
 		}
 	}
 
@@ -626,7 +626,7 @@ public partial class GameHost
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"SaveModelYOffsetsToMetadataJson error: {ex.Message}");
+			GameLog.LogError($"SaveModelYOffsetsToMetadataJson error: {ex.Message}");
 		}
 	}
 
@@ -651,8 +651,9 @@ public partial class GameHost
 				return resData;
 			}
 		}
-		catch
+		catch (Exception ex)
 		{
+			GameLog.LogError($"could not load the decal texture asset for {decalId}: {ex.GetType().Name}: {ex.Message}");
 		}
 
 		return null;
@@ -742,7 +743,7 @@ public partial class GameHost
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"Failed to load decal image from '{path}': {ex.Message}");
+			GameLog.LogError($"Failed to load decal image from '{path}': {ex.Message}");
 		}
 
 		return null;
