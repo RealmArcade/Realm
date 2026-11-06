@@ -577,7 +577,7 @@ public partial class MainMenu : Control
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[MainMenu] Failed to check for updates: {ex.Message}");
+			GameLog.LogError($"[MainMenu] Failed to check for updates: {ex.Message}");
 		}
 	}
 
