@@ -42,6 +42,7 @@ public partial class LobbyBrowser : Control
 	private LineEdit _searchBar;
 	private readonly List<(string Tag, CheckBox CheckBox)> _tagFilters = new();
 	private CheckBox _betaTestingMapsCheck;
+	private CheckBox _versionMismatchCheck;
 	private VBoxContainer _lobbyListContainer;
 
 	private Label _browserTitle;
@@ -77,6 +78,7 @@ public partial class LobbyBrowser : Control
 
 		_searchBar = GetNode<LineEdit>("SearchBar");
 		_betaTestingMapsCheck = GetNode<CheckBox>("FilterPanel/VBoxContainer/BetaTestingMapsCheck");
+		_versionMismatchCheck = GetNode<CheckBox>("FilterPanel/VBoxContainer/VersionMismatchCheck");
 		_lobbyListContainer = GetNode<VBoxContainer>("LobbyPanel/VBoxContainer/ScrollContainer/LobbyListContainer");
 
 
@@ -260,6 +262,11 @@ public partial class LobbyBrowser : Control
 		_betaTestingMapsCheck.TooltipText = Tr("Also list lobbies for maps that are still in Beta-Testing and have not been greenlit yet");
 		_betaTestingMapsCheck.ButtonPressed = true;
 		SetupFilterCheckbox(_betaTestingMapsCheck);
+
+		_versionMismatchCheck.Text = TranslationServer.Translate("Show mismatched game version");
+		_versionMismatchCheck.TooltipText = TranslationServer.Translate("Also list lobbies that run a different game version and cannot be joined from this build");
+		_versionMismatchCheck.ButtonPressed = false;
+		SetupFilterCheckbox(_versionMismatchCheck);
 	}
 
 	private void SetupFilterCheckbox(CheckBox checkBox)
@@ -728,7 +735,19 @@ public partial class LobbyBrowser : Control
 			_filteredLobbies = _filteredLobbies.Where(x => x.IsGreenlit).ToList();
 		}
 
+		if (!_versionMismatchCheck.ButtonPressed)
+		{
+			_filteredLobbies = _filteredLobbies.Where(x => IsJoinableGameVersion(x.GameVersion)).ToList();
+		}
+
 		RefreshLobbyDisplay();
+	}
+
+	private static bool IsJoinableGameVersion(string lobbyGameVersion)
+	{
+		if (string.IsNullOrEmpty(lobbyGameVersion)) return true;
+
+		return string.Equals(lobbyGameVersion, RealmVersion.GameBinaryVersion, StringComparison.Ordinal);
 	}
 
 	private HashSet<string> GetActiveModes()
