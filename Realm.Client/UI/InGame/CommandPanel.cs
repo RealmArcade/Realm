@@ -1469,21 +1469,6 @@ public partial class CommandPanel
 		return false;
 	}
 
-	private void ApplyUpgradeButtonState(Button btn, bool isMaxed, string maxedLabel)
-	{
-		if (isMaxed)
-		{
-			btn.Disabled = true;
-			btn.TooltipText = $"✓ {maxedLabel} — Already researched!";
-			btn.Modulate = new Color(0.5f, 0.5f, 0.5f, 0.7f);
-		}
-		else
-		{
-			btn.Disabled = false;
-			btn.Modulate = Colors.White;
-		}
-	}
-
 	private string GetUnitIcon(string unitId)
 	{
 		return "res://Assets/UI/unit_placeholder.webp";
