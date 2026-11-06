@@ -67,9 +67,7 @@ public partial class ReplayListPanel : Control
 		UIStyle.ApplyBackButton(_backBtn, OnBackPressed);
 
 		UIStyle.ApplyButtonText(_deleteAllBtn, TranslationServer.Translate("DELETE ALL"), 14);
-		_deleteAllBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		_deleteAllBtn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		_deleteAllBtn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
+		UIStyle.ApplyButtonStyleboxes(_deleteAllBtn);
 		_deleteAllBtn.AddThemeConstantOverride("icon_max_width", 0);
 		_deleteAllBtn.AddThemeColorOverride("font_color", new Color(0.9f, 0.4f, 0.4f));
 		_deleteAllBtn.AddThemeColorOverride("font_hover_color", new Color(1.0f, 0.5f, 0.5f));
@@ -291,9 +289,7 @@ public partial class ReplayListPanel : Control
 		playBtn.CustomMinimumSize = new Vector2(100, 40);
 		playBtn.SizeFlagsVertical = SizeFlags.ShrinkCenter;
 		UIStyle.ApplyButtonText(playBtn, TranslationServer.Translate("WATCH"), 13);
-		playBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		playBtn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		playBtn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
+		UIStyle.ApplyButtonStyleboxes(playBtn);
 		playBtn.AddThemeConstantOverride("icon_max_width", 0);
 
 		playBtn.Pressed += () => OnPlayReplayPressed(path);
@@ -305,9 +301,7 @@ public partial class ReplayListPanel : Control
 		deleteBtn.CustomMinimumSize = new Vector2(100, 40);
 		deleteBtn.SizeFlagsVertical = SizeFlags.ShrinkCenter;
 		UIStyle.ApplyButtonText(deleteBtn, TranslationServer.Translate("DELETE"), 13);
-		deleteBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		deleteBtn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		deleteBtn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
+		UIStyle.ApplyButtonStyleboxes(deleteBtn);
 		deleteBtn.AddThemeConstantOverride("icon_max_width", 0);
 		deleteBtn.AddThemeColorOverride("font_color", new Color(0.9f, 0.4f, 0.4f));
 		deleteBtn.AddThemeColorOverride("font_hover_color", new Color(1.0f, 0.5f, 0.5f));

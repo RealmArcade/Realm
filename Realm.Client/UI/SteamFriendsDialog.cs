@@ -207,9 +207,7 @@ public partial class SteamFriendsDialog : Control
 		_sendButton.CustomMinimumSize = new Vector2(220, 44);
 		_sendButton.FocusMode = FocusModeEnum.None;
 		_sendButton.AddThemeFontSizeOverride("font_size", 14);
-		_sendButton.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		_sendButton.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		_sendButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
+		UIStyle.ApplyButtonStyleboxes(_sendButton);
 		_sendButton.AddThemeStyleboxOverride("disabled", UIStyle.CreateButtonNormal());
 		_sendButton.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 		_sendButton.Pressed += OnSendInvitesPressed;
@@ -223,10 +221,7 @@ public partial class SteamFriendsDialog : Control
 		_closeButton.CustomMinimumSize = new Vector2(160, 44);
 		_closeButton.FocusMode = FocusModeEnum.None;
 		_closeButton.AddThemeFontSizeOverride("font_size", 14);
-		_closeButton.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		_closeButton.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		_closeButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		_closeButton.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyButtonStyleboxesClearingFocus(_closeButton);
 		_closeButton.Pressed += Close;
 		_closeButton.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 		buttons.AddChild(_closeButton);
