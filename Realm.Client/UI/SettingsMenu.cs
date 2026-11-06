@@ -907,7 +907,7 @@ public partial class SettingsMenu : Control
 				GameContext.MapEditorHud.UpdateFPSVisibility();
 			}
 
-			GD.Print("Settings Applied successfully!");
+			GameLog.LogToConsole("Settings Applied successfully!");
 			CloseOrTransition();
 		}
 		finally
@@ -1020,7 +1020,7 @@ public partial class SettingsMenu : Control
 			GameContext.MapEditorHud.UpdateFPSVisibility();
 		}
 
-		GD.Print("Settings reset to defaults.");
+		GameLog.LogToConsole("Settings reset to defaults.");
 	}
 
 	public override void _ExitTree()
