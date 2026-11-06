@@ -853,10 +853,7 @@ public partial class LobbyCreate : Control
 		importButton.MouseFilter = MouseFilterEnum.Stop;
 		importButton.AddThemeConstantOverride("icon_max_width", 24);
 		UIStyle.ApplyButtonText(importButton, "📥 " + TranslationServer.Translate("Import Map (.rmap)"), 13);
-		importButton.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		importButton.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		importButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		importButton.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyButtonStyleboxesClearingFocus(importButton);
 		importButton.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 		importButton.Pressed += () =>
 		{
@@ -875,10 +872,7 @@ public partial class LobbyCreate : Control
 		closeButton.FocusMode = FocusModeEnum.None;
 		closeButton.AddThemeConstantOverride("icon_max_width", 0);
 		UIStyle.ApplyButtonText(closeButton, TranslationServer.Translate("CLOSE"), 15);
-		closeButton.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		closeButton.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		closeButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		closeButton.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyButtonStyleboxesClearingFocus(closeButton);
 		closeButton.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 		closeButton.Pressed += () =>
 		{

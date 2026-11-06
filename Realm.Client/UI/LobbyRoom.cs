@@ -263,9 +263,7 @@ public partial class LobbyRoom : Control
 		_otherAuthorsButton.CustomMinimumSize = new Vector2(160, 32);
 		_otherAuthorsButton.SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter;
 		_otherAuthorsButton.Visible = false;
-		_otherAuthorsButton.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		_otherAuthorsButton.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		_otherAuthorsButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
+		UIStyle.ApplyButtonStyleboxes(_otherAuthorsButton);
 		_otherAuthorsButton.Pressed += () =>
 		{
 			if (_otherAuthorsList.Count > 0)
@@ -461,10 +459,7 @@ public partial class LobbyRoom : Control
 		btn.AddThemeConstantOverride("icon_max_width", 0);
 		UIStyle.ApplyButtonText(btn, text, 15);
 
-		btn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		btn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		btn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyButtonStyleboxesClearingFocus(btn);
 
 		btn.Pressed += () =>
 		{
@@ -929,10 +924,7 @@ public partial class LobbyRoom : Control
 		_attributionButton.FocusMode = FocusModeEnum.None;
 		_attributionButton.TooltipText = LocalizationManager.Translate("Show maps whose content was imported into this map");
 		_attributionButton.AddThemeFontSizeOverride("font_size", 11);
-		_attributionButton.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		_attributionButton.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		_attributionButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		_attributionButton.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyButtonStyleboxesClearingFocus(_attributionButton);
 		_attributionButton.Pressed += OnAttributionPressed;
 		GetNode<VBoxContainer>("BriefingPanel/VBoxContainer").AddChild(_attributionButton);
 	}
@@ -1145,10 +1137,7 @@ public partial class LobbyRoom : Control
 		cancelBtn.Name = "CancelBtn_Button";
 		cancelBtn.Flat = false;
 		cancelBtn.AddThemeConstantOverride("icon_max_width", 0);
-		cancelBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		cancelBtn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		cancelBtn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		cancelBtn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyButtonStyleboxesClearingFocus(cancelBtn);
 		UIStyle.ApplyButtonText(cancelBtn, TranslationServer.Translate("CANCEL"), 16);
 
 		cancelBtn.CustomMinimumSize = new Vector2(180, 48);
@@ -1487,10 +1476,7 @@ public partial class LobbyRoom : Control
 
 	private void ApplyTeamOptionStyle(OptionButton optTeam)
 	{
-		optTeam.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		optTeam.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		optTeam.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		optTeam.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyButtonStyleboxesClearingFocus(optTeam);
 		optTeam.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 		optTeam.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
 		optTeam.AddThemeColorOverride("font_pressed_color", UIStyle.ColorCyanGlow);
