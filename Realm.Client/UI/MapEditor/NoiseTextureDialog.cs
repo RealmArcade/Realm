@@ -481,8 +481,8 @@ public partial class NoiseTextureDialog : FloatingDialogBase
 			Hud?.ShowConfirmationDialog(
 				msg,
 				() => { ExecuteSave(fileName, outputRtex, wsPath, assetsObj); },
-				confirmText: "SAVE",
-				cancelText: "CANCEL"
+				confirmText: TranslationServer.Translate("SAVE"),
+				cancelText: TranslationServer.Translate("CANCEL")
 			);
 			return;
 		}

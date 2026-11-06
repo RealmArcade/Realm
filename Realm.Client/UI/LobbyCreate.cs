@@ -601,7 +601,7 @@ public partial class LobbyCreate : Control
 				GetTree().Quit();
 			}
 			}, confirmText: versionExistsLocally ? string.Format(Tr("LAUNCH {0}"), mapBuildNumber) : string.Format(Tr("DOWNLOAD {0}"), mapBuildNumber),
-			cancelText: "CANCEL", titleOverride: "MAP BUILD MISMATCH");
+			cancelText: TranslationServer.Translate("CANCEL"), titleOverride: "MAP BUILD MISMATCH");
 	}
 
 	private void ShowNatErrorModal()

@@ -1227,8 +1227,8 @@ public partial class VSCodeManager
 			GameContext.MapEditorHud.ShowConfirmationDialog(
 				$"External edits detected in {display}. Reload external changes or keep current dialog changes?",
 				onConfirm: reloadAction,
-				confirmText: "RELOAD",
-				cancelText: "KEEP CHANGES"
+				confirmText: TranslationServer.Translate("RELOAD"),
+				cancelText: TranslationServer.Translate("KEEP CHANGES")
 			);
 		}
 		else
@@ -1252,10 +1252,10 @@ public partial class VSCodeManager
 		if (FloatingDialogBase.HasAnyDialogOpen && GameContext.MapEditorHud != null)
 		{
 			GameContext.MapEditorHud.ShowConfirmationDialog(
-				"External edits detected in terrain.json. Reload external changes or keep current dialog changes?",
+				TranslationServer.Translate("External edits detected in terrain.json. Reload external changes or keep current dialog changes?"),
 				onConfirm: reloadAction,
-				confirmText: "RELOAD",
-				cancelText: "KEEP CHANGES"
+				confirmText: TranslationServer.Translate("RELOAD"),
+				cancelText: TranslationServer.Translate("KEEP CHANGES")
 			);
 		}
 		else
@@ -1296,10 +1296,10 @@ public partial class VSCodeManager
 			if (FloatingDialogBase.HasAnyDialogOpen && GameContext.MapEditorHud != null)
 			{
 				GameContext.MapEditorHud.ShowConfirmationDialog(
-					"External edits detected in metadata.json. Reload external changes or keep current dialog changes?",
+					TranslationServer.Translate("External edits detected in metadata.json. Reload external changes or keep current dialog changes?"),
 					onConfirm: reloadAction,
-					confirmText: "RELOAD",
-					cancelText: "KEEP CHANGES"
+					confirmText: TranslationServer.Translate("RELOAD"),
+					cancelText: TranslationServer.Translate("KEEP CHANGES")
 				);
 			}
 			else

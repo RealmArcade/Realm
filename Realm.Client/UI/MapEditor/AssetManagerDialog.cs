@@ -1006,8 +1006,8 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 			Hud?.ShowConfirmationDialog(
 				warningMessage,
 				() => ExecuteDeleteAsset(wsPath, categoryKey, assetFileName),
-				confirmText: "DELETE ANYWAY",
-				cancelText: "CANCEL"
+				confirmText: TranslationServer.Translate("DELETE ANYWAY"),
+				cancelText: TranslationServer.Translate("CANCEL")
 			);
 		}
 		else
@@ -1016,8 +1016,8 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 			Hud?.ShowConfirmationDialog(
 				confirmMessage,
 				() => ExecuteDeleteAsset(wsPath, categoryKey, assetFileName),
-				confirmText: "DELETE",
-				cancelText: "CANCEL"
+				confirmText: TranslationServer.Translate("DELETE"),
+				cancelText: TranslationServer.Translate("CANCEL")
 			);
 		}
 	}

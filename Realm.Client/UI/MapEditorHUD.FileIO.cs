@@ -1877,7 +1877,7 @@ namespace Realm.Client.UI
 			GameContext.UserInterface?.ShowConfirmationDialog(
 				string.Format(TranslationServer.Translate("Map exported successfully to {0}."), destinationPath),
 				() => { },
-				confirmText: "OK",
+				confirmText: TranslationServer.Translate("OK"),
 				showCancel: false
 			);
 		}
@@ -1983,7 +1983,7 @@ namespace Realm.Client.UI
 				{
 					string cleanPrevName = GameContext.EditorService.SwatchDisplayNames[selectedIdx];
 					string msg = string.Format(TranslationServer.Translate("Replacing texture in Slot {0} ({1}) will update all areas of the terrain painted with this slot. Do you want to proceed?"), selectedIdx, cleanPrevName);
-					ShowConfirmationDialog(msg, () => { ImportTextureFile(imagePath, selectedIdx, preferredName); }, confirmText: "REPLACE", cancelText: "CANCEL");
+					ShowConfirmationDialog(msg, () => { ImportTextureFile(imagePath, selectedIdx, preferredName); }, confirmText: TranslationServer.Translate("REPLACE"), cancelText: TranslationServer.Translate("CANCEL"));
 				}
 				else
 				{

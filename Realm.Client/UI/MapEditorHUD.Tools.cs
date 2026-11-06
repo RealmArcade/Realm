@@ -3051,7 +3051,7 @@ namespace Realm.Client.UI
 					GameContext.UserInterface?.ShowConfirmationDialog(
 						TranslationServer.Translate("Map compiled & published successfully!"),
 						() => { },
-						confirmText: "OK",
+						confirmText: TranslationServer.Translate("OK"),
 						showCancel: false
 					);
 				}

@@ -898,8 +898,8 @@ public partial class ImportFromMapDialog : FloatingDialogBase
 			Hud.ShowConfirmationDialog(
 				message,
 				() => ExecuteCodeImport(source.Value, selectedTypeNames, selectedNamespaces, workspacePath),
-				confirmText: "REPLACE",
-				cancelText: "CANCEL");
+				confirmText: TranslationServer.Translate("REPLACE"),
+				cancelText: TranslationServer.Translate("CANCEL"));
 			return;
 		}
 

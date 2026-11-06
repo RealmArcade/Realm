@@ -844,13 +844,13 @@ namespace Realm.Client.UI
 			if (HasUnsavedChanges())
 			{
 				ShowConfirmationDialog(
-					"You haven't saved yet",
+					TranslationServer.Translate("You haven't saved yet"),
 					onConfirm: () =>
 					{
 						GameContext.UserInterface.TransitionTo(GameScreen.MainMenu);
 					},
-					confirmText: "Quit",
-					cancelText: "Stay"
+					confirmText: TranslationServer.Translate("Quit"),
+					cancelText: TranslationServer.Translate("Stay")
 				);
 			}
 			else
@@ -864,13 +864,13 @@ namespace Realm.Client.UI
 			if (HasUnsavedChanges())
 			{
 				ShowConfirmationDialog(
-					"You haven't saved yet",
+					TranslationServer.Translate("You haven't saved yet"),
 					onConfirm: () =>
 					{
 						GetTree().Quit();
 					},
-					confirmText: "Quit",
-					cancelText: "Stay"
+					confirmText: TranslationServer.Translate("Quit"),
+					cancelText: TranslationServer.Translate("Stay")
 				);
 			}
 			else

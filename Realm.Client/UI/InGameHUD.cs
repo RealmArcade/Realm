@@ -536,8 +536,8 @@ public partial class InGameHUD : Control
 		GameContext.UserInterface?.ShowConfirmationDialog(
 			TranslationServer.Translate("Pause game for everyone?"),
 			() => GameContext.Host?.TogglePauseRequest(),
-			confirmText: "PAUSE",
-			cancelText: "CANCEL");
+			confirmText: TranslationServer.Translate("PAUSE"),
+			cancelText: TranslationServer.Translate("CANCEL"));
 	}
 
 	private void RefreshPauseMatchButton()
@@ -603,8 +603,8 @@ public partial class InGameHUD : Control
 		GameContext.UserInterface?.ShowConfirmationDialog(
 			TranslationServer.Translate("Are you sure you want to quit the current match and return to the main menu?"),
 			QuitMatchToMainMenu,
-			confirmText: "QUIT",
-			cancelText: "CANCEL");
+			confirmText: TranslationServer.Translate("QUIT"),
+			cancelText: TranslationServer.Translate("CANCEL"));
 	}
 
 	private void QuitMatchToMainMenu()

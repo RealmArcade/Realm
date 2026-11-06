@@ -144,10 +144,10 @@ public partial class UIManager : Control
 			else if (GameContext.SessionState.IsTestMode && MapEditorHUD.HasUnsavedChangesStatic())
 			{
 				ShowConfirmationDialog(
-					"You haven't saved yet",
+					TranslationServer.Translate("You haven't saved yet"),
 					onConfirm: () => GetTree().Quit(),
-					confirmText: "Quit",
-					cancelText: "Stay"
+					confirmText: TranslationServer.Translate("Quit"),
+					cancelText: TranslationServer.Translate("Stay")
 				);
 			}
 			else
@@ -641,7 +641,7 @@ public partial class UIManager : Control
 
 	public void ShowPopupMessage(string title, string message, Action onOkPressed = null)
 	{
-		ShowConfirmationDialog(message, onOkPressed, confirmText: "OK", showCancel: false, titleOverride: title);
+		ShowConfirmationDialog(message, onOkPressed, confirmText: TranslationServer.Translate("OK"), showCancel: false, titleOverride: title);
 	}
 
 	public void ShowConfirmationDialog(string message, Action onConfirm, string confirmText = "YES", string cancelText = "NO", Action onCancel = null, bool showCancel = true, string titleOverride = null)
@@ -877,7 +877,7 @@ public partial class UIManager : Control
 			ShowConfirmationDialog(
 				TranslationServer.Translate("Map imported successfully."),
 				() => { },
-				confirmText: "OK",
+				confirmText: TranslationServer.Translate("OK"),
 				showCancel: false
 			);
 		}
@@ -886,7 +886,7 @@ public partial class UIManager : Control
 			ShowConfirmationDialog(
 				string.Format(TranslationServer.Translate("Import failed: {0}"), result.Message),
 				() => { },
-				confirmText: "OK",
+				confirmText: TranslationServer.Translate("OK"),
 				showCancel: false
 			);
 		}

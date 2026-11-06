@@ -651,8 +651,8 @@ public partial class StorageMenu : Control
 						RefreshDownloadedMaps();
 					}
 				},
-				confirmText: "DELETE",
-				cancelText: "CANCEL"
+				confirmText: TranslationServer.Translate("DELETE"),
+				cancelText: TranslationServer.Translate("CANCEL")
 			);
 		};
 

@@ -379,7 +379,7 @@ public partial class ReplayListPanel : Control
 
 	private void OnDeleteReplayPressed(string path)
 	{
-		ShowConfirmationDialog("Are you sure you want to delete this replay?", () =>
+		ShowConfirmationDialog(TranslationServer.Translate("Are you sure you want to delete this replay?"), () =>
 		{
 			try
 			{
@@ -399,7 +399,7 @@ public partial class ReplayListPanel : Control
 
 	private void OnDeleteAllPressed()
 	{
-		ShowConfirmationDialog("Are you sure you want to delete all replays?", () =>
+		ShowConfirmationDialog(TranslationServer.Translate("Are you sure you want to delete all replays?"), () =>
 		{
 			string replayDir = ProjectSettings.GlobalizePath("user://replays");
 			if (Directory.Exists(replayDir))

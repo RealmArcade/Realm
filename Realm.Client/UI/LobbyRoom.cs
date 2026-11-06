@@ -339,9 +339,9 @@ public partial class LobbyRoom : Control
 		_inviteFeedback.Modulate = new Color(1, 1, 1, 0);
 
 
-		SetupLobbyButton(_backButton, " LEAVE LOBBY", ReturnFromLobby);
-		SetupLobbyButton(_inviteButton, "INVITE FRIEND", OpenInviteFriendsDialog);
-		SetupLobbyButton(_addBotButton, "ADD AI BOT", () => GameContext.Lobby.AddAIBot());
+		SetupLobbyButton(_backButton, TranslationServer.Translate(" LEAVE LOBBY"), ReturnFromLobby);
+		SetupLobbyButton(_inviteButton, TranslationServer.Translate("INVITE FRIEND"), OpenInviteFriendsDialog);
+		SetupLobbyButton(_addBotButton, TranslationServer.Translate("ADD AI BOT"), () => GameContext.Lobby.AddAIBot());
 		SetupStartButton();
 
 		_mapNameLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
@@ -569,7 +569,7 @@ public partial class LobbyRoom : Control
 
 		var localPlayer = GetLocalPlayer();
 		bool isReady = localPlayer != null && localPlayer.IsReady;
-		UIStyle.ApplyButtonText(_startButton, isReady ? "NOT READY" : "READY", 22);
+		UIStyle.ApplyButtonText(_startButton, isReady ? TranslationServer.Translate("NOT READY") : TranslationServer.Translate("READY"), 22);
 		_startButton.Disabled = false;
 		_startButton.Pressed += OnClientReadyTogglePressed;
 	}

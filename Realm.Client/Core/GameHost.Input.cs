@@ -1069,7 +1069,7 @@ public partial class GameHost
 
 				if (IsObjectPlacementTool(ActiveEditorTool) && string.IsNullOrWhiteSpace(ActivePlaceId))
 				{
-					GameContext.MapEditorHud?.ShowConfirmationDialog("Please create a template first", null, confirmText: "OK", showCancel: false);
+					GameContext.MapEditorHud?.ShowConfirmationDialog(TranslationServer.Translate("Please create a template first"), null, confirmText: TranslationServer.Translate("OK"), showCancel: false);
 					GetViewport().SetInputAsHandled();
 					return;
 				}
