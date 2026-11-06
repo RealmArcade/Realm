@@ -66,9 +66,7 @@ public partial class AuthorSignatureDialog : FloatingDialogBase
 			secHeader.AddThemeFontOverride("font", faFont);
 		}
 
-		var grid = new GridContainer();
-		grid.Name = "Grid_GridContainer";
-		grid.Columns = 2;
+		var grid = UIStyle.CreateGrid(2);
 		grid.AddThemeConstantOverride("h_separation", 10);
 		grid.AddThemeConstantOverride("v_separation", 4);
 		grid.SizeFlagsHorizontal = SizeFlags.ExpandFill;

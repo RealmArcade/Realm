@@ -1470,9 +1470,7 @@ namespace Realm.Client.UI
 			var scroll = UIStyle.CreateScrollingBody();
 			vbox.AddChild(scroll);
 
-			var grid = new GridContainer();
-			grid.Name = "Grid_GridContainer";
-			grid.Columns = 2;
+			var grid = UIStyle.CreateGrid(2);
 			grid.AddThemeConstantOverride("h_separation", 30);
 			grid.AddThemeConstantOverride("v_separation", 10);
 			grid.SizeFlagsHorizontal = SizeFlags.ExpandFill;
