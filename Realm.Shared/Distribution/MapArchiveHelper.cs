@@ -646,7 +646,11 @@ public static class MapArchiveHelper
 					{
 						if (!IsWorkspaceApiLibFile(Path.GetFileName(file))) continue;
 
-						try { File.Delete(file); } catch { }
+						try { File.Delete(file); }
+						catch (Exception exception)
+						{
+							Console.Error.WriteLine($"[MapArchiveHelper] could not remove the stale API library {file}: {exception.GetType().Name}: {exception.Message}");
+						}
 					}
 				}
 			}
@@ -654,7 +658,11 @@ public static class MapArchiveHelper
 			var elfFiles = Directory.GetFiles(workspacePath, "*.elf", SearchOption.AllDirectories);
 			foreach (var file in elfFiles)
 			{
-				try { File.Delete(file); } catch { }
+				try { File.Delete(file); }
+				catch (Exception exception)
+				{
+					Console.Error.WriteLine($"[MapArchiveHelper] could not remove the stray ELF {file}: {exception.GetType().Name}: {exception.Message}");
+				}
 			}
 		}
 		catch (Exception ex)
