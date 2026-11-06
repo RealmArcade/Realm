@@ -91,7 +91,7 @@ public class ServiceScope : IDisposable
 		}
 		catch (Exception exception)
 		{
-			GD.PrintErr($"[ServiceScope:{Name}] Failed to clean up '{serviceType.Name}': {exception.Message}");
+			GameLog.LogError($"[ServiceScope:{Name}] Failed to clean up '{serviceType.Name}': {exception.Message}");
 		}
 	}
 
@@ -105,7 +105,7 @@ public class ServiceScope : IDisposable
 			}
 			catch (Exception exception)
 			{
-				GD.PrintErr($"[ServiceScope:{Name}] Dispose action failed: {exception.Message}");
+				GameLog.LogError($"[ServiceScope:{Name}] Dispose action failed: {exception.Message}");
 			}
 		}
 	}
