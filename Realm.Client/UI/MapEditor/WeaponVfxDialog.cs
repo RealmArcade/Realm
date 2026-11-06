@@ -205,7 +205,7 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 	{
 		Add3DPreviewViewport(BodyContainer, new Vector2(460, 220));
 
-		_sfxPlayer = new AudioStreamPlayer { Name = "WeaponPreviewSfx", Bus = AudioService.SfxBusName };
+		_sfxPlayer = new AudioStreamPlayer { Name = "WeaponPreviewSfx", Bus = AudioService.PreviewBusName };
 		PreviewSubViewport.AddChild(_sfxPlayer);
 
 		BuildTopToolbars();
@@ -1200,6 +1200,11 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 			{
 				_sfxPlayer.Stream = stream;
 				_sfxPlayer.Play();
+
+				if (!AudioService.IsMasterVolumeAudible())
+				{
+					Hud?.ShowFeedback(AudioService.PreviewInaudibleWarning);
+				}
 			}
 		}
 		catch (Exception ex)

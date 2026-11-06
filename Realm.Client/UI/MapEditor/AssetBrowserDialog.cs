@@ -72,7 +72,7 @@ public partial class AssetBrowserDialog : AssetGridDialogBase
 	{
 		SetUncompressedPanelTexture("res://Assets/UI/map_editor_assets_importer.webp", 30, 45, 70, 70);
 
-		_audioPlayer = new AudioStreamPlayer { Name = "AssetPreviewAudio", Bus = AudioService.SfxBusName };
+		_audioPlayer = new AudioStreamPlayer { Name = "AssetPreviewAudio", Bus = AudioService.PreviewBusName };
 		_audioPlayer.Finished += OnAudioFinished;
 		AddChild(_audioPlayer);
 
@@ -1256,6 +1256,11 @@ public partial class AssetBrowserDialog : AssetGridDialogBase
 			_audioPlayer.Play();
 			_btnAudioPlayPause.Text = "⏹ " + TranslationServer.Translate("Stop");
 			_btnAudioPlayPause.TooltipText = TranslationServer.Translate("Stop audio");
+
+			if (!AudioService.IsMasterVolumeAudible())
+			{
+				Hud?.ShowFeedback(AudioService.PreviewInaudibleWarning);
+			}
 		}
 	}
 

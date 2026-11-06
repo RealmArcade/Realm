@@ -14,7 +14,10 @@ public class AudioService
 	public const string MusicBusName = "Music";
 	public const string SfxBusName = "SFX";
 	public const string VoiceBusName = "Voice";
+	public const string PreviewBusName = MasterBusName;
 	public const char RaudEntrySeparator = '#';
+
+	public const float MinimumAudibleMasterVolumePercent = 5f;
 
 	private const int Max2DPlayers = 16;
 	public const int MaxPositionalVoices = 32;
@@ -50,6 +53,13 @@ public class AudioService
 		public float AppliedVolumeDb;
 		public ulong StartedTicksMs;
 	}
+
+	public static bool IsMasterVolumeAudible()
+	{
+		return Math.Clamp(GameSettings.MasterVolume, 0f, 100f) >= MinimumAudibleMasterVolumePercent;
+	}
+
+	public static string PreviewInaudibleWarning => TranslationServer.Translate("Sound previews play through the master volume. Raise the master volume in Options so previews are audible.");
 
 	public static void ApplyVolumeSettings()
 	{

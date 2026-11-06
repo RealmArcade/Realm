@@ -81,7 +81,7 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 		_decalEditDialog = new DecalSettingsDialog(hud);
 		_shaderEditDialog = new ShaderEditorDialog(hud);
 
-		_audioPlayer = new AudioStreamPlayer { Name = "AssetManagerPreviewAudio", Bus = AudioService.SfxBusName };
+		_audioPlayer = new AudioStreamPlayer { Name = "AssetManagerPreviewAudio", Bus = AudioService.PreviewBusName };
 		_audioPlayer.Finished += OnAudioFinished;
 		AddChild(_audioPlayer);
 
@@ -934,6 +934,11 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 		{
 			_audioPlayer.Play();
 			_btnAudioPlay.Text = "⏹ " + TranslationServer.Translate("Stop");
+
+			if (!AudioService.IsMasterVolumeAudible())
+			{
+				Hud?.ShowFeedback(AudioService.PreviewInaudibleWarning);
+			}
 		}
 	}
 
