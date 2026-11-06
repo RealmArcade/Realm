@@ -1,4 +1,4 @@
-using System.IO.Compression;
+﻿using System.IO.Compression;
 using System.Text;
 using Blake3;
 using Realm.Shared.Metadata;
@@ -657,8 +657,9 @@ public static class MapArchiveHelper
 				try { File.Delete(file); } catch { }
 			}
 		}
-		catch
+		catch (Exception ex)
 		{
+			Console.Error.WriteLine($"[MapArchiveHelper] could not deduplicate the workspace build artifacts under {workspacePath}: {ex.GetType().Name}: {ex.Message}");
 		}
 	}
 
