@@ -5,6 +5,7 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading;
 using Godot;
+using Realm.Client.Services;
 using Environment = System.Environment;
 using FileAccess = System.IO.FileAccess;
 
@@ -87,8 +88,11 @@ public static class PathUtils
 			string godotPath = string.IsNullOrEmpty(subPath) ? "user://" : $"user://{subPath.TrimStart('/', '\\')}";
 			return ProjectSettings.GlobalizePath(godotPath);
 		}
-		catch
+		catch (Exception exception)
 		{
+			// Every path this call returns now points at a guessed location, so anything written afterwards lands somewhere
+			// the engine never reports. One record here turns a later "my maps are gone" report into a one-line diagnosis.
+			GameLog.LogError($"Could not resolve user://{subPath}; falling back to the AppData user directory: {exception.Message}");
 			string fallback = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Godot", "app_userdata", "Realm");
 			return string.IsNullOrEmpty(subPath) ? fallback : Path.Combine(fallback, subPath.TrimStart('/', '\\'));
 		}
