@@ -259,10 +259,7 @@ public class MapEditorEntityPaletteController
 		activeStyle.BgColor = new Color(0.15f, 0.45f, 0.7f, 0.8f);
 		activeStyle.BorderColor = UIStyle.ColorCyanGlow;
 		activeStyle.SetBorderWidthAll(2);
-		activeStyle.CornerRadiusTopLeft = 4;
-		activeStyle.CornerRadiusTopRight = 4;
-		activeStyle.CornerRadiusBottomLeft = 4;
-		activeStyle.CornerRadiusBottomRight = 4;
+		activeStyle.SetCornerRadiusAll(4);
 
 		_btnChars.RemoveThemeStyleboxOverride("normal");
 		_btnBuilds.RemoveThemeStyleboxOverride("normal");

@@ -345,10 +345,7 @@ public partial class UtilitiesDialog : FloatingDialogBase
 		disclaimerStyle.BgColor = new Color(0.28f, 0.16f, 0.08f, 0.85f);
 		disclaimerStyle.BorderColor = new Color(0.85f, 0.55f, 0.2f, 0.95f);
 		disclaimerStyle.SetBorderWidthAll(1);
-		disclaimerStyle.CornerRadiusTopLeft = 4;
-		disclaimerStyle.CornerRadiusTopRight = 4;
-		disclaimerStyle.CornerRadiusBottomLeft = 4;
-		disclaimerStyle.CornerRadiusBottomRight = 4;
+		disclaimerStyle.SetCornerRadiusAll(4);
 		disclaimerStyle.ContentMarginLeft = 12;
 		disclaimerStyle.ContentMarginRight = 12;
 		disclaimerStyle.ContentMarginTop = 8;

@@ -290,10 +290,7 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 			BorderColor = new Color(0.25f, 0.23f, 0.20f, 0.8f)
 		};
 		detailStyle.SetBorderWidthAll(1);
-		detailStyle.CornerRadiusTopLeft = 4;
-		detailStyle.CornerRadiusTopRight = 4;
-		detailStyle.CornerRadiusBottomLeft = 4;
-		detailStyle.CornerRadiusBottomRight = 4;
+		detailStyle.SetCornerRadiusAll(4);
 		detailStyle.ContentMarginLeft = 10;
 		detailStyle.ContentMarginRight = 10;
 		detailStyle.ContentMarginTop = 8;

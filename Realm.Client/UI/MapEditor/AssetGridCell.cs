@@ -42,10 +42,7 @@ public partial class AssetGridCell : PanelContainer
 		thumbContainer.MouseFilter = MouseFilterEnum.Pass;
 		var thumbStyle = new StyleBoxFlat();
 		thumbStyle.BgColor = new Color(0.06f, 0.07f, 0.09f, 0.8f);
-		thumbStyle.CornerRadiusTopLeft = 3;
-		thumbStyle.CornerRadiusTopRight = 3;
-		thumbStyle.CornerRadiusBottomLeft = 3;
-		thumbStyle.CornerRadiusBottomRight = 3;
+		thumbStyle.SetCornerRadiusAll(3);
 		thumbContainer.AddThemeStyleboxOverride("panel", thumbStyle);
 		mainVBox.AddChild(thumbContainer);
 
@@ -214,10 +211,7 @@ public partial class AssetGridCell : PanelContainer
 			style.SetBorderWidthAll(1);
 		}
 
-		style.CornerRadiusTopLeft = 4;
-		style.CornerRadiusTopRight = 4;
-		style.CornerRadiusBottomLeft = 4;
-		style.CornerRadiusBottomRight = 4;
+		style.SetCornerRadiusAll(4);
 
 		style.ContentMarginLeft = 6;
 		style.ContentMarginRight = 6;

@@ -341,10 +341,7 @@ public partial class AssetBrowserDialog : AssetGridDialogBase
 		detailStyle.BgColor = new Color(0.08f, 0.09f, 0.11f, 0.9f);
 		detailStyle.BorderColor = new Color(0.25f, 0.23f, 0.20f, 0.8f);
 		detailStyle.SetBorderWidthAll(1);
-		detailStyle.CornerRadiusTopLeft = 4;
-		detailStyle.CornerRadiusTopRight = 4;
-		detailStyle.CornerRadiusBottomLeft = 4;
-		detailStyle.CornerRadiusBottomRight = 4;
+		detailStyle.SetCornerRadiusAll(4);
 		detailStyle.ContentMarginLeft = 8;
 		detailStyle.ContentMarginRight = 8;
 		detailStyle.ContentMarginTop = 6;
@@ -744,10 +741,7 @@ public partial class AssetBrowserDialog : AssetGridDialogBase
 		chipStyle.BgColor = isIndexing ? new Color(0.18f, 0.16f, 0.12f, 0.9f) : new Color(0.15f, 0.16f, 0.19f, 0.9f);
 		chipStyle.BorderColor = isIndexing ? UIStyle.ColorGold : new Color(0.35f, 0.32f, 0.28f, 0.7f);
 		chipStyle.SetBorderWidthAll(1);
-		chipStyle.CornerRadiusTopLeft = 3;
-		chipStyle.CornerRadiusTopRight = 3;
-		chipStyle.CornerRadiusBottomLeft = 3;
-		chipStyle.CornerRadiusBottomRight = 3;
+		chipStyle.SetCornerRadiusAll(3);
 		chipStyle.ContentMarginLeft = 6;
 		chipStyle.ContentMarginRight = 4;
 		chipStyle.ContentMarginTop = 2;
