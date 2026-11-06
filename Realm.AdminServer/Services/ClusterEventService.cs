@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.Text;
 using System.Text.Json;
 using DBreeze.Transactions;
@@ -490,8 +490,9 @@ public class ClusterEventService
 				var doc = JsonDocument.Parse(pair.Value);
 				db.Upsert("name_locks", pair.Key, doc);
 			}
-			catch
+			catch (Exception ex)
 			{
+				Console.Error.WriteLine($"[ClusterEvents] could not store a name lock in the database: {ex.GetType().Name}: {ex.Message}");
 			}
 		}
 	}
@@ -540,8 +541,9 @@ public class ClusterEventService
 
 				mapsCount++;
 			}
-			catch
+			catch (Exception ex)
 			{
+				Console.Error.WriteLine($"[ClusterEvents] could not import a map from a cluster peer: {ex.GetType().Name}: {ex.Message}");
 			}
 		}
 
@@ -579,8 +581,9 @@ public class ClusterEventService
 				var doc = JsonDocument.Parse(pair.Value);
 				db.Upsert("asset_signatures", pair.Key, doc);
 			}
-			catch
+			catch (Exception ex)
 			{
+				Console.Error.WriteLine($"[ClusterEvents] could not store an asset signature in the database: {ex.GetType().Name}: {ex.Message}");
 			}
 		}
 	}
@@ -597,8 +600,9 @@ public class ClusterEventService
 					db.Upsert("player_engagement", pair.Key, eng);
 				}
 			}
-			catch
+			catch (Exception ex)
 			{
+				Console.Error.WriteLine($"[ClusterEvents] could not store player engagement in the database: {ex.GetType().Name}: {ex.Message}");
 			}
 		}
 	}
@@ -654,8 +658,9 @@ public class ClusterEventService
 					peerDigests[peerUrl] = digest;
 				}
 			}
-			catch
+			catch (Exception ex)
 			{
+				Console.Error.WriteLine($"[ClusterEvents] could not read the state digest from cluster peer {peerUrl}: {ex.GetType().Name}: {ex.Message}");
 			}
 		});
 		await Task.WhenAll(pollTasks);
@@ -760,8 +765,9 @@ public class ClusterEventService
 				var mf = MapManifest.LoadFromJson(doc.RootElement.GetRawText());
 				AddManifestHashes(mf, referencedHashes);
 			}
-			catch
+			catch (Exception ex)
 			{
+				Console.Error.WriteLine($"[ClusterEvents] could not read the manifest hashes of a published map, so its assets may be treated as unreferenced: {ex.GetType().Name}: {ex.Message}");
 			}
 		}
 
@@ -776,8 +782,9 @@ public class ClusterEventService
 					var mf = MapManifest.LoadFromJson(json);
 					AddManifestHashes(mf, referencedHashes);
 				}
-				catch
+				catch (Exception ex)
 				{
+					Console.Error.WriteLine($"[ClusterEvents] could not read a manifest while collecting referenced hashes, so its assets may be treated as unreferenced: {ex.GetType().Name}: {ex.Message}");
 				}
 			}
 		}
@@ -852,8 +859,9 @@ public class ClusterEventService
 				bytesFreed += fileSize;
 			}
 		}
-		catch
+		catch (Exception ex)
 		{
+			Console.Error.WriteLine($"[ClusterEvents] could not verify a content-addressed asset while pruning the store: {ex.GetType().Name}: {ex.Message}");
 		}
 	}
 
@@ -1032,8 +1040,9 @@ public class ClusterEventService
 			if (doc.RootElement.TryGetProperty("MapName", out var mn)) mapTitle = mn.GetString() ?? "";
 			if (doc.RootElement.TryGetProperty("Version", out var mv)) mapVersion = mv.GetString() ?? "1.0";
 		}
-		catch
+		catch (Exception ex)
 		{
+			Console.Error.WriteLine($"[ClusterEvents] could not read the title and version from a manifest: {ex.GetType().Name}: {ex.Message}");
 		}
 	}
 
@@ -1751,8 +1760,9 @@ public class ClusterEventService
 			var doc = JsonDocument.Parse(File.ReadAllText(filePath));
 			remainingVersions.Add((mf!.Version ?? "1.0", doc, filePath));
 		}
-		catch
+		catch (Exception ex)
 		{
+			Console.Error.WriteLine($"[ClusterEvents] could not parse a manifest while pruning map versions: {ex.GetType().Name}: {ex.Message}");
 		}
 	}
 
@@ -1789,8 +1799,9 @@ public class ClusterEventService
 			if (!HasVersionAlready(remainingVersions, ver))
 				remainingVersions.Add((ver, doc, null));
 		}
-		catch
+		catch (Exception ex)
 		{
+			Console.Error.WriteLine($"[ClusterEvents] could not parse a version document while pruning map versions: {ex.GetType().Name}: {ex.Message}");
 		}
 	}
 
@@ -1809,8 +1820,9 @@ public class ClusterEventService
 			{
 				File.WriteAllText(defaultManifestPath, JsonSerializer.Serialize(latest.doc));
 			}
-			catch
+			catch (Exception ex)
 			{
+				Console.Error.WriteLine($"[ClusterEvents] could not rewrite the default manifest after pruning a version: {ex.GetType().Name}: {ex.Message}");
 			}
 
 			db.Upsert("published_maps", targetMap, latest.doc);
