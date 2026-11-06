@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using Realm.Ecs;
@@ -883,8 +883,9 @@ namespace Realm.Client.Core
 			{
 				ApplyDecalPropertiesFromMetadataInternal(decal, decalId);
 			}
-			catch
+			catch (Exception ex)
 			{
+				GameLog.LogError($"could not apply the metadata of decal {decalId} to the decal node: {ex.GetType().Name}: {ex.Message}");
 			}
 		}
 
@@ -2686,7 +2687,7 @@ namespace Realm.Client.Core
 				}
 				catch (Exception ex)
 				{
-					GD.PrintErr($"Failed setting up map workspace: {ex.Message}");
+					GameLog.LogError($"Failed setting up map workspace: {ex.Message}");
 				}
 			}
 
@@ -2768,7 +2769,7 @@ namespace Realm.Client.Core
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"Failed to put the editor's world back after the playtest: {ex.Message}. Resetting to a blank map.");
+				GameLog.LogError($"Failed to put the editor's world back after the playtest: {ex.Message}. Resetting to a blank map.");
 				GameContext.SessionState.EditorWorldState = null;
 				GameContext.SessionState.ReturningFromTest = false;
 				ResetWorldAndState();
