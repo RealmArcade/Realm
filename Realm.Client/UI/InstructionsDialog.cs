@@ -104,10 +104,7 @@ public partial class InstructionsDialog : Control
 		_sectionSelect.CustomMinimumSize = new Vector2(0, 34);
 		_sectionSelect.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_sectionSelect.FocusMode = FocusModeEnum.All;
-		_sectionSelect.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		_sectionSelect.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		_sectionSelect.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		_sectionSelect.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyButtonStyleboxesClearingFocus(_sectionSelect);
 		_sectionSelect.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 		_sectionSelect.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
 		_sectionSelect.AddThemeColorOverride("font_pressed_color", UIStyle.ColorCyanGlow);
@@ -151,10 +148,7 @@ public partial class InstructionsDialog : Control
 		closeButton.Set("icon_max_width", 0);
 		closeButton.CustomMinimumSize = new Vector2(140, 34);
 		closeButton.FocusMode = FocusModeEnum.None;
-		closeButton.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		closeButton.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		closeButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		closeButton.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyButtonStyleboxesClearingFocus(closeButton);
 		UIStyle.ApplyButtonText(closeButton, TranslationServer.Translate("CLOSE"), 14);
 		closeButton.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
 		closeButton.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);

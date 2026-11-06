@@ -266,10 +266,7 @@ public partial class GameOver : Control
 		string closeText = GameContext.SessionState.IsTestMode ? "Back to Editor" : "Close";
 		UIStyle.ApplyButtonText(_btnClose, closeText, 18);
 
-		_btnClose.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		_btnClose.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		_btnClose.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		_btnClose.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyButtonStyleboxesClearingFocus(_btnClose);
 
 		_btnClose.Pressed += () =>
 		{
@@ -299,10 +296,7 @@ public partial class GameOver : Control
 		_btnReportCopyright.Text = Tr("[!] REPORT INFRINGEMENT\n(DMCA/CopyRiGHT)");
 
 
-		_btnReportCopyright.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		_btnReportCopyright.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		_btnReportCopyright.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		_btnReportCopyright.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyButtonStyleboxesClearingFocus(_btnReportCopyright);
 
 
 		_btnReportCopyright.AddThemeColorOverride("font_color", new Color(0.85f, 0.35f, 0.35f));
@@ -338,10 +332,7 @@ public partial class GameOver : Control
 		bool hasExisting = _loadedReviews.ContainsKey(mapName);
 		UIStyle.ApplyButtonText(_btnWriteReview, hasExisting ? "Edit Your Review" : "Write a Review", 18);
 
-		_btnWriteReview.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		_btnWriteReview.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		_btnWriteReview.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		_btnWriteReview.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyButtonStyleboxesClearingFocus(_btnWriteReview);
 
 		_btnWriteReview.Pressed += () =>
 		{
@@ -468,10 +459,7 @@ public partial class GameOver : Control
 		btnSubmit.AddThemeConstantOverride("icon_max_width", 0);
 		btnSubmit.CustomMinimumSize = new Vector2(150, 42);
 		UIStyle.ApplyButtonText(btnSubmit, TranslationServer.Translate("Submit"), 16);
-		btnSubmit.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		btnSubmit.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		btnSubmit.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		btnSubmit.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyButtonStyleboxesClearingFocus(btnSubmit);
 		actionsHBox.AddChild(btnSubmit);
 
 		var btnCancel = new Button();
@@ -479,10 +467,7 @@ public partial class GameOver : Control
 		btnCancel.AddThemeConstantOverride("icon_max_width", 0);
 		btnCancel.CustomMinimumSize = new Vector2(150, 42);
 		UIStyle.ApplyButtonText(btnCancel, TranslationServer.Translate("Cancel"), 16);
-		btnCancel.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		btnCancel.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		btnCancel.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		btnCancel.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyButtonStyleboxesClearingFocus(btnCancel);
 		actionsHBox.AddChild(btnCancel);
 
 

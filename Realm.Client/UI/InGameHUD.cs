@@ -371,9 +371,7 @@ public partial class InGameHUD : Control
 			_btnSettings.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 			_btnSettings.AddThemeConstantOverride("icon_max_width", 22);
 			_btnSettings.TooltipText = TranslationServer.Translate("Settings (F12)");
-			_btnSettings.AddThemeStyleboxOverride("normal", UIStyle.CreateHUDButtonStyle(false, false));
-			_btnSettings.AddThemeStyleboxOverride("hover", UIStyle.CreateHUDButtonStyle(true, false));
-			_btnSettings.AddThemeStyleboxOverride("pressed", UIStyle.CreateHUDButtonStyle(false, true));
+			UIStyle.ApplyHudButtonStyleboxes(_btnSettings);
 			_btnSettings.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 			_btnSettings.AddThemeColorOverride("icon_normal_color", UIStyle.ColorGoldDull);
 			_btnSettings.AddThemeColorOverride("icon_hover_color", UIStyle.ColorGold);
@@ -419,9 +417,7 @@ public partial class InGameHUD : Control
 		_btnInstructions.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
 		_btnInstructions.AddThemeColorOverride("font_pressed_color", UIStyle.ColorCyanGlow);
 		_btnInstructions.AddThemeColorOverride("font_focus_color", UIStyle.ColorGoldDull);
-		_btnInstructions.AddThemeStyleboxOverride("normal", UIStyle.CreateHUDButtonStyle(false, false));
-		_btnInstructions.AddThemeStyleboxOverride("hover", UIStyle.CreateHUDButtonStyle(true, false));
-		_btnInstructions.AddThemeStyleboxOverride("pressed", UIStyle.CreateHUDButtonStyle(false, true));
+		UIStyle.ApplyHudButtonStyleboxes(_btnInstructions);
 		_btnInstructions.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 		_btnInstructions.TooltipText = TranslationServer.Translate("Instructions");
 		_btnInstructions.Pressed += OnInstructionsPressed;
@@ -499,9 +495,7 @@ public partial class InGameHUD : Control
 		_btnPauseMatch.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
 		_btnPauseMatch.AddThemeColorOverride("font_pressed_color", UIStyle.ColorCyanGlow);
 		_btnPauseMatch.AddThemeColorOverride("font_focus_color", UIStyle.ColorGoldDull);
-		_btnPauseMatch.AddThemeStyleboxOverride("normal", UIStyle.CreateHUDButtonStyle(false, false));
-		_btnPauseMatch.AddThemeStyleboxOverride("hover", UIStyle.CreateHUDButtonStyle(true, false));
-		_btnPauseMatch.AddThemeStyleboxOverride("pressed", UIStyle.CreateHUDButtonStyle(false, true));
+		UIStyle.ApplyHudButtonStyleboxes(_btnPauseMatch);
 		_btnPauseMatch.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 		_btnPauseMatch.TooltipText = TranslationServer.Translate("Pause Match");
 		_btnPauseMatch.Pressed += OnPauseMatchButtonPressed;
@@ -579,9 +573,7 @@ public partial class InGameHUD : Control
 		_btnQuitMatch.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
 		_btnQuitMatch.AddThemeColorOverride("font_pressed_color", UIStyle.ColorCyanGlow);
 		_btnQuitMatch.AddThemeColorOverride("font_focus_color", UIStyle.ColorGoldDull);
-		_btnQuitMatch.AddThemeStyleboxOverride("normal", UIStyle.CreateHUDButtonStyle(false, false));
-		_btnQuitMatch.AddThemeStyleboxOverride("hover", UIStyle.CreateHUDButtonStyle(true, false));
-		_btnQuitMatch.AddThemeStyleboxOverride("pressed", UIStyle.CreateHUDButtonStyle(false, true));
+		UIStyle.ApplyHudButtonStyleboxes(_btnQuitMatch);
 		_btnQuitMatch.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 		_btnQuitMatch.Pressed += OnQuitMatchPressed;
 		_btnQuitMatch.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
@@ -628,10 +620,7 @@ public partial class InGameHUD : Control
 			btn.ExpandIcon = true;
 			btn.FocusMode = FocusModeEnum.None;
 			btn.AddThemeConstantOverride("icon_max_width", 30);
-			btn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-			btn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-			btn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-			btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+			UIStyle.ApplyButtonStyleboxesClearingFocus(btn);
 
 			var hpBar = new ProgressBar();
 			hpBar.Name = "HealthBar";
@@ -901,10 +890,7 @@ public partial class InGameHUD : Control
 		}
 
 		_scoreboardCollapseButton.AddThemeFontSizeOverride("font_size", 12);
-		_scoreboardCollapseButton.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		_scoreboardCollapseButton.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		_scoreboardCollapseButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		_scoreboardCollapseButton.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyButtonStyleboxesClearingFocus(_scoreboardCollapseButton);
 		_scoreboardCollapseButton.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 		_scoreboardCollapseButton.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
 		scoreboardHeader.AddChild(_scoreboardCollapseButton);
@@ -939,9 +925,7 @@ public partial class InGameHUD : Control
 			btnBackToEditor.Name = "BtnBackToEditor";
 			btnBackToEditor.Text = TranslationServer.Translate("Back to Editor");
 			btnBackToEditor.Set("icon_max_width", 0);
-			btnBackToEditor.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-			btnBackToEditor.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-			btnBackToEditor.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
+			UIStyle.ApplyButtonStyleboxes(btnBackToEditor);
 			btnBackToEditor.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
 			btnBackToEditor.AddThemeFontSizeOverride("font_size", 13);
 			btnBackToEditor.CustomMinimumSize = new Vector2(160, 40);
@@ -1765,9 +1749,7 @@ public partial class InGameHUD : Control
 		btn.FocusMode = FocusModeEnum.None;
 		UIStyle.SetupHUDButton(btn, tooltip);
 
-		btn.AddThemeStyleboxOverride("normal", UIStyle.CreateHUDButtonStyle(false, false));
-		btn.AddThemeStyleboxOverride("hover", UIStyle.CreateHUDButtonStyle(true, false));
-		btn.AddThemeStyleboxOverride("pressed", UIStyle.CreateHUDButtonStyle(false, true));
+		UIStyle.ApplyHudButtonStyleboxes(btn);
 		btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 
 		btn.Pressed += () => onClick?.Invoke();
@@ -2743,9 +2725,7 @@ public partial class InGameHUD : Control
 		_pauseResumeButton.Name = "PauseResumeButton";
 		_pauseResumeButton.Text = TranslationServer.Translate("RESUME FOR EVERYONE");
 		_pauseResumeButton.CustomMinimumSize = new Vector2(0, 34);
-		_pauseResumeButton.AddThemeStyleboxOverride("normal", UIStyle.CreateHUDButtonStyle(false, false));
-		_pauseResumeButton.AddThemeStyleboxOverride("hover", UIStyle.CreateHUDButtonStyle(true, false));
-		_pauseResumeButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateHUDButtonStyle(false, true));
+		UIStyle.ApplyHudButtonStyleboxes(_pauseResumeButton);
 		_pauseResumeButton.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 		_pauseResumeButton.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 		_pauseResumeButton.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
