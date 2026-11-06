@@ -954,6 +954,16 @@ public static class UIStyle
 		contentLayer.MouseFilter = Control.MouseFilterEnum.Ignore;
 	}
 
+	public static ColorRect CreateDismissOverlay(float alpha)
+	{
+		var overlay = new ColorRect();
+		overlay.Name = "DismissOverlay_ColorRect";
+		overlay.Color = new Color(0.0f, 0.0f, 0.0f, alpha);
+		overlay.MouseFilter = Control.MouseFilterEnum.Stop;
+		overlay.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+		return overlay;
+	}
+
 	private static StyleBox CreateArrowButtonStyle(Color modulateColor)
 	{
 		var style = new StyleBoxTexture();

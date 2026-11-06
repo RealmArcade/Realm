@@ -33,11 +33,7 @@ public partial class ColorPickerPopover : Control
 		MouseFilter = MouseFilterEnum.Stop;
 		SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
 
-		_dismissOverlay = new ColorRect();
-		_dismissOverlay.Name = "DismissOverlay_ColorRect";
-		_dismissOverlay.Color = new Color(0.0f, 0.0f, 0.0f, 0.45f);
-		_dismissOverlay.MouseFilter = MouseFilterEnum.Stop;
-		_dismissOverlay.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+		_dismissOverlay = UIStyle.CreateDismissOverlay(0.45f);
 		_dismissOverlay.GuiInput += OnDismissOverlayInput;
 		AddChild(_dismissOverlay);
 
