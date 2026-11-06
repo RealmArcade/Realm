@@ -51,7 +51,6 @@ public partial class LobbyBrowser : Control
 	private Label _modeCol;
 	private Label _playersCol;
 	private Label _pingCol;
-	private Label _refreshIcon;
 	private Timer _refreshTimer;
 
 	private readonly string[] _runes = { "ᚠ", "ᚢ", "ᚦ", "ᚨ", "ᚱ", "ᚲ", "ᚷ", "ᚹ", "ᚺ", "ᚾ", "ᛁ", "ᛃ", "ᛇ", "ᛈ", "ᛉ", "ᛊ", "ᛏ", "ᛒ", "ᛖ", "ᛗ", "ᛚ", "ᛜ", "ᛞ", "ᛟ" };
@@ -508,11 +507,6 @@ public partial class LobbyBrowser : Control
 			TriggerRefresh();
 		};
 		_refreshButton.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
-	}
-
-	private void ShowHostingErrorPopup()
-	{
-		GameContext.UserInterface?.ShowPopupMessage(Tr("HOSTING ERROR"), Tr("Your network configuration is not compatible with hosting games."));
 	}
 
 	private void UpdateHostButtonState()
