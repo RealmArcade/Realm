@@ -756,6 +756,7 @@ public class ListenServerHost : IServerTransportSink
 		_lastBaselineRequestTickPerPeer.Remove(peerId);
 		_lastAcknowledgedProgressTickPerPeer[peerId] = tick;
 		_lastRepairSentTickPerPeer.Remove(peerId);
+		_lastRepairFirstSequencePerPeer.Remove(peerId);
 		_obstacleSignaturePerPeer.Remove(peerId);
 	}
 
@@ -771,6 +772,7 @@ public class ListenServerHost : IServerTransportSink
 		_roundTripMillisecondsPerPeer.Remove(peerId);
 		_seatedAtTickPerPeer.Remove(peerId);
 		_lastRepairSentTickPerPeer.Remove(peerId);
+		_lastRepairFirstSequencePerPeer.Remove(peerId);
 		_obstacleSignaturePerPeer.Remove(peerId);
 		_commandsThisTick.Remove(peerId);
 		_peerLanguages.Remove(peerId);
@@ -1622,14 +1624,18 @@ public class ListenServerHost : IServerTransportSink
 		if (request.Count <= 0 || request.Count > SnapshotFrameRing.Capacity || request.FirstSequence <= 0) return;
 
 		long tick = simulation.TickCount;
-		if (_lastRepairSentTickPerPeer.TryGetValue(peerId, out long lastRepairTick) && tick - lastRepairTick < RepairCooldownTicks) return;
+
+		// Only a repeat of the run this peer was last answered for is suppressed by the cooldown. A different run is a
+		// different hole: swallowing it left the peer waiting out its repair grace for descriptions the match had
+		// decided not to send, and it paid for one lost description with a whole world.
+		if (IsRepairRepeat(peerId, request.FirstSequence, tick)) return;
 
 		Span<int> missingSequences = stackalloc int[request.Count];
 		for (int index = 0; index < missingSequences.Length; index++) missingSequences[index] = request.FirstSequence + index;
 
 		if (TryResendMissingDescriptions(peerId, missingSequences))
 		{
-			_lastRepairSentTickPerPeer[peerId] = tick;
+			RecordRepairSent(peerId, request.FirstSequence, tick);
 			_log.Write($"peer {peerId} asked for {request.Count} description(s) from sequence {request.FirstSequence}; they are sent again");
 			return;
 		}
@@ -1741,11 +1747,16 @@ public class ListenServerHost : IServerTransportSink
 		// A repair answered once is not asked for again on every answer that still reports the same hole: the
 		// description is already on its way, and asking again each time spent the request budget on nothing.
 		long tick = simulation.TickCount;
+		int oldestMissingSequence = missingCount > 0 ? missingSequences[missingCount - 1] : 0;
+
+		// An acknowledgement describes the world a whole round trip ago, so the holes it still reports are usually the
+		// ones the peer has since asked for by name. Answering each of them again puts descriptions on the reliable
+		// stream that the peer already holds, and on a slow link that queue is what every description behind it waits on.
 		if (_lastRepairSentTickPerPeer.TryGetValue(peerId, out long lastRepairTick) && tick - lastRepairTick < RepairCooldownTicks) return;
 
 		if (missingBits <= SnapshotFrameRing.Capacity && TryResendMissingDescriptions(peerId, missingSequences.Slice(0, missingCount)))
 		{
-			_lastRepairSentTickPerPeer[peerId] = tick;
+			RecordRepairSent(peerId, oldestMissingSequence, tick);
 			_log.Write($"peer {peerId} is missing {missingBits} description(s); the missing ones are sent again");
 			return;
 		}
@@ -1774,6 +1785,25 @@ public class ListenServerHost : IServerTransportSink
 	private bool IsRefreshDue(int peerId, long tick)
 	{
 		return _lastAcknowledgedProgressTickPerPeer.TryGetValue(peerId, out long lastProgressTick) && tick - lastProgressTick >= SnapshotRefreshStallTicks;
+	}
+
+	/// <summary>
+	///     Whether this peer is asking again for the run it was last answered for, while that answer is still in flight.
+	///     A run the match has not been asked for yet is a new hole and is answered however recently the last repair was
+	///     sent, because a peer can only meet holes as fast as its link loses datagrams.
+	/// </summary>
+	private bool IsRepairRepeat(int peerId, int firstSequence, long tick)
+	{
+		if (!_lastRepairSentTickPerPeer.TryGetValue(peerId, out long lastRepairTick)) return false;
+		if (!_lastRepairFirstSequencePerPeer.TryGetValue(peerId, out int lastFirstSequence)) return false;
+		if (lastFirstSequence != firstSequence) return false;
+		return tick - lastRepairTick < RepairCooldownTicks;
+	}
+
+	private void RecordRepairSent(int peerId, int firstSequence, long tick)
+	{
+		_lastRepairSentTickPerPeer[peerId] = tick;
+		_lastRepairFirstSequencePerPeer[peerId] = firstSequence;
 	}
 
 	private bool TryClaimBaselineRequest(int peerId, long tick)
@@ -1825,6 +1855,8 @@ public class ListenServerHost : IServerTransportSink
 	private const long RepairCooldownTicks = MatchTiming.SnapshotRepairCooldownTicks;
 
 	private readonly Dictionary<int, long> _lastRepairSentTickPerPeer = new();
+
+	private readonly Dictionary<int, int> _lastRepairFirstSequencePerPeer = new();
 
 	private long _unreliableSnapshotCount;
 	private long _reliableSnapshotCount;

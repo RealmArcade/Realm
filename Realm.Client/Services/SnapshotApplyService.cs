@@ -414,8 +414,12 @@ public class SnapshotApplyService
 		NetworkLatencyService? latency = GameContext.Host != null ? GameContext.NetworkLatencyService : null;
 		if (latency == null || !latency.HasSample) return MinimumRepairGraceMilliseconds;
 
+		// The grace has to cover the request crossing to the match, the cooldown the answer may wait out before it is
+		// sent, the answer crossing back, and one retransmit of that answer: a repair asked for once over a link that
+		// loses datagrams is a repair whose answer can itself be lost, and giving up on the world before that round
+		// trip has had its chance is how one lost description used to cost a whole baseline.
 		float graceMilliseconds = MatchTiming.SnapshotRepairCooldownMilliseconds
-		                          + latency.SmoothedRoundTripMilliseconds
+		                          + latency.SmoothedRoundTripMilliseconds * 2f
 		                          + MatchTiming.SnapshotIntervalSeconds * 1000f;
 		return (ulong)Math.Clamp(graceMilliseconds, MinimumRepairGraceMilliseconds, MaximumRepairGraceMilliseconds);
 	}

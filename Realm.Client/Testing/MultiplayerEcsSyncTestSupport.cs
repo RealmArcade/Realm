@@ -176,8 +176,18 @@ public static class MultiplayerEcsSyncTestSupport
 		string publishedPath = Path.Combine(scriptOutputDirectory, $"{assemblyName}.wasm");
 		string shippedPath = Path.Combine(mapFolder, $"{assemblyName}.wasm");
 
-		if (File.Exists(shippedPath) && (!File.Exists(mapScriptPath) || File.GetLastWriteTimeUtc(shippedPath) >= File.GetLastWriteTimeUtc(mapScriptPath))) return shippedPath;
-		if (File.Exists(publishedPath) && File.GetLastWriteTimeUtc(publishedPath) >= File.GetLastWriteTimeUtc(mapScriptPath)) return publishedPath;
+		MapWorkspaceService.EnsureApiLib(mapFolder);
+
+		DateTime newestInput = File.GetLastWriteTimeUtc(mapScriptPath);
+		foreach (string apiLibrary in new[] { "Realm.MapAPI.dll", "Realm.Ecs.dll" })
+		{
+			string libraryPath = Path.Combine(mapFolder, "lib", apiLibrary);
+			if (!File.Exists(libraryPath)) continue;
+			newestInput = newestInput > File.GetLastWriteTimeUtc(libraryPath) ? newestInput : File.GetLastWriteTimeUtc(libraryPath);
+		}
+
+		if (File.Exists(shippedPath) && File.GetLastWriteTimeUtc(shippedPath) >= newestInput) return shippedPath;
+		if (File.Exists(publishedPath) && File.GetLastWriteTimeUtc(publishedPath) >= newestInput) return publishedPath;
 
 		string wasmPath = publishedPath;
 		string wasiSdkPath = WasiSdkResolver.ResolveWasiSdkPathWithoutGodot();
