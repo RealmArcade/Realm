@@ -415,7 +415,7 @@ public class VfxShaderManager
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[VfxShaderManager] Error loading texture {fullPath}: {ex.Message}");
+			GameLog.LogError($"[VfxShaderManager] Error loading texture {fullPath}: {ex.Message}");
 			return null;
 		}
 	}
