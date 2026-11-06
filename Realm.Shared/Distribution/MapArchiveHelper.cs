@@ -604,29 +604,6 @@ public static class MapArchiveHelper
 		return normalized.TrimStart('/');
 	}
 
-	private static RmapHeaderInfo ExtractRmapHeaderInfoFromDirectory(string sourceDirectory)
-	{
-		string mapName = Path.GetFileName(sourceDirectory);
-		string version = "1.0.0";
-		string gameBuildNumber = RealmVersion.GameBuildNumber;
-		string author = "Unknown";
-		string description = string.Empty;
-		var tags = new List<string>();
-
-		ApplyManifestToHeaderInfo(sourceDirectory, ref mapName, ref version, ref author, ref description, tags);
-		ApplyMetadataToHeaderInfo(sourceDirectory, ref gameBuildNumber);
-
-		return new RmapHeaderInfo
-		{
-			MapName = mapName,
-			Version = version,
-			GameBuildNumber = string.IsNullOrWhiteSpace(gameBuildNumber) ? RealmVersion.GameBuildNumber : gameBuildNumber,
-			Author = author,
-			Description = description,
-			Tags = tags
-		};
-	}
-
 	private static void ApplyManifestToHeaderInfo(
 		string sourceDirectory,
 		ref string mapName,
