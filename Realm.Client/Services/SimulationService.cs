@@ -229,10 +229,6 @@ public class SimulationService
 
 	private float _fDelta;
 
-	private readonly MovementAndPathfindingService.SpatialGridEntryCallback _autoCastFriendlyCallback;
-
-	private readonly MovementAndPathfindingService.SpatialGridEntryCallback _autoCastEnemyCallback;
-
 	private readonly List<Entity> _tickArrivedUnits = new();
 	private readonly Dictionary<int, BotController> _botControllers = new();
 
