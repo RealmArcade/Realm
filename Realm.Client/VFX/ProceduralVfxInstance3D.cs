@@ -35,8 +35,6 @@ public partial class ProceduralVfxInstance3D : Node3D
 	private bool _isHovered = false;
 	private MeshInstance3D _editorBaseRing;
 
-	private static StandardMaterial3D _sharedSelectionMaterial;
-	private static StandardMaterial3D _sharedHoverMaterial;
 	private static StandardMaterial3D _sharedEditorBaseMaterial;
 
 	public bool IsPreview { get; set; } = false;
@@ -498,8 +496,6 @@ public partial class ProceduralVfxInstance3D : Node3D
 
 	public static void ClearCache()
 	{
-		_sharedSelectionMaterial = null;
-		_sharedHoverMaterial = null;
 		_sharedEditorBaseMaterial = null;
 	}
 
