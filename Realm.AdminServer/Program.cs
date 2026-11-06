@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.Globalization;
 using System.Net.WebSockets;
 using System.Text;
@@ -685,8 +685,9 @@ app.MapPost("/api/assets/bundle", async (HttpContext context, ContentAddressable
 	{
 		req = JsonSerializer.Deserialize<AssetBundleRequestDto>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 	}
-	catch
+	catch (Exception ex)
 	{
+		Console.Error.WriteLine($"[AdminServer] the asset-bundle request body was not valid JSON: {ex.GetType().Name}: {ex.Message}");
 	}
 
 	if (req == null || req.Hashes == null || req.Hashes.Count == 0)
@@ -852,8 +853,9 @@ app.MapGet("/api/manifests/{mapId}", (string mapId, ContentAddressableStorage ca
 				}
 			}
 		}
-		catch
+		catch (Exception ex)
 		{
+			Console.Error.WriteLine($"[AdminServer] skipped an unreadable map manifest while resolving a map id: {ex.GetType().Name}: {ex.Message}");
 		}
 	}
 
@@ -1102,8 +1104,9 @@ app.MapPost("/api/publish_map/initiate", (PublishMapInitiateRequest req, DataSto
 				}
 			}
 		}
-		catch
+		catch (Exception ex)
 		{
+			Console.Error.WriteLine($"[AdminServer] could not read the referenced hashes from a manifest, so its assets may be treated as unreferenced: {ex.GetType().Name}: {ex.Message}");
 		}
 
 		if (root.TryGetProperty("Files", out var filesProp) && filesProp.ValueKind == JsonValueKind.Object)
@@ -1239,8 +1242,9 @@ app.MapPost("/api/publish_map/finalize", (PublishMapFinalizeRequest req, DataSto
 				}
 			}
 		}
-		catch
+		catch (Exception ex)
 		{
+			Console.Error.WriteLine($"[AdminServer] could not read the manifest hashes for a map, so its assets may be treated as unreferenced: {ex.GetType().Name}: {ex.Message}");
 		}
 
 		var missingHashes = new List<string>();
@@ -1639,8 +1643,9 @@ app.MapPost("/api/admin/remove_manifest", async (HttpRequest request, ClusterEve
 		{
 			req = JsonSerializer.Deserialize<AdminRemoveManifestRequest>(body, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 		}
-		catch
+		catch (Exception ex)
 		{
+			Console.Error.WriteLine($"[AdminServer] the admin remove-manifest request body was not valid JSON: {ex.GetType().Name}: {ex.Message}");
 		}
 	}
 
@@ -1771,8 +1776,9 @@ app.MapPost("/api/cluster/sync_published_maps", async (HttpRequest request, Clus
 					var doc = JsonDocument.Parse(map.ManifestJson);
 					db.Upsert("published_maps", map.MapId, doc);
 				}
-				catch
+				catch (Exception ex)
 				{
+					Console.Error.WriteLine($"[AdminServer] could not store the manifest of published map {map.MapId} in the database: {ex.GetType().Name}: {ex.Message}");
 				}
 			}
 
@@ -2249,8 +2255,9 @@ app.MapGet("/api/discovery/maps", (DataStoreService db, ContentAddressableStorag
 					var manifestObj = MapManifest.LoadFromJson(doc.RootElement.GetRawText());
 					manifestFiles = manifestObj?.Files;
 				}
-				catch
+				catch (Exception ex)
 				{
+					Console.Error.WriteLine($"[AdminServer] could not parse a published map manifest into its file list: {ex.GetType().Name}: {ex.Message}");
 				}
 			}
 
@@ -2279,8 +2286,9 @@ app.MapGet("/api/discovery/maps", (DataStoreService db, ContentAddressableStorag
 						thumbnailHash, screenshotHashes, tags, totalBytes, engineVersion, maxPlayers, isGreenlit, isTestVersionDocument,
 						attributionSourceMaps, stats));
 		}
-		catch
+		catch (Exception ex)
 		{
+			Console.Error.WriteLine($"[AdminServer] skipped a map in the discovery list because its manifest document could not be read: {ex.GetType().Name}: {ex.Message}");
 		}
 	}
 
@@ -2339,8 +2347,9 @@ app.MapGet("/api/discovery/maps", (DataStoreService db, ContentAddressableStorag
 						engineVersion, maxPlayers, isGreenlit, false,
 						manifest.Attribution_SourceMap ?? new List<string>(), stats));
 			}
-			catch
+			catch (Exception ex)
 			{
+				Console.Error.WriteLine($"[AdminServer] skipped a map in the discovery list because its manifest file could not be read: {ex.GetType().Name}: {ex.Message}");
 			}
 		}
 	}
