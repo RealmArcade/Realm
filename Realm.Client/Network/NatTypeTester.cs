@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Threading.Tasks;
 using Godot;
+using Realm.Client.Services;
 
 namespace Realm.Client.Network;
 
@@ -36,7 +37,7 @@ public class NatTypeTester
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[NatTypeTester] Error checking NAT: {ex.Message}");
+			GameLog.LogError($"[NatTypeTester] Error checking NAT: {ex.Message}");
 			return NatType.PortRestrictedCone;
 		}
 	}
