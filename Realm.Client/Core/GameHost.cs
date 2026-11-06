@@ -2345,27 +2345,6 @@ public partial class GameHost : Node3D
 		}
 	}
 
-	private bool ShouldProcessMapLoading()
-	{
-		bool isGameStarted = GameContext.Lobby?.IsGameStarted ?? false;
-		return isGameStarted || IsBuildingMatchWorld || GameContext.SessionState.IsMapEditorMode;
-	}
-
-	private bool ShouldLoadCustomTerrain()
-	{
-		return !GameContext.SessionState.IsMapEditorMode && !GameContext.SaveLoadService.IsLoadingMap;
-	}
-
-	private bool ShouldLoadAndRunMapScript()
-	{
-		if (GameContext.SaveLoadService.IsLoadingMap) return false;
-
-		// The script creates the starting units from the roster, so it runs on the authority and never on a peer. A world
-		// the lobby prepares is built before that roster exists, which is why preparing is not the same as playing.
-		bool isGameStarted = GameContext.Lobby?.IsGameStarted ?? false;
-		return (!isGameStarted && !IsBuildingMatchWorld) || GameContext.SessionState.IsMapEditorMode;
-	}
-
 	private void ApplyTestRandomSeedIfNeeded(string rawMapNameOrPath)
 	{
 		bool isSinglePlayerOrTest = (GameContext.Lobby?.IsSinglePlayer == true) || GameContext.SessionState.IsTestMode || !IsMultiplayerActive();
@@ -2381,20 +2360,6 @@ public partial class GameHost : Node3D
 		if (metadata.MapProperties?.TestRandomSeed != null)
 		{
 			GameContext.RandomService.SetSeed(metadata.MapProperties.TestRandomSeed);
-		}
-	}
-
-	private void LoadCustomTerrain(string rawMapName)
-	{
-		string targetPath = ResolveCustomTerrainPath(rawMapName);
-
-		if (!string.IsNullOrEmpty(targetPath) && (targetPath.StartsWith("user://") || targetPath.StartsWith("res://")))
-			targetPath = ProjectSettings.GlobalizePath(targetPath);
-
-		if (!string.IsNullOrEmpty(targetPath) && File.Exists(targetPath))
-		{
-			bool terrainOnly = _multiplayerActive && !Multiplayer.IsServer();
-			LoadMapFromFile(targetPath, terrainOnly, true);
 		}
 	}
 
