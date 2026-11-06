@@ -249,230 +249,7 @@ namespace Realm.Client.UI
 
 				BuildToolAccordion();
 
-				_accordionBrush = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion");
-				_btnHeaderBrush = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/BtnHeaderBrush");
-				_contentBrush = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush");
-				StyleAccordionHeader(_btnHeaderBrush);
-				SetupAccordion(_btnHeaderBrush, _contentBrush, TranslationServer.Translate("Global Brush Properties"));
-
-				_sldBrushSize = GetNode<Slider>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/BrushSizeBox/SldBrushSize");
-				_lblBrushSizeValue = GetNode<Label>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/BrushSizeBox/Header/LblBrushSizeValue");
-				_brushSizeBox = GetNodeOrNull<Control>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/BrushSizeBox");
-				_sldBrushSize.DragStarted += () => _isDraggingSlider = true;
-				_sldBrushSize.DragEnded += (valueChanged) => _isDraggingSlider = false;
-
-				_sldBrushStrength = GetNode<Slider>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/BrushStrengthBox/SldBrushStrength");
-				_lblBrushStrengthValue = GetNode<Label>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/BrushStrengthBox/Header/LblBrushStrengthValue");
-				_sldBrushStrength.DragStarted += () => _isDraggingSlider = true;
-				_sldBrushStrength.DragEnded += (valueChanged) => _isDraggingSlider = false;
-
-				_btnBrushShape = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/ShapeMirrorGrid/BtnBrushShape");
-				SetupOptionButton(_btnBrushShape, $"{UnicodeIcons.SQUARE} BRUSH: SQUARE", () =>
-				{
-					if (GameContext.Host != null)
-					{
-						GameContext.Host.EditorBrushIsSquare = !GameContext.Host.EditorBrushIsSquare;
-						GameContext.Host.UpdateBrushMesh();
-						UpdateBrushShapeExternal(GameContext.Host.EditorBrushIsSquare);
-					}
-				}, 11, "Toggle brush shape between circular and square (B)");
-
-				_optMirrorMode = GetNode<OptionButton>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/ShapeMirrorGrid/OptMirrorMode");
-				SetupMirrorDropdown(_optMirrorMode, "Select terrain and object mirroring symmetry mode");
-
-				_chkBlockMode = GetNode<CheckBox>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/ChkBlockMode");
-				_chkBlockMode.Toggled += (toggled) =>
-				{
-					if (GameContext.Host != null)
-						GameContext.Host.EditorBlockMode = toggled;
-
-					ShowFeedback(toggled ? "Block Mode: Enabled" : "Block Mode: Disabled");
-					UpdateBlockStepVisibility();
-					UpdateBrushStrengthVisibility();
-					if (GameContext.Host != null)
-						UpdateSidebarMorph(GameContext.Host.ActiveEditorTool);
-				};
-				_chkBlockMode.ButtonPressed = true;
-
-				_stepBox = GetNode<Control>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/StepBox");
-				_sldBlockStep = GetNode<Slider>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/StepBox/SldBlockStep");
-				_sldBlockStep.DragStarted += () => _isDraggingSlider = true;
-				_sldBlockStep.DragEnded += (valueChanged) => _isDraggingSlider = false;
-				_lblBlockStepValue = GetNode<Label>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/StepBox/Header/LblBlockStepValue");
-				var lblStepTitle = GetNodeOrNull<Label>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/StepBox/Header/LblStepTitle");
-				if (lblStepTitle != null) lblStepTitle.Text = TranslationServer.Translate("Step Height");
-
-				_heightBox = GetNode<Control>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/HeightBox");
-				_sldHeight = GetNode<Slider>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/HeightBox/SldHeight");
-				_sldHeight.MinValue = TerrainCell.MIN_Y;
-				_sldHeight.MaxValue = TerrainCell.MAX_Y;
-				_sldHeight.DragStarted += () => _isDraggingSlider = true;
-				_sldHeight.DragEnded += (valueChanged) => _isDraggingSlider = false;
-				_lblHeightValue = GetNode<Label>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/HeightBox/Header/LblHeightValue");
-				var lblHeightTitle = GetNodeOrNull<Label>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/HeightBox/Header/LblHeightTitle");
-				if (lblHeightTitle != null) lblHeightTitle.Text = TranslationServer.Translate("Height");
-
-				_accordionWater = new VBoxContainer();
-				_accordionWater.Name = "WaterAccordion";
-				_btnHeaderWater = new Button();
-				_btnHeaderWater.Name = "BtnHeaderWater";
-				_contentWater = new VBoxContainer();
-				_contentWater.Name = "ContentWater";
-				_accordionWater.AddChild(_btnHeaderWater);
-				_accordionWater.AddChild(_contentWater);
-
-				var mainAccordionContainer = GetNodeOrNull<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer");
-				if (mainAccordionContainer != null)
-				{
-					mainAccordionContainer.AddChild(_accordionWater);
-					if (_accordionBrush != null)
-					{
-						mainAccordionContainer.MoveChild(_accordionWater, _accordionBrush.GetIndex() + 1);
-					}
-				}
-
-				StyleAccordionHeader(_btnHeaderWater);
-				SetupAccordion(_btnHeaderWater, _contentWater, TranslationServer.Translate("Liquid / Water Config"));
-
-				_waterHeightBox = new VBoxContainer();
-				_waterHeightBox.Name = "WaterHeightBox";
-				_waterHeightBox.AddThemeConstantOverride("separation", 2);
-
-				var headerWaterHeight = new HBoxContainer();
-				headerWaterHeight.Name = "HeaderWaterHeight";
-				_waterHeightBox.AddChild(headerWaterHeight);
-
-				var lblWaterHeightTitle = new Label();
-				lblWaterHeightTitle.Name = "LblWaterHeightTitle";
-				lblWaterHeightTitle.Text = TranslationServer.Translate("Water Height");
-				lblWaterHeightTitle.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-				lblWaterHeightTitle.AddThemeFontSizeOverride("font_size", 10);
-				headerWaterHeight.AddChild(lblWaterHeightTitle);
-
-				_lblWaterHeightValue = new Label();
-				_lblWaterHeightValue.Name = "LblWaterHeightValue";
-				_lblWaterHeightValue.Text = "0.9m";
-				_lblWaterHeightValue.AddThemeFontSizeOverride("font_size", 11);
-				headerWaterHeight.AddChild(_lblWaterHeightValue);
-
-				_sldWaterHeight = new HSlider();
-				_sldWaterHeight.Name = "SldWaterHeight";
-				_sldWaterHeight.FocusMode = FocusModeEnum.None;
-				_sldWaterHeight.MinValue = 0.1;
-				_sldWaterHeight.MaxValue = 15.0;
-				_sldWaterHeight.Step = 0.1;
-				_sldWaterHeight.Value = 0.9;
-				_sldWaterHeight.ValueChanged += (val) =>
-				{
-					float fVal = (float)val;
-					_lblWaterHeightValue.Text = fVal.ToString("F1") + "m";
-					if (GameContext.Host != null) GameContext.EditorService.EditorWaterHeight = fVal;
-				};
-				_sldWaterHeight.DragStarted += () => _isDraggingSlider = true;
-				_sldWaterHeight.DragEnded += (valueChanged) => _isDraggingSlider = false;
-				_waterHeightBox.AddChild(_sldWaterHeight);
-
-				_contentWater.AddChild(_waterHeightBox);
-
-				var waterActionBox = new VBoxContainer();
-				waterActionBox.Name = "WaterActionBox";
-				waterActionBox.AddThemeConstantOverride("separation", 2);
-
-				var lblWaterAction = new Label();
-				lblWaterAction.Name = "LblWaterActionTitle";
-				lblWaterAction.Text = TranslationServer.Translate("Action");
-				lblWaterAction.AddThemeFontSizeOverride("font_size", 10);
-				waterActionBox.AddChild(lblWaterAction);
-
-				var waterActionButtonRow = new HBoxContainer();
-				waterActionButtonRow.Name = "WaterActionButtonRow";
-				waterActionButtonRow.AddThemeConstantOverride("separation", 4);
-				waterActionBox.AddChild(waterActionButtonRow);
-
-				_btnWaterActionAdd = new Button();
-				_btnWaterActionAdd.Name = "BtnWaterActionAdd";
-				_btnWaterActionAdd.Set("icon_max_width", 0);
-				_btnWaterActionAdd.Text = "+ " + TranslationServer.Translate("Add");
-				_btnWaterActionAdd.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-				_btnWaterActionAdd.FocusMode = FocusModeEnum.None;
-				_btnWaterActionAdd.AddThemeFontSizeOverride("font_size", 11);
-				_btnWaterActionAdd.TooltipText = TranslationServer.Translate("Add water to terrain");
-				StyleRowButton(_btnWaterActionAdd);
-				_btnWaterActionAdd.AddThemeStyleboxOverride("normal", _highlightStyle);
-				waterActionButtonRow.AddChild(_btnWaterActionAdd);
-
-				_btnWaterActionRemove = new Button();
-				_btnWaterActionRemove.Name = "BtnWaterActionRemove";
-				_btnWaterActionRemove.Set("icon_max_width", 0);
-				_btnWaterActionRemove.Text = "- " + TranslationServer.Translate("Remove");
-				_btnWaterActionRemove.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-				_btnWaterActionRemove.FocusMode = FocusModeEnum.None;
-				_btnWaterActionRemove.AddThemeFontSizeOverride("font_size", 11);
-				_btnWaterActionRemove.TooltipText = TranslationServer.Translate("Remove water from terrain");
-				StyleRowButton(_btnWaterActionRemove);
-				waterActionButtonRow.AddChild(_btnWaterActionRemove);
-
-				_btnWaterActionAdd.Pressed += () =>
-				{
-					GameContext.EditorService.IsWaterRemoveAction = false;
-					_btnWaterActionAdd.AddThemeStyleboxOverride("normal", _highlightStyle);
-					_btnWaterActionRemove.RemoveThemeStyleboxOverride("normal");
-					if (_waterHeightBox != null) _waterHeightBox.Visible = true;
-					if (_waterModeBox != null) _waterModeBox.Visible = true;
-					if (_btnWaterProfiles != null) _btnWaterProfiles.Visible = true;
-				};
-
-				_btnWaterActionRemove.Pressed += () =>
-				{
-					GameContext.EditorService.IsWaterRemoveAction = true;
-					_btnWaterActionRemove.AddThemeStyleboxOverride("normal", _highlightStyle);
-					_btnWaterActionAdd.RemoveThemeStyleboxOverride("normal");
-					if (_waterHeightBox != null) _waterHeightBox.Visible = false;
-					if (_waterModeBox != null) _waterModeBox.Visible = false;
-					if (_btnWaterProfiles != null) _btnWaterProfiles.Visible = false;
-				};
-
-				_contentWater.AddChild(waterActionBox);
-
-				_waterModeBox = new VBoxContainer();
-				_waterModeBox.Name = "WaterModeBox";
-				_waterModeBox.AddThemeConstantOverride("separation", 2);
-
-				_optWaterMode = new OptionButton();
-				_optWaterMode.Name = "OptWaterMode";
-				_optWaterMode.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-				_optWaterMode.ClipText = true;
-				_optWaterMode.CustomMinimumSize = new Vector2(0, 24);
-				_waterModeBox.AddChild(_optWaterMode);
-
-				_optWaterMode.ItemSelected += (idx) =>
-				{
-					byte profIdx = 0;
-					var meta = _optWaterMode.GetItemMetadata((int)idx);
-					if (meta.VariantType != Variant.Type.Nil)
-					{
-						profIdx = (byte)(int)meta;
-					}
-
-					if (GameContext.Host != null)
-					{
-						GameContext.Host.EditorWaterMode = WaterType.Shallow;
-						GameContext.Host.ActiveWaterProfileIndex = profIdx;
-					}
-				};
-				_contentWater.AddChild(_waterModeBox);
-				RefreshWaterSwatches();
-
-				_btnWaterProfiles = new Button();
-				_btnWaterProfiles.Name = "BtnWaterProfiles";
-				_btnWaterProfiles.Set("icon_max_width", 0);
-				_btnWaterProfiles.Text = "⚙ " + TranslationServer.Translate("Water Profiles");
-				_btnWaterProfiles.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-				_btnWaterProfiles.TooltipText = TranslationServer.Translate("Configure Liquid / Water Uber Profiles");
-				_btnWaterProfiles.FocusMode = FocusModeEnum.None;
-				_btnWaterProfiles.AddThemeFontSizeOverride("font_size", 11);
-				_btnWaterProfiles.Pressed += () => OpenWaterProfileDialog();
-				_contentWater.AddChild(_btnWaterProfiles);
+				BuildBrushAccordion();
 
 				_accordionToolSettings = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion");
 				_btnHeaderToolSettings = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/BtnHeaderToolSettings");
@@ -1645,6 +1422,234 @@ namespace Realm.Client.UI
 			_btnPaste = CreateToolCardView(clipGrid, "BtnPaste", UnicodeIcons.PASTE, "Paste", () => TriggerToolSelection(EditorTool.PasteArea, _btnPaste), "Paste clipboard contents onto terrain (Ctrl+V)");
 
 			_btnEraseArea = CreateToolCardView(clipGrid, "BtnEraseArea", UnicodeIcons.TRASH, "Erase Area", () => GameContext.EditorService.EraseSelectedArea(), "Erase heights, textures and objects within selection (Delete)");
+		}
+
+		private void BuildBrushAccordion()
+		{
+			_accordionBrush = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion");
+			_btnHeaderBrush = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/BtnHeaderBrush");
+			_contentBrush = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush");
+			StyleAccordionHeader(_btnHeaderBrush);
+			SetupAccordion(_btnHeaderBrush, _contentBrush, TranslationServer.Translate("Global Brush Properties"));
+
+			_sldBrushSize = GetNode<Slider>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/BrushSizeBox/SldBrushSize");
+			_lblBrushSizeValue = GetNode<Label>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/BrushSizeBox/Header/LblBrushSizeValue");
+			_brushSizeBox = GetNodeOrNull<Control>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/BrushSizeBox");
+			_sldBrushSize.DragStarted += () => _isDraggingSlider = true;
+			_sldBrushSize.DragEnded += (valueChanged) => _isDraggingSlider = false;
+
+			_sldBrushStrength = GetNode<Slider>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/BrushStrengthBox/SldBrushStrength");
+			_lblBrushStrengthValue = GetNode<Label>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/BrushStrengthBox/Header/LblBrushStrengthValue");
+			_sldBrushStrength.DragStarted += () => _isDraggingSlider = true;
+			_sldBrushStrength.DragEnded += (valueChanged) => _isDraggingSlider = false;
+
+			_btnBrushShape = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/ShapeMirrorGrid/BtnBrushShape");
+			SetupOptionButton(_btnBrushShape, $"{UnicodeIcons.SQUARE} BRUSH: SQUARE", () =>
+			{
+				if (GameContext.Host != null)
+				{
+					GameContext.Host.EditorBrushIsSquare = !GameContext.Host.EditorBrushIsSquare;
+					GameContext.Host.UpdateBrushMesh();
+					UpdateBrushShapeExternal(GameContext.Host.EditorBrushIsSquare);
+				}
+			}, 11, "Toggle brush shape between circular and square (B)");
+
+			_optMirrorMode = GetNode<OptionButton>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/ShapeMirrorGrid/OptMirrorMode");
+			SetupMirrorDropdown(_optMirrorMode, "Select terrain and object mirroring symmetry mode");
+
+			_chkBlockMode = GetNode<CheckBox>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/ChkBlockMode");
+			_chkBlockMode.Toggled += (toggled) =>
+			{
+				if (GameContext.Host != null)
+					GameContext.Host.EditorBlockMode = toggled;
+
+				ShowFeedback(toggled ? "Block Mode: Enabled" : "Block Mode: Disabled");
+				UpdateBlockStepVisibility();
+				UpdateBrushStrengthVisibility();
+				if (GameContext.Host != null)
+					UpdateSidebarMorph(GameContext.Host.ActiveEditorTool);
+			};
+			_chkBlockMode.ButtonPressed = true;
+
+			_stepBox = GetNode<Control>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/StepBox");
+			_sldBlockStep = GetNode<Slider>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/StepBox/SldBlockStep");
+			_sldBlockStep.DragStarted += () => _isDraggingSlider = true;
+			_sldBlockStep.DragEnded += (valueChanged) => _isDraggingSlider = false;
+			_lblBlockStepValue = GetNode<Label>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/StepBox/Header/LblBlockStepValue");
+			var lblStepTitle = GetNodeOrNull<Label>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/StepBox/Header/LblStepTitle");
+			if (lblStepTitle != null) lblStepTitle.Text = TranslationServer.Translate("Step Height");
+
+			_heightBox = GetNode<Control>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/HeightBox");
+			_sldHeight = GetNode<Slider>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/HeightBox/SldHeight");
+			_sldHeight.MinValue = TerrainCell.MIN_Y;
+			_sldHeight.MaxValue = TerrainCell.MAX_Y;
+			_sldHeight.DragStarted += () => _isDraggingSlider = true;
+			_sldHeight.DragEnded += (valueChanged) => _isDraggingSlider = false;
+			_lblHeightValue = GetNode<Label>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/HeightBox/Header/LblHeightValue");
+			var lblHeightTitle = GetNodeOrNull<Label>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/HeightBox/Header/LblHeightTitle");
+			if (lblHeightTitle != null) lblHeightTitle.Text = TranslationServer.Translate("Height");
+
+			_accordionWater = new VBoxContainer();
+			_accordionWater.Name = "WaterAccordion";
+			_btnHeaderWater = new Button();
+			_btnHeaderWater.Name = "BtnHeaderWater";
+			_contentWater = new VBoxContainer();
+			_contentWater.Name = "ContentWater";
+			_accordionWater.AddChild(_btnHeaderWater);
+			_accordionWater.AddChild(_contentWater);
+
+			var mainAccordionContainer = GetNodeOrNull<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer");
+			if (mainAccordionContainer != null)
+			{
+				mainAccordionContainer.AddChild(_accordionWater);
+				if (_accordionBrush != null)
+				{
+					mainAccordionContainer.MoveChild(_accordionWater, _accordionBrush.GetIndex() + 1);
+				}
+			}
+
+			StyleAccordionHeader(_btnHeaderWater);
+			SetupAccordion(_btnHeaderWater, _contentWater, TranslationServer.Translate("Liquid / Water Config"));
+
+			_waterHeightBox = new VBoxContainer();
+			_waterHeightBox.Name = "WaterHeightBox";
+			_waterHeightBox.AddThemeConstantOverride("separation", 2);
+
+			var headerWaterHeight = new HBoxContainer();
+			headerWaterHeight.Name = "HeaderWaterHeight";
+			_waterHeightBox.AddChild(headerWaterHeight);
+
+			var lblWaterHeightTitle = new Label();
+			lblWaterHeightTitle.Name = "LblWaterHeightTitle";
+			lblWaterHeightTitle.Text = TranslationServer.Translate("Water Height");
+			lblWaterHeightTitle.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+			lblWaterHeightTitle.AddThemeFontSizeOverride("font_size", 10);
+			headerWaterHeight.AddChild(lblWaterHeightTitle);
+
+			_lblWaterHeightValue = new Label();
+			_lblWaterHeightValue.Name = "LblWaterHeightValue";
+			_lblWaterHeightValue.Text = "0.9m";
+			_lblWaterHeightValue.AddThemeFontSizeOverride("font_size", 11);
+			headerWaterHeight.AddChild(_lblWaterHeightValue);
+
+			_sldWaterHeight = new HSlider();
+			_sldWaterHeight.Name = "SldWaterHeight";
+			_sldWaterHeight.FocusMode = FocusModeEnum.None;
+			_sldWaterHeight.MinValue = 0.1;
+			_sldWaterHeight.MaxValue = 15.0;
+			_sldWaterHeight.Step = 0.1;
+			_sldWaterHeight.Value = 0.9;
+			_sldWaterHeight.ValueChanged += (val) =>
+			{
+				float fVal = (float)val;
+				_lblWaterHeightValue.Text = fVal.ToString("F1") + "m";
+				if (GameContext.Host != null) GameContext.EditorService.EditorWaterHeight = fVal;
+			};
+			_sldWaterHeight.DragStarted += () => _isDraggingSlider = true;
+			_sldWaterHeight.DragEnded += (valueChanged) => _isDraggingSlider = false;
+			_waterHeightBox.AddChild(_sldWaterHeight);
+
+			_contentWater.AddChild(_waterHeightBox);
+
+			var waterActionBox = new VBoxContainer();
+			waterActionBox.Name = "WaterActionBox";
+			waterActionBox.AddThemeConstantOverride("separation", 2);
+
+			var lblWaterAction = new Label();
+			lblWaterAction.Name = "LblWaterActionTitle";
+			lblWaterAction.Text = TranslationServer.Translate("Action");
+			lblWaterAction.AddThemeFontSizeOverride("font_size", 10);
+			waterActionBox.AddChild(lblWaterAction);
+
+			var waterActionButtonRow = new HBoxContainer();
+			waterActionButtonRow.Name = "WaterActionButtonRow";
+			waterActionButtonRow.AddThemeConstantOverride("separation", 4);
+			waterActionBox.AddChild(waterActionButtonRow);
+
+			_btnWaterActionAdd = new Button();
+			_btnWaterActionAdd.Name = "BtnWaterActionAdd";
+			_btnWaterActionAdd.Set("icon_max_width", 0);
+			_btnWaterActionAdd.Text = "+ " + TranslationServer.Translate("Add");
+			_btnWaterActionAdd.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+			_btnWaterActionAdd.FocusMode = FocusModeEnum.None;
+			_btnWaterActionAdd.AddThemeFontSizeOverride("font_size", 11);
+			_btnWaterActionAdd.TooltipText = TranslationServer.Translate("Add water to terrain");
+			StyleRowButton(_btnWaterActionAdd);
+			_btnWaterActionAdd.AddThemeStyleboxOverride("normal", _highlightStyle);
+			waterActionButtonRow.AddChild(_btnWaterActionAdd);
+
+			_btnWaterActionRemove = new Button();
+			_btnWaterActionRemove.Name = "BtnWaterActionRemove";
+			_btnWaterActionRemove.Set("icon_max_width", 0);
+			_btnWaterActionRemove.Text = "- " + TranslationServer.Translate("Remove");
+			_btnWaterActionRemove.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+			_btnWaterActionRemove.FocusMode = FocusModeEnum.None;
+			_btnWaterActionRemove.AddThemeFontSizeOverride("font_size", 11);
+			_btnWaterActionRemove.TooltipText = TranslationServer.Translate("Remove water from terrain");
+			StyleRowButton(_btnWaterActionRemove);
+			waterActionButtonRow.AddChild(_btnWaterActionRemove);
+
+			_btnWaterActionAdd.Pressed += () =>
+			{
+				GameContext.EditorService.IsWaterRemoveAction = false;
+				_btnWaterActionAdd.AddThemeStyleboxOverride("normal", _highlightStyle);
+				_btnWaterActionRemove.RemoveThemeStyleboxOverride("normal");
+				if (_waterHeightBox != null) _waterHeightBox.Visible = true;
+				if (_waterModeBox != null) _waterModeBox.Visible = true;
+				if (_btnWaterProfiles != null) _btnWaterProfiles.Visible = true;
+			};
+
+			_btnWaterActionRemove.Pressed += () =>
+			{
+				GameContext.EditorService.IsWaterRemoveAction = true;
+				_btnWaterActionRemove.AddThemeStyleboxOverride("normal", _highlightStyle);
+				_btnWaterActionAdd.RemoveThemeStyleboxOverride("normal");
+				if (_waterHeightBox != null) _waterHeightBox.Visible = false;
+				if (_waterModeBox != null) _waterModeBox.Visible = false;
+				if (_btnWaterProfiles != null) _btnWaterProfiles.Visible = false;
+			};
+
+			_contentWater.AddChild(waterActionBox);
+
+			_waterModeBox = new VBoxContainer();
+			_waterModeBox.Name = "WaterModeBox";
+			_waterModeBox.AddThemeConstantOverride("separation", 2);
+
+			_optWaterMode = new OptionButton();
+			_optWaterMode.Name = "OptWaterMode";
+			_optWaterMode.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+			_optWaterMode.ClipText = true;
+			_optWaterMode.CustomMinimumSize = new Vector2(0, 24);
+			_waterModeBox.AddChild(_optWaterMode);
+
+			_optWaterMode.ItemSelected += (idx) =>
+			{
+				byte profIdx = 0;
+				var meta = _optWaterMode.GetItemMetadata((int)idx);
+				if (meta.VariantType != Variant.Type.Nil)
+				{
+					profIdx = (byte)(int)meta;
+				}
+
+				if (GameContext.Host != null)
+				{
+					GameContext.Host.EditorWaterMode = WaterType.Shallow;
+					GameContext.Host.ActiveWaterProfileIndex = profIdx;
+				}
+			};
+			_contentWater.AddChild(_waterModeBox);
+			RefreshWaterSwatches();
+
+			_btnWaterProfiles = new Button();
+			_btnWaterProfiles.Name = "BtnWaterProfiles";
+			_btnWaterProfiles.Set("icon_max_width", 0);
+			_btnWaterProfiles.Text = "⚙ " + TranslationServer.Translate("Water Profiles");
+			_btnWaterProfiles.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+			_btnWaterProfiles.TooltipText = TranslationServer.Translate("Configure Liquid / Water Uber Profiles");
+			_btnWaterProfiles.FocusMode = FocusModeEnum.None;
+			_btnWaterProfiles.AddThemeFontSizeOverride("font_size", 11);
+			_btnWaterProfiles.Pressed += () => OpenWaterProfileDialog();
+			_contentWater.AddChild(_btnWaterProfiles);
 		}
 
 		public bool IsPathingAddMode()
