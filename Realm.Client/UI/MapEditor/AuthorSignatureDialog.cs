@@ -206,7 +206,7 @@ public partial class AuthorSignatureDialog : FloatingDialogBase
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"[AuthorSignatureDialog] Failed to open explorer.exe: {ex.Message}");
+				GameLog.LogError($"[AuthorSignatureDialog] Failed to open explorer.exe: {ex.Message}");
 			}
 		}
 
