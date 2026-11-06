@@ -225,6 +225,29 @@
             Generic named-point lookup. Maps pass coordinate names; this type does not know MOBA lanes.
             </summary>
         </member>
+        <member name="M:Realm.MapAPI.CoordinateResolver.TryGetCenters(System.Func{System.String,System.Nullable{System.Numerics.Vector3}},System.Collections.Generic.IReadOnlyList{System.String},System.Collections.Generic.Dictionary{System.String,System.Numerics.Vector3}@,System.String@)">
+            <summary>
+                Resolves every named point a map script asked for. The lookup is the map's own, so this type never assumes which
+                coordinates exist or what they mean.
+            </summary>
+            <param name="lookup">The map's resolver, returning null for a name it does not define.</param>
+            <param name="names">Every name that has to resolve. The whole set fails if any one of them does not.</param>
+            <param name="centers">The resolved positions, keyed by name. Empty when the call fails, so a caller never acts on half a set.</param>
+            <param name="missingName">The first name the map did not define, or null when every name resolved.</param>
+            <returns>Whether every name in <paramref name="names" /> resolved.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.CoordinateResolver.TryBuildThreePointPath(System.Func{System.String,System.Nullable{System.Numerics.Vector3}},System.Numerics.Vector3,System.String,System.Numerics.Vector3,System.Numerics.Vector3[]@)">
+            <summary>
+                Builds a two-leg route from a start position, through one named point, on to a destination, which is how a script
+                routes a unit around an obstacle the map names.
+            </summary>
+            <param name="lookup">The map's resolver, returning null for a name it does not define.</param>
+            <param name="start">Where the route begins, in world-space metres.</param>
+            <param name="cornerName">The name of the point the route turns at.</param>
+            <param name="destination">Where the route ends, in world-space metres.</param>
+            <param name="waypoints">Start, corner and destination in that order on success, or empty when the corner does not resolve.</param>
+            <returns>Whether the corner name resolved. A false result leaves <paramref name="waypoints" /> empty and no path is attempted.</returns>
+        </member>
         <member name="T:Realm.MapAPI.CustomBotDecision">
             <summary>
             Represents a map-defined custom candidate action submitted to the AI utility decision loop.
@@ -254,6 +277,29 @@
             <summary>
             Gets or sets arbitrary payload data or arguments passed to the execution callback.
             </summary>
+        </member>
+        <member name="T:Realm.MapAPI.DelegateSaveMigration">
+            <summary>
+            A save migration whose body is a supplied delegate, so a map can register a version step without declaring a class
+            of its own.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.DelegateSaveMigration.FromVersion">
+            <summary>The schema version this migration upgrades from.</summary>
+        </member>
+        <member name="P:Realm.MapAPI.DelegateSaveMigration.ToVersion">
+            <summary>The schema version this migration upgrades to.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.DelegateSaveMigration.#ctor(System.Int32,System.Int32,System.Func{System.String,System.String})">
+            <summary>Binds a version step to the delegate that performs it.</summary>
+            <param name="fromVersion">The schema version the payload arrives in.</param>
+            <param name="toVersion">The schema version the payload is rewritten to.</param>
+            <param name="migrationFunc">The transformation, taking the payload at the source version and returning it at the target version.</param>
+        </member>
+        <member name="M:Realm.MapAPI.DelegateSaveMigration.Migrate(System.String)">
+            <summary>Transforms the raw JSON payload from the source schema version to the target schema version.</summary>
+            <param name="jsonPayload">The JSON payload string at the source version.</param>
+            <returns>The migrated JSON payload string at the target version.</returns>
         </member>
         <member name="T:Realm.MapAPI.ExportAttribute">
             <summary>
@@ -314,6 +360,99 @@
             map script may be asked to render. A process that hosts the world itself registers the text it writes and
             keeps no answerer.
             </remarks>
+        </member>
+        <member name="M:Realm.MapAPI.GameAPI.HandleCommandSink.SetUnitHealth(Realm.Ecs.UnitId,System.Single)">
+            <summary>Sets the unit's current health points.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.GameAPI.HandleCommandSink.SetUnitMaxHealth(Realm.Ecs.UnitId,System.Single)">
+            <summary>Sets the unit's maximum health points.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.GameAPI.HandleCommandSink.SetUnitMana(Realm.Ecs.UnitId,System.Single)">
+            <summary>Sets the unit's current mana points.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.GameAPI.HandleCommandSink.SetUnitMaxMana(Realm.Ecs.UnitId,System.Single)">
+            <summary>Sets the unit's maximum mana points.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.GameAPI.HandleCommandSink.SetUnitManaRegen(Realm.Ecs.UnitId,System.Single)">
+            <summary>Sets how much mana the unit regenerates per second.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.GameAPI.HandleCommandSink.SetUnitDamage(Realm.Ecs.UnitId,System.Single)">
+            <summary>Sets the unit's attack damage.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.GameAPI.HandleCommandSink.SetUnitRange(Realm.Ecs.UnitId,System.Single)">
+            <summary>Sets the unit's attack range in metres.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.GameAPI.HandleCommandSink.SetUnitArmor(Realm.Ecs.UnitId,System.Single)">
+            <summary>Sets the unit's armor value.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.GameAPI.HandleCommandSink.SetUnitSpeed(Realm.Ecs.UnitId,System.Single)">
+            <summary>Sets the unit's movement speed in metres per second.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.GameAPI.HandleCommandSink.SetUnitAttackSpeed(Realm.Ecs.UnitId,System.Single)">
+            <summary>Sets how many attacks per second the unit makes.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.GameAPI.HandleCommandSink.SetUnitOwner(Realm.Ecs.UnitId,System.Int32)">
+            <summary>Sets which player slot owns the unit.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.GameAPI.HandleCommandSink.SetUnitLevel(Realm.Ecs.UnitId,System.Int32)">
+            <summary>Sets the unit's level.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.GameAPI.HandleCommandSink.SetUnitExperience(Realm.Ecs.UnitId,System.Single)">
+            <summary>Sets the unit's accumulated experience.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.GameAPI.HandleCommandSink.SetUnitScale(Realm.Ecs.UnitId,System.Single)">
+            <summary>Sets the unit's visual scale multiplier.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.GameAPI.HandleCommandSink.SetUnitInvulnerable(Realm.Ecs.UnitId,System.Boolean)">
+            <summary>Turns damage immunity on or off for the unit.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.GameAPI.HandleCommandSink.SetUnitAnimationsFrozen(Realm.Ecs.UnitId,System.Boolean)">
+            <summary>Turns animation playback on or off for the unit.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.GameAPI.HandleCommandSink.SetUnitCommandsFrozen(Realm.Ecs.UnitId,System.Boolean)">
+            <summary>Turns order acceptance on or off for the unit.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.GameAPI.HandleCommandSink.SetUnitFrozen(Realm.Ecs.UnitId,System.Boolean)">
+            <summary>Turns all unit activity on or off, covering movement, orders and animation together.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.GameAPI.HandleCommandSink.SetUnitHideHealthAndManaBars(Realm.Ecs.UnitId,System.Boolean)">
+            <summary>Hides or shows the unit's health and mana bars.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.GameAPI.HandleCommandSink.SetUnitFacing(Realm.Ecs.UnitId,System.Single)">
+            <summary>Sets the unit's facing direction in radians.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.GameAPI.HandleCommandSink.SetUnitName(Realm.Ecs.UnitId,System.String)">
+            <summary>Sets the unit's display name.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.GameAPI.HandleCommandSink.GetUnitInstanceName(Realm.Ecs.UnitId)">
+            <summary>Answers the unit's instance name, which distinguishes two units of the same template.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.GameAPI.HandleCommandSink.SetPlayerComputerControlled(System.Int32,System.Boolean)">
+            <summary>Turns computer control on or off for a player slot.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.GameAPI.HandleCommandSink.SetPlayerTeam(System.Int32,System.Int32)">
+            <summary>Assigns the player slot to a team.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.GameAPI.HandleCommandSink.SetPlayerGold(System.Int32,System.Single)">
+            <summary>Sets the player slot's gold.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.GameAPI.HandleCommandSink.SetPlayerWood(System.Int32,System.Single)">
+            <summary>Sets the player slot's wood.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.GameAPI.HandleCommandSink.SetPlayerStone(System.Int32,System.Single)">
+            <summary>Sets the player slot's stone.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.GameAPI.HandleCommandSink.SetPlayerMaxPopulation(System.Int32,System.Int32)">
+            <summary>Sets the player slot's population cap.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.GameAPI.HandleCommandSink.SetPlayerKills(System.Int32,System.Int32)">
+            <summary>Sets the player slot's kill count.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.GameAPI.HandleCommandSink.SetResourceNodeAmount(Realm.Ecs.ResourceNodeId,System.Single)">
+            <summary>Sets how much of the resource remains in the node.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.GameAPI.HandleCommandSink.GetResourceNodeAmount(Realm.Ecs.ResourceNodeId)">
+            <summary>Answers how much of the resource remains in the node.</summary>
         </member>
         <member name="T:Realm.MapAPI.GameAPIExtensions">
             <summary>
@@ -3216,11 +3355,199 @@
                 they cost no host call, and writes are placed as orders the authority applies to the lobby it is holding.
             </summary>
         </member>
+        <member name="P:Realm.MapAPI.LobbyAPI_WasmModule.MaximumPlayerCount">
+            <summary>How many player slots this lobby currently seats, as the authority last published it.</summary>
+        </member>
+        <member name="P:Realm.MapAPI.LobbyAPI_WasmModule.SlotCount">
+            <summary>
+                The number of slots the shared roster carries, which is the highest player index this API accepts. Slots are
+                indexed from one, so slot zero is never a player and every index outside one to this value minus one is refused.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.LobbyAPI_WasmModule.FactionCount">
+            <summary>How many factions the map offers, in the order <see cref="M:Realm.MapAPI.LobbyAPI_WasmModule.GetFactionName(System.Int32)" /> reports them.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyAPI_WasmModule.GetFactionName(System.Int32)">
+            <summary>
+                The name of one of the map's factions, read out of the shared roster without allocating a string so a script
+                may call it inside its lobby tick.
+            </summary>
+            <param name="factionIndex">The faction's position in the lobby's faction table.</param>
+            <returns>
+                The faction's name, valid until the authority restates the roster, or an empty span for an index the lobby does
+                not offer.
+            </returns>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyAPI_WasmModule.AddFaction(System.String)">
+            <summary>
+                Adds a faction to the lobby's roster, which is how a map states the choices its players are offered. A blank name
+                is refused without placing an order, and the authority does not add a name the roster already offers.
+            </summary>
+            <param name="factionName">The faction's name, at most 24 characters.</param>
+            <returns>Whether the authority accepted the order and the faction is part of the roster afterwards.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyAPI_WasmModule.GetPlayerFactionIndex(System.Int32)">
+            <summary>The faction table position of the slot's faction.</summary>
+            <param name="playerIndex">The player slot.</param>
+            <returns>The faction's position in the lobby's faction table, or -1 for a slot outside the roster or holding no faction.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyAPI_WasmModule.GetPlayerFaction(System.Int32)">
+            <summary>The faction the slot plays as, read without allocating a string.</summary>
+            <param name="playerIndex">The player slot.</param>
+            <returns>The faction's name, or an empty span for a slot outside the roster or holding no faction.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyAPI_WasmModule.SetPlayerFaction(System.Int32,System.String)">
+            <summary>
+                Gives a player slot a faction from the lobby's roster. A slot outside the roster and a blank name are refused
+                without placing an order; the authority refuses a slot whose faction is locked, a slot nobody holds and a
+                faction the roster does not offer.
+            </summary>
+            <param name="playerIndex">The player slot.</param>
+            <param name="factionName">The faction the slot should play as.</param>
+            <returns>Whether the authority took the order.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyAPI_WasmModule.IsFactionLocked(System.Int32)">
+            <summary>Whether the slot's faction may no longer be changed.</summary>
+            <param name="playerIndex">The player slot.</param>
+            <returns>Whether the field is locked, or false for a slot outside the roster.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyAPI_WasmModule.SetFactionLocked(System.Int32,System.Boolean)">
+            <summary>Locks or unlocks the slot's faction, which is what stops a player changing it in the lobby.</summary>
+            <param name="playerIndex">The player slot. An index outside the roster places no order.</param>
+            <param name="locked">Whether the field is locked.</param>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyAPI_WasmModule.GetPlayerTeam(System.Int32)">
+            <summary>The team number the slot plays on.</summary>
+            <param name="playerIndex">The player slot.</param>
+            <returns>The team number, where 0 means the slot plays on no team, or 0 for a slot outside the roster.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyAPI_WasmModule.SetPlayerTeam(System.Int32,System.Int32)">
+            <summary>
+                Puts a player slot on a team. A slot outside the roster and a negative team number are refused without placing
+                an order; the authority refuses a slot whose team is locked, a slot nobody holds and a team number outside the
+                lobby's seats.
+            </summary>
+            <param name="playerIndex">The player slot.</param>
+            <param name="teamIndex">The team number, or 0 for no team.</param>
+            <returns>Whether the authority took the order.</returns>
+        </member>
+        <member name="P:Realm.MapAPI.LobbyAPI_WasmModule.TeamCount">
+            <summary>How many teams the lobby offers, which is the highest team number a slot may hold.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyAPI_WasmModule.SetTeamCount(System.Int32)">
+            <summary>
+                States how many teams the lobby offers, which is what its players are offered as choices and what a slot's team
+                may be numbered up to. A count of zero or less places no order.
+            </summary>
+            <param name="teamCount">The number of teams, from one up to the seats this lobby may serve.</param>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyAPI_WasmModule.IsTeamLocked(System.Int32)">
+            <summary>Whether the slot's team may no longer be changed.</summary>
+            <param name="playerIndex">The player slot.</param>
+            <returns>Whether the field is locked, or false for a slot outside the roster.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyAPI_WasmModule.SetTeamLocked(System.Int32,System.Boolean)">
+            <summary>Locks or unlocks the slot's team, which is what stops a player changing it in the lobby.</summary>
+            <param name="playerIndex">The player slot. An index outside the roster places no order.</param>
+            <param name="locked">Whether the field is locked.</param>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyAPI_WasmModule.GetPlayerColor(System.Int32)">
+            <summary>The slot's colour as the roster publishes it.</summary>
+            <param name="playerIndex">The player slot.</param>
+            <returns>The colour packed as 0xRRGGBBAA, or 0 for a slot outside the roster.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyAPI_WasmModule.SetPlayerColor(System.Int32,System.UInt32)">
+            <summary>
+                Gives a player slot a colour. A slot outside the roster is refused without placing an order; the authority
+                refuses a slot whose colour is locked and a slot nobody holds.
+            </summary>
+            <param name="playerIndex">The player slot.</param>
+            <param name="colorRgba">The colour, packed as 0xRRGGBBAA.</param>
+            <returns>Whether the authority took the order.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyAPI_WasmModule.IsColorLocked(System.Int32)">
+            <summary>Whether the slot's colour may no longer be changed.</summary>
+            <param name="playerIndex">The player slot.</param>
+            <returns>Whether the field is locked, or false for a slot outside the roster.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyAPI_WasmModule.SetColorLocked(System.Int32,System.Boolean)">
+            <summary>Locks or unlocks the slot's colour, which is what stops a player changing it in the lobby.</summary>
+            <param name="playerIndex">The player slot. An index outside the roster places no order.</param>
+            <param name="locked">Whether the field is locked.</param>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyAPI_WasmModule.IsOccupied(System.Int32)">
+            <summary>Whether a player or a computer holds the slot.</summary>
+            <param name="playerIndex">The player slot.</param>
+            <returns>Whether the slot is taken, or false for a slot outside the roster.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyAPI_WasmModule.IsComputer(System.Int32)">
+            <summary>Whether the slot is held by a computer rather than by a person.</summary>
+            <param name="playerIndex">The player slot.</param>
+            <returns>Whether the slot is computer-held, or false for a slot outside the roster.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyAPI_WasmModule.IsHost(System.Int32)">
+            <summary>Whether the slot belongs to the player administering the lobby.</summary>
+            <param name="playerIndex">The player slot.</param>
+            <returns>Whether the slot is the host's, or false for a slot outside the roster.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyAPI_WasmModule.SetMaximumPlayerCount(System.Int32)">
+            <summary>
+                Sets how many players the lobby seats. A count of zero or less places no order; the authority clamps it to the
+                seats its map may serve and refuses a count smaller than the players already sitting in it.
+            </summary>
+            <param name="maximumPlayerCount">The number of player slots the lobby should seat.</param>
+        </member>
         <member name="T:Realm.MapAPI.LobbyImports">
             <summary>
                 The roster orders a map script places with the authority, declared by hand because the roster itself is published
                 in shared memory the script reads directly: only the orders a script makes cross the boundary.
             </summary>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyImports.AddFaction(System.String)">
+            <summary>Places the order that adds a named faction to the lobby roster.</summary>
+            <param name="factionName">The faction's name, passed to the authority as UTF-8 with its byte length.</param>
+            <returns>Whether the authority accepted the order.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyImports.SetMaximumPlayerCount(System.Int32)">
+            <summary>Places the order that states how many players the lobby seats.</summary>
+            <param name="maximumPlayerCount">The number of player slots the lobby should seat.</param>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyImports.SetTeamCount(System.Int32)">
+            <summary>Places the order that states how many teams the lobby offers.</summary>
+            <param name="teamCount">The number of teams the lobby should offer.</param>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyImports.SetPlayerFaction(System.Int32,System.String)">
+            <summary>Places the order that gives a player slot a faction from the roster.</summary>
+            <param name="playerIndex">The player slot.</param>
+            <param name="factionName">The faction's name, passed to the authority as UTF-8 with its byte length.</param>
+            <returns>Whether the authority accepted the order.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyImports.SetPlayerTeam(System.Int32,System.Int32)">
+            <summary>Places the order that puts a player slot on a team.</summary>
+            <param name="playerIndex">The player slot.</param>
+            <param name="teamIndex">The team number, or 0 for no team.</param>
+            <returns>Whether the authority accepted the order.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyImports.SetPlayerColor(System.Int32,System.UInt32)">
+            <summary>Places the order that gives a player slot a colour.</summary>
+            <param name="playerIndex">The player slot.</param>
+            <param name="colorRgba">The colour, packed as 0xRRGGBBAA.</param>
+            <returns>Whether the authority accepted the order.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyImports.SetFactionLocked(System.Int32,System.Boolean)">
+            <summary>Places the order that locks or unlocks a slot's faction.</summary>
+            <param name="playerIndex">The player slot.</param>
+            <param name="locked">Whether the field is locked.</param>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyImports.SetTeamLocked(System.Int32,System.Boolean)">
+            <summary>Places the order that locks or unlocks a slot's team.</summary>
+            <param name="playerIndex">The player slot.</param>
+            <param name="locked">Whether the field is locked.</param>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyImports.SetColorLocked(System.Int32,System.Boolean)">
+            <summary>Places the order that locks or unlocks a slot's colour.</summary>
+            <param name="playerIndex">The player slot.</param>
+            <param name="locked">Whether the field is locked.</param>
         </member>
         <member name="T:Realm.MapAPI.LootItemIdScriptExtensions">
             <summary>

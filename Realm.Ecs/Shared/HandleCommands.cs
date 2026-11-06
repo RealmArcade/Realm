@@ -73,5 +73,9 @@ public interface IHandleCommands
 /// </summary>
 public static class HandleCommands
 {
+	/// <summary>
+	/// Gets or sets the sink that handle property assignments in this process send their command to. It is null until a
+	/// host has assigned one, and an assignment made while it is null is dropped.
+	/// </summary>
 	public static IHandleCommands? Current { get; set; }
 }
