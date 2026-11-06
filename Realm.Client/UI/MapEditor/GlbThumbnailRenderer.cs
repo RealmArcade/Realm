@@ -585,21 +585,6 @@ public partial class GlbThumbnailRenderer : Node
 		}
 	}
 
-	private static string SanitizeFileName(string name)
-	{
-		var invalidChars = Path.GetInvalidFileNameChars();
-		var chars = name.ToCharArray();
-		for (int i = 0; i < chars.Length; i++)
-		{
-			if (Array.IndexOf(invalidChars, chars[i]) >= 0)
-			{
-				chars[i] = '_';
-			}
-		}
-
-		return new string(chars);
-	}
-
 	private static void TryApplyRiggedIdlePose(Node scene)
 	{
 		AnimationRetargetingService.TryApplyRiggedIdlePose(scene);
