@@ -83,29 +83,29 @@ public class SteamService
 			if (result != ESteamAPIInitResult.k_ESteamAPIInitResult_OK)
 			{
 				UnavailableReason = DescribeUnavailableReason(result);
-				GD.Print($"[Steam] Steamworks stays off: {UnavailableReason} ({result}) {message}");
+				GameLog.LogToConsole($"[Steam] Steamworks stays off: {UnavailableReason} ({result}) {message}");
 				return;
 			}
 
 			_initialized = true;
 			UnavailableReason = SteamUnavailableReason.Available;
 			RegisterLobbyCallbacks();
-			GD.Print($"[Steam] running as application {SteamUtils.GetAppID().m_AppId}");
+			GameLog.LogToConsole($"[Steam] running as application {SteamUtils.GetAppID().m_AppId}");
 		}
 		catch (Exception exception) when (IsMissingNativeLibrary(exception))
 		{
 			UnavailableReason = SteamUnavailableReason.NativeLibraryMissing;
-			GD.Print($"[Steam] {NativeLibraryName} is not shipped with this build, so Steamworks stays off and Steam is not offered as a sign-in provider");
+			GameLog.LogToConsole($"[Steam] {NativeLibraryName} is not shipped with this build, so Steamworks stays off and Steam is not offered as a sign-in provider");
 		}
 		catch (Exception exception) when (IsMismatchedNativeLibrary(exception))
 		{
 			UnavailableReason = SteamUnavailableReason.NativeLibraryMismatch;
-			GD.PrintErr($"[Steam] the {NativeLibraryName} shipped with this build does not match Steamworks.NET: {exception.Message}");
+			GameLog.LogError($"[Steam] the {NativeLibraryName} shipped with this build does not match Steamworks.NET: {exception.Message}");
 		}
 		catch (Exception exception)
 		{
 			UnavailableReason = SteamUnavailableReason.InitializationFailed;
-			GD.PrintErr($"[Steam] Steamworks is not usable in this build: {exception.Message}");
+			GameLog.LogError($"[Steam] Steamworks is not usable in this build: {exception.Message}");
 		}
 	}
 
@@ -147,7 +147,7 @@ public class SteamService
 		}
 		catch (Exception exception)
 		{
-			GD.PrintErr($"[Steam] callbacks stopped: {exception.Message}");
+			GameLog.LogError($"[Steam] callbacks stopped: {exception.Message}");
 			_initialized = false;
 			UnavailableReason = SteamUnavailableReason.InitializationFailed;
 			CancelPendingTicket(string.Empty);
@@ -177,7 +177,7 @@ public class SteamService
 		}
 		catch (Exception exception)
 		{
-			GD.PrintErr($"[Steam] a sign-in ticket could not be requested: {exception.Message}");
+			GameLog.LogError($"[Steam] a sign-in ticket could not be requested: {exception.Message}");
 			_pendingTicketResult = null;
 			return string.Empty;
 		}
@@ -230,7 +230,7 @@ public class SteamService
 			}
 			catch (Exception exception)
 			{
-				GD.PrintErr($"[Steam] a sign-in ticket could not be cancelled: {exception.Message}");
+				GameLog.LogError($"[Steam] a sign-in ticket could not be cancelled: {exception.Message}");
 			}
 
 			_pendingTicket = HAuthTicket.Invalid;
@@ -252,7 +252,7 @@ public class SteamService
 		}
 		catch (Exception exception)
 		{
-			GD.PrintErr($"[Steam] shutdown failed: {exception.Message}");
+			GameLog.LogError($"[Steam] shutdown failed: {exception.Message}");
 		}
 
 		_initialized = false;
@@ -292,7 +292,7 @@ public class SteamService
 		}
 		catch (Exception exception)
 		{
-			GD.PrintErr($"[Steam] the friends list could not be read: {exception.Message}");
+			GameLog.LogError($"[Steam] the friends list could not be read: {exception.Message}");
 			return Array.Empty<SteamFriend>();
 		}
 
@@ -358,7 +358,7 @@ public class SteamService
 		}
 		catch (Exception exception)
 		{
-			GD.PrintErr($"[Steam] an invite lobby could not be requested: {exception.Message}");
+			GameLog.LogError($"[Steam] an invite lobby could not be requested: {exception.Message}");
 			_inviteLobbyCreation = null;
 			_inviteLobbyGameLobbyId = null;
 			return false;
@@ -399,11 +399,11 @@ public class SteamService
 			}
 			catch (Exception exception)
 			{
-				GD.PrintErr($"[Steam] an invitation could not be sent: {exception.Message}");
+				GameLog.LogError($"[Steam] an invitation could not be sent: {exception.Message}");
 			}
 		}
 
-		GD.Print($"[Steam] invited {sent} of {friendSteamIds.Count} selected friend(s)");
+		GameLog.LogToConsole($"[Steam] invited {sent} of {friendSteamIds.Count} selected friend(s)");
 		return sent;
 	}
 
@@ -449,10 +449,10 @@ public class SteamService
 		}
 		catch (Exception exception)
 		{
-			GD.PrintErr($"[Steam] the invite lobby could not be described: {exception.Message}");
+			GameLog.LogError($"[Steam] the invite lobby could not be described: {exception.Message}");
 		}
 
-		GD.Print($"[Steam] invite lobby {_inviteLobbySteamId} stands for match lobby {gameLobbyId}");
+		GameLog.LogToConsole($"[Steam] invite lobby {_inviteLobbySteamId} stands for match lobby {gameLobbyId}");
 		creation?.TrySetResult(_inviteLobbySteamId != 0);
 	}
 
@@ -466,7 +466,7 @@ public class SteamService
 		}
 		catch (Exception exception)
 		{
-			GD.PrintErr($"[Steam] the invite lobby could not be left: {exception.Message}");
+			GameLog.LogError($"[Steam] the invite lobby could not be left: {exception.Message}");
 		}
 	}
 
@@ -482,7 +482,7 @@ public class SteamService
 		}
 		catch (Exception exception)
 		{
-			GD.PrintErr($"[Steam] the inviter's name could not be read: {exception.Message}");
+			GameLog.LogError($"[Steam] the inviter's name could not be read: {exception.Message}");
 			_pendingInviterName = string.Empty;
 		}
 
@@ -495,7 +495,7 @@ public class SteamService
 		}
 		catch (Exception exception)
 		{
-			GD.PrintErr($"[Steam] the invited lobby could not be joined: {exception.Message}");
+			GameLog.LogError($"[Steam] the invited lobby could not be joined: {exception.Message}");
 			_pendingJoinedLobbySteamId = 0;
 		}
 	}
@@ -512,7 +512,7 @@ public class SteamService
 
 		if ((int)entered.m_EChatRoomEnterResponse != (int)EChatRoomEnterResponse.k_EChatRoomEnterResponseSuccess)
 		{
-			GD.PrintErr("[Steam] the invited lobby refused the entry, so the invitation names no lobby this screen can join");
+			GameLog.LogError("[Steam] the invited lobby refused the entry, so the invitation names no lobby this screen can join");
 			return;
 		}
 
@@ -525,16 +525,16 @@ public class SteamService
 		}
 		catch (Exception exception)
 		{
-			GD.PrintErr($"[Steam] the invited lobby could not be read: {exception.Message}");
+			GameLog.LogError($"[Steam] the invited lobby could not be read: {exception.Message}");
 		}
 
 		if (string.IsNullOrEmpty(gameLobbyId))
 		{
-			GD.PrintErr("[Steam] the invitation describes no match lobby, so there is nothing to join");
+			GameLog.LogError("[Steam] the invitation describes no match lobby, so there is nothing to join");
 			return;
 		}
 
-		GD.Print($"[Steam] an invitation was accepted for match lobby {gameLobbyId}");
+		GameLog.LogToConsole($"[Steam] an invitation was accepted for match lobby {gameLobbyId}");
 		LobbyInviteAccepted?.Invoke(new SteamLobbyInvite(gameLobbyId, inviterName));
 	}
 
@@ -576,7 +576,7 @@ public class SteamService
 			}
 			catch (Exception exception)
 			{
-				GD.PrintErr($"[Steam] the persona name could not be read: {exception.Message}");
+				GameLog.LogError($"[Steam] the persona name could not be read: {exception.Message}");
 				return string.Empty;
 			}
 		}
@@ -593,7 +593,7 @@ public class SteamService
 		}
 		catch (Exception exception)
 		{
-			GD.PrintErr($"[Steam] the store overlay could not be opened: {exception.Message}");
+			GameLog.LogError($"[Steam] the store overlay could not be opened: {exception.Message}");
 			return false;
 		}
 	}
