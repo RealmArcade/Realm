@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -706,7 +706,7 @@ public partial class GameOver : Control
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[GameOver] Failed to report map metrics: {ex.Message}");
+			GameLog.LogError($"[GameOver] Failed to report map metrics: {ex.Message}");
 		}
 	}
 
@@ -726,7 +726,7 @@ public partial class GameOver : Control
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[GameOver] Failed to update local playtime stats: {ex.Message}");
+			GameLog.LogError($"[GameOver] Failed to update local playtime stats: {ex.Message}");
 		}
 	}
 
@@ -760,8 +760,9 @@ public partial class GameOver : Control
 
 			authorPubKey = ExtractAuthorPubKeyFromMetadata(mapTitle);
 		}
-		catch
+		catch (Exception ex)
 		{
+			GameLog.LogError($"could not read the author key of map {mapTitle}, so its attribution will be missing: {ex.GetType().Name}: {ex.Message}");
 		}
 	}
 
