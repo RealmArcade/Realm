@@ -162,34 +162,6 @@ public partial class GameHost
 		return true;
 	}
 
-	private void DepleteProp(Prop3D prop)
-	{
-		if (GodotObject.IsInstanceValid(prop))
-		{
-			string propId = prop.PropId;
-			var fallbackPos = new Vector3(prop.Position.X, prop.Position.Y, prop.Position.Z);
-			AllProps.Remove(prop);
-			EntityToProp3D.Remove(prop.Entity);
-			var (radius, propPos) = GameContext.SimulationService.DomainDepleteProp(prop.Entity, fallbackPos);
-
-			GameContext.PropMultiMesh?.MarkDirty(propId);
-			UncarveObstacle(propPos, radius);
-
-			string deathShader = GetModelDeathShader(propId);
-			if (!string.IsNullOrEmpty(deathShader))
-			{
-				SpawnDeathShaderManager.AnimateTransition(prop, deathShader, false, null, () =>
-				{
-					if (GodotObject.IsInstanceValid(prop)) prop.QueueFree();
-				});
-			}
-			else
-			{
-				prop.QueueFree();
-			}
-		}
-	}
-
 	private float ConstructionWorkRatePerSecond => GameContext.SimulationService.FastBuildEnabled ? SimulationService.BaseConstructionWorkRatePerSecond * 10f : SimulationService.BaseConstructionWorkRatePerSecond;
 
 
