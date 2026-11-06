@@ -460,7 +460,7 @@ public partial class CreatorDiscovery : Control
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[CreatorDiscovery] Failed to load creators: {ex.Message}");
+			GameLog.LogError($"[CreatorDiscovery] Failed to load creators: {ex.Message}");
 		}
 
 		_creatorDropdown.Clear();
@@ -531,7 +531,7 @@ public partial class CreatorDiscovery : Control
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[CreatorDiscovery] Failed to load portfolio: {ex.Message}");
+			GameLog.LogError($"[CreatorDiscovery] Failed to load portfolio: {ex.Message}");
 			return false;
 		}
 	}
