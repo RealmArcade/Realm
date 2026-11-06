@@ -619,7 +619,7 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"[ConvertGlbDialog] Conversion error: {ex.Message}");
+				GameLog.LogError($"[ConvertGlbDialog] Conversion error: {ex.Message}");
 				errorMessage = string.Format(TranslationServer.Translate("Conversion error: {0}"), ex.Message);
 			}
 			finally
@@ -638,7 +638,7 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 		string riggedPath = Path.Combine(tempWorkingDir, $"{cleanBase}_rigged.glb");
 		var rigResult = GlbAutoRigger.RigHumanoid(currentPath, riggedPath, new GlbAutoRiggerOptions
 		{
-			LogCallback = (msg) => GD.Print($"[ConvertGlb] {msg}")
+			LogCallback = (msg) => GameLog.LogToConsole($"[ConvertGlb] {msg}")
 		});
 
 		if (!rigResult.Success)
@@ -793,7 +793,7 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[ConvertGlbDialog] Bounds calculation error: {ex.Message}");
+			GameLog.LogError($"[ConvertGlbDialog] Bounds calculation error: {ex.Message}");
 		}
 
 		Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Converted and imported 3D model '{0}'!"), fileName));
