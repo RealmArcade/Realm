@@ -108,7 +108,7 @@ public partial class MultiplayerSimulationHarness
 		}
 		catch (Exception exception)
 		{
-			GD.PrintErr($"[MP_HARNESS] Could not write split_report.json: {exception.Message}");
+			GameLog.LogError($"[MP_HARNESS] Could not write split_report.json: {exception.Message}");
 		}
 	}
 
@@ -191,7 +191,7 @@ public partial class MultiplayerSimulationHarness
 		}
 		catch (Exception exception)
 		{
-			GD.PrintErr($"[MP_HARNESS] Could not write {fileName}: {exception.Message}");
+			GameLog.LogError($"[MP_HARNESS] Could not write {fileName}: {exception.Message}");
 		}
 	}
 
