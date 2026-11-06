@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using Godot;
+using Realm.Client.Services;
 
 namespace Realm.Client.Animation;
 
@@ -65,7 +66,7 @@ public static class RealmDefaultAnimations
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[RealmDefaultAnimations] Error ensuring default animations: {ex.Message}");
+			GameLog.LogError($"[RealmDefaultAnimations] Error ensuring default animations: {ex.Message}");
 		}
 	}
 
