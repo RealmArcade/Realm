@@ -247,7 +247,7 @@ public partial class VSCodeManager
 			string scriptPath = PathUtils.FindPath("install_editor_dependencies.ps1");
 			if (File.Exists(scriptPath))
 			{
-				GD.Print("Starting editor dependencies installation script: " + scriptPath);
+				GameLog.LogToConsole("Starting editor dependencies installation script: " + scriptPath);
 				using var installProcess = new Process();
 				installProcess.StartInfo.FileName = "powershell.exe";
 				string forceArg = force ? " -Force" : string.Empty;
@@ -259,11 +259,11 @@ public partial class VSCodeManager
 
 				installProcess.OutputDataReceived += (sender, e) =>
 				{
-					if (!string.IsNullOrEmpty(e.Data)) GD.Print("[installer] " + e.Data);
+					if (!string.IsNullOrEmpty(e.Data)) GameLog.LogToConsole("[installer] " + e.Data);
 				};
 				installProcess.ErrorDataReceived += (sender, e) =>
 				{
-					if (!string.IsNullOrEmpty(e.Data)) GD.PrintErr("[installer error] " + e.Data);
+					if (!string.IsNullOrEmpty(e.Data)) GameLog.LogError("[installer error] " + e.Data);
 				};
 
 				installProcess.Start();
@@ -273,7 +273,7 @@ public partial class VSCodeManager
 			}
 			else
 			{
-				GD.PrintErr("VS Code installer script not found at: " + scriptPath);
+				GameLog.LogError("VS Code installer script not found at: " + scriptPath);
 			}
 
 			embedDir = GetVSCodeDirectory();
@@ -286,7 +286,7 @@ public partial class VSCodeManager
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr("Background VS Code installation failed: " + ex.Message);
+			GameLog.LogError("Background VS Code installation failed: " + ex.Message);
 		}
 		finally
 		{
@@ -371,7 +371,7 @@ public partial class VSCodeManager
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"[VSCodeManager] RestoreAndFocusGodotWindow error: {ex.Message}");
+				GameLog.LogError($"[VSCodeManager] RestoreAndFocusGodotWindow error: {ex.Message}");
 			}
 		}).CallDeferred();
 	}
@@ -424,7 +424,7 @@ public partial class VSCodeManager
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"Failed to create/assign Job Object: {ex.Message}");
+			GameLog.LogError($"Failed to create/assign Job Object: {ex.Message}");
 		}
 	}
 
@@ -445,7 +445,7 @@ public partial class VSCodeManager
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"Failed to assign process {proc.Id} to Job Object: {ex.Message}");
+			GameLog.LogError($"Failed to assign process {proc.Id} to Job Object: {ex.Message}");
 		}
 	}
 
@@ -507,14 +507,14 @@ public partial class VSCodeManager
 				string libDir = Path.Combine(mapFolderRaw, "lib");
 				if (!File.Exists(Path.Combine(libDir, "Realm.MapAPI.dll")))
 				{
-					GD.Print("Realm.MapAPI.dll missing in workspace. Running EnsureMapProjectFiles...");
+					GameLog.LogToConsole("Realm.MapAPI.dll missing in workspace. Running EnsureMapProjectFiles...");
 					GameHost.EnsureMapProjectFiles(mapFolderRaw);
 				}
 			}
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"Failed to ensure Realm.MapAPI.dll in workspace: {ex.Message}");
+			GameLog.LogError($"Failed to ensure Realm.MapAPI.dll in workspace: {ex.Message}");
 		}
 	}
 
@@ -538,7 +538,7 @@ public partial class VSCodeManager
 				listener.Start();
 			}
 
-			GD.Print($"[VSCodeManager] HTTP IPC bridge listening on http://127.0.0.1:{_ipcHttpPort}/api/");
+			GameLog.LogToConsole($"[VSCodeManager] HTTP IPC bridge listening on http://127.0.0.1:{_ipcHttpPort}/api/");
 
 			while (true)
 			{
@@ -548,7 +548,7 @@ public partial class VSCodeManager
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[VSCodeManager] HTTP IPC bridge error: {ex.Message}");
+			GameLog.LogError($"[VSCodeManager] HTTP IPC bridge error: {ex.Message}");
 		}
 	}
 
@@ -587,7 +587,7 @@ public partial class VSCodeManager
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[VSCodeManager] HandleIpcHttpRequest error: {ex.Message}");
+			GameLog.LogError($"[VSCodeManager] HandleIpcHttpRequest error: {ex.Message}");
 			try
 			{
 				ctx.Response.StatusCode = 500;
@@ -844,7 +844,7 @@ public partial class VSCodeManager
 		}
 		catch (Exception exAsync)
 		{
-			GD.PrintErr($"[VSCodeManager] EditorAPI call {methodInfo.Name} failed: {exAsync.Message}");
+			GameLog.LogError($"[VSCodeManager] EditorAPI call {methodInfo.Name} failed: {exAsync.Message}");
 			return (false, null, exAsync.Message);
 		}
 	}
@@ -1000,7 +1000,7 @@ public partial class VSCodeManager
 				}
 				catch (Exception ex)
 				{
-					GD.PrintErr($"[VSCodeManager] openVfxDialog deserialize error: {ex.Message}");
+					GameLog.LogError($"[VSCodeManager] openVfxDialog deserialize error: {ex.Message}");
 				}
 			}
 
@@ -1125,7 +1125,7 @@ public partial class VSCodeManager
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[VSCodeManager] formatAndSaveJson error: {ex.Message}");
+			GameLog.LogError($"[VSCodeManager] formatAndSaveJson error: {ex.Message}");
 			return (false, "", ex.Message);
 		}
 	}
@@ -1592,7 +1592,7 @@ public partial class VSCodeManager
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"Failed to open file in VSCodium: {ex.Message}");
+			GameLog.LogError($"Failed to open file in VSCodium: {ex.Message}");
 		}
 	}
 
@@ -1619,7 +1619,7 @@ public partial class VSCodeManager
 
 			if (!File.Exists(desktopExe))
 			{
-				GD.PrintErr("VS Code executable not found at: " + desktopExe);
+				GameLog.LogError("VS Code executable not found at: " + desktopExe);
 				return;
 			}
 
@@ -1652,7 +1652,7 @@ public partial class VSCodeManager
 				AddProcessToJob(_vscodeProcess);
 				AttachWindowGrouping(_vscodeProcess);
 				_isVisible = true;
-				GD.Print($"[VSCodeManager] VSCodium desktop launched (PID {_vscodeProcess.Id}). Godot Host PID: {Environment.ProcessId}.");
+				GameLog.LogToConsole($"[VSCodeManager] VSCodium desktop launched (PID {_vscodeProcess.Id}). Godot Host PID: {Environment.ProcessId}.");
 			}
 			else
 			{
@@ -1682,7 +1682,7 @@ public partial class VSCodeManager
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr("Failed to launch or focus VSCodium: " + ex.Message);
+			GameLog.LogError("Failed to launch or focus VSCodium: " + ex.Message);
 		}
 		finally
 		{
@@ -1700,7 +1700,7 @@ public partial class VSCodeManager
 		bool installed = await OpencodeCliInstaller.EnsureInstalledAsync();
 		if (!installed)
 		{
-			GD.PrintErr("[VSCodeManager] opencode CLI is unavailable. The OpenCode Panel extension cannot start its backend.");
+			GameLog.LogError("[VSCodeManager] opencode CLI is unavailable. The OpenCode Panel extension cannot start its backend.");
 		}
 	}
 
@@ -1714,7 +1714,7 @@ public partial class VSCodeManager
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"Failed to prepare opencode data directory: {ex.Message}");
+			GameLog.LogError($"Failed to prepare opencode data directory: {ex.Message}");
 		}
 	}
 
@@ -1907,7 +1907,7 @@ public partial class VSCodeManager
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"Failed to ensure VSCodium settings: {ex.Message}");
+			GameLog.LogError($"Failed to ensure VSCodium settings: {ex.Message}");
 		}
 	}
 
@@ -1986,14 +1986,14 @@ public partial class VSCodeManager
 					if (!string.IsNullOrEmpty(patchContent))
 					{
 						File.WriteAllText(extJsPath, patchContent, new UTF8Encoding(false));
-						GD.Print($"VS Code: Patched OHZI GLB viewer extension in {dir}");
+						GameLog.LogToConsole($"VS Code: Patched OHZI GLB viewer extension in {dir}");
 					}
 				}
 			}
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"VS Code: Failed to patch OHZI extension: {ex.Message}");
+			GameLog.LogError($"VS Code: Failed to patch OHZI extension: {ex.Message}");
 		}
 	}
 
@@ -2029,12 +2029,12 @@ public partial class VSCodeManager
 				activationEvents.Add("onStartupFinished");
 				packageJson["activationEvents"] = activationEvents;
 				File.WriteAllText(packageJsonPath, packageJson.ToJsonString(new JsonSerializerOptions { WriteIndented = true }), new UTF8Encoding(false));
-				GD.Print($"VS Code: Enabled startup activation for the OpenCode Panel extension in {extensionDirectory}");
+				GameLog.LogToConsole($"VS Code: Enabled startup activation for the OpenCode Panel extension in {extensionDirectory}");
 			}
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"VS Code: Failed to enable startup activation for the OpenCode Panel extension: {ex.Message}");
+			GameLog.LogError($"VS Code: Failed to enable startup activation for the OpenCode Panel extension: {ex.Message}");
 		}
 	}
 
@@ -2065,17 +2065,17 @@ public partial class VSCodeManager
 				try
 				{
 					Directory.Delete(extensionDirectory, recursive: true);
-					GD.Print($"VS Code: Removed the deprecated antigravity extension at {extensionDirectory}");
+					GameLog.LogToConsole($"VS Code: Removed the deprecated antigravity extension at {extensionDirectory}");
 				}
 				catch (Exception ex)
 				{
-					GD.PrintErr($"VS Code: Failed to delete {extensionDirectory}: {ex.Message}");
+					GameLog.LogError($"VS Code: Failed to delete {extensionDirectory}: {ex.Message}");
 				}
 			}
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"VS Code: Failed to enumerate deprecated antigravity extensions: {ex.Message}");
+			GameLog.LogError($"VS Code: Failed to enumerate deprecated antigravity extensions: {ex.Message}");
 		}
 
 		RemoveExtensionFromCache(Path.Combine(extensionsDir, "extensions.json"), "google.google-antigravity");
@@ -2116,7 +2116,7 @@ public partial class VSCodeManager
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"VS Code: Failed to update {extensionsJsonPath}: {ex.Message}");
+			GameLog.LogError($"VS Code: Failed to update {extensionsJsonPath}: {ex.Message}");
 		}
 	}
 
@@ -2242,14 +2242,14 @@ public partial class VSCodeManager
 
 		if (!Directory.Exists(extensionFolder))
 		{
-			GD.Print("Installing Realm Map Editor VSCode extension...");
+			GameLog.LogToConsole("Installing Realm Map Editor VSCode extension...");
 			ExecuteVSCodeCommand(exePath, $"--install-extension speige.realm-map-editor");
 		}
 
 		string csharpExtFolder = Path.Combine(embedDir, "data", "extensions", "ms-dotnettools.csharp");
 		if (!Directory.Exists(csharpExtFolder))
 		{
-			GD.Print("Installing C# VSCode extension...");
+			GameLog.LogToConsole("Installing C# VSCode extension...");
 			ExecuteVSCodeCommand(exePath, $"--install-extension ms-dotnettools.csharp");
 		}
 	}
@@ -2273,12 +2273,12 @@ public partial class VSCodeManager
 			if (process.ExitCode != 0)
 			{
 				string error = process.StandardError.ReadToEnd();
-				GD.PrintErr($"VSCode command failed ({process.ExitCode}): {error}");
+				GameLog.LogError($"VSCode command failed ({process.ExitCode}): {error}");
 			}
 		}
 		catch (Exception e)
 		{
-			GD.PrintErr($"Failed to execute VSCode command '{arguments}': {e.Message}");
+			GameLog.LogError($"Failed to execute VSCode command '{arguments}': {e.Message}");
 		}
 	}
 
@@ -2341,7 +2341,7 @@ public partial class VSCodeManager
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"VS Code: Failed to patch VSCodium configuration: {ex.Message}");
+			GameLog.LogError($"VS Code: Failed to patch VSCodium configuration: {ex.Message}");
 		}
 	}
 
@@ -2405,16 +2405,16 @@ public partial class VSCodeManager
 			if (needsUpdate)
 			{
 				File.WriteAllText(productJsonPath, jsonNode.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
-				GD.Print($"Successfully patched VSCode product.json at {productJsonPath}");
+				GameLog.LogToConsole($"Successfully patched VSCode product.json at {productJsonPath}");
 			}
 		}
 		catch (UnauthorizedAccessException)
 		{
-			GD.PrintErr("Cannot patch VSCode product.json. Please run Realm as Administrator once to enable Map Editor features.");
+			GameLog.LogError("Cannot patch VSCode product.json. Please run Realm as Administrator once to enable Map Editor features.");
 		}
 		catch (Exception e)
 		{
-			GD.PrintErr($"Failed to patch VSCode product.json: {e.Message}");
+			GameLog.LogError($"Failed to patch VSCode product.json: {e.Message}");
 		}
 	}
 
