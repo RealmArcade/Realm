@@ -779,9 +779,6 @@ public static class MapInfoHelper
 		string webpThumb = Path.Combine(directory, "thumbnail.webp");
 		if (File.Exists(webpThumb)) return webpThumb;
 
-		string legacyPngThumb = Path.Combine(directory, "thumbnail.png");
-		if (File.Exists(legacyPngThumb)) return legacyPngThumb;
-
 		return string.Empty;
 	}
 

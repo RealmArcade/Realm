@@ -1251,12 +1251,6 @@ public class MapStorageService
 			return webpPath;
 		}
 
-		string legacyPngPath = Path.Combine(versionDirectory, "thumbnail.png");
-		if (File.Exists(legacyPngPath))
-		{
-			return legacyPngPath;
-		}
-
 		return string.Empty;
 	}
 
