@@ -222,7 +222,7 @@ public partial class ReplayListPanel : Control
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[ReplayListPanel] Error processing replay file '{filePath}': {ex}");
+			GameLog.LogError($"[ReplayListPanel] Error processing replay file '{filePath}': {ex}");
 			return false;
 		}
 	}
@@ -373,7 +373,7 @@ public partial class ReplayListPanel : Control
 		}
 		else
 		{
-			GD.PrintErr($"Failed to load replay: {path}");
+			GameLog.LogError($"Failed to load replay: {path}");
 		}
 	}
 
@@ -390,7 +390,7 @@ public partial class ReplayListPanel : Control
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"[ReplayListPanel] Failed to delete replay file '{path}': {ex}");
+				GameLog.LogError($"[ReplayListPanel] Failed to delete replay file '{path}': {ex}");
 			}
 
 			PopulateReplaysList();
@@ -416,7 +416,7 @@ public partial class ReplayListPanel : Control
 					}
 					catch (Exception ex)
 					{
-						GD.PrintErr($"[ReplayListPanel] Failed to delete replay file '{filePath}': {ex}");
+						GameLog.LogError($"[ReplayListPanel] Failed to delete replay file '{filePath}': {ex}");
 					}
 				}
 			}
