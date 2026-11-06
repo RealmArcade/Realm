@@ -55,7 +55,7 @@ namespace Realm.Client.UI
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"[MapEditorHUD] Could not write the current map before restoring a version: {ex.Message}");
+				GameLog.LogError($"[MapEditorHUD] Could not write the current map before restoring a version: {ex.Message}");
 			}
 
 			GameContext.MapAutosaveService.FlushPendingWrites(TimeSpan.FromSeconds(3));
@@ -133,7 +133,7 @@ namespace Realm.Client.UI
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"[MapEditorHUD] Autosave failed: {ex.Message}");
+				GameLog.LogError($"[MapEditorHUD] Autosave failed: {ex.Message}");
 			}
 		}
 
@@ -171,7 +171,7 @@ namespace Realm.Client.UI
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"[MapEditorHUD] Autosave write failed: {ex.Message}");
+				GameLog.LogError($"[MapEditorHUD] Autosave write failed: {ex.Message}");
 			}
 		}
 
@@ -252,7 +252,7 @@ namespace Realm.Client.UI
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"Failed initializing the editing directory: {ex.Message}");
+				GameLog.LogError($"Failed initializing the editing directory: {ex.Message}");
 			}
 		}
 
@@ -281,7 +281,7 @@ namespace Realm.Client.UI
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"LoadMapProperties error: {ex.Message}");
+				GameLog.LogError($"LoadMapProperties error: {ex.Message}");
 			}
 		}
 
@@ -509,7 +509,7 @@ namespace Realm.Client.UI
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"[MapEditorHUD] SaveMapToFolderAsync failed: {ex}");
+				GameLog.LogError($"[MapEditorHUD] SaveMapToFolderAsync failed: {ex}");
 				ShowFeedback(string.Format(TranslationServer.Translate("Failed to save map: {0}"), ex.Message));
 			}
 			finally
@@ -822,7 +822,7 @@ namespace Realm.Client.UI
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"[MapEditorHUD] Failed to extract map package {archivePath}: {ex}");
+				GameLog.LogError($"[MapEditorHUD] Failed to extract map package {archivePath}: {ex}");
 				ShowFeedback(string.Format(TranslationServer.Translate("Failed to extract the map package: {0}"), ex.Message));
 				GameContext.EditorService.IsSyncing = false;
 				return false;
@@ -883,7 +883,7 @@ namespace Realm.Client.UI
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"[MapEditorHUD] Failed to import map package {archivePath}: {ex}");
+				GameLog.LogError($"[MapEditorHUD] Failed to import map package {archivePath}: {ex}");
 				ShowFeedback(string.Format(TranslationServer.Translate("Failed to import the map package: {0}"), ex.Message));
 				return false;
 			}
@@ -932,7 +932,7 @@ namespace Realm.Client.UI
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"[MapEditorHUD] Failed to load map folder: {ex.Message}");
+				GameLog.LogError($"[MapEditorHUD] Failed to load map folder: {ex.Message}");
 				return false;
 			}
 		}
@@ -994,7 +994,7 @@ namespace Realm.Client.UI
 			}
 			catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
 			{
-				GD.PrintErr($"[MapEditorHUD] The scaffolding in '{editingDirectory}' is incomplete because another program is holding a file open: {exception.Message}. The map still opens and the scaffolding is repaired on its next load.");
+				GameLog.LogError($"[MapEditorHUD] The scaffolding in '{editingDirectory}' is incomplete because another program is holding a file open: {exception.Message}. The map still opens and the scaffolding is repaired on its next load.");
 			}
 		}
 
@@ -1093,7 +1093,7 @@ namespace Realm.Client.UI
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"[MapEditorHUD] Failed to load map folder: {ex.Message}");
+				GameLog.LogError($"[MapEditorHUD] Failed to load map folder: {ex.Message}");
 				_lastMapLoadFailure = ex.Message;
 				return false;
 			}
@@ -1261,12 +1261,12 @@ namespace Realm.Client.UI
 
 		private async Task<bool> PerformCompilationStepAsync(string workspace, bool isDebug = false)
 		{
-			return await GameContext.EditorService.PerformCompilationStepAsyncDomain(workspace, FindProjectFile, TryBypassCompilation, CheckMapApiDependency, ExecuteDotnetPublishAsync, msg => { _wasmHasErrors = true; SetWasmConsoleStatus($"❌ WASM Compilation Failed: {msg}", new Color(1.0f, 0.3f, 0.3f)); GD.PrintErr($"[MapEditorHUD] Trigger compilation failed: {msg}"); }, err => AppendWasmConsoleLog($"[COMPILER EXCEPTION] {err}"), isDebug);
+			return await GameContext.EditorService.PerformCompilationStepAsyncDomain(workspace, FindProjectFile, TryBypassCompilation, CheckMapApiDependency, ExecuteDotnetPublishAsync, msg => { _wasmHasErrors = true; SetWasmConsoleStatus($"❌ WASM Compilation Failed: {msg}", new Color(1.0f, 0.3f, 0.3f)); GameLog.LogError($"[MapEditorHUD] Trigger compilation failed: {msg}"); }, err => AppendWasmConsoleLog($"[COMPILER EXCEPTION] {err}"), isDebug);
 		}
 
 		private string FindProjectFile(string workspace)
 		{
-			return GameContext.EditorService.FindProjectFileDomain(workspace, msg => { _wasmHasErrors = true; SetWasmConsoleStatus("❌ " + msg, new Color(1.0f, 0.3f, 0.3f)); AppendWasmConsoleLog(msg); GD.PrintErr(msg); });
+			return GameContext.EditorService.FindProjectFileDomain(workspace, msg => { _wasmHasErrors = true; SetWasmConsoleStatus("❌ " + msg, new Color(1.0f, 0.3f, 0.3f)); AppendWasmConsoleLog(msg); GameLog.LogError(msg); });
 		}
 
 		private bool TryBypassCompilation(string workspace, bool isDebug)
@@ -1321,7 +1321,7 @@ namespace Realm.Client.UI
 				_wasmHasErrors = true;
 				SetWasmConsoleStatus($"❌ WASM Compilation Failed (exit code {result.exitCode})", new Color(1.0f, 0.3f, 0.3f));
 				AppendWasmConsoleLog($"[ERROR] dotnet publish failed with exit code {result.exitCode}");
-				GD.PrintErr($"[MapEditorHUD] Map script compilation failed (exit code {result.exitCode})");
+				GameLog.LogError($"[MapEditorHUD] Map script compilation failed (exit code {result.exitCode})");
 				return false;
 			}
 			else
@@ -1404,7 +1404,7 @@ namespace Realm.Client.UI
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"[MapEditorHUD] SaveUnitObjectAttachment error: {ex.Message}");
+				GameLog.LogError($"[MapEditorHUD] SaveUnitObjectAttachment error: {ex.Message}");
 			}
 		}
 
@@ -1462,7 +1462,7 @@ namespace Realm.Client.UI
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"[MapEditorHUD] SaveCustomWeaponToMetadata error: {ex.Message}");
+				GameLog.LogError($"[MapEditorHUD] SaveCustomWeaponToMetadata error: {ex.Message}");
 			}
 		}
 
@@ -1475,7 +1475,7 @@ namespace Realm.Client.UI
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"[MapEditorHUD] SaveCustomVfxToMetadata error: {ex.Message}");
+				GameLog.LogError($"[MapEditorHUD] SaveCustomVfxToMetadata error: {ex.Message}");
 			}
 		}
 
@@ -1488,7 +1488,7 @@ namespace Realm.Client.UI
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"[MapEditorHUD] RemoveCustomVfxFromMetadata error: {ex.Message}");
+				GameLog.LogError($"[MapEditorHUD] RemoveCustomVfxFromMetadata error: {ex.Message}");
 			}
 		}
 
@@ -1500,7 +1500,7 @@ namespace Realm.Client.UI
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"[MapEditorHUD] SaveCustomUnitAnimations error: {ex.Message}");
+				GameLog.LogError($"[MapEditorHUD] SaveCustomUnitAnimations error: {ex.Message}");
 			}
 		}
 
@@ -1536,7 +1536,7 @@ namespace Realm.Client.UI
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"[MapEditorHUD] SaveEntityModelPathToMetadata error: {ex.Message}");
+				GameLog.LogError($"[MapEditorHUD] SaveEntityModelPathToMetadata error: {ex.Message}");
 			}
 		}
 
@@ -1549,7 +1549,7 @@ namespace Realm.Client.UI
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"[MapEditorHUD] SaveCustomAbilityVfxToMetadata error: {ex.Message}");
+				GameLog.LogError($"[MapEditorHUD] SaveCustomAbilityVfxToMetadata error: {ex.Message}");
 			}
 		}
 
@@ -1956,7 +1956,7 @@ namespace Realm.Client.UI
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"Failed to load swatch preview: {ex.Message}");
+				GameLog.LogError($"Failed to load swatch preview: {ex.Message}");
 			}
 
 			return null;
@@ -2022,7 +2022,7 @@ namespace Realm.Client.UI
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"ImportTextureAssetFromExtension error: {ex.Message}");
+				GameLog.LogError($"ImportTextureAssetFromExtension error: {ex.Message}");
 				ShowFeedback($"Failed to import texture: {ex.Message}");
 			}
 		}
@@ -2063,7 +2063,7 @@ namespace Realm.Client.UI
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"ReadMetadataAndRefreshTextures error: {ex.Message}");
+				GameLog.LogError($"ReadMetadataAndRefreshTextures error: {ex.Message}");
 			}
 		}
 
@@ -2091,7 +2091,7 @@ namespace Realm.Client.UI
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"ImportAnimationAssetFromExtension error: {ex.Message}");
+				GameLog.LogError($"ImportAnimationAssetFromExtension error: {ex.Message}");
 				ShowFeedback(string.Format(TranslationServer.Translate("Failed to import animation: {0}"), ex.Message));
 			}
 		}
@@ -2157,7 +2157,7 @@ namespace Realm.Client.UI
 			}
 			else
 			{
-				GD.PrintErr($"ImportDecalAssetFromExtension error: {result.Message}");
+				GameLog.LogError($"ImportDecalAssetFromExtension error: {result.Message}");
 				ShowFeedback($"Failed to import decal: {result.Message}");
 			}
 		}
@@ -2174,7 +2174,7 @@ namespace Realm.Client.UI
 			}
 			else
 			{
-				GD.PrintErr($"ImportSkyboxAssetFromExtension error: {result.Message}");
+				GameLog.LogError($"ImportSkyboxAssetFromExtension error: {result.Message}");
 				ShowFeedback($"Failed to import skybox: {result.Message}");
 			}
 		}
@@ -2190,7 +2190,7 @@ namespace Realm.Client.UI
 			}
 			else
 			{
-				GD.PrintErr($"ImportSpritesheetAssetFromExtension error: {result.Message}");
+				GameLog.LogError($"ImportSpritesheetAssetFromExtension error: {result.Message}");
 				ShowFeedback($"Failed to import VFX spritesheet: {result.Message}");
 			}
 		}
@@ -2206,7 +2206,7 @@ namespace Realm.Client.UI
 			}
 			else
 			{
-				GD.PrintErr($"ImportIconAssetFromExtension error: {result.Message}");
+				GameLog.LogError($"ImportIconAssetFromExtension error: {result.Message}");
 				ShowFeedback($"Failed to import 2D Icon: {result.Message}");
 			}
 		}
@@ -2224,7 +2224,7 @@ namespace Realm.Client.UI
 			}
 			else
 			{
-				GD.PrintErr($"ImportAudioAssetFromExtension error: {result.Message}");
+				GameLog.LogError($"ImportAudioAssetFromExtension error: {result.Message}");
 				ShowFeedback($"Failed to import audio asset: {result.Message}");
 			}
 		}
