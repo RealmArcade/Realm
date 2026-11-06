@@ -1163,7 +1163,7 @@ public class MapCodeImportService
 		}
 	}
 
-	private sealed class SourceType
+	private class SourceType
 	{
 		private readonly HashSet<string> _declaredIdentifiers = new(StringComparer.Ordinal);
 
@@ -1346,7 +1346,7 @@ public class MapCodeImportService
 		}
 	}
 
-	private sealed class TypePart
+	private class TypePart
 	{
 		public TypePart(SyntaxNode declaration, IReadOnlyList<UsingDirectiveSyntax> usings)
 		{
@@ -1358,7 +1358,7 @@ public class MapCodeImportService
 		public IReadOnlyList<UsingDirectiveSyntax> Usings { get; }
 	}
 
-	private sealed class DestinationCodeIndex
+	private class DestinationCodeIndex
 	{
 		public HashSet<string> TypeFullNames { get; } = new(StringComparer.Ordinal);
 		public HashSet<string> Namespaces { get; } = new(StringComparer.Ordinal);
@@ -1404,7 +1404,7 @@ public class MapCodeImportService
 		}
 	}
 
-	private sealed class SourceFile
+	private class SourceFile
 	{
 		public SourceFile(string relativePath, string text, bool isTemplateFile)
 		{

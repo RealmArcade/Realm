@@ -7,7 +7,7 @@ using System.Threading;
 
 namespace Realm.Client.Testing;
 
-public sealed class UdpDelayRelay : IDisposable
+public class UdpDelayRelay : IDisposable
 {
 	private const int MaximumQueuedDatagramCount = 4096;
 	private const int SocketBufferSize = 4 * 1024 * 1024;

@@ -215,13 +215,13 @@ public static class MultiplayerSplitVerification
 		}
 	}
 
-	private sealed class WorldSummary
+	private class WorldSummary
 	{
 		public List<SummaryUnit> Units { get; } = new();
 		public List<SummaryPlayer> Players { get; } = new();
 	}
 
-	private sealed class SummaryUnit
+	private class SummaryUnit
 	{
 		public int ServerId;
 		public string UnitId = string.Empty;
@@ -234,7 +234,7 @@ public static class MultiplayerSplitVerification
 		public float MaxHp;
 	}
 
-	private sealed class SummaryPlayer
+	private class SummaryPlayer
 	{
 		public int Slot;
 		public bool Active;

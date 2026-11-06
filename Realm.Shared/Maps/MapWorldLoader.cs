@@ -14,7 +14,7 @@ using Realm.Shared.Terrain;
 
 namespace Realm.Shared.Maps;
 
-public sealed class LoadedMap : IDisposable
+public class LoadedMap : IDisposable
 {
 	internal LoadedMap(SimulationContext simulation, DefinitionCatalog catalog, MapSaveData saveData)
 	{

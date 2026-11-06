@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace Realm.Client.Services;
 
-public sealed class TooltipValueStore
+public class TooltipValueStore
 {
 	private readonly Dictionary<string, Dictionary<string, float>> _numbers =
 		new(StringComparer.OrdinalIgnoreCase);

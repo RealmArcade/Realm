@@ -180,7 +180,7 @@ public static class Program
 		}
 	}
 
-	private sealed class AdminKeySession : IDisposable
+	private class AdminKeySession : IDisposable
 	{
 		private byte[]? _privateKeyBytes;
 

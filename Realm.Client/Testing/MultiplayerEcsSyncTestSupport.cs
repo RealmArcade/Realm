@@ -22,7 +22,7 @@ public enum NetworkProfile
 	LatencyLoss
 }
 
-public sealed class MultiplayerEcsRunSettings
+public class MultiplayerEcsRunSettings
 {
 	public string GodotBinary { get; init; } = string.Empty;
 	public string ProjectDirectory { get; init; } = string.Empty;
@@ -60,7 +60,7 @@ public sealed class MultiplayerEcsRunSettings
 	}
 }
 
-public sealed class MultiplayerEcsSyncReport
+public class MultiplayerEcsSyncReport
 {
 	private readonly StringBuilder _summary = new();
 	private readonly List<string> _failures = new();
@@ -472,7 +472,7 @@ public static class MultiplayerEcsSyncTestSupport
 		return harnessProcess;
 	}
 
-	private sealed class HarnessProcess : IDisposable
+	private class HarnessProcess : IDisposable
 	{
 		private readonly StringBuilder _logBuilder = new();
 		private readonly object _logLock = new();
@@ -854,7 +854,7 @@ public static class MultiplayerEcsSyncTestSupport
 		return Math.Max(10, producedSequences * allowancePercent / 100);
 	}
 
-	private sealed class ReconnectExpectation
+	private class ReconnectExpectation
 	{
 		public int DropSequence { get; init; }
 		public int ResumeSequence { get; init; }
@@ -2116,7 +2116,7 @@ public static class MultiplayerEcsSyncTestSupport
 		public bool IsNameableBy(ulong peerMask) => (NamedByMask & peerMask) != 0;
 	}
 
-	private sealed class ReferenceDigestCoverage
+	private class ReferenceDigestCoverage
 	{
 		public int Compared;
 		public int Skipped;
@@ -2136,7 +2136,7 @@ public static class MultiplayerEcsSyncTestSupport
 		return mask;
 	}
 
-	private sealed class MultiplayerSnapshotRecord
+	private class MultiplayerSnapshotRecord
 	{
 		public int Sequence;
 		public ulong PhysicsFrame;
@@ -2150,7 +2150,7 @@ public static class MultiplayerEcsSyncTestSupport
 		public MultiplayerNavigationState Navigation = new();
 	}
 
-	private sealed class MultiplayerLootState
+	private class MultiplayerLootState
 	{
 		public ulong NamedByPeers;
 		public string ItemTypeId = string.Empty;
@@ -2165,7 +2165,7 @@ public static class MultiplayerEcsSyncTestSupport
 		public float PositionZ;
 	}
 
-	private sealed class MultiplayerNavigationState
+	private class MultiplayerNavigationState
 	{
 		public bool HasTerrainState;
 		public bool HasNavMesh;
@@ -2181,7 +2181,7 @@ public static class MultiplayerEcsSyncTestSupport
 		public uint ObstacleHash;
 	}
 
-	private sealed class MultiplayerSnapshotUnit
+	private class MultiplayerSnapshotUnit
 	{
 		public int EntityId;
 		public int OwnerPlayerIndex;

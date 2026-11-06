@@ -17,7 +17,7 @@ using ZstdSharp;
 
 namespace Realm.Benchmarks;
 
-public sealed class AuthorityBenchmark : IDisposable
+public class AuthorityBenchmark : IDisposable
 {
 	private const int MapCellCount = 128;
 	private const float MapQuadSize = 2f;

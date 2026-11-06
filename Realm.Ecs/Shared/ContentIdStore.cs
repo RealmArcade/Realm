@@ -529,7 +529,7 @@ public static class ContentIdStore
 		Volatile.Write(ref _textView, new TextTableView(entries, published.Count + 1));
 	}
 
-	private sealed class TextTableView
+	private class TextTableView
 	{
 		public TextTableView((int Id, string Text)[] entries, int count)
 		{

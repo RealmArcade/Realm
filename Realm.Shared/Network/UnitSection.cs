@@ -8,7 +8,7 @@ using Realm.Ecs;
 
 namespace Realm.Shared.Network;
 
-public sealed class UnitSection : IReadOnlyList<UnitSnapshot>
+public class UnitSection : IReadOnlyList<UnitSnapshot>
 {
 	private const int InitialCapacity = 16;
 
@@ -135,7 +135,7 @@ public sealed class UnitSection : IReadOnlyList<UnitSnapshot>
 		}
 	}
 
-	public sealed class WireFormatter : MemoryPackFormatter<UnitSection>
+	public class WireFormatter : MemoryPackFormatter<UnitSection>
 	{
 		public override void Serialize<TBufferWriter>(ref MemoryPackWriter<TBufferWriter> writer, scoped ref UnitSection? value)
 		{
@@ -211,7 +211,7 @@ public sealed class UnitSection : IReadOnlyList<UnitSnapshot>
 	}
 }
 
-public sealed class UnitSectionFormatterAttribute : MemoryPackCustomFormatterAttribute<UnitSection>
+public class UnitSectionFormatterAttribute : MemoryPackCustomFormatterAttribute<UnitSection>
 {
 	public override IMemoryPackFormatter<UnitSection> GetFormatter() => new UnitSection.WireFormatter();
 }
