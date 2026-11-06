@@ -37,11 +37,13 @@ public class ParentProcessWatchdog
         {
             if (!_parent!.HasExited) return false;
         }
-        catch (InvalidOperationException)
+        catch (Exception exception) when (exception is InvalidOperationException or System.ComponentModel.Win32Exception)
         {
-        }
-        catch (System.ComponentModel.Win32Exception)
-        {
+            // Either the process record has been reaped or this account may not query it. Both mean the host can no longer
+            // confirm it has an owner, so it shuts itself down — and then the process simply disappears, leaving whoever
+            // is watching the console with nothing to explain it.
+            Console.Error.WriteLine($"[WATCHDOG] Parent process {_parentProcessId} can no longer be inspected " +
+                                    $"({exception.GetType().Name}: {exception.Message}); stopping this server host.");
         }
 
         _parentGone = true;
