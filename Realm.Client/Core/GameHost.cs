@@ -1230,11 +1230,11 @@ public partial class GameHost : Node3D
 		string dotnetExecutablePath = DotnetSdkResolver.ResolveSdkExecutablePath();
 		if (string.IsNullOrEmpty(dotnetExecutablePath))
 		{
-			GD.PrintErr("Realm.MapAPI.dll is missing and the .NET SDK (map compiler) is not installed yet, so it cannot be built.");
+			GameLog.LogError("Realm.MapAPI.dll is missing and the .NET SDK (map compiler) is not installed yet, so it cannot be built.");
 			return;
 		}
 
-		GD.Print("Realm.MapAPI.dll not found. Auto-building Realm.MapAPI...");
+		GameLog.LogToConsole("Realm.MapAPI.dll not found. Auto-building Realm.MapAPI...");
 		try
 		{
 			using var buildProcess = new Process();
@@ -1247,7 +1247,7 @@ public partial class GameHost : Node3D
 		}
 		catch (Exception exception)
 		{
-			GD.PrintErr("Realm.MapAPI.dll could not be built: " + exception.Message);
+			GameLog.LogError("Realm.MapAPI.dll could not be built: " + exception.Message);
 			return;
 		}
 
@@ -1300,8 +1300,9 @@ public partial class GameHost : Node3D
 			restoreProcess.Start();
 			restoreProcess.WaitForExit(10000);
 		}
-		catch
+		catch (Exception ex)
 		{
+			GameLog.LogError($"could not restore the packages of map project {csprojPath}; the build that follows may fail: {ex.GetType().Name}: {ex.Message}");
 		}
 	}
 
@@ -1867,7 +1868,7 @@ public partial class GameHost : Node3D
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[GameHost] SaveAttachmentDefaultsToMetadata error: {ex.Message}");
+			GameLog.LogError($"[GameHost] SaveAttachmentDefaultsToMetadata error: {ex.Message}");
 		}
 	}
 
@@ -1887,7 +1888,7 @@ public partial class GameHost : Node3D
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[GameHost] SaveUnitAnimationsToMetadata error: {ex.Message}");
+			GameLog.LogError($"[GameHost] SaveUnitAnimationsToMetadata error: {ex.Message}");
 		}
 	}
 
@@ -1907,7 +1908,7 @@ public partial class GameHost : Node3D
 		MainNode = GetTree().Root.GetNodeOrNull("Main");
 		MainCamera = GetTree().Root.GetNodeOrNull<CameraControl>("Main/Camera3D");
 
-		GD.Print($"[GAMEHOST_READY] GameHost _Ready starting");
+		GameLog.LogToConsole($"[GAMEHOST_READY] GameHost _Ready starting");
 		GameContext.RegisterHost(this);
 		GameSettings.ApplyGraphicsSettings(this);
 		ReinitializeEcsAndServices();
@@ -2413,7 +2414,7 @@ public partial class GameHost : Node3D
 		string replayPath = Path.Combine(replayDir, $"replay_{timestamp}.rep");
 
 		GameContext.ReplayService.StartRecording(replayPath, rawMapName, GameContext.Lobby?.PlayerList);
-		GD.Print($"[ReplayRecorder] Started recording to {replayPath}");
+		GameLog.LogToConsole($"[ReplayRecorder] Started recording to {replayPath}");
 	}
 
 	private void SchedulePostInitializationTasks()
