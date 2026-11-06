@@ -243,7 +243,7 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[EditorSettingsDialog] Load error: {ex.Message}");
+			GameLog.LogError($"[EditorSettingsDialog] Load error: {ex.Message}");
 		}
 	}
 
@@ -263,7 +263,7 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[EditorSettingsDialog] Save error: {ex.Message}");
+			GameLog.LogError($"[EditorSettingsDialog] Save error: {ex.Message}");
 		}
 	}
 }
