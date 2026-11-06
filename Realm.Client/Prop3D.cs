@@ -452,7 +452,7 @@ public partial class Prop3D : Node3D
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"Failed to load prop visual for '{PropId}' ({modelPath}): {ex.Message}");
+			GameLog.LogError($"Failed to load prop visual for '{PropId}' ({modelPath}): {ex.Message}");
 			if (node != null && node.GetParent() == null)
 			{
 				node.QueueFree();
