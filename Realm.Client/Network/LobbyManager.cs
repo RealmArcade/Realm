@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
@@ -205,7 +205,7 @@ public partial class LobbyManager : BaseMapTransferNode
 		if (RegistryServers.Count > 1)
 		{
 			_currentServerIndex = (_currentServerIndex + 1) % RegistryServers.Count;
-			GD.Print($"[LobbyManager] Switched to next bootstrap server: {RegistryServerUrl}");
+			GameLog.LogToConsole($"[LobbyManager] Switched to next bootstrap server: {RegistryServerUrl}");
 		}
 	}
 
@@ -214,7 +214,7 @@ public partial class LobbyManager : BaseMapTransferNode
 		if (RegistryServers.Count > 1)
 		{
 			_currentServerIndex = Random.Shared.Next(RegistryServers.Count);
-			GD.Print($"[LobbyManager] Randomized bootstrap server to: {RegistryServerUrl}");
+			GameLog.LogToConsole($"[LobbyManager] Randomized bootstrap server to: {RegistryServerUrl}");
 		}
 	}
 
@@ -232,7 +232,7 @@ public partial class LobbyManager : BaseMapTransferNode
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"[LobbyManager] Failed to fetch lobbies from {RegistryServerUrl}: {ex.Message}");
+				GameLog.LogError($"[LobbyManager] Failed to fetch lobbies from {RegistryServerUrl}: {ex.Message}");
 			}
 
 			SwitchToNextServer();
@@ -344,8 +344,9 @@ public partial class LobbyManager : BaseMapTransferNode
 					if (!GodotObject.IsInstanceValid(this) || IsQueuedForDeletion()) break;
 					CheckPeerSeederStatus();
 				}
-				catch
+				catch (Exception ex)
 				{
+					GameLog.LogError($"the peer-seeder status loop stopped after an error: {ex.GetType().Name}: {ex.Message}");
 					break;
 				}
 			}
@@ -380,7 +381,7 @@ public partial class LobbyManager : BaseMapTransferNode
 		{
 			if (!_preparation.Tick()) return;
 
-			GD.Print($"MATCH_LOAD preparation models={_preparation.TotalModels} warm_ms={_preparation.WarmMilliseconds.ToString("F1", CultureInfo.InvariantCulture)}");
+			GameLog.LogToConsole($"MATCH_LOAD preparation models={_preparation.TotalModels} warm_ms={_preparation.WarmMilliseconds.ToString("F1", CultureInfo.InvariantCulture)}");
 			BeginMatchWorldBuild();
 			return;
 		}
@@ -480,7 +481,7 @@ public partial class LobbyManager : BaseMapTransferNode
 
 			try
 			{
-				GD.Print($"[LobbyManager] Closing lobby {lobbyIdToClose} synchronously before exit...");
+				GameLog.LogToConsole($"[LobbyManager] Closing lobby {lobbyIdToClose} synchronously before exit...");
 				var payload = new { LobbyId = lobbyIdToClose, HostToken = tokenToClose };
 				var jsonContent = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
 
@@ -489,7 +490,7 @@ public partial class LobbyManager : BaseMapTransferNode
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"[LobbyManager] Failed synchronous lobby close on exit: {ex.Message}");
+				GameLog.LogError($"[LobbyManager] Failed synchronous lobby close on exit: {ex.Message}");
 			}
 		}
 	}
@@ -499,14 +500,14 @@ public partial class LobbyManager : BaseMapTransferNode
 		var config = ServersConfigHelper.Load();
 		OfficialServers = config.Servers;
 		_currentServerIndex = 0;
-		GD.Print($"[LobbyManager] Loaded servers: {string.Join(", ", RegistryServers)}");
+		GameLog.LogToConsole($"[LobbyManager] Loaded servers: {string.Join(", ", RegistryServers)}");
 	}
 
 	public async Task RunNatTypeTestAsync()
 	{
-		GD.Print("[LobbyManager] Starting STUN NAT Type Test...");
+		GameLog.LogToConsole("[LobbyManager] Starting STUN NAT Type Test...");
 		LocalNatType = await NatTypeTester.DetermineNatTypeAsync(0);
-		GD.Print($"[LobbyManager] NAT Type Classified: {LocalNatType}");
+		GameLog.LogToConsole($"[LobbyManager] NAT Type Classified: {LocalNatType}");
 
 		await ResolvePublicEndpointAsync(ENetPort);
 		CallDeferred(nameof(EmitNatTestCompleted));
@@ -529,7 +530,7 @@ public partial class LobbyManager : BaseMapTransferNode
 			}
 			catch (Exception ex)
 			{
-				GD.Print($"[LobbyManager] Direct STUN on port {localPort} failed: {ex.Message}");
+				GameLog.LogToConsole($"[LobbyManager] Direct STUN on port {localPort} failed: {ex.Message}");
 			}
 
 			if (result == null || !result.Success || result.MappedEndPoint == null)
@@ -561,11 +562,11 @@ public partial class LobbyManager : BaseMapTransferNode
 			bool mappedFromBoundPort = result.LocalEndPoint != null && result.LocalEndPoint.Port == localPort;
 			_hostPublicIp = result.MappedEndPoint.Address.ToString();
 			_hostPublicPort = mappedFromBoundPort ? result.MappedEndPoint.Port : localPort;
-			GD.Print($"[STUN] Local {localPort} -> Public {_hostPublicIp}:{_hostPublicPort}");
+			GameLog.LogToConsole($"[STUN] Local {localPort} -> Public {_hostPublicIp}:{_hostPublicPort}");
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[LobbyManager] Failed to get public IP: {ex.Message}");
+			GameLog.LogError($"[LobbyManager] Failed to get public IP: {ex.Message}");
 		}
 	}
 
@@ -779,7 +780,7 @@ public partial class LobbyManager : BaseMapTransferNode
 		if (LocalNatType == NatType.Symmetric)
 		{
 			LastHostError = "Lobby creation rejected: Symmetric NAT is not supported.";
-			GD.PrintErr("[LobbyManager] Lobby creation rejected: Symmetric NAT is not supported.");
+			GameLog.LogError("[LobbyManager] Lobby creation rejected: Symmetric NAT is not supported.");
 			return false;
 		}
 
@@ -852,7 +853,7 @@ public partial class LobbyManager : BaseMapTransferNode
 		IsRestrictedHost = !upnpSuccess && isRestrictedNat;
 		if (IsRestrictedHost)
 		{
-			GD.Print("[LobbyManager] Warning: UPnP port mapping not available on restricted NAT. External players may require Direct Connect.");
+			GameLog.LogToConsole("[LobbyManager] Warning: UPnP port mapping not available on restricted NAT. External players may require Direct Connect.");
 		}
 
 		Diagnostics.StartHostListener(session.Port + 1);
@@ -978,7 +979,7 @@ public partial class LobbyManager : BaseMapTransferNode
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[LobbyManager] Failed to resolve playable player slots for '{mapPathName}': {ex.Message}");
+			GameLog.LogError($"[LobbyManager] Failed to resolve playable player slots for '{mapPathName}': {ex.Message}");
 			return MapInfoMetadata.DefaultPlayablePlayerSlots;
 		}
 	}
@@ -997,7 +998,7 @@ public partial class LobbyManager : BaseMapTransferNode
 			if (response == null || !response.IsSuccessStatusCode)
 			{
 				var errorText = response != null ? await response.Content.ReadAsStringAsync() : "All registry nodes offline";
-				GD.PrintErr($"[LobbyManager] Failed to join lobby: {errorText}");
+				GameLog.LogError($"[LobbyManager] Failed to join lobby: {errorText}");
 				ConnectionFailed?.Invoke("Failed to coordinate join.");
 				return false;
 			}
@@ -1008,7 +1009,7 @@ public partial class LobbyManager : BaseMapTransferNode
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[LobbyManager] Join error: {ex.Message}");
+			GameLog.LogError($"[LobbyManager] Join error: {ex.Message}");
 			ConnectionFailed?.Invoke(ex.Message);
 			return false;
 		}
@@ -1060,7 +1061,7 @@ public partial class LobbyManager : BaseMapTransferNode
 		if (!session.TryJoinLobby(connectIp, connectPort, LocalizationManager.GetCurrentLanguageCode(), isLocalConnection ? 0 : ENetPort, out string failure))
 		{
 			LastHostError = failure;
-			GD.PrintErr($"[LobbyManager] {failure}");
+			GameLog.LogError($"[LobbyManager] {failure}");
 			Disconnect();
 			ConnectionFailed?.Invoke(failure);
 			return false;
@@ -1074,7 +1075,7 @@ public partial class LobbyManager : BaseMapTransferNode
 			LobbyJoinError = string.Equals(admissionFailure, LobbyLimits.KickedRejection, StringComparison.Ordinal)
 				? "You were removed from this lobby."
 				: admissionFailure;
-			GD.PrintErr($"[LobbyManager] {admissionFailure}");
+			GameLog.LogError($"[LobbyManager] {admissionFailure}");
 			Disconnect();
 			ConnectionFailed?.Invoke("Direct connection handshake failed.");
 			return false;
@@ -1325,7 +1326,7 @@ public partial class LobbyManager : BaseMapTransferNode
 		_matchPresentationOpen = true;
 		MatchLoadTrace.Begin("start_presentation");
 		MatchLoadTrace.Mark("countdown_received");
-		GD.Print($"[LobbyManager] Showing the match world for '{mapName}' under the countdown");
+		GameLog.LogToConsole($"[LobbyManager] Showing the match world for '{mapName}' under the countdown");
 
 		host?.ShowPreparedMatchWorld();
 		GameContext.UserInterface?.TransitionTo(GameScreen.InGameHUD);
@@ -1336,7 +1337,7 @@ public partial class LobbyManager : BaseMapTransferNode
 		if (!_matchPresentationOpen) return;
 
 		_matchPresentationOpen = false;
-		GD.Print("[LobbyManager] Countdown cancelled; returning to the lobby");
+		GameLog.LogToConsole("[LobbyManager] Countdown cancelled; returning to the lobby");
 		GameContext.UserInterface?.TransitionTo(GameScreen.LobbyRoom);
 	}
 
@@ -1361,7 +1362,7 @@ public partial class LobbyManager : BaseMapTransferNode
 
 	private void OnLobbyKicked(LobbyKickedMessage kicked)
 	{
-		GD.Print($"[LobbyManager] Removed from the lobby: {kicked.Reason}");
+		GameLog.LogToConsole($"[LobbyManager] Removed from the lobby: {kicked.Reason}");
 		KickReceived?.Invoke(string.IsNullOrEmpty(kicked.Reason) ? "Kicked by Host" : kicked.Reason);
 
 		bool wasBuilding = _matchPresentationOpen;
@@ -1389,7 +1390,7 @@ public partial class LobbyManager : BaseMapTransferNode
 		if (administeredHere && !kicked)
 		{
 			LastHostError = reason;
-			GD.PrintErr($"[LobbyManager] The lobby's authority is gone: {reason}");
+			GameLog.LogError($"[LobbyManager] The lobby's authority is gone: {reason}");
 		}
 
 		var session = _lobbySession;
@@ -1450,7 +1451,7 @@ public partial class LobbyManager : BaseMapTransferNode
 
 	private void EnterMatchScene(string mapName, int matchSeed)
 	{
-		GD.Print($"[LobbyManager] Match started for '{mapName}' with deterministic random seed {matchSeed}");
+		GameLog.LogToConsole($"[LobbyManager] Match started for '{mapName}' with deterministic random seed {matchSeed}");
 		GameContext.ReplayPlayback.StopReplay();
 		ActiveMapName = mapName;
 		MatchSeed = matchSeed;
@@ -1471,7 +1472,7 @@ public partial class LobbyManager : BaseMapTransferNode
 			ClientPublicPort = clientPublicPort
 		};
 
-		GD.Print($"[LobbyManager] Joining Lobby {lobbyId} via registry server...");
+		GameLog.LogToConsole($"[LobbyManager] Joining Lobby {lobbyId} via registry server...");
 		HttpResponseMessage? response = null;
 		for (int i = 0; i < RegistryServers.Count; i++)
 		{
@@ -1483,7 +1484,7 @@ public partial class LobbyManager : BaseMapTransferNode
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"[LobbyManager] Join failed on {RegistryServerUrl}: {ex.Message}");
+				GameLog.LogError($"[LobbyManager] Join failed on {RegistryServerUrl}: {ex.Message}");
 			}
 
 			SwitchToNextServer();
@@ -1510,7 +1511,7 @@ public partial class LobbyManager : BaseMapTransferNode
 		int connectPort = hostPort;
 		if (!string.IsNullOrEmpty(localIp) && hostIp == clientPublicIp)
 		{
-			GD.Print($"[LobbyManager] Host is on the same LAN (Public IP: {hostIp}). Connecting to local IP: {localIp}:{ENetPort}");
+			GameLog.LogToConsole($"[LobbyManager] Host is on the same LAN (Public IP: {hostIp}). Connecting to local IP: {localIp}:{ENetPort}");
 			connectIp = localIp;
 			connectPort = ENetPort;
 		}
@@ -1534,7 +1535,7 @@ public partial class LobbyManager : BaseMapTransferNode
 				}
 				catch (Exception ex)
 				{
-					GD.PrintErr($"[LobbyManager] Failed to close lobby {lobbyIdToClose} on server: {ex.Message}");
+					GameLog.LogError($"[LobbyManager] Failed to close lobby {lobbyIdToClose} on server: {ex.Message}");
 				}
 			});
 			_hostToken = null;
@@ -1557,7 +1558,7 @@ public partial class LobbyManager : BaseMapTransferNode
 
 	public void Disconnect()
 	{
-		GD.Print("[LobbyManager] Disconnecting...");
+		GameLog.LogToConsole("[LobbyManager] Disconnecting...");
 
 		ClientServerSession? session = _lobbySession;
 		int hostedPort = session?.Port ?? ENetPort;
@@ -1637,7 +1638,7 @@ public partial class LobbyManager : BaseMapTransferNode
 			try
 			{
 				await _hostWebSocket.ConnectAsync(uri, token);
-				GD.Print("[LobbyManager] Host WebSocket signaling connected.");
+				GameLog.LogToConsole("[LobbyManager] Host WebSocket signaling connected.");
 				await ProcessWebSocketMessagesAsync(token);
 			}
 			catch (Exception ex) when (ex is OperationCanceledException || ex is ObjectDisposedException)
@@ -1645,7 +1646,7 @@ public partial class LobbyManager : BaseMapTransferNode
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"[LobbyManager] Host WebSocket error: {ex.Message}");
+				GameLog.LogError($"[LobbyManager] Host WebSocket error: {ex.Message}");
 			}
 		}, token);
 	}
@@ -1665,7 +1666,7 @@ public partial class LobbyManager : BaseMapTransferNode
 			}
 		}
 
-		GD.Print("[LobbyManager] Host WebSocket message processing loop ended.");
+		GameLog.LogToConsole("[LobbyManager] Host WebSocket message processing loop ended.");
 	}
 
 	private void HandleWebSocketMessage(string json)
@@ -1684,7 +1685,7 @@ public partial class LobbyManager : BaseMapTransferNode
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[LobbyManager] Error handling WebSocket message: {ex.Message}");
+			GameLog.LogError($"[LobbyManager] Error handling WebSocket message: {ex.Message}");
 		}
 	}
 
@@ -1713,8 +1714,9 @@ public partial class LobbyManager : BaseMapTransferNode
 					var jsonContent = new StringContent(JsonSerializer.Serialize(heartbeat), Encoding.UTF8, "application/json");
 					await _httpClient.PostAsync($"{RegistryServerUrl}/lobbies/heartbeat", jsonContent, token);
 				}
-				catch
+				catch (Exception ex)
 				{
+					GameLog.LogError($"the lobby heartbeat to {RegistryServerUrl} failed, so the registry may drop this lobby: {ex.GetType().Name}: {ex.Message}");
 				}
 
 				await Task.Delay(1000, token);
@@ -1759,7 +1761,7 @@ public partial class LobbyManager : BaseMapTransferNode
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[LobbyManager] Registry registration error: {ex.Message}");
+			GameLog.LogError($"[LobbyManager] Registry registration error: {ex.Message}");
 			LastHostError = ex.Message;
 			return false;
 		}
@@ -1792,7 +1794,7 @@ public partial class LobbyManager : BaseMapTransferNode
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[LobbyManager] Failed to read map signature metadata: {ex.Message}");
+			GameLog.LogError($"[LobbyManager] Failed to read map signature metadata: {ex.Message}");
 		}
 
 		long mapSizeBytes = MapAssetManager.GetMapTotalSizeBytes(mapPathName, mapVersion);
@@ -1878,7 +1880,7 @@ public partial class LobbyManager : BaseMapTransferNode
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"[LobbyManager] Register failed on {RegistryServerUrl}: {ex.Message}");
+				GameLog.LogError($"[LobbyManager] Register failed on {RegistryServerUrl}: {ex.Message}");
 			}
 
 			SwitchToNextServer();
@@ -1897,7 +1899,7 @@ public partial class LobbyManager : BaseMapTransferNode
 		}
 
 		LastHostError = errMsg;
-		GD.PrintErr($"[LobbyManager] {errMsg}");
+		GameLog.LogError($"[LobbyManager] {errMsg}");
 		return false;
 	}
 
@@ -1953,7 +1955,7 @@ public partial class LobbyManager : BaseMapTransferNode
 			_hostToken = hostTokenProp.GetString();
 		}
 
-		GD.Print($"[LobbyManager] Lobby registered on server. LobbyId: {ActiveLobbyId}");
+		GameLog.LogToConsole($"[LobbyManager] Lobby registered on server. LobbyId: {ActiveLobbyId}");
 
 		if (!string.IsNullOrEmpty(ActiveLobbyId))
 		{
@@ -2198,7 +2200,7 @@ public partial class LobbyManager : BaseMapTransferNode
 
 			if (manifestReply is not { Kind: MapTransferReplyKind.Manifest } servedManifest || string.IsNullOrEmpty(servedManifest.ManifestJson))
 			{
-				GD.PrintErr($"[LobbyManager] The lobby did not serve a manifest for '{targetMap}': {manifestReply?.Refusal}");
+				GameLog.LogError($"[LobbyManager] The lobby did not serve a manifest for '{targetMap}': {manifestReply?.Refusal}");
 				CallDeferred(nameof(EmitDownloadFailed));
 				return false;
 			}
@@ -2215,7 +2217,7 @@ public partial class LobbyManager : BaseMapTransferNode
 			int totalAssets = allHashes.Count;
 			if (totalAssets == 0)
 			{
-				GD.PrintErr($"[LobbyManager] The lobby served a manifest for '{targetMap}' that lists no files.");
+				GameLog.LogError($"[LobbyManager] The lobby served a manifest for '{targetMap}' that lists no files.");
 				_downloadingMapName = null;
 				CallDeferred(nameof(EmitDownloadFailed));
 				return false;
@@ -2238,7 +2240,7 @@ public partial class LobbyManager : BaseMapTransferNode
 
 				if (chunkReply is not { Kind: MapTransferReplyKind.Chunk } servedChunk || servedChunk.Bundle == null)
 				{
-					GD.PrintErr($"[LobbyManager] The lobby stopped serving '{targetMap}' at bundle {chunkIndex}: {chunkReply?.Refusal}");
+					GameLog.LogError($"[LobbyManager] The lobby stopped serving '{targetMap}' at bundle {chunkIndex}: {chunkReply?.Refusal}");
 					CallDeferred(nameof(EmitDownloadFailed));
 					return false;
 				}
@@ -2273,7 +2275,7 @@ public partial class LobbyManager : BaseMapTransferNode
 	}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[LobbyManager] Map download failed for '{targetMap}': {ex.Message}");
+			GameLog.LogError($"[LobbyManager] Map download failed for '{targetMap}': {ex.Message}");
 			_downloadingMapName = null;
 			CallDeferred(nameof(EmitDownloadFailed));
 			return false;
@@ -2501,7 +2503,7 @@ public partial class LobbyManager : BaseMapTransferNode
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[LobbyManager] Failed to deserialize manifest from host: {ex.Message}");
+			GameLog.LogError($"[LobbyManager] Failed to deserialize manifest from host: {ex.Message}");
 			return null;
 		}
 	}
@@ -2567,7 +2569,7 @@ public partial class LobbyManager : BaseMapTransferNode
 		{
 			if (!_isConnectedToHost || Multiplayer.MultiplayerPeer == null)
 			{
-				GD.PrintErr("[LobbyManager] Disconnected from the peer serving the map.");
+				GameLog.LogError("[LobbyManager] Disconnected from the peer serving the map.");
 				return false;
 			}
 
@@ -2576,7 +2578,7 @@ public partial class LobbyManager : BaseMapTransferNode
 
 			if (DateTime.UtcNow - session.LastActivityTimeUtc > TimeSpan.FromSeconds(45))
 			{
-				GD.PrintErr("[LobbyManager] ENet transfer inactivity timeout for chunk. Retrying remaining missing assets...");
+				GameLog.LogError("[LobbyManager] ENet transfer inactivity timeout for chunk. Retrying remaining missing assets...");
 				return false;
 			}
 		}
@@ -2611,7 +2613,7 @@ public partial class LobbyManager : BaseMapTransferNode
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[LobbyManager] Ephemeral map download error: {ex.Message}");
+			GameLog.LogError($"[LobbyManager] Ephemeral map download error: {ex.Message}");
 			return false;
 		}
 		finally
@@ -2671,7 +2673,7 @@ public partial class LobbyManager : BaseMapTransferNode
 
 		if (err != Error.Ok)
 		{
-			GD.PrintErr($"[LobbyManager] Failed to create ephemeral ENet client: {err}");
+			GameLog.LogError($"[LobbyManager] Failed to create ephemeral ENet client: {err}");
 			return null;
 		}
 
@@ -2683,7 +2685,7 @@ public partial class LobbyManager : BaseMapTransferNode
 
 		if (!await WaitForEphemeralConnectionAsync(cancellationToken))
 		{
-			GD.PrintErr($"[LobbyManager] Ephemeral connection to {targetIp}:{targetPort} timed out or failed.");
+			GameLog.LogError($"[LobbyManager] Ephemeral connection to {targetIp}:{targetPort} timed out or failed.");
 			CleanupEphemeralConnection(peer);
 			return null;
 		}
