@@ -628,7 +628,7 @@ public partial class MapEditorHUD : Control
 		tipMargin.AddThemeConstantOverride("margin_right", 10);
 		tipPanel.AddChild(tipMargin);
 
-		var tipLabel = new Label { Text = "💡 " + string.Format(TranslationServer.Translate("Optimization Advisory: We recommend running 'Prune Unused Assets' and 'Normalize References' in the Map Utilities dialog before publishing to remove unused files and reference shared greenlit assets (potential savings: {0})."), MapStorageService.FormatBytes(potentialSavedBytes)), AutowrapMode = TextServer.AutowrapMode.WordSmart };
+		var tipLabel = new Label { Text = "💡 " + string.Format(TranslationServer.Translate("Optimization Advisory: We recommend running 'Prune Unused Assets' and 'Normalize References' in the Map Utilities dialog before publishing to remove unused files and reference shared greenlit assets (potential savings: {0})."), MapStorageService.FormatBytes(potentialSavedBytes)), AutowrapMode = TextServer.AutowrapMode.WordSmart, CustomMinimumSize = new Vector2(1160, 0), SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		tipLabel.AddThemeFontSizeOverride("font_size", 12);
 		tipLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		tipMargin.AddChild(tipLabel);
@@ -703,7 +703,7 @@ public partial class MapEditorHUD : Control
 
 		idVBox.AddChild(keyRow);
 
-		var idDetailsLabel = new Label { Name = "IdDetailsLabel_Label", Text = string.Empty, AutowrapMode = TextServer.AutowrapMode.WordSmart };
+		var idDetailsLabel = new Label { Name = "IdDetailsLabel_Label", Text = string.Empty, AutowrapMode = TextServer.AutowrapMode.WordSmart, CustomMinimumSize = new Vector2(1156, 0), SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		idDetailsLabel.AddThemeFontSizeOverride("font_size", 11);
 		idDetailsLabel.AddThemeColorOverride("font_color", new Color(0.85f, 0.9f, 1.0f));
 		idVBox.AddChild(idDetailsLabel);
@@ -792,7 +792,7 @@ public partial class MapEditorHUD : Control
 		RefreshKeyOptions();
 		RefreshSelectedKeyDetails();
 
-		var idBackupWarn = new Label { Text = "⚠️ " + TranslationServer.Translate("Important: Back up your key file! Your authorship key proves ownership of your map name and allows future updates. If you lose your key file, you will permanently lose ownership and the ability to update this map."), AutowrapMode = TextServer.AutowrapMode.WordSmart };
+		var idBackupWarn = new Label { Text = "⚠️ " + TranslationServer.Translate("Important: Back up your key file! Your authorship key proves ownership of your map name and allows future updates. If you lose your key file, you will permanently lose ownership and the ability to update this map."), AutowrapMode = TextServer.AutowrapMode.WordSmart, CustomMinimumSize = new Vector2(1156, 0), SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		idBackupWarn.AddThemeFontSizeOverride("font_size", 11);
 		idBackupWarn.AddThemeColorOverride("font_color", new Color(1.0f, 0.75f, 0.35f));
 		idVBox.AddChild(idBackupWarn);

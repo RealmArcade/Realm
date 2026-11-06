@@ -57,6 +57,7 @@ public partial class RichTooltip : PanelContainer
 		label.FitContent = true;
 		label.AutowrapMode = TextServer.AutowrapMode.WordSmart;
 		label.CustomMinimumSize = new Vector2(260, 0);
+		label.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		FillContent(label, text);
 		margin.AddChild(label);
 

@@ -222,6 +222,8 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 		lblRigDesc.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 		lblRigDesc.AddThemeFontSizeOverride("font_size", 10);
 		lblRigDesc.AutowrapMode = TextServer.AutowrapMode.Word;
+		lblRigDesc.CustomMinimumSize = new Vector2(530, 0);
+		lblRigDesc.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_autoRigRow.AddChild(lblRigDesc);
 
 		vbox.AddChild(_autoRigRow);
@@ -241,6 +243,8 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 		_lblStatus.AddThemeFontSizeOverride("font_size", 11);
 		_lblStatus.AddThemeColorOverride("font_color", new Color(0.9f, 0.4f, 0.4f));
 		_lblStatus.AutowrapMode = TextServer.AutowrapMode.Word;
+		_lblStatus.CustomMinimumSize = new Vector2(530, 0);
+		_lblStatus.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_lblStatus.Visible = false;
 		BodyContainer.AddChild(_lblStatus);
 

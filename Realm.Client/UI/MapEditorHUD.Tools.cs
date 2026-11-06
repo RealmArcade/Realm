@@ -2501,6 +2501,8 @@ namespace Realm.Client.UI
 			descLabel.Text = $"{string.Format(Tr("Folder: {0}"), Path.GetFileName(selectedFolder))}\n\n{Tr("The selected folder is not a valid map. Required files metadata.json and manifest.json were not found.")}";
 			descLabel.HorizontalAlignment = HorizontalAlignment.Center;
 			descLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+			descLabel.CustomMinimumSize = new Vector2(480, 0);
+			descLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 			descLabel.AddThemeFontSizeOverride("font_size", 13);
 			descLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.95f));
 			vbox.AddChild(descLabel);
@@ -2621,6 +2623,8 @@ namespace Realm.Client.UI
 			statusLabel.AddThemeFontSizeOverride("font_size", 13);
 			statusLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.95f));
 			statusLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+			statusLabel.CustomMinimumSize = new Vector2(520, 0);
+			statusLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 			vbox.AddChild(statusLabel);
 
 			vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 5) });
@@ -4602,6 +4606,7 @@ namespace Realm.Client.UI
 			_lblRigStatus.Name = "LblRigStatus";
 			_lblRigStatus.AddThemeFontSizeOverride("font_size", 11);
 			_lblRigStatus.AutowrapMode = TextServer.AutowrapMode.Word;
+			_lblRigStatus.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 			_rigStatusContainer.AddChild(_lblRigStatus);
 			inspectorVBox.AddChild(_rigStatusContainer);
 

@@ -554,6 +554,8 @@ public partial class MapDiscovery : Control
 		desc.Name = "Desc_Label";
 		desc.Text = map.Description;
 		desc.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+		desc.CustomMinimumSize = new Vector2(300, 0);
+		desc.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		desc.SizeFlagsVertical = SizeFlags.ExpandFill;
 		if (_fontNorseBold != null) desc.AddThemeFontOverride("font", _fontNorseBold);
 		desc.AddThemeColorOverride("font_color", new Color(0.94f, 0.94f, 0.96f));

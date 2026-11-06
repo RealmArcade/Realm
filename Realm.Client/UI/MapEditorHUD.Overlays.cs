@@ -1147,6 +1147,8 @@ namespace Realm.Client.UI
 				? string.Format(TranslationServer.Translate("'{0}' v{1} has met the community greenlight requirement and can now be published to the public registry."), mapTitle, mapVersion)
 				: string.Format(TranslationServer.Translate("'{0}' v{1} is currently in Beta-Testing. Maps must achieve 100 Verified Good Reviews before graduating to the public registry."), mapTitle, mapVersion);
 			lblDesc.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+			lblDesc.CustomMinimumSize = new Vector2(588, 0);
+			lblDesc.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 			lblDesc.HorizontalAlignment = HorizontalAlignment.Center;
 			lblDesc.AddThemeFontSizeOverride("font_size", 13);
 			lblDesc.AddThemeColorOverride("font_color", new Color(0.85f, 0.85f, 0.9f));
@@ -1179,6 +1181,8 @@ namespace Realm.Client.UI
 			tip.Name = "Tip_Label";
 			tip.Text = TranslationServer.Translate("How Verified Good Reviews are determined:\nA review qualifies as Verified & Good when submitted by a player who:\n  1. Is signed in with Steam\n  2. Has played your map for at least 30 minutes across 3 or more completed games\n  3. Gives your map a rating of 3 stars or higher\n\nHost multiplayer lobbies or share your map peer-to-peer to build verified reviews from your community.");
 			tip.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+			tip.CustomMinimumSize = new Vector2(588, 0);
+			tip.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 			tip.AddThemeFontSizeOverride("font_size", 11);
 			tip.AddThemeColorOverride("font_color", new Color(0.65f, 0.7f, 0.8f));
 			vbox.AddChild(tip);
@@ -1268,6 +1272,8 @@ namespace Realm.Client.UI
 			lblMsg.Name = "LblMsg_Label";
 			lblMsg.Text = TranslationServer.Translate(message);
 			lblMsg.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+			lblMsg.CustomMinimumSize = new Vector2(430, 0);
+			lblMsg.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 			lblMsg.HorizontalAlignment = HorizontalAlignment.Center;
 			lblMsg.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.95f));
 			lblMsg.AddThemeFontSizeOverride("font_size", 13);
@@ -1732,7 +1738,9 @@ namespace Realm.Client.UI
 			{
 				Text = TranslationServer.Translate("A new map key has been generated for your machine. It is registered under the Steam name this account is signed in with."),
 				HorizontalAlignment = HorizontalAlignment.Center,
-				AutowrapMode = TextServer.AutowrapMode.WordSmart
+				AutowrapMode = TextServer.AutowrapMode.WordSmart,
+				CustomMinimumSize = new Vector2(440, 0),
+				SizeFlagsHorizontal = SizeFlags.ExpandFill
 			};
 			desc.AddThemeFontSizeOverride("font_size", 12);
 			desc.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.95f));
@@ -3135,6 +3143,7 @@ namespace Realm.Client.UI
 				lblDesc.AddThemeFontSizeOverride("font_size", 11);
 				lblDesc.AddThemeColorOverride("font_color", new Color(0.22f, 0.18f, 0.15f));
 				lblDesc.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+				lblDesc.CustomMinimumSize = new Vector2(width, 0);
 				lblDesc.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 				textVBox.AddChild(lblDesc);
 

@@ -1762,7 +1762,9 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 			var emptyLabel = new Label
 			{
 				Text = TranslationServer.Translate("No attachments configured on this object."),
-				AutowrapMode = TextServer.AutowrapMode.Word
+				AutowrapMode = TextServer.AutowrapMode.Word,
+				CustomMinimumSize = new Vector2(530, 0),
+				SizeFlagsHorizontal = Control.SizeFlags.ExpandFill
 			};
 			emptyLabel.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 			emptyLabel.AddThemeFontSizeOverride("font_size", 11);

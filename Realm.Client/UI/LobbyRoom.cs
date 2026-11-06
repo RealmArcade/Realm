@@ -616,6 +616,8 @@ public partial class LobbyRoom : Control
 		lblMsg.Name = "LblMsg_Label";
 		lblMsg.Text = message;
 		lblMsg.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+		lblMsg.CustomMinimumSize = new Vector2(400, 0);
+		lblMsg.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		vbox.AddChild(lblMsg);
 
 		var btnConfirm = new Button();

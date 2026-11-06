@@ -71,6 +71,8 @@ public partial class ModelPickerDialog : FloatingPreview3DDialogBase
 		_lblStatus.AddThemeFontSizeOverride("font_size", 11);
 		_lblStatus.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlowDim);
 		_lblStatus.AutowrapMode = TextServer.AutowrapMode.Word;
+		_lblStatus.CustomMinimumSize = new Vector2(460, 0);
+		_lblStatus.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		BodyContainer.AddChild(_lblStatus);
 	}
 

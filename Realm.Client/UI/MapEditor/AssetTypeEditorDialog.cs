@@ -41,6 +41,8 @@ public partial class AssetTypeEditorDialog : FloatingDialogBase
 		_lblPrompt.Name = "LblPrompt_Label";
 		_lblPrompt.AddThemeFontSizeOverride("font_size", 11);
 		_lblPrompt.AutowrapMode = TextServer.AutowrapMode.Word;
+		_lblPrompt.CustomMinimumSize = new Vector2(360, 0);
+		_lblPrompt.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_lblPrompt.Text = string.Format(
 			TranslationServer.Translate("Select embedded Asset Type for '{0}':"),
 			_asset?.FileName ?? string.Empty

@@ -141,6 +141,8 @@ public partial class TagEditorDialog : FloatingDialogBase
 			lblEmpty.AddThemeFontSizeOverride("font_size", 10);
 			lblEmpty.HorizontalAlignment = HorizontalAlignment.Center;
 			lblEmpty.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+			lblEmpty.CustomMinimumSize = new Vector2(360, 0);
+			lblEmpty.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 			_tagsListContainer.AddChild(lblEmpty);
 			return;
 		}
