@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -333,7 +333,7 @@ public class MapCodeImportService
 				}
 				catch (Exception exception)
 				{
-					GD.PrintErr($"[MapCodeImportService] Failed to remove duplicate declaration file '{duplicatePath}': {exception.Message}");
+					GameLog.LogError($"[MapCodeImportService] Failed to remove duplicate declaration file '{duplicatePath}': {exception.Message}");
 				}
 			}
 
@@ -359,7 +359,7 @@ public class MapCodeImportService
 		catch (Exception exception)
 		{
 			summary.FailedTypes.Add($"{sourceType.FullName} ({exception.Message})");
-			GD.PrintErr($"[MapCodeImportService] Failed to write '{destinationPath}': {exception.Message}");
+			GameLog.LogError($"[MapCodeImportService] Failed to write '{destinationPath}': {exception.Message}");
 		}
 	}
 
@@ -683,7 +683,7 @@ public class MapCodeImportService
 		}
 		catch (Exception exception)
 		{
-			GD.PrintErr($"[MapCodeImportService] Failed to read source manifest '{source.ManifestFilePath}': {exception.Message}");
+			GameLog.LogError($"[MapCodeImportService] Failed to read source manifest '{source.ManifestFilePath}': {exception.Message}");
 			return sourceFiles;
 		}
 
@@ -723,7 +723,7 @@ public class MapCodeImportService
 		}
 		catch (Exception exception)
 		{
-			GD.PrintErr($"[MapCodeImportService] Failed to load source code files: {exception.Message}");
+			GameLog.LogError($"[MapCodeImportService] Failed to load source code files: {exception.Message}");
 		}
 		finally
 		{
@@ -763,7 +763,7 @@ public class MapCodeImportService
 			}
 			catch (Exception exception)
 			{
-				GD.PrintErr($"[MapCodeImportService] Failed to read source file '{filePath}': {exception.Message}");
+				GameLog.LogError($"[MapCodeImportService] Failed to read source file '{filePath}': {exception.Message}");
 			}
 		}
 	}
@@ -850,7 +850,7 @@ public class MapCodeImportService
 			}
 			catch (Exception exception)
 			{
-				GD.PrintErr($"[MapCodeImportService] Failed to scan destination file '{filePath}': {exception.Message}");
+				GameLog.LogError($"[MapCodeImportService] Failed to scan destination file '{filePath}': {exception.Message}");
 			}
 		}
 
@@ -911,8 +911,9 @@ public class MapCodeImportService
 				childDirectories = Directory.GetDirectories(directory);
 				childFiles = Directory.GetFiles(directory, "*.cs", SearchOption.TopDirectoryOnly);
 			}
-			catch
+			catch (Exception ex)
 			{
+				GameLog.LogError($"could not read a directory while collecting the map's code files, so the import is incomplete: {ex.GetType().Name}: {ex.Message}");
 				continue;
 			}
 
