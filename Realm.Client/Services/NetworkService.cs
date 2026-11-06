@@ -1214,7 +1214,7 @@ public class NetworkService
 			if (!_fingerprintMatchLogged)
 			{
 				_fingerprintMatchLogged = true;
-				GD.Print($"[Replication] client fingerprint match at sequence {sequence} (deltas={_appliedComponentDeltaCount}, abilities={_appliedAbilityStateCount}, texts={_appliedStaticTextCount}, catalog={_appliedCatalogCount})");
+				GameLog.LogToConsole($"[Replication] client fingerprint match at sequence {sequence} (deltas={_appliedComponentDeltaCount}, abilities={_appliedAbilityStateCount}, texts={_appliedStaticTextCount}, catalog={_appliedCatalogCount})");
 			}
 			return;
 		}
@@ -1603,7 +1603,7 @@ public class NetworkService
 		}
 		catch (Exception ex)
 		{
-			GD.Print($"[NetworkService] Offline or registry server unreachable, skipping creator registration prompt: {ex.Message}");
+			GameLog.LogToConsole($"[NetworkService] Offline or registry server unreachable, skipping creator registration prompt: {ex.Message}");
 		}
 	}
 }
