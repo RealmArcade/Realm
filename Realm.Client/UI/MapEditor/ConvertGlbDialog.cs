@@ -228,13 +228,8 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 
 		vbox.AddChild(_autoRigRow);
 
-		_progressBar = new ProgressBar();
-		_progressBar.Name = "ProgressBar_ProgressBar";
-		_progressBar.MinValue = 0;
-		_progressBar.MaxValue = 100;
-		_progressBar.Value = 0;
+		_progressBar = UIStyle.CreateProgressBar(0f, 18f);
 		_progressBar.ShowPercentage = true;
-		_progressBar.CustomMinimumSize = new Vector2(0, 18);
 		_progressBar.Visible = false;
 		BodyContainer.AddChild(_progressBar);
 

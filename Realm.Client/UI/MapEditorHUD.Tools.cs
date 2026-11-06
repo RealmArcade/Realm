@@ -2351,12 +2351,7 @@ namespace Realm.Client.UI
 			descLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.95f));
 			vbox.AddChild(descLabel);
 
-			var progressBar = new ProgressBar();
-			progressBar.Name = "ProgressBar_ProgressBar";
-			progressBar.CustomMinimumSize = new Vector2(460, 20);
-			progressBar.MinValue = 0;
-			progressBar.MaxValue = 100;
-			progressBar.Value = 0;
+			var progressBar = UIStyle.CreateProgressBar(460f, 20f);
 			progressBar.Visible = false;
 			vbox.AddChild(progressBar);
 
@@ -2593,12 +2588,7 @@ namespace Realm.Client.UI
 
 			vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 5) });
 
-			progressBar = new ProgressBar();
-			progressBar.Name = "ProgressBar_ProgressBar";
-			progressBar.CustomMinimumSize = new Vector2(480, 24);
-			progressBar.MinValue = 0;
-			progressBar.MaxValue = 100;
-			progressBar.Value = 0;
+			progressBar = UIStyle.CreateProgressBar(480f, 24f);
 			vbox.AddChild(progressBar);
 
 			statusLabel = new Label();
@@ -3129,12 +3119,7 @@ namespace Realm.Client.UI
 			descLabel.AddThemeFontSizeOverride("font_size", 13);
 			vbox.AddChild(descLabel);
 
-			var progressBar = new ProgressBar();
-			progressBar.Name = "ProgressBar_ProgressBar";
-			progressBar.CustomMinimumSize = new Vector2(460, 22);
-			progressBar.MinValue = 0;
-			progressBar.MaxValue = 100;
-			progressBar.Value = 0;
+			var progressBar = UIStyle.CreateProgressBar(460f, 22f);
 			vbox.AddChild(progressBar);
 
 			var statusLabel = new Label();

@@ -393,12 +393,7 @@ public partial class UtilitiesDialog : FloatingDialogBase
 		_lblProgressStatus.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
 		_progressContainer.AddChild(_lblProgressStatus);
 
-		_progressBar = new ProgressBar();
-		_progressBar.Name = "ProgressBar_ProgressBar";
-		_progressBar.CustomMinimumSize = new Vector2(0, 22);
-		_progressBar.MinValue = 0;
-		_progressBar.MaxValue = 100;
-		_progressBar.Value = 0;
+		_progressBar = UIStyle.CreateProgressBar(0f, 22f);
 		_progressBar.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_progressContainer.AddChild(_progressBar);
 

@@ -97,12 +97,7 @@ public static class UIStyle
 
 		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 5) });
 
-		var progressBar = new ProgressBar();
-		progressBar.Name = "ProgressBar_ProgressBar";
-		progressBar.CustomMinimumSize = new Vector2(480, 24);
-		progressBar.MinValue = 0;
-		progressBar.MaxValue = 100;
-		progressBar.Value = 0;
+		var progressBar = UIStyle.CreateProgressBar(480f, 24f);
 		vbox.AddChild(progressBar);
 
 		var statusLabel = new Label();
@@ -148,6 +143,17 @@ public static class UIStyle
 
 			return _emptyBlackTexture;
 		}
+	}
+
+	public static ProgressBar CreateProgressBar(float width, float height)
+	{
+		var progressBar = new ProgressBar();
+		progressBar.Name = "ProgressBar_ProgressBar";
+		progressBar.CustomMinimumSize = new Vector2(width, height);
+		progressBar.MinValue = 0;
+		progressBar.MaxValue = 100;
+		progressBar.Value = 0;
+		return progressBar;
 	}
 
 	public static StyleBox CreateBgTexture(string path)

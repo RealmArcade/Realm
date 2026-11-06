@@ -798,12 +798,7 @@ public partial class UIManager : Control
 		fileNameLabel.AddThemeFontSizeOverride("font_size", 13);
 		vbox.AddChild(fileNameLabel);
 
-		progressBar = new ProgressBar();
-		progressBar.Name = "ProgressBar_ProgressBar";
-		progressBar.CustomMinimumSize = new Vector2(440, 22);
-		progressBar.MinValue = 0;
-		progressBar.MaxValue = 100;
-		progressBar.Value = 0;
+		progressBar = UIStyle.CreateProgressBar(440f, 22f);
 		vbox.AddChild(progressBar);
 
 		statusLabel = new Label();
