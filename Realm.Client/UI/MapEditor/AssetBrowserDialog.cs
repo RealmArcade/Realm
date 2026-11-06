@@ -818,20 +818,7 @@ public partial class AssetBrowserDialog : AssetGridDialogBase
 
 	private List<string> GetValidAssetTypes()
 	{
-		var validTypes = new List<string>();
-		foreach (var ext in _allowedExtensions)
-		{
-			var types = RealmMetadataHelper.GetValidAssetTypesForExtension(ext);
-			foreach (var t in types)
-			{
-				if (!validTypes.Contains(t, StringComparer.OrdinalIgnoreCase))
-				{
-					validTypes.Add(t);
-				}
-			}
-		}
-
-		return validTypes;
+		return RealmMetadataHelper.GetAssetTypeDisplayOrder(_allowedExtensions);
 	}
 
 	private int PopulateAssetTypeFilterDropdown(List<string> validTypes)

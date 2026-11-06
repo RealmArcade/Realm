@@ -200,6 +200,31 @@ public static class RealmMetadataHelper
 		return ext;
 	}
 
+	public static List<string> GetAssetTypeDisplayOrder(IEnumerable<string>? extensions = null)
+	{
+		var extensionFilter = extensions == null
+			? null
+			: new HashSet<string>(extensions.Select(GetExtension), StringComparer.OrdinalIgnoreCase);
+
+		var orderedTypes = new List<string>();
+		foreach (var extensionKvp in ValidAssetTypesByExtension.OrderBy(kvp => kvp.Key, StringComparer.OrdinalIgnoreCase))
+		{
+			if (extensionFilter != null && !extensionFilter.Contains(extensionKvp.Key)) continue;
+
+			var typesOfExtension = extensionKvp.Value.ToList();
+			typesOfExtension.Sort(StringComparer.OrdinalIgnoreCase);
+			foreach (string assetType in typesOfExtension)
+			{
+				if (!orderedTypes.Contains(assetType, StringComparer.OrdinalIgnoreCase))
+				{
+					orderedTypes.Add(assetType);
+				}
+			}
+		}
+
+		return orderedTypes;
+	}
+
 	public static ReadOnlySet<string> GetValidAssetTypesForExtension(string extensionOrPath)
 	{
 		string ext = GetExtension(extensionOrPath);

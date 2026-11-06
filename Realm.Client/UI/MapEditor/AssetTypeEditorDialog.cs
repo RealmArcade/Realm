@@ -68,8 +68,8 @@ public partial class AssetTypeEditorDialog : FloatingDialogBase
 			_validTypes = RealmMetadataHelper.GetValidAssetTypesForExtension(_asset.FilePath);
 			string currentType = RealmMetadataHelper.ExtractAssetType(_asset.FilePath) ?? _asset.AssetType?.ToCanonicalString() ?? string.Empty;
 
-			var validTypesArray = _validTypes.ToArray();
-			for (int i = 0; i < validTypesArray.Length; i++)
+			var validTypesArray = RealmMetadataHelper.GetAssetTypeDisplayOrder(new[] { _asset.FilePath });
+			for (int i = 0; i < validTypesArray.Count; i++)
 			{
 				string typeName = validTypesArray[i];
 				_optAssetType.AddItem(typeName, i);
