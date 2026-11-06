@@ -397,23 +397,6 @@ public static class GlbManifestUtils
 		return true;
 	}
 
-	private static List<int> CollectLodChildIndices(JsonArray children, JsonArray nodes, string masterPrefix)
-	{
-		var lodChildIndices = new List<int>();
-		foreach (var childItem in children)
-		{
-			if (childItem is not JsonValue childValue || !childValue.TryGetValue(out int childIndex)) continue;
-			if (childIndex < 0 || childIndex >= nodes.Count || nodes[childIndex] is not JsonObject childNode) continue;
-			if (!TryParseLodNodeName(childNode["name"]?.GetValue<string>(), out string childPrefix, out int childLevel)) continue;
-			if (childLevel <= 0) continue;
-			if (!string.Equals(childPrefix, masterPrefix, StringComparison.OrdinalIgnoreCase)) continue;
-
-			lodChildIndices.Add(childIndex);
-		}
-
-		return lodChildIndices;
-	}
-
 	private static bool TryParseLodNodeName(string? name, out string prefix, out int level)
 	{
 		prefix = string.Empty;
