@@ -474,9 +474,7 @@ public partial class MapEditorHUD : Control
 		overlay.SetAnchorsPreset(LayoutPreset.FullRect);
 		AddChild(overlay);
 
-		var center = new CenterContainer();
-		center.Name = "Center_CenterContainer";
-		center.SetAnchorsPreset(LayoutPreset.FullRect);
+		var center = UIStyle.CreateCenteredOverlay();
 		overlay.AddChild(center);
 
 		var panel = CreatePublishMapPanel();

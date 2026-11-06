@@ -3116,9 +3116,7 @@ namespace Realm.Client.UI
 			overlay.ZIndex = 1100;
 			AddChild(overlay);
 
-			var center = new CenterContainer();
-			center.Name = "Center_CenterContainer";
-			center.SetAnchorsPreset(LayoutPreset.FullRect);
+			var center = UIStyle.CreateCenteredOverlay();
 			overlay.AddChild(center);
 
 			var panel = new PanelContainer();

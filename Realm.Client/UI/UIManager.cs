@@ -659,9 +659,7 @@ public partial class UIManager : Control
 		panel.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
 		panel.SizeFlagsVertical = SizeFlags.ShrinkCenter;
 
-		var center = new CenterContainer();
-		center.Name = "Center_CenterContainer";
-		center.SetAnchorsPreset(LayoutPreset.FullRect);
+		var center = UIStyle.CreateCenteredOverlay();
 		overlay.AddChild(center);
 		center.AddChild(panel);
 
@@ -772,9 +770,7 @@ public partial class UIManager : Control
 		overlay.ZIndex = 1100;
 		AddChild(overlay);
 
-		var center = new CenterContainer();
-		center.Name = "Center_CenterContainer";
-		center.SetAnchorsPreset(LayoutPreset.FullRect);
+		var center = UIStyle.CreateCenteredOverlay();
 		overlay.AddChild(center);
 
 		var panel = new PanelContainer();
