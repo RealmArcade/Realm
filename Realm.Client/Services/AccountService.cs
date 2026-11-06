@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Net.Http;
 using System.Net.Http.Headers;
@@ -316,8 +316,9 @@ public class AccountService
 			using HttpResponseMessage response = await _httpClient.SendAsync(request).ConfigureAwait(false);
 			_ = response.IsSuccessStatusCode;
 		}
-		catch (HttpRequestException)
+		catch (HttpRequestException ex)
 		{
+			GameLog.LogError($"the logout request to {AuthorityUrl} failed, so the session may stay valid on the authority: {ex.GetType().Name}: {ex.Message}");
 		}
 		catch (TaskCanceledException)
 		{
@@ -598,7 +599,7 @@ public class AccountService
 		}
 		catch (IOException exception)
 		{
-			GD.PrintErr($"[AccountService] Could not persist the session: {exception.Message}");
+			GameLog.LogError($"[AccountService] Could not persist the session: {exception.Message}");
 		}
 	}
 
