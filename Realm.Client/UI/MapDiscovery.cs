@@ -70,9 +70,7 @@ public partial class MapDiscovery : Control
 	{
 		EnsureFontsLoaded();
 
-		_bgPanel = GetNode<Panel>("Background");
-		_leftPillar = GetNode<Panel>("LeftPillar");
-		_rightPillar = GetNode<Panel>("RightPillar");
+		(_bgPanel, _leftPillar, _rightPillar) = UIStyle.BindStandardChrome(this);
 		_filterPanel = GetNode<PanelContainer>("FilterPanel");
 		_mapListPanel = GetNode<PanelContainer>("MapListPanel");
 

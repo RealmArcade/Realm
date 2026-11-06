@@ -58,9 +58,7 @@ public partial class LobbyBrowser : Control
 
 	public override void _Ready()
 	{
-		_bgPanel = GetNode<Panel>("Background");
-		_leftPillar = GetNode<Panel>("LeftPillar");
-		_rightPillar = GetNode<Panel>("RightPillar");
+		(_bgPanel, _leftPillar, _rightPillar) = UIStyle.BindStandardChrome(this);
 		_filterPanel = GetNode<PanelContainer>("FilterPanel");
 		_lobbyPanel = GetNode<PanelContainer>("LobbyPanel");
 

@@ -55,9 +55,7 @@ public partial class LobbyCreate : Control
 
 	public override void _Ready()
 	{
-		_bgPanel = GetNode<Panel>("Background");
-		_leftPillar = GetNode<Panel>("LeftPillar");
-		_rightPillar = GetNode<Panel>("RightPillar");
+		(_bgPanel, _leftPillar, _rightPillar) = UIStyle.BindStandardChrome(this);
 		_centralPanel = GetNode<PanelContainer>("CentralPanel");
 
 		var cardBg = GetNode<TextureRect>("CentralPanel/CardBg");

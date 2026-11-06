@@ -918,6 +918,17 @@ public static class UIStyle
 		button.AddThemeStyleboxOverride("pressed", CreateHUDButtonStyle(false, true));
 	}
 
+	/// <summary>
+	/// Binds the three-panel chrome (background plus both pillars) that the lobby,
+	/// map and menu scenes all declare with the same node names.
+	/// </summary>
+	public static (Panel Background, Panel LeftPillar, Panel RightPillar) BindStandardChrome(Node root)
+	{
+		return (root.GetNode<Panel>("Background"),
+			root.GetNode<Panel>("LeftPillar"),
+			root.GetNode<Panel>("RightPillar"));
+	}
+
 	public static void ApplyGoldHoverColors(Control control)
 	{
 		control.AddThemeColorOverride("font_hover_color", ColorGold);

@@ -96,9 +96,7 @@ public partial class LobbyRoom : Control
 
 	public override void _Ready()
 	{
-		_bgPanel = GetNode<Panel>("Background");
-		_leftPillar = GetNode<Panel>("LeftPillar");
-		_rightPillar = GetNode<Panel>("RightPillar");
+		(_bgPanel, _leftPillar, _rightPillar) = UIStyle.BindStandardChrome(this);
 		_playersPanel = GetNode<PanelContainer>("PlayersPanel");
 		_briefingPanel = GetNode<PanelContainer>("BriefingPanel");
 		_chatPanel = GetNode<PanelContainer>("ChatPanel");

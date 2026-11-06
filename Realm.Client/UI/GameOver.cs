@@ -65,9 +65,7 @@ public partial class GameOver : Control
 
 	public override void _Ready()
 	{
-		_bgPanel = GetNode<Panel>("Background");
-		_leftPillar = GetNode<Panel>("LeftPillar");
-		_rightPillar = GetNode<Panel>("RightPillar");
+		(_bgPanel, _leftPillar, _rightPillar) = UIStyle.BindStandardChrome(this);
 		_mainPanel = GetNode<PanelContainer>("MainPanel");
 		_tableFrame = GetNode<PanelContainer>("MainPanel/VBox/TableFrame");
 		_graphFrame = GetNode<PanelContainer>("MainPanel/VBox/GraphFrame");
