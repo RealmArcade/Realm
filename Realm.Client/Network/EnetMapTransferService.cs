@@ -83,7 +83,7 @@ public partial class EnetMapTransferService : BaseMapTransferNode
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[EnetMapTransferService] Failed to deserialize manifest: {ex.Message}");
+			GameLog.LogError($"[EnetMapTransferService] Failed to deserialize manifest: {ex.Message}");
 			return null;
 		}
 	}
@@ -183,7 +183,7 @@ public partial class EnetMapTransferService : BaseMapTransferNode
 
 			if (DateTime.UtcNow - transferSession.LastActivityTimeUtc > TimeSpan.FromSeconds(45))
 			{
-				GD.PrintErr("[EnetMapTransferService] Transfer inactivity timeout. Retrying remaining assets...");
+				GameLog.LogError("[EnetMapTransferService] Transfer inactivity timeout. Retrying remaining assets...");
 				break;
 			}
 		}
