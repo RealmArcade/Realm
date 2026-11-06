@@ -27,8 +27,6 @@ public partial class ModelPickerDialog : FloatingPreview3DDialogBase
 	private bool _showAllFolders = false;
 	private Action<string> _onApplied;
 
-	private Vector3 _modelCenter = Vector3.Zero;
-
 	public ModelPickerDialog(MapEditorHUD hud)
 		: base(hud, TranslationServer.Translate("Model Asset Picker"), new Vector2(480, 560))
 	{
