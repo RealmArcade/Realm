@@ -2395,7 +2395,7 @@ namespace Realm.Client.UI
 			upgradeBtn.Name = "UpgradeBtn_Button";
 			upgradeBtn.Flat = false;
 			upgradeBtn.AddThemeConstantOverride("icon_max_width", 0);
-			UIStyle.ApplyButtonStyleBoxes(upgradeBtn);
+			UIStyle.ApplyButtonStyleBoxesClearingFocus(upgradeBtn);
 			UIStyle.ApplyButtonText(upgradeBtn, Tr("UPGRADE MAP"), 14);
 			upgradeBtn.CustomMinimumSize = new Vector2(160, 38);
 			buttonRow.AddChild(upgradeBtn);
@@ -2404,7 +2404,7 @@ namespace Realm.Client.UI
 			cancelBtn.Name = "CancelBtn_Button";
 			cancelBtn.Flat = false;
 			cancelBtn.AddThemeConstantOverride("icon_max_width", 0);
-			UIStyle.ApplyButtonStyleBoxes(cancelBtn);
+			UIStyle.ApplyButtonStyleBoxesClearingFocus(cancelBtn);
 			UIStyle.ApplyButtonText(cancelBtn, Tr("CANCEL"), 14);
 			cancelBtn.CustomMinimumSize = new Vector2(120, 38);
 			buttonRow.AddChild(cancelBtn);
@@ -2638,7 +2638,7 @@ namespace Realm.Client.UI
 			closeBtn.Name = "CloseBtn_Button";
 			closeBtn.Flat = false;
 			closeBtn.AddThemeConstantOverride("icon_max_width", 0);
-			UIStyle.ApplyButtonStyleBoxes(closeBtn);
+			UIStyle.ApplyButtonStyleBoxesClearingFocus(closeBtn);
 			UIStyle.ApplyButtonText(closeBtn, TranslationServer.Translate("CLOSE"), 14);
 			closeBtn.CustomMinimumSize = new Vector2(130, 36);
 			closeBtn.Visible = false;
@@ -4400,7 +4400,7 @@ namespace Realm.Client.UI
 			}
 
 			btn.CustomMinimumSize = new Vector2(0, 32);
-			UIStyle.ApplyButtonStyleBoxes(btn);
+			UIStyle.ApplyButtonStyleBoxesClearingFocus(btn);
 			btn.AddThemeFontSizeOverride("font_size", fontSize);
 			btn.FocusMode = FocusModeEnum.None;
 			if (!string.IsNullOrEmpty(tooltip))

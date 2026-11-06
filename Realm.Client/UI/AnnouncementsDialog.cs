@@ -128,7 +128,7 @@ public partial class AnnouncementsDialog : Control
 		_subscribeButton = new Button { Name = "AnnouncementsDialogSubscribeButton" };
 		_subscribeButton.CustomMinimumSize = new Vector2(0, 46);
 		_subscribeButton.AddThemeConstantOverride("icon_max_width", 0);
-		UIStyle.ApplyButtonStyleBoxes(_subscribeButton);
+		UIStyle.ApplyButtonStyleBoxesClearingFocus(_subscribeButton);
 		UIStyle.ApplyButtonText(_subscribeButton, TranslationServer.Translate("SUBSCRIBE"), 17);
 		_subscribeButton.Pressed += StartSubscribe;
 		_subscribeButton.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
@@ -157,7 +157,7 @@ public partial class AnnouncementsDialog : Control
 		closeButton.CustomMinimumSize = new Vector2(CloseButtonWidth, 34);
 		closeButton.AddThemeConstantOverride("icon_max_width", 0);
 		closeButton.FocusMode = FocusModeEnum.None;
-		UIStyle.ApplyButtonStyleBoxes(closeButton);
+		UIStyle.ApplyButtonStyleBoxesClearingFocus(closeButton);
 		UIStyle.ApplyButtonText(closeButton, TranslationServer.Translate("CLOSE"), 14);
 		closeButton.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
 		closeButton.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);

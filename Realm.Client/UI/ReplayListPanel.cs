@@ -67,7 +67,7 @@ public partial class ReplayListPanel : Control
 		UIStyle.ApplyBackButton(_backBtn, OnBackPressed);
 
 		UIStyle.ApplyButtonText(_deleteAllBtn, TranslationServer.Translate("DELETE ALL"), 14);
-		UIStyle.ApplyButtonStyleboxes(_deleteAllBtn);
+		UIStyle.ApplyButtonStyleBoxes(_deleteAllBtn);
 		_deleteAllBtn.AddThemeConstantOverride("icon_max_width", 0);
 		_deleteAllBtn.AddThemeColorOverride("font_color", new Color(0.9f, 0.4f, 0.4f));
 		_deleteAllBtn.AddThemeColorOverride("font_hover_color", new Color(1.0f, 0.5f, 0.5f));
@@ -289,7 +289,7 @@ public partial class ReplayListPanel : Control
 		playBtn.CustomMinimumSize = new Vector2(100, 40);
 		playBtn.SizeFlagsVertical = SizeFlags.ShrinkCenter;
 		UIStyle.ApplyButtonText(playBtn, TranslationServer.Translate("WATCH"), 13);
-		UIStyle.ApplyButtonStyleboxes(playBtn);
+		UIStyle.ApplyButtonStyleBoxes(playBtn);
 		playBtn.AddThemeConstantOverride("icon_max_width", 0);
 
 		playBtn.Pressed += () => OnPlayReplayPressed(path);
@@ -301,7 +301,7 @@ public partial class ReplayListPanel : Control
 		deleteBtn.CustomMinimumSize = new Vector2(100, 40);
 		deleteBtn.SizeFlagsVertical = SizeFlags.ShrinkCenter;
 		UIStyle.ApplyButtonText(deleteBtn, TranslationServer.Translate("DELETE"), 13);
-		UIStyle.ApplyButtonStyleboxes(deleteBtn);
+		UIStyle.ApplyButtonStyleBoxes(deleteBtn);
 		deleteBtn.AddThemeConstantOverride("icon_max_width", 0);
 		deleteBtn.AddThemeColorOverride("font_color", new Color(0.9f, 0.4f, 0.4f));
 		deleteBtn.AddThemeColorOverride("font_hover_color", new Color(1.0f, 0.5f, 0.5f));

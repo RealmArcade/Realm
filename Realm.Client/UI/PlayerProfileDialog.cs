@@ -231,7 +231,7 @@ public partial class PlayerProfileDialog : Control
 		button.FocusMode = FocusModeEnum.None;
 		button.MouseDefaultCursorShape = CursorShape.PointingHand;
 		button.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
-		UIStyle.ApplyButtonStyleBoxes(button);
+		UIStyle.ApplyButtonStyleBoxesClearingFocus(button);
 		button.Pressed += () =>
 		{
 			GameContext.UserInterface.PlayClickSound();
@@ -309,7 +309,7 @@ public partial class PlayerProfileDialog : Control
 	private Button CreateActionButton(Node parent, string textKey, string iconPath = "")
 	{
 		var button = new Button { Name = $"PlayerProfile{textKey.Replace(" ", string.Empty)}Button" };
-		UIStyle.ApplyButtonStyleBoxes(button);
+		UIStyle.ApplyButtonStyleBoxesClearingFocus(button);
 		UIStyle.ApplyButtonText(button, TranslationServer.Translate(textKey), 14);
 		button.CustomMinimumSize = new Vector2(0, 42);
 		button.AddThemeConstantOverride("icon_max_width", 20);
@@ -788,7 +788,7 @@ public partial class PlayerProfileDialog : Control
 		}
 		else
 		{
-			UIStyle.ApplyButtonStyleBoxes(button);
+			UIStyle.ApplyButtonStyleBoxesClearingFocus(button);
 		}
 
 		button.AddThemeFontOverride("font", UIStyle.FontNorseBold);

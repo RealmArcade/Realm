@@ -106,7 +106,7 @@ public partial class AttributionPopover : Control
 		_closeButton.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
 		_closeButton.FocusMode = FocusModeEnum.None;
 		_closeButton.AddThemeFontSizeOverride("font_size", 11);
-		UIStyle.ApplyButtonStyleboxesClearingFocus(_closeButton);
+		UIStyle.ApplyButtonStyleBoxesClearingFocus(_closeButton);
 		_closeButton.Pressed += Close;
 		vbox.AddChild(_closeButton);
 	}

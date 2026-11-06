@@ -155,7 +155,7 @@ public partial class ReplayViewerPanel : PanelContainer
 	{
 		foreach (var btn in new Button[] { _playPauseBtn, _speedBtn05, _speedBtn1, _speedBtn2, _speedBtn4, _speedBtn8, _tetherBtn, _quitBtn })
 		{
-			UIStyle.ApplyButtonStyleboxes(btn);
+			UIStyle.ApplyButtonStyleBoxes(btn);
 		}
 	}
 

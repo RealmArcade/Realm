@@ -263,7 +263,7 @@ public partial class LobbyRoom : Control
 		_otherAuthorsButton.CustomMinimumSize = new Vector2(160, 32);
 		_otherAuthorsButton.SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter;
 		_otherAuthorsButton.Visible = false;
-		UIStyle.ApplyButtonStyleboxes(_otherAuthorsButton);
+		UIStyle.ApplyButtonStyleBoxes(_otherAuthorsButton);
 		_otherAuthorsButton.Pressed += () =>
 		{
 			if (_otherAuthorsList.Count > 0)
@@ -459,7 +459,7 @@ public partial class LobbyRoom : Control
 		btn.AddThemeConstantOverride("icon_max_width", 0);
 		UIStyle.ApplyButtonText(btn, text, 15);
 
-		UIStyle.ApplyButtonStyleboxesClearingFocus(btn);
+		UIStyle.ApplyButtonStyleBoxesClearingFocus(btn);
 
 		btn.Pressed += () =>
 		{
@@ -924,7 +924,7 @@ public partial class LobbyRoom : Control
 		_attributionButton.FocusMode = FocusModeEnum.None;
 		_attributionButton.TooltipText = LocalizationManager.Translate("Show maps whose content was imported into this map");
 		_attributionButton.AddThemeFontSizeOverride("font_size", 11);
-		UIStyle.ApplyButtonStyleboxesClearingFocus(_attributionButton);
+		UIStyle.ApplyButtonStyleBoxesClearingFocus(_attributionButton);
 		_attributionButton.Pressed += OnAttributionPressed;
 		GetNode<VBoxContainer>("BriefingPanel/VBoxContainer").AddChild(_attributionButton);
 	}
@@ -1137,7 +1137,7 @@ public partial class LobbyRoom : Control
 		cancelBtn.Name = "CancelBtn_Button";
 		cancelBtn.Flat = false;
 		cancelBtn.AddThemeConstantOverride("icon_max_width", 0);
-		UIStyle.ApplyButtonStyleboxesClearingFocus(cancelBtn);
+		UIStyle.ApplyButtonStyleBoxesClearingFocus(cancelBtn);
 		UIStyle.ApplyButtonText(cancelBtn, TranslationServer.Translate("CANCEL"), 16);
 
 		cancelBtn.CustomMinimumSize = new Vector2(180, 48);
@@ -1476,7 +1476,7 @@ public partial class LobbyRoom : Control
 
 	private void ApplyTeamOptionStyle(OptionButton optTeam)
 	{
-		UIStyle.ApplyButtonStyleboxesClearingFocus(optTeam);
+		UIStyle.ApplyButtonStyleBoxesClearingFocus(optTeam);
 		optTeam.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 		optTeam.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
 		optTeam.AddThemeColorOverride("font_pressed_color", UIStyle.ColorCyanGlow);

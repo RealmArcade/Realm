@@ -100,7 +100,7 @@ public class ScoreboardPanel
 		button.CustomMinimumSize = new Vector2(170, 26);
 		button.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 		button.FocusMode = Control.FocusModeEnum.All;
-		UIStyle.ApplyButtonStyleboxes(button);
+		UIStyle.ApplyButtonStyleBoxes(button);
 		button.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 		button.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
 		button.AddThemeColorOverride("font_focus_color", UIStyle.ColorCyanGlow);

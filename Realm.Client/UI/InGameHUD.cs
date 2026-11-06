@@ -620,7 +620,7 @@ public partial class InGameHUD : Control
 			btn.ExpandIcon = true;
 			btn.FocusMode = FocusModeEnum.None;
 			btn.AddThemeConstantOverride("icon_max_width", 30);
-			UIStyle.ApplyButtonStyleboxesClearingFocus(btn);
+			UIStyle.ApplyButtonStyleBoxesClearingFocus(btn);
 
 			var hpBar = new ProgressBar();
 			hpBar.Name = "HealthBar";
@@ -890,7 +890,7 @@ public partial class InGameHUD : Control
 		}
 
 		_scoreboardCollapseButton.AddThemeFontSizeOverride("font_size", 12);
-		UIStyle.ApplyButtonStyleboxesClearingFocus(_scoreboardCollapseButton);
+		UIStyle.ApplyButtonStyleBoxesClearingFocus(_scoreboardCollapseButton);
 		_scoreboardCollapseButton.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 		_scoreboardCollapseButton.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
 		scoreboardHeader.AddChild(_scoreboardCollapseButton);
@@ -925,7 +925,7 @@ public partial class InGameHUD : Control
 			btnBackToEditor.Name = "BtnBackToEditor";
 			btnBackToEditor.Text = TranslationServer.Translate("Back to Editor");
 			btnBackToEditor.Set("icon_max_width", 0);
-			UIStyle.ApplyButtonStyleboxes(btnBackToEditor);
+			UIStyle.ApplyButtonStyleBoxes(btnBackToEditor);
 			btnBackToEditor.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
 			btnBackToEditor.AddThemeFontSizeOverride("font_size", 13);
 			btnBackToEditor.CustomMinimumSize = new Vector2(160, 40);

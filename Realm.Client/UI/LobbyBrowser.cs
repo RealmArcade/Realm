@@ -423,7 +423,7 @@ public partial class LobbyBrowser : Control
 		cancelBtn.Name = "CancelBtn_Button";
 		cancelBtn.Flat = false;
 		cancelBtn.AddThemeConstantOverride("icon_max_width", 0);
-		UIStyle.ApplyButtonStyleBoxes(cancelBtn);
+		UIStyle.ApplyButtonStyleBoxesClearingFocus(cancelBtn);
 		UIStyle.ApplyButtonText(cancelBtn, Tr("CANCEL"), 14);
 		cancelBtn.CustomMinimumSize = new Vector2(140, 38);
 		cancelBtn.Pressed += () =>
@@ -437,7 +437,7 @@ public partial class LobbyBrowser : Control
 		connectBtn.Name = "ConnectBtn_Button";
 		connectBtn.Flat = false;
 		connectBtn.AddThemeConstantOverride("icon_max_width", 0);
-		UIStyle.ApplyButtonStyleBoxes(connectBtn);
+		UIStyle.ApplyButtonStyleBoxesClearingFocus(connectBtn);
 		UIStyle.ApplyButtonText(connectBtn, Tr("CONNECT"), 14);
 		connectBtn.CustomMinimumSize = new Vector2(140, 38);
 		connectBtn.Pressed += async () =>

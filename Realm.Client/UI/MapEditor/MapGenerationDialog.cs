@@ -249,7 +249,7 @@ public partial class MapGenerationDialog : Control
 	private void StyleActionButton(Button button)
 	{
 		button.AddThemeFontSizeOverride("font_size", 12);
-		UIStyle.ApplyButtonStyleboxes(button);
+		UIStyle.ApplyButtonStyleBoxes(button);
 		button.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 	}
 

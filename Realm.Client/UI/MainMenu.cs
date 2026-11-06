@@ -387,7 +387,7 @@ public partial class MainMenu : Control
 		button.AddThemeConstantOverride("icon_max_width", 32);
 		button.AddThemeConstantOverride("h_separation", 2);
 
-		UIStyle.ApplyButtonStyleBoxes(button);
+		UIStyle.ApplyButtonStyleBoxesClearingFocus(button);
 
 		ApplyButtonAnimations(button, 1.03f);
 
@@ -541,7 +541,7 @@ public partial class MainMenu : Control
 		downloadBtn.AddThemeColorOverride("font_color", Color.FromHtml("#D1C4AE"));
 		downloadBtn.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
 		downloadBtn.CustomMinimumSize = new Vector2(110, 32);
-		UIStyle.ApplyButtonStyleboxesClearingFocus(downloadBtn);
+		UIStyle.ApplyButtonStyleBoxesClearingFocus(downloadBtn);
 		downloadBtn.Pressed += () => OS.ShellOpen("https://github.com/RealmArcade/Realm/releases");
 		versionBox.AddChild(downloadBtn);
 
@@ -803,7 +803,7 @@ public partial class MainMenu : Control
 		button.Icon = null;
 		button.Text = "";
 
-		UIStyle.ApplyButtonStyleBoxes(button);
+		UIStyle.ApplyButtonStyleBoxesClearingFocus(button);
 
 		foreach (Node child in button.GetChildren())
 		{

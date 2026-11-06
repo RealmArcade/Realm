@@ -263,7 +263,7 @@ public partial class FloatingDialogBase : PanelContainer
 			}
 
 			RandomizeAssetsButton.AddThemeFontSizeOverride("font_size", 11);
-			UIStyle.ApplyButtonStyleboxes(RandomizeAssetsButton);
+			UIStyle.ApplyButtonStyleBoxes(RandomizeAssetsButton);
 			RandomizeAssetsButton.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 
 			BodyContainer.AddChild(RandomizeAssetsButton);

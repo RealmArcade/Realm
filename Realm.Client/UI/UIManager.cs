@@ -697,7 +697,7 @@ public partial class UIManager : Control
 		btnConfirm.Name = "BtnConfirm_Button";
 		btnConfirm.Set("icon_max_width", 0);
 		UIStyle.ApplyButtonText(btnConfirm, TranslationServer.Translate(confirmText), 13);
-		UIStyle.ApplyButtonStyleboxes(btnConfirm);
+		UIStyle.ApplyButtonStyleBoxes(btnConfirm);
 		btnConfirm.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
 		btnConfirm.Pressed += () =>
 		{
@@ -712,7 +712,7 @@ public partial class UIManager : Control
 			btnCancel.Name = "BtnCancel_Button";
 			btnCancel.Set("icon_max_width", 0);
 			UIStyle.ApplyButtonText(btnCancel, TranslationServer.Translate(cancelText), 13);
-			UIStyle.ApplyButtonStyleboxes(btnCancel);
+			UIStyle.ApplyButtonStyleBoxes(btnCancel);
 			btnCancel.AddThemeColorOverride("font_color", new Color(0.9f, 0.3f, 0.3f));
 			Action cancelAction = () =>
 			{

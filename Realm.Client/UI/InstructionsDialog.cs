@@ -104,7 +104,7 @@ public partial class InstructionsDialog : Control
 		_sectionSelect.CustomMinimumSize = new Vector2(0, 34);
 		_sectionSelect.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_sectionSelect.FocusMode = FocusModeEnum.All;
-		UIStyle.ApplyButtonStyleboxesClearingFocus(_sectionSelect);
+		UIStyle.ApplyButtonStyleBoxesClearingFocus(_sectionSelect);
 		_sectionSelect.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 		_sectionSelect.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
 		_sectionSelect.AddThemeColorOverride("font_pressed_color", UIStyle.ColorCyanGlow);
@@ -148,7 +148,7 @@ public partial class InstructionsDialog : Control
 		closeButton.Set("icon_max_width", 0);
 		closeButton.CustomMinimumSize = new Vector2(140, 34);
 		closeButton.FocusMode = FocusModeEnum.None;
-		UIStyle.ApplyButtonStyleboxesClearingFocus(closeButton);
+		UIStyle.ApplyButtonStyleBoxesClearingFocus(closeButton);
 		UIStyle.ApplyButtonText(closeButton, TranslationServer.Translate("CLOSE"), 14);
 		closeButton.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
 		closeButton.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);

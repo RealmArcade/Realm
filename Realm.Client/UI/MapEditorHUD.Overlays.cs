@@ -2581,7 +2581,7 @@ namespace Realm.Client.UI
 			btn.FocusMode = FocusModeEnum.None;
 			btn.AddThemeConstantOverride("icon_max_width", 0);
 
-			UIStyle.ApplyButtonStyleboxesClearingFocus(btn);
+			UIStyle.ApplyButtonStyleBoxesClearingFocus(btn);
 
 			foreach (Node child in btn.GetChildren())
 			{
@@ -2852,7 +2852,7 @@ namespace Realm.Client.UI
 			btn.FocusMode = FocusModeEnum.None;
 			btn.CustomMinimumSize = new Vector2(40, 40);
 			btn.Set("icon_max_width", 0);
-			UIStyle.ApplyButtonStyleboxes(btn);
+			UIStyle.ApplyButtonStyleBoxes(btn);
 			return btn;
 		}
 

@@ -853,7 +853,7 @@ public partial class LobbyCreate : Control
 		importButton.MouseFilter = MouseFilterEnum.Stop;
 		importButton.AddThemeConstantOverride("icon_max_width", 24);
 		UIStyle.ApplyButtonText(importButton, "📥 " + TranslationServer.Translate("Import Map (.rmap)"), 13);
-		UIStyle.ApplyButtonStyleboxesClearingFocus(importButton);
+		UIStyle.ApplyButtonStyleBoxesClearingFocus(importButton);
 		importButton.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 		importButton.Pressed += () =>
 		{
@@ -872,7 +872,7 @@ public partial class LobbyCreate : Control
 		closeButton.FocusMode = FocusModeEnum.None;
 		closeButton.AddThemeConstantOverride("icon_max_width", 0);
 		UIStyle.ApplyButtonText(closeButton, TranslationServer.Translate("CLOSE"), 15);
-		UIStyle.ApplyButtonStyleboxesClearingFocus(closeButton);
+		UIStyle.ApplyButtonStyleBoxesClearingFocus(closeButton);
 		closeButton.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 		closeButton.Pressed += () =>
 		{

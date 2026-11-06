@@ -128,7 +128,7 @@ public partial class UserNameChangeDialog : Control
 		_changeButton = new Button { Name = "UserNameChangeConfirmButton" };
 		_changeButton.CustomMinimumSize = new Vector2(ActionButtonWidth, 40);
 		_changeButton.AddThemeConstantOverride("icon_max_width", 0);
-		UIStyle.ApplyButtonStyleBoxes(_changeButton);
+		UIStyle.ApplyButtonStyleBoxesClearingFocus(_changeButton);
 		UIStyle.ApplyButtonText(_changeButton, TranslationServer.Translate("CHANGE"), 16);
 		_changeButton.Pressed += OnChangePressed;
 		_changeButton.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
@@ -137,7 +137,7 @@ public partial class UserNameChangeDialog : Control
 		_cancelButton = new Button { Name = "UserNameChangeCancelButton" };
 		_cancelButton.CustomMinimumSize = new Vector2(ActionButtonWidth, 40);
 		_cancelButton.AddThemeConstantOverride("icon_max_width", 0);
-		UIStyle.ApplyButtonStyleBoxes(_cancelButton);
+		UIStyle.ApplyButtonStyleBoxesClearingFocus(_cancelButton);
 		UIStyle.ApplyButtonText(_cancelButton, TranslationServer.Translate("CANCEL"), 16);
 		_cancelButton.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
 		_cancelButton.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);

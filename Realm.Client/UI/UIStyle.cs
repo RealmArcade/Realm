@@ -895,16 +895,16 @@ public static class UIStyle
 		return CreateArrowButtonStyle(new Color(0.85f, 0.82f, 0.75f));
 	}
 
-	public static void ApplyButtonStyleboxes(Control button)
+	public static void ApplyButtonStyleBoxes(Control button)
 	{
 		button.AddThemeStyleboxOverride("normal", CreateButtonNormal());
 		button.AddThemeStyleboxOverride("hover", CreateButtonHover());
 		button.AddThemeStyleboxOverride("pressed", CreateButtonPressed());
 	}
 
-	public static void ApplyButtonStyleboxesClearingFocus(Control button)
+	public static void ApplyButtonStyleBoxesClearingFocus(Control button)
 	{
-		ApplyButtonStyleboxes(button);
+		ApplyButtonStyleBoxes(button);
 		button.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 	}
 
@@ -1268,7 +1268,7 @@ public static class UIStyle
 		okBtn.Name = "OkBtn_Button";
 		okBtn.Flat = false;
 		okBtn.AddThemeConstantOverride("icon_max_width", 0);
-		ApplyButtonStyleboxesClearingFocus(okBtn);
+		ApplyButtonStyleBoxesClearingFocus(okBtn);
 		UIStyle.ApplyButtonText(okBtn, Godot.TranslationServer.Translate("OK"), 14);
 		okBtn.CustomMinimumSize = new Vector2(160, 40);
 		okBtn.SizeFlagsHorizontal = Godot.Control.SizeFlags.ShrinkCenter;
@@ -1325,17 +1325,12 @@ public static void ApplyTitle(Label label, string text, int fontSize = 36)
 			closeBtn.Name = "CloseBtn_Button";
 			closeBtn.Flat = false;
 			closeBtn.AddThemeConstantOverride("icon_max_width", 0);
-			ApplyButtonStyleboxesClearingFocus(closeBtn);
+			ApplyButtonStyleBoxesClearingFocus(closeBtn);
 			ApplyButtonText(closeBtn, Godot.TranslationServer.Translate("CLOSE"), 14);
 			closeBtn.CustomMinimumSize = new Vector2(130, 36);
 			closeBtn.Visible = false;
 			return closeBtn;
 		}
-
-	public static void ApplyButtonStyleBoxes(Button button)
-	{
-		ApplyButtonStyleboxesClearingFocus(button);
-	}
 
 	public static Texture2D LoadTextureSafe(string path)
 	{
@@ -1361,7 +1356,7 @@ public static void ApplyTitle(Label label, string text, int fontSize = 36)
 		button.CustomMinimumSize = new Vector2(130, 42);
 		button.Size = new Vector2(130, 42);
 		ApplyButtonText(button, "◀ " + TranslationServer.Translate("BACK"), 16);
-		ApplyButtonStyleboxes(button);
+		ApplyButtonStyleBoxes(button);
 		button.FocusMode = Control.FocusModeEnum.None;
 		button.MouseFilter = Control.MouseFilterEnum.Stop;
 		button.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
@@ -1703,7 +1698,7 @@ public static void ApplyTitle(Label label, string text, int fontSize = 36)
 		}
 		else
 		{
-			ApplyButtonStyleboxes(btn);
+			ApplyButtonStyleBoxes(btn);
 		}
 	}
 

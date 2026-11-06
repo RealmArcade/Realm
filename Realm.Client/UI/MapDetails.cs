@@ -169,7 +169,7 @@ public partial class MapDetails : Control
 		_versionDropdown.Name = "VersionDropdown";
 		_versionDropdown.CustomMinimumSize = new Vector2(160, 36);
 		_versionDropdown.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
-		UIStyle.ApplyButtonStyleboxesClearingFocus(_versionDropdown);
+		UIStyle.ApplyButtonStyleBoxesClearingFocus(_versionDropdown);
 		_versionDropdown.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		_versionDropdown.AddThemeColorOverride("font_hover_color", new Color(1.0f, 0.94f, 0.75f));
 		_versionDropdown.AddThemeColorOverride("font_pressed_color", UIStyle.ColorGold);
@@ -261,7 +261,7 @@ public partial class MapDetails : Control
 		_attributionButton.FocusMode = FocusModeEnum.None;
 		_attributionButton.TooltipText = LocalizationManager.Translate("Show maps whose content was imported into this map");
 		_attributionButton.AddThemeFontSizeOverride("font_size", 11);
-		UIStyle.ApplyButtonStyleboxesClearingFocus(_attributionButton);
+		UIStyle.ApplyButtonStyleBoxesClearingFocus(_attributionButton);
 		_attributionButton.Pressed += OnAttributionPressed;
 		_headerPanel.GetNode<VBoxContainer>("VBoxContainer").AddChild(_attributionButton);
 	}
@@ -380,7 +380,7 @@ public partial class MapDetails : Control
 
 		UIStyle.ApplyBackButton(_backButton, () => GameContext.UserInterface.TransitionTo(GameScreen.MapDiscovery));
 
-		UIStyle.ApplyButtonStyleboxes(_downloadButton);
+		UIStyle.ApplyButtonStyleBoxes(_downloadButton);
 		_downloadButton.AddThemeStyleboxOverride("disabled", UIStyle.CreateButtonPressed());
 		_downloadSubtitle.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 		_downloadSubtitle.AddThemeFontSizeOverride("font_size", 12);
