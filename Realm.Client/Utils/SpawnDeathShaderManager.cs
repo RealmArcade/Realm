@@ -92,7 +92,7 @@ public static class SpawnDeathShaderManager
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[SpawnDeathShaderManager] LoadAllCustomShaders error: {ex.Message}");
+			GameLog.LogError($"[SpawnDeathShaderManager] LoadAllCustomShaders error: {ex.Message}");
 		}
 
 		_cachedWorkspaceShaders[cacheKey] = result;
@@ -165,7 +165,7 @@ public static class SpawnDeathShaderManager
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[SpawnDeathShaderManager] DeleteCustomShader error: {ex.Message}");
+			GameLog.LogError($"[SpawnDeathShaderManager] DeleteCustomShader error: {ex.Message}");
 		}
 	}
 
