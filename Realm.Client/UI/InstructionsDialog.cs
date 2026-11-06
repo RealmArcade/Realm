@@ -61,14 +61,12 @@ public partial class InstructionsDialog : Control
 	private void BuildLayout()
 	{
 		var backdrop = new ColorRect { Name = "InstructionsDialogBackdrop", Color = new Color(0.02f, 0.02f, 0.04f, 0.78f) };
-		backdrop.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		backdrop.MouseFilter = MouseFilterEnum.Stop;
+		UIStyle.ConfigureModalBackdrop(backdrop);
 		backdrop.GuiInput += OnBackdropInput;
 		AddChild(backdrop);
 
 		var center = new CenterContainer { Name = "InstructionsDialogCenter" };
-		center.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		center.MouseFilter = MouseFilterEnum.Ignore;
+		UIStyle.ConfigureModalContentLayer(center);
 		AddChild(center);
 
 		var card = new PanelContainer { Name = "InstructionsDialogCard" };

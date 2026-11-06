@@ -942,6 +942,18 @@ public static class UIStyle
 		return row;
 	}
 
+	public static void ConfigureModalBackdrop(Control backdrop)
+	{
+		backdrop.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+		backdrop.MouseFilter = Control.MouseFilterEnum.Stop;
+	}
+
+	public static void ConfigureModalContentLayer(Control contentLayer)
+	{
+		contentLayer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+		contentLayer.MouseFilter = Control.MouseFilterEnum.Ignore;
+	}
+
 	private static StyleBox CreateArrowButtonStyle(Color modulateColor)
 	{
 		var style = new StyleBoxTexture();

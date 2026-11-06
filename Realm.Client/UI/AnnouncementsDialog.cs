@@ -68,14 +68,12 @@ public partial class AnnouncementsDialog : Control
 	private void BuildLayout()
 	{
 		var backdrop = new ColorRect { Name = "AnnouncementsDialogBackdrop", Color = new Color(0.02f, 0.02f, 0.04f, 0.82f) };
-		backdrop.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		backdrop.MouseFilter = MouseFilterEnum.Stop;
+		UIStyle.ConfigureModalBackdrop(backdrop);
 		backdrop.GuiInput += OnBackdropInput;
 		AddChild(backdrop);
 
 		var center = new CenterContainer { Name = "AnnouncementsDialogCenter" };
-		center.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		center.MouseFilter = MouseFilterEnum.Ignore;
+		UIStyle.ConfigureModalContentLayer(center);
 		AddChild(center);
 
 		var card = new PanelContainer { Name = "AnnouncementsDialogCard" };

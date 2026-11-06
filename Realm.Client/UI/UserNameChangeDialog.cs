@@ -72,14 +72,12 @@ public partial class UserNameChangeDialog : Control
 	private void BuildLayout()
 	{
 		var backdrop = new ColorRect { Name = "UserNameChangeBackdrop", Color = new Color(0.02f, 0.02f, 0.04f, 0.82f) };
-		backdrop.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		backdrop.MouseFilter = MouseFilterEnum.Stop;
+		UIStyle.ConfigureModalBackdrop(backdrop);
 		backdrop.GuiInput += OnBackdropInput;
 		AddChild(backdrop);
 
 		var center = new CenterContainer { Name = "UserNameChangeCenter" };
-		center.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		center.MouseFilter = MouseFilterEnum.Ignore;
+		UIStyle.ConfigureModalContentLayer(center);
 		AddChild(center);
 
 		var card = new PanelContainer { Name = "UserNameChangeCard" };
