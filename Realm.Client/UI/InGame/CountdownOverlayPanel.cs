@@ -292,10 +292,7 @@ public class CountdownOverlayPanel
 		button.CustomMinimumSize = minimumSize;
 		button.FocusMode = Control.FocusModeEnum.None;
 		button.AddThemeConstantOverride("icon_max_width", 0);
-		button.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		button.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		button.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		button.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyButtonStyleboxesClearingFocus(button);
 		UIStyle.ApplyButtonText(button, TranslationServer.Translate("CANCEL"), fontSize);
 		button.Pressed += () => onCancel();
 		return button;
