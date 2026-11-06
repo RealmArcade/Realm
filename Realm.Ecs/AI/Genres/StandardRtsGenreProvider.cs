@@ -40,12 +40,9 @@ public class StandardRtsGenreProvider : IAiGenreProvider
 	private readonly List<(Entity Entity, Vector3 Position)> _friendlyUnits = new(64);
 	private int _enemyUnitCount;
 	private Entity _lowestHpEnemy;
-	private float _lowestEnemyHp;
 	private Vector3 _lowestHpEnemyPos;
 	private Vector3 _enemyCenter;
 	private Vector3 _friendlyCenter;
-	private int _scanPlayerIndex;
-	private Entity _scanPlayerEntity;
 
 	private readonly QueryDescription _allPositionQuery = new QueryDescription().WithAll<Position>().WithNone<Dead>();
 	private readonly QueryDescription _playerResourcesQuery = new QueryDescription().WithAll<PlayerResources>();

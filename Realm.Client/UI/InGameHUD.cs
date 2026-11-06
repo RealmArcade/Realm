@@ -2787,16 +2787,4 @@ public partial class InGameHUD : Control
 
 		AddChild(_pausePanel);
 	}
-
-	private string GetBuildOptionTooltip(string unitId, string hotkeyStr)
-		{
-			HotkeySpec hotkey = HotkeySpec.ParseOrDefault(hotkeyStr);
-			return UIHelper.GetUnitCostTooltip(unitId, hotkey, "Build");
-		}
-
-		private string GetTrainOptionTooltip(string unitId, string hotkeyStr)
-		{
-			HotkeySpec hotkey = HotkeySpec.ParseOrDefault(hotkeyStr);
-			return UIHelper.GetUnitCostTooltip(unitId, hotkey, "Train");
-		}
 }
