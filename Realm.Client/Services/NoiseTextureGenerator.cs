@@ -232,7 +232,7 @@ public static class NoiseTextureGenerator
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[NoiseTextureGenerator] EnsureAllNoiseTexturesGenerated error: {ex.Message}");
+			GameLog.LogError($"[NoiseTextureGenerator] EnsureAllNoiseTexturesGenerated error: {ex.Message}");
 		}
 	}
 
@@ -247,11 +247,11 @@ public static class NoiseTextureGenerator
 			if (File.Exists(rtexPath)) return;
 
 			GenerateAndSaveRtex(itemConfig, rtexPath);
-			GD.Print($"[NoiseTextureGenerator] Idempotently generated procedural noise texture: {fileName}");
+			GameLog.LogToConsole($"[NoiseTextureGenerator] Idempotently generated procedural noise texture: {fileName}");
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[NoiseTextureGenerator] Failed to generate noise texture {fileName}: {ex.Message}");
+			GameLog.LogError($"[NoiseTextureGenerator] Failed to generate noise texture {fileName}: {ex.Message}");
 		}
 	}
 }
