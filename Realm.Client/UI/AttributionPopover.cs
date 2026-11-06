@@ -33,10 +33,7 @@ public partial class AttributionPopover : Control
 		if (_built) return;
 		_built = true;
 
-		Name = "AttributionPopover";
-		Visible = false;
-		MouseFilter = MouseFilterEnum.Stop;
-		SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+		UIStyle.ConfigurePopoverRoot(this, "AttributionPopover");
 
 		_dismissOverlay = UIStyle.CreateDismissOverlay(0.55f);
 		_dismissOverlay.GuiInput += OnDismissOverlayInput;

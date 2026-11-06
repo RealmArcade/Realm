@@ -91,10 +91,7 @@ public partial class SteamFriendsDialog : Control
 		if (_built) return;
 		_built = true;
 
-		Name = "SteamFriendsDialog";
-		Visible = false;
-		MouseFilter = MouseFilterEnum.Stop;
-		SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+		UIStyle.ConfigurePopoverRoot(this, "SteamFriendsDialog");
 
 		_dismissOverlay = UIStyle.CreateDismissOverlay(0.55f);
 		_dismissOverlay.GuiInput += OnDismissOverlayInput;

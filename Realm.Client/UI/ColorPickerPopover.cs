@@ -28,10 +28,7 @@ public partial class ColorPickerPopover : Control
 	{
 		if (_panel != null) return;
 
-		Name = "ColorPickerPopover";
-		Visible = false;
-		MouseFilter = MouseFilterEnum.Stop;
-		SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+		UIStyle.ConfigurePopoverRoot(this, "ColorPickerPopover");
 
 		_dismissOverlay = UIStyle.CreateDismissOverlay(0.45f);
 		_dismissOverlay.GuiInput += OnDismissOverlayInput;
