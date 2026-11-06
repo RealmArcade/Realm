@@ -102,6 +102,18 @@ public class SnapshotFanOut
 
 	public void ExitPeerDescription(int peerId) => _peerStates.Get(peerId).ExitDescription();
 
+	/// <summary>
+	///     Forgets what this peer has been told, so the next description names every unit and every text again. A
+	///     description the screen could not apply is state it never held, and nothing that follows restates a unit that has
+	///     not changed since: without this, one unreadable description costs the units it carried until a baseline.
+	/// </summary>
+	public void ResetPeerDescription(int peerId)
+	{
+		SnapshotPeerState state = _peerStates.Get(peerId);
+		state.ResetForDescription();
+		state.StringTableCursor = 0;
+	}
+
 	public void ForgetPeer(int peerId)
 	{
 		_peerStates.Forget(peerId);

@@ -94,21 +94,52 @@ public class ServerTechLevels
 	private void ApplyLevelToOwnedUnit(Entity entity, ref Owner owner)
 	{
 		if (_context.PlayerSlotForEntity(owner.PlayerEntity.Value) != _appliedPlayerIndex) return;
-		if (!IsAffectedByUpgrade(entity, _appliedTechId)) return;
+		if (!ApplyUpgradeToEntity(entity, _appliedTechId, _appliedLevel)) return;
 
-		UpgradeMetadata? upgrade = _map.Catalog.FindUpgrade(_appliedTechId);
-		if (upgrade == null) return;
+		AttributeStatCalculator.RecalculateEntityStats(_context.World, entity);
+	}
+
+	/// <summary>
+	///     Gives a unit that has just appeared in the match every upgrade its owner has already researched, so a purchase
+	///     reaches the whole army - units fielded later included - and not only the units alive at the moment of purchase.
+	/// </summary>
+	public void ApplyAllToEntity(int playerIndex, Entity entity)
+	{
+		if (_levels.Count == 0 || entity == Entity.Null) return;
+		if (!_context.World.IsAlive(entity)) return;
+
+		bool applied = false;
+		foreach (KeyValuePair<(int PlayerIndex, string TechId), int> entry in _levels)
+		{
+			if (entry.Key.PlayerIndex != playerIndex || entry.Value <= 0) continue;
+
+			applied |= ApplyUpgradeToEntity(entity, entry.Key.TechId, entry.Value);
+		}
+
+		if (applied) AttributeStatCalculator.RecalculateEntityStats(_context.World, entity);
+	}
+
+	/// <summary>
+	///     Writes one upgrade's modifiers onto one unit, replacing any this upgrade previously wrote there. Returns
+	///     whether the unit is one this upgrade describes at all, so callers know if a stat recalculation is owed.
+	/// </summary>
+	private bool ApplyUpgradeToEntity(Entity entity, string techId, int level)
+	{
+		if (!IsAffectedByUpgrade(entity, techId)) return false;
+
+		UpgradeMetadata? upgrade = _map.Catalog.FindUpgrade(techId);
+		if (upgrade == null || upgrade.Modifiers.Count == 0) return false;
 
 		if (!_context.World.Has<ModifierState>(entity)) _context.World.Add(entity, new ModifierState(null));
 
 		ref ModifierState modifiers = ref _context.World.Get<ModifierState>(entity);
 		for (int index = modifiers.Count - 1; index >= 0; index--)
 		{
-			if (string.Equals(modifiers.Get(index).SourceUpgradeId, _appliedTechId, StringComparison.OrdinalIgnoreCase)) modifiers.RemoveAt(index);
+			if (string.Equals(modifiers.Get(index).SourceUpgradeId, techId, StringComparison.OrdinalIgnoreCase)) modifiers.RemoveAt(index);
 		}
 
-		if (_appliedLevel > 0) AddLevelModifiers(ref modifiers, upgrade, _appliedLevel);
-		AttributeStatCalculator.RecalculateEntityStats(_context.World, entity);
+		if (level > 0) AddLevelModifiers(ref modifiers, upgrade, level);
+		return true;
 	}
 
 	private static void AddLevelModifiers(ref ModifierState modifiers, UpgradeMetadata upgrade, int level)
@@ -134,12 +165,15 @@ public class ServerTechLevels
 
 	private bool IsAffectedByUpgrade(Entity entity, string techId)
 	{
+		// An upgrade with no affected list covers the player's whole army; '*' says the same thing out loud, for a map
+		// author who would rather not rely on an empty array meaning "everything".
 		string[]? affected = _map.Catalog.FindUpgrade(techId)?.AffectedUnitIds;
 		if (affected == null || affected.Length == 0) return true;
 		if (!_context.World.TryGet<DefinitionId>(entity, out DefinitionId definition)) return false;
 
 		for (int index = 0; index < affected.Length; index++)
 		{
+			if (affected[index] == "*") return true;
 			if (string.Equals(affected[index], definition.Value, StringComparison.OrdinalIgnoreCase)) return true;
 		}
 

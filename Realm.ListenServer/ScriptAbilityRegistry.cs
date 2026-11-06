@@ -103,10 +103,14 @@ public class ScriptAbilityRegistry
 		definition.AutoCastManaReserve = metadata.AutoCast?.ManaReserve ?? 0f;
 		definition.AutoCastMinManaPercent = metadata.AutoCast?.MinManaPercent ?? 0f;
 		definition.ManaCost = metadata.ManaCost;
+		definition.CostGold = metadata.CostGold;
+		definition.CostWood = metadata.CostWood;
+		definition.CostStone = metadata.CostStone;
 		definition.Cooldown = metadata.Cooldown;
 		definition.TargetRange = metadata.TargetRange;
 		definition.AreaOfEffectRadius = metadata.AreaOfEffectRadius;
 		definition.VisualEffect = metadata.VisualEffect;
+		definition.ProjectileId = metadata.ProjectileId;
 		definition.CastSound = metadata.CastSound;
 		definition.GridX = metadata.GridX;
 		definition.GridY = metadata.GridY;

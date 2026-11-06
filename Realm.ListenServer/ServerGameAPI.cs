@@ -49,6 +49,7 @@ public partial class ServerGameAPI : IGameAPI, IDisposable
 		_countResourceNodes = CountResourceNodes;
 		_countOwnedUnits = CountOwnedUnits;
 		_collectOwnedUnits = CollectOwnedUnits;
+		_collectIdleUnits = CollectIdleUnits;
 		_collectResourceNodes = CollectResourceNodes;
 	}
 
@@ -65,6 +66,8 @@ public partial class ServerGameAPI : IGameAPI, IDisposable
 	public ItemGrantService Items { get; }
 
 	public GroundLootService Loot { get; }
+
+	public MatchMetrics? Metrics { get; set; }
 
 	public float GameElapsedTime
 	{
@@ -415,8 +418,22 @@ public partial class ServerGameAPI : IGameAPI, IDisposable
 		Entity entity = ResolveUnit(unit);
 		if (entity == Entity.Null) return;
 
+		level = Math.Max(1, level);
 		_context.World.SetOrAdd(entity, new Level(level));
-		LevelService.Apply(_context.World, entity, level, LevelGrowth.None);
+		LevelService.Apply(_context.World, entity, level, ResolveLevelGrowth(entity));
+	}
+
+	/// <summary>
+	///     Growth is a property of the unit's own template, so assigning a level applies that template's attribute
+	///     curve — a script moving a level between two heroes moves each hero's growth with it.
+	/// </summary>
+	private LevelGrowth ResolveLevelGrowth(Entity entity)
+	{
+		if (!_context.World.TryGet<DefinitionId>(entity, out DefinitionId definitionId)) return LevelGrowth.None;
+
+		// Growth is optional per template, and the templates a map moves levels onto - circles, draft slots - often
+		// define none, so the curve itself has to be null-checked and not just the lookup that finds it.
+		return _map.Catalog.FindUnitOrBuilding(definitionId.Value)?.LevelGrowth?.ToLevelGrowth() ?? LevelGrowth.None;
 	}
 
 	public void SetUnitSpellImmune(UnitId unit, bool immune) => SetUnitFlag<SpellImmune>(unit, immune);
@@ -541,12 +558,14 @@ public partial class ServerGameAPI : IGameAPI, IDisposable
 	public void TriggerVictory()
 	{
 		_context.IsGameOver = true;
+		Metrics?.RecordMatchEnded();
 		_log.Write("the map declared victory");
 	}
 
 	public void TriggerDefeat()
 	{
 		_context.IsGameOver = true;
+		Metrics?.RecordMatchEnded();
 		_log.Write("the map declared defeat");
 	}
 
@@ -559,6 +578,8 @@ public partial class ServerGameAPI : IGameAPI, IDisposable
 
 	public void TriggerPlayerVictory(int playerIndex)
 	{
+		_context.IsGameOver = true;
+		Metrics?.RecordVictory(playerIndex);
 		_presentation.Write(PresentationKind.PlayerVictory, playerIndex, Vector3.Zero);
 		_log.Write($"player {playerIndex} victorious");
 	}

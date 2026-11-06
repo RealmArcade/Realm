@@ -9,6 +9,28 @@ namespace Realm.Shared.Services;
 
 public static class MapFileService
 {
+	/// <summary>
+	///     The folder inside a map's <c>bin</c> that holds the one compiled script the map runs. Every build
+	///     configuration publishes here, so the artifact present is the one built last.
+	/// </summary>
+	public const string ScriptOutputDirectoryName = "script";
+
+	/// <summary>
+	///     The file beside a compiled script that records which build configuration produced it, so a release export can
+	///     tell a stripped artifact from one built to be debugged.
+	/// </summary>
+	public const string BuildFlavorFileName = ".build-flavor";
+
+	public const string DebugBuildFlavor = "Debug";
+
+	public const string ReleaseBuildFlavor = "Release";
+
+	public static Action<string>? FileWritten { get; set; }
+
+	public static string ResolveScriptOutputDirectory(string mapFolder) => Path.Combine(mapFolder, "bin", ScriptOutputDirectoryName);
+
+	public static string ResolveBuildFlavorPath(string mapFolder) => Path.Combine(ResolveScriptOutputDirectory(mapFolder), BuildFlavorFileName);
+
 	private static readonly JsonSerializerOptions ManifestJsonOptions = new()
 	{
 		AllowTrailingCommas = true,
@@ -91,7 +113,7 @@ public static class MapFileService
 		}
 
 		string json = SaveManifestToJson(manifest);
-		File.WriteAllText(targetPath, json);
+		WriteAllTextAtomically(targetPath, json);
 	}
 
 	public static string SaveManifestToJson(MapManifest manifest)
@@ -139,7 +161,7 @@ public static class MapFileService
 		}
 
 		string json = SaveMetadataToJson(metadata);
-		File.WriteAllText(targetPath, json);
+		WriteAllTextAtomically(targetPath, json);
 	}
 
 	public static string SaveMetadataToJson(MapMetadata metadata)
@@ -187,11 +209,22 @@ public static class MapFileService
 		}
 
 		string json = SaveTerrainToJson(terrain);
-		File.WriteAllText(targetPath, json);
+		WriteAllTextAtomically(targetPath, json);
 	}
 
 	public static string SaveTerrainToJson(MapSaveData terrain)
 	{
 		return JsonSerializer.Serialize(terrain, TerrainJsonOptions);
+	}
+
+	public static void WriteAllTextAtomically(string targetPath, string contents)
+	{
+		AtomicFileWriter.WriteAllText(targetPath, contents);
+		NotifyFileWritten(targetPath);
+	}
+
+	public static void NotifyFileWritten(string targetPath)
+	{
+		FileWritten?.Invoke(targetPath);
 	}
 }

@@ -5,6 +5,7 @@ using System.IO;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.Services;
+using Realm.Client.UI;
 using Realm.Shared.Services;
 
 namespace Realm.Client.UI.MapEditor;
@@ -48,6 +49,7 @@ public partial class MapSettingsDialog : FloatingDialogBase
 			closeMargin.AddThemeConstantOverride("margin_top", -32);
 		}
 		SetFooterCloseOnly("CLOSE");
+		FooterHBox.Alignment = BoxContainer.AlignmentMode.Center;
 		BuildControls();
 	}
 
@@ -98,30 +100,8 @@ public partial class MapSettingsDialog : FloatingDialogBase
 		_txtMapName.Name = "TxtMapName_LineEdit";
 		_txtMapName.PlaceholderText = TranslationServer.Translate("Enter map name...");
 
-		bool isSanitizingMapName = false;
-		_txtMapName.TextChanged += (txt) =>
+		_txtMapName.TextChanged += (_) =>
 		{
-			if (isSanitizingMapName) return;
-			if (!txt.Contains(MapWorkspaceService.DefaultWorkspaceFolder, StringComparison.OrdinalIgnoreCase))
-			{
-				SaveMapProperties();
-				Hud?.UpdateMapNameHeader();
-				return;
-			}
-
-			isSanitizingMapName = true;
-			try
-			{
-				int previousCaretPosition = _txtMapName.CaretColumn;
-				string sanitizedText = txt.Replace(MapWorkspaceService.DefaultWorkspaceFolder, string.Empty, StringComparison.OrdinalIgnoreCase);
-				_txtMapName.Text = sanitizedText;
-				_txtMapName.CaretColumn = Math.Clamp(previousCaretPosition - MapWorkspaceService.DefaultWorkspaceFolder.Length, 0, sanitizedText.Length);
-			}
-			finally
-			{
-				isSanitizingMapName = false;
-			}
-
 			SaveMapProperties();
 			Hud?.UpdateMapNameHeader();
 		};
@@ -473,7 +453,7 @@ public partial class MapSettingsDialog : FloatingDialogBase
 
 		if (string.IsNullOrEmpty(name)) return;
 
-		_txtMapName.Text = name.Replace(MapWorkspaceService.DefaultWorkspaceFolder, string.Empty, StringComparison.OrdinalIgnoreCase).Trim();
+		_txtMapName.Text = name.Trim();
 	}
 
 	private void UpdateMapVersionProperty(MapMetadata metadata, MapManifest manifest)
@@ -509,7 +489,7 @@ public partial class MapSettingsDialog : FloatingDialogBase
 	private string GetCleanMapName()
 	{
 		string rawName = _txtMapName?.Text ?? string.Empty;
-		return rawName.Replace(MapWorkspaceService.DefaultWorkspaceFolder, string.Empty, StringComparison.OrdinalIgnoreCase).Trim();
+		return rawName.Trim();
 	}
 
 	private string GetCleanMapVersion()
@@ -579,22 +559,16 @@ public partial class MapSettingsDialog : FloatingDialogBase
 
 		_activeTagCheckboxes.Clear();
 
-		string[] tags;
-		if (_optMapType != null && _optMapType.Selected == 1)
-		{
-			tags = new[] { "3D Models", "Audio", "Code Scripts", "Terrain", "UI Components" };
-		}
-		else
-		{
-			tags = new[] { "Tower Defense", "Campaign", "Melee", "Survival", "Tutorial" };
-		}
+		string[] tags = _optMapType != null && _optMapType.Selected == 1
+			? MapTagCatalog.AssetPackCategories
+			: MapTagCatalog.MapFilters;
 
 		foreach (var tag in tags)
 		{
 			var chk = new CheckBox();
 			chk.Name = "Chk_CheckBox";
 			chk.Set("icon_max_width", 0);
-			chk.Text = tag;
+			chk.Text = MapTagCatalog.GetDisplayName(tag);
 			chk.FocusMode = FocusModeEnum.None;
 			chk.AddThemeFontSizeOverride("font_size", 11);
 			chk.Toggled += (_) => SaveMapProperties();
@@ -624,7 +598,7 @@ public partial class MapSettingsDialog : FloatingDialogBase
 		_skyboxFiles.Clear();
 		_optSkybox.Clear();
 
-		string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
+		string wsPath = GameContext.EditorService._editingDirectory;
 		try
 		{
 			var unionedAssets = MapAssetHelper.LoadAssets(wsPath);

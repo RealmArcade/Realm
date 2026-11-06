@@ -417,6 +417,79 @@ namespace Realm.Client.Core
 			_editorCoverageOverlayRoot.AddChild(meshInstance);
 		}
 
+		private MeshInstance3D _rampPreviewMesh { get; set; }
+		private ImmediateMesh _rampPreviewImmediateMesh { get; set; }
+
+		public void UpdateRampPreviewVisuals(Vector3 start, Vector3 end)
+		{
+			if (_rampPreviewMesh == null)
+			{
+				_rampPreviewImmediateMesh = new ImmediateMesh();
+				_rampPreviewMesh = new MeshInstance3D
+				{
+					Name = "RampDirectionArrow",
+					CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
+					GIMode = GeometryInstance3D.GIModeEnum.Disabled,
+					Mesh = _rampPreviewImmediateMesh,
+					MaterialOverride = new StandardMaterial3D
+					{
+						ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
+						AlbedoColor = new Color(0.35f, 0.85f, 1.0f, 0.9f),
+						Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
+						CullMode = BaseMaterial3D.CullModeEnum.Disabled
+					}
+				};
+				AddChild(_rampPreviewMesh);
+			}
+
+			float lift = 0.25f;
+			Vector3 from = start + new Vector3(0f, lift, 0f);
+			Vector3 to = end + new Vector3(0f, lift, 0f);
+			Vector3 flat = new Vector3(to.X - from.X, 0f, to.Z - from.Z);
+			float length = flat.Length();
+			_rampPreviewImmediateMesh.ClearSurfaces();
+			if (length < 0.05f)
+			{
+				_rampPreviewMesh.Visible = false;
+				return;
+			}
+
+			Vector3 direction = flat / length;
+			Vector3 side = new Vector3(-direction.Z, 0f, direction.X);
+			float shaftHalfWidth = MathF.Max(0.12f, length * 0.02f);
+			float headLength = MathF.Min(length * 0.4f, MathF.Max(0.9f, length * 0.18f));
+			float headHalfWidth = shaftHalfWidth * 3.5f;
+			Vector3 headBase = to - direction * headLength;
+
+			_rampPreviewImmediateMesh.SurfaceBegin(Mesh.PrimitiveType.Triangles);
+			AddRampPreviewQuad(_rampPreviewImmediateMesh, from - side * shaftHalfWidth, from + side * shaftHalfWidth, headBase + side * shaftHalfWidth, headBase - side * shaftHalfWidth);
+			AddRampPreviewTriangle(_rampPreviewImmediateMesh, headBase - side * headHalfWidth, headBase + side * headHalfWidth, to);
+			_rampPreviewImmediateMesh.SurfaceEnd();
+			_rampPreviewMesh.Visible = true;
+		}
+
+		private static void AddRampPreviewQuad(ImmediateMesh mesh, Vector3 cornerA, Vector3 cornerB, Vector3 cornerC, Vector3 cornerD)
+		{
+			mesh.SurfaceAddVertex(cornerA);
+			mesh.SurfaceAddVertex(cornerB);
+			mesh.SurfaceAddVertex(cornerC);
+			mesh.SurfaceAddVertex(cornerA);
+			mesh.SurfaceAddVertex(cornerC);
+			mesh.SurfaceAddVertex(cornerD);
+		}
+
+		private static void AddRampPreviewTriangle(ImmediateMesh mesh, Vector3 cornerA, Vector3 cornerB, Vector3 tip)
+		{
+			mesh.SurfaceAddVertex(cornerA);
+			mesh.SurfaceAddVertex(cornerB);
+			mesh.SurfaceAddVertex(tip);
+		}
+
+		public void ClearRampPreviewVisuals()
+		{
+			if (_rampPreviewMesh != null) _rampPreviewMesh.Visible = false;
+		}
+
 		public void UpdateMeasureVisuals(Vector3 start, Vector3 end)
 		{
 			if (_measureMeshInstance == null)

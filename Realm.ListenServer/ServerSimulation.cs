@@ -4,6 +4,7 @@ using Realm.Ecs;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Core;
+using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Replication;
 using Realm.Ecs.Services;
@@ -29,6 +30,7 @@ public class ServerSimulation : IDisposable
 	private readonly ServerMapScript _script;
 	private readonly GroundLootService _loot;
 	private readonly HashSet<int> _peersNeedingBaseline = new();
+	private readonly HashSet<int> _peersNeedingDescriptionRepeat = new();
 	private readonly SortedSet<int> _unseatedPlayerSlots = new();
 	private readonly bool _hasRoster;
 	private int _snapshotSequence;
@@ -37,7 +39,7 @@ public class ServerSimulation : IDisposable
 	private bool _disposed;
 	private long _navMeshRebakeTick = -1;
 
-	public ServerSimulation(LoadedMap map, ServerMatchPaths paths, ServerLog log, int randomSeed = 0, bool cheatsEnabled = false, bool wasmDebug = false, string? mapWorkspacePath = null, IReadOnlyList<MatchRosterSeat>? roster = null, int hostPlayerSlot = 0, WasmScriptHost? preparedScriptHost = null)
+	public ServerSimulation(LoadedMap map, ServerMatchPaths paths, ServerLog log, int randomSeed = 0, bool cheatsEnabled = false, bool wasmDebug = false, string? mapWorkspacePath = null, IReadOnlyList<MatchRosterSeat>? roster = null, int hostPlayerSlot = 0, WasmScriptHost? preparedScriptHost = null, string? scriptPathOverride = null)
 	{
 		_map = map;
 		_hasRoster = roster is { Count: > 0 };
@@ -58,6 +60,7 @@ public class ServerSimulation : IDisposable
 		_matchTick = new MatchTick(map.Simulation);
 		_commands = new CommandAuthorityService(map.Simulation);
 		_commands.DroppedOrderSink = log.Write;
+		_commands.CostsPaidSink = (playerSlot, goldAmount) => Metrics.RecordGoldSpent(playerSlot, goldAmount);
 		map.Catalog.BindTo(_commands);
 		_snapshots = new SnapshotFanOut(map.World, map.Simulation, map.WorldEntity, map.Simulation.MapRules, SnapshotFanOut.DefaultWorkerCount);
 		_snapshots.Report = log.Write;
@@ -67,7 +70,10 @@ public class ServerSimulation : IDisposable
 		_construction = new ConstructionTick(map.Simulation, map.Catalog);
 		Items = new ItemGrantService(map.Simulation, map.Catalog);
 		_loot = new GroundLootService(map.Simulation, Items);
-		_script = ServerMapScript.Load(map, paths, randomSeed, log, _presentation, Items, _loot, wasmDebug, mapWorkspacePath, preparedScriptHost);
+		_script = ServerMapScript.Load(map, paths, randomSeed, log, _presentation, Items, _loot, wasmDebug, mapWorkspacePath, preparedScriptHost, scriptPathOverride);
+		if (roster != null) ApplyRosterBotDifficulties(roster);
+		_script.Api.Metrics = Metrics;
+		_commands.ConsumableChangedSink = (unitId, consumableId) => _script.Api.RaiseConsumableChanged(unitId, consumableId);
 		_snapshots.Abilities = _script.Api.Abilities;
 		_snapshots.TechLevels = _script.Api.TechLevels;
 		_script.Api.PlayerDroppedSink = DropPlayer;
@@ -89,6 +95,18 @@ public class ServerSimulation : IDisposable
 		BakeNavMesh();
 	}
 
+	private void ApplyRosterBotDifficulties(IReadOnlyList<MatchRosterSeat> roster)
+	{
+		for (int index = 0; index < roster.Count; index++)
+		{
+			MatchRosterSeat seat = roster[index];
+			if (!seat.IsComputer) continue;
+
+			LobbyBotDifficulty difficulty = LobbyBotDifficultyRules.Clamp(seat.Difficulty);
+			_script.Api.Bots.SetHandicap(seat.Slot, LobbyBotDifficultyRules.MistakeChance(difficulty));
+		}
+	}
+
 	private static void EnsureMatchClock(LoadedMap map)
 	{
 		Entity worldEntity = map.WorldEntity;
@@ -106,6 +124,10 @@ public class ServerSimulation : IDisposable
 	public ItemGrantService Items { get; }
 
 	public GroundLootService Loot => _loot;
+
+	public MatchMetrics Metrics { get; } = new();
+
+	public bool IsGameOver => _map.Simulation.IsGameOver;
 
 	public MatchTick MatchTick => _matchTick;
 
@@ -157,7 +179,14 @@ public class ServerSimulation : IDisposable
 		simulation.CombatDamageService.UnlimitedPowerProvider = () => simulation.UnlimitedPowerEnabled;
 		simulation.CombatDamageService.OnKillUnitRequested = KillUnit;
 		simulation.CombatDamageService.OnUnitDamagedCallback = (target, attacker, damage) =>
+		{
+			if (_map.World.TryGet<UnitOwnerPlayer>(attacker, out UnitOwnerPlayer damagingOwner))
+			{
+				Metrics.RecordDamageDealt(damagingOwner.Value, damage);
+			}
+
 			_script.Api.RaiseUnitDamaged(target.Id, attacker.Id, damage);
+		};
 		simulation.CombatDamageService.OnUnitAttackedCallback = (attacker, target) =>
 			_script.Api.RaiseUnitAttacked(attacker.Id, target.Id);
 
@@ -426,11 +455,27 @@ public class ServerSimulation : IDisposable
 		if (_hasRoster && _peerPlayerSlots.Remove(peerId, out int releasedSlot)) _unseatedPlayerSlots.Add(releasedSlot);
 		_lastAnsweredCommandIdPerPeer.Remove(peerId);
 		_peersNeedingBaseline.Remove(peerId);
+		_peersNeedingDescriptionRepeat.Remove(peerId);
 	}
 
 	public void RequestBaseline(int peerId) => _peersNeedingBaseline.Add(peerId);
 
 	public bool ConsumeBaselineRequest(int peerId) => _peersNeedingBaseline.Remove(peerId);
+
+	/// <summary>
+	///     Asks for this peer to be told about every unit and every text again. It is the answer to a description the
+	///     screen reported it could not apply, and it is stated as an ordinary description rather than as a baseline: the
+	///     screen is missing what one description carried, not the world it was built from.
+	/// </summary>
+	public void RequestDescriptionRepeat(int peerId) => _peersNeedingDescriptionRepeat.Add(peerId);
+
+	public bool ConsumeDescriptionRepeatRequest(int peerId) => _peersNeedingDescriptionRepeat.Remove(peerId);
+
+	/// <summary>
+	///     Drops what this peer is remembered as having been told, so the next description restates it all. It is written on
+	///     the tick thread before the publish lanes are forked, which is the only thread that may write a peer's record.
+	/// </summary>
+	public void ResetPeerDescription(int peerId) => _snapshots.ResetPeerDescription(peerId);
 
 	public string ReadPlayerName(int playerSlot)
 	{
@@ -470,8 +515,8 @@ public class ServerSimulation : IDisposable
 		}
 
 		ServerCommandResult result = _commands.ExecuteServerCommand(peerId, command);
-		PlaceBuildingOrderedBy(command, result);
-		return result;
+		result = PlaceBuildingOrderedBy(command, result);
+		return CastSpellOrderedBy(command, result);
 	}
 
 	public void ApplyConsoleCommand(int peerId, ScriptConsoleCommand command)
@@ -490,6 +535,7 @@ public class ServerSimulation : IDisposable
 	private void WritePlayerTechLevel(int playerIndex, string techId, int level)
 	{
 		_script.Api.SetPlayerTechLevel(playerIndex, techId, level);
+		Metrics.RecordUpgradeBought(playerIndex);
 	}
 
 	private bool IsAlreadyAnswered(int peerId, int commandId)
@@ -501,29 +547,69 @@ public class ServerSimulation : IDisposable
 		return false;
 	}
 
-	private void PlaceBuildingOrderedBy(NetworkCommand command, in ServerCommandResult result)
+	private ServerCommandResult PlaceBuildingOrderedBy(NetworkCommand command, in ServerCommandResult result)
 	{
-		if (!result.NeedsBuildUnit) return;
-		if (!TryGetPlayerEntity(result.BuildPeerOwner, out Entity playerEntity)) return;
+		if (!result.NeedsBuildUnit) return result;
+		if (!TryGetPlayerEntity(result.BuildPeerOwner, out Entity playerEntity)) return RefusePlacement($"'{command.CommandType}' naming '{result.BuildUnitType}' arrived from peer {result.BuildPeerOwner}, which holds no player entity");
 
 		Entity workerEntity = Entity.Null;
 		if (result.BuildWorkerServerEntityId >= 0)
 		{
 			workerEntity = new Entity(result.BuildWorkerServerEntityId);
-			if (!_map.World.IsAlive(workerEntity)) return;
-			if (!_map.World.TryGet<Owner>(workerEntity, out Owner owner) || owner.PlayerEntity.Value != playerEntity) return;
+			if (!_map.World.IsAlive(workerEntity)) return RefusePlacement($"'{command.CommandType}' naming '{result.BuildUnitType}' named worker {result.BuildWorkerServerEntityId}, which is not a live unit");
+			if (!_map.World.TryGet<Owner>(workerEntity, out Owner owner) || owner.PlayerEntity.Value != playerEntity)
+			{
+				return RefusePlacement($"'{command.CommandType}' naming '{result.BuildUnitType}' named worker {result.BuildWorkerServerEntityId}, which this player does not own");
+			}
 		}
 
 		var buildPosition = new Vector3(result.BuildPosition.X, result.BuildPosition.Y, result.BuildPosition.Z);
 		if (!BuildingPlacementService.TryPlace(_map.World, _map.Catalog, result.BuildUnitType, buildPosition, new PlayerEntity(playerEntity), workerEntity, out Entity buildingEntity))
 		{
-			_log.Write($"'{command.CommandType}' naming '{result.BuildUnitType}' could not be placed: the player cannot pay for it");
-			return;
+			return RefusePlacement(_map.Catalog.FindUnitOrBuilding(result.BuildUnitType) == null
+				? $"'{command.CommandType}' naming '{result.BuildUnitType}' could not be placed: this map defines no such template"
+				: $"'{command.CommandType}' naming '{result.BuildUnitType}' could not be placed: the player cannot pay for it");
 		}
 
 		_log.Write(workerEntity == Entity.Null
 			? $"placed building {buildingEntity.Id} '{result.BuildUnitType}' for entity {playerEntity.Id}"
 			: $"worker {workerEntity.Id} is building {buildingEntity.Id} '{result.BuildUnitType}' for entity {playerEntity.Id}");
+
+		// A placement nothing has to be built for is finished the moment it is made, and the tick that builds sites never
+		// sees it, so its completion is raised here. A map that reacts to a finished construction - a draft that is played
+		// out by the site it consumes, a building that unlocks something - would otherwise never hear about a placement it
+		// accepted, and the site would stand there finished and inert.
+		if (!_map.World.Has<ConstructionState>(buildingEntity)) _script.Api.RaiseConstructionFinished(buildingEntity.Id);
+
+		return result;
+	}
+
+	/// <summary>
+	///     Runs an accepted spell order through the map script. Command authority has already checked that the peer owns
+	///     the caster, can pay for the spell and is aiming inside its range; this is where the cast actually happens, so a
+	///     script that reacts to <see cref="ServerGameAPI.OnSpellCast"/> - a tile reroll, a swap, a script-defined spell -
+	///     sees the order instead of the click being authorized and then dropped.
+	/// </summary>
+	private ServerCommandResult CastSpellOrderedBy(NetworkCommand command, in ServerCommandResult result)
+	{
+		if (!result.NeedsSpellEffect) return result;
+		if (command.UnitEntityIds == null || command.UnitEntityIds.Count == 0) return result;
+
+		Entity casterEntity = _commands.Targets.Resolve(command.UnitEntityIds[0]);
+		if (casterEntity == Entity.Null) return result;
+
+		_script.Api.CastAbility(new UnitId(casterEntity.Id), result.SpellId ?? string.Empty, result.SpellPosition);
+		return result;
+	}
+
+	/// <summary>
+	///     Answers a placement this match will not make. Returning from the placement without an answer reported it as
+	///     accepted, so the screen that sent it had nothing to show and the player only saw a click do nothing.
+	/// </summary>
+	private ServerCommandResult RefusePlacement(string reason)
+	{
+		_log.Write(reason);
+		return NoResult(reason);
 	}
 
 	private bool TryGetPlayerEntity(int peerId, out Entity playerEntity)

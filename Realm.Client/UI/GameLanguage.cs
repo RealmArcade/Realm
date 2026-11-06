@@ -11,5 +11,6 @@ public enum GameLanguage
 	Chinese = 6,
 	Japanese = 7,
 	Arabic = 8,
-	Hindi = 9
+	Hindi = 9,
+	Korean = 10
 }

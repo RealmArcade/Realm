@@ -13,9 +13,22 @@ public class AbilityMetadata
 	public string AbilityType { get; set; } = "target_spell";
 	public string? IconPath { get; set; }
 	public float ManaCost { get; set; }
+
+	// A script-defined spell can charge resources of its own. They are shown in the command card tooltip header.
+	public float CostGold { get; set; }
+	public float CostWood { get; set; }
+	public float CostStone { get; set; }
 	public float Cooldown { get; set; }
 	public float TargetRange { get; set; }
 	public string? VisualEffect { get; set; }
+
+	/// <summary>
+	///     A weapon template this ability fires as its own visual, from the caster towards the point it was cast at. The
+	///     engine flies it at the weapon's own speed and reports the landing through OnSpellImpact, so a map neither
+	///     repeats a speed its weapon template already carries nor guesses how long the flight takes.
+	/// </summary>
+	public string? ProjectileId { get; set; }
+
 	public string? CastSound { get; set; }
 
 	public AutoCastMetadata? AutoCast { get; set; }

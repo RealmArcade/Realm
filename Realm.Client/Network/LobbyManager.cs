@@ -18,6 +18,7 @@ using Realm.Client.Services;
 using Realm.Client.UI;
 using Realm.Client.Utils;
 using Realm.Shared;
+using Realm.Shared.Accounts;
 using Realm.Shared.Distribution;
 using Realm.Shared.Maps;
 using Realm.Shared.Metadata;
@@ -86,31 +87,58 @@ public partial class LobbyManager : BaseMapTransferNode
 
 	public int ENetPort { get; private set; } = DefaultGamePort;
 	public int MaxPlayers { get; private set; } = MapInfoMetadata.DefaultPlayablePlayerSlots;
-	public string? LastLobbyWarning { get; private set; }
 
-	public string AuthenticatedUsername { get; set; } = "Horaid_Topa";
-	public string? AuthToken { get; set; }
-	public string? AuthProvider { get; set; }
-
-	public bool SetInGameUsername(string newUsername, out string? errorMessage)
+	/// <summary>
+	///     How many seats in this lobby are playing rather than watching. A spectator holds no player seat, so it is not
+	///     counted against the players this map seats.
+	/// </summary>
+	public int PlayingPlayerCount
 	{
-		if (!NameNormalizationHelper.ValidateUsername(newUsername, out errorMessage))
+		get
 		{
-			return false;
-		}
+			int count = 0;
+			for (int index = 0; index < PlayerList.Count; index++)
+			{
+				if (PlayerList[index].TeamIndex >= 1) count++;
+			}
 
-		AuthenticatedUsername = newUsername.Trim();
-		PlayerInfo? me = PlayerList.Find(IsLocalPlayer);
-		if (me != null)
-		{
-			me.Name = AuthenticatedUsername;
-			SendSeatUpdate(me);
+			return count;
 		}
-
-		return true;
 	}
 
-	private readonly string _persistentSessionToken = Guid.NewGuid().ToString();
+	public string? LastLobbyWarning { get; private set; }
+
+	public bool IsSignedIn => GameContext.Account.IsSignedIn;
+
+	public long AccountId => GameContext.Account.AccountId;
+
+	public string AuthenticatedUsername => GameContext.Account.DisplayName;
+
+	/// <summary>
+	///     The name a lobby seat carries, resolved by the same rule the profile screen shows, so the name on the card and the
+	///     name in the lobby can never describe the player differently. The lobby appends the seat number when two peers turn out
+	///     to carry the same name.
+	/// </summary>
+	public string PlayerDisplayName => GameContext.Account.EffectiveUserName;
+
+	private readonly string _guestLobbySessionToken = Guid.NewGuid().ToString();
+
+	/// <summary>
+	///     The secret a lobby holds this screen's seat by. A signed-in player's secret is minted on this machine when the
+	///     session is adopted and kept beside it, so it outlives a restart and is replaced only by signing out; a player
+	///     playing without an account carries one made for this run. Neither is derived from anything the lobby shows, so
+	///     no other peer can name a seat it does not hold.
+	/// </summary>
+	public string LobbySessionToken
+	{
+		get
+		{
+			if (!GameContext.Account.IsSignedIn) return _guestLobbySessionToken;
+
+			string seatToken = GameContext.Account.LobbySeatToken;
+			return seatToken.Length > 0 ? seatToken : _guestLobbySessionToken;
+		}
+	}
 
 	public NatType LocalNatType { get; private set; } = NatType.Open;
 	public bool IsHost { get; set; }
@@ -232,6 +260,12 @@ public partial class LobbyManager : BaseMapTransferNode
 	public event Action? CountdownFinished;
 	public event Action<string>? ActiveMapChanged;
 
+	/// <summary>
+	///     Raised when the lobby's map asks its host to read a warning before the match starts, with the text that host has
+	///     to accept. The match stays at tick zero until it is accepted or the start is abandoned.
+	/// </summary>
+	public event Action<string>? StartWarningReceived;
+
 	protected override string TransferLogPrefix => "LobbyManager";
 
 	protected override bool IsMapTransferAllowed() => IsHost || (GameContext.PeerSeeder != null && GameContext.PeerSeeder.IsSeeding);
@@ -248,10 +282,37 @@ public partial class LobbyManager : BaseMapTransferNode
 		RunNatTypeTest();
 
 		MapAssetManager.PruneGlobalArchive();
+		GameContext.MapStorageService.ImportEmbeddedMaps();
 		AppDomain.CurrentDomain.ProcessExit += OnProcessExit;
 
 		StartPeerSeederLoop();
 		WarmUpLocalAuthority();
+
+		GameContext.Account.Changed += OnAccountChanged;
+	}
+
+	/// <summary>
+	///     Keeps the local seat on the account it belongs to. A DisplayName change is announced to the lobby so every other
+	///     screen sees the new name without the player leaving and rejoining.
+	/// </summary>
+	private void OnAccountChanged()
+	{
+		if (!GodotObject.IsInstanceValid(this) || !IsInsideTree()) return;
+
+		Callable.From(ApplyAccountChange).CallDeferred();
+	}
+
+	private void ApplyAccountChange()
+	{
+		PlayerInfo? me = PlayerList.Find(IsLocalPlayer);
+		if (me == null) return;
+
+		me.AccountId = AccountId;
+		string displayName = PlayerDisplayName;
+		if (string.Equals(me.Name, displayName, StringComparison.Ordinal)) return;
+
+		me.Name = displayName;
+		SendSeatUpdate(me);
 	}
 
 	/// <summary>
@@ -552,6 +613,8 @@ public partial class LobbyManager : BaseMapTransferNode
 
 	public async Task<bool> HostSinglePlayerGame(string mapPathName, string mapDisplayName, string? mapVersion = null, bool debugMapScript = false)
 	{
+		ReleaseSeedingSlot();
+
 		IsSinglePlayer = true;
 		IsHost = true;
 		ActiveMapName = mapPathName;
@@ -610,7 +673,8 @@ public partial class LobbyManager : BaseMapTransferNode
 		{
 			PeerId = 1,
 			Slot = humanSlot,
-			Name = AuthenticatedUsername,
+			AccountId = AccountId,
+			Name = PlayerDisplayName,
 			Faction = "HUMAN",
 			Team = "Team 1",
 			Color = PlayerColorConfig.GetColor(humanSlot),
@@ -619,7 +683,7 @@ public partial class LobbyManager : BaseMapTransferNode
 			Jitter = "0 ms",
 			PacketLoss = "0%",
 			BinaryVersion = RealmVersion.GameBinaryVersion,
-			SessionToken = _persistentSessionToken
+			SessionToken = LobbySessionToken
 		};
 		PlayerList.Add(hostPlayer);
 
@@ -635,6 +699,7 @@ public partial class LobbyManager : BaseMapTransferNode
 				Team = $"Team {slot}",
 				Color = PlayerColorConfig.GetColor(slot),
 				IsHost = false,
+				IsComputer = true,
 				Latency = "0 ms",
 				Jitter = "0 ms",
 				PacketLoss = "0%",
@@ -706,6 +771,7 @@ public partial class LobbyManager : BaseMapTransferNode
 
 	public async Task<bool> HostLobbyAsync(string mapPathName, string mapDisplayName, string? explicitVersion = null)
 	{
+		IsSinglePlayer = false;
 		InitializeHostState(mapPathName, explicitVersion);
 
 		ReportHostLobbyStage(HostLobbyStage.TestingNetwork);
@@ -735,7 +801,7 @@ public partial class LobbyManager : BaseMapTransferNode
 		GameContext.DetachServerSession();
 
 		var session = new ClientServerSession(channel);
-		session.ConfigureLobbyIdentity(AuthenticatedUsername, _persistentSessionToken);
+		session.ConfigureLobbyIdentity(PlayerDisplayName, LobbySessionToken, AccountId);
 		AttachLobbySession(session);
 
 		var start = new ServerLobbyStart(
@@ -803,8 +869,89 @@ public partial class LobbyManager : BaseMapTransferNode
 		return true;
 	}
 
+	/// <summary>
+	///     Opens a lobby only this screen can reach, so a single player picks a map, adds the AI players they want and starts
+	///     the match from the same screen a hosted match begins in. Nothing about the machine's network is used: the authority
+	///     binds the loopback address, takes whatever port it finds free, and no registry is told the lobby exists.
+	/// </summary>
+	/// <param name="mapPathName">The map whose lobby is opened.</param>
+	/// <param name="explicitVersion">The map version to play, or the newest the screen holds when omitted.</param>
+	/// <returns>Whether the lobby is open and administered by this screen.</returns>
+	public async Task<bool> HostSinglePlayerLobbyAsync(string mapPathName, string? explicitVersion = null)
+	{
+		IsSinglePlayer = true;
+		InitializeHostState(mapPathName, explicitVersion);
+
+		string? mapDirectory = GameHost.ResolveMapDirectory(mapPathName, ActiveMapVersion);
+		if (string.IsNullOrEmpty(mapDirectory))
+		{
+			LastHostError = $"The map folder for '{mapPathName}' could not be found.";
+			GD.PushError($"[LobbyManager] {LastHostError}");
+			return false;
+		}
+
+		var channel = GetNodeOrNull<ClientNetworkChannel>("/root/RealmNetwork");
+		if (channel == null)
+		{
+			LastHostError = "This build has no channel to an authority.";
+			GD.PushError($"[LobbyManager] {LastHostError}");
+			return false;
+		}
+
+		GameContext.ServerSession?.Dispose();
+		GameContext.DetachServerSession();
+
+		var session = new ClientServerSession(channel);
+		session.ConfigureLobbyIdentity(PlayerDisplayName, LobbySessionToken, AccountId);
+		AttachLobbySession(session);
+
+		var start = new ServerLobbyStart(
+			ProjectSettings.GlobalizePath(mapDirectory),
+			mapPathName,
+			MaxPlayers,
+			Path.Combine(OS.GetUserDataDir(), "logs"),
+			OS.GetUserDataDir(),
+			LocalizationManager.GetCurrentLanguageCode(),
+			Cheats: true,
+			LoopbackOnly: true);
+
+		MatchStartResult lobbyStarted = await session.TryStartLobbyAsync(start);
+		LastAuthorityLogPath = lobbyStarted.LogPath;
+		LastAuthorityConsoleLogPath = lobbyStarted.ConsoleLogPath;
+		if (!lobbyStarted.Started)
+		{
+			LastHostError = lobbyStarted.Failure;
+			GD.PushError($"[LobbyManager] {lobbyStarted.Failure}");
+			TeardownHostedLobby(session);
+			return false;
+		}
+
+		string? admissionFailure = await WaitForLobbyAdmissionAsync(session);
+		if (admissionFailure != null)
+		{
+			LastHostError = admissionFailure;
+			GD.PushError($"[LobbyManager] {admissionFailure}");
+			TeardownHostedLobby(session);
+			return false;
+		}
+
+		if (!session.IsAdmin)
+		{
+			LastHostError = "The lobby's authority did not grant this client the capability that administers it.";
+			GD.PushError($"[LobbyManager] {LastHostError}");
+			TeardownHostedLobby(session);
+			return false;
+		}
+
+		IsHost = true;
+		PlayerListUpdated?.Invoke();
+		return true;
+	}
+
 	private void InitializeHostState(string mapPathName, string? explicitVersion)
 	{
+		ReleaseSeedingSlot();
+
 		IsHost = true;
 		MaxPlayers = ResolvePlayablePlayerSlots(mapPathName, explicitVersion);
 		LastLobbyWarning = null;
@@ -877,6 +1024,8 @@ public partial class LobbyManager : BaseMapTransferNode
 
 	private void InitializeClientState(string lobbyId)
 	{
+		ReleaseSeedingSlot();
+
 		IsHost = false;
 		IsGameStarted = false;
 		ActiveLobbyId = lobbyId;
@@ -905,7 +1054,7 @@ public partial class LobbyManager : BaseMapTransferNode
 		GameContext.DetachServerSession();
 
 		var session = new ClientServerSession(channel);
-		session.ConfigureLobbyIdentity(AuthenticatedUsername, _persistentSessionToken);
+		session.ConfigureLobbyIdentity(PlayerDisplayName, LobbySessionToken, AccountId);
 		AttachLobbySession(session);
 
 		if (!session.TryJoinLobby(connectIp, connectPort, LocalizationManager.GetCurrentLanguageCode(), isLocalConnection ? 0 : ENetPort, out string failure))
@@ -967,6 +1116,7 @@ public partial class LobbyManager : BaseMapTransferNode
 		session.LobbyChatReceived += OnLobbyChat;
 		session.LobbyMatchStartedEvent += OnLobbyMatchStarted;
 		session.LobbyKickedEvent += OnLobbyKicked;
+		session.LobbyStartWarningReceived += OnLobbyStartWarning;
 		session.MapTransferReplied += OnMapTransferReplied;
 		session.ServerLost += OnLobbyAuthorityLost;
 	}
@@ -978,8 +1128,16 @@ public partial class LobbyManager : BaseMapTransferNode
 		session.LobbyChatReceived -= OnLobbyChat;
 		session.LobbyMatchStartedEvent -= OnLobbyMatchStarted;
 		session.LobbyKickedEvent -= OnLobbyKicked;
+		session.LobbyStartWarningReceived -= OnLobbyStartWarning;
 		session.MapTransferReplied -= OnMapTransferReplied;
 		session.ServerLost -= OnLobbyAuthorityLost;
+	}
+
+	private void OnLobbyStartWarning(LobbyStartWarningMessage warning)
+	{
+		if (!IsHost) return;
+
+		StartWarningReceived?.Invoke(warning.Message ?? string.Empty);
 	}
 
 	private void OnLobbyHelloAnswered(ServerHello hello)
@@ -1092,11 +1250,14 @@ public partial class LobbyManager : BaseMapTransferNode
 			{
 				PeerId = seat.PeerId,
 				Slot = seat.Slot,
+				AccountId = seat.AccountId,
 				Name = seat.Name ?? string.Empty,
 				Faction = seat.Faction ?? string.Empty,
 				Team = seat.TeamName ?? string.Empty,
 				Color = seat.ColorRgba == 0 ? PlayerColorConfig.GetColor(seat.Slot) : UnpackColor(seat.ColorRgba),
 				IsHost = seat.IsHost,
+				IsComputer = seat.IsComputer,
+				Difficulty = LobbyBotDifficultyRules.Clamp(seat.Difficulty),
 				IsReady = seat.IsReady,
 				IsMapReady = seat.IsMapReady,
 				MapDownloadPercent = seat.MapDownloadPercent,
@@ -1191,6 +1352,8 @@ public partial class LobbyManager : BaseMapTransferNode
 	private void OnLobbyChat(LobbyChatMessage line)
 	{
 		string sender = string.IsNullOrEmpty(line.SenderName) ? "System" : line.SenderName;
+		if (line.SenderPeerId > 0 && line.SenderAccountId == 0) sender = UnverifiedNameMark.Apply(sender);
+
 		int senderSlot = PlayerList.Find(p => p.PeerId == line.SenderPeerId)?.Slot ?? 0;
 		if (line.SenderPeerId > 0) ServerChatCommandReceived?.Invoke(senderSlot, line.Message);
 		ChatReceived?.Invoke(sender, line.Message, false, line.TimestampUtcTicks);
@@ -1386,6 +1549,7 @@ public partial class LobbyManager : BaseMapTransferNode
 	private void ReleaseHostedEndpoint(int port)
 	{
 		if (!IsHost) return;
+		if (IsSinglePlayer) return;
 
 		Diagnostics.StopHostListener();
 		GameContext.Upnp.ClosePort(port > 0 ? port : ENetPort);
@@ -1885,7 +2049,7 @@ public partial class LobbyManager : BaseMapTransferNode
 		});
 	}
 
-	public void StartGame(string mapName, bool ignoreReadiness = false)
+	public void StartGame(string mapName, bool ignoreReadiness = false, bool acknowledgeStartWarning = false)
 	{
 		if (!IsHost) return;
 
@@ -1893,7 +2057,8 @@ public partial class LobbyManager : BaseMapTransferNode
 		{
 			Kind = LobbyCommandKind.StartCountdown,
 			Text = mapName,
-			Flag = ignoreReadiness
+			Flag = ignoreReadiness,
+			AcknowledgeStartWarning = acknowledgeStartWarning
 		});
 	}
 
@@ -1905,7 +2070,7 @@ public partial class LobbyManager : BaseMapTransferNode
 	public bool AddAIBot()
 	{
 		if (!IsHost) return false;
-		if (PlayerList.Count >= MaxPlayers)
+		if (PlayingPlayerCount >= MaxPlayers)
 		{
 			LastLobbyWarning = string.Format(Tr("Cannot add an AI player: all {0} playable slots are taken."), MaxPlayers);
 			return false;
@@ -1913,6 +2078,22 @@ public partial class LobbyManager : BaseMapTransferNode
 
 		_lobbySession?.SendLobbyCommand(new LobbyCommand { Kind = LobbyCommandKind.AddComputer });
 		return true;
+	}
+
+	public void SetComputerDifficulty(int peerId, LobbyBotDifficulty difficulty)
+	{
+		if (!IsHost) return;
+
+		PlayerInfo? player = PlayerList.Find(p => p.PeerId == peerId);
+		if (player == null || !player.IsComputer) return;
+
+		player.Difficulty = LobbyBotDifficultyRules.Clamp((int)difficulty);
+		_lobbySession?.SendLobbyCommand(new LobbyCommand
+		{
+			Kind = LobbyCommandKind.SetComputerDifficulty,
+			TargetPeerId = peerId,
+			Progress = (int)player.Difficulty
+		});
 	}
 
 	public void BootPlayer(int peerId)
@@ -1935,7 +2116,7 @@ public partial class LobbyManager : BaseMapTransferNode
 
 	public void ReceiveChatFromAuthority(string senderName, string message, bool alliesOnly, long timestampUtcTicks)
 	{
-		ChatReceived?.Invoke(LobbyLimits.Sanitize(senderName, 32), message, alliesOnly, timestampUtcTicks);
+		ChatReceived?.Invoke(LobbyLimits.SanitizeDisplayName(senderName), message, alliesOnly, timestampUtcTicks);
 	}
 
 	public void SendChatMessage(string senderName, string message, bool alliesOnly = false, long timestampUtcTicks = 0)
@@ -2154,7 +2335,10 @@ public partial class LobbyManager : BaseMapTransferNode
 			if (player.Slot <= 0) continue;
 
 			bool isComputer = string.Equals(player.Faction, "AI", StringComparison.OrdinalIgnoreCase) || player.PeerId < 0;
-			seats.Add(new MatchRosterSeat(player.Slot, player.Name, ResolveSeatTeam(player.Team, player.Slot), player.Team, isComputer));
+			int difficulty = isComputer
+				? (int)LobbyBotDifficultyRules.Clamp((int)player.Difficulty)
+				: (int)LobbyBotDifficultyRules.Default;
+			seats.Add(new MatchRosterSeat(player.Slot, player.AccountId, player.Name, ResolveSeatTeam(player.Team, player.Slot), player.Team, isComputer, difficulty));
 		}
 
 		seats.Sort((left, right) => left.Slot.CompareTo(right.Slot));
@@ -2163,6 +2347,8 @@ public partial class LobbyManager : BaseMapTransferNode
 
 	private static int ResolveSeatTeam(string? teamName, int slot)
 	{
+		if (string.Equals(teamName, LobbyLimits.SpectatorTeamName, StringComparison.Ordinal)) return 0;
+
 		if (!string.IsNullOrWhiteSpace(teamName)
 			&& teamName.StartsWith("Team ", StringComparison.OrdinalIgnoreCase)
 			&& int.TryParse(teamName.AsSpan(5), NumberStyles.Integer, CultureInfo.InvariantCulture, out int team)
@@ -2193,119 +2379,9 @@ public partial class LobbyManager : BaseMapTransferNode
 		return 100;
 	}
 
-	private HttpListener? _authHttpListener;
-
-	public async Task<bool> StartOAuthFlowAsync(string provider)
-	{
-		int port = 8089;
-		if (!TryStartAuthListener(port)) return false;
-
-		string loginUrl = $"{RegistryServerUrl}/auth/login?provider={provider}&port={port}";
-		OS.ShellOpen(loginUrl);
-
-		try
-		{
-			var context = await _authHttpListener!.GetContextAsync();
-			return HandleOAuthCallback(context);
-		}
-		catch (Exception ex)
-		{
-			GD.PrintErr($"[LobbyManager] Error handling OAuth callback: {ex.Message}");
-			return false;
-		}
-		finally
-		{
-			_authHttpListener?.Stop();
-		}
-	}
-
-	private bool TryStartAuthListener(int port)
-	{
-		_authHttpListener?.Stop();
-		_authHttpListener = new HttpListener();
-		_authHttpListener.Prefixes.Add($"http://localhost:{port}/auth/callback/");
-		try
-		{
-			_authHttpListener.Start();
-			return true;
-		}
-		catch (Exception ex)
-		{
-			GD.PrintErr($"[LobbyManager] Failed to start local OAuth listener on port {port}: {ex.Message}");
-			return false;
-		}
-	}
-
-	private bool HandleOAuthCallback(HttpListenerContext context)
-	{
-		var request = context.Request;
-		var response = context.Response;
-
-		string? username = request.QueryString["username"];
-		string? token = request.QueryString["token"];
-		string? returnedProvider = request.QueryString["provider"];
-
-		if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(token))
-		{
-			SendAuthResponse(response, "<h1>Login Failed</h1><p>Invalid parameters received.</p>");
-			return false;
-		}
-
-		AuthenticatedUsername = username;
-		AuthToken = token;
-		AuthProvider = returnedProvider;
-		PlayerInfo? me = PlayerList.Find(IsLocalPlayer);
-		if (me != null)
-		{
-			me.Name = username;
-			SendSeatUpdate(me);
-		}
-
-		GD.Print($"[LobbyManager] OAuth Login Success! Provider: {returnedProvider}, User: {username}");
-
-		string successHtml = GetLoginSuccessHtml();
-		SendAuthResponse(response, successHtml);
-
-		_authHttpListener?.Stop();
-		return true;
-	}
-
-	private string GetLoginSuccessHtml()
-	{
-		string successHtml = string.Empty;
-		const string templatePath = "res://Templates/login_success.html";
-
-		if (Godot.FileAccess.FileExists(templatePath))
-		{
-			using var file = Godot.FileAccess.Open(templatePath, Godot.FileAccess.ModeFlags.Read);
-			if (file != null)
-			{
-				successHtml = file.GetAsText();
-			}
-		}
-		else
-		{
-			string diskPath = Path.Combine(AppContext.BaseDirectory, "Templates", "login_success.html");
-			if (File.Exists(diskPath))
-			{
-				successHtml = File.ReadAllText(diskPath);
-			}
-		}
-
-		return successHtml;
-	}
-
-	private void SendAuthResponse(HttpListenerResponse response, string htmlContent)
-	{
-		byte[] buffer = Encoding.UTF8.GetBytes(htmlContent);
-		response.ContentLength64 = buffer.Length;
-		response.OutputStream.Write(buffer, 0, buffer.Length);
-		response.OutputStream.Close();
-	}
-
 	public override void _ExitTree()
 	{
-		_authHttpListener?.Stop();
+		GameContext.Account.Changed -= OnAccountChanged;
 		GameContext.UnregisterLobby(this);
 	}
 
@@ -2549,6 +2625,15 @@ public partial class LobbyManager : BaseMapTransferNode
 		progressCallback?.Invoke(1.0f);
 		MapDownloadProgressChanged?.Invoke(1.0f);
 		MapDownloadCompleted?.Invoke();
+	}
+
+	/// <summary>
+	///     Gives the multiplayer peer slot back before a lobby or a match claims it, so a seeder that is winding down can never
+	///     leave the registry advertising an address whose socket has already been replaced.
+	/// </summary>
+	private static void ReleaseSeedingSlot()
+	{
+		GameContext.PeerSeeder?.Stop();
 	}
 
 	private bool StopSeedingIfActive()

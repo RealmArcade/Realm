@@ -3,6 +3,7 @@ using Realm.Client.Core;
 using Realm.Client.Network;
 using Realm.Client.ReplaySystem;
 using Realm.Client.UI;
+using Realm.Client.Services.MapHistory;
 using Realm.Client.Services.ModelOptimization;
 using Realm.Ecs;
 using Realm.Ecs.Services;
@@ -68,6 +69,14 @@ namespace Realm.Client.Services
 		public static MapEditorHUD? MapEditorHud { get; private set; }
 		public static SettingsMenu? Settings { get; private set; }
 		public static PropMultiMeshManager? PropMultiMesh { get; private set; }
+
+		private static AccountService? _account;
+
+		public static AccountService Account => _account ??= new AccountService();
+
+		private static SteamService? _steam;
+
+		public static SteamService Steam => _steam ??= new SteamService();
 
 		public static ReplayPlaybackManager ReplayPlayback => _replayPlayback ??= new ReplayPlaybackManager();
 		public static PeerSeederManager PeerSeeder => _peerSeeder ??= new PeerSeederManager();
@@ -154,7 +163,8 @@ namespace Realm.Client.Services
 		public static MapAttributionService MapAttributionService => GlobalScope.Get<MapAttributionService>();
 		public static ModelOptimizerService ModelOptimizerService => GlobalScope.Get<ModelOptimizerService>();
 		public static CheatService CheatService => GlobalScope.Get<CheatService>();
-		public static BaseMapFolderWatchService BaseMapFolderWatchService => GlobalScope.Get<BaseMapFolderWatchService>();
+		public static MapHistoryService MapHistoryService => GlobalScope.Get<MapHistoryService>();
+		public static MapAutosaveService MapAutosaveService => GlobalScope.Get<MapAutosaveService>();
 
 		public static FXService FXService => ScreenScope.Get<FXService>();
 		public static SaveLoadService SaveLoadService => ScreenScope.Get<SaveLoadService>();

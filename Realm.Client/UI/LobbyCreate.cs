@@ -28,8 +28,7 @@ public partial class LobbyCreate : Control
 
 	private Button _backButton;
 	private Button _createButton;
-	private Button _importMapButton;
-	private OptionButton _mapSelectButton;
+	private Button _openMapLibraryButton;
 	private OptionButton _versionSelectButton;
 	private HBoxContainer _versionContainer;
 	private Label _versionLabel;
@@ -37,7 +36,7 @@ public partial class LobbyCreate : Control
 	private TextureRect _mapThumbnail;
 
 	private Label _titleLabel;
-	private Label _mapSelectLabel;
+	private Label _selectedMapNameLabel;
 
 	private Panel? _hostProgressOverlay;
 	private ProgressBar? _hostProgressBar;
@@ -46,6 +45,13 @@ public partial class LobbyCreate : Control
 
 	private List<MapBriefingDetails> _availableMaps = new List<MapBriefingDetails>();
 	private List<string> _availableVersions = new List<string>();
+	private int _selectedMapIndex = -1;
+
+	private Panel? _mapPickerOverlay;
+	private LineEdit? _mapPickerSearch;
+	private GridContainer? _mapPickerGrid;
+	private Label? _mapPickerEmptyLabel;
+	private readonly Dictionary<string, CheckBox> _mapPickerTagChecks = new Dictionary<string, CheckBox>();
 
 	public override void _Ready()
 	{
@@ -62,44 +68,58 @@ public partial class LobbyCreate : Control
 
 		_backButton = GetNode<Button>("BackButton");
 		_createButton = GetNode<Button>("CentralPanel/ContentContainer/CreateButton");
-		_mapSelectButton = GetNode<OptionButton>("CentralPanel/ContentContainer/MapSelectButton");
+		_openMapLibraryButton = GetNode<Button>("CentralPanel/ContentContainer/MapLibraryButton");
 		_briefingPanel = GetNode<PanelContainer>("CentralPanel/ContentContainer/BriefingPanel");
 		_briefingText = GetNode<RichTextLabel>("CentralPanel/ContentContainer/BriefingPanel/TextPanelWrapper/BriefingText");
 
-		var mapSelectHBox = new HBoxContainer();
-		mapSelectHBox.Name = "MapSelectHBox";
-		mapSelectHBox.Alignment = BoxContainer.AlignmentMode.Center;
-		mapSelectHBox.AddThemeConstantOverride("separation", 10);
-		mapSelectHBox.CustomMinimumSize = new Vector2(620, 44);
-		mapSelectHBox.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
+		var contentContainer = _openMapLibraryButton.GetParent();
+		int mapHeaderIndex = _openMapLibraryButton.GetIndex();
+		contentContainer.RemoveChild(_openMapLibraryButton);
 
-		var contentContainer = _mapSelectButton.GetParent();
-		int mapSelectIndex = _mapSelectButton.GetIndex();
-		contentContainer.RemoveChild(_mapSelectButton);
-		contentContainer.AddChild(mapSelectHBox);
-		contentContainer.MoveChild(mapSelectHBox, mapSelectIndex);
+		var mapLibraryButtonLiftFill = new Control();
+		mapLibraryButtonLiftFill.Name = "MapLibraryButtonLiftFill";
+		mapLibraryButtonLiftFill.CustomMinimumSize = new Vector2(0, 50);
 
-		_mapSelectButton.CustomMinimumSize = new Vector2(380, 44);
-		_mapSelectButton.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
-		mapSelectHBox.AddChild(_mapSelectButton);
+		var mapLibraryButtonLift = new VBoxContainer();
+		mapLibraryButtonLift.Name = "MapLibraryButtonLift";
+		mapLibraryButtonLift.AddThemeConstantOverride("separation", 0);
+		mapLibraryButtonLift.AddChild(_openMapLibraryButton);
+		mapLibraryButtonLift.AddChild(mapLibraryButtonLiftFill);
 
-		_importMapButton = new Button();
-		_importMapButton.Name = "ImportMapButton";
-		_importMapButton.AddThemeConstantOverride("icon_max_width", 24);
-		_importMapButton.CustomMinimumSize = new Vector2(210, 44);
-		UIStyle.ApplyButtonText(_importMapButton, "📥 " + TranslationServer.Translate("Import Map (.rmap)"), 13);
-		_importMapButton.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		_importMapButton.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		_importMapButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		_importMapButton.FocusMode = FocusModeEnum.None;
-		_importMapButton.MouseFilter = MouseFilterEnum.Stop;
-		_importMapButton.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
-		_importMapButton.Pressed += () =>
-		{
-			GameContext.UserInterface?.PlayClickSound();
-			GameContext.UserInterface?.PromptAndImportMapArchive((mapTitle, mapVersion) => { RefreshAvailableMaps(mapTitle, mapVersion); });
-		};
-		mapSelectHBox.AddChild(_importMapButton);
+		var mapLibraryButtonLiftOffset = new MarginContainer();
+		mapLibraryButtonLiftOffset.Name = "MapLibraryButtonLiftOffset";
+		mapLibraryButtonLiftOffset.AddThemeConstantOverride("margin_top", -50);
+		mapLibraryButtonLiftOffset.AddChild(mapLibraryButtonLift);
+
+		var mapHeaderVBox = new VBoxContainer();
+		mapHeaderVBox.Name = "MapHeaderVBox";
+		mapHeaderVBox.AddThemeConstantOverride("separation", 9);
+		mapHeaderVBox.AddChild(mapLibraryButtonLiftOffset);
+		contentContainer.AddChild(mapHeaderVBox);
+		contentContainer.MoveChild(mapHeaderVBox, mapHeaderIndex);
+
+		var selectedMapRow = new HBoxContainer();
+		selectedMapRow.Name = "SelectedMapRow";
+		selectedMapRow.Alignment = BoxContainer.AlignmentMode.Center;
+		selectedMapRow.CustomMinimumSize = new Vector2(620, 40);
+		selectedMapRow.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
+
+		var selectedMapRowOffset = new MarginContainer();
+		selectedMapRowOffset.Name = "SelectedMapRowOffset";
+		selectedMapRowOffset.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
+		selectedMapRowOffset.AddThemeConstantOverride("margin_top", -15);
+		selectedMapRowOffset.AddChild(selectedMapRow);
+		mapHeaderVBox.AddChild(selectedMapRowOffset);
+
+		_selectedMapNameLabel = new Label();
+		_selectedMapNameLabel.Name = "SelectedMapNameLabel";
+		_selectedMapNameLabel.HorizontalAlignment = HorizontalAlignment.Center;
+		_selectedMapNameLabel.VerticalAlignment = VerticalAlignment.Center;
+		_selectedMapNameLabel.ClipText = true;
+		_selectedMapNameLabel.CustomMinimumSize = new Vector2(600, 0);
+		_selectedMapNameLabel.AddThemeFontSizeOverride("font_size", 20);
+		_selectedMapNameLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+		selectedMapRow.AddChild(_selectedMapNameLabel);
 
 		_versionContainer = new HBoxContainer();
 		_versionContainer.Name = "VersionContainer";
@@ -122,7 +142,7 @@ public partial class LobbyCreate : Control
 		_versionContainer.AddChild(_versionSelectButton);
 
 		contentContainer.AddChild(_versionContainer);
-		contentContainer.MoveChild(_versionContainer, mapSelectHBox.GetIndex() + 1);
+		contentContainer.MoveChild(_versionContainer, mapHeaderVBox.GetIndex() + 1);
 
 		var textPanelWrapper = GetNode<PanelContainer>("CentralPanel/ContentContainer/BriefingPanel/TextPanelWrapper");
 		var textPanelStyle = UIStyle.CreateBackdropPanel();
@@ -203,23 +223,29 @@ public partial class LobbyCreate : Control
 		_briefingText.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
 		_briefingText.FitContent = false;
 		_briefingText.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+		_briefingText.ScrollActive = true;
+		_briefingText.ScrollFollowing = false;
 
 		briefingVBox.AddChild(textPanelWrapper);
 
 		_briefingPanel.AddChild(briefingVBox);
 
 		_titleLabel = GetNode<Label>("Title");
-		_mapSelectLabel = GetNode<Label>("CentralPanel/ContentContainer/MapSelectLabel");
 
 		ApplyThemeStyles();
 
-		_mapSelectButton.ItemSelected += (idx) => OnMapSelected(idx);
+		_openMapLibraryButton.Pressed += OnOpenMapLibraryPressed;
+		_openMapLibraryButton.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
+		_openMapLibraryButton.TooltipText = TranslationServer.Translate("Open the map library to choose the map you want to host");
 		RefreshAvailableMaps();
 		SetProcess(false);
+		EnsureFestivalFeaturedMapInstalledAsync();
 	}
 
 	public override void _ExitTree()
 	{
+		CloseMapPicker();
+
 		if (GameContext.Lobby != null)
 		{
 			GameContext.Lobby.HostLobbyStageChanged -= OnHostLobbyStageChanged;
@@ -250,19 +276,22 @@ public partial class LobbyCreate : Control
 		_briefingPanel.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
 
 		UIStyle.ApplyTitle(_titleLabel, GameContext.Lobby.IsSinglePlayer ? "SINGLE PLAYER" : "CREATE CUSTOM MATCH", 36);
-		UIStyle.ApplyTitle(_mapSelectLabel, "SELECT MAP", 20);
 
-		Realm.Client.Utils.UIHelper.SetupPillarButton(_backButton, "◀", () => GameContext.UserInterface.TransitionTo(GameContext.Lobby.IsSinglePlayer ? GameScreen.MainMenu : GameScreen.LobbyBrowser));
+		_openMapLibraryButton.Flat = false;
+		_openMapLibraryButton.CustomMinimumSize = new Vector2(240, 46);
+		_openMapLibraryButton.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
+		_openMapLibraryButton.AddThemeConstantOverride("icon_max_width", 20);
+		_openMapLibraryButton.AddThemeConstantOverride("h_separation", 12);
+		_openMapLibraryButton.Icon = UIStyle.GetUnicodeIconTexture(UnicodeIcons.FOLDER_OPEN, 20, UIStyle.ColorGold);
+		UIStyle.ApplyButtonText(_openMapLibraryButton, TranslationServer.Translate("SELECT MAP"), 20);
+		_openMapLibraryButton.AddThemeStyleboxOverride("normal", UIStyle.CreateDropdownStyle(false, false));
+		_openMapLibraryButton.AddThemeStyleboxOverride("hover", UIStyle.CreateDropdownStyle(true, false));
+		_openMapLibraryButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateDropdownStyle(false, true));
+		_openMapLibraryButton.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		_openMapLibraryButton.AddThemeColorOverride("font_pressed_color", UIStyle.ColorCyanGlow);
+
+		UIStyle.ApplyBackButton(_backButton, () => GameContext.UserInterface.TransitionTo(GameContext.Lobby.IsSinglePlayer ? GameScreen.MainMenu : GameScreen.LobbyBrowser));
 		SetupCreateButton();
-
-		_mapSelectButton.AddThemeStyleboxOverride("normal", UIStyle.CreateDropdownStyle(false, false));
-		_mapSelectButton.AddThemeStyleboxOverride("hover", UIStyle.CreateDropdownStyle(true, false));
-		_mapSelectButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateDropdownStyle(false, true));
-		_mapSelectButton.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-		_mapSelectButton.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		_mapSelectButton.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
-		_mapSelectButton.AddThemeColorOverride("font_pressed_color", UIStyle.ColorCyanGlow);
-		_mapSelectButton.AddThemeFontSizeOverride("font_size", 16);
 
 		_versionLabel.Text = Tr("VERSION:");
 		_versionLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
@@ -288,7 +317,7 @@ public partial class LobbyCreate : Control
 	{
 		_createButton.Flat = false;
 		_createButton.AddThemeConstantOverride("icon_max_width", 0);
-		UIStyle.ApplyButtonText(_createButton, GameContext.Lobby.IsSinglePlayer ? "START GAME" : "CREATE LOBBY", 18);
+		UIStyle.ApplyButtonText(_createButton, "CREATE LOBBY", 18);
 
 		_createButton.AddThemeStyleboxOverride("normal", UIStyle.CreateCustomLobbyStartGameButton(false, false));
 		_createButton.AddThemeStyleboxOverride("hover", UIStyle.CreateCustomLobbyStartGameButton(true, false));
@@ -319,13 +348,21 @@ public partial class LobbyCreate : Control
 
 	private async Task ContinueHosting(string pathName, string displayName, string selectedVersion)
 	{
+		GameSettings.LastHostedMapName = pathName;
+		GameSettings.LastHostedMapVersion = selectedVersion;
+		GameSettings.Save();
+
 		if (GameContext.Lobby.IsSinglePlayer)
 		{
 			_createButton.Disabled = true;
-			bool started = await GameContext.Lobby.HostSinglePlayerGame(pathName, displayName, selectedVersion);
+			bool hosted = await GameContext.Lobby.HostSinglePlayerLobbyAsync(pathName, selectedVersion);
 			_createButton.Disabled = false;
 
-			if (started) return;
+			if (hosted)
+			{
+				GameContext.UserInterface.TransitionTo(GameScreen.LobbyRoom);
+				return;
+			}
 
 			GameContext.UserInterface.PlayWarningSound();
 			ShowHostErrorModal(GameContext.Lobby.LastHostError ?? Tr("Failed to start the match."));
@@ -355,12 +392,67 @@ public partial class LobbyCreate : Control
 		{
 			GameContext.UserInterface.PlayWarningSound();
 			GD.PrintErr("[LobbyCreate] Failed to host lobby.");
+
+			if (GameContext.Lobby.LocalNatType == NatType.Symmetric)
+			{
+				ShowNatErrorModal();
+				return;
+			}
+
 			string errorMsg = GameContext.Lobby.LastHostError ?? Tr("Failed to host lobby on the registry server.");
 			ShowHostErrorModal(errorMsg);
 		}
 	}
 
-	private void ShowHostProgressOverlay()
+	private async void EnsureFestivalFeaturedMapInstalledAsync()
+	{
+		if (!BuildFlags.IS_AUTOBATTLE_FESTIVAL_ACTIVE) return;
+		if (MapProvisioningService.IsInstalled(BuildFlags.FESTIVAL_FEATURED_MAP_NAME)) return;
+
+		_createButton.Disabled = true;
+		ShowHostProgressOverlay(
+			TranslationServer.Translate("PREPARING MAP"),
+			TranslationServer.Translate("Looking for the newest version of `Chaos Arena` map..."));
+
+		bool installed = await MapProvisioningService.DownloadLatestAsync(BuildFlags.FESTIVAL_FEATURED_MAP_NAME, ReportFestivalMapDownloadProgress);
+		if (!GodotObject.IsInstanceValid(this) || !IsInsideTree()) return;
+
+		HideHostProgressOverlay();
+		_createButton.Disabled = false;
+
+		if (installed)
+		{
+			RefreshAvailableMaps();
+			return;
+		}
+
+		ShowFestivalMapUnavailableModal();
+	}
+
+	private void ReportFestivalMapDownloadProgress(float progress)
+	{
+		Callable.From(() => UpdateFestivalMapDownloadProgress(progress)).CallDeferred();
+	}
+
+	private void UpdateFestivalMapDownloadProgress(float progress)
+	{
+		if (_hostProgressBar == null || _hostProgressStatusLabel == null) return;
+		if (!GodotObject.IsInstanceValid(_hostProgressBar) || !GodotObject.IsInstanceValid(_hostProgressStatusLabel)) return;
+
+		double percent = Math.Clamp(progress * 100.0, 0, 100);
+		_hostProgressStatusLabel.Text = string.Format(TranslationServer.Translate("Downloading map... {0}%"), (int)percent);
+		_hostProgressBar.Value = Math.Max(_hostProgressBar.Value, percent);
+		_hostProgressCeiling = _hostProgressBar.Value;
+	}
+
+	private void ShowFestivalMapUnavailableModal()
+	{
+		GameContext.UserInterface?.ShowPopupMessage(
+			TranslationServer.Translate("MAP UNAVAILABLE"),
+			TranslationServer.Translate("The map (Chaos Arena) could not be downloaded. Check your internet connection, then open this screen again."));
+	}
+
+	private void ShowHostProgressOverlay(string? titleText = null, string? initialStatus = null)
 	{
 		var overlay = new Panel();
 		overlay.Name = "HostProgressOverlay";
@@ -387,7 +479,7 @@ public partial class LobbyCreate : Control
 
 		var titleLabel = new Label();
 		titleLabel.Name = "HostProgressTitle_Label";
-		UIStyle.ApplyTitle(titleLabel, TranslationServer.Translate("CREATING LOBBY"), 22);
+		UIStyle.ApplyTitle(titleLabel, titleText ?? TranslationServer.Translate("CREATING LOBBY"), 22);
 		titleLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		titleLabel.HorizontalAlignment = HorizontalAlignment.Center;
 		vbox.AddChild(titleLabel);
@@ -403,7 +495,7 @@ public partial class LobbyCreate : Control
 
 		var statusLabel = new Label();
 		statusLabel.Name = "HostProgressStatus_Label";
-		statusLabel.Text = TranslationServer.Translate("Preparing the lobby...");
+		statusLabel.Text = initialStatus ?? TranslationServer.Translate("Preparing the lobby...");
 		statusLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
 		statusLabel.CustomMinimumSize = new Vector2(500, 0);
 		statusLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
@@ -478,10 +570,9 @@ public partial class LobbyCreate : Control
 
 	private (string PathName, string DisplayName, string BuildNumber) GetSelectedMapInfo()
 	{
-		int selectedIndex = _mapSelectButton.Selected;
-		if (selectedIndex >= 0 && selectedIndex < _availableMaps.Count)
+		if (_selectedMapIndex >= 0 && _selectedMapIndex < _availableMaps.Count)
 		{
-			var map = _availableMaps[selectedIndex];
+			var map = _availableMaps[_selectedMapIndex];
 			return (map.PathName, map.DisplayName, map.GameBuildNumber);
 		}
 
@@ -515,10 +606,10 @@ public partial class LobbyCreate : Control
 
 	private void ShowNatErrorModal()
 	{
-		GameContext.UserInterface?.ShowPopupMessage("HOSTING ERROR", "STUN test determines you cannot host a game due to a Symmetric NAT router configuration. Please configure port forwarding or UPnP.", () =>
-		{
-			GameContext.UserInterface.TransitionTo(GameScreen.LobbyBrowser);
-		});
+		GameContext.UserInterface?.ShowPopupMessage(
+			TranslationServer.Translate("CANNOT HOST A GAME"),
+			TranslationServer.Translate("Your internet provider's network prevents other players from connecting to a game you host.\n\nYou can join another player's lobby, or play single player against AI bots."),
+			() => GameContext.UserInterface.TransitionTo(GameScreen.LobbyBrowser));
 	}
 
 	private void ShowHostErrorModal(string errorMessage)
@@ -529,49 +620,415 @@ public partial class LobbyCreate : Control
 	private void RefreshAvailableMaps(string? selectMapName = null, string? selectMapVersion = null)
 	{
 		_availableMaps = MapInfoHelper.GetAvailableMaps();
-		_mapSelectButton.Clear();
-		int targetIndex = 0;
+
+		if (_availableMaps.Count == 0)
+		{
+			_selectedMapIndex = -1;
+			_selectedMapNameLabel.Text = TranslationServer.Translate("No maps installed");
+			_selectedMapNameLabel.TooltipText = string.Empty;
+			_briefingText.Text = string.Empty;
+			_mapThumbnail.Texture = UIStyle.EmptyBlackTexture;
+			_availableVersions.Clear();
+			_versionSelectButton.Clear();
+			CloseMapPicker();
+			return;
+		}
+
+		SelectMap(ResolvePreferredMapIndex(selectMapName), selectMapVersion);
+		RefreshMapPickerGrid();
+	}
+
+	private int ResolvePreferredMapIndex(string? requestedMapName)
+	{
+		int requestedIndex = IndexOfMap(requestedMapName);
+		if (requestedIndex >= 0) return requestedIndex;
+
+		if (BuildFlags.IS_AUTOBATTLE_FESTIVAL_ACTIVE)
+		{
+			int festivalIndex = IndexOfMap(BuildFlags.FESTIVAL_FEATURED_MAP_NAME);
+			if (festivalIndex >= 0) return festivalIndex;
+		}
+
+		int lastHostedIndex = IndexOfMap(GameSettings.LastHostedMapName);
+		if (lastHostedIndex >= 0) return lastHostedIndex;
+
+		for (int i = 0; i < _availableMaps.Count; i++)
+		{
+			if (!IsAssetPackMap(_availableMaps[i])) return i;
+		}
+
+		return 0;
+	}
+
+	private int IndexOfMap(string? mapName)
+	{
+		if (string.IsNullOrWhiteSpace(mapName)) return -1;
+
+		string normalizedMapName = NormalizeMapName(mapName);
 
 		for (int i = 0; i < _availableMaps.Count; i++)
 		{
 			var map = _availableMaps[i];
-			_mapSelectButton.AddItem(map.DisplayName);
 
-			if (!string.IsNullOrEmpty(selectMapName) &&
-			    (string.Equals(map.DisplayName, selectMapName, StringComparison.OrdinalIgnoreCase) ||
-			     string.Equals(map.PathName, selectMapName, StringComparison.OrdinalIgnoreCase)))
-			{
-				targetIndex = i;
-			}
+			if (string.Equals(map.PathName, mapName, StringComparison.OrdinalIgnoreCase)) return i;
+			if (string.Equals(map.DisplayName, mapName, StringComparison.OrdinalIgnoreCase)) return i;
+			if (string.Equals(NormalizeMapName(map.PathName), normalizedMapName, StringComparison.Ordinal)) return i;
+			if (string.Equals(NormalizeMapName(map.DisplayName), normalizedMapName, StringComparison.Ordinal)) return i;
 		}
 
-		if (_mapSelectButton.ItemCount > 0)
-		{
-			_mapSelectButton.Selected = targetIndex;
-			OnMapSelected(targetIndex, selectMapVersion);
-		}
+		return -1;
 	}
 
-	private void OnMapSelected(long index)
+	private static string NormalizeMapName(string mapName)
 	{
-		OnMapSelected(index, null);
+		return mapName.Replace(" ", string.Empty).Replace("_", string.Empty).Replace("-", string.Empty).Trim().ToLowerInvariant();
 	}
 
-	private void OnMapSelected(long index, string? targetVersion)
+	private static bool IsAssetPackMap(MapBriefingDetails map)
 	{
-		GameContext.UserInterface?.PlayClickSound();
+		if (string.Equals((map.MapType ?? string.Empty).Trim(), MapTagCatalog.AssetPackTag, StringComparison.OrdinalIgnoreCase)) return true;
+		if (map.Tags == null) return false;
 
-		if (index < 0 || index >= _availableMaps.Count)
+		foreach (string mapTag in map.Tags)
 		{
-			return;
+			if (string.IsNullOrWhiteSpace(mapTag)) continue;
+			if (string.Equals(mapTag.Trim(), MapTagCatalog.AssetPackTag, StringComparison.OrdinalIgnoreCase)) return true;
 		}
 
-		var selectedMap = _availableMaps[(int)index];
+		return false;
+	}
+
+	private void SelectMap(int index, string? targetVersion = null)
+	{
+		if (index < 0 || index >= _availableMaps.Count) return;
+
+		_selectedMapIndex = index;
+		var selectedMap = _availableMaps[index];
+
+		_selectedMapNameLabel.Text = selectedMap.DisplayName;
+		_selectedMapNameLabel.TooltipText = DescribeMapForPicker(selectedMap);
+
+		string? resolvedVersion = targetVersion;
+		if (string.IsNullOrEmpty(resolvedVersion) &&
+		    string.Equals(selectedMap.PathName, GameSettings.LastHostedMapName, StringComparison.OrdinalIgnoreCase))
+		{
+			resolvedVersion = GameSettings.LastHostedMapVersion;
+		}
+
 		_briefingText.Text = selectedMap.Description;
-		RefreshVersionsForSelectedMap(selectedMap, targetVersion);
+		_briefingText.ScrollToLine(0);
+		RefreshVersionsForSelectedMap(selectedMap, resolvedVersion);
 
 		string thumbPath = GetMapThumbnailPath(selectedMap);
 		LoadThumbnailTexture(thumbPath);
+	}
+
+	private void OnOpenMapLibraryPressed()
+	{
+		GameContext.UserInterface?.PlayClickSound();
+
+		if (_mapPickerOverlay != null && GodotObject.IsInstanceValid(_mapPickerOverlay))
+		{
+			CloseMapPicker();
+			return;
+		}
+
+		ShowMapPicker();
+	}
+
+	private void ShowMapPicker()
+	{
+		var overlay = new Panel();
+		overlay.Name = "MapPickerOverlay";
+		overlay.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+		overlay.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
+		overlay.ZIndex = 1150;
+		AddChild(overlay);
+		_mapPickerOverlay = overlay;
+
+		var center = new CenterContainer();
+		center.Name = "MapPickerCenter";
+		center.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+		overlay.AddChild(center);
+
+		var panel = new PanelContainer();
+		panel.Name = "MapPickerPanel";
+		panel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
+		panel.CustomMinimumSize = new Vector2(1060, 640);
+		center.AddChild(panel);
+
+		var vbox = new VBoxContainer();
+		vbox.Name = "MapPickerVBox";
+		vbox.AddThemeConstantOverride("separation", 12);
+		panel.AddChild(vbox);
+
+		var titleLabel = new Label();
+		titleLabel.Name = "MapPickerTitle_Label";
+		UIStyle.ApplyTitle(titleLabel, TranslationServer.Translate("MAP LIBRARY"), 22);
+		titleLabel.HorizontalAlignment = HorizontalAlignment.Center;
+		vbox.AddChild(titleLabel);
+
+		var searchBar = new LineEdit();
+		searchBar.Name = "MapPickerSearch_LineEdit";
+		searchBar.PlaceholderText = TranslationServer.Translate("Search maps by name...");
+		searchBar.ClearButtonEnabled = true;
+		searchBar.CustomMinimumSize = new Vector2(1000, 44);
+		searchBar.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		searchBar.AddThemeStyleboxOverride("normal", UIStyle.CreateCustomLobbySearchInput(false));
+		searchBar.AddThemeStyleboxOverride("focus", UIStyle.CreateCustomLobbySearchInput(true));
+		searchBar.TextChanged += _ => RefreshMapPickerGrid();
+		vbox.AddChild(searchBar);
+		_mapPickerSearch = searchBar;
+
+		var filterRow = new HFlowContainer();
+		filterRow.Name = "MapPickerFilters_HFlowContainer";
+		filterRow.AddThemeConstantOverride("h_separation", 18);
+		filterRow.AddThemeConstantOverride("v_separation", 6);
+		vbox.AddChild(filterRow);
+
+		_mapPickerTagChecks.Clear();
+		foreach (string tag in MapTagCatalog.MapFilters)
+		{
+			var tagCheckBox = new CheckBox();
+			tagCheckBox.Name = "MapPickerTag_" + tag.Replace(" ", string.Empty);
+			tagCheckBox.Text = MapTagCatalog.GetDisplayName(tag);
+			tagCheckBox.FocusMode = FocusModeEnum.None;
+			tagCheckBox.Pressed += () =>
+			{
+				GameContext.UserInterface?.PlayClickSound();
+				RefreshMapPickerGrid();
+			};
+			tagCheckBox.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
+
+			if (string.Equals(tag, MapTagCatalog.AssetPackTag, StringComparison.Ordinal))
+			{
+				tagCheckBox.TooltipText = TranslationServer.Translate("Also list asset packs, which carry shared assets and cannot be hosted on their own");
+			}
+
+			UIStyle.ApplyCheckboxStyle(tagCheckBox);
+			filterRow.AddChild(tagCheckBox);
+			_mapPickerTagChecks[tag] = tagCheckBox;
+		}
+
+		var scroll = new ScrollContainer();
+		scroll.Name = "MapPickerScroll_ScrollContainer";
+		scroll.CustomMinimumSize = new Vector2(1000, 460);
+		scroll.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		scroll.SizeFlagsVertical = SizeFlags.ExpandFill;
+		scroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
+		vbox.AddChild(scroll);
+
+		var grid = new GridContainer();
+		grid.Name = "MapPickerGrid_GridContainer";
+		grid.Columns = 3;
+		grid.AddThemeConstantOverride("h_separation", 12);
+		grid.AddThemeConstantOverride("v_separation", 10);
+		grid.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		scroll.AddChild(grid);
+		_mapPickerGrid = grid;
+
+		var emptyLabel = new Label();
+		emptyLabel.Name = "MapPickerEmpty_Label";
+		emptyLabel.Text = TranslationServer.Translate("No map matches the search and filters.");
+		emptyLabel.Visible = false;
+		emptyLabel.HorizontalAlignment = HorizontalAlignment.Center;
+		emptyLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+		emptyLabel.CustomMinimumSize = new Vector2(1000, 0);
+		emptyLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		emptyLabel.AddThemeFontSizeOverride("font_size", 14);
+		emptyLabel.AddThemeColorOverride("font_color", new Color(0.88f, 0.9f, 0.95f));
+		vbox.AddChild(emptyLabel);
+		_mapPickerEmptyLabel = emptyLabel;
+
+		var footer = new HBoxContainer();
+		footer.Name = "MapPickerFooter_HBoxContainer";
+		footer.Alignment = BoxContainer.AlignmentMode.Center;
+		footer.AddThemeConstantOverride("separation", 16);
+		vbox.AddChild(footer);
+
+		var importButton = new Button();
+		importButton.Name = "MapPickerImportButton";
+		importButton.CustomMinimumSize = new Vector2(260, 44);
+		importButton.FocusMode = FocusModeEnum.None;
+		importButton.MouseFilter = MouseFilterEnum.Stop;
+		importButton.AddThemeConstantOverride("icon_max_width", 24);
+		UIStyle.ApplyButtonText(importButton, "📥 " + TranslationServer.Translate("Import Map (.rmap)"), 13);
+		importButton.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
+		importButton.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
+		importButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
+		importButton.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		importButton.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
+		importButton.Pressed += () =>
+		{
+			GameContext.UserInterface?.PlayClickSound();
+			GameContext.UserInterface?.PromptAndImportMapArchive((mapTitle, mapVersion) =>
+			{
+				RefreshAvailableMaps(mapTitle, mapVersion);
+				CloseMapPicker();
+			});
+		};
+		footer.AddChild(importButton);
+
+		var closeButton = new Button();
+		closeButton.Name = "MapPickerCloseButton";
+		closeButton.CustomMinimumSize = new Vector2(200, 44);
+		closeButton.FocusMode = FocusModeEnum.None;
+		closeButton.AddThemeConstantOverride("icon_max_width", 0);
+		UIStyle.ApplyButtonText(closeButton, TranslationServer.Translate("CLOSE"), 15);
+		closeButton.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
+		closeButton.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
+		closeButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
+		closeButton.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		closeButton.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
+		closeButton.Pressed += () =>
+		{
+			GameContext.UserInterface?.PlayClickSound();
+			CloseMapPicker();
+		};
+		footer.AddChild(closeButton);
+
+		RefreshMapPickerGrid();
+	}
+
+	private void CloseMapPicker()
+	{
+		_mapPickerSearch = null;
+		_mapPickerGrid = null;
+		_mapPickerEmptyLabel = null;
+		_mapPickerTagChecks.Clear();
+
+		if (_mapPickerOverlay != null && GodotObject.IsInstanceValid(_mapPickerOverlay))
+		{
+			_mapPickerOverlay.QueueFree();
+		}
+
+		_mapPickerOverlay = null;
+	}
+
+	private void RefreshMapPickerGrid()
+	{
+		if (_mapPickerGrid == null || !GodotObject.IsInstanceValid(_mapPickerGrid)) return;
+
+		foreach (Node child in _mapPickerGrid.GetChildren())
+		{
+			_mapPickerGrid.RemoveChild(child);
+			child.QueueFree();
+		}
+
+		string searchText = _mapPickerSearch != null && GodotObject.IsInstanceValid(_mapPickerSearch) ? _mapPickerSearch.Text.Trim() : string.Empty;
+		bool includeAssetPacks = IsMapPickerTagChecked(MapTagCatalog.AssetPackTag);
+
+		var requiredTags = new List<string>();
+		foreach (string tag in MapTagCatalog.MapFilters)
+		{
+			if (string.Equals(tag, MapTagCatalog.AssetPackTag, StringComparison.Ordinal)) continue;
+			if (IsMapPickerTagChecked(tag)) requiredTags.Add(tag);
+		}
+
+		int shownMaps = 0;
+		for (int i = 0; i < _availableMaps.Count; i++)
+		{
+			var map = _availableMaps[i];
+
+			if (!includeAssetPacks && IsAssetPackMap(map)) continue;
+			if (searchText.Length > 0 && !MatchesSearchText(map, searchText)) continue;
+			if (requiredTags.Count > 0 && !HasAnyTag(map, requiredTags)) continue;
+
+			_mapPickerGrid.AddChild(CreateMapPickerTile(map, i));
+			shownMaps++;
+		}
+
+		if (_mapPickerEmptyLabel != null && GodotObject.IsInstanceValid(_mapPickerEmptyLabel))
+		{
+			_mapPickerEmptyLabel.Visible = shownMaps == 0;
+		}
+	}
+
+	private bool IsMapPickerTagChecked(string tag)
+	{
+		return _mapPickerTagChecks.TryGetValue(tag, out var tagCheckBox) &&
+		       GodotObject.IsInstanceValid(tagCheckBox) &&
+		       tagCheckBox.ButtonPressed;
+	}
+
+	private static bool MatchesSearchText(MapBriefingDetails map, string searchText)
+	{
+		if (map.DisplayName.Contains(searchText, StringComparison.OrdinalIgnoreCase)) return true;
+		if (map.PathName.Contains(searchText, StringComparison.OrdinalIgnoreCase)) return true;
+		if (map.Tags == null) return false;
+
+		foreach (string mapTag in map.Tags)
+		{
+			if (!string.IsNullOrWhiteSpace(mapTag) && mapTag.Contains(searchText, StringComparison.OrdinalIgnoreCase)) return true;
+		}
+
+		return false;
+	}
+
+	private static bool HasAnyTag(MapBriefingDetails map, List<string> requiredTags)
+	{
+		if (map.Tags == null) return false;
+
+		foreach (string mapTag in map.Tags)
+		{
+			if (string.IsNullOrWhiteSpace(mapTag)) continue;
+
+			foreach (string requiredTag in requiredTags)
+			{
+				if (string.Equals(mapTag.Trim(), requiredTag, StringComparison.OrdinalIgnoreCase)) return true;
+			}
+		}
+
+		return false;
+	}
+
+	private Button CreateMapPickerTile(MapBriefingDetails map, int mapIndex)
+	{
+		var tile = new Button();
+		tile.Name = "MapPickerTile_" + map.PathName;
+		tile.Text = map.DisplayName;
+		tile.TooltipText = DescribeMapForPicker(map);
+		tile.CustomMinimumSize = new Vector2(320, 44);
+		tile.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		tile.ClipText = true;
+		tile.FocusMode = FocusModeEnum.None;
+		tile.AddThemeConstantOverride("icon_max_width", 0);
+		tile.AddThemeStyleboxOverride("normal", UIStyle.CreateDropdownStyle(false, false));
+		tile.AddThemeStyleboxOverride("hover", UIStyle.CreateDropdownStyle(true, false));
+		tile.AddThemeStyleboxOverride("pressed", UIStyle.CreateDropdownStyle(false, true));
+		tile.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		tile.AddThemeColorOverride("font_color", mapIndex == _selectedMapIndex ? UIStyle.ColorCyanGlow : UIStyle.ColorGoldDull);
+		tile.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
+		tile.AddThemeColorOverride("font_pressed_color", UIStyle.ColorCyanGlow);
+		tile.AddThemeFontSizeOverride("font_size", 15);
+		tile.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
+		tile.Pressed += () =>
+		{
+			GameContext.UserInterface?.PlayClickSound();
+			SelectMap(mapIndex);
+			CloseMapPicker();
+		};
+
+		return tile;
+	}
+
+	private static string DescribeMapForPicker(MapBriefingDetails map)
+	{
+		string version = string.IsNullOrWhiteSpace(map.Version) ? "1.0.0" : map.Version.TrimStart('v', 'V');
+		string description = $"{map.DisplayName}\n{string.Format(TranslationServer.Translate("Version: {0}"), version)}";
+
+		if (map.Tags != null)
+		{
+			var shownTags = new List<string>();
+			foreach (string mapTag in map.Tags)
+			{
+				if (!string.IsNullOrWhiteSpace(mapTag)) shownTags.Add(mapTag.Trim());
+			}
+
+			if (shownTags.Count > 0) description += $"\n{string.Join(", ", shownTags)}";
+		}
+
+		return description;
 	}
 
 	private string GetMapThumbnailPath(MapBriefingDetails selectedMap)

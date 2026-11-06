@@ -1549,9 +1549,17 @@ public static class Program
 
 		PrintKeygenHeader(publicKeyBase64, privateKeyBase64);
 
+		string keyUsername = !string.IsNullOrWhiteSpace(options.Username) ? options.Username.Trim() : string.Empty;
+
+		if (string.IsNullOrWhiteSpace(options.Output) && keyUsername.Length == 0)
+		{
+			Console.Error.WriteLine("Error: An authorship key is named after its user, so keygen needs --username (or an explicit --output path).");
+			return 1;
+		}
+
 		string outputPath = !string.IsNullOrWhiteSpace(options.Output)
 			? options.Output.Trim()
-			: AuthorshipKeyHelper.GetDefaultAuthorshipKeyPath();
+			: AuthorshipKeyHelper.GetDefaultAuthorshipKeyPath(null, keyUsername);
 
 		string? outDir = Path.GetDirectoryName(outputPath);
 		if (!string.IsNullOrEmpty(outDir) && !Directory.Exists(outDir))
@@ -1559,15 +1567,10 @@ public static class Program
 			Directory.CreateDirectory(outDir);
 		}
 
-		string keyUsername = !string.IsNullOrWhiteSpace(options.Username) ? options.Username.Trim() : string.Empty;
 		byte[] rkeyBytes = RkeyFile.Build(keyUsername, publicKeyBase64, privateKeyBase64);
 		File.WriteAllBytes(outputPath, rkeyBytes);
 		Console.WriteLine($"Saved key container to: {outputPath}");
-
-		if (options.Register || !string.IsNullOrWhiteSpace(options.Username))
-		{
-			RegisterKeygenUser(options, publicKeyBase64, privateKeyBase64);
-		}
+		Console.WriteLine("Open the map editor and register the key from the publish dialog to lock this name to your Steam account.");
 
 		Console.WriteLine();
 		Console.WriteLine("To graduate this key pair to an Admin Key:");
@@ -1586,42 +1589,6 @@ public static class Program
 		Console.WriteLine($"Public Key (Base64):  {publicKeyBase64}");
 		Console.WriteLine($"Private Key (Base64): {privateKeyBase64}");
 		Console.WriteLine();
-	}
-
-	private static void RegisterKeygenUser(KeygenOptions options, string publicKeyBase64, string privateKeyBase64)
-	{
-		string serverUrl = !string.IsNullOrWhiteSpace(options.Server) ? options.Server : ServersConfigHelper.GetDefaultServerUrl();
-		string username = !string.IsNullOrWhiteSpace(options.Username) ? options.Username.Trim() : "Creator_" + Guid.NewGuid().ToString("N")[..6];
-		string payload = $"{username}:{publicKeyBase64}";
-		string signature = AuthorSignatureHelper.SignMessage(privateKeyBase64, payload);
-
-		Console.WriteLine($"Registering username '{username}' with {serverUrl}...");
-		try
-		{
-			using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
-			var regPayload = new
-			{
-				Username = username,
-				PublicKey = publicKeyBase64,
-				Signature = signature
-			};
-			var content = new StringContent(JsonSerializer.Serialize(regPayload), Encoding.UTF8, "application/json");
-			var response = httpClient.PostAsync($"{serverUrl.TrimEnd('/')}/api/creators/register", content).GetAwaiter().GetResult();
-			string responseText = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
-
-			if (response.IsSuccessStatusCode)
-			{
-				Console.WriteLine($"[Success] Username '{username}' locked to public key on registry server.");
-			}
-			else
-			{
-				Console.Error.WriteLine($"[Failed] Registration returned HTTP {(int)response.StatusCode}: {responseText}");
-			}
-		}
-		catch (Exception ex)
-		{
-			Console.Error.WriteLine($"[Error] Could not connect to server to register username: {ex.Message}");
-		}
 	}
 
 	private static int ExecuteGenerateManifestSchema(GenerateManifestSchemaOptions options)

@@ -1733,7 +1733,7 @@ namespace Realm.Client.Core
 		{
 			if (!UnitRegistry.ContainsKey(reqId) && !BuildingRegistry.ContainsKey(reqId))
 			{
-				LoadUnitMetadata(!string.IsNullOrEmpty(GameContext.MapStorageService.CurrentMapDirectory) ? GameContext.MapStorageService.CurrentMapDirectory : ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath));
+				LoadUnitMetadata(!string.IsNullOrEmpty(GameContext.MapStorageService.CurrentMapDirectory) ? GameContext.MapStorageService.CurrentMapDirectory : GameContext.EditorService._editingDirectory);
 			}
 
 			bool isBuilding = false;
@@ -1765,7 +1765,7 @@ namespace Realm.Client.Core
 		{
 			if (!HasPreviewPropRequirement(reqId))
 			{
-				LoadUnitMetadata(!string.IsNullOrEmpty(GameContext.MapStorageService.CurrentMapDirectory) ? GameContext.MapStorageService.CurrentMapDirectory : ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath));
+				LoadUnitMetadata(!string.IsNullOrEmpty(GameContext.MapStorageService.CurrentMapDirectory) ? GameContext.MapStorageService.CurrentMapDirectory : GameContext.EditorService._editingDirectory);
 				if (!HasPreviewPropRequirement(reqId))
 				{
 					return;
@@ -2664,23 +2664,32 @@ namespace Realm.Client.Core
 			GameContext.ReplayPlayback.StopReplay();
 			EndJoinedMatch();
 			GameContext.SessionState.IsMapEditorMode = true;
-			GameContext.EditorService.OpenTempWorkspaceSessionDomain();
-
-			string wsPath = !string.IsNullOrEmpty(GameContext.EditorService._tempWorkspacePath)
-				? GameContext.EditorService._tempWorkspacePath
-				: ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
-			try
+			if (GameContext.SessionState.EditorWorldState != null && !string.IsNullOrEmpty(GameContext.SessionState.SavedEditorDirectory))
 			{
-				Directory.CreateDirectory(wsPath);
-				MapWorkspaceService.SetupWorkspace(wsPath, "MapScript");
+				GameContext.EditorService.SetActiveMapDirectory(GameContext.SessionState.SavedEditorDirectory);
+				GameContext.EditorService.SetCurrentSourceFolder(GameContext.SessionState.SavedEditorSourceFolder);
 			}
-			catch (Exception ex)
+
+			GameContext.EditorService.EnsureEditingDirectoryDomain();
+
+			string wsPath = GameContext.EditorService._editingDirectory;
+			if (!string.IsNullOrEmpty(wsPath))
 			{
-				GD.PrintErr($"Failed setting up map workspace: {ex.Message}");
+				try
+				{
+					Directory.CreateDirectory(wsPath);
+					MapWorkspaceService.SetupWorkspace(wsPath, "MapScript");
+				}
+				catch (Exception ex)
+				{
+					GD.PrintErr($"Failed setting up map workspace: {ex.Message}");
+				}
 			}
 
 			ActiveEditorTool = EditorTool.None;
 			EditorHistoryManager.Clear();
+
+			GameContext.SessionState.PendingNewMapOnEditorOpen = false;
 
 			if (GameContext.SessionState.ReturningFromTest)
 			{
@@ -2690,6 +2699,7 @@ namespace Realm.Client.Core
 			{
 				ResetWorldAndState();
 				ClearMapEntirely();
+				GameContext.SessionState.PendingNewMapOnEditorOpen = true;
 			}
 
 			CreateBrushIndicator();
@@ -2764,10 +2774,19 @@ namespace Realm.Client.Core
 
 		private void RestoreEditorDirtyStateAfterTest()
 		{
+			string editingDirectory = GameContext.EditorService._editingDirectory;
+
 			EditorHasUnsavedChanges = GameContext.SessionState.SavedEditorHasUnsavedChanges;
 			GameContext.EditorService.CurrentDirectoryBlake3 = MapWorkspaceService.ComputeDirectoryBlake3Domain(
-				ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath),
+				editingDirectory,
 				MapEditorHUD.IsIgnoredPath);
+
+			if (string.IsNullOrEmpty(editingDirectory)) return;
+
+			string terrainPath = Path.Combine(editingDirectory, "terrain.json");
+			GameContext.EditorService.LastTerrainSyncTime = GameContext.EditorService.GetMaxTerrainWriteTime(terrainPath);
+			GameContext.EditorService.LastMetadataSyncTime = GameContext.EditorService.GetLastWriteTimeSafe(Path.Combine(editingDirectory, "metadata.json"));
+			GameContext.EditorService.StartWorkspaceWatcher(editingDirectory);
 		}
 
 		public void ExitMapEditorMode()
@@ -2984,6 +3003,9 @@ namespace Realm.Client.Core
 		public void ClearRampStartPosExternal()
 		{
 			GameContext.EditorService.SetRampStartPos(null);
+			_rampPressActive = false;
+			_rampPressDragging = false;
+			ClearRampPreviewVisuals();
 		}
 
 		public List<MirroredTransform> GetMirroredTransforms(Vector3 pos, float rotation)
@@ -2994,6 +3016,71 @@ namespace Realm.Client.Core
 		private bool ApplyRampInternal(Vector3 start, Vector3 end)
 		{
 			return GameContext.EditorService.ApplyRamp(start, end, EditorBrushRadius, EditorBlockMode, EditorBlockLevelHeight);
+		}
+
+		private bool CommitRamp(Vector3 start, Vector3 end)
+		{
+			if (GroundTerrain == null || GroundTerrain.Cells == null || GroundTerrain.SplatMap == null || GroundTerrain.PathingCodes == null) return false;
+
+			var cellsBefore = (TerrainCell[,])GroundTerrain.Cells.Clone();
+			var splatBefore = (TerrainSplatWeights[,])GroundTerrain.SplatMap.Clone();
+			var cliffBefore = GroundTerrain.CliffSplatMap != null ? (TerrainSplatWeights[,])GroundTerrain.CliffSplatMap.Clone() : null;
+			var pathingBefore = (int[,])GroundTerrain.PathingCodes.Clone();
+			bool modified = ApplyRampInternal(start, end);
+
+			if (EditorMirrorMode != MirrorMode.None)
+			{
+				var startMirrored = GetMirroredTransforms(start, 0.0f);
+				var endMirrored = GetMirroredTransforms(end, 0.0f);
+				for (int index = 0; index < startMirrored.Count; index++)
+				{
+					if (ApplyRampInternal(startMirrored[index].Position, endMirrored[index].Position)) modified = true;
+				}
+			}
+
+			if (!modified) return false;
+
+			float minX = Mathf.Min(start.X, end.X);
+			float maxX = Mathf.Max(start.X, end.X);
+			float minZ = Mathf.Min(start.Z, end.Z);
+			float maxZ = Mathf.Max(start.Z, end.Z);
+
+			if (EditorMirrorMode != MirrorMode.None)
+			{
+				var startMirrored = GetMirroredTransforms(start, 0.0f);
+				var endMirrored = GetMirroredTransforms(end, 0.0f);
+				for (int index = 0; index < startMirrored.Count; index++)
+				{
+					minX = Mathf.Min(minX, Mathf.Min(startMirrored[index].Position.X, endMirrored[index].Position.X));
+					maxX = Mathf.Max(maxX, Mathf.Max(startMirrored[index].Position.X, endMirrored[index].Position.X));
+					minZ = Mathf.Min(minZ, Mathf.Min(startMirrored[index].Position.Z, endMirrored[index].Position.Z));
+					maxZ = Mathf.Max(maxZ, Mathf.Max(startMirrored[index].Position.Z, endMirrored[index].Position.Z));
+				}
+			}
+
+			float brushRadius = EditorBrushRadius;
+			float quadSize = GroundTerrain.QuadSize;
+			int width = GroundTerrain.Width;
+			int depth = GroundTerrain.Depth;
+
+			int minGridX = Mathf.Clamp(Mathf.FloorToInt((minX - brushRadius) / quadSize + (width - 1) / 2.0f), 0, width - 1);
+			int maxGridX = Mathf.Clamp(Mathf.CeilToInt((maxX + brushRadius) / quadSize + (width - 1) / 2.0f), 0, width - 1);
+			int minGridZ = Mathf.Clamp(Mathf.FloorToInt((minZ - brushRadius) / quadSize + (depth - 1) / 2.0f), 0, depth - 1);
+			int maxGridZ = Mathf.Clamp(Mathf.CeilToInt((maxZ + brushRadius) / quadSize + (depth - 1) / 2.0f), 0, depth - 1);
+
+			Rect2I affected = new Rect2I(minGridX - 2, minGridZ - 2, maxGridX - minGridX + 4, maxGridZ - minGridZ + 4);
+
+			GroundTerrain.UpdateMeshAndPhysics(true, false, affected);
+			AlignAllEntitiesToTerrain(affected);
+			var cellsAfter = (TerrainCell[,])GroundTerrain.Cells.Clone();
+			var splatAfter = (TerrainSplatWeights[,])GroundTerrain.SplatMap.Clone();
+			var cliffAfter = GroundTerrain.CliffSplatMap != null ? (TerrainSplatWeights[,])GroundTerrain.CliffSplatMap.Clone() : null;
+			var pathingAfter = (int[,])GroundTerrain.PathingCodes.Clone();
+			var action = new TerrainModifyAction(cellsBefore, cellsAfter, splatBefore, splatAfter, pathingBefore, pathingAfter, cliffBefore, cliffAfter);
+			EditorHistoryManager.RecordAction(action);
+			EditorHasUnsavedChanges = true;
+			UpdatePathingOverlay();
+			return true;
 		}
 
 		private void ApplyGeneralClumpSpawn(Vector3 centerPos)

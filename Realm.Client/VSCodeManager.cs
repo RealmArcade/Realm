@@ -155,43 +155,61 @@ public partial class VSCodeManager
 		string embedDir = GetVSCodeDirectory();
 		string exePath = Path.Combine(embedDir, "editor", "bin", "codium.exe");
 		string completedMarkerPath = Path.Combine(embedDir, "install_completed.marker");
-		string wasiPath = WasiSdkResolver.ResolveWasiSdkPath();
-		string wasiClangPath = !string.IsNullOrEmpty(wasiPath) ? Path.Combine(wasiPath, "bin", "clang.exe") : string.Empty;
-		string extVersion = GetRealmMapEditorVersion();
-		string extDir = Path.Combine(embedDir, "user-data-dir", "extensions", $"speige.realm-map-editor-{extVersion}");
-		string extensionsDir = Path.Combine(embedDir, "user-data-dir", "extensions");
 
-		if (!AreBasePathsValid(exePath, completedMarkerPath, wasiClangPath, extDir))
-			return false;
-
-		if (!OpencodeCliResolver.IsAvailable())
-			return false;
-
-		return AreExtensionsInstalled(extensionsDir);
-	}
-
-	private bool AreBasePathsValid(string exePath, string completedMarkerPath, string wasiClangPath, string extDir)
-	{
 		if (!File.Exists(exePath) || new FileInfo(exePath).Length == 0)
 			return false;
-		if (!File.Exists(completedMarkerPath))
-			return false;
-		if (string.IsNullOrEmpty(wasiClangPath) || !File.Exists(wasiClangPath) || new FileInfo(wasiClangPath).Length == 0)
-			return false;
-		if (!Directory.Exists(extDir))
-			return false;
-		return true;
+
+		return File.Exists(completedMarkerPath);
 	}
 
-	private bool AreExtensionsInstalled(string extensionsDir)
+	public IReadOnlyList<string> GetMissingDependencies()
 	{
-		foreach (string requiredExt in RequiredExtensions)
+		var missingDependencies = new List<string>();
+		string embedDir = GetVSCodeDirectory();
+		string extensionsDir = Path.Combine(embedDir, "user-data-dir", "extensions");
+
+		string wasiPath = WasiSdkResolver.ResolveWasiSdkPath();
+		string wasiClangPath = !string.IsNullOrEmpty(wasiPath) ? Path.Combine(wasiPath, "bin", "clang.exe") : string.Empty;
+		if (string.IsNullOrEmpty(wasiClangPath) || !File.Exists(wasiClangPath) || new FileInfo(wasiClangPath).Length == 0)
 		{
-			if (!IsExtensionInstalled(extensionsDir, requiredExt))
-				return false;
+			missingDependencies.Add(TranslationServer.Translate("WASI SDK (map compiler)"));
 		}
 
-		return true;
+		string mapEditorExtensionDir = Path.Combine(extensionsDir, $"speige.realm-map-editor-{GetRealmMapEditorVersion()}");
+		if (!Directory.Exists(mapEditorExtensionDir))
+		{
+			missingDependencies.Add(TranslationServer.Translate("Realm Map Editor extension"));
+		}
+
+		foreach (string requiredExtension in RequiredExtensions)
+		{
+			if (!IsExtensionInstalled(extensionsDir, requiredExtension))
+			{
+				missingDependencies.Add(GetExtensionDisplayName(requiredExtension));
+			}
+		}
+
+		if (!OpencodeCliResolver.IsAvailable())
+		{
+			missingDependencies.Add(TranslationServer.Translate("opencode CLI"));
+		}
+
+		return missingDependencies;
+	}
+
+	private static string GetExtensionDisplayName(string extensionId)
+	{
+		switch (extensionId)
+		{
+			case "muhammad-sammy.csharp": return TranslationServer.Translate("C# language support");
+			case "OHZIInteractiveStudio.ohzi-vscode-glb-viewer": return TranslationServer.Translate("3D model viewer");
+			case "Gruntfuggly.todo-tree": return TranslationServer.Translate("TODO tree");
+			case "patcx.vscode-nuget-gallery": return TranslationServer.Translate("NuGet gallery");
+			case "AykutSarac.jsoncrack-vscode": return TranslationServer.Translate("JSON crack");
+			case "vadimcn.vscode-lldb": return TranslationServer.Translate("LLDB debugger");
+			case "haoyangzeng.opencui": return TranslationServer.Translate("opencode panel");
+			default: return extensionId;
+		}
 	}
 
 	public void ForceReinstall()
@@ -541,6 +559,11 @@ public partial class VSCodeManager
 
 	private readonly ConcurrentQueue<string> _pendingExtensionCommands = new ConcurrentQueue<string>();
 
+	public void QueueWorkspaceMetadataReload()
+	{
+		_pendingExtensionCommands.Enqueue("reloadWorkspaceMetadata");
+	}
+
 	public async Task SaveAllOpenFilesAsync()
 	{
 		_pendingExtensionCommands.Enqueue("saveAll");
@@ -745,6 +768,11 @@ public partial class VSCodeManager
 		while (_pendingExtensionCommands.TryDequeue(out var cmd))
 		{
 			commandsArray.Add(cmd);
+		}
+
+		if (GameContext.SessionState.IsMapEditorMode && !string.IsNullOrEmpty(GameContext.EditorService._editingDirectory))
+		{
+			pollResponseObj["workspaceMetadataPath"] = Path.Combine(GameContext.EditorService._editingDirectory, "metadata.json");
 		}
 
 		pollResponseObj["commands"] = commandsArray;
@@ -1095,7 +1123,6 @@ public partial class VSCodeManager
 		try
 		{
 			string fileName = Path.GetFileName(filePath).ToLowerInvariant();
-			EditorService.LastInternalSaveTimeUtc = DateTime.UtcNow;
 
 			string formattedContent = FormatSpecialJsonFile(fileName, filePath, content);
 
@@ -1576,7 +1603,7 @@ public partial class VSCodeManager
 
 	private bool _isLaunchingEditor;
 
-	private async void LaunchOrFocusEditor()
+	private void LaunchOrFocusEditor()
 	{
 		if (_isLaunchingEditor)
 		{
@@ -1605,19 +1632,12 @@ public partial class VSCodeManager
 			string extensionsDir = Path.Combine(serverDataDir, "extensions");
 			string workspacePath = GetMapFolderToOpen(projectRoot);
 
-			await EnsureOpencodeCliInstalledAsync();
-
 			EnsureWorkspaceMapApiDll(projectRoot);
 			EnsureVSCodiumSettings(serverDataDir, workspacePath);
 			RemoveAntigravityExtension(extensionsDir);
 			EnsureOhziExtensionPatched(extensionsDir);
 			EnsureOpencuiExtensionAutoStarts(extensionsDir);
 			PatchVSCodiumConfiguration(embedDir);
-
-			if (IsInstalling && _installTask != null)
-			{
-				await _installTask;
-			}
 
 			StartIpcHttpListener();
 
@@ -1662,6 +1682,8 @@ public partial class VSCodeManager
 					using var reuseProcess = Process.Start(reuseStartInfo);
 				}
 			}
+
+			_ = EnsureOpencodeCliInstalledAsync();
 		}
 		catch (Exception ex)
 		{
@@ -2123,7 +2145,7 @@ public partial class VSCodeManager
 
 	private string GetMapFolderToOpen(string projectRoot)
 	{
-		if (TryGetTempWorkspacePath(out string tempPath))
+		if (TryGetEditingDirectoryPath(out string tempPath))
 			return tempPath;
 
 		if (TryGetRecentMapPath(out string recentPath))
@@ -2136,15 +2158,15 @@ public partial class VSCodeManager
 		return Path.Combine(projectRoot, "Maps", fallbackMap).Replace("\\", "/");
 	}
 
-	private bool TryGetTempWorkspacePath(out string path)
+	private bool TryGetEditingDirectoryPath(out string path)
 	{
 		path = string.Empty;
 		if (GameContext.Host != null && GameContext.SessionState.IsMapEditorMode)
 		{
-			string tempWorkspace = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
-			if (Directory.Exists(tempWorkspace))
+			string editingDirectory = GameContext.EditorService._editingDirectory;
+			if (Directory.Exists(editingDirectory))
 			{
-				path = tempWorkspace.Replace("\\", "/");
+				path = editingDirectory.Replace("\\", "/");
 				return true;
 			}
 		}

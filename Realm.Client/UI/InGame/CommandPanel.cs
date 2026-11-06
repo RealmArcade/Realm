@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Text;
 using Realm.Ecs;
 using Godot;
 using Realm.Client.Core;
@@ -69,6 +70,10 @@ public partial class CommandPanel
 	private int _lastAbilityCount = -1;
 	private int _lastPageIndex = -1;
 	private bool _lastIsBuildSubMenuOpen = false;
+	private int _lastAbilityStateRevision = int.MinValue;
+	private string _lastItemSignature = string.Empty;
+
+	private const string BuildCommandAbilityId = "ability/build";
 
 	private void ClearCommandGrid()
 	{
@@ -81,11 +86,13 @@ public partial class CommandPanel
 		}
 
 		_dynamicBuildButtons.Clear();
+		_lastItemSignature = string.Empty;
 
 		Array.Clear(_displayedGridItems);
 
 		foreach (Node child in _commandGrid.GetChildren())
 		{
+			_commandGrid.RemoveChild(child);
 			child.QueueFree();
 		}
 	}
@@ -139,10 +146,21 @@ public partial class CommandPanel
 		var def = GameContext.Host?.GetAbilityDefinition(item.AbilityId);
 		if (def == null) return;
 
-		string transTooltip = !string.IsNullOrEmpty(def.TooltipTemplate) ? def.TooltipTemplate : "";
-		if (!string.IsNullOrEmpty(transTooltip) && btn.TooltipText != transTooltip)
+		// Godot drops the tooltip popup as soon as its text changes while it is on screen, and a server sync can
+		// resolve a slightly different string moments after the hover opened it. Leave the text alone while the
+		// pointer is on the card so the tooltip stays up for as long as the player keeps hovering.
+		if (!IsPointerOver(btn))
 		{
-			btn.TooltipText = transTooltip;
+			string transTooltip = ResolveAbilityTooltip(item.AbilityId, def, IsAbilityStateDisabled(item.CasterEntity, item.AbilityId), item.ManaCost);
+			if (!string.IsNullOrEmpty(transTooltip) && !item.Hotkey.IsNone)
+			{
+				transTooltip = $"[{item.Hotkey}] {transTooltip}";
+			}
+
+			if (!string.IsNullOrEmpty(transTooltip) && btn.TooltipText != transTooltip)
+			{
+				btn.TooltipText = transTooltip;
+			}
 		}
 
 		if (!string.IsNullOrEmpty(def.IconPath))
@@ -191,30 +209,42 @@ public partial class CommandPanel
 		UpdateAbilityStats(item, ref cdRemaining, ref currentMana);
 
 		var abilityDef = GameContext.Host?.GetAbilityDefinition(item.AbilityId);
-		float maxCd = GetMaxCooldown(abilityDef, cdRemaining);
-		float manaCost = GetEffectiveManaCost(item, abilityDef);
+		float maxCd = GetMaxCooldown(item, abilityDef, cdRemaining);
+
+		// The card carries the caster's effective cost: the per-unit cost the map set, which is what the tooltip
+		// header shows and what the cast gate compares against. The ability definition's cost is shared by every
+		// unit, so reading that here replaced a unit's own number with whichever unit the map set last.
+		float manaCost = item.ManaCost;
 
 		UpdateAbilityLabelsAndSweep(btn, manaCost, cdRemaining, maxCd);
 		UpdateAbilityButtonState(btn, item, currentMana, manaCost, cdRemaining);
 	}
 
-	private float GetMaxCooldown(AbilityDefinition abilityDef, float cdRemaining)
+	private float GetMaxCooldown(CommandCardItem item, AbilityDefinition abilityDef, float cdRemaining)
 	{
 		if (abilityDef != null && abilityDef.Cooldown > 0f) return abilityDef.Cooldown;
-		return Math.Max(10f, cdRemaining);
-	}
 
-	private float GetEffectiveManaCost(CommandCardItem item, AbilityDefinition abilityDef)
-	{
-		if (abilityDef != null && abilityDef.ManaCost > 0f) return abilityDef.ManaCost;
-		return item.ManaCost;
+		// A script-set cooldown carries its own duration, which is the only scale available for a command the map
+		// timed but never defined as an ability. Guessing one made the sweep sit full until the last ten seconds.
+		EcsWorld world = GameContext.World;
+		Entity caster = item.CasterEntity != Entity.Null && world != null && world.IsAlive(item.CasterEntity)
+			? item.CasterEntity
+			: _lastFocusedEntity;
+
+		if (world != null && caster != Entity.Null && world.IsAlive(caster) && world.Has<Cooldowns>(caster))
+		{
+			ref Cooldowns cooldowns = ref world.Get<Cooldowns>(caster);
+			if (cooldowns.TryGetDuration(item.AbilityId, out float duration) && duration > 0f) return duration;
+		}
+
+		return Math.Max(10f, cdRemaining);
 	}
 
 	private void UpdateAbilityButtonState(Button btn, CommandCardItem item, float currentMana, float manaCost, float cdRemaining)
 	{
 		bool notEnoughMana = currentMana < manaCost;
 		bool isItemDisabled = item.IsDisabled?.Invoke() ?? false;
-		bool disabled = cdRemaining > 0f || notEnoughMana || isItemDisabled;
+		bool disabled = (!item.IgnoresCooldownGate && cdRemaining > 0f) || notEnoughMana || isItemDisabled;
 
 		if (btn.Disabled != disabled) btn.Disabled = disabled;
 
@@ -304,6 +334,14 @@ public partial class CommandPanel
 		UpdateCommandPanelState(focusedUnit, viewModel.IsBuildSubMenuOpen);
 	}
 
+	private static bool IsPointerOver(Control control)
+	{
+		if (!GodotObject.IsInstanceValid(control) || !control.IsVisibleInTree()) return false;
+		if (control.GetViewport() == null) return false;
+
+		return new Rect2(Vector2.Zero, control.Size).HasPoint(control.GetLocalMousePosition());
+	}
+
 	private bool GetFocusedUnit(InGameHUDViewModel viewModel, out SelectedUnitInfo focusedUnit)
 	{
 		int focusIdx = viewModel.CycleSelectionIndex;
@@ -322,7 +360,8 @@ public partial class CommandPanel
 			|| focusedUnit.UnitId != _lastFocusedUnitId
 			|| focusedUnit.IsUnderConstruction != _lastIsUnderConstruction
 			|| isMobile != _lastIsMobile
-			|| abilityCount != _lastAbilityCount;
+			|| abilityCount != _lastAbilityCount
+			|| GameContext.RegistryService.AbilityStateRevision != _lastAbilityStateRevision;
 
 		bool subMenuChanged = subMenuOpen != _lastIsBuildSubMenuOpen;
 
@@ -341,6 +380,7 @@ public partial class CommandPanel
 			_lastIsMobile = isMobile;
 			_lastAbilityCount = abilityCount;
 			_lastIsBuildSubMenuOpen = subMenuOpen;
+			_lastAbilityStateRevision = GameContext.RegistryService.AbilityStateRevision;
 
 			_activeItems = GetCommandCardItems(focusedUnit, subMenuOpen);
 			UpdateItemHotkeys();
@@ -349,46 +389,72 @@ public partial class CommandPanel
 		bool pageChanged = _pageIndex != _lastPageIndex;
 		_lastPageIndex = _pageIndex;
 
-		if (needRebuildItems || pageChanged || _commandGrid.GetChildCount() == 0)
+		string itemSignature = ComputeItemSignature();
+	bool itemsChanged = itemSignature != _lastItemSignature;
+
+		if (_commandGrid.GetChildCount() == 0 || itemsChanged || pageChanged)
 		{
 			RebuildCommandGrid();
+			_lastItemSignature = itemSignature;
 		}
 		else
 		{
+			// The same cards are on screen, so refresh them in place. Recreating them would free the node under the
+			// pointer and take its open tooltip with it, which made ability tooltips vanish during a hover.
 			UpdateExistingButtons();
 		}
 	}
 
+	private string ComputeItemSignature()
+	{
+		var builder = new StringBuilder(64);
+		builder.Append(_pageIndex).Append('|');
+		for (int i = 0; i < _activeItems.Count; i++)
+		{
+			CommandCardItem item = _activeItems[i];
+			builder.Append(item.Id).Append('@').Append(item.GridX).Append(',').Append(item.GridY).Append(';');
+		}
+
+		return builder.ToString();
+	}
+
+	private static readonly Key[] GridHotkeys =
+	{
+		Key.Q, Key.W, Key.E, Key.R,
+		Key.A, Key.S, Key.D, Key.F,
+		Key.Z, Key.X, Key.C, Key.V
+	};
+
+	/// <summary>
+	///     A card's key follows its icon: anything the map did not give a hotkey of its own answers to the key of the grid
+	///     slot it is drawn in, so moving or reordering an ability moves its key with it.
+	/// </summary>
 	private void UpdateItemHotkeys()
 	{
 		int totalItems = _activeItems.Count;
-		int pageOffset = _pageIndex * 11;
+		if (totalItems == 0) return;
 
-		Key[] gridHotkeys =
+		GetHotkeyCheckRange(out int startIndex, out int itemsToCheck);
+		CommandCardItem?[] slots = PlaceItemsOnGrid(startIndex, itemsToCheck, totalItems);
+		for (int i = 0; i < itemsToCheck; i++)
 		{
-			Key.Q, Key.W, Key.E, Key.R,
-			Key.A, Key.S, Key.D, Key.F,
-			Key.Z, Key.X, Key.C, Key.V
-		};
-
-		for (int i = 0; i < totalItems; i++)
-		{
-			int localIdx = GetLocalGridIndex(i, totalItems, pageOffset);
-
-			if (localIdx >= 0 && localIdx < 12)
-			{
-				if (_activeItems[i].Hotkey.IsNone)
-				{
-					_activeItems[i].Hotkey = gridHotkeys[localIdx];
-				}
-				FormatItemTooltipHotkey(_activeItems[i]);
-			}
+			if (slots[i] != null) ApplyGridHotkey(slots[i]!, GridHotkeys[i]);
 		}
 	}
 
-	private void FormatItemTooltipHotkey(CommandCardItem item)
+	private static void ApplyGridHotkey(CommandCardItem item, Key key)
+	{
+		if (item.Hotkey.IsNone) item.Hotkey = key;
+		FormatItemTooltipHotkey(item);
+	}
+
+	private static void FormatItemTooltipHotkey(CommandCardItem item)
 	{
 		if (item == null || item.Hotkey.IsNone || string.IsNullOrEmpty(item.Tooltip)) return;
+
+		// A core command is written with a stand-in letter so its localized text can be looked up by that exact string;
+		// the real key replaces it after translation, in SetupBaseButtonProperties.
+		if (item.HotkeyFromGrid) return;
 
 		string tooltip = item.Tooltip;
 		if (tooltip.StartsWith("[")) return;
@@ -396,11 +462,45 @@ public partial class CommandPanel
 		item.Tooltip = $"[{item.Hotkey}] {tooltip}";
 	}
 
-	private int GetLocalGridIndex(int globalIndex, int totalItems, int pageOffset)
+	/// <summary>
+	///     Where each card of the current page is drawn: a card that names a grid slot takes it, and the rest fill what is
+	///     left in the order they were added. Drawing the page and reading its hotkeys both go through here, so a card's
+	///     key can never describe a slot other than the one its icon sits in.
+	/// </summary>
+	private CommandCardItem?[] PlaceItemsOnGrid(int startIndex, int maxItems, int totalItems)
 	{
-		if (totalItems <= 12) return globalIndex;
-		if (globalIndex >= pageOffset && globalIndex < pageOffset + 11) return globalIndex - pageOffset;
-		return -1;
+		var slots = new CommandCardItem?[12];
+		var unslotted = new List<CommandCardItem>();
+
+		for (int i = 0; i < maxItems; i++)
+		{
+			int itemIndex = startIndex + i;
+			if (itemIndex >= totalItems) break;
+
+			var item = _activeItems[itemIndex];
+			if (item.GridX >= 0 && item.GridX < 4 && item.GridY >= 0 && item.GridY < 3)
+			{
+				int slotIndex = item.GridY * 4 + item.GridX;
+				if (slots[slotIndex] == null)
+				{
+					slots[slotIndex] = item;
+					continue;
+				}
+			}
+
+			unslotted.Add(item);
+		}
+
+		int unslottedIdx = 0;
+		for (int i = 0; i < maxItems; i++)
+		{
+			if (slots[i] == null && unslottedIdx < unslotted.Count)
+			{
+				slots[i] = unslotted[unslottedIdx++];
+			}
+		}
+
+		return slots;
 	}
 
 	private void RebuildCommandGrid()
@@ -425,43 +525,7 @@ public partial class CommandPanel
 
 	private void PopulateGridPage(int startIndex, int maxItems, int totalItems, bool hasCycleButton)
 	{
-		Key[] gridHotkeys =
-		{
-			Key.Q, Key.W, Key.E, Key.R,
-			Key.A, Key.S, Key.D, Key.F,
-			Key.Z, Key.X, Key.C, Key.V
-		};
-
-		var gridSlots = new CommandCardItem[12];
-		var unslotted = new List<CommandCardItem>();
-
-		for (int i = 0; i < maxItems; i++)
-		{
-			int itemIndex = startIndex + i;
-			if (itemIndex >= totalItems) break;
-
-			var item = _activeItems[itemIndex];
-			if (item.GridX >= 0 && item.GridX < 4 && item.GridY >= 0 && item.GridY < 3)
-			{
-				int slotIndex = item.GridY * 4 + item.GridX;
-				if (gridSlots[slotIndex] == null)
-				{
-					gridSlots[slotIndex] = item;
-					continue;
-				}
-			}
-
-			unslotted.Add(item);
-		}
-
-		int unslottedIdx = 0;
-		for (int i = 0; i < maxItems; i++)
-		{
-			if (gridSlots[i] == null && unslottedIdx < unslotted.Count)
-			{
-				gridSlots[i] = unslotted[unslottedIdx++];
-			}
-		}
+		CommandCardItem?[] gridSlots = PlaceItemsOnGrid(startIndex, maxItems, totalItems);
 
 		for (int i = 0; i < maxItems; i++)
 		{
@@ -469,11 +533,7 @@ public partial class CommandPanel
 			_displayedGridItems[i] = item;
 			if (item != null)
 			{
-				if (item.Hotkey.IsNone)
-				{
-					item.Hotkey = gridHotkeys[i];
-				}
-				FormatItemTooltipHotkey(item);
+				ApplyGridHotkey(item, GridHotkeys[i]);
 				_commandGrid.AddChild(CreateButtonForItem(item));
 			}
 			else
@@ -571,7 +631,7 @@ public partial class CommandPanel
 
 		var label = new Label();
 		label.Name = "Label_Label";
-		label.Text = TranslationServer.Translate("CYCLE");
+		label.Text = TranslationServer.Translate("Next");
 		label.AddThemeFontSizeOverride("font_size", 10);
 		label.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		label.AddThemeColorOverride("font_outline_color", new Color(0f, 0f, 0f, 0.9f));
@@ -594,13 +654,21 @@ public partial class CommandPanel
 		return btn;
 	}
 
+	private static readonly HashSet<string> s_reportedMissingIcons = new(StringComparer.OrdinalIgnoreCase);
+
 	private Texture2D LoadCommandIcon(string iconPath)
 	{
 		if (string.IsNullOrEmpty(iconPath)) return null;
 		var tex = RtexIconLoader.Load(iconPath);
 		if (tex == null)
 		{
-			GD.PushWarning($"[CommandPanel] Failed to load ability icon at '{iconPath}', using fallback.");
+			// A map can name an icon it never shipped, and the card is rebuilt on every selection. Say it once per
+			// icon instead of once per rebuild, so a genuinely missing asset is still visible in the log.
+			if (s_reportedMissingIcons.Add(iconPath))
+			{
+				GD.PushWarning($"[CommandPanel] Failed to load ability icon at '{iconPath}', using fallback.");
+			}
+
 			tex = RtexIconLoader.Load("res://Assets/UI/alliance_flag.webp");
 		}
 
@@ -637,7 +705,9 @@ public partial class CommandPanel
 		btn.Icon = !string.IsNullOrEmpty(item.IconPath) ? LoadCommandIcon(item.IconPath) : null;
 
 		string transTooltip = TranslationServer.Translate(item.Tooltip);
-		btn.TooltipText = string.IsNullOrEmpty(transTooltip) ? item.Tooltip : transTooltip;
+		if (string.IsNullOrEmpty(transTooltip)) transTooltip = item.Tooltip;
+		if (item.HotkeyFromGrid) transTooltip = WithGridHotkey(transTooltip, item.Hotkey);
+		btn.TooltipText = transTooltip;
 
 		btn.CustomMinimumSize = new Vector2(56, 56);
 		btn.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
@@ -645,6 +715,21 @@ public partial class CommandPanel
 		btn.FocusMode = Control.FocusModeEnum.None;
 		btn.ClipContents = true;
 		btn.AddThemeConstantOverride("icon_max_width", 50);
+	}
+
+	/// <summary>
+	///     Swaps the stand-in letter a core command's tooltip is written with for the key its card actually answers to.
+	///     The substitution happens on the translated text because a tooltip can only be looked up by the exact string it
+	///     was authored with, and the letter is not something a translation should have to carry.
+	/// </summary>
+	private static string WithGridHotkey(string tooltip, HotkeySpec hotkey)
+	{
+		if (string.IsNullOrEmpty(tooltip)) return tooltip;
+
+		int close = tooltip.StartsWith('[') ? tooltip.IndexOf(']') : -1;
+		string body = close > 0 ? tooltip[(close + 1)..].TrimStart() : tooltip;
+
+		return hotkey.IsNone ? body : $"[{hotkey}] {body}";
 	}
 
 	private void AddHotkeyLabelIfNeeded(Button btn, CommandCardItem item)
@@ -769,7 +854,7 @@ public partial class CommandPanel
 			Id = "stop",
 			IconPath = "res://Assets/UI/cancel_button_2.webp",
 			Tooltip = "[S] Cancel Construction",
-			Hotkey = Key.S,
+			HotkeyFromGrid = true,
 			Callback = () => { }
 		};
 	}
@@ -794,7 +879,10 @@ public partial class CommandPanel
 					Id = "build",
 					IconPath = "res://Assets/UI/golden_hammers.webp",
 					Tooltip = "[B] Build Structure",
-					Hotkey = Key.B,
+					HotkeyFromGrid = true,
+					AbilityId = BuildCommandAbilityId,
+					CasterEntity = focusedUnit.Entity,
+					IgnoresCooldownGate = true,
 					Callback = () => GameContext.InGameHud?.EnterBuildSubMenu()
 				});
 			}
@@ -866,28 +954,31 @@ public partial class CommandPanel
 				Id = "move",
 				IconPath = "res://Assets/UI/move_speed.webp",
 				Tooltip = "[M] Move / Right-Click Ground",
-				Hotkey = Key.M,
+				HotkeyFromGrid = true,
 				Callback = () => GameContext.Host?.EnterCommandTargeting("move")
 			});
 
 			items.Add(CreateStopCommand());
 			items.Add(CreateHoldCommand());
 
-			items.Add(new CommandCardItem
+			if (focusedUnit.Damage > 0f)
 			{
-				Id = "attack",
-				IconPath = "res://Assets/UI/battle_axe.webp",
-				Tooltip = "[A] Attack / Attack-Move — Click enemy to attack, click ground to attack-move",
-				Hotkey = Key.A,
-				Callback = () => GameContext.Host?.EnterCommandTargeting("attack")
-			});
+				items.Add(new CommandCardItem
+				{
+					Id = "attack",
+					IconPath = "res://Assets/UI/battle_axe.webp",
+					Tooltip = "[A] Attack / Attack-Move — Click enemy to attack, click ground to attack-move",
+					HotkeyFromGrid = true,
+					Callback = () => GameContext.Host?.EnterCommandTargeting("attack")
+				});
+			}
 
 			items.Add(new CommandCardItem
 			{
 				Id = "patrol",
 				IconPath = "res://Assets/UI/patrol.webp",
 				Tooltip = "[P] Patrol — Unit patrols between current position and target, engaging enemies",
-				Hotkey = Key.P,
+				HotkeyFromGrid = true,
 				Callback = () => GameContext.Host?.EnterCommandTargeting("patrol")
 			});
 		}
@@ -899,7 +990,10 @@ public partial class CommandPanel
 				Id = "build",
 				IconPath = "res://Assets/UI/golden_hammers.webp",
 				Tooltip = "[B] Build Structure",
-				Hotkey = Key.B,
+				HotkeyFromGrid = true,
+				AbilityId = BuildCommandAbilityId,
+				CasterEntity = focusedUnit.Entity,
+				IgnoresCooldownGate = true,
 				Callback = () => GameContext.InGameHud?.EnterBuildSubMenu()
 			});
 		}
@@ -920,7 +1014,7 @@ public partial class CommandPanel
 			Id = "attack",
 			IconPath = "res://Assets/UI/battle_axe.webp",
 			Tooltip = "[A] Attack / Attack-Move — Click enemy to attack, click ground to attack-move",
-			Hotkey = Key.A,
+			HotkeyFromGrid = true,
 			Callback = () => GameContext.Host?.EnterCommandTargeting("attack")
 		});
 
@@ -934,7 +1028,7 @@ public partial class CommandPanel
 			Id = "stop",
 			IconPath = "res://Assets/UI/cancel_button_2.webp",
 			Tooltip = "[S] Stop Selected Units",
-			Hotkey = Key.S,
+			HotkeyFromGrid = true,
 			Callback = () =>
 			{
 				GameContext.InGameHud?.ShowFeedbackText(TranslationServer.Translate("Command: Stop Current Action"), new Color(0.9f, 0.2f, 0.2f));
@@ -950,7 +1044,7 @@ public partial class CommandPanel
 			Id = "hold",
 			IconPath = "res://Assets/UI/magic_upgrade_arrow.webp",
 			Tooltip = "[H] Hold Position — Unit stays put and attacks in place",
-			Hotkey = Key.H,
+			HotkeyFromGrid = true,
 			Callback = () =>
 			{
 				GameContext.InGameHud?.ShowFeedbackText(TranslationServer.Translate("Command: Hold Position"), new Color(0.9f, 0.8f, 0.1f));
@@ -1011,8 +1105,8 @@ public partial class CommandPanel
 				}
 			}
 
-			string itemName = itemMeta != null && !string.IsNullOrEmpty(itemMeta.Name) ? itemMeta.Name : itemId;
-			string itemDesc = itemMeta != null && !string.IsNullOrEmpty(itemMeta.Description) ? itemMeta.Description : $"Buy {itemName} for a nearby combat unit";
+			string itemName = itemMeta != null && !string.IsNullOrEmpty(itemMeta.Name) ? MapText.TranslateName(itemMeta.Name) : itemId;
+			string itemDesc = itemMeta != null && !string.IsNullOrEmpty(itemMeta.Description) ? MapText.Translate(itemMeta.Description) : $"Buy {itemName} for a nearby combat unit";
 			float costGold = itemMeta?.CostGold ?? 0f;
 			string iconPath = itemMeta != null && !string.IsNullOrEmpty(itemMeta.IconPath) ? itemMeta.IconPath : "res://Assets/UI/alliance_flag.webp";
 
@@ -1066,8 +1160,8 @@ public partial class CommandPanel
 				}
 			}
 
-			string name = upgMeta != null && !string.IsNullOrEmpty(upgMeta.Name) ? upgMeta.Name : upgradeId;
-			string desc = upgMeta?.Description ?? "";
+			string name = upgMeta != null && !string.IsNullOrEmpty(upgMeta.Name) ? MapText.TranslateName(upgMeta.Name) : upgradeId;
+			string desc = MapText.Translate(upgMeta?.Description);
 			float gold = upgMeta?.CostGold ?? 0f;
 			float wood = upgMeta?.CostWood ?? 0f;
 			float stone = upgMeta?.CostStone ?? 0f;
@@ -1117,13 +1211,9 @@ public partial class CommandPanel
 				return "";
 			};
 
-			Func<bool> cannotAfford = () =>
-			{
-				var hud = GameContext.InGameHud;
-				if (hud == null) return false;
-				return hud.Gold < gold || hud.Wood < wood || hud.Stone < stone;
-			};
-
+			// What an upgrade costs is not a reason to darken its card: a greyed card says no without saying why, and the
+			// map's resources move while the card is on screen. A player who cannot pay is told so when they ask to buy,
+			// and one who has just been paid for it can always try.
 			items.Add(new CommandCardItem
 			{
 				Id = "upgrade_" + upgradeId,
@@ -1131,11 +1221,50 @@ public partial class CommandPanel
 				Tooltip = tooltip,
 				TooltipContext = TooltipContext.ForUpgrade(focusedUnit.Entity, upgradeId),
 				Hotkey = hotkey,
-				Callback = () => GameContext.Host?.BuyUpgrade(upgradeId, localViewingIndex),
-				IsDisabled = () => isMaxed() || cannotAfford(),
+				Callback = () => PurchaseUpgrade(upgradeId, name, gold, wood, stone, localViewingIndex),
+				IsDisabled = isMaxed,
 				GetButtonText = getButtonText
 			});
 		}
+	}
+
+	/// <summary>
+	///     Asks for an upgrade, and answers for it when the player cannot pay: the cost is named along with what is
+	///     missing, rather than the card being pre-emptively dark and silent.
+	/// </summary>
+	private void PurchaseUpgrade(string upgradeId, string name, float gold, float wood, float stone, int playerIndex)
+	{
+		InGameHUD? hud = GameContext.InGameHud;
+		if (hud != null)
+		{
+			if (hud.Gold < gold)
+			{
+				ReportUpgradeShortfall(name, hud.Gold, gold, TranslationServer.Translate("Gold"));
+				return;
+			}
+
+			if (hud.Wood < wood)
+			{
+				ReportUpgradeShortfall(name, hud.Wood, wood, TranslationServer.Translate("Wood"));
+				return;
+			}
+
+			if (hud.Stone < stone)
+			{
+				ReportUpgradeShortfall(name, hud.Stone, stone, TranslationServer.Translate("Stone"));
+				return;
+			}
+		}
+
+		GameContext.Host?.BuyUpgrade(upgradeId, playerIndex);
+	}
+
+	private static void ReportUpgradeShortfall(string name, float held, float cost, string resourceName)
+	{
+		string shortfall = MathF.Ceiling(cost - held).ToString("F0");
+		string message = string.Format(TranslationServer.Translate("{0} needs {1} more {2}"), name, shortfall, resourceName);
+
+		GameContext.InGameHud?.ShowFeedbackText(message, new Color(1.0f, 0.3f, 0.25f));
 	}
 
 	private CommandCardItem? CreateBuildOptionItem(string unitId, Entity builderEntity = default)
@@ -1155,7 +1284,7 @@ public partial class CommandPanel
 		string finalTooltip;
 		if (abilityDef != null && !string.IsNullOrEmpty(abilityDef.TooltipTemplate))
 		{
-			finalTooltip = abilityDef.TooltipTemplate;
+			finalTooltip = MapText.TranslateTemplate(abilityDef.TooltipTemplate);
 		}
 		else
 		{
@@ -1224,7 +1353,7 @@ public partial class CommandPanel
 			CasterEntity = casterEntity,
 			ManaCost = manaCost,
 			IconPath = ResolveAbilityIcon(abilityId, abilityDef),
-			Tooltip = ResolveAbilityTooltip(abilityId, abilityDef),
+			Tooltip = ResolveAbilityTooltip(abilityId, abilityDef, IsAbilityStateDisabled(casterEntity, abilityId), manaCost),
 			TooltipContext = TooltipContext.ForAbility(casterEntity, abilityId),
 			Hotkey = ParseHotkey(abilityDef?.Hotkey),
 			GridX = abilityDef?.GridX ?? -1,
@@ -1250,14 +1379,25 @@ public partial class CommandPanel
 		return GetDefaultAbilityIcon(abilityId);
 	}
 
-	private string ResolveAbilityTooltip(string abilityId, AbilityDefinition abilityDef)
+	private string ResolveAbilityTooltip(string abilityId, AbilityDefinition abilityDef, bool disabled, float manaCost)
 	{
-		if (abilityDef != null && !string.IsNullOrEmpty(abilityDef.TooltipTemplate))
-		{
-			return abilityDef.TooltipTemplate;
-		}
+		// The description is map text, so it is looked up in the player's catalog before its placeholders are resolved:
+		// a translation keeps the {{tokens}} it was given, and TooltipTemplate fills them in on the way to the tooltip.
+		string body = abilityDef != null && !string.IsNullOrEmpty(abilityDef.TooltipTemplate)
+			? MapText.TranslateTemplate(abilityDef.TooltipTemplate)
+			: GetDefaultAbilityTooltip(abilityId);
 
-		return GetDefaultAbilityTooltip(abilityId);
+		return UIHelper.PrependAbilityHeader(abilityId, abilityDef, body, manaCost, disabled);
+	}
+
+	/// <summary>
+	///     Whether the map script has disabled this ability for the casting unit through SetAbilityState, as opposed to a
+	///     cooldown or mana shortfall.
+	/// </summary>
+	private static bool IsAbilityStateDisabled(Entity casterEntity, string abilityId)
+	{
+		if (casterEntity == Entity.Null) return false;
+		return GameContext.RegistryService.IsAbilityDisabledForUnit(new UnitId(casterEntity.Id), abilityId);
 	}
 
 	private Unit_WasmRuntime GetUnitWrapperIfAlive(GameHost host, Entity casterEntity)

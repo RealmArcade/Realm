@@ -10,6 +10,7 @@ using Realm.Client.Services;
 using Realm.Ecs.Replication;
 using Realm.Shared.Diagnostics;
 using Realm.Shared.Network;
+using Realm.Shared.Services;
 
 namespace Realm.Client.Testing;
 
@@ -166,7 +167,8 @@ public static class MultiplayerEcsSyncTestSupport
 
 		string assemblyName = Path.GetFileNameWithoutExtension(projectPath);
 		string mapScriptPath = Path.Combine(mapFolder, "MapScript.cs");
-		string publishedPath = Path.Combine(mapFolder, "bin", "Release", "net10.0", "wasi-wasm", "publish", $"{assemblyName}.wasm");
+		string scriptOutputDirectory = MapFileService.ResolveScriptOutputDirectory(mapFolder);
+		string publishedPath = Path.Combine(scriptOutputDirectory, $"{assemblyName}.wasm");
 		string shippedPath = Path.Combine(mapFolder, $"{assemblyName}.wasm");
 
 		if (File.Exists(shippedPath) && (!File.Exists(mapScriptPath) || File.GetLastWriteTimeUtc(shippedPath) >= File.GetLastWriteTimeUtc(mapScriptPath))) return shippedPath;
@@ -185,9 +187,11 @@ public static class MultiplayerEcsSyncTestSupport
 		startInfo.ArgumentList.Add("publish");
 		startInfo.ArgumentList.Add(Path.GetFileName(projectPath));
 		startInfo.ArgumentList.Add("-c");
-		startInfo.ArgumentList.Add("Release");
+		startInfo.ArgumentList.Add(MapFileService.ReleaseBuildFlavor);
 		startInfo.ArgumentList.Add("-r");
 		startInfo.ArgumentList.Add("wasi-wasm");
+		startInfo.ArgumentList.Add("-o");
+		startInfo.ArgumentList.Add(scriptOutputDirectory);
 		startInfo.ArgumentList.Add($"-p:WASI_SDK_PATH={wasiSdkPath}");
 		startInfo.EnvironmentVariables["WASI_SDK_PATH"] = wasiSdkPath;
 

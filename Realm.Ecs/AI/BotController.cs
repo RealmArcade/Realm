@@ -8,7 +8,8 @@ namespace Realm.Ecs.AI;
 public class BotController
 {
 	private IAiGenreProvider _genreProvider = new StandardRtsGenreProvider();
-	private readonly LinearUtilityPolicy _policy = new();
+	private IBotDecisionPolicy _decisionPolicy = new LinearUtilityDecisionPolicy();
+	private readonly IBotDecisionPolicy _uniformPolicy = new UniformRandomDecisionPolicy();
 	private readonly List<GenericAffordance> _affordanceBuffer = new(64);
 
 	private BotProfile _profile = BotProfile.CreateDefault();
@@ -16,6 +17,7 @@ public class BotController
 	private float _decisionInterval = 1.0f;
 	private float _aggressionMultiplier = 1.0f;
 	private float _actionTemperature = 0.0f;
+	private float _mistakeChance = 0.0f;
 	private float _timer = 0.0f;
 	private int _playerIndex;
 
@@ -24,12 +26,24 @@ public class BotController
 	public float DecisionInterval => _decisionInterval;
 	public float AggressionMultiplier => _aggressionMultiplier;
 	public float ActionTemperature => _actionTemperature;
+
+	public float MistakeChance
+	{
+		get => _mistakeChance;
+		set => _mistakeChance = Math.Clamp(value, 0.0f, 1.0f);
+	}
 	public BotProfile Profile => _profile;
 
 	public IAiGenreProvider GenreProvider
 	{
 		get => _genreProvider;
 		set => _genreProvider = value ?? new StandardRtsGenreProvider();
+	}
+
+	public IBotDecisionPolicy DecisionPolicy
+	{
+		get => _decisionPolicy;
+		set => _decisionPolicy = value ?? new LinearUtilityDecisionPolicy();
 	}
 
 	public Action<int, string, Vector3, string>? CustomActionCallback { get; set; }
@@ -53,7 +67,8 @@ public class BotController
 		}
 
 		_profile = profile;
-		if (!string.IsNullOrWhiteSpace(profile.Genre))
+		if (!string.IsNullOrWhiteSpace(profile.Genre)
+			&& !string.Equals(_genreProvider.GenreName, profile.Genre, StringComparison.OrdinalIgnoreCase))
 		{
 			_genreProvider = AiGenreRegistry.Get(profile.Genre);
 		}
@@ -66,6 +81,7 @@ public class BotController
 		_decisionInterval = profile.DecisionIntervalSeconds > 0.05f ? profile.DecisionIntervalSeconds : 1.0f;
 		_aggressionMultiplier = profile.AggressionMultiplier > 0.0f ? profile.AggressionMultiplier : 1.0f;
 		_actionTemperature = Math.Clamp(profile.ActionTemperature, 0.0f, 2.0f);
+		_mistakeChance = Math.Clamp(profile.MistakeChance, 0.0f, 1.0f);
 
 		int requiredFeatures = _genreProvider.FeatureCount;
 		if (profile.Weights != null && profile.Weights.Length >= requiredFeatures)
@@ -90,11 +106,24 @@ public class BotController
 		_timer = 0.0f;
 
 		_genreProvider.ScanAffordances(world, playerIndex, _affordanceBuffer);
-		var action = _policy.SelectAction(_affordanceBuffer, _weights, 0.0f, _actionTemperature, _aggressionMultiplier);
 
-		if (action.HasValue)
+		IBotDecisionPolicy policy = _mistakeChance > 0.0f && SeededRandom.Shared.NextDouble() < _mistakeChance
+			? _uniformPolicy
+			: _decisionPolicy;
+		var action = policy.SelectAction(_affordanceBuffer, _weights, _actionTemperature, _aggressionMultiplier, SeededRandom.Shared);
+
+		if (!action.HasValue)
 		{
-			_genreProvider.ExecuteAction(world, playerIndex, action.Value, CustomActionCallback);
+			return;
 		}
+
+		GenericAffordance selected = action.Value;
+		if (selected.SourceEntity.IsNull && CustomActionCallback != null)
+		{
+			CustomActionCallback(playerIndex, selected.PayloadId, selected.TargetPosition, selected.Intent.ToString());
+			return;
+		}
+
+		_genreProvider.ExecuteAction(world, playerIndex, selected, CustomActionCallback);
 	}
 }

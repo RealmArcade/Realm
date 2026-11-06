@@ -5,7 +5,7 @@ namespace Realm.Client.UI;
 
 public static class GameLanguageExtensions
 {
-	private static readonly string[] _localeCodes = { "en", "es", "fr", "de", "pt", "ru", "zh", "ja", "ar", "hi" };
+	private static readonly string[] _localeCodes = { "en", "es", "fr", "de", "pt", "ru", "zh", "ja", "ar", "hi", "ko" };
 
 	private static readonly Dictionary<string, GameLanguage> _languageMap = new(StringComparer.OrdinalIgnoreCase)
 	{
@@ -18,7 +18,8 @@ public static class GameLanguageExtensions
 		{ "zh", GameLanguage.Chinese }, { "chinese", GameLanguage.Chinese },
 		{ "ja", GameLanguage.Japanese }, { "japanese", GameLanguage.Japanese },
 		{ "ar", GameLanguage.Arabic }, { "arabic", GameLanguage.Arabic },
-		{ "hi", GameLanguage.Hindi }, { "hindi", GameLanguage.Hindi }
+		{ "hi", GameLanguage.Hindi }, { "hindi", GameLanguage.Hindi },
+		{ "ko", GameLanguage.Korean }, { "korean", GameLanguage.Korean }
 	};
 
 	public static string ToLocaleCode(this GameLanguage language)

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -34,6 +34,7 @@ public partial class InGameHUD : Control
 	}
 
 	private InGameHUDViewModel _viewModel = new();
+	private string _lastSelectionSignature = string.Empty;
 
 	public float Gold
 	{
@@ -110,6 +111,8 @@ public partial class InGameHUD : Control
 	private Button _btnCenter;
 	private Button _btnSettings;
 	private Button _btnQuitMatch;
+	private Button _btnInstructions;
+	private InstructionsDialog _instructionsDialog;
 	public bool ShowMinimapTerrain => _viewModel.ShowMinimapTerrain;
 	public MinimapColorScheme MinimapColorScheme => _viewModel.MinimapColorScheme;
 
@@ -152,9 +155,9 @@ public partial class InGameHUD : Control
 	private HBoxContainer _unitsContainer;
 
 	private HBoxContainer _statsContainer;
-	private Label _statsLabel;
+	private UnitStatsPanel _unitStatsPanel;
+	private UnitVitalsBars _unitVitalsBars;
 	private VBoxContainer _spellsBox;
-	private VBoxContainer _itemsBox;
 
 	private Vector2 _dragStart;
 	private Vector2 _dragEnd;
@@ -174,10 +177,13 @@ public partial class InGameHUD : Control
 	private Label _clockLabel;
 
 	private VBoxContainer _customUIPanel;
-	private PanelContainer _leaderboardPanel;
-	private VBoxContainer _leaderboardSelectors;
-	private VBoxContainer _leaderboardContent;
-	private Label _leaderboardTitleLabel;
+	private PanelContainer _scoreboardPanel;
+	private VBoxContainer _scoreboardContent;
+	private VBoxContainer _scoreboardSelectors;
+	private VBoxContainer _scoreboardLeaderboardContent;
+	private VBoxContainer _scoreboardSummaryContent;
+	private Label _scoreboardTitleLabel;
+	private Button _scoreboardCollapseButton;
 	private CountdownOverlayPanel _countdownOverlayPanelController;
 
 	private Label _unitDescLabel;
@@ -220,13 +226,7 @@ public partial class InGameHUD : Control
 	private ResourcePanel _resourcePanelController;
 	private MinimapPanel _minimapPanelController;
 	private ChatPanel _chatPanelController;
-	private LeaderboardPanel _leaderboardPanelController;
-	private PanelContainer _summaryPanel;
-	private Label _summaryTitleLabel;
-	private Button _summaryCollapseButton;
-	private bool _summaryCollapsed;
-	private VBoxContainer _summaryContent;
-	private SummaryTablePanel _summaryTablePanelController;
+	private ScoreboardPanel _scoreboardPanelController;
 	private PortraitPanel _portraitPanelController;
 	private CommandPanel _commandPanelController;
 	private InventoryPanel _inventoryPanelController;
@@ -294,6 +294,10 @@ public partial class InGameHUD : Control
 		ApplySpectatorAndReplayOverrides();
 		ApplySavedHudVisibilityOverrides();
 		SubscribeToLobbyCountdown();
+
+		// The match may have been running before this screen was built - a map tested from the editor starts its
+		// authority first - so what it declared about its rules and its standings is replayed now that there is a HUD.
+		GameContext.Host?.OnInGameHudReady();
 	}
 
 	private void SubscribeToLobbyCountdown()
@@ -388,8 +392,88 @@ public partial class InGameHUD : Control
 			};
 		}
 
+		SetupInstructionsButton();
 		SetupPauseMatchButton();
 		SetupQuitMatchButton();
+	}
+
+	/// <summary>
+	///     The entry point to the map's own rules reference. The toolbar only offers it once the map has published a page,
+	///     because a menu with nothing in it is not a menu: the authority decides what there is to read, and this button
+	///     reports whether it has anything to show rather than deciding itself.
+	/// </summary>
+	private void SetupInstructionsButton()
+	{
+		if (_btnSettings == null) return;
+
+		_btnInstructions = new Button();
+		_btnInstructions.Name = "BtnInstructions";
+		_btnInstructions.Set("icon_max_width", 0);
+		_btnInstructions.Text = UnicodeIcons.HELP;
+		_btnInstructions.CustomMinimumSize = new Vector2(32, 32);
+		_btnInstructions.SizeFlagsVertical = SizeFlags.ShrinkCenter;
+		_btnInstructions.FocusMode = FocusModeEnum.None;
+		_btnInstructions.Visible = _viewModel.InstructionSections.Count > 0;
+		Font instructionsIconFont = UIStyle.FontAwesome;
+		if (instructionsIconFont != null)
+		{
+			_btnInstructions.AddThemeFontOverride("font", instructionsIconFont);
+		}
+
+		_btnInstructions.AddThemeFontSizeOverride("font_size", 16);
+		_btnInstructions.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
+		_btnInstructions.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
+		_btnInstructions.AddThemeColorOverride("font_pressed_color", UIStyle.ColorCyanGlow);
+		_btnInstructions.AddThemeColorOverride("font_focus_color", UIStyle.ColorGoldDull);
+		_btnInstructions.AddThemeStyleboxOverride("normal", UIStyle.CreateHUDButtonStyle(false, false));
+		_btnInstructions.AddThemeStyleboxOverride("hover", UIStyle.CreateHUDButtonStyle(true, false));
+		_btnInstructions.AddThemeStyleboxOverride("pressed", UIStyle.CreateHUDButtonStyle(false, true));
+		_btnInstructions.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		_btnInstructions.TooltipText = TranslationServer.Translate("Instructions");
+		_btnInstructions.Pressed += OnInstructionsPressed;
+		_btnInstructions.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
+
+		var resourceRow = _btnSettings.GetParent();
+		resourceRow.AddChild(_btnInstructions);
+		resourceRow.MoveChild(_btnInstructions, _btnSettings.GetIndex());
+	}
+
+	private void OnInstructionsPressed()
+	{
+		GameContext.UserInterface?.PlayClickSound();
+
+		if (_instructionsDialog != null && GodotObject.IsInstanceValid(_instructionsDialog))
+		{
+			_instructionsDialog.QueueFree();
+		}
+
+		_instructionsDialog = new InstructionsDialog { Name = "InstructionsDialog" };
+		AddChild(_instructionsDialog);
+		_instructionsDialog.Open(_viewModel.InstructionSections);
+	}
+
+	/// <summary>
+	///     Takes one page the map published for the Instructions menu. Pages keep the order they arrive in, and a page
+	///     whose title is already listed is restated in place, so a rule that changes during a match does not become a
+	///     second entry.
+	/// </summary>
+	public void AddInstructionsSection(string title, string body)
+	{
+		if (string.IsNullOrWhiteSpace(title)) return;
+
+		List<InstructionsSection> sections = _viewModel.InstructionSections;
+		sections.RemoveAll(section => string.Equals(section.Title, title, StringComparison.Ordinal));
+		sections.Add(new InstructionsSection(title, body ?? string.Empty));
+
+		if (_btnInstructions != null && GodotObject.IsInstanceValid(_btnInstructions))
+		{
+			_btnInstructions.Visible = sections.Count > 0;
+		}
+
+		if (_instructionsDialog != null && GodotObject.IsInstanceValid(_instructionsDialog) && _instructionsDialog.Visible)
+		{
+			_instructionsDialog.Refresh(sections);
+		}
 	}
 
 	private Button _btnPauseMatch;
@@ -425,7 +509,7 @@ public partial class InGameHUD : Control
 		_btnPauseMatch.AddThemeStyleboxOverride("hover", UIStyle.CreateHUDButtonStyle(true, false));
 		_btnPauseMatch.AddThemeStyleboxOverride("pressed", UIStyle.CreateHUDButtonStyle(false, true));
 		_btnPauseMatch.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-		_btnPauseMatch.TooltipText = TranslationServer.Translate("Pause Match [P]");
+		_btnPauseMatch.TooltipText = TranslationServer.Translate("Pause Match");
 		_btnPauseMatch.Pressed += OnPauseMatchButtonPressed;
 		_btnPauseMatch.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 
@@ -434,10 +518,26 @@ public partial class InGameHUD : Control
 		resourceRow.MoveChild(_btnPauseMatch, _btnSettings.GetIndex());
 	}
 
+	/// <summary>
+	///     Holds the match for everyone, which is a request the whole lobby cannot undo by accident, so it is asked for
+	///     once before it is sent. Resuming is not: a held match has nothing left to lose by being released. A match with
+	///     nobody else in it holds only the screen pressing the button, so that one is not asked at all.
+	/// </summary>
 	private void OnPauseMatchButtonPressed()
 	{
 		GameContext.UserInterface?.PlayClickSound();
-		GameContext.Host?.TogglePauseRequest();
+
+		if (GameContext.NetworkService?.IsPaused == true || GameContext.Host?.IsSinglePlayerMatch == true)
+		{
+			GameContext.Host?.TogglePauseRequest();
+			return;
+		}
+
+		GameContext.UserInterface?.ShowConfirmationDialog(
+			TranslationServer.Translate("Pause game for everyone?"),
+			() => GameContext.Host?.TogglePauseRequest(),
+			confirmText: "PAUSE",
+			cancelText: "CANCEL");
 	}
 
 	private void RefreshPauseMatchButton()
@@ -448,13 +548,18 @@ public partial class InGameHUD : Control
 		bool paused = network != null && network.IsPaused;
 
 		_btnPauseMatch.Text = paused ? UnicodeIcons.PLAY : UnicodeIcons.PAUSE;
+
+		bool singlePlayer = GameContext.Host?.IsSinglePlayerMatch == true;
 		_btnPauseMatch.TooltipText = paused
-			? TranslationServer.Translate("Resume Match [P]")
-			: string.Format(TranslationServer.Translate("Pause Match [P] - {0} pause(s) left this match"), network?.RemainingPauses ?? 0);
+			? TranslationServer.Translate("Resume Match")
+			: singlePlayer
+				? TranslationServer.Translate("Pause Match")
+				: string.Format(TranslationServer.Translate("Pause Match - {0} pause(s) left this match"), network?.RemainingPauses ?? 0);
 
 		// The cooldown is deliberately left to the authority: the button that could tell a player it is still recharging is
-		// the one it has to press to be told, so only a player with nothing left to spend is stopped here.
-		_btnPauseMatch.Disabled = !paused && network != null && network.RemainingPauses <= 0;
+		// the one it has to press to be told, so only a player with nothing left to spend is stopped here. A match of one
+		// spends nothing, so its button is never taken away.
+		_btnPauseMatch.Disabled = !paused && !singlePlayer && network != null && network.RemainingPauses <= 0;
 	}
 
 	private void SetupQuitMatchButton()
@@ -739,8 +844,7 @@ public partial class InGameHUD : Control
 		AddChild(_customUIPanel);
 
 		SetupCountdownOverlay();
-		SetupLeaderboardPanel();
-		SetupSummaryPanel();
+		SetupScoreboardPanel();
 	}
 
 	private void SetupCountdownOverlay()
@@ -748,118 +852,89 @@ public partial class InGameHUD : Control
 		_countdownOverlayPanelController = new CountdownOverlayPanel(this, _customUIPanel, OnCountdownCancelPressed);
 	}
 
-	private void SetupLeaderboardPanel()
+	private void SetupScoreboardPanel()
 	{
-		_leaderboardPanel = new PanelContainer();
-		_leaderboardPanel.Name = "LeaderboardPanel";
-		_leaderboardPanel.Visible = false;
-		_leaderboardPanel.SizeFlagsHorizontal = SizeFlags.ShrinkEnd;
-		var leaderboardStyle = new StyleBoxFlat();
-		leaderboardStyle.BgColor = new Color(0.12f, 0.12f, 0.12f, 0.85f);
-		leaderboardStyle.SetBorderWidthAll(1);
-		leaderboardStyle.BorderColor = UIStyle.ColorBronze;
-		leaderboardStyle.CornerRadiusTopLeft = 4;
-		leaderboardStyle.CornerRadiusTopRight = 4;
-		leaderboardStyle.CornerRadiusBottomLeft = 4;
-		leaderboardStyle.CornerRadiusBottomRight = 4;
-		leaderboardStyle.ContentMarginLeft = 10;
-		leaderboardStyle.ContentMarginRight = 10;
-		leaderboardStyle.ContentMarginTop = 8;
-		leaderboardStyle.ContentMarginBottom = 8;
-		_leaderboardPanel.AddThemeStyleboxOverride("panel", leaderboardStyle);
+		_scoreboardPanel = new PanelContainer();
+		_scoreboardPanel.Name = "ScoreboardPanel";
+		_scoreboardPanel.Visible = false;
+		_scoreboardPanel.SizeFlagsHorizontal = SizeFlags.ShrinkEnd;
+		var scoreboardStyle = new StyleBoxFlat();
+		scoreboardStyle.BgColor = new Color(0.12f, 0.12f, 0.14f, 0.9f);
+		scoreboardStyle.SetBorderWidthAll(1);
+		scoreboardStyle.BorderColor = UIStyle.ColorBronze;
+		scoreboardStyle.CornerRadiusTopLeft = 4;
+		scoreboardStyle.CornerRadiusTopRight = 4;
+		scoreboardStyle.CornerRadiusBottomLeft = 4;
+		scoreboardStyle.CornerRadiusBottomRight = 4;
+		scoreboardStyle.ContentMarginLeft = 10;
+		scoreboardStyle.ContentMarginRight = 10;
+		scoreboardStyle.ContentMarginTop = 8;
+		scoreboardStyle.ContentMarginBottom = 8;
+		_scoreboardPanel.AddThemeStyleboxOverride("panel", scoreboardStyle);
 
-		var lbVBox = new VBoxContainer();
-		lbVBox.Name = "LbVBox_VBoxContainer";
-		_leaderboardPanel.AddChild(lbVBox);
+		var scoreboardVBox = new VBoxContainer();
+		scoreboardVBox.Name = "ScoreboardVBox_VBoxContainer";
+		_scoreboardPanel.AddChild(scoreboardVBox);
 
-		_leaderboardTitleLabel = new Label();
-		_leaderboardTitleLabel.Name = "LeaderboardTitle";
-		_leaderboardTitleLabel.Text = TranslationServer.Translate("LEADERBOARD");
-		UIStyle.ApplyTitle(_leaderboardTitleLabel, TranslationServer.Translate("LEADERBOARD"), 12);
-		_leaderboardTitleLabel.HorizontalAlignment = HorizontalAlignment.Center;
-		lbVBox.AddChild(_leaderboardTitleLabel);
-
-		_leaderboardSelectors = new VBoxContainer();
-		_leaderboardSelectors.Name = "LeaderboardSelectors";
-		_leaderboardSelectors.AddThemeConstantOverride("separation", 4);
-		lbVBox.AddChild(_leaderboardSelectors);
-
-		_leaderboardContent = new VBoxContainer();
-		_leaderboardContent.Name = "LeaderboardContent";
-		lbVBox.AddChild(_leaderboardContent);
-		_customUIPanel.AddChild(_leaderboardPanel);
-	}
-
-	private void SetupSummaryPanel()
-	{
-		_summaryPanel = new PanelContainer();
-		_summaryPanel.Name = "SummaryTablePanel";
-		_summaryPanel.Visible = false;
-		_summaryPanel.SizeFlagsHorizontal = SizeFlags.ShrinkEnd;
-		var summaryStyle = new StyleBoxFlat();
-		summaryStyle.BgColor = new Color(0.1f, 0.1f, 0.14f, 0.92f);
-		summaryStyle.SetBorderWidthAll(2);
-		summaryStyle.BorderColor = UIStyle.ColorGold;
-		summaryStyle.CornerRadiusTopLeft = 4;
-		summaryStyle.CornerRadiusTopRight = 4;
-		summaryStyle.CornerRadiusBottomLeft = 4;
-		summaryStyle.CornerRadiusBottomRight = 4;
-		summaryStyle.ContentMarginLeft = 14;
-		summaryStyle.ContentMarginRight = 14;
-		summaryStyle.ContentMarginTop = 10;
-		summaryStyle.ContentMarginBottom = 10;
-		_summaryPanel.AddThemeStyleboxOverride("panel", summaryStyle);
-
-		var summaryVBox = new VBoxContainer();
-		summaryVBox.Name = "SummaryVBox_VBoxContainer";
-		_summaryPanel.AddChild(summaryVBox);
-
-		var summaryHeader = new HBoxContainer();
-		summaryHeader.Name = "SummaryHeader_HBoxContainer";
-		summaryHeader.AddThemeConstantOverride("separation", 6);
-		summaryVBox.AddChild(summaryHeader);
+		var scoreboardHeader = new HBoxContainer();
+		scoreboardHeader.Name = "ScoreboardHeader_HBoxContainer";
+		scoreboardHeader.AddThemeConstantOverride("separation", 6);
+		scoreboardVBox.AddChild(scoreboardHeader);
 
 		var headerInset = new Control();
-		headerInset.Name = "SummaryHeaderInset";
+		headerInset.Name = "ScoreboardHeaderInset";
 		headerInset.CustomMinimumSize = new Vector2(26, 0);
-		summaryHeader.AddChild(headerInset);
+		scoreboardHeader.AddChild(headerInset);
 
-		_summaryTitleLabel = new Label();
-		_summaryTitleLabel.Name = "SummaryTitle";
-		_summaryTitleLabel.Text = TranslationServer.Translate("SUMMARY");
-		UIStyle.ApplyTitle(_summaryTitleLabel, TranslationServer.Translate("SUMMARY"), 14);
-		_summaryTitleLabel.HorizontalAlignment = HorizontalAlignment.Center;
-		_summaryTitleLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		summaryHeader.AddChild(_summaryTitleLabel);
+		_scoreboardTitleLabel = new Label();
+		_scoreboardTitleLabel.Name = "ScoreboardTitle";
+		_scoreboardTitleLabel.Text = TranslationServer.Translate("SCOREBOARD");
+		UIStyle.ApplyTitle(_scoreboardTitleLabel, TranslationServer.Translate("SCOREBOARD"), 12);
+		_scoreboardTitleLabel.HorizontalAlignment = HorizontalAlignment.Center;
+		_scoreboardTitleLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		scoreboardHeader.AddChild(_scoreboardTitleLabel);
 
-		_summaryCollapseButton = new Button();
-		_summaryCollapseButton.Name = "SummaryCollapse_Button";
-		_summaryCollapseButton.Flat = false;
-		_summaryCollapseButton.FocusMode = FocusModeEnum.None;
-		_summaryCollapseButton.CustomMinimumSize = new Vector2(26, 22);
-		_summaryCollapseButton.AddThemeConstantOverride("icon_max_width", 0);
+		_scoreboardCollapseButton = new Button();
+		_scoreboardCollapseButton.Name = "ScoreboardCollapse_Button";
+		_scoreboardCollapseButton.Flat = false;
+		_scoreboardCollapseButton.FocusMode = FocusModeEnum.None;
+		_scoreboardCollapseButton.CustomMinimumSize = new Vector2(26, 22);
+		_scoreboardCollapseButton.AddThemeConstantOverride("icon_max_width", 0);
 		Font collapseIconFont = UIStyle.FontAwesome;
 		if (collapseIconFont != null)
 		{
-			_summaryCollapseButton.AddThemeFontOverride("font", collapseIconFont);
+			_scoreboardCollapseButton.AddThemeFontOverride("font", collapseIconFont);
 		}
 
-		_summaryCollapseButton.AddThemeFontSizeOverride("font_size", 12);
-		_summaryCollapseButton.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		_summaryCollapseButton.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		_summaryCollapseButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		_summaryCollapseButton.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-		_summaryCollapseButton.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		_summaryCollapseButton.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
-		_summaryCollapseButton.Pressed += ToggleSummaryCollapsed;
-		summaryHeader.AddChild(_summaryCollapseButton);
+		_scoreboardCollapseButton.AddThemeFontSizeOverride("font_size", 12);
+		_scoreboardCollapseButton.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
+		_scoreboardCollapseButton.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
+		_scoreboardCollapseButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
+		_scoreboardCollapseButton.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		_scoreboardCollapseButton.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
+		_scoreboardCollapseButton.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
+		scoreboardHeader.AddChild(_scoreboardCollapseButton);
 
-		_summaryContent = new VBoxContainer();
-		_summaryContent.Name = "SummaryContent";
-		summaryVBox.AddChild(_summaryContent);
+		_scoreboardContent = new VBoxContainer();
+		_scoreboardContent.Name = "ScoreboardContent";
+		_scoreboardContent.AddThemeConstantOverride("separation", 6);
+		scoreboardVBox.AddChild(_scoreboardContent);
 
-		ApplySummaryCollapsedState();
-		_customUIPanel.AddChild(_summaryPanel);
+		_scoreboardSelectors = new VBoxContainer();
+		_scoreboardSelectors.Name = "ScoreboardSelectors";
+		_scoreboardSelectors.AddThemeConstantOverride("separation", 4);
+		_scoreboardContent.AddChild(_scoreboardSelectors);
+
+		_scoreboardLeaderboardContent = new VBoxContainer();
+		_scoreboardLeaderboardContent.Name = "ScoreboardLeaderboardContent";
+		_scoreboardContent.AddChild(_scoreboardLeaderboardContent);
+
+		_scoreboardSummaryContent = new VBoxContainer();
+		_scoreboardSummaryContent.Name = "ScoreboardSummaryContent";
+		_scoreboardSummaryContent.Visible = false;
+		_scoreboardContent.AddChild(_scoreboardSummaryContent);
+
+		_customUIPanel.AddChild(_scoreboardPanel);
 	}
 
 	private void ApplyModeSpecificUI()
@@ -903,17 +978,20 @@ public partial class InGameHUD : Control
 		_camera3D = GameContext.Host?.MainCamera;
 		_minimapPanelController = new MinimapPanel(_minimapFrame, _minimapArea, _cameraIndicator, _camera3D);
 		_chatPanelController = new ChatPanel(_chatPanel, _chatInput, _chatLog);
-		_leaderboardPanelController = new LeaderboardPanel(_customUIPanel, _leaderboardPanel, _leaderboardTitleLabel, _leaderboardSelectors, _leaderboardContent);
-		_summaryTablePanelController = new SummaryTablePanel(_summaryPanel, _summaryTitleLabel, _summaryContent);
+		_scoreboardPanelController = new ScoreboardPanel(_scoreboardPanel, _scoreboardTitleLabel, _scoreboardCollapseButton, _scoreboardContent, _scoreboardSelectors, _scoreboardLeaderboardContent, _scoreboardSummaryContent);
 
 		_portraitPanelController = new PortraitPanel(
 			_portraitFrame, _selectionFrame, _unitsContainer, _unitButtons, _statsContainer,
-			_statsLabel, _itemsBox,
+			_unitStatsPanel,
 			_productionBox, _productionTitle, _productionProgress, _productionQueueLabel, _queueSlotsContainer,
 			_armyCompositionLabel, GetNode<Label>("BottomConsole/HBox/PortraitFrame/VBox/UnitName"),
 			GetNodeOrNull<TextureRect>("BottomConsole/HBox/PortraitFrame/VBox/PortraitTexture") != null ? GetNode<TextureRect>("BottomConsole/HBox/PortraitFrame/VBox/PortraitTexture") : null
 		);
 		_portraitPanelController.UnitSelectionButtonClicked += OnUnitSelectionButtonClicked;
+
+		_unitVitalsBars = new UnitVitalsBars();
+		_bottomConsole.AddChild(_unitVitalsBars.Root);
+		UpdateBottomConsoleHeight();
 
 		_inventoryPanelController = new InventoryPanel(_inventoryGrid);
 
@@ -973,6 +1051,12 @@ public partial class InGameHUD : Control
 	}
 
 	private const float BaseConsoleHeight = 240f;
+	private const float ConsoleArtworkHeight = 240f;
+	private const float PortraitSlotLeft = 370f;
+	private const float PortraitSlotTop = 75f;
+	private const float PortraitSlotRight = 515f;
+	private const float PortraitSlotBottom = 195f;
+	private const float PortraitNameHeight = 20f;
 
 	private void UpdateBottomConsoleHeight()
 	{
@@ -989,6 +1073,8 @@ public partial class InGameHUD : Control
 			{
 				mat.SetShaderParameter("u_console_size", new Vector2(viewportWidth, proportionalHeight));
 			}
+
+			_unitVitalsBars?.ApplyLayout(proportionalHeight);
 
 			float s = proportionalHeight / 433f;
 			float wLeft = 935f * s;
@@ -1020,19 +1106,22 @@ public partial class InGameHUD : Control
 
 			if (_portraitFrame != null)
 			{
+				float artworkScale = proportionalHeight / ConsoleArtworkHeight;
 				_portraitFrame.AnchorLeft = 0;
 				_portraitFrame.AnchorRight = 0;
 				_portraitFrame.AnchorTop = 0;
 				_portraitFrame.AnchorBottom = 0;
-				_portraitFrame.OffsetLeft = Mathf.Round(660f * s);
-				_portraitFrame.OffsetRight = Mathf.Round(935f * s);
-				_portraitFrame.OffsetTop = Mathf.Round(110f * s);
-				_portraitFrame.OffsetBottom = Mathf.Round(428f * s);
+				_portraitFrame.OffsetLeft = Mathf.Round(PortraitSlotLeft * artworkScale);
+				_portraitFrame.OffsetRight = Mathf.Round(PortraitSlotRight * artworkScale);
+				_portraitFrame.OffsetTop = Mathf.Round(PortraitSlotTop * artworkScale);
+				_portraitFrame.OffsetBottom = Mathf.Round(PortraitSlotBottom * artworkScale);
 
 				var pTexture = _portraitFrame.GetNodeOrNull<TextureRect>("VBox/PortraitTexture");
 				if (pTexture != null)
 				{
-					float portraitSize = Mathf.Round(180f * s);
+					float slotHeight = (PortraitSlotBottom - PortraitSlotTop - PortraitNameHeight) * artworkScale;
+					float slotWidth = (PortraitSlotRight - PortraitSlotLeft) * artworkScale;
+					float portraitSize = Mathf.Round(Mathf.Min(slotWidth, slotHeight));
 					pTexture.CustomMinimumSize = new Vector2(portraitSize, portraitSize);
 				}
 			}
@@ -1048,10 +1137,10 @@ public partial class InGameHUD : Control
 				_selectionFrame.OffsetTop = Mathf.Round(165f * s);
 				_selectionFrame.OffsetBottom = Mathf.Round(415f * s);
 
-				if (_statsLabel != null)
+				if (_unitStatsPanel != null)
 				{
 					float labelW = Mathf.Max(200f, _selectionFrame.OffsetRight - _selectionFrame.OffsetLeft - 20f);
-					_statsLabel.CustomMinimumSize = new Vector2(labelW, 0);
+					_unitStatsPanel.Root.CustomMinimumSize = new Vector2(labelW, 0);
 				}
 			}
 
@@ -1225,18 +1314,8 @@ public partial class InGameHUD : Control
 		statsVBox.SizeFlagsVertical = SizeFlags.ShrinkBegin;
 		statsScroll.AddChild(statsVBox);
 
-		_statsLabel = new Label();
-		_statsLabel.Name = "StatsLabel_Label";
-		_statsLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-		_statsLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		_statsLabel.CustomMinimumSize = new Vector2(300, 0);
-		_statsLabel.Text = TranslationServer.Translate("HP: 100/100\nDamage: 10\nArmor: 2\nSpeed: 5");
-		_statsLabel.AddThemeFontSizeOverride("font_size", 13);
-		_statsLabel.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		_statsLabel.AddThemeConstantOverride("line_spacing", 2);
-		_statsLabel.AddThemeConstantOverride("outline_size", 2);
-		_statsLabel.AddThemeColorOverride("font_outline_color", new Color(0f, 0f, 0f, 0.9f));
-		statsVBox.AddChild(_statsLabel);
+		_unitStatsPanel = new UnitStatsPanel();
+		statsVBox.AddChild(_unitStatsPanel.Root);
 
 		var vScroll = statsScroll.GetVScrollBar();
 		if (vScroll != null)
@@ -1274,35 +1353,6 @@ public partial class InGameHUD : Control
 			scrollTrack.CornerRadiusBottomRight = 3;
 			vScroll.AddThemeStyleboxOverride("scroll", scrollTrack);
 		}
-
-		_itemsBox = new VBoxContainer();
-		_itemsBox.Name = "ItemsBox_VBoxContainer";
-		_itemsBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		_itemsBox.Alignment = BoxContainer.AlignmentMode.Center;
-		_itemsBox.Visible = false;
-		_statsContainer.AddChild(_itemsBox);
-
-		var itemsTitle = new Label();
-		itemsTitle.Name = "ItemsTitle_Label";
-		itemsTitle.Text = TranslationServer.Translate("ITEMS");
-		UIStyle.ApplyTitle(itemsTitle, TranslationServer.Translate("ITEMS"), 12);
-		itemsTitle.AddThemeColorOverride("font_color", UIStyle.ColorBronze);
-		_itemsBox.AddChild(itemsTitle);
-
-		var itemsHBox = new HBoxContainer();
-		itemsHBox.Name = "ItemsHBox_HBoxContainer";
-		itemsHBox.AddThemeConstantOverride("separation", 8);
-		_itemsBox.AddChild(itemsHBox);
-
-		var itemAxe = new TextureRect();
-		itemAxe.Name = "ItemAxe_TextureRect";
-		SetupItemIcon(itemAxe, "res://Assets/UI/battle_axe.webp", "Battle Axe\n+5 Attack Damage (Equipped)");
-		itemsHBox.AddChild(itemAxe);
-
-		var itemShield = new TextureRect();
-		itemShield.Name = "ItemShield_TextureRect";
-		SetupItemIcon(itemShield, "res://Assets/UI/battle_shield.webp", "Battle Shield\n+3 Armor Block (Equipped)");
-		itemsHBox.AddChild(itemShield);
 
 		_productionBox = new VBoxContainer();
 		_productionBox.Name = "ProductionBox_VBoxContainer";
@@ -1364,13 +1414,19 @@ public partial class InGameHUD : Control
 		};
 	}
 
-	private void SetupItemIcon(TextureRect rect, string iconPath, string tooltip)
+	private void UpdateUnitVitalsBars()
 	{
-		rect.Texture = TrimmedTextureLoader.LoadTrimmedTexture(iconPath);
-		rect.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
-		rect.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
-		rect.CustomMinimumSize = new Vector2(60, 60);
-		rect.TooltipText = tooltip;
+		if (_unitVitalsBars == null) return;
+
+		List<SelectedUnitInfo> selectedUnits = _viewModel.SelectedUnits;
+		if (selectedUnits == null || selectedUnits.Count != 1)
+		{
+			_unitVitalsBars.Hide();
+			return;
+		}
+
+		int index = _viewModel.CycleSelectionIndex < selectedUnits.Count ? _viewModel.CycleSelectionIndex : 0;
+		_unitVitalsBars.UpdateSingleSelection(selectedUnits[index]);
 	}
 
 	public void RefreshUI(List<Unit3D> selectedUnits)
@@ -1385,9 +1441,12 @@ public partial class InGameHUD : Control
 			_commandFrame.Visible = !isSpectator && hasPlayerSelection && commandCardAllowed;
 		}
 
+		ResetBuildSubMenuOnSelectionChange(selectedUnits);
+
 		_viewModel.SelectedProp = GameContext.Host?.SelectedProp;
 		_viewModel.UpdateSelectedUnits(selectedUnits);
 		_portraitPanelController?.Update(_viewModel);
+		UpdateUnitVitalsBars();
 		_commandPanelController?.Update(_viewModel);
 		_inventoryPanelController?.Update(_viewModel);
 
@@ -1448,6 +1507,17 @@ public partial class InGameHUD : Control
 		_bottomConsole.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
 		_minimapFrame.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
 		_portraitFrame.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
+		_portraitFrame.ZIndex = -1;
+
+		if (_portraitFrame.GetNodeOrNull<ColorRect>("PortraitBacking") == null)
+		{
+			var portraitBacking = new ColorRect();
+			portraitBacking.Name = "PortraitBacking";
+			portraitBacking.Color = new Color(0.03f, 0.03f, 0.04f, 1.0f);
+			portraitBacking.MouseFilter = MouseFilterEnum.Ignore;
+			_portraitFrame.AddChild(portraitBacking);
+			_portraitFrame.MoveChild(portraitBacking, 0);
+		}
 		_selectionFrame.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
 		_selectionFrame.ClipContents = true;
 		
@@ -1547,6 +1617,7 @@ public partial class InGameHUD : Control
 			_viewModel.UpdateTactical(accumulated);
 			UpdateSelectedUnitVisuals();
 			_portraitPanelController?.Update(_viewModel);
+			UpdateUnitVitalsBars();
 			_commandPanelController?.Update(_viewModel);
 			_inventoryPanelController?.Update(_viewModel);
 			_controlGroupsUIController?.Update();
@@ -1568,8 +1639,7 @@ public partial class InGameHUD : Control
 		if (_ambientTimer >= AmbientInterval)
 		{
 			_ambientTimer -= AmbientInterval;
-			_leaderboardPanelController?.Update(_viewModel);
-			_summaryTablePanelController?.Update(_viewModel);
+			_scoreboardPanelController?.Update(_viewModel);
 		}
 	}
 
@@ -1578,7 +1648,23 @@ public partial class InGameHUD : Control
 		if (GameContext.Host?.SelectedUnits == null) return;
 
 		var selected = GameContext.Host.SelectedUnits;
+		ResetBuildSubMenuOnSelectionChange(selected);
 		_viewModel.UpdateSelectedUnits(selected);
+	}
+
+	/// <summary>
+	///     The Build submenu belongs to the unit that opened it, so a new selection closes it instead of leaving a
+	///     builder's build options on another unit's command card.
+	/// </summary>
+	private void ResetBuildSubMenuOnSelectionChange(List<Unit3D> selectedUnits)
+	{
+		if (selectedUnits == null) return;
+
+		string signature = string.Join(";", selectedUnits.Select(unit => unit.Entity.Id));
+		if (string.Equals(signature, _lastSelectionSignature, StringComparison.Ordinal)) return;
+
+		_lastSelectionSignature = signature;
+		if (_viewModel.IsBuildSubMenuOpen) _viewModel.IsBuildSubMenuOpen = false;
 	}
 
 	private void UpdateShroudMinimapTimer(double delta)
@@ -1627,7 +1713,7 @@ public partial class InGameHUD : Control
 
 	public void ShowFeedbackText(string text, Color color)
 	{
-		_feedbackLabel.Text = TranslationServer.Translate(text);
+		_feedbackLabel.Text = UIHelper.StripBbCode(TranslationServer.Translate(text));
 		_feedbackLabel.AddThemeColorOverride("font_color", color);
 		_feedbackLabel.Modulate = new Color(color.R, color.G, color.B, 1.0f);
 
@@ -1837,7 +1923,6 @@ public partial class InGameHUD : Control
 
 			if (HandleSpaceKey(keyEvent)) return;
 			if (HandleEnterKey(keyEvent)) return;
-			if (HandlePauseKey(keyEvent)) return;
 			if (HandleTildeKey(keyEvent)) return;
 		}
 	}
@@ -1869,17 +1954,6 @@ public partial class InGameHUD : Control
 		if (!IsHudElementVisible(HudElement.Chat, true)) return false;
 
 		_chatPanelController?.ShowChatInput(keyEvent.ShiftPressed);
-		GetViewport().SetInputAsHandled();
-		return true;
-	}
-
-	private bool HandlePauseKey(InputEventKey keyEvent)
-	{
-		if (keyEvent.Keycode != Key.P && keyEvent.Keycode != Key.Pause) return false;
-		if (keyEvent.Echo) return false;
-		if (IsChatActive || GameContext.Host == null) return false;
-
-		GameContext.Host.TogglePauseRequest();
 		GetViewport().SetInputAsHandled();
 		return true;
 	}
@@ -2100,7 +2174,6 @@ public partial class InGameHUD : Control
 					("Enter", "Open Chat (Shift: All Chat)"),
 					("Esc", "Clear Selection / Cancel Targeting"),
 					("F12", "Settings"),
-					("P / Pause", "Pause / Resume Match"),
 					("~ (Tilde)", "Developer Console"),
 				}
 			),
@@ -2307,16 +2380,8 @@ public partial class InGameHUD : Control
 				if (_chatPanel != null) _chatPanel.Visible = visible;
 				break;
 			case HudElement.Leaderboard:
-				if (_leaderboardPanel != null)
-				{
-					_leaderboardPanel.Visible = visible && _viewModel.HasVisibleLeaderboard;
-				}
-				break;
 			case HudElement.SummaryTable:
-				if (_summaryPanel != null)
-				{
-					_summaryPanel.Visible = visible && _viewModel.SummaryTableVisible;
-				}
+				UpdateScoreboardVisibility();
 				break;
 			case HudElement.Inventory:
 				if (_inventoryFrame != null) _inventoryFrame.Visible = visible;
@@ -2365,26 +2430,9 @@ public partial class InGameHUD : Control
 		_viewModel.Leaderboards.AddRow(boardId, groupPlayerIndex, groupTitle, label, value);
 	}
 
-	private void ToggleSummaryCollapsed()
+	private void UpdateScoreboardVisibility()
 	{
-		GameContext.UserInterface?.PlayClickSound();
-		_summaryCollapsed = !_summaryCollapsed;
-		ApplySummaryCollapsedState();
-	}
-
-	private void ApplySummaryCollapsedState()
-	{
-		if (_summaryContent != null && GodotObject.IsInstanceValid(_summaryContent))
-		{
-			_summaryContent.Visible = !_summaryCollapsed;
-		}
-
-		if (_summaryCollapseButton == null || !GodotObject.IsInstanceValid(_summaryCollapseButton)) return;
-
-		_summaryCollapseButton.Text = _summaryCollapsed ? UnicodeIcons.CARET_RIGHT : UnicodeIcons.CARET_DOWN;
-		_summaryCollapseButton.TooltipText = _summaryCollapsed
-			? TranslationServer.Translate("Expand summary table")
-			: TranslationServer.Translate("Collapse summary table");
+		_scoreboardPanelController?.Update(_viewModel);
 	}
 
 	public void ShowSummaryTable(string title, bool visible)

@@ -14,6 +14,7 @@ namespace Realm.ListenServer;
 public class ServerBots
 {
 	public const string DefaultGenreName = "rts";
+	public const string CustomGenreName = "custom";
 
 	private readonly SimulationContext _context;
 	private readonly string _mapName;
@@ -21,6 +22,8 @@ public class ServerBots
 	private readonly ServerLog _log;
 	private readonly Dictionary<int, BotController> _controllers = new();
 	private readonly Dictionary<int, List<GenericAffordance>> _customDecisionsPerPlayer = new();
+	private readonly HashSet<int> _injectedPolicyPlayers = new();
+	private readonly Dictionary<int, float> _mistakeChanceByPlayer = new();
 
 	public ServerBots(SimulationContext context, string mapName, string dataDirectory, ServerLog log)
 	{
@@ -77,12 +80,36 @@ public class ServerBots
 
 		BotController bot = GetOrCreateController(playerIndex, profile);
 		bot.LoadProfile(profile);
+		ApplyHandicap(playerIndex, bot);
+		ConfigureCustomScanner(bot.GenreProvider, playerIndex);
 		_log.Write($"player {playerIndex} now plays the profile the map handed it");
+	}
+
+	public void SetDecisionPolicy(int playerIndex, IBotDecisionPolicy policy)
+	{
+		if (policy == null) return;
+
+		BotController bot = GetOrCreateController(playerIndex, BotProfile.CreateDefault(_mapName, DefaultGenreName));
+		bot.DecisionPolicy = policy;
+		_injectedPolicyPlayers.Add(playerIndex);
+		_log.Write($"player {playerIndex} now decides through an injected policy");
 	}
 
 	public string GetProfile(int playerIndex)
 	{
 		return _controllers.TryGetValue(playerIndex, out BotController? bot) ? bot.Profile.ToJson() : string.Empty;
+	}
+
+	public void SetHandicap(int playerIndex, float mistakeChance)
+	{
+		float clamped = Math.Clamp(mistakeChance, 0.0f, 1.0f);
+		_mistakeChanceByPlayer[playerIndex] = clamped;
+		if (_controllers.TryGetValue(playerIndex, out BotController? bot)) bot.MistakeChance = clamped;
+	}
+
+	private void ApplyHandicap(int playerIndex, BotController bot)
+	{
+		if (_mistakeChanceByPlayer.TryGetValue(playerIndex, out float mistakeChance)) bot.MistakeChance = mistakeChance;
 	}
 
 	public void SetGenre(int playerIndex, string genreName, string? configJson)
@@ -97,14 +124,26 @@ public class ServerBots
 		{
 			bot.GenreProvider = genre;
 			bot.LoadProfile(genre.CreateDefaultProfile(_mapName));
+			ApplyHandicap(playerIndex, bot);
+			ApplyGenreDefaultPolicy(playerIndex, genreName, bot);
 			_log.Write($"player {playerIndex} now plays the '{genreName}' genre");
 			return;
 		}
 
 		var created = new BotController(playerIndex, genre.CreateDefaultProfile(_mapName), genre);
 		created.CustomActionCallback = AnnounceCustomAction;
+		ApplyGenreDefaultPolicy(playerIndex, genreName, created);
+		ApplyHandicap(playerIndex, created);
 		_controllers[playerIndex] = created;
 		_log.Write($"player {playerIndex} seated with the '{genreName}' genre");
+	}
+
+	private void ApplyGenreDefaultPolicy(int playerIndex, string genreName, BotController bot)
+	{
+		if (!string.Equals(genreName, CustomGenreName, StringComparison.OrdinalIgnoreCase)) return;
+		if (_injectedPolicyPlayers.Contains(playerIndex)) return;
+
+		bot.DecisionPolicy = new UniformRandomDecisionPolicy();
 	}
 
 	public string GetGenre(int playerIndex)
@@ -120,8 +159,13 @@ public class ServerBots
 			_customDecisionsPerPlayer[playerIndex] = decisions;
 		}
 
-		var parsedIntent = Enum.TryParse(intent, true, out CommandIntent commandIntent) ? commandIntent : CommandIntent.Interact;
-		decisions.Add(new GenericAffordance(Entity.Null, parsedIntent, Entity.Null, position, actionId, featureVector));
+		if (!Enum.TryParse(intent, true, out CommandIntent commandIntent) || !Enum.IsDefined(commandIntent))
+		{
+			_log.Write($"player {playerIndex} registered a bot decision with an intent this build does not know: '{intent}'");
+			return;
+		}
+
+		decisions.Add(new GenericAffordance(Entity.Null, commandIntent, Entity.Null, position, actionId, featureVector));
 	}
 
 	public void ClearCustomDecisions(int playerIndex)
@@ -150,6 +194,7 @@ public class ServerBots
 		try
 		{
 			bot.LoadProfile(BotProfile.FromJson(File.ReadAllText(path)));
+			ApplyHandicap(playerIndex, bot);
 			_log.Write($"player {playerIndex} plays the profile saved as '{path}'");
 		}
 		catch (Exception exception) when (exception is IOException or JsonException or UnauthorizedAccessException)
@@ -163,6 +208,7 @@ public class ServerBots
 		var bot = new BotController(playerIndex);
 		bot.CustomActionCallback = AnnounceCustomAction;
 		LoadSavedProfile(playerIndex, bot);
+		ApplyHandicap(playerIndex, bot);
 		return bot;
 	}
 
@@ -173,12 +219,14 @@ public class ServerBots
 		var created = new BotController(playerIndex, profile);
 		created.CustomActionCallback = AnnounceCustomAction;
 		_controllers[playerIndex] = created;
+		ApplyHandicap(playerIndex, created);
 		return created;
 	}
 
 	private void AnnounceCustomAction(int playerIndex, string actionId, Vector3 position, string intent)
 	{
 		CustomActionExecuted?.Invoke(playerIndex, actionId, intent, position, string.Empty);
+		ClearCustomDecisions(playerIndex);
 	}
 
 	private static void ConfigureGenre(IAiGenreProvider genre, string? configJson)

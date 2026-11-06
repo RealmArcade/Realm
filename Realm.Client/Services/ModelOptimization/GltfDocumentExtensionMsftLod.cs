@@ -353,6 +353,8 @@ public partial class GltfDocumentExtensionMsftLod : GltfDocumentExtension
 	private const string GltfExtrasMetadataKey = "extras";
 	private const string VisibilityRangeBeginExtraKey = "visibility_range_begin";
 	private const string VisibilityRangeEndExtraKey = "visibility_range_end";
+	private const float LodRangeOverlapFraction = 0.15f;
+	private const float MinimumLodRangeOverlapUnits = 0.5f;
 
 	private static void ConfigureExistingLodNodes(List<MeshInstance3D> meshInstances)
 	{
@@ -462,7 +464,9 @@ public partial class GltfDocumentExtensionMsftLod : GltfDocumentExtension
 		var (rangeBeginUnits, rangeEndUnits) = GetLodRangeUnits(meshInstance, lodLevel);
 		if (nextLodBeginUnits.HasValue)
 		{
-			rangeEndUnits = Math.Max(rangeEndUnits, nextLodBeginUnits.Value);
+			float bandUnits = Math.Max(0f, nextLodBeginUnits.Value - rangeBeginUnits);
+			float overlapUnits = Math.Max(MinimumLodRangeOverlapUnits, bandUnits * LodRangeOverlapFraction);
+			rangeEndUnits = Math.Max(rangeEndUnits, nextLodBeginUnits.Value + overlapUnits);
 		}
 
 		meshInstance.VisibilityRangeBegin = rangeBeginUnits * distanceScale;

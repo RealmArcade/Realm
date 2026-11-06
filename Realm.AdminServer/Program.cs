@@ -1,13 +1,16 @@
 using System.Collections.Concurrent;
+using System.Globalization;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http.Features;
 using NSec.Cryptography;
 using Realm.AdminServer;
+using Realm.AdminServer.Accounts;
 using Realm.AdminServer.Models;
 using Realm.AdminServer.Services;
 using Realm.Shared;
+using Realm.Shared.Accounts;
 using Realm.Shared.Distribution;
 using Realm.Shared.Metadata;
 using Realm.AdminServer.Helpers;
@@ -33,6 +36,15 @@ builder.Services.AddSingleton(cas);
 
 var capacityPercent = builder.Configuration.GetValue<int?>("CapacityPercentage") ?? 100;
 var seederId = builder.Configuration.GetValue<string>("SeederId") ?? "seed_node_server";
+
+// A node that serves accounts is usually a small private instance, and the bandwidth that map and asset downloads cost belongs
+// on the community nodes that volunteer for it. This flag lets the same binary decline that traffic instead of being sized for it.
+var servesClientDownloads = builder.Configuration.GetValue<bool?>("ServeClientDownloads") ?? true;
+const string ContentNotServedError = "content_not_served_by_this_node";
+
+Console.WriteLine(servesClientDownloads
+	? "[Distribution] This node serves map and asset downloads to clients."
+	: "[Distribution] This node refuses map and asset download requests; clients take them from the nodes that do serve them.");
 
 var serversConfigFile = builder.Configuration.GetValue<string>("ServersConfigFile");
 var serversConfig = ServersConfigHelper.Load(serversConfigFile);
@@ -64,6 +76,8 @@ if (adminKeysList != null)
 	}
 }
 
+Console.WriteLine($"[AdminAuth] {adminPublicKeys.Count} admin public key(s) configured; administrative routes accept only requests signed by one of them.");
+
 builder.Services.AddHttpClient();
 builder.Services.AddSingleton(serversConfig);
 
@@ -91,6 +105,12 @@ var peerRegistry = new PeerRegistry
 	PeerUrls = peerUrls
 };
 builder.Services.AddSingleton(peerRegistry);
+
+var accountAuthorityOptions = AccountAuthorityOptions.FromConfiguration(builder.Configuration, selfUrl, peersStr.Length > 0);
+builder.Services.AddSingleton(accountAuthorityOptions);
+builder.Services.AddSingleton<AccountStoreService>();
+builder.Services.AddSingleton<SteamTicketService>();
+builder.Services.AddSingleton<IAccountReplicationSink, AccountClusterPublisher>();
 builder.Services.AddSingleton<ClusterEventService>();
 
 
@@ -100,6 +120,26 @@ var app = builder.Build();
 
 app.UseCors("AllowAll");
 app.UseWebSockets();
+
+AccountEndpoints.MapAccountEndpoints(app, accountAuthorityOptions, adminPublicKeys);
+
+if (accountAuthorityOptions.IsAuthority)
+{
+	Console.WriteLine($"[AccountAuthority] This node owns account and display-name writes. Signing key configured: {(accountAuthorityOptions.SigningPrivateKeyBase64.Length > 0 ? "yes" : "no")}.");
+
+	if (!builder.Configuration.GetValue<bool?>("AccountAuthority").HasValue && peerUrls.Count > 0)
+	{
+		Console.WriteLine("[AccountAuthority] This node inferred that it owns account writes because AccountAuthority is not set, while its server list names other nodes. If another node is the authority, set AccountAuthority to false here and AccountAuthorityUrl to that node.");
+	}
+}
+else if (accountAuthorityOptions.AuthorityUrl.Length > 0)
+{
+	Console.WriteLine($"[AccountAuthority] Account writes belong to {accountAuthorityOptions.AuthorityUrl}; this node will refuse them.");
+}
+else
+{
+	Console.WriteLine("[AccountAuthority] This node is not the account authority and AccountAuthorityUrl is empty, so every account request is refused. Set AccountAuthority to true on exactly one node and AccountAuthorityUrl on the rest.");
+}
 
 
 var hostConnections = new ConcurrentDictionary<string, WebSocket>();
@@ -553,175 +593,6 @@ app.Map("/lobbies/ws", async (HttpContext context, LobbyRegistry registry) =>
 	}
 });
 
-app.MapGet("/auth/login", (string provider, int port, IWebHostEnvironment env) =>
-{
-	long part1 = Random.Shared.Next(100000000, 999999999);
-	long part2 = Random.Shared.Next(100000000, 999999999);
-	string randomSnowflake = $"{part1}{part2}";
-
-	string templatePath = Path.Combine(env.ContentRootPath, "Templates", "login.html");
-	if (!File.Exists(templatePath))
-	{
-		templatePath = Path.Combine(AppContext.BaseDirectory, "Templates", "login.html");
-	}
-
-	string template = File.ReadAllText(templatePath);
-	string discordInput = provider == "discord" ? $"<input type=\"text\" name=\"discord_id\" placeholder=\"Discord Snowflake ID\" required value=\"{randomSnowflake}\" />" : "";
-	string buttonClass = provider == "steam" ? "btn-steam" : "";
-
-	string html = template
-		.Replace("{{provider}}", provider)
-		.Replace("{{port}}", port.ToString())
-		.Replace("{{random_number}}", Random.Shared.Next(1000, 9999).ToString())
-		.Replace("{{discord_input}}", discordInput)
-		.Replace("{{button_class}}", buttonClass);
-
-	return Results.Content(html, "text/html");
-});
-
-app.MapGet("/auth/authorize", (string provider, int port, string username, string? discord_id, DataStoreService db) =>
-{
-	string candidateUsername = username?.Trim() ?? string.Empty;
-	string playerId = "";
-	string playerKey = "";
-
-	if (provider == "discord")
-	{
-		string snowflake = discord_id ?? "";
-		if (string.IsNullOrEmpty(snowflake))
-		{
-			long part1 = Random.Shared.Next(100000000, 999999999);
-			long part2 = Random.Shared.Next(100000000, 999999999);
-			snowflake = $"{part1}{part2}";
-		}
-
-		playerKey = snowflake;
-		playerId = $"discord_{snowflake}";
-	}
-	else
-	{
-		playerKey = $"{provider}_{Guid.NewGuid().ToString("N")[..8]}";
-		playerId = playerKey;
-	}
-
-	string finalUsername = candidateUsername;
-	var existingPlayer = db.Get<JsonDocument>("players", playerKey) ?? db.Get<JsonDocument>("players", playerId);
-
-	if (existingPlayer != null)
-	{
-		var root = existingPlayer.RootElement;
-		if (root.TryGetProperty("username", out var uProp))
-		{
-			string existingUsername = uProp.GetString() ?? "";
-			if (!string.IsNullOrWhiteSpace(existingUsername))
-			{
-				finalUsername = existingUsername;
-			}
-		}
-	}
-
-	if (string.IsNullOrWhiteSpace(finalUsername) || !NameNormalizationHelper.ValidateUsername(finalUsername, out _))
-	{
-		finalUsername = $"Gamer_{Random.Shared.Next(1000, 9999)}";
-	}
-
-	string normalizedUser = NameNormalizationHelper.NormalizeUsername(finalUsername);
-	var existingLock = db.Get<JsonDocument>("name_locks", normalizedUser);
-	if (existingLock != null && existingPlayer == null)
-	{
-		finalUsername = $"Gamer_{Random.Shared.Next(1000, 9999)}";
-	}
-
-	var playerDoc = JsonSerializer.SerializeToDocument(new
-	{
-		id = playerId,
-		username = finalUsername,
-		provider = provider,
-		registration_date = DateTime.UtcNow
-	});
-	db.Upsert("players", playerKey, playerDoc);
-	if (playerKey != playerId)
-	{
-		db.Upsert("players", playerId, playerDoc);
-	}
-
-	var token = Guid.NewGuid().ToString("N");
-	var sessionDoc = JsonSerializer.SerializeToDocument(new
-	{
-		token = token,
-		username = finalUsername,
-		provider = provider,
-		player_id = playerId,
-		created_at = DateTime.UtcNow
-	});
-	db.Upsert("auth_sessions", token, sessionDoc);
-
-	var callbackUrl = $"http://localhost:{port}/auth/callback/?username={Uri.EscapeDataString(finalUsername)}&token={token}&provider={provider}";
-	return Results.Redirect(callbackUrl);
-});
-
-app.MapPost("/api/players/username", (UpdatePlayerUsernameRequest req, DataStoreService db) =>
-{
-	if (string.IsNullOrWhiteSpace(req.PlayerId))
-	{
-		return Results.BadRequest(new { Message = "PlayerId is required." });
-	}
-
-	if (!NameNormalizationHelper.ValidateUsername(req.Username, out var usernameError))
-	{
-		return Results.BadRequest(new { Message = usernameError });
-	}
-
-	string trimmedUsername = req.Username.Trim();
-	string normalizedUser = NameNormalizationHelper.NormalizeUsername(trimmedUsername);
-
-	var existingLock = db.Get<JsonDocument>("name_locks", normalizedUser);
-	if (existingLock != null)
-	{
-		return Results.Conflict(new { Message = $"The username '{trimmedUsername}' conflicts with a registered creator name." });
-	}
-
-	var allPlayers = db.GetAllWithKeys<JsonDocument>("players");
-	foreach (var pair in allPlayers)
-	{
-		if (string.Equals(pair.Key, req.PlayerId, StringComparison.OrdinalIgnoreCase))
-		{
-			continue;
-		}
-
-		var root = pair.Value.RootElement;
-		if (root.TryGetProperty("username", out var uProp))
-		{
-			string existingU = uProp.GetString() ?? "";
-			if (NameNormalizationHelper.AreUsernamesConflicting(existingU, trimmedUsername))
-			{
-				return Results.Conflict(new { Message = $"The username '{trimmedUsername}' is already in use by another player." });
-			}
-		}
-	}
-
-	var existingDoc = db.Get<JsonDocument>("players", req.PlayerId);
-	string provider = "custom";
-	DateTime regDate = DateTime.UtcNow;
-	if (existingDoc != null)
-	{
-		var root = existingDoc.RootElement;
-		if (root.TryGetProperty("provider", out var pProp)) provider = pProp.GetString() ?? "custom";
-		if (root.TryGetProperty("registration_date", out var rProp) && rProp.TryGetDateTime(out var dt)) regDate = dt;
-	}
-
-	var updatedDoc = JsonSerializer.SerializeToDocument(new
-	{
-		id = req.PlayerId,
-		username = trimmedUsername,
-		provider = provider,
-		registration_date = regDate
-	});
-	db.Upsert("players", req.PlayerId, updatedDoc);
-
-	return Results.Ok(new { Status = "Updated", Username = trimmedUsername, PlayerId = req.PlayerId });
-});
-
 app.MapPost("/seeders/register", (SeederRegisterRequest req, SeederRegistry registry, HttpContext context) =>
 {
 	var ip = context.Connection.RemoteIpAddress?.MapToIPv4().ToString() ?? "127.0.0.1";
@@ -794,6 +665,13 @@ app.MapMethods("/api/assets/{hash}", new[] { "HEAD" }, (string hash, ContentAddr
 
 app.MapPost("/api/assets/bundle", async (HttpContext context, ContentAddressableStorage cas) =>
 {
+	if (!servesClientDownloads)
+	{
+		context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+		await context.Response.WriteAsJsonAsync(new { Error = ContentNotServedError }, context.RequestAborted);
+		return;
+	}
+
 	var syncIoFeature = context.Features.Get<IHttpBodyControlFeature>();
 	if (syncIoFeature != null)
 	{
@@ -860,6 +738,8 @@ app.MapPost("/api/assets/bundle", async (HttpContext context, ContentAddressable
 
 app.MapGet("/api/assets/{hash}", (string hash, ContentAddressableStorage cas, HttpContext context) =>
 {
+	if (!servesClientDownloads) return Results.Json(new { Error = ContentNotServedError }, statusCode: StatusCodes.Status503ServiceUnavailable);
+
 	string normalized = ContentAddressableStorage.NormalizeBlake3Hash(hash);
 	var bytes = cas.GetAssetBytes(normalized);
 	if (bytes == null) return Results.NotFound();
@@ -2072,7 +1952,7 @@ app.MapGet("/api/publish_map/asset_author/{hash}", (string hash, DataStoreServic
 	return Results.NotFound();
 });
 
-app.MapPost("/api/creators/register", async (HttpRequest request, RegisterCreatorRequest req, DataStoreService db, ClusterEventService clusterEvents, PeerRegistry registeredPeers, IHttpClientFactory httpClientFactory) =>
+app.MapPost("/api/creators/register", async (HttpRequest request, RegisterCreatorRequest req, DataStoreService db, AccountStoreService accounts, ClusterEventService clusterEvents, PeerRegistry registeredPeers, IHttpClientFactory httpClientFactory) =>
 {
 	if (!NameNormalizationHelper.ValidateUsername(req.Username, out var usernameError))
 	{
@@ -2083,37 +1963,50 @@ app.MapPost("/api/creators/register", async (HttpRequest request, RegisterCreato
 	string pubKey = req.PublicKey.Trim();
 	string signature = req.Signature.Trim();
 
-	bool sigValid = AuthorSignatureHelper.VerifySignature(pubKey, $"{username}:{pubKey}", signature)
-	                || AuthorSignatureHelper.VerifySignature(pubKey, username, signature);
+	string? bypassToken = request.Headers["X-Admin-Bypass"];
+	bool bypassValid = adminPublicKeys.Count > 0 &&
+	                   AdminBypassAuth.VerifyBypassToken(adminPublicKeys, "admin", "override", bypassToken);
+
+	bool sigValid = CreatorRegistrationProof.Verify(pubKey, username, req.DonationLink, req.ContactInfo, signature)
+	                || (bypassValid && CreatorRegistrationProof.VerifyByAnyAuthority(adminPublicKeys, pubKey, username, req.DonationLink, req.ContactInfo, signature));
 
 	if (!sigValid)
 	{
 		return Results.BadRequest(new { Message = "Invalid cryptographic signature for public key." });
 	}
 
-	string slug = NameNormalizationHelper.NormalizeUsername(username);
-	if (string.IsNullOrEmpty(slug))
+	if (!bypassValid)
 	{
-		slug = username.ToLowerInvariant().Replace(" ", "-");
+		string? sessionToken = AccountEndpoints.ReadSessionToken(request);
+		if (!accounts.TryValidateSession(sessionToken, out AccountRecord? signingInAccount, out _, out _) || signingInAccount == null)
+		{
+			return Results.Json(
+				AccountErrorDto.Of(AccountErrorCodes.SessionInvalid, "Sign in with Steam before registering a map key."),
+				statusCode: StatusCodes.Status401Unauthorized);
+		}
+
+		if (!DisplayNameRules.TryCanonicalize(username, out string canonicalUsername, out _))
+		{
+			return Results.BadRequest(new { Message = "The username is not a valid creator name." });
+		}
+
+		if (!string.Equals(signingInAccount.UniquenessKey, DisplayNameRules.ComputeUniquenessKey(canonicalUsername), StringComparison.Ordinal))
+		{
+			return Results.Conflict(new { Message = "A map key can only be registered under the name this Steam account is signed in with." });
+		}
 	}
 
-	var existingLock = db.Get<JsonDocument>("name_locks", slug)
-	                   ?? db.Get<JsonDocument>("name_locks", username.ToLowerInvariant().Replace(" ", "-"));
-	if (existingLock != null)
-	{
-		var root = existingLock.RootElement;
-		string owner = root.TryGetProperty("owner_public_key", out var op) ? op.GetString() ?? "" : "";
-		if (!string.Equals(owner, pubKey, StringComparison.OrdinalIgnoreCase))
-		{
-			string? bypassToken = request.Headers["X-Admin-Bypass"];
-			bool bypassValid = adminPublicKeys.Count > 0 &&
-			                   AdminBypassAuth.VerifyBypassToken(adminPublicKeys, "admin", "override", bypassToken);
+	string slug = CreatorNamePolicy.GetSlug(username);
 
-			if (!bypassValid)
-			{
-				return Results.Conflict(new { Message = "This username is already officially registered to another creator key." });
-			}
+	if (CreatorNamePolicy.TryReadNameLockOwner(db, username, out string existingOwner)
+	    && !string.Equals(existingOwner, pubKey, StringComparison.OrdinalIgnoreCase))
+	{
+		if (!bypassValid && CreatorNamePolicy.HasGreenlitPublishedMap(db, existingOwner))
+		{
+			return Results.Conflict(new { Message = "This username belongs to a creator with a greenlit map. A Realm administrator has to release it before another key can claim it." });
 		}
+
+		CreatorNamePolicy.ReleaseCreatorKey(db, existingOwner, username);
 	}
 
 	var lockDoc = JsonSerializer.SerializeToDocument(new
@@ -2122,7 +2015,7 @@ app.MapPost("/api/creators/register", async (HttpRequest request, RegisterCreato
 		owner_public_key = pubKey,
 		registered_at = DateTime.UtcNow
 	});
-	db.Upsert("name_locks", slug, lockDoc);
+	db.Upsert(CreatorNamePolicy.NameLocksCollection, slug, lockDoc);
 
 	var creatorDoc = JsonSerializer.SerializeToDocument(new
 	{
@@ -2132,7 +2025,7 @@ app.MapPost("/api/creators/register", async (HttpRequest request, RegisterCreato
 		contact_info = req.ContactInfo ?? "",
 		registered_at = DateTime.UtcNow
 	});
-	db.Upsert("creators", pubKey, creatorDoc);
+	db.Upsert(CreatorNamePolicy.CreatorsCollection, pubKey, creatorDoc);
 
 	var creatorEvent = new ClusterEventDto
 	{
@@ -2455,8 +2348,9 @@ app.MapGet("/api/discovery/maps", (DataStoreService db, ContentAddressableStorag
 	return Results.Ok(discoveryList);
 });
 
-app.MapGet("/api/admin/info", (DataStoreService db, ContentAddressableStorage cas) =>
+app.MapGet("/api/admin/info", (DataStoreService db, ContentAddressableStorage cas, HttpContext context) =>
 {
+	if (!AdminRequestAuthorization.IsAuthorized(context.Request, adminPublicKeys, "admin", "info")) return Results.Unauthorized();
 	var adminsList = new List<object>();
 	string? primaryAdminUsername = null;
 	string? primaryAdminPublicKey = adminPublicKeys.FirstOrDefault();
@@ -2490,6 +2384,7 @@ app.MapGet("/api/admin/info", (DataStoreService db, ContentAddressableStorage ca
 		Admins = adminsList,
 		IsGraduatedAdmin = adminPublicKeys.Count > 0,
 		DataDirectory = dataDirectory,
+		ServesClientDownloads = servesClientDownloads,
 		CasTotalSizeBytes = casTotalBytes,
 		CasTotalSizeFormatted = ContentAddressableStorage.FormatByteSize(casTotalBytes)
 	});
@@ -2635,7 +2530,7 @@ app.MapPost("/api/maps/maintainers/remove", (RemoveMapMaintainerRequest req, Dat
 
 app.MapGet("/api/data/{collection}/{id}", (string collection, string id, DataStoreService db, HttpContext context) =>
 {
-	if (!context.Request.Headers.TryGetValue("Authorization", out var authHeader) || !authHeader.ToString().StartsWith("Bearer ")) return Results.Unauthorized();
+	if (!AdminRequestAuthorization.IsAuthorized(context.Request, adminPublicKeys, "admin", collection)) return Results.Unauthorized();
 	var item = db.Get<JsonDocument>(collection, id);
 	if (item != null)
 	{
@@ -2647,14 +2542,14 @@ app.MapGet("/api/data/{collection}/{id}", (string collection, string id, DataSto
 
 app.MapGet("/api/data/{collection}", (string collection, DataStoreService db, HttpContext context) =>
 {
-	if (!context.Request.Headers.TryGetValue("Authorization", out var authHeader) || !authHeader.ToString().StartsWith("Bearer ")) return Results.Unauthorized();
+	if (!AdminRequestAuthorization.IsAuthorized(context.Request, adminPublicKeys, "admin", collection)) return Results.Unauthorized();
 	var items = db.GetAll<JsonDocument>(collection);
 	return Results.Ok(items);
 });
 
 app.MapPost("/api/data/{collection}", (string collection, JsonDocument data, DataStoreService db, HttpContext context) =>
 {
-	if (!context.Request.Headers.TryGetValue("Authorization", out var authHeader) || !authHeader.ToString().StartsWith("Bearer ")) return Results.Unauthorized();
+	if (!AdminRequestAuthorization.IsAuthorized(context.Request, adminPublicKeys, "admin", collection)) return Results.Unauthorized();
 	var id = Guid.NewGuid().ToString("N");
 	db.Upsert(collection, id, data);
 	return Results.Ok(new { Id = id });
@@ -2662,107 +2557,107 @@ app.MapPost("/api/data/{collection}", (string collection, JsonDocument data, Dat
 
 app.MapPut("/api/data/{collection}/{id}", (string collection, string id, JsonDocument data, DataStoreService db, HttpContext context) =>
 {
-	if (!context.Request.Headers.TryGetValue("Authorization", out var authHeader) || !authHeader.ToString().StartsWith("Bearer ")) return Results.Unauthorized();
+	if (!AdminRequestAuthorization.IsAuthorized(context.Request, adminPublicKeys, "admin", collection)) return Results.Unauthorized();
 	db.Upsert(collection, id, data);
 	return Results.Ok(new { Status = "Updated" });
 });
 
 app.MapDelete("/api/data/{collection}/{id}", (string collection, string id, DataStoreService db, HttpContext context) =>
 {
-	if (!context.Request.Headers.TryGetValue("Authorization", out var authHeader) || !authHeader.ToString().StartsWith("Bearer ")) return Results.Unauthorized();
+	if (!AdminRequestAuthorization.IsAuthorized(context.Request, adminPublicKeys, "admin", collection)) return Results.Unauthorized();
 	db.Delete(collection, id);
 	return Results.Ok(new { Status = "Deleted" });
 });
 
 app.MapGet("/api/players", (DataStoreService db, HttpContext context) =>
 {
-	if (!context.Request.Headers.TryGetValue("Authorization", out var authHeader) || !authHeader.ToString().StartsWith("Bearer ")) return Results.Unauthorized();
+	if (!AdminRequestAuthorization.IsAuthorized(context.Request, adminPublicKeys, "admin", "players")) return Results.Unauthorized();
 	return Results.Ok(db.GetAll<JsonDocument>("players"));
 });
 app.MapGet("/api/players/{id}", (string id, DataStoreService db, HttpContext context) =>
 {
-	if (!context.Request.Headers.TryGetValue("Authorization", out var authHeader) || !authHeader.ToString().StartsWith("Bearer ")) return Results.Unauthorized();
+	if (!AdminRequestAuthorization.IsAuthorized(context.Request, adminPublicKeys, "admin", "players")) return Results.Unauthorized();
 	var p = db.Get<JsonDocument>("players", id);
 	return p != null ? Results.Ok(p) : Results.NotFound();
 });
 app.MapPost("/api/players", (JsonDocument data, DataStoreService db, HttpContext context) =>
 {
-	if (!context.Request.Headers.TryGetValue("Authorization", out var authHeader) || !authHeader.ToString().StartsWith("Bearer ")) return Results.Unauthorized();
+	if (!AdminRequestAuthorization.IsAuthorized(context.Request, adminPublicKeys, "admin", "players")) return Results.Unauthorized();
 	var id = Guid.NewGuid().ToString("N");
 	db.Upsert("players", id, data);
 	return Results.Ok(new { Id = id });
 });
 app.MapPut("/api/players/{id}", (string id, JsonDocument data, DataStoreService db, HttpContext context) =>
 {
-	if (!context.Request.Headers.TryGetValue("Authorization", out var authHeader) || !authHeader.ToString().StartsWith("Bearer ")) return Results.Unauthorized();
+	if (!AdminRequestAuthorization.IsAuthorized(context.Request, adminPublicKeys, "admin", "players")) return Results.Unauthorized();
 	db.Upsert("players", id, data);
 	return Results.Ok();
 });
 app.MapDelete("/api/players/{id}", (string id, DataStoreService db, HttpContext context) =>
 {
-	if (!context.Request.Headers.TryGetValue("Authorization", out var authHeader) || !authHeader.ToString().StartsWith("Bearer ")) return Results.Unauthorized();
+	if (!AdminRequestAuthorization.IsAuthorized(context.Request, adminPublicKeys, "admin", "players")) return Results.Unauthorized();
 	db.Delete("players", id);
 	return Results.Ok();
 });
 
 app.MapGet("/api/maps", (DataStoreService db, HttpContext context) =>
 {
-	if (!context.Request.Headers.TryGetValue("Authorization", out var authHeader) || !authHeader.ToString().StartsWith("Bearer ")) return Results.Unauthorized();
+	if (!AdminRequestAuthorization.IsAuthorized(context.Request, adminPublicKeys, "admin", "maps")) return Results.Unauthorized();
 	return Results.Ok(db.GetAll<JsonDocument>("maps"));
 });
 app.MapGet("/api/maps/{id}", (string id, DataStoreService db, HttpContext context) =>
 {
-	if (!context.Request.Headers.TryGetValue("Authorization", out var authHeader) || !authHeader.ToString().StartsWith("Bearer ")) return Results.Unauthorized();
+	if (!AdminRequestAuthorization.IsAuthorized(context.Request, adminPublicKeys, "admin", "maps")) return Results.Unauthorized();
 	var m = db.Get<JsonDocument>("maps", id);
 	return m != null ? Results.Ok(m) : Results.NotFound();
 });
 app.MapPost("/api/maps", (JsonDocument data, DataStoreService db, HttpContext context) =>
 {
-	if (!context.Request.Headers.TryGetValue("Authorization", out var authHeader) || !authHeader.ToString().StartsWith("Bearer ")) return Results.Unauthorized();
+	if (!AdminRequestAuthorization.IsAuthorized(context.Request, adminPublicKeys, "admin", "maps")) return Results.Unauthorized();
 	var id = Guid.NewGuid().ToString("N");
 	db.Upsert("maps", id, data);
 	return Results.Ok(new { Id = id });
 });
 app.MapPut("/api/maps/{id}", (string id, JsonDocument data, DataStoreService db, HttpContext context) =>
 {
-	if (!context.Request.Headers.TryGetValue("Authorization", out var authHeader) || !authHeader.ToString().StartsWith("Bearer ")) return Results.Unauthorized();
+	if (!AdminRequestAuthorization.IsAuthorized(context.Request, adminPublicKeys, "admin", "maps")) return Results.Unauthorized();
 	db.Upsert("maps", id, data);
 	return Results.Ok();
 });
 app.MapDelete("/api/maps/{id}", (string id, DataStoreService db, HttpContext context) =>
 {
-	if (!context.Request.Headers.TryGetValue("Authorization", out var authHeader) || !authHeader.ToString().StartsWith("Bearer ")) return Results.Unauthorized();
+	if (!AdminRequestAuthorization.IsAuthorized(context.Request, adminPublicKeys, "admin", "maps")) return Results.Unauthorized();
 	db.Delete("maps", id);
 	return Results.Ok();
 });
 
 app.MapGet("/api/admin/bans", (DataStoreService db, HttpContext context) =>
 {
-	if (!context.Request.Headers.TryGetValue("Authorization", out var authHeader) || !authHeader.ToString().StartsWith("Bearer ")) return Results.Unauthorized();
+	if (!AdminRequestAuthorization.IsAuthorized(context.Request, adminPublicKeys, "admin", "bans")) return Results.Unauthorized();
 	return Results.Ok(db.GetAll<JsonDocument>("bans"));
 });
 app.MapGet("/api/admin/bans/{id}", (string id, DataStoreService db, HttpContext context) =>
 {
-	if (!context.Request.Headers.TryGetValue("Authorization", out var authHeader) || !authHeader.ToString().StartsWith("Bearer ")) return Results.Unauthorized();
+	if (!AdminRequestAuthorization.IsAuthorized(context.Request, adminPublicKeys, "admin", "bans")) return Results.Unauthorized();
 	var b = db.Get<JsonDocument>("bans", id);
 	return b != null ? Results.Ok(b) : Results.NotFound();
 });
 app.MapPost("/api/admin/bans", (JsonDocument data, DataStoreService db, HttpContext context) =>
 {
-	if (!context.Request.Headers.TryGetValue("Authorization", out var authHeader) || !authHeader.ToString().StartsWith("Bearer ")) return Results.Unauthorized();
+	if (!AdminRequestAuthorization.IsAuthorized(context.Request, adminPublicKeys, "admin", "bans")) return Results.Unauthorized();
 	var id = Guid.NewGuid().ToString("N");
 	db.Upsert("bans", id, data);
 	return Results.Ok(new { Id = id });
 });
 app.MapPut("/api/admin/bans/{id}", (string id, JsonDocument data, DataStoreService db, HttpContext context) =>
 {
-	if (!context.Request.Headers.TryGetValue("Authorization", out var authHeader) || !authHeader.ToString().StartsWith("Bearer ")) return Results.Unauthorized();
+	if (!AdminRequestAuthorization.IsAuthorized(context.Request, adminPublicKeys, "admin", "bans")) return Results.Unauthorized();
 	db.Upsert("bans", id, data);
 	return Results.Ok();
 });
 app.MapDelete("/api/admin/bans/{id}", (string id, DataStoreService db, HttpContext context) =>
 {
-	if (!context.Request.Headers.TryGetValue("Authorization", out var authHeader) || !authHeader.ToString().StartsWith("Bearer ")) return Results.Unauthorized();
+	if (!AdminRequestAuthorization.IsAuthorized(context.Request, adminPublicKeys, "admin", "bans")) return Results.Unauthorized();
 	db.Delete("bans", id);
 	return Results.Ok();
 });
@@ -2812,7 +2707,7 @@ app.Map("/seeders/ws", async (HttpContext context, SeederRegistry registry) =>
 	}
 });
 
-app.MapPost("/api/maps/report_metrics", (MapMetricsReport req, DataStoreService db, ClusterEventService clusterEvents, PeerRegistry registeredPeers, IHttpClientFactory httpClientFactory) =>
+app.MapPost("/api/maps/report_metrics", (MapMetricsReport req, AccountStoreService accounts, DataStoreService db, ClusterEventService clusterEvents, PeerRegistry registeredPeers, IHttpClientFactory httpClientFactory) =>
 {
 	if (string.IsNullOrWhiteSpace(req.MapTitle))
 	{
@@ -2825,38 +2720,27 @@ app.MapPost("/api/maps/report_metrics", (MapMetricsReport req, DataStoreService 
 	string compositeKey = $"{mapTitle}_{mapVersion}";
 	string authorCompositeKey = !string.IsNullOrEmpty(authorPublicKey) ? $"{mapTitle}_{mapVersion}_{authorPublicKey}" : compositeKey;
 
-	string playerIdentifier = !string.IsNullOrWhiteSpace(req.PlayerId) ? req.PlayerId.Trim() : "Anonymous";
-	bool isVerifiedAccount = false;
-
-	if (!string.IsNullOrWhiteSpace(req.AuthToken))
+	long accountId = 0;
+	string displayName = string.Empty;
+	if (accounts.TryValidateSession(req.SessionToken, out AccountRecord? reportingAccount, out _, out _) && reportingAccount != null)
 	{
-		var sessionDoc = db.Get<JsonDocument>("auth_sessions", req.AuthToken);
-		if (sessionDoc != null)
-		{
-			var root = sessionDoc.RootElement;
-			string? provider = root.TryGetProperty("provider", out var pProp) ? pProp.GetString() : null;
-			string? user = root.TryGetProperty("username", out var uProp) ? uProp.GetString() : null;
-			if (!string.IsNullOrEmpty(user))
-			{
-				playerIdentifier = user;
-			}
+		accountId = reportingAccount.AccountId;
+		displayName = reportingAccount.DisplayName;
+	}
 
-			if (!string.IsNullOrEmpty(provider) && !provider.Equals("guest", StringComparison.OrdinalIgnoreCase))
-			{
-				isVerifiedAccount = true;
-			}
-		}
-	}
-	else if (!string.IsNullOrWhiteSpace(req.AuthProvider) && !req.AuthProvider.Equals("guest", StringComparison.OrdinalIgnoreCase))
-	{
-		isVerifiedAccount = true;
-	}
+	string playerIdentifier = accountId != 0 ? accountId.ToString(CultureInfo.InvariantCulture) : "anonymous";
+	bool isVerifiedAccount = accountId != 0;
 
 	string engagementKey = !string.IsNullOrEmpty(authorPublicKey)
 		? $"{playerIdentifier}_{authorCompositeKey}".ToLowerInvariant()
 		: $"{playerIdentifier}_{compositeKey}".ToLowerInvariant();
 	var engagement = db.Get<PlayerMapEngagement>("player_engagement", engagementKey)
-	                 ?? new PlayerMapEngagement { PlayerId = playerIdentifier };
+	                 ?? new PlayerMapEngagement { AccountId = accountId, DisplayName = displayName };
+
+	if (accountId != 0)
+	{
+		engagement.DisplayName = displayName;
+	}
 
 	bool wasVerifiedGood = engagement.IsVerifiedGoodReview;
 	bool hadSubmittedRating = engagement.SubmittedRating.HasValue;
@@ -2916,11 +2800,11 @@ app.MapPost("/api/maps/report_metrics", (MapMetricsReport req, DataStoreService 
 		{
 			MapTitle = mapTitle,
 			MapVersion = mapVersion,
-			PlayerId = playerIdentifier,
+			AccountId = accountId,
+			DisplayName = displayName,
 			PlaytimeMinutes = Math.Max(0.0, req.PlaytimeMinutes),
 			Stars = req.Stars,
 			IsCompleteGame = req.IsCompleteGame,
-			AuthProvider = req.AuthProvider,
 			AuthorPublicKey = authorPublicKey
 		})
 	};

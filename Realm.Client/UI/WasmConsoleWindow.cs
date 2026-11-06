@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.Network;
 using Realm.Client.Services;
+using Realm.Shared.Network;
 using Color = Godot.Color;
 using FileAccess = Godot.FileAccess;
 
@@ -28,6 +30,21 @@ public partial class WasmConsoleWindow : Window
 	private string _bufferedStatus = "Initializing compilation pipeline...";
 	private string _bufferedStatusColor = "#00e5ff";
 	private readonly object _logLock = new object();
+
+	/// <summary>
+	///     The authority this screen hosts prints its own output, and its script host reports a runtime fault there and
+	///     then stops ticking the map: the match stands still with nothing in Godot's output to explain it. The screen
+	///     that launched the authority already captures that stream beside its log, so reading what it appends is what
+	///     puts a fault in front of the player instead of leaving it in a file nobody opens.
+	/// </summary>
+	private const double AuthorityConsolePollSeconds = 0.25;
+
+	private const string AuthorityLinePrefix = "[AUTHORITY] ";
+
+	private string _authorityConsolePath = string.Empty;
+	private long _authorityConsoleOffset;
+	private string _authorityConsolePendingText = string.Empty;
+	private double _authorityConsolePollElapsed;
 
 	private ColorRect? _statusIndicator;
 	private Label? _statusLabel;
@@ -157,6 +174,7 @@ public partial class WasmConsoleWindow : Window
 		_commandInput.Name = "CommandInput_LineEdit";
 		_commandInput.PlaceholderText = "Enter command or chat message...";
 		_commandInput.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		UIStyle.ApplyTextInput(_commandInput, 13);
 		_commandInput.TextSubmitted += OnCommandSubmitted;
 		bottomHBox.AddChild(_commandInput);
 
@@ -178,6 +196,101 @@ public partial class WasmConsoleWindow : Window
 	private void OnCloseRequested()
 	{
 		Hide();
+	}
+
+	public override void _Process(double delta)
+	{
+		_authorityConsolePollElapsed += delta;
+		if (_authorityConsolePollElapsed < AuthorityConsolePollSeconds) return;
+
+		_authorityConsolePollElapsed = 0;
+		PollAuthorityConsole();
+	}
+
+	/// <summary>
+	///     Reads whatever the authority has appended to its console capture since the last poll. The window is fed while
+	///     it is closed as well as open, so a fault that happened during the match is already in the log by the time the
+	///     player opens it.
+	/// </summary>
+	private void PollAuthorityConsole()
+	{
+		string path = ResolveAuthorityConsolePath();
+		if (path.Length == 0) return;
+
+		if (!string.Equals(path, _authorityConsolePath, StringComparison.Ordinal))
+		{
+			// A different authority writes somewhere new, so an offset from the previous file means nothing here.
+			_authorityConsolePath = path;
+			_authorityConsoleOffset = 0;
+			_authorityConsolePendingText = string.Empty;
+		}
+
+		try
+		{
+			using var stream = new FileStream(path, FileMode.Open, System.IO.FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+
+			if (stream.Length < _authorityConsoleOffset)
+			{
+				// The authority restarted and truncated the capture this window was reading.
+				_authorityConsoleOffset = 0;
+				_authorityConsolePendingText = string.Empty;
+				EmitAuthorityLine("--- the authority's console began again ---");
+			}
+
+			if (stream.Length == _authorityConsoleOffset) return;
+
+			var buffer = new byte[stream.Length - _authorityConsoleOffset];
+			stream.Seek(_authorityConsoleOffset, SeekOrigin.Begin);
+
+			int read = 0;
+			while (read < buffer.Length)
+			{
+				int chunk = stream.Read(buffer, read, buffer.Length - read);
+				if (chunk <= 0) break;
+				read += chunk;
+			}
+
+			_authorityConsoleOffset += read;
+
+			string text = _authorityConsolePendingText + Encoding.UTF8.GetString(buffer, 0, read);
+			string[] lines = text.Split('\n');
+
+			// A write can stop mid-line, so the tail is held back until its newline arrives.
+			_authorityConsolePendingText = lines[^1];
+
+			for (int index = 0; index < lines.Length - 1; index++)
+			{
+				EmitAuthorityLine(lines[index].TrimEnd('\r'));
+			}
+		}
+		catch (IOException)
+		{
+			// The capture is written and truncated by the authority's own launch, so a read that races it is normal.
+		}
+		catch (UnauthorizedAccessException)
+		{
+		}
+	}
+
+	private void EmitAuthorityLine(string line)
+	{
+		if (string.IsNullOrWhiteSpace(line)) return;
+
+		// Both places: the window for a player watching the console, and Godot's output for anyone reading the editor.
+		AppendLog(AuthorityLinePrefix + line);
+		GD.Print(AuthorityLinePrefix + line);
+	}
+
+	private static string ResolveAuthorityConsolePath()
+	{
+		LobbyManager? lobby = GameContext.Lobby;
+		if (lobby != null && GodotObject.IsInstanceValid(lobby) && lobby.LastAuthorityConsoleLogPath.Length > 0)
+			return lobby.LastAuthorityConsoleLogPath;
+
+		// A match holds no lobby, and this screen's resident authority outlives every match it hosts, so its capture
+		// is still the one to read once the match has started.
+		string logPath = GameContext.LocalAuthority.LogPath;
+		return string.IsNullOrEmpty(logPath) ? string.Empty : ServerConsoleCapture.ResolvePath(logPath);
 	}
 
 	public override void _UnhandledInput(InputEvent @event)
@@ -252,7 +365,7 @@ public partial class WasmConsoleWindow : Window
 				}
 				else if (GodotObject.IsInstanceValid(GameContext.Lobby))
 				{
-					GameContext.Lobby.SendChatMessage(GameContext.Lobby.AuthenticatedUsername ?? "Player", cmd);
+					GameContext.Lobby.SendChatMessage(GameContext.Lobby.PlayerDisplayName, cmd);
 				}
 			}
 			catch (Exception ex)

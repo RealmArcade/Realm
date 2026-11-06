@@ -187,7 +187,13 @@ public class AuthoritativeSnapshotBuilder
 
 			_describedUnitStates.Add(held);
 
-			if (!isBaseline && !IsSameUnitAsSent(in described, in held.SentRecord)) held.ForgetToldPayloadBytes();
+			// Whether this peer holds the same unit under this identifier is decided once, because it answers two questions:
+			// whether the components it was given still belong to this unit, and whether it still knows what the unit is built
+			// from. A match recycles a server entity identifier the moment a unit is destroyed, so the second question is not
+			// the same as "was this identifier described before".
+			bool sameUnitAsSent = IsSameUnitAsSent(in described, in held.SentRecord);
+
+			if (!isBaseline && !sameUnitAsSent) held.ForgetToldPayloadBytes();
 
 			// A unit exactly where this peer was last told it is carries no information - a building, a unit holding position
 			// or one standing where its order ended all stay on the peer's screen as they are - so it is left out and its
@@ -200,8 +206,11 @@ public class AuthoritativeSnapshotBuilder
 			// described thirty times a second, and the same text was encoded, carried and allocated on the screen each time;
 			// the record this match keeps still holds it, so the next description can tell whether the peer has been told.
 			// A unit that leaves this peer's sight loses its record here and is named again when it comes back, which is the
-			// moment the screen has thrown its copy away.
-			if (!isBaseline && held.ToldDefinition != null && string.Equals(held.ToldDefinition, described.UnitId, StringComparison.Ordinal))
+			// moment the screen has thrown its copy away. A different unit under the same identifier - the usual case, since a
+			// drafted circle frees its identifier and the hero and the circle that replace it take the freed ones - is another
+			// such moment: the screen compares the record with what it holds, throws its copy away and builds the unit again,
+			// and a description that left the definition out would leave that unit standing nowhere on its screen for good.
+			if (!isBaseline && sameUnitAsSent && held.ToldDefinition != null && string.Equals(held.ToldDefinition, described.UnitId, StringComparison.Ordinal))
 			{
 				described.UnitId = string.Empty;
 			}
@@ -225,6 +234,10 @@ public class AuthoritativeSnapshotBuilder
 
 	private static bool IsSameUnitAsSent(in UnitSnapshot described, in UnitSnapshot sent)
 	{
+		// A unit this peer was told is dead is not a unit it holds: it freezes the corpse, frees it once the presentation
+		// clock reaches that description, and treats anything described under the identifier afterwards as a different
+		// unit. The same holds for a unit it never built, whose record is the default one.
+		if (sent.IsDead || string.IsNullOrEmpty(sent.UnitId)) return false;
 		if (!string.Equals(described.UnitId, sent.UnitId, StringComparison.Ordinal)) return false;
 		if (described.OwnerPlayerIndex != sent.OwnerPlayerIndex) return false;
 		return described.IsBuilding == sent.IsBuilding;
@@ -276,6 +289,10 @@ public class AuthoritativeSnapshotBuilder
 			entries.Add(new CatalogEntry { Channel = "resource_node_type", Key = nodeType.Key, Value = nodeType.Value });
 		}
 
+		entries.Add(new CatalogEntry { Channel = "unit_bar", Key = "health", Number = _rules.UnitHealthBarEnabled ? 1f : 0f });
+		entries.Add(new CatalogEntry { Channel = "unit_bar", Key = "mana", Number = _rules.UnitManaBarEnabled ? 1f : 0f });
+		entries.Add(new CatalogEntry { Channel = "unit_bar", Key = "level", Number = _rules.UnitLevelBadgeEnabled ? 1f : 0f });
+
 		TechLevels?.AppendDescription(entries);
 	}
 
@@ -304,6 +321,34 @@ public class AuthoritativeSnapshotBuilder
 	}
 
 	private readonly List<(int Id, string Text)> _stringTableEntries = new();
+
+	/// <summary>
+	///     Describes the text a text-list payload names in the same snapshot that describes the payload itself.
+	/// </summary>
+	/// <remarks>
+	///     The incremental text table only tells a peer about text registered since its cursor, and the cursor advances on
+	///     the snapshot that carries those entries. A payload whose text was registered long before it — an ability list a
+	///     unit type only ever fields when it is first spawned, for instance — therefore arrives with handles this peer has
+	///     never been given the text for, and every slot renders as a blank named slot until the next baseline. Pairing the
+	///     two makes the payload carry its own text, so a payload arriving is enough to render it.
+	/// </remarks>
+	private void AppendTextBehindPayload(WorldSnapshot snapshot, int handle)
+	{
+		int textCount = ContentIdStore.GetTextListCount(handle);
+		for (int index = 0; index < textCount; index++)
+		{
+			int textId = ContentIdStore.GetTextListItemId(handle, index);
+			if (textId == 0) continue;
+			if (!StringRegistry.TryGetText(textId, out string text) || string.IsNullOrEmpty(text)) continue;
+
+			snapshot.Catalog.Add(new CatalogEntry
+			{
+				Channel = TextChannel,
+				Key = textId.ToString(System.Globalization.CultureInfo.InvariantCulture),
+				Value = text
+			});
+		}
+	}
 
 	private void CollectLootItem(Entity entity, ref GroundLoot loot, ref Position position) => _lootItems.Add((entity, loot, position.Value));
 
@@ -409,6 +454,8 @@ public class AuthoritativeSnapshotBuilder
 	{
 		if (handle == 0 || !state.SentContentIds.Add(handle)) return;
 		if (!ContentIdStore.TryGetPayload(handle, out byte contentKind, out ReadOnlySpan<byte> payload)) return;
+
+		AppendTextBehindPayload(snapshot, handle);
 
 		snapshot.ColdPayloads.Add(new ColdPayloadDelta
 		{

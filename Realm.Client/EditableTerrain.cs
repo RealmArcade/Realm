@@ -369,7 +369,6 @@ public partial class EditableTerrain : RuntimeTerrain
 		}
 
 		CreateChunks();
-		UpdateWaterSize();
 		UpdateMeshAndPhysics();
 	}
 

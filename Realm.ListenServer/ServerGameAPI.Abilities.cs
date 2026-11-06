@@ -40,8 +40,13 @@ public partial class ServerGameAPI
 		string tooltip = ability?.Description ?? unit?.Description ?? string.Empty;
 		string iconPath = ability?.IconPath ?? string.Empty;
 
+		// A template ability the map hands to a unit keeps whatever the map or the ability template said about it,
+		// including whether it is a self cast. Publishing it as a location spell took the instant flag away from
+		// every ability a script added to a template, so an instant ability asked the player for a target instead.
+		bool isInstant = _abilities.GetDefinition(abilityId).IsInstant;
+
 		_presentation.Write(PresentationKind.AbilityRegistered, AllPlayers, 0, abilityId, displayName, tooltip, iconPath, null,
-			Vector3.Zero, Vector3.Zero, Vector3.Zero, 0, 0, 0f, 0f, 0f, false);
+			Vector3.Zero, Vector3.Zero, Vector3.Zero, isInstant ? 1 : 0, 0, 0f, 0f, 0f, isInstant);
 	}
 
 	private readonly HashSet<string> _declaredTemplateAbilities = new(StringComparer.OrdinalIgnoreCase);

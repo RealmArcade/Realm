@@ -17,6 +17,7 @@ public partial class AuthorSignatureDialog : FloatingDialogBase
 	private LineEdit _txtPublicKey;
 	private Label _lblKeyPath;
 	private Label _lblCopyStatus;
+	private string _displayedKeyPath = string.Empty;
 
 	public AuthorSignatureDialog(MapEditorHUD hud)
 		: base(hud, TranslationServer.Translate("Author Signature"), new Vector2(540, 360))
@@ -47,7 +48,7 @@ public partial class AuthorSignatureDialog : FloatingDialogBase
 
 		var descLabel = new Label();
 		descLabel.Name = "DescLabel_Label";
-		descLabel.Text = TranslationServer.Translate("Your map publishing key is stored in authorship_key_DO-NOT-SHARE.rkey. It is used to sign all your maps and assets to verify your ownership so others can't overwrite your published files. Keep this key safely backed up in a secure location. NEVER share your private key or .rkey file. To collaborate on maps, share only your Public Key with team maintainers so they can authorize you to publish.");
+		descLabel.Text = TranslationServer.Translate("Your map publishing key is stored in authorship_key_DO-NOT-SHARE_<username>.rkey. It is used to sign all your maps and assets to verify your ownership so others can't overwrite your published files. Keep this key safely backed up in a secure location. NEVER share your private key or .rkey file. To collaborate on maps, share only your Public Key with team maintainers so they can authorize you to publish.");
 		descLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
 		descLabel.CustomMinimumSize = new Vector2(390, 0);
 		descLabel.HorizontalAlignment = HorizontalAlignment.Center;
@@ -212,6 +213,12 @@ public partial class AuthorSignatureDialog : FloatingDialogBase
 		OS.ShellOpen(fullPath);
 	}
 
+	public void OpenForKey(string keyPath)
+	{
+		_displayedKeyPath = keyPath;
+		OpenDialog();
+	}
+
 	public override void OpenDialog()
 	{
 		RefreshKeyDetails();
@@ -220,13 +227,20 @@ public partial class AuthorSignatureDialog : FloatingDialogBase
 
 	private void RefreshKeyDetails()
 	{
-		string keyDir = ProjectSettings.GlobalizePath("user://appdata/keys/");
-		string defaultUsername = GameContext.Lobby?.AuthenticatedUsername ?? string.Empty;
-		var (key, data, keyPath, _) = AuthorshipKeyHelper.GetOrGenerateKeyInfo(keyDir, defaultUsername);
+		_lblCopyStatus.Text = string.Empty;
 
-		_txtUsername.Text = !string.IsNullOrWhiteSpace(data.UserName) ? data.UserName : (string.IsNullOrWhiteSpace(defaultUsername) ? TranslationServer.Translate("(Not Registered)") : defaultUsername);
+		string keyPath = _displayedKeyPath;
+		if (string.IsNullOrEmpty(keyPath) || !AuthorshipKeyHelper.TryReadKeyFile(keyPath, out AuthorshipKeyData? data) || data == null)
+		{
+			_txtUsername.Text = TranslationServer.Translate("(No key selected)");
+			_txtPublicKey.Text = string.Empty;
+			_lblKeyPath.Text = string.Empty;
+			return;
+		}
+
+		_displayedKeyPath = keyPath;
+		_txtUsername.Text = data.UserName;
 		_txtPublicKey.Text = data.PublicKey;
 		_lblKeyPath.Text = keyPath;
-		_lblCopyStatus.Text = string.Empty;
 	}
 }

@@ -294,6 +294,24 @@
             "integer",
             "null"
           ]
+        },
+        "ShowUnitHealthBar": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "ShowUnitManaBar": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "ShowUnitLevel": {
+          "type": [
+            "boolean",
+            "null"
+          ]
         }
       }
     },
@@ -453,6 +471,9 @@
               "PercentArmorPenetration": {
                 "type": "number"
               },
+              "FlatMagicPenetration": {
+                "type": "number"
+              },
               "DamageVariance": {
                 "type": "number"
               },
@@ -574,6 +595,9 @@
                 }
               },
               "XpBounty": {
+                "type": "number"
+              },
+              "ExperiencePerLevel": {
                 "type": "number"
               },
               "PathingCapabilities": {
@@ -1338,6 +1362,15 @@
               "ManaCost": {
                 "type": "number"
               },
+              "CostGold": {
+                "type": "number"
+              },
+              "CostWood": {
+                "type": "number"
+              },
+              "CostStone": {
+                "type": "number"
+              },
               "Cooldown": {
                 "type": "number"
               },
@@ -1345,6 +1378,12 @@
                 "type": "number"
               },
               "VisualEffect": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "ProjectileId": {
                 "type": [
                   "string",
                   "null"

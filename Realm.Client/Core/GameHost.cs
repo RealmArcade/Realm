@@ -948,6 +948,19 @@ public partial class GameHost : Node3D
 	public bool CheatsEnabled
 		=> GameContext.SessionState.IsMapEditorMode || GameContext.SessionState.IsTestMode || (GameContext.Lobby?.IsSinglePlayer ?? false);
 
+	/// <summary>
+	///     True when this match belongs to the one screen playing it: a single-player game or a playtest started from the
+	///     map editor. Nobody else is waiting on it, so what the match asks of a player who might be holding other people up
+	///     does not apply.
+	/// </summary>
+	public bool IsSinglePlayerMatch => CheatsEnabled;
+
+	/// <summary>
+	///     True when this match is played with other people, and its outcome is therefore part of a player's record. A
+	///     single-player game and a playtest are one screen's own practice: they are not counted anywhere.
+	/// </summary>
+	public bool IsRankedMultiplayerMatch => !IsSinglePlayerMatch && (GameContext.Lobby?.IsGameStarted ?? false);
+
 	public string GetStringText(int stringId) => Realm.Ecs.StringRegistry.Get(stringId);
 
 	public float GameElapsedTime
@@ -1220,14 +1233,29 @@ public partial class GameHost : Node3D
 		string mapApiCsproj = Path.Combine(repoRoot, "Realm.MapAPI", "Realm.MapAPI.csproj");
 		if (!File.Exists(mapApiCsproj)) return;
 
+		string dotnetExecutablePath = DotnetSdkResolver.ResolveSdkExecutablePath();
+		if (string.IsNullOrEmpty(dotnetExecutablePath))
+		{
+			GD.PrintErr("Realm.MapAPI.dll is missing and the .NET SDK (map compiler) is not installed yet, so it cannot be built.");
+			return;
+		}
+
 		GD.Print("Realm.MapAPI.dll not found. Auto-building Realm.MapAPI...");
-		using var buildProcess = new Process();
-		buildProcess.StartInfo.FileName = "dotnet";
-		buildProcess.StartInfo.Arguments = $"build \"{mapApiCsproj}\" -c Debug";
-		buildProcess.StartInfo.CreateNoWindow = true;
-		buildProcess.StartInfo.UseShellExecute = false;
-		buildProcess.Start();
-		buildProcess.WaitForExit();
+		try
+		{
+			using var buildProcess = new Process();
+			buildProcess.StartInfo.FileName = dotnetExecutablePath;
+			buildProcess.StartInfo.Arguments = $"build \"{mapApiCsproj}\" -c Debug";
+			buildProcess.StartInfo.CreateNoWindow = true;
+			buildProcess.StartInfo.UseShellExecute = false;
+			buildProcess.Start();
+			buildProcess.WaitForExit();
+		}
+		catch (Exception exception)
+		{
+			GD.PrintErr("Realm.MapAPI.dll could not be built: " + exception.Message);
+			return;
+		}
 
 		TryCopyMapApiDll(Path.Combine(repoRoot, "Realm.MapAPI", "bin", "Debug", "net10.0", "Realm.MapAPI.dll"), Path.Combine(repoRoot, "Realm.MapAPI", "bin", "Debug", "net10.0", "Realm.MapAPI.xml"), libDir);
 	}
@@ -1266,8 +1294,11 @@ public partial class GameHost : Node3D
 	{
 		try
 		{
+			string dotnetExecutablePath = DotnetSdkResolver.ResolveSdkExecutablePath();
+			if (string.IsNullOrEmpty(dotnetExecutablePath)) return;
+
 			using var restoreProcess = new Process();
-			restoreProcess.StartInfo.FileName = "dotnet";
+			restoreProcess.StartInfo.FileName = dotnetExecutablePath;
 			restoreProcess.StartInfo.Arguments = $"restore \"{csprojPath}\"";
 			restoreProcess.StartInfo.WorkingDirectory = mapDir;
 			restoreProcess.StartInfo.CreateNoWindow = true;
@@ -1664,7 +1695,7 @@ public partial class GameHost : Node3D
 	public void LoadUnitMetadata(string mapName = null)
 	{
 		ResetAbilityCatalog();
-		mapName = !string.IsNullOrEmpty(mapName) ? mapName : (!string.IsNullOrEmpty(GameContext.Simulation.ActiveMapName) ? GameContext.Simulation.ActiveMapName : MapWorkspaceService.DefaultWorkspaceFolder);
+		mapName = !string.IsNullOrEmpty(mapName) ? mapName : (!string.IsNullOrEmpty(GameContext.Simulation.ActiveMapName) ? GameContext.Simulation.ActiveMapName : "Untitled Map");
 		GameContext.Simulation.ActiveMapName = mapName;
 		LocalizationManager.CurrentMapName = mapName;
 		LocalizationManager.SetupTranslations();
@@ -1826,7 +1857,7 @@ public partial class GameHost : Node3D
 	{
 		try
 		{
-			string dir = !string.IsNullOrEmpty(GameContext.MapStorageService.CurrentMapDirectory) ? GameContext.MapStorageService.CurrentMapDirectory : ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
+			string dir = !string.IsNullOrEmpty(GameContext.MapStorageService.CurrentMapDirectory) ? GameContext.MapStorageService.CurrentMapDirectory : GameContext.EditorService._editingDirectory;
 			var metadata = MapFileService.LoadMetadata(dir);
 			metadata.Templates ??= new TemplateContainer();
 			metadata.Templates.Attachments ??= new List<AttachmentMetadata>();
@@ -1859,7 +1890,7 @@ public partial class GameHost : Node3D
 	{
 		try
 		{
-			string dir = !string.IsNullOrEmpty(GameContext.MapStorageService.CurrentMapDirectory) ? GameContext.MapStorageService.CurrentMapDirectory : ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
+			string dir = !string.IsNullOrEmpty(GameContext.MapStorageService.CurrentMapDirectory) ? GameContext.MapStorageService.CurrentMapDirectory : GameContext.EditorService._editingDirectory;
 			var metadata = MapFileService.LoadMetadata(dir);
 			var unit = metadata.GetUnit(unitId);
 			if (unit != null)
@@ -2221,7 +2252,6 @@ public partial class GameHost : Node3D
 	{
 		_localPeerId = Multiplayer.GetUniqueId();
 		if (!Multiplayer.IsServer()) GameContext.NetworkService.MarkClientEnteredMultiplayer();
-		if (Multiplayer is SceneMultiplayer sceneMultiplayer) sceneMultiplayer.ServerRelay = false;
 
 		if (GameContext.Lobby != null && GameContext.Lobby.PlayerList.Count > 0)
 			SetupLobbyPlayers();
@@ -2267,8 +2297,9 @@ public partial class GameHost : Node3D
 		_peerIdToPlayerEntityMap[1] = playerEntities[1];
 		_peerIdToPlayerEntityMap[-1] = playerEntities[2];
 
+		string localPlayerName = GameContext.Lobby?.PlayerDisplayName ?? TranslationServer.Translate("Guest");
 		UpdateScriptPlayerState(0, "Neutral", active: true, isComputer: true, teamIndex: 0);
-		UpdateScriptPlayerState(1, "Horaid_Topa", active: true, isComputer: false, teamIndex: 1);
+		UpdateScriptPlayerState(1, localPlayerName, active: true, isComputer: false, teamIndex: 1);
 		UpdateScriptPlayerState(2, "Enemy_AI", active: true, isComputer: true, teamIndex: 2);
 
 		GameContext.SimulationService?.RecalculatePlayerRelationships();
@@ -2547,14 +2578,22 @@ public partial class GameHost : Node3D
 		bool wasMapEditorMode = GameContext.SessionState.IsMapEditorMode;
 		bool wasLoadingMap = GameContext.SaveLoadService.IsLoadingMap;
 		bool wasProfilingEnabled = GameContext.PerformanceTrackingService?.IsFunctionProfilingEnabled ?? false;
+		bool editorWorldIsSetAside = GameContext.SessionState.EditorWorldState != null;
+		string preservedEditorDirectory = editorWorldIsSetAside ? GameContext.EditorService._editingDirectory : string.Empty;
+		string? preservedEditorSourceFolder = editorWorldIsSetAside ? GameContext.EditorService.CurrentSourceFolder : null;
 
 		GameContext.EndScreenScope();
 		ResolveServices();
 
 		GameContext.SessionState.IsMapEditorMode = wasMapEditorMode;
-		if (wasMapEditorMode)
+		if (!string.IsNullOrEmpty(preservedEditorDirectory))
 		{
-			GameContext.EditorService.OpenTempWorkspaceSessionDomain();
+			GameContext.EditorService.SetActiveMapDirectory(preservedEditorDirectory);
+			GameContext.EditorService.SetCurrentSourceFolder(preservedEditorSourceFolder);
+		}
+		else if (wasMapEditorMode)
+		{
+			GameContext.EditorService.EnsureEditingDirectoryDomain();
 		}
 		GameContext.SaveLoadService.IsLoadingMap = wasLoadingMap;
 		if (wasProfilingEnabled)
@@ -2591,6 +2630,12 @@ public partial class GameHost : Node3D
 
 		// A removal held against a clock this screen no longer has would free a node of whatever match comes next.
 		_pendingUnitViewRemovals.Clear();
+
+		if (!GameContext.GlobalScope.IsDisposed)
+		{
+			GameContext.MapAutosaveService.FlushPendingWrites(TimeSpan.FromSeconds(2));
+			GameContext.MapHistoryService.WaitForQueue(TimeSpan.FromSeconds(2));
+		}
 
 		GameContext.Dispose();
 		GameContext.UnregisterHost(this);
@@ -2940,7 +2985,8 @@ public partial class GameHost : Node3D
 			meta.CritChance, meta.CritMultiplier > 0f ? meta.CritMultiplier : 1f,
 			meta.SplashType, meta.SplashInnerRadius, meta.SplashMediumRadius, meta.SplashOuterRadius,
 			meta.SplashInnerRatio, meta.SplashMediumRatio, meta.SplashOuterRatio, meta.FriendlyFire,
-			meta.PushPriority, !string.IsNullOrEmpty(meta.MovementType) ? meta.MovementType : "Ground"
+			meta.PushPriority, !string.IsNullOrEmpty(meta.MovementType) ? meta.MovementType : "Ground",
+			meta.FlatMagicPenetration
 		);
 	}
 

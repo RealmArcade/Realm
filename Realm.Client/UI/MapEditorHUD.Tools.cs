@@ -13,6 +13,7 @@ using Realm.Client.Animation;
 using Realm.Client.Core;
 using Realm.Client.Network;
 using Realm.Client.Services;
+using Realm.Client.Services.MapHistory;
 using Realm.Client.Services.ModelOptimization;
 using Realm.Client.UI.MapEditor;
 using Realm.Client.VFX;
@@ -42,11 +43,6 @@ namespace Realm.Client.UI
 		{
 			GameContext.RegisterMapEditorHud(this);
 			GameContext.MetadataService.MetadataSaved += OnMetadataSaved;
-			if (GameContext.BaseMapFolderWatchService != null)
-			{
-				GameContext.BaseMapFolderWatchService.BaseFolderFilesChanged -= OnBaseMapFolderFilesChanged;
-				GameContext.BaseMapFolderWatchService.BaseFolderFilesChanged += OnBaseMapFolderFilesChanged;
-			}
 
 			UpdateFPSVisibility();
 
@@ -455,11 +451,12 @@ namespace Realm.Client.UI
 				_btnResetMap = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BoxGenOps/FileGrid2_GridContainer/BtnResetMap");
 				SetupOptionButton(_btnResetMap, $"{UnicodeIcons.TRASH} " + TranslationServer.Translate("RESET MAP"), () =>
 				{
-					ShowConfirmationDialog(
-						"Are you sure you want to clear the entire map? This will delete all placed entities and reset terrain heights.",
-						() => ResetToBlankMapView()
-					);
-				}, 13, "Clear all terrain heights, colors, and placed entities");
+					string confirmMessage = MapWorkspaceService.IsUntitledMapName(GetMapNameFromMetadata())
+						? TranslationServer.Translate("Start a new blank map? Everything in the untitled map is replaced, and its last state is kept in MAP VERSIONS.")
+						: TranslationServer.Translate("Start a new blank map? The map you have open stays in its folder and can be opened again later.");
+
+					ShowConfirmationDialog(confirmMessage, () => ResetToBlankMapView());
+				}, 13, TranslationServer.Translate("Start a new untitled map from the template"));
 
 				SetupRandomGenerationMenu();
 
@@ -470,13 +467,20 @@ namespace Realm.Client.UI
 				_contentFile.AddChild(_btnEditorSettings);
 				_contentFile.MoveChild(_btnEditorSettings, 1);
 
+				_btnMapVersions = new Button();
+				_btnMapVersions.Name = "BtnMapVersions";
+				_btnMapVersions.Set("icon_max_width", 0);
+				SetupOptionButton(_btnMapVersions, $"{UnicodeIcons.USER_CLOCK} " + TranslationServer.Translate("MAP VERSIONS"), () => OpenMapVersionsDialog(), 13, "Go back to earlier versions of this map");
+				_contentFile.AddChild(_btnMapVersions);
+				_contentFile.MoveChild(_btnMapVersions, 2);
+
 				_accordionViewport = GetNode<VBoxContainer>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion");
 				_btnHeaderViewport = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/BtnHeaderViewport");
 				_contentViewport = GetNode<VBoxContainer>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport");
 				StyleAccordionHeader(_btnHeaderViewport);
 				SetupAccordion(_btnHeaderViewport, _contentViewport, TranslationServer.Translate("Viewport & Navigation"));
 
-				InitializeTempWorkspace();
+				InitializeEditingDirectory();
 
 
 				_popupOverlayMode = new PopupMenu();
@@ -1599,6 +1603,7 @@ namespace Realm.Client.UI
 
 				if (GameContext.SessionState.ReturningFromTest)
 				{
+					ReadMetadataAndRefreshTextures();
 					_sldBrushSize.Value = GameContext.SessionState.SavedBrushRadius;
 					_sldBrushStrength.Value = GameContext.SessionState.SavedBrushStrength;
 
@@ -1627,6 +1632,8 @@ namespace Realm.Client.UI
 				{
 					SwitchModuleView(EditorModule.Terrain);
 				}
+
+				StartStartupMapIfPending();
 			}
 			catch (Exception ex)
 			{
@@ -1924,18 +1931,149 @@ namespace Realm.Client.UI
 
 		public void ToggleVSCodeEditor()
 		{
-			if (OperatingSystem.IsWindows())
+			if (!OperatingSystem.IsWindows())
 			{
-				if (GameContext.VSCode.IsVisible)
-				{
-					GameContext.VSCode.Focus();
-				}
-				else
-				{
-					GenerateVSCodeFilesExternal();
-					GameContext.VSCode.SetVisible(true);
-				}
+				return;
 			}
+
+			if (GameContext.VSCode.IsVisible)
+			{
+				GameContext.VSCode.Focus();
+				return;
+			}
+
+			if (!GameContext.VSCode.IsInstalled())
+			{
+				if (!GameContext.VSCode.IsInstalling) GameContext.VSCode.StartInstallIfNeeded();
+				ShowEditorInstallingCard();
+				return;
+			}
+
+			GenerateVSCodeFilesExternal();
+			GameContext.VSCode.SetVisible(true);
+			Callable.From(ReportEditorDependencyState).CallDeferred();
+		}
+
+		private Control _editorInstallingCard;
+
+		private void ShowEditorInstallingCard()
+		{
+			if (_editorInstallingCard != null && GodotObject.IsInstanceValid(_editorInstallingCard)) return;
+
+			var overlay = new ColorRect();
+			overlay.Name = "EditorInstallingOverlay";
+			overlay.Color = new Color(0, 0, 0, 0.75f);
+			overlay.SetAnchorsPreset(LayoutPreset.FullRect);
+			overlay.MouseFilter = MouseFilterEnum.Stop;
+			overlay.ZIndex = 1100;
+			AddChild(overlay);
+			_editorInstallingCard = overlay;
+
+			var center = new CenterContainer();
+			center.Name = "EditorInstallingCenter";
+			center.SetAnchorsPreset(LayoutPreset.FullRect);
+			overlay.AddChild(center);
+
+			var panel = new PanelContainer();
+			panel.Name = "EditorInstallingPanel";
+			panel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
+			panel.CustomMinimumSize = new Vector2(520, 200);
+			center.AddChild(panel);
+
+			var vbox = new VBoxContainer();
+			vbox.Name = "EditorInstallingVBox";
+			vbox.AddThemeConstantOverride("separation", 12);
+			panel.AddChild(vbox);
+
+			var titleLabel = new Label();
+			titleLabel.Name = "EditorInstallingTitle";
+			UIStyle.ApplyTitle(titleLabel, TranslationServer.Translate("⚠️ EDITOR INSTALLING"), 20);
+			titleLabel.HorizontalAlignment = HorizontalAlignment.Center;
+			vbox.AddChild(titleLabel);
+
+			var messageLabel = new Label();
+			messageLabel.Name = "EditorInstallingMessage";
+			messageLabel.Text = TranslationServer.Translate("The Map Data Editor is currently installing in the background.\nPlease wait for it to complete.");
+			messageLabel.HorizontalAlignment = HorizontalAlignment.Center;
+			messageLabel.AutowrapMode = TextServer.AutowrapMode.Word;
+			messageLabel.CustomMinimumSize = new Vector2(460, 0);
+			messageLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+			messageLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.95f));
+			messageLabel.AddThemeFontSizeOverride("font_size", 13);
+			vbox.AddChild(messageLabel);
+
+			var dismissButton = new Button();
+			dismissButton.Name = "EditorInstallingDismiss";
+			dismissButton.AddThemeConstantOverride("icon_max_width", 0);
+			SetupButton(dismissButton, "OK", CloseEditorInstallingCard);
+			dismissButton.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
+			vbox.AddChild(dismissButton);
+
+			StartEditorInstallingPolling();
+		}
+
+		private void CloseEditorInstallingCard()
+		{
+			if (_editorInstallingCard != null && GodotObject.IsInstanceValid(_editorInstallingCard)) _editorInstallingCard.QueueFree();
+			_editorInstallingCard = null;
+		}
+
+		private void StartEditorInstallingPolling()
+		{
+			GetTree().CreateTimer(0.5f).Timeout += OnEditorInstallingPollTimeout;
+		}
+
+		private void OnEditorInstallingPollTimeout()
+		{
+			if (!GodotObject.IsInstanceValid(this)) return;
+			if (_editorInstallingCard == null || !GodotObject.IsInstanceValid(_editorInstallingCard)) return;
+
+			if (GameContext.VSCode.IsInstalled())
+			{
+				CloseEditorInstallingCard();
+				ToggleVSCodeEditor();
+				return;
+			}
+
+			if (GameContext.VSCode.IsInstalling)
+			{
+				StartEditorInstallingPolling();
+				return;
+			}
+
+			CloseEditorInstallingCard();
+			GameContext.UserInterface?.ShowPopupMessage(
+				TranslationServer.Translate("EDITOR UNAVAILABLE"),
+				TranslationServer.Translate("The code editor could not be installed. Check your internet connection and open the Map Editor again to retry the download.")
+			);
+		}
+
+		private void ReportEditorDependencyState()
+		{
+			if (!OperatingSystem.IsWindows() || !GodotObject.IsInstanceValid(this))
+			{
+				return;
+			}
+
+			if (!GameContext.VSCode.IsInstalled())
+			{
+				GameContext.UserInterface?.ShowPopupMessage(
+					TranslationServer.Translate("EDITOR UNAVAILABLE"),
+					TranslationServer.Translate("The code editor could not be installed. Check your internet connection and open the Map Editor again to retry the download.")
+				);
+				return;
+			}
+
+			IReadOnlyList<string> missingDependencies = GameContext.VSCode.GetMissingDependencies();
+			if (missingDependencies.Count == 0)
+			{
+				return;
+			}
+
+			GameContext.UserInterface?.ShowPopupMessage(
+				TranslationServer.Translate("EDITOR DEPENDENCIES INCOMPLETE"),
+				string.Format(TranslationServer.Translate("The code editor opened, but these editor components could not be installed: {0}\n\nEditing and saving maps still work. Choose Reinstall Editor in Editor Settings to install them once the download works."), string.Join(", ", missingDependencies))
+			);
 		}
 
 
@@ -2292,10 +2430,21 @@ namespace Realm.Client.UI
 					statusLabel.Text = $"[{update.StepIndex}/{update.TotalSteps}] {update.CurrentMigration}: {update.Message}";
 				});
 
+				var versionBeforeUpgrade = await GameContext.MapHistoryService.CreateVersionAsync(selectedFolder, MapVersionKind.BeforeMapUpgrade, TranslationServer.Translate("Before map upgrade"));
+				if (!versionBeforeUpgrade.Success)
+				{
+					statusLabel.Text = $"{TranslationServer.Translate("Could not save a version before the upgrade:")} {versionBeforeUpgrade.ErrorMessage}";
+					statusLabel.AddThemeColorOverride("font_color", new Color(0.95f, 0.3f, 0.3f));
+					cancelBtn.Disabled = false;
+					UIStyle.ApplyButtonText(cancelBtn, Tr("CLOSE"), 14);
+					return;
+				}
+
 				var upgradeResult = await upgradeService.UpgradeMapAsync(selectedFolder, progress);
 
 				if (upgradeResult.Success)
 				{
+					await GameContext.MapHistoryService.CreateVersionAsync(selectedFolder, MapVersionKind.AfterMapUpgrade, TranslationServer.Translate("After map upgrade"));
 					statusLabel.Text = Tr("Upgrade completed successfully!");
 					statusLabel.AddThemeColorOverride("font_color", new Color(0.3f, 0.9f, 0.3f));
 					await ToSignal(GetTree().CreateTimer(0.6f), SceneTreeTimer.SignalName.Timeout);
@@ -2415,7 +2564,7 @@ namespace Realm.Client.UI
 			vbox.AddChild(titleLabel);
 
 			string mapTitle = GetMapNameFromMetadata();
-			if (string.IsNullOrWhiteSpace(mapTitle) || mapTitle.Equals("Untitled Map", StringComparison.OrdinalIgnoreCase)) mapTitle = "UntitledMap";
+			if (string.IsNullOrWhiteSpace(mapTitle) || MapWorkspaceService.IsUntitledMapName(mapTitle)) mapTitle = "UntitledMap";
 			string mapVersion = GetMapVersionFromMetadata();
 			if (string.IsNullOrWhiteSpace(mapVersion)) mapVersion = "1.0.0";
 
@@ -2495,13 +2644,22 @@ namespace Realm.Client.UI
 		private async void PublishMapActionView(bool fullExport = false)
 		{
 			if (GameContext.Host == null || GameContext.EditorService.IsSyncing) return;
+
+			if (!EnsureSignedInForPublishing()) return;
+
+			if (!TryGetSelectedAuthorshipKey(out NSec.Cryptography.Key? publishAuthorshipKey, out _, out _) || publishAuthorshipKey == null)
+			{
+				ShowFeedback(TranslationServer.Translate("Select an authorship key before publishing."));
+				return;
+			}
+
 			GameContext.EditorService.IsSyncing = true;
 			if (GameContext.EditorService != null)
 			{
 				GameContext.EditorService.IsPaused = true;
 			}
 
-			string workspace = !string.IsNullOrEmpty(GameContext.EditorService._tempWorkspacePath) ? GameContext.EditorService._tempWorkspacePath : MapWorkspaceService.GetActiveWorkspacePath();
+			string workspace = !string.IsNullOrEmpty(GameContext.EditorService._editingDirectory) ? GameContext.EditorService._editingDirectory : MapWorkspaceService.GetActiveWorkspacePath();
 
 			var (assetsValid, missingAssets) = MapAssetHelper.ValidateWorkspaceAssets(workspace);
 			if (!assetsValid)
@@ -2521,7 +2679,7 @@ namespace Realm.Client.UI
 			}
 
 			string mapTitle = GetMapNameFromMetadata();
-			if (string.IsNullOrWhiteSpace(mapTitle) || mapTitle.Equals("Untitled Map", StringComparison.OrdinalIgnoreCase)) mapTitle = "UntitledMap";
+			if (string.IsNullOrWhiteSpace(mapTitle) || MapWorkspaceService.IsUntitledMapName(mapTitle)) mapTitle = "UntitledMap";
 
 			string mapVersion = GetMapVersionFromMetadata();
 			if (string.IsNullOrWhiteSpace(mapVersion)) mapVersion = "1.0.0";
@@ -2556,15 +2714,7 @@ namespace Realm.Client.UI
 				try
 				{
 					using var checkClient = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
-					string creatorPubKey = "";
-					try
-					{
-						var key = GetOrGenerateAuthorshipKey();
-						creatorPubKey = Convert.ToBase64String(key.PublicKey.Export(KeyBlobFormat.RawPublicKey));
-					}
-					catch
-					{
-					}
+					string creatorPubKey = Convert.ToBase64String(publishAuthorshipKey.PublicKey.Export(KeyBlobFormat.RawPublicKey));
 
 					string statusKey = !string.IsNullOrEmpty(creatorPubKey)
 						? $"{Uri.EscapeDataString(mapTitle)}_{Uri.EscapeDataString(mapVersion)}_{Uri.EscapeDataString(creatorPubKey)}"
@@ -2640,7 +2790,7 @@ namespace Realm.Client.UI
 				statusLabel.Text = TranslationServer.Translate("Compiling WASM map script...");
 				await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
-				await CompileAndSignMapAsync(workspace, skipAttribution: true);
+				await CompileWorkspaceScriptAsync(workspace);
 
 				if (_wasmHasErrors)
 				{
@@ -2708,8 +2858,8 @@ namespace Realm.Client.UI
 				statusLabel.Text = TranslationServer.Translate("Generating manifest & indexing asset hashes...");
 				await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
-				var authorshipKey = GetOrGenerateAuthorshipKey();
-				string currentUsername = GameContext.Lobby?.AuthenticatedUsername ?? "MapAuthor";
+				var authorshipKey = publishAuthorshipKey;
+				string currentUsername = GetPublishAuthorName();
 				string pubKeyBase64 = Convert.ToBase64String(authorshipKey.PublicKey.Export(KeyBlobFormat.RawPublicKey));
 
 				MapWorkspaceService.NormalizeMetadataTextureEntries(workspace);
@@ -2732,7 +2882,8 @@ namespace Realm.Client.UI
 					GameContext.EditorService.LastMetadataSyncTime = GameContext.EditorService.GetLastWriteTimeSafe(activeConfigPath);
 				}
 
-				EditorService.LastInternalSaveTimeUtc = DateTime.UtcNow;
+
+				await SignMapMetadataAsync(workspace, mapTitle, mapVersion, currentUsername);
 
 				var manifest = MapManifest.CreateFromDirectory(workspace, mapTitle, currentUsername, mapVersion);
 				manifest.Attribution_SourceMap = GameContext.MapAttributionService.CollectSortedSourceMapNames(workspace).ToList();
@@ -2740,7 +2891,6 @@ namespace Realm.Client.UI
 				manifestJsonPath = Path.Combine(workspace, "manifest.json");
 				string manifestJsonContent = manifest.ToJson();
 				File.WriteAllText(manifestJsonPath, manifestJsonContent);
-				EditorService.LastInternalSaveTimeUtc = DateTime.UtcNow;
 
 				byte[] manifestBytes = Encoding.UTF8.GetBytes(manifestJsonContent);
 				string manifestBlake3 = RealmMetadataHelper.ComputeBlake3(manifestBytes, ".json");
@@ -4762,6 +4912,38 @@ namespace Realm.Client.UI
 			_editorSettingsDialog?.OpenDialog();
 		}
 
+		public void OpenMapVersionsDialog()
+		{
+			if (_mapVersionsDialog == null || !GodotObject.IsInstanceValid(_mapVersionsDialog))
+			{
+				_mapVersionsDialog = new MapVersionsDialog(this);
+			}
+
+			_mapVersionsDialog.OpenDialog();
+		}
+
+		public void OpenMapHistoryStoresDialog()
+		{
+			if (_mapHistoryStoresDialog == null || !GodotObject.IsInstanceValid(_mapHistoryStoresDialog))
+			{
+				_mapHistoryStoresDialog = new MapHistoryStoresDialog(this);
+			}
+
+			_mapHistoryStoresDialog.OpenDialog();
+		}
+
+		public void NotifyHistoryRestoreApplied(bool versionRecorded)
+		{
+			_hasChangesSinceLastVersion = !versionRecorded;
+			GameContext.EditorService.UpdateWatchedFileTimestamps();
+		}
+
+		public void MarkScriptSourcesChangedByRestore()
+		{
+			SetWasmConsoleStatus(TranslationServer.Translate("Script sources changed — publish or test the map to compile them again."), UIStyle.ColorCyanGlow);
+			ShowFeedback(TranslationServer.Translate("The restored version changed the map script. Publish or test the map to compile it again."));
+		}
+
 		public void OpenUtilitiesDialog()
 		{
 			if (_utilitiesDialog == null)
@@ -4829,9 +5011,7 @@ namespace Realm.Client.UI
 		{
 			try
 			{
-				string wsPath = string.IsNullOrEmpty(GameContext.EditorService._tempWorkspacePath)
-					? ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath)
-					: GameContext.EditorService._tempWorkspacePath;
+				string wsPath = GameContext.EditorService._editingDirectory;
 
 				var result = GameContext.EditorService.ImportGlbAssetFromExtensionDomain(sourceFilePath, category, wsPath, (cat, fName, hash, sub) => UpdateMetadataJsonAsset(cat, fName, hash, subCategory: sub));
 

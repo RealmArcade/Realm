@@ -512,15 +512,8 @@ public partial class Unit3D : Node3D
 			return;
 		}
 
-		Color resolvedColor = PlayerColorConfig.GetColor(Player);
-		if (GameContext.Lobby != null && GameContext.Lobby.PlayerList.Count > 0)
-		{
-			var matchPlayer = GameContext.Lobby.PlayerList.Find(x => x.Slot == Player);
-			if (matchPlayer != null)
-			{
-				resolvedColor = matchPlayer.Color;
-			}
-		}
+		MatchPlayerColorAssignment.RefreshIfSeatsChanged(GameContext.Lobby?.PlayerList);
+		Color resolvedColor = MatchPlayerColorAssignment.Get(Player);
 
 		SetPlayerColor(resolvedColor);
 	}

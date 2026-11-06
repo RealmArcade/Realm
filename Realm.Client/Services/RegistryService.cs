@@ -358,6 +358,7 @@ public class RegistryService
 		return VfxRegistry.TryGetValue(fullId, out config) && config != null;
 	}
 	public Dictionary<(int UnitUniqueId, string AbilityId), (bool Disabled, bool Hidden)> UnitAbilityStates { get; set; } = new();
+	public int AbilityStateRevision { get; private set; }
 
 	public IReadOnlyList<(string DefinitionKey, float Radius)> PlacementRadiusRules => Rules.PlacementRadiusRules;
 	public IReadOnlyList<string> ResourceDropoffBuildingKeys => Rules.ResourceDropoffBuildingKeys;
@@ -406,6 +407,8 @@ public class RegistryService
 			UnitAbilityStates.Remove(key);
 			DirtyAbilityStates.Remove(key);
 		}
+
+		if (_abilityStateKeysToClear.Count > 0) AbilityStateRevision++;
 	}
 	public Dictionary<(int UnitUniqueId, string AbilityId), float> UnitAbilityManaCosts { get; set; } = new();
 	public Dictionary<string, string> ItemTooltips { get; set; } = new(StringComparer.OrdinalIgnoreCase);
@@ -644,11 +647,20 @@ public class RegistryService
 	public void SetAbilityState(UnitId unit, string abilityId, bool disabled, bool hidden)
 	{
 		if (!unit.IsValid || string.IsNullOrEmpty(abilityId)) return;
+		bool changed = false;
 		foreach (var key in GetNormalizedAbilityIdCandidates(abilityId))
 		{
-			UnitAbilityStates[(unit.Value, key)] = (disabled, hidden);
-			DirtyAbilityStates.Add((unit.Value, key));
+			var stateKey = (unit.Value, key);
+			if (UnitAbilityStates.TryGetValue(stateKey, out var existing) && existing.Disabled == disabled && existing.Hidden == hidden) continue;
+
+			UnitAbilityStates[stateKey] = (disabled, hidden);
+			DirtyAbilityStates.Add(stateKey);
+			changed = true;
 		}
+
+		if (!changed) return;
+
+		AbilityStateRevision++;
 		if (GameContext.Host != null)
 		{
 			Callable.From(() => GameContext.InGameHud?.RefreshUI(GameContext.Host.SelectedUnits)).CallDeferred();
@@ -747,18 +759,19 @@ public class RegistryService
 	{
 		if (string.IsNullOrEmpty(unitTypeId)) return string.Empty;
 
+		// The name a map wrote is map text, so it is read in the player's own language wherever the HUD shows it.
 		if (UnitRegistry.TryGetValue((StringName)unitTypeId, out var meta) && !string.IsNullOrWhiteSpace(meta.Name))
-			return meta.Name;
+			return MapText.TranslateName(meta.Name);
 
 		if (BuildingRegistry.TryGetValue((StringName)unitTypeId, out var bldMeta) && !string.IsNullOrWhiteSpace(bldMeta.Name))
-			return bldMeta.Name;
+			return MapText.TranslateName(bldMeta.Name);
 
 		string cleanId = Path.GetFileNameWithoutExtension(unitTypeId);
 		if (UnitRegistry.TryGetValue((StringName)cleanId, out meta) && !string.IsNullOrWhiteSpace(meta.Name))
-			return meta.Name;
+			return MapText.TranslateName(meta.Name);
 
 		if (BuildingRegistry.TryGetValue((StringName)cleanId, out bldMeta) && !string.IsNullOrWhiteSpace(bldMeta.Name))
-			return bldMeta.Name;
+			return MapText.TranslateName(bldMeta.Name);
 
 		return cleanId;
 	}
@@ -769,7 +782,7 @@ public class RegistryService
 
 		var def = GetAbilityDefinition(abilityId);
 		if (def != null && !string.IsNullOrWhiteSpace(def.DisplayName))
-			return def.DisplayName;
+			return MapText.TranslateName(def.DisplayName);
 
 		return Path.GetFileNameWithoutExtension(abilityId);
 	}
@@ -799,6 +812,9 @@ public class RegistryService
 				AutoCastManaReserve = meta.AutoCast?.ManaReserve ?? 0f,
 				AutoCastMinManaPercent = meta.AutoCast?.MinManaPercent ?? 0f,
 				ManaCost = meta.ManaCost,
+				CostGold = meta.CostGold,
+				CostWood = meta.CostWood,
+				CostStone = meta.CostStone,
 				Cooldown = meta.Cooldown,
 				TargetRange = meta.TargetRange,
 				AreaOfEffectRadius = meta.AreaOfEffectRadius,
@@ -825,8 +841,13 @@ public class RegistryService
 		if (string.IsNullOrEmpty(abilityId)) return;
 
 		var def = GetOrCreateAbilityDefinition(abilityId);
+		if (def.GridX == x && def.GridY == y) return;
+
 		def.GridX = x;
 		def.GridY = y;
+
+		// A card's hotkey is the key of the slot it is drawn in, so a card that moves has to be rebuilt to keep it.
+		AbilityStateRevision++;
 	}
 
 	public void SetAbilityManaCost(UnitId unit, string abilityId, float manaCost)
@@ -1115,6 +1136,7 @@ public class RegistryService
 		VfxRegistry.Clear();
 		AbilityDefinitions.Clear();
 		UnitAbilityStates.Clear();
+		AbilityStateRevision++;
 		UnitAbilityManaCosts.Clear();
 		ItemTooltips.Clear();
 		TooltipValues.Clear();

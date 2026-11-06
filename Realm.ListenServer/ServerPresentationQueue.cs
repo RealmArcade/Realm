@@ -149,7 +149,12 @@ public class ServerPresentationQueue
 				or PresentationKind.UnitAnimationSet or PresentationKind.UnitHandAttachmentSet or PresentationKind.TimeOfDaySet
 				or PresentationKind.DayNightCycleSet or PresentationKind.EnvironmentPresetSet or PresentationKind.WeatherSet
 				or PresentationKind.HudElementVisible or PresentationKind.CameraBoundsSet or PresentationKind.CameraPanned
-				or PresentationKind.SelectionChanged => true,
+				or PresentationKind.SelectionChanged or PresentationKind.InstructionsSectionAdded
+
+				// A map declares its instructions and the card its standings share once, as the match starts, and never
+				// again. A peer seated after that - a test run, a late join - is told them here or not at all.
+				or PresentationKind.LeaderboardBoard or PresentationKind.SummaryTableVisible
+				or PresentationKind.SummaryTableHeaders => true,
 			_ => false
 		};
 	}

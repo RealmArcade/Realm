@@ -578,7 +578,7 @@ public class FXService
 		tween.Chain().TweenCallback(Callable.From(meshInstance.QueueFree));
 	}
 
-	public void SpawnWeaponProjectile(Node3D parent, Vector3 start, Vector3 target, string weaponId = null, Entity targetEntity = default, int ownerPlayerIndex = 0)
+	public void SpawnWeaponProjectile(Node3D parent, Vector3 start, Vector3 target, string weaponId = null, Entity targetEntity = default, int ownerPlayerIndex = 0, bool honourDestination = false)
 	{
 		WeaponMetadata weaponMeta = null;
 		bool hasWeapon = false;
@@ -600,11 +600,11 @@ public class FXService
 
 		if (hasWeapon)
 		{
-			projectile.Initialize(weaponMeta, spawnPos, targetPos, targetEntity, p => VisualProjectilePool.Return(p), ownerPlayerIndex);
+			projectile.Initialize(weaponMeta, spawnPos, targetPos, targetEntity, p => VisualProjectilePool.Return(p), ownerPlayerIndex, honourDestination);
 		}
 		else
 		{
-			projectile.Initialize("arrow", spawnPos, targetPos, targetEntity, p => VisualProjectilePool.Return(p), ownerPlayerIndex);
+			projectile.Initialize("arrow", spawnPos, targetPos, targetEntity, p => VisualProjectilePool.Return(p), ownerPlayerIndex, honourDestination);
 		}
 	}
 

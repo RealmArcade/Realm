@@ -54,6 +54,21 @@ public partial class ServerGameAPI
 
 	private float ReadPlayerResource(int playerIndex, PlayerResourceKind kind)
 	{
+		// The stockpile component is the authoritative value: engine income, gathering, unit costs and cheats all
+		// change it directly, so reading the mirrored script slot would hand the map a stale amount and let an
+		// adjust relative to that stale amount overwrite the real stockpile.
+		Entity playerEntity = _context.GetPlayerEntity(playerIndex);
+		if (playerEntity != Entity.Null && _context.World.IsAlive(playerEntity) && _context.World.Has<PlayerResources>(playerEntity))
+		{
+			ref PlayerResources resources = ref _context.World.Get<PlayerResources>(playerEntity);
+			return kind switch
+			{
+				PlayerResourceKind.Gold => resources[_context.PlayerResourceService.GoldResourceId],
+				PlayerResourceKind.Wood => resources[_context.PlayerResourceService.WoodResourceId],
+				_ => resources[_context.PlayerResourceService.StoneResourceId]
+			};
+		}
+
 		if (!TryReadPlayersState(out ScriptPlayersState playersState) || !playersState.IsValidSlot(playerIndex)) return 0f;
 
 		ScriptPlayer player = playersState.Get(playerIndex);

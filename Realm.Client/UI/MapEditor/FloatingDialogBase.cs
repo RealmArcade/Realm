@@ -858,7 +858,7 @@ public partial class FloatingDialogBase : PanelContainer
 		txt.Text = initialText ?? string.Empty;
 		if (!string.IsNullOrEmpty(placeholder)) txt.PlaceholderText = placeholder;
 		txt.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-		txt.AddThemeFontSizeOverride("font_size", 11);
+		UIStyle.ApplyTextInput(txt, 11);
 		txt.TextChanged += (newText) => onChanged?.Invoke(newText);
 		row.AddChild(txt);
 
@@ -930,9 +930,9 @@ public partial class FloatingDialogBase : PanelContainer
 		var txtX = new LineEdit { Text = initialValue.X.ToString("0.##"), PlaceholderText = "X", SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		var txtY = new LineEdit { Text = initialValue.Y.ToString("0.##"), PlaceholderText = "Y", SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		var txtZ = new LineEdit { Text = initialValue.Z.ToString("0.##"), PlaceholderText = "Z", SizeFlagsHorizontal = SizeFlags.ExpandFill };
-		txtX.AddThemeFontSizeOverride("font_size", 11);
-		txtY.AddThemeFontSizeOverride("font_size", 11);
-		txtZ.AddThemeFontSizeOverride("font_size", 11);
+		UIStyle.ApplyTextInput(txtX, 11);
+		UIStyle.ApplyTextInput(txtY, 11);
+		UIStyle.ApplyTextInput(txtZ, 11);
 
 		void UpdateVal()
 		{
@@ -977,8 +977,8 @@ public partial class FloatingDialogBase : PanelContainer
 
 		var txtX = new LineEdit { Text = initialValue.X.ToString("0.##"), PlaceholderText = "X", SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		var txtY = new LineEdit { Text = initialValue.Y.ToString("0.##"), PlaceholderText = "Y", SizeFlagsHorizontal = SizeFlags.ExpandFill };
-		txtX.AddThemeFontSizeOverride("font_size", 11);
-		txtY.AddThemeFontSizeOverride("font_size", 11);
+		UIStyle.ApplyTextInput(txtX, 11);
+		UIStyle.ApplyTextInput(txtY, 11);
 
 		void UpdateVal()
 		{
@@ -1032,7 +1032,7 @@ public partial class FloatingDialogBase : PanelContainer
 		state.Txt.Text = state.CommittedValue;
 		state.Txt.PlaceholderText = placeholder;
 		state.Txt.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		state.Txt.AddThemeFontSizeOverride("font_size", 11);
+		UIStyle.ApplyTextInput(state.Txt, 11);
 		row.AddChild(state.Txt);
 
 		var btnDropdown = new Button();
@@ -1287,7 +1287,7 @@ public partial class FloatingDialogBase : PanelContainer
 		var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 		string wsPath = !string.IsNullOrEmpty(MapWorkspaceService.GetActiveWorkspacePath())
 			? MapWorkspaceService.GetActiveWorkspacePath()
-			: ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
+			: GameContext.EditorService._editingDirectory;
 
 		try
 		{

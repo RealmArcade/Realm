@@ -23,6 +23,13 @@ public static class UIStyle
 	public static readonly Font FontNorseBold = GD.Load<Font>("res://Assets/UI/Norse-Bold.otf");
 	public static readonly Font FontAwesome = GD.Load<Font>("res://Assets/UI/fa-solid-900.ttf");
 
+	private const string StonePanelTexturePath = "res://Assets/UI/stone_slate_panel.webp";
+	private const string ButtonPlateTexturePath = "res://Assets/UI/options_menu_button.webp";
+
+	private const int StonePanelFrameThickness = 28;
+	private const int ButtonPlateTipWidth = 18;
+	private const int ButtonPlateEdgeHeight = 8;
+
 	private static readonly Dictionary<string, Texture2D> _unicodeIconTextureCache = new();
 	private static SKTypeface? _fontAwesomeTypeface;
 
@@ -646,38 +653,42 @@ public static class UIStyle
 		return style;
 	}
 
+	public static StyleBox CreateHairlineSeparator()
+	{
+		return new StyleBoxLine
+		{
+			Color = new Color(ColorGoldDull.R, ColorGoldDull.G, ColorGoldDull.B, 0.3f),
+			Thickness = 1
+		};
+	}
+
 	public static StyleBox CreateStonePanel(bool isLight = false)
 	{
 		var style = new StyleBoxTexture();
-		style.Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/stone_slate_panel.webp");
+		style.Texture = TrimmedTextureLoader.LoadTrimmedTexture(StonePanelTexturePath);
+
+		style.TextureMarginLeft = StonePanelFrameThickness;
+		style.TextureMarginRight = StonePanelFrameThickness;
+		style.TextureMarginTop = StonePanelFrameThickness;
+		style.TextureMarginBottom = StonePanelFrameThickness;
 
 		if (isLight)
 		{
-			style.TextureMarginLeft = 32;
-			style.TextureMarginRight = 32;
-			style.TextureMarginTop = 32;
-			style.TextureMarginBottom = 32;
-
 			style.ContentMarginLeft = 20;
 			style.ContentMarginRight = 20;
 			style.ContentMarginTop = 10;
 			style.ContentMarginBottom = 10;
 
-			style.ModulateColor = new Color(0.9f, 0.9f, 0.93f, 0.95f);
+			style.ModulateColor = new Color(1.0f, 1.0f, 1.02f, 0.98f);
 		}
 		else
 		{
-			style.TextureMarginLeft = 40;
-			style.TextureMarginRight = 40;
-			style.TextureMarginTop = 40;
-			style.TextureMarginBottom = 40;
-
 			style.ContentMarginLeft = 24;
 			style.ContentMarginRight = 24;
 			style.ContentMarginTop = 14;
 			style.ContentMarginBottom = 14;
 
-			style.ModulateColor = new Color(0.72f, 0.72f, 0.75f, 0.98f);
+			style.ModulateColor = new Color(0.82f, 0.82f, 0.86f, 0.98f);
 		}
 
 		return style;
@@ -871,55 +882,35 @@ public static class UIStyle
 
 	public static StyleBox CreateButtonNormal()
 	{
-		var style = new StyleBoxTexture();
-		style.Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/options_menu_button.webp");
-		style.TextureMarginLeft = 0;
-		style.TextureMarginRight = 0;
-		style.TextureMarginTop = 0;
-		style.TextureMarginBottom = 0;
-
-		style.ContentMarginLeft = 20;
-		style.ContentMarginRight = 20;
-		style.ContentMarginTop = 10;
-		style.ContentMarginBottom = 10;
-
-		style.ModulateColor = new Color(1.0f, 1.0f, 1.0f);
-		return style;
+		return CreateArrowButtonStyle(new Color(1.0f, 1.0f, 1.0f));
 	}
 
 	public static StyleBox CreateButtonHover()
 	{
-		var style = new StyleBoxTexture();
-		style.Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/options_menu_button.webp");
-		style.TextureMarginLeft = 0;
-		style.TextureMarginRight = 0;
-		style.TextureMarginTop = 0;
-		style.TextureMarginBottom = 0;
-
-		style.ContentMarginLeft = 20;
-		style.ContentMarginRight = 20;
-		style.ContentMarginTop = 10;
-		style.ContentMarginBottom = 10;
-
-		style.ModulateColor = new Color(1.12f, 1.10f, 0.96f);
-		return style;
+		return CreateArrowButtonStyle(new Color(1.12f, 1.10f, 0.96f));
 	}
 
 	public static StyleBox CreateButtonPressed()
 	{
+		return CreateArrowButtonStyle(new Color(0.85f, 0.82f, 0.75f));
+	}
+
+	private static StyleBox CreateArrowButtonStyle(Color modulateColor)
+	{
 		var style = new StyleBoxTexture();
-		style.Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/options_menu_button.webp");
-		style.TextureMarginLeft = 0;
-		style.TextureMarginRight = 0;
-		style.TextureMarginTop = 0;
-		style.TextureMarginBottom = 0;
+		style.Texture = TrimmedTextureLoader.LoadTrimmedTexture(ButtonPlateTexturePath);
 
-		style.ContentMarginLeft = 20;
-		style.ContentMarginRight = 20;
-		style.ContentMarginTop = 10;
-		style.ContentMarginBottom = 10;
+		style.TextureMarginLeft = ButtonPlateTipWidth;
+		style.TextureMarginRight = ButtonPlateTipWidth;
+		style.TextureMarginTop = ButtonPlateEdgeHeight;
+		style.TextureMarginBottom = ButtonPlateEdgeHeight;
 
-		style.ModulateColor = new Color(0.85f, 0.82f, 0.75f);
+		style.ContentMarginLeft = 26;
+		style.ContentMarginRight = 26;
+		style.ContentMarginTop = 8;
+		style.ContentMarginBottom = 8;
+
+		style.ModulateColor = modulateColor;
 		return style;
 	}
 
@@ -1029,13 +1020,31 @@ public static class UIStyle
 	{
 		var style = new StyleBoxFlat();
 		style.BgColor = new Color(0.05f, 0.06f, 0.07f, 0.9f);
-		style.BorderColor = hasFocus ? ColorCyanGlow : new Color(0.3f, 0.3f, 0.35f);
-		style.SetBorderWidthAll(2);
+		style.BorderColor = hasFocus ? ColorCyanGlow : new Color(0.34f, 0.3f, 0.24f);
+		style.SetBorderWidthAll(hasFocus ? 2 : 1);
 		style.CornerRadiusTopLeft = 4;
 		style.CornerRadiusTopRight = 4;
 		style.CornerRadiusBottomLeft = 4;
 		style.CornerRadiusBottomRight = 4;
+		style.ContentMarginLeft = 12;
+		style.ContentMarginRight = 12;
+		style.ContentMarginTop = 6;
+		style.ContentMarginBottom = 6;
 		return style;
+	}
+
+	public static void ApplyTextInput(LineEdit edit, int fontSize = 15)
+	{
+		edit.AddThemeStyleboxOverride("normal", CreateTextInput(false));
+		edit.AddThemeStyleboxOverride("focus", CreateTextInput(true));
+		edit.AddThemeStyleboxOverride("read_only", CreateTextInput(false));
+		edit.AddThemeColorOverride("font_color", new Color(0.93f, 0.90f, 0.84f));
+		edit.AddThemeColorOverride("font_uneditable_color", new Color(0.62f, 0.60f, 0.55f));
+		edit.AddThemeColorOverride("font_placeholder_color", new Color(0.55f, 0.52f, 0.47f));
+		edit.AddThemeColorOverride("caret_color", ColorGold);
+		edit.AddThemeColorOverride("selection_color", new Color(0.15f, 0.65f, 1.0f, 0.35f));
+		edit.AddThemeFontSizeOverride("font_size", fontSize);
+		edit.FocusMode = Control.FocusModeEnum.All;
 	}
 
 	public static StyleBox CreateCustomLobbySearchInput(bool hasFocus = false)
@@ -1045,20 +1054,19 @@ public static class UIStyle
 		{
 			var style = new StyleBoxTexture();
 			style.Texture = tex;
-			style.TextureMarginLeft = 350;
-			style.TextureMarginRight = 200;
-			style.TextureMarginTop = 140;
-			style.TextureMarginBottom = 140;
-			style.ContentMarginLeft = 45;
-			style.ContentMarginRight = 25;
+			style.TextureMarginLeft = 0;
+			style.TextureMarginRight = 0;
+			style.TextureMarginTop = 0;
+			style.TextureMarginBottom = 0;
+			style.ContentMarginLeft = 34;
+			style.ContentMarginRight = 86;
 			style.ContentMarginTop = 8;
 			style.ContentMarginBottom = 8;
 			style.AxisStretchHorizontal = StyleBoxTexture.AxisStretchMode.Stretch;
 			style.AxisStretchVertical = StyleBoxTexture.AxisStretchMode.Stretch;
-			if (hasFocus)
-			{
-				style.ModulateColor = new Color(1.15f, 1.15f, 1.25f);
-			}
+			style.ModulateColor = hasFocus
+				? new Color(1.12f, 1.12f, 1.16f)
+				: Colors.White;
 
 			return style;
 		}
@@ -1266,7 +1274,7 @@ public static void ApplyTitle(Label label, string text, int fontSize = 36)
 
 		label.AddThemeColorOverride("font_color", ColorGold);
 		label.AddThemeColorOverride("font_outline_color", new Color(0.08f, 0.08f, 0.1f));
-		label.AddThemeConstantOverride("outline_size", 8);
+		label.AddThemeConstantOverride("outline_size", Mathf.Clamp(Mathf.RoundToInt(fontSize * 0.16f), 2, 6));
 		label.AddThemeFontSizeOverride("font_size", fontSize);
 		label.HorizontalAlignment = HorizontalAlignment.Center;
 		label.VerticalAlignment = VerticalAlignment.Center;
@@ -1335,6 +1343,25 @@ public static void ApplyTitle(Label label, string text, int fontSize = 36)
 	}
 
 
+
+	public static void ApplyBackButton(Button button, Action onPressed)
+	{
+		button.AddThemeConstantOverride("icon_max_width", 24);
+		button.CustomMinimumSize = new Vector2(130, 42);
+		button.Size = new Vector2(130, 42);
+		ApplyButtonText(button, "◀ " + TranslationServer.Translate("BACK"), 16);
+		button.AddThemeStyleboxOverride("normal", CreateButtonNormal());
+		button.AddThemeStyleboxOverride("hover", CreateButtonHover());
+		button.AddThemeStyleboxOverride("pressed", CreateButtonPressed());
+		button.FocusMode = Control.FocusModeEnum.None;
+		button.MouseFilter = Control.MouseFilterEnum.Stop;
+		button.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
+		button.Pressed += () =>
+		{
+			GameContext.UserInterface?.PlayClickSound();
+			onPressed?.Invoke();
+		};
+	}
 
 	public static void ApplyButtonText(Button button, string text, int fontSize = 18)
 	{

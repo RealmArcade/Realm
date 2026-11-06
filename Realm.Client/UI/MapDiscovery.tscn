@@ -39,13 +39,14 @@ grow_horizontal = 0
 grow_vertical = 2
 
 [node name="BackButton" type="Button" parent="."]
-custom_minimumSize = Vector2(190, 52)
+custom_minimum_size = Vector2(130, 42)
 layout_mode = 0
-offset_left = 1590.0
-offset_top = 50.0
-offset_right = 1780.0
-offset_bottom = 102.0
+offset_left = 130.0
+offset_top = 40.0
+offset_right = 260.0
+offset_bottom = 82.0
 focus_mode = 0
+text = "◀ BACK"
 
 [node name="FilterPanel" type="PanelContainer" parent="."]
 layout_mode = 0

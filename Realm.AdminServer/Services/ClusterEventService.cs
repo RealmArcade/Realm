@@ -1,7 +1,10 @@
 using System.Collections.Concurrent;
 using System.Text;
 using System.Text.Json;
+using DBreeze.Transactions;
+using Realm.AdminServer.Accounts;
 using Realm.Shared;
+using Realm.Shared.Accounts;
 using Realm.Shared.Distribution;
 using Realm.Shared.Metadata;
 
@@ -12,7 +15,13 @@ public class ClusterEventService
 	private readonly ConcurrentDictionary<string, byte> _processedEvents = new(StringComparer.OrdinalIgnoreCase);
 	private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNameCaseInsensitive = true };
 	private readonly SemaphoreSlim _pruneLock = new(1, 1);
+	private readonly AccountAuthorityOptions _accountAuthorityOptions;
 	private int _prunePending = 0;
+
+	public ClusterEventService(AccountAuthorityOptions accountAuthorityOptions)
+	{
+		_accountAuthorityOptions = accountAuthorityOptions;
+	}
 
 	public bool HasEventBeenProcessed(string eventId, DataStoreService db)
 	{
@@ -155,6 +164,9 @@ public class ClusterEventService
 			"admin_remove_manifest" => ApplyAdminRemoveManifest(evt, db, cas, adminPublicKeys),
 			"map_maintainers_updated" or "map_maintainer_updated" => ApplyMapMaintainersUpdated(evt, db, adminPublicKeys),
 			"map_metric_report" => ApplyMapMetricReport(evt, db),
+			AccountClusterEventPayload.CreatedEvent => ApplyAccountEvent(evt, db),
+			AccountClusterEventPayload.RenamedEvent => ApplyAccountEvent(evt, db),
+			AccountClusterEventPayload.LinkAddedEvent => ApplyAccountEvent(evt, db),
 			_ => false
 		};
 	}
@@ -305,7 +317,7 @@ public class ClusterEventService
 		foreach (var key in playerEngagements.Keys.OrderBy(k => k, StringComparer.Ordinal))
 		{
 			var en = playerEngagements[key];
-			engSb.Append($"{key}:{en.PlayerId}:{en.TotalPlaytimeMinutes:F1}:{en.GamesPlayed}:{en.SubmittedRating}:{en.IsVerifiedAccount};");
+			engSb.Append($"{key}:{en.AccountId}:{en.DisplayName}:{en.TotalPlaytimeMinutes:F1}:{en.GamesPlayed}:{en.SubmittedRating}:{en.IsVerifiedAccount};");
 		}
 
 		colHashes["player_engagement"] = RealmMetadataHelper.ComputeBlake3(Encoding.UTF8.GetBytes(engSb.ToString()), ".txt");
@@ -1165,30 +1177,32 @@ public class ClusterEventService
 
 	private bool ApplyCreatorRegistered(ClusterEventDto evt, DataStoreService db, HashSet<string> adminPublicKeys)
 	{
-		if (!TryGetCreatorContext(evt, db, adminPublicKeys, out var username, out var publicKey, out var payload, out var slug))
+		if (!TryGetCreatorContext(evt, db, adminPublicKeys, out var username, out var publicKey, out var payload, out var slug, out string previousOwnerPublicKey))
 			return false;
 
+		CreatorNamePolicy.ReleaseCreatorKey(db, previousOwnerPublicKey, username);
 		UpsertNameLock(db, slug, username, publicKey, payload?.RegisteredAt);
 		UpsertCreatorInfo(db, username, publicKey, payload?.DonationLink, payload?.ContactInfo, payload?.RegisteredAt);
 
 		return true;
 	}
 
-	private bool TryGetCreatorContext(ClusterEventDto evt, DataStoreService db, HashSet<string> adminPublicKeys, out string username, out string publicKey, out CreatorRegisteredEventPayload? payload, out string slug)
+	private bool TryGetCreatorContext(ClusterEventDto evt, DataStoreService db, HashSet<string> adminPublicKeys, out string username, out string publicKey, out CreatorRegisteredEventPayload? payload, out string slug, out string previousOwnerPublicKey)
 	{
 		PopulateCreatorValues(evt, out username, out publicKey, out payload, out var signature);
 
 		slug = "";
+		previousOwnerPublicKey = "";
 
 		if (!ValidateCreatorRequiredFields(username, publicKey, signature))
 			return false;
 
-		if (!VerifyCreatorRegisteredSignature(username, publicKey, signature))
+		if (!VerifyCreatorRegisteredSignature(username, publicKey, payload?.DonationLink, payload?.ContactInfo, signature, payload?.AdminBypassToken, adminPublicKeys))
 			return false;
 
 		slug = GetUsernameSlug(username);
 
-		return ValidateNameLock(db, slug, username, publicKey, payload?.AdminBypassToken, adminPublicKeys);
+		return ValidateNameLock(db, slug, username, publicKey, payload?.AdminBypassToken, adminPublicKeys, out previousOwnerPublicKey);
 	}
 
 	private void PopulateCreatorValues(ClusterEventDto evt, out string username, out string publicKey, out CreatorRegisteredEventPayload? payload, out string signature)
@@ -1220,10 +1234,17 @@ public class ClusterEventService
 		}
 	}
 
-	private bool VerifyCreatorRegisteredSignature(string username, string publicKey, string signature)
+	private bool VerifyCreatorRegisteredSignature(string username, string publicKey, string? donationLink, string? contactInfo, string signature, string? adminBypassToken, HashSet<string> adminPublicKeys)
 	{
-		bool sigValid = AuthorSignatureHelper.VerifySignature(publicKey, $"{username}:{publicKey}", signature)
-		                || AuthorSignatureHelper.VerifySignature(publicKey, username, signature);
+		bool sigValid = CreatorRegistrationProof.Verify(publicKey, username, donationLink, contactInfo, signature);
+
+		if (!sigValid
+		    && !string.IsNullOrEmpty(adminBypassToken)
+		    && adminPublicKeys.Count > 0
+		    && AdminBypassAuth.VerifyBypassToken(adminPublicKeys, "admin", "override", adminBypassToken))
+		{
+			sigValid = CreatorRegistrationProof.VerifyByAnyAuthority(adminPublicKeys, publicKey, username, donationLink, contactInfo, signature);
+		}
 
 		if (!sigValid)
 			Console.WriteLine($"[ClusterEventService] Rejected creator_registered event: Invalid signature for {username}");
@@ -1233,19 +1254,15 @@ public class ClusterEventService
 
 	private string GetUsernameSlug(string username)
 	{
-		string slug = NameNormalizationHelper.NormalizeUsername(username);
-		if (string.IsNullOrEmpty(slug))
-		{
-			slug = username.ToLowerInvariant().Replace(" ", "-");
-		}
-
-		return slug;
+		return CreatorNamePolicy.GetSlug(username);
 	}
 
-	private bool ValidateNameLock(DataStoreService db, string slug, string username, string publicKey, string? adminBypassToken, HashSet<string> adminPublicKeys)
+	private bool ValidateNameLock(DataStoreService db, string slug, string username, string publicKey, string? adminBypassToken, HashSet<string> adminPublicKeys, out string previousOwnerPublicKey)
 	{
-		var existingLock = db.Get<JsonDocument>("name_locks", slug)
-		                   ?? db.Get<JsonDocument>("name_locks", username.ToLowerInvariant().Replace(" ", "-"));
+		previousOwnerPublicKey = "";
+
+		var existingLock = db.Get<JsonDocument>(CreatorNamePolicy.NameLocksCollection, slug)
+		                   ?? db.Get<JsonDocument>(CreatorNamePolicy.NameLocksCollection, username.ToLowerInvariant().Replace(" ", "-"));
 
 		if (existingLock == null) return true;
 
@@ -1257,13 +1274,14 @@ public class ClusterEventService
 		                   && adminPublicKeys.Count > 0
 		                   && AdminBypassAuth.VerifyBypassToken(adminPublicKeys, "admin", "override", adminBypassToken);
 
-		if (!bypassValid)
+		if (bypassValid || !CreatorNamePolicy.HasGreenlitPublishedMap(db, owner))
 		{
-			Console.WriteLine($"[ClusterEventService] Rejected creator_registered event: Username '{username}' already registered");
-			return false;
+			previousOwnerPublicKey = owner;
+			return true;
 		}
 
-		return true;
+		Console.WriteLine($"[ClusterEventService] Rejected creator_registered event: Username '{username}' belongs to a creator with a greenlit map");
+		return false;
 	}
 
 	private void UpsertNameLock(DataStoreService db, string slug, string username, string publicKey, DateTime? registeredAt)
@@ -1834,7 +1852,7 @@ public class ClusterEventService
 		if (!TryGetMetricContext(evt, out var payload, out var mapTitle, out var mapVersion, out var authorPublicKey, out var compositeKey, out var authorCompositeKey, out var playerIdentifier, out var engagementKey))
 			return false;
 
-		var engagement = db.Get<PlayerMapEngagement>("player_engagement", engagementKey) ?? new PlayerMapEngagement { PlayerId = playerIdentifier };
+		var engagement = db.Get<PlayerMapEngagement>("player_engagement", engagementKey) ?? new PlayerMapEngagement { AccountId = payload.AccountId, DisplayName = payload.DisplayName };
 		bool wasVerifiedGood = engagement.IsVerifiedGoodReview;
 		bool hadSubmittedRating = engagement.SubmittedRating.HasValue;
 		int prevRating = engagement.SubmittedRating ?? 0;
@@ -1869,7 +1887,7 @@ public class ClusterEventService
 		authorPublicKey = payload.AuthorPublicKey?.Trim() ?? "";
 		compositeKey = $"{mapTitle}_{mapVersion}";
 		authorCompositeKey = !string.IsNullOrEmpty(authorPublicKey) ? $"{mapTitle}_{mapVersion}_{authorPublicKey}" : compositeKey;
-		playerIdentifier = !string.IsNullOrWhiteSpace(payload.PlayerId) ? payload.PlayerId.Trim() : "Anonymous";
+		playerIdentifier = payload.AccountId != 0 ? payload.AccountId.ToString(System.Globalization.CultureInfo.InvariantCulture) : "anonymous";
 
 		engagementKey = !string.IsNullOrEmpty(authorPublicKey)
 			? $"{playerIdentifier}_{authorCompositeKey}".ToLowerInvariant()
@@ -1900,9 +1918,11 @@ public class ClusterEventService
 			engagement.GamesPlayed += 1;
 		}
 
-		if (!string.IsNullOrWhiteSpace(payload.AuthProvider) && !payload.AuthProvider.Equals("guest", StringComparison.OrdinalIgnoreCase))
+		if (payload.AccountId != 0)
 		{
 			engagement.IsVerifiedAccount = true;
+			engagement.AccountId = payload.AccountId;
+			engagement.DisplayName = payload.DisplayName;
 		}
 
 		if (payload.Stars >= 1 && payload.Stars <= 5)
@@ -1946,5 +1966,168 @@ public class ClusterEventService
 	private void UpsertMapStatsToDb(DataStoreService db, MapStats stats, string mapTitle, string compositeKey, string authorPublicKey, string authorCompositeKey)
 	{
 		MapStatsHelper.UpsertMapStats(db, mapTitle, authorPublicKey, authorCompositeKey, compositeKey, stats);
+	}
+
+	/// <summary>
+	///     Applies an account event published by the account authority. A peer refuses an event whose key is not a configured
+	///     authority key or whose signature does not verify, and logs the refusal instead of merging it. Re-applying the same
+	///     event leaves the store unchanged.
+	/// </summary>
+	private bool ApplyAccountEvent(ClusterEventDto evt, DataStoreService db)
+	{
+		string eventType = evt.EventType.ToLowerInvariant();
+		AccountClusterEventPayload? payload = ParseAccountEventPayload(evt);
+		if (payload == null || payload.AccountId <= 0 || string.IsNullOrWhiteSpace(payload.UniquenessKey) || string.IsNullOrWhiteSpace(payload.DisplayName))
+		{
+			Console.WriteLine($"[ClusterEventService] Refused {eventType}: the payload is incomplete");
+			return false;
+		}
+
+		string publicKey = evt.PublicKey?.Trim() ?? string.Empty;
+		if (publicKey.Length == 0 || !_accountAuthorityOptions.AuthorityPublicKeys.Contains(publicKey))
+		{
+			Console.WriteLine($"[ClusterEventService] Refused {eventType} for account {payload.AccountId}: the signing key is not a configured account authority key");
+			return false;
+		}
+
+		if (!AuthorSignatureHelper.VerifySignature(publicKey, payload.BuildSignaturePayload(eventType), evt.Signature))
+		{
+			Console.WriteLine($"[ClusterEventService] Refused {eventType} for account {payload.AccountId}: the signature did not verify");
+			return false;
+		}
+
+		bool applied = db.TryMutate(
+			new[]
+			{
+				AccountStoreService.AccountsCollection,
+				AccountStoreService.DisplayNamesCollection,
+				AccountStoreService.ConfusableNamesCollection,
+				AccountStoreService.LinksCollection,
+				AccountStoreService.RenameHistoryCollection
+			},
+			transaction => ApplyAccountEventInTransaction(eventType, payload, transaction));
+
+		if (!applied) Console.WriteLine($"[ClusterEventService] Refused {eventType} for account {payload.AccountId}: it conflicts with the local account store");
+		return applied;
+	}
+
+	private bool ApplyAccountEventInTransaction(string eventType, AccountClusterEventPayload payload, Transaction transaction)
+	{
+		string accountKey = payload.AccountId.ToString(System.Globalization.CultureInfo.InvariantCulture);
+		AccountRecord? existing = DataStoreService.ReadFrom<AccountRecord>(transaction, AccountStoreService.AccountsCollection, accountKey);
+		string skeleton = DisplayNameRules.ComputeConfusableSkeleton(payload.DisplayName);
+
+		long nameOwner = DataStoreService.ReadFrom<long>(transaction, AccountStoreService.DisplayNamesCollection, payload.UniquenessKey);
+		if (nameOwner != 0 && nameOwner != payload.AccountId) return false;
+
+		long skeletonOwner = DataStoreService.ReadFrom<long>(transaction, AccountStoreService.ConfusableNamesCollection, skeleton);
+		if (skeletonOwner != 0 && skeletonOwner != payload.AccountId) return false;
+
+		switch (eventType)
+		{
+			case AccountClusterEventPayload.CreatedEvent:
+				if (existing != null) return true;
+
+				var created = new AccountRecord
+				{
+					AccountId = payload.AccountId,
+					DisplayName = payload.DisplayName,
+					UniquenessKey = payload.UniquenessKey,
+					CreatedAtUtc = payload.MutationTimestampUtc,
+					UpdatedAtUtc = payload.MutationTimestampUtc
+				};
+
+				if (!string.IsNullOrEmpty(payload.Provider) && !string.IsNullOrEmpty(payload.ProviderAccountToken))
+				{
+					created.Links.Add(new AccountProviderLinkRecord
+					{
+						Provider = payload.Provider,
+						ProviderAccountToken = payload.ProviderAccountToken,
+						LinkedAtUtc = payload.MutationTimestampUtc
+					});
+					DataStoreService.WriteTo(transaction, AccountStoreService.LinksCollection, AccountStoreService.BuildLinkKey(payload.Provider, payload.ProviderAccountToken), payload.AccountId);
+				}
+
+				DataStoreService.WriteTo(transaction, AccountStoreService.AccountsCollection, accountKey, created);
+				DataStoreService.WriteTo(transaction, AccountStoreService.DisplayNamesCollection, payload.UniquenessKey, payload.AccountId);
+				DataStoreService.WriteTo(transaction, AccountStoreService.ConfusableNamesCollection, skeleton, payload.AccountId);
+				return true;
+
+			case AccountClusterEventPayload.RenamedEvent:
+				if (existing == null) return false;
+				if (string.Equals(existing.UniquenessKey, payload.UniquenessKey, StringComparison.Ordinal)
+				    && string.Equals(existing.DisplayName, payload.DisplayName, StringComparison.Ordinal)) return true;
+
+				if (!string.IsNullOrEmpty(payload.PreviousUniquenessKey) && !string.Equals(payload.PreviousUniquenessKey, payload.UniquenessKey, StringComparison.Ordinal))
+				{
+					long previousOwner = DataStoreService.ReadFrom<long>(transaction, AccountStoreService.DisplayNamesCollection, payload.PreviousUniquenessKey);
+					if (previousOwner != payload.AccountId) return false;
+					DataStoreService.RemoveFrom(transaction, AccountStoreService.DisplayNamesCollection, payload.PreviousUniquenessKey);
+				}
+
+				string previousSkeleton = DisplayNameRules.ComputeConfusableSkeleton(existing.DisplayName);
+				long previousSkeletonOwner = DataStoreService.ReadFrom<long>(transaction, AccountStoreService.ConfusableNamesCollection, previousSkeleton);
+				if (previousSkeletonOwner == payload.AccountId) DataStoreService.RemoveFrom(transaction, AccountStoreService.ConfusableNamesCollection, previousSkeleton);
+
+				var history = new AccountRenameHistoryRecord
+				{
+					AccountId = existing.AccountId,
+					PreviousDisplayName = existing.DisplayName,
+					PreviousUniquenessKey = existing.UniquenessKey,
+					NewDisplayName = payload.DisplayName,
+					NewUniquenessKey = payload.UniquenessKey,
+					Actor = "authority",
+					RecordedAtUtc = payload.MutationTimestampUtc
+				};
+
+				existing.DisplayName = payload.DisplayName;
+				existing.UniquenessKey = payload.UniquenessKey;
+				existing.UpdatedAtUtc = payload.MutationTimestampUtc;
+
+				DataStoreService.WriteTo(transaction, AccountStoreService.AccountsCollection, accountKey, existing);
+				DataStoreService.WriteTo(transaction, AccountStoreService.DisplayNamesCollection, payload.UniquenessKey, payload.AccountId);
+				DataStoreService.WriteTo(transaction, AccountStoreService.ConfusableNamesCollection, skeleton, payload.AccountId);
+				DataStoreService.WriteTo(transaction, AccountStoreService.RenameHistoryCollection, history.HistoryId, history);
+				return true;
+
+			case AccountClusterEventPayload.LinkAddedEvent:
+				if (existing == null) return false;
+				if (string.IsNullOrEmpty(payload.Provider) || string.IsNullOrEmpty(payload.ProviderAccountToken)) return false;
+
+				string linkKey = AccountStoreService.BuildLinkKey(payload.Provider, payload.ProviderAccountToken);
+				long linkOwner = DataStoreService.ReadFrom<long>(transaction, AccountStoreService.LinksCollection, linkKey);
+				if (linkOwner != 0 && linkOwner != payload.AccountId) return false;
+
+				if (!existing.Links.Exists(link => string.Equals(link.Provider, payload.Provider, StringComparison.Ordinal)))
+				{
+					existing.Links.Add(new AccountProviderLinkRecord
+					{
+						Provider = payload.Provider,
+						ProviderAccountToken = payload.ProviderAccountToken,
+						LinkedAtUtc = payload.MutationTimestampUtc
+					});
+					existing.UpdatedAtUtc = payload.MutationTimestampUtc;
+					DataStoreService.WriteTo(transaction, AccountStoreService.AccountsCollection, accountKey, existing);
+				}
+
+				DataStoreService.WriteTo(transaction, AccountStoreService.LinksCollection, linkKey, payload.AccountId);
+				return true;
+
+			default:
+				return false;
+		}
+	}
+
+	private static AccountClusterEventPayload? ParseAccountEventPayload(ClusterEventDto evt)
+	{
+		if (string.IsNullOrWhiteSpace(evt.PayloadJson)) return null;
+		try
+		{
+			return JsonSerializer.Deserialize<AccountClusterEventPayload>(evt.PayloadJson, JsonOpts);
+		}
+		catch (JsonException)
+		{
+			return null;
+		}
 	}
 }

@@ -135,6 +135,8 @@ function startGodotIpcListener(context: vscode.ExtensionContext): void {
                     for (const cmd of data.commands) {
                         if (cmd === 'saveAll') {
                             await handleSaveAllCommand();
+                        } else if (cmd === 'reloadWorkspaceMetadata' && data.workspaceMetadataPath) {
+                            await openWorkspaceMetadata(data.workspaceMetadataPath);
                         }
                     }
                 }
@@ -185,6 +187,36 @@ function httpGetJson(urlStr: string): Promise<any> {
     });
 }
 
+async function openWorkspaceMetadata(metadataPath: string): Promise<void> {
+    if (!fs.existsSync(metadataPath)) { return; }
+
+    try {
+        const metadataUri = vscode.Uri.file(metadataPath);
+        const document = await vscode.workspace.openTextDocument(metadataUri);
+        const diskText = fs.readFileSync(metadataPath, 'utf8').replace(/^\uFEFF/, '');
+
+        if (document.getText() !== diskText) {
+            if (document.isDirty) {
+                const confirmed = await vscode.window.showWarningMessage(
+                    'The active map changed. Reload metadata from disk and discard unsaved editor changes?',
+                    { modal: true },
+                    'Reload'
+                );
+                if (confirmed !== 'Reload') { return; }
+            }
+
+            const edit = new vscode.WorkspaceEdit();
+            edit.replace(document.uri, new vscode.Range(document.positionAt(0), document.positionAt(document.getText().length)), diskText);
+            if (!await vscode.workspace.applyEdit(edit)) { return; }
+            await document.save();
+        }
+
+        await vscode.commands.executeCommand('vscode.openWith', metadataUri, 'realm.mapEditor', { preview: false });
+    } catch (err) {
+        console.error('[RealmExtension] Failed to reload active workspace metadata:', err);
+    }
+}
+
 async function openStartupFiles(context: vscode.ExtensionContext): Promise<void> {
     await delay(2000);
 
@@ -198,13 +230,11 @@ async function openStartupFiles(context: vscode.ExtensionContext): Promise<void>
     if (!fs.existsSync(scriptPath) || !fs.existsSync(metadataPath)) { return; }
 
     try {
-        const metadataUri = vscode.Uri.file(metadataPath);
-        await vscode.commands.executeCommand('vscode.open', metadataUri, { preview: false, preserveFocus: true });
+        await openWorkspaceMetadata(metadataPath);
 
         const scriptUri = vscode.Uri.file(scriptPath);
         const scriptDoc = await vscode.workspace.openTextDocument(scriptUri);
         await vscode.window.showTextDocument(scriptDoc, { preview: false, preserveFocus: false });
-        await vscode.commands.executeCommand('workbench.action.revertFile');
     } catch (err) {
     }
 }

@@ -119,6 +119,12 @@ public class SnapshotPeerState
 		DescribedEntityIds.Clear();
 		UnseenUnitComponents.Clear();
 		HasSentLoot = false;
+
+		// A payload is sent once per content identifier, so the description that carried it is the only one that ever will.
+		// Losing that one left the peer holding a handle it could not open - an ability list that names nothing - until a
+		// baseline, and a baseline that skipped it too left it that way for the match. A description that has forgotten what
+		// this peer was told therefore states the payloads it references again, which is what makes a baseline a repair.
+		SentContentIds.Clear();
 	}
 }
 

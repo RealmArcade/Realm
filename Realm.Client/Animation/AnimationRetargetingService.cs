@@ -15,16 +15,20 @@ public static class AnimationRetargetingService
 {
 	private static readonly Dictionary<string, AnimationLibrary> InMemoryRetargetedLibraries = new(StringComparer.OrdinalIgnoreCase);
 	private static readonly Dictionary<string, RealmAnimationData> CachedRanimData = new(StringComparer.OrdinalIgnoreCase);
+	private static readonly Dictionary<string, string> GodotPathCasingCache = new(StringComparer.OrdinalIgnoreCase);
 
 	public static void ClearCache()
 	{
 		InMemoryRetargetedLibraries.Clear();
 		CachedRanimData.Clear();
+		GodotPathCasingCache.Clear();
 	}
 
 	public static RealmAnimationData? GetOrLoadRanimData(string filePath)
 	{
 		if (string.IsNullOrEmpty(filePath)) return null;
+
+		filePath = MatchGodotPathCasing(filePath);
 
 		if (CachedRanimData.TryGetValue(filePath, out var cached))
 		{
@@ -74,6 +78,49 @@ public static class AnimationRetargetingService
 	}
 
 	public static string ResolveAnimationFilePath(string animName, string unitId = null)
+	{
+		return MatchGodotPathCasing(ResolveUncasedAnimationFilePath(animName, unitId));
+	}
+
+	/// <summary>
+	///     Returns <paramref name="path" /> with the casing the file actually has on disk. Windows resolves a
+	///     mismatched case silently, but the engine warns about it and an exported build fails to open the file, so a
+	///     map asking for 'Attack.ranim' when the asset ships as 'attack.ranim' is corrected here.
+	/// </summary>
+	private static string MatchGodotPathCasing(string path)
+	{
+		if (string.IsNullOrEmpty(path)) return path;
+		if (!path.StartsWith("res://", StringComparison.OrdinalIgnoreCase) &&
+		    !path.StartsWith("user://", StringComparison.OrdinalIgnoreCase))
+		{
+			return path;
+		}
+
+		if (GodotPathCasingCache.TryGetValue(path, out string cached)) return cached;
+
+		string resolved = path;
+		string directory = path.GetBaseDir();
+		string fileName = path.GetFile();
+
+		using (DirAccess dir = DirAccess.Open(directory))
+		{
+			if (dir != null)
+			{
+				foreach (string candidate in dir.GetFiles())
+				{
+					if (!string.Equals(candidate, fileName, StringComparison.OrdinalIgnoreCase)) continue;
+
+					resolved = directory.EndsWith("/", StringComparison.Ordinal) ? $"{directory}{candidate}" : $"{directory}/{candidate}";
+					break;
+				}
+			}
+		}
+
+		GodotPathCasingCache[path] = resolved;
+		return resolved;
+	}
+
+	private static string ResolveUncasedAnimationFilePath(string animName, string unitId)
 	{
 		if (string.IsNullOrEmpty(animName)) return null;
 		if (File.Exists(animName)) return animName;
@@ -137,7 +184,7 @@ public static class AnimationRetargetingService
 	{
 		string wsPath = !string.IsNullOrEmpty(MapWorkspaceService.GetActiveWorkspacePath())
 			? MapWorkspaceService.GetActiveWorkspacePath()
-			: ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
+			: GameContext.EditorService._editingDirectory;
 
 		if (string.IsNullOrEmpty(wsPath)) return null;
 

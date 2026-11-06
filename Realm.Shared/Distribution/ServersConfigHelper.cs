@@ -116,6 +116,26 @@ public static class ServersConfigHelper
 		return DefaultServerUrl;
 	}
 
+	/// <summary>
+	///     The one node a client signs in against. Bootstrapping and signing in are different jobs: the bootstrap server is
+	///     picked at random from the registry list, while account writes belong to the single configured authority.
+	/// </summary>
+	public static string GetAccountAuthorityUrl(string? explicitPath = null)
+	{
+		var config = Load(explicitPath);
+		if (!string.IsNullOrWhiteSpace(config.AccountAuthorityUrl))
+		{
+			return config.AccountAuthorityUrl.TrimEnd('/');
+		}
+
+		if (config.Servers.Count > 0 && !string.IsNullOrWhiteSpace(config.Servers[0]))
+		{
+			return config.Servers[0];
+		}
+
+		return DefaultServerUrl;
+	}
+
 	public static List<string> GetRegistryServers(string? explicitPath = null)
 	{
 		return Load(explicitPath).Servers
@@ -134,6 +154,7 @@ public static class ServersConfigHelper
 	{
 		if (config.AdminPublicKeys == null) config.AdminPublicKeys = new();
 		if (config.Servers == null) config.Servers = new();
+		config.AccountAuthorityUrl = (config.AccountAuthorityUrl ?? string.Empty).Trim().TrimEnd('/');
 
 		config.AdminPublicKeys = config.AdminPublicKeys
 			.Where(k => !string.IsNullOrWhiteSpace(k))

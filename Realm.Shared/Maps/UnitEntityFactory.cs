@@ -79,7 +79,8 @@ public static class UnitEntityFactory
 			metadata.SplashOuterRatio,
 			metadata.FriendlyFire,
 			metadata.PushPriority,
-			!string.IsNullOrEmpty(metadata.MovementType) ? metadata.MovementType : "Ground");
+			!string.IsNullOrEmpty(metadata.MovementType) ? metadata.MovementType : "Ground",
+			metadata.FlatMagicPenetration);
 
 		if (entity == Entity.Null) return Entity.Null;
 
@@ -168,7 +169,8 @@ public static class UnitEntityFactory
 		float splashOuterRatio = 0.25f,
 		bool friendlyFire = false,
 		int pushPriority = 0,
-		string movementType = "Ground")
+		string movementType = "Ground",
+		float flatMagicPen = 0f)
 	{
 		Entity entity = world.Create();
 		world.Add(entity, new DefinitionId(id));
@@ -252,13 +254,16 @@ public static class UnitEntityFactory
 			BaseMaxMana: maxMana,
 			BaseManaRegen: manaRegen,
 			BaseArmor: armor,
+			BaseMagicResistance: magicResistance,
 			BaseDamage: damage,
 			BaseAttackInterval: attackCooldown,
 			BaseSpeed: speed,
 			BaseCastPoint: 0.3f,
 			BaseCritChance: critChance,
 			BaseCritMultiplier: critMultiplier,
-			BaseFlatArmorPenetration: flatArmorPen
+			BaseFlatArmorPenetration: flatArmorPen,
+			BasePercentArmorPenetration: percentArmorPen,
+			BaseFlatMagicPenetration: flatMagicPen
 		));
 
 		return entity;

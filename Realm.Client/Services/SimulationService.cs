@@ -477,8 +477,23 @@ public class SimulationService
 		return playerIndex != otherPlayerIndex;
 	}
 
+	/// <summary>
+	///     Whether this match's relationship table is the authority's. A screen keeps its own reading of who is whose ally
+	///     only until the authority describes one, because the table it derives can only guess at what a map decided: a
+	///     map's wave clones belong to slots the screen has never been told a team for, and every one of them would read as
+	///     hostile. Once the authority's table is here, deriving over it would answer a question this screen has already
+	///     been answered.
+	/// </summary>
+	public bool RelationshipsAreAuthoritative { get; private set; }
+
+	public void MarkRelationshipsAuthoritative() => RelationshipsAreAuthoritative = true;
+
+	public void RestartRelationshipDerivation() => RelationshipsAreAuthoritative = false;
+
 	public void RecalculatePlayerRelationships()
 	{
+		if (RelationshipsAreAuthoritative) return;
+
 		var worldEntity = ActiveWorldEntity;
 		if (GameContext.World == null || worldEntity == Entity.Null || !GameContext.World.IsAlive(worldEntity)) return;
 
@@ -1216,16 +1231,7 @@ public class SimulationService
 		string definitionId = GameContext.World.Get<DefinitionId>(entity).Value;
 		if (!GameContext.RegistryService.UnitRegistry.TryGetValue(definitionId, out var metadata)) return LevelGrowth.None;
 
-		var growth = metadata.LevelGrowth;
-		if (growth == null) return LevelGrowth.None;
-
-		return new LevelGrowth(
-			growth.StrengthPerLevel,
-			growth.AgilityPerLevel,
-			growth.VitalityPerLevel,
-			growth.IntelligencePerLevel,
-			growth.WisdomPerLevel,
-			growth.FortunePerLevel);
+		return metadata.LevelGrowth?.ToLevelGrowth() ?? LevelGrowth.None;
 	}
 
 	public void IssueAttackMoveOrderToPlayer(Vector3 destination, ReadOnlySpan<UnitId> units)

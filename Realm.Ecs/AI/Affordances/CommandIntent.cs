@@ -8,5 +8,6 @@ public enum CommandIntent
 	Cast,
 	Transact,
 	Train,
-	Build
+	Build,
+	Draft
 }

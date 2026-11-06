@@ -536,6 +536,7 @@ public partial class SettingsMenu : Control
 		_languageOpt.AddItem("日本語", 7);
 		_languageOpt.AddItem("العربية", 8);
 		_languageOpt.AddItem("हिन्दी", 9);
+		_languageOpt.AddItem("한국어", 10);
 	}
 
 	private void SetupWindowModeEvent()
@@ -673,7 +674,7 @@ public partial class SettingsMenu : Control
 		_mouseSensSlider.Step = 1;
 
 		_hudScaleSlider.MinValue = 50;
-		_hudScaleSlider.MaxValue = 150;
+		_hudScaleSlider.MaxValue = 100;
 		_hudScaleSlider.Step = 5;
 
 		_fpsLimitSlider.MinValue = 0;
@@ -850,7 +851,8 @@ public partial class SettingsMenu : Control
 
 		_scrollSpeedSlider.Value = GameSettings.ScrollSpeed;
 		_mouseSensSlider.Value = GameSettings.MouseSens;
-		_hudScaleSlider.Value = GameSettings.HudScale;
+		_hudScaleSlider.Value = Mathf.Clamp(GameSettings.HudScale, (float)_hudScaleSlider.MinValue, (float)_hudScaleSlider.MaxValue);
+		GameSettings.HudScale = (float)_hudScaleSlider.Value;
 
 		_masterValLabel.Text = _masterSlider.Value.ToString("0");
 		_musicValLabel.Text = _musicSlider.Value.ToString("0");

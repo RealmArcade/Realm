@@ -702,8 +702,8 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 	private static string BuildEntityLambdaParams(IMethodSymbol method, List<ParamInfo> paramInfos, bool needsRetArea)
 	{
 		bool hasStringParam = method.Parameters.Any(p => p.Type.SpecialType == SpecialType.System_String);
-		bool hasStringListParam = method.Parameters.Any(p => ClassifyParam(p.Type) == PrmKind.StringListParam);
-		bool needsCaller = hasStringParam || hasStringListParam || needsRetArea;
+		bool hasListParam = method.Parameters.Any(p => ClassifyParam(p.Type) == PrmKind.StringListParam || ClassifyParam(p.Type) == PrmKind.FloatListParam);
+		bool needsCaller = hasStringParam || hasListParam || needsRetArea;
 
 		var lambdaParams = new List<string>();
 		if (needsCaller) lambdaParams.Add("Caller caller");
@@ -751,6 +751,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		{
 			PrmKind.StringParam => $"int {p.Name}Ptr, int {p.Name}Len",
 			PrmKind.StringListParam => $"int {p.Name}Ptr, int {p.Name}Len",
+			PrmKind.FloatListParam => $"int {p.Name}Ptr, int {p.Name}Len",
 			PrmKind.DirectFloat => $"float {p.Name}",
 			PrmKind.DirectInt or PrmKind.BoolParam => $"int {p.Name}",
 			PrmKind.EntityParam => $"int {p.Name}RawId",
@@ -769,6 +770,8 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 				sb.AppendLine($"                string {p.Name} = ReadGuestString(caller, {p.Name}Ptr, {p.Name}Len);");
 			else if (p.Kind == PrmKind.StringListParam)
 				sb.AppendLine($"                string[] {p.Name} = ReadGuestStringList(caller, {p.Name}Ptr, {p.Name}Len);");
+			else if (p.Kind == PrmKind.FloatListParam)
+				sb.AppendLine($"                float[] {p.Name} = ReadGuestFloatList(caller, {p.Name}Ptr, {p.Name}Len);");
 			else if (p.Kind == PrmKind.Vector3Param)
 				sb.AppendLine($"                var {p.Name} = new System.Numerics.Vector3({p.Name}X, {p.Name}Y, {p.Name}Z);");
 			else if (p.Kind == PrmKind.EntityParam)
@@ -980,13 +983,13 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 	private static void EmitStandardMethodBinding(StringBuilder sb, IMethodSymbol method, string witName, List<ParamInfo> paramInfos, RetKind retKind, bool isVector3Ret, string targetInstance, INamedTypeSymbol gameApiSymbol, ref bool lastWasMultiLine, HashSet<string> definedFunctions, List<string> methodNames)
 	{
 		bool hasStringParam = method.Parameters.Any(p => p.Type.SpecialType == SpecialType.System_String);
-		bool hasStringListParam = method.Parameters.Any(p => ClassifyParam(p.Type) == PrmKind.StringListParam);
+		bool hasListParam = method.Parameters.Any(p => ClassifyParam(p.Type) == PrmKind.StringListParam || ClassifyParam(p.Type) == PrmKind.FloatListParam);
 		bool needsRetArea = !isVector3Ret && (retKind == RetKind.StringReturn || retKind == RetKind.EntityListReturn);
-		bool needsCaller = hasStringParam || hasStringListParam || needsRetArea;
+		bool needsCaller = hasStringParam || hasListParam || needsRetArea;
 
 		var lambdaParams = BuildLambdaParams(paramInfos, needsCaller, needsRetArea);
 
-		if (CanUseExpressionBody(method, isVector3Ret, hasStringParam, hasStringListParam, needsRetArea, retKind))
+		if (CanUseExpressionBody(method, isVector3Ret, hasStringParam, hasListParam, needsRetArea, retKind))
 		{
 			int methodIndex = methodNames.Count;
 			methodNames.Add(witName);
@@ -1027,14 +1030,14 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		lastWasWasMultiLine(ref lastWasMultiLine, true);
 	}
 
-	private static bool CanUseExpressionBody(IMethodSymbol method, bool isVector3Ret, bool hasStringParam, bool hasStringListParam, bool needsRetArea, RetKind retKind)
+	private static bool CanUseExpressionBody(IMethodSymbol method, bool isVector3Ret, bool hasStringParam, bool hasListParam, bool needsRetArea, RetKind retKind)
 	{
 		bool hasVector2Param = method.Parameters.Any(p => p.Type.ToDisplayString() == "System.Numerics.Vector2");
 		bool hasVector3Param = method.Parameters.Any(p => p.Type.ToDisplayString() == "System.Numerics.Vector3");
 		bool hasVector3NullableParam = method.Parameters.Any(p => IsNullableVector3(p.Type));
 		bool hasUnitParam = method.Parameters.Any(p => IsEntityInterface(p.Type, out _) || IsEntityIdStruct(p.Type, out _));
 
-		return !isVector3Ret && !hasStringParam && !hasStringListParam && !hasVector2Param && !hasVector3Param && !hasVector3NullableParam && !hasUnitParam && !needsRetArea && retKind != RetKind.EntityReturn && retKind != RetKind.EntityNullableReturn;
+		return !isVector3Ret && !hasStringParam && !hasListParam && !hasVector2Param && !hasVector3Param && !hasVector3NullableParam && !hasUnitParam && !needsRetArea && retKind != RetKind.EntityReturn && retKind != RetKind.EntityNullableReturn;
 	}
 
 	private static void EmitVector3AxisBinding(StringBuilder sb, string witName, string axis, string lambdaParams, List<ParamInfo> paramInfos, IMethodSymbol method, string targetInstance, INamedTypeSymbol gameApiSymbol, List<string> methodNames)
@@ -1141,6 +1144,8 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 				sb.AppendLine($"            string {p.Name} = ReadGuestString(caller, {p.Name}Ptr, {p.Name}Len);");
 			else if (p.Kind == PrmKind.StringListParam)
 				sb.AppendLine($"            string[] {p.Name} = ReadGuestStringList(caller, {p.Name}Ptr, {p.Name}Len);");
+			else if (p.Kind == PrmKind.FloatListParam)
+				sb.AppendLine($"            float[] {p.Name} = ReadGuestFloatList(caller, {p.Name}Ptr, {p.Name}Len);");
 		}
 	}
 
@@ -1366,6 +1371,9 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 
 		if (IsCollection(type, out var elemType) && elemType.SpecialType == SpecialType.System_String)
 			return PrmKind.StringListParam;
+
+		if (IsCollection(type, out var floatElementType) && floatElementType.SpecialType == SpecialType.System_Single)
+			return PrmKind.FloatListParam;
 
 		string displayName = type.ToDisplayString();
 
@@ -1740,6 +1748,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 			PrmKind.BoolParam => $"{paramName}: bool",
 			PrmKind.StringParam => $"{paramName}: string",
 			PrmKind.StringListParam => $"{paramName}: list<string>",
+			PrmKind.FloatListParam => $"{paramName}: list<f32>",
 			PrmKind.Vector2Param => $"{paramName}-x: f32, {paramName}-y: f32",
 			PrmKind.Vector3Param => $"{paramName}-x: f32, {paramName}-y: f32, {paramName}-z: f32",
 			PrmKind.EntityParam => paramName.EndsWith("-id", StringComparison.OrdinalIgnoreCase) ? $"{paramName}: s32" : $"{paramName}-id: s32",
@@ -2503,6 +2512,14 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		if (ClassifyParam(p.Type) == PrmKind.StringListParam)
 		{
 			callArgs.Add($"{p.Name}?.ToList() ?? new List<string>()");
+			return true;
+		}
+
+		if (ClassifyParam(p.Type) == PrmKind.FloatListParam)
+		{
+			callArgs.Add(p.Type is IArrayTypeSymbol
+				? $"{p.Name} ?? System.Array.Empty<float>()"
+				: $"{p.Name}.ToArray()");
 			return true;
 		}
 

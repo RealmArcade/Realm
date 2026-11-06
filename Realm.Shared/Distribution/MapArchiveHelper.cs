@@ -131,23 +131,29 @@ public static class MapArchiveHelper
 
 	private static bool IsIgnoredPath(string relPath)
 	{
-		string[] prefixes = [".git/", ".backups/", "obj/", ".godot/", ".sidecarcache/", ".vscode/", ".vs/"];
+		string[] prefixes = [".git/", ".backups/", "obj/", ".godot/", ".sidecarcache/", ".vscode/", ".vs/", $"bin/{MapFileService.DebugBuildFlavor}/", $"bin/{MapFileService.ReleaseBuildFlavor}/"];
 		string[] suffixes = [".tmp", ".rmap", ".7z", ".zip", ".rar", ".tar", ".gz", ".bak", ".backup", ".rkey", ".elf", ".jit.elf"];
 
 		if (prefixes.Any(p => relPath.StartsWith(p, StringComparison.OrdinalIgnoreCase))) return true;
 		if (suffixes.Any(s => relPath.EndsWith(s, StringComparison.OrdinalIgnoreCase))) return true;
 		if (relPath.Contains("/obj/", StringComparison.OrdinalIgnoreCase)) return true;
+		if (string.Equals(Path.GetFileName(relPath), MapFileService.BuildFlavorFileName, StringComparison.OrdinalIgnoreCase)) return true;
 
 		return string.Equals(Path.GetFileName(relPath), "authorship_key.pem", StringComparison.OrdinalIgnoreCase);
 	}
 
-	private static bool IsAllowedExcludedFile(string fn)
+	private static bool IsAllowedExcludedFile(string relativePath)
 	{
+		string fn = Path.GetFileName(relativePath);
 		string[] allowedExact = ["manifest.json", "metadata.json", "terrain.json"];
 		string[] allowedSuffixes = [".cs", ".wasm", ".csproj"];
 
 		if (allowedExact.Any(a => fn.Equals(a, StringComparison.OrdinalIgnoreCase))) return true;
 		if (allowedSuffixes.Any(s => fn.EndsWith(s, StringComparison.OrdinalIgnoreCase))) return true;
+
+		// A map's locale/*.json is read by name (the file name is the language), so it is text the package carries rather
+		// than an asset anything references. Trimming it away would strip the map's translations from a published copy.
+		if (relativePath.StartsWith("locale/", StringComparison.OrdinalIgnoreCase)) return true;
 
 		return false;
 	}
@@ -176,8 +182,7 @@ public static class MapArchiveHelper
 
 		if (!fullExport && excludedRelativePaths != null && excludedRelativePaths.Contains(relativePath))
 		{
-			string fn = Path.GetFileName(relativePath);
-			if (!IsAllowedExcludedFile(fn)) return false;
+			if (!IsAllowedExcludedFile(relativePath)) return false;
 		}
 
 		var fileInfo = new FileInfo(file);
@@ -679,8 +684,11 @@ public static class MapArchiveHelper
 		if (relPath.Equals("manifest.json", StringComparison.OrdinalIgnoreCase)) return 0;
 		if (relPath.Equals("metadata.json", StringComparison.OrdinalIgnoreCase)) return 1;
 		return 10;
-	}
-
+	}	/// <summary>
+	///     Leaves the map carrying nothing but the one compiled script it runs: every other build artifact under
+	///     <c>bin</c> is removed, so an export can only ever ship the artifact the last compile wrote.
+	/// </summary>
+	/// <param name="workspacePath">The map workspace.</param>
 	public static void DeduplicateWorkspaceBuildArtifacts(string workspacePath)
 	{
 		if (string.IsNullOrEmpty(workspacePath) || !Directory.Exists(workspacePath)) return;
@@ -690,25 +698,21 @@ public static class MapArchiveHelper
 			string binDir = Path.Combine(workspacePath, "bin");
 			if (Directory.Exists(binDir))
 			{
-				var mapApiFiles = Directory.GetFiles(binDir, "Realm.*", SearchOption.AllDirectories);
-				foreach (var file in mapApiFiles)
+				string scriptDirectory = MapFileService.ResolveScriptOutputDirectory(workspacePath);
+
+				foreach (string entry in Directory.GetFileSystemEntries(binDir))
 				{
-					if (IsWorkspaceApiLibFile(Path.GetFileName(file)))
-					{
-						try { File.Delete(file); } catch { }
-					}
+					if (string.Equals(entry, scriptDirectory, StringComparison.OrdinalIgnoreCase)) continue;
+					DeleteEntry(entry);
 				}
 
-				var wasmFiles = Directory.GetFiles(binDir, "*.wasm", SearchOption.AllDirectories);
-				foreach (var file in wasmFiles)
+				if (Directory.Exists(scriptDirectory))
 				{
-					if (Path.GetFileName(file).Equals("MapScript.wasm", StringComparison.OrdinalIgnoreCase))
+					foreach (string file in Directory.GetFiles(scriptDirectory, "Realm.*", SearchOption.TopDirectoryOnly))
 					{
-						string normPath = file.Replace('\\', '/');
-						if (!normPath.Contains("/publish/", StringComparison.OrdinalIgnoreCase))
-						{
-							try { File.Delete(file); } catch { }
-						}
+						if (!IsWorkspaceApiLibFile(Path.GetFileName(file))) continue;
+
+						try { File.Delete(file); } catch { }
 					}
 				}
 			}
@@ -718,6 +722,18 @@ public static class MapArchiveHelper
 			{
 				try { File.Delete(file); } catch { }
 			}
+		}
+		catch
+		{
+		}
+	}
+
+	private static void DeleteEntry(string path)
+	{
+		try
+		{
+			if (Directory.Exists(path)) Directory.Delete(path, true);
+			else File.Delete(path);
 		}
 		catch
 		{
