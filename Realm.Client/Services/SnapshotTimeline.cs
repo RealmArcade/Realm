@@ -1,6 +1,7 @@
 using System;
 using System.Numerics;
 using Realm.Ecs;
+using Realm.Shared.Diagnostics;
 using Realm.Shared.Network;
 
 namespace Realm.Client.Services;
@@ -79,6 +80,8 @@ public class SnapshotTimeline
 	///     frames it has.
 	/// </summary>
 	private const float MaximumReleaseMetersPerSecond = 8f;
+
+	private const float MaximumVisibleStepMeters = 0.75f;
 
 	private readonly Vector3[] _positions = new Vector3[EcsWorld.MAX_ENTITIES * SamplesPerUnit];
 	private readonly float[] _rotations = new float[EcsWorld.MAX_ENTITIES * SamplesPerUnit];
@@ -331,6 +334,7 @@ public class SnapshotTimeline
 					StarvationCount++;
 					_starvationsSinceArrival++;
 					_isStarved = true;
+					LagProbe.Count(LagEvent.ClientStarvations);
 				}
 
 				_cursor = NewestSequence;
@@ -502,7 +506,11 @@ public class SnapshotTimeline
 			if (orderStillHeld && count >= 2)
 			{
 				position = Extrapolate(described, velocity, cursor - newestSequence);
-				if (position != described) ExtrapolatedSampleCount++;
+				if (position != described)
+				{
+					ExtrapolatedSampleCount++;
+					LagProbe.Count(LagEvent.ClientExtrapolatedSamples);
+				}
 			}
 
 			position = ReleaseBackwards(entityId, position);
@@ -562,13 +570,21 @@ public class SnapshotTimeline
 		}
 
 		Vector3 drawn = _drawnPositions[entityId];
+		Vector3 step = sampled - drawn;
+		float stepMeters = step.Length();
+		if (stepMeters > MaximumVisibleStepMeters) LagProbe.RecordWorst(LagEvent.ClientPresentedJumps, stepMeters);
+
 		Vector3 backwards = drawn - sampled;
 		float backwardsMeters = backwards.Length();
 		float allowedMeters = MaximumReleaseMetersPerSecond * _frameDeltaSeconds;
 
 		// Nothing but the last drawn position is compared, so a unit that is reset - which forgets it - is drawn wherever
 		// its new descriptions put it rather than crawling there from wherever it used to be.
-		if (backwardsMeters > allowedMeters && backwardsMeters > 0.0001f) sampled = drawn - backwards * (allowedMeters / backwardsMeters);
+		if (backwardsMeters > allowedMeters && backwardsMeters > 0.0001f)
+		{
+			LagProbe.RecordWorst(LagEvent.ClientReleaseBackwardsSamples, backwardsMeters);
+			sampled = drawn - backwards * (allowedMeters / backwardsMeters);
+		}
 
 		_drawnPositions[entityId] = sampled;
 		return sampled;

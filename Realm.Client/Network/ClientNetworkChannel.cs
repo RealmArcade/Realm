@@ -11,18 +11,48 @@ public partial class ClientNetworkChannel : Node
 
 	public event Action<NetworkFrameKind, byte[]>? FrameArrived;
 
+	private readonly SimulatedLink _simulatedLink = SimulatedLink.FromEnvironment();
+
+	public SimulatedLink SimulatedLink => _simulatedLink;
+
 	public bool IsConnected => Multiplayer.MultiplayerPeer?.GetConnectionStatus() == MultiplayerPeer.ConnectionStatus.Connected;
+
+	/// <summary>
+	///     Hands on the frames a simulated link has finished with. Every frame travels through the queue even when the link
+	///     is off, which costs one branch and keeps the two paths identical: what a harness measures is then the same code
+	///     a screen runs, with a delay and a drop rate in front of it.
+	/// </summary>
+	public override void _Process(double delta) => ReleaseDueFrames();
+
+	public override void _PhysicsProcess(double delta) => ReleaseDueFrames();
+
+	private void ReleaseDueFrames()
+	{
+		if (!_simulatedLink.IsEnabled) return;
+
+		while (_simulatedLink.TryDequeue(out bool outbound, out NetworkFrameKind kind, out byte[] payload, out bool unreliable))
+		{
+			if (outbound) SendNow(kind, payload, unreliable);
+			else FrameArrived?.Invoke(kind, payload);
+		}
+
+		_simulatedLink.ObserveCounters();
+	}
 
 	[Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = false, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
 	public void Frame(int kind, byte[] payload)
 	{
-		FrameArrived?.Invoke((NetworkFrameKind)kind, payload ?? Array.Empty<byte>());
+		byte[] frame = payload ?? Array.Empty<byte>();
+		if (_simulatedLink.TryQueueInbound((NetworkFrameKind)kind, frame, false)) return;
+		FrameArrived?.Invoke((NetworkFrameKind)kind, frame);
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = false, TransferMode = MultiplayerPeer.TransferModeEnum.UnreliableOrdered)]
 	public void FrameUnreliable(int kind, byte[] payload)
 	{
-		FrameArrived?.Invoke((NetworkFrameKind)kind, payload ?? Array.Empty<byte>());
+		byte[] frame = payload ?? Array.Empty<byte>();
+		if (_simulatedLink.TryQueueInbound((NetworkFrameKind)kind, frame, true)) return;
+		FrameArrived?.Invoke((NetworkFrameKind)kind, frame);
 	}
 
 	public bool TryConnect(string address, int port, out string failure) => TryConnect(address, port, 0, out failure);
@@ -63,8 +93,16 @@ public partial class ClientNetworkChannel : Node
 	public void Send(NetworkFrameKind kind, byte[] payload)
 	{
 		if (!IsConnected) return;
+		if (_simulatedLink.TryQueueOutbound(kind, payload, false)) return;
 
-		RpcId(AuthorityPeerId, nameof(Frame), (int)kind, payload);
+		SendNow(kind, payload, false);
+	}
+
+	private void SendNow(NetworkFrameKind kind, byte[] payload, bool unreliable)
+	{
+		if (!IsConnected) return;
+
+		RpcId(AuthorityPeerId, unreliable ? nameof(FrameUnreliable) : nameof(Frame), (int)kind, payload);
 	}
 
 	/// <summary>
@@ -75,8 +113,9 @@ public partial class ClientNetworkChannel : Node
 	public void SendUnreliable(NetworkFrameKind kind, byte[] payload)
 	{
 		if (!IsConnected) return;
+		if (_simulatedLink.TryQueueOutbound(kind, payload, true)) return;
 
-		RpcId(AuthorityPeerId, nameof(FrameUnreliable), (int)kind, payload);
+		SendNow(kind, payload, true);
 	}
 
 	public void Disconnect()

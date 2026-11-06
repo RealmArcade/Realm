@@ -28,6 +28,7 @@
 
   <ItemGroup>
     <Compile Include="gdunit4_testadapter_v5/GdUnit4TestRunnerScene.cs" />
+    <Compile Include="LagPerceptionTests.cs" />
     <Compile Include="MapEditorUxTests.cs" />
     <Compile Include="MapImportVerificationTests.cs" />
     <Compile Include="MultiplayerEcsSyncTests.cs" />

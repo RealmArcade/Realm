@@ -259,6 +259,7 @@ public class ListenServerHost : IServerTransportSink
 
 		_scriptLogSink = _log.Write;
 		WasmScriptHost.OnWasmLog += _scriptLogSink;
+		LagProbe.TryEnableFromEnvironment("authority");
 
 		MatchRosterSeat[] roster = ReadRoster();
 		LoadedMap map = MapWorldLoader.Load(_arguments.MapPath, roster);
@@ -550,16 +551,33 @@ public class ListenServerHost : IServerTransportSink
 		int stepped = 0;
 		while (nowSeconds >= _nextTickTime && stepped < MaximumTicksPerCall)
 		{
+			long tickStarted = LagProbe.IsEnabled ? LagProbe.Timestamp() : 0L;
 			_commandsThisTick.Clear();
 
+			long simulateStarted = LagProbe.IsEnabled ? LagProbe.Timestamp() : 0L;
 			simulation.Step();
+			if (simulateStarted != 0L) LagProbe.Add(LagStage.AuthoritySimulateMilliseconds, LagProbe.ElapsedMilliseconds(simulateStarted));
+
 			PublishTick(simulation.AdvanceSnapshotSequence());
+
+			if (LagProbe.IsEnabled)
+			{
+				LagProbe.Count(LagEvent.AuthorityTicks);
+				LagProbe.Add(LagStage.AuthorityTickWorkMilliseconds, LagProbe.ElapsedMilliseconds(tickStarted));
+				if (_previousStepTimestamp != 0L) LagProbe.Add(LagStage.AuthorityTickIntervalMilliseconds, LagProbe.ElapsedMilliseconds(_previousStepTimestamp));
+				_previousStepTimestamp = tickStarted;
+			}
+
 			_nextTickTime += MatchTiming.FixedTickSeconds;
 			stepped++;
 		}
 
+		if (stepped > 1) LagProbe.Count(LagEvent.AuthorityTickCatchUpCalls);
+
 		if (nowSeconds >= _nextTickTime) _nextTickTime = nowSeconds + MatchTiming.FixedTickSeconds;
 	}
+
+	private long _previousStepTimestamp;
 
 	private const int MaximumTicksPerCall = 5;
 
@@ -609,6 +627,7 @@ public class ListenServerHost : IServerTransportSink
 		if (_readyAnnounced) _log.Write($"the command rate limit refused {_rateLimitedCommandCount} command(s)");
 		if (_readyAnnounced) _log.Write($"snapshots: {_unreliableSnapshotCount} carried as deltas on the current stream, {_reliableSnapshotCount} carried in order, {_fragmentedSnapshotCount} split across datagrams");
 
+		LagProbe.WriteReport();
 		QueueTrafficReport(includeSequenceCoverage: true);
 
 		_seatedPeers.Clear();
@@ -1184,6 +1203,8 @@ public class ListenServerHost : IServerTransportSink
 		ServerSimulation? simulation = _simulation;
 		if (simulation == null) return;
 
+		long publishStarted = LagProbe.IsEnabled ? LagProbe.Timestamp() : 0L;
+
 
 		_syncRecorder?.BeginSequence(sequence, simulation.TickCount);
 
@@ -1276,6 +1297,31 @@ public class ListenServerHost : IServerTransportSink
 		if (_trafficRecorder != null && sequence % TrafficReportIntervalSequences == 0) QueueTrafficReport();
 
 		if (presentation.Length > 0) SendPresentation(peerCount, presentation);
+
+		if (publishStarted != 0L)
+		{
+			LagProbe.Add(LagStage.AuthorityPublishMilliseconds, LagProbe.ElapsedMilliseconds(publishStarted));
+			ObserveSequencesPerSecond(sequence);
+		}
+	}
+
+	private double _sequencesPerSecondStartedSeconds;
+	private int _sequencesPerSecondFirstSequence = -1;
+
+	private void ObserveSequencesPerSecond(int sequence)
+	{
+		double seconds = _startClock.Elapsed.TotalSeconds;
+		if (_sequencesPerSecondFirstSequence < 0)
+		{
+			_sequencesPerSecondFirstSequence = sequence;
+			_sequencesPerSecondStartedSeconds = seconds;
+			return;
+		}
+
+		double elapsed = seconds - _sequencesPerSecondStartedSeconds;
+		if (elapsed < 1d) return;
+
+		LagProbe.ObserveGauge(LagGauge.AuthoritySequencesPerSecond, (sequence - _sequencesPerSecondFirstSequence) / elapsed, seconds);
 	}
 
 	/// <summary>
@@ -1294,6 +1340,7 @@ public class ListenServerHost : IServerTransportSink
 
 			int undescribedPeerId = _seatedPeerIds[index];
 			_log.Write($"peer {undescribedPeerId} was not described this tick because a publish lane failed; it is described from scratch next tick");
+			LagProbe.Count(LagEvent.AuthorityBaselinesBecausePeerWasUndescribed);
 			simulation.RequestBaseline(undescribedPeerId);
 		}
 	}
@@ -1323,12 +1370,14 @@ public class ListenServerHost : IServerTransportSink
 
 		// The description is written into the slot this peer already has, so describing a room replaces nothing and
 		// empties what it held instead of allocating a set of lists per peer per tick.
+		long describeStarted = LagProbe.IsEnabled ? LagProbe.Timestamp() : 0L;
 		simulation.BuildSnapshotForPeerInto(ref _publishedSnapshots[index], peerId, _publishSequence, _pendingBaselineRequests[index], laneIndex, index);
+		if (describeStarted != 0L) LagProbe.Add(LagStage.AuthorityDescribeMilliseconds, LagProbe.ElapsedMilliseconds(describeStarted));
 		WorldSnapshot snapshot = _publishedSnapshots[index];
 
 		// Serializing and framing is the host's cost of describing one peer, measured where it is paid, and the serializer
 		// writes into a buffer this peer's slot already owns.
-		long framingStarted = _trafficRecorder == null ? 0 : System.Diagnostics.Stopwatch.GetTimestamp();
+		long framingStarted = System.Diagnostics.Stopwatch.GetTimestamp();
 		ArrayBufferWriter<byte> serialized = _serializationWriters[index];
 		serialized.ResetWrittenCount();
 		MemoryPackSerializer.Serialize(serialized, snapshot);
@@ -1336,10 +1385,9 @@ public class ListenServerHost : IServerTransportSink
 		_publishedFrames[index] = snapshot.IsBaseline
 			? compressor.EncodeBaseline(serialized.WrittenSpan)
 			: compressor.EncodeDelta(serialized.WrittenSpan);
-		if (_trafficRecorder == null) return;
-
 		_publishedSerializedBytes[index] = serialized.WrittenCount;
 		_publishedFramingMilliseconds[index] = (System.Diagnostics.Stopwatch.GetTimestamp() - framingStarted) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+		LagProbe.Add(LagStage.AuthoritySerializeMilliseconds, _publishedFramingMilliseconds[index]);
 	}
 
 	private void SendPublishedSnapshot(int index)
@@ -1348,7 +1396,13 @@ public class ListenServerHost : IServerTransportSink
 		if (simulation == null) return;
 
 		int peerId = _seatedPeerIds[index];
-		if (_publishedFrames[index] == null) return;
+		if (_publishedFrames[index] == null)
+		{
+			// A tick that describes nothing to a peer leaves a hole in the run it was told, which it pays for with a repair
+			// or the world itself, so every one of them is counted where it happens rather than inferred from the screen.
+			LagProbe.Count(LagEvent.AuthorityPeerToldNothing);
+			return;
+		}
 
 		WorldSnapshot snapshot = _publishedSnapshots[index];
 
@@ -1363,6 +1417,7 @@ public class ListenServerHost : IServerTransportSink
 		{
 			_log.Write($"peer {peerId} would be described in more than the {SnapshotFragment.MaximumFragmentsPerDescription} pieces a screen can reassemble ({_publishedFrames[index].Length} bytes, {SnapshotFragment.MaximumReassembledBytes} is the widest); it is described from scratch instead");
 			_publishedFrames[index] = null;
+			LagProbe.Count(LagEvent.AuthorityBaselinesBecauseDescriptionTooWide);
 			simulation.RequestBaseline(peerId);
 			return;
 		}
@@ -1371,11 +1426,27 @@ public class ListenServerHost : IServerTransportSink
 
 		_syncRecorder?.AddPeerSnapshot(peerId, in snapshot);
 
+		SnapshotBaselineReason reason = !snapshot.IsBaseline
+			? SnapshotBaselineReason.None
+			: isFirstFrameForPeer ? SnapshotBaselineReason.Initial : _pendingBaselineReasons[index];
+
+		if (LagProbe.IsEnabled)
+		{
+			if (!snapshot.IsBaseline)
+			{
+				LagProbe.Count(LagEvent.AuthorityDeltaPublished);
+			}
+			else
+			{
+				LagProbe.Count(LagEvent.AuthorityBaselinesPublished);
+				if (reason == SnapshotBaselineReason.Safety) LagProbe.Count(LagEvent.AuthorityBaselinesBecausePeerBehind);
+				else if (reason == SnapshotBaselineReason.Initial) LagProbe.Count(LagEvent.AuthorityBaselinesPublished);
+				else LagProbe.Count(LagEvent.AuthorityBaselinesBecausePeerAsked);
+			}
+		}
+
 		if (_trafficRecorder != null)
 		{
-			SnapshotBaselineReason reason = !snapshot.IsBaseline
-				? SnapshotBaselineReason.None
-				: isFirstFrameForPeer ? SnapshotBaselineReason.Initial : _pendingBaselineReasons[index];
 			_trafficRecorder.RecordFrame(
 				peerId,
 				_publishSequence,
@@ -1395,6 +1466,7 @@ public class ListenServerHost : IServerTransportSink
 		// would hold every description queued behind it, which on a busy match turns one large frame into the stall that
 		// costs the peer everything it was about to be told.
 		bool carriedUnreliably = !snapshot.IsBaseline;
+		long sendStarted = LagProbe.IsEnabled ? LagProbe.Timestamp() : 0L;
 		if (snapshot.IsBaseline)
 		{
 			_transport.Send(peerId, NetworkFrameKind.Snapshot, _publishedFrames[index]);
@@ -1414,8 +1486,10 @@ public class ListenServerHost : IServerTransportSink
 			}
 
 			_fragmentedSnapshotCount++;
+			LagProbe.Count(LagEvent.AuthorityFragmentedDescriptions);
 		}
 
+		if (sendStarted != 0L) LagProbe.Add(LagStage.AuthoritySendMilliseconds, LagProbe.ElapsedMilliseconds(sendStarted));
 		if (carriedUnreliably) _unreliableSnapshotCount++;
 		else _reliableSnapshotCount++;
 
@@ -1562,6 +1636,7 @@ public class ListenServerHost : IServerTransportSink
 
 		if (!TryClaimBaselineRequest(peerId, tick)) return;
 
+		LagProbe.Count(LagEvent.AuthorityBaselinesBecausePeerAsked);
 		simulation.RequestBaseline(peerId);
 		_log.Write($"peer {peerId} asked for a run this match no longer holds; it is described from scratch");
 	}
@@ -1589,6 +1664,7 @@ public class ListenServerHost : IServerTransportSink
 			_transport.Send(peerId, NetworkFrameKind.Snapshot, frame, FrameDelivery.Reliable);
 		}
 
+		LagProbe.Count(LagEvent.AuthorityRepairDescriptionsSent, missingSequences.Length);
 		return true;
 	}
 
@@ -1676,8 +1752,8 @@ public class ListenServerHost : IServerTransportSink
 
 		if (!TryClaimBaselineRequest(peerId, tick)) return;
 
+		LagProbe.Count(LagEvent.AuthorityBaselinesBecauseAcknowledgementMissed);
 		simulation.RequestBaseline(peerId);
-		_log.Write($"peer {peerId} is missing a description this match no longer holds; it is described from scratch");
 	}
 
 	private void LogAcknowledgedSequence(int peerId, in SnapshotAck ack)

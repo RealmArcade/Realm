@@ -13,6 +13,7 @@ using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Services;
 using Realm.Shared;
+using Realm.Shared.Diagnostics;
 using Realm.Shared.Maps;
 
 namespace Realm.Client.Testing;
@@ -51,6 +52,8 @@ public partial class MultiplayerSimulationHarness : Node
 	private int _peerCount = 2;
 	private int _peerIndex = 1;
 	private int _botCount;
+	private bool _cheatsEnabled;
+	private bool _unlockTiles;
 	private int _splitUnitsBeforeCommand = -1;
 	private float _dropAtSeconds;
 	private float _pauseAtSeconds;
@@ -95,6 +98,7 @@ public partial class MultiplayerSimulationHarness : Node
 		finally
 		{
 			TryWriteDoneFile();
+			WriteSimulatedLinkStats();
 			if (!_probeOwnsProcess) GetTree().Quit(exitCode);
 		}
 	}
@@ -157,6 +161,12 @@ public partial class MultiplayerSimulationHarness : Node
 					break;
 				case "--bots":
 					_botCount = int.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
+					break;
+				case "--cheats":
+					_cheatsEnabled = value == "1";
+					break;
+				case "--unlock-tiles":
+					_unlockTiles = value == "1";
 					break;
 				case "--wait-for-peer-ready":
 					_waitForPeerReadyFile = value;
@@ -222,7 +232,7 @@ public partial class MultiplayerSimulationHarness : Node
 		GD.Print($"[MP_HARNESS] The authority is listening on port {session.Port}; this process plays as one of its clients.");
 		if (!string.IsNullOrEmpty(_listeningFile)) File.WriteAllText(_listeningFile, session.Port.ToString(System.Globalization.CultureInfo.InvariantCulture));
 
-		int expectedClientCount = Math.Max(1, _peerCount - 1);
+		int expectedClientCount = Math.Max(0, _peerCount - 1);
 		bool clientsSeated = await WaitUntilAsync(() => CountSeatedPeers(session) >= expectedClientCount + 1, 240f);
 		if (!clientsSeated)
 		{
@@ -237,6 +247,7 @@ public partial class MultiplayerSimulationHarness : Node
 		if (!string.IsNullOrEmpty(_clientBuildId)) IssueClientBuildRequest(gameHost);
 
 		double matchStartGameTime = await WaitForClientsToStartAsync(gameHost);
+		if (_unlockTiles) await IssueUnlockTilesAsync();
 		bool finished = false;
 		ulong simulationDeadline = Time.GetTicksMsec() + (ulong)((_durationSeconds * 4f + 120f) * 1000f);
 		while (Time.GetTicksMsec() < simulationDeadline)
@@ -263,8 +274,10 @@ public partial class MultiplayerSimulationHarness : Node
 
 		_finalSequence = ResolveSnapshotSequence();
 		MultiplayerBandwidthMeter.WriteReport(_outputDirectory, gameHost.GameElapsedTime);
+		WriteSimulatedLinkStats();
 		GD.Print($"[MP_HARNESS] Host finished at game time {gameHost.GameElapsedTime:F2}s with {gameHost.AllUnits.Count} units and snapshot sequence {_finalSequence}.");
 		MultiplayerSyncDiagnostics.Stop();
+		LagProbe.WriteReport();
 		WriteFinalWorldSnapshot("ECS_host_final_full.bin");
 		WriteWorldSummary("world_summary_host.json", "host");
 		return 0;
@@ -418,9 +431,12 @@ public partial class MultiplayerSimulationHarness : Node
 			Path.Combine(_outputDirectory, "listen_server"),
 			_outputDirectory,
 			LocalizationManager.GetCurrentLanguageCode(),
+			Cheats: _cheatsEnabled,
 			OpenToOthers: true,
 			Roster: BuildHarnessRoster(),
 			AuthorityRecordDirectory: _outputDirectory);
+
+		GD.Print($"[MP_HARNESS] This screen's link to the authority is simulated at {SimulatedLink.FromEnvironment().Describe()}.");
 
 		MatchStartResult started = await session.TryStartAsync(start, _port);
 		if (!started.Started) throw new InvalidOperationException($"The authority could not be started on port {_port}: {started.Failure}");
@@ -436,7 +452,9 @@ public partial class MultiplayerSimulationHarness : Node
 		for (int slot = 1; slot <= _peerCount; slot++)
 		{
 			string name = slot == 1 ? HostPlayerName : $"HarnessPeer{slot}";
-			roster.Add(new MatchRosterSeat(slot, 0, name, slot, $"Team {slot}", false));
+			roster.Add(new MatchRosterSeat(slot, 0, name,			slot,
+			$"Team {slot}",
+			false));
 		}
 
 		for (int index = 0; index < _botCount; index++)
@@ -541,6 +559,7 @@ public partial class MultiplayerSimulationHarness : Node
 		GD.Print($"[MP_HARNESS] Client stopped at applied snapshot sequence {_finalSequence} with game time {GameContext.Host?.GameElapsedTime ?? 0f:F2}s.");
 		MultiplayerBandwidthMeter.WriteReport(_outputDirectory, GameContext.Host?.GameElapsedTime ?? 0f);
 		MultiplayerSyncDiagnostics.Stop();
+		LagProbe.WriteReport();
 		TryWriteSequenceFile(_finalSequence);
 		WriteFinalWorldSnapshot("ECS_client_final_full.bin");
 		WriteWorldSummary($"world_summary_peer{_peerIndex}.json", "client");
@@ -725,6 +744,7 @@ public partial class MultiplayerSimulationHarness : Node
 		}
 
 		MultiplayerSyncDiagnostics.Start(isHost ? Path.Combine(_outputDirectory, "host") : _outputDirectory);
+		LagProbe.TryEnableFromEnvironment("client");
 		PrintReplicatedCodecTable(isHost);
 		TryWriteReadyFile();
 		GameHost currentHost = GameContext.Host!;
@@ -815,9 +835,23 @@ public partial class MultiplayerSimulationHarness : Node
 		}
 	}
 
+	private async Task IssueUnlockTilesAsync()
+	{
+		await ToSignal(GetTree().CreateTimer(2.0f), SceneTreeTimer.SignalName.Timeout);
+		bool sent = GameContext.ServerSession?.SendChat("-unlockTiles", false) ?? false;
+		GD.Print($"[MP_HARNESS] Asked the map to unlock every tile (sent={sent}) so every seat drafts without waiting for the food cap.");
+		await ToSignal(GetTree().CreateTimer(1.0f), SceneTreeTimer.SignalName.Timeout);
+	}
+
 	private async Task<double> WaitForClientsToStartAsync(GameHost gameHost)
 	{
-		int expectedClients = Math.Max(1, _peerCount - 1);
+		int expectedClients = Math.Max(0, _peerCount - 1);
+		if (expectedClients == 0)
+		{
+			GD.Print($"[MP_HARNESS] This screen is the only client; the match window starts at its game time {gameHost.GameElapsedTime:F2}s.");
+			return gameHost.GameElapsedTime;
+		}
+
 		float timeoutSeconds = 60f + 90f * expectedClients;
 		ulong deadline = Time.GetTicksMsec() + (ulong)(timeoutSeconds * 1000f);
 		while (Time.GetTicksMsec() < deadline)
@@ -874,6 +908,14 @@ public partial class MultiplayerSimulationHarness : Node
 		{
 			GD.PrintErr($"[MP_HARNESS] Failed to export final world snapshot: {exception.Message}");
 		}
+	}
+
+	private void WriteSimulatedLinkStats()
+	{
+		ClientNetworkChannel? channel = GetNodeOrNull<ClientNetworkChannel>("/root/RealmNetwork");
+		if (channel == null) return;
+
+		channel.SimulatedLink.WriteStatistics(Path.Combine(_outputDirectory, "simulated_link.txt"));
 	}
 
 	private void TryWriteReadyFile()

@@ -9,6 +9,7 @@ using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Services;
+using Realm.Shared.Diagnostics;
 using Realm.Shared.Network;
 
 namespace Realm.Client.Core;
@@ -359,14 +360,28 @@ public partial class GameHost
 		// thing that moves one: the client renders the authority's own timeline from a little behind it.
 		GameContext.SnapshotTimeline.Advance(fDelta);
 
+		if (LagProbe.IsEnabled) ObservePresentationMetrics(fDelta);
+
 		// Effects and unit removals share the cursor the units are drawn from, so an effect and the unit it is about are
 		// drawn at the same moment rather than a presentation delay apart.
 		FlushPresentationForCursor();
 		FlushUnitViewRemovalsForCursor();
 
+		long placementStarted = LagProbe.IsEnabled ? LagProbe.Timestamp() : 0L;
 		var query = QueryCache.AllLatestDescriptionQuery;
 		GameContext.SimulationService.SetDelta(fDelta);
 		GameContext.World.Query(in query, GameContext.SimulationService.PresentationQueryDelegate);
+		if (placementStarted != 0L) LagProbe.Add(LagStage.ClientPlacementMilliseconds, LagProbe.ElapsedMilliseconds(placementStarted));
+	}
+
+	private static void ObservePresentationMetrics(float fDelta)
+	{
+		var timeline = GameContext.SnapshotTimeline;
+		double nowSeconds = LagProbe.NowSeconds();
+		LagProbe.ObserveGauge(LagGauge.ClientPresentationDelaySequences, timeline.DelaySequences, nowSeconds);
+		LagProbe.ObserveGauge(LagGauge.ClientPresentationDelayMilliseconds, timeline.DelayMilliseconds, nowSeconds);
+		LagProbe.ObserveGauge(LagGauge.ClientNewestDescriptionLeadSequences, timeline.NewestSequence - timeline.CursorSequence, nowSeconds);
+		LagProbe.ObserveDrawnSequence((int)MathF.Floor(timeline.CursorSequence), nowSeconds);
 	}
 
 	/// <summary>

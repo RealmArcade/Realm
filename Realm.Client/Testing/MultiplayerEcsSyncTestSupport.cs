@@ -8,6 +8,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Realm.Client.Services;
 using Realm.Ecs.Replication;
+using Realm.Client.Network;
 using Realm.Shared.Diagnostics;
 using Realm.Shared.Network;
 using Realm.Shared.Services;
@@ -38,6 +39,10 @@ public sealed class MultiplayerEcsRunSettings
 	public NetworkProfile Profile { get; init; } = NetworkProfile.Latency;
 	public int PeerCount { get; init; } = 2;
 	public int BotCount { get; init; }
+	public bool CheatsEnabled { get; init; }
+	public bool UnlockTiles { get; init; }
+	public int RelaySeed { get; init; } = 20261023;
+	public string MetricsDirectory { get; init; } = string.Empty;
 	public float DropClientAtSeconds { get; init; }
 	public float DiscardSnapshotAtSeconds { get; init; }
 	public int ReconnectDeadlineSequences { get; init; } = 240;
@@ -46,7 +51,7 @@ public sealed class MultiplayerEcsRunSettings
 	public IReadOnlyList<string> ResolveClientDirectories()
 	{
 		var directories = new List<string>(Math.Max(1, PeerCount - 1));
-		for (int peerIndex = 1; peerIndex < Math.Max(2, PeerCount); peerIndex++)
+		for (int peerIndex = 1; peerIndex < Math.Max(1, PeerCount); peerIndex++)
 		{
 			directories.Add(ResolveClientDirectory(peerIndex));
 		}
@@ -292,13 +297,11 @@ public static class MultiplayerEcsSyncTestSupport
 			File.Delete(file);
 		}
 
-		int peerCount = Math.Max(2, settings.PeerCount);
+		int peerCount = Math.Max(1, settings.PeerCount);
 		string hostListeningFile = Path.Combine(settings.OutputDirectory, "host_listening.txt");
 		string hostReadyFile = Path.Combine(settings.OutputDirectory, "host_ready.txt");
 		string hostDoneFile = Path.Combine(settings.OutputDirectory, "host_done.txt");
 
-		bool useRelay = settings.OneWayDelayMilliseconds > 0 || settings.JitterMilliseconds > 0 || settings.PacketLossPercent > 0 || settings.PingMilliseconds > 0;
-		var relays = new List<UdpDelayRelay>();
 		var clientProcesses = new List<HarnessProcess>();
 		try
 		{
@@ -316,20 +319,10 @@ public static class MultiplayerEcsSyncTestSupport
 			for (int peerIndex = 1; peerIndex < peerCount; peerIndex++)
 			{
 				string clientDirectory = settings.ResolveClientDirectory(peerIndex);
-				UdpDelayRelay? clientRelay = useRelay
-					? new UdpDelayRelay(
-						settings.Port,
-						settings.OneWayDelayMilliseconds > 0 ? settings.OneWayDelayMilliseconds : Math.Max(1, settings.PingMilliseconds / 2),
-						settings.JitterMilliseconds,
-						settings.PacketLossPercent)
-					: null;
-				if (clientRelay != null) relays.Add(clientRelay);
-
-				int clientConnectionPort = clientRelay?.ListenPort ?? settings.Port;
 				string clientReadyFile = Path.Combine(clientDirectory, "client_ready.txt");
 				string clientSequenceFile = Path.Combine(clientDirectory, "client_final_sequence.txt");
 				string previousReadyFile = peerIndex <= 1 ? string.Empty : Path.Combine(settings.ResolveClientDirectory(peerIndex - 1), "client_ready.txt");
-				clientProcesses.Add(StartHarnessProcess(settings, "client", clientConnectionPort, clientSequenceFile, clientReadyFile, hostDoneFile, clientDirectory, peerIndex, previousReadyFile));
+				clientProcesses.Add(StartHarnessProcess(settings, "client", settings.Port, clientSequenceFile, clientReadyFile, hostDoneFile, clientDirectory, peerIndex, previousReadyFile));
 			}
 
 			for (int index = 0; index < clientProcesses.Count; index++)
@@ -376,35 +369,10 @@ public static class MultiplayerEcsSyncTestSupport
 				}
 			}
 
-			WriteRelayStats(settings, relays);
 		}
 		finally
 		{
 			foreach (HarnessProcess clientProcess in clientProcesses) clientProcess.Dispose();
-			foreach (UdpDelayRelay relay in relays) relay.Dispose();
-		}
-	}
-
-	private static void WriteRelayStats(MultiplayerEcsRunSettings settings, List<UdpDelayRelay> relays)
-	{
-		if (relays.Count == 0) return;
-
-		long forwarded = 0;
-		long dropped = 0;
-		foreach (UdpDelayRelay relay in relays)
-		{
-			forwarded += relay.ForwardedDatagramCount;
-			dropped += relay.DroppedDatagramCount;
-		}
-
-		File.WriteAllText(
-			Path.Combine(settings.OutputDirectory, "relay_stats_total.txt"),
-			$"forwarded={forwarded}\ndropped={dropped}\nrelays={relays.Count}");
-		for (int index = 0; index < relays.Count; index++)
-		{
-			File.WriteAllText(
-				Path.Combine(settings.ResolveClientDirectory(index + 1), "relay_stats.txt"),
-				$"forwarded={relays[index].ForwardedDatagramCount}\ndropped={relays[index].DroppedDatagramCount}\nrelays=1");
 		}
 	}
 
@@ -444,9 +412,16 @@ public static class MultiplayerEcsSyncTestSupport
 		startInfo.ArgumentList.Add($"--drain-ms={settings.DrainMilliseconds}");
 		startInfo.ArgumentList.Add($"--duration={settings.DurationSeconds.ToString(CultureInfo.InvariantCulture)}");
 		startInfo.ArgumentList.Add($"--profile={settings.Profile}");
-		startInfo.ArgumentList.Add($"--peers={Math.Max(2, settings.PeerCount)}");
+		startInfo.ArgumentList.Add($"--peers={Math.Max(1, settings.PeerCount)}");
+		startInfo.Environment[SimulatedLink.RoundTripMillisecondsVariable] = Math.Max(settings.PingMilliseconds, settings.OneWayDelayMilliseconds * 2).ToString(CultureInfo.InvariantCulture);
+		startInfo.Environment[SimulatedLink.JitterMillisecondsVariable] = settings.JitterMilliseconds.ToString(CultureInfo.InvariantCulture);
+		startInfo.Environment[SimulatedLink.PacketLossPercentVariable] = settings.PacketLossPercent.ToString(CultureInfo.InvariantCulture);
+		startInfo.Environment[SimulatedLink.SeedVariable] = settings.RelaySeed.ToString(CultureInfo.InvariantCulture);
 		startInfo.ArgumentList.Add($"--peer-index={peerIndex}");
 		startInfo.ArgumentList.Add($"--bots={(role == "host" ? settings.BotCount : 0)}");
+		startInfo.ArgumentList.Add($"--cheats={(role == "host" && settings.CheatsEnabled ? 1 : 0)}");
+		startInfo.ArgumentList.Add($"--unlock-tiles={(role == "host" && settings.UnlockTiles ? 1 : 0)}");
+		startInfo.Environment[Realm.Shared.Diagnostics.LagProbe.OutputDirectoryVariable] = string.IsNullOrEmpty(settings.MetricsDirectory) ? outputDirectory : settings.MetricsDirectory;
 		startInfo.ArgumentList.Add($"--wait-for-peer-ready={waitForPeerReadyFile}");
 		startInfo.ArgumentList.Add($"--drop-at={(role == "client" && peerIndex == 1 ? settings.DropClientAtSeconds : 0f).ToString(CultureInfo.InvariantCulture)}");
 		startInfo.ArgumentList.Add($"--discard-at={(role == "client" && peerIndex == 1 ? settings.DiscardSnapshotAtSeconds : 0f).ToString(CultureInfo.InvariantCulture)}");
@@ -1667,23 +1642,28 @@ public static class MultiplayerEcsSyncTestSupport
 	{
 		string hostDonePath = Path.Combine(settings.OutputDirectory, "host_done.txt");
 		string clientSequencePath = Path.Combine(clientOutputDirectory, "client_final_sequence.txt");
+
+		// A run whose only screen is the harness's own host client has one sequence to compare, and it is written where the
+		// host's own finish marker goes: there is no second process to hold a separate record, and reporting the page of
+		// convergence checks short because of it hid the record of what the link actually lost.
+		if (!File.Exists(clientSequencePath) && File.Exists(hostDonePath)) clientSequencePath = hostDonePath;
 		report.AddSummaryLine($"Network profile: {settings.Profile} (one-way {settings.OneWayDelayMilliseconds} ms, jitter {settings.JitterMilliseconds} ms, loss {settings.PacketLossPercent}%)");
 		report.AddSummaryLine($"Injected ping (round trip): {settings.PingMilliseconds} ms");
 
-		string relayStatsPath = Path.Combine(settings.OutputDirectory, "relay_stats.txt");
-		if (settings.PingMilliseconds > 0)
+		string linkStatsPath = Path.Combine(settings.OutputDirectory, "simulated_link.txt");
+		if (settings.PingMilliseconds > 0 || settings.PacketLossPercent > 0)
 		{
-			if (!File.Exists(relayStatsPath))
+			if (!File.Exists(linkStatsPath))
 			{
-				report.AddFailure("Relay statistics are missing, so the injected delay cannot be proven to have been exercised.");
+				report.AddFailure("Simulated link statistics are missing, so the injected delay and loss cannot be proven to have been exercised.");
 			}
 			else
 			{
-				string relayStats = File.ReadAllText(relayStatsPath).Replace('\n', ' ').Replace('\r', ' ').Trim();
-				report.AddSummaryLine($"Relay datagrams: {relayStats}");
-				if (relayStats.Contains("forwarded=0") || relayStats.Length == 0)
+				string linkStats = File.ReadAllText(linkStatsPath).Replace('\n', ' ').Replace('\r', ' ').Trim();
+				report.AddSummaryLine($"Simulated link: {linkStats}");
+				if (linkStats.Contains("delivered=0") || linkStats.Length == 0)
 				{
-					report.AddFailure("The delay relay forwarded no datagrams, so the ping setting had no effect.");
+					report.AddFailure("The simulated link delivered no frames, so the ping and loss settings had no effect.");
 				}
 			}
 		}

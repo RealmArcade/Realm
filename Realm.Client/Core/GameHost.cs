@@ -17,6 +17,7 @@ using Realm.Client.UI;
 using Realm.Client.UI.MapEditor;
 using Realm.Client.Utils;
 using Realm.Client.VFX;
+using Realm.Shared.Diagnostics;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Core;
@@ -3171,7 +3172,41 @@ public partial class GameHost : Node3D
 		return GameContext.SimulationService?.GetInterpolatedTransform(entity, fraction) ?? (System.Numerics.Vector3.Zero, 0f);
 	}
 
+	private double _lastProbedRenderSeconds;
+	private double _lastProbedPhysicsSeconds;
+
 	public override void _Process(double delta)
+	{
+		long renderStarted = LagProbe.IsEnabled ? LagProbe.Timestamp() : 0L;
+		if (renderStarted != 0L)
+		{
+			double nowSeconds = LagProbe.NowSeconds();
+			if (_lastProbedRenderSeconds > 0d)
+			{
+				double intervalMilliseconds = (nowSeconds - _lastProbedRenderSeconds) * 1000d;
+				LagProbe.Add(LagStage.ClientRenderIntervalMilliseconds, intervalMilliseconds);
+				LagProbe.ObserveGauge(LagGauge.ClientFramesPerSecond, intervalMilliseconds > 0d ? 1000d / intervalMilliseconds : 0d, nowSeconds);
+			}
+
+			// A frame that stalls because of a collection is a hitch a screen feels without any of the stages above being
+			// slow, so what the collector has cost in total is sampled alongside them rather than inferred from them.
+			LagProbe.ObserveGauge(LagGauge.ClientManagedHeapMegabytes, GC.GetTotalMemory(false) / 1048576d, nowSeconds);
+			LagProbe.ObserveGauge(LagGauge.ClientGcPauseMilliseconds, GC.GetTotalPauseDuration().TotalMilliseconds, nowSeconds);
+			LagProbe.ObserveGauge(LagGauge.ClientGen0Collections, GC.CollectionCount(0), nowSeconds);
+			LagProbe.ObserveGauge(LagGauge.ClientGen2Collections, GC.CollectionCount(2), nowSeconds);
+
+			_lastProbedRenderSeconds = nowSeconds;
+		}
+
+		ProcessRenderFrame(delta);
+
+		if (renderStarted == 0L) return;
+
+		double renderMilliseconds = LagProbe.ElapsedMilliseconds(renderStarted);
+		if (renderMilliseconds > 33.4d) LagProbe.Count(LagEvent.ClientRenderFramesOverBudget);
+	}
+
+	private void ProcessRenderFrame(double delta)
 	{
 		if (!_firstFrameTraced && (_matchWorldVisible || GameContext.SessionState.IsMapEditorMode || GameContext.Lobby?.IsGameStarted == true))
 		{
@@ -3242,7 +3277,39 @@ public partial class GameHost : Node3D
 
 	public override void _PhysicsProcess(double delta)
 	{
-		using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.GodotPhysicsProcess))
+		long physicsStarted = LagProbe.IsEnabled ? LagProbe.Timestamp() : 0L;
+		if (physicsStarted != 0L)
+		{
+			double nowSeconds = LagProbe.NowSeconds();
+			if (_lastProbedPhysicsSeconds > 0d) LagProbe.Add(LagStage.ClientPhysicsIntervalMilliseconds, (nowSeconds - _lastProbedPhysicsSeconds) * 1000d);
+			_lastProbedPhysicsSeconds = nowSeconds;
+		}
+
+		ProcessPhysicsFrame(delta, physicsStarted);
+	}
+
+	private void ProcessPhysicsFrame(double delta, long physicsStarted)
+	{
+		try
+		{
+			using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.GodotPhysicsProcess))
+			{
+				ProcessPhysicsFrameCore(delta, physicsStarted);
+			}
+		}
+		finally
+		{
+			if (physicsStarted != 0L)
+			{
+				double physicsMilliseconds = LagProbe.ElapsedMilliseconds(physicsStarted);
+				LagProbe.Add(LagStage.ClientPhysicsTickMilliseconds, physicsMilliseconds);
+				if (physicsMilliseconds > 33.4d) LagProbe.Count(LagEvent.ClientPhysicsTicksOverBudget);
+			}
+		}
+	}
+
+	private void ProcessPhysicsFrameCore(double delta, long physicsStarted)
+	{
 		{
 			if (!ShouldProcessPhysicsTick()) return;
 

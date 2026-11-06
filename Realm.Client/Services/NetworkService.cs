@@ -20,6 +20,7 @@ using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
 using Realm.Client.UI;
 using Realm.Ecs.Replication;
+using Realm.Shared.Diagnostics;
 using Realm.Shared.Network;
 using HttpClient = System.Net.Http.HttpClient;
 
@@ -299,6 +300,13 @@ public class NetworkService
 
 	public void ApplySnapshotToWorld(WorldSnapshot snapshot)
 	{
+		long applyStarted = LagProbe.IsEnabled ? LagProbe.Timestamp() : 0L;
+		if (LagProbe.IsEnabled)
+		{
+			if (snapshot.IsBaseline) LagProbe.Count(LagEvent.ClientBaselinesApplied);
+			else LagProbe.Count(LagEvent.ClientDeltasApplied);
+		}
+
 		Entity worldEntity = FindWorldEntity();
 		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkMappingState>(worldEntity)) return;
 		var mapping = GameContext.World.Get<NetworkMappingState>(worldEntity);
@@ -336,6 +344,8 @@ public class NetworkService
 			MultiplayerSyncDiagnostics.RecordClientSnapshot(snapshot.IsBaseline);
 		}
 		GameContext.SnapshotApply.Acknowledge(snapshot.Sequence);
+
+		if (applyStarted != 0L) LagProbe.Add(LagStage.ClientApplyMilliseconds, LagProbe.ElapsedMilliseconds(applyStarted));
 	}
 
 	private void RetireUndescribedUnits(WorldSnapshot snapshot, NetworkMappingState mapping)
@@ -586,9 +596,14 @@ public class NetworkService
 			? GameContext.World.Get<DescribedAtSequence>(localEntity).Sequence
 			: -1;
 
-		bool targetJumped = (describedPosition - previousTargetPosition).Length() > PlausibleStepMeters(localEntity, sequence, lastDescribedSequence);
+		float describedStepMeters = (describedPosition - previousTargetPosition).Length();
+		bool targetJumped = describedStepMeters > PlausibleStepMeters(localEntity, sequence, lastDescribedSequence);
 
-		if (targetJumped) GameContext.SnapshotTimeline.Reset(localEntity.Id);
+		if (targetJumped)
+		{
+			LagProbe.RecordWorst(LagEvent.ClientTimelineResets, describedStepMeters);
+			GameContext.SnapshotTimeline.Reset(localEntity.Id);
+		}
 		GameContext.SnapshotTimeline.Record(localEntity.Id, describedPosition, snap.RotationY, sequence);
 
 		GameContext.World.SetOrAdd(localEntity, new LatestDescription
@@ -915,7 +930,11 @@ public class NetworkService
 			anUnplaceableChangeWasDropped = true;
 		}
 
-		if (anUnplaceableChangeWasDropped) GameContext.SnapshotApply.RequestBaseline();
+		if (anUnplaceableChangeWasDropped)
+		{
+			LagProbe.Count(LagEvent.ClientBaselinesBecauseUnplaceableChange);
+			GameContext.SnapshotApply.RequestBaseline();
+		}
 	}
 
 	private void ApplyColdPayloadDelta(ColdPayloadDelta delta)
