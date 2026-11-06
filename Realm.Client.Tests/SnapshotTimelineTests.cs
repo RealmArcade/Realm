@@ -403,11 +403,11 @@ public partial class SnapshotTimelineTests
 	{
 		var timeline = new SnapshotTimeline();
 
-		// A 1.2 s round trip is a 600 ms trip one way, which is eighteen sequences at 30 Hz plus the floor's own cushion:
-		// the trip alone reaches the deepest depth any match was held at before links were measured.
+		// A 1.2 s round trip is a 600 ms trip one way, which is eighteen sequences at 30 Hz plus the one the cursor
+		// interpolates across: the trip alone reaches the deepest depth any match was held at before links were measured.
 		timeline.ObserveLink(1200f, 60f);
 
-		int expectedFloor = (int)MathF.Ceiling(600f / (MatchTiming.SnapshotIntervalSeconds * 1000f)) + SnapshotTimeline.MinimumDelaySequences;
+		int expectedFloor = (int)MathF.Ceiling(600f / (MatchTiming.SnapshotIntervalSeconds * 1000f)) + 1;
 		Assertions.AssertThat(timeline.DelayFloorSequences).IsEqual(expectedFloor);
 		Assertions.AssertThat(timeline.DelayCeilingSequences > timeline.DelayFloorSequences)
 			.OverrideFailureMessage($"a link whose trip already fills the floor was left a ceiling of {timeline.DelayCeilingSequences} over a floor of {timeline.DelayFloorSequences}, so any variation at all stalls it")
@@ -418,21 +418,46 @@ public partial class SnapshotTimelineTests
 	}
 
 	[TestCase]
+	public void ALoopbackLinkIsSizedAtTheMinimumByTheSameArithmetic()
+	{
+		var timeline = new SnapshotTimeline();
+
+		// A match served by a process on this machine still crosses two message loops, so its trip is measurable and
+		// small rather than absent. It has to land on the minimum depth through the shared arithmetic, because a screen
+		// that is handed that depth by a branch of its own never exercises the arithmetic a remote screen depends on.
+		timeline.ObserveLink(4f, 0.5f);
+
+		Assertions.AssertThat(timeline.DelayFloorSequences).IsEqual(SnapshotTimeline.MinimumDelaySequences);
+		Assertions.AssertThat(timeline.DelaySequences - timeline.DelayFloorSequences <= 1)
+			.OverrideFailureMessage($"a link of a few milliseconds was held {timeline.DelaySequences} sequences behind a floor of {timeline.DelayFloorSequences}, which is not the depth its trip asks for")
+			.IsTrue();
+	}
+
+	[TestCase]
 	public void VariationThatMovesNeitherBoundStillDeepensTheTarget()
 	{
 		var timeline = new SnapshotTimeline();
-		timeline.ObserveLink(1200f, 60f);
+
+		// The depths are taken from the constants rather than written down: a ceiling that pinned at a literal stopped
+		// being pinned the moment the repair history grew, and the test then measured nothing while still passing as a
+		// description of what it was written for. This is the widest variation under a 1.2 s trip that still leaves the
+		// ceiling room to be clamped and the target room to grow into it.
+		int intervalMilliseconds = (int)(MatchTiming.SnapshotIntervalSeconds * 1000f);
+		int floorSequences = (int)MathF.Ceiling(600f / intervalMilliseconds) + 1;
+		int pinnedVariationSequences = SnapshotTimeline.MaximumDelaySequences - floorSequences - 1;
+
+		timeline.ObserveLink(1200f, pinnedVariationSequences * intervalMilliseconds);
 
 		int floor = timeline.DelayFloorSequences;
 		int ceiling = timeline.DelayCeilingSequences;
 		int before = timeline.DelaySequences;
 
-		timeline.ObserveLink(1200f, 200f);
+		timeline.ObserveLink(1200f, (pinnedVariationSequences + 2) * intervalMilliseconds);
 
 		Assertions.AssertThat(timeline.DelayFloorSequences).IsEqual(floor);
 		Assertions.AssertThat(timeline.DelayCeilingSequences).IsEqual(ceiling);
 		Assertions.AssertThat(timeline.DelaySequences > before)
-			.OverrideFailureMessage($"a link that grew from 60 ms of variation to 200 ms with both bounds already clamped kept its depth at {timeline.DelaySequences}")
+			.OverrideFailureMessage($"a link that widened its variation with both bounds already clamped kept its depth at {timeline.DelaySequences}")
 			.IsTrue();
 	}
 

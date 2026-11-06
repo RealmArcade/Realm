@@ -161,18 +161,15 @@ public class NetworkLatencyService
 		RoundTripFloorMilliseconds = smallest;
 	}
 
+	/// <summary>
+	///     Hands the presentation buffer this link's own measurement. There is deliberately no case for a screen whose
+	///     authority runs on this machine: such a screen measures a trip of a few milliseconds, its arithmetic rounds that
+	///     to the minimum depth, and it is held at that depth by the same rule as a screen across the network. A branch
+	///     that stated the short answer outright could not be wrong, and a match played on loopback is where a formula
+	///     that is about to be wrong for everybody is still cheap to notice.
+	/// </summary>
 	private void ReportLinkToPresentationBuffer()
 	{
-		// The authority this screen launched is a process on this machine: the frames still cross ENet and two message
-		// loops, but there is no transit to absorb, so a measured floor here reserves delay for a link that is not there.
-		// A screen whose link is being simulated is the exception: the frames really do take that long, so its buffer pays
-		// for the trip like a remote screen's does, which is the whole point of measuring a match on a simulated link.
-		if (GameContext.ServerSession is { IsLocalAuthority: true, HasSimulatedTransit: false })
-		{
-			GameContext.SnapshotTimeline.ObserveLocalLink();
-			return;
-		}
-
 		GameContext.SnapshotTimeline.ObserveLink(RoundTripFloorMilliseconds, SmoothedJitterMilliseconds);
 	}
 

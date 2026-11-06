@@ -398,6 +398,14 @@ public class SnapshotTimeline
 	///     The floor is the trip in <em>one</em> direction: a description written now reaches this screen half a round trip
 	///     from now, and that is all the buffer has to be behind by to have it in hand when the cursor reaches it. Sizing
 	///     the floor from the whole round trip held every screen an extra half trip behind the match for nothing.
+	///     <para>
+	///         The trip is rounded up to whole sequences and one more is kept for the pair the cursor interpolates across,
+	///         which is the same one <see cref="MinimumDelaySequences" /> already implies. Every link is sized by this
+	///         arithmetic, a loopback match included: a screen whose authority is on this machine reads a trip of a few
+	///         milliseconds, rounds to one sequence, and lands on the minimum. A branch of its own that stated a loopback
+	///         link's depth outright hid an arithmetic error that was charging every link a sequence it did not need,
+	///         and a match played on loopback is the one place such a formula is cheap to catch.
+	///     </para>
 	/// </remarks>
 	public void ObserveLink(float roundTripMilliseconds, float jitterMilliseconds)
 	{
@@ -405,13 +413,19 @@ public class SnapshotTimeline
 
 		float intervalMilliseconds = MatchTiming.SnapshotIntervalSeconds * 1000f;
 		float oneWayMilliseconds = roundTripMilliseconds * 0.5f;
-		int floor = (int)MathF.Ceiling(oneWayMilliseconds / intervalMilliseconds) + MinimumDelaySequences;
+		int floor = (int)MathF.Ceiling(oneWayMilliseconds / intervalMilliseconds) + 1;
 		floor = Math.Clamp(floor, MinimumDelaySequences, MaximumDelaySequences);
 
 		// The ceiling is a limit on how deep this link may be held, not a depth it is held at: it never falls below the
 		// depth a match was fixed at before links were measured, so a link that turns out to need more than its trip
 		// still has the room to be given it.
-		int jitterSequences = jitterMilliseconds > 0f ? (int)MathF.Ceiling(jitterMilliseconds / intervalMilliseconds) : 0;
+		//
+		// Variation is counted in whole sequences nearest to what was measured, not rounded up to them. Rounding up
+		// charged every link a sequence of headroom for the least measurable wobble: a loopback match reads a few
+		// milliseconds, which is no share of the thirty-three a sequence covers, and it was held a whole sequence deeper
+		// than the trip it had just been measured to have. A link whose variation is real - half an interval or more -
+		// still buys the sequence it needs, and one that was under-counted discovers it by starving once and deepening.
+		int jitterSequences = jitterMilliseconds > 0f ? (int)MathF.Round(jitterMilliseconds / intervalMilliseconds, MidpointRounding.AwayFromZero) : 0;
 		int deepestThisLinkNeeds = Math.Max(InitialCeilingSequences, floor) + jitterSequences + MinimumDelaySequences;
 		int ceiling = Math.Clamp(deepestThisLinkNeeds, floor, MaximumDelaySequences);
 
@@ -432,21 +446,6 @@ public class SnapshotTimeline
 		int neededSequences = Math.Min(ceiling, floor + jitterSequences);
 		_delayTargetSequences = neededSequences;
 		if (_delaySequences < neededSequences) _delaySequences = neededSequences;
-	}
-
-	/// <summary>
-	///     States that this link has no transit to absorb, so nothing is reserved for one. It still keeps the room a stall
-	///     needs: a screen that stopped drawing for a moment is the same problem on a loopback match as on a long link, and
-	///     the deepening rule answers both.
-	/// </summary>
-	public void ObserveLocalLink()
-	{
-		if (_delayFloorSequences == MinimumDelaySequences && _delayCeilingSequences == InitialCeilingSequences) return;
-
-		_delayFloorSequences = MinimumDelaySequences;
-		_delayCeilingSequences = InitialCeilingSequences;
-		_delayTargetSequences = MinimumDelaySequences;
-		if (_delaySequences < MinimumDelaySequences) _delaySequences = MinimumDelaySequences;
 	}
 
 	/// <summary>

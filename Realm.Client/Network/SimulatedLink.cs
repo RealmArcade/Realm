@@ -54,13 +54,6 @@ public class SimulatedLink
 
 	public bool IsEnabled => _oneWayDelayMilliseconds > 0 || _unreliableLossPercent > 0;
 
-	/// <summary>
-	///     Whether frames on this link spend real time in transit, as opposed to being dropped. A link that only loses
-	///     frames has no trip to absorb; one that delays them does, and a screen on it has to hold its buffer behind the
-	///     match the way a screen talking to another machine does.
-	/// </summary>
-	public bool AddsTransit => _oneWayDelayMilliseconds > 0;
-
 	public string Describe()
 	{
 		if (!IsEnabled) return "direct loopback, no added latency or loss";
