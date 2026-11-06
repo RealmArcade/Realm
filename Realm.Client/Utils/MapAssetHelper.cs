@@ -85,7 +85,7 @@ public static class MapAssetHelper
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[MapAssetHelper] ValidateWorkspaceAssets error reading manifest: {ex.Message}");
+			GameLog.LogError($"[MapAssetHelper] ValidateWorkspaceAssets error reading manifest: {ex.Message}");
 		}
 	}
 
@@ -123,7 +123,7 @@ public static class MapAssetHelper
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[MapAssetHelper] ValidateWorkspaceAssets error reading metadata: {ex.Message}");
+			GameLog.LogError($"[MapAssetHelper] ValidateWorkspaceAssets error reading metadata: {ex.Message}");
 		}
 	}
 
@@ -367,7 +367,7 @@ public static class MapAssetHelper
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[MapAssetHelper] PruneNonExistentAssetsFromManifest error: {ex.Message}");
+			GameLog.LogError($"[MapAssetHelper] PruneNonExistentAssetsFromManifest error: {ex.Message}");
 		}
 	}
 
@@ -396,7 +396,7 @@ public static class MapAssetHelper
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[MapAssetHelper] PruneUnusedAssetsFromManifest error: {ex.Message}");
+			GameLog.LogError($"[MapAssetHelper] PruneUnusedAssetsFromManifest error: {ex.Message}");
 		}
 	}
 
