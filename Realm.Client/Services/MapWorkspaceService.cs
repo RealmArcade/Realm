@@ -374,11 +374,6 @@ public static partial class MapWorkspaceService
 		return Path.Combine(repoRoot, relativePath).Replace("\\", "/");
 	}
 
-	private static string GetSchemaSourcePath()
-	{
-		return FindRootFile("Realm.MapEditorExtension/metadata.schema.json");
-	}
-
 	public static string GetTemplatePath(string fileName)
 	{
 		return FindRootFile("MapTemplate/" + fileName);
