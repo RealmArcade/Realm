@@ -820,7 +820,7 @@ public partial class Unit3D : Node3D
 
 		if (_modelNode == null)
 		{
-			GD.PrintErr($"Failed to load 3D model path: {modelPath}");
+			GameLog.LogError($"Failed to load 3D model path: {modelPath}");
 			return;
 		}
 
@@ -906,7 +906,7 @@ public partial class Unit3D : Node3D
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"Error configuring animations for unit '{UnitId}' ({modelPath}): {ex.Message}");
+			GameLog.LogError($"Error configuring animations for unit '{UnitId}' ({modelPath}): {ex.Message}");
 		}
 	}
 
@@ -918,7 +918,7 @@ public partial class Unit3D : Node3D
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"Error applying attachments for unit '{UnitId}': {ex.Message}");
+			GameLog.LogError($"Error applying attachments for unit '{UnitId}': {ex.Message}");
 		}
 	}
 
@@ -958,7 +958,7 @@ public partial class Unit3D : Node3D
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"Error applying shaders for unit '{UnitId}': {ex.Message}");
+			GameLog.LogError($"Error applying shaders for unit '{UnitId}': {ex.Message}");
 		}
 	}
 
