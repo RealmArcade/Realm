@@ -186,7 +186,7 @@ public static class MapHistoryStore
 
 		Directory.CreateDirectory(destination);
 		Directory.Move(layout.RepositoryDirectory, Path.Combine(destination, "repository"));
-		GD.PrintErr($"[MapHistoryStore] The version history of this map could not be read and was moved to {destination}. A new history starts now.");
+		GameLog.LogError($"[MapHistoryStore] The version history of this map could not be read and was moved to {destination}. A new history starts now.");
 	}
 
 	private static bool TryIsValidRepository(string repositoryDirectory)
