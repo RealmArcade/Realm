@@ -678,6 +678,7 @@ public partial class CommandPanel
 	private Button CreateButtonForItem(CommandCardItem item)
 	{
 		var btn = new CommandCardButton();
+		btn.Name = "Btn_CommandCard";
 		btn.TooltipContext = item.TooltipContext;
 		SetupBaseButtonProperties(btn, item);
 		AddHotkeyLabelIfNeeded(btn, item);

@@ -324,6 +324,7 @@ public partial class StorageMenu : Control
 		actionsHBox.AddChild(_downloadUpdateButton);
 
 		var separator = new HSeparator();
+		separator.Name = "Separator_HSeparator";
 		separator.MouseFilter = MouseFilterEnum.Ignore;
 		_selectedMapContainer.AddChild(separator);
 

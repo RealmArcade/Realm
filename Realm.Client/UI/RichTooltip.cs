@@ -37,6 +37,7 @@ public partial class RichTooltip : PanelContainer
 	public static Control Create(string text)
 	{
 		var panel = new RichTooltip();
+		panel.Name = "TooltipPanel_RichTooltip";
 		panel.MouseFilter = MouseFilterEnum.Ignore;
 		panel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
 

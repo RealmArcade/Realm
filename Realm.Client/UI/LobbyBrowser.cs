@@ -101,6 +101,7 @@ public partial class LobbyBrowser : Control
 		FetchLobbiesFromRegistry();
 
 		_refreshTimer = new Timer();
+		_refreshTimer.Name = "RefreshTimer_Timer";
 		_refreshTimer.WaitTime = 30.0f;
 		_refreshTimer.OneShot = false;
 		_refreshTimer.Timeout += TriggerRefresh;
@@ -1020,28 +1021,33 @@ public partial class LobbyBrowser : Control
 	private Panel ShowConnectingPopup()
 	{
 		var overlay = new Panel();
+		overlay.Name = "ConnectingOverlay_Panel";
 		overlay.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
 		overlay.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
 		AddChild(overlay);
 
 		var cardPanel = new Panel();
+		cardPanel.Name = "CardPanel_Panel";
 		cardPanel.CustomMinimumSize = new Vector2(440, 160);
 		cardPanel.SetAnchorsAndOffsetsPreset(LayoutPreset.Center);
 		cardPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
 		overlay.AddChild(cardPanel);
 
 		var vbox = new VBoxContainer();
+		vbox.Name = "Vbox_VBoxContainer";
 		vbox.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
 		vbox.Alignment = BoxContainer.AlignmentMode.Center;
 		cardPanel.AddChild(vbox);
 
 		var titleLabel = new Label();
+		titleLabel.Name = "TitleLabel_Label";
 		UIStyle.ApplyTitle(titleLabel, Tr("CONNECTING TO LOBBY ..."), 22);
 		titleLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		titleLabel.HorizontalAlignment = HorizontalAlignment.Center;
 		vbox.AddChild(titleLabel);
 
 		var statusLabel = new Label();
+		statusLabel.Name = "StatusLabel_Label";
 		statusLabel.Text = Tr("Traversing NAT and establishing connection...");
 		statusLabel.HorizontalAlignment = HorizontalAlignment.Center;
 		statusLabel.AddThemeFontSizeOverride("font_size", 13);

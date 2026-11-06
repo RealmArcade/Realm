@@ -231,6 +231,7 @@ public partial class LobbyRoom : Control
 
 
 		var mapDrawer = new TacticalMap();
+		mapDrawer.Name = "MapDrawer_TacticalMap";
 		_mapFrame.AddChild(mapDrawer);
 		mapDrawer.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
 
@@ -602,6 +603,7 @@ public partial class LobbyRoom : Control
 		panel.SizeFlagsVertical = SizeFlags.ShrinkCenter;
 
 		var center = new CenterContainer();
+		center.Name = "Center_CenterContainer";
 		center.SetAnchorsPreset(LayoutPreset.FullRect);
 		overlay.AddChild(center);
 		center.AddChild(panel);
@@ -1120,6 +1122,7 @@ public partial class LobbyRoom : Control
 		vbox.AddChild(titleLabel);
 
 		var circleContainer = new CenterContainer();
+		circleContainer.Name = "CircleContainer_CenterContainer";
 		circleContainer.SizeFlagsVertical = SizeFlags.ExpandFill;
 		circleContainer.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 
@@ -2364,6 +2367,7 @@ public partial class LobbyRoom : Control
 		AddChild(_connectingPopup);
 
 		var centerContainer = new CenterContainer();
+		centerContainer.Name = "CenterContainer_CenterContainer";
 		centerContainer.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
 		_connectingPopup.AddChild(centerContainer);
 
