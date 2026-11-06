@@ -71,6 +71,7 @@ public class ServerSimulation : IDisposable
 		Items = new ItemGrantService(map.Simulation, map.Catalog);
 		_loot = new GroundLootService(map.Simulation, Items);
 		_script = ServerMapScript.Load(map, paths, randomSeed, log, _presentation, Items, _loot, wasmDebug, mapWorkspacePath, preparedScriptHost, scriptPathOverride);
+		if (roster != null) ApplyRosterBotDifficulties(roster);
 		_script.Api.Metrics = Metrics;
 		_commands.ConsumableChangedSink = (unitId, consumableId) => _script.Api.RaiseConsumableChanged(unitId, consumableId);
 		_snapshots.Abilities = _script.Api.Abilities;
@@ -92,6 +93,18 @@ public class ServerSimulation : IDisposable
 			resources.StoneResourceId);
 
 		BakeNavMesh();
+	}
+
+	private void ApplyRosterBotDifficulties(IReadOnlyList<MatchRosterSeat> roster)
+	{
+		for (int index = 0; index < roster.Count; index++)
+		{
+			MatchRosterSeat seat = roster[index];
+			if (!seat.IsComputer) continue;
+
+			LobbyBotDifficulty difficulty = LobbyBotDifficultyRules.Clamp(seat.Difficulty);
+			_script.Api.Bots.SetHandicap(seat.Slot, LobbyBotDifficultyRules.MistakeChance(difficulty));
+		}
 	}
 
 	private static void EnsureMatchClock(LoadedMap map)

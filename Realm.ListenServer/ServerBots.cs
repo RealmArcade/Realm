@@ -24,6 +24,7 @@ public class ServerBots
 	private readonly Dictionary<int, BotController> _controllers = new();
 	private readonly Dictionary<int, List<GenericAffordance>> _customDecisionsPerPlayer = new();
 	private readonly HashSet<int> _injectedPolicyPlayers = new();
+	private readonly Dictionary<int, float> _mistakeChanceByPlayer = new();
 
 	public ServerBots(SimulationContext context, string mapName, string dataDirectory, ServerLog log)
 	{
@@ -89,6 +90,8 @@ public class ServerBots
 		{
 			bot.DecisionPolicy = new LinearUtilityDecisionPolicy();
 		}
+
+		ApplyHandicap(playerIndex, bot);
 		ConfigureCustomScanner(bot.GenreProvider, playerIndex);
 		_log.Write($"player {playerIndex} now plays the profile the map handed it");
 	}
@@ -108,6 +111,18 @@ public class ServerBots
 		return _controllers.TryGetValue(playerIndex, out BotController? bot) ? bot.Profile.ToJson() : string.Empty;
 	}
 
+	public void SetHandicap(int playerIndex, float mistakeChance)
+	{
+		float clamped = Math.Clamp(mistakeChance, 0.0f, 1.0f);
+		_mistakeChanceByPlayer[playerIndex] = clamped;
+		if (_controllers.TryGetValue(playerIndex, out BotController? bot)) bot.MistakeChance = clamped;
+	}
+
+	private void ApplyHandicap(int playerIndex, BotController bot)
+	{
+		if (_mistakeChanceByPlayer.TryGetValue(playerIndex, out float mistakeChance)) bot.MistakeChance = mistakeChance;
+	}
+
 	public void SetGenre(int playerIndex, string genreName, string? configJson)
 	{
 		if (string.IsNullOrWhiteSpace(genreName)) return;
@@ -120,6 +135,7 @@ public class ServerBots
 		{
 			bot.GenreProvider = genre;
 			bot.LoadProfile(genre.CreateDefaultProfile(_mapName));
+			ApplyHandicap(playerIndex, bot);
 			ApplyGenreDefaultPolicy(playerIndex, genreName, bot);
 			LoadSavedProfile(playerIndex, bot);
 			_log.Write($"player {playerIndex} now plays the '{genreName}' genre");
@@ -130,6 +146,7 @@ public class ServerBots
 		created.CustomActionCallback = AnnounceCustomAction;
 		ApplyGenreDefaultPolicy(playerIndex, genreName, created);
 		LoadSavedProfile(playerIndex, created);
+		ApplyHandicap(playerIndex, created);
 		_controllers[playerIndex] = created;
 		_log.Write($"player {playerIndex} seated with the '{genreName}' genre");
 	}
@@ -199,6 +216,7 @@ public class ServerBots
 
 			bot.LoadProfile(profile);
 			bot.DecisionPolicy = new LinearUtilityDecisionPolicy();
+			ApplyHandicap(playerIndex, bot);
 			_log.Write($"player {playerIndex} plays the profile saved as '{path}'");
 			return true;
 		}
@@ -214,6 +232,7 @@ public class ServerBots
 		var bot = new BotController(playerIndex);
 		bot.CustomActionCallback = AnnounceCustomAction;
 		LoadSavedProfile(playerIndex, bot);
+		ApplyHandicap(playerIndex, bot);
 		return bot;
 	}
 
@@ -224,6 +243,7 @@ public class ServerBots
 		var created = new BotController(playerIndex, profile);
 		created.CustomActionCallback = AnnounceCustomAction;
 		_controllers[playerIndex] = created;
+		ApplyHandicap(playerIndex, created);
 		return created;
 	}
 

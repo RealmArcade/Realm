@@ -1,6 +1,7 @@
 using System;
 using System.Text.Json.Serialization;
 using Godot;
+using Realm.Shared.Network;
 
 namespace Realm.Client.Network;
 
@@ -50,6 +51,10 @@ public class PlayerInfo
 	}
 	public Color Color { get; set; } = PlayerColorConfig.GetColor(1);
 	public bool IsHost { get; set; }
+
+	public bool IsComputer { get; set; }
+
+	public LobbyBotDifficulty Difficulty { get; set; } = LobbyBotDifficulty.Hard;
 	public string Latency { get; set; } = "--";
 	public string Jitter { get; set; } = "--";
 	public string PacketLoss { get; set; } = "--";

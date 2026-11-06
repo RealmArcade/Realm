@@ -699,6 +699,7 @@ public partial class LobbyManager : BaseMapTransferNode
 				Team = $"Team {slot}",
 				Color = PlayerColorConfig.GetColor(slot),
 				IsHost = false,
+				IsComputer = true,
 				Latency = "0 ms",
 				Jitter = "0 ms",
 				PacketLoss = "0%",
@@ -1255,6 +1256,8 @@ public partial class LobbyManager : BaseMapTransferNode
 				Team = seat.TeamName ?? string.Empty,
 				Color = seat.ColorRgba == 0 ? PlayerColorConfig.GetColor(seat.Slot) : UnpackColor(seat.ColorRgba),
 				IsHost = seat.IsHost,
+				IsComputer = seat.IsComputer,
+				Difficulty = LobbyBotDifficultyRules.Clamp(seat.Difficulty),
 				IsReady = seat.IsReady,
 				IsMapReady = seat.IsMapReady,
 				MapDownloadPercent = seat.MapDownloadPercent,
@@ -2077,6 +2080,22 @@ public partial class LobbyManager : BaseMapTransferNode
 		return true;
 	}
 
+	public void SetComputerDifficulty(int peerId, LobbyBotDifficulty difficulty)
+	{
+		if (!IsHost) return;
+
+		PlayerInfo? player = PlayerList.Find(p => p.PeerId == peerId);
+		if (player == null || !player.IsComputer) return;
+
+		player.Difficulty = LobbyBotDifficultyRules.Clamp((int)difficulty);
+		_lobbySession?.SendLobbyCommand(new LobbyCommand
+		{
+			Kind = LobbyCommandKind.SetComputerDifficulty,
+			TargetPeerId = peerId,
+			Progress = (int)player.Difficulty
+		});
+	}
+
 	public void BootPlayer(int peerId)
 	{
 		if (!IsHost || peerId == LocalPeerId) return;
@@ -2316,7 +2335,10 @@ public partial class LobbyManager : BaseMapTransferNode
 			if (player.Slot <= 0) continue;
 
 			bool isComputer = string.Equals(player.Faction, "AI", StringComparison.OrdinalIgnoreCase) || player.PeerId < 0;
-			seats.Add(new MatchRosterSeat(player.Slot, player.AccountId, player.Name, ResolveSeatTeam(player.Team, player.Slot), player.Team, isComputer));
+			int difficulty = isComputer
+				? (int)LobbyBotDifficultyRules.Clamp((int)player.Difficulty)
+				: (int)LobbyBotDifficultyRules.Default;
+			seats.Add(new MatchRosterSeat(player.Slot, player.AccountId, player.Name, ResolveSeatTeam(player.Team, player.Slot), player.Team, isComputer, difficulty));
 		}
 
 		seats.Sort((left, right) => left.Slot.CompareTo(right.Slot));

@@ -405,6 +405,10 @@ public class ServerLobby
 				if (!RequireAdmin(peerId, isAdmin, out _, "change the spectator delay")) return;
 				SetSpectatorDelay(command.Flag);
 				break;
+			case LobbyCommandKind.SetComputerDifficulty:
+				if (!RequireAdmin(peerId, isAdmin, out _, "change a computer player's difficulty")) return;
+				SetComputerDifficulty(command.TargetPeerId, command.Progress);
+				break;
 			case LobbyCommandKind.ReportMapReady:
 				ReportMapReady(sender, command.Flag);
 				break;
@@ -778,6 +782,7 @@ public class ServerLobby
 			TeamName = ResolveJoinTeamName(),
 			ColorRgba = ResolveJoinColorRgba(slot),
 			IsComputer = true,
+			Difficulty = (int)LobbyBotDifficultyRules.Default,
 			IsMapReady = true,
 			IsLoadReady = true,
 			MapDownloadPercent = 100,
@@ -792,6 +797,19 @@ public class ServerLobby
 		_log.Write($"lobby seat {slot} is a computer player ('{computer.Name}')");
 
 		AddSystemChat($"{computer.Name} added to the lobby.");
+		BroadcastState();
+	}
+
+	private void SetComputerDifficulty(int targetPeerId, int difficulty)
+	{
+		if (!TryGetComputerSeat(targetPeerId, out LobbySeat computer)) return;
+
+		LobbyBotDifficulty resolved = LobbyBotDifficultyRules.Clamp(difficulty);
+		if (LobbyBotDifficultyRules.Clamp(computer.Difficulty) == resolved) return;
+
+		computer.Difficulty = (int)resolved;
+		_seats[computer.Slot] = computer;
+		_log.Write($"lobby seat {computer.Slot} ('{computer.Name}') now plays on the '{resolved}' difficulty");
 		BroadcastState();
 	}
 
@@ -922,7 +940,7 @@ public class ServerLobby
 		var sessionSeats = new Dictionary<string, int>(_seats.Count, StringComparer.Ordinal);
 		foreach (LobbySeat seat in _seats.Values)
 		{
-			roster.Add(new MatchRosterSeat(seat.Slot, seat.AccountId, seat.Name, seat.Team, seat.TeamName, seat.IsComputer));
+			roster.Add(new MatchRosterSeat(seat.Slot, seat.AccountId, seat.Name, seat.Team, seat.TeamName, seat.IsComputer, (int)LobbyBotDifficultyRules.Clamp(seat.Difficulty)));
 			if (!seat.IsComputer && seat.SessionToken.Length > 0) sessionSeats[seat.SessionToken] = seat.Slot;
 			if (!seat.IsComputer && !seat.IsDisconnected && seat.PeerId > 0) assignments.Add((seat.PeerId, seat.Slot));
 		}

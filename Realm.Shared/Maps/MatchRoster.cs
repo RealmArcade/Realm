@@ -6,10 +6,11 @@ using System.Text;
 using Realm.Ecs;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Core;
+using Realm.Shared.Network;
 
 namespace Realm.Shared.Maps;
 
-public readonly record struct MatchRosterSeat(int Slot, long AccountId, string Name, int Team, string TeamName, bool IsComputer);
+public readonly record struct MatchRosterSeat(int Slot, long AccountId, string Name, int Team, string TeamName, bool IsComputer, int Difficulty = (int)LobbyBotDifficulty.Hard);
 
 public static class MatchRoster
 {
@@ -92,9 +93,9 @@ public static class MatchRosterFile
 {
 	public const string FileSuffix = ".roster.txt";
 
-	private const string Header = "realm-match-roster 2";
+	private const string Header = "realm-match-roster 3";
 	private const char Separator = '\t';
-	private const int ColumnCount = 6;
+	private const int ColumnCount = 7;
 
 	public static void Write(string path, IReadOnlyList<MatchRosterSeat> seats)
 	{
@@ -109,7 +110,8 @@ public static class MatchRosterFile
 			builder.Append(Sanitize(seat.Name)).Append(Separator);
 			builder.Append(seat.Team.ToString(CultureInfo.InvariantCulture)).Append(Separator);
 			builder.Append(Sanitize(seat.TeamName)).Append(Separator);
-			builder.Append(seat.IsComputer ? '1' : '0').Append('\n');
+			builder.Append(seat.IsComputer ? '1' : '0').Append(Separator);
+			builder.Append(seat.Difficulty.ToString(CultureInfo.InvariantCulture)).Append('\n');
 		}
 
 		string? directory = Path.GetDirectoryName(Path.GetFullPath(path));
@@ -166,7 +168,15 @@ public static class MatchRosterFile
 				return false;
 			}
 
-			parsed.Add(new MatchRosterSeat(slot, accountId, columns[2], team, columns[4], columns[5][0] == '1'));
+			if (!int.TryParse(columns[6], NumberStyles.Integer, CultureInfo.InvariantCulture, out int difficulty)
+				|| difficulty < (int)LobbyBotDifficulty.Easy
+				|| difficulty > (int)LobbyBotDifficulty.Hard)
+			{
+				error = $"the match roster line {index + 1} of '{path}' does not name a bot difficulty.";
+				return false;
+			}
+
+			parsed.Add(new MatchRosterSeat(slot, accountId, columns[2], team, columns[4], columns[5][0] == '1', difficulty));
 		}
 
 		seats = parsed.ToArray();

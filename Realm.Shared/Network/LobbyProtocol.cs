@@ -35,7 +35,61 @@ public enum LobbyCommandKind : byte
 
 	ReportLoadReady = 14,
 
-	ReportMapProgress = 15
+	ReportMapProgress = 15,
+
+	SetComputerDifficulty = 16
+}
+
+/// <summary>
+///     How accurately a lobby's computer seat follows the trained bot profile it plays. The lobby's host picks one per
+///     computer seat, and the authority turns it into the handicap that seat plays with.
+/// </summary>
+public enum LobbyBotDifficulty : byte
+{
+	Easy = 1,
+	Medium = 2,
+	Hard = 3
+}
+
+/// <summary>
+///     The handicap each difficulty places on a computer seat. A mistake is a single decision the bot throws away and
+///     replaces with a uniformly random choice from the actions it was offered, so <see cref="LobbyBotDifficulty.Hard" />
+///     plays the trained profile exactly as it was trained.
+/// </summary>
+public static class LobbyBotDifficultyRules
+{
+	public const LobbyBotDifficulty Default = LobbyBotDifficulty.Hard;
+
+	public const float EasyMistakeChance = 0.25f;
+	public const float MediumMistakeChance = 0.10f;
+	public const float HardMistakeChance = 0.0f;
+
+	/// <summary>
+	///     Resolves a difficulty as it arrived over the wire into the one of the three the game plays.
+	/// </summary>
+	/// <param name="value">The difficulty the sender stated, which may be outside the three known values.</param>
+	/// <returns>The nearest known difficulty.</returns>
+	public static LobbyBotDifficulty Clamp(int value)
+	{
+		if (value <= (int)LobbyBotDifficulty.Easy) return LobbyBotDifficulty.Easy;
+		if (value >= (int)LobbyBotDifficulty.Hard) return LobbyBotDifficulty.Hard;
+		return (LobbyBotDifficulty)value;
+	}
+
+	/// <summary>
+	///     Gets the fraction of a seat's decisions that difficulty replaces with a random choice.
+	/// </summary>
+	/// <param name="difficulty">The difficulty the seat plays on.</param>
+	/// <returns>A value between zero and one; zero is the profile played exactly as trained.</returns>
+	public static float MistakeChance(LobbyBotDifficulty difficulty)
+	{
+		return difficulty switch
+		{
+			LobbyBotDifficulty.Easy => EasyMistakeChance,
+			LobbyBotDifficulty.Medium => MediumMistakeChance,
+			_ => HardMistakeChance
+		};
+	}
 }
 
 public enum MapTransferRequestKind : byte
@@ -90,6 +144,11 @@ public partial struct LobbySeat
 	public float PacketLossPercent;
 
 	public int MapDownloadPercent;
+
+	/// <summary>
+	///     The <see cref="LobbyBotDifficulty" /> this computer seat plays on, or zero for a seat no one seated as a computer.
+	/// </summary>
+	public int Difficulty;
 }
 
 [MemoryPackable]
