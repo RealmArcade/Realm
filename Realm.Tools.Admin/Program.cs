@@ -449,8 +449,9 @@ public static class Program
 				return matchingMap.Version;
 			}
 		}
-		catch
+		catch (Exception exception)
 		{
+			Console.Error.WriteLine($"[WARN] Could not look up the current version of '{mapTitle}' on {serverUrl}: {exception.Message}");
 		}
 
 		return null;
