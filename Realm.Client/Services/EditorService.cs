@@ -204,7 +204,7 @@ public partial class EditorService : IEditorAPI
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"Failed to read Rtex bytes: {ex.Message}");
+			GameLog.LogError($"Failed to read Rtex bytes: {ex.Message}");
 			return null;
 		}
 	}
@@ -327,7 +327,7 @@ public partial class EditorService : IEditorAPI
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"Failed to update metadata.json map dimensions during scale: {ex.Message}");
+				GameLog.LogError($"Failed to update metadata.json map dimensions during scale: {ex.Message}");
 			}
 		}
 	}
@@ -422,7 +422,7 @@ public partial class EditorService : IEditorAPI
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[MapEditorHUD] ResetToBlankMap error: {ex.Message}");
+			GameLog.LogError($"[MapEditorHUD] ResetToBlankMap error: {ex.Message}");
 		}
 		finally
 		{
@@ -440,7 +440,7 @@ public partial class EditorService : IEditorAPI
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[EditorService] Pre-warming default animations error: {ex.Message}");
+			GameLog.LogError($"[EditorService] Pre-warming default animations error: {ex.Message}");
 		}
 	}
 
@@ -5054,7 +5054,7 @@ public partial class EditorService : IEditorAPI
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"[EditorService] Failed to start FileSystemWatcher on {directory}: {ex.Message}");
+				GameLog.LogError($"[EditorService] Failed to start FileSystemWatcher on {directory}: {ex.Message}");
 			}
 		}
 	}
@@ -5113,7 +5113,7 @@ public partial class EditorService : IEditorAPI
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[EditorService] EvaluateFileChange error: {ex.Message}");
+			GameLog.LogError($"[EditorService] EvaluateFileChange error: {ex.Message}");
 		}
 	}
 
@@ -5527,8 +5527,9 @@ public partial class EditorService : IEditorAPI
 				return manifest.ComputeManifestBlake3();
 			}
 		}
-		catch
+		catch (Exception ex)
 		{
+			GameLog.LogError($"could not compute the manifest hash of workspace {workspacePath}, so changes to it may go unnoticed: {ex.GetType().Name}: {ex.Message}");
 		}
 
 		return string.Empty;
@@ -6540,7 +6541,7 @@ public class {mapName} : IMapScript
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"Failed to update metadata.json asset: {ex.Message}");
+			GameLog.LogError($"Failed to update metadata.json asset: {ex.Message}");
 		}
 	}
 }
