@@ -90,7 +90,7 @@ public partial class MultiplayerSimulationHarness : Node
 		}
 		catch (Exception exception)
 		{
-			GD.PrintErr($"[MP_HARNESS] Unhandled failure: {exception}");
+			GameLog.LogError($"[MP_HARNESS] Unhandled failure: {exception}");
 		}
 		finally
 		{
@@ -219,7 +219,7 @@ public partial class MultiplayerSimulationHarness : Node
 		MultiplayerBandwidthMeter.IsRecording = true;
 
 		ClientServerSession session = await StartAuthorityAsync();
-		GD.Print($"[MP_HARNESS] The authority is listening on port {session.Port}; this process plays as one of its clients.");
+		GameLog.LogToConsole($"[MP_HARNESS] The authority is listening on port {session.Port}; this process plays as one of its clients.");
 		if (!string.IsNullOrEmpty(_listeningFile)) File.WriteAllText(_listeningFile, session.Port.ToString(System.Globalization.CultureInfo.InvariantCulture));
 
 		int expectedClientCount = Math.Max(1, _peerCount - 1);
@@ -247,7 +247,7 @@ public partial class MultiplayerSimulationHarness : Node
 				break;
 			}
 
-			GD.Print($"[MP_HARNESS] Host game time {gameHost.GameElapsedTime:F2}s / {_durationSeconds:F0}s, units {gameHost.AllUnits.Count}, construction sites {CountConstructionSites(gameHost)}, snapshots {ResolveSnapshotSequence()}.");
+			GameLog.LogToConsole($"[MP_HARNESS] Host game time {gameHost.GameElapsedTime:F2}s / {_durationSeconds:F0}s, units {gameHost.AllUnits.Count}, construction sites {CountConstructionSites(gameHost)}, snapshots {ResolveSnapshotSequence()}.");
 			await ToSignal(GetTree().CreateTimer(1.0f), SceneTreeTimer.SignalName.Timeout);
 		}
 
@@ -255,7 +255,7 @@ public partial class MultiplayerSimulationHarness : Node
 
 		if (_drainMilliseconds > 0)
 		{
-			GD.Print($"[MP_HARNESS] Host draining for {_drainMilliseconds} ms so delayed clients can catch up.");
+			GameLog.LogToConsole($"[MP_HARNESS] Host draining for {_drainMilliseconds} ms so delayed clients can catch up.");
 			await ToSignal(GetTree().CreateTimer(_drainMilliseconds / 1000f), SceneTreeTimer.SignalName.Timeout);
 		}
 
@@ -263,7 +263,7 @@ public partial class MultiplayerSimulationHarness : Node
 
 		_finalSequence = ResolveSnapshotSequence();
 		MultiplayerBandwidthMeter.WriteReport(_outputDirectory, gameHost.GameElapsedTime);
-		GD.Print($"[MP_HARNESS] Host finished at game time {gameHost.GameElapsedTime:F2}s with {gameHost.AllUnits.Count} units and snapshot sequence {_finalSequence}.");
+		GameLog.LogToConsole($"[MP_HARNESS] Host finished at game time {gameHost.GameElapsedTime:F2}s with {gameHost.AllUnits.Count} units and snapshot sequence {_finalSequence}.");
 		MultiplayerSyncDiagnostics.Stop();
 		WriteFinalWorldSnapshot("ECS_host_final_full.bin");
 		WriteWorldSummary("world_summary_host.json", "host");
@@ -281,7 +281,7 @@ public partial class MultiplayerSimulationHarness : Node
 		lobby.ActiveMapName = _mapFolder;
 
 		string? mapDirectory = GameHost.ResolveMapDirectory(_mapFolder);
-		GD.Print($"[TESTMAP] map '{_mapFolder}' resolved to '{mapDirectory}'.");
+		GameLog.LogToConsole($"[TESTMAP] map '{_mapFolder}' resolved to '{mapDirectory}'.");
 		if (string.IsNullOrEmpty(mapDirectory)) return 1;
 
 		if (_realFlow)
@@ -315,7 +315,7 @@ public partial class MultiplayerSimulationHarness : Node
 			if (!started.Started) throw new InvalidOperationException($"The authority could not be started: {started.Failure}");
 			GameContext.AttachServerSession(session);
 			_session = session;
-			GD.Print($"[TESTMAP] the authority is listening on port {session.Port} with its log at {session.LogPath}.");
+			GameLog.LogToConsole($"[TESTMAP] the authority is listening on port {session.Port} with its log at {session.LogPath}.");
 		}
 
 		PackedScene scene = GD.Load<PackedScene>("res://GameHost.tscn");
@@ -335,14 +335,14 @@ public partial class MultiplayerSimulationHarness : Node
 	private async Task<int> RunProbeAsync()
 	{
 		_probeOwnsProcess = true;
-		GD.Print("[PROBE] watching the map the playtest loads.");
+		GameLog.LogToConsole("[PROBE] watching the map the playtest loads.");
 		for (int second = 0; second < 30; second++)
 		{
 			await ToSignal(GetTree().CreateTimer(1.0f), SceneTreeTimer.SignalName.Timeout);
 			DescribeTerrain(second);
 			GameHost? current = GameContext.Host;
 			int appliedSequence = GameContext.NetworkService?.LastAppliedSnapshotSequenceForDiagnostics ?? -1;
-			GD.Print($"[PROBE] {second}s: session={(GameContext.ServerSession == null ? "none" : "attached")} started={GameContext.Lobby?.IsGameStarted} sequence={appliedSequence} units={current?.AllUnits.Count ?? -1} slot={GameContext.ServerSession?.LocalPlayerSlot ?? -1}");
+			GameLog.LogToConsole($"[PROBE] {second}s: session={(GameContext.ServerSession == null ? "none" : "attached")} started={GameContext.Lobby?.IsGameStarted} sequence={appliedSequence} units={current?.AllUnits.Count ?? -1} slot={GameContext.ServerSession?.LocalPlayerSlot ?? -1}");
 		}
 
 		GetTree().Quit(0);
@@ -366,10 +366,10 @@ public partial class MultiplayerSimulationHarness : Node
 		await ToSignal(GetTree().CreateTimer(4.0f), SceneTreeTimer.SignalName.Timeout);
 
 		GameContext.SessionState.IsTestMode = true;
-		GD.Print($"[TESTMAP] asking the lobby for a single-player match of '{_mapFolder}' ('{mapDirectory}').");
+		GameLog.LogToConsole($"[TESTMAP] asking the lobby for a single-player match of '{_mapFolder}' ('{mapDirectory}').");
 		bool playtestStarted = GameContext.Lobby != null && await GameContext.Lobby.HostSinglePlayerGame(_mapFolder, "Test Map");
 		GameContext.Host?.ExitMapEditorMode();
-		GD.Print($"[TESTMAP] the lobby was asked; started={playtestStarted} error={GameContext.Lobby?.LastHostError}; the probe reports what follows.");
+		GameLog.LogToConsole($"[TESTMAP] the lobby was asked; started={playtestStarted} error={GameContext.Lobby?.LastHostError}; the probe reports what follows.");
 
 		_probeOwnsProcess = true;
 		return 0;
@@ -381,7 +381,7 @@ public partial class MultiplayerSimulationHarness : Node
 		RuntimeTerrain? terrain = host?.GroundTerrain;
 		if (terrain == null)
 		{
-			GD.Print($"[TESTMAP] {second}s: no ground terrain node.");
+			GameLog.LogToConsole($"[TESTMAP] {second}s: no ground terrain node.");
 			return;
 		}
 
@@ -402,7 +402,7 @@ public partial class MultiplayerSimulationHarness : Node
 		}
 
 		Godot.Vector3 camera = host!.MainCamera?.GlobalPosition ?? Godot.Vector3.Zero;
-		GD.Print($"[TESTMAP] {second}s: grid={terrain.Width}x{terrain.Depth} quad={terrain.QuadSize} nodeVisible={terrain.Visible} at={terrain.GlobalPosition} chunks={chunks} visibleChunks={visibleChunks} surfaces={surfaces} vertices={vertices} camera={camera} world={GameContext.World != null}");
+		GameLog.LogToConsole($"[TESTMAP] {second}s: grid={terrain.Width}x{terrain.Depth} quad={terrain.QuadSize} nodeVisible={terrain.Visible} at={terrain.GlobalPosition} chunks={chunks} visibleChunks={visibleChunks} surfaces={surfaces} vertices={vertices} camera={camera} world={GameContext.World != null}");
 	}
 
 	private async Task<ClientServerSession> StartAuthorityAsync()
@@ -505,11 +505,11 @@ public partial class MultiplayerSimulationHarness : Node
 
 		int localPeerId = session.LocalPeerId;
 		RecordClientPeerId(localPeerId);
-		GD.Print($"[MP_HARNESS] Client peer index {_peerIndex} was seated as player {session.LocalPlayerSlot} with peer id {localPeerId}.");
+		GameLog.LogToConsole($"[MP_HARNESS] Client peer index {_peerIndex} was seated as player {session.LocalPlayerSlot} with peer id {localPeerId}.");
 
 		if (!string.IsNullOrEmpty(_waitForPeerReadyFile))
 		{
-			GD.Print($"[MP_HARNESS] Client peer index {_peerIndex} stays in the lobby until {_waitForPeerReadyFile} exists, so only two processes load the map at once.");
+			GameLog.LogToConsole($"[MP_HARNESS] Client peer index {_peerIndex} stays in the lobby until {_waitForPeerReadyFile} exists, so only two processes load the map at once.");
 			bool previousPeerReady = await WaitUntilAsync(() => File.Exists(_waitForPeerReadyFile), 240f);
 			if (!previousPeerReady) throw new InvalidOperationException($"Client peer index {_peerIndex} waited too long for the previous peer to become ready.");
 		}
@@ -519,7 +519,7 @@ public partial class MultiplayerSimulationHarness : Node
 		if (!await StartSimulationAsync(lobby, false)) return 1;
 
 
-		GD.Print("[MP_HARNESS] Client simulation started. Recording until the host signals completion.");
+		GameLog.LogToConsole("[MP_HARNESS] Client simulation started. Recording until the host signals completion.");
 		if (!string.IsNullOrEmpty(_clientBuildId))
 		{
 			await ToSignal(GetTree().CreateTimer(2.0f), SceneTreeTimer.SignalName.Timeout);
@@ -530,7 +530,7 @@ public partial class MultiplayerSimulationHarness : Node
 		if (_discardAtSeconds > 0f) _ = RunSnapshotDiscardScenarioAsync();
 
 		bool hostFinished = await WaitUntilAsync(() => File.Exists(_doneFile), _durationSeconds * 4f + 240f + (_drainMilliseconds / 1000f));
-		if (!hostFinished) GD.PrintErr("[MP_HARNESS] Host completion marker was not observed before the timeout.");
+		if (!hostFinished) GameLog.LogError("[MP_HARNESS] Host completion marker was not observed before the timeout.");
 
 		if (_drainMilliseconds > 0)
 		{
@@ -538,7 +538,7 @@ public partial class MultiplayerSimulationHarness : Node
 		}
 
 		_finalSequence = GameContext.NetworkService.LastAppliedSnapshotSequenceForDiagnostics;
-		GD.Print($"[MP_HARNESS] Client stopped at applied snapshot sequence {_finalSequence} with game time {GameContext.Host?.GameElapsedTime ?? 0f:F2}s.");
+		GameLog.LogToConsole($"[MP_HARNESS] Client stopped at applied snapshot sequence {_finalSequence} with game time {GameContext.Host?.GameElapsedTime ?? 0f:F2}s.");
 		MultiplayerBandwidthMeter.WriteReport(_outputDirectory, GameContext.Host?.GameElapsedTime ?? 0f);
 		MultiplayerSyncDiagnostics.Stop();
 		TryWriteSequenceFile(_finalSequence);
@@ -560,17 +560,17 @@ public partial class MultiplayerSimulationHarness : Node
 			}
 
 			int obstacles = session.LatestNavMeshObstacles?.Positions?.Length ?? -1;
-			GD.Print($"[MP_HARNESS] This client holds {obstacles} obstacle volumes from the match.");
+			GameLog.LogToConsole($"[MP_HARNESS] This client holds {obstacles} obstacle volumes from the match.");
 
 			bool requested = session.RequestPause(true);
 			bool paused = await WaitUntilAsync(() => GameContext.NetworkService.IsPaused, 30f);
-			GD.Print($"[MP_HARNESS] Pause requested={requested}; the match reports paused={paused} by player {GameContext.NetworkService.PausedByPlayerIndex}.");
+			GameLog.LogToConsole($"[MP_HARNESS] Pause requested={requested}; the match reports paused={paused} by player {GameContext.NetworkService.PausedByPlayerIndex}.");
 
 			await ToSignal(GetTree().CreateTimer(2.0f), SceneTreeTimer.SignalName.Timeout);
 
 			bool resumeRequested = session.RequestPause(false);
 			bool resumed = await WaitUntilAsync(() => !GameContext.NetworkService.IsPaused, 30f);
-			GD.Print($"[MP_HARNESS] Resume requested={resumeRequested}; the match reports paused={GameContext.NetworkService.IsPaused}.");
+			GameLog.LogToConsole($"[MP_HARNESS] Resume requested={resumeRequested}; the match reports paused={GameContext.NetworkService.IsPaused}.");
 
 			File.WriteAllText(
 				path,
@@ -578,7 +578,7 @@ public partial class MultiplayerSimulationHarness : Node
 		}
 		catch (Exception exception)
 		{
-			GD.PrintErr($"[MP_HARNESS] Pause scenario failed: {exception.Message}");
+			GameLog.LogError($"[MP_HARNESS] Pause scenario failed: {exception.Message}");
 			try
 			{
 				File.WriteAllText(path, $"paused=0\nreason={exception.Message}\n");
@@ -629,11 +629,11 @@ public partial class MultiplayerSimulationHarness : Node
 			File.WriteAllText(
 				path,
 				$"discarded={(discarded ? 1 : 0)}\ndiscarded_sequence={discardedSequence}\napplied_before={appliedBefore}\nbaseline_before={baselineBefore}\nbaseline_count_after={baselinesAfter.Count}\nbaselines_after={string.Join(',', baselinesAfter)}\ndiscard_game_time={discardGameTime.ToString(System.Globalization.CultureInfo.InvariantCulture)}\n");
-			GD.Print($"[MP_HARNESS] Snapshot {discardedSequence} was discarded at game time {discardGameTime:F2}s; the authority described this peer from scratch {baselinesAfter.Count} time(s) afterwards.");
+			GameLog.LogToConsole($"[MP_HARNESS] Snapshot {discardedSequence} was discarded at game time {discardGameTime:F2}s; the authority described this peer from scratch {baselinesAfter.Count} time(s) afterwards.");
 		}
 		catch (Exception exception)
 		{
-			GD.PrintErr($"[MP_HARNESS] Snapshot discard scenario failed: {exception.Message}");
+			GameLog.LogError($"[MP_HARNESS] Snapshot discard scenario failed: {exception.Message}");
 			try
 			{
 				File.WriteAllText(path, $"discarded=0\nreason={exception.Message}\n");
@@ -660,7 +660,7 @@ public partial class MultiplayerSimulationHarness : Node
 
 			int dropSequence = GameContext.NetworkService.LastAppliedSnapshotSequenceForDiagnostics;
 			float dropGameTime = GameContext.Host?.GameElapsedTime ?? 0f;
-			GD.Print($"[MP_HARNESS] Dropping the client connection at game time {dropGameTime:F2}s, applied sequence {dropSequence}.");
+			GameLog.LogToConsole($"[MP_HARNESS] Dropping the client connection at game time {dropGameTime:F2}s, applied sequence {dropSequence}.");
 			session.DropConnectionForHarness();
 
 			bool resumed = await WaitUntilAsync(
@@ -674,11 +674,11 @@ public partial class MultiplayerSimulationHarness : Node
 			File.WriteAllText(
 				path,
 				$"dropped=1\nresumed={(resumed ? 1 : 0)}\ndrop_sequence={dropSequence}\nresume_sequence={resumeSequence}\nresume_baseline_sequence={resumeBaselineSequence}\noutage_sequences={Math.Max(0, resumeSequence - dropSequence)}\ndrop_game_time={dropGameTime.ToString(System.Globalization.CultureInfo.InvariantCulture)}\nresume_game_time={resumeGameTime.ToString(System.Globalization.CultureInfo.InvariantCulture)}\n");
-			GD.Print($"[MP_HARNESS] Client connection loss scenario resumed={resumed} at sequence {resumeSequence} after {Math.Max(0, resumeSequence - dropSequence)} sequences.");
+			GameLog.LogToConsole($"[MP_HARNESS] Client connection loss scenario resumed={resumed} at sequence {resumeSequence} after {Math.Max(0, resumeSequence - dropSequence)} sequences.");
 		}
 		catch (Exception exception)
 		{
-			GD.PrintErr($"[MP_HARNESS] Connection loss scenario failed: {exception.Message}");
+			GameLog.LogError($"[MP_HARNESS] Connection loss scenario failed: {exception.Message}");
 			try
 			{
 				File.WriteAllText(path, $"dropped=1\nresumed=0\nreason={exception.Message}\n");
@@ -712,7 +712,7 @@ public partial class MultiplayerSimulationHarness : Node
 			readinessLogCounter++;
 			if (!isReady && readinessLogCounter % 50 == 0)
 			{
-				GD.Print($"[MP_HARNESS] Readiness wait ({(isHost ? "host" : "client")}): elapsed={host?.GameElapsedTime ?? 0f:F2} units={host?.AllUnits.Count ?? 0} appliedSequence={appliedSequence} baseline={hasBaseline} peerPresent={Multiplayer.MultiplayerPeer != null}");
+				GameLog.LogToConsole($"[MP_HARNESS] Readiness wait ({(isHost ? "host" : "client")}): elapsed={host?.GameElapsedTime ?? 0f:F2} units={host?.AllUnits.Count ?? 0} appliedSequence={appliedSequence} baseline={hasBaseline} peerPresent={Multiplayer.MultiplayerPeer != null}");
 			}
 
 			return isReady;
@@ -720,7 +720,7 @@ public partial class MultiplayerSimulationHarness : Node
 
 		if (!ready)
 		{
-			GD.PrintErr("[MP_HARNESS] Game simulation did not become ready in time.");
+			GameLog.LogError("[MP_HARNESS] Game simulation did not become ready in time.");
 			return false;
 		}
 
@@ -728,8 +728,8 @@ public partial class MultiplayerSimulationHarness : Node
 		PrintReplicatedCodecTable(isHost);
 		TryWriteReadyFile();
 		GameHost currentHost = GameContext.Host!;
-		GD.Print($"[MP_HARNESS] {(isHost ? "Host" : "Client")} simulation ready at game time {currentHost.GameElapsedTime:F2}s with {currentHost.AllUnits.Count} units.");
-		GD.Print($"[MP_HARNESS] Active workspace '{MapWorkspaceService.GetActiveWorkspacePath()}' resolved from map directory '{GameContext.MapStorageService?.CurrentMapDirectory}'.");
+		GameLog.LogToConsole($"[MP_HARNESS] {(isHost ? "Host" : "Client")} simulation ready at game time {currentHost.GameElapsedTime:F2}s with {currentHost.AllUnits.Count} units.");
+		GameLog.LogToConsole($"[MP_HARNESS] Active workspace '{MapWorkspaceService.GetActiveWorkspacePath()}' resolved from map directory '{GameContext.MapStorageService?.CurrentMapDirectory}'.");
 		return true;
 	}
 
@@ -737,10 +737,10 @@ public partial class MultiplayerSimulationHarness : Node
 	{
 		foreach (var codec in Realm.Ecs.Replication.ReplicatedComponents.All)
 		{
-			GD.Print($"[CODECS] role={(isHost ? "host" : "client")} id={codec.ComponentTypeId} name={codec.ComponentName} size={codec.SizeInBytes} scope={codec.Scope}");
+			GameLog.LogToConsole($"[CODECS] role={(isHost ? "host" : "client")} id={codec.ComponentTypeId} name={codec.ComponentName} size={codec.SizeInBytes} scope={codec.Scope}");
 		}
 
-		GD.Print($"[CODECS] role={(isHost ? "host" : "client")} registryCount={Realm.Ecs.ComponentTypeRegistry.Count} scriptPlayersId={Realm.Ecs.ComponentType<ScriptPlayersState>.Id}");
+		GameLog.LogToConsole($"[CODECS] role={(isHost ? "host" : "client")} registryCount={Realm.Ecs.ComponentTypeRegistry.Count} scriptPlayersId={Realm.Ecs.ComponentType<ScriptPlayersState>.Id}");
 	}
 
 	private static int CountConstructionSites(GameHost gameHost)
@@ -770,7 +770,7 @@ public partial class MultiplayerSimulationHarness : Node
 		}
 		if (string.IsNullOrEmpty(buildId))
 		{
-			GD.PrintErr("[MP_HARNESS] No building id is available for the client build request.");
+			GameLog.LogError("[MP_HARNESS] No building id is available for the client build request.");
 			return;
 		}
 
@@ -779,7 +779,7 @@ public partial class MultiplayerSimulationHarness : Node
 		worker ??= gameHost.AllUnits.Find(unit => !unit.IsBuilding && unit.Player == localPlayerIndex);
 		if (worker == null)
 		{
-			GD.PrintErr($"[MP_HARNESS] No controllable worker was found for player index {localPlayerIndex}.");
+			GameLog.LogError($"[MP_HARNESS] No controllable worker was found for player index {localPlayerIndex}.");
 			return;
 		}
 
@@ -787,7 +787,7 @@ public partial class MultiplayerSimulationHarness : Node
 		gameHost.SelectedUnits.Add(worker);
 		var buildPosition = worker.GlobalPosition + new Vector3(4f, 0f, 4f);
 		gameHost.PlaceBuildingAt(buildId, buildPosition);
-		GD.Print($"[MP_HARNESS] Client requested build '{buildId}' with worker '{worker.UnitId}' at {buildPosition}.");
+		GameLog.LogToConsole($"[MP_HARNESS] Client requested build '{buildId}' with worker '{worker.UnitId}' at {buildPosition}.");
 	}
 
 	public override void _PhysicsProcess(double delta)
@@ -826,14 +826,14 @@ public partial class MultiplayerSimulationHarness : Node
 
 			if (readyClients >= expectedClients)
 		{
-				GD.Print($"[MP_HARNESS] All {expectedClients} client(s) report a running simulation at host game time {gameHost.GameElapsedTime:F2}s; the match window starts here.");
+				GameLog.LogToConsole($"[MP_HARNESS] All {expectedClients} client(s) report a running simulation at host game time {gameHost.GameElapsedTime:F2}s; the match window starts here.");
 				return gameHost.GameElapsedTime;
 			}
 
 			await ToSignal(GetTree().CreateTimer(0.5f), SceneTreeTimer.SignalName.Timeout);
 		}
 
-		GD.PrintErr($"[MP_HARNESS] Only some clients reported a running simulation within {timeoutSeconds:F0}s; the match window starts now and later clients will record a short stream.");
+		GameLog.LogError($"[MP_HARNESS] Only some clients reported a running simulation within {timeoutSeconds:F0}s; the match window starts now and later clients will record a short stream.");
 		return gameHost.GameElapsedTime;
 	}
 
@@ -848,7 +848,7 @@ public partial class MultiplayerSimulationHarness : Node
 			}
 			catch (Exception exception)
 			{
-				GD.PrintErr($"[MP_HARNESS] Condition evaluation failed: {exception.Message}");
+				GameLog.LogError($"[MP_HARNESS] Condition evaluation failed: {exception.Message}");
 			}
 
 			await ToSignal(GetTree().CreateTimer(0.1f), SceneTreeTimer.SignalName.Timeout);
@@ -867,7 +867,7 @@ public partial class MultiplayerSimulationHarness : Node
 		}
 		catch (Exception exception)
 		{
-			GD.PrintErr($"[MP_HARNESS] Failed to export final world snapshot: {exception.Message}");
+			GameLog.LogError($"[MP_HARNESS] Failed to export final world snapshot: {exception.Message}");
 		}
 	}
 
@@ -887,7 +887,7 @@ public partial class MultiplayerSimulationHarness : Node
 		}
 		catch (Exception exception)
 		{
-			GD.PrintErr($"[MP_HARNESS] Failed to write completion marker: {exception.Message}");
+			GameLog.LogError($"[MP_HARNESS] Failed to write completion marker: {exception.Message}");
 		}
 	}
 
@@ -900,7 +900,7 @@ public partial class MultiplayerSimulationHarness : Node
 		}
 		catch (Exception exception)
 		{
-			GD.PrintErr($"[MP_HARNESS] Failed to write sequence marker: {exception.Message}");
+			GameLog.LogError($"[MP_HARNESS] Failed to write sequence marker: {exception.Message}");
 		}
 	}
 
