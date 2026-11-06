@@ -21,6 +21,11 @@ public enum ReplicatedScope : byte
 	Unit = 2
 }
 
+/// <summary>
+///     One component change carried in a snapshot description: the key of the entity it belongs to, the component type
+///     it carries, the replication scope that key is read in, and the component's payload bytes. A description states
+///     only what changed since the one before it, so a component that did not change never appears here.
+/// </summary>
 [MemoryPackable]
 public partial struct ComponentDelta
 {

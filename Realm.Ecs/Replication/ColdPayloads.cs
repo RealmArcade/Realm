@@ -21,6 +21,11 @@ public enum ColdPayloadRole : byte
 	AbilityList = 3
 }
 
+/// <summary>
+///     One change to a cold payload: the scope and key it belongs to, the kind of content it carries, and either the new
+///     bytes or a destroy marker. Cold payloads are the replicated data that does not change every tick - content blobs,
+///     leaderboards and summary tables - so they travel only when they change rather than inside the snapshot stream.
+/// </summary>
 [MemoryPackable]
 public partial struct ColdPayloadDelta
 {

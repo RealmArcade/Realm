@@ -306,6 +306,9 @@
         <member name="T:Realm.Ecs.Components.Combat.AbsorbShieldSlot">
             <summary>One absorb pool: what granted it, how much is left, and when it expires.</summary>
         </member>
+        <member name="T:Realm.Ecs.Components.Combat.AbsorbShieldSlotArray">
+            <summary>Fixed inline room for an entity's absorb pools, so every shield it carries lives inside the component instead of behind a heap allocation.</summary>
+        </member>
         <member name="T:Realm.Ecs.Components.Combat.AbsorbShield">
             <summary>
                 Absorb pools standing in front of an entity's health. Damage is taken from the oldest pool
@@ -967,6 +970,12 @@
                 Holds a queue of pending construction tasks for a worker unit, to be executed sequentially after the current task completes.
             </summary>
         </member>
+        <member name="T:Realm.Ecs.Components.Resources.BuildQueueSlot">
+            <summary>One queued construction order: the building's type, where it is to be placed, and the entity it was issued against.</summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Resources.BuildQueueSlots">
+            <summary>Inline room for a worker's whole build queue, keeping its pending orders inside the component rather than in a pooled list.</summary>
+        </member>
         <member name="T:Realm.Ecs.Components.Resources.BuildTask">
             <summary>
                 Tracks the active construction task assigned to a worker unit, referencing the building entity being constructed.
@@ -1398,6 +1407,11 @@
             </summary>
         </member>
         <member name="T:Realm.Ecs.Replication.ColdPayloadDelta">
+            <summary>
+                One change to a cold payload: the scope and key it belongs to, the kind of content it carries, and either the new
+                bytes or a destroy marker. Cold payloads are the replicated data that does not change every tick - content blobs,
+                leaderboards and summary tables - so they travel only when they change rather than inside the snapshot stream.
+            </summary>
             <remarks>
             MemoryPack GenerateType: Object<br/>
             <code>
@@ -1465,6 +1479,11 @@
             </remarks>
         </member>
         <member name="T:Realm.Ecs.Replication.ComponentDelta">
+            <summary>
+                One component change carried in a snapshot description: the key of the entity it belongs to, the component type
+                it carries, the replication scope that key is read in, and the component's payload bytes. A description states
+                only what changed since the one before it, so a component that did not change never appears here.
+            </summary>
             <remarks>
             MemoryPack GenerateType: Object<br/>
             <code>
@@ -1498,6 +1517,10 @@
             </summary>
         </member>
         <member name="T:Realm.Ecs.Replication.AbilityStateDelta">
+            <summary>
+                One change to a unit's ability state: which unit it belongs to, how the ability is addressed, and the flag byte that
+                says what changed. A slot index of -1 means the change names the ability instead of pointing at a slot.
+            </summary>
             <remarks>
             MemoryPack GenerateType: Object<br/>
             <code>
@@ -1519,6 +1542,10 @@
             </summary>
         </member>
         <member name="T:Realm.Ecs.Replication.UnitComponentPresence">
+            <summary>
+                The set of replicated components one unit currently holds, as a bitmask over the unit slot table, so a peer can tell
+                a component it holds from one the authority has removed.
+            </summary>
             <remarks>
             MemoryPack GenerateType: unmanaged<br/>
             <code>
@@ -1528,6 +1555,10 @@
             </remarks>
         </member>
         <member name="T:Realm.Ecs.Replication.CatalogEntry">
+            <summary>
+                One replicated catalog row: the channel it belongs to, its key within that channel, and its value - text in
+                <see cref="F:Realm.Ecs.Replication.CatalogEntry.Value" /> and, for rows that carry a number, the same value parsed in <see cref="F:Realm.Ecs.Replication.CatalogEntry.Number" />.
+            </summary>
             <remarks>
             MemoryPack GenerateType: Object<br/>
             <code>
@@ -1538,7 +1569,16 @@
             </code>
             </remarks>
         </member>
+        <member name="T:Realm.Ecs.Replication.StaticTextState">
+            <summary>
+                A world-space text label: what it reads, where it sits, its colour and font size, and whether it is drawn.
+            </summary>
+        </member>
         <member name="T:Realm.Ecs.Replication.StaticTextDelta">
+            <summary>
+                One change to a world-space text label, addressed by handle: its text, placement, colour and font size, plus the
+                flags that say whether it became visible and whether it was destroyed.
+            </summary>
             <remarks>
             MemoryPack GenerateType: Object<br/>
             <code>
@@ -1559,6 +1599,12 @@
         <member name="T:Realm.Ecs.Services.AttributeStatCalculator">
             <summary>
             Converts 6 core RPG attributes and base stats into derived combat stats and updates entity components.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Services.AttributeStatCalculator.StatAccumulator">
+            <summary>
+                Collects the four modifier kinds that apply to one stat, so a single pass can fold flat, additive-percent,
+                multiplicative-percent and formula bonuses into the value the rest of the calculation reads.
             </summary>
         </member>
         <member name="T:Realm.Ecs.Services.BuffService">
@@ -1582,6 +1628,24 @@
         </member>
         <member name="P:Realm.Ecs.Services.CombatAndDamageService.UnlimitedPowerProvider">
             <summary>Answers whether the match is running with cooldowns switched off, which a cheat sets and a server does not.</summary>
+        </member>
+        <member name="T:Realm.Ecs.Services.CombatAndDamageService.TargetCandidateSnapshot">
+            <summary>
+                One enemy captured during an acquisition scan, holding the values the scan and the range check need so the
+                decision is made from the snapshot instead of re-reading the world per candidate.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Services.CombatAndDamageService.AttackerSnapshot">
+            <summary>
+                Everything one attacker needs for a target scan, copied out once so the scan does not re-read the attacker's
+                components for every enemy it considers.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Services.CombatAndDamageService.LocalScanCandidate">
+            <summary>
+                One enemy found by the grid-free local scan, carrying the squared distance it was found at so the nearest can be
+                chosen without measuring it again.
+            </summary>
         </member>
         <member name="P:Realm.Ecs.Services.CombatAndDamageService.AuthoritativeProvider">
             <summary>
@@ -1882,9 +1946,21 @@
         <member name="M:Realm.Ecs.Services.MapRulesCatalog.GetPopulationCost(System.String)">
             <summary>The population a definition occupies, or zero when the provider has no answer for it.</summary>
         </member>
+        <member name="T:Realm.Ecs.Services.MovementAndPathfindingService.SpatialGridEntry">
+            <summary>
+                One body held in the collision grid: where it is, how fast it is moving and how much room it takes, so a radius
+                query answers from the grid without touching components.
+            </summary>
+        </member>
         <member name="M:Realm.Ecs.Services.MovementAndPathfindingService.QueryObstaclesInRadius(System.Numerics.Vector3,System.Single,Realm.Ecs.Services.MovementAndPathfindingService.SpatialGridEntryCallback)">
             <summary>
                 Visits every static obstacle body - a prop or a building - whose cell lies within the radius.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Services.MovementAndPathfindingService.MovementWorkItem">
+            <summary>
+                One unit's movement state copied out for a parallel pass, carrying everything the mover needs so no worker
+                reads the world while another lane writes it.
             </summary>
         </member>
         <member name="F:Realm.Ecs.Services.MovementAndPathfindingService.MovementWorkItem.IsPlanOnly">
@@ -1977,6 +2053,12 @@
                 same terrain are the same mesh, so this is the input a differing mesh is reported against.
             </summary>
         </member>
+        <member name="T:Realm.Ecs.Services.NavMeshStartRecovery">
+            <summary>
+                Outcome of finding a navmesh starting point for an entity that began off the mesh: what was asked for, what was
+                found, and how far the start had to move to reach it.
+            </summary>
+        </member>
         <member name="T:Realm.Ecs.Services.PathFollow">
             <summary>
             Caches the pathfinding waypoints for navigation to avoid GC allocations in the tick query loop.
@@ -1985,6 +2067,12 @@
         <member name="T:Realm.Ecs.Services.PlayerResourceService">
             <summary>
                 Demonstrates how player-specific resource data is used with archetype definition data.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Services.RouteReachabilityEntry">
+            <summary>
+                A cached verdict on whether one attacker can route to one target, carrying the positions and navmesh it was judged
+                against so a moved attacker, a moved target or a rebuilt mesh can invalidate it.
             </summary>
         </member>
         <member name="T:Realm.Ecs.Services.SimulationContext">
@@ -2599,6 +2687,13 @@
             <param name="kind">The kind tag to describe.</param>
             <returns>The kind name, or the numeric tag when the kind has no name yet.</returns>
         </member>
+        <member name="T:Realm.Ecs.ContentIdStore.ContentIdEntry">
+            <summary>
+                One row of the content identifier table: the identifier, the kind tag that says how to read it, and either the
+                text or the payload bytes it stands for. Entries are immutable once stored, which is what lets readers look one
+                up without taking the registration lock.
+            </summary>
+        </member>
         <member name="T:Realm.Ecs.EcsSharedMemory">
             <summary>
             Manages the zero-allocation Structure-of-Arrays (SoA) shared linear memory region between WebAssembly guest and host runtime contexts.
@@ -2861,6 +2956,12 @@
         <member name="T:Realm.Ecs.HandleCommands">
             <summary>
             Holds the command sink that handle properties reach, which is the map script api of the process running them.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.HandleCommands.Current">
+            <summary>
+            Gets or sets the sink that handle property assignments in this process send their command to. It is null until a
+            host has assigned one, and an assignment made while it is null is dropped.
             </summary>
         </member>
         <member name="T:Realm.Ecs.LobbyRosterHeader">

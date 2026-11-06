@@ -58,6 +58,10 @@ namespace Realm.Ecs.Services
 			return _context.World.Get<CombatTargeting>(attacker).CanTargetAir;
 		}
 
+		/// <summary>
+		///     One enemy captured during an acquisition scan, holding the values the scan and the range check need so the
+		///     decision is made from the snapshot instead of re-reading the world per candidate.
+		/// </summary>
 		public readonly struct TargetCandidateSnapshot
 		{
 			public readonly Entity Entity;
@@ -78,6 +82,10 @@ namespace Realm.Ecs.Services
 			}
 		}
 
+		/// <summary>
+		///     Everything one attacker needs for a target scan, copied out once so the scan does not re-read the attacker's
+		///     components for every enemy it considers.
+		/// </summary>
 		public struct AttackerSnapshot
 		{
 			public Entity Entity;
@@ -94,6 +102,10 @@ namespace Realm.Ecs.Services
 			public Entity SelectedTarget;
 		}
 
+		/// <summary>
+		///     One enemy found by the grid-free local scan, carrying the squared distance it was found at so the nearest can be
+		///     chosen without measuring it again.
+		/// </summary>
 		private struct LocalScanCandidate
 		{
 			public Entity Enemy;

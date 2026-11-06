@@ -66,6 +66,10 @@ namespace Realm.Ecs.Services
 		private readonly Dictionary<int, float> _offMeshStartRecoveryLogTimeByEntityId = new();
 		private readonly List<int> _deadOffMeshStartRecoveryEntityIds = new();
 
+		/// <summary>
+		///     One body held in the collision grid: where it is, how fast it is moving and how much room it takes, so a radius
+		///     query answers from the grid without touching components.
+		/// </summary>
 		public readonly struct SpatialGridEntry
 		{
 			public readonly Entity Entity;
@@ -135,6 +139,10 @@ namespace Realm.Ecs.Services
 			Stuck
 		}
 
+		/// <summary>
+		///     One unit's movement state copied out for a parallel pass, carrying everything the mover needs so no worker
+		///     reads the world while another lane writes it.
+		/// </summary>
 		private struct MovementWorkItem
 		{
 			public Entity Entity;
