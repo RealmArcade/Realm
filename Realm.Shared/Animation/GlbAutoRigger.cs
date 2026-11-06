@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Text.Json.Nodes;
 
 namespace Realm.Shared.Animation;
@@ -90,8 +90,9 @@ public static class GlbAutoRigger
 		{
 			RiggingMutex.ReleaseMutex();
 		}
-		catch
+		catch (Exception ex)
 		{
+			Console.Error.WriteLine($"[GlbAutoRigger] could not release the rigging mutex: {ex.GetType().Name}: {ex.Message}");
 		}
 	}
 
