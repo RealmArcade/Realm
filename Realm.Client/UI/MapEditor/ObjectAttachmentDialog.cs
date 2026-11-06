@@ -2075,7 +2075,7 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[ObjectAttachmentDialog] Error loading unioned assets: {ex.Message}");
+			GameLog.LogError($"[ObjectAttachmentDialog] Error loading unioned assets: {ex.Message}");
 		}
 	}
 
@@ -2090,7 +2090,7 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[ObjectAttachmentDialog] Error scanning metadata: {ex.Message}");
+			GameLog.LogError($"[ObjectAttachmentDialog] Error scanning metadata: {ex.Message}");
 		}
 	}
 
