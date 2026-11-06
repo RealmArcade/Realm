@@ -406,7 +406,7 @@ public partial class NoiseTextureDialog : FloatingDialogBase
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[NoiseTextureDialog] Preview error: {ex.Message}");
+			GameLog.LogError($"[NoiseTextureDialog] Preview error: {ex.Message}");
 		}
 	}
 
@@ -517,7 +517,7 @@ public partial class NoiseTextureDialog : FloatingDialogBase
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[NoiseTextureDialog] Failed to save noise texture: {ex.Message}");
+			GameLog.LogError($"[NoiseTextureDialog] Failed to save noise texture: {ex.Message}");
 			Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Failed to save noise texture: {0}"), ex.Message));
 		}
 	}
