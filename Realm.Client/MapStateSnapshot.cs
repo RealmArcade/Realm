@@ -177,7 +177,7 @@ public class MapStateSnapshot
 		}
 		catch (Exception exception)
 		{
-			GD.PrintErr($"Failed to update metadata.json during snapshot restore: {exception.Message}");
+			GameLog.LogError($"Failed to update metadata.json during snapshot restore: {exception.Message}");
 		}
 	}
 
