@@ -391,7 +391,7 @@ public partial class LobbyCreate : Control
 		else
 		{
 			GameContext.UserInterface.PlayWarningSound();
-			GD.PrintErr("[LobbyCreate] Failed to host lobby.");
+			GameLog.LogError("[LobbyCreate] Failed to host lobby.");
 
 			if (GameContext.Lobby.LocalNatType == NatType.Symmetric)
 			{
