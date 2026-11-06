@@ -14,6 +14,25 @@ def get_shared_memory_base(target):
             return _CACHED_BASE_ADDR
         _CACHED_BASE_ADDR = 0
 
+    import os, json
+    for d in [os.getcwd(), os.path.dirname(__file__) if "__file__" in globals() else ""]:
+        if not d:
+            continue
+        debug_json = os.path.join(d, "MapScript.debug.json")
+        if os.path.exists(debug_json):
+            try:
+                with open(debug_json, "r") as f:
+                    data = json.load(f)
+                ptr = data.get("sharedMemoryPointer", 0)
+                if ptr != 0:
+                    err = lldb.SBError()
+                    target.GetProcess().ReadMemory(ptr, 4, err)
+                    if err.Success():
+                        _CACHED_BASE_ADDR = ptr
+                        return ptr
+            except Exception:
+                pass
+
     candidate_names = [
         "g_realmSharedMemoryBase",
         "Realm_Ecs_EcsSharedMemory_g_realmSharedMemoryBase",
@@ -305,6 +324,37 @@ def UnitIdSummaryProvider(valobj, internal_dict):
 
     return f"Unit {unit_id} [Health: {int(hp)}/{int(max_hp)}, Pos: ({pos_x:.1f}, {pos_z:.1f})]"
 
+def realm_attach(debugger, command, result, internal_dict):
+    import os
+    pid = None
+    search_dirs = [os.getcwd()]
+    target = debugger.GetSelectedTarget()
+    if target and target.IsValid():
+        exe = target.GetExecutable()
+        if exe and exe.IsValid():
+            search_dirs.append(exe.GetDirectory())
+    if "__file__" in globals():
+        search_dirs.append(os.path.dirname(__file__))
+
+    for d in search_dirs:
+        if not d:
+            continue
+        pid_file = os.path.join(d, "authority.pid")
+        if os.path.exists(pid_file):
+            try:
+                with open(pid_file, "r") as f:
+                    val = f.read().strip()
+                if val and val.isdigit():
+                    pid = val
+                    break
+            except Exception:
+                pass
+
+    if pid:
+        debugger.HandleCommand(f"process attach --pid {pid}")
+    else:
+        result.SetError("authority.pid was not found in the workspace.")
+
 def __lldb_init_module(debugger, internal_dict):
     category = "Realm"
 
@@ -314,4 +364,5 @@ def __lldb_init_module(debugger, internal_dict):
     debugger.HandleCommand(f"type synthetic add -l realm_lldb.UnitIdSyntheticProvider -x \"^Realm[.:]Ecs[.:]UnitId$\" -w {category}")
     debugger.HandleCommand(f"type summary add -F realm_lldb.UnitIdSummaryProvider -x \"^Realm[.:]Ecs[.:]UnitId$\" -w {category}")
 
+    debugger.HandleCommand("command script add -f realm_lldb.realm_attach realm_attach")
     debugger.HandleCommand(f"type category enable {category}")

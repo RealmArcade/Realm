@@ -125,7 +125,7 @@ public partial class WasmScriptHost : IWasmRuntime, IWasmEvaluationEngine, IDisp
 			var config = new Config()
 				.WithEpochInterruption(true)
 				.WithDebugInfo(_isDebugMode)
-				.WithOptimizationLevel(OptimizationLevel.SpeedAndSize);
+				.WithOptimizationLevel(_isDebugMode ? OptimizationLevel.None : OptimizationLevel.SpeedAndSize);
 			_engine = new Engine(config);
 			if (_isDebugMode)
 			{
@@ -949,6 +949,17 @@ public partial class WasmScriptHost : IWasmRuntime, IWasmEvaluationEngine, IDisp
 						{
 							string workspaceElfPath = Path.Combine(workspaceDirectory, $"MapScript{suffix}.jit.elf");
 							File.WriteAllBytes(workspaceElfPath, elfBytes);
+							try
+							{
+								File.WriteAllText(Path.Combine(workspaceDirectory, "authority.pid"), System.Environment.ProcessId.ToString());
+								if (_sharedMemoryPointer != IntPtr.Zero)
+								{
+									File.WriteAllText(Path.Combine(workspaceDirectory, "MapScript.debug.json"), $"{{\"pid\":{System.Environment.ProcessId},\"sharedMemoryPointer\":{_sharedMemoryPointer.ToInt64()}}}");
+								}
+							}
+							catch
+							{
+							}
 							LogToConsole($"[WASM DEBUG] Exported the JIT ELF of pid {System.Environment.ProcessId} to '{workspaceElfPath}'.");
 						}
 						else
