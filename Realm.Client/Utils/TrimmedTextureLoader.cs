@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Godot;
+using Realm.Client.Services;
 
 namespace Realm.Client.Utils;
 
@@ -110,7 +111,7 @@ public static class TrimmedTextureLoader
 		}
 		catch (Exception exception)
 		{
-			GD.PrintErr($"[TrimmedTextureLoader] Failed to decode '{resourcePath}': {exception.Message}");
+			GameLog.LogError($"[TrimmedTextureLoader] Failed to decode '{resourcePath}': {exception.Message}");
 		}
 
 		try
@@ -119,7 +120,7 @@ public static class TrimmedTextureLoader
 		}
 		catch (Exception exception)
 		{
-			GD.PrintErr($"[TrimmedTextureLoader] Failed to load '{resourcePath}': {exception.Message}");
+			GameLog.LogError($"[TrimmedTextureLoader] Failed to load '{resourcePath}': {exception.Message}");
 			return null;
 		}
 	}
@@ -152,7 +153,7 @@ public static class TrimmedTextureLoader
 
 		if (decodeError != Error.Ok)
 		{
-			GD.PrintErr($"[TrimmedTextureLoader] Failed to decode '{resourcePath}': {decodeError}");
+			GameLog.LogError($"[TrimmedTextureLoader] Failed to decode '{resourcePath}': {decodeError}");
 			image.Dispose();
 			return null;
 		}
@@ -220,7 +221,7 @@ public static class TrimmedTextureLoader
 
 		if (LogUsedRect)
 		{
-			GD.Print($"[TrimmedTextureLoader] {resourcePath} source={sourceWidth}x{sourceHeight} scaled={downscaledWidth}x{downscaledHeight} usedRect=({usedRect.Position.X}, {usedRect.Position.Y}, {usedRect.Size.X}, {usedRect.Size.Y}) result={resultWidth}x{resultHeight}");
+			GameLog.LogToConsole($"[TrimmedTextureLoader] {resourcePath} source={sourceWidth}x{sourceHeight} scaled={downscaledWidth}x{downscaledHeight} usedRect=({usedRect.Position.X}, {usedRect.Position.Y}, {usedRect.Size.X}, {usedRect.Size.Y}) result={resultWidth}x{resultHeight}");
 		}
 	}
 }
