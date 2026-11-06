@@ -14,6 +14,7 @@ public class BotProfile
 	public float DecisionIntervalSeconds { get; set; } = 1.0f;
 	public float AggressionMultiplier { get; set; } = 1.0f;
 	public float ActionTemperature { get; set; } = 0.0f;
+	public float MistakeChance { get; set; } = 0.0f;
 	public float[] Weights { get; set; } = Array.Empty<float>();
 	public float FitnessScore { get; set; } = 0.0f;
 	public int TrainedEpochs { get; set; } = 0;

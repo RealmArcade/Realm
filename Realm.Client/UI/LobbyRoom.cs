@@ -82,6 +82,7 @@ public partial class LobbyRoom : Control
 	private const int ColorColumnWidth = 56;
 	private const int NameColumnWidth = 140;
 	private const int FactionColumnWidth = 100;
+	private const int DifficultyColumnWidth = 120;
 	private const int RowColumnSeparation = 16;
 	private const int RowContentInset = 8;
 
@@ -412,6 +413,24 @@ public partial class LobbyRoom : Control
 		ApplyHeaderColumnWidth("PlayersPanel/VBoxContainer/TableHeader/ColorCol", ColorColumnWidth);
 		ApplyHeaderColumnWidth("PlayersPanel/VBoxContainer/TableHeader/NameCol", NameColumnWidth);
 		ApplyHeaderColumnWidth("PlayersPanel/VBoxContainer/TableHeader/FactionCol", FactionColumnWidth);
+		ApplyDifficultyHeader(header);
+	}
+
+	private void ApplyDifficultyHeader(HBoxContainer header)
+	{
+		var lblDifficulty = header.GetNodeOrNull<Label>("DifficultyCol");
+		if (lblDifficulty == null)
+		{
+			lblDifficulty = new Label();
+			lblDifficulty.Name = "DifficultyCol";
+			lblDifficulty.Text = TranslationServer.Translate("DIFFICULTY");
+			lblDifficulty.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+			lblDifficulty.AddThemeFontSizeOverride("font_size", 15);
+			header.AddChild(lblDifficulty);
+		}
+
+		lblDifficulty.ClipText = true;
+		lblDifficulty.CustomMinimumSize = new Vector2(DifficultyColumnWidth, 0);
 	}
 
 	private void ApplyHeaderColumnWidth(string path, int width)
@@ -1313,6 +1332,7 @@ public partial class LobbyRoom : Control
 		AddColorButtonToRow(hBox, p, canEditSeat);
 		AddNameElementToRow(hBox, p, isLocalPlayer);
 		AddFactionOptionToRow(hBox, p, canEditSeat);
+		AddDifficultyOptionToRow(hBox, p, canEditSeat);
 		AddDiagnosticLabelToRow(hBox, p, isLocalPlayer);
 		AddBootButtonToRow(hBox, p);
 
@@ -1705,6 +1725,62 @@ public partial class LobbyRoom : Control
 		return -1;
 	}
 
+	private void AddDifficultyOptionToRow(HBoxContainer hBox, PlayerInfo p, bool canEditSeat)
+	{
+		var cell = CreateColumnCell("DifficultyCell", DifficultyColumnWidth);
+
+		if (p.IsComputer)
+		{
+			var optDifficulty = new OptionButton();
+			optDifficulty.Name = "OptDifficulty";
+			optDifficulty.CustomMinimumSize = new Vector2(DifficultyColumnWidth, 30);
+			optDifficulty.Flat = false;
+			optDifficulty.ClipText = true;
+
+			ApplyTeamOptionStyle(optDifficulty);
+			FillDifficultyOptions(optDifficulty, p);
+
+			optDifficulty.ItemSelected += (idx) => OnDifficultyOptionSelected(idx, p);
+			optDifficulty.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
+
+			if (!canEditSeat)
+			{
+				optDifficulty.Disabled = true;
+				optDifficulty.AddThemeColorOverride("font_disabled_color", new Color(0.5f, 0.5f, 0.5f));
+			}
+
+			FillColumnCell(cell, optDifficulty);
+		}
+
+		hBox.AddChild(cell);
+	}
+
+	private static void FillDifficultyOptions(OptionButton optDifficulty, PlayerInfo p)
+	{
+		optDifficulty.Clear();
+		optDifficulty.AddItem(TranslationServer.Translate("EASY"));
+		optDifficulty.AddItem(TranslationServer.Translate("MEDIUM"));
+		optDifficulty.AddItem(TranslationServer.Translate("HARD"));
+		optDifficulty.Select(GetDifficultyOptionIndex(p));
+	}
+
+	private static int GetDifficultyOptionIndex(PlayerInfo p)
+	{
+		return Math.Clamp((int)p.Difficulty - (int)LobbyBotDifficulty.Easy, 0, 2);
+	}
+
+	private void OnDifficultyOptionSelected(long idx, PlayerInfo p)
+	{
+		GameContext.UserInterface.PlayClickSound();
+
+		PlayerInfo? seat = ResolveLiveSeat(p);
+		if (seat == null) return;
+
+		var difficulty = (LobbyBotDifficulty)((int)idx + (int)LobbyBotDifficulty.Easy);
+		seat.Difficulty = difficulty;
+		GameContext.Lobby.SetComputerDifficulty(seat.PeerId, difficulty);
+	}
+
 	private void AddDiagnosticLabelToRow(HBoxContainer hBox, PlayerInfo p, bool isLocalPlayer)
 	{
 		var diagLabel = new RichTextLabel();
@@ -1806,6 +1882,7 @@ public partial class LobbyRoom : Control
 		UpdateRowColorButton(hBox, p, canEditSeat);
 		UpdateRowNameElements(hBox, p);
 		UpdateRowFactionOption(hBox, p, canEditSeat);
+		UpdateRowDifficultyOption(hBox, p, canEditSeat);
 		UpdateRowDiagnosticLabel(hBox, p, isLocalPlayer);
 	}
 
@@ -1927,6 +2004,24 @@ public partial class LobbyRoom : Control
 		}
 
 		optFaction.Disabled = !canEditSeat;
+	}
+
+	private void UpdateRowDifficultyOption(HBoxContainer hBox, PlayerInfo p, bool canEditSeat)
+	{
+		var optDifficulty = hBox.GetNodeOrNull<OptionButton>("DifficultyCell/CellCenter/OptDifficulty");
+		if (optDifficulty == null) return;
+
+		int optionIndex = GetDifficultyOptionIndex(p);
+		if (optDifficulty.ItemCount != 3)
+		{
+			FillDifficultyOptions(optDifficulty, p);
+		}
+		else if (optDifficulty.Selected != optionIndex)
+		{
+			optDifficulty.Select(optionIndex);
+		}
+
+		optDifficulty.Disabled = !canEditSeat;
 	}
 
 	private void UpdateRowDiagnosticLabel(HBoxContainer hBox, PlayerInfo p, bool isLocalPlayer)

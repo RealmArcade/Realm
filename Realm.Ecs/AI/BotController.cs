@@ -9,6 +9,7 @@ public class BotController
 {
 	private IAiGenreProvider _genreProvider = new StandardRtsGenreProvider();
 	private IBotDecisionPolicy _decisionPolicy = new LinearUtilityDecisionPolicy();
+	private readonly IBotDecisionPolicy _uniformPolicy = new UniformRandomDecisionPolicy();
 	private readonly List<GenericAffordance> _affordanceBuffer = new(64);
 
 	private BotProfile _profile = BotProfile.CreateDefault();
@@ -16,6 +17,7 @@ public class BotController
 	private float _decisionInterval = 1.0f;
 	private float _aggressionMultiplier = 1.0f;
 	private float _actionTemperature = 0.0f;
+	private float _mistakeChance = 0.0f;
 	private float _timer = 0.0f;
 	private int _playerIndex;
 
@@ -24,6 +26,12 @@ public class BotController
 	public float DecisionInterval => _decisionInterval;
 	public float AggressionMultiplier => _aggressionMultiplier;
 	public float ActionTemperature => _actionTemperature;
+
+	public float MistakeChance
+	{
+		get => _mistakeChance;
+		set => _mistakeChance = Math.Clamp(value, 0.0f, 1.0f);
+	}
 	public BotProfile Profile => _profile;
 
 	public IAiGenreProvider GenreProvider
@@ -73,6 +81,7 @@ public class BotController
 		_decisionInterval = profile.DecisionIntervalSeconds > 0.05f ? profile.DecisionIntervalSeconds : 1.0f;
 		_aggressionMultiplier = profile.AggressionMultiplier > 0.0f ? profile.AggressionMultiplier : 1.0f;
 		_actionTemperature = Math.Clamp(profile.ActionTemperature, 0.0f, 2.0f);
+		_mistakeChance = Math.Clamp(profile.MistakeChance, 0.0f, 1.0f);
 
 		int requiredFeatures = _genreProvider.FeatureCount;
 		if (profile.Weights != null && profile.Weights.Length >= requiredFeatures)
@@ -97,7 +106,11 @@ public class BotController
 		_timer = 0.0f;
 
 		_genreProvider.ScanAffordances(world, playerIndex, _affordanceBuffer);
-		var action = _decisionPolicy.SelectAction(_affordanceBuffer, _weights, _actionTemperature, _aggressionMultiplier, SeededRandom.Shared);
+
+		IBotDecisionPolicy policy = _mistakeChance > 0.0f && SeededRandom.Shared.NextDouble() < _mistakeChance
+			? _uniformPolicy
+			: _decisionPolicy;
+		var action = policy.SelectAction(_affordanceBuffer, _weights, _actionTemperature, _aggressionMultiplier, SeededRandom.Shared);
 
 		if (!action.HasValue)
 		{
