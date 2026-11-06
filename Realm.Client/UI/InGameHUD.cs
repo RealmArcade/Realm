@@ -2192,9 +2192,7 @@ public partial class InGameHUD : Control
 				rowStyle.ContentMarginBottom = 2;
 				rowPanel.AddThemeStyleboxOverride("panel", rowStyle);
 
-				var row = new HBoxContainer();
-				row.Name = "Row_HBoxContainer";
-				row.AddThemeConstantOverride("separation", 6);
+				var row = UIStyle.CreateRowContainer();
 				row.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 
 				var keyBadge = new PanelContainer();

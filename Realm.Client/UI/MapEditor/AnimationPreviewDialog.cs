@@ -315,9 +315,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 		card.Name = "Card_PanelContainer";
 		card.AddThemeStyleboxOverride("panel", UIStyle.CreateLightInnerPanel());
 
-		var row = new HBoxContainer();
-		row.Name = "Row_HBoxContainer";
-		row.AddThemeConstantOverride("separation", 6);
+		var row = UIStyle.CreateRowContainer();
 
 		row.AddChild(CreateVisibilityButton(key, isVisible));
 		row.AddChild(CreateSocketBadge(entry));

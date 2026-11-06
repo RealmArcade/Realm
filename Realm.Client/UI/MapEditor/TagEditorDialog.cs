@@ -144,9 +144,7 @@ public partial class TagEditorDialog : FloatingDialogBase
 
 		foreach (var tag in _workingTags)
 		{
-			var row = new HBoxContainer();
-			row.Name = "Row_HBoxContainer";
-			row.AddThemeConstantOverride("separation", 6);
+			var row = UIStyle.CreateRowContainer();
 
 			var lblTag = new Label();
 			lblTag.Name = "LblTag_Label";

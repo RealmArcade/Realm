@@ -235,9 +235,7 @@ public partial class ItemUpgradeEditDialog : FloatingDialogBase
 		for (int i = 0; i < _grantedWeapons.Count; i++)
 		{
 			int index = i;
-			var row = new HBoxContainer();
-			row.Name = "Row_HBoxContainer";
-			row.AddThemeConstantOverride("separation", 6);
+			var row = UIStyle.CreateRowContainer();
 
 			var txt = new LineEdit();
 			txt.Name = "Txt_LineEdit";
@@ -275,9 +273,7 @@ public partial class ItemUpgradeEditDialog : FloatingDialogBase
 		for (int i = 0; i < _grantedAbilities.Count; i++)
 		{
 			int index = i;
-			var row = new HBoxContainer();
-			row.Name = "Row_HBoxContainer";
-			row.AddThemeConstantOverride("separation", 6);
+			var row = UIStyle.CreateRowContainer();
 
 			var txt = new LineEdit();
 			txt.Name = "Txt_LineEdit";
@@ -315,9 +311,7 @@ public partial class ItemUpgradeEditDialog : FloatingDialogBase
 		for (int i = 0; i < _grantedUpgrades.Count; i++)
 		{
 			int index = i;
-			var row = new HBoxContainer();
-			row.Name = "Row_HBoxContainer";
-			row.AddThemeConstantOverride("separation", 6);
+			var row = UIStyle.CreateRowContainer();
 
 			var txt = new LineEdit();
 			txt.Name = "Txt_LineEdit";

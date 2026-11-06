@@ -592,9 +592,7 @@ public partial class FloatingDialogBase : PanelContainer
 		string format = "0.00",
 		float labelWidth = 110.0f)
 	{
-		var row = new HBoxContainer();
-		row.Name = "Row_HBoxContainer";
-		row.AddThemeConstantOverride("separation", 6);
+		var row = UIStyle.CreateRowContainer();
 
 		var lbl = new Label();
 		lbl.Name = "Lbl_Label";
@@ -659,9 +657,7 @@ public partial class FloatingDialogBase : PanelContainer
 		Action<Color> onChanged,
 		float labelWidth = 110.0f)
 	{
-		var row = new HBoxContainer();
-		row.Name = "Row_HBoxContainer";
-		row.AddThemeConstantOverride("separation", 6);
+		var row = UIStyle.CreateRowContainer();
 
 		var lbl = new Label();
 		lbl.Name = "Lbl_Label";
@@ -750,9 +746,7 @@ public partial class FloatingDialogBase : PanelContainer
 		Action<int> onChanged,
 		float labelWidth = 110.0f)
 	{
-		var row = new HBoxContainer();
-		row.Name = "Row_HBoxContainer";
-		row.AddThemeConstantOverride("separation", 6);
+		var row = UIStyle.CreateRowContainer();
 
 		var lbl = new Label();
 		lbl.Name = "Lbl_Label";
@@ -840,9 +834,7 @@ public partial class FloatingDialogBase : PanelContainer
 		string placeholder = "",
 		float labelWidth = 110.0f)
 	{
-		var row = new HBoxContainer();
-		row.Name = "Row_HBoxContainer";
-		row.AddThemeConstantOverride("separation", 6);
+		var row = UIStyle.CreateRowContainer();
 
 		var lbl = new Label();
 		lbl.Name = "Lbl_Label";
@@ -912,9 +904,7 @@ public partial class FloatingDialogBase : PanelContainer
 		Action<Vector3> onChanged,
 		float labelWidth = 110.0f)
 	{
-		var row = new HBoxContainer();
-		row.Name = "Row_HBoxContainer";
-		row.AddThemeConstantOverride("separation", 6);
+		var row = UIStyle.CreateRowContainer();
 
 		var lbl = new Label();
 		lbl.Name = "Lbl_Label";
@@ -960,9 +950,7 @@ public partial class FloatingDialogBase : PanelContainer
 		Action<Vector2> onChanged,
 		float labelWidth = 110.0f)
 	{
-		var row = new HBoxContainer();
-		row.Name = "Row_HBoxContainer";
-		row.AddThemeConstantOverride("separation", 6);
+		var row = UIStyle.CreateRowContainer();
 
 		var lbl = new Label();
 		lbl.Name = "Lbl_Label";
