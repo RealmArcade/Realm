@@ -19,6 +19,7 @@ namespace Realm.Client.Core
 		{
 			var entity = GameContext.World.Create();
 			var decal = new Decal3D();
+			decal.Name = "Decal_Decal3D";
 			decal.Entity = entity;
 			decal.DecalId = "logo";
 			decal.TextureAlbedo = GD.Load<Texture2D>("res://icon.svg");
@@ -214,6 +215,7 @@ namespace Realm.Client.Core
 		{
 			var entity = GameContext.World.Create();
 			var decal = new Decal3D();
+			decal.Name = "Decal_Decal3D";
 			decal.Entity = entity;
 			decal.DecalId = string.IsNullOrEmpty(decalId) ? "logo" : decalId;
 			decal.TextureAlbedo = LoadDecalTexture(decalId);

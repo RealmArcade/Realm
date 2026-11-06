@@ -1748,6 +1748,7 @@ namespace Realm.Client.Core
 
 				Color color = Realm.Client.Utils.PreviewHologram.UnitColor(reqIsEnemy);
 				var previewUnit = new Unit3D();
+				previewUnit.Name = "PreviewUnit_Unit3D";
 				previewUnit.UnitId = reqId;
 				previewUnit.IsBuilding = isBuilding;
 				previewUnit.Player = reqIsEnemy ? 1 : 0;
@@ -1774,6 +1775,7 @@ namespace Realm.Client.Core
 
 			Color color = Realm.Client.Utils.PreviewHologram.PropColor();
 			var previewProp = new Prop3D();
+			previewProp.Name = "PreviewProp_Prop3D";
 			previewProp.PropId = reqId;
 			previewProp.IsPreview = true;
 			previewProp.PreviewHologramColor = color;
@@ -1794,6 +1796,7 @@ namespace Realm.Client.Core
 		private void CreateOrUpdatePreviewDecal(string reqId)
 		{
 			var previewDecal = new Decal3D();
+			previewDecal.Name = "PreviewDecal_Decal3D";
 			previewDecal.CullMask = RuntimeTerrain.TerrainDecalCullMask;
 			previewDecal.DecalId = string.IsNullOrEmpty(reqId) ? "logo" : reqId;
 			AddChild(previewDecal);
@@ -1820,6 +1823,7 @@ namespace Realm.Client.Core
 			}
 
 			var previewVfx = new ProceduralVfxInstance3D(config);
+			previewVfx.Name = "PreviewVfx_ProceduralVfxInstance3D";
 			previewVfx.IsPreview = true;
 			AddChild(previewVfx);
 			_editorPreviewNode = previewVfx;

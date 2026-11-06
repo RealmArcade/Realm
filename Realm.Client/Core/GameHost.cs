@@ -1317,6 +1317,7 @@ public partial class GameHost : Node3D
 		Callable.From(() =>
 		{
 			var label = new Label3D();
+			label.Name = "FloatingText_Label3D";
 			label.Text = text;
 			label.Modulate = color;
 			label.OutlineModulate = Colors.Black;
@@ -2109,6 +2110,7 @@ public partial class GameHost : Node3D
 		if (GetNodeOrNull<PropMultiMeshManager>("PropMultiMeshManager") != null) return;
 
 		var propMultiMeshManager = new PropMultiMeshManager();
+		propMultiMeshManager.Name = "PropMultiMeshManager";
 		AddChild(propMultiMeshManager);
 	}
 

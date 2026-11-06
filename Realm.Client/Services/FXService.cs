@@ -151,6 +151,7 @@ public class FXService
 		if (parent == null || !GodotObject.IsInstanceValid(parent)) return null;
 
 		var sequence = new VfxSequenceInstance3D();
+		sequence.Name = "VfxSequence_VfxSequenceInstance3D";
 		sequence.Initialize(sequenceConfig, worldPosition, scaleMultiplier, targetEntityId, anchor);
 		parent.AddChild(sequence);
 		_activeVfxSequences.Add(sequence);

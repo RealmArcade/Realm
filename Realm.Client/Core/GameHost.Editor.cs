@@ -1227,6 +1227,7 @@ public partial class GameHost
 		}
 
 		var prop = new Prop3D();
+		prop.Name = "Prop_Prop3D";
 		prop.Entity = entity;
 		prop.PropId = propId;
 		prop.Position = position;
@@ -1308,6 +1309,7 @@ public partial class GameHost
 			Scale = safeScale
 		};
 
+		vfx.Name = "Vfx_ProceduralVfxInstance3D";
 		AddChild(vfx);
 		AllVfx.Add(vfx);
 		EntityToVfx3D[entity] = vfx;

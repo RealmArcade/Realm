@@ -2139,7 +2139,9 @@ public partial class Unit3D : Node3D
 			defaultScale = 1.0f;
 			defaultPos = config.PositionOffset.ToGodotVector3();
 			defaultRot = config.RotationOffset.ToGodotVector3();
-			return new ProceduralVfxInstance3D(config);
+			var vfxInstance = new ProceduralVfxInstance3D(config);
+			vfxInstance.Name = "AttachmentVfx_ProceduralVfxInstance3D";
+			return vfxInstance;
 		}
 
 		if (GameContext.RegistryService.VfxRegistry.TryGetValue(attachmentId, out var vfxCfg))
@@ -2147,7 +2149,9 @@ public partial class Unit3D : Node3D
 			defaultScale = 1.0f;
 			defaultPos = vfxCfg.PositionOffset.ToGodotVector3();
 			defaultRot = vfxCfg.RotationOffset.ToGodotVector3();
-			return new ProceduralVfxInstance3D(vfxCfg.Clone());
+			var vfxInstance = new ProceduralVfxInstance3D(vfxCfg.Clone());
+			vfxInstance.Name = "AttachmentVfx_ProceduralVfxInstance3D";
+			return vfxInstance;
 		}
 
 		if (Enum.TryParse<VfxPrimitiveType>(attachmentId, true, out var parsedPrim))
@@ -2156,7 +2160,9 @@ public partial class Unit3D : Node3D
 			defaultScale = 1.0f;
 			defaultPos = cfg.PositionOffset.ToGodotVector3();
 			defaultRot = cfg.RotationOffset.ToGodotVector3();
-			return new ProceduralVfxInstance3D(cfg);
+			var vfxInstance = new ProceduralVfxInstance3D(cfg);
+			vfxInstance.Name = "AttachmentVfx_ProceduralVfxInstance3D";
+			return vfxInstance;
 		}
 
 		return null;
