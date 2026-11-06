@@ -3065,27 +3065,6 @@ public partial class GameHost
 		GameContext.InGameHud?.ShowFeedbackText($"Jumped to: {building.UnitId.ToUpper()}", new Color(0.9f, 0.8f, 0.3f));
 	}
 
-	private void DeleteSelectedUnits()
-	{
-		if (SelectedUnits.Count == 0) return;
-
-		var toDelete = new List<Unit3D>(SelectedUnits.FindAll(u => GameContext.PerspectiveFilter.CanControl(u.Player)));
-		var entities = new List<Entity>();
-		foreach (var unit in toDelete)
-		{
-			entities.Add(unit.Entity);
-		}
-
-		GameContext.InputService.MarkEntitiesAsDead(entities);
-
-		foreach (var unit in toDelete)
-		{
-			Callable.From(() => KillUnitDeferred(unit)).CallDeferred();
-		}
-
-		GameContext.InGameHud?.ShowFeedbackText($"Removed {toDelete.Count} unit(s)", new Color(0.9f, 0.3f, 0.3f));
-	}
-
 	private void KillUnitDeferred(Unit3D unit)
 	{
 		if (AllUnits.Contains(unit))
@@ -3868,19 +3847,6 @@ public partial class GameHost
 		if (!shiftHeld) ClearBuildingPlacementState();
 	}
 
-	private void ExecuteClientBuildingPlacement(string type, Vector3 position, UnitMetadata bldMeta, bool shiftHeld)
-	{
-		if (GameContext.InGameHud != null)
-		{
-			DeductResourcesForBuilding(bldMeta);
-			GameContext.InGameHud.ShowFeedbackText($"Constructing {bldMeta.Name}...", new Color(0.3f, 0.9f, 0.4f));
-		}
-
-		SubmitRemoteCommand("build", new List<int>(), position, 0, type);
-
-		if (!shiftHeld) ClearBuildingPlacementState();
-	}
-
 	private void ViewHandleObstructedPlacement()
 	{
 		GameContext.InGameHud.ShowFeedbackText("Cannot construct: Area is obstructed!", new Color(1.0f, 0.2f, 0.2f));
@@ -3895,21 +3861,6 @@ public partial class GameHost
 			amount => GameContext.InGameHud.Gold -= amount,
 			amount => GameContext.InGameHud.Wood -= amount,
 			amount => GameContext.InGameHud.Stone -= amount);
-	}
-
-	private void ProcessBuildingPlacement(string type, Vector3 position, UnitMetadata meta, bool shiftHeld)
-	{
-		var buildingPos = new System.Numerics.Vector3(position.X, position.Y, position.Z);
-		Unit3D firstWorker = SelectedUnits.Find(u => !u.IsBuilding && GameContext.PerspectiveFilter.CanControl(u.Player) && u.UnitId == "worker");
-
-		if (firstWorker != null)
-		{
-			AssignWorkerTasks(type, buildingPos, meta, shiftHeld, firstWorker);
-		}
-		else
-		{
-			SpawnInstantBuilding(type, position, meta);
-		}
 	}
 
 	private void AssignWorkerTasks(string type, System.Numerics.Vector3 buildingPos, UnitMetadata meta, bool shiftHeld, Unit3D firstWorker)
@@ -4323,20 +4274,6 @@ public partial class GameHost
 
 		GameContext.UserInterface?.PlayClickSound();
 		GameContext.InGameHud?.RefreshUI(SelectedUnits);
-	}
-
-	private void RefundCancelledUnit(string? cancelledId)
-	{
-		if (cancelledId == null || GameContext.InGameHud == null) return;
-
-		var meta = UnitRegistry[cancelledId];
-		GameContext.InGameHud.Gold += meta.CostGold;
-		GameContext.InGameHud.Wood += meta.CostWood;
-		GameContext.InGameHud.Stone += meta.CostStone;
-		int localSlot = GameContext.PerspectiveFilter.ControlledPlayerIndex;
-		int curPop = GetCurrentPopulation(localSlot);
-		SetCurrentPopulation(localSlot, Math.Max(0, curPop - meta.PopCost));
-		GameContext.InGameHud.ShowFeedbackText($"Cancelled {meta.Name} (Refunded {meta.CostGold}G, {meta.CostWood}W, {meta.CostStone}S)", new Color(1f, 0.8f, 0.2f));
 	}
 
 	private void UpdateProductionQueueAfterCancel(Entity buildingEntity, int index, string? nextUnitId)
