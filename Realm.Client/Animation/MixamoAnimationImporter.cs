@@ -53,7 +53,7 @@ public static class MixamoAnimationImporter
 			var err = doc.AppendFromFile(filePath, state);
 			if (err == Error.Ok) return doc.GenerateScene(state);
 
-			GD.PrintErr($"[MixamoAnimationImporter] Failed to parse FBX: {filePath}, error: {err}");
+			GameLog.LogError($"[MixamoAnimationImporter] Failed to parse FBX: {filePath}, error: {err}");
 			return null;
 		}
 		else
@@ -63,7 +63,7 @@ public static class MixamoAnimationImporter
 			var err = doc.AppendFromFile(filePath, state);
 			if (err == Error.Ok) return doc.GenerateScene(state);
 
-			GD.PrintErr($"[MixamoAnimationImporter] Failed to parse GLB/GLTF: {filePath}, error: {err}");
+			GameLog.LogError($"[MixamoAnimationImporter] Failed to parse GLB/GLTF: {filePath}, error: {err}");
 			return null;
 		}
 	}
@@ -283,7 +283,7 @@ public static class MixamoAnimationImporter
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[MixamoAnimationImporter] Error stripping animations from GLB: {ex.Message}");
+			GameLog.LogError($"[MixamoAnimationImporter] Error stripping animations from GLB: {ex.Message}");
 			File.Copy(sourceGlbPath, destGlbPath, true);
 			return false;
 		}
