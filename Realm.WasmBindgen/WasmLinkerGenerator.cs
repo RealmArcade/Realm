@@ -2603,34 +2603,6 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		return sb.ToString();
 	}
 
-	private static string ToPascalCase(string kebab)
-	{
-		if (string.IsNullOrEmpty(kebab)) return "";
-		var sb = new StringBuilder();
-		bool nextUpper = true;
-		foreach (char c in kebab)
-		{
-			if (c == '-')
-			{
-				nextUpper = true;
-			}
-			else
-			{
-				if (nextUpper)
-				{
-					sb.Append(char.ToUpperInvariant(c));
-					nextUpper = false;
-				}
-				else
-				{
-					sb.Append(c);
-				}
-			}
-		}
-
-		return sb.ToString();
-	}
-
 	private static HashSet<string> CollectPropertyAccessorNames(INamedTypeSymbol symbol)
 	{
 		var set = new HashSet<string>(StringComparer.Ordinal);
@@ -3130,18 +3102,6 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		if (type.SpecialType == SpecialType.System_Int32) return "int";
 		if (type.ToDisplayString() == "System.Numerics.Vector3") return "Vector3";
 		return "float";
-	}
-
-	private static string FormatPythonFieldList(List<(string Name, int Offset, string TypeName)> fields)
-	{
-		var sb = new StringBuilder();
-		sb.AppendLine("[");
-		foreach (var (name, offset, typeName) in fields)
-		{
-			sb.AppendLine($"    (\"{name}\", {offset}, \"{typeName}\"),");
-		}
-		sb.Append("]");
-		return sb.ToString();
 	}
 
 	private static void GenerateNatvisFile(string repoRoot, Compilation compilation)
