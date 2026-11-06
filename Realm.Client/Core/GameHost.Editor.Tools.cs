@@ -2733,6 +2733,7 @@ namespace Realm.Client.Core
 				GameContext.SessionState.EditorWorldState = null;
 
 				EndJoinedMatch();
+				ClearStaticText();
 				CreateGround();
 				MapStateSnapshot.Restore(editorState, updateMapSize: false);
 				RestoreEditorDirtyStateAfterTest();
