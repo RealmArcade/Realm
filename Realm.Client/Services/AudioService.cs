@@ -227,7 +227,7 @@ public class AudioService
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[AudioService] Error loading audio '{soundPath}': {ex.Message}");
+			GameLog.LogError($"[AudioService] Error loading audio '{soundPath}': {ex.Message}");
 		}
 
 		if (stream != null)
