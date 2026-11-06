@@ -1120,13 +1120,6 @@ public partial class GameHost : Node3D
 		GameContext.World.Add(playerEntity, new PlayerResources(resourcesDict));
 	}
 
-	private void SetupPlayerEntityComponents(Entity playerEntity)
-	{
-		GameContext.World.Add(playerEntity, new PlayerPopulation(0, 0));
-		GameContext.World.Add(playerEntity, new SpellCooldowns(null));
-		GameContext.World.Add(playerEntity, new PlayerUpgrades(false, false, false));
-	}
-
 	private void SetupWorldEntityComponents()
 	{
 		int width = GroundTerrain != null ? GroundTerrain.Width : 128;
@@ -1537,16 +1530,6 @@ public partial class GameHost : Node3D
 			ClearSelection();
 			GameContext.InGameHud?.RefreshUI(SelectedUnits);
 		}).CallDeferred();
-	}
-
-	private void SyncPlayerResourceEcs(int playerIndex, float goldAmount)
-	{
-		var pe = GetPlayerEntityForPlayerIndex(playerIndex);
-		if (pe != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(pe) && GameContext.World.Has<PlayerResources>(pe))
-		{
-			ref var res = ref GameContext.World.Get<PlayerResources>(pe);
-			res[GameContext.Simulation.PlayerResourceService.GoldResourceId] = (int)Math.Max(0f, goldAmount);
-		}
 	}
 
 	public event Action<UnitId, int>? OnUnitEnterZone;
@@ -2362,25 +2345,6 @@ public partial class GameHost : Node3D
 		}
 	}
 
-	private void ProcessMapLoadingAndScript(string rawMapName)
-	{
-		if (!ShouldProcessMapLoading()) return;
-
-		if (ShouldLoadCustomTerrain())
-			LoadCustomTerrain(rawMapName);
-
-		if (ShouldLoadAndRunMapScript())
-		{
-			ApplyTestRandomSeedIfNeeded(rawMapName);
-			RebakeNavMesh();
-			return;
-		}
-
-		// A peer runs no map script, so the props and pre-placed buildings it needs as obstacle volumes arrive as spawn
-		// requests after this point. Baking here left the mesh with no obstacles at all.
-		RequestNavMeshRefresh();
-	}
-
 	private bool ShouldProcessMapLoading()
 	{
 		bool isGameStarted = GameContext.Lobby?.IsGameStarted ?? false;
@@ -2418,14 +2382,6 @@ public partial class GameHost : Node3D
 		{
 			GameContext.RandomService.SetSeed(metadata.MapProperties.TestRandomSeed);
 		}
-	}
-
-	private static void ReportStringTableCollisions()
-	{
-		int collisions = Realm.Ecs.StringRegistry.CollisionCount;
-		if (collisions == 0) return;
-
-		GD.PushError($"[GameHost] {collisions} texts collided on their content hash and moved into the reserved identifier range, so peers can disagree about which text an identifier stands for: {Realm.Ecs.StringRegistry.CollisionSummary}");
 	}
 
 	private void LoadCustomTerrain(string rawMapName)
