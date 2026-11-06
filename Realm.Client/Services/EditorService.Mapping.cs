@@ -107,14 +107,14 @@ public partial class EditorService
 
 		if (terrain.Width != width || terrain.Depth != depth)
 		{
-			GD.PrintErr($"[EditorService] Generated terrain grid {width}x{depth} does not match the live grid {terrain.Width}x{terrain.Depth}.");
+			GameLog.LogError($"[EditorService] Generated terrain grid {width}x{depth} does not match the live grid {terrain.Width}x{terrain.Depth}.");
 			return false;
 		}
 
 		int cellCount = width * depth;
 		if (tiers.Length != cellCount || groundMaterials.Length != cellCount)
 		{
-			GD.PrintErr($"[EditorService] Generated terrain arrays do not match {cellCount} cells.");
+			GameLog.LogError($"[EditorService] Generated terrain arrays do not match {cellCount} cells.");
 			return false;
 		}
 
