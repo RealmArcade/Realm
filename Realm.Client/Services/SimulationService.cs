@@ -1113,8 +1113,6 @@ public class SimulationService
 		}
 	}
 
-	private const float FollowRetargetThreshold = 1.0f;
-
 	private const float StationaryVelocitySquared = 0.01f;
 
 	/// <summary>

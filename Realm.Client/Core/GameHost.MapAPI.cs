@@ -441,8 +441,6 @@ public partial class GameHost
 		}
 	}
 
-	private event Action<int>? _onTimerExpired;
-
 	public bool IsPlayerComputer(int playerIndex)
 	{
 		if (playerIndex == 0) return true;
