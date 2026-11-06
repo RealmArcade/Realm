@@ -73,12 +73,7 @@ public partial class TagEditorDialog : FloatingDialogBase
 		scrollPanel.SizeFlagsVertical = SizeFlags.ExpandFill;
 		scrollPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateLightInnerPanel());
 
-		var scroll = new ScrollContainer();
-		scroll.Name = "Scroll_ScrollContainer";
-		scroll.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		scroll.SizeFlagsVertical = SizeFlags.ExpandFill;
-		scroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
-		scroll.VerticalScrollMode = ScrollContainer.ScrollMode.Auto;
+		var scroll = UIStyle.CreateScrollingBody();
 
 		_tagsListContainer = new VBoxContainer();
 		_tagsListContainer.Name = "TagsListContainer_VBoxContainer";

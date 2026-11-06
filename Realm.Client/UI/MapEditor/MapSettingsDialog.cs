@@ -71,12 +71,7 @@ public partial class MapSettingsDialog : FloatingDialogBase
 
 	private VBoxContainer SetupMainContainers()
 	{
-		var scroll = new ScrollContainer();
-		scroll.Name = "Scroll_ScrollContainer";
-		scroll.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		scroll.SizeFlagsVertical = SizeFlags.ExpandFill;
-		scroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
-		scroll.VerticalScrollMode = ScrollContainer.ScrollMode.Auto;
+		var scroll = UIStyle.CreateScrollingBody();
 		BodyContainer.AddChild(scroll);
 
 		var contentVBox = new VBoxContainer();

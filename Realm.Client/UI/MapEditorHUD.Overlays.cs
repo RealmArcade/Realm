@@ -1487,12 +1487,7 @@ namespace Realm.Client.UI
 			titleMargin.AddChild(lblTitle);
 			vbox.AddChild(titleMargin);
 
-			var scroll = new ScrollContainer();
-			scroll.Name = "Scroll_ScrollContainer";
-			scroll.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-			scroll.SizeFlagsVertical = SizeFlags.ExpandFill;
-			scroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
-			scroll.VerticalScrollMode = ScrollContainer.ScrollMode.Auto;
+			var scroll = UIStyle.CreateScrollingBody();
 			vbox.AddChild(scroll);
 
 			var grid = new GridContainer();

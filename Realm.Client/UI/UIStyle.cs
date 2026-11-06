@@ -915,6 +915,17 @@ public static class UIStyle
 		button.AddThemeStyleboxOverride("pressed", CreateHUDButtonStyle(false, true));
 	}
 
+	public static ScrollContainer CreateScrollingBody()
+	{
+		var scroll = new ScrollContainer();
+		scroll.Name = "Scroll_ScrollContainer";
+		scroll.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		scroll.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
+		scroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
+		scroll.VerticalScrollMode = ScrollContainer.ScrollMode.Auto;
+		return scroll;
+	}
+
 	private static StyleBox CreateArrowButtonStyle(Color modulateColor)
 	{
 		var style = new StyleBoxTexture();
