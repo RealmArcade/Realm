@@ -83,7 +83,7 @@ public class MapDistributionClient
 
 		if (!MapAssetManager.Storage.CheckFreeDiskSpaceAcceptingDownloads())
 		{
-			GD.PrintErr("[MapDistributionClient] Download aborted: Insufficient disk space on target storage drive (< 1% free).");
+			GameLog.LogError("[MapDistributionClient] Download aborted: Insufficient disk space on target storage drive (< 1% free).");
 			return false;
 		}
 
@@ -189,7 +189,7 @@ public class MapDistributionClient
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[MapDistributionClient] HTTP server download error from {serverUrl}: {ex.Message}");
+			GameLog.LogError($"[MapDistributionClient] HTTP server download error from {serverUrl}: {ex.Message}");
 			return false;
 		}
 	}
@@ -238,7 +238,7 @@ public class MapDistributionClient
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[MapDistributionClient] Seeder query error: {ex.Message}");
+			GameLog.LogError($"[MapDistributionClient] Seeder query error: {ex.Message}");
 		}
 
 		return candidateSeeders;
