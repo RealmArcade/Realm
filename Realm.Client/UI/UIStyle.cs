@@ -926,6 +926,14 @@ public static class UIStyle
 		return scroll;
 	}
 
+	public static CenterContainer CreateCenteredOverlay()
+	{
+		var center = new CenterContainer();
+		center.Name = "Center_CenterContainer";
+		center.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+		return center;
+	}
+
 	private static StyleBox CreateArrowButtonStyle(Color modulateColor)
 	{
 		var style = new StyleBoxTexture();
