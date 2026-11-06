@@ -193,7 +193,7 @@ public class MapTemplateImportService
 		JsonObject? destinationRoot = LoadDestinationMetadata(destinationWorkspacePath);
 		if (destinationRoot == null)
 		{
-			GD.PrintErr($"[MapTemplateImportService] Destination metadata.json is missing: {destinationMetadataPath}");
+			GameLog.LogError($"[MapTemplateImportService] Destination metadata.json is missing: {destinationMetadataPath}");
 			summary.FailedTemplates.AddRange(selectedTemplates.Select(candidate => $"{candidate.ObjectType}: {candidate.DisplayName}"));
 			return summary;
 		}
@@ -424,7 +424,7 @@ public class MapTemplateImportService
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[MapTemplateImportService] Failed to read source metadata '{metadataPath}': {ex.Message}");
+			GameLog.LogError($"[MapTemplateImportService] Failed to read source metadata '{metadataPath}': {ex.Message}");
 			return null;
 		}
 	}
@@ -440,7 +440,7 @@ public class MapTemplateImportService
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[MapTemplateImportService] Failed to read destination metadata '{metadataPath}': {ex.Message}");
+			GameLog.LogError($"[MapTemplateImportService] Failed to read destination metadata '{metadataPath}': {ex.Message}");
 			return null;
 		}
 	}
@@ -454,7 +454,7 @@ public class MapTemplateImportService
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[MapTemplateImportService] Failed to save destination metadata '{metadataPath}': {ex.Message}");
+			GameLog.LogError($"[MapTemplateImportService] Failed to save destination metadata '{metadataPath}': {ex.Message}");
 		}
 	}
 
@@ -546,7 +546,7 @@ public class MapTemplateImportService
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[MapTemplateImportService] Failed to read manifest '{manifestFilePath}': {ex.Message}");
+			GameLog.LogError($"[MapTemplateImportService] Failed to read manifest '{manifestFilePath}': {ex.Message}");
 			return new MapManifest();
 		}
 	}
