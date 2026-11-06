@@ -448,7 +448,7 @@ public partial class GlbThumbnailRenderer : Node
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[GlbThumbnailRenderer] Error preparing {request.FilePath}: {ex.Message}");
+			GameLog.LogError($"[GlbThumbnailRenderer] Error preparing {request.FilePath}: {ex.Message}");
 			if (scene != null && scene.GetParent() == null)
 			{
 				scene.QueueFree();
@@ -530,7 +530,7 @@ public partial class GlbThumbnailRenderer : Node
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[GlbThumbnailRenderer] Capture failed: {ex.Message}");
+			GameLog.LogError($"[GlbThumbnailRenderer] Capture failed: {ex.Message}");
 		}
 		finally
 		{
