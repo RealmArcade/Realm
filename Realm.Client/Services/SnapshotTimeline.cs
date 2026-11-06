@@ -111,6 +111,8 @@ public class SnapshotTimeline
 	private int _starvationsSinceArrival;
 	private int _lateStarvationsInWindow;
 	private int _largestStallGapInWindow;
+	private double _starvationStartedSeconds;
+	private bool _starvationMeasured;
 	private int _delaySequences = MinimumDelaySequences;
 
 	/// <summary>
@@ -300,7 +302,7 @@ public class SnapshotTimeline
 		if (error > ResynchronizeSequences)
 		{
 			_cursor = target;
-			_isStarved = false;
+			EndStarvation();
 		}
 		else if (error < 0f && _isStarved && _cursor - target <= MaximumCatchUpHoldSequences)
 		{
@@ -334,6 +336,8 @@ public class SnapshotTimeline
 					StarvationCount++;
 					_starvationsSinceArrival++;
 					_isStarved = true;
+					_starvationStartedSeconds = _timelineSeconds;
+					_starvationMeasured = LagProbe.IsEnabled;
 					LagProbe.Count(LagEvent.ClientStarvations);
 				}
 
@@ -342,7 +346,7 @@ public class SnapshotTimeline
 			else
 			{
 				_cursor += advance;
-				_isStarved = false;
+				EndStarvation();
 			}
 		}
 
@@ -545,6 +549,20 @@ public class SnapshotTimeline
 		velocity = ResolveVelocity(_positions[oldestIndex], _positions[baseIndex + (oldestOffset + 1) % SamplesPerUnit], _sequences[baseIndex + (oldestOffset + 1) % SamplesPerUnit] - _sequences[oldestIndex]);
 		position = ReleaseBackwards(entityId, position);
 		return true;
+	}
+
+	/// <summary>
+	///     Records how long a screen spent holding its clock still, which is how long the units it was drawing stood in place.
+	///     The count of stalls says how often the buffer ran out; this says whether any of them lasted long enough to be seen,
+	///     which is the only part of a stall a player can perceive.
+	/// </summary>
+	private void EndStarvation()
+	{
+		if (!_isStarved) return;
+
+		_isStarved = false;
+		if (_starvationMeasured) LagProbe.RecordWorst(LagEvent.ClientStarvationHoldMilliseconds, (_timelineSeconds - _starvationStartedSeconds) * 1000d);
+		_starvationMeasured = false;
 	}
 
 	/// <summary>

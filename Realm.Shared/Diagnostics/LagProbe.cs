@@ -58,6 +58,7 @@ public enum LagEvent
 	ClientSequenceGaps,
 	ClientWorstSkippedSequences,
 	ClientStarvations,
+	ClientStarvationHoldMilliseconds,
 	ClientExtrapolatedSamples,
 	ClientDescriptionsDiscardedByQueue,
 	ClientDescriptionsSuperseded,

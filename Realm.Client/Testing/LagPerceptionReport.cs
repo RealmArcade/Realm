@@ -23,11 +23,27 @@ public sealed record LagScenario(string Name, int AddedRoundTripMilliseconds, in
 	public double MaximumDrawnWorldAgeMilliseconds { get; init; } = double.MaxValue;
 
 	/// <summary>
-	///     How many times this scenario may rebuild the world. A baseline is a visible snap and puts a hundred kilobytes
-	///     on the reliable stream, so the count is a ceiling on how often a screen is allowed to be told everything again
-	///     rather than be told what changed.
+	///     How many times this scenario may rebuild the world. A baseline is a whole world rather than the units that
+	///     changed, which puts about ten kilobytes on the reliable stream, and it is the fallback a screen pays for when a
+	///     run it was waiting on never arrives. It is not a visible snap: a baseline is applied through the same per-unit
+	///     description path a delta is, so a unit it describes where the timeline already has it is drawn where it was
+	///     already going. The unit jumps this harness watches for are counted separately.
 	/// </summary>
 	public double MaximumBaselines { get; init; } = double.MaxValue;
+
+	/// <summary>
+	///     The longest the drawn world may stand still in one go. This is what a stall looks like on screen: every unit
+	///     holding its ground while the clock behind them is frozen. A pause the width of a frame is invisible, a fifth of
+	///     a second reads as a hitch, and a second is a freeze a player remembers.
+	///     <para>
+	///         Read it beside the longest client frame this run drew. A harness that runs twelve players, an authority and
+	///         a screen on one machine stalls that machine, and a screen that stopped for a third of a second cannot draw the
+	///         descriptions that arrived during it; those stalls reach this figure without the link having done anything.
+	///         The ceilings here are set where a person notices rather than where the best run landed, because below this
+	///         the measurement is of the machine.
+	///     </para>
+	/// </summary>
+	public double MaximumLongestFreezeMilliseconds { get; init; } = double.MaxValue;
 
 	public string Describe()
 	{
@@ -48,6 +64,7 @@ public sealed record LagScenario(string Name, int AddedRoundTripMilliseconds, in
 		CheckCeiling(metrics, violations, "client.gauges.ClientPresentationDelayMilliseconds.p50", "presentation delay p50", MaximumPresentationDelayMilliseconds, "ms");
 		CheckCeiling(metrics, violations, "client.gauges.ClientDrawnWorldAgeMilliseconds.mean", "drawn world age mean", MaximumDrawnWorldAgeMilliseconds, "ms");
 		CheckCeiling(metrics, violations, "client.events.ClientBaselinesApplied.count", "baselines applied", MaximumBaselines, "");
+		CheckCeiling(metrics, violations, "client.events.ClientStarvationHoldMilliseconds.worst", "longest freeze", MaximumLongestFreezeMilliseconds, "ms");
 		return violations;
 	}
 
@@ -128,6 +145,8 @@ public static class LagMetricCatalog
 		new("client.events.ClientWorstSkippedSequences.worst", "widest description gap", "seq"),
 		new("client.events.ClientDescriptionRepeatsRequested.count", "client description repeats requested", "count"),
 		new("client.events.ClientStarvations.count", "presentation starvations", "count"),
+		new("client.events.ClientStarvationHoldMilliseconds.count", "stalls the screen recovered from", "count"),
+		new("client.events.ClientStarvationHoldMilliseconds.worst", "longest stall held still", "ms"),
 		new("client.events.ClientExtrapolatedSamples.count", "samples drawn ahead of the cursor", "count"),
 		new("client.events.ClientDescriptionsDiscardedByQueue.count", "descriptions discarded by queue", "count"),
 		new("client.events.ClientDescriptionsSuperseded.count", "descriptions superseded while waiting", "count"),

@@ -32,25 +32,29 @@ public static class LagPerceptionScenarios
 		{
 			MaximumPresentationDelayMilliseconds = 130,
 			MaximumDrawnWorldAgeMilliseconds = 450,
-			MaximumBaselines = 8
+			MaximumBaselines = 8,
+			MaximumLongestFreezeMilliseconds = 900
 		},
 		new("loss25", 0, SeededPacketLossPercent)
 		{
 			MaximumPresentationDelayMilliseconds = 220,
 			MaximumDrawnWorldAgeMilliseconds = 550,
-			MaximumBaselines = 10
+			MaximumBaselines = 10,
+			MaximumLongestFreezeMilliseconds = 900
 		},
 		new("ping250", HighLatencyRoundTripMilliseconds, 0)
 		{
 			MaximumPresentationDelayMilliseconds = 340,
 			MaximumDrawnWorldAgeMilliseconds = 720,
-			MaximumBaselines = 10
+			MaximumBaselines = 10,
+			MaximumLongestFreezeMilliseconds = 900
 		},
 		new("ping250_loss25", HighLatencyRoundTripMilliseconds, SeededPacketLossPercent)
 		{
 			MaximumPresentationDelayMilliseconds = 460,
 			MaximumDrawnWorldAgeMilliseconds = 1150,
-			MaximumBaselines = 34
+			MaximumBaselines = 34,
+			MaximumLongestFreezeMilliseconds = 1800
 		}
 	};
 
