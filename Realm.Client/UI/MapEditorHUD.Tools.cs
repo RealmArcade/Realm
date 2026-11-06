@@ -251,269 +251,7 @@ namespace Realm.Client.UI
 
 				BuildBrushAccordion();
 
-				_accordionToolSettings = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion");
-				_btnHeaderToolSettings = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/BtnHeaderToolSettings");
-				_contentToolSettings = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings");
-				StyleAccordionHeader(_btnHeaderToolSettings);
-				SetupAccordion(_btnHeaderToolSettings, _contentToolSettings, TranslationServer.Translate("Tool Settings"));
-
-				_containerTextureSettings = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture");
-				_lblTerrainTexture = GetNode<Label>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/LblTerrainTexture");
-				_lblCliffTexture = GetNode<Label>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/LblCliffTexture");
-
-				ChkApplyGroundTexture = new CheckBox();
-				ChkApplyGroundTexture.Name = "ChkApplyGroundTexture";
-				ChkApplyGroundTexture.Text = TranslationServer.Translate("Ground (Q) [shift]");
-				ChkApplyGroundTexture.ButtonPressed = true;
-				ChkApplyGroundTexture.FocusMode = FocusModeEnum.None;
-				ChkApplyGroundTexture.AddThemeFontSizeOverride("font_size", 10);
-				UIStyle.ApplyCheckboxStyle(ChkApplyGroundTexture);
-
-				ChkApplyCliffTexture = new CheckBox();
-				ChkApplyCliffTexture.Name = "ChkApplyCliffTexture";
-				ChkApplyCliffTexture.Text = TranslationServer.Translate("Cliff (Q) [control]");
-				ChkApplyCliffTexture.ButtonPressed = true;
-				ChkApplyCliffTexture.FocusMode = FocusModeEnum.None;
-				ChkApplyCliffTexture.AddThemeFontSizeOverride("font_size", 10);
-				UIStyle.ApplyCheckboxStyle(ChkApplyCliffTexture);
-
-				ChkApplyGroundTexture.Toggled += (toggled) =>
-				{
-					if (!toggled && (ChkApplyCliffTexture == null || !ChkApplyCliffTexture.ButtonPressed))
-					{
-						ChkApplyCliffTexture.SetPressedNoSignal(true);
-					}
-
-					UpdateTextureLabels();
-				};
-
-				ChkApplyCliffTexture.Toggled += (toggled) =>
-				{
-					if (!toggled && (ChkApplyGroundTexture == null || !ChkApplyGroundTexture.ButtonPressed))
-					{
-						ChkApplyGroundTexture.SetPressedNoSignal(true);
-					}
-
-					UpdateTextureLabels();
-				};
-
-				if (_containerTextureSettings != null && _lblTerrainTexture != null && _lblCliffTexture != null)
-				{
-					RowGroundTexture = new HBoxContainer();
-					RowGroundTexture.Name = "RowGroundTexture";
-					RowGroundTexture.AddThemeConstantOverride("separation", 6);
-
-					int idxTerrain = _lblTerrainTexture.GetIndex();
-					_containerTextureSettings.RemoveChild(_lblTerrainTexture);
-					RowGroundTexture.AddChild(_lblTerrainTexture);
-					_lblTerrainTexture.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-					RowGroundTexture.AddChild(ChkApplyGroundTexture);
-					_containerTextureSettings.AddChild(RowGroundTexture);
-					_containerTextureSettings.MoveChild(RowGroundTexture, idxTerrain);
-
-					RowCliffTexture = new HBoxContainer();
-					RowCliffTexture.Name = "RowCliffTexture";
-					RowCliffTexture.AddThemeConstantOverride("separation", 6);
-
-					int idxCliff = _lblCliffTexture.GetIndex();
-					_containerTextureSettings.RemoveChild(_lblCliffTexture);
-					RowCliffTexture.AddChild(_lblCliffTexture);
-					_lblCliffTexture.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-					RowCliffTexture.AddChild(ChkApplyCliffTexture);
-					_containerTextureSettings.AddChild(RowCliffTexture);
-					_containerTextureSettings.MoveChild(RowCliffTexture, idxCliff);
-				}
-
-				var btnTextureSwap = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/BtnTextureSwap");
-				SetupOptionButton(btnTextureSwap, $"{UnicodeIcons.REFRESH} SWAP TEXTURES (GLOBAL)", () =>
-				{
-					if (GameContext.Host != null)
-					{
-						GameContext.Host.SwapTexturesExternal(GameContext.EditorService.EditorPaintTextureIndex, GameContext.EditorService.EditorCliffPaintTextureIndex);
-					}
-				}, 11, "Globally swap grass/dirt texture assignment indices (X)");
-
-				_scrollSwatches = GetNodeOrNull<ScrollContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/ScrollSwatches");
-				_gridSwatches = GetNodeOrNull<Control>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/ScrollSwatches/GridSwatches")
-				                ?? GetNodeOrNull<Control>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/GridSwatches");
-
-				if (_gridSwatches != null && _scrollSwatches == null && _gridSwatches.GetParent() is VBoxContainer parentVBox)
-				{
-					int gridIndex = _gridSwatches.GetIndex();
-					parentVBox.RemoveChild(_gridSwatches);
-					_scrollSwatches = new ScrollContainer();
-					_scrollSwatches.Name = "ScrollSwatches";
-					_scrollSwatches.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
-					_scrollSwatches.VerticalScrollMode = ScrollContainer.ScrollMode.Auto;
-					_scrollSwatches.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-					_scrollSwatches.AddChild(_gridSwatches);
-					parentVBox.AddChild(_scrollSwatches);
-					parentVBox.MoveChild(_scrollSwatches, gridIndex);
-				}
-
-				SetupTextureSwatches(true);
-
-				_btnReplaceTexture = new Button();
-				_btnReplaceTexture.Name = "BtnReplaceTexture";
-				_btnReplaceTexture.Set("icon_max_width", 0);
-				SetupOptionButton(_btnReplaceTexture, $"{UnicodeIcons.UPLOAD} REPLACE TEXTURE", () => _replaceTextureDialog?.OpenDialog(), 11, "Replace all instances of a texture with another texture across the map");
-				_containerTextureSettings?.AddChild(_btnReplaceTexture);
-
-				_containerPathingSettings = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerPathing");
-				var pathingContent = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerPathing/PathingContent");
-				_chkShallowWater = pathingContent.GetNode<CheckBox>("ChkShallowWater");
-				_chkDeepWater = pathingContent.GetNode<CheckBox>("ChkDeepWater");
-				_chkFlying = pathingContent.GetNode<CheckBox>("ChkFlying");
-				_chkGround = pathingContent.GetNode<CheckBox>("ChkGround");
-				_chkBuildable = pathingContent.GetNode<CheckBox>("ChkBuildable");
-
-				SetupPathingCheckBoxRow(pathingContent, _chkShallowWater, new Color(0.2f, 0.6f, 1.0f), "Shallow Water");
-				SetupPathingCheckBoxRow(pathingContent, _chkDeepWater, new Color(0.0f, 0.15f, 0.7f), "Deep Water");
-				SetupPathingCheckBoxRow(pathingContent, _chkFlying, new Color(0.85f, 0.85f, 0.0f), "Flying");
-				SetupPathingCheckBoxRow(pathingContent, _chkGround, new Color(0.2f, 0.85f, 0.2f), "Ground");
-				SetupPathingCheckBoxRow(pathingContent, _chkBuildable, new Color(0.6f, 0.2f, 0.8f), "Buildable");
-				_chkGround.ButtonPressed = true;
-
-				var pathingModeRow = pathingContent.GetNodeOrNull<HBoxContainer>("PathingModeRow");
-				if (pathingModeRow != null)
-				{
-					var modePanel = new PanelContainer();
-					modePanel.Name = "ModeRowPanel";
-					modePanel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-					var modeStyle = new StyleBoxFlat();
-					modeStyle.BgColor = new Color(0.12f, 0.13f, 0.16f, 0.82f);
-					modeStyle.BorderColor = new Color(0.35f, 0.33f, 0.28f, 0.75f);
-					modeStyle.SetBorderWidthAll(1);
-					modeStyle.SetCornerRadiusAll(4);
-					modeStyle.ContentMarginLeft = 8;
-					modeStyle.ContentMarginRight = 8;
-					modeStyle.ContentMarginTop = 4;
-					modeStyle.ContentMarginBottom = 4;
-					modePanel.AddThemeStyleboxOverride("panel", modeStyle);
-
-					int modeIdx = pathingModeRow.GetIndex();
-					pathingContent.RemoveChild(pathingModeRow);
-					modePanel.AddChild(pathingModeRow);
-					pathingContent.AddChild(modePanel);
-					pathingContent.MoveChild(modePanel, modeIdx);
-				}
-
-				_optPathingMode = pathingContent.GetNode<OptionButton>("ModeRowPanel/PathingModeRow/OptPathingMode");
-				_optPathingMode.AddItem(TranslationServer.Translate("Add Pathing Attribute"), 0);
-				_optPathingMode.AddItem(TranslationServer.Translate("Clear Pathing Attribute"), 1);
-				_optPathingMode.Selected = 0;
-
-				_containerCategorySelector = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerCategorySelector");
-
-
-				_containerEyedropperSettings = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerEyedropper");
-				_optEyedropperMode = GetNode<OptionButton>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerEyedropper/OptEyedropperMode");
-				_optEyedropperMode.AddItem(TranslationServer.Translate("Auto-Detect Mode"), 0);
-				_optEyedropperMode.AddItem(TranslationServer.Translate("Pick 3D Asset"), 1);
-				_optEyedropperMode.AddItem(TranslationServer.Translate("Pick Decal"), 2);
-				_optEyedropperMode.AddItem(TranslationServer.Translate("Pick Terrain Texture"), 3);
-				_optEyedropperMode.AddItem(TranslationServer.Translate("Pick Height"), 4);
-				_optEyedropperMode.Selected = 0;
-
-				_containerPasteSettings = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerPaste");
-				var chkPasteHeights = GetNode<CheckBox>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerPaste/PasteOptionsBox/ChkPasteHeights");
-				chkPasteHeights.Text = TranslationServer.Translate("HeightMap");
-				chkPasteHeights.ButtonPressed = true;
-				var chkPasteTextures = GetNode<CheckBox>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerPaste/PasteOptionsBox/ChkPasteTextures");
-				chkPasteTextures.Text = TranslationServer.Translate("Textures");
-				chkPasteTextures.ButtonPressed = true;
-				var chkPasteEntities = GetNode<CheckBox>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerPaste/PasteOptionsBox/ChkPasteEntities");
-				chkPasteEntities.Text = TranslationServer.Translate("Objects");
-				chkPasteEntities.ButtonPressed = true;
-				var chkPastePathing = GetNode<CheckBox>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerPaste/PasteOptionsBox/ChkPastePathing");
-				chkPastePathing.Text = TranslationServer.Translate("Pathing");
-				chkPastePathing.ButtonPressed = true;
-
-				chkPasteTextures.Toggled += (toggled) =>
-				{
-					if (GameContext.Host != null) GameContext.EditorService.PasteOptionTextures = toggled;
-				};
-				chkPasteHeights.Toggled += (toggled) =>
-				{
-					if (GameContext.Host != null) GameContext.EditorService.PasteOptionHeights = toggled;
-				};
-				chkPasteEntities.Toggled += (toggled) =>
-				{
-					if (GameContext.Host != null) GameContext.EditorService.PasteOptionEntities = toggled;
-				};
-				chkPastePathing.Toggled += (toggled) =>
-				{
-					if (GameContext.Host != null) GameContext.Host.PasteOptionPathing = toggled;
-				};
-
-				_lblPasteRotation = GetNode<Label>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerPaste/PasteOptionsBox/PasteRotationBox/Header/LblPasteRotationValue");
-				_sldPasteRotation = GetNode<HSlider>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerPaste/PasteOptionsBox/PasteRotationBox/SldPasteRotation");
-				_sldPasteRotation.ValueChanged += (val) =>
-				{
-					float fVal = (float)val;
-					_lblPasteRotation.Text = fVal.ToString("F0") + "°";
-					if (GameContext.Host != null)
-					{
-						GameContext.EditorService.EditorPasteRotation = fVal;
-					}
-				};
-				_sldPasteRotation.DragStarted += () => _isDraggingSlider = true;
-				_sldPasteRotation.DragEnded += (valueChanged) => _isDraggingSlider = false;
-
-				_btnClipboardBrushShape = new Button();
-				_btnClipboardBrushShape.Name = "BtnClipboardBrushShape";
-				_btnClipboardBrushShape.Set("icon_max_width", 0);
-				SetupOptionButton(_btnClipboardBrushShape, GameContext.Host != null && !GameContext.Host.EditorBrushIsSquare ? $"{UnicodeIcons.CIRCLE} BRUSH: CIRCLE" : $"{UnicodeIcons.SQUARE} BRUSH: SQUARE", () =>
-				{
-					if (GameContext.Host != null)
-					{
-						GameContext.Host.EditorBrushIsSquare = !GameContext.Host.EditorBrushIsSquare;
-						UpdateBrushShapeExternal(GameContext.Host.EditorBrushIsSquare);
-						ShowFeedback(GameContext.Host.EditorBrushIsSquare ? TranslationServer.Translate("Brush Shape: SQUARE") : TranslationServer.Translate("Brush Shape: CIRCLE"));
-					}
-				}, 10, "Toggle square / circular selection and clipboard brush shape");
-
-				_optClipboardMirrorMode = new OptionButton();
-				_optClipboardMirrorMode.Name = "OptClipboardMirrorMode";
-				_optClipboardMirrorMode.Set("icon_max_width", 0);
-				SetupMirrorDropdown(_optClipboardMirrorMode, "Select terrain, clipboard and object mirroring symmetry mode");
-
-				_btnPasteReflection = new Button();
-				_btnPasteReflection.Name = "BtnPasteReflection";
-				_btnPasteReflection.Set("icon_max_width", 0);
-				SetupOptionButton(_btnPasteReflection, $"{UnicodeIcons.ARROWS_H} REFLECT: NONE", () => CyclePasteReflection(), 11, "Cycle reflection mode for paste operation (None, Horizontal, Vertical)");
-
-				_btnPasteAnchor = new Button();
-				_btnPasteAnchor.Name = "BtnPasteAnchor";
-				_btnPasteAnchor.Set("icon_max_width", 0);
-				SetupOptionButton(_btnPasteAnchor, $"{UnicodeIcons.MOUSE_POINTER} ANCHOR: CENTER", () => CyclePasteAnchor(), 11, "Cycle pivot / anchor tile used to align pasted selection (Center, Corners)");
-
-				_lblPasteTelemetry = new Label();
-				_lblPasteTelemetry.Name = "LblPasteTelemetry";
-				_lblPasteTelemetry.AddThemeFontSizeOverride("font_size", 10);
-				_lblPasteTelemetry.AddThemeColorOverride("font_color", new Color(0.3f, 0.85f, 1.0f));
-				_lblPasteTelemetry.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-				_lblPasteTelemetry.CustomMinimumSize = new Vector2(200, 0);
-				_lblPasteTelemetry.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-				_lblPasteTelemetry.Text = "";
-
-				var pasteOptionsBox = _containerPasteSettings.GetNodeOrNull<VBoxContainer>("PasteOptionsBox");
-				if (pasteOptionsBox != null)
-				{
-					var shapeMirrorGrid = new GridContainer();
-					shapeMirrorGrid.Name = "ClipboardShapeMirrorGrid";
-					shapeMirrorGrid.Columns = 2;
-					shapeMirrorGrid.AddThemeConstantOverride("h_separation", 6);
-					shapeMirrorGrid.AddThemeConstantOverride("v_separation", 4);
-					shapeMirrorGrid.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-					shapeMirrorGrid.AddChild(_btnClipboardBrushShape);
-					shapeMirrorGrid.AddChild(_optClipboardMirrorMode);
-					pasteOptionsBox.AddChild(shapeMirrorGrid);
-
-					pasteOptionsBox.AddChild(_btnPasteReflection);
-					pasteOptionsBox.AddChild(_btnPasteAnchor);
-					pasteOptionsBox.AddChild(_lblPasteTelemetry);
-				}
+				BuildToolSettingsAccordion();
 
 				_accordionInspector = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion");
 				_btnHeaderInspector = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/BtnHeaderInspector");
@@ -1650,6 +1388,273 @@ namespace Realm.Client.UI
 			_btnWaterProfiles.AddThemeFontSizeOverride("font_size", 11);
 			_btnWaterProfiles.Pressed += () => OpenWaterProfileDialog();
 			_contentWater.AddChild(_btnWaterProfiles);
+		}
+
+		private void BuildToolSettingsAccordion()
+		{
+			_accordionToolSettings = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion");
+			_btnHeaderToolSettings = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/BtnHeaderToolSettings");
+			_contentToolSettings = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings");
+			StyleAccordionHeader(_btnHeaderToolSettings);
+			SetupAccordion(_btnHeaderToolSettings, _contentToolSettings, TranslationServer.Translate("Tool Settings"));
+
+			_containerTextureSettings = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture");
+			_lblTerrainTexture = GetNode<Label>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/LblTerrainTexture");
+			_lblCliffTexture = GetNode<Label>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/LblCliffTexture");
+
+			ChkApplyGroundTexture = new CheckBox();
+			ChkApplyGroundTexture.Name = "ChkApplyGroundTexture";
+			ChkApplyGroundTexture.Text = TranslationServer.Translate("Ground (Q) [shift]");
+			ChkApplyGroundTexture.ButtonPressed = true;
+			ChkApplyGroundTexture.FocusMode = FocusModeEnum.None;
+			ChkApplyGroundTexture.AddThemeFontSizeOverride("font_size", 10);
+			UIStyle.ApplyCheckboxStyle(ChkApplyGroundTexture);
+
+			ChkApplyCliffTexture = new CheckBox();
+			ChkApplyCliffTexture.Name = "ChkApplyCliffTexture";
+			ChkApplyCliffTexture.Text = TranslationServer.Translate("Cliff (Q) [control]");
+			ChkApplyCliffTexture.ButtonPressed = true;
+			ChkApplyCliffTexture.FocusMode = FocusModeEnum.None;
+			ChkApplyCliffTexture.AddThemeFontSizeOverride("font_size", 10);
+			UIStyle.ApplyCheckboxStyle(ChkApplyCliffTexture);
+
+			ChkApplyGroundTexture.Toggled += (toggled) =>
+			{
+				if (!toggled && (ChkApplyCliffTexture == null || !ChkApplyCliffTexture.ButtonPressed))
+				{
+					ChkApplyCliffTexture.SetPressedNoSignal(true);
+				}
+
+				UpdateTextureLabels();
+			};
+
+			ChkApplyCliffTexture.Toggled += (toggled) =>
+			{
+				if (!toggled && (ChkApplyGroundTexture == null || !ChkApplyGroundTexture.ButtonPressed))
+				{
+					ChkApplyGroundTexture.SetPressedNoSignal(true);
+				}
+
+				UpdateTextureLabels();
+			};
+
+			if (_containerTextureSettings != null && _lblTerrainTexture != null && _lblCliffTexture != null)
+			{
+				RowGroundTexture = new HBoxContainer();
+				RowGroundTexture.Name = "RowGroundTexture";
+				RowGroundTexture.AddThemeConstantOverride("separation", 6);
+
+				int idxTerrain = _lblTerrainTexture.GetIndex();
+				_containerTextureSettings.RemoveChild(_lblTerrainTexture);
+				RowGroundTexture.AddChild(_lblTerrainTexture);
+				_lblTerrainTexture.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+				RowGroundTexture.AddChild(ChkApplyGroundTexture);
+				_containerTextureSettings.AddChild(RowGroundTexture);
+				_containerTextureSettings.MoveChild(RowGroundTexture, idxTerrain);
+
+				RowCliffTexture = new HBoxContainer();
+				RowCliffTexture.Name = "RowCliffTexture";
+				RowCliffTexture.AddThemeConstantOverride("separation", 6);
+
+				int idxCliff = _lblCliffTexture.GetIndex();
+				_containerTextureSettings.RemoveChild(_lblCliffTexture);
+				RowCliffTexture.AddChild(_lblCliffTexture);
+				_lblCliffTexture.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+				RowCliffTexture.AddChild(ChkApplyCliffTexture);
+				_containerTextureSettings.AddChild(RowCliffTexture);
+				_containerTextureSettings.MoveChild(RowCliffTexture, idxCliff);
+			}
+
+			var btnTextureSwap = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/BtnTextureSwap");
+			SetupOptionButton(btnTextureSwap, $"{UnicodeIcons.REFRESH} SWAP TEXTURES (GLOBAL)", () =>
+			{
+				if (GameContext.Host != null)
+				{
+					GameContext.Host.SwapTexturesExternal(GameContext.EditorService.EditorPaintTextureIndex, GameContext.EditorService.EditorCliffPaintTextureIndex);
+				}
+			}, 11, "Globally swap grass/dirt texture assignment indices (X)");
+
+			_scrollSwatches = GetNodeOrNull<ScrollContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/ScrollSwatches");
+			_gridSwatches = GetNodeOrNull<Control>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/ScrollSwatches/GridSwatches")
+			                ?? GetNodeOrNull<Control>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/GridSwatches");
+
+			if (_gridSwatches != null && _scrollSwatches == null && _gridSwatches.GetParent() is VBoxContainer parentVBox)
+			{
+				int gridIndex = _gridSwatches.GetIndex();
+				parentVBox.RemoveChild(_gridSwatches);
+				_scrollSwatches = new ScrollContainer();
+				_scrollSwatches.Name = "ScrollSwatches";
+				_scrollSwatches.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
+				_scrollSwatches.VerticalScrollMode = ScrollContainer.ScrollMode.Auto;
+				_scrollSwatches.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+				_scrollSwatches.AddChild(_gridSwatches);
+				parentVBox.AddChild(_scrollSwatches);
+				parentVBox.MoveChild(_scrollSwatches, gridIndex);
+			}
+
+			SetupTextureSwatches(true);
+
+			_btnReplaceTexture = new Button();
+			_btnReplaceTexture.Name = "BtnReplaceTexture";
+			_btnReplaceTexture.Set("icon_max_width", 0);
+			SetupOptionButton(_btnReplaceTexture, $"{UnicodeIcons.UPLOAD} REPLACE TEXTURE", () => _replaceTextureDialog?.OpenDialog(), 11, "Replace all instances of a texture with another texture across the map");
+			_containerTextureSettings?.AddChild(_btnReplaceTexture);
+
+			_containerPathingSettings = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerPathing");
+			var pathingContent = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerPathing/PathingContent");
+			_chkShallowWater = pathingContent.GetNode<CheckBox>("ChkShallowWater");
+			_chkDeepWater = pathingContent.GetNode<CheckBox>("ChkDeepWater");
+			_chkFlying = pathingContent.GetNode<CheckBox>("ChkFlying");
+			_chkGround = pathingContent.GetNode<CheckBox>("ChkGround");
+			_chkBuildable = pathingContent.GetNode<CheckBox>("ChkBuildable");
+
+			SetupPathingCheckBoxRow(pathingContent, _chkShallowWater, new Color(0.2f, 0.6f, 1.0f), "Shallow Water");
+			SetupPathingCheckBoxRow(pathingContent, _chkDeepWater, new Color(0.0f, 0.15f, 0.7f), "Deep Water");
+			SetupPathingCheckBoxRow(pathingContent, _chkFlying, new Color(0.85f, 0.85f, 0.0f), "Flying");
+			SetupPathingCheckBoxRow(pathingContent, _chkGround, new Color(0.2f, 0.85f, 0.2f), "Ground");
+			SetupPathingCheckBoxRow(pathingContent, _chkBuildable, new Color(0.6f, 0.2f, 0.8f), "Buildable");
+			_chkGround.ButtonPressed = true;
+
+			var pathingModeRow = pathingContent.GetNodeOrNull<HBoxContainer>("PathingModeRow");
+			if (pathingModeRow != null)
+			{
+				var modePanel = new PanelContainer();
+				modePanel.Name = "ModeRowPanel";
+				modePanel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+				var modeStyle = new StyleBoxFlat();
+				modeStyle.BgColor = new Color(0.12f, 0.13f, 0.16f, 0.82f);
+				modeStyle.BorderColor = new Color(0.35f, 0.33f, 0.28f, 0.75f);
+				modeStyle.SetBorderWidthAll(1);
+				modeStyle.SetCornerRadiusAll(4);
+				modeStyle.ContentMarginLeft = 8;
+				modeStyle.ContentMarginRight = 8;
+				modeStyle.ContentMarginTop = 4;
+				modeStyle.ContentMarginBottom = 4;
+				modePanel.AddThemeStyleboxOverride("panel", modeStyle);
+
+				int modeIdx = pathingModeRow.GetIndex();
+				pathingContent.RemoveChild(pathingModeRow);
+				modePanel.AddChild(pathingModeRow);
+				pathingContent.AddChild(modePanel);
+				pathingContent.MoveChild(modePanel, modeIdx);
+			}
+
+			_optPathingMode = pathingContent.GetNode<OptionButton>("ModeRowPanel/PathingModeRow/OptPathingMode");
+			_optPathingMode.AddItem(TranslationServer.Translate("Add Pathing Attribute"), 0);
+			_optPathingMode.AddItem(TranslationServer.Translate("Clear Pathing Attribute"), 1);
+			_optPathingMode.Selected = 0;
+
+			_containerCategorySelector = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerCategorySelector");
+
+
+			_containerEyedropperSettings = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerEyedropper");
+			_optEyedropperMode = GetNode<OptionButton>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerEyedropper/OptEyedropperMode");
+			_optEyedropperMode.AddItem(TranslationServer.Translate("Auto-Detect Mode"), 0);
+			_optEyedropperMode.AddItem(TranslationServer.Translate("Pick 3D Asset"), 1);
+			_optEyedropperMode.AddItem(TranslationServer.Translate("Pick Decal"), 2);
+			_optEyedropperMode.AddItem(TranslationServer.Translate("Pick Terrain Texture"), 3);
+			_optEyedropperMode.AddItem(TranslationServer.Translate("Pick Height"), 4);
+			_optEyedropperMode.Selected = 0;
+
+			_containerPasteSettings = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerPaste");
+			var chkPasteHeights = GetNode<CheckBox>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerPaste/PasteOptionsBox/ChkPasteHeights");
+			chkPasteHeights.Text = TranslationServer.Translate("HeightMap");
+			chkPasteHeights.ButtonPressed = true;
+			var chkPasteTextures = GetNode<CheckBox>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerPaste/PasteOptionsBox/ChkPasteTextures");
+			chkPasteTextures.Text = TranslationServer.Translate("Textures");
+			chkPasteTextures.ButtonPressed = true;
+			var chkPasteEntities = GetNode<CheckBox>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerPaste/PasteOptionsBox/ChkPasteEntities");
+			chkPasteEntities.Text = TranslationServer.Translate("Objects");
+			chkPasteEntities.ButtonPressed = true;
+			var chkPastePathing = GetNode<CheckBox>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerPaste/PasteOptionsBox/ChkPastePathing");
+			chkPastePathing.Text = TranslationServer.Translate("Pathing");
+			chkPastePathing.ButtonPressed = true;
+
+			chkPasteTextures.Toggled += (toggled) =>
+			{
+				if (GameContext.Host != null) GameContext.EditorService.PasteOptionTextures = toggled;
+			};
+			chkPasteHeights.Toggled += (toggled) =>
+			{
+				if (GameContext.Host != null) GameContext.EditorService.PasteOptionHeights = toggled;
+			};
+			chkPasteEntities.Toggled += (toggled) =>
+			{
+				if (GameContext.Host != null) GameContext.EditorService.PasteOptionEntities = toggled;
+			};
+			chkPastePathing.Toggled += (toggled) =>
+			{
+				if (GameContext.Host != null) GameContext.Host.PasteOptionPathing = toggled;
+			};
+
+			_lblPasteRotation = GetNode<Label>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerPaste/PasteOptionsBox/PasteRotationBox/Header/LblPasteRotationValue");
+			_sldPasteRotation = GetNode<HSlider>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerPaste/PasteOptionsBox/PasteRotationBox/SldPasteRotation");
+			_sldPasteRotation.ValueChanged += (val) =>
+			{
+				float fVal = (float)val;
+				_lblPasteRotation.Text = fVal.ToString("F0") + "°";
+				if (GameContext.Host != null)
+				{
+					GameContext.EditorService.EditorPasteRotation = fVal;
+				}
+			};
+			_sldPasteRotation.DragStarted += () => _isDraggingSlider = true;
+			_sldPasteRotation.DragEnded += (valueChanged) => _isDraggingSlider = false;
+
+			_btnClipboardBrushShape = new Button();
+			_btnClipboardBrushShape.Name = "BtnClipboardBrushShape";
+			_btnClipboardBrushShape.Set("icon_max_width", 0);
+			SetupOptionButton(_btnClipboardBrushShape, GameContext.Host != null && !GameContext.Host.EditorBrushIsSquare ? $"{UnicodeIcons.CIRCLE} BRUSH: CIRCLE" : $"{UnicodeIcons.SQUARE} BRUSH: SQUARE", () =>
+			{
+				if (GameContext.Host != null)
+				{
+					GameContext.Host.EditorBrushIsSquare = !GameContext.Host.EditorBrushIsSquare;
+					UpdateBrushShapeExternal(GameContext.Host.EditorBrushIsSquare);
+					ShowFeedback(GameContext.Host.EditorBrushIsSquare ? TranslationServer.Translate("Brush Shape: SQUARE") : TranslationServer.Translate("Brush Shape: CIRCLE"));
+				}
+			}, 10, "Toggle square / circular selection and clipboard brush shape");
+
+			_optClipboardMirrorMode = new OptionButton();
+			_optClipboardMirrorMode.Name = "OptClipboardMirrorMode";
+			_optClipboardMirrorMode.Set("icon_max_width", 0);
+			SetupMirrorDropdown(_optClipboardMirrorMode, "Select terrain, clipboard and object mirroring symmetry mode");
+
+			_btnPasteReflection = new Button();
+			_btnPasteReflection.Name = "BtnPasteReflection";
+			_btnPasteReflection.Set("icon_max_width", 0);
+			SetupOptionButton(_btnPasteReflection, $"{UnicodeIcons.ARROWS_H} REFLECT: NONE", () => CyclePasteReflection(), 11, "Cycle reflection mode for paste operation (None, Horizontal, Vertical)");
+
+			_btnPasteAnchor = new Button();
+			_btnPasteAnchor.Name = "BtnPasteAnchor";
+			_btnPasteAnchor.Set("icon_max_width", 0);
+			SetupOptionButton(_btnPasteAnchor, $"{UnicodeIcons.MOUSE_POINTER} ANCHOR: CENTER", () => CyclePasteAnchor(), 11, "Cycle pivot / anchor tile used to align pasted selection (Center, Corners)");
+
+			_lblPasteTelemetry = new Label();
+			_lblPasteTelemetry.Name = "LblPasteTelemetry";
+			_lblPasteTelemetry.AddThemeFontSizeOverride("font_size", 10);
+			_lblPasteTelemetry.AddThemeColorOverride("font_color", new Color(0.3f, 0.85f, 1.0f));
+			_lblPasteTelemetry.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+			_lblPasteTelemetry.CustomMinimumSize = new Vector2(200, 0);
+			_lblPasteTelemetry.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+			_lblPasteTelemetry.Text = "";
+
+			var pasteOptionsBox = _containerPasteSettings.GetNodeOrNull<VBoxContainer>("PasteOptionsBox");
+			if (pasteOptionsBox != null)
+			{
+				var shapeMirrorGrid = new GridContainer();
+				shapeMirrorGrid.Name = "ClipboardShapeMirrorGrid";
+				shapeMirrorGrid.Columns = 2;
+				shapeMirrorGrid.AddThemeConstantOverride("h_separation", 6);
+				shapeMirrorGrid.AddThemeConstantOverride("v_separation", 4);
+				shapeMirrorGrid.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+				shapeMirrorGrid.AddChild(_btnClipboardBrushShape);
+				shapeMirrorGrid.AddChild(_optClipboardMirrorMode);
+				pasteOptionsBox.AddChild(shapeMirrorGrid);
+
+				pasteOptionsBox.AddChild(_btnPasteReflection);
+				pasteOptionsBox.AddChild(_btnPasteAnchor);
+				pasteOptionsBox.AddChild(_lblPasteTelemetry);
+			}
 		}
 
 		public bool IsPathingAddMode()
