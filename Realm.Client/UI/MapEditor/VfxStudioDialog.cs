@@ -2197,7 +2197,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[VfxStudioDialog] Failed to generate random noise: {ex.Message}");
+			GameLog.LogError($"[VfxStudioDialog] Failed to generate random noise: {ex.Message}");
 			return string.Empty;
 		}
 	}
@@ -2252,7 +2252,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"[VfxStudioDialog] Failed to save generated noise asset to manifest: {ex.Message}");
+				GameLog.LogError($"[VfxStudioDialog] Failed to save generated noise asset to manifest: {ex.Message}");
 			}
 
 			_tempGeneratedNoiseFileName = null;
@@ -2307,7 +2307,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[VfxStudioDialog] SaveSpritesheetGrid error: {ex.Message}");
+			GameLog.LogError($"[VfxStudioDialog] SaveSpritesheetGrid error: {ex.Message}");
 		}
 	}
 
