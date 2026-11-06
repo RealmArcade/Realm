@@ -26,6 +26,7 @@ public partial class AssetGridDialogBase : FloatingDialogBase
 		while (_cellPool.Count < requiredCapacity)
 		{
 			var newCell = new AssetGridCell();
+			newCell.Name = "GridCell_AssetGridCell";
 			_cellPool.Add(newCell);
 			if (_virtualGridContent != null) _virtualGridContent.AddChild(newCell);
 		}

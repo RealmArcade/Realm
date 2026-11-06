@@ -2459,6 +2459,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 				float dist = (float)(rng.NextDouble() * BarragePreviewRadius);
 				var impactPos = new Vector3(Mathf.Cos(angle) * dist, 0.05f, Mathf.Sin(angle) * dist);
 				var subVfx = new ProceduralVfxInstance3D();
+				subVfx.Name = "BarrageVfx_ProceduralVfxInstance3D";
 				subVfx.IsPreview = true;
 				PreviewSceneRoot.AddChild(subVfx);
 				subVfx.Position = impactPos;

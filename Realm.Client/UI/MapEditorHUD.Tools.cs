@@ -3113,6 +3113,7 @@ namespace Realm.Client.UI
 			AddChild(overlay);
 
 			var center = new CenterContainer();
+			center.Name = "Center_CenterContainer";
 			center.SetAnchorsPreset(LayoutPreset.FullRect);
 			overlay.AddChild(center);
 
@@ -4386,6 +4387,7 @@ namespace Realm.Client.UI
 			UpdateScaleDialogLabels();
 
 			var separator = new HSeparator();
+			separator.Name = "Separator_HSeparator";
 			innerVBox.AddChild(separator);
 
 			innerVBox.AddChild(CreateScaleDialogButtonRow());

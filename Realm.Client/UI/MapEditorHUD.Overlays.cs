@@ -1099,6 +1099,7 @@ namespace Realm.Client.UI
 			AddChild(overlay);
 
 			var center = new CenterContainer();
+			center.Name = "Center_CenterContainer";
 			center.SetAnchorsPreset(LayoutPreset.FullRect);
 			overlay.AddChild(center);
 
@@ -1212,6 +1213,7 @@ namespace Realm.Client.UI
 			AddChild(overlay);
 
 			var center = new CenterContainer();
+			center.Name = "Center_CenterContainer";
 			center.SetAnchorsPreset(LayoutPreset.FullRect);
 			overlay.AddChild(center);
 
@@ -1446,6 +1448,7 @@ namespace Realm.Client.UI
 			AddChild(_helpOverlayPanel);
 
 			var center = new CenterContainer();
+			center.Name = "Center_CenterContainer";
 			center.SetAnchorsPreset(LayoutPreset.FullRect);
 			_helpOverlayPanel.AddChild(center);
 
@@ -1686,6 +1689,7 @@ namespace Realm.Client.UI
 		private VBoxContainer CreateCreatorRegistrationContainer(ColorRect overlay)
 		{
 			var center = new CenterContainer();
+			center.Name = "Center_CenterContainer";
 			center.SetAnchorsPreset(LayoutPreset.FullRect);
 			overlay.AddChild(center);
 
@@ -3057,6 +3061,7 @@ namespace Realm.Client.UI
 			AddChild(overlay);
 
 			var center = new CenterContainer();
+			center.Name = "Center_CenterContainer";
 			center.SetAnchorsPreset(LayoutPreset.FullRect);
 			overlay.AddChild(center);
 

@@ -1029,6 +1029,7 @@ public partial class FloatingDialogBase : PanelContainer
 			Txt = new LineEdit()
 		};
 
+		state.Txt.Name = "FilterTxt_LineEdit";
 		state.Txt.Text = state.CommittedValue;
 		state.Txt.PlaceholderText = placeholder;
 		state.Txt.SizeFlagsHorizontal = SizeFlags.ExpandFill;
@@ -1825,6 +1826,7 @@ public partial class FloatingDialogBase : PanelContainer
 		out DirectionalLight3D light)
 	{
 		var container = new SubViewportContainer();
+		container.Name = "ViewportContainer_SubViewportContainer";
 		container.CustomMinimumSize = minSize;
 		container.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		container.Stretch = true;

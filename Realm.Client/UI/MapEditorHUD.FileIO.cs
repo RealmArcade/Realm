@@ -218,6 +218,7 @@ namespace Realm.Client.UI
 			EnsureDefaultTemplateAnimationsSafe();
 
 			var syncTimer = new Timer();
+			syncTimer.Name = "SyncTimer_Timer";
 			syncTimer.WaitTime = 1.0f;
 			syncTimer.Autostart = true;
 			syncTimer.Timeout += OnSyncTimerTimeout;

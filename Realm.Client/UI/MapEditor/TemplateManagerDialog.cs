@@ -2379,6 +2379,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		if (PreviewSubViewport == null) return;
 
 		_previewProjectile = new VisualProjectile3D();
+		_previewProjectile.Name = "PreviewProjectile_VisualProjectile3D";
 		PreviewSubViewport.AddChild(_previewProjectile);
 
 		Vector3 startPos = new Vector3(-2.8f, 0.5f, 0f);
