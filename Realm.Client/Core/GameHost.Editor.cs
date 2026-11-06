@@ -1093,57 +1093,6 @@ public partial class GameHost
 	}
 
 
-	private void DeleteObjectAt(Node collider, Vector3 hitPos)
-	{
-		var unit = FindUnit3DInParentChain(collider);
-		if (unit != null)
-		{
-			SelectedUnits.Remove(unit);
-			AllUnits.Remove(unit);
-			EntityToUnit3D.Remove(unit.Entity);
-			EntityIdToUnit3D.Remove(unit.Entity.Id);
-			if (GameContext.World.IsAlive(unit.Entity))
-			{
-				GameContext.World.Destroy(unit.Entity);
-			}
-
-			unit.QueueFree();
-			return;
-		}
-
-		Node current = collider;
-		while (current != null && current != this)
-		{
-			if (current is Prop3D prop)
-			{
-				AllProps.Remove(prop);
-				EntityToProp3D.Remove(prop.Entity);
-				if (GameContext.World.IsAlive(prop.Entity))
-				{
-					GameContext.World.Destroy(prop.Entity);
-				}
-
-				GameContext.PropMultiMesh?.MarkDirty(prop.PropId);
-				prop.QueueFree();
-				return;
-			}
-
-			current = current.GetParent();
-		}
-
-
-		var decal = FindDecal3DInParentChain(collider);
-		if (decal != null)
-		{
-			if (GameContext.World.IsAlive(decal.Entity))
-			{
-				GameContext.World.Destroy(decal.Entity);
-			}
-
-			decal.QueueFree();
-		}
-	}
-
 	public Unit3D SpawnUnitExternal(string unitId, Vector3 position, float rotationY, float scale, int player = 0)
 	{
 		int playerIndex = player >= 0 ? player : 0;
