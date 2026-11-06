@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
@@ -149,7 +149,7 @@ public static partial class MapWorkspaceService
 				{
 					Directory.CreateDirectory(scriptDirectory);
 					File.Copy(relocated, Path.Combine(scriptDirectory, Path.GetFileName(relocated)), true);
-					GD.Print($"[MapWorkspaceService] Moved the compiled script '{relocated}' into '{scriptDirectory}'.");
+					GameLog.LogToConsole($"[MapWorkspaceService] Moved the compiled script '{relocated}' into '{scriptDirectory}'.");
 				}
 			}
 
@@ -163,7 +163,7 @@ public static partial class MapWorkspaceService
 		}
 		catch (Exception exception)
 		{
-			GD.PrintErr($"[MapWorkspaceService] Could not single out the script output folder of '{workspace}': {exception.Message}");
+			GameLog.LogError($"[MapWorkspaceService] Could not single out the script output folder of '{workspace}': {exception.Message}");
 		}
 	}
 
@@ -202,7 +202,7 @@ public static partial class MapWorkspaceService
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"ReloadTerrainTextures error during workspace init: {ex.Message}. Resetting to blank map.");
+			GameLog.LogError($"ReloadTerrainTextures error during workspace init: {ex.Message}. Resetting to blank map.");
 			resetMapAction?.Invoke();
 		}
 	}
@@ -254,7 +254,7 @@ public static partial class MapWorkspaceService
 				}
 				catch (Exception ex)
 				{
-					GD.PrintErr($"[ComputeDirectoryBlake3] Error hashing {file}: {ex.Message}");
+					GameLog.LogError($"[ComputeDirectoryBlake3] Error hashing {file}: {ex.Message}");
 				}
 			}
 
@@ -262,7 +262,7 @@ public static partial class MapWorkspaceService
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[ComputeDirectoryBlake3] Error scanning directory {directoryPath}: {ex.Message}");
+			GameLog.LogError($"[ComputeDirectoryBlake3] Error scanning directory {directoryPath}: {ex.Message}");
 			return string.Empty;
 		}
 	}
@@ -277,7 +277,7 @@ public static partial class MapWorkspaceService
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[RefreshSavedDirectoryHash] Error hashing the map folder: {ex.Message}");
+			GameLog.LogError($"[RefreshSavedDirectoryHash] Error hashing the map folder: {ex.Message}");
 		}
 	}
 
@@ -452,7 +452,7 @@ public static partial class MapWorkspaceService
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[MapWorkspaceService] CleanWorkspaceDirectory error: {ex.Message}");
+			GameLog.LogError($"[MapWorkspaceService] CleanWorkspaceDirectory error: {ex.Message}");
 		}
 	}
 
@@ -480,7 +480,7 @@ public static partial class MapWorkspaceService
 				}
 				catch (Exception ex)
 				{
-					GD.PrintErr($"[MapWorkspaceService] Failed to clean build folder {folder}: {ex.Message}");
+					GameLog.LogError($"[MapWorkspaceService] Failed to clean build folder {folder}: {ex.Message}");
 				}
 			}
 		}
@@ -615,14 +615,14 @@ public static partial class MapWorkspaceService
 		if (normalized == csprojContent) return;
 
 		File.WriteAllText(csprojPath, normalized);
-		GD.Print($"[MapWorkspaceService] Repaired MapAPI reference in {Path.GetFileName(csprojPath)} to use the portable relative DLL path.");
+		GameLog.LogToConsole($"[MapWorkspaceService] Repaired MapAPI reference in {Path.GetFileName(csprojPath)} to use the portable relative DLL path.");
 	}
 
 	private static void RunScaffoldingStep(Action step, string description)
 	{
 		if (TryRunFileOperation(step)) return;
 
-		GD.PrintErr($"[MapWorkspaceService] Could not update the {description} because another program is holding the file open. The copy already in the map folder is kept.");
+		GameLog.LogError($"[MapWorkspaceService] Could not update the {description} because another program is holding the file open. The copy already in the map folder is kept.");
 	}
 
 	private const string CanonicalNugetConfigContent =
@@ -712,7 +712,7 @@ public static partial class MapWorkspaceService
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[MapWorkspaceService] Failed to ensure NuGet.config in {directory}: {ex.Message}");
+			GameLog.LogError($"[MapWorkspaceService] Failed to ensure NuGet.config in {directory}: {ex.Message}");
 		}
 	}
 
@@ -743,7 +743,7 @@ public static partial class MapWorkspaceService
 		content = projectEnd >= 0 ? content.Insert(projectEnd, root) : content + root;
 
 		File.WriteAllText(csprojPath, content);
-		GD.Print($"[MapWorkspaceService] Added TrimmerRootAssembly to {Path.GetFileName(csprojPath)}");
+		GameLog.LogToConsole($"[MapWorkspaceService] Added TrimmerRootAssembly to {Path.GetFileName(csprojPath)}");
 	}
 
 	[GeneratedRegex(@"<ProjectReference\s+Include=""[^""]*Realm\.MapAPI\.csproj""[^>]*/>", RegexOptions.Singleline)]
@@ -921,8 +921,9 @@ public static partial class MapWorkspaceService
 			if (ShouldCopyApiLibFile(source, dest))
 				File.Copy(source, dest, true);
 		}
-		catch (IOException)
+		catch (IOException ex)
 		{
+			GameLog.LogError($"could not copy the map API library {source} into the workspace, so the map will not compile: {ex.GetType().Name}: {ex.Message}");
 		}
 	}
 
@@ -1034,7 +1035,7 @@ public static partial class MapWorkspaceService
 		}
 		catch (Exception exception)
 		{
-			GD.PrintErr($"[MapWorkspaceService] Could not finish setting up the untitled map folder: {exception.Message}");
+			GameLog.LogError($"[MapWorkspaceService] Could not finish setting up the untitled map folder: {exception.Message}");
 		}
 
 		bool mapHasItsName = TryRunFileOperation(() => GameContext.MetadataService.UpdateMetadata(folderPath, metadata =>
@@ -1087,7 +1088,7 @@ public static partial class MapWorkspaceService
 			string fileToClear = filePath;
 			if (TryRunFileOperation(() => DeleteFileClearingReadOnly(fileToClear))) continue;
 
-			GD.PrintErr($"[MapWorkspaceService] '{fileToClear}' is held open by another program, so the untitled map keeps the version the template is about to replace it with.");
+			GameLog.LogError($"[MapWorkspaceService] '{fileToClear}' is held open by another program, so the untitled map keeps the version the template is about to replace it with.");
 		}
 
 		foreach (string directoryPath in Directory.GetDirectories(folderPath))
@@ -1127,7 +1128,7 @@ public static partial class MapWorkspaceService
 			bool copyIsMutable = PathUtils.IsMutableMapFileType(relativePath);
 			if (TryRunFileOperation(() => CopyTemplateFile(sourcePath, targetPath, copyIsMutable))) continue;
 
-			GD.PrintErr($"[MapWorkspaceService] Could not write '{relativePath}' into the untitled map because another program is holding it open. The file already in the folder is kept.");
+			GameLog.LogError($"[MapWorkspaceService] Could not write '{relativePath}' into the untitled map because another program is holding it open. The file already in the folder is kept.");
 		}
 	}
 
@@ -1180,7 +1181,7 @@ public static partial class MapWorkspaceService
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"[MapWorkspaceService] Failed to ensure license in metadata.json: {ex.Message}");
+				GameLog.LogError($"[MapWorkspaceService] Failed to ensure license in metadata.json: {ex.Message}");
 			}
 		}
 
@@ -1254,7 +1255,7 @@ please visit the URL above.
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[MapWorkspaceService] Failed to copy LICENSE.md to {directory}: {ex.Message}");
+			GameLog.LogError($"[MapWorkspaceService] Failed to copy LICENSE.md to {directory}: {ex.Message}");
 		}
 	}
 
@@ -1271,8 +1272,9 @@ please visit the URL above.
 				NativeToolRunner.RunTool(dotnetExecutablePath, $"new sln -n {solutionName}", timeoutMs: 15000, workingDir: directory);
 				NativeToolRunner.RunTool(dotnetExecutablePath, $"sln add {projectName}", timeoutMs: 15000, workingDir: directory);
 			}
-			catch
+			catch (Exception ex)
 			{
+				GameLog.LogError($"could not create the solution for map project {projectName}, so the workspace has no buildable solution: {ex.GetType().Name}: {ex.Message}");
 			}
 		}
 	}
@@ -1304,7 +1306,7 @@ please visit the URL above.
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[MapWorkspaceService] EnsureGlbAssetsOptimized error: {ex.Message}");
+			GameLog.LogError($"[MapWorkspaceService] EnsureGlbAssetsOptimized error: {ex.Message}");
 		}
 	}
 
@@ -1366,7 +1368,7 @@ please visit the URL above.
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[MapWorkspaceService] Failed to read GLB {glbPath}: {ex.Message}");
+			GameLog.LogError($"[MapWorkspaceService] Failed to read GLB {glbPath}: {ex.Message}");
 			return false;
 		}
 
@@ -1379,7 +1381,7 @@ please visit the URL above.
 		}
 
 		string fileName = Path.GetFileName(glbPath);
-		GD.Print($"[MapWorkspaceService] GLB asset '{fileName}' is missing realm_optimize_completed extras. Optimizing into workspace...");
+		GameLog.LogToConsole($"[MapWorkspaceService] GLB asset '{fileName}' is missing realm_optimize_completed extras. Optimizing into workspace...");
 
 		glbBytes = ExtractAndStripAnimations(workspacePath, glbPath, fileName, glbBytes);
 
@@ -1395,7 +1397,7 @@ please visit the URL above.
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[MapWorkspaceService] Exception ({ex.GetType().Name}) optimizing {fileName}: {ex.Message}");
+			GameLog.LogError($"[MapWorkspaceService] Exception ({ex.GetType().Name}) optimizing {fileName}: {ex.Message}");
 			_optimizedFlagCache[glbPath] = (lastWrite, true);
 			return false;
 		}
@@ -1406,7 +1408,7 @@ please visit the URL above.
 		}
 
 		_optimizedFlagCache[glbPath] = (lastWrite, true);
-		GD.PrintErr($"[MapWorkspaceService] Optimization failed for {fileName}: {optResult.ErrorMessage}");
+		GameLog.LogError($"[MapWorkspaceService] Optimization failed for {fileName}: {optResult.ErrorMessage}");
 		return false;
 	}
 
@@ -1466,7 +1468,7 @@ please visit the URL above.
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[MapWorkspaceService] Progress callback error: {ex.Message}");
+			GameLog.LogError($"[MapWorkspaceService] Progress callback error: {ex.Message}");
 		}
 	}
 
@@ -1496,7 +1498,7 @@ please visit the URL above.
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[MapWorkspaceService] Animation extraction error for {fileName}: {ex.Message}");
+			GameLog.LogError($"[MapWorkspaceService] Animation extraction error for {fileName}: {ex.Message}");
 		}
 
 		return glbBytes;
@@ -1511,7 +1513,7 @@ please visit the URL above.
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[MapWorkspaceService] Exception optimizing {fileName}: {ex.Message}");
+			GameLog.LogError($"[MapWorkspaceService] Exception optimizing {fileName}: {ex.Message}");
 			_optimizedFlagCache[glbPath] = (lastWrite, true);
 			return false;
 		}
@@ -1523,7 +1525,7 @@ please visit the URL above.
 		else
 		{
 			_optimizedFlagCache[glbPath] = (lastWrite, true);
-			GD.PrintErr($"[MapWorkspaceService] Optimization failed for {fileName}: {optResult.ErrorMessage}");
+			GameLog.LogError($"[MapWorkspaceService] Optimization failed for {fileName}: {optResult.ErrorMessage}");
 			return false;
 		}
 	}
@@ -1547,12 +1549,12 @@ please visit the URL above.
 			string newHash = RealmMetadataHelper.ComputeBlake3(optResult.OutputGlbBytes, ".glb");
 			UpdateMetadataGlbHash(workspacePath, fileName, newHash);
 
-			GD.Print($"[MapWorkspaceService] Successfully optimized {fileName} ({optResult.OriginalSize} -> {optResult.OptimizedSize} bytes).");
+			GameLog.LogToConsole($"[MapWorkspaceService] Successfully optimized {fileName} ({optResult.OriginalSize} -> {optResult.OptimizedSize} bytes).");
 			return true;
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[MapWorkspaceService] Failed to write optimized GLB {glbPath}: {ex.Message}");
+			GameLog.LogError($"[MapWorkspaceService] Failed to write optimized GLB {glbPath}: {ex.Message}");
 			return false;
 		}
 	}
@@ -1563,11 +1565,11 @@ please visit the URL above.
 
 		if (!TryReadGlbBytes(glbPath, out var lastWrite, out var glbBytes))
 		{
-			GD.PrintErr($"[MapWorkspaceService] Failed to read GLB {glbPath}");
+			GameLog.LogError($"[MapWorkspaceService] Failed to read GLB {glbPath}");
 			return false;
 		}
 
-		GD.Print($"[MapWorkspaceService] GLB asset '{fileName}' ({index + 1}/{count}) is missing realm_optimize_completed extras. Optimizing into workspace...");
+		GameLog.LogToConsole($"[MapWorkspaceService] GLB asset '{fileName}' ({index + 1}/{count}) is missing realm_optimize_completed extras. Optimizing into workspace...");
 
 		glbBytes = ExtractAndStripAnimations(workspacePath, glbPath, fileName, glbBytes);
 
@@ -1591,7 +1593,7 @@ please visit the URL above.
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[MapWorkspaceService] EnsureGlbAssetsOptimizedCooperativeAsync error: {ex.Message}");
+			GameLog.LogError($"[MapWorkspaceService] EnsureGlbAssetsOptimizedCooperativeAsync error: {ex.Message}");
 		}
 	}
 
@@ -1826,7 +1828,7 @@ please visit the URL above.
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[MapWorkspaceService] Failed to update metadata for converted texture {pngFileName}: {ex.Message}");
+			GameLog.LogError($"[MapWorkspaceService] Failed to update metadata for converted texture {pngFileName}: {ex.Message}");
 		}
 	}
 
@@ -1852,7 +1854,7 @@ please visit the URL above.
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[MapWorkspaceService] EnsurePngAssetsConverted error: {ex.Message}");
+			GameLog.LogError($"[MapWorkspaceService] EnsurePngAssetsConverted error: {ex.Message}");
 		}
 	}
 
@@ -1865,7 +1867,7 @@ please visit the URL above.
 		var (assetType, columns, rows) = DetectPngAssetInfo(workspacePath, pngPath, metadataRoot);
 
 		string progressStr = index.HasValue && totalFiles.HasValue ? $" ({index.Value + 1}/{totalFiles.Value})" : "";
-		GD.Print($"[MapWorkspaceService] Converting PNG asset '{pngFileName}'{progressStr} (type: {assetType}) to .rtex...");
+		GameLog.LogToConsole($"[MapWorkspaceService] Converting PNG asset '{pngFileName}'{progressStr} (type: {assetType}) to .rtex...");
 
 		var convResult = TextureConverter.ConvertTextureFile(pngPath, rtexPath, assetType, columns, rows);
 
@@ -1875,7 +1877,7 @@ please visit the URL above.
 		}
 		else
 		{
-			GD.PrintErr($"[MapWorkspaceService] Failed to convert PNG '{pngFileName}': {convResult.ErrorMessage}");
+			GameLog.LogError($"[MapWorkspaceService] Failed to convert PNG '{pngFileName}': {convResult.ErrorMessage}");
 		}
 	}
 
@@ -1893,11 +1895,11 @@ please visit the URL above.
 				File.SetAttributes(pngPath, attrs & ~FileAttributes.ReadOnly);
 
 			File.Delete(pngPath);
-			GD.Print($"[MapWorkspaceService] Successfully converted '{pngFileName}' to '{rtexFileName}'.");
+			GameLog.LogToConsole($"[MapWorkspaceService] Successfully converted '{pngFileName}' to '{rtexFileName}'.");
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[MapWorkspaceService] Failed to delete PNG {pngPath}: {ex.Message}");
+			GameLog.LogError($"[MapWorkspaceService] Failed to delete PNG {pngPath}: {ex.Message}");
 		}
 	}
 
@@ -1932,7 +1934,7 @@ please visit the URL above.
 					}
 					catch (Exception ex)
 					{
-						GD.PrintErr($"[MapWorkspaceService] Progress callback error: {ex.Message}");
+						GameLog.LogError($"[MapWorkspaceService] Progress callback error: {ex.Message}");
 					}
 				}
 
@@ -1941,7 +1943,7 @@ please visit the URL above.
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[MapWorkspaceService] EnsurePngAssetsConvertedCooperativeAsync error: {ex.Message}");
+			GameLog.LogError($"[MapWorkspaceService] EnsurePngAssetsConvertedCooperativeAsync error: {ex.Message}");
 		}
 	}
 
@@ -2120,7 +2122,7 @@ please visit the URL above.
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[MapWorkspaceService] NormalizeMetadataTextureEntries error: {ex.Message}");
+			GameLog.LogError($"[MapWorkspaceService] NormalizeMetadataTextureEntries error: {ex.Message}");
 		}
 	}
 
@@ -2133,7 +2135,7 @@ please visit the URL above.
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[MapWorkspaceService] Failed to update manifest.json for {fileName}: {ex.Message}");
+			GameLog.LogError($"[MapWorkspaceService] Failed to update manifest.json for {fileName}: {ex.Message}");
 		}
 	}
 
@@ -2145,7 +2147,7 @@ please visit the URL above.
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[MapWorkspaceService] Failed to update manifest.json for {animFileName}: {ex.Message}");
+			GameLog.LogError($"[MapWorkspaceService] Failed to update manifest.json for {animFileName}: {ex.Message}");
 		}
 	}
 
