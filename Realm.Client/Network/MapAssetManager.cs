@@ -25,12 +25,12 @@ public static class MapAssetManager
 
 	public static void Log(string message)
 	{
-		GD.Print(message);
+		GameLog.LogToConsole(message);
 	}
 
 	public static void LogErr(string message)
 	{
-		GD.PrintErr(message);
+		GameLog.LogError(message);
 	}
 
 	private static readonly AsyncLocal<string?> AsyncLocalArchiveDirectory = new();
