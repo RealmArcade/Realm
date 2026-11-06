@@ -2115,7 +2115,7 @@ public partial class GameHost
 			{
 				if (mouseBtn.Pressed)
 				{
-					GD.Print($"[GameHost] Unhandled left-click press at position: {mouseBtn.Position}");
+					GameLog.LogToConsole($"[GameHost] Unhandled left-click press at position: {mouseBtn.Position}");
 
 					if (mouseBtn.DoubleClick)
 					{
@@ -2213,7 +2213,7 @@ public partial class GameHost
 				}
 				else if (_isDragging)
 				{
-					GD.Print($"[GameHost] Unhandled left-click release at position: {mouseBtn.Position}");
+					GameLog.LogToConsole($"[GameHost] Unhandled left-click release at position: {mouseBtn.Position}");
 
 					_isDragging = false;
 					if (GameContext.InGameHud != null)
@@ -2236,7 +2236,7 @@ public partial class GameHost
 			}
 			else if (mouseBtn.ButtonIndex == MouseButton.Right && mouseBtn.Pressed)
 			{
-				GD.Print($"[GameHost] Unhandled right-click press at position: {mouseBtn.Position}");
+				GameLog.LogToConsole($"[GameHost] Unhandled right-click press at position: {mouseBtn.Position}");
 
 				if (ActiveBuildingPlacementType != null)
 				{
@@ -2317,7 +2317,7 @@ public partial class GameHost
 
 	private void PerformSingleClickSelection(Vector2 clickPos)
 	{
-		GD.Print($"[GameHost] PerformSingleClickSelection at screen coordinate: {clickPos}");
+		GameLog.LogToConsole($"[GameHost] PerformSingleClickSelection at screen coordinate: {clickPos}");
 		ClearSelectedProp();
 
 		var hit = RaycastFromMouse(clickPos);
