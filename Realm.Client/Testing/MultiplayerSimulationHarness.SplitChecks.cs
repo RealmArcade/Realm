@@ -17,8 +17,6 @@ namespace Realm.Client.Testing;
 public partial class MultiplayerSimulationHarness
 {
 	private const float SplitScenarioTimeoutSeconds = 120f;
-	private const float SummaryPositionToleranceMeters = 15f;
-
 	private async Task RunSplitScenarioAsync(LobbyManager lobby, GameHost gameHost)
 	{
 		var failures = new List<string>();
