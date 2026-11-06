@@ -925,41 +925,6 @@ public class MapStorageService
 		}
 	}
 
-	private static void FlattenRootPrefix(string targetDirectory, string rootPrefix)
-	{
-		string subDir = Path.Combine(targetDirectory, rootPrefix.Trim('/', '\\'));
-		if (!Directory.Exists(subDir))
-		{
-			return;
-		}
-
-		foreach (string file in Directory.GetFiles(subDir, "*", SearchOption.AllDirectories))
-		{
-			string rel = Path.GetRelativePath(subDir, file);
-			string dest = Path.Combine(targetDirectory, rel);
-			string? dir = Path.GetDirectoryName(dest);
-			if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
-			{
-				Directory.CreateDirectory(dir);
-			}
-
-			if (File.Exists(dest))
-			{
-				File.Delete(dest);
-			}
-
-			File.Move(file, dest);
-		}
-
-		try
-		{
-			Directory.Delete(subDir, true);
-		}
-		catch
-		{
-		}
-	}
-
 	private Task<(bool Success, string Message, string? MapTitle, string? MapVersion)> ImportMapFromFolderAsync(
 		string folderPath,
 		Action<float>? progressCallback)
