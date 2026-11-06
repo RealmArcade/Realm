@@ -1949,7 +1949,7 @@ public static class MultiplayerEcsSyncTestSupport
 		}
 		catch (Exception exception)
 		{
-			System.Console.WriteLine($"[MultiplayerEcsSync] Could not read seen snapshot sequences: {exception.Message}");
+			GameLog.LogToConsole($"[MultiplayerEcsSync] Could not read seen snapshot sequences: {exception.Message}");
 		}
 
 		return seenSequences;
