@@ -403,9 +403,7 @@ public partial class MapSettingsDialog : FloatingDialogBase
 
 	private Button CreateControlButton(string text, string tooltip, Action onClick)
 	{
-		var btn = new Button();
-		btn.Name = "Btn_Button";
-		btn.Set("icon_max_width", 0);
+		var btn = CreateDialogButton();
 		btn.Text = text;
 		btn.TooltipText = TranslationServer.Translate(tooltip);
 		btn.FocusMode = FocusModeEnum.None;

@@ -647,9 +647,7 @@ public partial class WaterProfileDialog : FloatingDialogBase
 
 	private Button CreateRandomizeButton(Action onPressed)
 	{
-		var btn = new Button();
-		btn.Name = "Btn_Button";
-		btn.Set("icon_max_width", 0);
+		var btn = CreateDialogButton();
 		btn.Text = "🎲 " + TranslationServer.Translate("Randomize All");
 		btn.CustomMinimumSize = new Vector2(0, 28);
 		btn.SizeFlagsHorizontal = SizeFlags.ShrinkBegin;

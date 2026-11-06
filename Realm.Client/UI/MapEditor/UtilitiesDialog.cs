@@ -447,9 +447,7 @@ public partial class UtilitiesDialog : FloatingDialogBase
 		for (int i = 0; i < _operations.Count; i++)
 		{
 			var op = _operations[i];
-			var btn = new Button();
-			btn.Name = "Btn_Button";
-			btn.Set("icon_max_width", 0);
+			var btn = CreateDialogButton();
 			btn.Text = $"{op.Icon} {op.Title}";
 			btn.Alignment = HorizontalAlignment.Left;
 			btn.SizeFlagsHorizontal = SizeFlags.ExpandFill;

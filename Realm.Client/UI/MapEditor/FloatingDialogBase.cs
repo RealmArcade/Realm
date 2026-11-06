@@ -1777,9 +1777,7 @@ public partial class FloatingDialogBase : PanelContainer
 		int fontSize = 11,
 		Vector2? minSize = null)
 	{
-		var btn = new Button();
-		btn.Name = "Btn_Button";
-		btn.Set("icon_max_width", 0);
+		var btn = CreateDialogButton();
 		btn.Text = text;
 		var font = Hud?.GetFontAwesomeFont();
 		if (font != null)
@@ -1890,5 +1888,13 @@ public partial class FloatingDialogBase : PanelContainer
 		topControlsVBox.AddThemeConstantOverride("separation", 6);
 		BodyContainer.AddChild(topControlsVBox);
 		return topControlsVBox;
+	}
+
+	public Button CreateDialogButton()
+	{
+		var btn = new Button();
+		btn.Name = "Btn_Button";
+		btn.Set("icon_max_width", 0);
+		return btn;
 	}
 }
