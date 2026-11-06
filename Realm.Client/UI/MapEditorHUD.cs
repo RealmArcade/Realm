@@ -1534,11 +1534,11 @@ public partial class MapEditorHUD : Control
 			AppendWasmConsoleLog(attachHint);
 			GameLog.LogToConsole(attachHint);
 
-			if (!string.IsNullOrEmpty(GameContext.EditorService._tempWorkspacePath))
+			if (!string.IsNullOrEmpty(GameContext.EditorService._editingDirectory))
 			{
 				try
 				{
-					File.WriteAllText(Path.Combine(GameContext.EditorService._tempWorkspacePath, "authority.pid"), authorityProcessId.ToString());
+					File.WriteAllText(Path.Combine(GameContext.EditorService._editingDirectory, "authority.pid"), authorityProcessId.ToString());
 				}
 				catch (Exception exception)
 				{
