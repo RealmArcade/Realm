@@ -1421,7 +1421,7 @@ public partial class CommandPanel
 			return hotkey;
 		}
 
-		GD.PrintErr($"[CommandPanel] Rejected hotkey '{hotkeyString}': {errorMessage}");
+		GameLog.LogError($"[CommandPanel] Rejected hotkey '{hotkeyString}': {errorMessage}");
 		return HotkeySpec.None;
 	}
 
