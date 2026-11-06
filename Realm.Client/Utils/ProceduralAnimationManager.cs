@@ -201,7 +201,7 @@ public static class ProceduralAnimationManager
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[ProceduralAnimationManager] LoadAllConfigs error: {ex.Message}");
+			GameLog.LogError($"[ProceduralAnimationManager] LoadAllConfigs error: {ex.Message}");
 		}
 
 		return result;
@@ -259,7 +259,7 @@ public static class ProceduralAnimationManager
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[ProceduralAnimationManager] SaveConfig error: {ex.Message}");
+			GameLog.LogError($"[ProceduralAnimationManager] SaveConfig error: {ex.Message}");
 		}
 	}
 
@@ -280,7 +280,7 @@ public static class ProceduralAnimationManager
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[ProceduralAnimationManager] DeleteConfig error: {ex.Message}");
+			GameLog.LogError($"[ProceduralAnimationManager] DeleteConfig error: {ex.Message}");
 		}
 	}
 
