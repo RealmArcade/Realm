@@ -743,11 +743,6 @@ public partial class MultiplayerSimulationHarness : Node
 		GD.Print($"[CODECS] role={(isHost ? "host" : "client")} registryCount={Realm.Ecs.ComponentTypeRegistry.Count} scriptPlayersId={Realm.Ecs.ComponentType<ScriptPlayersState>.Id}");
 	}
 
-	private int ResolveAiPlayerCount()
-	{
-		return Math.Max(0, PlayableSlotCount - Math.Max(2, _peerCount));
-	}
-
 	private static int CountConstructionSites(GameHost gameHost)
 	{
 		int count = 0;
