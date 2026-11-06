@@ -125,7 +125,7 @@ public class ClientRpcService
 		if (host == null || !GodotObject.IsInstanceValid(host))
 			return;
 
-		GD.Print($"[MAP BROADCAST] {message}");
+		GameLog.LogToConsole($"[MAP BROADCAST] {message}");
 		BroadcastFeedbackText(message, new Vector3(0.9f, 0.9f, 0.9f));
 		GameContext.NetworkService?.BroadcastMessageDomainLogic(message);
 	}
@@ -225,7 +225,7 @@ public class ClientRpcService
 		if (host == null || !GodotObject.IsInstanceValid(host))
 			return;
 
-		GD.Print("[GameHost] Victory triggered by map script!");
+		GameLog.LogToConsole("[GameHost] Victory triggered by map script!");
 		GameContext.SimulationService?.TriggerVictoryDomain();
 		Callable.From(() => GameContext.UserInterface?.TransitionTo(GameScreen.GameOver, true)).CallDeferred();
 	}
@@ -236,7 +236,7 @@ public class ClientRpcService
 		if (host == null || !GodotObject.IsInstanceValid(host))
 			return;
 
-		GD.Print("[GameHost] Defeat triggered by map script!");
+		GameLog.LogToConsole("[GameHost] Defeat triggered by map script!");
 		GameContext.SimulationService?.TriggerDefeatDomain();
 		Callable.From(() => GameContext.UserInterface?.TransitionTo(GameScreen.GameOver, false)).CallDeferred();
 	}
