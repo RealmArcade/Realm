@@ -1643,7 +1643,7 @@ public partial class RuntimeTerrain : Node3D
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"Failed to load RTEX layers from '{globalRtexPath}': {ex.Message}");
+			GameLog.LogError($"Failed to load RTEX layers from '{globalRtexPath}': {ex.Message}");
 			return (null, null);
 		}
 	}
@@ -1895,7 +1895,7 @@ public partial class RuntimeTerrain : Node3D
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"Failed to load dynamic RTEX layers for {name}: {ex.Message}");
+			GameLog.LogError($"Failed to load dynamic RTEX layers for {name}: {ex.Message}");
 		}
 	}
 
