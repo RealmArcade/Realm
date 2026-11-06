@@ -76,8 +76,9 @@ public class DistributionServer
 				_listener.Close();
 			}
 		}
-		catch
+		catch (Exception ex)
 		{
+			Console.Error.WriteLine($"[DistributionServer] could not stop the HTTP listener: {ex.GetType().Name}: {ex.Message}");
 		}
 	}
 
@@ -157,6 +158,7 @@ public class DistributionServer
 		}
 		catch
 		{
+			Console.Error.WriteLine($"[DistributionServer] could not write the error response: {exception.GetType().Name}: {exception.Message}");
 		}
 	}
 
@@ -173,8 +175,9 @@ public class DistributionServer
 		{
 			req = JsonSerializer.Deserialize<AssetBundleRequestDto>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 		}
-		catch
+		catch (Exception ex)
 		{
+			Console.Error.WriteLine($"[DistributionServer] the asset-bundle request body was not valid JSON: {ex.GetType().Name}: {ex.Message}");
 		}
 
 		if (req == null || req.Hashes == null || req.Hashes.Count == 0)
@@ -198,8 +201,9 @@ public class DistributionServer
 				compressionLevel: 1,
 				cancellationToken: cts.Token);
 		}
-		catch
+		catch (Exception ex)
 		{
+			Console.Error.WriteLine($"[DistributionServer] streaming the asset bundle to the client failed: {ex.GetType().Name}: {ex.Message}");
 		}
 		finally
 		{
@@ -469,8 +473,9 @@ public class DistributionServer
 					return file;
 				}
 			}
-			catch
+			catch (Exception ex)
 			{
+				Console.Error.WriteLine($"[DistributionServer] skipping an unreadable map manifest while resolving a map by content: {ex.GetType().Name}: {ex.Message}");
 			}
 		}
 
@@ -625,8 +630,9 @@ public class DistributionServer
 				if (!string.IsNullOrWhiteSpace(req.Signature)) signature = req.Signature;
 			}
 		}
-		catch
+		catch (Exception ex)
 		{
+			Console.Error.WriteLine($"[DistributionServer] the admin request could not be parsed, so its admin fields were ignored: {ex.GetType().Name}: {ex.Message}");
 		}
 
 		return (mapTitle, mapVersion, adminPubKey, signature);
@@ -709,8 +715,9 @@ public class DistributionServer
 						shouldDel = true;
 					}
 				}
-				catch
+				catch (Exception ex)
 				{
+					Console.Error.WriteLine($"[DistributionServer] skipping an unreadable map manifest while matching a version to delete: {ex.GetType().Name}: {ex.Message}");
 				}
 			}
 
@@ -722,8 +729,9 @@ public class DistributionServer
 					manifestsDeleted++;
 					deletedFiles.Add(fileName);
 				}
-				catch
+				catch (Exception ex)
 				{
+					Console.Error.WriteLine($"[DistributionServer] could not delete the manifest {fileName}: {ex.GetType().Name}: {ex.Message}");
 				}
 			}
 		}
@@ -749,8 +757,9 @@ public class DistributionServer
 				manifestsDeleted++;
 				deletedFiles.Add(fileName);
 			}
-			catch
+			catch (Exception ex)
 			{
+				Console.Error.WriteLine($"[DistributionServer] could not delete the manifest {fileName}: {ex.GetType().Name}: {ex.Message}");
 			}
 		}
 
