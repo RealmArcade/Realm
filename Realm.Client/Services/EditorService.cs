@@ -1,4 +1,4 @@
-using Realm.Shared.Maps;
+﻿using Realm.Shared.Maps;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -2204,21 +2204,6 @@ public partial class EditorService : IEditorAPI
 			_activeBlockTargetWaterHeight = GetWaterHeightAt(hitPos);
 			_hasBlockTargetHeight = true;
 		}
-	}
-
-	private bool CheckSingleSplatChanged(TerrainSplatWeights[,] mapBefore, TerrainSplatWeights[,] currentMap, int x, int z)
-	{
-		int mapX = _drawMinX + x;
-		int mapZ = _drawMinZ + z;
-
-		if (mapX >= mapBefore.GetLength(0) || mapZ >= mapBefore.GetLength(1) ||
-			mapX >= currentMap.GetLength(0) || mapZ >= currentMap.GetLength(1)) return false;
-
-		var b = mapBefore[mapX, mapZ];
-		var a = currentMap[mapX, mapZ];
-
-		return b.Index0 != a.Index0 || b.Index1 != a.Index1 || b.Index2 != a.Index2 || b.Index3 != a.Index3 ||
-			   b.Weight0 != a.Weight0 || b.Weight1 != a.Weight1 || b.Weight2 != a.Weight2 || b.Weight3 != a.Weight3;
 	}
 
 	public TerrainModifyAction EndTerrainDraw(
