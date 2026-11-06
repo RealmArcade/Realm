@@ -58,10 +58,7 @@ public partial class ItemUpgradeEditDialog : FloatingDialogBase
 		AddDescription(BodyContainer, TranslationServer.Translate("Modify metadata, icon asset, and rich formatted tooltip for this item or upgrade template."));
 
 		var scrollBody = CreateScrollBody(400);
-		var contentVBox = new VBoxContainer();
-		contentVBox.Name = "ContentVBox_VBoxContainer";
-		contentVBox.AddThemeConstantOverride("separation", 10);
-		contentVBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		var contentVBox = CreateExpandingContentColumn();
 		scrollBody.AddChild(contentVBox);
 
 		AddSectionHeader(contentVBox, "🆔 " + TranslationServer.Translate("IDENTITY & ICON"), new Color(0.95f, 0.8f, 0.4f));

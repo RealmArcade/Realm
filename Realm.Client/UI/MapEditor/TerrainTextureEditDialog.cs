@@ -101,10 +101,7 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 	private void BuildControls()
 	{
 		var scrollBody = CreateScrollBody(580);
-		var contentVBox = new VBoxContainer();
-		contentVBox.Name = "ContentVBox_VBoxContainer";
-		contentVBox.AddThemeConstantOverride("separation", 10);
-		contentVBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		var contentVBox = CreateExpandingContentColumn();
 		scrollBody.AddChild(contentVBox);
 
 		BuildIdentitySection(contentVBox);

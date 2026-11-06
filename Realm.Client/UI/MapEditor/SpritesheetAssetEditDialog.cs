@@ -52,9 +52,7 @@ public partial class SpritesheetAssetEditDialog : FloatingDialogBase
 
 	private void BuildControls()
 	{
-		var contentVBox = new VBoxContainer();
-		contentVBox.Name = "ContentVBox_VBoxContainer";
-		contentVBox.AddThemeConstantOverride("separation", 10);
+		var contentVBox = CreateContentColumn();
 		BodyContainer.AddChild(contentVBox);
 
 		AddSectionHeader(contentVBox, "🆔 " + TranslationServer.Translate("IDENTITY & ASSET"), new Color(0.95f, 0.8f, 0.4f));

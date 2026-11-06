@@ -1879,4 +1879,19 @@ public partial class FloatingDialogBase : PanelContainer
 		BodyContainer.AddChild(scroll);
 		return innerVBox;
 	}
+
+	public VBoxContainer CreateContentColumn()
+	{
+		var contentVBox = new VBoxContainer();
+		contentVBox.Name = "ContentVBox_VBoxContainer";
+		contentVBox.AddThemeConstantOverride("separation", 10);
+		return contentVBox;
+	}
+
+	public VBoxContainer CreateExpandingContentColumn()
+	{
+		VBoxContainer contentVBox = CreateContentColumn();
+		contentVBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		return contentVBox;
+	}
 }

@@ -30,9 +30,7 @@ public partial class AssetTypeEditorDialog : FloatingDialogBase
 
 	private void BuildControls()
 	{
-		var contentVBox = new VBoxContainer();
-		contentVBox.Name = "ContentVBox_VBoxContainer";
-		contentVBox.AddThemeConstantOverride("separation", 10);
+		var contentVBox = CreateContentColumn();
 		BodyContainer.AddChild(contentVBox);
 
 		AddSectionHeader(contentVBox, "🏷 " + TranslationServer.Translate("SELECT ASSET TYPE"), new Color(0.35f, 0.75f, 0.9f));

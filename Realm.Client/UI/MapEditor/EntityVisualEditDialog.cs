@@ -95,10 +95,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 		_lblDescription = AddDescription(BodyContainer, TranslationServer.Translate("Modify visual, collision, and procedural motion settings for this entity or model."));
 
 		var scrollBody = CreateScrollBody(600);
-		var contentVBox = new VBoxContainer();
-		contentVBox.Name = "ContentVBox_VBoxContainer";
-		contentVBox.AddThemeConstantOverride("separation", 10);
-		contentVBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		var contentVBox = CreateExpandingContentColumn();
 		scrollBody.AddChild(contentVBox);
 
 		BuildIdentitySection(contentVBox);
