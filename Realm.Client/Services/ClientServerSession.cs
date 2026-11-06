@@ -153,6 +153,13 @@ public class ClientServerSession : IDisposable
 
 	public bool IsLocalAuthority => _local;
 
+	/// <summary>
+	///     Whether this screen's link to the authority is one a harness is simulating. Such a screen is served by a local
+	///     process but is not on loopback: what it receives is as late as the simulated trip, so what it does with it has
+	///     to be what a screen across the network does with it.
+	/// </summary>
+	public bool HasSimulatedTransit => _channel.SimulatedLink.AddsTransit;
+
 	public string WireTableHash => _local ? _localWireTableHash : string.Empty;
 
 	public event Action<PeerRosterAssignment>? Seated;
