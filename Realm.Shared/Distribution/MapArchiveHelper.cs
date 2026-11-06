@@ -604,49 +604,6 @@ public static class MapArchiveHelper
 		return normalized.TrimStart('/');
 	}
 
-	private static void ApplyManifestToHeaderInfo(
-		string sourceDirectory,
-		ref string mapName,
-		ref string version,
-		ref string author,
-		ref string description,
-		List<string> tags)
-	{
-		string manifestPath = Path.Combine(sourceDirectory, "manifest.json");
-		if (!File.Exists(manifestPath)) return;
-
-		try
-		{
-			var manifest = MapFileService.LoadManifest(manifestPath);
-			if (!string.IsNullOrWhiteSpace(manifest.MapName)) mapName = manifest.MapName.Trim();
-			if (!string.IsNullOrWhiteSpace(manifest.Version)) version = manifest.Version.Trim();
-			if (!string.IsNullOrWhiteSpace(manifest.Author)) author = manifest.Author.Trim();
-			if (!string.IsNullOrWhiteSpace(manifest.Description)) description = manifest.Description;
-			if (manifest.Tags != null) tags.AddRange(manifest.Tags);
-		}
-		catch
-		{
-		}
-	}
-
-	private static void ApplyMetadataToHeaderInfo(string sourceDirectory, ref string gameBuildNumber)
-	{
-		string metadataPath = Path.Combine(sourceDirectory, "metadata.json");
-		if (!File.Exists(metadataPath)) return;
-
-		try
-		{
-			var metadata = MapFileService.LoadMetadata(metadataPath);
-			if (!string.IsNullOrWhiteSpace(metadata.GameBuildNumber))
-			{
-				gameBuildNumber = metadata.GameBuildNumber.Trim();
-			}
-		}
-		catch
-		{
-		}
-	}
-
 	private static bool IsWorkspaceApiLibFile(string fileName)
 	{
 		return fileName.Equals("Realm.MapAPI.dll", StringComparison.OrdinalIgnoreCase) ||
