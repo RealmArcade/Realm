@@ -2178,8 +2178,7 @@ namespace Realm.Client.UI
 			chk.CustomMinimumSize = new Vector2(0, 28);
 			chk.AddThemeFontSizeOverride("font_size", 11);
 			chk.AddThemeColorOverride("font_color", new Color(0.88f, 0.84f, 0.78f));
-			chk.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
-			chk.AddThemeColorOverride("font_pressed_color", UIStyle.ColorGold);
+			UIStyle.ApplyGoldHoverColors(chk);
 		}
 
 		private void StyleMapEditorTopButton(Button btn)

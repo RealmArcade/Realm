@@ -224,8 +224,7 @@ public partial class PlayerProfileDialog : Control
 		if (UIStyle.FontAwesome != null) button.AddThemeFontOverride("font", UIStyle.FontAwesome);
 		button.AddThemeFontSizeOverride("font_size", 15);
 		button.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		button.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
-		button.AddThemeColorOverride("font_pressed_color", UIStyle.ColorGold);
+		UIStyle.ApplyGoldHoverColors(button);
 		button.CustomMinimumSize = new Vector2(34, 34);
 		button.TooltipText = TranslationServer.Translate("Change your username");
 		button.FocusMode = FocusModeEnum.None;
@@ -793,9 +792,7 @@ public partial class PlayerProfileDialog : Control
 
 		button.AddThemeFontOverride("font", UIStyle.FontNorseBold);
 		button.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		button.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
-		button.AddThemeColorOverride("font_pressed_color", UIStyle.ColorGold);
-		button.AddThemeColorOverride("font_focus_color", UIStyle.ColorGold);
+		UIStyle.ApplyGoldHoverAndFocusColors(button);
 		button.AddThemeFontSizeOverride("font_size", 18);
 
 		return button;

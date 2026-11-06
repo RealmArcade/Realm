@@ -377,9 +377,7 @@ public partial class MainMenu : Control
 		button.AddThemeFontSizeOverride("font_size", 18);
 
 		button.AddThemeColorOverride("font_color", Color.FromHtml("#D1C4AE"));
-		button.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
-		button.AddThemeColorOverride("font_pressed_color", UIStyle.ColorGold);
-		button.AddThemeColorOverride("font_focus_color", UIStyle.ColorGold);
+		UIStyle.ApplyGoldHoverAndFocusColors(button);
 
 		button.AddThemeColorOverride("font_shadow_color", Color.FromHtml("#8C8171"));
 		button.AddThemeConstantOverride("shadow_offset_x", 0);
@@ -439,9 +437,7 @@ public partial class MainMenu : Control
 		button.AddThemeFontSizeOverride("font_size", 20);
 
 		button.AddThemeColorOverride("font_color", Color.FromHtml("#D1C4AE"));
-		button.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
-		button.AddThemeColorOverride("font_pressed_color", UIStyle.ColorGold);
-		button.AddThemeColorOverride("font_focus_color", UIStyle.ColorGold);
+		UIStyle.ApplyGoldHoverAndFocusColors(button);
 
 		button.AddThemeColorOverride("font_outline_color", new Color(0.10f, 0.07f, 0.02f, 1.0f));
 		button.AddThemeConstantOverride("outline_size", 8);
@@ -645,9 +641,7 @@ public partial class MainMenu : Control
 		button.AddThemeFontSizeOverride("font_size", 20);
 
 		button.AddThemeColorOverride("font_color", Color.FromHtml("#D1C4AE"));
-		button.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
-		button.AddThemeColorOverride("font_pressed_color", UIStyle.ColorGold);
-		button.AddThemeColorOverride("font_focus_color", UIStyle.ColorGold);
+		UIStyle.ApplyGoldHoverAndFocusColors(button);
 
 		button.AddThemeColorOverride("font_outline_color", new Color(0.12f, 0.08f, 0.03f, 1.0f));
 		button.AddThemeConstantOverride("outline_size", 8);

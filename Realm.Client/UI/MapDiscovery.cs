@@ -361,9 +361,7 @@ public partial class MapDiscovery : Control
 		else
 		{
 			button.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-			button.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
-			button.AddThemeColorOverride("font_pressed_color", UIStyle.ColorGold);
-			button.AddThemeColorOverride("font_focus_color", UIStyle.ColorGold);
+			UIStyle.ApplyGoldHoverAndFocusColors(button);
 			button.AddThemeConstantOverride("outline_size", 4);
 			button.AddThemeColorOverride("font_outline_color", new Color(0.06f, 0.06f, 0.08f));
 
@@ -576,9 +574,7 @@ public partial class MapDiscovery : Control
 		btnDetails.AddThemeConstantOverride("outline_size", 4);
 		btnDetails.AddThemeColorOverride("font_outline_color", new Color(0.06f, 0.06f, 0.08f));
 		btnDetails.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		btnDetails.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
-		btnDetails.AddThemeColorOverride("font_pressed_color", UIStyle.ColorGold);
-		btnDetails.AddThemeColorOverride("font_focus_color", UIStyle.ColorGold);
+		UIStyle.ApplyGoldHoverAndFocusColors(btnDetails);
 		UIStyle.ApplyButtonStyleBoxesClearingFocus(btnDetails);
 		btnDetails.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 

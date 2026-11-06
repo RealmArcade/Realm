@@ -918,6 +918,18 @@ public static class UIStyle
 		button.AddThemeStyleboxOverride("pressed", CreateHUDButtonStyle(false, true));
 	}
 
+	public static void ApplyGoldHoverColors(Control control)
+	{
+		control.AddThemeColorOverride("font_hover_color", ColorGold);
+		control.AddThemeColorOverride("font_pressed_color", ColorGold);
+	}
+
+	public static void ApplyGoldHoverAndFocusColors(Control control)
+	{
+		ApplyGoldHoverColors(control);
+		control.AddThemeColorOverride("font_focus_color", ColorGold);
+	}
+
 	public static ScrollContainer CreateScrollingBody()
 	{
 		var scroll = new ScrollContainer();
