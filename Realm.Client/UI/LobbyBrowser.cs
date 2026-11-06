@@ -553,7 +553,7 @@ public partial class LobbyBrowser : Control
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"[LobbyBrowser] Error fetching lobbies: {ex.Message}");
+				GameLog.LogError($"[LobbyBrowser] Error fetching lobbies: {ex.Message}");
 				Callable.From(() => OnLobbiesFetchedFallback()).CallDeferred();
 			}
 		});
