@@ -233,7 +233,7 @@ public static class GameSettings
 		}
 		catch (Exception e)
 		{
-			GD.PrintErr($"Failed to deserialize settings: {e.Message}");
+			GameLog.LogError($"Failed to deserialize settings: {e.Message}");
 			ResetToDefaults();
 		}
 	}
@@ -638,7 +638,7 @@ public static class GameSettings
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"Failed to query GPU VRAM via DXGI: {ex.Message}");
+			GameLog.LogError($"Failed to query GPU VRAM via DXGI: {ex.Message}");
 		}
 
 		return 8.0f;
