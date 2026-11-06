@@ -878,9 +878,6 @@ public partial class MainMenu : Control
 
 	private void BindIconButtonEvents(Button button, Label label, TextureRect iconRect, Action onClick)
 	{
-		Tween scaleTween = null;
-		Tween rotationTween = null;
-
 				ApplyButtonAnimations(button, 1.03f);
 
 		button.MouseEntered += () =>
