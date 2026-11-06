@@ -199,11 +199,7 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 
 		var rowId = BuildIdentityRow(contentVBox, "decal/", out _lblObjectTypePrefix);
 
-		_txtSlug = new LineEdit();
-		_txtSlug.Name = "TxtSlug_LineEdit";
-		_txtSlug.PlaceholderText = TranslationServer.Translate("decal_slug");
-		_txtSlug.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		_txtSlug.AddThemeFontSizeOverride("font_size", 11);
+		_txtSlug = CreateSlugField("decal_slug");
 		_txtSlug.TextChanged += (val) =>
 		{
 			if (_isSyncingControls) return;

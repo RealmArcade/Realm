@@ -133,11 +133,7 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 
 		var rowId = BuildIdentityRow(configVBox, "ability/", out _lblObjectTypePrefix);
 
-		_txtSlug = new LineEdit();
-		_txtSlug.Name = "TxtSlug_LineEdit";
-		_txtSlug.PlaceholderText = TranslationServer.Translate("ability_slug");
-		_txtSlug.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		_txtSlug.AddThemeFontSizeOverride("font_size", 11);
+		_txtSlug = CreateSlugField("ability_slug");
 		_txtSlug.TextChanged += (val) =>
 		{
 			if (_isUpdatingUI) return;

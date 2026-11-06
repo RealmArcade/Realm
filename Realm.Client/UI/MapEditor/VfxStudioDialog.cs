@@ -227,11 +227,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 	{
 		var rowId = BuildIdentityRow(parent, "vfx/", out _lblObjectTypePrefix);
 
-		_txtSlug = new LineEdit();
-		_txtSlug.Name = "TxtSlug_LineEdit";
-		_txtSlug.PlaceholderText = TranslationServer.Translate("vfx_slug");
-		_txtSlug.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		_txtSlug.AddThemeFontSizeOverride("font_size", 11);
+		_txtSlug = CreateSlugField("vfx_slug");
 		_txtSlug.TextChanged += (val) =>
 		{
 			if (_isUpdatingUI) return;

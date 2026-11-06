@@ -1897,4 +1897,14 @@ public partial class FloatingDialogBase : PanelContainer
 		btn.Set("icon_max_width", 0);
 		return btn;
 	}
+
+	public LineEdit CreateSlugField(string placeholderKey)
+	{
+		var txtSlug = new LineEdit();
+		txtSlug.Name = "TxtSlug_LineEdit";
+		txtSlug.PlaceholderText = TranslationServer.Translate(placeholderKey);
+		txtSlug.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		txtSlug.AddThemeFontSizeOverride("font_size", 11);
+		return txtSlug;
+	}
 }

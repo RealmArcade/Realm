@@ -188,11 +188,7 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 
 		var rowId = BuildIdentityRow(configVBox, "SpawnShader/", out _lblObjectTypePrefix);
 
-		_txtSlug = new LineEdit();
-		_txtSlug.Name = "TxtSlug_LineEdit";
-		_txtSlug.PlaceholderText = TranslationServer.Translate("shader_slug");
-		_txtSlug.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		_txtSlug.AddThemeFontSizeOverride("font_size", 11);
+		_txtSlug = CreateSlugField("shader_slug");
 		_txtSlug.TextChanged += (val) =>
 		{
 			_slug = TemplateIDHelper.ToSnakeCase(val);
