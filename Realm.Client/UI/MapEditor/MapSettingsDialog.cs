@@ -349,7 +349,7 @@ public partial class MapSettingsDialog : FloatingDialogBase
 		_btnScaleMap = new Button();
 		_btnScaleMap.Name = "BtnScaleMap_Button";
 		_btnScaleMap.Set("icon_max_width", 0);
-		_btnScaleMap.Text = "\uf24e " + TranslationServer.Translate("SCALE MAP");
+		_btnScaleMap.Text = UnicodeIcons.SCALE + " " + TranslationServer.Translate("SCALE MAP");
 		_btnScaleMap.TooltipText = TranslationServer.Translate("Scale the entire map: stretches/shrinks terrain data and repositions all entities proportionally");
 		_btnScaleMap.FocusMode = FocusModeEnum.None;
 		_btnScaleMap.CustomMinimumSize = new Vector2(0, 26);

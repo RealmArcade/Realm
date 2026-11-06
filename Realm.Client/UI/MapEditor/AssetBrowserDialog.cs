@@ -141,7 +141,7 @@ public partial class AssetBrowserDialog : AssetGridDialogBase
 
 		var lblFoldersTitle = new Label();
 		lblFoldersTitle.Name = "LblFoldersTitle_Label";
-		lblFoldersTitle.Text = "\uf07b " + TranslationServer.Translate("Indexed Folders:");
+		lblFoldersTitle.Text = UnicodeIcons.FOLDER + " " + TranslationServer.Translate("Indexed Folders:");
 		lblFoldersTitle.AddThemeFontSizeOverride("font_size", 11);
 		lblFoldersTitle.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		if (faFont != null)
@@ -153,7 +153,7 @@ public partial class AssetBrowserDialog : AssetGridDialogBase
 		_btnAddFolder = new Button();
 		_btnAddFolder.Name = "BtnAddFolder_Button";
 		_btnAddFolder.Set("icon_max_width", 0);
-		_btnAddFolder.Text = "\uf0fe " + TranslationServer.Translate("Add Folder");
+		_btnAddFolder.Text = UnicodeIcons.FOLDER_PLUS + " " + TranslationServer.Translate("Add Folder");
 		_btnAddFolder.AddThemeFontSizeOverride("font_size", 11);
 		_btnAddFolder.CustomMinimumSize = new Vector2(100, 24);
 		_btnAddFolder.FocusMode = FocusModeEnum.None;
@@ -168,7 +168,7 @@ public partial class AssetBrowserDialog : AssetGridDialogBase
 		_btnRescanAll = new Button();
 		_btnRescanAll.Name = "BtnRescanAll_Button";
 		_btnRescanAll.Set("icon_max_width", 0);
-		_btnRescanAll.Text = "\uf021 " + TranslationServer.Translate("Rescan");
+		_btnRescanAll.Text = UnicodeIcons.REFRESH + " " + TranslationServer.Translate("Rescan");
 		_btnRescanAll.AddThemeFontSizeOverride("font_size", 11);
 		_btnRescanAll.CustomMinimumSize = new Vector2(80, 24);
 		_btnRescanAll.FocusMode = FocusModeEnum.None;
@@ -216,7 +216,7 @@ public partial class AssetBrowserDialog : AssetGridDialogBase
 
 		_txtSearch = new LineEdit();
 		_txtSearch.Name = "TxtSearch_LineEdit";
-		_txtSearch.PlaceholderText = "\uf002 " + TranslationServer.Translate("Search tags (e.g. grass, rock) or filename...");
+		_txtSearch.PlaceholderText = UnicodeIcons.SEARCH + " " + TranslationServer.Translate("Search tags (e.g. grass, rock) or filename...");
 		_txtSearch.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_txtSearch.AddThemeFontSizeOverride("font_size", 11);
 		if (faFont != null)
