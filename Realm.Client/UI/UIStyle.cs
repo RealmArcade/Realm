@@ -934,6 +934,14 @@ public static class UIStyle
 		return center;
 	}
 
+	public static HBoxContainer CreateRowContainer()
+	{
+		var row = new HBoxContainer();
+		row.Name = "Row_HBoxContainer";
+		row.AddThemeConstantOverride("separation", 6);
+		return row;
+	}
+
 	private static StyleBox CreateArrowButtonStyle(Color modulateColor)
 	{
 		var style = new StyleBoxTexture();
