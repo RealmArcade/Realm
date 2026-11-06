@@ -123,7 +123,7 @@ public class MapEditorMinimap
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"Failed to dynamically capture terrain minimap: {ex.Message}");
+			GameLog.LogError($"Failed to dynamically capture terrain minimap: {ex.Message}");
 		}
 		finally
 		{
@@ -167,7 +167,7 @@ public class MapEditorMinimap
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"Failed to capture minimap thumbnail: {ex.Message}");
+			GameLog.LogError($"Failed to capture minimap thumbnail: {ex.Message}");
 		}
 
 		return false;
