@@ -1278,9 +1278,7 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 
 	protected override void OnApply()
 	{
-		string finalSlug = !string.IsNullOrWhiteSpace(_txtSlug?.Text) ? TemplateIDHelper.ToSnakeCase(_txtSlug.Text) : _slug;
-		if (string.IsNullOrWhiteSpace(finalSlug)) finalSlug = _slug;
-		_slug = finalSlug;
+		_slug = TemplateIDHelper.ResolveSlug(_txtSlug?.Text, _slug);
 		_weaponId = TemplateIDHelper.NormalizeTemplateID("weapon", _slug);
 		_currentWeapon.TemplateID = _weaponId;
 		if (_txtName != null)

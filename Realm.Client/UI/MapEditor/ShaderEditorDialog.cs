@@ -510,9 +510,7 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 
 	protected override void OnApply()
 	{
-		string finalSlug = !string.IsNullOrWhiteSpace(_txtSlug?.Text) ? TemplateIDHelper.ToSnakeCase(_txtSlug.Text) : _slug;
-		if (string.IsNullOrWhiteSpace(finalSlug)) finalSlug = "custom_shader";
-		_slug = finalSlug;
+		_slug = TemplateIDHelper.ResolveSlug(_txtSlug?.Text, _slug, "custom_shader");
 		_config.Key = TemplateIDHelper.NormalizeTemplateID("SpawnShader", _slug);
 		if (string.IsNullOrWhiteSpace(_config.Name))
 		{

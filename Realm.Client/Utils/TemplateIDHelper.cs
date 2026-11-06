@@ -39,6 +39,18 @@ public static partial class TemplateIDHelper
 		return string.IsNullOrEmpty(name) ? "object" : name;
 	}
 
+	/// <summary>
+	/// Resolves the slug a dialog should save: the typed slug if there is one,
+	/// otherwise the current slug, otherwise <paramref name="fallback"/> (defaults
+	/// to the current slug, which the editor dialogs allow to stay empty).
+	/// </summary>
+	public static string ResolveSlug(string? typedText, string currentSlug, string? fallback = null)
+	{
+		string slug = !string.IsNullOrWhiteSpace(typedText) ? ToSnakeCase(typedText) : currentSlug;
+		if (!string.IsNullOrWhiteSpace(slug)) return slug;
+		return fallback ?? currentSlug;
+	}
+
 	public static string GenerateSlug(string assetFileNameOrName, HashSet<string>? existingSlugs = null)
 	{
 		string baseSlug = ToSnakeCase(assetFileNameOrName);

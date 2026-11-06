@@ -810,9 +810,7 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 
 	protected override void OnApply()
 	{
-		string finalSlug = !string.IsNullOrWhiteSpace(_txtSlug?.Text) ? TemplateIDHelper.ToSnakeCase(_txtSlug.Text) : _slug;
-		if (string.IsNullOrWhiteSpace(finalSlug)) finalSlug = _slug;
-		_slug = finalSlug;
+		_slug = TemplateIDHelper.ResolveSlug(_txtSlug?.Text, _slug);
 		_abilityId = TemplateIDHelper.NormalizeTemplateID("ability", _slug);
 		if (_txtName != null)
 		{

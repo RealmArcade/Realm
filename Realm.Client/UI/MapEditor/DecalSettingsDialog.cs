@@ -1513,9 +1513,7 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 
 	protected override void OnApply()
 	{
-		string finalSlug = !string.IsNullOrWhiteSpace(_txtSlug?.Text) ? TemplateIDHelper.ToSnakeCase(_txtSlug.Text) : _slug;
-		if (string.IsNullOrWhiteSpace(finalSlug)) finalSlug = _slug;
-		_slug = finalSlug;
+		_slug = TemplateIDHelper.ResolveSlug(_txtSlug?.Text, _slug);
 		_decalKey = TemplateIDHelper.NormalizeTemplateID("decal", _slug);
 
 		string finalTexturePath = !string.IsNullOrWhiteSpace(_txtTexturePath?.Text) ? _txtTexturePath.Text.Trim() : _texturePath;
