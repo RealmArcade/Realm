@@ -52,7 +52,7 @@ public static class MatchLoadTrace
 
 		builder.Append(" total=").Append(total.ToString("F1", CultureInfo.InvariantCulture));
 		string line = builder.ToString();
-		GD.Print(line);
+		GameLog.LogToConsole(line);
 		AppendToFile(line);
 
 		Phases.Clear();
