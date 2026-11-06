@@ -36,6 +36,9 @@ public class LagPerceptionTests
 			}
 
 			if (physicsInterval <= 0d) throw new Exception($"The '{scenario.Name}' scenario reported a physics interval of {physicsInterval:F3} ms.");
+
+			List<string> violations = scenario.FindBudgetViolations(metrics);
+			if (violations.Count > 0) throw new Exception("The lag perception run exceeded its budgets:\n" + string.Join("\n", violations));
 		}
 	}
 

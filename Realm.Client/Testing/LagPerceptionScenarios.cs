@@ -19,12 +19,39 @@ public static class LagPerceptionScenarios
 
 	public const int SeededLinkSeed = 20261023;
 
+	/// <summary>
+	///     The scenarios this harness measures, each with the perception ceilings its link allows. The ceilings sit above
+	///     what the scenarios measured when the link was last characterised, not at it: a link paying a quarter of its
+	///     datagrams has a worst case that moves with where the loss falls, and a budget inside that spread would fail on
+	///     its own noise instead of on a regression. They are tight enough to have caught every state this harness was
+	///     written to find, which is what they are for.
+	/// </summary>
 	public static readonly LagScenario[] All =
 	{
-		new("clean", 0, 0),
-		new("loss25", 0, SeededPacketLossPercent),
-		new("ping250", HighLatencyRoundTripMilliseconds, 0),
+		new("clean", 0, 0)
+		{
+			MaximumPresentationDelayMilliseconds = 130,
+			MaximumDrawnWorldAgeMilliseconds = 450,
+			MaximumBaselines = 8
+		},
+		new("loss25", 0, SeededPacketLossPercent)
+		{
+			MaximumPresentationDelayMilliseconds = 220,
+			MaximumDrawnWorldAgeMilliseconds = 550,
+			MaximumBaselines = 10
+		},
+		new("ping250", HighLatencyRoundTripMilliseconds, 0)
+		{
+			MaximumPresentationDelayMilliseconds = 340,
+			MaximumDrawnWorldAgeMilliseconds = 720,
+			MaximumBaselines = 10
+		},
 		new("ping250_loss25", HighLatencyRoundTripMilliseconds, SeededPacketLossPercent)
+		{
+			MaximumPresentationDelayMilliseconds = 460,
+			MaximumDrawnWorldAgeMilliseconds = 1150,
+			MaximumBaselines = 34
+		}
 	};
 
 	public static IReadOnlyList<LagScenario> ResolveScenarios(string? filter)

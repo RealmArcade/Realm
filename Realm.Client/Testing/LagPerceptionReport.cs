@@ -9,11 +9,53 @@ namespace Realm.Client.Testing;
 
 public sealed record LagScenario(string Name, int AddedRoundTripMilliseconds, int PacketLossPercent)
 {
+	/// <summary>
+	///     The most presentation delay this scenario may settle at. A buffer is only behind the match by the trip it is
+	///     paying for, plus the sequence that keeps it fed, so this is the link and not the code: a run above it means the
+	///     client has deepened its buffer to hide something, which a human feels as input that arrives late.
+	/// </summary>
+	public double MaximumPresentationDelayMilliseconds { get; init; } = double.MaxValue;
+
+	/// <summary>
+	///     The oldest the drawn world may be on average. It is the measure a player feels as a match that responds late,
+	///     and unlike a peak it is not satisfied by the buffer holding still for most of the run.
+	/// </summary>
+	public double MaximumDrawnWorldAgeMilliseconds { get; init; } = double.MaxValue;
+
+	/// <summary>
+	///     How many times this scenario may rebuild the world. A baseline is a visible snap and puts a hundred kilobytes
+	///     on the reliable stream, so the count is a ceiling on how often a screen is allowed to be told everything again
+	///     rather than be told what changed.
+	/// </summary>
+	public double MaximumBaselines { get; init; } = double.MaxValue;
+
 	public string Describe()
 	{
 		string delayText = AddedRoundTripMilliseconds > 0 ? $"{AddedRoundTripMilliseconds}ms round trip" : "no added latency";
 		string lossText = PacketLossPercent > 0 ? $"{PacketLossPercent}% seeded datagram loss" : "no added loss";
 		return $"{delayText}, {lossText}";
+	}
+
+	/// <summary>
+	///     Names every way the metrics this scenario produced exceed its ceilings. The ceilings are stated per scenario
+	///     because the link is, and they are set above the figures measured on a quiet machine rather than at them: a
+	///     budget tight enough to fail on the run-to-run spread of the worst case would be a test that fails on its own
+	///     noise.
+	/// </summary>
+	public List<string> FindBudgetViolations(Dictionary<string, double> metrics)
+	{
+		List<string> violations = new();
+		CheckCeiling(metrics, violations, "client.gauges.ClientPresentationDelayMilliseconds.p50", "presentation delay p50", MaximumPresentationDelayMilliseconds, "ms");
+		CheckCeiling(metrics, violations, "client.gauges.ClientDrawnWorldAgeMilliseconds.mean", "drawn world age mean", MaximumDrawnWorldAgeMilliseconds, "ms");
+		CheckCeiling(metrics, violations, "client.events.ClientBaselinesApplied.count", "baselines applied", MaximumBaselines, "");
+		return violations;
+	}
+
+	private void CheckCeiling(Dictionary<string, double> metrics, List<string> violations, string key, string label, double ceiling, string unit)
+	{
+		if (!metrics.TryGetValue(key, out double measured)) return;
+		if (measured <= ceiling) return;
+		violations.Add($"{Name}: {label} was {measured:F1}{unit}, above its ceiling of {ceiling:F1}{unit}.");
 	}
 }
 
