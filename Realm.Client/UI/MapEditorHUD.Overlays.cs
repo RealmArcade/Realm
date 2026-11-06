@@ -1070,18 +1070,6 @@ namespace Realm.Client.UI
 			onCompleted?.Invoke();
 		}
 
-		private void SetPanelExpanded(string panelPath, string buttonPath, string contentPath, bool expand)
-		{
-			var btn = GetNodeOrNull<Button>($"{panelPath}/{buttonPath}");
-			var content = GetNodeOrNull<Control>($"{panelPath}/{contentPath}");
-
-			if (btn != null && content != null)
-			{
-				content.Visible = expand;
-				btn.Text = expand ? "▲" : "▼";
-			}
-		}
-
 		private void ShowMapNewerThanGameErrorDialog(string selectedFolder, string mapVersion, string gameVersion)
 		{
 			string msg = $"{string.Format(Tr("Map: {0}"), Path.GetFileName(selectedFolder))}\n{string.Format(Tr("Map Build: {0} | Editor Build: {1}"), mapVersion, gameVersion)}\n\n{Tr("This map was created with a newer version of the game. Downgrading maps is not supported.\nPlease update the game to open this map.")}";
@@ -3568,84 +3556,6 @@ namespace Realm.Client.UI
 			}, "0.00#");
 
 			lightingAccordion.Visible = false;
-		}
-
-		private void UpdateSliderLabel(Slider slider, float val)
-		{
-			if (slider != null && slider.HasMeta("val_label"))
-			{
-				var lbl = slider.GetMeta("val_label").As<Label>();
-				if (lbl != null && GodotObject.IsInstanceValid(lbl))
-				{
-					string format = slider.HasMeta("val_format") ? slider.GetMeta("val_format").AsString() : "0.0#";
-					lbl.Text = val.ToString(format, CultureInfo.InvariantCulture);
-				}
-			}
-		}
-
-		private OptionButton CreateDropdownRow(VBoxContainer parent, string labelText, string[] options, int initialIdx, Action<int> onChanged)
-		{
-			var row = new HBoxContainer();
-			row.Name = "Row_HBoxContainer";
-
-			var lblName = new Label();
-			lblName.Name = "LblName_Label";
-			lblName.Text = labelText;
-			lblName.CustomMinimumSize = new Vector2(110, 0);
-			lblName.AddThemeFontSizeOverride("font_size", 11);
-			row.AddChild(lblName);
-
-			var opt = new OptionButton();
-			opt.Name = "Opt_OptionButton";
-			opt.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-			opt.CustomMinimumSize = new Vector2(90, 0);
-			opt.AddThemeFontSizeOverride("font_size", 11);
-			for (int i = 0; i < options.Length; i++)
-			{
-				opt.AddItem(options[i], i);
-			}
-
-			if (initialIdx >= 0 && initialIdx < options.Length)
-			{
-				opt.Select(initialIdx);
-			}
-
-			opt.ItemSelected += (long index) => { onChanged((int)index); };
-			row.AddChild(opt);
-
-			parent.AddChild(row);
-			return opt;
-		}
-
-		private HBoxContainer CreateToggleRow(VBoxContainer parent, string labelText, bool initialVal, Action<bool> onChanged)
-		{
-			var row = new HBoxContainer();
-			row.Name = "Row_HBoxContainer";
-			var chk = new CheckBox();
-			chk.Name = "Chk_CheckBox";
-			chk.Text = labelText;
-			chk.ButtonPressed = initialVal;
-			chk.AddThemeFontSizeOverride("font_size", 11);
-			chk.Toggled += (bool pressed) => onChanged(pressed);
-			row.AddChild(chk);
-			parent.AddChild(row);
-			return row;
-		}
-
-		private CheckBox CreateCheckBoxRow(VBoxContainer parent, string labelText, bool initialVal, Action<bool> onChanged)
-		{
-			var row = new HBoxContainer();
-			row.Name = "Row_HBoxContainer";
-			var chk = new CheckBox();
-			chk.Name = "Chk_CheckBox";
-			chk.Text = labelText;
-			chk.ButtonPressed = initialVal;
-			chk.FocusMode = FocusModeEnum.None;
-			chk.AddThemeFontSizeOverride("font_size", 11);
-			chk.Toggled += (bool pressed) => onChanged(pressed);
-			row.AddChild(chk);
-			parent.AddChild(row);
-			return chk;
 		}
 
 		private Label CreateSectionHeader(VBoxContainer parent, string titleText)
