@@ -157,8 +157,6 @@ public partial class InGameHUD : Control
 	private HBoxContainer _statsContainer;
 	private UnitStatsPanel _unitStatsPanel;
 	private UnitVitalsBars _unitVitalsBars;
-	private VBoxContainer _spellsBox;
-
 	private Vector2 _dragStart;
 	private Vector2 _dragEnd;
 	private bool _isDrawingDragBox = false;
@@ -186,8 +184,6 @@ public partial class InGameHUD : Control
 	private Button _scoreboardCollapseButton;
 	private CountdownOverlayPanel _countdownOverlayPanelController;
 
-	private Label _unitDescLabel;
-
 	private HBoxContainer _controlGroupsContainer;
 	private Button _btnSelectIdle;
 	private Button _btnSelectArmy;
@@ -199,8 +195,6 @@ public partial class InGameHUD : Control
 	private bool _hotkeyPanelVisible = false;
 
 	private Label _armyCompositionLabel;
-
-	private float _incomeUpdateTimer = 0f;
 
 	private Camera3D _camera3D;
 
@@ -1389,29 +1383,6 @@ public partial class InGameHUD : Control
 		_queueSlotsContainer.Alignment = BoxContainer.AlignmentMode.Center;
 		_queueSlotsContainer.AddThemeConstantOverride("separation", 6);
 		_productionBox.AddChild(_queueSlotsContainer);
-	}
-
-	private void SetupSpellButton(Button btn, string iconPath, string spellId, string tooltip)
-	{
-		btn.Flat = false;
-		btn.Text = "";
-		btn.ExpandIcon = true;
-		btn.Icon = TrimmedTextureLoader.LoadTrimmedTexture(iconPath);
-		btn.TooltipText = tooltip;
-		UIStyle.SetupHUDButton(btn, tooltip);
-
-		btn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		btn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		btn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-
-		btn.Pressed += () =>
-		{
-			if (GameContext.Host != null)
-			{
-				GameContext.Host.EnterSpellTargeting(spellId);
-			}
-		};
 	}
 
 	private void UpdateUnitVitalsBars()
@@ -2788,15 +2759,4 @@ public partial class InGameHUD : Control
 		AddChild(_pausePanel);
 	}
 
-	private string GetBuildOptionTooltip(string unitId, string hotkeyStr)
-		{
-			HotkeySpec hotkey = HotkeySpec.ParseOrDefault(hotkeyStr);
-			return UIHelper.GetUnitCostTooltip(unitId, hotkey, "Build");
-		}
-
-		private string GetTrainOptionTooltip(string unitId, string hotkeyStr)
-		{
-			HotkeySpec hotkey = HotkeySpec.ParseOrDefault(hotkeyStr);
-			return UIHelper.GetUnitCostTooltip(unitId, hotkey, "Train");
-		}
 }
