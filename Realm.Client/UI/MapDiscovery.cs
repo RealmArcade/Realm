@@ -136,7 +136,7 @@ public partial class MapDiscovery : Control
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[MapDiscovery] Failed to load maps from server: {ex.Message}");
+			GameLog.LogError($"[MapDiscovery] Failed to load maps from server: {ex.Message}");
 		}
 
 		RenderMapGrid();
