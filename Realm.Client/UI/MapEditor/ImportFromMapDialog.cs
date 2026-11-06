@@ -351,7 +351,7 @@ public partial class ImportFromMapDialog : FloatingDialogBase
 		}
 		catch (Exception exception)
 		{
-			GD.PrintErr($"[ImportFromMapDialog] Failed to add '{sourcePath}': {exception.Message}");
+			GameLog.LogError($"[ImportFromMapDialog] Failed to add '{sourcePath}': {exception.Message}");
 			_lblSummary.Text = string.Format(TranslationServer.Translate("The map could not be added: {0}"), exception.Message);
 		}
 		finally
@@ -786,12 +786,12 @@ public partial class ImportFromMapDialog : FloatingDialogBase
 
 		if (summary.Missing.Count > 0)
 		{
-			GD.Print($"[ImportFromMapDialog] Assets not found in storage: {string.Join(", ", summary.Missing)}");
+			GameLog.LogToConsole($"[ImportFromMapDialog] Assets not found in storage: {string.Join(", ", summary.Missing)}");
 		}
 
 		if (summary.Conflicts.Count > 0)
 		{
-			GD.Print($"[ImportFromMapDialog] Assets skipped due to name conflicts: {string.Join(", ", summary.Conflicts)}");
+			GameLog.LogToConsole($"[ImportFromMapDialog] Assets skipped due to name conflicts: {string.Join(", ", summary.Conflicts)}");
 		}
 
 		return BuildAssetSummaryText(summary);
@@ -825,12 +825,12 @@ public partial class ImportFromMapDialog : FloatingDialogBase
 
 		if (summary.MissingAssets.Count > 0)
 		{
-			GD.Print($"[ImportFromMapDialog] Template assets not found in storage: {string.Join(", ", summary.MissingAssets)}");
+			GameLog.LogToConsole($"[ImportFromMapDialog] Template assets not found in storage: {string.Join(", ", summary.MissingAssets)}");
 		}
 
 		if (summary.ConflictAssets.Count > 0)
 		{
-			GD.Print($"[ImportFromMapDialog] Template assets skipped due to name conflicts: {string.Join(", ", summary.ConflictAssets)}");
+			GameLog.LogToConsole($"[ImportFromMapDialog] Template assets skipped due to name conflicts: {string.Join(", ", summary.ConflictAssets)}");
 		}
 
 		return BuildTemplateSummaryText(summary);
@@ -916,7 +916,7 @@ public partial class ImportFromMapDialog : FloatingDialogBase
 
 		if (summary.FailedTypes.Count > 0)
 		{
-			GD.Print($"[ImportFromMapDialog] Code classes not imported: {string.Join(", ", summary.FailedTypes)}");
+			GameLog.LogToConsole($"[ImportFromMapDialog] Code classes not imported: {string.Join(", ", summary.FailedTypes)}");
 		}
 
 		FinishImport(BuildCodeSummaryText(summary));
