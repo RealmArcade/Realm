@@ -464,7 +464,7 @@ public class SaveLoadService
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[SaveLoadService] CleanMetadataJson error: {ex.Message}");
+			GameLog.LogError($"[SaveLoadService] CleanMetadataJson error: {ex.Message}");
 		}
 	}
 
@@ -872,7 +872,7 @@ public class SaveLoadService
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[SaveLoadService] Failed to remap splat EXR {file}: {ex.Message}");
+			GameLog.LogError($"[SaveLoadService] Failed to remap splat EXR {file}: {ex.Message}");
 		}
 	}
 
@@ -1123,7 +1123,7 @@ public class SaveLoadService
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[SaveLoadService] SyncMetadataAssetsAndPrune error: {ex.Message}");
+			GameLog.LogError($"[SaveLoadService] SyncMetadataAssetsAndPrune error: {ex.Message}");
 		}
 	}
 
