@@ -25,12 +25,6 @@ namespace Realm.Client.Core;
 
 public partial class GameHost
 {
-	private readonly UnitId[] _cachedUnitsBuffer = new UnitId[4096];
-	private readonly PlayerId[] _cachedPlayersBuffer = new PlayerId[25];
-	private readonly UnitId[] _cachedSelectedUnitsBuffer = new UnitId[512];
-	private readonly string[] _cachedModifiersBuffer = new string[128];
-	private readonly string[] _cachedItemsBuffer = new string[32];
-
 	private const string DefaultLeaderboardBoardId = "default";
 
 	private enum LeaderboardOperationKind : byte
@@ -444,35 +438,6 @@ public partial class GameHost
 		if (PlayerToUnits.TryGetValue(unit3D.Player, out var pList))
 		{
 			pList.Remove(unit3D);
-		}
-	}
-
-	private void HandleUnitDespawn(Unit3D unit3D, bool executeDespawnShader, bool playDeathAnimation)
-	{
-		string deathShader = executeDespawnShader ? GetModelDeathShader(unit3D.UnitId) : "";
-		if (executeDespawnShader && string.IsNullOrEmpty(deathShader))
-		{
-			deathShader = GetModelDeathShader(unit3D);
-		}
-
-		if (!string.IsNullOrEmpty(deathShader))
-		{
-			SpawnDeathShaderManager.AnimateTransition(unit3D, deathShader, false, null, () =>
-			{
-				if (GodotObject.IsInstanceValid(unit3D)) unit3D.QueueFree();
-			});
-		}
-		else if (playDeathAnimation)
-		{
-			var tween = CreateTween();
-			tween.SetParallel(true);
-			tween.TweenProperty(unit3D, "position:y", -3.0f, 1.0f);
-			tween.TweenProperty(unit3D, "scale", Godot.Vector3.Zero, 1.0f);
-			tween.Chain().TweenCallback(Callable.From(unit3D.QueueFree));
-		}
-		else
-		{
-			unit3D.QueueFree();
 		}
 	}
 
