@@ -1302,7 +1302,7 @@ public partial class FloatingDialogBase : PanelContainer
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[FloatingDialogBase] ScanAvailableAssets metadata error: {ex.Message}");
+			GameLog.LogError($"[FloatingDialogBase] ScanAvailableAssets metadata error: {ex.Message}");
 		}
 
 		var list = new List<string>(result);
