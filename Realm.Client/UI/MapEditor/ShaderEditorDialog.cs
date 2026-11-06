@@ -186,22 +186,7 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 		scroll.AddChild(configVBox);
 		BodyContainer.AddChild(scroll);
 
-		var rowId = new HBoxContainer();
-		rowId.Name = "RowId_HBoxContainer";
-		rowId.AddThemeConstantOverride("separation", 6);
-		var lblId = new Label();
-		lblId.Name = "LblId_Label";
-		lblId.Text = TranslationServer.Translate("TemplateID:");
-		lblId.CustomMinimumSize = new Vector2(140, 0);
-		lblId.AddThemeFontSizeOverride("font_size", 11);
-		rowId.AddChild(lblId);
-
-		_lblObjectTypePrefix = new Label();
-		_lblObjectTypePrefix.Name = "LblObjectTypePrefix_Label";
-		_lblObjectTypePrefix.Text = "SpawnShader/";
-		_lblObjectTypePrefix.AddThemeFontSizeOverride("font_size", 11);
-		_lblObjectTypePrefix.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-		rowId.AddChild(_lblObjectTypePrefix);
+		var rowId = BuildIdentityRow(configVBox, "SpawnShader/", out _lblObjectTypePrefix);
 
 		_txtSlug = new LineEdit();
 		_txtSlug.Name = "TxtSlug_LineEdit";

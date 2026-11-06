@@ -627,7 +627,7 @@ public partial class FloatingDialogBase : PanelContainer
 		return (slider, valLbl);
 	}
 
-	public HBoxContainer BuildIdentityRow(Control parent, string prefixText, out Label prefixLabel)
+	public HBoxContainer BuildIdentityRow(Control parent, string prefixText, out Label prefixLabel, float labelWidth = 140.0f)
 	{
 		var rowId = new HBoxContainer();
 		rowId.Name = "RowId_HBoxContainer";
@@ -635,7 +635,7 @@ public partial class FloatingDialogBase : PanelContainer
 		var lblId = new Label();
 		lblId.Name = "LblId_Label";
 		lblId.Text = TranslationServer.Translate("TemplateID:");
-		lblId.CustomMinimumSize = new Vector2(140, 0);
+		lblId.CustomMinimumSize = new Vector2(labelWidth, 0);
 		lblId.AddThemeFontSizeOverride("font_size", 11);
 		rowId.AddChild(lblId);
 

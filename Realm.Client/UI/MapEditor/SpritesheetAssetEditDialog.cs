@@ -57,22 +57,7 @@ public partial class SpritesheetAssetEditDialog : FloatingDialogBase
 
 		AddSectionHeader(contentVBox, "🆔 " + TranslationServer.Translate("IDENTITY & ASSET"), new Color(0.95f, 0.8f, 0.4f));
 
-		var rowId = new HBoxContainer();
-		rowId.Name = "RowId_HBoxContainer";
-		rowId.AddThemeConstantOverride("separation", 6);
-		var lblId = new Label();
-		lblId.Name = "LblId_Label";
-		lblId.Text = TranslationServer.Translate("TemplateID:");
-		lblId.CustomMinimumSize = new Vector2(100, 0);
-		lblId.AddThemeFontSizeOverride("font_size", 11);
-		rowId.AddChild(lblId);
-
-		_lblObjectTypePrefix = new Label();
-		_lblObjectTypePrefix.Name = "LblObjectTypePrefix_Label";
-		_lblObjectTypePrefix.Text = "spritesheet/";
-		_lblObjectTypePrefix.AddThemeFontSizeOverride("font_size", 11);
-		_lblObjectTypePrefix.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-		rowId.AddChild(_lblObjectTypePrefix);
+		var rowId = BuildIdentityRow(contentVBox, "spritesheet/", out _lblObjectTypePrefix, 100f);
 
 		_txtSlug = new LineEdit();
 		_txtSlug.Name = "TxtSlug_LineEdit";
