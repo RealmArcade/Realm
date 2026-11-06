@@ -80,6 +80,7 @@ public static class GlbAutoRigger
 		}
 		catch (AbandonedMutexException)
 		{
+			Console.Error.WriteLine("[GlbAutoRigger] the previous rigging run did not release its lock; continuing on the abandoned mutex");
 			return true;
 		}
 	}
