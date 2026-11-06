@@ -1020,8 +1020,8 @@ public partial class GameHost
 		dir = dir.Normalized();
 		float angle = Mathf.Atan2(-dir.X, -dir.Z) + Mathf.Pi;
 
-		bool isFlying = world.Has<Realm.Ecs.Components.Movement.PathingFlags>(entity)
-		                && ((TerrainPathingFlags)world.Get<Realm.Ecs.Components.Movement.PathingFlags>(entity).Value & TerrainPathingFlags.Flying) != 0;
+		bool isFlying = world.Has<TraversableTerrain>(entity)
+		                && ((TerrainPathingFlags)world.Get<TraversableTerrain>(entity).Value & TerrainPathingFlags.Flying) != 0;
 		float turnRate = 10f;
 		if (world.Has<MovementStats>(entity))
 		{

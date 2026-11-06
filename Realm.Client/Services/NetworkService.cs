@@ -799,7 +799,7 @@ public class NetworkService
 			GameContext.World.Add(entity, new MovementStats(meta.Speed, 20f, 10f));
 			GameContext.World.Add(entity, new Movable());
 			GameContext.World.Add(entity, new Inventory());
-			GameContext.World.Add(entity, new Realm.Ecs.Components.Movement.PathingFlags(GameHost.GetUnitPathingFlags(meta)));
+			GameContext.World.Add(entity, new TraversableTerrain(GameHost.GetUnitPathingFlags(meta)));
 		}
 
 		var interpolationTarget = new LatestDescription
