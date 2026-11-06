@@ -167,7 +167,7 @@ public static class AssetThumbnailProvider
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[AssetThumbnailProvider] Error loading ranim {normPath}: {ex.Message}");
+			GameLog.LogError($"[AssetThumbnailProvider] Error loading ranim {normPath}: {ex.Message}");
 			return null;
 		}
 	}
@@ -276,7 +276,7 @@ public static class AssetThumbnailProvider
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[AssetThumbnailProvider] SaveThumbnailAtomic error on {cachedPngPath}: {ex.Message}");
+			GameLog.LogError($"[AssetThumbnailProvider] SaveThumbnailAtomic error on {cachedPngPath}: {ex.Message}");
 		}
 	}
 
@@ -366,7 +366,7 @@ public static class AssetThumbnailProvider
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[AssetThumbnailProvider] Error in ProcessImageQueueAsync for {reqPath}: {ex.Message}");
+			GameLog.LogError($"[AssetThumbnailProvider] Error in ProcessImageQueueAsync for {reqPath}: {ex.Message}");
 		}
 		finally
 		{
@@ -433,7 +433,7 @@ public static class AssetThumbnailProvider
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[AssetThumbnailProvider] GenerateDiskThumbnail error on {normPath}: {ex.Message}");
+			GameLog.LogError($"[AssetThumbnailProvider] GenerateDiskThumbnail error on {normPath}: {ex.Message}");
 		}
 	}
 
