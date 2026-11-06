@@ -780,10 +780,7 @@ public partial class InGameHUD : Control
 		chatPanelStyle.BgColor = new Color(0.15f, 0.15f, 0.15f, 0.9f);
 		chatPanelStyle.SetBorderWidthAll(1);
 		chatPanelStyle.BorderColor = new Color(0.25f, 0.25f, 0.25f, 0.9f);
-		chatPanelStyle.CornerRadiusTopLeft = 4;
-		chatPanelStyle.CornerRadiusTopRight = 4;
-		chatPanelStyle.CornerRadiusBottomLeft = 4;
-		chatPanelStyle.CornerRadiusBottomRight = 4;
+		chatPanelStyle.SetCornerRadiusAll(4);
 		chatPanelStyle.ContentMarginLeft = 8;
 		chatPanelStyle.ContentMarginRight = 8;
 		chatPanelStyle.ContentMarginTop = 8;
@@ -845,10 +842,7 @@ public partial class InGameHUD : Control
 		scoreboardStyle.BgColor = new Color(0.12f, 0.12f, 0.14f, 0.9f);
 		scoreboardStyle.SetBorderWidthAll(1);
 		scoreboardStyle.BorderColor = UIStyle.ColorBronze;
-		scoreboardStyle.CornerRadiusTopLeft = 4;
-		scoreboardStyle.CornerRadiusTopRight = 4;
-		scoreboardStyle.CornerRadiusBottomLeft = 4;
-		scoreboardStyle.CornerRadiusBottomRight = 4;
+		scoreboardStyle.SetCornerRadiusAll(4);
 		scoreboardStyle.ContentMarginLeft = 10;
 		scoreboardStyle.ContentMarginRight = 10;
 		scoreboardStyle.ContentMarginTop = 8;
@@ -1301,34 +1295,22 @@ public partial class InGameHUD : Control
 			vScroll.CustomMinimumSize = new Vector2(6, 0);
 			var grabberNormal = new StyleBoxFlat();
 			grabberNormal.BgColor = UIStyle.ColorBronze;
-			grabberNormal.CornerRadiusTopLeft = 3;
-			grabberNormal.CornerRadiusTopRight = 3;
-			grabberNormal.CornerRadiusBottomLeft = 3;
-			grabberNormal.CornerRadiusBottomRight = 3;
+			grabberNormal.SetCornerRadiusAll(3);
 			vScroll.AddThemeStyleboxOverride("grabber", grabberNormal);
 
 			var grabberHighlight = new StyleBoxFlat();
 			grabberHighlight.BgColor = UIStyle.ColorGold;
-			grabberHighlight.CornerRadiusTopLeft = 3;
-			grabberHighlight.CornerRadiusTopRight = 3;
-			grabberHighlight.CornerRadiusBottomLeft = 3;
-			grabberHighlight.CornerRadiusBottomRight = 3;
+			grabberHighlight.SetCornerRadiusAll(3);
 			vScroll.AddThemeStyleboxOverride("grabber_highlight", grabberHighlight);
 
 			var grabberPressed = new StyleBoxFlat();
 			grabberPressed.BgColor = UIStyle.ColorCyanGlow;
-			grabberPressed.CornerRadiusTopLeft = 3;
-			grabberPressed.CornerRadiusTopRight = 3;
-			grabberPressed.CornerRadiusBottomLeft = 3;
-			grabberPressed.CornerRadiusBottomRight = 3;
+			grabberPressed.SetCornerRadiusAll(3);
 			vScroll.AddThemeStyleboxOverride("grabber_pressed", grabberPressed);
 
 			var scrollTrack = new StyleBoxFlat();
 			scrollTrack.BgColor = new Color(0.04f, 0.04f, 0.06f, 0.5f);
-			scrollTrack.CornerRadiusTopLeft = 3;
-			scrollTrack.CornerRadiusTopRight = 3;
-			scrollTrack.CornerRadiusBottomLeft = 3;
-			scrollTrack.CornerRadiusBottomRight = 3;
+			scrollTrack.SetCornerRadiusAll(3);
 			vScroll.AddThemeStyleboxOverride("scroll", scrollTrack);
 		}
 
@@ -1998,17 +1980,11 @@ public partial class InGameHUD : Control
 		btnClose.AddThemeStyleboxOverride("normal", new StyleBoxEmpty());
 		var closeHoverStyle = new StyleBoxFlat();
 		closeHoverStyle.BgColor = new Color(0.15f, 0.65f, 1.0f, 0.25f);
-		closeHoverStyle.CornerRadiusTopLeft = 4;
-		closeHoverStyle.CornerRadiusTopRight = 4;
-		closeHoverStyle.CornerRadiusBottomLeft = 4;
-		closeHoverStyle.CornerRadiusBottomRight = 4;
+		closeHoverStyle.SetCornerRadiusAll(4);
 		btnClose.AddThemeStyleboxOverride("hover", closeHoverStyle);
 		var closePressedStyle = new StyleBoxFlat();
 		closePressedStyle.BgColor = new Color(0.15f, 0.65f, 1.0f, 0.45f);
-		closePressedStyle.CornerRadiusTopLeft = 4;
-		closePressedStyle.CornerRadiusTopRight = 4;
-		closePressedStyle.CornerRadiusBottomLeft = 4;
-		closePressedStyle.CornerRadiusBottomRight = 4;
+		closePressedStyle.SetCornerRadiusAll(4);
 		btnClose.AddThemeStyleboxOverride("pressed", closePressedStyle);
 		btnClose.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 		btnClose.AddThemeColorOverride("font_color", Colors.White);
@@ -2036,34 +2012,22 @@ public partial class InGameHUD : Control
 			vScroll.CustomMinimumSize = new Vector2(4, 0);
 			var grabberNormal = new StyleBoxFlat();
 			grabberNormal.BgColor = new Color(0.6f, 0.5f, 0.35f, 0.7f);
-			grabberNormal.CornerRadiusTopLeft = 2;
-			grabberNormal.CornerRadiusTopRight = 2;
-			grabberNormal.CornerRadiusBottomLeft = 2;
-			grabberNormal.CornerRadiusBottomRight = 2;
+			grabberNormal.SetCornerRadiusAll(2);
 			vScroll.AddThemeStyleboxOverride("grabber", grabberNormal);
 
 			var grabberHighlight = new StyleBoxFlat();
 			grabberHighlight.BgColor = UIStyle.ColorGold;
-			grabberHighlight.CornerRadiusTopLeft = 2;
-			grabberHighlight.CornerRadiusTopRight = 2;
-			grabberHighlight.CornerRadiusBottomLeft = 2;
-			grabberHighlight.CornerRadiusBottomRight = 2;
+			grabberHighlight.SetCornerRadiusAll(2);
 			vScroll.AddThemeStyleboxOverride("grabber_highlight", grabberHighlight);
 
 			var grabberPressed = new StyleBoxFlat();
 			grabberPressed.BgColor = UIStyle.ColorCyanGlow;
-			grabberPressed.CornerRadiusTopLeft = 2;
-			grabberPressed.CornerRadiusTopRight = 2;
-			grabberPressed.CornerRadiusBottomLeft = 2;
-			grabberPressed.CornerRadiusBottomRight = 2;
+			grabberPressed.SetCornerRadiusAll(2);
 			vScroll.AddThemeStyleboxOverride("grabber_pressed", grabberPressed);
 
 			var scrollTrack = new StyleBoxFlat();
 			scrollTrack.BgColor = new Color(0.04f, 0.04f, 0.06f, 0.3f);
-			scrollTrack.CornerRadiusTopLeft = 2;
-			scrollTrack.CornerRadiusTopRight = 2;
-			scrollTrack.CornerRadiusBottomLeft = 2;
-			scrollTrack.CornerRadiusBottomRight = 2;
+			scrollTrack.SetCornerRadiusAll(2);
 			vScroll.AddThemeStyleboxOverride("scroll", scrollTrack);
 		}
 
@@ -2149,10 +2113,7 @@ public partial class InGameHUD : Control
 			catHeaderStyle.BgColor = new Color(0.18f, 0.16f, 0.14f, 0.85f);
 			catHeaderStyle.BorderColor = new Color(0.6f, 0.5f, 0.35f, 0.5f);
 			catHeaderStyle.SetBorderWidthAll(1);
-			catHeaderStyle.CornerRadiusTopLeft = 3;
-			catHeaderStyle.CornerRadiusTopRight = 3;
-			catHeaderStyle.CornerRadiusBottomLeft = 3;
-			catHeaderStyle.CornerRadiusBottomRight = 3;
+			catHeaderStyle.SetCornerRadiusAll(3);
 			catHeaderStyle.ContentMarginLeft = 6;
 			catHeaderStyle.ContentMarginRight = 6;
 			catHeaderStyle.ContentMarginTop = 3;
@@ -2182,10 +2143,7 @@ public partial class InGameHUD : Control
 				rowStyle.BgColor = (i % 2 == 0)
 					? new Color(0.12f, 0.13f, 0.15f, 0.35f)
 					: new Color(0.06f, 0.07f, 0.08f, 0.15f);
-				rowStyle.CornerRadiusTopLeft = 2;
-				rowStyle.CornerRadiusTopRight = 2;
-				rowStyle.CornerRadiusBottomLeft = 2;
-				rowStyle.CornerRadiusBottomRight = 2;
+				rowStyle.SetCornerRadiusAll(2);
 				rowStyle.ContentMarginLeft = 4;
 				rowStyle.ContentMarginRight = 4;
 				rowStyle.ContentMarginTop = 2;
@@ -2201,10 +2159,7 @@ public partial class InGameHUD : Control
 				badgeStyle.BgColor = new Color(0.08f, 0.10f, 0.14f, 0.85f);
 				badgeStyle.BorderColor = new Color(0.35f, 0.45f, 0.55f, 0.5f);
 				badgeStyle.SetBorderWidthAll(1);
-				badgeStyle.CornerRadiusTopLeft = 3;
-				badgeStyle.CornerRadiusTopRight = 3;
-				badgeStyle.CornerRadiusBottomLeft = 3;
-				badgeStyle.CornerRadiusBottomRight = 3;
+				badgeStyle.SetCornerRadiusAll(3);
 				badgeStyle.ContentMarginLeft = 4;
 				badgeStyle.ContentMarginRight = 4;
 				badgeStyle.ContentMarginTop = 1;
@@ -2683,10 +2638,7 @@ public partial class InGameHUD : Control
 		style.BgColor = new Color(0.1f, 0.1f, 0.12f, 0.95f);
 		style.SetBorderWidthAll(2);
 		style.BorderColor = UIStyle.ColorBronze;
-		style.CornerRadiusTopLeft = 8;
-		style.CornerRadiusTopRight = 8;
-		style.CornerRadiusBottomLeft = 8;
-		style.CornerRadiusBottomRight = 8;
+		style.SetCornerRadiusAll(8);
 		style.ContentMarginLeft = 20;
 		style.ContentMarginRight = 20;
 		style.ContentMarginTop = 20;

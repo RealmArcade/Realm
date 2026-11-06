@@ -488,10 +488,7 @@ namespace Realm.Client.UI
 			alphaStyle.BgColor = new Color(0.12f, 0.14f, 0.18f, 0.75f);
 			alphaStyle.BorderColor = UIStyle.ColorGold;
 			alphaStyle.SetBorderWidthAll(1);
-			alphaStyle.CornerRadiusTopLeft = 6;
-			alphaStyle.CornerRadiusTopRight = 6;
-			alphaStyle.CornerRadiusBottomLeft = 6;
-			alphaStyle.CornerRadiusBottomRight = 6;
+			alphaStyle.SetCornerRadiusAll(6);
 			alphaStyle.ContentMarginLeft = 16;
 			alphaStyle.ContentMarginRight = 16;
 			alphaStyle.ContentMarginTop = 6;
@@ -972,10 +969,7 @@ namespace Realm.Client.UI
 				style.BgColor = new Color(0, 0, 0, 0);
 				style.BorderColor = UIStyle.ColorCyanGlow;
 				style.SetBorderWidthAll(3);
-				style.CornerRadiusTopLeft = 4;
-				style.CornerRadiusTopRight = 4;
-				style.CornerRadiusBottomLeft = 4;
-				style.CornerRadiusBottomRight = 4;
+				style.SetCornerRadiusAll(4);
 				_swatchHighlightPanel.AddThemeStyleboxOverride("panel", style);
 			}
 
@@ -1009,10 +1003,7 @@ namespace Realm.Client.UI
 				style.BgColor = new Color(0, 0, 0, 0);
 				style.BorderColor = new Color(0.9f, 0.45f, 0.1f);
 				style.SetBorderWidthAll(3);
-				style.CornerRadiusTopLeft = 4;
-				style.CornerRadiusTopRight = 4;
-				style.CornerRadiusBottomLeft = 4;
-				style.CornerRadiusBottomRight = 4;
+				style.SetCornerRadiusAll(4);
 				_swatchCliffHighlightPanel.AddThemeStyleboxOverride("panel", style);
 			}
 
@@ -1099,10 +1090,7 @@ namespace Realm.Client.UI
 			style.BorderWidthLeft = 2;
 			style.BorderWidthRight = 2;
 			style.BorderColor = isGreenlit ? new Color(0.3f, 0.8f, 0.4f, 1f) : new Color(0.8f, 0.4f, 0.3f, 1f);
-			style.CornerRadiusTopLeft = 8;
-			style.CornerRadiusTopRight = 8;
-			style.CornerRadiusBottomLeft = 8;
-			style.CornerRadiusBottomRight = 8;
+			style.SetCornerRadiusAll(8);
 			panel.AddThemeStyleboxOverride("panel", style);
 			center.AddChild(panel);
 
@@ -1926,10 +1914,7 @@ namespace Realm.Client.UI
 			cardStyle.BgColor = new Color(0.12f, 0.11f, 0.10f, 0.94f);
 			cardStyle.BorderColor = new Color(0.38f, 0.32f, 0.22f, 0.85f);
 			cardStyle.SetBorderWidthAll(1);
-			cardStyle.CornerRadiusTopLeft = 5;
-			cardStyle.CornerRadiusTopRight = 5;
-			cardStyle.CornerRadiusBottomLeft = 5;
-			cardStyle.CornerRadiusBottomRight = 5;
+			cardStyle.SetCornerRadiusAll(5);
 			cardStyle.ContentMarginLeft = 8;
 			cardStyle.ContentMarginRight = 8;
 			cardStyle.ContentMarginTop = 6;
@@ -2118,10 +2103,7 @@ namespace Realm.Client.UI
 			boxStyle.BgColor = new Color(0.13f, 0.12f, 0.10f, 0.7f);
 			boxStyle.BorderColor = new Color(0.32f, 0.27f, 0.20f, 0.6f);
 			boxStyle.SetBorderWidthAll(1);
-			boxStyle.CornerRadiusTopLeft = 4;
-			boxStyle.CornerRadiusTopRight = 4;
-			boxStyle.CornerRadiusBottomLeft = 4;
-			boxStyle.CornerRadiusBottomRight = 4;
+			boxStyle.SetCornerRadiusAll(4);
 			boxStyle.ContentMarginLeft = 10;
 			boxStyle.ContentMarginRight = 14;
 			boxStyle.ContentMarginTop = 6;
@@ -2177,10 +2159,7 @@ namespace Realm.Client.UI
 			badgeStyle.BgColor = new Color(0.18f, 0.16f, 0.13f, 0.95f);
 			badgeStyle.BorderColor = UIStyle.ColorGold;
 			badgeStyle.SetBorderWidthAll(1);
-			badgeStyle.CornerRadiusTopLeft = 3;
-			badgeStyle.CornerRadiusTopRight = 3;
-			badgeStyle.CornerRadiusBottomLeft = 3;
-			badgeStyle.CornerRadiusBottomRight = 3;
+			badgeStyle.SetCornerRadiusAll(3);
 			badgeStyle.ContentMarginLeft = 6;
 			badgeStyle.ContentMarginRight = 6;
 			badgeStyle.ContentMarginTop = 2;
@@ -2671,10 +2650,7 @@ namespace Realm.Client.UI
 			popupStyle.BgColor = new Color(0.14f, 0.13f, 0.11f, 0.98f);
 			popupStyle.BorderColor = UIStyle.ColorGold;
 			popupStyle.SetBorderWidthAll(1);
-			popupStyle.CornerRadiusTopLeft = 4;
-			popupStyle.CornerRadiusTopRight = 4;
-			popupStyle.CornerRadiusBottomLeft = 4;
-			popupStyle.CornerRadiusBottomRight = 4;
+			popupStyle.SetCornerRadiusAll(4);
 			popupStyle.ContentMarginLeft = 8;
 			popupStyle.ContentMarginRight = 8;
 			popupStyle.ContentMarginTop = 6;

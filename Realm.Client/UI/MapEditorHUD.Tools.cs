@@ -58,10 +58,7 @@ namespace Realm.Client.UI
 			_highlightStyle.BgColor = new Color(0.35f, 0.28f, 0.18f, 0.95f);
 			_highlightStyle.BorderColor = UIStyle.ColorGold;
 			_highlightStyle.SetBorderWidthAll(2);
-			_highlightStyle.CornerRadiusTopLeft = 6;
-			_highlightStyle.CornerRadiusTopRight = 6;
-			_highlightStyle.CornerRadiusBottomLeft = 6;
-			_highlightStyle.CornerRadiusBottomRight = 6;
+			_highlightStyle.SetCornerRadiusAll(6);
 			_highlightStyle.ContentMarginLeft = 4;
 			_highlightStyle.ContentMarginRight = 4;
 			_highlightStyle.ContentMarginTop = 4;
@@ -175,10 +172,7 @@ namespace Realm.Client.UI
 				editorsPopupStyle.BgColor = new Color(0.14f, 0.13f, 0.11f, 0.98f);
 				editorsPopupStyle.BorderColor = UIStyle.ColorGold;
 				editorsPopupStyle.SetBorderWidthAll(1);
-				editorsPopupStyle.CornerRadiusTopLeft = 4;
-				editorsPopupStyle.CornerRadiusTopRight = 4;
-				editorsPopupStyle.CornerRadiusBottomLeft = 4;
-				editorsPopupStyle.CornerRadiusBottomRight = 4;
+				editorsPopupStyle.SetCornerRadiusAll(4);
 				editorsPopupStyle.ContentMarginLeft = 10;
 				editorsPopupStyle.ContentMarginRight = 10;
 				editorsPopupStyle.ContentMarginTop = 10;
@@ -561,10 +555,7 @@ namespace Realm.Client.UI
 				envPopupStyle.BgColor = new Color(0.14f, 0.13f, 0.11f, 0.98f);
 				envPopupStyle.BorderColor = UIStyle.ColorGold;
 				envPopupStyle.SetBorderWidthAll(1);
-				envPopupStyle.CornerRadiusTopLeft = 4;
-				envPopupStyle.CornerRadiusTopRight = 4;
-				envPopupStyle.CornerRadiusBottomLeft = 4;
-				envPopupStyle.CornerRadiusBottomRight = 4;
+				envPopupStyle.SetCornerRadiusAll(4);
 				envPopupStyle.ContentMarginLeft = 10;
 				envPopupStyle.ContentMarginRight = 10;
 				envPopupStyle.ContentMarginTop = 10;
@@ -643,10 +634,7 @@ namespace Realm.Client.UI
 				camPopupStyle.BgColor = new Color(0.14f, 0.13f, 0.11f, 0.98f);
 				camPopupStyle.BorderColor = UIStyle.ColorGold;
 				camPopupStyle.SetBorderWidthAll(1);
-				camPopupStyle.CornerRadiusTopLeft = 4;
-				camPopupStyle.CornerRadiusTopRight = 4;
-				camPopupStyle.CornerRadiusBottomLeft = 4;
-				camPopupStyle.CornerRadiusBottomRight = 4;
+				camPopupStyle.SetCornerRadiusAll(4);
 				camPopupStyle.ContentMarginLeft = 8;
 				camPopupStyle.ContentMarginRight = 8;
 				camPopupStyle.ContentMarginTop = 8;
@@ -1278,10 +1266,7 @@ namespace Realm.Client.UI
 					modeStyle.BgColor = new Color(0.12f, 0.13f, 0.16f, 0.82f);
 					modeStyle.BorderColor = new Color(0.35f, 0.33f, 0.28f, 0.75f);
 					modeStyle.SetBorderWidthAll(1);
-					modeStyle.CornerRadiusTopLeft = 4;
-					modeStyle.CornerRadiusTopRight = 4;
-					modeStyle.CornerRadiusBottomLeft = 4;
-					modeStyle.CornerRadiusBottomRight = 4;
+					modeStyle.SetCornerRadiusAll(4);
 					modeStyle.ContentMarginLeft = 8;
 					modeStyle.ContentMarginRight = 8;
 					modeStyle.ContentMarginTop = 4;
@@ -3492,10 +3477,7 @@ namespace Realm.Client.UI
 			rowStyle.BgColor = new Color(0.12f, 0.13f, 0.16f, 0.82f);
 			rowStyle.BorderColor = new Color(0.35f, 0.33f, 0.28f, 0.75f);
 			rowStyle.SetBorderWidthAll(1);
-			rowStyle.CornerRadiusTopLeft = 4;
-			rowStyle.CornerRadiusTopRight = 4;
-			rowStyle.CornerRadiusBottomLeft = 4;
-			rowStyle.CornerRadiusBottomRight = 4;
+			rowStyle.SetCornerRadiusAll(4);
 			rowStyle.ContentMarginLeft = 8;
 			rowStyle.ContentMarginRight = 8;
 			rowStyle.ContentMarginTop = 3;
@@ -3521,10 +3503,7 @@ namespace Realm.Client.UI
 			boxStyle.BgColor = color;
 			boxStyle.BorderColor = new Color(0.95f, 0.95f, 1.0f, 0.85f);
 			boxStyle.SetBorderWidthAll(1);
-			boxStyle.CornerRadiusTopLeft = 3;
-			boxStyle.CornerRadiusTopRight = 3;
-			boxStyle.CornerRadiusBottomLeft = 3;
-			boxStyle.CornerRadiusBottomRight = 3;
+			boxStyle.SetCornerRadiusAll(3);
 			colorBox.AddThemeStyleboxOverride("panel", boxStyle);
 
 			colorBox.GuiInput += (@event) =>
@@ -3582,19 +3561,13 @@ namespace Realm.Client.UI
 			btnNormal.BgColor = new Color(0.16f, 0.15f, 0.13f, 0.85f);
 			btnNormal.BorderColor = new Color(0.38f, 0.32f, 0.24f, 0.7f);
 			btnNormal.SetBorderWidthAll(1);
-			btnNormal.CornerRadiusTopLeft = 4;
-			btnNormal.CornerRadiusTopRight = 4;
-			btnNormal.CornerRadiusBottomLeft = 4;
-			btnNormal.CornerRadiusBottomRight = 4;
+			btnNormal.SetCornerRadiusAll(4);
 
 			var btnHover = new StyleBoxFlat();
 			btnHover.BgColor = new Color(0.28f, 0.25f, 0.19f, 0.95f);
 			btnHover.BorderColor = UIStyle.ColorGold;
 			btnHover.SetBorderWidthAll(1);
-			btnHover.CornerRadiusTopLeft = 4;
-			btnHover.CornerRadiusTopRight = 4;
-			btnHover.CornerRadiusBottomLeft = 4;
-			btnHover.CornerRadiusBottomRight = 4;
+			btnHover.SetCornerRadiusAll(4);
 
 			var btnPressed = new StyleBoxFlat();
 			btnPressed.BgColor = new Color(0.35f, 0.30f, 0.22f, 0.98f);
@@ -3633,10 +3606,7 @@ namespace Realm.Client.UI
 			btnNormal.BgColor = new Color(0.16f, 0.15f, 0.13f, 0.90f);
 			btnNormal.BorderColor = new Color(0.42f, 0.36f, 0.26f, 0.85f);
 			btnNormal.SetBorderWidthAll(2);
-			btnNormal.CornerRadiusTopLeft = 6;
-			btnNormal.CornerRadiusTopRight = 6;
-			btnNormal.CornerRadiusBottomLeft = 6;
-			btnNormal.CornerRadiusBottomRight = 6;
+			btnNormal.SetCornerRadiusAll(6);
 			btnNormal.ContentMarginLeft = 4;
 			btnNormal.ContentMarginRight = 4;
 			btnNormal.ContentMarginTop = 4;
@@ -3646,10 +3616,7 @@ namespace Realm.Client.UI
 			btnHover.BgColor = new Color(0.28f, 0.24f, 0.18f, 0.96f);
 			btnHover.BorderColor = UIStyle.ColorGold;
 			btnHover.SetBorderWidthAll(2);
-			btnHover.CornerRadiusTopLeft = 6;
-			btnHover.CornerRadiusTopRight = 6;
-			btnHover.CornerRadiusBottomLeft = 6;
-			btnHover.CornerRadiusBottomRight = 6;
+			btnHover.SetCornerRadiusAll(6);
 			btnHover.ContentMarginLeft = 4;
 			btnHover.ContentMarginRight = 4;
 			btnHover.ContentMarginTop = 4;
@@ -3659,10 +3626,7 @@ namespace Realm.Client.UI
 			btnPressed.BgColor = new Color(0.36f, 0.30f, 0.20f, 0.98f);
 			btnPressed.BorderColor = UIStyle.ColorGold;
 			btnPressed.SetBorderWidthAll(2);
-			btnPressed.CornerRadiusTopLeft = 6;
-			btnPressed.CornerRadiusTopRight = 6;
-			btnPressed.CornerRadiusBottomLeft = 6;
-			btnPressed.CornerRadiusBottomRight = 6;
+			btnPressed.SetCornerRadiusAll(6);
 
 			btn.AddThemeStyleboxOverride("normal", btnNormal);
 			btn.AddThemeStyleboxOverride("hover", btnHover);
@@ -3822,10 +3786,7 @@ namespace Realm.Client.UI
 					groundStyle.BgColor = new Color(0.12f, 0.16f, 0.20f, 0.85f);
 					groundStyle.BorderColor = new Color(0.20f, 0.65f, 0.95f, 0.85f);
 					groundStyle.SetBorderWidthAll(1);
-					groundStyle.CornerRadiusTopLeft = 4;
-					groundStyle.CornerRadiusTopRight = 4;
-					groundStyle.CornerRadiusBottomLeft = 4;
-					groundStyle.CornerRadiusBottomRight = 4;
+					groundStyle.SetCornerRadiusAll(4);
 					groundStyle.ContentMarginLeft = 8;
 					groundStyle.ContentMarginRight = 8;
 					groundStyle.ContentMarginTop = 4;
@@ -3852,10 +3813,7 @@ namespace Realm.Client.UI
 					cliffStyle.BgColor = new Color(0.18f, 0.14f, 0.10f, 0.85f);
 					cliffStyle.BorderColor = new Color(0.95f, 0.55f, 0.15f, 0.85f);
 					cliffStyle.SetBorderWidthAll(1);
-					cliffStyle.CornerRadiusTopLeft = 4;
-					cliffStyle.CornerRadiusTopRight = 4;
-					cliffStyle.CornerRadiusBottomLeft = 4;
-					cliffStyle.CornerRadiusBottomRight = 4;
+					cliffStyle.SetCornerRadiusAll(4);
 					cliffStyle.ContentMarginLeft = 8;
 					cliffStyle.ContentMarginRight = 8;
 					cliffStyle.ContentMarginTop = 4;
