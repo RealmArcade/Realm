@@ -36,7 +36,7 @@ namespace Realm.Client.UI
 			}
 			catch (Exception exception)
 			{
-				GD.PrintErr($"[MapEditorHUD] Could not finish the pending autosave on exit: {exception.Message}");
+				GameLog.LogError($"[MapEditorHUD] Could not finish the pending autosave on exit: {exception.Message}");
 			}
 
 			GameContext.MetadataService.MetadataSaved -= OnMetadataSaved;
@@ -163,7 +163,7 @@ namespace Realm.Client.UI
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"[MapEditorHUD] Reloading terrain from disk failed: {ex.Message}");
+				GameLog.LogError($"[MapEditorHUD] Reloading terrain from disk failed: {ex.Message}");
 			}
 			finally
 			{
@@ -1058,12 +1058,12 @@ namespace Realm.Client.UI
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"[MapEditorHUD] Asset index sample repair error: {ex.Message}");
+				GameLog.LogError($"[MapEditorHUD] Asset index sample repair error: {ex.Message}");
 			}
 
 			if (repairedCount > 0)
 			{
-				GD.Print($"[MapEditorHUD] Repaired {repairedCount} asset index record(s) without rebuilding the whole index.");
+				GameLog.LogToConsole($"[MapEditorHUD] Repaired {repairedCount} asset index record(s) without rebuilding the whole index.");
 				ShowFeedback(string.Format(TranslationServer.Translate("Repaired {0} asset index record(s)."), repairedCount));
 			}
 
@@ -2770,7 +2770,7 @@ namespace Realm.Client.UI
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"[MapEditorHUD] Error in SetupTextureSwatches: {ex.Message}");
+				GameLog.LogError($"[MapEditorHUD] Error in SetupTextureSwatches: {ex.Message}");
 				return null;
 			}
 		}
@@ -3479,7 +3479,7 @@ namespace Realm.Client.UI
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"[MapEditorHUD] Error getting map name: {ex.Message}");
+				GameLog.LogError($"[MapEditorHUD] Error getting map name: {ex.Message}");
 				return GameContext.EditorService.UpdateCachedMapName(TranslationServer.Translate("Unnamed Map"), now);
 			}
 		}
