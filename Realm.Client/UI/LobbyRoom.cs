@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
@@ -875,8 +875,9 @@ public partial class LobbyRoom : Control
 
 			assetAuthorJson = await assetAuthorRes.Content.ReadAsStringAsync();
 		}
-		catch
+		catch (Exception ex)
 		{
+			GameLog.LogError($"could not fetch the asset author for this lobby, so attribution will be missing: {ex.GetType().Name}: {ex.Message}");
 			return;
 		}
 
@@ -2060,7 +2061,7 @@ public partial class LobbyRoom : Control
 	private void OnLobbyConnectionFailed(string reason)
 	{
 		HideConnectingPopup();
-		GD.PrintErr($"[LobbyRoom] Connection failed from lobby: {reason}");
+		GameLog.LogError($"[LobbyRoom] Connection failed from lobby: {reason}");
 		GameContext.UserInterface.PlayWarningSound();
 		ShowConnectionFailedPopup(reason);
 	}
@@ -2081,7 +2082,7 @@ public partial class LobbyRoom : Control
 
 	private void OnLobbyKickReceived(string reason)
 	{
-		GD.Print($"[LobbyRoom] Disconnected / Kicked: {reason}");
+		GameLog.LogToConsole($"[LobbyRoom] Disconnected / Kicked: {reason}");
 		GameContext.UserInterface.PlayWarningSound();
 		ReturnFromLobby();
 	}
