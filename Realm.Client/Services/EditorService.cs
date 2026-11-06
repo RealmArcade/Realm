@@ -2206,20 +2206,6 @@ public partial class EditorService : IEditorAPI
 		}
 	}
 
-	private bool CheckCellsChanged(TerrainCell[,] currentCells, int w, int d)
-	{
-		if (_terrainCellsBefore == null || currentCells == null) return false;
-		for (int z = 0; z < d; z++)
-		{
-			for (int x = 0; x < w; x++)
-			{
-				if (CheckSingleCellChanged(currentCells, x, z)) return true;
-			}
-		}
-
-		return false;
-	}
-
 	private bool CheckSingleCellChanged(TerrainCell[,] currentCells, int x, int z)
 	{
 		int mapX = _drawMinX + x;
@@ -2232,35 +2218,6 @@ public partial class EditorService : IEditorAPI
 
 		return b.Y_NW != a.Y_NW || b.Y_NE != a.Y_NE || b.Y_SE != a.Y_SE || b.Y_SW != a.Y_SW ||
 			   b.WaterMode != a.WaterMode || b.WaterProfileIndex != a.WaterProfileIndex;
-	}
-
-	private bool CheckPathingChanged(int[,] currentPathing, int w, int d)
-	{
-		if (_terrainPathingBefore == null || currentPathing == null) return false;
-		for (int z = 0; z < d; z++)
-		{
-			for (int x = 0; x < w; x++)
-			{
-				int mapX = _drawMinX + x;
-				int mapZ = _drawMinZ + z;
-				if (mapX >= _terrainPathingBefore.GetLength(0) || mapZ >= _terrainPathingBefore.GetLength(1) ||
-					mapX >= currentPathing.GetLength(0) || mapZ >= currentPathing.GetLength(1)) continue;
-				if (_terrainPathingBefore[mapX, mapZ] != currentPathing[mapX, mapZ]) return true;
-			}
-		}
-
-		return false;
-	}
-
-	private bool CheckSplatChanged(TerrainSplatWeights[,] currentSplatMap, TerrainSplatWeights[,] currentCliffSplatMap, int splatNodeW, int splatNodeD)
-	{
-		if (CheckSplatMapChanged(_terrainSplatMapBefore, currentSplatMap, splatNodeW, splatNodeD))
-			return true;
-
-		if (CheckSplatMapChanged(_terrainCliffSplatMapBefore, currentCliffSplatMap, splatNodeW, splatNodeD))
-			return true;
-
-		return false;
 	}
 
 	private bool CheckSplatMapChanged(TerrainSplatWeights[,]? mapBefore, TerrainSplatWeights[,]? currentMap, int splatNodeW, int splatNodeD)
@@ -2291,85 +2248,6 @@ public partial class EditorService : IEditorAPI
 
 		return b.Index0 != a.Index0 || b.Index1 != a.Index1 || b.Index2 != a.Index2 || b.Index3 != a.Index3 ||
 			   b.Weight0 != a.Weight0 || b.Weight1 != a.Weight1 || b.Weight2 != a.Weight2 || b.Weight3 != a.Weight3;
-	}
-
-	private void BuildChangedCells(TerrainCell[,] currentCells, int w, int d, out TerrainCell[,] beforeC, out TerrainCell[,] afterC)
-	{
-		beforeC = new TerrainCell[w, d];
-		afterC = new TerrainCell[w, d];
-		for (int z = 0; z < d; z++)
-		{
-			for (int x = 0; x < w; x++)
-			{
-				int mapX = _drawMinX + x;
-				int mapZ = _drawMinZ + z;
-				if (_terrainCellsBefore != null && mapX < _terrainCellsBefore.GetLength(0) && mapZ < _terrainCellsBefore.GetLength(1))
-					beforeC[x, z] = _terrainCellsBefore[mapX, mapZ];
-				if (currentCells != null && mapX < currentCells.GetLength(0) && mapZ < currentCells.GetLength(1))
-					afterC[x, z] = currentCells[mapX, mapZ];
-			}
-		}
-	}
-
-	private void BuildChangedPathing(int[,] currentPathing, int w, int d, out int[,] beforeP, out int[,] afterP)
-	{
-		beforeP = new int[w, d];
-		afterP = new int[w, d];
-		for (int z = 0; z < d; z++)
-		{
-			for (int x = 0; x < w; x++)
-			{
-				int mapX = _drawMinX + x;
-				int mapZ = _drawMinZ + z;
-				if (_terrainPathingBefore != null && mapX < _terrainPathingBefore.GetLength(0) && mapZ < _terrainPathingBefore.GetLength(1))
-					beforeP[x, z] = _terrainPathingBefore[mapX, mapZ];
-				if (currentPathing != null && mapX < currentPathing.GetLength(0) && mapZ < currentPathing.GetLength(1))
-					afterP[x, z] = currentPathing[mapX, mapZ];
-			}
-		}
-	}
-
-	private void BuildChangedSplat(TerrainSplatWeights[,] currentSplatMap, TerrainSplatWeights[,] currentCliffSplatMap, int splatNodeW, int splatNodeD, out TerrainSplatWeights[,] beforeS, out TerrainSplatWeights[,] afterS, out TerrainSplatWeights[,] beforeCliffS, out TerrainSplatWeights[,] afterCliffS)
-	{
-		beforeS = null;
-		afterS = null;
-		beforeCliffS = null;
-		afterCliffS = null;
-		if (currentSplatMap != null)
-		{
-			beforeS = new TerrainSplatWeights[splatNodeW, splatNodeD];
-			afterS = new TerrainSplatWeights[splatNodeW, splatNodeD];
-			for (int z = 0; z < splatNodeD; z++)
-			{
-				for (int x = 0; x < splatNodeW; x++)
-				{
-					int mapX = _drawMinX + x;
-					int mapZ = _drawMinZ + z;
-					if (_terrainSplatMapBefore != null && mapX < _terrainSplatMapBefore.GetLength(0) && mapZ < _terrainSplatMapBefore.GetLength(1))
-						beforeS[x, z] = _terrainSplatMapBefore[mapX, mapZ];
-					if (mapX < currentSplatMap.GetLength(0) && mapZ < currentSplatMap.GetLength(1))
-						afterS[x, z] = currentSplatMap[mapX, mapZ];
-				}
-			}
-		}
-
-		if (currentCliffSplatMap != null)
-		{
-			beforeCliffS = new TerrainSplatWeights[splatNodeW, splatNodeD];
-			afterCliffS = new TerrainSplatWeights[splatNodeW, splatNodeD];
-			for (int z = 0; z < splatNodeD; z++)
-			{
-				for (int x = 0; x < splatNodeW; x++)
-				{
-					int mapX = _drawMinX + x;
-					int mapZ = _drawMinZ + z;
-					if (_terrainCliffSplatMapBefore != null && mapX < _terrainCliffSplatMapBefore.GetLength(0) && mapZ < _terrainCliffSplatMapBefore.GetLength(1))
-						beforeCliffS[x, z] = _terrainCliffSplatMapBefore[mapX, mapZ];
-					if (mapX < currentCliffSplatMap.GetLength(0) && mapZ < currentCliffSplatMap.GetLength(1))
-						afterCliffS[x, z] = currentCliffSplatMap[mapX, mapZ];
-				}
-			}
-		}
 	}
 
 	public TerrainModifyAction EndTerrainDraw(
@@ -3312,54 +3190,6 @@ public partial class EditorService : IEditorAPI
 		return result;
 	}
 
-	private void ProcessEraseHeightsAndTextures(int minX, int minZ, int selWidth, int selDepth, bool isSquare, float selCenterX, float selCenterZ, float rx, float rz, int width, int depth, bool pasteHeights, bool pasteTextures, bool pastePathing, ref TerrainState terrain, ref bool terrainModified, ref bool pathingModified)
-	{
-		for (int sz = 0; sz < selDepth; sz++)
-		{
-			for (int sx = 0; sx < selWidth; sx++)
-			{
-				if (!isSquare)
-				{
-					float cellCenterX = minX + sx + 0.5f;
-					float cellCenterZ = minZ + sz + 0.5f;
-					float ndx = (cellCenterX - selCenterX) / rx;
-					float ndz = (cellCenterZ - selCenterZ) / rz;
-					if (ndx * ndx + ndz * ndz > 1.05f) continue;
-				}
-
-				int targetX = minX + sx;
-				int targetZ = minZ + sz;
-				if (targetX >= 0 && targetX < width && targetZ >= 0 && targetZ < depth)
-				{
-					if (pasteHeights && terrain.Cells != null)
-					{
-						SetGridNodeHeight(ref terrain, targetX, targetZ, 0f);
-						SetGridNodeHeight(ref terrain, targetX + 1, targetZ, 0f);
-						SetGridNodeHeight(ref terrain, targetX + 1, targetZ + 1, 0f);
-						SetGridNodeHeight(ref terrain, targetX, targetZ + 1, 0f);
-						terrain.Cells[targetX, targetZ] = default;
-					}
-
-					if (pasteTextures)
-					{
-						var eraseSplat = new TerrainSplatWeights { Index0 = 0, Weight0 = 1.0f };
-						SetGridNodeSplat(targetX, targetZ, in eraseSplat, in eraseSplat, in eraseSplat, in eraseSplat);
-						var eraseCliff = new TerrainSplatWeights { Index0 = 1, Weight0 = 1.0f };
-						SetGridNodeCliffSplat(targetX, targetZ, in eraseCliff, in eraseCliff, in eraseCliff, in eraseCliff);
-					}
-
-					if (pastePathing && terrain.PathingCodes != null && terrain.Cells != null)
-					{
-						terrain.PathingCodes[targetX, targetZ] = EditableTerrain.GetDefaultPathingCode(terrain.Cells[targetX, targetZ]);
-						pathingModified = true;
-					}
-
-					terrainModified = true;
-				}
-			}
-		}
-	}
-
 	public EraseAreaResult BuildEraseAreaResult(
 		int minX, int minZ, int maxX, int maxZ,
 		bool pasteHeights,
@@ -3494,11 +3324,6 @@ public partial class EditorService : IEditorAPI
 		float ndx = (x - centerX) / rx;
 		float ndz = (z - centerZ) / rz;
 		return ndx * ndx + ndz * ndz <= threshold;
-	}
-
-	private int GetDominantTextureIndex(TerrainSplatWeights splat)
-	{
-		return splat.GetDominantIndex();
 	}
 
 	private void ProcessFloodFillNeighbor(int currX, int currZ, int nextX, int nextZ, int splatW, int splatD, bool[,] visited, TerrainSplatWeights[,] splatBefore, int startDominantIndex, bool isCliff, ref TerrainState terrain, Queue<(int x, int z)> queue)
