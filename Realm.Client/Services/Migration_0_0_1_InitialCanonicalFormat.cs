@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -245,8 +245,9 @@ public class Migration_0_0_1_InitialCanonicalFormat : IMapMigration
 			if ((attrs & FileAttributes.ReadOnly) != 0) File.SetAttributes(file, attrs & ~FileAttributes.ReadOnly);
 			File.Delete(file);
 		}
-		catch
+		catch (Exception ex)
 		{
+			GameLog.LogError($"could not delete the migrated original {file}, so the map keeps a duplicate copy: {ex.GetType().Name}: {ex.Message}");
 		}
 	}
 
