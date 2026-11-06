@@ -242,345 +242,7 @@ namespace Realm.Client.UI
 				_accordionFile = GetNode<VBoxContainer>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion");
 				BuildFileOperationsPanel();
 
-				_accordionViewport = GetNode<VBoxContainer>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion");
-				_btnHeaderViewport = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/BtnHeaderViewport");
-				_contentViewport = GetNode<VBoxContainer>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport");
-				StyleAccordionHeader(_btnHeaderViewport);
-				SetupAccordion(_btnHeaderViewport, _contentViewport, TranslationServer.Translate("Viewport & Navigation"));
-
-				InitializeEditingDirectory();
-
-
-				_popupOverlayMode = new PopupMenu();
-				_popupOverlayMode.Name = "PopupOverlayMode";
-				_popupOverlayMode.HideOnCheckableItemSelection = false;
-				_popupOverlayMode.AddCheckItem(TranslationServer.Translate("Grid") + " (V)", 0);
-				_popupOverlayMode.AddCheckItem(TranslationServer.Translate("Polar") + " (V)", 1);
-				_popupOverlayMode.AddCheckItem(TranslationServer.Translate("Camera Bounds"), 2);
-				_popupOverlayMode.AddCheckItem(TranslationServer.Translate("Wireframe") + " (F7)", 3);
-				StylePopupMenu(_popupOverlayMode);
-				_popupOverlayMode.IdPressed += (long id) =>
-				{
-					_popupOverlayMode.Hide();
-					if (GameContext.Host == null) return;
-					int idx = _popupOverlayMode.GetItemIndex((int)id);
-					if (idx < 0) return;
-					bool newChecked = !_popupOverlayMode.IsItemChecked(idx);
-					_popupOverlayMode.SetItemChecked(idx, newChecked);
-
-					if (id == 0 || id == 1)
-					{
-						int gridIdx = _popupOverlayMode.GetItemIndex(0);
-						int polarIdx = _popupOverlayMode.GetItemIndex(1);
-						bool gridOn = gridIdx >= 0 && _popupOverlayMode.IsItemChecked(gridIdx);
-						bool polarOn = polarIdx >= 0 && _popupOverlayMode.IsItemChecked(polarIdx);
-
-						var newMode = (gridOn, polarOn) switch
-						{
-							(true, true) => GridOverlayMode.Both,
-							(true, false) => GridOverlayMode.Grid,
-							(false, true) => GridOverlayMode.Polar,
-							(false, false) => GridOverlayMode.Off
-						};
-
-						GameContext.EditorService.EditorGridMode = newMode;
-						GameContext.Host.UpdateGridOverlayVisibility();
-						UpdateGridOverlayExternal(newMode);
-						string modeName = newMode switch
-						{
-							GridOverlayMode.Off => "OFF",
-							GridOverlayMode.Grid => "GRID",
-							GridOverlayMode.Polar => "POLAR",
-							GridOverlayMode.Both => "GRID + POLAR",
-							_ => "OFF"
-						};
-						ShowFeedback($"Overlay Mode: {modeName}");
-					}
-					else if (id == 2)
-					{
-						GameContext.EditorService.EditorCameraBoundsVisible = newChecked;
-						GameContext.Host.UpdateCameraBoundsOverlayVisibility();
-						UpdateCameraBoundsOverlayExternal(newChecked);
-						ShowFeedback(newChecked
-							? TranslationServer.Translate("Camera Bounds: ON")
-							: TranslationServer.Translate("Camera Bounds: OFF"));
-					}
-					else if (id == 3)
-					{
-						if (GameContext.Host.GroundTerrain != null)
-						{
-							GameContext.Host.GroundTerrain.ToggleWireframeMode();
-							bool isWireframe = GetViewport()?.DebugDraw == Viewport.DebugDrawEnum.Wireframe;
-							UpdateWireframeOverlayExternal(isWireframe);
-							ShowFeedback(isWireframe
-								? TranslationServer.Translate("Wireframe Mode: ON")
-								: TranslationServer.Translate("Wireframe Mode: OFF"));
-						}
-					}
-				};
-				AddChild(_popupOverlayMode);
-
-				_btnToggleGrid = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/BoxViewportToolbar/ViewportIconRow1/BtnToggleGrid");
-				SetupButton(_btnToggleGrid, UnicodeIcons.BORDER_ALL, () => OpenOverlayModePopup(), 12, "Overlay");
-				_popupEnvironment = new PopupPanel();
-				_popupEnvironment.Name = "PopupEnvironment";
-
-				var envPopupStyle = new StyleBoxFlat();
-				envPopupStyle.BgColor = new Color(0.14f, 0.13f, 0.11f, 0.98f);
-				envPopupStyle.BorderColor = UIStyle.ColorGold;
-				envPopupStyle.SetBorderWidthAll(1);
-				envPopupStyle.SetCornerRadiusAll(4);
-				envPopupStyle.ContentMarginLeft = 10;
-				envPopupStyle.ContentMarginRight = 10;
-				envPopupStyle.ContentMarginTop = 10;
-				envPopupStyle.ContentMarginBottom = 10;
-				_popupEnvironment.AddThemeStyleboxOverride("panel", envPopupStyle);
-
-				var envVBox = new VBoxContainer();
-				envVBox.Name = "EnvVBox";
-				envVBox.AddThemeConstantOverride("separation", 6);
-				envVBox.CustomMinimumSize = new Vector2(170, 0);
-
-				_optEnvLighting = new OptionButton();
-				_optEnvLighting.Name = "OptEnvLighting";
-				_optEnvLighting.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-				_optEnvLighting.CustomMinimumSize = new Vector2(0, 24);
-				_optEnvLighting.ClipText = true;
-				SetupEnvLightingDropdown(_optEnvLighting);
-				_optEnvLighting.ItemSelected += (idx) =>
-				{
-					SetEnvironmentLighting((int)idx);
-					_popupEnvironment.Hide();
-				};
-				envVBox.AddChild(_optEnvLighting);
-
-				_optEnvWeather = new OptionButton();
-				_optEnvWeather.Name = "OptEnvWeather";
-				_optEnvWeather.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-				_optEnvWeather.CustomMinimumSize = new Vector2(0, 24);
-				_optEnvWeather.ClipText = true;
-				SetupEnvWeatherDropdown(_optEnvWeather);
-				_optEnvWeather.ItemSelected += (idx) =>
-				{
-					SetEnvironmentWeather((int)idx);
-					_popupEnvironment.Hide();
-				};
-				envVBox.AddChild(_optEnvWeather);
-
-				_chkEnvShadows = new CheckBox();
-				_chkEnvShadows.Name = "ChkEnvShadows";
-				_chkEnvShadows.Text = TranslationServer.Translate("Shadows");
-				_chkEnvShadows.TooltipText = TranslationServer.Translate("Toggle shadows in editor (F9)");
-				_chkEnvShadows.ButtonPressed = true;
-				_chkEnvShadows.FocusMode = FocusModeEnum.None;
-				_chkEnvShadows.AddThemeFontSizeOverride("font_size", 11);
-				UIStyle.ApplyCheckboxStyle(_chkEnvShadows);
-				_chkEnvShadows.Toggled += (pressed) =>
-				{
-					if (GameContext.Host != null)
-					{
-						bool disableShadows = !pressed;
-						if (GameContext.EditorService.EditorDisableShadows != disableShadows)
-						{
-							GameContext.EditorService.EditorDisableShadows = disableShadows;
-							GameContext.Host.UpdateEditorShadows();
-							ShowFeedback(disableShadows
-								? TranslationServer.Translate("Shadows: OFF")
-								: TranslationServer.Translate("Shadows: ON"));
-						}
-					}
-					_popupEnvironment.Hide();
-				};
-				envVBox.AddChild(_chkEnvShadows);
-
-				_popupEnvironment.AddChild(envVBox);
-				AddChild(_popupEnvironment);
-
-				_btnToggleEnvironment = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/BoxViewportToolbar/ViewportIconRow1/BtnToggleEnvironment");
-				_btnToggleEnvironment.Name = "BtnToggleEnvironment";
-				_btnToggleEnvironment.Set("icon_max_width", 0);
-				SetupButton(_btnToggleEnvironment, UnicodeIcons.SUN, () => OpenEnvironmentPopup(), 12, "Environment");
-
-				_popupCamera = new PopupPanel();
-				_popupCamera.Name = "PopupCamera";
-
-				var camPopupStyle = new StyleBoxFlat();
-				camPopupStyle.BgColor = new Color(0.14f, 0.13f, 0.11f, 0.98f);
-				camPopupStyle.BorderColor = UIStyle.ColorGold;
-				camPopupStyle.SetBorderWidthAll(1);
-				camPopupStyle.SetCornerRadiusAll(4);
-				camPopupStyle.ContentMarginLeft = 8;
-				camPopupStyle.ContentMarginRight = 8;
-				camPopupStyle.ContentMarginTop = 8;
-				camPopupStyle.ContentMarginBottom = 8;
-				_popupCamera.AddThemeStyleboxOverride("panel", camPopupStyle);
-
-				var camVBox = new VBoxContainer();
-				camVBox.Name = "CamVBox";
-				camVBox.AddThemeConstantOverride("separation", 6);
-				camVBox.CustomMinimumSize = new Vector2(170, 0);
-
-				_btnRotate = new Button();
-				_btnRotate.Name = "BtnRotate";
-				_btnRotate.Set("icon_max_width", 0);
-				StylePopupButton(_btnRotate, $"{UnicodeIcons.ROTATE} Rotate 90° (R)", "Rotate camera 90 degrees (R)");
-				_btnRotate.Pressed += () =>
-				{
-					GameContext.UserInterface?.PlayClickSound();
-					var camera = GameContext.Host?.MainCamera;
-					camera?.Rotate90Degrees();
-					_popupCamera.Hide();
-				};
-				camVBox.AddChild(_btnRotate);
-
-				_btnCameraAngle = new Button();
-				_btnCameraAngle.Name = "BtnCameraAngle";
-				_btnCameraAngle.Set("icon_max_width", 0);
-				StylePopupButton(_btnCameraAngle, $"{UnicodeIcons.CUBE} Top-Down (C)", "Toggle perspective vs top-down angle (C)");
-				_btnCameraAngle.Pressed += () =>
-				{
-					var camera = GameContext.Host?.MainCamera;
-					camera?.ToggleTopDown();
-					if (camera != null)
-					{
-						UpdateCameraAngleButtonText(camera.IsTopDown());
-					}
-					_popupCamera.Hide();
-				};
-				camVBox.AddChild(_btnCameraAngle);
-
-				_btnZoomIn = new Button();
-				_btnZoomIn.Name = "BtnZoomIn";
-				_btnZoomIn.Set("icon_max_width", 0);
-				StylePopupButton(_btnZoomIn, $"{UnicodeIcons.ZOOM_IN} Zoom In (Mouse_Wheel)", "Zoom camera in (Mouse Wheel)");
-				_btnZoomIn.Pressed += () =>
-				{
-					GameContext.UserInterface?.PlayClickSound();
-					GameContext.Host?.MainCamera?.ZoomIn();
-					_popupCamera.Hide();
-				};
-				camVBox.AddChild(_btnZoomIn);
-
-				_btnZoomOut = new Button();
-				_btnZoomOut.Name = "BtnZoomOut";
-				_btnZoomOut.Set("icon_max_width", 0);
-				StylePopupButton(_btnZoomOut, $"{UnicodeIcons.ZOOM_OUT} Zoom Out (Mouse_Wheel)", "Zoom camera out (Mouse Wheel)");
-				_btnZoomOut.Pressed += () =>
-				{
-					GameContext.UserInterface?.PlayClickSound();
-					GameContext.Host?.MainCamera?.ZoomOut();
-					_popupCamera.Hide();
-				};
-				camVBox.AddChild(_btnZoomOut);
-
-				_chkFreeCamera = new CheckBox();
-				_chkFreeCamera.Name = "ChkFreeCamera";
-				_chkFreeCamera.Text = TranslationServer.Translate("Free Camera (F8)");
-				_chkFreeCamera.TooltipText = TranslationServer.Translate("Toggle free camera mode (F8)");
-				_chkFreeCamera.FocusMode = FocusModeEnum.None;
-				_chkFreeCamera.AddThemeFontSizeOverride("font_size", 11);
-				UIStyle.ApplyCheckboxStyle(_chkFreeCamera);
-				_chkFreeCamera.Toggled += (pressed) =>
-				{
-					var cam = GameContext.Host?.MainCamera;
-					if (cam != null && cam.IsFreeCamera != pressed)
-					{
-						ToggleFreeCamera();
-					}
-					_popupCamera.Hide();
-				};
-				camVBox.AddChild(_chkFreeCamera);
-
-				_popupCamera.AddChild(camVBox);
-				AddChild(_popupCamera);
-
-				_btnToggleCamera = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/BoxViewportToolbar/ViewportIconRow1/BtnToggleCamera");
-				_btnToggleCamera.Set("icon_max_width", 0);
-				SetupButton(_btnToggleCamera, UnicodeIcons.CAMERA, () => OpenCameraPopup(), 12, "Configure camera controls (R / C / + / - / F8)");
-
-				var initialCam = GameContext.Host?.MainCamera;
-				UpdateFreeCameraExternal(initialCam != null && initialCam.IsFreeCamera);
-				GameHost tempQualifier = GameContext.Host;
-				UpdateShadowsExternal((tempQualifier != null ? GameContext.EditorService.EditorDisableShadows : (bool?)null) ?? false);
-
-				_minimapFrame = GetNode<PanelContainer>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/MinimapFrame");
-				_minimapArea = GetNode<Control>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/MinimapFrame/MinimapArea");
-				_cameraIndicator = GetNode<MapEditorCameraIndicator>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/MinimapFrame/MinimapArea/CameraIndicator");
-
-				_mapSettingsDialog = new MapSettingsDialog(this);
-
-				_btnTapeMeasure = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/BoxViewportToolbar/ViewportIconRow1/BtnTapeMeasure");
-				_btnTapeMeasure.Set("icon_max_width", 0);
-				SetupButton(_btnTapeMeasure, UnicodeIcons.RULER, () =>
-				{
-					if (GameContext.Host != null)
-					{
-						if (GameContext.Host.ActiveEditorTool == EditorTool.Measure)
-						{
-							GameContext.Host.ClearMeasureVisuals();
-							ClearMeasureTelemetry();
-							TriggerToolSelection(GameContext.SessionState.SavedActiveTool != EditorTool.Measure ? GameContext.SessionState.SavedActiveTool : EditorTool.Raise, null);
-						}
-						else
-						{
-							TriggerToolSelection(EditorTool.Measure, _btnTapeMeasure);
-						}
-					}
-				}, 12, "Tape Measure Tool: Click Point A, then Point B to measure distance & slope (U)");
-
-				_optPolarRingSpacing = GetNode<OptionButton>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/RowPolarConfig/OptPolarRingSpacing");
-				_optPolarRingSpacing.Set("icon_max_width", 0);
-				SetupPolarRingSpacingDropdown(_optPolarRingSpacing, "Select interval between concentric polar distance rings (4, 8, 16, 32 tiles)");
-
-				_optPolarRadialStep = GetNode<OptionButton>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/RowPolarConfig/OptPolarRadialStep");
-				_optPolarRadialStep.Set("icon_max_width", 0);
-				SetupSpokesDropdown(_optPolarRadialStep, (spokes) => SetPolarSpokesView(spokes), "Select radial spoke count (2, 3, 4, 5, 6, 8, 12, 16)");
-
-				_btnResetPivotToCenter = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/RowPolarConfig/BtnResetPivotToCenter");
-				_btnResetPivotToCenter.Set("icon_max_width", 0);
-				SetupOptionButton(_btnResetPivotToCenter, $"{UnicodeIcons.CROSSHAIRS} RESET PIVOT", () => ResetPivotToMapCenterView(), 10, "Reset symmetry and polar overlay center pivot to true map center");
-
-				var bottomBar = GetNode<HBoxContainer>("BottomCenterBar");
-				bottomBar.Alignment = BoxContainer.AlignmentMode.Center;
-				bottomBar.MouseFilter = MouseFilterEnum.Ignore;
-
-				if (_topBar != null)
-				{
-					_topBar.CustomMinimumSize = new Vector2(0, 44);
-					_topBar.SizeFlagsVertical = SizeFlags.ShrinkCenter;
-					_topBar.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
-				}
-
-				_panelMeasurementHUD = new PanelContainer();
-				_panelMeasurementHUD.Name = "MeasurementHUD";
-				_panelMeasurementHUD.CustomMinimumSize = new Vector2(0, 44);
-				_panelMeasurementHUD.SizeFlagsVertical = SizeFlags.ShrinkCenter;
-				_panelMeasurementHUD.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
-				_panelMeasurementHUD.MouseFilter = MouseFilterEnum.Ignore;
-				_panelMeasurementHUD.Visible = false;
-
-				var measureHBox = new HBoxContainer();
-				measureHBox.Name = "MeasureHBox";
-				measureHBox.Alignment = BoxContainer.AlignmentMode.Center;
-				measureHBox.AddThemeConstantOverride("separation", 8);
-				measureHBox.MouseFilter = MouseFilterEnum.Ignore;
-
-				_lblMeasureTelemetry = new Label();
-				_lblMeasureTelemetry.Name = "LblMeasureTelemetry";
-				_lblMeasureTelemetry.HorizontalAlignment = HorizontalAlignment.Left;
-				_lblMeasureTelemetry.VerticalAlignment = VerticalAlignment.Center;
-				_lblMeasureTelemetry.AddThemeFontSizeOverride("font_size", 13);
-				_lblMeasureTelemetry.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-				var fontStatus = GetFontAwesomeFont();
-				if (fontStatus != null)
-				{
-					_lblMeasureTelemetry.AddThemeFontOverride("font", fontStatus);
-				}
-
-				measureHBox.AddChild(_lblMeasureTelemetry);
-				_panelMeasurementHUD.AddChild(measureHBox);
-
-				bottomBar.AddChild(_panelMeasurementHUD);
+				BuildViewportNavigationPanel();
 
 				ApplyThemeStyles();
 				SetupLightingTuningUI();
@@ -1635,6 +1297,349 @@ namespace Realm.Client.UI
 			SetupOptionButton(_btnMapVersions, $"{UnicodeIcons.USER_CLOCK} " + TranslationServer.Translate("MAP VERSIONS"), () => OpenMapVersionsDialog(), 13, "Go back to earlier versions of this map");
 			_contentFile.AddChild(_btnMapVersions);
 			_contentFile.MoveChild(_btnMapVersions, 2);
+		}
+
+		private void BuildViewportNavigationPanel()
+		{
+			_accordionViewport = GetNode<VBoxContainer>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion");
+			_btnHeaderViewport = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/BtnHeaderViewport");
+			_contentViewport = GetNode<VBoxContainer>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport");
+			StyleAccordionHeader(_btnHeaderViewport);
+			SetupAccordion(_btnHeaderViewport, _contentViewport, TranslationServer.Translate("Viewport & Navigation"));
+
+			InitializeEditingDirectory();
+
+
+			_popupOverlayMode = new PopupMenu();
+			_popupOverlayMode.Name = "PopupOverlayMode";
+			_popupOverlayMode.HideOnCheckableItemSelection = false;
+			_popupOverlayMode.AddCheckItem(TranslationServer.Translate("Grid") + " (V)", 0);
+			_popupOverlayMode.AddCheckItem(TranslationServer.Translate("Polar") + " (V)", 1);
+			_popupOverlayMode.AddCheckItem(TranslationServer.Translate("Camera Bounds"), 2);
+			_popupOverlayMode.AddCheckItem(TranslationServer.Translate("Wireframe") + " (F7)", 3);
+			StylePopupMenu(_popupOverlayMode);
+			_popupOverlayMode.IdPressed += (long id) =>
+			{
+				_popupOverlayMode.Hide();
+				if (GameContext.Host == null) return;
+				int idx = _popupOverlayMode.GetItemIndex((int)id);
+				if (idx < 0) return;
+				bool newChecked = !_popupOverlayMode.IsItemChecked(idx);
+				_popupOverlayMode.SetItemChecked(idx, newChecked);
+
+				if (id == 0 || id == 1)
+				{
+					int gridIdx = _popupOverlayMode.GetItemIndex(0);
+					int polarIdx = _popupOverlayMode.GetItemIndex(1);
+					bool gridOn = gridIdx >= 0 && _popupOverlayMode.IsItemChecked(gridIdx);
+					bool polarOn = polarIdx >= 0 && _popupOverlayMode.IsItemChecked(polarIdx);
+
+					var newMode = (gridOn, polarOn) switch
+					{
+						(true, true) => GridOverlayMode.Both,
+						(true, false) => GridOverlayMode.Grid,
+						(false, true) => GridOverlayMode.Polar,
+						(false, false) => GridOverlayMode.Off
+					};
+
+					GameContext.EditorService.EditorGridMode = newMode;
+					GameContext.Host.UpdateGridOverlayVisibility();
+					UpdateGridOverlayExternal(newMode);
+					string modeName = newMode switch
+					{
+						GridOverlayMode.Off => "OFF",
+						GridOverlayMode.Grid => "GRID",
+						GridOverlayMode.Polar => "POLAR",
+						GridOverlayMode.Both => "GRID + POLAR",
+						_ => "OFF"
+					};
+					ShowFeedback($"Overlay Mode: {modeName}");
+				}
+				else if (id == 2)
+				{
+					GameContext.EditorService.EditorCameraBoundsVisible = newChecked;
+					GameContext.Host.UpdateCameraBoundsOverlayVisibility();
+					UpdateCameraBoundsOverlayExternal(newChecked);
+					ShowFeedback(newChecked
+						? TranslationServer.Translate("Camera Bounds: ON")
+						: TranslationServer.Translate("Camera Bounds: OFF"));
+				}
+				else if (id == 3)
+				{
+					if (GameContext.Host.GroundTerrain != null)
+					{
+						GameContext.Host.GroundTerrain.ToggleWireframeMode();
+						bool isWireframe = GetViewport()?.DebugDraw == Viewport.DebugDrawEnum.Wireframe;
+						UpdateWireframeOverlayExternal(isWireframe);
+						ShowFeedback(isWireframe
+							? TranslationServer.Translate("Wireframe Mode: ON")
+							: TranslationServer.Translate("Wireframe Mode: OFF"));
+					}
+				}
+			};
+			AddChild(_popupOverlayMode);
+
+			_btnToggleGrid = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/BoxViewportToolbar/ViewportIconRow1/BtnToggleGrid");
+			SetupButton(_btnToggleGrid, UnicodeIcons.BORDER_ALL, () => OpenOverlayModePopup(), 12, "Overlay");
+			_popupEnvironment = new PopupPanel();
+			_popupEnvironment.Name = "PopupEnvironment";
+
+			var envPopupStyle = new StyleBoxFlat();
+			envPopupStyle.BgColor = new Color(0.14f, 0.13f, 0.11f, 0.98f);
+			envPopupStyle.BorderColor = UIStyle.ColorGold;
+			envPopupStyle.SetBorderWidthAll(1);
+			envPopupStyle.SetCornerRadiusAll(4);
+			envPopupStyle.ContentMarginLeft = 10;
+			envPopupStyle.ContentMarginRight = 10;
+			envPopupStyle.ContentMarginTop = 10;
+			envPopupStyle.ContentMarginBottom = 10;
+			_popupEnvironment.AddThemeStyleboxOverride("panel", envPopupStyle);
+
+			var envVBox = new VBoxContainer();
+			envVBox.Name = "EnvVBox";
+			envVBox.AddThemeConstantOverride("separation", 6);
+			envVBox.CustomMinimumSize = new Vector2(170, 0);
+
+			_optEnvLighting = new OptionButton();
+			_optEnvLighting.Name = "OptEnvLighting";
+			_optEnvLighting.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+			_optEnvLighting.CustomMinimumSize = new Vector2(0, 24);
+			_optEnvLighting.ClipText = true;
+			SetupEnvLightingDropdown(_optEnvLighting);
+			_optEnvLighting.ItemSelected += (idx) =>
+			{
+				SetEnvironmentLighting((int)idx);
+				_popupEnvironment.Hide();
+			};
+			envVBox.AddChild(_optEnvLighting);
+
+			_optEnvWeather = new OptionButton();
+			_optEnvWeather.Name = "OptEnvWeather";
+			_optEnvWeather.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+			_optEnvWeather.CustomMinimumSize = new Vector2(0, 24);
+			_optEnvWeather.ClipText = true;
+			SetupEnvWeatherDropdown(_optEnvWeather);
+			_optEnvWeather.ItemSelected += (idx) =>
+			{
+				SetEnvironmentWeather((int)idx);
+				_popupEnvironment.Hide();
+			};
+			envVBox.AddChild(_optEnvWeather);
+
+			_chkEnvShadows = new CheckBox();
+			_chkEnvShadows.Name = "ChkEnvShadows";
+			_chkEnvShadows.Text = TranslationServer.Translate("Shadows");
+			_chkEnvShadows.TooltipText = TranslationServer.Translate("Toggle shadows in editor (F9)");
+			_chkEnvShadows.ButtonPressed = true;
+			_chkEnvShadows.FocusMode = FocusModeEnum.None;
+			_chkEnvShadows.AddThemeFontSizeOverride("font_size", 11);
+			UIStyle.ApplyCheckboxStyle(_chkEnvShadows);
+			_chkEnvShadows.Toggled += (pressed) =>
+			{
+				if (GameContext.Host != null)
+				{
+					bool disableShadows = !pressed;
+					if (GameContext.EditorService.EditorDisableShadows != disableShadows)
+					{
+						GameContext.EditorService.EditorDisableShadows = disableShadows;
+						GameContext.Host.UpdateEditorShadows();
+						ShowFeedback(disableShadows
+							? TranslationServer.Translate("Shadows: OFF")
+							: TranslationServer.Translate("Shadows: ON"));
+					}
+				}
+				_popupEnvironment.Hide();
+			};
+			envVBox.AddChild(_chkEnvShadows);
+
+			_popupEnvironment.AddChild(envVBox);
+			AddChild(_popupEnvironment);
+
+			_btnToggleEnvironment = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/BoxViewportToolbar/ViewportIconRow1/BtnToggleEnvironment");
+			_btnToggleEnvironment.Name = "BtnToggleEnvironment";
+			_btnToggleEnvironment.Set("icon_max_width", 0);
+			SetupButton(_btnToggleEnvironment, UnicodeIcons.SUN, () => OpenEnvironmentPopup(), 12, "Environment");
+
+			_popupCamera = new PopupPanel();
+			_popupCamera.Name = "PopupCamera";
+
+			var camPopupStyle = new StyleBoxFlat();
+			camPopupStyle.BgColor = new Color(0.14f, 0.13f, 0.11f, 0.98f);
+			camPopupStyle.BorderColor = UIStyle.ColorGold;
+			camPopupStyle.SetBorderWidthAll(1);
+			camPopupStyle.SetCornerRadiusAll(4);
+			camPopupStyle.ContentMarginLeft = 8;
+			camPopupStyle.ContentMarginRight = 8;
+			camPopupStyle.ContentMarginTop = 8;
+			camPopupStyle.ContentMarginBottom = 8;
+			_popupCamera.AddThemeStyleboxOverride("panel", camPopupStyle);
+
+			var camVBox = new VBoxContainer();
+			camVBox.Name = "CamVBox";
+			camVBox.AddThemeConstantOverride("separation", 6);
+			camVBox.CustomMinimumSize = new Vector2(170, 0);
+
+			_btnRotate = new Button();
+			_btnRotate.Name = "BtnRotate";
+			_btnRotate.Set("icon_max_width", 0);
+			StylePopupButton(_btnRotate, $"{UnicodeIcons.ROTATE} Rotate 90° (R)", "Rotate camera 90 degrees (R)");
+			_btnRotate.Pressed += () =>
+			{
+				GameContext.UserInterface?.PlayClickSound();
+				var camera = GameContext.Host?.MainCamera;
+				camera?.Rotate90Degrees();
+				_popupCamera.Hide();
+			};
+			camVBox.AddChild(_btnRotate);
+
+			_btnCameraAngle = new Button();
+			_btnCameraAngle.Name = "BtnCameraAngle";
+			_btnCameraAngle.Set("icon_max_width", 0);
+			StylePopupButton(_btnCameraAngle, $"{UnicodeIcons.CUBE} Top-Down (C)", "Toggle perspective vs top-down angle (C)");
+			_btnCameraAngle.Pressed += () =>
+			{
+				var camera = GameContext.Host?.MainCamera;
+				camera?.ToggleTopDown();
+				if (camera != null)
+				{
+					UpdateCameraAngleButtonText(camera.IsTopDown());
+				}
+				_popupCamera.Hide();
+			};
+			camVBox.AddChild(_btnCameraAngle);
+
+			_btnZoomIn = new Button();
+			_btnZoomIn.Name = "BtnZoomIn";
+			_btnZoomIn.Set("icon_max_width", 0);
+			StylePopupButton(_btnZoomIn, $"{UnicodeIcons.ZOOM_IN} Zoom In (Mouse_Wheel)", "Zoom camera in (Mouse Wheel)");
+			_btnZoomIn.Pressed += () =>
+			{
+				GameContext.UserInterface?.PlayClickSound();
+				GameContext.Host?.MainCamera?.ZoomIn();
+				_popupCamera.Hide();
+			};
+			camVBox.AddChild(_btnZoomIn);
+
+			_btnZoomOut = new Button();
+			_btnZoomOut.Name = "BtnZoomOut";
+			_btnZoomOut.Set("icon_max_width", 0);
+			StylePopupButton(_btnZoomOut, $"{UnicodeIcons.ZOOM_OUT} Zoom Out (Mouse_Wheel)", "Zoom camera out (Mouse Wheel)");
+			_btnZoomOut.Pressed += () =>
+			{
+				GameContext.UserInterface?.PlayClickSound();
+				GameContext.Host?.MainCamera?.ZoomOut();
+				_popupCamera.Hide();
+			};
+			camVBox.AddChild(_btnZoomOut);
+
+			_chkFreeCamera = new CheckBox();
+			_chkFreeCamera.Name = "ChkFreeCamera";
+			_chkFreeCamera.Text = TranslationServer.Translate("Free Camera (F8)");
+			_chkFreeCamera.TooltipText = TranslationServer.Translate("Toggle free camera mode (F8)");
+			_chkFreeCamera.FocusMode = FocusModeEnum.None;
+			_chkFreeCamera.AddThemeFontSizeOverride("font_size", 11);
+			UIStyle.ApplyCheckboxStyle(_chkFreeCamera);
+			_chkFreeCamera.Toggled += (pressed) =>
+			{
+				var cam = GameContext.Host?.MainCamera;
+				if (cam != null && cam.IsFreeCamera != pressed)
+				{
+					ToggleFreeCamera();
+				}
+				_popupCamera.Hide();
+			};
+			camVBox.AddChild(_chkFreeCamera);
+
+			_popupCamera.AddChild(camVBox);
+			AddChild(_popupCamera);
+
+			_btnToggleCamera = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/BoxViewportToolbar/ViewportIconRow1/BtnToggleCamera");
+			_btnToggleCamera.Set("icon_max_width", 0);
+			SetupButton(_btnToggleCamera, UnicodeIcons.CAMERA, () => OpenCameraPopup(), 12, "Configure camera controls (R / C / + / - / F8)");
+
+			var initialCam = GameContext.Host?.MainCamera;
+			UpdateFreeCameraExternal(initialCam != null && initialCam.IsFreeCamera);
+			GameHost tempQualifier = GameContext.Host;
+			UpdateShadowsExternal((tempQualifier != null ? GameContext.EditorService.EditorDisableShadows : (bool?)null) ?? false);
+
+			_minimapFrame = GetNode<PanelContainer>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/MinimapFrame");
+			_minimapArea = GetNode<Control>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/MinimapFrame/MinimapArea");
+			_cameraIndicator = GetNode<MapEditorCameraIndicator>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/MinimapFrame/MinimapArea/CameraIndicator");
+
+			_mapSettingsDialog = new MapSettingsDialog(this);
+
+			_btnTapeMeasure = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/BoxViewportToolbar/ViewportIconRow1/BtnTapeMeasure");
+			_btnTapeMeasure.Set("icon_max_width", 0);
+			SetupButton(_btnTapeMeasure, UnicodeIcons.RULER, () =>
+			{
+				if (GameContext.Host != null)
+				{
+					if (GameContext.Host.ActiveEditorTool == EditorTool.Measure)
+					{
+						GameContext.Host.ClearMeasureVisuals();
+						ClearMeasureTelemetry();
+						TriggerToolSelection(GameContext.SessionState.SavedActiveTool != EditorTool.Measure ? GameContext.SessionState.SavedActiveTool : EditorTool.Raise, null);
+					}
+					else
+					{
+						TriggerToolSelection(EditorTool.Measure, _btnTapeMeasure);
+					}
+				}
+			}, 12, "Tape Measure Tool: Click Point A, then Point B to measure distance & slope (U)");
+
+			_optPolarRingSpacing = GetNode<OptionButton>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/RowPolarConfig/OptPolarRingSpacing");
+			_optPolarRingSpacing.Set("icon_max_width", 0);
+			SetupPolarRingSpacingDropdown(_optPolarRingSpacing, "Select interval between concentric polar distance rings (4, 8, 16, 32 tiles)");
+
+			_optPolarRadialStep = GetNode<OptionButton>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/RowPolarConfig/OptPolarRadialStep");
+			_optPolarRadialStep.Set("icon_max_width", 0);
+			SetupSpokesDropdown(_optPolarRadialStep, (spokes) => SetPolarSpokesView(spokes), "Select radial spoke count (2, 3, 4, 5, 6, 8, 12, 16)");
+
+			_btnResetPivotToCenter = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/RowPolarConfig/BtnResetPivotToCenter");
+			_btnResetPivotToCenter.Set("icon_max_width", 0);
+			SetupOptionButton(_btnResetPivotToCenter, $"{UnicodeIcons.CROSSHAIRS} RESET PIVOT", () => ResetPivotToMapCenterView(), 10, "Reset symmetry and polar overlay center pivot to true map center");
+
+			var bottomBar = GetNode<HBoxContainer>("BottomCenterBar");
+			bottomBar.Alignment = BoxContainer.AlignmentMode.Center;
+			bottomBar.MouseFilter = MouseFilterEnum.Ignore;
+
+			if (_topBar != null)
+			{
+				_topBar.CustomMinimumSize = new Vector2(0, 44);
+				_topBar.SizeFlagsVertical = SizeFlags.ShrinkCenter;
+				_topBar.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
+			}
+
+			_panelMeasurementHUD = new PanelContainer();
+			_panelMeasurementHUD.Name = "MeasurementHUD";
+			_panelMeasurementHUD.CustomMinimumSize = new Vector2(0, 44);
+			_panelMeasurementHUD.SizeFlagsVertical = SizeFlags.ShrinkCenter;
+			_panelMeasurementHUD.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
+			_panelMeasurementHUD.MouseFilter = MouseFilterEnum.Ignore;
+			_panelMeasurementHUD.Visible = false;
+
+			var measureHBox = new HBoxContainer();
+			measureHBox.Name = "MeasureHBox";
+			measureHBox.Alignment = BoxContainer.AlignmentMode.Center;
+			measureHBox.AddThemeConstantOverride("separation", 8);
+			measureHBox.MouseFilter = MouseFilterEnum.Ignore;
+
+			_lblMeasureTelemetry = new Label();
+			_lblMeasureTelemetry.Name = "LblMeasureTelemetry";
+			_lblMeasureTelemetry.HorizontalAlignment = HorizontalAlignment.Left;
+			_lblMeasureTelemetry.VerticalAlignment = VerticalAlignment.Center;
+			_lblMeasureTelemetry.AddThemeFontSizeOverride("font_size", 13);
+			_lblMeasureTelemetry.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+			var fontStatus = GetFontAwesomeFont();
+			if (fontStatus != null)
+			{
+				_lblMeasureTelemetry.AddThemeFontOverride("font", fontStatus);
+			}
+
+			measureHBox.AddChild(_lblMeasureTelemetry);
+			_panelMeasurementHUD.AddChild(measureHBox);
+
+			bottomBar.AddChild(_panelMeasurementHUD);
 		}
 
 		public bool IsPathingAddMode()
