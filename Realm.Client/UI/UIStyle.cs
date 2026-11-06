@@ -895,6 +895,26 @@ public static class UIStyle
 		return CreateArrowButtonStyle(new Color(0.85f, 0.82f, 0.75f));
 	}
 
+	public static void ApplyButtonStyleboxes(Control button)
+	{
+		button.AddThemeStyleboxOverride("normal", CreateButtonNormal());
+		button.AddThemeStyleboxOverride("hover", CreateButtonHover());
+		button.AddThemeStyleboxOverride("pressed", CreateButtonPressed());
+	}
+
+	public static void ApplyButtonStyleboxesClearingFocus(Control button)
+	{
+		ApplyButtonStyleboxes(button);
+		button.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+	}
+
+	public static void ApplyHudButtonStyleboxes(Control button)
+	{
+		button.AddThemeStyleboxOverride("normal", CreateHUDButtonStyle(false, false));
+		button.AddThemeStyleboxOverride("hover", CreateHUDButtonStyle(true, false));
+		button.AddThemeStyleboxOverride("pressed", CreateHUDButtonStyle(false, true));
+	}
+
 	private static StyleBox CreateArrowButtonStyle(Color modulateColor)
 	{
 		var style = new StyleBoxTexture();
