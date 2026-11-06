@@ -568,7 +568,7 @@ public static class UIStyle
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[UIStyle] Failed to load FontAwesome typeface: {ex.Message}");
+			GameLog.LogError($"[UIStyle] Failed to load FontAwesome typeface: {ex.Message}");
 		}
 
 		return _fontAwesomeTypeface;
@@ -631,7 +631,7 @@ public static class UIStyle
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[UIStyle] Failed to generate unicode icon texture: {ex.Message}");
+			GameLog.LogError($"[UIStyle] Failed to generate unicode icon texture: {ex.Message}");
 			return null;
 		}
 	}
