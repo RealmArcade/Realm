@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -81,7 +81,7 @@ public class AssetIndexService : IDisposable
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[AssetIndexService] Failed to delete cache files: {ex.Message}");
+			GameLog.LogError($"[AssetIndexService] Failed to delete cache files: {ex.Message}");
 		}
 	}
 
@@ -118,8 +118,9 @@ public class AssetIndexService : IDisposable
 					return val.AsString;
 				}
 			}
-			catch
+			catch (Exception ex)
 			{
+				GameLog.LogError($"could not read the game build number from the asset index metadata, so it is treated as unknown: {ex.GetType().Name}: {ex.Message}");
 			}
 
 			return string.Empty;
@@ -139,8 +140,9 @@ public class AssetIndexService : IDisposable
 					return val.AsInt32;
 				}
 			}
-			catch
+			catch (Exception ex)
 			{
+				GameLog.LogError($"could not read the asset index schema version, so the index is treated as the oldest schema: {ex.GetType().Name}: {ex.Message}");
 			}
 
 			return 0;
@@ -370,10 +372,10 @@ public class AssetIndexService : IDisposable
 
 	private static void LogVerificationOutcome(string passName, string strategy, int checkedCount, List<AssetIndexVerificationFailure> failures)
 	{
-		GD.Print($"[AssetIndexService] {passName} verification checked {checkedCount} file(s). {strategy} Problems: {failures.Count}.");
+		GameLog.LogToConsole($"[AssetIndexService] {passName} verification checked {checkedCount} file(s). {strategy} Problems: {failures.Count}.");
 		foreach (var failure in failures)
 		{
-			GD.PrintErr($"[AssetIndexService] Verification problem in {failure.FilePath}: {failure.Reason}");
+			GameLog.LogError($"[AssetIndexService] Verification problem in {failure.FilePath}: {failure.Reason}");
 		}
 	}
 
@@ -643,7 +645,7 @@ public class AssetIndexService : IDisposable
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[AssetIndexService] SynchronizeArchiveDirectory error on {manifestFile}: {ex.Message}");
+			GameLog.LogError($"[AssetIndexService] SynchronizeArchiveDirectory error on {manifestFile}: {ex.Message}");
 		}
 	}
 
@@ -692,7 +694,7 @@ public class AssetIndexService : IDisposable
 
 		if (!ContentMatchesHash(sourceFile, blake3))
 		{
-			GD.PrintErr($"[AssetIndexService] Refusing to restore {targetCasPath}: {sourceFile} does not match its recorded hash {blake3}.");
+			GameLog.LogError($"[AssetIndexService] Refusing to restore {targetCasPath}: {sourceFile} does not match its recorded hash {blake3}.");
 			return null;
 		}
 
@@ -916,7 +918,7 @@ public class AssetIndexService : IDisposable
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[AssetIndexService] Failed to open asset index cache, rebuilding: {ex.Message}");
+			GameLog.LogError($"[AssetIndexService] Failed to open asset index cache, rebuilding: {ex.Message}");
 			DisposeIndexDatabase();
 			return false;
 		}
@@ -936,7 +938,7 @@ public class AssetIndexService : IDisposable
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[AssetIndexService] Failed to rebuild asset index cache, using in-memory index: {ex.Message}");
+			GameLog.LogError($"[AssetIndexService] Failed to rebuild asset index cache, using in-memory index: {ex.Message}");
 			DisposeIndexDatabase();
 			OpenInMemoryIndexDatabase();
 		}
@@ -989,7 +991,7 @@ public class AssetIndexService : IDisposable
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[AssetIndexService] In-memory asset index database failed: {ex.Message}");
+			GameLog.LogError($"[AssetIndexService] In-memory asset index database failed: {ex.Message}");
 		}
 	}
 
@@ -1025,7 +1027,7 @@ public class AssetIndexService : IDisposable
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"[AssetIndexService] Failed to open P2P asset index cache, rebuilding: {ex.Message}");
+				GameLog.LogError($"[AssetIndexService] Failed to open P2P asset index cache, rebuilding: {ex.Message}");
 				try
 				{
 					_p2pDatabase?.Dispose();
@@ -1705,7 +1707,7 @@ public class AssetIndexService : IDisposable
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"[AssetIndexService] Scan error on {normalizedPath}: {ex.Message}");
+				GameLog.LogError($"[AssetIndexService] Scan error on {normalizedPath}: {ex.Message}");
 			}
 			finally
 			{
@@ -1791,7 +1793,7 @@ public class AssetIndexService : IDisposable
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"[AssetIndexService] Rescan error on {normalizedPath}: {ex.Message}");
+				GameLog.LogError($"[AssetIndexService] Rescan error on {normalizedPath}: {ex.Message}");
 			}
 			finally
 			{
@@ -1875,7 +1877,7 @@ public class AssetIndexService : IDisposable
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[AssetIndexService] RescanAll CAS manifest scan error: {ex.Message}");
+			GameLog.LogError($"[AssetIndexService] RescanAll CAS manifest scan error: {ex.Message}");
 		}
 
 		foreach (var dir in dirsToScan)
@@ -1892,7 +1894,7 @@ public class AssetIndexService : IDisposable
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[AssetIndexService] RescanAll error on {dir}: {ex.Message}");
+			GameLog.LogError($"[AssetIndexService] RescanAll error on {dir}: {ex.Message}");
 		}
 		finally
 		{
@@ -1985,7 +1987,7 @@ public class AssetIndexService : IDisposable
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[AssetIndexService] Scan error on {normalizedFilePath}: {ex.Message}");
+			GameLog.LogError($"[AssetIndexService] Scan error on {normalizedFilePath}: {ex.Message}");
 		}
 	}
 
@@ -2424,7 +2426,7 @@ public class AssetIndexService : IDisposable
 				}
 				catch (Exception ex)
 				{
-					GD.PrintErr($"[AssetIndexService] UpdateAssetTags error writing sidecar: {ex.Message}");
+					GameLog.LogError($"[AssetIndexService] UpdateAssetTags error writing sidecar: {ex.Message}");
 				}
 			}
 
@@ -2591,7 +2593,7 @@ public class AssetIndexService : IDisposable
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[AssetIndexService] SearchAssets error: {ex.Message}");
+			GameLog.LogError($"[AssetIndexService] SearchAssets error: {ex.Message}");
 			return new List<IndexedAsset>();
 		}
 	}
