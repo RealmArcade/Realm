@@ -637,7 +637,7 @@ public class RegistryService
 
 		if (!HotkeySpec.TryParse(hotkey, out _, out string errorMessage))
 		{
-			GD.PrintErr($"[RegistryService] Rejected hotkey '{hotkey}' for ability '{abilityId}': {errorMessage}");
+			GameLog.LogError($"[RegistryService] Rejected hotkey '{hotkey}' for ability '{abilityId}': {errorMessage}");
 			return;
 		}
 
