@@ -45,6 +45,14 @@ public sealed record LagScenario(string Name, int AddedRoundTripMilliseconds, in
 	/// </summary>
 	public double MaximumLongestFreezeMilliseconds { get; init; } = double.MaxValue;
 
+	/// <summary>
+	///     How many times this scenario may ask the match for descriptions it is missing. It is the ceiling that keeps
+	///     recovery traffic proportional to the loss: a screen that asks per lost description asks about once per loss, and
+	///     one that asks again for what it has already asked about asks many times per loss, which is a stream that spends
+	///     its bandwidth on its own recovery and loses more for it.
+	/// </summary>
+	public double MaximumRepairRequests { get; init; } = double.MaxValue;
+
 	public string Describe()
 	{
 		string delayText = AddedRoundTripMilliseconds > 0 ? $"{AddedRoundTripMilliseconds}ms round trip" : "no added latency";
@@ -65,6 +73,7 @@ public sealed record LagScenario(string Name, int AddedRoundTripMilliseconds, in
 		CheckCeiling(metrics, violations, "client.gauges.ClientDrawnWorldAgeMilliseconds.mean", "drawn world age mean", MaximumDrawnWorldAgeMilliseconds, "ms");
 		CheckCeiling(metrics, violations, "client.events.ClientBaselinesApplied.count", "baselines applied", MaximumBaselines, "");
 		CheckCeiling(metrics, violations, "client.events.ClientStarvationHoldMilliseconds.worst", "longest freeze", MaximumLongestFreezeMilliseconds, "ms");
+		CheckCeiling(metrics, violations, "client.events.ClientRepairsRequested.count", "repair requests", MaximumRepairRequests, "");
 		return violations;
 	}
 

@@ -32,6 +32,9 @@ public class SnapshotApplyService
 	/// </summary>
 	private const int MaximumRepairSequences = MatchTiming.SnapshotHistoryDepth;
 
+	/// <summary>
+	///     How often the same hole may be asked about again while its answer is still owed.
+	/// </summary>
 	private const int RepairRequestIntervalMilliseconds = 120;
 
 	/// <summary>
@@ -72,6 +75,7 @@ public class SnapshotApplyService
 
 	private ulong _repairDeadlineMilliseconds;
 	private int _repairFirstSequence = -1;
+	private int _repairRequestedCount;
 	private ulong _lastRepairRequestTime;
 
 	private ulong _lastDescriptionArrivalMilliseconds;
@@ -401,17 +405,27 @@ public class SnapshotApplyService
 		ulong now = Time.GetTicksMsec();
 		if (_repairDeadlineMilliseconds == 0) _repairDeadlineMilliseconds = now + ResolveRepairGraceMilliseconds();
 
-		if (_repairFirstSequence == firstMissingSequence)
-		{
-			if (now - _lastRepairRequestTime < RepairRequestIntervalMilliseconds) return;
-		}
-		else if (missingCount > MaximumRepairSequences)
+		if (missingCount > MaximumRepairSequences && _repairFirstSequence != firstMissingSequence)
 		{
 			RequestBaseline(LagEvent.ClientBaselinesBecauseRepairRunTooWide);
 			return;
 		}
 
+		// A hole that starts inside a run this screen has already asked for is that same repair still owed: the answer in
+		// flight fills it, and asking again adds a request to a stream that is already losing them. This is the whole of
+		// the difference between recovery traffic that scales with the loss rate and one that feeds itself - an answer that
+		// arrives in part leaves a hole starting inside the run that was asked for, and every one of those used to be a
+		// fresh request. A hole outside that run is a new loss and is asked about at once, because it is a buffer running dry
+		// while a request waits that has nothing in it for that hole.
+		if (_repairFirstSequence >= 0
+		    && firstMissingSequence > _repairFirstSequence
+		    && firstMissingSequence < _repairFirstSequence + _repairRequestedCount
+		    && now < _repairDeadlineMilliseconds) return;
+
+		if (_repairFirstSequence == firstMissingSequence && now - _lastRepairRequestTime < (ulong)RepairRequestIntervalMilliseconds) return;
+
 		_repairFirstSequence = firstMissingSequence;
+		_repairRequestedCount = missingCount;
 		_lastRepairRequestTime = now;
 		LagProbe.Count(LagEvent.ClientRepairsRequested);
 		LagProbe.Count(LagEvent.ClientDeltasHeldForRepair, QueuedDeltaCount);
@@ -446,6 +460,7 @@ public class SnapshotApplyService
 	{
 		_repairDeadlineMilliseconds = 0;
 		_repairFirstSequence = -1;
+		_repairRequestedCount = 0;
 	}
 
 	private void QueueDelta(WorldSnapshot snapshot)
