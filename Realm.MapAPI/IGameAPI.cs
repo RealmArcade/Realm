@@ -145,11 +145,10 @@ public interface IGameAPI
 	event Action<UnitId, string, Vector3, int>? OnSpellImpact;
 
 	/// <summary>
-	/// Triggered when a player types a chat message. Passes the message, the first selected unit if any, and the slot of
-	/// the player who typed it, which is the slot to judge a console command by even when that player had nothing
-	/// selected.
+	/// Triggered when a player types a chat message. Passes the message and the slot of the player who typed it, which is
+	/// what a console command is judged by.
 	/// </summary>
-	event Action<string, UnitId, int>? OnPlayerChatMessage;
+	event Action<string, int>? OnPlayerChatMessage;
 
 	/// <summary>
 	/// Triggered when the player selects a unit.

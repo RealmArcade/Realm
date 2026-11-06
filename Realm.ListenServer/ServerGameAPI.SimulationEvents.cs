@@ -57,12 +57,11 @@ public partial class ServerGameAPI
 		OnConstructionFinished?.Invoke(new UnitId(unitId));
 	}
 
-	internal void RaisePlayerChatMessage(int playerIndex, string message, int senderUnitId)
+	internal void RaisePlayerChatMessage(int playerIndex, string message)
 	{
 		if (string.IsNullOrWhiteSpace(message)) return;
 
-		UnitId sender = senderUnitId > 0 && _context.World.IsAlive(new Entity(senderUnitId)) ? new UnitId(senderUnitId) : UnitId.Invalid;
-		OnPlayerChatMessage?.Invoke(message, sender, playerIndex);
+		OnPlayerChatMessage?.Invoke(message, playerIndex);
 		_log.Write($"player {playerIndex} sent the map a console command");
 	}
 

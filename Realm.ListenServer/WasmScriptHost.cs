@@ -738,7 +738,7 @@ public partial class WasmScriptHost : IWasmRuntime, IWasmEvaluationEngine, IDisp
 		LogToConsole(GetApiCallProfilingBreakdown(topCount));
 	}
 
-	private void HandleDebugChatCommand(string message, UnitId senderUnitId, int senderPlayerIndex)
+	private void HandleDebugChatCommand(string message, int senderPlayerIndex)
 	{
 		if (string.Equals(message, "/wasmperf", StringComparison.OrdinalIgnoreCase) ||
 		    string.Equals(message, "/wasmprofile", StringComparison.OrdinalIgnoreCase))
