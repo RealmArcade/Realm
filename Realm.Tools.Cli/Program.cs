@@ -1325,8 +1325,9 @@ public static class Program
 			{
 				File.Delete(inputPath);
 			}
-			catch
+			catch (Exception exception)
 			{
+				Console.Error.WriteLine($"  Warning: converted in place but could not delete the source {inputPath}: {exception.Message}");
 			}
 		}
 	}
@@ -1503,8 +1504,9 @@ public static class Program
 			{
 				File.Delete(filePath);
 			}
-			catch
+			catch (Exception exception)
 			{
+				Console.Error.WriteLine($"  Warning: could not delete temporary file {filePath}: {exception.Message}");
 			}
 		}
 	}
