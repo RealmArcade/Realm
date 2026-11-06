@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Encodings.Web;
@@ -114,7 +114,7 @@ public static class LocalizationManager
 		}
 		catch (Exception e)
 		{
-			GD.PrintErr($"{errorContext}: {e.Message}");
+			GameLog.LogError($"{errorContext}: {e.Message}");
 		}
 	}
 
@@ -228,8 +228,9 @@ public static class LocalizationManager
 						foreach (var kvp in parsed) dict[kvp.Key] = kvp.Value;
 					}
 				}
-				catch
+				catch (Exception ex)
 				{
+					GameLog.LogError($"could not read a locale file, so that language falls back to English: {ex.GetType().Name}: {ex.Message}");
 				}
 			}
 		}
@@ -389,7 +390,7 @@ public static class LocalizationManager
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"Failed to flush en.json: {ex.Message}");
+			GameLog.LogError($"Failed to flush en.json: {ex.Message}");
 		}
 	}
 
