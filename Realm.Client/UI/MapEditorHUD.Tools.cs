@@ -3365,26 +3365,6 @@ namespace Realm.Client.UI
 			ShowFeedback(string.Format(TranslationServer.Translate("Polar Spokes: {0}-way"), spokes));
 		}
 
-		private void SetPivotToCursorView()
-		{
-			if (GameContext.Host == null || GameContext.Host.GroundTerrain == null) return;
-			var viewport = GetViewport();
-			Vector3 hitPos = Vector3.Zero;
-			bool hasHit = false;
-			if (viewport != null)
-			{
-				hasHit = GameContext.Host.TryRaycastTerrainFromMousePosition(viewport.GetMousePosition(), out hitPos);
-			}
-
-			if (!hasHit)
-			{
-				hitPos = GameContext.Host.MainCamera?.GlobalPosition ?? Vector3.Zero;
-			}
-
-			var (cx, cz) = GameContext.EditorService.SetPivotDomain(new System.Numerics.Vector3(hitPos.X, hitPos.Y, hitPos.Z));
-			ShowFeedback(string.Format(TranslationServer.Translate("Symmetry & Polar Pivot set to tile ({0}, {1})"), cx, cz));
-		}
-
 		private void ResetPivotToMapCenterView()
 		{
 			if (GameContext.Host == null || GameContext.Host.GroundTerrain == null) return;
