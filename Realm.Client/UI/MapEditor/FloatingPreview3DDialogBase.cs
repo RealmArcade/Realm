@@ -169,6 +169,21 @@ public partial class FloatingPreview3DDialogBase : FloatingDialogBase
 		UpdateCameraTransform();
 	}
 
+	/// <summary>
+	/// Frames the camera on a node using its raw AABB size (2.2x padding, clamped).
+	/// Distinct from <see cref="FrameCameraOnNode"/>, which uses the aspect-aware
+	/// <see cref="ComputeFramedDistance"/> instead.
+	/// </summary>
+	protected void CenterAndFrameNode(Node3D targetNode)
+	{
+		var aabb = SpawnDeathShaderManager.CalculateNodeAabb(targetNode);
+		TargetPosition = aabb.Position + aabb.Size * 0.5f;
+		float maxDim = Mathf.Max(aabb.Size.X, Mathf.Max(aabb.Size.Y, aabb.Size.Z));
+		CameraDistance = Mathf.Clamp(maxDim * 2.2f, 2.0f, 30.0f);
+		DefaultDistance = CameraDistance;
+		UpdateCameraTransform();
+	}
+
 	protected float ComputeFramedDistance()
 	{
 		float verticalFovDegrees = PreviewCamera != null && GodotObject.IsInstanceValid(PreviewCamera) ? PreviewCamera.Fov : 75.0f;

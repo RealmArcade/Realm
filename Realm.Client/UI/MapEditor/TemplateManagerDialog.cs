@@ -2403,16 +2403,6 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		}
 	}
 
-	private void CenterAndFrameNode(Node3D targetNode)
-	{
-		var aabb = SpawnDeathShaderManager.CalculateNodeAabb(targetNode);
-		TargetPosition = aabb.Position + aabb.Size * 0.5f;
-		float maxDim = Mathf.Max(aabb.Size.X, Mathf.Max(aabb.Size.Y, aabb.Size.Z));
-		CameraDistance = Mathf.Clamp(maxDim * 2.2f, 2.0f, 30.0f);
-		DefaultDistance = CameraDistance;
-		UpdateCameraTransform();
-	}
-
 
 	private static readonly string[] _textureSubfolders = { "icons", "vfx", "vfx_radial", "vfx_vertical", "decals", "textures" };
 

@@ -1244,16 +1244,6 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 		CenterAndFrameNode(loadedNode3D);
 	}
 
-	private void CenterAndFrameNode(Node3D targetNode)
-	{
-		var aabb = SpawnDeathShaderManager.CalculateNodeAabb(targetNode);
-		TargetPosition = aabb.Position + aabb.Size * 0.5f;
-		float maxDim = Mathf.Max(aabb.Size.X, Mathf.Max(aabb.Size.Y, aabb.Size.Z));
-		CameraDistance = Mathf.Clamp(maxDim * 2.2f, 2.0f, 30.0f);
-		DefaultDistance = CameraDistance;
-		UpdateCameraTransform();
-	}
-
 	protected override void OnApply()
 	{
 		if (string.IsNullOrWhiteSpace(_config.Id))

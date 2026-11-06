@@ -508,16 +508,6 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 		UpdateShaderParameters();
 	}
 
-	private void CenterAndFrameNode(Node3D targetNode)
-	{
-		var aabb = SpawnDeathShaderManager.CalculateNodeAabb(targetNode);
-		TargetPosition = aabb.Position + aabb.Size * 0.5f;
-		float maxDim = Mathf.Max(aabb.Size.X, Mathf.Max(aabb.Size.Y, aabb.Size.Z));
-		CameraDistance = Mathf.Clamp(maxDim * 2.2f, 2.0f, 30.0f);
-		DefaultDistance = CameraDistance;
-		UpdateCameraTransform();
-	}
-
 	protected override void OnApply()
 	{
 		string finalSlug = !string.IsNullOrWhiteSpace(_txtSlug?.Text) ? TemplateIDHelper.ToSnakeCase(_txtSlug.Text) : _slug;
