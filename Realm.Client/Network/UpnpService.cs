@@ -1,6 +1,7 @@
 using System;
 using System.Threading.Tasks;
 using Godot;
+using Realm.Client.Services;
 
 namespace Realm.Client.Network;
 
@@ -19,14 +20,14 @@ public class UpnpService
 				int discoverResult = _upnp.Discover();
 				if (discoverResult != (int)Upnp.UpnpResult.Success)
 				{
-					GD.Print($"[UpnpService] UPnP discover returned: {discoverResult}");
+					GameLog.LogToConsole($"[UpnpService] UPnP discover returned: {discoverResult}");
 					return false;
 				}
 
 				var gateway = _upnp.GetGateway();
 				if (gateway == null || !gateway.IsValidGateway())
 				{
-					GD.Print("[UpnpService] No valid UPnP gateway found.");
+					GameLog.LogToConsole("[UpnpService] No valid UPnP gateway found.");
 					return false;
 				}
 
@@ -34,16 +35,16 @@ public class UpnpService
 				if (mapResult == (int)Upnp.UpnpResult.Success)
 				{
 					IsPortMapped = true;
-					GD.Print($"[UpnpService] Successfully mapped UDP port {port} on router via UPnP.");
+					GameLog.LogToConsole($"[UpnpService] Successfully mapped UDP port {port} on router via UPnP.");
 					return true;
 				}
 
-				GD.Print($"[UpnpService] AddPortMapping returned: {mapResult}");
+				GameLog.LogToConsole($"[UpnpService] AddPortMapping returned: {mapResult}");
 				return false;
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"[UpnpService] Error mapping port: {ex.Message}");
+				GameLog.LogError($"[UpnpService] Error mapping port: {ex.Message}");
 				return false;
 			}
 		});
@@ -56,11 +57,11 @@ public class UpnpService
 			try
 			{
 				_upnp.DeletePortMapping(port, "UDP");
-				GD.Print($"[UpnpService] Deleted UDP port mapping for {port}.");
+				GameLog.LogToConsole($"[UpnpService] Deleted UDP port mapping for {port}.");
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"[UpnpService] Error deleting port mapping: {ex.Message}");
+				GameLog.LogError($"[UpnpService] Error deleting port mapping: {ex.Message}");
 			}
 			finally
 			{
