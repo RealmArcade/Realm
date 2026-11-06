@@ -240,96 +240,7 @@ namespace Realm.Client.UI
 				}
 
 				_accordionFile = GetNode<VBoxContainer>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion");
-				_btnHeaderFile = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/BtnHeaderFile");
-				_contentFile = GetNode<VBoxContainer>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile");
-				StyleAccordionHeader(_btnHeaderFile);
-				SetupAccordion(_btnHeaderFile, _contentFile, TranslationServer.Translate("File"));
-
-				_btnLoad = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BoxFileOps/RowFileSaveLoad/RowLoadGroup/BtnLoad");
-				SetupOptionButton(_btnLoad, $"{UnicodeIcons.FOLDER_OPEN} " + TranslationServer.Translate("LOAD"), () => LoadMapAction(), 11, "Load heights, colors, and entities from a saved json file (Ctrl+O)");
-
-				_popupLoadMore = GetNode<PopupPanel>("PopupLoadMore");
-				var loadMorePopupStyle = new StyleBoxFlat();
-				loadMorePopupStyle.BgColor = new Color(0.14f, 0.13f, 0.11f, 0.98f);
-				loadMorePopupStyle.BorderColor = UIStyle.ColorGold;
-				loadMorePopupStyle.SetBorderWidthAll(1);
-				loadMorePopupStyle.SetCornerRadiusAll(4);
-				loadMorePopupStyle.SetContentMarginAll(10);
-				_popupLoadMore.AddThemeStyleboxOverride("panel", loadMorePopupStyle);
-
-				_btnImportArchive = GetNode<Button>("PopupLoadMore/LoadMoreVBox_VBoxContainer/BtnImportArchive");
-				_btnImportArchive.Set("icon_max_width", 0);
-				SetupOptionButton(_btnImportArchive, $"{UnicodeIcons.FILE_IMPORT} IMPORT (.RMAP)", () => ImportMapArchiveAction(), 13, "Import a map package (.rmap) into the editor workspace and open it for editing; saving prompts for a destination folder");
-				_btnImportArchive.Pressed += () => _popupLoadMore.Hide();
-
-				_btnLoadMore = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BoxFileOps/RowFileSaveLoad/RowLoadGroup/BtnLoadMore");
-				_btnLoadMore.Set("icon_max_width", 0);
-				SetupOptionButton(_btnLoadMore, UnicodeIcons.CHEVRON_DOWN, () =>
-				{
-					var popupPosition = _btnLoadMore.GetScreenPosition() + new Vector2(0, _btnLoadMore.Size.Y);
-					_popupLoadMore.Popup(new Rect2I((Vector2I)popupPosition, Vector2I.Zero));
-				}, 10, "More load options (Import map package)");
-
-				_btnSave = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BoxFileOps/RowFileSaveLoad/RowSaveGroup/BtnSave");
-				SetupOptionButton(_btnSave, $"{UnicodeIcons.SAVE} " + TranslationServer.Translate("SAVE"), () => SaveMapActionExternal(), 11, "Save current heightmap, textures, and entities (Ctrl+S)");
-
-				_btnSaveAs = GetNode<Button>("PopupSaveMore/SaveMoreVBox_VBoxContainer/BtnSaveAs");
-				_btnSaveAs.Set("icon_max_width", 0);
-				SetupOptionButton(_btnSaveAs, $"{UnicodeIcons.SAVE} " + TranslationServer.Translate("SAVE AS"), () => SaveAsMapAction(), 13, "Save map to a new folder location");
-
-				_btnPublish = GetNode<Button>("PopupSaveMore/SaveMoreVBox_VBoxContainer/BtnPublish");
-				SetupOptionButton(_btnPublish, $"{UnicodeIcons.UPLOAD} " + TranslationServer.Translate("PUBLISH"), () => PublishMapActionExternal(), 13, "Publish/export map to custom map registry");
-
-				_btnExportMap = GetNode<Button>("PopupSaveMore/SaveMoreVBox_VBoxContainer/BtnExportMap");
-				_btnExportMap.Set("icon_max_width", 0);
-
-				SetupOptionButton(_btnExportMap, $"{UnicodeIcons.FILE_EXPORT} " + TranslationServer.Translate("EXPORT (.RMAP)"), () => ExportMapAction(), 13, "Export prepared map package (.rmap) with compiled WASM for hosting and CAS storage");
-
-				_popupSaveMore = GetNode<PopupPanel>("PopupSaveMore");
-				var saveMorePopupStyle = new StyleBoxFlat();
-				saveMorePopupStyle.BgColor = new Color(0.14f, 0.13f, 0.11f, 0.98f);
-				saveMorePopupStyle.BorderColor = UIStyle.ColorGold;
-				saveMorePopupStyle.SetBorderWidthAll(1);
-				saveMorePopupStyle.SetCornerRadiusAll(4);
-				saveMorePopupStyle.SetContentMarginAll(10);
-				_popupSaveMore.AddThemeStyleboxOverride("panel", saveMorePopupStyle);
-				_btnSaveAs.Pressed += () => _popupSaveMore.Hide();
-				_btnExportMap.Pressed += () => _popupSaveMore.Hide();
-				_btnPublish.Pressed += () => _popupSaveMore.Hide();
-
-				_btnSaveMore = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BoxFileOps/RowFileSaveLoad/RowSaveGroup/BtnSaveMore");
-				_btnSaveMore.Set("icon_max_width", 0);
-				SetupOptionButton(_btnSaveMore, UnicodeIcons.CHEVRON_DOWN, () =>
-				{
-					var popupPosition = _btnSaveMore.GetScreenPosition() + new Vector2(0, _btnSaveMore.Size.Y);
-					_popupSaveMore.Popup(new Rect2I((Vector2I)popupPosition, Vector2I.Zero));
-				}, 10, "More save & export options (Save As, Export, Publish)");
-
-				_btnResetMap = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BoxGenOps/FileGrid2_GridContainer/BtnResetMap");
-				SetupOptionButton(_btnResetMap, $"{UnicodeIcons.TRASH} " + TranslationServer.Translate("RESET MAP"), () =>
-				{
-					string confirmMessage = MapWorkspaceService.IsUntitledMapName(GetMapNameFromMetadata())
-						? TranslationServer.Translate("Start a new blank map? Everything in the untitled map is replaced, and its last state is kept in MAP VERSIONS.")
-						: TranslationServer.Translate("Start a new blank map? The map you have open stays in its folder and can be opened again later.");
-
-					ShowConfirmationDialog(confirmMessage, () => ResetToBlankMapView());
-				}, 13, TranslationServer.Translate("Start a new untitled map from the template"));
-
-				SetupRandomGenerationMenu();
-
-				_btnEditorSettings = new Button();
-				_btnEditorSettings.Name = "BtnEditorSettings";
-				_btnEditorSettings.Set("icon_max_width", 0);
-				SetupOptionButton(_btnEditorSettings, "⚙️ " + TranslationServer.Translate("EDITOR SETTINGS"), () => _editorSettingsDialog?.OpenDialog(), 13, "Configure editor preferences, chrome border, and display overlays");
-				_contentFile.AddChild(_btnEditorSettings);
-				_contentFile.MoveChild(_btnEditorSettings, 1);
-
-				_btnMapVersions = new Button();
-				_btnMapVersions.Name = "BtnMapVersions";
-				_btnMapVersions.Set("icon_max_width", 0);
-				SetupOptionButton(_btnMapVersions, $"{UnicodeIcons.USER_CLOCK} " + TranslationServer.Translate("MAP VERSIONS"), () => OpenMapVersionsDialog(), 13, "Go back to earlier versions of this map");
-				_contentFile.AddChild(_btnMapVersions);
-				_contentFile.MoveChild(_btnMapVersions, 2);
+				BuildFileOperationsPanel();
 
 				_accordionViewport = GetNode<VBoxContainer>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion");
 				_btnHeaderViewport = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/BtnHeaderViewport");
@@ -1632,6 +1543,99 @@ namespace Realm.Client.UI
 			StyleMapEditorTopButton(_btnEditors);
 		}
 
+
+		private void BuildFileOperationsPanel()
+		{
+			_btnHeaderFile = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/BtnHeaderFile");
+			_contentFile = GetNode<VBoxContainer>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile");
+			StyleAccordionHeader(_btnHeaderFile);
+			SetupAccordion(_btnHeaderFile, _contentFile, TranslationServer.Translate("File"));
+
+			_btnLoad = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BoxFileOps/RowFileSaveLoad/RowLoadGroup/BtnLoad");
+			SetupOptionButton(_btnLoad, $"{UnicodeIcons.FOLDER_OPEN} " + TranslationServer.Translate("LOAD"), () => LoadMapAction(), 11, "Load heights, colors, and entities from a saved json file (Ctrl+O)");
+
+			_popupLoadMore = GetNode<PopupPanel>("PopupLoadMore");
+			var loadMorePopupStyle = new StyleBoxFlat();
+			loadMorePopupStyle.BgColor = new Color(0.14f, 0.13f, 0.11f, 0.98f);
+			loadMorePopupStyle.BorderColor = UIStyle.ColorGold;
+			loadMorePopupStyle.SetBorderWidthAll(1);
+			loadMorePopupStyle.SetCornerRadiusAll(4);
+			loadMorePopupStyle.SetContentMarginAll(10);
+			_popupLoadMore.AddThemeStyleboxOverride("panel", loadMorePopupStyle);
+			_btnImportArchive = GetNode<Button>("PopupLoadMore/LoadMoreVBox_VBoxContainer/BtnImportArchive");
+			_btnImportArchive.Set("icon_max_width", 0);
+			SetupOptionButton(_btnImportArchive, $"{UnicodeIcons.FILE_IMPORT} IMPORT (.RMAP)", () => ImportMapArchiveAction(), 13, "Import a map package (.rmap) into the editor workspace and open it for editing; saving prompts for a destination folder");
+			_btnImportArchive.Pressed += () => _popupLoadMore.Hide();
+
+			_btnLoadMore = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BoxFileOps/RowFileSaveLoad/RowLoadGroup/BtnLoadMore");
+			_btnLoadMore.Set("icon_max_width", 0);
+			SetupOptionButton(_btnLoadMore, UnicodeIcons.CHEVRON_DOWN, () =>
+			{
+				var popupPosition = _btnLoadMore.GetScreenPosition() + new Vector2(0, _btnLoadMore.Size.Y);
+				_popupLoadMore.Popup(new Rect2I((Vector2I)popupPosition, Vector2I.Zero));
+			}, 10, "More load options (Import map package)");
+
+			_btnSave = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BoxFileOps/RowFileSaveLoad/RowSaveGroup/BtnSave");
+			SetupOptionButton(_btnSave, $"{UnicodeIcons.SAVE} " + TranslationServer.Translate("SAVE"), () => SaveMapActionExternal(), 11, "Save current heightmap, textures, and entities (Ctrl+S)");
+
+			_btnSaveAs = GetNode<Button>("PopupSaveMore/SaveMoreVBox_VBoxContainer/BtnSaveAs");
+			_btnSaveAs.Set("icon_max_width", 0);
+			SetupOptionButton(_btnSaveAs, $"{UnicodeIcons.SAVE} " + TranslationServer.Translate("SAVE AS"), () => SaveAsMapAction(), 13, "Save map to a new folder location");
+
+			_btnPublish = GetNode<Button>("PopupSaveMore/SaveMoreVBox_VBoxContainer/BtnPublish");
+			SetupOptionButton(_btnPublish, $"{UnicodeIcons.UPLOAD} " + TranslationServer.Translate("PUBLISH"), () => PublishMapActionExternal(), 13, "Publish/export map to custom map registry");
+
+			_btnExportMap = GetNode<Button>("PopupSaveMore/SaveMoreVBox_VBoxContainer/BtnExportMap");
+			_btnExportMap.Set("icon_max_width", 0);
+
+			SetupOptionButton(_btnExportMap, $"{UnicodeIcons.FILE_EXPORT} " + TranslationServer.Translate("EXPORT (.RMAP)"), () => ExportMapAction(), 13, "Export prepared map package (.rmap) with compiled WASM for hosting and CAS storage");
+
+			_popupSaveMore = GetNode<PopupPanel>("PopupSaveMore");
+			var saveMorePopupStyle = new StyleBoxFlat();
+			saveMorePopupStyle.BgColor = new Color(0.14f, 0.13f, 0.11f, 0.98f);
+			saveMorePopupStyle.BorderColor = UIStyle.ColorGold;
+			saveMorePopupStyle.SetBorderWidthAll(1);
+			saveMorePopupStyle.SetCornerRadiusAll(4);
+			saveMorePopupStyle.SetContentMarginAll(10);
+			_popupSaveMore.AddThemeStyleboxOverride("panel", saveMorePopupStyle);
+			_btnSaveAs.Pressed += () => _popupSaveMore.Hide();
+			_btnExportMap.Pressed += () => _popupSaveMore.Hide();
+			_btnPublish.Pressed += () => _popupSaveMore.Hide();
+
+			_btnSaveMore = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BoxFileOps/RowFileSaveLoad/RowSaveGroup/BtnSaveMore");
+			_btnSaveMore.Set("icon_max_width", 0);
+			SetupOptionButton(_btnSaveMore, UnicodeIcons.CHEVRON_DOWN, () =>
+			{
+				var popupPosition = _btnSaveMore.GetScreenPosition() + new Vector2(0, _btnSaveMore.Size.Y);
+				_popupSaveMore.Popup(new Rect2I((Vector2I)popupPosition, Vector2I.Zero));
+			}, 10, "More save & export options (Save As, Export, Publish)");
+
+			_btnResetMap = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BoxGenOps/FileGrid2_GridContainer/BtnResetMap");
+			SetupOptionButton(_btnResetMap, $"{UnicodeIcons.TRASH} " + TranslationServer.Translate("RESET MAP"), () =>
+			{
+				string confirmMessage = MapWorkspaceService.IsUntitledMapName(GetMapNameFromMetadata())
+					? TranslationServer.Translate("Start a new blank map? Everything in the untitled map is replaced, and its last state is kept in MAP VERSIONS.")
+					: TranslationServer.Translate("Start a new blank map? The map you have open stays in its folder and can be opened again later.");
+
+				ShowConfirmationDialog(confirmMessage, () => ResetToBlankMapView());
+			}, 13, TranslationServer.Translate("Start a new untitled map from the template"));
+
+			SetupRandomGenerationMenu();
+
+			_btnEditorSettings = new Button();
+			_btnEditorSettings.Name = "BtnEditorSettings";
+			_btnEditorSettings.Set("icon_max_width", 0);
+			SetupOptionButton(_btnEditorSettings, "⚙️ " + TranslationServer.Translate("EDITOR SETTINGS"), () => _editorSettingsDialog?.OpenDialog(), 13, "Configure editor preferences, chrome border, and display overlays");
+			_contentFile.AddChild(_btnEditorSettings);
+			_contentFile.MoveChild(_btnEditorSettings, 1);
+
+			_btnMapVersions = new Button();
+			_btnMapVersions.Name = "BtnMapVersions";
+			_btnMapVersions.Set("icon_max_width", 0);
+			SetupOptionButton(_btnMapVersions, $"{UnicodeIcons.USER_CLOCK} " + TranslationServer.Translate("MAP VERSIONS"), () => OpenMapVersionsDialog(), 13, "Go back to earlier versions of this map");
+			_contentFile.AddChild(_btnMapVersions);
+			_contentFile.MoveChild(_btnMapVersions, 2);
+		}
 
 		public bool IsPathingAddMode()
 		{
