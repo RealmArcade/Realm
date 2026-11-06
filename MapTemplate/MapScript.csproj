@@ -36,7 +36,7 @@
   <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
     <DebugSymbols>true</DebugSymbols>
     <DebugType>embedded</DebugType>
-    <Optimize>true</Optimize>
+    <Optimize>false</Optimize>
     <StripSymbols>false</StripSymbols>
     <IlcGenerateCompleteTypeMetadata>true</IlcGenerateCompleteTypeMetadata>
   </PropertyGroup>

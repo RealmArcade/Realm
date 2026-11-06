@@ -1533,6 +1533,18 @@ public partial class MapEditorHUD : Control
 			string attachHint = $"[DEBUG] Authority process ID: {authorityProcessId}. Attach to it in CodeLLDB with the workspace's map script configuration.";
 			AppendWasmConsoleLog(attachHint);
 			GameLog.LogToConsole(attachHint);
+
+			if (!string.IsNullOrEmpty(GameContext.EditorService._editingDirectory))
+			{
+				try
+				{
+					File.WriteAllText(Path.Combine(GameContext.EditorService._editingDirectory, "authority.pid"), authorityProcessId.ToString());
+				}
+				catch (Exception exception)
+				{
+					GameLog.LogToConsole($"[DEBUG] Failed to write authority.pid: {exception.Message}");
+				}
+			}
 		}
 
 		await Task.Delay(500);

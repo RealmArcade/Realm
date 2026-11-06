@@ -25,6 +25,27 @@
       "problemMatcher": "$msCompile"
     },
     {
+      "label": "Run Realm Client",
+      "type": "shell",
+      "command": "${env:GODOT_BIN}",
+      "args": [
+        "--path",
+        "${workspaceFolder}/Realm.Client"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Open in Godot Editor",
+      "type": "shell",
+      "command": "${env:GODOT_BIN}",
+      "args": [
+        "-e",
+        "--path",
+        "${workspaceFolder}/Realm.Client"
+      ],
+      "problemMatcher": []
+    },
+    {
       "label": "Run Simulation Tests",
       "type": "shell",
       "command": "dotnet",
@@ -36,7 +57,7 @@
       ],
       "options": {
         "env": {
-          "GODOT_BIN": "C:\\Program Files\\Godot_v4.7-stable_mono_win64\\Godot_v4.7-stable_mono_win64.exe"
+          "GODOT_BIN": "${env:GODOT_BIN}"
         }
       },
       "problemMatcher": []
@@ -51,7 +72,7 @@
       ],
       "options": {
         "env": {
-          "GODOT_BIN": "C:\\Program Files\\Godot_v4.7-stable_mono_win64\\Godot_v4.7-stable_mono_win64.exe"
+          "GODOT_BIN": "${env:GODOT_BIN}"
         }
       },
       "problemMatcher": []
