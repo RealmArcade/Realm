@@ -22,7 +22,7 @@ public partial class EditableTerrain : RuntimeTerrain
 		var result = TextureConverter.ProcessAndSaveTerrainTexture(globalInput, globalOutput);
 		if (!result.Success)
 		{
-			GD.PrintErr($"Failed to process terrain texture '{rawPngPath}': {result.ErrorMessage}");
+			GameLog.LogError($"Failed to process terrain texture '{rawPngPath}': {result.ErrorMessage}");
 			throw new InvalidOperationException($"Failed to process terrain texture: {result.ErrorMessage}");
 		}
 	}
