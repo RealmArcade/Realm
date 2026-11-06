@@ -928,10 +928,7 @@ public partial class StorageMenu : Control
 			style.BorderWidthLeft = 4;
 		}
 
-		style.CornerRadiusTopLeft = 4;
-		style.CornerRadiusTopRight = 4;
-		style.CornerRadiusBottomLeft = 4;
-		style.CornerRadiusBottomRight = 4;
+		style.SetCornerRadiusAll(4);
 		style.ContentMarginLeft = 10;
 		style.ContentMarginRight = 10;
 		style.ContentMarginTop = 6;
@@ -945,10 +942,7 @@ public partial class StorageMenu : Control
 		style.BgColor = new Color(0.10f, 0.11f, 0.15f, 0.90f);
 		style.BorderColor = new Color(0.28f, 0.28f, 0.35f, 0.7f);
 		style.SetBorderWidthAll(1);
-		style.CornerRadiusTopLeft = 4;
-		style.CornerRadiusTopRight = 4;
-		style.CornerRadiusBottomLeft = 4;
-		style.CornerRadiusBottomRight = 4;
+		style.SetCornerRadiusAll(4);
 		style.ContentMarginLeft = 14;
 		style.ContentMarginRight = 14;
 		style.ContentMarginTop = 8;
@@ -962,10 +956,7 @@ public partial class StorageMenu : Control
 		style.BgColor = isHover ? new Color(0.4f, 0.12f, 0.12f, 0.9f) : new Color(0.25f, 0.08f, 0.08f, 0.8f);
 		style.BorderColor = isHover ? new Color(0.9f, 0.3f, 0.3f, 1.0f) : new Color(0.5f, 0.2f, 0.2f, 0.8f);
 		style.SetBorderWidthAll(1);
-		style.CornerRadiusTopLeft = 4;
-		style.CornerRadiusTopRight = 4;
-		style.CornerRadiusBottomLeft = 4;
-		style.CornerRadiusBottomRight = 4;
+		style.SetCornerRadiusAll(4);
 		return style;
 	}
 }

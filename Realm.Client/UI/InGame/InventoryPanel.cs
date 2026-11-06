@@ -63,10 +63,7 @@ public class InventoryPanel
 			s_blackTileStyle.BgColor = new Color(0.04f, 0.04f, 0.06f, 0.35f);
 			s_blackTileStyle.BorderColor = new Color(UIStyle.ColorBronze.R, UIStyle.ColorBronze.G, UIStyle.ColorBronze.B, 0.25f);
 			s_blackTileStyle.SetBorderWidthAll(1);
-			s_blackTileStyle.CornerRadiusTopLeft = 3;
-			s_blackTileStyle.CornerRadiusTopRight = 3;
-			s_blackTileStyle.CornerRadiusBottomLeft = 3;
-			s_blackTileStyle.CornerRadiusBottomRight = 3;
+			s_blackTileStyle.SetCornerRadiusAll(3);
 		}
 
 		if (s_buttonNormal == null)

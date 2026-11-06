@@ -236,10 +236,7 @@ public partial class ReplayListPanel : Control
 		style.BgColor = new Color(0.15f, 0.15f, 0.15f, 0.6f);
 		style.SetBorderWidthAll(1);
 		style.BorderColor = UIStyle.ColorBronze;
-		style.CornerRadiusTopLeft = 4;
-		style.CornerRadiusTopRight = 4;
-		style.CornerRadiusBottomLeft = 4;
-		style.CornerRadiusBottomRight = 4;
+		style.SetCornerRadiusAll(4);
 		style.ContentMarginLeft = 15;
 		style.ContentMarginRight = 15;
 		style.ContentMarginTop = 10;

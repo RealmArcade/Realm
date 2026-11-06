@@ -598,10 +598,7 @@ public partial class CommandPanel
 		style.BgColor = new Color(0.04f, 0.04f, 0.06f, 0.35f);
 		style.BorderColor = new Color(UIStyle.ColorBronze.R, UIStyle.ColorBronze.G, UIStyle.ColorBronze.B, 0.2f);
 		style.SetBorderWidthAll(1);
-		style.CornerRadiusTopLeft = 3;
-		style.CornerRadiusTopRight = 3;
-		style.CornerRadiusBottomLeft = 3;
-		style.CornerRadiusBottomRight = 3;
+		style.SetCornerRadiusAll(3);
 		tile.AddThemeStyleboxOverride("panel", style);
 		tile.CustomMinimumSize = new Vector2(56, 56);
 		tile.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;

@@ -228,10 +228,7 @@ public partial class SettingsMenu : Control
 			shadowStyle.ShadowColor = new Color(0, 0, 0, 0.7f);
 			shadowStyle.ShadowSize = 24;
 			shadowStyle.ShadowOffset = new Vector2(0, 14);
-			shadowStyle.CornerRadiusTopLeft = 25;
-			shadowStyle.CornerRadiusTopRight = 25;
-			shadowStyle.CornerRadiusBottomLeft = 25;
-			shadowStyle.CornerRadiusBottomRight = 25;
+			shadowStyle.SetCornerRadiusAll(25);
 			shadowPanel.AddThemeStyleboxOverride("panel", shadowStyle);
 		}
 
@@ -247,10 +244,7 @@ public partial class SettingsMenu : Control
 			titleStyle.BgColor = new Color(0.24f, 0.21f, 0.18f, 1.0f);
 			titleStyle.BorderColor = new Color(0.45f, 0.40f, 0.32f, 1.0f);
 			titleStyle.SetBorderWidthAll(3);
-			titleStyle.CornerRadiusTopLeft = 8;
-			titleStyle.CornerRadiusTopRight = 8;
-			titleStyle.CornerRadiusBottomLeft = 8;
-			titleStyle.CornerRadiusBottomRight = 8;
+			titleStyle.SetCornerRadiusAll(8);
 
 			titleStyle.ShadowColor = new Color(0, 0, 0, 0.75f);
 			titleStyle.ShadowSize = 12;
@@ -265,10 +259,7 @@ public partial class SettingsMenu : Control
 			innerStyle.BgColor = new Color(0.18f, 0.16f, 0.14f, 1.0f);
 			innerStyle.BorderColor = new Color(0.82f, 0.72f, 0.50f, 0.5f);
 			innerStyle.SetBorderWidthAll(1);
-			innerStyle.CornerRadiusTopLeft = 5;
-			innerStyle.CornerRadiusTopRight = 5;
-			innerStyle.CornerRadiusBottomLeft = 5;
-			innerStyle.CornerRadiusBottomRight = 5;
+			innerStyle.SetCornerRadiusAll(5);
 
 			titleInnerPanel.AddThemeStyleboxOverride("panel", innerStyle);
 		}
@@ -292,10 +283,7 @@ public partial class SettingsMenu : Control
 		headerStyle.BgColor = new Color(0.12f, 0.11f, 0.10f, 0.6f);
 		headerStyle.BorderColor = new Color(0.40f, 0.35f, 0.28f, 0.7f);
 		headerStyle.SetBorderWidthAll(1);
-		headerStyle.CornerRadiusTopLeft = 4;
-		headerStyle.CornerRadiusTopRight = 4;
-		headerStyle.CornerRadiusBottomLeft = 4;
-		headerStyle.CornerRadiusBottomRight = 4;
+		headerStyle.SetCornerRadiusAll(4);
 		headerStyle.ContentMarginLeft = 14;
 		headerStyle.ContentMarginRight = 14;
 		headerStyle.ContentMarginTop = 8;
@@ -380,10 +368,7 @@ public partial class SettingsMenu : Control
 		valLabelStyle.BgColor = new Color(0.12f, 0.11f, 0.10f, 0.6f);
 		valLabelStyle.BorderColor = new Color(0.40f, 0.35f, 0.28f, 0.7f);
 		valLabelStyle.SetBorderWidthAll(1);
-		valLabelStyle.CornerRadiusTopLeft = 4;
-		valLabelStyle.CornerRadiusTopRight = 4;
-		valLabelStyle.CornerRadiusBottomLeft = 4;
-		valLabelStyle.CornerRadiusBottomRight = 4;
+		valLabelStyle.SetCornerRadiusAll(4);
 		valLabelStyle.ContentMarginLeft = 6;
 		valLabelStyle.ContentMarginRight = 6;
 		valLabelStyle.ContentMarginTop = 2;

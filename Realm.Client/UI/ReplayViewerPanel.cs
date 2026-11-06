@@ -199,10 +199,7 @@ public partial class ReplayViewerPanel : PanelContainer
 				BorderColor = UIStyle.ColorGold
 			};
 			_activeSpeedStyle.SetBorderWidthAll(1);
-			_activeSpeedStyle.CornerRadiusTopLeft = 4;
-			_activeSpeedStyle.CornerRadiusTopRight = 4;
-			_activeSpeedStyle.CornerRadiusBottomLeft = 4;
-			_activeSpeedStyle.CornerRadiusBottomRight = 4;
+			_activeSpeedStyle.SetCornerRadiusAll(4);
 		}
 
 		_speedBtn05.AddThemeStyleboxOverride("normal", speed == 0.5f ? _activeSpeedStyle : UIStyle.CreateButtonNormal());

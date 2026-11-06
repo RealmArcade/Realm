@@ -255,10 +255,7 @@ public class CountdownOverlayPanel
 		panelStyle.BgColor = new Color(0.12f, 0.12f, 0.12f, 0.85f);
 		panelStyle.SetBorderWidthAll(1);
 		panelStyle.BorderColor = UIStyle.ColorBronze;
-		panelStyle.CornerRadiusTopLeft = 4;
-		panelStyle.CornerRadiusTopRight = 4;
-		panelStyle.CornerRadiusBottomLeft = 4;
-		panelStyle.CornerRadiusBottomRight = 4;
+		panelStyle.SetCornerRadiusAll(4);
 		panelStyle.ContentMarginLeft = 8;
 		panelStyle.ContentMarginRight = 8;
 		panelStyle.ContentMarginTop = 6;

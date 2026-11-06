@@ -668,10 +668,7 @@ public partial class CreatorDiscovery : Control
 		style.BgColor = new Color(0.06f, 0.07f, 0.09f, 0.95f);
 		style.BorderColor = new Color(0.25f, 0.27f, 0.32f);
 		style.SetBorderWidthAll(1);
-		style.CornerRadiusTopLeft = 6;
-		style.CornerRadiusTopRight = 6;
-		style.CornerRadiusBottomLeft = 6;
-		style.CornerRadiusBottomRight = 6;
+		style.SetCornerRadiusAll(6);
 		container.AddThemeStyleboxOverride("panel", style);
 
 		var textureRect = new TextureRect();
@@ -708,10 +705,7 @@ public partial class CreatorDiscovery : Control
 		style.BgColor = bgColor;
 		style.BorderColor = borderColor;
 		style.SetBorderWidthAll(1);
-		style.CornerRadiusTopLeft = 8;
-		style.CornerRadiusTopRight = 8;
-		style.CornerRadiusBottomLeft = 8;
-		style.CornerRadiusBottomRight = 8;
+		style.SetCornerRadiusAll(8);
 		style.ContentMarginLeft = 18;
 		style.ContentMarginRight = 18;
 		style.ContentMarginTop = 14;
@@ -743,10 +737,7 @@ public partial class CreatorDiscovery : Control
 		style.BgColor = new Color(0.18f, 0.15f, 0.10f, 0.9f);
 		style.BorderColor = UIStyle.ColorGoldDull;
 		style.SetBorderWidthAll(1);
-		style.CornerRadiusTopLeft = 4;
-		style.CornerRadiusTopRight = 4;
-		style.CornerRadiusBottomLeft = 4;
-		style.CornerRadiusBottomRight = 4;
+		style.SetCornerRadiusAll(4);
 		style.ContentMarginLeft = 8;
 		style.ContentMarginRight = 8;
 		style.ContentMarginTop = 4;
@@ -760,10 +751,7 @@ public partial class CreatorDiscovery : Control
 		style.BgColor = new Color(0.10f, 0.18f, 0.24f, 0.7f);
 		style.BorderColor = UIStyle.ColorCyanGlowDim;
 		style.SetBorderWidthAll(1);
-		style.CornerRadiusTopLeft = 10;
-		style.CornerRadiusTopRight = 10;
-		style.CornerRadiusBottomLeft = 10;
-		style.CornerRadiusBottomRight = 10;
+		style.SetCornerRadiusAll(10);
 		style.ContentMarginLeft = 10;
 		style.ContentMarginRight = 10;
 		style.ContentMarginTop = 4;

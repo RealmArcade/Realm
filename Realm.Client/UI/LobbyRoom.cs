@@ -1533,10 +1533,7 @@ public partial class LobbyRoom : Control
 		colorStyle.BgColor = color;
 		colorStyle.BorderColor = new Color(0.4f, 0.4f, 0.45f);
 		colorStyle.SetBorderWidthAll(2);
-		colorStyle.CornerRadiusTopLeft = 4;
-		colorStyle.CornerRadiusTopRight = 4;
-		colorStyle.CornerRadiusBottomLeft = 4;
-		colorStyle.CornerRadiusBottomRight = 4;
+		colorStyle.SetCornerRadiusAll(4);
 		return colorStyle;
 	}
 
