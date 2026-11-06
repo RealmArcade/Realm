@@ -1205,7 +1205,7 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[WeaponVfxDialog] PlaySound error: {ex.Message}");
+			GameLog.LogError($"[WeaponVfxDialog] PlaySound error: {ex.Message}");
 		}
 	}
 
