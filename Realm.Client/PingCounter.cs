@@ -53,7 +53,7 @@ public partial class PingCounter : Label
 		if (delayMilliseconds != _lastReportedDelayMilliseconds)
 		{
 			_lastReportedDelayMilliseconds = delayMilliseconds;
-			GD.Print($"[PingCounter] Presentation delay: {delayMilliseconds} ms");
+			GameLog.LogToConsole($"[PingCounter] Presentation delay: {delayMilliseconds} ms");
 		}
 
 		if (!shouldShow) return;
