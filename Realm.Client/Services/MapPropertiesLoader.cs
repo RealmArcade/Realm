@@ -47,7 +47,7 @@ public class MapPropertiesLoader
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[MapPropertiesLoader] Failed to load map properties: {ex.Message}");
+			GameLog.LogError($"[MapPropertiesLoader] Failed to load map properties: {ex.Message}");
 		}
 	}
 
