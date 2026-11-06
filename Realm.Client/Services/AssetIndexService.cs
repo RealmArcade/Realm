@@ -2289,32 +2289,6 @@ public class AssetIndexService : IDisposable
 		return false;
 	}
 
-	private static List<string> ExtractTagsFromMetadataJson(string? metaJson)
-	{
-		var list = new List<string>();
-		if (string.IsNullOrWhiteSpace(metaJson)) return list;
-		try
-		{
-			var node = JsonNode.Parse(metaJson);
-			if (node is JsonObject obj && obj["tags"] is JsonArray arr)
-			{
-				foreach (var item in arr)
-				{
-					string? t = item?.ToString()?.Trim();
-					if (!string.IsNullOrEmpty(t) && !list.Contains(t, StringComparer.OrdinalIgnoreCase))
-					{
-						list.Add(t);
-					}
-				}
-			}
-		}
-		catch
-		{
-		}
-
-		return list;
-	}
-
 	private List<string> LoadTagsForFile(string filePath, string rootDirectory, List<string>? preloadedTags = null)
 	{
 		var tagSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
