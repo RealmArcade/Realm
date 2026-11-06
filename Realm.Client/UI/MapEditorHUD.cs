@@ -1107,56 +1107,6 @@ public partial class MapEditorHUD : Control
 
 	private FontVariation _faFontVariation { get; set; }
 
-	private void StyleGridButton(Button btn)
-	{
-		if (btn == null) return;
-		btn.Flat = false;
-		btn.CustomMinimumSize = new Vector2(105, 30);
-		btn.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-
-		var font = GetFontAwesomeFont();
-		if (font != null)
-		{
-			btn.AddThemeFontOverride("font", font);
-		}
-
-		var btnNormal = new StyleBoxFlat();
-		btnNormal.BgColor = new Color(0.15f, 0.14f, 0.12f, 0.75f);
-		btnNormal.BorderColor = new Color(0.32f, 0.27f, 0.20f, 0.6f);
-		btnNormal.SetBorderWidthAll(1);
-		btnNormal.CornerRadiusTopLeft = 3;
-		btnNormal.CornerRadiusTopRight = 3;
-		btnNormal.CornerRadiusBottomLeft = 3;
-		btnNormal.CornerRadiusBottomRight = 3;
-		btnNormal.ContentMarginLeft = 4;
-		btnNormal.ContentMarginRight = 4;
-
-		var btnHover = new StyleBoxFlat();
-		btnHover.BgColor = new Color(0.26f, 0.23f, 0.18f, 0.95f);
-		btnHover.BorderColor = UIStyle.ColorGold;
-		btnHover.SetBorderWidthAll(1);
-		btnHover.CornerRadiusTopLeft = 3;
-		btnHover.CornerRadiusTopRight = 3;
-		btnHover.CornerRadiusBottomLeft = 3;
-		btnHover.CornerRadiusBottomRight = 3;
-		btnHover.ContentMarginLeft = 4;
-		btnHover.ContentMarginRight = 4;
-
-		var btnPressed = new StyleBoxFlat();
-		btnPressed.BgColor = new Color(0.32f, 0.28f, 0.21f, 0.98f);
-		btnPressed.BorderColor = UIStyle.ColorGold;
-		btnPressed.SetBorderWidthAll(1);
-
-		btn.AddThemeStyleboxOverride("normal", btnNormal);
-		btn.AddThemeStyleboxOverride("hover", btnHover);
-		btn.AddThemeStyleboxOverride("pressed", btnPressed);
-		btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-		btn.AddThemeFontSizeOverride("font_size", 11);
-		btn.AddThemeColorOverride("font_color", new Color(0.92f, 0.88f, 0.82f));
-		btn.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
-		btn.Alignment = HorizontalAlignment.Center;
-	}
-
 	private HashSet<ulong> _hookedSliderInstanceIds { get; set; } = new();
 
 
