@@ -515,7 +515,7 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[AssetManagerDialog] RefreshAssetList error: {ex.Message}");
+			GameLog.LogError($"[AssetManagerDialog] RefreshAssetList error: {ex.Message}");
 		}
 
 		_matchingAssets.Sort((a, b) => string.Compare(a.FileName, b.FileName, StringComparison.OrdinalIgnoreCase));
@@ -911,7 +911,7 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[AssetManagerDialog] Failed to load audio stream: {ex.Message}");
+			GameLog.LogError($"[AssetManagerDialog] Failed to load audio stream: {ex.Message}");
 		}
 	}
 
@@ -1044,7 +1044,7 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[AssetManagerDialog] FindOrphanedObjectsInMetadata error: {ex.Message}");
+			GameLog.LogError($"[AssetManagerDialog] FindOrphanedObjectsInMetadata error: {ex.Message}");
 		}
 
 		return orphans;
@@ -1143,7 +1143,7 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[AssetManagerDialog] ExecuteDeleteAsset error: {ex.Message}");
+			GameLog.LogError($"[AssetManagerDialog] ExecuteDeleteAsset error: {ex.Message}");
 			Hud?.ShowFeedback($"Error deleting asset: {ex.Message}");
 		}
 	}
@@ -1339,7 +1339,7 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[AssetManagerDialog] OnImportFileSelected error: {ex.Message}");
+			GameLog.LogError($"[AssetManagerDialog] OnImportFileSelected error: {ex.Message}");
 			if (showFeedback)
 			{
 				Hud?.ShowFeedback($"Error importing asset: {ex.Message}");
@@ -1428,7 +1428,7 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[AssetManagerDialog] ImportShaderFromFile error: {ex.Message}");
+			GameLog.LogError($"[AssetManagerDialog] ImportShaderFromFile error: {ex.Message}");
 			Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Error importing shader: {0}"), ex.Message));
 		}
 	}
@@ -1548,7 +1548,7 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[AssetManagerDialog] ConvertImageToRealmFormat error: {ex.Message}");
+			GameLog.LogError($"[AssetManagerDialog] ConvertImageToRealmFormat error: {ex.Message}");
 			Hud?.ShowFeedback($"Error converting image: {ex.Message}");
 		}
 	}
@@ -1621,7 +1621,7 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[AssetManagerDialog] EnsureTemplateForAsset error: {ex.Message}");
+			GameLog.LogError($"[AssetManagerDialog] EnsureTemplateForAsset error: {ex.Message}");
 		}
 	}
 
@@ -1971,7 +1971,7 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[AssetManagerDialog] ConvertAudioToRealmFormat error: {ex.Message}");
+			GameLog.LogError($"[AssetManagerDialog] ConvertAudioToRealmFormat error: {ex.Message}");
 			Hud?.ShowFeedback($"Error converting audio: {ex.Message}");
 		}
 	}
@@ -2055,7 +2055,7 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[AssetManagerDialog] ConvertMixamoFileToRanim error: {ex.Message}");
+			GameLog.LogError($"[AssetManagerDialog] ConvertMixamoFileToRanim error: {ex.Message}");
 			Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Error converting animation: {0}"), ex.Message));
 		}
 	}
