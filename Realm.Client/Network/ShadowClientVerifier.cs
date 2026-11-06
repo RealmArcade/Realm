@@ -72,7 +72,7 @@ public static class ShadowClientVerifier
 		{
 			if (_verifiedBaselines == 1)
 			{
-				GD.Print($"[ShadowClient] replay fingerprint match at sequence {snapshot.Sequence} for peer {peerId}");
+				GameLog.LogToConsole($"[ShadowClient] replay fingerprint match at sequence {snapshot.Sequence} for peer {peerId}");
 			}
 			return;
 		}
