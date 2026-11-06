@@ -2206,35 +2206,6 @@ public partial class EditorService : IEditorAPI
 		}
 	}
 
-	private bool CheckSingleCellChanged(TerrainCell[,] currentCells, int x, int z)
-	{
-		int mapX = _drawMinX + x;
-		int mapZ = _drawMinZ + z;
-		if (mapX >= _terrainCellsBefore.GetLength(0) || mapZ >= _terrainCellsBefore.GetLength(1) ||
-			mapX >= currentCells.GetLength(0) || mapZ >= currentCells.GetLength(1)) return false;
-
-		var b = _terrainCellsBefore[mapX, mapZ];
-		var a = currentCells[mapX, mapZ];
-
-		return b.Y_NW != a.Y_NW || b.Y_NE != a.Y_NE || b.Y_SE != a.Y_SE || b.Y_SW != a.Y_SW ||
-			   b.WaterMode != a.WaterMode || b.WaterProfileIndex != a.WaterProfileIndex;
-	}
-
-	private bool CheckSplatMapChanged(TerrainSplatWeights[,]? mapBefore, TerrainSplatWeights[,]? currentMap, int splatNodeW, int splatNodeD)
-	{
-		if (mapBefore == null || currentMap == null) return false;
-
-		for (int z = 0; z < splatNodeD; z++)
-		{
-			for (int x = 0; x < splatNodeW; x++)
-			{
-				if (CheckSingleSplatChanged(mapBefore, currentMap, x, z)) return true;
-			}
-		}
-
-		return false;
-	}
-
 	private bool CheckSingleSplatChanged(TerrainSplatWeights[,] mapBefore, TerrainSplatWeights[,] currentMap, int x, int z)
 	{
 		int mapX = _drawMinX + x;
