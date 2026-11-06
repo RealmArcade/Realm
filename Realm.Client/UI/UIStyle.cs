@@ -642,10 +642,7 @@ public static class UIStyle
 		style.BgColor = new Color(0.06f, 0.07f, 0.09f, 0.82f);
 		style.BorderColor = new Color(0.75f, 0.62f, 0.35f, 0.35f);
 		style.SetBorderWidthAll(1);
-		style.CornerRadiusTopLeft = 6;
-		style.CornerRadiusTopRight = 6;
-		style.CornerRadiusBottomLeft = 6;
-		style.CornerRadiusBottomRight = 6;
+		style.SetCornerRadiusAll(6);
 		style.ContentMarginLeft = 16;
 		style.ContentMarginRight = 16;
 		style.ContentMarginTop = 12;
@@ -989,10 +986,7 @@ public static class UIStyle
 		style.BgColor = new Color(0.18f, 0.16f, 0.14f, 0.95f);
 		style.BorderColor = new Color(0.42f, 0.36f, 0.26f, 0.85f);
 		style.SetBorderWidthAll(1);
-		style.CornerRadiusTopLeft = 4;
-		style.CornerRadiusTopRight = 4;
-		style.CornerRadiusBottomLeft = 4;
-		style.CornerRadiusBottomRight = 4;
+		style.SetCornerRadiusAll(4);
 		style.ContentMarginLeft = 8;
 		style.ContentMarginRight = 8;
 		style.ContentMarginTop = 5;
@@ -1006,10 +1000,7 @@ public static class UIStyle
 		style.BgColor = new Color(0.28f, 0.24f, 0.18f, 0.98f);
 		style.BorderColor = ColorGold;
 		style.SetBorderWidthAll(1);
-		style.CornerRadiusTopLeft = 4;
-		style.CornerRadiusTopRight = 4;
-		style.CornerRadiusBottomLeft = 4;
-		style.CornerRadiusBottomRight = 4;
+		style.SetCornerRadiusAll(4);
 		style.ContentMarginLeft = 8;
 		style.ContentMarginRight = 8;
 		style.ContentMarginTop = 5;
@@ -1023,10 +1014,7 @@ public static class UIStyle
 		style.BgColor = new Color(0.36f, 0.30f, 0.20f, 0.98f);
 		style.BorderColor = ColorGold;
 		style.SetBorderWidthAll(1);
-		style.CornerRadiusTopLeft = 4;
-		style.CornerRadiusTopRight = 4;
-		style.CornerRadiusBottomLeft = 4;
-		style.CornerRadiusBottomRight = 4;
+		style.SetCornerRadiusAll(4);
 		style.ContentMarginLeft = 8;
 		style.ContentMarginRight = 8;
 		style.ContentMarginTop = 5;
@@ -1091,10 +1079,7 @@ public static class UIStyle
 		style.BgColor = new Color(0.05f, 0.06f, 0.07f, 0.9f);
 		style.BorderColor = hasFocus ? ColorCyanGlow : new Color(0.34f, 0.3f, 0.24f);
 		style.SetBorderWidthAll(hasFocus ? 2 : 1);
-		style.CornerRadiusTopLeft = 4;
-		style.CornerRadiusTopRight = 4;
-		style.CornerRadiusBottomLeft = 4;
-		style.CornerRadiusBottomRight = 4;
+		style.SetCornerRadiusAll(4);
 		style.ContentMarginLeft = 12;
 		style.ContentMarginRight = 12;
 		style.ContentMarginTop = 6;
@@ -1166,10 +1151,7 @@ public static class UIStyle
 		style.ContentMarginRight = 28;
 		style.ContentMarginTop = 8;
 		style.ContentMarginBottom = 8;
-		style.CornerRadiusTopLeft = 4;
-		style.CornerRadiusTopRight = 4;
-		style.CornerRadiusBottomLeft = 4;
-		style.CornerRadiusBottomRight = 4;
+		style.SetCornerRadiusAll(4);
 		return style;
 	}
 
@@ -1195,10 +1177,7 @@ public static class UIStyle
 		style.ContentMarginRight = 6;
 		style.ContentMarginTop = 6;
 		style.ContentMarginBottom = 6;
-		style.CornerRadiusTopLeft = 4;
-		style.CornerRadiusTopRight = 4;
-		style.CornerRadiusBottomLeft = 4;
-		style.CornerRadiusBottomRight = 4;
+		style.SetCornerRadiusAll(4);
 		return style;
 	}
 
@@ -1214,10 +1193,7 @@ public static class UIStyle
 		style.ContentMarginTop = 6;
 		style.ContentMarginBottom = 6;
 
-		style.CornerRadiusTopLeft = 4;
-		style.CornerRadiusTopRight = 4;
-		style.CornerRadiusBottomLeft = 4;
-		style.CornerRadiusBottomRight = 4;
+		style.SetCornerRadiusAll(4);
 		return style;
 	}
 
@@ -1231,10 +1207,7 @@ public static class UIStyle
 			? ColorCyanGlow
 			: (isHover ? ColorGold : new Color(0.45f, 0.38f, 0.28f, 0.75f));
 		style.SetBorderWidthAll(1);
-		style.CornerRadiusTopLeft = 3;
-		style.CornerRadiusTopRight = 3;
-		style.CornerRadiusBottomLeft = 3;
-		style.CornerRadiusBottomRight = 3;
+		style.SetCornerRadiusAll(3);
 		style.ContentMarginLeft = 4;
 		style.ContentMarginRight = 4;
 		style.ContentMarginTop = 2;
@@ -1279,10 +1252,7 @@ public static class UIStyle
 		style.SetBorderWidthAll(1);
 		style.ExpandMarginTop = 2;
 		style.ExpandMarginBottom = 2;
-		style.CornerRadiusTopLeft = 2;
-		style.CornerRadiusTopRight = 2;
-		style.CornerRadiusBottomLeft = 2;
-		style.CornerRadiusBottomRight = 2;
+		style.SetCornerRadiusAll(2);
 		return style;
 	}
 
@@ -1292,10 +1262,7 @@ public static class UIStyle
 		style.BgColor = ColorGoldDull;
 		style.ExpandMarginTop = 2;
 		style.ExpandMarginBottom = 2;
-		style.CornerRadiusTopLeft = 2;
-		style.CornerRadiusTopRight = 2;
-		style.CornerRadiusBottomLeft = 2;
-		style.CornerRadiusBottomRight = 2;
+		style.SetCornerRadiusAll(2);
 		return style;
 	}
 
@@ -1463,10 +1430,7 @@ public static void ApplyTitle(Label label, string text, int fontSize = 36)
 		style.BorderWidthBottom = 1;
 		style.BorderWidthLeft = 2;
 		style.BorderWidthRight = 1;
-		style.CornerRadiusTopLeft = 4;
-		style.CornerRadiusTopRight = 4;
-		style.CornerRadiusBottomLeft = 4;
-		style.CornerRadiusBottomRight = 4;
+		style.SetCornerRadiusAll(4);
 		style.ContentMarginLeft = 14;
 		style.ContentMarginRight = 14;
 		style.ContentMarginTop = 10;
@@ -1483,10 +1447,7 @@ public static void ApplyTitle(Label label, string text, int fontSize = 36)
 		style.BorderWidthBottom = 2;
 		style.BorderWidthLeft = 2;
 		style.BorderWidthRight = 2;
-		style.CornerRadiusTopLeft = 4;
-		style.CornerRadiusTopRight = 4;
-		style.CornerRadiusBottomLeft = 4;
-		style.CornerRadiusBottomRight = 4;
+		style.SetCornerRadiusAll(4);
 		style.ContentMarginLeft = 14;
 		style.ContentMarginRight = 14;
 		style.ContentMarginTop = 10;
@@ -1515,10 +1476,7 @@ public static void ApplyTitle(Label label, string text, int fontSize = 36)
 		style.BgColor = new Color(0.13f, 0.15f, 0.18f, 1.0f);
 		style.BorderColor = new Color(0.36f, 0.39f, 0.44f, 1.0f);
 		style.SetBorderWidthAll(3);
-		style.CornerRadiusTopLeft = 24;
-		style.CornerRadiusTopRight = 24;
-		style.CornerRadiusBottomLeft = 24;
-		style.CornerRadiusBottomRight = 24;
+		style.SetCornerRadiusAll(24);
 		style.CornerDetail = 1;
 		style.ContentMarginLeft = 32;
 		style.ContentMarginRight = 32;
@@ -1536,10 +1494,7 @@ public static void ApplyTitle(Label label, string text, int fontSize = 36)
 		style.BgColor = new Color(0.18f, 0.21f, 0.26f, 1.0f);
 		style.BorderColor = new Color(0.50f, 0.65f, 0.85f, 1.0f);
 		style.SetBorderWidthAll(3);
-		style.CornerRadiusTopLeft = 24;
-		style.CornerRadiusTopRight = 24;
-		style.CornerRadiusBottomLeft = 24;
-		style.CornerRadiusBottomRight = 24;
+		style.SetCornerRadiusAll(24);
 		style.CornerDetail = 1;
 		style.ContentMarginLeft = 32;
 		style.ContentMarginRight = 32;
@@ -1557,10 +1512,7 @@ public static void ApplyTitle(Label label, string text, int fontSize = 36)
 		style.BgColor = new Color(0.10f, 0.12f, 0.14f, 1.0f);
 		style.BorderColor = new Color(0.20f, 0.75f, 1.0f, 1.0f);
 		style.SetBorderWidthAll(3);
-		style.CornerRadiusTopLeft = 24;
-		style.CornerRadiusTopRight = 24;
-		style.CornerRadiusBottomLeft = 24;
-		style.CornerRadiusBottomRight = 24;
+		style.SetCornerRadiusAll(24);
 		style.CornerDetail = 1;
 		style.ContentMarginLeft = 32;
 		style.ContentMarginRight = 32;
@@ -1578,10 +1530,7 @@ public static void ApplyTitle(Label label, string text, int fontSize = 36)
 		style.BgColor = new Color(0.20f, 0.19f, 0.18f, 1.0f);
 		style.BorderColor = new Color(0.40f, 0.36f, 0.30f, 1.0f);
 		style.SetBorderWidthAll(1);
-		style.CornerRadiusTopLeft = 3;
-		style.CornerRadiusTopRight = 3;
-		style.CornerRadiusBottomLeft = 3;
-		style.CornerRadiusBottomRight = 3;
+		style.SetCornerRadiusAll(3);
 		style.ContentMarginLeft = 10;
 		style.ContentMarginRight = 10;
 		style.ContentMarginTop = 5;
@@ -1595,10 +1544,7 @@ public static void ApplyTitle(Label label, string text, int fontSize = 36)
 		style.BgColor = new Color(0.26f, 0.25f, 0.23f, 1.0f);
 		style.BorderColor = new Color(0.58f, 0.48f, 0.32f, 1.0f);
 		style.SetBorderWidthAll(1);
-		style.CornerRadiusTopLeft = 3;
-		style.CornerRadiusTopRight = 3;
-		style.CornerRadiusBottomLeft = 3;
-		style.CornerRadiusBottomRight = 3;
+		style.SetCornerRadiusAll(3);
 		style.ContentMarginLeft = 10;
 		style.ContentMarginRight = 10;
 		style.ContentMarginTop = 5;
@@ -1612,10 +1558,7 @@ public static void ApplyTitle(Label label, string text, int fontSize = 36)
 		style.BgColor = new Color(0.16f, 0.15f, 0.14f, 1.0f);
 		style.BorderColor = new Color(0.15f, 0.65f, 1.0f, 1.0f);
 		style.SetBorderWidthAll(1);
-		style.CornerRadiusTopLeft = 3;
-		style.CornerRadiusTopRight = 3;
-		style.CornerRadiusBottomLeft = 3;
-		style.CornerRadiusBottomRight = 3;
+		style.SetCornerRadiusAll(3);
 		style.ContentMarginLeft = 10;
 		style.ContentMarginRight = 10;
 		style.ContentMarginTop = 5;
@@ -1631,10 +1574,7 @@ public static void ApplyTitle(Label label, string text, int fontSize = 36)
 		style.SetBorderWidthAll(1);
 		style.ExpandMarginTop = 2;
 		style.ExpandMarginBottom = 2;
-		style.CornerRadiusTopLeft = 3;
-		style.CornerRadiusTopRight = 3;
-		style.CornerRadiusBottomLeft = 3;
-		style.CornerRadiusBottomRight = 3;
+		style.SetCornerRadiusAll(3);
 		return style;
 	}
 
@@ -1644,10 +1584,7 @@ public static void ApplyTitle(Label label, string text, int fontSize = 36)
 		style.BgColor = new Color(0.38f, 0.38f, 0.42f, 1.0f);
 		style.ExpandMarginTop = 2;
 		style.ExpandMarginBottom = 2;
-		style.CornerRadiusTopLeft = 3;
-		style.CornerRadiusTopRight = 3;
-		style.CornerRadiusBottomLeft = 3;
-		style.CornerRadiusBottomRight = 3;
+		style.SetCornerRadiusAll(3);
 		return style;
 	}
 
