@@ -566,6 +566,18 @@ public class ListenServerHost : IServerTransportSink
 				LagProbe.Add(LagStage.AuthorityTickWorkMilliseconds, LagProbe.ElapsedMilliseconds(tickStarted));
 				if (_previousStepTimestamp != 0L) LagProbe.Add(LagStage.AuthorityTickIntervalMilliseconds, LagProbe.ElapsedMilliseconds(_previousStepTimestamp));
 				_previousStepTimestamp = tickStarted;
+
+				// What this step paid to the collector and what it allocated, so a tick that cost sixty milliseconds can be
+				// told apart from a tick that was stopped for sixty: one is work this process chose to do, the other is the
+				// process not being on a core, and only the second one is invisible in every stage measured inside the step.
+				TimeSpan gcPaused = GC.GetTotalPauseDuration();
+				if (_previousGcPauseTicks > 0) LagProbe.Add(LagStage.AuthorityGcPausePerTickMilliseconds, (gcPaused - _previousGcPause).TotalMilliseconds);
+				_previousGcPause = gcPaused;
+				_previousGcPauseTicks++;
+
+				long allocatedBytes = GC.GetAllocatedBytesForCurrentThread();
+				if (_previousAllocatedBytes >= 0) LagProbe.Add(LagStage.AuthorityAllocatedKilobytesPerTick, (allocatedBytes - _previousAllocatedBytes) / 1024d);
+				_previousAllocatedBytes = allocatedBytes;
 			}
 
 			_nextTickTime += MatchTiming.FixedTickSeconds;
@@ -578,6 +590,9 @@ public class ListenServerHost : IServerTransportSink
 	}
 
 	private long _previousStepTimestamp;
+	private TimeSpan _previousGcPause;
+	private int _previousGcPauseTicks;
+	private long _previousAllocatedBytes = -1;
 
 	private const int MaximumTicksPerCall = 5;
 
@@ -1207,16 +1222,26 @@ public class ListenServerHost : IServerTransportSink
 
 		long publishStarted = LagProbe.IsEnabled ? LagProbe.Timestamp() : 0L;
 
-
+		// The work a publish does between the peer descriptions is measured in three pieces beside them, because a publish
+		// that costs sixty milliseconds has to be told apart from twenty peer descriptions that each cost three: the
+		// description stages only account for the peers, and everything before and after them runs once whatever the room
+		// holds.
+		long recordStarted = LagProbe.IsEnabled ? LagProbe.Timestamp() : 0L;
 		_syncRecorder?.BeginSequence(sequence, simulation.TickCount);
+		if (recordStarted != 0L) LagProbe.Add(LagStage.AuthorityRecordMilliseconds, LagProbe.ElapsedMilliseconds(recordStarted));
 
+		long presentationStarted = LagProbe.IsEnabled ? LagProbe.Timestamp() : 0L;
 		ServerPresentationEvent[] presentation = simulation.CollectPresentation();
+		if (presentationStarted != 0L) LagProbe.Add(LagStage.AuthorityPresentationMilliseconds, LagProbe.ElapsedMilliseconds(presentationStarted));
 		if (_seatedPeers.Count == 0)
 		{
+			recordStarted = LagProbe.IsEnabled ? LagProbe.Timestamp() : 0L;
 			_syncRecorder?.EndSequence();
+			if (recordStarted != 0L) LagProbe.Add(LagStage.AuthorityRecordMilliseconds, LagProbe.ElapsedMilliseconds(recordStarted));
 			return;
 		}
 
+		long prepareStarted = LagProbe.IsEnabled ? LagProbe.Timestamp() : 0L;
 		int peerCount = CopySeatedPeerIds();
 		_trafficRecorder?.BeginSequence(sequence);
 		for (int index = 0; index < peerCount; index++)
@@ -1255,6 +1280,7 @@ public class ListenServerHost : IServerTransportSink
 		// not reached holding theirs, and sending one of those under this tick's sequence would tell a peer about a world the
 		// match has moved past while filing it, and its repair history, under the wrong sequence.
 		for (int peerIndex = 0; peerIndex < peerCount; peerIndex++) _publishedFrames[peerIndex] = null;
+		if (prepareStarted != 0L) LagProbe.Add(LagStage.AuthorityPrepareMilliseconds, LagProbe.ElapsedMilliseconds(prepareStarted));
 
 		bool everyLaneDescribedItsPeers = true;
 
@@ -1294,7 +1320,9 @@ public class ListenServerHost : IServerTransportSink
 
 		for (int index = 0; index < peerCount; index++) SendPublishedSnapshot(index);
 
+		recordStarted = LagProbe.IsEnabled ? LagProbe.Timestamp() : 0L;
 		_syncRecorder?.EndSequence();
+		if (recordStarted != 0L) LagProbe.Add(LagStage.AuthorityRecordMilliseconds, LagProbe.ElapsedMilliseconds(recordStarted));
 
 		if (_trafficRecorder != null && sequence % TrafficReportIntervalSequences == 0) QueueTrafficReport();
 
