@@ -73,10 +73,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 	{
 		Add3DPreviewViewport(BodyContainer, new Vector2(480, 220));
 
-		var topControlsVBox = new VBoxContainer();
-		topControlsVBox.Name = "TopControlsVBox_VBoxContainer";
-		topControlsVBox.AddThemeConstantOverride("separation", 6);
-		BodyContainer.AddChild(topControlsVBox);
+		var topControlsVBox = CreateTopControlsColumn();
 
 		var presetRow = AddCameraPresetToolbar(topControlsVBox, includeBack: true);
 

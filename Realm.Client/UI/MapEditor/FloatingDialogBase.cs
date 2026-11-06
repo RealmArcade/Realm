@@ -1882,4 +1882,13 @@ public partial class FloatingDialogBase : PanelContainer
 		contentVBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		return contentVBox;
 	}
+
+	public VBoxContainer CreateTopControlsColumn()
+	{
+		var topControlsVBox = new VBoxContainer();
+		topControlsVBox.Name = "TopControlsVBox_VBoxContainer";
+		topControlsVBox.AddThemeConstantOverride("separation", 6);
+		BodyContainer.AddChild(topControlsVBox);
+		return topControlsVBox;
+	}
 }

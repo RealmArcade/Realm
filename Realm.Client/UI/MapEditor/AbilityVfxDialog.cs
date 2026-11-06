@@ -78,10 +78,7 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 
 		Setup3DEnvironment();
 
-		var topControlsVBox = new VBoxContainer();
-		topControlsVBox.Name = "TopControlsVBox_VBoxContainer";
-		topControlsVBox.AddThemeConstantOverride("separation", 6);
-		BodyContainer.AddChild(topControlsVBox);
+		var topControlsVBox = CreateTopControlsColumn();
 
 		var presetRow = AddCameraPresetToolbar(topControlsVBox, includeBack: false);
 

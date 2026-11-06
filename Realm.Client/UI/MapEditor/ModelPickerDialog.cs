@@ -37,10 +37,7 @@ public partial class ModelPickerDialog : FloatingPreview3DDialogBase
 	{
 		Add3DPreviewViewport(BodyContainer, new Vector2(460, 240));
 
-		var topControlsVBox = new VBoxContainer();
-		topControlsVBox.Name = "TopControlsVBox_VBoxContainer";
-		topControlsVBox.AddThemeConstantOverride("separation", 6);
-		BodyContainer.AddChild(topControlsVBox);
+		var topControlsVBox = CreateTopControlsColumn();
 
 		AddCameraPresetToolbar(topControlsVBox, includeBack: true);
 

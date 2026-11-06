@@ -109,10 +109,7 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 	{
 		Add3DPreviewViewport(BodyContainer, new Vector2(530, 230));
 
-		var topControlsVBox = new VBoxContainer();
-		topControlsVBox.Name = "TopControlsVBox_VBoxContainer";
-		topControlsVBox.AddThemeConstantOverride("separation", 6);
-		BodyContainer.AddChild(topControlsVBox);
+		var topControlsVBox = CreateTopControlsColumn();
 
 		AddCameraPresetToolbar(topControlsVBox, includeBack: true);
 		BuildTopInfoRow(topControlsVBox);
