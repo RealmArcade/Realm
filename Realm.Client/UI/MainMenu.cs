@@ -58,7 +58,6 @@ public partial class MainMenu : Control
 	private static Font _norseFont;
 	private static Font _norseBoldFont;
 
-	private static readonly Color ProfileKeyColor = new(0.95f, 0.78f, 0.52f);
 
 	private readonly string[] _runes = { "ᚠ", "ᚢ", "ᚦ", "ᚨ", "ᚱ", "ᚲ", "ᚷ", "ᚹ", "ᚺ", "ᚾ", "ᛁ", "ᛃ", "ᛇ", "ᛈ", "ᛉ", "ᛊ", "ᛏ", "ᛒ", "ᛖ", "ᛗ", "ᛚ", "ᛜ", "ᛞ", "ᛟ" };
 
