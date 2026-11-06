@@ -93,7 +93,7 @@ public class MetadataService
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[MetadataService] Failed saving metadata to {targetPath}: {ex.Message}");
+			GameLog.LogError($"[MetadataService] Failed saving metadata to {targetPath}: {ex.Message}");
 		}
 	}
 
