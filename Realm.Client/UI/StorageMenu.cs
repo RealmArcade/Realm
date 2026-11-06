@@ -103,9 +103,7 @@ public partial class StorageMenu : Control
 		_importMapButton.AddThemeConstantOverride("icon_max_width", 24);
 		_importMapButton.CustomMinimumSize = new Vector2(210, 42);
 		UIStyle.ApplyButtonText(_importMapButton, "📥 " + TranslationServer.Translate("IMPORT MAP (.RMAP)"), 14);
-		_importMapButton.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		_importMapButton.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		_importMapButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
+		UIStyle.ApplyButtonStyleboxes(_importMapButton);
 		_importMapButton.FocusMode = FocusModeEnum.None;
 		_importMapButton.MouseFilter = MouseFilterEnum.Stop;
 		_importMapButton.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
@@ -309,9 +307,7 @@ public partial class StorageMenu : Control
 		_downloadUpdateButton.AddThemeConstantOverride("icon_max_width", 20);
 		_downloadUpdateButton.CustomMinimumSize = new Vector2(240, 38);
 		UIStyle.ApplyButtonText(_downloadUpdateButton, "⚡ " + TranslationServer.Translate("DOWNLOAD UPDATED VERSION"), 14);
-		_downloadUpdateButton.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		_downloadUpdateButton.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		_downloadUpdateButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
+		UIStyle.ApplyButtonStyleboxes(_downloadUpdateButton);
 		_downloadUpdateButton.FocusMode = FocusModeEnum.None;
 		_downloadUpdateButton.MouseFilter = MouseFilterEnum.Stop;
 		_downloadUpdateButton.Visible = false;
@@ -581,10 +577,7 @@ public partial class StorageMenu : Control
 		openInEditorBtn.CustomMinimumSize = new Vector2(140, 36);
 		openInEditorBtn.SizeFlagsVertical = SizeFlags.ShrinkCenter;
 		UIStyle.ApplyButtonText(openInEditorBtn, "✏️ " + TranslationServer.Translate("OPEN IN EDITOR"), 12);
-		openInEditorBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		openInEditorBtn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		openInEditorBtn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		openInEditorBtn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyButtonStyleboxesClearingFocus(openInEditorBtn);
 		openInEditorBtn.TooltipText = TranslationServer.Translate("Copy map to editor workspace. Saves will go to Documents/MapName.");
 		openInEditorBtn.FocusMode = FocusModeEnum.None;
 		openInEditorBtn.MouseFilter = MouseFilterEnum.Stop;
@@ -602,10 +595,7 @@ public partial class StorageMenu : Control
 		exportBtn.CustomMinimumSize = new Vector2(140, 36);
 		exportBtn.SizeFlagsVertical = SizeFlags.ShrinkCenter;
 		UIStyle.ApplyButtonText(exportBtn, "📦 " + TranslationServer.Translate("EXPORT MAP"), 12);
-		exportBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		exportBtn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		exportBtn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		exportBtn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyButtonStyleboxesClearingFocus(exportBtn);
 		exportBtn.TooltipText = TranslationServer.Translate("Export this version as a standalone .rmap package");
 		exportBtn.FocusMode = FocusModeEnum.None;
 		exportBtn.MouseFilter = MouseFilterEnum.Stop;

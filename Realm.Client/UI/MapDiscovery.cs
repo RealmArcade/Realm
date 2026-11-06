@@ -579,10 +579,7 @@ public partial class MapDiscovery : Control
 		btnDetails.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
 		btnDetails.AddThemeColorOverride("font_pressed_color", UIStyle.ColorGold);
 		btnDetails.AddThemeColorOverride("font_focus_color", UIStyle.ColorGold);
-		btnDetails.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		btnDetails.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		btnDetails.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		btnDetails.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyButtonStyleboxesClearingFocus(btnDetails);
 		btnDetails.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 
 		btnDetails.Pressed += () =>

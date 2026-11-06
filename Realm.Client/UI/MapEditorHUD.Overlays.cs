@@ -2581,10 +2581,7 @@ namespace Realm.Client.UI
 			btn.FocusMode = FocusModeEnum.None;
 			btn.AddThemeConstantOverride("icon_max_width", 0);
 
-			btn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-			btn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-			btn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-			btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+			UIStyle.ApplyButtonStyleboxesClearingFocus(btn);
 
 			foreach (Node child in btn.GetChildren())
 			{
@@ -2855,9 +2852,7 @@ namespace Realm.Client.UI
 			btn.FocusMode = FocusModeEnum.None;
 			btn.CustomMinimumSize = new Vector2(40, 40);
 			btn.Set("icon_max_width", 0);
-			btn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-			btn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-			btn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
+			UIStyle.ApplyButtonStyleboxes(btn);
 			return btn;
 		}
 
