@@ -64,7 +64,7 @@ public class MapAutosaveService
 		}
 		catch (AggregateException exception)
 		{
-			GD.PrintErr($"[MapAutosaveService] The background terrain write did not finish cleanly: {exception.GetBaseException().Message}");
+			GameLog.LogError($"[MapAutosaveService] The background terrain write did not finish cleanly: {exception.GetBaseException().Message}");
 		}
 	}
 
@@ -98,7 +98,7 @@ public class MapAutosaveService
 			}
 			catch (Exception exception)
 			{
-				GD.PrintErr($"[MapAutosaveService] Could not write '{write.AbsolutePath}': {exception.Message}");
+				GameLog.LogError($"[MapAutosaveService] Could not write '{write.AbsolutePath}': {exception.Message}");
 				_failedWriteMessage = exception.Message;
 			}
 		}
