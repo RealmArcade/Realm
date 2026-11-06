@@ -693,7 +693,7 @@ public partial class MapDetails : Control
 			GameContext.UserInterface.PlayClickSound();
 			if (CheckIfMapAlreadyDownloaded(_mapData))
 			{
-				GD.Print("Playing map: " + _mapData?.Title);
+				GameLog.LogToConsole("Playing map: " + _mapData?.Title);
 				GameContext.UserInterface.TransitionTo(GameScreen.MainMenu);
 			}
 			else
