@@ -110,9 +110,10 @@ public class ClientServerSession : IDisposable
 	/// <summary>
 	///     How many descriptions the ring holds before the oldest is overwritten. A screen with this many waiting has
 	///     stopped reading rather than met a link that is late, and the ones at its front describe a world the ones behind
-	///     them already supersede.
+	///     them already supersede. It is twice the run the match keeps because a repair answer arrives as that whole run
+	///     while the descriptions written since it are already queueing behind it.
 	/// </summary>
-	private const int MaximumQueuedDescriptions = 32;
+	private const int MaximumQueuedDescriptions = MatchTiming.SnapshotHistoryDepth * 2;
 
 	/// <summary>
 	///     How many descriptions one tick may apply. A tick that spent all of itself draining a backlog applied state the

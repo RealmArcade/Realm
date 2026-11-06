@@ -19,7 +19,8 @@ public class SnapshotApplyService
 	/// <summary>
 	///     How far behind the newest description this screen may fall before it rebuilds instead of catching up. It is the
 	///     run the match still holds, so every hole this refuses to wait out is one the match could not have answered by
-	///     name either: a narrower bound rebuilt the world for runs a handful of descriptions would have filled.
+	///     name either: a narrower bound rebuilt the world for runs a handful of descriptions would have filled, and a
+	///     wider one applied backlogs far deeper than any run the match could still answer by name.
 	/// </summary>
 	private const int MaximumBacklogSequences = MatchTiming.SnapshotHistoryDepth;
 
@@ -41,7 +42,7 @@ public class SnapshotApplyService
 	/// </summary>
 	private const int MinimumRepairGraceMilliseconds = 250;
 
-	private const int MaximumRepairGraceMilliseconds = 1200;
+	private const int MaximumRepairGraceMilliseconds = 2400;
 
 	/// <summary>
 	///     How long a description may go missing before this screen asks about it. It is the depth the presentation buffer
