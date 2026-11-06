@@ -59,7 +59,7 @@ namespace Realm.Client.ReplaySystem
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"[ReplayPlaybackManager] Error loading replay: {ex.Message}");
+				GameLog.LogError($"[ReplayPlaybackManager] Error loading replay: {ex.Message}");
 				return false;
 			}
 		}
@@ -342,7 +342,7 @@ namespace Realm.Client.ReplaySystem
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"[ReplayPlaybackManager] Error reading header from {path}: {ex}");
+				GameLog.LogError($"[ReplayPlaybackManager] Error reading header from {path}: {ex}");
 				return null;
 			}
 		}
