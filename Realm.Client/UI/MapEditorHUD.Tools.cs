@@ -1637,7 +1637,7 @@ namespace Realm.Client.UI
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"CRITICAL ERROR IN MAPEDITORHUD _READY: {ex}");
+				GameLog.LogError($"CRITICAL ERROR IN MAPEDITORHUD _READY: {ex}");
 				throw;
 			}
 		}
@@ -3186,7 +3186,7 @@ namespace Realm.Client.UI
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"[MapEditorHUD] AssetIndex rebuild error: {ex.Message}");
+				GameLog.LogError($"[MapEditorHUD] AssetIndex rebuild error: {ex.Message}");
 			}
 
 			if (GodotObject.IsInstanceValid(progressBar))
@@ -3214,7 +3214,7 @@ namespace Realm.Client.UI
 		public void AppendWasmConsoleLog(string line)
 		{
 			GameContext.WasmConsole.AppendLog(line);
-			GD.Print("[WASM_BUILD] " + line);
+			GameLog.LogToConsole("[WASM_BUILD] " + line);
 		}
 
 		private void SetupMirrorDropdown(OptionButton opt, string tooltip = "")
@@ -4728,7 +4728,7 @@ namespace Realm.Client.UI
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"[MapEditorHUD] RemoveUnitObjectAttachment error: {ex.Message}");
+				GameLog.LogError($"[MapEditorHUD] RemoveUnitObjectAttachment error: {ex.Message}");
 			}
 		}
 
@@ -4764,7 +4764,7 @@ namespace Realm.Client.UI
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"[MapEditorHUD] RestoreUnitObjectAttachments error: {ex.Message}");
+				GameLog.LogError($"[MapEditorHUD] RestoreUnitObjectAttachments error: {ex.Message}");
 			}
 		}
 
@@ -4800,7 +4800,7 @@ namespace Realm.Client.UI
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"[MapEditorHUD] RestoreUnitPseudoSockets error: {ex.Message}");
+				GameLog.LogError($"[MapEditorHUD] RestoreUnitPseudoSockets error: {ex.Message}");
 			}
 		}
 
@@ -4979,7 +4979,7 @@ namespace Realm.Client.UI
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"ConvertRawTextureDirect error: {ex.Message}");
+				GameLog.LogError($"ConvertRawTextureDirect error: {ex.Message}");
 				ShowFeedback($"Failed to import texture: {ex.Message}");
 			}
 		}
@@ -5021,7 +5021,7 @@ namespace Realm.Client.UI
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"ImportGlbAssetFromExtension error: {ex.Message}");
+				GameLog.LogError($"ImportGlbAssetFromExtension error: {ex.Message}");
 				ShowFeedback(string.Format(TranslationServer.Translate("Failed to import GLB asset: {0}"), ex.Message));
 			}
 		}
