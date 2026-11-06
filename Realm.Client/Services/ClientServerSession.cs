@@ -510,6 +510,7 @@ public class ClientServerSession : IDisposable
 		{
 			_helloSent = false;
 			_challenge = string.Empty;
+			GD.Print($"[ClientSession] The ENet connection to {_address}:{_port} dropped after the hello was sent; the next attempt sends a new one.");
 		}
 
 		if (!_helloSent && _channel.IsConnected)
@@ -603,12 +604,13 @@ public class ClientServerSession : IDisposable
 
 	private void SendHello()
 	{
+		string wireTableHash = _local ? _localWireTableHash : ReplicatedComponents.ComputeWireTableHash();
 		var hello = new ClientHello
 		{
 			Build = RealmVersion.GameBuildNumber,
 			TokenProof = _token.Length > 0 && _challenge.Length > 0 ? RealmProtocol.ProveToken(_token, _challenge) : string.Empty,
 			AdminProof = _adminToken.Length > 0 && _challenge.Length > 0 ? RealmProtocol.ProveToken(_adminToken, _challenge) : string.Empty,
-			WireTableHash = _local ? _localWireTableHash : ReplicatedComponents.ComputeWireTableHash(),
+			WireTableHash = wireTableHash,
 			MapHash = _mapHash,
 			Language = _language,
 			PlayerName = _playerName,
@@ -617,7 +619,14 @@ public class ClientServerSession : IDisposable
 		};
 
 		_channel.Send(NetworkFrameKind.ClientHello, MemoryPackSerializer.Serialize(hello));
+		GD.Print($"[ClientSession] Client hello sent to {_address}:{_port} build={hello.Build} wireTable={wireTableHash} map={(_mapHash.Length > 0 ? _mapHash : "any")}.");
 	}
+
+	/// <summary>
+	///     States where the handshake with the authority currently stands, so a caller that gives up waiting can say whether
+	///     the connect completed, whether a challenge arrived and whether this screen ever sent its hello.
+	/// </summary>
+	public string DescribeHandshake() => $"connected={_channel.IsConnected} challenge={_challenge.Length > 0} helloSent={_helloSent} at={_address}:{_port}";
 
 	private void Enqueue(NetworkFrameKind kind, byte[] payload)
 	{
@@ -717,6 +726,7 @@ public class ClientServerSession : IDisposable
 		{
 			case NetworkFrameKind.HandshakeChallenge:
 				_challenge = MemoryPackSerializer.Deserialize<HandshakeChallenge>(payload).Nonce ?? string.Empty;
+				GD.Print($"[ClientSession] Challenge received from {_address}:{_port}; the hello can follow.");
 				break;
 
 			case NetworkFrameKind.ServerHello:

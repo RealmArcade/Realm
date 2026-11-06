@@ -902,7 +902,11 @@ public class ListenServerHost : IServerTransportSink
 	private void HandleLobbyHello(int peerId, ReadOnlySpan<byte> payload)
 	{
 		ServerLobby? lobby = _lobby;
-		if (lobby == null) return;
+		if (lobby == null)
+		{
+			_log.Write($"peer {peerId} sent a lobby hello while this authority holds no lobby; dropped");
+			return;
+		}
 
 		ClientHello hello;
 		try
@@ -919,7 +923,7 @@ public class ListenServerHost : IServerTransportSink
 		string rejection = DescribeLobbyHandshakeRejection(peerId, in hello);
 		if (rejection.Length > 0)
 		{
-			_log.Write($"peer {peerId} refused by the lobby: {rejection}");
+			_log.Write($"peer {peerId} refused by the lobby: {rejection} (build={hello.Build} wireTable={hello.WireTableHash} map={hello.MapHash})");
 			SendHello(peerId, rejection, isAdmin: false, inLobby: true);
 			_transport.Disconnect(peerId);
 			return;

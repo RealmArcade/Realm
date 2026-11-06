@@ -1045,6 +1045,8 @@ public partial class LobbyManager : BaseMapTransferNode
 			return false;
 		}
 
+		GD.Print($"[LobbyManager] Lobby authority at {connectIp}:{connectPort} (local={isLocalConnection}); the lobby advertised {_hostPublicIp}:{_hostPublicPort}.");
+
 		if (!isLocalConnection)
 		{
 			await UdpHolePuncher.PunchHoleAsync(connectIp, connectPort, ENetPort);
@@ -1098,7 +1100,10 @@ public partial class LobbyManager : BaseMapTransferNode
 		try
 		{
 			var completed = await Task.WhenAny(decided.Task, Task.Delay(TimeSpan.FromSeconds(15)));
-			return completed == decided.Task ? decided.Task.Result : "The lobby's authority did not answer in time.";
+			if (completed == decided.Task) return decided.Task.Result;
+
+			GD.PrintErr($"[LobbyManager] No answer from the lobby authority within 15 s: {session.DescribeHandshake()}.");
+			return "The lobby's authority did not answer in time.";
 		}
 		finally
 		{

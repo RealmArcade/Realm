@@ -31,16 +31,24 @@ public partial class ClientNetworkChannel : Node
 	{
 		failure = string.Empty;
 
+		GD.Print($"[NetworkChannel] Opening an ENet connection to {address}:{port} from local port {localPort}...");
+
 		Error error = CreateClientPeer(address, port, localPort, out ENetMultiplayerPeer? peer);
-		if (error != Error.Ok && localPort > 0) error = CreateClientPeer(address, port, 0, out peer);
+		if (error != Error.Ok && localPort > 0)
+		{
+			GD.Print($"[NetworkChannel] Local port {localPort} could not be bound ({error}); using an ephemeral local port.");
+			error = CreateClientPeer(address, port, 0, out peer);
+		}
 
 		if (error != Error.Ok || peer == null)
 		{
 			failure = $"ENet could not reach {address}:{port}: {error}";
+			GD.PrintErr($"[NetworkChannel] {failure}");
 			return false;
 		}
 
 		Multiplayer.MultiplayerPeer = peer;
+		GD.Print($"[NetworkChannel] ENet peer created for {address}:{port}; the connection only completes when the authority answers.");
 		return true;
 	}
 
