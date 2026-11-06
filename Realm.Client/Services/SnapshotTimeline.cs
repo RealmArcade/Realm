@@ -33,6 +33,21 @@ public class SnapshotTimeline
 
 	private const float MaximumRateCorrection = 0.15f;
 
+	/// <summary>
+	///     The longest a deficit may take to close, in seconds. A cursor behind its target is a world drawn older than the
+	///     link needs it to be, and every frame of that is input the player gives that the match answers late. Correcting
+	///     at a fixed small rate closed the deficit a link's worth of sequences in about two seconds, which a lossy link
+	///     never got back before the next burst arrived; closing it in half a second costs a brief, even speed-up that a
+	///     player reads as the match picking itself up rather than as the match running slow.
+	/// </summary>
+	private const float CatchUpSeconds = 0.5f;
+
+	/// <summary>
+	///     The most a catch-up may run the clock fast. It is what turns <see cref="CatchUpSeconds" /> into a rate for the
+	///     widest deficit worth chasing; anything past this is a burst, which is resynchronized rather than played through.
+	/// </summary>
+	private const float MaximumCatchUpRateCorrection = 0.6f;
+
 	private const float RateCorrectionGain = 0.25f;
 
 	private const int ShallowConfirmWindows = 2;
@@ -144,6 +159,12 @@ public class SnapshotTimeline
 	public int DelayFloorSequences => _delayFloorSequences;
 
 	public int DelayCeilingSequences => _delayCeilingSequences;
+
+	/// <summary>
+	///     How fast the last frame advanced the clock relative to real time, as a fraction. It is the speed a screen is
+	///     drawing the match at, and the only way to see a catch-up a player would read as the world speeding up.
+	/// </summary>
+	public float LastRateCorrection { get; private set; }
 
 	public int StarvationCount { get; private set; }
 
@@ -296,6 +317,7 @@ public class SnapshotTimeline
 
 		float target = NewestSequence - _delaySequences;
 		float error = target - _cursor;
+		LastRateCorrection = 0f;
 
 		// The descriptions arrived faster than this screen consumed them - a burst after a loss, or a process that
 		// stopped for a moment. Easing across that would play the world slowly until it caught up.
@@ -323,7 +345,16 @@ public class SnapshotTimeline
 		}
 		else
 		{
-			float rateCorrection = Math.Clamp(error * RateCorrectionGain, -MaximumRateCorrection, MaximumRateCorrection);
+			// A deficit is closed in a bounded time rather than at a fixed rate: the wider it is, the faster the clock runs,
+			// up to the limit a player still reads as one movement. Running late is drawn slow and running early is drawn
+			// fast, and only the late side is widened - a cursor ahead of its target is one the depth rule has just taken
+			// room back from, and easing that at the same rate is what keeps a shallowing buffer from being visible.
+			float correction = error * RateCorrectionGain;
+			float limit = error > 0f
+				? Math.Clamp(error / (MatchTiming.SnapshotRateHz * CatchUpSeconds), MaximumRateCorrection, MaximumCatchUpRateCorrection)
+				: MaximumRateCorrection;
+			float rateCorrection = Math.Clamp(correction, -limit, limit);
+			LastRateCorrection = rateCorrection;
 			float advance = delta / MatchTiming.SnapshotIntervalSeconds * (1f + rateCorrection);
 
 			// Running out of descriptions is a stall to hold against, not a moment to move the clock backwards: the

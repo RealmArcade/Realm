@@ -88,6 +88,7 @@ public class SnapshotApplyService
 
 		if (LagProbe.IsEnabled)
 		{
+			LagProbe.Count(LagEvent.ClientDescriptionsArrived);
 			long arrivalTimestamp = LagProbe.Timestamp();
 			if (_previousDescriptionTimestamp != 0L) LagProbe.Add(LagStage.ClientDescriptionIntervalMilliseconds, LagProbe.ElapsedMilliseconds(_previousDescriptionTimestamp));
 			_previousDescriptionTimestamp = arrivalTimestamp;
@@ -194,11 +195,16 @@ public class SnapshotApplyService
 		if (snapshot.Sequence <= networkState.LastAppliedSnapshotSequence)
 		{
 			_appliedSnapshots.MarkApplied(snapshot.Sequence);
+			LagProbe.Count(LagEvent.ClientDescriptionsBehindApplied);
 			return;
 		}
 
 		int sequencesSkipped = snapshot.Sequence - networkState.LastAppliedSnapshotSequence - 1;
-		if (sequencesSkipped > 0)
+
+		// A screen that has not been told the world yet has not missed anything: the match was describing a world this
+		// screen had not joined, and counting that span as a gap reported a lossless link as having lost a hundred
+		// descriptions before the first one it could apply.
+		if (sequencesSkipped > 0 && networkState.HasReceivedInitialBaseline && networkState.LastAppliedSnapshotSequence > 0)
 		{
 			LagProbe.Count(LagEvent.ClientSequenceGaps);
 			LagProbe.RecordWorst(LagEvent.ClientWorstSkippedSequences, sequencesSkipped);
@@ -299,6 +305,8 @@ public class SnapshotApplyService
 
 	private void ClearQueuedDeltas()
 	{
+		if (LagProbe.IsEnabled && QueuedDeltaCount > 0) LagProbe.Count(LagEvent.ClientQueuedDescriptionsCleared, QueuedDeltaCount);
+
 		_queuedDeltas.Clear();
 		_queuedDeltaHead = 0;
 	}

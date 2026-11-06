@@ -381,6 +381,7 @@ public partial class GameHost
 		LagProbe.ObserveGauge(LagGauge.ClientPresentationDelaySequences, timeline.DelaySequences, nowSeconds);
 		LagProbe.ObserveGauge(LagGauge.ClientPresentationDelayMilliseconds, timeline.DelayMilliseconds, nowSeconds);
 		LagProbe.ObserveGauge(LagGauge.ClientNewestDescriptionLeadSequences, timeline.NewestSequence - timeline.CursorSequence, nowSeconds);
+		LagProbe.ObserveGauge(LagGauge.ClientCatchUpRatePercent, timeline.LastRateCorrection * 100d, nowSeconds);
 		LagProbe.ObserveDrawnSequence((int)MathF.Floor(timeline.CursorSequence), nowSeconds);
 	}
 
