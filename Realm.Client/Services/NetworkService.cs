@@ -249,23 +249,6 @@ public class NetworkService
 		return remoteClientCount > 0;
 	}
 
-	private bool TryChargeBuildingCost(Entity playerEntity, UnitMetadata meta)
-	{
-		if (!GameContext.World.TryGet<PlayerResources>(playerEntity, out var res)) return false;
-
-		int costGold = (int)meta.CostGold;
-		int costWood = (int)meta.CostWood;
-		int costStone = (int)meta.CostStone;
-
-		if (res.Gold < costGold || res.Wood < costWood || res.Stone < costStone) return false;
-
-		res.Gold -= costGold;
-		res.Wood -= costWood;
-		res.Stone -= costStone;
-		GameContext.World.Set(playerEntity, res);
-		return true;
-	}
-
 	public void UpdateClientTickDomain()
 	{
 		VerifyReplicatedEcsDriftDomain();
@@ -1551,19 +1534,6 @@ public class NetworkService
 		if (GameContext.Lobby == null) return false;
 		if (GameContext.Lobby.PlayerList == null) return false;
 		return GameContext.Lobby.PlayerList.Count > 0;
-	}
-
-	private static int GetTeamIndexForPeer(int peerId, int defaultTeam)
-	{
-		var list = GameContext.Lobby.PlayerList;
-		for (int i = 0; i < list.Count; i++)
-		{
-			if (list[i].PeerId == peerId)
-			{
-				return list[i].TeamIndex;
-			}
-		}
-		return defaultTeam;
 	}
 
 	private static int GetTeamIndexForPlayerIndex(int playerIndex, int defaultTeam)
