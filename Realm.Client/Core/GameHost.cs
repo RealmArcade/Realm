@@ -35,6 +35,7 @@ using Realm.Shared.Abilities;
 
 namespace Realm.Client.Core;
 
+[GlobalClass]
 public partial class GameHost : Node3D
 {
 	public GameHost()

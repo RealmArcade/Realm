@@ -344,7 +344,7 @@ namespace Realm.Client.Core
 			}
 		}
 
-		internal void UpdateEditorCoverageOverlay()
+		public void UpdateEditorCoverageOverlay()
 		{
 			EnsureCoverageOverlayRootExists();
 			ClearCoverageOverlayChildren();

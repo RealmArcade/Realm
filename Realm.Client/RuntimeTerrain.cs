@@ -62,7 +62,7 @@ public partial class RuntimeTerrain : Node3D
 	public const float DefaultQuadSize = TerrainState.DefaultQuadSize;
 	public const float DefaultCellSize = TerrainState.DefaultCellSize;
 
-	internal TerrainState GetTerrainStateSafe()
+	private TerrainState GetTerrainStateSafe()
 	{
 		if (GameContext.Host != null &&
 		    GameContext.World != null &&

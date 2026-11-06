@@ -16,6 +16,7 @@ using static Godot.Control;
 
 namespace Realm.Client.UI;
 
+[GlobalClass]
 public partial class MapEditorHUD : Control
 {
 	public MapEditorHUD()

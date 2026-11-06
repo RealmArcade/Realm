@@ -197,7 +197,7 @@ public partial class GameHost
 
 	private Dictionary<int, List<MeshInstance3D>> _buildQueueGhosts { get; set; } = new();
 
-	internal void TickConstructionSystem(float fDelta, bool isAuthoritative)
+	private void TickConstructionSystem(float fDelta, bool isAuthoritative)
 	{
 		_pendingBuildTaskUpdates.Clear();
 		GameContext.SimulationService.CompletedBuildings.Clear();
@@ -495,7 +495,7 @@ public partial class GameHost
 		return mesh;
 	}
 
-	internal void ClearAllBuildQueueGhosts()
+	private void ClearAllBuildQueueGhosts()
 	{
 		foreach (var kv in _buildQueueGhosts)
 		foreach (var ghost in kv.Value)
@@ -504,7 +504,7 @@ public partial class GameHost
 		_buildQueueGhosts.Clear();
 	}
 
-	internal void AssignBuildTaskToWorker(Entity workerEntity, string buildType, Vector3 targetPos)
+	private void AssignBuildTaskToWorker(Entity workerEntity, string buildType, Vector3 targetPos)
 	{
 		if (!UnitRegistry.TryGetValue(buildType, out var meta) && !BuildingRegistry.TryGetValue(buildType, out meta)) return;
 		string targetModel = meta.ModelPath;
@@ -1126,7 +1126,7 @@ public partial class GameHost
 		return "Walk";
 	}
 
-	internal bool ExecuteQueuedCommand(Entity entity, string? commandType, Vector3 targetPos, Entity targetEntity)
+	private bool ExecuteQueuedCommand(Entity entity, string? commandType, Vector3 targetPos, Entity targetEntity)
 	{
 		return commandType switch
 		{

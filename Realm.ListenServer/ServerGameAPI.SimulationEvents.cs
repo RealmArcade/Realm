@@ -6,7 +6,7 @@ namespace Realm.ListenServer;
 
 public partial class ServerGameAPI
 {
-	internal void RaiseUnitCreated(int unitId)
+	public void RaiseUnitCreated(int unitId)
 	{
 		if (unitId <= 0) return;
 
@@ -28,7 +28,7 @@ public partial class ServerGameAPI
 		TechLevels.ApplyAllToEntity(owner.Value, entity);
 	}
 
-	internal void RaiseUnitDied(int unitId, int killerUnitId)
+	public void RaiseUnitDied(int unitId, int killerUnitId)
 	{
 		if (unitId <= 0) return;
 
@@ -36,28 +36,28 @@ public partial class ServerGameAPI
 		OnUnitDied?.Invoke(new UnitId(unitId), killer);
 	}
 
-	internal void RaiseUnitDamaged(int unitId, int attackerUnitId, float damage)
+	public void RaiseUnitDamaged(int unitId, int attackerUnitId, float damage)
 	{
 		if (unitId <= 0) return;
 
 		OnUnitDamaged?.Invoke(new UnitId(unitId), attackerUnitId > 0 ? new UnitId(attackerUnitId) : UnitId.Invalid, damage);
 	}
 
-	internal void RaiseUnitAttacked(int attackerUnitId, int targetUnitId)
+	public void RaiseUnitAttacked(int attackerUnitId, int targetUnitId)
 	{
 		if (attackerUnitId <= 0) return;
 
 		OnUnitAttacked?.Invoke(new UnitId(attackerUnitId), new UnitId(targetUnitId));
 	}
 
-	internal void RaiseConstructionFinished(int unitId)
+	public void RaiseConstructionFinished(int unitId)
 	{
 		if (unitId <= 0) return;
 
 		OnConstructionFinished?.Invoke(new UnitId(unitId));
 	}
 
-	internal void RaisePlayerChatMessage(int playerIndex, string message, int senderUnitId)
+	public void RaisePlayerChatMessage(int playerIndex, string message, int senderUnitId)
 	{
 		if (string.IsNullOrWhiteSpace(message)) return;
 
@@ -66,21 +66,21 @@ public partial class ServerGameAPI
 		_log.Write($"player {playerIndex} sent the map a console command");
 	}
 
-	internal void RaiseUnitSelected(int unitId)
+	public void RaiseUnitSelected(int unitId)
 	{
 		if (unitId <= 0) return;
 
 		OnUnitSelected?.Invoke(new UnitId(unitId));
 	}
 
-	internal void RaiseConsumableChanged(int unitId, string consumableId)
+	public void RaiseConsumableChanged(int unitId, string consumableId)
 	{
 		if (unitId <= 0) return;
 
 		OnConsumableChanged?.Invoke(new UnitId(unitId), consumableId ?? string.Empty);
 	}
 
-	internal void RaiseUnitOrdered(int unitId, string order, Vector3 position)
+	public void RaiseUnitOrdered(int unitId, string order, Vector3 position)
 	{
 		if (unitId <= 0) return;
 
