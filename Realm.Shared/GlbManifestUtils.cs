@@ -397,27 +397,6 @@ public static class GlbManifestUtils
 		return true;
 	}
 
-	private static bool TryParseLodNodeName(string? name, out string prefix, out int level)
-	{
-		prefix = string.Empty;
-		level = 0;
-		if (string.IsNullOrEmpty(name)) return false;
-
-		int lodIndex = name.LastIndexOf("_LOD", StringComparison.OrdinalIgnoreCase);
-		int tagLength = 4;
-		if (lodIndex < 0)
-		{
-			lodIndex = name.LastIndexOf("LOD", StringComparison.OrdinalIgnoreCase);
-			tagLength = 3;
-		}
-
-		if (lodIndex < 0 || lodIndex + tagLength >= name.Length) return false;
-		if (!int.TryParse(name.AsSpan(lodIndex + tagLength), out level)) return false;
-
-		prefix = name.Substring(0, lodIndex);
-		return true;
-	}
-
 	public static bool EnsureAllNodesParentedOrInScene(JsonObject root)
 	{
 		if (!root.TryGetPropertyValue("nodes", out var nodesNode) || nodesNode is not JsonArray nodesArray || nodesArray.Count == 0)
