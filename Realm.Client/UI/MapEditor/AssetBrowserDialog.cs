@@ -985,7 +985,7 @@ public partial class AssetBrowserDialog : AssetGridDialogBase
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[AssetBrowserDialog] RefreshSearchResults error: {ex.Message}");
+			GameLog.LogError($"[AssetBrowserDialog] RefreshSearchResults error: {ex.Message}");
 		}
 	}
 
@@ -1250,7 +1250,7 @@ public partial class AssetBrowserDialog : AssetGridDialogBase
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[AssetBrowserDialog] Failed to load audio stream: {ex.Message}");
+			GameLog.LogError($"[AssetBrowserDialog] Failed to load audio stream: {ex.Message}");
 		}
 	}
 
