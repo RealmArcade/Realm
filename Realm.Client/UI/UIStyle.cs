@@ -929,6 +929,26 @@ public static class UIStyle
 		return button;
 	}
 
+	public static VBoxContainer CreateInfoColumn()
+	{
+		var infoVBox = new VBoxContainer();
+		infoVBox.Name = "InfoVBox_VBoxContainer";
+		infoVBox.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		return infoVBox;
+	}
+
+	/// <summary>
+	/// Configures a popover root: hidden until shown, full-rect and blocking input
+	/// so a click outside the card dismisses it instead of reaching the screen below.
+	/// </summary>
+	public static void ConfigurePopoverRoot(Control root, string nodeName)
+	{
+		root.Name = nodeName;
+		root.Visible = false;
+		root.MouseFilter = Control.MouseFilterEnum.Stop;
+		root.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+	}
+
 	public static GridContainer CreateGrid(int columns)
 	{
 		var grid = new GridContainer();

@@ -387,9 +387,7 @@ public partial class CreatorDiscovery : Control
 			var avatarBox = CreateAvatarPlaceholder(64);
 			cardHBox.AddChild(avatarBox);
 
-			var infoVBox = new VBoxContainer();
-			infoVBox.Name = "InfoVBox_VBoxContainer";
-			infoVBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+			var infoVBox = UIStyle.CreateInfoColumn();
 			infoVBox.Alignment = BoxContainer.AlignmentMode.Center;
 			cardHBox.AddChild(infoVBox);
 

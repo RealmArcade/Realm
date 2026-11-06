@@ -248,9 +248,7 @@ public partial class ReplayListPanel : Control
 		hBox.AddThemeConstantOverride("separation", 20);
 		panel.AddChild(hBox);
 
-		var infoVBox = new VBoxContainer();
-		infoVBox.Name = "InfoVBox_VBoxContainer";
-		infoVBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		var infoVBox = UIStyle.CreateInfoColumn();
 		hBox.AddChild(infoVBox);
 
 		var mapLabel = new Label();

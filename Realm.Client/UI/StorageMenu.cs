@@ -546,9 +546,7 @@ public partial class StorageMenu : Control
 		hbox.MouseFilter = MouseFilterEnum.Pass;
 		panel.AddChild(hbox);
 
-		var infoVBox = new VBoxContainer();
-		infoVBox.Name = "InfoVBox_VBoxContainer";
-		infoVBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		var infoVBox = UIStyle.CreateInfoColumn();
 		infoVBox.Alignment = BoxContainer.AlignmentMode.Center;
 		infoVBox.AddThemeConstantOverride("separation", 2);
 		infoVBox.MouseFilter = MouseFilterEnum.Ignore;
