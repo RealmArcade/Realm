@@ -1268,7 +1268,7 @@ public partial class InGameHUD : Control
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"Failed to dynamically capture terrain minimap: {ex.Message}");
+			GameLog.LogError($"Failed to dynamically capture terrain minimap: {ex.Message}");
 		}
 		finally
 		{
