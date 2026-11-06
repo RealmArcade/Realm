@@ -470,7 +470,7 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[AbilityVfxDialog] PlaySoundFile error: {ex.Message}");
+			GameLog.LogError($"[AbilityVfxDialog] PlaySoundFile error: {ex.Message}");
 		}
 	}
 
@@ -575,7 +575,7 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[AbilityVfxDialog] ResolveTexture error: {ex.Message}");
+			GameLog.LogError($"[AbilityVfxDialog] ResolveTexture error: {ex.Message}");
 		}
 
 		return null;
