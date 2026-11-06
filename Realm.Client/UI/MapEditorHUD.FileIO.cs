@@ -1279,11 +1279,6 @@ namespace Realm.Client.UI
 			return MapWorkspaceService.FindExistingWasmFileDomain(workspace);
 		}
 
-		private string SearchForWasmInDirectory(string dir)
-		{
-			return MapWorkspaceService.SearchForWasmInDirectoryDomain(dir);
-		}
-
 		private bool HasNewerSourceFiles(string workspace, DateTime wasmTime)
 		{
 			string currentSourceFolder = GameContext.EditorService.CurrentSourceFolder;
@@ -1965,31 +1960,6 @@ namespace Realm.Client.UI
 			}
 
 			return null;
-		}
-
-		private void ImportTextureAction()
-		{
-			if (GameContext.Host == null) return;
-			int selectedIdx = GameContext.EditorService.EditorPaintTextureIndex;
-			if (selectedIdx < 0 || selectedIdx >= GameContext.EditorService.SwatchDisplayNames.Count)
-			{
-				ShowFeedback(TranslationServer.Translate("Please select a texture slot first"));
-				return;
-			}
-
-			OpenAssetBrowser("Import Texture Image", new[] { ".rtex" }, (imagePath, preferredName) =>
-			{
-				if (selectedIdx >= 0 && selectedIdx < GameContext.EditorService.SwatchPaths.Count && !string.IsNullOrEmpty(GameContext.EditorService.SwatchPaths[selectedIdx]))
-				{
-					string cleanPrevName = GameContext.EditorService.SwatchDisplayNames[selectedIdx];
-					string msg = string.Format(TranslationServer.Translate("Replacing texture in Slot {0} ({1}) will update all areas of the terrain painted with this slot. Do you want to proceed?"), selectedIdx, cleanPrevName);
-					ShowConfirmationDialog(msg, () => { ImportTextureFile(imagePath, selectedIdx, preferredName); }, confirmText: TranslationServer.Translate("REPLACE"), cancelText: TranslationServer.Translate("CANCEL"));
-				}
-				else
-				{
-					ImportTextureFile(imagePath, selectedIdx, preferredName);
-				}
-			}, requireRealmMetadata: false);
 		}
 
 		private void ImportTextureFile(string imagePath, int index, string? preferredFileName = null)
