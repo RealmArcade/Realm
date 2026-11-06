@@ -2371,21 +2371,11 @@ namespace Realm.Client.UI
 			buttonRow.AddThemeConstantOverride("separation", 20);
 			vbox.AddChild(buttonRow);
 
-			var upgradeBtn = new Button();
-			upgradeBtn.Name = "UpgradeBtn_Button";
-			upgradeBtn.Flat = false;
-			upgradeBtn.AddThemeConstantOverride("icon_max_width", 0);
-			UIStyle.ApplyButtonStyleBoxesClearingFocus(upgradeBtn);
-			UIStyle.ApplyButtonText(upgradeBtn, Tr("UPGRADE MAP"), 14);
+			var upgradeBtn = UIStyle.CreateActionButton("UpgradeBtn_Button", Tr("UPGRADE MAP"), 14);
 			upgradeBtn.CustomMinimumSize = new Vector2(160, 38);
 			buttonRow.AddChild(upgradeBtn);
 
-			var cancelBtn = new Button();
-			cancelBtn.Name = "CancelBtn_Button";
-			cancelBtn.Flat = false;
-			cancelBtn.AddThemeConstantOverride("icon_max_width", 0);
-			UIStyle.ApplyButtonStyleBoxesClearingFocus(cancelBtn);
-			UIStyle.ApplyButtonText(cancelBtn, Tr("CANCEL"), 14);
+			var cancelBtn = UIStyle.CreateActionButton("CancelBtn_Button", Tr("CANCEL"), 14);
 			cancelBtn.CustomMinimumSize = new Vector2(120, 38);
 			buttonRow.AddChild(cancelBtn);
 

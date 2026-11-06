@@ -918,6 +918,17 @@ public static class UIStyle
 		button.AddThemeStyleboxOverride("pressed", CreateHUDButtonStyle(false, true));
 	}
 
+	public static Button CreateActionButton(string nodeName, string text, int fontSize)
+	{
+		var button = new Button();
+		button.Name = nodeName;
+		button.Flat = false;
+		button.AddThemeConstantOverride("icon_max_width", 0);
+		ApplyButtonStyleBoxesClearingFocus(button);
+		ApplyButtonText(button, text, fontSize);
+		return button;
+	}
+
 	public static GridContainer CreateGrid(int columns)
 	{
 		var grid = new GridContainer();

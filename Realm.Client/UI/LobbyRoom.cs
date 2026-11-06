@@ -1129,12 +1129,7 @@ public partial class LobbyRoom : Control
 		circleContainer.AddChild(_countdownTextLabel);
 		vbox.AddChild(circleContainer);
 
-		var cancelBtn = new Button();
-		cancelBtn.Name = "CancelBtn_Button";
-		cancelBtn.Flat = false;
-		cancelBtn.AddThemeConstantOverride("icon_max_width", 0);
-		UIStyle.ApplyButtonStyleBoxesClearingFocus(cancelBtn);
-		UIStyle.ApplyButtonText(cancelBtn, TranslationServer.Translate("CANCEL"), 16);
+		var cancelBtn = UIStyle.CreateActionButton("CancelBtn_Button", TranslationServer.Translate("CANCEL"), 16);
 
 		cancelBtn.CustomMinimumSize = new Vector2(180, 48);
 		cancelBtn.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
