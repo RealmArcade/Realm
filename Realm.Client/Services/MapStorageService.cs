@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -392,8 +392,9 @@ public class MapStorageService
 		{
 			manifestHash = RealmMetadataHelper.ComputeBlake3(Encoding.UTF8.GetBytes(jsonText), ".json");
 		}
-		catch
+		catch (Exception ex)
 		{
+			GameLog.LogError($"could not hash the map manifest, so change detection for this map is disabled: {ex.GetType().Name}: {ex.Message}");
 		}
 	}
 
@@ -1585,7 +1586,7 @@ public class MapStorageService
 		}
 		catch (Exception exception)
 		{
-			GD.PrintErr($"[MapStorageService] Could not clear the previous script output: {exception.Message}");
+			GameLog.LogError($"[MapStorageService] Could not clear the previous script output: {exception.Message}");
 		}
 	}
 
@@ -1602,7 +1603,7 @@ public class MapStorageService
 		}
 		catch (Exception exception)
 		{
-			GD.PrintErr($"[MapStorageService] Could not record the script output of '{workspace}': {exception.Message}");
+			GameLog.LogError($"[MapStorageService] Could not record the script output of '{workspace}': {exception.Message}");
 		}
 	}
 
@@ -1634,7 +1635,7 @@ public class MapStorageService
 		}
 		catch (Exception exception)
 		{
-			GD.PrintErr($"[MapStorageService] Could not sign '{metadataJsonPath}': {exception.Message}");
+			GameLog.LogError($"[MapStorageService] Could not sign '{metadataJsonPath}': {exception.Message}");
 			return false;
 		}
 	}
@@ -1656,7 +1657,7 @@ public class MapStorageService
 		}
 		catch (Exception exception)
 		{
-			GD.PrintErr($"[MapStorageService] Could not index the assets of '{workspace}' for attribution: {exception.Message}");
+			GameLog.LogError($"[MapStorageService] Could not index the assets of '{workspace}' for attribution: {exception.Message}");
 			return authorCounts;
 		}
 
