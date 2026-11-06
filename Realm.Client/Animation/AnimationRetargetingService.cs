@@ -72,7 +72,7 @@ public static class AnimationRetargetingService
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[AnimationRetargetingService] Failed to load RANIM from '{filePath}': {ex.Message}");
+			GameLog.LogError($"[AnimationRetargetingService] Failed to load RANIM from '{filePath}': {ex.Message}");
 			return null;
 		}
 	}
@@ -856,7 +856,7 @@ public static class AnimationRetargetingService
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"Failed to apply idle pose to rigged mesh: {ex.Message}");
+			GameLog.LogError($"Failed to apply idle pose to rigged mesh: {ex.Message}");
 		}
 
 		return false;
