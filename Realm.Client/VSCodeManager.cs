@@ -497,11 +497,6 @@ public partial class VSCodeManager
 		_isInitialized = true;
 	}
 
-	private void StartVSCodeServer()
-	{
-		StartIpcHttpListener();
-	}
-
 	private void EnsureWorkspaceMapApiDll(string projectRoot)
 	{
 		try
@@ -2435,25 +2430,6 @@ public partial class VSCodeManager
 
 		apiArray.Add(extensionName);
 		return true;
-	}
-
-	private static void CopyItemIfExists(string src, string dst)
-	{
-		if (File.Exists(src))
-			File.Copy(src, dst, true);
-	}
-
-	private static void CopyDirectoryIfExists(string src, string dst)
-	{
-		if (Directory.Exists(src))
-		{
-			Directory.CreateDirectory(dst);
-			foreach (string filePath in Directory.GetFiles(src))
-			{
-				string fileName = Path.GetFileName(filePath);
-				File.Copy(filePath, Path.Combine(dst, fileName), true);
-			}
-		}
 	}
 
 	private bool IsExtensionInstalled(string extensionsDir, string extensionId)
