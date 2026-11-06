@@ -278,7 +278,7 @@ public partial class WasmConsoleWindow : Window
 
 		// Both places: the window for a player watching the console, and Godot's output for anyone reading the editor.
 		AppendLog(AuthorityLinePrefix + line);
-		GD.Print(AuthorityLinePrefix + line);
+		GameLog.LogToConsole(AuthorityLinePrefix + line);
 	}
 
 	private static string ResolveAuthorityConsolePath()
