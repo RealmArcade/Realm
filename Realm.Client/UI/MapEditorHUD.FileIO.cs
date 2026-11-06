@@ -1962,24 +1962,6 @@ namespace Realm.Client.UI
 			return null;
 		}
 
-		private void ImportTextureFile(string imagePath, int index, string? preferredFileName = null)
-		{
-			string cleanBaseName = GameContext.EditorService.ResolveTextureFileName(imagePath, preferredFileName);
-			string outputRtex = GameContext.EditorService.PrepareTextureOutputDir(cleanBaseName);
-			ShowFeedback(TranslationServer.Translate("Importing texture..."));
-			try
-			{
-				GameContext.EditorService.CopyOrProcessTexture(imagePath, outputRtex, GameContext.Host);
-				UpdateTextureMetadataAndReload(index, cleanBaseName, outputRtex);
-				ShowFeedback(string.Format(TranslationServer.Translate("Successfully imported custom texture for {0}!"), cleanBaseName));
-			}
-			catch (Exception ex)
-			{
-				ShowFeedback(string.Format(TranslationServer.Translate("Failed to import texture: {0}"), ex.Message));
-				GD.PrintErr($"Failed to import texture: {ex.Message}");
-			}
-		}
-
 		private void UpdateTextureMetadataAndReload(int index, string cleanBaseName, string outputRtex)
 		{
 			GameContext.EditorService.UpdateTextureMetadataAndReload(index, cleanBaseName, outputRtex, GameContext.Host, (cat, name, blake, slot) => UpdateMetadataJsonAsset(cat, name, blake, targetSlot: slot));
