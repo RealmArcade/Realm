@@ -57,7 +57,6 @@ namespace Realm.Ecs.Services
 		private const float NavMeshMaxSnapClimb = 0.5f;
 		private static readonly RcVec3f NavMeshSnapExtents = new RcVec3f(1.5f, 2.0f, 1.5f);
 		private const float VerticalFollowRate = 30f;
-		private const float DefaultAcceleration = 25f;
 		private const float OffMeshStartRecoveryLogInterval = 2f;
 
 		private float _elapsedTime;
