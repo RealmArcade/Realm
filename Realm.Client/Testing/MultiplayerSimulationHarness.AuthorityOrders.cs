@@ -11,13 +11,5 @@ namespace Realm.Client.Testing;
 
 public partial class MultiplayerSimulationHarness
 {
-	private const int AuthorityOrderStartTick = 120;
-	private const int AuthorityOrderSpacingTicks = 26;
-	private const int AuthorityOrderCount = 16;
-
-	private int _authorityOrderTick;
-	private int _authorityOrderIndex;
-
-	private bool _authorityOrderReportedNoUnit;
 
 }
