@@ -895,6 +895,13 @@ public partial class SettingsMenu : Control
 			GameLog.LogToConsole("Settings Applied successfully!");
 			CloseOrTransition();
 		}
+		catch (Exception exception)
+		{
+			// The apply button is re-enabled by the finally, but without this catch a fault left the settings half
+			// applied with no log line at all, which reads exactly like the menu having done nothing.
+			GameLog.LogError($"[SettingsMenu] Applying settings failed: {exception}");
+			return;
+		}
 		finally
 		{
 			if (_applyBtn != null && GodotObject.IsInstanceValid(_applyBtn))
