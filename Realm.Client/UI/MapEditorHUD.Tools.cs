@@ -617,6 +617,29 @@ namespace Realm.Client.UI
 
 		private void BuildEditorsPopup()
 		{
+			var editorsVBox = BuildEditorsPopupShell();
+
+			BuildVSCodeButton(editorsVBox);
+
+			BuildEditorModuleButtons(editorsVBox);
+
+			_btnEditors = GetNodeOrNull<Button>("TopLeftBox/BtnEditors") ?? GetNodeOrNull<Button>("TopLeftBox/BtnVSCode");
+			if (_btnEditors == null)
+			{
+				_btnEditors = new Button();
+				_btnEditors.Name = "BtnEditors";
+			}
+
+			SetupButton(_btnEditors, TranslationServer.Translate("WINDOWS") + $" {UnicodeIcons.CHEVRON_DOWN}", () =>
+			{
+				var popupPosition = _btnEditors.GetScreenPosition() + new Vector2(0, _btnEditors.Size.Y);
+				_popupEditors.Popup(new Rect2I((Vector2I)popupPosition, Vector2I.Zero));
+			}, 13, "Open Modules");
+			StyleMapEditorTopButton(_btnEditors);
+		}
+
+		private VBoxContainer BuildEditorsPopupShell()
+		{
 			_popupEditors = new PopupPanel();
 			_popupEditors.Name = "PopupEditors";
 			var editorsPopupStyle = new StyleBoxFlat();
@@ -636,7 +659,11 @@ namespace Realm.Client.UI
 			editorsVBox.CustomMinimumSize = new Vector2(170, 0);
 			_popupEditors.AddChild(editorsVBox);
 			AddChild(_popupEditors);
+			return editorsVBox;
+		}
 
+		private void BuildVSCodeButton(VBoxContainer editorsVBox)
+		{
 			_btnVSCode = new Button();
 			_btnVSCode.Name = "BtnVSCode";
 			SetupOptionButton(_btnVSCode, $"{UnicodeIcons.CODE} " + TranslationServer.Translate("CODE & DATA"), () => ToggleVSCodeEditor(), 13, "Toggle the embedded VSCode editor (Right-click or Middle-click: DevTools)");
@@ -663,7 +690,10 @@ namespace Realm.Client.UI
 				};
 				editorsVBox.AddChild(_btnVSCode);
 			}
+		}
 
+		private void BuildEditorModuleButtons(VBoxContainer editorsVBox)
+		{
 			BtnAssetsManager = new Button();
 			BtnAssetsManager.Name = "BtnAssetsManager";
 			SetupOptionButton(BtnAssetsManager, $"{UnicodeIcons.CUBE} " + TranslationServer.Translate("ASSETS"), () => _assetManagerDialog?.OpenDialog(), 13, "Open Map Assets Manager & Importer");
@@ -693,21 +723,8 @@ namespace Realm.Client.UI
 			SetupOptionButton(BtnUtilities, $"{UnicodeIcons.WRENCH} " + TranslationServer.Translate("UTILITIES"), () => OpenUtilitiesDialog(), 13, "Open batch utilities and maintenance tools");
 			BtnUtilities.Pressed += () => _popupEditors.Hide();
 			editorsVBox.AddChild(BtnUtilities);
-
-			_btnEditors = GetNodeOrNull<Button>("TopLeftBox/BtnEditors") ?? GetNodeOrNull<Button>("TopLeftBox/BtnVSCode");
-			if (_btnEditors == null)
-			{
-				_btnEditors = new Button();
-				_btnEditors.Name = "BtnEditors";
-			}
-
-			SetupButton(_btnEditors, TranslationServer.Translate("WINDOWS") + $" {UnicodeIcons.CHEVRON_DOWN}", () =>
-			{
-				var popupPosition = _btnEditors.GetScreenPosition() + new Vector2(0, _btnEditors.Size.Y);
-				_popupEditors.Popup(new Rect2I((Vector2I)popupPosition, Vector2I.Zero));
-			}, 13, "Open Modules");
-			StyleMapEditorTopButton(_btnEditors);
 		}
+
 
 
 		private void BuildFileOperationsPanel()
