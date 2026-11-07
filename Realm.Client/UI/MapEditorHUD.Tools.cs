@@ -3717,24 +3717,7 @@ namespace Realm.Client.UI
 
 		private void RestructurePanelLayouts()
 		{
-			var targetFile = GetContentTarget(_contentFile);
-			if (targetFile != null)
-			{
-				_btnLoad.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-				_btnLoad.SizeFlagsStretchRatio = 1.0f;
-
-				_btnLoadMore.CustomMinimumSize = new Vector2(24, 30);
-				_btnLoadMore.SizeFlagsHorizontal = SizeFlags.ShrinkEnd;
-
-				_btnSave.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-				_btnSave.SizeFlagsStretchRatio = 1.0f;
-
-				_btnSaveMore.CustomMinimumSize = new Vector2(24, 30);
-				_btnSaveMore.SizeFlagsHorizontal = SizeFlags.ShrinkEnd;
-
-				StyleSubContainer(targetFile.GetNodeOrNull<Control>("BoxFileOps"), "File Operations");
-				StyleSubContainer(targetFile.GetNodeOrNull<Control>("BoxGenOps"), "Generation & Imports");
-			}
+			StyleFileAccordionOperations();
 
 			StyleViewportNavigationBar();
 
@@ -3856,6 +3839,30 @@ namespace Realm.Client.UI
 			}
 		}
 
+
+
+
+		private void StyleFileAccordionOperations()
+		{
+			var targetFile = GetContentTarget(_contentFile);
+			if (targetFile != null)
+			{
+				_btnLoad.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+				_btnLoad.SizeFlagsStretchRatio = 1.0f;
+
+				_btnLoadMore.CustomMinimumSize = new Vector2(24, 30);
+				_btnLoadMore.SizeFlagsHorizontal = SizeFlags.ShrinkEnd;
+
+				_btnSave.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+				_btnSave.SizeFlagsStretchRatio = 1.0f;
+
+				_btnSaveMore.CustomMinimumSize = new Vector2(24, 30);
+				_btnSaveMore.SizeFlagsHorizontal = SizeFlags.ShrinkEnd;
+
+				StyleSubContainer(targetFile.GetNodeOrNull<Control>("BoxFileOps"), "File Operations");
+				StyleSubContainer(targetFile.GetNodeOrNull<Control>("BoxGenOps"), "Generation & Imports");
+			}
+		}
 
 
 		private void StyleViewportNavigationBar()
