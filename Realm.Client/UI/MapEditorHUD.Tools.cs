@@ -737,18 +737,7 @@ namespace Realm.Client.UI
 			_btnLoad = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BoxFileOps/RowFileSaveLoad/RowLoadGroup/BtnLoad");
 			SetupOptionButton(_btnLoad, $"{UnicodeIcons.FOLDER_OPEN} " + TranslationServer.Translate("LOAD"), () => LoadMapAction(), 11, "Load heights, colors, and entities from a saved json file (Ctrl+O)");
 
-			_popupLoadMore = GetNode<PopupPanel>("PopupLoadMore");
-			var loadMorePopupStyle = new StyleBoxFlat();
-			loadMorePopupStyle.BgColor = new Color(0.14f, 0.13f, 0.11f, 0.98f);
-			loadMorePopupStyle.BorderColor = UIStyle.ColorGold;
-			loadMorePopupStyle.SetBorderWidthAll(1);
-			loadMorePopupStyle.SetCornerRadiusAll(4);
-			loadMorePopupStyle.SetContentMarginAll(10);
-			_popupLoadMore.AddThemeStyleboxOverride("panel", loadMorePopupStyle);
-			_btnImportArchive = GetNode<Button>("PopupLoadMore/LoadMoreVBox_VBoxContainer/BtnImportArchive");
-			_btnImportArchive.Set("icon_max_width", 0);
-			SetupOptionButton(_btnImportArchive, $"{UnicodeIcons.FILE_IMPORT} IMPORT (.RMAP)", () => ImportMapArchiveAction(), 13, "Import a map package (.rmap) into the editor workspace and open it for editing; saving prompts for a destination folder");
-			_btnImportArchive.Pressed += () => _popupLoadMore.Hide();
+			BuildLoadMorePopup();
 
 			_btnLoadMore = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BoxFileOps/RowFileSaveLoad/RowLoadGroup/BtnLoadMore");
 			_btnLoadMore.Set("icon_max_width", 0);
@@ -761,6 +750,43 @@ namespace Realm.Client.UI
 			_btnSave = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BoxFileOps/RowFileSaveLoad/RowSaveGroup/BtnSave");
 			SetupOptionButton(_btnSave, $"{UnicodeIcons.SAVE} " + TranslationServer.Translate("SAVE"), () => SaveMapActionExternal(), 11, "Save current heightmap, textures, and entities (Ctrl+S)");
 
+			BuildSaveMorePopup();
+
+			_btnSaveMore = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BoxFileOps/RowFileSaveLoad/RowSaveGroup/BtnSaveMore");
+			_btnSaveMore.Set("icon_max_width", 0);
+			SetupOptionButton(_btnSaveMore, UnicodeIcons.CHEVRON_DOWN, () =>
+			{
+				var popupPosition = _btnSaveMore.GetScreenPosition() + new Vector2(0, _btnSaveMore.Size.Y);
+				_popupSaveMore.Popup(new Rect2I((Vector2I)popupPosition, Vector2I.Zero));
+			}, 10, "More save & export options (Save As, Export, Publish)");
+
+			BuildResetMapButton();
+
+			SetupRandomGenerationMenu();
+
+			BuildEditorSettingsAndVersionButtons();
+		}
+
+
+		private void BuildLoadMorePopup()
+		{
+			_popupLoadMore = GetNode<PopupPanel>("PopupLoadMore");
+			var loadMorePopupStyle = new StyleBoxFlat();
+			loadMorePopupStyle.BgColor = new Color(0.14f, 0.13f, 0.11f, 0.98f);
+			loadMorePopupStyle.BorderColor = UIStyle.ColorGold;
+			loadMorePopupStyle.SetBorderWidthAll(1);
+			loadMorePopupStyle.SetCornerRadiusAll(4);
+			loadMorePopupStyle.SetContentMarginAll(10);
+			_popupLoadMore.AddThemeStyleboxOverride("panel", loadMorePopupStyle);
+			_btnImportArchive = GetNode<Button>("PopupLoadMore/LoadMoreVBox_VBoxContainer/BtnImportArchive");
+			_btnImportArchive.Set("icon_max_width", 0);
+			SetupOptionButton(_btnImportArchive, $"{UnicodeIcons.FILE_IMPORT} IMPORT (.RMAP)", () => ImportMapArchiveAction(), 13, "Import a map package (.rmap) into the editor workspace and open it for editing; saving prompts for a destination folder");
+			_btnImportArchive.Pressed += () => _popupLoadMore.Hide();
+		}
+
+
+		private void BuildSaveMorePopup()
+		{
 			_btnSaveAs = GetNode<Button>("PopupSaveMore/SaveMoreVBox_VBoxContainer/BtnSaveAs");
 			_btnSaveAs.Set("icon_max_width", 0);
 			SetupOptionButton(_btnSaveAs, $"{UnicodeIcons.SAVE} " + TranslationServer.Translate("SAVE AS"), () => SaveAsMapAction(), 13, "Save map to a new folder location");
@@ -784,15 +810,11 @@ namespace Realm.Client.UI
 			_btnSaveAs.Pressed += () => _popupSaveMore.Hide();
 			_btnExportMap.Pressed += () => _popupSaveMore.Hide();
 			_btnPublish.Pressed += () => _popupSaveMore.Hide();
+		}
 
-			_btnSaveMore = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BoxFileOps/RowFileSaveLoad/RowSaveGroup/BtnSaveMore");
-			_btnSaveMore.Set("icon_max_width", 0);
-			SetupOptionButton(_btnSaveMore, UnicodeIcons.CHEVRON_DOWN, () =>
-			{
-				var popupPosition = _btnSaveMore.GetScreenPosition() + new Vector2(0, _btnSaveMore.Size.Y);
-				_popupSaveMore.Popup(new Rect2I((Vector2I)popupPosition, Vector2I.Zero));
-			}, 10, "More save & export options (Save As, Export, Publish)");
 
+		private void BuildResetMapButton()
+		{
 			_btnResetMap = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BoxGenOps/FileGrid2_GridContainer/BtnResetMap");
 			SetupOptionButton(_btnResetMap, $"{UnicodeIcons.TRASH} " + TranslationServer.Translate("RESET MAP"), () =>
 			{
@@ -802,9 +824,11 @@ namespace Realm.Client.UI
 
 				ShowConfirmationDialog(confirmMessage, () => ResetToBlankMapView());
 			}, 13, TranslationServer.Translate("Start a new untitled map from the template"));
+		}
 
-			SetupRandomGenerationMenu();
 
+		private void BuildEditorSettingsAndVersionButtons()
+		{
 			_btnEditorSettings = new Button();
 			_btnEditorSettings.Name = "BtnEditorSettings";
 			_btnEditorSettings.Set("icon_max_width", 0);
@@ -819,6 +843,7 @@ namespace Realm.Client.UI
 			_contentFile.AddChild(_btnMapVersions);
 			_contentFile.MoveChild(_btnMapVersions, 2);
 		}
+
 
 		private void BuildViewportNavigationPanel()
 		{
