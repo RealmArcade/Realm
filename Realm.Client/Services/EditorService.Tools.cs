@@ -152,107 +152,57 @@ public partial class EditorService
 		_terrainPathingDirty = false;
 	}
 
-	public void FloodFillTerrainAt(float worldX, float worldY, float worldZ, int textureIndex, bool cliff)
-	{
-		GameContext.Host?.PerformFloodFill(new Vector3(worldX, worldY, worldZ), textureIndex, cliff);
-	}
+	public void FloodFillTerrainAt(float worldX, float worldY, float worldZ, int textureIndex, bool cliff) =>
+		EditorToolOperations.FloodFillTerrainAt(worldX, worldY, worldZ, textureIndex, cliff);
 
-	public void FloodFillPathingAt(float worldX, float worldY, float worldZ, int pathingMask, bool addPathing)
-	{
-		GameContext.Host?.PerformFloodFillPathing(new Vector3(worldX, worldY, worldZ), pathingMask, addPathing);
-	}
+	public void FloodFillPathingAt(float worldX, float worldY, float worldZ, int pathingMask, bool addPathing) =>
+		EditorToolOperations.FloodFillPathingAt(worldX, worldY, worldZ, pathingMask, addPathing);
 
-	public void FloodFillWaterAt(float worldX, float worldY, float worldZ, bool removeWater)
-	{
-		GameContext.Host?.PerformWaterFloodFill(new Vector3(worldX, worldY, worldZ), removeWater);
-	}
+	public void FloodFillWaterAt(float worldX, float worldY, float worldZ, bool removeWater) =>
+		EditorToolOperations.FloodFillWaterAt(worldX, worldY, worldZ, removeWater);
 
-	public void CopySelectedArea()
-	{
-		GameContext.Host?.PerformCopyAreaExternal();
-	}
+	public void CopySelectedArea() => EditorToolOperations.CopySelectedArea();
 
-	public void CutSelectedArea()
-	{
-		GameContext.Host?.PerformCutAreaExternal();
-	}
+	public void CutSelectedArea() => EditorToolOperations.CutSelectedArea();
 
-	public void EraseSelectedArea()
-	{
-		GameContext.Host?.PerformEraseAreaExternal();
-	}
+	public void EraseSelectedArea() => EditorToolOperations.EraseSelectedArea();
 
-	public void RotateSelectedObject(float degrees)
-	{
-		GameContext.Host?.RotateSelectedObject(degrees);
-	}
+	public void RotateSelectedObject(float degrees) => EditorToolOperations.RotateSelectedObject(degrees);
 
-	public void ScaleSelectedObject(float multiplier)
-	{
-		GameContext.Host?.ScaleSelectedObject(multiplier);
-	}
+	public void ScaleSelectedObject(float multiplier) => EditorToolOperations.ScaleSelectedObject(multiplier);
 
-	public void ResetSelectedObjectScale()
-	{
-		GameContext.Host?.ResetScaleSelectedObject();
-	}
+	public void ResetSelectedObjectScale() => EditorToolOperations.ResetSelectedObjectScale();
 
-	public EditorOperationResult ClearMap()
-	{
-		if (GameContext.Host == null) return EditorOperationResult.Failed("there is no map open in the editor");
+	public EditorOperationResult ClearMap() => EditorToolOperations.ClearMap();
 
-		GameContext.Host.ClearMapEntirely();
-		return EditorOperationResult.Succeeded();
-	}
+	public EditorOperationResult ResizeMap(int width, int depth) => EditorToolOperations.ResizeMap(width, depth);
 
-	public EditorOperationResult ResizeMap(int width, int depth)
-	{
-		if (GameContext.Host?.GroundTerrain == null) return EditorOperationResult.Failed("there is no map open in the editor");
+	public EditorOperationResult DeleteSelectedObject() => EditorToolOperations.DeleteSelectedObject();
 
-		GameContext.Host.ResizeMapExternal(width, depth);
-		return EditorOperationResult.Succeeded();
-	}
+	public EditorOperationResult SetModelYOffset(string assetKey, float offset) => EditorToolOperations.SetModelYOffset(assetKey, offset);
 
-	public EditorOperationResult DeleteSelectedObject()
-	{
-		if (GameContext.Host == null) return EditorOperationResult.Failed("there is no map open in the editor");
+	public EditorOperationResult SetModelScale(string assetKey, float scale) => EditorToolOperations.SetModelScale(assetKey, scale);
 
-		(bool success, string error) = GameContext.Host.DeleteSelectedObject();
-		return success ? EditorOperationResult.Succeeded() : EditorOperationResult.Failed(error);
-	}
+	public EditorOperationResult SetModelCollisionCircleRatio(string assetKey, float ratio) => EditorToolOperations.SetModelCollisionCircleRatio(assetKey, ratio);
 
-	public EditorOperationResult SetModelYOffset(string assetKey, float offset) => WithHost(host => host.SetModelYOffset(assetKey, offset));
-
-	public EditorOperationResult SetModelScale(string assetKey, float scale) => WithHost(host => host.SetModelScale(assetKey, scale));
-
-	public EditorOperationResult SetModelCollisionCircleRatio(string assetKey, float ratio) => WithHost(host => host.SetModelCollisionCircleRatio(assetKey, ratio));
-
-	public EditorOperationResult SetModelBrightness(string assetKey, float brightness) => WithHost(host => host.SetModelBrightness(assetKey, brightness));
+	public EditorOperationResult SetModelBrightness(string assetKey, float brightness) => EditorToolOperations.SetModelBrightness(assetKey, brightness);
 
 	public EditorOperationResult SetModelColorTint(string assetKey, float red, float green, float blue, float alpha) =>
-		WithHost(host => host.SetModelColorTint(assetKey, new Color(red, green, blue, alpha)));
+		EditorToolOperations.SetModelColorTint(assetKey, red, green, blue, alpha);
 
-	public EditorOperationResult SetModelIgnorePlayerColor(string assetKey, bool ignorePlayerColor) => WithHost(host => host.SetModelIgnorePlayerColor(assetKey, ignorePlayerColor));
+	public EditorOperationResult SetModelIgnorePlayerColor(string assetKey, bool ignorePlayerColor) => EditorToolOperations.SetModelIgnorePlayerColor(assetKey, ignorePlayerColor);
 
-	public EditorOperationResult SetModelDespillPlayerColor(string assetKey, bool despillPlayerColor) => WithHost(host => host.SetModelDespillPlayerColor(assetKey, despillPlayerColor));
+	public EditorOperationResult SetModelDespillPlayerColor(string assetKey, bool despillPlayerColor) => EditorToolOperations.SetModelDespillPlayerColor(assetKey, despillPlayerColor);
 
-	public EditorOperationResult SetModelNormalizeLuminance(string assetKey, bool normalizeLuminance) => WithHost(host => host.SetModelNormalizeLuminance(assetKey, normalizeLuminance));
+	public EditorOperationResult SetModelNormalizeLuminance(string assetKey, bool normalizeLuminance) => EditorToolOperations.SetModelNormalizeLuminance(assetKey, normalizeLuminance);
 
-	public EditorOperationResult SetModelSpawnShader(string assetKey, string shaderKey) => WithHost(host => host.SetModelSpawnShader(assetKey, shaderKey));
+	public EditorOperationResult SetModelSpawnShader(string assetKey, string shaderKey) => EditorToolOperations.SetModelSpawnShader(assetKey, shaderKey);
 
-	public EditorOperationResult SetModelDeathShader(string assetKey, string shaderKey) => WithHost(host => host.SetModelDeathShader(assetKey, shaderKey));
+	public EditorOperationResult SetModelDeathShader(string assetKey, string shaderKey) => EditorToolOperations.SetModelDeathShader(assetKey, shaderKey);
 
-	public EditorOperationResult SetModelEnableProceduralAnimation(string assetKey, bool enable) => WithHost(host => host.SetModelEnableProceduralAnimation(assetKey, enable));
+	public EditorOperationResult SetModelEnableProceduralAnimation(string assetKey, bool enable) => EditorToolOperations.SetModelEnableProceduralAnimation(assetKey, enable);
 
-	public EditorOperationResult SetModelProceduralAnimation(string assetKey, string animationId) => WithHost(host => host.SetModelProceduralAnimation(assetKey, animationId));
+	public EditorOperationResult SetModelProceduralAnimation(string assetKey, string animationId) => EditorToolOperations.SetModelProceduralAnimation(assetKey, animationId);
 
-	public EditorOperationResult RefreshPlacedObjectModels(string assetKey = "") => WithHost(host => host.RefreshAllPlacedObjectModels(string.IsNullOrEmpty(assetKey) ? null : assetKey));
-
-	private static EditorOperationResult WithHost(Action<GameHost> operation)
-	{
-		if (GameContext.Host == null) return EditorOperationResult.Failed("there is no map open in the editor");
-
-		operation(GameContext.Host);
-		return EditorOperationResult.Succeeded();
-	}
+	public EditorOperationResult RefreshPlacedObjectModels(string assetKey = "") => EditorToolOperations.RefreshPlacedObjectModels(assetKey);
 }
