@@ -444,96 +444,7 @@ namespace Realm.Client.UI
 			SetupButton(btnHelp, $"{UnicodeIcons.HELP} " + TranslationServer.Translate("HELP"), () => ToggleHelpPanelExternal(), 13, "Toggle the hotkeys and editor guide overlay (H)");
 			StyleMapEditorTopButton(btnHelp);
 
-			_popupEditors = new PopupPanel();
-			_popupEditors.Name = "PopupEditors";
-			var editorsPopupStyle = new StyleBoxFlat();
-			editorsPopupStyle.BgColor = new Color(0.14f, 0.13f, 0.11f, 0.98f);
-			editorsPopupStyle.BorderColor = UIStyle.ColorGold;
-			editorsPopupStyle.SetBorderWidthAll(1);
-			editorsPopupStyle.SetCornerRadiusAll(4);
-			editorsPopupStyle.ContentMarginLeft = 10;
-			editorsPopupStyle.ContentMarginRight = 10;
-			editorsPopupStyle.ContentMarginTop = 10;
-			editorsPopupStyle.ContentMarginBottom = 10;
-			_popupEditors.AddThemeStyleboxOverride("panel", editorsPopupStyle);
-
-			var editorsVBox = new VBoxContainer();
-			editorsVBox.Name = "EditorsVBox_VBoxContainer";
-			editorsVBox.AddThemeConstantOverride("separation", 6);
-			editorsVBox.CustomMinimumSize = new Vector2(170, 0);
-			_popupEditors.AddChild(editorsVBox);
-			AddChild(_popupEditors);
-
-			_btnVSCode = new Button();
-			_btnVSCode.Name = "BtnVSCode";
-			SetupOptionButton(_btnVSCode, $"{UnicodeIcons.CODE} " + TranslationServer.Translate("CODE & DATA"), () => ToggleVSCodeEditor(), 13, "Toggle the embedded VSCode editor (Right-click or Middle-click: DevTools)");
-			_btnVSCode.Pressed += () => _popupEditors.Hide();
-
-			if (OperatingSystem.IsWindows())
-			{
-				GenerateVSCodeFilesExternal();
-				GameContext.VSCode.Initialize(this);
-				_btnVSCode.GuiInput += (@event) =>
-				{
-					if (OperatingSystem.IsWindows() && @event is InputEventMouseButton mouseButton && mouseButton.Pressed)
-					{
-						if (mouseButton.ButtonIndex == MouseButton.Right || mouseButton.ButtonIndex == MouseButton.Middle)
-						{
-							if (!GameContext.VSCode.IsVisible)
-							{
-								ToggleVSCodeEditor();
-							}
-
-							GetViewport().SetInputAsHandled();
-						}
-					}
-				};
-				editorsVBox.AddChild(_btnVSCode);
-			}
-
-			BtnAssetsManager = new Button();
-			BtnAssetsManager.Name = "BtnAssetsManager";
-			SetupOptionButton(BtnAssetsManager, $"{UnicodeIcons.CUBE} " + TranslationServer.Translate("ASSETS"), () => _assetManagerDialog?.OpenDialog(), 13, "Open Map Assets Manager & Importer");
-			BtnAssetsManager.Pressed += () => _popupEditors.Hide();
-			editorsVBox.AddChild(BtnAssetsManager);
-
-			BtnTemplateManager = new Button();
-			BtnTemplateManager.Name = "BtnTemplateManager";
-			SetupOptionButton(BtnTemplateManager, $"{UnicodeIcons.CUBES} " + TranslationServer.Translate("TEMPLATES"), () => OpenTemplateManagerDialog(), 13, "Open dialog to manage object template types and visual properties");
-			BtnTemplateManager.Pressed += () => _popupEditors.Hide();
-			editorsVBox.AddChild(BtnTemplateManager);
-
-			BtnInstanceManager = new Button();
-			BtnInstanceManager.Name = "BtnInstanceManager";
-			SetupOptionButton(BtnInstanceManager, $"{UnicodeIcons.LIST} " + TranslationServer.Translate("INSTANCES"), () => OpenInstanceManagerDialog(), 13, "Open dialog to list and locate all placed instances");
-			BtnInstanceManager.Pressed += () => _popupEditors.Hide();
-			editorsVBox.AddChild(BtnInstanceManager);
-
-			BtnImportFromMap = new Button();
-			BtnImportFromMap.Name = "BtnImportFromMap";
-			SetupOptionButton(BtnImportFromMap, $"🗺 " + TranslationServer.Translate("IMPORT FROM MAP"), () => OpenImportFromMapDialog(), 13, "Copy assets, templates, and code from another map into this map");
-			BtnImportFromMap.Pressed += () => _popupEditors.Hide();
-			editorsVBox.AddChild(BtnImportFromMap);
-
-			BtnUtilities = new Button();
-			BtnUtilities.Name = "BtnUtilities";
-			SetupOptionButton(BtnUtilities, $"{UnicodeIcons.WRENCH} " + TranslationServer.Translate("UTILITIES"), () => OpenUtilitiesDialog(), 13, "Open batch utilities and maintenance tools");
-			BtnUtilities.Pressed += () => _popupEditors.Hide();
-			editorsVBox.AddChild(BtnUtilities);
-
-			_btnEditors = GetNodeOrNull<Button>("TopLeftBox/BtnEditors") ?? GetNodeOrNull<Button>("TopLeftBox/BtnVSCode");
-			if (_btnEditors == null)
-			{
-				_btnEditors = new Button();
-				_btnEditors.Name = "BtnEditors";
-			}
-
-			SetupButton(_btnEditors, TranslationServer.Translate("WINDOWS") + $" {UnicodeIcons.CHEVRON_DOWN}", () =>
-			{
-				var popupPosition = _btnEditors.GetScreenPosition() + new Vector2(0, _btnEditors.Size.Y);
-				_popupEditors.Popup(new Rect2I((Vector2I)popupPosition, Vector2I.Zero));
-			}, 13, "Open Modules");
-			StyleMapEditorTopButton(_btnEditors);
+			BuildEditorsPopup();
 
 			_btnUndo = GetNode<Button>("TopLeftBox/BtnUndo");
 			SetupButton(_btnUndo, $"{UnicodeIcons.UNDO} " + TranslationServer.Translate("UNDO"), () => UndoAction(), 13, "Undo the last action (Ctrl+Z)");
@@ -658,6 +569,102 @@ namespace Realm.Client.UI
 				rightScroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
 				rightScroll.VerticalScrollMode = ScrollContainer.ScrollMode.Disabled;
 			}
+		}
+
+
+
+		private void BuildEditorsPopup()
+		{
+			_popupEditors = new PopupPanel();
+			_popupEditors.Name = "PopupEditors";
+			var editorsPopupStyle = new StyleBoxFlat();
+			editorsPopupStyle.BgColor = new Color(0.14f, 0.13f, 0.11f, 0.98f);
+			editorsPopupStyle.BorderColor = UIStyle.ColorGold;
+			editorsPopupStyle.SetBorderWidthAll(1);
+			editorsPopupStyle.SetCornerRadiusAll(4);
+			editorsPopupStyle.ContentMarginLeft = 10;
+			editorsPopupStyle.ContentMarginRight = 10;
+			editorsPopupStyle.ContentMarginTop = 10;
+			editorsPopupStyle.ContentMarginBottom = 10;
+			_popupEditors.AddThemeStyleboxOverride("panel", editorsPopupStyle);
+
+			var editorsVBox = new VBoxContainer();
+			editorsVBox.Name = "EditorsVBox_VBoxContainer";
+			editorsVBox.AddThemeConstantOverride("separation", 6);
+			editorsVBox.CustomMinimumSize = new Vector2(170, 0);
+			_popupEditors.AddChild(editorsVBox);
+			AddChild(_popupEditors);
+
+			_btnVSCode = new Button();
+			_btnVSCode.Name = "BtnVSCode";
+			SetupOptionButton(_btnVSCode, $"{UnicodeIcons.CODE} " + TranslationServer.Translate("CODE & DATA"), () => ToggleVSCodeEditor(), 13, "Toggle the embedded VSCode editor (Right-click or Middle-click: DevTools)");
+			_btnVSCode.Pressed += () => _popupEditors.Hide();
+
+			if (OperatingSystem.IsWindows())
+			{
+				GenerateVSCodeFilesExternal();
+				GameContext.VSCode.Initialize(this);
+				_btnVSCode.GuiInput += (@event) =>
+				{
+					if (OperatingSystem.IsWindows() && @event is InputEventMouseButton mouseButton && mouseButton.Pressed)
+					{
+						if (mouseButton.ButtonIndex == MouseButton.Right || mouseButton.ButtonIndex == MouseButton.Middle)
+						{
+							if (!GameContext.VSCode.IsVisible)
+							{
+								ToggleVSCodeEditor();
+							}
+
+							GetViewport().SetInputAsHandled();
+						}
+					}
+				};
+				editorsVBox.AddChild(_btnVSCode);
+			}
+
+			BtnAssetsManager = new Button();
+			BtnAssetsManager.Name = "BtnAssetsManager";
+			SetupOptionButton(BtnAssetsManager, $"{UnicodeIcons.CUBE} " + TranslationServer.Translate("ASSETS"), () => _assetManagerDialog?.OpenDialog(), 13, "Open Map Assets Manager & Importer");
+			BtnAssetsManager.Pressed += () => _popupEditors.Hide();
+			editorsVBox.AddChild(BtnAssetsManager);
+
+			BtnTemplateManager = new Button();
+			BtnTemplateManager.Name = "BtnTemplateManager";
+			SetupOptionButton(BtnTemplateManager, $"{UnicodeIcons.CUBES} " + TranslationServer.Translate("TEMPLATES"), () => OpenTemplateManagerDialog(), 13, "Open dialog to manage object template types and visual properties");
+			BtnTemplateManager.Pressed += () => _popupEditors.Hide();
+			editorsVBox.AddChild(BtnTemplateManager);
+
+			BtnInstanceManager = new Button();
+			BtnInstanceManager.Name = "BtnInstanceManager";
+			SetupOptionButton(BtnInstanceManager, $"{UnicodeIcons.LIST} " + TranslationServer.Translate("INSTANCES"), () => OpenInstanceManagerDialog(), 13, "Open dialog to list and locate all placed instances");
+			BtnInstanceManager.Pressed += () => _popupEditors.Hide();
+			editorsVBox.AddChild(BtnInstanceManager);
+
+			BtnImportFromMap = new Button();
+			BtnImportFromMap.Name = "BtnImportFromMap";
+			SetupOptionButton(BtnImportFromMap, $"🗺 " + TranslationServer.Translate("IMPORT FROM MAP"), () => OpenImportFromMapDialog(), 13, "Copy assets, templates, and code from another map into this map");
+			BtnImportFromMap.Pressed += () => _popupEditors.Hide();
+			editorsVBox.AddChild(BtnImportFromMap);
+
+			BtnUtilities = new Button();
+			BtnUtilities.Name = "BtnUtilities";
+			SetupOptionButton(BtnUtilities, $"{UnicodeIcons.WRENCH} " + TranslationServer.Translate("UTILITIES"), () => OpenUtilitiesDialog(), 13, "Open batch utilities and maintenance tools");
+			BtnUtilities.Pressed += () => _popupEditors.Hide();
+			editorsVBox.AddChild(BtnUtilities);
+
+			_btnEditors = GetNodeOrNull<Button>("TopLeftBox/BtnEditors") ?? GetNodeOrNull<Button>("TopLeftBox/BtnVSCode");
+			if (_btnEditors == null)
+			{
+				_btnEditors = new Button();
+				_btnEditors.Name = "BtnEditors";
+			}
+
+			SetupButton(_btnEditors, TranslationServer.Translate("WINDOWS") + $" {UnicodeIcons.CHEVRON_DOWN}", () =>
+			{
+				var popupPosition = _btnEditors.GetScreenPosition() + new Vector2(0, _btnEditors.Size.Y);
+				_popupEditors.Popup(new Rect2I((Vector2I)popupPosition, Vector2I.Zero));
+			}, 13, "Open Modules");
+			StyleMapEditorTopButton(_btnEditors);
 		}
 
 
