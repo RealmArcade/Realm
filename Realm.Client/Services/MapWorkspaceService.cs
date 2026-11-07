@@ -409,8 +409,8 @@ public static partial class MapWorkspaceService
 		EnsureMapScript(directory, mapName);
 		EnsureSourceMapAttributionAttribute(directory);
 		EnsureWasmEntryPoint(directory);
-		EnsureMetadataJson(directory);
-		EnsureLicenseFile(directory);
+		WorkspaceMetadataBootstrapper.EnsureMetadata(directory, GetTemplatePath("metadata.json"));
+		WorkspaceMetadataBootstrapper.EnsureLicenseFile(directory);
 		MapAssetHelper.EnsureManifestJson(directory);
 		EnsureSolutionFile(directory, mapName);
 		NormalizeMetadataTextureEntries(directory);
@@ -860,13 +860,6 @@ public static partial class MapWorkspaceService
 		MapTemplateGeneratorService.EnsureWasmEntryPoint(directory);
 	}
 
-	public const string UntitledMapNamePrefix = "Untitled Map";
-
-	public static string CreateUntitledMapName()
-	{
-		return UntitledMapNamePrefix;
-	}
-
 	public static string GetUntitledMapDirectory()
 	{
 		string localAppDataDirectory = System.Environment.GetFolderPath(System.Environment.SpecialFolder.LocalApplicationData);
@@ -875,7 +868,7 @@ public static partial class MapWorkspaceService
 			localAppDataDirectory = ProjectSettings.GlobalizePath("user://");
 		}
 
-		return Path.Combine(localAppDataDirectory, "Realm", UntitledMapNamePrefix);
+		return Path.Combine(localAppDataDirectory, "Realm", MapNaming.UntitledMapNamePrefix);
 	}
 
 	private const int FileLockRetryAttempts = 4;
@@ -892,7 +885,7 @@ public static partial class MapWorkspaceService
 			return false;
 		}
 
-		string mapName = CreateUntitledMapName();
+		string mapName = MapNaming.CreateUntitledMapName();
 		try
 		{
 			Directory.CreateDirectory(folderPath);
@@ -1017,122 +1010,6 @@ public static partial class MapWorkspaceService
 		}
 
 		PathUtils.LinkOrCopyFile(sourcePath, targetPath, preferHardLink: true);
-	}
-
-	public static bool IsUntitledMapName(string? mapName)
-	{
-		return !string.IsNullOrWhiteSpace(mapName) && mapName.StartsWith(UntitledMapNamePrefix, StringComparison.OrdinalIgnoreCase);
-	}
-
-	public static void EnsureMetadataJson(string directory)
-	{
-		string metadataPath = MetadataService.ResolveMetadataPath(directory);
-		if (!File.Exists(metadataPath) || new FileInfo(metadataPath).Length == 0)
-		{
-			string templateMeta = GetTemplatePath("metadata.json");
-			if (File.Exists(templateMeta))
-			{
-				File.Copy(templateMeta, metadataPath, true);
-			}
-			else
-			{
-				GameContext.MetadataService.SaveMetadata(metadataPath, new MapMetadata());
-			}
-		}
-
-		if (File.Exists(metadataPath))
-		{
-			try
-			{
-				GameContext.MetadataService.UpdateMetadata(directory, meta =>
-				{
-					meta.MapProperties ??= new MapInfoMetadata();
-					if (string.IsNullOrWhiteSpace(meta.MapProperties.MapName))
-					{
-						meta.MapProperties.MapName = CreateUntitledMapName();
-					}
-
-					GameContext.MetadataService.CleanMetadata(meta);
-				});
-			}
-			catch (Exception ex)
-			{
-				GameLog.LogError($"[MapWorkspaceService] Failed to ensure license in metadata.json: {ex.Message}");
-			}
-		}
-
-		string templateMetaPath = GetTemplatePath("metadata.json");
-		if (File.Exists(templateMetaPath))
-		{
-			string templateAssetsDir = Path.Combine(Path.GetDirectoryName(templateMetaPath), "Assets");
-			if (Directory.Exists(templateAssetsDir))
-			{
-				RealmDefaultAnimations.EnsureDefaultTemplateAnimations(templateAssetsDir);
-				string destAssetsDir = Path.Combine(directory, "Assets");
-				foreach (var assetFile in Directory.GetFiles(templateAssetsDir, "*", SearchOption.AllDirectories))
-				{
-					string relPath = Path.GetRelativePath(templateAssetsDir, assetFile);
-					string destFile = Path.Combine(destAssetsDir, relPath);
-					Directory.CreateDirectory(Path.GetDirectoryName(destFile));
-					if (!File.Exists(destFile))
-					{
-						File.Copy(assetFile, destFile, true);
-					}
-				}
-			}
-		}
-
-		RealmDefaultAnimations.EnsureDefaultTemplateAnimations(Path.Combine(directory, "Assets"));
-		EnsureLicenseFile(directory);
-	}
-
-	public const string UgcLicenseSummaryText = @"REALM PLATFORM USER-GENERATED CONTENT (UGC)
-
-This map and its custom assets are User-Generated Content created for the 
-Realm Platform ecosystem.
-
-Use, remixing, and redistribution of this content are governed by the 
-Realm Platform UGC License:
-https://www.realm-game.com/RealmPlatform_UGC_License_v1.txt
-
-For details on permissions, streaming, and standalone export restrictions, 
-please visit the URL above.
-";
-
-	public static void EnsureLicenseFile(string directory)
-	{
-		if (string.IsNullOrEmpty(directory)) return;
-
-		try
-		{
-			Directory.CreateDirectory(directory);
-			string targetLicensePath = Path.Combine(directory, "LICENSE.md");
-			string[] candidateSourcePaths = new[]
-			{
-				PathUtils.FindPath("MapTemplate/LICENSE.md"),
-				Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "MapTemplate", "LICENSE.md")
-			};
-
-			bool copied = false;
-			foreach (var candidate in candidateSourcePaths)
-			{
-				if (!string.IsNullOrEmpty(candidate) && File.Exists(candidate))
-				{
-					File.Copy(candidate, targetLicensePath, overwrite: true);
-					copied = true;
-					break;
-				}
-			}
-
-			if (!copied)
-			{
-				File.WriteAllText(targetLicensePath, UgcLicenseSummaryText);
-			}
-		}
-		catch (Exception ex)
-		{
-			GameLog.LogError($"[MapWorkspaceService] Failed to copy LICENSE.md to {directory}: {ex.Message}");
-		}
 	}
 
 	public static void EnsureSolutionFile(string directory, string mapName)

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -462,7 +462,7 @@ namespace Realm.Client.UI
 				AdoptMapFolderAsEditingDirectory(targetFolder);
 			}
 
-			MapWorkspaceService.EnsureLicenseFile(GameContext.EditorService._editingDirectory);
+			WorkspaceMetadataBootstrapper.EnsureLicenseFile(GameContext.EditorService._editingDirectory);
 			MapWorkspaceService.EnsureSourceMapAttributionAttribute(GameContext.EditorService._editingDirectory);
 			MapWorkspaceService.EnsureWasmEntryPoint(GameContext.EditorService._editingDirectory);
 			string tempTerrainPath = Path.Combine(GameContext.EditorService._editingDirectory, "terrain.json");
@@ -497,7 +497,7 @@ namespace Realm.Client.UI
 					GameContext.EditorService.StartWorkspaceWatcher(Path.GetFullPath(targetFolder));
 				}
 
-				MapWorkspaceService.EnsureLicenseFile(targetFolder);
+				WorkspaceMetadataBootstrapper.EnsureLicenseFile(targetFolder);
 				MapWorkspaceService.EnsureWasmEntryPoint(targetFolder);
 
 				RefreshSavedDirectoryHash();
@@ -555,7 +555,7 @@ namespace Realm.Client.UI
 		private void EnsureMapHasRealName(Action<string> onReady)
 		{
 			string mapName = GetMapNameFromMetadata();
-			if (!MapWorkspaceService.IsUntitledMapName(mapName))
+			if (!MapNaming.IsUntitledMapName(mapName))
 			{
 				onReady?.Invoke(mapName);
 				return;

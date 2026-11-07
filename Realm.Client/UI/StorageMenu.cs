@@ -758,7 +758,7 @@ public partial class StorageMenu : Control
 	private string GetCleanMapName(string mapTitle)
 	{
 		string cleanMapName = string.Join("_", mapTitle.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries)).Trim();
-		if (string.IsNullOrEmpty(cleanMapName) || MapWorkspaceService.IsUntitledMapName(cleanMapName))
+		if (string.IsNullOrEmpty(cleanMapName) || MapNaming.IsUntitledMapName(cleanMapName))
 		{
 			return "MapExport";
 		}
@@ -806,7 +806,7 @@ public partial class StorageMenu : Control
 
 		(Panel popup, ProgressBar progressBar, Label statusLabel, Button closeBtn) = ShowExportProgressUI(destinationPath);
 
-		MapWorkspaceService.EnsureLicenseFile(version.DirectoryPath);
+		WorkspaceMetadataBootstrapper.EnsureLicenseFile(version.DirectoryPath);
 
 		long lastProgressUpdateTicks = 0;
 		bool success = await GameContext.MapStorageService.ExportMapAsync(

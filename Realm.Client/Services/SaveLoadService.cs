@@ -238,7 +238,7 @@ public class SaveLoadService
 			GameContext.Host?.SaveModelYOffsetsToMetadataJson(directory);
 			SyncMetadataAssetsAndPrune(directory);
 			CleanMetadataFile(directory, terrain.Width, terrain.Depth);
-			MapWorkspaceService.EnsureLicenseFile(directory);
+			WorkspaceMetadataBootstrapper.EnsureLicenseFile(directory);
 
 			if (foundWorld)
 			{

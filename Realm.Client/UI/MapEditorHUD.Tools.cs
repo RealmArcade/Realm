@@ -818,7 +818,7 @@ namespace Realm.Client.UI
 			_btnResetMap = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BoxGenOps/FileGrid2_GridContainer/BtnResetMap");
 			SetupOptionButton(_btnResetMap, $"{UnicodeIcons.TRASH} " + TranslationServer.Translate("RESET MAP"), () =>
 			{
-				string confirmMessage = MapWorkspaceService.IsUntitledMapName(GetMapNameFromMetadata())
+				string confirmMessage = MapNaming.IsUntitledMapName(GetMapNameFromMetadata())
 					? TranslationServer.Translate("Start a new blank map? Everything in the untitled map is replaced, and its last state is kept in MAP VERSIONS.")
 					: TranslationServer.Translate("Start a new blank map? The map you have open stays in its folder and can be opened again later.");
 
@@ -2921,7 +2921,7 @@ namespace Realm.Client.UI
 			vbox.AddChild(titleLabel);
 
 			string mapTitle = GetMapNameFromMetadata();
-			if (string.IsNullOrWhiteSpace(mapTitle) || MapWorkspaceService.IsUntitledMapName(mapTitle)) mapTitle = "UntitledMap";
+			if (string.IsNullOrWhiteSpace(mapTitle) || MapNaming.IsUntitledMapName(mapTitle)) mapTitle = "UntitledMap";
 			string mapVersion = GetMapVersionFromMetadata();
 			if (string.IsNullOrWhiteSpace(mapVersion)) mapVersion = "1.0.0";
 
@@ -3049,7 +3049,7 @@ namespace Realm.Client.UI
 			}
 
 			string mapTitle = GetMapNameFromMetadata();
-			if (string.IsNullOrWhiteSpace(mapTitle) || MapWorkspaceService.IsUntitledMapName(mapTitle)) mapTitle = "UntitledMap";
+			if (string.IsNullOrWhiteSpace(mapTitle) || MapNaming.IsUntitledMapName(mapTitle)) mapTitle = "UntitledMap";
 
 			string mapVersion = GetMapVersionFromMetadata();
 			if (string.IsNullOrWhiteSpace(mapVersion)) mapVersion = "1.0.0";
@@ -3469,7 +3469,7 @@ namespace Realm.Client.UI
 			statusLabel.Text = TranslationServer.Translate("Saving map state & workspace...");
 			await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
-			MapWorkspaceService.EnsureLicenseFile(workspace);
+			WorkspaceMetadataBootstrapper.EnsureLicenseFile(workspace);
 			GameContext.Host.SaveMapToFile(terrainPath, performReload: false);
 			GameContext.Host.EditorHasUnsavedChanges = false;
 			InvalidateMetadataCache();

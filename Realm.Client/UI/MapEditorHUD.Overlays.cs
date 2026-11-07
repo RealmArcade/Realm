@@ -3558,7 +3558,7 @@ namespace Realm.Client.UI
 		{
 			if (_lblMapNameHeader == null) return;
 			string mapName = GetMapNameFromMetadata();
-			string displayMapName = MapWorkspaceService.IsUntitledMapName(mapName)
+			string displayMapName = MapNaming.IsUntitledMapName(mapName)
 				? TranslationServer.Translate("Untitled Map")
 				: mapName;
 			bool hasUnsaved = GameContext.Host?.EditorHasUnsavedChanges ?? false;

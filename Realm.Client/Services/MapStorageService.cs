@@ -31,7 +31,7 @@ public class MapStorageService
 	public string GetExportMapDefaultFileName(string mapTitle, string mapVersion, string manifestBlake3)
 	{
 		string cleanMapName = string.Join("_", mapTitle.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries)).Trim();
-		if (string.IsNullOrEmpty(cleanMapName) || MapWorkspaceService.IsUntitledMapName(cleanMapName)) cleanMapName = "MapExport";
+		if (string.IsNullOrEmpty(cleanMapName) || MapNaming.IsUntitledMapName(cleanMapName)) cleanMapName = "MapExport";
 
 		string cleanMapVersion = string.Join("_", mapVersion.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries)).Trim();
 		if (string.IsNullOrEmpty(cleanMapVersion)) cleanMapVersion = "1.0.0";
@@ -310,7 +310,7 @@ public class MapStorageService
 
 		try
 		{
-			MapWorkspaceService.EnsureLicenseFile(sourceDirectory);
+			WorkspaceMetadataBootstrapper.EnsureLicenseFile(sourceDirectory);
 			await Task.Run(() => MapArchiveHelper.CreateRmapArchive(
 				sourceDirectory,
 				destinationRmapPath,
@@ -929,7 +929,7 @@ public class MapStorageService
 	public async Task SaveMapStateForExportAsync(string editingDirectory, bool isWindows)
 	{
 		string tempTerrainPath = Path.Combine(editingDirectory, "terrain.json");
-		MapWorkspaceService.EnsureLicenseFile(editingDirectory);
+		WorkspaceMetadataBootstrapper.EnsureLicenseFile(editingDirectory);
 		MapWorkspaceService.EnsureWasmEntryPoint(editingDirectory);
 		GameContext.Host.SaveMapToFile(tempTerrainPath, performReload: false);
 		GameContext.Host.EditorHasUnsavedChanges = false;

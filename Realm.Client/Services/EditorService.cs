@@ -1,4 +1,4 @@
-﻿using Realm.Shared.Maps;
+using Realm.Shared.Maps;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -5574,11 +5574,11 @@ public partial class EditorService : IEditorAPI
 	{
 		if (string.IsNullOrWhiteSpace(candidateName))
 		{
-			return MapWorkspaceService.CreateUntitledMapName();
+			return MapNaming.CreateUntitledMapName();
 		}
 
 		string sanitized = candidateName.Trim();
-		return string.IsNullOrEmpty(sanitized) ? MapWorkspaceService.CreateUntitledMapName() : sanitized;
+		return string.IsNullOrEmpty(sanitized) ? MapNaming.CreateUntitledMapName() : sanitized;
 	}
 
 	public bool TryGetMapNameFromManifest(string workspacePath, out string mapName)
@@ -6269,7 +6269,7 @@ public class {mapName} : IMapScript
 	public string GetDefaultDevelopmentMapDirectoryDomain(string mapName, string docsDir)
 	{
 		string cleanName = string.Join("_", mapName.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries)).Trim();
-		if (string.IsNullOrEmpty(cleanName) || MapWorkspaceService.IsUntitledMapName(cleanName)) cleanName = "new_map";
+		if (string.IsNullOrEmpty(cleanName) || MapNaming.IsUntitledMapName(cleanName)) cleanName = "new_map";
 
 		return Path.Combine(docsDir, cleanName);
 	}
