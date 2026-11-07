@@ -1368,6 +1368,36 @@ namespace Realm.Client.UI
 
 		public void ShowMapNamePrompt(Action<string> onNamed)
 		{
+			var overlay = CreateMapNamePromptShell();
+
+			var vbox = BuildMapNamePromptPanel(overlay);
+
+			BuildMapNamePromptText(vbox);
+
+			var nameInput = BuildMapNameInput(vbox);
+
+			Action submit = () =>
+			{
+				string enteredName = nameInput.Text.Trim();
+				if (string.IsNullOrEmpty(enteredName))
+				{
+					ShowFeedback(TranslationServer.Translate("Please enter a name for the map."));
+					return;
+				}
+
+				overlay.QueueFree();
+				onNamed?.Invoke(enteredName);
+			};
+
+			nameInput.TextSubmitted += _ => submit();
+
+			BuildMapNameButtons(vbox, overlay, submit);
+
+			nameInput.CallDeferred(LineEdit.MethodName.GrabFocus);
+		}
+
+		private ColorRect CreateMapNamePromptShell()
+		{
 			var overlay = new ColorRect();
 			overlay.Name = "MapNamePromptOverlay";
 			overlay.Color = new Color(0, 0, 0, 0.65f);
@@ -1375,7 +1405,11 @@ namespace Realm.Client.UI
 			overlay.MouseFilter = MouseFilterEnum.Stop;
 			overlay.ZIndex = 1100;
 			AddChild(overlay);
+			return overlay;
+		}
 
+		private VBoxContainer BuildMapNamePromptPanel(ColorRect overlay)
+		{
 			var center = new CenterContainer();
 			center.Name = "MapNamePromptCenter_CenterContainer";
 			center.SetAnchorsPreset(LayoutPreset.FullRect);
@@ -1399,7 +1433,11 @@ namespace Realm.Client.UI
 			vbox.Name = "MapNamePromptVBox_VBoxContainer";
 			vbox.AddThemeConstantOverride("separation", 14);
 			margin.AddChild(vbox);
+			return vbox;
+		}
 
+		private void BuildMapNamePromptText(VBoxContainer vbox)
+		{
 			var title = new Label();
 			title.Name = "MapNamePromptTitle_Label";
 			UIStyle.ApplyTitle(title, TranslationServer.Translate("NAME THIS MAP"), 16);
@@ -1416,34 +1454,26 @@ namespace Realm.Client.UI
 			message.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 			message.AddThemeFontSizeOverride("font_size", 12);
 			vbox.AddChild(message);
+		}
 
+		private LineEdit BuildMapNameInput(VBoxContainer vbox)
+		{
 			var nameInput = new LineEdit();
 			nameInput.Name = "MapNameInput_LineEdit";
 			nameInput.PlaceholderText = TranslationServer.Translate("Map name");
 			nameInput.CustomMinimumSize = new Vector2(0, 34);
 			UIStyle.ApplyTextInput(nameInput);
 			vbox.AddChild(nameInput);
+			return nameInput;
+		}
 
+		private void BuildMapNameButtons(VBoxContainer vbox, ColorRect overlay, Action submit)
+		{
 			var buttons = new HBoxContainer();
 			buttons.Name = "MapNamePromptButtons_HBoxContainer";
 			buttons.AddThemeConstantOverride("separation", 24);
 			buttons.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
 			vbox.AddChild(buttons);
-
-			Action submit = () =>
-			{
-				string enteredName = nameInput.Text.Trim();
-				if (string.IsNullOrEmpty(enteredName))
-				{
-					ShowFeedback(TranslationServer.Translate("Please enter a name for the map."));
-					return;
-				}
-
-				overlay.QueueFree();
-				onNamed?.Invoke(enteredName);
-			};
-
-			nameInput.TextSubmitted += _ => submit();
 
 			var btnConfirm = new Button();
 			btnConfirm.Name = "BtnConfirmMapName_Button";
@@ -1460,9 +1490,8 @@ namespace Realm.Client.UI
 			SetupButton(btnCancel, TranslationServer.Translate("CANCEL"), () => overlay.QueueFree(), 13);
 			btnCancel.AddThemeColorOverride("font_color", new Color(0.9f, 0.3f, 0.3f));
 			buttons.AddChild(btnCancel);
-
-			nameInput.CallDeferred(LineEdit.MethodName.GrabFocus);
 		}
+
 
 		private void ShowWasmConsoleModal()
 		{
