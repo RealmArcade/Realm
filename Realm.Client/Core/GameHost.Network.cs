@@ -408,7 +408,7 @@ public partial class GameHost
 
 	public void RequestSnapshotBaseline() => GameContext.ServerSession?.RequestBaseline();
 
-	public void RequestSnapshotRepair(int firstSequence, int count) => GameContext.ServerSession?.RequestSnapshotRepair(firstSequence, count);
+	public void RequestSnapshotRepair(int firstSequence, int count, SnapshotRepairReason reason) => GameContext.ServerSession?.RequestSnapshotRepair(firstSequence, count, reason);
 
 	private void ApplyReceivedSnapshot(WorldSnapshot snapshot)
 	{

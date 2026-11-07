@@ -87,6 +87,10 @@ public class ListenServerHost : IServerTransportSink
 	/// <summary>Peers that have asked for a description they never received, and are therefore sent each one twice.</summary>
 	private readonly HashSet<int> _peersThatLoseDescriptions = new();
 
+	private readonly Dictionary<int, int> _descriptionsLostByPeer = new();
+
+	private readonly Dictionary<int, long> _lossWindowStartedTickPerPeer = new();
+
 	private int _startupSettlesAtSequence;
 
 	/// <summary>
@@ -95,6 +99,8 @@ public class ListenServerHost : IServerTransportSink
 	///     doubles its bandwidth for a fault that has gone.
 	/// </summary>
 	private const long LossyPeerMemoryTicks = MatchTiming.SimulationTickRateHz * 5;
+
+	private const int LossyPeerMinimumLostDescriptions = 3;
 	private readonly SnapshotFragmentBuffer[] _fragmentBuffers = CreateFragmentBuffers();
 	private readonly SnapshotBaselineReason[] _pendingBaselineReasons = new SnapshotBaselineReason[EcsWorld.MAX_PLAYERS];
 	private readonly int[] _publishedSerializedBytes = new int[EcsWorld.MAX_PLAYERS];
@@ -810,6 +816,8 @@ public class ListenServerHost : IServerTransportSink
 		// and comes back under the same id must not be answered from the descriptions it was sent before it went.
 		_frameRings.Remove(peerId);
 		_peersThatLoseDescriptions.Remove(peerId);
+		_descriptionsLostByPeer.Remove(peerId);
+		_lossWindowStartedTickPerPeer.Remove(peerId);
 	}
 
 	public void OnFrameReceived(int peerId, NetworkFrameKind kind, ReadOnlySpan<byte> payload)
@@ -1585,6 +1593,8 @@ public class ListenServerHost : IServerTransportSink
 			    && simulation.TickCount - lastRepairTick > LossyPeerMemoryTicks)
 			{
 				_peersThatLoseDescriptions.Remove(peerId);
+				_descriptionsLostByPeer.Remove(peerId);
+				_lossWindowStartedTickPerPeer.Remove(peerId);
 			}
 
 			if (_peersThatLoseDescriptions.Contains(peerId)
@@ -1753,11 +1763,7 @@ public class ListenServerHost : IServerTransportSink
 
 		if (request.Count <= 0 || request.Count > SnapshotFrameRing.Capacity || request.FirstSequence <= 0) return;
 
-		// A request naming a hole is this peer telling the match that a description never reached it, which is the only
-		// loss measurement available on this side: a screen heals the acknowledgement mask with every repair it receives,
-		// so a link that loses a quarter of its datagrams can answer with a mask that reports nothing missing at all.
-		// From here this peer is sent every description twice.
-		_peersThatLoseDescriptions.Add(peerId);
+		NoteLostDescriptions(peerId, in request);
 
 		long tick = simulation.TickCount;
 
@@ -1901,6 +1907,37 @@ public class ListenServerHost : IServerTransportSink
 
 		LagProbe.Count(LagEvent.AuthorityBaselinesBecauseAcknowledgementMissed);
 		simulation.RequestBaseline(peerId);
+	}
+
+	/// <summary>
+	///     Counts the descriptions a peer says never reached it, and arms the repeat only once the loss is a rate rather
+	///     than an incident. A request naming a hole is the only loss measurement on this side - a screen heals the
+	///     acknowledgement mask with every repair it receives, so a link that loses a quarter of its datagrams can answer
+	///     with a mask that reports nothing missing at all - but one lost description out of hundreds is a link that is
+	///     working. Arming a repeat for it sent a quarter of a healthy link's descriptions twice, which that screen then
+	///     discarded as older than what it already held.
+	/// </summary>
+	private void NoteLostDescriptions(int peerId, in SnapshotRepairRequest request)
+	{
+		if (request.Reason != SnapshotRepairReason.WireLoss) return;
+
+		ServerSimulation? simulation = _simulation;
+		if (simulation == null) return;
+
+		long tick = simulation.TickCount;
+		if (!_lossWindowStartedTickPerPeer.TryGetValue(peerId, out long windowStarted) || tick - windowStarted > LossyPeerMemoryTicks)
+		{
+			_lossWindowStartedTickPerPeer[peerId] = tick;
+			_descriptionsLostByPeer[peerId] = 0;
+		}
+
+		// An ask is one incident whatever width it names: a screen joining the match names the whole run it was never
+		// sent, and counting that run as a dozen separate losses armed the repeat for a link that had lost nothing.
+		int incidents = _descriptionsLostByPeer[peerId] + 1;
+		_descriptionsLostByPeer[peerId] = incidents;
+		if (incidents < LossyPeerMinimumLostDescriptions) return;
+
+		_peersThatLoseDescriptions.Add(peerId);
 	}
 
 	private void LogAcknowledgedSequence(int peerId, in SnapshotAck ack)

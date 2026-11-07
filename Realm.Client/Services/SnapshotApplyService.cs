@@ -352,7 +352,7 @@ public class SnapshotApplyService
 		// match no longer holds is answered by a baseline of its own, so this asks by name first and only rebuilds when
 		// naming it has not worked.
 		LagProbe.Count(LagEvent.ClientRepairsRequested);
-		GameContext.Host.RequestSnapshotRepair(newestSequence + 1, 1);
+		GameContext.Host.RequestSnapshotRepair(newestSequence + 1, 1, SnapshotRepairReason.Silence);
 	}
 
 	/// <summary>
@@ -524,7 +524,7 @@ public class SnapshotApplyService
 		Trace(RepairTraceKind.RepairRequested, firstMissingSequence, missingCount);
 		LagProbe.Count(LagEvent.ClientRepairsRequested);
 		LagProbe.Count(LagEvent.ClientDeltasHeldForRepair, QueuedDeltaCount);
-		GameContext.Host?.RequestSnapshotRepair(firstMissingSequence, missingCount);
+		GameContext.Host?.RequestSnapshotRepair(firstMissingSequence, missingCount, SnapshotRepairReason.WireLoss);
 	}
 
 	private static ulong ResolveRepairGraceMilliseconds()

@@ -418,14 +418,15 @@ public class ClientServerSession : IDisposable
 	///     Names a run of descriptions this screen never received, so the match can send exactly those again instead of
 	///     describing the whole world to it.
 	/// </summary>
-	public bool RequestSnapshotRepair(int firstSequence, int count)
+	public bool RequestSnapshotRepair(int firstSequence, int count, SnapshotRepairReason reason)
 	{
 		if (!IsRunning || firstSequence <= 0 || count <= 0) return false;
 
 		var request = new SnapshotRepairRequest
 		{
 			FirstSequence = firstSequence,
-			Count = count
+			Count = count,
+			Reason = reason
 		};
 		_channel.Send(NetworkFrameKind.SnapshotRepairRequest, MemoryPackSerializer.Serialize(request));
 		return true;
