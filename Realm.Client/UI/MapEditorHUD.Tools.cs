@@ -3721,36 +3721,7 @@ namespace Realm.Client.UI
 
 			StyleViewportNavigationBar();
 
-			if (_panelTerrainVBox != null)
-			{
-				StyleSubContainer(_panelTerrainVBox, "Terrain Elevation");
-			}
-
-			if (_panelDecoVBox != null)
-			{
-				StyleSubContainer(_panelDecoVBox, "Texture Actions");
-			}
-
-			if (_panelPathingVBox != null)
-			{
-				StyleSubContainer(_panelPathingVBox, "Pathing Actions");
-			}
-
-			if (_panelObjects != null)
-			{
-				StyleSubContainer(_panelObjects, "Object Placement");
-			}
-
-			if (_panelClipboard != null)
-			{
-				StyleSubContainer(_panelClipboard, "Clipboard Actions");
-			}
-
-			var targetInspector = GetContentTarget(_contentInspector);
-			if (targetInspector != null)
-			{
-				StyleSubContainer(targetInspector.GetNodeOrNull<Control>("InspBox_VBoxContainer"), "Transform Controls");
-			}
+			StyleToolPanelContainers();
 
 			if (_contentBrush != null)
 			{
@@ -3840,6 +3811,42 @@ namespace Realm.Client.UI
 		}
 
 
+
+
+
+		private void StyleToolPanelContainers()
+		{
+			if (_panelTerrainVBox != null)
+			{
+				StyleSubContainer(_panelTerrainVBox, "Terrain Elevation");
+			}
+
+			if (_panelDecoVBox != null)
+			{
+				StyleSubContainer(_panelDecoVBox, "Texture Actions");
+			}
+
+			if (_panelPathingVBox != null)
+			{
+				StyleSubContainer(_panelPathingVBox, "Pathing Actions");
+			}
+
+			if (_panelObjects != null)
+			{
+				StyleSubContainer(_panelObjects, "Object Placement");
+			}
+
+			if (_panelClipboard != null)
+			{
+				StyleSubContainer(_panelClipboard, "Clipboard Actions");
+			}
+
+			var targetInspector = GetContentTarget(_contentInspector);
+			if (targetInspector != null)
+			{
+				StyleSubContainer(targetInspector.GetNodeOrNull<Control>("InspBox_VBoxContainer"), "Transform Controls");
+			}
+		}
 
 
 		private void StyleFileAccordionOperations()
