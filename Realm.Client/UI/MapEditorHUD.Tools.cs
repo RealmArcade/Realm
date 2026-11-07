@@ -1373,6 +1373,53 @@ namespace Realm.Client.UI
 
 			_contentWater.AddChild(_waterHeightBox);
 
+			BuildWaterActionButtons();
+
+			_waterModeBox = new VBoxContainer();
+			_waterModeBox.Name = "WaterModeBox";
+			_waterModeBox.AddThemeConstantOverride("separation", 2);
+
+			_optWaterMode = new OptionButton();
+			_optWaterMode.Name = "OptWaterMode";
+			_optWaterMode.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+			_optWaterMode.ClipText = true;
+			_optWaterMode.CustomMinimumSize = new Vector2(0, 24);
+			_waterModeBox.AddChild(_optWaterMode);
+
+			_optWaterMode.ItemSelected += (idx) =>
+			{
+				byte profIdx = 0;
+				var meta = _optWaterMode.GetItemMetadata((int)idx);
+				if (meta.VariantType != Variant.Type.Nil)
+				{
+					profIdx = (byte)(int)meta;
+				}
+
+				if (GameContext.Host != null)
+				{
+					GameContext.Host.EditorWaterMode = WaterType.Shallow;
+					GameContext.Host.ActiveWaterProfileIndex = profIdx;
+				}
+			};
+			_contentWater.AddChild(_waterModeBox);
+			RefreshWaterSwatches();
+
+			_btnWaterProfiles = new Button();
+			_btnWaterProfiles.Name = "BtnWaterProfiles";
+			_btnWaterProfiles.Set("icon_max_width", 0);
+			_btnWaterProfiles.Text = "⚙ " + TranslationServer.Translate("Water Profiles");
+			_btnWaterProfiles.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+			_btnWaterProfiles.TooltipText = TranslationServer.Translate("Configure Liquid / Water Uber Profiles");
+			_btnWaterProfiles.FocusMode = FocusModeEnum.None;
+			_btnWaterProfiles.AddThemeFontSizeOverride("font_size", 11);
+			_btnWaterProfiles.Pressed += () => OpenWaterProfileDialog();
+			_contentWater.AddChild(_btnWaterProfiles);
+		}
+
+
+
+		private void BuildWaterActionButtons()
+		{
 			var waterActionBox = new VBoxContainer();
 			waterActionBox.Name = "WaterActionBox";
 			waterActionBox.AddThemeConstantOverride("separation", 2);
@@ -1432,46 +1479,6 @@ namespace Realm.Client.UI
 			};
 
 			_contentWater.AddChild(waterActionBox);
-
-			_waterModeBox = new VBoxContainer();
-			_waterModeBox.Name = "WaterModeBox";
-			_waterModeBox.AddThemeConstantOverride("separation", 2);
-
-			_optWaterMode = new OptionButton();
-			_optWaterMode.Name = "OptWaterMode";
-			_optWaterMode.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-			_optWaterMode.ClipText = true;
-			_optWaterMode.CustomMinimumSize = new Vector2(0, 24);
-			_waterModeBox.AddChild(_optWaterMode);
-
-			_optWaterMode.ItemSelected += (idx) =>
-			{
-				byte profIdx = 0;
-				var meta = _optWaterMode.GetItemMetadata((int)idx);
-				if (meta.VariantType != Variant.Type.Nil)
-				{
-					profIdx = (byte)(int)meta;
-				}
-
-				if (GameContext.Host != null)
-				{
-					GameContext.Host.EditorWaterMode = WaterType.Shallow;
-					GameContext.Host.ActiveWaterProfileIndex = profIdx;
-				}
-			};
-			_contentWater.AddChild(_waterModeBox);
-			RefreshWaterSwatches();
-
-			_btnWaterProfiles = new Button();
-			_btnWaterProfiles.Name = "BtnWaterProfiles";
-			_btnWaterProfiles.Set("icon_max_width", 0);
-			_btnWaterProfiles.Text = "⚙ " + TranslationServer.Translate("Water Profiles");
-			_btnWaterProfiles.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-			_btnWaterProfiles.TooltipText = TranslationServer.Translate("Configure Liquid / Water Uber Profiles");
-			_btnWaterProfiles.FocusMode = FocusModeEnum.None;
-			_btnWaterProfiles.AddThemeFontSizeOverride("font_size", 11);
-			_btnWaterProfiles.Pressed += () => OpenWaterProfileDialog();
-			_contentWater.AddChild(_btnWaterProfiles);
 		}
 
 
