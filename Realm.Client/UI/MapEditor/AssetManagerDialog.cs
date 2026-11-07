@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json.Nodes;
+using System.Threading.Tasks;
 using Godot;
 using Realm.Client.Animation;
 using Realm.Client.Core;
@@ -1168,7 +1169,22 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 			titleOverride: TranslationServer.Translate("Download Editor Art Assets?"));
 	}
 
+	// Passed as the confirmation dialog's onConfirm callback, so the signature has to stay void. The download had no
+	// catch, and a fault left _assetPackDownloadRunning true for the rest of the session while the import button
+	// stayed disabled, with nothing in the log to say why.
 	private async void StartAssetPackDownload()
+	{
+		try
+		{
+			await DownloadAssetPackAsync();
+		}
+		catch (Exception exception)
+		{
+			GameLog.LogError($"[AssetManagerDialog] Downloading the ASSET_PACK failed: {exception}");
+		}
+	}
+
+	private async Task DownloadAssetPackAsync()
 	{
 		if (_assetPackDownloadRunning) return;
 
