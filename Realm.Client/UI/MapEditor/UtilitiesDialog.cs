@@ -533,6 +533,13 @@ public partial class UtilitiesDialog : FloatingDialogBase
 		{
 			await _selectedOperation.ExecuteAsync(progressReporter);
 		}
+		catch (Exception exception)
+		{
+			// The finally still has to run, and a failed utility must not report completion, so the fault is logged here
+			// and the method returns through the finally instead of escaping this async void unobserved.
+			GameLog.LogError($"[UtilitiesDialog] The '{opName}' utility failed: {exception}");
+			return;
+		}
 		finally
 		{
 			SetRunningState(false);
