@@ -3778,6 +3778,17 @@ namespace Realm.Client.UI
 				StyleSubContainer(_containerEyedropperSettings, "Eyedropper Settings");
 			}
 
+			RestyleOptionButtonContents();
+		}
+
+
+
+
+
+
+
+		private void RestyleOptionButtonContents()
+		{
 			Control[] allOptionContents = new Control[]
 			{
 				_contentFile, _contentViewport, _contentTool,
@@ -3788,10 +3799,6 @@ namespace Realm.Client.UI
 				StyleOptionButtonsInContainer(content);
 			}
 		}
-
-
-
-
 
 
 		private void StyleBrushAccordionControls()
