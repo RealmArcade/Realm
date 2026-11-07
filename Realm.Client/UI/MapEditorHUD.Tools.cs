@@ -1305,6 +1305,12 @@ namespace Realm.Client.UI
 			var lblHeightTitle = GetNodeOrNull<Label>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/HeightBox/Header/LblHeightTitle");
 			if (lblHeightTitle != null) lblHeightTitle.Text = TranslationServer.Translate("Height");
 
+			BuildWaterAccordion();
+		}
+
+
+		private void BuildWaterAccordion()
+		{
 			_accordionWater = new VBoxContainer();
 			_accordionWater.Name = "WaterAccordion";
 			_btnHeaderWater = new Button();
@@ -1467,6 +1473,7 @@ namespace Realm.Client.UI
 			_btnWaterProfiles.Pressed += () => OpenWaterProfileDialog();
 			_contentWater.AddChild(_btnWaterProfiles);
 		}
+
 
 		private void BuildToolSettingsAccordion()
 		{
