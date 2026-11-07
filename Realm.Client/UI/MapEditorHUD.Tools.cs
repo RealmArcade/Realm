@@ -1564,49 +1564,7 @@ namespace Realm.Client.UI
 			SetupOptionButton(_btnReplaceTexture, $"{UnicodeIcons.UPLOAD} REPLACE TEXTURE", () => _replaceTextureDialog?.OpenDialog(), 11, "Replace all instances of a texture with another texture across the map");
 			_containerTextureSettings?.AddChild(_btnReplaceTexture);
 
-			_containerPathingSettings = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerPathing");
-			var pathingContent = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerPathing/PathingContent");
-			_chkShallowWater = pathingContent.GetNode<CheckBox>("ChkShallowWater");
-			_chkDeepWater = pathingContent.GetNode<CheckBox>("ChkDeepWater");
-			_chkFlying = pathingContent.GetNode<CheckBox>("ChkFlying");
-			_chkGround = pathingContent.GetNode<CheckBox>("ChkGround");
-			_chkBuildable = pathingContent.GetNode<CheckBox>("ChkBuildable");
-
-			SetupPathingCheckBoxRow(pathingContent, _chkShallowWater, new Color(0.2f, 0.6f, 1.0f), "Shallow Water");
-			SetupPathingCheckBoxRow(pathingContent, _chkDeepWater, new Color(0.0f, 0.15f, 0.7f), "Deep Water");
-			SetupPathingCheckBoxRow(pathingContent, _chkFlying, new Color(0.85f, 0.85f, 0.0f), "Flying");
-			SetupPathingCheckBoxRow(pathingContent, _chkGround, new Color(0.2f, 0.85f, 0.2f), "Ground");
-			SetupPathingCheckBoxRow(pathingContent, _chkBuildable, new Color(0.6f, 0.2f, 0.8f), "Buildable");
-			_chkGround.ButtonPressed = true;
-
-			var pathingModeRow = pathingContent.GetNodeOrNull<HBoxContainer>("PathingModeRow");
-			if (pathingModeRow != null)
-			{
-				var modePanel = new PanelContainer();
-				modePanel.Name = "ModeRowPanel";
-				modePanel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-				var modeStyle = new StyleBoxFlat();
-				modeStyle.BgColor = new Color(0.12f, 0.13f, 0.16f, 0.82f);
-				modeStyle.BorderColor = new Color(0.35f, 0.33f, 0.28f, 0.75f);
-				modeStyle.SetBorderWidthAll(1);
-				modeStyle.SetCornerRadiusAll(4);
-				modeStyle.ContentMarginLeft = 8;
-				modeStyle.ContentMarginRight = 8;
-				modeStyle.ContentMarginTop = 4;
-				modeStyle.ContentMarginBottom = 4;
-				modePanel.AddThemeStyleboxOverride("panel", modeStyle);
-
-				int modeIdx = pathingModeRow.GetIndex();
-				pathingContent.RemoveChild(pathingModeRow);
-				modePanel.AddChild(pathingModeRow);
-				pathingContent.AddChild(modePanel);
-				pathingContent.MoveChild(modePanel, modeIdx);
-			}
-
-			_optPathingMode = pathingContent.GetNode<OptionButton>("ModeRowPanel/PathingModeRow/OptPathingMode");
-			_optPathingMode.AddItem(TranslationServer.Translate("Add Pathing Attribute"), 0);
-			_optPathingMode.AddItem(TranslationServer.Translate("Clear Pathing Attribute"), 1);
-			_optPathingMode.Selected = 0;
+			BuildPathingSettingsPanel();
 
 			_containerCategorySelector = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerCategorySelector");
 
@@ -1720,6 +1678,55 @@ namespace Realm.Client.UI
 				pasteOptionsBox.AddChild(_lblPasteTelemetry);
 			}
 		}
+
+
+		private void BuildPathingSettingsPanel()
+		{
+			_containerPathingSettings = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerPathing");
+			var pathingContent = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerPathing/PathingContent");
+			_chkShallowWater = pathingContent.GetNode<CheckBox>("ChkShallowWater");
+			_chkDeepWater = pathingContent.GetNode<CheckBox>("ChkDeepWater");
+			_chkFlying = pathingContent.GetNode<CheckBox>("ChkFlying");
+			_chkGround = pathingContent.GetNode<CheckBox>("ChkGround");
+			_chkBuildable = pathingContent.GetNode<CheckBox>("ChkBuildable");
+
+			SetupPathingCheckBoxRow(pathingContent, _chkShallowWater, new Color(0.2f, 0.6f, 1.0f), "Shallow Water");
+			SetupPathingCheckBoxRow(pathingContent, _chkDeepWater, new Color(0.0f, 0.15f, 0.7f), "Deep Water");
+			SetupPathingCheckBoxRow(pathingContent, _chkFlying, new Color(0.85f, 0.85f, 0.0f), "Flying");
+			SetupPathingCheckBoxRow(pathingContent, _chkGround, new Color(0.2f, 0.85f, 0.2f), "Ground");
+			SetupPathingCheckBoxRow(pathingContent, _chkBuildable, new Color(0.6f, 0.2f, 0.8f), "Buildable");
+			_chkGround.ButtonPressed = true;
+
+			var pathingModeRow = pathingContent.GetNodeOrNull<HBoxContainer>("PathingModeRow");
+			if (pathingModeRow != null)
+			{
+				var modePanel = new PanelContainer();
+				modePanel.Name = "ModeRowPanel";
+				modePanel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+				var modeStyle = new StyleBoxFlat();
+				modeStyle.BgColor = new Color(0.12f, 0.13f, 0.16f, 0.82f);
+				modeStyle.BorderColor = new Color(0.35f, 0.33f, 0.28f, 0.75f);
+				modeStyle.SetBorderWidthAll(1);
+				modeStyle.SetCornerRadiusAll(4);
+				modeStyle.ContentMarginLeft = 8;
+				modeStyle.ContentMarginRight = 8;
+				modeStyle.ContentMarginTop = 4;
+				modeStyle.ContentMarginBottom = 4;
+				modePanel.AddThemeStyleboxOverride("panel", modeStyle);
+
+				int modeIdx = pathingModeRow.GetIndex();
+				pathingContent.RemoveChild(pathingModeRow);
+				modePanel.AddChild(pathingModeRow);
+				pathingContent.AddChild(modePanel);
+				pathingContent.MoveChild(modePanel, modeIdx);
+			}
+
+			_optPathingMode = pathingContent.GetNode<OptionButton>("ModeRowPanel/PathingModeRow/OptPathingMode");
+			_optPathingMode.AddItem(TranslationServer.Translate("Add Pathing Attribute"), 0);
+			_optPathingMode.AddItem(TranslationServer.Translate("Clear Pathing Attribute"), 1);
+			_optPathingMode.Selected = 0;
+		}
+
 
 		public bool IsPathingAddMode()
 		{
