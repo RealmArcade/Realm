@@ -253,129 +253,7 @@ namespace Realm.Client.UI
 
 				BuildToolSettingsAccordion();
 
-				_accordionInspector = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion");
-				_btnHeaderInspector = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/BtnHeaderInspector");
-				_contentInspector = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector");
-				StyleAccordionHeader(_btnHeaderInspector);
-				SetupAccordion(_btnHeaderInspector, _contentInspector, TranslationServer.Translate("Selected Object Inspector"));
-
-				_accordionPlacement = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion");
-				_btnHeaderPlacement = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/BtnHeaderPlacement");
-				_contentPlacement = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement");
-				StyleAccordionHeader(_btnHeaderPlacement);
-				SetupAccordion(_btnHeaderPlacement, _contentPlacement, TranslationServer.Translate("Placement Config"));
-
-				_sldPlacementRotate = GetNode<Slider>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/PlacementRotateBox/SldPlacementRotate");
-				_lblPlacementRotateValue = GetNode<Label>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/PlacementRotateBox/Header/LblPlacementRotateValue");
-				_sldPlacementScale = GetNode<Slider>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/PlacementScaleBox/SldPlacementScale");
-				_lblPlacementScaleValue = GetNode<Label>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/PlacementScaleBox/Header/LblPlacementScaleValue");
-				var lblPlacementRotateTitle = GetNodeOrNull<Label>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/PlacementRotateBox/Header/LblRotateTitle");
-				if (lblPlacementRotateTitle != null) lblPlacementRotateTitle.Text = TranslationServer.Translate("Rotation (Shift + Mouse_Wheel)");
-				var lblPlacementScaleTitle = GetNodeOrNull<Label>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/PlacementScaleBox/Header/LblScaleTitle");
-				if (lblPlacementScaleTitle != null) lblPlacementScaleTitle.Text = TranslationServer.Translate("Scale (Alt + Mouse_Wheel)");
-
-				_btnToggleSnap = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/BtnToggleSnap");
-				SetupOptionButton(_btnToggleSnap, $"{UnicodeIcons.TABLE} SNAP TO GRID: OFF", () =>
-				{
-					if (GameContext.Host != null)
-					{
-						GameContext.Host.EditorSnapToGrid = !GameContext.Host.EditorSnapToGrid;
-						UpdateGridSnapExternal(GameContext.Host.EditorSnapToGrid);
-					}
-				}, 11, "Toggle snapping objects and placements to the grid");
-
-				_optPlacementMirrorMode = new OptionButton();
-				_optPlacementMirrorMode.Name = "OptPlacementMirrorMode";
-				_optPlacementMirrorMode.Set("icon_max_width", 0);
-				SetupMirrorDropdown(_optPlacementMirrorMode, "Select terrain and object mirroring symmetry mode");
-				if (_contentPlacement != null)
-				{
-					_contentPlacement.AddChild(_optPlacementMirrorMode);
-					_contentPlacement.MoveChild(_optPlacementMirrorMode, _btnToggleSnap.GetIndex() + 1);
-				}
-
-				_placementPlayerContainer = new HBoxContainer();
-				_placementPlayerContainer.Name = "PlacementPlayerOwnerContainer";
-				_placementPlayerContainer.AddThemeConstantOverride("separation", 6);
-				_placementPlayerContainer.Visible = false;
-
-				var lblPlacementPlayer = new Label();
-				lblPlacementPlayer.Name = "LblPlacementPlayer";
-				lblPlacementPlayer.Text = TranslationServer.Translate("Player");
-				lblPlacementPlayer.CustomMinimumSize = new Vector2(50, 0);
-				lblPlacementPlayer.AddThemeFontSizeOverride("font_size", 11);
-				_placementPlayerContainer.AddChild(lblPlacementPlayer);
-
-				_optPlacementPlayer = new OptionButton();
-				_optPlacementPlayer.Name = "OptPlacementPlayer";
-				_optPlacementPlayer.Set("icon_max_width", 0);
-				_optPlacementPlayer.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-				_optPlacementPlayer.AddThemeFontSizeOverride("font_size", 10);
-				_optPlacementPlayer.TooltipText = TranslationServer.Translate("Owner of the next placed unit. Choose 0 NEUTRAL_TAN (gaia) to place neutral objects.");
-
-				for (int i = 0; i < PlayerColorConfig.Palette.Length; i++)
-				{
-					_optPlacementPlayer.AddItem(PlayerColorConfig.GetPaletteLabel(i), i);
-				}
-
-				_optPlacementPlayer.ItemSelected += (long index) =>
-				{
-					GameContext.EditorService.SetPlaceUnitPlayerIndexDomain((int)index);
-				};
-
-				_placementPlayerContainer.AddChild(_optPlacementPlayer);
-				if (_contentPlacement != null)
-				{
-					_contentPlacement.AddChild(_placementPlayerContainer);
-					_contentPlacement.MoveChild(_placementPlayerContainer, _optPlacementMirrorMode.GetIndex() + 1);
-				}
-
-				_chkRandomRotation = GetNode<CheckBox>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/ChkRandomRotation");
-				_chkRandomScale = GetNode<CheckBox>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/ChkRandomScale");
-
-				_chkClumpMode = GetNode<CheckBox>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/ChkClumpMode");
-				_densityBox = GetNode<Control>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/DensityBox");
-				_sldClumpDensity = GetNode<HSlider>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/DensityBox/SldClumpDensity");
-				_lblClumpDensityValue = GetNode<Label>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/DensityBox/Header/LblClumpDensityValue");
-				_scaleVarBox = GetNode<Control>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/ScaleVarBox");
-				_sldClumpScaleVar = GetNode<HSlider>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/ScaleVarBox/SldClumpScaleVar");
-				_lblClumpScaleVarValue = GetNode<Label>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/ScaleVarBox/Header/LblClumpScaleVarValue");
-				var lblScaleVarTitle = GetNodeOrNull<Label>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/ScaleVarBox/Header/LblScaleVarTitle");
-				if (lblScaleVarTitle != null) lblScaleVarTitle.Text = TranslationServer.Translate("Clump Scale Variance");
-
-				_chkClumpMode.ButtonPressed = false;
-				_chkClumpMode.Toggled += (toggled) =>
-				{
-					if (_densityBox != null) _densityBox.Visible = toggled;
-					if (_scaleVarBox != null) _scaleVarBox.Visible = toggled;
-					if (GameContext.Host != null)
-					{
-						UpdateSidebarMorph(GameContext.Host.ActiveEditorTool);
-					}
-				};
-
-				_sldClumpDensity.ValueChanged += (val) =>
-				{
-					float fVal = (float)val;
-					_lblClumpDensityValue.Text = fVal.ToString("F0");
-					if (GameContext.Host != null) GameContext.Host.EditorClumpCount = fVal;
-				};
-				_sldClumpDensity.DragStarted += () => _isDraggingSlider = true;
-				_sldClumpDensity.DragEnded += (valueChanged) => _isDraggingSlider = false;
-
-				_sldClumpScaleVar.ValueChanged += (val) =>
-				{
-					float fVal = (float)val;
-					_lblClumpScaleVarValue.Text = fVal.ToString("F2");
-					if (GameContext.Host != null) GameContext.Host.EditorClumpScale = fVal;
-				};
-				_sldClumpScaleVar.DragStarted += () => _isDraggingSlider = true;
-				_sldClumpScaleVar.DragEnded += (valueChanged) => _isDraggingSlider = false;
-
-				_sldPlacementRotate.DragStarted += () => _isDraggingSlider = true;
-				_sldPlacementRotate.DragEnded += (valueChanged) => _isDraggingSlider = false;
-				_sldPlacementScale.DragStarted += () => _isDraggingSlider = true;
-				_sldPlacementScale.DragEnded += (valueChanged) => _isDraggingSlider = false;
+				BuildInspectorAndPlacementAccordions();
 
 				TriggerToolSelection(EditorTool.Raise, _btnRaise);
 
@@ -482,6 +360,135 @@ namespace Realm.Client.UI
 				throw;
 			}
 		}
+
+
+		private void BuildInspectorAndPlacementAccordions()
+		{
+			_accordionInspector = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion");
+			_btnHeaderInspector = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/BtnHeaderInspector");
+			_contentInspector = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector");
+			StyleAccordionHeader(_btnHeaderInspector);
+			SetupAccordion(_btnHeaderInspector, _contentInspector, TranslationServer.Translate("Selected Object Inspector"));
+
+			_accordionPlacement = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion");
+			_btnHeaderPlacement = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/BtnHeaderPlacement");
+			_contentPlacement = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement");
+			StyleAccordionHeader(_btnHeaderPlacement);
+			SetupAccordion(_btnHeaderPlacement, _contentPlacement, TranslationServer.Translate("Placement Config"));
+
+			_sldPlacementRotate = GetNode<Slider>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/PlacementRotateBox/SldPlacementRotate");
+			_lblPlacementRotateValue = GetNode<Label>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/PlacementRotateBox/Header/LblPlacementRotateValue");
+			_sldPlacementScale = GetNode<Slider>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/PlacementScaleBox/SldPlacementScale");
+			_lblPlacementScaleValue = GetNode<Label>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/PlacementScaleBox/Header/LblPlacementScaleValue");
+			var lblPlacementRotateTitle = GetNodeOrNull<Label>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/PlacementRotateBox/Header/LblRotateTitle");
+			if (lblPlacementRotateTitle != null) lblPlacementRotateTitle.Text = TranslationServer.Translate("Rotation (Shift + Mouse_Wheel)");
+			var lblPlacementScaleTitle = GetNodeOrNull<Label>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/PlacementScaleBox/Header/LblScaleTitle");
+			if (lblPlacementScaleTitle != null) lblPlacementScaleTitle.Text = TranslationServer.Translate("Scale (Alt + Mouse_Wheel)");
+
+			_btnToggleSnap = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/BtnToggleSnap");
+			SetupOptionButton(_btnToggleSnap, $"{UnicodeIcons.TABLE} SNAP TO GRID: OFF", () =>
+			{
+				if (GameContext.Host != null)
+				{
+					GameContext.Host.EditorSnapToGrid = !GameContext.Host.EditorSnapToGrid;
+					UpdateGridSnapExternal(GameContext.Host.EditorSnapToGrid);
+				}
+			}, 11, "Toggle snapping objects and placements to the grid");
+
+			_optPlacementMirrorMode = new OptionButton();
+			_optPlacementMirrorMode.Name = "OptPlacementMirrorMode";
+			_optPlacementMirrorMode.Set("icon_max_width", 0);
+			SetupMirrorDropdown(_optPlacementMirrorMode, "Select terrain and object mirroring symmetry mode");
+			if (_contentPlacement != null)
+			{
+				_contentPlacement.AddChild(_optPlacementMirrorMode);
+				_contentPlacement.MoveChild(_optPlacementMirrorMode, _btnToggleSnap.GetIndex() + 1);
+			}
+
+			_placementPlayerContainer = new HBoxContainer();
+			_placementPlayerContainer.Name = "PlacementPlayerOwnerContainer";
+			_placementPlayerContainer.AddThemeConstantOverride("separation", 6);
+			_placementPlayerContainer.Visible = false;
+
+			var lblPlacementPlayer = new Label();
+			lblPlacementPlayer.Name = "LblPlacementPlayer";
+			lblPlacementPlayer.Text = TranslationServer.Translate("Player");
+			lblPlacementPlayer.CustomMinimumSize = new Vector2(50, 0);
+			lblPlacementPlayer.AddThemeFontSizeOverride("font_size", 11);
+			_placementPlayerContainer.AddChild(lblPlacementPlayer);
+
+			_optPlacementPlayer = new OptionButton();
+			_optPlacementPlayer.Name = "OptPlacementPlayer";
+			_optPlacementPlayer.Set("icon_max_width", 0);
+			_optPlacementPlayer.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+			_optPlacementPlayer.AddThemeFontSizeOverride("font_size", 10);
+			_optPlacementPlayer.TooltipText = TranslationServer.Translate("Owner of the next placed unit. Choose 0 NEUTRAL_TAN (gaia) to place neutral objects.");
+
+			for (int i = 0; i < PlayerColorConfig.Palette.Length; i++)
+			{
+				_optPlacementPlayer.AddItem(PlayerColorConfig.GetPaletteLabel(i), i);
+			}
+
+			_optPlacementPlayer.ItemSelected += (long index) =>
+			{
+				GameContext.EditorService.SetPlaceUnitPlayerIndexDomain((int)index);
+			};
+
+			_placementPlayerContainer.AddChild(_optPlacementPlayer);
+			if (_contentPlacement != null)
+			{
+				_contentPlacement.AddChild(_placementPlayerContainer);
+				_contentPlacement.MoveChild(_placementPlayerContainer, _optPlacementMirrorMode.GetIndex() + 1);
+			}
+
+			_chkRandomRotation = GetNode<CheckBox>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/ChkRandomRotation");
+			_chkRandomScale = GetNode<CheckBox>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/ChkRandomScale");
+
+			_chkClumpMode = GetNode<CheckBox>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/ChkClumpMode");
+			_densityBox = GetNode<Control>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/DensityBox");
+			_sldClumpDensity = GetNode<HSlider>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/DensityBox/SldClumpDensity");
+			_lblClumpDensityValue = GetNode<Label>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/DensityBox/Header/LblClumpDensityValue");
+			_scaleVarBox = GetNode<Control>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/ScaleVarBox");
+			_sldClumpScaleVar = GetNode<HSlider>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/ScaleVarBox/SldClumpScaleVar");
+			_lblClumpScaleVarValue = GetNode<Label>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/ScaleVarBox/Header/LblClumpScaleVarValue");
+			var lblScaleVarTitle = GetNodeOrNull<Label>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/ScaleVarBox/Header/LblScaleVarTitle");
+			if (lblScaleVarTitle != null) lblScaleVarTitle.Text = TranslationServer.Translate("Clump Scale Variance");
+
+			_chkClumpMode.ButtonPressed = false;
+			_chkClumpMode.Toggled += (toggled) =>
+			{
+				if (_densityBox != null) _densityBox.Visible = toggled;
+				if (_scaleVarBox != null) _scaleVarBox.Visible = toggled;
+				if (GameContext.Host != null)
+				{
+					UpdateSidebarMorph(GameContext.Host.ActiveEditorTool);
+				}
+			};
+
+			_sldClumpDensity.ValueChanged += (val) =>
+			{
+				float fVal = (float)val;
+				_lblClumpDensityValue.Text = fVal.ToString("F0");
+				if (GameContext.Host != null) GameContext.Host.EditorClumpCount = fVal;
+			};
+			_sldClumpDensity.DragStarted += () => _isDraggingSlider = true;
+			_sldClumpDensity.DragEnded += (valueChanged) => _isDraggingSlider = false;
+
+			_sldClumpScaleVar.ValueChanged += (val) =>
+			{
+				float fVal = (float)val;
+				_lblClumpScaleVarValue.Text = fVal.ToString("F2");
+				if (GameContext.Host != null) GameContext.Host.EditorClumpScale = fVal;
+			};
+			_sldClumpScaleVar.DragStarted += () => _isDraggingSlider = true;
+			_sldClumpScaleVar.DragEnded += (valueChanged) => _isDraggingSlider = false;
+
+			_sldPlacementRotate.DragStarted += () => _isDraggingSlider = true;
+			_sldPlacementRotate.DragEnded += (valueChanged) => _isDraggingSlider = false;
+			_sldPlacementScale.DragStarted += () => _isDraggingSlider = true;
+			_sldPlacementScale.DragEnded += (valueChanged) => _isDraggingSlider = false;
+		}
+
 
 		private void BuildTopLeftToolbar()
 		{
