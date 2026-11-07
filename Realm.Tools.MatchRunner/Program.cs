@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 using Realm.Ecs.AI.Policy;
+using Realm.Ecs.AI.Training;
 using Realm.Tools.MatchRunner;
 
 MatchRunOptions options;
@@ -37,11 +38,8 @@ if (options.Train)
 
 	Console.WriteLine($"trained profile: {profilePath}");
 	Console.WriteLine($"run manifest:    {manifestPath}");
-	Console.WriteLine($"fitness {profile.FitnessScore:F3} after {profile.TrainedEpochs} generation(s)");
-	for (int generation = 0; generation < result.GenerationBestFitness.Count; generation++)
-	{
-		Console.WriteLine($"  generation {generation + 1} best fitness {result.GenerationBestFitness[generation]:F3}");
-	}
+	Console.WriteLine($"validation fitness {profile.FitnessScore:F3} on {Math.Max(options.TrainEvaluations, SelfPlayTrainer.MinimumValidationCandidates)} held-out seeds after {profile.TrainedEpochs} generation(s)");
+	Console.WriteLine($"evaluation matches: {result.PlayedEvaluations} played, {result.FailedEvaluations} failed");
 
 	return 0;
 }

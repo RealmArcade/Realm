@@ -6,7 +6,12 @@ namespace Realm.Ecs.AI.Training;
 
 public class SelfPlayTrainer
 {
+	public const int ValidationSeedSalt = 900001;
+	public const int MinimumValidationCandidates = 32;
+
 	public List<float> GenerationBestFitness { get; } = new();
+
+	public float ValidationFitness { get; private set; }
 
 	public BotProfile TrainSelfPlay(
 		string mapName,
@@ -63,14 +68,15 @@ public class SelfPlayTrainer
 		Func<float[], int, float> evaluateCandidate,
 		int seed = 0,
 		string gameBuildNumber = "",
-		float[]? initialWeights = null)
+		float[]? initialWeights = null,
+		Action<int, float>? generationReported = null)
 	{
 		int baseSeed = RandomStreams.CreateBaseSeed(seed);
 		GenerationBestFitness.Clear();
+		ValidationFitness = 0.0f;
 		var population = InitializePopulation(populationSize, featureCount, RandomStreams.Derive(baseSeed, 0), initialWeights);
 
-		float[] bestGenome = population[0];
-		float maxFitness = float.MinValue;
+		float[] champion = (float[])population[0].Clone();
 
 		for (int generation = 0; generation < generations; generation++)
 		{
@@ -87,12 +93,51 @@ public class SelfPlayTrainer
 				fitnessScores[candidateIndex] = totalScore / evaluationSeeds.Length;
 			}
 
-			UpdateBestGenome(population, fitnessScores, ref bestGenome, ref maxFitness);
-			GenerationBestFitness.Add(maxFitness);
-			population = CreateNextGeneration(populationSize, population, bestGenome, RandomStreams.Derive(baseSeed, generation + 100000));
+			int bestIndex = IndexOfBestCandidate(fitnessScores);
+			champion = (float[])population[bestIndex].Clone();
+			GenerationBestFitness.Add(fitnessScores[bestIndex]);
+			generationReported?.Invoke(generation, fitnessScores[bestIndex]);
+			population = CreateNextGeneration(populationSize, population, champion, RandomStreams.Derive(baseSeed, generation + 100000));
 		}
 
-		return CreateBotProfile(mapName, genreName, bestGenome, maxFitness, generations, gameBuildNumber);
+		ValidationFitness = ValidateChampion(champion, evaluateCandidate, baseSeed, matchesPerEvaluation);
+		return CreateBotProfile(mapName, genreName, champion, ValidationFitness, generations, gameBuildNumber);
+	}
+
+	private static float ValidateChampion(float[] champion, Func<float[], int, float> evaluateCandidate, int baseSeed, int matchesPerEvaluation)
+	{
+		int candidateCount = Math.Max(matchesPerEvaluation, MinimumValidationCandidates);
+		int[] validationSeeds = DeriveValidationSeeds(baseSeed, candidateCount);
+		float totalScore = 0.0f;
+		for (int candidateIndex = 0; candidateIndex < validationSeeds.Length; candidateIndex++)
+		{
+			totalScore += evaluateCandidate(champion, validationSeeds[candidateIndex]);
+		}
+
+		return totalScore / validationSeeds.Length;
+	}
+
+	private static int[] DeriveValidationSeeds(int baseSeed, int candidateCount)
+	{
+		var seeds = new int[candidateCount];
+		SeededRandom random = RandomStreams.Derive(baseSeed, ValidationSeedSalt);
+		for (int candidateIndex = 0; candidateIndex < seeds.Length; candidateIndex++)
+		{
+			seeds[candidateIndex] = random.Next(1, int.MaxValue);
+		}
+
+		return seeds;
+	}
+
+	private static int IndexOfBestCandidate(float[] fitnessScores)
+	{
+		int bestIndex = 0;
+		for (int candidateIndex = 1; candidateIndex < fitnessScores.Length; candidateIndex++)
+		{
+			if (fitnessScores[candidateIndex] > fitnessScores[bestIndex]) bestIndex = candidateIndex;
+		}
+
+		return bestIndex;
 	}
 
 	private static List<float[]> InitializePopulation(int populationSize, int featureCount, SeededRandom random, float[]? initialWeights = null)

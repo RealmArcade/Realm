@@ -15,6 +15,34 @@ public static class MatchPlayer
 		string workDirectory = Path.Combine(Path.GetTempPath(), "realm-match-runner", $"{Environment.ProcessId}-{seed}");
 		Directory.CreateDirectory(workDirectory);
 
+		try
+		{
+			MatchOutcome outcome = Play(options, seed, seatOneWeights, roster, workDirectory);
+			DeleteWorkDirectory(workDirectory);
+			return outcome;
+		}
+		catch (Exception exception)
+		{
+			throw new InvalidOperationException($"{exception.Message} (the authority log of this match is at {workDirectory})", exception);
+		}
+	}
+
+	private static void DeleteWorkDirectory(string workDirectory)
+	{
+		try
+		{
+			Directory.Delete(workDirectory, recursive: true);
+		}
+		catch (IOException)
+		{
+		}
+		catch (UnauthorizedAccessException)
+		{
+		}
+	}
+
+	private static MatchOutcome Play(MatchRunOptions options, int seed, float[]? seatOneWeights, MatchRosterSeat[] roster, string workDirectory)
+	{
 		LoadedMap map = MapWorldLoader.Load(options.MapPath, roster);
 		using var log = new ServerLog(Path.Combine(workDirectory, "authority.log"));
 		var paths = ServerMatchPaths.ForMap(map, options.MapPath, Path.Combine(workDirectory, "data"), workDirectory);
