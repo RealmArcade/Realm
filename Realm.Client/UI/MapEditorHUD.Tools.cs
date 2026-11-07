@@ -120,26 +120,7 @@ namespace Realm.Client.UI
 
 				BuildTopLeftToolbar();
 
-				_statusLabel = GetNode<Label>("BottomCenterBar/TopBar/HBox/StatusLabel");
-				_feedbackLabel = GetNode<Label>("FeedbackLabel");
-				_feedbackLabel.Modulate = new Color(1, 1, 1, 0);
-				_feedbackLabel.MouseFilter = MouseFilterEnum.Ignore;
-
-				var leftScroll = GetNodeOrNull<ScrollContainer>("LeftSlidePanel/LeftScroll");
-				if (leftScroll != null)
-				{
-					leftScroll.MouseFilter = MouseFilterEnum.Ignore;
-					leftScroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
-					leftScroll.VerticalScrollMode = ScrollContainer.ScrollMode.Disabled;
-				}
-
-				var rightScroll = GetNodeOrNull<ScrollContainer>("RightSlidePanel/RightScroll");
-				if (rightScroll != null)
-				{
-					rightScroll.MouseFilter = MouseFilterEnum.Ignore;
-					rightScroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
-					rightScroll.VerticalScrollMode = ScrollContainer.ScrollMode.Disabled;
-				}
+				BuildWindowChrome();
 
 				BuildEditorAccordions();
 
@@ -650,6 +631,32 @@ namespace Realm.Client.UI
 				{
 					_topLeftBox.MoveChild(_btnResetLayout, _btnGameSettings.GetIndex());
 				}
+			}
+		}
+
+
+
+		private void BuildWindowChrome()
+		{
+			_statusLabel = GetNode<Label>("BottomCenterBar/TopBar/HBox/StatusLabel");
+			_feedbackLabel = GetNode<Label>("FeedbackLabel");
+			_feedbackLabel.Modulate = new Color(1, 1, 1, 0);
+			_feedbackLabel.MouseFilter = MouseFilterEnum.Ignore;
+
+			var leftScroll = GetNodeOrNull<ScrollContainer>("LeftSlidePanel/LeftScroll");
+			if (leftScroll != null)
+			{
+				leftScroll.MouseFilter = MouseFilterEnum.Ignore;
+				leftScroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
+				leftScroll.VerticalScrollMode = ScrollContainer.ScrollMode.Disabled;
+			}
+
+			var rightScroll = GetNodeOrNull<ScrollContainer>("RightSlidePanel/RightScroll");
+			if (rightScroll != null)
+			{
+				rightScroll.MouseFilter = MouseFilterEnum.Ignore;
+				rightScroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
+				rightScroll.VerticalScrollMode = ScrollContainer.ScrollMode.Disabled;
 			}
 		}
 
