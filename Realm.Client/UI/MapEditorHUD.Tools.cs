@@ -141,21 +141,7 @@ namespace Realm.Client.UI
 					rightScroll.VerticalScrollMode = ScrollContainer.ScrollMode.Disabled;
 				}
 
-				_accordionFile = GetNode<VBoxContainer>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion");
-				BuildFileOperationsPanel();
-
-				BuildViewportNavigationPanel();
-
-				ApplyThemeStyles();
-				SetupLightingTuningUI();
-
-				BuildToolAccordion();
-
-				BuildBrushAccordion();
-
-				BuildToolSettingsAccordion();
-
-				BuildInspectorAndPlacementAccordions();
+				BuildEditorAccordions();
 
 				WireEditorControllers();
 
@@ -344,6 +330,27 @@ namespace Realm.Client.UI
 				UpdatePolarRadialStepButtonText();
 				UpdatePolarRingSpacingButtonText();
 			}
+		}
+
+
+
+		private void BuildEditorAccordions()
+		{
+			_accordionFile = GetNode<VBoxContainer>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion");
+			BuildFileOperationsPanel();
+
+			BuildViewportNavigationPanel();
+
+			ApplyThemeStyles();
+			SetupLightingTuningUI();
+
+			BuildToolAccordion();
+
+			BuildBrushAccordion();
+
+			BuildToolSettingsAccordion();
+
+			BuildInspectorAndPlacementAccordions();
 		}
 
 
