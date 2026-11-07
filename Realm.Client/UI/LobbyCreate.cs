@@ -327,7 +327,22 @@ public partial class LobbyCreate : Control
 	}
 
 
+	// Pressed is a Godot signal, so the handler keeps its void signature; the awaited work is in a Task-returning
+	// method and this wrapper logs what it throws. Without the catch a fault in ContinueHosting left the button
+	// silently unresponsive with nothing in the log.
 	private async void OnCreatePressed()
+	{
+		try
+		{
+			await CreateLobbyAsync();
+		}
+		catch (Exception exception)
+		{
+			GameLog.LogError($"[LobbyCreate] Creating the lobby failed: {exception}");
+		}
+	}
+
+	private async Task CreateLobbyAsync()
 	{
 		GameContext.UserInterface.PlayClickSound();
 
@@ -403,6 +418,18 @@ public partial class LobbyCreate : Control
 	}
 
 	private async void EnsureFestivalFeaturedMapInstalledAsync()
+	{
+		try
+		{
+			await InstallFestivalFeaturedMapAsync();
+		}
+		catch (Exception exception)
+		{
+			GameLog.LogError($"[LobbyCreate] Installing the festival featured map failed: {exception}");
+		}
+	}
+
+	private async Task InstallFestivalFeaturedMapAsync()
 	{
 		if (!BuildFlags.IS_AUTOBATTLE_FESTIVAL_ACTIVE) return;
 		if (MapProvisioningService.IsInstalled(BuildFlags.FESTIVAL_FEATURED_MAP_NAME)) return;
