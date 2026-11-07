@@ -1508,6 +1508,18 @@ namespace Realm.Client.UI
 
 			BuildPathingSettingsPanel();
 
+			BuildEyedropperSettings();
+
+			BuildPasteControls();
+
+			BuildPasteRotationAndClipboardControls();
+
+			AssemblePasteOptionsBox();
+		}
+
+
+		private void BuildEyedropperSettings()
+		{
 			_containerCategorySelector = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerCategorySelector");
 
 
@@ -1519,7 +1531,11 @@ namespace Realm.Client.UI
 			_optEyedropperMode.AddItem(TranslationServer.Translate("Pick Terrain Texture"), 3);
 			_optEyedropperMode.AddItem(TranslationServer.Translate("Pick Height"), 4);
 			_optEyedropperMode.Selected = 0;
+		}
 
+
+		private void BuildPasteControls()
+		{
 			_containerPasteSettings = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerPaste");
 			var chkPasteHeights = GetNode<CheckBox>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerPaste/PasteOptionsBox/ChkPasteHeights");
 			chkPasteHeights.Text = TranslationServer.Translate("HeightMap");
@@ -1550,7 +1566,11 @@ namespace Realm.Client.UI
 			{
 				if (GameContext.Host != null) GameContext.Host.PasteOptionPathing = toggled;
 			};
+		}
 
+
+		private void BuildPasteRotationAndClipboardControls()
+		{
 			_lblPasteRotation = GetNode<Label>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerPaste/PasteOptionsBox/PasteRotationBox/Header/LblPasteRotationValue");
 			_sldPasteRotation = GetNode<HSlider>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerPaste/PasteOptionsBox/PasteRotationBox/SldPasteRotation");
 			_sldPasteRotation.ValueChanged += (val) =>
@@ -1592,7 +1612,11 @@ namespace Realm.Client.UI
 			_btnPasteAnchor.Name = "BtnPasteAnchor";
 			_btnPasteAnchor.Set("icon_max_width", 0);
 			SetupOptionButton(_btnPasteAnchor, $"{UnicodeIcons.MOUSE_POINTER} ANCHOR: CENTER", () => CyclePasteAnchor(), 11, "Cycle pivot / anchor tile used to align pasted selection (Center, Corners)");
+		}
 
+
+		private void AssemblePasteOptionsBox()
+		{
 			_lblPasteTelemetry = new Label();
 			_lblPasteTelemetry.Name = "LblPasteTelemetry";
 			_lblPasteTelemetry.AddThemeFontSizeOverride("font_size", 10);
@@ -1620,7 +1644,6 @@ namespace Realm.Client.UI
 				pasteOptionsBox.AddChild(_lblPasteTelemetry);
 			}
 		}
-
 
 
 		private void BuildTextureSettingsPanel()
