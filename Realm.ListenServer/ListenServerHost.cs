@@ -858,7 +858,7 @@ public class ListenServerHost : IServerTransportSink
 				LobbyCommand command;
 				try
 				{
-					command = MemoryPackSerializer.Deserialize<LobbyCommand>(payload.ToArray());
+					command = MemoryPackSerializer.Deserialize<LobbyCommand>(payload);
 				}
 				catch (Exception exception) when (exception is IOException or InvalidDataException or ArgumentException)
 				{
@@ -907,7 +907,7 @@ public class ListenServerHost : IServerTransportSink
 		ClientHello hello;
 		try
 		{
-			hello = MemoryPackSerializer.Deserialize<ClientHello>(payload.ToArray());
+			hello = MemoryPackSerializer.Deserialize<ClientHello>(payload);
 		}
 		catch (Exception exception) when (exception is IOException or InvalidDataException or ArgumentException)
 		{
@@ -965,7 +965,7 @@ public class ListenServerHost : IServerTransportSink
 		MapTransferRequest request;
 		try
 		{
-			request = MemoryPackSerializer.Deserialize<MapTransferRequest>(payload.ToArray());
+			request = MemoryPackSerializer.Deserialize<MapTransferRequest>(payload);
 		}
 		catch (Exception exception) when (exception is IOException or InvalidDataException or ArgumentException)
 		{
@@ -992,7 +992,7 @@ public class ListenServerHost : IServerTransportSink
 		ScriptConsoleCommand command;
 		try
 		{
-			command = MemoryPackSerializer.Deserialize<ScriptConsoleCommand>(payload.ToArray());
+			command = MemoryPackSerializer.Deserialize<ScriptConsoleCommand>(payload);
 		}
 		catch (Exception exception) when (exception is IOException or InvalidDataException or ArgumentException)
 		{
@@ -1012,7 +1012,7 @@ public class ListenServerHost : IServerTransportSink
 		ChatLine line;
 		try
 		{
-			line = MemoryPackSerializer.Deserialize<ChatLine>(payload.ToArray());
+			line = MemoryPackSerializer.Deserialize<ChatLine>(payload);
 		}
 		catch (Exception exception) when (exception is IOException or InvalidDataException or ArgumentException)
 		{
@@ -1058,7 +1058,7 @@ public class ListenServerHost : IServerTransportSink
 		ClientHello hello;
 		try
 		{
-			hello = MemoryPackSerializer.Deserialize<ClientHello>(payload.ToArray());
+			hello = MemoryPackSerializer.Deserialize<ClientHello>(payload);
 		}
 		catch (Exception exception) when (exception is IOException or InvalidDataException or ArgumentException)
 		{
