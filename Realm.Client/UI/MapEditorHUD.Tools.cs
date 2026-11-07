@@ -1226,6 +1226,30 @@ namespace Realm.Client.UI
 			var objGrid = GetNode<GridContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelObjectsVBox/ObjGrid_GridContainer");
 			var clipGrid = GetNode<GridContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelClipboard/ClipGrid_GridContainer");
 
+			BuildTerrainToolCards(terrainGrid);
+
+			_btnTextureBrush = CreateToolCardView(decoGrid, "BtnTextureBrush", UnicodeIcons.PAINT_BRUSH, "Paint", () => TriggerToolSelection(EditorTool.PaintTexture, _btnTextureBrush), "Paint terrain texture (8)");
+
+			_btnFloodFill = CreateToolCardView(decoGrid, "BtnFloodFill", UnicodeIcons.FILL_DRIP, "Flood Fill", () => TriggerToolSelection(EditorTool.FloodFill, _btnFloodFill), "Flood fill terrain texture");
+
+			BuildAreaAndPathingToolCards(clipGrid, pathGrid);
+
+			BuildObjectToolCards(objGrid);
+
+			BuildCoordinatePanel();
+
+			_btnCut = CreateToolCardView(clipGrid, "BtnCut", UnicodeIcons.SCISSORS, "Cut", () => GameContext.EditorService.CutSelectedArea(), "Cut selected area to clipboard (Ctrl+X)");
+
+			_btnCopy = CreateToolCardView(clipGrid, "BtnCopy", UnicodeIcons.COPY, "Copy", () => GameContext.EditorService.CopySelectedArea(), "Copy selected area to clipboard (Ctrl+C)");
+
+			_btnPaste = CreateToolCardView(clipGrid, "BtnPaste", UnicodeIcons.PASTE, "Paste", () => TriggerToolSelection(EditorTool.PasteArea, _btnPaste), "Paste clipboard contents onto terrain (Ctrl+V)");
+
+			_btnEraseArea = CreateToolCardView(clipGrid, "BtnEraseArea", UnicodeIcons.TRASH, "Erase Area", () => GameContext.EditorService.EraseSelectedArea(), "Erase heights, textures and objects within selection (Delete)");
+		}
+
+
+		private void BuildTerrainToolCards(GridContainer terrainGrid)
+		{
 			_btnRaise = CreateToolCardView(terrainGrid, "BtnRaise", UnicodeIcons.ARROW_UP, "Raise", () => TriggerToolSelection(EditorTool.Raise, _btnRaise), "Elevate terrain height (1)");
 
 			_btnLower = CreateToolCardView(terrainGrid, "BtnLower", UnicodeIcons.ARROW_DOWN, "Lower", () => TriggerToolSelection(EditorTool.Lower, _btnLower), "Lower terrain height (2)");
@@ -1241,17 +1265,21 @@ namespace Realm.Client.UI
 			_btnNoise = CreateToolCardView(terrainGrid, "BtnNoise", UnicodeIcons.NOISE, "Noise", () => TriggerToolSelection(EditorTool.Noise, _btnNoise), "Add random height variations/noise to terrain (7)");
 
 			_btnWater = CreateToolCardView(terrainGrid, "BtnWater", UnicodeIcons.WATER, "Water", () => TriggerToolSelection(EditorTool.Water, _btnWater), "Flood fill water mesh bounded by cliff walls (0)");
+		}
 
-			_btnTextureBrush = CreateToolCardView(decoGrid, "BtnTextureBrush", UnicodeIcons.PAINT_BRUSH, "Paint", () => TriggerToolSelection(EditorTool.PaintTexture, _btnTextureBrush), "Paint terrain texture (8)");
 
-			_btnFloodFill = CreateToolCardView(decoGrid, "BtnFloodFill", UnicodeIcons.FILL_DRIP, "Flood Fill", () => TriggerToolSelection(EditorTool.FloodFill, _btnFloodFill), "Flood fill terrain texture");
-
+		private void BuildAreaAndPathingToolCards(GridContainer clipGrid, GridContainer pathGrid)
+		{
 			_btnSelectArea = CreateToolCardView(clipGrid, "BtnSelectArea", UnicodeIcons.EXPAND_ARROWS, "Select Area", () => TriggerToolSelection(EditorTool.SelectArea, _btnSelectArea), "Select rectangular area");
 
 			_btnPathingBrush = CreateToolCardView(pathGrid, "BtnPathingBrush", UnicodeIcons.BRUSH_ALT, "Brush", () => TriggerToolSelection(EditorTool.PaintPathing, _btnPathingBrush), "Paint pathing attributes onto the terrain map");
 
 			_btnFloodFillPathing = CreateToolCardView(pathGrid, "BtnFloodFillPathing", UnicodeIcons.FILL_DRIP, "Flood Fill", () => TriggerToolSelection(EditorTool.FloodFillPathing, _btnFloodFillPathing), "Flood fill pathing attributes onto the terrain map");
+		}
 
+
+		private void BuildObjectToolCards(GridContainer objGrid)
+		{
 			_btnSelectMove = CreateToolCardView(objGrid, "BtnSelectMove", UnicodeIcons.MOVE, "Select/Move", () => TriggerToolSelection(EditorTool.SelectMove, _btnSelectMove), "Select and move units, props, or decals");
 
 			_btnAddObject = CreateToolCardView(objGrid, "BtnAddObject", UnicodeIcons.CUBE, "Add Object", () => _entityPaletteController?.TriggerAddObjectMode(), "Place units, props, or decals");
@@ -1263,7 +1291,11 @@ namespace Realm.Client.UI
 				else
 					TriggerToolSelection(EditorTool.DeleteObject, _btnDeleteObject);
 			}, "Erase units, props, or decals");
+		}
 
+
+		private void BuildCoordinatePanel()
+		{
 			_btnDrawCoordinate = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelCoordinatesVBox/BtnDrawCoordinate");
 			SetupButton(_btnDrawCoordinate, $"{UnicodeIcons.DRAW_POLYGON} DRAW COORD", () => TriggerToolSelection(EditorTool.DrawCoordinate, _btnDrawCoordinate), 11, "Drag to define a named coordinate box exposed as C# variables");
 
@@ -1295,15 +1327,8 @@ namespace Realm.Client.UI
 			};
 			_btnViewCoordinates = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelCoordinatesVBox/BtnViewCoordinates");
 			SetupOptionButton(_btnViewCoordinates, $"{UnicodeIcons.LIST} View Existing Coordinates", () => OpenInstanceManagerDialog("Coordinates"), 11, "Open instance manager to view and locate existing defined coordinates");
-
-			_btnCut = CreateToolCardView(clipGrid, "BtnCut", UnicodeIcons.SCISSORS, "Cut", () => GameContext.EditorService.CutSelectedArea(), "Cut selected area to clipboard (Ctrl+X)");
-
-			_btnCopy = CreateToolCardView(clipGrid, "BtnCopy", UnicodeIcons.COPY, "Copy", () => GameContext.EditorService.CopySelectedArea(), "Copy selected area to clipboard (Ctrl+C)");
-
-			_btnPaste = CreateToolCardView(clipGrid, "BtnPaste", UnicodeIcons.PASTE, "Paste", () => TriggerToolSelection(EditorTool.PasteArea, _btnPaste), "Paste clipboard contents onto terrain (Ctrl+V)");
-
-			_btnEraseArea = CreateToolCardView(clipGrid, "BtnEraseArea", UnicodeIcons.TRASH, "Erase Area", () => GameContext.EditorService.EraseSelectedArea(), "Erase heights, textures and objects within selection (Delete)");
 		}
+
 
 		private void BuildBrushAccordion()
 		{
