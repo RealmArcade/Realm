@@ -1520,7 +1520,7 @@ public partial class VSCodeManager
 				_vscodeProcess.StartInfo.EnvironmentVariables["VSCODE_EXTENSIONS_DIR"] = extensionsDir;
 				_vscodeProcess.StartInfo.EnvironmentVariables["REALM_IPC_PORT"] = _ipcHttpPort.ToString();
 				_vscodeProcess.StartInfo.EnvironmentVariables["_NO_DEBUG_HEAP"] = "1";
-				ApplyOpencodeEnvironmentVariables(_vscodeProcess.StartInfo);
+				OpencodeCliBootstrap.ApplyEnvironmentVariables(_vscodeProcess.StartInfo);
 				_vscodeProcess.Start();
 				EditorWindowIntegration.AddProcessToJob(_vscodeProcess);
 				EditorWindowIntegration.AttachWindowGrouping(_vscodeProcess);
@@ -1551,7 +1551,7 @@ public partial class VSCodeManager
 				}
 			}
 
-			_ = EnsureOpencodeCliInstalledAsync();
+			_ = OpencodeCliBootstrap.EnsureInstalledAsync();
 		}
 		catch (Exception ex)
 		{
@@ -1563,33 +1563,7 @@ public partial class VSCodeManager
 		}
 	}
 
-	private static async Task EnsureOpencodeCliInstalledAsync()
-	{
-		if (OpencodeCliResolver.IsAvailable())
-		{
-			return;
-		}
 
-		bool installed = await OpencodeCliInstaller.EnsureInstalledAsync();
-		if (!installed)
-		{
-			GameLog.LogError("[VSCodeManager] opencode CLI is unavailable. The OpenCode Panel extension cannot start its backend.");
-		}
-	}
-
-	private static void ApplyOpencodeEnvironmentVariables(ProcessStartInfo startInfo)
-	{
-		try
-		{
-			string opencodeDataDirectory = OpencodeCliResolver.GetDataDirectory();
-			Directory.CreateDirectory(opencodeDataDirectory);
-			startInfo.EnvironmentVariables["XDG_DATA_HOME"] = opencodeDataDirectory;
-		}
-		catch (Exception ex)
-		{
-			GameLog.LogError($"Failed to prepare opencode data directory: {ex.Message}");
-		}
-	}
 
 	public void SaveRecentMapDir(string dirPath)
 	{
