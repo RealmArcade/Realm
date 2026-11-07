@@ -130,28 +130,151 @@ public interface IHandleCommands
 	/// <param name="value">Seconds between attacks; raised to 0.01 when lower.</param>
 	void SetUnitAttackSpeed(UnitId unit, float value);
 
+	/// <summary>
+	/// Transfers ownership of the unit to a player slot, changing who its team, allies, vision and upkeep belong to.
+	/// </summary>
+	/// <remarks>
+	/// The slot must be one the current match has seated: the host ignores the assignment when the slot has no player
+	/// entity, so a map cannot invent an owner. The unit keeps its orders, position and health across the transfer; only
+	/// its allegiance changes, and the player's population count includes it from the next tick onward.
+	/// </remarks>
+	/// <param name="unit">The unit to transfer.</param>
+	/// <param name="playerIndex">Zero-based slot index of the new owner.</param>
 	void SetUnitOwner(UnitId unit, int playerIndex);
 
+	/// <summary>
+	/// Sets the unit's level, the number its overhead plate and progression use.
+	/// </summary>
+	/// <remarks>
+	/// Values below one are raised to one. The assignment also reapplies the level growth curve of the unit's own
+	/// template, so a script that levels a unit gets the same attribute gains that template defines rather than a bare
+	/// number change; a unit whose template has no curve keeps its attributes. It is not restricted to heroes.
+	/// </remarks>
+	/// <param name="unit">The unit whose level to change.</param>
+	/// <param name="level">The new level; raised to one when lower.</param>
 	void SetUnitLevel(UnitId unit, int level);
 
+	/// <summary>
+	/// Sets the unit's accumulated experience points.
+	/// </summary>
+	/// <remarks>
+	/// The value is stored as given, without clamping, and is the total the progression system compares against level
+	/// thresholds. It does not level the unit by itself: reaching a threshold on a later tick is what grants the level.
+	/// </remarks>
+	/// <param name="unit">The hero or unit whose experience to change.</param>
+	/// <param name="value">Total experience points; negative values are stored as given.</param>
 	void SetUnitExperience(UnitId unit, float value);
 
+	/// <summary>
+	/// Sets the unit's visual scale multiplier, resizing both the model and the collision shape it occupies.
+	/// </summary>
+	/// <remarks>
+	/// One is the size authored in the template. The value is applied without validation, so zero collapses the model
+	/// and its collision shape to nothing and negative values mirror it; a map that wants a unit larger or smaller
+	/// should stay above zero. The change is visible to every client from the next snapshot onward.
+	/// </remarks>
+	/// <param name="unit">The unit to resize.</param>
+	/// <param name="value">Scale factor applied to the model and collision shape.</param>
 	void SetUnitScale(UnitId unit, float value);
 
+	/// <summary>
+	/// Makes the unit immune to all damage, or removes that immunity.
+	/// </summary>
+	/// <remarks>
+	/// The flag suppresses damage from every source, including attacks, abilities and script damage, without affecting
+	/// orders or movement, so it composes with <see cref="SetUnitFrozen"/> to build invulnerable scenery. Setting it
+	/// again is a no-op rather than a stacked count, and false removes it cleanly.
+	/// </remarks>
+	/// <param name="unit">The unit to make immune.</param>
+	/// <param name="value">True for immunity to all damage; false to take damage normally again.</param>
 	void SetUnitInvulnerable(UnitId unit, bool value);
 
+	/// <summary>
+	/// Suspends or resumes the unit's animation playback, holding the model in one pose.
+	/// </summary>
+	/// <remarks>
+	/// Locomotion, attack, idle and death playback stop together with procedural sway, but the unit can still move,
+	/// attack and cast, so it slides while holding its pose. Combine this with <see cref="SetUnitCommandsFrozen"/> to
+	/// build a statue. The flag lives on the unit entity and survives level changes and element swaps until the entity
+	/// is destroyed or the animation is unfrozen.
+	/// </remarks>
+	/// <param name="unit">The unit whose animation to hold.</param>
+	/// <param name="value">True to hold the current pose; false to resume playback.</param>
 	void SetUnitAnimationsFrozen(UnitId unit, bool value);
 
+	/// <summary>
+	/// Makes the unit ignore movement, attack and hold orders, or accepts them again.
+	/// </summary>
+	/// <remarks>
+	/// A commands-frozen unit keeps its position, never acquires targets and ignores move, stop, hold and attack orders,
+	/// and clients hide those command buttons for it. Ability casting stays available, so map-authored abilities keep
+	/// working. Existing orders and targets are cleared when the unit freezes, and the flag lives on the unit entity, so
+	/// it survives level changes and element swaps until the entity is destroyed or the unit is unfrozen.
+	/// </remarks>
+	/// <param name="unit">The unit to freeze orders on.</param>
+	/// <param name="value">True to ignore movement and attack orders; false to accept them again.</param>
 	void SetUnitCommandsFrozen(UnitId unit, bool value);
 
+	/// <summary>
+	/// Pins the unit in place, or releases it again, by freezing its animation and its orders together.
+	/// </summary>
+	/// <remarks>
+	/// This sets both <see cref="SetUnitAnimationsFrozen"/> and <see cref="SetUnitCommandsFrozen"/> and clears the
+	/// unit's current path, so a frozen unit never moves, never turns in response to an order and holds one pose. The
+	/// call is idempotent and composes with <see cref="SetUnitInvulnerable"/>, facing and the health-bar visibility
+	/// flags. The state lives on the unit entity and survives level changes and swaps until the entity is destroyed or
+	/// the unit is unfrozen.
+	/// </remarks>
+	/// <param name="unit">The unit to pin in place.</param>
+	/// <param name="value">True to freeze the unit; false to let it act normally again.</param>
 	void SetUnitFrozen(UnitId unit, bool value);
 
+	/// <summary>
+	/// Shows or hides the unit's overhead health and mana bars.
+	/// </summary>
+	/// <remarks>
+	/// Hidden bars stay hidden in every display mode, including the modes that show bars for every living unit, which is
+	/// how a map makes scenery units that never advertise hit points. The flag lives on the unit entity and is gone when
+	/// the entity is destroyed.
+	/// </remarks>
+	/// <param name="unit">The unit whose bars to hide.</param>
+	/// <param name="value">True to never draw bars for the unit; false to draw them according to the player's setting.</param>
 	void SetUnitHideHealthAndManaBars(UnitId unit, bool value);
 
+	/// <summary>
+	/// Sets the direction the unit faces, as an absolute angle around the vertical axis.
+	/// </summary>
+	/// <remarks>
+	/// The angle is in radians and is not normalised, so any real value is accepted and equivalent angles behave
+	/// equivalently. It is a pose, not an order: the next move or attack order is free to turn the unit again, and a
+	/// commands-frozen unit keeps the pose because it accepts no such orders.
+	/// </remarks>
+	/// <param name="unit">The unit to turn.</param>
+	/// <param name="facingRadians">Facing angle in radians around the vertical axis.</param>
 	void SetUnitFacing(UnitId unit, float facingRadians);
 
+	/// <summary>
+	/// Sets the unit's display name, the instance name that distinguishes it from other units of the same template.
+	/// </summary>
+	/// <remarks>
+	/// The name is stored on the unit entity, so it follows the entity through level changes and element swaps and is
+	/// drawn wherever the unit's name is shown. A null value is stored as an empty name rather than clearing the
+	/// component, and an empty name is what <see cref="GetUnitInstanceName"/> returns for a unit that has never been named.
+	/// </remarks>
+	/// <param name="unit">The unit to name.</param>
+	/// <param name="value">The new display name; null is treated as empty.</param>
 	void SetUnitName(UnitId unit, string value);
 
+	/// <summary>
+	/// Reads the unit's display name, the instance name set through <see cref="SetUnitName"/> or by its spawn.
+	/// </summary>
+	/// <remarks>
+	/// The read is answered by the host rather than from the handle's own copy of the world, so it reflects the state
+	/// the authority had when the call was made. A unit that is dead, unknown to this process or never named answers an
+	/// empty string, which makes an empty result the test for "no such unit as far as the script is concerned" as well.
+	/// </remarks>
+	/// <param name="unit">The unit to read.</param>
+	/// <returns>The unit's display name, or an empty string when it has none or no longer exists.</returns>
 	string GetUnitInstanceName(UnitId unit);
 
 	void SetPlayerComputerControlled(int playerIndex, bool isProxy);
