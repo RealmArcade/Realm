@@ -157,49 +157,7 @@ namespace Realm.Client.UI
 
 				BuildInspectorAndPlacementAccordions();
 
-				TriggerToolSelection(EditorTool.Raise, _btnRaise);
-
-				_feedbackLabel.Modulate = new Color(1, 1, 1, 0);
-				Input.MouseMode = Input.MouseModeEnum.Visible;
-
-
-				_entityPaletteController = new MapEditorEntityPaletteController(this, _containerCategorySelector, _btnAddObject);
-
-				_topBarController = new MapEditorTopBar(_btnBackToHub, _btnPublish, _btnSave, _btnLoad, _btnUndo, _btnRedo, _btnEditors, _statusLabel, _feedbackLabel);
-				_brushSettingsController = new MapEditorBrushSettings(_sldBrushSize, _lblBrushSizeValue, _sldBrushStrength, _lblBrushStrengthValue, _chkBlockMode, _sldBlockStep, _lblBlockStepValue, _sldHeight, _lblHeightValue);
-				_placementSettingsController = new MapEditorPlacementSettings(_sldPlacementRotate, _lblPlacementRotateValue, _sldPlacementScale, _lblPlacementScaleValue, _chkRandomRotation, _chkRandomScale, _chkClumpMode, _sldClumpDensity, _lblClumpDensityValue, _sldClumpScaleVar, _lblClumpScaleVarValue);
-				InitializeInspectorPanel();
-				_inspectorController = new MapEditorInspector(_lblInspectorTitle, _lblInspectorPos, _btnInspectorRotLeft, _btnInspectorRotRight, _btnInspectorScaleDown, _btnInspectorScaleUp, _btnInspectorScaleReset, _btnInspectorDelete);
-				_pathingPanelController = new MapEditorPathingPanel(_chkShallowWater, _chkDeepWater, _chkFlying, _chkGround, _chkBuildable, _optPathingMode);
-
-				SetupMinimap();
-
-				_minimapController = new MapEditorMinimap(_minimapFrame, _minimapArea, _cameraIndicator, this);
-				RegenerateMinimap();
-
-				MakeCardDraggable(_accordionFile, _btnHeaderFile, _contentFile, "File");
-				MakeCardDraggable(_accordionViewport, _btnHeaderViewport, _contentViewport, "Viewport & Navigation");
-				MakeCardDraggable(_accordionTool, _btnHeaderTool, _contentTool, "Tool");
-				MakeCardDraggable(_accordionBrush, _btnHeaderBrush, _contentBrush, "Global Brush Properties");
-				MakeCardDraggable(_accordionToolSettings, _btnHeaderToolSettings, _contentToolSettings, "Tool Settings");
-				MakeCardDraggable(_accordionPlacement, _btnHeaderPlacement, _contentPlacement, "Placement Config");
-				MakeCardDraggable(_accordionInspector, _btnHeaderInspector, _contentInspector, "Selected Object Inspector");
-				if (_accordionWater != null) MakeCardDraggable(_accordionWater, _btnHeaderWater, _contentWater, "Liquid / Water Config");
-
-				RestructurePanelLayouts();
-
-				if (GameContext.Host != null)
-				{
-					UpdateRotationExternal(GameContext.EditorService.EditorPlacementRotation);
-					UpdateScaleExternal(GameContext.Host.EditorPlacementScale);
-					UpdateGridSnapExternal(GameContext.Host.EditorSnapToGrid);
-					UpdatePasteRotationExternal(GameContext.EditorService.EditorPasteRotation);
-					UpdatePasteReflectionExternal(GameContext.EditorService.EditorPasteReflection);
-					UpdateMirrorDropdowns();
-					UpdateSymmetrySpokesDropdowns();
-					UpdatePolarRadialStepButtonText();
-					UpdatePolarRingSpacingButtonText();
-				}
+				WireEditorControllers();
 
 				RestoreEditorSessionAfterReady();
 			}
@@ -338,6 +296,55 @@ namespace Realm.Client.UI
 			_sldPlacementScale.DragEnded += (valueChanged) => _isDraggingSlider = false;
 		}
 
+
+
+
+		private void WireEditorControllers()
+		{
+			TriggerToolSelection(EditorTool.Raise, _btnRaise);
+
+			_feedbackLabel.Modulate = new Color(1, 1, 1, 0);
+			Input.MouseMode = Input.MouseModeEnum.Visible;
+
+
+			_entityPaletteController = new MapEditorEntityPaletteController(this, _containerCategorySelector, _btnAddObject);
+
+			_topBarController = new MapEditorTopBar(_btnBackToHub, _btnPublish, _btnSave, _btnLoad, _btnUndo, _btnRedo, _btnEditors, _statusLabel, _feedbackLabel);
+			_brushSettingsController = new MapEditorBrushSettings(_sldBrushSize, _lblBrushSizeValue, _sldBrushStrength, _lblBrushStrengthValue, _chkBlockMode, _sldBlockStep, _lblBlockStepValue, _sldHeight, _lblHeightValue);
+			_placementSettingsController = new MapEditorPlacementSettings(_sldPlacementRotate, _lblPlacementRotateValue, _sldPlacementScale, _lblPlacementScaleValue, _chkRandomRotation, _chkRandomScale, _chkClumpMode, _sldClumpDensity, _lblClumpDensityValue, _sldClumpScaleVar, _lblClumpScaleVarValue);
+			InitializeInspectorPanel();
+			_inspectorController = new MapEditorInspector(_lblInspectorTitle, _lblInspectorPos, _btnInspectorRotLeft, _btnInspectorRotRight, _btnInspectorScaleDown, _btnInspectorScaleUp, _btnInspectorScaleReset, _btnInspectorDelete);
+			_pathingPanelController = new MapEditorPathingPanel(_chkShallowWater, _chkDeepWater, _chkFlying, _chkGround, _chkBuildable, _optPathingMode);
+
+			SetupMinimap();
+
+			_minimapController = new MapEditorMinimap(_minimapFrame, _minimapArea, _cameraIndicator, this);
+			RegenerateMinimap();
+
+			MakeCardDraggable(_accordionFile, _btnHeaderFile, _contentFile, "File");
+			MakeCardDraggable(_accordionViewport, _btnHeaderViewport, _contentViewport, "Viewport & Navigation");
+			MakeCardDraggable(_accordionTool, _btnHeaderTool, _contentTool, "Tool");
+			MakeCardDraggable(_accordionBrush, _btnHeaderBrush, _contentBrush, "Global Brush Properties");
+			MakeCardDraggable(_accordionToolSettings, _btnHeaderToolSettings, _contentToolSettings, "Tool Settings");
+			MakeCardDraggable(_accordionPlacement, _btnHeaderPlacement, _contentPlacement, "Placement Config");
+			MakeCardDraggable(_accordionInspector, _btnHeaderInspector, _contentInspector, "Selected Object Inspector");
+			if (_accordionWater != null) MakeCardDraggable(_accordionWater, _btnHeaderWater, _contentWater, "Liquid / Water Config");
+
+			RestructurePanelLayouts();
+
+			if (GameContext.Host != null)
+			{
+				UpdateRotationExternal(GameContext.EditorService.EditorPlacementRotation);
+				UpdateScaleExternal(GameContext.Host.EditorPlacementScale);
+				UpdateGridSnapExternal(GameContext.Host.EditorSnapToGrid);
+				UpdatePasteRotationExternal(GameContext.EditorService.EditorPasteRotation);
+				UpdatePasteReflectionExternal(GameContext.EditorService.EditorPasteReflection);
+				UpdateMirrorDropdowns();
+				UpdateSymmetrySpokesDropdowns();
+				UpdatePolarRadialStepButtonText();
+				UpdatePolarRingSpacingButtonText();
+			}
+		}
 
 
 		private void RestoreEditorSessionAfterReady()
