@@ -1991,12 +1991,37 @@ namespace Realm.Client.UI
 
 			SetInspectorVisibility();
 
+			UpdateInspectorViewModel(selected);
+
+			UpdateInspectorOwnerAndCoverage(selected);
+
+			UpdateRigStatusIndicator(selected);
+
+			UpdateInspectorActionVisibility(selected);
+		}
+
+
+		private void UpdateInspectorViewModel(Node selected)
+		{
 			Vector3 pos = selected is Node3D node3D ? node3D.Position : Vector3.Zero;
 			Vector3 rot = selected is Node3D node3DRot ? node3DRot.RotationDegrees : Vector3.Zero;
 			Vector3 scale = selected is Node3D node3DScale ? node3DScale.Scale : Vector3.One;
 
 			GetObjectDetails(selected, out string typeStr, out string idStr, out string nameStr);
 
+			if (_viewModel != null)
+			{
+				_viewModel.HasInspectorSelection = true;
+				_viewModel.InspectorTitle = idStr != null
+					? $"SELECTED: {nameStr}\n({idStr})\n[{typeStr}]"
+					: $"SELECTED: {nameStr}\n[{typeStr}]";
+				_viewModel.InspectorPos = $"Pos: {pos.X:F2}, {pos.Y:F2}, {pos.Z:F2}\nRot: {rot.Y:F1}° | Scale: {scale.X:F2}x";
+			}
+		}
+
+
+		private void UpdateInspectorOwnerAndCoverage(Node selected)
+		{
 			if (selected is Unit3D unitOwner && _playerOwnerContainer != null && _optPlayerOwner != null)
 			{
 				_playerOwnerContainer.Visible = true;
@@ -2016,16 +2041,11 @@ namespace Realm.Client.UI
 					_btnShowCoverage.Text = GameContext.Host.EditorCoverageOverlayEnabled ? TranslationServer.Translate("◉ VISION/ATTACK RANGES: ON") : TranslationServer.Translate("◉ VISION/ATTACK RANGES: OFF");
 				}
 			}
+		}
 
-			if (_viewModel != null)
-			{
-				_viewModel.HasInspectorSelection = true;
-				_viewModel.InspectorTitle = idStr != null
-					? $"SELECTED: {nameStr}\n({idStr})\n[{typeStr}]"
-					: $"SELECTED: {nameStr}\n[{typeStr}]";
-				_viewModel.InspectorPos = $"Pos: {pos.X:F2}, {pos.Y:F2}, {pos.Z:F2}\nRot: {rot.Y:F1}° | Scale: {scale.X:F2}x";
-			}
 
+		private void UpdateRigStatusIndicator(Node selected)
+		{
 			bool isUnitCharacter = (selected is Unit3D unitObj && !unitObj.IsBuilding);
 			if (isUnitCharacter)
 			{
@@ -2057,7 +2077,11 @@ namespace Realm.Client.UI
 			{
 				if (_rigStatusContainer != null) _rigStatusContainer.Visible = false;
 			}
+		}
 
+
+		private void UpdateInspectorActionVisibility(Node selected)
+		{
 			string assetKey = GameContext.Host.GetSelectedEntityOrAssetKey(selected);
 			bool isDecal = selected is Decal || (GameContext.Host != null && GameContext.Host.FindDecalInParentChain(selected) != null);
 			if (!string.IsNullOrEmpty(assetKey) && !isDecal && _btnOpenGlobalOverrides != null)
@@ -2074,6 +2098,7 @@ namespace Realm.Client.UI
 			}
 			else if (BtnEditVfx != null) BtnEditVfx.Visible = false;
 		}
+
 
 		public void UpdateGridSnapExternal(bool snap)
 		{
