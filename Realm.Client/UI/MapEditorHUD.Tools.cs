@@ -765,74 +765,7 @@ namespace Realm.Client.UI
 			InitializeEditingDirectory();
 
 
-			_popupOverlayMode = new PopupMenu();
-			_popupOverlayMode.Name = "PopupOverlayMode";
-			_popupOverlayMode.HideOnCheckableItemSelection = false;
-			_popupOverlayMode.AddCheckItem(TranslationServer.Translate("Grid") + " (V)", 0);
-			_popupOverlayMode.AddCheckItem(TranslationServer.Translate("Polar") + " (V)", 1);
-			_popupOverlayMode.AddCheckItem(TranslationServer.Translate("Camera Bounds"), 2);
-			_popupOverlayMode.AddCheckItem(TranslationServer.Translate("Wireframe") + " (F7)", 3);
-			StylePopupMenu(_popupOverlayMode);
-			_popupOverlayMode.IdPressed += (long id) =>
-			{
-				_popupOverlayMode.Hide();
-				if (GameContext.Host == null) return;
-				int idx = _popupOverlayMode.GetItemIndex((int)id);
-				if (idx < 0) return;
-				bool newChecked = !_popupOverlayMode.IsItemChecked(idx);
-				_popupOverlayMode.SetItemChecked(idx, newChecked);
-
-				if (id == 0 || id == 1)
-				{
-					int gridIdx = _popupOverlayMode.GetItemIndex(0);
-					int polarIdx = _popupOverlayMode.GetItemIndex(1);
-					bool gridOn = gridIdx >= 0 && _popupOverlayMode.IsItemChecked(gridIdx);
-					bool polarOn = polarIdx >= 0 && _popupOverlayMode.IsItemChecked(polarIdx);
-
-					var newMode = (gridOn, polarOn) switch
-					{
-						(true, true) => GridOverlayMode.Both,
-						(true, false) => GridOverlayMode.Grid,
-						(false, true) => GridOverlayMode.Polar,
-						(false, false) => GridOverlayMode.Off
-					};
-
-					GameContext.EditorService.EditorGridMode = newMode;
-					GameContext.Host.UpdateGridOverlayVisibility();
-					UpdateGridOverlayExternal(newMode);
-					string modeName = newMode switch
-					{
-						GridOverlayMode.Off => "OFF",
-						GridOverlayMode.Grid => "GRID",
-						GridOverlayMode.Polar => "POLAR",
-						GridOverlayMode.Both => "GRID + POLAR",
-						_ => "OFF"
-					};
-					ShowFeedback($"Overlay Mode: {modeName}");
-				}
-				else if (id == 2)
-				{
-					GameContext.EditorService.EditorCameraBoundsVisible = newChecked;
-					GameContext.Host.UpdateCameraBoundsOverlayVisibility();
-					UpdateCameraBoundsOverlayExternal(newChecked);
-					ShowFeedback(newChecked
-						? TranslationServer.Translate("Camera Bounds: ON")
-						: TranslationServer.Translate("Camera Bounds: OFF"));
-				}
-				else if (id == 3)
-				{
-					if (GameContext.Host.GroundTerrain != null)
-					{
-						GameContext.Host.GroundTerrain.ToggleWireframeMode();
-						bool isWireframe = GetViewport()?.DebugDraw == Viewport.DebugDrawEnum.Wireframe;
-						UpdateWireframeOverlayExternal(isWireframe);
-						ShowFeedback(isWireframe
-							? TranslationServer.Translate("Wireframe Mode: ON")
-							: TranslationServer.Translate("Wireframe Mode: OFF"));
-					}
-				}
-			};
-			AddChild(_popupOverlayMode);
+			BuildOverlayModePopup();
 
 			_btnToggleGrid = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/BoxViewportToolbar/ViewportIconRow1/BtnToggleGrid");
 			SetupButton(_btnToggleGrid, UnicodeIcons.BORDER_ALL, () => OpenOverlayModePopup(), 12, "Overlay");
@@ -1096,6 +1029,80 @@ namespace Realm.Client.UI
 
 			bottomBar.AddChild(_panelMeasurementHUD);
 		}
+
+
+		private void BuildOverlayModePopup()
+		{
+			_popupOverlayMode = new PopupMenu();
+			_popupOverlayMode.Name = "PopupOverlayMode";
+			_popupOverlayMode.HideOnCheckableItemSelection = false;
+			_popupOverlayMode.AddCheckItem(TranslationServer.Translate("Grid") + " (V)", 0);
+			_popupOverlayMode.AddCheckItem(TranslationServer.Translate("Polar") + " (V)", 1);
+			_popupOverlayMode.AddCheckItem(TranslationServer.Translate("Camera Bounds"), 2);
+			_popupOverlayMode.AddCheckItem(TranslationServer.Translate("Wireframe") + " (F7)", 3);
+			StylePopupMenu(_popupOverlayMode);
+			_popupOverlayMode.IdPressed += (long id) =>
+			{
+				_popupOverlayMode.Hide();
+				if (GameContext.Host == null) return;
+				int idx = _popupOverlayMode.GetItemIndex((int)id);
+				if (idx < 0) return;
+				bool newChecked = !_popupOverlayMode.IsItemChecked(idx);
+				_popupOverlayMode.SetItemChecked(idx, newChecked);
+
+				if (id == 0 || id == 1)
+				{
+					int gridIdx = _popupOverlayMode.GetItemIndex(0);
+					int polarIdx = _popupOverlayMode.GetItemIndex(1);
+					bool gridOn = gridIdx >= 0 && _popupOverlayMode.IsItemChecked(gridIdx);
+					bool polarOn = polarIdx >= 0 && _popupOverlayMode.IsItemChecked(polarIdx);
+
+					var newMode = (gridOn, polarOn) switch
+					{
+						(true, true) => GridOverlayMode.Both,
+						(true, false) => GridOverlayMode.Grid,
+						(false, true) => GridOverlayMode.Polar,
+						(false, false) => GridOverlayMode.Off
+					};
+
+					GameContext.EditorService.EditorGridMode = newMode;
+					GameContext.Host.UpdateGridOverlayVisibility();
+					UpdateGridOverlayExternal(newMode);
+					string modeName = newMode switch
+					{
+						GridOverlayMode.Off => "OFF",
+						GridOverlayMode.Grid => "GRID",
+						GridOverlayMode.Polar => "POLAR",
+						GridOverlayMode.Both => "GRID + POLAR",
+						_ => "OFF"
+					};
+					ShowFeedback($"Overlay Mode: {modeName}");
+				}
+				else if (id == 2)
+				{
+					GameContext.EditorService.EditorCameraBoundsVisible = newChecked;
+					GameContext.Host.UpdateCameraBoundsOverlayVisibility();
+					UpdateCameraBoundsOverlayExternal(newChecked);
+					ShowFeedback(newChecked
+						? TranslationServer.Translate("Camera Bounds: ON")
+						: TranslationServer.Translate("Camera Bounds: OFF"));
+				}
+				else if (id == 3)
+				{
+					if (GameContext.Host.GroundTerrain != null)
+					{
+						GameContext.Host.GroundTerrain.ToggleWireframeMode();
+						bool isWireframe = GetViewport()?.DebugDraw == Viewport.DebugDrawEnum.Wireframe;
+						UpdateWireframeOverlayExternal(isWireframe);
+						ShowFeedback(isWireframe
+							? TranslationServer.Translate("Wireframe Mode: ON")
+							: TranslationServer.Translate("Wireframe Mode: OFF"));
+					}
+				}
+			};
+			AddChild(_popupOverlayMode);
+		}
+
 
 		private void BuildToolAccordion()
 		{
