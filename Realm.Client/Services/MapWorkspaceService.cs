@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
@@ -385,10 +385,6 @@ public static partial class MapWorkspaceService
 		return Directory.Exists(templateRoot) ? templateRoot : null;
 	}
 
-	private const string MapApiDllRelativePath = "lib/Realm.MapAPI.dll";
-	private const string EcsDllRelativePath = "lib/Realm.Ecs.dll";
-	private const string EcsUsingItem = "<Using Include=\"Realm.Ecs\" />";
-
 	private static string FindBuiltApiDll()
 	{
 		string repoRoot = GetRepoRoot();
@@ -606,12 +602,12 @@ public static partial class MapWorkspaceService
 	{
 		if (!File.Exists(csprojPath))
 		{
-			File.WriteAllText(csprojPath, NormalizeMapApiReference(File.ReadAllText(templatePath)));
+			File.WriteAllText(csprojPath, MapProjectFileNormalizer.Normalize(File.ReadAllText(templatePath), MapProjectFileNormalizer.ResolveDefaultIlcLlvmTarget(GetTemplatePath("MapScript.csproj"))));
 			return;
 		}
 
 		string csprojContent = File.ReadAllText(csprojPath);
-		string normalized = NormalizeMapApiReference(csprojContent);
+		string normalized = MapProjectFileNormalizer.Normalize(csprojContent, MapProjectFileNormalizer.ResolveDefaultIlcLlvmTarget(GetTemplatePath("MapScript.csproj")));
 		if (normalized == csprojContent) return;
 
 		File.WriteAllText(csprojPath, normalized);
@@ -744,126 +740,6 @@ public static partial class MapWorkspaceService
 
 		File.WriteAllText(csprojPath, content);
 		GameLog.LogToConsole($"[MapWorkspaceService] Added TrimmerRootAssembly to {Path.GetFileName(csprojPath)}");
-	}
-
-	[GeneratedRegex(@"<ProjectReference\s+Include=""[^""]*Realm\.MapAPI\.csproj""[^>]*/>", RegexOptions.Singleline)]
-	private static partial Regex ProjectReferenceMapApiRegex();
-
-	[GeneratedRegex(@"<Reference\s+Include=""Realm\.MapAPI""\s*>.*?</Reference>", RegexOptions.Singleline)]
-	private static partial Regex ReferenceMapApiRegex();
-
-	[GeneratedRegex(@"<HintPath>[^<]*Realm\.MapAPI\.dll</HintPath>", RegexOptions.Singleline)]
-	private static partial Regex HintPathMapApiRegex();
-
-	[GeneratedRegex(@"<Reference\s+Include=""Realm\.Ecs""\s*>.*?</Reference>", RegexOptions.Singleline)]
-	private static partial Regex ReferenceEcsRegex();
-
-	[GeneratedRegex(@"<HintPath>[^<]*Realm\.Ecs\.dll</HintPath>", RegexOptions.Singleline)]
-	private static partial Regex HintPathEcsRegex();
-
-	[GeneratedRegex(@"<IlcLlvmTarget>\s*([^<\s]+)\s*</IlcLlvmTarget>", RegexOptions.IgnoreCase)]
-	private static partial Regex IlcLlvmTargetRegex();
-
-	[GeneratedRegex(@"<Target\s+Name=""ClearComponentWit""[^>]*>.*?</Target>", RegexOptions.Singleline)]
-	private static partial Regex ClearComponentWitTargetRegex();
-
-	public static string GetDefaultIlcLlvmTarget()
-	{
-		string templatePath = GetTemplatePath("MapScript.csproj");
-		if (!string.IsNullOrEmpty(templatePath) && File.Exists(templatePath))
-		{
-			string templateContent = File.ReadAllText(templatePath);
-			var match = IlcLlvmTargetRegex().Match(templateContent);
-			if (match.Success && !string.IsNullOrWhiteSpace(match.Groups[1].Value))
-			{
-				return match.Groups[1].Value.Trim();
-			}
-		}
-
-		return WasiSdkResolver.GetDefaultIlcLlvmTarget();
-	}
-
-	private static string NormalizeMapApiReference(string csprojContent)
-	{
-		csprojContent = csprojContent.Replace("\r\n", "\n");
-
-		string mapApiReference = $"<Reference Include=\"Realm.MapAPI\">\n      <HintPath>{MapApiDllRelativePath}</HintPath>\n    </Reference>";
-		string ecsReference = $"<Reference Include=\"Realm.Ecs\">\n      <HintPath>{EcsDllRelativePath}</HintPath>\n    </Reference>";
-
-		bool hasEcsReference = ReferenceEcsRegex().IsMatch(csprojContent);
-
-		csprojContent = ProjectReferenceMapApiRegex().Replace(csprojContent,
-			$"<Reference Include=\"Realm.MapAPI\">\n      <HintPath>{MapApiDllRelativePath}</HintPath>\n    </Reference>");
-
-		csprojContent = ReferenceMapApiRegex().Replace(csprojContent,
-			$"<Reference Include=\"Realm.MapAPI\">\n      <HintPath>{MapApiDllRelativePath}</HintPath>\n    </Reference>");
-
-		csprojContent = HintPathMapApiRegex().Replace(csprojContent,
-			$"<HintPath>{MapApiDllRelativePath}</HintPath>");
-
-		csprojContent = ReferenceEcsRegex().Replace(csprojContent, ecsReference);
-		csprojContent = HintPathEcsRegex().Replace(csprojContent, $"<HintPath>{EcsDllRelativePath}</HintPath>");
-
-		if (!hasEcsReference && csprojContent.Contains(mapApiReference, StringComparison.Ordinal))
-		{
-			csprojContent = csprojContent.Replace(mapApiReference, mapApiReference + "\n    " + ecsReference);
-		}
-
-		if (!csprojContent.Contains(EcsUsingItem, StringComparison.Ordinal))
-		{
-			string anchor = "<Using Include=\"Realm.Maps\" />";
-			if (csprojContent.Contains(anchor, StringComparison.Ordinal))
-				csprojContent = csprojContent.Replace(anchor, anchor + "\n    " + EcsUsingItem);
-			else if (csprojContent.Contains(ecsReference, StringComparison.Ordinal))
-				csprojContent = csprojContent.Replace(ecsReference, ecsReference + "\n    " + EcsUsingItem);
-		}
-
-		if (!csprojContent.Contains("TrimmerRootAssembly"))
-		{
-			csprojContent = csprojContent.Replace("</Project>",
-				"  <ItemGroup>\n    <TrimmerRootAssembly Include=\"$(MSBuildProjectName)\" />\n  </ItemGroup>\n</Project>");
-		}
-
-		string defaultTarget = GetDefaultIlcLlvmTarget();
-
-		if (IlcLlvmTargetRegex().IsMatch(csprojContent))
-		{
-			csprojContent = IlcLlvmTargetRegex().Replace(csprojContent,
-				$"<IlcLlvmTarget>{defaultTarget}</IlcLlvmTarget>");
-		}
-		else if (csprojContent.Contains("EnableAotLate", StringComparison.OrdinalIgnoreCase))
-		{
-			csprojContent = Regex.Replace(csprojContent, @"(<Target\s+Name=""EnableAotLate""[^>]*>\s*<PropertyGroup>)",
-				$"$1\n      <IlcLlvmTarget>{defaultTarget}</IlcLlvmTarget>", RegexOptions.IgnoreCase);
-		}
-		else
-		{
-			string aotTarget = $"  <Target Name=\"EnableAotLate\" BeforeTargets=\"ImportRuntimeIlcPackageTarget;IlcCompile;_ComputeAssembliesToCompileToNative\">\n    <PropertyGroup>\n      <PublishAot>true</PublishAot>\n      <IlcLlvmTarget>{defaultTarget}</IlcLlvmTarget>\n    </PropertyGroup>\n  </Target>\n";
-			int projectEnd = csprojContent.LastIndexOf("</Project>", StringComparison.OrdinalIgnoreCase);
-			csprojContent = projectEnd >= 0 ? csprojContent.Insert(projectEnd, aotTarget) : csprojContent + aotTarget;
-		}
-
-		string fixWasiLinkArgsTarget = "  <Target Name=\"FixWasiSdkLinkArgs\" BeforeTargets=\"LinkNative;LinkNativeLlvm\">\n    <PropertyGroup>\n      <IlcWasmGlobalBase>1048576</IlcWasmGlobalBase>\n    </PropertyGroup>\n    <ItemGroup>\n      <WasmComponentTypeWit Remove=\"@(WasmComponentTypeWit)\" />\n    </ItemGroup>\n  </Target>\n";
-
-		if (ClearComponentWitTargetRegex().IsMatch(csprojContent))
-		{
-			csprojContent = ClearComponentWitTargetRegex().Replace(csprojContent, fixWasiLinkArgsTarget.TrimEnd());
-		}
-		else if (csprojContent.Contains("FixWasiSdkLinkArgs", StringComparison.OrdinalIgnoreCase))
-		{
-			if (!csprojContent.Contains("IlcWasmGlobalBase", StringComparison.OrdinalIgnoreCase))
-			{
-				csprojContent = Regex.Replace(csprojContent, @"(<Target\s+Name=""FixWasiSdkLinkArgs""[^>]*>)",
-					"$1\n    <PropertyGroup>\n      <IlcWasmGlobalBase>1048576</IlcWasmGlobalBase>\n    </PropertyGroup>", RegexOptions.IgnoreCase);
-			}
-		}
-		else
-		{
-			int projectEnd = csprojContent.LastIndexOf("</Project>", StringComparison.OrdinalIgnoreCase);
-			csprojContent = projectEnd >= 0 ? csprojContent.Insert(projectEnd, fixWasiLinkArgsTarget) : csprojContent + fixWasiLinkArgsTarget;
-		}
-
-		return csprojContent;
 	}
 
 	public static void EnsureApiLib(string directory)
