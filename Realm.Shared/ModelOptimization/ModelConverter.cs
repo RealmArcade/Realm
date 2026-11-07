@@ -106,7 +106,7 @@ public static class ModelConverter
 	{
 		if (string.Equals(chromaKey, "auto", StringComparison.OrdinalIgnoreCase))
 		{
-			return GlbPlayerColorProcessor.AutoDetectChromaKey(finalGlbBytes) ?? "#FF00FF";
+			return GlbChromaKeyDetector.AutoDetectChromaKey(finalGlbBytes) ?? "#FF00FF";
 		}
 
 		if (string.IsNullOrEmpty(chromaKey))
@@ -114,7 +114,7 @@ public static class ModelConverter
 			string? existingKey = metaObj["chroma_key"]?.ToString() ?? metaObj["chromaKey"]?.ToString();
 			if (string.Equals(existingKey, "auto", StringComparison.OrdinalIgnoreCase))
 			{
-				return GlbPlayerColorProcessor.AutoDetectChromaKey(finalGlbBytes) ?? "#FF00FF";
+				return GlbChromaKeyDetector.AutoDetectChromaKey(finalGlbBytes) ?? "#FF00FF";
 			}
 
 			return existingKey ?? string.Empty;

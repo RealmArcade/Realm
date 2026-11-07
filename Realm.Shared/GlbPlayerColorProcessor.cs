@@ -24,14 +24,6 @@ public static class GlbPlayerColorProcessor
 		}
 	}
 
-	private static byte[]? GetGlbBytesFromSpan(ReadOnlySpan<byte> bytes)
-	{
-		if (!RmeshFile.IsRmeshBytes(bytes)) return bytes.ToArray();
-
-		byte[]? extractedGlb = RmeshFile.GetGlbBytes(bytes);
-		return (extractedGlb == null || extractedGlb.Length == 0) ? null : extractedGlb;
-	}
-
 	private static bool CheckOrmTeamColorMask(SKBitmap ormImg)
 	{
 		int maskCount = 0;
@@ -64,7 +56,7 @@ public static class GlbPlayerColorProcessor
 		if (glbOrRmeshBytes.Length == 0) return false;
 		try
 		{
-			byte[]? glbBytes = GetGlbBytesFromSpan(glbOrRmeshBytes);
+			byte[]? glbBytes = GlbChromaKeyDetector.GetGlbBytesFromSpan(glbOrRmeshBytes);
 			if (glbBytes == null) return false;
 
 			return DetectSupportsTeamColorFromGlb(glbBytes);
@@ -90,131 +82,18 @@ public static class GlbPlayerColorProcessor
 		int ormImageIndex = FindOrmImageIndex(textures, materials);
 		if (ormImageIndex < 0) return false;
 
-		byte[] ormRaw = ExtractImageBytes(ormImageIndex, images, bufferViews, binChunk);
+		byte[] ormRaw = GlbTextureResolver.ExtractImageBytes(ormImageIndex, images, bufferViews, binChunk);
 		if (ormRaw.Length == 0) return false;
 
 		using var ormImg = SKBitmap.Decode(ormRaw);
 		return CheckOrmTeamColorMask(ormImg);
 	}
 
-	private static string? AutoDetectChromaKeyFromModel(string filePath)
-	{
-		using var importer = new AssimpContext();
-		var scene = importer.ImportFile(filePath, PostProcessSteps.Triangulate | PostProcessSteps.GenerateNormals | PostProcessSteps.MakeLeftHanded | PostProcessSteps.FlipUVs);
-		string tempGlb = Path.Combine(Path.GetTempPath(), $"realm_detect_{Guid.NewGuid():N}.glb");
-		try
-		{
-			importer.ExportFile(scene, tempGlb, "glb2");
-			byte[] bytes = File.ReadAllBytes(tempGlb);
-			return AutoDetectChromaKey(bytes);
-		}
-		finally
-		{
-			if (File.Exists(tempGlb))
-				try
-				{
-					File.Delete(tempGlb);
-				}
-				catch
-				{
-				}
-		}
-	}
-
-	public static string? AutoDetectChromaKey(string filePath)
-	{
-		if (!File.Exists(filePath)) return null;
-		try
-		{
-			string ext = Path.GetExtension(filePath).ToLowerInvariant();
-			if (ext is ".obj" or ".fbx" or ".dae")
-			{
-				return AutoDetectChromaKeyFromModel(filePath);
-			}
-
-			return AutoDetectChromaKey(File.ReadAllBytes(filePath));
-		}
-		catch
-		{
-			return null;
-		}
-	}
-
-	public static string? AutoDetectChromaKey(ReadOnlySpan<byte> glbOrRmeshBytes)
-	{
-		if (glbOrRmeshBytes.Length == 0) return null;
-		try
-		{
-			byte[]? glbBytes = GetGlbBytesFromSpan(glbOrRmeshBytes);
-			if (glbBytes == null) return null;
-
-			return ExtractAlbedoAndDetectChroma(glbBytes);
-		}
-		catch
-		{
-			return null;
-		}
-	}
-
-	private static string? ExtractAlbedoAndDetectChroma(byte[] glbBytes)
-	{
-		var (jsonNode, binChunk, _) = GlbManifestUtils.ParseGlb(glbBytes);
-		if (jsonNode is not JsonObject root || binChunk == null) return null;
-
-		var textures = root["textures"] as JsonArray;
-		var materials = root["materials"] as JsonArray;
-		var images = root["images"] as JsonArray;
-		var bufferViews = root["bufferViews"] as JsonArray;
-
-		if (textures == null || materials == null || images == null || bufferViews == null) return null;
-
-		int albedoImageIndex = FindAlbedoImageIndex(textures, materials);
-		if (albedoImageIndex < 0) return null;
-
-		byte[] albedoRaw = ExtractImageBytes(albedoImageIndex, images, bufferViews, binChunk);
-		if (albedoRaw.Length == 0) return null;
-
-		using var albedoImg = SKBitmap.Decode(albedoRaw);
-		return AutoDetectChromaKey(albedoImg);
-	}
-
-	
-	private delegate void PixelOklabAction(SkiaSharp.SKColor pixel, float pL, float pA, float pB);
-
-	private static void IterateOklabPixels(SkiaSharp.SKBitmap albedoImg, PixelOklabAction action)
-	{
-		for (int y = 0; y < albedoImg.Height; y++)
-		{
-			for (int x = 0; x < albedoImg.Width; x++)
-			{
-				var pixel = albedoImg.GetPixel(x, y);
-				if (pixel.Alpha < 128) continue;
-
-				float r = pixel.Red / 255f;
-				float g = pixel.Green / 255f;
-				float b = pixel.Blue / 255f;
-
-				var (pL, pA, pB) = ConvertRgbToOklab(r, g, b);
-				action(pixel, pL, pA, pB);
-			}
-		}
-	}
-
-	public static string AutoDetectChromaKey(SKBitmap albedoImg)
-	{
-		string? result = DetectDominantChromaKeyWithThreshold(albedoImg, 0.15f);
-		if (result != null) return result;
-
-		result = DetectDominantChromaKeyWithThreshold(albedoImg, 0.10f);
-		if (result != null) return result;
-
-		return "#FF00FF";
-	}
 
 	private static int ProcessCandidatePixelsForChromaKey(SKBitmap albedoImg, float targetHueUnitX, float targetHueUnitY, Dictionary<int, int> candidateColorCounts)
 	{
 		int totalCandidatePixels = 0;
-		IterateOklabPixels(albedoImg, (pixel, pL, pA, pB) =>
+		GlbChromaKeyDetector.IterateOklabPixels(albedoImg, (pixel, pL, pA, pB) =>
 		{
 			float pChromaSquared = pA * pA + pB * pB;
 
@@ -251,7 +130,7 @@ public static class GlbPlayerColorProcessor
 		if (glbOrRmeshBytes.Length == 0) return null;
 		try
 		{
-			byte[]? glbBytes = GetGlbBytesFromSpan(glbOrRmeshBytes);
+			byte[]? glbBytes = GlbChromaKeyDetector.GetGlbBytesFromSpan(glbOrRmeshBytes);
 			if (glbBytes == null) return null;
 
 			var (jsonNode, binChunk, _) = GlbManifestUtils.ParseGlb(glbBytes);
@@ -262,10 +141,10 @@ public static class GlbPlayerColorProcessor
 				return null;
 			}
 
-			int albedoImageIndex = FindAlbedoImageIndex(textures, materials);
+			int albedoImageIndex = GlbTextureResolver.FindAlbedoImageIndex(textures, materials);
 			if (albedoImageIndex < 0) return null;
 
-			byte[] albedoRaw = ExtractImageBytes(albedoImageIndex, images, bufferViews, binChunk);
+			byte[] albedoRaw = GlbTextureResolver.ExtractImageBytes(albedoImageIndex, images, bufferViews, binChunk);
 			if (albedoRaw.Length == 0) return null;
 
 			using var albedoImg = SKBitmap.Decode(albedoRaw);
@@ -281,7 +160,7 @@ public static class GlbPlayerColorProcessor
 	{
 		if (string.IsNullOrWhiteSpace(inputChromaKey) || string.Equals(inputChromaKey, "auto", StringComparison.OrdinalIgnoreCase))
 		{
-			return AutoDetectChromaKey(albedoImg);
+			return GlbChromaKeyDetector.AutoDetectChromaKey(albedoImg);
 		}
 
 		string normalizedInput = inputChromaKey.Trim();
@@ -291,7 +170,7 @@ public static class GlbPlayerColorProcessor
 		}
 
 		var (targetR, targetG, targetB) = HexToRgb(normalizedInput);
-		var (targetL, targetA, targetBComponent) = ConvertRgbToOklab(targetR, targetG, targetB);
+		var (targetL, targetA, targetBComponent) = GlbChromaKeyDetector.ConvertRgbToOklab(targetR, targetG, targetB);
 		float targetChroma = MathF.Sqrt(targetA * targetA + targetBComponent * targetBComponent);
 
 		if (targetChroma < 0.01f)
@@ -343,155 +222,6 @@ public static class GlbPlayerColorProcessor
 		byte bestB = (byte)(bestRgbKey & 0xFF);
 
 		return $"#{bestR:X2}{bestG:X2}{bestB:X2}";
-	}
-
-	private static void PopulateChromaBins(
-		SKBitmap albedoImg, float minChroma,
-		float[] binTotalWeight, float[] binSumLightness,
-		float[] binSumA, float[] binSumB, int[] binPixelCount,
-		float minGridCoord, float cellSize, int gridDimension)
-	{
-		float minChromaSquared = minChroma * minChroma;
-		IterateOklabPixels(albedoImg, (pixel, pL, pA, pB) =>
-		{
-			float chromaSquared = pA * pA + pB * pB;
-			if (chromaSquared < minChromaSquared) return;
-			if (pL < 0.10f || pL > 0.95f) return;
-
-			int gridX = Math.Clamp((int)((pA - minGridCoord) / cellSize), 0, gridDimension - 1);
-			int gridY = Math.Clamp((int)((pB - minGridCoord) / cellSize), 0, gridDimension - 1);
-			int binIndex = gridY * gridDimension + gridX;
-
-			float weight = chromaSquared * chromaSquared;
-
-			binTotalWeight[binIndex] += weight;
-			binSumLightness[binIndex] += pL * weight;
-			binSumA[binIndex] += pA * weight;
-			binSumB[binIndex] += pB * weight;
-			binPixelCount[binIndex]++;
-		});
-	}
-
-	private static (int bestGridX, int bestGridY) FindBestChromaCluster(float[] binTotalWeight, int gridDimension)
-	{
-		float maximumClusterScore = 0f;
-		int bestGridX = -1;
-		int bestGridY = -1;
-
-		for (int gy = 0; gy < gridDimension; gy++)
-		{
-			for (int gx = 0; gx < gridDimension; gx++)
-			{
-				float clusterScore = CalculateClusterScore(gx, gy, binTotalWeight, gridDimension);
-
-				if (clusterScore > maximumClusterScore)
-				{
-					maximumClusterScore = clusterScore;
-					bestGridX = gx;
-					bestGridY = gy;
-				}
-			}
-		}
-
-		return (bestGridX, bestGridY);
-	}
-
-	private static float CalculateClusterScore(int gx, int gy, float[] binTotalWeight, int gridDimension)
-	{
-		float clusterScore = 0f;
-		for (int dy = -1; dy <= 1; dy++)
-		{
-			int ny = gy + dy;
-			if (ny < 0 || ny >= gridDimension) continue;
-
-			for (int dx = -1; dx <= 1; dx++)
-			{
-				int nx = gx + dx;
-				if (nx < 0 || nx >= gridDimension) continue;
-
-				clusterScore += binTotalWeight[ny * gridDimension + nx];
-			}
-		}
-
-		return clusterScore;
-	}
-
-	private static string? ComputeClusterAverageHex(
-		int bestGridX, int bestGridY, int gridDimension,
-		float[] binTotalWeight, float[] binSumLightness,
-		float[] binSumA, float[] binSumB, int[] binPixelCount)
-	{
-		float totalWindowWeight = 0f;
-		float totalWindowLightness = 0f;
-		float totalWindowA = 0f;
-		float totalWindowB = 0f;
-		int totalWindowPixels = 0;
-
-		for (int dy = -1; dy <= 1; dy++)
-		{
-			int ny = bestGridY + dy;
-			if (ny < 0 || ny >= gridDimension) continue;
-
-			for (int dx = -1; dx <= 1; dx++)
-			{
-				int nx = bestGridX + dx;
-				if (nx < 0 || nx >= gridDimension) continue;
-
-				int binIndex = ny * gridDimension + nx;
-				float weight = binTotalWeight[binIndex];
-				totalWindowWeight += weight;
-				totalWindowLightness += binSumLightness[binIndex];
-				totalWindowA += binSumA[binIndex];
-				totalWindowB += binSumB[binIndex];
-				totalWindowPixels += binPixelCount[binIndex];
-			}
-		}
-
-		if (totalWindowPixels >= 8 && totalWindowWeight > 0f)
-		{
-			float averageLightness = totalWindowLightness / totalWindowWeight;
-			float averageA = totalWindowA / totalWindowWeight;
-			float averageB = totalWindowB / totalWindowWeight;
-
-			var (r, g, b) = ConvertOklabToRgb(averageLightness, averageA, averageB);
-			byte byteR = (byte)Math.Clamp((int)(r * 255f + 0.5f), 0, 255);
-			byte byteG = (byte)Math.Clamp((int)(g * 255f + 0.5f), 0, 255);
-			byte byteB = (byte)Math.Clamp((int)(b * 255f + 0.5f), 0, 255);
-
-			return $"#{byteR:X2}{byteG:X2}{byteB:X2}";
-		}
-
-		return null;
-	}
-
-	private static string? DetectDominantChromaKeyWithThreshold(SKBitmap albedoImg, float minChroma)
-	{
-		const int gridDimension = 32;
-		const float minGridCoord = -0.40f;
-		const float maxGridCoord = +0.40f;
-		const float gridRange = maxGridCoord - minGridCoord;
-		const float cellSize = gridRange / gridDimension;
-
-		float[] binTotalWeight = new float[gridDimension * gridDimension];
-		float[] binSumLightness = new float[gridDimension * gridDimension];
-		float[] binSumA = new float[gridDimension * gridDimension];
-		float[] binSumB = new float[gridDimension * gridDimension];
-		int[] binPixelCount = new int[gridDimension * gridDimension];
-
-		PopulateChromaBins(
-			albedoImg, minChroma, binTotalWeight, binSumLightness, binSumA, binSumB, binPixelCount,
-			minGridCoord, cellSize, gridDimension);
-
-		var (bestGridX, bestGridY) = FindBestChromaCluster(binTotalWeight, gridDimension);
-
-		if (bestGridX >= 0 && bestGridY >= 0)
-		{
-			return ComputeClusterAverageHex(
-				bestGridX, bestGridY, gridDimension,
-				binTotalWeight, binSumLightness, binSumA, binSumB, binPixelCount);
-		}
-
-		return null;
 	}
 
 	public static GlbPlayerColorResult ProcessFile(
@@ -547,7 +277,7 @@ public static class GlbPlayerColorProcessor
 		string effectiveChromaKey = options.ChromaKey;
 		if (string.IsNullOrWhiteSpace(effectiveChromaKey) || string.Equals(effectiveChromaKey, "auto", StringComparison.OrdinalIgnoreCase))
 		{
-			string detectedKey = AutoDetectChromaKey(albedoImg) ?? "#FF00FF";
+			string detectedKey = GlbChromaKeyDetector.AutoDetectChromaKey(albedoImg) ?? "#FF00FF";
 			effectiveChromaKey = options.AutoCorrectChromaKey ? FindClosestMatchingChromaKey(albedoImg, detectedKey) ?? detectedKey : detectedKey;
 			options.ChromaKey = effectiveChromaKey;
 		}
@@ -677,7 +407,7 @@ public static class GlbPlayerColorProcessor
 			return (false, null, "GLB lacks required mesh/accessor data.", 0, 0, null);
 		}
 
-		int albedoImageIndex = FindAlbedoImageIndex(textures, materials);
+		int albedoImageIndex = GlbTextureResolver.FindAlbedoImageIndex(textures, materials);
 		if (albedoImageIndex < 0)
 		{
 			return (false, null, "No albedo/base-color texture found in the GLB.", 0, 0, null);
@@ -685,14 +415,14 @@ public static class GlbPlayerColorProcessor
 
 		int ormImageIndex = FindOrmImageIndex(textures, materials);
 
-		byte[] albedoRaw = ExtractImageBytes(albedoImageIndex, images, bufferViews, binChunk);
+		byte[] albedoRaw = GlbTextureResolver.ExtractImageBytes(albedoImageIndex, images, bufferViews, binChunk);
 		if (albedoRaw.Length == 0)
 		{
 			return (false, null, "Albedo image data could not be extracted from GLB.", 0, 0, null);
 		}
 
 		byte[] ormRaw = ormImageIndex >= 0
-			? ExtractImageBytes(ormImageIndex, images, bufferViews, binChunk)
+			? GlbTextureResolver.ExtractImageBytes(ormImageIndex, images, bufferViews, binChunk)
 			: Array.Empty<byte>();
 
 		using var albedoImg = SKBitmap.Decode(albedoRaw);
@@ -702,7 +432,7 @@ public static class GlbPlayerColorProcessor
 		string effectiveChromaKey = ResolveChromaKey(options, albedoImg);
 
 		(float targetR, float targetG, float targetB) = HexToRgb(effectiveChromaKey);
-		var (targetLightness, targetA, targetOklabB) = ConvertRgbToOklab(targetR, targetG, targetB);
+		var (targetLightness, targetA, targetOklabB) = GlbChromaKeyDetector.ConvertRgbToOklab(targetR, targetG, targetB);
 
 		using var ormImg = ormRaw.Length > 0
 			? SKBitmap.Decode(ormRaw)
@@ -765,7 +495,7 @@ public static class GlbPlayerColorProcessor
 		float g = pixel.Green / 255f;
 		float bVal = pixel.Blue / 255f;
 
-		var (pL, pA, pB) = ConvertRgbToOklab(r, g, bVal);
+		var (pL, pA, pB) = GlbChromaKeyDetector.ConvertRgbToOklab(r, g, bVal);
 		float deltaLightness = MathF.Abs(pL - targetLightness);
 		float deltaA = pA - targetA;
 		float deltaB = pB - targetOklabB;
@@ -1246,48 +976,6 @@ public static class GlbPlayerColorProcessor
 		}
 	}
 
-	private static (float Lightness, float A, float B) ConvertRgbToOklab(float r, float g, float b)
-	{
-		float rLinear = r <= 0.04045f ? r / 12.92f : MathF.Pow((r + 0.055f) / 1.055f, 2.4f);
-		float gLinear = g <= 0.04045f ? g / 12.92f : MathF.Pow((g + 0.055f) / 1.055f, 2.4f);
-		float bLinear = b <= 0.04045f ? b / 12.92f : MathF.Pow((b + 0.055f) / 1.055f, 2.4f);
-
-		float l = 0.4122214708f * rLinear + 0.5363325363f * gLinear + 0.0514459929f * bLinear;
-		float m = 0.2119034982f * rLinear + 0.6806995451f * gLinear + 0.1073969566f * bLinear;
-		float s = 0.0883024619f * rLinear + 0.2817188376f * gLinear + 0.6299787005f * bLinear;
-
-		float lRoot = MathF.Cbrt(l);
-		float mRoot = MathF.Cbrt(m);
-		float sRoot = MathF.Cbrt(s);
-
-		float lightness = 0.2104542553f * lRoot + 0.7936177850f * mRoot - 0.0040720468f * sRoot;
-		float a = 1.9779984951f * lRoot - 2.4285922050f * mRoot + 0.4505937099f * sRoot;
-		float bComponent = 0.0259040371f * lRoot + 0.7827717662f * mRoot - 0.8086757660f * sRoot;
-
-		return (lightness, a, bComponent);
-	}
-
-	private static (float R, float G, float B) ConvertOklabToRgb(float lightness, float a, float b)
-	{
-		float lRoot = lightness + 0.3963377774f * a + 0.2158037573f * b;
-		float mRoot = lightness - 0.1055613458f * a - 0.0638541728f * b;
-		float sRoot = lightness - 0.0894841775f * a - 1.2914855480f * b;
-
-		float l = lRoot * lRoot * lRoot;
-		float m = mRoot * mRoot * mRoot;
-		float s = sRoot * sRoot * sRoot;
-
-		float rLinear = +4.0767416621f * l - 3.3077115913f * m + 0.2309699292f * s;
-		float gLinear = -1.2684380046f * l + 2.6097574011f * m - 0.3413193965f * s;
-		float bLinear = -0.0041960863f * l - 0.7034186147f * m + 1.7076147010f * s;
-
-		float r = rLinear <= 0.0031308f ? 12.92f * rLinear : 1.055f * MathF.Pow(Math.Max(0.0f, rLinear), 1.0f / 2.4f) - 0.055f;
-		float g = gLinear <= 0.0031308f ? 12.92f * gLinear : 1.055f * MathF.Pow(Math.Max(0.0f, gLinear), 1.0f / 2.4f) - 0.055f;
-		float bComponent = bLinear <= 0.0031308f ? 12.92f * bLinear : 1.055f * MathF.Pow(Math.Max(0.0f, bLinear), 1.0f / 2.4f) - 0.055f;
-
-		return (Math.Clamp(r, 0.0f, 1.0f), Math.Clamp(g, 0.0f, 1.0f), Math.Clamp(bComponent, 0.0f, 1.0f));
-	}
-
 	private static (float Cb, float Cr) HexToBt601CbCr(string hex)
 	{
 		var (r, g, b) = HexToRgb(hex);
@@ -1407,21 +1095,6 @@ public static class GlbPlayerColorProcessor
 		}
 	}
 
-	public static int FindAlbedoImageIndex(JsonArray textures, JsonArray materials)
-	{
-		foreach (var mat in materials)
-		{
-			if (mat is not JsonObject matObj) continue;
-			if (matObj["pbrMetallicRoughness"] is not JsonObject pbr) continue;
-
-			int texIdx = GetTextureRefIndex(pbr, "baseColorTexture");
-			int imgIdx = ResolveTextureToImage(texIdx, textures);
-			if (imgIdx >= 0) return imgIdx;
-		}
-
-		return -1;
-	}
-
 	public static int FindOrmImageIndex(JsonArray textures, JsonArray materials)
 	{
 		foreach (var mat in materials)
@@ -1430,96 +1103,19 @@ public static class GlbPlayerColorProcessor
 
 			if (matObj["pbrMetallicRoughness"] is JsonObject pbr)
 			{
-				int texIdx = GetTextureRefIndex(pbr, "metallicRoughnessTexture");
-				int imgIdx = ResolveTextureToImage(texIdx, textures);
+				int texIdx = GlbTextureResolver.GetTextureRefIndex(pbr, "metallicRoughnessTexture");
+				int imgIdx = GlbTextureResolver.ResolveTextureToImage(texIdx, textures);
 				if (imgIdx >= 0) return imgIdx;
 			}
 
 			{
-				int texIdx = GetTextureRefIndex(matObj, "occlusionTexture");
-				int imgIdx = ResolveTextureToImage(texIdx, textures);
+				int texIdx = GlbTextureResolver.GetTextureRefIndex(matObj, "occlusionTexture");
+				int imgIdx = GlbTextureResolver.ResolveTextureToImage(texIdx, textures);
 				if (imgIdx >= 0) return imgIdx;
 			}
 		}
 
 		return -1;
-	}
-
-	public static int GetTextureRefIndex(JsonObject container, string propertyName)
-	{
-		if (!container.TryGetPropertyValue(propertyName, out var texVal)) return -1;
-		if (texVal is not JsonObject texObj) return -1;
-		return texObj["index"]?.GetValue<int>() ?? -1;
-	}
-
-	private static int GetImageSourceFromExtension(JsonObject texExt, string extensionName)
-	{
-		if (texExt[extensionName] is JsonObject extObj)
-		{
-			int src = extObj["source"]?.GetValue<int>() ?? -1;
-			if (src >= 0) return src;
-		}
-
-		return -1;
-	}
-
-	public static int ResolveTextureToImage(int textureIndex, JsonArray textures)
-	{
-		if (textureIndex < 0 || textureIndex >= textures.Count) return -1;
-		if (textures[textureIndex] is not JsonObject texObj) return -1;
-
-		if (texObj["extensions"] is JsonObject texExt)
-		{
-			int src = GetImageSourceFromExtension(texExt, "EXT_texture_webp");
-			if (src >= 0) return src;
-
-			src = GetImageSourceFromExtension(texExt, "KHR_texture_basisu");
-			if (src >= 0) return src;
-		}
-
-		return texObj["source"]?.GetValue<int>() ?? -1;
-	}
-
-	public static int GetImageBufferViewIndex(JsonObject imgObj)
-	{
-		if (imgObj.TryGetPropertyValue("bufferView", out var bvVal) && bvVal != null)
-		{
-			return bvVal.GetValue<int>();
-		}
-
-		if (imgObj["extensions"] is JsonObject imgExt)
-		{
-			if (imgExt["EXT_texture_webp"] is JsonObject webp && webp.TryGetPropertyValue("bufferView", out var webpBv) && webpBv != null)
-			{
-				return webpBv.GetValue<int>();
-			}
-
-			if (imgExt["KHR_texture_basisu"] is JsonObject basis && basis.TryGetPropertyValue("bufferView", out var basisBv) && basisBv != null)
-			{
-				return basisBv.GetValue<int>();
-			}
-		}
-
-		return -1;
-	}
-
-	public static byte[] ExtractImageBytes(int imageIndex, JsonArray images, JsonArray bufferViews, byte[] bin)
-	{
-		if (imageIndex < 0 || imageIndex >= images.Count) return Array.Empty<byte>();
-		if (images[imageIndex] is not JsonObject imgObj) return Array.Empty<byte>();
-
-		int bvIdx = GetImageBufferViewIndex(imgObj);
-		if (bvIdx < 0 || bvIdx >= bufferViews.Count) return Array.Empty<byte>();
-		if (bufferViews[bvIdx] is not JsonObject bv) return Array.Empty<byte>();
-
-		int byteOffset = GetJsonNodeIntValue(bv, "byteOffset", 0);
-		int byteLength = GetJsonNodeIntValue(bv, "byteLength", 0);
-
-		if (byteOffset + byteLength > bin.Length) return Array.Empty<byte>();
-
-		byte[] result = new byte[byteLength];
-		Array.Copy(bin, byteOffset, result, 0, byteLength);
-		return result;
 	}
 
 	private static SKBitmap CreateDefaultOrm(int width, int height)
@@ -1538,8 +1134,8 @@ public static class GlbPlayerColorProcessor
 			if (!retainedBvIndices.Contains(oldBvIdx)) continue;
 			if (bufferViews[oldBvIdx] is not JsonObject oldBv) continue;
 
-			int origOffset = GetJsonNodeIntValue(oldBv, "byteOffset", 0);
-			int origLength = GetJsonNodeIntValue(oldBv, "byteLength", 0);
+			int origOffset = GlbTextureResolver.GetJsonNodeIntValue(oldBv, "byteOffset", 0);
+			int origLength = GlbTextureResolver.GetJsonNodeIntValue(oldBv, "byteLength", 0);
 
 			while ((newBinStream.Position % 4) != 0) newBinStream.WriteByte(0);
 			int newOffset = (int)newBinStream.Position;
@@ -1642,7 +1238,7 @@ public static class GlbPlayerColorProcessor
 		int src = texObj["source"]?.GetValue<int>() ?? -1;
 		if (src < 0)
 		{
-			src = ResolveTextureToImage(textureIndex, textures);
+			src = GlbTextureResolver.ResolveTextureToImage(textureIndex, textures);
 			if (src >= 0 && src < images.Count)
 			{
 				texObj["source"] = src;
@@ -1770,16 +1366,16 @@ public static class GlbPlayerColorProcessor
 		if (accessorIndex < 0 || accessorIndex >= accessors.Count) return (false, 0, 0, 0, 0);
 		if (accessors[accessorIndex] is not JsonObject acc) return (false, 0, 0, 0, 0);
 
-		int bvIdx = GetJsonNodeIntValue(acc, "bufferView", -1);
-		int count = GetJsonNodeIntValue(acc, "count", 0);
-		int accessorByteOffset = GetJsonNodeIntValue(acc, "byteOffset", 0);
-		int componentType = GetJsonNodeIntValue(acc, "componentType", 5126);
+		int bvIdx = GlbTextureResolver.GetJsonNodeIntValue(acc, "bufferView", -1);
+		int count = GlbTextureResolver.GetJsonNodeIntValue(acc, "count", 0);
+		int accessorByteOffset = GlbTextureResolver.GetJsonNodeIntValue(acc, "byteOffset", 0);
+		int componentType = GlbTextureResolver.GetJsonNodeIntValue(acc, "componentType", 5126);
 
 		if (bvIdx < 0 || bvIdx >= bufferViews.Count) return (false, 0, 0, 0, 0);
 		if (bufferViews[bvIdx] is not JsonObject bv) return (false, 0, 0, 0, 0);
 
-		int bvByteOffset = GetJsonNodeIntValue(bv, "byteOffset", 0);
-		int bvStride = GetJsonNodeIntValue(bv, "byteStride", 0);
+		int bvByteOffset = GlbTextureResolver.GetJsonNodeIntValue(bv, "byteOffset", 0);
+		int bvStride = GlbTextureResolver.GetJsonNodeIntValue(bv, "byteStride", 0);
 
 		int stride = bvStride > 0 ? bvStride : defaultElementSize;
 		int baseOffset = bvByteOffset + accessorByteOffset;
@@ -1897,7 +1493,7 @@ public static class GlbPlayerColorProcessor
 		float g = gByte / 255f;
 		float b = bByte / 255f;
 
-		var (pL, pA, pB) = ConvertRgbToOklab(r, g, b);
+		var (pL, pA, pB) = GlbChromaKeyDetector.ConvertRgbToOklab(r, g, b);
 		float pChroma = MathF.Sqrt(pA * pA + pB * pB);
 		float hueDot = (pA * targetHueUnitX + pB * targetHueUnitY) / pChroma;
 
@@ -1909,16 +1505,6 @@ public static class GlbPlayerColorProcessor
 			bestScore = score;
 			bestRgbKey = rgbKey;
 		}
-	}
-
-	private static int GetJsonNodeIntValue(JsonObject obj, string propertyName, int defaultValue)
-	{
-		if (obj.TryGetPropertyValue(propertyName, out var propVal) && propVal != null)
-		{
-			return propVal.GetValue<int>();
-		}
-
-		return defaultValue;
 	}
 
 	private static void UpdateWebpExtensionBufferView(JsonObject imgObj, Dictionary<int, int> oldBvToNewBv)
@@ -1954,7 +1540,7 @@ public static class GlbPlayerColorProcessor
 			if (i == excludeImageIndex) continue;
 			if (images[i] is JsonObject imgObj)
 			{
-				int imgBv = GetImageBufferViewIndex(imgObj);
+				int imgBv = GlbTextureResolver.GetImageBufferViewIndex(imgObj);
 				if (imgBv >= 0 && imgBv < bufferViews.Count) retainedBvIndices.Add(imgBv);
 			}
 		}

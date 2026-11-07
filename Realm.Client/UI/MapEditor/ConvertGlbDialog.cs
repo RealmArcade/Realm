@@ -309,7 +309,7 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 			return;
 		}
 
-		string? detectedKey = GlbPlayerColorProcessor.AutoDetectChromaKey(sourcePath);
+		string? detectedKey = GlbChromaKeyDetector.AutoDetectChromaKey(sourcePath);
 		if (string.IsNullOrEmpty(detectedKey))
 		{
 			Hud?.ShowFeedback(TranslationServer.Translate("No dominant mask color detected."));

@@ -229,7 +229,7 @@ public static class GlbInMemoryColorPreprocessor
 		JsonArray textures, JsonArray materials, JsonArray images, JsonArray bufferViews, byte[] binChunk,
 		out int albedoImageIndex, out byte[] albedoRaw, out byte[] ormRaw)
 	{
-		albedoImageIndex = GlbPlayerColorProcessor.FindAlbedoImageIndex(textures, materials);
+		albedoImageIndex = GlbTextureResolver.FindAlbedoImageIndex(textures, materials);
 		int ormImageIndex = GlbPlayerColorProcessor.FindOrmImageIndex(textures, materials);
 
 		if (albedoImageIndex < 0 || ormImageIndex < 0)
@@ -239,8 +239,8 @@ public static class GlbInMemoryColorPreprocessor
 			return false;
 		}
 
-		albedoRaw = GlbPlayerColorProcessor.ExtractImageBytes(albedoImageIndex, images, bufferViews, binChunk);
-		ormRaw = GlbPlayerColorProcessor.ExtractImageBytes(ormImageIndex, images, bufferViews, binChunk);
+		albedoRaw = GlbTextureResolver.ExtractImageBytes(albedoImageIndex, images, bufferViews, binChunk);
+		ormRaw = GlbTextureResolver.ExtractImageBytes(ormImageIndex, images, bufferViews, binChunk);
 
 		return albedoRaw.Length > 0 && ormRaw.Length > 0;
 	}
@@ -666,7 +666,7 @@ public static class GlbInMemoryColorPreprocessor
 			if (i == albedoImageIndex) continue;
 			if (images[i] is JsonObject imgObj)
 			{
-				int imgBv = GlbPlayerColorProcessor.GetImageBufferViewIndex(imgObj);
+				int imgBv = GlbTextureResolver.GetImageBufferViewIndex(imgObj);
 				if (imgBv >= 0 && imgBv < bufferViewsCount)
 				{
 					retained.Add(imgBv);
@@ -824,7 +824,7 @@ public static class GlbInMemoryColorPreprocessor
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private static int ResolveMissingTextureSource(int textureIndex, JsonArray textures, int imagesCount)
 	{
-		int src = GlbPlayerColorProcessor.ResolveTextureToImage(textureIndex, textures);
+		int src = GlbTextureResolver.ResolveTextureToImage(textureIndex, textures);
 		if (src >= 0 && src < imagesCount) return src;
 		return imagesCount > 0 ? 0 : -1;
 	}
