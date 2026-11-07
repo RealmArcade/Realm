@@ -662,7 +662,21 @@ public partial class StorageMenu : Control
 		GameContext.UserInterface?.TransitionTo(GameScreen.MapEditorHUD);
 	}
 
+	// Both are selected from the storage list and neither had a catch: a fault in one was unobserved, and the second
+	// leaves the update button disabled, because it disables it before awaiting the download.
 	private async void CheckForServerUpdatesAsync(DownloadedMapInfo map)
+	{
+		try
+		{
+			await CheckForServerUpdatesCoreAsync(map);
+		}
+		catch (Exception exception)
+		{
+			GameLog.LogError($"[StorageMenu] Checking '{map.Title}' for a newer server version failed: {exception}");
+		}
+	}
+
+	private async Task CheckForServerUpdatesCoreAsync(DownloadedMapInfo map)
 	{
 		var localVersions = map.Versions.Select(v => v.Version).ToList();
 		var (hasNewer, newerVer, mapId) = await GameContext.MapStorageService.CheckForNewerVersionAsync(map.Title, localVersions);
@@ -679,6 +693,18 @@ public partial class StorageMenu : Control
 	}
 
 	private async void OnDownloadUpdatePressed()
+	{
+		try
+		{
+			await DownloadMapUpdateAsync();
+		}
+		catch (Exception exception)
+		{
+			GameLog.LogError($"[StorageMenu] Downloading the map update failed: {exception}");
+		}
+	}
+
+	private async Task DownloadMapUpdateAsync()
 	{
 		if (_selectedMap == null || string.IsNullOrEmpty(_selectedMap.ServerMapId))
 		{
