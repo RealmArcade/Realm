@@ -1982,6 +1982,12 @@ public class ListenServerHost : IServerTransportSink
 	/// </summary>
 	private bool IsRefreshDue(int peerId, long tick)
 	{
+		// A peer that has not answered once is not a peer that has stopped answering: it is a screen that is still
+		// loading the world it was handed, and it cannot acknowledge until it has applied something. Counting that load
+		// as a stall described the whole world to every screen joining in turn, once a second for as long as it loaded,
+		// which is where both the baseline traffic and the delay of joining came from.
+		if (!_acknowledgedSequencePerPeer.ContainsKey(peerId)) return false;
+
 		return _lastAcknowledgedProgressTickPerPeer.TryGetValue(peerId, out long lastProgressTick) && tick - lastProgressTick >= SnapshotRefreshStallTicks;
 	}
 
