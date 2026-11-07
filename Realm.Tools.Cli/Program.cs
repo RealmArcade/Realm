@@ -59,7 +59,7 @@ public static class Program
 				(RanimRenderOptions options) => ExecuteRanimRender(options),
 				(MetadataOptions options) => MetadataCommands.Execute(options),
 				(Blake3Options options) => Blake3Command.Execute(options),
-				(MeshPlayerColorCliOptions options) => ExecuteMeshPlayerColor(options),
+				(MeshPlayerColorCliOptions options) => MeshPlayerColorCommand.Execute(options),
 				(RigHumanoidOptions options) => ExecuteRigHumanoid(options),
 				(KeygenOptions options) => ExecuteKeygen(options),
 				(GenerateManifestSchemaOptions options) => ExecuteGenerateManifestSchema(options),
@@ -290,217 +290,6 @@ public static class Program
 		}
 	}
 
-	private static int ExecuteMeshPlayerColor(MeshPlayerColorCliOptions options)
-	{
-		if (!string.IsNullOrWhiteSpace(options.AssetType))
-		{
-			if (!RealmMetadataHelper.IsValidAssetTypeForExtension(".rmesh", options.AssetType, out string canonical, out var validTypes))
-			{
-				Console.Error.WriteLine($"Error: Invalid asset_type '{options.AssetType}' for 3D model. Valid asset_type values for .rmesh/.glb are: {string.Join(", ", validTypes)}.");
-				return 1;
-			}
-
-			options.AssetType = canonical;
-		}
-
-		var processorOptions = new GlbPlayerColorOptions
-		{
-			ChromaKey = options.ChromaKey,
-			AutoCorrectChromaKey = options.AutoCorrectChromaKey,
-			CoreThreshold = options.CoreThreshold,
-			FringeThreshold = options.FringeThreshold,
-			MinClusterFaces = options.MinClusterFaces,
-			DilationRadius = options.DilationRadius,
-			CreaseAngleDegrees = options.CreaseAngleDegrees
-		};
-
-		return CliFileSet.ProcessTraversedFiles(
-			options.Input,
-			options.Output,
-			options.Recursive,
-			options.InPlace,
-			file => file.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) || file.EndsWith(".glb", StringComparison.OrdinalIgnoreCase),
-			_ => ".rmesh",
-			(inputFile, targetFile) => ProcessSingleMeshPlayerColor(inputFile, targetFile, processorOptions, options.AssetType, options.InPlace),
-			customPathResolver: (inputRoot, currentFile) =>
-			{
-				if (Directory.Exists(inputRoot))
-				{
-					if (options.InPlace || string.IsNullOrEmpty(options.Output))
-					{
-						return ResolveMeshPlayerColorOutputPath(currentFile, null, options.InPlace);
-					}
-
-					string relativePath = Path.GetRelativePath(inputRoot, currentFile);
-					string relativeTarget = Path.ChangeExtension(relativePath, ".rmesh");
-					return Path.Combine(options.Output, relativeTarget);
-				}
-
-				return ResolveMeshPlayerColorOutputPath(currentFile, options.Output, options.InPlace);
-			},
-			summaryActionName: "mesh player color processing");
-	}
-
-	private static int ProcessSingleMeshPlayerColor(
-		string inputPath,
-		string outputPath,
-		GlbPlayerColorOptions processorOptions,
-		string? assetType = null,
-		bool inPlace = false)
-	{
-		if (!outputPath.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase))
-		{
-			outputPath = Path.ChangeExtension(outputPath, ".rmesh");
-		}
-
-		Console.WriteLine($"Processing: {inputPath} -> {outputPath}");
-
-		try
-		{
-			var (sourceGlbBytes, existingMeta) = ExtractInputBytesAndMetadata(inputPath);
-
-			var (success, processedGlbBytes, errorMessage, maskedFaces, totalFaces, detectedKey) =
-				GlbPlayerColorProcessor.ProcessBytes(sourceGlbBytes, processorOptions);
-
-			if (!success || processedGlbBytes == null)
-			{
-				Console.Error.WriteLine($"  Failed player-color processing: {errorMessage}");
-				return 1;
-			}
-
-			string resolvedChromaKey = detectedKey ?? processorOptions.ChromaKey;
-			Console.WriteLine($"  Player-color mask applied (masked faces: {maskedFaces}/{totalFaces}, chroma key: {resolvedChromaKey})");
-
-			EnsureDirectoryForFile(outputPath);
-
-			var (targetAssetType, targetAuthor) = ExtractAssetTypeAndAuthor(existingMeta, assetType);
-
-			return RepackAndSaveRmesh(inputPath, outputPath, processedGlbBytes, targetAssetType, targetAuthor, resolvedChromaKey, existingMeta, inPlace);
-		}
-		catch (Exception ex)
-		{
-			Console.Error.WriteLine($"  Failed to process {inputPath}: {ex.Message}");
-			return 1;
-		}
-	}
-
-	private static int RepackAndSaveRmesh(string inputPath, string outputPath, byte[] processedGlbBytes, string? targetAssetType, string? targetAuthor, string resolvedChromaKey, string? existingMeta, bool inPlace)
-	{
-		var convResult = ModelConverter.ConvertToRmesh(
-			processedGlbBytes,
-			inputPath,
-			targetAssetType,
-			force: false,
-			author: targetAuthor,
-			chromaKey: resolvedChromaKey,
-			existingMetadataJson: existingMeta);
-
-		if (!convResult.Success || convResult.OutputBytes == null)
-		{
-			Console.Error.WriteLine($"  Failed to repack into RMESH: {convResult.ErrorMessage}");
-			return 1;
-		}
-
-		File.WriteAllBytes(outputPath, convResult.OutputBytes);
-		Console.WriteLine($"  Successfully saved RMESH: {outputPath} ({convResult.OptimizedSize} bytes)");
-
-		TryDeleteInPlaceOriginal(inPlace, inputPath, outputPath);
-
-		return 0;
-	}
-
-	private static void EnsureDirectoryForFile(string filePath)
-	{
-		string? outDir = Path.GetDirectoryName(filePath);
-		if (!string.IsNullOrEmpty(outDir) && !Directory.Exists(outDir)) Directory.CreateDirectory(outDir);
-	}
-
-	private static void TryDeleteInPlaceOriginal(bool inPlace, string inputPath, string outputPath)
-	{
-		if (inPlace && !string.Equals(inputPath, outputPath, StringComparison.OrdinalIgnoreCase) && File.Exists(inputPath))
-		{
-			try
-			{
-				File.Delete(inputPath);
-			}
-			catch (Exception exception)
-			{
-				Console.Error.WriteLine($"  Warning: converted in place but could not delete the source {inputPath}: {exception.Message}");
-			}
-		}
-	}
-
-	private static (byte[] glbBytes, string? metadata) ExtractInputBytesAndMetadata(string inputPath)
-	{
-		string inputExt = Path.GetExtension(inputPath).ToLowerInvariant();
-		bool isRmeshInput = inputExt == ".rmesh";
-
-		if (isRmeshInput)
-		{
-			byte[] rmeshBytes = File.ReadAllBytes(inputPath);
-			var (meta, glbBytes, _) = RmeshFile.Parse(rmeshBytes);
-			return (glbBytes, meta);
-		}
-
-		return (File.ReadAllBytes(inputPath), null);
-	}
-
-	private static JsonNode? TryParseMeta(string? existingMeta)
-	{
-		if (string.IsNullOrEmpty(existingMeta)) return null;
-
-		try
-		{
-			return JsonNode.Parse(existingMeta);
-		}
-		catch
-		{
-			return null;
-		}
-	}
-
-	private static void UpdateAssetTypeAndAuthor(JsonNode node, ref string? targetAssetType, ref string? targetAuthor)
-	{
-		if (node is not JsonObject) return;
-		targetAssetType ??= node["asset_type"]?.ToString();
-		targetAuthor ??= node["author"]?.ToString();
-	}
-
-	private static (string? assetType, string? author) ExtractAssetTypeAndAuthor(string? existingMeta, string? explicitAssetType)
-	{
-		string? targetAssetType = string.IsNullOrWhiteSpace(explicitAssetType) ? null : explicitAssetType;
-		string? targetAuthor = null;
-
-		JsonNode? node = TryParseMeta(existingMeta);
-		if (node != null)
-		{
-			UpdateAssetTypeAndAuthor(node, ref targetAssetType, ref targetAuthor);
-		}
-
-		return (targetAssetType, targetAuthor);
-	}
-
-	private static string ResolveMeshPlayerColorOutputPath(string inputPath, string? explicitOutput, bool inPlace)
-	{
-		if (inPlace) return Path.ChangeExtension(inputPath, ".rmesh");
-		if (!string.IsNullOrEmpty(explicitOutput))
-		{
-			if (Directory.Exists(explicitOutput) ||
-			    explicitOutput.EndsWith(Path.DirectorySeparatorChar) ||
-			    explicitOutput.EndsWith(Path.AltDirectorySeparatorChar))
-			{
-				string nameWithoutExt = Path.GetFileNameWithoutExtension(inputPath);
-				return Path.Combine(explicitOutput, $"{nameWithoutExt}_masked.rmesh");
-			}
-
-			return Path.ChangeExtension(explicitOutput, ".rmesh");
-		}
-
-		string dir = Path.GetDirectoryName(inputPath) ?? string.Empty;
-		string nameWithoutExtDefault = Path.GetFileNameWithoutExtension(inputPath);
-		return Path.Combine(dir, $"{nameWithoutExtDefault}_masked.rmesh");
-	}
-
 	private static int ExecuteRigHumanoid(RigHumanoidOptions options)
 	{
 		if (!string.IsNullOrWhiteSpace(options.AssetType))
@@ -574,7 +363,7 @@ public static class Program
 	private static int ProcessRiggedOutput(string inputPath, string targetOutput, string tempGlbOutput, string? existingMeta, RigHumanoidOptions options)
 	{
 		byte[] riggedGlb = File.ReadAllBytes(tempGlbOutput);
-		EnsureDirectoryForFile(targetOutput);
+		RmeshIo.EnsureDirectoryForFile(targetOutput);
 
 		bool isRmeshOutput = Path.GetExtension(targetOutput).Equals(".rmesh", StringComparison.OrdinalIgnoreCase);
 
@@ -590,7 +379,7 @@ public static class Program
 			Console.WriteLine($"Successfully rigged and saved GLB: {targetOutput}");
 		}
 
-		TryDeleteInPlaceOriginal(options.InPlace, inputPath, targetOutput);
+		RmeshIo.TryDeleteInPlaceOriginal(options.InPlace, inputPath, targetOutput);
 		return 0;
 	}
 
@@ -621,7 +410,7 @@ public static class Program
 
 	private static int SaveRiggedRmesh(byte[] riggedGlb, string inputPath, string targetOutput, RigHumanoidOptions options, string? existingMeta)
 	{
-		var (extractedType, targetAuthor) = ExtractAssetTypeAndAuthor(existingMeta, options.AssetType);
+		var (extractedType, targetAuthor) = RmeshIo.ExtractAssetTypeAndAuthor(existingMeta, options.AssetType);
 		string targetAssetType = extractedType ?? "Character";
 
 		var convRes = ModelConverter.ConvertToRmesh(
