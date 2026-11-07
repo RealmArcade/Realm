@@ -781,10 +781,45 @@ namespace Realm.Client.UI
 
 		public async Task<bool> ImportMapArchiveAsync(string archivePath)
 		{
+			string workspacePath = ResolveImportWorkspace(archivePath);
+			if (workspacePath == null) return false;
+
+			if (!EnsureArchiveHasManifest(archivePath)) return false;
+
+			GameContext.Host?.ClearMapEntirely();
+			GameContext.EditorService.IsSyncing = true;
+
+			ShowFeedback(TranslationServer.Translate("Extracting map package into the editor workspace..."));
+
+			if (!await ExtractArchiveToWorkspaceAsync(archivePath, workspacePath))
+			{
+				GameContext.EditorService.IsSyncing = false;
+				return false;
+			}
+
+			if (!ValidateImportedMapFolder(workspacePath))
+			{
+				GameContext.EditorService.IsSyncing = false;
+				return false;
+			}
+
+			bool canProceed = await PromptAndUpgradeMapIfNeededAsync(workspacePath);
+			if (!canProceed)
+			{
+				ShowFeedback(TranslationServer.Translate("Map loading cancelled."));
+				GameContext.EditorService.IsSyncing = false;
+				return false;
+			}
+
+			return await LoadImportedWorkspaceAsync(workspacePath);
+		}
+
+		private string ResolveImportWorkspace(string archivePath)
+		{
 			if (string.IsNullOrWhiteSpace(archivePath) || !File.Exists(archivePath))
 			{
 				ShowFeedback(TranslationServer.Translate("Map package could not be imported: the file does not exist."));
-				return false;
+				return null;
 			}
 
 			string workspacePath = GameContext.EditorService._editingDirectory;
@@ -797,20 +832,25 @@ namespace Realm.Client.UI
 			if (string.IsNullOrEmpty(workspacePath))
 			{
 				ShowFeedback(TranslationServer.Translate("The editor workspace is not available."));
-				return false;
+				return null;
 			}
 
+			return workspacePath;
+		}
+
+		private bool EnsureArchiveHasManifest(string archivePath)
+		{
 			var (manifestJson, _) = MapArchiveHelper.ReadManifestFromArchive(archivePath);
 			if (string.IsNullOrWhiteSpace(manifestJson))
 			{
 				ShowFeedback(TranslationServer.Translate("The map package does not contain a readable map."));
 				return false;
 			}
+			return true;
+		}
 
-			GameContext.Host?.ClearMapEntirely();
-			GameContext.EditorService.IsSyncing = true;
-
-			ShowFeedback(TranslationServer.Translate("Extracting map package into the editor workspace..."));
+		private async Task<bool> ExtractArchiveToWorkspaceAsync(string archivePath, string workspacePath)
+		{
 			try
 			{
 				await Task.Run(() =>
@@ -824,15 +864,17 @@ namespace Realm.Client.UI
 			{
 				GameLog.LogError($"[MapEditorHUD] Failed to extract map package {archivePath}: {ex}");
 				ShowFeedback(string.Format(TranslationServer.Translate("Failed to extract the map package: {0}"), ex.Message));
-				GameContext.EditorService.IsSyncing = false;
 				return false;
 			}
+			return true;
+		}
 
+		private bool ValidateImportedMapFolder(string workspacePath)
+		{
 			if (!GameContext.EditorService.IsValidMapFolder(workspacePath))
 			{
 				ShowInvalidMapFolderErrorDialog(workspacePath);
 				ShowFeedback(TranslationServer.Translate("The map package does not contain a readable map."));
-				GameContext.EditorService.IsSyncing = false;
 				return false;
 			}
 
@@ -840,18 +882,13 @@ namespace Realm.Client.UI
 			{
 				ShowCorruptMapFileErrorDialog(workspacePath, corruptFile, corruptError);
 				ShowFeedback(string.Format(TranslationServer.Translate("Map file '{0}' is corrupt: {1}"), corruptFile, corruptError));
-				GameContext.EditorService.IsSyncing = false;
 				return false;
 			}
+			return true;
+		}
 
-			bool canProceed = await PromptAndUpgradeMapIfNeededAsync(workspacePath);
-			if (!canProceed)
-			{
-				ShowFeedback(TranslationServer.Translate("Map loading cancelled."));
-				GameContext.EditorService.IsSyncing = false;
-				return false;
-			}
-
+		private async Task<bool> LoadImportedWorkspaceAsync(string workspacePath)
+		{
 			try
 			{
 				string mapName = GetImportedMapName();
@@ -883,7 +920,7 @@ namespace Realm.Client.UI
 			}
 			catch (Exception ex)
 			{
-				GameLog.LogError($"[MapEditorHUD] Failed to import map package {archivePath}: {ex}");
+				GameLog.LogError($"[MapEditorHUD] Failed to import map package in {workspacePath}: {ex}");
 				ShowFeedback(string.Format(TranslationServer.Translate("Failed to import the map package: {0}"), ex.Message));
 				return false;
 			}
@@ -892,6 +929,7 @@ namespace Realm.Client.UI
 				GameContext.EditorService.IsSyncing = false;
 			}
 		}
+
 
 		private string GetImportedMapName()
 		{
