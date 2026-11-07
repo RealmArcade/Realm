@@ -1177,6 +1177,28 @@ namespace Realm.Client.UI
 
 		public void ShowConfirmationDialog(string message, Action onConfirm, string confirmText = "YES", string cancelText = "NO", Action onCancel = null, Action onDismissed = null, bool showCancel = true)
 		{
+			var overlay = CreateConfirmationShell(onDismissed);
+
+			var vbox = BuildConfirmationPanel(overlay);
+
+			BuildConfirmationTitle(vbox, showCancel);
+
+			BuildConfirmationMessage(vbox, message);
+
+			var hbox = new HBoxContainer();
+			hbox.Name = "Hbox_HBoxContainer";
+			hbox.AddThemeConstantOverride("separation", 24);
+			hbox.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
+			vbox.AddChild(hbox);
+
+			BuildConfirmButton(hbox, overlay, onConfirm, confirmText);
+
+			if (showCancel) BuildCancelButton(hbox, overlay, onCancel, cancelText);
+		}
+
+
+		private ColorRect CreateConfirmationShell(Action onDismissed)
+		{
 			var overlay = new ColorRect();
 			overlay.Name = "ConfirmationOverlay";
 			overlay.Color = new Color(0, 0, 0, 0.65f);
@@ -1189,7 +1211,11 @@ namespace Realm.Client.UI
 			}
 
 			AddChild(overlay);
+			return overlay;
+		}
 
+		private VBoxContainer BuildConfirmationPanel(ColorRect overlay)
+		{
 			var center = UIStyle.CreateCenteredOverlay();
 			overlay.AddChild(center);
 
@@ -1221,7 +1247,11 @@ namespace Realm.Client.UI
 			vbox.AddThemeConstantOverride("separation", 14);
 			vbox.Alignment = BoxContainer.AlignmentMode.Center;
 			margin.AddChild(vbox);
+			return vbox;
+		}
 
+		private void BuildConfirmationTitle(VBoxContainer vbox, bool showCancel)
+		{
 			var titleMargin = new MarginContainer();
 			titleMargin.Name = "TitleMargin_MarginContainer";
 			titleMargin.AddThemeConstantOverride("margin_top", -12);
@@ -1233,7 +1263,11 @@ namespace Realm.Client.UI
 			lblTitle.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 			titleMargin.AddChild(lblTitle);
 			vbox.AddChild(titleMargin);
+		}
 
+
+		private void BuildConfirmationMessage(VBoxContainer vbox, string message)
+		{
 			var msgMargin = new MarginContainer();
 			msgMargin.Name = "MsgMargin_MarginContainer";
 			msgMargin.AddThemeConstantOverride("margin_top", 12);
@@ -1252,13 +1286,11 @@ namespace Realm.Client.UI
 			lblMsg.SizeFlagsVertical = SizeFlags.ExpandFill;
 			msgMargin.AddChild(lblMsg);
 			vbox.AddChild(msgMargin);
+		}
 
-			var hbox = new HBoxContainer();
-			hbox.Name = "Hbox_HBoxContainer";
-			hbox.AddThemeConstantOverride("separation", 24);
-			hbox.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
-			vbox.AddChild(hbox);
 
+		private void BuildConfirmButton(HBoxContainer hbox, ColorRect overlay, Action onConfirm, string confirmText)
+		{
 			var btnConfirm = new Button();
 			btnConfirm.Name = "BtnConfirm_Button";
 			btnConfirm.Set("icon_max_width", 0);
@@ -1271,23 +1303,25 @@ namespace Realm.Client.UI
 			}, 13);
 			btnConfirm.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
 			hbox.AddChild(btnConfirm);
-
-			if (showCancel)
-			{
-				var btnCancel = UIStyle.CreateBareButton("BtnCancel_Button");
-				btnCancel.CustomMinimumSize = new Vector2(110, 34);
-				btnCancel.MouseFilter = MouseFilterEnum.Stop;
-				Action cancelAction = () =>
-				{
-					overlay.QueueFree();
-					onCancel?.Invoke();
-				};
-				overlay.SetMeta("CancelAction", Callable.From(cancelAction));
-				SetupButton(btnCancel, TranslationServer.Translate(cancelText), () => { cancelAction(); }, 13);
-				btnCancel.AddThemeColorOverride("font_color", new Color(0.9f, 0.3f, 0.3f));
-				hbox.AddChild(btnCancel);
-			}
 		}
+
+
+		private void BuildCancelButton(HBoxContainer hbox, ColorRect overlay, Action onCancel, string cancelText)
+		{
+			var btnCancel = UIStyle.CreateBareButton("BtnCancel_Button");
+			btnCancel.CustomMinimumSize = new Vector2(110, 34);
+			btnCancel.MouseFilter = MouseFilterEnum.Stop;
+			Action cancelAction = () =>
+			{
+				overlay.QueueFree();
+				onCancel?.Invoke();
+			};
+			overlay.SetMeta("CancelAction", Callable.From(cancelAction));
+			SetupButton(btnCancel, TranslationServer.Translate(cancelText), () => { cancelAction(); }, 13);
+			btnCancel.AddThemeColorOverride("font_color", new Color(0.9f, 0.3f, 0.3f));
+			hbox.AddChild(btnCancel);
+		}
+
 
 		public void ShowMapNamePrompt(Action<string> onNamed)
 		{
