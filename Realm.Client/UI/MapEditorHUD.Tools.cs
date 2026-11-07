@@ -769,84 +769,8 @@ namespace Realm.Client.UI
 
 			_btnToggleGrid = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/BoxViewportToolbar/ViewportIconRow1/BtnToggleGrid");
 			SetupButton(_btnToggleGrid, UnicodeIcons.BORDER_ALL, () => OpenOverlayModePopup(), 12, "Overlay");
-			_popupEnvironment = new PopupPanel();
-			_popupEnvironment.Name = "PopupEnvironment";
 
-			var envPopupStyle = new StyleBoxFlat();
-			envPopupStyle.BgColor = new Color(0.14f, 0.13f, 0.11f, 0.98f);
-			envPopupStyle.BorderColor = UIStyle.ColorGold;
-			envPopupStyle.SetBorderWidthAll(1);
-			envPopupStyle.SetCornerRadiusAll(4);
-			envPopupStyle.ContentMarginLeft = 10;
-			envPopupStyle.ContentMarginRight = 10;
-			envPopupStyle.ContentMarginTop = 10;
-			envPopupStyle.ContentMarginBottom = 10;
-			_popupEnvironment.AddThemeStyleboxOverride("panel", envPopupStyle);
-
-			var envVBox = new VBoxContainer();
-			envVBox.Name = "EnvVBox";
-			envVBox.AddThemeConstantOverride("separation", 6);
-			envVBox.CustomMinimumSize = new Vector2(170, 0);
-
-			_optEnvLighting = new OptionButton();
-			_optEnvLighting.Name = "OptEnvLighting";
-			_optEnvLighting.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-			_optEnvLighting.CustomMinimumSize = new Vector2(0, 24);
-			_optEnvLighting.ClipText = true;
-			SetupEnvLightingDropdown(_optEnvLighting);
-			_optEnvLighting.ItemSelected += (idx) =>
-			{
-				SetEnvironmentLighting((int)idx);
-				_popupEnvironment.Hide();
-			};
-			envVBox.AddChild(_optEnvLighting);
-
-			_optEnvWeather = new OptionButton();
-			_optEnvWeather.Name = "OptEnvWeather";
-			_optEnvWeather.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-			_optEnvWeather.CustomMinimumSize = new Vector2(0, 24);
-			_optEnvWeather.ClipText = true;
-			SetupEnvWeatherDropdown(_optEnvWeather);
-			_optEnvWeather.ItemSelected += (idx) =>
-			{
-				SetEnvironmentWeather((int)idx);
-				_popupEnvironment.Hide();
-			};
-			envVBox.AddChild(_optEnvWeather);
-
-			_chkEnvShadows = new CheckBox();
-			_chkEnvShadows.Name = "ChkEnvShadows";
-			_chkEnvShadows.Text = TranslationServer.Translate("Shadows");
-			_chkEnvShadows.TooltipText = TranslationServer.Translate("Toggle shadows in editor (F9)");
-			_chkEnvShadows.ButtonPressed = true;
-			_chkEnvShadows.FocusMode = FocusModeEnum.None;
-			_chkEnvShadows.AddThemeFontSizeOverride("font_size", 11);
-			UIStyle.ApplyCheckboxStyle(_chkEnvShadows);
-			_chkEnvShadows.Toggled += (pressed) =>
-			{
-				if (GameContext.Host != null)
-				{
-					bool disableShadows = !pressed;
-					if (GameContext.EditorService.EditorDisableShadows != disableShadows)
-					{
-						GameContext.EditorService.EditorDisableShadows = disableShadows;
-						GameContext.Host.UpdateEditorShadows();
-						ShowFeedback(disableShadows
-							? TranslationServer.Translate("Shadows: OFF")
-							: TranslationServer.Translate("Shadows: ON"));
-					}
-				}
-				_popupEnvironment.Hide();
-			};
-			envVBox.AddChild(_chkEnvShadows);
-
-			_popupEnvironment.AddChild(envVBox);
-			AddChild(_popupEnvironment);
-
-			_btnToggleEnvironment = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/BoxViewportToolbar/ViewportIconRow1/BtnToggleEnvironment");
-			_btnToggleEnvironment.Name = "BtnToggleEnvironment";
-			_btnToggleEnvironment.Set("icon_max_width", 0);
-			SetupButton(_btnToggleEnvironment, UnicodeIcons.SUN, () => OpenEnvironmentPopup(), 12, "Environment");
+			BuildEnvironmentPopup();
 
 			_popupCamera = new PopupPanel();
 			_popupCamera.Name = "PopupCamera";
@@ -1101,6 +1025,90 @@ namespace Realm.Client.UI
 				}
 			};
 			AddChild(_popupOverlayMode);
+		}
+
+
+
+		private void BuildEnvironmentPopup()
+		{
+			_popupEnvironment = new PopupPanel();
+			_popupEnvironment.Name = "PopupEnvironment";
+
+			var envPopupStyle = new StyleBoxFlat();
+			envPopupStyle.BgColor = new Color(0.14f, 0.13f, 0.11f, 0.98f);
+			envPopupStyle.BorderColor = UIStyle.ColorGold;
+			envPopupStyle.SetBorderWidthAll(1);
+			envPopupStyle.SetCornerRadiusAll(4);
+			envPopupStyle.ContentMarginLeft = 10;
+			envPopupStyle.ContentMarginRight = 10;
+			envPopupStyle.ContentMarginTop = 10;
+			envPopupStyle.ContentMarginBottom = 10;
+			_popupEnvironment.AddThemeStyleboxOverride("panel", envPopupStyle);
+
+			var envVBox = new VBoxContainer();
+			envVBox.Name = "EnvVBox";
+			envVBox.AddThemeConstantOverride("separation", 6);
+			envVBox.CustomMinimumSize = new Vector2(170, 0);
+
+			_optEnvLighting = new OptionButton();
+			_optEnvLighting.Name = "OptEnvLighting";
+			_optEnvLighting.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+			_optEnvLighting.CustomMinimumSize = new Vector2(0, 24);
+			_optEnvLighting.ClipText = true;
+			SetupEnvLightingDropdown(_optEnvLighting);
+			_optEnvLighting.ItemSelected += (idx) =>
+			{
+				SetEnvironmentLighting((int)idx);
+				_popupEnvironment.Hide();
+			};
+			envVBox.AddChild(_optEnvLighting);
+
+			_optEnvWeather = new OptionButton();
+			_optEnvWeather.Name = "OptEnvWeather";
+			_optEnvWeather.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+			_optEnvWeather.CustomMinimumSize = new Vector2(0, 24);
+			_optEnvWeather.ClipText = true;
+			SetupEnvWeatherDropdown(_optEnvWeather);
+			_optEnvWeather.ItemSelected += (idx) =>
+			{
+				SetEnvironmentWeather((int)idx);
+				_popupEnvironment.Hide();
+			};
+			envVBox.AddChild(_optEnvWeather);
+
+			_chkEnvShadows = new CheckBox();
+			_chkEnvShadows.Name = "ChkEnvShadows";
+			_chkEnvShadows.Text = TranslationServer.Translate("Shadows");
+			_chkEnvShadows.TooltipText = TranslationServer.Translate("Toggle shadows in editor (F9)");
+			_chkEnvShadows.ButtonPressed = true;
+			_chkEnvShadows.FocusMode = FocusModeEnum.None;
+			_chkEnvShadows.AddThemeFontSizeOverride("font_size", 11);
+			UIStyle.ApplyCheckboxStyle(_chkEnvShadows);
+			_chkEnvShadows.Toggled += (pressed) =>
+			{
+				if (GameContext.Host != null)
+				{
+					bool disableShadows = !pressed;
+					if (GameContext.EditorService.EditorDisableShadows != disableShadows)
+					{
+						GameContext.EditorService.EditorDisableShadows = disableShadows;
+						GameContext.Host.UpdateEditorShadows();
+						ShowFeedback(disableShadows
+							? TranslationServer.Translate("Shadows: OFF")
+							: TranslationServer.Translate("Shadows: ON"));
+					}
+				}
+				_popupEnvironment.Hide();
+			};
+			envVBox.AddChild(_chkEnvShadows);
+
+			_popupEnvironment.AddChild(envVBox);
+			AddChild(_popupEnvironment);
+
+			_btnToggleEnvironment = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/BoxViewportToolbar/ViewportIconRow1/BtnToggleEnvironment");
+			_btnToggleEnvironment.Name = "BtnToggleEnvironment";
+			_btnToggleEnvironment.Set("icon_max_width", 0);
+			SetupButton(_btnToggleEnvironment, UnicodeIcons.SUN, () => OpenEnvironmentPopup(), 12, "Environment");
 		}
 
 
