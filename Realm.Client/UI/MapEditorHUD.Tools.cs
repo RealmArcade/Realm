@@ -3830,6 +3830,73 @@ namespace Realm.Client.UI
 				}
 			}
 
+			StyleTexturePaletteRows();
+
+			if (_containerPathingSettings != null)
+			{
+				StyleSubContainer(_containerPathingSettings, "Pathing Properties");
+			}
+
+			if (_containerPasteSettings != null)
+			{
+				StyleSubContainer(_containerPasteSettings, "Paste Options");
+				StyleValueBadge(_lblPasteRotation);
+				if (_btnClipboardBrushShape != null)
+				{
+					_btnClipboardBrushShape.CustomMinimumSize = new Vector2(0, 30);
+					_btnClipboardBrushShape.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+					_btnClipboardBrushShape.AddThemeFontSizeOverride("font_size", 10);
+				}
+
+				if (_optClipboardMirrorMode != null)
+				{
+					_optClipboardMirrorMode.CustomMinimumSize = new Vector2(0, 30);
+					_optClipboardMirrorMode.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+					_optClipboardMirrorMode.AddThemeFontSizeOverride("font_size", 10);
+				}
+
+				if (_btnPasteReflection != null)
+				{
+					_btnPasteReflection.CustomMinimumSize = new Vector2(0, 30);
+					_btnPasteReflection.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+				}
+
+				if (_btnPasteAnchor != null)
+				{
+					_btnPasteAnchor.CustomMinimumSize = new Vector2(0, 30);
+					_btnPasteAnchor.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+				}
+			}
+
+			if (_contentPlacement != null)
+			{
+				if (_optPlacementMirrorMode != null)
+				{
+					_optPlacementMirrorMode.CustomMinimumSize = new Vector2(0, 30);
+					_optPlacementMirrorMode.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+					_optPlacementMirrorMode.AddThemeFontSizeOverride("font_size", 10);
+				}
+			}
+
+			if (_containerEyedropperSettings != null)
+			{
+				StyleSubContainer(_containerEyedropperSettings, "Eyedropper Settings");
+			}
+
+			Control[] allOptionContents = new Control[]
+			{
+				_contentFile, _contentViewport, _contentTool,
+				_contentBrush, _contentToolSettings, _contentPlacement, _contentInspector, _contentLightingTuning
+			};
+			foreach (var content in allOptionContents)
+			{
+				StyleOptionButtonsInContainer(content);
+			}
+		}
+
+
+		private void StyleTexturePaletteRows()
+		{
 			if (_containerTextureSettings != null)
 			{
 				StyleSubContainer(_containerTextureSettings, "Texture Palette & Settings");
@@ -3900,68 +3967,8 @@ namespace Realm.Client.UI
 					_lblCliffTexture.AddThemeColorOverride("font_color", new Color(1.0f, 0.70f, 0.30f));
 				}
 			}
-
-			if (_containerPathingSettings != null)
-			{
-				StyleSubContainer(_containerPathingSettings, "Pathing Properties");
-			}
-
-			if (_containerPasteSettings != null)
-			{
-				StyleSubContainer(_containerPasteSettings, "Paste Options");
-				StyleValueBadge(_lblPasteRotation);
-				if (_btnClipboardBrushShape != null)
-				{
-					_btnClipboardBrushShape.CustomMinimumSize = new Vector2(0, 30);
-					_btnClipboardBrushShape.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-					_btnClipboardBrushShape.AddThemeFontSizeOverride("font_size", 10);
-				}
-
-				if (_optClipboardMirrorMode != null)
-				{
-					_optClipboardMirrorMode.CustomMinimumSize = new Vector2(0, 30);
-					_optClipboardMirrorMode.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-					_optClipboardMirrorMode.AddThemeFontSizeOverride("font_size", 10);
-				}
-
-				if (_btnPasteReflection != null)
-				{
-					_btnPasteReflection.CustomMinimumSize = new Vector2(0, 30);
-					_btnPasteReflection.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-				}
-
-				if (_btnPasteAnchor != null)
-				{
-					_btnPasteAnchor.CustomMinimumSize = new Vector2(0, 30);
-					_btnPasteAnchor.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-				}
-			}
-
-			if (_contentPlacement != null)
-			{
-				if (_optPlacementMirrorMode != null)
-				{
-					_optPlacementMirrorMode.CustomMinimumSize = new Vector2(0, 30);
-					_optPlacementMirrorMode.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-					_optPlacementMirrorMode.AddThemeFontSizeOverride("font_size", 10);
-				}
-			}
-
-			if (_containerEyedropperSettings != null)
-			{
-				StyleSubContainer(_containerEyedropperSettings, "Eyedropper Settings");
-			}
-
-			Control[] allOptionContents = new Control[]
-			{
-				_contentFile, _contentViewport, _contentTool,
-				_contentBrush, _contentToolSettings, _contentPlacement, _contentInspector, _contentLightingTuning
-			};
-			foreach (var content in allOptionContents)
-			{
-				StyleOptionButtonsInContainer(content);
-			}
 		}
+
 
 		private void UpdateSidebarMorph(EditorTool tool)
 		{
