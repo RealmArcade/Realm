@@ -478,7 +478,7 @@ public static class RealmMetadataHelper
 		{
 			if (File.Exists(filePath))
 			{
-				return GlbPlayerColorProcessor.DetectSupportsTeamColor(filePath);
+				return GlbTeamColorProbe.DetectSupportsTeamColor(filePath);
 			}
 		}
 

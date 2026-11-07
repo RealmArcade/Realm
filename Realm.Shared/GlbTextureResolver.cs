@@ -111,4 +111,27 @@ public static class GlbTextureResolver
 
 		return defaultValue;
 	}
+
+	public static int FindOrmImageIndex(JsonArray textures, JsonArray materials)
+	{
+		foreach (var mat in materials)
+		{
+			if (mat is not JsonObject matObj) continue;
+
+			if (matObj["pbrMetallicRoughness"] is JsonObject pbr)
+			{
+				int texIdx = GlbTextureResolver.GetTextureRefIndex(pbr, "metallicRoughnessTexture");
+				int imgIdx = GlbTextureResolver.ResolveTextureToImage(texIdx, textures);
+				if (imgIdx >= 0) return imgIdx;
+			}
+
+			{
+				int texIdx = GlbTextureResolver.GetTextureRefIndex(matObj, "occlusionTexture");
+				int imgIdx = GlbTextureResolver.ResolveTextureToImage(texIdx, textures);
+				if (imgIdx >= 0) return imgIdx;
+			}
+		}
+
+		return -1;
+	}
 }

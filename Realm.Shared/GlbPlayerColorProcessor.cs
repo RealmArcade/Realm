@@ -10,85 +10,6 @@ namespace Realm.Shared;
 
 public static class GlbPlayerColorProcessor
 {
-	public static bool DetectSupportsTeamColor(string filePath)
-	{
-		if (!File.Exists(filePath)) return false;
-		try
-		{
-			byte[] bytes = File.ReadAllBytes(filePath);
-			return DetectSupportsTeamColor(bytes);
-		}
-		catch
-		{
-			return false;
-		}
-	}
-
-	private static bool CheckOrmTeamColorMask(SKBitmap ormImg)
-	{
-		int maskCount = 0;
-		int unmaskCount = 0;
-		for (int y = 0; y < ormImg.Height; y += 2)
-		{
-			CountMaskPixelsInRow(ormImg, y, ref maskCount, ref unmaskCount);
-		}
-
-		return maskCount > 5 && unmaskCount > 5;
-	}
-
-	private static void CountMaskPixelsInRow(SKBitmap ormImg, int y, ref int maskCount, ref int unmaskCount)
-	{
-		for (int x = 0; x < ormImg.Width; x += 2)
-		{
-			if (ormImg.GetPixel(x, y).Red > 32)
-			{
-				maskCount++;
-			}
-			else
-			{
-				unmaskCount++;
-			}
-		}
-	}
-
-	public static bool DetectSupportsTeamColor(ReadOnlySpan<byte> glbOrRmeshBytes)
-	{
-		if (glbOrRmeshBytes.Length == 0) return false;
-		try
-		{
-			byte[]? glbBytes = GlbChromaKeyDetector.GetGlbBytesFromSpan(glbOrRmeshBytes);
-			if (glbBytes == null) return false;
-
-			return DetectSupportsTeamColorFromGlb(glbBytes);
-		}
-		catch
-		{
-			return false;
-		}
-	}
-
-	private static bool DetectSupportsTeamColorFromGlb(byte[] glbBytes)
-	{
-		var (jsonNode, binChunk, _) = GlbManifestUtils.ParseGlb(glbBytes);
-		if (jsonNode is not JsonObject root || binChunk == null) return false;
-
-		var textures = root["textures"] as JsonArray;
-		var materials = root["materials"] as JsonArray;
-		var images = root["images"] as JsonArray;
-		var bufferViews = root["bufferViews"] as JsonArray;
-
-		if (textures == null || materials == null || images == null || bufferViews == null) return false;
-
-		int ormImageIndex = FindOrmImageIndex(textures, materials);
-		if (ormImageIndex < 0) return false;
-
-		byte[] ormRaw = GlbTextureResolver.ExtractImageBytes(ormImageIndex, images, bufferViews, binChunk);
-		if (ormRaw.Length == 0) return false;
-
-		using var ormImg = SKBitmap.Decode(ormRaw);
-		return CheckOrmTeamColorMask(ormImg);
-	}
-
 
 	public static GlbPlayerColorResult ProcessFile(
 		string inputPath,
@@ -279,7 +200,7 @@ public static class GlbPlayerColorProcessor
 			return (false, null, "No albedo/base-color texture found in the GLB.", 0, 0, null);
 		}
 
-		int ormImageIndex = FindOrmImageIndex(textures, materials);
+		int ormImageIndex = GlbTextureResolver.FindOrmImageIndex(textures, materials);
 
 		byte[] albedoRaw = GlbTextureResolver.ExtractImageBytes(albedoImageIndex, images, bufferViews, binChunk);
 		if (albedoRaw.Length == 0)
@@ -878,8 +799,6 @@ public static class GlbPlayerColorProcessor
 		return result;
 	}
 
-
-
 	private static List<(Vector3 Pos0, Vector3 Pos1, Vector3 Pos2)> ExtractFacePositionData(
 		JsonObject primObj,
 		JsonArray accessors,
@@ -926,29 +845,6 @@ public static class GlbPlayerColorProcessor
 				ormImg.SetPixel(x, y, new SKColor(maskByte, pixel.Green, pixel.Blue, pixel.Alpha));
 			}
 		}
-	}
-
-	public static int FindOrmImageIndex(JsonArray textures, JsonArray materials)
-	{
-		foreach (var mat in materials)
-		{
-			if (mat is not JsonObject matObj) continue;
-
-			if (matObj["pbrMetallicRoughness"] is JsonObject pbr)
-			{
-				int texIdx = GlbTextureResolver.GetTextureRefIndex(pbr, "metallicRoughnessTexture");
-				int imgIdx = GlbTextureResolver.ResolveTextureToImage(texIdx, textures);
-				if (imgIdx >= 0) return imgIdx;
-			}
-
-			{
-				int texIdx = GlbTextureResolver.GetTextureRefIndex(matObj, "occlusionTexture");
-				int imgIdx = GlbTextureResolver.ResolveTextureToImage(texIdx, textures);
-				if (imgIdx >= 0) return imgIdx;
-			}
-		}
-
-		return -1;
 	}
 
 	private static SKBitmap CreateDefaultOrm(int width, int height)

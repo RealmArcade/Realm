@@ -230,7 +230,7 @@ public static class GlbInMemoryColorPreprocessor
 		out int albedoImageIndex, out byte[] albedoRaw, out byte[] ormRaw)
 	{
 		albedoImageIndex = GlbTextureResolver.FindAlbedoImageIndex(textures, materials);
-		int ormImageIndex = GlbPlayerColorProcessor.FindOrmImageIndex(textures, materials);
+		int ormImageIndex = GlbTextureResolver.FindOrmImageIndex(textures, materials);
 
 		if (albedoImageIndex < 0 || ormImageIndex < 0)
 		{
