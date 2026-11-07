@@ -277,22 +277,109 @@ public interface IHandleCommands
 	/// <returns>The unit's display name, or an empty string when it has none or no longer exists.</returns>
 	string GetUnitInstanceName(UnitId unit);
 
+	/// <summary>
+	/// Marks a player slot as controlled by a computer instead of by its own client, or hands it back to that client.
+	/// </summary>
+	/// <remarks>
+	/// A computer-controlled slot is played by the authority and keeps playing when the human client is absent, which is
+	/// how a map takes over a disconnected or proxy slot. The flag is stored with the slot's script player state and is
+	/// visible to every client from the next tick. An index outside the match's seated slots is ignored.
+	/// </remarks>
+	/// <param name="playerIndex">Zero-based slot index of the player.</param>
+	/// <param name="isProxy">True to put the slot under computer control; false to return it to its own client.</param>
 	void SetPlayerComputerControlled(int playerIndex, bool isProxy);
 
+	/// <summary>
+	/// Places a player slot on a numbered team, which makes every slot on that team an ally of the others.
+	/// </summary>
+	/// <remarks>
+	/// The team index is stored as given and also determines the team's display name: team zero is named "Neutral" and
+	/// any other index is named "Team" followed by the index. Slots that share an index share vision and do not attack
+	/// each other. Reassigning a slot moves it to the new team rather than leaving it on both.
+	/// </remarks>
+	/// <param name="playerIndex">Zero-based slot index of the player.</param>
+	/// <param name="teamIndex">Zero-based team index to place the slot on.</param>
 	void SetPlayerTeam(int playerIndex, int teamIndex);
 
+	/// <summary>
+	/// Sets how much gold the player slot has.
+	/// </summary>
+	/// <remarks>
+	/// The amount replaces the current stock rather than adding to it, and is floored at zero with no upper bound, so
+	/// costs and bounties never leave a player in debt. Resources are fractional because income accrues continuously, so
+	/// a script can set a value between whole numbers and the HUD rounds it for display.
+	/// </remarks>
+	/// <param name="playerIndex">Zero-based slot index of the player.</param>
+	/// <param name="amount">New gold amount; negative values are treated as zero.</param>
 	void SetPlayerGold(int playerIndex, float amount);
 
+	/// <summary>
+	/// Sets how much wood the player slot has.
+	/// </summary>
+	/// <remarks>
+	/// The amount replaces the current stock rather than adding to it, and is floored at zero with no upper bound. Wood
+	/// is a fractional resource for the same reason gold is, and it is tracked separately from gold and stone.
+	/// </remarks>
+	/// <param name="playerIndex">Zero-based slot index of the player.</param>
+	/// <param name="amount">New wood amount; negative values are treated as zero.</param>
 	void SetPlayerWood(int playerIndex, float amount);
 
+	/// <summary>
+	/// Sets how much stone the player slot has.
+	/// </summary>
+	/// <remarks>
+	/// The amount replaces the current stock rather than adding to it, and is floored at zero with no upper bound. Stone
+	/// is a fractional resource for the same reason gold is, and it is tracked separately from gold and wood.
+	/// </remarks>
+	/// <param name="playerIndex">Zero-based slot index of the player.</param>
+	/// <param name="amount">New stone amount; negative values are treated as zero.</param>
 	void SetPlayerStone(int playerIndex, float amount);
 
+	/// <summary>
+	/// Sets the player slot's population cap, the ceiling on the supply its units may consume.
+	/// </summary>
+	/// <remarks>
+	/// The cap replaces the current one and is stored without clamping. Lowering it below the slot's current population
+	/// does not destroy units and does not stop production already under way; it only blocks new units that would push
+	/// the total over the cap.
+	/// </remarks>
+	/// <param name="playerIndex">Zero-based slot index of the player.</param>
+	/// <param name="max">New population cap in supply points.</param>
 	void SetPlayerMaxPopulation(int playerIndex, int max);
 
+	/// <summary>
+	/// Sets the player slot's kill count, the number credited to it on the scoreboard.
+	/// </summary>
+	/// <remarks>
+	/// The count replaces the current one and is stored without clamping, so a map can score its own eliminations rather
+	/// than relying on the engine's credit. It is display and victory-condition state only: it has no effect on combat.
+	/// </remarks>
+	/// <param name="playerIndex">Zero-based slot index of the player.</param>
+	/// <param name="kills">New kill count.</param>
 	void SetPlayerKills(int playerIndex, int kills);
 
+	/// <summary>
+	/// Sets how much of its resource a harvestable node still holds.
+	/// </summary>
+	/// <remarks>
+	/// The amount replaces the remaining stock and is floored at zero, so an assignment of zero or below depletes the
+	/// node: gatherers on their way to it find nothing and the node is reported as depleted. A node that no longer
+	/// exists is ignored rather than recreated.
+	/// </remarks>
+	/// <param name="node">The resource node to change.</param>
+	/// <param name="value">Remaining amount in the node's resource units; negative values are treated as zero.</param>
 	void SetResourceNodeAmount(ResourceNodeId node, float value);
 
+	/// <summary>
+	/// Reads how much of its resource a harvestable node still holds.
+	/// </summary>
+	/// <remarks>
+	/// The read is answered by the host, so it reflects the authoritative stock rather than a client's copy. A node that
+	/// no longer exists answers zero, which is the same answer a depleted node gives, so a script that needs to tell the
+	/// two apart must check whether the node itself is still valid.
+	/// </remarks>
+	/// <param name="node">The resource node to read.</param>
+	/// <returns>The remaining amount in the node's resource units, or zero for a depleted or unknown node.</returns>
 	float GetResourceNodeAmount(ResourceNodeId node);
 }
 
