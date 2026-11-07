@@ -254,7 +254,7 @@ public class AssetIndexService : IDisposable
 			foreach (var asset in sampledAssets)
 			{
 				checkedPaths.Add(asset.FilePath);
-				string? failureReason = InspectIndexedAsset(asset, verifyContentHash: false);
+				string? failureReason = AssetIndexInspector.Inspect(asset, verifyContentHash: false);
 				if (failureReason != null)
 				{
 					failures.Add(new AssetIndexVerificationFailure(asset.FilePath, failureReason));
@@ -289,7 +289,7 @@ public class AssetIndexService : IDisposable
 				var asset = assets[i];
 				checkedPaths.Add(asset.FilePath);
 
-				string? failureReason = InspectIndexedAsset(asset, verifyContentHash);
+				string? failureReason = AssetIndexInspector.Inspect(asset, verifyContentHash);
 				if (failureReason != null)
 				{
 					failures.Add(new AssetIndexVerificationFailure(asset.FilePath, failureReason));
@@ -379,92 +379,7 @@ public class AssetIndexService : IDisposable
 		}
 	}
 
-	private string? InspectIndexedAsset(IndexedAsset asset, bool verifyContentHash)
-	{
-		if (string.IsNullOrEmpty(asset.FilePath) || !File.Exists(asset.FilePath))
-		{
-			return "file is missing on disk";
-		}
 
-		var fileInfo = new FileInfo(asset.FilePath);
-		if (fileInfo.Length != asset.FileSizeBytes)
-		{
-			return $"recorded size {asset.FileSizeBytes} does not match {fileInfo.Length} byte(s) on disk";
-		}
-
-		string diskExtension = Path.GetExtension(asset.FilePath).ToLowerInvariant();
-		if (!string.Equals(diskExtension, asset.Extension, StringComparison.OrdinalIgnoreCase))
-		{
-			return $"recorded extension '{asset.Extension}' does not match '{diskExtension}' on disk";
-		}
-
-		if (string.IsNullOrEmpty(asset.Blake3))
-		{
-			return "recorded hash is empty";
-		}
-
-		string recordedHash = ContentAddressableStorage.NormalizeBlake3Hash(asset.Blake3);
-		if (IsCasAsset(asset))
-		{
-			string pathHash = ContentAddressableStorage.NormalizeBlake3Hash(Path.GetFileName(asset.FilePath));
-			if (!string.Equals(pathHash, recordedHash, StringComparison.OrdinalIgnoreCase))
-			{
-				return $"recorded hash {recordedHash} does not match the hash {pathHash} encoded in its path";
-			}
-		}
-
-		if (verifyContentHash)
-		{
-			string contentHash = ContentAddressableStorage.NormalizeBlake3Hash(RealmMetadataHelper.ComputeBlake3(asset.FilePath));
-			if (!string.Equals(contentHash, recordedHash, StringComparison.OrdinalIgnoreCase))
-			{
-				return $"recorded hash {recordedHash} does not match the content hash {contentHash} of the file on disk";
-			}
-		}
-
-		string? diskMetadataJson = RealmMetadataHelper.ExtractMetadata(asset.FilePath);
-
-		AssetType? diskAssetType = RealmMetadataHelper.NormalizeAssetType(RealmMetadataHelper.ExtractAssetType(asset.FilePath));
-		if (diskAssetType.HasValue)
-		{
-			if (diskAssetType.Value != asset.AssetType)
-			{
-				return $"recorded asset type '{asset.AssetType}' does not match '{diskAssetType.Value}' in the file metadata";
-			}
-		}
-		else if (asset.AssetType.HasValue &&
-		         RealmMetadataHelper.GetValidAssetTypesForExtension(asset.FilePath).Count > 0 &&
-		         !RealmMetadataHelper.IsValidAssetTypeForExtension(asset.FilePath, asset.AssetType.Value, out _))
-		{
-			return $"recorded asset type '{asset.AssetType.Value}' is not valid for '{diskExtension}'";
-		}
-
-		return InspectEmbeddedHash(diskMetadataJson, recordedHash);
-	}
-
-	private static string? InspectEmbeddedHash(string? diskMetadataJson, string recordedHash)
-	{
-		if (string.IsNullOrEmpty(diskMetadataJson)) return null;
-
-		try
-		{
-			if (JsonNode.Parse(diskMetadataJson) is JsonObject obj && obj.ContainsKey(AssetMetadataKeys.Blake3Hash))
-			{
-				string? embeddedHash = obj[AssetMetadataKeys.Blake3Hash]?.ToString();
-				if (!string.IsNullOrEmpty(embeddedHash) &&
-				    !string.Equals(ContentAddressableStorage.NormalizeBlake3Hash(embeddedHash), recordedHash, StringComparison.OrdinalIgnoreCase))
-				{
-					return $"recorded hash {recordedHash} does not match the embedded metadata hash {embeddedHash}";
-				}
-			}
-		}
-		catch
-		{
-			return "embedded metadata is not valid JSON";
-		}
-
-		return null;
-	}
 
 	private bool RepairIndexedAsset(string filePath)
 	{
@@ -487,7 +402,7 @@ public class AssetIndexService : IDisposable
 
 	private bool RestoreCasAssetFileIfNeeded(IndexedAsset asset)
 	{
-		if (!IsCasAsset(asset)) return true;
+		if (!AssetIndexInspector.IsCasAsset(asset)) return true;
 
 		string hash = ContentAddressableStorage.NormalizeBlake3Hash(asset.Blake3 ?? Path.GetFileName(asset.FilePath));
 		if (hash.Length < 2) return false;
@@ -570,7 +485,7 @@ public class AssetIndexService : IDisposable
 		var fileInfo = new FileInfo(normalizedFilePath);
 		string diskExtension = Path.GetExtension(normalizedFilePath).ToLowerInvariant();
 
-		if (IsCasAsset(asset))
+		if (AssetIndexInspector.IsCasAsset(asset))
 		{
 			asset.FileSizeBytes = fileInfo.Length;
 			asset.LastModifiedUtc = fileInfo.LastWriteTimeUtc;
@@ -591,19 +506,7 @@ public class AssetIndexService : IDisposable
 		GenerateIndexedAssetFromFile(normalizedFilePath, asset.DirectoryPath, fileInfo, diskExtension, expectedDirType, asset);
 	}
 
-	private static bool IsCasAsset(IndexedAsset asset)
-	{
-		string p2pCasAssetsDirectory = P2PCasAssetsDirectory;
-		if (string.Equals(asset.DirectoryPath, GlobalCasAssetsDirectory, StringComparison.OrdinalIgnoreCase)) return true;
-		if (string.Equals(asset.DirectoryPath, p2pCasAssetsDirectory, StringComparison.OrdinalIgnoreCase)) return true;
-		if (string.IsNullOrEmpty(asset.FilePath)) return false;
 
-		string normalizedFilePath = NormalizePath(asset.FilePath);
-		return normalizedFilePath.StartsWith(GlobalCasAssetsDirectory + "/", StringComparison.OrdinalIgnoreCase) ||
-		       normalizedFilePath.StartsWith(p2pCasAssetsDirectory + "/", StringComparison.OrdinalIgnoreCase);
-	}
-
-	private static string P2PCasAssetsDirectory => NormalizePath(Path.Combine(MapAssetManager.P2PArchiveDirectory, "assets"));
 
 
 	public void SynchronizeCasAndMapPackages(IProgress<AssetIndexProgressUpdate>? progress = null)
@@ -893,7 +796,7 @@ public class AssetIndexService : IDisposable
 		{
 			var asset = GetAssetByPath(failure.FilePath);
 			if (asset == null) continue;
-			if (InspectIndexedAsset(asset, verifyContentHash: true) != null) remainingCount++;
+			if (AssetIndexInspector.Inspect(asset, verifyContentHash: true) != null) remainingCount++;
 		}
 
 		return remainingCount;
@@ -1085,7 +988,7 @@ public class AssetIndexService : IDisposable
 		}
 	}
 
-	public static string GlobalCasAssetsDirectory => NormalizePath(MapAssetManager.Storage.AssetsDirectory);
+	public static string GlobalCasAssetsDirectory => AssetIndexPaths.Normalize(MapAssetManager.Storage.AssetsDirectory);
 
 	private void InitializeDefaultDirectories()
 	{
@@ -2719,10 +2622,8 @@ public class AssetIndexService : IDisposable
 	}
 
 
-	private static string NormalizePath(string path)
-	{
-		return Path.GetFullPath(path).Replace('\\', '/').TrimEnd('/');
-	}
+
+	private static string NormalizePath(string path) => AssetIndexPaths.Normalize(path);
 
 	public void Dispose()
 	{
