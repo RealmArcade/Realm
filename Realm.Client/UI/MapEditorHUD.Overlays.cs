@@ -3029,6 +3029,42 @@ namespace Realm.Client.UI
 			contentOverlay.SetAnchorsPreset(LayoutPreset.FullRect);
 			panel.AddChild(contentOverlay);
 
+			BuildAgreementBodyLabels(contentOverlay);
+
+			var btnAccept = new Button();
+			btnAccept.Name = "BtnAccept_Button";
+			btnAccept.Set("icon_max_width", 0);
+			SetupOptionButton(btnAccept, "Accept", () =>
+			{
+				_agreementShownThisSession = true;
+				if (onAccepted != null)
+				{
+					overlay.TreeExited += () => onAccepted();
+				}
+
+				overlay.QueueFree();
+			}, 13);
+			btnAccept.Position = new Vector2(300, 692);
+			btnAccept.Size = new Vector2(165, 42);
+			contentOverlay.AddChild(btnAccept);
+
+			var btnQuit = new Button();
+			btnQuit.Name = "BtnQuit_Button";
+			btnQuit.Set("icon_max_width", 0);
+			SetupOptionButton(btnQuit, "Quit", () =>
+			{
+				_agreementShownThisSession = false;
+				overlay.QueueFree();
+				GameContext.UserInterface?.TransitionTo(GameScreen.MainMenu);
+			}, 13);
+			btnQuit.Position = new Vector2(558, 692);
+			btnQuit.Size = new Vector2(165, 42);
+			contentOverlay.AddChild(btnQuit);
+		}
+
+
+		private void BuildAgreementBodyLabels(Control contentOverlay)
+		{
 			var lblTitle = new Label();
 			lblTitle.Name = "LblTitle_Label";
 			UIStyle.ApplyTitle(lblTitle, TranslationServer.Translate("Realm Creator Agreement"), 20);
@@ -3110,37 +3146,8 @@ namespace Realm.Client.UI
 			AddRuleTextBox("No Plagiarism or Piracy",
 				"Do not upload content you didn’t make or don't have the rights to use. This includes trademarked content from other video games, movies, music, and media.",
 				655, 518, 240, 125);
-
-			var btnAccept = new Button();
-			btnAccept.Name = "BtnAccept_Button";
-			btnAccept.Set("icon_max_width", 0);
-			SetupOptionButton(btnAccept, "Accept", () =>
-			{
-				_agreementShownThisSession = true;
-				if (onAccepted != null)
-				{
-					overlay.TreeExited += () => onAccepted();
-				}
-
-				overlay.QueueFree();
-			}, 13);
-			btnAccept.Position = new Vector2(300, 692);
-			btnAccept.Size = new Vector2(165, 42);
-			contentOverlay.AddChild(btnAccept);
-
-			var btnQuit = new Button();
-			btnQuit.Name = "BtnQuit_Button";
-			btnQuit.Set("icon_max_width", 0);
-			SetupOptionButton(btnQuit, "Quit", () =>
-			{
-				_agreementShownThisSession = false;
-				overlay.QueueFree();
-				GameContext.UserInterface?.TransitionTo(GameScreen.MainMenu);
-			}, 13);
-			btnQuit.Position = new Vector2(558, 692);
-			btnQuit.Size = new Vector2(165, 42);
-			contentOverlay.AddChild(btnQuit);
 		}
+
 
 		public void OpenAbilityVfxDialog(string abilityId, JsonObject abilityData, Action<JsonObject> onApplied = null)
 		{
