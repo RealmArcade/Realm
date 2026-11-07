@@ -130,6 +130,7 @@ internal static class ServerHost
 	builder.Services.AddSingleton<SteamTicketService>();
 	builder.Services.AddSingleton<IAccountReplicationSink, AccountClusterPublisher>();
 	builder.Services.AddSingleton<ClusterEventService>();
+	builder.Services.AddSingleton<ContentPruner>();
 
 
 	builder.Services.AddCors(options => { options.AddPolicy("AllowAll", policy => { policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader(); }); });

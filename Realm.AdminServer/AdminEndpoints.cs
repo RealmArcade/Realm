@@ -21,7 +21,7 @@ internal static class AdminEndpoints
 {
 	internal static void MapAdminRemovalEndpoints(WebApplication app, ServerSetup setup)
 	{
-		app.MapPost("/api/admin/prune_cas", (HttpRequest request, ClusterEventService clusterEvents, DataStoreService db, ContentAddressableStorage cas) =>
+		app.MapPost("/api/admin/prune_cas", (HttpRequest request, ContentPruner pruner, DataStoreService db, ContentAddressableStorage cas) =>
 		{
 			string? bypassHeader = request.Headers["X-Admin-Bypass"];
 			string? sigHeader = request.Headers["X-Cluster-Signature"];
@@ -38,7 +38,7 @@ internal static class AdminEndpoints
 				return Results.Json(new { Message = "Unauthorized CAS pruning request." }, statusCode: StatusCodes.Status401Unauthorized);
 			}
 
-			clusterEvents.QueueCasPrune(cas, db);
+			pruner.QueueCasPrune(cas, db);
 			return Results.Ok(new CasPruneResponseDto
 			{
 				Success = true,
