@@ -3736,45 +3736,7 @@ namespace Realm.Client.UI
 				StyleSubContainer(targetFile.GetNodeOrNull<Control>("BoxGenOps"), "Generation & Imports");
 			}
 
-			var targetViewport = GetContentTarget(_contentViewport);
-			if (targetViewport != null)
-			{
-				StyleIconButton(_btnToggleGrid, UnicodeIcons.BORDER_ALL, "Overlay");
-				StyleIconButton(_btnToggleEnvironment, UnicodeIcons.SUN, "Environment");
-				StyleIconButton(_btnToggleCamera, UnicodeIcons.CAMERA, "Configure camera controls (R / C / + / - / F8)");
-				StyleIconButton(_btnTapeMeasure, UnicodeIcons.RULER, "Tape measure distance & slope tool (U)");
-
-				StyleSubContainer(targetViewport.GetNodeOrNull<Control>("BoxViewportToolbar"), "Navigation Bar");
-
-				_rowPolarConfig = targetViewport.GetNodeOrNull<HBoxContainer>("RowPolarConfig");
-
-				if (_optPolarRingSpacing != null)
-				{
-					_optPolarRingSpacing.CustomMinimumSize = new Vector2(0, 26);
-					_optPolarRingSpacing.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-					_optPolarRingSpacing.AddThemeFontSizeOverride("font_size", 9);
-				}
-
-				if (_optPolarRadialStep != null)
-				{
-					_optPolarRadialStep.CustomMinimumSize = new Vector2(0, 26);
-					_optPolarRadialStep.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-					_optPolarRadialStep.AddThemeFontSizeOverride("font_size", 9);
-				}
-
-				if (_btnResetPivotToCenter != null)
-				{
-					_btnResetPivotToCenter.CustomMinimumSize = new Vector2(0, 26);
-					_btnResetPivotToCenter.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-					_btnResetPivotToCenter.AddThemeFontSizeOverride("font_size", 9);
-				}
-
-				bool isSymmetryActive = GameContext.Host != null &&
-				                        (GameContext.Host.EditorMirrorMode != MirrorMode.None ||
-				                         GameContext.EditorService.EditorGridMode == GridOverlayMode.Polar ||
-				                         GameContext.EditorService.EditorGridMode == GridOverlayMode.Both);
-				_rowPolarConfig.Visible = isSymmetryActive;
-			}
+			StyleViewportNavigationBar();
 
 			if (_panelTerrainVBox != null)
 			{
@@ -3891,6 +3853,51 @@ namespace Realm.Client.UI
 			foreach (var content in allOptionContents)
 			{
 				StyleOptionButtonsInContainer(content);
+			}
+		}
+
+
+
+		private void StyleViewportNavigationBar()
+		{
+			var targetViewport = GetContentTarget(_contentViewport);
+			if (targetViewport != null)
+			{
+				StyleIconButton(_btnToggleGrid, UnicodeIcons.BORDER_ALL, "Overlay");
+				StyleIconButton(_btnToggleEnvironment, UnicodeIcons.SUN, "Environment");
+				StyleIconButton(_btnToggleCamera, UnicodeIcons.CAMERA, "Configure camera controls (R / C / + / - / F8)");
+				StyleIconButton(_btnTapeMeasure, UnicodeIcons.RULER, "Tape measure distance & slope tool (U)");
+
+				StyleSubContainer(targetViewport.GetNodeOrNull<Control>("BoxViewportToolbar"), "Navigation Bar");
+
+				_rowPolarConfig = targetViewport.GetNodeOrNull<HBoxContainer>("RowPolarConfig");
+
+				if (_optPolarRingSpacing != null)
+				{
+					_optPolarRingSpacing.CustomMinimumSize = new Vector2(0, 26);
+					_optPolarRingSpacing.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+					_optPolarRingSpacing.AddThemeFontSizeOverride("font_size", 9);
+				}
+
+				if (_optPolarRadialStep != null)
+				{
+					_optPolarRadialStep.CustomMinimumSize = new Vector2(0, 26);
+					_optPolarRadialStep.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+					_optPolarRadialStep.AddThemeFontSizeOverride("font_size", 9);
+				}
+
+				if (_btnResetPivotToCenter != null)
+				{
+					_btnResetPivotToCenter.CustomMinimumSize = new Vector2(0, 26);
+					_btnResetPivotToCenter.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+					_btnResetPivotToCenter.AddThemeFontSizeOverride("font_size", 9);
+				}
+
+				bool isSymmetryActive = GameContext.Host != null &&
+				                        (GameContext.Host.EditorMirrorMode != MirrorMode.None ||
+				                         GameContext.EditorService.EditorGridMode == GridOverlayMode.Polar ||
+				                         GameContext.EditorService.EditorGridMode == GridOverlayMode.Both);
+				_rowPolarConfig.Visible = isSymmetryActive;
 			}
 		}
 
