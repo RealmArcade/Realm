@@ -3067,40 +3067,17 @@ namespace Realm.Client.UI
 				await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
 				string seedServerUrl = GameContext.Host != null && GodotObject.IsInstanceValid(GameContext.Lobby) ? GameContext.Lobby.RegistryServerUrl : ServersConfigHelper.GetDefaultServerUrl();
-				try
-				{
-					using var checkClient = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
-					string creatorPubKey = Convert.ToBase64String(publishAuthorshipKey.PublicKey.Export(KeyBlobFormat.RawPublicKey));
 
-					string statusKey = !string.IsNullOrEmpty(creatorPubKey)
-						? $"{Uri.EscapeDataString(mapTitle)}_{Uri.EscapeDataString(mapVersion)}_{Uri.EscapeDataString(creatorPubKey)}"
-						: $"{Uri.EscapeDataString(mapTitle)}_{Uri.EscapeDataString(mapVersion)}";
-					string statusUrl = $"{seedServerUrl.TrimEnd('/')}/api/maps/greenlight_status/{statusKey}";
-					var statusRes = await checkClient.GetAsync(statusUrl);
-					if (statusRes.IsSuccessStatusCode)
+				var greenlight = await VerifyPublishGreenlightAsync(seedServerUrl, mapTitle, mapVersion, publishAuthorshipKey);
+				if (greenlight is { IsGreenlit: false } greenlightStatus)
+				{
+					if (GodotObject.IsInstanceValid(popup))
 					{
-						string statusJson = await statusRes.Content.ReadAsStringAsync();
-						var statusNode = JsonNode.Parse(statusJson);
-						bool isGreenlit = statusNode?["isGreenlit"]?.GetValue<bool>() ?? false;
-						int verifiedGoodReviews = statusNode?["verifiedGoodReviewsCount"]?.GetValue<int>() ?? 0;
-						int totalReviews = statusNode?["totalReviewsCount"]?.GetValue<int>() ?? 0;
-						double averageRating = statusNode?["averageRating"]?.GetValue<double>() ?? 0.0;
-
-						if (!isGreenlit)
-						{
-							if (GodotObject.IsInstanceValid(popup))
-							{
-								popup.QueueFree();
-							}
-
-							ShowGreenlightStatusDialog(mapTitle, mapVersion, verifiedGoodReviews, totalReviews, averageRating, isGreenlit: false);
-							return;
-						}
+						popup.QueueFree();
 					}
-				}
-				catch (Exception ex)
-				{
-					AppendWasmConsoleLog($"[WARN] Could not verify greenlight status: {ex.Message}");
+
+					ShowGreenlightStatusDialog(mapTitle, mapVersion, greenlightStatus.VerifiedGoodReviews, greenlightStatus.TotalReviews, greenlightStatus.AverageRating, isGreenlit: false);
+					return;
 				}
 
 				await SavePublishWorkspaceStateAsync(workspace, tempTerrainPath, progressBar, statusLabel);
@@ -3424,6 +3401,36 @@ namespace Realm.Client.UI
 			}
 		}
 
+
+		private async Task<(bool IsGreenlit, int VerifiedGoodReviews, int TotalReviews, double AverageRating)?> VerifyPublishGreenlightAsync(
+			string seedServerUrl, string mapTitle, string mapVersion, NSec.Cryptography.Key publishAuthorshipKey)
+		{
+			try
+			{
+				using var checkClient = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+				string creatorPubKey = Convert.ToBase64String(publishAuthorshipKey.PublicKey.Export(KeyBlobFormat.RawPublicKey));
+
+				string statusKey = !string.IsNullOrEmpty(creatorPubKey)
+					? $"{Uri.EscapeDataString(mapTitle)}_{Uri.EscapeDataString(mapVersion)}_{Uri.EscapeDataString(creatorPubKey)}"
+					: $"{Uri.EscapeDataString(mapTitle)}_{Uri.EscapeDataString(mapVersion)}";
+				string statusUrl = $"{seedServerUrl.TrimEnd('/')}/api/maps/greenlight_status/{statusKey}";
+				var statusRes = await checkClient.GetAsync(statusUrl);
+				if (!statusRes.IsSuccessStatusCode) return null;
+
+				string statusJson = await statusRes.Content.ReadAsStringAsync();
+				var statusNode = JsonNode.Parse(statusJson);
+				return (
+					statusNode?["isGreenlit"]?.GetValue<bool>() ?? false,
+					statusNode?["verifiedGoodReviewsCount"]?.GetValue<int>() ?? 0,
+					statusNode?["totalReviewsCount"]?.GetValue<int>() ?? 0,
+					statusNode?["averageRating"]?.GetValue<double>() ?? 0.0);
+			}
+			catch (Exception ex)
+			{
+				AppendWasmConsoleLog($"[WARN] Could not verify greenlight status: {ex.Message}");
+				return null;
+			}
+		}
 
 		private async Task SavePublishWorkspaceStateAsync(string workspace, string terrainPath, ProgressBar progressBar, Label statusLabel)
 		{
