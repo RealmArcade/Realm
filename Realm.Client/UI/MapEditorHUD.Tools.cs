@@ -1333,45 +1333,7 @@ namespace Realm.Client.UI
 			StyleAccordionHeader(_btnHeaderWater);
 			SetupAccordion(_btnHeaderWater, _contentWater, TranslationServer.Translate("Liquid / Water Config"));
 
-			_waterHeightBox = new VBoxContainer();
-			_waterHeightBox.Name = "WaterHeightBox";
-			_waterHeightBox.AddThemeConstantOverride("separation", 2);
-
-			var headerWaterHeight = new HBoxContainer();
-			headerWaterHeight.Name = "HeaderWaterHeight";
-			_waterHeightBox.AddChild(headerWaterHeight);
-
-			var lblWaterHeightTitle = new Label();
-			lblWaterHeightTitle.Name = "LblWaterHeightTitle";
-			lblWaterHeightTitle.Text = TranslationServer.Translate("Water Height");
-			lblWaterHeightTitle.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-			lblWaterHeightTitle.AddThemeFontSizeOverride("font_size", 10);
-			headerWaterHeight.AddChild(lblWaterHeightTitle);
-
-			_lblWaterHeightValue = new Label();
-			_lblWaterHeightValue.Name = "LblWaterHeightValue";
-			_lblWaterHeightValue.Text = "0.9m";
-			_lblWaterHeightValue.AddThemeFontSizeOverride("font_size", 11);
-			headerWaterHeight.AddChild(_lblWaterHeightValue);
-
-			_sldWaterHeight = new HSlider();
-			_sldWaterHeight.Name = "SldWaterHeight";
-			_sldWaterHeight.FocusMode = FocusModeEnum.None;
-			_sldWaterHeight.MinValue = 0.1;
-			_sldWaterHeight.MaxValue = 15.0;
-			_sldWaterHeight.Step = 0.1;
-			_sldWaterHeight.Value = 0.9;
-			_sldWaterHeight.ValueChanged += (val) =>
-			{
-				float fVal = (float)val;
-				_lblWaterHeightValue.Text = fVal.ToString("F1") + "m";
-				if (GameContext.Host != null) GameContext.EditorService.EditorWaterHeight = fVal;
-			};
-			_sldWaterHeight.DragStarted += () => _isDraggingSlider = true;
-			_sldWaterHeight.DragEnded += (valueChanged) => _isDraggingSlider = false;
-			_waterHeightBox.AddChild(_sldWaterHeight);
-
-			_contentWater.AddChild(_waterHeightBox);
+			BuildWaterHeightSlider();
 
 			BuildWaterActionButtons();
 
@@ -1416,6 +1378,51 @@ namespace Realm.Client.UI
 			_contentWater.AddChild(_btnWaterProfiles);
 		}
 
+
+
+
+		private void BuildWaterHeightSlider()
+		{
+			_waterHeightBox = new VBoxContainer();
+			_waterHeightBox.Name = "WaterHeightBox";
+			_waterHeightBox.AddThemeConstantOverride("separation", 2);
+
+			var headerWaterHeight = new HBoxContainer();
+			headerWaterHeight.Name = "HeaderWaterHeight";
+			_waterHeightBox.AddChild(headerWaterHeight);
+
+			var lblWaterHeightTitle = new Label();
+			lblWaterHeightTitle.Name = "LblWaterHeightTitle";
+			lblWaterHeightTitle.Text = TranslationServer.Translate("Water Height");
+			lblWaterHeightTitle.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+			lblWaterHeightTitle.AddThemeFontSizeOverride("font_size", 10);
+			headerWaterHeight.AddChild(lblWaterHeightTitle);
+
+			_lblWaterHeightValue = new Label();
+			_lblWaterHeightValue.Name = "LblWaterHeightValue";
+			_lblWaterHeightValue.Text = "0.9m";
+			_lblWaterHeightValue.AddThemeFontSizeOverride("font_size", 11);
+			headerWaterHeight.AddChild(_lblWaterHeightValue);
+
+			_sldWaterHeight = new HSlider();
+			_sldWaterHeight.Name = "SldWaterHeight";
+			_sldWaterHeight.FocusMode = FocusModeEnum.None;
+			_sldWaterHeight.MinValue = 0.1;
+			_sldWaterHeight.MaxValue = 15.0;
+			_sldWaterHeight.Step = 0.1;
+			_sldWaterHeight.Value = 0.9;
+			_sldWaterHeight.ValueChanged += (val) =>
+			{
+				float fVal = (float)val;
+				_lblWaterHeightValue.Text = fVal.ToString("F1") + "m";
+				if (GameContext.Host != null) GameContext.EditorService.EditorWaterHeight = fVal;
+			};
+			_sldWaterHeight.DragStarted += () => _isDraggingSlider = true;
+			_sldWaterHeight.DragEnded += (valueChanged) => _isDraggingSlider = false;
+			_waterHeightBox.AddChild(_sldWaterHeight);
+
+			_contentWater.AddChild(_waterHeightBox);
+		}
 
 
 		private void BuildWaterActionButtons()
