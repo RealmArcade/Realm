@@ -56,7 +56,7 @@ public static class GlbChromaKeyMatcher
 			var (jsonNode, binChunk, _) = GlbManifestUtils.ParseGlb(glbBytes);
 			if (jsonNode is not JsonObject root || binChunk == null) return null;
 
-			if (!TryGetBaseGlbArrays(root, out var textures, out var materials, out var images, out var bufferViews))
+			if (!GlbAccessorReader.TryGetBaseGlbArrays(root, out var textures, out var materials, out var images, out var bufferViews))
 			{
 				return null;
 			}
@@ -168,16 +168,6 @@ public static class GlbChromaKeyMatcher
 		{
 			return (1f, 0f, 1f);
 		}
-	}
-
-	internal static bool TryGetBaseGlbArrays(JsonObject root, out JsonArray textures, out JsonArray materials, out JsonArray images, out JsonArray bufferViews)
-	{
-		textures = root["textures"] as JsonArray ?? new JsonArray();
-		materials = root["materials"] as JsonArray ?? new JsonArray();
-		images = root["images"] as JsonArray ?? new JsonArray();
-		bufferViews = root["bufferViews"] as JsonArray ?? new JsonArray();
-
-		return root.ContainsKey("textures") && root.ContainsKey("materials") && root.ContainsKey("images") && root.ContainsKey("bufferViews");
 	}
 
 	internal static void CalculateAndCheckScore(int rgbKey, int count, float targetHueUnitX, float targetHueUnitY, ref float bestScore, ref int bestRgbKey)
