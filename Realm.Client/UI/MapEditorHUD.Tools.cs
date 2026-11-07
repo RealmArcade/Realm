@@ -1040,6 +1040,27 @@ namespace Realm.Client.UI
 
 		private void BuildCameraPopup()
 		{
+			var camVBox = BuildCameraPopupShell();
+
+			BuildCameraRotateButton(camVBox);
+
+			BuildCameraAngleButton(camVBox);
+
+			BuildCameraZoomButtons(camVBox);
+
+			BuildFreeCameraToggle(camVBox);
+
+			_popupCamera.AddChild(camVBox);
+			AddChild(_popupCamera);
+
+			_btnToggleCamera = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/BoxViewportToolbar/ViewportIconRow1/BtnToggleCamera");
+			_btnToggleCamera.Set("icon_max_width", 0);
+			SetupButton(_btnToggleCamera, UnicodeIcons.CAMERA, () => OpenCameraPopup(), 12, "Configure camera controls (R / C / + / - / F8)");
+		}
+
+
+		private VBoxContainer BuildCameraPopupShell()
+		{
 			_popupCamera = new PopupPanel();
 			_popupCamera.Name = "PopupCamera";
 
@@ -1058,7 +1079,12 @@ namespace Realm.Client.UI
 			camVBox.Name = "CamVBox";
 			camVBox.AddThemeConstantOverride("separation", 6);
 			camVBox.CustomMinimumSize = new Vector2(170, 0);
+			return camVBox;
+		}
 
+
+		private void BuildCameraRotateButton(VBoxContainer camVBox)
+		{
 			_btnRotate = new Button();
 			_btnRotate.Name = "BtnRotate";
 			_btnRotate.Set("icon_max_width", 0);
@@ -1071,7 +1097,11 @@ namespace Realm.Client.UI
 				_popupCamera.Hide();
 			};
 			camVBox.AddChild(_btnRotate);
+		}
 
+
+		private void BuildCameraAngleButton(VBoxContainer camVBox)
+		{
 			_btnCameraAngle = new Button();
 			_btnCameraAngle.Name = "BtnCameraAngle";
 			_btnCameraAngle.Set("icon_max_width", 0);
@@ -1087,7 +1117,11 @@ namespace Realm.Client.UI
 				_popupCamera.Hide();
 			};
 			camVBox.AddChild(_btnCameraAngle);
+		}
 
+
+		private void BuildCameraZoomButtons(VBoxContainer camVBox)
+		{
 			_btnZoomIn = new Button();
 			_btnZoomIn.Name = "BtnZoomIn";
 			_btnZoomIn.Set("icon_max_width", 0);
@@ -1111,7 +1145,11 @@ namespace Realm.Client.UI
 				_popupCamera.Hide();
 			};
 			camVBox.AddChild(_btnZoomOut);
+		}
 
+
+		private void BuildFreeCameraToggle(VBoxContainer camVBox)
+		{
 			_chkFreeCamera = new CheckBox();
 			_chkFreeCamera.Name = "ChkFreeCamera";
 			_chkFreeCamera.Text = TranslationServer.Translate("Free Camera (F8)");
@@ -1129,15 +1167,7 @@ namespace Realm.Client.UI
 				_popupCamera.Hide();
 			};
 			camVBox.AddChild(_chkFreeCamera);
-
-			_popupCamera.AddChild(camVBox);
-			AddChild(_popupCamera);
-
-			_btnToggleCamera = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/BoxViewportToolbar/ViewportIconRow1/BtnToggleCamera");
-			_btnToggleCamera.Set("icon_max_width", 0);
-			SetupButton(_btnToggleCamera, UnicodeIcons.CAMERA, () => OpenCameraPopup(), 12, "Configure camera controls (R / C / + / - / F8)");
 		}
-
 
 
 		private void BuildMeasurementAndPolarControls()
