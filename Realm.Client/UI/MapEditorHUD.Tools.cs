@@ -1462,107 +1462,7 @@ namespace Realm.Client.UI
 			StyleAccordionHeader(_btnHeaderToolSettings);
 			SetupAccordion(_btnHeaderToolSettings, _contentToolSettings, TranslationServer.Translate("Tool Settings"));
 
-			_containerTextureSettings = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture");
-			_lblTerrainTexture = GetNode<Label>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/LblTerrainTexture");
-			_lblCliffTexture = GetNode<Label>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/LblCliffTexture");
-
-			ChkApplyGroundTexture = new CheckBox();
-			ChkApplyGroundTexture.Name = "ChkApplyGroundTexture";
-			ChkApplyGroundTexture.Text = TranslationServer.Translate("Ground (Q) [shift]");
-			ChkApplyGroundTexture.ButtonPressed = true;
-			ChkApplyGroundTexture.FocusMode = FocusModeEnum.None;
-			ChkApplyGroundTexture.AddThemeFontSizeOverride("font_size", 10);
-			UIStyle.ApplyCheckboxStyle(ChkApplyGroundTexture);
-
-			ChkApplyCliffTexture = new CheckBox();
-			ChkApplyCliffTexture.Name = "ChkApplyCliffTexture";
-			ChkApplyCliffTexture.Text = TranslationServer.Translate("Cliff (Q) [control]");
-			ChkApplyCliffTexture.ButtonPressed = true;
-			ChkApplyCliffTexture.FocusMode = FocusModeEnum.None;
-			ChkApplyCliffTexture.AddThemeFontSizeOverride("font_size", 10);
-			UIStyle.ApplyCheckboxStyle(ChkApplyCliffTexture);
-
-			ChkApplyGroundTexture.Toggled += (toggled) =>
-			{
-				if (!toggled && (ChkApplyCliffTexture == null || !ChkApplyCliffTexture.ButtonPressed))
-				{
-					ChkApplyCliffTexture.SetPressedNoSignal(true);
-				}
-
-				UpdateTextureLabels();
-			};
-
-			ChkApplyCliffTexture.Toggled += (toggled) =>
-			{
-				if (!toggled && (ChkApplyGroundTexture == null || !ChkApplyGroundTexture.ButtonPressed))
-				{
-					ChkApplyGroundTexture.SetPressedNoSignal(true);
-				}
-
-				UpdateTextureLabels();
-			};
-
-			if (_containerTextureSettings != null && _lblTerrainTexture != null && _lblCliffTexture != null)
-			{
-				RowGroundTexture = new HBoxContainer();
-				RowGroundTexture.Name = "RowGroundTexture";
-				RowGroundTexture.AddThemeConstantOverride("separation", 6);
-
-				int idxTerrain = _lblTerrainTexture.GetIndex();
-				_containerTextureSettings.RemoveChild(_lblTerrainTexture);
-				RowGroundTexture.AddChild(_lblTerrainTexture);
-				_lblTerrainTexture.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-				RowGroundTexture.AddChild(ChkApplyGroundTexture);
-				_containerTextureSettings.AddChild(RowGroundTexture);
-				_containerTextureSettings.MoveChild(RowGroundTexture, idxTerrain);
-
-				RowCliffTexture = new HBoxContainer();
-				RowCliffTexture.Name = "RowCliffTexture";
-				RowCliffTexture.AddThemeConstantOverride("separation", 6);
-
-				int idxCliff = _lblCliffTexture.GetIndex();
-				_containerTextureSettings.RemoveChild(_lblCliffTexture);
-				RowCliffTexture.AddChild(_lblCliffTexture);
-				_lblCliffTexture.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-				RowCliffTexture.AddChild(ChkApplyCliffTexture);
-				_containerTextureSettings.AddChild(RowCliffTexture);
-				_containerTextureSettings.MoveChild(RowCliffTexture, idxCliff);
-			}
-
-			var btnTextureSwap = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/BtnTextureSwap");
-			SetupOptionButton(btnTextureSwap, $"{UnicodeIcons.REFRESH} SWAP TEXTURES (GLOBAL)", () =>
-			{
-				if (GameContext.Host != null)
-				{
-					GameContext.Host.SwapTexturesExternal(GameContext.EditorService.EditorPaintTextureIndex, GameContext.EditorService.EditorCliffPaintTextureIndex);
-				}
-			}, 11, "Globally swap grass/dirt texture assignment indices (X)");
-
-			_scrollSwatches = GetNodeOrNull<ScrollContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/ScrollSwatches");
-			_gridSwatches = GetNodeOrNull<Control>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/ScrollSwatches/GridSwatches")
-			                ?? GetNodeOrNull<Control>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/GridSwatches");
-
-			if (_gridSwatches != null && _scrollSwatches == null && _gridSwatches.GetParent() is VBoxContainer parentVBox)
-			{
-				int gridIndex = _gridSwatches.GetIndex();
-				parentVBox.RemoveChild(_gridSwatches);
-				_scrollSwatches = new ScrollContainer();
-				_scrollSwatches.Name = "ScrollSwatches";
-				_scrollSwatches.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
-				_scrollSwatches.VerticalScrollMode = ScrollContainer.ScrollMode.Auto;
-				_scrollSwatches.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-				_scrollSwatches.AddChild(_gridSwatches);
-				parentVBox.AddChild(_scrollSwatches);
-				parentVBox.MoveChild(_scrollSwatches, gridIndex);
-			}
-
-			SetupTextureSwatches(true);
-
-			_btnReplaceTexture = new Button();
-			_btnReplaceTexture.Name = "BtnReplaceTexture";
-			_btnReplaceTexture.Set("icon_max_width", 0);
-			SetupOptionButton(_btnReplaceTexture, $"{UnicodeIcons.UPLOAD} REPLACE TEXTURE", () => _replaceTextureDialog?.OpenDialog(), 11, "Replace all instances of a texture with another texture across the map");
-			_containerTextureSettings?.AddChild(_btnReplaceTexture);
+			BuildTextureSettingsPanel();
 
 			BuildPathingSettingsPanel();
 
@@ -1677,6 +1577,113 @@ namespace Realm.Client.UI
 				pasteOptionsBox.AddChild(_btnPasteAnchor);
 				pasteOptionsBox.AddChild(_lblPasteTelemetry);
 			}
+		}
+
+
+
+		private void BuildTextureSettingsPanel()
+		{
+			_containerTextureSettings = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture");
+			_lblTerrainTexture = GetNode<Label>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/LblTerrainTexture");
+			_lblCliffTexture = GetNode<Label>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/LblCliffTexture");
+
+			ChkApplyGroundTexture = new CheckBox();
+			ChkApplyGroundTexture.Name = "ChkApplyGroundTexture";
+			ChkApplyGroundTexture.Text = TranslationServer.Translate("Ground (Q) [shift]");
+			ChkApplyGroundTexture.ButtonPressed = true;
+			ChkApplyGroundTexture.FocusMode = FocusModeEnum.None;
+			ChkApplyGroundTexture.AddThemeFontSizeOverride("font_size", 10);
+			UIStyle.ApplyCheckboxStyle(ChkApplyGroundTexture);
+
+			ChkApplyCliffTexture = new CheckBox();
+			ChkApplyCliffTexture.Name = "ChkApplyCliffTexture";
+			ChkApplyCliffTexture.Text = TranslationServer.Translate("Cliff (Q) [control]");
+			ChkApplyCliffTexture.ButtonPressed = true;
+			ChkApplyCliffTexture.FocusMode = FocusModeEnum.None;
+			ChkApplyCliffTexture.AddThemeFontSizeOverride("font_size", 10);
+			UIStyle.ApplyCheckboxStyle(ChkApplyCliffTexture);
+
+			ChkApplyGroundTexture.Toggled += (toggled) =>
+			{
+				if (!toggled && (ChkApplyCliffTexture == null || !ChkApplyCliffTexture.ButtonPressed))
+				{
+					ChkApplyCliffTexture.SetPressedNoSignal(true);
+				}
+
+				UpdateTextureLabels();
+			};
+
+			ChkApplyCliffTexture.Toggled += (toggled) =>
+			{
+				if (!toggled && (ChkApplyGroundTexture == null || !ChkApplyGroundTexture.ButtonPressed))
+				{
+					ChkApplyGroundTexture.SetPressedNoSignal(true);
+				}
+
+				UpdateTextureLabels();
+			};
+
+			if (_containerTextureSettings != null && _lblTerrainTexture != null && _lblCliffTexture != null)
+			{
+				RowGroundTexture = new HBoxContainer();
+				RowGroundTexture.Name = "RowGroundTexture";
+				RowGroundTexture.AddThemeConstantOverride("separation", 6);
+
+				int idxTerrain = _lblTerrainTexture.GetIndex();
+				_containerTextureSettings.RemoveChild(_lblTerrainTexture);
+				RowGroundTexture.AddChild(_lblTerrainTexture);
+				_lblTerrainTexture.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+				RowGroundTexture.AddChild(ChkApplyGroundTexture);
+				_containerTextureSettings.AddChild(RowGroundTexture);
+				_containerTextureSettings.MoveChild(RowGroundTexture, idxTerrain);
+
+				RowCliffTexture = new HBoxContainer();
+				RowCliffTexture.Name = "RowCliffTexture";
+				RowCliffTexture.AddThemeConstantOverride("separation", 6);
+
+				int idxCliff = _lblCliffTexture.GetIndex();
+				_containerTextureSettings.RemoveChild(_lblCliffTexture);
+				RowCliffTexture.AddChild(_lblCliffTexture);
+				_lblCliffTexture.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+				RowCliffTexture.AddChild(ChkApplyCliffTexture);
+				_containerTextureSettings.AddChild(RowCliffTexture);
+				_containerTextureSettings.MoveChild(RowCliffTexture, idxCliff);
+			}
+
+			var btnTextureSwap = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/BtnTextureSwap");
+			SetupOptionButton(btnTextureSwap, $"{UnicodeIcons.REFRESH} SWAP TEXTURES (GLOBAL)", () =>
+			{
+				if (GameContext.Host != null)
+				{
+					GameContext.Host.SwapTexturesExternal(GameContext.EditorService.EditorPaintTextureIndex, GameContext.EditorService.EditorCliffPaintTextureIndex);
+				}
+			}, 11, "Globally swap grass/dirt texture assignment indices (X)");
+
+			_scrollSwatches = GetNodeOrNull<ScrollContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/ScrollSwatches");
+			_gridSwatches = GetNodeOrNull<Control>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/ScrollSwatches/GridSwatches")
+			                ?? GetNodeOrNull<Control>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/GridSwatches");
+
+			if (_gridSwatches != null && _scrollSwatches == null && _gridSwatches.GetParent() is VBoxContainer parentVBox)
+			{
+				int gridIndex = _gridSwatches.GetIndex();
+				parentVBox.RemoveChild(_gridSwatches);
+				_scrollSwatches = new ScrollContainer();
+				_scrollSwatches.Name = "ScrollSwatches";
+				_scrollSwatches.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
+				_scrollSwatches.VerticalScrollMode = ScrollContainer.ScrollMode.Auto;
+				_scrollSwatches.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+				_scrollSwatches.AddChild(_gridSwatches);
+				parentVBox.AddChild(_scrollSwatches);
+				parentVBox.MoveChild(_scrollSwatches, gridIndex);
+			}
+
+			SetupTextureSwatches(true);
+
+			_btnReplaceTexture = new Button();
+			_btnReplaceTexture.Name = "BtnReplaceTexture";
+			_btnReplaceTexture.Set("icon_max_width", 0);
+			SetupOptionButton(_btnReplaceTexture, $"{UnicodeIcons.UPLOAD} REPLACE TEXTURE", () => _replaceTextureDialog?.OpenDialog(), 11, "Replace all instances of a texture with another texture across the map");
+			_containerTextureSettings?.AddChild(_btnReplaceTexture);
 		}
 
 
