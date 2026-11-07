@@ -305,6 +305,13 @@ public class SnapshotApplyService
 	/// </summary>
 	private int QueuedDeltaCount => _queuedDeltas.Count - _queuedDeltaHead;
 
+	/// <summary>
+	///     How many descriptions this screen already holds but has not applied, because a run below them is missing. It is
+	///     what tells a stall caused by the link apart from one caused by this process: descriptions held here were
+	///     delivered, so the link had nothing left to say.
+	/// </summary>
+	public int HeldDescriptionCount => QueuedDeltaCount;
+
 	private int OldestQueuedDeltaSequence() => QueuedDeltaCount > 0 ? _queuedDeltas[_queuedDeltaHead].Sequence : -1;
 
 	private void ClearQueuedDeltas()

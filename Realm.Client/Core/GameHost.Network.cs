@@ -358,7 +358,17 @@ public partial class GameHost
 
 		// The match clock is advanced once per tick and every replicated unit is placed from it below, so this is the only
 		// thing that moves one: the client renders the authority's own timeline from a little behind it.
+		int starvationsBefore = GameContext.SnapshotTimeline.StarvationCount;
 		GameContext.SnapshotTimeline.Advance(fDelta);
+
+		// A stall is caused by the link or by this process, and the two are told apart where they are measured: the step
+		// that ran the buffer out says whether the clock was moved further in one frame than the link could answer, and
+		// the descriptions already held say whether the world was here waiting while the clock moved past it.
+		if (LagProbe.IsEnabled && GameContext.SnapshotTimeline.StarvationCount != starvationsBefore)
+		{
+			LagProbe.RecordWorst(LagEvent.ClientStarvationStepMilliseconds, fDelta * 1000d);
+			LagProbe.RecordWorst(LagEvent.ClientStarvationHeldSequences, GameContext.SnapshotApply.HeldDescriptionCount);
+		}
 
 		if (LagProbe.IsEnabled) ObservePresentationMetrics(fDelta);
 

@@ -279,6 +279,7 @@ public class ListenServerHost : IServerTransportSink
 			var paths = ServerMatchPaths.From(_arguments);
 			_simulation = new ServerSimulation(map, paths, _log, _arguments.Seed, _arguments.Cheats, _arguments.WasmDebug, _arguments.WorkspacePath, roster, _arguments.Cheats ? 1 : 0);
 			MarkStartStage("simulation built");
+			WarmSnapshotFraming();
 			_simulation.PeerDropped += DisconnectPeer;
 			_log.Write($"map '{paths.MapName}' keeps its saved data under '{_simulation.MapSavedDataDirectory()}'");
 			_log.Write(_simulation.Describe());
@@ -378,6 +379,7 @@ public class ListenServerHost : IServerTransportSink
 
 			worldOwnedHere = null;
 			MarkStartStage("simulation built");
+			WarmSnapshotFraming();
 			_simulation.PeerDropped += DisconnectPeer;
 			_log.Write($"map '{paths.MapName}' keeps its saved data under '{_simulation.MapSavedDataDirectory()}'");
 			_log.Write(_simulation.Describe());
@@ -1226,6 +1228,48 @@ public class ListenServerHost : IServerTransportSink
 		return CryptographicOperations.FixedTimeEquals(presented, expected);
 	}
 
+	private const int WarmFramingUnitCount = 32;
+
+	/// <summary>
+	///     Frames one throwaway description the way a baseline is framed, before anything is published. The first baseline
+	///     a match sends is the first time MemoryPack writes a whole unit section and the first time a lane's compressor is
+	///     asked for a baseline: that work is compiled and initialised once, and measuring it showed it costs about thirty
+	///     milliseconds on its first call and two on every one after. Paying it before the clock starts is what keeps the
+	///     tick a screen joins on inside a tick's budget.
+	/// </summary>
+	private void WarmSnapshotFraming()
+	{
+		WorldSnapshot warm = default;
+		warm.ResetForDescription(0, true, 0);
+		for (int index = 0; index < WarmFramingUnitCount; index++)
+		{
+			warm.Units.Add(new UnitSnapshot
+			{
+				EntityId = index + 1,
+				UnitId = "warm",
+				OwnerPlayerEntityId = index + 1,
+				OwnerPlayerIndex = 0,
+				Position = new NetworkVector3(index, 0f, 0f),
+				RotationY = 0f,
+				CurrentHp = 1f,
+				MaxHp = 1f
+			});
+		}
+
+		ArrayBufferWriter<byte> serialized = _serializationWriters[0];
+		serialized.ResetWrittenCount();
+		MemoryPackSerializer.Serialize(serialized, warm);
+
+		for (int lane = 0; lane < _publishCompressors.Length; lane++)
+		{
+			SnapshotCompressor compressor = _publishCompressors[lane] ??= new SnapshotCompressor();
+			compressor.EncodeDelta(serialized.WrittenSpan);
+			compressor.EncodeBaseline(serialized.WrittenSpan);
+		}
+
+		serialized.ResetWrittenCount();
+	}
+
 	private void PublishTick(int sequence)
 	{
 		ServerSimulation? simulation = _simulation;
@@ -1422,13 +1466,24 @@ public class ListenServerHost : IServerTransportSink
 		ArrayBufferWriter<byte> serialized = _serializationWriters[index];
 		serialized.ResetWrittenCount();
 		MemoryPackSerializer.Serialize(serialized, snapshot);
+		long packingFinished = System.Diagnostics.Stopwatch.GetTimestamp();
 		SnapshotCompressor compressor = _publishCompressors[laneIndex] ??= new SnapshotCompressor();
 		_publishedFrames[index] = snapshot.IsBaseline
 			? compressor.EncodeBaseline(serialized.WrittenSpan)
 			: compressor.EncodeDelta(serialized.WrittenSpan);
+		long encodingFinished = System.Diagnostics.Stopwatch.GetTimestamp();
 		_publishedSerializedBytes[index] = serialized.WrittenCount;
-		_publishedFramingMilliseconds[index] = (System.Diagnostics.Stopwatch.GetTimestamp() - framingStarted) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+		_publishedFramingMilliseconds[index] = (encodingFinished - framingStarted) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
 		LagProbe.Add(LagStage.AuthoritySerializeMilliseconds, _publishedFramingMilliseconds[index]);
+
+		// Packing the description and compressing it are told apart because a baseline is where both are paid at a size a
+		// delta never reaches, and they are answered by different work: one is this match's own object graph, the other is
+		// the compressor's effort.
+		if (LagProbe.IsEnabled)
+		{
+			LagProbe.Add(LagStage.AuthorityPackMilliseconds, (packingFinished - framingStarted) * 1000.0 / System.Diagnostics.Stopwatch.Frequency);
+			LagProbe.Add(LagStage.AuthorityCompressMilliseconds, (encodingFinished - packingFinished) * 1000.0 / System.Diagnostics.Stopwatch.Frequency);
+		}
 	}
 
 	private void SendPublishedSnapshot(int index)
