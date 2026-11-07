@@ -34,51 +34,7 @@ SeederEndpoints.MapSeederEndpoints(app, setup);
 
 AssetEndpoints.MapAssetEndpoints(app, setup);
 
-app.MapPost("/seeders/download", async (SeederDownloadRequest req, SeederRegistry registry) =>
-{
-	var seeders = registry.GetSeedersForMap(req.MapId);
-	if (seeders.Count == 0)
-	{
-		return Results.NotFound(new { Message = "No seeders found for this map", seeders = Array.Empty<object>() });
-	}
-
-	if (!string.IsNullOrEmpty(req.ClientPublicIP) && req.ClientPublicPort > 0)
-	{
-		foreach (var seeder in seeders)
-		{
-			var ws = registry.GetConnection(seeder.SeederId);
-			if (ws != null && ws.State == WebSocketState.Open)
-			{
-				try
-				{
-					var msg = JsonSerializer.Serialize(new
-					{
-						Action = "Punch",
-						ClientIP = req.ClientPublicIP,
-						ClientPort = req.ClientPublicPort
-					});
-					var bytes = Encoding.UTF8.GetBytes(msg);
-					await ws.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None);
-				}
-				catch
-				{
-					registry.Unregister(seeder.SeederId);
-				}
-			}
-		}
-	}
-
-	var resultList = seeders.Select(s => new { ip = s.IP, port = s.Port, seederId = s.SeederId }).ToList();
-	return Results.Ok(new { seeders = resultList });
-});
-
-app.MapGet("/seeders/by_manifest/{manifestHash}", (string manifestHash, SeederRegistry registry) =>
-{
-	var seeders = registry.GetSeedersForMap(manifestHash);
-	var resultList = seeders.Select(s => new { ip = s.IP, port = s.Port, seederId = s.SeederId }).ToList();
-	return Results.Ok(new { seeders = resultList });
-});
-
+SeederEndpoints.MapSeederDownloadEndpoints(app, setup);
 
 app.MapPost("/api/publish_map/initiate", (PublishMapInitiateRequest req, DataStoreService db, ContentAddressableStorage cas) =>
 {
