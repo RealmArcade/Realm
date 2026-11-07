@@ -73,12 +73,22 @@ public partial class SteamFriendsDialog : Control
 		PrepareInviteLobbyAsync();
 	}
 
+	// Both are fire-and-forget by design: one waits for Steam to hand over the friend names, the other asks Steam to
+	// prepare an invite lobby. Neither had a catch, so a fault in either was unobserved — the second one visibly, since
+	// it disables the send button before awaiting and never re-enables it when the await throws.
 	private async void RefreshFriendsOnceNamesArriveAsync()
 	{
-		await ToSignal(GetTree().CreateTimer(1.5f), SceneTreeTimer.SignalName.Timeout);
-		if (!GodotObject.IsInstanceValid(this) || !Visible) return;
+		try
+		{
+			await ToSignal(GetTree().CreateTimer(1.5f), SceneTreeTimer.SignalName.Timeout);
+			if (!GodotObject.IsInstanceValid(this) || !Visible) return;
 
-		PopulateFriends();
+			PopulateFriends();
+		}
+		catch (Exception exception)
+		{
+			GameLog.LogError($"[SteamFriendsDialog] Refreshing the friend list failed: {exception}");
+		}
 	}
 
 	public void Close()
@@ -303,15 +313,22 @@ public partial class SteamFriendsDialog : Control
 
 	private async void PrepareInviteLobbyAsync()
 	{
-		_setupLabel.Text = TranslationServer.Translate("Preparing the invite...");
-		_sendButton.Disabled = true;
-		_feedbackLabel.Text = string.Empty;
+		try
+		{
+			_setupLabel.Text = TranslationServer.Translate("Preparing the invite...");
+			_sendButton.Disabled = true;
+			_feedbackLabel.Text = string.Empty;
 
-		bool prepared = await GameContext.Steam.OpenInviteLobbyAsync(_gameLobbyId, _maximumMembers);
-		if (!GodotObject.IsInstanceValid(this)) return;
+			bool prepared = await GameContext.Steam.OpenInviteLobbyAsync(_gameLobbyId, _maximumMembers);
+			if (!GodotObject.IsInstanceValid(this)) return;
 
-		_setupLabel.Text = prepared ? string.Empty : TranslationServer.Translate("Steam could not prepare an invite. Close this window and try again.");
-		_sendButton.Disabled = !prepared;
+			_setupLabel.Text = prepared ? string.Empty : TranslationServer.Translate("Steam could not prepare an invite. Close this window and try again.");
+			_sendButton.Disabled = !prepared;
+		}
+		catch (Exception exception)
+		{
+			GameLog.LogError($"[SteamFriendsDialog] Preparing the invite lobby failed: {exception}");
+		}
 	}
 
 	private void OnSendInvitesPressed()
