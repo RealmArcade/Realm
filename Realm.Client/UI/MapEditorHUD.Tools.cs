@@ -149,8 +149,6 @@ namespace Realm.Client.UI
 
 
 
-
-
 		private void BuildPlacementAccordion()
 		{
 			_accordionPlacement = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion");
@@ -159,6 +157,20 @@ namespace Realm.Client.UI
 			StyleAccordionHeader(_btnHeaderPlacement);
 			SetupAccordion(_btnHeaderPlacement, _contentPlacement, TranslationServer.Translate("Placement Config"));
 
+			BuildPlacementTransformSliders();
+
+			BuildPlacementSnapAndMirrorControls();
+
+			BuildPlacementPlayerOwnerControl();
+
+			BuildClumpModeControls();
+
+			WirePlacementSliderEvents();
+		}
+
+
+		private void BuildPlacementTransformSliders()
+		{
 			_sldPlacementRotate = GetNode<Slider>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/PlacementRotateBox/SldPlacementRotate");
 			_lblPlacementRotateValue = GetNode<Label>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/PlacementRotateBox/Header/LblPlacementRotateValue");
 			_sldPlacementScale = GetNode<Slider>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/PlacementScaleBox/SldPlacementScale");
@@ -167,7 +179,11 @@ namespace Realm.Client.UI
 			if (lblPlacementRotateTitle != null) lblPlacementRotateTitle.Text = TranslationServer.Translate("Rotation (Shift + Mouse_Wheel)");
 			var lblPlacementScaleTitle = GetNodeOrNull<Label>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/PlacementScaleBox/Header/LblScaleTitle");
 			if (lblPlacementScaleTitle != null) lblPlacementScaleTitle.Text = TranslationServer.Translate("Scale (Alt + Mouse_Wheel)");
+		}
 
+
+		private void BuildPlacementSnapAndMirrorControls()
+		{
 			_btnToggleSnap = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/BtnToggleSnap");
 			SetupOptionButton(_btnToggleSnap, $"{UnicodeIcons.TABLE} SNAP TO GRID: OFF", () =>
 			{
@@ -187,7 +203,11 @@ namespace Realm.Client.UI
 				_contentPlacement.AddChild(_optPlacementMirrorMode);
 				_contentPlacement.MoveChild(_optPlacementMirrorMode, _btnToggleSnap.GetIndex() + 1);
 			}
+		}
 
+
+		private void BuildPlacementPlayerOwnerControl()
+		{
 			_placementPlayerContainer = new HBoxContainer();
 			_placementPlayerContainer.Name = "PlacementPlayerOwnerContainer";
 			_placementPlayerContainer.AddThemeConstantOverride("separation", 6);
@@ -223,7 +243,11 @@ namespace Realm.Client.UI
 				_contentPlacement.AddChild(_placementPlayerContainer);
 				_contentPlacement.MoveChild(_placementPlayerContainer, _optPlacementMirrorMode.GetIndex() + 1);
 			}
+		}
 
+
+		private void BuildClumpModeControls()
+		{
 			_chkRandomRotation = GetNode<CheckBox>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/ChkRandomRotation");
 			_chkRandomScale = GetNode<CheckBox>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/ChkRandomScale");
 
@@ -247,7 +271,11 @@ namespace Realm.Client.UI
 					UpdateSidebarMorph(GameContext.Host.ActiveEditorTool);
 				}
 			};
+		}
 
+
+		private void WirePlacementSliderEvents()
+		{
 			_sldClumpDensity.ValueChanged += (val) =>
 			{
 				float fVal = (float)val;
