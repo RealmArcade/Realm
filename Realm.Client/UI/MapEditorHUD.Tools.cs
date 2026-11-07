@@ -120,104 +120,6 @@ namespace Realm.Client.UI
 
 				BuildTopLeftToolbar();
 
-				_btnUndo = GetNode<Button>("TopLeftBox/BtnUndo");
-				SetupButton(_btnUndo, $"{UnicodeIcons.UNDO} " + TranslationServer.Translate("UNDO"), () => UndoAction(), 13, "Undo the last action (Ctrl+Z)");
-				StyleMapEditorTopButton(_btnUndo);
-
-				_btnRedo = GetNode<Button>("TopLeftBox/BtnRedo");
-				SetupButton(_btnRedo, $"{UnicodeIcons.REDO} " + TranslationServer.Translate("REDO"), () => RedoAction(), 13, "Redo the last undone action (Ctrl+Y)");
-				StyleMapEditorTopButton(_btnRedo);
-
-				_btnEyedropper = GetNode<Button>("TopLeftBox/BtnEyedropper");
-				SetupButton(_btnEyedropper, $"{UnicodeIcons.EYEDROPPER} " + TranslationServer.Translate("EYEDROPPER"), () => TriggerToolSelection(EditorTool.Eyedropper, _btnEyedropper), 13, "Pick / sample entities, terrain height (Shift+Click), or vertex color under cursor (I)");
-				StyleMapEditorTopButton(_btnEyedropper);
-
-				_optModule = GetNode<OptionButton>("TopLeftBox/OptModule");
-				StyleOptionButtonPopup(_optModule);
-				_optModule.AddItem($"{UnicodeIcons.MOUNTAIN} " + TranslationServer.Translate("TERRAIN") + " (F1)", (int)EditorModule.Terrain);
-				_optModule.AddItem($"{UnicodeIcons.PAINT_BRUSH} " + TranslationServer.Translate("TEXTURE") + " (F2)", (int)EditorModule.TextureDeco);
-				_optModule.AddItem($"{UnicodeIcons.VECTOR_SQUARE} " + TranslationServer.Translate("PATHING") + " (F3)", (int)EditorModule.Pathing);
-				_optModule.AddItem($"{UnicodeIcons.CUBE} " + TranslationServer.Translate("OBJECTS") + " (F4)", (int)EditorModule.Objects);
-				_optModule.AddItem($"{UnicodeIcons.DRAW_POLYGON} " + TranslationServer.Translate("COORDINATES") + " (F5)", (int)EditorModule.Coordinates);
-				_optModule.AddItem($"{UnicodeIcons.PASTE} " + TranslationServer.Translate("CLIPBOARD") + " (F6)", (int)EditorModule.Clipboard);
-				_optModule.ItemSelected += (index) => SwitchModuleView((EditorModule)index);
-				StyleMapEditorTopButton(_optModule);
-
-				_btnGameSettings = GetNodeOrNull<Button>("TopLeftBox/BtnSettings");
-				if (_btnGameSettings != null)
-				{
-					SetupIconButton(_btnGameSettings, "res://Assets/UI/gear_icon.webp", () => { GameContext.UserInterface?.OpenSettingsOverlay(); }, "Game Settings");
-					StyleMapEditorTopButton(_btnGameSettings);
-				}
-
-				_btnTestMap = GetNodeOrNull<Button>("TopLeftBox/BtnTestMap");
-				if (_btnTestMap == null)
-				{
-					_btnTestMap = new Button();
-					_btnTestMap.Name = "BtnTestMap";
-					if (_topLeftBox != null)
-					{
-						_topLeftBox.AddChild(_btnTestMap);
-					}
-				}
-
-				SetupButton(_btnTestMap, $"{UnicodeIcons.GAMEPAD} " + TranslationServer.Translate("TEST"), () => TestMapAction(), 13, "Launch single-player mode on the current editor map");
-				StyleMapEditorTopButton(_btnTestMap);
-
-				_optTestSettings = new OptionButton();
-				_optTestSettings.Name = "OptTestSettings";
-				_optTestSettings.FitToLongestItem = false;
-				_optTestSettings.CustomMinimumSize = new Vector2(20, 0);
-				_optTestSettings.SizeFlagsHorizontal = SizeFlags.ShrinkBegin;
-				_optTestSettings.Alignment = HorizontalAlignment.Center;
-				_optTestSettings.AddThemeIconOverride("arrow", new PlaceholderTexture2D { Size = Vector2.Zero });
-				_optTestSettings.AddThemeConstantOverride("arrow_margin", 0);
-				_optTestSettings.Text = UnicodeIcons.CHEVRON_DOWN;
-				var font = GetFontAwesomeFont();
-				if (font != null)
-				{
-					_optTestSettings.AddThemeFontOverride("font", font);
-				}
-				_optTestSettings.AddThemeFontSizeOverride("font_size", 11);
-				_optTestSettings.TooltipText = "Test Settings";
-				_optTestSettings.AddItem("Test Settings", 0);
-				_optTestSettings.Selected = -1;
-				_optTestSettings.Text = UnicodeIcons.CHEVRON_DOWN;
-				StyleOptionButtonPopup(_optTestSettings);
-				StyleCompactMapEditorTopButton(_optTestSettings, 4);
-				_optTestSettings.ItemSelected += (idx) =>
-				{
-					Callable.From(() =>
-					{
-						_optTestSettings.Selected = -1;
-						_optTestSettings.Text = UnicodeIcons.CHEVRON_DOWN;
-					}).CallDeferred();
-					OpenTestSettingsDialog();
-				};
-				if (_topLeftBox != null)
-				{
-					_topLeftBox.AddChild(_optTestSettings);
-				}
-
-				if (_topLeftBox != null)
-				{
-					if (_btnTestMap != null && _btnGameSettings != null)
-					{
-						_topLeftBox.MoveChild(_btnTestMap, _btnGameSettings.GetIndex() + 1);
-						_topLeftBox.MoveChild(_optTestSettings, _btnTestMap.GetIndex() + 1);
-					}
-
-					_btnResetLayout = new Button();
-					_btnResetLayout.Name = "BtnResetLayout";
-					SetupButton(_btnResetLayout, $"{UnicodeIcons.PIN} " + TranslationServer.Translate("RESET LAYOUT"), () => ResetAllPanelPositions(), 12, "Reset all floating panels back to default sidebar positions");
-					StyleMapEditorTopButton(_btnResetLayout);
-					_topLeftBox.AddChild(_btnResetLayout);
-					if (_btnGameSettings != null)
-					{
-						_topLeftBox.MoveChild(_btnResetLayout, _btnGameSettings.GetIndex());
-					}
-				}
-
 				_statusLabel = GetNode<Label>("BottomCenterBar/TopBar/HBox/StatusLabel");
 				_feedbackLabel = GetNode<Label>("FeedbackLabel");
 				_feedbackLabel.Modulate = new Color(1, 1, 1, 0);
@@ -637,6 +539,104 @@ namespace Realm.Client.UI
 				_popupEditors.Popup(new Rect2I((Vector2I)popupPosition, Vector2I.Zero));
 			}, 13, "Open Modules");
 			StyleMapEditorTopButton(_btnEditors);
+
+			_btnUndo = GetNode<Button>("TopLeftBox/BtnUndo");
+			SetupButton(_btnUndo, $"{UnicodeIcons.UNDO} " + TranslationServer.Translate("UNDO"), () => UndoAction(), 13, "Undo the last action (Ctrl+Z)");
+			StyleMapEditorTopButton(_btnUndo);
+
+			_btnRedo = GetNode<Button>("TopLeftBox/BtnRedo");
+			SetupButton(_btnRedo, $"{UnicodeIcons.REDO} " + TranslationServer.Translate("REDO"), () => RedoAction(), 13, "Redo the last undone action (Ctrl+Y)");
+			StyleMapEditorTopButton(_btnRedo);
+
+			_btnEyedropper = GetNode<Button>("TopLeftBox/BtnEyedropper");
+			SetupButton(_btnEyedropper, $"{UnicodeIcons.EYEDROPPER} " + TranslationServer.Translate("EYEDROPPER"), () => TriggerToolSelection(EditorTool.Eyedropper, _btnEyedropper), 13, "Pick / sample entities, terrain height (Shift+Click), or vertex color under cursor (I)");
+			StyleMapEditorTopButton(_btnEyedropper);
+
+			_optModule = GetNode<OptionButton>("TopLeftBox/OptModule");
+			StyleOptionButtonPopup(_optModule);
+			_optModule.AddItem($"{UnicodeIcons.MOUNTAIN} " + TranslationServer.Translate("TERRAIN") + " (F1)", (int)EditorModule.Terrain);
+			_optModule.AddItem($"{UnicodeIcons.PAINT_BRUSH} " + TranslationServer.Translate("TEXTURE") + " (F2)", (int)EditorModule.TextureDeco);
+			_optModule.AddItem($"{UnicodeIcons.VECTOR_SQUARE} " + TranslationServer.Translate("PATHING") + " (F3)", (int)EditorModule.Pathing);
+			_optModule.AddItem($"{UnicodeIcons.CUBE} " + TranslationServer.Translate("OBJECTS") + " (F4)", (int)EditorModule.Objects);
+			_optModule.AddItem($"{UnicodeIcons.DRAW_POLYGON} " + TranslationServer.Translate("COORDINATES") + " (F5)", (int)EditorModule.Coordinates);
+			_optModule.AddItem($"{UnicodeIcons.PASTE} " + TranslationServer.Translate("CLIPBOARD") + " (F6)", (int)EditorModule.Clipboard);
+			_optModule.ItemSelected += (index) => SwitchModuleView((EditorModule)index);
+			StyleMapEditorTopButton(_optModule);
+
+			_btnGameSettings = GetNodeOrNull<Button>("TopLeftBox/BtnSettings");
+			if (_btnGameSettings != null)
+			{
+				SetupIconButton(_btnGameSettings, "res://Assets/UI/gear_icon.webp", () => { GameContext.UserInterface?.OpenSettingsOverlay(); }, "Game Settings");
+				StyleMapEditorTopButton(_btnGameSettings);
+			}
+
+			_btnTestMap = GetNodeOrNull<Button>("TopLeftBox/BtnTestMap");
+			if (_btnTestMap == null)
+			{
+				_btnTestMap = new Button();
+				_btnTestMap.Name = "BtnTestMap";
+				if (_topLeftBox != null)
+				{
+					_topLeftBox.AddChild(_btnTestMap);
+				}
+			}
+
+			SetupButton(_btnTestMap, $"{UnicodeIcons.GAMEPAD} " + TranslationServer.Translate("TEST"), () => TestMapAction(), 13, "Launch single-player mode on the current editor map");
+			StyleMapEditorTopButton(_btnTestMap);
+
+			_optTestSettings = new OptionButton();
+			_optTestSettings.Name = "OptTestSettings";
+			_optTestSettings.FitToLongestItem = false;
+			_optTestSettings.CustomMinimumSize = new Vector2(20, 0);
+			_optTestSettings.SizeFlagsHorizontal = SizeFlags.ShrinkBegin;
+			_optTestSettings.Alignment = HorizontalAlignment.Center;
+			_optTestSettings.AddThemeIconOverride("arrow", new PlaceholderTexture2D { Size = Vector2.Zero });
+			_optTestSettings.AddThemeConstantOverride("arrow_margin", 0);
+			_optTestSettings.Text = UnicodeIcons.CHEVRON_DOWN;
+			var font = GetFontAwesomeFont();
+			if (font != null)
+			{
+				_optTestSettings.AddThemeFontOverride("font", font);
+			}
+			_optTestSettings.AddThemeFontSizeOverride("font_size", 11);
+			_optTestSettings.TooltipText = "Test Settings";
+			_optTestSettings.AddItem("Test Settings", 0);
+			_optTestSettings.Selected = -1;
+			_optTestSettings.Text = UnicodeIcons.CHEVRON_DOWN;
+			StyleOptionButtonPopup(_optTestSettings);
+			StyleCompactMapEditorTopButton(_optTestSettings, 4);
+			_optTestSettings.ItemSelected += (idx) =>
+			{
+				Callable.From(() =>
+				{
+					_optTestSettings.Selected = -1;
+					_optTestSettings.Text = UnicodeIcons.CHEVRON_DOWN;
+				}).CallDeferred();
+				OpenTestSettingsDialog();
+			};
+			if (_topLeftBox != null)
+			{
+				_topLeftBox.AddChild(_optTestSettings);
+			}
+
+			if (_topLeftBox != null)
+			{
+				if (_btnTestMap != null && _btnGameSettings != null)
+				{
+					_topLeftBox.MoveChild(_btnTestMap, _btnGameSettings.GetIndex() + 1);
+					_topLeftBox.MoveChild(_optTestSettings, _btnTestMap.GetIndex() + 1);
+				}
+
+				_btnResetLayout = new Button();
+				_btnResetLayout.Name = "BtnResetLayout";
+				SetupButton(_btnResetLayout, $"{UnicodeIcons.PIN} " + TranslationServer.Translate("RESET LAYOUT"), () => ResetAllPanelPositions(), 12, "Reset all floating panels back to default sidebar positions");
+				StyleMapEditorTopButton(_btnResetLayout);
+				_topLeftBox.AddChild(_btnResetLayout);
+				if (_btnGameSettings != null)
+				{
+					_topLeftBox.MoveChild(_btnResetLayout, _btnGameSettings.GetIndex());
+				}
+			}
 		}
 
 
