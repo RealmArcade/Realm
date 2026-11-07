@@ -134,4 +134,51 @@ internal static class SeederEndpoints
 			return Results.Ok(new { seeders = resultList });
 		});
 	}
+
+	internal static void MapSeederWebSocketEndpoints(WebApplication app, ServerSetup setup)
+	{
+		app.Map("/seeders/ws", async (HttpContext context, SeederRegistry registry) =>
+		{
+			if (context.WebSockets.IsWebSocketRequest)
+			{
+				var seederId = context.Request.Query["seederId"].ToString();
+				if (string.IsNullOrEmpty(seederId))
+				{
+					context.Response.StatusCode = StatusCodes.Status400BadRequest;
+					return;
+				}
+
+				using var webSocket = await context.WebSockets.AcceptWebSocketAsync();
+				registry.AddConnection(seederId, webSocket);
+				Console.WriteLine($"[Registry] Seeder connected WebSocket for Seeder {seederId}");
+
+				var buffer = new byte[1024 * 4];
+				try
+				{
+					while (webSocket.State == WebSocketState.Open)
+					{
+						var result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+						if (result.MessageType == WebSocketMessageType.Close)
+						{
+							await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closing", CancellationToken.None);
+							break;
+						}
+					}
+				}
+				catch (Exception ex)
+				{
+					Console.WriteLine($"[Registry] Seeder {seederId} WebSocket error: {ex.Message}");
+				}
+				finally
+				{
+					registry.RemoveConnection(seederId);
+					Console.WriteLine($"[Registry] Seeder disconnected WebSocket for Seeder {seederId}");
+				}
+			}
+			else
+			{
+				context.Response.StatusCode = StatusCodes.Status400BadRequest;
+			}
+		});
+	}
 }

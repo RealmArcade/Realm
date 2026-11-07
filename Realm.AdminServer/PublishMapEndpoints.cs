@@ -599,4 +599,112 @@ internal static class PublishMapEndpoints
 			}
 		});
 	}
+
+	internal static void MapPublishMapAssetEndpoints(WebApplication app, ServerSetup setup)
+	{
+		app.MapPost("/api/publish_map/upload_asset", async (HttpRequest request, DataStoreService db, ContentAddressableStorage cas) =>
+		{
+			if (!request.HasFormContentType)
+				return Results.BadRequest("Expected multipart/form-data");
+
+			var form = await request.ReadFormAsync();
+
+			string hash = form["Hash"].ToString();
+			string signature = form["Signature"].ToString();
+			string authorUsername = form["AuthorUsername"].ToString();
+			string publicKey = form["PublicKey"].ToString();
+			string mapTitle = form.TryGetValue("MapTitle", out var mt) ? mt.ToString() : "";
+			string mapVersion = form.TryGetValue("MapVersion", out var mv) ? mv.ToString() : "1.0";
+			string sessionId = form.TryGetValue("SessionId", out var sid) ? sid.ToString() : "";
+
+			bool isSessionValid = !string.IsNullOrWhiteSpace(sessionId) && db.Get<JsonDocument>("publish_sessions", sessionId) != null;
+			if (!isSessionValid && !string.IsNullOrEmpty(mapTitle))
+			{
+				var stats = MapStatsHelper.GetStats(db, mapTitle, mapVersion, publicKey);
+				if (stats == null || !stats.IsGreenlit)
+				{
+					return Results.Json(new { Message = $"Cannot upload asset: map '{mapTitle}' is not greenlit." }, statusCode: StatusCodes.Status403Forbidden);
+				}
+			}
+
+			string normalizedHash = ContentAddressableStorage.NormalizeBlake3Hash(hash);
+			if (string.IsNullOrEmpty(normalizedHash) || normalizedHash.Contains('/') || normalizedHash.Contains('\\')) return Results.BadRequest("Invalid Hash.");
+
+			try
+			{
+				byte[] pubKeyBytes = Convert.FromBase64String(publicKey);
+				byte[] sigBytes = Convert.FromBase64String(signature);
+				var pubKey = PublicKey.Import(SignatureAlgorithm.Ed25519, pubKeyBytes, KeyBlobFormat.RawPublicKey);
+				byte[] hashBytes = Encoding.UTF8.GetBytes(hash);
+				byte[] normalizedHashBytes = Encoding.UTF8.GetBytes(normalizedHash);
+				if (!SignatureAlgorithm.Ed25519.Verify(pubKey, hashBytes, sigBytes) &&
+				    !SignatureAlgorithm.Ed25519.Verify(pubKey, normalizedHashBytes, sigBytes))
+				{
+					return Results.BadRequest("Invalid asset signature.");
+				}
+			}
+			catch
+			{
+				return Results.BadRequest("Invalid asset signature format.");
+			}
+
+			var existingMeta = db.Get<JsonDocument>("asset_signatures", normalizedHash) ?? db.Get<JsonDocument>("asset_signatures", hash);
+			if (existingMeta == null)
+			{
+				var metaDoc = JsonSerializer.SerializeToDocument(new
+				{
+					Signature = signature,
+					AuthorUsername = authorUsername,
+					PublicKey = publicKey,
+					Hash = normalizedHash
+				});
+				db.Upsert("asset_signatures", normalizedHash, metaDoc);
+				db.Upsert("asset_signatures", hash, metaDoc);
+			}
+
+			var file = form.Files.GetFile("File");
+			if (file == null || file.Length == 0)
+			{
+				return Results.BadRequest("Asset file payload is missing or empty.");
+			}
+
+			if (file.Length > ContentAddressableStorage.MaximumAssetSizeBytes)
+			{
+				double sizeMb = (double)file.Length / (1024 * 1024);
+				double maxMb = (double)ContentAddressableStorage.MaximumAssetSizeBytes / (1024 * 1024);
+				return Results.BadRequest($"Asset '{file.FileName}' ({sizeMb:F2} MB) exceeds maximum allowed size of {maxMb:F0} MB per asset.");
+			}
+
+			using var ms = new MemoryStream();
+			await file.CopyToAsync(ms);
+			byte[] fileBytes = ms.ToArray();
+			string ext = Path.GetExtension(file.FileName);
+
+			string computedBlake3 = RealmMetadataHelper.ComputeBlake3(fileBytes, ext);
+			string computedNorm = ContentAddressableStorage.NormalizeBlake3Hash(computedBlake3);
+			if (!string.Equals(computedNorm, normalizedHash, StringComparison.OrdinalIgnoreCase))
+			{
+				return Results.BadRequest(new { Message = $"Asset content hash mismatch: expected {normalizedHash}, got {computedNorm}." });
+			}
+
+			var storeResult = cas.StoreAsset(fileBytes, ext, null, publicKey, signature, precomputedBlake3: normalizedHash);
+			if (!storeResult.Success)
+			{
+				return Results.BadRequest($"Failed to store asset in CAS: {storeResult.Message}");
+			}
+
+			return Results.Ok(new { Status = "Asset registered" });
+		});
+
+		app.MapGet("/api/publish_map/asset_author/{hash}", (string hash, DataStoreService db) =>
+		{
+			var existingMeta = db.Get<JsonDocument>("asset_signatures", hash);
+			if (existingMeta != null)
+			{
+				return Results.Ok(existingMeta);
+			}
+
+			return Results.NotFound();
+		});
+	}
 }

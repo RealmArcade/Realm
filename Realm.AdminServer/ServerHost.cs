@@ -196,4 +196,33 @@ internal static class ServerHost
 
 		return new ServerSetup(app, cas, adminPublicKeys, servesClientDownloads, hostConnections, seederId, capacityPercent);
 	}
+
+	/// <summary>Every 63 seconds, pull cluster state from the peers and drop events older than a day.</summary>
+	internal static void RunQuorumSyncLoop(WebApplication app, HashSet<string> adminPublicKeys)
+	{
+		_ = Task.Run(async () =>
+		{
+			while (true)
+			{
+				try
+				{
+					await Task.Delay(3000);
+					var clusterSvc = app.Services.GetRequiredService<ClusterEventService>();
+					var dbSvc = app.Services.GetRequiredService<DataStoreService>();
+					var casSvc = app.Services.GetRequiredService<ContentAddressableStorage>();
+					var peersSvc = app.Services.GetRequiredService<PeerRegistry>();
+					var httpFactory = app.Services.GetRequiredService<IHttpClientFactory>();
+
+					await clusterSvc.RunQuorumSyncAsync(peersSvc, httpFactory, dbSvc, casSvc, adminPublicKeys);
+					clusterSvc.PruneOldEvents(dbSvc, TimeSpan.FromHours(24));
+				}
+				catch (Exception ex)
+				{
+					Console.WriteLine($"[QuorumLoop] Sync error: {ex.Message}");
+				}
+
+				await Task.Delay(TimeSpan.FromSeconds(60));
+			}
+		});
+	}
 }
