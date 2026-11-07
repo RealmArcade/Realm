@@ -305,7 +305,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 			return;
 		}
 
-		var retKind = ClassifyReturn(property.Type);
+		var retKind = WasmTypeClassifier.ClassifyReturn(property.Type);
 		if (retKind == RetKind.Unsupported) return;
 
 		EmitEntityStandardProperty(sb, property, witBase, resolver, gameApiSymbol, retKind, ref lastWasMultiLine, definedFunctions, methodNames);
@@ -427,7 +427,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 
 	private static void EmitEntityMethodBinding(StringBuilder sb, IMethodSymbol method, string tKebab, INamedTypeSymbol entitySymbol, INamedTypeSymbol gameApiSymbol, ref bool lastWasMultiLine, HashSet<string> definedFunctions, List<string> methodNames)
 	{
-		var retKind = ClassifyReturn(method.ReturnType);
+		var retKind = WasmTypeClassifier.ClassifyReturn(method.ReturnType);
 		if (!IsValidReturnType(retKind, method.ReturnType)) return;
 
 		string witName = tKebab + "-" + WitIdentifierFormat.ToKebabCase(method.Name);
@@ -490,7 +490,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		var paramInfos = new List<ParamInfo>();
 		foreach (var param in method.Parameters)
 		{
-			var kind = ClassifyParam(param.Type);
+			var kind = WasmTypeClassifier.ClassifyParam(param.Type);
 			if (kind == PrmKind.Unsupported) return null;
 			paramInfos.Add(new ParamInfo(param.Name, kind, param.Type));
 		}
@@ -501,7 +501,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 	private static string BuildEntityLambdaParams(IMethodSymbol method, List<ParamInfo> paramInfos, bool needsRetArea)
 	{
 		bool hasStringParam = method.Parameters.Any(p => p.Type.SpecialType == SpecialType.System_String);
-		bool hasListParam = method.Parameters.Any(p => ClassifyParam(p.Type) == PrmKind.StringListParam || ClassifyParam(p.Type) == PrmKind.FloatListParam);
+		bool hasListParam = method.Parameters.Any(p => WasmTypeClassifier.ClassifyParam(p.Type) == PrmKind.StringListParam || WasmTypeClassifier.ClassifyParam(p.Type) == PrmKind.FloatListParam);
 		bool needsCaller = hasStringParam || hasListParam || needsRetArea;
 
 		var lambdaParams = new List<string>();
@@ -649,7 +649,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 
 	private static void EmitPropertyBindings(StringBuilder sb, IPropertySymbol property, ref bool lastWasMultiLine, string targetInstance, HashSet<string> definedFunctions, List<string> methodNames)
 	{
-		var retKind = ClassifyReturn(property.Type);
+		var retKind = WasmTypeClassifier.ClassifyReturn(property.Type);
 		if (retKind == RetKind.Unsupported || RetKindToWit(retKind) == null)
 			return;
 
@@ -723,12 +723,12 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		var paramInfos = new List<ParamInfo>();
 		foreach (var param in method.Parameters)
 		{
-			var kind = ClassifyParam(param.Type);
+			var kind = WasmTypeClassifier.ClassifyParam(param.Type);
 			if (kind == PrmKind.Unsupported) return;
 			paramInfos.Add(new ParamInfo(param.Name, kind, param.Type));
 		}
 
-		var retKind = ClassifyReturn(method.ReturnType);
+		var retKind = WasmTypeClassifier.ClassifyReturn(method.ReturnType);
 		bool isVector3Ret = method.ReturnType.ToDisplayString() == "System.Numerics.Vector3";
 		if (retKind == RetKind.Unsupported && !isVector3Ret) return;
 
@@ -782,7 +782,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 	private static void EmitStandardMethodBinding(StringBuilder sb, IMethodSymbol method, string witName, List<ParamInfo> paramInfos, RetKind retKind, bool isVector3Ret, string targetInstance, INamedTypeSymbol gameApiSymbol, ref bool lastWasMultiLine, HashSet<string> definedFunctions, List<string> methodNames)
 	{
 		bool hasStringParam = method.Parameters.Any(p => p.Type.SpecialType == SpecialType.System_String);
-		bool hasListParam = method.Parameters.Any(p => ClassifyParam(p.Type) == PrmKind.StringListParam || ClassifyParam(p.Type) == PrmKind.FloatListParam);
+		bool hasListParam = method.Parameters.Any(p => WasmTypeClassifier.ClassifyParam(p.Type) == PrmKind.StringListParam || WasmTypeClassifier.ClassifyParam(p.Type) == PrmKind.FloatListParam);
 		bool needsRetArea = !isVector3Ret && (retKind == RetKind.StringReturn || retKind == RetKind.EntityListReturn);
 		bool needsCaller = hasStringParam || hasListParam || needsRetArea;
 
@@ -833,7 +833,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 	{
 		bool hasVector2Param = method.Parameters.Any(p => p.Type.ToDisplayString() == "System.Numerics.Vector2");
 		bool hasVector3Param = method.Parameters.Any(p => p.Type.ToDisplayString() == "System.Numerics.Vector3");
-		bool hasVector3NullableParam = method.Parameters.Any(p => IsNullableVector3(p.Type));
+		bool hasVector3NullableParam = method.Parameters.Any(p => WasmTypeClassifier.IsNullableVector3(p.Type));
 		bool hasUnitParam = method.Parameters.Any(p => WasmEntityDiscovery.IsEntityInterface(p.Type, out _) || WasmEntityDiscovery.IsEntityIdStruct(p.Type, out _));
 
 		return !isVector3Ret && !hasStringParam && !hasListParam && !hasVector2Param && !hasVector3Param && !hasVector3NullableParam && !hasUnitParam && !needsRetArea && retKind != RetKind.EntityReturn && retKind != RetKind.EntityNullableReturn;
@@ -905,7 +905,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		{
 			if (p.Type.ToDisplayString() == "System.Numerics.Vector3")
 				args.Add(p.Name);
-			else if (IsNullableVector3(p.Type))
+			else if (WasmTypeClassifier.IsNullableVector3(p.Type))
 				args.Add(p.Name);
 			else if (p.Type.SpecialType == SpecialType.System_Boolean)
 				args.Add($"{p.Name} != 0");
@@ -1160,87 +1160,6 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		};
 	}
 
-	private static PrmKind ClassifyParam(ITypeSymbol type)
-	{
-		if (type.SpecialType == SpecialType.System_Int32) return PrmKind.DirectInt;
-		if (type.TypeKind == TypeKind.Enum) return PrmKind.DirectInt;
-		if (type.SpecialType == SpecialType.System_Single) return PrmKind.DirectFloat;
-		if (type.SpecialType == SpecialType.System_Boolean) return PrmKind.BoolParam;
-		if (type.SpecialType == SpecialType.System_String) return PrmKind.StringParam;
-
-		if (WasmEntityDiscovery.IsCollection(type, out var elemType) && elemType.SpecialType == SpecialType.System_String)
-			return PrmKind.StringListParam;
-
-		if (WasmEntityDiscovery.IsCollection(type, out var floatElementType) && floatElementType.SpecialType == SpecialType.System_Single)
-			return PrmKind.FloatListParam;
-
-		string displayName = type.ToDisplayString();
-
-		if (displayName == "System.Numerics.Vector2") return PrmKind.Vector2Param;
-		if (displayName == "System.Numerics.Vector3") return PrmKind.Vector3Param;
-		if (IsNullableVector3(type)) return PrmKind.Vector3NullableParam;
-		if (WasmEntityDiscovery.IsEntityIdStruct(type, out _)) return PrmKind.EntityParam;
-		if (WasmEntityDiscovery.IsEntityInterface(type, out _)) return PrmKind.EntityParam;
-
-		return PrmKind.Unsupported;
-	}
-
-	private static RetKind ClassifyReturn(ITypeSymbol type)
-	{
-		var specialRet = ClassifySpecialReturn(type.SpecialType);
-		if (specialRet != RetKind.Unsupported) return specialRet;
-
-		if (type.TypeKind == TypeKind.Enum) return RetKind.DirectInt;
-
-		if (WasmEntityDiscovery.IsEntityIdStruct(type, out _))
-		{
-			bool isNullable = type.NullableAnnotation == NullableAnnotation.Annotated || type.ToDisplayString().EndsWith("?");
-			return isNullable ? RetKind.EntityNullableReturn : RetKind.EntityReturn;
-		}
-
-		if (WasmEntityDiscovery.IsEntityInterface(type, out _))
-		{
-			bool isNullable = type.NullableAnnotation == NullableAnnotation.Annotated || type.ToDisplayString().EndsWith("?");
-			return isNullable ? RetKind.EntityNullableReturn : RetKind.EntityReturn;
-		}
-
-		return ClassifyCollectionReturn(type);
-	}
-
-	private static RetKind ClassifySpecialReturn(SpecialType specialType)
-	{
-		return specialType switch
-		{
-			SpecialType.System_Void => RetKind.Void,
-			SpecialType.System_Int32 => RetKind.DirectInt,
-			SpecialType.System_Single => RetKind.DirectFloat,
-			SpecialType.System_Boolean => RetKind.BoolReturn,
-			SpecialType.System_String => RetKind.StringReturn,
-			_ => RetKind.Unsupported
-		};
-	}
-
-	private static RetKind ClassifyCollectionReturn(ITypeSymbol type)
-	{
-		if (!WasmEntityDiscovery.IsCollection(type, out var elemType)) return RetKind.Unsupported;
-
-		if (elemType.SpecialType == SpecialType.System_String) return RetKind.StringListReturn;
-		if (WasmEntityDiscovery.IsEntityIdStruct(elemType, out _)) return RetKind.EntityListReturn;
-		if (WasmEntityDiscovery.IsEntityInterface(elemType, out _)) return RetKind.EntityListReturn;
-
-		return RetKind.Unsupported;
-	}
-
-	private static bool IsNullableVector3(ITypeSymbol type)
-	{
-		if (type is INamedTypeSymbol named && named.IsGenericType && named.ConstructedFrom.SpecialType == SpecialType.System_Nullable_T)
-		{
-			return named.TypeArguments[0].ToDisplayString() == "System.Numerics.Vector3";
-		}
-
-		return false;
-	}
-
 	private static void lastWasWasMultiLine(ref bool last, bool current)
 	{
 		last = current;
@@ -1379,7 +1298,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 			return;
 		}
 
-		var retKind = ClassifyReturn(property.Type);
+		var retKind = WasmTypeClassifier.ClassifyReturn(property.Type);
 		if (retKind == RetKind.Unsupported) return;
 
 		string? witType = RetKindToWit(retKind);
@@ -1399,7 +1318,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 	{
 		if (method.Parameters.Any(p => p.RefKind != RefKind.None)) return;
 
-		var retKind = ClassifyReturn(method.ReturnType);
+		var retKind = WasmTypeClassifier.ClassifyReturn(method.ReturnType);
 		bool isVector3Ret = method.ReturnType.ToDisplayString() == "System.Numerics.Vector3";
 
 		if (retKind == RetKind.Unsupported && !isVector3Ret && method.ReturnType.SpecialType != SpecialType.System_Void) return;
@@ -1459,7 +1378,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 
 	private static void AppendWitProperty(SortedDictionary<string, string> functions, IPropertySymbol property)
 	{
-		var retKind = ClassifyReturn(property.Type);
+		var retKind = WasmTypeClassifier.ClassifyReturn(property.Type);
 		if (retKind == RetKind.Unsupported)
 			return;
 
@@ -1483,7 +1402,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 	{
 		if (method.Parameters.Any(p => p.RefKind != RefKind.None)) return;
 
-		var retKind = ClassifyReturn(method.ReturnType);
+		var retKind = WasmTypeClassifier.ClassifyReturn(method.ReturnType);
 		bool isVector3Ret = method.ReturnType.ToDisplayString() == "System.Numerics.Vector3";
 		if (retKind == RetKind.Unsupported && !isVector3Ret) return;
 
@@ -1527,7 +1446,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 
 	private static string? ParamToWit(ITypeSymbol type, string name)
 	{
-		var kind = ClassifyParam(type);
+		var kind = WasmTypeClassifier.ClassifyParam(type);
 		string paramName = WitIdentifierFormat.EscapeWitIdentifier(name);
 		return kind switch
 		{
@@ -2028,7 +1947,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 			return;
 		}
 
-		var retKind = ClassifyReturn(property.Type);
+		var retKind = WasmTypeClassifier.ClassifyReturn(property.Type);
 		if (retKind == RetKind.Unsupported) return;
 
 		EmitGuestStandardProperty(sb, property, typeStr, prefix, keyArg, retKind);
@@ -2115,7 +2034,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 			if (BuildWitEntityMethodParams(method) == null) return;
 		}
 
-		var retKind = ClassifyReturn(method.ReturnType);
+		var retKind = WasmTypeClassifier.ClassifyReturn(method.ReturnType);
 		string typeStr = method.ReturnType.ToDisplayString();
 
 		var paramsDecl = BuildGuestMethodParameters(method);
@@ -2297,13 +2216,13 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 			return true;
 		}
 
-		if (ClassifyParam(p.Type) == PrmKind.StringListParam)
+		if (WasmTypeClassifier.ClassifyParam(p.Type) == PrmKind.StringListParam)
 		{
 			callArgs.Add($"{p.Name}?.ToList() ?? new List<string>()");
 			return true;
 		}
 
-		if (ClassifyParam(p.Type) == PrmKind.FloatListParam)
+		if (WasmTypeClassifier.ClassifyParam(p.Type) == PrmKind.FloatListParam)
 		{
 			callArgs.Add(p.Type is IArrayTypeSymbol
 				? $"{p.Name} ?? System.Array.Empty<float>()"
@@ -2478,7 +2397,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 				bodyStatements.Add($"        string {parameterName} = ReadString({parameterName}Ptr, {parameterName}Len);");
 				invokeArguments.Add(parameterName);
 			}
-			else if (parameterType.ToDisplayString() == "System.Numerics.Vector3" || IsNullableVector3(parameterType))
+			else if (parameterType.ToDisplayString() == "System.Numerics.Vector3" || WasmTypeClassifier.IsNullableVector3(parameterType))
 			{
 				methodParameters.Add($"float {parameterName}X, float {parameterName}Y, float {parameterName}Z");
 				invokeArguments.Add($"new Vector3({parameterName}X, {parameterName}Y, {parameterName}Z)");
