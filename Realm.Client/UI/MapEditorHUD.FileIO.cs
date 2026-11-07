@@ -1894,7 +1894,21 @@ namespace Realm.Client.UI
 			if (logMessage != null) AppendWasmConsoleLog(logMessage);
 		}
 
+		// Runs after the export itself has already committed, so the work here is only the confirmation. It had no catch:
+		// a fault while the tree was tearing down left the success dialog unborn with nothing in the log.
 		private async void FinalizeSuccessfulExport(Panel popup, string destinationPath, Label statusLabel, ProgressBar progressBar)
+		{
+			try
+			{
+				await ShowExportConfirmationAsync(popup, destinationPath, statusLabel, progressBar);
+			}
+			catch (Exception exception)
+			{
+				GameLog.LogError($"[MapEditorHUD] The export confirmation could not be shown: {exception}");
+			}
+		}
+
+		private async Task ShowExportConfirmationAsync(Panel popup, string destinationPath, Label statusLabel, ProgressBar progressBar)
 		{
 			progressBar.Value = 100;
 			statusLabel.Text = "✓ " + TranslationServer.Translate("Export completed successfully!");
