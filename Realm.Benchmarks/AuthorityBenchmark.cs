@@ -75,6 +75,7 @@ public sealed class AuthorityBenchmark : IDisposable
 		_peerIsBaseline = new bool[options.Players];
 		_describeOneLane = DescribeOneLane;
 
+		_context.ShroudDisabled = options.ShroudOff;
 		_worldEntity = CreateWorld();
 		_playerEntities = CreatePlayers();
 		SpawnUnits();
@@ -308,6 +309,11 @@ public sealed class AuthorityBenchmark : IDisposable
 			if (_sequence % SnapshotSampleIntervalTicks != 0) continue;
 
 			_measuredForceBaseline = !baselineTaken;
+
+			// A board every peer is told about whole is gathered on this thread before the lanes are forked, which is what the
+			// match does: the lanes then copy the same published list instead of each collecting it again.
+			if (_options.ShroudOff) _snapshots.PrepareWholeBoard(_sequence);
+
 			long snapshotStart = Stopwatch.GetTimestamp();
 			Parallel.For(0, _laneCount, _parallelOptions, _describeOneLane);
 			snapshotPhaseMicros += Elapsed(snapshotStart);
@@ -362,6 +368,59 @@ public sealed class AuthorityBenchmark : IDisposable
 			allVisibleDeltaBytes,
 			snapshotPasses == 0 ? 0 : visibleUnits / (snapshotPasses * (double)_options.Players),
 			composition);
+	}
+
+	/// <summary>
+	///     Describes one throwaway peer once, so the state a peer's first description builds - the per-unit records, the
+	///     unit section growing to a whole board, and the string table behind it - exists before anything is published.
+	/// </summary>
+	public void WarmPeerDescription()
+	{
+		_snapshots.GetLane(0).Build(0, 0, new PlayerEntity(Entity.Null), true);
+		_snapshots.ForgetPeer(0);
+	}
+
+	public BaselineBurst MeasureBaselineBurst(int warmupPasses)
+	{
+		for (int pass = 0; pass < warmupPasses; pass++)
+		{
+			for (int tick = 0; tick < SnapshotSampleIntervalTicks; tick++)
+			{
+				StepOnce();
+				_sequence++;
+			}
+
+			if (_options.ShroudOff) _snapshots.PrepareWholeBoard(_sequence);
+			_measuredForceBaseline = false;
+			Parallel.For(0, _laneCount, _parallelOptions, _describeOneLane);
+		}
+
+		for (int tick = 0; tick < SnapshotSampleIntervalTicks; tick++)
+		{
+			StepOnce();
+			_sequence++;
+		}
+
+		if (_options.ShroudOff) _snapshots.PrepareWholeBoard(_sequence);
+		_measuredForceBaseline = true;
+		long start = Stopwatch.GetTimestamp();
+		Parallel.For(0, _laneCount, _parallelOptions, _describeOneLane);
+		double phaseMicros = Elapsed(start);
+
+		double build = 0;
+		double serialize = 0;
+		double compress = 0;
+		double bytes = 0;
+		for (int slot = 0; slot < _options.Players; slot++)
+		{
+			build += _peerBuildMicros[slot];
+			serialize += _peerSerializeMicros[slot];
+			compress += _peerCompressMicros[slot];
+			bytes += _peerFrameBytes[slot];
+		}
+
+		double peers = _options.Players;
+		return new BaselineBurst(phaseMicros, build / peers, serialize / peers, compress / peers, bytes / peers);
 	}
 
 	public ZstdSweep MeasureZstdSweep(int frameCount)

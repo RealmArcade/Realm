@@ -90,6 +90,15 @@ Console.WriteLine();
 Console.WriteLine("baseline burst (one baseline per peer on the same tick)");
 WriteRow("all peers", result.BaselineBytesPerPeer * result.Players / 1_000_000.0, " MB");
 
+BaselineBurst burst = benchmark.MeasureBaselineBurst(12);
+Console.WriteLine();
+Console.WriteLine($"warm baseline burst, every peer at once ({result.Players} peers, {result.Workers} lanes)");
+WriteRow("wall clock", burst.PhaseMicros / 1000.0);
+WriteRow("build per peer", burst.BuildMicrosPerPeer / 1000.0);
+WriteRow("serialize per peer", burst.SerializeMicrosPerPeer / 1000.0);
+WriteRow("compress per peer", burst.CompressMicrosPerPeer / 1000.0);
+WriteRow("bytes per peer", burst.BytesPerPeer, " B");
+
 if (options.ZstdSweep)
 {
 	ZstdSweep sweep = benchmark.MeasureZstdSweep(BenchmarkOptions.DefaultZstdSweepFrames);
