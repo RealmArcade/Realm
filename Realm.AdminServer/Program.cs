@@ -25,7 +25,6 @@ var servesClientDownloads = setup.ServesClientDownloads;
 var hostConnections = setup.HostConnections;
 var seederId = setup.SeederId;
 var capacityPercent = setup.CapacityPercent;
-const string ContentNotServedError = ServerHost.ContentNotServedError;
 
 LobbyEndpoints.MapLobbyEndpoints(app, hostConnections);
 
