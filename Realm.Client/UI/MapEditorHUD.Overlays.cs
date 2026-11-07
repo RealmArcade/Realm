@@ -1694,6 +1694,20 @@ namespace Realm.Client.UI
 
 		private async void CheckCreatorRegistrationAndPrompt(Key key)
 		{
+			try
+			{
+				await PromptForCreatorRegistrationAsync(key);
+			}
+			catch (Exception exception)
+			{
+				// Publishing a map calls this before it asks the authority whether the key is registered. Without a catch,
+				// a fault here vanished and the author was simply never prompted, with the publish path looking fine.
+				GameLog.LogError($"[MapEditorHUD] Checking creator registration failed: {exception}");
+			}
+		}
+
+		private async Task PromptForCreatorRegistrationAsync(Key key)
+		{
 			if (GetNodeOrNull("AgreementOverlay") != null || GetNodeOrNull("CreatorRegistrationOverlay") != null)
 			{
 				return;
