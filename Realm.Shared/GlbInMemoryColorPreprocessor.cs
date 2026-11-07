@@ -381,7 +381,7 @@ public static class GlbInMemoryColorPreprocessor
 	private static bool TryCalculateKeyUnitVector(string chromaKeyHex, out Vector2 keyUnitVector)
 	{
 		keyUnitVector = default;
-		(float targetR, float targetG, float targetB) = GlbPlayerColorProcessor.HexToRgb(chromaKeyHex);
+		(float targetR, float targetG, float targetB) = GlbChromaKeyMatcher.HexToRgb(chromaKeyHex);
 		Vector3 targetLinear = new(
 			SrgbToLinearTable[(byte)Math.Clamp((int)(targetR * 255.0f + 0.5f), 0, 255)],
 			SrgbToLinearTable[(byte)Math.Clamp((int)(targetG * 255.0f + 0.5f), 0, 255)],

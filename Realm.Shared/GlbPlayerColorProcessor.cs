@@ -90,140 +90,6 @@ public static class GlbPlayerColorProcessor
 	}
 
 
-	private static int ProcessCandidatePixelsForChromaKey(SKBitmap albedoImg, float targetHueUnitX, float targetHueUnitY, Dictionary<int, int> candidateColorCounts)
-	{
-		int totalCandidatePixels = 0;
-		GlbChromaKeyDetector.IterateOklabPixels(albedoImg, (pixel, pL, pA, pB) =>
-		{
-			float pChromaSquared = pA * pA + pB * pB;
-
-			if (pChromaSquared < 0.0036f || pL < 0.08f || pL > 0.98f) return;
-
-			float pChroma = MathF.Sqrt(pChromaSquared);
-			float hueDot = (pA * targetHueUnitX + pB * targetHueUnitY) / pChroma;
-
-			if (hueDot < 0.75f) return;
-
-			int rgbKey = (pixel.Red << 16) | (pixel.Green << 8) | pixel.Blue;
-			candidateColorCounts[rgbKey] = candidateColorCounts.GetValueOrDefault(rgbKey) + 1;
-			totalCandidatePixels++;
-		});
-
-		return totalCandidatePixels;
-	}
-
-	public static string? FindClosestMatchingChromaKey(string filePath, string inputChromaKey)
-	{
-		if (!File.Exists(filePath)) return null;
-		try
-		{
-			return FindClosestMatchingChromaKey(File.ReadAllBytes(filePath), inputChromaKey);
-		}
-		catch
-		{
-			return null;
-		}
-	}
-
-	public static string? FindClosestMatchingChromaKey(ReadOnlySpan<byte> glbOrRmeshBytes, string inputChromaKey)
-	{
-		if (glbOrRmeshBytes.Length == 0) return null;
-		try
-		{
-			byte[]? glbBytes = GlbChromaKeyDetector.GetGlbBytesFromSpan(glbOrRmeshBytes);
-			if (glbBytes == null) return null;
-
-			var (jsonNode, binChunk, _) = GlbManifestUtils.ParseGlb(glbBytes);
-			if (jsonNode is not JsonObject root || binChunk == null) return null;
-
-			if (!TryGetBaseGlbArrays(root, out var textures, out var materials, out var images, out var bufferViews))
-			{
-				return null;
-			}
-
-			int albedoImageIndex = GlbTextureResolver.FindAlbedoImageIndex(textures, materials);
-			if (albedoImageIndex < 0) return null;
-
-			byte[] albedoRaw = GlbTextureResolver.ExtractImageBytes(albedoImageIndex, images, bufferViews, binChunk);
-			if (albedoRaw.Length == 0) return null;
-
-			using var albedoImg = SKBitmap.Decode(albedoRaw);
-			return FindClosestMatchingChromaKey(albedoImg, inputChromaKey);
-		}
-		catch
-		{
-			return null;
-		}
-	}
-
-	public static string FindClosestMatchingChromaKey(SKBitmap albedoImg, string inputChromaKey)
-	{
-		if (string.IsNullOrWhiteSpace(inputChromaKey) || string.Equals(inputChromaKey, "auto", StringComparison.OrdinalIgnoreCase))
-		{
-			return GlbChromaKeyDetector.AutoDetectChromaKey(albedoImg);
-		}
-
-		string normalizedInput = inputChromaKey.Trim();
-		if (!normalizedInput.StartsWith('#'))
-		{
-			normalizedInput = "#" + normalizedInput;
-		}
-
-		var (targetR, targetG, targetB) = HexToRgb(normalizedInput);
-		var (targetL, targetA, targetBComponent) = GlbChromaKeyDetector.ConvertRgbToOklab(targetR, targetG, targetB);
-		float targetChroma = MathF.Sqrt(targetA * targetA + targetBComponent * targetBComponent);
-
-		if (targetChroma < 0.01f)
-		{
-			return normalizedInput.ToUpperInvariant();
-		}
-
-		float targetHueUnitX = targetA / targetChroma;
-		float targetHueUnitY = targetBComponent / targetChroma;
-
-		var candidateColorCounts = new Dictionary<int, int>();
-		int totalCandidatePixels = ProcessCandidatePixelsForChromaKey(albedoImg, targetHueUnitX, targetHueUnitY, candidateColorCounts);
-
-		if (candidateColorCounts.Count == 0)
-		{
-			return normalizedInput.ToUpperInvariant();
-		}
-
-		int minPixelCount = Math.Max(1, Math.Min(4, totalCandidatePixels / 500));
-
-		float bestScore = -1f;
-		int bestRgbKey = -1;
-
-		foreach (var (rgbKey, count) in candidateColorCounts)
-		{
-			if (count < minPixelCount && candidateColorCounts.Count > 1)
-			{
-				continue;
-			}
-
-			CalculateAndCheckScore(rgbKey, count, targetHueUnitX, targetHueUnitY, ref bestScore, ref bestRgbKey);
-		}
-
-		if (bestRgbKey < 0)
-		{
-			foreach (var (rgbKey, count) in candidateColorCounts)
-			{
-				CalculateAndCheckScore(rgbKey, count, targetHueUnitX, targetHueUnitY, ref bestScore, ref bestRgbKey);
-			}
-		}
-
-		if (bestRgbKey < 0)
-		{
-			return normalizedInput.ToUpperInvariant();
-		}
-
-		byte bestR = (byte)((bestRgbKey >> 16) & 0xFF);
-		byte bestG = (byte)((bestRgbKey >> 8) & 0xFF);
-		byte bestB = (byte)(bestRgbKey & 0xFF);
-
-		return $"#{bestR:X2}{bestG:X2}{bestB:X2}";
-	}
-
 	public static GlbPlayerColorResult ProcessFile(
 		string inputPath,
 		string outputPath,
@@ -278,12 +144,12 @@ public static class GlbPlayerColorProcessor
 		if (string.IsNullOrWhiteSpace(effectiveChromaKey) || string.Equals(effectiveChromaKey, "auto", StringComparison.OrdinalIgnoreCase))
 		{
 			string detectedKey = GlbChromaKeyDetector.AutoDetectChromaKey(albedoImg) ?? "#FF00FF";
-			effectiveChromaKey = options.AutoCorrectChromaKey ? FindClosestMatchingChromaKey(albedoImg, detectedKey) ?? detectedKey : detectedKey;
+			effectiveChromaKey = options.AutoCorrectChromaKey ? GlbChromaKeyMatcher.FindClosestMatchingChromaKey(albedoImg, detectedKey) ?? detectedKey : detectedKey;
 			options.ChromaKey = effectiveChromaKey;
 		}
 		else if (options.AutoCorrectChromaKey)
 		{
-			effectiveChromaKey = FindClosestMatchingChromaKey(albedoImg, effectiveChromaKey) ?? effectiveChromaKey;
+			effectiveChromaKey = GlbChromaKeyMatcher.FindClosestMatchingChromaKey(albedoImg, effectiveChromaKey) ?? effectiveChromaKey;
 			options.ChromaKey = effectiveChromaKey;
 		}
 
@@ -397,7 +263,7 @@ public static class GlbPlayerColorProcessor
 		var (jsonNode, binChunk, glbVersion) = GlbManifestUtils.ParseGlb(glbBytes);
 		var root = jsonNode as JsonObject;
 
-		if (root == null || binChunk == null || !TryGetBaseGlbArrays(root, out var textures, out var materials, out var images, out var bufferViews))
+		if (root == null || binChunk == null || !GlbChromaKeyMatcher.TryGetBaseGlbArrays(root, out var textures, out var materials, out var images, out var bufferViews))
 		{
 			return (false, null, "Failed to parse GLB or missing basic arrays.", 0, 0, null);
 		}
@@ -431,7 +297,7 @@ public static class GlbPlayerColorProcessor
 
 		string effectiveChromaKey = ResolveChromaKey(options, albedoImg);
 
-		(float targetR, float targetG, float targetB) = HexToRgb(effectiveChromaKey);
+		(float targetR, float targetG, float targetB) = GlbChromaKeyMatcher.HexToRgb(effectiveChromaKey);
 		var (targetLightness, targetA, targetOklabB) = GlbChromaKeyDetector.ConvertRgbToOklab(targetR, targetG, targetB);
 
 		using var ormImg = ormRaw.Length > 0
@@ -950,35 +816,9 @@ public static class GlbPlayerColorProcessor
 		return x | (y << 20) | (z << 40);
 	}
 
-	public static (float R, float G, float B) HexToRgb(string hex)
-	{
-		hex = hex.TrimStart('#');
-		if (hex.Length == 3)
-		{
-			hex = $"{hex[0]}{hex[0]}{hex[1]}{hex[1]}{hex[2]}{hex[2]}";
-		}
-
-		if (hex.Length < 6)
-		{
-			return (1f, 0f, 1f);
-		}
-
-		try
-		{
-			byte r = Convert.ToByte(hex[..2], 16);
-			byte g = Convert.ToByte(hex[2..4], 16);
-			byte b = Convert.ToByte(hex[4..6], 16);
-			return (r / 255f, g / 255f, b / 255f);
-		}
-		catch
-		{
-			return (1f, 0f, 1f);
-		}
-	}
-
 	private static (float Cb, float Cr) HexToBt601CbCr(string hex)
 	{
-		var (r, g, b) = HexToRgb(hex);
+		var (r, g, b) = GlbChromaKeyMatcher.HexToRgb(hex);
 		return RgbToBt601CbCr(r, g, b);
 	}
 
@@ -1230,45 +1070,11 @@ public static class GlbPlayerColorProcessor
 		return result;
 	}
 
-	private static bool TryGetBaseGlbArrays(JsonObject root, out JsonArray textures, out JsonArray materials, out JsonArray images, out JsonArray bufferViews)
-	{
-		textures = root["textures"] as JsonArray ?? new JsonArray();
-		materials = root["materials"] as JsonArray ?? new JsonArray();
-		images = root["images"] as JsonArray ?? new JsonArray();
-		bufferViews = root["bufferViews"] as JsonArray ?? new JsonArray();
-
-		return root.ContainsKey("textures") && root.ContainsKey("materials") && root.ContainsKey("images") && root.ContainsKey("bufferViews");
-	}
-
 	private static bool TryGetMeshArrays(JsonObject root, out JsonArray meshes, out JsonArray accessors)
 	{
 		meshes = root["meshes"] as JsonArray ?? new JsonArray();
 		accessors = root["accessors"] as JsonArray ?? new JsonArray();
 		return root.ContainsKey("meshes") && root.ContainsKey("accessors");
-	}
-
-	private static void CalculateAndCheckScore(int rgbKey, int count, float targetHueUnitX, float targetHueUnitY, ref float bestScore, ref int bestRgbKey)
-	{
-		byte rByte = (byte)((rgbKey >> 16) & 0xFF);
-		byte gByte = (byte)((rgbKey >> 8) & 0xFF);
-		byte bByte = (byte)(rgbKey & 0xFF);
-
-		float r = rByte / 255f;
-		float g = gByte / 255f;
-		float b = bByte / 255f;
-
-		var (pL, pA, pB) = GlbChromaKeyDetector.ConvertRgbToOklab(r, g, b);
-		float pChroma = MathF.Sqrt(pA * pA + pB * pB);
-		float hueDot = (pA * targetHueUnitX + pB * targetHueUnitY) / pChroma;
-
-		float hueFactor = MathF.Pow(MathF.Max(0f, hueDot), 2f);
-		float score = (pL * pL) * pChroma * hueFactor * MathF.Log2(1 + count);
-
-		if (score > bestScore)
-		{
-			bestScore = score;
-			bestRgbKey = rgbKey;
-		}
 	}
 
 }

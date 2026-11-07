@@ -343,7 +343,7 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 		if (!IsValidSourcePathForColorPicker(sourcePath)) return;
 
 		string hexColor = $"#{_colorPicker!.Color.ToHtml(false)}";
-		string? correctedKey = GlbPlayerColorProcessor.FindClosestMatchingChromaKey(sourcePath, hexColor);
+		string? correctedKey = GlbChromaKeyMatcher.FindClosestMatchingChromaKey(sourcePath, hexColor);
 
 		ApplyCorrectedChromaKey(correctedKey, hexColor);
 	}
@@ -382,7 +382,7 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 		if (_chkAutoCorrectChromaKey != null && _chkAutoCorrectChromaKey.ButtonPressed && File.Exists(path) && _colorPicker != null)
 		{
 			string hexColor = $"#{_colorPicker.Color.ToHtml(false)}";
-			string? correctedKey = GlbPlayerColorProcessor.FindClosestMatchingChromaKey(path, hexColor);
+			string? correctedKey = GlbChromaKeyMatcher.FindClosestMatchingChromaKey(path, hexColor);
 			if (!string.IsNullOrEmpty(correctedKey) && !string.Equals(correctedKey, hexColor, StringComparison.OrdinalIgnoreCase))
 			{
 				_colorPicker.Color = Color.FromHtml(correctedKey);
