@@ -253,7 +253,9 @@ public class TowerDefenseGenreProvider : IAiGenreProvider
 
 	private void EvaluateTowerUpgrade(List<GenericAffordance> destinationList, Entity tower, Vector3 towerPos, int playerGold, Vector3 creepCenter, int creepCount, float waveThreat, float leakUrgency, float interestThreshold)
 	{
-		var towerDef = AvailableTowers.FirstOrDefault();
+		// Read by index rather than with FirstOrDefault: this runs once per tower inside the bot decision step, which is
+		// reached from the match tick, and the LINQ call allocates a List enumerator to read element zero.
+		TowerTypeDefinition? towerDef = AvailableTowers.Count > 0 ? AvailableTowers[0] : null;
 		if (towerDef == null || string.IsNullOrEmpty(towerDef.NextUpgradeId) || playerGold < towerDef.UpgradeCost) return;
 
 		float costRatio = Math.Clamp((float)towerDef.UpgradeCost / Math.Max(1, playerGold), 0f, 1f);
