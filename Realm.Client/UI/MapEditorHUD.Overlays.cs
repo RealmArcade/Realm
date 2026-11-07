@@ -1467,6 +1467,32 @@ namespace Realm.Client.UI
 			titleMargin.AddChild(lblTitle);
 			vbox.AddChild(titleMargin);
 
+			BuildHelpHotkeyGrid(vbox);
+
+			var bottomMargin = new MarginContainer();
+			bottomMargin.Name = "BottomMargin_MarginContainer";
+			bottomMargin.SetAnchorsPreset(LayoutPreset.FullRect);
+			bottomMargin.AddThemeConstantOverride("margin_bottom", 20);
+			bottomMargin.AddThemeConstantOverride("margin_right", 16);
+			panel.AddChild(bottomMargin);
+
+			var btnClose = new Button();
+			btnClose.Name = "BtnClose_Button";
+			btnClose.Set("icon_max_width", 0);
+			btnClose.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
+			btnClose.SizeFlagsVertical = SizeFlags.ShrinkEnd;
+			btnClose.CustomMinimumSize = new Vector2(165, 38);
+			SetupButton(btnClose, TranslationServer.Translate("CLOSE MANUAL"), () =>
+			{
+				_helpOverlayPanel.QueueFree();
+				_helpOverlayPanel = null;
+			}, 13);
+			bottomMargin.AddChild(btnClose);
+		}
+
+
+		private void BuildHelpHotkeyGrid(VBoxContainer vbox)
+		{
 			var scroll = UIStyle.CreateScrollingBody();
 			vbox.AddChild(scroll);
 
@@ -1525,27 +1551,8 @@ namespace Realm.Client.UI
 			AddHelpShortcutRow(grid, "Ctrl + Z / Ctrl + Y", TranslationServer.Translate("Undo / Redo editor actions"));
 			AddHelpShortcutRow(grid, "Ctrl + S / Ctrl + O", TranslationServer.Translate("Save Map File / Load Map File"));
 			AddHelpShortcutRow(grid, "Escape Key", TranslationServer.Translate("Close open dialog"));
-
-			var bottomMargin = new MarginContainer();
-			bottomMargin.Name = "BottomMargin_MarginContainer";
-			bottomMargin.SetAnchorsPreset(LayoutPreset.FullRect);
-			bottomMargin.AddThemeConstantOverride("margin_bottom", 20);
-			bottomMargin.AddThemeConstantOverride("margin_right", 16);
-			panel.AddChild(bottomMargin);
-
-			var btnClose = new Button();
-			btnClose.Name = "BtnClose_Button";
-			btnClose.Set("icon_max_width", 0);
-			btnClose.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
-			btnClose.SizeFlagsVertical = SizeFlags.ShrinkEnd;
-			btnClose.CustomMinimumSize = new Vector2(165, 38);
-			SetupButton(btnClose, TranslationServer.Translate("CLOSE MANUAL"), () =>
-			{
-				_helpOverlayPanel.QueueFree();
-				_helpOverlayPanel = null;
-			}, 13);
-			bottomMargin.AddChild(btnClose);
 		}
+
 
 		private void AddHelpSectionHeader(GridContainer grid, string title)
 		{
