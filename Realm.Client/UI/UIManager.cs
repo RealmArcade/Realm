@@ -70,7 +70,32 @@ public partial class UIManager : Control
 		GameContext.UnregisterUserInterface(this);
 	}
 
-	public override async void _Ready()
+	/// <summary>
+	///     Godot calls a void override, so the awaited startup work lives in <see cref="ReadyAsync" />. An async void
+	///     override had no catcher at all: a fault in the startup settings left the manager never transitioning to a
+	///     screen, with an empty window and nothing logged.
+	/// </summary>
+	public override void _Ready()
+	{
+		_ = ObserveReadyAsync();
+	}
+
+	/// <summary>
+	///     Runs <see cref="ReadyAsync" /> and logs whatever it throws, so the discarded task above cannot fault.
+	/// </summary>
+	private async Task ObserveReadyAsync()
+	{
+		try
+		{
+			await ReadyAsync();
+		}
+		catch (Exception exception)
+		{
+			GameLog.LogError($"[UIManager] Startup failed: {exception}");
+		}
+	}
+
+	private async Task ReadyAsync()
 	{
 		GameContext.RegisterUserInterface(this);
 		MouseFilter = MouseFilterEnum.Ignore;
