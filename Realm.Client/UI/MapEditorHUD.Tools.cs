@@ -5323,7 +5323,21 @@ namespace Realm.Client.UI
 			_animationPreviewDialog.OpenForUnitId(unitId, modelPath);
 		}
 
+		// The test button's handler, and the confirmation dialog's callback, both have to be void, and both awaited
+		// ProceedToTestMap with no catch: a fault launching the test map was unobserved, so the editor just stayed put.
 		private async void TestMapAction()
+		{
+			try
+			{
+				await TestMapCoreAsync();
+			}
+			catch (Exception exception)
+			{
+				GameLog.LogError($"[MapEditorHUD] Starting the map test failed: {exception}");
+			}
+		}
+
+		private async Task TestMapCoreAsync()
 		{
 			if (GameContext.Host == null) return;
 
@@ -5331,7 +5345,17 @@ namespace Realm.Client.UI
 			{
 				ShowConfirmationDialog(
 					"Warning: You have not placed any units, you won't see anything due to Shroud.",
-					async () => await ProceedToTestMap(),
+					async () =>
+					{
+						try
+						{
+							await ProceedToTestMap();
+						}
+						catch (Exception exception)
+						{
+							GameLog.LogError($"[MapEditorHUD] Starting the map test failed: {exception}");
+						}
+					},
 					"Okay",
 					"Cancel"
 				);
