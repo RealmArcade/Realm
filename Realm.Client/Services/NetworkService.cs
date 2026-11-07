@@ -36,7 +36,7 @@ public class NetworkService
 	private int _appliedCatalogCount;
 	private bool _fingerprintMatchLogged;
 
-	private readonly Dictionary<int, UnitSnapshot> _pendingUnitSpawns = new();
+	private readonly PendingUnitSpawnQueue _pendingUnitSpawns = new();
 	private List<Entity> _pendingUnitKills = new();
 	private List<Entity> _pendingUnitDespawns = new();
 
@@ -512,7 +512,7 @@ public class NetworkService
 		if (!mapping.ServerToClientEntityMap.TryGetValue(snap.EntityId, out var localEntity))
 		{
 			if (snap.IsDead) _pendingUnitSpawns.Remove(snap.EntityId);
-			else QueueUnitSpawn(snap);
+			else _pendingUnitSpawns.Queue(snap);
 			return;
 		}
 
@@ -520,7 +520,7 @@ public class NetworkService
 		{
 			GameContext.SnapshotTimeline.Reset(localEntity.Id);
 			RetireClientEntityForRecycledServerId(mapping, localEntity, snap.EntityId);
-			if (!snap.IsDead) QueueUnitSpawn(snap);
+			if (!snap.IsDead) _pendingUnitSpawns.Queue(snap);
 			return;
 		}
 
@@ -584,18 +584,6 @@ public class NetworkService
 		return MathF.Max(MaximumPlausibleTargetStepMeters, coveredAtSpeed);
 	}
 
-	/// <summary>
-	///     Holds a unit this screen has not built yet until it has the budget to build it. A description of a unit that
-	///     already has a definition on the wire leaves it out, so a unit waiting to be built keeps the one it arrived with
-	///     rather than being queued a second time without it.
-	/// </summary>
-	private void QueueUnitSpawn(UnitSnapshot snap)
-	{
-		if (snap.UnitId.Length == 0 && _pendingUnitSpawns.TryGetValue(snap.EntityId, out UnitSnapshot queued)) snap.UnitId = queued.UnitId;
-
-		_pendingUnitSpawns[snap.EntityId] = snap;
-	}
-
 	private static bool IsServerEntityIdRecycled(UnitSnapshot snap, Entity localEntity)
 	{
 		// A description that names no definition says the unit is one this screen already knows, which cannot be a different
@@ -618,22 +606,13 @@ public class NetworkService
 
 	public bool HasPendingUnitSpawns => _pendingUnitSpawns.Count > 0;
 
-	public bool IsWaitingForUnitSpawn(int serverEntityId) => _pendingUnitSpawns.ContainsKey(serverEntityId);
+	/// <summary>
+	///     Takes one unit this screen is still waiting to build, oldest insertion first.
+	/// </summary>
+	public bool TryTakePendingUnitSpawn(out UnitSnapshot snapshot) => _pendingUnitSpawns.TryTakeAny(out snapshot);
 
-	public bool TryTakePendingUnitSpawn(out UnitSnapshot snapshot)
-	{
-		snapshot = default;
-		if (_pendingUnitSpawns.Count == 0) return false;
+	public bool IsWaitingForUnitSpawn(int serverEntityId) => _pendingUnitSpawns.Contains(serverEntityId);
 
-		int serverEntityId = 0;
-		foreach (int candidate in _pendingUnitSpawns.Keys)
-		{
-			serverEntityId = candidate;
-			break;
-		}
-
-		return _pendingUnitSpawns.Remove(serverEntityId, out snapshot);
-	}
 
 	public IReadOnlyList<Entity> FlushPendingUnitKills() => SwapPending(ref _pendingUnitKills, ref _pendingUnitKillsTaken);
 
