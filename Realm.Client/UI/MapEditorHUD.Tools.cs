@@ -2843,29 +2843,7 @@ namespace Realm.Client.UI
 
 				GameContext.MapStorageService.DeduplicateWorkspaceBuildArtifacts(workspace);
 
-				progressBar.Value = 35;
-				statusLabel.Text = TranslationServer.Translate("Optimizing 3D assets...");
-				await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-
-				await MapWorkspaceService.EnsureGlbAssetsOptimizedCooperativeAsync(workspace, async (current, total, fileName) =>
-				{
-					float fraction = total > 0 ? (float)current / total : 1.0f;
-					progressBar.Value = 35 + fraction * 15;
-					statusLabel.Text = string.Format(TranslationServer.Translate("Optimizing 3D model {0}/{1}: {2}..."), current, total, fileName);
-					await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-				});
-
-				progressBar.Value = 50;
-				statusLabel.Text = TranslationServer.Translate("Converting textures...");
-				await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-
-				await MapWorkspaceService.EnsurePngAssetsConvertedCooperativeAsync(workspace, async (current, total, fileName) =>
-				{
-					float fraction = total > 0 ? (float)current / total : 1.0f;
-					progressBar.Value = 50 + fraction * 15;
-					statusLabel.Text = string.Format(TranslationServer.Translate("Converting texture {0}/{1}: {2}..."), current, total, fileName);
-					await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-				});
+				await OptimizePublishAssetsAsync(workspace, progressBar, statusLabel);
 
 				progressBar.Value = 60;
 				statusLabel.Text = TranslationServer.Translate("Generating map thumbnail...");
@@ -3140,6 +3118,35 @@ namespace Realm.Client.UI
 			{
 				await GameContext.VSCode.SaveAllOpenFilesAsync();
 			}
+		}
+
+
+
+		private async Task OptimizePublishAssetsAsync(string workspace, ProgressBar progressBar, Label statusLabel)
+		{
+			progressBar.Value = 35;
+			statusLabel.Text = TranslationServer.Translate("Optimizing 3D assets...");
+			await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+
+			await MapWorkspaceService.EnsureGlbAssetsOptimizedCooperativeAsync(workspace, async (current, total, fileName) =>
+			{
+				float fraction = total > 0 ? (float)current / total : 1.0f;
+				progressBar.Value = 35 + fraction * 15;
+				statusLabel.Text = string.Format(TranslationServer.Translate("Optimizing 3D model {0}/{1}: {2}..."), current, total, fileName);
+				await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+			});
+
+			progressBar.Value = 50;
+			statusLabel.Text = TranslationServer.Translate("Converting textures...");
+			await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+
+			await MapWorkspaceService.EnsurePngAssetsConvertedCooperativeAsync(workspace, async (current, total, fileName) =>
+			{
+				float fraction = total > 0 ? (float)current / total : 1.0f;
+				progressBar.Value = 50 + fraction * 15;
+				statusLabel.Text = string.Format(TranslationServer.Translate("Converting texture {0}/{1}: {2}..."), current, total, fileName);
+				await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+			});
 		}
 
 
