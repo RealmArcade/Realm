@@ -502,8 +502,8 @@ public class AssetIndexService : IDisposable
 			return;
 		}
 
-		AssetType? expectedDirType = GetExpectedAssetTypeFromDirectory(normalizedFilePath);
-		GenerateIndexedAssetFromFile(normalizedFilePath, asset.DirectoryPath, fileInfo, diskExtension, expectedDirType, asset);
+		AssetType? expectedDirType = AssetRecordFactory.GetExpectedAssetTypeFromDirectory(normalizedFilePath);
+		AssetRecordFactory.GenerateIndexedAssetFromFile(normalizedFilePath, asset.DirectoryPath, fileInfo, diskExtension, expectedDirType, asset);
 	}
 
 
@@ -1277,14 +1277,14 @@ public class AssetIndexService : IDisposable
 	{
 		bool needsUpdate = false;
 		string? existingMetaJson = storage.GetAssetMetadata(norm);
-		var parsed = ParseMetadataHeaders(existingMetaJson, virtualPath);
+		var parsed = AssetRecordFactory.ParseMetadataHeaders(existingMetaJson, virtualPath);
 
 		if (!parsed.AssetType.HasValue || parsed.Tags.Count == 0 || !parsed.SupportsTeamColor.HasValue)
 		{
 			string? diskMeta = RealmMetadataHelper.ExtractMetadata(normPath);
 			if (!string.IsNullOrEmpty(diskMeta))
 			{
-				var diskParsed = ParseMetadataHeaders(diskMeta, virtualPath);
+				var diskParsed = AssetRecordFactory.ParseMetadataHeaders(diskMeta, virtualPath);
 				if (!parsed.AssetType.HasValue) parsed.AssetType = diskParsed.AssetType;
 				if (parsed.Tags.Count == 0) parsed.Tags = diskParsed.Tags;
 				if (!parsed.SupportsTeamColor.HasValue) parsed.SupportsTeamColor = diskParsed.SupportsTeamColor;
@@ -1299,7 +1299,7 @@ public class AssetIndexService : IDisposable
 
 		if (needsUpdate) assetsToUpdate.Add(existingAsset);
 
-		EnqueueThumbnailRequestIfNeeded(existingAsset.Extension, normPath, norm);
+		AssetRecordFactory.EnqueueThumbnailRequestIfNeeded(existingAsset.Extension, normPath, norm);
 	}
 
 	private bool TryUpdateAssetType(IndexedAsset existingAsset, string virtualPath, AssetType? parsedType, string? existingMetaJson)
@@ -1314,7 +1314,7 @@ public class AssetIndexService : IDisposable
 
 	private bool TryUpdateAssetProperties(IndexedAsset existingAsset, bool? parsedSupportsTeamColor, string? parsedChromaKey, string? existingMetaJson, string normPath)
 	{
-		bool existingHasMask = parsedSupportsTeamColor ?? DetermineHasPlayerColorMask(existingMetaJson, normPath);
+		bool existingHasMask = parsedSupportsTeamColor ?? AssetRecordFactory.DetermineHasPlayerColorMask(existingMetaJson, normPath);
 		string resolvedChroma = parsedChromaKey ?? string.Empty;
 
 		if (existingAsset.HasPlayerColorMask == existingHasMask && existingAsset.ChromaKey == resolvedChroma) return false;
@@ -1349,14 +1349,6 @@ public class AssetIndexService : IDisposable
 		return updated;
 	}
 
-	private void EnqueueThumbnailRequestIfNeeded(string extension, string normPath, string norm)
-	{
-		if (extension == ".rmesh" && !GlbThumbnailRenderer.HasDiskCache(normPath, norm))
-		{
-			GlbThumbnailRenderer.EnqueueRequest(normPath, new FileInfo(normPath).LastWriteTimeUtc, norm, isHighPriority: false);
-		}
-	}
-
 	private AssetType? ResolveAssetTypeFromParsed(AssetType? parsedType, string virtualPath)
 	{
 		if (parsedType.HasValue) return parsedType;
@@ -1383,14 +1375,14 @@ public class AssetIndexService : IDisposable
 		var asset = CreateBaseManifestAsset(virtualPath, norm, normPath, mapName, mapVersion, storageDirectory, fi);
 
 		string? metaJson = storage.GetAssetMetadata(norm);
-		var parsedMeta = ParseMetadataHeaders(metaJson, virtualPath);
+		var parsedMeta = AssetRecordFactory.ParseMetadataHeaders(metaJson, virtualPath);
 
 		if (!parsedMeta.AssetType.HasValue || parsedMeta.Tags.Count == 0 || !parsedMeta.SupportsTeamColor.HasValue)
 		{
 			string? diskMeta = RealmMetadataHelper.ExtractMetadata(normPath);
 			if (!string.IsNullOrEmpty(diskMeta))
 			{
-				var diskParsed = ParseMetadataHeaders(diskMeta, virtualPath);
+				var diskParsed = AssetRecordFactory.ParseMetadataHeaders(diskMeta, virtualPath);
 				if (!parsedMeta.AssetType.HasValue) parsedMeta.AssetType = diskParsed.AssetType;
 				if (parsedMeta.Tags.Count == 0) parsedMeta.Tags = diskParsed.Tags;
 				if (!parsedMeta.SupportsTeamColor.HasValue) parsedMeta.SupportsTeamColor = diskParsed.SupportsTeamColor;
@@ -1405,7 +1397,7 @@ public class AssetIndexService : IDisposable
 
 		asset.Tags = tags;
 		asset.MetadataJson = JsonSerializer.Serialize(new AssetMetadataModel { Tags = tags });
-		asset.HasPlayerColorMask = parsedMeta.SupportsTeamColor ?? DetermineHasPlayerColorMask(metaJson, normPath);
+		asset.HasPlayerColorMask = parsedMeta.SupportsTeamColor ?? AssetRecordFactory.DetermineHasPlayerColorMask(metaJson, normPath);
 		asset.ChromaKey = parsedMeta.ChromaKey ?? string.Empty;
 		asset.AssetType = assetType;
 		asset.HasRealmMetadata = !string.IsNullOrEmpty(metaJson) || assetType.HasValue;
@@ -1413,7 +1405,7 @@ public class AssetIndexService : IDisposable
 		assetsToInsert.Add(asset);
 		existingAssetMap[normPath] = asset;
 
-		EnqueueThumbnailRequestIfNeeded(asset.Extension, normPath, norm);
+		AssetRecordFactory.EnqueueThumbnailRequestIfNeeded(asset.Extension, normPath, norm);
 	}
 
 	private IndexedAsset CreateBaseManifestAsset(string virtualPath, string norm, string normPath, string mapName, string mapVersion, string storageDirectory, FileInfo fi)
@@ -1452,7 +1444,7 @@ public class AssetIndexService : IDisposable
 	private List<string> BuildManifestAssetTags(MapManifest manifest, string virtualPath, string normPath, string storageDirectory, string fileName, List<string> parsedTags)
 	{
 		var tags = parsedTags;
-		if (tags.Count == 0) tags = LoadTagsForFile(normPath, storageDirectory, tags);
+		if (tags.Count == 0) tags = AssetRecordFactory.LoadTagsForFile(normPath, storageDirectory, tags);
 
 		string preferredNameNoExt = Path.GetFileNameWithoutExtension(fileName);
 		var nameTokens = preferredNameNoExt.Split(new[] { '_', '-', ' ', '.', '@' }, StringSplitOptions.RemoveEmptyEntries);
@@ -1859,18 +1851,18 @@ public class AssetIndexService : IDisposable
 		string normalizedFilePath = NormalizePath(filePath);
 		string extension = Path.GetExtension(normalizedFilePath).ToLowerInvariant();
 
-		if (IsIgnoredFileExtension(extension) || IsMetadataSidecarFile(normalizedFilePath)) return;
+		if (AssetRecordFactory.IsIgnoredFileExtension(extension) || AssetRecordFactory.IsMetadataSidecarFile(normalizedFilePath)) return;
 
 		discoveredFiles.Add(normalizedFilePath);
 		try
 		{
 			var fileInfo = new FileInfo(normalizedFilePath);
-			AssetType? expectedDirType = GetExpectedAssetTypeFromDirectory(normalizedFilePath);
+			AssetType? expectedDirType = AssetRecordFactory.GetExpectedAssetTypeFromDirectory(normalizedFilePath);
 
 			existingAssets.TryGetValue(normalizedFilePath, out var existingAsset);
-			if (IsExistingAssetUpToDate(existingAsset, fileInfo, expectedDirType, normalizedFilePath)) return;
+			if (AssetRecordFactory.IsExistingAssetUpToDate(existingAsset, fileInfo, expectedDirType, normalizedFilePath)) return;
 
-			var newAsset = GenerateIndexedAssetFromFile(normalizedFilePath, normalizedDirectoryPath, fileInfo, extension, expectedDirType, existingAsset);
+			var newAsset = AssetRecordFactory.GenerateIndexedAssetFromFile(normalizedFilePath, normalizedDirectoryPath, fileInfo, extension, expectedDirType, existingAsset);
 			batchToUpsert.Add(newAsset);
 
 			if (newAsset.Extension == ".rmesh" && !GlbThumbnailRenderer.HasDiskCache(normalizedFilePath, newAsset.Blake3))
@@ -1891,195 +1883,6 @@ public class AssetIndexService : IDisposable
 		catch (Exception ex)
 		{
 			GameLog.LogError($"[AssetIndexService] Scan error on {normalizedFilePath}: {ex.Message}");
-		}
-	}
-
-	private bool IsIgnoredFileExtension(string extension)
-	{
-		return extension == ".cache" || extension == ".log" || extension == ".tmp" || extension == ".uid";
-	}
-
-	private bool IsMetadataSidecarFile(string normalizedFilePath)
-	{
-		return normalizedFilePath.EndsWith(".json", StringComparison.OrdinalIgnoreCase) &&
-		       File.Exists(normalizedFilePath.Substring(0, normalizedFilePath.Length - 5));
-	}
-
-	private AssetType? GetExpectedAssetTypeFromDirectory(string normalizedFilePath)
-	{
-		string? dir = Path.GetDirectoryName(normalizedFilePath);
-		if (string.IsNullOrEmpty(dir)) return null;
-
-		string[] dirParts = dir.Split(new[] { '/', '\\' }, StringSplitOptions.RemoveEmptyEntries);
-		foreach (var part in dirParts.Reverse())
-		{
-			var norm = RealmMetadataHelper.NormalizeAssetType(part);
-			if (norm.HasValue && RealmMetadataHelper.IsValidAssetTypeForExtension(normalizedFilePath, norm.Value, out _))
-			{
-				return norm;
-			}
-		}
-
-		return null;
-	}
-
-	private bool IsExistingAssetUpToDate(IndexedAsset? existingAsset, FileInfo fileInfo, AssetType? expectedDirType, string normalizedFilePath)
-	{
-		if (existingAsset == null) return false;
-		if (existingAsset.FileSizeBytes != fileInfo.Length) return false;
-		if (existingAsset.LastModifiedUtc != fileInfo.LastWriteTimeUtc) return false;
-		if (!IsAssetMetadataValid(existingAsset, expectedDirType)) return false;
-
-		EnqueueThumbnailRequestIfNeeded(existingAsset.Extension, normalizedFilePath, existingAsset.Blake3);
-
-		return true;
-	}
-
-	private bool IsAssetMetadataValid(IndexedAsset existingAsset, AssetType? expectedDirType)
-	{
-		if (string.IsNullOrEmpty(existingAsset.Blake3)) return false;
-		if (!existingAsset.AssetType.HasValue) return false;
-		if (existingAsset.ChromaKey == null) return false;
-		if (expectedDirType.HasValue && existingAsset.AssetType != expectedDirType) return false;
-
-		return true;
-	}
-
-	private IndexedAsset GenerateIndexedAssetFromFile(string normalizedFilePath, string normalizedDirectoryPath, FileInfo fileInfo, string extension, AssetType? expectedDirType, IndexedAsset? existingAsset)
-	{
-		string? metaJson = RealmMetadataHelper.ExtractMetadata(normalizedFilePath);
-		var parsedMeta = ExtractParsedMetadata(metaJson, normalizedFilePath);
-		var tags = LoadTagsForFile(normalizedFilePath, normalizedDirectoryPath, parsedMeta.Tags);
-
-		var asset = existingAsset ?? new IndexedAsset();
-		PopulateBasicAssetData(asset, normalizedFilePath, normalizedDirectoryPath, fileInfo, extension, tags, existingAsset);
-		PopulateAssetMetadata(asset, normalizedFilePath, expectedDirType, metaJson, parsedMeta, tags);
-
-		return asset;
-	}
-
-	private void PopulateBasicAssetData(IndexedAsset asset, string normalizedFilePath, string normalizedDirectoryPath, FileInfo fileInfo, string extension, List<string> tags, IndexedAsset? existingAsset)
-	{
-		asset.FilePath = normalizedFilePath;
-		asset.FileName = Path.GetFileName(normalizedFilePath);
-		asset.Extension = extension;
-		asset.DirectoryPath = normalizedDirectoryPath;
-		asset.FileSizeBytes = fileInfo.Length;
-		asset.LastModifiedUtc = fileInfo.LastWriteTimeUtc;
-		asset.Tags = tags;
-		asset.MetadataJson = JsonSerializer.Serialize(new AssetMetadataModel { Tags = tags });
-		asset.MapName = existingAsset?.MapName ?? asset.MapName;
-		asset.MapVersion = existingAsset?.MapVersion ?? asset.MapVersion;
-	}
-
-	private void PopulateAssetMetadata(IndexedAsset asset, string normalizedFilePath, AssetType? expectedDirType, string? metaJson, (AssetType? AssetType, string? Blake3, List<string> Tags, bool? HasMask, string? ChromaKey) parsedMeta, List<string> tags)
-	{
-		AssetType? assetType = DetermineAssetType(parsedMeta.AssetType, expectedDirType, normalizedFilePath, tags);
-		string normBlake3 = GetOrComputeBlake3(parsedMeta.Blake3, normalizedFilePath);
-
-		asset.HasRealmMetadata = !string.IsNullOrEmpty(metaJson) || assetType.HasValue;
-		asset.AssetType = assetType;
-		asset.HasPlayerColorMask = parsedMeta.HasMask ?? DetermineHasPlayerColorMask(metaJson, normalizedFilePath);
-
-		string? extractedChroma = RealmMetadataHelper.ExtractChromaKeyFromMetadataJson(metaJson) ?? RealmMetadataHelper.ExtractChromaKey(normalizedFilePath);
-		asset.ChromaKey = parsedMeta.ChromaKey ?? extractedChroma ?? string.Empty;
-		asset.Blake3 = !string.IsNullOrEmpty(normBlake3) ? ContentAddressableStorage.NormalizeBlake3Hash(normBlake3) : string.Empty;
-	}
-
-	private (AssetType? AssetType, string? Blake3, List<string> Tags, bool? HasMask, string? ChromaKey) ExtractParsedMetadata(string? metaJson, string normalizedFilePath)
-	{
-		if (string.IsNullOrEmpty(metaJson))
-		{
-			return (null, null, new List<string>(), null, null);
-		}
-
-		return ExtractParsedMetadataFromJson(metaJson, normalizedFilePath);
-	}
-
-	private (AssetType? AssetType, string? Blake3, List<string> Tags, bool? HasMask, string? ChromaKey) ExtractParsedMetadataFromJson(string metaJson, string normalizedFilePath)
-	{
-		try
-		{
-			var node = JsonNode.Parse(metaJson);
-			if (node is JsonObject obj)
-			{
-				AssetType? assetType = ExtractAssetTypeFromJson(obj, normalizedFilePath);
-				string? normBlake3 = obj.TryGetPropertyValue(AssetMetadataKeys.Blake3Hash, out var blake3Node) ? blake3Node?.ToString() : null;
-				var embeddedTags = ExtractTagsFromJson(obj);
-
-				return (assetType, normBlake3, embeddedTags, null, null);
-			}
-		}
-		catch
-		{
-		}
-
-		return (null, null, new List<string>(), null, null);
-	}
-
-	private AssetType? ExtractAssetTypeFromJson(JsonObject obj, string normalizedFilePath)
-	{
-		string? typeVal = obj[AssetMetadataKeys.AssetType]?.ToString();
-		if (!string.IsNullOrEmpty(typeVal))
-		{
-			var norm = RealmMetadataHelper.NormalizeAssetType(typeVal);
-			if (norm.HasValue && RealmMetadataHelper.IsValidAssetTypeForExtension(normalizedFilePath, norm.Value, out _))
-			{
-				return norm;
-			}
-		}
-
-		return null;
-	}
-
-	private List<string> ExtractTagsFromJson(JsonObject obj)
-	{
-		var embeddedTags = new List<string>();
-		if (obj.TryGetPropertyValue("tags", out var tagsNode) && tagsNode is JsonArray arr)
-		{
-			foreach (var item in arr)
-			{
-				string? t = item?.ToString()?.Trim();
-				if (!string.IsNullOrEmpty(t) && !embeddedTags.Contains(t, StringComparer.OrdinalIgnoreCase))
-				{
-					embeddedTags.Add(t);
-				}
-			}
-		}
-
-		return embeddedTags;
-	}
-
-	private AssetType? DetermineAssetType(AssetType? parsedType, AssetType? expectedDirType, string normalizedFilePath, List<string> tags)
-	{
-		if (parsedType.HasValue) return parsedType;
-		if (expectedDirType.HasValue) return expectedDirType;
-
-		if (tags != null)
-		{
-			foreach (var tag in tags)
-			{
-				var norm = RealmMetadataHelper.NormalizeAssetType(tag);
-				if (norm.HasValue && RealmMetadataHelper.IsValidAssetTypeForExtension(normalizedFilePath, norm.Value, out _))
-				{
-					return norm;
-				}
-			}
-		}
-
-		return null;
-	}
-
-	private string GetOrComputeBlake3(string? parsedBlake3, string normalizedFilePath)
-	{
-		if (!string.IsNullOrEmpty(parsedBlake3)) return parsedBlake3;
-		try
-		{
-			return RealmMetadataHelper.ComputeBlake3(normalizedFilePath);
-		}
-		catch
-		{
-			return string.Empty;
 		}
 	}
 
@@ -2109,179 +1912,6 @@ public class AssetIndexService : IDisposable
 	}
 
 
-	private static ParsedAssetMetadata ParseMetadataHeaders(string? metaJson, string filePath)
-	{
-		var result = new ParsedAssetMetadata { Tags = new List<string>() };
-		if (string.IsNullOrWhiteSpace(metaJson)) return result;
-
-		try
-		{
-			if (JsonNode.Parse(metaJson) is JsonObject obj)
-			{
-				result.AssetType = ExtractAssetTypeFromMetadata(obj, filePath);
-				result.SupportsTeamColor = ExtractSupportsTeamColor(obj);
-				result.ChromaKey = ExtractChromaKeyFromMetadata(obj);
-				ExtractTagsFromMetadata(obj, result.Tags);
-			}
-		}
-		catch
-		{
-		}
-
-		return result;
-	}
-
-	private static AssetType? ExtractAssetTypeFromMetadata(JsonObject obj, string filePath)
-	{
-		string? typeVal = obj[AssetMetadataKeys.AssetType]?.ToString();
-		if (!string.IsNullOrEmpty(typeVal))
-		{
-			var norm = RealmMetadataHelper.NormalizeAssetType(typeVal);
-			if (norm.HasValue && RealmMetadataHelper.IsValidAssetTypeForExtension(filePath, norm.Value, out _))
-			{
-				return norm;
-			}
-		}
-
-		return null;
-	}
-
-	private static bool? ExtractSupportsTeamColor(JsonObject obj)
-	{
-		if (obj["team_color"] != null && bool.TryParse(obj["team_color"]?.ToString(), out bool tcVal)) return tcVal;
-		if (obj["supports_team_color"] != null && bool.TryParse(obj["supports_team_color"]?.ToString(), out bool stcVal)) return stcVal;
-		if (obj["has_player_color_mask"] != null && bool.TryParse(obj["has_player_color_mask"]?.ToString(), out bool hpcmVal)) return hpcmVal;
-		return null;
-	}
-
-	private static string? ExtractChromaKeyFromMetadata(JsonObject obj)
-	{
-		return obj["chroma_key"]?.ToString() ?? obj["chromaKey"]?.ToString() ?? obj["target_hex"]?.ToString() ?? obj["targetHex"]?.ToString();
-	}
-
-	private static void ExtractTagsFromMetadata(JsonObject obj, List<string> resultTags)
-	{
-		if (obj["tags"] is JsonArray arr)
-		{
-			foreach (var item in arr)
-			{
-				string? t = item?.ToString()?.Trim();
-				if (!string.IsNullOrEmpty(t) && !resultTags.Contains(t, StringComparer.OrdinalIgnoreCase))
-				{
-					resultTags.Add(t);
-				}
-			}
-		}
-	}
-
-
-	private static bool DetermineHasPlayerColorMask(string? metaJson, string? filePath)
-	{
-		if (!string.IsNullOrEmpty(metaJson) && RealmMetadataHelper.ExtractSupportsTeamColorFromMetadataJson(metaJson))
-		{
-			return true;
-		}
-
-		if (!string.IsNullOrEmpty(filePath))
-		{
-			bool? supports = RealmMetadataHelper.ExtractSupportsTeamColorWithMetadata(metaJson, filePath);
-			if (supports.HasValue)
-			{
-				return supports.Value;
-			}
-		}
-
-		return false;
-	}
-
-	private List<string> LoadTagsForFile(string filePath, string rootDirectory, List<string>? preloadedTags = null)
-	{
-		var tagSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-		PopulateInitialTags(filePath, preloadedTags, tagSet);
-
-		if (tagSet.Count == 0 && !filePath.StartsWith(GlobalCasAssetsDirectory, StringComparison.OrdinalIgnoreCase))
-		{
-			TryLoadTagsFromSidecar(filePath, tagSet);
-		}
-
-		if (tagSet.Count == 0)
-		{
-			GenerateFallbackTags(filePath, rootDirectory, tagSet);
-		}
-
-		return tagSet.OrderBy(t => t, StringComparer.OrdinalIgnoreCase).ToList();
-	}
-
-	private void PopulateInitialTags(string filePath, List<string>? preloadedTags, HashSet<string> tagSet)
-	{
-		if (preloadedTags != null && preloadedTags.Count > 0)
-		{
-			foreach (var tag in preloadedTags) tagSet.Add(tag);
-		}
-		else
-		{
-			var embeddedTags = RealmMetadataHelper.ExtractTags(filePath);
-			foreach (var tag in embeddedTags) tagSet.Add(tag);
-		}
-	}
-
-	private void TryLoadTagsFromSidecar(string filePath, HashSet<string> tagSet)
-	{
-		string sidecarJsonWithExt = filePath + ".json";
-		string sidecarJsonNoExt = Path.Combine(Path.GetDirectoryName(filePath)!, Path.GetFileNameWithoutExtension(filePath) + ".json");
-
-		string? foundMetadataPath = null;
-		if (File.Exists(sidecarJsonWithExt)) foundMetadataPath = sidecarJsonWithExt;
-		else if (File.Exists(sidecarJsonNoExt) && !string.Equals(sidecarJsonNoExt, filePath, StringComparison.OrdinalIgnoreCase)) foundMetadataPath = sidecarJsonNoExt;
-
-		if (foundMetadataPath != null)
-		{
-			ParseTagsFromSidecarJson(foundMetadataPath, tagSet);
-		}
-	}
-
-	private void ParseTagsFromSidecarJson(string foundMetadataPath, HashSet<string> tagSet)
-	{
-		try
-		{
-			string jsonContent = File.ReadAllText(foundMetadataPath);
-			if (JsonNode.Parse(jsonContent) is JsonObject jsonObject && jsonObject["tags"] is JsonArray tagsArray)
-			{
-				foreach (var item in tagsArray)
-				{
-					string? tagStr = item?.ToString()?.Trim();
-					if (!string.IsNullOrEmpty(tagStr)) tagSet.Add(tagStr);
-				}
-			}
-		}
-		catch
-		{
-		}
-	}
-
-	private void GenerateFallbackTags(string filePath, string rootDirectory, HashSet<string> tagSet)
-	{
-		string nameWithoutExt = Path.GetFileNameWithoutExtension(filePath);
-		var nameTokens = nameWithoutExt.Split(new[] { '_', '-', ' ', '.', '@' }, StringSplitOptions.RemoveEmptyEntries);
-		foreach (var token in nameTokens)
-		{
-			if (token.Length > 1 && !char.IsDigit(token[0])) tagSet.Add(token.ToLowerInvariant());
-		}
-
-		string relativeDir = Path.GetRelativePath(rootDirectory, Path.GetDirectoryName(filePath) ?? rootDirectory);
-		if (!string.IsNullOrEmpty(relativeDir) && relativeDir != ".")
-		{
-			var dirTokens = relativeDir.Split(new[] { '/', '\\' }, StringSplitOptions.RemoveEmptyEntries);
-			foreach (var dir in dirTokens)
-			{
-				if (!string.IsNullOrWhiteSpace(dir)) tagSet.Add(dir.ToLowerInvariant());
-			}
-		}
-
-		string ext = Path.GetExtension(filePath).TrimStart('.').ToLowerInvariant();
-		if (!string.IsNullOrEmpty(ext)) tagSet.Add(ext);
-	}
 
 
 	public void UpdateAssetTags(string filePath, List<string> newTags)
