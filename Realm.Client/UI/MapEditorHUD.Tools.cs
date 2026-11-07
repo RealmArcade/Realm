@@ -4703,19 +4703,49 @@ namespace Realm.Client.UI
 
 		private void InitializeInspectorPanel()
 		{
+			var inspectorVBox = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspectorPanel/VBox");
+			BuildInspectorActionBar();
+
+			BuildCoverageToggle(inspectorVBox);
+
+			BuildPlayerOwnerRow(inspectorVBox);
+
+			BuildRigStatusLabel(inspectorVBox);
+
+			CreateInspectorDialogs();
+
+			RefreshWaterSwatches();
+			ApplyEditorPreferences(EditorSettingsDialog.CurrentSettings);
+
+			InitInspectorActionButtons(inspectorVBox);
+		}
+
+
+		private void BuildInspectorActionBar()
+		{
 			_inspectorPanel = GetNode<PanelContainer>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspectorPanel");
 			_lblInspectorTitle = GetNode<Label>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspectorPanel/VBox/LblInspectorTitle");
-			_lblInspectorPos = GetNode<Label>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspectorPanel/VBox/LblInspectorPos");				_btnInspectorRotLeft = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspBox_VBoxContainer/InspGrid_GridContainer/BtnInspectorRotLeft");
-			SetupButton(_btnInspectorRotLeft, $"{UnicodeIcons.UNDO} ROT -15°", () => RotateSelectedObjectAction(-15f), 11, "Rotate object counter-clockwise (Shift + Mouse_Wheel)");				_btnInspectorRotRight = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspBox_VBoxContainer/InspGrid_GridContainer/BtnInspectorRotRight");
-			SetupButton(_btnInspectorRotRight, $"{UnicodeIcons.ROTATE} ROT +15°", () => RotateSelectedObjectAction(15f), 11, "Rotate object clockwise (Shift + Mouse_Wheel)");				_btnInspectorScaleDown = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspBox_VBoxContainer/InspGrid_GridContainer/BtnInspectorScaleDown");
-			SetupButton(_btnInspectorScaleDown, $"{UnicodeIcons.MINUS} SCALE DOWN", () => ScaleSelectedObjectAction(0.9f), 11, "Shrink object size by 10% (Alt + Mouse_Wheel)");				_btnInspectorScaleUp = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspBox_VBoxContainer/InspGrid_GridContainer/BtnInspectorScaleUp");
-			SetupButton(_btnInspectorScaleUp, $"{UnicodeIcons.PLUS} SCALE UP", () => ScaleSelectedObjectAction(1.1f), 11, "Enlarge object size by 10% (Alt + Mouse_Wheel)");				_btnInspectorScaleReset = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspBox_VBoxContainer/InspGrid_GridContainer/BtnInspectorScaleReset");
+			_lblInspectorPos = GetNode<Label>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspectorPanel/VBox/LblInspectorPos");
+			_btnInspectorRotLeft = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspBox_VBoxContainer/InspGrid_GridContainer/BtnInspectorRotLeft");
+			SetupButton(_btnInspectorRotLeft, $"{UnicodeIcons.UNDO} ROT -15°", () => RotateSelectedObjectAction(-15f), 11, "Rotate object counter-clockwise (Shift + Mouse_Wheel)");
+			_btnInspectorRotRight = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspBox_VBoxContainer/InspGrid_GridContainer/BtnInspectorRotRight");
+			SetupButton(_btnInspectorRotRight, $"{UnicodeIcons.ROTATE} ROT +15°", () => RotateSelectedObjectAction(15f), 11, "Rotate object clockwise (Shift + Mouse_Wheel)");
+			_btnInspectorScaleDown = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspBox_VBoxContainer/InspGrid_GridContainer/BtnInspectorScaleDown");
+			SetupButton(_btnInspectorScaleDown, $"{UnicodeIcons.MINUS} SCALE DOWN", () => ScaleSelectedObjectAction(0.9f), 11, "Shrink object size by 10% (Alt + Mouse_Wheel)");
+			_btnInspectorScaleUp = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspBox_VBoxContainer/InspGrid_GridContainer/BtnInspectorScaleUp");
+			SetupButton(_btnInspectorScaleUp, $"{UnicodeIcons.PLUS} SCALE UP", () => ScaleSelectedObjectAction(1.1f), 11, "Enlarge object size by 10% (Alt + Mouse_Wheel)");
+			_btnInspectorScaleReset = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspBox_VBoxContainer/InspGrid_GridContainer/BtnInspectorScaleReset");
 			SetupButton(_btnInspectorScaleReset, $"{UnicodeIcons.UNDO} RESET SCALE", () => ScaleSelectedObjectAction(-1f), 12, "Reset object scale size to 1.0x");
 
 			_btnCenter = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspectorPanel/VBox/BtnCenter");
-			SetupButton(_btnCenter, $"{UnicodeIcons.CROSSHAIRS_TARGET} LOCATE OBJECT", () => LocateSelectedObjectAction(), 12, "Center camera on selected object");				_btnInspectorDelete = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspBox_VBoxContainer/InspGrid_GridContainer/BtnInspectorDelete");
+			SetupButton(_btnCenter, $"{UnicodeIcons.CROSSHAIRS_TARGET} LOCATE OBJECT", () => LocateSelectedObjectAction(), 12, "Center camera on selected object");
+			_btnInspectorDelete = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspBox_VBoxContainer/InspGrid_GridContainer/BtnInspectorDelete");
 			SetupButton(_btnInspectorDelete, $"{UnicodeIcons.TRASH_ALT} ERASE", () => DeleteSelectedObjectAction(), 12, "Erase selected unit, prop, or decal");
+		}
 
+
+		private void BuildCoverageToggle(VBoxContainer inspectorVBox)
+		{
 			_btnShowCoverage = new Button();
 			_btnShowCoverage.Name = "BtnShowCoverage_Button";
 			_btnShowCoverage.Text = TranslationServer.Translate($"{UnicodeIcons.EYE} RANGES: OFF");
@@ -4734,9 +4764,12 @@ namespace Realm.Client.UI
 					GameContext.Host.UpdateEditorCoverageOverlay();
 				}
 			};
-			var inspectorVBox = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspectorPanel/VBox");
 			inspectorVBox.AddChild(_btnShowCoverage);
+		}
 
+
+		private void BuildPlayerOwnerRow(VBoxContainer inspectorVBox)
+		{
 			_playerOwnerContainer = new HBoxContainer();
 			_playerOwnerContainer.Name = "PlayerOwnerContainer";
 			_playerOwnerContainer.Visible = false;
@@ -4771,7 +4804,11 @@ namespace Realm.Client.UI
 			_playerOwnerContainer.AddChild(_optPlayerOwner);
 			inspectorVBox.AddChild(_playerOwnerContainer);
 			inspectorVBox.MoveChild(_playerOwnerContainer, 2);
+		}
 
+
+		private void BuildRigStatusLabel(VBoxContainer inspectorVBox)
+		{
 			_rigStatusContainer = new PanelContainer();
 			_rigStatusContainer.Name = "RigStatusContainer";
 			_rigStatusContainer.Visible = false;
@@ -4782,7 +4819,11 @@ namespace Realm.Client.UI
 			_lblRigStatus.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 			_rigStatusContainer.AddChild(_lblRigStatus);
 			inspectorVBox.AddChild(_rigStatusContainer);
+		}
 
+
+		private void CreateInspectorDialogs()
+		{
 			_entityVisualEditDialog = new EntityVisualEditDialog(this);
 			_animationPreviewDialog = new AnimationPreviewDialog(this);
 			_weaponVfxDialog = new WeaponVfxDialog(this);
@@ -4805,11 +4846,8 @@ namespace Realm.Client.UI
 			_replaceTextureDialog = new ReplaceTextureDialog(this);
 			_utilitiesDialog = new UtilitiesDialog(this);
 			_testSettingsDialog = new TestSettingsDialog(this);
-			RefreshWaterSwatches();
-			ApplyEditorPreferences(EditorSettingsDialog.CurrentSettings);
-
-			InitInspectorActionButtons(inspectorVBox);
 		}
+
 
 		private void InitInspectorActionButtons(VBoxContainer inspectorVBox)
 		{
