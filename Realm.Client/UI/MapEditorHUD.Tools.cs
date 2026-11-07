@@ -144,6 +144,15 @@ namespace Realm.Client.UI
 			StyleAccordionHeader(_btnHeaderInspector);
 			SetupAccordion(_btnHeaderInspector, _contentInspector, TranslationServer.Translate("Selected Object Inspector"));
 
+			BuildPlacementAccordion();
+		}
+
+
+
+
+
+		private void BuildPlacementAccordion()
+		{
 			_accordionPlacement = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion");
 			_btnHeaderPlacement = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/BtnHeaderPlacement");
 			_contentPlacement = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement");
@@ -262,8 +271,6 @@ namespace Realm.Client.UI
 			_sldPlacementScale.DragStarted += () => _isDraggingSlider = true;
 			_sldPlacementScale.DragEnded += (valueChanged) => _isDraggingSlider = false;
 		}
-
-
 
 
 		private void WireEditorControllers()
