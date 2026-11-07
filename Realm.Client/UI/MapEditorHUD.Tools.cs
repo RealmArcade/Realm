@@ -3732,6 +3732,20 @@ namespace Realm.Client.UI
 				StyleSubContainer(_containerPathingSettings, "Pathing Properties");
 			}
 
+			StylePasteAndPlacementSettings();
+
+			RestyleOptionButtonContents();
+		}
+
+
+
+
+
+
+
+
+		private void StylePasteAndPlacementSettings()
+		{
 			if (_containerPasteSettings != null)
 			{
 				StyleSubContainer(_containerPasteSettings, "Paste Options");
@@ -3777,14 +3791,7 @@ namespace Realm.Client.UI
 			{
 				StyleSubContainer(_containerEyedropperSettings, "Eyedropper Settings");
 			}
-
-			RestyleOptionButtonContents();
 		}
-
-
-
-
-
 
 
 		private void RestyleOptionButtonContents()
