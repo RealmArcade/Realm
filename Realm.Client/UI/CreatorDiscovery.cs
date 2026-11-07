@@ -468,7 +468,22 @@ public partial class CreatorDiscovery : Control
 		UpdatePortfolioViewFallback(0);
 	}
 
+	// The dropdown's ItemSelected signal and the grid's own loops call this, so the signature has to stay void.
+	// The awaited work lives in a Task-returning method and the wrapper logs whatever it throws: an async void
+	// body that throws with no catch has nobody to hand the exception to.
 	private async void UpdatePortfolioView(long index)
+	{
+		try
+		{
+			await UpdatePortfolioViewAsync(index);
+		}
+		catch (Exception exception)
+		{
+			GameLog.LogError($"[CreatorDiscovery] Failed to load portfolio view: {exception}");
+		}
+	}
+
+	private async Task UpdatePortfolioViewAsync(long index)
 	{
 		int idx = (int)index;
 		if (idx < 0 || idx >= _creatorsList.Count) return;
