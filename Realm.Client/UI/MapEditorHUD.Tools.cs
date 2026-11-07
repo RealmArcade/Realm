@@ -299,60 +299,7 @@ namespace Realm.Client.UI
 					UpdatePolarRingSpacingButtonText();
 				}
 
-				if (!_agreementShownThisSession)
-				{
-					ShowAgreementModal(() => { CheckPostLaunchPrompts(); });
-				}
-				else
-				{
-					CheckPostLaunchPrompts();
-				}
-
-				var targetFileBox = GetContentTarget(_contentFile);
-				if (targetFileBox != null)
-				{
-					foreach (Node child in targetFileBox.GetChildren())
-					{
-						if (child is Control ctrl)
-						{
-							ctrl.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-						}
-					}
-				}
-
-				if (GameContext.SessionState.ReturningFromTest)
-				{
-					ReadMetadataAndRefreshTextures();
-					_sldBrushSize.Value = GameContext.SessionState.SavedBrushRadius;
-					_sldBrushStrength.Value = GameContext.SessionState.SavedBrushStrength;
-
-					if (GameContext.SessionState.SavedActiveTool == EditorTool.PlaceUnit ||
-					    GameContext.SessionState.SavedActiveTool == EditorTool.PlaceProp ||
-					    GameContext.SessionState.SavedActiveTool == EditorTool.PlaceDecal)
-					{
-						_entityPaletteController?.SelectCategoryItemExternal(GameContext.SessionState.SavedEntityCategory, GameContext.SessionState.SavedActivePlaceId);
-					}
-					else
-					{
-						Button toolBtn = GetButtonForTool(GameContext.SessionState.SavedActiveTool, GameContext.SessionState.SavedActivePlaceId);
-						if (toolBtn != null)
-						{
-							TriggerToolSelection(GameContext.SessionState.SavedActiveTool, toolBtn, GameContext.SessionState.SavedActivePlaceId);
-						}
-						else
-						{
-							SwitchModuleView(EditorModule.Terrain);
-						}
-					}
-
-					GameContext.SessionState.ReturningFromTest = false;
-				}
-				else
-				{
-					SwitchModuleView(EditorModule.Terrain);
-				}
-
-				StartStartupMapIfPending();
+				RestoreEditorSessionAfterReady();
 			}
 			catch (Exception ex)
 			{
@@ -487,6 +434,66 @@ namespace Realm.Client.UI
 			_sldPlacementRotate.DragEnded += (valueChanged) => _isDraggingSlider = false;
 			_sldPlacementScale.DragStarted += () => _isDraggingSlider = true;
 			_sldPlacementScale.DragEnded += (valueChanged) => _isDraggingSlider = false;
+		}
+
+
+
+		private void RestoreEditorSessionAfterReady()
+		{
+			if (!_agreementShownThisSession)
+			{
+				ShowAgreementModal(() => { CheckPostLaunchPrompts(); });
+			}
+			else
+			{
+				CheckPostLaunchPrompts();
+			}
+
+			var targetFileBox = GetContentTarget(_contentFile);
+			if (targetFileBox != null)
+			{
+				foreach (Node child in targetFileBox.GetChildren())
+				{
+					if (child is Control ctrl)
+					{
+						ctrl.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+					}
+				}
+			}
+
+			if (GameContext.SessionState.ReturningFromTest)
+			{
+				ReadMetadataAndRefreshTextures();
+				_sldBrushSize.Value = GameContext.SessionState.SavedBrushRadius;
+				_sldBrushStrength.Value = GameContext.SessionState.SavedBrushStrength;
+
+				if (GameContext.SessionState.SavedActiveTool == EditorTool.PlaceUnit ||
+				    GameContext.SessionState.SavedActiveTool == EditorTool.PlaceProp ||
+				    GameContext.SessionState.SavedActiveTool == EditorTool.PlaceDecal)
+				{
+					_entityPaletteController?.SelectCategoryItemExternal(GameContext.SessionState.SavedEntityCategory, GameContext.SessionState.SavedActivePlaceId);
+				}
+				else
+				{
+					Button toolBtn = GetButtonForTool(GameContext.SessionState.SavedActiveTool, GameContext.SessionState.SavedActivePlaceId);
+					if (toolBtn != null)
+					{
+						TriggerToolSelection(GameContext.SessionState.SavedActiveTool, toolBtn, GameContext.SessionState.SavedActivePlaceId);
+					}
+					else
+					{
+						SwitchModuleView(EditorModule.Terrain);
+					}
+				}
+
+				GameContext.SessionState.ReturningFromTest = false;
+			}
+			else
+			{
+				SwitchModuleView(EditorModule.Terrain);
+			}
+
+			StartStartupMapIfPending();
 		}
 
 
