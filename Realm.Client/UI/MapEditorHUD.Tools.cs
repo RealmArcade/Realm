@@ -3723,28 +3723,7 @@ namespace Realm.Client.UI
 
 			StyleToolPanelContainers();
 
-			if (_contentBrush != null)
-			{
-				StyleSubContainer(_contentBrush, "Brush Properties");
-
-				StyleValueBadge(_lblBrushSizeValue);
-				StyleValueBadge(_lblBrushStrengthValue);
-				StyleValueBadge(_lblBlockStepValue);
-
-				if (_btnBrushShape != null)
-				{
-					_btnBrushShape.CustomMinimumSize = new Vector2(0, 32);
-					_btnBrushShape.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-					_btnBrushShape.AddThemeFontSizeOverride("font_size", 10);
-				}
-
-				if (_optMirrorMode != null)
-				{
-					_optMirrorMode.CustomMinimumSize = new Vector2(0, 32);
-					_optMirrorMode.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-					_optMirrorMode.AddThemeFontSizeOverride("font_size", 10);
-				}
-			}
+			StyleBrushAccordionControls();
 
 			StyleTexturePaletteRows();
 
@@ -3812,6 +3791,34 @@ namespace Realm.Client.UI
 
 
 
+
+
+
+		private void StyleBrushAccordionControls()
+		{
+			if (_contentBrush != null)
+			{
+				StyleSubContainer(_contentBrush, "Brush Properties");
+
+				StyleValueBadge(_lblBrushSizeValue);
+				StyleValueBadge(_lblBrushStrengthValue);
+				StyleValueBadge(_lblBlockStepValue);
+
+				if (_btnBrushShape != null)
+				{
+					_btnBrushShape.CustomMinimumSize = new Vector2(0, 32);
+					_btnBrushShape.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+					_btnBrushShape.AddThemeFontSizeOverride("font_size", 10);
+				}
+
+				if (_optMirrorMode != null)
+				{
+					_optMirrorMode.CustomMinimumSize = new Vector2(0, 32);
+					_optMirrorMode.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+					_optMirrorMode.AddThemeFontSizeOverride("font_size", 10);
+				}
+			}
+		}
 
 
 		private void StyleToolPanelContainers()
