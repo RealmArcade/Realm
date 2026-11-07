@@ -1069,6 +1069,24 @@ namespace Realm.Client.UI
 
 		private void ShowGreenlightStatusDialog(string mapTitle, string mapVersion, int verifiedGoodReviews, int totalReviews, double averageRating, bool isGreenlit)
 		{
+			var overlay = CreateGreenlightShell();
+
+			var vbox = BuildGreenlightPanel(overlay, isGreenlit);
+
+			BuildGreenlightTitle(vbox, isGreenlit);
+
+			BuildGreenlightDescription(vbox, mapTitle, mapVersion, isGreenlit);
+
+			BuildGreenlightMetrics(vbox, verifiedGoodReviews, totalReviews, averageRating);
+
+			BuildGreenlightTip(vbox);
+
+			BuildGreenlightCloseRow(vbox, overlay);
+		}
+
+
+		private ColorRect CreateGreenlightShell()
+		{
 			var overlay = new ColorRect();
 			overlay.Name = "GreenlightStatusOverlay";
 			overlay.Color = new Color(0, 0, 0, 0.75f);
@@ -1076,7 +1094,11 @@ namespace Realm.Client.UI
 			overlay.MouseFilter = MouseFilterEnum.Stop;
 			overlay.ZIndex = 1000;
 			AddChild(overlay);
+			return overlay;
+		}
 
+		private VBoxContainer BuildGreenlightPanel(ColorRect overlay, bool isGreenlit)
+		{
 			var center = UIStyle.CreateCenteredOverlay();
 			overlay.AddChild(center);
 
@@ -1106,7 +1128,11 @@ namespace Realm.Client.UI
 			vbox.Name = "Vbox_VBoxContainer";
 			vbox.AddThemeConstantOverride("separation", 14);
 			margin.AddChild(vbox);
+			return vbox;
+		}
 
+		private void BuildGreenlightTitle(VBoxContainer vbox, bool isGreenlit)
+		{
 			var lblTitle = new Label();
 			lblTitle.Name = "LblTitle_Label";
 			lblTitle.Text = isGreenlit ? TranslationServer.Translate("MAP GREENLIT FOR PUBLISHING") : TranslationServer.Translate("MAP NOT YET GREENLIT");
@@ -1114,7 +1140,11 @@ namespace Realm.Client.UI
 			lblTitle.AddThemeFontSizeOverride("font_size", 20);
 			lblTitle.AddThemeColorOverride("font_color", isGreenlit ? new Color(0.4f, 0.9f, 0.5f) : new Color(1f, 0.6f, 0.4f));
 			vbox.AddChild(lblTitle);
+		}
 
+
+		private void BuildGreenlightDescription(VBoxContainer vbox, string mapTitle, string mapVersion, bool isGreenlit)
+		{
 			var lblDesc = new Label();
 			lblDesc.Name = "LblDesc_Label";
 			lblDesc.Text = isGreenlit
@@ -1127,7 +1157,11 @@ namespace Realm.Client.UI
 			lblDesc.AddThemeFontSizeOverride("font_size", 13);
 			lblDesc.AddThemeColorOverride("font_color", new Color(0.85f, 0.85f, 0.9f));
 			vbox.AddChild(lblDesc);
+		}
 
+
+		private void BuildGreenlightMetrics(VBoxContainer vbox, int verifiedGoodReviews, int totalReviews, double averageRating)
+		{
 			var metricsBox = new VBoxContainer();
 			metricsBox.Name = "MetricsBox_VBoxContainer";
 			metricsBox.AddThemeConstantOverride("separation", 8);
@@ -1150,7 +1184,11 @@ namespace Realm.Client.UI
 				lblAggregate.AddThemeFontSizeOverride("font_size", 12);
 				metricsBox.AddChild(lblAggregate);
 			}
+		}
 
+
+		private void BuildGreenlightTip(VBoxContainer vbox)
+		{
 			var tip = new Label();
 			tip.Name = "Tip_Label";
 			tip.Text = TranslationServer.Translate("How Verified Good Reviews are determined:\nA review qualifies as Verified & Good when submitted by a player who:\n  1. Is signed in with Steam\n  2. Has played your map for at least 30 minutes across 3 or more completed games\n  3. Gives your map a rating of 3 stars or higher\n\nHost multiplayer lobbies or share your map peer-to-peer to build verified reviews from your community.");
@@ -1160,7 +1198,11 @@ namespace Realm.Client.UI
 			tip.AddThemeFontSizeOverride("font_size", 11);
 			tip.AddThemeColorOverride("font_color", new Color(0.65f, 0.7f, 0.8f));
 			vbox.AddChild(tip);
+		}
 
+
+		private void BuildGreenlightCloseRow(VBoxContainer vbox, ColorRect overlay)
+		{
 			var hbox = new HBoxContainer();
 			hbox.Name = "Hbox_HBoxContainer";
 			hbox.Alignment = BoxContainer.AlignmentMode.Center;
@@ -1174,6 +1216,7 @@ namespace Realm.Client.UI
 			btnClose.Pressed += () => overlay.QueueFree();
 			hbox.AddChild(btnClose);
 		}
+
 
 		public void ShowConfirmationDialog(string message, Action onConfirm, string confirmText = "YES", string cancelText = "NO", Action onCancel = null, Action onDismissed = null, bool showCancel = true)
 		{
