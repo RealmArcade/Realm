@@ -16,18 +16,30 @@ using Realm.Shared.Network;
 namespace Realm.Client.Services;
 
 /// <summary>
-///     Builds the local entity that stands in for a unit the host described: validates the definition, replaces a loot
-///     stand-in or a recycled identifier's replica first, and stamps the new entity's first presentation sample.
+///     Hosts the local stand-in for a unit the host describes: builds it when it is first described, applies a later
+///     description to it, replaces it when its identifier was recycled, and stamps its first presentation sample.
 /// </summary>
-internal sealed class ReplicatedUnitSpawner
+internal sealed class ReplicatedUnitLifecycle
 {
+	internal const float MaximumPlausibleTargetStepMeters = 2f;
+
+	internal const float PlausibleStepAllowanceFactor = 2f;
+
 	private readonly Func<Entity> _findWorldEntity;
 	private readonly Func<int> _lastAppliedSequence;
+	private readonly PendingUnitSpawnQueue _pendingSpawns;
+	private readonly Action<Entity> _notePendingKill;
+	private readonly Action<NetworkMappingState, Entity, int> _retireReplica;
 
-	internal ReplicatedUnitSpawner(Func<Entity> findWorldEntity, Func<int> lastAppliedSequence)
+	internal ReplicatedUnitLifecycle(Func<Entity> findWorldEntity, Func<int> lastAppliedSequence,
+		PendingUnitSpawnQueue pendingSpawns, Action<Entity> notePendingKill,
+		Action<NetworkMappingState, Entity, int> retireReplica)
 	{
 		_findWorldEntity = findWorldEntity;
 		_lastAppliedSequence = lastAppliedSequence;
+		_pendingSpawns = pendingSpawns;
+		_notePendingKill = notePendingKill;
+		_retireReplica = retireReplica;
 	}
 
 	internal Entity Spawn(UnitSnapshot snap, Func<string, bool, string> getFallbackModelPath, out string modelPath, out int playerIndex)
@@ -172,5 +184,77 @@ internal sealed class ReplicatedUnitSpawner
 			&& GameContext.World.Get<UnitOwnerPlayer>(localEntity).PlayerIndex != snap.OwnerPlayerIndex) return true;
 		if (GameContext.World.Has<Building>(localEntity) != snap.IsBuilding) return true;
 		return GameContext.World.Has<Dead>(localEntity);
+	}
+	internal void ApplyDescription(UnitSnapshot snap, int sequence, NetworkMappingState mapping)
+	{
+		if (!mapping.ServerToClientEntityMap.TryGetValue(snap.EntityId, out var localEntity))
+		{
+			if (snap.IsDead) _pendingSpawns.Remove(snap.EntityId);
+			else _pendingSpawns.Queue(snap);
+			return;
+		}
+
+		if (!GameContext.World.IsAlive(localEntity) || IsServerEntityIdRecycled(snap, localEntity))
+		{
+			GameContext.SnapshotTimeline.Reset(localEntity.Id);
+			_retireReplica(mapping, localEntity, snap.EntityId);
+			if (!snap.IsDead) _pendingSpawns.Queue(snap);
+			return;
+		}
+
+		if (snap.IsDead)
+		{
+			if (!GameContext.World.Has<Dead>(localEntity))
+			{
+				GameContext.World.Add<Dead>(localEntity);
+				_notePendingKill(localEntity);
+			}
+
+			GameContext.SnapshotTimeline.Reset(localEntity.Id);
+			return;
+		}
+
+		if (GameContext.World.Has<Health>(localEntity))
+		{
+			var hp = GameContext.World.Get<Health>(localEntity);
+			hp.Current = snap.CurrentHp;
+			hp.Max = snap.MaxHp;
+			GameContext.World.Set(localEntity, hp);
+		}
+
+		System.Numerics.Vector3 describedPosition = snap.Position.ToNumerics();
+		System.Numerics.Vector3 previousTargetPosition = GameContext.World.Has<LatestDescription>(localEntity)
+			? GameContext.World.Get<LatestDescription>(localEntity).Position
+			: describedPosition;
+
+		int lastDescribedSequence = GameContext.World.Has<DescribedAtSequence>(localEntity)
+			? GameContext.World.Get<DescribedAtSequence>(localEntity).Sequence
+			: -1;
+
+		bool targetJumped = (describedPosition - previousTargetPosition).Length() > PlausibleStepMeters(localEntity, sequence, lastDescribedSequence);
+
+		if (targetJumped) GameContext.SnapshotTimeline.Reset(localEntity.Id);
+		GameContext.SnapshotTimeline.Record(localEntity.Id, describedPosition, snap.RotationY, sequence);
+
+		GameContext.World.SetOrAdd(localEntity, new LatestDescription
+		{
+			Position = describedPosition,
+			RotationY = snap.RotationY
+		});
+
+		GameContext.World.SetOrAdd(localEntity, new DescribedAtSequence(sequence));
+	}
+
+	private static float PlausibleStepMeters(Entity localEntity, int sequence, int lastDescribedSequence)
+	{
+		if (!GameContext.World.Has<MovementStats>(localEntity)) return MaximumPlausibleTargetStepMeters;
+
+		int undescribedSequences = lastDescribedSequence >= 0 ? Math.Max(1, sequence - lastDescribedSequence) : 1;
+		float coveredAtSpeed = GameContext.World.Get<MovementStats>(localEntity).Speed
+			* undescribedSequences
+			* MatchTiming.SnapshotIntervalSeconds
+			* PlausibleStepAllowanceFactor;
+
+		return MathF.Max(MaximumPlausibleTargetStepMeters, coveredAtSpeed);
 	}
 }

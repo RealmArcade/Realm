@@ -30,7 +30,7 @@ public class NetworkService
 	private readonly UnitVisibilityIndex _visibilityIndex = new();
 	private readonly ReplicatedStateMirror _mirror = new();
 	private readonly SnapshotComponentApplier _componentApplier;
-	private readonly ReplicatedUnitSpawner _unitSpawner;
+	private readonly ReplicatedUnitLifecycle _unitSpawner;
 	private int _appliedColdPayloadCount;
 	private int _appliedAbilityStateCount;
 	private int _appliedStaticTextCount;
@@ -52,7 +52,12 @@ public class NetworkService
 	public NetworkService()
 	{
 		_componentApplier = new SnapshotComponentApplier(_mirror, _references, TryGetLocalEntity, IsWaitingForUnitSpawn, FindWorldEntity);
-		_unitSpawner = new ReplicatedUnitSpawner(FindWorldEntity, () => LastAppliedSnapshotSequenceForDiagnostics);
+		_unitSpawner = new ReplicatedUnitLifecycle(
+			FindWorldEntity,
+			() => LastAppliedSnapshotSequenceForDiagnostics,
+			_pendingUnitSpawns,
+			localEntity => _pendingUnitKills.Add(localEntity),
+			RetireClientEntityForUntrackedServerId);
 	}
 
 	public bool IsPaused { get; set; } = false;
@@ -302,7 +307,7 @@ public class NetworkService
 
 		foreach (var snap in snapshot.Units)
 		{
-			ApplySnapshotToUnit(snap, snapshot.Sequence, mapping);
+			_unitSpawner.ApplyDescription(snap, snapshot.Sequence, mapping);
 		}
 
 		ApplyReplicatedComponentState(snapshot);
@@ -503,94 +508,9 @@ public class NetworkService
 		ReplicatedEntityReferences.Unregister(serverEntityId);
 	}
 
-	/// <summary>
-	///     States, for the presentation clock, whether this unit holds a move order the match confirmed, stamped with the
-	///     sequence of the description that said so. Only this player's own units are drawn ahead of their descriptions, so
-	///     only their order state is worth stamping.
-	/// </summary>
-
-	private void ApplySnapshotToUnit(UnitSnapshot snap, int sequence, NetworkMappingState mapping)
-	{
-		if (!mapping.ServerToClientEntityMap.TryGetValue(snap.EntityId, out var localEntity))
-		{
-			if (snap.IsDead) _pendingUnitSpawns.Remove(snap.EntityId);
-			else _pendingUnitSpawns.Queue(snap);
-			return;
-		}
-
-		if (!GameContext.World.IsAlive(localEntity) || ReplicatedUnitSpawner.IsServerEntityIdRecycled(snap, localEntity))
-		{
-			GameContext.SnapshotTimeline.Reset(localEntity.Id);
-			RetireClientEntityForRecycledServerId(mapping, localEntity, snap.EntityId);
-			if (!snap.IsDead) _pendingUnitSpawns.Queue(snap);
-			return;
-		}
-
-		if (snap.IsDead)
-		{
-			if (!GameContext.World.Has<Dead>(localEntity))
-			{
-				GameContext.World.Add<Dead>(localEntity);
-				_pendingUnitKills.Add(localEntity);
-			}
-
-			GameContext.SnapshotTimeline.Reset(localEntity.Id);
-			return;
-		}
-
-		if (GameContext.World.Has<Health>(localEntity))
-		{
-			var hp = GameContext.World.Get<Health>(localEntity);
-			hp.Current = snap.CurrentHp;
-			hp.Max = snap.MaxHp;
-			GameContext.World.Set(localEntity, hp);
-		}
-
-		System.Numerics.Vector3 describedPosition = snap.Position.ToNumerics();
-		System.Numerics.Vector3 previousTargetPosition = GameContext.World.Has<LatestDescription>(localEntity)
-			? GameContext.World.Get<LatestDescription>(localEntity).Position
-			: describedPosition;
-
-		int lastDescribedSequence = GameContext.World.Has<DescribedAtSequence>(localEntity)
-			? GameContext.World.Get<DescribedAtSequence>(localEntity).Sequence
-			: -1;
-
-		bool targetJumped = (describedPosition - previousTargetPosition).Length() > PlausibleStepMeters(localEntity, sequence, lastDescribedSequence);
-
-		if (targetJumped) GameContext.SnapshotTimeline.Reset(localEntity.Id);
-		GameContext.SnapshotTimeline.Record(localEntity.Id, describedPosition, snap.RotationY, sequence);
-
-		GameContext.World.SetOrAdd(localEntity, new LatestDescription
-		{
-			Position = describedPosition,
-			RotationY = snap.RotationY
-		});
-
-		GameContext.World.SetOrAdd(localEntity, new DescribedAtSequence(sequence));
-	}
-
-	public const float MaximumPlausibleTargetStepMeters = 2f;
-
-	public const float PlausibleStepAllowanceFactor = 2f;
-
-	private static float PlausibleStepMeters(Entity localEntity, int sequence, int lastDescribedSequence)
-	{
-		if (!GameContext.World.Has<MovementStats>(localEntity)) return MaximumPlausibleTargetStepMeters;
-
-		int undescribedSequences = lastDescribedSequence >= 0 ? Math.Max(1, sequence - lastDescribedSequence) : 1;
-		float coveredAtSpeed = GameContext.World.Get<MovementStats>(localEntity).Speed
-			* undescribedSequences
-			* MatchTiming.SnapshotIntervalSeconds
-			* PlausibleStepAllowanceFactor;
-
-		return MathF.Max(MaximumPlausibleTargetStepMeters, coveredAtSpeed);
-	}
 
 
-	private void RetireClientEntityForRecycledServerId(NetworkMappingState mapping, Entity localEntity, int serverEntityId)
-	{
-		RetireClientEntityForUntrackedServerId(mapping, localEntity, serverEntityId);
-	}
+
 
 	public Entity SpawnUnitFromSnapshot(UnitSnapshot snap, Func<string, bool, string> getFallbackModelPath, out string modelPath, out int playerIndex) =>
 		_unitSpawner.Spawn(snap, getFallbackModelPath, out modelPath, out playerIndex);
