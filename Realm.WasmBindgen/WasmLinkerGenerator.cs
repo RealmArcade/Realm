@@ -320,14 +320,6 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		return false;
 	}
 
-	private static string CleanInterfaceName(ITypeSymbol type)
-	{
-		string name = type.Name;
-		if (name.StartsWith("I") && name.Length > 1 && char.IsUpper(name[1]))
-			return name.Substring(1);
-		return name;
-	}
-
 	private static string FindCollectionMember(INamedTypeSymbol gameApiSymbol, ITypeSymbol entityType)
 	{
 		foreach (var member in gameApiSymbol.GetMembers())
@@ -453,7 +445,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 
 	private static void GenerateSingleEntityInterfaceBinding(StringBuilder sb, INamedTypeSymbol entityIface, INamedTypeSymbol gameApiSymbol, HashSet<string> definedFunctions, List<string> methodNames, ref bool lastWasMultiLine)
 	{
-		string tKebab = ToKebabCase(CleanInterfaceName(entityIface));
+		string tKebab = WitIdentifierFormat.ToKebabCase(WitIdentifierFormat.CleanInterfaceName(entityIface));
 		bool hasUniqueId = entityIface.GetMembers().Any(m => m is IPropertySymbol p && p.Name == "UniqueId");
 
 		EmitEntityCountFunctionIfNeeded(sb, entityIface, gameApiSymbol, tKebab, hasUniqueId, definedFunctions, methodNames);
@@ -497,7 +489,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 
 	private static void EmitEntityPropertyBindings(StringBuilder sb, IPropertySymbol property, string tKebab, INamedTypeSymbol entitySymbol, INamedTypeSymbol gameApiSymbol, ref bool lastWasMultiLine, HashSet<string> definedFunctions, List<string> methodNames)
 	{
-		string witBase = tKebab + "-" + ToKebabCase(property.Name);
+		string witBase = tKebab + "-" + WitIdentifierFormat.ToKebabCase(property.Name);
 		string resolver = FindResolverMember(gameApiSymbol, entitySymbol);
 
 		if (property.Type.ToDisplayString() == "System.Numerics.Vector3")
@@ -631,7 +623,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		var retKind = ClassifyReturn(method.ReturnType);
 		if (!IsValidReturnType(retKind, method.ReturnType)) return;
 
-		string witName = tKebab + "-" + ToKebabCase(method.Name);
+		string witName = tKebab + "-" + WitIdentifierFormat.ToKebabCase(method.Name);
 		if (!definedFunctions.Add(witName)) return;
 
 		string resolver = FindResolverMember(gameApiSymbol, entitySymbol);
@@ -854,7 +846,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		if (retKind == RetKind.Unsupported || RetKindToWit(retKind) == null)
 			return;
 
-		string witBase = ToKebabCase(property.Name);
+		string witBase = WitIdentifierFormat.ToKebabCase(property.Name);
 
 		EmitPropertyGetter(sb, property, witBase, retKind, targetInstance, ref lastWasMultiLine, definedFunctions, methodNames);
 		EmitPropertySetter(sb, property, witBase, targetInstance, definedFunctions, methodNames);
@@ -933,7 +925,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		bool isVector3Ret = method.ReturnType.ToDisplayString() == "System.Numerics.Vector3";
 		if (retKind == RetKind.Unsupported && !isVector3Ret) return;
 
-		var witName = ToKebabCase(method.Name);
+		var witName = WitIdentifierFormat.ToKebabCase(method.Name);
 		if (!definedFunctions.Add(witName)) return;
 
 		if (retKind == RetKind.StringListReturn)
@@ -1535,7 +1527,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 
 	private static void AppendWitEntityInterface(SortedDictionary<string, string> functions, INamedTypeSymbol entitySymbol)
 	{
-		string tKebab = ToKebabCase(CleanInterfaceName(entitySymbol));
+		string tKebab = WitIdentifierFormat.ToKebabCase(WitIdentifierFormat.CleanInterfaceName(entitySymbol));
 		bool hasUniqueId = entitySymbol.GetMembers().Any(m => m is IPropertySymbol p && p.Name == "UniqueId");
 
 		if (!hasUniqueId)
@@ -1564,7 +1556,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 
 	private static void AppendWitEntityProperties(SortedDictionary<string, string> functions, IPropertySymbol property, string tKebab)
 	{
-		string witBase = $"{tKebab}-{ToKebabCase(property.Name)}";
+		string witBase = $"{tKebab}-{WitIdentifierFormat.ToKebabCase(property.Name)}";
 
 		if (property.Type.ToDisplayString() == "System.Numerics.Vector3")
 		{
@@ -1609,7 +1601,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		string paramsStr = BuildWitEntityMethodParams(method);
 		if (paramsStr == null) return;
 
-		string witName = tKebab + "-" + ToKebabCase(method.Name);
+		string witName = tKebab + "-" + WitIdentifierFormat.ToKebabCase(method.Name);
 
 		if (isVector3Ret)
 		{
@@ -1664,7 +1656,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		if (retKind == RetKind.Unsupported)
 			return;
 
-		string witBase = ToKebabCase(property.Name);
+		string witBase = WitIdentifierFormat.ToKebabCase(property.Name);
 		string? witType = RetKindToWit(retKind);
 		if (witType == null)
 			return;
@@ -1692,7 +1684,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		if (paramsStr == null && method.Parameters.Length > 0) return;
 		paramsStr ??= "";
 
-		string witName = ToKebabCase(method.Name);
+		string witName = WitIdentifierFormat.ToKebabCase(method.Name);
 
 		if (retKind == RetKind.StringListReturn)
 		{
@@ -1726,21 +1718,10 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		return string.Join(", ", witParams);
 	}
 
-	private static string EscapeWitIdentifier(string name)
-	{
-		string kebab = ToKebabCase(name);
-		return kebab switch
-		{
-			"flags" or "type" or "resource" or "enum" or "record" or "variant" or "interface" or "world" or "package" or "import" or "export" or "use" or "default"
-				=> $"%{kebab}",
-			_ => kebab
-		};
-	}
-
 	private static string? ParamToWit(ITypeSymbol type, string name)
 	{
 		var kind = ClassifyParam(type);
-		string paramName = EscapeWitIdentifier(name);
+		string paramName = WitIdentifierFormat.EscapeWitIdentifier(name);
 		return kind switch
 		{
 			PrmKind.DirectInt => $"{paramName}: s32",
@@ -1849,7 +1830,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 			var delegateMethod = ((INamedTypeSymbol)ev.Type).DelegateInvokeMethod;
 			if (delegateMethod == null) continue;
 
-			string witName = ToKebabCase(ev.Name);
+			string witName = WitIdentifierFormat.ToKebabCase(ev.Name);
 			bool hasString = delegateMethod.Parameters.Any(p => p.Type.SpecialType == SpecialType.System_String);
 
 			if (hasString)
@@ -2078,7 +2059,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 
 	private static void GenerateSingleEntityProxy(StringBuilder sb, INamedTypeSymbol entityIface)
 	{
-		string cleanName = CleanInterfaceName(entityIface);
+		string cleanName = WitIdentifierFormat.CleanInterfaceName(entityIface);
 		bool hasUniqueId = entityIface.GetMembers().Any(m => m is IPropertySymbol p && p.Name == "UniqueId");
 
 		sb.AppendLine($"public class {cleanName}_WasmModule : {entityIface.ToDisplayString()}, IWasmWrapper");
@@ -2213,7 +2194,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 			}
 			else if (IsEntityInterface(p.Type, out var unwrapped))
 			{
-				string cleanElem = CleanInterfaceName(unwrapped);
+				string cleanElem = WitIdentifierFormat.CleanInterfaceName(unwrapped);
 				if (p.Type.NullableAnnotation == NullableAnnotation.Annotated || p.Type.ToDisplayString().Contains("?"))
 					invokeArgs.Add($"{p.Name} > 0 ? new {cleanElem}_WasmModule({p.Name}) : null");
 				else
@@ -2281,7 +2262,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		else if (retKind == RetKind.EntityReturn || retKind == RetKind.EntityNullableReturn)
 		{
 			IsEntityInterface(property.Type, out var unwrapped);
-			string cleanElem = CleanInterfaceName(unwrapped);
+			string cleanElem = WitIdentifierFormat.CleanInterfaceName(unwrapped);
 			if (retKind == RetKind.EntityNullableReturn)
 			{
 				sb.AppendLine($"        get {{ int id = IGameApiImports.{getterName}({keyArg}); return id > 0 ? new {cleanElem}_WasmModule(id) : null; }}");
@@ -2556,7 +2537,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		}
 
 		IsEntityInterface(method.ReturnType, out var unwrapped);
-		string cleanElem = CleanInterfaceName(unwrapped);
+		string cleanElem = WitIdentifierFormat.CleanInterfaceName(unwrapped);
 		if (retKind == RetKind.EntityNullableReturn)
 		{
 			sb.AppendLine($"        int id = {importCall};");
@@ -2577,30 +2558,8 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 			return;
 		}
 
-		string cleanElem = CleanInterfaceName(elemType);
+		string cleanElem = WitIdentifierFormat.CleanInterfaceName(elemType);
 		sb.AppendLine($"        return {importCall}.Select(id => ({elemType.ToDisplayString()})new {cleanElem}_WasmModule(id));");
-	}
-
-	private static string ToKebabCase(string value)
-	{
-		if (string.IsNullOrEmpty(value)) return "";
-		var sb = new StringBuilder();
-		sb.Append(char.ToLowerInvariant(value[0]));
-		for (int i = 1; i < value.Length; i++)
-		{
-			char c = value[i];
-			if (char.IsUpper(c))
-			{
-				sb.Append('-');
-				sb.Append(char.ToLowerInvariant(c));
-			}
-			else
-			{
-				sb.Append(c);
-			}
-		}
-
-		return sb.ToString();
 	}
 
 	private static HashSet<string> CollectPropertyAccessorNames(INamedTypeSymbol symbol)
@@ -2690,7 +2649,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		var delegateMethod = ((INamedTypeSymbol)eventSymbol.Type).DelegateInvokeMethod;
 		if (delegateMethod == null) return;
 
-		string entryPointName = ToKebabCase(eventSymbol.Name);
+		string entryPointName = WitIdentifierFormat.ToKebabCase(eventSymbol.Name);
 		string triggerMethodName = "TriggerOn" + (eventSymbol.Name.StartsWith("On") ? eventSymbol.Name.Substring(2) : eventSymbol.Name);
 		var parameters = delegateMethod.Parameters;
 
@@ -2827,7 +2786,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 	{
 		if (IsEntityInterface(type, out var unwrapped))
 		{
-			string name = CleanInterfaceName(unwrapped);
+			string name = WitIdentifierFormat.CleanInterfaceName(unwrapped);
 			return $"{char.ToLowerInvariant(name[0])}{name.Substring(1)}Id";
 		}
 
