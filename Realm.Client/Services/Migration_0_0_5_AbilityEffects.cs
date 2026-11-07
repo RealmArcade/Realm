@@ -43,7 +43,7 @@ public class Migration_0_0_5_AbilityEffects : IMapMigration
 			metadataRoot["GameBuildNumber"] = ToVersion;
 			MapJsonFormatter.SaveFormattedJson(metadataPath, metadataRoot);
 
-			Console.WriteLine($"[Migration_0_0_5] Converted {converted} of {total} abilities to composable effects.");
+			GameLog.LogToConsole($"[Migration_0_0_5] Converted {converted} of {total} abilities to composable effects.");
 			return new MigrationResult { Success = true, FromVersion = FromVersion, ToVersion = ToVersion };
 		}
 		catch (Exception exception)

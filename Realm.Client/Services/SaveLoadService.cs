@@ -249,7 +249,7 @@ public class SaveLoadService
 		}
 		catch (Exception ex)
 		{
-			Console.Error.WriteLine(ex.Message);
+			GameLog.LogError(ex.Message);
 			return false;
 		}
 	}
@@ -605,7 +605,7 @@ public class SaveLoadService
 		}
 		catch (Exception ex)
 		{
-			Console.Error.WriteLine(ex.Message);
+			GameLog.LogError(ex.Message);
 			return false;
 		}
 	}
