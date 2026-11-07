@@ -22,7 +22,7 @@ public interface IClusterStateStore
 ///     Talks to the other nodes in the cluster: replicates a recorded event, catches up on events it missed, and decides by
 ///     majority digest whether to follow a peer's snapshot. It never writes to the store itself; it asks the state store to.
 /// </summary>
-internal sealed class ClusterPeerSync
+public class ClusterPeerSync
 {
 	private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNameCaseInsensitive = true };
 	private readonly IClusterStateStore _state;

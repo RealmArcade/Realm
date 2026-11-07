@@ -21,7 +21,7 @@ namespace Realm.Client.Services;
 ///     removes the payload through its codec, and holds a delta for a unit this screen has not built yet until the unit
 ///     arrives, the grace for that identifier runs out, or the unit is reported as still on its way.
 /// </summary>
-internal sealed class SnapshotComponentApplier
+public class SnapshotComponentApplier
 {
 	internal delegate bool TryResolveEntity(int serverEntityId, out Entity localEntity);
 

@@ -16,7 +16,7 @@ namespace Realm.AdminServer.Services;
 ///     sidecars keyed by hash, and the sidecar cache. It only reads the database and the store, so it keeps no state of its
 ///     own besides the queue flag that coalesces concurrent prune requests.
 /// </summary>
-internal sealed class ContentPruner
+public class ContentPruner
 {
 	private readonly SemaphoreSlim _pruneLock = new(1, 1);
 	private int _prunePending;

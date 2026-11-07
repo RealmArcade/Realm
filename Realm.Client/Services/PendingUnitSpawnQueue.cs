@@ -7,7 +7,7 @@ namespace Realm.Client.Services;
 ///     Holds the units a description announced but this screen has not built yet, keyed by server entity id, so a unit
 ///     that arrives twice only keeps one pending description and the newest one wins.
 /// </summary>
-internal sealed class PendingUnitSpawnQueue
+public class PendingUnitSpawnQueue
 {
 	private readonly Dictionary<int, UnitSnapshot> _pending = new();
 

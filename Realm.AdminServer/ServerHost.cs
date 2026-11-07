@@ -21,7 +21,7 @@ namespace Realm.AdminServer;
 /// Builder configuration, middleware and the background loops the admin node runs
 /// independently of any single route. Routes stay in Program, the composition root.
 /// </summary>
-internal sealed record ServerSetup(
+public record ServerSetup(
 	WebApplication App,
 	ContentAddressableStorage Cas,
 	HashSet<string> AdminPublicKeys,

@@ -19,7 +19,7 @@ namespace Realm.Client.Services;
 ///     Hosts the local stand-in for a unit the host describes: builds it when it is first described, applies a later
 ///     description to it, replaces it when its identifier was recycled, and stamps its first presentation sample.
 /// </summary>
-internal sealed class ReplicatedUnitLifecycle
+public class ReplicatedUnitLifecycle
 {
 	internal const float MaximumPlausibleTargetStepMeters = 2f;
 

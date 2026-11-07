@@ -11,7 +11,7 @@ namespace Realm.Client.Services;
 ///     at, so a payload can be repointed when an identifier is recycled and so a reference that names a unit this screen
 ///     does not have yet can be reported as unresolved instead of silently dangling.
 /// </summary>
-internal sealed class ReplicatedReferenceIndex
+public class ReplicatedReferenceIndex
 {
 	private readonly Dictionary<int, List<(int LocalEntityId, IReplicatedComponentCodec Codec)>> _referrersByServerEntityId = new();
 	private readonly Dictionary<(int LocalEntityId, int ComponentTypeId), int> _referencedServerEntityIds = new();

@@ -11,7 +11,7 @@ namespace Realm.AdminServer.Accounts;
 ///     Applies the account events an authority publishes, inside one DBreeze transaction so a refused event leaves no trace.
 ///     The store only accepts a key the node already trusts, so a peer cannot be talked into a merge by a foreign signer.
 /// </summary>
-internal sealed class AccountEventApplier
+public class AccountEventApplier
 {
 	private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNameCaseInsensitive = true };
 	private readonly AccountAuthorityOptions _accountAuthorityOptions;

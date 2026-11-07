@@ -1146,7 +1146,7 @@ internal static partial class EditorAssetOperations
 ///     One JSON property that points at an asset file, with the parent object and the value currently written there, so a
 ///     caller can swap in a different file name without walking the tree again.
 /// </summary>
-internal sealed class AssetPropertyTarget
+public class AssetPropertyTarget
 {
 	public JsonObject Parent { get; set; } = null!;
 	public string PropertyName { get; set; } = string.Empty;
