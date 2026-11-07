@@ -1680,6 +1680,26 @@ namespace Realm.Client.UI
 			_lblTerrainTexture = GetNode<Label>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/LblTerrainTexture");
 			_lblCliffTexture = GetNode<Label>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/LblCliffTexture");
 
+			BuildTextureApplyToggles();
+
+			LayoutTextureRows();
+
+			BuildTextureSwapButton();
+
+			WrapSwatchGridInScrollContainer();
+
+			SetupTextureSwatches(true);
+
+			_btnReplaceTexture = new Button();
+			_btnReplaceTexture.Name = "BtnReplaceTexture";
+			_btnReplaceTexture.Set("icon_max_width", 0);
+			SetupOptionButton(_btnReplaceTexture, $"{UnicodeIcons.UPLOAD} REPLACE TEXTURE", () => _replaceTextureDialog?.OpenDialog(), 11, "Replace all instances of a texture with another texture across the map");
+			_containerTextureSettings?.AddChild(_btnReplaceTexture);
+		}
+
+
+		private void BuildTextureApplyToggles()
+		{
 			ChkApplyGroundTexture = new CheckBox();
 			ChkApplyGroundTexture.Name = "ChkApplyGroundTexture";
 			ChkApplyGroundTexture.Text = TranslationServer.Translate("Ground (Q) [shift]");
@@ -1715,7 +1735,11 @@ namespace Realm.Client.UI
 
 				UpdateTextureLabels();
 			};
+		}
 
+
+		private void LayoutTextureRows()
+		{
 			if (_containerTextureSettings != null && _lblTerrainTexture != null && _lblCliffTexture != null)
 			{
 				RowGroundTexture = new HBoxContainer();
@@ -1742,7 +1766,11 @@ namespace Realm.Client.UI
 				_containerTextureSettings.AddChild(RowCliffTexture);
 				_containerTextureSettings.MoveChild(RowCliffTexture, idxCliff);
 			}
+		}
 
+
+		private void BuildTextureSwapButton()
+		{
 			var btnTextureSwap = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/BtnTextureSwap");
 			SetupOptionButton(btnTextureSwap, $"{UnicodeIcons.REFRESH} SWAP TEXTURES (GLOBAL)", () =>
 			{
@@ -1751,7 +1779,11 @@ namespace Realm.Client.UI
 					GameContext.Host.SwapTexturesExternal(GameContext.EditorService.EditorPaintTextureIndex, GameContext.EditorService.EditorCliffPaintTextureIndex);
 				}
 			}, 11, "Globally swap grass/dirt texture assignment indices (X)");
+		}
 
+
+		private void WrapSwatchGridInScrollContainer()
+		{
 			_scrollSwatches = GetNodeOrNull<ScrollContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/ScrollSwatches");
 			_gridSwatches = GetNodeOrNull<Control>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/ScrollSwatches/GridSwatches")
 			                ?? GetNodeOrNull<Control>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/GridSwatches");
@@ -1769,14 +1801,6 @@ namespace Realm.Client.UI
 				parentVBox.AddChild(_scrollSwatches);
 				parentVBox.MoveChild(_scrollSwatches, gridIndex);
 			}
-
-			SetupTextureSwatches(true);
-
-			_btnReplaceTexture = new Button();
-			_btnReplaceTexture.Name = "BtnReplaceTexture";
-			_btnReplaceTexture.Set("icon_max_width", 0);
-			SetupOptionButton(_btnReplaceTexture, $"{UnicodeIcons.UPLOAD} REPLACE TEXTURE", () => _replaceTextureDialog?.OpenDialog(), 11, "Replace all instances of a texture with another texture across the map");
-			_containerTextureSettings?.AddChild(_btnReplaceTexture);
 		}
 
 
