@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading.Tasks;
 using Godot;
 using Realm.Client.Network;
 using Realm.Shared.Distribution;
@@ -1126,7 +1127,22 @@ public partial class MapDetails : Control
 		};
 	}
 
+	// Called from the download button's handler, so it stays void. The awaited work moved into a Task-returning
+	// method: the download had no catch at all, so a fault from the registry client abandoned _isDownloading = true
+	// and left the button disabled with nothing in the log to explain it.
 	private async void StartMapDownloadAsync()
+	{
+		try
+		{
+			await DownloadMapAsync();
+		}
+		catch (Exception exception)
+		{
+			GameLog.LogError($"[MapDetails] Downloading the map failed: {exception}");
+		}
+	}
+
+	private async Task DownloadMapAsync()
 	{
 		if (_mapData == null || _isDownloading) return;
 
