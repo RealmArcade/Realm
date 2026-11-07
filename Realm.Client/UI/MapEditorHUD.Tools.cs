@@ -2658,7 +2658,36 @@ namespace Realm.Client.UI
 			}
 
 			var tcs = new TaskCompletionSource<bool>();
+			var (popup, progressBar, statusLabel, upgradeBtn, cancelBtn) = BuildMapUpgradePromptDialog(selectedFolder, currentVersion, targetVersion);
 
+			cancelBtn.Pressed += () =>
+			{
+				GameContext.UserInterface?.PlayClickSound();
+				popup.QueueFree();
+				tcs.TrySetResult(false);
+			};
+
+			upgradeBtn.Pressed += async () =>
+			{
+				GameContext.UserInterface?.PlayClickSound();
+				upgradeBtn.Disabled = true;
+				cancelBtn.Disabled = true;
+				progressBar.Visible = true;
+				statusLabel.Visible = true;
+
+				if (await TryRunMapUpgradeAsync(selectedFolder, upgradeService, progressBar, statusLabel, cancelBtn))
+				{
+					popup.QueueFree();
+					tcs.TrySetResult(true);
+				}
+			};
+
+			return await tcs.Task;
+		}
+
+		private (Panel Popup, ProgressBar ProgressBar, Label StatusLabel, Button UpgradeButton, Button CancelButton) BuildMapUpgradePromptDialog(
+			string selectedFolder, string currentVersion, string targetVersion)
+		{
 			var popup = new Panel();
 			popup.Name = "Popup_Panel";
 			popup.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
@@ -2726,58 +2755,43 @@ namespace Realm.Client.UI
 			cancelBtn.CustomMinimumSize = new Vector2(120, 38);
 			buttonRow.AddChild(cancelBtn);
 
-			cancelBtn.Pressed += () =>
+			return (popup, progressBar, statusLabel, upgradeBtn, cancelBtn);
+		}
+
+		private async Task<bool> TryRunMapUpgradeAsync(
+			string selectedFolder, MapUpgradeService upgradeService, ProgressBar progressBar, Label statusLabel, Button cancelBtn)
+		{
+			var progress = new Progress<MigrationProgressUpdate>(update =>
 			{
-				GameContext.UserInterface?.PlayClickSound();
-				popup.QueueFree();
-				tcs.TrySetResult(false);
-			};
+				progressBar.Value = update.TotalSteps > 0 ? (double)update.StepIndex / update.TotalSteps * 100.0 : 0;
+				statusLabel.Text = $"[{update.StepIndex}/{update.TotalSteps}] {update.CurrentMigration}: {update.Message}";
+			});
 
-			upgradeBtn.Pressed += async () =>
+			var versionBeforeUpgrade = await GameContext.MapHistoryService.CreateVersionAsync(selectedFolder, MapVersionKind.BeforeMapUpgrade, TranslationServer.Translate("Before map upgrade"));
+			if (!versionBeforeUpgrade.Success)
 			{
-				GameContext.UserInterface?.PlayClickSound();
-				upgradeBtn.Disabled = true;
-				cancelBtn.Disabled = true;
-				progressBar.Visible = true;
-				statusLabel.Visible = true;
+				statusLabel.Text = $"{TranslationServer.Translate("Could not save a version before the upgrade:")} {versionBeforeUpgrade.ErrorMessage}";
+				statusLabel.AddThemeColorOverride("font_color", new Color(0.95f, 0.3f, 0.3f));
+				cancelBtn.Disabled = false;
+				UIStyle.ApplyButtonText(cancelBtn, Tr("CLOSE"), 14);
+				return false;
+			}
 
-				var progress = new Progress<MigrationProgressUpdate>(update =>
-				{
-					progressBar.Value = update.TotalSteps > 0 ? (double)update.StepIndex / update.TotalSteps * 100.0 : 0;
-					statusLabel.Text = $"[{update.StepIndex}/{update.TotalSteps}] {update.CurrentMigration}: {update.Message}";
-				});
+			var upgradeResult = await upgradeService.UpgradeMapAsync(selectedFolder, progress);
+			if (!upgradeResult.Success)
+			{
+				statusLabel.Text = $"{Tr("Upgrade failed:")} {upgradeResult.ErrorMessage}";
+				statusLabel.AddThemeColorOverride("font_color", new Color(0.95f, 0.3f, 0.3f));
+				cancelBtn.Disabled = false;
+				UIStyle.ApplyButtonText(cancelBtn, Tr("CLOSE"), 14);
+				return false;
+			}
 
-				var versionBeforeUpgrade = await GameContext.MapHistoryService.CreateVersionAsync(selectedFolder, MapVersionKind.BeforeMapUpgrade, TranslationServer.Translate("Before map upgrade"));
-				if (!versionBeforeUpgrade.Success)
-				{
-					statusLabel.Text = $"{TranslationServer.Translate("Could not save a version before the upgrade:")} {versionBeforeUpgrade.ErrorMessage}";
-					statusLabel.AddThemeColorOverride("font_color", new Color(0.95f, 0.3f, 0.3f));
-					cancelBtn.Disabled = false;
-					UIStyle.ApplyButtonText(cancelBtn, Tr("CLOSE"), 14);
-					return;
-				}
-
-				var upgradeResult = await upgradeService.UpgradeMapAsync(selectedFolder, progress);
-
-				if (upgradeResult.Success)
-				{
-					await GameContext.MapHistoryService.CreateVersionAsync(selectedFolder, MapVersionKind.AfterMapUpgrade, TranslationServer.Translate("After map upgrade"));
-					statusLabel.Text = Tr("Upgrade completed successfully!");
-					statusLabel.AddThemeColorOverride("font_color", new Color(0.3f, 0.9f, 0.3f));
-					await ToSignal(GetTree().CreateTimer(0.6f), SceneTreeTimer.SignalName.Timeout);
-					popup.QueueFree();
-					tcs.TrySetResult(true);
-				}
-				else
-				{
-					statusLabel.Text = $"{Tr("Upgrade failed:")} {upgradeResult.ErrorMessage}";
-					statusLabel.AddThemeColorOverride("font_color", new Color(0.95f, 0.3f, 0.3f));
-					cancelBtn.Disabled = false;
-					UIStyle.ApplyButtonText(cancelBtn, Tr("CLOSE"), 14);
-				}
-			};
-
-			return await tcs.Task;
+			await GameContext.MapHistoryService.CreateVersionAsync(selectedFolder, MapVersionKind.AfterMapUpgrade, TranslationServer.Translate("After map upgrade"));
+			statusLabel.Text = Tr("Upgrade completed successfully!");
+			statusLabel.AddThemeColorOverride("font_color", new Color(0.3f, 0.9f, 0.3f));
+			await ToSignal(GetTree().CreateTimer(0.6f), SceneTreeTimer.SignalName.Timeout);
+			return true;
 		}
 
 		private void ShowInvalidMapFolderErrorDialog(string selectedFolder)
