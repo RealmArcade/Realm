@@ -487,7 +487,13 @@ public class SnapshotTimeline
 		// than the trip it had just been measured to have. A link whose variation is real - half an interval or more -
 		// still buys the sequence it needs, and one that was under-counted discovers it by starving once and deepening.
 		int jitterSequences = jitterMilliseconds > 0f ? (int)MathF.Round(jitterMilliseconds / intervalMilliseconds, MidpointRounding.AwayFromZero) : 0;
-		int deepestThisLinkNeeds = Math.Max(InitialCeilingSequences, floor) + jitterSequences + MinimumDelaySequences;
+
+		// A hole costs a round trip to fill: the description after it reveals it, the request crosses, the match answers. A
+		// link that cannot hold that much is a link whose every hole runs its buffer dry however quickly the answer is
+		// sent, so the depth that link may be given has to cover the repair as well as the trip. It is a ceiling and not a
+		// depth: it is only reached by starving, so a link that fills its holes from a duplicate never grows into it.
+		int repairSequences = (int)MathF.Ceiling(roundTripMilliseconds / intervalMilliseconds);
+		int deepestThisLinkNeeds = Math.Max(InitialCeilingSequences, floor + repairSequences) + jitterSequences + MinimumDelaySequences;
 		int ceiling = Math.Clamp(deepestThisLinkNeeds, floor, MaximumDelaySequences);
 
 		// A floor that rises is met at once: drawing below what the link needs is the stall the floor exists to avoid. A

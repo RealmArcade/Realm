@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using Godot;
 using MemoryPack;
 using Realm.Client.Core;
@@ -64,6 +65,8 @@ public class SnapshotApplyService
 	/// </summary>
 	private const int SilentWindowsBeforeBaseline = 2;
 
+	private const int MaximumTraceEntries = 4096;
+
 	private readonly List<WorldSnapshot> _queuedDeltas = new();
 
 	private int _queuedDeltaHead;
@@ -74,6 +77,7 @@ public class SnapshotApplyService
 	private LagEvent? _deferredBaselineReason;
 
 	private ulong _repairDeadlineMilliseconds;
+	private ulong _repairHeldSinceMilliseconds;
 	private int _repairFirstSequence = -1;
 	private int _repairRequestedCount;
 	private ulong _lastRepairRequestTime;
@@ -83,8 +87,38 @@ public class SnapshotApplyService
 	private ulong _lastSilenceRequestMilliseconds;
 	private int _silentWindows;
 
+	private readonly RepairTraceEntry[] _traceEntries = new RepairTraceEntry[MaximumTraceEntries];
+	private int _traceCount;
+	private ulong _traceStartMilliseconds;
+
+	private enum RepairTraceKind : byte
+	{
+		Arrived,
+		Behind,
+		BaseAhead,
+		BacklogTooDeep,
+		Held,
+		RepairRequested,
+		RepairSuppressed,
+		GraceExpired,
+		Cleared,
+		BaselineRequested,
+		BaselineDeferred,
+		BaselineApplied,
+		Applied
+	}
+
+	private struct RepairTraceEntry
+	{
+		public ulong Milliseconds;
+		public int Sequence;
+		public int Detail;
+		public RepairTraceKind Kind;
+	}
+
 	public void Accept(WorldSnapshot snapshot)
 	{
+		Trace(RepairTraceKind.Arrived, snapshot.Sequence, snapshot.IsBaseline ? snapshot.BaseSequence : 0);
 		// A description that arrived, whatever this screen goes on to make of it, is the answer to a watch that asked
 		// about a stream that had stopped.
 		_lastDescriptionArrivalMilliseconds = Time.GetTicksMsec();
@@ -127,10 +161,13 @@ public class SnapshotApplyService
 		// arrived while it waited.
 		if (now - _lastBaselineRequestTime < (ulong)MatchTiming.BaselineRequestCooldownMilliseconds)
 		{
+			Trace(RepairTraceKind.BaselineDeferred, 0, (int)reason);
 			_baselineRequestDeferred = true;
 			_deferredBaselineReason = reason;
 			return;
 		}
+
+		Trace(RepairTraceKind.BaselineRequested, 0, (int)reason);
 
 		_lastBaselineRequestTime = now;
 		_baselineRequestDeferred = false;
@@ -148,14 +185,16 @@ public class SnapshotApplyService
 
 		ref var networkState = ref GameContext.World.Get<NetworkState>(worldEntity);
 
-		// Descriptions held behind a run that never arrived are a world this screen cannot reach by applying them: the
-		// run was asked for, and once the grace to answer it has passed the only thing left is the world itself.
+		// Descriptions held behind a run that never arrived are a world this screen cannot reach by applying them, so the
+		// world itself is asked for. What is held is kept: the run asked for is still in flight, and a repair that lands a
+		// frame after this abandoned it left the screen holding descriptions it had just thrown away - the hole it then
+		// reported was one it had been sent. The baseline supersedes them when it arrives, and the run fills them when it
+		// does, so nothing is lost by keeping them and a whole world can be saved by it.
 		if (QueuedDeltaCount > 0 && HasWaitedPastRepairGrace())
 		{
-			ClearQueuedDeltas();
+			Trace(RepairTraceKind.GraceExpired, snapshot.Sequence, QueuedDeltaCount);
 			LagProbe.Count(LagEvent.ClientRepairRunsAbandoned);
 			RequestBaseline(LagEvent.ClientBaselinesBecauseRepairGraceExpired);
-			return;
 		}
 
 		if (snapshot.IsBaseline)
@@ -186,6 +225,7 @@ public class SnapshotApplyService
 			CompactQueuedDeltas();
 			ForgetRepairRun();
 			_appliedSnapshots.Reset();
+			Trace(RepairTraceKind.BaselineApplied, snapshot.Sequence, 0);
 			GameContext.NetworkService.ApplySnapshotToWorld(snapshot);
 
 			DrainQueuedDeltas(ref networkState);
@@ -200,6 +240,7 @@ public class SnapshotApplyService
 		{
 			_appliedSnapshots.MarkApplied(snapshot.Sequence);
 			LagProbe.Count(LagEvent.ClientDescriptionsBehindApplied);
+			Trace(RepairTraceKind.Behind, snapshot.Sequence, networkState.LastAppliedSnapshotSequence);
 			return;
 		}
 
@@ -217,8 +258,13 @@ public class SnapshotApplyService
 		// A queue deeper than the buffer is a screen that stopped reading, not a link that is merely late: applying it in
 		// one frame costs more the deeper it is, whereas a baseline is a few kilobytes and puts the screen where the
 		// authority is. The queued descriptions are the tail of the same backlog, so they go with it.
-		if (sequencesSkipped >= MaximumBacklogSequences)
+		//
+		// A screen with no baseline yet has not fallen behind anything: the match describes worlds it has not been told
+		// about, and every one of those used to be thrown away here as a backlog that was too deep, cutting a hole out of
+		// a link that had lost nothing. Those descriptions are held until the baseline that states their base arrives.
+		if (sequencesSkipped >= MaximumBacklogSequences && networkState.HasReceivedInitialBaseline)
 		{
+			Trace(RepairTraceKind.BacklogTooDeep, snapshot.Sequence, sequencesSkipped);
 			ClearQueuedDeltas();
 			ForgetRepairRun();
 			RequestBaseline(LagEvent.ClientBaselinesBecauseBacklogTooDeep);
@@ -231,6 +277,7 @@ public class SnapshotApplyService
 		// absolute per unit, so a base the client has already superseded is harmless.
 		if (!networkState.HasReceivedInitialBaseline || snapshot.BaseSequence > networkState.LastReceivedBaselineSeq)
 		{
+			Trace(RepairTraceKind.BaseAhead, snapshot.Sequence, snapshot.BaseSequence);
 			QueueDelta(snapshot);
 			RequestBaseline(LagEvent.ClientBaselinesBecauseBaseAhead);
 			return;
@@ -247,6 +294,14 @@ public class SnapshotApplyService
 		}
 
 		networkState.LastAppliedSnapshotSequence = snapshot.Sequence;
+		Trace(RepairTraceKind.Applied, snapshot.Sequence, QueuedDeltaCount);
+
+		// A run that has started to be answered is no longer a run this screen is waiting for: from here a hole that is
+		// still missing is a new loss, and the rule that treats a hole inside an asked-for run as the same repair already
+		// owed would suppress asking for it. That suppression is what kept a screen that had just been handed the first
+		// half of its run waiting out the second half.
+		if (_repairFirstSequence >= 0 && snapshot.Sequence >= _repairFirstSequence) ForgetRepairRun();
+
 		GameContext.NetworkService.ApplySnapshotToWorld(snapshot);
 		DrainQueuedDeltas(ref networkState);
 		if (QueuedDeltaCount == 0) ForgetRepairRun();
@@ -316,6 +371,7 @@ public class SnapshotApplyService
 
 	private void ClearQueuedDeltas()
 	{
+		if (QueuedDeltaCount > 0) Trace(RepairTraceKind.Cleared, OldestQueuedDeltaSequence(), QueuedDeltaCount);
 		if (LagProbe.IsEnabled && QueuedDeltaCount > 0) LagProbe.Count(LagEvent.ClientQueuedDescriptionsCleared, QueuedDeltaCount);
 
 		_queuedDeltas.Clear();
@@ -398,6 +454,7 @@ public class SnapshotApplyService
 	private void HoldForRepair(WorldSnapshot snapshot, int firstMissingSequence, int missingCount)
 	{
 		QueueDelta(snapshot);
+		Trace(RepairTraceKind.Held, firstMissingSequence, missingCount);
 
 		// The hole ends where the oldest description this screen already holds begins. Everything between them is waiting
 		// to be applied, and asking for it again bought a duplicate of what it had, a resend as wide as the whole backlog
@@ -410,10 +467,10 @@ public class SnapshotApplyService
 		}
 
 		ulong now = Time.GetTicksMsec();
-		if (_repairDeadlineMilliseconds == 0) _repairDeadlineMilliseconds = now + ResolveRepairGraceMilliseconds();
 
 		if (missingCount > MaximumRepairSequences && _repairFirstSequence != firstMissingSequence)
 		{
+			Trace(RepairTraceKind.RepairSuppressed, firstMissingSequence, missingCount);
 			RequestBaseline(LagEvent.ClientBaselinesBecauseRepairRunTooWide);
 			return;
 		}
@@ -427,13 +484,31 @@ public class SnapshotApplyService
 		if (_repairFirstSequence >= 0
 		    && firstMissingSequence > _repairFirstSequence
 		    && firstMissingSequence < _repairFirstSequence + _repairRequestedCount
-		    && now < _repairDeadlineMilliseconds) return;
+		    && now < _repairDeadlineMilliseconds)
+		{
+			Trace(RepairTraceKind.RepairSuppressed, firstMissingSequence, missingCount);
+			return;
+		}
 
-		if (_repairFirstSequence == firstMissingSequence && now - _lastRepairRequestTime < (ulong)RepairRequestIntervalMilliseconds) return;
+		if (_repairFirstSequence == firstMissingSequence && now - _lastRepairRequestTime < (ulong)RepairRequestIntervalMilliseconds)
+		{
+			Trace(RepairTraceKind.RepairSuppressed, firstMissingSequence, missingCount);
+			return;
+		}
 
 		_repairFirstSequence = firstMissingSequence;
 		_repairRequestedCount = missingCount;
 		_lastRepairRequestTime = now;
+
+		// The grace follows the last request rather than the first one, because it has to cover the journey of the answer
+		// that is actually in flight: a retry sent a hundred milliseconds after the hold began used to inherit a deadline
+		// set before it was asked for, so the answer it earned was abandoned the moment it arrived. It is capped from the
+		// start of the hold so a link that never answers still falls back to the world instead of asking forever.
+		if (_repairHeldSinceMilliseconds == 0) _repairHeldSinceMilliseconds = now;
+		ulong journeyDeadline = now + ResolveRepairGraceMilliseconds();
+		ulong holdDeadline = _repairHeldSinceMilliseconds + (ulong)MaximumRepairGraceMilliseconds;
+		_repairDeadlineMilliseconds = Math.Min(journeyDeadline, holdDeadline);
+		Trace(RepairTraceKind.RepairRequested, firstMissingSequence, missingCount);
 		LagProbe.Count(LagEvent.ClientRepairsRequested);
 		LagProbe.Count(LagEvent.ClientDeltasHeldForRepair, QueuedDeltaCount);
 		GameContext.Host?.RequestSnapshotRepair(firstMissingSequence, missingCount);
@@ -466,6 +541,7 @@ public class SnapshotApplyService
 	private void ForgetRepairRun()
 	{
 		_repairDeadlineMilliseconds = 0;
+		_repairHeldSinceMilliseconds = 0;
 		_repairFirstSequence = -1;
 		_repairRequestedCount = 0;
 	}
@@ -483,8 +559,36 @@ public class SnapshotApplyService
 		_queuedDeltas.Insert(insertIndex, snapshot);
 	}
 
+	private void Trace(RepairTraceKind kind, int sequence, int detail)
+	{
+		if (!MultiplayerSyncDiagnostics.IsRecording) return;
+		if (_traceCount >= _traceEntries.Length) return;
+
+		ulong now = Time.GetTicksMsec();
+		if (_traceStartMilliseconds == 0) _traceStartMilliseconds = now;
+		_traceEntries[_traceCount++] = new RepairTraceEntry
+		{
+			Milliseconds = now - _traceStartMilliseconds,
+			Sequence = sequence,
+			Detail = detail,
+			Kind = kind
+		};
+	}
+
+	public void WriteRepairTrace(TextWriter writer)
+	{
+		writer.WriteLine("milliseconds kind sequence detail");
+		for (int index = 0; index < _traceCount; index++)
+		{
+			RepairTraceEntry entry = _traceEntries[index];
+			writer.WriteLine(FormattableString.Invariant($"{entry.Milliseconds} {entry.Kind} {entry.Sequence} {entry.Detail}"));
+		}
+	}
+
 	public void Clear()
 	{
+		_traceCount = 0;
+		_traceStartMilliseconds = 0;
 		ClearQueuedDeltas();
 		_appliedSnapshots.Reset();
 		_lastAcknowledgedSequence = -1;

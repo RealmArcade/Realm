@@ -343,6 +343,15 @@ public static class MultiplayerSyncDiagnostics
 
 		try
 		{
+			using StreamWriter repairWriter = new(Path.Combine(_outputDirectory, "ECS_client_repair_trace.txt"), false);
+			GameContext.SnapshotApply?.WriteRepairTrace(repairWriter);
+		}
+		catch (IOException)
+		{
+		}
+
+		try
+		{
 			using StreamWriter gapWriter = new(Path.Combine(_outputDirectory, "ECS_client_unit_gaps.txt"), false);
 			gapWriter.WriteLine($"count={_clientUnitGapCount}");
 			gapWriter.WriteLine($"alert_sequences={ClientUnitGapAlertSequences}");
