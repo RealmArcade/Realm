@@ -2781,19 +2781,7 @@ namespace Realm.Client.UI
 					AppendWasmConsoleLog($"[WARN] Could not verify greenlight status: {ex.Message}");
 				}
 
-				progressBar.Value = 10;
-				statusLabel.Text = TranslationServer.Translate("Saving map state & workspace...");
-				await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-
-				MapWorkspaceService.EnsureLicenseFile(workspace);
-				GameContext.Host.SaveMapToFile(tempTerrainPath, performReload: false);
-				GameContext.Host.EditorHasUnsavedChanges = false;
-				InvalidateMetadataCache();
-
-				if (OperatingSystem.IsWindows())
-				{
-					await GameContext.VSCode.SaveAllOpenFilesAsync();
-				}
+				await SavePublishWorkspaceStateAsync(workspace, tempTerrainPath, progressBar, statusLabel);
 
 				progressBar.Value = 15;
 				statusLabel.Text = TranslationServer.Translate("Verifying map assets...");
@@ -3135,6 +3123,25 @@ namespace Realm.Client.UI
 				GameContext.EditorService.IsSyncing = false;
 			}
 		}
+
+
+		private async Task SavePublishWorkspaceStateAsync(string workspace, string terrainPath, ProgressBar progressBar, Label statusLabel)
+		{
+			progressBar.Value = 10;
+			statusLabel.Text = TranslationServer.Translate("Saving map state & workspace...");
+			await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+
+			MapWorkspaceService.EnsureLicenseFile(workspace);
+			GameContext.Host.SaveMapToFile(terrainPath, performReload: false);
+			GameContext.Host.EditorHasUnsavedChanges = false;
+			InvalidateMetadataCache();
+
+			if (OperatingSystem.IsWindows())
+			{
+				await GameContext.VSCode.SaveAllOpenFilesAsync();
+			}
+		}
+
 
 		public async Task ShowAssetIndexRepairModalAsync(Action onCompleted = null)
 		{
