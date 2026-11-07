@@ -77,6 +77,12 @@ public class AuthoritativeSnapshotBuilder
 	private Entity[] _playerEntities = Array.Empty<Entity>();
 	private Entity _viewer = Entity.Null;
 
+	/// <summary>
+	///     The deltas a match without a scripted ability registry has. A peer is described every tick, and an empty list
+	///     made for each of those descriptions was allocated only to be read for its count.
+	/// </summary>
+	private static readonly List<AbilityStateDelta> NoAbilityDeltas = new();
+
 	public AuthoritativeSnapshotBuilder(EcsWorld world, SimulationContext context, Entity worldEntity, MapRulesCatalog rules, SnapshotPeerStateStore peerStates, SnapshotDescriptionCache descriptions)
 	{
 		_world = world;
@@ -136,7 +142,7 @@ public class AuthoritativeSnapshotBuilder
 	{
 		var snapshot = new WorldSnapshot();
 		bool isBaseline = forceBaseline || _peerStates.Get(peerId).LastBaselineSequence < 0;
-		List<AbilityStateDelta> preparedAbilityDeltas = Abilities?.CollectDeltas(peerId, _world, isBaseline) ?? new List<AbilityStateDelta>();
+		List<AbilityStateDelta> preparedAbilityDeltas = Abilities?.CollectDeltas(peerId, _world, isBaseline) ?? NoAbilityDeltas;
 		BuildInto(ref snapshot, peerId, sequence, viewer, forceBaseline, preparedAbilityDeltas);
 		return snapshot;
 	}
