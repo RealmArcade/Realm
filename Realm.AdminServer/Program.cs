@@ -30,69 +30,7 @@ const string ContentNotServedError = ServerHost.ContentNotServedError;
 
 LobbyEndpoints.MapLobbyEndpoints(app, hostConnections);
 
-app.MapPost("/seeders/register", (SeederRegisterRequest req, SeederRegistry registry, HttpContext context) =>
-{
-	var ip = context.Connection.RemoteIpAddress?.MapToIPv4().ToString() ?? "127.0.0.1";
-	if (!string.IsNullOrEmpty(req.ReportedIP) && req.ReportedIP != "0.0.0.0" && req.ReportedIP != "127.0.0.1")
-	{
-		ip = req.ReportedIP;
-	}
-
-	var info = new SeederInfo
-	{
-		SeederId = req.SeederId,
-		IP = ip,
-		Port = req.Port,
-		MapIds = req.MapIds,
-		CapacityPercentage = req.CapacityPercentage,
-		AcceptingUploads = req.AcceptingUploads
-	};
-	registry.Register(info);
-	return Results.Ok(new { Status = "Registered" });
-});
-
-app.MapPost("/seeders/unregister", (SeederUnregisterRequest req, SeederRegistry registry) =>
-{
-	registry.Unregister(req.SeederId);
-	return Results.Ok(new { Status = "Unregistered" });
-});
-
-app.MapGet("/seeders", (SeederRegistry registry) =>
-{
-	var list = registry.GetAll().Select(s => new
-	{
-		ip = s.IP,
-		port = s.Port,
-		mapIds = s.MapIds,
-		capacityPercentage = s.CapacityPercentage,
-		acceptingUploads = s.AcceptingUploads
-	});
-	return Results.Ok(list);
-});
-
-app.MapGet("/api/seeders", (SeederRegistry registry) =>
-{
-	var list = registry.GetAll().Select(s => new SeederNodeDto
-	{
-		SeederId = s.SeederId,
-		IP = s.IP,
-		Port = s.Port,
-		CapacityPercentage = s.CapacityPercentage,
-		AcceptingUploads = s.AcceptingUploads,
-		MapIds = s.MapIds
-	});
-	return Results.Ok(list);
-});
-
-app.MapGet("/api/seeders/catalog", (ContentAddressableStorage cas) =>
-{
-	return Results.Ok(new SeederCatalogResponseDto
-	{
-		SeederId = seederId,
-		CapacityPercentage = capacityPercent,
-		AssetHashes = cas.GetAllStoredHashes().ToList()
-	});
-});
+SeederEndpoints.MapSeederEndpoints(app, setup);
 
 app.MapMethods("/api/assets/{hash}", new[] { "HEAD" }, (string hash, ContentAddressableStorage cas) =>
 {
