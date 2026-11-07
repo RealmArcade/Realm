@@ -785,36 +785,7 @@ namespace Realm.Client.UI
 
 			_mapSettingsDialog = new MapSettingsDialog(this);
 
-			_btnTapeMeasure = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/BoxViewportToolbar/ViewportIconRow1/BtnTapeMeasure");
-			_btnTapeMeasure.Set("icon_max_width", 0);
-			SetupButton(_btnTapeMeasure, UnicodeIcons.RULER, () =>
-			{
-				if (GameContext.Host != null)
-				{
-					if (GameContext.Host.ActiveEditorTool == EditorTool.Measure)
-					{
-						GameContext.Host.ClearMeasureVisuals();
-						ClearMeasureTelemetry();
-						TriggerToolSelection(GameContext.SessionState.SavedActiveTool != EditorTool.Measure ? GameContext.SessionState.SavedActiveTool : EditorTool.Raise, null);
-					}
-					else
-					{
-						TriggerToolSelection(EditorTool.Measure, _btnTapeMeasure);
-					}
-				}
-			}, 12, "Tape Measure Tool: Click Point A, then Point B to measure distance & slope (U)");
-
-			_optPolarRingSpacing = GetNode<OptionButton>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/RowPolarConfig/OptPolarRingSpacing");
-			_optPolarRingSpacing.Set("icon_max_width", 0);
-			SetupPolarRingSpacingDropdown(_optPolarRingSpacing, "Select interval between concentric polar distance rings (4, 8, 16, 32 tiles)");
-
-			_optPolarRadialStep = GetNode<OptionButton>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/RowPolarConfig/OptPolarRadialStep");
-			_optPolarRadialStep.Set("icon_max_width", 0);
-			SetupSpokesDropdown(_optPolarRadialStep, (spokes) => SetPolarSpokesView(spokes), "Select radial spoke count (2, 3, 4, 5, 6, 8, 12, 16)");
-
-			_btnResetPivotToCenter = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/RowPolarConfig/BtnResetPivotToCenter");
-			_btnResetPivotToCenter.Set("icon_max_width", 0);
-			SetupOptionButton(_btnResetPivotToCenter, $"{UnicodeIcons.CROSSHAIRS} RESET PIVOT", () => ResetPivotToMapCenterView(), 10, "Reset symmetry and polar overlay center pivot to true map center");
+			BuildMeasurementAndPolarControls();
 
 			var bottomBar = GetNode<HBoxContainer>("BottomCenterBar");
 			bottomBar.Alignment = BoxContainer.AlignmentMode.Center;
@@ -1116,6 +1087,42 @@ namespace Realm.Client.UI
 			_btnToggleCamera = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/BoxViewportToolbar/ViewportIconRow1/BtnToggleCamera");
 			_btnToggleCamera.Set("icon_max_width", 0);
 			SetupButton(_btnToggleCamera, UnicodeIcons.CAMERA, () => OpenCameraPopup(), 12, "Configure camera controls (R / C / + / - / F8)");
+		}
+
+
+
+		private void BuildMeasurementAndPolarControls()
+		{
+			_btnTapeMeasure = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/BoxViewportToolbar/ViewportIconRow1/BtnTapeMeasure");
+			_btnTapeMeasure.Set("icon_max_width", 0);
+			SetupButton(_btnTapeMeasure, UnicodeIcons.RULER, () =>
+			{
+				if (GameContext.Host != null)
+				{
+					if (GameContext.Host.ActiveEditorTool == EditorTool.Measure)
+					{
+						GameContext.Host.ClearMeasureVisuals();
+						ClearMeasureTelemetry();
+						TriggerToolSelection(GameContext.SessionState.SavedActiveTool != EditorTool.Measure ? GameContext.SessionState.SavedActiveTool : EditorTool.Raise, null);
+					}
+					else
+					{
+						TriggerToolSelection(EditorTool.Measure, _btnTapeMeasure);
+					}
+				}
+			}, 12, "Tape Measure Tool: Click Point A, then Point B to measure distance & slope (U)");
+
+			_optPolarRingSpacing = GetNode<OptionButton>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/RowPolarConfig/OptPolarRingSpacing");
+			_optPolarRingSpacing.Set("icon_max_width", 0);
+			SetupPolarRingSpacingDropdown(_optPolarRingSpacing, "Select interval between concentric polar distance rings (4, 8, 16, 32 tiles)");
+
+			_optPolarRadialStep = GetNode<OptionButton>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/RowPolarConfig/OptPolarRadialStep");
+			_optPolarRadialStep.Set("icon_max_width", 0);
+			SetupSpokesDropdown(_optPolarRadialStep, (spokes) => SetPolarSpokesView(spokes), "Select radial spoke count (2, 3, 4, 5, 6, 8, 12, 16)");
+
+			_btnResetPivotToCenter = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/RowPolarConfig/BtnResetPivotToCenter");
+			_btnResetPivotToCenter.Set("icon_max_width", 0);
+			SetupOptionButton(_btnResetPivotToCenter, $"{UnicodeIcons.CROSSHAIRS} RESET PIVOT", () => ResetPivotToMapCenterView(), 10, "Reset symmetry and polar overlay center pivot to true map center");
 		}
 
 
