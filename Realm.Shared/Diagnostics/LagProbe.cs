@@ -133,6 +133,14 @@ public static class LagProbe
 	private static readonly int[] _arrivalSequences = CreateArrivalSequences();
 	private static readonly double[] _arrivalSeconds = new double[ArrivalCapacity];
 
+	private static readonly int[] _startupStageCounts = new int[Enum.GetValues<LagStage>().Length];
+	private static readonly int[] _startupGaugeCounts = new int[Enum.GetValues<LagGauge>().Length];
+	private static readonly long[] _startupEventCounts = new long[Enum.GetValues<LagEvent>().Length];
+	private static readonly double[] _startupEventWorst = new double[Enum.GetValues<LagEvent>().Length];
+	private static readonly double[] _steadyEventWorst = new double[Enum.GetValues<LagEvent>().Length];
+
+	private static int _startupMarked;
+
 	private static int _enabled;
 	private static string _outputDirectory = string.Empty;
 	private static string _role = string.Empty;
@@ -161,6 +169,12 @@ public static class LagProbe
 		Array.Clear(_gaugeCounts);
 		Array.Clear(_gaugeLastSeconds);
 		Array.Clear(_gaugeStartedSeconds);
+		Array.Clear(_startupStageCounts);
+		Array.Clear(_startupGaugeCounts);
+		Array.Clear(_startupEventCounts);
+		Array.Clear(_startupEventWorst);
+		Array.Clear(_steadyEventWorst);
+		Volatile.Write(ref _startupMarked, 0);
 		Volatile.Write(ref _enabled, 1);
 	}
 
@@ -241,9 +255,15 @@ public static class LagProbe
 		while (magnitude > current)
 		{
 			double observed = Interlocked.CompareExchange(ref _eventWorst[index], magnitude, current);
-			if (observed == current) return;
+			if (observed == current) break;
 			current = observed;
 		}
+
+		// A worst is not a counter, so the steady window keeps its own: the mark states what had already happened, and a
+		// peak from the startup window must not be reported as one the session went on to pay.
+		if (Volatile.Read(ref _startupMarked) == 0 || !(magnitude > _steadyEventWorst[index])) return;
+
+		_steadyEventWorst[index] = magnitude;
 	}
 
 	public static void ObserveGauge(LagGauge gauge, double value, double clockSeconds)
@@ -277,169 +297,272 @@ public static class LagProbe
 		return total / count;
 	}
 
+	/// <summary>
+	///     Draws a line under a match's first seconds, once. Everything sampled up to this call is kept and reported as
+	///     the startup window, and the report from here on is the steady window, so a join cost is never read as a
+	///     cadence the session keeps while the cost itself stays visible.
+	/// </summary>
+	public static void MarkStartupComplete()
+	{
+		if (!IsEnabled) return;
+		if (Interlocked.Exchange(ref _startupMarked, 1) != 0) return;
+
+		for (int index = 0; index < _startupStageCounts.Length; index++)
+		{
+			_startupStageCounts[index] = Math.Min(Volatile.Read(ref _stageCounts[index]), SampleCapacity);
+		}
+
+		for (int index = 0; index < _startupGaugeCounts.Length; index++)
+		{
+			_startupGaugeCounts[index] = Math.Min(Volatile.Read(ref _gaugeCounts[index]), GaugeCapacity);
+		}
+
+		for (int index = 0; index < _startupEventCounts.Length; index++)
+		{
+			_startupEventCounts[index] = Interlocked.Read(ref _eventCounts[index]);
+			_startupEventWorst[index] = Volatile.Read(ref _eventWorst[index]);
+		}
+	}
+
+	private static (int Start, int End) StageWindow(int stageIndex, bool startup)
+	{
+		int count = Math.Min(Volatile.Read(ref _stageCounts[stageIndex]), SampleCapacity);
+		int mark = Math.Min(_startupStageCounts[stageIndex], count);
+		return startup ? (0, mark) : (mark, count);
+	}
+
+	private static (int Start, int End) GaugeWindow(int gaugeIndex, bool startup)
+	{
+		int count = Math.Min(Volatile.Read(ref _gaugeCounts[gaugeIndex]), GaugeCapacity);
+		int mark = Math.Min(_startupGaugeCounts[gaugeIndex], count);
+		return startup ? (0, mark) : (mark, count);
+	}
+
+	private static SampleStatistics DescribeStage(int stageIndex, bool startup)
+	{
+		(int start, int end) = StageWindow(stageIndex, startup);
+		int count = end - start;
+		if (count <= 0) return default;
+
+		double[] sorted = new double[count];
+		Array.Copy(_stageSamples, stageIndex * SampleCapacity + start, sorted, 0, count);
+		double total = 0d;
+		for (int slot = 0; slot < count; slot++) total += sorted[slot];
+		double mean = total / count;
+		Array.Sort(sorted);
+
+		return new SampleStatistics(count, mean, sorted[0], sorted[count - 1], Percentile(sorted, 0.50), Percentile(sorted, 0.95), Percentile(sorted, 0.99), 0);
+	}
+
+	private static SampleStatistics DescribeGauge(int gaugeIndex, bool startup)
+	{
+		(int start, int end) = GaugeWindow(gaugeIndex, startup);
+		int count = end - start;
+		if (count <= 0) return default;
+
+		float[] samples = new float[count];
+		Array.Copy(_gaugeSamples, gaugeIndex * GaugeCapacity + start, samples, 0, count);
+
+		float mean = 0f;
+		float minimum = float.MaxValue;
+		float maximum = float.MinValue;
+		int changes = 0;
+		float previous = samples[0];
+		for (int slot = 0; slot < count; slot++)
+		{
+			float value = samples[slot];
+			mean += value;
+			if (value < minimum) minimum = value;
+			if (value > maximum) maximum = value;
+			if (MathF.Abs(value - previous) >= 0.5f) changes++;
+			previous = value;
+		}
+
+		mean /= count;
+		Array.Sort(samples);
+
+		return new SampleStatistics(count, mean, minimum, maximum, Percentile(samples, 0.50), Percentile(samples, 0.95), 0d, changes);
+	}
+
+	private static long EventCountIn(LagEvent lagEvent, bool startup)
+	{
+		int index = (int)lagEvent;
+		long count = Interlocked.Read(ref _eventCounts[index]);
+		long mark = Math.Min(_startupEventCounts[index], count);
+		return startup ? mark : count - mark;
+	}
+
+	private static double EventWorstIn(LagEvent lagEvent, bool startup)
+	{
+		int index = (int)lagEvent;
+		if (Volatile.Read(ref _startupMarked) == 0) return Volatile.Read(ref _eventWorst[index]);
+		return startup ? _startupEventWorst[index] : Volatile.Read(ref _steadyEventWorst[index]);
+	}
+
+	private readonly struct SampleStatistics
+	{
+		public SampleStatistics(int count, double mean, double minimum, double maximum, double p50, double p95, double p99, int changes)
+		{
+			Count = count;
+			Mean = mean;
+			Minimum = minimum;
+			Maximum = maximum;
+			P50 = p50;
+			P95 = p95;
+			P99 = p99;
+			Changes = changes;
+		}
+
+		public int Count { get; }
+
+		public double Mean { get; }
+
+		public double Minimum { get; }
+
+		public double Maximum { get; }
+
+		public double P50 { get; }
+
+		public double P95 { get; }
+
+		public double P99 { get; }
+
+		public int Changes { get; }
+	}
+
 	public static string RenderTextReport()
 	{
 		StringBuilder report = new();
 		report.AppendLine("=== Lag probe ===");
 		report.AppendLine($"role: {(string.IsNullOrEmpty(_role) ? "unset" : _role)}");
+		AppendTextWindow(report, "startup", true);
+		AppendTextWindow(report, "steady", false);
+		return report.ToString();
+	}
+
+	private static void AppendTextWindow(StringBuilder report, string heading, bool startup)
+	{
+		report.AppendLine($"window: {heading}");
 		report.AppendLine("stage: count mean_ms p50_ms p95_ms p99_ms max_ms");
 		for (int index = 0; index < _stageCount; index++)
 		{
-			LagStage stage = (LagStage)index;
-			int count = Math.Min(Volatile.Read(ref _stageCounts[index]), SampleCapacity);
-			if (count <= 0) continue;
-
-			double[] sorted = new double[count];
-			Array.Copy(_stageSamples, index * SampleCapacity, sorted, 0, count);
-			Array.Sort(sorted);
-			double mean = 0d;
-			for (int slot = 0; slot < count; slot++) mean += sorted[slot];
-			mean /= count;
+			SampleStatistics statistics = DescribeStage(index, startup);
+			if (statistics.Count <= 0) continue;
 
 			report.AppendLine(string.Format(
 				CultureInfo.InvariantCulture,
 				"{0}: {1} {2:F3} {3:F3} {4:F3} {5:F3} {6:F3}",
-				stage,
-				count,
-				mean,
-				Percentile(sorted, 0.50),
-				Percentile(sorted, 0.95),
-				Percentile(sorted, 0.99),
-				sorted[count - 1]));
+				(LagStage)index,
+				statistics.Count,
+				statistics.Mean,
+				statistics.P50,
+				statistics.P95,
+				statistics.P99,
+				statistics.Maximum));
 		}
 
 		report.AppendLine("event: count worst");
 		for (int index = 0; index < _eventCount; index++)
 		{
-			long count = Interlocked.Read(ref _eventCounts[index]);
-			double worst = Volatile.Read(ref _eventWorst[index]);
+			LagEvent lagEvent = (LagEvent)index;
+			long count = EventCountIn(lagEvent, startup);
+			double worst = EventWorstIn(lagEvent, startup);
 			if (count == 0 && worst <= 0d) continue;
 
-			report.AppendLine(string.Format(CultureInfo.InvariantCulture, "{0}: {1} {2:F3}", (LagEvent)index, count, worst));
+			report.AppendLine(string.Format(CultureInfo.InvariantCulture, "{0}: {1} {2:F3}", lagEvent, count, worst));
 		}
 
 		report.AppendLine("gauge: samples mean min max p50 p95 changes");
 		for (int index = 0; index < _gaugeCount; index++)
 		{
-			int count = Math.Min(Volatile.Read(ref _gaugeCounts[index]), GaugeCapacity);
-			if (count <= 0) continue;
+			SampleStatistics statistics = DescribeGauge(index, startup);
+			if (statistics.Count <= 0) continue;
 
-			float[] sorted = new float[count];
-			Array.Copy(_gaugeSamples, index * GaugeCapacity, sorted, 0, count);
-			float mean = 0f;
-			float minimum = float.MaxValue;
-			float maximum = float.MinValue;
-			int changes = 0;
-			float previous = sorted[0];
-			for (int slot = 0; slot < count; slot++)
-			{
-				float value = sorted[slot];
-				mean += value;
-				if (value < minimum) minimum = value;
-				if (value > maximum) maximum = value;
-				if (MathF.Abs(value - previous) >= 0.5f) changes++;
-				previous = value;
-			}
-
-			mean /= count;
-			Array.Sort(sorted);
 			report.AppendLine(string.Format(
 				CultureInfo.InvariantCulture,
 				"{0}: {1} {2:F3} {3:F3} {4:F3} {5:F3} {6:F3} {7}",
 				(LagGauge)index,
-				count,
-				mean,
-				minimum,
-				maximum,
-				Percentile(sorted, 0.50),
-				Percentile(sorted, 0.95),
-				changes));
+				statistics.Count,
+				statistics.Mean,
+				statistics.Minimum,
+				statistics.Maximum,
+				statistics.P50,
+				statistics.P95,
+				statistics.Changes));
 		}
-
-		return report.ToString();
 	}
 
 	public static string RenderJson()
 	{
 		StringBuilder json = new();
-		json.Append("{\"role\":\"").Append(_role).Append("\",\"stages\":{");
-		bool firstStage = true;
-		for (int index = 0; index < _stageCount; index++)
-		{
-			int count = Math.Min(Volatile.Read(ref _stageCounts[index]), SampleCapacity);
-			if (count <= 0) continue;
-
-			double[] sorted = new double[count];
-			Array.Copy(_stageSamples, index * SampleCapacity, sorted, 0, count);
-			Array.Sort(sorted);
-			double mean = 0d;
-			for (int slot = 0; slot < count; slot++) mean += sorted[slot];
-			mean /= count;
-
-			if (!firstStage) json.Append(',');
-			firstStage = false;
-			json.Append('"').Append((LagStage)index).Append("\":{");
-			json.Append("\"count\":").Append(count);
-			json.Append(",\"mean\":").Append(mean.ToString("F4", CultureInfo.InvariantCulture));
-			json.Append(",\"p50\":").Append(Percentile(sorted, 0.50).ToString("F4", CultureInfo.InvariantCulture));
-			json.Append(",\"p95\":").Append(Percentile(sorted, 0.95).ToString("F4", CultureInfo.InvariantCulture));
-			json.Append(",\"p99\":").Append(Percentile(sorted, 0.99).ToString("F4", CultureInfo.InvariantCulture));
-			json.Append(",\"max\":").Append(sorted[count - 1].ToString("F4", CultureInfo.InvariantCulture));
-			json.Append('}');
-		}
-
-		json.Append("},\"events\":{");
-		bool firstEvent = true;
-		for (int index = 0; index < _eventCount; index++)
-		{
-			long count = Interlocked.Read(ref _eventCounts[index]);
-			double worst = Volatile.Read(ref _eventWorst[index]);
-			if (count == 0 && worst <= 0d) continue;
-
-			if (!firstEvent) json.Append(',');
-			firstEvent = false;
-			json.Append('"').Append((LagEvent)index).Append("\":{");
-			json.Append("\"count\":").Append(count);
-			json.Append(",\"worst\":").Append(worst.ToString("F4", CultureInfo.InvariantCulture));
-			json.Append('}');
-		}
-
-		json.Append("},\"gauges\":{");
-		bool firstGauge = true;
-		for (int index = 0; index < _gaugeCount; index++)
-		{
-			int count = Math.Min(Volatile.Read(ref _gaugeCounts[index]), GaugeCapacity);
-			if (count <= 0) continue;
-
-			float[] sorted = new float[count];
-			Array.Copy(_gaugeSamples, index * GaugeCapacity, sorted, 0, count);
-			float mean = 0f;
-			float minimum = float.MaxValue;
-			float maximum = float.MinValue;
-			for (int slot = 0; slot < count; slot++)
-			{
-				mean += sorted[slot];
-				if (sorted[slot] < minimum) minimum = sorted[slot];
-				if (sorted[slot] > maximum) maximum = sorted[slot];
-			}
-
-			mean /= count;
-			Array.Sort(sorted);
-			if (!firstGauge) json.Append(',');
-			firstGauge = false;
-			json.Append('"').Append((LagGauge)index).Append("\":{");
-			json.Append("\"count\":").Append(count);
-			json.Append(",\"mean\":").Append(mean.ToString("F4", CultureInfo.InvariantCulture));
-			json.Append(",\"min\":").Append(minimum.ToString("F4", CultureInfo.InvariantCulture));
-			json.Append(",\"max\":").Append(maximum.ToString("F4", CultureInfo.InvariantCulture));
-			json.Append(",\"p50\":").Append(Percentile(sorted, 0.50).ToString("F4", CultureInfo.InvariantCulture));
-			json.Append(",\"p95\":").Append(Percentile(sorted, 0.95).ToString("F4", CultureInfo.InvariantCulture));
-			json.Append('}');
-		}
-
-		json.Append("}}");
+		json.Append("{\"role\":\"").Append(_role).Append('"');
+		AppendJsonWindow(json, "stages", "events", "gauges", false);
+		AppendJsonWindow(json, "startupStages", "startupEvents", "startupGauges", true);
+		json.Append('}');
 		return json.ToString();
 	}
+
+	private static void AppendJsonWindow(StringBuilder json, string stageSection, string eventSection, string gaugeSection, bool startup)
+	{
+		json.Append(",\"").Append(stageSection).Append("\":{");
+		bool first = true;
+		for (int index = 0; index < _stageCount; index++)
+		{
+			SampleStatistics statistics = DescribeStage(index, startup);
+			if (statistics.Count <= 0) continue;
+
+			if (!first) json.Append(',');
+			first = false;
+			json.Append('"').Append((LagStage)index).Append("\":{");
+			json.Append("\"count\":").Append(statistics.Count);
+			json.Append(",\"mean\":").Append(Number(statistics.Mean));
+			json.Append(",\"p50\":").Append(Number(statistics.P50));
+			json.Append(",\"p95\":").Append(Number(statistics.P95));
+			json.Append(",\"p99\":").Append(Number(statistics.P99));
+			json.Append(",\"max\":").Append(Number(statistics.Maximum));
+			json.Append('}');
+		}
+
+		json.Append("},\"").Append(eventSection).Append("\":{");
+		first = true;
+		for (int index = 0; index < _eventCount; index++)
+		{
+			LagEvent lagEvent = (LagEvent)index;
+			long count = EventCountIn(lagEvent, startup);
+			double worst = EventWorstIn(lagEvent, startup);
+			if (count == 0 && worst <= 0d) continue;
+
+			if (!first) json.Append(',');
+			first = false;
+			json.Append('"').Append(lagEvent).Append("\":{");
+			json.Append("\"count\":").Append(count);
+			json.Append(",\"worst\":").Append(Number(worst));
+			json.Append('}');
+		}
+
+		json.Append("},\"").Append(gaugeSection).Append("\":{");
+		first = true;
+		for (int index = 0; index < _gaugeCount; index++)
+		{
+			SampleStatistics statistics = DescribeGauge(index, startup);
+			if (statistics.Count <= 0) continue;
+
+			if (!first) json.Append(',');
+			first = false;
+			json.Append('"').Append((LagGauge)index).Append("\":{");
+			json.Append("\"count\":").Append(statistics.Count);
+			json.Append(",\"mean\":").Append(Number(statistics.Mean));
+			json.Append(",\"min\":").Append(Number(statistics.Minimum));
+			json.Append(",\"max\":").Append(Number(statistics.Maximum));
+			json.Append(",\"p50\":").Append(Number(statistics.P50));
+			json.Append(",\"p95\":").Append(Number(statistics.P95));
+			json.Append('}');
+		}
+
+		json.Append('}');
+	}
+
+	private static string Number(double value) => value.ToString("F4", CultureInfo.InvariantCulture);
 
 	public static bool WriteReport()
 	{

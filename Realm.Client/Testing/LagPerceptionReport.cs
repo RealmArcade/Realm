@@ -210,7 +210,16 @@ public static class LagMetricCatalog
 		new("client.events.ClientRenderFramesOverBudget.count", "frames over 33.4 ms", "count"),
 		new("client.events.ClientPhysicsTicksOverBudget.count", "physics ticks over 33.4 ms", "count"),
 		new("client.events.LinkFramesDelivered.count", "link frames delivered", "count"),
-		new("client.events.LinkFramesDropped.count", "link frames dropped", "count")
+		new("client.events.LinkFramesDropped.count", "link frames dropped", "count"),
+		new("authority.startupStages.AuthorityTickWorkMilliseconds.max", "startup: authority tick work max", "ms"),
+		new("authority.startupStages.AuthorityPublishMilliseconds.max", "startup: authority publish max", "ms"),
+		new("authority.startupStages.AuthorityDescribeMilliseconds.max", "startup: authority describe max", "ms"),
+		new("authority.startupStages.AuthorityTickIntervalMilliseconds.max", "startup: authority tick interval max", "ms"),
+		new("client.startupEvents.ClientBaselinesApplied.count", "startup: client baselines applied", "count"),
+		new("client.startupEvents.ClientStarvationHoldMilliseconds.worst", "startup: longest stall held still", "ms"),
+		new("client.startupEvents.ClientWorstSkippedSequences.worst", "startup: widest description gap", "seq"),
+		new("client.startupGauges.ClientFramesPerSecond.min", "startup: client frames per second min", "fps"),
+		new("client.startupGauges.ClientDrawnWorldAgeMilliseconds.p95", "startup: age of the drawn world p95", "ms")
 	};
 }
 
@@ -395,6 +404,9 @@ public static class LagPerceptionReport
 			ReadSections(root, "stages", scope + ".stages", metrics);
 			ReadSections(root, "events", scope + ".events", metrics);
 			ReadSections(root, "gauges", scope + ".gauges", metrics);
+			ReadSections(root, "startupStages", scope + ".startupStages", metrics);
+			ReadSections(root, "startupEvents", scope + ".startupEvents", metrics);
+			ReadSections(root, "startupGauges", scope + ".startupGauges", metrics);
 		}
 		catch (JsonException)
 		{

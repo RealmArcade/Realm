@@ -116,8 +116,20 @@ public class SnapshotApplyService
 		public RepairTraceKind Kind;
 	}
 
+	private const ulong StartupSettleMilliseconds = 2000;
+
+	private ulong _startupSettleDeadlineMilliseconds;
+
+	private bool _startupSettled;
+
 	public void Accept(WorldSnapshot snapshot)
 	{
+		if (LagProbe.IsEnabled && !_startupSettled && _startupSettleDeadlineMilliseconds != 0 && Time.GetTicksMsec() >= _startupSettleDeadlineMilliseconds)
+		{
+			_startupSettled = true;
+			LagProbe.MarkStartupComplete();
+		}
+
 		Trace(RepairTraceKind.Arrived, snapshot.Sequence, snapshot.IsBaseline ? snapshot.BaseSequence : 0);
 		// A description that arrived, whatever this screen goes on to make of it, is the answer to a watch that asked
 		// about a stream that had stopped.
@@ -227,6 +239,7 @@ public class SnapshotApplyService
 			_appliedSnapshots.Reset();
 			Trace(RepairTraceKind.BaselineApplied, snapshot.Sequence, 0);
 			GameContext.NetworkService.ApplySnapshotToWorld(snapshot);
+			if (LagProbe.IsEnabled && _startupSettleDeadlineMilliseconds == 0) _startupSettleDeadlineMilliseconds = Time.GetTicksMsec() + StartupSettleMilliseconds;
 
 			DrainQueuedDeltas(ref networkState);
 			return;

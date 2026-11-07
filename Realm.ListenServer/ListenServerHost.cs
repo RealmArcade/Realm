@@ -87,6 +87,8 @@ public class ListenServerHost : IServerTransportSink
 	/// <summary>Peers that have asked for a description they never received, and are therefore sent each one twice.</summary>
 	private readonly HashSet<int> _peersThatLoseDescriptions = new();
 
+	private int _startupSettlesAtSequence;
+
 	/// <summary>
 	///     How long a peer that has lost a description keeps being sent every description twice after the last one it asked
 	///     for. A link that has stopped naming lost descriptions has stopped losing them; keeping the repeat on after that
@@ -1275,6 +1277,12 @@ public class ListenServerHost : IServerTransportSink
 		ServerSimulation? simulation = _simulation;
 		if (simulation == null) return;
 
+		if (_startupSettlesAtSequence > 0 && sequence >= _startupSettlesAtSequence)
+		{
+			_startupSettlesAtSequence = 0;
+			LagProbe.MarkStartupComplete();
+		}
+
 		long publishStarted = LagProbe.IsEnabled ? LagProbe.Timestamp() : 0L;
 
 		// The work a publish does between the peer descriptions is measured in three pieces beside them, because a publish
@@ -1592,6 +1600,7 @@ public class ListenServerHost : IServerTransportSink
 
 		if (snapshot.IsBaseline)
 		{
+			if (_startupSettlesAtSequence == 0) _startupSettlesAtSequence = _publishSequence + MatchTiming.SimulationTickRateHz * 2;
 			_transport.Send(peerId, NetworkFrameKind.Snapshot, _publishedFrames[index]);
 		}
 		else if (_publishedFrames[index].Length <= SnapshotFragment.MaximumDatagramBytes)
