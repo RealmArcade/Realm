@@ -174,8 +174,20 @@ public class AutoBattlerGenreProvider : IAiGenreProvider
 		for (int sIdx = 0; sIdx < CurrentShopOfferings.Count; sIdx++)
 		{
 			string offeringId = CurrentShopOfferings[sIdx];
-			var unitDef = ShopPool.FirstOrDefault(u => string.Equals(u.Id, offeringId, StringComparison.OrdinalIgnoreCase))
-			              ?? new AutoBattlerUnitDef { Id = offeringId, Cost = 1 };
+
+			// Found by index rather than with a LINQ FirstOrDefault over a captured offering id: this runs on the bot's
+			// decision step, inside a match tick, and both the lambda and the enumerator it walks are allocations.
+			AutoBattlerUnitDef? matched = null;
+			for (int poolIndex = 0; poolIndex < ShopPool.Count; poolIndex++)
+			{
+				AutoBattlerUnitDef candidate = ShopPool[poolIndex];
+				if (!string.Equals(candidate.Id, offeringId, StringComparison.OrdinalIgnoreCase)) continue;
+
+				matched = candidate;
+				break;
+			}
+
+			AutoBattlerUnitDef unitDef = matched ?? new AutoBattlerUnitDef { Id = offeringId, Cost = 1 };
 
 			if (playerGold < unitDef.Cost) continue;
 
