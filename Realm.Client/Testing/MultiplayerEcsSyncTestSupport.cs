@@ -120,6 +120,7 @@ public static class MultiplayerEcsSyncTestSupport
 	private const int PlacementQuantityCount = 2;
 	private const int PlacementLagAllowanceSequences = 30;
 	private const int StartupWarmupSequenceCount = 60;
+	private const int SimulatedLinkSeedStridePerPeer = 7919;
 	private const int SyncRecordVersion = SyncRecordFormat.Version;
 
 	private const float BackwardMotionAuthorityMeters = 0.05f;
@@ -426,12 +427,19 @@ public static class MultiplayerEcsSyncTestSupport
 		startInfo.Environment[SimulatedLink.RoundTripMillisecondsVariable] = Math.Max(settings.PingMilliseconds, settings.OneWayDelayMilliseconds * 2).ToString(CultureInfo.InvariantCulture);
 		startInfo.Environment[SimulatedLink.JitterMillisecondsVariable] = settings.JitterMilliseconds.ToString(CultureInfo.InvariantCulture);
 		startInfo.Environment[SimulatedLink.PacketLossPercentVariable] = settings.PacketLossPercent.ToString(CultureInfo.InvariantCulture);
-		startInfo.Environment[SimulatedLink.SeedVariable] = settings.RelaySeed.ToString(CultureInfo.InvariantCulture);
+		// Each screen loses its own datagrams. One seed for the whole room would lose the same descriptions on every
+		// screen in the same sequence positions, which is a correlated fault no real link produces and which a
+		// peer-to-peer comparison would read as a property of the code. The first peer keeps the bare seed so a
+		// single-client scenario measures the link it always measured.
+		startInfo.Environment[SimulatedLink.SeedVariable] = (settings.RelaySeed + (peerIndex - 1) * SimulatedLinkSeedStridePerPeer).ToString(CultureInfo.InvariantCulture);
 		startInfo.ArgumentList.Add($"--peer-index={peerIndex}");
 		startInfo.ArgumentList.Add($"--bots={(role == "host" ? settings.BotCount : 0)}");
 		startInfo.ArgumentList.Add($"--cheats={(role == "host" && settings.CheatsEnabled ? 1 : 0)}");
 		startInfo.ArgumentList.Add($"--unlock-tiles={(role == "host" && settings.UnlockTiles ? 1 : 0)}");
 		startInfo.Environment[Realm.Shared.Diagnostics.LagProbe.OutputDirectoryVariable] = string.IsNullOrEmpty(settings.MetricsDirectory) ? outputDirectory : settings.MetricsDirectory;
+		// Only the host brings an authority up. Every other screen joins the one it started, so a room of twelve screens
+		// is one authority and twelve screens rather than twelve authorities sharing one box.
+		startInfo.Environment["REALM_HARNESS_JOIN_ONLY"] = role == "host" ? "0" : "1";
 		startInfo.ArgumentList.Add($"--wait-for-peer-ready={waitForPeerReadyFile}");
 		startInfo.ArgumentList.Add($"--drop-at={(role == "client" && peerIndex == 1 ? settings.DropClientAtSeconds : 0f).ToString(CultureInfo.InvariantCulture)}");
 		startInfo.ArgumentList.Add($"--discard-at={(role == "client" && peerIndex == 1 ? settings.DiscardSnapshotAtSeconds : 0f).ToString(CultureInfo.InvariantCulture)}");

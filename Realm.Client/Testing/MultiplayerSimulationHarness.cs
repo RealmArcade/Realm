@@ -270,6 +270,10 @@ public partial class MultiplayerSimulationHarness : Node
 			await ToSignal(GetTree().CreateTimer(_drainMilliseconds / 1000f), SceneTreeTimer.SignalName.Timeout);
 		}
 
+		// The authority writes what it measured as the match ends, so it has to be parked before this process exits: a
+		// child authority that is killed with its parent takes the tick and publish numbers of the whole run with it.
+		await PauseAuthorityAndWaitForItsReportAsync();
+
 		_hardeningFailureCount = MultiplayerHardeningChecks.Run(_outputDirectory, true, _session?.LogPath ?? string.Empty);
 
 		_finalSequence = ResolveSnapshotSequence();
@@ -434,7 +438,8 @@ public partial class MultiplayerSimulationHarness : Node
 			Cheats: _cheatsEnabled,
 			OpenToOthers: true,
 			Roster: BuildHarnessRoster(),
-			AuthorityRecordDirectory: _outputDirectory);
+			AuthorityRecordDirectory: _outputDirectory,
+			LoopbackOnly: true);
 
 		GD.Print($"[MP_HARNESS] This screen's link to the authority is simulated at {SimulatedLink.FromEnvironment().Describe()}.");
 
@@ -744,7 +749,7 @@ public partial class MultiplayerSimulationHarness : Node
 		}
 
 		MultiplayerSyncDiagnostics.Start(isHost ? Path.Combine(_outputDirectory, "host") : _outputDirectory);
-		LagProbe.TryEnableFromEnvironment("client");
+		LagProbe.TryEnableFromEnvironment(ResolveProbeRole(isHost));
 		PrintReplicatedCodecTable(isHost);
 		TryWriteReadyFile();
 		GameHost currentHost = GameContext.Host!;
@@ -761,6 +766,20 @@ public partial class MultiplayerSimulationHarness : Node
 		}
 
 		GD.Print($"[CODECS] role={(isHost ? "host" : "client")} registryCount={Realm.Ecs.ComponentTypeRegistry.Count} scriptPlayersId={Realm.Ecs.ComponentType<ScriptPlayersState>.Id}");
+	}
+
+	/// <summary>
+	///     Names this process's probe report after its seat, because every screen of a room is handed the same metrics
+	///     directory: eleven reports written as 'client' would leave one, and the ten outcomes nobody read are the ten that
+	///     were worst.
+	/// </summary>
+	private string ResolveProbeRole(bool isHost)
+	{
+		// The host screen is not the authority: it renders the replicated world like every other screen, and the authority
+		// writes its own 'authority' report from the process that actually simulates. Naming the host screen 'authority'
+		// made whichever report was written last win, which is how a room filled with client numbers under a server title.
+		if (isHost) return "hostscreen";
+		return _peerIndex <= 1 ? "client" : $"client{_peerIndex}";
 	}
 
 	private int ResolveAiPlayerCount()
@@ -823,7 +842,10 @@ public partial class MultiplayerSimulationHarness : Node
 
 	private void RecordClientPeerId(int peerId)
 	{
-		if (_role != "client" || peerId <= 0 || peerId == _recordedClientPeerId) return;
+		// The host screen is a peer of its own authority as well, and a room's records can only be held against the
+		// descriptions one peer was sent: without this number the verification compares a screen's records against every
+		// peer's baselines and reports a room full of mismatches that the match never had.
+		if (peerId <= 0 || peerId == _recordedClientPeerId) return;
 
 		_recordedClientPeerId = peerId;
 		try
@@ -833,6 +855,27 @@ public partial class MultiplayerSimulationHarness : Node
 		catch (IOException)
 		{
 		}
+	}
+
+	/// <summary>
+	///     Parks this screen's authority and waits for the report it writes as the match ends. It waits for the file rather
+	///     than for the reply alone, because the reply says the match was given up and the report is written after that.
+	/// </summary>
+	private async Task PauseAuthorityAndWaitForItsReportAsync()
+	{
+		string? probeDirectory = System.Environment.GetEnvironmentVariable(LagProbe.OutputDirectoryVariable);
+		if (string.IsNullOrEmpty(probeDirectory)) probeDirectory = _outputDirectory;
+
+		bool paused = await GameContext.LocalAuthority.PauseAsync();
+		string reportPath = Path.Combine(probeDirectory, "lag_authority.json");
+		float deadline = 5f;
+		while (!File.Exists(reportPath) && deadline > 0f)
+		{
+			await ToSignal(GetTree().CreateTimer(0.1f), SceneTreeTimer.SignalName.Timeout);
+			deadline -= 0.1f;
+		}
+
+		GD.Print($"[MP_HARNESS] Authority parked (accepted={paused}); its report {(File.Exists(reportPath) ? "was written" : "was not written")} to '{reportPath}'.");
 	}
 
 	private async Task IssueUnlockTilesAsync()

@@ -57,8 +57,16 @@ public sealed record LagScenario(string Name, int AddedRoundTripMilliseconds, in
 	{
 		string delayText = AddedRoundTripMilliseconds > 0 ? $"{AddedRoundTripMilliseconds}ms round trip" : "no added latency";
 		string lossText = PacketLossPercent > 0 ? $"{PacketLossPercent}% seeded datagram loss" : "no added loss";
-		return $"{delayText}, {lossText}";
+		string roomText = PeerCount > 1 ? $", {PeerCount} screens" : string.Empty;
+		return $"{delayText}, {lossText}{roomText}";
 	}
+
+	/// <summary>
+	///     How many screens this scenario plays. It is the number of networked peers, and every one of them is described,
+	///     acknowledged and repaired separately: one screen is the client's own share of the work, a full room is the
+	///     authority's share too, and a cost that is invisible at one peer can be the whole tick at twelve.
+	/// </summary>
+	public int PeerCount { get; init; } = 1;
 
 	/// <summary>
 	///     Names every way the metrics this scenario produced exceed its ceilings. The ceilings are stated per scenario
@@ -69,11 +77,12 @@ public sealed record LagScenario(string Name, int AddedRoundTripMilliseconds, in
 	public List<string> FindBudgetViolations(Dictionary<string, double> metrics)
 	{
 		List<string> violations = new();
-		CheckCeiling(metrics, violations, "client.gauges.ClientPresentationDelayMilliseconds.p50", "presentation delay p50", MaximumPresentationDelayMilliseconds, "ms");
-		CheckCeiling(metrics, violations, "client.gauges.ClientDrawnWorldAgeMilliseconds.mean", "drawn world age mean", MaximumDrawnWorldAgeMilliseconds, "ms");
-		CheckCeiling(metrics, violations, "client.events.ClientBaselinesApplied.count", "baselines applied", MaximumBaselines, "");
-		CheckCeiling(metrics, violations, "client.events.ClientStarvationHoldMilliseconds.worst", "longest freeze", MaximumLongestFreezeMilliseconds, "ms");
-		CheckCeiling(metrics, violations, "client.events.ClientRepairsRequested.count", "repair requests", MaximumRepairRequests, "");
+		bool wholeRoom = PeerCount > 1;
+		CheckCeiling(metrics, violations, wholeRoom ? "room.presentationDelayP50Milliseconds.worst" : "client.gauges.ClientPresentationDelayMilliseconds.p50", wholeRoom ? "worst screen's presentation delay p50" : "presentation delay p50", MaximumPresentationDelayMilliseconds, "ms");
+		CheckCeiling(metrics, violations, wholeRoom ? "room.drawnWorldAgeMilliseconds.worst" : "client.gauges.ClientDrawnWorldAgeMilliseconds.mean", wholeRoom ? "worst screen's drawn world age mean" : "drawn world age mean", MaximumDrawnWorldAgeMilliseconds, "ms");
+		CheckCeiling(metrics, violations, wholeRoom ? "room.baselinesApplied.worst" : "client.events.ClientBaselinesApplied.count", wholeRoom ? "worst screen's baselines applied" : "baselines applied", MaximumBaselines, "");
+		CheckCeiling(metrics, violations, wholeRoom ? "room.longestFreezeMilliseconds.worst" : "client.events.ClientStarvationHoldMilliseconds.worst", wholeRoom ? "worst screen's longest freeze" : "longest freeze", MaximumLongestFreezeMilliseconds, "ms");
+		CheckCeiling(metrics, violations, wholeRoom ? "room.repairsRequested.worst" : "client.events.ClientRepairsRequested.count", wholeRoom ? "worst screen's repair requests" : "repair requests", MaximumRepairRequests, "");
 		return violations;
 	}
 
@@ -110,6 +119,14 @@ public static class LagMetricCatalog
 		new("authority.stages.AuthorityPresentationMilliseconds.max", "authority presentation worst", "ms"),
 		new("authority.stages.AuthorityPrepareMilliseconds.p99", "authority prepare p99", "ms"),
 		new("authority.stages.AuthorityPrepareMilliseconds.max", "authority prepare worst", "ms"),
+		new("authority.stages.AuthorityPrepareBookkeepingMilliseconds.p50", "authority prepare: peer bookkeeping p50", "ms"),
+		new("authority.stages.AuthorityPrepareBoardMilliseconds.p50", "authority prepare: shared board p50", "ms"),
+		new("authority.stages.AuthorityPrepareAbilityBookkeepingMilliseconds.p50", "authority prepare: ability bookkeeping p50", "ms"),
+		new("authority.stages.AuthorityPrepareAbilityBookkeepingMilliseconds.p99", "authority prepare: ability bookkeeping p99", "ms"),
+		new("authority.stages.AuthorityPrepareAbilityListHandlesMilliseconds.p50", "authority prepare: ability list handles p50", "ms"),
+		new("authority.stages.AuthorityPrepareAbilityFlagsMilliseconds.p50", "authority prepare: ability flags p50", "ms"),
+		new("authority.stages.AuthorityPrepareAbilitiesMilliseconds.p50", "authority prepare: ability deltas p50", "ms"),
+		new("authority.stages.AuthorityPrepareAbilitiesMilliseconds.p99", "authority prepare: ability deltas p99", "ms"),
 		new("authority.stages.AuthorityDescribeMilliseconds.max", "authority describe worst", "ms"),
 		new("authority.stages.AuthoritySerializeMilliseconds.max", "authority serialize worst", "ms"),
 		new("authority.stages.AuthorityRecordMilliseconds.p99", "authority record p99", "ms"),
@@ -219,7 +236,26 @@ public static class LagMetricCatalog
 		new("client.startupEvents.ClientStarvationHoldMilliseconds.worst", "startup: longest stall held still", "ms"),
 		new("client.startupEvents.ClientWorstSkippedSequences.worst", "startup: widest description gap", "seq"),
 		new("client.startupGauges.ClientFramesPerSecond.min", "startup: client frames per second min", "fps"),
-		new("client.startupGauges.ClientDrawnWorldAgeMilliseconds.p95", "startup: age of the drawn world p95", "ms")
+		new("client.startupGauges.ClientDrawnWorldAgeMilliseconds.p95", "startup: age of the drawn world p95", "ms"),
+		new("room.screens", "screens in the room", "count"),
+		new("room.presentationDelayP50Milliseconds.worst", "room: worst screen's presentation delay p50", "ms"),
+		new("room.presentationDelayP50Milliseconds.mean", "room: presentation delay p50 mean", "ms"),
+		new("room.drawnWorldAgeMilliseconds.worst", "room: worst screen's drawn world age mean", "ms"),
+		new("room.drawnWorldAgeMilliseconds.mean", "room: drawn world age mean across screens", "ms"),
+		new("room.baselinesApplied.worst", "room: worst screen's baselines applied", "count"),
+		new("room.repairsRequested.worst", "room: worst screen's repair requests", "count"),
+		new("room.descriptionRepeatsRequested.worst", "room: worst screen's repeat requests", "count"),
+		new("room.longestFreezeMilliseconds.worst", "room: worst screen's longest freeze", "ms"),
+		new("room.starvations.worst", "room: worst screen's starvations", "count"),
+		new("room.descriptionsBehindApplied.worst", "room: worst screen's superseded descriptions", "count"),
+		new("room.presentedJumps.worst", "room: worst screen's visible jumps", "count"),
+		new("room.presentedJumpWorstMeters", "room: worst screen's worst visible jump", "m"),
+		new("room.timelineResets.worst", "room: worst screen's forced snaps", "count"),
+		new("room.catchUpDrainsThrough.worst", "room: worst screen's drained stalls", "count"),
+		new("room.physicsIntervalP99Milliseconds.worst", "room: worst screen's physics interval p99", "ms"),
+		new("room.framesOverBudget.worst", "room: most frames over 33.4 ms by one screen", "count"),
+		new("room.framesOverBudget.sum", "room: frames over 33.4 ms across screens", "count"),
+		new("room.framesPerSecondMin.worst", "room: lowest frames per second", "fps")
 	};
 }
 
@@ -384,13 +420,111 @@ public static class LagPerceptionReport
 		return Path.Combine(rootDirectory, $"pass{pass}", scenario.Name);
 	}
 
+	/// <summary>
+	///     Reads a scenario's reports into one metric dictionary. The 'client.*' keys are the first screen's own numbers,
+	///     which is what a single-client scenario has always reported; 'room.*' keys summarise every screen of the room,
+	///     because a full room is judged by its worst screen rather than by whichever one happened to be read.
+	/// </summary>
 	public static Dictionary<string, double> ReadScenarioMetrics(string scenarioDirectory)
 	{
 		Dictionary<string, double> metrics = new(StringComparer.Ordinal);
 		ReadProbeFile(Path.Combine(scenarioDirectory, "lag_authority.json"), "authority", metrics);
-		ReadProbeFile(Path.Combine(scenarioDirectory, "lag_client.json"), "client", metrics);
+
+		// A scenario played by this screen alone has no separate client process: the host screen is its only screen, and
+		// it is the one the 'client.*' keys have always described. A room adds real client processes, and the first of
+		// those stands in its place so the same keys keep meaning the same thing.
+		Dictionary<string, double> firstClientScreen = new(StringComparer.Ordinal);
+		ReadProbeFile(Path.Combine(scenarioDirectory, "lag_client.json"), "client", firstClientScreen);
+
+		List<Dictionary<string, double>> screens = new();
+		Dictionary<string, double> hostScreen = new(StringComparer.Ordinal);
+		ReadProbeFile(Path.Combine(scenarioDirectory, "lag_hostscreen.json"), "client", hostScreen);
+		if (hostScreen.Count > 0) screens.Add(hostScreen);
+		if (firstClientScreen.Count > 0) screens.Add(firstClientScreen);
+
+		Dictionary<string, double> firstScreen = firstClientScreen.Count > 0 ? firstClientScreen : hostScreen;
+		foreach (KeyValuePair<string, double> entry in firstScreen) metrics[entry.Key] = entry.Value;
+
+		if (Directory.Exists(scenarioDirectory))
+		{
+			string[] peerReports = Directory.GetFiles(scenarioDirectory, "lag_client*.json");
+			Array.Sort(peerReports, StringComparer.Ordinal);
+			foreach (string peerReport in peerReports)
+			{
+				if (string.Equals(Path.GetFileName(peerReport), "lag_client.json", StringComparison.OrdinalIgnoreCase)) continue;
+
+				Dictionary<string, double> screen = new(StringComparer.Ordinal);
+				ReadProbeFile(peerReport, "client", screen);
+				if (screen.Count > 0) screens.Add(screen);
+			}
+		}
+
+		AppendRoomAggregates(metrics, screens);
 		ReadRelayStats(Path.Combine(scenarioDirectory, "simulated_link.txt"), metrics);
 		return metrics;
+	}
+
+	/// <summary>
+	///     Summarises every screen of a room. A mean hides the one screen the player is looking at, so each figure is
+	///     reported both as the mean across the room and as the worst screen: the mean is what the room feels like, the
+	///     worst is what one person felt, and a full-room decision is made against the second.
+	/// </summary>
+	private static void AppendRoomAggregates(Dictionary<string, double> metrics, List<Dictionary<string, double>> screens)
+	{
+		if (screens.Count == 0) return;
+
+		metrics["room.screens"] = screens.Count;
+		AppendAcrossScreens(metrics, screens, "room.presentationDelayP50Milliseconds", "client.gauges.ClientPresentationDelayMilliseconds.p50", true);
+		AppendAcrossScreens(metrics, screens, "room.drawnWorldAgeMilliseconds", "client.gauges.ClientDrawnWorldAgeMilliseconds.mean", true);
+		AppendAcrossScreens(metrics, screens, "room.baselinesApplied", "client.events.ClientBaselinesApplied.count", false);
+		AppendAcrossScreens(metrics, screens, "room.repairsRequested", "client.events.ClientRepairsRequested.count", false);
+		AppendAcrossScreens(metrics, screens, "room.descriptionRepeatsRequested", "client.events.ClientDescriptionRepeatsRequested.count", false);
+		AppendAcrossScreens(metrics, screens, "room.longestFreezeMilliseconds", "client.events.ClientStarvationHoldMilliseconds.worst", false);
+		AppendAcrossScreens(metrics, screens, "room.starvations", "client.events.ClientStarvations.count", false);
+		AppendAcrossScreens(metrics, screens, "room.descriptionsBehindApplied", "client.events.ClientDescriptionsBehindApplied.count", false);
+		AppendAcrossScreens(metrics, screens, "room.presentedJumps", "client.events.ClientPresentedJumps.count", false);
+		AppendAcrossScreens(metrics, screens, "room.presentedJumpWorstMeters", "client.events.ClientPresentedJumps.worst", false);
+		AppendAcrossScreens(metrics, screens, "room.timelineResets", "client.events.ClientTimelineResets.count", false);
+		AppendAcrossScreens(metrics, screens, "room.catchUpDrainsThrough", "client.events.ClientCatchUpDrainMilliseconds.count", false);
+		AppendAcrossScreens(metrics, screens, "room.physicsIntervalP99Milliseconds", "client.stages.ClientPhysicsIntervalMilliseconds.p99", false);
+		AppendAcrossScreens(metrics, screens, "room.framesOverBudget", "client.events.ClientRenderFramesOverBudget.count", false, true);
+
+		double lowestFrameRate = double.MaxValue;
+		bool sawFrameRate = false;
+		foreach (Dictionary<string, double> screen in screens)
+		{
+			if (!screen.TryGetValue("client.gauges.ClientFramesPerSecond.min", out double frameRate)) continue;
+			sawFrameRate = true;
+			lowestFrameRate = Math.Min(lowestFrameRate, frameRate);
+		}
+
+		if (sawFrameRate) metrics["room.framesPerSecondMin.worst"] = lowestFrameRate;
+	}
+
+	private static void AppendAcrossScreens(
+		Dictionary<string, double> metrics,
+		List<Dictionary<string, double>> screens,
+		string keyPrefix,
+		string screenKey,
+		bool reportMean,
+		bool reportSum = false)
+	{
+		double worst = double.MinValue;
+		double total = 0d;
+		int measured = 0;
+		foreach (Dictionary<string, double> screen in screens)
+		{
+			if (!screen.TryGetValue(screenKey, out double value)) continue;
+			worst = Math.Max(worst, value);
+			total += value;
+			measured++;
+		}
+
+		if (measured == 0) return;
+
+		metrics[keyPrefix + ".worst"] = worst;
+		if (reportMean) metrics[keyPrefix + ".mean"] = total / measured;
+		if (reportSum) metrics[keyPrefix + ".sum"] = total;
 	}
 
 	private static void ReadProbeFile(string path, string scope, Dictionary<string, double> metrics)

@@ -572,6 +572,16 @@ public class ListenServerHost : IServerTransportSink
 		while (nowSeconds >= _nextTickTime && stepped < MaximumTicksPerCall)
 		{
 			long tickStarted = LagProbe.IsEnabled ? LagProbe.Timestamp() : 0L;
+
+			// The interval is taken before this tick does anything. Read after the work instead it reported the period
+			// plus a whole tick of that work - forty-two milliseconds for a match stepping every thirty-three - which
+			// made a room publishing at its full cadence look like one running a quarter slow.
+			if (tickStarted != 0L)
+			{
+				if (_previousStepTimestamp != 0L) LagProbe.Add(LagStage.AuthorityTickIntervalMilliseconds, LagProbe.ElapsedMilliseconds(_previousStepTimestamp));
+				_previousStepTimestamp = tickStarted;
+			}
+
 			_commandsThisTick.Clear();
 
 			long simulateStarted = LagProbe.IsEnabled ? LagProbe.Timestamp() : 0L;
@@ -584,8 +594,6 @@ public class ListenServerHost : IServerTransportSink
 			{
 				LagProbe.Count(LagEvent.AuthorityTicks);
 				LagProbe.Add(LagStage.AuthorityTickWorkMilliseconds, LagProbe.ElapsedMilliseconds(tickStarted));
-				if (_previousStepTimestamp != 0L) LagProbe.Add(LagStage.AuthorityTickIntervalMilliseconds, LagProbe.ElapsedMilliseconds(_previousStepTimestamp));
-				_previousStepTimestamp = tickStarted;
 
 				// What this step paid to the collector and what it allocated, so a tick that cost sixty milliseconds can be
 				// told apart from a tick that was stopped for sixty: one is work this process chose to do, the other is the
@@ -1106,7 +1114,11 @@ public class ListenServerHost : IServerTransportSink
 		ServerSimulation? simulation = _simulation;
 		if (simulation == null) return;
 
-		if (_arguments.Cheats && _seatedPeers.Count > 0)
+		// A cheats match belongs to the player it was started for, so nobody else may join it. What "nobody else" means is
+		// set by the socket rather than by the flag: a match bound to the loopback address cannot be reached from another
+		// machine at all, so the only peers that can arrive on it are processes on this one, which are already the player's
+		// own. A match listening on a real interface is not loopback-bound and keeps the single-player rule.
+		if (_arguments.Cheats && _seatedPeers.Count > 0 && !_arguments.LoopbackOnly)
 		{
 			_log.Write($"peer {peerId} refused: this match was started with cheats, so it belongs to the single player it was started for");
 			SendHello(peerId, CheatsMatchRejection);
@@ -1337,13 +1349,26 @@ public class ListenServerHost : IServerTransportSink
 			if (repeatRequested) simulation.ResetPeerDescription(seatedPeerId);
 		}
 
+		// The prepare phase is serial, so it is measured in its parts: what it costs to bookkeep twelve peers, what it
+		// costs to collect the board they all share, and what it costs to collect the ability deltas each of them is owed.
+		// A total alone cannot say which of the three is the reason a full room publishes at half its cadence.
+		if (prepareStarted != 0L) LagProbe.Add(LagStage.AuthorityPrepareBookkeepingMilliseconds, LagProbe.ElapsedMilliseconds(prepareStarted));
+
+		long boardStarted = LagProbe.IsEnabled ? LagProbe.Timestamp() : 0L;
 		simulation.PreparePeerDescriptions(sequence);
+		if (boardStarted != 0L) LagProbe.Add(LagStage.AuthorityPrepareBoardMilliseconds, LagProbe.ElapsedMilliseconds(boardStarted));
 
 		// Peer work is split over fixed lanes, so a lane owns its builder for the whole match instead of queuing for one.
 		// The ability deltas are collected for every peer here, on the tick thread, because the registry behind them keeps
 		// one scratch table per process and cannot be entered by two lanes at once.
+		long abilitiesStarted = LagProbe.IsEnabled ? LagProbe.Timestamp() : 0L;
 		int laneCount = Math.Min(peerCount, simulation.SnapshotWorkerCount);
+		simulation.PrepareAbilityBookkeeping();
+		if (abilitiesStarted != 0L) LagProbe.Add(LagStage.AuthorityPrepareAbilityBookkeepingMilliseconds, LagProbe.ElapsedMilliseconds(abilitiesStarted));
+
+		long peerAbilitiesStarted = LagProbe.IsEnabled ? LagProbe.Timestamp() : 0L;
 		simulation.PrepareAbilityDeltas(_seatedPeerIds.AsSpan(0, peerCount), _pendingDescribeInFull.AsSpan(0, peerCount), _pendingSkippedPeers.AsSpan(0, peerCount));
+		if (peerAbilitiesStarted != 0L) LagProbe.Add(LagStage.AuthorityPrepareAbilitiesMilliseconds, LagProbe.ElapsedMilliseconds(peerAbilitiesStarted));
 
 		_publishSequence = sequence;
 

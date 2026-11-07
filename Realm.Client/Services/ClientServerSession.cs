@@ -14,7 +14,7 @@ using Realm.Shared.Network;
 
 namespace Realm.Client.Services;
 
-public record ServerMatchStart(string MapFolderPath, string MapName, int Seed, string LogDirectory, string DataFolderPath, string Language, bool Cheats = false, bool OpenToOthers = false, bool WasmDebug = false, IReadOnlyList<MatchRosterSeat>? Roster = null, string? AuthorityRecordDirectory = null);
+public record ServerMatchStart(string MapFolderPath, string MapName, int Seed, string LogDirectory, string DataFolderPath, string Language, bool Cheats = false, bool OpenToOthers = false, bool WasmDebug = false, IReadOnlyList<MatchRosterSeat>? Roster = null, string? AuthorityRecordDirectory = null, bool LoopbackOnly = false);
 
 public record ServerLobbyStart(string MapFolderPath, string MapName, int MaxPlayers, string LogDirectory, string DataFolderPath, string Language, bool WasmDebug = false, bool Cheats = false, bool LoopbackOnly = false);
 
@@ -252,7 +252,8 @@ public class ClientServerSession : IDisposable
 			WasmDebug = start.WasmDebug,
 			MapWorkspacePath = start.WasmDebug ? start.MapFolderPath : string.Empty,
 			RosterPath = rosterPath ?? string.Empty,
-			AuthorityRecordFolderPath = start.AuthorityRecordDirectory ?? string.Empty
+			AuthorityRecordFolderPath = start.AuthorityRecordDirectory ?? string.Empty,
+			LoopbackOnly = start.LoopbackOnly
 		};
 
 		return await StartOnLocalAuthorityAsync(target, command, start.LogDirectory, start.DataFolderPath, start.Language, connectPort);

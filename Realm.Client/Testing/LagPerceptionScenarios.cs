@@ -9,10 +9,6 @@ public static class LagPerceptionScenarios
 {
 	public const int PlayableSeatCount = 12;
 
-	public const int LocalClientCount = 1;
-
-	public const int BotSeatCount = PlayableSeatCount - LocalClientCount;
-
 	public const int SeededPacketLossPercent = 25;
 
 	public const int HighLatencyRoundTripMilliseconds = 250;
@@ -26,6 +22,15 @@ public static class LagPerceptionScenarios
 	///     its own noise instead of on a regression. They are tight enough to have caught every state this harness was
 	///     written to find, which is what they are for.
 	/// </summary>
+	/// <summary>
+	///     The link an ordinary player has: a regional connection's round trip, and the share of datagrams a home Wi-Fi
+	///     link quietly loses. It is played by a full room of screens rather than one, because the authority's per-peer
+	///     work is the part of the match a single client cannot show.
+	/// </summary>
+	public const int OrdinaryRoundTripMilliseconds = 100;
+
+	public const int OrdinaryPacketLossPercent = 10;
+
 	public static readonly LagScenario[] All =
 	{
 		new("clean", 0, 0)
@@ -59,6 +64,24 @@ public static class LagPerceptionScenarios
 			MaximumBaselines = 34,
 			MaximumLongestFreezeMilliseconds = 1800,
 			MaximumRepairRequests = 400
+		},
+		new("room12clean", 0, 0)
+		{
+			PeerCount = PlayableSeatCount,
+			MaximumPresentationDelayMilliseconds = 200,
+			MaximumDrawnWorldAgeMilliseconds = 220,
+			MaximumBaselines = 4,
+			MaximumLongestFreezeMilliseconds = 600,
+			MaximumRepairRequests = 60
+		},
+		new("room12", OrdinaryRoundTripMilliseconds, OrdinaryPacketLossPercent)
+		{
+			PeerCount = PlayableSeatCount,
+			MaximumPresentationDelayMilliseconds = 220,
+			MaximumDrawnWorldAgeMilliseconds = 260,
+			MaximumBaselines = 8,
+			MaximumLongestFreezeMilliseconds = 900,
+			MaximumRepairRequests = 120
 		}
 	};
 
@@ -98,7 +121,7 @@ public static class LagPerceptionScenarios
 		string projectDirectory = MultiplayerEcsSyncTestSupport.ResolveClientProjectDirectory();
 
 		log($"lag perception matrix: {scenarios.Count} scenario(s) x {passes} pass(es) of {matchSeconds:F0}s of match time on '{mapFolder}'");
-		log($"  {PlayableSeatCount} playable seats: {LocalClientCount} local client over loopback, {BotSeatCount} AI, every tile unlocked");
+		log($"  up to {PlayableSeatCount} playable seats: networked screens over loopback and AI for the rest, every tile unlocked");
 
 		for (int pass = 1; pass <= passes; pass++)
 		{
@@ -119,8 +142,8 @@ public static class LagPerceptionScenarios
 					PingMilliseconds = scenario.AddedRoundTripMilliseconds,
 					PacketLossPercent = scenario.PacketLossPercent,
 					RelaySeed = SeededLinkSeed,
-					PeerCount = LocalClientCount,
-					BotCount = BotSeatCount,
+					PeerCount = scenario.PeerCount,
+					BotCount = Math.Max(0, PlayableSeatCount - scenario.PeerCount),
 					CheatsEnabled = true,
 					UnlockTiles = true
 				};
@@ -128,7 +151,14 @@ public static class LagPerceptionScenarios
 				log($"[pass {pass}] {scenario.Name}: {scenario.Describe()} into '{scenarioDirectory}'");
 				DateTime startedAt = DateTime.UtcNow;
 				await MultiplayerEcsSyncTestSupport.RunAsync(settings);
-				MultiplayerEcsSyncReport syncReport = MultiplayerEcsSyncTestSupport.Verify(settings, Path.Combine(scenarioDirectory, "host"));
+
+				// A room is verified against one of the screens that joined it, not against the screen that hosted it: a
+				// joining screen states the peer it connected as, and without that number the comparison holds its records
+				// against every peer's baselines and reports a mismatch for each one it was never sent.
+				string verificationDirectory = scenario.PeerCount > 1
+					? settings.ResolveClientDirectory(2)
+					: Path.Combine(scenarioDirectory, "host");
+				MultiplayerEcsSyncReport syncReport = MultiplayerEcsSyncTestSupport.Verify(settings, verificationDirectory);
 				File.WriteAllText(Path.Combine(scenarioDirectory, "multiplayer_ecs_sync_report.txt"), syncReport.Render());
 				log($"[pass {pass}] {scenario.Name} finished in {(DateTime.UtcNow - startedAt).TotalSeconds:F0}s with {syncReport.Failures.Count} sync verification failure(s)");
 
