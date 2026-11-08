@@ -27,6 +27,11 @@ namespace Realm.Client.Services;
 
 public class NetworkService
 {
+	// Every mapping query below needs a world; asking for one before it exists is a caller bug,
+	// not a state this class can serve.
+	private static EcsWorld World => GameContext.World
+		?? throw new InvalidOperationException("NetworkService used before a world existed.");
+
 	private readonly UnitVisibilityIndex _visibilityIndex = new();
 	private readonly ReplicatedStateMirror _mirror = new();
 	private readonly SnapshotComponentApplier _componentApplier;
@@ -77,9 +82,9 @@ public class NetworkService
 		_references.ForgetAllHeldBy(localEntityId);
 
 		Entity worldEntity = GameContext.Simulation.WorldEntity;
-		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkMappingState>(worldEntity)) return;
+		if (worldEntity == Entity.Null || !World.Has<NetworkMappingState>(worldEntity)) return;
 
-		var mapping = GameContext.World.Get<NetworkMappingState>(worldEntity);
+		var mapping = World.Get<NetworkMappingState>(worldEntity);
 		if (mapping.ClientToServerEntityMap.TryGetValue(localEntityId, out int serverEntityId))
 		{
 			mapping.ServerToClientEntityMap.Remove(serverEntityId);
@@ -111,17 +116,17 @@ public class NetworkService
 	{
 		serverEntityId = -1;
 		Entity worldEntity = FindWorldEntity();
-		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkMappingState>(worldEntity)) return false;
-		var mapping = GameContext.World.Get<NetworkMappingState>(worldEntity);
+		if (worldEntity == Entity.Null || !World.Has<NetworkMappingState>(worldEntity)) return false;
+		var mapping = World.Get<NetworkMappingState>(worldEntity);
 		return mapping.ClientToServerEntityMap.TryGetValue(localEntityId, out serverEntityId);
 	}
 
 	public int GetServerEntityId(int localEntityId)
 	{
 		Entity worldEntity = FindWorldEntity();
-		if (worldEntity != Entity.Null && GameContext.World.Has<NetworkMappingState>(worldEntity))
+		if (worldEntity != Entity.Null && World.Has<NetworkMappingState>(worldEntity))
 		{
-			var mapping = GameContext.World.Get<NetworkMappingState>(worldEntity);
+			var mapping = World.Get<NetworkMappingState>(worldEntity);
 			if (mapping.ClientToServerEntityMap.TryGetValue(localEntityId, out int serverId))
 			{
 				return serverId;
@@ -148,20 +153,21 @@ public class NetworkService
 
 	public int GetOwnerPlayerIndex(Entity unitEntity)
 	{
-		if (unitEntity == Entity.Null || GameContext.World == null || !GameContext.World.IsAlive(unitEntity)) return -1;
-		if (!GameContext.World.Has<UnitOwnerPlayer>(unitEntity)) return -1;
-		return GameContext.World.Get<UnitOwnerPlayer>(unitEntity).PlayerIndex;
+		if (GameContext.World is not { } ownerWorld) return -1;
+		if (unitEntity == Entity.Null || !ownerWorld.IsAlive(unitEntity)) return -1;
+		if (!ownerWorld.Has<UnitOwnerPlayer>(unitEntity)) return -1;
+		return ownerWorld.Get<UnitOwnerPlayer>(unitEntity).PlayerIndex;
 	}
 
 	public int GetOwnerPeerId(Entity unitEntity)
 	{
 		Entity worldEntity = FindWorldEntity();
-		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkMappingState>(worldEntity)) return -1;
-		var mapping = GameContext.World.Get<NetworkMappingState>(worldEntity);
+		if (worldEntity == Entity.Null || !World.Has<NetworkMappingState>(worldEntity)) return -1;
+		var mapping = World.Get<NetworkMappingState>(worldEntity);
 
-		if (GameContext.World.Has<UnitOwnerPlayer>(unitEntity))
+		if (World.Has<UnitOwnerPlayer>(unitEntity))
 		{
-			int playerIndex = GameContext.World.Get<UnitOwnerPlayer>(unitEntity).PlayerIndex;
+			int playerIndex = World.Get<UnitOwnerPlayer>(unitEntity).PlayerIndex;
 			var lobby = GameContext.Lobby;
 			if (lobby != null)
 			{
@@ -176,8 +182,8 @@ public class NetworkService
 			}
 		}
 
-		if (!GameContext.World.Has<Owner>(unitEntity)) return -1;
-		var owner = GameContext.World.Get<Owner>(unitEntity).PlayerEntity;
+		if (!World.Has<Owner>(unitEntity)) return -1;
+		var owner = World.Get<Owner>(unitEntity).PlayerEntity;
 		foreach (var kvp in mapping.PeerIdToPlayerEntityMap)
 		{
 			if (kvp.Value == owner.Value)
@@ -213,11 +219,11 @@ public class NetworkService
 
 	public bool IsShroudRevealed()
 	{
-		if (GameContext.World == null) return false;
+		if (GameContext.World is not { } shroudWorld) return false;
 		Entity worldEntity = FindWorldEntity();
-		if (worldEntity == Entity.Null || !GameContext.World.IsAlive(worldEntity)) return false;
-		if (!GameContext.World.Has<ShroudState>(worldEntity)) return false;
-		return GameContext.World.Get<ShroudState>(worldEntity).VisibilityMode == ShroudVisibilityMode.Revealed;
+		if (worldEntity == Entity.Null || !shroudWorld.IsAlive(worldEntity)) return false;
+		if (!shroudWorld.Has<ShroudState>(worldEntity)) return false;
+		return shroudWorld.Get<ShroudState>(worldEntity).VisibilityMode == ShroudVisibilityMode.Revealed;
 	}
 
 	public bool IsServerEntityVisibleToEveryRemoteClient(int serverEntityId)
@@ -229,9 +235,9 @@ public class NetworkService
 		if (lobby == null) return true;
 
 		Entity worldEntity = FindWorldEntity();
-		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkMappingState>(worldEntity)) return true;
+		if (worldEntity == Entity.Null || !World.Has<NetworkMappingState>(worldEntity)) return true;
 
-		var mapping = GameContext.World.Get<NetworkMappingState>(worldEntity);
+		var mapping = World.Get<NetworkMappingState>(worldEntity);
 		Entity unitEntity = new(serverEntityId);
 		int localPeerId = gameHost.Multiplayer.GetUniqueId();
 		int remoteClientCount = 0;
@@ -257,15 +263,15 @@ public class NetworkService
 	public (int CommandId, byte[] Payload) BuildClientCommand(string commandType, List<int> unitIds, System.Numerics.Vector3 targetPos, int targetEntityId, string argString)
 	{
 		Entity worldEntity = FindWorldEntity();
-		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkState>(worldEntity)) return (0, Array.Empty<byte>());
+		if (worldEntity == Entity.Null || !World.Has<NetworkState>(worldEntity)) return (0, Array.Empty<byte>());
 
 		// A command id is this peer's own counter, and the authority answers a repeat of one it already answered as a
 		// duplicate. Minting a fallback id here re-sent an order that had already gone out, so nothing is authored
 		// rather than something that might be a repeat.
-		int commandId = GameContext.World.Get<NetworkState>(worldEntity).NextCommandId;
+		int commandId = World.Get<NetworkState>(worldEntity).NextCommandId;
 		if (commandId <= 0) return (0, Array.Empty<byte>());
 
-		ref var ns = ref GameContext.World.Get<NetworkState>(worldEntity);
+		ref var ns = ref World.Get<NetworkState>(worldEntity);
 		ns.NextCommandId++;
 
 		var cmd = new NetworkCommand
@@ -283,8 +289,8 @@ public class NetworkService
 	public void ApplySnapshotToWorld(WorldSnapshot snapshot)
 	{
 		Entity worldEntity = FindWorldEntity();
-		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkMappingState>(worldEntity)) return;
-		var mapping = GameContext.World.Get<NetworkMappingState>(worldEntity);
+		if (worldEntity == Entity.Null || !World.Has<NetworkMappingState>(worldEntity)) return;
+		var mapping = World.Get<NetworkMappingState>(worldEntity);
 
 		MultiplayerSyncDiagnostics.RecordClientSnapshotUnitPresence(snapshot.Sequence, snapshot.Units);
 
@@ -314,7 +320,7 @@ public class NetworkService
 		_componentApplier.FlushPending(snapshot.Sequence);
 
 		if (snapshot.IsBaseline) LastAppliedBaselineSequenceForDiagnostics = snapshot.Sequence;
-		if (snapshot.IsBaseline || GameContext.World.Get<NetworkState>(worldEntity).HasReceivedInitialBaseline)
+		if (snapshot.IsBaseline || World.Get<NetworkState>(worldEntity).HasReceivedInitialBaseline)
 		{
 			MultiplayerSyncDiagnostics.RecordClientSnapshot(snapshot.IsBaseline);
 		}
@@ -355,7 +361,7 @@ public class NetworkService
 		{
 			int serverEntityId = _untrackedServerIds[index];
 			if (!mapping.ServerToClientEntityMap.TryGetValue(serverEntityId, out var localEntity)) continue;
-			if (GameContext.World.Has<GroundLoot>(localEntity)) continue;
+			if (World.Has<GroundLoot>(localEntity)) continue;
 
 			RetireClientEntityForUntrackedServerId(mapping, localEntity, serverEntityId);
 		}
@@ -387,7 +393,7 @@ public class NetworkService
 			int serverEntityId = kvp.Key;
 			if (!_baselineUnitPresence.TryGetValue(serverEntityId, out ulong presenceMask))
 			{
-				if (GameContext.World.IsAlive(kvp.Value) && !GameContext.World.Has<GroundLoot>(kvp.Value))
+				if (World.IsAlive(kvp.Value) && !World.Has<GroundLoot>(kvp.Value))
 				{
 					MultiplayerSyncDiagnostics.RecordUnreconciledUnit(serverEntityId);
 				}
@@ -396,14 +402,14 @@ public class NetworkService
 			}
 
 			Entity localEntity = kvp.Value;
-			if (!GameContext.World.IsAlive(localEntity)) continue;
+			if (!World.IsAlive(localEntity)) continue;
 
 			for (int slot = 0; slot < codecs.Count; slot++)
 			{
 				var codec = codecs[slot];
 				if (_baselineReconcileScratch.Length < codec.SizeInBytes) _baselineReconcileScratch = new byte[codec.SizeInBytes];
 
-				bool peerHasComponent = codec.TryWrite(GameContext.World, localEntity, _baselineReconcileScratch.AsSpan(0, codec.SizeInBytes));
+				bool peerHasComponent = codec.TryWrite(World, localEntity, _baselineReconcileScratch.AsSpan(0, codec.SizeInBytes));
 				if ((presenceMask & (1UL << slot)) != 0)
 				{
 					if (!peerHasComponent && !_baselineSentUnitComponents.Contains((serverEntityId, codec.ComponentTypeId)))
@@ -416,7 +422,7 @@ public class NetworkService
 
 				if (!peerHasComponent) continue;
 
-				codec.Remove(GameContext.World, localEntity);
+				codec.Remove(World, localEntity);
 				MultiplayerSyncDiagnostics.RecordRemovedUnitComponent(serverEntityId, codec.ComponentName);
 				_references.Forget(localEntity.Id, codec.ComponentTypeId);
 			}
@@ -439,7 +445,7 @@ public class NetworkService
 		foreach (var kvp in mapping.ServerToClientEntityMap)
 		{
 			if (_describedLootServerIds.Contains(kvp.Key)) continue;
-			if (!GameContext.World.Has<GroundLoot>(kvp.Value)) continue;
+			if (!World.Has<GroundLoot>(kvp.Value)) continue;
 			_staleLootServerIds.Add(kvp.Key);
 		}
 
@@ -454,10 +460,10 @@ public class NetworkService
 	private static void ApplyLootEntry(in LootSnapshot entry, NetworkMappingState mapping)
 	{
 		var position = new System.Numerics.Vector3(entry.Position.X, entry.Position.Y, entry.Position.Z);			if (mapping.ServerToClientEntityMap.TryGetValue(entry.EntityId, out Entity localEntity)
-				&& GameContext.World.IsAlive(localEntity)
-				&& GameContext.World.Has<GroundLoot>(localEntity))
+				&& World.IsAlive(localEntity)
+				&& World.Has<GroundLoot>(localEntity))
 		{
-			GroundLoot loot = GameContext.World.Get<GroundLoot>(localEntity);
+			GroundLoot loot = World.Get<GroundLoot>(localEntity);
 			loot.UniqueId = entry.EntityId;
 			loot.ItemTypeId = entry.ItemTypeId;
 			loot.Charges = entry.Charges;
@@ -467,8 +473,8 @@ public class NetworkService
 			loot.AutoPickup = entry.AutoPickup;
 			loot.OwnerPlayerIndex = entry.OwnerPlayerIndex;
 
-			GameContext.World.Set(localEntity, loot);
-			GameContext.World.Set(localEntity, new Position(position));
+			World.Set(localEntity, loot);
+			World.Set(localEntity, new Position(position));
 			GameContext.Host?.SyncReplicatedLootNode(entry.EntityId, localEntity);
 			return;
 		}
@@ -480,23 +486,23 @@ public class NetworkService
 			RemainingLifetime = entry.RemainingLifetime
 		};
 
-		GameContext.World.Set(localEntity, new Position(position));
-		GameContext.World.Set(localEntity, described);
+		World.Set(localEntity, new Position(position));
+		World.Set(localEntity, described);
 		GameContext.Host?.SyncReplicatedLootNode(entry.EntityId, localEntity);
 	}
 
 	public void RetireUnitReplicaForReusedServerId(NetworkMappingState mapping, int serverEntityId)
 	{
 		if (!mapping.ServerToClientEntityMap.TryGetValue(serverEntityId, out Entity localEntity)) return;
-		if (!GameContext.World.IsAlive(localEntity)) return;
-		if (GameContext.World.Has<GroundLoot>(localEntity)) return;
+		if (!World.IsAlive(localEntity)) return;
+		if (World.Has<GroundLoot>(localEntity)) return;
 
 		RetireClientEntityForUntrackedServerId(mapping, localEntity, serverEntityId);
 	}
 
 	private void RetireClientEntityForUntrackedServerId(NetworkMappingState mapping, Entity localEntity, int serverEntityId)
 	{
-		if (GameContext.World.IsAlive(localEntity) && !GameContext.World.Has<Dead>(localEntity))
+		if (World.IsAlive(localEntity) && !World.Has<Dead>(localEntity))
 		{
 			_pendingUnitDespawns.Add(localEntity);
 		}
@@ -634,13 +640,13 @@ public class NetworkService
 			}
 			case ColdPayloadKind.LeaderboardBoards:
 			{
-				ColdPayloadCodecs.ApplyLeaderboards(GameContext.World, FindWorldEntity(), delta.Bytes);
+				ColdPayloadCodecs.ApplyLeaderboards(World, FindWorldEntity(), delta.Bytes);
 				GameContext.Host?.RefreshReplicatedOverlayUi();
 				break;
 			}
 			case ColdPayloadKind.SummaryTable:
 			{
-				ColdPayloadCodecs.ApplySummaryTable(GameContext.World, FindWorldEntity(), delta.Bytes);
+				ColdPayloadCodecs.ApplySummaryTable(World, FindWorldEntity(), delta.Bytes);
 				GameContext.Host?.RefreshReplicatedOverlayUi();
 				break;
 			}
@@ -679,9 +685,9 @@ public class NetworkService
 
 	private static string? ResolveAbilityIdAt(Entity localEntity, short abilityIndex)
 	{
-		if (!GameContext.World.Has<AbilityState>(localEntity)) return null;
+		if (!World.Has<AbilityState>(localEntity)) return null;
 
-		return GameContext.World.Get<AbilityState>(localEntity).Get(abilityIndex);
+		return World.Get<AbilityState>(localEntity).Get(abilityIndex);
 	}
 
 	public void ReapplyAbilityStatesToUnits()
@@ -711,7 +717,7 @@ public class NetworkService
 	private void VerifyReplicatedStateFingerprint(int sequence, uint hostFingerprint)
 	{
 		uint localFingerprint = _mirror.ComputeFingerprint(ReadPlayerComponentRecordsFromEcs());
-		localFingerprint = ReplicatedStateFingerprint.CombineWeatherState(localFingerprint, GameContext.World, FindWorldEntity());
+		localFingerprint = ReplicatedStateFingerprint.CombineWeatherState(localFingerprint, World, FindWorldEntity());
 		if (localFingerprint == hostFingerprint)
 		{
 			if (!_fingerprintMatchLogged)
@@ -734,8 +740,8 @@ public class NetworkService
 		if (_replicatedEcsDriftCheckCounter % 30 != 0) return;
 
 		Entity worldEntity = FindWorldEntity();
-		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkMappingState>(worldEntity)) return;
-		var mapping = GameContext.World.Get<NetworkMappingState>(worldEntity);
+		if (worldEntity == Entity.Null || !World.Has<NetworkMappingState>(worldEntity)) return;
+		var mapping = World.Get<NetworkMappingState>(worldEntity);
 
 		var codecs = ReplicatedComponents.All;
 		for (int codecIndex = 0; codecIndex < codecs.Count; codecIndex++)
@@ -749,11 +755,11 @@ public class NetworkService
 				if (!_mirror.Components.TryGetValue(((byte)ReplicatedScope.Player, slot, codec.ComponentTypeId), out var expected)) continue;
 
 				Entity playerEntity = mapping.PlayerEntities[slot];
-				if (playerEntity == Entity.Null || !GameContext.World.IsAlive(playerEntity)) continue;
+				if (playerEntity == Entity.Null || !World.IsAlive(playerEntity)) continue;
 
 				if (_replicatedEcsDriftBuffer.Length < codec.SizeInBytes) _replicatedEcsDriftBuffer = new byte[codec.SizeInBytes];
 				var actual = _replicatedEcsDriftBuffer.AsSpan(0, codec.SizeInBytes);
-				if (!codec.TryWrite(GameContext.World, playerEntity, actual))
+				if (!codec.TryWrite(World, playerEntity, actual))
 				{
 					ReportReplicatedEcsDrift(slot, codec.ComponentName, "component missing");
 					continue;
@@ -787,7 +793,7 @@ public class NetworkService
 		for (int serverEntityId = _unitDriftAuditNextServerEntityId; serverEntityId < windowEnd; serverEntityId++)
 		{
 			if (!mapping.ServerToClientEntityMap.TryGetValue(serverEntityId, out Entity localEntity)) continue;
-			if (!GameContext.World.IsAlive(localEntity)) continue;
+			if (!World.IsAlive(localEntity)) continue;
 
 			for (int codecIndex = 0; codecIndex < codecs.Count; codecIndex++)
 			{
@@ -796,7 +802,7 @@ public class NetworkService
 
 				if (_replicatedEcsDriftBuffer.Length < codec.SizeInBytes) _replicatedEcsDriftBuffer = new byte[codec.SizeInBytes];
 				var actual = _replicatedEcsDriftBuffer.AsSpan(0, codec.SizeInBytes);
-				if (!codec.TryWrite(GameContext.World, localEntity, actual))
+				if (!codec.TryWrite(World, localEntity, actual))
 				{
 					ReportReplicatedUnitDrift(serverEntityId, codec.ComponentName, "the component the match described is gone");
 					continue;
@@ -836,9 +842,9 @@ public class NetworkService
 	{
 		var records = new List<(int Key, int ComponentTypeId, byte[] Bytes)>();
 		Entity worldEntity = FindWorldEntity();
-		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkMappingState>(worldEntity)) return records;
+		if (worldEntity == Entity.Null || !World.Has<NetworkMappingState>(worldEntity)) return records;
 
-		var mapping = GameContext.World.Get<NetworkMappingState>(worldEntity);
+		var mapping = World.Get<NetworkMappingState>(worldEntity);
 		var codecs = ReplicatedComponents.All;
 		for (int codecIndex = 0; codecIndex < codecs.Count; codecIndex++)
 		{
@@ -849,10 +855,10 @@ public class NetworkService
 			{
 				if (mapping.PlayerEntities == null || slot >= mapping.PlayerEntities.Length) continue;
 				Entity playerEntity = mapping.PlayerEntities[slot];
-				if (playerEntity == Entity.Null || !GameContext.World.IsAlive(playerEntity)) continue;
+				if (playerEntity == Entity.Null || !World.IsAlive(playerEntity)) continue;
 
 				var bytes = new byte[codec.SizeInBytes];
-				if (!codec.TryWrite(GameContext.World, playerEntity, bytes)) continue;
+				if (!codec.TryWrite(World, playerEntity, bytes)) continue;
 				records.Add((slot, codec.ComponentTypeId, bytes));
 			}
 		}
@@ -864,17 +870,17 @@ public class NetworkService
 	{
 		localEntity = Entity.Null;
 		Entity worldEntity = FindWorldEntity();
-		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkMappingState>(worldEntity)) return false;
-		var mapping = GameContext.World.Get<NetworkMappingState>(worldEntity);
+		if (worldEntity == Entity.Null || !World.Has<NetworkMappingState>(worldEntity)) return false;
+		var mapping = World.Get<NetworkMappingState>(worldEntity);
 		return mapping.ServerToClientEntityMap.TryGetValue(serverEntityId, out localEntity);
 	}
 
 	public void SetBackupResources(float gold, float wood, float stone)
 	{
 		var worldQuery = QueryCache.AllReplayStateQuery;
-		GameContext.World.Query(in worldQuery, (Entity entity) =>
+		World.Query(in worldQuery, (Entity entity) =>
 		{
-			ref var state = ref GameContext.World.Get<ReplayState>(entity);
+			ref var state = ref World.Get<ReplayState>(entity);
 			state.GoldBackup = gold;
 			state.WoodBackup = wood;
 			state.StoneBackup = stone;
@@ -911,9 +917,9 @@ public class NetworkService
 	public Entity FindWorldEntity()
 	{
 		Entity worldEntity = GameContext.Simulation.WorldEntity;
-		if (GameContext.World == null || worldEntity == Entity.Null) return Entity.Null;
-		if (!GameContext.World.IsAlive(worldEntity)) return Entity.Null;
-		return GameContext.World.Has<NetworkState>(worldEntity) ? worldEntity : Entity.Null;
+		if (GameContext.World is not { } foundWorld || worldEntity == Entity.Null) return Entity.Null;
+		if (!foundWorld.IsAlive(worldEntity)) return Entity.Null;
+		return foundWorld.Has<NetworkState>(worldEntity) ? worldEntity : Entity.Null;
 	}
 
 	public bool WasClientInMultiplayer { get; private set; } = false;
@@ -924,16 +930,16 @@ public class NetworkService
 		get
 		{
 			var worldEntity = FindWorldEntity();
-			return worldEntity != Entity.Null && GameContext.World.Has<NetworkState>(worldEntity)
-				? GameContext.World.Get<NetworkState>(worldEntity).LocalPeerId
+			return worldEntity != Entity.Null && World.Has<NetworkState>(worldEntity)
+				? World.Get<NetworkState>(worldEntity).LocalPeerId
 				: 1;
 		}
 		set
 		{
 			var worldEntity = FindWorldEntity();
-			if (worldEntity != Entity.Null && GameContext.World.Has<NetworkState>(worldEntity))
+			if (worldEntity != Entity.Null && World.Has<NetworkState>(worldEntity))
 			{
-				ref var state = ref GameContext.World.Get<NetworkState>(worldEntity);
+				ref var state = ref World.Get<NetworkState>(worldEntity);
 				state.LocalPeerId = value;
 			}
 		}
@@ -944,16 +950,16 @@ public class NetworkService
 		get
 		{
 			var worldEntity = FindWorldEntity();
-			return worldEntity != Entity.Null && GameContext.World.Has<NetworkState>(worldEntity)
-				? GameContext.World.Get<NetworkState>(worldEntity).CommandSendTimer
+			return worldEntity != Entity.Null && World.Has<NetworkState>(worldEntity)
+				? World.Get<NetworkState>(worldEntity).CommandSendTimer
 				: 0f;
 		}
 		set
 		{
 			var worldEntity = FindWorldEntity();
-			if (worldEntity != Entity.Null && GameContext.World.Has<NetworkState>(worldEntity))
+			if (worldEntity != Entity.Null && World.Has<NetworkState>(worldEntity))
 			{
-				ref var state = ref GameContext.World.Get<NetworkState>(worldEntity);
+				ref var state = ref World.Get<NetworkState>(worldEntity);
 				state.CommandSendTimer = value;
 			}
 		}
@@ -964,16 +970,16 @@ public class NetworkService
 		get
 		{
 			var worldEntity = FindWorldEntity();
-			return worldEntity != Entity.Null && GameContext.World.Has<NetworkState>(worldEntity)
-				? GameContext.World.Get<NetworkState>(worldEntity).LastSnapshotReceivedTime
+			return worldEntity != Entity.Null && World.Has<NetworkState>(worldEntity)
+				? World.Get<NetworkState>(worldEntity).LastSnapshotReceivedTime
 				: 0;
 		}
 		set
 		{
 			var worldEntity = FindWorldEntity();
-			if (worldEntity != Entity.Null && GameContext.World.Has<NetworkState>(worldEntity))
+			if (worldEntity != Entity.Null && World.Has<NetworkState>(worldEntity))
 			{
-				ref var state = ref GameContext.World.Get<NetworkState>(worldEntity);
+				ref var state = ref World.Get<NetworkState>(worldEntity);
 				state.LastSnapshotReceivedTime = value;
 			}
 		}
@@ -1039,14 +1045,16 @@ public class NetworkService
 
 	private static bool HasActiveLobby()
 	{
-		if (GameContext.Lobby == null) return false;
-		if (GameContext.Lobby.PlayerList == null) return false;
-		return GameContext.Lobby.PlayerList.Count > 0;
+		var lobby = GameContext.Lobby;
+		if (lobby?.PlayerList == null) return false;
+		return lobby.PlayerList.Count > 0;
 	}
 
 	private static int GetTeamIndexForPlayerIndex(int playerIndex, int defaultTeam)
 	{
-		var list = GameContext.Lobby.PlayerList;
+		var list = GameContext.Lobby?.PlayerList;
+		if (list == null) return defaultTeam;
+
 		for (int i = 0; i < list.Count; i++)
 		{
 			if (list[i].Slot == playerIndex)
@@ -1084,7 +1092,7 @@ public class NetworkService
 	{
 		ForgetReferencesHeldBy(entityId);
 
-		if (!GameContext.World.TryGet<NetworkMappingState>(GameContext.Simulation.WorldEntity, out var mapState)) return;
+		if (!World.TryGet<NetworkMappingState>(GameContext.Simulation.WorldEntity, out var mapState)) return;
 
 		if (mapState.ClientToServerEntityMap.TryGetValue(entityId, out int serverEntityId))
 		{
