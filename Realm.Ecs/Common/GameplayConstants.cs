@@ -76,7 +76,7 @@ public static class GameplayConstants
 	///     Resolves the world-space contact radius of an entity from the shared collision
 	///     components, so picking, placement and simulation all agree on how wide a body is.
 	/// </summary>
-	public static float ResolveBodyRadius(EcsWorld world, Entity entity, float defaultRadius)
+	public static float ResolveBodyRadius(EcsWorld? world, Entity entity, float defaultRadius)
 	{
 		if (world == null || !world.IsAlive(entity)) return 0f;
 

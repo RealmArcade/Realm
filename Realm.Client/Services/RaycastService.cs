@@ -15,7 +15,7 @@ public class RaycastResult
 	public Node Collider = null!;
 	public float Distance;
 
-	public Godot.Collections.Dictionary ToGodotDictionary()
+	public Godot.Collections.Dictionary? ToGodotDictionary()
 	{
 		if (!HasHit) return null;
 		var dict = new Godot.Collections.Dictionary();
@@ -70,7 +70,7 @@ public class RaycastService
 		}
 	}
 
-	public bool TryRaycast(Vector3 from, Vector3 to, uint collisionMask, out Vector3 position, out Vector3 normal, out Node collider)
+	public bool TryRaycast(Vector3 from, Vector3 to, uint collisionMask, out Vector3 position, out Vector3 normal, out Node? collider)
 	{
 		var result = Raycast(from, to, collisionMask);
 		if (result != null && result.HasHit)
@@ -87,14 +87,14 @@ public class RaycastService
 		return false;
 	}
 
-	public RaycastResult Raycast(Vector3 from, Vector3 to, uint collisionMask = uint.MaxValue)
+	public RaycastResult? Raycast(Vector3 from, Vector3 to, uint collisionMask = uint.MaxValue)
 	{
 		Vector3 dir = to - from;
 		float maxDist = dir.Length();
 		if (maxDist <= 0.0001f) return null;
 		dir /= maxDist;
 
-		RaycastResult closestResult = null;
+		RaycastResult? closestResult = null;
 		float closestDist = maxDist;
 
 		if ((collisionMask & TerrainLayer) != 0)
@@ -141,7 +141,7 @@ public class RaycastService
 		return closestResult;
 	}
 
-	public RaycastResult RaycastTerrain(Vector3 origin, Vector3 dir, float maxDist)
+	public RaycastResult? RaycastTerrain(Vector3 origin, Vector3 dir, float maxDist)
 	{
 		var terrain = GameContext.Terrain;
 		if (terrain == null || terrain.Cells == null) return null;
@@ -261,12 +261,12 @@ public class RaycastService
 		return null;
 	}
 
-	public RaycastResult RaycastUnits(Vector3 origin, Vector3 dir, float maxDist, float radiusPadding = 0f)
+	public RaycastResult? RaycastUnits(Vector3 origin, Vector3 dir, float maxDist, float radiusPadding = 0f)
 	{
 		var gameHost = GameContext.Host;
 		if (gameHost == null) return null;
 
-		RaycastResult bestHit = null;
+		RaycastResult? bestHit = null;
 		float bestDist = maxDist;
 
 		foreach (var unit in gameHost.AllUnits)
@@ -297,12 +297,12 @@ public class RaycastService
 		return bestHit;
 	}
 
-	public RaycastResult RaycastProps(Vector3 origin, Vector3 dir, float maxDist)
+	public RaycastResult? RaycastProps(Vector3 origin, Vector3 dir, float maxDist)
 	{
 		var gameHost = GameContext.Host;
 		if (gameHost == null) return null;
 
-		RaycastResult bestHit = null;
+		RaycastResult? bestHit = null;
 		float bestDist = maxDist;
 
 		foreach (var prop in gameHost.AllProps)
@@ -333,12 +333,12 @@ public class RaycastService
 		return bestHit;
 	}
 
-	public RaycastResult RaycastDecals(Vector3 origin, Vector3 dir, float maxDist)
+	public RaycastResult? RaycastDecals(Vector3 origin, Vector3 dir, float maxDist)
 	{
 		var gameHost = GameContext.Host;
 		if (gameHost == null) return null;
 
-		RaycastResult bestHit = null;
+		RaycastResult? bestHit = null;
 		float bestDist = maxDist;
 
 		_registeredDecals.RemoveAll(d => d == null || !GodotObject.IsInstanceValid(d));
@@ -385,12 +385,12 @@ public class RaycastService
 		return bestHit;
 	}
 
-	public RaycastResult RaycastVfx(Vector3 origin, Vector3 dir, float maxDist)
+	public RaycastResult? RaycastVfx(Vector3 origin, Vector3 dir, float maxDist)
 	{
 		var gameHost = GameContext.Host;
 		if (gameHost == null) return null;
 
-		RaycastResult bestHit = null;
+		RaycastResult? bestHit = null;
 		float bestDist = maxDist;
 
 		_registeredVfx.RemoveAll(v => v == null || !GodotObject.IsInstanceValid(v));
