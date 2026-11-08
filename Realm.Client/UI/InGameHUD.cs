@@ -120,24 +120,6 @@ public partial class InGameHUD : Control
 
 	private float _shroudMinimapRefreshTimer = 0f;
 
-	private string _currentWeather
-	{
-		get => GameContext.Host != null ? GameContext.EnvironmentService.GetCurrentWeather() : "clear";
-		set
-		{
-			if (GameContext.Host != null) GameContext.EnvironmentService.SetCurrentWeather(value);
-		}
-	}
-
-	private float _baseFogDensity
-	{
-		get => GameContext.Host != null ? GameContext.EnvironmentService.GetBaseFogDensity() : 0f;
-		set
-		{
-			if (GameContext.Host != null) GameContext.EnvironmentService.SetBaseFogDensity(value);
-		}
-	}
-
 	private Label _goldLabel = null!;
 	private Label _woodLabel = null!;
 	private Label _stoneLabel = null!;
@@ -243,7 +225,7 @@ public partial class InGameHUD : Control
 		SetupCommandAndInventoryGrids();
 		SetupWarningLabel();
 		SetupMinimapControls();
-		string currentWeather = GetCurrentWeather();
+		string currentWeather = WeatherPresenter.ResolveCurrent();
 		SetupChatPanel();
 		SetupCustomUIPanel();
 
@@ -434,19 +416,6 @@ public partial class InGameHUD : Control
 		MinimapControls.Build(new MinimapControlsHooks(this, ToggleMinimapTerrain, ToggleMinimapColorScheme,
 			ShowFeedbackText, ToggleHotkeyPanel));
 		_minimapControls = MinimapControls.Root!;
-	}
-
-	private string GetCurrentWeather()
-	{
-		if (GameContext.Host == null) return "clear";
-
-		string mapDir = !string.IsNullOrEmpty(GameContext.MapStorageService.CurrentMapDirectory)
-			? GameContext.MapStorageService.CurrentMapDirectory
-			: MapWorkspaceService.GetActiveWorkspacePath();
-		string metaPath = Path.Combine(mapDir, "metadata.json").Replace("\\", "/");
-		GameContext.Host.LoadMapProperties(metaPath);
-		GameHost tempQualifier = GameContext.Host;
-		return (tempQualifier != null ? GameContext.EnvironmentService : null)?.GetCurrentWeather() ?? "clear";
 	}
 
 	private void SetupChatPanel()
@@ -1206,51 +1175,9 @@ public partial class InGameHUD : Control
 
 
 	[Rpc(MultiplayerApi.RpcMode.AnyPeer, CallLocal = true)]
-	public void SyncWeather(string weather)
-	{
-		if (GameContext.Host != null)
-		{
-			GameContext.EnvironmentService.SetCurrentWeather(weather);
-			float density = weather switch
-			{
-				"clear" => 0f,
-				"rain" => 0.0075f,
-				"snow" => 0.005f,
-				"fog" => 0.045f,
-				_ => 0f
-			};
-			GameContext.EnvironmentService.SetBaseFogDensity(density);
-			GameContext.EnvironmentService.ApplyWeatherVisuals(weather);
-		}
+	public void SyncWeather(string weather) => WeatherPresenter.Sync(weather, ShowFeedbackText);
 
-		ApplyWeatherEffects(weather);
-	}
-
-	public void ApplyWeatherEffects(string weather)
-	{
-		if (GameContext.Host != null)
-		{
-			GameContext.EnvironmentService.ApplyWeatherVisuals(weather);
-		}
-
-		if (weather == "clear")
-		{
-			ShowFeedbackText(TranslationServer.Translate("Weather Forecast: Clear Skies"), new Color(0.3f, 0.9f, 1.0f));
-		}
-		else if (weather == "rain")
-		{
-			ShowFeedbackText(TranslationServer.Translate("Weather Forecast: Light Rain Shower"), new Color(0.2f, 0.5f, 0.9f));
-		}
-		else if (weather == "snow")
-		{
-			ShowFeedbackText(TranslationServer.Translate("Weather Forecast: Snowfall"), new Color(0.8f, 0.9f, 1.0f));
-		}
-		else if (weather == "fog")
-		{
-			ShowFeedbackText(TranslationServer.Translate("Weather Forecast: Dense Fog Warning"), new Color(0.7f, 0.7f, 0.8f));
-		}
-	}
-
+	public void ApplyWeatherEffects(string weather) => WeatherPresenter.ApplyEffects(weather, ShowFeedbackText);
 
 	public bool TryTriggerCheat(string text)
 	{
