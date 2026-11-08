@@ -289,16 +289,7 @@ public sealed class TopToolbarPanel
 	{
 		EditorsPopup = new PopupPanel();
 		EditorsPopup.Name = "PopupEditors";
-		var editorsPopupStyle = new StyleBoxFlat();
-		editorsPopupStyle.BgColor = new Color(0.14f, 0.13f, 0.11f, 0.98f);
-		editorsPopupStyle.BorderColor = UIStyle.ColorGold;
-		editorsPopupStyle.SetBorderWidthAll(1);
-		editorsPopupStyle.SetCornerRadiusAll(4);
-		editorsPopupStyle.ContentMarginLeft = 10;
-		editorsPopupStyle.ContentMarginRight = 10;
-		editorsPopupStyle.ContentMarginTop = 10;
-		editorsPopupStyle.ContentMarginBottom = 10;
-		EditorsPopup.AddThemeStyleboxOverride("panel", editorsPopupStyle);
+		EditorsPopup.AddThemeStyleboxOverride("panel", UIStyle.CreateEditorPopupPanel(10));
 
 		var editorsVBox = new VBoxContainer();
 		editorsVBox.Name = "EditorsVBox_VBoxContainer";
