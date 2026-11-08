@@ -1231,7 +1231,7 @@ public class ListenServerHost : IServerTransportSink
 		// A frame left over from the previous tick is not a description of this one. A lane that fails leaves the peers it had
 		// not reached holding theirs, and sending one of those under this tick's sequence would tell a peer about a world the
 		// match has moved past while filing it, and its repair history, under the wrong sequence.
-		for (int peerIndex = 0; peerIndex < peerCount; peerIndex++) _publishedFrames[peerIndex] = null;
+		for (int peerIndex = 0; peerIndex < peerCount; peerIndex++) _publishedFrames[peerIndex] = null!;
 
 		bool everyLaneDescribedItsPeers = true;
 
@@ -1317,7 +1317,7 @@ public class ListenServerHost : IServerTransportSink
 		// told nothing.
 		if (_pendingSkippedPeers[index])
 		{
-			_publishedFrames[index] = null;
+			_publishedFrames[index] = null!;
 			return;
 		}
 
@@ -1362,7 +1362,7 @@ public class ListenServerHost : IServerTransportSink
 		    && SnapshotFragment.CountFor(_publishedFrames[index].Length) > SnapshotFragment.MaximumFragmentsPerDescription)
 		{
 			_log.Write($"peer {peerId} would be described in more than the {SnapshotFragment.MaximumFragmentsPerDescription} pieces a screen can reassemble ({_publishedFrames[index].Length} bytes, {SnapshotFragment.MaximumReassembledBytes} is the widest); it is described from scratch instead");
-			_publishedFrames[index] = null;
+			_publishedFrames[index] = null!;
 			simulation.RequestBaseline(peerId);
 			return;
 		}
