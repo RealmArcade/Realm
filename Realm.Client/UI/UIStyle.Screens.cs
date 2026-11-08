@@ -165,6 +165,42 @@ public static partial class UIStyle
 		return style;
 	}
 
+	/// <summary>The strip above the player list that names the map being hosted.</summary>
+	public static StyleBoxFlat CreateLobbyMapNamePlate()
+	{
+		var style = new StyleBoxFlat();
+		style.BgColor = new Color(0.12f, 0.13f, 0.16f, 0.5f);
+		style.BorderColor = new Color(0.25f, 0.25f, 0.3f, 0.4f);
+		style.SetBorderWidthAll(1);
+		return style;
+	}
+
+	/// <summary>The recessed log the lobby chat writes into, inset so the text clears the artwork's edges.</summary>
+	public static StyleBoxFlat CreateLobbyChatLogPlate()
+	{
+		var style = new StyleBoxFlat();
+		style.BgColor = new Color(0.08f, 0.08f, 0.1f, 0.7f);
+		style.BorderColor = new Color(0.2f, 0.2f, 0.25f, 0.3f);
+		style.SetBorderWidthAll(1);
+		style.ContentMarginLeft = 50;
+		style.ContentMarginRight = 50;
+		style.ContentMarginTop = 8;
+		style.ContentMarginBottom = 8;
+		return style;
+	}
+
+	/// <summary>
+	/// The chat entry field, which is the shared text input with wider side padding so it lines up under the log above
+	/// it, and the same padding again while it holds focus.
+	/// </summary>
+	public static StyleBoxFlat CreateLobbyChatInput(bool isFocused)
+	{
+		var style = CreateTextInput(isFocused);
+		style.ContentMarginLeft = 14;
+		style.ContentMarginRight = 14;
+		return style;
+	}
+
 	/// <summary>One seat in the lobby room's player list: a barely-there plate with a hairline rule.</summary>
 	public static StyleBoxFlat CreateLobbyPlayerRowPlate()
 	{

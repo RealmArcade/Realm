@@ -90,31 +90,13 @@ public partial class LobbyRoom
 		_mapNameLabel.HorizontalAlignment = HorizontalAlignment.Center;
 		_mapNameLabel.VerticalAlignment = VerticalAlignment.Center;
 
-		var labelStyle = new StyleBoxFlat();
-		labelStyle.BgColor = new Color(0.12f, 0.13f, 0.16f, 0.5f);
-		labelStyle.BorderColor = new Color(0.25f, 0.25f, 0.3f, 0.4f);
-		labelStyle.SetBorderWidthAll(1);
-		_mapNameLabel.AddThemeStyleboxOverride("normal", labelStyle);
+		_mapNameLabel.AddThemeStyleboxOverride("normal", UIStyle.CreateLobbyMapNamePlate());
 
 
-		var logStyle = new StyleBoxFlat();
-		logStyle.BgColor = new Color(0.08f, 0.08f, 0.1f, 0.7f);
-		logStyle.BorderColor = new Color(0.2f, 0.2f, 0.25f, 0.3f);
-		logStyle.SetBorderWidthAll(1);
-		logStyle.ContentMarginLeft = 50;
-		logStyle.ContentMarginRight = 50;
-		logStyle.ContentMarginTop = 8;
-		logStyle.ContentMarginBottom = 8;
-		_chatLog.AddThemeStyleboxOverride("normal", logStyle);
+		_chatLog.AddThemeStyleboxOverride("normal", UIStyle.CreateLobbyChatLogPlate());
 
-		var inputNormal = UIStyle.CreateTextInput(false);
-		inputNormal.ContentMarginLeft = 14;
-		inputNormal.ContentMarginRight = 14;
-		var inputFocus = UIStyle.CreateTextInput(true);
-		inputFocus.ContentMarginLeft = 14;
-		inputFocus.ContentMarginRight = 14;
-		_chatInput.AddThemeStyleboxOverride("normal", inputNormal);
-		_chatInput.AddThemeStyleboxOverride("focus", inputFocus);
+		_chatInput.AddThemeStyleboxOverride("normal", UIStyle.CreateLobbyChatInput(false));
+		_chatInput.AddThemeStyleboxOverride("focus", UIStyle.CreateLobbyChatInput(true));
 		_chatInput.AddThemeColorOverride("font_color", new Color(0.9f, 0.85f, 0.7f));
 
 
