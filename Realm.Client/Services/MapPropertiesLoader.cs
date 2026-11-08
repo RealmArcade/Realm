@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text.Json;
 using Realm.Ecs;
@@ -25,6 +25,8 @@ public class MapPropertiesLoader
 			return;
 		}
 
+		if (GameContext.World is not { } world) return;
+
 		try
 		{
 			string jsonText = file.GetAsText();
@@ -32,7 +34,7 @@ public class MapPropertiesLoader
 
 			if (jsonDoc.RootElement.TryGetProperty("MapProperties", out var mapProps))
 			{
-				ProcessMapProperties(worldEntity, mapProps);
+				ProcessMapProperties(world, worldEntity, mapProps);
 			}
 
 			if (jsonDoc.RootElement.TryGetProperty("CustomEnvironmentPresets", out var presetsProp) && presetsProp.ValueKind == JsonValueKind.Array)
@@ -51,37 +53,37 @@ public class MapPropertiesLoader
 		}
 	}
 
-	private void ProcessMapProperties(Entity worldEntity, JsonElement mapProps)
+	private static void ProcessMapProperties(EcsWorld world, Entity worldEntity, JsonElement mapProps)
 	{
-		TryUpdateCameraBounds(worldEntity, mapProps);
-		TryUpdateShroud(worldEntity, mapProps);
-		TryUpdateWeather(worldEntity, mapProps);
+		TryUpdateCameraBounds(world, worldEntity, mapProps);
+		TryUpdateShroud(world, worldEntity, mapProps);
+		TryUpdateWeather(world, worldEntity, mapProps);
 	}
 
-	private void TryUpdateCameraBounds(Entity worldEntity, JsonElement mapProps)
+	private static void TryUpdateCameraBounds(EcsWorld world, Entity worldEntity, JsonElement mapProps)
 	{
 		if (mapProps.TryGetProperty("CameraBoundsLeft", out var leftProp) && leftProp.ValueKind == JsonValueKind.Number)
 		{
-			GameContext.World.Mutate<CameraState>(worldEntity, (ref CameraState s) => s.LimitLeft = (float)leftProp.GetDouble());
+			world.Mutate<CameraState>(worldEntity, (ref CameraState s) => s.LimitLeft = (float)leftProp.GetDouble());
 		}
 
 		if (mapProps.TryGetProperty("CameraBoundsRight", out var rightProp) && rightProp.ValueKind == JsonValueKind.Number)
 		{
-			GameContext.World.Mutate<CameraState>(worldEntity, (ref CameraState s) => s.LimitRight = (float)rightProp.GetDouble());
+			world.Mutate<CameraState>(worldEntity, (ref CameraState s) => s.LimitRight = (float)rightProp.GetDouble());
 		}
 
 		if (mapProps.TryGetProperty("CameraBoundsTop", out var topProp) && topProp.ValueKind == JsonValueKind.Number)
 		{
-			GameContext.World.Mutate<CameraState>(worldEntity, (ref CameraState s) => s.LimitTop = (float)topProp.GetDouble());
+			world.Mutate<CameraState>(worldEntity, (ref CameraState s) => s.LimitTop = (float)topProp.GetDouble());
 		}
 
 		if (mapProps.TryGetProperty("CameraBoundsBottom", out var bottomProp) && bottomProp.ValueKind == JsonValueKind.Number)
 		{
-			GameContext.World.Mutate<CameraState>(worldEntity, (ref CameraState s) => s.LimitBottom = (float)bottomProp.GetDouble());
+			world.Mutate<CameraState>(worldEntity, (ref CameraState s) => s.LimitBottom = (float)bottomProp.GetDouble());
 		}
 	}
 
-	private void TryUpdateShroud(Entity worldEntity, JsonElement mapProps)
+	private static void TryUpdateShroud(EcsWorld world, Entity worldEntity, JsonElement mapProps)
 	{
 		if (!mapProps.TryGetProperty("ShroudType", out var shroudTypeProp)) return;
 		if (shroudTypeProp.ValueKind != JsonValueKind.String)
@@ -97,7 +99,7 @@ public class MapPropertiesLoader
 			return;
 		}
 
-		GameContext.World.Mutate<ShroudState>(worldEntity, (ref ShroudState s) => s.VisibilityMode = mode);
+		world.Mutate<ShroudState>(worldEntity, (ref ShroudState s) => s.VisibilityMode = mode);
 	}
 
 	private static bool TryParseShroudVisibilityMode(string shroudType, out ShroudVisibilityMode mode)
@@ -124,12 +126,12 @@ public class MapPropertiesLoader
 		return false;
 	}
 
-	private void TryUpdateWeather(Entity worldEntity, JsonElement mapProps)
+	private static void TryUpdateWeather(EcsWorld world, Entity worldEntity, JsonElement mapProps)
 	{
 		if (mapProps.TryGetProperty("WeatherType", out var weatherProp) && weatherProp.ValueKind == JsonValueKind.String)
 		{
 			string val = weatherProp.GetString() ?? "clear";
-			GameContext.World.Mutate<WeatherState>(worldEntity, (ref WeatherState s) => s.CurrentWeather = val);
+			world.Mutate<WeatherState>(worldEntity, (ref WeatherState s) => s.CurrentWeather = val);
 		}
 	}
 
@@ -141,8 +143,7 @@ public class MapPropertiesLoader
 			return;
 		}
 
-		GameHost tempQualifier = GameContext.Host;
-		(tempQualifier != null ? GameContext.EnvironmentService : null)?.LoadPresets(presets);
+		GameContext.EnvironmentService?.LoadPresets(presets);
 	}
 
 	private void ProcessDefaultEnvironmentPreset(JsonElement defaultPresetProp)

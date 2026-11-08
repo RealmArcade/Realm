@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using Godot;
 using Realm.Ecs;
@@ -47,6 +47,8 @@ public class ReplicatedUnitLifecycle
 		modelPath = string.Empty;
 		playerIndex = 0;
 
+		if (GameContext.World is not { } world) return Entity.Null;
+
 		if (string.IsNullOrEmpty(snap.UnitId))
 		{
 			GD.PushError($"[Network] Cannot spawn replicated entity {snap.EntityId}: the description named no definition, and this screen holds no copy of it.");
@@ -60,12 +62,12 @@ public class ReplicatedUnitLifecycle
 		}
 
 		Entity worldEntity = _findWorldEntity();
-		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkMappingState>(worldEntity)) return Entity.Null;
+		if (worldEntity == Entity.Null || !world.Has<NetworkMappingState>(worldEntity)) return Entity.Null;
 
-		ref var mapping = ref GameContext.World.Get<NetworkMappingState>(worldEntity);
+		ref var mapping = ref world.Get<NetworkMappingState>(worldEntity);
 		if (mapping.ServerToClientEntityMap.TryGetValue(snap.EntityId, out Entity heldForThisIdentifier)
-			&& GameContext.World.IsAlive(heldForThisIdentifier)
-			&& GameContext.World.Has<GroundLoot>(heldForThisIdentifier))
+			&& world.IsAlive(heldForThisIdentifier)
+			&& world.Has<GroundLoot>(heldForThisIdentifier))
 		{
 			ReplicatedLootLifecycle.Destroy(snap.EntityId, heldForThisIdentifier, mapping);
 		}
@@ -102,6 +104,10 @@ public class ReplicatedUnitLifecycle
 
 	internal static Entity ApplySnapshotToEntity(string unitId, int entityId, int ownerPlayerEntityId, System.Numerics.Vector3 position, float rotationY, float currentHp, float maxHp, bool isBuilding, UnitMetadata meta, ref NetworkMappingState mapping, Func<string, bool, string> getFallbackModelPath, out string modelPath, out int playerIndex, int ownerPlayerIndex = -1)
 	{
+		modelPath = string.Empty;
+		playerIndex = 0;
+		if (GameContext.World is not { } world) return Entity.Null;
+
 		Entity ownerPlayerEntity = mapping.PlayerEntities != null && mapping.PlayerEntities.Length > 1 ? mapping.PlayerEntities[1] : Entity.Null;
 		if (ownerPlayerIndex >= 0 && mapping.PlayerEntities != null && ownerPlayerIndex < mapping.PlayerEntities.Length)
 		{
@@ -124,34 +130,34 @@ public class ReplicatedUnitLifecycle
 
 		playerIndex = ownerPlayerIndex >= 0
 			? ownerPlayerIndex
-			: ((ownerPlayerEntity != Entity.Null && GameContext.World.Has<UnitOwnerPlayer>(ownerPlayerEntity))
-				? GameContext.World.Get<UnitOwnerPlayer>(ownerPlayerEntity).PlayerIndex
+			: ((ownerPlayerEntity != Entity.Null && world.Has<UnitOwnerPlayer>(ownerPlayerEntity))
+				? world.Get<UnitOwnerPlayer>(ownerPlayerEntity).PlayerIndex
 				: (ownerPlayerEntityId > 0 ? ownerPlayerEntityId - 1 : 0));
 
-		var entity = GameContext.World.Create();
-		GameContext.World.Add(entity, new DefinitionId(unitId));
-		GameContext.World.Add(entity, new Name(meta.Name));
+		var entity = world.Create();
+		world.Add(entity, new DefinitionId(unitId));
+		world.Add(entity, new Name(meta.Name));
 		PositionWriteTrace.Mark(entity, PositionWriter.Spawn);
-		GameContext.World.Add(entity, new Position(position));
-		GameContext.World.Add(entity, new Owner(ownerPlayerEntity.AsPlayerEntity(GameContext.World)));
-		GameContext.World.Add(entity, new UnitOwnerPlayer(playerIndex));
-		GameContext.World.Add(entity, new Health(currentHp, maxHp));
+		world.Add(entity, new Position(position));
+		world.Add(entity, new Owner(ownerPlayerEntity.AsPlayerEntity(world)));
+		world.Add(entity, new UnitOwnerPlayer(playerIndex));
+		world.Add(entity, new Health(currentHp, maxHp));
 		if (meta.Damage > 0)
 		{
-			GameContext.World.Add(entity, new Attack(meta.Damage, meta.Range, meta.AttackCooldown));
+			world.Add(entity, new Attack(meta.Damage, meta.Range, meta.AttackCooldown));
 		}
 
-		GameContext.World.Add(entity, new Resistances(meta.Armor, meta.MagicResistance));
+		world.Add(entity, new Resistances(meta.Armor, meta.MagicResistance));
 		if (isBuilding)
 		{
-			GameContext.World.Add(entity, new Building());
+			world.Add(entity, new Building());
 		}
 		else
 		{
-			GameContext.World.Add(entity, new MovementStats(meta.Speed, 20f, 10f));
-			GameContext.World.Add(entity, new Movable());
-			GameContext.World.Add(entity, new Inventory());
-			GameContext.World.Add(entity, new Realm.Ecs.Components.Movement.PathingFlags(GameHost.GetUnitPathingFlags(meta)));
+			world.Add(entity, new MovementStats(meta.Speed, 20f, 10f));
+			world.Add(entity, new Movable());
+			world.Add(entity, new Inventory());
+			world.Add(entity, new Realm.Ecs.Components.Movement.PathingFlags(GameHost.GetUnitPathingFlags(meta)));
 		}
 
 		var interpolationTarget = new LatestDescription
@@ -159,7 +165,7 @@ public class ReplicatedUnitLifecycle
 			Position = position,
 			RotationY = rotationY
 		};
-		GameContext.World.Add(entity, interpolationTarget);
+		world.Add(entity, interpolationTarget);
 
 		mapping.ServerToClientEntityMap[entityId] = entity;
 		mapping.ClientToServerEntityMap[entity.Id] = entityId;
@@ -173,20 +179,24 @@ public class ReplicatedUnitLifecycle
 
 	internal static bool IsServerEntityIdRecycled(UnitSnapshot snap, Entity localEntity)
 	{
+		if (GameContext.World is not { } world) return true;
+
 		// A description that names no definition says the unit is one this screen already knows, which cannot be a different
 		// unit using a recycled identifier: that is what the definition in the description is for.
 		if (snap.UnitId.Length > 0
-		    && GameContext.World.Has<DefinitionId>(localEntity)
-		    && GameContext.World.Get<DefinitionId>(localEntity).Value != snap.UnitId) return true;
+		    && world.Has<DefinitionId>(localEntity)
+		    && world.Get<DefinitionId>(localEntity).Value != snap.UnitId) return true;
 
-		if (GameContext.World.Has<UnitOwnerPlayer>(localEntity)
+		if (world.Has<UnitOwnerPlayer>(localEntity)
 			&& snap.OwnerPlayerIndex >= 0
-			&& GameContext.World.Get<UnitOwnerPlayer>(localEntity).PlayerIndex != snap.OwnerPlayerIndex) return true;
-		if (GameContext.World.Has<Building>(localEntity) != snap.IsBuilding) return true;
-		return GameContext.World.Has<Dead>(localEntity);
+			&& world.Get<UnitOwnerPlayer>(localEntity).PlayerIndex != snap.OwnerPlayerIndex) return true;
+		if (world.Has<Building>(localEntity) != snap.IsBuilding) return true;
+		return world.Has<Dead>(localEntity);
 	}
 	internal void ApplyDescription(UnitSnapshot snap, int sequence, NetworkMappingState mapping)
 	{
+		if (GameContext.World is not { } world) return;
+
 		if (!mapping.ServerToClientEntityMap.TryGetValue(snap.EntityId, out var localEntity))
 		{
 			if (snap.IsDead) _pendingSpawns.Remove(snap.EntityId);
@@ -194,7 +204,7 @@ public class ReplicatedUnitLifecycle
 			return;
 		}
 
-		if (!GameContext.World.IsAlive(localEntity) || IsServerEntityIdRecycled(snap, localEntity))
+		if (!world.IsAlive(localEntity) || IsServerEntityIdRecycled(snap, localEntity))
 		{
 			GameContext.SnapshotTimeline.Reset(localEntity.Id);
 			_retireReplica(mapping, localEntity, snap.EntityId);
@@ -204,9 +214,9 @@ public class ReplicatedUnitLifecycle
 
 		if (snap.IsDead)
 		{
-			if (!GameContext.World.Has<Dead>(localEntity))
+			if (!world.Has<Dead>(localEntity))
 			{
-				GameContext.World.Add<Dead>(localEntity);
+				world.Add<Dead>(localEntity);
 				_notePendingKill(localEntity);
 			}
 
@@ -214,21 +224,21 @@ public class ReplicatedUnitLifecycle
 			return;
 		}
 
-		if (GameContext.World.Has<Health>(localEntity))
+		if (world.Has<Health>(localEntity))
 		{
-			var hp = GameContext.World.Get<Health>(localEntity);
+			var hp = world.Get<Health>(localEntity);
 			hp.Current = snap.CurrentHp;
 			hp.Max = snap.MaxHp;
-			GameContext.World.Set(localEntity, hp);
+			world.Set(localEntity, hp);
 		}
 
 		System.Numerics.Vector3 describedPosition = snap.Position.ToNumerics();
-		System.Numerics.Vector3 previousTargetPosition = GameContext.World.Has<LatestDescription>(localEntity)
-			? GameContext.World.Get<LatestDescription>(localEntity).Position
+		System.Numerics.Vector3 previousTargetPosition = world.Has<LatestDescription>(localEntity)
+			? world.Get<LatestDescription>(localEntity).Position
 			: describedPosition;
 
-		int lastDescribedSequence = GameContext.World.Has<DescribedAtSequence>(localEntity)
-			? GameContext.World.Get<DescribedAtSequence>(localEntity).Sequence
+		int lastDescribedSequence = world.Has<DescribedAtSequence>(localEntity)
+			? world.Get<DescribedAtSequence>(localEntity).Sequence
 			: -1;
 
 		bool targetJumped = (describedPosition - previousTargetPosition).Length() > PlausibleStepMeters(localEntity, sequence, lastDescribedSequence);
@@ -236,21 +246,22 @@ public class ReplicatedUnitLifecycle
 		if (targetJumped) GameContext.SnapshotTimeline.Reset(localEntity.Id);
 		GameContext.SnapshotTimeline.Record(localEntity.Id, describedPosition, snap.RotationY, sequence);
 
-		GameContext.World.SetOrAdd(localEntity, new LatestDescription
+		world.SetOrAdd(localEntity, new LatestDescription
 		{
 			Position = describedPosition,
 			RotationY = snap.RotationY
 		});
 
-		GameContext.World.SetOrAdd(localEntity, new DescribedAtSequence(sequence));
+		world.SetOrAdd(localEntity, new DescribedAtSequence(sequence));
 	}
 
 	private static float PlausibleStepMeters(Entity localEntity, int sequence, int lastDescribedSequence)
 	{
-		if (!GameContext.World.Has<MovementStats>(localEntity)) return MaximumPlausibleTargetStepMeters;
+		if (GameContext.World is not { } world) return MaximumPlausibleTargetStepMeters;
+		if (!world.Has<MovementStats>(localEntity)) return MaximumPlausibleTargetStepMeters;
 
 		int undescribedSequences = lastDescribedSequence >= 0 ? Math.Max(1, sequence - lastDescribedSequence) : 1;
-		float coveredAtSpeed = GameContext.World.Get<MovementStats>(localEntity).Speed
+		float coveredAtSpeed = world.Get<MovementStats>(localEntity).Speed
 			* undescribedSequences
 			* MatchTiming.SnapshotIntervalSeconds
 			* PlausibleStepAllowanceFactor;
