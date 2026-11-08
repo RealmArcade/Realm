@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -44,7 +44,7 @@ public class MapHistoryService
 		return !string.IsNullOrWhiteSpace(mapDirectory) && Directory.Exists(mapDirectory);
 	}
 
-	public void PrimeForMap(string mapDirectory, Action<MapHistoryStatus> onCompleted = null)
+	public void PrimeForMap(string mapDirectory, Action<MapHistoryStatus>? onCompleted = null)
 	{
 		RefreshMessages();
 
@@ -70,7 +70,7 @@ public class MapHistoryService
 		});
 	}
 
-	public void CreateVersion(string mapDirectory, MapVersionKind kind, string? label, Action<MapHistoryVersionResult> onCompleted = null, bool coalesce = false, string? sourceFolder = null)
+	public void CreateVersion(string mapDirectory, MapVersionKind kind, string? label, Action<MapHistoryVersionResult>? onCompleted = null, bool coalesce = false, string? sourceFolder = null)
 	{
 		RefreshMessages();
 
@@ -403,7 +403,7 @@ public class MapHistoryService
 		});
 	}
 
-	public void RenameVersion(string mapDirectory, string commitId, string? label, Action<MapHistoryVersionResult> onCompleted = null)
+	public void RenameVersion(string mapDirectory, string commitId, string? label, Action<MapHistoryVersionResult>? onCompleted = null)
 	{
 		RefreshMessages();
 
@@ -481,7 +481,7 @@ public class MapHistoryService
 		});
 	}
 
-	public void RestoreVersion(string mapDirectory, string commitId, Action<MapHistoryRestoreResult> onCompleted, Action beforeRestore = null)
+	public void RestoreVersion(string mapDirectory, string commitId, Action<MapHistoryRestoreResult>? onCompleted, Action? beforeRestore = null)
 	{
 		RefreshMessages();
 
@@ -1381,7 +1381,7 @@ public class MapHistoryService
 
 	private static void StageRestoreContent(string absolutePath, byte[] content)
 	{
-		string directory = Path.GetDirectoryName(absolutePath);
+		string? directory = Path.GetDirectoryName(absolutePath);
 		if (!string.IsNullOrEmpty(directory))
 		{
 			Directory.CreateDirectory(directory);
