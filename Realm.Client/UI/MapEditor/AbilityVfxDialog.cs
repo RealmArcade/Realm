@@ -52,7 +52,7 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 	private string _currentIconPath = "";
 	private float _currentAoeRadius = 4.0f;
 	private float _playbackSpeed = 1.0f;
-	private Action<JsonObject> _onApplied = null!;
+	private Action<JsonObject>? _onApplied;
 
 	public AbilityVfxDialog(MapEditorHUD hud)
 		: base(hud, TranslationServer.Translate("Ability VFX & Audio Studio"), new Vector2(500, 720))
@@ -661,7 +661,7 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 		return null;
 	}
 
-	public void OpenForAbility(string abilityId, JsonObject abilityData, Action<JsonObject> onApplied = null)
+	public void OpenForAbility(string abilityId, JsonObject abilityData, Action<JsonObject>? onApplied = null)
 	{
 		string effectiveId = GetEffectiveAbilityId(abilityId, abilityData);
 

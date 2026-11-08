@@ -6,8 +6,8 @@ public class CardDragData
 {
 	public Control CardNode = null!;
 	public Button HeaderButton = null!;
-	public Control ContentControl = null!;
-	public string TitleText = null!;
+	public Control? ContentControl;
+	public string? TitleText;
 	public bool IsDragging;
 	public bool HasMovedSincePress;
 	public Vector2 DragStartMousePos;

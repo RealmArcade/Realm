@@ -144,16 +144,18 @@ namespace Realm.Client.UI
 
 		private void ReloadTerrainFromDisk(string editingDirectory)
 		{
+			if (GameContext.Host is not { } host) return;
+
 			string terrainPath = Path.Combine(editingDirectory, "terrain.json");
 			if (!File.Exists(terrainPath)) return;
 
 			GameContext.EditorService.IsSyncing = true;
 			try
 			{
-				bool loaded = GameContext.Host?.LoadMapFromFile(terrainPath, ensureGlbOptimized: false) ?? false;
+				bool loaded = host.LoadMapFromFile(terrainPath, ensureGlbOptimized: false);
 				if (loaded)
 				{
-					GameContext.Host.EditorHasUnsavedChanges = false;
+					host.EditorHasUnsavedChanges = false;
 					ShowFeedback(TranslationServer.Translate("The terrain changed outside the editor — reloaded."));
 				}
 				else
@@ -179,14 +181,16 @@ namespace Realm.Client.UI
 
 		private void UpdateTerrainStatus()
 		{
+			if (GameContext.Host is not { } host) return;
+
 			var mousePos = GetViewport().GetMousePosition();
-			if (GameContext.Host.TryRaycastTerrainFromMousePosition(mousePos, out Vector3 pos))
+			if (host.TryRaycastTerrainFromMousePosition(mousePos, out Vector3 pos))
 			{
 				float roundX = (float)Math.Round(pos.X, 1);
 				float roundY = (float)Math.Round(pos.Y, 1);
 				float roundZ = (float)Math.Round(pos.Z, 1);
-				EditorTool currentTool = GameContext.Host.ActiveEditorTool;
-				string currentPlaceId = GameContext.Host.ActivePlaceId;
+				EditorTool currentTool = host.ActiveEditorTool;
+				string currentPlaceId = host.ActivePlaceId;
 
 				if (roundX != _lastStatusX || roundY != _lastStatusY || roundZ != _lastStatusZ || currentTool != _lastActiveTool || currentPlaceId != _lastActivePlaceId)
 				{
@@ -196,15 +200,17 @@ namespace Realm.Client.UI
 					_lastActiveTool = currentTool;
 					_lastActivePlaceId = currentPlaceId;
 					GameContext.EditorService.CheckAndUpdateRaycast(pos);
-					_viewModel.StatusText = GameContext.Host.GetTerrainStatusString(pos);
+					_viewModel.StatusText = host.GetTerrainStatusString(pos);
 				}
 			}
 		}
 
 		private void UpdateInspectorVisibility()
 		{
-			bool hasSelectedObject = GodotObject.IsInstanceValid(GameContext.Host.SelectedEditorObject);
-			bool shouldShowInspector = hasSelectedObject && (GameContext.Host.ActiveEditorTool == EditorTool.SelectMove);
+			if (GameContext.Host is not { } host) return;
+
+			bool hasSelectedObject = GodotObject.IsInstanceValid(host.SelectedEditorObject);
+			bool shouldShowInspector = hasSelectedObject && (host.ActiveEditorTool == EditorTool.SelectMove);
 			if (_accordionInspector != null && _accordionInspector.Visible != shouldShowInspector)
 			{
 				_accordionInspector.Visible = shouldShowInspector;
@@ -844,7 +850,7 @@ namespace Realm.Client.UI
 					TranslationServer.Translate("You haven't saved yet"),
 					onConfirm: () =>
 					{
-						GameContext.UserInterface.TransitionTo(GameScreen.MainMenu);
+						GameContext.UserInterface?.TransitionTo(GameScreen.MainMenu);
 					},
 					confirmText: TranslationServer.Translate("Quit"),
 					cancelText: TranslationServer.Translate("Stay")
@@ -852,7 +858,7 @@ namespace Realm.Client.UI
 			}
 			else
 			{
-				GameContext.UserInterface.TransitionTo(GameScreen.MainMenu);
+				GameContext.UserInterface?.TransitionTo(GameScreen.MainMenu);
 			}
 		}
 
@@ -1240,7 +1246,7 @@ namespace Realm.Client.UI
 		}
 
 
-		private ColorRect CreateConfirmationShell(Action onDismissed)
+		private ColorRect CreateConfirmationShell(Action? onDismissed)
 		{
 			var overlay = new ColorRect();
 			overlay.Name = "ConfirmationOverlay";
@@ -1349,7 +1355,7 @@ namespace Realm.Client.UI
 		}
 
 
-		private void BuildCancelButton(HBoxContainer hbox, ColorRect overlay, Action onCancel, string cancelText)
+		private void BuildCancelButton(HBoxContainer hbox, ColorRect overlay, Action? onCancel, string cancelText)
 		{
 			var btnCancel = UIStyle.CreateBareButton("BtnCancel_Button");
 			btnCancel.CustomMinimumSize = new Vector2(110, 34);
@@ -1514,10 +1520,10 @@ namespace Realm.Client.UI
 
 		public void ToggleHelpPanelExternal()
 		{
-			if (GodotObject.IsInstanceValid(_helpOverlayPanel))
+			if (_helpOverlayPanel is { } helpPanel)
 			{
-				_helpOverlayPanel.QueueFree();
 				_helpOverlayPanel = null;
+				if (GodotObject.IsInstanceValid(helpPanel)) helpPanel.QueueFree();
 				return;
 			}
 
@@ -1590,8 +1596,7 @@ namespace Realm.Client.UI
 			btnClose.CustomMinimumSize = new Vector2(165, 38);
 			SetupButton(btnClose, TranslationServer.Translate("CLOSE MANUAL"), () =>
 			{
-				_helpOverlayPanel.QueueFree();
-				_helpOverlayPanel = null;
+				TryCloseHelpOverlayPanel();
 			}, 13);
 			bottomMargin.AddChild(btnClose);
 		}
@@ -2027,7 +2032,7 @@ namespace Realm.Client.UI
 			StyleSubContainer(contentControl);
 		}
 
-		private void ApplyCardPanelStyle(Control accordionNode)
+		private void ApplyCardPanelStyle(Control? accordionNode)
 		{
 			if (accordionNode == null) return;
 
@@ -2133,7 +2138,7 @@ namespace Realm.Client.UI
 			btn.Alignment = HorizontalAlignment.Left;
 		}
 
-		private Control GetContentTarget(Control contentControl)
+		private Control? GetContentTarget(Control? contentControl)
 		{
 			if (contentControl == null) return null;
 			var inner = contentControl.GetNodeOrNull<Control>("CardScroll/InnerVBox");
@@ -2216,7 +2221,7 @@ namespace Realm.Client.UI
 			scroll.CustomMinimumSize = new Vector2(245, 0);
 		}
 
-		private void StyleSubContainer(Control boxNode, string headerText = null)
+		private void StyleSubContainer(Control boxNode, string? headerText = null)
 		{
 			if (boxNode == null) return;
 
@@ -2401,7 +2406,7 @@ namespace Realm.Client.UI
 		}
 
 
-		private void MakeCardDraggable(Control cardNode, Button headerBtn, Control contentControl = null, string titleText = null)
+		private void MakeCardDraggable(Control cardNode, Button headerBtn, Control? contentControl = null, string? titleText = null)
 		{
 			if (cardNode == null || headerBtn == null) return;
 
@@ -2417,7 +2422,7 @@ namespace Realm.Client.UI
 			headerBtn.GuiInput += (@event) => HandleCardGuiInput(@event, cardNode, headerBtn, contentControl, titleText, data);
 		}
 
-		private void HandleCardGuiInput(InputEvent @event, Control cardNode, Button headerBtn, Control contentControl, string titleText, CardDragData data)
+		private void HandleCardGuiInput(InputEvent @event, Control cardNode, Button headerBtn, Control? contentControl, string? titleText, CardDragData data)
 		{
 			if (@event is InputEventMouseButton mb && mb.ButtonIndex == MouseButton.Left)
 			{
@@ -2429,7 +2434,7 @@ namespace Realm.Client.UI
 			}
 		}
 
-		private void HandleCardMouseButtonInput(InputEventMouseButton mb, Control cardNode, Button headerBtn, Control contentControl, string titleText, CardDragData data)
+		private void HandleCardMouseButtonInput(InputEventMouseButton mb, Control cardNode, Button headerBtn, Control? contentControl, string? titleText, CardDragData data)
 		{
 			if (mb.Pressed)
 			{
@@ -2494,7 +2499,7 @@ namespace Realm.Client.UI
 		}
 
 
-		private void ToggleAccordionState(Button headerBtn, Control contentControl, string titleText)
+		private void ToggleAccordionState(Button headerBtn, Control? contentControl, string? titleText)
 		{
 			if (headerBtn == null || contentControl == null) return;
 			contentControl.Visible = !contentControl.Visible;
@@ -2708,7 +2713,7 @@ namespace Realm.Client.UI
 			};
 		}
 
-		private void SetupOptionButton(Button btn, string text, Action onClick, int fontSize = 11, string tooltip = "")
+		private void SetupOptionButton(Button btn, string text, Action? onClick, int fontSize = 11, string tooltip = "")
 		{
 			if (btn == null) return;
 			btn.Text = text;
@@ -2941,7 +2946,7 @@ namespace Realm.Client.UI
 
 		private void SetupSwatchVisuals_ViewLogic(Button btn, int slotIndex)
 		{
-			Texture2D tex = GetSwatchTexture(slotIndex);
+			Texture2D? tex = GetSwatchTexture(slotIndex);
 			if (tex != null)
 			{
 				var texRect = new TextureRect();
@@ -3124,7 +3129,7 @@ namespace Realm.Client.UI
 			}
 		}
 
-		private void ShowAgreementModal(Action onAccepted = null)
+		private void ShowAgreementModal(Action? onAccepted = null)
 		{
 			var overlay = new ColorRect();
 			overlay.Name = "AgreementOverlay";
@@ -3276,7 +3281,7 @@ namespace Realm.Client.UI
 		}
 
 
-		public void OpenAbilityVfxDialog(string abilityId, JsonObject abilityData, Action<JsonObject> onApplied = null)
+		public void OpenAbilityVfxDialog(string abilityId, JsonObject abilityData, Action<JsonObject>? onApplied = null)
 		{
 			if (_abilityVfxDialog == null)
 			{
@@ -3308,11 +3313,11 @@ namespace Realm.Client.UI
 		private bool TryCloseConfirmationOverlay()
 		{
 			var confirmOverlay = GetNodeOrNull<Control>("ConfirmationOverlay") ?? GameContext.UserInterface?.GetNodeOrNull<Control>("ConfirmationOverlay");
-			if (IsValidOverlay(confirmOverlay))
+			if (confirmOverlay is { } overlay && IsValidOverlay(overlay))
 			{
-				if (confirmOverlay.HasMeta("CancelAction"))
+				if (overlay.HasMeta("CancelAction"))
 				{
-					var action = confirmOverlay.GetMeta("CancelAction").AsCallable();
+					var action = overlay.GetMeta("CancelAction").AsCallable();
 					action.Call();
 				}
 				else
@@ -3364,17 +3369,17 @@ namespace Realm.Client.UI
 
 		private bool TryCloseHelpOverlayPanel()
 		{
-			if (IsValidOverlay(_helpOverlayPanel))
+			if (_helpOverlayPanel is { } helpPanel)
 			{
-				_helpOverlayPanel.QueueFree();
 				_helpOverlayPanel = null;
+				if (IsValidOverlay(helpPanel)) helpPanel.QueueFree();
 				return true;
 			}
 
 			return false;
 		}
 
-		private bool IsValidOverlay(Node overlay)
+		private bool IsValidOverlay(Node? overlay)
 		{
 			return overlay != null && GodotObject.IsInstanceValid(overlay) && overlay.IsInsideTree() && !overlay.IsQueuedForDeletion();
 		}
