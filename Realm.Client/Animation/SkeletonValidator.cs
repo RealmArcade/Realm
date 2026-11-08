@@ -22,7 +22,7 @@ public static class SkeletonValidator
 		HumanoidBone.RightFoot
 	};
 
-	public static Skeleton3D FindSkeleton(Node rootNode)
+	public static Skeleton3D? FindSkeleton(Node? rootNode)
 	{
 		if (rootNode == null) return null;
 		if (rootNode is Skeleton3D skeleton) return skeleton;

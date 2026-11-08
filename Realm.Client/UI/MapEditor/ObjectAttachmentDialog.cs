@@ -14,14 +14,14 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 {
 	public ObjectAttachmentDialog() { }
 
-	private Node3D _previewModel = null!;
+	private Node3D? _previewModel;
 
 	private readonly Dictionary<string, Node3D> _socketAnchorNodes = new(StringComparer.OrdinalIgnoreCase);
 	private readonly Dictionary<string, Node3D> _socketModelNodes = new(StringComparer.OrdinalIgnoreCase);
 	private readonly Dictionary<string, Node3D> _activeAttachmentVisuals = new(StringComparer.OrdinalIgnoreCase);
-	private Node3D _currentActiveModelNode = null!;
-	private Node3D _uncommittedPreviewNode = null!;
-	private string _uncommittedPreviewKey = null!;
+	private Node3D? _currentActiveModelNode;
+	private Node3D? _uncommittedPreviewNode;
+	private string? _uncommittedPreviewKey;
 	private VBoxContainer _configuredAttachmentsContainer = null!;
 
 	private Label _lblUnitTitle = null!;
@@ -69,9 +69,14 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 	private List<string> _availableAttachments = new();
 	private bool _isUpdatingUI;
 
-	private Action<HandAttachmentOrientation> _onApplied = null!;
+	// Applied is signalled without an orientation: the dialog commits the stored attachment,
+	// and the caller only needs to know that something changed.
+	private Action<HandAttachmentOrientation?>? _onApplied;
 	private UnitObjectAttachments? _initialSnapshot;
-	private UnitObjectAttachments _workingAttachments = null!;
+	private UnitObjectAttachments? _workingAttachments;
+
+	private UnitObjectAttachments WorkingAttachments => _workingAttachments
+		?? throw new InvalidOperationException($"{nameof(ObjectAttachmentDialog)} has no working attachment copy until a target is opened.");
 
 
 	private static readonly SocketDefinition[] BoneSockets = new[]
@@ -475,17 +480,17 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 		string? attachmentId = null,
 		string? socket = null,
 		Node3D? sourceModel = null,
-		Action<HandAttachmentOrientation>? onApplied = null)
+		Action<HandAttachmentOrientation?>? onApplied = null)
 	{
 		OpenForTarget(unitId, attachmentId, socket, sourceModel, onApplied);
 	}
 
 	public void OpenForTarget(
-		string targetId,
-		string attachmentId = null,
-		string socket = null,
-		Node3D sourceModel = null,
-		Action<HandAttachmentOrientation> onApplied = null)
+		string? targetId,
+		string? attachmentId = null,
+		string? socket = null,
+		Node3D? sourceModel = null,
+		Action<HandAttachmentOrientation?>? onApplied = null)
 	{
 		_onApplied = onApplied;
 
@@ -560,7 +565,7 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 		return null;
 	}
 
-	private void SetTargetObject(string targetId)
+	private void SetTargetObject(string? targetId)
 	{
 		if (string.IsNullOrEmpty(targetId))
 		{
@@ -914,7 +919,7 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 				NormalOffset = _currentNormalOffset,
 				ParentAttachmentId = _currentParentAttachmentId
 			};
-			_workingAttachments.SetSocketOrientation(_currentSocketId, _currentAttachmentId, orientation);
+			WorkingAttachments.SetSocketOrientation(_currentSocketId, _currentAttachmentId, orientation);
 		}
 	}
 
@@ -940,7 +945,7 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 		_socketAnchorNodes.TryGetValue(_currentSocketId, out var targetAnchor);
 		if (targetAnchor == null || !GodotObject.IsInstanceValid(targetAnchor)) return;
 
-		Node3D targetNode = GetActiveTargetNode();
+		Node3D? targetNode = GetActiveTargetNode();
 		if (targetNode == null) return;
 
 		var currentDef = _currentAvailableSockets.FirstOrDefault(s => s.SocketId.Equals(_currentSocketId, StringComparison.OrdinalIgnoreCase));
@@ -953,9 +958,9 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 		CalculateAndApplyTransform(targetAnchor, targetNode, currentDef);
 	}
 
-	private Node3D GetActiveTargetNode()
+	private Node3D? GetActiveTargetNode()
 	{
-		Node3D targetNode = _currentActiveModelNode;
+		Node3D? targetNode = _currentActiveModelNode;
 		if (targetNode == null || !GodotObject.IsInstanceValid(targetNode))
 		{
 			PreviewCurrentAttachment();
@@ -1219,12 +1224,12 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 		_uncommittedPreviewKey = null;
 	}
 
-	private void LoadTargetModelAndRig(string targetId, Node3D sourceModel)
+	private void LoadTargetModelAndRig(string? targetId, Node3D? sourceModel)
 	{
 		ClearPreviewModel();
 		if (string.IsNullOrEmpty(targetId)) return;
 
-		Node3D modelToInstantiate = GetModelToInstantiate(targetId, sourceModel);
+		Node3D? modelToInstantiate = GetModelToInstantiate(targetId, sourceModel);
 		if (modelToInstantiate == null) return;
 
 		RemoveAllExistingAttachments(modelToInstantiate);
@@ -1239,7 +1244,7 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 		FinalizeModelLoading();
 	}
 
-	private Node3D GetModelToInstantiate(string targetId, Node3D sourceModel)
+	private Node3D? GetModelToInstantiate(string? targetId, Node3D? sourceModel)
 	{
 		if (sourceModel != null && GodotObject.IsInstanceValid(sourceModel))
 		{
@@ -1271,19 +1276,20 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 		if (GameHost.BuildingRegistry != null && GameHost.BuildingRegistry.TryGetValue(targetId, out var bldMeta) && !string.IsNullOrEmpty(bldMeta.ModelPath))
 			return bldMeta.ModelPath;
 
-		if (GameHost.PropRegistry != null && (GameHost.PropRegistry.TryGetValue(targetId, out var pMeta) || GameHost.PropRegistry.TryGetValue(Path.GetFileNameWithoutExtension(targetId), out pMeta)))
+		if (GameHost.PropRegistry != null && (GameHost.PropRegistry.TryGetValue(targetId, out var pMeta) || GameHost.PropRegistry.TryGetValue(Path.GetFileNameWithoutExtension(targetId), out pMeta))
+			&& !string.IsNullOrEmpty(pMeta.ModelPath))
 			return pMeta.ModelPath;
 
 		return targetId;
 	}
 
-	private void SetupSockets(Node3D sourceModel)
+	private void SetupSockets(Node3D? sourceModel)
 	{
 		var skeleton = SkeletonValidator.FindSkeleton(_previewModel);
 		bool isRigged = skeleton != null && !_isTargetBuilding;
 		_currentAvailableSockets.Clear();
 
-		if (isRigged)
+		if (skeleton != null && isRigged)
 		{
 			CopySkeletonPoses(skeleton, sourceModel);
 			AddBoneSockets(skeleton);
@@ -1312,7 +1318,7 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 		}
 	}
 
-	private void CopySkeletonPoses(Skeleton3D skeleton, Node3D sourceModel)
+	private void CopySkeletonPoses(Skeleton3D skeleton, Node3D? sourceModel)
 	{
 		if (sourceModel == null || !GodotObject.IsInstanceValid(sourceModel)) return;
 
@@ -1330,6 +1336,8 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 
 	private void CreatePseudoSocketAnchor(SocketDefinition sock, Vector3 localPosition, Vector3 localRotationDegrees)
 	{
+		if (_previewModel == null) return;
+
 		var anchor = new Node3D { Name = $"Anchor_{sock.SocketId}" };
 		anchor.Position = localPosition;
 		anchor.RotationDegrees = localRotationDegrees;
@@ -1425,7 +1433,7 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 	private List<ConfiguredAttachmentEntry> GetConfiguredAttachments()
 	{
 		bool isNonRigged = _isTargetBuilding || _currentAvailableSockets.Any(s => s.SocketId == "Top" || s.SocketId == "Base" || s.SocketId == "Pivot");
-		return GetConfiguredAttachmentsFromData(_workingAttachments, isNonRigged);
+		return GetConfiguredAttachmentsFromData(WorkingAttachments, isNonRigged);
 	}
 
 	public static List<ConfiguredAttachmentEntry> GetConfiguredAttachmentsForObject(string targetObjectId, bool isBuilding = false)
@@ -1636,15 +1644,15 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 		}
 	}
 
-	private Node3D AttachVisualToAnchor(string socketId, string attachmentId, Vector3 pos, Vector3 rot, Vector3 scale, float normalOffset, int index = -1, string? parentAttachmentId = null)
+	private Node3D? AttachVisualToAnchor(string socketId, string? attachmentId, Vector3 pos, Vector3 rot, Vector3 scale, float normalOffset, int index = -1, string? parentAttachmentId = null)
 	{
 		string normSocket = NormalizeSocketId(socketId);
 		if (!_socketAnchorNodes.TryGetValue(normSocket, out var targetAnchor) || targetAnchor == null || !GodotObject.IsInstanceValid(targetAnchor)) return null;
 
+		if (string.IsNullOrEmpty(attachmentId) || attachmentId.Equals("null", StringComparison.OrdinalIgnoreCase) || attachmentId.Equals("none", StringComparison.OrdinalIgnoreCase)) return null;
+
 		string key = GetAttachmentKey(normSocket, attachmentId, index, parentAttachmentId);
 		RemoveOldAttachmentVisual(key);
-
-		if (string.IsNullOrEmpty(attachmentId) || attachmentId.Equals("null", StringComparison.OrdinalIgnoreCase) || attachmentId.Equals("none", StringComparison.OrdinalIgnoreCase)) return null;
 
 		if (Unit3D.IsPlayerColorGlowAttachment(attachmentId))
 		{
@@ -1654,7 +1662,7 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 			return previewGlow;
 		}
 
-		Node3D loaded = Unit3D.ResolveAndInstantiateAttachment(attachmentId, out _, out _, out _);
+		Node3D? loaded = Unit3D.ResolveAndInstantiateAttachment(attachmentId, out _, out _, out _);
 		if (loaded == null) return null;
 
 		ConfigureLoadedVisual(loaded, attachmentId, key, pos, rot, scale, normalOffset);
@@ -1769,7 +1777,7 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 			row.Name = "Row_HBoxContainer";
 			row.AddThemeConstantOverride("separation", 8);
 
-			string parentAttId = entry.Orientation.ParentAttachmentId;
+			string? parentAttId = entry.Orientation.ParentAttachmentId;
 			bool isChild = !string.IsNullOrEmpty(parentAttId);
 
 			string badgeText = isChild
@@ -1942,7 +1950,7 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 		string normSocket = NormalizeSocketId(socketId);
 		ClearUncommittedPreview();
 
-		_workingAttachments.RemoveSocketAttachment(normSocket, attachmentId, parentAttachmentId);
+		WorkingAttachments.RemoveSocketAttachment(normSocket, attachmentId, parentAttachmentId);
 		Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Removed {0} from {1} ({2})."), attachmentId, _targetObjectId, normSocket));
 
 		AttachAllConfiguredAttachments();
@@ -1976,7 +1984,7 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 			ParentAttachmentId = _currentParentAttachmentId
 		};
 
-		_workingAttachments.SetSocketOrientation(_currentSocketId, _currentAttachmentId, orientation);
+		WorkingAttachments.SetSocketOrientation(_currentSocketId, _currentAttachmentId, orientation);
 		Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Added {0} to {1} on socket {2}."), _currentAttachmentId, _targetObjectId, _currentSocketId));
 
 		ClearUncommittedPreview();
@@ -1990,7 +1998,7 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 	{
 		if (!string.IsNullOrEmpty(_targetObjectId))
 		{
-			Hud?.SaveAllUnitObjectAttachments(_targetObjectId, _workingAttachments);
+			Hud?.SaveAllUnitObjectAttachments(_targetObjectId, WorkingAttachments);
 			Hud?.SaveUnitPseudoSockets(_targetObjectId, _workingPseudoSockets);
 		}
 
@@ -2000,13 +2008,13 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 
 	protected override void OnCancel()
 	{
-		_workingAttachments = default;
+		_workingAttachments = null;
 		ClearPreviewModel();
 	}
 
 	public override void CloseDialog()
 	{
-		_workingAttachments = default;
+		_workingAttachments = null;
 		ClearPreviewModel();
 		base.CloseDialog();
 	}

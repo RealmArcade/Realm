@@ -5174,7 +5174,7 @@ namespace Realm.Client.UI
 			string? attachmentId = null,
 			string hand = "RightHand",
 			Node3D? sourceModel = null,
-			Action<HandAttachmentOrientation>? onApplied = null)
+			Action<HandAttachmentOrientation?>? onApplied = null)
 		{
 			if (_objectAttachmentDialog == null)
 			{
