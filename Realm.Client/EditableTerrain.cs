@@ -353,13 +353,9 @@ public partial class EditableTerrain : RuntimeTerrain
 
 	private void ApplyNewTerrainState(int newWidth, int newDepth, float quadSize, TerrainCell[,] newCells, int[,] newPathing, TerrainSplatWeights[,] newSplatMap, TerrainSplatWeights[,]? newCliffSplatMap)
 	{
-		if (GameContext.World is not { } world) return;
+		if (GameContext.World == null) return;
 
-		ref var state = ref world.Get<TerrainState>(GameContext.Simulation.WorldEntity);
-		world.Set(GameContext.Simulation.WorldEntity, new TerrainState(
-			newWidth, newDepth, quadSize, state.CellSize,
-			newCells, newPathing, state.NavMesh, state.NavMeshQuery
-		));
+		TerrainStateStore.ReplaceGrid(newWidth, newDepth, quadSize, newCells, newPathing);
 
 		_localCells = newCells;
 		_localPathingCodes = newPathing;

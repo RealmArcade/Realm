@@ -29,7 +29,8 @@ public partial class RuntimeTerrain : Node3D
 	public const uint TerrainDecalCullMask = 1 << 2;
 	public static bool IsMinimapRendering { get; set; } = false;
 
-	// Terrain data lives in the ECS world; asking for it before one exists is a caller bug.
+	// Terrain data lives in the ECS world; asking for it before one exists is a caller bug. State changes go through
+	// TerrainStateStore; this stays for the swatch-config writes that still edit the component in place.
 	private static EcsWorld World => GameContext.World
 		?? throw new InvalidOperationException("RuntimeTerrain used before a world existed.");
 
@@ -67,106 +68,40 @@ public partial class RuntimeTerrain : Node3D
 	public const float DefaultQuadSize = TerrainState.DefaultQuadSize;
 	public const float DefaultCellSize = TerrainState.DefaultCellSize;
 
-	private TerrainState GetTerrainStateSafe()
-	{
-		if (GameContext.Host != null &&
-		    GameContext.World is { } world &&
-		    world.IsAlive(GameContext.Simulation.WorldEntity) &&
-		    world.Has<TerrainState>(GameContext.Simulation.WorldEntity))
-		{
-			return world.Get<TerrainState>(GameContext.Simulation.WorldEntity);
-		}
-
-		return new TerrainState(128, 128, DefaultQuadSize, DefaultCellSize, (TerrainCell[,]?)null, null, null, null);
-	}
-
 	public float CellSize
 	{
-		get => GetTerrainStateSafe().CellSize;
-		protected set
-		{
-			ref var state = ref World.Get<TerrainState>(GameContext.Simulation.WorldEntity);
-			World.Set(GameContext.Simulation.WorldEntity, new TerrainState(
-				state.Width, state.Depth, state.QuadSize, value,
-				state.Cells, state.PathingCodes, state.NavMesh, state.NavMeshQuery
-			));
-		}
+		get => TerrainStateStore.Read().CellSize;
+		protected set => TerrainStateStore.SetCellSize(value);
 	}
 
-	public DtNavMesh? NavMesh => GetTerrainStateSafe().NavMesh;
-	public DtNavMeshQuery? NavMeshQuery => GetTerrainStateSafe().NavMeshQuery;
+	public DtNavMesh? NavMesh => TerrainStateStore.Read().NavMesh;
+	public DtNavMeshQuery? NavMeshQuery => TerrainStateStore.Read().NavMeshQuery;
 
 	public int Width
 	{
-		get => GetTerrainStateSafe().Width;
-		protected set
-		{
-			ref var state = ref World.Get<TerrainState>(GameContext.Simulation.WorldEntity);
-			World.Set(GameContext.Simulation.WorldEntity, new TerrainState(
-				value, state.Depth, state.QuadSize, state.CellSize,
-				state.Cells, state.PathingCodes, state.NavMesh, state.NavMeshQuery
-			));
-		}
+		get => TerrainStateStore.Read().Width;
+		protected set => TerrainStateStore.SetWidth(value);
 	}
 
 	public int Depth
 	{
-		get => GetTerrainStateSafe().Depth;
-		protected set
-		{
-			ref var state = ref World.Get<TerrainState>(GameContext.Simulation.WorldEntity);
-			World.Set(GameContext.Simulation.WorldEntity, new TerrainState(
-				state.Width, value, state.QuadSize, state.CellSize,
-				state.Cells, state.PathingCodes, state.NavMesh, state.NavMeshQuery
-			));
-		}
+		get => TerrainStateStore.Read().Depth;
+		protected set => TerrainStateStore.SetDepth(value);
 	}
 
 	public float QuadSize
 	{
-		get => GetTerrainStateSafe().QuadSize;
-		protected set
-		{
-			ref var state = ref World.Get<TerrainState>(GameContext.Simulation.WorldEntity);
-			World.Set(GameContext.Simulation.WorldEntity, new TerrainState(
-				state.Width, state.Depth, value, state.CellSize,
-				state.Cells, state.PathingCodes, state.NavMesh, state.NavMeshQuery
-			));
-		}
+		get => TerrainStateStore.Read().QuadSize;
+		protected set => TerrainStateStore.SetQuadSize(value);
 	}
 
 	protected TerrainCell[,] _localCells = null!;
 	protected int[,] _localPathingCodes = null!;
 
-		private void UpdateTerrainState(TerrainCell[,]? newCells, int[,]? newPathingCodes)
-		{
-			if (GameContext.Host != null &&
-			    GameContext.World is { } world &&
-			    world.IsAlive(GameContext.Simulation.WorldEntity) &&
-			    world.Has<TerrainState>(GameContext.Simulation.WorldEntity))
-			{
-				ref var state = ref world.Get<TerrainState>(GameContext.Simulation.WorldEntity);
-				
-				int targetWidth = state.Width;
-				int targetDepth = state.Depth;
-				
-				if (newCells != null)
-				{
-					targetWidth = newCells.GetLength(0);
-					targetDepth = newCells.GetLength(1);
-				}
-				else if (newPathingCodes != null)
-				{
-					targetWidth = newPathingCodes.GetLength(0);
-					targetDepth = newPathingCodes.GetLength(1);
-				}
-
-				world.Set(GameContext.Simulation.WorldEntity, new TerrainState(
-					targetWidth, targetDepth, state.QuadSize, state.CellSize,
-					newCells ?? state.Cells, newPathingCodes ?? state.PathingCodes, state.NavMesh, state.NavMeshQuery
-				));
-			}
-		}
+	private void UpdateTerrainState(TerrainCell[,]? newCells, int[,]? newPathingCodes)
+	{
+		TerrainStateStore.ReplaceGrid(newCells, newPathingCodes);
+	}
 
 	public TerrainCell[,] Cells
 	{

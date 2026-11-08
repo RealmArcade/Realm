@@ -24,15 +24,7 @@ public partial class RuntimeTerrain
 {
 	public void BakeNavMesh()
 	{
-		var world = GameContext.Host != null ? GameContext.World : null;
-		var worldEntity = GameContext.Host != null ? GameContext.Simulation.WorldEntity : default;
-		if (world != null && world.IsAlive(worldEntity) && world.Has<TerrainState>(worldEntity))
-		{
-			ref var state = ref world.Get<TerrainState>(worldEntity);
-			var terrainNavMeshService = GameContext.Simulation.TerrainNavMeshService;
-			terrainNavMeshService.BakeNavMesh(ref state);
-			world.Set(worldEntity, state);
-		}
+		TerrainStateStore.BakeNavMesh();
 	}
 
 	public bool TrySampleHeight(float worldX, float worldZ, out float height)
