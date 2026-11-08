@@ -455,32 +455,10 @@ public partial class InGameHUD : Control
 
 	private void ApplyModeSpecificUI()
 	{
+		// A test run of a map carries the way back to the editor; every other match does not.
 		if (GameContext.SessionState.IsTestMode)
 		{
-			var btnBackToEditor = new Button();
-			btnBackToEditor.Name = "BtnBackToEditor";
-			btnBackToEditor.Text = TranslationServer.Translate("Back to Editor");
-			btnBackToEditor.Set("icon_max_width", 0);
-			UIStyle.ApplyButtonStyleBoxes(btnBackToEditor);
-			btnBackToEditor.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
-			btnBackToEditor.AddThemeFontSizeOverride("font_size", 13);
-			btnBackToEditor.CustomMinimumSize = new Vector2(160, 40);
-			btnBackToEditor.SetAnchorsPreset(LayoutPreset.TopLeft);
-			btnBackToEditor.OffsetLeft = 20;
-			btnBackToEditor.OffsetTop = 20;
-			btnBackToEditor.Pressed += () =>
-			{
-				GameContext.UserInterface?.PlayClickSound();
-				GameContext.SessionState.IsTestMode = false;
-				GameContext.SessionState.ReturningFromTest = true;
-				if (GameContext.Lobby != null)
-				{
-					GameContext.Lobby.Disconnect();
-				}
-
-				GameContext.UserInterface?.TransitionTo(GameScreen.MapEditorHUD);
-			};
-			AddChild(btnBackToEditor);
+			AddChild(BackToEditorButton.Create());
 		}
 	}
 
