@@ -14,7 +14,8 @@ namespace Realm.Client.Services;
 /// </summary>
 internal static class EditorEntityState
 {
-	private static EcsWorld World => GameContext.World;
+	private static EcsWorld World => GameContext.World
+		?? throw new InvalidOperationException("EditorService used before a world existed.");
 
 	public static bool GetBlockMode(Entity worldEntity)
 	{

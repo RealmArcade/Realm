@@ -740,13 +740,17 @@ public partial class EditorService : IEditorAPI
 
 	private readonly EditorTerrainSurface _surface = new();
 
-	private float _clumpSpawnCooldown;
 	private readonly EditorClumpSession _clump = new();
 
 
 	public void ResetPaintThrottle() => _terrainEdit.ResetPaintThrottle();
 
 	private readonly EditorTerrainEditSession _terrainEdit;
+
+	public EditorService()
+	{
+		_terrainEdit = new EditorTerrainEditSession(_surface);
+	}
 
 	private CopiedAreaTemplate? _copiedArea;
 
