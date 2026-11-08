@@ -349,10 +349,7 @@ public partial class SettingsMenu : Control
 		foreach (var opt in dropdowns)
 		{
 			opt.Flat = false;
-			opt.AddThemeStyleboxOverride("normal", UIStyle.CreateLightDropdownNormal());
-			opt.AddThemeStyleboxOverride("hover", UIStyle.CreateLightDropdownHover());
-			opt.AddThemeStyleboxOverride("pressed", UIStyle.CreateLightDropdownPressed());
-			opt.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+			UIStyle.ApplyLightDropdown(opt);
 
 			opt.AddThemeColorOverride("font_color", new Color(0.9f, 0.85f, 0.75f));
 			opt.AddThemeColorOverride("font_hover_color", new Color(1.0f, 0.95f, 0.8f));
@@ -389,17 +386,12 @@ public partial class SettingsMenu : Control
 
 		var sliders = new[] { _masterSlider, _musicSlider, _sfxSlider, _voiceSlider, _scrollSpeedSlider, _mouseSensSlider, _hudScaleSlider, _fpsLimitSlider };
 
-		var trackStyle = UIStyle.CreateLightSliderTrack();
-		var fillStyle = UIStyle.CreateLightSliderFill();
-
 		var grabberTex = UIStyle.CreateSquareStoneGrabberTexture(false);
 		var grabberHiTex = UIStyle.CreateSquareStoneGrabberTexture(true);
 
 		foreach (var s in sliders)
 		{
-			s.AddThemeStyleboxOverride("slider", trackStyle);
-			s.AddThemeStyleboxOverride("grabber_area", fillStyle);
-			s.AddThemeStyleboxOverride("grabber_area_highlight", fillStyle);
+			UIStyle.ApplyLightSlider(s);
 			s.AddThemeIconOverride("grabber", grabberTex);
 			s.AddThemeIconOverride("grabber_highlight", grabberHiTex);
 
@@ -499,10 +491,7 @@ public partial class SettingsMenu : Control
 		rightLbl.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
 		rightLbl.AddThemeFontSizeOverride("font_size", 14);
 
-		btn.AddThemeStyleboxOverride("normal", UIStyle.CreateLightButtonNormal());
-		btn.AddThemeStyleboxOverride("hover", UIStyle.CreateLightButtonHover());
-		btn.AddThemeStyleboxOverride("pressed", UIStyle.CreateLightButtonPressed());
-		btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyLightButton(btn);
 
 		btn.MouseEntered += () =>
 		{

@@ -208,6 +208,26 @@ public static partial class UIStyle
 		return style;
 	}
 
+	/// <summary>The light dropdown the settings menu uses for its option rows, focus ring cleared.</summary>
+	public static void ApplyLightDropdown(OptionButton option)
+	{
+		option.AddThemeStyleboxOverride("normal", CreateLightDropdownNormal());
+		option.AddThemeStyleboxOverride("hover", CreateLightDropdownHover());
+		option.AddThemeStyleboxOverride("pressed", CreateLightDropdownPressed());
+		option.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+	}
+
+	/// <summary>The stone-tracked slider and its fill, on both the resting and held states.</summary>
+	public static void ApplyLightSlider(HSlider slider)
+	{
+		var track = CreateLightSliderTrack();
+		var fill = CreateLightSliderFill();
+
+		slider.AddThemeStyleboxOverride("slider", track);
+		slider.AddThemeStyleboxOverride("grabber_area", fill);
+		slider.AddThemeStyleboxOverride("grabber_area_highlight", fill);
+	}
+
 	public static StyleBox CreateLightSliderTrack()
 	{
 		var style = new StyleBoxFlat();

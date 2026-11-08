@@ -487,6 +487,15 @@ public static partial class UIStyle
 		button.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 	}
 
+	/// <summary>The light stone button the settings menu dresses its option rows with.</summary>
+	public static void ApplyLightButton(Button button)
+	{
+		button.AddThemeStyleboxOverride("normal", CreateLightButtonNormal());
+		button.AddThemeStyleboxOverride("hover", CreateLightButtonHover());
+		button.AddThemeStyleboxOverride("pressed", CreateLightButtonPressed());
+		button.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+	}
+
 	/// <summary>The flat text button the discovery and lobby screens use for secondary actions.</summary>
 	public static void ApplyFlatButton(Button button)
 	{
