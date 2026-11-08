@@ -206,105 +206,42 @@ public static partial class MapWorkspaceService
 
 	public static string GetDefaultMapFolderGlobalPath()
 	{
-		string documentsDirectory = System.Environment.GetFolderPath(System.Environment.SpecialFolder.MyDocuments);
-		if (!string.IsNullOrEmpty(documentsDirectory))
-		{
-			return documentsDirectory;
-		}
-
-		return ProjectSettings.GlobalizePath("user://");
+		return MapWorkspacePaths.DefaultMapFolderGlobalPath();
 	}
-
-	private static string? _testActiveWorkspacePath;
 
 	public static void SetActiveWorkspacePathForTesting(string? path)
 	{
-		_testActiveWorkspacePath = path;
+		MapWorkspacePaths.SetActiveWorkspacePathForTesting(path);
 	}
 
 	public static string GetActiveWorkspacePath()
 	{
-		if (!string.IsNullOrEmpty(_testActiveWorkspacePath))
-			return _testActiveWorkspacePath;
-
-		if (GameContext.SessionState.IsMapEditorMode)
-			return GetEditorWorkspacePath();
-
-		return GetActiveMapDirectory();
+		return MapWorkspacePaths.ActiveWorkspacePath();
 	}
 
 	public static string GetActiveMapDirectory()
 	{
-		string? mapDirectory = GameContext.MapStorageService?.CurrentMapDirectory;
-		if (GameContext.Host != null && !string.IsNullOrEmpty(mapDirectory))
-			return mapDirectory;
-
-		return string.Empty;
+		return MapWorkspacePaths.ActiveMapDirectory();
 	}
 
 	public static string GetEditorWorkspacePath()
 	{
-		if (!string.IsNullOrEmpty(GameContext.EditorService._editingDirectory))
-			return GameContext.EditorService._editingDirectory;
-
-		return string.Empty;
+		return MapWorkspacePaths.EditorWorkspacePath();
 	}
 
-	private static string? _cachedRepoRoot;
-	private static bool _repoRootResolved;
-
-	private static string? GetRepoRoot()
-	{
-		if (_repoRootResolved) return _cachedRepoRoot;
-		_repoRootResolved = true;
-		string baseDir = PathUtils.GetProjectRoot();
-		var current = new DirectoryInfo(baseDir);
-		while (current != null)
-		{
-			if (File.Exists(Path.Combine(current.FullName, "Realm.sln")) || Directory.Exists(Path.Combine(current.FullName, "Realm.MapAPI")))
-			{
-				_cachedRepoRoot = current.FullName.Replace("\\", "/");
-				return _cachedRepoRoot;
-			}
-
-			current = current.Parent;
-		}
-
-		GD.PushWarning("[MapWorkspaceService] Could not locate the Realm repository (Realm.sln or Realm.MapAPI not found above res://). Template files and the MapAPI DLL will not be available.");
-		return null;
-	}
-
-	private static string? FindRootFile(string relativePath)
-	{
-		string found = PathUtils.FindPath(relativePath);
-		if (File.Exists(found) || Directory.Exists(found))
-		{
-			return found;
-		}
-
-		string? repoRoot = GetRepoRoot();
-		if (repoRoot == null) return null;
-		return Path.Combine(repoRoot, relativePath).Replace("\\", "/");
-	}
-
-	/// <summary>
-	///     The absolute path to a file in the map template. <see cref="string.Empty" /> when the template is not on this
-	///     machine, which is what the <c>File.Exists</c>/<c>Directory.Exists</c> guards at every copy site test for.
-	/// </summary>
 	public static string GetTemplatePath(string fileName)
 	{
-		return FindRootFile("MapTemplate/" + fileName) ?? string.Empty;
+		return MapWorkspacePaths.TemplatePath(fileName);
 	}
 
 	public static string? GetTemplateRoot()
 	{
-		string? templateRoot = FindRootFile("MapTemplate");
-		return Directory.Exists(templateRoot) ? templateRoot : null;
+		return MapWorkspacePaths.TemplateRoot();
 	}
 
 	private static string? FindBuiltApiDll()
 	{
-		string? repoRoot = GetRepoRoot();
+		string? repoRoot = MapWorkspacePaths.RepoRoot();
 		if (repoRoot == null) return null;
 		string binDir = Path.Combine(repoRoot, "Realm.MapAPI", "bin");
 		if (!Directory.Exists(binDir)) return null;
@@ -407,7 +344,7 @@ public static partial class MapWorkspaceService
 		string[] schemas = { "metadata.schema.json", "terrain.schema.json", "manifest.schema.json" };
 		foreach (string schema in schemas)
 		{
-			string? schemaSrc = FindRootFile("Realm.MapEditorExtension/" + schema);
+			string? schemaSrc = MapWorkspacePaths.FindRootFile("Realm.MapEditorExtension/" + schema);
 			if (!string.IsNullOrEmpty(schemaSrc) && File.Exists(schemaSrc))
 			{
 				File.Copy(schemaSrc, Path.Combine(vscodeDir, schema), true);
@@ -464,17 +401,12 @@ public static partial class MapWorkspaceService
 		}
 	}
 
-	private static string? GetWitPath()
-	{
-		return FindRootFile("Realm.MapAPI/wit/game.g.wit");
-	}
-
 	public static void EnsureWitFile(string directory)
 	{
 		string witDir = Path.Combine(directory, "wit");
 		Directory.CreateDirectory(witDir);
 		string witPath = Path.Combine(witDir, "game.g.wit");
-		string? sourceWit = GetWitPath();
+		string? sourceWit = MapWorkspacePaths.WitPath();
 		if (File.Exists(sourceWit))
 		{
 			File.Copy(sourceWit, witPath, true);
