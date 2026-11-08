@@ -1,12 +1,10 @@
 ﻿using System;
 using System.Globalization;
 using System.IO;
-using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using Godot;
 using Godot.Collections;
-using NSec.Cryptography;
 using Realm.Client.Core;
 using Realm.Client.Network;
 using Realm.Client.Services;
@@ -1099,195 +1097,14 @@ namespace Realm.Client.UI
 
 		public void ToggleHelpPanelExternal() => HelpPanel.Toggle();
 
-		private async void CheckCreatorRegistrationAndPrompt(Key key)
-		{
-			try
-			{
-				await PromptForCreatorRegistrationAsync(key);
-			}
-			catch (Exception exception)
-			{
-				// Publishing a map calls this before it asks the authority whether the key is registered. Without a catch,
-				// a fault here vanished and the author was simply never prompted, with the publish path looking fine.
-				GameLog.LogError($"[MapEditorHUD] Checking creator registration failed: {exception}");
-			}
-		}
+		private CreatorRegistrationDialog? _creatorRegistrationDialog;
 
-		private async Task PromptForCreatorRegistrationAsync(Key key)
-		{
-			if (GetNodeOrNull("AgreementOverlay") != null || GetNodeOrNull("CreatorRegistrationOverlay") != null)
-			{
-				return;
-			}
+		private CreatorRegistrationDialog CreatorRegistration => _creatorRegistrationDialog ??= new CreatorRegistrationDialog(
+			new CreatorRegistrationHooks(this,
+				(button, text, onClick, fontSize, tooltip) => SetupOptionButton(button, text, onClick, fontSize, tooltip),
+				ShowFeedback));
 
-			string pubKeyStr = Convert.ToBase64String(key.PublicKey.Export(KeyBlobFormat.RawPublicKey));
-
-			string accountAuthorityUrl = AccountService.AuthorityUrl;
-
-			await GameContext.NetworkService.CheckCreatorRegistrationAsync(pubKeyStr, accountAuthorityUrl, (keyStr) => { TryShowCreatorRegistrationDialog(keyStr, key); });
-		}
-
-		private void TryShowCreatorRegistrationDialog(string pubKeyStr, Key key)
-		{
-			if (GodotObject.IsInstanceValid(this) && IsInsideTree() && GetNodeOrNull("CreatorRegistrationOverlay") == null && GetNodeOrNull("AgreementOverlay") == null)
-			{
-				ShowCreatorRegistrationDialog(pubKeyStr, key);
-			}
-		}
-
-		private void ShowCreatorRegistrationDialog(string pubKeyStr, Key key)
-		{
-			if (GetNodeOrNull("CreatorRegistrationOverlay") != null) return;
-
-			string accountUserName = GameContext.Account.DisplayName;
-			if (!GameContext.Account.IsSignedIn || string.IsNullOrWhiteSpace(accountUserName))
-			{
-				ShowFeedback(TranslationServer.Translate("Sign in with Steam before registering a map key."));
-				return;
-			}
-
-			var overlay = CreateCreatorRegistrationOverlay();
-			var vbox = CreateCreatorRegistrationContainer(overlay);
-
-			var lineEdit = new LineEdit { PlaceholderText = accountUserName, Alignment = HorizontalAlignment.Center, Text = accountUserName, Editable = false };
-			UIStyle.ApplyTextInput(lineEdit);
-			vbox.AddChild(lineEdit);
-
-			var errLabel = new Label { HorizontalAlignment = HorizontalAlignment.Center };
-			errLabel.AddThemeColorOverride("font_color", new Color(1, 0.3f, 0.3f));
-			errLabel.AddThemeFontSizeOverride("font_size", 11);
-			vbox.AddChild(errLabel);
-
-			var btnRow = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
-			btnRow.AddThemeConstantOverride("separation", 12);
-
-			var btnCancel = UIStyle.CreateBareButton("BtnCancel_Button");
-			SetupOptionButton(btnCancel, TranslationServer.Translate("Cancel / Skip"), () => overlay.QueueFree(), 13);
-			btnCancel.CustomMinimumSize = new Vector2(130, 36);
-			btnRow.AddChild(btnCancel);
-
-			var btnRegister = new Button();
-			btnRegister.Name = "BtnRegister_Button";
-			btnRegister.Set("icon_max_width", 0);
-			SetupOptionButton(btnRegister, TranslationServer.Translate("Register"), null, 13);
-			btnRegister.CustomMinimumSize = new Vector2(150, 36);
-			btnRegister.Pressed += () => OnRegisterCreatorPressed(lineEdit, errLabel, btnRegister, overlay, pubKeyStr, key);
-			btnRow.AddChild(btnRegister);
-
-			vbox.AddChild(btnRow);
-		}
-
-		private ColorRect CreateCreatorRegistrationOverlay()
-		{
-			var overlay = new ColorRect { Name = "CreatorRegistrationOverlay", Color = new Color(0, 0, 0, 0.75f), MouseFilter = MouseFilterEnum.Stop, ZIndex = 1000 };
-			overlay.SetAnchorsPreset(LayoutPreset.FullRect);
-			AddChild(overlay);
-			return overlay;
-		}
-
-		private VBoxContainer CreateCreatorRegistrationContainer(ColorRect overlay)
-		{
-			var center = UIStyle.CreateCenteredOverlay();
-			overlay.AddChild(center);
-
-			var panel = new PanelContainer { CustomMinimumSize = new Vector2(480, 260) };
-			var style = new StyleBoxFlat
-			{
-				BgColor = new Color(0.12f, 0.12f, 0.18f, 0.98f),
-				BorderColor = UIStyle.ColorCyanGlow,
-				BorderWidthTop = 2,
-				BorderWidthBottom = 2,
-				BorderWidthLeft = 2,
-				BorderWidthRight = 2,
-				CornerRadiusTopLeft = 6,
-				CornerRadiusTopRight = 6,
-				CornerRadiusBottomLeft = 6,
-				CornerRadiusBottomRight = 6
-			};
-			panel.AddThemeStyleboxOverride("panel", style);
-			center.AddChild(panel);
-
-			var margin = new MarginContainer();
-			margin.Name = "Margin_MarginContainer";
-			margin.AddThemeConstantOverride("margin_top", 18);
-			margin.AddThemeConstantOverride("margin_bottom", 18);
-			margin.AddThemeConstantOverride("margin_left", 20);
-			margin.AddThemeConstantOverride("margin_right", 20);
-			panel.AddChild(margin);
-
-			var vbox = new VBoxContainer();
-			vbox.Name = "Vbox_VBoxContainer";
-			vbox.AddThemeConstantOverride("separation", 12);
-			margin.AddChild(vbox);
-
-			var title = new Label { HorizontalAlignment = HorizontalAlignment.Center };
-			UIStyle.ApplyTitle(title, TranslationServer.Translate("REGISTER CREATOR PROFILE"), 18);
-			title.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-			vbox.AddChild(title);
-
-			var desc = new Label
-			{
-				Text = TranslationServer.Translate("A new map key has been generated for your machine. It is registered under the Steam name this account is signed in with."),
-				HorizontalAlignment = HorizontalAlignment.Center,
-				AutowrapMode = TextServer.AutowrapMode.WordSmart,
-				CustomMinimumSize = new Vector2(440, 0),
-				SizeFlagsHorizontal = SizeFlags.ExpandFill
-			};
-			desc.AddThemeFontSizeOverride("font_size", 12);
-			desc.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.95f));
-			vbox.AddChild(desc);
-
-			return vbox;
-		}
-
-		private async void OnRegisterCreatorPressed(LineEdit lineEdit, Label errLabel, Button btnRegister, ColorRect overlay, string pubKeyStr, Key key)
-		{
-			string username = lineEdit.Text.Trim();
-			
-			btnRegister.Disabled = true;
-			errLabel.Text = TranslationServer.Translate("Registering...");
-
-			try
-			{
-				string? errText = await GameContext.EditorService.ProcessCreatorRegistrationAsync(username, pubKeyStr, key);
-
-				if (string.IsNullOrEmpty(errText))
-				{
-					overlay.QueueFree();
-					ShowFeedback(TranslationServer.Translate("Creator registered successfully!"));
-				}
-				else
-				{
-					await HandleRegistrationFailure(errText, errLabel);
-					btnRegister.Disabled = false;
-				}
-			}
-			catch (Exception ex)
-			{
-				errLabel.Text = TranslationServer.Translate("Error: ") + ex.Message;
-				btnRegister.Disabled = false;
-			}
-		}
-
-		private async Task HandleRegistrationFailure(string errText, Label errLabel)
-		{
-			try
-			{
-				var errDoc = JsonDocument.Parse(errText);
-				if (errDoc.RootElement.TryGetProperty("Message", out var msgProp))
-				{
-					errLabel.Text = msgProp.GetString();
-				}
-				else
-				{
-					errLabel.Text = TranslationServer.Translate("Registration failed.");
-				}
-			}
-			catch
-			{
-				errLabel.Text = TranslationServer.Translate("Registration failed: ") + errText;
-			}
-		}
+		private void CheckCreatorRegistrationAndPrompt(Key key) => CreatorRegistration.CheckAsync(key);
 
 		public void UpdateMirrorButtonText() => UpdateMirrorDropdowns();
 
