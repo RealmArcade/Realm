@@ -42,6 +42,14 @@ namespace Realm.Client.Services;
 
 public partial class EditorService : IEditorAPI
 {
+	/// <summary>
+	/// The world the editor's terrain and entity edits are recorded against. Editor paths only
+	/// run once a world exists, so reaching one without a world is a programming error;
+	/// stating that once keeps each edit path from re-deriving it.
+	/// </summary>
+	private static EcsWorld World => GameContext.World
+		?? throw new InvalidOperationException("EditorService used before a world existed.");
+
 	public (bool Success, string ErrorMessage, IReadOnlyList<string> ExtractedAnimationFiles, string FileName) ImportGlbAssetFromExtensionDomain(string sourceFilePath, string category, string wsPath, Action<string, string, string, string> updateMetadataAction)
 	{
 		string fileName = Path.GetFileName(sourceFilePath);
@@ -128,7 +136,7 @@ public partial class EditorService : IEditorAPI
 		return (true, finalFileName, newHash);
 	}
 
-	private string HandleExistingRanimFileDomain(string targetPath, string animsDir, string baseName, string newHash, byte[] sourceBytes)
+	private string? HandleExistingRanimFileDomain(string targetPath, string animsDir, string baseName, string newHash, byte[] sourceBytes)
 	{
 		string existingHash = RealmMetadataHelper.ComputeBlake3(File.ReadAllBytes(targetPath), ".ranim");
 		if (existingHash.Equals(newHash, StringComparison.OrdinalIgnoreCase))
@@ -224,7 +232,7 @@ public partial class EditorService : IEditorAPI
 		return await RegisterCreatorAsync(username, pubKeyStr, key);
 	}
 
-	public async Task<string> RegisterCreatorAsync(string username, string pubKeyStr, Key key)
+	public async Task<string?> RegisterCreatorAsync(string username, string pubKeyStr, Key key)
 	{
 		byte[] payloadBytes = Encoding.UTF8.GetBytes(CreatorRegistrationProof.BuildPayload(username, pubKeyStr, null, null));
 		byte[] sigBytes = SignatureAlgorithm.Ed25519.Sign(key, payloadBytes);
@@ -273,11 +281,11 @@ public partial class EditorService : IEditorAPI
 		if (GameContext.World != null)
 		{
 			var allPropEntitiesQuery = QueryCache.AllPropIdentityAndPositionQuery;
-			GameContext.World.Query(in allPropEntitiesQuery, (Entity entity, ref Position posComp) =>
+			World.Query(in allPropEntitiesQuery, (Entity entity, ref Position posComp) =>
 			{
 				if (!hasProp3D(entity))
 				{
-					GameContext.World.Set(entity, new Position(new Vector3(posComp.Value.X * scaleX, posComp.Value.Y, posComp.Value.Z * scaleZ)));
+					World.Set(entity, new Position(new Vector3(posComp.Value.X * scaleX, posComp.Value.Y, posComp.Value.Z * scaleZ)));
 				}
 			});
 		}
@@ -334,9 +342,9 @@ public partial class EditorService : IEditorAPI
 
 	public void SetCameraBounds(Entity worldEntity, MapCameraBounds cameraBounds)
 	{
-		if (GameContext.World == null || !GameContext.World.IsAlive(worldEntity)) return;
+		if (GameContext.World == null || !World.IsAlive(worldEntity)) return;
 
-		GameContext.World.Mutate<EditorState>(worldEntity, (ref EditorState state) =>
+		World.Mutate<EditorState>(worldEntity, (ref EditorState state) =>
 		{
 			state.CameraBoundsLeft = cameraBounds.Left;
 			state.CameraBoundsRight = cameraBounds.Right;
@@ -344,9 +352,9 @@ public partial class EditorService : IEditorAPI
 			state.CameraBoundsBottom = cameraBounds.Bottom;
 		});
 
-		if (GameContext.World.Has<CameraState>(worldEntity))
+		if (World.Has<CameraState>(worldEntity))
 		{
-			GameContext.World.Mutate<CameraState>(worldEntity, (ref CameraState cameraState) =>
+			World.Mutate<CameraState>(worldEntity, (ref CameraState cameraState) =>
 			{
 				cameraState.LimitLeft = cameraBounds.Left;
 				cameraState.LimitRight = cameraBounds.Right;
@@ -358,13 +366,13 @@ public partial class EditorService : IEditorAPI
 
 	public Entity EnsureDecalEntity(Entity currentEntity, string decalId, Vector3 position, float rotationY, float scaleX)
 	{
-		if (!GameContext.World.IsAlive(currentEntity))
+		if (!World.IsAlive(currentEntity))
 		{
-			var newEnt = GameContext.World.Create();
-			GameContext.World.Add(newEnt, new DecalIdentity(decalId));
-			GameContext.World.Add(newEnt, new Position(position));
-			GameContext.World.Add(newEnt, new RotationY(rotationY));
-			GameContext.World.Add(newEnt, new ModelScale(scaleX));
+			var newEnt = World.Create();
+			World.Add(newEnt, new DecalIdentity(decalId));
+			World.Add(newEnt, new Position(position));
+			World.Add(newEnt, new RotationY(rotationY));
+			World.Add(newEnt, new ModelScale(scaleX));
 			return newEnt;
 		}
 
@@ -374,9 +382,9 @@ public partial class EditorService : IEditorAPI
 	public void UpdateEntityEcsPosition(Entity entity, Vector3 newPos)
 	{
 		if (GameContext.World == null) return;
-		if (GameContext.World.IsAlive(entity) && GameContext.World.Has<Position>(entity))
+		if (World.IsAlive(entity) && World.Has<Position>(entity))
 		{
-			GameContext.World.Set(entity, new Position(newPos));
+			World.Set(entity, new Position(newPos));
 		}
 	}
 
@@ -1161,8 +1169,8 @@ public partial class EditorService : IEditorAPI
 	public const float MAX_CLUMP_DENSITY = MAX_CLUMP_COUNT;
 
 
-	private TerrainSplatWeights[,] _terrainSplatMap = null!;
-	private TerrainSplatWeights[,] _terrainCliffSplatMap = null!;
+	private TerrainSplatWeights[,]? _terrainSplatMap;
+	private TerrainSplatWeights[,]? _terrainCliffSplatMap;
 
 	private float _clumpSpawnCooldown;
 	private bool _isDrawingClump;
@@ -1254,7 +1262,7 @@ public partial class EditorService : IEditorAPI
 		_ => false
 	};
 
-	public void SetTerrainSplatMap(TerrainSplatWeights[,] splatMap, TerrainSplatWeights[,] cliffSplatMap = null)
+	public void SetTerrainSplatMap(TerrainSplatWeights[,]? splatMap, TerrainSplatWeights[,]? cliffSplatMap = null)
 	{
 		_terrainSplatMap = splatMap;
 		if (cliffSplatMap != null)
@@ -1284,7 +1292,7 @@ public partial class EditorService : IEditorAPI
 	public Vector2I? ObjectMarqueeEnd => _objectMarqueeEnd;
 	public bool IsObjectMarqueeSelecting => _isObjectMarqueeSelecting;
 
-	public CopiedAreaTemplate CopiedArea
+	public CopiedAreaTemplate? CopiedArea
 	{
 		get => _copiedArea;
 		set => _copiedArea = value;
@@ -1460,7 +1468,7 @@ public partial class EditorService : IEditorAPI
 			return 0.0f;
 		}
 
-		ref var terrain = ref GameContext.World.Get<TerrainState>(terrainEntity);
+		ref var terrain = ref World.Get<TerrainState>(terrainEntity);
 		var cells = terrain.Cells;
 		if (cells == null) return 0.0f;
 
@@ -2286,8 +2294,8 @@ public partial class EditorService : IEditorAPI
 				}
 			}
 
-			TerrainCell[,] beforeC = null;
-			TerrainCell[,] afterC = null;
+			TerrainCell[,]? beforeC = null;
+			TerrainCell[,]? afterC = null;
 			if (cellsChanged)
 			{
 				beforeC = new TerrainCell[w, d];
@@ -2311,8 +2319,8 @@ public partial class EditorService : IEditorAPI
 				}
 			}
 
-			int[,] beforeP = null;
-			int[,] afterP = null;
+			int[,]? beforeP = null;
+			int[,]? afterP = null;
 			if (pathingChanged)
 			{
 				beforeP = new int[w, d];
@@ -2336,10 +2344,10 @@ public partial class EditorService : IEditorAPI
 				}
 			}
 
-			TerrainSplatWeights[,] beforeS = null;
-			TerrainSplatWeights[,] afterS = null;
-			TerrainSplatWeights[,] beforeCliffS = null;
-			TerrainSplatWeights[,] afterCliffS = null;
+			TerrainSplatWeights[,]? beforeS = null;
+			TerrainSplatWeights[,]? afterS = null;
+			TerrainSplatWeights[,]? beforeCliffS = null;
+			TerrainSplatWeights[,]? afterCliffS = null;
 			if (splatChanged)
 			{
 				if (currentSplatMap != null)
@@ -2441,7 +2449,7 @@ public partial class EditorService : IEditorAPI
 	public Entity SpawnPropDomain(string propId, System.Numerics.Vector3 position, float rotationY, float scale, string cleanId, float defaultAmount, float terrainHeight, float collisionRadius)
 	{
 		var entity = PropEntityFactory.CreateCore(
-			GameContext.World,
+			World,
 			propId,
 			new System.Numerics.Vector3(position.X, terrainHeight, position.Z),
 			rotationY,
@@ -2467,7 +2475,7 @@ public partial class EditorService : IEditorAPI
 		_clumpSpawnCooldown = value;
 	}
 
-	public CompositeAction EndClumpSession()
+	public CompositeAction? EndClumpSession()
 	{
 		_isDrawingClump = false;
 		if (_clumpSpawnActionsInSession.Count > 0)
@@ -4002,9 +4010,9 @@ public partial class EditorService : IEditorAPI
 
 		var worldQuery = QueryCache.AllTerrainStateQuery;
 		Entity foundEntity = Entity.Null;
-		GameContext.World.Query(in worldQuery, (Entity entity) => foundEntity = entity);
+		World.Query(in worldQuery, (Entity entity) => foundEntity = entity);
 		terrainEntity = foundEntity;
-		return terrainEntity != Entity.Null && GameContext.World.IsAlive(terrainEntity);
+		return terrainEntity != Entity.Null && World.IsAlive(terrainEntity);
 	}
 
 	private ref TerrainState GetTerrainState()
@@ -4014,7 +4022,7 @@ public partial class EditorService : IEditorAPI
 			throw new InvalidOperationException("TerrainState entity not found in ECS world.");
 		}
 
-		return ref GameContext.World.Get<TerrainState>(terrainEntity);
+		return ref World.Get<TerrainState>(terrainEntity);
 	}
 
 	private float GetMinHeightInBrushBoundsInternal(Godot.Vector3 worldPos, float brushRadius = -1f, bool brushIsSquare = false)
@@ -4342,63 +4350,63 @@ public partial class EditorService : IEditorAPI
 
 	public bool GetBlockMode(Entity worldEntity)
 	{
-		return GameContext.World.GetFieldOrDefault<EditorState, bool>(worldEntity, s => s.BlockMode, true);
+		return World.GetFieldOrDefault<EditorState, bool>(worldEntity, s => s.BlockMode, true);
 	}
 
 	public void SetBlockMode(Entity worldEntity, bool value)
 	{
-		GameContext.World.Mutate<EditorState>(worldEntity, (ref EditorState s) => s.BlockMode = value);
+		World.Mutate<EditorState>(worldEntity, (ref EditorState s) => s.BlockMode = value);
 	}
 
 	public float GetBlockLevelHeight(Entity worldEntity)
 	{
-		return GameContext.World.GetFieldOrDefault<EditorState, float>(worldEntity, s => s.BlockLevelHeight, 3.0f);
+		return World.GetFieldOrDefault<EditorState, float>(worldEntity, s => s.BlockLevelHeight, 3.0f);
 	}
 
 	public void SetBlockLevelHeight(Entity worldEntity, float value)
 	{
 		float clamped = Math.Clamp(value, 0.0f, 50.0f);
-		GameContext.World.Mutate<EditorState>(worldEntity, (ref EditorState s) => s.BlockLevelHeight = clamped);
+		World.Mutate<EditorState>(worldEntity, (ref EditorState s) => s.BlockLevelHeight = clamped);
 	}
 
 	public WaterType GetWaterMode(Entity worldEntity)
 	{
-		return GameContext.World.GetFieldOrDefault<EditorState, WaterType>(worldEntity, s => s.WaterMode, WaterType.None);
+		return World.GetFieldOrDefault<EditorState, WaterType>(worldEntity, s => s.WaterMode, WaterType.None);
 	}
 
 	public void SetWaterMode(Entity worldEntity, WaterType value)
 	{
-		if (GameContext.World != null && GameContext.World.IsAlive(worldEntity))
+		if (GameContext.World != null && World.IsAlive(worldEntity))
 		{
-			if (GameContext.World.Has<EditorState>(worldEntity))
+			if (World.Has<EditorState>(worldEntity))
 			{
-				ref var state = ref GameContext.World.Get<EditorState>(worldEntity);
+				ref var state = ref World.Get<EditorState>(worldEntity);
 				state.WaterMode = value;
 			}
 			else
 			{
-				GameContext.World.Add(worldEntity, new EditorState(true, 3.0f, -95.0f, 95.0f, -95.0f, 125.0f, "", false, MirrorMode.None, value, 0));
+				World.Add(worldEntity, new EditorState(true, 3.0f, -95.0f, 95.0f, -95.0f, 125.0f, "", false, MirrorMode.None, value, 0));
 			}
 		}
 	}
 
 	public byte GetWaterProfileIndex(Entity worldEntity)
 	{
-		return GameContext.World.GetFieldOrDefault<EditorState, byte>(worldEntity, s => s.WaterProfileIndex, (byte)0);
+		return World.GetFieldOrDefault<EditorState, byte>(worldEntity, s => s.WaterProfileIndex, (byte)0);
 	}
 
 	public void SetWaterProfileIndex(Entity worldEntity, byte value)
 	{
-		if (GameContext.World != null && GameContext.World.IsAlive(worldEntity))
+		if (GameContext.World != null && World.IsAlive(worldEntity))
 		{
-			if (GameContext.World.Has<EditorState>(worldEntity))
+			if (World.Has<EditorState>(worldEntity))
 			{
-				ref var state = ref GameContext.World.Get<EditorState>(worldEntity);
+				ref var state = ref World.Get<EditorState>(worldEntity);
 				state.WaterProfileIndex = value;
 			}
 			else
 			{
-				GameContext.World.Add(worldEntity, new EditorState(true, 3.0f, -95.0f, 95.0f, -95.0f, 125.0f, "", false, MirrorMode.None, WaterType.None, value));
+				World.Add(worldEntity, new EditorState(true, 3.0f, -95.0f, 95.0f, -95.0f, 125.0f, "", false, MirrorMode.None, WaterType.None, value));
 			}
 		}
 	}
@@ -4472,63 +4480,63 @@ public partial class EditorService : IEditorAPI
 
 	public float GetCameraBoundsLeft(Entity worldEntity)
 	{
-		return GameContext.World.GetFieldOrDefault<EditorState, float>(worldEntity, s => s.CameraBoundsLeft, -95.0f);
+		return World.GetFieldOrDefault<EditorState, float>(worldEntity, s => s.CameraBoundsLeft, -95.0f);
 	}
 
 	public void SetCameraBoundsLeft(Entity worldEntity, float value)
 	{
-		GameContext.World.Mutate<EditorState>(worldEntity, (ref EditorState s) => s.CameraBoundsLeft = value);
+		World.Mutate<EditorState>(worldEntity, (ref EditorState s) => s.CameraBoundsLeft = value);
 	}
 
 	public float GetCameraBoundsRight(Entity worldEntity)
 	{
-		return GameContext.World.GetFieldOrDefault<EditorState, float>(worldEntity, s => s.CameraBoundsRight, 95.0f);
+		return World.GetFieldOrDefault<EditorState, float>(worldEntity, s => s.CameraBoundsRight, 95.0f);
 	}
 
 	public void SetCameraBoundsRight(Entity worldEntity, float value)
 	{
-		GameContext.World.Mutate<EditorState>(worldEntity, (ref EditorState s) => s.CameraBoundsRight = value);
+		World.Mutate<EditorState>(worldEntity, (ref EditorState s) => s.CameraBoundsRight = value);
 	}
 
 	public float GetCameraBoundsTop(Entity worldEntity)
 	{
-		return GameContext.World.GetFieldOrDefault<EditorState, float>(worldEntity, s => s.CameraBoundsTop, -95.0f);
+		return World.GetFieldOrDefault<EditorState, float>(worldEntity, s => s.CameraBoundsTop, -95.0f);
 	}
 
 	public void SetCameraBoundsTop(Entity worldEntity, float value)
 	{
-		GameContext.World.Mutate<EditorState>(worldEntity, (ref EditorState s) => s.CameraBoundsTop = value);
+		World.Mutate<EditorState>(worldEntity, (ref EditorState s) => s.CameraBoundsTop = value);
 	}
 
 	public float GetCameraBoundsBottom(Entity worldEntity)
 	{
-		return GameContext.World.GetFieldOrDefault<EditorState, float>(worldEntity, s => s.CameraBoundsBottom, 125.0f);
+		return World.GetFieldOrDefault<EditorState, float>(worldEntity, s => s.CameraBoundsBottom, 125.0f);
 	}
 
 	public void SetCameraBoundsBottom(Entity worldEntity, float value)
 	{
-		GameContext.World.Mutate<EditorState>(worldEntity, (ref EditorState s) => s.CameraBoundsBottom = value);
+		World.Mutate<EditorState>(worldEntity, (ref EditorState s) => s.CameraBoundsBottom = value);
 	}
 
 	public string GetSkyboxPath(Entity worldEntity)
 	{
-		return GameContext.World.GetFieldOrDefault<EditorState, string>(worldEntity, s => s.SkyboxPath, "");
+		return World.GetFieldOrDefault<EditorState, string>(worldEntity, s => s.SkyboxPath, "");
 	}
 
 	public void SetSkyboxPath(Entity worldEntity, string value)
 	{
-		GameContext.World.Mutate<EditorState>(worldEntity, (ref EditorState s) => s.SkyboxPath = value);
+		World.Mutate<EditorState>(worldEntity, (ref EditorState s) => s.SkyboxPath = value);
 	}
 
 	public bool GetHasUnsavedChanges(Entity worldEntity)
 	{
-		return GameContext.World.GetFieldOrDefault<EditorState, bool>(worldEntity, s => s.HasUnsavedChanges, false);
+		return World.GetFieldOrDefault<EditorState, bool>(worldEntity, s => s.HasUnsavedChanges, false);
 	}
 
 	public void SetHasUnsavedChanges(Entity worldEntity, bool value)
 	{
 		if (value) NoteEditorChange();
-		GameContext.World.Mutate<EditorState>(worldEntity, (ref EditorState s) => s.HasUnsavedChanges = value);
+		World.Mutate<EditorState>(worldEntity, (ref EditorState s) => s.HasUnsavedChanges = value);
 	}
 
 	public static string GetLocalizedToolName(EditorTool tool)
@@ -5920,7 +5928,7 @@ public partial class EditorService : IEditorAPI
 	public long GetMaxTerrainWriteTime(string baseTerrainJsonPath)
 	{
 		long maxTime = GetLastWriteTimeSafe(baseTerrainJsonPath);
-		string dir = Path.GetDirectoryName(baseTerrainJsonPath);
+		string? dir = Path.GetDirectoryName(baseTerrainJsonPath);
 		if (!string.IsNullOrEmpty(dir))
 		{
 			maxTime = Math.Max(maxTime, GetLastWriteTimeSafe(MapTerrainFiles.HeightsPath(dir)));
@@ -6018,7 +6026,7 @@ public class {mapName} : IMapScript
 			{
 				string filename = Path.GetFileName(decalId);
 				string baseKey = Path.GetFileNameWithoutExtension(decalId);
-				DecalMetadata meta = null;
+				DecalMetadata? meta = null;
 
 				if (metadata.Decals.TryGetValue(decalId, out var d0)) meta = d0;
 				else if (metadata.Decals.TryGetValue(filename, out var d1)) meta = d1;
@@ -6089,7 +6097,7 @@ public class {mapName} : IMapScript
 	public string NormalizeModelAssetKey(string pathOrId)
 	{
 		if (string.IsNullOrEmpty(pathOrId)) return "";
-		if (NormalizedAssetKeyCache.TryGetValue(pathOrId, out string cached))
+		if (NormalizedAssetKeyCache.TryGetValue(pathOrId, out string? cached))
 		{
 			return cached;
 		}
@@ -6202,7 +6210,7 @@ public class {mapName} : IMapScript
 		}
 	}
 
-	public string FindProjectFileDomain(string workspace, Action<string> onErrorMessage)
+	public string? FindProjectFileDomain(string workspace, Action<string> onErrorMessage)
 	{
 		var csprojFiles = Directory.GetFiles(workspace, "*.csproj", SearchOption.TopDirectoryOnly);
 		if (csprojFiles.Length == 0)
@@ -6239,7 +6247,7 @@ public class {mapName} : IMapScript
 
 	public void InitializeDefaultTerrainStateDomain(int defaultWidth, int defaultDepth)
 	{
-		if (!GameContext.World.Has<Realm.Ecs.Components.Terrain.TerrainState>(GameContext.Simulation.WorldEntity)) return;
+		if (!World.Has<Realm.Ecs.Components.Terrain.TerrainState>(GameContext.Simulation.WorldEntity)) return;
 
 		float[,] defaultHeights = new float[defaultWidth, defaultDepth];
 		int[,] defaultPathing = new int[defaultWidth, defaultDepth];
@@ -6253,12 +6261,12 @@ public class {mapName} : IMapScript
 			}
 		}
 
-		ref var ts = ref GameContext.World.Get<Realm.Ecs.Components.Terrain.TerrainState>(GameContext.Simulation.WorldEntity);
+		ref var ts = ref World.Get<Realm.Ecs.Components.Terrain.TerrainState>(GameContext.Simulation.WorldEntity);
 		ts.SetHeights(defaultHeights);
 		ts.PathingCodes = defaultPathing;
-		GameContext.World.Set(GameContext.Simulation.WorldEntity, ts);
+		World.Set(GameContext.Simulation.WorldEntity, ts);
 	}
 
-	public void UpdateMetadataJsonAssetDomain(string category, string fileName, string blake3Hash, string subCategory = null, int columns = 0, int rows = 0, int targetSlot = -1) =>
+	public void UpdateMetadataJsonAssetDomain(string category, string fileName, string blake3Hash, string? subCategory = null, int columns = 0, int rows = 0, int targetSlot = -1) =>
 		EditorMetadataOperations.UpdateMetadataJsonAsset(category, fileName, blake3Hash, _editingDirectory, subCategory, columns, rows, targetSlot);
 }

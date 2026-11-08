@@ -90,10 +90,10 @@ public class TerrainModifyAction : IEditorAction
 	}
 
 	public TerrainModifyAction(
-		float[,] beforeHeights, float[,] afterHeights,
-		TerrainSplatWeights[,]? beforeSplatMap, TerrainSplatWeights[,] afterSplatMap,
-		int[,] beforePathing = null, int[,] afterPathing = null,
-		TerrainSplatWeights[,] beforeCliffSplatMap = null, TerrainSplatWeights[,] afterCliffSplatMap = null)
+		float[,]? beforeHeights, float[,]? afterHeights,
+		TerrainSplatWeights[,]? beforeSplatMap, TerrainSplatWeights[,]? afterSplatMap,
+		int[,]? beforePathing = null, int[,]? afterPathing = null,
+		TerrainSplatWeights[,]? beforeCliffSplatMap = null, TerrainSplatWeights[,]? afterCliffSplatMap = null)
 		: this(ConvertHeights(beforeHeights), ConvertHeights(afterHeights), beforeSplatMap, afterSplatMap, beforePathing, afterPathing, beforeCliffSplatMap, afterCliffSplatMap)
 	{
 	}
