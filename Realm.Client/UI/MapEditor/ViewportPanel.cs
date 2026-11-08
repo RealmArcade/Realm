@@ -3,6 +3,7 @@ using Godot;
 using Realm.Client.Core;
 using Realm.Client.Services;
 using Realm.Client.Utils;
+using Realm.Ecs.Components.Core;
 
 namespace Realm.Client.UI.MapEditor;
 
@@ -364,5 +365,59 @@ public sealed class ViewportPanel
 		if (envService == null) return;
 		var (applied, icon) = envService.SetEnvironmentWeatherDomain(index);
 		feedback(string.Format(TranslationServer.Translate("Weather: {0} {1}"), icon, TranslationServer.Translate(applied.Capitalize())));
+	}
+
+	/// <summary>
+	/// Reflects the editor's current ring spacing in the dropdown. The value lives on the editor's tools and the
+	/// dropdown lives here, so the editor calls this when the spacing changes; selecting without signalling is what
+	/// keeps the change from re-entering the setter.
+	/// </summary>
+	public void RefreshRingSpacingSelection()
+	{
+		if (RingSpacingOption == null || GameContext.Host == null) return;
+
+		float current = GameContext.EditorService.Tools.PolarRingSpacing;
+		for (int i = 0; i < RingSpacingOption.ItemCount; i++)
+		{
+			if (Mathf.IsEqualApprox((float)RingSpacingOption.GetItemId(i), current))
+			{
+				if (RingSpacingOption.Selected != i)
+				{
+					RingSpacingOption.Selected = i;
+				}
+
+				break;
+			}
+		}
+	}
+
+	/// <summary>
+	/// Reflects the current spoke count. Under rotational symmetry the spokes are the fold count and the dropdown is
+	/// locked to it, which is what the tooltip says in that mode.
+	/// </summary>
+	public void RefreshRadialStepSelection()
+	{
+		if (RadialStepOption == null || GameContext.Host == null) return;
+
+		int spokes = GameContext.Host.EditorMirrorMode == MirrorMode.Rotational
+			? GameContext.Host.EditorSymmetryFolds
+			: GameContext.EditorService.Tools.PolarSpokeFolds;
+
+		for (int i = 0; i < RadialStepOption.ItemCount; i++)
+		{
+			if (RadialStepOption.GetItemId(i) == spokes)
+			{
+				if (RadialStepOption.Selected != i)
+				{
+					RadialStepOption.Selected = i;
+				}
+
+				break;
+			}
+		}
+
+		RadialStepOption.TooltipText = GameContext.Host.EditorMirrorMode == MirrorMode.Rotational
+			? TranslationServer.Translate("Spokes are automatically locked to Rotational N-Fold symmetry")
+			: TranslationServer.Translate("Select radial spoke count (2, 3, 4, 5, 6, 8, 12, 16)");
 	}
 }

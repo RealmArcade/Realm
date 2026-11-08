@@ -1917,65 +1917,11 @@ namespace Realm.Client.UI
 			};
 		}
 
-		private void UpdateSpokesDropdownSelection(OptionButton opt, int currentSpokes)
-		{
-			if (opt == null) return;
-			for (int i = 0; i < opt.ItemCount; i++)
-			{
-				if (opt.GetItemId(i) == currentSpokes)
-				{
-					if (opt.Selected != i)
-					{
-						opt.Selected = i;
-					}
-
-					break;
-				}
-			}
-		}
-
 		public void UpdateSymmetryFoldsButtonText() => UpdateSymmetrySpokesDropdowns();
 
-		public void UpdatePolarRingSpacingButtonText()
-		{
-			if (_viewportPanel.RingSpacingOption != null && GameContext.Host != null)
-			{
-				float current = GameContext.EditorService.Tools.PolarRingSpacing;
-				for (int i = 0; i < _viewportPanel.RingSpacingOption.ItemCount; i++)
-				{
-					if (Mathf.IsEqualApprox((float)_viewportPanel.RingSpacingOption.GetItemId(i), current))
-					{
-						if (_viewportPanel.RingSpacingOption.Selected != i)
-						{
-							_viewportPanel.RingSpacingOption.Selected = i;
-						}
+		public void UpdatePolarRingSpacingButtonText() => _viewportPanel.RefreshRingSpacingSelection();
 
-						break;
-					}
-				}
-			}
-		}
-
-		public void UpdatePolarRadialStepButtonText()
-		{
-			if (_viewportPanel.RadialStepOption != null && GameContext.Host != null)
-			{
-				int spokes = GameContext.Host.EditorMirrorMode == MirrorMode.Rotational
-					? GameContext.Host.EditorSymmetryFolds
-					: GameContext.EditorService.Tools.PolarSpokeFolds;
-
-				UpdateSpokesDropdownSelection(_viewportPanel.RadialStepOption, spokes);
-
-				if (GameContext.Host.EditorMirrorMode == MirrorMode.Rotational)
-				{
-					_viewportPanel.RadialStepOption.TooltipText = TranslationServer.Translate("Spokes are automatically locked to Rotational N-Fold symmetry");
-				}
-				else
-				{
-					_viewportPanel.RadialStepOption.TooltipText = TranslationServer.Translate("Select radial spoke count (2, 3, 4, 5, 6, 8, 12, 16)");
-				}
-			}
-		}
+		public void UpdatePolarRadialStepButtonText() => _viewportPanel.RefreshRadialStepSelection();
 
 		private void UpdateCardScrollState(Control contentControl, float maxHeight = 300f, bool allowExpandBtn = true)
 		{
