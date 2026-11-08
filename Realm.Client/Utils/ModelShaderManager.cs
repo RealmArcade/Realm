@@ -7,7 +7,7 @@ namespace Realm.Client.Utils;
 
 public static class ModelShaderManager
 {
-	private static Shader _sharedShader = null!;
+	private static Shader? _sharedShader;
 	private static readonly Dictionary<string, ShaderMaterial> _materialCache = new(StringComparer.Ordinal);
 	private static readonly Dictionary<ulong, Texture2D> _normalizedAlbedoCache = new();
 	private static readonly Dictionary<ulong, bool> _playerMaskCheckCache = new();
@@ -85,7 +85,7 @@ public static class ModelShaderManager
 		return _sharedShader;
 	}
 
-	public static Texture2D GetOrCreateNormalizedAlbedoTexture(Texture2D sourceTexture, float targetLinearLuminance = 0.22f, float minScaleFactor = 0.2f, float maxScaleFactor = 8.0f)
+	public static Texture2D? GetOrCreateNormalizedAlbedoTexture(Texture2D? sourceTexture, float targetLinearLuminance = 0.22f, float minScaleFactor = 0.2f, float maxScaleFactor = 8.0f)
 	{
 		if (sourceTexture == null) return null;
 		ulong id = sourceTexture.GetInstanceId();
@@ -95,18 +95,22 @@ public static class ModelShaderManager
 		}
 
 		var normalized = NormalizeAlbedoTexture(sourceTexture, targetLinearLuminance, minScaleFactor, maxScaleFactor);
-		_normalizedAlbedoCache[id] = normalized;
+		if (normalized != null)
+		{
+			_normalizedAlbedoCache[id] = normalized;
+		}
+
 		return normalized;
 	}
 
-	public static Texture2D NormalizeAlbedoTexture(Texture2D sourceTexture, float targetLinearLuminance = 0.22f, float minScaleFactor = 0.2f, float maxScaleFactor = 8.0f)
+	public static Texture2D? NormalizeAlbedoTexture(Texture2D? sourceTexture, float targetLinearLuminance = 0.22f, float minScaleFactor = 0.2f, float maxScaleFactor = 8.0f)
 	{
 		if (sourceTexture == null) return null;
 		Image img = sourceTexture.GetImage();
 		if (img == null) return sourceTexture;
 
-		Image normalizedImg = NormalizeAlbedoImage(img, targetLinearLuminance, minScaleFactor, maxScaleFactor);
-		if (normalizedImg == img)
+		Image? normalizedImg = NormalizeAlbedoImage(img, targetLinearLuminance, minScaleFactor, maxScaleFactor);
+		if (normalizedImg == null || normalizedImg == img)
 		{
 			return sourceTexture;
 		}
@@ -192,7 +196,7 @@ public static class ModelShaderManager
 		return result;
 	}
 
-	public static Image NormalizeAlbedoImage(Image sourceImage, float targetLinearLuminance = 0.22f, float minScaleFactor = 0.2f, float maxScaleFactor = 8.0f)
+	public static Image? NormalizeAlbedoImage(Image? sourceImage, float targetLinearLuminance = 0.22f, float minScaleFactor = 0.2f, float maxScaleFactor = 8.0f)
 	{
 		if (sourceImage == null) return null;
 
@@ -266,7 +270,7 @@ public static class ModelShaderManager
 		return hasMask;
 	}
 
-	public static bool CheckHasPlayerMask(Texture2D ormTexture, Material sourceMaterial)
+	public static bool CheckHasPlayerMask(Texture2D? ormTexture, Material? sourceMaterial)
 	{
 		if (ormTexture == null) return false;
 
@@ -280,7 +284,7 @@ public static class ModelShaderManager
 		if (img == null) return UpdatePlayerMaskCache(ormId, false);
 
 		Image workingImg = GetMaskWorkingImage(img, out Image.Format fmt);
-		byte[] data = GetMaskDataFromImage(workingImg, fmt, out int stride);
+		byte[]? data = GetMaskDataFromImage(workingImg, fmt, out int stride);
 
 		if (data == null) return UpdatePlayerMaskCache(ormId, false);
 
@@ -304,7 +308,7 @@ public static class ModelShaderManager
 		return workingImg;
 	}
 
-	private static byte[] GetMaskDataFromImage(Image workingImg, Image.Format fmt, out int stride)
+	private static byte[]? GetMaskDataFromImage(Image workingImg, Image.Format fmt, out int stride)
 	{
 		int totalPixels = workingImg.GetWidth() * workingImg.GetHeight();
 		if (totalPixels == 0)
@@ -326,7 +330,7 @@ public static class ModelShaderManager
 		return ModelHasPlayerMaskRecursive(rootNode);
 	}
 
-	private static Texture2D GetOrmTextureFromMaterial(Material srcMat)
+	private static Texture2D? GetOrmTextureFromMaterial(Material? srcMat)
 	{
 		if (srcMat is OrmMaterial3D ormMat)
 		{
@@ -360,13 +364,13 @@ public static class ModelShaderManager
 		int surfaceCount = meshInst.Mesh != null ? meshInst.Mesh.GetSurfaceCount() : 1;
 		for (int i = 0; i < surfaceCount; i++)
 		{
-			Material srcMat = meshInst.GetSurfaceOverrideMaterial(i);
+			Material? srcMat = meshInst.GetSurfaceOverrideMaterial(i);
 			if (srcMat == null && meshInst.Mesh != null)
 			{
 				srcMat = meshInst.Mesh.SurfaceGetMaterial(i);
 			}
 
-			Texture2D ormTexture = GetOrmTextureFromMaterial(srcMat);
+			Texture2D? ormTexture = GetOrmTextureFromMaterial(srcMat);
 			if (ormTexture != null && CheckHasPlayerMask(ormTexture, srcMat)) return true;
 		}
 
@@ -377,7 +381,7 @@ public static class ModelShaderManager
 	{
 		if (meshInst.MaterialOverride == null) return false;
 
-		Texture2D ormTexture = GetOrmTextureFromMaterial(meshInst.MaterialOverride);
+		Texture2D? ormTexture = GetOrmTextureFromMaterial(meshInst.MaterialOverride);
 		return ormTexture != null && CheckHasPlayerMask(ormTexture, meshInst.MaterialOverride);
 	}
 
@@ -458,7 +462,7 @@ public static class ModelShaderManager
 		return p;
 	}
 
-	private static Texture2D GetShaderTexture(ShaderMaterial sm, string paramName)
+	private static Texture2D? GetShaderTexture(ShaderMaterial sm, string paramName)
 	{
 		var variant = sm.GetShaderParameter(paramName);
 		return variant.VariantType != Variant.Type.Nil ? variant.As<Texture2D>() : null;
@@ -488,7 +492,7 @@ public static class ModelShaderManager
 		return variant.VariantType != Variant.Type.Nil ? variant.As<bool>() : defaultValue;
 	}
 
-	private static MaterialParameters ExtractMaterialParameters(Material sourceMaterial)
+	private static MaterialParameters ExtractMaterialParameters(Material? sourceMaterial)
 	{
 		if (sourceMaterial is BaseMaterial3D baseMat)
 		{
@@ -502,7 +506,7 @@ public static class ModelShaderManager
 		return MaterialParameters.Default;
 	}
 
-	private static void ApplyMaterialParametersToShader(ShaderMaterial material, MaterialParameters p, Texture2D albedoTexture, bool hasPlayerMask)
+	private static void ApplyMaterialParametersToShader(ShaderMaterial material, MaterialParameters p, Texture2D? albedoTexture, bool hasPlayerMask)
 	{
 		if (albedoTexture != null)
 		{
@@ -555,13 +559,13 @@ public static class ModelShaderManager
 		material.SetShaderParameter(_paramUv1Offset, p.Uv1Offset);
 	}
 
-	public static ShaderMaterial GetOrCreateShaderMaterial(Material sourceMaterial, bool normalizeLuminance = true)
+	public static ShaderMaterial GetOrCreateShaderMaterial(Material? sourceMaterial, bool normalizeLuminance = true)
 	{
 		var shader = GetOrCreateShader();
 
 		MaterialParameters p = ExtractMaterialParameters(sourceMaterial);
 
-		Texture2D albedoTexture = normalizeLuminance ? GetOrCreateNormalizedAlbedoTexture(p.RawAlbedoTexture) : p.RawAlbedoTexture;
+		Texture2D? albedoTexture = normalizeLuminance ? GetOrCreateNormalizedAlbedoTexture(p.RawAlbedoTexture) : p.RawAlbedoTexture;
 		bool hasPlayerMask = CheckHasPlayerMask(p.OrmTexture, sourceMaterial);
 
 		ulong rawAlbedoId = p.RawAlbedoTexture != null ? p.RawAlbedoTexture.GetInstanceId() : 0;
@@ -636,7 +640,7 @@ public static class ModelShaderManager
 		int surfaceCount = meshInst.Mesh != null ? meshInst.Mesh.GetSurfaceCount() : 1;
 		for (int i = 0; i < surfaceCount; i++)
 		{
-			Material srcMat = meshInst.GetSurfaceOverrideMaterial(i);
+			Material? srcMat = meshInst.GetSurfaceOverrideMaterial(i);
 			if (srcMat == null && meshInst.Mesh != null)
 			{
 				srcMat = meshInst.Mesh.SurfaceGetMaterial(i);
@@ -716,7 +720,7 @@ public static class ModelShaderManager
 		int surfaceCount = meshInst.Mesh != null ? meshInst.Mesh.GetSurfaceCount() : 1;
 		for (int i = 0; i < surfaceCount; i++)
 		{
-			Material srcMat = meshInst.Mesh != null ? meshInst.Mesh.SurfaceGetMaterial(i) : null;
+			Material? srcMat = meshInst.Mesh != null ? meshInst.Mesh.SurfaceGetMaterial(i) : null;
 			if (srcMat == null) srcMat = meshInst.GetSurfaceOverrideMaterial(i);
 			if (srcMat != null)
 			{
