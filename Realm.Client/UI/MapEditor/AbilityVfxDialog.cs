@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Linq;
 using System.Text.Json.Nodes;
@@ -16,11 +16,11 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 {
 	public AbilityVfxDialog() { }
 
-	private ProceduralVfxInstance3D _vfxInstance = null!;
+	private ProceduralVfxInstance3D? _vfxInstance;
 	private MeshInstance3D _aoeRingMesh = null!;
 	private MeshInstance3D _aoeDiskMesh = null!;
 	private MeshInstance3D _groundGrid = null!;
-	private AudioStreamPlayer _sfxPlayer = null!;
+	private AudioStreamPlayer? _sfxPlayer;
 
 	private TextureRect _iconPreviewRect = null!;
 	private LineEdit _txtIconPath = null!;
@@ -453,7 +453,7 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 		{
 			if (TryPlayResPath(soundPath)) return;
 
-			AudioStream stream = TryLoadSoundFromWorkspace(soundPath) ?? TryLoadSoundFromResCandidates(soundPath);
+			AudioStream? stream = TryLoadSoundFromWorkspace(soundPath) ?? TryLoadSoundFromResCandidates(soundPath);
 
 			if (stream != null)
 			{
@@ -469,6 +469,7 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 
 	private bool TryPlayResPath(string soundPath)
 	{
+		if (_sfxPlayer == null) return false;
 		if (!soundPath.StartsWith("res://") || !ResourceLoader.Exists(soundPath)) return false;
 
 		_sfxPlayer.Stream = GD.Load<AudioStream>(soundPath);
@@ -476,7 +477,7 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 		return true;
 	}
 
-	private AudioStream TryLoadSoundFromWorkspace(string soundPath)
+	private AudioStream? TryLoadSoundFromWorkspace(string soundPath)
 	{
 		string wsPath = GameContext.EditorService._editingDirectory;
 		string cleanPath = soundPath.Trim().TrimStart('/', '\\').Replace('\\', '/');
@@ -497,14 +498,14 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 		{
 			if (string.IsNullOrWhiteSpace(candidate) || !File.Exists(candidate)) continue;
 
-			AudioStream stream = LoadAudioStreamFromFile(candidate);
+			AudioStream? stream = LoadAudioStreamFromFile(candidate);
 			if (stream != null) return stream;
 		}
 
 		return null;
 	}
 
-	private AudioStream LoadAudioStreamFromFile(string candidate)
+	private AudioStream? LoadAudioStreamFromFile(string candidate)
 	{
 		if (candidate.EndsWith(".raud", StringComparison.OrdinalIgnoreCase))
 		{
@@ -526,7 +527,7 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 		return GD.Load<AudioStream>(candidate);
 	}
 
-	private AudioStream TryLoadSoundFromResCandidates(string soundPath)
+	private AudioStream? TryLoadSoundFromResCandidates(string soundPath)
 	{
 		string cleanPath = soundPath.Trim().TrimStart('/', '\\').Replace('\\', '/');
 		string fileName = Path.GetFileName(cleanPath);
@@ -552,7 +553,7 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 		return null;
 	}
 
-	private Texture2D ResolveTexture(string path)
+	private Texture2D? ResolveTexture(string path)
 	{
 		if (string.IsNullOrWhiteSpace(path)) return null;
 
@@ -563,7 +564,7 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 				return TrimmedTextureLoader.LoadTrimmedTexture(path);
 			}
 
-			Texture2D tex = TryLoadTextureFromWorkspace(path) ?? TryLoadTextureFromResCandidates(path);
+			Texture2D? tex = TryLoadTextureFromWorkspace(path) ?? TryLoadTextureFromResCandidates(path);
 			return tex;
 		}
 		catch (Exception ex)
@@ -574,7 +575,7 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 		return null;
 	}
 
-	private Texture2D TryLoadTextureFromWorkspace(string path)
+	private Texture2D? TryLoadTextureFromWorkspace(string path)
 	{
 		string wsPath = GameContext.EditorService._editingDirectory;
 		string cleanPath = path.Trim().TrimStart('/', '\\').Replace('\\', '/');
@@ -599,16 +600,16 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 		{
 			if (string.IsNullOrWhiteSpace(candidate) || !File.Exists(candidate)) continue;
 
-			Texture2D tex = LoadTextureFromFile(candidate);
+			Texture2D? tex = LoadTextureFromFile(candidate);
 			if (tex != null) return tex;
 		}
 
 		return null;
 	}
 
-	private Texture2D LoadTextureFromFile(string candidate)
+	private Texture2D? LoadTextureFromFile(string candidate)
 	{
-		Image img = null;
+		Image? img = null;
 		if (candidate.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
 		{
 			byte[] rtexBytes = File.ReadAllBytes(candidate);
@@ -635,7 +636,7 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 		return null;
 	}
 
-	private Texture2D TryLoadTextureFromResCandidates(string path)
+	private Texture2D? TryLoadTextureFromResCandidates(string path)
 	{
 		string cleanPath = path.Trim().TrimStart('/', '\\').Replace('\\', '/');
 		string fileName = Path.GetFileName(cleanPath);
