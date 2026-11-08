@@ -34,7 +34,7 @@ public partial class VisualProjectile3D : Node3D
 		}
 
 		Vector3 currentTarget = GetCurrentTargetPosition();
-		float currentSpeed = CalculateSpeed(_speed, _elapsedTime, _totalFlightDuration, _speedCurve, _weapon.Acceleration);
+		float currentSpeed = ProjectileFlightMath.Speed(_speed, _elapsedTime, _totalFlightDuration, _speedCurve, _weapon.Acceleration);
 		_elapsedTime += dt;
 		float rawT = Mathf.Clamp(_elapsedTime / _totalFlightDuration, 0.0f, 1.0f);
 
@@ -45,16 +45,15 @@ public partial class VisualProjectile3D : Node3D
 			return;
 		}
 
-		float arcY = CalculateArcY(rawT);
 		Vector3 forward = _currentFlightDirection.LengthSquared() > 0.001f ? _currentFlightDirection.Normalized() : Vector3.Forward;
 		Vector3 right = Mathf.Abs(forward.Dot(Vector3.Up)) > 0.99f ? forward.Cross(Vector3.Right).Normalized() : forward.Cross(Vector3.Up).Normalized();
 		Vector3 up = right.Cross(forward).Normalized();
 
-		Vector3 spiralOffset = CalculateSpiralOffset(right, up);
-		Vector3 zigzagOffset = CalculateZigzagOffset(right);
-		Vector3 orbitOffset = CalculateOrbitOffset(_trajectoryType, right, up);
+		Vector3 curveOffset = ToGodotVector(ProjectileFlightMath.CurveOffset(
+			_weapon, _trajectoryType == ProjectileTrajectoryType.SwarmOrbit, _elapsedTime, rawT,
+			ToEcsVector(right), ToEcsVector(up)));
 
-		Vector3 nextPos = _currentFlightPosition + new Vector3(0, arcY, 0) + spiralOffset + zigzagOffset + orbitOffset;
+		Vector3 nextPos = _currentFlightPosition + curveOffset;
 		UpdateVisualTransforms(nextPos, dt, rawT);
 	}
 

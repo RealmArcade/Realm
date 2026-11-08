@@ -100,7 +100,7 @@ public partial class VisualProjectile3D : Node3D
 		if (_elapsedTime <= outboundDuration)
 		{
 			float bOutT = Mathf.Clamp(_elapsedTime / outboundDuration, 0.0f, 1.0f);
-			_currentFlightPosition = _startPosition.Lerp(currentTarget, ApplyEaseCurve(bOutT, _easeCurve));
+			_currentFlightPosition = _startPosition.Lerp(currentTarget, ProjectileFlightMath.Ease(bOutT, _easeCurve));
 			return false;
 		}
 
@@ -113,7 +113,7 @@ public partial class VisualProjectile3D : Node3D
 		if (_elapsedTime <= outboundDuration + delay + returnDuration)
 		{
 			float bRetT = Mathf.Clamp((_elapsedTime - outboundDuration - delay) / returnDuration, 0.0f, 1.0f);
-			_currentFlightPosition = currentTarget.Lerp(_startPosition, ApplyEaseCurve(bRetT, _easeCurve));
+			_currentFlightPosition = currentTarget.Lerp(_startPosition, ProjectileFlightMath.Ease(bRetT, _easeCurve));
 			return false;
 		}
 
@@ -122,7 +122,7 @@ public partial class VisualProjectile3D : Node3D
 
 	private bool ProcessHomingOrParabolicTrajectory(Vector3 currentTarget, float currentSpeed, float dt, float rawT)
 	{
-		float easedT = ApplyEaseCurve(rawT, _easeCurve);
+		float easedT = ProjectileFlightMath.Ease(rawT, _easeCurve);
 
 		if (_weapon.TurnRateLimit > 0.0f && _weapon.HomingWeight > 0.0f)
 		{
@@ -157,50 +157,6 @@ public partial class VisualProjectile3D : Node3D
 			ProjectileTrajectoryType.Boomerang => ProcessBoomerangTrajectory(currentTarget),
 			_ => ProcessHomingOrParabolicTrajectory(currentTarget, currentSpeed, dt, rawT),
 		};
-	}
-
-	private float CalculateArcY(float rawT)
-	{
-		if (_weapon.MaxBounces > 0)
-		{
-			int segments = 1 + _weapon.MaxBounces;
-			float segmentProgress = rawT * segments;
-			int currentBounce = Mathf.Min((int)Mathf.Floor(segmentProgress), segments - 1);
-			float localU = segmentProgress - currentBounce;
-			float bounceHeight = _weapon.ArcHeight / (1.0f + currentBounce * 0.6f);
-			return 4.0f * bounceHeight * localU * (1.0f - localU);
-		}
-
-		if (_weapon.ArcHeight > 0.0f)
-		{
-			return 4.0f * _weapon.ArcHeight * rawT * (1.0f - rawT);
-		}
-
-		return 0.0f;
-	}
-
-	private Vector3 CalculateSpiralOffset(Vector3 right, Vector3 up)
-	{
-		if (_weapon.SpiralRadius <= 0.0f || _weapon.SpiralFrequency <= 0.0f) return Vector3.Zero;
-		float theta = Mathf.Tau * _weapon.SpiralFrequency * _elapsedTime;
-		return (right * Mathf.Cos(theta) + up * Mathf.Sin(theta)) * _weapon.SpiralRadius;
-	}
-
-	private Vector3 CalculateZigzagOffset(Vector3 right)
-	{
-		if (_weapon.ZigzagAmplitude <= 0.0f || _weapon.ZigzagFrequency <= 0.0f) return Vector3.Zero;
-		float phi = Mathf.Tau * _weapon.ZigzagFrequency * _elapsedTime;
-		return right * (Mathf.Sin(phi) * _weapon.ZigzagAmplitude);
-	}
-
-	private Vector3 CalculateOrbitOffset(ProjectileTrajectoryType trajType, Vector3 right, Vector3 up)
-	{
-		if (trajType != ProjectileTrajectoryType.SwarmOrbit) return Vector3.Zero;
-
-		float radius = _weapon.OrbitRadius > 0.0f ? _weapon.OrbitRadius : 1.0f;
-		float speed = _weapon.OrbitSpeed > 0.0f ? _weapon.OrbitSpeed : 10.0f;
-		float angle = _elapsedTime * speed;
-		return (right * Mathf.Cos(angle) + up * Mathf.Sin(angle)) * radius;
 	}
 
 	private void UpdateVisualTransforms(Vector3 nextPos, float dt, float rawT)
@@ -238,7 +194,7 @@ public partial class VisualProjectile3D : Node3D
 			Vector3 meshScale = _weapon.MeshScaleOffset.ToGodotVector3();
 			Vector3 baseScale = (meshScale == Vector3.Zero) ? Vector3.One : meshScale;
 			baseScale = SafeScale(baseScale);
-			float lifetimeScale = Mathf.Max(0.001f, CalculateScaleOverLifetime(rawT, _scaleCurve));
+			float lifetimeScale = Mathf.Max(0.001f, ProjectileFlightMath.ScaleOverLifetime(rawT, _scaleCurve));
 			_visualTransformContainer.Scale = SafeScale(baseScale * lifetimeScale);
 		}
 

@@ -32,7 +32,7 @@ public partial class VisualProjectile3D : Node3D
 		Vector3 meshScale = _weapon.MeshScaleOffset.ToGodotVector3();
 		Vector3 baseScale = (meshScale == Vector3.Zero) ? Vector3.One : meshScale;
 		baseScale = SafeScale(baseScale);
-		float initialScaleFactor = Mathf.Max(0.001f, CalculateScaleOverLifetime(0.0f, _scaleCurve));
+		float initialScaleFactor = Mathf.Max(0.001f, ProjectileFlightMath.ScaleOverLifetime(0.0f, _scaleCurve));
 		_visualTransformContainer.Scale = SafeScale(baseScale * initialScaleFactor);
 	}
 

@@ -17,60 +17,9 @@ namespace Realm.Client;
 
 public partial class VisualProjectile3D : Node3D
 {
-	private static float CalculateSpeed(float baseSpeed, float elapsedTime, float totalDuration, ProjectileSpeedCurve speedCurve, float acceleration)
-	{
-		float speed = Mathf.Max(0.1f, baseSpeed + (acceleration * elapsedTime));
+	private static System.Numerics.Vector3 ToEcsVector(Vector3 value) => new(value.X, value.Y, value.Z);
 
-		if (speedCurve == ProjectileSpeedCurve.Constant)
-			return speed;
-
-		float progress = Mathf.Clamp(elapsedTime / Mathf.Max(0.001f, totalDuration), 0.0f, 1.0f);
-
-		return speedCurve switch
-		{
-			ProjectileSpeedCurve.Accelerate => speed * (0.3f + 1.4f * progress * progress),
-			ProjectileSpeedCurve.Decelerate => speed * (1.7f - 1.4f * progress * progress),
-			ProjectileSpeedCurve.EaseInOut => speed * (0.4f + 1.2f * (progress * progress * (3.0f - 2.0f * progress))),
-			ProjectileSpeedCurve.RocketBoost => speed * (0.15f + 2.35f * Mathf.Pow(progress, 3.0f)),
-			ProjectileSpeedCurve.Burst => speed * (1.0f + 1.5f * Mathf.Exp(-4.0f * progress)),
-			_ => speed,
-		};
-	}
-
-	private static float CalculateSquashStretchScale(float t)
-	{
-		if (t < 0.2f) return Mathf.Max(0.001f, (t / 0.2f) * 1.2f);
-		if (t < 0.4f) return Mathf.Max(0.001f, 1.2f - ((t - 0.2f) / 0.2f) * 0.2f);
-		if (t > 0.85f) return Mathf.Max(0.001f, (1.0f - t) / 0.15f);
-		return 1.0f;
-	}
-
-	private static float CalculateScaleOverLifetime(float t, ProjectileScaleCurve scaleCurve)
-	{
-		if (scaleCurve == ProjectileScaleCurve.Constant)
-			return 1.0f;
-
-		return scaleCurve switch
-		{
-			ProjectileScaleCurve.Grow => Mathf.Clamp(t * 1.5f, 0.001f, 1.0f),
-			ProjectileScaleCurve.Shrink => Mathf.Clamp(1.0f - t, 0.001f, 1.0f),
-			ProjectileScaleCurve.GrowShrink => Mathf.Max(0.001f, Mathf.Sin(Mathf.Clamp(t, 0.0f, 1.0f) * Mathf.Pi)),
-			ProjectileScaleCurve.SquashStretch => CalculateSquashStretchScale(t),
-			ProjectileScaleCurve.ImpactShrink => t > 0.8f ? Mathf.Clamp((1.0f - t) / 0.2f, 0.001f, 1.0f) : 1.0f,
-			_ => 1.0f,
-		};
-	}
-
-	private static float ApplyEaseCurve(float t, ProjectileEaseCurve easeCurve)
-	{
-		return easeCurve switch
-		{
-			ProjectileEaseCurve.EaseIn => t * t,
-			ProjectileEaseCurve.EaseOut => 1.0f - (1.0f - t) * (1.0f - t),
-			ProjectileEaseCurve.EaseInOut => t < 0.5f ? 2.0f * t * t : 1.0f - Mathf.Pow(-2.0f * t + 2.0f, 2.0f) / 2.0f,
-			_ => t,
-		};
-	}
+	private static Vector3 ToGodotVector(System.Numerics.Vector3 value) => new(value.X, value.Y, value.Z);
 
 	private static Color ParseColor(string? hex, Color fallback)
 	{
