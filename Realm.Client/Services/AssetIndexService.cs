@@ -804,101 +804,17 @@ public class AssetIndexService : IDisposable
 
 	public void UpdateAssetTags(string filePath, List<string> newTags)
 	{
-		if (string.IsNullOrWhiteSpace(filePath))
-		{
-			return;
-		}
-
-		string normalizedFilePath = NormalizePath(filePath);
-		lock (_syncLock)
-		{
-			var asset = _assetCollection.FindOne(x => x.FilePath == normalizedFilePath);
-			if (asset == null)
-			{
-				return;
-			}
-
-			asset.Tags = newTags.Where(t => !string.IsNullOrWhiteSpace(t)).Select(t => t.Trim().ToLowerInvariant()).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-			asset.MetadataJson = JsonSerializer.Serialize(new AssetMetadataModel { Tags = asset.Tags });
-			_assetCollection.Update(asset);
-
-			RealmMetadataHelper.SetTags(normalizedFilePath, asset.Tags);
-
-			bool isCasFile = normalizedFilePath.StartsWith(GlobalCasAssetsDirectory + "/", StringComparison.OrdinalIgnoreCase);
-			if (isCasFile)
-			{
-				string hash = ContentAddressableStorage.NormalizeBlake3Hash(Path.GetFileName(normalizedFilePath));
-				string? updatedMeta = RealmMetadataHelper.ExtractMetadata(normalizedFilePath);
-				if (!string.IsNullOrWhiteSpace(updatedMeta))
-				{
-					MapAssetManager.Storage.UpdateSidecarCache(hash, updatedMeta);
-				}
-			}
-			else
-			{
-				try
-				{
-					string sidecarPath = normalizedFilePath + ".json";
-					var root = new JsonObject
-					{
-						["tags"] = new JsonArray(asset.Tags.Select(t => (JsonNode)JsonValue.Create(t)!).ToArray())
-					};
-					File.WriteAllText(sidecarPath, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
-				}
-				catch (Exception ex)
-				{
-					GameLog.LogError($"[AssetIndexService] UpdateAssetTags error writing sidecar: {ex.Message}");
-				}
-			}
-
-			_database.Checkpoint();
-		}
+		AssetIndexAssetWrites.UpdateTags(_assetCollection, _database, _syncLock, GlobalCasAssetsDirectory, filePath, newTags);
 	}
 
 	public void UpdateAssetType(string filePath, AssetType newAssetType)
 	{
-		if (string.IsNullOrWhiteSpace(filePath))
-		{
-			return;
-		}
-
-		string normalizedFilePath = NormalizePath(filePath);
-		lock (_syncLock)
-		{
-			var asset = _assetCollection.FindOne(x => x.FilePath == normalizedFilePath);
-			if (asset == null)
-			{
-				return;
-			}
-
-			asset.AssetType = newAssetType;
-			asset.HasRealmMetadata = true;
-			_assetCollection.Update(asset);
-
-			RealmMetadataHelper.SetAssetType(normalizedFilePath, newAssetType.ToCanonicalString());
-
-			bool isCasFile = normalizedFilePath.StartsWith(GlobalCasAssetsDirectory + "/", StringComparison.OrdinalIgnoreCase);
-			if (isCasFile)
-			{
-				string hash = ContentAddressableStorage.NormalizeBlake3Hash(Path.GetFileName(normalizedFilePath));
-				string? updatedMeta = RealmMetadataHelper.ExtractMetadata(normalizedFilePath);
-				if (!string.IsNullOrWhiteSpace(updatedMeta))
-				{
-					MapAssetManager.Storage.UpdateSidecarCache(hash, updatedMeta);
-				}
-			}
-
-			_database.Checkpoint();
-		}
+		AssetIndexAssetWrites.UpdateType(_assetCollection, _database, _syncLock, GlobalCasAssetsDirectory, filePath, newAssetType);
 	}
 
 	public void UpdateAssetType(string filePath, string newAssetType)
 	{
-		var norm = RealmMetadataHelper.NormalizeAssetType(newAssetType);
-		if (norm.HasValue)
-		{
-			UpdateAssetType(filePath, norm.Value);
-		}
+		AssetIndexAssetWrites.UpdateType(_assetCollection, _database, _syncLock, GlobalCasAssetsDirectory, filePath, newAssetType);
 	}
 
 	public static string GetCanonicalBlake3(IndexedAsset asset)
