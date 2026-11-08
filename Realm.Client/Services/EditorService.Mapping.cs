@@ -33,9 +33,9 @@ public partial class EditorService
 
 		var usedMaterials = new HashSet<int>();
 		int water = ResolveMaterialIndex(new[] { "water", "ocean", "sea", "river", "lake", "swamp", "marsh", "trench", "mud" }, 0, usedMaterials);
-		int ground = ResolveMaterialIndex(new[] { "grass", "moss", "jungle", "plain", "soil", "dirt", "forest", "meadow", "sand" }, EditorPaintTextureIndex, usedMaterials);
+		int ground = ResolveMaterialIndex(new[] { "grass", "moss", "jungle", "plain", "soil", "dirt", "forest", "meadow", "sand" }, Tools.PaintTextureIndex, usedMaterials);
 		int rock = ResolveMaterialIndex(new[] { "rock", "granite", "stone", "basin", "mountain", "cobble", "boulder" }, FindNextUnusedMaterial(2, usedMaterials), usedMaterials);
-		int cliff = ResolveMaterialIndex(new[] { "cliff", "crag", "basalt", "scarp", "plateau" }, EditorCliffPaintTextureIndex, usedMaterials);
+		int cliff = ResolveMaterialIndex(new[] { "cliff", "crag", "basalt", "scarp", "plateau" }, Tools.CliffPaintTextureIndex, usedMaterials);
 
 		return new TerrainMaterialPalette(ClampMaterialIndex(water), ClampMaterialIndex(ground), ClampMaterialIndex(rock), ClampMaterialIndex(cliff));
 	}
@@ -92,7 +92,7 @@ public partial class EditorService
 
 	public int GetSelectedCliffTextureIndex()
 	{
-		return ClampMaterialIndex(EditorCliffPaintTextureIndex);
+		return ClampMaterialIndex(Tools.CliffPaintTextureIndex);
 	}
 
 	public void ResetMapToBlank()

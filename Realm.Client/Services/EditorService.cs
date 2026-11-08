@@ -218,9 +218,9 @@ public partial class EditorService : IEditorAPI
 	public void SetPolarSpokesDomain(int spokes)
 	{
 		if (GameContext.Host == null) return;
-		EditorPolarSpokeFolds = spokes;
-		EditorPolarRadialStep = 360.0f / spokes;
-		GameContext.Host.GroundTerrain?.SetPolarRadialStep(EditorPolarRadialStep);
+		Tools.PolarSpokeFolds = spokes;
+		Tools.PolarRadialStep = 360.0f / spokes;
+		GameContext.Host.GroundTerrain?.SetPolarRadialStep(Tools.PolarRadialStep);
 	}
 
 	public void ResetToBlankMapDomain()
@@ -276,7 +276,6 @@ public partial class EditorService : IEditorAPI
 		return EditorCoordinateQueries.IsPositionInCoordinate(EditorCoordinates, position, coordinateName);
 	}
 
-	public Godot.Vector3 LastRaycastPos { get; set; } = new Godot.Vector3(float.MinValue, float.MinValue, float.MinValue);
 	public static readonly float[] PolarRingSpacingOptions = new[] { 4.0f, 8.0f, 16.0f, 32.0f };
 	public bool IsSyncing
 	{
@@ -318,13 +317,11 @@ public partial class EditorService : IEditorAPI
 	public string CurrentDirectoryBlake3 { get => _workspace.CurrentDirectoryBlake3; set => _workspace.CurrentDirectoryBlake3 = value; }
 	public long LastTerrainSyncTime { get; set; } = 0;
 	public long LastMetadataSyncTime { get; set; } = 0;
-	public int ScaleDialogTargetWidth { get; set; }
-
 	public bool DecreaseScaleDialogWidth()
 	{
-		if (ScaleDialogTargetWidth > 32)
+		if (Tools.ScaleDialogTargetWidth > 32)
 		{
-			ScaleDialogTargetWidth = Math.Max(32, (ScaleDialogTargetWidth % 32 == 0 ? ScaleDialogTargetWidth - 32 : (ScaleDialogTargetWidth / 32) * 32));
+			Tools.ScaleDialogTargetWidth = Math.Max(32, (Tools.ScaleDialogTargetWidth % 32 == 0 ? Tools.ScaleDialogTargetWidth - 32 : (Tools.ScaleDialogTargetWidth / 32) * 32));
 			return true;
 		}
 
@@ -333,9 +330,9 @@ public partial class EditorService : IEditorAPI
 
 	public bool IncreaseScaleDialogWidth()
 	{
-		if (ScaleDialogTargetWidth < 512)
+		if (Tools.ScaleDialogTargetWidth < 512)
 		{
-			ScaleDialogTargetWidth = Math.Min(512, (ScaleDialogTargetWidth / 32 + 1) * 32);
+			Tools.ScaleDialogTargetWidth = Math.Min(512, (Tools.ScaleDialogTargetWidth / 32 + 1) * 32);
 			return true;
 		}
 
@@ -364,7 +361,7 @@ public partial class EditorService : IEditorAPI
 
 	public void SelectCliffTexture(int index)
 	{
-		EditorCliffPaintTextureIndex = index;
+		Tools.CliffPaintTextureIndex = index;
 	}
 
 	public bool IsPolarGridActive(GridOverlayMode mode, MirrorMode mirrorMode)
@@ -376,9 +373,9 @@ public partial class EditorService : IEditorAPI
 
 	public bool CheckAndUpdateRaycast(Godot.Vector3 pos)
 	{
-		if ((pos - LastRaycastPos).LengthSquared() > 0.01f)
+		if ((pos - Tools.LastRaycastPos).LengthSquared() > 0.01f)
 		{
-			LastRaycastPos = pos;
+			Tools.LastRaycastPos = pos;
 			return true;
 		}
 
@@ -436,63 +433,22 @@ public partial class EditorService : IEditorAPI
 		if (_workspace.EnsureDirectory(CurrentSourceFolder)) SetCurrentSourceFolder(CurrentSourceFolder);
 	}
 
-	public int LastSelectionMinX { get; set; } = -1;
-	public int LastSelectionMinZ { get; set; } = -1;
-	public int LastSelectionMaxX { get; set; } = -1;
-	public int LastSelectionMaxZ { get; set; } = -1;
-	public bool LastSelectionBrushIsSquare { get; set; } = true;
-
 	private readonly EditorSwatchCatalog _swatches = new();
 
 	public EditorSwatchCatalog Swatches => _swatches;
 
-	public Rect2I? TerrainFlushRegion { get; set; }
-	public float TerrainMeshRebuildPeriodMs { get; set; } = 33.3f;
 	public EditorDecalAssets Decals { get; } = new();
 	public List<EditorCoordinate> EditorCoordinates { get; set; } = new();
-	public int PendingCoordinateMinX { get; set; }
-	public int PendingCoordinateMinZ { get; set; }
-	public int PendingCoordinateMaxX { get; set; }
-	public int PendingCoordinateMaxZ { get; set; }
 	public bool ModelYOffsetSavePending { get; set; } = false;
 	public bool ModelCollisionCircleSavePending { get; set; } = false;
 	public readonly Dictionary<string, string> NormalizedAssetKeyCache = new(StringComparer.OrdinalIgnoreCase);
 	private readonly EditorAssetKeys _assetKeys;
 
-	public float EditorClumpCount { get; set; } = 5.0f;
-	public float EditorClumpScale { get; set; } = 0.3f;
-	public bool EditorClumpMode { get; set; } = false;
-	public bool EditorRandomRotation { get; set; } = false;
-	public bool EditorRandomScale { get; set; } = false;
-	public float EditorExactHeight { get; set; } = 0.0f;
-	public float EditorWaterHeight { get; set; } = 0.9f;
-	public string EditorPreviewType { get; set; } = "";
-
-	public float EditorPlacementRotation { get; set; } = 0.0f;
-	public float EditorPlacementScale { get; set; } = 1.0f;
-	public GridOverlayMode EditorGridMode { get; set; } = GridOverlayMode.Off;
-	public bool EditorCameraBoundsVisible { get; set; } = false;
-	public bool EditorDisableShadows { get; set; } = false;
-	public int EditorPolarSpokeFolds { get; set; } = 4;
-	public bool EditorPolarOverlayVisible { get; set; } = false;
-	public float EditorPolarRingSpacing { get; set; } = 8.0f;
-	public float EditorPolarRadialStep { get; set; } = 90.0f;
-	public Godot.Vector3? EditorTapeMeasureStart { get; set; }
-	public bool IsWaterRemoveAction { get; set; } = false;
-
-	public int PlaceUnitPlayerIndex { get; set; } = 0;
-	public bool PlaceUnitIsEnemy => PlaceUnitPlayerIndex != 0;
-	public float EditorBrushRadius { get; set; } = 2.0f;
-	public float EditorBrushStrength { get; set; } = 3.0f;
-	public int EditorPaintTextureIndex { get; set; } = 3;
-	public int EditorCliffPaintTextureIndex { get; set; } = 1;
-
 	public (string terrainName, string cliffName) GetTextureNamesDomain()
 	{
-		return _swatches.GetTextureNames(EditorPaintTextureIndex, EditorCliffPaintTextureIndex);
+		return _swatches.GetTextureNames(Tools.PaintTextureIndex, Tools.CliffPaintTextureIndex);
 	}
 
-	public EditorTool ActiveEditorTool { get; set; } = EditorTool.None;
 	public string? LastUsedFolder { get; set; } = null;
 	public string? CurrentSourceFolder { get; set; } = null;
 	public string? PendingCasSourceDirectory { get; set; } = null;
@@ -503,20 +459,7 @@ public partial class EditorService : IEditorAPI
 		CurrentSourceFolder = folder;
 	}
 
-	public const float MIN_BRUSH_RADIUS = 1.0f;
-	public const float MAX_BRUSH_RADIUS = 20.0f;
-	public const float MIN_BRUSH_STRENGTH = 0.0f;
-	public const float MAX_BRUSH_STRENGTH = 10.0f;
-	public const float MIN_PLACEMENT_SCALE = 0.25f;
-	public const float MAX_PLACEMENT_SCALE = 5.0f;
-
 	public EditorPlacementSettings Placement { get; } = new();
-
-	public const float MIN_CLUMP_COUNT = 1.0f;
-	public const float MAX_CLUMP_COUNT = 20.0f;
-	public const float MIN_CLUMP_SCALE = 0.0f;
-	public const float MAX_CLUMP_SCALE = 1.0f;
-	public const float MAX_CLUMP_DENSITY = MAX_CLUMP_COUNT;
 
 	private readonly EditorTerrainSurface _surface = new();
 
@@ -534,6 +477,8 @@ public partial class EditorService : IEditorAPI
 	private readonly EditorAreaClipboard _clipboard;
 
 	public EditorAreaClipboard Clipboard => _clipboard;
+
+	public EditorToolSettings Tools { get; } = new();
 
 	public EditorSymmetry Symmetry { get; } = new();
 
@@ -553,21 +498,13 @@ public partial class EditorService : IEditorAPI
 		_assetKeys = new EditorAssetKeys(NormalizedAssetKeyCache);
 	}
 
-	public bool PasteOptionTextures { get; set; } = true;
-	public bool PasteOptionHeights { get; set; } = true;
-	public Godot.Vector3 DragObjectStartHitPos { get; set; }
-	public Vector2 DragStartMousePos { get; set; }
-	public Godot.Vector3 DragStartGroundPos { get; set; }
-	public bool DragObjectHasMoved { get; set; }
-
-
 	public Godot.Vector3? RampStartPos => _ramp.RampStartPos;
 	public bool IsDrawingTerrain => _terrainEdit.IsDrawing;
 
 	public void ApplyCopiedObjectStateDomain(CopiedObjectTemplate copiedObj, out EditorTool newTool)
 	{
 		_interaction.SetIsPastingObject(true);
-		EditorPlacementRotation = copiedObj.Rotation;
+		Tools.PlacementRotation = copiedObj.Rotation;
 
 		newTool = EditorTool.None;
 		switch (copiedObj.Type)
@@ -733,10 +670,6 @@ public partial class EditorService : IEditorAPI
 	}
 
 
-	public bool PasteOptionEntities { get; set; } = true;
-	public bool PasteOptionPathing { get; set; } = true;
-	public float EditorPasteRotation { get; set; } = 0.0f;
-	public PasteReflection EditorPasteReflection { get; set; } = PasteReflection.None;
 
 	private bool _isPaused;
 	private bool _isSyncing;
@@ -776,20 +709,6 @@ public partial class EditorService : IEditorAPI
 	}
 
 
-	public PasteReflection CyclePasteReflectionDomain()
-	{
-		var current = this.EditorPasteReflection;
-		var next = current switch
-		{
-			PasteReflection.None => PasteReflection.Horizontal,
-			PasteReflection.Horizontal => PasteReflection.Vertical,
-			PasteReflection.Vertical => PasteReflection.None,
-			_ => PasteReflection.None
-		};
-		this.EditorPasteReflection = next;
-		return next;
-	}
-
 	public void RequestOpenFromCasDomain(string casSourceDirectory, string? defaultSaveFolder)
 	{
 		this.PendingCasSourceDirectory = casSourceDirectory;
@@ -821,22 +740,22 @@ public partial class EditorService : IEditorAPI
 
 	public void SetPendingCoordinatesDomain(int minX, int minZ, int maxX, int maxZ)
 	{
-		PendingCoordinateMinX = minX;
-		PendingCoordinateMinZ = minZ;
-		PendingCoordinateMaxX = maxX;
-		PendingCoordinateMaxZ = maxZ;
+		Tools.PendingCoordinateMinX = minX;
+		Tools.PendingCoordinateMinZ = minZ;
+		Tools.PendingCoordinateMaxX = maxX;
+		Tools.PendingCoordinateMaxZ = maxZ;
 	}
 
 	public void SetPlaceUnitPlayerIndexDomain(int playerIndex)
 	{
-		PlaceUnitPlayerIndex = Mathf.Clamp(playerIndex, 0, PlayerColorConfig.Palette.Length - 1);
+		Tools.PlaceUnitPlayerIndex = Mathf.Clamp(playerIndex, 0, PlayerColorConfig.Palette.Length - 1);
 	}
 
 
 	public bool TryGetSymmetryVisibilityState(out bool isRotational, out GridOverlayMode gridMode)
 	{
 		isRotational = false;
-		gridMode = EditorGridMode;
+		gridMode = Tools.GridMode;
 
 		if (GameContext.Host == null)
 			return false;
@@ -884,7 +803,7 @@ public partial class EditorService : IEditorAPI
 	public void SetPolarRingSpacingDomain(float spacing)
 	{
 		if (GameContext.Host == null) return;
-		EditorPolarRingSpacing = spacing;
+		Tools.PolarRingSpacing = spacing;
 		GameContext.Host.GroundTerrain?.SetPolarRingSpacing(spacing);
 	}
 
@@ -1033,9 +952,9 @@ public partial class EditorService : IEditorAPI
 
 	public void RestoreEditorStateDomain(float waterHeight, int paintTextureIndex, int cliffPaintTextureIndex, CopiedAreaTemplate? copiedArea, System.Numerics.Vector3? selectionStart, System.Numerics.Vector3? selectionEnd)
 	{
-		this.EditorWaterHeight = waterHeight;
-		this.EditorPaintTextureIndex = paintTextureIndex;
-		this.EditorCliffPaintTextureIndex = cliffPaintTextureIndex;
+		Tools.WaterHeight = waterHeight;
+		Tools.PaintTextureIndex = paintTextureIndex;
+		Tools.CliffPaintTextureIndex = cliffPaintTextureIndex;
 		_clipboard.CopiedArea = copiedArea;
 		_interaction.SetSelectionStart(selectionStart != null ? new Godot.Vector2I((int)selectionStart.Value.X, (int)selectionStart.Value.Z) : (Godot.Vector2I?)null);
 		_interaction.SetSelectionEnd(selectionEnd != null ? new Godot.Vector2I((int)selectionEnd.Value.X, (int)selectionEnd.Value.Z) : (Godot.Vector2I?)null);

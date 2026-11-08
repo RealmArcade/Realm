@@ -789,7 +789,7 @@ namespace Realm.Client.Core
 
 		public Prop3D? SpawnPropExternal(string propId, Vector3 position)
 		{
-			float rotY = GameContext.SessionState.IsMapEditorMode ? GameContext.EditorService.EditorPlacementRotation : 0f;
+			float rotY = GameContext.SessionState.IsMapEditorMode ? GameContext.EditorService.Tools.PlacementRotation : 0f;
 			float scale = GameContext.SessionState.IsMapEditorMode ? EditorPlacementScale : 1f;
 			return SpawnPropExternalWithParams(propId, position, rotY, scale);
 		}
@@ -1692,7 +1692,7 @@ namespace Realm.Client.Core
 
 			string reqType = ActiveEditorTool.ToString();
 			string reqId = ActivePlaceId;
-			bool reqIsEnemy = GameContext.EditorService.PlaceUnitIsEnemy;
+			bool reqIsEnemy = GameContext.EditorService.Tools.PlaceUnitIsEnemy;
 
 			UpdatePreviewNodeIfNeeded(reqType, reqId, reqIsEnemy);
 
@@ -1713,14 +1713,14 @@ namespace Realm.Client.Core
 		private void UpdatePreviewNodeIfNeeded(string reqType, string reqId, bool reqIsEnemy)
 		{
 			if (_editorPreviewNode != null && GodotObject.IsInstanceValid(_editorPreviewNode) &&
-			    GameContext.EditorService.EditorPreviewType == reqType && _editorPreviewId == reqId && _editorPreviewIsEnemy == reqIsEnemy)
+			    GameContext.EditorService.Tools.PreviewType == reqType && _editorPreviewId == reqId && _editorPreviewIsEnemy == reqIsEnemy)
 			{
 				return;
 			}
 
 			ClearEditorPreview();
 
-			GameContext.EditorService.EditorPreviewType = reqType;
+			GameContext.EditorService.Tools.PreviewType = reqType;
 			_editorPreviewId = reqId;
 			_editorPreviewIsEnemy = reqIsEnemy;
 
@@ -1835,8 +1835,8 @@ namespace Realm.Client.Core
 			if (_editorPreviewNode is not { } previewNode) return;
 
 			if (!GameContext.EditorService.Interaction.HasCachedRandom) GameContext.EditorService.Interaction.GenerateNewRandomPlacementRotationAndScale();
-			float previewRot = (GameContext.EditorService.EditorRandomRotation && !GameContext.EditorService.Interaction.IsPastingObject) ? GameContext.EditorService.Interaction.CachedRandomRotation : GameContext.EditorService.EditorPlacementRotation;
-			float previewScaleVal = (GameContext.EditorService.EditorRandomScale && !GameContext.EditorService.Interaction.IsPastingObject) ? GameContext.EditorService.Interaction.CachedRandomScale : EditorPlacementScale;
+			float previewRot = (GameContext.EditorService.Tools.RandomRotation && !GameContext.EditorService.Interaction.IsPastingObject) ? GameContext.EditorService.Interaction.CachedRandomRotation : GameContext.EditorService.Tools.PlacementRotation;
+			float previewScaleVal = (GameContext.EditorService.Tools.RandomScale && !GameContext.EditorService.Interaction.IsPastingObject) ? GameContext.EditorService.Interaction.CachedRandomScale : EditorPlacementScale;
 
 			Vector3 previewPos = CalculateEditorPreviewPosition(position, previewScaleVal);
 
@@ -1942,7 +1942,7 @@ namespace Realm.Client.Core
 			}
 
 			_editorPreviewNode = null;
-			GameContext.EditorService.EditorPreviewType = "";
+			GameContext.EditorService.Tools.PreviewType = "";
 			_editorPreviewId = "";
 			_editorPreviewIsEnemy = false;
 		}
@@ -2062,7 +2062,7 @@ namespace Realm.Client.Core
 
 		private bool ProcessMeasureTool(Vector3 hitPos)
 		{
-			if (ActiveEditorTool == EditorTool.Measure && EditorTapeMeasureActive && GameContext.EditorService.EditorTapeMeasureStart.HasValue)
+			if (ActiveEditorTool == EditorTool.Measure && EditorTapeMeasureActive && GameContext.EditorService.Tools.TapeMeasureStart.HasValue)
 			{
 				HandleMeasureHit(hitPos);
 				return true;
@@ -2097,7 +2097,7 @@ namespace Realm.Client.Core
 		private void HandlePasteAreaHit(Vector3 hitPos)
 		{
 			var (cx, cz) = EditorGridSnapping.WorldPosToCellCoords(hitPos);
-			var (startX, startZ, targetWidth, targetDepth) = EditorGridSnapping.GetAnchoredPasteBounds(GameContext.EditorService.Clipboard.CopiedArea, cx, cz, GameContext.EditorService.EditorPasteRotation, GameContext.EditorService.EditorPasteReflection);
+			var (startX, startZ, targetWidth, targetDepth) = EditorGridSnapping.GetAnchoredPasteBounds(GameContext.EditorService.Clipboard.CopiedArea, cx, cz, GameContext.EditorService.Tools.PasteRotation, GameContext.EditorService.Tools.PasteReflectionMode);
 
 			UpdatePasteSelectionHighlights(startX, startZ, targetWidth, targetDepth);
 
@@ -2123,9 +2123,9 @@ namespace Realm.Client.Core
 		private void HandleMeasureHit(Vector3 hitPos)
 		{
 			EditorTapeMeasureEnd = hitPos;
-			UpdateMeasureVisuals(GameContext.EditorService.EditorTapeMeasureStart!.Value, hitPos);
+			UpdateMeasureVisuals(GameContext.EditorService.Tools.TapeMeasureStart!.Value, hitPos);
 
-			Vector3 delta = hitPos - GameContext.EditorService.EditorTapeMeasureStart!.Value;
+			Vector3 delta = hitPos - GameContext.EditorService.Tools.TapeMeasureStart!.Value;
 			float quadSize = RequireGroundTerrain().QuadSize;
 			float dx = delta.X / quadSize;
 			float dz = delta.Z / quadSize;
@@ -2244,10 +2244,10 @@ namespace Realm.Client.Core
 		{
 			if (ActiveEditorTool == EditorTool.SelectMove && _isDraggingObject && GodotObject.IsInstanceValid(SelectedEditorObject))
 			{
-				float mouseDistPx = mousePos.DistanceTo(GameContext.EditorService.DragStartMousePos);
-				if (!GameContext.EditorService.DragObjectHasMoved && mouseDistPx > 4.0f)
+				float mouseDistPx = mousePos.DistanceTo(GameContext.EditorService.Tools.DragStartMousePos);
+				if (!GameContext.EditorService.Tools.DragObjectHasMoved && mouseDistPx > 4.0f)
 				{
-					GameContext.EditorService.DragObjectHasMoved = true;
+					GameContext.EditorService.Tools.DragObjectHasMoved = true;
 					if (!_is3DDragOperationActive)
 					{
 						_is3DDragOperationActive = true;
@@ -2255,7 +2255,7 @@ namespace Realm.Client.Core
 					}
 				}
 
-				if (GameContext.EditorService.DragObjectHasMoved)
+				if (GameContext.EditorService.Tools.DragObjectHasMoved)
 				{
 					UpdateDraggedObjectPosition(hitPos);
 				}
@@ -2271,10 +2271,10 @@ namespace Realm.Client.Core
 			_dragObjectStartPos = primary.Position;
 			_dragObjectStartRot = primary.RotationDegrees;
 			_dragObjectStartScale = primary.Scale;
-			GameContext.EditorService.DragStartMousePos = mousePos;
-			GameContext.EditorService.DragStartGroundPos = terrainHitPos;
-			GameContext.EditorService.DragObjectStartHitPos = terrainHitPos;
-			GameContext.EditorService.DragObjectHasMoved = false;
+			GameContext.EditorService.Tools.DragStartMousePos = mousePos;
+			GameContext.EditorService.Tools.DragStartGroundPos = terrainHitPos;
+			GameContext.EditorService.Tools.DragObjectStartHitPos = terrainHitPos;
+			GameContext.EditorService.Tools.DragObjectHasMoved = false;
 
 			_dragSelectionStartTransforms.Clear();
 			var selection = _editorObjectSelection;
@@ -2327,7 +2327,7 @@ namespace Realm.Client.Core
 				return;
 			}
 
-			Vector3 delta = hitPos - GameContext.EditorService.DragStartGroundPos;
+			Vector3 delta = hitPos - GameContext.EditorService.Tools.DragStartGroundPos;
 			Vector3 dragPos = _dragObjectStartPos + delta;
 			if (EditorSnapToGrid && GroundTerrain != null)
 			{
@@ -2344,7 +2344,7 @@ namespace Realm.Client.Core
 
 		private void UpdateDraggedSelectionPositions(Vector3 hitPos)
 		{
-			Vector3 delta = hitPos - GameContext.EditorService.DragStartGroundPos;
+			Vector3 delta = hitPos - GameContext.EditorService.Tools.DragStartGroundPos;
 			Vector3 dragPos = _dragObjectStartPos + delta;
 			if (EditorSnapToGrid && GroundTerrain != null)
 			{
@@ -2745,9 +2745,9 @@ namespace Realm.Client.Core
 				MapStateSnapshot.Restore(editorState, updateMapSize: false);
 				RestoreEditorDirtyStateAfterTest();
 
-				GameContext.EditorService.EditorGridMode = GameContext.SessionState.SavedGridMode;
-				GameContext.EditorService.EditorCameraBoundsVisible = GameContext.SessionState.SavedCameraBoundsVisible;
-				GameContext.EditorService.EditorDisableShadows = GameContext.SessionState.SavedDisableShadows;
+				GameContext.EditorService.Tools.GridMode = GameContext.SessionState.SavedGridMode;
+				GameContext.EditorService.Tools.CameraBoundsVisible = GameContext.SessionState.SavedCameraBoundsVisible;
+				GameContext.EditorService.Tools.DisableShadows = GameContext.SessionState.SavedDisableShadows;
 
 				var camera = MainCamera;
 				if (camera != null)
@@ -2953,7 +2953,7 @@ namespace Realm.Client.Core
 				_measureImmediateMesh?.ClearSurfaces();
 			}
 
-			GameContext.EditorService.EditorTapeMeasureStart = null;
+			GameContext.EditorService.Tools.TapeMeasureStart = null;
 			EditorTapeMeasureEnd = null;
 			EditorTapeMeasureActive = false;
 		}
@@ -2966,7 +2966,7 @@ namespace Realm.Client.Core
 				return;
 			}
 
-			bool showPivot = EditorMirrorMode != MirrorMode.Rotational && (EditorMirrorMode != MirrorMode.None || GameContext.EditorService.EditorPolarOverlayVisible);
+			bool showPivot = EditorMirrorMode != MirrorMode.Rotational && (EditorMirrorMode != MirrorMode.None || GameContext.EditorService.Tools.PolarOverlayVisible);
 			if (!showPivot)
 			{
 				if (_symmetryPivotMarkerMesh != null) _symmetryPivotMarkerMesh.Visible = false;
@@ -3099,15 +3099,15 @@ namespace Realm.Client.Core
 				centerPos,
 				ActiveEditorTool,
 				ActivePlaceId,
-				GameContext.EditorService.PlaceUnitPlayerIndex,
+				GameContext.EditorService.Tools.PlaceUnitPlayerIndex,
 				EditorPlacementScale,
 				EditorClumpCount,
 				EditorClumpScale,
 				EditorBrushRadius,
 				EditorBrushIsSquare,
-				GameContext.EditorService.EditorRandomRotation,
-				GameContext.EditorService.EditorRandomScale,
-				GameContext.EditorService.EditorPlacementRotation,
+				GameContext.EditorService.Tools.RandomRotation,
+				GameContext.EditorService.Tools.RandomScale,
+				GameContext.EditorService.Tools.PlacementRotation,
 				EditorMirrorMode,
 				assetBaseCollisionRadius);
 
@@ -3139,7 +3139,7 @@ namespace Realm.Client.Core
 
 			var splatBefore = (TerrainSplatWeights[,])GroundTerrain.SplatMap.Clone();
 			var cliffBefore = (TerrainSplatWeights[,])GroundTerrain.CliffSplatMap.Clone();
-			int cliffTextureIndex = GameContext.EditorService.EditorCliffPaintTextureIndex;
+			int cliffTextureIndex = GameContext.EditorService.Tools.CliffPaintTextureIndex;
 
 			var result = GameContext.EditorService.PerformFloodFill(clickPos, fillTextureIndex, cliffTextureIndex, EditorMirrorMode, isCliff);
 			if (result.SplatMap == null) return;

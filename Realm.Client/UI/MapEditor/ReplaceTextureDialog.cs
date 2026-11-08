@@ -139,8 +139,8 @@ public partial class ReplaceTextureDialog : FloatingDialogBase
 		var host = GameContext.Host;
 		IReadOnlyList<string>? displayNames = host != null ? GameContext.EditorService.Swatches.DisplayNames : null;
 
-		int defaultSourceIndex = host != null ? GameContext.EditorService.EditorPaintTextureIndex : 0;
-		int defaultTargetIndex = host != null ? GameContext.EditorService.EditorCliffPaintTextureIndex : 0;
+		int defaultSourceIndex = host != null ? GameContext.EditorService.Tools.PaintTextureIndex : 0;
+		int defaultTargetIndex = host != null ? GameContext.EditorService.Tools.CliffPaintTextureIndex : 0;
 
 		PopulateDropdownItems(displayNames, defaultSourceIndex, defaultTargetIndex);
 	}

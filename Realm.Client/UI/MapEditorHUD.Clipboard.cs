@@ -47,7 +47,7 @@ namespace Realm.Client.UI
 		private void CyclePasteReflection()
 		{
 			if (GameContext.Host == null) return;
-			var next = GameContext.EditorService.CyclePasteReflectionDomain();
+			var next = GameContext.EditorService.Tools.CyclePasteReflection();
 			UpdatePasteReflectionButtonText();
 			ShowFeedback(string.Format(TranslationServer.Translate("Paste Reflection: {0}"), TranslationServer.Translate(next.ToString().ToUpperInvariant())));
 		}
@@ -56,7 +56,7 @@ namespace Realm.Client.UI
 		{
 			if (_btnPasteReflection != null && GameContext.Host != null)
 			{
-				_btnPasteReflection.Text = $"{UnicodeIcons.ARROWS_H} " + string.Format(TranslationServer.Translate("REFLECT: {0}"), TranslationServer.Translate(GameContext.EditorService.EditorPasteReflection.ToString().ToUpperInvariant()));
+				_btnPasteReflection.Text = $"{UnicodeIcons.ARROWS_H} " + string.Format(TranslationServer.Translate("REFLECT: {0}"), TranslationServer.Translate(GameContext.EditorService.Tools.PasteReflectionMode.ToString().ToUpperInvariant()));
 			}
 		}
 	}

@@ -567,14 +567,14 @@ namespace Realm.Client.UI
 		{
 			if (_popupOverlayMode == null || GameContext.Host == null || _btnToggleGrid == null) return;
 
-			var mode = GameContext.EditorService.EditorGridMode;
+			var mode = GameContext.EditorService.Tools.GridMode;
 			bool isGrid = mode == GridOverlayMode.Grid || mode == GridOverlayMode.Both;
 			bool isPolar = mode == GridOverlayMode.Polar || mode == GridOverlayMode.Both;
 			bool isWireframe = GetViewport()?.DebugDraw == Viewport.DebugDrawEnum.Wireframe;
 
 			SetPopupItemChecked(0, isGrid);
 			SetPopupItemChecked(1, isPolar);
-			SetPopupItemChecked(2, GameContext.EditorService.EditorCameraBoundsVisible);
+			SetPopupItemChecked(2, GameContext.EditorService.Tools.CameraBoundsVisible);
 			SetPopupItemChecked(3, isWireframe);
 
 			var globalRect = _btnToggleGrid.GetGlobalRect();
@@ -813,7 +813,7 @@ namespace Realm.Client.UI
 
 			if (_chkEnvShadows != null)
 			{
-				_chkEnvShadows.SetPressedNoSignal(!GameContext.EditorService.EditorDisableShadows);
+				_chkEnvShadows.SetPressedNoSignal(!GameContext.EditorService.Tools.DisableShadows);
 			}
 		}
 
@@ -834,9 +834,9 @@ namespace Realm.Client.UI
 
 		public void EnsureCameraBoundsVisible()
 		{
-			if (GameContext.Host != null && !GameContext.EditorService.EditorCameraBoundsVisible)
+			if (GameContext.Host != null && !GameContext.EditorService.Tools.CameraBoundsVisible)
 			{
-				GameContext.EditorService.EditorCameraBoundsVisible = true;
+				GameContext.EditorService.Tools.CameraBoundsVisible = true;
 				GameContext.Host.UpdateCameraBoundsOverlayVisibility();
 				UpdateCameraBoundsOverlayExternal(true);
 			}
@@ -1940,7 +1940,7 @@ namespace Realm.Client.UI
 		{
 			if (_optPolarRingSpacing != null && GameContext.Host != null)
 			{
-				float current = GameContext.EditorService.EditorPolarRingSpacing;
+				float current = GameContext.EditorService.Tools.PolarRingSpacing;
 				for (int i = 0; i < _optPolarRingSpacing.ItemCount; i++)
 				{
 					if (Mathf.IsEqualApprox((float)_optPolarRingSpacing.GetItemId(i), current))
@@ -1962,7 +1962,7 @@ namespace Realm.Client.UI
 			{
 				int spokes = GameContext.Host.EditorMirrorMode == MirrorMode.Rotational
 					? GameContext.Host.EditorSymmetryFolds
-					: GameContext.EditorService.EditorPolarSpokeFolds;
+					: GameContext.EditorService.Tools.PolarSpokeFolds;
 
 				UpdateSpokesDropdownSelection(_optPolarRadialStep, spokes);
 
@@ -2632,14 +2632,14 @@ namespace Realm.Client.UI
 
 		public void SetScaleDialogTargets(int width, int depth)
 		{
-			GameContext.EditorService.ScaleDialogTargetWidth = width;
+			GameContext.EditorService.Tools.ScaleDialogTargetWidth = width;
 			_scaleDialogTargetDepth = depth;
 		}
 
 		private void UpdateScaleDialogLabels()
 		{
 			if (_lblScalePreviewWidth != null)
-				_lblScalePreviewWidth.Text = $"W: {GameContext.EditorService.ScaleDialogTargetWidth}";
+				_lblScalePreviewWidth.Text = $"W: {GameContext.EditorService.Tools.ScaleDialogTargetWidth}";
 			if (_lblScalePreviewHeight != null)
 				_lblScalePreviewHeight.Text = $"H: {_scaleDialogTargetDepth}";
 		}

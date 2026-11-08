@@ -52,7 +52,7 @@ namespace Realm.Client.Core
 
 		private bool IsCopiedQuadMasked(int sx, int sz)
 		{
-			float r = GameContext.EditorService.EditorPasteRotation % 360.0f;
+			float r = GameContext.EditorService.Tools.PasteRotation % 360.0f;
 			if (r < 0) r += 360.0f;
 			int rotSteps = (int)Math.Round(r / 90.0f) % 4;
 
@@ -81,8 +81,8 @@ namespace Realm.Client.Core
 			int srcX = origSx;
 			int srcZ = origSz;
 
-			if (GameContext.EditorService.EditorPasteReflection == PasteReflection.Horizontal) srcX = pasteWidth - 1 - origSx;
-			else if (GameContext.EditorService.EditorPasteReflection == PasteReflection.Vertical) srcZ = pasteDepth - 1 - origSz;
+			if (GameContext.EditorService.Tools.PasteReflectionMode == PasteReflection.Horizontal) srcX = pasteWidth - 1 - origSx;
+			else if (GameContext.EditorService.Tools.PasteReflectionMode == PasteReflection.Vertical) srcZ = pasteDepth - 1 - origSz;
 
 			return GameContext.EditorService.Clipboard.IsCopiedCellMasked(srcX, srcZ);
 		}
@@ -109,7 +109,7 @@ namespace Realm.Client.Core
 			var pathingBefore = (int[,])GroundTerrain.PathingCodes.Clone();
 
 			var pasteResult = GameContext.EditorService.BuildPasteAreaResult(
-				startX, startZ, GameContext.EditorService.PasteOptionHeights, GameContext.EditorService.PasteOptionTextures, GameContext.EditorService.PasteOptionEntities, PasteOptionPathing,
+				startX, startZ, GameContext.EditorService.Tools.PasteHeights, GameContext.EditorService.Tools.PasteTextures, GameContext.EditorService.Tools.PasteEntities, PasteOptionPathing,
 				EditorMirrorMode, rotationDegrees, reflection);
 
 			ApplyPasteTerrainModifications(startX, startZ, pasteResult);

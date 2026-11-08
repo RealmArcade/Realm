@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using Godot;
@@ -67,8 +67,8 @@ internal sealed class EditorRampTool
 		}
 
 		EditorTerrainGeometry.SetGridNodeHeight(ref terrain, gridX, gridZ, newHeight);
-		int rampPaintIdx = GameContext.Host != null ? GameContext.EditorService.EditorPaintTextureIndex : 0;
-		int rampCliffIdx = GameContext.Host != null ? GameContext.EditorService.EditorCliffPaintTextureIndex : 1;
+		int rampPaintIdx = GameContext.Host != null ? GameContext.EditorService.Tools.PaintTextureIndex : 0;
+		int rampCliffIdx = GameContext.Host != null ? GameContext.EditorService.Tools.CliffPaintTextureIndex : 1;
 		_surface.SetGridNodeSplat(gridX, gridZ, new TerrainSplatWeights { Index0 = rampPaintIdx, Weight0 = 1.0f }, new TerrainSplatWeights { Index0 = rampPaintIdx, Weight0 = 1.0f }, new TerrainSplatWeights { Index0 = rampPaintIdx, Weight0 = 1.0f }, new TerrainSplatWeights { Index0 = rampPaintIdx, Weight0 = 1.0f });
 		_surface.SetGridNodeCliffSplat(gridX, gridZ, new TerrainSplatWeights { Index0 = rampCliffIdx, Weight0 = 1.0f }, new TerrainSplatWeights { Index0 = rampCliffIdx, Weight0 = 1.0f }, new TerrainSplatWeights { Index0 = rampCliffIdx, Weight0 = 1.0f }, new TerrainSplatWeights { Index0 = rampCliffIdx, Weight0 = 1.0f });
 		modified = true;
@@ -113,7 +113,7 @@ internal sealed class EditorRampTool
 		{
 			string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
 			TerrainSwatchProfileData? rampProf = null;
-			int rampTexIdx = GameContext.Host != null ? GameContext.EditorService.EditorPaintTextureIndex : 0;
+			int rampTexIdx = GameContext.Host != null ? GameContext.EditorService.Tools.PaintTextureIndex : 0;
 			if (!string.IsNullOrEmpty(wsPath) && GameContext.MetadataService.TryLoadMetadata(wsPath, out var metaRoot) && metaRoot != null)
 			{
 				string? swatchName = null;

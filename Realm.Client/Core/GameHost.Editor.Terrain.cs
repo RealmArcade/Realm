@@ -41,10 +41,10 @@ namespace Realm.Client.Core
 
 			if (GameContext.SessionState.IsMapEditorMode)
 			{
-				decal.RotationDegrees = new Vector3(0.0f, GameContext.EditorService.EditorPlacementRotation, 0.0f);
+				decal.RotationDegrees = new Vector3(0.0f, GameContext.EditorService.Tools.PlacementRotation, 0.0f);
 				decal.Size = new Vector3(6.0f, 20.0f, 6.0f) * (EditorPlacementScale <= 0.001f ? 1.0f : EditorPlacementScale);
 				decal.Scale = Vector3.One;
-				world.Set(entity, new RotationY(GameContext.EditorService.EditorPlacementRotation));
+				world.Set(entity, new RotationY(GameContext.EditorService.Tools.PlacementRotation));
 				world.Set(entity, new ModelScale(EditorPlacementScale));
 			}
 
@@ -435,7 +435,7 @@ namespace Realm.Client.Core
 
 			WaterType activeMode = EditorWaterMode;
 			byte activeProfile = ActiveWaterProfileIndex;
-			float waterHeight = GameContext.EditorService.EditorWaterHeight;
+			float waterHeight = GameContext.EditorService.Tools.WaterHeight;
 
 			var result = GameContext.EditorService.PerformWaterFloodFill(clickPos, activeMode, activeProfile, waterHeight, EditorMirrorMode, isRemoveAction);
 			if (result.BeforeCells == null || result.AfterCells == null) return;
@@ -627,7 +627,7 @@ namespace Realm.Client.Core
 
 			var eraseResult = GameContext.EditorService.Surface.EraseArea(
 				bounds.Item1, bounds.Item2, bounds.Item3, bounds.Item4,
-				GameContext.EditorService.PasteOptionHeights, GameContext.EditorService.PasteOptionTextures, GameContext.EditorService.PasteOptionEntities, PasteOptionPathing,
+				GameContext.EditorService.Tools.PasteHeights, GameContext.EditorService.Tools.PasteTextures, GameContext.EditorService.Tools.PasteEntities, PasteOptionPathing,
 				CollectionsMarshal.AsSpan(candidatePositions), EditorBrushIsSquare);
 
 			ApplyEraseResultTerrainModifications(eraseResult, bounds.Item1, bounds.Item2, bounds.Item3, bounds.Item4);

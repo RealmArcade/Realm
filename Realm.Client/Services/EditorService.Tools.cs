@@ -57,8 +57,8 @@ public partial class EditorService
 				host.EditorBrushIsSquare,
 				host.EditorBlockMode,
 				targetBlockHeight,
-				EditorPaintTextureIndex,
-				EditorCliffPaintTextureIndex,
+				Tools.PaintTextureIndex,
+				Tools.CliffPaintTextureIndex,
 				pathingMask,
 				pathingAdd,
 				isFirstClick,
@@ -71,7 +71,7 @@ public partial class EditorService
 			}
 
 			Rect2I affectedRegion = new Rect2I(result.MinX - 2, result.MinZ - 2, result.MaxX - result.MinX + 5, result.MaxZ - result.MinZ + 5);
-			TerrainFlushRegion = TerrainFlushRegion.HasValue ? TerrainFlushRegion.Value.Merge(affectedRegion) : affectedRegion;
+			Tools.TerrainFlushRegion = Tools.TerrainFlushRegion.HasValue ? Tools.TerrainFlushRegion.Value.Merge(affectedRegion) : affectedRegion;
 			_terrainGeometryDirty = true;
 			if (result.HeightsModified) _terrainHeightsDirty = true;
 			if (result.PathingModified) _terrainPathingDirty = true;
@@ -94,18 +94,18 @@ public partial class EditorService
 
 		host.EditorHasUnsavedChanges = true;
 		long nowMilliseconds = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-		if (!isFirstClick && nowMilliseconds - _lastTerrainMeshRebuildMilliseconds < TerrainMeshRebuildPeriodMs)
+		if (!isFirstClick && nowMilliseconds - _lastTerrainMeshRebuildMilliseconds < Tools.TerrainMeshRebuildPeriodMs)
 		{
 			return;
 		}
 
 		_lastTerrainMeshRebuildMilliseconds = nowMilliseconds;
-		if (!TerrainFlushRegion.HasValue || host.GroundTerrain == null)
+		if (!Tools.TerrainFlushRegion.HasValue || host.GroundTerrain == null)
 		{
 			return;
 		}
 
-		Rect2I flushRegion = TerrainFlushRegion.Value;
+		Rect2I flushRegion = Tools.TerrainFlushRegion.Value;
 		host.GroundTerrain.UpdateMeshAndPhysics(false, false, flushRegion, _terrainHeightsDirty);
 		if (_terrainHeightsDirty)
 		{
@@ -123,12 +123,12 @@ public partial class EditorService
 	public void FlushTerrainMeshAndPhysics()
 	{
 		GameHost? host = GameContext.Host;
-		if (!_terrainGeometryDirty || !TerrainFlushRegion.HasValue || host?.GroundTerrain == null)
+		if (!_terrainGeometryDirty || !Tools.TerrainFlushRegion.HasValue || host?.GroundTerrain == null)
 		{
 			return;
 		}
 
-		Rect2I flushRegion = TerrainFlushRegion.Value;
+		Rect2I flushRegion = Tools.TerrainFlushRegion.Value;
 		host.GroundTerrain.UpdateMeshAndPhysics(_terrainHeightsDirty, false, flushRegion, _terrainHeightsDirty);
 		if (_terrainHeightsDirty)
 		{
@@ -146,7 +146,7 @@ public partial class EditorService
 
 	private void ClearPendingTerrainFlushState()
 	{
-		TerrainFlushRegion = null;
+		Tools.TerrainFlushRegion = null;
 		_terrainGeometryDirty = false;
 		_terrainHeightsDirty = false;
 		_terrainPathingDirty = false;

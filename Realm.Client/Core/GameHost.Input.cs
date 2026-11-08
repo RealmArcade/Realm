@@ -313,7 +313,7 @@ public partial class GameHost
 
 			if ((editorKeyEvent.Keycode == Key.O || editorKeyEvent.Keycode == Key.V) && !ctrlPressed && !shiftPressed)
 			{
-				GameContext.EditorService.EditorGridMode = GameContext.EditorService.EditorGridMode switch
+				GameContext.EditorService.Tools.GridMode = GameContext.EditorService.Tools.GridMode switch
 				{
 					GridOverlayMode.Off => GridOverlayMode.Grid,
 					GridOverlayMode.Grid => GridOverlayMode.Polar,
@@ -322,8 +322,8 @@ public partial class GameHost
 					_ => GridOverlayMode.Off
 				};
 				UpdateGridOverlayVisibility();
-				GameContext.MapEditorHud?.UpdateGridOverlayExternal(GameContext.EditorService.EditorGridMode);
-				string modeName = GameContext.EditorService.EditorGridMode switch
+				GameContext.MapEditorHud?.UpdateGridOverlayExternal(GameContext.EditorService.Tools.GridMode);
+				string modeName = GameContext.EditorService.Tools.GridMode switch
 				{
 					GridOverlayMode.Off => "OFF",
 					GridOverlayMode.Grid => "GRID",
@@ -638,7 +638,7 @@ public partial class GameHost
 
 			if (editorKeyEvent.Keycode == Key.Bracketleft)
 			{
-				EditorBrushRadius = Mathf.Max(EditorService.MIN_BRUSH_RADIUS, EditorBrushRadius - 1.0f);
+				EditorBrushRadius = Mathf.Max(EditorToolSettings.MinBrushRadius, EditorBrushRadius - 1.0f);
 				GameContext.MapEditorHud?.UpdateBrushSizeExternal(EditorBrushRadius);
 				GetViewport().SetInputAsHandled();
 				return;
@@ -646,7 +646,7 @@ public partial class GameHost
 
 			if (editorKeyEvent.Keycode == Key.Bracketright)
 			{
-				EditorBrushRadius = Mathf.Min(EditorService.MAX_BRUSH_RADIUS, EditorBrushRadius + 1.0f);
+				EditorBrushRadius = Mathf.Min(EditorToolSettings.MaxBrushRadius, EditorBrushRadius + 1.0f);
 				GameContext.MapEditorHud?.UpdateBrushSizeExternal(EditorBrushRadius);
 				GetViewport().SetInputAsHandled();
 				return;
@@ -747,7 +747,7 @@ public partial class GameHost
 
 			if (editorKeyEvent.Keycode == Key.Minus)
 			{
-				EditorBrushStrength = Mathf.Max(EditorService.MIN_BRUSH_STRENGTH, EditorBrushStrength - 0.5f);
+				EditorBrushStrength = Mathf.Max(EditorToolSettings.MinBrushStrength, EditorBrushStrength - 0.5f);
 				GameContext.MapEditorHud?.UpdateBrushStrengthExternal(EditorBrushStrength);
 				GetViewport().SetInputAsHandled();
 				return;
@@ -755,7 +755,7 @@ public partial class GameHost
 
 			if (editorKeyEvent.Keycode == Key.Equal)
 			{
-				EditorBrushStrength = Mathf.Min(EditorService.MAX_BRUSH_STRENGTH, EditorBrushStrength + 0.5f);
+				EditorBrushStrength = Mathf.Min(EditorToolSettings.MaxBrushStrength, EditorBrushStrength + 0.5f);
 				GameContext.MapEditorHud?.UpdateBrushStrengthExternal(EditorBrushStrength);
 				GetViewport().SetInputAsHandled();
 				return;
@@ -885,7 +885,7 @@ public partial class GameHost
 				if (shiftPressed)
 				{
 					float deltaSize = isUp ? 1.0f : -1.0f;
-					EditorBrushRadius = Mathf.Clamp(EditorBrushRadius + deltaSize, EditorService.MIN_BRUSH_RADIUS, EditorService.MAX_BRUSH_RADIUS);
+					EditorBrushRadius = Mathf.Clamp(EditorBrushRadius + deltaSize, EditorToolSettings.MinBrushRadius, EditorToolSettings.MaxBrushRadius);
 					GameContext.MapEditorHud?.UpdateBrushSizeExternal(EditorBrushRadius);
 					GetViewport().SetInputAsHandled();
 					return;
@@ -894,7 +894,7 @@ public partial class GameHost
 				if (ctrlPressed)
 				{
 					float deltaStr = isUp ? 0.5f : -0.5f;
-					EditorBrushStrength = Mathf.Clamp(EditorBrushStrength + deltaStr, EditorService.MIN_BRUSH_STRENGTH, EditorService.MAX_BRUSH_STRENGTH);
+					EditorBrushStrength = Mathf.Clamp(EditorBrushStrength + deltaStr, EditorToolSettings.MinBrushStrength, EditorToolSettings.MaxBrushStrength);
 					GameContext.MapEditorHud?.UpdateBrushStrengthExternal(EditorBrushStrength);
 					GetViewport().SetInputAsHandled();
 					return;
@@ -911,8 +911,8 @@ public partial class GameHost
 				}
 				else
 				{
-					GameContext.EditorService.EditorPlacementRotation = (GameContext.EditorService.EditorPlacementRotation + rotDelta + 360.0f) % 360.0f;
-					GameContext.MapEditorHud?.UpdateRotationExternal(GameContext.EditorService.EditorPlacementRotation);
+					GameContext.EditorService.Tools.PlacementRotation = (GameContext.EditorService.Tools.PlacementRotation + rotDelta + 360.0f) % 360.0f;
+					GameContext.MapEditorHud?.UpdateRotationExternal(GameContext.EditorService.Tools.PlacementRotation);
 				}
 
 				GetViewport().SetInputAsHandled();
@@ -929,7 +929,7 @@ public partial class GameHost
 				}
 				else
 				{
-					EditorPlacementScale = Mathf.Clamp(EditorPlacementScale + scaleDelta, EditorService.MIN_PLACEMENT_SCALE, EditorService.MAX_PLACEMENT_SCALE);
+					EditorPlacementScale = Mathf.Clamp(EditorPlacementScale + scaleDelta, EditorToolSettings.MinPlacementScale, EditorToolSettings.MaxPlacementScale);
 					GameContext.MapEditorHud?.UpdateScaleExternal(EditorPlacementScale);
 				}
 
@@ -946,7 +946,7 @@ public partial class GameHost
 				return;
 			}
 
-			if (GroundTerrain != null && (EditorMirrorMode != MirrorMode.None || GameContext.EditorService.EditorPolarOverlayVisible))
+			if (GroundTerrain != null && (EditorMirrorMode != MirrorMode.None || GameContext.EditorService.Tools.PolarOverlayVisible))
 			{
 				var terrainHit = RaycastTerrainFromMouse(editorRightMouseBtn.Position);
 				if (terrainHit != null && terrainHit.ContainsKey("position"))
@@ -1089,7 +1089,7 @@ public partial class GameHost
 				{
 					if (!TryGetValidPlacementContext(hitPos, out float placementRot, out float scaleVal, out Vector3 spawnPos)) return;
 
-					int placePlayer = GameContext.EditorService.PlaceUnitPlayerIndex;
+					int placePlayer = GameContext.EditorService.Tools.PlaceUnitPlayerIndex;
 					var unit = SpawnUnitExternal(ActivePlaceId, spawnPos, placementRot, scaleVal, placePlayer);
 					if (unit != null)
 					{
@@ -1204,8 +1204,8 @@ public partial class GameHost
 				{
 					if (EditorClumpMode) return;
 					if (!GameContext.EditorService.Interaction.HasCachedRandom) GenerateNewRandomPlacementRotationAndScale();
-					float placementRot = (GameContext.EditorService.EditorRandomRotation && !GameContext.EditorService.Interaction.IsPastingObject) ? GameContext.EditorService.Interaction.CachedRandomRotation : GameContext.EditorService.EditorPlacementRotation;
-					float scaleVal = (GameContext.EditorService.EditorRandomScale && !GameContext.EditorService.Interaction.IsPastingObject) ? GameContext.EditorService.Interaction.CachedRandomScale : EditorPlacementScale;
+					float placementRot = (GameContext.EditorService.Tools.RandomRotation && !GameContext.EditorService.Interaction.IsPastingObject) ? GameContext.EditorService.Interaction.CachedRandomRotation : GameContext.EditorService.Tools.PlacementRotation;
+					float scaleVal = (GameContext.EditorService.Tools.RandomScale && !GameContext.EditorService.Interaction.IsPastingObject) ? GameContext.EditorService.Interaction.CachedRandomScale : EditorPlacementScale;
 					float safeScale = scaleVal <= 0.001f ? 1.0f : scaleVal;
 
 					VfxAttachmentConfig config;
@@ -1485,7 +1485,7 @@ public partial class GameHost
 							int x = Mathf.Clamp((int)Math.Round(fx), 0, splatW - 1);
 							int z = Mathf.Clamp((int)Math.Round(fz), 0, splatD - 1);
 							int sampledIndex = GroundTerrain.SplatMap != null ? GroundTerrain.SplatMap[x, z].GetDominantIndex() : 0;
-							GameContext.EditorService.EditorPaintTextureIndex = sampledIndex;
+							GameContext.EditorService.Tools.PaintTextureIndex = sampledIndex;
 							if (GameContext.MapEditorHud != null)
 							{
 								GameContext.MapEditorHud.SelectPaintSwatchByIndexView(sampledIndex);
@@ -1645,7 +1645,7 @@ public partial class GameHost
 						}
 					}
 
-					GameContext.EditorService.FloodFillTerrainAt(hitPos.X, hitPos.Y, hitPos.Z, GameContext.EditorService.EditorPaintTextureIndex, isCliff);
+					GameContext.EditorService.FloodFillTerrainAt(hitPos.X, hitPos.Y, hitPos.Z, GameContext.EditorService.Tools.PaintTextureIndex, isCliff);
 					GetViewport().SetInputAsHandled();
 				}
 				else if (ActiveEditorTool == EditorTool.FloodFillPathing)
@@ -1668,7 +1668,7 @@ public partial class GameHost
 					{
 						EditorWaterMode = GameContext.MapEditorHud.GetSelectedWaterMode();
 						ActiveWaterProfileIndex = GameContext.MapEditorHud.GetSelectedWaterProfileIndex();
-						GameContext.EditorService.EditorWaterHeight = GameContext.MapEditorHud.GetSelectedWaterHeight();
+						GameContext.EditorService.Tools.WaterHeight = GameContext.MapEditorHud.GetSelectedWaterHeight();
 					}
 
 					GameContext.EditorService.FloodFillWaterAt(hitPos.X, hitPos.Y, hitPos.Z, isRemove);
@@ -1712,8 +1712,8 @@ public partial class GameHost
 					if (GroundTerrain != null && GameContext.EditorService.Clipboard.HasCopiedArea)
 					{
 						var (cx, cz) = EditorGridSnapping.WorldPosToCellCoords(hitPos);
-						var (startX, startZ, targetWidth, targetDepth) = EditorGridSnapping.GetAnchoredPasteBounds(GameContext.EditorService.Clipboard.CopiedArea, cx, cz, GameContext.EditorService.EditorPasteRotation, GameContext.EditorService.EditorPasteReflection);
-						PerformPasteArea(startX, startZ, GameContext.EditorService.EditorPasteRotation, GameContext.EditorService.EditorPasteReflection);
+						var (startX, startZ, targetWidth, targetDepth) = EditorGridSnapping.GetAnchoredPasteBounds(GameContext.EditorService.Clipboard.CopiedArea, cx, cz, GameContext.EditorService.Tools.PasteRotation, GameContext.EditorService.Tools.PasteReflectionMode);
+						PerformPasteArea(startX, startZ, GameContext.EditorService.Tools.PasteRotation, GameContext.EditorService.Tools.PasteReflectionMode);
 						GameContext.MapEditorHud?.ShowFeedbackExternal("Pasted clipboard contents");
 					}
 
@@ -1725,15 +1725,15 @@ public partial class GameHost
 					{
 						if (!EditorTapeMeasureActive)
 						{
-							GameContext.EditorService.EditorTapeMeasureStart = hitPos;
+							GameContext.EditorService.Tools.TapeMeasureStart = hitPos;
 							EditorTapeMeasureEnd = hitPos;
 							EditorTapeMeasureActive = true;
 							UpdateMeasureVisuals(hitPos, hitPos);
 						}
-						else if (GameContext.EditorService.EditorTapeMeasureStart.HasValue)
+						else if (GameContext.EditorService.Tools.TapeMeasureStart.HasValue)
 						{
 							EditorTapeMeasureEnd = hitPos;
-							UpdateMeasureVisuals(GameContext.EditorService.EditorTapeMeasureStart.Value, hitPos);
+							UpdateMeasureVisuals(GameContext.EditorService.Tools.TapeMeasureStart.Value, hitPos);
 							EditorTapeMeasureActive = false;
 						}
 					}
@@ -4535,8 +4535,8 @@ public partial class GameHost
 			if (EditorClumpMode) return false;
 			if (!GameContext.EditorService.Interaction.HasCachedRandom) GenerateNewRandomPlacementRotationAndScale();
 			
-			placementRot = (GameContext.EditorService.EditorRandomRotation && !GameContext.EditorService.Interaction.IsPastingObject) ? GameContext.EditorService.Interaction.CachedRandomRotation : GameContext.EditorService.EditorPlacementRotation;
-			scaleVal = (GameContext.EditorService.EditorRandomScale && !GameContext.EditorService.Interaction.IsPastingObject) ? GameContext.EditorService.Interaction.CachedRandomScale : EditorPlacementScale;
+			placementRot = (GameContext.EditorService.Tools.RandomRotation && !GameContext.EditorService.Interaction.IsPastingObject) ? GameContext.EditorService.Interaction.CachedRandomRotation : GameContext.EditorService.Tools.PlacementRotation;
+			scaleVal = (GameContext.EditorService.Tools.RandomScale && !GameContext.EditorService.Interaction.IsPastingObject) ? GameContext.EditorService.Interaction.CachedRandomScale : EditorPlacementScale;
 
 			var finalPos = TryGetValidPlacementLocation(spawnPos, scaleVal);
 			if (finalPos == null) return false;

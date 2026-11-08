@@ -101,8 +101,8 @@ public class MapEditorUxTests
 			if (displayNames[i].Equals("Lava Vein", StringComparison.OrdinalIgnoreCase)) lavaVeinIndex = i;
 		}
 
-		GameContext.EditorService.EditorPaintTextureIndex = deepMossIndex;
-		GameContext.EditorService.EditorCliffPaintTextureIndex = lavaVeinIndex;
+		GameContext.EditorService.Tools.PaintTextureIndex = deepMossIndex;
+		GameContext.EditorService.Tools.CliffPaintTextureIndex = lavaVeinIndex;
 
 		gameHost!.ActiveEditorTool = EditorTool.Raise;
 		gameHost!.EditorBlockMode = true;
@@ -131,7 +131,7 @@ public class MapEditorUxTests
 			gameHost!.EditorBrushRadius, gameHost!.EditorBrushStrength,
 			gameHost!.EditorBrushIsSquare,
 			gameHost!.EditorBlockMode, gameHost!.EditorBlockLevelHeight,
-			GameContext.EditorService.EditorPaintTextureIndex, GameContext.EditorService.EditorCliffPaintTextureIndex,
+			GameContext.EditorService.Tools.PaintTextureIndex, GameContext.EditorService.Tools.CliffPaintTextureIndex,
 			0, true, true);
 
 		editorService.TerrainEdit.EndDraw(terrain.Heights, terrain.SplatMap, terrain.PathingCodes);

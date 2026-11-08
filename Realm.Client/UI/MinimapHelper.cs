@@ -152,9 +152,9 @@ public static class MinimapHelper
 		state.WasGridMode = GridOverlayMode.Off;
 		if (gameHost == null) return;
 
-		state.WasGridMode = GameContext.EditorService.EditorGridMode;
+		state.WasGridMode = GameContext.EditorService.Tools.GridMode;
 		state.WasPathingVisible = gameHost.PathingOverlayVisible;
-		GameContext.EditorService.EditorGridMode = GridOverlayMode.Off;
+		GameContext.EditorService.Tools.GridMode = GridOverlayMode.Off;
 		gameHost.PathingOverlayVisible = false;
 		gameHost.UpdateGridOverlayVisibility();
 		gameHost.UpdatePathingOverlay();
@@ -215,7 +215,7 @@ public static class MinimapHelper
 
 		if (gameHost != null)
 		{
-			GameContext.EditorService.EditorGridMode = state.WasGridMode;
+			GameContext.EditorService.Tools.GridMode = state.WasGridMode;
 			gameHost.PathingOverlayVisible = state.WasPathingVisible;
 			gameHost.UpdateGridOverlayVisibility();
 			gameHost.UpdatePathingOverlay();

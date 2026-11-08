@@ -535,11 +535,11 @@ public partial class GameHost : Node3D
 
 	public EditorTool ActiveEditorTool
 	{
-		get => GameContext.EditorService.ActiveEditorTool;
+		get => GameContext.EditorService.Tools.ActiveTool;
 		set
 		{
 			GameContext.EditorService.FlushTerrainMeshAndPhysics();
-			GameContext.EditorService.ActiveEditorTool = value;
+			GameContext.EditorService.Tools.ActiveTool = value;
 			GameContext.EditorService?.Interaction.SetIsPastingObject(false);
 			if (value != EditorTool.SelectArea && value != EditorTool.PasteArea)
 			{
@@ -568,25 +568,25 @@ public partial class GameHost : Node3D
 
 	public float EditorBrushRadius
 	{
-		get => GameContext.EditorService.EditorBrushRadius;
-		set => GameContext.EditorService.EditorBrushRadius = Mathf.Clamp(value, EditorService.MIN_BRUSH_RADIUS, EditorService.MAX_BRUSH_RADIUS);
+		get => GameContext.EditorService.Tools.BrushRadius;
+		set => GameContext.EditorService.Tools.BrushRadius = Mathf.Clamp(value, EditorToolSettings.MinBrushRadius, EditorToolSettings.MaxBrushRadius);
 	}
 
 	public float EditorBrushStrength
 	{
-		get => GameContext.EditorService.EditorBrushStrength;
-		set => GameContext.EditorService.EditorBrushStrength = Mathf.Clamp(value, EditorService.MIN_BRUSH_STRENGTH, EditorService.MAX_BRUSH_STRENGTH);
+		get => GameContext.EditorService.Tools.BrushStrength;
+		set => GameContext.EditorService.Tools.BrushStrength = Mathf.Clamp(value, EditorToolSettings.MinBrushStrength, EditorToolSettings.MaxBrushStrength);
 	}
 
 	public bool EditorSnapToGrid { get; set; } = false;
 
 	public float EditorPlacementScale
 	{
-		get => GameContext.EditorService.EditorPlacementScale;
-		set => GameContext.EditorService.EditorPlacementScale = Mathf.Clamp(value, EditorService.MIN_PLACEMENT_SCALE, EditorService.MAX_PLACEMENT_SCALE);
+		get => GameContext.EditorService.Tools.PlacementScale;
+		set => GameContext.EditorService.Tools.PlacementScale = Mathf.Clamp(value, EditorToolSettings.MinPlacementScale, EditorToolSettings.MaxPlacementScale);
 	}
 
-	public bool EditorGridVisible => GameContext.EditorService.EditorGridMode == GridOverlayMode.Grid || GameContext.EditorService.EditorGridMode == GridOverlayMode.Both;
+	public bool EditorGridVisible => GameContext.EditorService.Tools.GridMode == GridOverlayMode.Grid || GameContext.EditorService.Tools.GridMode == GridOverlayMode.Both;
 
 	public float EditorCameraBoundsLeft
 	{
@@ -620,13 +620,13 @@ public partial class GameHost : Node3D
 			GameContext.World?.Mutate<EditorState>(GameContext.Simulation.WorldEntity, (ref EditorState s) => s.MirrorMode = value);
 			if (value == MirrorMode.Rotational)
 			{
-				GameContext.EditorService.EditorPolarRadialStep = 360.0f / Mathf.Max(1, EditorSymmetryFolds);
-				GroundTerrain?.SetPolarRadialStep(GameContext.EditorService.EditorPolarRadialStep);
+				GameContext.EditorService.Tools.PolarRadialStep = 360.0f / Mathf.Max(1, EditorSymmetryFolds);
+				GroundTerrain?.SetPolarRadialStep(GameContext.EditorService.Tools.PolarRadialStep);
 			}
 			else
 			{
-				GameContext.EditorService.EditorPolarRadialStep = 360.0f / Mathf.Max(1, GameContext.EditorService.EditorPolarSpokeFolds);
-				GroundTerrain?.SetPolarRadialStep(GameContext.EditorService.EditorPolarRadialStep);
+				GameContext.EditorService.Tools.PolarRadialStep = 360.0f / Mathf.Max(1, GameContext.EditorService.Tools.PolarSpokeFolds);
+				GroundTerrain?.SetPolarRadialStep(GameContext.EditorService.Tools.PolarRadialStep);
 			}
 
 			UpdateGridOverlayVisibility();
@@ -653,8 +653,8 @@ public partial class GameHost : Node3D
 			{
 				var editor = GameContext.EditorService;
 				if (editor == null) return;
-				editor.EditorPolarRadialStep = 360.0f / Mathf.Max(1, value);
-				GroundTerrain?.SetPolarRadialStep(editor.EditorPolarRadialStep);
+				editor.Tools.PolarRadialStep = 360.0f / Mathf.Max(1, value);
+				GroundTerrain?.SetPolarRadialStep(editor.Tools.PolarRadialStep);
 			}
 		}
 	}
@@ -666,22 +666,22 @@ public partial class GameHost : Node3D
 
 	public float EditorClumpCount
 	{
-		get => GameContext.EditorService.EditorClumpCount;
-		set => GameContext.EditorService.EditorClumpCount = Mathf.Clamp(value, EditorService.MIN_CLUMP_COUNT, EditorService.MAX_CLUMP_COUNT);
+		get => GameContext.EditorService.Tools.ClumpCount;
+		set => GameContext.EditorService.Tools.ClumpCount = Mathf.Clamp(value, EditorToolSettings.MinClumpCount, EditorToolSettings.MaxClumpCount);
 	}
 
 	public float EditorClumpScale
 	{
-		get => GameContext.EditorService.EditorClumpScale;
-		set => GameContext.EditorService.EditorClumpScale = Mathf.Clamp(value, EditorService.MIN_CLUMP_SCALE, EditorService.MAX_CLUMP_SCALE);
+		get => GameContext.EditorService.Tools.ClumpScale;
+		set => GameContext.EditorService.Tools.ClumpScale = Mathf.Clamp(value, EditorToolSettings.MinClumpScale, EditorToolSettings.MaxClumpScale);
 	}
 
 	public bool EditorClumpMode
 	{
-		get => GameContext.EditorService.EditorClumpMode;
+		get => GameContext.EditorService.Tools.ClumpMode;
 		set
 		{
-			GameContext.EditorService.EditorClumpMode = value;
+			GameContext.EditorService.Tools.ClumpMode = value;
 			UpdateBrushMesh();
 		}
 	}
@@ -712,8 +712,8 @@ public partial class GameHost : Node3D
 
 	public float EditorExactHeight
 	{
-		get => GameContext.EditorService.EditorExactHeight;
-		set => GameContext.EditorService.EditorExactHeight = Math.Clamp(value, TerrainCell.MIN_Y, TerrainCell.MAX_Y);
+		get => GameContext.EditorService.Tools.ExactHeight;
+		set => GameContext.EditorService.Tools.ExactHeight = Math.Clamp(value, TerrainCell.MIN_Y, TerrainCell.MAX_Y);
 	}
 
 	public WaterType EditorWaterMode
@@ -743,10 +743,10 @@ public partial class GameHost : Node3D
 
 	public bool PasteOptionPathing
 	{
-		get => GameContext.EditorService.PasteOptionPathing;
+		get => GameContext.EditorService.Tools.PastePathing;
 		set
 		{
-			GameContext.EditorService.PasteOptionPathing = value;
+			GameContext.EditorService.Tools.PastePathing = value;
 			UpdatePathingOverlay();
 		}
 	}
@@ -3083,7 +3083,7 @@ public partial class GameHost : Node3D
 	{
 		if (!GameContext.SessionState.IsMapEditorMode) return;
 
-		unit3D.RotationDegrees = new Vector3(0.0f, GameContext.EditorService.EditorPlacementRotation, 0.0f);
+		unit3D.RotationDegrees = new Vector3(0.0f, GameContext.EditorService.Tools.PlacementRotation, 0.0f);
 		unit3D.Scale *= EditorPlacementScale;
 	}
 

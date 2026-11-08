@@ -990,7 +990,7 @@ public partial class MapEditorHUD : Control
 	{
 		if (tool == EditorTool.PlaceUnit)
 		{
-			string alignment = PlayerColorConfig.GetPaletteLabel(GameContext.EditorService.PlaceUnitPlayerIndex);
+			string alignment = PlayerColorConfig.GetPaletteLabel(GameContext.EditorService.Tools.PlaceUnitPlayerIndex);
 			_lblInfoText.Text = string.Format(TranslationServer.Translate("TOOL: Place Unit\n\nLeft-click on the ground to spawn a {0} aligned with {1}."), shortPlaceName, alignment);
 			return;
 		}
@@ -1381,11 +1381,11 @@ public partial class MapEditorHUD : Control
 		var host = GameContext.Host;
 		if (host == null) return;
 
-		GameContext.SessionState.SavedGridMode = GameContext.EditorService.EditorGridMode;
+		GameContext.SessionState.SavedGridMode = GameContext.EditorService.Tools.GridMode;
 		GameContext.SessionState.SavedActiveTool = host.ActiveEditorTool;
 		GameContext.SessionState.SavedActivePlaceId = host.ActivePlaceId;
-		GameContext.SessionState.SavedCameraBoundsVisible = GameContext.EditorService.EditorCameraBoundsVisible;
-		GameContext.SessionState.SavedDisableShadows = GameContext.EditorService.EditorDisableShadows;
+		GameContext.SessionState.SavedCameraBoundsVisible = GameContext.EditorService.Tools.CameraBoundsVisible;
+		GameContext.SessionState.SavedDisableShadows = GameContext.EditorService.Tools.DisableShadows;
 		GameContext.SessionState.SavedEditorHasUnsavedChanges = host.EditorHasUnsavedChanges;
 		GameContext.SessionState.SavedEntityCategory = _entityPaletteController?.CurrentCategory ?? "";
 		GameContext.SessionState.SavedBrushRadius = (float)(_sldBrushSize?.Value ?? 1f);

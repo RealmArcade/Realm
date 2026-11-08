@@ -184,7 +184,7 @@ namespace Realm.Client.UI
 					return;
 				}
 
-				GameContext.EditorService.EditorPaintTextureIndex = index;
+				GameContext.EditorService.Tools.PaintTextureIndex = index;
 				HighlightSwatch(swatch);
 
 				if (!IsSwatchCompatibleTool(GameContext.Host.ActiveEditorTool))

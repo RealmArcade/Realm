@@ -336,11 +336,11 @@ namespace Realm.Client.UI
 
 			if (GameContext.Host != null)
 			{
-				UpdateRotationExternal(GameContext.EditorService.EditorPlacementRotation);
+				UpdateRotationExternal(GameContext.EditorService.Tools.PlacementRotation);
 				UpdateScaleExternal(GameContext.Host.EditorPlacementScale);
 				UpdateGridSnapExternal(GameContext.Host.EditorSnapToGrid);
-				UpdatePasteRotationExternal(GameContext.EditorService.EditorPasteRotation);
-				UpdatePasteReflectionExternal(GameContext.EditorService.EditorPasteReflection);
+				UpdatePasteRotationExternal(GameContext.EditorService.Tools.PasteRotation);
+				UpdatePasteReflectionExternal(GameContext.EditorService.Tools.PasteReflectionMode);
 				UpdateMirrorDropdowns();
 				UpdateSymmetrySpokesDropdowns();
 				UpdatePolarRadialStepButtonText();
@@ -867,7 +867,7 @@ namespace Realm.Client.UI
 
 			var initialCam = GameContext.Host?.MainCamera;
 			UpdateFreeCameraExternal(initialCam != null && initialCam.IsFreeCamera);
-			UpdateShadowsExternal(GameContext.Host != null && GameContext.EditorService.EditorDisableShadows);
+			UpdateShadowsExternal(GameContext.Host != null && GameContext.EditorService.Tools.DisableShadows);
 
 			_minimapFrame = GetNode<PanelContainer>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/MinimapFrame");
 			_minimapArea = GetNode<Control>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/MinimapFrame/MinimapArea");
@@ -955,7 +955,7 @@ namespace Realm.Client.UI
 						(false, false) => GridOverlayMode.Off
 					};
 
-					GameContext.EditorService.EditorGridMode = newMode;
+					GameContext.EditorService.Tools.GridMode = newMode;
 					GameContext.Host.UpdateGridOverlayVisibility();
 					UpdateGridOverlayExternal(newMode);
 					string modeName = newMode switch
@@ -970,7 +970,7 @@ namespace Realm.Client.UI
 				}
 				else if (id == 2)
 				{
-					GameContext.EditorService.EditorCameraBoundsVisible = newChecked;
+					GameContext.EditorService.Tools.CameraBoundsVisible = newChecked;
 					GameContext.Host.UpdateCameraBoundsOverlayVisibility();
 					UpdateCameraBoundsOverlayExternal(newChecked);
 					ShowFeedback(newChecked
@@ -1055,9 +1055,9 @@ namespace Realm.Client.UI
 				if (GameContext.Host != null)
 				{
 					bool disableShadows = !pressed;
-					if (GameContext.EditorService.EditorDisableShadows != disableShadows)
+					if (GameContext.EditorService.Tools.DisableShadows != disableShadows)
 					{
-						GameContext.EditorService.EditorDisableShadows = disableShadows;
+						GameContext.EditorService.Tools.DisableShadows = disableShadows;
 						GameContext.Host.UpdateEditorShadows();
 						ShowFeedback(disableShadows
 							? TranslationServer.Translate("Shadows: OFF")
@@ -1345,7 +1345,7 @@ namespace Realm.Client.UI
 			SetupButton(_btnCommitCoordinate, "+ ADD", null, 11, "Create named coordinate");
 			_btnCommitCoordinate.Pressed += () =>
 			{
-				if (GameContext.EditorService.PendingCoordinateMinX == GameContext.EditorService.PendingCoordinateMaxX && GameContext.EditorService.PendingCoordinateMinZ == GameContext.EditorService.PendingCoordinateMaxZ)
+				if (GameContext.EditorService.Tools.PendingCoordinateMinX == GameContext.EditorService.Tools.PendingCoordinateMaxX && GameContext.EditorService.Tools.PendingCoordinateMinZ == GameContext.EditorService.Tools.PendingCoordinateMaxZ)
 				{
 					ShowFeedback("Select a valid area first by dragging.");
 					return;
@@ -1358,7 +1358,7 @@ namespace Realm.Client.UI
 					return;
 				}
 
-				bool ok = GameContext.IEditorAPI?.CommitCoordinate(name, GameContext.EditorService.PendingCoordinateMinX, GameContext.EditorService.PendingCoordinateMinZ, GameContext.EditorService.PendingCoordinateMaxX, GameContext.EditorService.PendingCoordinateMaxZ) ?? false;
+				bool ok = GameContext.IEditorAPI?.CommitCoordinate(name, GameContext.EditorService.Tools.PendingCoordinateMinX, GameContext.EditorService.Tools.PendingCoordinateMinZ, GameContext.EditorService.Tools.PendingCoordinateMaxX, GameContext.EditorService.Tools.PendingCoordinateMaxZ) ?? false;
 				if (ok)
 				{
 					RefreshCoordinateListExternal();
@@ -1546,7 +1546,7 @@ namespace Realm.Client.UI
 			{
 				float fVal = (float)val;
 				_lblWaterHeightValue.Text = fVal.ToString("F1") + "m";
-				if (GameContext.Host != null) GameContext.EditorService.EditorWaterHeight = fVal;
+				if (GameContext.Host != null) GameContext.EditorService.Tools.WaterHeight = fVal;
 			};
 			_sldWaterHeight.DragStarted += () => _isDraggingSlider = true;
 			_sldWaterHeight.DragEnded += (valueChanged) => _isDraggingSlider = false;
@@ -1598,7 +1598,7 @@ namespace Realm.Client.UI
 
 			_btnWaterActionAdd.Pressed += () =>
 			{
-				GameContext.EditorService.IsWaterRemoveAction = false;
+				GameContext.EditorService.Tools.IsWaterRemove = false;
 				_btnWaterActionAdd.AddThemeStyleboxOverride("normal", _highlightStyle);
 				_btnWaterActionRemove.RemoveThemeStyleboxOverride("normal");
 				if (_waterHeightBox != null) _waterHeightBox.Visible = true;
@@ -1608,7 +1608,7 @@ namespace Realm.Client.UI
 
 			_btnWaterActionRemove.Pressed += () =>
 			{
-				GameContext.EditorService.IsWaterRemoveAction = true;
+				GameContext.EditorService.Tools.IsWaterRemove = true;
 				_btnWaterActionRemove.AddThemeStyleboxOverride("normal", _highlightStyle);
 				_btnWaterActionAdd.RemoveThemeStyleboxOverride("normal");
 				if (_waterHeightBox != null) _waterHeightBox.Visible = false;
@@ -1676,15 +1676,15 @@ namespace Realm.Client.UI
 
 			chkPasteTextures.Toggled += (toggled) =>
 			{
-				if (GameContext.Host != null) GameContext.EditorService.PasteOptionTextures = toggled;
+				if (GameContext.Host != null) GameContext.EditorService.Tools.PasteTextures = toggled;
 			};
 			chkPasteHeights.Toggled += (toggled) =>
 			{
-				if (GameContext.Host != null) GameContext.EditorService.PasteOptionHeights = toggled;
+				if (GameContext.Host != null) GameContext.EditorService.Tools.PasteHeights = toggled;
 			};
 			chkPasteEntities.Toggled += (toggled) =>
 			{
-				if (GameContext.Host != null) GameContext.EditorService.PasteOptionEntities = toggled;
+				if (GameContext.Host != null) GameContext.EditorService.Tools.PasteEntities = toggled;
 			};
 			chkPastePathing.Toggled += (toggled) =>
 			{
@@ -1703,7 +1703,7 @@ namespace Realm.Client.UI
 				_lblPasteRotation.Text = fVal.ToString("F0") + "°";
 				if (GameContext.Host != null)
 				{
-					GameContext.EditorService.EditorPasteRotation = fVal;
+					GameContext.EditorService.Tools.PasteRotation = fVal;
 				}
 			};
 			_sldPasteRotation.DragStarted += () => _isDraggingSlider = true;
@@ -1872,7 +1872,7 @@ namespace Realm.Client.UI
 			{
 				if (GameContext.Host != null)
 				{
-					GameContext.Host.SwapTexturesExternal(GameContext.EditorService.EditorPaintTextureIndex, GameContext.EditorService.EditorCliffPaintTextureIndex);
+					GameContext.Host.SwapTexturesExternal(GameContext.EditorService.Tools.PaintTextureIndex, GameContext.EditorService.Tools.CliffPaintTextureIndex);
 				}
 			}, 11, "Globally swap grass/dirt texture assignment indices (X)");
 		}
@@ -1956,7 +1956,7 @@ namespace Realm.Client.UI
 
 		public bool IsWaterRemoveAction()
 		{
-			return GameContext.EditorService.IsWaterRemoveAction;
+			return GameContext.EditorService.Tools.IsWaterRemove;
 		}
 
 		public string GetEyedropperMode()
@@ -2462,7 +2462,7 @@ namespace Realm.Client.UI
 			if (GameContext.Host == null) return;
 
 			GameContext.EditorService.SetPlaceUnitPlayerIndexDomain(playerIndex);
-			SyncPlacementPlayerSelection(GameContext.EditorService.PlaceUnitPlayerIndex);
+			SyncPlacementPlayerSelection(GameContext.EditorService.Tools.PlaceUnitPlayerIndex);
 		}
 
 		private void SyncPlacementPlayerSelection(int playerIndex)
@@ -4323,8 +4323,8 @@ namespace Realm.Client.UI
 
 				bool isSymmetryActive = GameContext.Host != null &&
 				                        (GameContext.Host.EditorMirrorMode != MirrorMode.None ||
-				                         GameContext.EditorService.EditorGridMode == GridOverlayMode.Polar ||
-				                         GameContext.EditorService.EditorGridMode == GridOverlayMode.Both);
+				                         GameContext.EditorService.Tools.GridMode == GridOverlayMode.Polar ||
+				                         GameContext.EditorService.Tools.GridMode == GridOverlayMode.Both);
 				_rowPolarConfig.Visible = isSymmetryActive;
 			}
 		}
@@ -4512,7 +4512,7 @@ namespace Realm.Client.UI
 				_placementPlayerContainer.Visible = showPlacementPlayer;
 				if (showPlacementPlayer)
 				{
-					SyncPlacementPlayerSelection(GameContext.EditorService.PlaceUnitPlayerIndex);
+					SyncPlacementPlayerSelection(GameContext.EditorService.Tools.PlaceUnitPlayerIndex);
 				}
 			}
 
@@ -4659,7 +4659,7 @@ namespace Realm.Client.UI
 			if (GameContext.EditorService.DecreaseScaleDialogWidth())
 			{
 				UpdateScaleDialogLabels();
-				GameContext.Host?.ShowScaleMapSilhouette(GameContext.EditorService.ScaleDialogTargetWidth, _scaleDialogTargetDepth);
+				GameContext.Host?.ShowScaleMapSilhouette(GameContext.EditorService.Tools.ScaleDialogTargetWidth, _scaleDialogTargetDepth);
 			}
 		}
 
@@ -4668,7 +4668,7 @@ namespace Realm.Client.UI
 			if (GameContext.EditorService.IncreaseScaleDialogWidth())
 			{
 				UpdateScaleDialogLabels();
-				GameContext.Host?.ShowScaleMapSilhouette(GameContext.EditorService.ScaleDialogTargetWidth, _scaleDialogTargetDepth);
+				GameContext.Host?.ShowScaleMapSilhouette(GameContext.EditorService.Tools.ScaleDialogTargetWidth, _scaleDialogTargetDepth);
 			}
 		}
 
@@ -4679,7 +4679,7 @@ namespace Realm.Client.UI
 			{
 				_scaleDialogTargetDepth = newDepth;
 				UpdateScaleDialogLabels();
-				GameContext.Host?.ShowScaleMapSilhouette(GameContext.EditorService.ScaleDialogTargetWidth, _scaleDialogTargetDepth);
+				GameContext.Host?.ShowScaleMapSilhouette(GameContext.EditorService.Tools.ScaleDialogTargetWidth, _scaleDialogTargetDepth);
 			}
 		}
 
@@ -4690,7 +4690,7 @@ namespace Realm.Client.UI
 			{
 				_scaleDialogTargetDepth = newDepth;
 				UpdateScaleDialogLabels();
-				GameContext.Host?.ShowScaleMapSilhouette(GameContext.EditorService.ScaleDialogTargetWidth, _scaleDialogTargetDepth);
+				GameContext.Host?.ShowScaleMapSilhouette(GameContext.EditorService.Tools.ScaleDialogTargetWidth, _scaleDialogTargetDepth);
 			}
 		}
 
@@ -4764,7 +4764,7 @@ namespace Realm.Client.UI
 			SetupButton(btnApply, "✔ APPLY", () =>
 			{
 				GameContext.Host?.HideScaleMapSilhouette();
-				GameContext.Host?.ScaleMapExternal(GameContext.EditorService.ScaleDialogTargetWidth, _scaleDialogTargetDepth);
+				GameContext.Host?.ScaleMapExternal(GameContext.EditorService.Tools.ScaleDialogTargetWidth, _scaleDialogTargetDepth);
 				CloseScaleMapDialog();
 			}, 11, "Apply scale and stretch the entire map");
 			buttonRow.AddChild(btnApply);
@@ -4775,7 +4775,7 @@ namespace Realm.Client.UI
 		{
 			if (_scaleMapDialog != null) return;
 
-			GameContext.Host?.ShowScaleMapSilhouette(GameContext.EditorService.ScaleDialogTargetWidth, _scaleDialogTargetDepth);
+			GameContext.Host?.ShowScaleMapSilhouette(GameContext.EditorService.Tools.ScaleDialogTargetWidth, _scaleDialogTargetDepth);
 
 			_scaleMapDialog = new PanelContainer();
 			_scaleMapDialog.Name = "ScaleMapDialog";
@@ -4892,8 +4892,8 @@ namespace Realm.Client.UI
 			EnsureSwatchDataCurrent();
 
 			var (terrainName, cliffName) = GameContext.EditorService.GetTextureNamesDomain();
-			int terrainIdx = GameContext.EditorService.EditorPaintTextureIndex;
-			int cliffIdx = GameContext.EditorService.EditorCliffPaintTextureIndex;
+			int terrainIdx = GameContext.EditorService.Tools.PaintTextureIndex;
+			int cliffIdx = GameContext.EditorService.Tools.CliffPaintTextureIndex;
 
 			if (_lblTerrainTexture != null) _lblTerrainTexture.Text = TranslationServer.Translate(terrainName);
 			if (_lblCliffTexture != null) _lblCliffTexture.Text = TranslationServer.Translate(cliffName);

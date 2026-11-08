@@ -1,4 +1,4 @@
-using Godot;
+﻿using Godot;
 using Realm.Client.Core;
 using Realm.Client.Services;
 
@@ -31,11 +31,11 @@ namespace Realm.Client.UI
 		{
 			if (GameContext.Host != null)
 			{
-				bool val = !GameContext.EditorService.EditorDisableShadows;
-				GameContext.EditorService.EditorDisableShadows = val;
+				bool val = !GameContext.EditorService.Tools.DisableShadows;
+				GameContext.EditorService.Tools.DisableShadows = val;
 				GameContext.Host.UpdateEditorShadows();
-				UpdateShadowsExternal(GameContext.EditorService.EditorDisableShadows);
-				ShowFeedback(GameContext.EditorService.EditorDisableShadows
+				UpdateShadowsExternal(GameContext.EditorService.Tools.DisableShadows);
+				ShowFeedback(GameContext.EditorService.Tools.DisableShadows
 					? TranslationServer.Translate("Shadows: OFF")
 					: TranslationServer.Translate("Shadows: ON"));
 			}

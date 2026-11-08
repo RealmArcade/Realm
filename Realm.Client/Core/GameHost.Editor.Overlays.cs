@@ -588,7 +588,7 @@ namespace Realm.Client.Core
 		public void RebuildCameraBoundsOverlay()
 		{
 			if (_cameraBoundsOverlayMesh == null || GroundTerrain == null || GroundTerrain.Cells == null) return;
-			if (!GameContext.EditorService.EditorCameraBoundsVisible) return;
+			if (!GameContext.EditorService.Tools.CameraBoundsVisible) return;
 
 			int width = GroundTerrain.Width;
 			int depth = GroundTerrain.Depth;
@@ -736,11 +736,11 @@ namespace Realm.Client.Core
 		{
 			if (GroundTerrain != null)
 			{
-				bool gridVisible = GameContext.SessionState.IsMapEditorMode && (GameContext.EditorService.EditorGridMode == GridOverlayMode.Grid || GameContext.EditorService.EditorGridMode == GridOverlayMode.Both);
+				bool gridVisible = GameContext.SessionState.IsMapEditorMode && (GameContext.EditorService.Tools.GridMode == GridOverlayMode.Grid || GameContext.EditorService.Tools.GridMode == GridOverlayMode.Both);
 				GroundTerrain.SetGridVisible(gridVisible);
-				bool polarVisible = GameContext.SessionState.IsMapEditorMode && (EditorMirrorMode == MirrorMode.Rotational || GameContext.EditorService.EditorGridMode == GridOverlayMode.Polar || GameContext.EditorService.EditorGridMode == GridOverlayMode.Both);
+				bool polarVisible = GameContext.SessionState.IsMapEditorMode && (EditorMirrorMode == MirrorMode.Rotational || GameContext.EditorService.Tools.GridMode == GridOverlayMode.Polar || GameContext.EditorService.Tools.GridMode == GridOverlayMode.Both);
 				GroundTerrain.SetPolarOverlayVisible(polarVisible);
-				GameContext.EditorService.EditorPolarOverlayVisible = polarVisible;
+				GameContext.EditorService.Tools.PolarOverlayVisible = polarVisible;
 			}
 
 			UpdateSymmetryPivotVisuals();
@@ -788,15 +788,15 @@ namespace Realm.Client.Core
 
 		public void InvalidateSelectionHighlightMesh()
 		{
-			GameContext.EditorService.LastSelectionMinX = -1;
-			GameContext.EditorService.LastSelectionMinZ = -1;
-			GameContext.EditorService.LastSelectionMaxX = -1;
-			GameContext.EditorService.LastSelectionMaxZ = -1;
+			GameContext.EditorService.Tools.LastSelectionMinX = -1;
+			GameContext.EditorService.Tools.LastSelectionMinZ = -1;
+			GameContext.EditorService.Tools.LastSelectionMaxX = -1;
+			GameContext.EditorService.Tools.LastSelectionMaxZ = -1;
 		}
 
 		public void RebuildSelectionHighlightMeshExternal(int minX, int minZ, int maxX, int maxZ)
 		{
-			GameContext.EditorService.LastSelectionMinX = -1;
+			GameContext.EditorService.Tools.LastSelectionMinX = -1;
 			if (ActiveEditorTool == EditorTool.PasteArea && GameContext.EditorService.Clipboard.HasCopiedArea)
 			{
 				int w = maxX - minX + 1;
@@ -875,22 +875,22 @@ namespace Realm.Client.Core
 			if (!CanRebuildSelectionHighlightMesh(minX, minZ, maxX, maxZ)) return;
 			if (_selectionHighlightMesh is not { } selectionMesh) return;
 
-			GameContext.EditorService.LastSelectionMinX = minX;
-			GameContext.EditorService.LastSelectionMinZ = minZ;
-			GameContext.EditorService.LastSelectionMaxX = maxX;
-			GameContext.EditorService.LastSelectionMaxZ = maxZ;
-			GameContext.EditorService.LastSelectionBrushIsSquare = EditorBrushIsSquare;
+			GameContext.EditorService.Tools.LastSelectionMinX = minX;
+			GameContext.EditorService.Tools.LastSelectionMinZ = minZ;
+			GameContext.EditorService.Tools.LastSelectionMaxX = maxX;
+			GameContext.EditorService.Tools.LastSelectionMaxZ = maxZ;
+			GameContext.EditorService.Tools.LastSelectionBrushIsSquare = EditorBrushIsSquare;
 
 			BuildHighlightMeshForBounds(selectionMesh, minX, minZ, maxX, maxZ);
 		}
 
 		private bool IsSelectionUnchanged(int minX, int minZ, int maxX, int maxZ)
 		{
-			return minX == GameContext.EditorService.LastSelectionMinX
-			       && minZ == GameContext.EditorService.LastSelectionMinZ
-			       && maxX == GameContext.EditorService.LastSelectionMaxX
-			       && maxZ == GameContext.EditorService.LastSelectionMaxZ
-			       && GameContext.EditorService.LastSelectionBrushIsSquare == EditorBrushIsSquare
+			return minX == GameContext.EditorService.Tools.LastSelectionMinX
+			       && minZ == GameContext.EditorService.Tools.LastSelectionMinZ
+			       && maxX == GameContext.EditorService.Tools.LastSelectionMaxX
+			       && maxZ == GameContext.EditorService.Tools.LastSelectionMaxZ
+			       && GameContext.EditorService.Tools.LastSelectionBrushIsSquare == EditorBrushIsSquare
 			       && _selectionHighlightMesh?.Visible == true;
 		}
 
@@ -905,7 +905,7 @@ namespace Realm.Client.Core
 			if (selWidth < 2 || selDepth < 2)
 			{
 				_selectionHighlightMesh.Visible = false;
-				GameContext.EditorService.LastSelectionMinX = -1;
+				GameContext.EditorService.Tools.LastSelectionMinX = -1;
 				return false;
 			}
 
@@ -1100,7 +1100,7 @@ namespace Realm.Client.Core
 		public void UpdateCameraBoundsOverlayVisibility()
 		{
 			if (_cameraBoundsOverlayMesh == null) return;
-			_cameraBoundsOverlayMesh.Visible = GameContext.SessionState.IsMapEditorMode && GameContext.EditorService.EditorCameraBoundsVisible;
+			_cameraBoundsOverlayMesh.Visible = GameContext.SessionState.IsMapEditorMode && GameContext.EditorService.Tools.CameraBoundsVisible;
 			if (_cameraBoundsOverlayMesh.Visible)
 			{
 				RebuildCameraBoundsOverlay();
