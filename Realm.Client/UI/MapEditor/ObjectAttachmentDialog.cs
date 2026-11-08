@@ -1339,7 +1339,7 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 
 	private void CreateBoneAttachmentAnchor(SocketDefinition sock, Skeleton3D skeleton)
 	{
-		int boneIdx = skeleton.FindBoneInSkeleton(sock.AssociatedBone.Value);
+		int boneIdx = skeleton.FindBoneInSkeleton(sock.AssociatedBone!.Value);
 		if (boneIdx >= 0)
 		{
 			var ba = new BoneAttachment3D
