@@ -35,17 +35,17 @@ public static unsafe class UnitIdScriptExtensions
 	public string TemplateID => GameAPI.Current.GetUnitTemplateId(unitId);
 
 	/// <summary>
-	/// Gets the canonical archetype identifier (alias for <see cref="TemplateID"/>).
+	/// Gets the canonical archetype identifier (alias for <see cref="UnitIdScriptExtensions.TemplateID"/>).
 	/// </summary>
 	public string TypeId => unitId.TemplateID;
 
 	/// <summary>
-	/// Gets the canonical archetype identifier (alias for <see cref="TemplateID"/>).
+	/// Gets the canonical archetype identifier (alias for <see cref="UnitIdScriptExtensions.TemplateID"/>).
 	/// </summary>
 	public string UnitTypeId => unitId.TemplateID;
 
 	/// <summary>
-	/// Gets the canonical template identifier (alias for <see cref="TemplateID"/>).
+	/// Gets the canonical template identifier (alias for <see cref="UnitIdScriptExtensions.TemplateID"/>).
 	/// </summary>
 	public string UnitIdString => unitId.TemplateID;
 

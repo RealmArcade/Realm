@@ -138,10 +138,10 @@ public interface IGameAPI
 	/// is when the ability's effect belongs on the ground rather than on the click. Only abilities whose template names
 	/// a projectile raise this, so the shots of ordinary attacks cost nothing.
 	/// </summary>
-	/// <param name="caster">The unit that cast the ability. It may have moved or died during the flight.</param>
-	/// <param name="abilityId">The ability whose projectile landed.</param>
-	/// <param name="position">Where the projectile landed: the point the ability was cast at.</param>
-	/// <param name="playerIndex">The player that owned the caster when it was cast.</param>
+	/// <remarks>
+	/// The arguments are the caster, the ability whose projectile landed, the point the ability was cast at, and the
+	/// player that owned the caster when it was cast. The caster may have moved or died during the flight.
+	/// </remarks>
 	event Action<UnitId, string, Vector3, int>? OnSpellImpact;
 
 	/// <summary>
@@ -160,8 +160,10 @@ public interface IGameAPI
 	/// Triggered after a consumable is bound to a unit or purged from one. The engine sells the
 	/// purchase; this event is where the map switches on the behaviour the consumable grants.
 	/// </summary>
-	/// <param name="unit">The unit that now carries the consumable, or just lost it.</param>
-	/// <param name="consumableId">The attached consumable's template id, or empty when the slot was cleared.</param>
+	/// <remarks>
+	/// The arguments are the unit that now carries the consumable (or just lost it) and the attached consumable's
+	/// template id, which is empty when the slot was cleared.
+	/// </remarks>
 	event Action<UnitId, string>? OnConsumableChanged;
 
 	/// <summary>
@@ -510,7 +512,7 @@ public interface IGameAPI
 	/// </summary>
 	/// <remarks>
 	/// Pages are ordered by the order these calls are made, so a script that explains its rules in a fixed sequence
-	/// registers them in that sequence, typically once from <see cref="IMapScript.Initialize"/>: the first call becomes
+	/// registers them in that sequence, typically once from <see cref="IMapScript.Initialize(IGameAPI)"/>: the first call becomes
 	/// the entry the menu selects when it opens. Publishing a title that is already registered replaces that page's text
 	/// where it stands, so a rule that changes during a match is restated rather than duplicated. The toolbar button stays
 	/// hidden until at least one page exists, and a player who joins late is sent every page registered so far.
@@ -1543,6 +1545,9 @@ public interface IGameAPI
 	/// penetration and the damage/armor type matrix all apply. Use this for ability damage instead
 	/// of setting health, which bypasses mitigation.
 	/// </summary>
+	/// <param name="attacker">The unit dealing the damage; its armor penetration applies.</param>
+	/// <param name="target">The unit receiving the damage; its armor applies.</param>
+	/// <param name="damage">The unmitigated damage amount, before armor and the type matrix.</param>
 	/// <param name="damageType">Damage type key, such as normal, pierce, magic, fire or frost.</param>
 	void DealTypedDamage(UnitId attacker, UnitId target, float damage, string damageType);
 
