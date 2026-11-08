@@ -89,12 +89,7 @@ public sealed class FileOperationsPanel
 	private void BuildLoadMorePopup(FileOperationsHooks hooks)
 	{
 		LoadMorePopup = hooks.Owner.GetNode<PopupPanel>("PopupLoadMore");
-		var loadMorePopupStyle = new StyleBoxFlat();
-		loadMorePopupStyle.BgColor = new Color(0.14f, 0.13f, 0.11f, 0.98f);
-		loadMorePopupStyle.BorderColor = UIStyle.ColorGold;
-		loadMorePopupStyle.SetBorderWidthAll(1);
-		loadMorePopupStyle.SetCornerRadiusAll(4);
-		loadMorePopupStyle.SetContentMarginAll(10);
+		var loadMorePopupStyle = UIStyle.CreateEditorPopupPanel(10);
 		LoadMorePopup.AddThemeStyleboxOverride("panel", loadMorePopupStyle);
 		ImportArchiveButton = hooks.Owner.GetNode<Button>("PopupLoadMore/LoadMoreVBox_VBoxContainer/BtnImportArchive");
 		ImportArchiveButton.Set("icon_max_width", 0);
@@ -132,12 +127,7 @@ public sealed class FileOperationsPanel
 		hooks.SetupOptionButton(ExportMapButton, $"{UnicodeIcons.FILE_EXPORT} " + TranslationServer.Translate("EXPORT (.RMAP)"), () => hooks.ExportMap(), 13, "Export prepared map package (.rmap) with compiled WASM for hosting and CAS storage");
 
 		SaveMorePopup = hooks.Owner.GetNode<PopupPanel>("PopupSaveMore");
-		var saveMorePopupStyle = new StyleBoxFlat();
-		saveMorePopupStyle.BgColor = new Color(0.14f, 0.13f, 0.11f, 0.98f);
-		saveMorePopupStyle.BorderColor = UIStyle.ColorGold;
-		saveMorePopupStyle.SetBorderWidthAll(1);
-		saveMorePopupStyle.SetCornerRadiusAll(4);
-		saveMorePopupStyle.SetContentMarginAll(10);
+		var saveMorePopupStyle = UIStyle.CreateEditorPopupPanel(10);
 		SaveMorePopup.AddThemeStyleboxOverride("panel", saveMorePopupStyle);
 		SaveAsButton.Pressed += () => SaveMorePopup.Hide();
 		ExportMapButton.Pressed += () => SaveMorePopup.Hide();

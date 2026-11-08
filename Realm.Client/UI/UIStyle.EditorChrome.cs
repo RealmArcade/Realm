@@ -145,18 +145,30 @@ public static partial class UIStyle
 		return style;
 	}
 
-	/// <summary>The panel behind an editor option button's popup list.</summary>
-	public static StyleBoxFlat CreateEditorPopupPanel()
+	/// <summary>
+	/// The panel behind an editor option button's popup list. The files dropdown pads its menu evenly all round rather
+	/// than with the tighter side insets, so a non-negative <paramref name="contentMargin"/> replaces them.
+	/// </summary>
+	public static StyleBoxFlat CreateEditorPopupPanel(int contentMargin = -1)
 	{
 		var style = new StyleBoxFlat();
 		style.BgColor = new Color(0.14f, 0.13f, 0.11f, 0.98f);
 		style.BorderColor = ColorGold;
 		style.SetBorderWidthAll(1);
 		style.SetCornerRadiusAll(4);
-		style.ContentMarginLeft = 8;
-		style.ContentMarginRight = 8;
-		style.ContentMarginTop = 6;
-		style.ContentMarginBottom = 6;
+
+		if (contentMargin >= 0)
+		{
+			style.SetContentMarginAll(contentMargin);
+		}
+		else
+		{
+			style.ContentMarginLeft = 8;
+			style.ContentMarginRight = 8;
+			style.ContentMarginTop = 6;
+			style.ContentMarginBottom = 6;
+		}
+
 		return style;
 	}
 
