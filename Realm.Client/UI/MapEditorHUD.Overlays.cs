@@ -1224,186 +1224,19 @@ namespace Realm.Client.UI
 		}
 
 
-		private void MakeCardDraggable(Control cardNode, Button headerBtn, Control? contentControl = null, string? titleText = null)
-		{
-			if (cardNode == null || headerBtn == null) return;
+		private MapEditorCardInteraction? _cardInteraction;
 
-			var data = new CardDragData
-			{
-				CardNode = cardNode,
-				HeaderButton = headerBtn,
-				ContentControl = contentControl,
-				TitleText = titleText
-			};
-			_cardDragMap[cardNode] = data;
+		/// <summary>Dragging, collapsing and resetting the sidebar cards.</summary>
+		internal MapEditorCardInteraction CardInteraction =>
+			_cardInteraction ??= new MapEditorCardInteraction(new CardInteractionHooks(this, ShowFeedback));
 
-			headerBtn.GuiInput += (@event) => HandleCardGuiInput(@event, cardNode, headerBtn, contentControl, titleText, data);
-		}
+		private void MakeCardDraggable(Control cardNode, Button headerBtn, Control? contentControl = null, string? titleText = null) =>
+			CardInteraction.Register(cardNode, headerBtn, contentControl, titleText);
 
-		private void HandleCardGuiInput(InputEvent @event, Control cardNode, Button headerBtn, Control? contentControl, string? titleText, CardDragData data)
-		{
-			if (@event is InputEventMouseButton mb && mb.ButtonIndex == MouseButton.Left)
-			{
-				HandleCardMouseButtonInput(mb, cardNode, headerBtn, contentControl, titleText, data);
-			}
-			else if (@event is InputEventMouseMotion mm && data.IsDragging)
-			{
-				HandleCardMouseMotionInput(mm, cardNode, data);
-			}
-		}
+		private void ExpandAccordion(Button headerBtn, Control contentControl, string titleText) =>
+			CardInteraction.Expand(headerBtn, contentControl, titleText);
 
-		private void HandleCardMouseButtonInput(InputEventMouseButton mb, Control cardNode, Button headerBtn, Control? contentControl, string? titleText, CardDragData data)
-		{
-			if (mb.Pressed)
-			{
-				if (mb.DoubleClick)
-				{
-					data.IsDragging = false;
-					data.HasMovedSincePress = false;
-					ResetSingleCardPosition(cardNode);
-					ShowFeedback(TranslationServer.Translate("Card position reset to panel layout."));
-					return;
-				}
-
-				data.IsDragging = true;
-				data.HasMovedSincePress = false;
-				data.DragStartMousePos = mb.GlobalPosition;
-				data.CardStartPos = cardNode.GlobalPosition;
-			}
-			else
-			{
-				if (data.IsDragging)
-				{
-					bool moved = data.HasMovedSincePress;
-					data.IsDragging = false;
-					data.HasMovedSincePress = false;
-
-					if (!moved && contentControl != null)
-					{
-						ToggleAccordionState(headerBtn, contentControl, titleText);
-					}
-				}
-			}
-		}
-
-		private void HandleCardMouseMotionInput(InputEventMouseMotion mm, Control cardNode, CardDragData data)
-		{
-			Vector2 delta = mm.GlobalPosition - data.DragStartMousePos;
-			if (!data.HasMovedSincePress && delta.LengthSquared() > 16.0f)
-			{
-				data.HasMovedSincePress = true;
-				if (!cardNode.TopLevel)
-				{
-					cardNode.TopLevel = true;
-				}
-			}
-
-			if (data.HasMovedSincePress)
-			{
-				if (!cardNode.TopLevel)
-				{
-					cardNode.TopLevel = true;
-				}
-
-				cardNode.GlobalPosition = data.CardStartPos + delta;
-			}
-		}
-
-		private void ExpandAccordion(Button headerBtn, Control contentControl, string titleText)
-		{
-			if (headerBtn == null || contentControl == null) return;
-			if (contentControl.Visible) return;
-			ToggleAccordionState(headerBtn, contentControl, titleText);
-		}
-
-
-		private void ToggleAccordionState(Button headerBtn, Control? contentControl, string? titleText)
-		{
-			if (headerBtn == null || contentControl == null) return;
-			contentControl.Visible = !contentControl.Visible;
-			if (!string.IsNullOrEmpty(titleText))
-			{
-				string upperTitle = TranslationServer.Translate(titleText).ToString().ToUpperInvariant();
-				headerBtn.Text = upperTitle + (contentControl.Visible ? $"  {UnicodeIcons.CARET_DOWN}" : $"  {UnicodeIcons.CARET_RIGHT}");
-			}
-
-			QueueSortCardContainers(headerBtn);
-			QueueSortVBoxContainers();
-
-			GameContext.UserInterface?.PlayClickSound();
-		}
-
-		private void QueueSortCardContainers(Button headerBtn)
-		{
-			var cardParent = headerBtn.GetParent() as Control;
-			if (cardParent != null)
-			{
-				cardParent.ForceUpdateTransform();
-				(cardParent as Container)?.QueueSort();
-
-				var sidebarContainer = cardParent.GetParent() as Container;
-				if (sidebarContainer != null)
-				{
-					sidebarContainer.ForceUpdateTransform();
-					sidebarContainer.QueueSort();
-				}
-			}
-		}
-
-		private void QueueSortVBoxContainers()
-		{
-			var leftVBox = GetNodeOrNull<VBoxContainer>("LeftSlidePanel/LeftScroll/LeftVBox");
-			leftVBox?.ForceUpdateTransform();
-			leftVBox?.QueueSort();
-
-			var rightVBox = GetNodeOrNull<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer");
-			rightVBox?.ForceUpdateTransform();
-			rightVBox?.QueueSort();
-		}
-
-		private void ResetSingleCardPosition(Control cardNode)
-		{
-			if (cardNode == null) return;
-			if (_cardDragMap.TryGetValue(cardNode, out var data))
-			{
-				data.IsDragging = false;
-				data.HasMovedSincePress = false;
-			}
-
-			cardNode.TopLevel = false;
-			cardNode.Position = Vector2.Zero;
-
-			var parentContainer = cardNode.GetParent() as Container;
-			if (parentContainer != null)
-			{
-				parentContainer.QueueSort();
-			}
-
-			var leftVBox = GetNodeOrNull<VBoxContainer>("LeftSlidePanel/LeftScroll/LeftVBox");
-			leftVBox?.QueueSort();
-
-			var rightVBox = GetNodeOrNull<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer");
-			rightVBox?.QueueSort();
-		}
-
-		public void ResetAllPanelPositions()
-		{
-			ResetSingleCardPosition(_accordionFile);
-			ResetSingleCardPosition(_viewportPanel.Accordion);
-			ResetSingleCardPosition(_toolPanel.Accordion);
-			ResetSingleCardPosition(_brushPanel.Accordion);
-			ResetSingleCardPosition(_accordionToolSettings);
-			ResetSingleCardPosition(_placementPanel.Accordion);
-			ResetSingleCardPosition(_accordionInspector);
-
-			var leftVBox = GetNodeOrNull<VBoxContainer>("LeftSlidePanel/LeftScroll/LeftVBox");
-			leftVBox?.QueueSort();
-
-			var rightVBox = GetNodeOrNull<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer");
-			rightVBox?.QueueSort();
-
-			ShowFeedback(TranslationServer.Translate("All panel positions reset to default layout."));
-		}
+		public void ResetAllPanelPositions() => CardInteraction.ResetAll();
 
 		private void ToggleLeftPanel()
 		{
@@ -1801,7 +1634,7 @@ namespace Realm.Client.UI
 					ApplyMouseFilterIgnoreRecursive(_topBar);
 				}
 
-				foreach (var card in _cardDragMap.Keys)
+				foreach (var card in CardInteraction.Cards)
 				{
 					if (GodotObject.IsInstanceValid(card))
 					{
@@ -1842,7 +1675,7 @@ namespace Realm.Client.UI
 			TweenHudElement(_viewportPanel.MeasurementPanel, targetAlpha, duration);
 			TweenHudElement(_screenFrameRect, targetAlpha, duration);
 
-			foreach (var card in _cardDragMap.Keys)
+			foreach (var card in CardInteraction.Cards)
 			{
 				TweenHudElement(card, targetAlpha, duration);
 			}

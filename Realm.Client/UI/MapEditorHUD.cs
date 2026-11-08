@@ -77,7 +77,6 @@ public partial class MapEditorHUD : Control
 
 
 
-	private Dictionary<Control, CardDragData> _cardDragMap { get; set; } = new();
 
 	private VBoxContainer _accordionFile { get; set; } = null!;
 
@@ -1057,9 +1056,8 @@ public partial class MapEditorHUD : Control
 
 	private bool IsMouseOverOptionCards(Vector2 mousePos)
 	{
-		foreach (var kvp in _cardDragMap)
+		foreach (var card in CardInteraction.Cards)
 		{
-			var card = kvp.Key;
 			if (GodotObject.IsInstanceValid(card) && card.IsVisibleInTree())
 			{
 				if (card.GetGlobalRect().HasPoint(mousePos)) return true;
