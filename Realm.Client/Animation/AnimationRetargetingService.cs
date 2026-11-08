@@ -28,9 +28,10 @@ public static class AnimationRetargetingService
 	{
 		if (string.IsNullOrEmpty(filePath)) return null;
 
-		filePath = MatchGodotPathCasing(filePath);
+		string? resolvedPath = MatchGodotPathCasing(filePath);
+		if (resolvedPath == null) return null;
 
-		if (CachedRanimData.TryGetValue(filePath, out var cached))
+		if (CachedRanimData.TryGetValue(resolvedPath, out var cached))
 		{
 			return cached;
 		}
@@ -65,7 +66,7 @@ public static class AnimationRetargetingService
 
 			if (data != null)
 			{
-				CachedRanimData[filePath] = data;
+				CachedRanimData[resolvedPath] = data;
 			}
 
 			return data;
@@ -77,7 +78,7 @@ public static class AnimationRetargetingService
 		}
 	}
 
-	public static string ResolveAnimationFilePath(string animName, string unitId = null)
+	public static string? ResolveAnimationFilePath(string animName, string? unitId = null)
 	{
 		return MatchGodotPathCasing(ResolveUncasedAnimationFilePath(animName, unitId));
 	}
@@ -87,7 +88,7 @@ public static class AnimationRetargetingService
 	///     mismatched case silently, but the engine warns about it and an exported build fails to open the file, so a
 	///     map asking for 'Attack.ranim' when the asset ships as 'attack.ranim' is corrected here.
 	/// </summary>
-	private static string MatchGodotPathCasing(string path)
+	private static string? MatchGodotPathCasing(string? path)
 	{
 		if (string.IsNullOrEmpty(path)) return path;
 		if (!path.StartsWith("res://", StringComparison.OrdinalIgnoreCase) &&
@@ -96,7 +97,7 @@ public static class AnimationRetargetingService
 			return path;
 		}
 
-		if (GodotPathCasingCache.TryGetValue(path, out string cached)) return cached;
+		if (GodotPathCasingCache.TryGetValue(path, out string? cached)) return cached;
 
 		string resolved = path;
 		string directory = path.GetBaseDir();
@@ -120,7 +121,7 @@ public static class AnimationRetargetingService
 		return resolved;
 	}
 
-	private static string ResolveUncasedAnimationFilePath(string animName, string unitId)
+	private static string? ResolveUncasedAnimationFilePath(string animName, string? unitId)
 	{
 		if (string.IsNullOrEmpty(animName)) return null;
 		if (File.Exists(animName)) return animName;
@@ -137,10 +138,10 @@ public static class AnimationRetargetingService
 
 		var candidateNames = BuildCandidateNames(animName, unitId);
 
-		string workspaceResult = TryResolveInWorkspace(candidateNames);
+		string? workspaceResult = TryResolveInWorkspace(candidateNames);
 		if (!string.IsNullOrEmpty(workspaceResult)) return workspaceResult;
 
-		string mapResult = TryResolveInActiveMap(candidateNames);
+		string? mapResult = TryResolveInActiveMap(candidateNames);
 		if (!string.IsNullOrEmpty(mapResult)) return mapResult;
 
 		string resDir = ProjectSettings.GlobalizePath("res://");
@@ -156,7 +157,7 @@ public static class AnimationRetargetingService
 		return null;
 	}
 
-	private static List<string> BuildCandidateNames(string animName, string unitId)
+	private static List<string> BuildCandidateNames(string animName, string? unitId)
 	{
 		var candidateNames = new List<string>();
 		string cleanName = animName.ToLowerInvariant();
@@ -180,7 +181,7 @@ public static class AnimationRetargetingService
 		return candidateNames;
 	}
 
-	private static string TryResolveInWorkspace(List<string> candidateNames)
+	private static string? TryResolveInWorkspace(List<string> candidateNames)
 	{
 		string wsPath = !string.IsNullOrEmpty(MapWorkspaceService.GetActiveWorkspacePath())
 			? MapWorkspaceService.GetActiveWorkspacePath()
@@ -200,9 +201,9 @@ public static class AnimationRetargetingService
 		return null;
 	}
 
-	private static string TryResolveInActiveMap(List<string> candidateNames)
+	private static string? TryResolveInActiveMap(List<string> candidateNames)
 	{
-		string activeMap = null;
+		string? activeMap = null;
 		if (GameContext.Host != null)
 		{
 			activeMap = GameContext.Simulation.ActiveMapName;
@@ -215,10 +216,10 @@ public static class AnimationRetargetingService
 
 		if (string.IsNullOrEmpty(activeMap)) return null;
 
-		string result = TryResolveInDirectory(activeMap, candidateNames);
+		string? result = TryResolveInDirectory(activeMap, candidateNames);
 		if (result != null) return result;
 
-		string currentMapDir = null;
+		string? currentMapDir = null;
 		if (GameContext.Host != null)
 		{
 			currentMapDir = GameContext.MapStorageService.CurrentMapDirectory;
@@ -235,7 +236,7 @@ public static class AnimationRetargetingService
 		return TryResolveInDirectory(resMapDir, candidateNames);
 	}
 
-	private static string TryResolveInDirectory(string directory, List<string> candidateNames)
+	private static string? TryResolveInDirectory(string? directory, List<string> candidateNames)
 	{
 		if (string.IsNullOrEmpty(directory)) return null;
 
@@ -267,7 +268,7 @@ public static class AnimationRetargetingService
 		return null;
 	}
 
-	public static AnimationPlayer FindOrCreateAnimationPlayer(Node modelRoot)
+	public static AnimationPlayer? FindOrCreateAnimationPlayer(Node? modelRoot)
 	{
 		if (modelRoot == null) return null;
 		if (modelRoot is AnimationPlayer existingPlayer) return existingPlayer;
@@ -282,7 +283,7 @@ public static class AnimationRetargetingService
 		return player;
 	}
 
-	private static AnimationPlayer FindAnimationPlayerRecursive(Node node)
+	private static AnimationPlayer? FindAnimationPlayerRecursive(Node? node)
 	{
 		if (node == null) return null;
 		if (node is AnimationPlayer ap) return ap;
@@ -297,7 +298,7 @@ public static class AnimationRetargetingService
 		return null;
 	}
 
-	public static GAnimation RetargetAnimation(
+	public static GAnimation? RetargetAnimation(
 		RealmAnimationData animData,
 		Skeleton3D targetSkeleton,
 		NodePath skeletonRelativePath,
@@ -566,7 +567,7 @@ public static class AnimationRetargetingService
 
 	private static Node DetermineAnimMixerRoot(AnimationPlayer player, Node targetModel)
 	{
-		Node animMixerRoot = null;
+		Node? animMixerRoot = null;
 		if (player.IsInsideTree() && !player.RootNode.IsEmpty)
 		{
 			animMixerRoot = player.GetNodeOrNull(player.RootNode);
@@ -588,7 +589,7 @@ public static class AnimationRetargetingService
 		return animMixerRoot;
 	}
 
-	public static bool LoadAndBindUnitAnimations(Node modelRoot, string unitId, string modelPath)
+	public static bool LoadAndBindUnitAnimations(Node modelRoot, string? unitId, string? modelPath)
 	{
 		if (modelRoot == null) return false;
 
@@ -651,7 +652,7 @@ public static class AnimationRetargetingService
 		return true;
 	}
 
-	private static Dictionary<string, List<UnitAnimationEntry>>? GetCustomAnimations(string unitId)
+	private static Dictionary<string, List<UnitAnimationEntry>>? GetCustomAnimations(string? unitId)
 	{
 		if (!string.IsNullOrEmpty(unitId) && GameContext.Host != null && GameHost.UnitRegistry.TryGetValue(unitId, out var meta))
 		{
@@ -712,7 +713,7 @@ public static class AnimationRetargetingService
 		return null;
 	}
 
-	private static void ProcessUnitAnimation(RealmAnimationType animType, Dictionary<string, List<UnitAnimationEntry>>? customAnimations, string unitId, Node modelRoot)
+	private static void ProcessUnitAnimation(RealmAnimationType animType, Dictionary<string, List<UnitAnimationEntry>>? customAnimations, string? unitId, Node modelRoot)
 	{
 		string animName = animType.ToString();
 		if (customAnimations != null && customAnimations.TryGetValue(animName, out var animFiles) && animFiles != null && animFiles.Count > 0)
@@ -725,14 +726,14 @@ public static class AnimationRetargetingService
 		}
 	}
 
-	private static void BindCustomAnimations(List<UnitAnimationEntry> animFiles, RealmAnimationType animType, string unitId, Node modelRoot)
+	private static void BindCustomAnimations(List<UnitAnimationEntry> animFiles, RealmAnimationType animType, string? unitId, Node modelRoot)
 	{
 		string animName = animType.ToString();
 		for (int i = 0; i < animFiles.Count; i++)
 		{
 			string animFile = animFiles[i].Animation;
 			string variantName = $"{animName}_{i}";
-			string filePath = ResolveAnimationFilePath(animFile, unitId);
+			string? filePath = ResolveAnimationFilePath(animFile, unitId);
 
 			if (string.IsNullOrEmpty(filePath)) continue;
 
@@ -748,10 +749,10 @@ public static class AnimationRetargetingService
 		}
 	}
 
-	private static void BindStandardAnimation(RealmAnimationType animType, string unitId, Node modelRoot)
+	private static void BindStandardAnimation(RealmAnimationType animType, string? unitId, Node modelRoot)
 	{
 		string animName = animType.ToString();
-		string filePath = ResolveAnimationFilePath(animName, unitId);
+		string? filePath = ResolveAnimationFilePath(animName, unitId);
 		if (!string.IsNullOrEmpty(filePath))
 		{
 			var animData = GetOrLoadRanimData(filePath);
