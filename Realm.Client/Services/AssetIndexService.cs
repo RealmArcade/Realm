@@ -848,7 +848,7 @@ public class AssetIndexService : IDisposable
 			double pct = 0.20 + 0.65 * ((double)index / Math.Max(1, total));
 			progress?.Report(new AssetIndexProgressUpdate(pct, string.Format(TranslationServer.Translate("Indexing manifest {0}/{1}: {2}..."), index + 1, total, mapName)));
 
-			var paths = RegisterManifestInternal(manifest, file, isP2P: false);
+			var paths = AssetIndexManifestRegistration.Register(ResolveIndexTarget(isP2P: false), manifest, file, isP2P: false);
 			foreach (var p in paths)
 			{
 				referencedCasPaths.Add(p);
@@ -914,285 +914,29 @@ public class AssetIndexService : IDisposable
 		}
 	}
 
+	private AssetIndexTarget ResolveIndexTarget(bool isP2P)
+	{
+		if (!isP2P)
+		{
+			return new AssetIndexTarget(_database, _assetCollection, _mapPackageCollection, MapAssetManager.Storage, GlobalCasAssetsDirectory);
+		}
+
+		var database = GetP2PDatabase();
+		return new AssetIndexTarget(
+			database,
+			database.GetCollection<IndexedAsset>("assets"),
+			database.GetCollection<IndexedMapPackage>("map_packages"),
+			MapAssetManager.P2PStorage,
+			MapAssetManager.P2PArchiveDirectory);
+	}
+
 	public void RegisterManifest(MapManifest manifest, string manifestPath, bool isP2P = false)
 	{
 		if (manifest == null) return;
 		lock (isP2P ? _p2pSyncLock : _syncLock)
 		{
-			RegisterManifestInternal(manifest, manifestPath, isP2P);
+			AssetIndexManifestRegistration.Register(ResolveIndexTarget(isP2P), manifest, manifestPath, isP2P);
 		}
-	}
-
-	private List<string> RegisterManifestInternal(MapManifest manifest, string manifestPath, bool isP2P)
-	{
-		var indexedPaths = new List<string>();
-		if (manifest == null) return indexedPaths;
-
-		string mapName = !string.IsNullOrWhiteSpace(manifest.MapName) ? manifest.MapName.Trim() : Path.GetFileNameWithoutExtension(manifestPath).Replace("_manifest", "");
-		string mapVersion = !string.IsNullOrWhiteSpace(manifest.Version) ? manifest.Version.Trim() : "1.0.0";
-
-		var database = isP2P ? GetP2PDatabase() : _database;
-		var mapPackageCollection = isP2P ? database.GetCollection<IndexedMapPackage>("map_packages") : _mapPackageCollection;
-		var assetCollection = isP2P ? database.GetCollection<IndexedAsset>("assets") : _assetCollection;
-		var storage = isP2P ? MapAssetManager.P2PStorage : MapAssetManager.Storage;
-		string storageDirectory = isP2P ? MapAssetManager.P2PArchiveDirectory : GlobalCasAssetsDirectory;
-
-		UpsertManifestPackage(manifest, manifestPath, isP2P, mapName, mapVersion, mapPackageCollection);
-
-		if (manifest.Files != null)
-		{
-			ProcessManifestFiles(manifest, mapName, mapVersion, storage, storageDirectory, assetCollection, indexedPaths);
-		}
-
-		database.Checkpoint();
-		return indexedPaths;
-	}
-
-	private void UpsertManifestPackage(MapManifest manifest, string manifestPath, bool isP2P, string mapName, string mapVersion, ILiteCollection<IndexedMapPackage> mapPackageCollection)
-	{
-		var pkg = mapPackageCollection.FindOne(p => p.MapName == mapName && p.MapVersion == mapVersion);
-		pkg ??= new IndexedMapPackage();
-		pkg.MapName = mapName;
-		pkg.MapVersion = mapVersion;
-		pkg.ManifestPath = manifestPath;
-		pkg.DownloadedUtc = DateTime.UtcNow;
-		pkg.IsP2P = isP2P;
-		pkg.AssetHashes = manifest.Files != null ? manifest.Files.Values.Select(v => ContentAddressableStorage.NormalizeBlake3Hash(v)).ToList() : new List<string>();
-		mapPackageCollection.Upsert(pkg);
-	}
-
-	private void ProcessManifestFiles(MapManifest manifest, string mapName, string mapVersion, ContentAddressableStorage storage, string storageDirectory, ILiteCollection<IndexedAsset> assetCollection, List<string> indexedPaths)
-	{
-		var existingAssetMap = assetCollection.Find(Query.EQ("DirectoryPath", storageDirectory)).ToDictionary(x => x.FilePath, StringComparer.OrdinalIgnoreCase);
-		var processedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-		var assetsToUpdate = new List<IndexedAsset>();
-		var assetsToInsert = new List<IndexedAsset>();
-
-		foreach (var kvp in manifest.Files)
-		{
-			ProcessSingleManifestFile(manifest, kvp.Key, kvp.Value, mapName, mapVersion, storage, storageDirectory, existingAssetMap, processedPaths, assetsToUpdate, assetsToInsert, indexedPaths);
-		}
-
-		if (assetsToUpdate.Count > 0) assetCollection.Update(assetsToUpdate);
-		if (assetsToInsert.Count > 0) assetCollection.Insert(assetsToInsert);
-	}
-
-	private void ProcessSingleManifestFile(MapManifest manifest, string virtualPath, string hash, string mapName, string mapVersion, ContentAddressableStorage storage, string storageDirectory, Dictionary<string, IndexedAsset> existingAssetMap, HashSet<string> processedPaths, List<IndexedAsset> assetsToUpdate, List<IndexedAsset> assetsToInsert, List<string> indexedPaths)
-	{
-		string norm = ContentAddressableStorage.NormalizeBlake3Hash(hash);
-		string? resolvedPath = storage.FindAssetFilePath(norm);
-		if (resolvedPath == null || !File.Exists(resolvedPath)) return;
-
-		string normPath = NormalizePath(resolvedPath);
-		indexedPaths.Add(normPath);
-
-		if (!processedPaths.Add(normPath)) return;
-
-		if (existingAssetMap.TryGetValue(normPath, out var existingAsset))
-		{
-			UpdateExistingManifestAsset(existingAsset, virtualPath, norm, normPath, mapName, mapVersion, storage, storageDirectory, assetsToUpdate);
-		}
-		else
-		{
-			InsertNewManifestAsset(manifest, virtualPath, norm, normPath, mapName, mapVersion, storage, storageDirectory, existingAssetMap, assetsToInsert);
-		}
-	}
-
-	private void UpdateExistingManifestAsset(IndexedAsset existingAsset, string virtualPath, string norm, string normPath, string mapName, string mapVersion, ContentAddressableStorage storage, string storageDirectory, List<IndexedAsset> assetsToUpdate)
-	{
-		bool needsUpdate = false;
-		string? existingMetaJson = storage.GetAssetMetadata(norm);
-		var parsed = AssetRecordFactory.ParseMetadataHeaders(existingMetaJson, virtualPath);
-
-		if (!parsed.AssetType.HasValue || parsed.Tags.Count == 0 || !parsed.SupportsTeamColor.HasValue)
-		{
-			string? diskMeta = RealmMetadataHelper.ExtractMetadata(normPath);
-			if (!string.IsNullOrEmpty(diskMeta))
-			{
-				var diskParsed = AssetRecordFactory.ParseMetadataHeaders(diskMeta, virtualPath);
-				if (!parsed.AssetType.HasValue) parsed.AssetType = diskParsed.AssetType;
-				if (parsed.Tags.Count == 0) parsed.Tags = diskParsed.Tags;
-				if (!parsed.SupportsTeamColor.HasValue) parsed.SupportsTeamColor = diskParsed.SupportsTeamColor;
-				if (string.IsNullOrEmpty(parsed.ChromaKey)) parsed.ChromaKey = diskParsed.ChromaKey;
-				if (string.IsNullOrEmpty(existingMetaJson)) existingMetaJson = diskMeta;
-			}
-		}
-
-		needsUpdate |= TryUpdateAssetType(existingAsset, virtualPath, parsed.AssetType, existingMetaJson);
-		needsUpdate |= TryUpdateAssetProperties(existingAsset, parsed.SupportsTeamColor, parsed.ChromaKey, existingMetaJson, normPath);
-		needsUpdate |= TryUpdateAssetMapInfo(existingAsset, mapName, mapVersion, storageDirectory);
-
-		if (needsUpdate) assetsToUpdate.Add(existingAsset);
-
-		AssetRecordFactory.EnqueueThumbnailRequestIfNeeded(existingAsset.Extension, normPath, norm);
-	}
-
-	private bool TryUpdateAssetType(IndexedAsset existingAsset, string virtualPath, AssetType? parsedType, string? existingMetaJson)
-	{
-		AssetType? existingAssetType = ResolveAssetTypeFromParsed(parsedType, virtualPath);
-		if (existingAsset.AssetType == existingAssetType) return false;
-
-		existingAsset.AssetType = existingAssetType;
-		existingAsset.HasRealmMetadata = !string.IsNullOrEmpty(existingMetaJson) || existingAsset.HasRealmMetadata || existingAssetType.HasValue;
-		return true;
-	}
-
-	private bool TryUpdateAssetProperties(IndexedAsset existingAsset, bool? parsedSupportsTeamColor, string? parsedChromaKey, string? existingMetaJson, string normPath)
-	{
-		bool existingHasMask = parsedSupportsTeamColor ?? AssetRecordFactory.DetermineHasPlayerColorMask(existingMetaJson, normPath);
-		string resolvedChroma = parsedChromaKey ?? string.Empty;
-
-		if (existingAsset.HasPlayerColorMask == existingHasMask && existingAsset.ChromaKey == resolvedChroma) return false;
-
-		existingAsset.HasPlayerColorMask = existingHasMask;
-		existingAsset.ChromaKey = resolvedChroma;
-		return true;
-	}
-
-	private bool TryUpdateAssetMapInfo(IndexedAsset existingAsset, string mapName, string mapVersion, string storageDirectory)
-	{
-		bool updated = false;
-
-		if (string.IsNullOrEmpty(existingAsset.MapName) || existingAsset.MapName != mapName)
-		{
-			existingAsset.MapName = mapName;
-			updated = true;
-		}
-
-		if (string.IsNullOrEmpty(existingAsset.MapVersion) || existingAsset.MapVersion != mapVersion)
-		{
-			existingAsset.MapVersion = mapVersion;
-			updated = true;
-		}
-
-		if (existingAsset.DirectoryPath != storageDirectory)
-		{
-			existingAsset.DirectoryPath = storageDirectory;
-			updated = true;
-		}
-
-		return updated;
-	}
-
-	private AssetType? ResolveAssetTypeFromParsed(AssetType? parsedType, string virtualPath)
-	{
-		if (parsedType.HasValue) return parsedType;
-
-		string? dir = Path.GetDirectoryName(virtualPath);
-		if (string.IsNullOrEmpty(dir)) return null;
-
-		string[] dirParts = dir.Split(new[] { '/', '\\' }, StringSplitOptions.RemoveEmptyEntries);
-		foreach (var part in dirParts.Reverse())
-		{
-			var norm = RealmMetadataHelper.NormalizeAssetType(part);
-			if (norm.HasValue && RealmMetadataHelper.IsValidAssetTypeForExtension(virtualPath, norm.Value, out _))
-			{
-				return norm;
-			}
-		}
-
-		return null;
-	}
-
-	private void InsertNewManifestAsset(MapManifest manifest, string virtualPath, string norm, string normPath, string mapName, string mapVersion, ContentAddressableStorage storage, string storageDirectory, Dictionary<string, IndexedAsset> existingAssetMap, List<IndexedAsset> assetsToInsert)
-	{
-		var fi = new FileInfo(normPath);
-		var asset = CreateBaseManifestAsset(virtualPath, norm, normPath, mapName, mapVersion, storageDirectory, fi);
-
-		string? metaJson = storage.GetAssetMetadata(norm);
-		var parsedMeta = AssetRecordFactory.ParseMetadataHeaders(metaJson, virtualPath);
-
-		if (!parsedMeta.AssetType.HasValue || parsedMeta.Tags.Count == 0 || !parsedMeta.SupportsTeamColor.HasValue)
-		{
-			string? diskMeta = RealmMetadataHelper.ExtractMetadata(normPath);
-			if (!string.IsNullOrEmpty(diskMeta))
-			{
-				var diskParsed = AssetRecordFactory.ParseMetadataHeaders(diskMeta, virtualPath);
-				if (!parsedMeta.AssetType.HasValue) parsedMeta.AssetType = diskParsed.AssetType;
-				if (parsedMeta.Tags.Count == 0) parsedMeta.Tags = diskParsed.Tags;
-				if (!parsedMeta.SupportsTeamColor.HasValue) parsedMeta.SupportsTeamColor = diskParsed.SupportsTeamColor;
-				if (string.IsNullOrEmpty(parsedMeta.ChromaKey)) parsedMeta.ChromaKey = diskParsed.ChromaKey;
-				if (string.IsNullOrEmpty(metaJson)) metaJson = diskMeta;
-			}
-		}
-
-		var tags = BuildManifestAssetTags(manifest, virtualPath, normPath, storageDirectory, asset.FileName, parsedMeta.Tags);
-
-		AssetType? assetType = ResolveFallbackAssetType(parsedMeta.AssetType, virtualPath, tags);
-
-		asset.Tags = tags;
-		asset.MetadataJson = JsonSerializer.Serialize(new AssetMetadataModel { Tags = tags });
-		asset.HasPlayerColorMask = parsedMeta.SupportsTeamColor ?? AssetRecordFactory.DetermineHasPlayerColorMask(metaJson, normPath);
-		asset.ChromaKey = parsedMeta.ChromaKey ?? string.Empty;
-		asset.AssetType = assetType;
-		asset.HasRealmMetadata = !string.IsNullOrEmpty(metaJson) || assetType.HasValue;
-
-		assetsToInsert.Add(asset);
-		existingAssetMap[normPath] = asset;
-
-		AssetRecordFactory.EnqueueThumbnailRequestIfNeeded(asset.Extension, normPath, norm);
-	}
-
-	private IndexedAsset CreateBaseManifestAsset(string virtualPath, string norm, string normPath, string mapName, string mapVersion, string storageDirectory, FileInfo fi)
-	{
-		return new IndexedAsset
-		{
-			FilePath = normPath,
-			FileName = Path.GetFileName(virtualPath),
-			Extension = !string.IsNullOrEmpty(Path.GetExtension(virtualPath)) ? Path.GetExtension(virtualPath).ToLowerInvariant() : Path.GetExtension(normPath).ToLowerInvariant(),
-			DirectoryPath = storageDirectory,
-			FileSizeBytes = fi.Length,
-			LastModifiedUtc = fi.LastWriteTimeUtc,
-			MapName = mapName,
-			MapVersion = mapVersion,
-			Blake3 = norm
-		};
-	}
-
-	private AssetType? ResolveFallbackAssetType(AssetType? parsedType, string virtualPath, List<string> tags)
-	{
-		AssetType? assetType = ResolveAssetTypeFromParsed(parsedType, virtualPath);
-		if (assetType.HasValue) return assetType;
-
-		foreach (var tag in tags)
-		{
-			var norm = RealmMetadataHelper.NormalizeAssetType(tag);
-			if (norm.HasValue && RealmMetadataHelper.IsValidAssetTypeForExtension(virtualPath, norm.Value, out _))
-			{
-				return norm;
-			}
-		}
-
-		return null;
-	}
-
-	private List<string> BuildManifestAssetTags(MapManifest manifest, string virtualPath, string normPath, string storageDirectory, string fileName, List<string> parsedTags)
-	{
-		var tags = parsedTags;
-		if (tags.Count == 0) tags = AssetRecordFactory.LoadTagsForFile(normPath, storageDirectory, tags);
-
-		string preferredNameNoExt = Path.GetFileNameWithoutExtension(fileName);
-		var nameTokens = preferredNameNoExt.Split(new[] { '_', '-', ' ', '.', '@' }, StringSplitOptions.RemoveEmptyEntries);
-		foreach (var token in nameTokens)
-		{
-			if (token.Length > 1 && !char.IsDigit(token[0]) && !tags.Contains(token, StringComparer.OrdinalIgnoreCase))
-			{
-				tags.Add(token.ToLowerInvariant());
-			}
-		}
-
-		if (manifest.Tags != null)
-		{
-			foreach (var tag in manifest.Tags)
-			{
-				if (!string.IsNullOrWhiteSpace(tag) && !tags.Contains(tag.Trim(), StringComparer.OrdinalIgnoreCase))
-				{
-					tags.Add(tag.Trim().ToLowerInvariant());
-				}
-			}
-		}
-
-		return tags;
 	}
 
 	public IReadOnlyList<IndexedMapPackage> GetDownloadedMapPackages()
