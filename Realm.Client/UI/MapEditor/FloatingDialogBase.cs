@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.IO;
 using Fastenshtein;
@@ -994,7 +995,7 @@ public partial class FloatingDialogBase : PanelContainer
 		string placeholder = "",
 		float labelWidth = 140.0f,
 		bool hasAllFoldersCheckbox = false,
-		Action<string> onPlaySound = null)
+		Action<string>? onPlaySound = null)
 	{
 		var row = new HBoxContainer();
 		row.Name = "Row_HBoxContainer";
@@ -1076,7 +1077,7 @@ public partial class FloatingDialogBase : PanelContainer
 		row.AddChild(chkAll);
 	}
 
-	private void AddAssetFilterPlaySoundButton(HBoxContainer row, AssetFilterDropdownState state, Action<string> onPlaySound)
+	private void AddAssetFilterPlaySoundButton(HBoxContainer row, AssetFilterDropdownState state, Action<string>? onPlaySound)
 	{
 		if (onPlaySound == null) return;
 
@@ -1269,7 +1270,7 @@ public partial class FloatingDialogBase : PanelContainer
 		return 1000 + distName * 20 + Math.Abs(nameNoExt.Length - q.Length);
 	}
 
-	public static List<string> ScanAvailableAssets(string category, bool includeAllFolders = false, string subFolder = null)
+	public static List<string> ScanAvailableAssets(string category, bool includeAllFolders = false, string? subFolder = null)
 	{
 		var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 		string wsPath = !string.IsNullOrEmpty(MapWorkspaceService.GetActiveWorkspacePath())
@@ -1280,7 +1281,7 @@ public partial class FloatingDialogBase : PanelContainer
 		{
 			var assetsObj = MapAssetHelper.LoadAssets(wsPath);
 			string manifestPath = Path.Combine(wsPath, "manifest.json");
-			MapManifest manifest = LoadManifest(manifestPath);
+			MapManifest? manifest = LoadManifest(manifestPath);
 
 			if (assetsObj == null && manifest == null) return new List<string>();
 
@@ -1296,7 +1297,7 @@ public partial class FloatingDialogBase : PanelContainer
 		return list;
 	}
 
-	private static MapManifest LoadManifest(string manifestPath)
+	private static MapManifest? LoadManifest(string manifestPath)
 	{
 		if (!File.Exists(manifestPath)) return null;
 		try
@@ -1309,14 +1310,14 @@ public partial class FloatingDialogBase : PanelContainer
 		}
 	}
 
-	private static void ScanCategoryAssets(string category, HashSet<string> result, MapManifestAssets assetsObj, MapManifest manifest, string wsPath, bool includeAllFolders, string subFolder)
+	private static void ScanCategoryAssets(string category, HashSet<string> result, MapManifestAssets? assetsObj, MapManifest? manifest, string wsPath, bool includeAllFolders, string? subFolder)
 	{
 		if (TryScanMediaAssets(category, result, assetsObj, manifest, wsPath)) return;
 		if (TryScanVisualAssets(category, result, assetsObj, manifest, wsPath, includeAllFolders, subFolder)) return;
 		if (TryScanEnvironmentAssets(category, result, assetsObj, manifest, wsPath)) return;
 	}
 
-	private static bool TryScanMediaAssets(string category, HashSet<string> result, MapManifestAssets assetsObj, MapManifest manifest, string wsPath)
+	private static bool TryScanMediaAssets(string category, HashSet<string> result, MapManifestAssets? assetsObj, MapManifest? manifest, string wsPath)
 	{
 		if (category is "audio" or "sound" or "sfx" or "music")
 		{
@@ -1345,7 +1346,7 @@ public partial class FloatingDialogBase : PanelContainer
 		return false;
 	}
 
-	private static bool TryScanVisualAssets(string category, HashSet<string> result, MapManifestAssets assetsObj, MapManifest manifest, string wsPath, bool includeAllFolders, string subFolder)
+	private static bool TryScanVisualAssets(string category, HashSet<string> result, MapManifestAssets? assetsObj, MapManifest? manifest, string wsPath, bool includeAllFolders, string? subFolder)
 	{
 		if (category is "models" or "glb" or "attachments" or "items" or "weapons" or "projectiles")
 		{
@@ -1368,7 +1369,7 @@ public partial class FloatingDialogBase : PanelContainer
 		return false;
 	}
 
-	private static bool TryScanEnvironmentAssets(string category, HashSet<string> result, MapManifestAssets assetsObj, MapManifest manifest, string wsPath)
+	private static bool TryScanEnvironmentAssets(string category, HashSet<string> result, MapManifestAssets? assetsObj, MapManifest? manifest, string wsPath)
 	{
 		if (category is "icons" or "icon")
 		{
@@ -1391,14 +1392,14 @@ public partial class FloatingDialogBase : PanelContainer
 		return false;
 	}
 
-	private static void ScanAudioAssets(HashSet<string> result, MapManifestAssets assetsObj, MapManifest manifest, string wsPath)
+	private static void ScanAudioAssets(HashSet<string> result, MapManifestAssets? assetsObj, MapManifest? manifest, string wsPath)
 	{
 		ScanAudioAssetsFromCategories(result, assetsObj);
 		ScanAudioAssetsFromManifestFiles(result, manifest);
 		ScanAudioAssetsFromDirectory(result, wsPath);
 	}
 
-	private static void ScanAudioAssetsFromCategories(HashSet<string> result, MapManifestAssets assetsObj)
+	private static void ScanAudioAssetsFromCategories(HashSet<string> result, MapManifestAssets? assetsObj)
 	{
 		foreach (var key in new[] { "SoundEffect", "Music" })
 		{
@@ -1415,7 +1416,7 @@ public partial class FloatingDialogBase : PanelContainer
 		}
 	}
 
-	private static void ScanAudioAssetsFromManifestFiles(HashSet<string> result, MapManifest manifest)
+	private static void ScanAudioAssetsFromManifestFiles(HashSet<string> result, MapManifest? manifest)
 	{
 		if (manifest?.Files == null) return;
 
@@ -1450,7 +1451,7 @@ public partial class FloatingDialogBase : PanelContainer
 		       path.EndsWith(".wav", StringComparison.OrdinalIgnoreCase);
 	}
 
-	private static void ScanSpritesheetAssets(HashSet<string> result, MapManifestAssets assetsObj, MapManifest manifest, string wsPath)
+	private static void ScanSpritesheetAssets(HashSet<string> result, MapManifestAssets? assetsObj, MapManifest? manifest, string wsPath)
 	{
 		ScanRtexAssetsFromCategory(result, assetsObj?.GetCategory("Spritesheet") ?? assetsObj?.GetCategory("spritesheets"));
 		ScanRtexAssetsFromCategory(result, manifest?.Assets?.Spritesheet);
@@ -1460,7 +1461,7 @@ public partial class FloatingDialogBase : PanelContainer
 		ScanRtexAssetsFromDirectory(result, Path.Combine(ProjectSettings.GlobalizePath("res://"), "Assets", "vfx"));
 	}
 
-	private static void ScanRtexAssetsFromCategory(HashSet<string> result, IDictionary<string, string> dict)
+	private static void ScanRtexAssetsFromCategory(HashSet<string> result, IDictionary<string, string>? dict)
 	{
 		if (dict == null) return;
 		foreach (var kvp in dict)
@@ -1479,12 +1480,12 @@ public partial class FloatingDialogBase : PanelContainer
 		}
 	}
 
-	private static bool IsRtexAsset(string path)
+	private static bool IsRtexAsset([NotNullWhen(true)] string? path)
 	{
 		return !string.IsNullOrWhiteSpace(path) && path.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase);
 	}
 
-	private static void ScanSpritesheetAssetsFromManifestFiles(HashSet<string> result, MapManifest manifest)
+	private static void ScanSpritesheetAssetsFromManifestFiles(HashSet<string> result, MapManifest? manifest)
 	{
 		if (manifest?.Files == null) return;
 
@@ -1506,15 +1507,16 @@ public partial class FloatingDialogBase : PanelContainer
 		{
 			foreach (var kvp in ssMetaRoot.VfxSpritesheets)
 			{
-				if (IsRtexAsset(kvp.Value?.TexturePath))
+				string? texturePath = kvp.Value?.TexturePath;
+				if (IsRtexAsset(texturePath))
 				{
-					result.Add(Path.GetFileName(kvp.Value.TexturePath));
+					result.Add(Path.GetFileName(texturePath));
 				}
 			}
 		}
 	}
 
-	private static void ScanVfxAssets(string category, HashSet<string> result, MapManifestAssets assetsObj, string wsPath)
+	private static void ScanVfxAssets(string category, HashSet<string> result, MapManifestAssets? assetsObj, string wsPath)
 	{
 		ScanVfxAssetsFromRegistry(category, result);
 		ScanVfxAssetsFromCategories(category, result, assetsObj);
@@ -1532,7 +1534,7 @@ public partial class FloatingDialogBase : PanelContainer
 		}
 	}
 
-	private static void ScanVfxAssetsFromCategories(string category, HashSet<string> result, MapManifestAssets assetsObj)
+	private static void ScanVfxAssetsFromCategories(string category, HashSet<string> result, MapManifestAssets? assetsObj)
 	{
 		string[] searchKeys = category switch
 		{
@@ -1561,7 +1563,7 @@ public partial class FloatingDialogBase : PanelContainer
 		}
 	}
 
-	private static void ScanDecalAssets(HashSet<string> result, MapManifestAssets assetsObj, MapManifest manifest, string wsPath)
+	private static void ScanDecalAssets(HashSet<string> result, MapManifestAssets? assetsObj, MapManifest? manifest, string wsPath)
 	{
 		ScanRtexAssetsFromCategory(result, assetsObj?.GetCategory("Decal"));
 		ScanRtexAssetsFromCategory(result, manifest?.Assets?.Decal);
@@ -1570,7 +1572,7 @@ public partial class FloatingDialogBase : PanelContainer
 		ScanRtexAssetsFromDirectory(result, Path.Combine(ProjectSettings.GlobalizePath("res://"), "Assets", "decals"));
 	}
 
-	private static void ScanDecalAssetsFromManifestFiles(HashSet<string> result, MapManifest manifest)
+	private static void ScanDecalAssetsFromManifestFiles(HashSet<string> result, MapManifest? manifest)
 	{
 		if (manifest?.Files == null) return;
 
@@ -1586,7 +1588,7 @@ public partial class FloatingDialogBase : PanelContainer
 		}
 	}
 
-	private static void ScanModelAssets(string category, HashSet<string> result, MapManifestAssets assetsObj, MapManifest manifest, string wsPath, bool includeAllFolders, string subFolder)
+	private static void ScanModelAssets(string category, HashSet<string> result, MapManifestAssets? assetsObj, MapManifest? manifest, string wsPath, bool includeAllFolders, string? subFolder)
 	{
 		ScanModelAssetsFromRegistry(category, result, includeAllFolders);
 		ScanModelAssetsFromCategories(category, result, assetsObj, includeAllFolders, subFolder);
@@ -1605,7 +1607,7 @@ public partial class FloatingDialogBase : PanelContainer
 		}
 	}
 
-	private static void ScanModelAssetsFromCategories(string category, HashSet<string> result, MapManifestAssets assetsObj, bool includeAllFolders, string subFolder)
+	private static void ScanModelAssetsFromCategories(string category, HashSet<string> result, MapManifestAssets? assetsObj, bool includeAllFolders, string? subFolder)
 	{
 		string defaultFolder = !string.IsNullOrEmpty(subFolder) ? subFolder : (category is "attachments" or "items" ? "items" : "projectiles");
 
@@ -1627,7 +1629,7 @@ public partial class FloatingDialogBase : PanelContainer
 		       (defaultFolder == "props" && catName == "Prop");
 	}
 
-	private static void ScanRmeshAssetsFromCategory(HashSet<string> result, IDictionary<string, string> dict)
+	private static void ScanRmeshAssetsFromCategory(HashSet<string> result, IDictionary<string, string>? dict)
 	{
 		if (dict == null) return;
 		foreach (var kvp in dict)
@@ -1637,12 +1639,12 @@ public partial class FloatingDialogBase : PanelContainer
 		}
 	}
 
-	private static bool IsRmeshAsset(string path)
+	private static bool IsRmeshAsset([NotNullWhen(true)] string? path)
 	{
 		return !string.IsNullOrWhiteSpace(path) && path.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase);
 	}
 
-	private static void ScanModelAssetsFromManifestFiles(HashSet<string> result, MapManifest manifest)
+	private static void ScanModelAssetsFromManifestFiles(HashSet<string> result, MapManifest? manifest)
 	{
 		if (manifest?.Files == null) return;
 
@@ -1665,14 +1667,14 @@ public partial class FloatingDialogBase : PanelContainer
 		}
 	}
 
-	private static void ScanRibbonAssets(HashSet<string> result, MapManifestAssets assetsObj, MapManifest manifest, string wsPath)
+	private static void ScanRibbonAssets(HashSet<string> result, MapManifestAssets? assetsObj, MapManifest? manifest, string wsPath)
 	{
 		ScanRtexAssetsFromCategory(result, assetsObj?.GetCategory("Ribbon"));
 		ScanRtexAssetsFromCategory(result, manifest?.Assets?.Ribbon);
 		ScanRtexAssetsFromDirectory(result, Path.Combine(wsPath, "Assets", "ribbons"));
 	}
 
-	private static void ScanAnimationAssets(HashSet<string> result, MapManifestAssets assetsObj, string wsPath)
+	private static void ScanAnimationAssets(HashSet<string> result, MapManifestAssets? assetsObj, string wsPath)
 	{
 		var aDict = assetsObj?.GetCategory("Animation");
 		if (aDict != null)
@@ -1696,7 +1698,7 @@ public partial class FloatingDialogBase : PanelContainer
 		}
 	}
 
-	private static void ScanIconAssets(HashSet<string> result, MapManifestAssets assetsObj, MapManifest manifest, string wsPath)
+	private static void ScanIconAssets(HashSet<string> result, MapManifestAssets? assetsObj, MapManifest? manifest, string wsPath)
 	{
 		ScanRtexAssetsFromCategory(result, assetsObj?.GetCategory("Icon") ?? assetsObj?.GetCategory("icons"));
 		ScanRtexAssetsFromCategory(result, manifest?.Assets?.Icon);
@@ -1706,7 +1708,7 @@ public partial class FloatingDialogBase : PanelContainer
 		ScanRtexAssetsFromDirectory(result, Path.Combine(ProjectSettings.GlobalizePath("res://"), "Assets", "icons"));
 	}
 
-	private static void ScanIconAssetsFromManifestFiles(HashSet<string> result, MapManifest manifest)
+	private static void ScanIconAssetsFromManifestFiles(HashSet<string> result, MapManifest? manifest)
 	{
 		if (manifest?.Files == null) return;
 
@@ -1736,14 +1738,14 @@ public partial class FloatingDialogBase : PanelContainer
 		}
 	}
 
-	private static void ScanNoiseAssets(HashSet<string> result, MapManifestAssets assetsObj, MapManifest manifest, string wsPath)
+	private static void ScanNoiseAssets(HashSet<string> result, MapManifestAssets? assetsObj, MapManifest? manifest, string wsPath)
 	{
 		ScanRtexAssetsFromCategory(result, assetsObj?.GetCategory("Noise"));
 		ScanRtexAssetsFromCategory(result, manifest?.Assets?.Noise);
 		ScanRtexAssetsFromDirectory(result, Path.Combine(wsPath, "Assets", "noise"));
 	}
 
-	private static void ScanTerrainAssets(HashSet<string> result, MapManifestAssets assetsObj, MapManifest manifest, string wsPath)
+	private static void ScanTerrainAssets(HashSet<string> result, MapManifestAssets? assetsObj, MapManifest? manifest, string wsPath)
 	{
 		ScanRtexAssetsFromCategory(result, assetsObj?.GetCategory("Terrain") ?? assetsObj?.GetCategory("textures"));
 		ScanRtexAssetsFromCategory(result, manifest?.Assets?.Terrain);
@@ -1752,7 +1754,7 @@ public partial class FloatingDialogBase : PanelContainer
 		ScanRtexAssetsFromDirectory(result, Path.Combine(ProjectSettings.GlobalizePath("res://"), "Assets", "textures"));
 	}
 
-	private static void ScanTerrainAssetsFromManifestFiles(HashSet<string> result, MapManifest manifest)
+	private static void ScanTerrainAssetsFromManifestFiles(HashSet<string> result, MapManifest? manifest)
 	{
 		if (manifest?.Files == null) return;
 
