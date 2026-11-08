@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -30,7 +30,7 @@ internal static class VSCodeInstallPatcher
 			}
 
 			string userSettingsFile = Path.Combine(userDir, "settings.json");
-			JsonObject settings = null;
+			JsonObject? settings = null;
 			if (File.Exists(userSettingsFile))
 			{
 				try
@@ -62,7 +62,7 @@ internal static class VSCodeInstallPatcher
 				}
 
 				string wsSettingsFile = Path.Combine(wsVscodeDir, "settings.json");
-				JsonObject wsSettings = null;
+				JsonObject? wsSettings = null;
 				if (File.Exists(wsSettingsFile))
 				{
 					try
@@ -99,7 +99,7 @@ internal static class VSCodeInstallPatcher
 			return;
 		}
 
-		string configuredBinaryPath = settings["opencui.binaryPath"]?.ToString();
+		string? configuredBinaryPath = settings["opencui.binaryPath"]?.ToString();
 		if (!string.IsNullOrEmpty(configuredBinaryPath) && File.Exists(configuredBinaryPath))
 		{
 			return;
@@ -187,7 +187,7 @@ internal static class VSCodeInstallPatcher
 					continue;
 				}
 
-				JsonObject packageJson = JsonNode.Parse(File.ReadAllText(packageJsonPath, Encoding.UTF8))?.AsObject();
+				JsonObject? packageJson = JsonNode.Parse(File.ReadAllText(packageJsonPath, Encoding.UTF8))?.AsObject();
 				if (packageJson == null)
 				{
 					continue;
@@ -213,7 +213,7 @@ internal static class VSCodeInstallPatcher
 
 	private static bool ContainsActivationEvent(JsonArray activationEvents, string activationEvent)
 	{
-		foreach (JsonNode existingEvent in activationEvents)
+		foreach (JsonNode? existingEvent in activationEvents)
 		{
 			if (string.Equals(existingEvent?.ToString(), activationEvent, StringComparison.Ordinal))
 			{
@@ -263,7 +263,7 @@ internal static class VSCodeInstallPatcher
 
 		try
 		{
-			JsonArray cachedExtensions = JsonNode.Parse(File.ReadAllText(extensionsJsonPath, Encoding.UTF8))?.AsArray();
+			JsonArray? cachedExtensions = JsonNode.Parse(File.ReadAllText(extensionsJsonPath, Encoding.UTF8))?.AsArray();
 			if (cachedExtensions == null)
 			{
 				return;
@@ -272,7 +272,7 @@ internal static class VSCodeInstallPatcher
 			bool removed = false;
 			for (int index = cachedExtensions.Count - 1; index >= 0; index--)
 			{
-				string cachedExtensionId = cachedExtensions[index]?["identifier"]?["id"]?.ToString();
+				string? cachedExtensionId = cachedExtensions[index]?["identifier"]?["id"]?.ToString();
 				if (!string.Equals(cachedExtensionId, extensionId, StringComparison.OrdinalIgnoreCase))
 				{
 					continue;
