@@ -375,7 +375,7 @@ public partial class EditableTerrain : RuntimeTerrain
 		UpdateMeshAndPhysics();
 	}
 
-	public override void RestoreTerrainFromSnapshot(int newWidth, int newDepth, float quadSize, TerrainCell[,] cells, int[,] pathingCodes, TerrainSplatWeights[,] splatMap, TerrainSplatWeights[,]? cliffSplatMap = null)
+	public override void RestoreTerrainFromSnapshot(int newWidth, int newDepth, float quadSize, TerrainCell[,]? cells, int[,] pathingCodes, TerrainSplatWeights[,] splatMap, TerrainSplatWeights[,]? cliffSplatMap = null)
 	{
 		if (!ValidateAndClampDimensions(ref newWidth, ref newDepth)) return;
 		TerrainCell[,] clonedCells = cells != null ? (TerrainCell[,])cells.Clone() : new TerrainCell[newWidth, newDepth];

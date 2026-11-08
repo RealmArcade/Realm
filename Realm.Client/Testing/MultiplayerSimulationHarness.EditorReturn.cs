@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -55,7 +55,7 @@ public partial class MultiplayerSimulationHarness
 			int placedUnits = PlaceEditorMarkers(editor);
 			report.Add($"editor_before placed_units={placedUnits}");
 
-			MapStateSnapshot editorSnapshot = MapStateSnapshot.CreateSnapshot();
+			MapStateSnapshot? editorSnapshot = MapStateSnapshot.CreateSnapshot();
 			if (editorSnapshot == null) throw new InvalidOperationException("The editor's world produced no snapshot.");
 			GameContext.SessionState.EditorWorldState = editorSnapshot;
 			report.Add(DescribeWorld("editor_before", editor));

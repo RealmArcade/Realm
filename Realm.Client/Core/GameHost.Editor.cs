@@ -1476,7 +1476,7 @@ public partial class GameHost
 		newWidth = Math.Clamp((int)Math.Round(newWidth / 32.0) * 32, 32, 512);
 		newDepth = Math.Clamp((int)Math.Round(newDepth / 32.0) * 32, 32, 512);
 
-		var before = MapStateSnapshot.CreateSnapshot();
+		if (MapStateSnapshot.CreateSnapshot() is not { } before) return;
 
 		int oldWidth = GroundTerrain.Width;
 		int oldDepth = GroundTerrain.Depth;
@@ -1513,8 +1513,10 @@ public partial class GameHost
 		UpdateScaleMetadata(newWidth, newDepth, scaledCameraBounds);
 		RefreshUIForMapScale(newWidth, newDepth);
 
-		var after = MapStateSnapshot.CreateSnapshot();
-		EditorHistoryManager.RecordAction(new MapResizeAction(before, after));
+		if (MapStateSnapshot.CreateSnapshot() is { } after)
+		{
+			EditorHistoryManager.RecordAction(new MapResizeAction(before, after));
+		}
 	}
 
 	private void ScaleEntityPositions<T>(IEnumerable<T> entities, float scaleX, float scaleZ) where T : Node3D

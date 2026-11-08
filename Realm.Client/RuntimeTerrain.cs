@@ -2315,7 +2315,7 @@ public partial class RuntimeTerrain : Node3D
 	{
 	}
 
-	public virtual void RestoreTerrainFromSnapshot(int newWidth, int newDepth, float quadSize, TerrainCell[,] cells, int[,] pathingCodes, TerrainSplatWeights[,] splatMap, TerrainSplatWeights[,]? cliffSplatMap = null)
+	public virtual void RestoreTerrainFromSnapshot(int newWidth, int newDepth, float quadSize, TerrainCell[,]? cells, int[,] pathingCodes, TerrainSplatWeights[,] splatMap, TerrainSplatWeights[,]? cliffSplatMap = null)
 	{
 	}
 

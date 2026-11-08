@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -15,9 +15,9 @@ public class MapStateSnapshot
 {
 	public int Width;
 	public int Depth;
-	public TerrainCell[,] Cells = null!;
+	public TerrainCell[,]? Cells;
 
-	public float[,] Heights
+	public float[,]? Heights
 	{
 		get
 		{
@@ -44,7 +44,7 @@ public class MapStateSnapshot
 
 	public int[,] PathingCodes = null!;
 	public TerrainSplatWeights[,] SplatMap = null!;
-	public TerrainSplatWeights[,] CliffSplatMap = null!;
+	public TerrainSplatWeights[,]? CliffSplatMap;
 
 	public float CameraBoundsLeft;
 	public float CameraBoundsRight;
@@ -192,7 +192,7 @@ public class MapStateSnapshot
 		GameContext.MapEditorHud?.RegenerateMinimap();
 	}
 
-	public static MapStateSnapshot CreateSnapshot()
+	public static MapStateSnapshot? CreateSnapshot()
 	{
 		var host = GameContext.Host;
 		if (host == null || host.GroundTerrain == null) return null;

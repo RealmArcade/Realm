@@ -380,7 +380,7 @@ namespace Realm.Client.Core
 			newWidth = Math.Clamp((int)Math.Round(newWidth / 32.0) * 32, 32, 512);
 			newDepth = Math.Clamp((int)Math.Round(newDepth / 32.0) * 32, 32, 512);
 
-			var before = MapStateSnapshot.CreateSnapshot();
+			if (MapStateSnapshot.CreateSnapshot() is not { } before) return;
 
 			int oldWidth = GroundTerrain.Width;
 			int oldDepth = GroundTerrain.Depth;
@@ -406,8 +406,10 @@ namespace Realm.Client.Core
 			EditorHasUnsavedChanges = true;
 			GameContext.MapEditorHud?.ShowFeedbackExternal($"Map resized to {newWidth}x{newDepth}");
 
-			var after = MapStateSnapshot.CreateSnapshot();
-			EditorHistoryManager.RecordAction(new MapResizeAction(before, after));
+			if (MapStateSnapshot.CreateSnapshot() is { } after)
+			{
+				EditorHistoryManager.RecordAction(new MapResizeAction(before, after));
+			}
 		}
 
 		public void PerformFloodFillPathing(Vector3 clickPos, int pathingMask, bool pathingAdd)
