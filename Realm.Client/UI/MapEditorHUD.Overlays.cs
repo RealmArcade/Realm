@@ -398,42 +398,8 @@ namespace Realm.Client.UI
 			if (_filePanel.EditorSettingsButton != null) _filePanel.EditorSettingsButton.Alignment = HorizontalAlignment.Center;
 		}
 
-		private void ApplyToolButtonsStyles()
-		{
-			StyleRowButton(_toolPanel.RaiseButton);
-			StyleRowButton(_toolPanel.LowerButton);
-			StyleRowButton(_toolPanel.HeightButton);
-			StyleRowButton(_toolPanel.SmoothButton);
-			StyleRowButton(_toolPanel.FlattenButton);
-			StyleRowButton(_toolPanel.RampButton);
-			StyleRowButton(_toolPanel.NoiseButton);
-			StyleRowButton(_toolPanel.WaterButton);
-			StyleRowButton(_toolPanel.TextureBrushButton);
-			StyleRowButton(_toolPanel.FloodFillButton);
-			StyleRowButton(_toolPanel.PathingBrushButton);
-			StyleRowButton(_toolPanel.FloodFillPathingButton);
-			StyleRowButton(_toolPanel.AddObjectButton);
-			StyleRowButton(_toolPanel.SelectMoveButton);
-			StyleRowButton(_toolPanel.DeleteObjectButton);
-			StyleRowButton(_toolPanel.DrawCoordinateButton);
-			StyleRowButton(_toolPanel.CommitCoordinateButton);
-			StyleRowButton(_toolPanel.SelectAreaButton);
-			StyleRowButton(_toolPanel.CutButton);
-			StyleRowButton(_toolPanel.CopyButton);
-			StyleRowButton(_toolPanel.PasteButton);
-			StyleRowButton(_toolPanel.EraseAreaButton);
-		}
-
-		private void ApplyInspectorButtonsStyles()
-		{
-			StyleRowButton(_inspectorView.RotateLeftButton);
-			StyleRowButton(_inspectorView.RotateRightButton);
-			StyleRowButton(_inspectorView.ScaleDownButton);
-			StyleRowButton(_inspectorView.ScaleUpButton);
-			StyleRowButton(_inspectorView.ScaleResetButton);
-			StyleRowButton(_inspectorView.DeleteButton);
-		}
-
+		private void ApplyToolButtonsStyles() => _toolPanel.StyleButtons();
+		private void ApplyInspectorButtonsStyles() => _inspectorView.StyleButtons();
 		private void ApplyValueBadgeStylesViewLogic()
 		{
 			StyleValueBadge(_brushPanel.SizeValue);
@@ -1654,43 +1620,7 @@ namespace Realm.Client.UI
 			}
 		}
 
-		private void StyleRowButton(Button btn)
-		{
-			if (btn == null) return;
-			btn.Flat = false;
-			btn.CustomMinimumSize = new Vector2(0, 32);
-
-			var rowNormal = new StyleBoxFlat();
-			rowNormal.BgColor = new Color(0.14f, 0.13f, 0.11f, 0.4f);
-			rowNormal.BorderColor = new Color(0.24f, 0.21f, 0.17f, 0.5f);
-			rowNormal.BorderWidthBottom = 1;
-			rowNormal.ContentMarginLeft = 10;
-			rowNormal.ContentMarginRight = 10;
-
-			var rowHover = new StyleBoxFlat();
-			rowHover.BgColor = new Color(0.25f, 0.22f, 0.18f, 0.9f);
-			rowHover.BorderColor = UIStyle.ColorGold;
-			rowHover.BorderWidthBottom = 1;
-			rowHover.ContentMarginLeft = 10;
-			rowHover.ContentMarginRight = 10;
-
-			var rowPressed = new StyleBoxFlat();
-			rowPressed.BgColor = new Color(0.30f, 0.26f, 0.20f, 0.95f);
-			rowPressed.BorderColor = UIStyle.ColorGold;
-			rowPressed.SetBorderWidthAll(1);
-			rowPressed.ContentMarginLeft = 10;
-			rowPressed.ContentMarginRight = 10;
-
-			btn.AddThemeStyleboxOverride("normal", rowNormal);
-			btn.AddThemeStyleboxOverride("hover", rowHover);
-			btn.AddThemeStyleboxOverride("pressed", rowPressed);
-			btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-			btn.AddThemeFontSizeOverride("font_size", 12);
-			btn.AddThemeColorOverride("font_color", new Color(0.92f, 0.88f, 0.82f));
-			btn.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
-			btn.Alignment = HorizontalAlignment.Left;
-		}
-
+		private void StyleRowButton(Button btn) => MapEditorStyle.RowButton(btn);
 		private Control? GetContentTarget(Control? contentControl) => MapEditorStyle.ContentTarget(contentControl);
 
 		private void SetupCardScrollContainer(Control contentControl, float maxHeight = 300f, bool allowExpandBtn = true)

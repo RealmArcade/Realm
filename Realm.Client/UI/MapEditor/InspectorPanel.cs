@@ -196,4 +196,15 @@ public sealed class InspectorPanel
 		EditVfxButton.Pressed += () => hooks.EditVfxRequested();
 		inspectorVBox.AddChild(EditVfxButton);
 	}
+	/// <summary>Row styling for the inspector's action buttons, which this panel owns.</summary>
+	public void StyleButtons()
+	{
+		MapEditorStyle.RowButton(RotateLeftButton);
+		MapEditorStyle.RowButton(RotateRightButton);
+		MapEditorStyle.RowButton(ScaleDownButton);
+		MapEditorStyle.RowButton(ScaleUpButton);
+		MapEditorStyle.RowButton(ScaleResetButton);
+		MapEditorStyle.RowButton(DeleteButton);
+	}
+
 }

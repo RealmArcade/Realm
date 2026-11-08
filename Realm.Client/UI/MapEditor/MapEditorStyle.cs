@@ -354,4 +354,45 @@ internal static class MapEditorStyle
 
 		panel.AddThemeStyleboxOverride("panel", style);
 	}
+	/// <summary>
+	/// The row button used for every list entry in the editor's panels: a flat plate with a bottom rule, a gold hover
+	/// and a left-aligned label. Shared because a dozen panels draw their rows with it and they must stay identical.
+	/// </summary>
+	public static void RowButton(Button btn)
+	{
+		if (btn == null) return;
+		btn.Flat = false;
+		btn.CustomMinimumSize = new Vector2(0, 32);
+
+		var rowNormal = new StyleBoxFlat();
+		rowNormal.BgColor = new Color(0.14f, 0.13f, 0.11f, 0.4f);
+		rowNormal.BorderColor = new Color(0.24f, 0.21f, 0.17f, 0.5f);
+		rowNormal.BorderWidthBottom = 1;
+		rowNormal.ContentMarginLeft = 10;
+		rowNormal.ContentMarginRight = 10;
+
+		var rowHover = new StyleBoxFlat();
+		rowHover.BgColor = new Color(0.25f, 0.22f, 0.18f, 0.9f);
+		rowHover.BorderColor = UIStyle.ColorGold;
+		rowHover.BorderWidthBottom = 1;
+		rowHover.ContentMarginLeft = 10;
+		rowHover.ContentMarginRight = 10;
+
+		var rowPressed = new StyleBoxFlat();
+		rowPressed.BgColor = new Color(0.30f, 0.26f, 0.20f, 0.95f);
+		rowPressed.BorderColor = UIStyle.ColorGold;
+		rowPressed.SetBorderWidthAll(1);
+		rowPressed.ContentMarginLeft = 10;
+		rowPressed.ContentMarginRight = 10;
+
+		btn.AddThemeStyleboxOverride("normal", rowNormal);
+		btn.AddThemeStyleboxOverride("hover", rowHover);
+		btn.AddThemeStyleboxOverride("pressed", rowPressed);
+		btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		btn.AddThemeFontSizeOverride("font_size", 12);
+		btn.AddThemeColorOverride("font_color", new Color(0.92f, 0.88f, 0.82f));
+		btn.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
+		btn.Alignment = HorizontalAlignment.Left;
+	}
+
 }
