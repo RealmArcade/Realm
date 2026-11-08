@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
@@ -103,110 +103,56 @@ public class SimulationService
 		}
 	}
 
+	private readonly BuildQueueProcessor _buildQueue;
+
 	public void DomainProcessCompletedBuilding(Entity buildingEntity, Action<Entity>? viewCallback, Action<Entity>? notifyCallback)
 	{
-		if (!World.IsAlive(buildingEntity)) return;
-
-		RemoveConstructionComponents(buildingEntity);
-		viewCallback?.Invoke(buildingEntity);
-		notifyCallback?.Invoke(buildingEntity);
+		_buildQueue.DomainProcessCompletedBuilding(buildingEntity, viewCallback, notifyCallback);
 	}
 
 	public void RemoveConstructionComponents(Entity buildingEntity)
 	{
-		if (World.Has<UnderConstruction>(buildingEntity))
-		{
-			World.Remove<UnderConstruction>(buildingEntity);
-		}
-
-		if (World.Has<ConstructionState>(buildingEntity))
-		{
-			World.Remove<ConstructionState>(buildingEntity);
-		}
+		_buildQueue.RemoveConstructionComponents(buildingEntity);
 	}
 
 	public void ProcessBuildQueueEntity(Entity entity)
 	{
-		if (HasActiveTask(entity)) return;
-
-		ref var q = ref World.Get<BuildQueue>(entity);
-		if (q.Count > 0)
-		{
-			if (q.TryDequeue(out string? nextType, out var nextPos, out Entity nextTarget))
-			{
-				PendingQueuedCommands.Add((entity, nextType, nextPos, nextTarget));
-			}
-		}
-		else
-		{
-			PendingQueuedCommands.Add((entity, "clear_queue_component", Vector3.Zero, Entity.Null));
-		}
+		_buildQueue.ProcessBuildQueueEntity(entity);
 	}
 
 	public bool HasActiveTask(Entity entity)
 	{
-		return World.Has<MoveTo>(entity) ||
-			   World.Has<BuildTask>(entity) ||
-			   World.Has<AttackTarget>(entity) ||
-			   World.Has<AttackMove>(entity) ||
-			   World.Has<Follow>(entity) ||
-			   World.Has<Patrol>(entity) ||
-			   World.Has<Gatherer>(entity) ||
-			   World.Has<HealingTarget>(entity);
+		return _buildQueue.HasActiveTask(entity);
 	}
 
 	public void ProcessPendingQueuedCommands(Func<Entity, string?, Vector3, Entity, bool> executeCommandCallback)
 	{
-		foreach (var cmd in PendingQueuedCommands)
-		{
-			if (!World.IsAlive(cmd.Entity)) continue;
-
-			ProcessPendingCommand(cmd, executeCommandCallback);
-		}
+		_buildQueue.ProcessPendingQueuedCommands(executeCommandCallback);
 	}
 
 	public void ProcessPendingCommand((Entity Entity, string? Type, Vector3 Position, Entity Target) cmd, Func<Entity, string?, Vector3, Entity, bool> executeCommandCallback)
 	{
-		if (cmd.Type == "clear_queue_component")
-		{
-			ClearQueueComponent(cmd.Entity);
-			return;
-		}
-
-		bool success = executeCommandCallback(cmd.Entity, cmd.Type, cmd.Position, cmd.Target);
-		ProcessRemainingQueue(cmd.Entity, success, executeCommandCallback);
+		_buildQueue.ProcessPendingCommand(cmd, executeCommandCallback);
 	}
-
 
 	public void ClearQueueComponent(Entity entity)
 	{
-		if (World.Has<BuildQueue>(entity))
-		{
-			World.Remove<BuildQueue>(entity);
-		}
+		_buildQueue.ClearQueueComponent(entity);
 	}
 
 	public void ProcessRemainingQueue(Entity entity, bool lastSuccess, Func<Entity, string?, Vector3, Entity, bool> executeCommandCallback)
 	{
-		while (!lastSuccess && World.Has<BuildQueue>(entity))
-		{
-			ref var q = ref World.Get<BuildQueue>(entity);
-			if (q.TryDequeue(out string? nextType, out var nextPos, out Entity nextTarget))
-			{
-				lastSuccess = executeCommandCallback(entity, nextType ?? "", nextPos, nextTarget);
-			}
-			else
-			{
-				World.Remove<BuildQueue>(entity);
-				break;
-			}
-		}
-
-		if (!lastSuccess && World.Has<BuildQueue>(entity) && World.Get<BuildQueue>(entity).Count == 0)
-		{
-			World.Remove<BuildQueue>(entity);
-		}
+		_buildQueue.ProcessRemainingQueue(entity, lastSuccess, executeCommandCallback);
 	}
+
+
+
+
+
+
+
+
+
 
 	private Entity _resolvedWorldEntity = Entity.Null;
 
@@ -409,6 +355,7 @@ public class SimulationService
 
 	public SimulationService()
 	{
+		_buildQueue = new BuildQueueProcessor(PendingQueuedCommands);
 		_relationships = new PlayerRelationshipTable(GetPlayerTeam, () => ActiveWorldEntity);
 		_movementService = GameContext.Simulation.MovementPathfindingService;
 		_movementService.SimulateEntityFilter = ShouldSimulateEntity;
