@@ -121,8 +121,7 @@ public partial class LobbyBrowser : Control
 		ApplyFilterPanelStyle();
 		ApplyMainPanelStyle();
 
-		_searchBar.AddThemeStyleboxOverride("normal", UIStyle.CreateCustomLobbySearchInput(false));
-		_searchBar.AddThemeStyleboxOverride("focus", UIStyle.CreateCustomLobbySearchInput(true));
+		UIStyle.ApplyCustomLobbySearchInput(_searchBar);
 
 		UIStyle.ApplyTitle(_browserTitle, TranslationServer.Translate("CUSTOM LOBBY BROWSER"), 36);
 		UIStyle.ApplyTitle(_filterTitle, TranslationServer.Translate("FILTER"), 20);
@@ -275,8 +274,7 @@ public partial class LobbyBrowser : Control
 	private void SetupSearchBar()
 	{
 		_searchBar.TextChanged += (text) => ApplyFilters();
-		_searchBar.AddThemeStyleboxOverride("normal", UIStyle.CreateCustomLobbySearchInput(false));
-		_searchBar.AddThemeStyleboxOverride("focus", UIStyle.CreateCustomLobbySearchInput(true));
+		UIStyle.ApplyCustomLobbySearchInput(_searchBar);
 		_searchBar.AddThemeFontSizeOverride("font_size", 18);
 		_searchBar.AddThemeColorOverride("font_color", new Color(0.95f, 0.9f, 0.8f));
 		_searchBar.AddThemeColorOverride("font_placeholder_color", new Color(0.65f, 0.6f, 0.5f));
@@ -294,10 +292,7 @@ public partial class LobbyBrowser : Control
 		UIStyle.ApplyButtonText(_hostButton, TranslationServer.Translate("HOST A GAME"), 24);
 		_hostButton.AddThemeFontOverride("font", UIStyle.FontNorseBold);
 
-		_hostButton.AddThemeStyleboxOverride("normal", UIStyle.CreateCustomLobbyStartGameButton(false, false));
-		_hostButton.AddThemeStyleboxOverride("hover", UIStyle.CreateCustomLobbyStartGameButton(true, false));
-		_hostButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateCustomLobbyStartGameButton(false, true));
-		_hostButton.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyCustomLobbyStartGameButton(_hostButton);
 
 		_hostButton.Pressed += () =>
 		{
@@ -317,10 +312,7 @@ public partial class LobbyBrowser : Control
 		UIStyle.ApplyButtonText(_directConnectButton, Tr("DIRECT CONNECT"), 22);
 		_directConnectButton.AddThemeFontOverride("font", UIStyle.FontNorseBold);
 
-		_directConnectButton.AddThemeStyleboxOverride("normal", UIStyle.CreateCustomLobbyStartGameButton(false, false));
-		_directConnectButton.AddThemeStyleboxOverride("hover", UIStyle.CreateCustomLobbyStartGameButton(true, false));
-		_directConnectButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateCustomLobbyStartGameButton(false, true));
-		_directConnectButton.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyCustomLobbyStartGameButton(_directConnectButton);
 
 		_directConnectButton.Pressed += () =>
 		{
@@ -466,10 +458,7 @@ public partial class LobbyBrowser : Control
 		_backButton.PivotOffset = new Vector2(55, 55);
 		_backButton.AddThemeConstantOverride("icon_max_width", 110);
 
-		_backButton.AddThemeStyleboxOverride("normal", UIStyle.CreateCustomLobbyBackButton(false, false));
-		_backButton.AddThemeStyleboxOverride("hover", UIStyle.CreateCustomLobbyBackButton(true, false));
-		_backButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateCustomLobbyBackButton(false, true));
-		_backButton.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyCustomLobbyBackButton(_backButton);
 
 		_backButton.Pressed += () =>
 		{
@@ -487,10 +476,7 @@ public partial class LobbyBrowser : Control
 		_refreshButton.PivotOffset = new Vector2(55, 55);
 		_refreshButton.AddThemeConstantOverride("icon_max_width", 110);
 
-		_refreshButton.AddThemeStyleboxOverride("normal", UIStyle.CreateCustomLobbyRechargeButton(false, false));
-		_refreshButton.AddThemeStyleboxOverride("hover", UIStyle.CreateCustomLobbyRechargeButton(true, false));
-		_refreshButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateCustomLobbyRechargeButton(false, true));
-		_refreshButton.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyCustomLobbyRechargeButton(_refreshButton);
 
 		_refreshButton.Pressed += () =>
 		{
