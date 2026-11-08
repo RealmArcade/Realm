@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -237,10 +237,10 @@ public partial class GameOver : Control
 
 		btn.Pressed += () =>
 		{
-			GameContext.UserInterface.PlayClickSound();
+			GameContext.UserInterface?.PlayClickSound();
 			SetTab(index);
 		};
-		btn.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
+		btn.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 	}
 
 	private void SetTab(int tabIndex)
@@ -268,7 +268,7 @@ public partial class GameOver : Control
 
 		_btnClose.Pressed += () =>
 		{
-			GameContext.UserInterface.PlayClickSound();
+			GameContext.UserInterface?.PlayClickSound();
 			if (GameContext.SessionState.IsTestMode)
 			{
 				GameContext.SessionState.IsTestMode = false;
@@ -278,14 +278,14 @@ public partial class GameOver : Control
 					GameContext.Lobby.Disconnect();
 				}
 
-				GameContext.UserInterface.TransitionTo(GameScreen.MapEditorHUD);
+				GameContext.UserInterface?.TransitionTo(GameScreen.MapEditorHUD);
 			}
 			else
 			{
-				GameContext.UserInterface.TransitionTo(GameScreen.MainMenu);
+				GameContext.UserInterface?.TransitionTo(GameScreen.MainMenu);
 			}
 		};
-		_btnClose.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
+		_btnClose.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 	}
 
 	private void SetupReportCopyrightButton()
@@ -304,10 +304,10 @@ public partial class GameOver : Control
 
 		_btnReportCopyright.Pressed += () =>
 		{
-			GameContext.UserInterface.PlayClickSound();
+			GameContext.UserInterface?.PlayClickSound();
 			OS.ShellOpen("https://github.com/RealmArcade/Realm/issues/new?title=DMCA/Copyright+Infringement+Report");
 		};
-		_btnReportCopyright.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
+		_btnReportCopyright.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 	}
 
 
@@ -334,10 +334,10 @@ public partial class GameOver : Control
 
 		_btnWriteReview.Pressed += () =>
 		{
-			GameContext.UserInterface.PlayClickSound();
+			GameContext.UserInterface?.PlayClickSound();
 			ShowReviewPopup();
 		};
-		_btnWriteReview.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
+		_btnWriteReview.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 	}
 
 	private void ShowReviewPopup()
@@ -471,14 +471,14 @@ public partial class GameOver : Control
 
 		btnCancel.Pressed += () =>
 		{
-			GameContext.UserInterface.PlayClickSound();
+			GameContext.UserInterface?.PlayClickSound();
 			rootPopup.QueueFree();
 		};
-		btnCancel.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
+		btnCancel.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 
 		btnSubmit.Pressed += async () =>
 		{
-			GameContext.UserInterface.PlayClickSound();
+			GameContext.UserInterface?.PlayClickSound();
 			int selectedRating = ratingOption.GetSelectedId();
 			string commentText = commentsEdit.Text;
 
@@ -497,7 +497,7 @@ public partial class GameOver : Control
 
 			await ReportMetricsAsync(mapName, playtimeMin, selectedRating, true);
 		};
-		btnSubmit.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
+		btnSubmit.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 	}
 
 	private void UpdateTabDisplay()
