@@ -84,7 +84,6 @@ public sealed class ResourceBarButtons
 		_settings.AddThemeConstantOverride("icon_max_width", 22);
 		_settings.TooltipText = TranslationServer.Translate("Settings (F12)");
 		UIStyle.ApplyHudButtonStyleboxes(_settings);
-		_settings.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 		_settings.AddThemeColorOverride("icon_normal_color", UIStyle.ColorGoldDull);
 		_settings.AddThemeColorOverride("icon_hover_color", UIStyle.ColorGold);
 		_settings.AddThemeColorOverride("icon_pressed_color", UIStyle.ColorCyanGlow);
@@ -252,7 +251,6 @@ public sealed class ResourceBarButtons
 		button.AddThemeColorOverride("font_pressed_color", UIStyle.ColorCyanGlow);
 		button.AddThemeColorOverride("font_focus_color", UIStyle.ColorGoldDull);
 		UIStyle.ApplyHudButtonStyleboxes(button);
-		button.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 	}
 
 	/// <summary>

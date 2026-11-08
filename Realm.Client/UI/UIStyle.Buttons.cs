@@ -39,11 +39,16 @@ public static partial class UIStyle
 		button.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 	}
 
+	/// <summary>
+	/// The full set for an in-game button, focus ring included. Every HUD button cleared its ring by hand after calling
+	/// this, which is what <see cref="ApplyButtonStyleBoxesClearingFocus"/> already does for the plain button.
+	/// </summary>
 	public static void ApplyHudButtonStyleboxes(Control button)
 	{
 		button.AddThemeStyleboxOverride("normal", CreateHUDButtonStyle(false, false));
 		button.AddThemeStyleboxOverride("hover", CreateHUDButtonStyle(true, false));
 		button.AddThemeStyleboxOverride("pressed", CreateHUDButtonStyle(false, true));
+		button.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 	}
 
 	/// <summary>

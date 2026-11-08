@@ -537,7 +537,6 @@ public partial class CommandPanel
 		btn.AddThemeConstantOverride("icon_max_width", 50);
 
 		UIStyle.ApplyHudButtonStyleboxes(btn);
-		btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 
 		var label = new Label();
 		label.Name = "Label_Label";
@@ -667,7 +666,6 @@ public partial class CommandPanel
 	private void SetButtonStyles(Button btn)
 	{
 		UIStyle.ApplyHudButtonStyleboxes(btn);
-		btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 	}
 
 
@@ -695,7 +693,6 @@ public partial class CommandPanel
 		UIStyle.SetupHUDButton(btn, tooltip);
 
 		UIStyle.ApplyHudButtonStyleboxes(btn);
-		btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 
 		btn.Pressed += () => onClick?.Invoke();
 	}

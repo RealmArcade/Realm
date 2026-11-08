@@ -74,7 +74,6 @@ public sealed class PauseOverlayPanel
 		_resumeButton.Text = TranslationServer.Translate("RESUME FOR EVERYONE");
 		_resumeButton.CustomMinimumSize = new Vector2(0, 34);
 		UIStyle.ApplyHudButtonStyleboxes(_resumeButton);
-		_resumeButton.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 		_resumeButton.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 		_resumeButton.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
 		_resumeButton.Pressed += () =>

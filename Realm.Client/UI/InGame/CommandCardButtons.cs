@@ -58,7 +58,6 @@ public static class CommandCardButtons
 		UIStyle.SetupHUDButton(btn, tooltip);
 
 		UIStyle.ApplyHudButtonStyleboxes(btn);
-		btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 
 		btn.Pressed += () => onClick?.Invoke();
 	}
