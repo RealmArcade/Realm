@@ -13,23 +13,23 @@ public class TerrainModifyAction : IEditorAction
 	private readonly int _width;
 	private readonly int _depth;
 
-	private readonly TerrainCell[,] _beforeCells;
-	private readonly TerrainCell[,] _afterCells;
-	private readonly TerrainSplatWeights[,] _beforeSplatMap;
-	private readonly TerrainSplatWeights[,] _afterSplatMap;
-	private readonly TerrainSplatWeights[,] _beforeCliffSplatMap;
-	private readonly TerrainSplatWeights[,] _afterCliffSplatMap;
-	private readonly int[,] _beforePathing;
-	private readonly int[,] _afterPathing;
+	private readonly TerrainCell[,]? _beforeCells;
+	private readonly TerrainCell[,]? _afterCells;
+	private readonly TerrainSplatWeights[,]? _beforeSplatMap;
+	private readonly TerrainSplatWeights[,]? _afterSplatMap;
+	private readonly TerrainSplatWeights[,]? _beforeCliffSplatMap;
+	private readonly TerrainSplatWeights[,]? _afterCliffSplatMap;
+	private readonly int[,]? _beforePathing;
+	private readonly int[,]? _afterPathing;
 
 	public TerrainModifyAction(
-		TerrainCell[,] beforeCells,
-		TerrainCell[,] afterCells,
-		TerrainSplatWeights[,] beforeSplatMap,
-		TerrainSplatWeights[,] afterSplatMap,
-		int[,] beforePathing = null,
-		int[,] afterPathing = null,
-		TerrainSplatWeights[,] beforeCliffSplatMap = null,
+		TerrainCell[,]? beforeCells,
+		TerrainCell[,]? afterCells,
+		TerrainSplatWeights[,]? beforeSplatMap,
+		TerrainSplatWeights[,]? afterSplatMap,
+		int[,]? beforePathing = null,
+		int[,]? afterPathing = null,
+		TerrainSplatWeights[,]? beforeCliffSplatMap = null,
 		TerrainSplatWeights[,] afterCliffSplatMap = null)
 	{
 		_beforeCells = beforeCells;
@@ -66,13 +66,13 @@ public class TerrainModifyAction : IEditorAction
 
 	public TerrainModifyAction(
 		int minX, int minZ, int width, int depth,
-		TerrainCell[,] beforeCells,
-		TerrainCell[,] afterCells,
-		TerrainSplatWeights[,] beforeSplatMap,
-		TerrainSplatWeights[,] afterSplatMap,
-		int[,] beforePathing = null,
-		int[,] afterPathing = null,
-		TerrainSplatWeights[,] beforeCliffSplatMap = null,
+		TerrainCell[,]? beforeCells,
+		TerrainCell[,]? afterCells,
+		TerrainSplatWeights[,]? beforeSplatMap,
+		TerrainSplatWeights[,]? afterSplatMap,
+		int[,]? beforePathing = null,
+		int[,]? afterPathing = null,
+		TerrainSplatWeights[,]? beforeCliffSplatMap = null,
 		TerrainSplatWeights[,] afterCliffSplatMap = null)
 	{
 		_minX = minX;
@@ -91,7 +91,7 @@ public class TerrainModifyAction : IEditorAction
 
 	public TerrainModifyAction(
 		float[,] beforeHeights, float[,] afterHeights,
-		TerrainSplatWeights[,] beforeSplatMap, TerrainSplatWeights[,] afterSplatMap,
+		TerrainSplatWeights[,]? beforeSplatMap, TerrainSplatWeights[,] afterSplatMap,
 		int[,] beforePathing = null, int[,] afterPathing = null,
 		TerrainSplatWeights[,] beforeCliffSplatMap = null, TerrainSplatWeights[,] afterCliffSplatMap = null)
 		: this(ConvertHeights(beforeHeights), ConvertHeights(afterHeights), beforeSplatMap, afterSplatMap, beforePathing, afterPathing, beforeCliffSplatMap, afterCliffSplatMap)
@@ -101,14 +101,14 @@ public class TerrainModifyAction : IEditorAction
 	public TerrainModifyAction(
 		int minX, int minZ, int width, int depth,
 		float[,] beforeHeights, float[,] afterHeights,
-		TerrainSplatWeights[,] beforeSplatMap, TerrainSplatWeights[,] afterSplatMap,
+		TerrainSplatWeights[,]? beforeSplatMap, TerrainSplatWeights[,] afterSplatMap,
 		int[,] beforePathing = null, int[,] afterPathing = null,
 		TerrainSplatWeights[,] beforeCliffSplatMap = null, TerrainSplatWeights[,] afterCliffSplatMap = null)
 		: this(minX, minZ, width, depth, ConvertHeights(beforeHeights), ConvertHeights(afterHeights), beforeSplatMap, afterSplatMap, beforePathing, afterPathing, beforeCliffSplatMap, afterCliffSplatMap)
 	{
 	}
 
-	private static TerrainCell[,] ConvertHeights(float[,] heights)
+	private static TerrainCell[,]? ConvertHeights(float[,]? heights)
 	{
 		if (heights == null) return null;
 		int w = heights.GetLength(0);

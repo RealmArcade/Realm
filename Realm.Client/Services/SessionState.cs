@@ -10,7 +10,7 @@ public class SessionState
 	public bool ReturningFromTest { get; set; } = false;
 	public bool EditorSessionResumedAfterTest { get; set; } = false;
 
-	public MapStateSnapshot EditorWorldState { get; set; } = null!;
+	public MapStateSnapshot? EditorWorldState { get; set; }
 	public string SavedEditorDirectory { get; set; } = string.Empty;
 	public string? SavedEditorSourceFolder { get; set; }
 	public bool SavedEditorHasUnsavedChanges { get; set; } = false;

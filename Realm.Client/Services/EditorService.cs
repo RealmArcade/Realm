@@ -1201,10 +1201,10 @@ public partial class EditorService : IEditorAPI
 	private byte _activePlateauWaterProfile = 0;
 	private float _activePlateauWaterHeight = 0f;
 
-	private TerrainCell[,] _terrainCellsBefore = null!;
-	private TerrainSplatWeights[,] _terrainSplatMapBefore = null!;
-	private TerrainSplatWeights[,] _terrainCliffSplatMapBefore = null!;
-	private int[,] _terrainPathingBefore = null!;
+	private TerrainCell[,]? _terrainCellsBefore;
+	private TerrainSplatWeights[,]? _terrainSplatMapBefore;
+	private TerrainSplatWeights[,]? _terrainCliffSplatMapBefore;
+	private int[,]? _terrainPathingBefore;
 	private bool _isDrawingTerrain;
 	private int _drawMinX;
 	private int _drawMinZ;
@@ -2108,10 +2108,10 @@ public partial class EditorService : IEditorAPI
 		EditorTool activeTool,
 		bool blockMode,
 		float blockLevelHeight,
-		float[,] currentHeights = null,
-		TerrainSplatWeights[,] currentSplatMap = null,
-		int[,] currentPathing = null,
-		TerrainSplatWeights[,] currentCliffSplatMap = null)
+		float[,]? currentHeights = null,
+		TerrainSplatWeights[,]? currentSplatMap = null,
+		int[,]? currentPathing = null,
+		TerrainSplatWeights[,]? currentCliffSplatMap = null)
 	{
 		ref var terrain = ref GetTerrainState();
 		_isDrawingTerrain = true;
@@ -2168,10 +2168,10 @@ public partial class EditorService : IEditorAPI
 	}
 
 	public TerrainModifyAction EndTerrainDraw(
-		float[,] currentHeights = null,
-		TerrainSplatWeights[,] currentSplatMap = null,
-		int[,] currentPathing = null,
-		TerrainSplatWeights[,] currentCliffSplatMap = null)
+		float[,]? currentHeights = null,
+		TerrainSplatWeights[,]? currentSplatMap = null,
+		int[,]? currentPathing = null,
+		TerrainSplatWeights[,]? currentCliffSplatMap = null)
 	{
 		_isDrawingTerrain = false;
 		_hasBlockTargetHeight = false;
