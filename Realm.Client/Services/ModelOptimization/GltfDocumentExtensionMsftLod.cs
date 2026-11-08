@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using Godot;
 using Godot.Collections;
@@ -175,7 +175,7 @@ public partial class GltfDocumentExtensionMsftLod : GltfDocumentExtension
 		Node root)
 	{
 		string masterNodeName = !string.IsNullOrEmpty(masterData.Node.OriginalName) ? masterData.Node.OriginalName : masterData.Node.ResourceName;
-		MeshInstance3D masterInstance = FindMeshInstanceByNameOrIndex(meshInstances, masterNodeName, masterData.NodeIndex);
+		MeshInstance3D? masterInstance = FindMeshInstanceByNameOrIndex(meshInstances, masterNodeName, masterData.NodeIndex);
 
 		if (masterInstance == null)
 		{
@@ -212,7 +212,7 @@ public partial class GltfDocumentExtensionMsftLod : GltfDocumentExtension
 			lodNodeName = $"{prefix}_LOD{lodLevel}";
 		}
 
-		MeshInstance3D existingLodInstance = FindMeshInstanceByNameOrIndex(meshInstances, lodNodeName, lodData.NodeIndex);
+		MeshInstance3D? existingLodInstance = FindMeshInstanceByNameOrIndex(meshInstances, lodNodeName, lodData.NodeIndex);
 		if (existingLodInstance != null && existingLodInstance != masterInstance)
 			return;
 
@@ -221,7 +221,7 @@ public partial class GltfDocumentExtensionMsftLod : GltfDocumentExtension
 			return;
 
 		var gltfMesh = gltfMeshes[meshIndex];
-		Mesh importedMesh = gltfMesh.Mesh?.GetMesh();
+		Mesh? importedMesh = gltfMesh.Mesh?.GetMesh();
 		if (importedMesh == null)
 			return;
 
@@ -283,7 +283,7 @@ public partial class GltfDocumentExtensionMsftLod : GltfDocumentExtension
 		}
 	}
 
-	private static MeshInstance3D FindMeshInstanceByNameOrIndex(List<MeshInstance3D> instances, string name, int index)
+	private static MeshInstance3D? FindMeshInstanceByNameOrIndex(List<MeshInstance3D> instances, string name, int index)
 	{
 		if (instances == null || instances.Count == 0)
 			return null;
@@ -297,7 +297,7 @@ public partial class GltfDocumentExtensionMsftLod : GltfDocumentExtension
 		return null;
 	}
 
-	private static MeshInstance3D FindByName(List<MeshInstance3D> instances, string name)
+	private static MeshInstance3D? FindByName(List<MeshInstance3D> instances, string name)
 	{
 		foreach (var mi in instances)
 		{
@@ -311,7 +311,7 @@ public partial class GltfDocumentExtensionMsftLod : GltfDocumentExtension
 		return null;
 	}
 
-	private static MeshInstance3D FindByLod0(List<MeshInstance3D> instances)
+	private static MeshInstance3D? FindByLod0(List<MeshInstance3D> instances)
 	{
 		foreach (var mi in instances)
 		{
