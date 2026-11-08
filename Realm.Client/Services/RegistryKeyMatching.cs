@@ -1,6 +1,5 @@
 ﻿﻿using System;
 using System.Collections.Generic;
-using Realm.Client.Core;
 using Realm.Ecs.Common;
 using Realm.Shared.Distribution;
 
@@ -12,41 +11,41 @@ namespace Realm.Client.Services;
 /// </summary>
 internal static class RegistryKeyMatching
 {
-	internal static bool CheckPropRegistryForMatch(string id, string cleanId, string normTarget, Func<string?, string, bool> isMatch)
+	internal static bool CheckPropRegistryForMatch(RegistryService registries, string id, string cleanId, string normTarget, Func<string?, string, bool> isMatch)
 	{
-		if (GameHost.PropRegistry.TryGetValue(id, out var meta) && isMatch(meta.ModelPath, normTarget)) return true;
-		if (!string.IsNullOrEmpty(cleanId) && GameHost.PropRegistry.TryGetValue(cleanId, out meta) && isMatch(meta.ModelPath, normTarget)) return true;
+		if (registries.PropRegistry.TryGetValue(id, out var meta) && isMatch(meta.ModelPath, normTarget)) return true;
+		if (!string.IsNullOrEmpty(cleanId) && registries.PropRegistry.TryGetValue(cleanId, out meta) && isMatch(meta.ModelPath, normTarget)) return true;
 		return false;
 	}
 
-	internal static bool MatchesUnitKey(string unitId, string? modelPath, string normTarget, Func<string?, string, bool> isMatch)
+	internal static bool MatchesUnitKey(RegistryService registries, string unitId, string? modelPath, string normTarget, Func<string?, string, bool> isMatch)
 	{
 		if (isMatch(unitId, normTarget)) return true;
 		if (isMatch(modelPath, normTarget)) return true;
-		if (GameHost.UnitRegistry.TryGetValue(unitId, out var meta) && isMatch(meta.ModelPath, normTarget)) return true;
-		if (GameHost.BuildingRegistry.TryGetValue(unitId, out var bldMeta) && isMatch(bldMeta.ModelPath, normTarget)) return true;
+		if (registries.UnitRegistry.TryGetValue(unitId, out var meta) && isMatch(meta.ModelPath, normTarget)) return true;
+		if (registries.BuildingRegistry.TryGetValue(unitId, out var bldMeta) && isMatch(bldMeta.ModelPath, normTarget)) return true;
 		return false;
 	}
 
-	internal static bool IsPropOrResourceKey(string key, string norm, string? resolved, Func<string, string> normalizeFunc)
+	internal static bool IsPropOrResourceKey(RegistryService registries, string key, string norm, string? resolved, Func<string, string> normalizeFunc)
 	{
-		if (GameHost.PropRegistry.ContainsKey(key) || GameHost.PropRegistry.ContainsKey(norm)) return true;
-		if (GameHost.ResourceRegistry.ContainsKey(key) || GameHost.ResourceRegistry.ContainsKey(norm)) return true;
+		if (registries.PropRegistry.ContainsKey(key) || registries.PropRegistry.ContainsKey(norm)) return true;
+		if (registries.ResourceRegistry.ContainsKey(key) || registries.ResourceRegistry.ContainsKey(norm)) return true;
 
-		if (HasMatchingPropOrResourceMetadata(norm, normalizeFunc)) return true;
-		if (MatchesPropOrResourcePathPattern(key) || MatchesPropOrResourcePathPattern(norm)) return true;
+		if (HasMatchingPropOrResourceMetadata(registries, norm, normalizeFunc)) return true;
+		if (MatchesPropOrResourcePathPattern(registries, key) || MatchesPropOrResourcePathPattern(registries, norm)) return true;
 
-		return !string.IsNullOrEmpty(resolved) && MatchesPropOrResourcePathPattern(resolved);
+		return !string.IsNullOrEmpty(resolved) && MatchesPropOrResourcePathPattern(registries, resolved);
 	}
 
-	internal static bool HasMatchingPropOrResourceMetadata(string norm, Func<string, string> normalizeFunc)
+	internal static bool HasMatchingPropOrResourceMetadata(RegistryService registries, string norm, Func<string, string> normalizeFunc)
 	{
-		return HasMatchingPropMetadata(norm, normalizeFunc) || HasMatchingResourceMetadata(norm, normalizeFunc);
+		return HasMatchingPropMetadata(registries, norm, normalizeFunc) || HasMatchingResourceMetadata(registries, norm, normalizeFunc);
 	}
 
-	internal static bool HasMatchingPropMetadata(string norm, Func<string, string> normalizeFunc)
+	internal static bool HasMatchingPropMetadata(RegistryService registries, string norm, Func<string, string> normalizeFunc)
 	{
-		foreach (var propMeta in GameHost.PropRegistry.Values)
+		foreach (var propMeta in registries.PropRegistry.Values)
 		{
 			if (!string.IsNullOrEmpty(propMeta.ModelPath) && normalizeFunc(propMeta.ModelPath) == norm) return true;
 			if (!string.IsNullOrEmpty(propMeta.TemplateID) && normalizeFunc(propMeta.TemplateID) == norm) return true;
@@ -55,9 +54,9 @@ internal static class RegistryKeyMatching
 		return false;
 	}
 
-	internal static bool HasMatchingResourceMetadata(string norm, Func<string, string> normalizeFunc)
+	internal static bool HasMatchingResourceMetadata(RegistryService registries, string norm, Func<string, string> normalizeFunc)
 	{
-		foreach (var resMeta in GameHost.ResourceRegistry.Values)
+		foreach (var resMeta in registries.ResourceRegistry.Values)
 		{
 			if (!string.IsNullOrEmpty(resMeta.ModelPath) && normalizeFunc(resMeta.ModelPath) == norm) return true;
 			if (!string.IsNullOrEmpty(resMeta.TemplateID) && normalizeFunc(resMeta.TemplateID) == norm) return true;
@@ -66,7 +65,7 @@ internal static class RegistryKeyMatching
 		return false;
 	}
 
-	internal static bool MatchesPropOrResourcePathPattern(string path)
+	internal static bool MatchesPropOrResourcePathPattern(RegistryService registries, string path)
 	{
 		return path.Contains("/props/", StringComparison.OrdinalIgnoreCase) ||
 		       path.Contains("\\props\\", StringComparison.OrdinalIgnoreCase) ||
@@ -76,10 +75,10 @@ internal static class RegistryKeyMatching
 		       path.StartsWith("resources/", StringComparison.OrdinalIgnoreCase);
 	}
 
-	internal static bool CheckBuildingRegistryForMatch(string id, string cleanId, string normTarget, Func<string?, string, bool> isMatch)
+	internal static bool CheckBuildingRegistryForMatch(RegistryService registries, string id, string cleanId, string normTarget, Func<string?, string, bool> isMatch)
 	{
-		if (GameHost.BuildingRegistry.TryGetValue(id, out var meta) && isMatch(meta.ModelPath, normTarget)) return true;
-		if (!string.IsNullOrEmpty(cleanId) && GameHost.BuildingRegistry.TryGetValue(cleanId, out meta) && isMatch(meta.ModelPath, normTarget)) return true;
+		if (registries.BuildingRegistry.TryGetValue(id, out var meta) && isMatch(meta.ModelPath, normTarget)) return true;
+		if (!string.IsNullOrEmpty(cleanId) && registries.BuildingRegistry.TryGetValue(cleanId, out meta) && isMatch(meta.ModelPath, normTarget)) return true;
 		return false;
 	}
 }

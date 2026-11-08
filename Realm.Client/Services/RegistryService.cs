@@ -134,134 +134,15 @@ public class RegistryService
 		}
 	}
 
-	public float GetRegistryCollisionCircleRatio(string primaryKey)
-	{
-		if (string.IsNullOrEmpty(primaryKey)) return 1.0f;
+	public float GetRegistryCollisionCircleRatio(string primaryKey) => RegistryLookups.GetRegistryCollisionCircleRatio(this, primaryKey);
 
-		if (UnitRegistry.TryGetValue(primaryKey, out var meta) && meta.CollisionCircle > 0f) return meta.CollisionCircle;
-		if (BuildingRegistry.TryGetValue(primaryKey, out var buildingMeta) && buildingMeta.CollisionCircle > 0f) return buildingMeta.CollisionCircle;
-		if (ResourceRegistry.TryGetValue(primaryKey, out var resMeta) && resMeta.CollisionCircle > 0f) return resMeta.CollisionCircle;
-		if (PropRegistry.TryGetValue(primaryKey, out var propMeta) && propMeta.CollisionCircle > 0f) return propMeta.CollisionCircle;
+	public bool TryGetRegistryBrightness(string key, out float brightness) => RegistryLookups.TryGetRegistryBrightness(this, key, out brightness);
 
-		return 1.0f;
-	}
+	public bool TryGetRegistryColorTint(string key, out Color color) => RegistryLookups.TryGetRegistryColorTint(this, key, out color);
 
-	public bool TryGetRegistryBrightness(string key, out float brightness)
-	{
-		brightness = 0f;
-		if (UnitRegistry.TryGetValue(key, out var meta) && meta.Brightness > 0f)
-		{
-			brightness = meta.Brightness;
-			return true;
-		}
+	public void UpdateLuminanceInRegistries(string assetKey, bool normalizeLuminance) => RegistryLookups.UpdateLuminanceInRegistries(this, assetKey, normalizeLuminance);
 
-		if (BuildingRegistry.TryGetValue(key, out var buildingMeta) && buildingMeta.Brightness > 0f)
-		{
-			brightness = buildingMeta.Brightness;
-			return true;
-		}
-
-		if (ResourceRegistry.TryGetValue(key, out var resMeta) && resMeta.Brightness > 0f)
-		{
-			brightness = resMeta.Brightness;
-			return true;
-		}
-
-		if (PropRegistry.TryGetValue(key, out var propMeta) && propMeta.Brightness > 0f)
-		{
-			brightness = propMeta.Brightness;
-			return true;
-		}
-
-		return false;
-	}
-
-	public bool TryGetRegistryColorTint(string key, out Color color)
-	{
-		color = default;
-		if (UnitRegistry.TryGetValue(key, out var meta) && !string.IsNullOrEmpty(meta.Tint) && Color.HtmlIsValid(meta.Tint))
-		{
-			color = Color.FromHtml(meta.Tint);
-			return true;
-		}
-
-		if (BuildingRegistry.TryGetValue(key, out var buildingMeta) && !string.IsNullOrEmpty(buildingMeta.Tint) && Color.HtmlIsValid(buildingMeta.Tint))
-		{
-			color = Color.FromHtml(buildingMeta.Tint);
-			return true;
-		}
-
-		if (ResourceRegistry.TryGetValue(key, out var resMeta) && !string.IsNullOrEmpty(resMeta.Tint) && Color.HtmlIsValid(resMeta.Tint))
-		{
-			color = Color.FromHtml(resMeta.Tint);
-			return true;
-		}
-
-		if (PropRegistry.TryGetValue(key, out var propMeta) && !string.IsNullOrEmpty(propMeta.Tint) && Color.HtmlIsValid(propMeta.Tint))
-		{
-			color = Color.FromHtml(propMeta.Tint);
-			return true;
-		}
-
-		return false;
-	}
-
-	public void UpdateLuminanceInRegistries(string assetKey, bool normalizeLuminance)
-	{
-		if (UnitRegistry.TryGetValue(assetKey, out var unitMeta))
-		{
-			unitMeta.NormalizeLuminance = normalizeLuminance;
-			UnitRegistry[assetKey] = unitMeta;
-		}
-
-		if (BuildingRegistry.TryGetValue(assetKey, out var bldMeta))
-		{
-			bldMeta.NormalizeLuminance = normalizeLuminance;
-			BuildingRegistry[assetKey] = bldMeta;
-		}
-
-		if (ResourceRegistry.TryGetValue(assetKey, out var resMeta))
-		{
-			resMeta.NormalizeLuminance = normalizeLuminance;
-			ResourceRegistry[assetKey] = resMeta;
-		}
-
-		if (PropRegistry.TryGetValue(assetKey, out var propMeta))
-		{
-			propMeta.NormalizeLuminance = normalizeLuminance;
-			PropRegistry[assetKey] = propMeta;
-		}
-	}
-
-	public bool TryGetRegistryDeathShader(string key, out string shader)
-	{
-		shader = "";
-		if (UnitRegistry.TryGetValue(key, out var meta) && !string.IsNullOrWhiteSpace(meta.DeathShader))
-		{
-			shader = meta.DeathShader;
-			return true;
-		}
-
-		if (BuildingRegistry.TryGetValue(key, out var bldMeta) && !string.IsNullOrWhiteSpace(bldMeta.DeathShader))
-		{
-			shader = bldMeta.DeathShader;
-			return true;
-		}
-
-		if (ResourceRegistry.TryGetValue(key, out var resMeta) && !string.IsNullOrWhiteSpace(resMeta.DeathShader))
-		{
-			shader = resMeta.DeathShader;
-			return true;
-		}
-
-		if (PropRegistry.TryGetValue(key, out var propMeta) && !string.IsNullOrWhiteSpace(propMeta.DeathShader))
-		{
-			shader = propMeta.DeathShader;
-			return true;
-		}
-
-		return false;
-	}
+	public bool TryGetRegistryDeathShader(string key, out string shader) => RegistryLookups.TryGetRegistryDeathShader(this, key, out shader);
 
 	public readonly Dictionary<StringName, UnitMetadata> UnitRegistry = new();
 	public readonly Dictionary<StringName, UnitMetadata> BuildingRegistry = new();
@@ -416,21 +297,21 @@ public class RegistryService
 
 	public TooltipValueStore TooltipValues { get; } = new();
 
-	public bool CheckPropRegistryForMatch(string id, string cleanId, string normTarget, Func<string?, string, bool> isMatch) => RegistryKeyMatching.CheckPropRegistryForMatch(id, cleanId, normTarget, isMatch);
+	public bool CheckPropRegistryForMatch(string id, string cleanId, string normTarget, Func<string?, string, bool> isMatch) => RegistryKeyMatching.CheckPropRegistryForMatch(this, id, cleanId, normTarget, isMatch);
 
-	public bool MatchesUnitKey(string unitId, string? modelPath, string normTarget, Func<string?, string, bool> isMatch) => RegistryKeyMatching.MatchesUnitKey(unitId, modelPath, normTarget, isMatch);
+	public bool MatchesUnitKey(string unitId, string? modelPath, string normTarget, Func<string?, string, bool> isMatch) => RegistryKeyMatching.MatchesUnitKey(this, unitId, modelPath, normTarget, isMatch);
 
-	public bool IsPropOrResourceKey(string key, string norm, string? resolved, Func<string, string> normalizeFunc) => RegistryKeyMatching.IsPropOrResourceKey(key, norm, resolved, normalizeFunc);
+	public bool IsPropOrResourceKey(string key, string norm, string? resolved, Func<string, string> normalizeFunc) => RegistryKeyMatching.IsPropOrResourceKey(this, key, norm, resolved, normalizeFunc);
 
-	public bool HasMatchingPropOrResourceMetadata(string norm, Func<string, string> normalizeFunc) => RegistryKeyMatching.HasMatchingPropOrResourceMetadata(norm, normalizeFunc);
+	public bool HasMatchingPropOrResourceMetadata(string norm, Func<string, string> normalizeFunc) => RegistryKeyMatching.HasMatchingPropOrResourceMetadata(this, norm, normalizeFunc);
 
-	public bool HasMatchingPropMetadata(string norm, Func<string, string> normalizeFunc) => RegistryKeyMatching.HasMatchingPropMetadata(norm, normalizeFunc);
+	public bool HasMatchingPropMetadata(string norm, Func<string, string> normalizeFunc) => RegistryKeyMatching.HasMatchingPropMetadata(this, norm, normalizeFunc);
 
-	public bool HasMatchingResourceMetadata(string norm, Func<string, string> normalizeFunc) => RegistryKeyMatching.HasMatchingResourceMetadata(norm, normalizeFunc);
+	public bool HasMatchingResourceMetadata(string norm, Func<string, string> normalizeFunc) => RegistryKeyMatching.HasMatchingResourceMetadata(this, norm, normalizeFunc);
 
-	public bool MatchesPropOrResourcePathPattern(string path) => RegistryKeyMatching.MatchesPropOrResourcePathPattern(path);
+	public bool MatchesPropOrResourcePathPattern(string path) => RegistryKeyMatching.MatchesPropOrResourcePathPattern(this, path);
 
-	public bool CheckBuildingRegistryForMatch(string id, string cleanId, string normTarget, Func<string?, string, bool> isMatch) => RegistryKeyMatching.CheckBuildingRegistryForMatch(id, cleanId, normTarget, isMatch);
+	public bool CheckBuildingRegistryForMatch(string id, string cleanId, string normTarget, Func<string?, string, bool> isMatch) => RegistryKeyMatching.CheckBuildingRegistryForMatch(this, id, cleanId, normTarget, isMatch);
 
 	public bool TryGetRegistryYOffset(string key, out float offset)
 	{
