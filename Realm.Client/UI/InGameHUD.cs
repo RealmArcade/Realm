@@ -169,8 +169,6 @@ public partial class InGameHUD : Control
 	private Camera3D? _camera3D;
 
 	private PanelContainer _chatPanel = null!;
-	private LineEdit _chatInput = null!;
-	private RichTextLabel _chatLog = null!;
 	public bool IsChatActive => _chatPanelController.IsChatActive;
 
 	public int LiveSpectatorPerspective
@@ -403,29 +401,8 @@ public partial class InGameHUD : Control
 
 	private void SetupChatPanel()
 	{
-		_chatPanel = GetNode<PanelContainer>("ChatPanel");
-		_chatInput = GetNode<LineEdit>("ChatPanel/ChatContainer/ChatInput");
-		_chatLog = GetNode<RichTextLabel>("ChatPanel/ChatContainer/ChatLog");
-
-		var chatPanelStyle = new StyleBoxFlat();
-		chatPanelStyle.BgColor = new Color(0.15f, 0.15f, 0.15f, 0.9f);
-		chatPanelStyle.SetBorderWidthAll(1);
-		chatPanelStyle.BorderColor = new Color(0.25f, 0.25f, 0.25f, 0.9f);
-		chatPanelStyle.SetCornerRadiusAll(4);
-		chatPanelStyle.ContentMarginLeft = 8;
-		chatPanelStyle.ContentMarginRight = 8;
-		chatPanelStyle.ContentMarginTop = 8;
-		chatPanelStyle.ContentMarginBottom = 8;
-		_chatPanel.AddThemeStyleboxOverride("panel", chatPanelStyle);
-		_chatInput.AddThemeStyleboxOverride("normal", UIStyle.CreateTextInput(false));
-		_chatInput.AddThemeStyleboxOverride("focus", UIStyle.CreateTextInput(true));
-		_chatInput.AddThemeColorOverride("font_color", new Color(0.9f, 0.85f, 0.7f));
-		_chatLog.Text = $"[color=#ffd700]{TranslationServer.Translate("Chat log initialized. Press Enter to type a message.")}[/color]\n";
-
-		if (!string.IsNullOrEmpty(GameContext.Lobby?.LastLobbyWarning))
-		{
-			_chatLog.AppendText($"[color=#ffb347]{GameContext.Lobby.LastLobbyWarning}[/color]\n");
-		}
+		_chatPanelController = ChatPanel.Create(this);
+		_chatPanel = _chatPanelController.Panel;
 
 		if (GameContext.Lobby != null)
 		{
@@ -514,7 +491,6 @@ public partial class InGameHUD : Control
 
 		_camera3D = GameContext.Host?.MainCamera;
 		_minimapPanelController = new MinimapPanel(_minimapFrame, _minimapArea, _cameraIndicator, _camera3D);
-		_chatPanelController = new ChatPanel(_chatPanel, _chatInput, _chatLog);
 		_scoreboardPanelController = new ScoreboardPanel(_scoreboardPanel, _scoreboardTitleLabel, _scoreboardCollapseButton, _scoreboardContent, _scoreboardSelectors, _scoreboardLeaderboardContent, _scoreboardSummaryContent);
 
 		_portraitPanelController = new PortraitPanel(

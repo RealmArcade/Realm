@@ -21,6 +21,43 @@ public class ChatPanel
 
 	public bool IsChatActive => _isChatActive;
 
+	public PanelContainer Panel => _chatPanelNode;
+
+	/// <summary>
+	///     Resolves the scene's chat nodes, paints them and returns the controller. The panel's "panel" stylebox is
+	///     installed here because <see cref="UpdateChatPanelActiveState" /> reaches back for it to dim the log when the
+	///     input is closed.
+	/// </summary>
+	public static ChatPanel Create(Node root)
+	{
+		var panel = root.GetNode<PanelContainer>("ChatPanel");
+		var input = root.GetNode<LineEdit>("ChatPanel/ChatContainer/ChatInput");
+		var log = root.GetNode<RichTextLabel>("ChatPanel/ChatContainer/ChatLog");
+
+		var panelStyle = new StyleBoxFlat();
+		panelStyle.BgColor = new Color(0.15f, 0.15f, 0.15f, 0.9f);
+		panelStyle.SetBorderWidthAll(1);
+		panelStyle.BorderColor = new Color(0.25f, 0.25f, 0.25f, 0.9f);
+		panelStyle.SetCornerRadiusAll(4);
+		panelStyle.ContentMarginLeft = 8;
+		panelStyle.ContentMarginRight = 8;
+		panelStyle.ContentMarginTop = 8;
+		panelStyle.ContentMarginBottom = 8;
+		panel.AddThemeStyleboxOverride("panel", panelStyle);
+
+		input.AddThemeStyleboxOverride("normal", UIStyle.CreateTextInput(false));
+		input.AddThemeStyleboxOverride("focus", UIStyle.CreateTextInput(true));
+		input.AddThemeColorOverride("font_color", new Color(0.9f, 0.85f, 0.7f));
+
+		log.Text = $"[color=#ffd700]{TranslationServer.Translate("Chat log initialized. Press Enter to type a message.")}[/color]\n";
+		if (!string.IsNullOrEmpty(GameContext.Lobby?.LastLobbyWarning))
+		{
+			log.AppendText($"[color=#ffb347]{GameContext.Lobby.LastLobbyWarning}[/color]\n");
+		}
+
+		return new ChatPanel(panel, input, log);
+	}
+
 	public ChatPanel(PanelContainer chatPanelNode, LineEdit chatInput, RichTextLabel chatLog)
 	{
 		_chatPanelNode = chatPanelNode;
