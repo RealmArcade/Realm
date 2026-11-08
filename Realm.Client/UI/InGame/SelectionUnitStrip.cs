@@ -65,8 +65,7 @@ public static class SelectionUnitStrip
 		hpBar.ShowPercentage = false;
 		hpBar.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.BottomWide);
 		hpBar.OffsetTop = -6;
-		hpBar.AddThemeStyleboxOverride("background", UIStyle.CreateSliderTrack());
-		hpBar.AddThemeStyleboxOverride("fill", UIStyle.CreateSliderFill());
+		UIStyle.ApplyProgressBar(hpBar);
 		hpBar.Visible = false;
 		return hpBar;
 	}
