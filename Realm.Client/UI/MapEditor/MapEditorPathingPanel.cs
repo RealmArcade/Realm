@@ -93,16 +93,8 @@ public class MapEditorPathingPanel
 		var modePanel = new PanelContainer();
 		modePanel.Name = "ModeRowPanel";
 		modePanel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		var modeStyle = new StyleBoxFlat();
-		modeStyle.BgColor = new Color(0.12f, 0.13f, 0.16f, 0.82f);
-		modeStyle.BorderColor = new Color(0.35f, 0.33f, 0.28f, 0.75f);
-		modeStyle.SetBorderWidthAll(1);
-		modeStyle.SetCornerRadiusAll(4);
-		modeStyle.ContentMarginLeft = 8;
-		modeStyle.ContentMarginRight = 8;
-		modeStyle.ContentMarginTop = 4;
-		modeStyle.ContentMarginBottom = 4;
-		modePanel.AddThemeStyleboxOverride("panel", modeStyle);
+		modePanel.AddThemeStyleboxOverride("panel",
+			UIStyle.CreateCardPlate(new Color(0.12f, 0.13f, 0.16f, 0.82f), new Color(0.35f, 0.33f, 0.28f, 0.75f), 1, 4, 8, 8, 4, 4));
 
 		int modeIdx = pathingModeRow.GetIndex();
 		pathingContent.RemoveChild(pathingModeRow);
@@ -128,16 +120,8 @@ public class MapEditorPathingPanel
 		rowPanel.Name = "RowPanel" + chk.Name;
 		rowPanel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 
-		var rowStyle = new StyleBoxFlat();
-		rowStyle.BgColor = new Color(0.12f, 0.13f, 0.16f, 0.82f);
-		rowStyle.BorderColor = new Color(0.35f, 0.33f, 0.28f, 0.75f);
-		rowStyle.SetBorderWidthAll(1);
-		rowStyle.SetCornerRadiusAll(4);
-		rowStyle.ContentMarginLeft = 8;
-		rowStyle.ContentMarginRight = 8;
-		rowStyle.ContentMarginTop = 3;
-		rowStyle.ContentMarginBottom = 3;
-		rowPanel.AddThemeStyleboxOverride("panel", rowStyle);
+		rowPanel.AddThemeStyleboxOverride("panel",
+			UIStyle.CreateCardPlate(new Color(0.12f, 0.13f, 0.16f, 0.82f), new Color(0.35f, 0.33f, 0.28f, 0.75f), 1, 4, 8, 8, 3, 3));
 
 		var row = new HBoxContainer();
 		row.Name = "Row" + chk.Name;
@@ -154,12 +138,8 @@ public class MapEditorPathingPanel
 		colorBox.SizeFlagsVertical = SizeFlags.ShrinkCenter;
 		colorBox.TooltipText = TranslationServer.Translate(labelText);
 
-		var boxStyle = new StyleBoxFlat();
-		boxStyle.BgColor = color;
-		boxStyle.BorderColor = new Color(0.95f, 0.95f, 1.0f, 0.85f);
-		boxStyle.SetBorderWidthAll(1);
-		boxStyle.SetCornerRadiusAll(3);
-		colorBox.AddThemeStyleboxOverride("panel", boxStyle);
+		colorBox.AddThemeStyleboxOverride("panel",
+			UIStyle.CreateButtonPlate(color, new Color(0.95f, 0.95f, 1.0f, 0.85f), 3));
 
 		colorBox.GuiInput += (@event) =>
 		{
