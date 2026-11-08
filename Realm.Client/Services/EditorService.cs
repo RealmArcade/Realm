@@ -747,14 +747,15 @@ public partial class EditorService : IEditorAPI
 
 	private readonly EditorTerrainEditSession _terrainEdit;
 	private readonly EditorPasteWriter _paste;
+	private readonly EditorAreaClipboard _clipboard;
 
 	public EditorService()
 	{
 		_terrainEdit = new EditorTerrainEditSession(_surface);
 		_paste = new EditorPasteWriter(_surface);
+		_clipboard = new EditorAreaClipboard(_surface);
 	}
 
-	private CopiedAreaTemplate? _copiedArea;
 
 	private Vector2I? _selectionStart;
 	private Vector2I? _selectionEnd;
@@ -769,7 +770,6 @@ public partial class EditorService : IEditorAPI
 	private bool _hasCachedRandom;
 	private bool _isPastingObject;
 
-	private CopiedObjectTemplate? _copiedObject;
 	private Godot.Vector3? _rampStartPos;
 
 
@@ -827,46 +827,45 @@ public partial class EditorService : IEditorAPI
 	public Vector2I? ObjectMarqueeEnd => _objectMarqueeEnd;
 	public bool IsObjectMarqueeSelecting => _isObjectMarqueeSelecting;
 
+
+
+
+
+
 	public CopiedAreaTemplate? CopiedArea
 	{
-		get => _copiedArea;
-		set => _copiedArea = value;
+		get => _clipboard.CopiedArea;
+		set => _clipboard.CopiedArea = value;
 	}
 
-	public bool HasCopiedArea => _copiedArea != null;
-	public int CopiedAreaWidth => _copiedArea?.Width ?? 0;
-	public int CopiedAreaDepth => _copiedArea?.Depth ?? 0;
-	public int CopiedAreaAnchorX => _copiedArea?.AnchorTileX ?? 0;
-	public int CopiedAreaAnchorZ => _copiedArea?.AnchorTileZ ?? 0;
-	public int CopiedAreaSourceMinX => _copiedArea?.SourceMinX ?? 0;
-	public int CopiedAreaSourceMinZ => _copiedArea?.SourceMinZ ?? 0;
-	public int CopiedAreaSourceMaxX => _copiedArea?.SourceMaxX ?? 0;
-	public int CopiedAreaSourceMaxZ => _copiedArea?.SourceMaxZ ?? 0;
-	public bool HasCopiedAreaMask => _copiedArea?.Mask != null;
-	public bool IsCopiedCellMasked(int srcX, int srcZ) => _copiedArea == null || _copiedArea.Mask == null || (srcX >= 0 && srcX < _copiedArea.Width && srcZ >= 0 && srcZ < _copiedArea.Depth && _copiedArea.Mask[srcX, srcZ]);
+	public bool HasCopiedArea => _clipboard.HasCopiedArea;
+	public int CopiedAreaWidth => _clipboard.CopiedAreaWidth;
+	public int CopiedAreaDepth => _clipboard.CopiedAreaDepth;
+	public int CopiedAreaAnchorX => _clipboard.CopiedAreaAnchorX;
+	public int CopiedAreaAnchorZ => _clipboard.CopiedAreaAnchorZ;
+	public int CopiedAreaSourceMinX => _clipboard.CopiedAreaSourceMinX;
+	public int CopiedAreaSourceMinZ => _clipboard.CopiedAreaSourceMinZ;
+	public int CopiedAreaSourceMaxX => _clipboard.CopiedAreaSourceMaxX;
+	public int CopiedAreaSourceMaxZ => _clipboard.CopiedAreaSourceMaxZ;
+	public bool HasCopiedAreaMask => _clipboard.HasCopiedAreaMask;
+	public bool IsCopiedCellMasked(int srcX, int srcZ) => _clipboard.IsCopiedCellMasked(srcX, srcZ);
 
+	public int GetPasteAnchorX(int index, int width) => _clipboard.GetPasteAnchorX(index, width);
 
-	public int GetPasteAnchorX(int index, int width)
-	{
-		return index switch
-		{
-			0 => width / 2,
-			1 => 0,
-			2 => Math.Max(0, width - 1),
-			3 => Math.Max(0, width - 1),
-			4 => 0,
-			_ => width / 2
-		};
-	}
+	public void SetCopiedAreaAnchor(int anchorTileX, int anchorTileZ) => _clipboard.SetCopiedAreaAnchor(anchorTileX, anchorTileZ);
 
-	public void SetCopiedAreaAnchor(int anchorTileX, int anchorTileZ)
-	{
-		if (_copiedArea != null)
-		{
-			_copiedArea.AnchorTileX = Mathf.Clamp(anchorTileX, 0, Math.Max(0, _copiedArea.Width - 1));
-			_copiedArea.AnchorTileZ = Mathf.Clamp(anchorTileZ, 0, Math.Max(0, _copiedArea.Depth - 1));
-		}
-	}
+	public CopiedObjectTemplate? GetCopiedObject() => _clipboard.GetCopiedObject();
+
+	public void SetCopiedObject(CopiedObjectTemplate? template) => _clipboard.SetCopiedObject(template);
+
+	public void CopyArea(int minX, int minZ, int maxX, int maxZ, List<CopiedEntityInfo> entities, bool isSquare = true) =>
+		_clipboard.CopyArea(minX, minZ, maxX, maxZ, entities, isSquare);
+
+	public List<CopiedEntityInfo> BuildCopiedEntityList(
+		int minX, int minZ, int maxX, int maxZ,
+		IReadOnlyList<CopiedEntityCandidate> candidates,
+		bool isSquare = true) =>
+		_clipboard.BuildCopiedEntityList(minX, minZ, maxX, maxZ, candidates, isSquare);
 
 	private Vector2 _symmetryPivot = Vector2.Zero;
 	private int _symmetryFolds = 4;
@@ -887,12 +886,7 @@ public partial class EditorService : IEditorAPI
 	public bool IsDrawingTerrain => _terrainEdit.IsDrawing;
 	public bool IsDrawingClump => _clump.IsDrawing;
 
-	public CopiedObjectTemplate? GetCopiedObject() => _copiedObject;
 
-	public void SetCopiedObject(CopiedObjectTemplate? template)
-	{
-		_copiedObject = template;
-	}
 
 	public void CopyEditorPropDomain(string propId, float rotation, float scale)
 	{
@@ -1111,7 +1105,7 @@ public partial class EditorService : IEditorAPI
 		_selectionStart = null;
 		_selectionEnd = null;
 		ClearObjectMarquee();
-		_copiedArea = null;
+		_clipboard.ClearArea();
 		_terrainEdit.ResetAll();
 		_surface.SplatMap = null;
 		_surface.CliffSplatMap = null;
@@ -1400,192 +1394,7 @@ public partial class EditorService : IEditorAPI
 		return result;
 	}
 
-	public void CopyArea(int minX, int minZ, int maxX, int maxZ, List<CopiedEntityInfo> entities, bool isSquare = true)
-	{
-		ref var terrain = ref GetTerrainState();
-		var cells = terrain.Cells;
-		if (cells == null) return;
 
-		if (_surface.SplatMap == null && GameContext.Host?.GroundTerrain != null)
-		{
-			_surface.SplatMap = GameContext.Host.GroundTerrain.SplatMap;
-		}
-
-		if (_surface.CliffSplatMap == null && GameContext.Host?.GroundTerrain != null)
-		{
-			_surface.CliffSplatMap = GameContext.Host.GroundTerrain.CliffSplatMap;
-		}
-
-		int selWidth = maxX - minX + 1;
-		int selDepth = maxZ - minZ + 1;
-		var copiedCells = new TerrainCell[selWidth, selDepth];
-		var splatMap = _surface.SplatMap != null ? new TerrainSplatWeights[selWidth + 1, selDepth + 1] : null;
-		var cliffSplatMap = _surface.CliffSplatMap != null ? new TerrainSplatWeights[selWidth + 1, selDepth + 1] : null;
-		var pathing = new int[selWidth, selDepth];
-		var mask = isSquare ? null : new bool[selWidth, selDepth];
-
-		float selCenterX = (minX + maxX) * 0.5f;
-		float selCenterZ = (minZ + maxZ) * 0.5f;
-		float rx = Math.Max(0.5f, (maxX - minX) * 0.5f);
-		float rz = Math.Max(0.5f, (maxZ - minZ) * 0.5f);
-
-		for (int sz = 0; sz < selDepth; sz++)
-		{
-			for (int sx = 0; sx < selWidth; sx++)
-			{
-				int sourceX = Math.Clamp(minX + sx, 0, terrain.Width - 1);
-				int sourceZ = Math.Clamp(minZ + sz, 0, terrain.Depth - 1);
-				bool inBounds = true;
-				if (!isSquare)
-				{
-					float cellCenterX = minX + sx + 0.5f;
-					float cellCenterZ = minZ + sz + 0.5f;
-					float ndx = (cellCenterX - selCenterX) / rx;
-					float ndz = (cellCenterZ - selCenterZ) / rz;
-					inBounds = (ndx * ndx + ndz * ndz <= 1.05f);
-				}
-
-				if (mask != null)
-				{
-					mask[sx, sz] = inBounds;
-				}
-
-				if (inBounds)
-				{
-					copiedCells[sx, sz] = cells[sourceX, sourceZ];
-					if (terrain.PathingCodes != null && sourceX < terrain.PathingCodes.GetLength(0) && sourceZ < terrain.PathingCodes.GetLength(1))
-					{
-						pathing[sx, sz] = terrain.PathingCodes[sourceX, sourceZ];
-					}
-				}
-			}
-		}
-
-		if (_surface.SplatMap != null && splatMap != null)
-		{
-			int mapW = _surface.SplatMap.GetLength(0);
-			int mapD = _surface.SplatMap.GetLength(1);
-			for (int vz = 0; vz <= selDepth; vz++)
-			{
-				for (int vx = 0; vx <= selWidth; vx++)
-				{
-					int sourceVx = Math.Clamp(minX + vx, 0, mapW - 1);
-					int sourceVz = Math.Clamp(minZ + vz, 0, mapD - 1);
-					splatMap[vx, vz] = _surface.SplatMap[sourceVx, sourceVz];
-				}
-			}
-		}
-
-		if (_surface.CliffSplatMap != null && cliffSplatMap != null)
-		{
-			int mapCW = _surface.CliffSplatMap.GetLength(0);
-			int mapCD = _surface.CliffSplatMap.GetLength(1);
-			for (int vz = 0; vz <= selDepth; vz++)
-			{
-				for (int vx = 0; vx <= selWidth; vx++)
-				{
-					int sourceVx = Math.Clamp(minX + vx, 0, mapCW - 1);
-					int sourceVz = Math.Clamp(minZ + vz, 0, mapCD - 1);
-					cliffSplatMap[vx, vz] = _surface.CliffSplatMap[sourceVx, sourceVz];
-				}
-			}
-		}
-
-		_copiedArea = new CopiedAreaTemplate
-		{
-			Width = selWidth,
-			Depth = selDepth,
-			AnchorTileX = selWidth / 2,
-			AnchorTileZ = selDepth / 2,
-			SourceMinX = minX,
-			SourceMinZ = minZ,
-			SourceMaxX = maxX,
-			SourceMaxZ = maxZ,
-			Cells = copiedCells,
-			SplatMap = splatMap,
-			CliffSplatMap = cliffSplatMap,
-			Pathing = pathing,
-			Entities = entities,
-			Mask = mask
-		};
-	}
-
-	public List<CopiedEntityInfo> BuildCopiedEntityList(
-		int minX, int minZ, int maxX, int maxZ,
-		IReadOnlyList<CopiedEntityCandidate> candidates,
-		bool isSquare = true)
-	{
-		ref var terrain = ref GetTerrainState();
-		if (terrain.Cells == null) return new List<CopiedEntityInfo>();
-
-		int width = terrain.Width;
-		int depth = terrain.Depth;
-		float quadSize = terrain.QuadSize;
-
-		EditorTerrainSurface.CalculateWorldBounds(minX, minZ, maxX, maxZ, width, depth, quadSize, out float minWorldX, out float maxWorldX, out float minWorldZ, out float maxWorldZ, out float centerWorldX, out float centerWorldZ, out float rxWorld, out float rzWorld);
-		Godot.Vector3 origin = new Godot.Vector3((minX - width / 2.0f) * quadSize, 0.0f, (minZ - depth / 2.0f) * quadSize);
-
-		var entities = new List<CopiedEntityInfo>();
-		for (int index = 0; index < candidates.Count; index++)
-		{
-			CopiedEntityCandidate candidate = candidates[index];
-			Godot.Vector3 pos = candidate.Position;
-			if (pos.X < minWorldX || pos.X > maxWorldX || pos.Z < minWorldZ || pos.Z > maxWorldZ) continue;
-
-			if (!isSquare)
-			{
-				float ndx = (pos.X - centerWorldX) / rxWorld;
-				float ndz = (pos.Z - centerWorldZ) / rzWorld;
-				if (ndx * ndx + ndz * ndz > 1.0f) continue;
-			}
-
-			entities.Add(new CopiedEntityInfo
-			{
-				Type = candidate.Type,
-				Id = candidate.Id,
-				RelativePos = pos - origin,
-				Rotation = candidate.RotationY,
-				Scale = candidate.Scale,
-				Player = candidate.Player
-			});
-		}
-
-		if (GameContext.World != null)
-		{
-			var propQuery = QueryCache.AllPropIdentityAndPositionQuery;
-			var world = GameContext.World;
-			world.Query(in propQuery, (Entity entity, ref PropIdentity propIdComp, ref Position posComp) =>
-			{
-				if (GameHost.EntityToProp3D.ContainsKey(entity)) return;
-
-				Godot.Vector3 worldPos = new Godot.Vector3(posComp.Value.X, posComp.Value.Y, posComp.Value.Z);
-				if (worldPos.X >= minWorldX && worldPos.X <= maxWorldX && worldPos.Z >= minWorldZ && worldPos.Z <= maxWorldZ)
-				{
-					if (!isSquare)
-					{
-						float ndx = (worldPos.X - centerWorldX) / rxWorld;
-						float ndz = (worldPos.Z - centerWorldZ) / rzWorld;
-						if (ndx * ndx + ndz * ndz > 1.0f) return;
-					}
-
-					float rotY = world.Has<RotationY>(entity) ? world.Get<RotationY>(entity).Value : 0f;
-					float scale = world.Has<ModelScale>(entity) ? world.Get<ModelScale>(entity).Value : 1f;
-
-					entities.Add(new CopiedEntityInfo
-					{
-						Type = "prop",
-						Id = propIdComp.PropId,
-						RelativePos = worldPos - origin,
-						Rotation = rotY,
-						Scale = scale,
-						Player = 0
-					});
-				}
-			});
-		}
-
-		return entities;
-	}
 
 	public PasteAreaResult BuildPasteAreaResult(
 		int startX,
@@ -1601,8 +1410,8 @@ public partial class EditorService : IEditorAPI
 		var result = new PasteAreaResult();
 		result.SpawnRequests = new List<EntitySpawnRequest>();
 
-		if (_copiedArea == null) return result;
-		var copiedArea = _copiedArea;
+		if (_clipboard.CopiedArea == null) return result;
+		var copiedArea = _clipboard.CopiedArea;
 
 		ref var terrain = ref GetTerrainState();
 		if (terrain.Cells == null) return result;
@@ -1621,8 +1430,8 @@ public partial class EditorService : IEditorAPI
 		int depth = terrain.Depth;
 		float quadSize = terrain.QuadSize;
 
-		int pasteWidth = _copiedArea.Width;
-		int pasteDepth = _copiedArea.Depth;
+		int pasteWidth = copiedArea.Width;
+		int pasteDepth = copiedArea.Depth;
 		bool modified = false;
 		bool pathingModified = false;
 
@@ -1717,7 +1526,7 @@ public partial class EditorService : IEditorAPI
 
 			Godot.Vector3 originalCenterOffset = new Godot.Vector3((pasteWidth - 1) / 2.0f * quadSize, 0, (pasteDepth - 1) / 2.0f * quadSize);
 
-			foreach (var ent in _copiedArea.Entities)
+			foreach (var ent in copiedArea.Entities)
 			{
 				Godot.Vector3 relPos = ent.RelativePos;
 				float entRot = ent.Rotation;
@@ -1990,7 +1799,7 @@ public partial class EditorService : IEditorAPI
 
 	public (int startX, int startZ, int targetWidth, int targetDepth) GetAnchoredPasteBounds(int targetX, int targetZ, float rotationDegrees, PasteReflection reflection = PasteReflection.None)
 	{
-		return EditorGridSnapping.GetAnchoredPasteBounds(_copiedArea, targetX, targetZ, rotationDegrees, reflection);
+		return EditorGridSnapping.GetAnchoredPasteBounds(_clipboard.CopiedArea, targetX, targetZ, rotationDegrees, reflection);
 	}
 
 	public (int minX, int minZ, int maxX, int maxZ) GetCurrentSelectionBounds()
