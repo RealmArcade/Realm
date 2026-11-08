@@ -17,33 +17,9 @@ public class MapCodeImportService
 	private const string ImportsRootFolder = "imports";
 	private const string AttributionNamespace = "Realm.Maps";
 	private const string SourceMapAttributeUsageName = "Attribution_SourceMap";
-	private const string SourceMapAttributeTypeName = "Attribution_SourceMapAttribute";
+	internal const string SourceMapAttributeTypeName = "Attribution_SourceMapAttribute";
 	internal const string ExportAttributeUsageName = "Export";
 	internal const string ExportAttributeTypeName = "ExportAttribute";
-
-	private static readonly HashSet<string> IgnoredDirectoryNames = new(StringComparer.OrdinalIgnoreCase)
-	{
-		"bin",
-		"obj",
-		".git",
-		".vs",
-		".godot",
-		".vscode",
-		".sidecarcache",
-		".backups",
-		"backups"
-	};
-
-	private static readonly HashSet<string> ExcludedTemplateFileNames = new(StringComparer.OrdinalIgnoreCase)
-	{
-		"MapScript.cs",
-		"Coordinates.cs",
-		"WasmEntryPoint.cs",
-		"WasmEntryPoint.g.cs",
-		"MapTemplates.g.cs",
-		SourceMapAttributeTypeName + ".cs"
-	};
-
 	private static readonly string[] RetainedUsingPrefixes =
 	{
 		"System",
@@ -63,7 +39,7 @@ public class MapCodeImportService
 
 	private IReadOnlyList<MapCodeTypeCandidate> EnumerateTypeCandidates(MapAssetImportSource source, string destinationWorkspacePath, bool requireExported)
 	{
-		SourceCodeIndex sourceIndex = LoadSourceIndex(source);
+		SourceCodeIndex sourceIndex = CodeWorkspaceFiles.LoadSourceIndex(source);
 		DestinationCodeIndex destinationIndex = ScanDestination(destinationWorkspacePath);
 		var candidates = new List<MapCodeTypeCandidate>(sourceIndex.TypesByFullName.Count);
 
@@ -108,7 +84,7 @@ public class MapCodeImportService
 
 	public IReadOnlyList<MapCodeNamespaceCandidate> EnumerateNamespaces(MapAssetImportSource source, string destinationWorkspacePath)
 	{
-		SourceCodeIndex sourceIndex = LoadSourceIndex(source);
+		SourceCodeIndex sourceIndex = CodeWorkspaceFiles.LoadSourceIndex(source);
 		DestinationCodeIndex destinationIndex = ScanDestination(destinationWorkspacePath);
 		var candidates = new List<MapCodeNamespaceCandidate>();
 
@@ -153,7 +129,7 @@ public class MapCodeImportService
 
 	public MapCodeImportSummary ImportTypes(MapAssetImportSource source, string destinationWorkspacePath, IReadOnlyCollection<string> typeFullNames)
 	{
-		SourceCodeIndex sourceIndex = LoadSourceIndex(source);
+		SourceCodeIndex sourceIndex = CodeWorkspaceFiles.LoadSourceIndex(source);
 		var requestedTypes = new List<SourceType>();
 		var summary = new MapCodeImportSummary();
 
@@ -174,7 +150,7 @@ public class MapCodeImportService
 
 	public MapCodeImportSummary ImportNamespaces(MapAssetImportSource source, string destinationWorkspacePath, IReadOnlyCollection<string> namespaceNames)
 	{
-		SourceCodeIndex sourceIndex = LoadSourceIndex(source);
+		SourceCodeIndex sourceIndex = CodeWorkspaceFiles.LoadSourceIndex(source);
 		var requestedTypes = new List<SourceType>();
 		var summary = new MapCodeImportSummary();
 
@@ -665,155 +641,16 @@ public class MapCodeImportService
 		return -1;
 	}
 
-	private static SourceCodeIndex LoadSourceIndex(MapAssetImportSource source)
-	{
-		List<SourceFile> sourceFiles = LoadSourceFiles(source);
-		return SourceCodeIndex.Build(sourceFiles);
-	}
 
-	private static List<SourceFile> LoadSourceFiles(MapAssetImportSource source)
-	{
-		var sourceFiles = new List<SourceFile>();
-		if (string.IsNullOrEmpty(source.ManifestFilePath)) return sourceFiles;
 
-		MapManifest manifest;
-		try
-		{
-			manifest = MapManifest.LoadFromFile(source.ManifestFilePath);
-		}
-		catch (Exception exception)
-		{
-			GameLog.LogError($"[MapCodeImportService] Failed to read source manifest '{source.ManifestFilePath}': {exception.Message}");
-			return sourceFiles;
-		}
 
-		string sourceDirectory = Path.GetDirectoryName(source.ManifestFilePath) ?? string.Empty;
-		string? extractionDirectory = null;
-
-		try
-		{
-			foreach (var fileEntry in manifest.Files)
-			{
-				string relativePath = NormalizeCodeRelativePath(fileEntry.Key);
-				if (!IsCodeFilePath(relativePath)) continue;
-				if (string.IsNullOrEmpty(fileEntry.Value)) continue;
-
-				string text;
-				string directPath = GetAbsolutePath(sourceDirectory, relativePath);
-
-				if (File.Exists(directPath))
-				{
-					text = File.ReadAllText(directPath);
-				}
-				else
-				{
-					extractionDirectory ??= Path.Combine(Path.GetTempPath(), "realm_code_import", Guid.NewGuid().ToString("N"));
-					if (!MapAssetManager.ExtractSingleAsset(relativePath, fileEntry.Value, extractionDirectory)) continue;
-
-					string extractedPath = GetAbsolutePath(extractionDirectory, relativePath);
-					if (!File.Exists(extractedPath)) continue;
-
-					text = File.ReadAllText(extractedPath);
-				}
-
-				AddSourceFile(sourceFiles, relativePath, text);
-			}
-
-			LoadSourceFilesFromDisk(sourceDirectory, sourceFiles);
-		}
-		catch (Exception exception)
-		{
-			GameLog.LogError($"[MapCodeImportService] Failed to load source code files: {exception.Message}");
-		}
-		finally
-		{
-			if (extractionDirectory != null && Directory.Exists(extractionDirectory))
-			{
-				try
-				{
-					Directory.Delete(extractionDirectory, true);
-				}
-				catch
-				{
-				}
-			}
-		}
-
-		if (sourceFiles.Count == 0)
-		{
-			GD.PushWarning($"[MapCodeImportService] No C# source files were found for '{source.MapTitle}' at '{source.ManifestFilePath}'.");
-		}
-
-		return sourceFiles;
-	}
-
-	private static void LoadSourceFilesFromDisk(string sourceDirectory, List<SourceFile> sourceFiles)
-	{
-		if (string.IsNullOrEmpty(sourceDirectory) || !Directory.Exists(sourceDirectory)) return;
-
-		foreach (string filePath in EnumerateCodeFiles(sourceDirectory, includeTemplateFiles: true))
-		{
-			string relativePath = Path.GetRelativePath(sourceDirectory, filePath).Replace('\\', '/');
-			if (!IsCodeFilePath(relativePath)) continue;
-			if (ContainsSourceFile(sourceFiles, relativePath)) continue;
-
-			try
-			{
-				AddSourceFile(sourceFiles, relativePath, File.ReadAllText(filePath));
-			}
-			catch (Exception exception)
-			{
-				GameLog.LogError($"[MapCodeImportService] Failed to read source file '{filePath}': {exception.Message}");
-			}
-		}
-	}
-
-	private static void AddSourceFile(List<SourceFile> sourceFiles, string relativePath, string text)
-	{
-		if (string.IsNullOrWhiteSpace(text)) return;
-		if (ContainsSourceFile(sourceFiles, relativePath)) return;
-
-		sourceFiles.Add(new SourceFile(relativePath, text, !IsImportableCodePath(relativePath)));
-	}
-
-	private static bool ContainsSourceFile(List<SourceFile> sourceFiles, string relativePath)
-	{
-		for (int index = 0; index < sourceFiles.Count; index++)
-		{
-			if (string.Equals(sourceFiles[index].RelativePath, relativePath, StringComparison.OrdinalIgnoreCase)) return true;
-		}
-
-		return false;
-	}
-
-	private static string NormalizeCodeRelativePath(string manifestKey)
-	{
-		string relativePath = manifestKey.StartsWith("res://", StringComparison.OrdinalIgnoreCase)
-			? manifestKey.Substring(6)
-			: manifestKey;
-		return relativePath.TrimStart('/', '\\').Replace('\\', '/');
-	}
-
-	private static bool IsCodeFilePath(string relativePath)
-	{
-		if (!relativePath.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)) return false;
-		if (relativePath.EndsWith(".template.cs", StringComparison.OrdinalIgnoreCase)) return false;
-
-		string[] segments = relativePath.Split('/');
-		for (int index = 0; index < segments.Length - 1; index++)
-		{
-			if (IgnoredDirectoryNames.Contains(segments[index])) return false;
-		}
-
-		return true;
-	}
 
 	private static DestinationCodeIndex ScanDestination(string destinationWorkspacePath)
 	{
 		var destinationIndex = new DestinationCodeIndex();
 		if (string.IsNullOrEmpty(destinationWorkspacePath) || !Directory.Exists(destinationWorkspacePath)) return destinationIndex;
 
-		foreach (string filePath in EnumerateCodeFiles(destinationWorkspacePath, includeTemplateFiles: true))
+		foreach (string filePath in CodeWorkspaceFiles.EnumerateCodeFiles(destinationWorkspacePath, includeTemplateFiles: true))
 		{
 			try
 			{
@@ -895,67 +732,7 @@ public class MapCodeImportService
 		return string.IsNullOrEmpty(namespaceName) ? typeName : $"{namespaceName}.{typeName}";
 	}
 
-	private static IEnumerable<string> EnumerateCodeFiles(string workspacePath, bool includeTemplateFiles)
-	{
-		var directories = new Stack<string>();
-		directories.Push(workspacePath);
 
-		while (directories.Count > 0)
-		{
-			string directory = directories.Pop();
-			string[] childDirectories;
-			string[] childFiles;
-
-			try
-			{
-				childDirectories = Directory.GetDirectories(directory);
-				childFiles = Directory.GetFiles(directory, "*.cs", SearchOption.TopDirectoryOnly);
-			}
-			catch (Exception ex)
-			{
-				GameLog.LogError($"could not read a directory while collecting the map's code files, so the import is incomplete: {ex.GetType().Name}: {ex.Message}");
-				continue;
-			}
-
-			foreach (string childDirectory in childDirectories)
-			{
-				if (IgnoredDirectoryNames.Contains(Path.GetFileName(childDirectory))) continue;
-				directories.Push(childDirectory);
-			}
-
-			foreach (string childFile in childFiles)
-			{
-				if (!includeTemplateFiles && IsExcludedTemplateFile(childFile, workspacePath)) continue;
-				yield return childFile;
-			}
-		}
-	}
-
-	private static bool IsExcludedTemplateFile(string filePath, string workspaceRoot)
-	{
-		string relativePath = Path.GetRelativePath(workspaceRoot, filePath).Replace('\\', '/');
-		if (relativePath.Contains('/')) return false;
-
-		string fileName = Path.GetFileName(relativePath);
-		return ExcludedTemplateFileNames.Contains(fileName)
-		       || fileName.EndsWith(".template.cs", StringComparison.OrdinalIgnoreCase);
-	}
-
-	private static bool IsImportableCodePath(string relativePath)
-	{
-		if (!relativePath.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)) return false;
-		if (relativePath.EndsWith(".template.cs", StringComparison.OrdinalIgnoreCase)) return false;
-
-		string[] segments = relativePath.Split('/');
-		for (int index = 0; index < segments.Length - 1; index++)
-		{
-			if (IgnoredDirectoryNames.Contains(segments[index])) return false;
-		}
-
-		if (segments.Length == 1 && ExcludedTemplateFileNames.Contains(segments[0])) return false;
-
-		return true;
-	}
 
 	private static string GetTargetRelativePath(string sourceMapName, SourceType sourceType)
 	{
@@ -988,7 +765,7 @@ public class MapCodeImportService
 		return sanitized.Length == 0 ? "_" : sanitized;
 	}
 
-	private static string GetAbsolutePath(string rootPath, string relativePath)
+	internal static string GetAbsolutePath(string rootPath, string relativePath)
 	{
 		return Path.Combine(rootPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
 	}
@@ -1006,7 +783,6 @@ public class MapCodeImportService
 			? namespaceComparison
 			: string.Compare(left.ClassName, right.ClassName, StringComparison.OrdinalIgnoreCase);
 	}
-
 
 
 }
