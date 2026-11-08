@@ -24,6 +24,9 @@ public sealed record MinimapControlsHooks(
 public sealed class MinimapControlsPanel
 {
 	public VBoxContainer? Root { get; private set; }
+	private float _pulseTimer;
+	private int _lastIdleCount;
+
 
 	/// <summary>The idle-unit button, which the HUD pulses and re-tooltips as the idle count changes.</summary>
 	public Button? IdleButton { get; private set; }
@@ -129,4 +132,39 @@ public sealed class MinimapControlsPanel
 		};
 		btn.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 	}
+
+	/// <summary>
+	/// The idle button's share of the per-frame work: while units are idle it pulses between gold and orange so the
+	/// player notices, and it announces the first idle unit once rather than every frame. Returns nothing because the
+	/// board it draws on is this panel's own button.
+	/// </summary>
+	public void UpdateIdlePulse(double delta, int idleCount, Action<int> onBecameIdle)
+	{
+		if (IdleButton is not { } idleButton) return;
+
+		if (_lastIdleCount != idleCount)
+		{
+			idleButton.TooltipText = $"{TranslationServer.Translate("Select All Idle Units [F1]")} ({idleCount} {TranslationServer.Translate("Idle")})";
+		}
+
+		if (idleCount > 0)
+		{
+			_pulseTimer += (float)delta;
+			if (_lastIdleCount == 0)
+			{
+				onBecameIdle(idleCount);
+			}
+
+			float pulse = Mathf.Sin(_pulseTimer * 4f) * 0.5f + 0.5f;
+			idleButton.Modulate = new Color(1f, 0.8f + pulse * 0.2f, 0.2f + pulse * 0.8f, 1f);
+		}
+		else
+		{
+			_pulseTimer = 0f;
+			idleButton.Modulate = Colors.White;
+		}
+
+		_lastIdleCount = idleCount;
+	}
+
 }

@@ -159,8 +159,6 @@ public partial class InGameHUD : Control
 
 	private HBoxContainer _controlGroupsContainer = null!;
 
-	private float _idlePulseTimer = 0f;
-	private int _lastIdleCount = 0;
 
 	private PanelContainer? _hotkeyPanel => (_hotkeyReference?.Root) ?? null;
 
@@ -416,32 +414,11 @@ public partial class InGameHUD : Control
 
 	private void SetupCustomUIPanel()
 	{
-		_controlGroupsContainer = new HBoxContainer();
-		_controlGroupsContainer.Name = "ControlGroupsContainer";
-		_controlGroupsContainer.SetAnchorsAndOffsetsPreset(LayoutPreset.TopLeft);
-		_controlGroupsContainer.OffsetLeft = 20;
-		_controlGroupsContainer.OffsetTop = 80;
-		_controlGroupsContainer.AddThemeConstantOverride("separation", 8);
-		AddChild(_controlGroupsContainer);
-
-		_customUIPanel = new VBoxContainer();
-		_customUIPanel.Name = "CustomUIPanel";
-		_customUIPanel.SetAnchorsAndOffsetsPreset(LayoutPreset.TopRight);
-		_customUIPanel.GrowHorizontal = GrowDirection.Begin;
-		_customUIPanel.OffsetLeft = -440;
-		_customUIPanel.OffsetRight = -20;
-		_customUIPanel.OffsetTop = 20;
-		_customUIPanel.CustomMinimumSize = new Vector2(420, 0);
-		_customUIPanel.AddThemeConstantOverride("separation", 10);
-		AddChild(_customUIPanel);
-
-		SetupCountdownOverlay();
+		CustomUiDock.Parts dock = CustomUiDock.Create(this, OnCountdownCancelPressed);
+		_customUIPanel = dock.Panel;
+		_controlGroupsContainer = dock.ControlGroups;
+		_countdownOverlayPanelController = dock.Countdown;
 		SetupScoreboardPanel();
-	}
-
-	private void SetupCountdownOverlay()
-	{
-		_countdownOverlayPanelController = new CountdownOverlayPanel(this, _customUIPanel, OnCountdownCancelPressed);
 	}
 
 	private void SetupScoreboardPanel()
@@ -688,7 +665,7 @@ public partial class InGameHUD : Control
 			_viewModel.UpdateMacro(accumulated);
 			_resourcePanelController?.Update(_viewModel);
 			UpdateShroudMinimapTimer(accumulated);
-			UpdateIdleUnitButton(accumulated);
+			UpdateIdlePulse(accumulated);
 		}
 
 		_ambientTimer += dt;
@@ -733,35 +710,6 @@ public partial class InGameHUD : Control
 		}
 	}
 
-	private void UpdateIdleUnitButton(double delta)
-	{
-		if (MinimapControls.IdleButton is not { } idleButton) return;
-
-		if (_lastIdleCount != _viewModel.IdleCount)
-		{
-			idleButton.TooltipText = $"{TranslationServer.Translate("Select All Idle Units [F1]")} ({_viewModel.IdleCount} {TranslationServer.Translate("Idle")})";
-		}
-
-		if (_viewModel.IdleCount > 0)
-		{
-			_idlePulseTimer += (float)delta;
-			if (_lastIdleCount == 0)
-			{
-				ShowFeedbackText(string.Format(TranslationServer.Translate("{0} unit(s) are idle! [F1] to select"), _viewModel.IdleCount), new Color(0.9f, 0.7f, 0.2f));
-			}
-
-			float pulse = Mathf.Sin(_idlePulseTimer * 4f) * 0.5f + 0.5f;
-			idleButton.Modulate = new Color(1f, 0.8f + pulse * 0.2f, 0.2f + pulse * 0.8f, 1f);
-		}
-		else
-		{
-			_idlePulseTimer = 0f;
-			idleButton.Modulate = Colors.White;
-		}
-
-		_lastIdleCount = _viewModel.IdleCount;
-	}
-
 	public void QueueMinimapRedraw() => MinimapCapture.QueueRedraw();
 
 	public void ShowFeedbackText(string text, Color color)
@@ -791,26 +739,6 @@ public partial class InGameHUD : Control
 
 		ShowFeedbackText(string.Format(TranslationServer.Translate("Minimap Colors: {0}"), schemeName), UIStyle.ColorGold);
 		QueueMinimapRedraw();
-	}
-
-	private void SetupHUDButton(Button btn, string iconPath, string tooltip, Action onClick)
-	{
-		btn.Flat = false;
-		btn.Text = "";
-		btn.ExpandIcon = true;
-		btn.Icon = TrimmedTextureLoader.LoadTrimmedTexture(iconPath);
-		string trans = TranslationServer.Translate(tooltip);
-		btn.TooltipText = string.IsNullOrEmpty(trans) ? tooltip : trans;
-		btn.CustomMinimumSize = new Vector2(48, 48);
-		btn.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		btn.SizeFlagsVertical = SizeFlags.ExpandFill;
-		btn.FocusMode = FocusModeEnum.None;
-		UIStyle.SetupHUDButton(btn, tooltip);
-
-		UIStyle.ApplyHudButtonStyleboxes(btn);
-		btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-
-		btn.Pressed += () => onClick?.Invoke();
 	}
 
 	private void SetupPortrait()
@@ -903,6 +831,16 @@ public partial class InGameHUD : Control
 			if (HandleTildeKey(keyEvent)) return;
 		}
 	}
+
+	/// <summary>
+	/// The idle button's pulse: the panel owns the button, so it owns the blink, and the HUD only supplies the count and
+	/// the once-per-wave notice.
+	/// </summary>
+	private void UpdateIdlePulse(double delta) => MinimapControls.UpdateIdlePulse(delta, _viewModel.IdleCount, OnUnitsBecameIdle);
+
+	private void OnUnitsBecameIdle(int idleCount) =>
+		ShowFeedbackText(string.Format(TranslationServer.Translate("{0} unit(s) are idle! [F1] to select"), idleCount),
+			new Color(0.9f, 0.7f, 0.2f));
 
 	private bool HandleFocusNext(InputEvent @event)
 	{
@@ -1088,21 +1026,8 @@ public partial class InGameHUD : Control
 		return handled;
 	}
 
-	private void SetupCommandCard()
-	{
-		SetupHUDButton(_btnMove, "res://Assets/UI/move_speed.webp", TranslationServer.Translate("[M] Move / Right-Click Ground"), () => GameContext.Host?.EnterCommandTargeting("move"));
-		SetupHUDButton(_btnStop, "res://Assets/UI/cancel_button_2.webp", TranslationServer.Translate("[S] Stop Selected Units"), () =>
-		{
-			ShowFeedbackText(TranslationServer.Translate("Command: Stop Current Action"), new Color(0.9f, 0.2f, 0.2f));
-			GameContext.Host?.StopSelectedUnits();
-		});
-		SetupHUDButton(_btnHold, "res://Assets/UI/magic_upgrade_arrow.webp", TranslationServer.Translate("[H] Hold Position — Unit stays put and attacks in place"), () =>
-		{
-			ShowFeedbackText(TranslationServer.Translate("Command: Hold Position"), new Color(0.9f, 0.8f, 0.1f));
-			GameContext.Host?.HoldSelectedUnits();
-		});
-		SetupHUDButton(_btnBuild, "res://Assets/UI/golden_hammers.webp", TranslationServer.Translate("[B] Build Structure"), () => EnterBuildSubMenu());
-	}
+	private void SetupCommandCard() =>
+		CommandCardButtons.Wire(_btnMove, _btnStop, _btnHold, _btnBuild, ShowFeedbackText, EnterBuildSubMenu);
 
 	private SpectatorPerspectiveOverlay? _spectatorPerspective;
 
