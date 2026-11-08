@@ -317,7 +317,7 @@ public class MapHistoryService
 			{
 				try
 				{
-					ClearReadOnlyAttribute(filePath);
+					HistoryRestoreTransaction.ClearReadOnlyAttribute(filePath);
 				}
 				catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
 				{
@@ -896,7 +896,7 @@ public class MapHistoryService
 			if (File.Exists(absolutePath)) relativePathsToRemove.Add(currentPath);
 		}
 
-		if (!ApplyRestoreTransactionally(mapDirectory, filesToWrite, relativePathsToRemove, out filesWritten, out filesRemoved, out string? restoreError))
+		if (!HistoryRestoreTransaction.Apply(mapDirectory, filesToWrite, relativePathsToRemove, out filesWritten, out filesRemoved, _messages.RestoreFailed, out string? restoreError))
 		{
 			return new MapHistoryRestoreResult { Success = false, ErrorMessage = restoreError };
 		}
@@ -929,8 +929,6 @@ public class MapHistoryService
 			MetadataRestored = metadataRestored
 		};
 	}
-
-
 
 
 
@@ -1038,150 +1036,9 @@ public class MapHistoryService
 
 
 
-	private const string RestoreStagingSuffix = ".realm-restore.tmp";
-	private const string RestoreBackupSuffix = ".realm-restore.bak";
 
-	private bool ApplyRestoreTransactionally(
-		string mapDirectory,
-		List<(string RelativePath, byte[] Content)> filesToWrite,
-		List<string> relativePathsToRemove,
-		out int filesWritten,
-		out int filesRemoved,
-		out string? errorMessage)
-	{
-		filesWritten = 0;
-		filesRemoved = 0;
-		errorMessage = null;
 
-		var stagedPaths = new List<string>(filesToWrite.Count);
-		var touchedPaths = new List<string>(filesToWrite.Count + relativePathsToRemove.Count);
 
-		try
-		{
-			foreach (var (relativePath, content) in filesToWrite)
-			{
-				string absolutePath = Path.Combine(mapDirectory, relativePath.Replace('/', Path.DirectorySeparatorChar));
-				StageRestoreContent(absolutePath, content);
-				stagedPaths.Add(absolutePath);
-			}
-
-			foreach (string absolutePath in stagedPaths)
-			{
-				BackUpOriginalFile(absolutePath, touchedPaths);
-				File.Move(absolutePath + RestoreStagingSuffix, absolutePath, true);
-				if (!touchedPaths.Contains(absolutePath)) touchedPaths.Add(absolutePath);
-				filesWritten++;
-			}
-
-			foreach (string relativePath in relativePathsToRemove)
-		{
-				string absolutePath = Path.Combine(mapDirectory, relativePath.Replace('/', Path.DirectorySeparatorChar));
-				if (!File.Exists(absolutePath)) continue;
-
-				BackUpOriginalFile(absolutePath, touchedPaths);
-				filesRemoved++;
-			}
-		}
-		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-		{
-			RollBackRestore(touchedPaths, stagedPaths);
-			filesWritten = 0;
-			filesRemoved = 0;
-			errorMessage = string.Format(_messages.RestoreFailed, exception.Message);
-			return false;
-		}
-
-		foreach (string touchedPath in touchedPaths)
-		{
-			DeleteFileQuietly(touchedPath + RestoreBackupSuffix);
-		}
-
-		foreach (string stagedPath in stagedPaths)
-		{
-			DeleteFileQuietly(stagedPath + RestoreStagingSuffix);
-		}
-
-		return true;
-	}
-
-	private static void StageRestoreContent(string absolutePath, byte[] content)
-	{
-		string? directory = Path.GetDirectoryName(absolutePath);
-		if (!string.IsNullOrEmpty(directory))
-		{
-			Directory.CreateDirectory(directory);
-		}
-
-		string stagingPath = absolutePath + RestoreStagingSuffix;
-		DeleteFileQuietly(stagingPath);
-		File.WriteAllBytes(stagingPath, content);
-	}
-
-	private static void BackUpOriginalFile(string absolutePath, List<string> touchedPaths)
-	{
-		if (!File.Exists(absolutePath)) return;
-
-		string backupPath = absolutePath + RestoreBackupSuffix;
-		DeleteFileQuietly(backupPath);
-		ClearReadOnlyAttribute(absolutePath);
-		File.Move(absolutePath, backupPath, true);
-		touchedPaths.Add(absolutePath);
-	}
-
-	private static void RollBackRestore(List<string> touchedPaths, List<string> stagedPaths)
-	{
-		foreach (string touchedPath in touchedPaths)
-		{
-			string backupPath = touchedPath + RestoreBackupSuffix;
-			try
-			{
-				File.Delete(touchedPath);
-				if (File.Exists(backupPath))
-				{
-					File.Move(backupPath, touchedPath, true);
-				}
-			}
-			catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-			{
-				GameLog.LogError($"[MapHistoryService] Could not put '{touchedPath}' back: {exception.Message}");
-			}
-		}
-
-		foreach (string stagedPath in stagedPaths)
-		{
-			DeleteFileQuietly(stagedPath + RestoreStagingSuffix);
-		}
-	}
-
-	private static void DeleteFileQuietly(string absolutePath)
-	{
-		if (!File.Exists(absolutePath)) return;
-
-		try
-		{
-			ClearReadOnlyAttribute(absolutePath);
-			File.Delete(absolutePath);
-		}
-		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-		{
-			GameLog.LogError($"[MapHistoryService] Could not remove '{absolutePath}': {exception.Message}");
-		}
-	}
-
-	private static void ClearReadOnlyAttribute(string absolutePath)
-	{
-		try
-		{
-			FileAttributes attributes = File.GetAttributes(absolutePath);
-			if ((attributes & FileAttributes.ReadOnly) != 0)
-			{
-				File.SetAttributes(absolutePath, attributes & ~FileAttributes.ReadOnly);
-			}
-		}
-		catch (Exception)
-		{
-		}
-	}
 
 	private static string GetDefaultCommitMessage(MapVersionKind kind)
 	{
