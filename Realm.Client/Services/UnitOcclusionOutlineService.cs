@@ -31,7 +31,7 @@ public partial class UnitOcclusionOutlineService : Node3D
 	private readonly Dictionary<ulong, SilhouetteState> _silhouetteStates = new();
 	private readonly List<ulong> _staleSilhouetteIds = new();
 
-	private ShaderMaterial _silhouetteMaterial;
+	private ShaderMaterial _silhouetteMaterial = null!;
 	private float _buildingRefreshTimer;
 	private bool _buildingOccludersDirty = true;
 	private long _tickIndex;
@@ -46,7 +46,7 @@ public partial class UnitOcclusionOutlineService : Node3D
 
 	private class SilhouetteState
 	{
-		public Unit3D Unit;
+		public Unit3D Unit = null!;
 		public ulong ModelInstanceId;
 		public List<GeometryInstance3D> Meshes = new();
 		public bool OverlayApplied;

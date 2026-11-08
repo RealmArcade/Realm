@@ -236,21 +236,21 @@ public class SimulationService
 	private EntityCallback<LatestDescription> _presentationQueryDelegate = null!;
 
 
-	public Action<Vector3, Vector3> OnArrowProjectileRequested;
+	public Action<Vector3, Vector3> OnArrowProjectileRequested = null!;
 	public Action<Vector3, Vector3, string?, Entity>? OnWeaponProjectileRequested;
-	public Action<Entity> OnDamageFlashRequested;
-	public Action<Vector3, Vector3> OnHealEffectRequested;
-	public Action<Entity> OnHealFlashRequested;
-	public Action<Entity, Entity, float> OnUnitDamagedCallback;
+	public Action<Entity> OnDamageFlashRequested = null!;
+	public Action<Vector3, Vector3> OnHealEffectRequested = null!;
+	public Action<Entity> OnHealFlashRequested = null!;
+	public Action<Entity, Entity, float> OnUnitDamagedCallback = null!;
 	public Action<Entity, Entity, float>? OnUnitHealedCallback;
 	public Action<Entity, Entity>? OnUnitAttackedCallback;
-	public Action<int, string> OnUnderAttackAlertRequested;
-	public Action<Entity> OnKillUnitRequested;
+	public Action<int, string> OnUnderAttackAlertRequested = null!;
+	public Action<Entity> OnKillUnitRequested = null!;
 	public Action<string, Vector3, Entity, bool>? OnSpawnUnitFromProductionRequested;
 	public Action<Entity>? OnClearUnitOrdersRequested;
-	public Action<Entity> OnStopGatheringMovementRequested;
+	public Action<Entity> OnStopGatheringMovementRequested = null!;
 	public Action OnUiRefreshRequested;
-	public Action<Entity> OnPropDepleted;
+	public Action<Entity> OnPropDepleted = null!;
 
 	private readonly HashSet<long> _alliedPairs = new();
 	private readonly Dictionary<long, PlayerRelationship> _explicitRelationships = new();
@@ -582,7 +582,7 @@ public class SimulationService
 	}
 
 	public Action<Entity>? OnResourceHarvested;
-	public Action<int, string, float> OnResourceDepositedForPlayer;
+	public Action<int, string, float> OnResourceDepositedForPlayer = null!;
 	public Action<int, string> OnProductionCompleted;
 	public Func<string, float> GetProductionBuildTime;
 

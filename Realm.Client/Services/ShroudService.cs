@@ -25,13 +25,13 @@ public class ShroudService
 	private static readonly StringName ShroudWorldBoundsParameter = new("rts_shroud_world_bounds");
 	private static readonly StringName ShroudLerpParameter = new("rts_shroud_lerp");
 
-	private Image _shroudImage;
-	private ImageTexture _shroudTexture;
-	private Image _shroudMinimapImage;
-	private ImageTexture _shroudMinimapTexture;
-	private Texture2D _appliedGlobalTexture;
+	private Image _shroudImage = null!;
+	private ImageTexture _shroudTexture = null!;
+	private Image _shroudMinimapImage = null!;
+	private ImageTexture _shroudMinimapTexture = null!;
+	private Texture2D _appliedGlobalTexture = null!;
 	private Vector4 _appliedGlobalBounds;
-	private static ImageTexture _fullyRevealedTexture;
+	private static ImageTexture _fullyRevealedTexture = null!;
 
 	private byte[] _shroudPixelBuffer = Array.Empty<byte>();
 	private byte[] _shroudMinimapPixelBuffer = Array.Empty<byte>();

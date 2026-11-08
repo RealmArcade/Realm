@@ -19,7 +19,7 @@ namespace Realm.Client.Services;
 
 public class ReplayService
 {
-	private ReplayRecorder _replayRecorder;
+	private ReplayRecorder _replayRecorder = null!;
 	private readonly Dictionary<int, ReplayUnitSnapshot> _lastRecordedUnits = new();
 	private readonly List<ReplayProjectileSnapshot> _tickProjectiles = new();
 

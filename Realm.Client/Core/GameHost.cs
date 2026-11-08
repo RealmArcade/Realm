@@ -43,8 +43,8 @@ public partial class GameHost : Node3D
 		GameContext.RegisterHost(this);
 	}
 
-	public CameraControl MainCamera { get; set; }
-	public Node MainNode { get; set; }
+	public CameraControl MainCamera { get; set; } = null!;
+	public Node MainNode { get; set; } = null!;
 
 	public int LocalPlayerIndex => GameContext.PerspectiveFilter.ControlledPlayerIndex;
 
@@ -65,7 +65,7 @@ public partial class GameHost : Node3D
 
 	private float _fDelta { get; set; }
 	private WorldEnvironment? _cachedWorldEnvironment;
-	private UnitOcclusionOutlineService _unitOcclusionOutlineService;
+	private UnitOcclusionOutlineService _unitOcclusionOutlineService = null!;
 
 	private bool _multiplayerActive => Multiplayer.MultiplayerPeer != null && Multiplayer.MultiplayerPeer is not OfflineMultiplayerPeer;
 
@@ -474,7 +474,7 @@ public partial class GameHost : Node3D
 
 	private Node3D? _buildingPreviewMesh { get; set; }
 
-	private RuntimeTerrain _groundTerrain { get; set; }
+	private RuntimeTerrain _groundTerrain { get; set; } = null!;
 
 	public RuntimeTerrain GroundTerrain
 	{
@@ -907,7 +907,7 @@ public partial class GameHost : Node3D
 	private Vector3 _dragObjectStartScale { get; set; }
 	private readonly List<(Node3D Node, Vector3 Position, Vector3 Rotation, Vector3 Scale)> _dragSelectionStartTransforms = new();
 
-	private Node3D _editorPreviewNode { get; set; }
+	private Node3D _editorPreviewNode { get; set; } = null!;
 
 	private string _editorPreviewId { get; set; } = "";
 	private bool _editorPreviewIsEnemy { get; set; }
@@ -3386,7 +3386,7 @@ public partial class GameHost : Node3D
 		return ((TerrainPathingFlags)flags & capability) != 0;
 	}
 
-	private static ImageTexture SharedShadowGradient { get; set; }
+	private static ImageTexture SharedShadowGradient { get; set; } = null!;
 
 	public Texture2D GetSharedShadowGradient()
 	{

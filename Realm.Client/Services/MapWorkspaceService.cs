@@ -337,7 +337,7 @@ public static partial class MapWorkspaceService
 		return string.Empty;
 	}
 
-	private static string _cachedRepoRoot;
+	private static string _cachedRepoRoot = null!;
 	private static bool _repoRootResolved;
 
 	private static string GetRepoRoot()

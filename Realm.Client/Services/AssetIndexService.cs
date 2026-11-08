@@ -31,10 +31,10 @@ public class AssetIndexService : IDisposable
 	public event Action<string, bool>? DirectoryIndexingStateChanged;
 	public event Action<string>? DirectoryScanCompleted;
 
-	private LiteDatabase _database;
-	private ILiteCollection<IndexedAsset> _assetCollection;
-	private ILiteCollection<IndexedFolder> _folderCollection;
-	private ILiteCollection<IndexedMapPackage> _mapPackageCollection;
+	private LiteDatabase _database = null!;
+	private ILiteCollection<IndexedAsset> _assetCollection = null!;
+	private ILiteCollection<IndexedFolder> _folderCollection = null!;
+	private ILiteCollection<IndexedMapPackage> _mapPackageCollection = null!;
 	private readonly object _syncLock = new();
 	private readonly HashSet<string> _indexingDirectories = new(StringComparer.OrdinalIgnoreCase);
 	private HashSet<string> _lastVerificationFailurePaths = new(StringComparer.OrdinalIgnoreCase);

@@ -12,7 +12,7 @@ public class RaycastResult
 	public bool HasHit;
 	public Vector3 Position;
 	public Vector3 Normal;
-	public Node Collider;
+	public Node Collider = null!;
 	public float Distance;
 
 	public Godot.Collections.Dictionary ToGodotDictionary()
