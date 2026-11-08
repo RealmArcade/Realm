@@ -18,14 +18,7 @@ public static class ConnectionWarningBanner
 		banner.AddThemeColorOverride("font_color", new Color(0.95f, 0.2f, 0.2f));
 		banner.AddThemeFontSizeOverride("font_size", 22);
 
-		var style = new StyleBoxFlat();
-		style.BgColor = new Color(0.12f, 0.05f, 0.05f, 0.7f);
-		style.BorderColor = new Color(0.8f, 0.2f, 0.2f, 0.5f);
-		style.SetBorderWidthAll(2);
-		style.ContentMarginLeft = 20;
-		style.ContentMarginRight = 20;
-		style.ContentMarginTop = 8;
-		style.ContentMarginBottom = 8;
+		var style = UIStyle.CreateCardPlate(new Color(0.12f, 0.05f, 0.05f, 0.7f), new Color(0.8f, 0.2f, 0.2f, 0.5f), 2, 0, 20, 20, 8, 8);
 		banner.AddThemeStyleboxOverride("normal", style);
 
 		// Anchored centre-top and grown both ways, so the label's own width decides how far it reaches.
