@@ -295,7 +295,7 @@ public static class ProceduralAnimationManager
 		return ProceduralSwayRegionResolver.Resolve(config, modelKey);
 	}
 
-	public static ProceduralShaderParameters BuildShaderParameters(ProceduralAnimationConfig config)
+	public static ProceduralShaderParameters BuildShaderParameters(ProceduralAnimationConfig? config)
 	{
 		if (config == null)
 		{
