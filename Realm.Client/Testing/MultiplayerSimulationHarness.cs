@@ -520,10 +520,10 @@ public partial class MultiplayerSimulationHarness : Node
 
 
 		GameLog.LogToConsole("[MP_HARNESS] Client simulation started. Recording until the host signals completion.");
-		if (!string.IsNullOrEmpty(_clientBuildId))
+		if (!string.IsNullOrEmpty(_clientBuildId) && GameContext.Host is GameHost host)
 		{
 			await ToSignal(GetTree().CreateTimer(2.0f), SceneTreeTimer.SignalName.Timeout);
-			IssueClientBuildRequest(GameContext.Host);
+			IssueClientBuildRequest(host);
 		}
 		if (_dropAtSeconds > 0f) _ = RunConnectionLossScenarioAsync(session);
 		if (_pauseAtSeconds > 0f) _ = RunPauseScenarioAsync(session);
@@ -775,7 +775,7 @@ public partial class MultiplayerSimulationHarness : Node
 		}
 
 		int localPlayerIndex = GameContext.PerspectiveFilter.ControlledPlayerIndex;
-		Unit3D worker = gameHost.AllUnits.Find(unit => !unit.IsBuilding && unit.Player == localPlayerIndex && GameHost.UnitRegistry.TryGetValue(unit.UnitId, out var meta) && meta.BuildOptions is { Length: > 0 });
+		Unit3D? worker = gameHost.AllUnits.Find(unit => !unit.IsBuilding && unit.Player == localPlayerIndex && GameHost.UnitRegistry.TryGetValue(unit.UnitId, out var meta) && meta.BuildOptions is { Length: > 0 });
 		worker ??= gameHost.AllUnits.Find(unit => !unit.IsBuilding && unit.Player == localPlayerIndex);
 		if (worker == null)
 		{

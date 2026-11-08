@@ -143,7 +143,7 @@ public partial class LobbyBrowser : Control
 
 	private void ApplyBackgroundStyle()
 	{
-		Texture2D bgTexture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/custom_lobby_bg.webp");
+		Texture2D? bgTexture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/custom_lobby_bg.webp");
 
 		if (bgTexture != null)
 		{
@@ -167,7 +167,7 @@ public partial class LobbyBrowser : Control
 
 	private void ApplyFilterPanelStyle()
 	{
-		Texture2D filterPanelTex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/custom_lobby_panel_filter.webp");
+		Texture2D? filterPanelTex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/custom_lobby_panel_filter.webp");
 
 		if (filterPanelTex != null)
 		{
@@ -194,7 +194,7 @@ public partial class LobbyBrowser : Control
 
 	private void ApplyMainPanelStyle()
 	{
-		Texture2D mainPanelTex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/custom_lobby_panel_main.webp");
+		Texture2D? mainPanelTex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/custom_lobby_panel_main.webp");
 
 		if (mainPanelTex != null)
 		{
