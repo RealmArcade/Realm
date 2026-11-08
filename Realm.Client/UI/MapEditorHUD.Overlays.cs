@@ -279,67 +279,16 @@ namespace Realm.Client.UI
 		}
 
 
-		private void OpenOverlayModePopup()
-		{
-			if (_viewportPanel.OverlayPopup == null || GameContext.Host == null || _viewportPanel.GridToggleButton == null) return;
+		private MapEditorOverlayMenu? _overlayMenu;
 
-			var mode = GameContext.EditorService.Tools.GridMode;
-			bool isGrid = mode == GridOverlayMode.Grid || mode == GridOverlayMode.Both;
-			bool isPolar = mode == GridOverlayMode.Polar || mode == GridOverlayMode.Both;
-			bool isWireframe = GetViewport()?.DebugDraw == Viewport.DebugDrawEnum.Wireframe;
+		private MapEditorOverlayMenu OverlayMenu => _overlayMenu ??= new MapEditorOverlayMenu(
+			new OverlayMenuHooks(this, () => _viewportPanel, () => _rowPolarConfig));
 
-			SetPopupItemChecked(0, isGrid);
-			SetPopupItemChecked(1, isPolar);
-			SetPopupItemChecked(2, GameContext.EditorService.Tools.CameraBoundsVisible);
-			SetPopupItemChecked(3, isWireframe);
+		private void OpenOverlayModePopup() => OverlayMenu.Open();
 
-			var globalRect = _viewportPanel.GridToggleButton.GetGlobalRect();
-			var popupPos = new Vector2I((int)globalRect.Position.X, (int)(globalRect.Position.Y + globalRect.Size.Y + 2));
-			_viewportPanel.OverlayPopup.Position = popupPos;
-			_viewportPanel.OverlayPopup.Popup();
-		}
+		public void UpdateGridOverlayExternal(GridOverlayMode mode) => OverlayMenu.UpdateExternal(mode);
 
-		private void SetPopupItemChecked(int itemIndexInList, bool isChecked)
-		{
-			int idx = _viewportPanel.OverlayPopup.GetItemIndex(itemIndexInList);
-			if (idx >= 0) _viewportPanel.OverlayPopup.SetItemChecked(idx, isChecked);
-		}
-
-		public void UpdateGridOverlayExternal(GridOverlayMode mode)
-		{
-			if (_viewportPanel.GridToggleButton != null)
-			{
-				_viewportPanel.GridToggleButton.Text = UnicodeIcons.BORDER_ALL;
-				_viewportPanel.GridToggleButton.TooltipText = TranslationServer.Translate("Overlay");
-			}
-
-			if (_viewportPanel.OverlayPopup != null)
-			{
-				bool isGrid = mode == GridOverlayMode.Grid || mode == GridOverlayMode.Both;
-				bool isPolar = mode == GridOverlayMode.Polar || mode == GridOverlayMode.Both;
-				int gridIdx = _viewportPanel.OverlayPopup.GetItemIndex(0);
-				int polarIdx = _viewportPanel.OverlayPopup.GetItemIndex(1);
-				if (gridIdx >= 0) _viewportPanel.OverlayPopup.SetItemChecked(gridIdx, isGrid);
-				if (polarIdx >= 0) _viewportPanel.OverlayPopup.SetItemChecked(polarIdx, isPolar);
-			}
-
-			UpdatePolarSubControlsVisibility(mode);
-		}
-
-		public void UpdatePolarSubControlsVisibility(GridOverlayMode mode)
-		{
-			MirrorMode mirrorMode = GameContext.Host?.EditorMirrorMode ?? MirrorMode.None;
-			bool isPolar = GameContext.EditorService.IsPolarGridActive(mode, mirrorMode);
-			bool showResetPivot = isPolar || mirrorMode != MirrorMode.None;
-
-			if (_viewportPanel.RingSpacingOption != null) _viewportPanel.RingSpacingOption.Visible = isPolar;
-			if (_viewportPanel.RadialStepOption != null) _viewportPanel.RadialStepOption.Visible = isPolar;
-			if (_viewportPanel.ResetPivotButton != null) _viewportPanel.ResetPivotButton.Visible = showResetPivot;
-			if (_rowPolarConfig != null)
-			{
-				_rowPolarConfig.Visible = showResetPivot;
-			}
-		}
+		public void UpdatePolarSubControlsVisibility(GridOverlayMode mode) => OverlayMenu.UpdatePolarSubControls(mode);
 
 		public void UpdateMeasureTelemetry(float eucTiles, float eucWorld, float manhattanTiles, float dx, float dz, float dy, float angleDeg, float slopePct)
 		{
@@ -369,23 +318,9 @@ namespace Realm.Client.UI
 			}
 		}
 
-		public void UpdateCameraBoundsOverlayExternal(bool visible)
-		{
-			if (_viewportPanel.OverlayPopup != null)
-			{
-				int camBoundsIdx = _viewportPanel.OverlayPopup.GetItemIndex(2);
-				if (camBoundsIdx >= 0) _viewportPanel.OverlayPopup.SetItemChecked(camBoundsIdx, visible);
-			}
-		}
+		public void UpdateCameraBoundsOverlayExternal(bool visible) => OverlayMenu.SetCameraBoundsChecked(visible);
 
-		public void UpdateWireframeOverlayExternal(bool enabled)
-		{
-			if (_viewportPanel.OverlayPopup != null)
-			{
-				int wireframeIdx = _viewportPanel.OverlayPopup.GetItemIndex(3);
-				if (wireframeIdx >= 0) _viewportPanel.OverlayPopup.SetItemChecked(wireframeIdx, enabled);
-			}
-		}
+		public void UpdateWireframeOverlayExternal(bool enabled) => OverlayMenu.SetWireframeChecked(enabled);
 
 		private void StylePopupButton(Button btn, string text, string tooltip)
 		{
@@ -1024,63 +959,11 @@ namespace Realm.Client.UI
 
 		public void UpdateMapNameHeader() => MapEditorMapTitle.UpdateHeader(_topToolbar.MapNameLabel);
 
-		private void SetupLightingTuningUI()
-		{
-			var leftSlidePanel = GetNodeOrNull<Control>("LeftSlidePanel");
-			if (leftSlidePanel != null)
-			{
-				leftSlidePanel.CustomMinimumSize = new Vector2(325, 0);
-				leftSlidePanel.OffsetRight = 325.0f;
-			}
+		private MapEditorLightingTuningPanel? _lightingTuning;
 
-			var leftVBox = GetNodeOrNull<VBoxContainer>("LeftSlidePanel/LeftScroll/LeftVBox");
-			if (leftVBox == null) return;
+		private MapEditorLightingTuningPanel LightingTuning => _lightingTuning ??= new MapEditorLightingTuningPanel();
 
-			var lightingAccordion = new VBoxContainer();
-			lightingAccordion.Name = "LightingTuningAccordion";
-
-			_btnHeaderLightingTuning = new Button();
-			_btnHeaderLightingTuning.Name = "BtnHeaderLightingTuning";
-			lightingAccordion.AddChild(_btnHeaderLightingTuning);
-
-			_contentLightingTuning = new VBoxContainer();
-			_contentLightingTuning.Name = "ContentLightingTuning";
-			lightingAccordion.AddChild(_contentLightingTuning);
-
-			leftVBox.AddChild(lightingAccordion);
-
-			StyleAccordionHeader(_btnHeaderLightingTuning);
-			SetupAccordion(_btnHeaderLightingTuning, _contentLightingTuning, "💡 Lighting Tuning (Live Override)");
-
-			CreateSectionHeader(_contentLightingTuning, "--- TERRAIN TEXTURE BLENDING ---");
-			_sldHeightBlendSoftness = CreateSliderRow(_contentLightingTuning, "Blend Softness", 0.001f, 0.20f, 0.002f, GameContext.EnvironmentService.TuneHeightBlendSoftness, val =>
-			{
-				GameContext.EnvironmentService.TuneHeightBlendSoftness = val;
-				ApplyLiveLightingTuning();
-			}, "0.00#");
-			_sldBlendNoiseStrength = CreateSliderRow(_contentLightingTuning, "Blend Noise Str", 0f, 1f, 0.02f, GameContext.EnvironmentService.TuneBlendNoiseStrength, val =>
-			{
-				GameContext.EnvironmentService.TuneBlendNoiseStrength = val;
-				ApplyLiveLightingTuning();
-			});
-			_sldBlendNoiseScale = CreateSliderRow(_contentLightingTuning, "Blend Noise Scl", 0.01f, 0.5f, 0.005f, GameContext.EnvironmentService.TuneBlendNoiseScale, val =>
-			{
-				GameContext.EnvironmentService.TuneBlendNoiseScale = val;
-				ApplyLiveLightingTuning();
-			}, "0.00#");
-
-			lightingAccordion.Visible = false;
-		}
-
-		private Label CreateSectionHeader(VBoxContainer parent, string titleText)
-		{
-			var lbl = new Label();
-			lbl.Name = "Lbl_Label";
-			lbl.Text = titleText;
-			lbl.AddThemeFontSizeOverride("font_size", 11);
-			lbl.Modulate = new Color(0.95f, 0.85f, 0.35f);
-			parent.AddChild(lbl);
-			return lbl;
-		}
+		private void SetupLightingTuningUI() => LightingTuning.Build(new LightingTuningHooks(this,
+			StyleAccordionHeader, SetupAccordion, dragging => _isDraggingSlider = dragging, ApplyLiveLightingTuning));
 	}
 }

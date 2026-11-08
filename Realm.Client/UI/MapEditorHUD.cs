@@ -1338,10 +1338,6 @@ public partial class MapEditorHUD : Control
 		GameContext.EditorService.LastMapNameCacheTicks = 0;
 	}
 
-	private Button _btnHeaderLightingTuning { get; set; } = null!;
-	private VBoxContainer _contentLightingTuning { get; set; } = null!;
+	private VBoxContainer _contentLightingTuning => LightingTuning.Content;
 
-	private HSlider _sldHeightBlendSoftness { get; set; } = null!;
-	private HSlider _sldBlendNoiseStrength { get; set; } = null!;
-	private HSlider _sldBlendNoiseScale { get; set; } = null!;
 }
