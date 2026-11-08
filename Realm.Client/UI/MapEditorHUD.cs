@@ -343,7 +343,7 @@ public partial class MapEditorHUD : Control
 	private Button _btnViewCoordinates { get; set; } = null!;
 
 
-	private Button _activeToolButton { get; set; } = null;
+	private Button? _activeToolButton { get; set; }
 	private StyleBoxFlat _highlightStyle { get; set; } = null!;
 
 	private Label _lblInfoText { get; set; } = null!;
@@ -687,7 +687,7 @@ public partial class MapEditorHUD : Control
 		optKeys.AddThemeConstantOverride("icon_max_width", 0);
 		keyRow.AddChild(optKeys);
 
-		Font faFont = GetFontAwesomeFont();
+		Font? faFont = GetFontAwesomeFont();
 
 		var btnViewKey = new Button { Name = "ViewKey_Button", Text = Realm.Client.Utils.UnicodeIcons.EYE, TooltipText = TranslationServer.Translate("Open the selected key"), CustomMinimumSize = new Vector2(34, 26) };
 		btnViewKey.AddThemeConstantOverride("icon_max_width", 0);
@@ -841,24 +841,27 @@ public partial class MapEditorHUD : Control
 
 	private void HandleEditorToolStateClear(EditorTool tool)
 	{
+		var host = GameContext.Host;
+		if (host == null) return;
+
 		if (tool != EditorTool.SelectMove)
 		{
-			GameContext.Host.SelectedEditorObject = null;
+			host.SelectedEditorObject = null;
 		}
 
 		if (tool != EditorTool.Ramp)
 		{
-			GameContext.Host.ClearRampStartPosExternal();
+			host.ClearRampStartPosExternal();
 		}
 
 		if (tool != EditorTool.Measure)
 		{
-			GameContext.Host.ClearMeasureVisuals();
+			host.ClearMeasureVisuals();
 			ClearMeasureTelemetry();
 		}
 	}
 
-	private void UpdateActiveToolButton(Button btn)
+	private void UpdateActiveToolButton(Button? btn)
 	{
 		if (_activeToolButton != null)
 		{
@@ -1004,7 +1007,7 @@ public partial class MapEditorHUD : Control
 			return;
 		}
 
-		if (EditorService.ToolInfoTexts.TryGetValue(tool, out string rawText))
+		if (EditorService.ToolInfoTexts.TryGetValue(tool, out var rawText))
 		{
 			_lblInfoText.Text = TranslationServer.Translate(rawText);
 		}
@@ -1159,7 +1162,7 @@ public partial class MapEditorHUD : Control
 		return false;
 	}
 
-	private bool AnyOptionButtonPopupVisible(params OptionButton[] buttons)
+	private bool AnyOptionButtonPopupVisible(params OptionButton?[] buttons)
 	{
 		foreach (var b in buttons)
 		{
@@ -1255,7 +1258,7 @@ public partial class MapEditorHUD : Control
 
 	private bool IsMouseOverToolbarOrOverlays(Vector2 mousePos)
 	{
-		Control[] checkControls =
+		Control?[] checkControls =
 		{
 			_btnLeftTab, _btnRightTab,
 			GetNodeOrNull<Control>("TopLeftBox"),
@@ -1350,12 +1353,14 @@ public partial class MapEditorHUD : Control
 
 	private void SaveCameraState()
 	{
-		var camera = GameContext.Host.MainCamera;
+		var host = GameContext.Host;
+		if (host == null) return;
+
+		var camera = host.MainCamera;
 		if (camera == null) return;
 
 		GameContext.SessionState.SavedCameraPosition = camera.Position;
 
-		var host = GameContext.Host;
 		if (GameContext.World != null && GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) && GameContext.World.Has<CameraState>(GameContext.Simulation.WorldEntity))
 		{
 			var state = GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity);
@@ -1374,6 +1379,8 @@ public partial class MapEditorHUD : Control
 	private void SaveGameHostStates()
 	{
 		var host = GameContext.Host;
+		if (host == null) return;
+
 		GameContext.SessionState.SavedGridMode = GameContext.EditorService.EditorGridMode;
 		GameContext.SessionState.SavedActiveTool = host.ActiveEditorTool;
 		GameContext.SessionState.SavedActivePlaceId = host.ActivePlaceId;
@@ -1388,10 +1395,13 @@ public partial class MapEditorHUD : Control
 
 	private async Task PrepareMapAndWorkspaceForTest()
 	{
+		var host = GameContext.Host;
+		if (host == null) return;
+
 		MapWorkspaceService.EnsureWasmEntryPoint(GameContext.EditorService._editingDirectory);
 		string tempTerrainPath = Path.Combine(GameContext.EditorService._editingDirectory, "terrain.json");
-		GameContext.Host.SaveMapToFile(tempTerrainPath, performReload: false);
-		GameContext.Host.EditorHasUnsavedChanges = false;
+		host.SaveMapToFile(tempTerrainPath, performReload: false);
+		host.EditorHasUnsavedChanges = false;
 		InvalidateMetadataCache();
 
 		await GameContext.MapHistoryService.CreateVersionAsync(
@@ -1423,7 +1433,7 @@ public partial class MapEditorHUD : Control
 	private bool TryLocateCompiledWasm(out string wasmPath)
 	{
 		string editingDirectory = GameContext.EditorService._editingDirectory;
-		wasmPath = MapWorkspaceService.SearchForWasmInDirectoryDomain(Path.Combine(editingDirectory, "bin"));
+		wasmPath = MapWorkspaceService.SearchForWasmInDirectoryDomain(Path.Combine(editingDirectory, "bin")) ?? string.Empty;
 
 		if (string.IsNullOrEmpty(wasmPath) || !File.Exists(wasmPath))
 		{
@@ -1470,7 +1480,7 @@ public partial class MapEditorHUD : Control
 		MatchLoadTrace.Mark("authority_started");
 		MatchLoadTrace.WriteSummary("authority_started");
 
-		GameContext.Host.ExitMapEditorMode();
+		GameContext.Host?.ExitMapEditorMode();
 
 		if (GameContext.UserInterface != null)
 		{
