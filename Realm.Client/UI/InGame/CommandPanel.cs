@@ -511,12 +511,10 @@ public partial class CommandPanel
 	{
 		var tile = new Panel();
 		tile.Name = "Tile_Panel";
-		var style = new StyleBoxFlat();
-		style.BgColor = new Color(0.04f, 0.04f, 0.06f, 0.35f);
-		style.BorderColor = new Color(UIStyle.ColorBronze.R, UIStyle.ColorBronze.G, UIStyle.ColorBronze.B, 0.2f);
-		style.SetBorderWidthAll(1);
-		style.SetCornerRadiusAll(3);
-		tile.AddThemeStyleboxOverride("panel", style);
+		tile.AddThemeStyleboxOverride("panel", UIStyle.CreateButtonPlate(
+			new Color(0.04f, 0.04f, 0.06f, 0.35f),
+			new Color(UIStyle.ColorBronze.R, UIStyle.ColorBronze.G, UIStyle.ColorBronze.B, 0.2f),
+			3));
 		tile.CustomMinimumSize = new Vector2(56, 56);
 		tile.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 		tile.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
