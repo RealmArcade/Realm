@@ -118,10 +118,7 @@ public class ScoreboardPanel
 		button.AddThemeColorOverride("font_focus_color", UIStyle.ColorCyanGlow);
 		button.AddThemeFontSizeOverride("font_size", 12);
 
-		var focusStyle = new StyleBoxFlat();
-		focusStyle.BgColor = new Color(0.16f, 0.16f, 0.18f, 0.9f);
-		focusStyle.SetBorderWidthAll(1);
-		focusStyle.BorderColor = UIStyle.ColorCyanGlow;
+		var focusStyle = UIStyle.CreateCardPlate(new Color(0.16f, 0.16f, 0.18f, 0.9f), UIStyle.ColorCyanGlow, 1, 0, 0, 0, 0, 0);
 		button.AddThemeStyleboxOverride("focus", focusStyle);
 		return button;
 	}
