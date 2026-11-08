@@ -730,8 +730,7 @@ public partial class EditorService : IEditorAPI
 	public const float MAX_CLUMP_DENSITY = MAX_CLUMP_COUNT;
 
 
-	private TerrainSplatWeights[,]? _terrainSplatMap;
-	private TerrainSplatWeights[,]? _terrainCliffSplatMap;
+	private readonly EditorTerrainSurface _surface = new();
 
 	private float _clumpSpawnCooldown;
 	private bool _isDrawingClump;
@@ -825,14 +824,14 @@ public partial class EditorService : IEditorAPI
 
 	public void SetTerrainSplatMap(TerrainSplatWeights[,]? splatMap, TerrainSplatWeights[,]? cliffSplatMap = null)
 	{
-		_terrainSplatMap = splatMap;
+		_surface.SplatMap = splatMap;
 		if (cliffSplatMap != null)
 		{
-			_terrainCliffSplatMap = cliffSplatMap;
+			_surface.CliffSplatMap = cliffSplatMap;
 		}
 		else if (GameContext.Host?.GroundTerrain?.CliffSplatMap != null)
 		{
-			_terrainCliffSplatMap = GameContext.Host.GroundTerrain.CliffSplatMap;
+			_surface.CliffSplatMap = GameContext.Host.GroundTerrain.CliffSplatMap;
 		}
 
 		if (splatMap != null)
@@ -1258,23 +1257,23 @@ public partial class EditorService : IEditorAPI
 
 	private void ApplyBlockTextures(ref TerrainState terrain, ref ContinuousEditContext ctx, int x, int z, float targetHeight)
 	{
-		if (ctx.ApplyGroundTexture && _terrainSplatMap != null)
+		if (ctx.ApplyGroundTexture && _surface.SplatMap != null)
 		{
 			for (int gz = z; gz <= z + 1; gz++)
 			for (int gx = x; gx <= x + 1; gx++)
-				if (gx >= 0 && gx < _terrainSplatMap.GetLength(0) && gz >= 0 && gz < _terrainSplatMap.GetLength(1))
-					_terrainSplatMap[gx, gz] = TerrainSplatWeights.CreateSolid(ctx.PaintTextureIndex);
+				if (gx >= 0 && gx < _surface.SplatMap.GetLength(0) && gz >= 0 && gz < _surface.SplatMap.GetLength(1))
+					_surface.SplatMap[gx, gz] = TerrainSplatWeights.CreateSolid(ctx.PaintTextureIndex);
 			UpdatePathingFromMetadata(ref terrain, ref ctx, x, z);
 			var terrainSpawns = BuildTerrainProceduralSpawns(x, z, ctx.PaintTextureIndex, targetHeight, ctx.QuadSize, ctx.Width, ctx.Depth);
 			GameContext.Host?.ApplyProceduralSpawns(x, z, CollectionsMarshal.AsSpan(terrainSpawns), ProceduralSpawnLayer.Terrain);
 		}
 
-		if (ctx.ApplyCliffTexture && _terrainCliffSplatMap != null)
+		if (ctx.ApplyCliffTexture && _surface.CliffSplatMap != null)
 		{
 			for (int nz = z - 1; nz <= z + 2; nz++)
 			for (int nx = x - 1; nx <= x + 2; nx++)
-				if (nx >= 0 && nx < _terrainCliffSplatMap.GetLength(0) && nz >= 0 && nz < _terrainCliffSplatMap.GetLength(1))
-					_terrainCliffSplatMap[nx, nz] = TerrainSplatWeights.CreateSolid(ctx.CliffPaintTextureIndex);
+				if (nx >= 0 && nx < _surface.CliffSplatMap.GetLength(0) && nz >= 0 && nz < _surface.CliffSplatMap.GetLength(1))
+					_surface.CliffSplatMap[nx, nz] = TerrainSplatWeights.CreateSolid(ctx.CliffPaintTextureIndex);
 		}
 	}
 
@@ -1307,8 +1306,8 @@ public partial class EditorService : IEditorAPI
 
 	private void ProcessBlockPaint(ref TerrainState terrain, ref ContinuousEditContext ctx)
 	{
-		int splatW = _terrainSplatMap!.GetLength(0);
-		int splatD = _terrainSplatMap.GetLength(1);
+		int splatW = _surface.SplatMap!.GetLength(0);
+		int splatD = _surface.SplatMap.GetLength(1);
 		int intensityLevel = Math.Clamp((int)MathF.Round(ctx.BrushStrength), 0, 10);
 
 		int minPaintX = Math.Clamp((int)Math.Floor((ctx.WorldPos.X - ctx.BrushRadius) / ctx.QuadSize + ctx.Width / 2.0f), 0, splatW - 1);
@@ -1340,7 +1339,7 @@ public partial class EditorService : IEditorAPI
 	{
 		if (ctx.ApplyGroundTexture)
 		{
-			_terrainSplatMap![x, z] = TerrainSplatWeights.PaintVertexWeighted(_terrainSplatMap[x, z], ctx.PaintTextureIndex, intensityLevel);
+			_surface.SplatMap![x, z] = TerrainSplatWeights.PaintVertexWeighted(_surface.SplatMap[x, z], ctx.PaintTextureIndex, intensityLevel);
 			UpdatePathingFromMetadata(ref terrain, ref ctx, x, z);
 			if (terrain.Cells != null && x < ctx.Width && z < ctx.Depth)
 			{
@@ -1349,9 +1348,9 @@ public partial class EditorService : IEditorAPI
 			}
 		}
 
-		if (ctx.ApplyCliffTexture && _terrainCliffSplatMap != null && x < _terrainCliffSplatMap.GetLength(0) && z < _terrainCliffSplatMap.GetLength(1))
+		if (ctx.ApplyCliffTexture && _surface.CliffSplatMap != null && x < _surface.CliffSplatMap.GetLength(0) && z < _surface.CliffSplatMap.GetLength(1))
 		{
-			_terrainCliffSplatMap[x, z] = TerrainSplatWeights.PaintVertexWeighted(_terrainCliffSplatMap[x, z], ctx.CliffPaintTextureIndex, intensityLevel);
+			_surface.CliffSplatMap[x, z] = TerrainSplatWeights.PaintVertexWeighted(_surface.CliffSplatMap[x, z], ctx.CliffPaintTextureIndex, intensityLevel);
 		}
 
 		UpdateContextBoundsTight(ref ctx, x, z);
@@ -1425,8 +1424,8 @@ public partial class EditorService : IEditorAPI
 		}
 		else if (ctx.ActiveTool == EditorTool.PaintTexture)
 		{
-			int splatW = _terrainSplatMap!.GetLength(0);
-			int splatD = _terrainSplatMap.GetLength(1);
+			int splatW = _surface.SplatMap!.GetLength(0);
+			int splatD = _surface.SplatMap.GetLength(1);
 			if (x >= 0 && x < splatW && z >= 0 && z < splatD && ShouldPaintCoord(x, z, ctx.NowMs))
 			{
 				int intensityLevel = Math.Clamp((int)MathF.Round(ctx.BrushStrength), 0, 10);
@@ -1539,7 +1538,7 @@ public partial class EditorService : IEditorAPI
 
 	private void ApplyContinuousCliffSplat(ref ContinuousEditContext ctx, int x, int z)
 	{
-		if (_terrainCliffSplatMap == null) return;
+		if (_surface.CliffSplatMap == null) return;
 		for (int cz = z - 1; cz <= z; cz++)
 		{
 			for (int cx = x - 1; cx <= x; cx++)
@@ -1555,7 +1554,7 @@ public partial class EditorService : IEditorAPI
 		{
 			for (int nx = cx - 1; nx <= cx + 1; nx++)
 			{
-				if (nx >= 0 && nx < ctx.Width && nz >= 0 && nz < ctx.Depth) _terrainCliffSplatMap![nx, nz] = TerrainSplatWeights.CreateSolid(ctx.CliffPaintTextureIndex);
+				if (nx >= 0 && nx < ctx.Width && nz >= 0 && nz < ctx.Depth) _surface.CliffSplatMap![nx, nz] = TerrainSplatWeights.CreateSolid(ctx.CliffPaintTextureIndex);
 			}
 		}
 	}
@@ -1920,8 +1919,8 @@ public partial class EditorService : IEditorAPI
 		_activePlateauHeight = null;
 		_activePlateauWaterMode = WaterType.None;
 		_activeBlockTargetWaterMode = WaterType.None;
-		_terrainSplatMap = null;
-		_terrainCliffSplatMap = null;
+		_surface.SplatMap = null;
+		_surface.CliffSplatMap = null;
 		_clumpSpawnCooldown = 0.0f;
 	}
 
@@ -2242,21 +2241,21 @@ public partial class EditorService : IEditorAPI
 		var cells = terrain.Cells;
 		if (cells == null) return;
 
-		if (_terrainSplatMap == null && GameContext.Host?.GroundTerrain != null)
+		if (_surface.SplatMap == null && GameContext.Host?.GroundTerrain != null)
 		{
-			_terrainSplatMap = GameContext.Host.GroundTerrain.SplatMap;
+			_surface.SplatMap = GameContext.Host.GroundTerrain.SplatMap;
 		}
 
-		if (_terrainCliffSplatMap == null && GameContext.Host?.GroundTerrain != null)
+		if (_surface.CliffSplatMap == null && GameContext.Host?.GroundTerrain != null)
 		{
-			_terrainCliffSplatMap = GameContext.Host.GroundTerrain.CliffSplatMap;
+			_surface.CliffSplatMap = GameContext.Host.GroundTerrain.CliffSplatMap;
 		}
 
 		int selWidth = maxX - minX + 1;
 		int selDepth = maxZ - minZ + 1;
 		var copiedCells = new TerrainCell[selWidth, selDepth];
-		var splatMap = _terrainSplatMap != null ? new TerrainSplatWeights[selWidth + 1, selDepth + 1] : null;
-		var cliffSplatMap = _terrainCliffSplatMap != null ? new TerrainSplatWeights[selWidth + 1, selDepth + 1] : null;
+		var splatMap = _surface.SplatMap != null ? new TerrainSplatWeights[selWidth + 1, selDepth + 1] : null;
+		var cliffSplatMap = _surface.CliffSplatMap != null ? new TerrainSplatWeights[selWidth + 1, selDepth + 1] : null;
 		var pathing = new int[selWidth, selDepth];
 		var mask = isSquare ? null : new bool[selWidth, selDepth];
 
@@ -2297,32 +2296,32 @@ public partial class EditorService : IEditorAPI
 			}
 		}
 
-		if (_terrainSplatMap != null && splatMap != null)
+		if (_surface.SplatMap != null && splatMap != null)
 		{
-			int mapW = _terrainSplatMap.GetLength(0);
-			int mapD = _terrainSplatMap.GetLength(1);
+			int mapW = _surface.SplatMap.GetLength(0);
+			int mapD = _surface.SplatMap.GetLength(1);
 			for (int vz = 0; vz <= selDepth; vz++)
 			{
 				for (int vx = 0; vx <= selWidth; vx++)
 				{
 					int sourceVx = Math.Clamp(minX + vx, 0, mapW - 1);
 					int sourceVz = Math.Clamp(minZ + vz, 0, mapD - 1);
-					splatMap[vx, vz] = _terrainSplatMap[sourceVx, sourceVz];
+					splatMap[vx, vz] = _surface.SplatMap[sourceVx, sourceVz];
 				}
 			}
 		}
 
-		if (_terrainCliffSplatMap != null && cliffSplatMap != null)
+		if (_surface.CliffSplatMap != null && cliffSplatMap != null)
 		{
-			int mapCW = _terrainCliffSplatMap.GetLength(0);
-			int mapCD = _terrainCliffSplatMap.GetLength(1);
+			int mapCW = _surface.CliffSplatMap.GetLength(0);
+			int mapCD = _surface.CliffSplatMap.GetLength(1);
 			for (int vz = 0; vz <= selDepth; vz++)
 			{
 				for (int vx = 0; vx <= selWidth; vx++)
 				{
 					int sourceVx = Math.Clamp(minX + vx, 0, mapCW - 1);
 					int sourceVz = Math.Clamp(minZ + vz, 0, mapCD - 1);
-					cliffSplatMap[vx, vz] = _terrainCliffSplatMap[sourceVx, sourceVz];
+					cliffSplatMap[vx, vz] = _surface.CliffSplatMap[sourceVx, sourceVz];
 				}
 			}
 		}
@@ -2346,18 +2345,6 @@ public partial class EditorService : IEditorAPI
 		};
 	}
 
-	private void CalculateWorldBounds(int minX, int minZ, int maxX, int maxZ, int width, int depth, float quadSize, out float minWorldX, out float maxWorldX, out float minWorldZ, out float maxWorldZ, out float centerWorldX, out float centerWorldZ, out float rxWorld, out float rzWorld)
-	{
-		minWorldX = (minX - width / 2.0f) * quadSize - quadSize * 0.5f;
-		maxWorldX = (maxX - width / 2.0f) * quadSize + quadSize * 0.5f;
-		minWorldZ = (minZ - depth / 2.0f) * quadSize - quadSize * 0.5f;
-		maxWorldZ = (maxZ - depth / 2.0f) * quadSize + quadSize * 0.5f;
-		centerWorldX = (minWorldX + maxWorldX) * 0.5f;
-		centerWorldZ = (minWorldZ + maxWorldZ) * 0.5f;
-		rxWorld = Math.Max(quadSize * 0.5f, (maxWorldX - minWorldX) * 0.5f);
-		rzWorld = Math.Max(quadSize * 0.5f, (maxWorldZ - minWorldZ) * 0.5f);
-	}
-
 	public List<CopiedEntityInfo> BuildCopiedEntityList(
 		int minX, int minZ, int maxX, int maxZ,
 		IReadOnlyList<CopiedEntityCandidate> candidates,
@@ -2370,7 +2357,7 @@ public partial class EditorService : IEditorAPI
 		int depth = terrain.Depth;
 		float quadSize = terrain.QuadSize;
 
-		CalculateWorldBounds(minX, minZ, maxX, maxZ, width, depth, quadSize, out float minWorldX, out float maxWorldX, out float minWorldZ, out float maxWorldZ, out float centerWorldX, out float centerWorldZ, out float rxWorld, out float rzWorld);
+		EditorTerrainSurface.CalculateWorldBounds(minX, minZ, maxX, maxZ, width, depth, quadSize, out float minWorldX, out float maxWorldX, out float minWorldZ, out float maxWorldZ, out float centerWorldX, out float centerWorldZ, out float rxWorld, out float rzWorld);
 		Godot.Vector3 origin = new Godot.Vector3((minX - width / 2.0f) * quadSize, 0.0f, (minZ - depth / 2.0f) * quadSize);
 
 		var entities = new List<CopiedEntityInfo>();
@@ -2455,14 +2442,14 @@ public partial class EditorService : IEditorAPI
 		ref var terrain = ref GetTerrainState();
 		if (terrain.Cells == null) return result;
 
-		if (_terrainSplatMap == null && GameContext.Host?.GroundTerrain != null)
+		if (_surface.SplatMap == null && GameContext.Host?.GroundTerrain != null)
 		{
-			_terrainSplatMap = GameContext.Host.GroundTerrain.SplatMap;
+			_surface.SplatMap = GameContext.Host.GroundTerrain.SplatMap;
 		}
 
-		if (_terrainCliffSplatMap == null && GameContext.Host?.GroundTerrain != null)
+		if (_surface.CliffSplatMap == null && GameContext.Host?.GroundTerrain != null)
 		{
-			_terrainCliffSplatMap = GameContext.Host.GroundTerrain.CliffSplatMap;
+			_surface.CliffSplatMap = GameContext.Host.GroundTerrain.CliffSplatMap;
 		}
 
 		int width = terrain.Width;
@@ -2632,7 +2619,8 @@ public partial class EditorService : IEditorAPI
 
 		if (pasteHeights || pasteTextures || (pastePathing && terrain.PathingCodes != null))
 		{
-			ProcessTerrainErase(ref terrain, minX, minZ, maxX, maxZ, selWidth, selDepth, isSquare, pasteHeights, pasteTextures, pastePathing, ref terrainModified, ref pathingModified);
+			EditorTerrainSurface.ProcessTerrainErase(ref terrain, minX, minZ, maxX, maxZ, selWidth, selDepth, isSquare, pasteHeights, pasteTextures, pastePathing, ref terrainModified, ref pathingModified, _surface.SplatMap, _surface.CliffSplatMap);
+			if (terrainModified && pasteTextures) AlignSplatMapSlots(minX - 2, minZ - 2, maxX + 2, maxZ + 2);
 		}
 
 		result.TerrainModified = terrainModified;
@@ -2641,209 +2629,12 @@ public partial class EditorService : IEditorAPI
 
 		if (pasteEntities)
 		{
-			ProcessEntityErase(minX, minZ, maxX, maxZ, terrain.Width, terrain.Depth, terrain.QuadSize, isSquare, candidatePositions, result.ErasedCandidateIndices);
+			EditorTerrainSurface.ProcessEntityErase(minX, minZ, maxX, maxZ, terrain.Width, terrain.Depth, terrain.QuadSize, isSquare, candidatePositions, result.ErasedCandidateIndices);
 		}
 
 		return result;
 	}
 
-
-	private void ProcessTerrainErase(ref TerrainState terrain, int minX, int minZ, int maxX, int maxZ, int selWidth, int selDepth, bool isSquare, bool pasteHeights, bool pasteTextures, bool pastePathing, ref bool terrainModified, ref bool pathingModified)
-	{
-		float selCenterX = (minX + maxX) * 0.5f;
-		float selCenterZ = (minZ + maxZ) * 0.5f;
-		float rx = Math.Max(0.5f, (maxX - minX) * 0.5f);
-		float rz = Math.Max(0.5f, (maxZ - minZ) * 0.5f);
-
-		for (int sz = 0; sz < selDepth; sz++)
-		{
-			for (int sx = 0; sx < selWidth; sx++)
-			{
-				if (!IsPointInEllipse(minX + sx + 0.5f, minZ + sz + 0.5f, selCenterX, selCenterZ, rx, rz, isSquare, 1.05f)) continue;
-				ProcessSingleEraseCell(ref terrain, minX + sx, minZ + sz, pasteHeights, pasteTextures, pastePathing, ref terrainModified, ref pathingModified);
-			}
-		}
-
-		if (terrainModified && pasteHeights) SanitizeCornerHeights(ref terrain);
-		if (terrainModified && pasteTextures) AlignSplatMapSlots(minX - 2, minZ - 2, maxX + 2, maxZ + 2);
-	}
-
-	private void ProcessSingleEraseCell(ref TerrainState terrain, int targetX, int targetZ, bool pasteHeights, bool pasteTextures, bool pastePathing, ref bool terrainModified, ref bool pathingModified)
-	{
-		if (targetX < 0 || targetX >= terrain.Width || targetZ < 0 || targetZ >= terrain.Depth) return;
-
-		if (pasteHeights && terrain.Cells != null)
-		{
-			var targetCells = terrain.Cells;
-			SetGridNodeHeight(ref terrain, targetX, targetZ, 0f);
-			SetGridNodeHeight(ref terrain, targetX + 1, targetZ, 0f);
-			SetGridNodeHeight(ref terrain, targetX + 1, targetZ + 1, 0f);
-			SetGridNodeHeight(ref terrain, targetX, targetZ + 1, 0f);
-			targetCells[targetX, targetZ] = default;
-		}
-
-		if (pasteTextures)
-		{
-			var defaultGround = TerrainSplatWeights.CreateSolid(0);
-			var defaultCliff = TerrainSplatWeights.CreateSolid(1);
-			SetGridNodeSplat(targetX, targetZ, in defaultGround, in defaultGround, in defaultGround, in defaultGround);
-			SetGridNodeCliffSplat(targetX, targetZ, in defaultCliff, in defaultCliff, in defaultCliff, in defaultCliff);
-		}
-
-		if (pastePathing && terrain.PathingCodes != null)
-		{
-			terrain.PathingCodes[targetX, targetZ] = EditableTerrain.PATHING_GROUND | EditableTerrain.PATHING_FLYING;
-			pathingModified = true;
-		}
-
-		terrainModified = true;
-	}
-
-	private void ProcessEntityErase(int minX, int minZ, int maxX, int maxZ, int width, int depth, float quadSize, bool isSquare, ReadOnlySpan<Godot.Vector3> candidatePositions, List<int> erasedCandidateIndices)
-	{
-		CalculateWorldBounds(minX, minZ, maxX, maxZ, width, depth, quadSize, out float minWorldX, out float maxWorldX, out float minWorldZ, out float maxWorldZ, out float centerWorldX, out float centerWorldZ, out float rxWorld, out float rzWorld);
-
-		for (int index = 0; index < candidatePositions.Length; index++)
-		{
-			Godot.Vector3 position = candidatePositions[index];
-			if (position.X < minWorldX || position.X > maxWorldX || position.Z < minWorldZ || position.Z > maxWorldZ) continue;
-			if (!IsPointInEllipse(position.X, position.Z, centerWorldX, centerWorldZ, rxWorld, rzWorld, isSquare, 1.0f)) continue;
-
-			erasedCandidateIndices.Add(index);
-		}
-
-		ProcessEcsEntityErase(minWorldX, maxWorldX, minWorldZ, maxWorldZ, centerWorldX, centerWorldZ, rxWorld, rzWorld, isSquare);
-	}
-
-	private void ProcessEcsEntityErase(float minWorldX, float maxWorldX, float minWorldZ, float maxWorldZ, float centerWorldX, float centerWorldZ, float rxWorld, float rzWorld, bool isSquare)
-	{
-		var world = GameContext.World;
-		if (world == null) return;
-
-		var staticPropsToDestroy = new List<(Entity Entity, string PropId)>();
-		var propQuery = QueryCache.AllPropIdentityAndPositionQuery;
-		world.Query(in propQuery, (Entity entity, ref PropIdentity propIdComp, ref Position posComp) =>
-		{
-			if (GameHost.EntityToProp3D.ContainsKey(entity)) return;
-			if (posComp.Value.X >= minWorldX && posComp.Value.X <= maxWorldX && posComp.Value.Z >= minWorldZ && posComp.Value.Z <= maxWorldZ)
-			{
-				if (!IsPointInEllipse(posComp.Value.X, posComp.Value.Z, centerWorldX, centerWorldZ, rxWorld, rzWorld, isSquare, 1.0f)) return;
-				staticPropsToDestroy.Add((entity, propIdComp.PropId));
-			}
-		});
-
-		foreach (var sp in staticPropsToDestroy)
-		{
-			if (world.IsAlive(sp.Entity)) world.Destroy(sp.Entity);
-			GameContext.PropMultiMesh?.MarkDirty(sp.PropId);
-		}
-	}
-
-	private bool IsPointInEllipse(float x, float z, float centerX, float centerZ, float rx, float rz, bool isSquare, float threshold)
-	{
-		if (isSquare) return true;
-		float ndx = (x - centerX) / rx;
-		float ndz = (z - centerZ) / rz;
-		return ndx * ndx + ndz * ndz <= threshold;
-	}
-
-	private void ProcessFloodFillNeighbor(int currX, int currZ, int nextX, int nextZ, int splatW, int splatD, bool[,] visited, TerrainSplatWeights[,] splatBefore, int startDominantIndex, bool isCliff, ref TerrainState terrain, Queue<(int x, int z)> queue)
-	{
-		if (nextX < 0 || nextX >= splatW || nextZ < 0 || nextZ >= splatD) return;
-		if (visited[nextX, nextZ]) return;
-		if (splatBefore[nextX, nextZ].GetDominantIndex() != startDominantIndex) return;
-
-		if (!isCliff)
-		{
-			float hCurrent = GetGridNodeHeight(in terrain, currX, currZ);
-			float hNext = GetGridNodeHeight(in terrain, nextX, nextZ);
-			if (Mathf.Abs(hNext - hCurrent) >= 1.0f) return;
-		}
-
-		visited[nextX, nextZ] = true;
-		queue.Enqueue((nextX, nextZ));
-	}
-
-	private List<Vector2I> GetFloodFillCells(Godot.Vector3 clickPos, TerrainSplatWeights[,] splatBefore, int width, int depth, float quadSize, bool[,] visited, bool isCliff)
-	{
-		ref var terrain = ref GetTerrainState();
-		var cells = new List<Vector2I>();
-
-		int splatW = splatBefore.GetLength(0);
-		int splatD = splatBefore.GetLength(1);
-
-		float startFx = clickPos.X / quadSize + width / 2.0f;
-		float startFz = clickPos.Z / quadSize + depth / 2.0f;
-		int clickX = Mathf.Clamp((int)Math.Round(startFx), 0, splatW - 1);
-		int clickZ = Mathf.Clamp((int)Math.Round(startFz), 0, splatD - 1);
-		int startDominantIndex = splatBefore[clickX, clickZ].GetDominantIndex();
-
-		var queue = new Queue<(int x, int z)>();
-		if (!visited[clickX, clickZ])
-		{
-			queue.Enqueue((clickX, clickZ));
-			visited[clickX, clickZ] = true;
-		}
-
-		while (queue.Count > 0)
-		{
-			var (currX, currZ) = queue.Dequeue();
-			cells.Add(new Vector2I(currX, currZ));
-
-			int[] dx = { 0, 0, -1, 1 };
-			int[] dz = { -1, 1, 0, 0 };
-			for (int i = 0; i < 4; i++)
-			{
-				ProcessFloodFillNeighbor(currX, currZ, currX + dx[i], currZ + dz[i], splatW, splatD, visited, splatBefore, startDominantIndex, isCliff, ref terrain, queue);
-			}
-		}
-
-		return cells;
-	}
-
-	private List<Vector2I> GetFloodFillArea(
-		Godot.Vector3 clickPos,
-		TerrainSplatWeights[,] splatBefore,
-		int width,
-		int depth,
-		float quadSize,
-		bool[,] visited,
-		MirrorMode mirrorMode,
-		bool isCliff,
-		Func<int, int, bool> shouldFillCell)
-	{
-		var cells = new List<Vector2I>();
-		int splatW = splatBefore.GetLength(0);
-		int splatD = splatBefore.GetLength(1);
-
-		float startFx = clickPos.X / quadSize + width / 2.0f;
-		float startFz = clickPos.Z / quadSize + depth / 2.0f;
-		int startX = Mathf.Clamp((int)Math.Round(startFx), 0, splatW - 1);
-		int startZ = Mathf.Clamp((int)Math.Round(startFz), 0, splatD - 1);
-
-		if (shouldFillCell(startX, startZ))
-		{
-			cells.AddRange(GetFloodFillCells(clickPos, splatBefore, width, depth, quadSize, visited, isCliff));
-		}
-
-		if (mirrorMode != MirrorMode.None)
-		{
-			var mirrors = GetMirroredPositions(clickPos, mirrorMode);
-			foreach (var m in mirrors)
-			{
-				float mFx = m.X / quadSize + width / 2.0f;
-				float mFz = m.Z / quadSize + depth / 2.0f;
-				int mX = Mathf.Clamp((int)Math.Round(mFx), 0, splatW - 1);
-				int mZ = Mathf.Clamp((int)Math.Round(mFz), 0, splatD - 1);
-				if (shouldFillCell(mX, mZ))
-				{
-					cells.AddRange(GetFloodFillCells(m, splatBefore, width, depth, quadSize, visited, isCliff));
-				}
-			}
-		}
-
-		return cells;
-	}
 
 	public (float[,]? Heights, TerrainSplatWeights[,]? SplatMap, bool IsCliff) PerformFloodFill(
 		Godot.Vector3 clickPos,
@@ -2855,23 +2646,23 @@ public partial class EditorService : IEditorAPI
 		ref var terrain = ref GetTerrainState();
 		if (terrain.Cells == null) return (null, null, isCliff);
 
-		if (_terrainSplatMap == null && GameContext.Host?.GroundTerrain != null)
+		if (_surface.SplatMap == null && GameContext.Host?.GroundTerrain != null)
 		{
-			_terrainSplatMap = GameContext.Host.GroundTerrain.SplatMap;
+			_surface.SplatMap = GameContext.Host.GroundTerrain.SplatMap;
 		}
 
-		if (_terrainCliffSplatMap == null && GameContext.Host?.GroundTerrain != null)
+		if (_surface.CliffSplatMap == null && GameContext.Host?.GroundTerrain != null)
 		{
-			_terrainCliffSplatMap = GameContext.Host.GroundTerrain.CliffSplatMap;
+			_surface.CliffSplatMap = GameContext.Host.GroundTerrain.CliffSplatMap;
 		}
 
-		if (_terrainSplatMap == null) return (null, null, isCliff);
+		if (_surface.SplatMap == null) return (null, null, isCliff);
 
 		int width = terrain.Width;
 		int depth = terrain.Depth;
 		float quadSize = terrain.QuadSize;
 
-		TerrainSplatWeights[,] targetSplatMap = (isCliff && _terrainCliffSplatMap != null) ? _terrainCliffSplatMap : _terrainSplatMap;
+		TerrainSplatWeights[,] targetSplatMap = (isCliff && _surface.CliffSplatMap != null) ? _surface.CliffSplatMap : _surface.SplatMap;
 		int targetTextureIndex = isCliff ? cliffTextureIndex : fillTextureIndex;
 
 		int splatW = targetSplatMap.GetLength(0);
@@ -2880,7 +2671,7 @@ public partial class EditorService : IEditorAPI
 		var splatBefore = (TerrainSplatWeights[,])targetSplatMap.Clone();
 		var visited = new bool[splatW, splatD];
 
-		var cells = GetFloodFillArea(
+		var cells = EditorTerrainSurface.GetFloodFillArea(
 			clickPos,
 			splatBefore,
 			width,
@@ -2889,7 +2680,9 @@ public partial class EditorService : IEditorAPI
 			visited,
 			mirrorMode,
 			isCliff,
-			(x, z) => !splatBefore[x, z].IsSolid(targetTextureIndex)
+			(x, z) => !splatBefore[x, z].IsSolid(targetTextureIndex),
+			_symmetryPivot,
+			_symmetryFolds
 		);
 
 		if (cells.Count == 0) return (null, null, isCliff);
@@ -2916,153 +2709,26 @@ public partial class EditorService : IEditorAPI
 		return (null, (TerrainSplatWeights[,])targetSplatMap.Clone(), isCliff);
 	}
 
-	private List<Vector2I> GetFloodFillPathingCells(
-		Godot.Vector3 clickPos, TerrainSplatWeights[,]? splatBefore, int width, int depth, float quadSize, bool[,] visited)
-	{
-		ref var terrain = ref GetTerrainState();
-		var cells = new List<Vector2I>();
-
-		int clickX = Mathf.Clamp((int)Math.Floor(clickPos.X / quadSize + width / 2.0f), 0, width - 1);
-		int clickZ = Mathf.Clamp((int)Math.Floor(clickPos.Z / quadSize + depth / 2.0f), 0, depth - 1);
-
-		int startDominantIndex = GetStartDominantIndex(clickX, clickZ, splatBefore);
-		WaterType startWaterType = terrain.Cells != null ? terrain.Cells[clickX, clickZ].WaterMode : WaterType.None;
-		float startHeight = terrain.Cells != null ? terrain.Cells[clickX, clickZ].CenterHeight : clickPos.Y;
-
-		var queue = new Queue<(int x, int z)>();
-		if (!visited[clickX, clickZ])
-		{
-			queue.Enqueue((clickX, clickZ));
-			visited[clickX, clickZ] = true;
-		}
-
-		ProcessFloodFillQueue(queue, cells, width, depth, visited, splatBefore, startDominantIndex, terrain.Cells, startWaterType, startHeight);
-
-		return cells;
-	}
-
-	private int GetStartDominantIndex(int clickX, int clickZ, TerrainSplatWeights[,]? splatBefore)
-	{
-		if (splatBefore == null) return 0;
-		int splatW = splatBefore.GetLength(0);
-		int splatD = splatBefore.GetLength(1);
-		return (clickX < splatW && clickZ < splatD) ? splatBefore[clickX, clickZ].GetDominantIndex() : 0;
-	}
-
-	private void ProcessFloodFillQueue(Queue<(int x, int z)> queue, List<Vector2I> cells, int width, int depth, bool[,] visited, TerrainSplatWeights[,]? splatBefore, int startDominantIndex, TerrainCell[,]? terrainCells, WaterType startWaterType, float startHeight)
-	{
-		int[] dx = { 0, 0, -1, 1 };
-		int[] dz = { -1, 1, 0, 0 };
-		int splatW = splatBefore != null ? splatBefore.GetLength(0) : 0;
-		int splatD = splatBefore != null ? splatBefore.GetLength(1) : 0;
-
-		while (queue.Count > 0)
-		{
-			var (currX, currZ) = queue.Dequeue();
-			cells.Add(new Vector2I(currX, currZ));
-			ProcessFloodFillNeighbors(currX, currZ, dx, dz, queue, width, depth, visited, splatBefore, splatW, splatD, startDominantIndex, terrainCells, startWaterType, startHeight);
-		}
-	}
-
-	private void ProcessFloodFillNeighbors(int currX, int currZ, int[] dx, int[] dz, Queue<(int x, int z)> queue, int width, int depth, bool[,] visited, TerrainSplatWeights[,]? splatBefore, int splatW, int splatD, int startDominantIndex, TerrainCell[,]? terrainCells, WaterType startWaterType, float startHeight)
-	{
-		for (int i = 0; i < 4; i++)
-		{
-			int nextX = currX + dx[i];
-			int nextZ = currZ + dz[i];
-			if (nextX < 0 || nextX >= width || nextZ < 0 || nextZ >= depth || visited[nextX, nextZ]) continue;
-			if (!ShouldIncludeNeighbor(nextX, nextZ, splatBefore, splatW, splatD, startDominantIndex, terrainCells, startWaterType, startHeight)) continue;
-
-			visited[nextX, nextZ] = true;
-			queue.Enqueue((nextX, nextZ));
-		}
-	}
-
-	private bool ShouldIncludeNeighbor(int nextX, int nextZ, TerrainSplatWeights[,]? splatBefore, int splatW, int splatD, int startDominantIndex, TerrainCell[,]? terrainCells, WaterType startWaterType, float startHeight)
-	{
-		if (splatBefore != null && nextX < splatW && nextZ < splatD)
-		{
-			if (splatBefore[nextX, nextZ].GetDominantIndex() != startDominantIndex) return false;
-		}
-
-		if (terrainCells != null)
-		{
-			if (startWaterType != terrainCells[nextX, nextZ].WaterMode) return false;
-			float hNext = terrainCells[nextX, nextZ].CenterHeight;
-			if (Mathf.Abs(hNext - startHeight) >= 3.0f) return false;
-		}
-
-		return true;
-	}
-
-	private List<Vector2I> GetFloodFillPathingArea(
-		Godot.Vector3 clickPos,
-		TerrainSplatWeights[,]? splatBefore,
-		int width,
-		int depth,
-		float quadSize,
-		bool[,] visited,
-		MirrorMode mirrorMode,
-		Func<int, int, bool> shouldFillCell)
-	{
-		var cells = new List<Vector2I>();
-
-		float startFx = clickPos.X / quadSize + width / 2.0f;
-		float startFz = clickPos.Z / quadSize + depth / 2.0f;
-		int startX = Mathf.Clamp((int)Math.Floor(startFx), 0, width - 1);
-		int startZ = Mathf.Clamp((int)Math.Floor(startFz), 0, depth - 1);
-
-		if (shouldFillCell(startX, startZ))
-		{
-			cells.AddRange(GetFloodFillPathingCells(clickPos, splatBefore, width, depth, quadSize, visited));
-		}
-
-		if (mirrorMode != MirrorMode.None)
-		{
-			var mirrors = GetMirroredPositions(clickPos, mirrorMode);
-			foreach (var m in mirrors)
-			{
-				float mFx = m.X / quadSize + width / 2.0f;
-				float mFz = m.Z / quadSize + depth / 2.0f;
-				int mX = Mathf.Clamp((int)Math.Floor(mFx), 0, width - 1);
-				int mZ = Mathf.Clamp((int)Math.Floor(mFz), 0, depth - 1);
-				if (shouldFillCell(mX, mZ))
-				{
-					cells.AddRange(GetFloodFillPathingCells(m, splatBefore, width, depth, quadSize, visited));
-				}
-			}
-		}
-
-		return cells;
-	}
-
-	private bool CheckPathingCondition(int[,] pathingBefore, int x, int z, int pathingMask, bool pathingAdd)
-	{
-		int current = pathingBefore[x, z] & pathingMask;
-		if (pathingAdd) return current != pathingMask;
-		return current != 0;
-	}
-
 	public (int[,]? Before, int[,]? After) PerformFloodFillPathing(Godot.Vector3 clickPos, int pathingMask, bool pathingAdd, MirrorMode mirrorMode)
 	{
 		ref var terrain = ref GetTerrainState();
 		if (terrain.Cells == null || terrain.PathingCodes == null) return (null, null);
 
-		if (_terrainSplatMap == null && GameContext.Host?.GroundTerrain != null)
+		if (_surface.SplatMap == null && GameContext.Host?.GroundTerrain != null)
 		{
-			_terrainSplatMap = GameContext.Host.GroundTerrain.SplatMap;
+			_surface.SplatMap = GameContext.Host.GroundTerrain.SplatMap;
 		}
 
 		int width = terrain.Width;
 		int depth = terrain.Depth;
 		float quadSize = terrain.QuadSize;
-		var splatBefore = _terrainSplatMap != null ? (TerrainSplatWeights[,])_terrainSplatMap.Clone() : null;
+		var splatBefore = _surface.SplatMap != null ? (TerrainSplatWeights[,])_surface.SplatMap.Clone() : null;
 		var pathingBefore = (int[,])terrain.PathingCodes.Clone();
 		var visited = new bool[width, depth];
 
 		var pathingCodes = terrain.PathingCodes;
 
-		var cells = GetFloodFillPathingArea(
+		var cells = EditorTerrainSurface.GetFloodFillPathingArea(
 			clickPos,
 			splatBefore,
 			width,
@@ -3070,7 +2736,9 @@ public partial class EditorService : IEditorAPI
 			quadSize,
 			visited,
 			mirrorMode,
-			(x, z) => CheckPathingCondition(pathingBefore, x, z, pathingMask, pathingAdd)
+			(x, z) => EditorTerrainSurface.CheckPathingCondition(pathingBefore, x, z, pathingMask, pathingAdd),
+			_symmetryPivot,
+			_symmetryFolds
 		);
 
 		if (cells.Count == 0) return (null, null);
@@ -3084,149 +2752,6 @@ public partial class EditorService : IEditorAPI
 		}
 
 		return (pathingBefore, (int[,])pathingCodes.Clone());
-	}
-
-	private void ProcessWaterFloodFillNeighbor(TerrainCell currCell, TerrainCell nextCell, int nextX, int nextZ, bool isRemoveAction, float stepCliffThreshold, float baseWaterLevel, bool[,] visited, Queue<(int x, int z)> queue)
-	{
-		if (isRemoveAction)
-		{
-			if (nextCell.WaterMode != WaterType.None)
-			{
-				visited[nextX, nextZ] = true;
-				queue.Enqueue((nextX, nextZ));
-			}
-
-			return;
-		}
-
-		float currHeight = currCell.CenterHeight;
-		float nextHeight = nextCell.CenterHeight;
-		float deltaH = nextHeight - currHeight;
-
-		if (deltaH <= 0.05f)
-		{
-			visited[nextX, nextZ] = true;
-			queue.Enqueue((nextX, nextZ));
-			return;
-		}
-
-		float nextMaxH = Mathf.Max(Mathf.Max(nextCell.Y_NW, nextCell.Y_NE), Mathf.Max(nextCell.Y_SW, nextCell.Y_SE));
-		float nextMinH = Mathf.Min(Mathf.Min(nextCell.Y_NW, nextCell.Y_NE), Mathf.Min(nextCell.Y_SW, nextCell.Y_SE));
-		float nextCellInternalSpan = nextMaxH - nextMinH;
-
-		bool isCliffStep = (nextCell.MacroTier - currCell.MacroTier >= 1) || deltaH >= stepCliffThreshold || nextCellInternalSpan >= stepCliffThreshold;
-		if (!isCliffStep)
-		{
-			visited[nextX, nextZ] = true;
-			queue.Enqueue((nextX, nextZ));
-			return;
-		}
-
-		float obstacleHeight = Mathf.Max(nextMaxH, (float)nextCell.MacroTier * TerrainCell.TIER_HEIGHT);
-		if (baseWaterLevel >= obstacleHeight)
-		{
-			visited[nextX, nextZ] = true;
-			queue.Enqueue((nextX, nextZ));
-		}
-	}
-
-	private List<Vector2I> GetWaterFloodFillCells(
-		Godot.Vector3 worldPos,
-		TerrainCell[,] cellsBefore,
-		int width,
-		int depth,
-		float quadSize,
-		bool[,] visited,
-		float waterSurfaceY,
-		bool isRemoveAction = false)
-	{
-		int clickX = Mathf.Clamp((int)Math.Floor(worldPos.X / quadSize + width / 2.0f), 0, width - 1);
-		int clickZ = Mathf.Clamp((int)Math.Floor(worldPos.Z / quadSize + depth / 2.0f), 0, depth - 1);
-		return CollectWaterPoolCells(clickX, clickZ, cellsBefore, width, depth, visited, waterSurfaceY, isRemoveAction, new List<Vector2I>());
-	}
-
-	private List<Vector2I> CollectWaterPoolCells(
-		int seedX,
-		int seedZ,
-		TerrainCell[,] cellsBefore,
-		int width,
-		int depth,
-		bool[,] visited,
-		float waterSurfaceY,
-		bool isRemoveAction,
-		List<Vector2I> resultCells)
-	{
-		if (seedX < 0 || seedX >= width || seedZ < 0 || seedZ >= depth) return resultCells;
-		if (visited[seedX, seedZ]) return resultCells;
-		if (isRemoveAction && cellsBefore[seedX, seedZ].WaterMode == WaterType.None) return resultCells;
-
-		var queue = new Queue<(int x, int z)>();
-		queue.Enqueue((seedX, seedZ));
-		visited[seedX, seedZ] = true;
-
-		float stepCliffThreshold = TerrainCell.TIER_HEIGHT * 0.70f;
-		ProcessWaterFloodFillQueue(queue, resultCells, cellsBefore, width, depth, visited, isRemoveAction, stepCliffThreshold, waterSurfaceY);
-
-		return resultCells;
-	}
-
-	private float CalculateBaseWaterLevel(Godot.Vector3 clickPos, TerrainCell startCell, float waterHeight)
-	{
-		float effectiveWaterHeight = waterHeight > 0.001f ? waterHeight : 0.9f;
-		float startTerrainHeight = float.IsNaN(clickPos.Y) || float.IsInfinity(clickPos.Y) ? startCell.CenterHeight : clickPos.Y;
-		return startTerrainHeight + effectiveWaterHeight;
-	}
-
-	private void ProcessWaterFloodFillQueue(Queue<(int x, int z)> queue, List<Vector2I> resultCells, TerrainCell[,] cellsBefore, int width, int depth, bool[,] visited, bool isRemoveAction, float stepCliffThreshold, float baseWaterLevel)
-	{
-		int[] dx = { 0, 0, -1, 1 };
-		int[] dz = { -1, 1, 0, 0 };
-
-		while (queue.Count > 0)
-		{
-			var (currX, currZ) = queue.Dequeue();
-			resultCells.Add(new Vector2I(currX, currZ));
-			var currCell = cellsBefore[currX, currZ];
-
-			for (int i = 0; i < 4; i++)
-			{
-				int nextX = currX + dx[i];
-				int nextZ = currZ + dz[i];
-
-				if (nextX >= 0 && nextX < width && nextZ >= 0 && nextZ < depth && !visited[nextX, nextZ])
-				{
-					var nextCell = cellsBefore[nextX, nextZ];
-					ProcessWaterFloodFillNeighbor(currCell, nextCell, nextX, nextZ, isRemoveAction, stepCliffThreshold, baseWaterLevel, visited, queue);
-				}
-			}
-		}
-	}
-
-	private List<Vector2I> GetWaterFloodFillArea(
-		Godot.Vector3 clickPos,
-		TerrainCell[,] cellsBefore,
-		int width,
-		int depth,
-		float quadSize,
-		bool[,] visited,
-		MirrorMode mirrorMode,
-		float waterSurfaceY,
-		bool isRemoveAction = false)
-	{
-		var areaCells = new List<Vector2I>();
-
-		areaCells.AddRange(GetWaterFloodFillCells(clickPos, cellsBefore, width, depth, quadSize, visited, waterSurfaceY, isRemoveAction));
-
-		if (mirrorMode != MirrorMode.None)
-		{
-			var mirrors = GetMirroredPositions(clickPos, mirrorMode);
-			foreach (var m in mirrors)
-			{
-				areaCells.AddRange(GetWaterFloodFillCells(m, cellsBefore, width, depth, quadSize, visited, waterSurfaceY, isRemoveAction));
-			}
-		}
-
-		return areaCells;
 	}
 
 	public (TerrainCell[,]? BeforeCells, TerrainCell[,]? AfterCells, int[,]? BeforePathing, int[,]? AfterPathing, bool WasAdded) PerformWaterFloodFill(
@@ -3256,12 +2781,12 @@ public partial class EditorService : IEditorAPI
 		var visited = new bool[width, depth];
 		int clickX = Mathf.Clamp((int)Math.Floor(clickPos.X / quadSize + width / 2.0f), 0, width - 1);
 		int clickZ = Mathf.Clamp((int)Math.Floor(clickPos.Z / quadSize + depth / 2.0f), 0, depth - 1);
-		float waterSurfaceY = CalculateBaseWaterLevel(clickPos, beforeCells[clickX, clickZ], waterHeight);
-		var filledCells = GetWaterFloodFillArea(clickPos, beforeCells, width, depth, quadSize, visited, mirrorMode, waterSurfaceY, isRemoveAction);
+		float waterSurfaceY = EditorTerrainSurface.CalculateBaseWaterLevel(clickPos, beforeCells[clickX, clickZ], waterHeight);
+		var filledCells = EditorTerrainSurface.GetWaterFloodFillArea(clickPos, beforeCells, width, depth, quadSize, visited, mirrorMode, waterSurfaceY, isRemoveAction, _symmetryPivot, _symmetryFolds);
 
 		if (filledCells.Count == 0) return (null, null, null, null, false);
 
-		ApplyWaterPool(cells, terrain.PathingCodes, filledCells, targetWaterMode, targetWaterProfile, waterSurfaceY, quadSize, width, depth, isRemoving);
+		EditorTerrainSurface.ApplyWaterPool(cells, terrain.PathingCodes, filledCells, targetWaterMode, targetWaterProfile, waterSurfaceY, quadSize, width, depth, isRemoving);
 
 		var afterCells = (TerrainCell[,])cells.Clone();
 		var afterPathing = (int[,])terrain.PathingCodes.Clone();
@@ -3280,71 +2805,12 @@ public partial class EditorService : IEditorAPI
 		if (terrain.Cells[cellX, cellZ].WaterMode != WaterType.None) return false;
 
 		byte waterProfileIndex = GameContext.Host?.ActiveWaterProfileIndex ?? (byte)0;
-		bool[,] visited = AcquireWaterPoolVisited(width, depth);
-		var filledCells = CollectWaterPoolCells(cellX, cellZ, terrain.Cells, width, depth, visited, waterSurfaceY, false, new List<Vector2I>());
+		bool[,] visited = _surface.AcquireWaterPoolVisited(width, depth);
+		var filledCells = EditorTerrainSurface.CollectWaterPoolCells(cellX, cellZ, terrain.Cells, width, depth, visited, waterSurfaceY, false, new List<Vector2I>());
 		if (filledCells.Count == 0) return false;
 
-		ApplyWaterPool(terrain.Cells, terrain.PathingCodes, filledCells, null, waterProfileIndex, waterSurfaceY, terrain.QuadSize, width, depth, false);
+		EditorTerrainSurface.ApplyWaterPool(terrain.Cells, terrain.PathingCodes, filledCells, null, waterProfileIndex, waterSurfaceY, terrain.QuadSize, width, depth, false);
 		return true;
-	}
-
-	private bool[,]? _waterPoolVisited;
-
-	private bool[,] AcquireWaterPoolVisited(int width, int depth)
-	{
-		if (_waterPoolVisited == null || _waterPoolVisited.GetLength(0) != width || _waterPoolVisited.GetLength(1) != depth)
-		{
-			_waterPoolVisited = new bool[width, depth];
-			return _waterPoolVisited;
-		}
-
-		Array.Clear(_waterPoolVisited);
-		return _waterPoolVisited;
-	}
-
-	private void ApplyWaterPool(
-		TerrainCell[,] cells,
-		int[,] pathingCodes,
-		List<Vector2I> filledCells,
-		WaterType? uniformWaterMode,
-		byte waterProfileIndex,
-		float waterSurfaceY,
-		float quadSize,
-		int width,
-		int depth,
-		bool isRemoveAction)
-	{
-		var waterProfile = isRemoveAction ? null : GameContext.Terrain?.GetWaterProfile(waterProfileIndex);
-		var waterSpawnScratch = new List<ProceduralSpawnDescriptor>();
-
-		foreach (var cellPos in filledCells)
-		{
-			int x = cellPos.X;
-			int z = cellPos.Y;
-
-			if (isRemoveAction)
-			{
-				cells[x, z].WaterMode = WaterType.None;
-				cells[x, z].WaterProfileIndex = 0;
-				cells[x, z].WaterHeight = 0f;
-				pathingCodes[x, z] = EditableTerrain.GetDefaultPathingCode(cells[x, z]);
-				GameContext.Host?.ClearProceduralSpawns(x, z, ProceduralSpawnLayer.Water);
-				continue;
-			}
-
-			WaterType waterMode = uniformWaterMode ?? (cells[x, z].MacroTier <= -2 ? WaterType.Deep : WaterType.Shallow);
-			float waterHeight = Math.Max(RuntimeTerrain.WATER_DELTA, waterSurfaceY - cells[x, z].MacroTier * TerrainCell.TIER_HEIGHT);
-			cells[x, z].WaterMode = waterMode;
-			cells[x, z].WaterProfileIndex = waterProfileIndex;
-			cells[x, z].WaterHeight = waterHeight;
-
-			pathingCodes[x, z] = waterProfile != null ? waterProfile.DefaultPathingCode : EditableTerrain.GetDefaultPathingCode(waterMode);
-
-			float waterY = cells[x, z].MacroTier * TerrainCell.TIER_HEIGHT + waterHeight;
-			waterSpawnScratch.Clear();
-			EditorProceduralSpawns.CollectWater(x, z, waterProfile, waterY, quadSize, width, depth, waterSpawnScratch);
-			GameContext.Host?.ApplyProceduralSpawns(x, z, CollectionsMarshal.AsSpan(waterSpawnScratch), ProceduralSpawnLayer.Water);
-		}
 	}
 
 	public List<MirroredTransform> GetMirroredTransforms(
@@ -3508,24 +2974,12 @@ public partial class EditorService : IEditorAPI
 
 	private void SetGridNodeSplat(int gx, int gz, in TerrainSplatWeights nw, in TerrainSplatWeights ne, in TerrainSplatWeights se, in TerrainSplatWeights sw)
 	{
-		if (_terrainSplatMap == null) return;
-		int w = _terrainSplatMap.GetLength(0);
-		int d = _terrainSplatMap.GetLength(1);
-		TrySetSplat(_terrainSplatMap, gx, gz, w, d, in nw);
-		TrySetSplat(_terrainSplatMap, gx + 1, gz, w, d, in ne);
-		TrySetSplat(_terrainSplatMap, gx + 1, gz + 1, w, d, in se);
-		TrySetSplat(_terrainSplatMap, gx, gz + 1, w, d, in sw);
+		_surface.SetGridNodeSplat(gx, gz, in nw, in ne, in se, in sw);
 	}
 
 	private void SetGridNodeCliffSplat(int gx, int gz, in TerrainSplatWeights nw, in TerrainSplatWeights ne, in TerrainSplatWeights se, in TerrainSplatWeights sw)
 	{
-		if (_terrainCliffSplatMap == null) return;
-		int w = _terrainCliffSplatMap.GetLength(0);
-		int d = _terrainCliffSplatMap.GetLength(1);
-		TrySetSplat(_terrainCliffSplatMap, gx, gz, w, d, in nw);
-		TrySetSplat(_terrainCliffSplatMap, gx + 1, gz, w, d, in ne);
-		TrySetSplat(_terrainCliffSplatMap, gx + 1, gz + 1, w, d, in se);
-		TrySetSplat(_terrainCliffSplatMap, gx, gz + 1, w, d, in sw);
+		_surface.SetGridNodeCliffSplat(gx, gz, in nw, in ne, in se, in sw);
 	}
 
 	private void SanitizeCellCorners(TerrainCell[,] cells, int gx, int gz, int w, int d, float h) =>
@@ -3780,13 +3234,7 @@ public partial class EditorService : IEditorAPI
 
 	public void AlignSplatMapSlots(int minX, int minZ, int maxX, int maxZ)
 	{
-		if (_terrainSplatMap != null) EditorSplatAlignment.AlignSplatMapMatrix(_terrainSplatMap, minX, minZ, maxX, maxZ);
-		if (_terrainCliffSplatMap == null && GameContext.Host?.GroundTerrain != null)
-		{
-			_terrainCliffSplatMap = GameContext.Host.GroundTerrain.CliffSplatMap;
-		}
-
-		if (_terrainCliffSplatMap != null) EditorSplatAlignment.AlignSplatMapMatrix(_terrainCliffSplatMap, minX, minZ, maxX, maxZ);
+		_surface.AlignSplatMapSlots(minX, minZ, maxX, maxZ);
 	}
 
 	private static readonly string[] MonitoredFileNames = BuildMonitoredFileNames();
@@ -4087,11 +3535,11 @@ public partial class EditorService : IEditorAPI
 
 	private bool EnsureSplatMapsInitialized()
 	{
-		if (_terrainSplatMap == null && GameContext.Host?.GroundTerrain != null)
-			_terrainSplatMap = GameContext.Host.GroundTerrain.SplatMap;
-		if (_terrainCliffSplatMap == null && GameContext.Host?.GroundTerrain != null)
-			_terrainCliffSplatMap = GameContext.Host.GroundTerrain.CliffSplatMap;
-		return _terrainSplatMap != null;
+		if (_surface.SplatMap == null && GameContext.Host?.GroundTerrain != null)
+			_surface.SplatMap = GameContext.Host.GroundTerrain.SplatMap;
+		if (_surface.CliffSplatMap == null && GameContext.Host?.GroundTerrain != null)
+			_surface.CliffSplatMap = GameContext.Host.GroundTerrain.CliffSplatMap;
+		return _surface.SplatMap != null;
 	}
 
 	public PasteReflection CyclePasteReflectionDomain()
