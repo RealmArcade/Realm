@@ -61,6 +61,23 @@ public static partial class UIStyle
 		return style;
 	}
 
+	/// <summary>An editor card's header background, behind the accordion title and its expand arrow.</summary>
+	public static StyleBoxFlat CreateEditorCardHeaderPlate() =>
+		CreateCardPlate(new Color(0.12f, 0.11f, 0.10f, 0.94f), new Color(0.38f, 0.32f, 0.22f, 0.85f), 1, 5, 8, 8, 6, 8);
+
+	/// <summary>
+	/// The box under a card header. It opens at the top so the header reads as one block with it, and only the two
+	/// bottom corners are rounded.
+	/// </summary>
+	public static StyleBoxFlat CreateEditorCardBodyPlate()
+	{
+		var style = CreateCardPlate(new Color(0.10f, 0.09f, 0.08f, 0.95f), new Color(0.38f, 0.32f, 0.22f, 0.85f), 1, 0, 6, 6, 6, 8);
+		style.BorderWidthTop = 0;
+		style.CornerRadiusBottomLeft = 4;
+		style.CornerRadiusBottomRight = 4;
+		return style;
+	}
+
 	/// <summary>The inset panel behind a group of controls inside an editor card.</summary>
 	public static StyleBoxFlat CreateEditorSubPanel()
 	{

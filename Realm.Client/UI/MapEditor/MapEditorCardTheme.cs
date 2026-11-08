@@ -27,15 +27,7 @@ internal static class MapEditorCardTheme
 
 		accordion.CustomMinimumSize = new Vector2(CardWidth, 0);
 
-		var cardStyle = new StyleBoxFlat();
-		cardStyle.BgColor = new Color(0.12f, 0.11f, 0.10f, 0.94f);
-		cardStyle.BorderColor = new Color(0.38f, 0.32f, 0.22f, 0.85f);
-		cardStyle.SetBorderWidthAll(1);
-		cardStyle.SetCornerRadiusAll(5);
-		cardStyle.ContentMarginLeft = 8;
-		cardStyle.ContentMarginRight = 8;
-		cardStyle.ContentMarginTop = 6;
-		cardStyle.ContentMarginBottom = 8;
+		var cardStyle = UIStyle.CreateEditorCardHeaderPlate();
 
 		Panel bgPanel = accordion.GetNodeOrNull<Panel>("CardBG");
 		if (bgPanel == null)
@@ -60,17 +52,7 @@ internal static class MapEditorCardTheme
 	{
 		if (content == null) return;
 
-		var contentStyle = new StyleBoxFlat();
-		contentStyle.BgColor = new Color(0.10f, 0.09f, 0.08f, 0.95f);
-		contentStyle.BorderColor = new Color(0.38f, 0.32f, 0.22f, 0.85f);
-		contentStyle.SetBorderWidthAll(1);
-		contentStyle.BorderWidthTop = 0;
-		contentStyle.CornerRadiusBottomLeft = 4;
-		contentStyle.CornerRadiusBottomRight = 4;
-		contentStyle.ContentMarginLeft = 6;
-		contentStyle.ContentMarginRight = 6;
-		contentStyle.ContentMarginTop = 6;
-		contentStyle.ContentMarginBottom = 8;
+		var contentStyle = UIStyle.CreateEditorCardBodyPlate();
 
 		if (content is PanelContainer pc)
 		{
