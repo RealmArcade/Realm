@@ -237,10 +237,10 @@ namespace Realm.Client.UI
 				btn.AddThemeFontOverride("font", font);
 			}
 
-			btn.AddThemeStyleboxOverride("normal", UIStyle.CreateOptionButtonNormal());
-			btn.AddThemeStyleboxOverride("hover", UIStyle.CreateOptionButtonHover());
-			btn.AddThemeStyleboxOverride("pressed", UIStyle.CreateOptionButtonPressed());
-			btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+			UIStyle.ApplyStyleBoxStates(btn,
+				UIStyle.CreateOptionButtonNormal(),
+				UIStyle.CreateOptionButtonHover(),
+				UIStyle.CreateOptionButtonPressed());
 			btn.AddThemeColorOverride("font_color", new Color(0.95f, 0.90f, 0.82f));
 			btn.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
 			btn.Alignment = HorizontalAlignment.Left;
