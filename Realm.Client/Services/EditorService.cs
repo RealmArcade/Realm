@@ -583,6 +583,8 @@ public partial class EditorService : IEditorAPI
 
 	private readonly EditorTerrainSurface _surface = new();
 
+	public EditorTerrainSurface Surface => _surface;
+
 	private readonly EditorClumpSession _clump = new();
 
 	public void ResetPaintThrottle() => _terrainEdit.ResetPaintThrottle();
@@ -609,23 +611,6 @@ public partial class EditorService : IEditorAPI
 	public Godot.Vector3 DragStartGroundPos { get; set; }
 	public bool DragObjectHasMoved { get; set; }
 
-	public void SetTerrainSplatMap(TerrainSplatWeights[,]? splatMap, TerrainSplatWeights[,]? cliffSplatMap = null)
-	{
-		_surface.SplatMap = splatMap;
-		if (cliffSplatMap != null)
-		{
-			_surface.CliffSplatMap = cliffSplatMap;
-		}
-		else if (GameContext.Host?.GroundTerrain?.CliffSplatMap != null)
-		{
-			_surface.CliffSplatMap = GameContext.Host.GroundTerrain.CliffSplatMap;
-		}
-
-		if (splatMap != null)
-		{
-			AlignSplatMapSlots(0, 0, splatMap.GetLength(0) - 1, splatMap.GetLength(1) - 1);
-		}
-	}
 
 	public bool IsPastingObject => _interaction.IsPastingObject;
 	public bool HasCachedRandom => _interaction.HasCachedRandom;
@@ -799,7 +784,7 @@ public partial class EditorService : IEditorAPI
 		bool applyGroundTexture = true, bool applyCliffTexture = true)
 	{
 		ref var terrain = ref GetTerrainState();
-		if (terrain.Cells == null || !EnsureSplatMapsInitialized()) return default;
+		if (terrain.Cells == null || !_surface.EnsureSplatMapsInitialized()) return default;
 
 		bool isHeights = EditorTerrainEditSession.IsHeightTool(activeTool);
 		bool isPaint = activeTool == EditorTool.PaintTexture;
@@ -958,7 +943,7 @@ public partial class EditorService : IEditorAPI
 		ref var terrain = ref GetTerrainState();
 		if (terrain.Cells == null) return result;
 
-		EnsureSplatMapsInitialized();
+		_surface.EnsureSplatMapsInitialized();
 
 		int selWidth = maxX - minX + 1;
 		int selDepth = maxZ - minZ + 1;
@@ -968,7 +953,7 @@ public partial class EditorService : IEditorAPI
 		if (pasteHeights || pasteTextures || (pastePathing && terrain.PathingCodes != null))
 		{
 			EditorTerrainSurface.ProcessTerrainErase(ref terrain, minX, minZ, maxX, maxZ, selWidth, selDepth, isSquare, pasteHeights, pasteTextures, pastePathing, ref terrainModified, ref pathingModified, _surface.SplatMap, _surface.CliffSplatMap);
-			if (terrainModified && pasteTextures) AlignSplatMapSlots(minX - 2, minZ - 2, maxX + 2, maxZ + 2);
+			if (terrainModified && pasteTextures) _surface.AlignSplatMapSlots(minX - 2, minZ - 2, maxX + 2, maxZ + 2);
 		}
 
 		result.TerrainModified = terrainModified;
@@ -1180,10 +1165,6 @@ public partial class EditorService : IEditorAPI
 		return EditorToolLabels.GetTerrainStatusString(pos, tool, activePlaceId);
 	}
 
-	public void AlignSplatMapSlots(int minX, int minZ, int maxX, int maxZ)
-	{
-		_surface.AlignSplatMapSlots(minX, minZ, maxX, maxZ);
-	}
 
 	public static DateTime LastEditorChangeUtc => EditorWorkspaceWatcher.LastEditorChangeUtc;
 
@@ -1245,14 +1226,6 @@ public partial class EditorService : IEditorAPI
 		GameContext.Host?.SelectCoordinateExternal(name);
 	}
 
-	private bool EnsureSplatMapsInitialized()
-	{
-		if (_surface.SplatMap == null && GameContext.Host?.GroundTerrain != null)
-			_surface.SplatMap = GameContext.Host.GroundTerrain.SplatMap;
-		if (_surface.CliffSplatMap == null && GameContext.Host?.GroundTerrain != null)
-			_surface.CliffSplatMap = GameContext.Host.GroundTerrain.CliffSplatMap;
-		return _surface.SplatMap != null;
-	}
 
 	public PasteReflection CyclePasteReflectionDomain()
 	{

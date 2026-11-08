@@ -187,7 +187,7 @@ public class MapStateSnapshot
 		var ground = host.RequireGroundTerrain();
 		ground.UpdateMeshAndPhysics(true, true);
 		ground.ReloadTerrainTextures();
-		GameContext.EditorService.SetTerrainSplatMap(ground.SplatMap, ground.CliffSplatMap);
+		GameContext.EditorService.Surface.AttachSplatMaps(ground.SplatMap, ground.CliffSplatMap);
 		host.RebuildCameraBoundsOverlay();
 		GameContext.PropMultiMesh?.RebuildAll();
 		GameContext.MapEditorHud?.UpdateCameraBoundsUI();

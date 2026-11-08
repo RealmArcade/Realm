@@ -1508,7 +1508,7 @@ public partial class GameHost
 		DeleteEntitiesOutsideBounds();
 		GameContext.PropMultiMesh?.RebuildAll();
 
-		GameContext.EditorService.SetTerrainSplatMap(GroundTerrain.SplatMap, GroundTerrain.CliffSplatMap);
+		GameContext.EditorService.Surface.AttachSplatMaps(GroundTerrain.SplatMap, GroundTerrain.CliffSplatMap);
 
 		UpdateScaleMetadata(newWidth, newDepth, scaledCameraBounds);
 		RefreshUIForMapScale(newWidth, newDepth);

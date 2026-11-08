@@ -284,7 +284,7 @@ public partial class GameHost
 			LoadCliffSplatMapsView(absolutePath);
 			MatchLoadTrace.Mark("splat_images");
 			var loadedGround = RequireGroundTerrain();
-			GameContext.EditorService?.SetTerrainSplatMap(loadedGround.SplatMap, loadedGround.CliffSplatMap);
+			GameContext.EditorService?.Surface.AttachSplatMaps(loadedGround.SplatMap, loadedGround.CliffSplatMap);
 			AlignTerrainSplatMapExternal();
 			NormalizeCameraBoundsToMap();
 

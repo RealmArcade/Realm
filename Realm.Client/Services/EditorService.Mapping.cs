@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using Godot;
 using Realm.Client.Core;
@@ -146,7 +146,7 @@ public partial class EditorService
 		terrain.PathingCodes = pathingCodes;
 		terrain.SplatMap = splatMap;
 		terrain.CliffSplatMap = cliffSplatMap;
-		SetTerrainSplatMap(splatMap, cliffSplatMap);
+		Surface.AttachSplatMaps(splatMap, cliffSplatMap);
 
 		terrain.UpdateMeshAndPhysics(true, true);
 		terrain.UpdatePathingTexture();

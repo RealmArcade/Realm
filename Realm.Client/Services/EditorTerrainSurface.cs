@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using Godot;
@@ -16,12 +16,53 @@ namespace Realm.Client.Services;
 /// texture or a pathing layer, and filling a water pool. It owns the two live splat maps it writes and the
 /// visited buffer the water pool fill reuses, so those no longer sit among the editor's other state.
 /// </summary>
-internal sealed class EditorTerrainSurface
+public sealed class EditorTerrainSurface
 {
 	public TerrainSplatWeights[,]? SplatMap;
 	public TerrainSplatWeights[,]? CliffSplatMap;
 
 	private bool[,]? _waterPoolVisited;
+
+	/// <summary>
+	/// Points the surface at a map's splat maps, taking the cliff map from the live terrain when the caller does
+	/// not have one of its own, and aligns the slots so the first edit writes into the right corners.
+	/// </summary>
+	public void AttachSplatMaps(TerrainSplatWeights[,]? splatMap, TerrainSplatWeights[,]? cliffSplatMap = null)
+	{
+		SplatMap = splatMap;
+		if (cliffSplatMap != null)
+		{
+			CliffSplatMap = cliffSplatMap;
+		}
+		else if (GameContext.Host?.GroundTerrain?.CliffSplatMap != null)
+		{
+			CliffSplatMap = GameContext.Host.GroundTerrain.CliffSplatMap;
+		}
+
+		if (splatMap != null)
+		{
+			AlignSplatMapSlots(0, 0, splatMap.GetLength(0) - 1, splatMap.GetLength(1) - 1);
+		}
+	}
+
+	/// <summary>
+	/// Takes the maps off the live terrain the first time an edit needs them, and reports whether there is a ground
+	/// map to write into at all.
+	/// </summary>
+	public bool EnsureSplatMapsInitialized()
+	{
+		if (SplatMap == null && GameContext.Host?.GroundTerrain != null)
+		{
+			SplatMap = GameContext.Host.GroundTerrain.SplatMap;
+		}
+
+		if (CliffSplatMap == null && GameContext.Host?.GroundTerrain != null)
+		{
+			CliffSplatMap = GameContext.Host.GroundTerrain.CliffSplatMap;
+		}
+
+		return SplatMap != null;
+	}
 
 	public void AlignSplatMapSlots(int minX, int minZ, int maxX, int maxZ)
 	{

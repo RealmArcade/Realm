@@ -501,7 +501,7 @@ public partial class GameHost : Node3D
 			_groundTerrain = value;
 			if (value != null && GameContext.EditorService != null)
 			{
-				GameContext.EditorService.SetTerrainSplatMap(value.SplatMap, value.CliffSplatMap);
+				GameContext.EditorService.Surface.AttachSplatMaps(value.SplatMap, value.CliffSplatMap);
 			}
 		}
 	}
@@ -2063,7 +2063,7 @@ public partial class GameHost : Node3D
 				SetupWorldEntityComponents();
 				MatchLoadTrace.Mark("ground_and_world");
 
-				if (GroundTerrain != null) GameContext.EditorService.SetTerrainSplatMap(GroundTerrain.SplatMap, GroundTerrain.CliffSplatMap);
+				if (GroundTerrain != null) GameContext.EditorService.Surface.AttachSplatMaps(GroundTerrain.SplatMap, GroundTerrain.CliffSplatMap);
 
 				SetupSkybox();
 				UpdateDayNightVisuals(0.0f);
@@ -2558,7 +2558,7 @@ public partial class GameHost : Node3D
 		// triggering it here built the whole mesh, water and navigation mesh a second time on every _Ready.
 		if (_groundTerrain != null)
 		{
-			GameContext.EditorService.SetTerrainSplatMap(_groundTerrain.SplatMap, _groundTerrain.CliffSplatMap);
+			GameContext.EditorService.Surface.AttachSplatMaps(_groundTerrain.SplatMap, _groundTerrain.CliffSplatMap);
 		}
 	}
 

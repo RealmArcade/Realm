@@ -369,7 +369,7 @@ namespace Realm.Client.Core
 		{
 			if (GroundTerrain != null)
 			{
-				GameContext.EditorService.SetTerrainSplatMap(GroundTerrain.SplatMap, GroundTerrain.CliffSplatMap);
+				GameContext.EditorService.Surface.AttachSplatMaps(GroundTerrain.SplatMap, GroundTerrain.CliffSplatMap);
 			}
 		}
 
@@ -393,7 +393,7 @@ namespace Realm.Client.Core
 
 			GroundTerrain.ResizeTerrain(newWidth, newDepth);
 
-			GameContext.EditorService.SetTerrainSplatMap(GroundTerrain.SplatMap, GroundTerrain.CliffSplatMap);
+			GameContext.EditorService.Surface.AttachSplatMaps(GroundTerrain.SplatMap, GroundTerrain.CliffSplatMap);
 			DeleteEntitiesOutsideBounds();
 			GameContext.PropMultiMesh?.RebuildAll();
 

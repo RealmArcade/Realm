@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.Services;
@@ -196,7 +196,7 @@ public class TerrainModifyAction : IEditorAction
 			var editorService = GameContext.EditorService;
 			if (editorService != null)
 			{
-				editorService.AlignSplatMapSlots(_minX - 2, _minZ - 2, _minX + _width + 2, _minZ + _depth + 2);
+				editorService.Surface.AlignSplatMapSlots(_minX - 2, _minZ - 2, _minX + _width + 2, _minZ + _depth + 2);
 			}
 		}
 
