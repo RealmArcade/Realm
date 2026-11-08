@@ -394,6 +394,25 @@ public static partial class UIStyle
 	}
 
 	/// <summary>
+	/// A filled card traced with a border, the shape every list row and section block on a detail screen takes. The
+	/// colours and the border width are what change between an ordinary row and an accented one, so they are arguments.
+	/// </summary>
+	public static StyleBoxFlat CreateCardPlate(Color bgColor, Color borderColor, int borderWidth, int cornerRadius,
+		int left = 8, int right = 8, int top = 8, int bottom = 8)
+	{
+		var style = new StyleBoxFlat();
+		style.BgColor = bgColor;
+		style.BorderColor = borderColor;
+		style.SetBorderWidthAll(borderWidth);
+		style.SetCornerRadiusAll(cornerRadius);
+		style.ContentMarginLeft = left;
+		style.ContentMarginRight = right;
+		style.ContentMarginTop = top;
+		style.ContentMarginBottom = bottom;
+		return style;
+	}
+
+	/// <summary>
 	/// A transparent plate traced with a border, which is how the in-game HUD marks the selected unit button. The fill
 	/// is optional because most of these plates are only an outline over the button's own artwork.
 	/// </summary>

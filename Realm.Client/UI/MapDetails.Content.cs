@@ -50,16 +50,10 @@ public partial class MapDetails
 	{
 		var rowPanel = new PanelContainer();
 		rowPanel.Name = "RowPanel_PanelContainer";
-		var rowStyle = new StyleBoxFlat();
-		rowStyle.BgColor = isActive ? new Color(0.03f, 0.05f, 0.08f, 0.65f) : new Color(0.02f, 0.03f, 0.04f, 0.35f);
-		rowStyle.BorderColor = isActive ? new Color(0.15f, 0.65f, 1.0f, 0.5f) : new Color(0.35f, 0.3f, 0.22f, 0.25f);
-		rowStyle.SetBorderWidthAll(1);
-		rowStyle.SetCornerRadiusAll(6);
-		rowStyle.ContentMarginLeft = 12;
-		rowStyle.ContentMarginRight = 12;
-		rowStyle.ContentMarginTop = 8;
-		rowStyle.ContentMarginBottom = 8;
-		rowPanel.AddThemeStyleboxOverride("panel", rowStyle);
+		rowPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateCardPlate(
+			isActive ? new Color(0.03f, 0.05f, 0.08f, 0.65f) : new Color(0.02f, 0.03f, 0.04f, 0.35f),
+			isActive ? new Color(0.15f, 0.65f, 1.0f, 0.5f) : new Color(0.35f, 0.3f, 0.22f, 0.25f),
+			1, 6, 12, 12, 8, 8));
 
 		var hBox = new HBoxContainer();
 		hBox.Name = "HBox_HBoxContainer";
@@ -139,16 +133,8 @@ public partial class MapDetails
 		{
 			var badgePanel = new PanelContainer();
 			badgePanel.Name = "BadgePanel_PanelContainer";
-			var badgeStyle = new StyleBoxFlat();
-			badgeStyle.BgColor = new Color(0.08f, 0.09f, 0.12f, 0.85f);
-			badgeStyle.BorderColor = UIStyle.ColorGoldDull;
-			badgeStyle.SetBorderWidthAll(1);
-			badgeStyle.SetCornerRadiusAll(6);
-			badgeStyle.ContentMarginLeft = 8;
-			badgeStyle.ContentMarginRight = 8;
-			badgeStyle.ContentMarginTop = 8;
-			badgeStyle.ContentMarginBottom = 8;
-			badgePanel.AddThemeStyleboxOverride("panel", badgeStyle);
+			badgePanel.AddThemeStyleboxOverride("panel",
+				UIStyle.CreateCardPlate(new Color(0.08f, 0.09f, 0.12f, 0.85f), UIStyle.ColorGoldDull, 1, 6));
 
 			var rect = new TextureRect();
 			rect.Name = "Rect_TextureRect";
@@ -192,16 +178,8 @@ public partial class MapDetails
 	{
 		var rowPanel = new PanelContainer();
 		rowPanel.Name = "RowPanel_PanelContainer";
-		var rowStyle = new StyleBoxFlat();
-		rowStyle.BgColor = new Color(0.02f, 0.03f, 0.04f, 0.5f);
-		rowStyle.BorderColor = new Color(0.45f, 0.38f, 0.25f, 0.35f);
-		rowStyle.SetBorderWidthAll(1);
-		rowStyle.SetCornerRadiusAll(4);
-		rowStyle.ContentMarginLeft = 10;
-		rowStyle.ContentMarginRight = 10;
-		rowStyle.ContentMarginTop = 6;
-		rowStyle.ContentMarginBottom = 6;
-		rowPanel.AddThemeStyleboxOverride("panel", rowStyle);
+		rowPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateCardPlate(
+			new Color(0.02f, 0.03f, 0.04f, 0.5f), new Color(0.45f, 0.38f, 0.25f, 0.35f), 1, 4, 10, 10, 6, 6));
 
 		var hBox = new HBoxContainer();
 		hBox.Name = "HBox_HBoxContainer";
@@ -258,20 +236,10 @@ public partial class MapDetails
 
 		var card = new PanelContainer();
 		card.Name = "Card_PanelContainer";
-		var cardStyle = new StyleBoxFlat();
-		cardStyle.BgColor = isAccentCard
-			? new Color(0.06f, 0.07f, 0.10f, 0.8f)
-			: new Color(0.04f, 0.05f, 0.07f, 0.55f);
-		cardStyle.BorderColor = isAccentCard
-			? UIStyle.ColorGold
-			: new Color(0.55f, 0.45f, 0.32f, 0.4f);
-		cardStyle.SetBorderWidthAll(isAccentCard ? 2 : 1);
-		cardStyle.SetCornerRadiusAll(6);
-		cardStyle.ContentMarginLeft = 14;
-		cardStyle.ContentMarginRight = 14;
-		cardStyle.ContentMarginTop = 12;
-		cardStyle.ContentMarginBottom = 12;
-		card.AddThemeStyleboxOverride("panel", cardStyle);
+		card.AddThemeStyleboxOverride("panel", UIStyle.CreateCardPlate(
+			isAccentCard ? new Color(0.06f, 0.07f, 0.10f, 0.8f) : new Color(0.04f, 0.05f, 0.07f, 0.55f),
+			isAccentCard ? UIStyle.ColorGold : new Color(0.55f, 0.45f, 0.32f, 0.4f),
+			isAccentCard ? 2 : 1, 6, 14, 14, 12, 12));
 
 		var innerVBox = new VBoxContainer();
 		innerVBox.Name = "InnerVBox_VBoxContainer";
