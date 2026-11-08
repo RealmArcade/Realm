@@ -12,14 +12,16 @@ namespace Realm.Client.UI.InGame;
 /// </summary>
 public static class WeatherPresenter
 {
-	private sealed record Forecast(float FogDensity, string Feedback, Color Tint);
+	// The line is a factory rather than a stored string because the localization catalog is built from literals: the
+	// forecast is translated when it is announced, in whichever language the player is on at the time.
+	private sealed record Forecast(float FogDensity, Func<string> Feedback, Color Tint);
 
 	private static readonly Dictionary<string, Forecast> Forecasts = new(StringComparer.OrdinalIgnoreCase)
 	{
-		["clear"] = new Forecast(0f, "Weather Forecast: Clear Skies", new Color(0.3f, 0.9f, 1.0f)),
-		["rain"] = new Forecast(0.0075f, "Weather Forecast: Light Rain Shower", new Color(0.2f, 0.5f, 0.9f)),
-		["snow"] = new Forecast(0.005f, "Weather Forecast: Snowfall", new Color(0.8f, 0.9f, 1.0f)),
-		["fog"] = new Forecast(0.045f, "Weather Forecast: Dense Fog Warning", new Color(0.7f, 0.7f, 0.8f))
+		["clear"] = new Forecast(0f, () => TranslationServer.Translate("Weather Forecast: Clear Skies"), new Color(0.3f, 0.9f, 1.0f)),
+		["rain"] = new Forecast(0.0075f, () => TranslationServer.Translate("Weather Forecast: Light Rain Shower"), new Color(0.2f, 0.5f, 0.9f)),
+		["snow"] = new Forecast(0.005f, () => TranslationServer.Translate("Weather Forecast: Snowfall"), new Color(0.8f, 0.9f, 1.0f)),
+		["fog"] = new Forecast(0.045f, () => TranslationServer.Translate("Weather Forecast: Dense Fog Warning"), new Color(0.7f, 0.7f, 0.8f))
 	};
 
 	private static Forecast For(string weather) =>
@@ -55,7 +57,7 @@ public static class WeatherPresenter
 
 		// An unrecognised forecast has nothing to announce, which is why this is a lookup and not a fallback to clear.
 		if (weather == null || !Forecasts.TryGetValue(weather, out Forecast? forecast)) return;
-		feedback(TranslationServer.Translate(forecast.Feedback), forecast.Tint);
+		feedback(forecast.Feedback(), forecast.Tint);
 	}
 
 	/// <summary>

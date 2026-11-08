@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using Godot;
 using Realm.Client.Utils;
 
@@ -11,14 +11,15 @@ namespace Realm.Client.UI.InGame;
 public sealed class SpectatorPerspectiveOverlay
 {
 	// The node names are spelled out rather than composed from the labels: they are part of the scene's surface, and a
-	// composed name would change if a label ever did.
-	private static readonly (string Label, int Perspective, string NodeName)[] Options =
+	// composed name would change if a label ever did. The labels are translated where they are written because the
+	// localization catalog is built from literals, so a label carried as a variable would drop out of it.
+	private static (string Label, int Perspective, string NodeName)[] BuildOptions() => new[]
 	{
-		("ALL", -1, "BtnAll_Button"),
-		("BLUE", 1, "BtnBlue_Button"),
-		("RED", 2, "BtnRed_Button"),
-		("GREEN", 3, "BtnGreen_Button"),
-		("YELLOW", 4, "BtnYellow_Button"),
+		((string)TranslationServer.Translate("ALL"), -1, "BtnAll_Button"),
+		((string)TranslationServer.Translate("BLUE"), 1, "BtnBlue_Button"),
+		((string)TranslationServer.Translate("RED"), 2, "BtnRed_Button"),
+		((string)TranslationServer.Translate("GREEN"), 3, "BtnGreen_Button"),
+		((string)TranslationServer.Translate("YELLOW"), 4, "BtnYellow_Button"),
 	};
 
 	public PanelContainer? Root { get; private set; }
@@ -56,11 +57,11 @@ public sealed class SpectatorPerspectiveOverlay
 		specHBox.AddThemeConstantOverride("separation", 10);
 		specVBox.AddChild(specHBox);
 
-		foreach (var (label, perspective, nodeName) in Options)
+		foreach (var (label, perspective, nodeName) in BuildOptions())
 		{
 			var button = new Button();
 			button.Name = nodeName;
-			button.Text = TranslationServer.Translate(label);
+			button.Text = label;
 			int chosen = perspective;
 			button.Pressed += () => setPerspective(chosen);
 			specHBox.AddChild(button);

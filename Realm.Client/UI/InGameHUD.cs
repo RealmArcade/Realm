@@ -207,6 +207,7 @@ public partial class InGameHUD : Control
 
 		InitializeReferences();
 		SetupUnitHealthBarOverlay();
+		SetupSettingsButton();
 		ResourceBar.Build();
 		SetupSelectionFrame();
 		SetupCommandAndInventoryGrids();
@@ -372,6 +373,32 @@ public partial class InGameHUD : Control
 	///     <see cref="InitializeReferences" /> resolves the gear, which is what they anchor themselves to.
 	/// </summary>
 	private ResourceBarButtons ResourceBar => _resourceBar ??= new ResourceBarButtons(_btnSettings, this, () => _viewModel.InstructionSections);
+
+	/// <summary>
+	///     The gear is the one resource-bar button the scene already provides: it only needs its icon, its tooltip and
+	///     its click wired, while the three beside it are created by <see cref="ResourceBarButtons" />.
+	/// </summary>
+	private void SetupSettingsButton()
+	{
+		if (_btnSettings == null) return;
+
+		_btnSettings.ExpandIcon = true;
+		_btnSettings.Icon = UIStyle.LoadCrispIcon("res://Assets/UI/gear_icon.webp", 128);
+		_btnSettings.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
+		_btnSettings.AddThemeConstantOverride("icon_max_width", 22);
+		_btnSettings.TooltipText = TranslationServer.Translate("Settings (F12)");
+		UIStyle.ApplyHudButtonStyleboxes(_btnSettings);
+		_btnSettings.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		_btnSettings.AddThemeColorOverride("icon_normal_color", UIStyle.ColorGoldDull);
+		_btnSettings.AddThemeColorOverride("icon_hover_color", UIStyle.ColorGold);
+		_btnSettings.AddThemeColorOverride("icon_pressed_color", UIStyle.ColorCyanGlow);
+		_btnSettings.AddThemeColorOverride("icon_focus_color", UIStyle.ColorGoldDull);
+		_btnSettings.Pressed += () =>
+		{
+			GameContext.UserInterface?.PlayClickSound();
+			GameContext.UserInterface?.OpenSettingsOverlay();
+		};
+	}
 
 	private MinimapControlsPanel? _minimapControlsPanel;
 
