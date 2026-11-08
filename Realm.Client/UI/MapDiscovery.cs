@@ -21,28 +21,28 @@ public partial class MapDiscovery : Control
 		Realm.Client.Services.GameContext.EnsureServices();
 	}
 
-	private Panel _bgPanel;
-	private Panel _leftPillar;
-	private Panel _rightPillar;
-	private PanelContainer _filterPanel;
-	private PanelContainer _mapListPanel;
+	private Panel _bgPanel = null!;
+	private Panel _leftPillar = null!;
+	private Panel _rightPillar = null!;
+	private PanelContainer _filterPanel = null!;
+	private PanelContainer _mapListPanel = null!;
 
-	private Button _backButton;
-	private Label _discoveryTitle;
-	private LineEdit _searchBar;
-	private GridContainer _mapGrid;
+	private Button _backButton = null!;
+	private Label _discoveryTitle = null!;
+	private LineEdit _searchBar = null!;
+	private GridContainer _mapGrid = null!;
 
-	private Button _btnAll;
-	private Button _btnFeatured;
-	private Button _btnTD;
-	private Button _btnMelee;
-	private Button _btnCampaign;
+	private Button _btnAll = null!;
+	private Button _btnFeatured = null!;
+	private Button _btnTD = null!;
+	private Button _btnMelee = null!;
+	private Button _btnCampaign = null!;
 
-	private MapData[] _allMaps;
+	private MapData[] _allMaps = null!;
 	private string _selectedCategory = "All";
 	private string _searchQuery = "";
 
-	private static Font _fontNorseBold;
+	private static Font _fontNorseBold = null!;
 
 	private static void EnsureFontsLoaded()
 	{

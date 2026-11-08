@@ -14,47 +14,47 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 {
 	public ObjectAttachmentDialog() { }
 
-	private Node3D _previewModel;
+	private Node3D _previewModel = null!;
 
 	private readonly Dictionary<string, Node3D> _socketAnchorNodes = new(StringComparer.OrdinalIgnoreCase);
 	private readonly Dictionary<string, Node3D> _socketModelNodes = new(StringComparer.OrdinalIgnoreCase);
 	private readonly Dictionary<string, Node3D> _activeAttachmentVisuals = new(StringComparer.OrdinalIgnoreCase);
-	private Node3D _currentActiveModelNode;
-	private Node3D _uncommittedPreviewNode;
-	private string _uncommittedPreviewKey;
-	private VBoxContainer _configuredAttachmentsContainer;
+	private Node3D _currentActiveModelNode = null!;
+	private Node3D _uncommittedPreviewNode = null!;
+	private string _uncommittedPreviewKey = null!;
+	private VBoxContainer _configuredAttachmentsContainer = null!;
 
-	private Label _lblUnitTitle;
-	private Label _lblUnitValue;
-	private OptionButton _optSocket;
-	private OptionButton _optAttachmentPicker;
-	private OptionButton _optParent;
+	private Label _lblUnitTitle = null!;
+	private Label _lblUnitValue = null!;
+	private OptionButton _optSocket = null!;
+	private OptionButton _optAttachmentPicker = null!;
+	private OptionButton _optParent = null!;
 	private string? _currentParentAttachmentId = null;
 	private readonly List<string?> _availableParents = new();
 
-	private HSlider _sliderPosX;
-	private HSlider _sliderPosY;
-	private HSlider _sliderPosZ;
-	private Label _lblPosX;
-	private Label _lblPosY;
-	private Label _lblPosZ;
+	private HSlider _sliderPosX = null!;
+	private HSlider _sliderPosY = null!;
+	private HSlider _sliderPosZ = null!;
+	private Label _lblPosX = null!;
+	private Label _lblPosY = null!;
+	private Label _lblPosZ = null!;
 
-	private HSlider _sliderRotX;
-	private HSlider _sliderRotY;
-	private HSlider _sliderRotZ;
-	private Label _lblRotX;
-	private Label _lblRotY;
-	private Label _lblRotZ;
+	private HSlider _sliderRotX = null!;
+	private HSlider _sliderRotY = null!;
+	private HSlider _sliderRotZ = null!;
+	private Label _lblRotX = null!;
+	private Label _lblRotY = null!;
+	private Label _lblRotZ = null!;
 
-	private HSlider _sliderScaleX;
-	private HSlider _sliderScaleY;
-	private HSlider _sliderScaleZ;
-	private Label _lblScaleX;
-	private Label _lblScaleY;
-	private Label _lblScaleZ;
+	private HSlider _sliderScaleX = null!;
+	private HSlider _sliderScaleY = null!;
+	private HSlider _sliderScaleZ = null!;
+	private Label _lblScaleX = null!;
+	private Label _lblScaleY = null!;
+	private Label _lblScaleZ = null!;
 
-	private HSlider _sliderNormalOffset;
-	private Label _lblNormalOffset;
+	private HSlider _sliderNormalOffset = null!;
+	private Label _lblNormalOffset = null!;
 
 	private bool _isTargetBuilding = false;
 	private string _targetObjectId = string.Empty;
@@ -69,9 +69,9 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 	private List<string> _availableAttachments = new();
 	private bool _isUpdatingUI;
 
-	private Action<HandAttachmentOrientation> _onApplied;
+	private Action<HandAttachmentOrientation> _onApplied = null!;
 	private UnitObjectAttachments? _initialSnapshot;
-	private UnitObjectAttachments _workingAttachments;
+	private UnitObjectAttachments _workingAttachments = null!;
 
 
 	private static readonly SocketDefinition[] BoneSockets = new[]
@@ -86,7 +86,7 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 	};
 
 	private readonly List<PseudoSocketAnchor> _workingPseudoSockets = new();
-	private LineEdit _txtPseudoSocketName;
+	private LineEdit _txtPseudoSocketName = null!;
 
 	private readonly List<SocketDefinition> _currentAvailableSockets = new();
 

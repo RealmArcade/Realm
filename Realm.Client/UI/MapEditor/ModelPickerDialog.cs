@@ -12,12 +12,12 @@ public partial class ModelPickerDialog : FloatingPreview3DDialogBase
 {
 	public ModelPickerDialog() { }
 
-	private Node3D _previewModelRoot;
+	private Node3D _previewModelRoot = null!;
 
-	private LineEdit _txtModelPath;
-	private Action<string> _setModelPathValue;
-	private CheckBox _chkShowAllFolders;
-	private Label _lblStatus;
+	private LineEdit _txtModelPath = null!;
+	private Action<string> _setModelPathValue = null!;
+	private CheckBox _chkShowAllFolders = null!;
+	private Label _lblStatus = null!;
 
 	private string _entityId = "";
 	private string _fieldName = "ModelPath";
@@ -25,7 +25,7 @@ public partial class ModelPickerDialog : FloatingPreview3DDialogBase
 	private string _selectedModelPath = "";
 	private string _initialModelPath = "";
 	private bool _showAllFolders = false;
-	private Action<string> _onApplied;
+	private Action<string> _onApplied = null!;
 
 	public ModelPickerDialog(MapEditorHUD hud)
 		: base(hud, TranslationServer.Translate("Model Asset Picker"), new Vector2(480, 560))

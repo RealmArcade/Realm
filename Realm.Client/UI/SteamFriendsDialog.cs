@@ -14,16 +14,16 @@ public partial class SteamFriendsDialog : Control
 
 	private readonly HashSet<ulong> _selectedSteamIds = new HashSet<ulong>();
 
-	private ColorRect _dismissOverlay;
-	private PanelContainer _panel;
-	private Label _setupLabel;
-	private Label _steamUnavailableLabel;
-	private Label _emptyLabel;
-	private ScrollContainer _friendScroll;
-	private VBoxContainer _friendList;
-	private Label _feedbackLabel;
-	private Button _sendButton;
-	private Button _closeButton;
+	private ColorRect _dismissOverlay = null!;
+	private PanelContainer _panel = null!;
+	private Label _setupLabel = null!;
+	private Label _steamUnavailableLabel = null!;
+	private Label _emptyLabel = null!;
+	private ScrollContainer _friendScroll = null!;
+	private VBoxContainer _friendList = null!;
+	private Label _feedbackLabel = null!;
+	private Button _sendButton = null!;
+	private Button _closeButton = null!;
 	private bool _built;
 	private string _gameLobbyId = string.Empty;
 	private int _maximumMembers = 2;

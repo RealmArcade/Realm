@@ -11,20 +11,20 @@ namespace Realm.Client.UI.MapEditor;
 [GlobalClass]
 public partial class ImportFromMapDialog : FloatingDialogBase
 {
-	private OptionButton _optImportKind;
-	private OptionButton _optMapSource;
-	private OptionButton _optCodeScope;
-	private LineEdit _txtSearch;
-	private CheckBox _chkOnlyMissing;
-	private Label _lblItemCount;
-	private Label _lblSummary;
-	private ScrollContainer _assetScroll;
-	private VBoxContainer _assetList;
-	private Button _btnSelectAll;
-	private Button _btnSelectNone;
-	private Button _btnImportSelected;
-	private Button _btnAddArchive;
-	private Button _btnAddFolder;
+	private OptionButton _optImportKind = null!;
+	private OptionButton _optMapSource = null!;
+	private OptionButton _optCodeScope = null!;
+	private LineEdit _txtSearch = null!;
+	private CheckBox _chkOnlyMissing = null!;
+	private Label _lblItemCount = null!;
+	private Label _lblSummary = null!;
+	private ScrollContainer _assetScroll = null!;
+	private VBoxContainer _assetList = null!;
+	private Button _btnSelectAll = null!;
+	private Button _btnSelectNone = null!;
+	private Button _btnImportSelected = null!;
+	private Button _btnAddArchive = null!;
+	private Button _btnAddFolder = null!;
 
 	private readonly List<MapAssetImportSource> _sources = new();
 	private readonly List<MapAssetImportCandidate> _assetCandidates = new();

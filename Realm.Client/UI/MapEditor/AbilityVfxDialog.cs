@@ -16,28 +16,28 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 {
 	public AbilityVfxDialog() { }
 
-	private ProceduralVfxInstance3D _vfxInstance;
-	private MeshInstance3D _aoeRingMesh;
-	private MeshInstance3D _aoeDiskMesh;
-	private MeshInstance3D _groundGrid;
-	private AudioStreamPlayer _sfxPlayer;
+	private ProceduralVfxInstance3D _vfxInstance = null!;
+	private MeshInstance3D _aoeRingMesh = null!;
+	private MeshInstance3D _aoeDiskMesh = null!;
+	private MeshInstance3D _groundGrid = null!;
+	private AudioStreamPlayer _sfxPlayer = null!;
 
-	private TextureRect _iconPreviewRect;
-	private LineEdit _txtIconPath;
-	private Action<string> _setIconPathValue;
+	private TextureRect _iconPreviewRect = null!;
+	private LineEdit _txtIconPath = null!;
+	private Action<string> _setIconPathValue = null!;
 
-	private LineEdit _txtVisualEffect;
-	private Action<string> _setVisualEffectValue;
-	private HSlider _sldAoeRadius;
-	private Label _lblAoeRadiusVal;
-	private LineEdit _txtCastSound;
-	private Action<string> _setCastSoundValue;
+	private LineEdit _txtVisualEffect = null!;
+	private Action<string> _setVisualEffectValue = null!;
+	private HSlider _sldAoeRadius = null!;
+	private Label _lblAoeRadiusVal = null!;
+	private LineEdit _txtCastSound = null!;
+	private Action<string> _setCastSoundValue = null!;
 
 	private string _abilityId = "";
 	private string _slug = "";
-	private Label _lblObjectTypePrefix;
-	private LineEdit _txtSlug;
-	private LineEdit _txtName;
+	private Label _lblObjectTypePrefix = null!;
+	private LineEdit _txtSlug = null!;
+	private LineEdit _txtName = null!;
 	private bool _isUpdatingUI = false;
 	private string _abilityName = "";
 	private string _initialVisualEffect = "";
@@ -52,7 +52,7 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 	private string _currentIconPath = "";
 	private float _currentAoeRadius = 4.0f;
 	private float _playbackSpeed = 1.0f;
-	private Action<JsonObject> _onApplied;
+	private Action<JsonObject> _onApplied = null!;
 
 	public AbilityVfxDialog(MapEditorHUD hud)
 		: base(hud, TranslationServer.Translate("Ability VFX & Audio Studio"), new Vector2(500, 720))

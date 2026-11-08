@@ -11,9 +11,9 @@ namespace Realm.Client.UI.MapEditor;
 [GlobalClass]
 public partial class MapHistoryStoresDialog : FloatingDialogBase
 {
-	private Label _summaryLabel;
-	private Label _noticeLabel;
-	private VBoxContainer _storeList;
+	private Label _summaryLabel = null!;
+	private Label _noticeLabel = null!;
+	private VBoxContainer _storeList = null!;
 	private IReadOnlyList<MapHistoryStoreInfo> _stores = Array.Empty<MapHistoryStoreInfo>();
 
 	public MapHistoryStoresDialog(MapEditorHUD hud)

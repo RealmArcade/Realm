@@ -31,18 +31,18 @@ public partial class SpritesheetAssetEditDialog : FloatingDialogBase
 	private string? _initialTemplateJson = null;
 	private bool _templateExistedInitially = false;
 
-	private Action<int, int, float, bool> _onApplied;
-	private Action<string, string, int, int, float, bool> _onAppliedWithTemplateIdAndRtex;
+	private Action<int, int, float, bool> _onApplied = null!;
+	private Action<string, string, int, int, float, bool> _onAppliedWithTemplateIdAndRtex = null!;
 
-	private Label _lblObjectTypePrefix;
-	private LineEdit _txtSlug;
-	private LineEdit _txtRtexAsset;
-	private Action<string> _setRtexAssetValue;
+	private Label _lblObjectTypePrefix = null!;
+	private LineEdit _txtSlug = null!;
+	private LineEdit _txtRtexAsset = null!;
+	private Action<string> _setRtexAssetValue = null!;
 
-	private SpinBox _spinCols;
-	private SpinBox _spinRows;
-	private SpinBox _spinFps;
-	private CheckBox _chkSubframeBlend;
+	private SpinBox _spinCols = null!;
+	private SpinBox _spinRows = null!;
+	private SpinBox _spinFps = null!;
+	private CheckBox _chkSubframeBlend = null!;
 
 	public SpritesheetAssetEditDialog(MapEditorHUD hud)
 		: base(hud, TranslationServer.Translate("Edit VFX Spritesheet"), new Vector2(380, 360))

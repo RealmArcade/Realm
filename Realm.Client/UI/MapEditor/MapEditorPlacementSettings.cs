@@ -13,9 +13,9 @@ public class MapEditorPlacementSettings
 	private CheckBox _chkRandomRotation;
 	private CheckBox _chkRandomScale;
 	private CheckBox _chkClumpMode;
-	private Slider _sldClumpCount;
+	private Slider _sldClumpCount = null!;
 	private Label _lblClumpCountValue;
-	private Slider _sldClumpScale;
+	private Slider _sldClumpScale = null!;
 	private Label _lblClumpScaleValue;
 	private bool _randomRotationBeforeClumpMode;
 

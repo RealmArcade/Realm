@@ -12,14 +12,14 @@ public class CountdownOverlayPanel
 	private const float FadeInSeconds = 0.2f;
 	private const float FadeOutSeconds = 0.3f;
 
-	private Control _overlayRoot;
-	private Label _overlayTitleLabel;
-	private Label _overlayNumberLabel;
-	private Button _overlayCancelButton;
+	private Control _overlayRoot = null!;
+	private Label _overlayTitleLabel = null!;
+	private Label _overlayNumberLabel = null!;
+	private Button _overlayCancelButton = null!;
 
-	private PanelContainer _compactPanel;
-	private Label _compactLabel;
-	private Button _compactCancelButton;
+	private PanelContainer _compactPanel = null!;
+	private Label _compactLabel = null!;
+	private Button _compactCancelButton = null!;
 
 	private Tween? _fadeTween;
 	private Tween? _pulseTween;

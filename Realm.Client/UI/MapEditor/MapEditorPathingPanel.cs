@@ -5,12 +5,12 @@ namespace Realm.Client.UI.MapEditor;
 
 public class MapEditorPathingPanel
 {
-	private CheckBox _chkShallowWater;
-	private CheckBox _chkDeepWater;
-	private CheckBox _chkFlying;
-	private CheckBox _chkGround;
-	private CheckBox _chkBuildable;
-	private OptionButton _optPathingMode;
+	private CheckBox _chkShallowWater = null!;
+	private CheckBox _chkDeepWater = null!;
+	private CheckBox _chkFlying = null!;
+	private CheckBox _chkGround = null!;
+	private CheckBox _chkBuildable = null!;
+	private OptionButton _optPathingMode = null!;
 
 	public MapEditorPathingPanel(CheckBox chkShallowWater, CheckBox chkDeepWater, CheckBox chkFlying,
 		CheckBox chkGround, CheckBox chkBuildable, OptionButton optPathingMode)

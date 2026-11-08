@@ -8,8 +8,8 @@ namespace Realm.Client.UI.MapEditor;
 public class AssetFilterDropdownState
 {
 	public LineEdit Txt { get; set; }
-	public DropdownSuggestionList Suggestions { get; private set; }
-	public string CommittedValue { get; set; }
+	public DropdownSuggestionList Suggestions { get; private set; } = null!;
+	public string CommittedValue { get; set; } = null!;
 	public bool IsUpdatingTextProgrammatically { get; set; }
 	public bool IsPopupOpening { get; set; }
 	public bool IsPopupSelectionInProgress { get; set; }

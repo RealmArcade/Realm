@@ -27,41 +27,41 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 		GridPadding = 10.0f;
 	}
 
-	private OptionButton _optAssetTypeFilter;
-	private LineEdit _txtSearchFilter;
-	private Label _lblAssetCount;
+	private OptionButton _optAssetTypeFilter = null!;
+	private LineEdit _txtSearchFilter = null!;
+	private Label _lblAssetCount = null!;
 
-	private Button _btnImportAsset;
-	private Button _btnImportShader;
-	private Button _btnConvertFormat;
-	private Button _btnGenerateAiAsset;
-	private Button _btnGenerateNoise;
+	private Button _btnImportAsset = null!;
+	private Button _btnImportShader = null!;
+	private Button _btnConvertFormat = null!;
+	private Button _btnGenerateAiAsset = null!;
+	private Button _btnGenerateNoise = null!;
 
-	private DropdownSuggestionList _convertFormatMenu;
-	private DropdownSuggestionList _generateAiAssetMenu;
+	private DropdownSuggestionList _convertFormatMenu = null!;
+	private DropdownSuggestionList _generateAiAssetMenu = null!;
 
-	private Label _lblEmptyState;
-	private Label _lblAssetPackStatus;
+	private Label _lblEmptyState = null!;
+	private Label _lblAssetPackStatus = null!;
 	private bool _assetPackDownloadRunning;
 
-	private PanelContainer _footerPanel;
-	private TextureRect _footerThumbnail;
-	private Label _lblSelectedFileName;
-	private Label _lblSelectedPath;
-	private Label _lblSelectedSize;
-	private Label _lblSelectedDetails;
-	private Button _btnAudioPlay;
-	private OptionButton _optRaudEntries;
-	private Button _btnDeleteAsset;
+	private PanelContainer _footerPanel = null!;
+	private TextureRect _footerThumbnail = null!;
+	private Label _lblSelectedFileName = null!;
+	private Label _lblSelectedPath = null!;
+	private Label _lblSelectedSize = null!;
+	private Label _lblSelectedDetails = null!;
+	private Button _btnAudioPlay = null!;
+	private OptionButton _optRaudEntries = null!;
+	private Button _btnDeleteAsset = null!;
 
-	private AudioStreamPlayer _audioPlayer;
+	private AudioStreamPlayer _audioPlayer = null!;
 
 	private readonly List<IndexedAsset> _matchingAssets = new();
 
-	private SpritesheetAssetEditDialog _spritesheetEditDialog;
-	private TerrainTextureEditDialog _textureEditDialog;
-	private DecalSettingsDialog _decalEditDialog;
-	private ShaderEditorDialog _shaderEditDialog;
+	private SpritesheetAssetEditDialog _spritesheetEditDialog = null!;
+	private TerrainTextureEditDialog _textureEditDialog = null!;
+	private DecalSettingsDialog _decalEditDialog = null!;
+	private ShaderEditorDialog _shaderEditDialog = null!;
 
 	private string _selectedAssetType = "All";
 	private string _searchFilterText = string.Empty;

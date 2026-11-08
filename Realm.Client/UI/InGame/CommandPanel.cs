@@ -24,7 +24,7 @@ public partial class CommandPanel
 		_commandGrid = commandGrid;
 	}
 
-	private static Texture2D s_whiteTexture;
+	private static Texture2D s_whiteTexture = null!;
 	private static readonly string[] s_integerStrings = CreateIntegerStringCache();
 
 	private static string[] CreateIntegerStringCache()

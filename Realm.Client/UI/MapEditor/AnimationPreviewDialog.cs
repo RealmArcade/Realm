@@ -35,20 +35,20 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 		{ "Dance", "💃" }
 	};
 
-	private Node3D _previewModelRoot;
-	private AnimationPlayer _animPlayer;
+	private Node3D _previewModelRoot = null!;
+	private AnimationPlayer _animPlayer = null!;
 
-	private LineEdit _txtPreviewRanim;
-	private Action<string> _setPreviewRanimValue;
-	private OptionButton _optTargetAction;
-	private VBoxContainer _actionListContainer;
-	private VBoxContainer _configuredAttachmentsContainer;
+	private LineEdit _txtPreviewRanim = null!;
+	private Action<string> _setPreviewRanimValue = null!;
+	private OptionButton _optTargetAction = null!;
+	private VBoxContainer _actionListContainer = null!;
+	private VBoxContainer _configuredAttachmentsContainer = null!;
 
 	private readonly Dictionary<string, Node3D> _socketAnchorNodes = new(StringComparer.OrdinalIgnoreCase);
 	private readonly Dictionary<string, Node3D> _attachmentVisualNodes = new(StringComparer.OrdinalIgnoreCase);
 	private readonly Dictionary<string, bool> _attachmentVisibilities = new(StringComparer.OrdinalIgnoreCase);
 
-	private Node _sourceSelectedObject;
+	private Node _sourceSelectedObject = null!;
 	private string _currentUnitId = "";
 	private string _currentPreviewRanim = "";
 	private float _currentSpeed = 1.0f;

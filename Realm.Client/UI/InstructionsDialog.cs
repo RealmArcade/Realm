@@ -19,8 +19,8 @@ public partial class InstructionsDialog : Control
 
 	private readonly List<InstructionsSection> _sections = new();
 
-	private OptionButton _sectionSelect;
-	private RichTextLabel _sectionBody;
+	private OptionButton _sectionSelect = null!;
+	private RichTextLabel _sectionBody = null!;
 
 	public override void _Ready()
 	{

@@ -26,7 +26,7 @@ public class PortraitPanel
 	private HBoxContainer _queueSlotsContainer;
 	private Label _armyCompositionLabel;
 	private Label _unitNameLabel;
-	private TextureRect _portraitTexture;
+	private TextureRect _portraitTexture = null!;
 
 	private readonly List<string> _lastProductionQueue = new();
 	private readonly Dictionary<string, int> _unitTypeCounts = new();
@@ -41,11 +41,11 @@ public class PortraitPanel
 	private readonly Label[] _unitButtonStatusLabels;
 
 	private Entity _lastSingleEntity = Entity.Null;
-	private string _lastSingleName;
-	private string _lastSingleUnitId;
+	private string _lastSingleName = null!;
+	private string _lastSingleUnitId = null!;
 
 	private Entity _lastPropEntity = Entity.Null;
-	private string _lastPropId;
+	private string _lastPropId = null!;
 	private float _lastPropRemaining = -1f;
 
 	private enum SelectionType { None, Prop, Empty, Single, Multi }

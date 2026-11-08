@@ -17,24 +17,24 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 {
 	public ProceduralAnimationStudioDialog() { }
 
-	private Node3D _simRoot;
-	private Node3D _currentModelRoot;
+	private Node3D _simRoot = null!;
+	private Node3D _currentModelRoot = null!;
 
-	private LineEdit _txtAnimId;
-	private LineEdit _txtAnimName;
-	private OptionButton _optPreset;
-	private OptionButton _optTemplatePicker;
-	private OptionButton _optMotionType;
-	private OptionButton _optMaskMode;
+	private LineEdit _txtAnimId = null!;
+	private LineEdit _txtAnimName = null!;
+	private OptionButton _optPreset = null!;
+	private OptionButton _optTemplatePicker = null!;
+	private OptionButton _optMotionType = null!;
+	private OptionButton _optMaskMode = null!;
 
-	private HSlider _sldMaskMin;
-	private Label _lblMaskMin;
-	private HSlider _sldMaskMax;
-	private Label _lblMaskMax;
-	private HSlider _sldMaskPower;
-	private Label _lblMaskPower;
-	private CheckBox _chkMaskInvert;
-	private CheckBox _chkShowHeatmap;
+	private HSlider _sldMaskMin = null!;
+	private Label _lblMaskMin = null!;
+	private HSlider _sldMaskMax = null!;
+	private Label _lblMaskMax = null!;
+	private HSlider _sldMaskPower = null!;
+	private Label _lblMaskPower = null!;
+	private CheckBox _chkMaskInvert = null!;
+	private CheckBox _chkShowHeatmap = null!;
 
 	private readonly HSlider[] _sldRegionMin = new HSlider[3];
 	private readonly Label[] _lblRegionMin = new Label[3];
@@ -43,45 +43,45 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 	private static readonly string[] _regionAxisNames = { "X", "Y", "Z" };
 	private const float RegionAutoDetectCreaseAngleDegrees = 50.0f;
 
-	private Button _btnRegionAutoDetect;
-	private Label _lblRegionAutoDetectStatus;
+	private Button _btnRegionAutoDetect = null!;
+	private Label _lblRegionAutoDetectStatus = null!;
 	private bool _isRegionAutoDetectActive;
 
-	private HSlider _sldSwayFrequency;
-	private Label _lblSwayFrequency;
-	private HSlider _sldSwayAmplitude;
-	private Label _lblSwayAmplitude;
-	private HSlider _sldFlutterFrequency;
-	private Label _lblFlutterFrequency;
-	private HSlider _sldFlutterAmplitude;
-	private Label _lblFlutterAmplitude;
-	private HSlider _sldWindInfluence;
-	private Label _lblWindInfluence;
-	private HSlider _sldVelocityDragInfluence;
-	private Label _lblVelocityDragInfluence;
-	private HSlider _sldWaveTurbulence;
-	private Label _lblWaveTurbulence;
+	private HSlider _sldSwayFrequency = null!;
+	private Label _lblSwayFrequency = null!;
+	private HSlider _sldSwayAmplitude = null!;
+	private Label _lblSwayAmplitude = null!;
+	private HSlider _sldFlutterFrequency = null!;
+	private Label _lblFlutterFrequency = null!;
+	private HSlider _sldFlutterAmplitude = null!;
+	private Label _lblFlutterAmplitude = null!;
+	private HSlider _sldWindInfluence = null!;
+	private Label _lblWindInfluence = null!;
+	private HSlider _sldVelocityDragInfluence = null!;
+	private Label _lblVelocityDragInfluence = null!;
+	private HSlider _sldWaveTurbulence = null!;
+	private Label _lblWaveTurbulence = null!;
 
-	private HSlider _sldImpulseAmplitude;
-	private Label _lblImpulseAmplitude;
-	private HSlider _sldImpulseFrequency;
-	private Label _lblImpulseFrequency;
-	private HSlider _sldImpulseDecay;
-	private Label _lblImpulseDecay;
-	private HSlider _sldImpulseDuration;
-	private Label _lblImpulseDuration;
+	private HSlider _sldImpulseAmplitude = null!;
+	private Label _lblImpulseAmplitude = null!;
+	private HSlider _sldImpulseFrequency = null!;
+	private Label _lblImpulseFrequency = null!;
+	private HSlider _sldImpulseDecay = null!;
+	private Label _lblImpulseDecay = null!;
+	private HSlider _sldImpulseDuration = null!;
+	private Label _lblImpulseDuration = null!;
 
-	private HSlider _sldSimVelocity;
-	private Label _lblSimVelocity;
+	private HSlider _sldSimVelocity = null!;
+	private Label _lblSimVelocity = null!;
 
-	private Label _lblRegionResolution;
-	private LineEdit _txtRegionName;
-	private HSlider _sldRegionLowerEdge;
-	private Label _lblRegionLowerEdge;
-	private HSlider _sldRegionUpperEdge;
-	private Label _lblRegionUpperEdge;
-	private HSlider _sldRegionFeather;
-	private Label _lblRegionFeather;
+	private Label _lblRegionResolution = null!;
+	private LineEdit _txtRegionName = null!;
+	private HSlider _sldRegionLowerEdge = null!;
+	private Label _lblRegionLowerEdge = null!;
+	private HSlider _sldRegionUpperEdge = null!;
+	private Label _lblRegionUpperEdge = null!;
+	private HSlider _sldRegionFeather = null!;
+	private Label _lblRegionFeather = null!;
 	private bool _suppressRegionSync;
 
 	private ProceduralAnimationConfig _config = new();
@@ -93,7 +93,7 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 	private float _impulseTime = 0.0f;
 	private float _simVelocityX = 0.0f;
 
-	private Action<ProceduralAnimationConfig> _onSaved;
+	private Action<ProceduralAnimationConfig> _onSaved = null!;
 
 	public ProceduralAnimationStudioDialog(MapEditorHUD hud)
 		: base(hud, TranslationServer.Translate("Procedural Animation & Sway Studio"), new Vector2(560, 780))

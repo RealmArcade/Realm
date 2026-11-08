@@ -32,20 +32,20 @@ public partial class ItemUpgradeEditDialog : FloatingDialogBase
 	private string? _initialTemplateJson = null;
 	private bool _templateExistedInitially = false;
 
-	private Action<string, string> _onAppliedCallback;
+	private Action<string, string> _onAppliedCallback = null!;
 
-	private Label _lblObjectTypePrefix;
-	private LineEdit _txtSlug;
-	private Label _lblSlugValidation;
-	private LineEdit _txtName;
-	private LineEdit _txtIconPath;
-	private Action<string> _setIconPathValue;
-	private LineEdit _txtTooltip;
-	private VBoxContainer _previewContainer;
-	private VBoxContainer _grantedCapabilitiesSection;
-	private VBoxContainer _vboxGrantedWeapons;
-	private VBoxContainer _vboxGrantedAbilities;
-	private VBoxContainer _vboxGrantedUpgrades;
+	private Label _lblObjectTypePrefix = null!;
+	private LineEdit _txtSlug = null!;
+	private Label _lblSlugValidation = null!;
+	private LineEdit _txtName = null!;
+	private LineEdit _txtIconPath = null!;
+	private Action<string> _setIconPathValue = null!;
+	private LineEdit _txtTooltip = null!;
+	private VBoxContainer _previewContainer = null!;
+	private VBoxContainer _grantedCapabilitiesSection = null!;
+	private VBoxContainer _vboxGrantedWeapons = null!;
+	private VBoxContainer _vboxGrantedAbilities = null!;
+	private VBoxContainer _vboxGrantedUpgrades = null!;
 
 	public ItemUpgradeEditDialog(MapEditorHUD hud)
 		: base(hud, TranslationServer.Translate("Edit Item / Upgrade"), new Vector2(480, 480))

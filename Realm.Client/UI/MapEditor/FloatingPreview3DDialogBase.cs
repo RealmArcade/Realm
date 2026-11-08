@@ -8,11 +8,11 @@ public partial class FloatingPreview3DDialogBase : FloatingDialogBase
 {
 	public FloatingPreview3DDialogBase() { }
 
-	protected SubViewportContainer PreviewViewportContainer;
-	protected SubViewport PreviewSubViewport;
-	protected Camera3D PreviewCamera;
-	protected DirectionalLight3D PreviewLight;
-	protected Node3D PreviewSceneRoot;
+	protected SubViewportContainer PreviewViewportContainer = null!;
+	protected SubViewport PreviewSubViewport = null!;
+	protected Camera3D PreviewCamera = null!;
+	protected DirectionalLight3D PreviewLight = null!;
+	protected Node3D PreviewSceneRoot = null!;
 
 	protected float DefaultDistance = 5.0f;
 	protected float CameraDistance = 5.0f;
@@ -30,7 +30,7 @@ public partial class FloatingPreview3DDialogBase : FloatingDialogBase
 	protected bool IsPanning;
 	protected Vector2 LastMousePosition;
 
-	protected HBoxContainer CameraPresetToolbar;
+	protected HBoxContainer CameraPresetToolbar = null!;
 
 	public SubViewport SubViewport => PreviewSubViewport;
 	public Camera3D Camera => PreviewCamera;

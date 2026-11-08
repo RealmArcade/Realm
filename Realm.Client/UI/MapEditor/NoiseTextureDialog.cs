@@ -17,52 +17,52 @@ public partial class NoiseTextureDialog : FloatingDialogBase
 	[GeneratedRegex(@"^(.*)_(\d+)$")]
 	private static partial Regex TrailingIndexRegex();
 
-	private LineEdit _txtName;
-	private OptionButton _optResolution;
-	private OptionButton _optNoiseType;
-	private LineEdit _txtSeed;
-	private Button _btnRandomizeSeed;
-	private HSlider _sliderFrequency;
-	private Label _lblFrequencyVal;
-	private OptionButton _optFractalType;
-	private HSlider _sliderOctaves;
-	private Label _lblOctavesVal;
-	private HSlider _sliderLacunarity;
-	private Label _lblLacunarityVal;
-	private HSlider _sliderGain;
-	private Label _lblGainVal;
-	private HSlider _sliderWeightedStrength;
-	private Label _lblWeightedStrengthVal;
+	private LineEdit _txtName = null!;
+	private OptionButton _optResolution = null!;
+	private OptionButton _optNoiseType = null!;
+	private LineEdit _txtSeed = null!;
+	private Button _btnRandomizeSeed = null!;
+	private HSlider _sliderFrequency = null!;
+	private Label _lblFrequencyVal = null!;
+	private OptionButton _optFractalType = null!;
+	private HSlider _sliderOctaves = null!;
+	private Label _lblOctavesVal = null!;
+	private HSlider _sliderLacunarity = null!;
+	private Label _lblLacunarityVal = null!;
+	private HSlider _sliderGain = null!;
+	private Label _lblGainVal = null!;
+	private HSlider _sliderWeightedStrength = null!;
+	private Label _lblWeightedStrengthVal = null!;
 
-	private VBoxContainer _cellularGroup;
-	private OptionButton _optCellularDistFunc;
-	private OptionButton _optCellularReturnType;
-	private HSlider _sliderCellularJitter;
-	private Label _lblCellularJitterVal;
+	private VBoxContainer _cellularGroup = null!;
+	private OptionButton _optCellularDistFunc = null!;
+	private OptionButton _optCellularReturnType = null!;
+	private HSlider _sliderCellularJitter = null!;
+	private Label _lblCellularJitterVal = null!;
 
-	private VBoxContainer _domainWarpGroup;
-	private CheckBox _chkDomainWarpEnabled;
-	private OptionButton _optDomainWarpType;
-	private HSlider _sliderDomainWarpAmplitude;
-	private Label _lblDomainWarpAmplitudeVal;
-	private HSlider _sliderDomainWarpFrequency;
-	private Label _lblDomainWarpFrequencyVal;
-	private HSlider _sliderDomainWarpOctaves;
-	private Label _lblDomainWarpOctavesVal;
+	private VBoxContainer _domainWarpGroup = null!;
+	private CheckBox _chkDomainWarpEnabled = null!;
+	private OptionButton _optDomainWarpType = null!;
+	private HSlider _sliderDomainWarpAmplitude = null!;
+	private Label _lblDomainWarpAmplitudeVal = null!;
+	private HSlider _sliderDomainWarpFrequency = null!;
+	private Label _lblDomainWarpFrequencyVal = null!;
+	private HSlider _sliderDomainWarpOctaves = null!;
+	private Label _lblDomainWarpOctavesVal = null!;
 
-	private CheckBox _chkInvert;
-	private CheckBox _chkNormalize;
-	private CheckBox _chkFlowMap;
+	private CheckBox _chkInvert = null!;
+	private CheckBox _chkNormalize = null!;
+	private CheckBox _chkFlowMap = null!;
 
-	private OptionButton _optColorMode;
-	private HBoxContainer _colorRampRow;
-	private ColorPickerButton _pickerColorA;
-	private ColorPickerButton _pickerColorB;
+	private OptionButton _optColorMode = null!;
+	private HBoxContainer _colorRampRow = null!;
+	private ColorPickerButton _pickerColorA = null!;
+	private ColorPickerButton _pickerColorB = null!;
 
-	private TextureRect _previewTextureRect;
-	private Label _lblPreviewInfo;
+	private TextureRect _previewTextureRect = null!;
+	private Label _lblPreviewInfo = null!;
 
-	private Action<string> _onSavedCallback;
+	private Action<string> _onSavedCallback = null!;
 	private bool _isUpdatingPreview;
 
 	public NoiseTextureDialog(MapEditorHUD hud) : base(hud, TranslationServer.Translate("Procedural Noise Texture Generator"), new Vector2(740, 560))

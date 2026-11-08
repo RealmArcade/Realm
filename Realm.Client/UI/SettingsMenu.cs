@@ -24,61 +24,61 @@ public partial class SettingsMenu : Control
 
 	[Export] public bool IsOverlay = false;
 
-	private Panel _bgPanel;
-	private Panel _mainFrame;
-	private PanelContainer _videoPanel;
-	private PanelContainer _audioPanel;
-	private PanelContainer _controlsPanel;
-	private PanelContainer _otherPanel;
+	private Panel _bgPanel = null!;
+	private Panel _mainFrame = null!;
+	private PanelContainer _videoPanel = null!;
+	private PanelContainer _audioPanel = null!;
+	private PanelContainer _controlsPanel = null!;
+	private PanelContainer _otherPanel = null!;
 
-	private Label _settingsTitle;
-	private Label _videoTitle;
-	private Label _audioTitle;
-	private Label _controlsTitle;
-	private Label _otherTitle;
+	private Label _settingsTitle = null!;
+	private Label _videoTitle = null!;
+	private Label _audioTitle = null!;
+	private Label _controlsTitle = null!;
+	private Label _otherTitle = null!;
 
-	private OptionButton _resolutionOpt;
-	private OptionButton _qualityOpt;
-	private CheckBox _shadowsChk;
-	private CheckBox _dayNightLightingChk;
-	private CheckBox _weatherEffectsChk;
-	private CheckBox _floatingCombatTextChk;
-	private OptionButton _windowModeOpt;
-	private OptionButton _vsyncOpt;
-	private HSlider _fpsLimitSlider;
-	private Label _fpsLimitValLabel;
-	private OptionButton _healthBarsOpt;
-	private OptionButton _languageOpt;
-	private CheckBox _displayFpsChk;
-	private CheckBox _displayPingChk;
-	private CheckBox _unitOutlineChk;
-	private CheckBox _recordReplaysChk;
-	private CheckBox _seedMapFilesChk;
+	private OptionButton _resolutionOpt = null!;
+	private OptionButton _qualityOpt = null!;
+	private CheckBox _shadowsChk = null!;
+	private CheckBox _dayNightLightingChk = null!;
+	private CheckBox _weatherEffectsChk = null!;
+	private CheckBox _floatingCombatTextChk = null!;
+	private OptionButton _windowModeOpt = null!;
+	private OptionButton _vsyncOpt = null!;
+	private HSlider _fpsLimitSlider = null!;
+	private Label _fpsLimitValLabel = null!;
+	private OptionButton _healthBarsOpt = null!;
+	private OptionButton _languageOpt = null!;
+	private CheckBox _displayFpsChk = null!;
+	private CheckBox _displayPingChk = null!;
+	private CheckBox _unitOutlineChk = null!;
+	private CheckBox _recordReplaysChk = null!;
+	private CheckBox _seedMapFilesChk = null!;
 
-	private HSlider _masterSlider;
-	private HSlider _musicSlider;
-	private HSlider _sfxSlider;
-	private HSlider _voiceSlider;
+	private HSlider _masterSlider = null!;
+	private HSlider _musicSlider = null!;
+	private HSlider _sfxSlider = null!;
+	private HSlider _voiceSlider = null!;
 
 	private CheckBox? _dopplerChk;
 	private CheckBox? _distanceMuffleChk;
 
-	private Label _masterValLabel;
-	private Label _musicValLabel;
-	private Label _sfxValLabel;
-	private Label _voiceValLabel;
+	private Label _masterValLabel = null!;
+	private Label _musicValLabel = null!;
+	private Label _sfxValLabel = null!;
+	private Label _voiceValLabel = null!;
 
-	private HSlider _scrollSpeedSlider;
-	private HSlider _mouseSensSlider;
-	private HSlider _hudScaleSlider;
+	private HSlider _scrollSpeedSlider = null!;
+	private HSlider _mouseSensSlider = null!;
+	private HSlider _hudScaleSlider = null!;
 
-	private Label _scrollValLabel;
-	private Label _sensValLabel;
-	private Label _hudScaleValLabel;
+	private Label _scrollValLabel = null!;
+	private Label _sensValLabel = null!;
+	private Label _hudScaleValLabel = null!;
 
-	private Button _applyBtn;
-	private Button _cancelBtn;
-	private Button _resetBtn;
+	private Button _applyBtn = null!;
+	private Button _cancelBtn = null!;
+	private Button _resetBtn = null!;
 
 	public override void _Ready()
 	{

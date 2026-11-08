@@ -20,11 +20,11 @@ public partial class ReplayListPanel : Control
 		Realm.Client.Services.GameContext.EnsureServices();
 	}
 
-	private VBoxContainer _listContainer;
-	private Button _backBtn;
-	private Button _deleteAllBtn;
-	private Label _titleLabel;
-	private Label _noReplaysLabel;
+	private VBoxContainer _listContainer = null!;
+	private Button _backBtn = null!;
+	private Button _deleteAllBtn = null!;
+	private Label _titleLabel = null!;
+	private Label _noReplaysLabel = null!;
 
 	public override void _Ready()
 	{

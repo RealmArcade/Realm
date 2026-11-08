@@ -38,50 +38,50 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 	private string _proceduralAnimation = "";
 
 	private bool _isSyncing = false;
-	private Node _currentSelectedObject;
+	private Node _currentSelectedObject = null!;
 	private VisualOverridesSnapshot _initialSnapshot;
 	private string? _initialTemplateJson = null;
 	private bool _templateExistedInitially = false;
 	private float _modelLocalMinY = 0f;
 	private float _previousScale = 1.0f;
-	private Action<string, string> _onAppliedCallback;
+	private Action<string, string> _onAppliedCallback = null!;
 
-	private Label _lblDescription;
-	private Label _lblIdentitySectionHeader;
-	private HBoxContainer _idRow;
-	private Label _lblObjectTypePrefix;
-	private LineEdit _txtSlug;
-	private Label _lblSlugValidation;
-	private HBoxContainer _visualModeRow;
-	private OptionButton _optVisualMode;
-	private LineEdit _txtModelPath;
-	private Action<string> _setModelPathValue;
-	private LineEdit _txtPortraitModelPath;
-	private Action<string> _setPortraitModelPathValue;
-	private LineEdit _txtName;
-	private LineEdit _txtDescription;
+	private Label _lblDescription = null!;
+	private Label _lblIdentitySectionHeader = null!;
+	private HBoxContainer _idRow = null!;
+	private Label _lblObjectTypePrefix = null!;
+	private LineEdit _txtSlug = null!;
+	private Label _lblSlugValidation = null!;
+	private HBoxContainer _visualModeRow = null!;
+	private OptionButton _optVisualMode = null!;
+	private LineEdit _txtModelPath = null!;
+	private Action<string> _setModelPathValue = null!;
+	private LineEdit _txtPortraitModelPath = null!;
+	private Action<string> _setPortraitModelPathValue = null!;
+	private LineEdit _txtName = null!;
+	private LineEdit _txtDescription = null!;
 
-	private HSlider _sldScale;
-	private Label _lblScale;
-	private HSlider _sldYOffset;
-	private Label _lblYOffset;
-	private HSlider _sldCollisionCircle;
-	private Label _lblCollisionCircle;
-	private HSlider _sldBrightness;
-	private Label _lblBrightness;
-	private ColorPickerButton _btnTint;
-	private HSlider _sldTintHue;
-	private CheckBox _chkNormalizeLuminance;
-	private CheckBox _chkIgnorePlayerColor;
-	private CheckBox _chkDespillPlayerColor;
+	private HSlider _sldScale = null!;
+	private Label _lblScale = null!;
+	private HSlider _sldYOffset = null!;
+	private Label _lblYOffset = null!;
+	private HSlider _sldCollisionCircle = null!;
+	private Label _lblCollisionCircle = null!;
+	private HSlider _sldBrightness = null!;
+	private Label _lblBrightness = null!;
+	private ColorPickerButton _btnTint = null!;
+	private HSlider _sldTintHue = null!;
+	private CheckBox _chkNormalizeLuminance = null!;
+	private CheckBox _chkIgnorePlayerColor = null!;
+	private CheckBox _chkDespillPlayerColor = null!;
 
-	private OptionButton _optSpawnShader;
-	private OptionButton _optDeathShader;
-	private CheckBox _chkEnableProceduralAnim;
-	private OptionButton _optProceduralAnim;
-	private Button _btnOpenProcAnimStudio;
-	private Button _btnOpenRiggedAnimStudio;
-	private Button _btnOpenSocketsAndVfx;
+	private OptionButton _optSpawnShader = null!;
+	private OptionButton _optDeathShader = null!;
+	private CheckBox _chkEnableProceduralAnim = null!;
+	private OptionButton _optProceduralAnim = null!;
+	private Button _btnOpenProcAnimStudio = null!;
+	private Button _btnOpenRiggedAnimStudio = null!;
+	private Button _btnOpenSocketsAndVfx = null!;
 
 	public EntityVisualEditDialog(MapEditorHUD hud)
 		: base(hud, TranslationServer.Translate("Visual Properties & Overrides"), new Vector2(520, 740))

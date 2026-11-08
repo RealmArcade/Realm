@@ -29,7 +29,7 @@ public static class GameSettings
 	public static int ResolutionIdx { get; set; } = 0;
 	public static int WindowedResolutionWidth { get; set; } = 0;
 	public static int WindowedResolutionHeight { get; set; } = 0;
-	public static List<Vector2I> Resolutions { get; private set; }
+	public static List<Vector2I> Resolutions { get; private set; } = null!;
 	public static GraphicsQuality QualityIdx { get; set; } = GraphicsQuality.High;
 	public static float LodDistanceScale => GetLodDistanceScale(QualityIdx);
 	public static WindowMode WindowModeIdx { get; set; } = WindowMode.Fullscreen;

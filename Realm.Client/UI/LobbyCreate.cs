@@ -20,23 +20,23 @@ public partial class LobbyCreate : Control
 		Realm.Client.Services.GameContext.EnsureServices();
 	}
 
-	private Panel _bgPanel;
-	private Panel _leftPillar;
-	private Panel _rightPillar;
-	private PanelContainer _centralPanel;
-	private PanelContainer _briefingPanel;
+	private Panel _bgPanel = null!;
+	private Panel _leftPillar = null!;
+	private Panel _rightPillar = null!;
+	private PanelContainer _centralPanel = null!;
+	private PanelContainer _briefingPanel = null!;
 
-	private Button _backButton;
-	private Button _createButton;
-	private Button _openMapLibraryButton;
-	private OptionButton _versionSelectButton;
-	private HBoxContainer _versionContainer;
-	private Label _versionLabel;
-	private RichTextLabel _briefingText;
-	private TextureRect _mapThumbnail;
+	private Button _backButton = null!;
+	private Button _createButton = null!;
+	private Button _openMapLibraryButton = null!;
+	private OptionButton _versionSelectButton = null!;
+	private HBoxContainer _versionContainer = null!;
+	private Label _versionLabel = null!;
+	private RichTextLabel _briefingText = null!;
+	private TextureRect _mapThumbnail = null!;
 
-	private Label _titleLabel;
-	private Label _selectedMapNameLabel;
+	private Label _titleLabel = null!;
+	private Label _selectedMapNameLabel = null!;
 
 	private Panel? _hostProgressOverlay;
 	private ProgressBar? _hostProgressBar;

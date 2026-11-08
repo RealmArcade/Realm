@@ -15,37 +15,37 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 {
 	public ShaderEditorDialog() { }
 
-	private Node3D _simRoot;
-	private Node3D _currentModelRoot;
+	private Node3D _simRoot = null!;
+	private Node3D _currentModelRoot = null!;
 
-	private Label _lblObjectTypePrefix;
-	private LineEdit _txtSlug;
+	private Label _lblObjectTypePrefix = null!;
+	private LineEdit _txtSlug = null!;
 	private string _slug = "";
-	private OptionButton _optModelPicker;
-	private OptionButton _optTransitionMode;
-	private OptionButton _optDirection;
+	private OptionButton _optModelPicker = null!;
+	private OptionButton _optTransitionMode = null!;
+	private OptionButton _optDirection = null!;
 
-	private ColorPickerButton _cpkEdgeColor;
-	private HSlider _sldEdgeWidth;
-	private Label _lblEdgeWidth;
-	private HSlider _sldEdgeEmission;
-	private Label _lblEdgeEmission;
-	private HSlider _sldNoiseScale;
-	private Label _lblNoiseScale;
-	private HSlider _sldNoiseRoughness;
-	private Label _lblNoiseRoughness;
-	private HSlider _sldFresnelPower;
-	private Label _lblFresnelPower;
-	private HSlider _sldVertexDisplacement;
-	private Label _lblVertexDisplacement;
-	private HSlider _sldAlphaFade;
-	private Label _lblAlphaFade;
-	private HSlider _sldDuration;
-	private Label _lblDuration;
+	private ColorPickerButton _cpkEdgeColor = null!;
+	private HSlider _sldEdgeWidth = null!;
+	private Label _lblEdgeWidth = null!;
+	private HSlider _sldEdgeEmission = null!;
+	private Label _lblEdgeEmission = null!;
+	private HSlider _sldNoiseScale = null!;
+	private Label _lblNoiseScale = null!;
+	private HSlider _sldNoiseRoughness = null!;
+	private Label _lblNoiseRoughness = null!;
+	private HSlider _sldFresnelPower = null!;
+	private Label _lblFresnelPower = null!;
+	private HSlider _sldVertexDisplacement = null!;
+	private Label _lblVertexDisplacement = null!;
+	private HSlider _sldAlphaFade = null!;
+	private Label _lblAlphaFade = null!;
+	private HSlider _sldDuration = null!;
+	private Label _lblDuration = null!;
 
-	private HSlider _sldProgress;
-	private Label _lblProgress;
-	private CheckBox _chkLoop;
+	private HSlider _sldProgress = null!;
+	private Label _lblProgress = null!;
+	private CheckBox _chkLoop = null!;
 
 	private CustomShaderConfig _config = new CustomShaderConfig();
 	private CustomShaderConfig _snapshot = new CustomShaderConfig();
@@ -55,7 +55,7 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 	private bool _isPlaying = false;
 	private bool _isPlayingForward = true;
 	private float _currentAnimTime = 0.0f;
-	private Action<CustomShaderConfig> _onSaved;
+	private Action<CustomShaderConfig> _onSaved = null!;
 
 	public ShaderEditorDialog(MapEditorHUD hud)
 		: base(hud, TranslationServer.Translate("Custom Shader & Dissolve Studio"), new Vector2(560, 780))

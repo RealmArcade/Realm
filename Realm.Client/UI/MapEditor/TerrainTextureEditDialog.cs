@@ -37,60 +37,60 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 	private List<ProceduralBombingDecalRule> _decalRules = new();
 	private List<ProceduralBombingVfxRule> _vfxRules = new();
 
-	private TerrainTextureSnapshot _initialSnapshot;
+	private TerrainTextureSnapshot _initialSnapshot = null!;
 	private string? _initialTemplateJson = null;
 	private bool _templateExistedInitially = false;
-	private Action<JsonObject> _onApplied;
+	private Action<JsonObject> _onApplied = null!;
 
-	private Label _lblObjectTypePrefix;
-	private LineEdit _txtSlug;
-	private LineEdit _txtRtexAsset;
-	private Action<string> _setRtexAssetValue;
+	private Label _lblObjectTypePrefix = null!;
+	private LineEdit _txtSlug = null!;
+	private LineEdit _txtRtexAsset = null!;
+	private Action<string> _setRtexAssetValue = null!;
 
-	private HSlider _sldBrightness;
-	private Label _lblBrightness;
-	private ColorPickerButton _btnTint;
-	private HSlider _sldRoughnessScale;
-	private Label _lblRoughnessScale;
-	private HSlider _sldNormalScale;
-	private Label _lblNormalScale;
-	private Label _iconHelpNormalScale;
-	private HSlider _sldHeightScale;
-	private Label _lblHeightScale;
-	private Label _iconHelpHeightScale;
-	private HSlider _sldHeightOffset;
-	private Label _lblHeightOffset;
-	private Label _iconHelpHeightOffset;
-	private HSlider _sldCrevicePower;
-	private Label _lblCrevicePower;
-	private Label _iconHelpCrevicePower;
-	private OptionButton _optTileMode;
-	private HSlider _sldUvScale;
-	private Label _lblUvScale;
-	private HSlider _sldStochasticTileSize;
-	private Label _lblStochasticTileSize;
-	private HSlider _sldCrossFade;
-	private Label _lblCrossFade;
+	private HSlider _sldBrightness = null!;
+	private Label _lblBrightness = null!;
+	private ColorPickerButton _btnTint = null!;
+	private HSlider _sldRoughnessScale = null!;
+	private Label _lblRoughnessScale = null!;
+	private HSlider _sldNormalScale = null!;
+	private Label _lblNormalScale = null!;
+	private Label _iconHelpNormalScale = null!;
+	private HSlider _sldHeightScale = null!;
+	private Label _lblHeightScale = null!;
+	private Label _iconHelpHeightScale = null!;
+	private HSlider _sldHeightOffset = null!;
+	private Label _lblHeightOffset = null!;
+	private Label _iconHelpHeightOffset = null!;
+	private HSlider _sldCrevicePower = null!;
+	private Label _lblCrevicePower = null!;
+	private Label _iconHelpCrevicePower = null!;
+	private OptionButton _optTileMode = null!;
+	private HSlider _sldUvScale = null!;
+	private Label _lblUvScale = null!;
+	private HSlider _sldStochasticTileSize = null!;
+	private Label _lblStochasticTileSize = null!;
+	private HSlider _sldCrossFade = null!;
+	private Label _lblCrossFade = null!;
 
-	private CheckBox _chkPathGround;
-	private CheckBox _chkPathBuildable;
-	private CheckBox _chkPathShallow;
-	private CheckBox _chkPathDeep;
-	private CheckBox _chkPathFlying;
+	private CheckBox _chkPathGround = null!;
+	private CheckBox _chkPathBuildable = null!;
+	private CheckBox _chkPathShallow = null!;
+	private CheckBox _chkPathDeep = null!;
+	private CheckBox _chkPathFlying = null!;
 
-	private ItemList _lstDecals;
-	private LineEdit _txtDecalId;
-	private Action<string> _setDecalIdValue;
-	private HSlider _sldDecalDensity;
-	private HSlider _sldDecalMinScale;
-	private HSlider _sldDecalMaxScale;
+	private ItemList _lstDecals = null!;
+	private LineEdit _txtDecalId = null!;
+	private Action<string> _setDecalIdValue = null!;
+	private HSlider _sldDecalDensity = null!;
+	private HSlider _sldDecalMinScale = null!;
+	private HSlider _sldDecalMaxScale = null!;
 
-	private ItemList _lstVfx;
-	private LineEdit _txtVfxId;
-	private Action<string> _setVfxIdValue;
-	private HSlider _sldVfxDensity;
-	private HSlider _sldVfxMinScale;
-	private HSlider _sldVfxMaxScale;
+	private ItemList _lstVfx = null!;
+	private LineEdit _txtVfxId = null!;
+	private Action<string> _setVfxIdValue = null!;
+	private HSlider _sldVfxDensity = null!;
+	private HSlider _sldVfxMinScale = null!;
+	private HSlider _sldVfxMaxScale = null!;
 
 	public TerrainTextureEditDialog(MapEditorHUD hud)
 		: base(hud, TranslationServer.Translate("Edit Terrain Texture Swatch"), new Vector2(560, 720))

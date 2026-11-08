@@ -11,14 +11,14 @@ namespace Realm.Client.UI.MapEditor;
 [GlobalClass]
 public partial class MapVersionsDialog : FloatingDialogBase
 {
-	private Label _statusLabel;
-	private Label _noticeLabel;
-	private VBoxContainer _versionList;
-	private Label _storageLabel;
-	private LineEdit _searchEdit;
-	private HBoxContainer _labelEditorRow;
-	private LineEdit _labelEdit;
-	private Button _btnCreateVersion;
+	private Label _statusLabel = null!;
+	private Label _noticeLabel = null!;
+	private VBoxContainer _versionList = null!;
+	private Label _storageLabel = null!;
+	private LineEdit _searchEdit = null!;
+	private HBoxContainer _labelEditorRow = null!;
+	private LineEdit _labelEdit = null!;
+	private Button _btnCreateVersion = null!;
 	private bool _isBusy;
 	private string _searchText = string.Empty;
 	private string _labelTargetCommitId = string.Empty;

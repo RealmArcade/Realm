@@ -15,22 +15,22 @@ public partial class MapSettingsDialog : FloatingDialogBase
 {
 	public MapSettingsDialog() { }
 
-	private LineEdit _txtMapName;
-	private LineEdit _txtMapVersion;
-	private OptionButton _optMapType;
-	private GridContainer _tagsGrid;
+	private LineEdit _txtMapName = null!;
+	private LineEdit _txtMapVersion = null!;
+	private OptionButton _optMapType = null!;
+	private GridContainer _tagsGrid = null!;
 	private readonly List<CheckBox> _activeTagCheckboxes = new();
-	private OptionButton _optSkybox;
+	private OptionButton _optSkybox = null!;
 	private readonly List<string> _skyboxFiles = new();
 
-	private Label _lblCamLeftVal;
-	private Label _lblCamRightVal;
-	private Label _lblCamTopVal;
-	private Label _lblCamBottomVal;
+	private Label _lblCamLeftVal = null!;
+	private Label _lblCamRightVal = null!;
+	private Label _lblCamTopVal = null!;
+	private Label _lblCamBottomVal = null!;
 
-	private Label _lblMapWidthVal;
-	private Label _lblMapHeightVal;
-	private Button _btnScaleMap;
+	private Label _lblMapWidthVal = null!;
+	private Label _lblMapHeightVal = null!;
+	private Button _btnScaleMap = null!;
 
 	private const float CameraBoundsShiftStep = 5.0f;
 

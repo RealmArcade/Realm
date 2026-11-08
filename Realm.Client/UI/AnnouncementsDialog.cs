@@ -34,12 +34,12 @@ public partial class AnnouncementsDialog : Control
 	private static readonly Color FailureColor = new(0.95f, 0.6f, 0.4f);
 	private static readonly Color BodyTextColor = new(0.88f, 0.85f, 0.78f);
 
-	private VBoxContainer _formBox;
-	private VBoxContainer _confirmationBox;
-	private LineEdit _nameEdit;
-	private LineEdit _emailEdit;
-	private Button _subscribeButton;
-	private Label _statusLabel;
+	private VBoxContainer _formBox = null!;
+	private VBoxContainer _confirmationBox = null!;
+	private LineEdit _nameEdit = null!;
+	private LineEdit _emailEdit = null!;
+	private Button _subscribeButton = null!;
+	private Label _statusLabel = null!;
 	private bool _busy;
 
 	[GeneratedRegex(@"^[^@\s]+@[^@\s]+\.[^@\s]{2,}$")]

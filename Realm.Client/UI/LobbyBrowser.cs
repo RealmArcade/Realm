@@ -29,29 +29,29 @@ public partial class LobbyBrowser : Control
 	private List<LobbyData> _filteredLobbies = new List<LobbyData>();
 	private bool _connectionFailed;
 
-	private Panel _bgPanel;
-	private Panel _leftPillar;
-	private Panel _rightPillar;
-	private PanelContainer _filterPanel;
-	private PanelContainer _lobbyPanel;
+	private Panel _bgPanel = null!;
+	private Panel _leftPillar = null!;
+	private Panel _rightPillar = null!;
+	private PanelContainer _filterPanel = null!;
+	private PanelContainer _lobbyPanel = null!;
 
-	private Button _backButton;
-	private Button _refreshButton;
-	private Button _hostButton;
-	private Button _directConnectButton;
-	private LineEdit _searchBar;
+	private Button _backButton = null!;
+	private Button _refreshButton = null!;
+	private Button _hostButton = null!;
+	private Button _directConnectButton = null!;
+	private LineEdit _searchBar = null!;
 	private readonly List<(string Tag, CheckBox CheckBox)> _tagFilters = new();
-	private CheckBox _betaTestingMapsCheck;
-	private VBoxContainer _lobbyListContainer;
+	private CheckBox _betaTestingMapsCheck = null!;
+	private VBoxContainer _lobbyListContainer = null!;
 
-	private Label _browserTitle;
-	private Label _filterTitle;
-	private Label _mapCol;
-	private Label _sizeCol;
-	private Label _modeCol;
-	private Label _playersCol;
-	private Label _pingCol;
-	private Timer _refreshTimer;
+	private Label _browserTitle = null!;
+	private Label _filterTitle = null!;
+	private Label _mapCol = null!;
+	private Label _sizeCol = null!;
+	private Label _modeCol = null!;
+	private Label _playersCol = null!;
+	private Label _pingCol = null!;
+	private Timer _refreshTimer = null!;
 
 	private readonly string[] _runes = { "ᚠ", "ᚢ", "ᚦ", "ᚨ", "ᚱ", "ᚲ", "ᚷ", "ᚹ", "ᚺ", "ᚾ", "ᛁ", "ᛃ", "ᛇ", "ᛈ", "ᛉ", "ᛊ", "ᛏ", "ᛒ", "ᛖ", "ᛗ", "ᛚ", "ᛜ", "ᛞ", "ᛟ" };
 	private readonly HttpClient _httpClient = new HttpClient();

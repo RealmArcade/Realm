@@ -21,74 +21,74 @@ public partial class MapDetails : Control
 		Realm.Client.Services.GameContext.EnsureServices();
 	}
 
-	private Panel _bgPanel;
-	private Panel _leftPillar;
-	private Panel _rightPillar;
+	private Panel _bgPanel = null!;
+	private Panel _leftPillar = null!;
+	private Panel _rightPillar = null!;
 
-	private Button _backButton;
-
-
-	private PanelContainer _headerPanel;
-	private Label _titleLabel;
-	private Label _creatorLabel;
-	private Button _attributionButton;
-	private AttributionPopover _attributionPopover;
+	private Button _backButton = null!;
 
 
-	private TextureRect _texLeftPeek;
-	private TextureRect _texCenter;
-	private TextureRect _texRightPeek;
-	private Button _btnLeftArrow;
-	private Button _btnRightArrow;
-	private HSlider _carouselSlider;
+	private PanelContainer _headerPanel = null!;
+	private Label _titleLabel = null!;
+	private Label _creatorLabel = null!;
+	private Button _attributionButton = null!;
+	private AttributionPopover _attributionPopover = null!;
 
 
-	private PanelContainer _descriptionPanel;
-	private Label _descTitle;
-	private Label _descText;
+	private TextureRect _texLeftPeek = null!;
+	private TextureRect _texCenter = null!;
+	private TextureRect _texRightPeek = null!;
+	private Button _btnLeftArrow = null!;
+	private Button _btnRightArrow = null!;
+	private HSlider _carouselSlider = null!;
 
 
-	private PanelContainer _featuresPanel;
-	private Label _featuresTitle;
-	private VBoxContainer _featuresList;
+	private PanelContainer _descriptionPanel = null!;
+	private Label _descTitle = null!;
+	private Label _descText = null!;
 
 
-	private PanelContainer _statsPanel;
-	private Label _statsTitle;
+	private PanelContainer _featuresPanel = null!;
+	private Label _featuresTitle = null!;
+	private VBoxContainer _featuresList = null!;
 
-	private Label _ratingTitle;
-	private HBoxContainer _starsRow1;
-	private Label _votesRow1;
-	private HBoxContainer _starsRow2;
-	private Label _votesRow2;
-	private HBoxContainer _starsRow3;
-	private Label _votesRow3;
 
-	private Label _awardsTitle;
-	private HBoxContainer _awardsContainer;
+	private PanelContainer _statsPanel = null!;
+	private Label _statsTitle = null!;
 
-	private Label _gameplayTitle;
-	private VBoxContainer _gameplayStatsContainer;
+	private Label _ratingTitle = null!;
+	private HBoxContainer _starsRow1 = null!;
+	private Label _votesRow1 = null!;
+	private HBoxContainer _starsRow2 = null!;
+	private Label _votesRow2 = null!;
+	private HBoxContainer _starsRow3 = null!;
+	private Label _votesRow3 = null!;
 
-	private Label _techTitle;
-	private VBoxContainer _techInfoContainer;
+	private Label _awardsTitle = null!;
+	private HBoxContainer _awardsContainer = null!;
 
-	private Button _downloadButton;
-	private Label _downloadSubtitle;
-	private OptionButton _versionDropdown;
-	private HBoxContainer _versionContainer;
-	private Label _versionLabel;
+	private Label _gameplayTitle = null!;
+	private VBoxContainer _gameplayStatsContainer = null!;
 
-	private MapData _mapData;
+	private Label _techTitle = null!;
+	private VBoxContainer _techInfoContainer = null!;
+
+	private Button _downloadButton = null!;
+	private Label _downloadSubtitle = null!;
+	private OptionButton _versionDropdown = null!;
+	private HBoxContainer _versionContainer = null!;
+	private Label _versionLabel = null!;
+
+	private MapData _mapData = null!;
 	private int _carouselIndex = 0;
 	private bool _isDownloading = false;
 	private float _downloadProgress = 0.0f;
 
-	private ScrollContainer _statsScrollContainer;
+	private ScrollContainer _statsScrollContainer = null!;
 	private float _targetScrollVertical = 0.0f;
-	private ScrollContainer _descScrollContainer;
+	private ScrollContainer _descScrollContainer = null!;
 	private float _targetDescScrollVertical = 0.0f;
-	private ScrollContainer _featuresScrollContainer;
+	private ScrollContainer _featuresScrollContainer = null!;
 	private float _targetFeaturesScrollVertical = 0.0f;
 	private float _pulseTimer = 0.0f;
 

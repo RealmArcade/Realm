@@ -17,15 +17,15 @@ namespace Realm.Client.UI;
 [GlobalClass]
 public partial class CreatorDiscovery : Control
 {
-	private Button _backButton;
-	private TabContainer _tabContainer;
-	private GridContainer _forYouGrid;
-	private OptionButton _creatorDropdown;
-	private GridContainer _portfolioGrid;
-	private RichTextLabel _contactInfo;
-	private Label _selectedCreatorNameLabel;
-	private Button _forYouTabBtn;
-	private Button _portfolioTabBtn;
+	private Button _backButton = null!;
+	private TabContainer _tabContainer = null!;
+	private GridContainer _forYouGrid = null!;
+	private OptionButton _creatorDropdown = null!;
+	private GridContainer _portfolioGrid = null!;
+	private RichTextLabel _contactInfo = null!;
+	private Label _selectedCreatorNameLabel = null!;
+	private Button _forYouTabBtn = null!;
+	private Button _portfolioTabBtn = null!;
 
 
 	private List<CreatorInfo> _creatorsList = new();

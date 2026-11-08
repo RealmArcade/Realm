@@ -29,14 +29,14 @@ public class InventoryPanel
 		public bool IsCarriedConsumable;
 	}
 
-	private readonly GridContainer _inventoryGrid;
+	private readonly GridContainer _inventoryGrid = null!;
 	private readonly SlotControls[] _slots = new SlotControls[6];
 
-	private static StyleBoxFlat s_blackTileStyle;
-	private static StyleBoxFlat s_buttonNormal;
-	private static StyleBoxFlat s_buttonHover;
-	private static StyleBoxFlat s_buttonPressed;
-	private static StyleBoxEmpty s_buttonFocus;
+	private static StyleBoxFlat s_blackTileStyle = null!;
+	private static StyleBoxFlat s_buttonNormal = null!;
+	private static StyleBoxFlat s_buttonHover = null!;
+	private static StyleBoxFlat s_buttonPressed = null!;
+	private static StyleBoxEmpty s_buttonFocus = null!;
 
 	private Entity _lastFocusedEntity = Entity.Null;
 	private int _lastFocusIdx = -1;

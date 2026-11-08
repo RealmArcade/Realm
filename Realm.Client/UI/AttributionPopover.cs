@@ -13,14 +13,14 @@ public partial class AttributionPopover : Control
 	private const float RowHeight = 30.0f;
 	private const float PanelMaximumHeight = 420.0f;
 
-	private ColorRect _dismissOverlay;
-	private PanelContainer _panel;
-	private Label _titleLabel;
-	private Label _subtitleLabel;
-	private ScrollContainer _sourceScroll;
-	private VBoxContainer _sourceList;
-	private Label _emptyLabel;
-	private Button _closeButton;
+	private ColorRect _dismissOverlay = null!;
+	private PanelContainer _panel = null!;
+	private Label _titleLabel = null!;
+	private Label _subtitleLabel = null!;
+	private ScrollContainer _sourceScroll = null!;
+	private VBoxContainer _sourceList = null!;
+	private Label _emptyLabel = null!;
+	private Button _closeButton = null!;
 	private bool _built;
 
 	public override void _Ready()

@@ -60,23 +60,23 @@ public partial class InGameHUD : Control
 		set => _viewModel.ResourceGatherMultiplier = value;
 	}
 
-	private PanelContainer _resourceContainer;
-	private TextureRect _resourceBackground;
-	private PanelContainer _bottomConsole;
-	private TextureRect _consoleBackground;
-	private PanelContainer _minimapFrame;
-	private PanelContainer _portraitFrame;
-	private PanelContainer _selectionFrame;
-	private PanelContainer _commandFrame;
-	private PanelContainer _inventoryFrame;
+	private PanelContainer _resourceContainer = null!;
+	private TextureRect _resourceBackground = null!;
+	private PanelContainer _bottomConsole = null!;
+	private TextureRect _consoleBackground = null!;
+	private PanelContainer _minimapFrame = null!;
+	private PanelContainer _portraitFrame = null!;
+	private PanelContainer _selectionFrame = null!;
+	private PanelContainer _commandFrame = null!;
+	private PanelContainer _inventoryFrame = null!;
 	private readonly Dictionary<HudElement, bool> _hudElementVisibility = new();
 
-	private Shader _hudPanelTopShader;
-	private Shader _hudPanelBottomShader;
-	private Shader _hudPortraitMaskShader;
+	private Shader _hudPanelTopShader = null!;
+	private Shader _hudPanelBottomShader = null!;
+	private Shader _hudPortraitMaskShader = null!;
 
-	private GridContainer _commandGrid;
-	private GridContainer _inventoryGrid;
+	private GridContainer _commandGrid = null!;
+	private GridContainer _inventoryGrid = null!;
 	public bool IsBuildSubMenuOpen => _viewModel.IsBuildSubMenuOpen;
 
 	public void EnterBuildSubMenu()
@@ -97,22 +97,22 @@ public partial class InGameHUD : Control
 		}
 	}
 
-	private VBoxContainer _productionBox;
-	private Label _productionTitle;
-	private ProgressBar _productionProgress;
-	private Label _productionQueueLabel;
-	private HBoxContainer _queueSlotsContainer;
+	private VBoxContainer _productionBox = null!;
+	private Label _productionTitle = null!;
+	private ProgressBar _productionProgress = null!;
+	private Label _productionQueueLabel = null!;
+	private HBoxContainer _queueSlotsContainer = null!;
 
-	private VBoxContainer _minimapControls;
-	private Button _btnZoom;
-	private Button _btnToggleTerrain;
-	private Button _btnToggleColorScheme;
-	private Button _btnPing;
-	private Button _btnCenter;
-	private Button _btnSettings;
-	private Button _btnQuitMatch;
-	private Button _btnInstructions;
-	private InstructionsDialog _instructionsDialog;
+	private VBoxContainer _minimapControls = null!;
+	private Button _btnZoom = null!;
+	private Button _btnToggleTerrain = null!;
+	private Button _btnToggleColorScheme = null!;
+	private Button _btnPing = null!;
+	private Button _btnCenter = null!;
+	private Button _btnSettings = null!;
+	private Button _btnQuitMatch = null!;
+	private Button _btnInstructions = null!;
+	private InstructionsDialog _instructionsDialog = null!;
 	public bool ShowMinimapTerrain => _viewModel.ShowMinimapTerrain;
 	public MinimapColorScheme MinimapColorScheme => _viewModel.MinimapColorScheme;
 
@@ -147,60 +147,60 @@ public partial class InGameHUD : Control
 		}
 	}
 
-	private Label _goldLabel;
-	private Label _woodLabel;
-	private Label _stoneLabel;
+	private Label _goldLabel = null!;
+	private Label _woodLabel = null!;
+	private Label _stoneLabel = null!;
 
 	private List<Button> _unitButtons = new List<Button>();
-	private HBoxContainer _unitsContainer;
+	private HBoxContainer _unitsContainer = null!;
 
-	private HBoxContainer _statsContainer;
-	private UnitStatsPanel _unitStatsPanel;
-	private UnitVitalsBars _unitVitalsBars;
+	private HBoxContainer _statsContainer = null!;
+	private UnitStatsPanel _unitStatsPanel = null!;
+	private UnitVitalsBars _unitVitalsBars = null!;
 	private Vector2 _dragStart;
 	private Vector2 _dragEnd;
 	private bool _isDrawingDragBox = false;
 
-	private Button _btnMove;
-	private Button _btnStop;
-	private Button _btnHold;
-	private Button _btnBuild;
+	private Button _btnMove = null!;
+	private Button _btnStop = null!;
+	private Button _btnHold = null!;
+	private Button _btnBuild = null!;
 
-	private Label _feedbackLabel;
-	private Label _connectionWarningLabel;
-	private Control _minimapArea;
-	private MinimapCameraIndicator _cameraIndicator;
+	private Label _feedbackLabel = null!;
+	private Label _connectionWarningLabel = null!;
+	private Control _minimapArea = null!;
+	private MinimapCameraIndicator _cameraIndicator = null!;
 
-	private Label _populationLabel;
-	private Label _clockLabel;
+	private Label _populationLabel = null!;
+	private Label _clockLabel = null!;
 
-	private VBoxContainer _customUIPanel;
-	private PanelContainer _scoreboardPanel;
-	private VBoxContainer _scoreboardContent;
-	private VBoxContainer _scoreboardSelectors;
-	private VBoxContainer _scoreboardLeaderboardContent;
-	private VBoxContainer _scoreboardSummaryContent;
-	private Label _scoreboardTitleLabel;
-	private Button _scoreboardCollapseButton;
-	private CountdownOverlayPanel _countdownOverlayPanelController;
+	private VBoxContainer _customUIPanel = null!;
+	private PanelContainer _scoreboardPanel = null!;
+	private VBoxContainer _scoreboardContent = null!;
+	private VBoxContainer _scoreboardSelectors = null!;
+	private VBoxContainer _scoreboardLeaderboardContent = null!;
+	private VBoxContainer _scoreboardSummaryContent = null!;
+	private Label _scoreboardTitleLabel = null!;
+	private Button _scoreboardCollapseButton = null!;
+	private CountdownOverlayPanel _countdownOverlayPanelController = null!;
 
-	private HBoxContainer _controlGroupsContainer;
-	private Button _btnSelectIdle;
-	private Button _btnSelectArmy;
+	private HBoxContainer _controlGroupsContainer = null!;
+	private Button _btnSelectIdle = null!;
+	private Button _btnSelectArmy = null!;
 
 	private float _idlePulseTimer = 0f;
 	private int _lastIdleCount = 0;
 
-	private PanelContainer _hotkeyPanel;
+	private PanelContainer _hotkeyPanel = null!;
 	private bool _hotkeyPanelVisible = false;
 
 	private Label _armyCompositionLabel;
 
-	private Camera3D _camera3D;
+	private Camera3D _camera3D = null!;
 
-	private PanelContainer _chatPanel;
-	private LineEdit _chatInput;
-	private RichTextLabel _chatLog;
+	private PanelContainer _chatPanel = null!;
+	private LineEdit _chatInput = null!;
+	private RichTextLabel _chatLog = null!;
 	public bool IsChatActive => _chatPanelController.IsChatActive;
 
 	public int LiveSpectatorPerspective
@@ -217,17 +217,17 @@ public partial class InGameHUD : Control
 		}
 	}
 
-	private ResourcePanel _resourcePanelController;
-	private MinimapPanel _minimapPanelController;
-	private ChatPanel _chatPanelController;
-	private ScoreboardPanel _scoreboardPanelController;
-	private PortraitPanel _portraitPanelController;
-	private CommandPanel _commandPanelController;
-	private InventoryPanel _inventoryPanelController;
-	private ControlGroupsUIController _controlGroupsUIController;
+	private ResourcePanel _resourcePanelController = null!;
+	private MinimapPanel _minimapPanelController = null!;
+	private ChatPanel _chatPanelController = null!;
+	private ScoreboardPanel _scoreboardPanelController = null!;
+	private PortraitPanel _portraitPanelController = null!;
+	private CommandPanel _commandPanelController = null!;
+	private InventoryPanel _inventoryPanelController = null!;
+	private ControlGroupsUIController _controlGroupsUIController = null!;
 
-	private MinimapOverlay _minimapOverlay;
-	private UnitHealthBarOverlay _unitHealthBarOverlay;
+	private MinimapOverlay _minimapOverlay = null!;
+	private UnitHealthBarOverlay _unitHealthBarOverlay = null!;
 
 	private const float TacticalInterval = 0.04f;
 	private const float MacroInterval = 0.1f;
@@ -466,7 +466,7 @@ public partial class InGameHUD : Control
 		}
 	}
 
-	private Button _btnPauseMatch;
+	private Button _btnPauseMatch = null!;
 
 	/// <summary>
 	///     The pause control every player has: it asks the match to hold where it is, and while the match is held it asks
@@ -2543,10 +2543,10 @@ public partial class InGameHUD : Control
 		AddChild(specPanel);
 	}
 
-	private PanelContainer _pausePanel;
-	private VBoxContainer _pausePlayerListContainer;
-	private Label _pauseTitleLabel;
-	private Button _pauseResumeButton;
+	private PanelContainer _pausePanel = null!;
+	private VBoxContainer _pausePlayerListContainer = null!;
+	private Label _pauseTitleLabel = null!;
+	private Button _pauseResumeButton = null!;
 
 	public void UpdatePauseUI()
 	{

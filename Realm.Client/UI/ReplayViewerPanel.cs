@@ -17,17 +17,17 @@ public partial class ReplayViewerPanel : PanelContainer
 		Realm.Client.Services.GameContext.EnsureServices();
 	}
 
-	private Button _playPauseBtn;
-	private Button _speedBtn05;
-	private Button _speedBtn1;
-	private Button _speedBtn2;
-	private Button _speedBtn4;
-	private Button _speedBtn8;
-	private HSlider _scrubber;
-	private Label _timeLabel;
-	private OptionButton _perspectiveOpt;
-	private Button _tetherBtn;
-	private Button _quitBtn;
+	private Button _playPauseBtn = null!;
+	private Button _speedBtn05 = null!;
+	private Button _speedBtn1 = null!;
+	private Button _speedBtn2 = null!;
+	private Button _speedBtn4 = null!;
+	private Button _speedBtn8 = null!;
+	private HSlider _scrubber = null!;
+	private Label _timeLabel = null!;
+	private OptionButton _perspectiveOpt = null!;
+	private Button _tetherBtn = null!;
+	private Button _quitBtn = null!;
 
 	private bool _isDraggingScrubber = false;
 	private bool _suppressScrubberSignal = false;

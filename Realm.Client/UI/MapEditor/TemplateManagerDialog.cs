@@ -19,36 +19,36 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 {
 	public TemplateManagerDialog() { }
 
-	private Node3D _simRoot;
-	private Node3D _currentModelRoot;
-	private AnimatedSprite3D _vfxSprite;
+	private Node3D _simRoot = null!;
+	private Node3D _currentModelRoot = null!;
+	private AnimatedSprite3D _vfxSprite = null!;
 	private ProceduralVfxInstance3D? _previewVfxInstance;
 	private VisualProjectile3D? _previewProjectile;
 
-	private PanelContainer _preview2DContainer;
-	private VBoxContainer _tooltipPreviewContainer;
-	private TextureRect _preview2DImage;
-	private Label _lblPreview2DInfo;
+	private PanelContainer _preview2DContainer = null!;
+	private VBoxContainer _tooltipPreviewContainer = null!;
+	private TextureRect _preview2DImage = null!;
+	private Label _lblPreview2DInfo = null!;
 
-	private PanelContainer _previewAudioContainer;
-	private Label _lblAudioInfo;
-	private Button _btnAudioPlay;
-	private AudioStreamPlayer _audioPlayer;
+	private PanelContainer _previewAudioContainer = null!;
+	private Label _lblAudioInfo = null!;
+	private Button _btnAudioPlay = null!;
+	private AudioStreamPlayer _audioPlayer = null!;
 
-	private OptionButton _optObjectCategory;
-	private LineEdit _txtSearchFilter;
-	private Button _btnAddObject;
-	private VBoxContainer _listVBox;
+	private OptionButton _optObjectCategory = null!;
+	private LineEdit _txtSearchFilter = null!;
+	private Button _btnAddObject = null!;
+	private VBoxContainer _listVBox = null!;
 
-	private EntityVisualEditDialog _entityVisualEditDialog;
-	private WeaponVfxDialog _weaponVfxDialog;
-	private AbilityVfxDialog _abilityVfxDialog;
-	private VfxStudioDialog _vfxStudioDialog;
-	private DecalSettingsDialog _decalEditDialog;
-	private ShaderEditorDialog _shaderEditDialog;
-	private SpritesheetAssetEditDialog _spritesheetEditDialog;
-	private TerrainTextureEditDialog _textureEditDialog;
-	private ItemUpgradeEditDialog _itemUpgradeEditDialog;
+	private EntityVisualEditDialog _entityVisualEditDialog = null!;
+	private WeaponVfxDialog _weaponVfxDialog = null!;
+	private AbilityVfxDialog _abilityVfxDialog = null!;
+	private VfxStudioDialog _vfxStudioDialog = null!;
+	private DecalSettingsDialog _decalEditDialog = null!;
+	private ShaderEditorDialog _shaderEditDialog = null!;
+	private SpritesheetAssetEditDialog _spritesheetEditDialog = null!;
+	private TerrainTextureEditDialog _textureEditDialog = null!;
+	private ItemUpgradeEditDialog _itemUpgradeEditDialog = null!;
 
 	private string _currentCategory = "units";
 	private string _searchFilter = "";
@@ -56,8 +56,8 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 	private string _pendingNewVfxTemplateId = "";
 	private bool _pendingNewVfxWasApplied;
 
-	private HBoxContainer _previewMeshRow;
-	private OptionButton _optPreviewMesh;
+	private HBoxContainer _previewMeshRow = null!;
+	private OptionButton _optPreviewMesh = null!;
 	private List<string> _availablePreviewMeshes = new();
 	private string _selectedPreviewMesh = "";
 

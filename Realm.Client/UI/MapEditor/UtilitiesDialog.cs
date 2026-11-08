@@ -30,7 +30,7 @@ public partial class UtilitiesDialog : FloatingDialogBase
 		public string Description => TranslationServer.Translate("Scans the active map's metadata templates and queries the local Content Addressable Storage (CAS) asset index to randomly assign matching models, textures, animations, and audio clips to templates with missing asset references.");
 		public string Icon => UnicodeIcons.DICE;
 
-		private CheckBox _chkOnlyFillEmpty;
+		private CheckBox _chkOnlyFillEmpty = null!;
 
 		public Control CreateConfigurationControl()
 		{
@@ -231,17 +231,17 @@ public partial class UtilitiesDialog : FloatingDialogBase
 	}
 
 	private readonly List<IUtilityOperation> _operations = new();
-	private IUtilityOperation _selectedOperation;
+	private IUtilityOperation _selectedOperation = null!;
 
-	private VBoxContainer _sidebarVBox;
-	private Label _lblDetailTitle;
-	private Label _lblDetailDescription;
-	private VBoxContainer _configContainer;
-	private VBoxContainer _progressContainer;
-	private Label _lblProgressStatus;
-	private ProgressBar _progressBar;
-	private Button _btnRunUtility;
-	private Button _btnCloseFooter;
+	private VBoxContainer _sidebarVBox = null!;
+	private Label _lblDetailTitle = null!;
+	private Label _lblDetailDescription = null!;
+	private VBoxContainer _configContainer = null!;
+	private VBoxContainer _progressContainer = null!;
+	private Label _lblProgressStatus = null!;
+	private ProgressBar _progressBar = null!;
+	private Button _btnRunUtility = null!;
+	private Button _btnCloseFooter = null!;
 	private readonly List<Button> _operationButtons = new();
 	private bool _isRunning = false;
 

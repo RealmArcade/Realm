@@ -15,10 +15,10 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 
 	public InstanceManagerDialog() { }
 
-	private Tree _objectTree;
-	private LineEdit _filterInput;
-	private OptionButton _typeFilterOpt;
-	private Label _summaryLabel;
+	private Tree _objectTree = null!;
+	private LineEdit _filterInput = null!;
+	private OptionButton _typeFilterOpt = null!;
+	private Label _summaryLabel = null!;
 	private string _filterText = string.Empty;
 	private readonly Dictionary<TreeItem, Node3D> _treeItemToObjectMap = new();
 	private readonly Dictionary<TreeItem, string> _treeItemToCoordinateMap = new();

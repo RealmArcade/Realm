@@ -13,10 +13,10 @@ public partial class AuthorSignatureDialog : FloatingDialogBase
 {
 	public AuthorSignatureDialog() { }
 
-	private LineEdit _txtUsername;
-	private LineEdit _txtPublicKey;
-	private Label _lblKeyPath;
-	private Label _lblCopyStatus;
+	private LineEdit _txtUsername = null!;
+	private LineEdit _txtPublicKey = null!;
+	private Label _lblKeyPath = null!;
+	private Label _lblCopyStatus = null!;
 	private string _displayedKeyPath = string.Empty;
 
 	public AuthorSignatureDialog(MapEditorHUD hud)

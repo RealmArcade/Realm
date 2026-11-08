@@ -66,16 +66,16 @@ public partial class FloatingDialogBase : PanelContainer
 		_openDialogs.Add(this);
 	}
 
-	protected readonly MapEditorHUD Hud;
-	protected VBoxContainer MainVBox;
-	protected HBoxContainer HeaderHBox;
-	protected Label TitleLabel;
-	protected Button CloseButton;
-	protected VBoxContainer BodyContainer;
-	protected HBoxContainer FooterHBox;
-	protected Button CancelButton;
-	protected Button ApplyButton;
-	protected Button RandomizeAssetsButton;
+	protected readonly MapEditorHUD Hud = null!;
+	protected VBoxContainer MainVBox = null!;
+	protected HBoxContainer HeaderHBox = null!;
+	protected Label TitleLabel = null!;
+	protected Button CloseButton = null!;
+	protected VBoxContainer BodyContainer = null!;
+	protected HBoxContainer FooterHBox = null!;
+	protected Button CancelButton = null!;
+	protected Button ApplyButton = null!;
+	protected Button RandomizeAssetsButton = null!;
 
 	private bool _isDragging;
 	private Vector2 _dragStartMousePosition;
@@ -294,8 +294,8 @@ public partial class FloatingDialogBase : PanelContainer
 		FooterHBox.Alignment = BoxContainer.AlignmentMode.Center;
 	}
 
-	protected TextureRect BackgroundTextureRect;
-	protected MarginContainer DialogMarginContainer;
+	protected TextureRect BackgroundTextureRect = null!;
+	protected MarginContainer DialogMarginContainer = null!;
 
 	public void SetUncompressedPanelTexture(string texturePath, int marginTop = 30, int marginBottom = 40, int marginLeft = 50, int marginRight = 50)
 	{

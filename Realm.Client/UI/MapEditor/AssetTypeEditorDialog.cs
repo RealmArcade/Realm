@@ -13,10 +13,10 @@ public partial class AssetTypeEditorDialog : FloatingDialogBase
 {
 	public AssetTypeEditorDialog() { }
 
-	private readonly IndexedAsset _asset;
-	private readonly Action<string> _onSaveCallback;
-	private Label _lblPrompt;
-	private OptionButton _optAssetType;
+	private readonly IndexedAsset _asset = null!;
+	private readonly Action<string> _onSaveCallback = null!;
+	private Label _lblPrompt = null!;
+	private OptionButton _optAssetType = null!;
 	private ReadOnlySet<string> _validTypes = new HashSet<string>().AsReadOnly();
 
 	public AssetTypeEditorDialog(MapEditorHUD hud, IndexedAsset asset, Action<string> onSaveCallback)

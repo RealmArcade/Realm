@@ -18,7 +18,7 @@ public class ScoreboardPanel
 
 	private readonly PanelContainer _panel;
 	private readonly Label _titleLabel;
-	private readonly Button _collapseButton;
+	private readonly Button _collapseButton = null!;
 	private readonly VBoxContainer _content;
 	private readonly VBoxContainer _selectors;
 	private readonly VBoxContainer _leaderboardContent;

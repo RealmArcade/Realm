@@ -11,9 +11,9 @@ public partial class TestSettingsDialog : FloatingDialogBase
 {
 	public TestSettingsDialog() { }
 
-	private SpinBox _numAiPlayers;
-	private CheckBox _chkRandomizeSlots;
-	private SpinBox _numRandomSeed;
+	private SpinBox _numAiPlayers = null!;
+	private CheckBox _chkRandomizeSlots = null!;
+	private SpinBox _numRandomSeed = null!;
 
 	public TestSettingsDialog(MapEditorHUD hud)
 		: base(hud, TranslationServer.Translate("Test Settings"), new Vector2(340, 260))

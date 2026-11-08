@@ -19,11 +19,11 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 
 	private EditorPreferencesData _snapshot = new EditorPreferencesData();
 
-	private CheckBox _chkHideChromeBorder;
-	private CheckBox _chkHideHudDuringToolUsage;
+	private CheckBox _chkHideChromeBorder = null!;
+	private CheckBox _chkHideHudDuringToolUsage = null!;
 
-	private HSlider _sldPanelOpacity;
-	private Label _lblPanelOpacity;
+	private HSlider _sldPanelOpacity = null!;
+	private Label _lblPanelOpacity = null!;
 
 
 	public EditorSettingsDialog(MapEditorHUD hud)

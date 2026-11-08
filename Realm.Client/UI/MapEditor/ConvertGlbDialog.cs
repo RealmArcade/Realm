@@ -16,25 +16,25 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 {
 	public ConvertGlbDialog() { }
 
-	private LineEdit _txtSourceFile;
-	private Button _btnSelectFile;
-	private LineEdit _txtReferenceImage;
-	private Button _btnSelectReferenceImage;
-	private Button _btnClearReferenceImage;
-	private OptionButton _optSubCategory;
-	private LineEdit _txtAssetName;
+	private LineEdit _txtSourceFile = null!;
+	private Button _btnSelectFile = null!;
+	private LineEdit _txtReferenceImage = null!;
+	private Button _btnSelectReferenceImage = null!;
+	private Button _btnClearReferenceImage = null!;
+	private OptionButton _optSubCategory = null!;
+	private LineEdit _txtAssetName = null!;
 
-	private CheckBox _chkTeamColorMask;
-	private HBoxContainer _colorPickerRow;
-	private ColorPickerButton _colorPicker;
-	private Button _btnDetectMaskColor;
-	private CheckBox _chkAutoCorrectChromaKey;
+	private CheckBox _chkTeamColorMask = null!;
+	private HBoxContainer _colorPickerRow = null!;
+	private ColorPickerButton _colorPicker = null!;
+	private Button _btnDetectMaskColor = null!;
+	private CheckBox _chkAutoCorrectChromaKey = null!;
 
-	private CheckBox _chkAutoRig;
-	private VBoxContainer _autoRigRow;
+	private CheckBox _chkAutoRig = null!;
+	private VBoxContainer _autoRigRow = null!;
 
-	private Label _lblStatus;
-	private ProgressBar _progressBar;
+	private Label _lblStatus = null!;
+	private ProgressBar _progressBar = null!;
 	private bool _isConverting;
 	private Action<string>? _onConvertedCallback;
 

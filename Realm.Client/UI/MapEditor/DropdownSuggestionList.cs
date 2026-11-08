@@ -22,10 +22,10 @@ public class DropdownSuggestionList
 
 	private readonly List<Button> _rowButtons = new();
 	private readonly List<string> _shownItems = new();
-	private Control _catcher;
-	private PanelContainer _panel;
-	private ScrollContainer _scroll;
-	private VBoxContainer _rows;
+	private Control _catcher = null!;
+	private PanelContainer _panel = null!;
+	private ScrollContainer _scroll = null!;
+	private VBoxContainer _rows = null!;
 
 	public DropdownSuggestionList(Node owner, Control anchor)
 	{

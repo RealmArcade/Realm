@@ -11,8 +11,8 @@ public partial class ReplaceTextureDialog : FloatingDialogBase
 {
 	public ReplaceTextureDialog() { }
 
-	private OptionButton _optSource;
-	private OptionButton _optTarget;
+	private OptionButton _optSource = null!;
+	private OptionButton _optTarget = null!;
 
 	private TerrainSplatWeights[,]? _snapshotSplatMap;
 	private TerrainSplatWeights[,]? _snapshotCliffSplatMap;

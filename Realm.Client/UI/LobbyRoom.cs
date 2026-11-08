@@ -27,46 +27,46 @@ public partial class LobbyRoom : Control
 		Realm.Client.Services.GameContext.EnsureServices();
 	}
 
-	private Panel _bgPanel;
-	private Panel _leftPillar;
-	private Panel _rightPillar;
-	private PanelContainer _playersPanel;
-	private PanelContainer _briefingPanel;
-	private PanelContainer _chatPanel;
+	private Panel _bgPanel = null!;
+	private Panel _leftPillar = null!;
+	private Panel _rightPillar = null!;
+	private PanelContainer _playersPanel = null!;
+	private PanelContainer _briefingPanel = null!;
+	private PanelContainer _chatPanel = null!;
 
-	private Button _backButton;
-	private Button _inviteButton;
+	private Button _backButton = null!;
+	private Button _inviteButton = null!;
 	private SteamFriendsDialog? _friendsDialog;
-	private Button _addBotButton;
-	private Button _startButton;
-	private Label _mapNameLabel;
-	private LineEdit _chatInput;
+	private Button _addBotButton = null!;
+	private Button _startButton = null!;
+	private Label _mapNameLabel = null!;
+	private LineEdit _chatInput = null!;
 	private ColorPickerPopover? _colorPickerPopover;
-	private RichTextLabel _chatLog;
-	private VBoxContainer _playersContainer;
+	private RichTextLabel _chatLog = null!;
+	private VBoxContainer _playersContainer = null!;
 	private readonly Dictionary<int, PanelContainer> _playerRowsByPeerId = new();
-	private Label _inviteFeedback;
-	private CheckBox _spectatorDelayCheck;
+	private Label _inviteFeedback = null!;
+	private CheckBox _spectatorDelayCheck = null!;
 	private Panel? _countdownPopup;
 	private Label? _countdownTextLabel;
-	private Panel _connectingPopup;
+	private Panel _connectingPopup = null!;
 
-	private Label _lobbyTitle;
-	private Label _playersTitle;
-	private Label _briefingTitle;
-	private RichTextLabel _briefingLabel;
-	private Panel _mapFrame;
+	private Label _lobbyTitle = null!;
+	private Label _playersTitle = null!;
+	private Label _briefingTitle = null!;
+	private RichTextLabel _briefingLabel = null!;
+	private Panel _mapFrame = null!;
 	private bool _versionMismatchDetected;
 	private bool _ignoreReadinessOnStart;
 	private Label? _unstableWarningLabel;
 	private Label? _hostStabilityLabel;
 
-	private Label _authorshipWarningLabel;
-	private Label _primaryAuthorLabel;
+	private Label _authorshipWarningLabel = null!;
+	private Label _primaryAuthorLabel = null!;
 	private string? _authorshipMapJsonPath;
-	private Button _otherAuthorsButton;
-	private Button _attributionButton;
-	private AttributionPopover _attributionPopover;
+	private Button _otherAuthorsButton = null!;
+	private Button _attributionButton = null!;
+	private AttributionPopover _attributionPopover = null!;
 	private List<string> _otherAuthorsList = new List<string>();
 
 
@@ -2061,8 +2061,8 @@ public partial class LobbyRoom : Control
 		ReturnFromLobby();
 	}
 
-	private ProgressBar _downloadProgress;
-	private Label _downloadLabel;
+	private ProgressBar _downloadProgress = null!;
+	private Label _downloadLabel = null!;
 
 	private void CreateDownloadProgressUI()
 	{

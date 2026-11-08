@@ -20,30 +20,30 @@ public partial class AssetBrowserDialog : AssetGridDialogBase
 		GridPadding = 10.0f;
 	}
 
-	private HBoxContainer _folderChipsContainer;
-	private Button _btnAddFolder;
-	private Button _btnRescanAll;
-	private OptionButton _optDirectoryFilter;
-	private LineEdit _txtSearch;
-	private Label _lblResultsCount;
-	private Label _lblFilterExtensions;
+	private HBoxContainer _folderChipsContainer = null!;
+	private Button _btnAddFolder = null!;
+	private Button _btnRescanAll = null!;
+	private OptionButton _optDirectoryFilter = null!;
+	private LineEdit _txtSearch = null!;
+	private Label _lblResultsCount = null!;
+	private Label _lblFilterExtensions = null!;
 
-	private ScrollContainer _folderScroll;
-	private Label _lblEmptyState;
+	private ScrollContainer _folderScroll = null!;
+	private Label _lblEmptyState = null!;
 
-	private PanelContainer _bottomDetailsPanel;
-	private TextureRect _bottomThumbnail;
-	private Label _lblSelectedFileName;
-	private Label _lblSelectedPath;
-	private Label _lblSelectedSize;
-	private Button _btnAudioPlayPause;
-	private LineEdit _txtTagsEdit;
-	private Button _btnEditTags;
-	private LineEdit _txtAssetTypeEdit;
-	private Button _btnEditAssetType;
-	private PanelContainer _gridPanel;
+	private PanelContainer _bottomDetailsPanel = null!;
+	private TextureRect _bottomThumbnail = null!;
+	private Label _lblSelectedFileName = null!;
+	private Label _lblSelectedPath = null!;
+	private Label _lblSelectedSize = null!;
+	private Button _btnAudioPlayPause = null!;
+	private LineEdit _txtTagsEdit = null!;
+	private Button _btnEditTags = null!;
+	private LineEdit _txtAssetTypeEdit = null!;
+	private Button _btnEditAssetType = null!;
+	private PanelContainer _gridPanel = null!;
 
-	private readonly AudioStreamPlayer _audioPlayer;
+	private readonly AudioStreamPlayer _audioPlayer = null!;
 
 	private readonly List<IndexedAsset> _matchingAssets = new();
 
@@ -51,8 +51,8 @@ public partial class AssetBrowserDialog : AssetGridDialogBase
 	private HashSet<string> _allowedExtensions = new(StringComparer.OrdinalIgnoreCase);
 	private bool _requireRealmMetadata = false;
 	private string? _selectedAssetTypeFilter;
-	private OptionButton _optAssetTypeFilter;
-	private CheckBox _chkHasPlayerColorMask;
+	private OptionButton _optAssetTypeFilter = null!;
+	private CheckBox _chkHasPlayerColorMask = null!;
 	private static string? _selectedDirectoryFilter;
 	private static string? _selectedMapNameFilter;
 	private static string? _selectedMapVersionFilter;
@@ -63,9 +63,9 @@ public partial class AssetBrowserDialog : AssetGridDialogBase
 
 	private readonly HashSet<string> _selectedAssetPaths = new(StringComparer.OrdinalIgnoreCase);
 	private bool _multiSelectEnabled;
-	private Button _btnSelectAll;
-	private Button _btnClearSelection;
-	private Label _lblSelectionCount;
+	private Button _btnSelectAll = null!;
+	private Button _btnClearSelection = null!;
+	private Label _lblSelectionCount = null!;
 
 	public AssetBrowserDialog(MapEditorHUD hud)
 		: base(hud, TranslationServer.Translate("Asset Browser"), new Vector2(780, 640))

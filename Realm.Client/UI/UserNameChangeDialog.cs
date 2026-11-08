@@ -27,14 +27,14 @@ public partial class UserNameChangeDialog : Control
 	private static readonly Color FailureColor = new(0.95f, 0.6f, 0.4f);
 	private static readonly Color BodyTextColor = new(0.88f, 0.85f, 0.78f);
 
-	private Label _titleLabel;
-	private Label _hintLabel;
-	private Label _currentNameValueLabel;
-	private LineEdit _newNameEdit;
-	private Button _changeButton;
-	private Button _cancelButton;
-	private Label _statusLabel;
-	private Func<string, Task<UserNameChangeResult>> _submit;
+	private Label _titleLabel = null!;
+	private Label _hintLabel = null!;
+	private Label _currentNameValueLabel = null!;
+	private LineEdit _newNameEdit = null!;
+	private Button _changeButton = null!;
+	private Button _cancelButton = null!;
+	private Label _statusLabel = null!;
+	private Func<string, Task<UserNameChangeResult>> _submit = null!;
 	private bool _busy;
 
 	public override void _Ready()

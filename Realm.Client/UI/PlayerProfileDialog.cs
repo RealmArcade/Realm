@@ -29,16 +29,16 @@ public partial class PlayerProfileDialog : Control
 	private static readonly Color SuccessColor = new(0.55f, 0.95f, 0.55f);
 	private static readonly Color FailureColor = new(0.95f, 0.6f, 0.4f);
 
-	private Label _userNameValueLabel;
-	private VBoxContainer _statsRows;
-	private VBoxContainer _signedOutBox;
-	private Button _signInButton;
-	private VBoxContainer _signedInBox;
-	private Label _identityLabel;
-	private Button _signOutButton;
-	private Label _warningLabel;
-	private Label _statusLabel;
-	private UserNameChangeDialog _nameChangeDialog;
+	private Label _userNameValueLabel = null!;
+	private VBoxContainer _statsRows = null!;
+	private VBoxContainer _signedOutBox = null!;
+	private Button _signInButton = null!;
+	private VBoxContainer _signedInBox = null!;
+	private Label _identityLabel = null!;
+	private Button _signOutButton = null!;
+	private Label _warningLabel = null!;
+	private Label _statusLabel = null!;
+	private UserNameChangeDialog _nameChangeDialog = null!;
 	private bool _busy;
 	private bool _serverRefusesSteam;
 	private bool _authorityUnreachable;

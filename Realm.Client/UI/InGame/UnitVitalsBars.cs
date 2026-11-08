@@ -111,7 +111,7 @@ public class UnitVitalsBars
 	{
 		private readonly ColorRect _fill;
 		private readonly Label _valueLabel;
-		private string _lastText;
+		private string _lastText = null!;
 		private float _ratio;
 		private float _barWidth;
 

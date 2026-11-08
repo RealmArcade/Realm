@@ -20,27 +20,27 @@ public partial class StorageMenu : Control
 		Realm.Client.Services.GameContext.EnsureServices();
 	}
 
-	private Button _backButton;
-	private Label _titleLabel;
-	private Button _importMapButton;
+	private Button _backButton = null!;
+	private Label _titleLabel = null!;
+	private Button _importMapButton = null!;
 
-	private LineEdit _searchBar;
-	private Label _mapCountLabel;
-	private VBoxContainer _mapListContainer;
+	private LineEdit _searchBar = null!;
+	private Label _mapCountLabel = null!;
+	private VBoxContainer _mapListContainer = null!;
 
-	private PanelContainer _rightNavPanel;
-	private Label _emptySelectionLabel;
-	private VBoxContainer _selectedMapContainer;
+	private PanelContainer _rightNavPanel = null!;
+	private Label _emptySelectionLabel = null!;
+	private VBoxContainer _selectedMapContainer = null!;
 
-	private TextureRect _mapThumbnail;
-	private Label _selectedTitleLabel;
-	private Label _selectedAuthorLabel;
-	private Label _selectedGenreLabel;
-	private Label _selectedDescriptionLabel;
-	private Label _selectedTotalSizeLabel;
-	private Button _downloadUpdateButton;
+	private TextureRect _mapThumbnail = null!;
+	private Label _selectedTitleLabel = null!;
+	private Label _selectedAuthorLabel = null!;
+	private Label _selectedGenreLabel = null!;
+	private Label _selectedDescriptionLabel = null!;
+	private Label _selectedTotalSizeLabel = null!;
+	private Button _downloadUpdateButton = null!;
 
-	private VBoxContainer _versionsListContainer;
+	private VBoxContainer _versionsListContainer = null!;
 
 	private List<DownloadedMapInfo> _allDownloadedMaps = new();
 	private DownloadedMapInfo? _selectedMap;

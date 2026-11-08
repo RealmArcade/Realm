@@ -14,8 +14,8 @@ public class ChatPanel
 	private LineEdit _chatInput;
 	private RichTextLabel _chatLog;
 	private bool _isChatActive = false;
-	private Label _chatPrefixLabel;
-	private HBoxContainer _inputRow;
+	private Label _chatPrefixLabel = null!;
+	private HBoxContainer _inputRow = null!;
 	private ChatMode _currentMode = ChatMode.Allies;
 
 

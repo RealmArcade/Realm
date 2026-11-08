@@ -26,29 +26,29 @@ public partial class UIManager : Control
 	}
 
 	[Export] public PackedScene MainMenuScene;
-	[Export] public PackedScene LobbyBrowserScene;
-	[Export] public PackedScene LobbyRoomScene;
-	[Export] public PackedScene SettingsScene;
-	[Export] public PackedScene InGameHUDScene;
-	[Export] public PackedScene GameOverScene;
-	[Export] public PackedScene MapDiscoveryScene;
-	[Export] public PackedScene MapDetailsScene;
-	[Export] public PackedScene MapEditorHUDScene;
-	[Export] public PackedScene ReplayListScene;
-	[Export] public PackedScene LobbyCreateScene;
-	[Export] public PackedScene StorageScene;
+	[Export] public PackedScene LobbyBrowserScene = null!;
+	[Export] public PackedScene LobbyRoomScene = null!;
+	[Export] public PackedScene SettingsScene = null!;
+	[Export] public PackedScene InGameHUDScene = null!;
+	[Export] public PackedScene GameOverScene = null!;
+	[Export] public PackedScene MapDiscoveryScene = null!;
+	[Export] public PackedScene MapDetailsScene = null!;
+	[Export] public PackedScene MapEditorHUDScene = null!;
+	[Export] public PackedScene ReplayListScene = null!;
+	[Export] public PackedScene LobbyCreateScene = null!;
+	[Export] public PackedScene StorageScene = null!;
 
-	private Control _currentScreen;
-	private ColorRect _fadeOverlay;
-	private AnimationPlayer _fadeAnim;
-	private Label _watermark;
+	private Control _currentScreen = null!;
+	private ColorRect _fadeOverlay = null!;
+	private AnimationPlayer _fadeAnim = null!;
+	private Label _watermark = null!;
 	private GameScreen _targetScreen;
 	private bool _isVictory = true;
 	private bool _transitionInProgress = false;
 	private GameScreen? _queuedScreen;
 	private bool _queuedIsVictory;
 
-	private MapData _selectedMapData;
+	private MapData _selectedMapData = null!;
 
 	/// <summary>
 	///     Whether the first screen has been built. A screen named before this point races the startup transition that shows
@@ -62,8 +62,8 @@ public partial class UIManager : Control
 		TransitionTo(GameScreen.MapDetails);
 	}
 
-	private AudioStreamPlayer _musicPlayer;
-	private AudioStreamPlayer _sfxPlayer;
+	private AudioStreamPlayer _musicPlayer = null!;
+	private AudioStreamPlayer _sfxPlayer = null!;
 
 	public override void _ExitTree()
 	{

@@ -29,11 +29,11 @@ public partial class GlbThumbnailRenderer : Node
 	private static readonly HashSet<string> _pendingPaths = new(StringComparer.OrdinalIgnoreCase);
 	private static readonly object _requestLock = new();
 
-	private SubViewport _subViewport;
-	private Node3D _modelContainer;
-	private Camera3D _camera;
-	private DirectionalLight3D _keyLight;
-	private DirectionalLight3D _fillLight;
+	private SubViewport _subViewport = null!;
+	private Node3D _modelContainer = null!;
+	private Camera3D _camera = null!;
+	private DirectionalLight3D _keyLight = null!;
+	private DirectionalLight3D _fillLight = null!;
 
 	private GlbRequest? _currentRequest;
 	private int _framesRemainingForCapture;

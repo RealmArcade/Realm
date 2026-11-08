@@ -13,10 +13,10 @@ public partial class ColorPickerPopover : Control
 	private const int SwatchColumns = 6;
 	private const float SwatchSeparation = 6.0f;
 
-	private ColorRect _dismissOverlay;
-	private PanelContainer _panel;
-	private GridContainer _swatchGrid;
-	private Label _emptyLabel;
+	private ColorRect _dismissOverlay = null!;
+	private PanelContainer _panel = null!;
+	private GridContainer _swatchGrid = null!;
+	private Label _emptyLabel = null!;
 	private Action<int>? _onSelected;
 
 	public override void _Ready()

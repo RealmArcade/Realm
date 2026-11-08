@@ -25,29 +25,29 @@ public partial class GameOver : Control
 		Realm.Client.Services.GameContext.EnsureServices();
 	}
 
-	private Panel _bgPanel;
-	private Panel _leftPillar;
-	private Panel _rightPillar;
-	private PanelContainer _mainPanel;
-	private PanelContainer _tableFrame;
-	private PanelContainer _graphFrame;
+	private Panel _bgPanel = null!;
+	private Panel _leftPillar = null!;
+	private Panel _rightPillar = null!;
+	private PanelContainer _mainPanel = null!;
+	private PanelContainer _tableFrame = null!;
+	private PanelContainer _graphFrame = null!;
 
-	private Label _titleLabel;
-	private Button _btnOverview;
-	private Button _btnEconomy;
-	private Button _btnMilitary;
-	private Button _btnClose;
-	private Button _btnReportCopyright;
-	private Button _btnWriteReview;
+	private Label _titleLabel = null!;
+	private Button _btnOverview = null!;
+	private Button _btnEconomy = null!;
+	private Button _btnMilitary = null!;
+	private Button _btnClose = null!;
+	private Button _btnReportCopyright = null!;
+	private Button _btnWriteReview = null!;
 
-	private VBoxContainer _tableRowsContainer;
-	private Control _graphContainer;
+	private VBoxContainer _tableRowsContainer = null!;
+	private Control _graphContainer = null!;
 
-	private Label _playerColHeader;
-	private Label _factionColHeader;
-	private Label _scoreColHeader;
-	private Label _killsColHeader;
-	private Label _resourcesColHeader;
+	private Label _playerColHeader = null!;
+	private Label _factionColHeader = null!;
+	private Label _scoreColHeader = null!;
+	private Label _killsColHeader = null!;
+	private Label _resourcesColHeader = null!;
 
 	private const int OverviewTabIndex = 0;
 	private const int EconomyTabIndex = 1;
