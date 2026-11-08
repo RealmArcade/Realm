@@ -187,7 +187,7 @@ public partial class SettingsMenu : Control
 		if (_bgPanel == null) return;
 
 		_bgPanel.Visible = true;
-		Texture2D bgTexture = null;
+		Texture2D? bgTexture = null;
 		string[] bgPaths = new string[]
 		{
 			"res://Assets/UI/options_bg.webp",
@@ -469,9 +469,10 @@ public partial class SettingsMenu : Control
 			GameSettings.InitializeResolutions();
 		}
 
-		for (int i = 0; i < GameSettings.Resolutions.Count; i++)
+		var resolutions = GameSettings.Resolutions;
+		for (int i = 0; i < resolutions.Count; i++)
 		{
-			var res = GameSettings.Resolutions[i];
+			var res = resolutions[i];
 			_resolutionOpt.AddItem($"{res.X} x {res.Y}", i);
 		}
 	}
@@ -550,35 +551,35 @@ public partial class SettingsMenu : Control
 
 	private void SetupCheckboxEvents()
 	{
-		_shadowsChk.Pressed += () => GameContext.UserInterface.PlayClickSound();
-		_shadowsChk.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
-		_dayNightLightingChk.Pressed += () => GameContext.UserInterface.PlayClickSound();
-		_dayNightLightingChk.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
-		_weatherEffectsChk.Pressed += () => GameContext.UserInterface.PlayClickSound();
-		_weatherEffectsChk.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
-		_floatingCombatTextChk.Pressed += () => GameContext.UserInterface.PlayClickSound();
-		_floatingCombatTextChk.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
-		_displayFpsChk.Pressed += () => GameContext.UserInterface.PlayClickSound();
-		_displayFpsChk.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
-		_displayPingChk.Pressed += () => GameContext.UserInterface.PlayClickSound();
-		_displayPingChk.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
-		_unitOutlineChk.Pressed += () => GameContext.UserInterface.PlayClickSound();
-		_unitOutlineChk.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
-		_recordReplaysChk.Pressed += () => GameContext.UserInterface.PlayClickSound();
-		_recordReplaysChk.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
-		_seedMapFilesChk.Pressed += () => GameContext.UserInterface.PlayClickSound();
-		_seedMapFilesChk.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
+		_shadowsChk.Pressed += () => GameContext.UserInterface?.PlayClickSound();
+		_shadowsChk.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
+		_dayNightLightingChk.Pressed += () => GameContext.UserInterface?.PlayClickSound();
+		_dayNightLightingChk.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
+		_weatherEffectsChk.Pressed += () => GameContext.UserInterface?.PlayClickSound();
+		_weatherEffectsChk.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
+		_floatingCombatTextChk.Pressed += () => GameContext.UserInterface?.PlayClickSound();
+		_floatingCombatTextChk.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
+		_displayFpsChk.Pressed += () => GameContext.UserInterface?.PlayClickSound();
+		_displayFpsChk.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
+		_displayPingChk.Pressed += () => GameContext.UserInterface?.PlayClickSound();
+		_displayPingChk.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
+		_unitOutlineChk.Pressed += () => GameContext.UserInterface?.PlayClickSound();
+		_unitOutlineChk.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
+		_recordReplaysChk.Pressed += () => GameContext.UserInterface?.PlayClickSound();
+		_recordReplaysChk.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
+		_seedMapFilesChk.Pressed += () => GameContext.UserInterface?.PlayClickSound();
+		_seedMapFilesChk.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 
 		if (_dopplerChk != null)
 		{
-			_dopplerChk.Pressed += () => GameContext.UserInterface.PlayClickSound();
-			_dopplerChk.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
+			_dopplerChk.Pressed += () => GameContext.UserInterface?.PlayClickSound();
+			_dopplerChk.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 		}
 
 		if (_distanceMuffleChk != null)
 		{
-			_distanceMuffleChk.Pressed += () => GameContext.UserInterface.PlayClickSound();
-			_distanceMuffleChk.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
+			_distanceMuffleChk.Pressed += () => GameContext.UserInterface?.PlayClickSound();
+			_distanceMuffleChk.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 		}
 	}
 
@@ -626,8 +627,8 @@ public partial class SettingsMenu : Control
 			opt.AddThemeColorOverride("font_pressed_color", UIStyle.ColorCyanGlow);
 			opt.AddThemeFontSizeOverride("font_size", 14);
 
-			opt.ItemSelected += (idx) => GameContext.UserInterface.PlayClickSound();
-			opt.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
+			opt.ItemSelected += (idx) => GameContext.UserInterface?.PlayClickSound();
+			opt.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 		}
 	}
 
@@ -670,33 +671,33 @@ public partial class SettingsMenu : Control
 			s.AddThemeIconOverride("grabber", grabberTex);
 			s.AddThemeIconOverride("grabber_highlight", grabberHiTex);
 
-			s.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
-			s.DragEnded += (valChanged) => GameContext.UserInterface.PlayClickSound();
+			s.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
+			s.DragEnded += (valChanged) => GameContext.UserInterface?.PlayClickSound();
 		}
 
 		_masterSlider.ValueChanged += (val) =>
 		{
 			GameSettings.MasterVolume = (float)val;
 			_masterValLabel.Text = val.ToString("0");
-			GameContext.UserInterface.UpdateAudioVolumes();
+			GameContext.UserInterface?.UpdateAudioVolumes();
 		};
 		_musicSlider.ValueChanged += (val) =>
 		{
 			GameSettings.MusicVolume = (float)val;
 			_musicValLabel.Text = val.ToString("0");
-			GameContext.UserInterface.UpdateAudioVolumes();
+			GameContext.UserInterface?.UpdateAudioVolumes();
 		};
 		_sfxSlider.ValueChanged += (val) =>
 		{
 			GameSettings.SfxVolume = (float)val;
 			_sfxValLabel.Text = val.ToString("0");
-			GameContext.UserInterface.UpdateAudioVolumes();
+			GameContext.UserInterface?.UpdateAudioVolumes();
 		};
 		_voiceSlider.ValueChanged += (val) =>
 		{
 			GameSettings.VoiceVolume = (float)val;
 			_voiceValLabel.Text = val.ToString("0");
-			GameContext.UserInterface.UpdateAudioVolumes();
+			GameContext.UserInterface?.UpdateAudioVolumes();
 		};
 		_scrollSpeedSlider.ValueChanged += (val) =>
 		{
@@ -773,7 +774,7 @@ public partial class SettingsMenu : Control
 
 		btn.MouseEntered += () =>
 		{
-			GameContext.UserInterface.PlayHoverSound();
+			GameContext.UserInterface?.PlayHoverSound();
 			textLbl.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		};
 		btn.MouseExited += () => { textLbl.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull); };
@@ -782,7 +783,7 @@ public partial class SettingsMenu : Control
 
 		btn.Pressed += () =>
 		{
-			GameContext.UserInterface.PlayClickSound();
+			GameContext.UserInterface?.PlayClickSound();
 			onClick?.Invoke();
 		};
 	}
@@ -879,7 +880,7 @@ public partial class SettingsMenu : Control
 
 			GameSettings.Save();
 			GameSettings.ApplyGraphicsSettings(this);
-			GameContext.UserInterface.UpdateAudioVolumes();
+			GameContext.UserInterface?.UpdateAudioVolumes();
 
 			if (GameContext.InGameHud != null)
 			{
@@ -924,7 +925,7 @@ public partial class SettingsMenu : Control
 
 		if (GameContext.UserInterface != null)
 		{
-			await GameContext.UserInterface.ApplyWindowSettings(windowMode, GameSettings.ResolutionIdx);
+			await GameContext.UserInterface?.ApplyWindowSettings(windowMode, GameSettings.ResolutionIdx);
 		}
 	}
 
@@ -972,7 +973,7 @@ public partial class SettingsMenu : Control
 	public void CancelSettings()
 	{
 		GameSettings.Load();
-		GameContext.UserInterface.UpdateAudioVolumes();
+		GameContext.UserInterface?.UpdateAudioVolumes();
 		if (GameContext.InGameHud != null)
 		{
 			GameContext.InGameHud.UpdateFPSVisibility();
@@ -994,7 +995,7 @@ public partial class SettingsMenu : Control
 		}
 		else
 		{
-			GameContext.UserInterface.TransitionTo(GameScreen.MainMenu);
+			GameContext.UserInterface?.TransitionTo(GameScreen.MainMenu);
 		}
 	}
 
