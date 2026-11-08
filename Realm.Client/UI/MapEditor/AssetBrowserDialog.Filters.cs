@@ -143,15 +143,10 @@ public partial class AssetBrowserDialog
 		bool isIndexing = GameContext.AssetIndexService.IsDirectoryIndexing(dirPath);
 		var chip = new PanelContainer();
 		chip.Name = "Chip_PanelContainer";
-		var chipStyle = new StyleBoxFlat();
-		chipStyle.BgColor = isIndexing ? new Color(0.18f, 0.16f, 0.12f, 0.9f) : new Color(0.15f, 0.16f, 0.19f, 0.9f);
-		chipStyle.BorderColor = isIndexing ? UIStyle.ColorGold : new Color(0.35f, 0.32f, 0.28f, 0.7f);
-		chipStyle.SetBorderWidthAll(1);
-		chipStyle.SetCornerRadiusAll(3);
-		chipStyle.ContentMarginLeft = 6;
-		chipStyle.ContentMarginRight = 4;
-		chipStyle.ContentMarginTop = 2;
-		chipStyle.ContentMarginBottom = 2;
+		var chipStyle = UIStyle.CreateCardPlate(
+			isIndexing ? new Color(0.18f, 0.16f, 0.12f, 0.9f) : new Color(0.15f, 0.16f, 0.19f, 0.9f),
+			isIndexing ? UIStyle.ColorGold : new Color(0.35f, 0.32f, 0.28f, 0.7f),
+			1, 3, 6, 4, 2, 2);
 		chip.AddThemeStyleboxOverride("panel", chipStyle);
 		chip.TooltipText = isIndexing
 			? $"{dirPath}\n({TranslationServer.Translate("Indexing in progress...")})"
