@@ -80,7 +80,7 @@ internal sealed class MapNamePromptDialog
 		var panel = new PanelContainer();
 		panel.Name = "MapNamePromptPanel_PanelContainer";
 		panel.CustomMinimumSize = new Vector2(520, 260);
-		panel.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
+		UIStyle.ClearPanelBackground(panel);
 		center.AddChild(panel);
 
 		var margin = new MarginContainer();
