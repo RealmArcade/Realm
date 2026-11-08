@@ -416,76 +416,21 @@ public class RegistryService
 
 	public TooltipValueStore TooltipValues { get; } = new();
 
-	public bool CheckPropRegistryForMatch(string id, string cleanId, string normTarget, Func<string?, string, bool> isMatch)
-	{
-		if (PropRegistry.TryGetValue(id, out var meta) && isMatch(meta.ModelPath, normTarget)) return true;
-		if (!string.IsNullOrEmpty(cleanId) && PropRegistry.TryGetValue(cleanId, out meta) && isMatch(meta.ModelPath, normTarget)) return true;
-		return false;
-	}
+	public bool CheckPropRegistryForMatch(string id, string cleanId, string normTarget, Func<string?, string, bool> isMatch) => RegistryKeyMatching.CheckPropRegistryForMatch(id, cleanId, normTarget, isMatch);
 
-	public bool MatchesUnitKey(string unitId, string? modelPath, string normTarget, Func<string?, string, bool> isMatch)
-	{
-		if (isMatch(unitId, normTarget)) return true;
-		if (isMatch(modelPath, normTarget)) return true;
-		if (UnitRegistry.TryGetValue(unitId, out var meta) && isMatch(meta.ModelPath, normTarget)) return true;
-		if (BuildingRegistry.TryGetValue(unitId, out var bldMeta) && isMatch(bldMeta.ModelPath, normTarget)) return true;
-		return false;
-	}
+	public bool MatchesUnitKey(string unitId, string? modelPath, string normTarget, Func<string?, string, bool> isMatch) => RegistryKeyMatching.MatchesUnitKey(unitId, modelPath, normTarget, isMatch);
 
-	public bool IsPropOrResourceKey(string key, string norm, string? resolved, Func<string, string> normalizeFunc)
-	{
-		if (PropRegistry.ContainsKey(key) || PropRegistry.ContainsKey(norm)) return true;
-		if (ResourceRegistry.ContainsKey(key) || ResourceRegistry.ContainsKey(norm)) return true;
+	public bool IsPropOrResourceKey(string key, string norm, string? resolved, Func<string, string> normalizeFunc) => RegistryKeyMatching.IsPropOrResourceKey(key, norm, resolved, normalizeFunc);
 
-		if (HasMatchingPropOrResourceMetadata(norm, normalizeFunc)) return true;
-		if (MatchesPropOrResourcePathPattern(key) || MatchesPropOrResourcePathPattern(norm)) return true;
+	public bool HasMatchingPropOrResourceMetadata(string norm, Func<string, string> normalizeFunc) => RegistryKeyMatching.HasMatchingPropOrResourceMetadata(norm, normalizeFunc);
 
-		return !string.IsNullOrEmpty(resolved) && MatchesPropOrResourcePathPattern(resolved);
-	}
+	public bool HasMatchingPropMetadata(string norm, Func<string, string> normalizeFunc) => RegistryKeyMatching.HasMatchingPropMetadata(norm, normalizeFunc);
 
-	public bool HasMatchingPropOrResourceMetadata(string norm, Func<string, string> normalizeFunc)
-	{
-		return HasMatchingPropMetadata(norm, normalizeFunc) || HasMatchingResourceMetadata(norm, normalizeFunc);
-	}
+	public bool HasMatchingResourceMetadata(string norm, Func<string, string> normalizeFunc) => RegistryKeyMatching.HasMatchingResourceMetadata(norm, normalizeFunc);
 
-	public bool HasMatchingPropMetadata(string norm, Func<string, string> normalizeFunc)
-	{
-		foreach (var propMeta in PropRegistry.Values)
-		{
-			if (!string.IsNullOrEmpty(propMeta.ModelPath) && normalizeFunc(propMeta.ModelPath) == norm) return true;
-			if (!string.IsNullOrEmpty(propMeta.TemplateID) && normalizeFunc(propMeta.TemplateID) == norm) return true;
-		}
+	public bool MatchesPropOrResourcePathPattern(string path) => RegistryKeyMatching.MatchesPropOrResourcePathPattern(path);
 
-		return false;
-	}
-
-	public bool HasMatchingResourceMetadata(string norm, Func<string, string> normalizeFunc)
-	{
-		foreach (var resMeta in ResourceRegistry.Values)
-		{
-			if (!string.IsNullOrEmpty(resMeta.ModelPath) && normalizeFunc(resMeta.ModelPath) == norm) return true;
-			if (!string.IsNullOrEmpty(resMeta.TemplateID) && normalizeFunc(resMeta.TemplateID) == norm) return true;
-		}
-
-		return false;
-	}
-
-	public bool MatchesPropOrResourcePathPattern(string path)
-	{
-		return path.Contains("/props/", StringComparison.OrdinalIgnoreCase) ||
-		       path.Contains("\\props\\", StringComparison.OrdinalIgnoreCase) ||
-		       path.StartsWith("props/", StringComparison.OrdinalIgnoreCase) ||
-		       path.Contains("/resources/", StringComparison.OrdinalIgnoreCase) ||
-		       path.Contains("\\resources\\", StringComparison.OrdinalIgnoreCase) ||
-		       path.StartsWith("resources/", StringComparison.OrdinalIgnoreCase);
-	}
-
-	public bool CheckBuildingRegistryForMatch(string id, string cleanId, string normTarget, Func<string?, string, bool> isMatch)
-	{
-		if (BuildingRegistry.TryGetValue(id, out var meta) && isMatch(meta.ModelPath, normTarget)) return true;
-		if (!string.IsNullOrEmpty(cleanId) && BuildingRegistry.TryGetValue(cleanId, out meta) && isMatch(meta.ModelPath, normTarget)) return true;
-		return false;
-	}
+	public bool CheckBuildingRegistryForMatch(string id, string cleanId, string normTarget, Func<string?, string, bool> isMatch) => RegistryKeyMatching.CheckBuildingRegistryForMatch(id, cleanId, normTarget, isMatch);
 
 	public bool TryGetRegistryYOffset(string key, out float offset)
 	{
