@@ -96,7 +96,14 @@ public partial class LobbyManager
 	{
 		if (!_worldPrepared || _loadReadyReported) return;
 
-		PlayerInfo? me = PlayerList.Find(IsLocalPlayer);
+		PlayerInfo? me = null;
+		for (int index = 0; index < PlayerList.Count; index++)
+		{
+			if (!IsLocalPlayer(PlayerList[index])) continue;
+			me = PlayerList[index];
+			break;
+		}
+
 		if (me == null || !me.IsMapReady) return;
 
 		_loadReadyReported = true;
