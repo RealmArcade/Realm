@@ -36,7 +36,6 @@ public class AssetIndexService : IDisposable
 	private ILiteCollection<IndexedFolder> _folderCollection = null!;
 	private ILiteCollection<IndexedMapPackage> _mapPackageCollection = null!;
 	private readonly object _syncLock = new();
-	private readonly HashSet<string> _indexingDirectories = new(StringComparer.OrdinalIgnoreCase);
 	private HashSet<string> _lastVerificationFailurePaths = new(StringComparer.OrdinalIgnoreCase);
 
 	private LiteDatabase? _p2pDatabase;
@@ -528,8 +527,17 @@ public class AssetIndexService : IDisposable
 		}
 	}
 
+	private readonly AssetIndexDirectoryIndexer _directoryIndexer;
+
 	public AssetIndexService()
 	{
+		_directoryIndexer = new AssetIndexDirectoryIndexer(
+			() => new AssetIndexScanTarget(_database, _assetCollection, _folderCollection, GlobalCasAssetsDirectory),
+			_syncLock,
+			(path, indexing) => DirectoryIndexingStateChanged?.Invoke(path, indexing),
+			path => DirectoryScanCompleted?.Invoke(path),
+			() => ScanAllCasManifests());
+
 		if (TryOpenIndexDatabase())
 		{
 			return;
@@ -742,7 +750,7 @@ public class AssetIndexService : IDisposable
 	private void RemoveForbiddenFolders(string legacyArchive, string casAssetsDirectory)
 	{
 		var forbiddenFolders = _folderCollection.FindAll()
-			.Where(f => IsForbiddenPath(f.DirectoryPath) ||
+			.Where(f => AssetIndexPaths.IsForbidden(f.DirectoryPath) ||
 			            string.Equals(f.DirectoryPath, legacyArchive, StringComparison.OrdinalIgnoreCase) ||
 			            string.Equals(f.DirectoryPath, casAssetsDirectory, StringComparison.OrdinalIgnoreCase) ||
 			            f.DirectoryPath.EndsWith(".rmap", StringComparison.OrdinalIgnoreCase) ||
@@ -783,8 +791,8 @@ public class AssetIndexService : IDisposable
 
 	private bool IsForbiddenAsset(IndexedAsset asset)
 	{
-		if (IsForbiddenPath(asset.DirectoryPath)) return true;
-		if (IsForbiddenPath(asset.FilePath)) return true;
+		if (AssetIndexPaths.IsForbidden(asset.DirectoryPath)) return true;
+		if (AssetIndexPaths.IsForbidden(asset.FilePath)) return true;
 		if (asset.DirectoryPath.EndsWith(".rmap", StringComparison.OrdinalIgnoreCase)) return true;
 		if (asset.DirectoryPath.EndsWith(".7z", StringComparison.OrdinalIgnoreCase)) return true;
 		if (asset.FilePath.Contains("/extracted/", StringComparison.OrdinalIgnoreCase)) return true;
@@ -973,31 +981,34 @@ public class AssetIndexService : IDisposable
 		return string.Compare(v1, v2, StringComparison.OrdinalIgnoreCase);
 	}
 
-	private static bool IsForbiddenPath(string path)
-	{
-		if (string.IsNullOrWhiteSpace(path)) return true;
-		string norm = path.Replace('\\', '/').ToLowerInvariant();
-		return norm.Contains("maptemplate");
-	}
-
 	public bool IsDirectoryIndexing(string directoryPath)
 	{
-		if (string.IsNullOrWhiteSpace(directoryPath)) return false;
-		lock (_syncLock)
-		{
-			return _indexingDirectories.Contains(NormalizePath(directoryPath));
-		}
+		return _directoryIndexer.IsDirectoryIndexing(directoryPath);
 	}
 
 	public IReadOnlyList<string> GetIndexedDirectories()
 	{
-		lock (_syncLock)
-		{
-			return _folderCollection.FindAll()
-				.Select(f => f.DirectoryPath)
-				.OrderBy(p => p, StringComparer.OrdinalIgnoreCase)
-				.ToList();
-		}
+		return _directoryIndexer.GetIndexedDirectories();
+	}
+
+	public void AddDirectory(string directoryPath)
+	{
+		_directoryIndexer.AddDirectory(directoryPath);
+	}
+
+	public void RemoveDirectory(string directoryPath)
+	{
+		_directoryIndexer.RemoveDirectory(directoryPath);
+	}
+
+	public void RescanDirectory(string directoryPath)
+	{
+		_directoryIndexer.RescanDirectory(directoryPath);
+	}
+
+	public void RescanAllDirectories()
+	{
+		_directoryIndexer.RescanAllDirectories();
 	}
 
 	public int GetAssetCount()
@@ -1005,376 +1016,6 @@ public class AssetIndexService : IDisposable
 		lock (_syncLock)
 		{
 			return _assetCollection.Count();
-		}
-	}
-
-	public void AddDirectory(string directoryPath)
-	{
-		if (string.IsNullOrWhiteSpace(directoryPath)) return;
-
-		string normalizedPath = NormalizePath(directoryPath);
-		if (!IsValidDirectoryForIndexing(normalizedPath)) return;
-
-		if (!TryRegisterDirectory(normalizedPath)) return;
-
-		DirectoryIndexingStateChanged?.Invoke(normalizedPath, true);
-		StartDirectoryScanTask(normalizedPath);
-	}
-
-	private bool IsValidDirectoryForIndexing(string normalizedPath)
-	{
-		if (IsForbiddenPath(normalizedPath) || !Directory.Exists(normalizedPath)) return false;
-
-		if (normalizedPath.EndsWith(".rmap", StringComparison.OrdinalIgnoreCase) ||
-		    normalizedPath.EndsWith(".7z", StringComparison.OrdinalIgnoreCase) ||
-		    normalizedPath.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) ||
-		    normalizedPath.EndsWith(".rar", StringComparison.OrdinalIgnoreCase) ||
-		    normalizedPath.EndsWith(".tar", StringComparison.OrdinalIgnoreCase) ||
-		    normalizedPath.EndsWith(".gz", StringComparison.OrdinalIgnoreCase))
-		{
-			return false;
-		}
-
-		return true;
-	}
-
-	private bool TryRegisterDirectory(string normalizedPath)
-	{
-		lock (_syncLock)
-		{
-			var existingFolder = _folderCollection.FindOne(x => x.DirectoryPath == normalizedPath);
-			if (existingFolder == null)
-			{
-				existingFolder = new IndexedFolder
-				{
-					DirectoryPath = normalizedPath,
-					LastScannedUtc = DateTime.MinValue
-				};
-				_folderCollection.Insert(existingFolder);
-				_database.Checkpoint();
-			}
-
-			if (_indexingDirectories.Contains(normalizedPath)) return false;
-			_indexingDirectories.Add(normalizedPath);
-			return true;
-		}
-	}
-
-	private void StartDirectoryScanTask(string normalizedPath)
-	{
-		Task.Run(() =>
-		{
-			try
-			{
-				ScanDirectoryInternal(normalizedPath);
-			}
-			catch (Exception ex)
-			{
-				GameLog.LogError($"[AssetIndexService] Scan error on {normalizedPath}: {ex.Message}");
-			}
-			finally
-			{
-				lock (_syncLock)
-				{
-					_indexingDirectories.Remove(normalizedPath);
-				}
-
-				DirectoryIndexingStateChanged?.Invoke(normalizedPath, false);
-				DirectoryScanCompleted?.Invoke(normalizedPath);
-			}
-		});
-	}
-
-	public void RemoveDirectory(string directoryPath)
-	{
-		if (string.IsNullOrWhiteSpace(directoryPath))
-		{
-			return;
-		}
-
-		string normalizedPath = NormalizePath(directoryPath);
-		if (string.Equals(normalizedPath, GlobalCasAssetsDirectory, StringComparison.OrdinalIgnoreCase))
-		{
-			return;
-		}
-
-		lock (_syncLock)
-		{
-			_indexingDirectories.Remove(normalizedPath);
-
-			_folderCollection.DeleteMany(f => f.DirectoryPath == normalizedPath);
-			var leftoverFolders = _folderCollection.FindAll()
-				.Where(f => string.Equals(f.DirectoryPath, normalizedPath, StringComparison.OrdinalIgnoreCase))
-				.Select(f => (BsonValue)f.Id)
-				.ToArray();
-			if (leftoverFolders.Length > 0)
-			{
-				_folderCollection.DeleteMany(Query.In("_id", leftoverFolders));
-			}
-
-			_assetCollection.DeleteMany(Query.EQ("DirectoryPath", normalizedPath));
-			_assetCollection.DeleteMany(Query.StartsWith("FilePath", normalizedPath + "/"));
-			_assetCollection.DeleteMany(Query.StartsWith("FilePath", normalizedPath + "\\"));
-
-			_database.Checkpoint();
-		}
-
-		DirectoryIndexingStateChanged?.Invoke(normalizedPath, false);
-	}
-
-	public void RescanDirectory(string directoryPath)
-	{
-		if (string.IsNullOrWhiteSpace(directoryPath))
-		{
-			return;
-		}
-
-		string normalizedPath = NormalizePath(directoryPath);
-		if (IsForbiddenPath(normalizedPath) || !Directory.Exists(normalizedPath))
-		{
-			return;
-		}
-
-		lock (_syncLock)
-		{
-			if (_indexingDirectories.Contains(normalizedPath))
-			{
-				return;
-			}
-
-			_indexingDirectories.Add(normalizedPath);
-		}
-
-		DirectoryIndexingStateChanged?.Invoke(normalizedPath, true);
-
-		Task.Run(() =>
-		{
-			try
-			{
-				ScanDirectoryInternal(normalizedPath);
-			}
-			catch (Exception ex)
-			{
-				GameLog.LogError($"[AssetIndexService] Rescan error on {normalizedPath}: {ex.Message}");
-			}
-			finally
-			{
-				lock (_syncLock)
-				{
-					_indexingDirectories.Remove(normalizedPath);
-				}
-
-				DirectoryIndexingStateChanged?.Invoke(normalizedPath, false);
-				DirectoryScanCompleted?.Invoke(normalizedPath);
-			}
-		});
-	}
-
-	public void RescanAllDirectories()
-	{
-		List<string> dirsToScan = PrepareDirectoriesForRescan();
-
-		foreach (var dir in dirsToScan)
-		{
-			DirectoryIndexingStateChanged?.Invoke(dir, true);
-		}
-
-		Task.Run(() => ExecuteRescanTask(dirsToScan));
-	}
-
-	private List<string> PrepareDirectoriesForRescan()
-	{
-		List<string> dirsToScan;
-		lock (_syncLock)
-		{
-			CleanOrphanedAssetsFromIndex();
-
-			dirsToScan = _folderCollection.FindAll()
-				.Select(f => f.DirectoryPath)
-				.Where(p => Directory.Exists(p) && !_indexingDirectories.Contains(p) && !string.Equals(p, GlobalCasAssetsDirectory, StringComparison.OrdinalIgnoreCase))
-				.ToList();
-
-			foreach (var dir in dirsToScan)
-			{
-				_indexingDirectories.Add(dir);
-			}
-
-			_database.Checkpoint();
-		}
-
-		return dirsToScan;
-	}
-
-	private void CleanOrphanedAssetsFromIndex()
-	{
-		var validFolders = _folderCollection.FindAll()
-			.Select(f => f.DirectoryPath)
-			.ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-		string globalArchive = NormalizePath(MapAssetManager.GlobalArchiveDirectory);
-		string p2pArchive = NormalizePath(MapAssetManager.P2PArchiveDirectory);
-
-		var orphanedAssets = _assetCollection.FindAll()
-			.Where(a => (!validFolders.Contains(a.DirectoryPath) &&
-			             !string.Equals(a.DirectoryPath, GlobalCasAssetsDirectory, StringComparison.OrdinalIgnoreCase) &&
-			             !a.FilePath.StartsWith(globalArchive, StringComparison.OrdinalIgnoreCase) &&
-			             !a.FilePath.StartsWith(p2pArchive, StringComparison.OrdinalIgnoreCase) &&
-			             string.IsNullOrEmpty(a.MapName)) ||
-			            IsForbiddenPath(a.DirectoryPath))
-			.Select(a => (BsonValue)a.Id)
-			.ToArray();
-
-		if (orphanedAssets.Length > 0)
-		{
-			_assetCollection.DeleteMany(Query.In("_id", orphanedAssets));
-		}
-	}
-
-	private void ExecuteRescanTask(List<string> dirsToScan)
-	{
-		try
-		{
-			ScanAllCasManifests();
-			DirectoryScanCompleted?.Invoke(GlobalCasAssetsDirectory);
-		}
-		catch (Exception ex)
-		{
-			GameLog.LogError($"[AssetIndexService] RescanAll CAS manifest scan error: {ex.Message}");
-		}
-
-		foreach (var dir in dirsToScan)
-		{
-			RescanSingleDirectory(dir);
-		}
-	}
-
-	private void RescanSingleDirectory(string dir)
-	{
-		try
-		{
-			ScanDirectoryInternal(dir);
-		}
-		catch (Exception ex)
-		{
-			GameLog.LogError($"[AssetIndexService] RescanAll error on {dir}: {ex.Message}");
-		}
-		finally
-		{
-			lock (_syncLock)
-			{
-				_indexingDirectories.Remove(dir);
-			}
-
-			DirectoryIndexingStateChanged?.Invoke(dir, false);
-			DirectoryScanCompleted?.Invoke(dir);
-		}
-	}
-
-	private void ScanDirectoryInternal(string normalizedDirectoryPath)
-	{
-		if (!Directory.Exists(normalizedDirectoryPath)) return;
-
-		if (string.Equals(normalizedDirectoryPath, GlobalCasAssetsDirectory, StringComparison.OrdinalIgnoreCase))
-		{
-			ScanAllCasManifests();
-			DirectoryScanCompleted?.Invoke(GlobalCasAssetsDirectory);
-			return;
-		}
-
-		var discoveredFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-		var files = Directory.EnumerateFiles(normalizedDirectoryPath, "*.*", SearchOption.AllDirectories);
-		var existingAssets = GetExistingAssetsInDirectory(normalizedDirectoryPath);
-		var batchToUpsert = new List<IndexedAsset>();
-
-		foreach (string filePath in files)
-		{
-			ProcessScannedFile(filePath, normalizedDirectoryPath, discoveredFiles, existingAssets, batchToUpsert);
-		}
-
-		if (batchToUpsert.Count > 0)
-		{
-			lock (_syncLock)
-			{
-				_assetCollection.Upsert(batchToUpsert);
-			}
-
-			batchToUpsert.Clear();
-		}
-
-		CleanupStaleAssetsAndRecordScan(normalizedDirectoryPath, existingAssets, discoveredFiles);
-	}
-
-	private Dictionary<string, IndexedAsset> GetExistingAssetsInDirectory(string normalizedDirectoryPath)
-	{
-		lock (_syncLock)
-		{
-			return _assetCollection.Find(Query.EQ("DirectoryPath", normalizedDirectoryPath))
-				.ToDictionary(x => x.FilePath, StringComparer.OrdinalIgnoreCase);
-		}
-	}
-
-	private void ProcessScannedFile(string filePath, string normalizedDirectoryPath, HashSet<string> discoveredFiles, Dictionary<string, IndexedAsset> existingAssets, List<IndexedAsset> batchToUpsert)
-	{
-		string normalizedFilePath = NormalizePath(filePath);
-		string extension = Path.GetExtension(normalizedFilePath).ToLowerInvariant();
-
-		if (AssetRecordFactory.IsIgnoredFileExtension(extension) || AssetRecordFactory.IsMetadataSidecarFile(normalizedFilePath)) return;
-
-		discoveredFiles.Add(normalizedFilePath);
-		try
-		{
-			var fileInfo = new FileInfo(normalizedFilePath);
-			AssetType? expectedDirType = AssetRecordFactory.GetExpectedAssetTypeFromDirectory(normalizedFilePath);
-
-			existingAssets.TryGetValue(normalizedFilePath, out var existingAsset);
-			if (AssetRecordFactory.IsExistingAssetUpToDate(existingAsset, fileInfo, expectedDirType, normalizedFilePath)) return;
-
-			var newAsset = AssetRecordFactory.GenerateIndexedAssetFromFile(normalizedFilePath, normalizedDirectoryPath, fileInfo, extension, expectedDirType, existingAsset);
-			batchToUpsert.Add(newAsset);
-
-			if (newAsset.Extension == ".rmesh" && !GlbThumbnailRenderer.HasDiskCache(normalizedFilePath, newAsset.Blake3))
-			{
-				GlbThumbnailRenderer.EnqueueRequest(normalizedFilePath, fileInfo.LastWriteTimeUtc, newAsset.Blake3, isHighPriority: false);
-			}
-
-			if (batchToUpsert.Count >= 250)
-			{
-				lock (_syncLock)
-				{
-					_assetCollection.Upsert(batchToUpsert);
-				}
-
-				batchToUpsert.Clear();
-			}
-		}
-		catch (Exception ex)
-		{
-			GameLog.LogError($"[AssetIndexService] Scan error on {normalizedFilePath}: {ex.Message}");
-		}
-	}
-
-	private void CleanupStaleAssetsAndRecordScan(string normalizedDirectoryPath, Dictionary<string, IndexedAsset> existingAssets, HashSet<string> discoveredFiles)
-	{
-		lock (_syncLock)
-		{
-			var idsToDelete = existingAssets.Values
-				.Where(x => !discoveredFiles.Contains(x.FilePath))
-				.Select(x => (BsonValue)x.Id)
-				.ToArray();
-
-			if (idsToDelete.Length > 0)
-			{
-				_assetCollection.DeleteMany(Query.In("_id", idsToDelete));
-			}
-
-			var folderRecord = _folderCollection.FindOne(x => x.DirectoryPath == normalizedDirectoryPath);
-			if (folderRecord != null)
-			{
-				folderRecord.LastScannedUtc = DateTime.UtcNow;
-				_folderCollection.Update(folderRecord);
-			}
-
-			_database.Checkpoint();
 		}
 	}
 

@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 
 namespace Realm.Client.Services;
 
@@ -11,5 +11,13 @@ internal static class AssetIndexPaths
 	internal static string Normalize(string path)
 	{
 		return Path.GetFullPath(path).Replace('\\', '/').TrimEnd('/');
+	}
+
+	/// <summary>Template folders are never part of the index, however they are spelled.</summary>
+	internal static bool IsForbidden(string path)
+	{
+		if (string.IsNullOrWhiteSpace(path)) return true;
+		string norm = path.Replace('\\', '/').ToLowerInvariant();
+		return norm.Contains("maptemplate");
 	}
 }
