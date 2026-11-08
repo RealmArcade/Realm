@@ -46,7 +46,7 @@ public struct ScriptPlayersState
 	{
 		if (!IsValidSlot(playerIndex)) return;
 
-		Slots[playerIndex].Name = name;
+		Slots[playerIndex].Name = name ?? string.Empty;
 	}
 
 	public void SetActive(int playerIndex, bool active)
