@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics.CodeAnalysis;
 using System.Collections.Generic;
 using System.Numerics;
 using Realm.Ecs;
@@ -602,7 +603,7 @@ public class InputService
 		return World.IsAlive(unitEntity);
 	}
 
-	public bool TryGetItemMeta(string itemId, out ItemMetadata? itemMeta)
+	public bool TryGetItemMeta(string itemId, [NotNullWhen(true)] out ItemMetadata? itemMeta)
 	{
         var itemRegistry = GameContext.RegistryService?.ItemRegistry;
         if (itemRegistry != null)
