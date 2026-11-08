@@ -22,6 +22,16 @@ namespace Realm.Client.UI;
 [GlobalClass]
 public partial class LobbyRoom : Control
 {
+	/// <summary>
+	/// The lobby this screen is bound to. LobbyRoom is only mounted while a lobby is
+	/// registered and it unsubscribes on the way out, so an unguarded read here is a
+	/// programming error rather than a state the screen has to survive. Stating that once
+	/// also stops the compiler reporting each individual read, which the property getter
+	/// cannot prove is non-null no matter how many checks precede it.
+	/// </summary>
+	private static LobbyManager Lobby => GameContext.Lobby
+		?? throw new InvalidOperationException("LobbyRoom read the lobby before one was registered.");
+
 	public override void _EnterTree()
 	{
 		Realm.Client.Services.GameContext.EnsureServices();
@@ -49,7 +59,7 @@ public partial class LobbyRoom : Control
 	private CheckBox _spectatorDelayCheck = null!;
 	private Panel? _countdownPopup;
 	private Label? _countdownTextLabel;
-	private Panel _connectingPopup = null!;
+	private Panel? _connectingPopup;
 
 	private Label _lobbyTitle = null!;
 	private Label _playersTitle = null!;
@@ -106,8 +116,8 @@ public partial class LobbyRoom : Control
 		_inviteButton = GetNode<Button>("InviteButton");
 		_addBotButton = GetNode<Button>("AddBotButton");
 		_startButton = GetNode<Button>("StartButton");
-		_addBotButton.Visible = GameContext.Lobby.IsHost;
-		_inviteButton.Visible = !GameContext.Lobby.IsSinglePlayer;
+		_addBotButton.Visible = Lobby.IsHost;
+		_inviteButton.Visible = !Lobby.IsSinglePlayer;
 
 
 		_mapNameLabel = GetNode<Label>("MapNameLabel");
@@ -157,12 +167,12 @@ public partial class LobbyRoom : Control
 		_hostStabilityLabel.OffsetTop = 85;
 		_hostStabilityLabel.OffsetBottom = 110;
 
-		if (!GameContext.Lobby.IsHost)
+		if (!Lobby.IsHost)
 		{
-			UpdateHostStabilityLabel(GameContext.Lobby.HostStability);
-			GameContext.Lobby.HostStabilityUpdated += UpdateHostStabilityLabel;
+			UpdateHostStabilityLabel(Lobby.HostStability);
+			Lobby.HostStabilityUpdated += UpdateHostStabilityLabel;
 		}
-		else if (GameContext.Lobby.IsRestrictedHost)
+		else if (Lobby.IsRestrictedHost)
 		{
 			var restrictedWarning = new Label();
 			restrictedWarning.Name = "RestrictedWarningLabel";
@@ -184,22 +194,22 @@ public partial class LobbyRoom : Control
 		ApplyThemeStyles();
 
 
-		GameContext.Lobby.PlayerListUpdated += PopulatePlayersList;
-		GameContext.Lobby.ChatReceived += OnLobbyChatReceived;
-		GameContext.Lobby.ConnectionFailed += OnLobbyConnectionFailed;
-		GameContext.Lobby.KickReceived += OnLobbyKickReceived;
-		GameContext.Lobby.CountdownStarted += OnCountdownStarted;
-		GameContext.Lobby.CountdownTick += OnCountdownTick;
-		GameContext.Lobby.CountdownCancelled += OnCountdownCancelled;
-		GameContext.Lobby.CountdownFinished += OnCountdownFinished;
-		GameContext.Lobby.ActiveMapChanged += OnActiveMapChanged;
-		GameContext.Lobby.StartWarningReceived += OnStartWarningReceived;
+		Lobby.PlayerListUpdated += PopulatePlayersList;
+		Lobby.ChatReceived += OnLobbyChatReceived;
+		Lobby.ConnectionFailed += OnLobbyConnectionFailed;
+		Lobby.KickReceived += OnLobbyKickReceived;
+		Lobby.CountdownStarted += OnCountdownStarted;
+		Lobby.CountdownTick += OnCountdownTick;
+		Lobby.CountdownCancelled += OnCountdownCancelled;
+		Lobby.CountdownFinished += OnCountdownFinished;
+		Lobby.ActiveMapChanged += OnActiveMapChanged;
+		Lobby.StartWarningReceived += OnStartWarningReceived;
 
 
-		if (!GameContext.Lobby.IsHost)
+		if (!Lobby.IsHost)
 		{
 			CreateDownloadProgressUI();
-			GameContext.Lobby.RequestChatHistory();
+			Lobby.RequestChatHistory();
 		}
 
 		PopulatePlayersList();
@@ -207,13 +217,13 @@ public partial class LobbyRoom : Control
 		// The lobby is drawn first and covers the screen only while this screen has no seat in it yet. Once the authority
 		// has described the lobby there is nothing left to connect to: the map package and the world are prepared behind
 		// a lobby the player can already read and chat in, so the cover is not raised over them.
-		if (!GameContext.Lobby.IsHost && !GameContext.Lobby.HasLobbyState)
+		if (!Lobby.IsHost && !Lobby.HasLobbyState)
 		{
 			ShowConnectingPopup();
 		}
 
 		CreateSpectatorDelayUI();
-		GameContext.Lobby.SpectatorDelayChanged += OnSpectatorDelayChanged;
+		Lobby.SpectatorDelayChanged += OnSpectatorDelayChanged;
 
 		_chatLog.Text = $"[color=#ffd700]{Tr("System: Connected to Lobby.")}[/color]\n";
 		_chatInput.TextSubmitted += OnChatSubmitted;
@@ -294,7 +304,7 @@ public partial class LobbyRoom : Control
 		_chatPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateLobbyRoomChatPanel());
 
 
-		UIStyle.ApplyTitle(_lobbyTitle, "LOBBY" + (GameContext.Lobby.IsSinglePlayer ? " (Offline / Single Player)" : ""), 36);
+		UIStyle.ApplyTitle(_lobbyTitle, "LOBBY" + (Lobby.IsSinglePlayer ? " (Offline / Single Player)" : ""), 36);
 		UIStyle.ApplyTitle(_playersTitle, TranslationServer.Translate("TEAMS & PLAYERS"), 20);
 		UIStyle.ApplyTitle(_briefingTitle, TranslationServer.Translate("MATCH INFO & BRIEFING"), 20);
 
@@ -337,7 +347,7 @@ public partial class LobbyRoom : Control
 
 		SetupLobbyButton(_backButton, TranslationServer.Translate(" LEAVE LOBBY"), ReturnFromLobby);
 		SetupLobbyButton(_inviteButton, TranslationServer.Translate("INVITE FRIEND"), OpenInviteFriendsDialog);
-		SetupLobbyButton(_addBotButton, TranslationServer.Translate("ADD AI BOT"), () => GameContext.Lobby.AddAIBot());
+		SetupLobbyButton(_addBotButton, TranslationServer.Translate("ADD AI BOT"), () => Lobby.AddAIBot());
 		SetupStartButton();
 
 		_mapNameLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
@@ -383,10 +393,10 @@ public partial class LobbyRoom : Control
 	/// </summary>
 	private static void ReturnFromLobby()
 	{
-		bool singlePlayer = GameContext.Lobby.IsSinglePlayer;
-		GameContext.Lobby.Disconnect();
-		if (singlePlayer) GameContext.Lobby.IsSinglePlayer = false;
-		GameContext.UserInterface.TransitionTo(singlePlayer ? GameScreen.MainMenu : GameScreen.LobbyBrowser);
+		bool singlePlayer = Lobby.IsSinglePlayer;
+		Lobby.Disconnect();
+		if (singlePlayer) Lobby.IsSinglePlayer = false;
+		GameContext.UserInterface?.TransitionTo(singlePlayer ? GameScreen.MainMenu : GameScreen.LobbyBrowser);
 	}
 
 	private void ApplyTableHeaderLayout()
@@ -461,10 +471,10 @@ public partial class LobbyRoom : Control
 
 		btn.Pressed += () =>
 		{
-			GameContext.UserInterface.PlayClickSound();
+			GameContext.UserInterface?.PlayClickSound();
 			onClick?.Invoke();
 		};
-		btn.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
+		btn.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 	}
 
 	private void SetupStartButton()
@@ -508,7 +518,7 @@ public partial class LobbyRoom : Control
 	{
 		DisconnectStartButtonSignals();
 
-		if (GameContext.Lobby.IsHost)
+		if (Lobby.IsHost)
 		{
 			ApplyHostStartButtonState();
 		}
@@ -550,7 +560,7 @@ public partial class LobbyRoom : Control
 
 	private void ApplyClientStartButtonState()
 	{
-		string activeMap = GameContext.Lobby.ActiveMapName ?? "";
+		string activeMap = Lobby.ActiveMapName ?? "";
 		bool isMapReady = !string.IsNullOrEmpty(activeMap) && MapAssetManager.IsMapDownloaded(activeMap);
 		if (!isMapReady)
 		{
@@ -569,19 +579,19 @@ public partial class LobbyRoom : Control
 
 	private void OnClientReadyTogglePressed()
 	{
-		GameContext.UserInterface.PlayClickSound();
+		GameContext.UserInterface?.PlayClickSound();
 		var localPlayer = GetLocalPlayer();
 		if (localPlayer != null)
 		{
 			bool newReady = !localPlayer.IsReady;
 			localPlayer.IsReady = newReady;
-			GameContext.Lobby.UpdateReadyState(localPlayer.PeerId, newReady);
+			Lobby.UpdateReadyState(localPlayer.PeerId, newReady);
 			SetupStartButton();
 		}
 	}
 
 
-	private void ShowConfirmationDialog(string message, Action onConfirm)
+	private void ShowConfirmationDialog(string message, Action? onConfirm)
 	{
 		var overlay = new ColorRect();
 		overlay.Name = "Overlay_ColorRect";
@@ -624,12 +634,12 @@ public partial class LobbyRoom : Control
 
 	private void OnStartPressed()
 	{
-		GameContext.UserInterface.PlayClickSound();
+		GameContext.UserInterface?.PlayClickSound();
 		_ignoreReadinessOnStart = false;
-		string mapName = GameContext.Lobby.ActiveMapName ?? "melee";
+		string mapName = Lobby.ActiveMapName ?? "melee";
 
 		bool anyDownloading = false;
-		foreach (var player in GameContext.Lobby.PlayerList)
+		foreach (var player in Lobby.PlayerList)
 		{
 			if (player.PeerId > 1 && !player.IsMapReady)
 			{
@@ -645,7 +655,7 @@ public partial class LobbyRoom : Control
 		}
 
 		bool anyLoading = false;
-		foreach (var player in GameContext.Lobby.PlayerList)
+		foreach (var player in Lobby.PlayerList)
 		{
 			if (player.PeerId > 1 && !player.IsLoadReady)
 			{
@@ -661,7 +671,7 @@ public partial class LobbyRoom : Control
 		}
 
 		bool anyNotReady = false;
-		foreach (var player in GameContext.Lobby.PlayerList)
+		foreach (var player in Lobby.PlayerList)
 		{
 			if (player.IsHost || player.IsDisconnected) continue;
 			if (player.PeerId <= 0) continue;
@@ -678,7 +688,7 @@ public partial class LobbyRoom : Control
 		}
 		else
 		{
-			GameContext.Lobby.StartGame(mapName);
+			Lobby.StartGame(mapName);
 		}
 	}
 
@@ -694,7 +704,7 @@ public partial class LobbyRoom : Control
 
 		GameContext.UserInterface?.ShowConfirmationDialog(TranslationServer.Translate("Not all players are ready, start anyway?"), () =>
 		{
-			GameContext.Lobby.StartGame(mapName, ignoreReadiness: true);
+			Lobby.StartGame(mapName, ignoreReadiness: true);
 		}, confirmText: TranslationServer.Translate("START GAME"), cancelText: TranslationServer.Translate("CANCEL"), titleOverride: TranslationServer.Translate("NOT ALL PLAYERS READY"));
 	}
 
@@ -706,14 +716,14 @@ public partial class LobbyRoom : Control
 	/// <param name="warning">The text the map wants its host to read.</param>
 	private void OnStartWarningReceived(string warning)
 	{
-		if (!GameContext.Lobby.IsHost) return;
+		if (!Lobby.IsHost) return;
 
-		string mapName = GameContext.Lobby.ActiveMapName ?? "melee";
+		string mapName = Lobby.ActiveMapName ?? "melee";
 		bool ignoreReadiness = _ignoreReadinessOnStart;
 
 		GameContext.UserInterface?.ShowConfirmationDialog(TranslationServer.Translate(warning), () =>
 		{
-			GameContext.Lobby.StartGame(mapName, ignoreReadiness, acknowledgeStartWarning: true);
+			Lobby.StartGame(mapName, ignoreReadiness, acknowledgeStartWarning: true);
 		}, confirmText: TranslationServer.Translate("START GAME"), cancelText: TranslationServer.Translate("CANCEL"), titleOverride: TranslationServer.Translate("MAP START WARNING"));
 	}
 
@@ -730,7 +740,7 @@ public partial class LobbyRoom : Control
 	private void OnActiveMapChanged(string mapName)
 	{
 		UpdateSelectedMapUI();
-		if (!GameContext.Lobby.IsHost && _downloadProgress != null && _downloadLabel != null)
+		if (!Lobby.IsHost && _downloadProgress != null && _downloadLabel != null)
 		{
 			if (MapAssetManager.IsMapDownloaded(mapName))
 			{
@@ -851,7 +861,7 @@ public partial class LobbyRoom : Control
 		var mapDoc = JsonNode.Parse(fileBytes);
 		bool claimsAuthorship = mapDoc?["signature"] != null || mapDoc?["author_key"] != null;
 
-		string adminServerUrl = GameContext.Lobby.RegistryServerUrl;
+		string adminServerUrl = Lobby.RegistryServerUrl;
 		if (string.IsNullOrWhiteSpace(adminServerUrl)) return;
 
 		string assetAuthorJson;
@@ -927,7 +937,7 @@ public partial class LobbyRoom : Control
 
 	private void OnAttributionPressed()
 	{
-		GameContext.UserInterface.PlayClickSound();
+		GameContext.UserInterface?.PlayClickSound();
 
 		if (_attributionPopover == null || !GodotObject.IsInstanceValid(_attributionPopover))
 		{
@@ -946,7 +956,7 @@ public partial class LobbyRoom : Control
 
 	private int GetSelectedMapIndex()
 	{
-		string currentMap = GameContext.Lobby.ActiveMapName ?? "melee";
+		string currentMap = Lobby.ActiveMapName ?? "melee";
 		int selectedIndex = _lobbyRoomMaps.FindIndex(m => m.PathName == currentMap);
 		if (selectedIndex >= 0) return selectedIndex;
 
@@ -1004,7 +1014,7 @@ public partial class LobbyRoom : Control
 
 	private void OpenInviteFriendsDialog()
 	{
-		if (GameContext.Lobby.ActiveLobbyId is not { Length: > 0 } lobbyId || lobbyId.StartsWith("direct-", StringComparison.Ordinal))
+		if (Lobby.ActiveLobbyId is not { Length: > 0 } lobbyId || lobbyId.StartsWith("direct-", StringComparison.Ordinal))
 		{
 			GameContext.UserInterface?.ShowPopupMessage(
 				Tr("LOBBY INVITES"),
@@ -1020,7 +1030,7 @@ public partial class LobbyRoom : Control
 			_friendsDialog.InvitesSent += OnFriendInvitesSent;
 		}
 
-		_friendsDialog.ShowFor(lobbyId, GameContext.Lobby.MaxPlayers);
+		_friendsDialog.ShowFor(lobbyId, Lobby.MaxPlayers);
 	}
 
 	private void OnFriendInvitesSent(int sentCount)
@@ -1050,24 +1060,24 @@ public partial class LobbyRoom : Control
 
 		if (GameContext.Lobby != null)
 		{
-			GameContext.Lobby.PlayerListUpdated -= PopulatePlayersList;
-			GameContext.Lobby.ChatReceived -= OnLobbyChatReceived;
-			GameContext.Lobby.ConnectionFailed -= OnLobbyConnectionFailed;
-			GameContext.Lobby.KickReceived -= OnLobbyKickReceived;
+			Lobby.PlayerListUpdated -= PopulatePlayersList;
+			Lobby.ChatReceived -= OnLobbyChatReceived;
+			Lobby.ConnectionFailed -= OnLobbyConnectionFailed;
+			Lobby.KickReceived -= OnLobbyKickReceived;
 
-			GameContext.Lobby.SpectatorDelayChanged -= OnSpectatorDelayChanged;
+			Lobby.SpectatorDelayChanged -= OnSpectatorDelayChanged;
 
-			GameContext.Lobby.MapDownloadProgressChanged -= OnMapDownloadProgress;
-			GameContext.Lobby.MapDownloadCompleted -= OnMapDownloadCompleted;
-			GameContext.Lobby.MapDownloadFailed -= OnMapDownloadFailed;
+			Lobby.MapDownloadProgressChanged -= OnMapDownloadProgress;
+			Lobby.MapDownloadCompleted -= OnMapDownloadCompleted;
+			Lobby.MapDownloadFailed -= OnMapDownloadFailed;
 
-			GameContext.Lobby.CountdownStarted -= OnCountdownStarted;
-			GameContext.Lobby.CountdownTick -= OnCountdownTick;
-			GameContext.Lobby.CountdownCancelled -= OnCountdownCancelled;
-			GameContext.Lobby.CountdownFinished -= OnCountdownFinished;
-			GameContext.Lobby.HostStabilityUpdated -= UpdateHostStabilityLabel;
-			GameContext.Lobby.ActiveMapChanged -= OnActiveMapChanged;
-			GameContext.Lobby.StartWarningReceived -= OnStartWarningReceived;
+			Lobby.CountdownStarted -= OnCountdownStarted;
+			Lobby.CountdownTick -= OnCountdownTick;
+			Lobby.CountdownCancelled -= OnCountdownCancelled;
+			Lobby.CountdownFinished -= OnCountdownFinished;
+			Lobby.HostStabilityUpdated -= UpdateHostStabilityLabel;
+			Lobby.ActiveMapChanged -= OnActiveMapChanged;
+			Lobby.StartWarningReceived -= OnStartWarningReceived;
 		}
 
 		base._ExitTree();
@@ -1135,8 +1145,8 @@ public partial class LobbyRoom : Control
 		cancelBtn.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
 		cancelBtn.Pressed += () =>
 		{
-			GameContext.UserInterface.PlayClickSound();
-			GameContext.Lobby.RequestCancelCountdown();
+			GameContext.UserInterface?.PlayClickSound();
+			Lobby.RequestCancelCountdown();
 		};
 		vbox.AddChild(cancelBtn);
 
@@ -1170,9 +1180,9 @@ public partial class LobbyRoom : Control
 			_countdownTextLabel = null;
 		}
 
-		if (GameContext.Lobby != null && GameContext.Lobby.IsHost)
+		if (GameContext.Lobby != null && Lobby.IsHost)
 		{
-			GameContext.Lobby.UnregisterActiveLobbyFromRegistry();
+			Lobby.UnregisterActiveLobbyFromRegistry();
 		}
 	}
 
@@ -1207,19 +1217,19 @@ public partial class LobbyRoom : Control
 
 	private void UpdateAddBotAvailability()
 	{
-		_playersTitle.Text = $"{TranslationServer.Translate("TEAMS & PLAYERS")} ({GameContext.Lobby.PlayingPlayerCount}/{GameContext.Lobby.MaxPlayers})";
+		_playersTitle.Text = $"{TranslationServer.Translate("TEAMS & PLAYERS")} ({Lobby.PlayingPlayerCount}/{Lobby.MaxPlayers})";
 
 		if (_addBotButton == null || !GodotObject.IsInstanceValid(_addBotButton)) return;
-		if (!GameContext.Lobby.IsHost) return;
+		if (!Lobby.IsHost) return;
 
-		_addBotButton.Disabled = GameContext.Lobby.PlayingPlayerCount >= GameContext.Lobby.MaxPlayers;
+		_addBotButton.Disabled = Lobby.PlayingPlayerCount >= Lobby.MaxPlayers;
 	}
 
 	private bool CheckHostVersionMismatch()
 	{
-		if (GameContext.Lobby.IsHost || _versionMismatchDetected) return false;
+		if (Lobby.IsHost || _versionMismatchDetected) return false;
 
-		var host = GameContext.Lobby.PlayerList.Find(p => p.IsHost);
+		var host = Lobby.PlayerList.Find(p => p.IsHost);
 		if (host == null) return false;
 
 		string hostVersion = host.BinaryVersion;
@@ -1266,9 +1276,9 @@ public partial class LobbyRoom : Control
 	{
 		var activePeerIds = new HashSet<int>();
 
-		for (int i = 0; i < GameContext.Lobby.PlayerList.Count; i++)
+		for (int i = 0; i < Lobby.PlayerList.Count; i++)
 		{
-			var player = GameContext.Lobby.PlayerList[i];
+			var player = Lobby.PlayerList[i];
 			activePeerIds.Add(player.PeerId);
 
 			if (existingRows.TryGetValue(player.PeerId, out var row))
@@ -1305,7 +1315,7 @@ public partial class LobbyRoom : Control
 	private PanelContainer CreatePlayerRow(PlayerInfo p)
 	{
 		bool isLocalPlayer = CheckIfLocalPlayer(p);
-		bool canEditSeat = isLocalPlayer || GameContext.Lobby.IsHost;
+		bool canEditSeat = isLocalPlayer || Lobby.IsHost;
 
 		var panel = CreatePlayerRowPanel();
 		var hBox = new HBoxContainer();
@@ -1348,7 +1358,7 @@ public partial class LobbyRoom : Control
 
 	private bool CheckIfLocalPlayer(PlayerInfo p)
 	{
-		return GameContext.Lobby.IsLocalPlayer(p);
+		return Lobby.IsLocalPlayer(p);
 	}
 
 	private static PlayerInfo? ResolveLiveSeat(PlayerInfo rowSeat)
@@ -1359,7 +1369,7 @@ public partial class LobbyRoom : Control
 	private PlayerInfo? GetLocalPlayer()
 	{
 		if (GameContext.Lobby?.PlayerList == null) return null;
-		return GameContext.Lobby.PlayerList.Find(CheckIfLocalPlayer);
+		return Lobby.PlayerList.Find(CheckIfLocalPlayer);
 	}
 
 	private PanelContainer CreatePlayerRowPanel()
@@ -1413,9 +1423,9 @@ public partial class LobbyRoom : Control
 
 	private void OnReadyCheckToggled(bool toggled, PlayerInfo p)
 	{
-		GameContext.UserInterface.PlayClickSound();
+		GameContext.UserInterface?.PlayClickSound();
 		p.IsReady = toggled;
-		GameContext.Lobby.UpdateReadyState(p.PeerId, toggled);
+		Lobby.UpdateReadyState(p.PeerId, toggled);
 		SetupStartButton();
 	}
 
@@ -1433,7 +1443,7 @@ public partial class LobbyRoom : Control
 		FillTeamOptions(optTeam, p);
 
 		optTeam.ItemSelected += (idx) => OnTeamOptionSelected(idx, p);
-		optTeam.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
+		optTeam.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 
 		if (!canEditSeat)
 		{
@@ -1476,7 +1486,7 @@ public partial class LobbyRoom : Control
 
 	private void OnTeamOptionSelected(long idx, PlayerInfo p)
 	{
-		GameContext.UserInterface.PlayClickSound();
+		GameContext.UserInterface?.PlayClickSound();
 
 		PlayerInfo? seat = ResolveLiveSeat(p);
 		if (seat == null) return;
@@ -1492,7 +1502,7 @@ public partial class LobbyRoom : Control
 			seat.Color = new Color(0.5f, 0.5f, 0.5f);
 		}
 
-		GameContext.Lobby.UpdatePlayerSlot(seat.PeerId, seat.Faction, seat.Team, seat.Color, seat.Name);
+		Lobby.UpdatePlayerSlot(seat.PeerId, seat.Faction, seat.Team, seat.Color, seat.Name);
 	}
 
 	private void AddColorButtonToRow(HBoxContainer hBox, PlayerInfo p, bool canEditSeat)
@@ -1509,7 +1519,7 @@ public partial class LobbyRoom : Control
 		colorBtn.AddThemeStyleboxOverride("pressed", colorStyle);
 
 		colorBtn.Pressed += () => OpenColorPicker(colorBtn, p);
-		colorBtn.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
+		colorBtn.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 
 		if (!canEditSeat || p.TeamIndex < 1)
 		{
@@ -1551,17 +1561,17 @@ public partial class LobbyRoom : Control
 		if (seat == null) return;
 		if (paletteIndex <= PlayerColorConfig.NEUTRAL_PLAYER_INDEX || paletteIndex >= PlayerColorConfig.Palette.Length) return;
 
-		GameContext.UserInterface.PlayClickSound();
+		GameContext.UserInterface?.PlayClickSound();
 
 		seat.Color = PlayerColorConfig.GetColor(paletteIndex);
-		GameContext.Lobby.UpdatePlayerSlot(seat.PeerId, seat.Faction, seat.Team, seat.Color, seat.Name);
+		Lobby.UpdatePlayerSlot(seat.PeerId, seat.Faction, seat.Team, seat.Color, seat.Name);
 		PopulatePlayersList();
 	}
 
 	private static IReadOnlyList<int> CollectFreeColorIndices(PlayerInfo seat)
 	{
 		var taken = new HashSet<int>();
-		foreach (PlayerInfo other in GameContext.Lobby.PlayerList)
+		foreach (PlayerInfo other in Lobby.PlayerList)
 		{
 			if (other.PeerId == seat.PeerId) continue;
 			if (other.TeamIndex < 1) continue;
@@ -1600,7 +1610,7 @@ public partial class LobbyRoom : Control
 				if (seat == null) return;
 
 				seat.Name = text;
-				GameContext.Lobby.UpdatePlayerSlot(seat.PeerId, seat.Faction, seat.Team, seat.Color, seat.Name);
+				Lobby.UpdatePlayerSlot(seat.PeerId, seat.Faction, seat.Team, seat.Color, seat.Name);
 			};
 			FillColumnCell(cell, nameEdit);
 		}
@@ -1661,7 +1671,7 @@ public partial class LobbyRoom : Control
 
 		optFaction.ItemSelected += (idx) =>
 		{
-			GameContext.UserInterface.PlayClickSound();
+			GameContext.UserInterface?.PlayClickSound();
 
 			PlayerInfo? seat = ResolveLiveSeat(p);
 			if (seat == null) return;
@@ -1670,9 +1680,9 @@ public partial class LobbyRoom : Control
 			if (idx < 0 || idx >= factions.Count) return;
 
 			seat.Faction = factions[(int)idx];
-			GameContext.Lobby.UpdatePlayerSlot(seat.PeerId, seat.Faction, seat.Team, seat.Color, seat.Name);
+			Lobby.UpdatePlayerSlot(seat.PeerId, seat.Faction, seat.Team, seat.Color, seat.Name);
 		};
-		optFaction.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
+		optFaction.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 
 		if (!canEditSeat)
 		{
@@ -1721,7 +1731,7 @@ public partial class LobbyRoom : Control
 			FillDifficultyOptions(optDifficulty, p);
 
 			optDifficulty.ItemSelected += (idx) => OnDifficultyOptionSelected(idx, p);
-			optDifficulty.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
+			optDifficulty.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 
 			if (!canEditSeat)
 			{
@@ -1751,14 +1761,14 @@ public partial class LobbyRoom : Control
 
 	private void OnDifficultyOptionSelected(long idx, PlayerInfo p)
 	{
-		GameContext.UserInterface.PlayClickSound();
+		GameContext.UserInterface?.PlayClickSound();
 
 		PlayerInfo? seat = ResolveLiveSeat(p);
 		if (seat == null) return;
 
 		var difficulty = (LobbyBotDifficulty)((int)idx + (int)LobbyBotDifficulty.Easy);
 		seat.Difficulty = difficulty;
-		GameContext.Lobby.SetComputerDifficulty(seat.PeerId, difficulty);
+		Lobby.SetComputerDifficulty(seat.PeerId, difficulty);
 	}
 
 	private void AddDiagnosticLabelToRow(HBoxContainer hBox, PlayerInfo p, bool isLocalPlayer)
@@ -1808,7 +1818,7 @@ public partial class LobbyRoom : Control
 
 	private void AddBootButtonToRow(HBoxContainer hBox, PlayerInfo p)
 	{
-		if (!GameContext.Lobby.IsHost || GameContext.Lobby.IsLocalPlayer(p)) return;
+		if (!Lobby.IsHost || Lobby.IsLocalPlayer(p)) return;
 
 		var bootBtn = new Button();
 		bootBtn.Name = "BootBtn";
@@ -1820,8 +1830,8 @@ public partial class LobbyRoom : Control
 
 		bootBtn.Pressed += () =>
 		{
-			GameContext.UserInterface.PlayWarningSound();
-			GameContext.Lobby.BootPlayer(p.PeerId);
+			GameContext.UserInterface?.PlayWarningSound();
+			Lobby.BootPlayer(p.PeerId);
 		};
 
 		hBox.AddChild(bootBtn);
@@ -1855,7 +1865,7 @@ public partial class LobbyRoom : Control
 		if (hBox == null) return;
 
 		bool isLocalPlayer = CheckIfLocalPlayer(p);
-		bool canEditSeat = isLocalPlayer || GameContext.Lobby.IsHost;
+		bool canEditSeat = isLocalPlayer || Lobby.IsHost;
 
 		UpdateRowReadyCheck(hBox, p, isLocalPlayer);
 		UpdateRowTeamOption(hBox, p, canEditSeat);
@@ -2020,13 +2030,13 @@ public partial class LobbyRoom : Control
 	{
 		if (string.IsNullOrEmpty(text.Trim())) return;
 		_chatInput.Clear();
-		string myName = GetLocalPlayer()?.Name ?? GameContext.Lobby.PlayerDisplayName;
-		GameContext.Lobby.SendChatMessage(myName, text);
+		string myName = GetLocalPlayer()?.Name ?? Lobby.PlayerDisplayName;
+		Lobby.SendChatMessage(myName, text);
 	}
 
 	private void OnLobbyChatReceived(string senderName, string message, bool alliesOnly, long timestampUtcTicks)
 	{
-		string myName = GetLocalPlayer()?.Name ?? GameContext.Lobby.PlayerDisplayName;
+		string myName = GetLocalPlayer()?.Name ?? Lobby.PlayerDisplayName;
 		string color = senderName == "System" ? "#ffd700" : (senderName == myName ? "#5cd6ff" : "#d4a0a0");
 		string timestamp = ChatPanel.FormatTimestamp(timestampUtcTicks);
 		_chatLog.Text += $"[color=#a0a0a0][{timestamp}][/color] [color={color}]{senderName}[/color]: {message}\n";
@@ -2036,7 +2046,7 @@ public partial class LobbyRoom : Control
 	{
 		HideConnectingPopup();
 		GameLog.LogError($"[LobbyRoom] Connection failed from lobby: {reason}");
-		GameContext.UserInterface.PlayWarningSound();
+		GameContext.UserInterface?.PlayWarningSound();
 		ShowConnectionFailedPopup(reason);
 	}
 
@@ -2057,7 +2067,7 @@ public partial class LobbyRoom : Control
 	private void OnLobbyKickReceived(string reason)
 	{
 		GameLog.LogToConsole($"[LobbyRoom] Disconnected / Kicked: {reason}");
-		GameContext.UserInterface.PlayWarningSound();
+		GameContext.UserInterface?.PlayWarningSound();
 		ReturnFromLobby();
 	}
 
@@ -2090,7 +2100,7 @@ public partial class LobbyRoom : Control
 		_downloadProgress.AddThemeFontSizeOverride("font_size", 12);
 		AddChild(_downloadProgress);
 
-		bool isReady = !string.IsNullOrEmpty(GameContext.Lobby.ActiveMapName) && MapAssetManager.IsMapDownloaded(GameContext.Lobby.ActiveMapName);
+		bool isReady = !string.IsNullOrEmpty(Lobby.ActiveMapName) && MapAssetManager.IsMapDownloaded(Lobby.ActiveMapName);
 		if (isReady)
 		{
 			_downloadProgress.Value = 100.0f;
@@ -2098,9 +2108,9 @@ public partial class LobbyRoom : Control
 			_downloadLabel.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
 		}
 
-		GameContext.Lobby.MapDownloadProgressChanged += OnMapDownloadProgress;
-		GameContext.Lobby.MapDownloadCompleted += OnMapDownloadCompleted;
-		GameContext.Lobby.MapDownloadFailed += OnMapDownloadFailed;
+		Lobby.MapDownloadProgressChanged += OnMapDownloadProgress;
+		Lobby.MapDownloadCompleted += OnMapDownloadCompleted;
+		Lobby.MapDownloadFailed += OnMapDownloadFailed;
 
 		SetupStartButton();
 	}
@@ -2144,7 +2154,7 @@ public partial class LobbyRoom : Control
 		}
 	}
 
-	private void OnStartButtonMouseEntered() => GameContext.UserInterface.PlayHoverSound();
+	private void OnStartButtonMouseEntered() => GameContext.UserInterface?.PlayHoverSound();
 
 	private void CreateSpectatorDelayUI()
 	{
@@ -2153,8 +2163,8 @@ public partial class LobbyRoom : Control
 		_spectatorDelayCheck.Text = Tr("Spectator Delay (5m)");
 		_spectatorDelayCheck.Position = new Vector2(1450, 770);
 		_spectatorDelayCheck.Size = new Vector2(340, 40);
-		_spectatorDelayCheck.ButtonPressed = GameContext.Lobby.SpectatorDelay;
-		_spectatorDelayCheck.Disabled = !GameContext.Lobby.IsHost;
+		_spectatorDelayCheck.ButtonPressed = Lobby.SpectatorDelay;
+		_spectatorDelayCheck.Disabled = !Lobby.IsHost;
 
 		if (_connectingPopup != null && GodotObject.IsInstanceValid(_connectingPopup))
 		{
@@ -2165,11 +2175,11 @@ public partial class LobbyRoom : Control
 
 		_spectatorDelayCheck.Pressed += () =>
 		{
-			GameContext.UserInterface.PlayClickSound();
-			GameContext.Lobby.UpdateSpectatorDelay(_spectatorDelayCheck.ButtonPressed);
+			GameContext.UserInterface?.PlayClickSound();
+			Lobby.UpdateSpectatorDelay(_spectatorDelayCheck.ButtonPressed);
 		};
 
-		_spectatorDelayCheck.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
+		_spectatorDelayCheck.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 		AddChild(_spectatorDelayCheck);
 	}
 
@@ -2262,7 +2272,7 @@ public partial class LobbyRoom : Control
 
 	private bool IsAnyMetricRed()
 	{
-		foreach (var player in GameContext.Lobby.PlayerList)
+		foreach (var player in Lobby.PlayerList)
 		{
 			if (player.PeerId < 0)
 			{
@@ -2293,7 +2303,7 @@ public partial class LobbyRoom : Control
 
 	private void UpdateHostStabilityLabel(string stability)
 	{
-		if (GameContext.Lobby == null || GameContext.Lobby.IsHost || _hostStabilityLabel == null)
+		if (GameContext.Lobby == null || Lobby.IsHost || _hostStabilityLabel == null)
 		{
 			if (_hostStabilityLabel != null)
 			{
