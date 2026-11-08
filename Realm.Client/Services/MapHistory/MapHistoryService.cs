@@ -13,8 +13,8 @@ namespace Realm.Client.Services.MapHistory;
 
 public class MapHistoryService
 {
-	private const string AuthorName = "Realm Map Editor";
-	private const string AuthorEmail = "map-editor@realm.local";
+	internal const string AuthorName = "Realm Map Editor";
+	internal const string AuthorEmail = "map-editor@realm.local";
 
 	private static readonly TimeSpan SynchronousLockTimeout = TimeSpan.FromSeconds(4);
 
@@ -100,7 +100,7 @@ public class MapHistoryService
 			result = CreateVersionInStore(session, mapDirectory, kind, label, sourceFolder);
 			if (result.Success)
 			{
-				TrimHistoryAfterCommit(session);
+				HistoryCondensation.TrimHistoryAfterCommit(session);
 			}
 		}
 		catch (Exception exception)
@@ -545,7 +545,7 @@ public class MapHistoryService
 				using MapHistoryStoreSession? session = MapHistoryStore.TryAcquireExisting(layout, TimeSpan.FromMilliseconds(250));
 				if (session == null) continue;
 
-				MapHistoryCleanupResult result = CondenseHistoryInStore(session);
+				MapHistoryCleanupResult result = HistoryCondensation.CondenseHistoryInStore(session);
 				if (result.DroppedAnything)
 				{
 					GameLog.LogToConsole($"[MapHistoryService] Condensed {result.DroppedVersionCount} older version(s) of {layout.StoreKey}.");
@@ -574,7 +574,7 @@ public class MapHistoryService
 
 		try
 		{
-			CondenseHistoryInStore(session);
+			HistoryCondensation.CondenseHistoryInStore(session);
 		}
 		catch (Exception exception)
 		{
@@ -930,162 +930,9 @@ public class MapHistoryService
 		};
 	}
 
-	private void TrimHistoryAfterCommit(MapHistoryStoreSession session)
-	{
-		var repository = new MapGitRepository(session.Layout.RepositoryDirectory);
-		MapHistoryStateFile state = LoadState(session.Layout);
-		if (state.LastCondenseAt.HasValue && DateTimeOffset.Now - state.LastCondenseAt.Value < MapHistoryPolicy.MinimumTimeBetweenCondenses) return;
 
-		MapHistoryCondensePlan plan = BuildCondensePlan(repository, state);
-		if (plan.DroppedCount < MapHistoryPolicy.MinimumDroppedVersionsPerCondense)
-		{
-			state.LastCondenseAt = DateTimeOffset.Now;
-			SaveState(session.Layout, state);
-			return;
-		}
 
-		MapHistoryCleanupResult cleanup = MakeHistoryLessGranularInStore(session, repository, state, plan);
-		if (cleanup.DroppedAnything)
-		{
-			GameLog.LogToConsole($"[MapHistoryService] Condensed {cleanup.DroppedVersionCount} older version(s) while saving.");
-		}
-	}
 
-	private MapHistoryCleanupResult CondenseHistoryInStore(MapHistoryStoreSession session)
-	{
-		var repository = new MapGitRepository(session.Layout.RepositoryDirectory);
-		MapHistoryStateFile state = LoadState(session.Layout);
-		MapHistoryCondensePlan plan = BuildCondensePlan(repository, state);
-		return MakeHistoryLessGranularInStore(session, repository, state, plan);
-	}
-
-	private MapHistoryCondensePlan BuildCondensePlan(MapGitRepository repository, MapHistoryStateFile state)
-	{
-		using Repository versionScope = repository.OpenRepositoryScope();
-		IReadOnlyList<MapGitCommitInfo> commitsNewestFirst = repository.ReadVersionHistory(int.MaxValue);
-		var entryByCommitId = new Dictionary<string, MapHistoryStateEntry>(StringComparer.OrdinalIgnoreCase);
-		foreach (MapHistoryStateEntry stateEntry in state.Entries)
-		{
-			entryByCommitId[stateEntry.CommitId] = stateEntry;
-		}
-
-		var slotsNewestFirst = new List<MapVersionSlot>(commitsNewestFirst.Count);
-		for (int rank = 0; rank < commitsNewestFirst.Count; rank++)
-		{
-			MapGitCommitInfo commit = commitsNewestFirst[rank];
-			entryByCommitId.TryGetValue(commit.Id, out MapHistoryStateEntry? entry);
-			string? noteLabel = repository.ReadVersionLabel(commit.Id, versionScope);
-			string? label = entry?.Label ?? noteLabel;
-			long saveVersion = entry != null && entry.SaveVersion > 0 ? entry.SaveVersion : commitsNewestFirst.Count - rank;
-			slotsNewestFirst.Add(new MapVersionSlot(commit, entry, label, saveVersion, !string.IsNullOrWhiteSpace(noteLabel)));
-		}
-
-		var keptNewestFirst = new List<MapVersionSlot>(slotsNewestFirst.Count);
-		var keptTreeIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-		DateTimeOffset now = DateTimeOffset.Now;
-		foreach (MapVersionSlot slot in slotsNewestFirst)
-		{
-			bool isPinned = IsPinnedVersion(slot);
-			if (keptNewestFirst.Count > 0)
-			{
-				if (!isPinned && keptTreeIds.Contains(slot.Commit.TreeId)) continue;
-
-				if (!isPinned)
-				{
-					MapVersionSlot newestKeptSlot = keptNewestFirst[^1];
-					TimeSpan age = now - slot.Commit.CommittedAt;
-					TimeSpan granularity = MapHistoryPolicy.GetGranularity(age);
-					if (newestKeptSlot.Commit.CommittedAt - slot.Commit.CommittedAt < granularity) continue;
-				}
-			}
-
-			keptNewestFirst.Add(slot);
-			keptTreeIds.Add(slot.Commit.TreeId);
-		}
-
-		keptNewestFirst.Reverse();
-		return new MapHistoryCondensePlan(keptNewestFirst, slotsNewestFirst.Count - keptNewestFirst.Count);
-	}
-
-	private static bool IsPinnedVersion(MapVersionSlot slot)
-	{
-		if (slot.HasManualLabel) return true;
-		if (slot.Entry?.Kind == MapVersionKind.RestoredVersion) return false;
-
-		return !string.IsNullOrWhiteSpace(slot.Label) || slot.Entry?.Kind is MapVersionKind.BeforeRestore or MapVersionKind.BeforeNewMap;
-	}
-
-	private MapHistoryCleanupResult MakeHistoryLessGranularInStore(MapHistoryStoreSession session, MapGitRepository repository, MapHistoryStateFile state, MapHistoryCondensePlan plan)
-	{
-		if (plan.DroppedCount == 0)
-		{
-			return new MapHistoryCleanupResult();
-		}
-
-		var rewrittenEntries = new List<MapHistoryStateEntry>(plan.KeptOldestFirst.Count);
-		var labelsToWrite = new List<(string CommitId, string Label)>();
-		string? parentCommitId = null;
-
-		foreach (MapVersionSlot slot in plan.KeptOldestFirst)
-		{
-			string commitId = slot.Commit.Id;
-			if (!string.Equals(slot.Commit.ParentId, parentCommitId, StringComparison.OrdinalIgnoreCase))
-			{
-				string message = !string.IsNullOrWhiteSpace(slot.Label) ? slot.Label : slot.Commit.Message;
-				var signature = new MapGitSignature(AuthorName, AuthorEmail, slot.Commit.CommittedAt);
-				commitId = repository.WriteCommitForTree(slot.Commit.TreeId, parentCommitId, signature, message);
-			}
-
-			rewrittenEntries.Add(new MapHistoryStateEntry
-			{
-				CommitId = commitId,
-				CreatedAt = slot.Commit.CommittedAt,
-				Kind = slot.Entry?.Kind ?? MapVersionKind.ExternalChange,
-				Label = slot.Label,
-				SaveVersion = slot.SaveVersion,
-				ChangedFileCount = slot.Entry?.ChangedFileCount ?? 0,
-				SourceFolder = slot.Entry?.SourceFolder
-			});
-
-			if (!string.IsNullOrWhiteSpace(slot.Label))
-			{
-				labelsToWrite.Add((commitId, slot.Label));
-			}
-
-			parentCommitId = commitId;
-		}
-
-		repository.UpdateHead(parentCommitId ?? string.Empty);
-		repository.ClearVersionLabels();
-		var labelSignature = new MapGitSignature(AuthorName, AuthorEmail, DateTimeOffset.Now);
-		foreach (var (labelCommitId, label) in labelsToWrite)
-		{
-			repository.WriteVersionLabel(labelCommitId, labelSignature, label);
-		}
-
-		repository.SweepUnreachableObjects();
-
-		state.Entries = rewrittenEntries;
-		state.LastCondenseAt = DateTimeOffset.Now;
-		SaveState(session.Layout, state);
-
-		return new MapHistoryCleanupResult
-		{
-			DroppedVersionCount = plan.DroppedCount
-		};
-	}
-
-	private class MapHistoryCondensePlan
-	{
-		public MapHistoryCondensePlan(List<MapVersionSlot> keptOldestFirst, int droppedCount)
-		{
-			KeptOldestFirst = keptOldestFirst;
-			DroppedCount = droppedCount;
-		}
-
-		public List<MapVersionSlot> KeptOldestFirst { get; }
-		public int DroppedCount { get; }
-	}
 
 	private bool _nativeLibraryFailureReported;
 
@@ -1188,8 +1035,6 @@ public class MapHistoryService
 
 		return changedCount;
 	}
-
-
 
 
 
@@ -1358,7 +1203,7 @@ public class MapHistoryService
 		};
 	}
 
-	private static MapHistoryStateFile LoadState(MapHistoryStoreLayout layout)
+	internal static MapHistoryStateFile LoadState(MapHistoryStoreLayout layout)
 	{
 		try
 		{
@@ -1390,7 +1235,7 @@ public class MapHistoryService
 		}
 	}
 
-	private static void SaveState(MapHistoryStoreLayout layout, MapHistoryStateFile state)
+	internal static void SaveState(MapHistoryStoreLayout layout, MapHistoryStateFile state)
 	{
 		Directory.CreateDirectory(layout.StoreDirectory);
 		string temporaryPath = layout.StateFilePath + ".tmp";
@@ -1426,5 +1271,4 @@ public class MapHistoryService
 		public long LastWriteTicks { get; set; }
 	}
 
-	private readonly record struct MapVersionSlot(MapGitCommitInfo Commit, MapHistoryStateEntry? Entry, string? Label, long SaveVersion, bool HasManualLabel);
 }
