@@ -210,37 +210,37 @@ public static class SpawnDeathShaderManager
 		Aabb combined = new Aabb(Vector3.Zero, Vector3.One);
 		bool first = true;
 
-		void Traverse(Node node)
-		{
-			if (IsExcludedMesh(node)) return;
-			if (node is MeshInstance3D mesh && mesh.Mesh != null)
-			{
-				var aabb = mesh.GetAabb();
-				if (first)
-				{
-					combined = aabb;
-					first = false;
-				}
-				else
-				{
-					combined = combined.Merge(aabb);
-				}
-			}
-
-			int childCount = node.GetChildCount();
-			for (int i = 0; i < childCount; i++)
-			{
-				Traverse(node.GetChild(i));
-			}
-		}
-
-		Traverse(root);
+		TraverseNodeAabb(root, ref combined, ref first);
 		if (combined.Size.Y <= 0.01f)
 		{
 			combined.Size = new Vector3(combined.Size.X, 1.0f, combined.Size.Z);
 		}
 
 		return combined;
+	}
+
+	private static void TraverseNodeAabb(Node node, ref Aabb combined, ref bool first)
+	{
+		if (IsExcludedMesh(node)) return;
+		if (node is MeshInstance3D mesh && mesh.Mesh != null)
+		{
+			var aabb = mesh.GetAabb();
+			if (first)
+			{
+				combined = aabb;
+				first = false;
+			}
+			else
+			{
+				combined = combined.Merge(aabb);
+			}
+		}
+
+		int childCount = node.GetChildCount();
+		for (int i = 0; i < childCount; i++)
+		{
+			TraverseNodeAabb(node.GetChild(i), ref combined, ref first);
+		}
 	}
 
 	private static Texture2D? GetAlbedoTexture(MeshInstance3D mesh)
