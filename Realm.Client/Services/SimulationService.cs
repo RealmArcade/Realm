@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
@@ -265,7 +265,6 @@ public class SimulationService
 		_relationships.SetPlayerActiveDomain(playerIndex, active);
 	}
 
-	private readonly List<Entity> _referenceHoldersScratch = new();
 
 
 	public Vector3 GetPlayerStartLocation(int playerIndex)
@@ -355,6 +354,7 @@ public class SimulationService
 
 	public SimulationService()
 	{
+		_destruction = new UnitDestruction(UnitWrapperCache);
 		_buildQueue = new BuildQueueProcessor(PendingQueuedCommands);
 		_relationships = new PlayerRelationshipTable(GetPlayerTeam, () => ActiveWorldEntity);
 		_movementService = GameContext.Simulation.MovementPathfindingService;
@@ -672,127 +672,56 @@ public class SimulationService
 		viewAction?.Invoke();
 	}
 
+	private readonly UnitDestruction _destruction;
+
 	public void DomainKillUnit(Entity entity, Action viewAction)
 	{
-		if (World.IsAlive(entity) && !World.Has<Dead>(entity))
-		{
-			World.Add<Dead>(entity);
-			viewAction?.Invoke();
-		}
+		_destruction.DomainKillUnit(entity, viewAction);
 	}
 
 	public void DomainDestroyUnit(Entity entity, bool isBuilding, float radius, Vector3 unitPos, Action viewAction)
 	{
-		if (!World.IsAlive(entity)) return;
-
-		// Only the editor opens ground itself. In a match the mesh is baked from the authority's obstacle set, so a screen
-		// that uncarved here would path through a blocker the authority still has.
-		if (isBuilding && GameContext.SessionState.IsMapEditorMode)
-		{
-			if (World.IsAlive(GameContext.Simulation.WorldEntity) && World.Has<TerrainState>(GameContext.Simulation.WorldEntity))
-			{
-				ref var state = ref World.Get<TerrainState>(GameContext.Simulation.WorldEntity);
-				GameContext.Simulation.TerrainNavMeshService?.UncarveObstacle(ref state, unitPos, radius);
-			}
-		}
-
-		GameContext.NetworkService.RemoveMultiplayerMapping(entity.Id);
-
-		int id = entity.Id;
-		UnitWrapperCache.Remove(id);
-		World.Destroy(entity);
-
-		viewAction?.Invoke();
+		_destruction.DomainDestroyUnit(entity, isBuilding, radius, unitPos, viewAction);
 	}
 
 	public bool HandleEnemyDeathEconomyDomain(Entity unitEntity, string unitId, Entity playerEntity, int resourceCap)
 	{
-		if (!GameContext.RegistryService.UnitRegistry.TryGetValue(unitId, out var bountyMeta) || bountyMeta.GoldBounty <= 0f) return false;
-		if (!World.IsAlive(playerEntity) || !World.Has<PlayerResources>(playerEntity)) return false;
-
-		World.Mutate<PlayerResources>(playerEntity, (ref PlayerResources r) =>
-		{
-			r.Gold = (int)Math.Min(resourceCap, r.Gold + bountyMeta.GoldBounty);
-		});
-		
-		return true;
+		return _destruction.HandleEnemyDeathEconomyDomain(unitEntity, unitId, playerEntity, resourceCap);
 	}
 
 	public (float Radius, System.Numerics.Vector3 Position) GetObstacleUncarveData(Entity unitEntity, System.Numerics.Vector3 fallbackPos)
 	{
-		float radius = World.Has<CollisionRadius>(unitEntity) ? World.Get<CollisionRadius>(unitEntity).Value : 2.0f;
-		var unitPos = World.Has<Position>(unitEntity) ? World.Get<Position>(unitEntity).Value : fallbackPos;
-		return (radius, unitPos);
+		return _destruction.GetObstacleUncarveData(unitEntity, fallbackPos);
 	}
 
 	public int GetDeathPopulationCost(Entity unitEntity, string unitId)
 	{
-		if (!GameContext.RegistryService.UnitRegistry.TryGetValue(unitId, out var killMeta)) return 0;
-		
-		int popCost = 0;
-		if (!World.Has<BypassPopulationTag>(unitEntity))
-		{
-			popCost = killMeta.PopCost;
-		}
-
-		return popCost;
+		return _destruction.GetDeathPopulationCost(unitEntity, unitId);
 	}
 
 	public Entity GetKillerEntityDomain(Entity unitEntity)
 	{
-		Entity killerEntity = Entity.Null;
-		if (!World.IsAlive(unitEntity)) return killerEntity;
-
-		if (World.Has<LastAttacker>(unitEntity))
-		{
-			var att = World.Get<LastAttacker>(unitEntity).Value;
-			if (World.IsAlive(att))
-			{
-				killerEntity = att;
-			}
-		}
-		return killerEntity;
+		return _destruction.GetKillerEntityDomain(unitEntity);
 	}
 
 	public void DestroyUnitEntityDomain(Entity unitEntity)
 	{
-		if (!World.IsAlive(unitEntity)) return;
-		UnitWrapperCache.Remove(unitEntity.Id);
-		GameContext.NetworkService.ForgetReferencesHeldBy(unitEntity.Id);
-		World.Destroy(unitEntity);
-		RemoveReferencesToDestroyedEntity(unitEntity);
-	}
-
-	private void RemoveReferencesToDestroyedEntity(Entity destroyedEntity)
-	{
-		EcsWorld? world = GameContext.World;
-		if (world == null) return;
-
-		_referenceHoldersScratch.Clear();
-		foreach (Entity entity in world.Query<LastAttacker>())
-		{
-			if (world.Get<LastAttacker>(entity).Value != destroyedEntity) continue;
-			_referenceHoldersScratch.Add(entity);
-		}
-
-		for (int index = 0; index < _referenceHoldersScratch.Count; index++)
-		{
-			world.Remove<LastAttacker>(_referenceHoldersScratch[index]);
-		}
+		_destruction.DestroyUnitEntityDomain(unitEntity);
 	}
 
 	public void DestroyEntitiesDomain(IEnumerable<Entity> entities)
 	{
-		foreach (var entity in entities)
-		{
-			if (World.IsAlive(entity))
-			{
-				UnitWrapperCache.Remove(entity.Id);
-				World.Destroy(entity);
-				RemoveReferencesToDestroyedEntity(entity);
-			}
-		}
+		_destruction.DestroyEntitiesDomain(entities);
 	}
+
+
+
+
+
+
+
+
+
 
 	public Unit_WasmRuntime GetUnitWrapper(Entity entity)
 	{
