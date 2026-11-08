@@ -15,6 +15,7 @@ using Realm.Client.Network;
 using Realm.Client.Services;
 using Realm.Client.Services.MapHistory;
 using Realm.Client.Services.ModelOptimization;
+using Realm.Client.Services.Publishing;
 using Realm.Client.UI.MapEditor;
 using Realm.Client.VFX;
 using Realm.Ecs.Components.Terrain;
@@ -2949,7 +2950,11 @@ namespace Realm.Client.UI
 
 				string seedServerUrl = GameContext.Host != null && GodotObject.IsInstanceValid(GameContext.Lobby) ? GameContext.Lobby.RegistryServerUrl : ServersConfigHelper.GetDefaultServerUrl();
 
-				var greenlight = await VerifyPublishGreenlightAsync(seedServerUrl, mapTitle, mapVersion, publishAuthorshipKey);
+				var (greenlight, greenlightWarning) = await PublishGreenlightProbe.CheckAsync(seedServerUrl, mapTitle, mapVersion, publishAuthorshipKey);
+				if (greenlightWarning != null)
+				{
+					AppendWasmConsoleLog(greenlightWarning);
+				}
 				if (greenlight is { IsGreenlit: false } greenlightStatus)
 				{
 					if (GodotObject.IsInstanceValid(popup))
@@ -3040,7 +3045,10 @@ namespace Realm.Client.UI
 
 				var authorshipKey = publishAuthorshipKey;
 				string currentUsername = GetPublishAuthorName();
-				var publish = await BuildAndStorePublishManifestAsync(workspace, activeConfigPath, mapTitle, mapVersion, currentUsername, authorshipKey, testVersionCheck.ButtonPressed);
+				var publish = await PublishPackageBuilder.BuildAsync(
+					workspace, activeConfigPath, mapTitle, mapVersion, currentUsername, authorshipKey,
+					testVersionCheck.ButtonPressed,
+					() => SignMapMetadataAsync(workspace, mapTitle, mapVersion, currentUsername));
 				string manifestJsonContent = publish.ManifestJsonContent;
 				string manifestSigBase64 = publish.ManifestSigBase64;
 				string pubKeyBase64 = publish.PubKeyBase64;
@@ -3213,123 +3221,6 @@ namespace Realm.Client.UI
 			}
 		}
 
-
-		private async Task<(bool IsGreenlit, int VerifiedGoodReviews, int TotalReviews, double AverageRating)?> VerifyPublishGreenlightAsync(
-			string seedServerUrl, string mapTitle, string mapVersion, NSec.Cryptography.Key publishAuthorshipKey)
-		{
-			try
-			{
-				using var checkClient = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
-				string creatorPubKey = Convert.ToBase64String(publishAuthorshipKey.PublicKey.Export(KeyBlobFormat.RawPublicKey));
-
-				string statusKey = !string.IsNullOrEmpty(creatorPubKey)
-					? $"{Uri.EscapeDataString(mapTitle)}_{Uri.EscapeDataString(mapVersion)}_{Uri.EscapeDataString(creatorPubKey)}"
-					: $"{Uri.EscapeDataString(mapTitle)}_{Uri.EscapeDataString(mapVersion)}";
-				string statusUrl = $"{seedServerUrl.TrimEnd('/')}/api/maps/greenlight_status/{statusKey}";
-				var statusRes = await checkClient.GetAsync(statusUrl);
-				if (!statusRes.IsSuccessStatusCode) return null;
-
-				string statusJson = await statusRes.Content.ReadAsStringAsync();
-				var statusNode = JsonNode.Parse(statusJson);
-				return (
-					statusNode?["isGreenlit"]?.GetValue<bool>() ?? false,
-					statusNode?["verifiedGoodReviewsCount"]?.GetValue<int>() ?? 0,
-					statusNode?["totalReviewsCount"]?.GetValue<int>() ?? 0,
-					statusNode?["averageRating"]?.GetValue<double>() ?? 0.0);
-			}
-			catch (Exception ex)
-			{
-				AppendWasmConsoleLog($"[WARN] Could not verify greenlight status: {ex.Message}");
-				return null;
-			}
-		}
-
-		private async Task<(string ManifestJsonContent, string ManifestSigBase64, string PubKeyBase64, List<string> ReferencedHashes, System.Collections.Generic.Dictionary<string, string> HashToRelativePath)> BuildAndStorePublishManifestAsync(
-			string workspace, string activeConfigPath, string mapTitle, string mapVersion, string currentUsername,
-			NSec.Cryptography.Key authorshipKey, bool isTestVersion)
-		{
-			string pubKeyBase64 = Convert.ToBase64String(authorshipKey.PublicKey.Export(KeyBlobFormat.RawPublicKey));
-
-			MapWorkspaceService.NormalizeMetadataTextureEntries(workspace);
-
-			if (File.Exists(activeConfigPath))
-			{
-				try
-				{
-					var metaDoc = JsonNode.Parse(File.ReadAllText(activeConfigPath)) as JsonObject;
-					if (metaDoc != null)
-					{
-						metaDoc["EngineVersion"] = RealmVersion.GameBinaryVersion;
-						MapJsonFormatter.SaveFormattedJson(activeConfigPath, metaDoc);
-					}
-				}
-				catch
-				{
-				}
-
-				GameContext.EditorService.LastMetadataSyncTime = GameContext.EditorService.GetLastWriteTimeSafe(activeConfigPath);
-			}
-
-
-			await SignMapMetadataAsync(workspace, mapTitle, mapVersion, currentUsername);
-
-			var manifest = MapManifest.CreateFromDirectory(workspace, mapTitle, currentUsername, mapVersion);
-			manifest.Attribution_SourceMap = GameContext.MapAttributionService.CollectSortedSourceMapNames(workspace).ToList();
-			manifest.IsTestVersion = isTestVersion;
-			string manifestJsonPath = Path.Combine(workspace, "manifest.json");
-			string manifestJsonContent = manifest.ToJson();
-			File.WriteAllText(manifestJsonPath, manifestJsonContent);
-
-			byte[] manifestBytes = Encoding.UTF8.GetBytes(manifestJsonContent);
-			string manifestBlake3 = RealmMetadataHelper.ComputeBlake3(manifestBytes, ".json");
-			string manifestHash = $"{manifestBlake3}.json";
-			byte[] manifestHashBytes = Encoding.UTF8.GetBytes(manifestHash);
-			byte[] manifestSigBytes = SignatureAlgorithm.Ed25519.Sign(authorshipKey, manifestHashBytes);
-			string manifestSigBase64 = Convert.ToBase64String(manifestSigBytes);
-
-			MapAssetManager.Storage.StoreAsset(manifestBytes, ".json", null, pubKeyBase64, manifestSigBase64, precomputedBlake3: manifestBlake3);
-
-			var hashToRelativePath = new System.Collections.Generic.Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-			foreach (var pair in manifest.Files)
-			{
-				string norm = ContentAddressableStorage.NormalizeBlake3Hash(pair.Value);
-				hashToRelativePath[norm] = pair.Key;
-				hashToRelativePath[pair.Value] = pair.Key;
-
-				string localPath = Path.Combine(workspace, pair.Key);
-				if (File.Exists(localPath))
-				{
-					byte[] fileBytes = File.ReadAllBytes(localPath);
-					string ext = Path.GetExtension(localPath).ToLowerInvariant();
-					MapAssetManager.Storage.StoreAsset(fileBytes, ext, null, pubKeyBase64, null, precomputedBlake3: norm);
-				}
-			}
-
-			hashToRelativePath[manifestBlake3] = "manifest.json";
-			hashToRelativePath[manifestHash] = "manifest.json";
-			hashToRelativePath["manifest.json"] = "manifest.json";
-
-			if (File.Exists(activeConfigPath))
-			{
-				byte[] metaBytes = File.ReadAllBytes(activeConfigPath);
-				string metaBlake3 = RealmMetadataHelper.ComputeBlake3(metaBytes, ".json");
-				string metaNorm = ContentAddressableStorage.NormalizeBlake3Hash(metaBlake3);
-				string metaAssetKey = $"{metaBlake3}.json";
-
-				hashToRelativePath[metaBlake3] = "metadata.json";
-				hashToRelativePath[metaNorm] = "metadata.json";
-				hashToRelativePath[metaAssetKey] = "metadata.json";
-				hashToRelativePath["metadata.json"] = "metadata.json";
-				MapAssetManager.Storage.StoreAsset(metaBytes, ".json", null, pubKeyBase64, null, precomputedBlake3: metaNorm);
-			}
-
-			return (
-				manifestJsonContent,
-				manifestSigBase64,
-				pubKeyBase64,
-				manifest.Files.Values.ToList(),
-				hashToRelativePath);
-		}
 
 		private async Task SavePublishWorkspaceStateAsync(string workspace, string terrainPath, ProgressBar progressBar, Label statusLabel)
 		{
