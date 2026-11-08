@@ -2018,72 +2018,7 @@ namespace Realm.Client.UI
 			}
 		}
 
-		private void StyleAccordionHeader(Button btn)
-		{
-			if (btn == null) return;
-			btn.Flat = false;
-			btn.CustomMinimumSize = new Vector2(0, 36);
-
-			var font = GetFontAwesomeFont();
-			if (font != null)
-			{
-				btn.AddThemeFontOverride("font", font);
-			}
-
-			var headerTex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/map_editor_options_header.webp");
-			if (headerTex != null)
-			{
-				var headerNormal = new StyleBoxTexture();
-				headerNormal.Texture = headerTex;
-				headerNormal.TextureMarginLeft = 0;
-				headerNormal.TextureMarginRight = 0;
-				headerNormal.TextureMarginTop = 0;
-				headerNormal.TextureMarginBottom = 0;
-				headerNormal.ContentMarginLeft = 12;
-				headerNormal.ContentMarginRight = 12;
-				headerNormal.ContentMarginTop = 6;
-				headerNormal.ContentMarginBottom = 6;
-
-				var headerHover = new StyleBoxTexture();
-				headerHover.Texture = headerTex;
-				headerHover.ModulateColor = new Color(1.2f, 1.15f, 0.9f, 1.0f);
-				headerHover.TextureMarginLeft = 0;
-				headerHover.TextureMarginRight = 0;
-				headerHover.TextureMarginTop = 0;
-				headerHover.TextureMarginBottom = 0;
-				headerHover.ContentMarginLeft = 12;
-				headerHover.ContentMarginRight = 12;
-				headerHover.ContentMarginTop = 6;
-				headerHover.ContentMarginBottom = 6;
-
-				btn.AddThemeStyleboxOverride("normal", headerNormal);
-				btn.AddThemeStyleboxOverride("hover", headerHover);
-				btn.AddThemeStyleboxOverride("pressed", headerHover);
-			}
-			else
-			{
-				var headerNormal = new StyleBoxFlat();
-				headerNormal.BgColor = new Color(0.18f, 0.16f, 0.14f, 0.95f);
-				headerNormal.BorderColor = new Color(0.40f, 0.34f, 0.24f, 0.9f);
-				headerNormal.SetBorderWidthAll(1);
-				headerNormal.CornerRadiusTopLeft = 4;
-				headerNormal.CornerRadiusTopRight = 4;
-				headerNormal.CornerRadiusBottomLeft = 2;
-				headerNormal.CornerRadiusBottomRight = 2;
-				headerNormal.ContentMarginLeft = 10;
-				headerNormal.ContentMarginRight = 10;
-
-				btn.AddThemeStyleboxOverride("normal", headerNormal);
-				btn.AddThemeStyleboxOverride("hover", headerNormal);
-				btn.AddThemeStyleboxOverride("pressed", headerNormal);
-			}
-
-			btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-			btn.AddThemeFontSizeOverride("font_size", 12);
-			btn.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-			btn.AddThemeColorOverride("font_hover_color", new Color(1f, 0.95f, 0.8f));
-			btn.Alignment = HorizontalAlignment.Left;
-		}
+		private void StyleAccordionHeader(Button btn) => MapEditorStyle.AccordionHeader(btn, GetFontAwesomeFont());
 
 		private void SetupPathingCheckBoxRow(VBoxContainer parent, CheckBox chk, Color color, string labelText)
 		{
@@ -2167,47 +2102,7 @@ namespace Realm.Client.UI
 			return _faFontVariation;
 		}
 
-		private void StyleIconButton(Button btn, string iconText, string tooltipText)
-		{
-			if (btn == null) return;
-			btn.Text = iconText;
-			btn.TooltipText = tooltipText;
-			btn.Flat = false;
-			btn.CustomMinimumSize = new Vector2(30, 30);
-			btn.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-
-			var font = GetFontAwesomeFont();
-			if (font != null)
-			{
-				btn.AddThemeFontOverride("font", font);
-			}
-
-			var btnNormal = new StyleBoxFlat();
-			btnNormal.BgColor = new Color(0.16f, 0.15f, 0.13f, 0.85f);
-			btnNormal.BorderColor = new Color(0.38f, 0.32f, 0.24f, 0.7f);
-			btnNormal.SetBorderWidthAll(1);
-			btnNormal.SetCornerRadiusAll(4);
-
-			var btnHover = new StyleBoxFlat();
-			btnHover.BgColor = new Color(0.28f, 0.25f, 0.19f, 0.95f);
-			btnHover.BorderColor = UIStyle.ColorGold;
-			btnHover.SetBorderWidthAll(1);
-			btnHover.SetCornerRadiusAll(4);
-
-			var btnPressed = new StyleBoxFlat();
-			btnPressed.BgColor = new Color(0.35f, 0.30f, 0.22f, 0.98f);
-			btnPressed.BorderColor = UIStyle.ColorGold;
-			btnPressed.SetBorderWidthAll(1);
-
-			btn.AddThemeStyleboxOverride("normal", btnNormal);
-			btn.AddThemeStyleboxOverride("hover", btnHover);
-			btn.AddThemeStyleboxOverride("pressed", btnPressed);
-			btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-			btn.AddThemeFontSizeOverride("font_size", 14);
-			btn.AddThemeColorOverride("font_color", new Color(0.95f, 0.90f, 0.82f));
-			btn.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
-			btn.Alignment = HorizontalAlignment.Center;
-		}
+		private void StyleIconButton(Button btn, string iconText, string tooltipText) => MapEditorStyle.IconButton(btn, iconText, tooltipText, GetFontAwesomeFont());
 
 
 		private void RestructurePanelLayouts()
