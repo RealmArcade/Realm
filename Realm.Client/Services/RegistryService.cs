@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
@@ -904,180 +904,33 @@ public class RegistryService
 		}
 	}
 
-	public void SaveUnitObjectAttachment(string unitId, HumanoidBone hand, string attachmentId, HandAttachmentOrientation orientation, string wsPath)
-	{
-		string handKey = hand switch
-		{
-			HumanoidBone.LeftHand => "left_hand",
-			HumanoidBone.RightHand => "right_hand",
-			HumanoidBone.Chest => "chest",
-			HumanoidBone.Hips => "root",
-			HumanoidBone.Head => "head",
-			HumanoidBone.LeftFoot => "left_foot",
-			HumanoidBone.RightFoot => "right_foot",
-			_ => "right_hand"
-		};
-		SaveUnitObjectAttachment(unitId, handKey, attachmentId, orientation, wsPath);
-	}
+	public void SaveUnitObjectAttachment(string unitId, HumanoidBone hand, string attachmentId, HandAttachmentOrientation orientation, string wsPath) => UnitAttachmentCommands.SaveUnitObjectAttachment(unitId, hand, attachmentId, orientation, wsPath);
 
 
-	public void SaveUnitObjectAttachment(string unitId, string socket, string attachmentId, HandAttachmentOrientation orientation, string? wsPath = null)
-	{
-		if (string.IsNullOrEmpty(unitId) || string.IsNullOrEmpty(attachmentId)) return;
-
-		var (regKey, isBuildingMeta) = ResolveRegistryKeyAndType(unitId);
-
-		UpdateLocalRegistry(regKey, isBuildingMeta, socket, attachmentId, orientation);
-
-		UpdateMetadataFile(unitId, regKey, socket, attachmentId, orientation, wsPath);
-
-		ApplyAttachmentsToGameInstances(unitId, regKey);
-	}
+	public void SaveUnitObjectAttachment(string unitId, string socket, string attachmentId, HandAttachmentOrientation orientation, string? wsPath = null) => UnitAttachmentCommands.SaveUnitObjectAttachment(unitId, socket, attachmentId, orientation, wsPath);
 
 
-	public (string regKey, bool isBuildingMeta) ResolveRegistryKeyAndType(string unitId)
-	{
-		string regKey = unitId;
-		bool isBuildingMeta = false;
-
-		if (GameHost.UnitRegistry.ContainsKey(unitId)) return (regKey, isBuildingMeta);
-		if (GameHost.BuildingRegistry != null && GameHost.BuildingRegistry.ContainsKey(unitId)) return (regKey, true);
-
-		string cleanId = Path.GetFileNameWithoutExtension(unitId);
-		if (GameHost.UnitRegistry.ContainsKey(cleanId)) return (cleanId, false);
-		if (GameHost.BuildingRegistry != null && GameHost.BuildingRegistry.ContainsKey(cleanId)) return (cleanId, true);
-
-		return ResolveRegistryKeyByIterating(unitId, cleanId);
-	}
+	public (string regKey, bool isBuildingMeta) ResolveRegistryKeyAndType(string unitId) => UnitAttachmentCommands.ResolveRegistryKeyAndType(unitId);
 
 
-	public (string regKey, bool isBuildingMeta) ResolveRegistryKeyByIterating(string unitId, string cleanId)
-	{
-		string regKey = unitId;
-		bool isBuildingMeta = false;
-
-		foreach (var k in GameHost.UnitRegistry.Keys)
-		{
-			string kStr = k.ToString();
-			if (kStr.Equals(unitId, StringComparison.OrdinalIgnoreCase) ||
-			    kStr.Equals(cleanId, StringComparison.OrdinalIgnoreCase) ||
-			    Path.GetFileNameWithoutExtension(kStr).Equals(cleanId, StringComparison.OrdinalIgnoreCase))
-			{
-				return (k.ToString(), false);
-			}
-		}
-
-		if (GameHost.BuildingRegistry != null)
-		{
-			foreach (var k in GameHost.BuildingRegistry.Keys)
-			{
-				string kStr = k.ToString();
-				if (kStr.Equals(unitId, StringComparison.OrdinalIgnoreCase) ||
-				    kStr.Equals(cleanId, StringComparison.OrdinalIgnoreCase) ||
-				    Path.GetFileNameWithoutExtension(kStr).Equals(cleanId, StringComparison.OrdinalIgnoreCase))
-				{
-					return (k.ToString(), true);
-				}
-			}
-		}
-
-		return (regKey, isBuildingMeta);
-	}
+	public (string regKey, bool isBuildingMeta) ResolveRegistryKeyByIterating(string unitId, string cleanId) => UnitAttachmentCommands.ResolveRegistryKeyByIterating(unitId, cleanId);
 
 
-	public void UpdateLocalRegistry(string regKey, bool isBuildingMeta, string socket, string attachmentId, HandAttachmentOrientation orientation)
-	{
-		if (isBuildingMeta && GameHost.BuildingRegistry != null && GameHost.BuildingRegistry.TryGetValue(regKey, out var bMeta))
-		{
-			bMeta.SetObjectAttachment(socket, attachmentId, orientation);
-			GameHost.BuildingRegistry[regKey] = bMeta;
-		}
-		else if (GameHost.UnitRegistry.TryGetValue(regKey, out var uMeta))
-		{
-			uMeta.SetObjectAttachment(socket, attachmentId, orientation);
-			GameHost.UnitRegistry[regKey] = uMeta;
-		}
-	}
+	public void UpdateLocalRegistry(string regKey, bool isBuildingMeta, string socket, string attachmentId, HandAttachmentOrientation orientation) => UnitAttachmentCommands.UpdateLocalRegistry(regKey, isBuildingMeta, socket, attachmentId, orientation);
 
 
-	public void UpdateMetadataFile(string unitId, string regKey, string socket, string attachmentId, HandAttachmentOrientation orientation, string? wsPath = null)
-	{
-		string metadataPath = MetadataService.ResolveMetadataPath(wsPath);
-		if (!File.Exists(metadataPath)) return;
-
-		GameContext.MetadataService.UpdateMetadata(wsPath, meta =>
-		{
-			bool updated = meta.UpdateUnit(unitId, u =>
-			{
-				u.SetObjectAttachment(socket, attachmentId, orientation);
-				return u;
-			});
-			if (!updated)
-				updated = meta.UpdateBuilding(unitId, b =>
-				{
-					b.SetObjectAttachment(socket, attachmentId, orientation);
-					return b;
-				});
-			if (!updated)
-				updated = meta.UpdateUnit(regKey, u =>
-				{
-					u.SetObjectAttachment(socket, attachmentId, orientation);
-					return u;
-				});
-			if (!updated)
-				meta.UpdateBuilding(regKey, b =>
-				{
-					b.SetObjectAttachment(socket, attachmentId, orientation);
-					return b;
-				});
-		});
-
-				GameContext.EditorService.LastMetadataSyncTime = GameContext.EditorService.GetLastWriteTimeSafe(metadataPath);
-	}
+	public void UpdateMetadataFile(string unitId, string regKey, string socket, string attachmentId, HandAttachmentOrientation orientation, string? wsPath = null) => UnitAttachmentCommands.UpdateMetadataFile(unitId, regKey, socket, attachmentId, orientation, wsPath);
 
 
-	public void ApplyAttachmentsToGameInstances(string unitId, string regKey)
-	{
-		if (GameContext.Host == null) return;
-
-		if (GameContext.Host.AllUnits != null)
-		{
-			foreach (var u in GameContext.Host.AllUnits)
-			{
-				if (u != null && IsMatchingUnit(u.UnitId, unitId, regKey))
-				{
-					u.ApplyAllConfiguredAttachments();
-				}
-			}
-		}
-
-		if (GameContext.Host.SelectedEditorObject is Unit3D selUnit)
-		{
-			if (IsMatchingUnit(selUnit.UnitId, unitId, regKey))
-			{
-				selUnit.ApplyAllConfiguredAttachments();
-			}
-		}
-	}
+	public void ApplyAttachmentsToGameInstances(string unitId, string regKey) => UnitAttachmentCommands.ApplyAttachmentsToGameInstances(unitId, regKey);
 
 
-	public bool IsMatchingUnit(string instanceUnitId, string unitId, string regKey)
-	{
-		return instanceUnitId == unitId ||
-		       instanceUnitId == regKey ||
-		       Path.GetFileNameWithoutExtension(instanceUnitId ?? "").Equals(Path.GetFileNameWithoutExtension(unitId), StringComparison.OrdinalIgnoreCase);
-	}
+	public bool IsMatchingUnit(string instanceUnitId, string unitId, string regKey) => UnitAttachmentCommands.IsMatchingUnit(instanceUnitId, unitId, regKey);
 
 
-	public void SaveAllUnitObjectAttachments(string targetId, UnitObjectAttachments? attachments, Action<string, UnitObjectAttachments?> restoreCallback)
-	{
-		restoreCallback?.Invoke(targetId, attachments);
-	}
+	public void SaveAllUnitObjectAttachments(string targetId, UnitObjectAttachments? attachments, Action<string, UnitObjectAttachments?> restoreCallback) => UnitAttachmentCommands.SaveAllUnitObjectAttachments(targetId, attachments, restoreCallback);
 
-	public void SaveUnitPseudoSockets(string targetId, List<PseudoSocketAnchor>? pseudoSockets, Action<string, List<PseudoSocketAnchor>?> restoreCallback)
-	{
-		restoreCallback?.Invoke(targetId, pseudoSockets);
-	}
+	public void SaveUnitPseudoSockets(string targetId, List<PseudoSocketAnchor>? pseudoSockets, Action<string, List<PseudoSocketAnchor>?> restoreCallback) => UnitAttachmentCommands.SaveUnitPseudoSockets(targetId, pseudoSockets, restoreCallback);
 
 
 	public void SaveCustomWeaponToMetadata(string weaponId, WeaponMetadata weapon, string wsPath)
