@@ -60,7 +60,7 @@ public partial class FloatingPreview3DDialogBase : FloatingDialogBase
 		bool includeBack = true,
 		bool includeLightingToggle = false,
 		bool includeGridToggle = false,
-		Action onToggleGrid = null)
+		Action? onToggleGrid = null)
 	{
 		CameraPresetToolbar = new HBoxContainer();
 		CameraPresetToolbar.Name = "CameraPresetToolbar_HBoxContainer";

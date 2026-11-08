@@ -2342,7 +2342,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		_previewAudioContainer.Visible = false;
 		PreviewSubViewport.GetParent<Control>().Visible = true;
 
-		Node mesh = null;
+		Node? mesh = null;
 		try
 		{
 			mesh = ModelCache.GetModel(item.ModelPath);

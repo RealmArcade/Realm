@@ -12,7 +12,7 @@ public class ThrottledLabelWidth
 	private float _pendingShrinkWidth = float.NaN;
 	private ulong _pendingShrinkSinceMsec = 0;
 	private ulong _lastShrinkMsec = 0;
-	private string _lastText = null;
+	private string? _lastText;
 
 	public void Apply(Label label, string text)
 	{

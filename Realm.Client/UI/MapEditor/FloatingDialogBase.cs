@@ -733,7 +733,7 @@ public partial class FloatingDialogBase : PanelContainer
 		VBoxContainer parent,
 		string labelText,
 		bool initialValue,
-		Action<bool> onChanged,
+		Action<bool>? onChanged,
 		string tooltip = "")
 	{
 		var chk = new CheckBox();
@@ -742,7 +742,7 @@ public partial class FloatingDialogBase : PanelContainer
 		chk.ButtonPressed = initialValue;
 		chk.AddThemeFontSizeOverride("font_size", 11);
 		if (!string.IsNullOrEmpty(tooltip)) chk.TooltipText = tooltip;
-		chk.Toggled += (pressed) => onChanged(pressed);
+		chk.Toggled += (pressed) => onChanged?.Invoke(pressed);
 		parent.AddChild(chk);
 		return chk;
 	}

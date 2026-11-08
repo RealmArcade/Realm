@@ -405,7 +405,7 @@ public partial class GlbThumbnailRenderer : Node
 			return;
 		}
 
-		Node scene = null;
+		Node? scene = null;
 		try
 		{
 			GltfDocumentExtensionMsftLod.RegisterExtension();

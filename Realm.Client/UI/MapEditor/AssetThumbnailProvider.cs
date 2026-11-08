@@ -334,7 +334,7 @@ public static class AssetThumbnailProvider
 			{
 				if (_imageRequestQueue.Count > 0)
 				{
-					currentRequest = _imageRequestQueue.First.Value;
+					currentRequest = _imageRequestQueue.First?.Value;
 					_imageRequestQueue.RemoveFirst();
 				}
 				else

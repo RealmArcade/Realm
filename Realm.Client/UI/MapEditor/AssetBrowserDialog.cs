@@ -1299,7 +1299,7 @@ public partial class AssetBrowserDialog : AssetGridDialogBase
 			return;
 		}
 
-		var dialog = new TagEditorDialog(Hud, _selectedAsset, OnTagsSaved);
+		var dialog = new TagEditorDialog(RequireHud, _selectedAsset, OnTagsSaved);
 		dialog.DialogClosed += () => dialog.QueueFree();
 		dialog.OpenDialog();
 	}
@@ -1322,7 +1322,7 @@ public partial class AssetBrowserDialog : AssetGridDialogBase
 	private void OnEditAssetTypePressed()
 	{
 		if (_selectedAsset == null) return;
-		var dialog = new AssetTypeEditorDialog(Hud, _selectedAsset, OnAssetTypeSaved);
+		var dialog = new AssetTypeEditorDialog(RequireHud, _selectedAsset, OnAssetTypeSaved);
 		dialog.DialogClosed += () => dialog.QueueFree();
 		dialog.OpenDialog();
 	}

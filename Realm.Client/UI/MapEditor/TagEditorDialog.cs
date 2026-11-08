@@ -12,7 +12,7 @@ public partial class TagEditorDialog : FloatingDialogBase
 {
 	public TagEditorDialog() { }
 
-	private readonly IndexedAsset _asset = null!;
+	private readonly IndexedAsset? _asset;
 	private readonly Action<List<string>> _onSaveCallback = null!;
 	private readonly List<string> _workingTags = new();
 	private LineEdit _txtNewTag = null!;

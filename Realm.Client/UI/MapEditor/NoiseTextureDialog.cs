@@ -460,7 +460,7 @@ public partial class NoiseTextureDialog : FloatingDialogBase
 
 	protected override void OnApply()
 	{
-		string rawName = _txtName.Text?.Trim();
+		string? rawName = _txtName.Text?.Trim();
 		if (string.IsNullOrEmpty(rawName))
 		{
 			rawName = GetUniqueDefaultAssetName("procedural_noise_1");

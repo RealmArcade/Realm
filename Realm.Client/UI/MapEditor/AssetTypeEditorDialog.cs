@@ -13,7 +13,7 @@ public partial class AssetTypeEditorDialog : FloatingDialogBase
 {
 	public AssetTypeEditorDialog() { }
 
-	private readonly IndexedAsset _asset = null!;
+	private readonly IndexedAsset? _asset;
 	private readonly Action<string> _onSaveCallback = null!;
 	private Label _lblPrompt = null!;
 	private OptionButton _optAssetType = null!;

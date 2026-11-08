@@ -80,7 +80,7 @@ public partial class UtilitiesDialog : FloatingDialogBase
 		public string Description => TranslationServer.Translate("Removes manifest.json entries for asset files that no longer exist and for assets that are not referenced by any template in metadata.json.");
 		public string Icon => UnicodeIcons.TRASH;
 
-		public Control CreateConfigurationControl()
+		public Control? CreateConfigurationControl()
 		{
 			return null;
 		}

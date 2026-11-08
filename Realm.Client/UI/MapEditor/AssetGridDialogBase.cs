@@ -32,7 +32,7 @@ public partial class AssetGridDialogBase : FloatingDialogBase
 		}
 	}
 
-	protected void BindVisibleGridCells(int startIndex, int visibleCount, int columns, List<IndexedAsset> matchingAssets, IndexedAsset selectedAsset, Action<IndexedAsset, bool> onCellClicked)
+	protected void BindVisibleGridCells(int startIndex, int visibleCount, int columns, List<IndexedAsset> matchingAssets, IndexedAsset? selectedAsset, Action<IndexedAsset, bool> onCellClicked)
 	{
 		BindVisibleGridCells(
 			startIndex,

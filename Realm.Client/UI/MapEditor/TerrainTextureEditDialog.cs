@@ -762,7 +762,7 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 		}
 
 		var candidates = ScanTerrainRtexAssets(true);
-		string candidateMatch = candidates.FirstOrDefault(c => string.Equals(c, $"{_slug}.rtex", StringComparison.OrdinalIgnoreCase))
+		string? candidateMatch = candidates.FirstOrDefault(c => string.Equals(c, $"{_slug}.rtex", StringComparison.OrdinalIgnoreCase))
 		                        ?? candidates.FirstOrDefault(c => string.Equals(Path.GetFileNameWithoutExtension(c), _slug, StringComparison.OrdinalIgnoreCase));
 
 		if (!string.IsNullOrEmpty(candidateMatch))

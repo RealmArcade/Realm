@@ -40,7 +40,7 @@ public class MapEditorTopBar
 		}
 	}
 
-	private string _lastStatusText = null;
+	private string? _lastStatusText;
 	private readonly ThrottledLabelWidth _statusLabelWidth = new();
 
 	public void Update(MapEditorHUDViewModel viewModel)

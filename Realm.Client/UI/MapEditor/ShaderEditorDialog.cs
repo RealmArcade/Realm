@@ -494,7 +494,7 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 		}
 
 		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
-		string modelPath = FindModelPath(wsPath, key);
+		string? modelPath = FindModelPath(wsPath, key);
 
 		Node3D? loadedNode3D = LoadModelFromFile(modelPath, key);
 
@@ -638,7 +638,7 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 		UpdateShaderParameters();
 	}
 
-	private string FindModelPath(string wsPath, string key)
+	private string? FindModelPath(string wsPath, string key)
 	{
 		foreach (var sub in new[] { "units", "buildings", "resources", "props", "projectiles", "characters", "items", "attachments", "weapons" })
 		{
@@ -659,7 +659,7 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 		return null;
 	}
 
-	private Node3D? LoadModelFromFile(string modelPath, string key)
+	private Node3D? LoadModelFromFile(string? modelPath, string key)
 	{
 		if (modelPath == null || !modelPath.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) || !File.Exists(modelPath)) return null;
 
