@@ -63,11 +63,10 @@ public class InventoryPanel
 	{
 		if (s_styles.HasValue) return s_styles.Value;
 
-		var blackTile = new StyleBoxFlat();
-		blackTile.BgColor = new Color(0.04f, 0.04f, 0.06f, 0.35f);
-		blackTile.BorderColor = new Color(UIStyle.ColorBronze.R, UIStyle.ColorBronze.G, UIStyle.ColorBronze.B, 0.25f);
-		blackTile.SetBorderWidthAll(1);
-		blackTile.SetCornerRadiusAll(3);
+		var blackTile = UIStyle.CreateButtonPlate(
+			new Color(0.04f, 0.04f, 0.06f, 0.35f),
+			new Color(UIStyle.ColorBronze.R, UIStyle.ColorBronze.G, UIStyle.ColorBronze.B, 0.25f),
+			3);
 
 		var styles = new SlotStyles
 		{
