@@ -10,13 +10,15 @@ namespace Realm.Client.UI.InGame;
 /// </summary>
 public sealed class SpectatorPerspectiveOverlay
 {
-	private static readonly (string Label, int Perspective)[] Options =
+	// The node names are spelled out rather than composed from the labels: they are part of the scene's surface, and a
+	// composed name would change if a label ever did.
+	private static readonly (string Label, int Perspective, string NodeName)[] Options =
 	{
-		("ALL", -1),
-		("BLUE", 1),
-		("RED", 2),
-		("GREEN", 3),
-		("YELLOW", 4),
+		("ALL", -1, "BtnAll_Button"),
+		("BLUE", 1, "BtnBlue_Button"),
+		("RED", 2, "BtnRed_Button"),
+		("GREEN", 3, "BtnGreen_Button"),
+		("YELLOW", 4, "BtnYellow_Button"),
 	};
 
 	public PanelContainer? Root { get; private set; }
@@ -54,10 +56,10 @@ public sealed class SpectatorPerspectiveOverlay
 		specHBox.AddThemeConstantOverride("separation", 10);
 		specVBox.AddChild(specHBox);
 
-		foreach (var (label, perspective) in Options)
+		foreach (var (label, perspective, nodeName) in Options)
 		{
 			var button = new Button();
-			button.Name = $"Btn{label}_Button";
+			button.Name = nodeName;
 			button.Text = TranslationServer.Translate(label);
 			int chosen = perspective;
 			button.Pressed += () => setPerspective(chosen);
