@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using Godot;
 using Realm.Client.Services;
 using Realm.Client.UI;
+using Realm.Ecs;
 using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Services;
@@ -66,7 +68,7 @@ namespace Realm.Client.Core
 			return tex;
 		}
 
-		public ImageTexture GetOrCreateNormalTexture(Texture2D albedoTex, float normalStrength, string decalKey)
+		public ImageTexture? GetOrCreateNormalTexture(Texture2D albedoTex, float normalStrength, string decalKey)
 		{
 			if (albedoTex == null || normalStrength <= 0.01f) return null;
 
@@ -346,33 +348,35 @@ namespace Realm.Client.Core
 
 		public void UpdateEditorCoverageOverlay()
 		{
-			EnsureCoverageOverlayRootExists();
+			Node3D coverageRoot = EnsureCoverageOverlayRootExists();
 			ClearCoverageOverlayChildren();
 
 			if (!EditorCoverageOverlayEnabled || !TryGetSelectedUnit(out var unit))
 			{
-				_editorCoverageOverlayRoot.Visible = false;
+				coverageRoot.Visible = false;
 				return;
 			}
 
-			float scanRadius = GameContext.World.Has<ScanRadius>(unit.Entity) ? GameContext.World.Get<ScanRadius>(unit.Entity).Value : 0f;
-			float range = GameContext.World.Has<Attack>(unit.Entity) ? GameContext.World.Get<Attack>(unit.Entity).Range : 0f;
+			EcsWorld world = World;
+			float scanRadius = world.Has<ScanRadius>(unit.Entity) ? world.Get<ScanRadius>(unit.Entity).Value : 0f;
+			float range = world.Has<Attack>(unit.Entity) ? world.Get<Attack>(unit.Entity).Range : 0f;
 
-			_editorCoverageOverlayRoot.Visible = scanRadius > 0f || range > 0f;
-			if (!_editorCoverageOverlayRoot.Visible) return;
+			coverageRoot.Visible = scanRadius > 0f || range > 0f;
+			if (!coverageRoot.Visible) return;
 
-			_editorCoverageOverlayRoot.Position = unit.Position;
+			coverageRoot.Position = unit.Position;
 			if (scanRadius > 0f) CreateCoverageRing(scanRadius, new Color(0.3f, 0.7f, 1.0f, 0.6f));
 			if (range > 0f) CreateCoverageRing(range, new Color(1.0f, 0.5f, 0.1f, 0.7f));
 		}
 
-		private void EnsureCoverageOverlayRootExists()
+		private Node3D EnsureCoverageOverlayRootExists()
 		{
-			if (_editorCoverageOverlayRoot != null) return;
+			if (_editorCoverageOverlayRoot != null) return _editorCoverageOverlayRoot;
 
 			_editorCoverageOverlayRoot = new Node3D();
 			_editorCoverageOverlayRoot.Name = "EditorCoverageOverlay";
 			AddChild(_editorCoverageOverlayRoot);
+			return _editorCoverageOverlayRoot;
 		}
 
 		private void ClearCoverageOverlayChildren()
@@ -385,10 +389,10 @@ namespace Realm.Client.Core
 			}
 		}
 
-		private bool TryGetSelectedUnit(out Unit3D unit)
+		private bool TryGetSelectedUnit([NotNullWhen(true)] out Unit3D? unit)
 		{
 			unit = _selectedEditorObject as Unit3D;
-			return unit != null && GameContext.World.IsAlive(unit.Entity);
+			return unit != null && GameContext.World is { } world && world.IsAlive(unit.Entity);
 		}
 
 		private void CreateCoverageRing(float radius, Color color)
@@ -414,7 +418,7 @@ namespace Realm.Client.Core
 			material.ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded;
 			meshInstance.MaterialOverride = material;
 
-			_editorCoverageOverlayRoot.AddChild(meshInstance);
+			EnsureCoverageOverlayRootExists().AddChild(meshInstance);
 		}
 
 		private MeshInstance3D _rampPreviewMesh { get; set; } = null!;
@@ -869,6 +873,7 @@ namespace Realm.Client.Core
 		private void RebuildSelectionHighlightMesh(int minX, int minZ, int maxX, int maxZ)
 		{
 			if (!CanRebuildSelectionHighlightMesh(minX, minZ, maxX, maxZ)) return;
+			if (_selectionHighlightMesh is not { } selectionMesh) return;
 
 			GameContext.EditorService.LastSelectionMinX = minX;
 			GameContext.EditorService.LastSelectionMinZ = minZ;
@@ -876,7 +881,7 @@ namespace Realm.Client.Core
 			GameContext.EditorService.LastSelectionMaxZ = maxZ;
 			GameContext.EditorService.LastSelectionBrushIsSquare = EditorBrushIsSquare;
 
-			BuildHighlightMeshForBounds(_selectionHighlightMesh, minX, minZ, maxX, maxZ);
+			BuildHighlightMeshForBounds(selectionMesh, minX, minZ, maxX, maxZ);
 		}
 
 		private bool IsSelectionUnchanged(int minX, int minZ, int maxX, int maxZ)
@@ -886,7 +891,7 @@ namespace Realm.Client.Core
 			       && maxX == GameContext.EditorService.LastSelectionMaxX
 			       && maxZ == GameContext.EditorService.LastSelectionMaxZ
 			       && GameContext.EditorService.LastSelectionBrushIsSquare == EditorBrushIsSquare
-			       && _selectionHighlightMesh.Visible;
+			       && _selectionHighlightMesh?.Visible == true;
 		}
 
 		private bool CanRebuildSelectionHighlightMesh(int minX, int minZ, int maxX, int maxZ)
@@ -919,18 +924,15 @@ namespace Realm.Client.Core
 
 		private void UpdateCoordinateOutline(EditorCoordinate coord)
 		{
-			if (_coordinateSelectionOutlineMesh == null)
-			{
-				CreateCoordinateSelectionOutlineMesh();
-			}
+			MeshInstance3D outlineMesh = _coordinateSelectionOutlineMesh ?? CreateCoordinateSelectionOutlineMesh();
 
-				var (minX, minZ, maxX, maxZ) = GetClampedCoordinateBounds(coord);
+			var (minX, minZ, maxX, maxZ) = GetClampedCoordinateBounds(coord);
 
-			_coordinateSelectionOutlineMesh.Visible = true;
-			RebuildCoordinateMeshInstance(_coordinateSelectionOutlineMesh, minX, minZ, maxX, maxZ, new Color(1.0f, 0.6f, 0.0f, 0.45f), 0.25f);
+			outlineMesh.Visible = true;
+			RebuildCoordinateMeshInstance(outlineMesh, minX, minZ, maxX, maxZ, new Color(1.0f, 0.6f, 0.0f, 0.45f), 0.25f);
 		}
 
-		private void CreateCoordinateSelectionOutlineMesh()
+		private MeshInstance3D CreateCoordinateSelectionOutlineMesh()
 		{
 			_coordinateSelectionOutlineMesh = new MeshInstance3D();
 			_coordinateSelectionOutlineMesh.Name = "CoordinateSelectionOutline";
@@ -943,6 +945,7 @@ namespace Realm.Client.Core
 
 			_coordinateSelectionOutlineMesh.MaterialOverride = mat;
 			AddChild(_coordinateSelectionOutlineMesh);
+			return _coordinateSelectionOutlineMesh;
 		}
 
 		private void EnsureObjectMarqueeMeshes()
@@ -1135,7 +1138,7 @@ namespace Realm.Client.Core
 			HideVfxEditorBaseRings();
 		}
 
-		private bool HideAndCacheNodeVisibility(Node3D node)
+		private bool HideAndCacheNodeVisibility(Node3D? node)
 		{
 			bool wasVisible = false;
 			if (node == null || !GodotObject.IsInstanceValid(node)) return wasVisible;
@@ -1149,7 +1152,7 @@ namespace Realm.Client.Core
 			return wasVisible;
 		}
 
-		private void HideAndCacheNodeVisibility(Node3D node, out bool wasVisible)
+		private void HideAndCacheNodeVisibility(Node3D? node, out bool wasVisible)
 		{
 			wasVisible = HideAndCacheNodeVisibility(node);
 		}
@@ -1163,7 +1166,7 @@ namespace Realm.Client.Core
 			{
 				bool vis = symMesh != null && GodotObject.IsInstanceValid(symMesh) && symMesh.Visible;
 				_wasSymmetryHighlightsVisible.Add(vis);
-				if (vis)
+				if (vis && symMesh != null)
 				{
 					symMesh.Visible = false;
 				}
@@ -1196,7 +1199,7 @@ namespace Realm.Client.Core
 			RestoreNodeVisibility(_editorCoverageOverlayRoot, _wasCoverageOverlayVisible);
 		}
 
-		private void RestoreNodeVisibility(Node3D node, bool wasVisible)
+		private void RestoreNodeVisibility(Node3D? node, bool wasVisible)
 		{
 			if (node != null && GodotObject.IsInstanceValid(node))
 			{

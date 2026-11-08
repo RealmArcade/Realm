@@ -1632,7 +1632,7 @@ public partial class GameHost
 	}
 
 
-	private MeshInstance3D _scaleMapSilhouetteMesh { get; set; } = null!;
+	private MeshInstance3D? _scaleMapSilhouetteMesh { get; set; }
 
 	private List<MeshInstance3D> _symmetryHighlightMeshes { get; set; } = new();
 
