@@ -140,4 +140,30 @@ public sealed class BrushSettingsPanel
 		var lblHeightTitle = hooks.Owner.GetNodeOrNull<Label>(BasePath + "/ContentBrush/HeightBox/Header/LblHeightTitle");
 		if (lblHeightTitle != null) lblHeightTitle.Text = TranslationServer.Translate("Height");
 	}
+
+	public void StyleControls()
+	{
+		if (Content != null)
+		{
+			MapEditorStyle.SubContainer(Content, "Brush Properties");
+
+			MapEditorStyle.ValueBadge(SizeValue);
+			MapEditorStyle.ValueBadge(StrengthValue);
+			MapEditorStyle.ValueBadge(StepValue);
+
+			if (ShapeButton != null)
+			{
+				ShapeButton.CustomMinimumSize = new Vector2(0, 32);
+				ShapeButton.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+				ShapeButton.AddThemeFontSizeOverride("font_size", 10);
+			}
+
+			if (MirrorOption != null)
+			{
+				MirrorOption.CustomMinimumSize = new Vector2(0, 32);
+				MirrorOption.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+				MirrorOption.AddThemeFontSizeOverride("font_size", 10);
+			}
+		}
+	}
 }

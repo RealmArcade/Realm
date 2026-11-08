@@ -275,4 +275,38 @@ public sealed class ToolAccordionPanel
 
 		return btn;
 	}
+
+	public void StyleContainers(Control? inspectorContent)
+	{
+		if (TerrainPanel != null)
+		{
+			MapEditorStyle.SubContainer(TerrainPanel, "Terrain Elevation");
+		}
+
+		if (DecoPanel != null)
+		{
+			MapEditorStyle.SubContainer(DecoPanel, "Texture Actions");
+		}
+
+		if (PathingPanel != null)
+		{
+			MapEditorStyle.SubContainer(PathingPanel, "Pathing Actions");
+		}
+
+		if (ObjectsPanel != null)
+		{
+			MapEditorStyle.SubContainer(ObjectsPanel, "Object Placement");
+		}
+
+		if (ClipboardPanel != null)
+		{
+			MapEditorStyle.SubContainer(ClipboardPanel, "Clipboard Actions");
+		}
+
+		var targetInspector = MapEditorStyle.ContentTarget(inspectorContent);
+		if (targetInspector != null)
+		{
+			MapEditorStyle.SubContainer(targetInspector.GetNodeOrNull<Control>("InspBox_VBoxContainer"), "Transform Controls");
+		}
+	}
 }

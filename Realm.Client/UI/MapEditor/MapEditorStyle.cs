@@ -1,3 +1,5 @@
+using System;
+using System.Globalization;
 using Godot;
 using Realm.Client.Utils;
 
@@ -273,5 +275,50 @@ internal static class MapEditorStyle
 		popup.AddThemeStyleboxOverride("panel", popupStyle);
 		popup.AddThemeColorOverride("font_color", new Color(0.92f, 0.88f, 0.82f));
 		popup.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
+	}
+
+	public static HSlider SliderRow(VBoxContainer parent, string labelText, float min, float max, float step, float initialVal, Action<float> onChanged, Action<bool> onDragState, string format = "0.0#", float labelWidth = 70f)
+	{
+		var row = new HBoxContainer();
+		row.Name = "Row_HBoxContainer";
+
+		var lblName = new Label();
+		lblName.Name = "LblName_Label";
+		lblName.Text = labelText;
+		lblName.CustomMinimumSize = new Vector2(labelWidth, 0);
+		lblName.AddThemeFontSizeOverride("font_size", 11);
+		row.AddChild(lblName);
+
+		var slider = new HSlider();
+		slider.Name = "Slider_HSlider";
+		slider.MinValue = min;
+		slider.MaxValue = max;
+		slider.Step = step;
+		slider.Value = initialVal;
+		slider.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		slider.DragStarted += () => onDragState(true);
+		slider.DragEnded += (valueChanged) => onDragState(false);
+		row.AddChild(slider);
+
+		var lblVal = new Label();
+		lblVal.Name = "LblVal_Label";
+		lblVal.Text = initialVal.ToString(format, CultureInfo.InvariantCulture);
+		lblVal.CustomMinimumSize = new Vector2(34, 0);
+		lblVal.HorizontalAlignment = HorizontalAlignment.Right;
+		lblVal.AddThemeFontSizeOverride("font_size", 11);
+		row.AddChild(lblVal);
+
+		slider.SetMeta("val_label", lblVal);
+		slider.SetMeta("val_format", format);
+
+		slider.ValueChanged += (double val) =>
+		{
+			float fVal = (float)val;
+			lblVal.Text = fVal.ToString(format, CultureInfo.InvariantCulture);
+			onChanged(fVal);
+		};
+
+		parent.AddChild(row);
+		return slider;
 	}
 }

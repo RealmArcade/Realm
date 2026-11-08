@@ -2197,89 +2197,13 @@ namespace Realm.Client.UI
 		}
 
 
-		private void StyleBrushAccordionControls()
-		{
-			if (_brushPanel?.Content != null)
-			{
-				StyleSubContainer(_brushPanel.Content, "Brush Properties");
-
-				StyleValueBadge(_brushPanel.SizeValue);
-				StyleValueBadge(_brushPanel.StrengthValue);
-				StyleValueBadge(_brushPanel.StepValue);
-
-				if (_brushPanel?.ShapeButton != null)
-				{
-					_brushPanel.ShapeButton.CustomMinimumSize = new Vector2(0, 32);
-					_brushPanel.ShapeButton.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-					_brushPanel.ShapeButton.AddThemeFontSizeOverride("font_size", 10);
-				}
-
-				if (_brushPanel?.MirrorOption != null)
-				{
-					_brushPanel.MirrorOption.CustomMinimumSize = new Vector2(0, 32);
-					_brushPanel.MirrorOption.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-					_brushPanel.MirrorOption.AddThemeFontSizeOverride("font_size", 10);
-				}
-			}
-		}
+		private void StyleBrushAccordionControls() => _brushPanel.StyleControls();
 
 
-		private void StyleToolPanelContainers()
-		{
-			if (_toolPanel.TerrainPanel != null)
-			{
-				StyleSubContainer(_toolPanel.TerrainPanel, "Terrain Elevation");
-			}
-
-			if (_toolPanel.DecoPanel != null)
-			{
-				StyleSubContainer(_toolPanel.DecoPanel, "Texture Actions");
-			}
-
-			if (_toolPanel.PathingPanel != null)
-			{
-				StyleSubContainer(_toolPanel.PathingPanel, "Pathing Actions");
-			}
-
-			if (_toolPanel.ObjectsPanel != null)
-			{
-				StyleSubContainer(_toolPanel.ObjectsPanel, "Object Placement");
-			}
-
-			if (_toolPanel.ClipboardPanel != null)
-			{
-				StyleSubContainer(_toolPanel.ClipboardPanel, "Clipboard Actions");
-			}
-
-			var targetInspector = GetContentTarget(_contentInspector);
-			if (targetInspector != null)
-			{
-				StyleSubContainer(targetInspector.GetNodeOrNull<Control>("InspBox_VBoxContainer"), "Transform Controls");
-			}
-		}
+		private void StyleToolPanelContainers() => _toolPanel.StyleContainers(_contentInspector);
 
 
-		private void StyleFileAccordionOperations()
-		{
-			var targetFile = GetContentTarget(_filePanel.Content);
-			if (targetFile != null)
-			{
-				_filePanel.LoadButton.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-				_filePanel.LoadButton.SizeFlagsStretchRatio = 1.0f;
-
-				_filePanel.LoadMoreButton.CustomMinimumSize = new Vector2(24, 30);
-				_filePanel.LoadMoreButton.SizeFlagsHorizontal = SizeFlags.ShrinkEnd;
-
-				_filePanel.SaveButton.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-				_filePanel.SaveButton.SizeFlagsStretchRatio = 1.0f;
-
-				_filePanel.SaveMoreButton.CustomMinimumSize = new Vector2(24, 30);
-				_filePanel.SaveMoreButton.SizeFlagsHorizontal = SizeFlags.ShrinkEnd;
-
-				StyleSubContainer(targetFile.GetNodeOrNull<Control>("BoxFileOps"), "File Operations");
-				StyleSubContainer(targetFile.GetNodeOrNull<Control>("BoxGenOps"), "Generation & Imports");
-			}
-		}
+		private void StyleFileAccordionOperations() => _filePanel.StyleOperations();
 
 
 		private void StyleViewportNavigationBar()
@@ -3414,49 +3338,7 @@ namespace Realm.Client.UI
 		}
 
 		private HSlider CreateSliderRow(VBoxContainer parent, string labelText, float min, float max, float step, float initialVal, Action<float> onChanged, string format = "0.0#", float labelWidth = 70f)
-		{
-			var row = new HBoxContainer();
-			row.Name = "Row_HBoxContainer";
-
-			var lblName = new Label();
-			lblName.Name = "LblName_Label";
-			lblName.Text = labelText;
-			lblName.CustomMinimumSize = new Vector2(labelWidth, 0);
-			lblName.AddThemeFontSizeOverride("font_size", 11);
-			row.AddChild(lblName);
-
-			var slider = new HSlider();
-			slider.Name = "Slider_HSlider";
-			slider.MinValue = min;
-			slider.MaxValue = max;
-			slider.Step = step;
-			slider.Value = initialVal;
-			slider.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-			slider.DragStarted += () => _isDraggingSlider = true;
-			slider.DragEnded += (valueChanged) => _isDraggingSlider = false;
-			row.AddChild(slider);
-
-			var lblVal = new Label();
-			lblVal.Name = "LblVal_Label";
-			lblVal.Text = initialVal.ToString(format, CultureInfo.InvariantCulture);
-			lblVal.CustomMinimumSize = new Vector2(34, 0);
-			lblVal.HorizontalAlignment = HorizontalAlignment.Right;
-			lblVal.AddThemeFontSizeOverride("font_size", 11);
-			row.AddChild(lblVal);
-
-			slider.SetMeta("val_label", lblVal);
-			slider.SetMeta("val_format", format);
-
-			slider.ValueChanged += (double val) =>
-			{
-				float fVal = (float)val;
-				lblVal.Text = fVal.ToString(format, CultureInfo.InvariantCulture);
-				onChanged(fVal);
-			};
-
-			parent.AddChild(row);
-			return slider;
-		}
+			=> MapEditorStyle.SliderRow(parent, labelText, min, max, step, initialVal, onChanged, drag => _isDraggingSlider = drag, format, labelWidth);
 
 		public void RefreshWaterSwatches()
 		{

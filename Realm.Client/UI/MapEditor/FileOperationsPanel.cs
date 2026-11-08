@@ -166,4 +166,26 @@ public sealed class FileOperationsPanel
 		Content.AddChild(MapVersionsButton);
 		Content.MoveChild(MapVersionsButton, 2);
 	}
+
+	public void StyleOperations()
+	{
+		var targetFile = MapEditorStyle.ContentTarget(Content);
+		if (targetFile != null)
+		{
+			LoadButton.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+			LoadButton.SizeFlagsStretchRatio = 1.0f;
+
+			LoadMoreButton.CustomMinimumSize = new Vector2(24, 30);
+			LoadMoreButton.SizeFlagsHorizontal = Control.SizeFlags.ShrinkEnd;
+
+			SaveButton.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+			SaveButton.SizeFlagsStretchRatio = 1.0f;
+
+			SaveMoreButton.CustomMinimumSize = new Vector2(24, 30);
+			SaveMoreButton.SizeFlagsHorizontal = Control.SizeFlags.ShrinkEnd;
+
+			MapEditorStyle.SubContainer(targetFile.GetNodeOrNull<Control>("BoxFileOps"), "File Operations");
+			MapEditorStyle.SubContainer(targetFile.GetNodeOrNull<Control>("BoxGenOps"), "Generation & Imports");
+		}
+	}
 }
