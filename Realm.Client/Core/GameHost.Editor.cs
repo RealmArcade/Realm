@@ -262,7 +262,7 @@ public partial class GameHost
 	{
 		if (string.IsNullOrEmpty(key)) return false;
 		string norm = GameContext.EditorService.NormalizeModelAssetKey(key);
-		string resolved = ModelCache.ResolveModelPath(norm);
+		string? resolved = ModelCache.ResolveModelPath(norm);
 		return GameContext.RegistryService.IsPropOrResourceKey(key, norm, resolved, GameContext.EditorService.NormalizeModelAssetKey);
 	}
 
@@ -297,7 +297,7 @@ public partial class GameHost
 
 		if (ContainsAttachmentKeyword(key) || ContainsAttachmentKeyword(norm)) return true;
 
-		string resolved = ModelCache.ResolveModelPath(norm);
+		string? resolved = ModelCache.ResolveModelPath(norm);
 		if (!string.IsNullOrEmpty(resolved) && ContainsAttachmentKeyword(resolved)) return true;
 
 		return false;

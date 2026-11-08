@@ -1127,7 +1127,7 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 		else
 		{
 			loaded?.QueueFree();
-			string resolved = ModelCache.ResolveModelPath(assetPath);
+			string? resolved = ModelCache.ResolveModelPath(assetPath);
 			if (!string.IsNullOrEmpty(resolved))
 			{
 				loaded = ModelCache.GetModel(resolved);

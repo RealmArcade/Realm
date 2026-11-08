@@ -641,7 +641,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 		Node loadedNode = ModelCache.GetModel(meshPath);
 		if (loadedNode == null)
 		{
-			string resolved = ModelCache.ResolveModelPath(meshPath);
+			string? resolved = ModelCache.ResolveModelPath(meshPath);
 			if (!string.IsNullOrEmpty(resolved)) loadedNode = ModelCache.GetModel(resolved);
 		}
 

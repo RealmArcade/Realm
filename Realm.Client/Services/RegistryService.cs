@@ -431,7 +431,7 @@ public class RegistryService
 		return false;
 	}
 
-	public bool IsPropOrResourceKey(string key, string norm, string resolved, Func<string, string> normalizeFunc)
+	public bool IsPropOrResourceKey(string key, string norm, string? resolved, Func<string, string> normalizeFunc)
 	{
 		if (PropRegistry.ContainsKey(key) || PropRegistry.ContainsKey(norm)) return true;
 		if (ResourceRegistry.ContainsKey(key) || ResourceRegistry.ContainsKey(norm)) return true;

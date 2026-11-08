@@ -33,7 +33,7 @@ public class UnitSpawnService
 			return modelPathOrId;
 		}
 
-		string resolvedPath = ModelCache.ResolveModelPath(modelPathOrId);
+		string? resolvedPath = ModelCache.ResolveModelPath(modelPathOrId);
 		if (!string.IsNullOrEmpty(resolvedPath) && (resolvedPath.StartsWith("res://") || File.Exists(resolvedPath)))
 		{
 			return resolvedPath;

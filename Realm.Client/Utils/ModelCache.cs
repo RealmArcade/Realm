@@ -27,7 +27,7 @@ namespace Realm.Client.Utils
 			GltfDocumentExtensionMsftLod.RegisterExtension();
 		}
 
-		public static string ResolveModelPath(string modelPath)
+		public static string? ResolveModelPath(string modelPath)
 		{
 			if (string.IsNullOrEmpty(modelPath)) return null;
 
@@ -38,7 +38,7 @@ namespace Realm.Client.Utils
 				return string.IsNullOrEmpty(cachedPath) ? null : cachedPath;
 			}
 
-			string resolved = ResolveModelPathInternal(modelPath);
+			string? resolved = ResolveModelPathInternal(modelPath);
 
 			// Only a path that was found is cached. A path that was not found is answered against whichever map the
 			// process is looking at, and the map a lobby pre-warms resolves after the models it names are queued, so
@@ -97,12 +97,12 @@ namespace Realm.Client.Utils
 			}
 		}
 
-		private static string ResolveModelPathInternal(string modelPath)
+		private static string? ResolveModelPathInternal(string modelPath)
 		{
 			string cleanPath = modelPath.TrimStart('/', '\\');
 			string withRmesh = GetPathWithRmeshExtension(cleanPath);
 
-			string result = TryResolveDirectPath(modelPath);
+			string? result = TryResolveDirectPath(modelPath);
 			if (result != null) return result;
 
 			result = TryResolveResUserPath(modelPath);
@@ -126,9 +126,9 @@ namespace Realm.Client.Utils
 			return cleanPath;
 		}
 
-		private static string TryResolveAdditionalPaths(string cleanPath, string withRmesh)
+		private static string? TryResolveAdditionalPaths(string cleanPath, string withRmesh)
 		{
-			string result = TryResolveEditingDirectory(cleanPath, withRmesh);
+			string? result = TryResolveEditingDirectory(cleanPath, withRmesh);
 			if (result != null) return result;
 
 			result = TryResolveActiveMapPath(cleanPath, withRmesh);
@@ -146,7 +146,7 @@ namespace Realm.Client.Utils
 			return TryResolveViaPathUtils(cleanPath, withRmesh);
 		}
 
-		private static string TryResolveDirectPath(string modelPath)
+		private static string? TryResolveDirectPath(string modelPath)
 		{
 			if ((modelPath.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) || modelPath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase)) && File.Exists(modelPath))
 			{
@@ -168,7 +168,7 @@ namespace Realm.Client.Utils
 			return null;
 		}
 
-		private static string TryResolveResUserPath(string modelPath)
+		private static string? TryResolveResUserPath(string modelPath)
 		{
 			if (!modelPath.StartsWith("res://") && !modelPath.StartsWith("user://")) return null;
 
@@ -187,7 +187,7 @@ namespace Realm.Client.Utils
 			return null;
 		}
 
-		private static string TryResolveEditingDirectory(string cleanPath, string withRmesh)
+		private static string? TryResolveEditingDirectory(string cleanPath, string withRmesh)
 		{
 			string editingDirectory = GameContext.EditorService._editingDirectory;
 			if (string.IsNullOrEmpty(editingDirectory)) return null;
@@ -200,9 +200,9 @@ namespace Realm.Client.Utils
 			return null;
 		}
 
-		private static string TryResolveActiveMapPath(string cleanPath, string withRmesh)
+		private static string? TryResolveActiveMapPath(string cleanPath, string withRmesh)
 		{
-			string activeMap = GetActiveMapName();
+			string? activeMap = GetActiveMapName();
 			if (string.IsNullOrEmpty(activeMap)) return null;
 
 			if (Directory.Exists(activeMap))
@@ -224,7 +224,7 @@ namespace Realm.Client.Utils
 			return null;
 		}
 
-		private static string GetActiveMapName()
+		private static string? GetActiveMapName()
 		{
 			if (GameContext.Host != null && !string.IsNullOrEmpty(GameContext.Simulation.ActiveMapName))
 			{
@@ -244,7 +244,7 @@ namespace Realm.Client.Utils
 			return path.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) && File.Exists(path);
 		}
 
-		private static string TryResolveCurrentMapPath(string cleanPath, string withRmesh)
+		private static string? TryResolveCurrentMapPath(string cleanPath, string withRmesh)
 		{
 			string currentMapDir = GameContext.MapStorageService.CurrentMapDirectory;
 			if (string.IsNullOrEmpty(currentMapDir) || !Directory.Exists(currentMapDir)) return null;
@@ -257,7 +257,7 @@ namespace Realm.Client.Utils
 			return null;
 		}
 
-		private static string TryResolveResUserRoot(string cleanPath, string withRmesh)
+		private static string? TryResolveResUserRoot(string cleanPath, string withRmesh)
 		{
 			string resDir = ProjectSettings.GlobalizePath("res://");
 			string candRes = Path.Combine(resDir, cleanPath);
@@ -275,26 +275,28 @@ namespace Realm.Client.Utils
 			return null;
 		}
 
-		private static string TryResolveInBaseLocations(string cleanPath, string withRmesh)
+		private static string? TryResolveInBaseLocations(string cleanPath, string withRmesh)
 		{
 			string[] subDirs = new[] { "attachments", "items", "projectiles", "weapons", "props", "resources", "units", "buildings" };
 			string editingDirectory = GameContext.EditorService._editingDirectory;
-			string activeMap = GetActiveMapName();
-			string currentMapDir = GetCurrentMapDirectory();
+			string? activeMap = GetActiveMapName();
+			string? currentMapDir = GetCurrentMapDirectory();
 			string resDir = ProjectSettings.GlobalizePath("res://");
 			string userDir = ProjectSettings.GlobalizePath("user://");
 
-			string[] baseLocations = new[] { editingDirectory, activeMap, currentMapDir, resDir, userDir };
+			string?[] baseLocations = new[] { editingDirectory, activeMap, currentMapDir, resDir, userDir };
 			foreach (var loc in baseLocations)
 			{
-				string result = TryResolveInLocation(loc, cleanPath, withRmesh, subDirs);
+				if (string.IsNullOrEmpty(loc)) continue;
+
+				string? result = TryResolveInLocation(loc, cleanPath, withRmesh, subDirs);
 				if (result != null) return result;
 			}
 
 			return null;
 		}
 
-		private static string GetCurrentMapDirectory()
+		private static string? GetCurrentMapDirectory()
 		{
 			if (GameContext.Host != null && !string.IsNullOrEmpty(GameContext.MapStorageService.CurrentMapDirectory))
 			{
@@ -304,7 +306,7 @@ namespace Realm.Client.Utils
 			return null;
 		}
 
-		private static string TryResolveInLocation(string loc, string cleanPath, string withRmesh, string[] subDirs)
+		private static string? TryResolveInLocation(string loc, string cleanPath, string withRmesh, string[] subDirs)
 		{
 			if (string.IsNullOrEmpty(loc) || !Directory.Exists(loc)) return null;
 
@@ -317,7 +319,7 @@ namespace Realm.Client.Utils
 			return CheckLocationDecalsAndTextures(loc, cleanPath);
 		}
 
-		private static string CheckLocationDecalsAndTextures(string loc, string cleanPath)
+		private static string? CheckLocationDecalsAndTextures(string loc, string cleanPath)
 		{
 			string candDecalDirect = Path.Combine(loc, "Assets", "decals", cleanPath);
 			if (CheckRtexExists(candDecalDirect)) return candDecalDirect;
@@ -339,7 +341,7 @@ namespace Realm.Client.Utils
 			return path.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) && File.Exists(path);
 		}
 
-		private static string TryResolveViaPathUtils(string cleanPath, string withRmesh)
+		private static string? TryResolveViaPathUtils(string cleanPath, string withRmesh)
 		{
 			if (cleanPath.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase))
 			{
@@ -368,7 +370,7 @@ namespace Realm.Client.Utils
 			return !string.IsNullOrEmpty(path) && path.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) && File.Exists(path);
 		}
 
-		public static Node GetModel(string modelPath)
+		public static Node? GetModel(string modelPath)
 		{
 			if (string.IsNullOrEmpty(modelPath)) return null;
 
@@ -395,7 +397,7 @@ namespace Realm.Client.Utils
 				return null;
 			}
 
-			PackedScene scene = LoadPackedScene(resolvedPath);
+			PackedScene? scene = LoadPackedScene(resolvedPath);
 			_modelCacheLock.EnterWriteLock();
 			try
 			{
@@ -457,7 +459,7 @@ namespace Realm.Client.Utils
 
 			if (string.IsNullOrEmpty(resolvedPath)) return;
 
-			PackedScene scene = LoadPackedScene(resolvedPath);
+			PackedScene? scene = LoadPackedScene(resolvedPath);
 			_modelCacheLock.EnterWriteLock();
 			try
 			{
@@ -495,7 +497,7 @@ namespace Realm.Client.Utils
 			}
 		}
 
-		private static PackedScene LoadPackedScene(string modelPath)
+		private static PackedScene? LoadPackedScene(string modelPath)
 		{
 			if (string.IsNullOrEmpty(modelPath)) return null;
 
@@ -527,7 +529,7 @@ namespace Realm.Client.Utils
 			return null;
 		}
 
-		private static PackedScene LoadGltfScene(string targetPath, string modelPath)
+		private static PackedScene? LoadGltfScene(string targetPath, string modelPath)
 		{
 			var doc = new GltfDocument();
 			var state = new GltfState();
@@ -555,7 +557,7 @@ namespace Realm.Client.Utils
 			Error err = doc.AppendFromBuffer(glbBytes, "", state);
 			if (err != Error.Ok) return null;
 
-			Node generatedNode = null;
+			Node? generatedNode = null;
 			try
 			{
 				generatedNode = doc.GenerateScene(state);
@@ -582,12 +584,12 @@ namespace Realm.Client.Utils
 			}
 		}
 
-		private static PackedScene BuildPrimitiveMeshScene(string texturePath)
+		private static PackedScene? BuildPrimitiveMeshScene(string texturePath)
 		{
 			try
 			{
-				Texture2D albedoTex = null;
-				Texture2D normalTex = null;
+				Texture2D? albedoTex = null;
+				Texture2D? normalTex = null;
 
 				if (texturePath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
 				{
@@ -610,7 +612,7 @@ namespace Realm.Client.Utils
 			return null;
 		}
 
-		private static void TryLoadRtexTextures(string texturePath, out Texture2D albedoTex, out Texture2D normalTex)
+		private static void TryLoadRtexTextures(string texturePath, out Texture2D? albedoTex, out Texture2D? normalTex)
 		{
 			albedoTex = null;
 			normalTex = null;
@@ -629,7 +631,7 @@ namespace Realm.Client.Utils
 			}
 		}
 
-		private static Texture2D CreateTextureFromLayer(byte[] layerData)
+		private static Texture2D? CreateTextureFromLayer(byte[] layerData)
 		{
 			var img = Image.CreateEmpty(1, 1, false, Image.Format.Rgba8);
 			if (img.LoadWebpFromBuffer(layerData) == Error.Ok || img.LoadPngFromBuffer(layerData) == Error.Ok)
@@ -641,7 +643,7 @@ namespace Realm.Client.Utils
 			return null;
 		}
 
-		private static Texture2D TryLoadStandardTexture(string texturePath)
+		private static Texture2D? TryLoadStandardTexture(string texturePath)
 		{
 			var img = Image.LoadFromFile(texturePath);
 			if (img == null) return null;
@@ -650,8 +652,10 @@ namespace Realm.Client.Utils
 			return ImageTexture.CreateFromImage(img);
 		}
 
-		private static PackedScene CreatePrimitiveMeshNode(Texture2D albedoTex, Texture2D normalTex)
+		private static PackedScene? CreatePrimitiveMeshNode(Texture2D? albedoTex, Texture2D? normalTex)
 		{
+			if (albedoTex == null) return null;
+
 			var rootNode = new Node3D { Name = "VisualModel" };
 			var meshInstance = new MeshInstance3D { Name = "Mesh" };
 
@@ -713,8 +717,8 @@ namespace Realm.Client.Utils
 
 			try
 			{
-				string resolved = ResolveModelPath(modelPath);
-				Node node = TryGenerateNodeFromRmesh(resolved);
+				string? resolved = ResolveModelPath(modelPath);
+				Node? node = resolved != null ? TryGenerateNodeFromRmesh(resolved) : null;
 
 				if (node == null)
 				{
@@ -746,7 +750,7 @@ namespace Realm.Client.Utils
 			return (0f, 0f);
 		}
 
-		public static Node TryGenerateNodeFromRmeshOrGlbBytes(byte[] rmeshBytes)
+		public static Node? TryGenerateNodeFromRmeshOrGlbBytes(byte[] rmeshBytes)
 		{
 			var doc = new GltfDocument();
 			var state = new GltfState();
@@ -769,7 +773,7 @@ namespace Realm.Client.Utils
 			return null;
 		}
 
-		private static Node TryGenerateNodeFromRmesh(string resolvedPath)
+		private static Node? TryGenerateNodeFromRmesh(string resolvedPath)
 		{
 			if (string.IsNullOrEmpty(resolvedPath) || !resolvedPath.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) || !File.Exists(resolvedPath))
 			{

@@ -957,7 +957,7 @@ public partial class PropMultiMeshManager : Node3D
 		if (string.IsNullOrEmpty(targetModel))
 			return string.Empty;
 
-		string resolvedPath = ModelCache.ResolveModelPath(targetModel);
+		string? resolvedPath = ModelCache.ResolveModelPath(targetModel);
 		if (!string.IsNullOrEmpty(resolvedPath) && (resolvedPath.StartsWith("res://") || File.Exists(resolvedPath)))
 		{
 			return resolvedPath;

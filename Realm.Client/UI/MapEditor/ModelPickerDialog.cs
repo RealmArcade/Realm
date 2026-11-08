@@ -12,7 +12,7 @@ public partial class ModelPickerDialog : FloatingPreview3DDialogBase
 {
 	public ModelPickerDialog() { }
 
-	private Node3D _previewModelRoot = null!;
+	private Node3D? _previewModelRoot;
 
 	private LineEdit _txtModelPath = null!;
 	private Action<string> _setModelPathValue = null!;
@@ -25,7 +25,7 @@ public partial class ModelPickerDialog : FloatingPreview3DDialogBase
 	private string _selectedModelPath = "";
 	private string _initialModelPath = "";
 	private bool _showAllFolders = false;
-	private Action<string> _onApplied = null!;
+	private Action<string>? _onApplied;
 
 	public ModelPickerDialog(MapEditorHUD hud)
 		: base(hud, TranslationServer.Translate("Model Asset Picker"), new Vector2(480, 560))
@@ -85,7 +85,7 @@ public partial class ModelPickerDialog : FloatingPreview3DDialogBase
 		LoadInitialOrFallbackModel();
 	}
 
-	private void InitializeFields(string entityId, string fieldName, string domain, string currentPath, Action<string> onApplied)
+	private void InitializeFields(string entityId, string fieldName, string domain, string currentPath, Action<string>? onApplied)
 	{
 		_entityId = entityId ?? string.Empty;
 		_fieldName = string.IsNullOrEmpty(fieldName) ? "ModelPath" : fieldName;
@@ -137,7 +137,7 @@ public partial class ModelPickerDialog : FloatingPreview3DDialogBase
 		}
 	}
 
-	private static bool IsDecalFormat(string path)
+	private static bool IsDecalFormat(string? path)
 	{
 		if (string.IsNullOrEmpty(path)) return false;
 		return path.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ||
@@ -145,7 +145,7 @@ public partial class ModelPickerDialog : FloatingPreview3DDialogBase
 		       path.EndsWith(".webp", StringComparison.OrdinalIgnoreCase);
 	}
 
-	private void LoadDecalPreview(string modelPath, string resolvedPath)
+	private void LoadDecalPreview(string modelPath, string? resolvedPath)
 	{
 		var root = new Node3D { Name = "PreviewDecalRoot" };
 
@@ -178,7 +178,7 @@ public partial class ModelPickerDialog : FloatingPreview3DDialogBase
 		}
 	}
 
-	private void Load3DModelPreview(Node3D node3D, string modelPath, string resolvedPath)
+	private void Load3DModelPreview(Node3D node3D, string modelPath, string? resolvedPath)
 	{
 		var cloned = (Node3D)node3D.Duplicate((int)DuplicateFlags.UseInstantiation);
 		node3D.QueueFree();
@@ -224,7 +224,7 @@ public partial class ModelPickerDialog : FloatingPreview3DDialogBase
 			return;
 		}
 
-		string resolvedPath = ModelCache.ResolveModelPath(modelPath);
+		string? resolvedPath = ModelCache.ResolveModelPath(modelPath);
 
 		if (IsDecalFormat(modelPath) || IsDecalFormat(resolvedPath))
 		{
@@ -232,7 +232,7 @@ public partial class ModelPickerDialog : FloatingPreview3DDialogBase
 			return;
 		}
 
-		Node loaded = ModelCache.GetModel(modelPath);
+		Node? loaded = ModelCache.GetModel(modelPath);
 		if (loaded is Node3D node3D)
 		{
 			Load3DModelPreview(node3D, modelPath, resolvedPath);
