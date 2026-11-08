@@ -1271,62 +1271,14 @@ namespace Realm.Client.UI
 		{
 			if (prefs == null) return;
 
-			UpdateScreenFrameVisibility(prefs);
-			UpdatePanelsModulation(prefs);
+			MapEditorChromeAppearance.Apply(this, prefs);
 			UpdateFPSVisibility();
-
-			if (!prefs.HideChromeBorderOverlay)
-			{
-				ApplyPanelOpacity(prefs.PanelOpacity);
-			}
 
 			if (!prefs.HideHudDuringToolUsage && HudFade.IsActive)
 			{
 				Set3DInteractionActive_ViewLogic(false);
 			}
 		}
-
-		private void UpdateScreenFrameVisibility(EditorPreferencesData prefs)
-		{
-			var screenFrame = GetNodeOrNull<TextureRect>("MapEditorScreenFrame");
-			if (screenFrame != null)
-			{
-				screenFrame.Visible = !prefs.HideChromeBorderOverlay;
-			}
-		}
-
-		private void UpdatePanelsModulation(EditorPreferencesData prefs)
-		{
-			var leftPanel = GetNodeOrNull<Panel>("LeftSlidePanel");
-			var rightPanel = GetNodeOrNull<Panel>("RightSlidePanel");
-			var topBar = GetNodeOrNull<PanelContainer>("BottomCenterBar/TopBar");
-			var minimap = GetNodeOrNull<PanelContainer>("MinimapFrame");
-
-			if (prefs.HideChromeBorderOverlay)
-			{
-				if (leftPanel != null) leftPanel.SelfModulate = new Color(1, 1, 1, 0.45f);
-				if (rightPanel != null) rightPanel.SelfModulate = new Color(1, 1, 1, 0.45f);
-				if (topBar != null) topBar.SelfModulate = new Color(1, 1, 1, 0.0f);
-				if (minimap != null) minimap.SelfModulate = new Color(1, 1, 1, 0.5f);
-			}
-			else
-			{
-				if (leftPanel != null) leftPanel.SelfModulate = Colors.White;
-				if (rightPanel != null) rightPanel.SelfModulate = Colors.White;
-				if (topBar != null) topBar.SelfModulate = Colors.White;
-				if (minimap != null) minimap.SelfModulate = Colors.White;
-			}
-		}
-
-		private void ApplyPanelOpacity(float opacity)
-		{
-			var leftPanel = GetNodeOrNull<Panel>("LeftSlidePanel");
-			var rightPanel = GetNodeOrNull<Panel>("RightSlidePanel");
-
-			if (leftPanel != null) leftPanel.Modulate = new Color(1, 1, 1, opacity);
-			if (rightPanel != null) rightPanel.Modulate = new Color(1, 1, 1, opacity);
-		}
-
 
 		public string GetMapNameFromMetadata(bool forceReload = false)
 		{
