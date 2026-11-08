@@ -2136,50 +2136,13 @@ namespace Realm.Client.UI
 
 		private void StylePasteAndPlacementSettings()
 		{
-			if (_pastePanel?.Container != null)
-			{
-				StyleSubContainer(_pastePanel.Container, "Paste Options");
-				StyleValueBadge(_pastePanel.RotationLabel);
-				if (_pastePanel?.ClipboardBrushShape != null)
-				{
-					_pastePanel.ClipboardBrushShape.CustomMinimumSize = new Vector2(0, 30);
-					_pastePanel.ClipboardBrushShape.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-					_pastePanel.ClipboardBrushShape.AddThemeFontSizeOverride("font_size", 10);
-				}
+			_pastePanel.StyleOptions();
 
-				if (_pastePanel?.ClipboardMirrorMode != null)
-				{
-					_pastePanel.ClipboardMirrorMode.CustomMinimumSize = new Vector2(0, 30);
-					_pastePanel.ClipboardMirrorMode.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-					_pastePanel.ClipboardMirrorMode.AddThemeFontSizeOverride("font_size", 10);
-				}
-
-				if (_pastePanel?.PasteReflection != null)
-				{
-					_pastePanel.PasteReflection.CustomMinimumSize = new Vector2(0, 30);
-					_pastePanel.PasteReflection.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-				}
-
-				if (_pastePanel?.PasteAnchor != null)
-				{
-					_pastePanel.PasteAnchor.CustomMinimumSize = new Vector2(0, 30);
-					_pastePanel.PasteAnchor.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-				}
-			}
-
-			if (_placementPanel?.Content != null)
-			{
-				if (_placementPanel?.MirrorOption != null)
-				{
-					_placementPanel.MirrorOption.CustomMinimumSize = new Vector2(0, 30);
-					_placementPanel.MirrorOption.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-					_placementPanel.MirrorOption.AddThemeFontSizeOverride("font_size", 10);
-				}
-			}
+			_placementPanel.StyleControls();
 
 			if (_containerEyedropperSettings != null)
 			{
-				StyleSubContainer(_containerEyedropperSettings, "Eyedropper Settings");
+				MapEditorStyle.SubContainer(_containerEyedropperSettings, "Eyedropper Settings");
 			}
 		}
 
@@ -2192,7 +2155,7 @@ namespace Realm.Client.UI
 			};
 			foreach (var content in allOptionContents)
 			{
-				StyleOptionButtonsInContainer(content);
+				MapEditorStyle.OptionButtonsInContainer(content, GetFontAwesomeFont());
 			}
 		}
 
@@ -2208,119 +2171,46 @@ namespace Realm.Client.UI
 
 		private void StyleViewportNavigationBar()
 		{
-			var targetViewport = GetContentTarget(_viewportPanel.Content);
-			if (targetViewport != null)
-			{
-				StyleIconButton(_viewportPanel.GridToggleButton, UnicodeIcons.BORDER_ALL, "Overlay");
-				StyleIconButton(_viewportPanel.EnvironmentToggleButton, UnicodeIcons.SUN, "Environment");
-				StyleIconButton(_cameraPanel.ToggleButton, UnicodeIcons.CAMERA, "Configure camera controls (R / C / + / - / F8)");
-				StyleIconButton(_viewportPanel.MeasureButton, UnicodeIcons.RULER, "Tape measure distance & slope tool (U)");
+			var polarRow = _viewportPanel.StyleNavigationBar(GetFontAwesomeFont(), _cameraPanel.ToggleButton);
+			if (polarRow != null) _rowPolarConfig = polarRow;
+			if (_rowPolarConfig == null) return;
 
-				StyleSubContainer(targetViewport.GetNodeOrNull<Control>("BoxViewportToolbar"), "Navigation Bar");
-
-				_rowPolarConfig = targetViewport.GetNodeOrNull<HBoxContainer>("RowPolarConfig");
-
-				if (_viewportPanel.RingSpacingOption != null)
-				{
-					_viewportPanel.RingSpacingOption.CustomMinimumSize = new Vector2(0, 26);
-					_viewportPanel.RingSpacingOption.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-					_viewportPanel.RingSpacingOption.AddThemeFontSizeOverride("font_size", 9);
-				}
-
-				if (_viewportPanel.RadialStepOption != null)
-				{
-					_viewportPanel.RadialStepOption.CustomMinimumSize = new Vector2(0, 26);
-					_viewportPanel.RadialStepOption.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-					_viewportPanel.RadialStepOption.AddThemeFontSizeOverride("font_size", 9);
-				}
-
-				if (_viewportPanel.ResetPivotButton != null)
-				{
-					_viewportPanel.ResetPivotButton.CustomMinimumSize = new Vector2(0, 26);
-					_viewportPanel.ResetPivotButton.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-					_viewportPanel.ResetPivotButton.AddThemeFontSizeOverride("font_size", 9);
-				}
-
-				bool isSymmetryActive = GameContext.Host != null &&
-				                        (GameContext.Host.EditorMirrorMode != MirrorMode.None ||
-				                         GameContext.EditorService.Tools.GridMode == GridOverlayMode.Polar ||
-				                         GameContext.EditorService.Tools.GridMode == GridOverlayMode.Both);
-				_rowPolarConfig.Visible = isSymmetryActive;
-			}
+			bool isSymmetryActive = GameContext.Host != null &&
+			                        (GameContext.Host.EditorMirrorMode != MirrorMode.None ||
+			                         GameContext.EditorService.Tools.GridMode == GridOverlayMode.Polar ||
+			                         GameContext.EditorService.Tools.GridMode == GridOverlayMode.Both);
+			_rowPolarConfig.Visible = isSymmetryActive;
 		}
 
 
 		private void StyleTexturePaletteRows()
 		{
-			if (_containerTextureSettings != null)
+			if (_containerTextureSettings == null) return;
+
+			MapEditorStyle.SubContainer(_containerTextureSettings, "Texture Palette & Settings");
+
+			if (RowGroundTexture != null)
 			{
-				StyleSubContainer(_containerTextureSettings, "Texture Palette & Settings");
+				MapEditorStyle.RowBackground(RowGroundTexture,
+					new Color(0.12f, 0.16f, 0.20f, 0.85f), new Color(0.20f, 0.65f, 0.95f, 0.85f));
+			}
 
-				if (RowGroundTexture != null)
-				{
-					var groundStyle = new StyleBoxFlat();
-					groundStyle.BgColor = new Color(0.12f, 0.16f, 0.20f, 0.85f);
-					groundStyle.BorderColor = new Color(0.20f, 0.65f, 0.95f, 0.85f);
-					groundStyle.SetBorderWidthAll(1);
-					groundStyle.SetCornerRadiusAll(4);
-					groundStyle.ContentMarginLeft = 8;
-					groundStyle.ContentMarginRight = 8;
-					groundStyle.ContentMarginTop = 4;
-					groundStyle.ContentMarginBottom = 4;
+			if (RowCliffTexture != null)
+			{
+				MapEditorStyle.RowBackground(RowCliffTexture,
+					new Color(0.18f, 0.14f, 0.10f, 0.85f), new Color(0.95f, 0.55f, 0.15f, 0.85f));
+			}
 
-					var panelGround = RowGroundTexture.GetNodeOrNull<Panel>("RowBG");
-					if (panelGround == null)
-					{
-						panelGround = new Panel();
-						panelGround.Name = "RowBG";
-						panelGround.ShowBehindParent = true;
-						panelGround.MouseFilter = MouseFilterEnum.Ignore;
-						panelGround.SetAnchorsPreset(LayoutPreset.FullRect);
-						RowGroundTexture.AddChild(panelGround);
-						RowGroundTexture.MoveChild(panelGround, 0);
-					}
+			if (_lblTerrainTexture != null)
+			{
+				_lblTerrainTexture.AddThemeFontSizeOverride("font_size", 11);
+				_lblTerrainTexture.AddThemeColorOverride("font_color", new Color(0.40f, 0.80f, 1.0f));
+			}
 
-					panelGround.AddThemeStyleboxOverride("panel", groundStyle);
-				}
-
-				if (RowCliffTexture != null)
-				{
-					var cliffStyle = new StyleBoxFlat();
-					cliffStyle.BgColor = new Color(0.18f, 0.14f, 0.10f, 0.85f);
-					cliffStyle.BorderColor = new Color(0.95f, 0.55f, 0.15f, 0.85f);
-					cliffStyle.SetBorderWidthAll(1);
-					cliffStyle.SetCornerRadiusAll(4);
-					cliffStyle.ContentMarginLeft = 8;
-					cliffStyle.ContentMarginRight = 8;
-					cliffStyle.ContentMarginTop = 4;
-					cliffStyle.ContentMarginBottom = 4;
-
-					var panelCliff = RowCliffTexture.GetNodeOrNull<Panel>("RowBG");
-					if (panelCliff == null)
-					{
-						panelCliff = new Panel();
-						panelCliff.Name = "RowBG";
-						panelCliff.ShowBehindParent = true;
-						panelCliff.MouseFilter = MouseFilterEnum.Ignore;
-						panelCliff.SetAnchorsPreset(LayoutPreset.FullRect);
-						RowCliffTexture.AddChild(panelCliff);
-						RowCliffTexture.MoveChild(panelCliff, 0);
-					}
-
-					panelCliff.AddThemeStyleboxOverride("panel", cliffStyle);
-				}
-
-				if (_lblTerrainTexture != null)
-				{
-					_lblTerrainTexture.AddThemeFontSizeOverride("font_size", 11);
-					_lblTerrainTexture.AddThemeColorOverride("font_color", new Color(0.40f, 0.80f, 1.0f));
-				}
-
-				if (_lblCliffTexture != null)
-				{
-					_lblCliffTexture.AddThemeFontSizeOverride("font_size", 11);
-					_lblCliffTexture.AddThemeColorOverride("font_color", new Color(1.0f, 0.70f, 0.30f));
-				}
+			if (_lblCliffTexture != null)
+			{
+				_lblCliffTexture.AddThemeFontSizeOverride("font_size", 11);
+				_lblCliffTexture.AddThemeColorOverride("font_color", new Color(1.0f, 0.70f, 0.30f));
 			}
 		}
 

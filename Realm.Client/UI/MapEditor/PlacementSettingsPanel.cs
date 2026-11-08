@@ -165,4 +165,16 @@ public sealed class PlacementSettingsPanel
 			hooks.ClumpModeChanged();
 		};
 	}
+
+	/// <summary>
+	/// The mirror dropdown is the only control on the placement card that the shared accordion pass does not already
+	/// size for a narrow column.
+	/// </summary>
+	public void StyleControls()
+	{
+		if (MirrorOption == null) return;
+		MirrorOption.CustomMinimumSize = new Vector2(0, 30);
+		MirrorOption.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		MirrorOption.AddThemeFontSizeOverride("font_size", 10);
+	}
 }

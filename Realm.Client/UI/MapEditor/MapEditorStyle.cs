@@ -88,7 +88,7 @@ internal static class MapEditorStyle
 	/// Square icon buttons: takes the glyph, not the button's existing text, because the caller
 	/// owns what the icon means and the font is the same FontAwesome set for all of them.
 	/// </summary>
-	public static void IconButton(Button btn, string iconText, string tooltipText, Font? font)
+	public static void IconButton(Button? btn, string iconText, string tooltipText, Font? font)
 	{
 		if (btn == null) return;
 		btn.Text = iconText;
@@ -320,5 +320,38 @@ internal static class MapEditorStyle
 
 		parent.AddChild(row);
 		return slider;
+	}
+
+	/// <summary>
+	/// The tinted plate behind a palette row. Both terrain rows want the same plate in different colours and the
+	/// plate is created on first use, so the panel is reused if a later pass runs again.
+	/// </summary>
+	public static void RowBackground(Control row, Color bgColor, Color borderColor)
+	{
+		if (row == null) return;
+
+		var style = new StyleBoxFlat();
+		style.BgColor = bgColor;
+		style.BorderColor = borderColor;
+		style.SetBorderWidthAll(1);
+		style.SetCornerRadiusAll(4);
+		style.ContentMarginLeft = 8;
+		style.ContentMarginRight = 8;
+		style.ContentMarginTop = 4;
+		style.ContentMarginBottom = 4;
+
+		var panel = row.GetNodeOrNull<Panel>("RowBG");
+		if (panel == null)
+		{
+			panel = new Panel();
+			panel.Name = "RowBG";
+			panel.ShowBehindParent = true;
+			panel.MouseFilter = Control.MouseFilterEnum.Ignore;
+			panel.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+			row.AddChild(panel);
+			row.MoveChild(panel, 0);
+		}
+
+		panel.AddThemeStyleboxOverride("panel", style);
 	}
 }

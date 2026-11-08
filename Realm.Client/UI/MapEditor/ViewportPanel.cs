@@ -303,4 +303,47 @@ public sealed class ViewportPanel
 		ResetPivotButton.Set("icon_max_width", 0);
 		hooks.SetupOptionButton(ResetPivotButton, $"{UnicodeIcons.CROSSHAIRS} RESET PIVOT", () => hooks.ResetPivot(), 10, "Reset symmetry and polar overlay center pivot to true map center");
 	}
+
+	/// <summary>
+	/// The navigation bar row: four icon buttons, the toolbar plate and the spacing of the polar/symmetry controls.
+	/// Returns that row because whether it is visible depends on editor state the panel does not hold - the editor
+	/// decides when symmetry is active and keeps the row around for later toggles.
+	/// </summary>
+	public HBoxContainer? StyleNavigationBar(Font? font, Button? cameraToggle)
+	{
+		var target = MapEditorStyle.ContentTarget(Content);
+		if (target == null) return null;
+
+		MapEditorStyle.IconButton(GridToggleButton, UnicodeIcons.BORDER_ALL, "Overlay", font);
+		MapEditorStyle.IconButton(EnvironmentToggleButton, UnicodeIcons.SUN, "Environment", font);
+		MapEditorStyle.IconButton(cameraToggle, UnicodeIcons.CAMERA, "Configure camera controls (R / C / + / - / F8)", font);
+		MapEditorStyle.IconButton(MeasureButton, UnicodeIcons.RULER, "Tape measure distance & slope tool (U)", font);
+
+		MapEditorStyle.SubContainer(target.GetNodeOrNull<Control>("BoxViewportToolbar"), "Navigation Bar");
+
+		var polarRow = target.GetNodeOrNull<HBoxContainer>("RowPolarConfig");
+
+		if (RingSpacingOption != null)
+		{
+			RingSpacingOption.CustomMinimumSize = new Vector2(0, 26);
+			RingSpacingOption.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+			RingSpacingOption.AddThemeFontSizeOverride("font_size", 9);
+		}
+
+		if (RadialStepOption != null)
+		{
+			RadialStepOption.CustomMinimumSize = new Vector2(0, 26);
+			RadialStepOption.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+			RadialStepOption.AddThemeFontSizeOverride("font_size", 9);
+		}
+
+		if (ResetPivotButton != null)
+		{
+			ResetPivotButton.CustomMinimumSize = new Vector2(0, 26);
+			ResetPivotButton.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+			ResetPivotButton.AddThemeFontSizeOverride("font_size", 9);
+		}
+
+		return polarRow;
+	}
 }

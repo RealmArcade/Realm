@@ -154,4 +154,43 @@ public sealed class PasteSettingsPanel
 			pasteOptionsBox.AddChild(Telemetry);
 		}
 	}
+
+	/// <summary>
+	/// Plate and control sizing for the paste card. Every node here belongs to this panel, so the pass lives with
+	/// them instead of on the editor that used to walk them by hand.
+	/// </summary>
+	public void StyleOptions()
+	{
+		if (Container != null)
+		{
+			MapEditorStyle.SubContainer(Container, "Paste Options");
+			MapEditorStyle.ValueBadge(RotationLabel);
+
+			if (ClipboardBrushShape != null)
+			{
+				ClipboardBrushShape.CustomMinimumSize = new Vector2(0, 30);
+				ClipboardBrushShape.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+				ClipboardBrushShape.AddThemeFontSizeOverride("font_size", 10);
+			}
+
+			if (ClipboardMirrorMode != null)
+			{
+				ClipboardMirrorMode.CustomMinimumSize = new Vector2(0, 30);
+				ClipboardMirrorMode.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+				ClipboardMirrorMode.AddThemeFontSizeOverride("font_size", 10);
+			}
+
+			if (PasteReflection != null)
+			{
+				PasteReflection.CustomMinimumSize = new Vector2(0, 30);
+				PasteReflection.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+			}
+
+			if (PasteAnchor != null)
+			{
+				PasteAnchor.CustomMinimumSize = new Vector2(0, 30);
+				PasteAnchor.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+			}
+		}
+	}
 }
