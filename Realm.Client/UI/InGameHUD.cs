@@ -189,7 +189,6 @@ public partial class InGameHUD : Control
 	private InventoryPanel _inventoryPanelController = null!;
 	private ControlGroupsUIController _controlGroupsUIController = null!;
 
-	private MinimapOverlay _minimapOverlay = null!;
 	private UnitHealthBarOverlay _unitHealthBarOverlay = null!;
 
 	private const float TacticalInterval = 0.04f;
@@ -373,6 +372,11 @@ public partial class InGameHUD : Control
 		_connectionWarningLabel = ConnectionWarningBanner.Create();
 		AddChild(_connectionWarningLabel);
 	}
+
+	private MinimapCapture? _minimapCapture;
+
+	/// <summary>The minimap's terrain background capture and the redraw request the shroud service asks for.</summary>
+	private MinimapCapture MinimapCapture => _minimapCapture ??= new MinimapCapture(this, () => _minimapArea);
 
 	private CheatCommands? _cheats;
 
@@ -581,51 +585,9 @@ public partial class InGameHUD : Control
 		}
 	}
 
-	private bool _isGeneratingMinimap = false;
-	private bool _minimapNeedsRegen = false;
+	public Task RegenerateMinimapBackground() => MinimapCapture.RegenerateAsync();
 
-	public async Task RegenerateMinimapBackground()
-	{
-		if (_isGeneratingMinimap)
-		{
-			_minimapNeedsRegen = true;
-			return;
-		}
-
-		_isGeneratingMinimap = true;
-
-		try
-		{
-			do
-			{
-				_minimapNeedsRegen = false;
-				await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-				await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-
-				var minimapBg = _minimapArea.GetChildCount() > 0 ? _minimapArea.GetChild<TextureRect>(0) : null;
-				if (minimapBg == null) return;
-
-				var imgTexture = await MinimapHelper.CaptureTerrainMinimapTextureAsync(this, 256);
-				if (imgTexture != null)
-				{
-					minimapBg.Texture = imgTexture;
-				}
-			} while (_minimapNeedsRegen);
-		}
-		catch (Exception ex)
-		{
-			GameLog.LogError($"Failed to dynamically capture terrain minimap: {ex.Message}");
-		}
-		finally
-		{
-			_isGeneratingMinimap = false;
-		}
-	}
-
-	private void GenerateDynamicMinimap()
-	{
-		_ = RegenerateMinimapBackground();
-	}
+	private void GenerateDynamicMinimap() => _ = MinimapCapture.RegenerateAsync();
 
 	private void CreateStatsContainer()
 	{
@@ -689,7 +651,7 @@ public partial class InGameHUD : Control
 			_minimapFrame, _portraitFrame, _selectionFrame, _commandFrame, _feedbackLabel,
 			_goldLabel, _woodLabel, _stoneLabel, _populationLabel, _clockLabel, _minimapArea, _cameraIndicator));
 
-		_minimapOverlay = Theme.MinimapOverlay!;
+		MinimapCapture.Overlay = Theme.MinimapOverlay;
 	}
 
 	public override void _Process(double delta)
@@ -800,10 +762,7 @@ public partial class InGameHUD : Control
 		_lastIdleCount = _viewModel.IdleCount;
 	}
 
-	public void QueueMinimapRedraw()
-	{
-		_minimapOverlay?.QueueRedraw();
-	}
+	public void QueueMinimapRedraw() => MinimapCapture.QueueRedraw();
 
 	public void ShowFeedbackText(string text, Color color)
 	{
