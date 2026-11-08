@@ -399,6 +399,12 @@ public partial class InGameHUD : Control
 		_connectionWarningLabel.Visible = false;
 	}
 
+	private CheatCommands? _cheats;
+
+	/// <summary>Chat cheat lines: the service decides what they do, this decides what the player sees.</summary>
+	private CheatCommands Cheats => _cheats ??= new CheatCommands(new CheatCommands.Hooks(
+		RefreshUI, ShowFeedbackText, RegenerateMinimapBackground, QueueMinimapRedraw));
+
 	private ResourceBarButtons? _resourceBar;
 
 	/// <summary>
@@ -1179,57 +1185,7 @@ public partial class InGameHUD : Control
 
 	public void ApplyWeatherEffects(string weather) => WeatherPresenter.ApplyEffects(weather, ShowFeedbackText);
 
-	public bool TryTriggerCheat(string text)
-	{
-		if (GameContext.CheatService == null) return false;
-
-		var selectedEntities = GameContext.Host?.SelectedUnits is { } selectedUnits
-			? Enumerable.ToList(Enumerable.Select(selectedUnits, u => u.Entity))
-			: new List<Entity>();
-
-		bool isMultiplayer = GameContext.Lobby != null && !GameContext.Lobby.IsSinglePlayer
-		                                                   && Multiplayer.MultiplayerPeer != null && !(Multiplayer.MultiplayerPeer is OfflineMultiplayerPeer);
-
-		if (GameContext.PerspectiveFilter.IsSpectating) return false;
-		var (result, _) = GameContext.CheatService.TryTriggerCheat(text, isMultiplayer, selectedEntities);
-
-		if (result == CheatResult.None) return false;
-
-		ShowFeedbackText("Cheat Activated!", new Color(0.1f, 0.9f, 0.2f));
-		HandleCheatResult(result);
-
-		return true;
-	}
-
-	private void HandleCheatResult(CheatResult result)
-	{
-		switch (result)
-		{
-			case CheatResult.Gigachad:
-				RefreshUI(GameContext.Host?.SelectedUnits);
-				break;
-			case CheatResult.AbsoluteUnit:
-			{
-				if (GameContext.Host is not { } host) break;
-
-				foreach (var unit in host.SelectedUnits)
-				{
-					if (GodotObject.IsInstanceValid(unit)) unit.Scale = new Vector3(3f, 3f, 3f);
-				}
-
-				RefreshUI(host.SelectedUnits);
-				break;
-			}
-			case CheatResult.EzClap:
-				GameContext.UserInterface?.PlayClickSound();
-				GameContext.UserInterface?.TransitionTo(GameScreen.GameOver, true);
-				break;
-			case CheatResult.NoCap:
-				_ = RegenerateMinimapBackground();
-				QueueMinimapRedraw();
-				break;
-		}
-	}
+	public bool TryTriggerCheat(string text) => Cheats.TryTrigger(text);
 
 	public bool HandleCommandCardHotkey(Key keycode, KeyModifierMask modifiers)
 	{
