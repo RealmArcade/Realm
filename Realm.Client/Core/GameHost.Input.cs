@@ -473,8 +473,8 @@ public partial class GameHost
 
 						spawnPos.Y = GetTerrainHeightAt(spawnPos);
 						var cop = copiedObj.Value;
-						Node pastedNode = null;
-						IEditorAction action = null;
+						Node? pastedNode = null;
+						IEditorAction? action = null;
 						if (cop.Type == "unit")
 						{
 							pastedNode = SpawnUnitExternal(cop.Id, spawnPos, cop.Rotation, cop.Scale, cop.Player);
@@ -512,7 +512,7 @@ public partial class GameHost
 								{
 									Vector3 mPos = t.Position;
 									mPos.Y = GetTerrainHeightAt(mPos);
-									Node mNode = null;
+									Node? mNode = null;
 									if (cop.Type == "unit")
 									{
 										mNode = SpawnUnitExternal(cop.Id, mPos, t.Rotation, cop.Scale, cop.Player);
@@ -576,8 +576,8 @@ public partial class GameHost
 					spawnPos.Y = GetTerrainHeightAt(spawnPos);
 					float rotY = selectedNode.RotationDegrees.Y;
 					float scaleVal = selectedNode.Scale.X;
-					Node clonedNode = null;
-					IEditorAction action = null;
+					Node? clonedNode = null;
+					IEditorAction? action = null;
 					if (SelectedEditorObject is Unit3D unit)
 					{
 						clonedNode = SpawnUnitExternal(unit.UnitId, spawnPos, rotY, scaleVal, unit.Player);
@@ -1305,7 +1305,7 @@ public partial class GameHost
 				{
 					string mode = GameContext.MapEditorHud != null ? GameContext.MapEditorHud.GetEyedropperMode() : "all";
 					var collider = hit.ContainsKey("collider") ? hit["collider"].As<Node>() : null;
-					Node clickedNode = null;
+					Node? clickedNode = null;
 
 					if (mode == "all" || mode == "3d")
 					{
@@ -1314,7 +1314,7 @@ public partial class GameHost
 							clickedNode = FindUnit3DInParentChain(collider);
 							if (clickedNode == null)
 							{
-								clickedNode = (Node)(collider as PropEntityProxyNode);
+								clickedNode = (Node?)(collider as PropEntityProxyNode);
 								if (clickedNode == null)
 								{
 									clickedNode = FindProp3DInParentChain(collider);
@@ -1324,7 +1324,7 @@ public partial class GameHost
 
 						if (clickedNode == null && GameContext.World != null)
 						{
-							string closestStaticPropId = null;
+							string? closestStaticPropId = null;
 							float closestStaticDist = 3.0f;
 							var propQuery = QueryCache.AllPropIdentityAndPositionQuery;
 							GameContext.World.Query(in propQuery, (Entity entity, ref PropIdentity pId, ref Position pPos) =>
@@ -1359,7 +1359,7 @@ public partial class GameHost
 
 					if (clickedNode == null && (mode == "all" || mode == "decal"))
 					{
-						Decal closestDecal = null;
+						Decal? closestDecal = null;
 						float closestDist = 3.0f;
 						foreach (var child in GetChildren())
 						{
@@ -1493,7 +1493,7 @@ public partial class GameHost
 				else if (ActiveEditorTool == EditorTool.SelectMove)
 				{
 					var collider = hit.ContainsKey("collider") ? hit["collider"].As<Node>() : null;
-					Node clickedNode = null;
+					Node? clickedNode = null;
 					if (collider != null)
 					{
 						clickedNode = FindUnit3DInParentChain(collider);
@@ -1519,7 +1519,7 @@ public partial class GameHost
 
 					if (clickedNode == null)
 					{
-						Decal closestDecal = null;
+						Decal? closestDecal = null;
 						float closestDist = 3.0f;
 						foreach (var child in GetChildren())
 						{
@@ -1542,7 +1542,7 @@ public partial class GameHost
 
 					if (clickedNode == null)
 					{
-						ProceduralVfxInstance3D closestVfx = null;
+						ProceduralVfxInstance3D? closestVfx = null;
 						float closestDist = 3.0f;
 						foreach (var vfx in AllVfx)
 						{
@@ -2321,8 +2321,8 @@ public partial class GameHost
 		ClearSelectedProp();
 
 		var hit = RaycastFromMouse(clickPos);
-		Node collider = null;
-		Unit3D clickedUnit = null;
+		Node? collider = null;
+		Unit3D? clickedUnit = null;
 		if (hit != null && hit.ContainsKey("collider"))
 		{
 			collider = hit["collider"].As<Node>();
@@ -2815,7 +2815,7 @@ public partial class GameHost
 		return hitPosition;
 	}
 
-	private Unit3D FindUnitNearScreenPoint(Vector2 screenPosition)
+	private Unit3D? FindUnitNearScreenPoint(Vector2 screenPosition)
 	{
 		var camera = GetViewport()?.GetCamera3D();
 		if (camera == null) return null;
@@ -2834,7 +2834,7 @@ public partial class GameHost
 		return camera.UnprojectPosition(worldPoint).DistanceTo(screenPosition) <= SelectionPickAssistPixels ? candidate : null;
 	}
 
-	public Dictionary RaycastFromMouse(Vector2 mousePos, uint collisionMask = uint.MaxValue)
+	public Dictionary? RaycastFromMouse(Vector2 mousePos, uint collisionMask = uint.MaxValue)
 	{
 		var camera = GetViewport()?.GetCamera3D();
 		if (camera == null) return null;
@@ -3123,7 +3123,7 @@ public partial class GameHost
 		if (GameContext.PerspectiveFilter.IsSpectating) return;
 
 		var hit = RaycastFromMouse(clickPos);
-		Unit3D clickedUnit = null;
+		Unit3D? clickedUnit = null;
 		if (hit != null && hit.ContainsKey("collider"))
 		{
 			clickedUnit = FindUnit3DInParentChain(hit["collider"].As<Node>());
@@ -3160,8 +3160,8 @@ public partial class GameHost
 	public void CenterCameraOnPrimaryBuilding()
 	{
 		if (GameContext.PerspectiveFilter.IsSpectating) return;
-		Unit3D primaryBuilding = null;
-		Unit3D anyOwnedBuilding = null;
+		Unit3D? primaryBuilding = null;
+		Unit3D? anyOwnedBuilding = null;
 		foreach (var unit in AllUnits)
 		{
 			if (GameContext.PerspectiveFilter.CanControl(unit.Player) && unit.IsBuilding)
