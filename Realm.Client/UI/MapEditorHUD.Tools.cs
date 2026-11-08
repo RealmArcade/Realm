@@ -1430,20 +1430,19 @@ namespace Realm.Client.UI
 			=> SymmetryDropdowns.Populate(opt, GameContext.Host?.EditorSymmetryFolds ?? 4, SetMirrorMode,
 				GetFontAwesomeFont(), tooltip);
 
-		private void SetMirrorMode(MirrorMode mode)
-		{
-			GameContext.EditorService.SetMirrorModeDomain(mode);
-			UpdateMirrorDropdowns();
-			UpdateSymmetrySubControlsVisibility();
-			UpdatePolarRadialStepButtonText();
-			if (mode == MirrorMode.Rotational)
-			{
-				ExpandAccordion(_viewportPanel.Header, _viewportPanel.Content, "Viewport & Navigation");
-			}
+		private MapEditorSymmetry? _symmetry;
 
-			string modeName = mode == MirrorMode.Both ? "QUAD" : mode.ToString().ToUpperInvariant();
-			ShowFeedback(string.Format(TranslationServer.Translate("Mirroring: {0}"), modeName));
-		}
+		/// <summary>
+		/// The symmetry setters live in MapEditorSymmetry; the editor supplies the refreshes they trigger, the viewport
+		/// accordion they may open, and its status bar.
+		/// </summary>
+		private MapEditorSymmetry Symmetry => _symmetry ??= new MapEditorSymmetry(new SymmetryHooks(
+			UpdateMirrorDropdowns, UpdateSymmetrySubControlsVisibility, UpdatePolarRadialStepButtonText,
+			UpdatePolarRingSpacingButtonText,
+			() => ExpandAccordion(_viewportPanel.Header, _viewportPanel.Content, "Viewport & Navigation"),
+			ShowFeedback));
+
+		private void SetMirrorMode(MirrorMode mode) => Symmetry.SetMirrorMode(mode);
 
 		public void UpdateMirrorDropdowns()
 		{
@@ -1461,14 +1460,7 @@ namespace Realm.Client.UI
 		private void UpdateSingleMirrorDropdown(OptionButton opt, MirrorMode mode, int folds)
 			=> SymmetryDropdowns.Refresh(opt, mode, folds);
 
-		private void SetSymmetrySpokes(int spokes)
-		{
-			GameContext.EditorService.SetSymmetrySpokesDomain(spokes);
-			UpdateSymmetrySpokesDropdowns();
-			UpdateMirrorDropdowns();
-			UpdatePolarRadialStepButtonText();
-			ShowFeedback(string.Format(TranslationServer.Translate("Symmetry Spokes: {0}-way"), spokes));
-		}
+		private void SetSymmetrySpokes(int spokes) => Symmetry.SetSymmetrySpokes(spokes);
 
 		public void UpdateSymmetrySpokesDropdowns()
 		{
@@ -1503,26 +1495,9 @@ namespace Realm.Client.UI
 			};
 		}
 
-		private void SetPolarRingSpacing(float spacing)
-		{
-			GameContext.EditorService.SetPolarRingSpacingDomain(spacing);
-			UpdatePolarRingSpacingButtonText();
-			ShowFeedback(string.Format(TranslationServer.Translate("Polar Ring Spacing: {0:F0} tiles"), spacing));
-		}
+		private void SetPolarRingSpacing(float spacing) => Symmetry.SetPolarRingSpacing(spacing);
 
-		private void SetPolarSpokesView(int spokes)
-		{
-			if (GameContext.Host == null) return;
-			if (GameContext.Host.EditorMirrorMode == MirrorMode.Rotational)
-			{
-				SetSymmetrySpokes(spokes);
-				return;
-			}
-
-			GameContext.EditorService.SetPolarSpokesDomain(spokes);
-			UpdatePolarRadialStepButtonText();
-			ShowFeedback(string.Format(TranslationServer.Translate("Polar Spokes: {0}-way"), spokes));
-		}
+		private void SetPolarSpokesView(int spokes) => Symmetry.SetPolarSpokesView(spokes);
 
 		private void ResetPivotToMapCenterView()
 		{
