@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Globalization;
 using System.Threading.Tasks;
 using Godot;
@@ -132,7 +132,7 @@ public partial class PlayerProfileDialog : Control
 
 	private static StyleBox CreateBackdropStyle()
 	{
-		Texture2D backdropTexture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/player_profile_bg.webp");
+		Texture2D? backdropTexture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/player_profile_bg.webp");
 		if (backdropTexture == null) return UIStyle.CreateBgGradient();
 
 		return new StyleBoxTexture { Texture = backdropTexture };
@@ -140,7 +140,7 @@ public partial class PlayerProfileDialog : Control
 
 	private static StyleBox CreateCardStyle()
 	{
-		Texture2D cardTexture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/player_profile_card_bg.webp");
+		Texture2D? cardTexture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/player_profile_card_bg.webp");
 		if (cardTexture == null) return UIStyle.CreateStonePanel();
 
 		var style = new StyleBoxTexture
@@ -177,7 +177,7 @@ public partial class PlayerProfileDialog : Control
 	private TextureRect CreateFactionFlag()
 	{
 		var factionFlag = new TextureRect { Name = "PlayerProfileFactionFlag" };
-		Texture2D flagTexture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/alliance_flag.webp");
+		Texture2D? flagTexture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/alliance_flag.webp");
 		if (flagTexture == null) flagTexture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/profile_frame_normal.webp");
 
 		factionFlag.Texture = flagTexture;
@@ -229,11 +229,11 @@ public partial class PlayerProfileDialog : Control
 		button.TooltipText = TranslationServer.Translate("Change your username");
 		button.FocusMode = FocusModeEnum.None;
 		button.MouseDefaultCursorShape = CursorShape.PointingHand;
-		button.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
+		button.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 		UIStyle.ApplyButtonStyleBoxesClearingFocus(button);
 		button.Pressed += () =>
 		{
-			GameContext.UserInterface.PlayClickSound();
+			GameContext.UserInterface?.PlayClickSound();
 			OpenUserNameChangeDialog();
 		};
 
@@ -755,14 +755,14 @@ public partial class PlayerProfileDialog : Control
 		button.CustomMinimumSize = new Vector2(210, 48);
 		button.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
 		button.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
-		button.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
+		button.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 		button.Pressed += () =>
 		{
-			GameContext.UserInterface.PlayClickSound();
+			GameContext.UserInterface?.PlayClickSound();
 			QueueFree();
 		};
 
-		Texture2D buttonTexture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/player_profile_button.webp");
+		Texture2D? buttonTexture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/player_profile_button.webp");
 		if (buttonTexture != null)
 		{
 			var normalStyle = new StyleBoxTexture
