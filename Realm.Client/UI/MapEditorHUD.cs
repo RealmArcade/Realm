@@ -71,9 +71,6 @@ public partial class MapEditorHUD : Control
 
 
 
-	private VBoxContainer _accordionTool { get; set; } = null!;
-	private Button _btnHeaderTool { get; set; } = null!;
-	private VBoxContainer _contentTool { get; set; } = null!;
 
 	private VBoxContainer _accordionToolSettings { get; set; } = null!;
 	private Button _btnHeaderToolSettings { get; set; } = null!;
@@ -104,14 +101,6 @@ public partial class MapEditorHUD : Control
 	private VBoxContainer _containerEyedropperSettings { get; set; } = null!;
 	private VBoxContainer _containerCategorySelector { get; set; } = null!;
 
-	private VBoxContainer _panelObjects { get; set; } = null!;
-	private VBoxContainer _panelClipboard { get; set; } = null!;
-	private VBoxContainer _panelTerrainVBox { get; set; } = null!;
-	private VBoxContainer _panelDecoVBox { get; set; } = null!;
-	private VBoxContainer _panelPathingVBox { get; set; } = null!;
-	private VBoxContainer _panelCoordinatesVBox { get; set; } = null!;
-	private Button _btnCut { get; set; } = null!;
-	private Button _btnEraseArea { get; set; } = null!;
 
 	private OptionButton _optPolarRingSpacing { get; set; } = null!;
 	private OptionButton _optPolarRadialStep { get; set; } = null!;
@@ -152,7 +141,6 @@ public partial class MapEditorHUD : Control
 	private Button _btnLoadMore { get; set; } = null!;
 	private PopupPanel _popupLoadMore { get; set; } = null!;
 	private Button _btnImportArchive { get; set; } = null!;
-	private Button _btnDeleteObject { get; set; } = null!;
 	private Button _btnUndo { get; set; } = null!;
 	private Button _btnRedo { get; set; } = null!;
 
@@ -167,7 +155,6 @@ public partial class MapEditorHUD : Control
 
 
 
-	private Button _btnAddObject { get; set; } = null!;
 	private Control _spacingBox { get; set; } = null!;
 	private Control _camBoundsBox { get; set; } = null!;
 
@@ -217,8 +204,6 @@ public partial class MapEditorHUD : Control
 
 	private VBoxContainer _placementRotateBox { get; set; } = null!;
 	private VBoxContainer _placementScaleBox { get; set; } = null!;
-	private Button _btnCopy { get; set; } = null!;
-	private Button _btnPaste { get; set; } = null!;
 	private Button _btnToggleGrid { get; set; } = null!;
 	private PopupMenu _popupOverlayMode { get; set; } = null!;
 	private Button _btnToggleEnvironment { get; set; } = null!;
@@ -231,8 +216,6 @@ public partial class MapEditorHUD : Control
 	private PopupPanel _popupSaveMore { get; set; } = null!;
 	private Button _btnEyedropper { get; set; } = null!;
 	private OptionButton _optEyedropperMode { get; set; } = null!;
-	private Button _btnNoise { get; set; } = null!;
-	private Button _btnWater { get; set; } = null!;
 	private PanelContainer _minimapFrame { get; set; } = null!;
 	private Control _minimapArea { get; set; } = null!;
 	private MapEditorCameraIndicator _cameraIndicator { get; set; } = null!;
@@ -243,18 +226,8 @@ public partial class MapEditorHUD : Control
 	private CheckBox _chkFreeCamera { get; set; } = null!;
 
 
-	private Button _btnRaise { get; set; } = null!;
-	private Button _btnLower { get; set; } = null!;
-	private Button _btnHeight { get; set; } = null!;
-	private Button _btnSmooth { get; set; } = null!;
-	private Button _btnPlateau { get; set; } = null!;
-	private Button _btnRamp { get; set; } = null!;
 
-	private Button _btnTextureBrush { get; set; } = null!;
 
-	private Button _btnFloodFill { get; set; } = null!;
-	private Button _btnSelectArea { get; set; } = null!;
-	private Button _btnSelectMove { get; set; } = null!;
 	private PanelContainer _inspectorPanel { get; set; } = null!;
 	private Label _lblInspectorTitle { get; set; } = null!;
 	private Label _lblInspectorPos { get; set; } = null!;
@@ -270,8 +243,6 @@ public partial class MapEditorHUD : Control
 	private PanelContainer _rigStatusContainer { get; set; } = null!;
 	private Label _lblRigStatus { get; set; } = null!;
 
-	private Button _btnPathingBrush { get; set; } = null!;
-	private Button _btnFloodFillPathing { get; set; } = null!;
 	private CheckBox _chkShallowWater { get; set; } = null!;
 	private CheckBox _chkDeepWater { get; set; } = null!;
 	private CheckBox _chkFlying { get; set; } = null!;
@@ -281,10 +252,6 @@ public partial class MapEditorHUD : Control
 	private OptionButton _optPathingMode { get; set; } = null!;
 
 
-	private Button _btnDrawCoordinate { get; set; } = null!;
-	private LineEdit? _txtCoordinateName { get; set; }
-	private Button _btnCommitCoordinate { get; set; } = null!;
-	private Button _btnViewCoordinates { get; set; } = null!;
 
 
 	private Button? _activeToolButton { get; set; }
@@ -314,6 +281,7 @@ public partial class MapEditorHUD : Control
 	private MapEditorInspector _inspectorController { get; set; } = null!;
 	private MapEditorPathingPanel _pathingPanelController { get; set; } = null!;
 	private PlacementSettingsPanel _placementPanel { get; set; } = null!;
+	private ToolAccordionPanel _toolPanel { get; set; } = null!;
 	private BrushSettingsPanel _brushPanel { get; set; } = null!;
 	private WaterSettingsPanel _waterPanel { get; set; } = null!;
 	private PasteSettingsPanel _pastePanel { get; set; } = null!;
@@ -879,9 +847,9 @@ public partial class MapEditorHUD : Control
 
 	private void UpdatePanelVisibilityForToolPathing(EditorTool tool)
 	{
-		if (tool == EditorTool.DrawCoordinate && _btnCommitCoordinate != null)
+		if (tool == EditorTool.DrawCoordinate && _toolPanel?.CommitCoordinateButton != null)
 		{
-			_btnCommitCoordinate.Visible = false;
+			_toolPanel.CommitCoordinateButton.Visible = false;
 		}
 
 		if (NeedsPathingOverlay(tool))
@@ -995,7 +963,7 @@ public partial class MapEditorHUD : Control
 
 		if (_accordionFile != null) _accordionFile.Visible = true;
 		if (_accordionViewport != null) _accordionViewport.Visible = true;
-		if (_accordionTool != null) _accordionTool.Visible = true;
+		if (_toolPanel?.Accordion != null) _toolPanel.Accordion.Visible = true;
 
 		if (_brushPanel?.Accordion != null) _brushPanel.Accordion.Visible = IsBrushAccordionVisible(module);
 		if (_accordionToolSettings != null) _accordionToolSettings.Visible = IsToolSettingsAccordionVisible(module);
@@ -1005,12 +973,12 @@ public partial class MapEditorHUD : Control
 
 	private void SetModuleVBoxVisibilities(EditorModule module)
 	{
-		if (_panelTerrainVBox != null) _panelTerrainVBox.Visible = (module == EditorModule.Terrain);
-		if (_panelDecoVBox != null) _panelDecoVBox.Visible = (module == EditorModule.TextureDeco);
-		if (_panelPathingVBox != null) _panelPathingVBox.Visible = (module == EditorModule.Pathing);
-		if (_panelCoordinatesVBox != null) _panelCoordinatesVBox.Visible = (module == EditorModule.Coordinates);
-		if (_panelObjects != null) _panelObjects.Visible = (module == EditorModule.Objects);
-		if (_panelClipboard != null) _panelClipboard.Visible = (module == EditorModule.Clipboard);
+		if (_toolPanel?.TerrainPanel != null) _toolPanel.TerrainPanel.Visible = (module == EditorModule.Terrain);
+		if (_toolPanel?.DecoPanel != null) _toolPanel.DecoPanel.Visible = (module == EditorModule.TextureDeco);
+		if (_toolPanel?.PathingPanel != null) _toolPanel.PathingPanel.Visible = (module == EditorModule.Pathing);
+		if (_toolPanel?.CoordinatesPanel != null) _toolPanel.CoordinatesPanel.Visible = (module == EditorModule.Coordinates);
+		if (_toolPanel?.ObjectsPanel != null) _toolPanel.ObjectsPanel.Visible = (module == EditorModule.Objects);
+		if (_toolPanel?.ClipboardPanel != null) _toolPanel.ClipboardPanel.Visible = (module == EditorModule.Clipboard);
 	}
 
 	private void SetSettingsVisibilities(EditorModule module)
@@ -1023,7 +991,7 @@ public partial class MapEditorHUD : Control
 
 	private void SetContentHeaders(EditorModule module)
 	{
-		SetHeaderContent(_contentTool, _btnHeaderTool, true, "Tool");
+		SetHeaderContent(_toolPanel.Content, _toolPanel.Header, true, "Tool");
 
 		bool showBrush = module is EditorModule.Terrain or EditorModule.TextureDeco or EditorModule.Pathing;
 		SetHeaderContent(_brushPanel.Content, _brushPanel.Header, showBrush, "Global Brush Properties");
@@ -1047,7 +1015,7 @@ public partial class MapEditorHUD : Control
 	{
 		UpdateCardScrollState(_contentFile, 300f);
 		UpdateCardScrollState(_contentViewport, 0f, false);
-		UpdateCardScrollState(_contentTool, 320f);
+		UpdateCardScrollState(_toolPanel.Content, 320f);
 		UpdateCardScrollState(_brushPanel.Content, 300f);
 		UpdateCardScrollState(_contentToolSettings, 320f);
 		UpdateCardScrollState(_placementPanel.Content, 320f);
@@ -1190,7 +1158,7 @@ public partial class MapEditorHUD : Control
 	{
 		Control[] optionContents = new Control[]
 		{
-			_contentFile, _contentViewport, _contentTool,
+			_contentFile, _contentViewport, _toolPanel.Content,
 			_brushPanel.Content, _contentToolSettings, _placementPanel.Content, _contentInspector, _contentLightingTuning
 		};
 		foreach (var content in optionContents)

@@ -327,7 +327,7 @@ namespace Realm.Client.UI
 		{
 			if (_accordionFile != null) _accordionFile.CustomMinimumSize = new Vector2(260, 0);
 			if (_accordionViewport != null) _accordionViewport.CustomMinimumSize = new Vector2(260, 0);
-			if (_accordionTool != null) _accordionTool.CustomMinimumSize = new Vector2(260, 0);
+			if (_toolPanel?.Accordion != null) _toolPanel.Accordion.CustomMinimumSize = new Vector2(260, 0);
 			if (_brushPanel?.Accordion != null) _brushPanel.Accordion.CustomMinimumSize = new Vector2(260, 0);
 			if (_accordionToolSettings != null) _accordionToolSettings.CustomMinimumSize = new Vector2(260, 0);
 			if (_placementPanel?.Accordion != null) _placementPanel.Accordion.CustomMinimumSize = new Vector2(260, 0);
@@ -336,7 +336,7 @@ namespace Realm.Client.UI
 
 			ApplyCardPanelStyle(_accordionFile);
 			ApplyCardPanelStyle(_accordionViewport);
-			ApplyCardPanelStyle(_accordionTool);
+			ApplyCardPanelStyle(_toolPanel.Accordion);
 			ApplyCardPanelStyle(_brushPanel.Accordion);
 			if (_waterPanel?.Accordion != null) ApplyCardPanelStyle(_waterPanel.Accordion);
 			ApplyCardPanelStyle(_accordionToolSettings);
@@ -348,7 +348,7 @@ namespace Realm.Client.UI
 		{
 			StyleContentBox(_contentFile);
 			StyleContentBox(_contentViewport);
-			StyleContentBox(_contentTool);
+			StyleContentBox(_toolPanel.Content);
 			StyleContentBox(_brushPanel.Content);
 			if (_waterPanel?.Content != null) StyleContentBox(_waterPanel.Content);
 			StyleContentBox(_contentToolSettings);
@@ -360,7 +360,7 @@ namespace Realm.Client.UI
 		{
 			SetupCardScrollContainer(_contentFile, 300f);
 			SetupCardScrollContainer(_contentViewport, 0f, false);
-			SetupCardScrollContainer(_contentTool, 320f);
+			SetupCardScrollContainer(_toolPanel.Content, 320f);
 			SetupCardScrollContainer(_brushPanel.Content, 300f);
 			if (_waterPanel?.Content != null) SetupCardScrollContainer(_waterPanel.Content, 200f);
 			SetupCardScrollContainer(_contentToolSettings, 320f);
@@ -400,28 +400,28 @@ namespace Realm.Client.UI
 
 		private void ApplyToolButtonsStyles()
 		{
-			StyleRowButton(_btnRaise);
-			StyleRowButton(_btnLower);
-			StyleRowButton(_btnHeight);
-			StyleRowButton(_btnSmooth);
-			StyleRowButton(_btnPlateau);
-			StyleRowButton(_btnRamp);
-			StyleRowButton(_btnNoise);
-			StyleRowButton(_btnWater);
-			StyleRowButton(_btnTextureBrush);
-			StyleRowButton(_btnFloodFill);
-			StyleRowButton(_btnPathingBrush);
-			StyleRowButton(_btnFloodFillPathing);
-			StyleRowButton(_btnAddObject);
-			StyleRowButton(_btnSelectMove);
-			StyleRowButton(_btnDeleteObject);
-			StyleRowButton(_btnDrawCoordinate);
-			StyleRowButton(_btnCommitCoordinate);
-			StyleRowButton(_btnSelectArea);
-			StyleRowButton(_btnCut);
-			StyleRowButton(_btnCopy);
-			StyleRowButton(_btnPaste);
-			StyleRowButton(_btnEraseArea);
+			StyleRowButton(_toolPanel.RaiseButton);
+			StyleRowButton(_toolPanel.LowerButton);
+			StyleRowButton(_toolPanel.HeightButton);
+			StyleRowButton(_toolPanel.SmoothButton);
+			StyleRowButton(_toolPanel.FlattenButton);
+			StyleRowButton(_toolPanel.RampButton);
+			StyleRowButton(_toolPanel.NoiseButton);
+			StyleRowButton(_toolPanel.WaterButton);
+			StyleRowButton(_toolPanel.TextureBrushButton);
+			StyleRowButton(_toolPanel.FloodFillButton);
+			StyleRowButton(_toolPanel.PathingBrushButton);
+			StyleRowButton(_toolPanel.FloodFillPathingButton);
+			StyleRowButton(_toolPanel.AddObjectButton);
+			StyleRowButton(_toolPanel.SelectMoveButton);
+			StyleRowButton(_toolPanel.DeleteObjectButton);
+			StyleRowButton(_toolPanel.DrawCoordinateButton);
+			StyleRowButton(_toolPanel.CommitCoordinateButton);
+			StyleRowButton(_toolPanel.SelectAreaButton);
+			StyleRowButton(_toolPanel.CutButton);
+			StyleRowButton(_toolPanel.CopyButton);
+			StyleRowButton(_toolPanel.PasteButton);
+			StyleRowButton(_toolPanel.EraseAreaButton);
 		}
 
 		private void ApplyInspectorButtonsStyles()
@@ -2572,7 +2572,7 @@ namespace Realm.Client.UI
 		{
 			ResetSingleCardPosition(_accordionFile);
 			ResetSingleCardPosition(_accordionViewport);
-			ResetSingleCardPosition(_accordionTool);
+			ResetSingleCardPosition(_toolPanel.Accordion);
 			ResetSingleCardPosition(_brushPanel.Accordion);
 			ResetSingleCardPosition(_accordionToolSettings);
 			ResetSingleCardPosition(_placementPanel.Accordion);

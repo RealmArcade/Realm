@@ -189,7 +189,7 @@ namespace Realm.Client.UI
 
 				if (!IsSwatchCompatibleTool(GameContext.Host.ActiveEditorTool))
 				{
-					TriggerToolSelection(EditorTool.PaintTexture, _btnTextureBrush);
+					TriggerToolSelection(EditorTool.PaintTexture, _toolPanel.TextureBrushButton);
 				}
 
 				UpdateTextureLabels();

@@ -193,13 +193,13 @@ namespace Realm.Client.UI
 
 		private void WireEditorControllers()
 		{
-			TriggerToolSelection(EditorTool.Raise, _btnRaise);
+			TriggerToolSelection(EditorTool.Raise, _toolPanel.RaiseButton);
 
 			_feedbackLabel.Modulate = new Color(1, 1, 1, 0);
 			Input.MouseMode = Input.MouseModeEnum.Visible;
 
 
-			_entityPaletteController = new MapEditorEntityPaletteController(this, _containerCategorySelector, _btnAddObject);
+			_entityPaletteController = new MapEditorEntityPaletteController(this, _containerCategorySelector, _toolPanel.AddObjectButton);
 
 			_topBarController = new MapEditorTopBar(_btnBackToHub, _btnPublish, _btnSave, _btnLoad, _btnUndo, _btnRedo, _btnEditors, _statusLabel, _feedbackLabel);
 			_brushSettingsController = new MapEditorBrushSettings(_brushPanel.SizeSlider, _brushPanel.SizeValue, _brushPanel.StrengthSlider, _brushPanel.StrengthValue, _brushPanel.BlockModeCheck, _brushPanel.StepSlider, _brushPanel.StepValue, _brushPanel.HeightSlider, _brushPanel.HeightValue);
@@ -215,7 +215,7 @@ namespace Realm.Client.UI
 
 			MakeCardDraggable(_accordionFile, _btnHeaderFile, _contentFile, "File");
 			MakeCardDraggable(_accordionViewport, _btnHeaderViewport, _contentViewport, "Viewport & Navigation");
-			MakeCardDraggable(_accordionTool, _btnHeaderTool, _contentTool, "Tool");
+			MakeCardDraggable(_toolPanel.Accordion, _toolPanel.Header, _toolPanel.Content, "Tool");
 			MakeCardDraggable(_brushPanel.Accordion, _brushPanel.Header, _brushPanel.Content, "Global Brush Properties");
 			MakeCardDraggable(_accordionToolSettings, _btnHeaderToolSettings, _contentToolSettings, "Tool Settings");
 			MakeCardDraggable(_placementPanel.Accordion, _placementPanel.Header, _placementPanel.Content, "Placement Config");
@@ -1138,126 +1138,13 @@ namespace Realm.Client.UI
 
 		private void BuildToolAccordion()
 		{
-			_accordionTool = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion");
-			_btnHeaderTool = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/BtnHeaderTool");
-			_contentTool = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool");
-			StyleAccordionHeader(_btnHeaderTool);
-			SetupAccordion(_btnHeaderTool, _contentTool, TranslationServer.Translate("Tool"));
-
-			_panelTerrainVBox = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelTerrainVBox");
-			_panelDecoVBox = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelDecoVBox");
-			_panelPathingVBox = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelPathingVBox");
-			_panelCoordinatesVBox = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelCoordinatesVBox");
-			_panelObjects = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelObjectsVBox");
-			_panelClipboard = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelClipboard");
-
-			var terrainGrid = GetNode<GridContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelTerrainVBox/TerrainGrid_GridContainer");
-			var decoGrid = GetNode<GridContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelDecoVBox/DecoGrid_GridContainer");
-			var pathGrid = GetNode<GridContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelPathingVBox/PathGrid_GridContainer");
-			var objGrid = GetNode<GridContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelObjectsVBox/ObjGrid_GridContainer");
-			var clipGrid = GetNode<GridContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelClipboard/ClipGrid_GridContainer");
-
-			BuildTerrainToolCards(terrainGrid);
-
-			_btnTextureBrush = CreateToolCardView(decoGrid, "BtnTextureBrush", UnicodeIcons.PAINT_BRUSH, "Paint", () => TriggerToolSelection(EditorTool.PaintTexture, _btnTextureBrush), "Paint terrain texture (8)");
-
-			_btnFloodFill = CreateToolCardView(decoGrid, "BtnFloodFill", UnicodeIcons.FILL_DRIP, "Flood Fill", () => TriggerToolSelection(EditorTool.FloodFill, _btnFloodFill), "Flood fill terrain texture");
-
-			BuildAreaAndPathingToolCards(clipGrid, pathGrid);
-
-			BuildObjectToolCards(objGrid);
-
-			BuildCoordinatePanel();
-
-			_btnCut = CreateToolCardView(clipGrid, "BtnCut", UnicodeIcons.SCISSORS, "Cut", () => GameContext.EditorService.CutSelectedArea(), "Cut selected area to clipboard (Ctrl+X)");
-
-			_btnCopy = CreateToolCardView(clipGrid, "BtnCopy", UnicodeIcons.COPY, "Copy", () => GameContext.EditorService.CopySelectedArea(), "Copy selected area to clipboard (Ctrl+C)");
-
-			_btnPaste = CreateToolCardView(clipGrid, "BtnPaste", UnicodeIcons.PASTE, "Paste", () => TriggerToolSelection(EditorTool.PasteArea, _btnPaste), "Paste clipboard contents onto terrain (Ctrl+V)");
-
-			_btnEraseArea = CreateToolCardView(clipGrid, "BtnEraseArea", UnicodeIcons.TRASH, "Erase Area", () => GameContext.EditorService.EraseSelectedArea(), "Erase heights, textures and objects within selection (Delete)");
-		}
-
-
-		private void BuildTerrainToolCards(GridContainer terrainGrid)
-		{
-			_btnRaise = CreateToolCardView(terrainGrid, "BtnRaise", UnicodeIcons.ARROW_UP, "Raise", () => TriggerToolSelection(EditorTool.Raise, _btnRaise), "Elevate terrain height (1)");
-
-			_btnLower = CreateToolCardView(terrainGrid, "BtnLower", UnicodeIcons.ARROW_DOWN, "Lower", () => TriggerToolSelection(EditorTool.Lower, _btnLower), "Lower terrain height (2)");
-
-			_btnHeight = CreateToolCardView(terrainGrid, "BtnHeight", UnicodeIcons.ARROWS_V, "Height", () => TriggerToolSelection(EditorTool.Height, _btnHeight), "Set terrain to exact height (3)");
-
-			_btnSmooth = CreateToolCardView(terrainGrid, "BtnSmooth", UnicodeIcons.SMOOTH, "Smooth", () => TriggerToolSelection(EditorTool.Smooth, _btnSmooth), "Smooth terrain height (4)");
-
-			_btnPlateau = CreateToolCardView(terrainGrid, "BtnPlateau", UnicodeIcons.SQUARE, "Flatten", () => TriggerToolSelection(EditorTool.Plateau, _btnPlateau), "Flatten terrain to cursor height on click (5)");
-
-			_btnRamp = CreateToolCardView(terrainGrid, "BtnRamp", UnicodeIcons.RAMP, "Ramp", () => TriggerToolSelection(EditorTool.Ramp, _btnRamp), "Create ramp between two points (6)");
-
-			_btnNoise = CreateToolCardView(terrainGrid, "BtnNoise", UnicodeIcons.NOISE, "Noise", () => TriggerToolSelection(EditorTool.Noise, _btnNoise), "Add random height variations/noise to terrain (7)");
-
-			_btnWater = CreateToolCardView(terrainGrid, "BtnWater", UnicodeIcons.WATER, "Water", () => TriggerToolSelection(EditorTool.Water, _btnWater), "Flood fill water mesh bounded by cliff walls (0)");
-		}
-
-
-		private void BuildAreaAndPathingToolCards(GridContainer clipGrid, GridContainer pathGrid)
-		{
-			_btnSelectArea = CreateToolCardView(clipGrid, "BtnSelectArea", UnicodeIcons.EXPAND_ARROWS, "Select Area", () => TriggerToolSelection(EditorTool.SelectArea, _btnSelectArea), "Select rectangular area");
-
-			_btnPathingBrush = CreateToolCardView(pathGrid, "BtnPathingBrush", UnicodeIcons.BRUSH_ALT, "Brush", () => TriggerToolSelection(EditorTool.PaintPathing, _btnPathingBrush), "Paint pathing attributes onto the terrain map");
-
-			_btnFloodFillPathing = CreateToolCardView(pathGrid, "BtnFloodFillPathing", UnicodeIcons.FILL_DRIP, "Flood Fill", () => TriggerToolSelection(EditorTool.FloodFillPathing, _btnFloodFillPathing), "Flood fill pathing attributes onto the terrain map");
-		}
-
-
-		private void BuildObjectToolCards(GridContainer objGrid)
-		{
-			_btnSelectMove = CreateToolCardView(objGrid, "BtnSelectMove", UnicodeIcons.MOVE, "Select/Move", () => TriggerToolSelection(EditorTool.SelectMove, _btnSelectMove), "Select and move units, props, or decals");
-
-			_btnAddObject = CreateToolCardView(objGrid, "BtnAddObject", UnicodeIcons.CUBE, "Add Object", () => _entityPaletteController?.TriggerAddObjectMode(), "Place units, props, or decals");
-
-			_btnDeleteObject = CreateToolCardView(objGrid, "BtnDeleteObject", UnicodeIcons.TRASH, "Erase", () =>
-			{
-				if (GodotObject.IsInstanceValid(GameContext.Host?.SelectedEditorObject))
-					DeleteSelectedObjectAction();
-				else
-					TriggerToolSelection(EditorTool.DeleteObject, _btnDeleteObject);
-			}, "Erase units, props, or decals");
-		}
-
-
-		private void BuildCoordinatePanel()
-		{
-			_btnDrawCoordinate = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelCoordinatesVBox/BtnDrawCoordinate");
-			SetupButton(_btnDrawCoordinate, $"{UnicodeIcons.DRAW_POLYGON} DRAW COORD", () => TriggerToolSelection(EditorTool.DrawCoordinate, _btnDrawCoordinate), 11, "Drag to define a named coordinate box exposed as C# variables");
-
-			_txtCoordinateName = GetNode<LineEdit>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelCoordinatesVBox/CoordinateNameRow/TxtCoordinateName");
-			_btnCommitCoordinate = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelCoordinatesVBox/BtnCommitCoordinate");
-			SetupButton(_btnCommitCoordinate, "+ ADD", null, 11, "Create named coordinate");
-			_btnCommitCoordinate.Pressed += () =>
-			{
-				if (GameContext.EditorService.Tools.PendingCoordinateMinX == GameContext.EditorService.Tools.PendingCoordinateMaxX && GameContext.EditorService.Tools.PendingCoordinateMinZ == GameContext.EditorService.Tools.PendingCoordinateMaxZ)
-				{
-					ShowFeedback("Select a valid area first by dragging.");
-					return;
-				}
-
-				string name = _txtCoordinateName?.Text ?? "";
-				if (string.IsNullOrWhiteSpace(name))
-				{
-					ShowFeedback("Enter a coordinate name before creating.");
-					return;
-				}
-
-				bool ok = GameContext.IEditorAPI?.CommitCoordinate(name, GameContext.EditorService.Tools.PendingCoordinateMinX, GameContext.EditorService.Tools.PendingCoordinateMinZ, GameContext.EditorService.Tools.PendingCoordinateMaxX, GameContext.EditorService.Tools.PendingCoordinateMaxZ) ?? false;
-				if (ok)
-				{
-					RefreshCoordinateListExternal();
-					ShowFeedback($"Coordinate '{name}' created.");
-					_txtCoordinateName?.Text = "";
-				}
-			};
-			_btnViewCoordinates = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelCoordinatesVBox/BtnViewCoordinates");
-			SetupOptionButton(_btnViewCoordinates, $"{UnicodeIcons.LIST} View Existing Coordinates", () => OpenInstanceManagerDialog("Coordinates"), 11, "Open instance manager to view and locate existing defined coordinates");
+			_toolPanel = new ToolAccordionPanel();
+			// The per-tool buttons the panel creates come back through its properties, so tool highlighting and the
+			// sidebar morph keep reading one set of cards; only selection and the object/coordinate actions are handed in.
+			_toolPanel.Build(new ToolAccordionHooks(
+				this, StyleAccordionHeader, SetupAccordion, SetupButton, SetupOptionButton, (tool, btn) => TriggerToolSelection(tool, btn),
+				GetFontAwesomeFont, () => _entityPaletteController?.TriggerAddObjectMode(), DeleteSelectedObjectAction,
+				ShowFeedback, RefreshCoordinateListExternal, OpenInstanceManagerDialog));
 		}
 
 
@@ -1767,8 +1654,8 @@ namespace Realm.Client.UI
 		public void OpenCoordinateNamingPanel(int minX, int minZ, int maxX, int maxZ)
 		{
 			GameContext.EditorService.SetPendingCoordinatesDomain(minX, minZ, maxX, maxZ);
-			if (_btnCommitCoordinate != null) _btnCommitCoordinate.Visible = true;
-			if (_txtCoordinateName != null) _txtCoordinateName.GrabFocus();
+			if (_toolPanel.CommitCoordinateButton != null) _toolPanel.CommitCoordinateButton.Visible = true;
+			if (_toolPanel.CoordinateNameInput != null) _toolPanel.CoordinateNameInput.GrabFocus();
 		}
 
 		public void UpdateMeasureToolExternal(bool active)
@@ -2132,28 +2019,28 @@ namespace Realm.Client.UI
 			Button? targetBtn = null;
 			switch (tool)
 			{
-				case EditorTool.Raise: targetBtn = _btnRaise; break;
-				case EditorTool.Lower: targetBtn = _btnLower; break;
-				case EditorTool.Height: targetBtn = _btnHeight; break;
-				case EditorTool.Smooth: targetBtn = _btnSmooth; break;
-				case EditorTool.Plateau: targetBtn = _btnPlateau; break;
-				case EditorTool.Ramp: targetBtn = _btnRamp; break;
-				case EditorTool.Noise: targetBtn = _btnNoise; break;
-				case EditorTool.Water: targetBtn = _btnWater; break;
-				case EditorTool.PaintTexture: targetBtn = _btnTextureBrush; break;
-				case EditorTool.FloodFill: targetBtn = _btnFloodFill; break;
-				case EditorTool.PaintPathing: targetBtn = _btnPathingBrush; break;
-				case EditorTool.FloodFillPathing: targetBtn = _btnFloodFillPathing; break;
-				case EditorTool.DrawCoordinate: targetBtn = _btnDrawCoordinate; break;
-				case EditorTool.SelectArea: targetBtn = _btnSelectArea; break;
-				case EditorTool.PasteArea: targetBtn = _btnPaste; break;
+				case EditorTool.Raise: targetBtn = _toolPanel.RaiseButton; break;
+				case EditorTool.Lower: targetBtn = _toolPanel.LowerButton; break;
+				case EditorTool.Height: targetBtn = _toolPanel.HeightButton; break;
+				case EditorTool.Smooth: targetBtn = _toolPanel.SmoothButton; break;
+				case EditorTool.Plateau: targetBtn = _toolPanel.FlattenButton; break;
+				case EditorTool.Ramp: targetBtn = _toolPanel.RampButton; break;
+				case EditorTool.Noise: targetBtn = _toolPanel.NoiseButton; break;
+				case EditorTool.Water: targetBtn = _toolPanel.WaterButton; break;
+				case EditorTool.PaintTexture: targetBtn = _toolPanel.TextureBrushButton; break;
+				case EditorTool.FloodFill: targetBtn = _toolPanel.FloodFillButton; break;
+				case EditorTool.PaintPathing: targetBtn = _toolPanel.PathingBrushButton; break;
+				case EditorTool.FloodFillPathing: targetBtn = _toolPanel.FloodFillPathingButton; break;
+				case EditorTool.DrawCoordinate: targetBtn = _toolPanel.DrawCoordinateButton; break;
+				case EditorTool.SelectArea: targetBtn = _toolPanel.SelectAreaButton; break;
+				case EditorTool.PasteArea: targetBtn = _toolPanel.PasteButton; break;
 				case EditorTool.PlaceUnit:
 				case EditorTool.PlaceProp:
 				case EditorTool.PlaceDecal:
-					targetBtn = _btnAddObject;
+					targetBtn = _toolPanel.AddObjectButton;
 					break;
-				case EditorTool.DeleteObject: targetBtn = _btnDeleteObject; break;
-				case EditorTool.SelectMove: targetBtn = _btnSelectMove; break;
+				case EditorTool.DeleteObject: targetBtn = _toolPanel.DeleteObjectButton; break;
+				case EditorTool.SelectMove: targetBtn = _toolPanel.SelectMoveButton; break;
 				case EditorTool.Eyedropper: targetBtn = _btnEyedropper; break;
 				case EditorTool.Measure: targetBtn = _btnTapeMeasure; break;
 			}
@@ -2168,22 +2055,22 @@ namespace Realm.Client.UI
 		{
 			return tool switch
 			{
-				EditorTool.Raise => _btnRaise,
-				EditorTool.Lower => _btnLower,
-				EditorTool.Height => _btnHeight,
-				EditorTool.Smooth => _btnSmooth,
-				EditorTool.Plateau => _btnPlateau,
-				EditorTool.Ramp => _btnRamp,
-				EditorTool.Noise => _btnNoise,
-				EditorTool.Water => _btnWater,
-				EditorTool.PaintPathing => _btnPathingBrush,
-				EditorTool.FloodFillPathing => _btnFloodFillPathing,
-				EditorTool.DrawCoordinate => _btnDrawCoordinate,
-				EditorTool.SelectArea => _btnSelectArea,
-				EditorTool.SelectMove => _btnSelectMove,
-				EditorTool.DeleteObject => _btnDeleteObject,
+				EditorTool.Raise => _toolPanel.RaiseButton,
+				EditorTool.Lower => _toolPanel.LowerButton,
+				EditorTool.Height => _toolPanel.HeightButton,
+				EditorTool.Smooth => _toolPanel.SmoothButton,
+				EditorTool.Plateau => _toolPanel.FlattenButton,
+				EditorTool.Ramp => _toolPanel.RampButton,
+				EditorTool.Noise => _toolPanel.NoiseButton,
+				EditorTool.Water => _toolPanel.WaterButton,
+				EditorTool.PaintPathing => _toolPanel.PathingBrushButton,
+				EditorTool.FloodFillPathing => _toolPanel.FloodFillPathingButton,
+				EditorTool.DrawCoordinate => _toolPanel.DrawCoordinateButton,
+				EditorTool.SelectArea => _toolPanel.SelectAreaButton,
+				EditorTool.SelectMove => _toolPanel.SelectMoveButton,
+				EditorTool.DeleteObject => _toolPanel.DeleteObjectButton,
 				EditorTool.PaintTexture => GetTextureSwatchButton(placeId),
-				EditorTool.FloodFill => _btnFloodFill,
+				EditorTool.FloodFill => _toolPanel.FloodFillButton,
 				EditorTool.Eyedropper => _btnEyedropper,
 				_ => null
 			};
@@ -2199,7 +2086,7 @@ namespace Realm.Client.UI
 				}
 			}
 
-			return _btnTextureBrush;
+			return _toolPanel.TextureBrushButton;
 		}
 
 		private async Task<bool> PromptAndUpgradeMapIfNeededAsync(string selectedFolder)
@@ -3038,22 +2925,22 @@ namespace Realm.Client.UI
 				switch (module)
 				{
 					case EditorModule.Terrain:
-						TriggerToolSelection(EditorTool.Raise, _btnRaise);
+						TriggerToolSelection(EditorTool.Raise, _toolPanel.RaiseButton);
 						break;
 					case EditorModule.TextureDeco:
-						TriggerToolSelection(EditorTool.PaintTexture, _btnTextureBrush);
+						TriggerToolSelection(EditorTool.PaintTexture, _toolPanel.TextureBrushButton);
 						break;
 					case EditorModule.Pathing:
-						TriggerToolSelection(EditorTool.PaintPathing, _btnPathingBrush);
+						TriggerToolSelection(EditorTool.PaintPathing, _toolPanel.PathingBrushButton);
 						break;
 					case EditorModule.Objects:
 						_entityPaletteController?.TriggerAddObjectMode();
 						break;
 					case EditorModule.Coordinates:
-						TriggerToolSelection(EditorTool.DrawCoordinate, _btnDrawCoordinate);
+						TriggerToolSelection(EditorTool.DrawCoordinate, _toolPanel.DrawCoordinateButton);
 						break;
 					case EditorModule.Clipboard:
-						TriggerToolSelection(EditorTool.SelectArea, _btnSelectArea);
+						TriggerToolSelection(EditorTool.SelectArea, _toolPanel.SelectAreaButton);
 						break;
 				}
 			}
@@ -3250,82 +3137,6 @@ namespace Realm.Client.UI
 			btn.Alignment = HorizontalAlignment.Center;
 		}
 
-		private Button CreateToolCardView(Control cardParent, string buttonName, string iconGlyph, string labelText, Action onClick, string tooltip = "")
-		{
-			var btn = new Button();
-			btn.Name = buttonName;
-
-			btn.Text = iconGlyph;
-			btn.TooltipText = tooltip;
-			btn.Flat = false;
-			btn.CustomMinimumSize = new Vector2(52, 52);
-			btn.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
-			btn.SizeFlagsVertical = SizeFlags.ShrinkCenter;
-
-			var font = GetFontAwesomeFont();
-			if (font != null)
-			{
-				btn.AddThemeFontOverride("font", font);
-			}
-
-			var btnNormal = new StyleBoxFlat();
-			btnNormal.BgColor = new Color(0.16f, 0.15f, 0.13f, 0.90f);
-			btnNormal.BorderColor = new Color(0.42f, 0.36f, 0.26f, 0.85f);
-			btnNormal.SetBorderWidthAll(2);
-			btnNormal.SetCornerRadiusAll(6);
-			btnNormal.ContentMarginLeft = 4;
-			btnNormal.ContentMarginRight = 4;
-			btnNormal.ContentMarginTop = 4;
-			btnNormal.ContentMarginBottom = 4;
-
-			var btnHover = new StyleBoxFlat();
-			btnHover.BgColor = new Color(0.28f, 0.24f, 0.18f, 0.96f);
-			btnHover.BorderColor = UIStyle.ColorGold;
-			btnHover.SetBorderWidthAll(2);
-			btnHover.SetCornerRadiusAll(6);
-			btnHover.ContentMarginLeft = 4;
-			btnHover.ContentMarginRight = 4;
-			btnHover.ContentMarginTop = 4;
-			btnHover.ContentMarginBottom = 4;
-
-			var btnPressed = new StyleBoxFlat();
-			btnPressed.BgColor = new Color(0.36f, 0.30f, 0.20f, 0.98f);
-			btnPressed.BorderColor = UIStyle.ColorGold;
-			btnPressed.SetBorderWidthAll(2);
-			btnPressed.SetCornerRadiusAll(6);
-
-			btn.AddThemeStyleboxOverride("normal", btnNormal);
-			btn.AddThemeStyleboxOverride("hover", btnHover);
-			btn.AddThemeStyleboxOverride("pressed", btnPressed);
-			btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-			btn.AddThemeFontSizeOverride("font_size", 20);
-			btn.AddThemeColorOverride("font_color", new Color(0.95f, 0.90f, 0.82f));
-			btn.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
-
-			if (onClick != null)
-			{
-				btn.Pressed += onClick;
-			}
-
-			var lbl = new Label();
-			lbl.Name = "ToolCardLabel";
-			lbl.Text = labelText;
-			lbl.HorizontalAlignment = HorizontalAlignment.Center;
-			lbl.AddThemeFontSizeOverride("font_size", 10);
-			lbl.AddThemeColorOverride("font_color", new Color(0.88f, 0.84f, 0.78f));
-
-			var card = new VBoxContainer();
-			card.Name = "ToolCard_" + btn.Name;
-			card.AddThemeConstantOverride("separation", 3);
-			card.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-			card.Alignment = BoxContainer.AlignmentMode.Center;
-
-			card.AddChild(btn);
-			card.AddChild(lbl);
-			cardParent.AddChild(card);
-
-			return btn;
-		}
 
 		private void RestructurePanelLayouts()
 		{
@@ -3405,12 +3216,11 @@ namespace Realm.Client.UI
 			}
 		}
 
-
 		private void RestyleOptionButtonContents()
 		{
 			Control[] allOptionContents = new Control[]
 			{
-				_contentFile, _contentViewport, _contentTool,
+				_contentFile, _contentViewport, _toolPanel.Content,
 				_brushPanel.Content, _contentToolSettings, _placementPanel.Content, _contentInspector, _contentLightingTuning
 			};
 			foreach (var content in allOptionContents)
@@ -3449,29 +3259,29 @@ namespace Realm.Client.UI
 
 		private void StyleToolPanelContainers()
 		{
-			if (_panelTerrainVBox != null)
+			if (_toolPanel.TerrainPanel != null)
 			{
-				StyleSubContainer(_panelTerrainVBox, "Terrain Elevation");
+				StyleSubContainer(_toolPanel.TerrainPanel, "Terrain Elevation");
 			}
 
-			if (_panelDecoVBox != null)
+			if (_toolPanel.DecoPanel != null)
 			{
-				StyleSubContainer(_panelDecoVBox, "Texture Actions");
+				StyleSubContainer(_toolPanel.DecoPanel, "Texture Actions");
 			}
 
-			if (_panelPathingVBox != null)
+			if (_toolPanel.PathingPanel != null)
 			{
-				StyleSubContainer(_panelPathingVBox, "Pathing Actions");
+				StyleSubContainer(_toolPanel.PathingPanel, "Pathing Actions");
 			}
 
-			if (_panelObjects != null)
+			if (_toolPanel.ObjectsPanel != null)
 			{
-				StyleSubContainer(_panelObjects, "Object Placement");
+				StyleSubContainer(_toolPanel.ObjectsPanel, "Object Placement");
 			}
 
-			if (_panelClipboard != null)
+			if (_toolPanel.ClipboardPanel != null)
 			{
-				StyleSubContainer(_panelClipboard, "Clipboard Actions");
+				StyleSubContainer(_toolPanel.ClipboardPanel, "Clipboard Actions");
 			}
 
 			var targetInspector = GetContentTarget(_contentInspector);
@@ -4091,7 +3901,7 @@ namespace Realm.Client.UI
 				GameContext.EditorService.SelectCliffTexture(index);
 				if (!IsSwatchCompatibleTool(GameContext.Host.ActiveEditorTool))
 				{
-					TriggerToolSelection(EditorTool.PaintTexture, _btnTextureBrush);
+					TriggerToolSelection(EditorTool.PaintTexture, _toolPanel.TextureBrushButton);
 				}
 
 				UpdateTextureLabels();
