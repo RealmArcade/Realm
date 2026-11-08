@@ -206,7 +206,6 @@ namespace Realm.Client.UI
 			_placementSettingsController = new MapEditorPlacementSettings(_placementPanel.RotateSlider, _placementPanel.RotateValue, _placementPanel.ScaleSlider, _placementPanel.ScaleValue, _placementPanel.RandomRotationCheck, _placementPanel.RandomScaleCheck, _placementPanel.ClumpModeCheck, _placementPanel.DensitySlider, _placementPanel.DensityValue, _placementPanel.ScaleVarSlider, _placementPanel.ScaleVarValue);
 			InitializeInspectorPanel();
 			_inspectorController = new MapEditorInspector(_inspectorView.Title, _inspectorView.PositionLabel, _inspectorView.RotateLeftButton, _inspectorView.RotateRightButton, _inspectorView.ScaleDownButton, _inspectorView.ScaleUpButton, _inspectorView.ScaleResetButton, _inspectorView.DeleteButton);
-			_pathingPanelController = new MapEditorPathingPanel(_chkShallowWater, _chkDeepWater, _chkFlying, _chkGround, _chkBuildable, _optPathingMode);
 
 			SetupMinimap();
 
@@ -636,48 +635,16 @@ namespace Realm.Client.UI
 		private void BuildPathingSettingsPanel()
 		{
 			_containerPathingSettings = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerPathing");
-			var pathingContent = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerPathing/PathingContent");
-			_chkShallowWater = pathingContent.GetNode<CheckBox>("ChkShallowWater");
-			_chkDeepWater = pathingContent.GetNode<CheckBox>("ChkDeepWater");
-			_chkFlying = pathingContent.GetNode<CheckBox>("ChkFlying");
-			_chkGround = pathingContent.GetNode<CheckBox>("ChkGround");
-			_chkBuildable = pathingContent.GetNode<CheckBox>("ChkBuildable");
 
-			SetupPathingCheckBoxRow(pathingContent, _chkShallowWater, new Color(0.2f, 0.6f, 1.0f), "Shallow Water");
-			SetupPathingCheckBoxRow(pathingContent, _chkDeepWater, new Color(0.0f, 0.15f, 0.7f), "Deep Water");
-			SetupPathingCheckBoxRow(pathingContent, _chkFlying, new Color(0.85f, 0.85f, 0.0f), "Flying");
-			SetupPathingCheckBoxRow(pathingContent, _chkGround, new Color(0.2f, 0.85f, 0.2f), "Ground");
-			SetupPathingCheckBoxRow(pathingContent, _chkBuildable, new Color(0.6f, 0.2f, 0.8f), "Buildable");
-			_chkGround.ButtonPressed = true;
+			_pathingPanelController = new MapEditorPathingPanel();
+			_pathingPanelController.Build(_containerPathingSettings, StyleCheckBoxRow);
 
-			var pathingModeRow = pathingContent.GetNodeOrNull<HBoxContainer>("PathingModeRow");
-			if (pathingModeRow != null)
-			{
-				var modePanel = new PanelContainer();
-				modePanel.Name = "ModeRowPanel";
-				modePanel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-				var modeStyle = new StyleBoxFlat();
-				modeStyle.BgColor = new Color(0.12f, 0.13f, 0.16f, 0.82f);
-				modeStyle.BorderColor = new Color(0.35f, 0.33f, 0.28f, 0.75f);
-				modeStyle.SetBorderWidthAll(1);
-				modeStyle.SetCornerRadiusAll(4);
-				modeStyle.ContentMarginLeft = 8;
-				modeStyle.ContentMarginRight = 8;
-				modeStyle.ContentMarginTop = 4;
-				modeStyle.ContentMarginBottom = 4;
-				modePanel.AddThemeStyleboxOverride("panel", modeStyle);
-
-				int modeIdx = pathingModeRow.GetIndex();
-				pathingContent.RemoveChild(pathingModeRow);
-				modePanel.AddChild(pathingModeRow);
-				pathingContent.AddChild(modePanel);
-				pathingContent.MoveChild(modePanel, modeIdx);
-			}
-
-			_optPathingMode = pathingContent.GetNode<OptionButton>("ModeRowPanel/PathingModeRow/OptPathingMode");
-			_optPathingMode.AddItem(TranslationServer.Translate("Add Pathing Attribute"), 0);
-			_optPathingMode.AddItem(TranslationServer.Translate("Clear Pathing Attribute"), 1);
-			_optPathingMode.Selected = 0;
+			_chkShallowWater = _pathingPanelController.ShallowWater;
+			_chkDeepWater = _pathingPanelController.DeepWater;
+			_chkFlying = _pathingPanelController.Flying;
+			_chkGround = _pathingPanelController.Ground;
+			_chkBuildable = _pathingPanelController.Buildable;
+			_optPathingMode = _pathingPanelController.Mode;
 		}
 
 
@@ -1351,66 +1318,6 @@ namespace Realm.Client.UI
 		}
 
 		private void StyleAccordionHeader(Button btn) => MapEditorStyle.AccordionHeader(btn, GetFontAwesomeFont());
-
-		private void SetupPathingCheckBoxRow(VBoxContainer parent, CheckBox chk, Color color, string labelText)
-		{
-			if (chk == null || parent == null) return;
-
-			chk.Text = TranslationServer.Translate(labelText);
-			chk.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-			UIStyle.ApplyCheckboxStyle(chk);
-			StyleCheckBoxRow(chk);
-
-			var rowPanel = new PanelContainer();
-			rowPanel.Name = "RowPanel" + chk.Name;
-			rowPanel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-
-			var rowStyle = new StyleBoxFlat();
-			rowStyle.BgColor = new Color(0.12f, 0.13f, 0.16f, 0.82f);
-			rowStyle.BorderColor = new Color(0.35f, 0.33f, 0.28f, 0.75f);
-			rowStyle.SetBorderWidthAll(1);
-			rowStyle.SetCornerRadiusAll(4);
-			rowStyle.ContentMarginLeft = 8;
-			rowStyle.ContentMarginRight = 8;
-			rowStyle.ContentMarginTop = 3;
-			rowStyle.ContentMarginBottom = 3;
-			rowPanel.AddThemeStyleboxOverride("panel", rowStyle);
-
-			var row = new HBoxContainer();
-			row.Name = "Row" + chk.Name;
-			row.AddThemeConstantOverride("separation", 8);
-			row.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-
-			int originalIndex = chk.GetIndex();
-			parent.RemoveChild(chk);
-			row.AddChild(chk);
-
-			var colorBox = new Panel();
-			colorBox.Name = "ColorBox" + chk.Name;
-			colorBox.CustomMinimumSize = new Vector2(18, 18);
-			colorBox.SizeFlagsVertical = SizeFlags.ShrinkCenter;
-			colorBox.TooltipText = TranslationServer.Translate(labelText);
-
-			var boxStyle = new StyleBoxFlat();
-			boxStyle.BgColor = color;
-			boxStyle.BorderColor = new Color(0.95f, 0.95f, 1.0f, 0.85f);
-			boxStyle.SetBorderWidthAll(1);
-			boxStyle.SetCornerRadiusAll(3);
-			colorBox.AddThemeStyleboxOverride("panel", boxStyle);
-
-			colorBox.GuiInput += (@event) =>
-			{
-				if (@event is InputEventMouseButton mb && mb.Pressed && mb.ButtonIndex == MouseButton.Left)
-				{
-					chk.ButtonPressed = !chk.ButtonPressed;
-				}
-			};
-
-			row.AddChild(colorBox);
-			rowPanel.AddChild(row);
-			parent.AddChild(rowPanel);
-			parent.MoveChild(rowPanel, originalIndex);
-		}
 
 		public FontVariation? GetFontAwesomeFont()
 		{
