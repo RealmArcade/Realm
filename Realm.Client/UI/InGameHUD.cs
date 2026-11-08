@@ -1958,62 +1958,12 @@ public partial class InGameHUD : Control
 		SetupHUDButton(_btnBuild, "res://Assets/UI/golden_hammers.webp", TranslationServer.Translate("[B] Build Structure"), () => EnterBuildSubMenu());
 	}
 
-	private void CreateSpectatorPerspectiveUI()
-	{
-		var specPanel = new PanelContainer();
-		specPanel.Name = "SpectatorPanel";
-		specPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel());
+	private SpectatorPerspectiveOverlay? _spectatorPerspective;
 
-		var specVBox = new VBoxContainer();
-		specVBox.Name = "SpecVBox_VBoxContainer";
-		specPanel.AddChild(specVBox);
+	private SpectatorPerspectiveOverlay SpectatorPerspective => _spectatorPerspective ??= new SpectatorPerspectiveOverlay();
 
-		var title = new Label();
-		title.Name = "Title_Label";
-		title.Text = TranslationServer.Translate("SPECTATOR MODE");
-		UIStyle.ApplyTitle(title, TranslationServer.Translate("SPECTATOR MODE"), 12);
-		title.HorizontalAlignment = HorizontalAlignment.Center;
-		specVBox.AddChild(title);
-
-		var specHBox = new HBoxContainer();
-		specHBox.Name = "SpecHBox_HBoxContainer";
-		specHBox.Alignment = BoxContainer.AlignmentMode.Center;
-		specHBox.AddThemeConstantOverride("separation", 10);
-		specVBox.AddChild(specHBox);
-
-		var btnAll = new Button();
-		btnAll.Name = "BtnAll_Button";
-		btnAll.Text = TranslationServer.Translate("ALL");
-		btnAll.Pressed += () => { LiveSpectatorPerspective = -1; };
-		specHBox.AddChild(btnAll);
-
-		var btnBlue = new Button();
-		btnBlue.Name = "BtnBlue_Button";
-		btnBlue.Text = TranslationServer.Translate("BLUE");
-		btnBlue.Pressed += () => { LiveSpectatorPerspective = 1; };
-		specHBox.AddChild(btnBlue);
-
-		var btnRed = new Button();
-		btnRed.Name = "BtnRed_Button";
-		btnRed.Text = TranslationServer.Translate("RED");
-		btnRed.Pressed += () => { LiveSpectatorPerspective = 2; };
-		specHBox.AddChild(btnRed);
-
-		var btnGreen = new Button();
-		btnGreen.Name = "BtnGreen_Button";
-		btnGreen.Text = TranslationServer.Translate("GREEN");
-		btnGreen.Pressed += () => { LiveSpectatorPerspective = 3; };
-		specHBox.AddChild(btnGreen);
-
-		var btnYellow = new Button();
-		btnYellow.Name = "BtnYellow_Button";
-		btnYellow.Text = TranslationServer.Translate("YELLOW");
-		btnYellow.Pressed += () => { LiveSpectatorPerspective = 4; };
-		specHBox.AddChild(btnYellow);
-
-		AddChild(specPanel);
-	}
-
+	private void CreateSpectatorPerspectiveUI() =>
+		SpectatorPerspective.Build(this, perspective => LiveSpectatorPerspective = perspective);
 
 	private PauseOverlayPanel? _pauseOverlay;
 
