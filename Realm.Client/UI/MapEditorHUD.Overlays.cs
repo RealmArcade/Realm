@@ -3281,7 +3281,7 @@ namespace Realm.Client.UI
 		}
 
 
-		public void OpenAbilityVfxDialog(string abilityId, JsonObject abilityData, Action<JsonObject>? onApplied = null)
+		public void OpenAbilityVfxDialog(string abilityId, JsonObject? abilityData, Action<JsonObject>? onApplied = null)
 		{
 			if (_abilityVfxDialog == null)
 			{

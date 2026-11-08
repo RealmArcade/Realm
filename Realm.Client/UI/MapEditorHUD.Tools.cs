@@ -5149,7 +5149,7 @@ namespace Realm.Client.UI
 			inspectorVBox.AddChild(BtnEditVfx);
 		}
 
-		public void OpenWeaponVfxDialog(string weaponId, WeaponMetadata weapon, Action<WeaponMetadata>? onApplied = null)
+		public void OpenWeaponVfxDialog(string weaponId, WeaponMetadata? weapon, Action<WeaponMetadata>? onApplied = null)
 		{
 			if (_weaponVfxDialog == null)
 			{

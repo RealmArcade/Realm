@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -23,10 +23,10 @@ public partial class MapSettingsDialog : FloatingDialogBase
 	private OptionButton _optSkybox = null!;
 	private readonly List<string> _skyboxFiles = new();
 
-	private Label _lblCamLeftVal = null!;
-	private Label _lblCamRightVal = null!;
-	private Label _lblCamTopVal = null!;
-	private Label _lblCamBottomVal = null!;
+	private Label? _lblCamLeftVal;
+	private Label? _lblCamRightVal;
+	private Label? _lblCamTopVal;
+	private Label? _lblCamBottomVal;
 
 	private Label _lblMapWidthVal = null!;
 	private Label _lblMapHeightVal = null!;
@@ -188,10 +188,10 @@ public partial class MapSettingsDialog : FloatingDialogBase
 	{
 		_lblCamLeftVal = BuildCameraBoundsControls(
 			camGrid,
-			() => GameContext.Host.EditorCameraBoundsLeft,
-			value => GameContext.Host.EditorCameraBoundsLeft = value,
-			() => -GameContext.Host.GroundTerrain.Width,
-			() => GameContext.Host.EditorCameraBoundsRight,
+			() => GameContext.Host?.EditorCameraBoundsLeft ?? 0.0f,
+			value => { if (GameContext.Host is { } host) host.EditorCameraBoundsLeft = value; },
+			() => -(GameContext.Host?.GroundTerrain?.Width ?? 0),
+			() => GameContext.Host?.EditorCameraBoundsRight ?? 0.0f,
 			"Move Left boundary further left (West)",
 			"Move Left boundary further right (East)");
 	}
@@ -200,10 +200,10 @@ public partial class MapSettingsDialog : FloatingDialogBase
 	{
 		_lblCamRightVal = BuildCameraBoundsControls(
 			camGrid,
-			() => GameContext.Host.EditorCameraBoundsRight,
-			value => GameContext.Host.EditorCameraBoundsRight = value,
-			() => GameContext.Host.EditorCameraBoundsLeft,
-			() => GameContext.Host.GroundTerrain.Width,
+			() => GameContext.Host?.EditorCameraBoundsRight ?? 0.0f,
+			value => { if (GameContext.Host is { } host) host.EditorCameraBoundsRight = value; },
+			() => (GameContext.Host?.GroundTerrain?.Width ?? 0),
+			() => GameContext.Host?.EditorCameraBoundsLeft ?? 0.0f,
 			"Move Right boundary further left (West)",
 			"Move Right boundary further right (East)");
 	}
@@ -212,10 +212,10 @@ public partial class MapSettingsDialog : FloatingDialogBase
 	{
 		_lblCamTopVal = BuildCameraBoundsControls(
 			camGrid,
-			() => GameContext.Host.EditorCameraBoundsTop,
-			value => GameContext.Host.EditorCameraBoundsTop = value,
-			() => -GameContext.Host.GroundTerrain.Depth,
-			() => GameContext.Host.EditorCameraBoundsBottom,
+			() => GameContext.Host?.EditorCameraBoundsTop ?? 0.0f,
+			value => { if (GameContext.Host is { } host) host.EditorCameraBoundsTop = value; },
+			() => -(GameContext.Host?.GroundTerrain?.Depth ?? 0),
+			() => GameContext.Host?.EditorCameraBoundsBottom ?? 0.0f,
 			"Move Top boundary further North (Up)",
 			"Move Top boundary further South (Down)");
 	}
@@ -224,10 +224,10 @@ public partial class MapSettingsDialog : FloatingDialogBase
 	{
 		_lblCamBottomVal = BuildCameraBoundsControls(
 			camGrid,
-			() => GameContext.Host.EditorCameraBoundsBottom,
-			value => GameContext.Host.EditorCameraBoundsBottom = value,
-			() => GameContext.Host.EditorCameraBoundsTop,
-			() => GameContext.Host.GroundTerrain.Depth,
+			() => GameContext.Host?.EditorCameraBoundsBottom ?? 0.0f,
+			value => { if (GameContext.Host is { } host) host.EditorCameraBoundsBottom = value; },
+			() => (GameContext.Host?.GroundTerrain?.Depth ?? 0),
+			() => GameContext.Host?.EditorCameraBoundsTop ?? 0.0f,
 			"Move Bottom boundary further North (Up)",
 			"Move Bottom boundary further South (Down)");
 	}

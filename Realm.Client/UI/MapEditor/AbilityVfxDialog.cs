@@ -661,7 +661,7 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 		return null;
 	}
 
-	public void OpenForAbility(string abilityId, JsonObject abilityData, Action<JsonObject>? onApplied = null)
+	public void OpenForAbility(string abilityId, JsonObject? abilityData, Action<JsonObject>? onApplied = null)
 	{
 		string effectiveId = GetEffectiveAbilityId(abilityId, abilityData);
 
@@ -714,7 +714,7 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 		ReloadVfx();
 	}
 
-	private string GetEffectiveAbilityId(string fallbackId, JsonObject abilityData)
+	private string GetEffectiveAbilityId(string fallbackId, JsonObject? abilityData)
 	{
 		if (abilityData != null && abilityData.TryGetPropertyValue("TemplateID", out var tidNode) && !string.IsNullOrWhiteSpace(tidNode?.ToString()))
 		{
@@ -729,7 +729,7 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 		return fallbackId;
 	}
 
-	private void ParseAbilityData(JsonObject abilityData)
+	private void ParseAbilityData(JsonObject? abilityData)
 	{
 		if (abilityData == null)
 		{

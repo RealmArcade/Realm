@@ -126,7 +126,7 @@ public partial class VSCodeManager
 			if (File.Exists(versionJson))
 			{
 				var jsonNode = JsonNode.Parse(File.ReadAllText(versionJson, Encoding.UTF8));
-				string version = jsonNode?["extensionVersion"]?.GetValue<string>();
+				string? version = jsonNode?["extensionVersion"]?.GetValue<string>();
 				if (!string.IsNullOrWhiteSpace(version))
 					return version;
 			}
@@ -146,7 +146,7 @@ public partial class VSCodeManager
 			return false;
 
 		var jsonNode = JsonNode.Parse(File.ReadAllText(pkgPath, Encoding.UTF8));
-		version = jsonNode?["version"]?.GetValue<string>();
+		version = jsonNode?["version"]?.GetValue<string>() ?? string.Empty;
 		return !string.IsNullOrWhiteSpace(version);
 	}
 
@@ -298,7 +298,7 @@ public partial class VSCodeManager
 		}
 	}
 
-	private Process _vscodeProcess = null!;
+	private Process? _vscodeProcess;
 	private Control _containerControl = null!;
 	private bool _isInitialized;
 	private bool _isVisible;
@@ -483,8 +483,8 @@ public partial class VSCodeManager
 	{
 		using var reader = new StreamReader(ctx.Request.InputStream, ctx.Request.ContentEncoding);
 		string body = await reader.ReadToEndAsync();
-		var node = JsonNode.Parse(body);
-		string action = GetActionFromNode(node);
+		JsonNode? node = JsonNode.Parse(body);
+		string? action = GetActionFromNode(node);
 
 		CheckFocusGodotWindow(action, node);
 
@@ -494,12 +494,12 @@ public partial class VSCodeManager
 		await SendIpcResponse(ctx, responseObj);
 	}
 
-	private string GetActionFromNode(JsonNode node)
+	private string? GetActionFromNode(JsonNode? node)
 	{
 		return node?["action"]?.ToString() ?? node?["type"]?.ToString();
 	}
 
-	private void CheckFocusGodotWindow(string action, JsonNode node)
+	private void CheckFocusGodotWindow(string? action, JsonNode? node)
 	{
 		if (ShouldFocusGodot(action, node))
 		{
@@ -507,7 +507,7 @@ public partial class VSCodeManager
 		}
 	}
 
-	private bool ShouldFocusGodot(string action, JsonNode node)
+	private bool ShouldFocusGodot(string? action, JsonNode? node)
 	{
 		return action == "openVfxDialog" ||
 		       action == "openModelPicker" ||
@@ -518,7 +518,7 @@ public partial class VSCodeManager
 		       (node?["focusGodot"]?.GetValue<bool>() ?? false);
 	}
 
-	private async Task RouteIpcAction(string action, JsonNode node, JsonObject responseObj)
+	private async Task RouteIpcAction(string? action, JsonNode? node, JsonObject responseObj)
 	{
 		if (string.IsNullOrEmpty(action)) return;
 
@@ -533,7 +533,7 @@ public partial class VSCodeManager
 		if (TryRouteConversionAction(action, node, responseObj)) return;
 	}
 
-	private bool TryRouteDialogAction(string action, JsonNode node, JsonObject responseObj)
+	private bool TryRouteDialogAction(string? action, JsonNode? node, JsonObject responseObj)
 	{
 		switch (action)
 		{
@@ -556,7 +556,7 @@ public partial class VSCodeManager
 		return false;
 	}
 
-	private bool TryRouteFileAction(string action, JsonNode node, JsonObject responseObj)
+	private bool TryRouteFileAction(string? action, JsonNode? node, JsonObject responseObj)
 	{
 		switch (action)
 		{
@@ -575,7 +575,7 @@ public partial class VSCodeManager
 		return false;
 	}
 
-	private bool TryRouteConversionAction(string action, JsonNode node, JsonObject responseObj)
+	private bool TryRouteConversionAction(string? action, JsonNode? node, JsonObject responseObj)
 	{
 		switch (action)
 		{
@@ -652,7 +652,7 @@ public partial class VSCodeManager
 		ctx.Response.Close();
 	}
 
-	private async Task HandleEditorApiRequest(JsonNode node, string action, JsonObject responseObj)
+	private async Task HandleEditorApiRequest(JsonNode? node, string action, JsonObject responseObj)
 	{
 		string apiMethod = GetApiMethodName(node, action);
 		string reqId = node?["requestId"]?.ToString() ?? "";
@@ -662,12 +662,12 @@ public partial class VSCodeManager
 		PopulateEditorApiResponse(responseObj, apiMethod, reqId, apiSuccess, invocationResult, apiError);
 	}
 
-	private string GetApiMethodName(JsonNode node, string action)
+	private string GetApiMethodName(JsonNode? node, string action)
 	{
 		return action == "invokeEditorApi" ? (node?["method"]?.ToString() ?? "") : action.Substring(10);
 	}
 
-	private async Task<(bool success, object? result, string error)> ExecuteEditorApiMethod(string apiMethod, JsonNode node)
+	private async Task<(bool success, object? result, string error)> ExecuteEditorApiMethod(string apiMethod, JsonNode? node)
 	{
 		try
 		{
@@ -743,7 +743,7 @@ public partial class VSCodeManager
 	}
 
 
-	private object?[] ParseApiArguments(MethodInfo methodInfo, JsonNode node)
+	private object?[] ParseApiArguments(MethodInfo methodInfo, JsonNode? node)
 	{
 		var parameters = methodInfo.GetParameters();
 		var args = new object?[parameters.Length];
@@ -757,7 +757,7 @@ public partial class VSCodeManager
 		return args;
 	}
 
-	private object? ParseSingleArgument(ParameterInfo param, JsonObject argsNode)
+	private object? ParseSingleArgument(ParameterInfo param, JsonObject? argsNode)
 	{
 		Type paramType = param.ParameterType;
 		JsonNode? paramNode = GetParamNode(param.Name, argsNode);
@@ -775,11 +775,11 @@ public partial class VSCodeManager
 		return JsonSerializer.Deserialize(paramNode.ToJsonString(), paramType, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 	}
 
-	private JsonNode? GetParamNode(string paramName, JsonObject argsNode)
+	private JsonNode? GetParamNode(string? paramName, JsonObject? argsNode)
 	{
 		if (argsNode == null) return null;
 
-		if (argsNode.TryGetPropertyValue(paramName, out var matchedNode))
+		if (paramName != null && argsNode.TryGetPropertyValue(paramName, out var matchedNode))
 		{
 			return matchedNode;
 		}
@@ -795,7 +795,7 @@ public partial class VSCodeManager
 		return null;
 	}
 
-	private object? GetDefaultArgument(Type paramType, ParameterInfo param, JsonObject argsNode)
+	private object? GetDefaultArgument(Type paramType, ParameterInfo param, JsonObject? argsNode)
 	{
 		if (paramType == typeof(Vector3))
 		{
@@ -810,7 +810,7 @@ public partial class VSCodeManager
 		return null;
 	}
 
-	private Vector3 ExtractVector3FromArgsNode(JsonObject argsNode)
+	private Vector3 ExtractVector3FromArgsNode(JsonObject? argsNode)
 	{
 		float vx = 0f, vy = 0f, vz = 0f;
 		if (argsNode != null)
@@ -850,14 +850,14 @@ public partial class VSCodeManager
 	}
 
 
-	private void HandleOpenVfxDialog(JsonNode node, JsonObject responseObj)
+	private void HandleOpenVfxDialog(JsonNode? node, JsonObject responseObj)
 	{
-		string weaponId = node["weaponId"]?.ToString() ?? "";
-		var weaponDataNode = node["weaponData"];
+		string weaponId = node?["weaponId"]?.ToString() ?? "";
+		var weaponDataNode = node?["weaponData"];
 
 		Callable.From(() =>
 		{
-			WeaponMetadata meta = null;
+			WeaponMetadata? meta = null;
 			if (!string.IsNullOrEmpty(weaponId) && GameHost.WeaponRegistry.TryGetValue(weaponId, out var existing))
 			{
 				meta = existing;
@@ -887,7 +887,7 @@ public partial class VSCodeManager
 		responseObj["success"] = true;
 	}
 
-	private void HandleOpenModelPicker(JsonNode node, JsonObject responseObj)
+	private void HandleOpenModelPicker(JsonNode? node, JsonObject responseObj)
 	{
 		string entityId = GetStringProperty(node, "unitId", "");
 		if (string.IsNullOrEmpty(entityId)) entityId = GetStringProperty(node, "entityId", "");
@@ -907,10 +907,10 @@ public partial class VSCodeManager
 	}
 
 
-	private void HandleOpenAbilityVfxDialog(JsonNode node, JsonObject responseObj)
+	private void HandleOpenAbilityVfxDialog(JsonNode? node, JsonObject responseObj)
 	{
 		string abilityId = GetStringProperty(node, "abilityId", "");
-		var abilityDataNode = node["abilityData"] as JsonObject;
+		var abilityDataNode = node?["abilityData"] as JsonObject;
 
 		Callable.From(() =>
 		{
@@ -934,10 +934,10 @@ public partial class VSCodeManager
 	}
 
 
-	private void HandleOpenAnimationStudio(JsonNode node, JsonObject responseObj)
+	private void HandleOpenAnimationStudio(JsonNode? node, JsonObject responseObj)
 	{
-		string unitId = node["unitId"]?.ToString() ?? node["entityId"]?.ToString() ?? "";
-		string modelPath = node["modelPath"]?.ToString() ?? "";
+		string unitId = node?["unitId"]?.ToString() ?? node?["entityId"]?.ToString() ?? "";
+		string modelPath = node?["modelPath"]?.ToString() ?? "";
 
 		Callable.From(() =>
 		{
@@ -951,11 +951,11 @@ public partial class VSCodeManager
 		responseObj["success"] = true;
 	}
 
-	private void HandleFormatAndSaveJson(JsonNode node, string action, JsonObject responseObj)
+	private void HandleFormatAndSaveJson(JsonNode? node, string action, JsonObject responseObj)
 	{
 		string filePath = GetSaveFilePath(node, action);
-		string content = node["content"]?.ToString() ?? node["text"]?.ToString() ?? "";
-		string requestId = node["requestId"]?.ToString() ?? "";
+		string content = node?["content"]?.ToString() ?? node?["text"]?.ToString() ?? "";
+		string requestId = node?["requestId"]?.ToString() ?? "";
 
 		var (success, formattedContent, errorMsg) = TryFormatAndSaveJsonFile(filePath, content);
 
@@ -968,9 +968,9 @@ public partial class VSCodeManager
 	}
 
 
-	private string GetSaveFilePath(JsonNode node, string action)
+	private string GetSaveFilePath(JsonNode? node, string action)
 	{
-		string filePath = node["filePath"]?.ToString() ?? "";
+		string filePath = node?["filePath"]?.ToString() ?? "";
 		if (string.IsNullOrEmpty(filePath))
 		{
 			string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
@@ -1181,11 +1181,11 @@ public partial class VSCodeManager
 		responseObj["success"] = true;
 	}
 
-	private void HandleConvertRtex(JsonNode node, JsonObject responseObj)
+	private void HandleConvertRtex(JsonNode? node, JsonObject responseObj)
 	{
-		string inputPath = node["inputPath"]?.ToString() ?? node["filePath"]?.ToString() ?? "";
-		string outputPath = node["outputPath"]?.ToString() ?? "";
-		int layer = node["layer"] != null ? (int)node["layer"] : 0;
+		string inputPath = node?["inputPath"]?.ToString() ?? node?["filePath"]?.ToString() ?? "";
+		string outputPath = node?["outputPath"]?.ToString() ?? "";
+		int layer = node?["layer"] is JsonValue layerNode ? layerNode.GetValue<int>() : 0;
 
 		try
 		{
@@ -1242,10 +1242,10 @@ public partial class VSCodeManager
 	}
 
 
-	private void HandleRenderRanim(JsonNode node, JsonObject responseObj)
+	private void HandleRenderRanim(JsonNode? node, JsonObject responseObj)
 	{
-		string inputPath = node["inputPath"]?.ToString() ?? node["filePath"]?.ToString() ?? "";
-		string outputPath = node["outputPath"]?.ToString() ?? "";
+		string inputPath = node?["inputPath"]?.ToString() ?? node?["filePath"]?.ToString() ?? "";
+		string outputPath = node?["outputPath"]?.ToString() ?? "";
 		try
 		{
 			var options = new RanimRenderOptions
@@ -1277,10 +1277,10 @@ public partial class VSCodeManager
 		}
 	}
 
-	private void HandleConvertRmesh(JsonNode node, JsonObject responseObj)
+	private void HandleConvertRmesh(JsonNode? node, JsonObject responseObj)
 	{
-		string inputPath = node["inputPath"]?.ToString() ?? node["filePath"]?.ToString() ?? "";
-		string outputPath = node["outputPath"]?.ToString() ?? "";
+		string inputPath = node?["inputPath"]?.ToString() ?? node?["filePath"]?.ToString() ?? "";
+		string outputPath = node?["outputPath"]?.ToString() ?? "";
 
 		try
 		{
@@ -1333,7 +1333,7 @@ public partial class VSCodeManager
 	}
 
 
-	private string GetStringProperty(JsonNode node, string key, string defaultValue = "")
+	private string GetStringProperty(JsonNode? node, string key, string defaultValue = "")
 	{
 		if (node == null) return defaultValue;
 		var val = node[key];
@@ -1341,7 +1341,7 @@ public partial class VSCodeManager
 		return val.ToString() ?? defaultValue;
 	}
 
-	private int GetIntProperty(JsonNode node, string key, int defaultValue = 0)
+	private int GetIntProperty(JsonNode? node, string key, int defaultValue = 0)
 	{
 		if (node == null) return defaultValue;
 		var val = node[key];
@@ -1349,7 +1349,7 @@ public partial class VSCodeManager
 		return (int)val;
 	}
 
-	private float GetFloatProperty(JsonNode node, string key, float defaultValue = 0f)
+	private float GetFloatProperty(JsonNode? node, string key, float defaultValue = 0f)
 	{
 		if (node == null) return defaultValue;
 		var val = node[key];
@@ -1357,7 +1357,7 @@ public partial class VSCodeManager
 		return (float)val;
 	}
 
-	private void HandleConvertRaud(JsonNode node, JsonObject responseObj)
+	private void HandleConvertRaud(JsonNode? node, JsonObject responseObj)
 	{
 		string inputPath = GetStringProperty(node, "inputPath", "");
 		if (string.IsNullOrEmpty(inputPath)) inputPath = GetStringProperty(node, "filePath", "");
@@ -1570,8 +1570,8 @@ public partial class VSCodeManager
 		try
 		{
 			string recentPathFile = ProjectSettings.GlobalizePath("user://recent_map_dir.txt");
-			string directory = Path.GetDirectoryName(recentPathFile);
-			if (!Directory.Exists(directory))
+			string? directory = Path.GetDirectoryName(recentPathFile);
+			if (directory != null && !Directory.Exists(directory))
 			{
 				Directory.CreateDirectory(directory);
 			}
@@ -1712,7 +1712,13 @@ public partial class VSCodeManager
 				RedirectStandardOutput = true,
 				RedirectStandardError = true
 			};
-			var process = Process.Start(startInfo);
+			using var process = Process.Start(startInfo);
+			if (process == null)
+			{
+				GameLog.LogError($"VSCode command could not be started: {vscodePath} {arguments}");
+				return;
+			}
+
 			process.WaitForExit();
 
 			if (process.ExitCode != 0)
