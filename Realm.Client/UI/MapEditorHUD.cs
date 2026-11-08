@@ -55,322 +55,322 @@ public partial class MapEditorHUD : Control
 
 	public MapEditorHUDViewModel _viewModel { get; set; } = new();
 
-	private Panel _panelLeft { get; set; }
-	private Button _btnLeftTab { get; set; }
-	private Panel _panelRight { get; set; }
-	private Button _btnRightTab { get; set; }
+	private Panel _panelLeft { get; set; } = null!;
+	private Button _btnLeftTab { get; set; } = null!;
+	private Panel _panelRight { get; set; } = null!;
+	private Button _btnRightTab { get; set; } = null!;
 	private VBoxContainer _accordionContainer { get; set; }
 
 	private bool _leftPanelExpanded { get; set; } = false;
 	private bool _rightPanelExpanded { get; set; } = true;
 
-	private OptionButton _optModule { get; set; }
-	private Button _btnGameSettings { get; set; }
+	private OptionButton _optModule { get; set; } = null!;
+	private Button _btnGameSettings { get; set; } = null!;
 	private EditorModule _activeModule { get; set; } = EditorModule.Terrain;
 
-	private VBoxContainer _accordionBrush { get; set; }
-	private Button _btnHeaderBrush { get; set; }
-	private VBoxContainer _contentBrush { get; set; }
+	private VBoxContainer _accordionBrush { get; set; } = null!;
+	private Button _btnHeaderBrush { get; set; } = null!;
+	private VBoxContainer _contentBrush { get; set; } = null!;
 
-	private VBoxContainer _accordionWater { get; set; }
-	private Button _btnHeaderWater { get; set; }
-	private VBoxContainer _contentWater { get; set; }
-	private Button _btnWaterActionAdd { get; set; }
-	private Button _btnWaterActionRemove { get; set; }
+	private VBoxContainer _accordionWater { get; set; } = null!;
+	private Button _btnHeaderWater { get; set; } = null!;
+	private VBoxContainer _contentWater { get; set; } = null!;
+	private Button _btnWaterActionAdd { get; set; } = null!;
+	private Button _btnWaterActionRemove { get; set; } = null!;
 
 
-	private VBoxContainer _accordionTool { get; set; }
-	private Button _btnHeaderTool { get; set; }
-	private VBoxContainer _contentTool { get; set; }
+	private VBoxContainer _accordionTool { get; set; } = null!;
+	private Button _btnHeaderTool { get; set; } = null!;
+	private VBoxContainer _contentTool { get; set; } = null!;
 
-	private VBoxContainer _accordionToolSettings { get; set; }
-	private Button _btnHeaderToolSettings { get; set; }
-	private VBoxContainer _contentToolSettings { get; set; }
+	private VBoxContainer _accordionToolSettings { get; set; } = null!;
+	private Button _btnHeaderToolSettings { get; set; } = null!;
+	private VBoxContainer _contentToolSettings { get; set; } = null!;
 
-	private VBoxContainer _accordionPlacement { get; set; }
-	private Button _btnHeaderPlacement { get; set; }
-	private VBoxContainer _contentPlacement { get; set; }
+	private VBoxContainer _accordionPlacement { get; set; } = null!;
+	private Button _btnHeaderPlacement { get; set; } = null!;
+	private VBoxContainer _contentPlacement { get; set; } = null!;
 
-	private VBoxContainer _accordionViewport { get; set; }
-	private Button _btnHeaderViewport { get; set; }
-	private VBoxContainer _contentViewport { get; set; }
+	private VBoxContainer _accordionViewport { get; set; } = null!;
+	private Button _btnHeaderViewport { get; set; } = null!;
+	private VBoxContainer _contentViewport { get; set; } = null!;
 
 
 	private Dictionary<Control, CardDragData> _cardDragMap { get; set; } = new();
-	private Button _btnResetLayout { get; set; }
+	private Button _btnResetLayout { get; set; } = null!;
 
-	private VBoxContainer _accordionFile { get; set; }
-	private Button _btnHeaderFile { get; set; }
-	private Control _contentFile { get; set; }
+	private VBoxContainer _accordionFile { get; set; } = null!;
+	private Button _btnHeaderFile { get; set; } = null!;
+	private Control _contentFile { get; set; } = null!;
 
 	private MapSettingsDialog? _mapSettingsDialog { get; set; }
 
-	private VBoxContainer _accordionInspector { get; set; }
-	private Button _btnHeaderInspector { get; set; }
-	private VBoxContainer _contentInspector { get; set; }
+	private VBoxContainer _accordionInspector { get; set; } = null!;
+	private Button _btnHeaderInspector { get; set; } = null!;
+	private VBoxContainer _contentInspector { get; set; } = null!;
 
-	private VBoxContainer _containerTextureSettings { get; set; }
-	private VBoxContainer _containerPathingSettings { get; set; }
+	private VBoxContainer _containerTextureSettings { get; set; } = null!;
+	private VBoxContainer _containerPathingSettings { get; set; } = null!;
 	private VBoxContainer _containerPlacementSettings { get; set; }
-	private VBoxContainer _containerEyedropperSettings { get; set; }
-	private VBoxContainer _containerPasteSettings { get; set; }
-	private VBoxContainer _containerCategorySelector { get; set; }
+	private VBoxContainer _containerEyedropperSettings { get; set; } = null!;
+	private VBoxContainer _containerPasteSettings { get; set; } = null!;
+	private VBoxContainer _containerCategorySelector { get; set; } = null!;
 
-	private VBoxContainer _panelObjects { get; set; }
-	private VBoxContainer _panelClipboard { get; set; }
-	private VBoxContainer _panelTerrainVBox { get; set; }
-	private VBoxContainer _panelDecoVBox { get; set; }
-	private VBoxContainer _panelPathingVBox { get; set; }
-	private VBoxContainer _panelCoordinatesVBox { get; set; }
-	private Button _btnCut { get; set; }
-	private Button _btnEraseArea { get; set; }
-	private Button _btnPasteReflection { get; set; }
-	private Button _btnClipboardBrushShape { get; set; }
-	private OptionButton _optClipboardMirrorMode { get; set; }
-	private HSlider _sldPasteRotation { get; set; }
-	private Label _lblPasteRotation { get; set; }
+	private VBoxContainer _panelObjects { get; set; } = null!;
+	private VBoxContainer _panelClipboard { get; set; } = null!;
+	private VBoxContainer _panelTerrainVBox { get; set; } = null!;
+	private VBoxContainer _panelDecoVBox { get; set; } = null!;
+	private VBoxContainer _panelPathingVBox { get; set; } = null!;
+	private VBoxContainer _panelCoordinatesVBox { get; set; } = null!;
+	private Button _btnCut { get; set; } = null!;
+	private Button _btnEraseArea { get; set; } = null!;
+	private Button _btnPasteReflection { get; set; } = null!;
+	private Button _btnClipboardBrushShape { get; set; } = null!;
+	private OptionButton _optClipboardMirrorMode { get; set; } = null!;
+	private HSlider _sldPasteRotation { get; set; } = null!;
+	private Label _lblPasteRotation { get; set; } = null!;
 
-	private OptionButton _optPolarRingSpacing { get; set; }
-	private OptionButton _optPolarRadialStep { get; set; }
-	private Button _btnTapeMeasure { get; set; }
-	private Button _btnResetPivotToCenter { get; set; }
-	private HBoxContainer _rowPolarConfig { get; set; }
+	private OptionButton _optPolarRingSpacing { get; set; } = null!;
+	private OptionButton _optPolarRadialStep { get; set; } = null!;
+	private Button _btnTapeMeasure { get; set; } = null!;
+	private Button _btnResetPivotToCenter { get; set; } = null!;
+	private HBoxContainer _rowPolarConfig { get; set; } = null!;
 
-	private PanelContainer _panelMeasurementHUD { get; set; }
-	private Label _lblMeasureTelemetry { get; set; }
+	private PanelContainer _panelMeasurementHUD { get; set; } = null!;
+	private Label _lblMeasureTelemetry { get; set; } = null!;
 	private ThrottledLabelWidth _measureLabelWidth { get; set; } = new();
 
-	private Button _btnPasteAnchor { get; set; }
-	private Label _lblPasteTelemetry { get; set; }
+	private Button _btnPasteAnchor { get; set; } = null!;
+	private Label _lblPasteTelemetry { get; set; } = null!;
 
 
 	private List<Button> _swatchButtons { get; set; } = new List<Button>();
 
 
-	private ScrollContainer _scrollSwatches { get; set; }
-	private Control _gridSwatches { get; set; }
-	private Button _btnReplaceTexture { get; set; }
+	private ScrollContainer _scrollSwatches { get; set; } = null!;
+	private Control _gridSwatches { get; set; } = null!;
+	private Button _btnReplaceTexture { get; set; } = null!;
 
-	private PanelContainer _topBar { get; set; }
+	private PanelContainer _topBar { get; set; } = null!;
 	private VBoxContainer _middleRightBox { get; set; }
-	private HBoxContainer _topLeftBox { get; set; }
-	private TextureRect _screenFrameRect { get; set; }
-	private Tween _hudFadeTween { get; set; }
+	private HBoxContainer _topLeftBox { get; set; } = null!;
+	private TextureRect _screenFrameRect { get; set; } = null!;
+	private Tween _hudFadeTween { get; set; } = null!;
 	private bool _is3DInteractionActive { get; set; } = false;
 
 	private Dictionary<Control, Control.MouseFilterEnum> _savedMouseFilters { get; set; } = new();
 
-	private Button _btnBackToHub { get; set; }
-	private Button _btnPublish { get; set; }
-	private Button _btnSave { get; set; }
-	private Button _btnSaveAs { get; set; }
-	private Button _btnTestMap { get; set; }
-	private OptionButton _optTestSettings { get; set; }
-	private Button _btnExportMap { get; set; }
-	private Button _btnLoad { get; set; }
-	private Button _btnLoadMore { get; set; }
-	private PopupPanel _popupLoadMore { get; set; }
-	private Button _btnImportArchive { get; set; }
-	private Button _btnDeleteObject { get; set; }
-	private Button _btnUndo { get; set; }
-	private Button _btnRedo { get; set; }
+	private Button _btnBackToHub { get; set; } = null!;
+	private Button _btnPublish { get; set; } = null!;
+	private Button _btnSave { get; set; } = null!;
+	private Button _btnSaveAs { get; set; } = null!;
+	private Button _btnTestMap { get; set; } = null!;
+	private OptionButton _optTestSettings { get; set; } = null!;
+	private Button _btnExportMap { get; set; } = null!;
+	private Button _btnLoad { get; set; } = null!;
+	private Button _btnLoadMore { get; set; } = null!;
+	private PopupPanel _popupLoadMore { get; set; } = null!;
+	private Button _btnImportArchive { get; set; } = null!;
+	private Button _btnDeleteObject { get; set; } = null!;
+	private Button _btnUndo { get; set; } = null!;
+	private Button _btnRedo { get; set; } = null!;
 
-	private Label _statusLabel { get; set; }
-	private Label _feedbackLabel { get; set; }
+	private Label _statusLabel { get; set; } = null!;
+	private Label _feedbackLabel { get; set; } = null!;
 
-	private Button _btnZoomIn { get; set; }
-	private Button _btnZoomOut { get; set; }
-	private Button _btnCenter { get; set; }
-	private Button _btnRotate { get; set; }
-	private Button _btnCameraAngle { get; set; }
+	private Button _btnZoomIn { get; set; } = null!;
+	private Button _btnZoomOut { get; set; } = null!;
+	private Button _btnCenter { get; set; } = null!;
+	private Button _btnRotate { get; set; } = null!;
+	private Button _btnCameraAngle { get; set; } = null!;
 
-	private Slider _sldBrushSize { get; set; }
-	private Label _lblBrushSizeValue { get; set; }
-	private Control _brushSizeBox { get; set; }
-	private Slider _sldBrushStrength { get; set; }
-	private Label _lblBrushStrengthValue { get; set; }
+	private Slider _sldBrushSize { get; set; } = null!;
+	private Label _lblBrushSizeValue { get; set; } = null!;
+	private Control _brushSizeBox { get; set; } = null!;
+	private Slider _sldBrushStrength { get; set; } = null!;
+	private Label _lblBrushStrengthValue { get; set; } = null!;
 
 
-	private CheckBox _chkRandomRotation { get; set; }
-	private CheckBox _chkRandomScale { get; set; }
-	private Button _btnAddObject { get; set; }
-	private CheckBox _chkClumpMode { get; set; }
+	private CheckBox _chkRandomRotation { get; set; } = null!;
+	private CheckBox _chkRandomScale { get; set; } = null!;
+	private Button _btnAddObject { get; set; } = null!;
+	private CheckBox _chkClumpMode { get; set; } = null!;
 	private Control _spacingBox { get; set; }
-	private Control _densityBox { get; set; }
-	private Control _scaleVarBox { get; set; }
+	private Control _densityBox { get; set; } = null!;
+	private Control _scaleVarBox { get; set; } = null!;
 	private Control _camBoundsBox { get; set; }
-	private CheckBox _chkBlockMode { get; set; }
-	private Slider _sldBlockStep { get; set; }
-	private Label _lblBlockStepValue { get; set; }
-	private Control _heightBox { get; set; }
-	private Slider _sldHeight { get; set; }
-	private Label _lblHeightValue { get; set; }
+	private CheckBox _chkBlockMode { get; set; } = null!;
+	private Slider _sldBlockStep { get; set; } = null!;
+	private Label _lblBlockStepValue { get; set; } = null!;
+	private Control _heightBox { get; set; } = null!;
+	private Slider _sldHeight { get; set; } = null!;
+	private Label _lblHeightValue { get; set; } = null!;
 
-	private Control _waterHeightBox { get; set; }
-	private Slider _sldWaterHeight { get; set; }
-	private Label _lblWaterHeightValue { get; set; }
-	private Control _waterModeBox { get; set; }
-	private OptionButton _optWaterMode { get; set; }
-	private Button _btnWaterProfiles { get; set; }
-	private WaterProfileDialog _waterProfileDialog { get; set; }
-	private EnvironmentConfigDialog _environmentConfigDialog { get; set; }
-	private EntityVisualEditDialog _entityVisualEditDialog { get; set; }
-	private AnimationPreviewDialog _animationPreviewDialog { get; set; }
-	private WeaponVfxDialog _weaponVfxDialog { get; set; }
-	private ModelPickerDialog _modelPickerDialog { get; set; }
-	private AbilityVfxDialog _abilityVfxDialog { get; set; }
-	private AssetManagerDialog _assetManagerDialog { get; set; }
-	private ImportFromMapDialog _importFromMapDialog { get; set; }
-	private TemplateManagerDialog _templateManagerDialog { get; set; }
-	private InstanceManagerDialog _instanceManagerDialog { get; set; }
-	private AssetBrowserDialog _assetBrowserDialog { get; set; }
-	private NoiseTextureDialog _noiseTextureDialog { get; set; }
-	private ConvertGlbDialog _convertGlbDialog { get; set; }
-	private EditorSettingsDialog _editorSettingsDialog { get; set; }
-	private ShaderEditorDialog _shaderEditorDialog { get; set; }
-	private VfxStudioDialog _vfxStudioDialog { get; set; }
-	private ProceduralAnimationStudioDialog _proceduralAnimationStudioDialog { get; set; }
-	private AuthorSignatureDialog _authorSignatureDialog { get; set; }
+	private Control _waterHeightBox { get; set; } = null!;
+	private Slider _sldWaterHeight { get; set; } = null!;
+	private Label _lblWaterHeightValue { get; set; } = null!;
+	private Control _waterModeBox { get; set; } = null!;
+	private OptionButton _optWaterMode { get; set; } = null!;
+	private Button _btnWaterProfiles { get; set; } = null!;
+	private WaterProfileDialog _waterProfileDialog { get; set; } = null!;
+	private EnvironmentConfigDialog _environmentConfigDialog { get; set; } = null!;
+	private EntityVisualEditDialog _entityVisualEditDialog { get; set; } = null!;
+	private AnimationPreviewDialog _animationPreviewDialog { get; set; } = null!;
+	private WeaponVfxDialog _weaponVfxDialog { get; set; } = null!;
+	private ModelPickerDialog _modelPickerDialog { get; set; } = null!;
+	private AbilityVfxDialog _abilityVfxDialog { get; set; } = null!;
+	private AssetManagerDialog _assetManagerDialog { get; set; } = null!;
+	private ImportFromMapDialog _importFromMapDialog { get; set; } = null!;
+	private TemplateManagerDialog _templateManagerDialog { get; set; } = null!;
+	private InstanceManagerDialog _instanceManagerDialog { get; set; } = null!;
+	private AssetBrowserDialog _assetBrowserDialog { get; set; } = null!;
+	private NoiseTextureDialog _noiseTextureDialog { get; set; } = null!;
+	private ConvertGlbDialog _convertGlbDialog { get; set; } = null!;
+	private EditorSettingsDialog _editorSettingsDialog { get; set; } = null!;
+	private ShaderEditorDialog _shaderEditorDialog { get; set; } = null!;
+	private VfxStudioDialog _vfxStudioDialog { get; set; } = null!;
+	private ProceduralAnimationStudioDialog _proceduralAnimationStudioDialog { get; set; } = null!;
+	private AuthorSignatureDialog _authorSignatureDialog { get; set; } = null!;
 	private string _publishAuthorshipKeyPath { get; set; } = string.Empty;
-	private ReplaceTextureDialog _replaceTextureDialog { get; set; }
-	private UtilitiesDialog _utilitiesDialog { get; set; }
-	private TestSettingsDialog _testSettingsDialog { get; set; }
-	private MapVersionsDialog _mapVersionsDialog { get; set; }
-	private MapHistoryStoresDialog _mapHistoryStoresDialog { get; set; }
-	private Button _btnEditorSettings { get; set; }
-	private Button _btnMapVersions { get; set; }
-	private PanelContainer _mapNameHeaderPanel { get; set; }
-	private Label _lblMapNameHeader { get; set; }
+	private ReplaceTextureDialog _replaceTextureDialog { get; set; } = null!;
+	private UtilitiesDialog _utilitiesDialog { get; set; } = null!;
+	private TestSettingsDialog _testSettingsDialog { get; set; } = null!;
+	private MapVersionsDialog _mapVersionsDialog { get; set; } = null!;
+	private MapHistoryStoresDialog _mapHistoryStoresDialog { get; set; } = null!;
+	private Button _btnEditorSettings { get; set; } = null!;
+	private Button _btnMapVersions { get; set; } = null!;
+	private PanelContainer _mapNameHeaderPanel { get; set; } = null!;
+	private Label _lblMapNameHeader { get; set; } = null!;
 	private double _mapNameUpdateTimer { get; set; } = 0.0;
-	private Button _btnOpenGlobalOverrides { get; set; }
-	private Button BtnEditVfx { get; set; }
-	private Button BtnAssetsManager { get; set; }
-	private Button BtnTemplateManager { get; set; }
-	private Button BtnInstanceManager { get; set; }
-	private Button BtnImportFromMap { get; set; }
-	private Button BtnUtilities { get; set; }
+	private Button _btnOpenGlobalOverrides { get; set; } = null!;
+	private Button BtnEditVfx { get; set; } = null!;
+	private Button BtnAssetsManager { get; set; } = null!;
+	private Button BtnTemplateManager { get; set; } = null!;
+	private Button BtnInstanceManager { get; set; } = null!;
+	private Button BtnImportFromMap { get; set; } = null!;
+	private Button BtnUtilities { get; set; } = null!;
 	private bool IsUpdatingInspectorUI { get; set; }
 
-	private CheckBox ChkApplyGroundTexture { get; set; }
-	private CheckBox ChkApplyCliffTexture { get; set; }
-	private HBoxContainer RowGroundTexture { get; set; }
-	private HBoxContainer RowCliffTexture { get; set; }
+	private CheckBox ChkApplyGroundTexture { get; set; } = null!;
+	private CheckBox ChkApplyCliffTexture { get; set; } = null!;
+	private HBoxContainer RowGroundTexture { get; set; } = null!;
+	private HBoxContainer RowCliffTexture { get; set; } = null!;
 
-	private Slider _sldPlacementRotate { get; set; }
-	private Label _lblPlacementRotateValue { get; set; }
-	private Slider _sldPlacementScale { get; set; }
-	private Label _lblPlacementScaleValue { get; set; }
+	private Slider _sldPlacementRotate { get; set; } = null!;
+	private Label _lblPlacementRotateValue { get; set; } = null!;
+	private Slider _sldPlacementScale { get; set; } = null!;
+	private Label _lblPlacementScaleValue { get; set; } = null!;
 	private VBoxContainer _placementRotateBox { get; set; }
 	private VBoxContainer _placementScaleBox { get; set; }
-	private Button _btnCopy { get; set; }
-	private Button _btnPaste { get; set; }
-	private Control _stepBox { get; set; }
-	private Button _btnToggleSnap { get; set; }
-	private Button _btnToggleGrid { get; set; }
-	private PopupMenu _popupOverlayMode { get; set; }
-	private Button _btnToggleEnvironment { get; set; }
-	private PopupPanel _popupEnvironment { get; set; }
-	private OptionButton _optEnvLighting { get; set; }
-	private OptionButton _optEnvWeather { get; set; }
-	private CheckBox _chkEnvShadows { get; set; }
-	private Button _btnBrushShape { get; set; }
-	private Button _btnResetMap { get; set; }
-	private Button _btnSaveMore { get; set; }
-	private PopupPanel _popupSaveMore { get; set; }
-	private Button _btnEyedropper { get; set; }
-	private OptionButton _optEyedropperMode { get; set; }
-	private Button _btnNoise { get; set; }
-	private Button _btnWater { get; set; }
-	private PanelContainer _minimapFrame { get; set; }
-	private Control _minimapArea { get; set; }
-	private MapEditorCameraIndicator _cameraIndicator { get; set; }
+	private Button _btnCopy { get; set; } = null!;
+	private Button _btnPaste { get; set; } = null!;
+	private Control _stepBox { get; set; } = null!;
+	private Button _btnToggleSnap { get; set; } = null!;
+	private Button _btnToggleGrid { get; set; } = null!;
+	private PopupMenu _popupOverlayMode { get; set; } = null!;
+	private Button _btnToggleEnvironment { get; set; } = null!;
+	private PopupPanel _popupEnvironment { get; set; } = null!;
+	private OptionButton _optEnvLighting { get; set; } = null!;
+	private OptionButton _optEnvWeather { get; set; } = null!;
+	private CheckBox _chkEnvShadows { get; set; } = null!;
+	private Button _btnBrushShape { get; set; } = null!;
+	private Button _btnResetMap { get; set; } = null!;
+	private Button _btnSaveMore { get; set; } = null!;
+	private PopupPanel _popupSaveMore { get; set; } = null!;
+	private Button _btnEyedropper { get; set; } = null!;
+	private OptionButton _optEyedropperMode { get; set; } = null!;
+	private Button _btnNoise { get; set; } = null!;
+	private Button _btnWater { get; set; } = null!;
+	private PanelContainer _minimapFrame { get; set; } = null!;
+	private Control _minimapArea { get; set; } = null!;
+	private MapEditorCameraIndicator _cameraIndicator { get; set; } = null!;
 
 
-	private Button _btnToggleCamera { get; set; }
-	private PopupPanel _popupCamera { get; set; }
-	private CheckBox _chkFreeCamera { get; set; }
+	private Button _btnToggleCamera { get; set; } = null!;
+	private PopupPanel _popupCamera { get; set; } = null!;
+	private CheckBox _chkFreeCamera { get; set; } = null!;
 
 
-	private Button _btnRaise { get; set; }
-	private Button _btnLower { get; set; }
-	private Button _btnHeight { get; set; }
-	private Button _btnSmooth { get; set; }
-	private Button _btnPlateau { get; set; }
-	private Button _btnRamp { get; set; }
-	private OptionButton _optMirrorMode { get; set; }
-	private OptionButton _optPlacementMirrorMode { get; set; }
-	private HSlider _sldClumpDensity { get; set; }
-	private Label _lblClumpDensityValue { get; set; }
-	private HSlider _sldClumpScaleVar { get; set; }
-	private Label _lblClumpScaleVarValue { get; set; }
+	private Button _btnRaise { get; set; } = null!;
+	private Button _btnLower { get; set; } = null!;
+	private Button _btnHeight { get; set; } = null!;
+	private Button _btnSmooth { get; set; } = null!;
+	private Button _btnPlateau { get; set; } = null!;
+	private Button _btnRamp { get; set; } = null!;
+	private OptionButton _optMirrorMode { get; set; } = null!;
+	private OptionButton _optPlacementMirrorMode { get; set; } = null!;
+	private HSlider _sldClumpDensity { get; set; } = null!;
+	private Label _lblClumpDensityValue { get; set; } = null!;
+	private HSlider _sldClumpScaleVar { get; set; } = null!;
+	private Label _lblClumpScaleVarValue { get; set; } = null!;
 
-	private Button _btnTextureBrush { get; set; }
+	private Button _btnTextureBrush { get; set; } = null!;
 
-	private Button _btnFloodFill { get; set; }
-	private Button _btnSelectArea { get; set; }
-	private Button _btnSelectMove { get; set; }
-	private PanelContainer _inspectorPanel { get; set; }
-	private Label _lblInspectorTitle { get; set; }
-	private Label _lblInspectorPos { get; set; }
-	private Button _btnInspectorRotLeft { get; set; }
-	private Button _btnInspectorRotRight { get; set; }
-	private Button _btnInspectorScaleDown { get; set; }
-	private Button _btnInspectorScaleUp { get; set; }
-	private Button _btnInspectorScaleReset { get; set; }
-	private Button _btnInspectorDelete { get; set; }
-	private Button _btnShowCoverage { get; set; }
-	private HBoxContainer _playerOwnerContainer { get; set; }
-	private OptionButton _optPlayerOwner { get; set; }
-	private HBoxContainer _placementPlayerContainer { get; set; }
-	private OptionButton _optPlacementPlayer { get; set; }
-	private PanelContainer _rigStatusContainer { get; set; }
-	private Label _lblRigStatus { get; set; }
+	private Button _btnFloodFill { get; set; } = null!;
+	private Button _btnSelectArea { get; set; } = null!;
+	private Button _btnSelectMove { get; set; } = null!;
+	private PanelContainer _inspectorPanel { get; set; } = null!;
+	private Label _lblInspectorTitle { get; set; } = null!;
+	private Label _lblInspectorPos { get; set; } = null!;
+	private Button _btnInspectorRotLeft { get; set; } = null!;
+	private Button _btnInspectorRotRight { get; set; } = null!;
+	private Button _btnInspectorScaleDown { get; set; } = null!;
+	private Button _btnInspectorScaleUp { get; set; } = null!;
+	private Button _btnInspectorScaleReset { get; set; } = null!;
+	private Button _btnInspectorDelete { get; set; } = null!;
+	private Button _btnShowCoverage { get; set; } = null!;
+	private HBoxContainer _playerOwnerContainer { get; set; } = null!;
+	private OptionButton _optPlayerOwner { get; set; } = null!;
+	private HBoxContainer _placementPlayerContainer { get; set; } = null!;
+	private OptionButton _optPlacementPlayer { get; set; } = null!;
+	private PanelContainer _rigStatusContainer { get; set; } = null!;
+	private Label _lblRigStatus { get; set; } = null!;
 
-	private Button _btnPathingBrush { get; set; }
-	private Button _btnFloodFillPathing { get; set; }
-	private CheckBox _chkShallowWater { get; set; }
-	private CheckBox _chkDeepWater { get; set; }
-	private CheckBox _chkFlying { get; set; }
-	private CheckBox _chkGround { get; set; }
-	private CheckBox _chkBuildable { get; set; }
+	private Button _btnPathingBrush { get; set; } = null!;
+	private Button _btnFloodFillPathing { get; set; } = null!;
+	private CheckBox _chkShallowWater { get; set; } = null!;
+	private CheckBox _chkDeepWater { get; set; } = null!;
+	private CheckBox _chkFlying { get; set; } = null!;
+	private CheckBox _chkGround { get; set; } = null!;
+	private CheckBox _chkBuildable { get; set; } = null!;
 
-	private OptionButton _optPathingMode { get; set; }
+	private OptionButton _optPathingMode { get; set; } = null!;
 
 
-	private Button _btnDrawCoordinate { get; set; }
-	private LineEdit _txtCoordinateName { get; set; }
-	private Button _btnCommitCoordinate { get; set; }
-	private Button _btnViewCoordinates { get; set; }
+	private Button _btnDrawCoordinate { get; set; } = null!;
+	private LineEdit _txtCoordinateName { get; set; } = null!;
+	private Button _btnCommitCoordinate { get; set; } = null!;
+	private Button _btnViewCoordinates { get; set; } = null!;
 
 
 	private Button _activeToolButton { get; set; } = null;
-	private StyleBoxFlat _highlightStyle { get; set; }
+	private StyleBoxFlat _highlightStyle { get; set; } = null!;
 
 	private Label _lblInfoText { get; set; }
-	private Label _lblTerrainTexture { get; set; }
-	private Label _lblCliffTexture { get; set; }
+	private Label _lblTerrainTexture { get; set; } = null!;
+	private Label _lblCliffTexture { get; set; } = null!;
 
-	private PanelContainer _scaleMapDialog { get; set; }
-	private Label _lblScalePreviewWidth { get; set; }
-	private Label _lblScalePreviewHeight { get; set; }
+	private PanelContainer _scaleMapDialog { get; set; } = null!;
+	private Label _lblScalePreviewWidth { get; set; } = null!;
+	private Label _lblScalePreviewHeight { get; set; } = null!;
 
 	private int _scaleDialogTargetDepth { get; set; }
 
-	private Camera3D _camera3D { get; set; }
-	private Button _btnEditors { get; set; }
-	private Button _btnVSCode { get; set; }
-	private PopupPanel _popupEditors { get; set; }
+	private Camera3D _camera3D { get; set; } = null!;
+	private Button _btnEditors { get; set; } = null!;
+	private Button _btnVSCode { get; set; } = null!;
+	private PopupPanel _popupEditors { get; set; } = null!;
 	private bool _isDraggingSlider { get; set; } = false;
-	private Panel _swatchHighlightPanel { get; set; }
-	private Panel _swatchCliffHighlightPanel { get; set; }
+	private Panel _swatchHighlightPanel { get; set; } = null!;
+	private Panel _swatchCliffHighlightPanel { get; set; } = null!;
 
-	private MapEditorTopBar _topBarController { get; set; }
-	private MapEditorBrushSettings _brushSettingsController { get; set; }
-	private MapEditorPlacementSettings _placementSettingsController { get; set; }
-	private MapEditorInspector _inspectorController { get; set; }
-	private MapEditorPathingPanel _pathingPanelController { get; set; }
-	private MapEditorMinimap _minimapController { get; set; }
-	private MapEditorEntityPaletteController _entityPaletteController { get; set; }
+	private MapEditorTopBar _topBarController { get; set; } = null!;
+	private MapEditorBrushSettings _brushSettingsController { get; set; } = null!;
+	private MapEditorPlacementSettings _placementSettingsController { get; set; } = null!;
+	private MapEditorInspector _inspectorController { get; set; } = null!;
+	private MapEditorPathingPanel _pathingPanelController { get; set; } = null!;
+	private MapEditorMinimap _minimapController { get; set; } = null!;
+	private MapEditorEntityPaletteController _entityPaletteController { get; set; } = null!;
 
 	private bool _wasmHasErrors { get; set; } = false;
 	private string _wasmCompileLogPath { get; set; } = "";
@@ -1103,7 +1103,7 @@ public partial class MapEditorHUD : Control
 		UpdateCardScrollState(_contentInspector, 300f);
 	}
 
-	private FontVariation _faFontVariation { get; set; }
+	private FontVariation _faFontVariation { get; set; } = null!;
 
 	private HashSet<ulong> _hookedSliderInstanceIds { get; set; } = new();
 
@@ -1292,7 +1292,7 @@ public partial class MapEditorHUD : Control
 	}
 
 
-	private ObjectAttachmentDialog _objectAttachmentDialog { get; set; }
+	private ObjectAttachmentDialog _objectAttachmentDialog { get; set; } = null!;
 
 
 	public async Task ProceedToTestMap()
@@ -1530,10 +1530,10 @@ public partial class MapEditorHUD : Control
 		GameContext.EditorService.LastMapNameCacheTicks = 0;
 	}
 
-	private Button _btnHeaderLightingTuning { get; set; }
-	private VBoxContainer _contentLightingTuning { get; set; }
+	private Button _btnHeaderLightingTuning { get; set; } = null!;
+	private VBoxContainer _contentLightingTuning { get; set; } = null!;
 
-	private HSlider _sldHeightBlendSoftness { get; set; }
-	private HSlider _sldBlendNoiseStrength { get; set; }
-	private HSlider _sldBlendNoiseScale { get; set; }
+	private HSlider _sldHeightBlendSoftness { get; set; } = null!;
+	private HSlider _sldBlendNoiseStrength { get; set; } = null!;
+	private HSlider _sldBlendNoiseScale { get; set; } = null!;
 }
