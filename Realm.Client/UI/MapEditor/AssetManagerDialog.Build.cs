@@ -167,17 +167,8 @@ public partial class AssetManagerDialog
 		_footerPanel.Name = "FooterPanel_PanelContainer";
 		_footerPanel.CustomMinimumSize = new Vector2(0, 95);
 		_footerPanel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		var detailStyle = new StyleBoxFlat
-		{
-			BgColor = new Color(0.08f, 0.09f, 0.11f, 0.95f),
-			BorderColor = new Color(0.25f, 0.23f, 0.20f, 0.8f)
-		};
-		detailStyle.SetBorderWidthAll(1);
-		detailStyle.SetCornerRadiusAll(4);
-		detailStyle.ContentMarginLeft = 10;
-		detailStyle.ContentMarginRight = 10;
-		detailStyle.ContentMarginTop = 8;
-		detailStyle.ContentMarginBottom = 8;
+		var detailStyle = UIStyle.CreateCardPlate(new Color(0.08f, 0.09f, 0.11f, 0.95f),
+			new Color(0.25f, 0.23f, 0.20f, 0.8f), 1, 4, 10, 10, 8, 8);
 		_footerPanel.AddThemeStyleboxOverride("panel", detailStyle);
 		BodyContainer.AddChild(_footerPanel);
 
