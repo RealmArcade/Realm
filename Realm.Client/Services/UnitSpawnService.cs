@@ -57,35 +57,42 @@ public class UnitSpawnService
 
 	public void ProcessPropSpawnRequests(Action<string, System.Numerics.Vector3, float, float> spawnAction)
 	{
+		var world = GameContext.World;
+		if (world == null) return;
+
 		var propSpawnQuery = QueryCache.AllPropSpawnRequestQuery;
 		var propRequests = new List<Entity>();
-		GameContext.World.Query(in propSpawnQuery, (Entity entity) => propRequests.Add(entity));
+		world.Query(in propSpawnQuery, (Entity entity) => propRequests.Add(entity));
 		foreach (var reqEnt in propRequests)
 		{
-			ref var req = ref GameContext.World.Get<PropSpawnRequest>(reqEnt);
+			ref var req = ref world.Get<PropSpawnRequest>(reqEnt);
 			spawnAction(req.PropId, req.Position, req.RotationY, req.Scale);
-			GameContext.World.Destroy(reqEnt);
+			world.Destroy(reqEnt);
 		}
 	}
 
 	public void ProcessDecalSpawnRequests(Action<string, System.Numerics.Vector3, System.Numerics.Vector3, float> spawnAction)
 	{
+		var world = GameContext.World;
+		if (world == null) return;
+
 		var decalSpawnQuery = QueryCache.AllDecalSpawnRequestQuery;
 		var decalRequests = new List<Entity>();
-		GameContext.World.Query(in decalSpawnQuery, (Entity entity) => decalRequests.Add(entity));
+		world.Query(in decalSpawnQuery, (Entity entity) => decalRequests.Add(entity));
 		foreach (var reqEnt in decalRequests)
 		{
-			ref var req = ref GameContext.World.Get<DecalSpawnRequest>(reqEnt);
+			ref var req = ref world.Get<DecalSpawnRequest>(reqEnt);
 			spawnAction(req.DecalId, req.Position, new System.Numerics.Vector3(req.RotationX, req.RotationY, req.RotationZ), req.Scale);
-			GameContext.World.Destroy(reqEnt);
+			world.Destroy(reqEnt);
 		}
 	}
 
 	public int ResolveSpawnParentPlayer(Entity buildingEntity)
 	{
-		if (GameContext.World.IsAlive(buildingEntity) && GameContext.World.Has<UnitOwnerPlayer>(buildingEntity))
+		var world = GameContext.World;
+		if (world != null && world.IsAlive(buildingEntity) && world.Has<UnitOwnerPlayer>(buildingEntity))
 		{
-			return GameContext.World.Get<UnitOwnerPlayer>(buildingEntity).PlayerIndex;
+			return world.Get<UnitOwnerPlayer>(buildingEntity).PlayerIndex;
 		}
 
 		return 0;
@@ -94,7 +101,10 @@ public class UnitSpawnService
 	
 	public Entity SpawnUnitDomain(string unitTypeId, string name, float maxHp, float damage, float range, float armor, float speed, System.Numerics.Vector3 position, PlayerEntity playerOwner, bool bypassPopulation, Entity playerEntity, bool hasShieldsUpgrade, bool hasWeaponsUpgrade)
 	{
-		Realm.Shared.Metadata.UnitMetadata regMeta = null;
+		var world = GameContext.World;
+		if (world == null) return Entity.Null;
+
+		Realm.Shared.Metadata.UnitMetadata? regMeta = null;
 		if (!GameContext.RegistryService.UnitRegistry.TryGetValue(unitTypeId, out regMeta)) GameContext.RegistryService.BuildingRegistry.TryGetValue(unitTypeId, out regMeta);
 
 		var pos = new Godot.Vector3(position.X, position.Y, position.Z);
@@ -120,7 +130,7 @@ public class UnitSpawnService
 			
 			if (regMeta.Abilities != null && regMeta.Abilities.Length > 0)
 			{
-				GameContext.World.SetOrAdd(entity, new AbilityState(regMeta.Abilities));
+				world.SetOrAdd(entity, new AbilityState(regMeta.Abilities));
 			}
 
 			if (regMeta.StartingItems != null && regMeta.StartingItems.Length > 0)
@@ -128,25 +138,25 @@ public class UnitSpawnService
 				foreach (var stItem in regMeta.StartingItems)
 				{
 					if (string.IsNullOrWhiteSpace(stItem)) continue;
-					Realm.Client.Utils.ItemGrantingUtility.EquipItem(GameContext.World, entity, stItem);
+					Realm.Client.Utils.ItemGrantingUtility.EquipItem(world, entity, stItem);
 				}
 			}
 
 			if (regMeta.Strength != 0f || regMeta.Agility != 0f || regMeta.Vitality != 0f || regMeta.Intelligence != 0f || regMeta.Wisdom != 0f || regMeta.Fortune != 0f)
 			{
-				GameContext.World.Set(entity, new UnitAttributes(regMeta.Strength, regMeta.Agility, regMeta.Vitality, regMeta.Intelligence, regMeta.Wisdom, regMeta.Fortune));
+				world.Set(entity, new UnitAttributes(regMeta.Strength, regMeta.Agility, regMeta.Vitality, regMeta.Intelligence, regMeta.Wisdom, regMeta.Fortune));
 			}
 
-			AttributeStatCalculator.RecalculateEntityStats(GameContext.World, entity);
+			AttributeStatCalculator.RecalculateEntityStats(world, entity);
 
-			GameContext.World.SetOrAdd(entity, new CollisionRadius(UnitEntityFactory.ResolveUnitCollisionRadius(regMeta)));
+			world.SetOrAdd(entity, new CollisionRadius(UnitEntityFactory.ResolveUnitCollisionRadius(regMeta)));
 		}
 		else
 		{
 			entity = CreateEcsUnitEntity(unitTypeId, name, maxHp, damage, range, armor, speed, 15.0f, false, 1.5f, 8, pos, playerOwner, playerEntity, hasShieldsUpgrade, hasWeaponsUpgrade, null, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, DamageTypes.Physical, 0f, 1f, "None", 0f, 0f, 0f, 1f, 0.5f, 0.25f, false, 0, "Ground");
 		}
 
-		if (bypassPopulation) GameContext.World.Add(entity, new BypassPopulationTag());
+		if (bypassPopulation) world.Add(entity, new BypassPopulationTag());
 		return entity;
 	}
 
@@ -161,28 +171,34 @@ public class UnitSpawnService
 		float splashInnerRatio = 1f, float splashMediumRatio = 0.5f, float splashOuterRatio = 0.25f, bool friendlyFire = false,
 		int pushPriority = 0, string movementType = "Ground", float flatMagicPen = 0f)
 	{
+		var world = GameContext.World;
+		if (world == null) return Entity.Null;
+
 		Entity entity = UnitEntityFactory.CreateCore(
-			GameContext.World, id, name, hp, damage, range, armor, speed, scanRadius, isHero, attackCooldown, pathingFlags,
+			world, id, name, hp, damage, range, armor, speed, scanRadius, isHero, attackCooldown, pathingFlags,
 			new System.Numerics.Vector3(pos.X, pos.Y, pos.Z), owner, targets, hpRegen, hpRegenCombatDelay, maxMana, manaRegen,
 			magicResistance, flatArmorPen, percentArmorPen, damageVariance, damageType, critChance, critMultiplier,
 			splashTypeStr, splashInnerRadius, splashMediumRadius, splashOuterRadius, splashInnerRatio, splashMediumRatio,
 			splashOuterRatio, friendlyFire, pushPriority, movementType, flatMagicPen);
 
-		AttributeStatCalculator.RecalculateEntityStats(GameContext.World, entity);
+		AttributeStatCalculator.RecalculateEntityStats(world, entity);
 		return entity;
 	}
 
 
 	public void ProcessUnitSpawnRequestsDomain(Action<string, System.Numerics.Vector3, float, float, int> spawnAction)
 	{
+		var world = GameContext.World;
+		if (world == null) return;
+
 		var unitSpawnQuery = QueryCache.AllUnitSpawnRequestQuery;
 		var unitRequests = new List<Entity>();
-		GameContext.World.Query(in unitSpawnQuery, (Entity entity) => unitRequests.Add(entity));
+		world.Query(in unitSpawnQuery, (Entity entity) => unitRequests.Add(entity));
 		foreach (var reqEnt in unitRequests)
 		{
-			ref var req = ref GameContext.World.Get<UnitSpawnRequest>(reqEnt);
+			ref var req = ref world.Get<UnitSpawnRequest>(reqEnt);
 			spawnAction(req.UnitId, req.Position, req.RotationY, req.Scale, req.Player);
-			GameContext.World.Destroy(reqEnt);
+			world.Destroy(reqEnt);
 		}
 	}
 }
