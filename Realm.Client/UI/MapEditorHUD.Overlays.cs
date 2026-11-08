@@ -737,14 +737,14 @@ namespace Realm.Client.UI
 
 		private void OpenCameraPopup()
 		{
-			if (_popupCamera == null || GameContext.Host == null || _btnToggleCamera == null) return;
+			if (_cameraPanel.Popup == null || GameContext.Host == null || _cameraPanel.ToggleButton == null) return;
 
 			UpdateCameraPopupControls();
 
-			var globalRect = _btnToggleCamera.GetGlobalRect();
+			var globalRect = _cameraPanel.ToggleButton.GetGlobalRect();
 			var popupPos = new Vector2I((int)globalRect.Position.X, (int)(globalRect.Position.Y + globalRect.Size.Y + 2));
-			_popupCamera.Position = popupPos;
-			_popupCamera.Popup();
+			_cameraPanel.Popup.Position = popupPos;
+			_cameraPanel.Popup.Popup();
 		}
 
 		public void UpdateCameraPopupControls()

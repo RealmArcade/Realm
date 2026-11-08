@@ -129,11 +129,7 @@ public partial class MapEditorHUD : Control
 	private Label _statusLabel { get; set; } = null!;
 	private Label _feedbackLabel { get; set; } = null!;
 
-	private Button _btnZoomIn { get; set; } = null!;
-	private Button _btnZoomOut { get; set; } = null!;
 	private Button _btnCenter { get; set; } = null!;
-	private Button _btnRotate { get; set; } = null!;
-	private Button _btnCameraAngle { get; set; } = null!;
 
 
 
@@ -190,9 +186,6 @@ public partial class MapEditorHUD : Control
 	private MapEditorCameraIndicator _cameraIndicator { get; set; } = null!;
 
 
-	private Button _btnToggleCamera { get; set; } = null!;
-	private PopupPanel _popupCamera { get; set; } = null!;
-	private CheckBox _chkFreeCamera { get; set; } = null!;
 
 
 
@@ -250,6 +243,7 @@ public partial class MapEditorHUD : Control
 	private ToolAccordionPanel _toolPanel { get; set; } = null!;
 	private TopToolbarPanel _topToolbar { get; set; } = null!;
 	private FileOperationsPanel _filePanel { get; set; } = null!;
+	private CameraControlsPanel _cameraPanel { get; set; } = null!;
 	private BrushSettingsPanel _brushPanel { get; set; } = null!;
 	private WaterSettingsPanel _waterPanel { get; set; } = null!;
 	private PasteSettingsPanel _pastePanel { get; set; } = null!;
@@ -1061,7 +1055,7 @@ public partial class MapEditorHUD : Control
 		return AnyWindowVisible(
 			_popupOverlayMode,
 			_popupEnvironment,
-			_popupCamera,
+			_cameraPanel.Popup,
 			_topToolbar.EditorsPopup,
 			_filePanel.SaveMorePopup,
 			_filePanel.LoadMorePopup

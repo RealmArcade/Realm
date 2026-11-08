@@ -21,9 +21,9 @@ namespace Realm.Client.UI
 
 		public void UpdateFreeCameraExternal(bool isFreeCam)
 		{
-			if (_chkFreeCamera != null)
+			if (_cameraPanel.FreeCameraCheck != null)
 			{
-				_chkFreeCamera.SetPressedNoSignal(isFreeCam);
+				_cameraPanel.FreeCameraCheck.SetPressedNoSignal(isFreeCam);
 			}
 		}
 
@@ -53,9 +53,9 @@ namespace Realm.Client.UI
 
 		public void UpdateCameraAngleButtonText(bool isTopDown)
 		{
-			if (_btnCameraAngle != null)
+			if (_cameraPanel.AngleButton != null)
 			{
-				_btnCameraAngle.Text = isTopDown
+				_cameraPanel.AngleButton.Text = isTopDown
 					? TranslationServer.Translate($"{UnicodeIcons.CUBE} Tilt (C)")
 					: TranslationServer.Translate($"{UnicodeIcons.CUBE} Top-Down (C)");
 			}

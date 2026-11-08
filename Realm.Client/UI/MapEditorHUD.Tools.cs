@@ -626,133 +626,9 @@ namespace Realm.Client.UI
 
 		private void BuildCameraPopup()
 		{
-			var camVBox = BuildCameraPopupShell();
-
-			BuildCameraRotateButton(camVBox);
-
-			BuildCameraAngleButton(camVBox);
-
-			BuildCameraZoomButtons(camVBox);
-
-			BuildFreeCameraToggle(camVBox);
-
-			_popupCamera.AddChild(camVBox);
-			AddChild(_popupCamera);
-
-			_btnToggleCamera = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/BoxViewportToolbar/ViewportIconRow1/BtnToggleCamera");
-			_btnToggleCamera.Set("icon_max_width", 0);
-			SetupButton(_btnToggleCamera, UnicodeIcons.CAMERA, () => OpenCameraPopup(), 12, "Configure camera controls (R / C / + / - / F8)");
-		}
-
-
-		private VBoxContainer BuildCameraPopupShell()
-		{
-			_popupCamera = new PopupPanel();
-			_popupCamera.Name = "PopupCamera";
-
-			var camPopupStyle = new StyleBoxFlat();
-			camPopupStyle.BgColor = new Color(0.14f, 0.13f, 0.11f, 0.98f);
-			camPopupStyle.BorderColor = UIStyle.ColorGold;
-			camPopupStyle.SetBorderWidthAll(1);
-			camPopupStyle.SetCornerRadiusAll(4);
-			camPopupStyle.ContentMarginLeft = 8;
-			camPopupStyle.ContentMarginRight = 8;
-			camPopupStyle.ContentMarginTop = 8;
-			camPopupStyle.ContentMarginBottom = 8;
-			_popupCamera.AddThemeStyleboxOverride("panel", camPopupStyle);
-
-			var camVBox = new VBoxContainer();
-			camVBox.Name = "CamVBox";
-			camVBox.AddThemeConstantOverride("separation", 6);
-			camVBox.CustomMinimumSize = new Vector2(170, 0);
-			return camVBox;
-		}
-
-
-		private void BuildCameraRotateButton(VBoxContainer camVBox)
-		{
-			_btnRotate = new Button();
-			_btnRotate.Name = "BtnRotate";
-			_btnRotate.Set("icon_max_width", 0);
-			StylePopupButton(_btnRotate, $"{UnicodeIcons.ROTATE} Rotate 90° (R)", "Rotate camera 90 degrees (R)");
-			_btnRotate.Pressed += () =>
-			{
-				GameContext.UserInterface?.PlayClickSound();
-				var camera = GameContext.Host?.MainCamera;
-				camera?.Rotate90Degrees();
-				_popupCamera.Hide();
-			};
-			camVBox.AddChild(_btnRotate);
-		}
-
-
-		private void BuildCameraAngleButton(VBoxContainer camVBox)
-		{
-			_btnCameraAngle = new Button();
-			_btnCameraAngle.Name = "BtnCameraAngle";
-			_btnCameraAngle.Set("icon_max_width", 0);
-			StylePopupButton(_btnCameraAngle, $"{UnicodeIcons.CUBE} Top-Down (C)", "Toggle perspective vs top-down angle (C)");
-			_btnCameraAngle.Pressed += () =>
-			{
-				var camera = GameContext.Host?.MainCamera;
-				camera?.ToggleTopDown();
-				if (camera != null)
-				{
-					UpdateCameraAngleButtonText(camera.IsTopDown());
-				}
-				_popupCamera.Hide();
-			};
-			camVBox.AddChild(_btnCameraAngle);
-		}
-
-
-		private void BuildCameraZoomButtons(VBoxContainer camVBox)
-		{
-			_btnZoomIn = new Button();
-			_btnZoomIn.Name = "BtnZoomIn";
-			_btnZoomIn.Set("icon_max_width", 0);
-			StylePopupButton(_btnZoomIn, $"{UnicodeIcons.ZOOM_IN} Zoom In (Mouse_Wheel)", "Zoom camera in (Mouse Wheel)");
-			_btnZoomIn.Pressed += () =>
-			{
-				GameContext.UserInterface?.PlayClickSound();
-				GameContext.Host?.MainCamera?.ZoomIn();
-				_popupCamera.Hide();
-			};
-			camVBox.AddChild(_btnZoomIn);
-
-			_btnZoomOut = new Button();
-			_btnZoomOut.Name = "BtnZoomOut";
-			_btnZoomOut.Set("icon_max_width", 0);
-			StylePopupButton(_btnZoomOut, $"{UnicodeIcons.ZOOM_OUT} Zoom Out (Mouse_Wheel)", "Zoom camera out (Mouse Wheel)");
-			_btnZoomOut.Pressed += () =>
-			{
-				GameContext.UserInterface?.PlayClickSound();
-				GameContext.Host?.MainCamera?.ZoomOut();
-				_popupCamera.Hide();
-			};
-			camVBox.AddChild(_btnZoomOut);
-		}
-
-
-		private void BuildFreeCameraToggle(VBoxContainer camVBox)
-		{
-			_chkFreeCamera = new CheckBox();
-			_chkFreeCamera.Name = "ChkFreeCamera";
-			_chkFreeCamera.Text = TranslationServer.Translate("Free Camera (F8)");
-			_chkFreeCamera.TooltipText = TranslationServer.Translate("Toggle free camera mode (F8)");
-			_chkFreeCamera.FocusMode = FocusModeEnum.None;
-			_chkFreeCamera.AddThemeFontSizeOverride("font_size", 11);
-			UIStyle.ApplyCheckboxStyle(_chkFreeCamera);
-			_chkFreeCamera.Toggled += (pressed) =>
-			{
-				var cam = GameContext.Host?.MainCamera;
-				if (cam != null && cam.IsFreeCamera != pressed)
-				{
-					ToggleFreeCamera();
-				}
-				_popupCamera.Hide();
-			};
-			camVBox.AddChild(_chkFreeCamera);
+			_cameraPanel = new CameraControlsPanel();
+			_cameraPanel.Build(new CameraControlsHooks(
+				this, StylePopupButton, SetupButton, OpenCameraPopup, UpdateCameraAngleButtonText, ToggleFreeCamera));
 		}
 
 
@@ -2977,7 +2853,7 @@ namespace Realm.Client.UI
 			{
 				StyleIconButton(_btnToggleGrid, UnicodeIcons.BORDER_ALL, "Overlay");
 				StyleIconButton(_btnToggleEnvironment, UnicodeIcons.SUN, "Environment");
-				StyleIconButton(_btnToggleCamera, UnicodeIcons.CAMERA, "Configure camera controls (R / C / + / - / F8)");
+				StyleIconButton(_cameraPanel.ToggleButton, UnicodeIcons.CAMERA, "Configure camera controls (R / C / + / - / F8)");
 				StyleIconButton(_btnTapeMeasure, UnicodeIcons.RULER, "Tape measure distance & slope tool (U)");
 
 				StyleSubContainer(targetViewport.GetNodeOrNull<Control>("BoxViewportToolbar"), "Navigation Bar");
