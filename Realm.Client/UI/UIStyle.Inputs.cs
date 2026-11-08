@@ -111,6 +111,13 @@ public static partial class UIStyle
 		cb.AddThemeConstantOverride("icon_max_width", 20);
 	}
 
+	/// <summary>The gold-on-graphite bar a progress bar fills, matching the sliders beside it.</summary>
+	public static void ApplyProgressBar(ProgressBar bar)
+	{
+		bar.AddThemeStyleboxOverride("background", CreateSliderTrack());
+		bar.AddThemeStyleboxOverride("fill", CreateSliderFill());
+	}
+
 	public static StyleBoxFlat CreateSliderTrack()
 	{
 		var style = new StyleBoxFlat();

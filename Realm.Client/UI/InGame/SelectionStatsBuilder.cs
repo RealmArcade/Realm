@@ -52,7 +52,7 @@ public static class SelectionStatsBuilder
 		var statsPanel = new UnitStatsPanel();
 		statsVBox.AddChild(statsPanel.Root);
 
-		StyleScrollBar(statsScroll.GetVScrollBar());
+		UIStyle.ApplyScrollBar(statsScroll.GetVScrollBar(), 6f, 3, UIStyle.ColorBronze, 0.5f);
 
 		var productionBox = new VBoxContainer();
 		productionBox.Name = "ProductionBox_VBoxContainer";
@@ -72,8 +72,7 @@ public static class SelectionStatsBuilder
 		productionProgress.Name = "ProductionProgress_ProgressBar";
 		productionProgress.CustomMinimumSize = new Vector2(120, 16);
 		productionProgress.ShowPercentage = true;
-		productionProgress.AddThemeStyleboxOverride("background", UIStyle.CreateSliderTrack());
-		productionProgress.AddThemeStyleboxOverride("fill", UIStyle.CreateSliderFill());
+		UIStyle.ApplyProgressBar(productionProgress);
 		productionBox.AddChild(productionProgress);
 
 		var productionQueueLabel = new Label();
@@ -94,30 +93,4 @@ public static class SelectionStatsBuilder
 			productionQueueLabel, queueSlots);
 	}
 
-	private static void StyleScrollBar(VScrollBar? vScroll)
-	{
-		if (vScroll == null) return;
-
-		vScroll.CustomMinimumSize = new Vector2(6, 0);
-
-		var grabberNormal = new StyleBoxFlat();
-		grabberNormal.BgColor = UIStyle.ColorBronze;
-		grabberNormal.SetCornerRadiusAll(3);
-		vScroll.AddThemeStyleboxOverride("grabber", grabberNormal);
-
-		var grabberHighlight = new StyleBoxFlat();
-		grabberHighlight.BgColor = UIStyle.ColorGold;
-		grabberHighlight.SetCornerRadiusAll(3);
-		vScroll.AddThemeStyleboxOverride("grabber_highlight", grabberHighlight);
-
-		var grabberPressed = new StyleBoxFlat();
-		grabberPressed.BgColor = UIStyle.ColorCyanGlow;
-		grabberPressed.SetCornerRadiusAll(3);
-		vScroll.AddThemeStyleboxOverride("grabber_pressed", grabberPressed);
-
-		var scrollTrack = new StyleBoxFlat();
-		scrollTrack.BgColor = new Color(0.04f, 0.04f, 0.06f, 0.5f);
-		scrollTrack.SetCornerRadiusAll(3);
-		vScroll.AddThemeStyleboxOverride("scroll", scrollTrack);
-	}
 }
