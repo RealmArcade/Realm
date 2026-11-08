@@ -117,4 +117,15 @@ internal static class MapWorkspacePaths
 	{
 		return FindRootFile("Realm.MapAPI/wit/game.g.wit");
 	}
+
+	/// <summary>
+	///     A path inside a folder that is generated or vendored - build output, the editor's caches, the SDK
+	///     copies - and therefore never a map asset. Spelled with forward slashes.
+	/// </summary>
+	internal static bool IsBuildOutputPath(string path)
+	{
+		string normalized = path.Replace('\\', '/');
+		return normalized.Contains("/bin/") || normalized.Contains("/obj/") || normalized.Contains("/.git/") ||
+		       normalized.Contains("/.godot/") || normalized.Contains("/vscode_embedded/") || normalized.Contains("/wasi_sdk_embedded/");
+	}
 }
