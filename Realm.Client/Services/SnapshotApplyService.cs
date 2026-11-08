@@ -84,18 +84,19 @@ public class SnapshotApplyService
 
 		if (_baselineRequestDeferred) RequestBaseline();
 
+		EcsWorld? world = GameContext.World;
 		Entity worldEntity = GameContext.NetworkService.FindWorldEntity();
-		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkState>(worldEntity))
+		if (world == null || worldEntity == Entity.Null || !world.Has<NetworkState>(worldEntity))
 		{
 			RequestBaseline();
 			return;
 		}
-		GameContext.World.Get<NetworkState>(worldEntity).LastSnapshotReceivedTime = Time.GetTicksMsec();
+		world.Get<NetworkState>(worldEntity).LastSnapshotReceivedTime = Time.GetTicksMsec();
 		ProcessSnapshot(snapshot);
 
 		Entity currentWorldEntity = GameContext.NetworkService.FindWorldEntity();
-		if (currentWorldEntity == Entity.Null || !GameContext.World.Has<NetworkState>(currentWorldEntity)) return;
-		if (!GameContext.World.Get<NetworkState>(currentWorldEntity).HasReceivedInitialBaseline) RequestBaseline();
+		if (currentWorldEntity == Entity.Null || !world.Has<NetworkState>(currentWorldEntity)) return;
+		if (!world.Get<NetworkState>(currentWorldEntity).HasReceivedInitialBaseline) RequestBaseline();
 	}
 
 	public void RequestBaseline()
@@ -117,10 +118,13 @@ public class SnapshotApplyService
 	private void ProcessSnapshot(WorldSnapshot snapshot)
 	{
 		if (MultiplayerSyncDiagnostics.IsRecording) MultiplayerSyncDiagnostics.RecordClientSeenSequence(snapshot.Sequence);
-		Entity worldEntity = GameContext.NetworkService.FindWorldEntity();
-		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkState>(worldEntity)) return;
+		EcsWorld? world = GameContext.World;
+		if (world == null) return;
 
-		ref var networkState = ref GameContext.World.Get<NetworkState>(worldEntity);
+		Entity worldEntity = GameContext.NetworkService.FindWorldEntity();
+		if (worldEntity == Entity.Null || !world.Has<NetworkState>(worldEntity)) return;
+
+		ref var networkState = ref world.Get<NetworkState>(worldEntity);
 
 		// Descriptions held behind a run that never arrived are a world this screen cannot reach by applying them: the
 		// run was asked for, and once the grace to answer it has passed the only thing left is the world itself.

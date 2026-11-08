@@ -104,7 +104,7 @@ public class SnapshotComponentApplier
 				}
 				Entity worldEntity = _findWorldEntity();
 				if (worldEntity == Entity.Null || !world.Has<NetworkMappingState>(worldEntity)) return;
-				targetEntity = ReplicatedLootLifecycle.Create(delta.Key, world.Get<NetworkMappingState>(worldEntity));
+				targetEntity = ReplicatedLootLifecycle.Create(delta.Key, world.Get<NetworkMappingState>(worldEntity), world);
 			}
 		}
 		else if ((ReplicatedScope)delta.Scope == ReplicatedScope.World)
@@ -122,7 +122,7 @@ public class SnapshotComponentApplier
 				Entity worldEntity = _findWorldEntity();
 				if (worldEntity != Entity.Null && world.Has<NetworkMappingState>(worldEntity))
 				{
-					ReplicatedLootLifecycle.Destroy(delta.Key, targetEntity, world.Get<NetworkMappingState>(worldEntity));
+					ReplicatedLootLifecycle.Destroy(delta.Key, targetEntity, world.Get<NetworkMappingState>(worldEntity), world);
 				}
 			}
 		}

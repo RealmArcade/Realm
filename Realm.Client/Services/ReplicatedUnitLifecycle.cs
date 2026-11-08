@@ -69,7 +69,7 @@ public class ReplicatedUnitLifecycle
 			&& world.IsAlive(heldForThisIdentifier)
 			&& world.Has<GroundLoot>(heldForThisIdentifier))
 		{
-			ReplicatedLootLifecycle.Destroy(snap.EntityId, heldForThisIdentifier, mapping);
+			ReplicatedLootLifecycle.Destroy(snap.EntityId, heldForThisIdentifier, mapping, world);
 		}
 
 		if (mapping.ServerToClientEntityMap.TryGetValue(snap.EntityId, out Entity alreadySpawned))

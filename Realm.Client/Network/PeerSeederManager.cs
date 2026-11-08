@@ -157,9 +157,12 @@ public class PeerSeederManager
 		{
 			try
 			{
+				LobbyManager? lobby = GameContext.Lobby;
+				if (lobby == null) break;
+
 				var mapIds = GetFullyAvailableMapIds();
-				int publicPort = GameContext.Lobby.PublicPort + 15;
-				string publicIp = GameContext.Lobby.PublicIP;
+				int publicPort = lobby.PublicPort + 15;
+				string publicIp = lobby.PublicIP;
 
 				if (mapIds.Count > 0)
 				{
@@ -173,7 +176,7 @@ public class PeerSeederManager
 						AcceptingUploads = AcceptingUploads
 					};
 					var jsonContent = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
-					var regUrl = $"{GameContext.Lobby.RegistryServerUrl}/seeders/register";
+					var regUrl = $"{lobby.RegistryServerUrl}/seeders/register";
 					var resp = await httpClient.PostAsync(regUrl, jsonContent, token);
 					if (resp.IsSuccessStatusCode)
 					{
@@ -204,7 +207,10 @@ public class PeerSeederManager
 				using var client = new HttpClient();
 				var payload = new { SeederId = _seederId };
 				var jsonContent = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
-				await client.PostAsync($"{GameContext.Lobby.RegistryServerUrl}/seeders/unregister", jsonContent);
+				string? registryServerUrl = GameContext.Lobby?.RegistryServerUrl;
+				if (string.IsNullOrEmpty(registryServerUrl)) return;
+
+				await client.PostAsync($"{registryServerUrl}/seeders/unregister", jsonContent);
 				GameLog.LogToConsole("[PeerSeeder] Sent unregister request to orchestrator.");
 			}
 			catch (Exception ex)

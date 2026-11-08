@@ -453,7 +453,7 @@ public class NetworkService
 		{
 			int serverEntityId = _staleLootServerIds[index];
 			if (!mapping.ServerToClientEntityMap.TryGetValue(serverEntityId, out Entity localEntity)) continue;
-			ReplicatedLootLifecycle.Destroy(serverEntityId, localEntity, mapping);
+			ReplicatedLootLifecycle.Destroy(serverEntityId, localEntity, mapping, World);
 		}
 	}
 
@@ -480,7 +480,7 @@ public class NetworkService
 		}
 
 		GameContext.NetworkService?.RetireUnitReplicaForReusedServerId(mapping, entry.EntityId);
-		localEntity = ReplicatedLootLifecycle.Create(entry.EntityId, mapping);
+		localEntity = ReplicatedLootLifecycle.Create(entry.EntityId, mapping, World);
 		var described = new GroundLoot(entry.EntityId, entry.ItemTypeId, entry.Charges, entry.Lifetime, entry.PickupRadius, entry.AutoPickup, entry.OwnerPlayerIndex)
 		{
 			RemainingLifetime = entry.RemainingLifetime

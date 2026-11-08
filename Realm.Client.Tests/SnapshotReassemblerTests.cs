@@ -39,7 +39,7 @@ public partial class SnapshotReassemblerTests
 		var reassembler = new SnapshotReassembler();
 		byte[] frame = Frame(1, SnapshotFragment.MaximumDatagramBytes);
 
-		Assertions.AssertThat(reassembler.TryTake(frame, out byte[] handed)).IsTrue();
+		Assertions.AssertThat(reassembler.TryTake(frame, out byte[]? handed)).IsTrue();
 		Assertions.AssertThat(SameBytes(handed, frame)).OverrideFailureMessage("the whole description was not handed back unchanged").IsTrue();
 	}
 
@@ -72,7 +72,7 @@ public partial class SnapshotReassemblerTests
 
 		for (int index = 1; index < pieces.Count; index++)
 		{
-			bool completed = reassembler.TryTake(pieces[index], out byte[] assembled);
+			bool completed = reassembler.TryTake(pieces[index], out byte[]? assembled);
 			if (!completed) continue;
 
 			Assertions.AssertThat(index == pieces.Count - 1).OverrideFailureMessage("the group completed before its last piece arrived").IsTrue();

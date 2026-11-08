@@ -21,22 +21,22 @@ namespace Realm.Client.Services;
 /// </summary>
 internal static class ReplicatedLootLifecycle
 {
-	internal static Entity Create(int serverEntityId, NetworkMappingState mapping)
+	internal static Entity Create(int serverEntityId, NetworkMappingState mapping, EcsWorld world)
 	{
-		Entity localEntity = GameContext.World.Create();
+		Entity localEntity = world.Create();
 		mapping.ServerToClientEntityMap[serverEntityId] = localEntity;
 		mapping.ClientToServerEntityMap[localEntity.Id] = serverEntityId;
 		ReplicatedEntityReferences.Register(serverEntityId, localEntity.Id);
 		GameContext.NetworkService?.References.Refix(serverEntityId);
 		return localEntity;
 	}
-	internal static void Destroy(int serverEntityId, Entity localEntity, NetworkMappingState mapping)
+	internal static void Destroy(int serverEntityId, Entity localEntity, NetworkMappingState mapping, EcsWorld world)
 	{
 		GameContext.Host?.RemoveLootItemLocal(serverEntityId);
 		GameContext.NetworkService?.References.ForgetAllHeldBy(localEntity.Id);
 		ReplicatedEntityReferences.Unregister(serverEntityId);
 		mapping.ServerToClientEntityMap.Remove(serverEntityId);
 		mapping.ClientToServerEntityMap.Remove(localEntity.Id);
-		if (GameContext.World.IsAlive(localEntity)) GameContext.World.Destroy(localEntity);
+		if (world.IsAlive(localEntity)) world.Destroy(localEntity);
 	}
 }

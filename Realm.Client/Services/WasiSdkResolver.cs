@@ -51,7 +51,7 @@ public static class WasiSdkResolver
 	private static bool TryGetEnvironmentWasiPath(out string path)
 	{
 		path = string.Empty;
-		string environmentPath = Environment.GetEnvironmentVariable("WASI_SDK_PATH");
+		string? environmentPath = Environment.GetEnvironmentVariable("WASI_SDK_PATH");
 		if (string.IsNullOrWhiteSpace(environmentPath) || !IsValidWasiSdkDirectory(environmentPath))
 		{
 			return false;
@@ -180,7 +180,7 @@ public static class WasiSdkResolver
 	{
 		path = string.Empty;
 		string baseDirectoryPath = AppDomain.CurrentDomain.BaseDirectory;
-		DirectoryInfo currentDirectoryInfo = new DirectoryInfo(baseDirectoryPath);
+		DirectoryInfo? currentDirectoryInfo = new DirectoryInfo(baseDirectoryPath);
 
 		while (currentDirectoryInfo != null)
 		{
