@@ -377,6 +377,13 @@ public static class GameSettings
 		return fpsLimit == 0 || (fpsLimit >= MinFpsLimit && fpsLimit <= MaxFpsLimit);
 	}
 
+	/// <summary>Snaps a free slider value onto a limit the engine will accept: zero stays unlimited, anything else clamps.</summary>
+	public static int NormalizeFpsLimit(int fpsLimit)
+	{
+		if (fpsLimit <= 0) return 0;
+		return Math.Clamp(fpsLimit, MinFpsLimit, MaxFpsLimit);
+	}
+
 	private static float GetLodDistanceScale(GraphicsQuality quality)
 	{
 		return quality switch

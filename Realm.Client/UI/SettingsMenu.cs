@@ -444,7 +444,7 @@ public partial class SettingsMenu : Control
 		};
 		_fpsLimitSlider.DragEnded += (valueChanged) =>
 		{
-			int snappedFpsLimit = NormalizeFpsLimit((int)_fpsLimitSlider.Value);
+			int snappedFpsLimit = GameSettings.NormalizeFpsLimit((int)_fpsLimitSlider.Value);
 			if ((int)_fpsLimitSlider.Value != snappedFpsLimit)
 			{
 				_fpsLimitSlider.Value = snappedFpsLimit;
@@ -452,15 +452,9 @@ public partial class SettingsMenu : Control
 		};
 	}
 
-	private static int NormalizeFpsLimit(int fpsLimit)
-	{
-		if (fpsLimit <= 0) return 0;
-		return Math.Clamp(fpsLimit, GameSettings.MinFpsLimit, GameSettings.MaxFpsLimit);
-	}
-
 	private static string FormatFpsLimitValue(int fpsLimit)
 	{
-		int normalizedFpsLimit = NormalizeFpsLimit(fpsLimit);
+		int normalizedFpsLimit = GameSettings.NormalizeFpsLimit(fpsLimit);
 		return normalizedFpsLimit <= 0 ? TranslationServer.Translate("Unlimited") : normalizedFpsLimit.ToString();
 	}
 
@@ -530,7 +524,7 @@ public partial class SettingsMenu : Control
 		_windowModeOpt.Select((int)GameSettings.WindowModeIdx);
 		_vsyncOpt.Select(GameSettings.Vsync ? 0 : 1);
 
-		int fpsLimit = NormalizeFpsLimit(GameSettings.FpsLimit);
+		int fpsLimit = GameSettings.NormalizeFpsLimit(GameSettings.FpsLimit);
 		_fpsLimitSlider.Value = fpsLimit;
 		_fpsLimitValLabel.Text = FormatFpsLimitValue(fpsLimit);
 
@@ -668,7 +662,7 @@ public partial class SettingsMenu : Control
 		GameSettings.WeatherEffectsEnabled = _weatherEffectsChk.ButtonPressed;
 		GameSettings.FloatingCombatText = _floatingCombatTextChk.ButtonPressed;
 
-		GameSettings.FpsLimit = NormalizeFpsLimit((int)_fpsLimitSlider.Value);
+		GameSettings.FpsLimit = GameSettings.NormalizeFpsLimit((int)_fpsLimitSlider.Value);
 	}
 
 	private void SaveGameplaySettings()
