@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
@@ -34,23 +34,7 @@ public class ClientServerSession : IDisposable
 
 	private byte[] _snapshotBuffer = new byte[SnapshotWireFormat.FrameHeaderBytes];
 
-	/// <summary>
-	///     Descriptions waiting to be applied, oldest first. They live in a ring because the oldest is dropped whenever a
-	///     screen falls behind, and shifting the rest of a list to do it was work paid on the tick that could least afford
-	///     it.
-	/// </summary>
-	private readonly QueuedFrame[] _descriptionQueue = new QueuedFrame[MaximumQueuedDescriptions];
-	private int _descriptionHead;
-	private int _descriptionCount;
-
-	/// <summary>
-	///     Frames the match cannot proceed without, in the order they arrived. Nothing waiting here is ever dropped: it
-	///     came over the stream that guarantees delivery, and discarding it would throw away the only copy of something
-	///     this screen needs.
-	/// </summary>
-	private readonly Queue<QueuedFrame> _reliableQueue = new();
-
-	private bool _descriptionsWereDropped;
+	private readonly SessionFrameQueue _frames = new();
 
 	private readonly struct QueuedFrame
 	{
@@ -107,25 +91,11 @@ public class ClientServerSession : IDisposable
 	private const int MaximumReconnectAttempts = 240;
 
 	/// <summary>
-	///     How many descriptions the ring holds before the oldest is overwritten. A screen with this many waiting has
-	///     stopped reading rather than met a link that is late, and the ones at its front describe a world the ones behind
-	///     them already supersede.
-	/// </summary>
-	private const int MaximumQueuedDescriptions = 32;
-
-	/// <summary>
 	///     How many descriptions one tick may apply. A tick that spent all of itself draining a backlog applied state the
 	///     screen was about to be told again anyway, and everything after the first of them was older than the world it left
 	///     behind; what is left keeps waiting for the next tick.
 	/// </summary>
 	private const int MaximumSnapshotsAppliedPerPump = 3;
-
-	/// <summary>
-	///     How many descriptions may wait to be applied before the older ones are dropped. A queue this deep is a screen
-	///     that stopped reading for a fifth of a second, and the descriptions at its front describe a world the ones behind
-	///     them already supersede.
-	/// </summary>
-	private const int MaximumQueuedDescriptionsBeforeDiscard = 6;
 
 	public bool IsRunning => TerminationReport == null && (_local ? GameContext.LocalAuthority.IsRunning : _joined);
 
@@ -504,7 +474,7 @@ public class ClientServerSession : IDisposable
 
 		bool handed = false;
 
-		DiscardSupersededDescriptions();
+		_frames.DiscardSuperseded();
 
 		if (_helloSent && _connectedBefore && !_channel.IsConnected)
 		{
@@ -529,33 +499,28 @@ public class ClientServerSession : IDisposable
 
 		// Everything the match cannot proceed without is handed over whole and in the order it arrived. Descriptions are
 		// the only frames with a budget, because they are the only frames a later one can stand in for.
-		int reliableToDrain = _reliableQueue.Count;
-		while (reliableToDrain-- > 0 && _reliableQueue.Count > 0)
+		int reliableToDrain = _frames.ReliableCount;
+		while (reliableToDrain-- > 0 && _frames.TryDequeueReliable(out SessionFrameQueue.QueuedFrame reliable))
 		{
-			DispatchFrame(_reliableQueue.Dequeue());
+			DispatchFrame(reliable);
 			handed = true;
 		}
 
 		int snapshotsApplied = 0;
-		while (_descriptionCount > 0)
+		while (_frames.TryPeekDescription(out SessionFrameQueue.QueuedFrame frame))
 		{
-			QueuedFrame frame = _descriptionQueue[_descriptionHead];
 			if (frame.Kind == NetworkFrameKind.Snapshot && snapshotsApplied >= MaximumSnapshotsAppliedPerPump) break;
 
-			_descriptionQueue[_descriptionHead] = default;
-			_descriptionHead = (_descriptionHead + 1) % _descriptionQueue.Length;
-			_descriptionCount--;
-
+			_frames.PopDescription();
 			if (frame.Kind == NetworkFrameKind.Snapshot) snapshotsApplied++;
 
 			DispatchFrame(frame);
 			handed = true;
 		}
 
-		if (_descriptionsWereDropped)
+		if (_frames.TakeDroppedDescriptionMark() && !InLobby)
 		{
-			_descriptionsWereDropped = false;
-			if (!InLobby) GameContext.SnapshotApply.RequestBaseline();
+			GameContext.SnapshotApply.RequestBaseline();
 		}
 
 		return handed;
@@ -619,54 +584,7 @@ public class ClientServerSession : IDisposable
 		_channel.Send(NetworkFrameKind.ClientHello, MemoryPackSerializer.Serialize(hello));
 	}
 
-	private void Enqueue(NetworkFrameKind kind, byte[] payload)
-	{
-		ulong arrivalMilliseconds = kind == NetworkFrameKind.LatencyProbeEcho ? Time.GetTicksMsec() : 0UL;
-		var frame = new QueuedFrame(kind, payload, arrivalMilliseconds);
-
-		if (kind is not (NetworkFrameKind.Snapshot or NetworkFrameKind.Presentation))
-		{
-			_reliableQueue.Enqueue(frame);
-			return;
-		}
-
-		if (_descriptionCount == _descriptionQueue.Length)
-		{
-			_descriptionQueue[_descriptionHead] = default;
-			_descriptionHead = (_descriptionHead + 1) % _descriptionQueue.Length;
-			_descriptionCount--;
-			_descriptionsWereDropped = true;
-		}
-
-		_descriptionQueue[(_descriptionHead + _descriptionCount) % _descriptionQueue.Length] = frame;
-		_descriptionCount++;
-	}
-
-	/// <summary>
-	///     Keeps only the newest descriptions waiting to be applied. Nothing is repaired here: the hole the drops leave is
-	///     what tells the apply path which run of descriptions this screen is missing, and it asks for exactly that run.
-	/// </summary>
-	private void DiscardSupersededDescriptions()
-	{
-		int queuedDescriptions = 0;
-		for (int offset = 0; offset < _descriptionCount; offset++)
-		{
-			if (_descriptionQueue[(_descriptionHead + offset) % _descriptionQueue.Length].Kind == NetworkFrameKind.Snapshot) queuedDescriptions++;
-		}
-
-		if (queuedDescriptions <= MaximumQueuedDescriptionsBeforeDiscard) return;
-
-		int toDiscard = queuedDescriptions - MaximumQueuedDescriptionsBeforeDiscard;
-		while (toDiscard > 0 && _descriptionCount > 0)
-		{
-			QueuedFrame oldest = _descriptionQueue[_descriptionHead];
-			_descriptionQueue[_descriptionHead] = default;
-			_descriptionHead = (_descriptionHead + 1) % _descriptionQueue.Length;
-			_descriptionCount--;
-
-			if (oldest.Kind == NetworkFrameKind.Snapshot) toDiscard--;
-		}
-	}
+	private void Enqueue(NetworkFrameKind kind, byte[] payload) => _frames.Enqueue(kind, payload);
 
 	/// <summary>
 	///     Hands one queued frame to the session, and reports what it could make of it. A description this screen cannot
@@ -674,7 +592,7 @@ public class ClientServerSession : IDisposable
 	///     the one it is sent in answer asks for the world instead. Any other frame it cannot read is one it never received,
 	///     and nothing else would report it missing.
 	/// </summary>
-	private void DispatchFrame(QueuedFrame frame)
+	private void DispatchFrame(SessionFrameQueue.QueuedFrame frame)
 	{
 		try
 		{
@@ -893,11 +811,7 @@ public class ClientServerSession : IDisposable
 		_port = 0;
 		_channel.FrameArrived -= Enqueue;
 
-		Array.Clear(_descriptionQueue);
-		_descriptionHead = 0;
-		_descriptionCount = 0;
-		_reliableQueue.Clear();
-		_descriptionsWereDropped = false;
+		_frames.Clear();
 
 		if (heldHere) GameContext.LocalAuthority.Pause();
 		_channel.Disconnect();
