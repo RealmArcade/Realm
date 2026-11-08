@@ -6177,7 +6177,7 @@ public class {mapName} : IMapScript
 		return Path.Combine(docsDir, cleanName);
 	}
 
-	public async Task<bool> PerformCompilationStepAsyncDomain(string workspace, Func<string, string> findProjectFile, Func<string, bool, bool> tryBypassCompilation, Func<string, bool> checkMapApiDependency, Func<string, string, bool, Task<bool>> executeDotnetPublishAsync, Action<string> onStatusError, Action<string> onLog, bool isDebug = false)
+	public async Task<bool> PerformCompilationStepAsyncDomain(string workspace, Func<string, string?> findProjectFile, Func<string, bool, bool> tryBypassCompilation, Func<string, bool> checkMapApiDependency, Func<string, string, bool, Task<bool>> executeDotnetPublishAsync, Action<string> onStatusError, Action<string> onLog, bool isDebug = false)
 	{
 		try
 		{
@@ -6193,7 +6193,7 @@ public class {mapName} : IMapScript
 			Realm.Client.Services.MapWorkspaceService.EnsureCsproj(workspace, Path.GetFileName(workspace));
 			Realm.Client.Services.MapWorkspaceService.EnsureSingleScriptOutput(workspace);
 
-			string csproj = findProjectFile(workspace);
+			string? csproj = findProjectFile(workspace);
 			if (string.IsNullOrEmpty(csproj)) return false;
 
 			if (!isDebug && tryBypassCompilation(workspace, isDebug)) return true;
@@ -6222,9 +6222,9 @@ public class {mapName} : IMapScript
 		return System.Linq.Enumerable.FirstOrDefault(csprojFiles, f => Path.GetFileName(f).Equals("MapScript.csproj", StringComparison.OrdinalIgnoreCase)) ?? csprojFiles[0];
 	}
 
-	public bool TryBypassCompilationDomain(string workspace, Func<string, string> findExistingWasmFile, Func<string, DateTime, bool> hasNewerSourceFiles, Action onBypassSuccess, bool isDebug = false)
+	public bool TryBypassCompilationDomain(string workspace, Func<string, string?> findExistingWasmFile, Func<string, DateTime, bool> hasNewerSourceFiles, Action onBypassSuccess, bool isDebug = false)
 	{
-		string existingWasm = findExistingWasmFile(workspace);
+		string? existingWasm = findExistingWasmFile(workspace);
 		if (string.IsNullOrEmpty(existingWasm) || !File.Exists(existingWasm)) return false;
 
 		if (!string.Equals(MapWorkspaceService.ReadBuildFlavorDomain(workspace), isDebug ? MapWorkspaceService.DebugBuildFlavor : MapWorkspaceService.ReleaseBuildFlavor, StringComparison.OrdinalIgnoreCase)) return false;

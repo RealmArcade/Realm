@@ -94,7 +94,7 @@ namespace Realm.Client.UI
 		private void OnMetadataSaved(string targetPath)
 		{
 			UpdateLastMetadataSyncTime(targetPath);
-			string wsPath = string.IsNullOrEmpty(targetPath) ? MapWorkspaceService.GetActiveWorkspacePath() : (Directory.Exists(targetPath) ? targetPath : Path.GetDirectoryName(targetPath));
+			string? wsPath = string.IsNullOrEmpty(targetPath) ? MapWorkspaceService.GetActiveWorkspacePath() : (Directory.Exists(targetPath) ? targetPath : Path.GetDirectoryName(targetPath));
 			if (!string.IsNullOrEmpty(wsPath))
 			{
 				MapTemplateGeneratorService.EnsureMapTemplates(wsPath);
@@ -184,7 +184,7 @@ namespace Realm.Client.UI
 				return;
 			}
 
-			GameContext.Host.EditorHasUnsavedChanges = true;
+			if (GameContext.Host is { } host) host.EditorHasUnsavedChanges = true;
 			_autosaveRetryNotBeforeUtc = DateTime.UtcNow + AutosaveRetryBackoff;
 
 			if (string.Equals(failure, _reportedAutosaveFailure, StringComparison.Ordinal)) return;
@@ -319,7 +319,7 @@ namespace Realm.Client.UI
 			MapWorkspaceService.RefreshSavedDirectoryHashDomain(IsIgnoredPath);
 		}
 
-		private void EstablishLaunchSavedState(Action onCompleted = null)
+		private void EstablishLaunchSavedState(Action? onCompleted = null)
 		{
 			if (GameContext.SessionState.EditorSessionResumedAfterTest)
 			{
@@ -422,7 +422,7 @@ namespace Realm.Client.UI
 				string relativePath = file.Substring(GameContext.EditorService._editingDirectory.Length + 1);
 				if (IsIgnoredPath(relativePath)) continue;
 				string targetFile = Path.Combine(targetFolder, relativePath);
-				string targetDir = Path.GetDirectoryName(targetFile);
+				string? targetDir = Path.GetDirectoryName(targetFile);
 				if (!string.IsNullOrEmpty(targetDir) && createdDirs.Add(targetDir))
 				{
 					Directory.CreateDirectory(targetDir);
@@ -781,7 +781,7 @@ namespace Realm.Client.UI
 
 		public async Task<bool> ImportMapArchiveAsync(string archivePath)
 		{
-			string workspacePath = ResolveImportWorkspace(archivePath);
+			string? workspacePath = ResolveImportWorkspace(archivePath);
 			if (workspacePath == null) return false;
 
 			if (!EnsureArchiveHasManifest(archivePath)) return false;
@@ -814,7 +814,7 @@ namespace Realm.Client.UI
 			return await LoadImportedWorkspaceAsync(workspacePath);
 		}
 
-		private string ResolveImportWorkspace(string archivePath)
+		private string? ResolveImportWorkspace(string archivePath)
 		{
 			if (string.IsNullOrWhiteSpace(archivePath) || !File.Exists(archivePath))
 			{
@@ -1302,7 +1302,7 @@ namespace Realm.Client.UI
 			return await GameContext.EditorService.PerformCompilationStepAsyncDomain(workspace, FindProjectFile, TryBypassCompilation, CheckMapApiDependency, ExecuteDotnetPublishAsync, msg => { _wasmHasErrors = true; SetWasmConsoleStatus($"❌ WASM Compilation Failed: {msg}", new Color(1.0f, 0.3f, 0.3f)); GameLog.LogError($"[MapEditorHUD] Trigger compilation failed: {msg}"); }, err => AppendWasmConsoleLog($"[COMPILER EXCEPTION] {err}"), isDebug);
 		}
 
-		private string FindProjectFile(string workspace)
+		private string? FindProjectFile(string workspace)
 		{
 			return GameContext.EditorService.FindProjectFileDomain(workspace, msg => { _wasmHasErrors = true; SetWasmConsoleStatus("❌ " + msg, new Color(1.0f, 0.3f, 0.3f)); AppendWasmConsoleLog(msg); GameLog.LogError(msg); });
 		}
@@ -1312,14 +1312,14 @@ namespace Realm.Client.UI
 			return GameContext.EditorService.TryBypassCompilationDomain(workspace, FindExistingWasmFile, HasNewerSourceFiles, () => { _wasmHasErrors = false; SetWasmConsoleStatus("✓ WASM Compilation Bypassed (Unchanged)", UIStyle.ColorCyanGlow); AppendWasmConsoleLog($"[INFO] The script sources are unchanged since the last {(isDebug ? "debug" : "release")} build. Bypassing compilation using the WASM binary already in bin/script."); }, isDebug);
 		}
 
-		private string FindExistingWasmFile(string workspace)
+		private string? FindExistingWasmFile(string workspace)
 		{
 			return MapWorkspaceService.FindExistingWasmFileDomain(workspace);
 		}
 
 		private bool HasNewerSourceFiles(string workspace, DateTime wasmTime)
 		{
-			string currentSourceFolder = GameContext.EditorService.CurrentSourceFolder;
+			string? currentSourceFolder = GameContext.EditorService.CurrentSourceFolder;
 			return GameContext.MapStorageService.HasNewerSourceFiles(workspace, wasmTime, currentSourceFolder);
 		}
 
@@ -1461,7 +1461,7 @@ namespace Realm.Client.UI
 			GameContext.RegistryService.UpdateLocalRegistry(regKey, isBuildingMeta, socket, attachmentId, orientation);
 		}
 
-		private void UpdateMetadataFile(string unitId, string regKey, string socket, string attachmentId, HandAttachmentOrientation orientation, string wsPath = null)
+		private void UpdateMetadataFile(string unitId, string regKey, string socket, string attachmentId, HandAttachmentOrientation orientation, string? wsPath = null)
 		{
 			if (wsPath == null)
 			{
@@ -1713,7 +1713,7 @@ namespace Realm.Client.UI
 			GameLog.OnLine += _exportLogHandler;
 		}
 
-		private Action<string> _exportLogHandler { get; set; } = null!;
+		private Action<string>? _exportLogHandler { get; set; }
 
 		private async Task<string?> PerformExportStepsAsync(ProgressBar progressBar, Label statusLabel, Button closeBtn, string destinationPath, bool fullExport)
 		{
@@ -1885,7 +1885,7 @@ namespace Realm.Client.UI
 			});
 		}
 
-		private void AbortExport(ProgressBar progressBar, Label statusLabel, Button closeBtn, string labelMessage, string logMessage)
+		private void AbortExport(ProgressBar progressBar, Label statusLabel, Button closeBtn, string labelMessage, string? logMessage)
 		{
 			progressBar.Value = 100;
 			statusLabel.Text = "❌ " + TranslationServer.Translate(labelMessage);
@@ -1964,7 +1964,7 @@ namespace Realm.Client.UI
 			}
 		}
 
-		private Texture2D LoadSwatchTextureInternal(int i)
+		private Texture2D? LoadSwatchTextureInternal(int i)
 		{
 			string wsPath = GameContext.EditorService._editingDirectory;
 			if (i >= 0 && i < GameContext.EditorService.SwatchDisplayNames.Count && GameContext.EditorService.SwatchDisplayNames[i].EndsWith("(Empty)"))
@@ -1977,7 +1977,7 @@ namespace Realm.Client.UI
 
 			if (File.Exists(localRtex))
 			{
-				Texture2D loadedTex = TryLoadRtexTexture(localRtex);
+				Texture2D? loadedTex = TryLoadRtexTexture(localRtex);
 				if (loadedTex != null) return loadedTex;
 			}
 
@@ -1990,7 +1990,7 @@ namespace Realm.Client.UI
 		}
 
 
-		private Texture2D TryLoadRtexTexture(string localRtex)
+		private Texture2D? TryLoadRtexTexture(string localRtex)
 		{
 			try
 			{

@@ -1031,7 +1031,7 @@ public class MapStorageService
 		return await Task.Run(() => MapArchiveHelper.CreateRmapArchive(editingDirectory, destinationPath, progressCallback, compressionLevel: 1, fullExport: fullExport, excludedRelativePaths: excludedPaths));
 	}
 
-	public bool HasNewerSourceFiles(string workspace, DateTime wasmTime, string currentSourceFolder)
+	public bool HasNewerSourceFiles(string workspace, DateTime wasmTime, string? currentSourceFolder)
 	{
 		var sourceDirs = new List<string> { workspace };
 		if (!string.IsNullOrEmpty(currentSourceFolder) && Directory.Exists(currentSourceFolder) && !currentSourceFolder.Equals(workspace, StringComparison.OrdinalIgnoreCase))
