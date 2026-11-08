@@ -40,7 +40,7 @@ public sealed class InGameHudTheme
 
 	public void Apply(HudThemeNodes nodes)
 	{
-		nodes.ResourceContainer.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
+		UIStyle.ClearPanelBackground(nodes.ResourceContainer);
 
 		ApplyResourcePlate(nodes);
 		ApplyConsolePlate(nodes);
@@ -85,12 +85,12 @@ public sealed class InGameHudTheme
 	/// </summary>
 	private static void ApplyFrameStyles(HudThemeNodes nodes)
 	{
-		nodes.BottomConsole?.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
-		nodes.MinimapFrame?.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
+		UIStyle.ClearPanelBackground(nodes.BottomConsole);
+		UIStyle.ClearPanelBackground(nodes.MinimapFrame);
 
 		if (nodes.PortraitFrame is { } portraitFrame)
 		{
-			portraitFrame.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
+			UIStyle.ClearPanelBackground(portraitFrame);
 			portraitFrame.ZIndex = -1;
 
 			if (portraitFrame.GetNodeOrNull<ColorRect>("PortraitBacking") == null)
@@ -106,14 +106,14 @@ public sealed class InGameHudTheme
 
 		if (nodes.SelectionFrame is { } selectionFrame)
 		{
-			selectionFrame.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
+			UIStyle.ClearPanelBackground(selectionFrame);
 			selectionFrame.ClipContents = true;
 		}
 
 		var inventoryFrame = nodes.Owner.GetNodeOrNull<PanelContainer>("BottomConsole/HBox/InventoryFrame");
-		inventoryFrame?.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
+		UIStyle.ClearPanelBackground(inventoryFrame);
 
-		nodes.CommandFrame?.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
+		UIStyle.ClearPanelBackground(nodes.CommandFrame);
 
 		UIStyle.ApplyTitle(nodes.FeedbackLabel, "", 32);
 		nodes.FeedbackLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);

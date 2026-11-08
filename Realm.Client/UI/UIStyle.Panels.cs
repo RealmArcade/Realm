@@ -393,6 +393,14 @@ public static partial class UIStyle
 		return CreateTexturedPanel("res://Assets/UI/map_editor_publish.webp", 140);
 	}
 
+	/// <summary>Clears a panel's plate so the artwork behind it shows through instead.</summary>
+	public static void ClearPanelBackground(Control? panel)
+	{
+		if (panel == null) return;
+
+		panel.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
+	}
+
 	/// <summary>
 	/// A filled card traced with a border, the shape every list row and section block on a detail screen takes. The
 	/// colours and the border width are what change between an ordinary row and an accented one, so they are arguments.
