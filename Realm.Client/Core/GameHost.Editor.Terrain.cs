@@ -643,7 +643,7 @@ namespace Realm.Client.Core
 			       GameContext.EditorService.SelectionEnd != null;
 		}
 
-		private (TerrainCell[,] Cells, TerrainSplatWeights[,] Splat, int[,] Pathing, TerrainSplatWeights[,] Cliff) CreateTerrainSnapshot()
+		private (TerrainCell[,] Cells, TerrainSplatWeights[,] Splat, int[,] Pathing, TerrainSplatWeights[,]? Cliff) CreateTerrainSnapshot()
 		{
 			return (
 				(TerrainCell[,])GroundTerrain.Cells.Clone(),
@@ -670,7 +670,7 @@ namespace Realm.Client.Core
 			}
 		}
 
-		private List<IEditorAction> BuildEraseActions(EraseAreaResult eraseResult, (TerrainCell[,] Cells, TerrainSplatWeights[,] Splat, int[,] Pathing, TerrainSplatWeights[,] Cliff) snapshotBefore, List<Node3D> eraseTargets)
+		private List<IEditorAction> BuildEraseActions(EraseAreaResult eraseResult, (TerrainCell[,] Cells, TerrainSplatWeights[,] Splat, int[,] Pathing, TerrainSplatWeights[,]? Cliff) snapshotBefore, List<Node3D> eraseTargets)
 		{
 			var actions = new List<IEditorAction>();
 
