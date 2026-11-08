@@ -77,6 +77,7 @@ public partial class GameHost
 	private TerrainCell[,]? _renderGroundCells;
 	private float _renderGroundQuadSize = RuntimeTerrain.DefaultQuadSize;
 	private Action<int>? _processRenderWorkItemDelegate;
+	private EntityCallback<Position>? _gatherRenderWorkItemDelegate;
 
 	private readonly Plane[] _cachedCameraFrustumPlanes = new Plane[6];
 	private readonly Plane[] _previousCameraFrustumPlanes = new Plane[6];
@@ -139,39 +140,8 @@ public partial class GameHost
 
 		_renderWorkItemCount = 0;
 		var query = QueryCache.AllPositionAndDefinitionIdQuery;
-		World.Query(in query, (Entity entity, ref Position pos) =>
-		{
-			if (!TryGetUnit3D(entity, out var unit3D) || !GodotObject.IsInstanceValid(unit3D))
-				return;
-
-			var posValue = pos.Value;
-			if (CheckNonFinitePositionWarning(entity, posValue, unit3D))
-				return;
-
-			if (_renderWorkItemCount >= _renderWorkItems.Length)
-			{
-				Array.Resize(ref _renderWorkItems, _renderWorkItems.Length * 2);
-			}
-
-			bool hasCached = unit3D.HasCachedTransform;
-			_renderWorkItems[_renderWorkItemCount++] = new UnitRenderWorkItem
-			{
-				Entity = entity,
-				Unit = unit3D,
-				PosValue = posValue,
-				HasCachedTransform = hasCached,
-				CachedPosition = hasCached ? unit3D.CachedPosition : unit3D.GlobalPosition,
-				CachedScale = hasCached ? unit3D.CachedScale : unit3D.Scale,
-				CachedBaseScale = unit3D.CachedBaseScale,
-				CachedRotationY = hasCached ? unit3D.CachedRotationY : unit3D.Rotation.Y,
-				CachedBasis = hasCached ? unit3D.CachedBasis.Orthonormalized() : unit3D.Basis.Orthonormalized(),
-				CachedUnitVelocity = unit3D.Velocity,
-				CachedLocalAabb = unit3D.CachedLocalAabb,
-				HasEvaluatedFrustum = unit3D.HasEvaluatedFrustum,
-				IsCulled = unit3D.IsCulled,
-				IsFlashingScale = unit3D.IsFlashingScale
-			};
-		});
+		_gatherRenderWorkItemDelegate ??= GatherRenderWorkItem;
+		World.Query(in query, _gatherRenderWorkItemDelegate);
 
 		if (_renderWorkItemCount == 0)
 			return;
@@ -238,6 +208,40 @@ public partial class GameHost
 			unit3D.StepManualAnimation(fDelta);
 			item.Unit = null!;
 		}
+	}
+
+	private void GatherRenderWorkItem(Entity entity, ref Position pos)
+	{
+		if (!TryGetUnit3D(entity, out var unit3D) || !GodotObject.IsInstanceValid(unit3D))
+			return;
+
+		var posValue = pos.Value;
+		if (CheckNonFinitePositionWarning(entity, posValue, unit3D))
+			return;
+
+		if (_renderWorkItemCount >= _renderWorkItems.Length)
+		{
+			Array.Resize(ref _renderWorkItems, _renderWorkItems.Length * 2);
+		}
+
+		bool hasCached = unit3D.HasCachedTransform;
+		_renderWorkItems[_renderWorkItemCount++] = new UnitRenderWorkItem
+		{
+			Entity = entity,
+			Unit = unit3D,
+			PosValue = posValue,
+			HasCachedTransform = hasCached,
+			CachedPosition = hasCached ? unit3D.CachedPosition : unit3D.GlobalPosition,
+			CachedScale = hasCached ? unit3D.CachedScale : unit3D.Scale,
+			CachedBaseScale = unit3D.CachedBaseScale,
+			CachedRotationY = hasCached ? unit3D.CachedRotationY : unit3D.Rotation.Y,
+			CachedBasis = hasCached ? unit3D.CachedBasis.Orthonormalized() : unit3D.Basis.Orthonormalized(),
+			CachedUnitVelocity = unit3D.Velocity,
+			CachedLocalAabb = unit3D.CachedLocalAabb,
+			HasEvaluatedFrustum = unit3D.HasEvaluatedFrustum,
+			IsCulled = unit3D.IsCulled,
+			IsFlashingScale = unit3D.IsFlashingScale
+		};
 	}
 
 	private void ProcessRenderWorkItemParallel(int index)
