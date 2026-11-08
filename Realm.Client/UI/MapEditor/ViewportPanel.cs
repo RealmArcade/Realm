@@ -207,16 +207,7 @@ public sealed class ViewportPanel
 		EnvironmentPopup = new PopupPanel();
 		EnvironmentPopup.Name = "PopupEnvironment";
 
-		var envPopupStyle = new StyleBoxFlat();
-		envPopupStyle.BgColor = new Color(0.14f, 0.13f, 0.11f, 0.98f);
-		envPopupStyle.BorderColor = UIStyle.ColorGold;
-		envPopupStyle.SetBorderWidthAll(1);
-		envPopupStyle.SetCornerRadiusAll(4);
-		envPopupStyle.ContentMarginLeft = 10;
-		envPopupStyle.ContentMarginRight = 10;
-		envPopupStyle.ContentMarginTop = 10;
-		envPopupStyle.ContentMarginBottom = 10;
-		EnvironmentPopup.AddThemeStyleboxOverride("panel", envPopupStyle);
+		EnvironmentPopup.AddThemeStyleboxOverride("panel", UIStyle.CreateEditorPopupPanel(10));
 
 		var envVBox = new VBoxContainer();
 		envVBox.Name = "EnvVBox";
