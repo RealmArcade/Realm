@@ -530,7 +530,7 @@ public partial class MapDetails : Control
 
 	private void ApplyMapFrame()
 	{
-		Texture2D mapFrameTex = LoadTextureSafe("res://Assets/UI/map_details_map.webp");
+		Texture2D? mapFrameTex = LoadTextureSafe("res://Assets/UI/map_details_map.webp");
 
 		if (mapFrameTex == null)
 		{
@@ -582,14 +582,14 @@ public partial class MapDetails : Control
 
 	private void ApplyCarouselButtons()
 	{
-		Texture2D arrowTex = LoadTextureSafe("res://Assets/UI/map_details_prev_next.webp");
+		Texture2D? arrowTex = LoadTextureSafe("res://Assets/UI/map_details_prev_next.webp");
 
 		if (arrowTex != null)
 		{
 			ApplyImageCarouselButton(_btnLeftArrow, arrowTex, true);
 			ApplyImageCarouselButton(_btnRightArrow, arrowTex, false);
 
-			Texture2D mapFrameTex = LoadTextureSafe("res://Assets/UI/map_details_map.webp");
+			Texture2D? mapFrameTex = LoadTextureSafe("res://Assets/UI/map_details_map.webp");
 			if (mapFrameTex != null)
 			{
 				_btnLeftArrow.Position = new Vector2(132, 155);
@@ -783,7 +783,7 @@ public partial class MapDetails : Control
 
 	private void UpdateCenterTexture()
 	{
-		Texture2D centerTex = LoadTextureSafe(_mapData.Screenshots[_carouselIndex]);
+		Texture2D? centerTex = LoadTextureSafe(_mapData.Screenshots[_carouselIndex]);
 		if (centerTex != null)
 		{
 			_texCenter.Texture = centerTex;
@@ -811,7 +811,7 @@ public partial class MapDetails : Control
 		if (_texRightPeek != null) _texRightPeek.Texture = LoadTextureSafe(_mapData.Screenshots[rightIndex]);
 	}
 
-	private Texture2D LoadTextureSafe(string resPath)
+	private Texture2D? LoadTextureSafe(string resPath)
 	{
 		return TrimmedTextureLoader.LoadTrimmedTexture(resPath);
 	}

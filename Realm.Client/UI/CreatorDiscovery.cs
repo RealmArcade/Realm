@@ -98,7 +98,7 @@ public partial class CreatorDiscovery : Control
 
 		_backButton = new Button();
 		_backButton.Name = "BackButton_Button";
-		UIStyle.ApplyBackButton(_backButton, () => GameContext.UserInterface.TransitionTo(GameScreen.MainMenu));
+		UIStyle.ApplyBackButton(_backButton, () => GameContext.UserInterface?.TransitionTo(GameScreen.MainMenu));
 		topHeaderHBox.AddChild(_backButton);
 
 		var titleLabel = new Label();

@@ -91,7 +91,7 @@ public partial class MinimapOverlay : Control
 
 	private static bool IsUsingPlayerColors()
 	{
-		InGameHUD hud = GameContext.InGameHud;
+		InGameHUD? hud = GameContext.InGameHud;
 		return hud != null && hud.MinimapColorScheme == MinimapColorScheme.PlayerColors;
 	}
 

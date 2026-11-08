@@ -87,7 +87,7 @@ public partial class StorageMenu : Control
 
 		_backButton = new Button();
 		_backButton.Name = "BackButton_Button";
-		UIStyle.ApplyBackButton(_backButton, () => GameContext.UserInterface.TransitionTo(GameScreen.MainMenu));
+		UIStyle.ApplyBackButton(_backButton, () => GameContext.UserInterface?.TransitionTo(GameScreen.MainMenu));
 		topHeaderHBox.AddChild(_backButton);
 
 		_titleLabel = new Label();
@@ -629,7 +629,7 @@ public partial class StorageMenu : Control
 				map.Title
 			);
 
-			GameContext.UserInterface.ShowConfirmationDialog(
+			GameContext.UserInterface?.ShowConfirmationDialog(
 				confirmMsg,
 				onConfirm: () =>
 				{

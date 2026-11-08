@@ -250,7 +250,7 @@ public partial class ReplayViewerPanel : PanelContainer
 		}
 		else
 		{
-			Unit3D targetUnit = null;
+			Unit3D? targetUnit = null;
 			if (GameContext.Host != null && GameContext.Host.AllUnits.Count > 0)
 			{
 				foreach (var unit in GameContext.Host.AllUnits)

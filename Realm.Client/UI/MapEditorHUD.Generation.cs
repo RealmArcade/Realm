@@ -108,7 +108,7 @@ public partial class MapEditorHUD
 		}
 
 		string imagePath = selectedPaths[0];
-		string directory = Path.GetDirectoryName(imagePath);
+		string? directory = Path.GetDirectoryName(imagePath);
 		GameContext.MapGenerationService.LastTerrainImageFolder = !string.IsNullOrWhiteSpace(directory) ? directory : fallbackFolder;
 		GameContext.MapGenerationService.ImportTerrainFromImage(imagePath);
 	}
