@@ -156,16 +156,11 @@ public partial class StorageMenu : Control
 		});
 	}
 
+	/// <summary>The header strip: a fill ruled along its bottom edge only, so it reads as sitting above the list.</summary>
 	private static StyleBoxFlat CreateHeaderPanelStyle()
 	{
-		var style = new StyleBoxFlat();
-		style.BgColor = new Color(0.06f, 0.07f, 0.09f, 0.95f);
-		style.BorderColor = UIStyle.ColorBronze;
+		var style = UIStyle.CreateCardPlate(new Color(0.06f, 0.07f, 0.09f, 0.95f), UIStyle.ColorBronze, 0, 0, 25, 25, 12, 12);
 		style.BorderWidthBottom = 2;
-		style.ContentMarginLeft = 25;
-		style.ContentMarginRight = 25;
-		style.ContentMarginTop = 12;
-		style.ContentMarginBottom = 12;
 		return style;
 	}
 
