@@ -656,7 +656,7 @@ public partial class GameHost
 					Columns = 1,
 					Rows = 1
 				};
-				GameContext.EditorService.CacheDecalAsset(cacheKey, resData);
+				GameContext.EditorService.Decals.Cache(cacheKey, resData);
 				return resData;
 			}
 		}
@@ -676,7 +676,7 @@ public partial class GameHost
 		byte[] rtexBytes = File.ReadAllBytes(path);
 		var (customJson, layers, _) = RtexFile.Parse(rtexBytes);
 
-		GameContext.EditorService.ParseRtexDecalMetadata(customJson, ref cols, ref rows);
+		GameContext.EditorService.Decals.ParseRtexMetadata(customJson, ref cols, ref rows);
 
 		albedoImg = LoadRtexDecalLayer(layers, 0);
 		normalImg = LoadRtexDecalLayer(layers, 1);
@@ -703,7 +703,7 @@ public partial class GameHost
 		string? meta = RealmMetadataHelper.ExtractMetadata(path);
 		if (string.IsNullOrEmpty(meta)) return albedoImg != null;
 
-		GameContext.EditorService.ParseExternalDecalMetadata(meta, ref cols, ref rows);
+		GameContext.EditorService.Decals.ParseExternalMetadata(meta, ref cols, ref rows);
 
 		return albedoImg != null;
 	}
@@ -746,7 +746,7 @@ public partial class GameHost
 					assetData.PrimaryNormal = ImageTexture.CreateFromImage(normalImg);
 				}
 
-				GameContext.EditorService.DecalAssetCache[cacheKey] = assetData;
+				GameContext.EditorService.Decals.Assets[cacheKey] = assetData;
 				return assetData;
 			}
 		}
@@ -769,7 +769,7 @@ public partial class GameHost
 		if (string.IsNullOrEmpty(decalId)) decalId = "logo";
 		string cacheKey = decalId;
 
-		if (!forceReload && !GameContext.EditorService.HasDecalOverrides(overrideCols, overrideRows, overrideFps, overrideSubframeBlend))
+		if (!forceReload && !EditorDecalAssets.HasOverrides(overrideCols, overrideRows, overrideFps, overrideSubframeBlend))
 		{
 			if (TryGetValidCachedDecal(cacheKey, out var cachedData))
 				return cachedData;
@@ -782,7 +782,7 @@ public partial class GameHost
 		string baseKey = Path.GetFileNameWithoutExtension(decalId);
 		string wsPath = GameContext.EditorService._editingDirectory;
 
-		var meta = GameContext.EditorService.ParseDecalMetadata(decalId, filename, baseKey, wsPath);
+		var meta = GameContext.EditorService.Decals.ParseMetadata(decalId, filename, baseKey, wsPath);
 		var loaded = TryLoadDecalFromCandidates(decalId, meta.cols, meta.rows, meta.explicitPath, wsPath, cacheKey);
 		if (loaded != null) return loaded;
 
@@ -793,7 +793,7 @@ public partial class GameHost
 	private bool TryGetValidCachedDecal(string cacheKey, [NotNullWhen(true)] out DecalAssetData? cachedData)
 	{
 		cachedData = null;
-		if (GameContext.EditorService.DecalAssetCache.TryGetValue(cacheKey, out var data) && data != null && GodotObject.IsInstanceValid(data.PrimaryTexture))
+		if (GameContext.EditorService.Decals.Assets.TryGetValue(cacheKey, out var data) && data != null && GodotObject.IsInstanceValid(data.PrimaryTexture))
 		{
 			cachedData = data;
 			return true;
@@ -804,7 +804,7 @@ public partial class GameHost
 
 	private DecalAssetData? TryLoadDecalFromCandidates(string decalId, int cols, int rows, string? explicitPath, string wsPath, string cacheKey)
 	{
-		var candidatePaths = GameContext.EditorService.GetDecalCandidatePaths(decalId, explicitPath, wsPath);
+		var candidatePaths = GameContext.EditorService.Decals.CandidatePaths(decalId, explicitPath, wsPath);
 		foreach (var path in candidatePaths)
 		{
 			if (string.IsNullOrEmpty(path) || !File.Exists(path)) continue;
@@ -827,7 +827,7 @@ public partial class GameHost
 			Columns = 1,
 			Rows = 1
 		};
-		GameContext.EditorService.DecalAssetCache[cacheKey] = fallback;
+		GameContext.EditorService.Decals.Assets[cacheKey] = fallback;
 		return fallback;
 	}
 
@@ -842,8 +842,8 @@ public partial class GameHost
 		if (decalId.StartsWith("res://")) return decalId;
 
 		string wsPath = GameContext.EditorService._editingDirectory;
-		string targetKey = GameContext.EditorService.ResolveDecalKeyFromMetadata(decalId, wsPath);
+		string targetKey = GameContext.EditorService.Decals.ResolveKeyFromMetadata(decalId, wsPath);
 
-		return GameContext.EditorService.FindDecalFile(targetKey, wsPath);
+		return GameContext.EditorService.Decals.FindFile(targetKey, wsPath);
 	}
 }

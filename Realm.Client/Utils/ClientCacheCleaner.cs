@@ -1,4 +1,4 @@
-using Realm.Client.Core;
+﻿using Realm.Client.Core;
 using Realm.Client.Services;
 using Realm.Client.UI;
 using Realm.Client.UI.InGame;
@@ -30,6 +30,6 @@ public static class ClientCacheCleaner
 		ProceduralVfxInstance3D.ClearCache();
 		FXService.ClearCache();
 		GameHost.ClearCache();
-		GameContext.EditorService?.ClearDecalCaches();
+		GameContext.EditorService?.Decals.Clear();
 	}
 }

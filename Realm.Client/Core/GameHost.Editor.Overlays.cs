@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
@@ -46,17 +46,17 @@ namespace Realm.Client.Core
 		{
 			if (string.IsNullOrEmpty(decalId)) return;
 			string baseKey = Path.GetFileNameWithoutExtension(decalId);
-			GameContext.EditorService.DecalAssetCache.Remove(decalId);
-			GameContext.EditorService.DecalAssetCache.Remove(baseKey);
-			GameContext.EditorService.DecalAssetCache.Remove($"{baseKey}.rtex");
-			GameContext.EditorService.DecalAssetCache.Remove($"{baseKey}.png");
+			GameContext.EditorService.Decals.Assets.Remove(decalId);
+			GameContext.EditorService.Decals.Assets.Remove(baseKey);
+			GameContext.EditorService.Decals.Assets.Remove($"{baseKey}.rtex");
+			GameContext.EditorService.Decals.Assets.Remove($"{baseKey}.png");
 		}
 
 		public ImageTexture GetOrCreateOrmTexture(float roughness, float metallic)
 		{
 			int rKey = Mathf.RoundToInt(Mathf.Clamp(roughness, 0f, 1f) * 100f);
 			int mKey = Mathf.RoundToInt(Mathf.Clamp(metallic, 0f, 1f) * 100f);
-			if (GameContext.EditorService.DecalOrmCache.TryGetValue((rKey, mKey), out var cached) && GodotObject.IsInstanceValid(cached))
+			if (GameContext.EditorService.Decals.OrmTextures.TryGetValue((rKey, mKey), out var cached) && GodotObject.IsInstanceValid(cached))
 			{
 				return cached;
 			}
@@ -64,7 +64,7 @@ namespace Realm.Client.Core
 			var img = Image.CreateEmpty(4, 4, false, Image.Format.Rgba8);
 			img.Fill(new Color(1.0f, rKey / 100f, mKey / 100f, 1.0f));
 			var tex = ImageTexture.CreateFromImage(img);
-			GameContext.EditorService.DecalOrmCache[(rKey, mKey)] = tex;
+			GameContext.EditorService.Decals.OrmTextures[(rKey, mKey)] = tex;
 			return tex;
 		}
 
@@ -74,7 +74,7 @@ namespace Realm.Client.Core
 
 			int sKey = Mathf.RoundToInt(Mathf.Clamp(normalStrength, 0.05f, 2.0f) * 20f);
 			string cacheKey = $"{decalKey}_{albedoTex.GetInstanceId()}_{sKey}";
-			if (GameContext.EditorService.DecalNormalCache.TryGetValue(cacheKey, out var cached) && GodotObject.IsInstanceValid(cached)) return cached;
+			if (GameContext.EditorService.Decals.NormalTextures.TryGetValue(cacheKey, out var cached) && GodotObject.IsInstanceValid(cached)) return cached;
 
 			var albedoImg = albedoTex.GetImage();
 			if (albedoImg == null) return null;
@@ -82,7 +82,7 @@ namespace Realm.Client.Core
 			var normTex = GenerateNormalMap(albedoImg, sKey);
 			if (normTex != null)
 			{
-				GameContext.EditorService.DecalNormalCache[cacheKey] = normTex;
+				GameContext.EditorService.Decals.NormalTextures[cacheKey] = normTex;
 			}
 
 			return normTex;

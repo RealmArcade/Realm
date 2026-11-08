@@ -490,16 +490,7 @@ public partial class EditorService : IEditorAPI
 
 	public Rect2I? TerrainFlushRegion { get; set; }
 	public float TerrainMeshRebuildPeriodMs { get; set; } = 33.3f;
-	public Dictionary<string, DecalAssetData> DecalAssetCache { get; set; } = new();
-	public Dictionary<(int, int), ImageTexture> DecalOrmCache { get; set; } = new();
-	public Dictionary<string, ImageTexture> DecalNormalCache { get; set; } = new();
-
-	public void ClearDecalCaches()
-	{
-		DecalOrmCache.Clear();
-		DecalNormalCache.Clear();
-		DecalAssetCache.Clear();
-	}
+	public EditorDecalAssets Decals { get; } = new();
 	public List<EditorCoordinate> EditorCoordinates { get; set; } = new();
 	public int PendingCoordinateMinX { get; set; }
 	public int PendingCoordinateMinZ { get; set; }
@@ -1364,41 +1355,6 @@ public partial class EditorService : IEditorAPI
 		return splatMap;
 	}
 
-	public void CacheDecalAsset(string cacheKey, DecalAssetData assetData)
-	{
-		DecalAssetCache[cacheKey] = assetData;
-	}
-
-	public DecalMetadata? FindDecalMetadata(MapMetadata metadata, string decalId, string filename, string baseKey)
-	{
-		return EditorDecalMetadata.FindDecalMetadata(metadata, decalId, filename, baseKey);
-	}
-
-	public VfxMetadata? FindVfxMetadata(MapMetadata metadata, string decalId, string filename, string baseKey)
-	{
-		return EditorDecalMetadata.FindVfxMetadata(metadata, decalId, filename, baseKey);
-	}
-
-	public (int cols, int rows, float fps, bool blend, string? explicitPath) ParseDecalMetadata(string decalId, string filename, string baseKey, string wsPath)
-	{
-		return EditorDecalMetadata.ParseDecalMetadata(decalId, filename, baseKey, wsPath);
-	}
-
-	public List<string> GetDecalCandidatePaths(string decalId, string? explicitTexturePath, string wsPath)
-	{
-		return EditorDecalMetadata.GetDecalCandidatePaths(decalId, explicitTexturePath, wsPath);
-	}
-
-	public void ParseRtexDecalMetadata(string? customJson, ref int cols, ref int rows)
-	{
-		EditorDecalMetadata.ParseRtexDecalMetadata(customJson, ref cols, ref rows);
-	}
-
-	public void ParseExternalDecalMetadata(string meta, ref int cols, ref int rows)
-	{
-		EditorDecalMetadata.ParseExternalDecalMetadata(meta, ref cols, ref rows);
-	}
-
 	public void SetMirrorModeDomain(MirrorMode mode)
 	{
 		if (GameContext.Host == null) return;
@@ -1570,21 +1526,6 @@ public partial class EditorService : IEditorAPI
 	public void UpdateWorkspaceModTime()
 	{
 		_workspace.TouchModTime();
-	}
-
-	public bool HasDecalOverrides(int overrideCols, int overrideRows, float overrideFps, bool? overrideSubframeBlend)
-	{
-		return overrideCols > 0 || overrideRows > 0 || overrideFps > 0.001f || overrideSubframeBlend.HasValue;
-	}
-
-	public string ResolveDecalKeyFromMetadata(string decalId, string wsPath)
-	{
-		return EditorAssetImport.ResolveDecalKeyFromMetadata(decalId, wsPath);
-	}
-
-	public string FindDecalFile(string targetKey, string wsPath)
-	{
-		return EditorAssetImport.FindDecalFile(targetKey, wsPath);
 	}
 
 	public void RestoreLoadedCoordinates()
