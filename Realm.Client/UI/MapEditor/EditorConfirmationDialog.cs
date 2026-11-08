@@ -74,7 +74,7 @@ internal sealed class EditorConfirmationDialog
 
 		var panel = new PanelContainer();
 		panel.Name = "Panel_PanelContainer";
-		panel.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
+		UIStyle.ClearPanelBackground(panel);
 		panel.CustomMinimumSize = new Vector2(520, 266);
 		center.AddChild(panel);
 
