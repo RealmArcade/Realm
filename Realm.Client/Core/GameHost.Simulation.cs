@@ -30,9 +30,9 @@ public partial class GameHost
 
 	private void KillUnit(Unit3D unit, bool executeDespawnShader, bool playDeathAnimation)
 	{
-		UnitId victimId = GameContext.World.IsAlive(unit.Entity) ? (UnitId)unit.Entity.Id : UnitId.Invalid;
+		UnitId victimId = World.IsAlive(unit.Entity) ? (UnitId)unit.Entity.Id : UnitId.Invalid;
 		Entity killerEntity = GameContext.SimulationService.GetKillerEntityDomain(unit.Entity);
-		UnitId killerId = (killerEntity != Entity.Null && GameContext.World.IsAlive(killerEntity)) ? (UnitId)killerEntity.Id : UnitId.Invalid;
+		UnitId killerId = (killerEntity != Entity.Null && World.IsAlive(killerEntity)) ? (UnitId)killerEntity.Id : UnitId.Invalid;
 
 		if (victimId.IsValid)
 		{
@@ -84,12 +84,12 @@ public partial class GameHost
 		float resCap = GameContext.Simulation.PlayerResourceService.ResourceCap;
 		Entity beneficiaryPlayerEntity = Entity.Null;
 
-		if (GameContext.World.IsAlive(unit.Entity) && GameContext.World.Has<LastAttacker>(unit.Entity))
+		if (World.IsAlive(unit.Entity) && World.Has<LastAttacker>(unit.Entity))
 		{
-			Entity killer = GameContext.World.Get<LastAttacker>(unit.Entity).Value;
-			if (GameContext.World.IsAlive(killer) && GameContext.World.Has<Owner>(killer))
+			Entity killer = World.Get<LastAttacker>(unit.Entity).Value;
+			if (World.IsAlive(killer) && World.Has<Owner>(killer))
 			{
-				beneficiaryPlayerEntity = GameContext.World.Get<Owner>(killer).PlayerEntity.Value;
+				beneficiaryPlayerEntity = World.Get<Owner>(killer).PlayerEntity.Value;
 			}
 		}
 
@@ -178,7 +178,7 @@ public partial class GameHost
 		if (isAuthoritative)
 		{
 			var workerQuery = QueryCache.AllPositionAndBuildTaskNoneDeadQuery;
-			GameContext.World.Query(in workerQuery, (Entity workerEntity, ref Position workerPos, ref BuildTask buildTask) => { ProcessWorkerConstruction(workerEntity, ref workerPos, ref buildTask, fDelta); });
+			World.Query(in workerQuery, (Entity workerEntity, ref Position workerPos, ref BuildTask buildTask) => { ProcessWorkerConstruction(workerEntity, ref workerPos, ref buildTask, fDelta); });
 
 			ProcessPendingBuildTasks();
 			ProcessCompletedBuildings();
@@ -189,7 +189,7 @@ public partial class GameHost
 			}
 
 			var queueQuery = QueryCache.AllBuildQueueNoneDeadQuery;
-			GameContext.World.Query(in queueQuery, (Entity entity) => { GameContext.SimulationService.ProcessBuildQueueEntity(entity); });
+			World.Query(in queueQuery, (Entity entity) => { GameContext.SimulationService.ProcessBuildQueueEntity(entity); });
 
 			GameContext.SimulationService.ProcessPendingQueuedCommands(ExecuteQueuedCommand);
 		}
@@ -199,24 +199,24 @@ public partial class GameHost
 
 	private void ProcessWorkerConstruction(Entity workerEntity, ref Position workerPos, ref BuildTask buildTask, float fDelta)
 	{
-		if (!GameContext.World.IsAlive(buildTask.BuildingEntity)) return;
+		if (!World.IsAlive(buildTask.BuildingEntity)) return;
 
-		var buildingPos = GameContext.World.Has<Position>(buildTask.BuildingEntity)
-			? GameContext.World.Get<Position>(buildTask.BuildingEntity).Value
+		var buildingPos = World.Has<Position>(buildTask.BuildingEntity)
+			? World.Get<Position>(buildTask.BuildingEntity).Value
 			: workerPos.Value;
 
 		float constructionRange = UnitMetadata.DefaultConstructionRange;
-		if (GameContext.World.Has<DefinitionId>(workerEntity))
+		if (World.Has<DefinitionId>(workerEntity))
 		{
-			string workerType = GameContext.World.Get<DefinitionId>(workerEntity).Value;
+			string workerType = World.Get<DefinitionId>(workerEntity).Value;
 			if (!UnitRegistry.TryGetValue(workerType, out var workerMeta))
 				BuildingRegistry.TryGetValue(workerType, out workerMeta);
 			if (workerMeta != null)
 				constructionRange = workerMeta.ConstructionRange;
 		}
 
-		float buildingCollisionRadius = GameContext.World.Has<CollisionRadius>(buildTask.BuildingEntity)
-			? GameContext.World.Get<CollisionRadius>(buildTask.BuildingEntity).Value
+		float buildingCollisionRadius = World.Has<CollisionRadius>(buildTask.BuildingEntity)
+			? World.Get<CollisionRadius>(buildTask.BuildingEntity).Value
 			: 0f;
 		float effectiveRange = constructionRange + buildingCollisionRadius;
 		float distSq = Vector3.DistanceSquared(workerPos.Value, buildingPos);
@@ -224,17 +224,17 @@ public partial class GameHost
 
 		if (!inRange)
 		{
-			if (!GameContext.World.Has<MoveTo>(workerEntity))
+			if (!World.Has<MoveTo>(workerEntity))
 			{
-				GameContext.World.Add(workerEntity, new MoveTo(buildingPos));
+				World.Add(workerEntity, new MoveTo(buildingPos));
 			}
 
 			return;
 		}
 
-		if (GameContext.World.Has<MoveTo>(workerEntity))
+		if (World.Has<MoveTo>(workerEntity))
 		{
-			GameContext.World.Remove<MoveTo>(workerEntity);
+			World.Remove<MoveTo>(workerEntity);
 		}
 
 		EnsureBuildingModel(buildTask.BuildingEntity, buildingPos);
@@ -251,19 +251,20 @@ public partial class GameHost
 
 	private void EnsureBuildingModel(Entity buildingEntity, Vector3 buildingPos)
 	{
-		if (!GameContext.World.Has<DefinitionId>(buildingEntity)) return;
+		if (!World.Has<DefinitionId>(buildingEntity)) return;
 
-		string bType = GameContext.World.Get<DefinitionId>(buildingEntity).Value;
+		string bType = World.Get<DefinitionId>(buildingEntity).Value;
 		bool isBuilding = false;
 		if (!UnitRegistry.TryGetValue(bType, out var m) && !(isBuilding = BuildingRegistry.TryGetValue(bType, out m))) return;
 		if (TryGetUnit3D(buildingEntity, out _)) return;
 
-		string targetModel = m.ModelPath;
+		if (m == null) return;
+		string? targetModel = m.ModelPath;
 		if (string.IsNullOrEmpty(targetModel)) return;
 
 		string modelPath = GetFallbackModelPath(targetModel, isBuilding);
-		int ownerPlayer = GameContext.World.Has<UnitOwnerPlayer>(buildingEntity)
-			? GameContext.World.Get<UnitOwnerPlayer>(buildingEntity).PlayerIndex
+		int ownerPlayer = World.Has<UnitOwnerPlayer>(buildingEntity)
+			? World.Get<UnitOwnerPlayer>(buildingEntity).PlayerIndex
 			: 0;
 		SpawnUnit3D(buildingEntity, bType, modelPath, new Godot.Vector3(buildingPos.X, buildingPos.Y, buildingPos.Z), isBuilding, ownerPlayer, false, false);
 
@@ -275,9 +276,9 @@ public partial class GameHost
 
 	private void UpdateBuildingConstructionState(Entity buildingEntity, float progressGain)
 	{
-		if (!GameContext.World.Has<ConstructionState>(buildingEntity)) return;
+		if (!World.Has<ConstructionState>(buildingEntity)) return;
 
-		ref var constructionState = ref GameContext.World.Get<ConstructionState>(buildingEntity);
+		ref var constructionState = ref World.Get<ConstructionState>(buildingEntity);
 		constructionState.Progress = Mathf.Min(constructionState.Progress + progressGain, constructionState.TotalBuildTime);
 
 		if (constructionState.Progress >= constructionState.TotalBuildTime && !GameContext.SimulationService.CompletedBuildings.Contains(buildingEntity))
@@ -290,13 +291,13 @@ public partial class GameHost
 	{
 		foreach (var (workerEntity, updatedTask) in _pendingBuildTaskUpdates)
 		{
-			if (!GameContext.World.IsAlive(workerEntity)) continue;
+			if (!World.IsAlive(workerEntity)) continue;
 
-			GameContext.World.Set(workerEntity, updatedTask);
+			World.Set(workerEntity, updatedTask);
 
-			if (updatedTask.Progress >= updatedTask.TotalBuildTime && GameContext.World.Has<BuildTask>(workerEntity))
+			if (updatedTask.Progress >= updatedTask.TotalBuildTime && World.Has<BuildTask>(workerEntity))
 			{
-				GameContext.World.Remove<BuildTask>(workerEntity);
+				World.Remove<BuildTask>(workerEntity);
 				TryStartNextQueuedCommand(workerEntity);
 			}
 		}
@@ -304,9 +305,9 @@ public partial class GameHost
 
 	private void TryStartNextQueuedCommand(Entity workerEntity)
 	{
-		if (!GameContext.World.Has<BuildQueue>(workerEntity)) return;
+		if (!World.Has<BuildQueue>(workerEntity)) return;
 
-		ref var buildQueue = ref GameContext.World.Get<BuildQueue>(workerEntity);
+		ref var buildQueue = ref World.Get<BuildQueue>(workerEntity);
 		bool startedNext = false;
 		while (buildQueue.TryDequeue(out string? nextType, out var nextPos, out Entity nextTarget))
 		{
@@ -319,7 +320,7 @@ public partial class GameHost
 
 		if (!startedNext && buildQueue.Count == 0)
 		{
-			GameContext.World.Remove<BuildQueue>(workerEntity);
+			World.Remove<BuildQueue>(workerEntity);
 		}
 	}
 
@@ -351,7 +352,7 @@ public partial class GameHost
 
 	private void NotifyConstructionFinished(Entity buildingEntity)
 	{
-		if (GameContext.World.IsAlive(buildingEntity))
+		if (World.IsAlive(buildingEntity))
 		{
 			OnConstructionFinished?.Invoke((UnitId)buildingEntity.Id);
 		}
@@ -368,7 +369,7 @@ public partial class GameHost
 		var workerQuery = QueryCache.AllPositionAndBuildTaskNoneDeadQuery;
 		_activeBuildGhostWorkerIds.Clear();
 
-		foreach (var workerEntity in GameContext.World.Query(in workerQuery))
+		foreach (var workerEntity in World.Query(in workerQuery))
 		{
 			ProcessWorkerGhostQueue(workerEntity, _activeBuildGhostWorkerIds);
 		}
@@ -378,10 +379,10 @@ public partial class GameHost
 
 	private void ProcessWorkerGhostQueue(Entity workerEntity, HashSet<int> activeWorkerIds)
 	{
-		if (!GameContext.World.IsAlive(workerEntity)) return;
+		if (!World.IsAlive(workerEntity)) return;
 		activeWorkerIds.Add(workerEntity.Id);
 
-		int queueCount = GameContext.World.Has<BuildQueue>(workerEntity) ? GameContext.World.Get<BuildQueue>(workerEntity).Count : 0;
+		int queueCount = World.Has<BuildQueue>(workerEntity) ? World.Get<BuildQueue>(workerEntity).Count : 0;
 
 		if (!_buildQueueGhosts.TryGetValue(workerEntity.Id, out var ghosts))
 		{
@@ -399,7 +400,7 @@ public partial class GameHost
 
 		if (queueCount == 0) return;
 
-		ref var queue = ref GameContext.World.Get<BuildQueue>(workerEntity);
+		ref var queue = ref World.Get<BuildQueue>(workerEntity);
 		for (int slotIndex = 0; slotIndex < queueCount; slotIndex++)
 		{
 			UpdateGhostAtSlot(slotIndex, ref queue, ghosts);
@@ -479,37 +480,38 @@ public partial class GameHost
 	private void AssignBuildTaskToWorker(Entity workerEntity, string buildType, Vector3 targetPos)
 	{
 		if (!UnitRegistry.TryGetValue(buildType, out var meta) && !BuildingRegistry.TryGetValue(buildType, out meta)) return;
-		string targetModel = meta.ModelPath;
+		if (meta == null) return;
+		string? targetModel = meta.ModelPath;
 		if (string.IsNullOrEmpty(targetModel)) return;
 		float buildTime = Math.Max(meta.ProductionTime, 0);
 
-		if (!GameContext.World.Has<UnitOwnerPlayer>(workerEntity)) return;
-		int workerPlayerIndex = GameContext.World.Get<UnitOwnerPlayer>(workerEntity).PlayerIndex;
+		if (!World.Has<UnitOwnerPlayer>(workerEntity)) return;
+		int workerPlayerIndex = World.Get<UnitOwnerPlayer>(workerEntity).PlayerIndex;
 
-		var playerOwner = GetPlayerEntityForPlayerIndex(workerPlayerIndex).AsPlayerEntity(GameContext.World);
+		var playerOwner = GetPlayerEntityForPlayerIndex(workerPlayerIndex).AsPlayerEntity(World);
 
 		var bldEntity = CreateEcsUnit(buildType, meta.Name, meta.MaxHp, meta.Damage, meta.Range, meta.Armor, meta.Speed,
 			new Godot.Vector3(targetPos.X, targetPos.Y, targetPos.Z), playerOwner);
-		GameContext.World.SetOrAdd(bldEntity, new UnitOwnerPlayer(workerPlayerIndex));
+		World.SetOrAdd(bldEntity, new UnitOwnerPlayer(workerPlayerIndex));
 
-		GameContext.World.Add(bldEntity, new ConstructionState(buildTime));
-		GameContext.World.Add(bldEntity, new UnderConstruction());
+		World.Add(bldEntity, new ConstructionState(buildTime));
+		World.Add(bldEntity, new UnderConstruction());
 
-		if (!GameContext.World.Has<CollisionRadius>(bldEntity))
+		if (!World.Has<CollisionRadius>(bldEntity))
 		{
-			GameContext.World.Add(bldEntity, new CollisionRadius(ResolveTemplateCollisionRadius(buildType)));
+			World.Add(bldEntity, new CollisionRadius(ResolveTemplateCollisionRadius(buildType)));
 		}
 
 		EnsureBuildingModel(bldEntity, targetPos);
 
 		var buildTask = new BuildTask(bldEntity, buildTime);
-		GameContext.World.SetOrAdd(workerEntity, buildTask);
+		World.SetOrAdd(workerEntity, buildTask);
 
 		var buildingPos = new Vector3(targetPos.X, targetPos.Y, targetPos.Z);
-		if (!GameContext.World.Has<MoveTo>(workerEntity))
-			GameContext.World.Add(workerEntity, new MoveTo(buildingPos));
+		if (!World.Has<MoveTo>(workerEntity))
+			World.Add(workerEntity, new MoveTo(buildingPos));
 		else
-			GameContext.World.Set(workerEntity, new MoveTo(buildingPos));
+			World.Set(workerEntity, new MoveTo(buildingPos));
 	}
 
 	private struct UnitRenderWorkItem
@@ -629,7 +631,7 @@ public partial class GameHost
 
 		_renderWorkItemCount = 0;
 		var query = QueryCache.AllPositionAndDefinitionIdQuery;
-		GameContext.World.Query(in query, (Entity entity, ref Position pos) =>
+		World.Query(in query, (Entity entity, ref Position pos) =>
 		{
 			if (!TryGetUnit3D(entity, out var unit3D) || !GodotObject.IsInstanceValid(unit3D))
 				return;
@@ -667,9 +669,9 @@ public partial class GameHost
 			return;
 
 		_processRenderWorkItemDelegate ??= ProcessRenderWorkItemParallel;
-		ParallelRunner.Execute(_renderWorkItemCount, _processRenderWorkItemDelegate, GameContext.World);
+		ParallelRunner.Execute(_renderWorkItemCount, _processRenderWorkItemDelegate, World);
 
-		var world = GameContext.World;
+		var world = World;
 		float currentGameTime = _renderCurrentGameTime;
 		for (int i = 0; i < _renderWorkItemCount; i++)
 		{
@@ -734,7 +736,7 @@ public partial class GameHost
 	{
 		ref var item = ref _renderWorkItems[index];
 		Entity entity = item.Entity;
-		var world = GameContext.World;
+		var world = World;
 		float fDelta = _renderFDelta;
 		float fraction = _renderFraction;
 
@@ -866,11 +868,11 @@ public partial class GameHost
 
 	private void UpdateVisualNodesFromEcs(float fDelta)
 	{
-		foreach (var entity in GameContext.World.Query(in _constructionVisualQuery))
+		foreach (var entity in World.Query(in _constructionVisualQuery))
 		{
 			if (TryGetUnit3D(entity, out var buildingNode) && GodotObject.IsInstanceValid(buildingNode))
 			{
-				ref var construction = ref GameContext.World.Get<ConstructionState>(entity);
+				ref var construction = ref World.Get<ConstructionState>(entity);
 				float alpha = Mathf.Lerp(0.3f, 1.0f, construction.Progress / Mathf.Max(construction.TotalBuildTime, 0.001f));
 				buildingNode.Modulate = new Color(1f, 1f, 1f, alpha);
 			}
@@ -888,7 +890,7 @@ public partial class GameHost
 			// warning later rather than being remembered as already reported.
 			if (GameContext.SimulationService.WarnedNonFinitePositions.Count > SimulationService.WarnedNonFinitePositionsLimit)
 			{
-				GameContext.SimulationService.WarnedNonFinitePositions.RemoveWhere(warned => !GameContext.World.IsAlive(warned));
+				GameContext.SimulationService.WarnedNonFinitePositions.RemoveWhere(warned => !World.IsAlive(warned));
 			}
 
 			GD.PushWarning($"[Simulation] Unit '{unit3D.Name}' (entity {entity.Id}) has a non-finite ECS position ({posValue.X}, {posValue.Y}, {posValue.Z}); skipping visual sync.");
@@ -899,7 +901,7 @@ public partial class GameHost
 
 	private Basis ComputeVisualRotationBasisParallel(ref UnitRenderWorkItem item, Entity entity, Godot.Vector3 unitVelocity, Godot.Vector3 nextPos, Godot.Vector3 lookTargetPos, bool hasLookTarget, float fDelta, float fraction, out float targetRotY)
 	{
-		var world = GameContext.World;
+		var world = World;
 		Godot.Vector3 dir = unitVelocity;
 		bool hasDir = dir.LengthSquared() > 0.01f;
 
@@ -958,17 +960,17 @@ public partial class GameHost
 	{
 		lookTargetPos = Godot.Vector3.Zero;
 
-		if (GameContext.World.Has<AttackTarget>(entity))
-			return TryGetTargetPosition(GameContext.World.Get<AttackTarget>(entity).Target, out lookTargetPos);
+		if (World.Has<AttackTarget>(entity))
+			return TryGetTargetPosition(World.Get<AttackTarget>(entity).Target, out lookTargetPos);
 
-		if (GameContext.World.Has<HealingTarget>(entity))
-			return TryGetTargetPosition(GameContext.World.Get<HealingTarget>(entity).Target, out lookTargetPos);
+		if (World.Has<HealingTarget>(entity))
+			return TryGetTargetPosition(World.Get<HealingTarget>(entity).Target, out lookTargetPos);
 
-		if (GameContext.World.Has<Follow>(entity))
-			return TryGetTargetPosition(GameContext.World.Get<Follow>(entity).Target, out lookTargetPos);
+		if (World.Has<Follow>(entity))
+			return TryGetTargetPosition(World.Get<Follow>(entity).Target, out lookTargetPos);
 
-		if (GameContext.World.Has<BuildTask>(entity))
-			return TryGetTargetPosition(GameContext.World.Get<BuildTask>(entity).BuildingEntity, out lookTargetPos);
+		if (World.Has<BuildTask>(entity))
+			return TryGetTargetPosition(World.Get<BuildTask>(entity).BuildingEntity, out lookTargetPos);
 
 		return false;
 	}
@@ -976,9 +978,9 @@ public partial class GameHost
 	private bool TryGetTargetPosition(Entity targetEnt, out Godot.Vector3 position)
 	{
 		position = Godot.Vector3.Zero;
-		if (GameContext.World.IsAlive(targetEnt) && GameContext.World.Has<Position>(targetEnt))
+		if (World.IsAlive(targetEnt) && World.Has<Position>(targetEnt))
 		{
-			var tPosComp = GameContext.World.Get<Position>(targetEnt);
+			var tPosComp = World.Get<Position>(targetEnt);
 			position = new Godot.Vector3(tPosComp.Value.X, tPosComp.Value.Y, tPosComp.Value.Z);
 			return true;
 		}
@@ -988,7 +990,7 @@ public partial class GameHost
 
 	private Basis ComputeDirectionalRotationBasisParallel(ref UnitRenderWorkItem item, Entity entity, Godot.Vector3 nextPos, Godot.Vector3 dir, float fDelta, out float targetRotY)
 	{
-		var world = GameContext.World;
+		var world = World;
 		dir = dir.Normalized();
 		float angle = Mathf.Atan2(-dir.X, -dir.Z) + Mathf.Pi;
 
@@ -1048,14 +1050,14 @@ public partial class GameHost
 
 	private string DetermineUnitAnimation(Entity entity)
 	{
-		if (GameContext.World.Has<AnimationsFrozen>(entity)) return "Idle";
+		if (World.Has<AnimationsFrozen>(entity)) return "Idle";
 		if (TryGetReplayAnimation(entity, out string replayAnim)) return replayAnim;
-		if (GameContext.World.Has<Dead>(entity)) return "Death";
+		if (World.Has<Dead>(entity)) return "Death";
 		if (IsEntityMoving(entity)) return "Walk";
-		if (GameContext.World.Has<AttackTarget>(entity)) return "Attack";
-		if (GameContext.World.Has<HealingTarget>(entity)) return "Spell_Cast";
+		if (World.Has<AttackTarget>(entity)) return "Attack";
+		if (World.Has<HealingTarget>(entity)) return "Spell_Cast";
 		if (IsEntityGathering(entity)) return "Labor";
-		if (GameContext.World.Has<BuildTask>(entity)) return DetermineBuildTaskAnimation(entity, GameContext.World.Get<BuildTask>(entity));
+		if (World.Has<BuildTask>(entity)) return DetermineBuildTaskAnimation(entity, World.Get<BuildTask>(entity));
 
 		return "Idle";
 	}
@@ -1065,31 +1067,31 @@ public partial class GameHost
 		animation = string.Empty;
 		if (!GameContext.ReplayPlayback.IsPlayingReplay) return false;
 
-		animation = GameContext.World.Has<ReplayAnimationState>(entity)
-			? GameContext.World.Get<ReplayAnimationState>(entity).Animation
+		animation = World.Has<ReplayAnimationState>(entity)
+			? World.Get<ReplayAnimationState>(entity).Animation
 			: "Idle";
 		return true;
 	}
 
 	private bool IsEntityMoving(Entity entity)
 	{
-		return GameContext.World.Has<MoveTo>(entity) && GameContext.World.Has<Velocity>(entity) &&
-		       GameContext.World.Get<Velocity>(entity).Value.LengthSquared() > 0.01f;
+		return World.Has<MoveTo>(entity) && World.Has<Velocity>(entity) &&
+		       World.Get<Velocity>(entity).Value.LengthSquared() > 0.01f;
 	}
 
 	private bool IsEntityGathering(Entity entity)
 	{
-		return GameContext.World.Has<Gatherer>(entity) && !GameContext.World.Get<Gatherer>(entity).ReturningToBase;
+		return World.Has<Gatherer>(entity) && !World.Get<Gatherer>(entity).ReturningToBase;
 	}
 
 	private string DetermineBuildTaskAnimation(Entity entity, BuildTask task)
 	{
 		var target = task.BuildingEntity;
-		if (!GameContext.World.IsAlive(target) || !GameContext.World.Has<Position>(target))
+		if (!World.IsAlive(target) || !World.Has<Position>(target))
 			return "Labor";
 
-		var tPos = GameContext.World.Get<Position>(target).Value;
-		var wPos = GameContext.World.Has<Position>(entity) ? GameContext.World.Get<Position>(entity).Value : Vector3.Zero;
+		var tPos = World.Get<Position>(target).Value;
+		var wPos = World.Has<Position>(entity) ? World.Get<Position>(entity).Value : Vector3.Zero;
 		if (Vector3.Distance(wPos, tPos) < 4.0f)
 		{
 			return "Labor";
