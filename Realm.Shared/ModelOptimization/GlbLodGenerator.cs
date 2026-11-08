@@ -785,7 +785,7 @@ public static unsafe class GlbLodGenerator
 				if (!firstWeldedByPosition.TryAdd(positionKey, weldedIndex))
 				{
 					int firstWelded = firstWeldedByPosition[positionKey];
-					if (!extraWeldedByFirst.TryGetValue(firstWelded, out List<int> extras))
+					if (!extraWeldedByFirst.TryGetValue(firstWelded, out List<int>? extras))
 					{
 						extras = new List<int>(2);
 						extraWeldedByFirst[firstWelded] = extras;
@@ -822,7 +822,7 @@ public static unsafe class GlbLodGenerator
 	{
 		if (!firstWeldedByPosition.TryGetValue(positionKey, out int firstWelded)) return -1;
 		if (IsTexCoordMatch(weldedTexCoords, firstWelded, u, v, tolerance)) return firstWelded;
-		if (!extraWeldedByFirst.TryGetValue(firstWelded, out List<int> extras)) return -1;
+		if (!extraWeldedByFirst.TryGetValue(firstWelded, out List<int>? extras)) return -1;
 
 		for (int i = 0; i < extras.Count; i++)
 		{
