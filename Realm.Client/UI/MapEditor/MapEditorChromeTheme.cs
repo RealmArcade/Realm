@@ -93,16 +93,7 @@ internal static class MapEditorChromeTheme
 			return posStyle;
 		}
 
-		var alphaStyle = new StyleBoxFlat();
-		alphaStyle.BgColor = new Color(0.12f, 0.14f, 0.18f, 0.75f);
-		alphaStyle.BorderColor = UIStyle.ColorGold;
-		alphaStyle.SetBorderWidthAll(1);
-		alphaStyle.SetCornerRadiusAll(6);
-		alphaStyle.ContentMarginLeft = 16;
-		alphaStyle.ContentMarginRight = 16;
-		alphaStyle.ContentMarginTop = 6;
-		alphaStyle.ContentMarginBottom = 6;
-		return alphaStyle;
+		return UIStyle.CreateCardPlate(new Color(0.12f, 0.14f, 0.18f, 0.75f), UIStyle.ColorGold, 1, 6, 16, 16, 6, 6);
 	}
 
 	/// <summary>
