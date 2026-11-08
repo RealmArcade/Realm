@@ -1,13 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Text.Json;
 using System.Threading.Tasks;
 using Godot;
 using Realm.Client.Network;
 using Realm.Shared;
 using Realm.Shared.Network;
-using HttpClient = System.Net.Http.HttpClient;
 using static Godot.Control;
 using static Godot.CanvasItem;
 using Realm.Client.Services;
@@ -425,30 +423,9 @@ public partial class MainMenu : Control
 
 	private async void CheckForUpdatesAsync()
 	{
-		try
+		if (await GameUpdateService.IsNewerReleasePublishedAsync())
 		{
-			using var client = new HttpClient();
-			client.DefaultRequestHeaders.UserAgent.ParseAdd("Realm-Godot-Client");
-			var response = await client.GetAsync("https://api.github.com/repos/speige/Realm/releases/latest");
-			if (response.IsSuccessStatusCode)
-			{
-				string json = await response.Content.ReadAsStringAsync();
-				using var doc = JsonDocument.Parse(json);
-				if (doc.RootElement.TryGetProperty("tag_name", out var tagProp))
-				{
-					string latestTag = tagProp.GetString() ?? "";
-					if (latestTag.StartsWith("v")) latestTag = latestTag.Substring(1);
-
-					if (latestTag != RealmVersion.GameBinaryVersion)
-					{
-						_outdatedLabel.Visible = true;
-					}
-				}
-			}
-		}
-		catch (Exception ex)
-		{
-			GameLog.LogError($"[MainMenu] Failed to check for updates: {ex.Message}");
+			_outdatedLabel.Visible = true;
 		}
 	}
 
@@ -460,20 +437,10 @@ public partial class MainMenu : Control
 
 		if (!OS.HasFeature("editor"))
 		{
-			string baseDir = LobbyManager.GetBaseGameDirectory();
-			string versionsDir = Path.Combine(baseDir, "versions");
-			if (Directory.Exists(versionsDir))
+			foreach (string version in GameUpdateService.GetOtherInstalledVersions(LobbyManager.GetBaseGameDirectory()))
 			{
-				var dirs = Directory.GetDirectories(versionsDir);
-				foreach (var dir in dirs)
-				{
-					string ver = Path.GetFileName(dir);
-					if (ver != RealmVersion.GameBinaryVersion)
-					{
-						_versionDropdown.AddItem(ver);
-						_versionDropdown.SetItemMetadata(_versionDropdown.ItemCount - 1, ver);
-					}
-				}
+				_versionDropdown.AddItem(version);
+				_versionDropdown.SetItemMetadata(_versionDropdown.ItemCount - 1, version);
 			}
 		}
 
