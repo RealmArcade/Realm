@@ -787,7 +787,7 @@ namespace Realm.Client.Core
 			}
 		}
 
-		public Prop3D SpawnPropExternal(string propId, Vector3 position)
+		public Prop3D? SpawnPropExternal(string propId, Vector3 position)
 		{
 			float rotY = GameContext.SessionState.IsMapEditorMode ? GameContext.EditorService.EditorPlacementRotation : 0f;
 			float scale = GameContext.SessionState.IsMapEditorMode ? EditorPlacementScale : 1f;

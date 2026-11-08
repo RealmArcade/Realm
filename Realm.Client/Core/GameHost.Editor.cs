@@ -234,10 +234,6 @@ public partial class GameHost
 		return GameContext.ModelOverrideService.GetModelDeathShader(primaryKey, assetKey, GameContext.EditorService.NormalizeModelAssetKey);
 	}
 
-	private bool TryGetModelDeathShader(string key, out string shader) => GameContext.ModelOverrideService.TryGetModelDeathShader(key, GameContext.EditorService.NormalizeModelAssetKey, out shader);
-
-	private bool TryGetRegistryDeathShader(string key, out string shader) => GameContext.RegistryService.TryGetRegistryDeathShader(key, out shader);
-
 
 	public bool GetModelEnableProceduralAnimation(object objOrId)
 	{
@@ -791,7 +787,7 @@ public partial class GameHost
 	private void RefreshSingleUnitModel(Unit3D unit)
 	{
 		bool isBuilding = unit.IsBuilding;
-		string targetModel = GetUnitTargetModel(unit.UnitId, ref isBuilding);
+		string? targetModel = GetUnitTargetModel(unit.UnitId, ref isBuilding);
 
 		if (string.IsNullOrEmpty(targetModel) && !string.IsNullOrEmpty(unit.ModelPath))
 		{
@@ -805,7 +801,7 @@ public partial class GameHost
 		}
 	}
 
-	private string GetUnitTargetModel(string unitId, ref bool isBuilding)
+	private string? GetUnitTargetModel(string unitId, ref bool isBuilding)
 	{
 		return GameContext.RegistryService.GetUnitTargetModel(unitId, ref isBuilding);
 	}

@@ -3436,7 +3436,7 @@ public partial class GameHost
 			: UnitId.Invalid;
 	}
 
-	private void ExecuteClientMultiplayerSpellCast(string spellId, AbilityDefinition def, Vector3 position)
+	private void ExecuteClientMultiplayerSpellCast(string spellId, AbilityDefinition? def, Vector3 position)
 	{
 		if (def != null && def.Cooldown > 0f)
 		{
@@ -3457,7 +3457,7 @@ public partial class GameHost
 		SubmitRemoteCommand("spell", targetIds, position, 0, spellId);
 	}
 
-	private void ExecuteLocalSpellCast(string spellId, AbilityDefinition def, Vector3 position)
+	private void ExecuteLocalSpellCast(string spellId, AbilityDefinition? def, Vector3 position)
 	{
 		Unit3D? focusedUnit = GetFocusedSelectedUnit();
 
@@ -3492,7 +3492,7 @@ public partial class GameHost
 		HandleSpellCastSuccess(spellId, def, position);
 	}
 
-	private void ShowInsufficientManaFeedback(string spellId, AbilityDefinition def)
+	private void ShowInsufficientManaFeedback(string spellId, AbilityDefinition? def)
 	{
 		float cost = def?.ManaCost ?? 0f;
 		if (cost <= 0f) return;
@@ -3501,7 +3501,7 @@ public partial class GameHost
 		GameContext.InGameHud?.ShowFeedbackText($"{displayName} requires {(int)cost} mana", new Color(0.9f, 0.4f, 0.1f));
 	}
 
-	private bool IsSpellOnCooldown(string spellId, AbilityDefinition def)
+	private bool IsSpellOnCooldown(string spellId, AbilityDefinition? def)
 	{
 		float cd = GameContext.InputService.GetSpellCooldown(GetPlayerEntityForPlayerIndex(GameContext.PerspectiveFilter.ControlledPlayerIndex), spellId);
 		if (cd <= 0f) return false;
@@ -3511,7 +3511,7 @@ public partial class GameHost
 		return true;
 	}
 
-	private void HandleSpellCastSuccess(string spellId, AbilityDefinition def, Vector3 position)
+	private void HandleSpellCastSuccess(string spellId, AbilityDefinition? def, Vector3 position)
 	{
 		string displayName = def?.DisplayName ?? spellId;
 		if (GameContext.InGameHud != null)

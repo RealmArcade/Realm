@@ -168,7 +168,7 @@ namespace Realm.Client.Core
 			return spawnActions;
 		}
 
-		private Node SpawnPastedNode(EntitySpawnRequest req)
+		private Node? SpawnPastedNode(EntitySpawnRequest req)
 		{
 			if (req.Type == "unit") return SpawnUnitExternal(req.Id, req.Position, req.Rotation, req.Scale, req.Player);
 			if (req.Type == "prop") return SpawnPropExternalWithParams(req.Id, req.Position, req.Rotation, req.Scale);

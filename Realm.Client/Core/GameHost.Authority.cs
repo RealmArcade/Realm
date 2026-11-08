@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using Godot;
 using Realm.Client.Services;
 using Realm.Client.UI;
@@ -485,13 +486,13 @@ public partial class GameHost
 		}
 	}
 
-	private bool TryPresentUnit(int serverUnitId, out Unit3D unit3D)
+	private bool TryPresentUnit(int serverUnitId, [NotNullWhen(true)] out Unit3D? unit3D)
 	{
-		unit3D = null!;
+		unit3D = null;
 		if (serverUnitId <= 0) return false;
 		if (!TryGetLocalEntity(serverUnitId, out Entity entity)) return false;
 		if (GameContext.World == null || !GameContext.World.IsAlive(entity)) return false;
-		if (!TryGetUnit3D(entity, out Unit3D found) || !GodotObject.IsInstanceValid(found)) return false;
+		if (!TryGetUnit3D(entity, out Unit3D? found) || !GodotObject.IsInstanceValid(found)) return false;
 
 		unit3D = found;
 		return true;
@@ -568,7 +569,7 @@ public partial class GameHost
 	private void PresentPersistentAura(PresentationMessage message)
 	{
 		if (string.IsNullOrWhiteSpace(message.Key)) return;
-		if (!TryPresentUnit(message.Handle, out Unit3D unit3D)) return;
+		if (!TryPresentUnit(message.Handle, out Unit3D? unit3D)) return;
 
 		string auraVfxId = message.Key;
 		float scale = message.Value > 0f ? message.Value : 1f;
@@ -771,7 +772,7 @@ public partial class GameHost
 
 	private void PresentUnitColor(PresentationMessage message)
 	{
-		if (!TryPresentUnit(message.Handle, out Unit3D unit3D)) return;
+		if (!TryPresentUnit(message.Handle, out Unit3D? unit3D)) return;
 
 		var tint = new Color(message.Color.X, message.Color.Y, message.Color.Z);
 		Callable.From(() => unit3D.ApplyModelTint(tint)).CallDeferred();
@@ -780,7 +781,7 @@ public partial class GameHost
 	private void PresentUnitAnimation(PresentationMessage message)
 	{
 		if (string.IsNullOrWhiteSpace(message.Key)) return;
-		if (!TryPresentUnit(message.Handle, out Unit3D unit3D)) return;
+		if (!TryPresentUnit(message.Handle, out Unit3D? unit3D)) return;
 
 		string animationName = message.Key;
 		Callable.From(() => unit3D.PlayAnimation(animationName)).CallDeferred();
@@ -789,7 +790,7 @@ public partial class GameHost
 	private void PresentUnitHandAttachment(PresentationMessage message)
 	{
 		if (string.IsNullOrWhiteSpace(message.Key)) return;
-		if (!TryPresentUnit(message.Handle, out Unit3D unit3D)) return;
+		if (!TryPresentUnit(message.Handle, out Unit3D? unit3D)) return;
 
 		HumanoidBone hand = ResolveHandBone(message.Key);
 		string? attachmentId = string.IsNullOrWhiteSpace(message.Text) ? null : message.Text;
@@ -810,7 +811,7 @@ public partial class GameHost
 
 	private void PresentUnitImpulse(PresentationMessage message)
 	{
-		if (!TryPresentUnit(message.Handle, out Unit3D unit3D)) return;
+		if (!TryPresentUnit(message.Handle, out Unit3D? unit3D)) return;
 
 		float strength = message.Value > 0f ? message.Value : 1f;
 		float duration = message.Duration > 0f ? message.Duration : 0.5f;
