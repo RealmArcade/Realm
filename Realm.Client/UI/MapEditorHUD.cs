@@ -59,7 +59,7 @@ public partial class MapEditorHUD : Control
 	private Button _btnLeftTab { get; set; } = null!;
 	private Panel _panelRight { get; set; } = null!;
 	private Button _btnRightTab { get; set; } = null!;
-	private VBoxContainer _accordionContainer { get; set; }
+	private VBoxContainer _accordionContainer { get; set; } = null!;
 
 	private bool _leftPanelExpanded { get; set; } = false;
 	private bool _rightPanelExpanded { get; set; } = true;
@@ -111,7 +111,7 @@ public partial class MapEditorHUD : Control
 
 	private VBoxContainer _containerTextureSettings { get; set; } = null!;
 	private VBoxContainer _containerPathingSettings { get; set; } = null!;
-	private VBoxContainer _containerPlacementSettings { get; set; }
+	private VBoxContainer _containerPlacementSettings { get; set; } = null!;
 	private VBoxContainer _containerEyedropperSettings { get; set; } = null!;
 	private VBoxContainer _containerPasteSettings { get; set; } = null!;
 	private VBoxContainer _containerCategorySelector { get; set; } = null!;
@@ -152,7 +152,7 @@ public partial class MapEditorHUD : Control
 	private Button _btnReplaceTexture { get; set; } = null!;
 
 	private PanelContainer _topBar { get; set; } = null!;
-	private VBoxContainer _middleRightBox { get; set; }
+	private VBoxContainer _middleRightBox { get; set; } = null!;
 	private HBoxContainer _topLeftBox { get; set; } = null!;
 	private TextureRect _screenFrameRect { get; set; } = null!;
 	private Tween _hudFadeTween { get; set; } = null!;
@@ -195,10 +195,10 @@ public partial class MapEditorHUD : Control
 	private CheckBox _chkRandomScale { get; set; } = null!;
 	private Button _btnAddObject { get; set; } = null!;
 	private CheckBox _chkClumpMode { get; set; } = null!;
-	private Control _spacingBox { get; set; }
+	private Control _spacingBox { get; set; } = null!;
 	private Control _densityBox { get; set; } = null!;
 	private Control _scaleVarBox { get; set; } = null!;
-	private Control _camBoundsBox { get; set; }
+	private Control _camBoundsBox { get; set; } = null!;
 	private CheckBox _chkBlockMode { get; set; } = null!;
 	private Slider _sldBlockStep { get; set; } = null!;
 	private Label _lblBlockStepValue { get; set; } = null!;
@@ -260,8 +260,8 @@ public partial class MapEditorHUD : Control
 	private Label _lblPlacementRotateValue { get; set; } = null!;
 	private Slider _sldPlacementScale { get; set; } = null!;
 	private Label _lblPlacementScaleValue { get; set; } = null!;
-	private VBoxContainer _placementRotateBox { get; set; }
-	private VBoxContainer _placementScaleBox { get; set; }
+	private VBoxContainer _placementRotateBox { get; set; } = null!;
+	private VBoxContainer _placementScaleBox { get; set; } = null!;
 	private Button _btnCopy { get; set; } = null!;
 	private Button _btnPaste { get; set; } = null!;
 	private Control _stepBox { get; set; } = null!;
@@ -346,7 +346,7 @@ public partial class MapEditorHUD : Control
 	private Button _activeToolButton { get; set; } = null;
 	private StyleBoxFlat _highlightStyle { get; set; } = null!;
 
-	private Label _lblInfoText { get; set; }
+	private Label _lblInfoText { get; set; } = null!;
 	private Label _lblTerrainTexture { get; set; } = null!;
 	private Label _lblCliffTexture { get; set; } = null!;
 

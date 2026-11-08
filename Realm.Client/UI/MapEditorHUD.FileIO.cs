@@ -1713,7 +1713,7 @@ namespace Realm.Client.UI
 			GameLog.OnLine += _exportLogHandler;
 		}
 
-		private Action<string> _exportLogHandler { get; set; }
+		private Action<string> _exportLogHandler { get; set; } = null!;
 
 		private async Task<string?> PerformExportStepsAsync(ProgressBar progressBar, Label statusLabel, Button closeBtn, string destinationPath, bool fullExport)
 		{

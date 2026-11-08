@@ -2286,7 +2286,7 @@ namespace Realm.Client.UI
 			Callable.From(ReportEditorDependencyState).CallDeferred();
 		}
 
-		private Control _editorInstallingCard;
+		private Control _editorInstallingCard = null!;
 
 		private void ShowEditorInstallingCard()
 		{

@@ -417,8 +417,8 @@ namespace Realm.Client.Core
 			_editorCoverageOverlayRoot.AddChild(meshInstance);
 		}
 
-		private MeshInstance3D _rampPreviewMesh { get; set; }
-		private ImmediateMesh _rampPreviewImmediateMesh { get; set; }
+		private MeshInstance3D _rampPreviewMesh { get; set; } = null!;
+		private ImmediateMesh _rampPreviewImmediateMesh { get; set; } = null!;
 
 		public void UpdateRampPreviewVisuals(Vector3 start, Vector3 end)
 		{

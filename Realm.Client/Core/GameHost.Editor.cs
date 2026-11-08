@@ -1437,10 +1437,10 @@ public partial class GameHost
 		EntityToProp3D.Clear();
 	}
 
-	private MeshInstance3D _measureMeshInstance { get; set; }
-	private ImmediateMesh _measureImmediateMesh { get; set; }
+	private MeshInstance3D _measureMeshInstance { get; set; } = null!;
+	private ImmediateMesh _measureImmediateMesh { get; set; } = null!;
 
-	private MeshInstance3D _symmetryPivotMarkerMesh { get; set; }
+	private MeshInstance3D _symmetryPivotMarkerMesh { get; set; } = null!;
 
 	public MeshInstance3D? GridOverlayMesh => null;
 	public MeshInstance3D? PathingOverlayMesh => null;
@@ -1630,7 +1630,7 @@ public partial class GameHost
 	}
 
 
-	private MeshInstance3D _scaleMapSilhouetteMesh { get; set; }
+	private MeshInstance3D _scaleMapSilhouetteMesh { get; set; } = null!;
 
 	private List<MeshInstance3D> _symmetryHighlightMeshes { get; set; } = new();
 
