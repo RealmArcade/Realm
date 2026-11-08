@@ -300,23 +300,8 @@ public partial class LobbyBrowser
 		panel.Name = "Panel_PanelContainer";
 		panel.CustomMinimumSize = new Vector2(0, 48);
 
-		var rowStyle = new StyleBoxFlat();
-		rowStyle.BgColor = new Color(0.12f, 0.13f, 0.16f, 0.3f);
-		rowStyle.BorderColor = new Color(0.25f, 0.25f, 0.3f, 0.2f);
-		rowStyle.SetBorderWidthAll(1);
-		rowStyle.ContentMarginLeft = 12;
-		rowStyle.ContentMarginRight = 24;
-		rowStyle.ContentMarginTop = 0;
-		rowStyle.ContentMarginBottom = 0;
-
-		var hoverStyle = new StyleBoxFlat();
-		hoverStyle.BgColor = new Color(0.95f, 0.82f, 0.55f, 0.12f);
-		hoverStyle.BorderColor = UIStyle.ColorGold;
-		hoverStyle.SetBorderWidthAll(1);
-		hoverStyle.ContentMarginLeft = 12;
-		hoverStyle.ContentMarginRight = 24;
-		hoverStyle.ContentMarginTop = 0;
-		hoverStyle.ContentMarginBottom = 0;
+		var rowStyle = UIStyle.CreateLobbyBrowserRowPlate(false);
+		var hoverStyle = UIStyle.CreateLobbyBrowserRowPlate(true);
 
 		panel.AddThemeStyleboxOverride("panel", rowStyle);
 

@@ -51,4 +51,12 @@ public static partial class UIStyle
 		edit.AddThemeStyleboxOverride("normal", CreateCustomLobbySearchInput(false));
 		edit.AddThemeStyleboxOverride("focus", CreateCustomLobbySearchInput(true));
 	}
+
+	/// <summary>
+	/// One lobby in the browser's list. The row and the state the pointer lifts it into are the same plate with the
+	/// gold fill and rule swapped in, so they are one factory with a flag rather than two near-identical blocks.
+	/// </summary>
+	public static StyleBoxFlat CreateLobbyBrowserRowPlate(bool isHovered) => isHovered
+		? CreateCardPlate(new Color(0.95f, 0.82f, 0.55f, 0.12f), ColorGold, 1, 0, 12, 24, 0, 0)
+		: CreateCardPlate(new Color(0.12f, 0.13f, 0.16f, 0.3f), new Color(0.25f, 0.25f, 0.3f, 0.2f), 1, 0, 12, 24, 0, 0);
 }
