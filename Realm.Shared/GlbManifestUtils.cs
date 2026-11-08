@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -833,7 +834,7 @@ public static class GlbManifestUtils
 		MarkExtensionTextureImage(tex, pbrImageIndices);
 	}
 
-	private static bool TryGetTextureObject(string propName, JsonObject container, out JsonObject texObj)
+	private static bool TryGetTextureObject(string propName, JsonObject container, [MaybeNullWhen(false)] out JsonObject texObj)
 	{
 		texObj = null;
 		if (!container.TryGetPropertyValue(propName, out var texVal)) return false;
@@ -843,7 +844,7 @@ public static class GlbManifestUtils
 		return true;
 	}
 
-	private static bool TryGetValidTexture(JsonObject texObj, JsonArray textures, out JsonObject tex)
+	private static bool TryGetValidTexture(JsonObject texObj, JsonArray textures, [MaybeNullWhen(false)] out JsonObject tex)
 	{
 		tex = null;
 		if (!texObj.TryGetPropertyValue("index", out var indexNode)) return false;
