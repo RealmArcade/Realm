@@ -21,8 +21,6 @@ public sealed record ViewportPanelHooks(
 	Action OpenEnvironmentPopup,
 	Action<OptionButton> SetupLightingDropdown,
 	Action<OptionButton> SetupWeatherDropdown,
-	Action<int> SetLighting,
-	Action<int> SetWeather,
 	Action<GridOverlayMode> UpdateGridOverlay,
 	Action<bool> UpdateCameraBoundsOverlay,
 	Action<bool> UpdateWireframeOverlay,
@@ -232,7 +230,7 @@ public sealed class ViewportPanel
 		hooks.SetupLightingDropdown(LightingOption);
 		LightingOption.ItemSelected += (idx) =>
 		{
-			hooks.SetLighting((int)idx);
+			SetLighting((int)idx, hooks.ShowFeedback);
 			EnvironmentPopup.Hide();
 		};
 		envVBox.AddChild(LightingOption);
@@ -245,7 +243,7 @@ public sealed class ViewportPanel
 		hooks.SetupWeatherDropdown(WeatherOption);
 		WeatherOption.ItemSelected += (idx) =>
 		{
-			hooks.SetWeather((int)idx);
+			SetWeather((int)idx, hooks.ShowFeedback);
 			EnvironmentPopup.Hide();
 		};
 		envVBox.AddChild(WeatherOption);
@@ -345,5 +343,26 @@ public sealed class ViewportPanel
 		}
 
 		return polarRow;
+	}
+
+	/// <summary>
+	/// Applies a lighting preset from the environment dropdown. The panel owns the dropdown and already reads editor
+	/// state from GameContext elsewhere, so only the feedback line comes in as a callback.
+	/// </summary>
+	public void SetLighting(int index, Action<string> feedback)
+	{
+		var envService = GameContext.EnvironmentService;
+		if (envService == null) return;
+		var (timeName, icon) = envService.SetEnvironmentLightingDomain(index);
+		feedback(string.Format(TranslationServer.Translate("Lighting: {0} {1}"), icon, TranslationServer.Translate(timeName)));
+	}
+
+	/// <summary>Applies a weather preset the same way, relabelling the service's capitalised answer.</summary>
+	public void SetWeather(int index, Action<string> feedback)
+	{
+		var envService = GameContext.EnvironmentService;
+		if (envService == null) return;
+		var (applied, icon) = envService.SetEnvironmentWeatherDomain(index);
+		feedback(string.Format(TranslationServer.Translate("Weather: {0} {1}"), icon, TranslationServer.Translate(applied.Capitalize())));
 	}
 }

@@ -379,7 +379,7 @@ namespace Realm.Client.UI
 			_viewportPanel.Build(new ViewportPanelHooks(
 				this, StyleAccordionHeader, SetupAccordion, SetupButton, SetupOptionButton, StylePopupMenu,
 				OpenOverlayModePopup, OpenEnvironmentPopup, SetupEnvLightingDropdown, SetupEnvWeatherDropdown,
-				SetEnvironmentLighting, SetEnvironmentWeather, UpdateGridOverlayExternal,
+				UpdateGridOverlayExternal,
 				UpdateCameraBoundsOverlayExternal, UpdateWireframeOverlayExternal, ShowFeedback, ToggleMeasureTool,
 				InitializeEditingDirectory,
 				opt => SetupPolarRingSpacingDropdown(opt, "Select interval between concentric polar distance rings (4, 8, 16, 32 tiles)"),
@@ -759,25 +759,7 @@ namespace Realm.Client.UI
 			}
 		}
 
-		private void SetEnvironmentLighting(int index)
-		{
-			var envService = GameContext.EnvironmentService;
-			if (envService != null)
-			{
-				var (timeName, icon) = envService.SetEnvironmentLightingDomain(index);
-				ShowFeedback(string.Format(TranslationServer.Translate("Lighting: {0} {1}"), icon, TranslationServer.Translate(timeName)));
-			}
-		}
 
-		private void SetEnvironmentWeather(int index)
-		{
-			var envService = GameContext.EnvironmentService;
-			if (envService != null)
-			{
-				var (applied, icon) = envService.SetEnvironmentWeatherDomain(index);
-				ShowFeedback(string.Format(TranslationServer.Translate("Weather: {0} {1}"), icon, TranslationServer.Translate(applied.Capitalize())));
-			}
-		}
 
 		public void ToggleVSCodeEditor()
 		{
