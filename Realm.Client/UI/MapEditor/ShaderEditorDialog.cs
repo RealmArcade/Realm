@@ -67,7 +67,7 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 		}
 	}
 
-	public override void SetRandomizeAssetsAction(Action onRandomize)
+	public override void SetRandomizeAssetsAction(Action? onRandomize)
 	{
 		if (RandomizeAssetsButton != null)
 		{
