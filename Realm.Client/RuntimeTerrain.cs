@@ -12,6 +12,7 @@ using Godot.Collections;
 using Realm.Client.Core;
 using Realm.Client.Services;
 using Realm.Client.UI;
+using Realm.Ecs;
 using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
 using Realm.Shared.Services;
@@ -28,6 +29,10 @@ public partial class RuntimeTerrain : Node3D
 	public const uint TerrainDecalCullMask = 1 << 2;
 	public static bool IsMinimapRendering { get; set; } = false;
 
+	// Terrain data lives in the ECS world; asking for it before one exists is a caller bug.
+	private static EcsWorld World => GameContext.World
+		?? throw new InvalidOperationException("RuntimeTerrain used before a world existed.");
+
 	public override void _ExitTree()
 	{
 		GameContext.UnregisterTerrain(this);
@@ -42,7 +47,7 @@ public partial class RuntimeTerrain : Node3D
 	public const int TargetTextureResolutionBits = 9;
 	public const int TargetTextureResolution = 1 << TargetTextureResolutionBits;
 
-	public static Image ProcessAndResizeImage(Image sourceImg, int targetSize)
+	public static Image? ProcessAndResizeImage(Image? sourceImg, int targetSize)
 	{
 		if (sourceImg == null) return null;
 		if (sourceImg.GetWidth() == targetSize && sourceImg.GetHeight() == targetSize)
@@ -65,14 +70,14 @@ public partial class RuntimeTerrain : Node3D
 	private TerrainState GetTerrainStateSafe()
 	{
 		if (GameContext.Host != null &&
-		    GameContext.World != null &&
-		    GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) &&
-		    GameContext.World.Has<TerrainState>(GameContext.Simulation.WorldEntity))
+		    GameContext.World is { } world &&
+		    world.IsAlive(GameContext.Simulation.WorldEntity) &&
+		    world.Has<TerrainState>(GameContext.Simulation.WorldEntity))
 		{
-			return GameContext.World.Get<TerrainState>(GameContext.Simulation.WorldEntity);
+			return world.Get<TerrainState>(GameContext.Simulation.WorldEntity);
 		}
 
-		return new TerrainState(128, 128, DefaultQuadSize, DefaultCellSize, (TerrainCell[,])null, null, null, null);
+		return new TerrainState(128, 128, DefaultQuadSize, DefaultCellSize, (TerrainCell[,]?)null, null, null, null);
 	}
 
 	public float CellSize
@@ -80,24 +85,24 @@ public partial class RuntimeTerrain : Node3D
 		get => GetTerrainStateSafe().CellSize;
 		protected set
 		{
-			ref var state = ref GameContext.World.Get<TerrainState>(GameContext.Simulation.WorldEntity);
-			GameContext.World.Set(GameContext.Simulation.WorldEntity, new TerrainState(
+			ref var state = ref World.Get<TerrainState>(GameContext.Simulation.WorldEntity);
+			World.Set(GameContext.Simulation.WorldEntity, new TerrainState(
 				state.Width, state.Depth, state.QuadSize, value,
 				state.Cells, state.PathingCodes, state.NavMesh, state.NavMeshQuery
 			));
 		}
 	}
 
-	public DtNavMesh NavMesh => GetTerrainStateSafe().NavMesh;
-	public DtNavMeshQuery NavMeshQuery => GetTerrainStateSafe().NavMeshQuery;
+	public DtNavMesh? NavMesh => GetTerrainStateSafe().NavMesh;
+	public DtNavMeshQuery? NavMeshQuery => GetTerrainStateSafe().NavMeshQuery;
 
 	public int Width
 	{
 		get => GetTerrainStateSafe().Width;
 		protected set
 		{
-			ref var state = ref GameContext.World.Get<TerrainState>(GameContext.Simulation.WorldEntity);
-			GameContext.World.Set(GameContext.Simulation.WorldEntity, new TerrainState(
+			ref var state = ref World.Get<TerrainState>(GameContext.Simulation.WorldEntity);
+			World.Set(GameContext.Simulation.WorldEntity, new TerrainState(
 				value, state.Depth, state.QuadSize, state.CellSize,
 				state.Cells, state.PathingCodes, state.NavMesh, state.NavMeshQuery
 			));
@@ -109,8 +114,8 @@ public partial class RuntimeTerrain : Node3D
 		get => GetTerrainStateSafe().Depth;
 		protected set
 		{
-			ref var state = ref GameContext.World.Get<TerrainState>(GameContext.Simulation.WorldEntity);
-			GameContext.World.Set(GameContext.Simulation.WorldEntity, new TerrainState(
+			ref var state = ref World.Get<TerrainState>(GameContext.Simulation.WorldEntity);
+			World.Set(GameContext.Simulation.WorldEntity, new TerrainState(
 				state.Width, value, state.QuadSize, state.CellSize,
 				state.Cells, state.PathingCodes, state.NavMesh, state.NavMeshQuery
 			));
@@ -122,8 +127,8 @@ public partial class RuntimeTerrain : Node3D
 		get => GetTerrainStateSafe().QuadSize;
 		protected set
 		{
-			ref var state = ref GameContext.World.Get<TerrainState>(GameContext.Simulation.WorldEntity);
-			GameContext.World.Set(GameContext.Simulation.WorldEntity, new TerrainState(
+			ref var state = ref World.Get<TerrainState>(GameContext.Simulation.WorldEntity);
+			World.Set(GameContext.Simulation.WorldEntity, new TerrainState(
 				state.Width, state.Depth, value, state.CellSize,
 				state.Cells, state.PathingCodes, state.NavMesh, state.NavMeshQuery
 			));
@@ -416,14 +421,14 @@ public partial class RuntimeTerrain : Node3D
 	protected TerrainCell[,] _localCells = null!;
 	protected int[,] _localPathingCodes = null!;
 
-		private void UpdateTerrainState(TerrainCell[,] newCells, int[,] newPathingCodes)
+		private void UpdateTerrainState(TerrainCell[,]? newCells, int[,]? newPathingCodes)
 		{
 			if (GameContext.Host != null &&
-			    GameContext.World != null &&
-			    GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) &&
-			    GameContext.World.Has<TerrainState>(GameContext.Simulation.WorldEntity))
+			    GameContext.World is { } world &&
+			    world.IsAlive(GameContext.Simulation.WorldEntity) &&
+			    world.Has<TerrainState>(GameContext.Simulation.WorldEntity))
 			{
-				ref var state = ref GameContext.World.Get<TerrainState>(GameContext.Simulation.WorldEntity);
+				ref var state = ref world.Get<TerrainState>(GameContext.Simulation.WorldEntity);
 				
 				int targetWidth = state.Width;
 				int targetDepth = state.Depth;
@@ -439,7 +444,7 @@ public partial class RuntimeTerrain : Node3D
 					targetDepth = newPathingCodes.GetLength(1);
 				}
 
-				GameContext.World.Set(GameContext.Simulation.WorldEntity, new TerrainState(
+				world.Set(GameContext.Simulation.WorldEntity, new TerrainState(
 					targetWidth, targetDepth, state.QuadSize, state.CellSize,
 					newCells ?? state.Cells, newPathingCodes ?? state.PathingCodes, state.NavMesh, state.NavMeshQuery
 				));
@@ -451,11 +456,11 @@ public partial class RuntimeTerrain : Node3D
 		get
 		{
 			if (GameContext.Host != null &&
-			    GameContext.World != null &&
-			    GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) &&
-			    GameContext.World.Has<TerrainState>(GameContext.Simulation.WorldEntity))
+			    GameContext.World is { } world &&
+			    world.IsAlive(GameContext.Simulation.WorldEntity) &&
+			    world.Has<TerrainState>(GameContext.Simulation.WorldEntity))
 			{
-				ref var state = ref GameContext.World.Get<TerrainState>(GameContext.Simulation.WorldEntity);
+				ref var state = ref world.Get<TerrainState>(GameContext.Simulation.WorldEntity);
 				if (state.Cells == null)
 				{
 					state.Cells = new TerrainCell[state.Width, state.Depth];
@@ -478,7 +483,7 @@ public partial class RuntimeTerrain : Node3D
 		}
 	}
 
-	public sbyte[,] MacroTiers
+	public sbyte[,]? MacroTiers
 	{
 		get
 		{
@@ -494,16 +499,17 @@ public partial class RuntimeTerrain : Node3D
 		}
 	}
 
-	public float[,] Heights
+	public float[,]? Heights
 	{
 		get => TerrainState.CalculateHeights(Width, Depth, Cells);
 		set => SetHeights(value);
 	}
 
-	public void SetHeights(float[,] heights)
+	public void SetHeights(float[,]? heights)
 	{
-		if (heights == null) return;
-		Cells = TerrainState.CalculateCells(Width, Depth, heights);
+		var cells = TerrainState.CalculateCells(Width, Depth, heights);
+		if (cells == null) return;
+		Cells = cells;
 	}
 
 	public TerrainSplatWeights[,] SplatMap { get; set; } = null!;
@@ -518,11 +524,11 @@ public partial class RuntimeTerrain : Node3D
 		get
 		{
 			if (GameContext.Host != null &&
-			    GameContext.World != null &&
-			    GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) &&
-			    GameContext.World.Has<TerrainState>(GameContext.Simulation.WorldEntity))
+			    GameContext.World is { } world &&
+			    world.IsAlive(GameContext.Simulation.WorldEntity) &&
+			    world.Has<TerrainState>(GameContext.Simulation.WorldEntity))
 			{
-				ref var state = ref GameContext.World.Get<TerrainState>(GameContext.Simulation.WorldEntity);
+				ref var state = ref world.Get<TerrainState>(GameContext.Simulation.WorldEntity);
 				if (state.PathingCodes == null)
 				{
 					state.PathingCodes = new int[state.Width, state.Depth];
@@ -1419,7 +1425,7 @@ public partial class RuntimeTerrain : Node3D
 		return ResolveRtexScaleFactor(cleanName, mapDir);
 	}
 
-	private float ResolveRtexScaleFactor(string cleanName, string mapDir)
+	private float ResolveRtexScaleFactor(string? cleanName, string mapDir)
 	{
 		string rtexPath = Path.Combine(mapDir, "Assets", "textures", cleanName + ".rtex");
 		if (!File.Exists(rtexPath)) rtexPath = Path.Combine(mapDir, cleanName + ".rtex");
@@ -1440,9 +1446,9 @@ public partial class RuntimeTerrain : Node3D
 
 	private void UpdateEcsTerrainSwatchConfig(int targetIndex, float heightScale, float heightOffset, float crevicePower, float normalScale)
 	{
-		if (GameContext.Host != null && GameContext.World != null && GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) && GameContext.World.Has<TerrainState>(GameContext.Simulation.WorldEntity))
+		if (GameContext.Host != null && GameContext.World != null && World.IsAlive(GameContext.Simulation.WorldEntity) && World.Has<TerrainState>(GameContext.Simulation.WorldEntity))
 		{
-			ref var ts = ref GameContext.World.Get<TerrainState>(GameContext.Simulation.WorldEntity);
+			ref var ts = ref World.Get<TerrainState>(GameContext.Simulation.WorldEntity);
 			if (ts.SwatchConfigs == null || ts.SwatchConfigs.Length != TextureSwatchSlots.MaxSlots)
 			{
 				ts.SwatchConfigs = new TerrainSwatchConfig[TextureSwatchSlots.MaxSlots];
@@ -1810,9 +1816,9 @@ public partial class RuntimeTerrain : Node3D
 		_material.SetShaderParameter("swatch_height_params", swatchHeightParams);
 		_material.SetShaderParameter("swatch_albedo_params", swatchAlbedoParams);
 
-		if (GameContext.Host != null && GameContext.World != null && GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) && GameContext.World.Has<TerrainState>(GameContext.Simulation.WorldEntity))
+		if (GameContext.Host != null && GameContext.World != null && World.IsAlive(GameContext.Simulation.WorldEntity) && World.Has<TerrainState>(GameContext.Simulation.WorldEntity))
 		{
-			ref var ts = ref GameContext.World.Get<TerrainState>(GameContext.Simulation.WorldEntity);
+			ref var ts = ref World.Get<TerrainState>(GameContext.Simulation.WorldEntity);
 			ts.SwatchConfigs = new TerrainSwatchConfig[TextureSwatchSlots.MaxSlots];
 			for (int i = 0; i < TextureSwatchSlots.MaxSlots; i++)
 			{
@@ -1823,11 +1829,13 @@ public partial class RuntimeTerrain : Node3D
 
 	private void RestoreCachedTextureArrays()
 	{
-		_material.SetShaderParameter("terrain_textures", _cachedAlbedoTextureArray);
-		_material.SetShaderParameter("terrain_normals_pbr", _cachedNormalRoughnessTextureArray);
-		_material.SetShaderParameter("cliff_textures", _cachedAlbedoTextureArray);
-		_material.SetShaderParameter("cliff_normals_pbr", _cachedNormalRoughnessTextureArray);
+		_material.SetShaderParameter("terrain_textures", ToVariantOrNil(_cachedAlbedoTextureArray));
+		_material.SetShaderParameter("terrain_normals_pbr", ToVariantOrNil(_cachedNormalRoughnessTextureArray));
+		_material.SetShaderParameter("cliff_textures", ToVariantOrNil(_cachedAlbedoTextureArray));
+		_material.SetShaderParameter("cliff_normals_pbr", ToVariantOrNil(_cachedNormalRoughnessTextureArray));
 	}
+
+	private static Variant ToVariantOrNil(GodotObject? obj) => obj != null ? obj : default(Variant);
 
 	private void RegenerateTextureArrays(SwatchSlotInfo[] swatchSlots, string mapDir)
 	{
@@ -1878,7 +1886,7 @@ public partial class RuntimeTerrain : Node3D
 
 	private void LoadImagesForSwatch(SwatchSlotInfo slot, string mapDir, ref Image? imgLayer0, ref Image? imgLayer1)
 	{
-		string name = slot.BaseName;
+		string? name = slot.BaseName;
 		string rtexFileName = slot.MetadataNode?.TexturePath ?? slot.FileName ?? (name + ".rtex");
 		if (!rtexFileName.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase)) rtexFileName += ".rtex";
 		rtexFileName = Path.GetFileName(rtexFileName);
@@ -1899,7 +1907,7 @@ public partial class RuntimeTerrain : Node3D
 		}
 	}
 
-	private string ResolveRtexPath(string rtexFileName, string baseName, string mapDir)
+	private string ResolveRtexPath(string rtexFileName, string? baseName, string mapDir)
 	{
 		string[] pathsToTry = new string[]
 		{
@@ -2307,11 +2315,11 @@ public partial class RuntimeTerrain : Node3D
 	{
 	}
 
-	public virtual void RestoreTerrainFromSnapshot(int newWidth, int newDepth, float quadSize, TerrainCell[,] cells, int[,] pathingCodes, TerrainSplatWeights[,] splatMap, TerrainSplatWeights[,] cliffSplatMap = null)
+	public virtual void RestoreTerrainFromSnapshot(int newWidth, int newDepth, float quadSize, TerrainCell[,] cells, int[,] pathingCodes, TerrainSplatWeights[,] splatMap, TerrainSplatWeights[,]? cliffSplatMap = null)
 	{
 	}
 
-	public virtual void RestoreTerrainFromSnapshot(int newWidth, int newDepth, float quadSize, float[,] heights, int[,] pathingCodes, TerrainSplatWeights[,] splatMap, TerrainSplatWeights[,] cliffSplatMap = null)
+	public virtual void RestoreTerrainFromSnapshot(int newWidth, int newDepth, float quadSize, float[,] heights, int[,] pathingCodes, TerrainSplatWeights[,] splatMap, TerrainSplatWeights[,]? cliffSplatMap = null)
 	{
 	}
 
@@ -3389,8 +3397,7 @@ public partial class RuntimeTerrain : Node3D
 
 	public void BakeNavMesh()
 	{
-		GameHost tempQualifier = GameContext.Host;
-		var world = (tempQualifier != null ? GameContext.World : null);
+		var world = GameContext.Host != null ? GameContext.World : null;
 		var worldEntity = GameContext.Host != null ? GameContext.Simulation.WorldEntity : default;
 		if (world != null && world.IsAlive(worldEntity) && world.Has<TerrainState>(worldEntity))
 		{
