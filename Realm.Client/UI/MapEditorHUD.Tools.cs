@@ -1445,6 +1445,7 @@ namespace Realm.Client.UI
 			var progressBar = publishDialog.Progress;
 			var statusLabel = publishDialog.StatusLabel;
 			var closeBtn = publishDialog.CloseButton;
+			var view = new PublishProgressView(progressBar, statusLabel, closeBtn);
 			var testVersionCheck = publishDialog.TestVersionCheck;
 
 			closeBtn.Pressed += () =>
@@ -1462,8 +1463,7 @@ namespace Realm.Client.UI
 
 			try
 			{
-				progressBar.Value = 5;
-				statusLabel.Text = TranslationServer.Translate("Checking publish eligibility...");
+				view.Stage(5, TranslationServer.Translate("Checking publish eligibility..."));
 				await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
 				string seedServerUrl = GameContext.Host != null && GodotObject.IsInstanceValid(GameContext.Lobby) ? GameContext.Lobby.RegistryServerUrl : ServersConfigHelper.GetDefaultServerUrl();
@@ -1486,17 +1486,13 @@ namespace Realm.Client.UI
 
 				await SavePublishWorkspaceStateAsync(workspace, tempTerrainPath, progressBar, statusLabel);
 
-				progressBar.Value = 15;
-				statusLabel.Text = TranslationServer.Translate("Verifying map assets...");
+				view.Stage(15, TranslationServer.Translate("Verifying map assets..."));
 				await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
 				(assetsValid, missingAssets) = MapAssetHelper.ValidateWorkspaceAssets(workspace);
 				if (!assetsValid)
 				{
-					progressBar.Value = 100;
-					statusLabel.Text = "❌ " + TranslationServer.Translate("Missing required asset files. Publish aborted.");
-					statusLabel.AddThemeColorOverride("font_color", new Color(0.95f, 0.3f, 0.3f));
-					closeBtn.Visible = true;
+					view.Fail(TranslationServer.Translate("Missing required asset files. Publish aborted."));
 					ShowFeedback(string.Format(TranslationServer.Translate("Publish failed: Map is missing required asset files:\n{0}"), string.Join(", ", missingAssets.Take(4)) + (missingAssets.Count > 4 ? "..." : "")));
 					AppendWasmConsoleLog($"[ERROR] Publish aborted. Missing required asset files:\n  {string.Join("\n  ", missingAssets)}");
 					return;
@@ -1504,25 +1500,18 @@ namespace Realm.Client.UI
 
 				if (!CheckAssetSizeValidation(workspace))
 				{
-					progressBar.Value = 100;
-					statusLabel.Text = "❌ " + TranslationServer.Translate("Asset exceeds 15 MB size limit. Publish aborted.");
-					statusLabel.AddThemeColorOverride("font_color", new Color(0.95f, 0.3f, 0.3f));
-					closeBtn.Visible = true;
+					view.Fail(TranslationServer.Translate("Asset exceeds 15 MB size limit. Publish aborted."));
 					return;
 				}
 
-				progressBar.Value = 20;
-				statusLabel.Text = TranslationServer.Translate("Compiling WASM map script...");
+				view.Stage(20, TranslationServer.Translate("Compiling WASM map script..."));
 				await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
 				await CompileWorkspaceScriptAsync(workspace);
 
 				if (_wasmHasErrors)
 				{
-					progressBar.Value = 100;
-					statusLabel.Text = "❌ " + TranslationServer.Translate("WASM compilation failed. Publish aborted.");
-					statusLabel.AddThemeColorOverride("font_color", new Color(0.95f, 0.3f, 0.3f));
-					closeBtn.Visible = true;
+					view.Fail(TranslationServer.Translate("WASM compilation failed. Publish aborted."));
 					ShowFeedback(TranslationServer.Translate("WASM compilation failed. Publish aborted."));
 					return;
 				}
@@ -1535,10 +1524,7 @@ namespace Realm.Client.UI
 					if (string.IsNullOrEmpty(wasmPath) || !File.Exists(wasmPath))
 					{
 						_wasmHasErrors = true;
-						progressBar.Value = 100;
-						statusLabel.Text = "❌ " + TranslationServer.Translate("Compiled WASM binary missing. Publish aborted.");
-						statusLabel.AddThemeColorOverride("font_color", new Color(0.95f, 0.3f, 0.3f));
-						closeBtn.Visible = true;
+						view.Fail(TranslationServer.Translate("Compiled WASM binary missing. Publish aborted."));
 						ShowFeedback(TranslationServer.Translate("Compiled WASM binary missing. Publish aborted."));
 						return;
 					}
@@ -1548,8 +1534,7 @@ namespace Realm.Client.UI
 
 				await OptimizePublishAssetsAsync(workspace, progressBar, statusLabel);
 
-				progressBar.Value = 60;
-				statusLabel.Text = TranslationServer.Translate("Generating map thumbnail...");
+				view.Stage(60, TranslationServer.Translate("Generating map thumbnail..."));
 				await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
 				if (_minimapController != null)
@@ -1557,8 +1542,7 @@ namespace Realm.Client.UI
 					await _minimapController.GenerateAndSaveMinimapThumbnailAsync(workspace);
 				}
 
-				progressBar.Value = 65;
-				statusLabel.Text = TranslationServer.Translate("Generating manifest & indexing asset hashes...");
+				view.Stage(65, TranslationServer.Translate("Generating manifest & indexing asset hashes..."));
 				await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
 				var authorshipKey = publishAuthorshipKey;
@@ -1574,8 +1558,7 @@ namespace Realm.Client.UI
 
 				var distClient = new DistributionClient(seedServerUrl);
 
-				progressBar.Value = 70;
-				statusLabel.Text = TranslationServer.Translate("Initiating publish session with registry...");
+				view.Stage(70, TranslationServer.Translate("Initiating publish session with registry..."));
 				await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
 				var initReq = new PublishMapInitiateRequest
@@ -1594,7 +1577,7 @@ namespace Realm.Client.UI
 				{
 					progressBar.Value = 100;
 					string baseMsg = !string.IsNullOrEmpty(initRes.Message) ? initRes.Message : TranslationServer.Translate("Failed to initiate publish.");
-					string errorText = "❌ " + string.Format(TranslationServer.Translate("Failed to initiate publish: {0}"), baseMsg);
+					string errorText = string.Format(TranslationServer.Translate("Failed to initiate publish: {0}"), baseMsg);
 					if (initRes.MissingHashes != null && initRes.MissingHashes.Count > 0)
 					{
 						string firstMissingHash = initRes.MissingHashes[0];
@@ -1604,10 +1587,8 @@ namespace Realm.Client.UI
 						errorText += "\n" + string.Format(TranslationServer.Translate("Missing asset: {0}"), firstMissingName);
 					}
 
-					statusLabel.Text = errorText;
-					statusLabel.AddThemeColorOverride("font_color", new Color(0.95f, 0.3f, 0.3f));
-					closeBtn.Visible = true;
-					ShowFeedback(errorText.Replace("❌ ", ""));
+					view.Fail(errorText);
+					ShowFeedback(errorText);
 					return;
 				}
 
@@ -1648,17 +1629,13 @@ namespace Realm.Client.UI
 
 					if (!uploadSuccess)
 					{
-						progressBar.Value = 100;
-						statusLabel.Text = "❌ " + string.Format(TranslationServer.Translate("Failed to upload asset: {0}"), failedAsset);
-						statusLabel.AddThemeColorOverride("font_color", new Color(0.95f, 0.3f, 0.3f));
-						closeBtn.Visible = true;
+						view.Fail(string.Format(TranslationServer.Translate("Failed to upload asset: {0}"), failedAsset));
 						ShowFeedback($"Failed to upload asset: {failedAsset} ({errorMsg})");
 						return;
 					}
 				}
 
-				progressBar.Value = 95;
-				statusLabel.Text = TranslationServer.Translate("Finalizing map publish...");
+				view.Stage(95, TranslationServer.Translate("Finalizing map publish..."));
 				await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
 				var finalizeReq = new PublishMapFinalizeRequest
@@ -1674,9 +1651,7 @@ namespace Realm.Client.UI
 				var finalRes = await distClient.FinalizePublishAsync(finalizeReq);
 				if (finalRes.Success)
 				{
-					progressBar.Value = 100;
-					statusLabel.Text = "✓ " + TranslationServer.Translate("Map compiled & published successfully!");
-					statusLabel.AddThemeColorOverride("font_color", new Color(0.3f, 0.9f, 0.3f));
+					view.Succeed(TranslationServer.Translate("Map compiled & published successfully!"));
 					await ToSignal(GetTree().CreateTimer(0.6f), SceneTreeTimer.SignalName.Timeout);
 
 					if (GodotObject.IsInstanceValid(popup))
@@ -1696,7 +1671,7 @@ namespace Realm.Client.UI
 				{
 					progressBar.Value = 100;
 					string baseMsg = !string.IsNullOrEmpty(finalRes.Message) ? finalRes.Message : TranslationServer.Translate("Failed to finalize publish.");
-					string errorText = "❌ " + string.Format(TranslationServer.Translate("Failed to finalize publish: {0}"), baseMsg);
+					string errorText = string.Format(TranslationServer.Translate("Failed to finalize publish: {0}"), baseMsg);
 					if (finalRes.MissingHashes != null && finalRes.MissingHashes.Count > 0)
 					{
 						string firstMissingHash = finalRes.MissingHashes[0];
@@ -1706,21 +1681,16 @@ namespace Realm.Client.UI
 						errorText += "\n" + string.Format(TranslationServer.Translate("Missing asset: {0}"), firstMissingName);
 					}
 
-					statusLabel.Text = errorText;
-					statusLabel.AddThemeColorOverride("font_color", new Color(0.95f, 0.3f, 0.3f));
-					closeBtn.Visible = true;
-					ShowFeedback(errorText.Replace("❌ ", ""));
+					view.Fail(errorText);
+					ShowFeedback(errorText);
 				}
 			}
 			catch (Exception ex)
 			{
 				SetWasmConsoleStatus($"❌ Publish Failed: {ex.Message}", new Color(1.0f, 0.3f, 0.3f));
-				if (GodotObject.IsInstanceValid(progressBar) && GodotObject.IsInstanceValid(statusLabel) && GodotObject.IsInstanceValid(closeBtn))
+				if (view.IsAlive)
 				{
-					progressBar.Value = 100;
-					statusLabel.Text = "❌ " + string.Format(TranslationServer.Translate("Publish error: {0}"), ex.Message);
-					statusLabel.AddThemeColorOverride("font_color", new Color(0.95f, 0.3f, 0.3f));
-					closeBtn.Visible = true;
+					view.Fail(string.Format(TranslationServer.Translate("Publish error: {0}"), ex.Message));
 				}
 
 				ShowFeedback(string.Format(TranslationServer.Translate("Publish error: {0}"), ex.Message));
