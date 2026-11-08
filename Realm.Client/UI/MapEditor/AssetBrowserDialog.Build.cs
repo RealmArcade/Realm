@@ -223,15 +223,8 @@ public partial class AssetBrowserDialog
 		_bottomDetailsPanel = new PanelContainer();
 		_bottomDetailsPanel.Name = "BottomDetailsPanel_PanelContainer";
 		_bottomDetailsPanel.CustomMinimumSize = new Vector2(0, 60);
-		var detailStyle = new StyleBoxFlat();
-		detailStyle.BgColor = new Color(0.08f, 0.09f, 0.11f, 0.9f);
-		detailStyle.BorderColor = new Color(0.25f, 0.23f, 0.20f, 0.8f);
-		detailStyle.SetBorderWidthAll(1);
-		detailStyle.SetCornerRadiusAll(4);
-		detailStyle.ContentMarginLeft = 8;
-		detailStyle.ContentMarginRight = 8;
-		detailStyle.ContentMarginTop = 6;
-		detailStyle.ContentMarginBottom = 6;
+		var detailStyle = UIStyle.CreateCardPlate(new Color(0.08f, 0.09f, 0.11f, 0.9f),
+			new Color(0.25f, 0.23f, 0.20f, 0.8f), 1, 4, 8, 8, 6, 6);
 		_bottomDetailsPanel.AddThemeStyleboxOverride("panel", detailStyle);
 		BodyContainer.AddChild(_bottomDetailsPanel);
 
