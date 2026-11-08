@@ -76,7 +76,7 @@ public ServerCommandResult ExecuteServerCommand(int peerId, NetworkCommand cmd)
 		DispatchServerCommand(peerId, cmd, stopVelocityEntityIds, holdVelocityEntityIds, rejectedServerEntityIds, ref rejectionReason);
 
 		bool needsBuildUnit = cmd.CommandType == "build";
-		string buildUnitType = needsBuildUnit ? cmd.ArgString : null;
+		string? buildUnitType = needsBuildUnit ? cmd.ArgString : null;
 		Vector3 buildPosition = needsBuildUnit ? new Vector3(cmd.TargetPosition.X, cmd.TargetPosition.Y, cmd.TargetPosition.Z) : Vector3.Zero;
 		int buildPeerOwner = needsBuildUnit ? peerId : -1;
 		int buildWorkerServerEntityId = needsBuildUnit && cmd.UnitEntityIds.Count > 0 ? cmd.UnitEntityIds[0] : -1;
@@ -89,7 +89,7 @@ public ServerCommandResult ExecuteServerCommand(int peerId, NetworkCommand cmd)
 			if (cmd.UnitEntityIds.Count > 0) RecordCommandRejection(rejectedServerEntityIds, cmd.UnitEntityIds[0], spellRejection);
 		}
 
-		string spellId = needsSpellEffect ? cmd.ArgString : null;
+		string? spellId = needsSpellEffect ? cmd.ArgString : null;
 		Vector3 spellPosition = needsSpellEffect ? new Vector3(cmd.TargetPosition.X, cmd.TargetPosition.Y, cmd.TargetPosition.Z) : Vector3.Zero;
 
 		return new ServerCommandResult(

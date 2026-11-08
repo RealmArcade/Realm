@@ -2630,18 +2630,18 @@ public partial class RuntimeTerrain : Node3D
 
 	private void ClearChunkCaches(TerrainChunk chunk)
 	{
-		chunk.VerticesCache = null;
-		chunk.NormalsCache = null;
-		chunk.ColorsCache = null;
-		chunk.TexIndicesCache = null;
-		chunk.TexWeightsCache01 = null;
-		chunk.CliffIndicesCache = null;
-		chunk.CliffWeightsCache = null;
-		chunk.UvsCache = null;
-		chunk.IndicesCache = null;
-		chunk.MapDataCache = null;
-		chunk.WeldVertexMap = null;
-		chunk.WeldRemapTable = null;
+		chunk.VerticesCache = System.Array.Empty<Vector3>();
+		chunk.NormalsCache = System.Array.Empty<Vector3>();
+		chunk.ColorsCache = System.Array.Empty<Color>();
+		chunk.TexIndicesCache = System.Array.Empty<float>();
+		chunk.TexWeightsCache01 = System.Array.Empty<float>();
+		chunk.CliffIndicesCache = System.Array.Empty<float>();
+		chunk.CliffWeightsCache = System.Array.Empty<float>();
+		chunk.UvsCache = System.Array.Empty<Vector2>();
+		chunk.IndicesCache = System.Array.Empty<int>();
+		chunk.MapDataCache = System.Array.Empty<float>();
+		chunk.WeldVertexMap = new();
+		chunk.WeldRemapTable = System.Array.Empty<int>();
 	}
 
 	public override void _Process(double delta)
@@ -3302,18 +3302,18 @@ public partial class RuntimeTerrain : Node3D
 			return;
 		}
 
-		if (chunk.WeldVertexMap == null)
+		if (chunk.WeldVertexMap.Count == 0)
 		{
-			chunk.WeldVertexMap = new System.Collections.Generic.Dictionary<TerrainVertexKey, int>(vertexIndex);
+			chunk.WeldVertexMap.EnsureCapacity(vertexIndex);
 		}
 		else
 		{
 			chunk.WeldVertexMap.Clear();
 		}
 
-		if (chunk.WeldRemapTable == null || chunk.WeldRemapTable.Length < vertexIndex)
+		if (chunk.WeldRemapTable.Length < vertexIndex)
 		{
-			chunk.WeldRemapTable = new int[Math.Max(vertexIndex, chunk.WeldRemapTable != null ? chunk.WeldRemapTable.Length * 2 : 1024)];
+			chunk.WeldRemapTable = new int[Math.Max(vertexIndex, chunk.WeldRemapTable.Length * 2)];
 		}
 
 		var vertexMap = chunk.WeldVertexMap;

@@ -4576,7 +4576,8 @@ public partial class EditorService : IEditorAPI
 			EditorTool.FloodFillPathing => TranslationServer.Translate("FLOOD FILL PATHING"),
 			EditorTool.DrawCoordinate => TranslationServer.Translate("DRAW COORD"),
 			EditorTool.Water => TranslationServer.Translate("WATER"),
-			EditorTool.Measure => TranslationServer.Translate("MEASURE")
+			EditorTool.Measure => TranslationServer.Translate("MEASURE"),
+			_ => tool.ToString()
 		};
 	}
 

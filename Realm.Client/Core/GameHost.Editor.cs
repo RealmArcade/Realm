@@ -1005,47 +1005,50 @@ public partial class GameHost
 
 	private void ResetTerrainData()
 	{
-		int width = GroundTerrain.Width;
-		int depth = GroundTerrain.Depth;
+		var ground = RequireGroundTerrain();
+		int width = ground.Width;
+		int depth = ground.Depth;
 
 		InitializeTerrainArrays(width, depth);
 		PopulateTerrainCells(width, depth);
 		PopulateSplatMaps(width, depth);
 		UpdateEcsTerrainState();
 
-		GroundTerrain.UpdateMeshAndPhysics(true, true);
-		GroundTerrain.UpdatePathingTexture();
+		ground.UpdateMeshAndPhysics(true, true);
+		ground.UpdatePathingTexture();
 		UpdatePathingOverlay();
 	}
 
 	private void InitializeTerrainArrays(int width, int depth)
 	{
-		TerrainCell[,] cells = GroundTerrain.Cells;
+		var ground = RequireGroundTerrain();
+		TerrainCell[,] cells = ground.Cells;
 		if (cells == null || cells.GetLength(0) != width || cells.GetLength(1) != depth)
-			GroundTerrain.Cells = new TerrainCell[width, depth];
+			ground.Cells = new TerrainCell[width, depth];
 
-		TerrainSplatWeights[,] splatMap = GroundTerrain.SplatMap;
+		TerrainSplatWeights[,] splatMap = ground.SplatMap;
 		if (splatMap == null || splatMap.GetLength(0) < width + 1 || splatMap.GetLength(1) < depth + 1)
-			GroundTerrain.SplatMap = new TerrainSplatWeights[width + 1, depth + 1];
+			ground.SplatMap = new TerrainSplatWeights[width + 1, depth + 1];
 
-		TerrainSplatWeights[,]? cliffSplatMap = GroundTerrain.CliffSplatMap;
+		TerrainSplatWeights[,]? cliffSplatMap = ground.CliffSplatMap;
 		if (cliffSplatMap == null || cliffSplatMap.GetLength(0) < width + 1 || cliffSplatMap.GetLength(1) < depth + 1)
-			GroundTerrain.CliffSplatMap = new TerrainSplatWeights[width + 1, depth + 1];
+			ground.CliffSplatMap = new TerrainSplatWeights[width + 1, depth + 1];
 
-		int[,] pathingCodes = GroundTerrain.PathingCodes;
+		int[,] pathingCodes = ground.PathingCodes;
 		if (pathingCodes == null || pathingCodes.GetLength(0) != width || pathingCodes.GetLength(1) != depth)
-			GroundTerrain.PathingCodes = new int[width, depth];
+			ground.PathingCodes = new int[width, depth];
 	}
 
 	private void PopulateTerrainCells(int width, int depth)
 	{
+		var ground = RequireGroundTerrain();
 		int defaultPathingCode = EditableTerrain.GetDefaultPathingCode(WaterType.None);
 		for (int z = 0; z < depth; z++)
 		{
 			for (int x = 0; x < width; x++)
 			{
-				GroundTerrain.Cells[x, z] = new TerrainCell(0.0f);
-				GroundTerrain.PathingCodes[x, z] = defaultPathingCode;
+				ground.Cells[x, z] = new TerrainCell(0.0f);
+				ground.PathingCodes[x, z] = defaultPathingCode;
 			}
 		}
 	}
@@ -1053,7 +1056,7 @@ public partial class GameHost
 
 	private void PopulateSplatMaps(int width, int depth)
 	{
-		if (GroundTerrain.SplatMap is not { } splatMap || GroundTerrain.CliffSplatMap is not { } cliffSplatMap) return;
+		if (GroundTerrain is not { SplatMap: { } splatMap, CliffSplatMap: { } cliffSplatMap }) return;
 
 		for (int z = 0; z <= depth; z++)
 		{
@@ -1069,9 +1072,10 @@ public partial class GameHost
 	{
 		if (GameContext.World != null && GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) && GameContext.World.Has<TerrainState>(GameContext.Simulation.WorldEntity))
 		{
+			var ground = RequireGroundTerrain();
 			ref var ts = ref GameContext.World.Get<TerrainState>(GameContext.Simulation.WorldEntity);
-			ts.Cells = GroundTerrain.Cells;
-			ts.PathingCodes = GroundTerrain.PathingCodes;
+			ts.Cells = ground.Cells;
+			ts.PathingCodes = ground.PathingCodes;
 			GameContext.World.Set(GameContext.Simulation.WorldEntity, ts);
 		}
 	}

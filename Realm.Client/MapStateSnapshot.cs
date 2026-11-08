@@ -104,10 +104,11 @@ public class MapStateSnapshot
 
 	private static void RestoreTerrain(GameHost host, MapStateSnapshot snapshot)
 	{
-		host.GroundTerrain.RestoreTerrainFromSnapshot(
+		var ground = host.RequireGroundTerrain();
+		ground.RestoreTerrainFromSnapshot(
 			snapshot.Width,
 			snapshot.Depth,
-			host.GroundTerrain.QuadSize,
+			ground.QuadSize,
 			snapshot.Cells,
 			snapshot.PathingCodes,
 			snapshot.SplatMap,
@@ -183,9 +184,10 @@ public class MapStateSnapshot
 
 	private static void RebuildRestoredWorldViews(GameHost host)
 	{
-		host.GroundTerrain.UpdateMeshAndPhysics(true, true);
-		host.GroundTerrain.ReloadTerrainTextures();
-		GameContext.EditorService.SetTerrainSplatMap(host.GroundTerrain.SplatMap, host.GroundTerrain.CliffSplatMap);
+		var ground = host.RequireGroundTerrain();
+		ground.UpdateMeshAndPhysics(true, true);
+		ground.ReloadTerrainTextures();
+		GameContext.EditorService.SetTerrainSplatMap(ground.SplatMap, ground.CliffSplatMap);
 		host.RebuildCameraBoundsOverlay();
 		GameContext.PropMultiMesh?.RebuildAll();
 		GameContext.MapEditorHud?.UpdateCameraBoundsUI();

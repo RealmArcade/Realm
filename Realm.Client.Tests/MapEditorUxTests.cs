@@ -111,18 +111,19 @@ public class MapEditorUxTests
 		gameHost!.EditorBrushIsSquare = true;
 
 		var editorService = GameContext.EditorService;
-		editorService.SetTerrainSplatMap(gameHost!.GroundTerrain.SplatMap);
+		editorService.SetTerrainSplatMap(gameHost!.RequireGroundTerrain().SplatMap);
 
 		Vector3 raiseCenter = new Vector3(0.0f, 0.0f, -10.0f);
 
+		var terrain = gameHost!.RequireGroundTerrain();
 		editorService.BeginTerrainDraw(
 			raiseCenter,
 			gameHost!.ActiveEditorTool,
 			gameHost!.EditorBlockMode,
 			gameHost!.EditorBlockLevelHeight,
-			gameHost!.GroundTerrain.Heights,
-			gameHost!.GroundTerrain.SplatMap,
-			gameHost!.GroundTerrain.PathingCodes);
+			terrain.Heights,
+			terrain.SplatMap,
+			terrain.PathingCodes);
 
 		var res = editorService.ApplyContinuousTerrainEditing(
 			raiseCenter, 1.0f,
@@ -133,9 +134,9 @@ public class MapEditorUxTests
 			GameContext.EditorService.EditorPaintTextureIndex, GameContext.EditorService.EditorCliffPaintTextureIndex,
 			0, true, true);
 
-		editorService.EndTerrainDraw(gameHost!.GroundTerrain.Heights, gameHost!.GroundTerrain.SplatMap, gameHost!.GroundTerrain.PathingCodes);
+		editorService.EndTerrainDraw(terrain.Heights, terrain.SplatMap, terrain.PathingCodes);
 
-		gameHost!.GroundTerrain.UpdateMeshAndPhysics(true, true);
+		terrain.UpdateMeshAndPhysics(true, true);
 		await runner.AwaitMillis(1000);
 
 		var camera = gameHost!.MainCamera;

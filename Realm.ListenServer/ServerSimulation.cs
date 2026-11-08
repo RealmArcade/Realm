@@ -550,30 +550,32 @@ public class ServerSimulation : IDisposable
 	private ServerCommandResult PlaceBuildingOrderedBy(NetworkCommand command, in ServerCommandResult result)
 	{
 		if (!result.NeedsBuildUnit) return result;
-		if (!TryGetPlayerEntity(result.BuildPeerOwner, out Entity playerEntity)) return RefusePlacement($"'{command.CommandType}' naming '{result.BuildUnitType}' arrived from peer {result.BuildPeerOwner}, which holds no player entity");
+		string? templateId = result.BuildUnitType;
+		if (templateId == null) return RefusePlacement($"'{command.CommandType}' asked for a building without naming one");
+		if (!TryGetPlayerEntity(result.BuildPeerOwner, out Entity playerEntity)) return RefusePlacement($"'{command.CommandType}' naming '{templateId}' arrived from peer {result.BuildPeerOwner}, which holds no player entity");
 
 		Entity workerEntity = Entity.Null;
 		if (result.BuildWorkerServerEntityId >= 0)
 		{
 			workerEntity = new Entity(result.BuildWorkerServerEntityId);
-			if (!_map.World.IsAlive(workerEntity)) return RefusePlacement($"'{command.CommandType}' naming '{result.BuildUnitType}' named worker {result.BuildWorkerServerEntityId}, which is not a live unit");
+			if (!_map.World.IsAlive(workerEntity)) return RefusePlacement($"'{command.CommandType}' naming '{templateId}' named worker {result.BuildWorkerServerEntityId}, which is not a live unit");
 			if (!_map.World.TryGet<Owner>(workerEntity, out Owner owner) || owner.PlayerEntity.Value != playerEntity)
 			{
-				return RefusePlacement($"'{command.CommandType}' naming '{result.BuildUnitType}' named worker {result.BuildWorkerServerEntityId}, which this player does not own");
+				return RefusePlacement($"'{command.CommandType}' naming '{templateId}' named worker {result.BuildWorkerServerEntityId}, which this player does not own");
 			}
 		}
 
 		var buildPosition = new Vector3(result.BuildPosition.X, result.BuildPosition.Y, result.BuildPosition.Z);
-		if (!BuildingPlacementService.TryPlace(_map.World, _map.Catalog, result.BuildUnitType, buildPosition, new PlayerEntity(playerEntity), workerEntity, out Entity buildingEntity))
+		if (!BuildingPlacementService.TryPlace(_map.World, _map.Catalog, templateId, buildPosition, new PlayerEntity(playerEntity), workerEntity, out Entity buildingEntity))
 		{
-			return RefusePlacement(_map.Catalog.FindUnitOrBuilding(result.BuildUnitType) == null
-				? $"'{command.CommandType}' naming '{result.BuildUnitType}' could not be placed: this map defines no such template"
-				: $"'{command.CommandType}' naming '{result.BuildUnitType}' could not be placed: the player cannot pay for it");
+			return RefusePlacement(_map.Catalog.FindUnitOrBuilding(templateId) == null
+				? $"'{command.CommandType}' naming '{templateId}' could not be placed: this map defines no such template"
+				: $"'{command.CommandType}' naming '{templateId}' could not be placed: the player cannot pay for it");
 		}
 
 		_log.Write(workerEntity == Entity.Null
-			? $"placed building {buildingEntity.Id} '{result.BuildUnitType}' for entity {playerEntity.Id}"
-			: $"worker {workerEntity.Id} is building {buildingEntity.Id} '{result.BuildUnitType}' for entity {playerEntity.Id}");
+			? $"placed building {buildingEntity.Id} '{templateId}' for entity {playerEntity.Id}"
+			: $"worker {workerEntity.Id} is building {buildingEntity.Id} '{templateId}' for entity {playerEntity.Id}");
 
 		// A placement nothing has to be built for is finished the moment it is made, and the tick that builds sites never
 		// sees it, so its completion is raised here. A map that reacts to a finished construction - a draft that is played

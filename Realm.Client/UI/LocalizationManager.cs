@@ -145,14 +145,15 @@ public static class LocalizationManager
 	private static Dictionary<string, string> BuildTranslationKeyLookup(string locale)
 	{
 		var lookup = new Dictionary<string, string>(StringComparer.Ordinal);
-		Translation? translation = TranslationServer.GetTranslationObject(locale);
-		if (translation == null) return lookup;
 
-		foreach (string key in translation.GetMessageList())
+		foreach (Translation translation in TranslationServer.FindTranslations(locale, false))
 		{
-			string translated = translation.GetMessage(key);
-			if (string.IsNullOrEmpty(translated) || translated == key) continue;
-			if (!lookup.ContainsKey(translated)) lookup[translated] = key;
+			foreach (string key in translation.GetMessageList())
+			{
+				string translated = translation.GetMessage(key);
+				if (string.IsNullOrEmpty(translated) || translated == key) continue;
+				if (!lookup.ContainsKey(translated)) lookup[translated] = key;
+			}
 		}
 
 		return lookup;

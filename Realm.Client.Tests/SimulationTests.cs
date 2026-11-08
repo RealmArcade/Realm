@@ -14,6 +14,7 @@ using Realm.Client.Network;
 using Realm.Client.Services;
 using Realm.Client.Testing;
 using Realm.Client.UI;
+using Realm.Ecs;
 using Realm.Ecs.Services;
 using Realm.Shared;
 using Vector3 = System.Numerics.Vector3;

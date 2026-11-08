@@ -19,7 +19,7 @@ public partial class UtilitiesDialog : FloatingDialogBase
 		string Title { get; }
 		string Description { get; }
 		string Icon { get; }
-		Control CreateConfigurationControl();
+		Control? CreateConfigurationControl();
 		Task ExecuteAsync(IProgress<(double Progress, string Status)> progress);
 	}
 

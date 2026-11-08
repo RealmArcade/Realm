@@ -58,7 +58,7 @@ public static class MapFileService
 		Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
 	};
 
-	public static string ResolvePath(string pathOrDirectory, string targetFileName)
+	public static string ResolvePath(string? pathOrDirectory, string targetFileName)
 	{
 		if (string.IsNullOrWhiteSpace(pathOrDirectory))
 		{

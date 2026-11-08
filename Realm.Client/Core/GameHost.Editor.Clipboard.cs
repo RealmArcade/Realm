@@ -130,7 +130,7 @@ namespace Realm.Client.Core
 				foreach (var aff in affectedRegions) AlignAllEntitiesToTerrain(aff);
 			}
 
-			GroundTerrain.UpdateMeshAndPhysics(pasteResult.HeightsModified, false, affectedRegions, pasteResult.HeightsModified);
+			RequireGroundTerrain().UpdateMeshAndPhysics(pasteResult.HeightsModified, false, affectedRegions, pasteResult.HeightsModified);
 
 			if (pasteResult.PathingModified) UpdatePathingOverlay();
 		}
@@ -140,8 +140,9 @@ namespace Realm.Client.Core
 			var affectedRegions = new List<Rect2I> { new Rect2I(startX - 2, startZ - 2, pasteW + 4, pasteD + 4) };
 			if (EditorMirrorMode == MirrorMode.None) return affectedRegions;
 
-			float quadSize = GroundTerrain.QuadSize;
-			Vector3 centerPos = new Vector3((startX + pasteW / 2.0f - GroundTerrain.Width / 2.0f) * quadSize, 0, (startZ + pasteD / 2.0f - GroundTerrain.Depth / 2.0f) * quadSize);
+			var ground = RequireGroundTerrain();
+			float quadSize = ground.QuadSize;
+			Vector3 centerPos = new Vector3((startX + pasteW / 2.0f - ground.Width / 2.0f) * quadSize, 0, (startZ + pasteD / 2.0f - ground.Depth / 2.0f) * quadSize);
 			var transforms = GameContext.EditorService.GetMirroredTransforms(centerPos, 0.0f, EditorMirrorMode);
 
 			foreach (var t in transforms)
@@ -182,10 +183,11 @@ namespace Realm.Client.Core
 			var actions = new List<IEditorAction>();
 			if (terrainModified)
 			{
-				var cellsAfter = (TerrainCell[,])GroundTerrain.Cells.Clone();
-				var splatAfter = (TerrainSplatWeights[,])GroundTerrain.SplatMap.Clone();
-				TerrainSplatWeights[,]? cliffAfter = GroundTerrain.CliffSplatMap != null ? (TerrainSplatWeights[,])GroundTerrain.CliffSplatMap.Clone() : null;
-				var pathingAfter = (int[,])GroundTerrain.PathingCodes.Clone();
+				var ground = RequireGroundTerrain();
+				var cellsAfter = (TerrainCell[,])ground.Cells.Clone();
+				var splatAfter = (TerrainSplatWeights[,])ground.SplatMap.Clone();
+				TerrainSplatWeights[,]? cliffAfter = ground.CliffSplatMap != null ? (TerrainSplatWeights[,])ground.CliffSplatMap.Clone() : null;
+				var pathingAfter = (int[,])ground.PathingCodes.Clone();
 				actions.Add(new TerrainModifyAction(cellsBefore, cellsAfter, splatBefore, splatAfter, pathingBefore, pathingAfter, cliffBefore, cliffAfter));
 			}
 

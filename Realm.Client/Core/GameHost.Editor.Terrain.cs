@@ -454,10 +454,11 @@ namespace Realm.Client.Core
 		{
 			int vertexCount = selWidth * selDepth;
 			var vertices = new Vector3[vertexCount];
-			int width = GroundTerrain.Width;
-			int depth = GroundTerrain.Depth;
-			float quadSize = GroundTerrain.QuadSize;
-			var cells = GroundTerrain.Cells;
+			var ground = RequireGroundTerrain();
+			int width = ground.Width;
+			int depth = ground.Depth;
+			float quadSize = ground.QuadSize;
+			var cells = ground.Cells;
 			float halfW = width * 0.5f;
 			float halfD = depth * 0.5f;
 
@@ -645,19 +646,19 @@ namespace Realm.Client.Core
 
 		private bool CanEraseArea()
 		{
-			return GroundTerrain?.Cells != null &&
-			       GroundTerrain.SplatMap != null &&
+			return GroundTerrain is { Cells: not null, SplatMap: not null } &&
 			       GameContext.EditorService.SelectionStart != null &&
 			       GameContext.EditorService.SelectionEnd != null;
 		}
 
 		private (TerrainCell[,] Cells, TerrainSplatWeights[,] Splat, int[,] Pathing, TerrainSplatWeights[,]? Cliff) CreateTerrainSnapshot()
 		{
+			var ground = RequireGroundTerrain();
 			return (
-				(TerrainCell[,])GroundTerrain.Cells.Clone(),
-				(TerrainSplatWeights[,])GroundTerrain.SplatMap.Clone(),
-				(int[,])GroundTerrain.PathingCodes.Clone(),
-				GroundTerrain.CliffSplatMap != null ? (TerrainSplatWeights[,])GroundTerrain.CliffSplatMap.Clone() : null
+				(TerrainCell[,])ground.Cells.Clone(),
+				(TerrainSplatWeights[,])ground.SplatMap.Clone(),
+				(int[,])ground.PathingCodes.Clone(),
+				ground.CliffSplatMap != null ? (TerrainSplatWeights[,])ground.CliffSplatMap.Clone() : null
 			);
 		}
 
@@ -671,7 +672,7 @@ namespace Realm.Client.Core
 				AlignAllEntitiesToTerrain(affected);
 			}
 
-			GroundTerrain.UpdateMeshAndPhysics(eraseResult.HeightsModified, false, affected, eraseResult.HeightsModified);
+			RequireGroundTerrain().UpdateMeshAndPhysics(eraseResult.HeightsModified, false, affected, eraseResult.HeightsModified);
 			if (eraseResult.PathingModified)
 			{
 				UpdatePathingOverlay();
@@ -684,10 +685,11 @@ namespace Realm.Client.Core
 
 			if (eraseResult.TerrainModified)
 			{
-				var cellsAfter = (TerrainCell[,])GroundTerrain.Cells.Clone();
-				var splatAfter = (TerrainSplatWeights[,])GroundTerrain.SplatMap.Clone();
-				var pathingAfter = (int[,])GroundTerrain.PathingCodes.Clone();
-				var cliffAfter = GroundTerrain.CliffSplatMap != null ? (TerrainSplatWeights[,])GroundTerrain.CliffSplatMap.Clone() : null;
+				var ground = RequireGroundTerrain();
+				var cellsAfter = (TerrainCell[,])ground.Cells.Clone();
+				var splatAfter = (TerrainSplatWeights[,])ground.SplatMap.Clone();
+				var pathingAfter = (int[,])ground.PathingCodes.Clone();
+				var cliffAfter = ground.CliffSplatMap != null ? (TerrainSplatWeights[,])ground.CliffSplatMap.Clone() : null;
 
 				var action = new TerrainModifyAction(snapshotBefore.Cells, cellsAfter, snapshotBefore.Splat, splatAfter, snapshotBefore.Pathing, pathingAfter, snapshotBefore.Cliff, cliffAfter);
 				actions.Add(action);

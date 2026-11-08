@@ -218,6 +218,10 @@ public class UnitSectionFormatterAttribute : MemoryPackCustomFormatterAttribute<
 
 public static class UnitSectionFormatterRegistration
 {
+	// Realm.Shared is a library, but its formatters must be registered before the first
+	// serialization of a UnitSection in any host, which is exactly what a module initializer does.
+#pragma warning disable CA2255
 	[ModuleInitializer]
+#pragma warning restore CA2255
 	public static void Register() => MemoryPackFormatterProvider.Register(new UnitSection.WireFormatter());
 }

@@ -909,13 +909,13 @@ internal static class WasmHostBindingEmitter
 		{
 			if (noEntityParams)
 			{
-				sb.AppendLine($"            return (int)({callExpr});");
+				sb.AppendLine($"            return (int)({callExpr} ?? default);");
 			}
 			else
 			{
 				sb.AppendLine($"            if ({condition})");
 				sb.AppendLine("            {");
-				sb.AppendLine($"                return (int)({callExpr});");
+				sb.AppendLine($"                return (int)({callExpr} ?? default);");
 				sb.AppendLine("            }");
 				sb.AppendLine("            return 0;");
 			}

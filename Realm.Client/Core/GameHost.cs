@@ -483,9 +483,9 @@ public partial class GameHost : Node3D
 
 	private Node3D? _buildingPreviewMesh { get; set; }
 
-	private RuntimeTerrain _groundTerrain { get; set; } = null!;
+	private RuntimeTerrain? _groundTerrain { get; set; }
 
-	public RuntimeTerrain GroundTerrain
+	public RuntimeTerrain? GroundTerrain
 	{
 		get
 		{
@@ -504,6 +504,15 @@ public partial class GameHost : Node3D
 				GameContext.EditorService.SetTerrainSplatMap(value.SplatMap, value.CliffSplatMap);
 			}
 		}
+	}
+
+	/// <summary>
+	/// The ground terrain for paths that cannot run without it. Call sites that can cope with a
+	/// session that has no ground read the nullable <see cref="GroundTerrain"/> instead.
+	/// </summary>
+	public RuntimeTerrain RequireGroundTerrain()
+	{
+		return GroundTerrain ?? throw new InvalidOperationException("The current session has no ground terrain.");
 	}
 
 	private MapEditorPaintCursor? _paintCursor { get; set; }
@@ -2134,7 +2143,7 @@ public partial class GameHost : Node3D
 
 	private void InitializeSimulationService()
 	{
-		GameContext.SimulationService.SetRuntimeReferences(AllUnits, AllProps, GameContext.Simulation.DefinitionManager, GameContext.Simulation.PlayerResourceService.GoldResourceId, GameContext.Simulation.PlayerResourceService.WoodResourceId, GameContext.Simulation.PlayerResourceService.StoneResourceId, GroundTerrain);
+		GameContext.SimulationService.SetRuntimeReferences(AllUnits, AllProps, GameContext.Simulation.DefinitionManager, GameContext.Simulation.PlayerResourceService.GoldResourceId, GameContext.Simulation.PlayerResourceService.WoodResourceId, GameContext.Simulation.PlayerResourceService.StoneResourceId, RequireGroundTerrain());
 		GameContext.SimulationService.Initialize();
 		GameContext.SimulationService.EditorHeightProvider = p => GetTerrainHeightAt(new Vector3(p.X, p.Y, p.Z));
 

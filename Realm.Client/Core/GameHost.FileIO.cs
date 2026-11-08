@@ -89,7 +89,7 @@ public partial class GameHost
 
 	private string[] GetSplatData()
 	{
-		return GameContext.SaveLoadService.GetSplatData(GroundTerrain.SplatMap);
+		return GameContext.SaveLoadService.GetSplatData(RequireGroundTerrain().SplatMap);
 	}
 
 	private (Entity Entity, float RotationY, float Scale)[] GetUnitsData()
@@ -172,7 +172,7 @@ public partial class GameHost
 
 	private string[] GetCliffSplatData()
 	{
-		if (GroundTerrain.CliffSplatMap == null)
+		if (RequireGroundTerrain().CliffSplatMap == null)
 		{
 			InitializeCliffSplatMap();
 		}
@@ -182,13 +182,13 @@ public partial class GameHost
 
 	private void InitializeCliffSplatMap()
 	{
-		if (GroundTerrain == null) return;
-		GroundTerrain.CliffSplatMap = GameContext.EditorService.GenerateDefaultCliffSplatMap(GroundTerrain.Width, GroundTerrain.Depth);
+		if (GroundTerrain is not { } ground) return;
+		ground.CliffSplatMap = GameContext.EditorService.GenerateDefaultCliffSplatMap(ground.Width, ground.Depth);
 	}
 
 	private string[] SerializeCliffSplatMap()
 	{
-		return GameContext.SaveLoadService.SerializeCliffSplatMap(GroundTerrain.CliffSplatMap);
+		return GameContext.SaveLoadService.SerializeCliffSplatMap(RequireGroundTerrain().CliffSplatMap);
 	}
 
 	private void RestoreEditorStateAfterSave(EditorSaveState savedState)
@@ -283,7 +283,8 @@ public partial class GameHost
 			LoadSplatMapsView(absolutePath);
 			LoadCliffSplatMapsView(absolutePath);
 			MatchLoadTrace.Mark("splat_images");
-			GameContext.EditorService?.SetTerrainSplatMap(GroundTerrain.SplatMap, GroundTerrain.CliffSplatMap);
+			var loadedGround = RequireGroundTerrain();
+			GameContext.EditorService?.SetTerrainSplatMap(loadedGround.SplatMap, loadedGround.CliffSplatMap);
 			AlignTerrainSplatMapExternal();
 			NormalizeCameraBoundsToMap();
 
@@ -315,11 +316,12 @@ public partial class GameHost
 		GameContext.SaveLoadService.IsLoadingMap = true;
 		try
 		{
-			GroundTerrain.UpdateMeshAndPhysics(true, true);
+			var ground = RequireGroundTerrain();
+			ground.UpdateMeshAndPhysics(true, true);
 			MatchLoadTrace.Mark("terrain_mesh");
 			if (!GameContext.SessionState.IsMapEditorMode)
 			{
-				GroundTerrain.ReloadTerrainTextures();
+				ground.ReloadTerrainTextures();
 				MatchLoadTrace.Mark("terrain_textures");
 			}
 			GameContext.MapEditorHud?.RegenerateMinimap();
@@ -487,8 +489,9 @@ public partial class GameHost
 
 	private void LoadSplatMapsView(string absolutePath)
 	{
-		int splatW = GroundTerrain.Width + 1;
-		int splatD = GroundTerrain.Depth + 1;
+		var ground = RequireGroundTerrain();
+		int splatW = ground.Width + 1;
+		int splatD = ground.Depth + 1;
 
 		TerrainSplatWeights[,]? splatMap = Path.GetDirectoryName(absolutePath) is { } directory
 			? MapTerrainFiles.ReadSplatMap(directory, MapTerrainFiles.SplatPrefix, splatW, splatD)
@@ -500,36 +503,37 @@ public partial class GameHost
 			return;
 		}
 
-		GroundTerrain.SplatMap = splatMap;
+		ground.SplatMap = splatMap;
 	}
 
 	private void LoadSplatMapFallbackView(int splatW, int splatD)
 	{
-		GroundTerrain.SplatMap = GameContext.SaveLoadService.GenerateFallbackSplatMap(splatW, splatD, GroundTerrain.Width, GroundTerrain.Depth);
+		var ground = RequireGroundTerrain();
+		ground.SplatMap = GameContext.SaveLoadService.GenerateFallbackSplatMap(splatW, splatD, ground.Width, ground.Depth);
 	}
 
 	private void LoadCliffSplatMapsView(string absolutePath)
 	{
-		if (GroundTerrain == null) return;
+		if (GroundTerrain is not { } ground) return;
 
-		int targetCliffW = GroundTerrain.Width + 1;
-		int targetCliffD = GroundTerrain.Depth + 1;
+		int targetCliffW = ground.Width + 1;
+		int targetCliffD = ground.Depth + 1;
 		TerrainSplatWeights[,]? cliffSplatMap = Path.GetDirectoryName(absolutePath) is { } directory
 			? MapTerrainFiles.ReadSplatMap(directory, MapTerrainFiles.CliffSplatPrefix, targetCliffW, targetCliffD)
 			: null;
 
 		if (cliffSplatMap != null)
 		{
-			GroundTerrain.CliffSplatMap = cliffSplatMap;
+			ground.CliffSplatMap = cliffSplatMap;
 			return;
 		}
 
-		GroundTerrain.CliffSplatMap = new TerrainSplatWeights[targetCliffW, targetCliffD];
+		ground.CliffSplatMap = new TerrainSplatWeights[targetCliffW, targetCliffD];
 		for (int z = 0; z < targetCliffD; z++)
 		{
 			for (int x = 0; x < targetCliffW; x++)
 			{
-				GroundTerrain.CliffSplatMap[x, z] = TerrainSplatWeights.CreateSolid(1);
+				ground.CliffSplatMap[x, z] = TerrainSplatWeights.CreateSolid(1);
 			}
 		}
 	}

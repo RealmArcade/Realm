@@ -2106,9 +2106,10 @@ namespace Realm.Client.Core
 			int deltaX = cx - srcAnchorX;
 			int deltaZ = cz - srcAnchorZ;
 
-			float quadSize = GroundTerrain.QuadSize;
-			float halfW = GroundTerrain.Width / 2.0f;
-			float halfD = GroundTerrain.Depth / 2.0f;
+			var ground = RequireGroundTerrain();
+			float quadSize = ground.QuadSize;
+			float halfW = ground.Width / 2.0f;
+			float halfD = ground.Depth / 2.0f;
 			Vector2 targetWorld2D = new Vector2((cx - halfW) * quadSize, (cz - halfD) * quadSize);
 			Vector2 pivotWorld2D = GameContext.EditorService.SymmetryPivot;
 			Vector2 diffFromPivot = targetWorld2D - pivotWorld2D;
@@ -2125,7 +2126,7 @@ namespace Realm.Client.Core
 			UpdateMeasureVisuals(GameContext.EditorService.EditorTapeMeasureStart!.Value, hitPos);
 
 			Vector3 delta = hitPos - GameContext.EditorService.EditorTapeMeasureStart!.Value;
-			float quadSize = GroundTerrain.QuadSize;
+			float quadSize = RequireGroundTerrain().QuadSize;
 			float dx = delta.X / quadSize;
 			float dz = delta.Z / quadSize;
 			float dy = delta.Y;

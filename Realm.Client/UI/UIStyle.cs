@@ -539,12 +539,12 @@ public static class UIStyle
 		return CreateTexturedPanel("res://Assets/UI/map_editor_publish.webp", 140);
 	}
 
-	public static Texture2D LoadTextureWithFallback(string path)
+	public static Texture2D? LoadTextureWithFallback(string path)
 	{
 		return TrimmedTextureLoader.LoadTrimmedTexture(path);
 	}
 
-	public static Texture2D LoadCrispIcon(string path, int targetSize = 256)
+	public static Texture2D? LoadCrispIcon(string path, int targetSize = 256)
 	{
 		return TrimmedTextureLoader.LoadTrimmedTexture(path, targetSize);
 	}
@@ -1366,7 +1366,7 @@ public static class UIStyle
 		okBtn.SizeFlagsHorizontal = Godot.Control.SizeFlags.ShrinkCenter;
 		okBtn.Pressed += () =>
 		{
-			GameContext.UserInterface.PlayClickSound();
+			GameContext.UserInterface?.PlayClickSound();
 			onOkPressed?.Invoke();
 		};
 		vbox.AddChild(okBtn);
@@ -1424,7 +1424,7 @@ public static void ApplyTitle(Label label, string text, int fontSize = 36)
 			return closeBtn;
 		}
 
-	public static Texture2D LoadTextureSafe(string path)
+	public static Texture2D? LoadTextureSafe(string path)
 	{
 		if (string.IsNullOrEmpty(path)) return null;
 		if (path.StartsWith("res://") && !ResourceLoader.Exists(path)) return null;
