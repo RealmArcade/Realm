@@ -3381,123 +3381,32 @@ namespace Realm.Client.UI
 
 		public async Task ShowAssetIndexRepairModalAsync(Action? onCompleted = null)
 		{
-			var overlay = CreateAssetRepairOverlay();
-
-			var vbox = BuildAssetRepairPanel(overlay);
-
-			var (progressBar, statusLabel) = BuildAssetRepairProgressSection(vbox);
+			var repairDialog = new AssetIndexRepairDialog();
+			repairDialog.Initialize();
+			AddChild(repairDialog);
 
 			await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
-			var progress = CreateAssetRepairProgressReporter(progressBar, statusLabel);
-
 			try
 			{
-				await Task.Run(() => GameContext.AssetIndexService.RebuildIndexFromCas(progress));
+				await Task.Run(() => GameContext.AssetIndexService.RebuildIndexFromCas(repairDialog.CreateProgressReporter()));
 			}
 			catch (Exception ex)
 			{
 				GameLog.LogError($"[MapEditorHUD] AssetIndex rebuild error: {ex.Message}");
 			}
 
-			if (GodotObject.IsInstanceValid(progressBar))
-			{
-				progressBar.Value = 100;
-			}
-
-			if (GodotObject.IsInstanceValid(statusLabel))
-			{
-				statusLabel.Text = TranslationServer.Translate("Asset index repair complete!");
-				statusLabel.AddThemeColorOverride("font_color", new Color(0.3f, 0.9f, 0.3f));
-			}
+			repairDialog.ShowCompleted();
 
 			await ToSignal(GetTree().CreateTimer(0.6f), SceneTreeTimer.SignalName.Timeout);
 
-			if (GodotObject.IsInstanceValid(overlay))
+			if (GodotObject.IsInstanceValid(repairDialog))
 			{
-				overlay.QueueFree();
+				repairDialog.QueueFree();
 			}
 
 			ShowFeedback(TranslationServer.Translate("Asset index database successfully rebuilt from CAS."));
 			onCompleted?.Invoke();
-}
-
-		private ColorRect CreateAssetRepairOverlay()
-		{
-			var overlay = new ColorRect();
-			overlay.Name = "AssetIndexRepairOverlay";
-			overlay.Color = new Color(0, 0, 0, 0.75f);
-			overlay.SetAnchorsPreset(LayoutPreset.FullRect);
-			overlay.MouseFilter = MouseFilterEnum.Stop;
-			overlay.ZIndex = 1100;
-			AddChild(overlay);
-			return overlay;
-		}
-
-		private VBoxContainer BuildAssetRepairPanel(ColorRect overlay)
-		{
-			var center = UIStyle.CreateCenteredOverlay();
-			overlay.AddChild(center);
-
-			var panel = new PanelContainer();
-			panel.Name = "Panel_PanelContainer";
-			panel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
-			panel.CustomMinimumSize = new Vector2(520, 220);
-			center.AddChild(panel);
-
-			var vbox = new VBoxContainer();
-			vbox.Name = "Vbox_VBoxContainer";
-			vbox.AddThemeConstantOverride("separation", 12);
-			panel.AddChild(vbox);
-			return vbox;
-		}
-
-		private (ProgressBar Progress, Label Status) BuildAssetRepairProgressSection(VBoxContainer vbox)
-		{
-			var titleLabel = new Label();
-			titleLabel.Name = "TitleLabel_Label";
-			UIStyle.ApplyTitle(titleLabel, "🗄️ " + TranslationServer.Translate("REPAIRING ASSET INDEX"), 20);
-			titleLabel.HorizontalAlignment = HorizontalAlignment.Center;
-			vbox.AddChild(titleLabel);
-
-			var descLabel = new Label();
-			descLabel.Name = "DescLabel_Label";
-			descLabel.Text = TranslationServer.Translate("Rebuilding asset index database from CAS manifests...");
-			descLabel.HorizontalAlignment = HorizontalAlignment.Center;
-			descLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-			descLabel.AddThemeFontSizeOverride("font_size", 13);
-			vbox.AddChild(descLabel);
-
-			var progressBar = UIStyle.CreateProgressBar(460f, 22f);
-			vbox.AddChild(progressBar);
-
-			var statusLabel = new Label();
-			statusLabel.Name = "StatusLabel_Label";
-			statusLabel.Text = TranslationServer.Translate("Initializing asset database rebuild...");
-			statusLabel.HorizontalAlignment = HorizontalAlignment.Center;
-			statusLabel.AddThemeFontSizeOverride("font_size", 13);
-			statusLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.95f));
-			vbox.AddChild(statusLabel);
-			return (progressBar, statusLabel);
-		}
-
-		private Progress<AssetIndexProgressUpdate> CreateAssetRepairProgressReporter(ProgressBar progressBar, Label statusLabel)
-		{
-			return new Progress<AssetIndexProgressUpdate>(update =>
-			{
-				Callable.From(() =>
-				{
-					if (GodotObject.IsInstanceValid(progressBar))
-					{
-						progressBar.Value = Mathf.Clamp(update.ProgressPercentage * 100.0, 0, 100);
-					}
-
-					if (GodotObject.IsInstanceValid(statusLabel))
-					{
-						statusLabel.Text = update.Message;
-					}
-				}).CallDeferred();
-			});
 		}
 
 
