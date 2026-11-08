@@ -106,6 +106,7 @@ public class SimulationService
 	private readonly BuildQueueProcessor _buildQueue;
 	private readonly PresentationTransform _presentation;
 	private readonly UnitLookup _units;
+	private readonly UnitAbilityCommands _abilities;
 
 	public void DomainProcessCompletedBuilding(Entity buildingEntity, Action<Entity>? viewCallback, Action<Entity>? notifyCallback)
 	{
@@ -355,6 +356,7 @@ public class SimulationService
 
 	public SimulationService()
 	{
+		_abilities = new UnitAbilityCommands(unit => TryGetEntity(unit, out var e) ? e : Entity.Null, GetUnitWrapper);
 		_units = new UnitLookup(UnitWrapperCache);
 		_presentation = new PresentationTransform();
 		_bots = new PlayerBotDirector((pIdx, actionId, intent, pos) => OnBotCustomActionExecuted?.Invoke(pIdx, actionId, intent, pos, string.Empty));
@@ -766,54 +768,40 @@ public class SimulationService
 
 	public void SetAbilityAutoCast(UnitId unit, string abilityId, bool active)
 	{
-		if (TryGetEntity(unit, out var entity) && World.IsAlive(entity))
-		{
-			var wrapper = GetUnitWrapper(unit);
-			string unitTypeId = wrapper?.UnitId ?? string.Empty;
-			var abilities = GameContext.RegistryService.GetUnitTypeAbilities(unitTypeId);
-			int slotIdx = -1;
-			for (int i = 0; i < abilities.Count; i++)
-			{
-				if (string.Equals(abilities[i], abilityId, StringComparison.OrdinalIgnoreCase) ||
-					string.Equals(Path.GetFileNameWithoutExtension(abilities[i]), Path.GetFileNameWithoutExtension(abilityId), StringComparison.OrdinalIgnoreCase))
-				{
-					slotIdx = i;
-					break;
-				}
-			}
-
-			uint bit = (slotIdx >= 0 && slotIdx < 32) ? (1u << slotIdx) : 1u;
-			if (World.Has<AutoCastState>(entity))
-			{
-				ref var ac = ref World.Get<AutoCastState>(entity);
-				if (active) ac.ActiveAbilityBitmask |= bit;
-				else ac.ActiveAbilityBitmask &= ~bit;
-				ac.Enabled = (ac.ActiveAbilityBitmask != 0);
-			}
-			else if (active)
-			{
-				World.Add(entity, new AutoCastState(true, bit));
-			}
-		}
+		_abilities.SetAbilityAutoCast(unit, abilityId, active);
 	}
 
 	public void EnableUnitAutoCombat(UnitId unit, bool enabled)
 	{
-		if (TryGetEntity(unit, out var entity) && World.IsAlive(entity))
-		{
-			if (enabled)
-			{
-				World.SetOrAdd(entity, new AutoCombatState(true));
-			}
-			else
-			{
-				if (World.Has<AutoCombatState>(entity))
-				{
-					World.Remove<AutoCombatState>(entity);
-				}
-			}
-		}
+		_abilities.EnableUnitAutoCombat(unit, enabled);
 	}
+
+	public void CastAbility(UnitId unit, string abilityId, Vector3 targetPosition, AbilityDefinition def, Action<UnitId, string, Vector3>? onSpellCast, Action<AbilityDefinition, Godot.Vector3>? spawnFx)
+	{
+		_abilities.CastAbility(unit, abilityId, targetPosition, def, onSpellCast, spawnFx);
+	}
+
+	public float GetAbilityCooldown(UnitId unit, string abilityId)
+	{
+		return _abilities.GetAbilityCooldown(unit, abilityId);
+	}
+
+	public void SetAbilityCooldown(UnitId unit, string abilityId, float cooldown)
+	{
+		_abilities.SetAbilityCooldown(unit, abilityId, cooldown);
+	}
+
+	public void SetAbilityCooldown(Unit_WasmRuntime unit, string abilityId, float cooldown)
+	{
+		_abilities.SetAbilityCooldown(unit, abilityId, cooldown);
+	}
+
+	public void CastAbility(Unit_WasmRuntime unit, string abilityId, Vector3 targetPosition, AbilityDefinition def, Action<UnitId, string, Vector3>? onSpellCast, Action<AbilityDefinition, Godot.Vector3>? spawnFx)
+	{
+		_abilities.CastAbility(unit, abilityId, targetPosition, def, onSpellCast, spawnFx);
+	}
+
+
 
 	public void SetPlayerComputerControlled(int playerIndex, bool isProxy)
 	{
@@ -835,32 +823,6 @@ public class SimulationService
 		if (wrapper != null) wrapper.Player = playerIndex;
 	}
 
-	public void CastAbility(UnitId unit, string abilityId, Vector3 targetPosition, AbilityDefinition def, Action<UnitId, string, Vector3>? onSpellCast, Action<AbilityDefinition, Godot.Vector3>? spawnFx)
-	{
-		var godotPos = new Godot.Vector3(targetPosition.X, targetPosition.Y, targetPosition.Z);
-		TryGetEntity(unit, out var casterEnt);
-
-		if (def != null)
-		{
-			spawnFx?.Invoke(def, godotPos);
-			if (AbilityEffectService.HasEffects(def))
-			{
-				Vector3 casterPosition = World.IsAlive(casterEnt) && World.Has<Position>(casterEnt)
-					? World.Get<Position>(casterEnt).Value
-					: targetPosition;
-
-				AbilityEffectService.Execute(casterEnt, casterPosition, def, targetPosition);
-			}
-			else
-			{
-				onSpellCast?.Invoke(unit, abilityId, targetPosition);
-			}
-		}
-		else
-		{
-			onSpellCast?.Invoke(unit, abilityId, targetPosition);
-		}
-	}
 
 	public void DealResolvedDamage(Entity attacker, Entity target, float amount, string damageType)
 	{
@@ -872,55 +834,9 @@ public class SimulationService
 		_combatService.HealSingle(casterEntity, target, amount);
 	}
 
-	public float GetAbilityCooldown(UnitId unit, string abilityId)
-	{
-		if (TryGetEntity(unit, out var entity) && World.IsAlive(entity))
-		{
-			if (World.Has<Cooldowns>(entity))
-			{
-				var cooldowns = World.Get<Cooldowns>(entity);
-				if (cooldowns.TryGetValue(abilityId, out float remaining)) return remaining;
-			}
 
-			if (World.Has<SpellCooldowns>(entity))
-			{
-				var spellCooldowns = World.Get<SpellCooldowns>(entity);
-				if (spellCooldowns.TryGetValue(abilityId, out float remaining)) return remaining;
-			}
-		}
 
-		return 0f;
-	}
 
-	public void SetAbilityCooldown(UnitId unit, string abilityId, float cooldown)
-	{
-		if (TryGetEntity(unit, out var entity) && World.IsAlive(entity))
-		{
-			if (!World.Has<Cooldowns>(entity))
-			{
-				World.Add(entity, new Cooldowns(null));
-			}
-			ref var cooldowns = ref World.Get<Cooldowns>(entity);
-			cooldowns.Set(abilityId, cooldown, cooldown);
-
-			if (!World.Has<SpellCooldowns>(entity))
-			{
-				World.Add(entity, new SpellCooldowns(null));
-			}
-			ref var spellCooldowns = ref World.Get<SpellCooldowns>(entity);
-			spellCooldowns.Set(abilityId, cooldown, cooldown);
-		}
-	}
-
-	public void SetAbilityCooldown(Unit_WasmRuntime unit, string abilityId, float cooldown)
-	{
-		SetAbilityCooldown((UnitId)unit.UniqueId, abilityId, cooldown);
-	}
-
-	public void CastAbility(Unit_WasmRuntime unit, string abilityId, Vector3 targetPosition, AbilityDefinition def, Action<UnitId, string, Vector3>? onSpellCast, Action<AbilityDefinition, Godot.Vector3>? spawnFx)
-	{
-		CastAbility((UnitId)unit.UniqueId, abilityId, targetPosition, def, onSpellCast, spawnFx);
-	}
 
 	public void RemoveBuff(UnitId unit, string buffId)
 	{
