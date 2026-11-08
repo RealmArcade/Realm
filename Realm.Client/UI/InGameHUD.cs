@@ -1094,94 +1094,15 @@ public partial class InGameHUD : Control
 
 	private void CreateStatsContainer()
 	{
-		_statsContainer = new HBoxContainer();
-		_statsContainer.Name = "StatsContainer_HBoxContainer";
-		_statsContainer.LayoutMode = 2;
-		_statsContainer.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		_statsContainer.SizeFlagsVertical = SizeFlags.ExpandFill;
-		_statsContainer.CustomMinimumSize = new Vector2(0, 0);
-		_statsContainer.ClipContents = true;
-		_statsContainer.AddThemeConstantOverride("separation", 20);
-		_selectionFrame.AddChild(_statsContainer);
-		_statsContainer.Visible = false;
+		var nodes = SelectionStatsBuilder.Create(_selectionFrame);
 
-		var statsScroll = new ScrollContainer();
-		statsScroll.Name = "StatsScroll";
-		statsScroll.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		statsScroll.SizeFlagsVertical = SizeFlags.ExpandFill;
-		statsScroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
-		statsScroll.VerticalScrollMode = ScrollContainer.ScrollMode.Auto;
-		_statsContainer.AddChild(statsScroll);
-
-		var statsVBox = new VBoxContainer();
-		statsVBox.Name = "StatsVBox_VBoxContainer";
-		statsVBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		statsVBox.SizeFlagsVertical = SizeFlags.ShrinkBegin;
-		statsScroll.AddChild(statsVBox);
-
-		_unitStatsPanel = new UnitStatsPanel();
-		statsVBox.AddChild(_unitStatsPanel.Root);
-
-		var vScroll = statsScroll.GetVScrollBar();
-		if (vScroll != null)
-		{
-			vScroll.CustomMinimumSize = new Vector2(6, 0);
-			var grabberNormal = new StyleBoxFlat();
-			grabberNormal.BgColor = UIStyle.ColorBronze;
-			grabberNormal.SetCornerRadiusAll(3);
-			vScroll.AddThemeStyleboxOverride("grabber", grabberNormal);
-
-			var grabberHighlight = new StyleBoxFlat();
-			grabberHighlight.BgColor = UIStyle.ColorGold;
-			grabberHighlight.SetCornerRadiusAll(3);
-			vScroll.AddThemeStyleboxOverride("grabber_highlight", grabberHighlight);
-
-			var grabberPressed = new StyleBoxFlat();
-			grabberPressed.BgColor = UIStyle.ColorCyanGlow;
-			grabberPressed.SetCornerRadiusAll(3);
-			vScroll.AddThemeStyleboxOverride("grabber_pressed", grabberPressed);
-
-			var scrollTrack = new StyleBoxFlat();
-			scrollTrack.BgColor = new Color(0.04f, 0.04f, 0.06f, 0.5f);
-			scrollTrack.SetCornerRadiusAll(3);
-			vScroll.AddThemeStyleboxOverride("scroll", scrollTrack);
-		}
-
-		_productionBox = new VBoxContainer();
-		_productionBox.Name = "ProductionBox_VBoxContainer";
-		_productionBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		_productionBox.Alignment = BoxContainer.AlignmentMode.Center;
-		_statsContainer.AddChild(_productionBox);
-		_productionBox.Visible = false;
-
-		_productionTitle = new Label();
-		_productionTitle.Name = "ProductionTitle_Label";
-		_productionTitle.Text = TranslationServer.Translate("PRODUCTION");
-		UIStyle.ApplyTitle(_productionTitle, TranslationServer.Translate("PRODUCTION"), 12);
-		_productionTitle.AddThemeColorOverride("font_color", UIStyle.ColorBronze);
-		_productionBox.AddChild(_productionTitle);
-
-		_productionProgress = new ProgressBar();
-		_productionProgress.Name = "ProductionProgress_ProgressBar";
-		_productionProgress.CustomMinimumSize = new Vector2(120, 16);
-		_productionProgress.ShowPercentage = true;
-		_productionProgress.AddThemeStyleboxOverride("background", UIStyle.CreateSliderTrack());
-		_productionProgress.AddThemeStyleboxOverride("fill", UIStyle.CreateSliderFill());
-		_productionBox.AddChild(_productionProgress);
-
-		_productionQueueLabel = new Label();
-		_productionQueueLabel.Name = "ProductionQueueLabel_Label";
-		_productionQueueLabel.Text = string.Format(TranslationServer.Translate("Queue: {0}"), 0);
-		_productionQueueLabel.HorizontalAlignment = HorizontalAlignment.Center;
-		_productionQueueLabel.AddThemeFontSizeOverride("font_size", 11);
-		_productionQueueLabel.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		_productionBox.AddChild(_productionQueueLabel);
-
-		_queueSlotsContainer = new HBoxContainer();
-		_queueSlotsContainer.Name = "QueueSlotsContainer_HBoxContainer";
-		_queueSlotsContainer.Alignment = BoxContainer.AlignmentMode.Center;
-		_queueSlotsContainer.AddThemeConstantOverride("separation", 6);
-		_productionBox.AddChild(_queueSlotsContainer);
+		_statsContainer = nodes.Container;
+		_unitStatsPanel = nodes.StatsPanel;
+		_productionBox = nodes.ProductionBox;
+		_productionTitle = nodes.ProductionTitle;
+		_productionProgress = nodes.ProductionProgress;
+		_productionQueueLabel = nodes.ProductionQueueLabel;
+		_queueSlotsContainer = nodes.QueueSlots;
 	}
 
 	private void UpdateUnitVitalsBars()
