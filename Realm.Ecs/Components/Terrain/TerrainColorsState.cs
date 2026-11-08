@@ -17,7 +17,7 @@ public struct TerrainColorsState
 
 	public string[] Colors
 	{
-		get => ColdPayloadRegistry<string[]>.Get(Handle);
+		get => ColdPayloadRegistry<string[]>.Get(Handle)!;
 		set => Handle = ColdPayloadRegistry<string[]>.Register(value);
 	}
 }
