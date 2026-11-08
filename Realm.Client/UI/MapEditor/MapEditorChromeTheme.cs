@@ -1,0 +1,134 @@
+using Godot;
+using Realm.Client.Utils;
+using static Godot.Control;
+
+namespace Realm.Client.UI.MapEditor;
+
+/// <summary>
+/// The editor's frame rather than its cards: the two sidebar columns, the floating top bar and the labels on it. These
+/// nodes are laid out in the scene, so the passes here take the nodes they style rather than building them, and the
+/// editor keeps the single list of what it hands over.
+/// </summary>
+internal static class MapEditorChromeTheme
+{
+	/// <summary>
+	/// Makes the sidebar columns click-through. The columns are decoration behind the cards, so a click that lands on the
+	/// column rather than a card must reach the 3D viewport underneath.
+	/// </summary>
+	public static void SidebarColumns(Node owner, Panel? leftPanel, Panel? rightPanel)
+	{
+		IgnoreMouse(leftPanel);
+		IgnoreMouse(rightPanel);
+
+		IgnoreMouse(owner.GetNodeOrNull<ScrollContainer>("LeftSlidePanel/LeftScroll"));
+		IgnoreMouse(owner.GetNodeOrNull<ScrollContainer>("RightSlidePanel/RightScroll"));
+
+		var leftVBox = owner.GetNodeOrNull<VBoxContainer>("LeftSlidePanel/LeftScroll/LeftVBox");
+		if (leftVBox != null)
+		{
+			leftVBox.MouseFilter = MouseFilterEnum.Ignore;
+			leftVBox.AddThemeConstantOverride("separation", 14);
+		}
+
+		var rightVBox = owner.GetNodeOrNull<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer");
+		if (rightVBox != null)
+		{
+			rightVBox.MouseFilter = MouseFilterEnum.Ignore;
+			rightVBox.AddThemeConstantOverride("separation", 14);
+		}
+	}
+
+	private static void IgnoreMouse(Control? control)
+	{
+		if (control != null) control.MouseFilter = MouseFilterEnum.Ignore;
+	}
+
+	/// <summary>
+	/// The floating top bar plate, which the measurement readout shares so the two read as one strip. The title label on
+	/// it is hidden because the map name is drawn elsewhere.
+	/// </summary>
+	public static void TopBar(Node owner, PanelContainer? topBar, Control? measurementPanel)
+	{
+		var titleLbl = topBar?.GetNodeOrNull<Label>("HBox/TitleLabel") ?? owner.GetNodeOrNull<Label>("BottomCenterBar/TopBar/HBox/TitleLabel");
+		if (titleLbl != null) titleLbl.Visible = false;
+
+		StyleBox barStyle = CreateTopBarStylebox();
+
+		if (topBar != null)
+		{
+			topBar.AddThemeStyleboxOverride("panel", barStyle);
+		}
+
+		if (measurementPanel != null)
+		{
+			measurementPanel.AddThemeStyleboxOverride("panel", barStyle);
+		}
+
+		var hBox = topBar?.GetNodeOrNull<HBoxContainer>("HBox") ?? owner.GetNodeOrNull<HBoxContainer>("BottomCenterBar/TopBar/HBox");
+		if (hBox != null)
+		{
+			hBox.Alignment = BoxContainer.AlignmentMode.Center;
+		}
+	}
+
+	/// <summary>
+	/// The bar's textured plate, falling back to a flat panel of the same proportions when the artwork is missing so the
+	/// bar does not change height between machines.
+	/// </summary>
+	private static StyleBox CreateTopBarStylebox()
+	{
+		var posTexture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/map_editor_pos.webp");
+		if (posTexture != null)
+		{
+			var posStyle = new StyleBoxTexture();
+			posStyle.Texture = posTexture;
+			posStyle.TextureMarginLeft = 0;
+			posStyle.TextureMarginRight = 0;
+			posStyle.TextureMarginTop = 0;
+			posStyle.TextureMarginBottom = 0;
+			posStyle.ContentMarginLeft = 16;
+			posStyle.ContentMarginRight = 16;
+			posStyle.ContentMarginTop = 6;
+			posStyle.ContentMarginBottom = 6;
+			return posStyle;
+		}
+
+		var alphaStyle = new StyleBoxFlat();
+		alphaStyle.BgColor = new Color(0.12f, 0.14f, 0.18f, 0.75f);
+		alphaStyle.BorderColor = UIStyle.ColorGold;
+		alphaStyle.SetBorderWidthAll(1);
+		alphaStyle.SetCornerRadiusAll(6);
+		alphaStyle.ContentMarginLeft = 16;
+		alphaStyle.ContentMarginRight = 16;
+		alphaStyle.ContentMarginTop = 6;
+		alphaStyle.ContentMarginBottom = 6;
+		return alphaStyle;
+	}
+
+	/// <summary>
+	/// The gold status and measurement readouts, plus the feedback line, which is a fading label laid out at title size
+	/// so it can flash without shifting the bar. The FontAwesome font carries the glyphs these labels prefix.
+	/// </summary>
+	public static void StatusLabels(Label? status, Label? measurement, Label? feedback, Font? font)
+	{
+		ApplyReadoutStyle(status, font);
+		ApplyReadoutStyle(measurement, font);
+
+		UIStyle.ApplyTitle(feedback, "", 24);
+	}
+
+	private static void ApplyReadoutStyle(Label? label, Font? font)
+	{
+		if (label == null) return;
+
+		label.HorizontalAlignment = HorizontalAlignment.Left;
+		label.VerticalAlignment = VerticalAlignment.Center;
+		label.AddThemeFontSizeOverride("font_size", 13);
+		label.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+
+		if (font != null)
+		{
+			label.AddThemeFontOverride("font", font);
+		}
+	}
+}

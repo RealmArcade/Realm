@@ -277,41 +277,6 @@ namespace Realm.Client.UI
 			ApplyStatusLabelStyles();
 		}
 
-		private void ApplyPanelStyles()
-		{
-			if (_panelLeft != null)
-			{
-				_panelLeft.MouseFilter = MouseFilterEnum.Ignore;
-				_panelLeft.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
-			}
-
-			if (_panelRight != null)
-			{
-				_panelRight.MouseFilter = MouseFilterEnum.Ignore;
-				_panelRight.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
-			}
-
-			var leftScroll = GetNodeOrNull<ScrollContainer>("LeftSlidePanel/LeftScroll");
-			if (leftScroll != null) leftScroll.MouseFilter = MouseFilterEnum.Ignore;
-
-			var rightScroll = GetNodeOrNull<ScrollContainer>("RightSlidePanel/RightScroll");
-			if (rightScroll != null) rightScroll.MouseFilter = MouseFilterEnum.Ignore;
-
-			var leftVBox = GetNodeOrNull<VBoxContainer>("LeftSlidePanel/LeftScroll/LeftVBox");
-			if (leftVBox != null)
-			{
-				leftVBox.MouseFilter = MouseFilterEnum.Ignore;
-				leftVBox.AddThemeConstantOverride("separation", 14);
-			}
-
-			var rightVBox = GetNodeOrNull<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer");
-			if (rightVBox != null)
-			{
-				rightVBox.MouseFilter = MouseFilterEnum.Ignore;
-				rightVBox.AddThemeConstantOverride("separation", 14);
-			}
-		}
-
 		/// <summary>
 		/// The sidebar's cards, in the order they appear. Every card pass walks this one list, so a new card is styled by
 		/// all of them instead of being added to each pass by hand.
@@ -381,89 +346,20 @@ namespace Realm.Client.UI
 			StyleSubContainer(_containerCategorySelector, "Entity Categories");
 		}
 
-		private StyleBox CreateTopBarStylebox()
+		private void ApplyPanelStyles()
 		{
-			var posTexture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/map_editor_pos.webp");
-			if (posTexture != null)
-			{
-				var posStyle = new StyleBoxTexture();
-				posStyle.Texture = posTexture;
-				posStyle.TextureMarginLeft = 0;
-				posStyle.TextureMarginRight = 0;
-				posStyle.TextureMarginTop = 0;
-				posStyle.TextureMarginBottom = 0;
-				posStyle.ContentMarginLeft = 16;
-				posStyle.ContentMarginRight = 16;
-				posStyle.ContentMarginTop = 6;
-				posStyle.ContentMarginBottom = 6;
-				return posStyle;
-			}
-
-			var alphaStyle = new StyleBoxFlat();
-			alphaStyle.BgColor = new Color(0.12f, 0.14f, 0.18f, 0.75f);
-			alphaStyle.BorderColor = UIStyle.ColorGold;
-			alphaStyle.SetBorderWidthAll(1);
-			alphaStyle.SetCornerRadiusAll(6);
-			alphaStyle.ContentMarginLeft = 16;
-			alphaStyle.ContentMarginRight = 16;
-			alphaStyle.ContentMarginTop = 6;
-			alphaStyle.ContentMarginBottom = 6;
-			return alphaStyle;
+			MapEditorChromeTheme.SidebarColumns(this, _panelLeft, _panelRight);
 		}
 
 		private void ApplyTopBarStyles()
 		{
-			var titleLbl = _topBar?.GetNodeOrNull<Label>("HBox/TitleLabel") ?? GetNodeOrNull<Label>("BottomCenterBar/TopBar/HBox/TitleLabel");
-			if (titleLbl != null) titleLbl.Visible = false;
-
-			StyleBox barStyle = CreateTopBarStylebox();
-
-			if (_topBar != null)
-			{
-				_topBar.AddThemeStyleboxOverride("panel", barStyle);
-			}
-
-			if (_viewportPanel.MeasurementPanel != null)
-			{
-				_viewportPanel.MeasurementPanel.AddThemeStyleboxOverride("panel", barStyle);
-			}
-
-			var hBox = _topBar?.GetNodeOrNull<HBoxContainer>("HBox") ?? GetNodeOrNull<HBoxContainer>("BottomCenterBar/TopBar/HBox");
-			if (hBox != null)
-			{
-				hBox.Alignment = BoxContainer.AlignmentMode.Center;
-			}
+			MapEditorChromeTheme.TopBar(this, _topBar, _viewportPanel.MeasurementPanel);
 		}
 
 		private void ApplyStatusLabelStyles()
 		{
-			if (_topToolbar.StatusLabel != null)
-			{
-				_topToolbar.StatusLabel.HorizontalAlignment = HorizontalAlignment.Left;
-				_topToolbar.StatusLabel.VerticalAlignment = VerticalAlignment.Center;
-				_topToolbar.StatusLabel.AddThemeFontSizeOverride("font_size", 13);
-				_topToolbar.StatusLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-				var fontStatus = GetFontAwesomeFont();
-				if (fontStatus != null)
-				{
-					_topToolbar.StatusLabel.AddThemeFontOverride("font", fontStatus);
-				}
-			}
-
-			if (_viewportPanel.MeasurementLabel != null)
-			{
-				_viewportPanel.MeasurementLabel.HorizontalAlignment = HorizontalAlignment.Left;
-				_viewportPanel.MeasurementLabel.VerticalAlignment = VerticalAlignment.Center;
-				_viewportPanel.MeasurementLabel.AddThemeFontSizeOverride("font_size", 13);
-				_viewportPanel.MeasurementLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-				var fontStatus = GetFontAwesomeFont();
-				if (fontStatus != null)
-				{
-					_viewportPanel.MeasurementLabel.AddThemeFontOverride("font", fontStatus);
-				}
-			}
-
-			UIStyle.ApplyTitle(_topToolbar.FeedbackLabel, "", 24);
+			MapEditorChromeTheme.StatusLabels(_topToolbar.StatusLabel, _viewportPanel.MeasurementLabel,
+				_topToolbar.FeedbackLabel, GetFontAwesomeFont());
 		}
 
 		public void RefreshCoordinateListExternal()
