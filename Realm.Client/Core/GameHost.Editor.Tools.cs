@@ -1355,7 +1355,7 @@ namespace Realm.Client.Core
 			DestroyMapEntity(vfx.Entity);
 		}
 
-		public IEditorAction? DeleteObjectAtWithUndo(Node collider, Vector3 hitPos)
+		public IEditorAction? DeleteObjectAtWithUndo(Node? collider, Vector3 hitPos)
 		{
 			if (collider == null || !GodotObject.IsInstanceValid(collider))
 			{

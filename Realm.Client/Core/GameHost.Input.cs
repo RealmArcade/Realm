@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using Realm.Ecs;
 using Godot;
 using Godot.Collections;
@@ -567,9 +568,8 @@ public partial class GameHost
 
 			if (editorKeyEvent.Keycode == Key.D && ctrlPressed)
 			{
-				if (ActiveEditorTool == EditorTool.SelectMove && GodotObject.IsInstanceValid(SelectedEditorObject))
+				if (ActiveEditorTool == EditorTool.SelectMove && SelectedEditorObject is Node3D selectedNode && GodotObject.IsInstanceValid(SelectedEditorObject))
 				{
-					Node3D selectedNode = SelectedEditorObject as Node3D;
 					Vector3 spawnPos;
 					var hit = RaycastTerrainFromMouse(GetViewport().GetMousePosition());
 					if (hit != null && hit.ContainsKey("position"))
@@ -1060,9 +1060,12 @@ public partial class GameHost
 
 			var terrainHit = RaycastTerrainFromMouse(editorMouseBtn.Position);
 			var hit = RaycastFromMouse(editorMouseBtn.Position);
-			if ((terrainHit != null && terrainHit.ContainsKey("position")) || (hit != null && hit.ContainsKey("position")))
+			Vector3? hitPosOrNull = null;
+			if (terrainHit != null && terrainHit.ContainsKey("position")) hitPosOrNull = terrainHit["position"].AsVector3();
+			else if (hit != null && hit.ContainsKey("position")) hitPosOrNull = hit["position"].AsVector3();
+
+			if (hitPosOrNull is Vector3 hitPos)
 			{
-				Vector3 hitPos = (terrainHit != null && terrainHit.ContainsKey("position")) ? terrainHit["position"].AsVector3() : hit["position"].AsVector3();
 
 				if (EditorSnapToGrid && GroundTerrain != null)
 				{
@@ -1159,7 +1162,7 @@ public partial class GameHost
 				{
 					if (!TryGetValidPlacementContext(hitPos, out float placementRot, out float scaleVal, out Vector3 spawnPos)) return;
 
-					Vector3 hitNormal = (terrainHit != null && terrainHit.ContainsKey("normal")) ? terrainHit["normal"].AsVector3() : (hit.ContainsKey("normal") ? hit["normal"].AsVector3() : GetTerrainNormalAt(hitPos));
+					Vector3 hitNormal = (terrainHit != null && terrainHit.ContainsKey("normal")) ? terrainHit["normal"].AsVector3() : (hit != null && hit.ContainsKey("normal") ? hit["normal"].AsVector3() : GetTerrainNormalAt(hitPos));
 					Basis alignedBasis = CreateAlignedBasis(hitNormal);
 					alignedBasis = alignedBasis.Rotated(hitNormal, Mathf.DegToRad(placementRot));
 					Vector3 spawnRot = alignedBasis.GetRotationQuaternion().GetEuler() * (180f / MathF.PI);
@@ -1225,7 +1228,7 @@ public partial class GameHost
 
 					if (config.PlacementMode == VfxPlacementMode.SurfaceSnap)
 					{
-						Vector3 hitNormal = hit.ContainsKey("normal") ? hit["normal"].AsVector3() : GetTerrainNormalAt(hitPos);
+						Vector3 hitNormal = hit != null && hit.ContainsKey("normal") ? hit["normal"].AsVector3() : GetTerrainNormalAt(hitPos);
 						Basis alignedBasis = CreateAlignedBasis(hitNormal);
 						alignedBasis = alignedBasis.Rotated(hitNormal, Mathf.DegToRad(placementRot));
 						spawnRot = alignedBasis.GetEuler() * (180f / MathF.PI);
@@ -1281,7 +1284,7 @@ public partial class GameHost
 				}
 				else if (ActiveEditorTool == EditorTool.DeleteObject)
 				{
-					var collider = hit["collider"].As<Node>();
+					var collider = hit != null && hit.ContainsKey("collider") ? hit["collider"].As<Node>() : null;
 					var action = DeleteObjectAtWithUndo(collider, hitPos);
 					if (action != null)
 					{
@@ -1312,7 +1315,7 @@ public partial class GameHost
 				else if (ActiveEditorTool == EditorTool.Eyedropper)
 				{
 					string mode = GameContext.MapEditorHud != null ? GameContext.MapEditorHud.GetEyedropperMode() : "all";
-					var collider = hit.ContainsKey("collider") ? hit["collider"].As<Node>() : null;
+					var collider = hit != null && hit.ContainsKey("collider") ? hit["collider"].As<Node>() : null;
 					Node? clickedNode = null;
 
 					if (mode == "all" || mode == "3d")
@@ -1500,14 +1503,14 @@ public partial class GameHost
 				}
 				else if (ActiveEditorTool == EditorTool.SelectMove)
 				{
-					var collider = hit.ContainsKey("collider") ? hit["collider"].As<Node>() : null;
+					var collider = hit != null && hit.ContainsKey("collider") ? hit["collider"].As<Node>() : null;
 					Node? clickedNode = null;
 					if (collider != null)
 					{
 						clickedNode = FindUnit3DInParentChain(collider);
 						if (clickedNode == null)
 						{
-							clickedNode = (Node)(collider as PropEntityProxyNode);
+							clickedNode = collider as PropEntityProxyNode;
 							if (clickedNode == null)
 							{
 								clickedNode = FindProp3DInParentChain(collider);
@@ -2415,7 +2418,7 @@ public partial class GameHost
 		}
 	}
 
-	private void HandleSinglePropSelection(Node collider)
+	private void HandleSinglePropSelection(Node? collider)
 	{
 		var clickedProp = FindProp3DInParentChain(collider);
 		if (clickedProp != null && clickedProp.Visible && clickedProp.IsResource)
@@ -2515,7 +2518,7 @@ public partial class GameHost
 		}
 	}
 
-	private bool IsValidVisibleUnit(Unit3D unit)
+	private bool IsValidVisibleUnit([NotNullWhen(true)] Unit3D? unit)
 	{
 		return unit != null && GodotObject.IsInstanceValid(unit) && unit.Visible;
 	}
@@ -2735,7 +2738,7 @@ public partial class GameHost
 		return false;
 	}
 
-	public Dictionary RaycastTerrainFromMouse(Vector2 mousePos)
+	public Dictionary? RaycastTerrainFromMouse(Vector2 mousePos)
 	{
 		return RaycastFromMouse(mousePos, RaycastService.TerrainLayer);
 	}
@@ -3419,7 +3422,7 @@ public partial class GameHost
 		ExecuteLocalSpellCast(spellId, def, position);
 	}
 
-	private Unit3D GetFocusedSelectedUnit()
+	private Unit3D? GetFocusedSelectedUnit()
 	{
 		int focusedIdx = Math.Clamp(CycleSelectionIndex, 0, Math.Max(0, SelectedUnits.Count - 1));
 		return SelectedUnits.Count > focusedIdx ? SelectedUnits[focusedIdx] : null;
@@ -3427,7 +3430,7 @@ public partial class GameHost
 
 	private UnitId GetFocusedSelectedUnitId()
 	{
-		Unit3D focusedUnit = GetFocusedSelectedUnit();
+		Unit3D? focusedUnit = GetFocusedSelectedUnit();
 		return focusedUnit != null && World.IsAlive(focusedUnit.Entity)
 			? (UnitId)focusedUnit.Entity.Id
 			: UnitId.Invalid;
@@ -3456,25 +3459,30 @@ public partial class GameHost
 
 	private void ExecuteLocalSpellCast(string spellId, AbilityDefinition def, Vector3 position)
 	{
-		Unit3D focusedUnit = GetFocusedSelectedUnit();
+		Unit3D? focusedUnit = GetFocusedSelectedUnit();
 
 		if (_multiplayerActive && focusedUnit != null && !GameContext.PerspectiveFilter.CanControl(focusedUnit.Player)) return;
 
 		bool hasCaster = focusedUnit != null && World.IsAlive(focusedUnit.Entity);
-		UnitId caster = hasCaster ? (UnitId)focusedUnit.Entity.Id : UnitId.Invalid;
+		UnitId caster = UnitId.Invalid;
+		Entity casterEntity = Entity.Null;
+		if (hasCaster && focusedUnit != null)
+		{
+			caster = (UnitId)focusedUnit.Entity.Id;
+			casterEntity = focusedUnit.Entity;
+		}
 
 		// Affordability and cooldown are settled before the script hears about the cast, matching the authoritative server
 		// path. Raising OnSpellCast first let a refused cast still run its map-side effects and left a cooldown behind.
 		if (IsSpellOnCooldown(spellId, def)) return;
 
-		Entity casterEntity = hasCaster ? focusedUnit.Entity : Entity.Null;
 		if (!GameContext.InputService.TryExecuteSpellCast(GetPlayerEntityForPlayerIndex(GameContext.PerspectiveFilter.ControlledPlayerIndex), casterEntity, spellId, out float maxCd))
 		{
 			ShowInsufficientManaFeedback(spellId, def);
 			return;
 		}
 
-		if (hasCaster)
+		if (hasCaster && focusedUnit != null)
 		{
 			GameContext.AudioService?.PlayUnitSound(focusedUnit.UnitId, UnitSoundEvent.SpellCast, position, 0f, AudioPriorityTier.Critical);
 		}
@@ -3615,7 +3623,7 @@ public partial class GameHost
 		}
 	}
 
-	private void ResolveItemName(string itemId, out string itemName, out ItemMetadata itemMeta)
+	private void ResolveItemName(string itemId, out string itemName, out ItemMetadata? itemMeta)
 	{
 		itemName = itemId;
 		if (GameContext.InputService.TryGetItemMeta(itemId, out itemMeta) && !string.IsNullOrEmpty(itemMeta.Name))
@@ -3624,7 +3632,7 @@ public partial class GameHost
 		}
 	}
 
-	private void ProcessSuccessfulItemUse(Unit3D unit, string itemName, ItemMetadata itemMeta, float healedAmount)
+	private void ProcessSuccessfulItemUse(Unit3D unit, string itemName, ItemMetadata? itemMeta, float healedAmount)
 	{
 		GameContext.InGameHud?.ShowFeedbackText($"{unit.UnitId.ToUpper()} used {itemName} (+{healedAmount:F0} HP)!", new Color(0.3f, 0.9f, 0.4f));
 
@@ -3674,7 +3682,7 @@ public partial class GameHost
 		}
 
 		Node3D? previewNode = null;
-		if (meta.TemplateID != null && !string.IsNullOrEmpty(meta.ModelPath))
+		if (meta != null && meta.TemplateID != null && !string.IsNullOrEmpty(meta.ModelPath))
 		{
 			string modelPath = GetFallbackModelPath(meta.ModelPath, isBuilding);
 			var previewUnit = new Unit3D
@@ -3710,7 +3718,7 @@ public partial class GameHost
 
 		if (GameContext.InGameHud != null)
 		{
-			string displayName = !string.IsNullOrEmpty(meta.Name) ? meta.Name : type.ToUpper();
+			string displayName = meta != null && !string.IsNullOrEmpty(meta.Name) ? meta.Name : type.ToUpper();
 			Hud.ShowFeedbackText($"Place {displayName}: Click on map to construct", new Color(0.15f, 0.65f, 1.0f));
 		}
 	}
@@ -4314,7 +4322,7 @@ public partial class GameHost
 		return new Vector3(res.Value.X, res.Value.Y, res.Value.Z);
 	}
 
-	private bool IsPositionBlocked(Vector3 pos, float radius, Node3D ignoreNode = null)
+	private bool IsPositionBlocked(Vector3 pos, float radius, Node3D? ignoreNode = null)
 	{
 		Entity ignoreEntity = Entity.Null;
 		if (ignoreNode is Unit3D u) ignoreEntity = u.Entity;
@@ -4322,15 +4330,15 @@ public partial class GameHost
 		return GameContext.InputService.IsPositionBlocked(new System.Numerics.Vector3(pos.X, pos.Y, pos.Z), radius, ignoreEntity);
 	}
 
-	public Unit3D SpawnUnitFromProduction(string unitId, System.Numerics.Vector3 position, Entity buildingEntity, bool isFromQueue = false)
+	public Unit3D? SpawnUnitFromProduction(string unitId, System.Numerics.Vector3 position, Entity buildingEntity, bool isFromQueue = false)
 	{
 		if (!UnitRegistry.TryGetValue(unitId, out var meta)) return null;
 
 		int parentPlayer = ResolveSpawnParentPlayer(buildingEntity);
 		Entity playerOwnerEntity = GetPlayerEntityForPlayerIndex(parentPlayer);
-		var playerOwner = playerOwnerEntity.AsPlayerEntity(GameContext.World);
+		var playerOwner = playerOwnerEntity.AsPlayerEntity(World);
 
-		string targetModel = meta.ModelPath;
+		string? targetModel = meta.ModelPath;
 		string modelPath = GetFallbackModelPath(targetModel, false);
 		string name = meta.Name;
 		var godotPosition = new Vector3(position.X, position.Y, position.Z);

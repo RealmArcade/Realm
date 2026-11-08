@@ -1041,7 +1041,7 @@ public partial class GameHost : Node3D
 		return TryGetUnitOrBuildingMetadata((StringName)objectId, out meta);
 	}
 
-	public string GetFallbackModelPath(string unitId, bool isBuilding)
+	public string GetFallbackModelPath(string? unitId, bool isBuilding)
 	{
 		return GameContext.UnitSpawnService.GetFallbackModelPath(unitId, isBuilding);
 	}

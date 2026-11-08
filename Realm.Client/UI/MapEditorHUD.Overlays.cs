@@ -1218,7 +1218,7 @@ namespace Realm.Client.UI
 		}
 
 
-		public void ShowConfirmationDialog(string message, Action onConfirm, string confirmText = "YES", string cancelText = "NO", Action onCancel = null, Action onDismissed = null, bool showCancel = true)
+		public void ShowConfirmationDialog(string message, Action? onConfirm, string confirmText = "YES", string cancelText = "NO", Action? onCancel = null, Action? onDismissed = null, bool showCancel = true)
 		{
 			var overlay = CreateConfirmationShell(onDismissed);
 
@@ -1332,7 +1332,7 @@ namespace Realm.Client.UI
 		}
 
 
-		private void BuildConfirmButton(HBoxContainer hbox, ColorRect overlay, Action onConfirm, string confirmText)
+		private void BuildConfirmButton(HBoxContainer hbox, ColorRect overlay, Action? onConfirm, string confirmText)
 		{
 			var btnConfirm = new Button();
 			btnConfirm.Name = "BtnConfirm_Button";
