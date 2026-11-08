@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using Realm.Client.Core;
@@ -144,5 +144,31 @@ internal static class EditorMetadataWrites
 			}
 		});
 		return File.Exists(metadataPath) ? File.GetLastWriteTimeUtc(metadataPath).Ticks : 0;
+	}
+
+	internal static void UpdateScaleMetadata(int newWidth, int newDepth, MapCameraBounds cameraBounds)
+	{
+		string scaleWsPath = MapWorkspaceService.GetActiveWorkspacePath();
+		string scaleMetaPath = MetadataService.ResolveMetadataPath(scaleWsPath);
+
+		if (File.Exists(scaleMetaPath))
+		{
+			try
+			{
+				GameContext.MetadataService.UpdateMetadata(scaleWsPath, meta =>
+				{
+					meta.MapProperties.MapWidth = newWidth;
+					meta.MapProperties.MapHeight = newDepth;
+					meta.MapProperties.CameraBoundsLeft = cameraBounds.Left;
+					meta.MapProperties.CameraBoundsRight = cameraBounds.Right;
+					meta.MapProperties.CameraBoundsTop = cameraBounds.Top;
+					meta.MapProperties.CameraBoundsBottom = cameraBounds.Bottom;
+				});
+			}
+			catch (Exception ex)
+			{
+				GameLog.LogError($"Failed to update metadata.json map dimensions during scale: {ex.Message}");
+			}
+		}
 	}
 }

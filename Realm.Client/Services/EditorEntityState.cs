@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using Realm.Ecs;
 using Realm.Ecs.Common;
 using Realm.Shared.Maps;
@@ -139,5 +139,29 @@ internal static class EditorEntityState
 	{
 		if (value) EditorService.NoteEditorChange();
 		World.Mutate<EditorState>(worldEntity, (ref EditorState s) => s.HasUnsavedChanges = value);
+	}
+
+	internal static void SetCameraBounds(Entity worldEntity, MapCameraBounds cameraBounds)
+	{
+		if (GameContext.World == null || !World.IsAlive(worldEntity)) return;
+
+		World.Mutate<EditorState>(worldEntity, (ref EditorState state) =>
+		{
+			state.CameraBoundsLeft = cameraBounds.Left;
+			state.CameraBoundsRight = cameraBounds.Right;
+			state.CameraBoundsTop = cameraBounds.Top;
+			state.CameraBoundsBottom = cameraBounds.Bottom;
+		});
+
+		if (World.Has<CameraState>(worldEntity))
+		{
+			World.Mutate<CameraState>(worldEntity, (ref CameraState cameraState) =>
+			{
+				cameraState.LimitLeft = cameraBounds.Left;
+				cameraState.LimitRight = cameraBounds.Right;
+				cameraState.LimitTop = cameraBounds.Top;
+				cameraState.LimitBottom = cameraBounds.Bottom;
+			});
+		}
 	}
 }
