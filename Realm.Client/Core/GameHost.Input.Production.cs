@@ -29,21 +29,40 @@ public partial class GameHost
 		if (_buildingPreviewMesh == null || !GodotObject.IsInstanceValid(_buildingPreviewMesh)) return;
 
 		var mousePos = GetViewport().GetMousePosition();
-		var hit = RaycastTerrainFromMouse(mousePos) ?? RaycastFromMouse(mousePos);
-		if (hit != null && hit.ContainsKey("position"))
+
+		// The probe answers with the point it struck rather than a dictionary of what it struck: this runs every tick a
+		// placement is armed, and that dictionary was built and thrown away on all of them.
+		if (!TryRaycastTerrainFromMousePosition(mousePos, out Vector3 pos)
+		    && !TryRaycastFromMousePosition(mousePos, out pos))
 		{
-			Vector3 pos = hit["position"].AsVector3();
-			pos.Y = GetTerrainHeightAt(pos) + 0.1f;
-			_buildingPreviewMesh.GlobalPosition = pos;
-
-			string activeType = ActiveBuildingPlacementType ?? "";
-			float clearance = Math.Max(ResolveTemplateBodyRadius(activeType) * 1.5f, 1.5f);
-			bool blocked = GameContext.InputService.IsAreaObstructed(new System.Numerics.Vector3(pos.X, pos.Y, pos.Z), clearance);
-
-			Color targetColor = blocked ? new Color(0.9f, 0.2f, 0.2f) : new Color(0.15f, 0.65f, 1.0f);
-			MakeHologramRecursive(_buildingPreviewMesh, targetColor);
+			return;
 		}
+
+		pos.Y = GetTerrainHeightAt(pos) + 0.1f;
+		_buildingPreviewMesh.GlobalPosition = pos;
+
+		string activeType = ActiveBuildingPlacementType ?? "";
+		float clearance = Math.Max(ResolveTemplateBodyRadius(activeType) * 1.5f, 1.5f);
+		bool blocked = GameContext.InputService.IsAreaObstructed(new System.Numerics.Vector3(pos.X, pos.Y, pos.Z), clearance);
+
+		// The hologram is recoloured only when the answer changes. Applying it built a fresh material for every mesh
+		// under the preview, once per tick, whether or not the ground had become legal or illegal since the last one.
+		// A preview is created already wearing the legal colour, so a fresh node starts from there.
+		if (!ReferenceEquals(_hologramPreviewNode, _buildingPreviewMesh))
+		{
+			_hologramPreviewNode = _buildingPreviewMesh;
+			_hologramPreviewBlocked = false;
+		}
+
+		if (_hologramPreviewBlocked == blocked) return;
+
+		_hologramPreviewBlocked = blocked;
+		Color targetColor = blocked ? new Color(0.9f, 0.2f, 0.2f) : new Color(0.15f, 0.65f, 1.0f);
+		MakeHologramRecursive(_buildingPreviewMesh, targetColor);
 	}
+
+	private Node3D? _hologramPreviewNode;
+	private bool _hologramPreviewBlocked;
 
 	public void TrainUnitAtBuilding(string unitId)
 	{
