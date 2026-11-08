@@ -224,7 +224,7 @@ public class SaveLoadService
 			var saveData = CreateInitialMapSaveData(terrain, editor, coordinatesData);
 			PopulateMapSaveData(saveData, directory, validDecalEntities);
 
-			SortMapSaveData(saveData);
+			MapSaveOrdering.SortMapSaveData(saveData);
 			var terrainSaveRequest = new MapTerrainSaveRequest
 			{
 				AbsolutePath = absolutePath,
@@ -242,7 +242,7 @@ public class SaveLoadService
 			}
 
 			GameContext.Host?.SaveModelYOffsetsToMetadataJson(directory);
-			SyncMetadataAssetsAndPrune(directory);
+			MapAssetSync.SyncMetadataAssetsAndPrune(directory);
 			CleanMetadataFile(directory, terrain.Width, terrain.Depth);
 			WorkspaceMetadataBootstrapper.EnsureLicenseFile(directory);
 
@@ -314,7 +314,7 @@ public class SaveLoadService
 
 		World.Query(in unitQuery, (Entity entity, ref DefinitionId defId, ref Position pos, ref Owner owner) =>
 		{
-			if (!IsValidUnitObjectId(defId.Value, directory)) return;
+			if (!MapAssetSync.IsValidUnitObjectId(defId.Value, directory)) return;
 
 			float rotY = World.Has<RotationY>(entity) ? World.Get<RotationY>(entity).Value : 0f;
 			float scale = World.Has<ModelScale>(entity) ? World.Get<ModelScale>(entity).Value : 1f;
@@ -342,7 +342,7 @@ public class SaveLoadService
 
 		World.Query(in propQuery, (Entity entity, ref PropIdentity propId, ref Position pos) =>
 		{
-			if (!IsValidPropObjectId(propId.PropId, directory)) return;
+			if (!MapAssetSync.IsValidPropObjectId(propId.PropId, directory)) return;
 
 			float rotY = World.Has<RotationY>(entity) ? World.Get<RotationY>(entity).Value : 0f;
 			float scale = World.Has<ModelScale>(entity) ? World.Get<ModelScale>(entity).Value : 1f;
@@ -817,7 +817,7 @@ public class SaveLoadService
 		if (units == null) return;
 		foreach (var u in units)
 		{
-			if (!IsValidUnitObjectId(u.TemplateId, mapDir))
+			if (!MapAssetSync.IsValidUnitObjectId(u.TemplateId, mapDir))
 			{
 				GD.PushWarning($"[SaveLoadService] Ignored invalid unit '{u.TemplateId}' in terrain.json because it does not exist as an Object ID in metadata.json.");
 				continue;
@@ -832,7 +832,7 @@ public class SaveLoadService
 		if (props == null) return;
 		foreach (var p in props)
 		{
-			if (!IsValidPropObjectId(p.TemplateId, mapDir))
+			if (!MapAssetSync.IsValidPropObjectId(p.TemplateId, mapDir))
 			{
 				GD.PushWarning($"[SaveLoadService] Ignored invalid prop '{p.TemplateId}' in terrain.json because it does not exist as an Object ID in metadata.json.");
 				continue;
@@ -902,365 +902,20 @@ public class SaveLoadService
 		}
 	}
 
-	private static int CompareDistanceAndPosition(float aPosX, float aPosY, float aPosZ, float aRotY, float bPosX, float bPosY, float bPosZ, float bRotY, float topLeftX, float topLeftZ)
-	{
-		float distanceA = MathF.Sqrt(MathF.Pow(aPosX - topLeftX, 2) + MathF.Pow(aPosZ - topLeftZ, 2));
-		float distanceB = MathF.Sqrt(MathF.Pow(bPosX - topLeftX, 2) + MathF.Pow(bPosZ - topLeftZ, 2));
-		int comparison = distanceA.CompareTo(distanceB);
-		if (comparison != 0) return comparison;
-
-		comparison = aPosX.CompareTo(bPosX);
-		if (comparison != 0) return comparison;
-		comparison = aPosZ.CompareTo(bPosZ);
-		if (comparison != 0) return comparison;
-		comparison = aPosY.CompareTo(bPosY);
-		if (comparison != 0) return comparison;
-		return aRotY.CompareTo(bRotY);
-	}
-
-	private static int CompareBaseProperties(string aTemplateId, string bTemplateId, float aPosX, float aPosY, float aPosZ, float aRotY, float bPosX, float bPosY, float bPosZ, float bRotY, float topLeftX, float topLeftZ)
-	{
-		int comparison = string.Compare(aTemplateId, bTemplateId, StringComparison.OrdinalIgnoreCase);
-		if (comparison != 0) return comparison;
-		comparison = string.Compare(aTemplateId, bTemplateId, StringComparison.Ordinal);
-		if (comparison != 0) return comparison;
-
-		return CompareDistanceAndPosition(aPosX, aPosY, aPosZ, aRotY, bPosX, bPosY, bPosZ, bRotY, topLeftX, topLeftZ);
-	}
-
-	private static int CompareUnits(UnitSaveData a, UnitSaveData b, float topLeftX, float topLeftZ)
-	{
-		int comparison = CompareBaseProperties(a.TemplateId, b.TemplateId, a.PosX, a.PosY, a.PosZ, a.RotationY, b.PosX, b.PosY, b.PosZ, b.RotationY, topLeftX, topLeftZ);
-		if (comparison != 0) return comparison;
-
-		comparison = a.Scale.CompareTo(b.Scale);
-		if (comparison != 0) return comparison;
-		comparison = a.Player.CompareTo(b.Player);
-		if (comparison != 0) return comparison;
-		return 0;
-	}
-
-	private static int CompareProps(PropSaveData a, PropSaveData b, float topLeftX, float topLeftZ)
-	{
-		int comparison = CompareBaseProperties(a.TemplateId, b.TemplateId, a.PosX, a.PosY, a.PosZ, a.RotationY, b.PosX, b.PosY, b.PosZ, b.RotationY, topLeftX, topLeftZ);
-		if (comparison != 0) return comparison;
-
-		return a.Scale.CompareTo(b.Scale);
-	}
-
-	private static int CompareDecals(DecalSaveData a, DecalSaveData b, float topLeftX, float topLeftZ)
-	{
-		int comparison = CompareBaseProperties(a.TemplateId, b.TemplateId, a.PosX, a.PosY, a.PosZ, a.RotationY, b.PosX, b.PosY, b.PosZ, b.RotationY, topLeftX, topLeftZ);
-		if (comparison != 0) return comparison;
-
-		return a.Scale.CompareTo(b.Scale);
-	}
-
-	private static int CompareVfx(VfxSaveData a, VfxSaveData b, float topLeftX, float topLeftZ)
-	{
-		int comparison = string.Compare(a.VfxId, b.VfxId, StringComparison.OrdinalIgnoreCase);
-		if (comparison != 0) return comparison;
-		comparison = string.Compare(a.VfxId, b.VfxId, StringComparison.Ordinal);
-		if (comparison != 0) return comparison;
-
-		comparison = CompareDistanceAndPosition(a.PosX, a.PosY, a.PosZ, a.RotationY, b.PosX, b.PosY, b.PosZ, b.RotationY, topLeftX, topLeftZ);
-		if (comparison != 0) return comparison;
-
-		return a.ScaleX.CompareTo(b.ScaleX);
-	}
-
-	private static int CompareCoordinates(CoordinateSaveData a, CoordinateSaveData b, float topLeftX, float topLeftZ)
-	{
-		int comparison = string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase);
-		if (comparison != 0) return comparison;
-		comparison = string.Compare(a.Name, b.Name, StringComparison.Ordinal);
-		if (comparison != 0) return comparison;
-
-		float centerAX = (a.MinX + a.MaxX) * 0.5f;
-		float centerAZ = (a.MinZ + a.MaxZ) * 0.5f;
-		float centerBX = (b.MinX + b.MaxX) * 0.5f;
-		float centerBZ = (b.MinZ + b.MaxZ) * 0.5f;
-
-		float distanceA = MathF.Sqrt(MathF.Pow(centerAX - topLeftX, 2) + MathF.Pow(centerAZ - topLeftZ, 2));
-		float distanceB = MathF.Sqrt(MathF.Pow(centerBX - topLeftX, 2) + MathF.Pow(centerBZ - topLeftZ, 2));
-		comparison = distanceA.CompareTo(distanceB);
-		if (comparison != 0) return comparison;
-
-		comparison = a.MinX.CompareTo(b.MinX);
-		if (comparison != 0) return comparison;
-		comparison = a.MinZ.CompareTo(b.MinZ);
-		if (comparison != 0) return comparison;
-		comparison = a.MaxX.CompareTo(b.MaxX);
-		if (comparison != 0) return comparison;
-		return a.MaxZ.CompareTo(b.MaxZ);
-	}
 
 
-	public static void SortMapSaveData(MapSaveData saveData)
-	{
-		if (saveData == null) return;
-
-		int width = saveData.Width > 0 ? saveData.Width : 128;
-		int depth = saveData.Depth > 0 ? saveData.Depth : 128;
-		float topLeftX = -width / 2.0f;
-		float topLeftZ = -depth / 2.0f;
-
-		if (saveData.Units != null)
-		{
-			saveData.Units.Sort((a, b) => CompareUnits(a, b, topLeftX, topLeftZ));
-		}
-
-		if (saveData.Props != null)
-		{
-			saveData.Props.Sort((a, b) => CompareProps(a, b, topLeftX, topLeftZ));
-		}
-
-		if (saveData.Decals != null)
-		{
-			saveData.Decals.Sort((a, b) => CompareDecals(a, b, topLeftX, topLeftZ));
-		}
-
-		if (saveData.Vfx != null)
-		{
-			saveData.Vfx.Sort((a, b) => CompareVfx(a, b, topLeftX, topLeftZ));
-		}
-
-		if (saveData.Coordinates != null)
-		{
-			saveData.Coordinates.Sort((a, b) => CompareCoordinates(a, b, topLeftX, topLeftZ));
-		}
-	}
-
-	public static bool IsValidPropObjectId(string propId, string? mapDirectory = null)
-	{
-		if (string.IsNullOrWhiteSpace(propId)) return false;
-
-		if (GameHost.PropRegistry?.ContainsKey(propId) == true || GameHost.ResourceRegistry?.ContainsKey(propId) == true) return true;
-
-		return HasPropMetadata(propId, mapDirectory);
-	}
-
-	private static bool HasPropMetadata(string propId, string? mapDirectory)
-	{
-		string targetDir = !string.IsNullOrEmpty(mapDirectory) ? mapDirectory : MapWorkspaceService.GetActiveWorkspacePath();
-		if (!GameContext.MetadataService.TryLoadMetadata(targetDir, out var metadata) || metadata.Templates == null) return false;
-
-		bool hasProp = metadata.Templates.Props?.Any(p => string.Equals(propId, p.TemplateID, StringComparison.OrdinalIgnoreCase)) ?? false;
-		if (hasProp) return true;
-
-		return metadata.Templates.Resources?.Any(r => string.Equals(propId, r.TemplateID, StringComparison.OrdinalIgnoreCase)) ?? false;
-	}
-
-	public static bool IsValidUnitObjectId(string unitId, string? mapDirectory = null)
-	{
-		if (string.IsNullOrWhiteSpace(unitId)) return false;
-
-		if (GameHost.UnitRegistry?.ContainsKey(unitId) == true || GameHost.BuildingRegistry?.ContainsKey(unitId) == true) return true;
-
-		return HasUnitMetadata(unitId, mapDirectory);
-	}
-
-	private static bool HasUnitMetadata(string unitId, string? mapDirectory)
-	{
-		string targetDir = !string.IsNullOrEmpty(mapDirectory) ? mapDirectory : MapWorkspaceService.GetActiveWorkspacePath();
-		if (!GameContext.MetadataService.TryLoadMetadata(targetDir, out var metadata) || metadata.Templates == null) return false;
-
-		bool hasUnit = metadata.Templates.Units?.Any(u => string.Equals(unitId, u.TemplateID, StringComparison.OrdinalIgnoreCase)) ?? false;
-		if (hasUnit) return true;
-
-		return metadata.Templates.Buildings?.Any(b => string.Equals(unitId, b.TemplateID, StringComparison.OrdinalIgnoreCase)) ?? false;
-	}
 
 
-	private static readonly Dictionary<string, string> CategorySubFolderMap = new(StringComparer.OrdinalIgnoreCase)
-	{
-		{ "character", "models/units" },
-		{ "building", "models/buildings" },
-		{ "prop", "models/props" },
-		{ "item", "models/items" },
-		{ "spritesheet", "vfx_spritesheets" }, { "vfx", "vfx_spritesheets" }, { "vfx_spritesheets", "vfx_spritesheets" },
-		{ "animation", "animations" }, { "animations", "animations" },
-		{ "soundeffect", "audio/sfx" }, { "sfx", "audio/sfx" },
-		{ "music", "audio/music" },
-		{ "icon", "icons" }, { "icons", "icons" },
-		{ "decal", "decals" }, { "decals", "decals" },
-		{ "ribbon", "ribbons" }, { "ribbons", "ribbons" }, { "ribbon_textures", "ribbons" },
-		{ "noise", "noise" }, { "noise_textures", "noise" },
-		{ "skybox", "skyboxes" }, { "skyboxes", "skyboxes" },
-		{ "terrain", "textures" }, { "textures", "textures" },
-		{ "shader", "shaders" }, { "shaders", "shaders" }
-	};
 
-	private static string GetSubFolderForCategory(string category)
-	{
-		return CategorySubFolderMap.TryGetValue(category, out string? folder)
-			? folder ?? category.ToLowerInvariant()
-			: category.ToLowerInvariant();
-	}
 
-	private static string ResolveFullDiskPath(string mapDirectory, string assetsDir, string relPath, string category, string baseFileName, ref Dictionary<string, string>? cachedAssetFiles)
-	{
-		string fullDiskPath = Path.Combine(mapDirectory, relPath);
-		if (!File.Exists(fullDiskPath))
-		{
-			if (category is "Character" or "Building" or "Prop" or "Item")
-			{
-				string? modelDisk = MapAssetHelper.FindModelOnDisk(mapDirectory, category, baseFileName);
-				if (!string.IsNullOrEmpty(modelDisk) && File.Exists(modelDisk))
-				{
-					fullDiskPath = modelDisk;
-				}
-			}
-			else
-			{
-				string? altPath = FindAssetFileByName(assetsDir, baseFileName, ref cachedAssetFiles);
-				if (altPath != null && File.Exists(altPath))
-				{
-					fullDiskPath = altPath;
-				}
-				else
-				{
-					string directMapPath = Path.Combine(mapDirectory, baseFileName);
-					if (File.Exists(directMapPath))
-					{
-						fullDiskPath = directMapPath;
-					}
-				}
-			}
-		}
 
-		return fullDiskPath;
-	}
 
-	public static void SyncMetadataAssetsAndPrune(string mapDirectory)
-	{
-		if (string.IsNullOrEmpty(mapDirectory) || !Directory.Exists(mapDirectory)) return;
 
-		try
-		{
-			var assetsObj = MapAssetHelper.LoadAssets(mapDirectory);
-			string assetsDir = Path.Combine(mapDirectory, "Assets");
 
-			var assetsToSync = CollectAssetsToSync(assetsObj);
 
-			PruneImportFilesAndEmptyDirs(assetsDir);
 
-			SyncAssetHashes(mapDirectory, assetsDir, assetsObj, assetsToSync);
 
-			MapAssetHelper.SaveAssetsToManifest(mapDirectory, assetsObj, removeFromMetadata: true);
-		}
-		catch (Exception ex)
-		{
-			GameLog.LogError($"[SaveLoadService] SyncMetadataAssetsAndPrune error: {ex.Message}");
-		}
-	}
 
-	private static List<(string RelativePath, string Category, string FileName)> CollectAssetsToSync(MapManifestAssets assetsObj)
-	{
-		var assetsToSync = new List<(string RelativePath, string Category, string FileName)>();
-		foreach (var categoryKvp in assetsObj.GetAllCategories())
-		{
-			string category = categoryKvp.Key;
-			string subFolder = GetSubFolderForCategory(category);
-			foreach (var itemKvp in categoryKvp.Value)
-			{
-				string fileName = itemKvp.Key;
-				string relPath = Path.Combine("Assets", subFolder, fileName).Replace('\\', '/');
-				assetsToSync.Add((relPath, category, fileName));
-			}
-		}
-
-		return assetsToSync;
-	}
-
-	private static void PruneImportFilesAndEmptyDirs(string assetsDir)
-	{
-		if (!Directory.Exists(assetsDir)) return;
-
-		string[] importFiles = Directory.GetFiles(assetsDir, "*.import", SearchOption.AllDirectories);
-		foreach (var importFile in importFiles)
-		{
-			string sourceFile = importFile.Substring(0, importFile.Length - ".import".Length);
-			if (!File.Exists(sourceFile))
-			{
-				try
-				{
-					File.Delete(importFile);
-				}
-				catch
-				{
-				}
-			}
-		}
-
-		DeleteEmptyDirectoriesRecursive(assetsDir);
-	}
-
-	private static void SyncAssetHashes(string mapDirectory, string assetsDir, MapManifestAssets assetsObj, List<(string RelativePath, string Category, string FileName)> assetsToSync)
-	{
-		Dictionary<string, string>? cachedAssetFiles = null;
-
-		foreach (var (relPath, category, fileName) in assetsToSync)
-		{
-			string baseFileName = Path.GetFileName(relPath);
-			string fullDiskPath = ResolveFullDiskPath(mapDirectory, assetsDir, relPath, category, baseFileName, ref cachedAssetFiles);
-
-			if (!File.Exists(fullDiskPath)) continue;
-
-			string canonicalBlake3 = RealmMetadataHelper.ComputeBlake3(fullDiskPath);
-			if (string.IsNullOrEmpty(canonicalBlake3)) continue;
-
-			var catDict = assetsObj.GetCategory(category);
-			if (catDict != null)
-			{
-				catDict[fileName] = canonicalBlake3;
-			}
-
-			RealmMetadataHelper.SyncBlake3Metadata(fullDiskPath, canonicalBlake3);
-		}
-	}
-
-	private static string? FindAssetFileByName(string searchDir, string fileName, ref Dictionary<string, string>? cachedFiles)
-	{
-		if (!Directory.Exists(searchDir)) return null;
-		if (cachedFiles == null)
-		{
-			cachedFiles = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-			try
-			{
-				foreach (var file in Directory.EnumerateFiles(searchDir, "*", SearchOption.AllDirectories))
-				{
-					string name = Path.GetFileName(file);
-					cachedFiles.TryAdd(name, file);
-				}
-			}
-			catch
-			{
-			}
-		}
-
-		return cachedFiles.TryGetValue(fileName, out var path) ? path : null;
-	}
-
-	private static void DeleteEmptyDirectoriesRecursive(string directory)
-	{
-		if (!Directory.Exists(directory)) return;
-		foreach (var sub in Directory.GetDirectories(directory))
-		{
-			DeleteEmptyDirectoriesRecursive(sub);
-		}
-
-		if (Directory.GetFiles(directory).Length == 0 && Directory.GetDirectories(directory).Length == 0)
-		{
-			try
-			{
-				Directory.Delete(directory, false);
-			}
-			catch
-			{
-			}
-		}
-	}
 
 	public string[] GetSplatData(TerrainSplatWeights[,] splatMap)
 	{
