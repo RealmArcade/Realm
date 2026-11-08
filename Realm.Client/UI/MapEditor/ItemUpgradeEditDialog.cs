@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -32,7 +32,7 @@ public partial class ItemUpgradeEditDialog : FloatingDialogBase
 	private string? _initialTemplateJson = null;
 	private bool _templateExistedInitially = false;
 
-	private Action<string, string> _onAppliedCallback = null!;
+	private Action<string, string>? _onAppliedCallback;
 
 	private Label _lblObjectTypePrefix = null!;
 	private LineEdit _txtSlug = null!;
@@ -438,7 +438,7 @@ public partial class ItemUpgradeEditDialog : FloatingDialogBase
 		return false;
 	}
 
-	public void OpenForObject(string category, string templateId, Action<string, string> onApplied = null)
+	public void OpenForObject(string category, string templateId, Action<string, string>? onApplied = null)
 	{
 		InitializeState(category, templateId, onApplied);
 		LoadMetadataProperties();
@@ -497,7 +497,7 @@ public partial class ItemUpgradeEditDialog : FloatingDialogBase
 		}
 	}
 
-	private void InitializeState(string category, string templateId, Action<string, string> onApplied)
+	private void InitializeState(string category, string templateId, Action<string, string>? onApplied)
 	{
 		_category = (category ?? "items").ToLowerInvariant();
 		_objectType = _category == "upgrades" ? "upgrade" : "item";
@@ -573,7 +573,7 @@ public partial class ItemUpgradeEditDialog : FloatingDialogBase
 		_grantedUpgrades = i.GrantedUpgrades != null ? new List<string>(i.GrantedUpgrades) : new List<string>();
 	}
 
-	private string FormatIconPath(string path)
+	private string FormatIconPath(string? path)
 	{
 		if (string.IsNullOrEmpty(path)) return "";
 		return path.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? Path.GetFileName(path) : $"{Path.GetFileName(path)}.rtex";
@@ -585,7 +585,7 @@ public partial class ItemUpgradeEditDialog : FloatingDialogBase
 			return;
 
 		var candidates = ScanIconRtexAssets(true);
-		string candidateMatch = candidates.FirstOrDefault(c => string.Equals(c, $"{_slug}.rtex", StringComparison.OrdinalIgnoreCase))
+		string? candidateMatch = candidates.FirstOrDefault(c => string.Equals(c, $"{_slug}.rtex", StringComparison.OrdinalIgnoreCase))
 		                        ?? candidates.FirstOrDefault(c => string.Equals(Path.GetFileNameWithoutExtension(c), _slug, StringComparison.OrdinalIgnoreCase));
 
 		if (!string.IsNullOrEmpty(candidateMatch))
