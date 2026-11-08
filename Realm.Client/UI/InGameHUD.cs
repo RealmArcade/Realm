@@ -71,8 +71,6 @@ public partial class InGameHUD : Control
 	private PanelContainer _inventoryFrame = null!;
 	private readonly Dictionary<HudElement, bool> _hudElementVisibility = new();
 
-	private Shader _hudPanelTopShader = null!;
-	private Shader _hudPanelBottomShader = null!;
 	private Shader _hudPortraitMaskShader = null!;
 
 	private GridContainer _commandGrid = null!;
@@ -1035,129 +1033,17 @@ public partial class InGameHUD : Control
 		}
 	}
 
+	private InGameHudTheme? _theme;
+
+	private InGameHudTheme Theme => _theme ??= new InGameHudTheme();
+
 	private void ApplyThemeStyles()
 	{
-		_resourceContainer.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
+		Theme.Apply(new HudThemeNodes(this, _resourceContainer, _resourceBackground, _consoleBackground, _bottomConsole,
+			_minimapFrame, _portraitFrame, _selectionFrame, _commandFrame, _feedbackLabel,
+			_goldLabel, _woodLabel, _stoneLabel, _populationLabel, _clockLabel, _minimapArea, _cameraIndicator));
 
-		if (_resourceBackground != null)
-		{
-			var topTexture = UIStyle.LoadTextureWithFallback("res://Assets/UI/In-Game_MatchView_PanelTop.webp");
-			_resourceBackground.Texture = topTexture;
-
-			_hudPanelTopShader ??= GD.Load<Shader>("res://Assets/shaders/hud_panel_top.gdshader");
-			var topMaterial = new ShaderMaterial();
-			topMaterial.Shader = _hudPanelTopShader;
-			topMaterial.SetShaderParameter("u_panel_size", new Vector2(840.0f, 76.0f));
-			_resourceBackground.Material = topMaterial;
-		}
-
-		if (_consoleBackground != null)
-		{
-			var texture = UIStyle.LoadTextureWithFallback("res://Assets/UI/In-Game_MatchView_PanelBottom.webp");
-			if (texture == null)
-			{
-				texture = UIStyle.LoadTextureWithFallback("res://Assets/UI/In-Game_MatchView_PanelBottom.webp");
-			}
-			_consoleBackground.Texture = texture;
-
-			_hudPanelBottomShader ??= GD.Load<Shader>("res://Assets/shaders/hud_panel_bottom.gdshader");
-			var consoleMaterial = new ShaderMaterial();
-			consoleMaterial.Shader = _hudPanelBottomShader;
-			_consoleBackground.Material = consoleMaterial;
-		}
-
-		_bottomConsole.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
-		_minimapFrame.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
-		_portraitFrame.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
-		_portraitFrame.ZIndex = -1;
-
-		if (_portraitFrame.GetNodeOrNull<ColorRect>("PortraitBacking") == null)
-		{
-			var portraitBacking = new ColorRect();
-			portraitBacking.Name = "PortraitBacking";
-			portraitBacking.Color = new Color(0.03f, 0.03f, 0.04f, 1.0f);
-			portraitBacking.MouseFilter = MouseFilterEnum.Ignore;
-			_portraitFrame.AddChild(portraitBacking);
-			_portraitFrame.MoveChild(portraitBacking, 0);
-		}
-		_selectionFrame.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
-		_selectionFrame.ClipContents = true;
-		
-		var inventoryFrame = GetNodeOrNull<PanelContainer>("BottomConsole/HBox/InventoryFrame");
-		if (inventoryFrame != null)
-		{
-			inventoryFrame.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
-		}
-
-		_commandFrame.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
-
-		UIStyle.ApplyTitle(_feedbackLabel, "", 32);
-		_feedbackLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-
-		var resourceIcons = new (string nodePath, string assetPath)[]
-		{
-			("ResourceContainer/HBox/GoldBox/GoldIcon", "res://Assets/UI/gold_coin.webp"),
-			("ResourceContainer/HBox/WoodBox/WoodIcon", "res://Assets/UI/wood_logs.webp"),
-			("ResourceContainer/HBox/StoneBox/StoneIcon", "res://Assets/UI/stone.webp"),
-			("ResourceContainer/HBox/SupplyBox/SupplyIcon", "res://Assets/UI/Supplies.webp"),
-			("ResourceContainer/HBox/ClockBox/ClockIcon", "res://Assets/UI/clock.webp"),
-		};
-
-		foreach (var (nodePath, assetPath) in resourceIcons)
-		{
-			var iconRect = GetNodeOrNull<TextureRect>(nodePath);
-			if (iconRect != null)
-			{
-				iconRect.Texture = UIStyle.LoadCrispIcon(assetPath, 256);
-				iconRect.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
-				iconRect.CustomMinimumSize = new Vector2(36, 36);
-				iconRect.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
-				iconRect.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
-			}
-		}
-
-		var resourceHBox = GetNodeOrNull<HBoxContainer>("ResourceContainer/HBox");
-		if (resourceHBox != null)
-		{
-			resourceHBox.AddThemeConstantOverride("separation", 32);
-		}
-
-		GetNode<Control>("ResourceContainer/HBox/GoldBox").TooltipText = TranslationServer.Translate("Gold");
-		GetNode<Control>("ResourceContainer/HBox/WoodBox").TooltipText = TranslationServer.Translate("Wood");
-		GetNode<Control>("ResourceContainer/HBox/StoneBox").TooltipText = TranslationServer.Translate("Stone");
-		GetNode<Control>("ResourceContainer/HBox/SupplyBox").TooltipText = TranslationServer.Translate("Population / Supply");
-		GetNode<Control>("ResourceContainer/HBox/ClockBox").TooltipText = TranslationServer.Translate("Game Time & Day/Night Cycle");
-
-		var topLabels = new[] { _goldLabel, _woodLabel, _stoneLabel, _populationLabel, _clockLabel };
-		foreach (var lbl in topLabels)
-		{
-			if (lbl == null) continue;
-			lbl.AddThemeFontSizeOverride("font_size", 18);
-			lbl.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-			lbl.AddThemeConstantOverride("outline_size", 2);
-			lbl.AddThemeColorOverride("font_outline_color", new Color(0, 0, 0, 0.85f));
-			lbl.VerticalAlignment = VerticalAlignment.Center;
-		}
-
-		_goldLabel?.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-
-		GetNode<Label>("BottomConsole/HBox/PortraitFrame/VBox/UnitName").AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-
-		var minimapBg = MinimapHelper.SetupMinimapBackground(_minimapArea);
-		if (minimapBg != null)
-		{
-			minimapBg.Material = null;
-		}
-
-		var overlay = new MinimapOverlay();
-		overlay.Name = "MinimapOverlay";
-		overlay.MouseFilter = MouseFilterEnum.Ignore;
-		_minimapArea.AddChild(overlay);
-		overlay.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		_minimapOverlay = overlay;
-
-		_cameraIndicator.MouseFilter = MouseFilterEnum.Ignore;
-		_minimapArea.MoveChild(_cameraIndicator, _minimapArea.GetChildCount() - 1);
+		_minimapOverlay = Theme.MinimapOverlay!;
 	}
 
 	public override void _Process(double delta)
