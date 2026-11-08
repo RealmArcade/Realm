@@ -120,10 +120,10 @@ public sealed class MinimapControlsPanel
 		btn.AddThemeConstantOverride("outline_size", 2);
 		btn.AddThemeColorOverride("font_outline_color", new Color(0f, 0f, 0f, 0.9f));
 
-		btn.AddThemeStyleboxOverride("normal", UIStyle.CreateMinimapButtonStyle(false, false));
-		btn.AddThemeStyleboxOverride("hover", UIStyle.CreateMinimapButtonStyle(true, false));
-		btn.AddThemeStyleboxOverride("pressed", UIStyle.CreateMinimapButtonStyle(false, true));
-		btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyStyleBoxStates(btn,
+			UIStyle.CreateMinimapButtonStyle(false, false),
+			UIStyle.CreateMinimapButtonStyle(true, false),
+			UIStyle.CreateMinimapButtonStyle(false, true));
 
 		btn.Pressed += () =>
 		{

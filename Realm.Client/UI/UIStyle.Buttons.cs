@@ -46,6 +46,19 @@ public static partial class UIStyle
 		button.AddThemeStyleboxOverride("pressed", CreateHUDButtonStyle(false, true));
 	}
 
+	/// <summary>
+	/// The four-state set every button in the game is dressed with, for the callers that build their plates from a
+	/// factory of their own rather than from one of the appliers above. The focus ring is always cleared, because
+	/// these buttons are clicked with the mouse and a ring left behind reads as a second selection.
+	/// </summary>
+	public static void ApplyStyleBoxStates(Control button, StyleBox normal, StyleBox hover, StyleBox pressed)
+	{
+		button.AddThemeStyleboxOverride("normal", normal);
+		button.AddThemeStyleboxOverride("hover", hover);
+		button.AddThemeStyleboxOverride("pressed", pressed);
+		button.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+	}
+
 	public static Button CreateActionButton(string nodeName, string text, int fontSize)
 	{
 		var button = new Button();
