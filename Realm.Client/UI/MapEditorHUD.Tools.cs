@@ -1148,12 +1148,19 @@ namespace Realm.Client.UI
 			}
 
 			var tcs = new TaskCompletionSource<bool>();
-			var (popup, progressBar, statusLabel, upgradeBtn, cancelBtn) = BuildMapUpgradePromptDialog(selectedFolder, currentVersion, targetVersion);
+			var dialog = new MapUpgradeDialog();
+			dialog.Initialize(selectedFolder, currentVersion, targetVersion);
+			AddChild(dialog);
+
+			var progressBar = dialog.Progress;
+			var statusLabel = dialog.StatusLabel;
+			var upgradeBtn = dialog.UpgradeButton;
+			var cancelBtn = dialog.CancelButton;
 
 			cancelBtn.Pressed += () =>
 			{
 				GameContext.UserInterface?.PlayClickSound();
-				popup.QueueFree();
+				dialog.QueueFree();
 				tcs.TrySetResult(false);
 			};
 
@@ -1167,85 +1174,12 @@ namespace Realm.Client.UI
 
 				if (await TryRunMapUpgradeAsync(selectedFolder, upgradeService, progressBar, statusLabel, cancelBtn))
 				{
-					popup.QueueFree();
+					dialog.QueueFree();
 					tcs.TrySetResult(true);
 				}
 			};
 
 			return await tcs.Task;
-		}
-
-		private (Panel Popup, ProgressBar ProgressBar, Label StatusLabel, Button UpgradeButton, Button CancelButton) BuildMapUpgradePromptDialog(
-			string selectedFolder, string? currentVersion, string targetVersion)
-		{
-			var popup = new Panel();
-			popup.Name = "Popup_Panel";
-			popup.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-			popup.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
-			AddChild(popup);
-
-			var cardPanel = new Panel();
-			cardPanel.Name = "CardPanel_Panel";
-			cardPanel.CustomMinimumSize = new Vector2(540, 290);
-			cardPanel.SetAnchorsAndOffsetsPreset(LayoutPreset.Center);
-			cardPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
-			popup.AddChild(cardPanel);
-
-			var vbox = new VBoxContainer();
-			vbox.Name = "Vbox_VBoxContainer";
-			vbox.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-			vbox.CustomMinimumSize = new Vector2(500, 260);
-			vbox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-			vbox.SizeFlagsVertical = SizeFlags.ExpandFill;
-			cardPanel.AddChild(vbox);
-
-			vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 15) });
-
-			var titleLabel = new Label();
-			titleLabel.Name = "TitleLabel_Label";
-			UIStyle.ApplyTitle(titleLabel, Tr("MAP BUILD MISMATCH"), 20);
-			titleLabel.AddThemeColorOverride("font_color", new Color(0.95f, 0.4f, 0.3f));
-			vbox.AddChild(titleLabel);
-
-			vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 8) });
-
-			var descLabel = new Label();
-			descLabel.Name = "DescLabel_Label";
-			descLabel.Text = $"{string.Format(Tr("Map: {0}"), Path.GetFileName(selectedFolder))}\n{string.Format(Tr("Map Build: {0} | Editor Build: {1}"), currentVersion, targetVersion)}\n\n{Tr("This map format needs to be upgraded before it can be opened. Would you like to upgrade now?")}";
-			descLabel.HorizontalAlignment = HorizontalAlignment.Center;
-			descLabel.AddThemeFontSizeOverride("font_size", 13);
-			descLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.95f));
-			vbox.AddChild(descLabel);
-
-			var progressBar = UIStyle.CreateProgressBar(460f, 20f);
-			progressBar.Visible = false;
-			vbox.AddChild(progressBar);
-
-			var statusLabel = new Label();
-			statusLabel.Name = "StatusLabel_Label";
-			statusLabel.HorizontalAlignment = HorizontalAlignment.Center;
-			statusLabel.AddThemeFontSizeOverride("font_size", 12);
-			statusLabel.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-			statusLabel.Visible = false;
-			vbox.AddChild(statusLabel);
-
-			vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 12) });
-
-			var buttonRow = new HBoxContainer();
-			buttonRow.Name = "ButtonRow_HBoxContainer";
-			buttonRow.Alignment = BoxContainer.AlignmentMode.Center;
-			buttonRow.AddThemeConstantOverride("separation", 20);
-			vbox.AddChild(buttonRow);
-
-			var upgradeBtn = UIStyle.CreateActionButton("UpgradeBtn_Button", Tr("UPGRADE MAP"), 14);
-			upgradeBtn.CustomMinimumSize = new Vector2(160, 38);
-			buttonRow.AddChild(upgradeBtn);
-
-			var cancelBtn = UIStyle.CreateActionButton("CancelBtn_Button", Tr("CANCEL"), 14);
-			cancelBtn.CustomMinimumSize = new Vector2(120, 38);
-			buttonRow.AddChild(cancelBtn);
-
-			return (popup, progressBar, statusLabel, upgradeBtn, cancelBtn);
 		}
 
 		private async Task<bool> TryRunMapUpgradeAsync(
