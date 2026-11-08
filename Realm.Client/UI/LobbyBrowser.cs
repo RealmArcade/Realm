@@ -91,7 +91,8 @@ public partial class LobbyBrowser : Control
 		CenterFpsCounter();
 
 
-		GameContext.Lobby.NatTestCompleted += UpdateHostButtonState;
+		LobbyManager? lobby = GameContext.Lobby;
+		if (lobby != null) lobby.NatTestCompleted += UpdateHostButtonState;
 		UpdateHostButtonState();
 
 
@@ -105,10 +106,10 @@ public partial class LobbyBrowser : Control
 		AddChild(_refreshTimer);
 		_refreshTimer.Start();
 
-		if (!string.IsNullOrEmpty(GameContext.Lobby.LobbyJoinError))
+		if (lobby != null && !string.IsNullOrEmpty(lobby.LobbyJoinError))
 		{
-			ShowLobbyJoinErrorPopup(GameContext.Lobby.LobbyJoinError);
-			GameContext.Lobby.LobbyJoinError = null;
+			ShowLobbyJoinErrorPopup(lobby.LobbyJoinError);
+			lobby.LobbyJoinError = null;
 		}
 	}
 
@@ -264,10 +265,10 @@ public partial class LobbyBrowser : Control
 	{
 		checkBox.Pressed += () =>
 		{
-			GameContext.UserInterface.PlayClickSound();
+			GameContext.UserInterface?.PlayClickSound();
 			ApplyFilters();
 		};
-		checkBox.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
+		checkBox.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 		UIStyle.ApplyCheckboxStyle(checkBox);
 	}
 
@@ -300,10 +301,10 @@ public partial class LobbyBrowser : Control
 
 		_hostButton.Pressed += () =>
 		{
-			GameContext.UserInterface.PlayClickSound();
-			GameContext.UserInterface.TransitionTo(GameScreen.LobbyCreate);
+			GameContext.UserInterface?.PlayClickSound();
+			GameContext.UserInterface?.TransitionTo(GameScreen.LobbyCreate);
 		};
-		_hostButton.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
+		_hostButton.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 	}
 
 	private void SetupDirectConnectButton()
@@ -323,10 +324,10 @@ public partial class LobbyBrowser : Control
 
 		_directConnectButton.Pressed += () =>
 		{
-			GameContext.UserInterface.PlayClickSound();
+			GameContext.UserInterface?.PlayClickSound();
 			ShowDirectConnectDialog();
 		};
-		_directConnectButton.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
+		_directConnectButton.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 	}
 
 	private void ShowDirectConnectDialog()
@@ -421,7 +422,7 @@ public partial class LobbyBrowser : Control
 		cancelBtn.CustomMinimumSize = new Vector2(140, 38);
 		cancelBtn.Pressed += () =>
 		{
-			GameContext.UserInterface.PlayClickSound();
+			GameContext.UserInterface?.PlayClickSound();
 			overlay.QueueFree();
 		};
 		hbox.AddChild(cancelBtn);
@@ -435,21 +436,23 @@ public partial class LobbyBrowser : Control
 			int port = 8999;
 			if (int.TryParse(portInput.Text.Trim(), out int customPort)) port = customPort;
 
-			GameContext.UserInterface.PlayClickSound();
+			GameContext.UserInterface?.PlayClickSound();
 			connectBtn.Disabled = true;
 			UIStyle.ApplyButtonText(connectBtn, Tr("CONNECTING..."), 14);
 
-			bool success = await GameContext.Lobby.JoinByIpAsync(ip, port);
+			if (GameContext.Lobby is not { } lobby) return;
+
+			bool success = await lobby.JoinByIpAsync(ip, port);
 			if (success)
 			{
 				overlay.QueueFree();
-				GameContext.UserInterface.TransitionTo(GameScreen.LobbyRoom);
+				GameContext.UserInterface?.TransitionTo(GameScreen.LobbyRoom);
 			}
 			else
 			{
 				connectBtn.Disabled = false;
 				UIStyle.ApplyButtonText(connectBtn, Tr("CONNECT"), 14);
-				GameContext.UserInterface.PlayWarningSound();
+				GameContext.UserInterface?.PlayWarningSound();
 			}
 		};
 		hbox.AddChild(connectBtn);
@@ -470,10 +473,10 @@ public partial class LobbyBrowser : Control
 
 		_backButton.Pressed += () =>
 		{
-			GameContext.UserInterface.PlayClickSound();
-			GameContext.UserInterface.TransitionTo(GameScreen.MainMenu);
+			GameContext.UserInterface?.PlayClickSound();
+			GameContext.UserInterface?.TransitionTo(GameScreen.MainMenu);
 		};
-		_backButton.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
+		_backButton.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 	}
 
 	private void SetupRefreshButton()
@@ -491,10 +494,10 @@ public partial class LobbyBrowser : Control
 
 		_refreshButton.Pressed += () =>
 		{
-			GameContext.UserInterface.PlayClickSound();
+			GameContext.UserInterface?.PlayClickSound();
 			TriggerRefresh();
 		};
-		_refreshButton.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
+		_refreshButton.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 	}
 
 	private void UpdateHostButtonState()
@@ -516,7 +519,9 @@ public partial class LobbyBrowser : Control
 
 	private void FetchLobbiesFromRegistry()
 	{
-		GameContext.Lobby.RandomizeServerIndex();
+		if (GameContext.Lobby is not { } lobby) return;
+
+		lobby.RandomizeServerIndex();
 		Task.Run(async () =>
 		{
 			try
@@ -872,7 +877,7 @@ public partial class LobbyBrowser : Control
 
 		panel.MouseEntered += () =>
 		{
-			GameContext.UserInterface.PlayHoverSound();
+			GameContext.UserInterface?.PlayHoverSound();
 			panel.AddThemeStyleboxOverride("panel", hoverStyle);
 		};
 		panel.MouseExited += () => panel.AddThemeStyleboxOverride("panel", rowStyle);
@@ -881,7 +886,7 @@ public partial class LobbyBrowser : Control
 		{
 			if (@event is InputEventMouseButton mouseBtn && mouseBtn.Pressed && mouseBtn.ButtonIndex == MouseButton.Left)
 			{
-				GameContext.UserInterface.PlayClickSound();
+				GameContext.UserInterface?.PlayClickSound();
 
 				if (!string.IsNullOrEmpty(data.GameVersion) && data.GameVersion != RealmVersion.GameBinaryVersion)
 				{
@@ -892,8 +897,10 @@ public partial class LobbyBrowser : Control
 				panel.MouseFilter = MouseFilterEnum.Ignore;
 				var connectingOverlay = ShowConnectingPopup();
 
-				GameContext.Lobby.ActiveMapName = data.Map;
-				bool success = await GameContext.Lobby.JoinLobbyAsync(data.LobbyId);
+				if (GameContext.Lobby is not { } lobby) return;
+
+				lobby.ActiveMapName = data.Map;
+				bool success = await lobby.JoinLobbyAsync(data.LobbyId);
 
 				if (connectingOverlay != null && GodotObject.IsInstanceValid(connectingOverlay))
 				{
@@ -902,11 +909,11 @@ public partial class LobbyBrowser : Control
 
 				if (success)
 				{
-					GameContext.UserInterface.TransitionTo(GameScreen.LobbyRoom);
+					GameContext.UserInterface?.TransitionTo(GameScreen.LobbyRoom);
 				}
 				else
 				{
-					GameContext.UserInterface.PlayWarningSound();
+					GameContext.UserInterface?.PlayWarningSound();
 					panel.MouseFilter = MouseFilterEnum.Stop;
 					string errMsg = !string.IsNullOrEmpty(GameContext.Lobby.LobbyJoinError)
 						? GameContext.Lobby.LobbyJoinError
