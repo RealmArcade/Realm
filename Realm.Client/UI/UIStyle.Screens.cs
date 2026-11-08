@@ -165,6 +165,34 @@ public static partial class UIStyle
 		return style;
 	}
 
+	/// <summary>The raised, gold-rimmed plate under the game-over screen's selected tab.</summary>
+	public static StyleBoxFlat CreateGameOverTabActive()
+	{
+		var style = new StyleBoxFlat();
+		style.BgColor = new Color(0.18f, 0.19f, 0.23f, 0.95f);
+		style.BorderColor = ColorGold;
+		style.SetBorderWidthAll(2);
+		style.CornerRadiusTopLeft = 4;
+		style.CornerRadiusTopRight = 4;
+		return style;
+	}
+
+	/// <summary>
+	/// The game-over tabs sit on the table frame, so their lower corners are squared off and only the top ones stay
+	/// rounded; this is the unselected plate and the hovered one, built from the standard button plates.
+	/// </summary>
+	public static StyleBox CreateGameOverTabNormal(bool isHover = false)
+	{
+		var style = isHover ? CreateButtonHover() : CreateButtonNormal();
+		if (style is StyleBoxFlat flat)
+		{
+			flat.CornerRadiusBottomLeft = 0;
+			flat.CornerRadiusBottomRight = 0;
+		}
+
+		return style;
+	}
+
 	/// <summary>
 	/// The plate behind a unit button's health bar. It carries no colour of its own: the portrait panel rewrites the fill
 	/// as the unit's health changes, so one instance per button lasts the whole match.

@@ -209,30 +209,9 @@ public partial class GameOver : Control
 		btn.Flat = false;
 		UIStyle.ApplyButtonText(btn, text, 16);
 
-		var activeStyle = new StyleBoxFlat();
-		activeStyle.BgColor = new Color(0.18f, 0.19f, 0.23f, 0.95f);
-		activeStyle.BorderColor = UIStyle.ColorGold;
-		activeStyle.SetBorderWidthAll(2);
-		activeStyle.CornerRadiusTopLeft = 4;
-		activeStyle.CornerRadiusTopRight = 4;
-
-		var normStyle = UIStyle.CreateButtonNormal();
-		if (normStyle is StyleBoxFlat flatNorm)
-		{
-			flatNorm.CornerRadiusBottomLeft = 0;
-			flatNorm.CornerRadiusBottomRight = 0;
-		}
-
-		var hoverStyle = UIStyle.CreateButtonHover();
-		if (hoverStyle is StyleBoxFlat flatHover)
-		{
-			flatHover.CornerRadiusBottomLeft = 0;
-			flatHover.CornerRadiusBottomRight = 0;
-		}
-
-		btn.AddThemeStyleboxOverride("normal", normStyle);
-		btn.AddThemeStyleboxOverride("hover", hoverStyle);
-		btn.AddThemeStyleboxOverride("pressed", activeStyle);
+		btn.AddThemeStyleboxOverride("normal", UIStyle.CreateGameOverTabNormal());
+		btn.AddThemeStyleboxOverride("hover", UIStyle.CreateGameOverTabNormal(isHover: true));
+		btn.AddThemeStyleboxOverride("pressed", UIStyle.CreateGameOverTabActive());
 		btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 
 		btn.Pressed += () =>
@@ -342,23 +321,9 @@ public partial class GameOver : Control
 
 	private void UpdateTabDisplay()
 	{
-		var activeStyle = new StyleBoxFlat();
-		activeStyle.BgColor = new Color(0.18f, 0.19f, 0.23f, 0.95f);
-		activeStyle.BorderColor = UIStyle.ColorGold;
-		activeStyle.SetBorderWidthAll(2);
-		activeStyle.CornerRadiusTopLeft = 4;
-		activeStyle.CornerRadiusTopRight = 4;
-
-		var normStyle = UIStyle.CreateButtonNormal();
-		if (normStyle is StyleBoxFlat flatNorm)
-		{
-			flatNorm.CornerRadiusBottomLeft = 0;
-			flatNorm.CornerRadiusBottomRight = 0;
-		}
-
-		_btnOverview.AddThemeStyleboxOverride("normal", _activeTab == OverviewTabIndex ? activeStyle : normStyle);
-		_btnEconomy.AddThemeStyleboxOverride("normal", _activeTab == EconomyTabIndex ? activeStyle : normStyle);
-		_btnMilitary.AddThemeStyleboxOverride("normal", _activeTab == MilitaryTabIndex ? activeStyle : normStyle);
+		_btnOverview.AddThemeStyleboxOverride("normal", _activeTab == OverviewTabIndex ? UIStyle.CreateGameOverTabActive() : UIStyle.CreateGameOverTabNormal());
+		_btnEconomy.AddThemeStyleboxOverride("normal", _activeTab == EconomyTabIndex ? UIStyle.CreateGameOverTabActive() : UIStyle.CreateGameOverTabNormal());
+		_btnMilitary.AddThemeStyleboxOverride("normal", _activeTab == MilitaryTabIndex ? UIStyle.CreateGameOverTabActive() : UIStyle.CreateGameOverTabNormal());
 
 
 		if (_activeTab == OverviewTabIndex)
