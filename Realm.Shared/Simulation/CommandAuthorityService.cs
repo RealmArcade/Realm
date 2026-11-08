@@ -520,7 +520,7 @@ public ServerCommandResult ExecuteServerCommand(int peerId, NetworkCommand cmd)
 			return;
 		}
 
-		string resType = GetPropResourceType(closestPropId);
+		string? resType = GetPropResourceType(closestPropId);
 		if (resType == null)
 		{
 			for (int index = 0; index < cmd.UnitEntityIds.Count; index++)
@@ -567,7 +567,7 @@ public ServerCommandResult ExecuteServerCommand(int peerId, NetworkCommand cmd)
 		_context.World.SetOrAdd(entity, new MoveTo(propPos));
 	}
 
-	private string GetPropResourceType(string propId)
+	private string? GetPropResourceType(string propId)
 	{
 		return _context.MapRules.GetResourceTypeForNode(propId);
 	}
