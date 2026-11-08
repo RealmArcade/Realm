@@ -490,7 +490,7 @@ namespace Realm.Client.Core
 			indices[iIdx++] = v01;
 		}
 
-		private void RebuildCoordinateMeshInstance(MeshInstance3D meshInstance, int minX, int minZ, int maxX, int maxZ, Color color, float yOffset = 0.15f)
+		private void RebuildCoordinateMeshInstance(MeshInstance3D? meshInstance, int minX, int minZ, int maxX, int maxZ, Color color, float yOffset = 0.15f)
 		{
 			if (meshInstance == null || GroundTerrain?.Cells == null) return;
 

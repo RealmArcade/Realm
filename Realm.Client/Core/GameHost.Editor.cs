@@ -444,9 +444,9 @@ public partial class GameHost
 			ApplyOverridesToNode(unit, true);
 		}
 
-		if (_editorPreviewNode != null)
+		if (_editorPreviewNode is { } previewNode)
 		{
-			ApplyOverridesToNode(_editorPreviewNode, _editorPreviewNode is Unit3D);
+			ApplyOverridesToNode(previewNode, previewNode is Unit3D);
 		}
 
 		GameContext.PropMultiMesh?.UpdateAllMaterialOverrides();
@@ -912,7 +912,7 @@ public partial class GameHost
 		return (animationId, enabled);
 	}
 
-	private void ApplyVisualOverrides(string templateId, string modelPath, ref bool despill, ref bool normLuma, ref bool ignoreColor, ref string spawnShader, ref string deathShader)
+	private void ApplyVisualOverrides(string templateId, string? modelPath, ref bool despill, ref bool normLuma, ref bool ignoreColor, ref string? spawnShader, ref string? deathShader)
 	{
 		string normKey = GameContext.EditorService.NormalizeModelAssetKey(templateId);
 		string normModel = !string.IsNullOrEmpty(modelPath) ? GameContext.EditorService.NormalizeModelAssetKey(modelPath) : "";

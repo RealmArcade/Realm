@@ -383,12 +383,12 @@ namespace Realm.Client.Core
 
 			string primaryKey = GetSelectedEntityOrAssetKey(objOrId);
 			string normPrimary = GameContext.EditorService.NormalizeModelAssetKey(primaryKey);
-			if (!string.IsNullOrEmpty(normPrimary) && GameContext.ModelOverrideService.ModelSpawnShaders.TryGetValue(normPrimary, out string s1))
+			if (!string.IsNullOrEmpty(normPrimary) && GameContext.ModelOverrideService.ModelSpawnShaders.TryGetValue(normPrimary, out var s1))
 				return s1;
 
 			string assetKey = GetModelAssetKey(objOrId);
 			string normAsset = GameContext.EditorService.NormalizeModelAssetKey(assetKey);
-			if (!string.IsNullOrEmpty(normAsset) && GameContext.ModelOverrideService.ModelSpawnShaders.TryGetValue(normAsset, out string s2))
+			if (!string.IsNullOrEmpty(normAsset) && GameContext.ModelOverrideService.ModelSpawnShaders.TryGetValue(normAsset, out var s2))
 				return s2;
 
 			return GetRegistrySpawnShader(primaryKey);
@@ -421,7 +421,7 @@ namespace Realm.Client.Core
 			EditorHasUnsavedChanges = true;
 		}
 
-		private void UpdateModelSpawnShaders(string norm, string normModel, string shaderKey)
+		private void UpdateModelSpawnShaders(string norm, string? normModel, string shaderKey)
 		{
 			if (string.IsNullOrWhiteSpace(shaderKey))
 			{
@@ -531,12 +531,12 @@ namespace Realm.Client.Core
 			if (objOrId == null) return "";
 			string primaryKey = GetSelectedEntityOrAssetKey(objOrId);
 			string normPrimary = GameContext.EditorService.NormalizeModelAssetKey(primaryKey);
-			if (!string.IsNullOrEmpty(normPrimary) && GameContext.ModelOverrideService.ModelProceduralAnimations.TryGetValue(normPrimary, out string pa1))
+			if (!string.IsNullOrEmpty(normPrimary) && GameContext.ModelOverrideService.ModelProceduralAnimations.TryGetValue(normPrimary, out var pa1))
 				return pa1;
 
 			string assetKey = GetModelAssetKey(objOrId);
 			string normAsset = GameContext.EditorService.NormalizeModelAssetKey(assetKey);
-			if (!string.IsNullOrEmpty(normAsset) && GameContext.ModelOverrideService.ModelProceduralAnimations.TryGetValue(normAsset, out string pa2))
+			if (!string.IsNullOrEmpty(normAsset) && GameContext.ModelOverrideService.ModelProceduralAnimations.TryGetValue(normAsset, out var pa2))
 				return pa2;
 
 			return "";
@@ -728,8 +728,8 @@ namespace Realm.Client.Core
 				bool despill = prop.DespillPlayerColor;
 				bool normLuma = prop.NormalizeLuminance;
 				bool ignoreColor = prop.IgnorePlayerColor;
-				string spawnShader = prop.SpawnShader;
-				string deathShader = prop.DeathShader;
+				string? spawnShader = prop.SpawnShader;
+				string? deathShader = prop.DeathShader;
 
 				ApplyVisualOverrides(prop.TemplateID, prop.ModelPath, ref despill, ref normLuma, ref ignoreColor, ref spawnShader, ref deathShader);
 
@@ -797,7 +797,7 @@ namespace Realm.Client.Core
 		private Decal3D? FindDecal3DInParentChain(Node? node)
 		{
 			if (!GameContext.SessionState.IsMapEditorMode) return null;
-			Node current = node;
+			Node? current = node;
 			while (current != null && current != this)
 			{
 				if (current is Decal3D d) return d;
@@ -892,13 +892,13 @@ namespace Realm.Client.Core
 		private void ApplyDecalPropertiesFromMetadataInternal(Decal decal, string decalId)
 		{
 			ApplyDecalTextures(decal, decalId, out bool hasNormal);
-			DecalMetadata meta = LoadAndGetDecalMetadata(decalId);
+			DecalMetadata? meta = LoadAndGetDecalMetadata(decalId);
 			ApplyDecalRendering(decal, decalId, meta, hasNormal);
 			ApplyDecalAnimation(decal, meta);
 			ApplyDecalPlacement(decal, meta);
 		}
 
-		private void ApplyDecalPlacement(Decal decal, DecalMetadata meta)
+		private void ApplyDecalPlacement(Decal decal, DecalMetadata? meta)
 		{
 			ApplyDecalPlacement(
 				decal,
@@ -939,14 +939,14 @@ namespace Realm.Client.Core
 			if (hasNormal) decal.TextureNormal = assetData.PrimaryNormal;
 		}
 
-		private DecalMetadata LoadAndGetDecalMetadata(string decalId)
+		private DecalMetadata? LoadAndGetDecalMetadata(string decalId)
 		{
 			string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
 			var metadata = MapFileService.LoadMetadata(wsPath);
 			return TryGetDecalMetadata(metadata, decalId);
 		}
 
-		private void ApplyDecalRendering(Decal decal, string decalId, DecalMetadata meta, bool hasNormal)
+		private void ApplyDecalRendering(Decal decal, string decalId, DecalMetadata? meta, bool hasNormal)
 		{
 			float defaultNormalStrength = hasNormal ? 1.0f : 0.0f;
 
@@ -976,7 +976,7 @@ namespace Realm.Client.Core
 			);
 		}
 
-		private void ApplyDecalAnimation(Decal decal, DecalMetadata meta)
+		private void ApplyDecalAnimation(Decal decal, DecalMetadata? meta)
 		{
 			float upperFade = GetDecalRenderingFloat(meta?.UpperFade, 0.3f);
 			float lowerFade = GetDecalRenderingFloat(meta?.LowerFade, 0.3f);
@@ -1012,7 +1012,7 @@ namespace Realm.Client.Core
 			return null;
 		}
 
-		private void ApplyDecalAnimationProperties(Decal decal, DecalMetadata meta, float upperFade, float lowerFade)
+		private void ApplyDecalAnimationProperties(Decal decal, DecalMetadata? meta, float upperFade, float lowerFade)
 		{
 			if (decal is Decal3D d3d)
 			{
@@ -1025,7 +1025,7 @@ namespace Realm.Client.Core
 			}
 		}
 
-		private void ApplyDecal3DAnimationProperties(Decal3D d3d, DecalMetadata meta, float upperFade, float lowerFade)
+		private void ApplyDecal3DAnimationProperties(Decal3D d3d, DecalMetadata? meta, float upperFade, float lowerFade)
 		{
 			if (meta == null) return;
 
@@ -1076,7 +1076,7 @@ namespace Realm.Client.Core
 		{
 			if (node3D is PropEntityProxyNode proxy)
 			{
-				if (GameContext.World != null && GameContext.World.IsAlive(proxy.Entity))
+				if (GameContext.World is { } proxyWorld && proxyWorld.IsAlive(proxy.Entity))
 				{
 					GameContext.PropMultiMesh?.UpdateInstanceTransform(proxy.Entity, proxy.Position, proxy.RotationDegrees.Y, proxy.Scale.X);
 				}
@@ -1343,9 +1343,9 @@ namespace Realm.Client.Core
 		private static void DestroyMapEntity(Entity entity)
 		{
 			if (entity.IsNull || entity == GameContext.Simulation.WorldEntity) return;
-			if (GameContext.World != null && GameContext.World.IsAlive(entity))
+			if (GameContext.World is { } destroyWorld && destroyWorld.IsAlive(entity))
 			{
-				GameContext.World.Destroy(entity);
+				destroyWorld.Destroy(entity);
 			}
 		}
 
@@ -1495,7 +1495,7 @@ namespace Realm.Client.Core
 			return null;
 		}
 
-		private IEditorAction TryExecuteDynamicProximityDelete(float minDistance, Unit3D? closestUnit, float closestUnitDist, Prop3D? closestProp, float closestPropDist, Decal? closestDecal, float closestDecalDist, ProceduralVfxInstance3D? closestVfx, float closestVfxDist)
+		private IEditorAction? TryExecuteDynamicProximityDelete(float minDistance, Unit3D? closestUnit, float closestUnitDist, Prop3D? closestProp, float closestPropDist, Decal? closestDecal, float closestDecalDist, ProceduralVfxInstance3D? closestVfx, float closestVfxDist)
 		{
 			if (closestUnit != null && minDistance == closestUnitDist)
 				return ExecuteUnitProximityDelete(closestUnit);
@@ -1557,10 +1557,10 @@ namespace Realm.Client.Core
 			float closestScale = 1f;
 			float closestDist = 2.0f;
 
-			if (GameContext.World != null)
+			if (GameContext.World is { } staticPropWorld)
 			{
 				var propQuery = QueryCache.AllPropIdentityAndPositionQuery;
-				GameContext.World.Query(in propQuery, (Entity entity, ref PropIdentity pId, ref Position pPos) =>
+				staticPropWorld.Query(in propQuery, (Entity entity, ref PropIdentity pId, ref Position pPos) =>
 				{
 					if (EntityToProp3D.ContainsKey(entity)) return;
 					Vector3 wPos = new Vector3(pPos.Value.X, pPos.Value.Y, pPos.Value.Z);
@@ -1571,8 +1571,8 @@ namespace Realm.Client.Core
 						closestEntity = entity;
 						closestId = pId.PropId;
 						closestPos = wPos;
-						closestRotY = GameContext.World.Has<RotationY>(entity) ? GameContext.World.Get<RotationY>(entity).Value : 0f;
-						closestScale = GameContext.World.Has<ModelScale>(entity) ? GameContext.World.Get<ModelScale>(entity).Value : 1f;
+						closestRotY = staticPropWorld.Has<RotationY>(entity) ? staticPropWorld.Get<RotationY>(entity).Value : 0f;
+						closestScale = staticPropWorld.Has<ModelScale>(entity) ? staticPropWorld.Get<ModelScale>(entity).Value : 1f;
 					}
 				});
 			}
@@ -1628,7 +1628,7 @@ namespace Realm.Client.Core
 			AllUnits.Remove(closestUnit);
 			EntityToUnit3D.Remove(closestUnit.Entity);
 			EntityIdToUnit3D.Remove(closestUnit.Entity.Id);
-			if (GameContext.World.IsAlive(closestUnit.Entity)) GameContext.World.Destroy(closestUnit.Entity);
+			if (World.IsAlive(closestUnit.Entity)) World.Destroy(closestUnit.Entity);
 			closestUnit.QueueFree();
 			return action;
 		}
@@ -1640,7 +1640,7 @@ namespace Realm.Client.Core
 			var action = new ObjectDeleteAction("prop", propId, closestProp.Position, closestProp.RotationDegrees.Y, closestProp.Scale.X, false, closestProp);
 			AllProps.Remove(closestProp);
 			EntityToProp3D.Remove(closestProp.Entity);
-			if (GameContext.World.IsAlive(closestProp.Entity)) GameContext.World.Destroy(closestProp.Entity);
+			if (World.IsAlive(closestProp.Entity)) World.Destroy(closestProp.Entity);
 			closestProp.QueueFree();
 			GameContext.PropMultiMesh?.MarkDirty(propId);
 			return action;
@@ -1649,7 +1649,7 @@ namespace Realm.Client.Core
 		private IEditorAction ExecuteStaticPropProximityDelete(Entity closestStaticPropEntity, string closestStaticPropId, Vector3 closestStaticPropPos, float closestStaticPropRotY, float closestStaticPropScale)
 		{
 			var action = new ObjectDeleteAction("prop", closestStaticPropId, closestStaticPropPos, closestStaticPropRotY, closestStaticPropScale, false, null);
-			GameContext.World.Destroy(closestStaticPropEntity);
+			World.Destroy(closestStaticPropEntity);
 			GameContext.PropMultiMesh?.MarkDirty(closestStaticPropId);
 			return action;
 		}
@@ -1660,7 +1660,7 @@ namespace Realm.Client.Core
 			string decalId = closestDecal is Decal3D d3d ? d3d.DecalId : "logo";
 			var action = new ObjectDeleteAction("decal", decalId, closestDecal.Position, closestDecal.RotationDegrees.Y, closestDecal.Scale.X, false, closestDecal);
 			AllDecals.Remove(closestDecal);
-			if (closestDecal is Decal3D d3 && GameContext.World.IsAlive(d3.Entity)) GameContext.World.Destroy(d3.Entity);
+			if (closestDecal is Decal3D d3 && World.IsAlive(d3.Entity)) World.Destroy(d3.Entity);
 			closestDecal.QueueFree();
 			return action;
 		}
@@ -1738,11 +1738,11 @@ namespace Realm.Client.Core
 			}
 
 			bool isBuilding = false;
-			UnitMetadata meta;
+			UnitMetadata? meta;
 			if (!UnitRegistry.TryGetValue(reqId, out meta) && BuildingRegistry.TryGetValue(reqId, out meta))
 				isBuilding = true;
 
-			if (meta.TemplateID != null)
+			if (meta?.TemplateID != null)
 			{
 				string targetModel = !string.IsNullOrEmpty(meta.ModelPath) ? meta.ModelPath : reqId;
 				string modelPath = GetFallbackModelPath(targetModel, isBuilding);
@@ -1832,6 +1832,8 @@ namespace Realm.Client.Core
 
 		private void PositionEditorPreview(Vector3 position)
 		{
+			if (_editorPreviewNode is not { } previewNode) return;
+
 			if (!GameContext.EditorService.HasCachedRandom) GameContext.EditorService.GenerateNewRandomPlacementRotationAndScale();
 			float previewRot = (GameContext.EditorService.EditorRandomRotation && !GameContext.EditorService.IsPastingObject) ? GameContext.EditorService.CachedRandomRotation : GameContext.EditorService.EditorPlacementRotation;
 			float previewScaleVal = (GameContext.EditorService.EditorRandomScale && !GameContext.EditorService.IsPastingObject) ? GameContext.EditorService.CachedRandomScale : EditorPlacementScale;
@@ -1840,21 +1842,21 @@ namespace Realm.Client.Core
 
 			float safePreviewScale = previewScaleVal <= 0.001f ? 1.0f : previewScaleVal;
 
-			if (_editorPreviewNode is ProceduralVfxInstance3D previewVfxNode)
+			if (previewNode is ProceduralVfxInstance3D previewVfxNode)
 			{
 				PositionVfxPreview(previewVfxNode, previewPos, previewRot, safePreviewScale);
 			}
-			else if (_editorPreviewNode is Decal previewDecal)
+			else if (previewNode is Decal previewDecal)
 			{
 				PositionDecalPreview(previewDecal, previewPos, previewRot, safePreviewScale);
 			}
 			else
 			{
-				PositionStandardPreview(_editorPreviewNode, previewPos, previewRot, safePreviewScale);
+				PositionStandardPreview(previewNode, previewPos, previewRot, safePreviewScale);
 			}
 
-			UpdatePreviewSlopeAlignment(_editorPreviewNode);
-			_editorPreviewNode.Visible = true;
+			UpdatePreviewSlopeAlignment(previewNode);
+			previewNode.Visible = true;
 		}
 
 		private Vector3 CalculateEditorPreviewPosition(Vector3 position, float previewScaleVal)
@@ -2176,7 +2178,7 @@ namespace Realm.Client.Core
 			return newHovered;
 		}
 
-		private void SetHoverState(Node node, bool isHovered)
+		private void SetHoverState(Node? node, bool isHovered)
 		{
 			if (GodotObject.IsInstanceValid(node))
 			{
@@ -2389,19 +2391,19 @@ namespace Realm.Client.Core
 
 		private void UpdateDraggedUnitECS(Unit3D unit, Vector3 dragPos)
 		{
-			if (GameContext.World.IsAlive(unit.Entity))
+			if (World.IsAlive(unit.Entity))
 			{
-				GameContext.World.Set(unit.Entity, new Position(new System.Numerics.Vector3(dragPos.X, dragPos.Y, dragPos.Z)));
-				SyncPreviousTransform(GameContext.World, unit.Entity);
+				World.Set(unit.Entity, new Position(new System.Numerics.Vector3(dragPos.X, dragPos.Y, dragPos.Z)));
+				SyncPreviousTransform(World, unit.Entity);
 				UpdateEditorCoverageOverlay();
 			}
 		}
 
 		private void UpdateDraggedPropProxyECS(PropEntityProxyNode propProxy, Vector3 dragPos)
 		{
-			if (GameContext.World != null && GameContext.World.IsAlive(propProxy.Entity))
+			if (GameContext.World is { } propWorld && propWorld.IsAlive(propProxy.Entity))
 			{
-				GameContext.World.Set(propProxy.Entity, new Position(new System.Numerics.Vector3(dragPos.X, dragPos.Y, dragPos.Z)));
+				propWorld.Set(propProxy.Entity, new Position(new System.Numerics.Vector3(dragPos.X, dragPos.Y, dragPos.Z)));
 				GameContext.PropMultiMesh?.UpdateInstanceTransform(propProxy.Entity, dragPos, propProxy.RotationDegrees.Y, propProxy.Scale.X);
 				UpdateSelectedPropRingPosition(dragPos);
 			}
@@ -2409,10 +2411,10 @@ namespace Realm.Client.Core
 
 		private void UpdateDraggedPropECS(Prop3D prop, Vector3 dragPos)
 		{
-			if (GameContext.World.IsAlive(prop.Entity))
+			if (World.IsAlive(prop.Entity))
 			{
-				GameContext.World.Set(prop.Entity, new Position(new System.Numerics.Vector3(dragPos.X, dragPos.Y, dragPos.Z)));
-				SyncPreviousTransform(GameContext.World, prop.Entity);
+				World.Set(prop.Entity, new Position(new System.Numerics.Vector3(dragPos.X, dragPos.Y, dragPos.Z)));
+				SyncPreviousTransform(World, prop.Entity);
 			}
 
 			GameContext.PropMultiMesh?.MarkDirty(prop.PropId);
@@ -2420,19 +2422,19 @@ namespace Realm.Client.Core
 
 		private void UpdateDraggedDecalECS(Decal3D decal3D, Vector3 dragPos)
 		{
-			if (GameContext.World.IsAlive(decal3D.Entity))
+			if (World.IsAlive(decal3D.Entity))
 			{
-				GameContext.World.Set(decal3D.Entity, new Position(new System.Numerics.Vector3(dragPos.X, dragPos.Y, dragPos.Z)));
-				SyncPreviousTransform(GameContext.World, decal3D.Entity);
+				World.Set(decal3D.Entity, new Position(new System.Numerics.Vector3(dragPos.X, dragPos.Y, dragPos.Z)));
+				SyncPreviousTransform(World, decal3D.Entity);
 			}
 		}
 
 		private void UpdateDraggedVfxECS(ProceduralVfxInstance3D vfxInst, Vector3 dragPos)
 		{
-			if (GameContext.World.IsAlive(vfxInst.Entity))
+			if (World.IsAlive(vfxInst.Entity))
 			{
-				GameContext.World.Set(vfxInst.Entity, new Position(new System.Numerics.Vector3(dragPos.X, dragPos.Y, dragPos.Z)));
-				SyncPreviousTransform(GameContext.World, vfxInst.Entity);
+				World.Set(vfxInst.Entity, new Position(new System.Numerics.Vector3(dragPos.X, dragPos.Y, dragPos.Z)));
+				SyncPreviousTransform(World, vfxInst.Entity);
 			}
 		}
 
@@ -2487,7 +2489,7 @@ namespace Realm.Client.Core
 
 				if (GodotObject.IsInstanceValid(SelectedEditorObject))
 				{
-					var node3D = SelectedEditorObject as Node3D;
+					if (SelectedEditorObject is not Node3D node3D) return;
 					if (SelectedEditorObject is PropEntityProxyNode propProxy)
 					{
 						GameContext.PropMultiMesh?.MarkDirty(propProxy.PropId);
@@ -2731,7 +2733,7 @@ namespace Realm.Client.Core
 			{
 				GameContext.SessionState.ReturningFromTest = false;
 
-				MapStateSnapshot editorState = GameContext.SessionState.EditorWorldState;
+				MapStateSnapshot? editorState = GameContext.SessionState.EditorWorldState;
 				if (editorState == null)
 					throw new InvalidOperationException("The editor's world was not kept before the playtest that is ending.");
 
@@ -2750,9 +2752,9 @@ namespace Realm.Client.Core
 				if (camera != null)
 				{
 					camera.Position = GameContext.SessionState.SavedCameraPosition;
-					if (GameContext.World != null && GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) && GameContext.World.Has<CameraState>(GameContext.Simulation.WorldEntity))
+					if (GameContext.World is { } restoreWorld && restoreWorld.IsAlive(GameContext.Simulation.WorldEntity) && restoreWorld.Has<CameraState>(GameContext.Simulation.WorldEntity))
 					{
-						ref var state = ref GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity);
+						ref var state = ref restoreWorld.Get<CameraState>(GameContext.Simulation.WorldEntity);
 						state.TargetHeight = GameContext.SessionState.SavedTargetHeight;
 						state.CurrentHeight = GameContext.SessionState.SavedTargetHeight;
 						state.TargetYaw = GameContext.SessionState.SavedTargetYaw;
@@ -3153,7 +3155,7 @@ namespace Realm.Client.Core
 			GroundTerrain.UpdateMeshAndPhysics(false, false);
 			var splatAfter = (TerrainSplatWeights[,])GroundTerrain.SplatMap.Clone();
 			var cliffAfter = (TerrainSplatWeights[,])GroundTerrain.CliffSplatMap.Clone();
-			var action = new TerrainModifyAction((TerrainCell[,])null, (TerrainCell[,])null, splatBefore, splatAfter, null, null, cliffBefore, cliffAfter);
+			var action = new TerrainModifyAction((TerrainCell[,]?)null, (TerrainCell[,]?)null, splatBefore, splatAfter, null, null, cliffBefore, cliffAfter);
 			EditorHistoryManager.RecordAction(action);
 			EditorHasUnsavedChanges = true;
 			GameContext.MapEditorHud?.ShowFeedbackExternal(result.IsCliff ? "Flood filled cliff face area" : "Flood filled terrain area");

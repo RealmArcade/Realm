@@ -918,7 +918,7 @@ public partial class GameHost : Node3D
 	private Vector3 _dragObjectStartScale { get; set; }
 	private readonly List<(Node3D Node, Vector3 Position, Vector3 Rotation, Vector3 Scale)> _dragSelectionStartTransforms = new();
 
-	private Node3D _editorPreviewNode { get; set; } = null!;
+	private Node3D? _editorPreviewNode { get; set; }
 
 	private string _editorPreviewId { get; set; } = "";
 	private bool _editorPreviewIsEnemy { get; set; }

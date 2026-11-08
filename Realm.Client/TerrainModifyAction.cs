@@ -30,7 +30,7 @@ public class TerrainModifyAction : IEditorAction
 		int[,]? beforePathing = null,
 		int[,]? afterPathing = null,
 		TerrainSplatWeights[,]? beforeCliffSplatMap = null,
-		TerrainSplatWeights[,] afterCliffSplatMap = null)
+		TerrainSplatWeights[,]? afterCliffSplatMap = null)
 	{
 		_beforeCells = beforeCells;
 		_afterCells = afterCells;
@@ -73,7 +73,7 @@ public class TerrainModifyAction : IEditorAction
 		int[,]? beforePathing = null,
 		int[,]? afterPathing = null,
 		TerrainSplatWeights[,]? beforeCliffSplatMap = null,
-		TerrainSplatWeights[,] afterCliffSplatMap = null)
+		TerrainSplatWeights[,]? afterCliffSplatMap = null)
 	{
 		_minX = minX;
 		_minZ = minZ;
@@ -103,7 +103,7 @@ public class TerrainModifyAction : IEditorAction
 		float[,] beforeHeights, float[,] afterHeights,
 		TerrainSplatWeights[,]? beforeSplatMap, TerrainSplatWeights[,] afterSplatMap,
 		int[,] beforePathing = null, int[,] afterPathing = null,
-		TerrainSplatWeights[,] beforeCliffSplatMap = null, TerrainSplatWeights[,] afterCliffSplatMap = null)
+		TerrainSplatWeights[,]? beforeCliffSplatMap = null, TerrainSplatWeights[,]? afterCliffSplatMap = null)
 		: this(minX, minZ, width, depth, ConvertHeights(beforeHeights), ConvertHeights(afterHeights), beforeSplatMap, afterSplatMap, beforePathing, afterPathing, beforeCliffSplatMap, afterCliffSplatMap)
 	{
 	}
