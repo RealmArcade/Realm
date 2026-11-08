@@ -1200,64 +1200,19 @@ public partial class EditorService : IEditorAPI
 	public (int[,]? Before, int[,]? After) PerformFloodFillPathing(Godot.Vector3 clickPos, int pathingMask, bool pathingAdd, MirrorMode mirrorMode) =>
 		_surface.PerformPathingFloodFill(clickPos, pathingMask, pathingAdd, mirrorMode, _symmetryPivot, _symmetryFolds);
 
+
+
 	public (TerrainCell[,]? BeforeCells, TerrainCell[,]? AfterCells, int[,]? BeforePathing, int[,]? AfterPathing, bool WasAdded) PerformWaterFloodFill(
 		Godot.Vector3 clickPos,
 		WaterType activeWaterMode,
 		byte activeWaterProfile,
 		float waterHeight,
 		MirrorMode mirrorMode,
-		bool isRemoveAction = false)
-	{
-		ref var terrain = ref GetTerrainState();
-		if (terrain.Cells == null || terrain.PathingCodes == null) return (null, null, null, null, false);
+		bool isRemoveAction = false) =>
+		_surface.PerformWaterFloodFill(clickPos, activeWaterMode, activeWaterProfile, waterHeight, mirrorMode, isRemoveAction, _symmetryPivot, _symmetryFolds);
 
-		int width = terrain.Width;
-		int depth = terrain.Depth;
-		float quadSize = terrain.QuadSize;
-
-		var cells = terrain.Cells;
-
-		bool isRemoving = isRemoveAction;
-		WaterType targetWaterMode = isRemoving ? WaterType.None : (activeWaterMode != WaterType.None ? activeWaterMode : WaterType.Shallow);
-		byte targetWaterProfile = isRemoving ? (byte)0 : activeWaterProfile;
-
-		var beforeCells = (TerrainCell[,])cells.Clone();
-		var beforePathing = (int[,])terrain.PathingCodes.Clone();
-
-		var visited = new bool[width, depth];
-		int clickX = Mathf.Clamp((int)Math.Floor(clickPos.X / quadSize + width / 2.0f), 0, width - 1);
-		int clickZ = Mathf.Clamp((int)Math.Floor(clickPos.Z / quadSize + depth / 2.0f), 0, depth - 1);
-		float waterSurfaceY = EditorTerrainSurface.CalculateBaseWaterLevel(clickPos, beforeCells[clickX, clickZ], waterHeight);
-		var filledCells = EditorTerrainSurface.GetWaterFloodFillArea(clickPos, beforeCells, width, depth, quadSize, visited, mirrorMode, waterSurfaceY, isRemoveAction, _symmetryPivot, _symmetryFolds);
-
-		if (filledCells.Count == 0) return (null, null, null, null, false);
-
-		EditorTerrainSurface.ApplyWaterPool(cells, terrain.PathingCodes, filledCells, targetWaterMode, targetWaterProfile, waterSurfaceY, quadSize, width, depth, isRemoving);
-
-		var afterCells = (TerrainCell[,])cells.Clone();
-		var afterPathing = (int[,])terrain.PathingCodes.Clone();
-
-		return (beforeCells, afterCells, beforePathing, afterPathing, !isRemoving);
-	}
-
-	public bool FillWaterPoolAtCell(int cellX, int cellZ, float waterSurfaceY)
-	{
-		ref var terrain = ref GetTerrainState();
-		if (terrain.Cells == null || terrain.PathingCodes == null) return false;
-
-		int width = terrain.Width;
-		int depth = terrain.Depth;
-		if (cellX < 0 || cellX >= width || cellZ < 0 || cellZ >= depth) return false;
-		if (terrain.Cells[cellX, cellZ].WaterMode != WaterType.None) return false;
-
-		byte waterProfileIndex = GameContext.Host?.ActiveWaterProfileIndex ?? (byte)0;
-		bool[,] visited = _surface.AcquireWaterPoolVisited(width, depth);
-		var filledCells = EditorTerrainSurface.CollectWaterPoolCells(cellX, cellZ, terrain.Cells, width, depth, visited, waterSurfaceY, false, new List<Vector2I>());
-		if (filledCells.Count == 0) return false;
-
-		EditorTerrainSurface.ApplyWaterPool(terrain.Cells, terrain.PathingCodes, filledCells, null, waterProfileIndex, waterSurfaceY, terrain.QuadSize, width, depth, false);
-		return true;
-	}
+	public bool FillWaterPoolAtCell(int cellX, int cellZ, float waterSurfaceY) =>
+		_surface.FillWaterPoolAtCell(cellX, cellZ, waterSurfaceY);
 
 	public List<MirroredTransform> GetMirroredTransforms(
 		Godot.Vector3 pos,

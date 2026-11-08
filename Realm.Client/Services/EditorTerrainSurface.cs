@@ -727,4 +727,65 @@ internal sealed class EditorTerrainSurface
 
 		return (pathingBefore, (int[,])pathingCodes.Clone());
 	}
+
+	public (TerrainCell[,]? BeforeCells, TerrainCell[,]? AfterCells, int[,]? BeforePathing, int[,]? AfterPathing, bool WasAdded) PerformWaterFloodFill(
+		Godot.Vector3 clickPos,
+		WaterType activeWaterMode,
+		byte activeWaterProfile,
+		float waterHeight,
+		MirrorMode mirrorMode,
+		bool isRemoveAction,
+		Vector2 symmetryPivot,
+		int symmetryFolds)
+	{
+		ref var terrain = ref EditorService.GetTerrainState();
+		if (terrain.Cells == null || terrain.PathingCodes == null) return (null, null, null, null, false);
+
+		int width = terrain.Width;
+		int depth = terrain.Depth;
+		float quadSize = terrain.QuadSize;
+
+		var cells = terrain.Cells;
+
+		bool isRemoving = isRemoveAction;
+		WaterType targetWaterMode = isRemoving ? WaterType.None : (activeWaterMode != WaterType.None ? activeWaterMode : WaterType.Shallow);
+		byte targetWaterProfile = isRemoving ? (byte)0 : activeWaterProfile;
+
+		var beforeCells = (TerrainCell[,])cells.Clone();
+		var beforePathing = (int[,])terrain.PathingCodes.Clone();
+
+		var visited = new bool[width, depth];
+		int clickX = Mathf.Clamp((int)Math.Floor(clickPos.X / quadSize + width / 2.0f), 0, width - 1);
+		int clickZ = Mathf.Clamp((int)Math.Floor(clickPos.Z / quadSize + depth / 2.0f), 0, depth - 1);
+		float waterSurfaceY = CalculateBaseWaterLevel(clickPos, beforeCells[clickX, clickZ], waterHeight);
+		var filledCells = GetWaterFloodFillArea(clickPos, beforeCells, width, depth, quadSize, visited, mirrorMode, waterSurfaceY, isRemoveAction, symmetryPivot, symmetryFolds);
+
+		if (filledCells.Count == 0) return (null, null, null, null, false);
+
+		ApplyWaterPool(cells, terrain.PathingCodes, filledCells, targetWaterMode, targetWaterProfile, waterSurfaceY, quadSize, width, depth, isRemoving);
+
+		var afterCells = (TerrainCell[,])cells.Clone();
+		var afterPathing = (int[,])terrain.PathingCodes.Clone();
+
+		return (beforeCells, afterCells, beforePathing, afterPathing, !isRemoving);
+	}
+
+	public bool FillWaterPoolAtCell(int cellX, int cellZ, float waterSurfaceY)
+	{
+		ref var terrain = ref EditorService.GetTerrainState();
+		if (terrain.Cells == null || terrain.PathingCodes == null) return false;
+
+		int width = terrain.Width;
+		int depth = terrain.Depth;
+		if (cellX < 0 || cellX >= width || cellZ < 0 || cellZ >= depth) return false;
+		if (terrain.Cells[cellX, cellZ].WaterMode != WaterType.None) return false;
+
+		byte waterProfileIndex = GameContext.Host?.ActiveWaterProfileIndex ?? (byte)0;
+		bool[,] visited = AcquireWaterPoolVisited(width, depth);
+		var filledCells = CollectWaterPoolCells(cellX, cellZ, terrain.Cells, width, depth, visited, waterSurfaceY, false, new List<Vector2I>());
+		if (filledCells.Count == 0) return false;
+
+		ApplyWaterPool(terrain.Cells, terrain.PathingCodes, filledCells, null, waterProfileIndex, waterSurfaceY, terrain.QuadSize, width, depth, false);
+		return true;
+	}
 }
