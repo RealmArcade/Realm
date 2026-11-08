@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using Godot;
 using Realm.Client.Animation;
@@ -35,8 +36,8 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 		{ "Dance", "💃" }
 	};
 
-	private Node3D _previewModelRoot = null!;
-	private AnimationPlayer _animPlayer = null!;
+	private Node3D? _previewModelRoot;
+	private AnimationPlayer? _animPlayer;
 
 	private LineEdit _txtPreviewRanim = null!;
 	private Action<string> _setPreviewRanimValue = null!;
@@ -205,7 +206,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 		RebuildActionListUI();
 	}
 
-	private string ResolveModelPath(string unitId, string providedModelPath)
+	private string? ResolveModelPath(string unitId, string? providedModelPath)
 	{
 		if (!string.IsNullOrEmpty(providedModelPath) || string.IsNullOrEmpty(unitId))
 			return providedModelPath;
@@ -243,7 +244,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 		OpenDialog();
 		ResetCameraDefault();
 
-		Node3D loadedModel = null;
+		Node3D? loadedModel = null;
 		if (!string.IsNullOrEmpty(modelPath))
 		{
 			var loaded = ModelCache.GetModel(modelPath);
@@ -263,7 +264,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 		RebuildActionListUI();
 	}
 
-	private void CopyAnimationsToWorking(Dictionary<string, List<UnitAnimationEntry>> sourceAnims)
+	private void CopyAnimationsToWorking(Dictionary<string, List<UnitAnimationEntry>>? sourceAnims)
 	{
 		if (sourceAnims == null) return;
 		foreach (var kvp in sourceAnims)
@@ -353,7 +354,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 
 	private Label CreateSocketBadge(ConfiguredAttachmentEntry entry)
 	{
-		string parentAttId = entry.Orientation.ParentAttachmentId;
+		string? parentAttId = entry.Orientation.ParentAttachmentId;
 		bool isChild = !string.IsNullOrEmpty(parentAttId);
 		string badgeText = isChild
 			? $"[{entry.SocketId} ➔ {Path.GetFileNameWithoutExtension(parentAttId)}]"
@@ -610,7 +611,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 
 	private void AddCurrentPreviewToSelectedAction()
 	{
-		string animFile = GetValidPreviewAnimationOrNull();
+		string? animFile = GetValidPreviewAnimationOrNull();
 		if (animFile == null) return;
 
 		string actionType = GetSelectedActionType();
@@ -628,9 +629,9 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 		RebuildActionListUI();
 	}
 
-	private string GetValidPreviewAnimationOrNull()
+	private string? GetValidPreviewAnimationOrNull()
 	{
-		string animFile = _currentPreviewRanim?.Trim();
+		string? animFile = _currentPreviewRanim?.Trim();
 		if (string.IsNullOrEmpty(animFile))
 		{
 			Hud?.ShowFeedback(TranslationServer.Translate("Please select an animation in the preview field first."));
@@ -792,6 +793,8 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 	private void AddPseudoAnchor(string socketId, Vector3 pos)
 	{
 		string normSocket = ObjectAttachmentDialog.NormalizeSocketId(socketId);
+		if (_previewModelRoot == null || !GodotObject.IsInstanceValid(_previewModelRoot)) return;
+
 		var anchor = new Node3D { Name = $"PreviewSocketAnchor_{normSocket}" };
 		anchor.Position = pos;
 		_previewModelRoot.AddChild(anchor);
@@ -840,7 +843,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 		}
 	}
 
-	private Node3D ResolveAttachmentTarget(Node3D targetAnchor, string parentAttachmentId)
+	private Node3D ResolveAttachmentTarget(Node3D targetAnchor, string? parentAttachmentId)
 	{
 		if (string.IsNullOrEmpty(parentAttachmentId))
 			return targetAnchor;
@@ -858,7 +861,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 
 		if (IsInvalidAttachmentId(entry.AttachmentId)) return;
 
-		Node3D loaded = Unit3D.ResolveAndInstantiateAttachment(entry.AttachmentId, out _, out _, out _);
+		Node3D? loaded = Unit3D.ResolveAndInstantiateAttachment(entry.AttachmentId, out _, out _, out _);
 		if (loaded == null) return;
 
 		string key = ObjectAttachmentDialog.GetAttachmentKey(normSocket, entry.AttachmentId, entry.Index, entry.Orientation.ParentAttachmentId);
@@ -872,7 +875,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 		_attachmentVisualNodes[key] = loaded;
 	}
 
-	private bool IsInvalidSocketAnchor(string normSocket, out Node3D? targetAnchor)
+	private bool IsInvalidSocketAnchor(string normSocket, [NotNullWhen(false)] out Node3D? targetAnchor)
 	{
 		if (!_socketAnchorNodes.TryGetValue(normSocket, out targetAnchor)) return true;
 		if (targetAnchor == null) return true;
@@ -1022,9 +1025,9 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 		return true;
 	}
 
-	private RealmAnimationData LoadOrGetFallbackAnimationData(string animFileName, string animName)
+	private RealmAnimationData? LoadOrGetFallbackAnimationData(string animFileName, string animName)
 	{
-		string filePath = AnimationRetargetingService.ResolveAnimationFilePath(animFileName, _currentUnitId);
+		string? filePath = AnimationRetargetingService.ResolveAnimationFilePath(animFileName, _currentUnitId);
 		if (!string.IsNullOrEmpty(filePath))
 		{
 			return AnimationRetargetingService.GetOrLoadRanimData(filePath);
@@ -1045,7 +1048,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 
 		if (PlayExistingAnimation(animName)) return;
 
-		RealmAnimationData animData = LoadOrGetFallbackAnimationData(animFileName, animName);
+		RealmAnimationData? animData = LoadOrGetFallbackAnimationData(animFileName, animName);
 
 		if (animData != null && AnimationRetargetingService.RetargetAndBind(animData, _previewModelRoot, animName, out _))
 		{
