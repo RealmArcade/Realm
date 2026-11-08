@@ -3354,82 +3354,12 @@ public partial class EditorService : IEditorAPI
 		Vector2? pivot = null,
 		int? folds = null)
 	{
-		var list = new List<MirroredTransform>();
-		if (mirrorMode == MirrorMode.None) return list;
-
-		Vector2 p = pivot ?? _symmetryPivot;
-		int n = folds ?? _symmetryFolds;
-		if (n < 2) n = 2;
-
-		float dx = pos.X - p.X;
-		float dz = pos.Z - p.Y;
-
-		bool isHoriz = mirrorMode == MirrorMode.Horizontal || mirrorMode == MirrorMode.Both;
-		bool isVert = mirrorMode == MirrorMode.Vertical || mirrorMode == MirrorMode.Both;
-		if (isHoriz) list.Add(new MirroredTransform { Position = new Godot.Vector3(p.X - dx, pos.Y, p.Y + dz), Rotation = 180.0f - rotation });
-		if (isVert) list.Add(new MirroredTransform { Position = new Godot.Vector3(p.X + dx, pos.Y, p.Y - dz), Rotation = -rotation });
-		if (mirrorMode == MirrorMode.Both) list.Add(new MirroredTransform { Position = new Godot.Vector3(p.X - dx, pos.Y, p.Y - dz), Rotation = rotation + 180.0f });
-		if (mirrorMode == MirrorMode.Rotational)
-		{
-			for (int k = 1; k < n; k++)
-			{
-				float angleRad = k * (Mathf.Tau / n);
-				float cosA = Mathf.Cos(angleRad);
-				float sinA = Mathf.Sin(angleRad);
-				float rx = p.X + dx * cosA - dz * sinA;
-				float rz = p.Y + dx * sinA + dz * cosA;
-				float rotK = (rotation + k * (360.0f / n)) % 360.0f;
-				if (rotK < 0) rotK += 360.0f;
-				list.Add(new MirroredTransform { Position = new Godot.Vector3(rx, pos.Y, rz), Rotation = rotK });
-			}
-		}
-
-		return list;
+		return EditorGridSnapping.GetMirroredTransforms(pos, rotation, mirrorMode, pivot ?? _symmetryPivot, folds ?? _symmetryFolds);
 	}
 
 	public (int startX, int startZ, int targetWidth, int targetDepth) GetAnchoredPasteBounds(int targetX, int targetZ, float rotationDegrees, PasteReflection reflection = PasteReflection.None)
 	{
-		if (_copiedArea == null) return (targetX, targetZ, 0, 0);
-
-		float r = rotationDegrees % 360.0f;
-		if (r < 0) r += 360.0f;
-		int rotSteps = (int)Math.Round(r / 90.0f) % 4;
-
-		int pasteWidth = _copiedArea.Width;
-		int pasteDepth = _copiedArea.Depth;
-		int targetWidth = pasteWidth;
-		int targetDepth = pasteDepth;
-		if (rotSteps == 1 || rotSteps == 3)
-		{
-			targetWidth = pasteDepth;
-			targetDepth = pasteWidth;
-		}
-
-		int anchorX = _copiedArea.AnchorTileX;
-		int anchorZ = _copiedArea.AnchorTileZ;
-
-		if (reflection == PasteReflection.Horizontal) anchorX = pasteWidth - 1 - anchorX;
-		else if (reflection == PasteReflection.Vertical) anchorZ = pasteDepth - 1 - anchorZ;
-
-		int rotAnchorX = anchorX;
-		int rotAnchorZ = anchorZ;
-		if (rotSteps == 1)
-		{
-			rotAnchorX = pasteDepth - 1 - anchorZ;
-			rotAnchorZ = anchorX;
-		}
-		else if (rotSteps == 2)
-		{
-			rotAnchorX = pasteWidth - 1 - anchorX;
-			rotAnchorZ = pasteDepth - 1 - anchorZ;
-		}
-		else if (rotSteps == 3)
-		{
-			rotAnchorX = anchorZ;
-			rotAnchorZ = pasteWidth - 1 - anchorX;
-		}
-
-		return (targetX - rotAnchorX, targetZ - rotAnchorZ, targetWidth, targetDepth);
+		return EditorGridSnapping.GetAnchoredPasteBounds(_copiedArea, targetX, targetZ, rotationDegrees, reflection);
 	}
 
 	public (int minX, int minZ, int maxX, int maxZ) GetCurrentSelectionBounds()
@@ -3444,59 +3374,22 @@ public partial class EditorService : IEditorAPI
 
 	public (int cx, int cz) WorldPosToCellCoords(Godot.Vector3 worldPos)
 	{
-		ref var terrain = ref GetTerrainState();
-		int width = terrain.Width;
-		int depth = terrain.Depth;
-		float quadSize = terrain.QuadSize;
-		float fx = worldPos.X / quadSize + width / 2.0f;
-		float fz = worldPos.Z / quadSize + depth / 2.0f;
-		int cx = Mathf.Clamp(Mathf.FloorToInt(fx), 0, width - 1);
-		int cz = Mathf.Clamp(Mathf.FloorToInt(fz), 0, depth - 1);
-		return (cx, cz);
+		return EditorGridSnapping.WorldPosToCellCoords(worldPos);
 	}
 
 	public Godot.Vector3 SnapToGrid(Godot.Vector3 worldPos)
 	{
-		ref var terrain = ref GetTerrainState();
-		if (terrain.Cells == null) return worldPos;
-		float quadSize = terrain.QuadSize;
-		int width = terrain.Width;
-		int depth = terrain.Depth;
-		float fx = Mathf.Round(worldPos.X / quadSize + width / 2.0f);
-		worldPos.X = (Mathf.Clamp(fx, 0, width) - width / 2.0f) * quadSize;
-		float fz = Mathf.Round(worldPos.Z / quadSize + depth / 2.0f);
-		worldPos.Z = (Mathf.Clamp(fz, 0, depth) - depth / 2.0f) * quadSize;
-		return worldPos;
+		return EditorGridSnapping.SnapToGrid(worldPos);
 	}
 
 	public Godot.Vector3 SnapToVertex(Godot.Vector3 worldPos)
 	{
-		ref var terrain = ref GetTerrainState();
-		if (terrain.Cells == null) return worldPos;
-		float quadSize = terrain.QuadSize;
-		int width = terrain.Width;
-		int depth = terrain.Depth;
-		float fx = Mathf.Round(worldPos.X / quadSize + width / 2.0f);
-		int vx = Mathf.Clamp((int)fx, 0, width);
-		float fz = Mathf.Round(worldPos.Z / quadSize + depth / 2.0f);
-		int vz = Mathf.Clamp((int)fz, 0, depth);
-		float worldX = (vx - width / 2.0f) * quadSize;
-		float worldZ = (vz - depth / 2.0f) * quadSize;
-		float height = RuntimeTerrain.GetGridNodeHeight(vx, vz, terrain.Cells, width, depth);
-		return new Godot.Vector3(worldX, height, worldZ);
+		return EditorGridSnapping.SnapToVertex(worldPos);
 	}
 
 	public (int vx, int vz) WorldPosToVertexCoords(Godot.Vector3 worldPos)
 	{
-		ref var terrain = ref GetTerrainState();
-		int width = terrain.Width;
-		int depth = terrain.Depth;
-		float quadSize = terrain.QuadSize;
-		float fx = worldPos.X / quadSize + width / 2.0f;
-		float fz = worldPos.Z / quadSize + depth / 2.0f;
-		int vx = Mathf.Clamp((int)Math.Round(fx), 0, width);
-		int vz = Mathf.Clamp((int)Math.Round(fz), 0, depth);
-		return (vx, vz);
+		return EditorGridSnapping.WorldPosToVertexCoords(worldPos);
 	}
 
 	internal static bool TryGetTerrainState(out Entity terrainEntity)
@@ -3589,14 +3482,7 @@ public partial class EditorService : IEditorAPI
 
 	public List<Godot.Vector3> GetMirroredPositions(Godot.Vector3 pos, MirrorMode mirrorMode)
 	{
-		var list = new List<Godot.Vector3>();
-		var transforms = GetMirroredTransforms(pos, 0.0f, mirrorMode);
-		foreach (var t in transforms)
-		{
-			list.Add(t.Position);
-		}
-
-		return list;
+		return EditorGridSnapping.GetMirroredPositions(pos, mirrorMode, _symmetryPivot, _symmetryFolds);
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -3647,19 +3533,7 @@ public partial class EditorService : IEditorAPI
 
 	private void SanitizeCornerHeights(ref TerrainState terrain)
 	{
-		var cells = terrain.Cells;
-		if (cells == null) return;
-
-		int w = terrain.Width;
-		int d = terrain.Depth;
-
-		for (int gz = 0; gz <= d; gz++)
-		{
-			for (int gx = 0; gx <= w; gx++)
-			{
-				SanitizeCellCorners(cells, gx, gz, w, d, GetGridNodeHeight(in terrain, gx, gz));
-			}
-		}
+		EditorGridSnapping.SanitizeCornerHeights(ref terrain);
 	}
 
 	private void ProcessPasteBlockCell(
