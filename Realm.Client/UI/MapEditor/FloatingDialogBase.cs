@@ -22,6 +22,7 @@ public partial class FloatingDialogBase : PanelContainer
 	}
 
 	private static readonly List<FloatingDialogBase> _openDialogs = new();
+	private readonly List<LineEdit> _focusableInputs = new();
 	public static bool HasAnyDialogOpen => _openDialogs.Count > 0;
 
 	public static bool IsMouseOverAnyDialogOpen(Vector2 mousePos)
@@ -371,7 +372,8 @@ public partial class FloatingDialogBase : PanelContainer
 
 	private void CycleFocusToNextInput(bool reverse)
 	{
-		var inputs = new List<LineEdit>();
+		List<LineEdit> inputs = _focusableInputs;
+		inputs.Clear();
 		CollectFocusableInputs(this, inputs);
 		if (inputs.Count == 0) return;
 
