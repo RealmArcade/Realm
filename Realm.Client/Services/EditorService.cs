@@ -570,28 +570,7 @@ public partial class EditorService : IEditorAPI
 	public const float MIN_PLACEMENT_SCALE = 0.25f;
 	public const float MAX_PLACEMENT_SCALE = 5.0f;
 
-	public bool _lastBrushShapeIsSquare { get; set; }
-	public bool _hasLastBrushShape { get; set; }
-
-	public bool TrySetBrushShapeExternal(bool isSquare)
-	{
-		if (_hasLastBrushShape && _lastBrushShapeIsSquare == isSquare) return false;
-		_hasLastBrushShape = true;
-		_lastBrushShapeIsSquare = isSquare;
-		return true;
-	}
-
-	public float _lastRotationExternal { get; set; } = float.NaN;
-	public float _lastPasteRotationExternal { get; set; } = float.NaN;
-	public PasteReflection _lastPasteReflectionExternal { get; set; } = (PasteReflection)(-1);
-	public float _lastScaleExternal { get; set; } = float.NaN;
-	public float _lastBrushSizeExternal { get; set; } = float.NaN;
-
-	public void UpdatePasteReflectionExternalDomain(PasteReflection reflection)
-	{
-		if (_lastPasteReflectionExternal == reflection) return;
-		_lastPasteReflectionExternal = reflection;
-	}
+	public EditorPlacementSettings Placement { get; } = new();
 
 	public int GetPasteAnchorZ(int index, int depth)
 	{
@@ -615,34 +594,6 @@ public partial class EditorService : IEditorAPI
 		int ax = GetPasteAnchorX(CurrentPasteAnchorIndex, w);
 		int az = GetPasteAnchorZ(CurrentPasteAnchorIndex, d);
 		SetCopiedAreaAnchor(ax, az);
-	}
-
-	public bool SetLastRotationExternal(float angle)
-	{
-		if (Mathf.IsEqualApprox(_lastRotationExternal, angle)) return false;
-		_lastRotationExternal = angle;
-		return true;
-	}
-
-	public bool SetLastPasteRotationExternal(float angle)
-	{
-		if (Mathf.IsEqualApprox(_lastPasteRotationExternal, angle)) return false;
-		_lastPasteRotationExternal = angle;
-		return true;
-	}
-
-	public bool SetLastScaleExternal(float scale)
-	{
-		if (Mathf.IsEqualApprox(_lastScaleExternal, scale)) return false;
-		_lastScaleExternal = scale;
-		return true;
-	}
-
-	public bool SetLastBrushSizeExternal(float size)
-	{
-		if (Mathf.IsEqualApprox(_lastBrushSizeExternal, size)) return false;
-		_lastBrushSizeExternal = size;
-		return true;
 	}
 
 	public static readonly Dictionary<EditorTool, string> ToolInfoTexts = new()

@@ -901,28 +901,28 @@ namespace Realm.Client.UI
 
 		public void UpdateRotationExternal(float angle)
 		{
-			if (!GameContext.EditorService.SetLastRotationExternal(angle)) return;
+			if (!GameContext.EditorService.Placement.SetLastRotation(angle)) return;
 			if (_lblPlacementRotateValue != null) _lblPlacementRotateValue.Text = angle.ToString("F0") + "°";
 			if (_sldPlacementRotate != null && !Mathf.IsEqualApprox((float)_sldPlacementRotate.Value, angle)) _sldPlacementRotate.Value = angle;
 		}
 
 		public void UpdatePasteRotationExternal(float angle)
 		{
-			if (!GameContext.EditorService.SetLastPasteRotationExternal(angle)) return;
+			if (!GameContext.EditorService.Placement.SetLastPasteRotation(angle)) return;
 			if (_lblPasteRotation != null) _lblPasteRotation.Text = angle.ToString("F0") + "°";
 			if (_sldPasteRotation != null && !Mathf.IsEqualApprox((float)_sldPasteRotation.Value, angle)) _sldPasteRotation.Value = angle;
 		}
 
 		public void UpdateScaleExternal(float scale)
 		{
-			if (!GameContext.EditorService.SetLastScaleExternal(scale)) return;
+			if (!GameContext.EditorService.Placement.SetLastScale(scale)) return;
 			if (_lblPlacementScaleValue != null) _lblPlacementScaleValue.Text = scale.ToString("F1") + "x";
 			if (_sldPlacementScale != null && !Mathf.IsEqualApprox((float)_sldPlacementScale.Value, scale)) _sldPlacementScale.Value = scale;
 		}
 
 		public void UpdateBrushSizeExternal(float size)
 		{
-			if (!GameContext.EditorService.SetLastBrushSizeExternal(size)) return;
+			if (!GameContext.EditorService.Placement.SetLastBrushSize(size)) return;
 			if (_sldBrushSize != null && !Mathf.IsEqualApprox((float)_sldBrushSize.Value, size))
 			{
 				_sldBrushSize.Value = Mathf.Round(size);

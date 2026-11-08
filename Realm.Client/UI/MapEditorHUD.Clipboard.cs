@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.Services;
@@ -18,7 +18,7 @@ namespace Realm.Client.UI
 
 		public void UpdatePasteReflectionExternal(PasteReflection reflection)
 		{
-			GameContext.EditorService.UpdatePasteReflectionExternalDomain(reflection);
+			GameContext.EditorService.Placement.UpdatePasteReflection(reflection);
 			UpdatePasteReflectionButtonText();
 		}
 

@@ -2526,7 +2526,7 @@ namespace Realm.Client.UI
 
 		public void UpdateBrushShapeExternal(bool isSquare)
 		{
-			if (GameContext.EditorService.TrySetBrushShapeExternal(isSquare))
+			if (GameContext.EditorService.Placement.TrySetBrushShape(isSquare))
 			{
 				if (_btnBrushShape != null)
 				{
