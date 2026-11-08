@@ -2357,7 +2357,7 @@ namespace Realm.Client.UI
 
 		private void OnEditorInstallingPollTimeout()
 		{
-			if (!GodotObject.IsInstanceValid(this)) return;
+			if (!OperatingSystem.IsWindows() || !GodotObject.IsInstanceValid(this)) return;
 			if (_editorInstallingCard == null || !GodotObject.IsInstanceValid(_editorInstallingCard)) return;
 
 			if (GameContext.VSCode.IsInstalled())
