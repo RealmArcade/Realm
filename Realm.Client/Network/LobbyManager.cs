@@ -557,11 +557,11 @@ public partial class LobbyManager : BaseMapTransferNode
 				}
 			}
 
-			if (result == null || !result.Success || result.MappedEndPoint == null) return;
+			if (result == null || !result.Success || result.MappedEndPoint is not IPEndPoint mappedEndPoint) return;
 
-			bool mappedFromBoundPort = result.LocalEndPoint != null && result.LocalEndPoint.Port == localPort;
-			_hostPublicIp = result.MappedEndPoint.Address.ToString();
-			_hostPublicPort = mappedFromBoundPort ? result.MappedEndPoint.Port : localPort;
+			bool mappedFromBoundPort = result.LocalEndPoint is IPEndPoint localEndPoint && localEndPoint.Port == localPort;
+			_hostPublicIp = mappedEndPoint.Address.ToString();
+			_hostPublicPort = mappedFromBoundPort ? mappedEndPoint.Port : localPort;
 			GameLog.LogToConsole($"[STUN] Local {localPort} -> Public {_hostPublicIp}:{_hostPublicPort}");
 		}
 		catch (Exception ex)

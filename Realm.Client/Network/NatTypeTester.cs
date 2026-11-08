@@ -52,7 +52,7 @@ public class NatTypeTester
 		var test1 = await QueryStunAsync(primaryServerAddress, StunPort, testLocalPort);
 		if (!test1.Success) return NatType.RestrictedCone;
 
-		int boundPort = test1.LocalEndPoint != null ? test1.LocalEndPoint.Port : testLocalPort;
+		int boundPort = test1.LocalEndPoint?.Port ?? testLocalPort;
 
 		if (IsSameEndPoint(test1.MappedEndPoint, test1.LocalEndPoint))
 		{
@@ -75,7 +75,7 @@ public class NatTypeTester
 		return NatType.PortRestrictedCone;
 	}
 
-	private static bool IsSameEndPoint(IPEndPoint ep1, IPEndPoint ep2)
+	private static bool IsSameEndPoint(IPEndPoint? ep1, IPEndPoint? ep2)
 	{
 		if (ep1 == null || ep2 == null) return false;
 		return ep1.Address.Equals(ep2.Address) && ep1.Port == ep2.Port;
@@ -241,7 +241,7 @@ public class NatTypeTester
 		return result;
 	}
 
-	private static IPEndPoint ParseAddress(byte[] response, int offset, int length, bool isXor)
+	private static IPEndPoint? ParseAddress(byte[] response, int offset, int length, bool isXor)
 	{
 		if (length < 8) return null;
 
