@@ -330,7 +330,7 @@ namespace Realm.Client.UI
 			if (_accordionTool != null) _accordionTool.CustomMinimumSize = new Vector2(260, 0);
 			if (_brushPanel?.Accordion != null) _brushPanel.Accordion.CustomMinimumSize = new Vector2(260, 0);
 			if (_accordionToolSettings != null) _accordionToolSettings.CustomMinimumSize = new Vector2(260, 0);
-			if (_accordionPlacement != null) _accordionPlacement.CustomMinimumSize = new Vector2(260, 0);
+			if (_placementPanel?.Accordion != null) _placementPanel.Accordion.CustomMinimumSize = new Vector2(260, 0);
 			if (_accordionInspector != null) _accordionInspector.CustomMinimumSize = new Vector2(260, 0);
 			if (_waterPanel?.Accordion != null) _waterPanel.Accordion.CustomMinimumSize = new Vector2(260, 0);
 
@@ -340,7 +340,7 @@ namespace Realm.Client.UI
 			ApplyCardPanelStyle(_brushPanel.Accordion);
 			if (_waterPanel?.Accordion != null) ApplyCardPanelStyle(_waterPanel.Accordion);
 			ApplyCardPanelStyle(_accordionToolSettings);
-			ApplyCardPanelStyle(_accordionPlacement);
+			ApplyCardPanelStyle(_placementPanel.Accordion);
 			ApplyCardPanelStyle(_accordionInspector);
 		}
 
@@ -352,7 +352,7 @@ namespace Realm.Client.UI
 			StyleContentBox(_brushPanel.Content);
 			if (_waterPanel?.Content != null) StyleContentBox(_waterPanel.Content);
 			StyleContentBox(_contentToolSettings);
-			StyleContentBox(_contentPlacement);
+			StyleContentBox(_placementPanel.Content);
 			StyleContentBox(_contentInspector);
 		}
 
@@ -364,7 +364,7 @@ namespace Realm.Client.UI
 			SetupCardScrollContainer(_brushPanel.Content, 300f);
 			if (_waterPanel?.Content != null) SetupCardScrollContainer(_waterPanel.Content, 200f);
 			SetupCardScrollContainer(_contentToolSettings, 320f);
-			SetupCardScrollContainer(_contentPlacement, 320f);
+			SetupCardScrollContainer(_placementPanel.Content, 320f);
 			SetupCardScrollContainer(_contentInspector, 300f);
 		}
 
@@ -440,10 +440,10 @@ namespace Realm.Client.UI
 			StyleValueBadge(_brushPanel.StrengthValue);
 			StyleValueBadge(_brushPanel.StepValue);
 			StyleValueBadge(_brushPanel.HeightValue);
-			StyleValueBadge(_lblPlacementRotateValue);
-			StyleValueBadge(_lblPlacementScaleValue);
-			StyleValueBadge(_lblClumpDensityValue);
-			StyleValueBadge(_lblClumpScaleVarValue);
+			StyleValueBadge(_placementPanel.RotateValue);
+			StyleValueBadge(_placementPanel.ScaleValue);
+			StyleValueBadge(_placementPanel.DensityValue);
+			StyleValueBadge(_placementPanel.ScaleVarValue);
 			StyleValueBadge(_pastePanel?.RotationLabel);
 		}
 
@@ -455,9 +455,9 @@ namespace Realm.Client.UI
 			StyleCheckBoxRow(_chkFlying);
 			StyleCheckBoxRow(_chkGround);
 			StyleCheckBoxRow(_chkBuildable);
-			StyleCheckBoxRow(_chkRandomRotation);
-			StyleCheckBoxRow(_chkRandomScale);
-			StyleCheckBoxRow(_chkClumpMode);
+			StyleCheckBoxRow(_placementPanel.RandomRotationCheck);
+			StyleCheckBoxRow(_placementPanel.RandomScaleCheck);
+			StyleCheckBoxRow(_placementPanel.ClumpModeCheck);
 		}
 
 		private void ApplySubContainerStyles()
@@ -465,8 +465,8 @@ namespace Realm.Client.UI
 			StyleSubContainer(_containerTextureSettings, "Texture Paint Palette");
 			StyleSubContainer(_containerPathingSettings, "Pathing Masks");
 			StyleSubContainer(_containerPlacementSettings, "Placement Controls");
-			StyleSubContainer(_densityBox, "Clump Density");
-			StyleSubContainer(_scaleVarBox, "Scale Variance");
+			StyleSubContainer(_placementPanel.DensityBox, "Clump Density");
+			StyleSubContainer(_placementPanel.ScaleVarBox, "Scale Variance");
 			StyleSubContainer(_containerEyedropperSettings, "Eyedropper Sample Filter");
 			StyleSubContainer(_pastePanel?.Container, "Paste Options");
 			StyleSubContainer(_containerCategorySelector, "Entity Categories");
@@ -902,8 +902,8 @@ namespace Realm.Client.UI
 		public void UpdateRotationExternal(float angle)
 		{
 			if (!GameContext.EditorService.Placement.SetLastRotation(angle)) return;
-			if (_lblPlacementRotateValue != null) _lblPlacementRotateValue.Text = angle.ToString("F0") + "°";
-			if (_sldPlacementRotate != null && !Mathf.IsEqualApprox((float)_sldPlacementRotate.Value, angle)) _sldPlacementRotate.Value = angle;
+			if (_placementPanel?.RotateValue != null) _placementPanel.RotateValue.Text = angle.ToString("F0") + "°";
+			if (_placementPanel?.RotateSlider != null && !Mathf.IsEqualApprox((float)_placementPanel.RotateSlider.Value, angle)) _placementPanel.RotateSlider.Value = angle;
 		}
 
 		public void UpdatePasteRotationExternal(float angle)
@@ -916,8 +916,8 @@ namespace Realm.Client.UI
 		public void UpdateScaleExternal(float scale)
 		{
 			if (!GameContext.EditorService.Placement.SetLastScale(scale)) return;
-			if (_lblPlacementScaleValue != null) _lblPlacementScaleValue.Text = scale.ToString("F1") + "x";
-			if (_sldPlacementScale != null && !Mathf.IsEqualApprox((float)_sldPlacementScale.Value, scale)) _sldPlacementScale.Value = scale;
+			if (_placementPanel?.ScaleValue != null) _placementPanel.ScaleValue.Text = scale.ToString("F1") + "x";
+			if (_placementPanel?.ScaleSlider != null && !Mathf.IsEqualApprox((float)_placementPanel.ScaleSlider.Value, scale)) _placementPanel.ScaleSlider.Value = scale;
 		}
 
 		public void UpdateBrushSizeExternal(float size)
@@ -2575,7 +2575,7 @@ namespace Realm.Client.UI
 			ResetSingleCardPosition(_accordionTool);
 			ResetSingleCardPosition(_brushPanel.Accordion);
 			ResetSingleCardPosition(_accordionToolSettings);
-			ResetSingleCardPosition(_accordionPlacement);
+			ResetSingleCardPosition(_placementPanel.Accordion);
 			ResetSingleCardPosition(_accordionInspector);
 
 			var leftVBox = GetNodeOrNull<VBoxContainer>("LeftSlidePanel/LeftScroll/LeftVBox");

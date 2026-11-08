@@ -152,153 +152,42 @@ namespace Realm.Client.UI
 
 		private void BuildPlacementAccordion()
 		{
-			_accordionPlacement = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion");
-			_btnHeaderPlacement = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/BtnHeaderPlacement");
-			_contentPlacement = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement");
-			StyleAccordionHeader(_btnHeaderPlacement);
-			SetupAccordion(_btnHeaderPlacement, _contentPlacement, TranslationServer.Translate("Placement Config"));
-
-			BuildPlacementTransformSliders();
-
-			BuildPlacementSnapAndMirrorControls();
-
-			BuildPlacementPlayerOwnerControl();
-
-			BuildClumpModeControls();
+			_placementPanel = new PlacementSettingsPanel();
+			_placementPanel.Build(new PlacementSettingsHooks(
+				this, StyleAccordionHeader, SetupAccordion, SetupOptionButton, SetupMirrorDropdown,
+				UpdateGridSnapExternal, () =>
+				{
+					if (GameContext.Host != null) UpdateSidebarMorph(GameContext.Host.ActiveEditorTool);
+				}));
 
 			WirePlacementSliderEvents();
 		}
 
 
-		private void BuildPlacementTransformSliders()
-		{
-			_sldPlacementRotate = GetNode<Slider>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/PlacementRotateBox/SldPlacementRotate");
-			_lblPlacementRotateValue = GetNode<Label>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/PlacementRotateBox/Header/LblPlacementRotateValue");
-			_sldPlacementScale = GetNode<Slider>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/PlacementScaleBox/SldPlacementScale");
-			_lblPlacementScaleValue = GetNode<Label>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/PlacementScaleBox/Header/LblPlacementScaleValue");
-			var lblPlacementRotateTitle = GetNodeOrNull<Label>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/PlacementRotateBox/Header/LblRotateTitle");
-			if (lblPlacementRotateTitle != null) lblPlacementRotateTitle.Text = TranslationServer.Translate("Rotation (Shift + Mouse_Wheel)");
-			var lblPlacementScaleTitle = GetNodeOrNull<Label>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/PlacementScaleBox/Header/LblScaleTitle");
-			if (lblPlacementScaleTitle != null) lblPlacementScaleTitle.Text = TranslationServer.Translate("Scale (Alt + Mouse_Wheel)");
-		}
-
-
-		private void BuildPlacementSnapAndMirrorControls()
-		{
-			_btnToggleSnap = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/BtnToggleSnap");
-			SetupOptionButton(_btnToggleSnap, $"{UnicodeIcons.TABLE} SNAP TO GRID: OFF", () =>
-			{
-				if (GameContext.Host != null)
-				{
-					GameContext.Host.EditorSnapToGrid = !GameContext.Host.EditorSnapToGrid;
-					UpdateGridSnapExternal(GameContext.Host.EditorSnapToGrid);
-				}
-			}, 11, "Toggle snapping objects and placements to the grid");
-
-			_optPlacementMirrorMode = new OptionButton();
-			_optPlacementMirrorMode.Name = "OptPlacementMirrorMode";
-			_optPlacementMirrorMode.Set("icon_max_width", 0);
-			SetupMirrorDropdown(_optPlacementMirrorMode, "Select terrain and object mirroring symmetry mode");
-			if (_contentPlacement != null)
-			{
-				_contentPlacement.AddChild(_optPlacementMirrorMode);
-				_contentPlacement.MoveChild(_optPlacementMirrorMode, _btnToggleSnap.GetIndex() + 1);
-			}
-		}
-
-
-		private void BuildPlacementPlayerOwnerControl()
-		{
-			_placementPlayerContainer = new HBoxContainer();
-			_placementPlayerContainer.Name = "PlacementPlayerOwnerContainer";
-			_placementPlayerContainer.AddThemeConstantOverride("separation", 6);
-			_placementPlayerContainer.Visible = false;
-
-			var lblPlacementPlayer = new Label();
-			lblPlacementPlayer.Name = "LblPlacementPlayer";
-			lblPlacementPlayer.Text = TranslationServer.Translate("Player");
-			lblPlacementPlayer.CustomMinimumSize = new Vector2(50, 0);
-			lblPlacementPlayer.AddThemeFontSizeOverride("font_size", 11);
-			_placementPlayerContainer.AddChild(lblPlacementPlayer);
-
-			_optPlacementPlayer = new OptionButton();
-			_optPlacementPlayer.Name = "OptPlacementPlayer";
-			_optPlacementPlayer.Set("icon_max_width", 0);
-			_optPlacementPlayer.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-			_optPlacementPlayer.AddThemeFontSizeOverride("font_size", 10);
-			_optPlacementPlayer.TooltipText = TranslationServer.Translate("Owner of the next placed unit. Choose 0 NEUTRAL_TAN (gaia) to place neutral objects.");
-
-			for (int i = 0; i < PlayerColorConfig.Palette.Length; i++)
-			{
-				_optPlacementPlayer.AddItem(PlayerColorConfig.GetPaletteLabel(i), i);
-			}
-
-			_optPlacementPlayer.ItemSelected += (long index) =>
-			{
-				GameContext.EditorService.SetPlaceUnitPlayerIndexDomain((int)index);
-			};
-
-			_placementPlayerContainer.AddChild(_optPlacementPlayer);
-			if (_contentPlacement != null)
-			{
-				_contentPlacement.AddChild(_placementPlayerContainer);
-				_contentPlacement.MoveChild(_placementPlayerContainer, _optPlacementMirrorMode.GetIndex() + 1);
-			}
-		}
-
-
-		private void BuildClumpModeControls()
-		{
-			_chkRandomRotation = GetNode<CheckBox>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/ChkRandomRotation");
-			_chkRandomScale = GetNode<CheckBox>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/ChkRandomScale");
-
-			_chkClumpMode = GetNode<CheckBox>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/ChkClumpMode");
-			_densityBox = GetNode<Control>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/DensityBox");
-			_sldClumpDensity = GetNode<HSlider>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/DensityBox/SldClumpDensity");
-			_lblClumpDensityValue = GetNode<Label>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/DensityBox/Header/LblClumpDensityValue");
-			_scaleVarBox = GetNode<Control>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/ScaleVarBox");
-			_sldClumpScaleVar = GetNode<HSlider>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/ScaleVarBox/SldClumpScaleVar");
-			_lblClumpScaleVarValue = GetNode<Label>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/ScaleVarBox/Header/LblClumpScaleVarValue");
-			var lblScaleVarTitle = GetNodeOrNull<Label>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/ScaleVarBox/Header/LblScaleVarTitle");
-			if (lblScaleVarTitle != null) lblScaleVarTitle.Text = TranslationServer.Translate("Clump Scale Variance");
-
-			_chkClumpMode.ButtonPressed = false;
-			_chkClumpMode.Toggled += (toggled) =>
-			{
-				if (_densityBox != null) _densityBox.Visible = toggled;
-				if (_scaleVarBox != null) _scaleVarBox.Visible = toggled;
-				if (GameContext.Host != null)
-				{
-					UpdateSidebarMorph(GameContext.Host.ActiveEditorTool);
-				}
-			};
-		}
-
-
 		private void WirePlacementSliderEvents()
 		{
-			_sldClumpDensity.ValueChanged += (val) =>
+			_placementPanel.DensitySlider.ValueChanged += (val) =>
 			{
 				float fVal = (float)val;
-				_lblClumpDensityValue.Text = fVal.ToString("F0");
+				_placementPanel.DensityValue.Text = fVal.ToString("F0");
 				if (GameContext.Host != null) GameContext.Host.EditorClumpCount = fVal;
 			};
-			_sldClumpDensity.DragStarted += () => _isDraggingSlider = true;
-			_sldClumpDensity.DragEnded += (valueChanged) => _isDraggingSlider = false;
+			_placementPanel.DensitySlider.DragStarted += () => _isDraggingSlider = true;
+			_placementPanel.DensitySlider.DragEnded += (valueChanged) => _isDraggingSlider = false;
 
-			_sldClumpScaleVar.ValueChanged += (val) =>
+			_placementPanel.ScaleVarSlider.ValueChanged += (val) =>
 			{
 				float fVal = (float)val;
-				_lblClumpScaleVarValue.Text = fVal.ToString("F2");
+				_placementPanel.ScaleVarValue.Text = fVal.ToString("F2");
 				if (GameContext.Host != null) GameContext.Host.EditorClumpScale = fVal;
 			};
-			_sldClumpScaleVar.DragStarted += () => _isDraggingSlider = true;
-			_sldClumpScaleVar.DragEnded += (valueChanged) => _isDraggingSlider = false;
+			_placementPanel.ScaleVarSlider.DragStarted += () => _isDraggingSlider = true;
+			_placementPanel.ScaleVarSlider.DragEnded += (valueChanged) => _isDraggingSlider = false;
 
-			_sldPlacementRotate.DragStarted += () => _isDraggingSlider = true;
-			_sldPlacementRotate.DragEnded += (valueChanged) => _isDraggingSlider = false;
-			_sldPlacementScale.DragStarted += () => _isDraggingSlider = true;
-			_sldPlacementScale.DragEnded += (valueChanged) => _isDraggingSlider = false;
+			_placementPanel.RotateSlider.DragStarted += () => _isDraggingSlider = true;
+			_placementPanel.RotateSlider.DragEnded += (valueChanged) => _isDraggingSlider = false;
+			_placementPanel.ScaleSlider.DragStarted += () => _isDraggingSlider = true;
+			_placementPanel.ScaleSlider.DragEnded += (valueChanged) => _isDraggingSlider = false;
 		}
 
 
@@ -314,7 +203,7 @@ namespace Realm.Client.UI
 
 			_topBarController = new MapEditorTopBar(_btnBackToHub, _btnPublish, _btnSave, _btnLoad, _btnUndo, _btnRedo, _btnEditors, _statusLabel, _feedbackLabel);
 			_brushSettingsController = new MapEditorBrushSettings(_brushPanel.SizeSlider, _brushPanel.SizeValue, _brushPanel.StrengthSlider, _brushPanel.StrengthValue, _brushPanel.BlockModeCheck, _brushPanel.StepSlider, _brushPanel.StepValue, _brushPanel.HeightSlider, _brushPanel.HeightValue);
-			_placementSettingsController = new MapEditorPlacementSettings(_sldPlacementRotate, _lblPlacementRotateValue, _sldPlacementScale, _lblPlacementScaleValue, _chkRandomRotation, _chkRandomScale, _chkClumpMode, _sldClumpDensity, _lblClumpDensityValue, _sldClumpScaleVar, _lblClumpScaleVarValue);
+			_placementSettingsController = new MapEditorPlacementSettings(_placementPanel.RotateSlider, _placementPanel.RotateValue, _placementPanel.ScaleSlider, _placementPanel.ScaleValue, _placementPanel.RandomRotationCheck, _placementPanel.RandomScaleCheck, _placementPanel.ClumpModeCheck, _placementPanel.DensitySlider, _placementPanel.DensityValue, _placementPanel.ScaleVarSlider, _placementPanel.ScaleVarValue);
 			InitializeInspectorPanel();
 			_inspectorController = new MapEditorInspector(_lblInspectorTitle, _lblInspectorPos, _btnInspectorRotLeft, _btnInspectorRotRight, _btnInspectorScaleDown, _btnInspectorScaleUp, _btnInspectorScaleReset, _btnInspectorDelete);
 			_pathingPanelController = new MapEditorPathingPanel(_chkShallowWater, _chkDeepWater, _chkFlying, _chkGround, _chkBuildable, _optPathingMode);
@@ -329,7 +218,7 @@ namespace Realm.Client.UI
 			MakeCardDraggable(_accordionTool, _btnHeaderTool, _contentTool, "Tool");
 			MakeCardDraggable(_brushPanel.Accordion, _brushPanel.Header, _brushPanel.Content, "Global Brush Properties");
 			MakeCardDraggable(_accordionToolSettings, _btnHeaderToolSettings, _contentToolSettings, "Tool Settings");
-			MakeCardDraggable(_accordionPlacement, _btnHeaderPlacement, _contentPlacement, "Placement Config");
+			MakeCardDraggable(_placementPanel.Accordion, _placementPanel.Header, _placementPanel.Content, "Placement Config");
 			MakeCardDraggable(_accordionInspector, _btnHeaderInspector, _contentInspector, "Selected Object Inspector");
 			if (_waterPanel?.Accordion != null) MakeCardDraggable(_waterPanel.Accordion, _waterPanel.Header, _waterPanel.Content, "Liquid / Water Config");
 
@@ -1869,9 +1758,9 @@ namespace Realm.Client.UI
 
 		public void UpdateGridSnapExternal(bool snap)
 		{
-			if (_btnToggleSnap != null)
+			if (_placementPanel?.SnapButton != null)
 			{
-				_btnToggleSnap.Text = snap ? TranslationServer.Translate($"{UnicodeIcons.TABLE} SNAP TO GRID: ON") : TranslationServer.Translate($"{UnicodeIcons.TABLE} SNAP TO GRID: OFF");
+				_placementPanel.SnapButton.Text = snap ? TranslationServer.Translate($"{UnicodeIcons.TABLE} SNAP TO GRID: ON") : TranslationServer.Translate($"{UnicodeIcons.TABLE} SNAP TO GRID: OFF");
 			}
 		}
 
@@ -2138,9 +2027,9 @@ namespace Realm.Client.UI
 
 		private void SyncPlacementPlayerSelection(int playerIndex)
 		{
-			if (_optPlacementPlayer == null) return;
+			if (_placementPanel?.PlayerOption == null) return;
 
-			_optPlacementPlayer.Selected = Mathf.Clamp(playerIndex, 0, PlayerColorConfig.Palette.Length - 1);
+			_placementPanel.PlayerOption.Selected = Mathf.Clamp(playerIndex, 0, PlayerColorConfig.Palette.Length - 1);
 		}
 
 		public void SelectCategoryItemExternal(string category, string filename)
@@ -3028,7 +2917,7 @@ namespace Realm.Client.UI
 			var mode = GameContext.Host.EditorMirrorMode;
 
 			UpdateSingleMirrorDropdown(_brushPanel.MirrorOption, mode, folds);
-			UpdateSingleMirrorDropdown(_optPlacementMirrorMode, mode, folds);
+			UpdateSingleMirrorDropdown(_placementPanel.MirrorOption, mode, folds);
 			UpdateSingleMirrorDropdown(_pastePanel?.ClipboardMirrorMode, mode, folds);
 
 			UpdateSymmetrySubControlsVisibility();
@@ -3500,13 +3389,13 @@ namespace Realm.Client.UI
 				}
 			}
 
-			if (_contentPlacement != null)
+			if (_placementPanel?.Content != null)
 			{
-				if (_optPlacementMirrorMode != null)
+				if (_placementPanel?.MirrorOption != null)
 				{
-					_optPlacementMirrorMode.CustomMinimumSize = new Vector2(0, 30);
-					_optPlacementMirrorMode.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-					_optPlacementMirrorMode.AddThemeFontSizeOverride("font_size", 10);
+					_placementPanel.MirrorOption.CustomMinimumSize = new Vector2(0, 30);
+					_placementPanel.MirrorOption.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+					_placementPanel.MirrorOption.AddThemeFontSizeOverride("font_size", 10);
 				}
 			}
 
@@ -3522,7 +3411,7 @@ namespace Realm.Client.UI
 			Control[] allOptionContents = new Control[]
 			{
 				_contentFile, _contentViewport, _contentTool,
-				_brushPanel.Content, _contentToolSettings, _contentPlacement, _contentInspector, _contentLightingTuning
+				_brushPanel.Content, _contentToolSettings, _placementPanel.Content, _contentInspector, _contentLightingTuning
 			};
 			foreach (var content in allOptionContents)
 			{
@@ -3739,7 +3628,7 @@ namespace Realm.Client.UI
 		{
 			if (_panelRight == null) return;
 
-			bool isClumpActive = _chkClumpMode != null && _chkClumpMode.ButtonPressed;
+			bool isClumpActive = _placementPanel?.ClumpModeCheck != null && _placementPanel.ClumpModeCheck.ButtonPressed;
 			bool isBrush = (tool == EditorTool.Raise ||
 			                tool == EditorTool.Lower ||
 			                tool == EditorTool.Height ||
@@ -3831,27 +3720,27 @@ namespace Realm.Client.UI
 			}
 
 			bool hasPlacementConfig = isPlacement;
-			if (_accordionPlacement != null)
+			if (_placementPanel?.Accordion != null)
 			{
-				_accordionPlacement.Visible = hasPlacementConfig;
+				_placementPanel.Accordion.Visible = hasPlacementConfig;
 			}
 
-			if (_placementPlayerContainer != null)
+			if (_placementPanel?.PlayerContainer != null)
 			{
 				bool showPlacementPlayer = tool == EditorTool.PlaceUnit;
-				_placementPlayerContainer.Visible = showPlacementPlayer;
+				_placementPanel.PlayerContainer.Visible = showPlacementPlayer;
 				if (showPlacementPlayer)
 				{
 					SyncPlacementPlayerSelection(GameContext.EditorService.Tools.PlaceUnitPlayerIndex);
 				}
 			}
 
-			if (_chkClumpMode != null)
+			if (_placementPanel?.ClumpModeCheck != null)
 			{
-				_chkClumpMode.Visible = isPlacement;
-				if (_spacingBox != null) _spacingBox.Visible = isPlacement && _chkClumpMode.ButtonPressed;
-				if (_densityBox != null) _densityBox.Visible = isPlacement && _chkClumpMode.ButtonPressed;
-				if (_scaleVarBox != null) _scaleVarBox.Visible = isPlacement && _chkClumpMode.ButtonPressed;
+				_placementPanel.ClumpModeCheck.Visible = isPlacement;
+				if (_spacingBox != null) _spacingBox.Visible = isPlacement && _placementPanel.ClumpModeCheck.ButtonPressed;
+				if (_placementPanel?.DensityBox != null) _placementPanel.DensityBox.Visible = isPlacement && _placementPanel.ClumpModeCheck.ButtonPressed;
+				if (_placementPanel?.ScaleVarBox != null) _placementPanel.ScaleVarBox.Visible = isPlacement && _placementPanel.ClumpModeCheck.ButtonPressed;
 			}
 
 			bool hasSelectedObject = GameContext.Host != null && GodotObject.IsInstanceValid(GameContext.Host.SelectedEditorObject);
@@ -4267,7 +4156,7 @@ namespace Realm.Client.UI
 
 				bool isClumpPlacement = tool == EditorTool.PlacePropClump ||
 				                        ((tool == EditorTool.PlaceUnit || tool == EditorTool.PlaceProp || tool == EditorTool.PlaceDecal) &&
-				                         (_chkClumpMode != null && _chkClumpMode.ButtonPressed));
+				                         (_placementPanel?.ClumpModeCheck != null && _placementPanel.ClumpModeCheck.ButtonPressed));
 
 				if (tool == EditorTool.Raise || tool == EditorTool.Lower)
 				{

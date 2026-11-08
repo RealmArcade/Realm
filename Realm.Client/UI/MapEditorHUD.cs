@@ -79,9 +79,6 @@ public partial class MapEditorHUD : Control
 	private Button _btnHeaderToolSettings { get; set; } = null!;
 	private VBoxContainer _contentToolSettings { get; set; } = null!;
 
-	private VBoxContainer _accordionPlacement { get; set; } = null!;
-	private Button _btnHeaderPlacement { get; set; } = null!;
-	private VBoxContainer _contentPlacement { get; set; } = null!;
 
 	private VBoxContainer _accordionViewport { get; set; } = null!;
 	private Button _btnHeaderViewport { get; set; } = null!;
@@ -170,13 +167,8 @@ public partial class MapEditorHUD : Control
 
 
 
-	private CheckBox _chkRandomRotation { get; set; } = null!;
-	private CheckBox _chkRandomScale { get; set; } = null!;
 	private Button _btnAddObject { get; set; } = null!;
-	private CheckBox _chkClumpMode { get; set; } = null!;
 	private Control _spacingBox { get; set; } = null!;
-	private Control _densityBox { get; set; } = null!;
-	private Control _scaleVarBox { get; set; } = null!;
 	private Control _camBoundsBox { get; set; } = null!;
 
 	private WaterProfileDialog _waterProfileDialog { get; set; } = null!;
@@ -223,15 +215,10 @@ public partial class MapEditorHUD : Control
 	private HBoxContainer RowGroundTexture { get; set; } = null!;
 	private HBoxContainer RowCliffTexture { get; set; } = null!;
 
-	private Slider _sldPlacementRotate { get; set; } = null!;
-	private Label _lblPlacementRotateValue { get; set; } = null!;
-	private Slider _sldPlacementScale { get; set; } = null!;
-	private Label _lblPlacementScaleValue { get; set; } = null!;
 	private VBoxContainer _placementRotateBox { get; set; } = null!;
 	private VBoxContainer _placementScaleBox { get; set; } = null!;
 	private Button _btnCopy { get; set; } = null!;
 	private Button _btnPaste { get; set; } = null!;
-	private Button _btnToggleSnap { get; set; } = null!;
 	private Button _btnToggleGrid { get; set; } = null!;
 	private PopupMenu _popupOverlayMode { get; set; } = null!;
 	private Button _btnToggleEnvironment { get; set; } = null!;
@@ -262,11 +249,6 @@ public partial class MapEditorHUD : Control
 	private Button _btnSmooth { get; set; } = null!;
 	private Button _btnPlateau { get; set; } = null!;
 	private Button _btnRamp { get; set; } = null!;
-	private OptionButton _optPlacementMirrorMode { get; set; } = null!;
-	private HSlider _sldClumpDensity { get; set; } = null!;
-	private Label _lblClumpDensityValue { get; set; } = null!;
-	private HSlider _sldClumpScaleVar { get; set; } = null!;
-	private Label _lblClumpScaleVarValue { get; set; } = null!;
 
 	private Button _btnTextureBrush { get; set; } = null!;
 
@@ -285,8 +267,6 @@ public partial class MapEditorHUD : Control
 	private Button _btnShowCoverage { get; set; } = null!;
 	private HBoxContainer _playerOwnerContainer { get; set; } = null!;
 	private OptionButton _optPlayerOwner { get; set; } = null!;
-	private HBoxContainer _placementPlayerContainer { get; set; } = null!;
-	private OptionButton _optPlacementPlayer { get; set; } = null!;
 	private PanelContainer _rigStatusContainer { get; set; } = null!;
 	private Label _lblRigStatus { get; set; } = null!;
 
@@ -333,6 +313,7 @@ public partial class MapEditorHUD : Control
 	private MapEditorPlacementSettings _placementSettingsController { get; set; } = null!;
 	private MapEditorInspector _inspectorController { get; set; } = null!;
 	private MapEditorPathingPanel _pathingPanelController { get; set; } = null!;
+	private PlacementSettingsPanel _placementPanel { get; set; } = null!;
 	private BrushSettingsPanel _brushPanel { get; set; } = null!;
 	private WaterSettingsPanel _waterPanel { get; set; } = null!;
 	private PasteSettingsPanel _pastePanel { get; set; } = null!;
@@ -1018,7 +999,7 @@ public partial class MapEditorHUD : Control
 
 		if (_brushPanel?.Accordion != null) _brushPanel.Accordion.Visible = IsBrushAccordionVisible(module);
 		if (_accordionToolSettings != null) _accordionToolSettings.Visible = IsToolSettingsAccordionVisible(module);
-		if (_accordionPlacement != null) _accordionPlacement.Visible = IsPlacementAccordionVisible(module);
+		if (_placementPanel?.Accordion != null) _placementPanel.Accordion.Visible = IsPlacementAccordionVisible(module);
 		if (_accordionInspector != null) _accordionInspector.Visible = IsInspectorAccordionVisible(module);
 	}
 
@@ -1051,7 +1032,7 @@ public partial class MapEditorHUD : Control
 		SetHeaderContent(_contentToolSettings, _btnHeaderToolSettings, showToolSettings, "Tool Settings");
 
 		bool showPlacement = module is EditorModule.Objects or EditorModule.Clipboard;
-		SetHeaderContent(_contentPlacement, _btnHeaderPlacement, showPlacement, "Placement Config");
+		SetHeaderContent(_placementPanel.Content, _placementPanel.Header, showPlacement, "Placement Config");
 	}
 
 	private void SetHeaderContent(Control content, Button btn, bool isVisible, string translationKey)
@@ -1069,7 +1050,7 @@ public partial class MapEditorHUD : Control
 		UpdateCardScrollState(_contentTool, 320f);
 		UpdateCardScrollState(_brushPanel.Content, 300f);
 		UpdateCardScrollState(_contentToolSettings, 320f);
-		UpdateCardScrollState(_contentPlacement, 320f);
+		UpdateCardScrollState(_placementPanel.Content, 320f);
 		UpdateCardScrollState(_contentInspector, 300f);
 	}
 
@@ -1173,7 +1154,7 @@ public partial class MapEditorHUD : Control
 	private bool IsSecondaryOptionPopupVisible()
 	{
 		return AnyOptionButtonPopupVisible(
-			_optPlacementMirrorMode,
+			_placementPanel.MirrorOption,
 			_optPolarRingSpacing,
 			_optPolarRadialStep,
 			_optEnvLighting,
@@ -1210,7 +1191,7 @@ public partial class MapEditorHUD : Control
 		Control[] optionContents = new Control[]
 		{
 			_contentFile, _contentViewport, _contentTool,
-			_brushPanel.Content, _contentToolSettings, _contentPlacement, _contentInspector, _contentLightingTuning
+			_brushPanel.Content, _contentToolSettings, _placementPanel.Content, _contentInspector, _contentLightingTuning
 		};
 		foreach (var content in optionContents)
 		{
