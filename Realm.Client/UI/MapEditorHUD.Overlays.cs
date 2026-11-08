@@ -422,48 +422,8 @@ namespace Realm.Client.UI
 			if (_viewportPanel.MeasurementPanel == null || _viewportPanel.MeasurementLabel == null) return;
 			_viewportPanel.MeasurementPanel.Visible = true;
 
-			string slopeStr;
-			float absDx = Mathf.Abs(dx);
-			float absDz = Mathf.Abs(dz);
-			if (absDx < 0.01f && absDz < 0.01f)
-			{
-				slopeStr = "0:0";
-			}
-			else if (absDx < 0.01f)
-			{
-				slopeStr = TranslationServer.Translate("Vertical");
-			}
-			else if (absDz < 0.01f)
-			{
-				slopeStr = TranslationServer.Translate("Horizontal (1:0)");
-			}
-			else
-			{
-				float ratio = absDz / absDx;
-				if (Mathf.Abs(ratio - Mathf.Round(ratio)) < 0.05f)
-				{
-					slopeStr = $"{Mathf.Round(ratio):0}:1";
-				}
-				else if (Mathf.Abs(1.0f / ratio - Mathf.Round(1.0f / ratio)) < 0.05f)
-				{
-					slopeStr = $"1:{Mathf.Round(1.0f / ratio):0}";
-				}
-				else
-				{
-					slopeStr = $"{ratio:F1}:1";
-				}
-			}
-
-			string text = $"{UnicodeIcons.RULER} " + string.Format(
-				TranslationServer.Translate("MEASURE: Manhattan: {0:F1}T | Euclidean: {1:F1}T ({2:F1}m) | Angle: {3:F1}° | Slope: {4}"),
-				manhattanTiles, eucTiles, eucWorld, angleDeg, slopeStr);
-
-			if (Mathf.Abs(dy) > 0.01f)
-			{
-				text += string.Format(TranslationServer.Translate(" | Elev: {0:+0.0;-0.0;0.0}m ({1:F1}%)"), dy, slopePct);
-			}
-
-			_measureLabelWidth.Apply(_viewportPanel.MeasurementLabel, text);
+			_measureLabelWidth.Apply(_viewportPanel.MeasurementLabel,
+				MapEditorTelemetryText.Measure(eucTiles, eucWorld, manhattanTiles, dx, dz, dy, angleDeg, slopePct));
 		}
 
 		public void ClearMeasureTelemetry()
@@ -481,8 +441,7 @@ namespace Realm.Client.UI
 			if (_pastePanel?.Telemetry != null)
 			{
 				_pastePanel.Telemetry.Visible = true;
-				_pastePanel.Telemetry.Text = string.Format("ΔX: {0:+0;-0;0}, ΔZ: {1:+0;-0;0} | Pivot: {2:F1}T ({3:F1}m) @ {4:F1}°",
-					deltaX, deltaZ, distTiles, distWorld, angleDeg);
+				_pastePanel.Telemetry.Text = MapEditorTelemetryText.Paste(deltaX, deltaZ, distTiles, distWorld, angleDeg);
 			}
 		}
 
@@ -1280,67 +1239,9 @@ namespace Realm.Client.UI
 			}
 		}
 
-		public string GetMapNameFromMetadata(bool forceReload = false)
-		{
-			long now = Environment.TickCount64;
-			if (!forceReload && !string.IsNullOrEmpty(GameContext.EditorService.CachedMapName) && (now - GameContext.EditorService.LastMapNameCacheTicks < 2000))
-			{
-				return GameContext.EditorService.CachedMapName;
-			}
+		public string GetMapNameFromMetadata(bool forceReload = false) => MapEditorMapTitle.Resolve(forceReload);
 
-			try
-			{
-				string workspacePath = !string.IsNullOrEmpty(GameContext.EditorService._editingDirectory) ? GameContext.EditorService._editingDirectory : MapWorkspaceService.GetActiveWorkspacePath();
-
-				if (GameContext.EditorService.MapIdentity.TryGetNameFromManifest(workspacePath, out string manifestMapName))
-				{
-					return GameContext.EditorService.MapIdentity.UpdateCachedName(manifestMapName, now);
-				}
-
-				if (GameContext.EditorService.MapIdentity.TryGetNameFromMetadata(workspacePath, out string metadataMapName))
-				{
-					return GameContext.EditorService.MapIdentity.UpdateCachedName(metadataMapName, now);
-				}
-
-				if (GameContext.EditorService.MapIdentity.TryGetNameFromActiveHost(out string activeMapName))
-				{
-					return GameContext.EditorService.MapIdentity.UpdateCachedName(activeMapName, now);
-				}
-
-				return GameContext.EditorService.MapIdentity.UpdateCachedName(TranslationServer.Translate("Unnamed Map"), now);
-			}
-			catch (Exception ex)
-			{
-				GameLog.LogError($"[MapEditorHUD] Error getting map name: {ex.Message}");
-				return GameContext.EditorService.MapIdentity.UpdateCachedName(TranslationServer.Translate("Unnamed Map"), now);
-			}
-		}
-
-
-		public void UpdateMapNameHeader()
-		{
-			if (_topToolbar.MapNameLabel == null) return;
-			string mapName = GetMapNameFromMetadata();
-			string displayMapName = MapNaming.IsUntitledMapName(mapName)
-				? TranslationServer.Translate("Untitled Map")
-				: mapName;
-			bool hasUnsaved = GameContext.Host?.EditorHasUnsavedChanges ?? false;
-
-			string displayText = hasUnsaved ? $"🗺️ {displayMapName} *" : $"🗺️ {displayMapName}";
-			string tooltipText = hasUnsaved
-				? $"{displayMapName} * ({TranslationServer.Translate("Unsaved changes — Press Ctrl+S to save")})"
-				: $"{displayMapName} ({TranslationServer.Translate("All changes saved")})";
-
-			if (_topToolbar.MapNameLabel.Text != displayText)
-			{
-				_topToolbar.MapNameLabel.Text = displayText;
-			}
-
-			if (_topToolbar.MapNameLabel.TooltipText != tooltipText)
-			{
-				_topToolbar.MapNameLabel.TooltipText = tooltipText;
-			}
-		}
+		public void UpdateMapNameHeader() => MapEditorMapTitle.UpdateHeader(_topToolbar.MapNameLabel);
 
 		private void SetupLightingTuningUI()
 		{
