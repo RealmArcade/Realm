@@ -47,7 +47,7 @@ internal sealed class AgreementDialog
 
 		var panel = new PanelContainer();
 		panel.Name = "Panel_PanelContainer";
-		panel.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
+		UIStyle.ClearPanelBackground(panel);
 		panel.CustomMinimumSize = new Vector2(1024, 762);
 		center.AddChild(panel);
 
