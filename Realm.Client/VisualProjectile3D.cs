@@ -61,13 +61,13 @@ public partial class VisualProjectile3D : Node3D
 	private Node3D _meshContainer = null!;
 	private Node3D _visualTransformContainer = null!;
 	private MeshInstance3D _fallbackMeshInstance = null!;
-	private Node3D _customModelInstance = null!;
+	private Node3D? _customModelInstance;
 	private readonly Dictionary<string, Node3D> _loadedModelsByPath = new(StringComparer.OrdinalIgnoreCase);
 	private static readonly Dictionary<string, Texture2D?> _textureCache = new(StringComparer.OrdinalIgnoreCase);
 	private OmniLight3D _pointLight = null!;
 	private bool _hasAcquiredLight;
 	private ShaderMaterial _uberShaderMaterial = null!;
-	private static Shader _sharedUberShader = null!;
+	private static Shader? _sharedUberShader;
 
 	public static void ClearSharedShaderCache()
 	{
@@ -105,16 +105,16 @@ public partial class VisualProjectile3D : Node3D
 	private Vector3 _currentFlightDirection;
 	private Vector3 _tumbleAxis;
 	private float _tumbleSpeed;
-	private string _currentLoadedModelPath = null!;
+	private string? _currentLoadedModelPath;
 
 	public bool IsActive => _isFlying || _isImpacted;
 	public bool IsFlying => _isFlying;
 	public bool IsImpacted => _isImpacted;
-	public Action<VisualProjectile3D> OnRecycleRequested = null!;
+	public Action<VisualProjectile3D>? OnRecycleRequested;
 
 	public Node3D MeshContainer => _meshContainer;
 	public Node3D VisualTransformContainer => _visualTransformContainer;
-	public Node3D CustomModelInstance => _customModelInstance;
+	public Node3D? CustomModelInstance => _customModelInstance;
 	public MeshInstance3D FallbackMeshInstance => _fallbackMeshInstance;
 	public OmniLight3D PointLight => _pointLight;
 	public ShaderMaterial UberShaderMaterial => _uberShaderMaterial;
@@ -169,14 +169,14 @@ public partial class VisualProjectile3D : Node3D
 			: new Shader { Code = shaderCode };
 	}
 
-	public void Initialize(WeaponMetadata weapon, Vector3 start, Vector3 target, Entity targetEntity = default, Action<VisualProjectile3D> recycleCallback = null, int ownerPlayerIndex = 0, bool honourDestination = false)
+	public void Initialize(WeaponMetadata weapon, Vector3 start, Vector3 target, Entity targetEntity = default, Action<VisualProjectile3D>? recycleCallback = null, int ownerPlayerIndex = 0, bool honourDestination = false)
 	{
 		if (recycleCallback != null) OnRecycleRequested = recycleCallback;
 		PlayerIndex = ownerPlayerIndex;
 		Initialize(start, target, weapon, targetEntity, honourDestination);
 	}
 
-	public void Initialize(string weaponId, Vector3 start, Vector3 target, Entity targetEntity = default, Action<VisualProjectile3D> recycleCallback = null, int ownerPlayerIndex = 0, bool honourDestination = false)
+	public void Initialize(string weaponId, Vector3 start, Vector3 target, Entity targetEntity = default, Action<VisualProjectile3D>? recycleCallback = null, int ownerPlayerIndex = 0, bool honourDestination = false)
 	{
 		if (recycleCallback != null) OnRecycleRequested = recycleCallback;
 		PlayerIndex = ownerPlayerIndex;
@@ -396,7 +396,7 @@ public partial class VisualProjectile3D : Node3D
 		_fallbackMeshInstance.MaterialOverride = _uberShaderMaterial;
 	}
 
-	private Node3D LoadModelPath(string modelPath)
+	private Node3D? LoadModelPath(string modelPath)
 	{
 		if (modelPath.StartsWith("vfx:", StringComparison.OrdinalIgnoreCase) ||
 		    (GameContext.RegistryService.VfxRegistry != null && GameContext.RegistryService.VfxRegistry.ContainsKey(modelPath)))
@@ -415,7 +415,7 @@ public partial class VisualProjectile3D : Node3D
 
 	private void UpdateModel()
 	{
-		string modelPath = _weapon.ProjectileModelPath;
+		string? modelPath = _weapon.ProjectileModelPath;
 		if (string.IsNullOrEmpty(modelPath))
 		{
 			HideCustomModelInstance();
@@ -425,9 +425,9 @@ public partial class VisualProjectile3D : Node3D
 		}
 
 		bool needsReload = modelPath != _currentLoadedModelPath || _customModelInstance == null || !GodotObject.IsInstanceValid(_customModelInstance);
-		if (!needsReload)
+		if (!needsReload && _customModelInstance is { } customModel)
 		{
-			_customModelInstance.Visible = true;
+			customModel.Visible = true;
 			_fallbackMeshInstance.Visible = false;
 			return;
 		}
@@ -438,17 +438,17 @@ public partial class VisualProjectile3D : Node3D
 		if (_loadedModelsByPath.TryGetValue(modelPath, out var cachedNode) && cachedNode != null && GodotObject.IsInstanceValid(cachedNode))
 		{
 			_customModelInstance = cachedNode;
-			if (_customModelInstance is ProceduralVfxInstance3D cachedVfx)
+			if (cachedNode is ProceduralVfxInstance3D cachedVfx)
 			{
 				cachedVfx.PlayerIndex = PlayerIndex;
 			}
-			_customModelInstance.Visible = true;
+			cachedNode.Visible = true;
 			_fallbackMeshInstance.Visible = false;
-			GltfDocumentExtensionMsftLod.UpdateLodVisibilityRanges(_customModelInstance, Math.Max(0.01f, _visualTransformContainer.Scale.Y));
+			GltfDocumentExtensionMsftLod.UpdateLodVisibilityRanges(cachedNode, Math.Max(0.01f, _visualTransformContainer.Scale.Y));
 			return;
 		}
 
-		Node3D node3D = LoadModelPath(modelPath);
+		Node3D? node3D = LoadModelPath(modelPath);
 		if (node3D == null)
 		{
 			EnableFallbackMesh();
@@ -494,11 +494,11 @@ public partial class VisualProjectile3D : Node3D
 		}
 
 		var tex = LoadTextureSafe(_weapon.NoiseTexture);
-		mat.SetShaderParameter("noise_texture", tex);
+		mat.SetShaderParameter("noise_texture", tex != null ? (Variant)tex : default(Variant));
 		mat.SetShaderParameter("use_procedural_noise", tex == null);
 	}
 
-	private void ConfigureShaderMaterial(ShaderMaterial mat, Texture2D albedoTex)
+	private void ConfigureShaderMaterial(ShaderMaterial mat, Texture2D? albedoTex)
 	{
 		EnsureSharedShader();
 		mat.Shader ??= _sharedUberShader;
@@ -524,11 +524,11 @@ public partial class VisualProjectile3D : Node3D
 		mat.SetShaderParameter("emission_mask_source", GetMaskSource(_weapon.EmissionMaskSource));
 		ConfigureNoiseTexture(mat);
 
-		mat.SetShaderParameter("albedo_texture", albedoTex);
+		mat.SetShaderParameter("albedo_texture", albedoTex != null ? (Variant)albedoTex : default(Variant));
 		mat.SetShaderParameter("use_albedo_texture", albedoTex != null);
 	}
 
-	private Texture2D FindAlbedoTexture(MeshInstance3D meshInst)
+	private Texture2D? FindAlbedoTexture(MeshInstance3D meshInst)
 	{
 		int surfCount = meshInst.Mesh?.GetSurfaceCount() ?? 0;
 		for (int s = 0; s < surfCount; s++)
@@ -551,7 +551,7 @@ public partial class VisualProjectile3D : Node3D
 			return;
 		}
 
-		Texture2D albedoTex = FindAlbedoTexture(meshInst);
+		Texture2D? albedoTex = FindAlbedoTexture(meshInst);
 		var matInstance = meshInst.MaterialOverride as ShaderMaterial ?? new ShaderMaterial();
 		ConfigureShaderMaterial(matInstance, albedoTex);
 		meshInst.MaterialOverride = matInstance;
@@ -689,12 +689,12 @@ public partial class VisualProjectile3D : Node3D
 	private Vector3 GetCurrentTargetPosition()
 	{
 		Vector3 currentTarget = _initialTargetPosition;
-		GameHost tempQualifier = GameContext.Host;
-		if (_targetEntity != default && (tempQualifier != null ? GameContext.World : null)?.IsAlive(_targetEntity) == true)
+		EcsWorld? world = GameContext.Host != null ? GameContext.World : null;
+		if (_targetEntity != default && world != null && world.IsAlive(_targetEntity))
 		{
-			if (GameContext.World.Has<Position>(_targetEntity))
+			if (world.Has<Position>(_targetEntity))
 			{
-				var posComp = GameContext.World.Get<Position>(_targetEntity);
+				var posComp = world.Get<Position>(_targetEntity);
 				currentTarget = new Vector3(posComp.Value.X, posComp.Value.Y + 1.2f, posComp.Value.Z);
 			}
 		}
@@ -1077,7 +1077,7 @@ public partial class VisualProjectile3D : Node3D
 		};
 	}
 
-	private static Color ParseColor(string hex, Color fallback)
+	private static Color ParseColor(string? hex, Color fallback)
 	{
 		if (string.IsNullOrEmpty(hex)) return fallback;
 		try
@@ -1090,7 +1090,7 @@ public partial class VisualProjectile3D : Node3D
 		}
 	}
 
-	private static Texture2D LoadTextureSafe(string path)
+	private static Texture2D? LoadTextureSafe(string path)
 	{
 		if (string.IsNullOrEmpty(path)) return null;
 
@@ -1111,7 +1111,7 @@ public partial class VisualProjectile3D : Node3D
 		}
 		else
 		{
-			string resolvedPath = ModelCache.ResolveModelPath(path);
+			string? resolvedPath = ModelCache.ResolveModelPath(path);
 			if (!string.IsNullOrEmpty(resolvedPath) && File.Exists(resolvedPath))
 			{
 				if (resolvedPath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
