@@ -42,44 +42,9 @@ public partial class MainMenu
 		button.AddThemeConstantOverride("shadow_offset_x", 0);
 		button.AddThemeConstantOverride("shadow_offset_y", 2);
 
-		var playNormalStyle = new StyleBoxTexture();
-		playNormalStyle.Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/menu_play_button.webp");
-		playNormalStyle.TextureMarginLeft = 0;
-		playNormalStyle.TextureMarginRight = 0;
-		playNormalStyle.TextureMarginTop = 0;
-		playNormalStyle.TextureMarginBottom = 0;
-		playNormalStyle.ContentMarginLeft = 24;
-		playNormalStyle.ContentMarginRight = 24;
-		playNormalStyle.ContentMarginTop = 6;
-		playNormalStyle.ContentMarginBottom = 6;
-
-		var playHoverStyle = new StyleBoxTexture();
-		playHoverStyle.Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/menu_play_button.webp");
-		playHoverStyle.ModulateColor = new Color(1.12f, 1.10f, 0.96f);
-		playHoverStyle.TextureMarginLeft = 0;
-		playHoverStyle.TextureMarginRight = 0;
-		playHoverStyle.TextureMarginTop = 0;
-		playHoverStyle.TextureMarginBottom = 0;
-		playHoverStyle.ContentMarginLeft = 24;
-		playHoverStyle.ContentMarginRight = 24;
-		playHoverStyle.ContentMarginTop = 6;
-		playHoverStyle.ContentMarginBottom = 6;
-
-		var playPressedStyle = new StyleBoxTexture();
-		playPressedStyle.Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/menu_play_button.webp");
-		playPressedStyle.ModulateColor = new Color(0.85f, 0.82f, 0.75f);
-		playPressedStyle.TextureMarginLeft = 0;
-		playPressedStyle.TextureMarginRight = 0;
-		playPressedStyle.TextureMarginTop = 0;
-		playPressedStyle.TextureMarginBottom = 0;
-		playPressedStyle.ContentMarginLeft = 24;
-		playPressedStyle.ContentMarginRight = 24;
-		playPressedStyle.ContentMarginTop = 6;
-		playPressedStyle.ContentMarginBottom = 6;
-
-		button.AddThemeStyleboxOverride("normal", playNormalStyle);
-		button.AddThemeStyleboxOverride("hover", playHoverStyle);
-		button.AddThemeStyleboxOverride("pressed", playPressedStyle);
+		UIStyle.ApplyTintedArtworkButton(button, "res://Assets/UI/menu_play_button.webp",
+			new Color(1f, 1f, 1f), new Color(1.12f, 1.10f, 0.96f), new Color(0.85f, 0.82f, 0.75f),
+			24, 24, 6, 6);
 		button.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 
 		ApplyButtonAnimations(button, 1.04f);
@@ -97,10 +62,7 @@ public partial class MainMenu
 		button.Text = "";
 		button.FocusMode = FocusModeEnum.None;
 
-		button.AddThemeStyleboxOverride("normal", new StyleBoxEmpty());
-		button.AddThemeStyleboxOverride("hover", new StyleBoxEmpty());
-		button.AddThemeStyleboxOverride("pressed", new StyleBoxEmpty());
-		button.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyPlainButtonStates(button);
 
 		var frameNormal = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/profile_frame_normal.webp");
 		var nameplateNormal = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/profile_nameplate_normal.webp");

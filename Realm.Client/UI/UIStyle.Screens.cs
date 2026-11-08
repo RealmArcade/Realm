@@ -138,9 +138,10 @@ public static partial class UIStyle
 	/// An artwork button whose three states are the same plate tinted brighter, then brighter still, then dimmer, plus
 	/// the content inset those plates carry.
 	/// </summary>
-	public static void ApplyTintedArtworkButton(Button button, string texturePath, Color normalTint, Color hoverTint, Color pressedTint)
+	public static void ApplyTintedArtworkButton(Button button, string texturePath, Color normalTint, Color hoverTint, Color pressedTint,
+		int left = 16, int right = 16, int top = 18, int bottom = 14)
 	{
-		var normal = CreateArtworkPlate(texturePath, 16, 16, 18, 14);
+		var normal = CreateArtworkPlate(texturePath, left, right, top, bottom);
 		normal.ModulateColor = normalTint;
 
 		var hover = (StyleBoxTexture)normal.Duplicate();
