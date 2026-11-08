@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
@@ -267,7 +267,7 @@ public partial class MapDetails : Control
 
 	private void OnAttributionPressed()
 	{
-		GameContext.UserInterface.PlayClickSound();
+		GameContext.UserInterface?.PlayClickSound();
 
 		if (_attributionPopover == null || !GodotObject.IsInstanceValid(_attributionPopover))
 		{
@@ -377,7 +377,7 @@ public partial class MapDetails : Control
 		ApplyWrapperStyles();
 		ApplyTextStyles();
 
-		UIStyle.ApplyBackButton(_backButton, () => GameContext.UserInterface.TransitionTo(GameScreen.MapDiscovery));
+		UIStyle.ApplyBackButton(_backButton, () => GameContext.UserInterface?.TransitionTo(GameScreen.MapDiscovery));
 
 		UIStyle.ApplyButtonStyleBoxes(_downloadButton);
 		_downloadButton.AddThemeStyleboxOverride("disabled", UIStyle.CreateButtonPressed());
@@ -394,7 +394,7 @@ public partial class MapDetails : Control
 
 	private void ApplyBackgroundStyles()
 	{
-		Texture2D bgTexture = null;
+		Texture2D? bgTexture = null;
 		string[] bgPaths = { "res://Assets/UI/map_details_bg.webp", "res://Assets/UI/map_discovery_background.webp" };
 
 		foreach (var path in bgPaths)
@@ -652,7 +652,7 @@ public partial class MapDetails : Control
 			_carouselIndex = (_carouselIndex - 1 + _mapData.Screenshots.Length) % _mapData.Screenshots.Length;
 			_carouselSlider.Value = _carouselIndex;
 			UpdateCarousel();
-			GameContext.UserInterface.PlayClickSound();
+			GameContext.UserInterface?.PlayClickSound();
 		};
 
 		_btnRightArrow.Pressed += () =>
@@ -661,7 +661,7 @@ public partial class MapDetails : Control
 			_carouselIndex = (_carouselIndex + 1) % _mapData.Screenshots.Length;
 			_carouselSlider.Value = _carouselIndex;
 			UpdateCarousel();
-			GameContext.UserInterface.PlayClickSound();
+			GameContext.UserInterface?.PlayClickSound();
 		};
 
 		_carouselSlider.ValueChanged += (value) =>
@@ -675,17 +675,17 @@ public partial class MapDetails : Control
 	{
 		_versionDropdown.ItemSelected += (index) =>
 		{
-			GameContext.UserInterface.PlayClickSound();
+			GameContext.UserInterface?.PlayClickSound();
 			OnVersionSelected((int)index);
 		};
 
 		_downloadButton.Pressed += () =>
 		{
-			GameContext.UserInterface.PlayClickSound();
+			GameContext.UserInterface?.PlayClickSound();
 			if (CheckIfMapAlreadyDownloaded(_mapData))
 			{
 				GameLog.LogToConsole("Playing map: " + _mapData?.Title);
-				GameContext.UserInterface.TransitionTo(GameScreen.MainMenu);
+				GameContext.UserInterface?.TransitionTo(GameScreen.MainMenu);
 			}
 			else
 			{
@@ -1108,7 +1108,7 @@ public partial class MapDetails : Control
 				}
 			}
 
-			GameContext.UserInterface.PlayHoverSound();
+			GameContext.UserInterface?.PlayHoverSound();
 		};
 
 		node.MouseExited += () =>
