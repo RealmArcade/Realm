@@ -105,6 +105,7 @@ public class SimulationService
 
 	private readonly BuildQueueProcessor _buildQueue;
 	private readonly PresentationTransform _presentation;
+	private readonly UnitLookup _units;
 
 	public void DomainProcessCompletedBuilding(Entity buildingEntity, Action<Entity>? viewCallback, Action<Entity>? notifyCallback)
 	{
@@ -354,6 +355,7 @@ public class SimulationService
 
 	public SimulationService()
 	{
+		_units = new UnitLookup(UnitWrapperCache);
 		_presentation = new PresentationTransform();
 		_bots = new PlayerBotDirector((pIdx, actionId, intent, pos) => OnBotCustomActionExecuted?.Invoke(pIdx, actionId, intent, pos, string.Empty));
 		_destruction = new UnitDestruction(UnitWrapperCache);
@@ -640,69 +642,26 @@ public class SimulationService
 
 	public Unit_WasmRuntime GetUnitWrapper(Entity entity)
 	{
-		if (!World.IsAlive(entity))
-		{
-			throw new ArgumentException("Entity is not alive", nameof(entity));
-		}
-
-		if (UnitWrapperCache.TryGetValue(entity.Id, out var wrapper))
-		{
-			return wrapper;
-		}
-
-		wrapper = new Unit_WasmRuntime(entity, World);
-		UnitWrapperCache[entity.Id] = wrapper;
-		return wrapper;
+		return _units.GetUnitWrapper(entity);
 	}
 
 	public bool TryGetEntity(UnitId unit, out Entity entity)
 	{
-		if (!unit.IsValid)
-		{
-			entity = Entity.Null;
-			return false;
-		}
-
-		if (UnitWrapperCache.TryGetValue(unit.Value, out var wrapper) && GameContext.World != null && World.IsAlive(((IEcsEntityWrapper)wrapper).Entity))
-		{
-			entity = ((IEcsEntityWrapper)wrapper).Entity;
-			return true;
-		}
-
-		if (GameHost.EntityIdToUnit3D.TryGetValue(unit.Value, out var u) && GodotObject.IsInstanceValid(u) && GameContext.World != null && World.IsAlive(u.Entity))
-		{
-			entity = u.Entity;
-			return true;
-		}
-
-		entity = Entity.Null;
-		return false;
+		return _units.TryGetEntity(unit, out entity);
 	}
 
 	public Unit_WasmRuntime? GetUnitWrapper(UnitId unit)
 	{
-		if (!unit.IsValid) return null;
-
-		if (UnitWrapperCache.TryGetValue(unit.Value, out var wrapper) && GameContext.World != null && World.IsAlive(((IEcsEntityWrapper)wrapper).Entity))
-		{
-			return wrapper;
-		}
-
-		if (GameContext.Host != null)
-		{
-			var allUnits = GameContext.Host.AllUnits;
-			for (int i = 0; i < allUnits.Count; i++)
-			{
-				var u = allUnits[i];
-				if (GodotObject.IsInstanceValid(u) && u.Entity.Id == unit.Value && GameContext.World != null && World.IsAlive(u.Entity))
-				{
-					return GetUnitWrapper(u.Entity);
-				}
-			}
-		}
-
-		return null;
+		return _units.GetUnitWrapper(unit);
 	}
+
+	public int CountUnitsOwnedByPlayer(ReadOnlySpan<UnitId> units)
+	{
+		return _units.CountUnitsOwnedByPlayer(units);
+	}
+
+
+
 
 	public readonly Dictionary<int, Unit_WasmRuntime> UnitWrapperCache = new();
 	public readonly HashSet<Entity> WarnedNonFinitePositions = new();
@@ -750,18 +709,6 @@ public class SimulationService
 		_combatService.HealAOE(position, radius, healAmount, casterEntity);
 	}
 
-	public int CountUnitsOwnedByPlayer(ReadOnlySpan<UnitId> units)
-	{
-		int count = 0;
-		for (int i = 0; i < units.Length; i++)
-		{
-			var wrapper = GetUnitWrapper(units[i]);
-			if (wrapper != null && !wrapper.IsDead)
-				count++;
-		}
-
-		return count;
-	}
 
 	public void SetUnitRouteState(UnitId unit, int state)
 	{
