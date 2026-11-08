@@ -314,7 +314,7 @@ public partial class MapDetails : Control
 		PopulateGameplayStats();
 		PopulateTechInfo();
 
-		bool isDownloaded = CheckIfMapAlreadyDownloaded(_mapData);
+		bool isDownloaded = MapProvisioningService.IsLocalCopyPresent(_mapData);
 
 		_downloadButton.Disabled = false;
 		if (isDownloaded)
@@ -328,45 +328,6 @@ public partial class MapDetails : Control
 			UIStyle.ApplyButtonText(_downloadButton, TranslationServer.Translate("DOWNLOAD MAP"), 18);
 			_downloadSubtitle.Text = $"File Size: {_mapData.FileSize}";
 			_downloadSubtitle.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		}
-	}
-
-	private bool CheckIfMapAlreadyDownloaded(MapData map)
-	{
-		if (map == null) return false;
-
-		string version = !string.IsNullOrWhiteSpace(map.Version) ? map.Version.Trim() : "1.0.0";
-
-		if (HasLocalManifestFile(map, version)) return true;
-		if (IsDownloadedViaAssetManager(map, version)) return true;
-
-		return false;
-	}
-
-	private bool HasLocalManifestFile(MapData map, string version)
-	{
-		if (FileAccess.FileExists($"res://Maps/{map.Title}/{version}/manifest.json")) return true;
-		if (FileAccess.FileExists($"res://Maps/{map.MapId}/manifest.json")) return true;
-
-		return FileAccess.FileExists($"res://Maps/{map.Title}/manifest.json") && CheckManifestByTitle(map.Title, version);
-	}
-
-	private bool IsDownloadedViaAssetManager(MapData map, string version)
-	{
-		if (!string.IsNullOrWhiteSpace(map.MapId) && MapAssetManager.IsMapDownloaded(map.MapId)) return true;
-		return !string.IsNullOrWhiteSpace(map.Title) && MapAssetManager.IsMapDownloaded(map.Title, version);
-	}
-
-	private bool CheckManifestByTitle(string title, string version)
-	{
-		try
-		{
-			var mf = MapManifest.LoadFromJson(FileAccess.GetFileAsString($"res://Maps/{title}/manifest.json"));
-			return mf != null && (string.Equals(mf.Version, version, StringComparison.OrdinalIgnoreCase) || string.IsNullOrEmpty(mf.Version));
-		}
-		catch
-		{
-			return false;
 		}
 	}
 
@@ -480,7 +441,7 @@ public partial class MapDetails : Control
 		_isDownloading = false;
 		_downloadButton.Disabled = false;
 
-		if (success || CheckIfMapAlreadyDownloaded(_mapData))
+		if (success || MapProvisioningService.IsLocalCopyPresent(_mapData))
 		{
 			UIStyle.ApplyButtonText(_downloadButton, TranslationServer.Translate("PLAY MAP"), 18);
 			_downloadSubtitle.Text = Tr("Ready to Play");

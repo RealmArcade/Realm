@@ -65,7 +65,7 @@ public partial class MapDetails
 		_downloadButton.Pressed += () =>
 		{
 			GameContext.UserInterface?.PlayClickSound();
-			if (CheckIfMapAlreadyDownloaded(_mapData))
+			if (MapProvisioningService.IsLocalCopyPresent(_mapData))
 			{
 				GameLog.LogToConsole("Playing map: " + _mapData?.Title);
 				GameContext.UserInterface?.TransitionTo(GameScreen.MainMenu);
