@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using Realm.Ecs;
@@ -581,27 +581,18 @@ public class FXService
 
 	public void SpawnWeaponProjectile(Node3D parent, Vector3 start, Vector3 target, string? weaponId = null, Entity targetEntity = default, int ownerPlayerIndex = 0, bool honourDestination = false)
 	{
-		WeaponMetadata weaponMeta = null;
-		bool hasWeapon = false;
-		if (!string.IsNullOrEmpty(weaponId) && GameHost.WeaponRegistry.TryGetValue(weaponId, out var registeredWeapon))
-		{
-			weaponMeta = registeredWeapon;
-			hasWeapon = true;
-		}
-		else if (GameHost.WeaponRegistry.TryGetValue("arrow", out var defaultArrow))
-		{
-			weaponMeta = defaultArrow;
-			hasWeapon = true;
-		}
-
 		var projectile = VisualProjectilePool.Rent(parent);
 
 		Vector3 spawnPos = start + new Vector3(0, 1.2f, 0);
 		Vector3 targetPos = target + new Vector3(0, 1.2f, 0);
 
-		if (hasWeapon)
+		if (!string.IsNullOrEmpty(weaponId) && GameHost.WeaponRegistry.TryGetValue(weaponId, out var registeredWeapon))
 		{
-			projectile.Initialize(weaponMeta, spawnPos, targetPos, targetEntity, p => VisualProjectilePool.Return(p), ownerPlayerIndex, honourDestination);
+			projectile.Initialize(registeredWeapon, spawnPos, targetPos, targetEntity, p => VisualProjectilePool.Return(p), ownerPlayerIndex, honourDestination);
+		}
+		else if (GameHost.WeaponRegistry.TryGetValue("arrow", out var defaultArrow))
+		{
+			projectile.Initialize(defaultArrow, spawnPos, targetPos, targetEntity, p => VisualProjectilePool.Return(p), ownerPlayerIndex, honourDestination);
 		}
 		else
 		{
@@ -631,7 +622,7 @@ public class FXService
 
 	private Label3D RentFloatingLabel(Node3D parent)
 	{
-		Label3D label = null;
+		Label3D? label = null;
 		while (_floatingLabelPool.Count > 0)
 		{
 			var cand = _floatingLabelPool.Pop();
@@ -944,7 +935,7 @@ public class FXService
 
 	public void RenderBatchedRibbonTrails(Camera3D camera)
 	{
-		Node parent = GameContext.Host ?? (Node)camera?.GetViewport();
+		Node? parent = GameContext.Host as Node ?? camera.GetViewport();
 		if (parent == null || !GodotObject.IsInstanceValid(parent)) return;
 
 		EnsureBatchedRibbonNodes(parent);
