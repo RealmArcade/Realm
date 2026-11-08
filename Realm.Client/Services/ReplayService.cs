@@ -26,7 +26,7 @@ public class ReplayService
 	public bool IsResettingForReplay { get; set; } = false;
 	public bool IsRecording => _replayRecorder != null;
 
-	public void StartRecording(string path, string mapName, List<PlayerInfo> players)
+	public void StartRecording(string path, string mapName, List<PlayerInfo>? players)
 	{
 		_lastRecordedUnits.Clear();
 		_replayRecorder = new ReplayRecorder(path, mapName, players);

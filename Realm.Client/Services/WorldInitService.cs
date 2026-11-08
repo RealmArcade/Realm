@@ -144,10 +144,10 @@ public class WorldInitService
 		int depth,
 		float quadSize,
 		float cellSize,
-		TerrainCell[,] cells,
-		int[,] pathingCodes,
-		DtNavMesh navMesh,
-		DtNavMeshQuery navMeshQuery)
+		TerrainCell[,]? cells,
+		int[,]? pathingCodes,
+		DtNavMesh? navMesh,
+		DtNavMeshQuery? navMeshQuery)
 	{
 		if (GameContext.World.Has<TerrainState>(worldEntity))
 		{
@@ -173,10 +173,10 @@ public class WorldInitService
 		int depth,
 		float quadSize,
 		float cellSize,
-		float[,] heights,
-		int[,] pathingCodes,
-		DtNavMesh navMesh,
-		DtNavMeshQuery navMeshQuery)
+		float[,]? heights,
+		int[,]? pathingCodes,
+		DtNavMesh? navMesh,
+		DtNavMeshQuery? navMeshQuery)
 	{
 		if (GameContext.World.Has<TerrainState>(worldEntity))
 		{
@@ -201,10 +201,10 @@ public class WorldInitService
 		int depth,
 		float quadSize,
 		float cellSize,
-		TerrainCell[,] cells,
-		int[,] pathingCodes,
-		DtNavMesh navMesh,
-		DtNavMeshQuery navMeshQuery)
+		TerrainCell[,]? cells,
+		int[,]? pathingCodes,
+		DtNavMesh? navMesh,
+		DtNavMeshQuery? navMeshQuery)
 	{
 		Entity worldEntity = GetOrCreateWorldEntity();
 		InitializeCommonWorldComponents(worldEntity);
@@ -217,10 +217,10 @@ public class WorldInitService
 		int depth,
 		float quadSize,
 		float cellSize,
-		float[,] heights,
-		int[,] pathingCodes,
-		DtNavMesh navMesh,
-		DtNavMeshQuery navMeshQuery)
+		float[,]? heights,
+		int[,]? pathingCodes,
+		DtNavMesh? navMesh,
+		DtNavMeshQuery? navMeshQuery)
 	{
 		Entity worldEntity = GetOrCreateWorldEntity();
 		InitializeCommonWorldComponents(worldEntity);

@@ -31,7 +31,7 @@ namespace Realm.Client.ReplaySystem
 
 		public int DroppedFrameCount => Volatile.Read(ref _droppedFrameCount);
 
-		public ReplayRecorder(string replayPath, string mapName, List<PlayerInfo> players)
+		public ReplayRecorder(string replayPath, string mapName, List<PlayerInfo>? players)
 		{
 			_replayPath = replayPath;
 			_mapName = mapName;

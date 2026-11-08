@@ -579,7 +579,7 @@ public class FXService
 		tween.Chain().TweenCallback(Callable.From(meshInstance.QueueFree));
 	}
 
-	public void SpawnWeaponProjectile(Node3D parent, Vector3 start, Vector3 target, string weaponId = null, Entity targetEntity = default, int ownerPlayerIndex = 0, bool honourDestination = false)
+	public void SpawnWeaponProjectile(Node3D parent, Vector3 start, Vector3 target, string? weaponId = null, Entity targetEntity = default, int ownerPlayerIndex = 0, bool honourDestination = false)
 	{
 		WeaponMetadata weaponMeta = null;
 		bool hasWeapon = false;
