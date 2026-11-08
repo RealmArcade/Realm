@@ -136,7 +136,7 @@ public partial class LobbyCreate : Control
 		_versionSelectButton.Name = "VersionSelectButton";
 		_versionSelectButton.CustomMinimumSize = new Vector2(180, 44);
 		_versionSelectButton.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
-		_versionSelectButton.ItemSelected += (idx) => GameContext.UserInterface.PlayClickSound();
+		_versionSelectButton.ItemSelected += (idx) => GameContext.UserInterface?.PlayClickSound();
 		_versionContainer.AddChild(_versionSelectButton);
 
 		contentContainer.AddChild(_versionContainer);
@@ -273,7 +273,7 @@ public partial class LobbyCreate : Control
 		_centralPanel.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 		_briefingPanel.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
 
-		UIStyle.ApplyTitle(_titleLabel, GameContext.Lobby.IsSinglePlayer ? TranslationServer.Translate("SINGLE PLAYER") : TranslationServer.Translate("CREATE CUSTOM MATCH"), 36);
+		UIStyle.ApplyTitle(_titleLabel, GameContext.Lobby?.IsSinglePlayer == true ? TranslationServer.Translate("SINGLE PLAYER") : TranslationServer.Translate("CREATE CUSTOM MATCH"), 36);
 
 		_openMapLibraryButton.Flat = false;
 		_openMapLibraryButton.CustomMinimumSize = new Vector2(240, 46);
@@ -288,7 +288,7 @@ public partial class LobbyCreate : Control
 		_openMapLibraryButton.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 		_openMapLibraryButton.AddThemeColorOverride("font_pressed_color", UIStyle.ColorCyanGlow);
 
-		UIStyle.ApplyBackButton(_backButton, () => GameContext.UserInterface.TransitionTo(GameContext.Lobby.IsSinglePlayer ? GameScreen.MainMenu : GameScreen.LobbyBrowser));
+		UIStyle.ApplyBackButton(_backButton, () => GameContext.UserInterface?.TransitionTo(GameContext.Lobby?.IsSinglePlayer == true ? GameScreen.MainMenu : GameScreen.LobbyBrowser));
 		SetupCreateButton();
 
 		_versionLabel.Text = Tr("VERSION:");
@@ -323,7 +323,7 @@ public partial class LobbyCreate : Control
 		_createButton.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 
 		_createButton.Pressed += OnCreatePressed;
-		_createButton.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
+		_createButton.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 	}
 
 
@@ -344,14 +344,14 @@ public partial class LobbyCreate : Control
 
 	private async Task CreateLobbyAsync()
 	{
-		GameContext.UserInterface.PlayClickSound();
+		GameContext.UserInterface?.PlayClickSound();
 
 		string selectedVersion = GetSelectedVersion();
 		var mapInfo = GetSelectedMapInfo();
 
 		if (IsMapBuildMismatch(mapInfo.BuildNumber))
 		{
-			GameContext.UserInterface.PlayWarningSound();
+			GameContext.UserInterface?.PlayWarningSound();
 			ShowMapBuildMismatchModal(mapInfo.PathName, mapInfo.DisplayName, mapInfo.BuildNumber, RealmVersion.GameBuildNumber);
 			return;
 		}
@@ -361,58 +361,61 @@ public partial class LobbyCreate : Control
 
 	private async Task ContinueHosting(string pathName, string displayName, string selectedVersion)
 	{
+		var lobby = GameContext.Lobby;
+		if (lobby == null) return;
+
 		GameSettings.LastHostedMapName = pathName;
 		GameSettings.LastHostedMapVersion = selectedVersion;
 		GameSettings.Save();
 
-		if (GameContext.Lobby.IsSinglePlayer)
+		if (lobby.IsSinglePlayer)
 		{
 			_createButton.Disabled = true;
-			bool hosted = await GameContext.Lobby.HostSinglePlayerLobbyAsync(pathName, selectedVersion);
+			bool hosted = await lobby.HostSinglePlayerLobbyAsync(pathName, selectedVersion);
 			_createButton.Disabled = false;
 
 			if (hosted)
 			{
-				GameContext.UserInterface.TransitionTo(GameScreen.LobbyRoom);
+				GameContext.UserInterface?.TransitionTo(GameScreen.LobbyRoom);
 				return;
 			}
 
-			GameContext.UserInterface.PlayWarningSound();
-			ShowHostErrorModal(GameContext.Lobby.LastHostError ?? Tr("Failed to start the match."));
+			GameContext.UserInterface?.PlayWarningSound();
+			ShowHostErrorModal(lobby.LastHostError ?? Tr("Failed to start the match."));
 			return;
 		}
 
-		if (GameContext.Lobby.LocalNatType == NatType.Symmetric)
+		if (lobby.LocalNatType == NatType.Symmetric)
 		{
-			GameContext.UserInterface.PlayWarningSound();
+			GameContext.UserInterface?.PlayWarningSound();
 			ShowNatErrorModal();
 			return;
 		}
 
 		_createButton.Disabled = true;
 		ShowHostProgressOverlay();
-		GameContext.Lobby.HostLobbyStageChanged += OnHostLobbyStageChanged;
-		bool success = await GameContext.Lobby.HostLobbyAsync(pathName, displayName, selectedVersion);
-		GameContext.Lobby.HostLobbyStageChanged -= OnHostLobbyStageChanged;
+		lobby.HostLobbyStageChanged += OnHostLobbyStageChanged;
+		bool success = await lobby.HostLobbyAsync(pathName, displayName, selectedVersion);
+		lobby.HostLobbyStageChanged -= OnHostLobbyStageChanged;
 		HideHostProgressOverlay();
 		_createButton.Disabled = false;
 
 		if (success)
 		{
-			GameContext.UserInterface.TransitionTo(GameScreen.LobbyRoom);
+			GameContext.UserInterface?.TransitionTo(GameScreen.LobbyRoom);
 		}
 		else
 		{
-			GameContext.UserInterface.PlayWarningSound();
+			GameContext.UserInterface?.PlayWarningSound();
 			GameLog.LogError("[LobbyCreate] Failed to host lobby.");
 
-			if (GameContext.Lobby.LocalNatType == NatType.Symmetric)
+			if (lobby.LocalNatType == NatType.Symmetric)
 			{
 				ShowNatErrorModal();
 				return;
 			}
 
-			string errorMsg = GameContext.Lobby.LastHostError ?? Tr("Failed to host lobby on the registry server.");
+			string errorMsg = lobby.LastHostError ?? Tr("Failed to host lobby on the registry server.");
 			ShowHostErrorModal(errorMsg);
 		}
 	}
@@ -634,7 +637,7 @@ public partial class LobbyCreate : Control
 		GameContext.UserInterface?.ShowPopupMessage(
 			TranslationServer.Translate("CANNOT HOST A GAME"),
 			TranslationServer.Translate("Your internet provider's network prevents other players from connecting to a game you host.\n\nYou can join another player's lobby, or play single player against AI bots."),
-			() => GameContext.UserInterface.TransitionTo(GameScreen.LobbyBrowser));
+			() => GameContext.UserInterface?.TransitionTo(GameScreen.LobbyBrowser));
 	}
 
 	private void ShowHostErrorModal(string errorMessage)
