@@ -272,6 +272,36 @@ public static partial class UIStyle
 			return closeBtn;
 		}
 
+	/// <summary>
+	/// The small ✕ that dismisses an artwork overlay, such as the hotkey reference: no plate of its own, a translucent
+	/// blue wash on hover and a stronger one while held.
+	/// </summary>
+	public static Button CreateOverlayCloseButton()
+	{
+		var btnClose = new Button();
+		btnClose.Name = "BtnClose";
+		btnClose.Text = "✕";
+		btnClose.FocusMode = Control.FocusModeEnum.None;
+		btnClose.AddThemeFontSizeOverride("font_size", 14);
+		btnClose.AddThemeStyleboxOverride("normal", new StyleBoxEmpty());
+		btnClose.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+
+		var hover = new StyleBoxFlat { BgColor = new Color(0.15f, 0.65f, 1.0f, 0.25f) };
+		hover.SetCornerRadiusAll(4);
+		btnClose.AddThemeStyleboxOverride("hover", hover);
+
+		var pressed = new StyleBoxFlat { BgColor = new Color(0.15f, 0.65f, 1.0f, 0.45f) };
+		pressed.SetCornerRadiusAll(4);
+		btnClose.AddThemeStyleboxOverride("pressed", pressed);
+
+		btnClose.AddThemeColorOverride("font_color", Colors.White);
+		btnClose.AddThemeColorOverride("font_hover_color", ColorGold);
+		btnClose.AddThemeColorOverride("font_pressed_color", ColorCyanGlow);
+		btnClose.AddThemeConstantOverride("outline_size", 2);
+		btnClose.AddThemeColorOverride("font_outline_color", new Color(0f, 0f, 0f, 0.9f));
+		return btnClose;
+	}
+
 	public static void ApplyBackButton(Button button, Action onPressed)
 	{
 		button.AddThemeConstantOverride("icon_max_width", 24);

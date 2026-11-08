@@ -197,35 +197,13 @@ public sealed class HotkeyReferencePanel
 
 	private Button CreateCloseButton()
 	{
-		var btnClose = new Button();
-		btnClose.Name = "BtnClose";
-		btnClose.Text = "✕";
+		var btnClose = UIStyle.CreateOverlayCloseButton();
 		btnClose.SetAnchorsPreset(Control.LayoutPreset.TopRight);
 		btnClose.OffsetLeft = -98;
 		btnClose.OffsetRight = -72;
 		btnClose.OffsetTop = 27;
 		btnClose.OffsetBottom = 53;
-		btnClose.FocusMode = Control.FocusModeEnum.None;
 		btnClose.TooltipText = TranslationServer.Translate("Close [Esc]");
-		btnClose.AddThemeFontSizeOverride("font_size", 14);
-		btnClose.AddThemeStyleboxOverride("normal", new StyleBoxEmpty());
-
-		var closeHoverStyle = new StyleBoxFlat();
-		closeHoverStyle.BgColor = new Color(0.15f, 0.65f, 1.0f, 0.25f);
-		closeHoverStyle.SetCornerRadiusAll(4);
-		btnClose.AddThemeStyleboxOverride("hover", closeHoverStyle);
-
-		var closePressedStyle = new StyleBoxFlat();
-		closePressedStyle.BgColor = new Color(0.15f, 0.65f, 1.0f, 0.45f);
-		closePressedStyle.SetCornerRadiusAll(4);
-		btnClose.AddThemeStyleboxOverride("pressed", closePressedStyle);
-
-		btnClose.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-		btnClose.AddThemeColorOverride("font_color", Colors.White);
-		btnClose.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
-		btnClose.AddThemeColorOverride("font_pressed_color", UIStyle.ColorCyanGlow);
-		btnClose.AddThemeConstantOverride("outline_size", 2);
-		btnClose.AddThemeColorOverride("font_outline_color", new Color(0f, 0f, 0f, 0.9f));
 		btnClose.Pressed += Toggle;
 		return btnClose;
 	}
@@ -242,7 +220,7 @@ public sealed class HotkeyReferencePanel
 		scroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
 		scroll.VerticalScrollMode = ScrollContainer.ScrollMode.Auto;
 
-		StyleScrollBar(scroll.GetVScrollBar());
+		UIStyle.ApplyScrollBar(scroll.GetVScrollBar());
 
 		var vbox = new VBoxContainer();
 		vbox.Name = "Vbox_VBoxContainer";
@@ -273,48 +251,12 @@ public sealed class HotkeyReferencePanel
 		return scroll;
 	}
 
-	private static void StyleScrollBar(VScrollBar? vScroll)
-	{
-		if (vScroll == null) return;
-
-		vScroll.CustomMinimumSize = new Vector2(4, 0);
-
-		var grabberNormal = new StyleBoxFlat();
-		grabberNormal.BgColor = new Color(0.6f, 0.5f, 0.35f, 0.7f);
-		grabberNormal.SetCornerRadiusAll(2);
-		vScroll.AddThemeStyleboxOverride("grabber", grabberNormal);
-
-		var grabberHighlight = new StyleBoxFlat();
-		grabberHighlight.BgColor = UIStyle.ColorGold;
-		grabberHighlight.SetCornerRadiusAll(2);
-		vScroll.AddThemeStyleboxOverride("grabber_highlight", grabberHighlight);
-
-		var grabberPressed = new StyleBoxFlat();
-		grabberPressed.BgColor = UIStyle.ColorCyanGlow;
-		grabberPressed.SetCornerRadiusAll(2);
-		vScroll.AddThemeStyleboxOverride("grabber_pressed", grabberPressed);
-
-		var scrollTrack = new StyleBoxFlat();
-		scrollTrack.BgColor = new Color(0.04f, 0.04f, 0.06f, 0.3f);
-		scrollTrack.SetCornerRadiusAll(2);
-		vScroll.AddThemeStyleboxOverride("scroll", scrollTrack);
-	}
-
 	private static PanelContainer CreateGroupHeader(string groupTitle)
 	{
 		var catHeader = new PanelContainer();
 		catHeader.Name = "CatHeader_PanelContainer";
 
-		var catHeaderStyle = new StyleBoxFlat();
-		catHeaderStyle.BgColor = new Color(0.18f, 0.16f, 0.14f, 0.85f);
-		catHeaderStyle.BorderColor = new Color(0.6f, 0.5f, 0.35f, 0.5f);
-		catHeaderStyle.SetBorderWidthAll(1);
-		catHeaderStyle.SetCornerRadiusAll(3);
-		catHeaderStyle.ContentMarginLeft = 6;
-		catHeaderStyle.ContentMarginRight = 6;
-		catHeaderStyle.ContentMarginTop = 3;
-		catHeaderStyle.ContentMarginBottom = 3;
-		catHeader.AddThemeStyleboxOverride("panel", catHeaderStyle);
+		catHeader.AddThemeStyleboxOverride("panel", UIStyle.CreateHotkeyGroupHeaderPlate());
 
 		var catTitleLbl = new Label();
 		catTitleLbl.Name = "CatTitleLbl_Label";
@@ -340,32 +282,14 @@ public sealed class HotkeyReferencePanel
 		var rowPanel = new PanelContainer();
 		rowPanel.Name = "RowPanel_PanelContainer";
 
-		var rowStyle = new StyleBoxFlat();
-		rowStyle.BgColor = (rowIndex % 2 == 0)
-			? new Color(0.12f, 0.13f, 0.15f, 0.35f)
-			: new Color(0.06f, 0.07f, 0.08f, 0.15f);
-		rowStyle.SetCornerRadiusAll(2);
-		rowStyle.ContentMarginLeft = 4;
-		rowStyle.ContentMarginRight = 4;
-		rowStyle.ContentMarginTop = 2;
-		rowStyle.ContentMarginBottom = 2;
-		rowPanel.AddThemeStyleboxOverride("panel", rowStyle);
+		rowPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateHotkeyRowPlate(rowIndex));
 
 		var row = UIStyle.CreateRowContainer();
 		row.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 
 		var keyBadge = new PanelContainer();
 		keyBadge.Name = "KeyBadge_PanelContainer";
-		var badgeStyle = new StyleBoxFlat();
-		badgeStyle.BgColor = new Color(0.08f, 0.10f, 0.14f, 0.85f);
-		badgeStyle.BorderColor = new Color(0.35f, 0.45f, 0.55f, 0.5f);
-		badgeStyle.SetBorderWidthAll(1);
-		badgeStyle.SetCornerRadiusAll(3);
-		badgeStyle.ContentMarginLeft = 4;
-		badgeStyle.ContentMarginRight = 4;
-		badgeStyle.ContentMarginTop = 1;
-		badgeStyle.ContentMarginBottom = 1;
-		keyBadge.AddThemeStyleboxOverride("panel", badgeStyle);
+		keyBadge.AddThemeStyleboxOverride("panel", UIStyle.CreateHotkeyKeyPlate());
 		keyBadge.CustomMinimumSize = new Vector2(86, 0);
 
 		var keyLbl = new Label();

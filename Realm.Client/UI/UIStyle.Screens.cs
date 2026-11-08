@@ -94,6 +94,54 @@ public static partial class UIStyle
 		return style;
 	}
 
+	/// <summary>The bronze-ruled bar a shortcut group is named under in the hotkey reference.</summary>
+	public static StyleBoxFlat CreateHotkeyGroupHeaderPlate()
+	{
+		var style = new StyleBoxFlat();
+		style.BgColor = new Color(0.18f, 0.16f, 0.14f, 0.85f);
+		style.BorderColor = new Color(0.6f, 0.5f, 0.35f, 0.5f);
+		style.SetBorderWidthAll(1);
+		style.SetCornerRadiusAll(3);
+		style.ContentMarginLeft = 6;
+		style.ContentMarginRight = 6;
+		style.ContentMarginTop = 3;
+		style.ContentMarginBottom = 3;
+		return style;
+	}
+
+	/// <summary>
+	/// The plate behind one shortcut row. Rows alternate between two tints so a long group stays readable, so the tint is
+	/// chosen here from the row index rather than picked at the call site.
+	/// </summary>
+	public static StyleBoxFlat CreateHotkeyRowPlate(int rowIndex)
+	{
+		var style = new StyleBoxFlat();
+		style.BgColor = (rowIndex % 2 == 0)
+			? new Color(0.12f, 0.13f, 0.15f, 0.35f)
+			: new Color(0.06f, 0.07f, 0.08f, 0.15f);
+		style.SetCornerRadiusAll(2);
+		style.ContentMarginLeft = 4;
+		style.ContentMarginRight = 4;
+		style.ContentMarginTop = 2;
+		style.ContentMarginBottom = 2;
+		return style;
+	}
+
+	/// <summary>The steel-ruled plate behind a key name in the hotkey reference.</summary>
+	public static StyleBoxFlat CreateHotkeyKeyPlate()
+	{
+		var style = new StyleBoxFlat();
+		style.BgColor = new Color(0.08f, 0.10f, 0.14f, 0.85f);
+		style.BorderColor = new Color(0.35f, 0.45f, 0.55f, 0.5f);
+		style.SetBorderWidthAll(1);
+		style.SetCornerRadiusAll(3);
+		style.ContentMarginLeft = 4;
+		style.ContentMarginRight = 4;
+		style.ContentMarginTop = 1;
+		style.ContentMarginBottom = 1;
+		return style;
+	}
+
 	/// <summary>The drop shadow behind the settings menu's light stone frame.</summary>
 	public static StyleBoxFlat CreateSettingsWindowShadow()
 	{

@@ -72,6 +72,33 @@ public static partial class UIStyle
 		return scroll;
 	}
 
+	/// <summary>
+	/// Gives a scroll container's vertical bar the console treatment: a bronze grabber over a dark track, brightening to
+	/// gold on hover and cyan while held. Width, corner rounding and grabber tint are the parts that vary between panels.
+	/// </summary>
+	public static void ApplyScrollBar(VScrollBar? vScroll, float width = 4f, int cornerRadius = 2, Color? grabberColor = null, float trackAlpha = 0.3f)
+	{
+		if (vScroll == null) return;
+
+		vScroll.CustomMinimumSize = new Vector2(width, 0);
+
+		var grabber = new StyleBoxFlat { BgColor = grabberColor ?? new Color(0.6f, 0.5f, 0.35f, 0.7f) };
+		grabber.SetCornerRadiusAll(cornerRadius);
+		vScroll.AddThemeStyleboxOverride("grabber", grabber);
+
+		var grabberHighlight = new StyleBoxFlat { BgColor = ColorGold };
+		grabberHighlight.SetCornerRadiusAll(cornerRadius);
+		vScroll.AddThemeStyleboxOverride("grabber_highlight", grabberHighlight);
+
+		var grabberPressed = new StyleBoxFlat { BgColor = ColorCyanGlow };
+		grabberPressed.SetCornerRadiusAll(cornerRadius);
+		vScroll.AddThemeStyleboxOverride("grabber_pressed", grabberPressed);
+
+		var track = new StyleBoxFlat { BgColor = new Color(0.04f, 0.04f, 0.06f, trackAlpha) };
+		track.SetCornerRadiusAll(cornerRadius);
+		vScroll.AddThemeStyleboxOverride("scroll", track);
+	}
+
 	public static CenterContainer CreateCenteredOverlay()
 	{
 		var center = new CenterContainer();
