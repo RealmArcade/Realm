@@ -27,25 +27,25 @@ namespace Realm.Ecs.Components.Core
 
 		public Dictionary<int, Entity> ServerToClientEntityMap
 		{
-			get => ColdPayloadRegistry<Dictionary<int, Entity>>.Get(ServerToClientHandle);
+			get => ColdPayloadRegistry<Dictionary<int, Entity>>.Get(ServerToClientHandle)!;
 			set => ServerToClientHandle = ColdPayloadRegistry<Dictionary<int, Entity>>.Register(value);
 		}
 
 		public Dictionary<int, int> ClientToServerEntityMap
 		{
-			get => ColdPayloadRegistry<Dictionary<int, int>>.Get(ClientToServerHandle);
+			get => ColdPayloadRegistry<Dictionary<int, int>>.Get(ClientToServerHandle)!;
 			set => ClientToServerHandle = ColdPayloadRegistry<Dictionary<int, int>>.Register(value);
 		}
 
 		public Dictionary<int, Entity> PeerIdToPlayerEntityMap
 		{
-			get => ColdPayloadRegistry<Dictionary<int, Entity>>.Get(PeerIdToPlayerHandle);
+			get => ColdPayloadRegistry<Dictionary<int, Entity>>.Get(PeerIdToPlayerHandle)!;
 			set => PeerIdToPlayerHandle = ColdPayloadRegistry<Dictionary<int, Entity>>.Register(value);
 		}
 
 		public Entity[] PlayerEntities
 		{
-			get => ColdPayloadRegistry<Entity[]>.Get(PlayerEntitiesHandle);
+			get => ColdPayloadRegistry<Entity[]>.Get(PlayerEntitiesHandle)!;
 			set => PlayerEntitiesHandle = ColdPayloadRegistry<Entity[]>.Register(value);
 		}
 	}
