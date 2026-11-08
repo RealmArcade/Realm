@@ -445,6 +445,26 @@ public static partial class UIStyle
 		return style;
 	}
 
+	/// <summary>
+	/// The floating plate a popover hangs off its anchor with: near-black, gold-edged, rounded, and lifted off the page
+	/// by a shadow rather than a border thick enough to see.
+	/// </summary>
+	public static StyleBoxFlat CreatePopoverPanelPlate()
+	{
+		var style = new StyleBoxFlat();
+		style.BgColor = new Color(0.04f, 0.05f, 0.08f, 0.98f);
+		style.BorderColor = ColorGoldDull;
+		style.SetBorderWidthAll(1);
+		style.SetCornerRadiusAll(8);
+		style.ShadowColor = new Color(0.0f, 0.0f, 0.0f, 0.6f);
+		style.ShadowSize = 12;
+		style.ContentMarginLeft = 16;
+		style.ContentMarginRight = 16;
+		style.ContentMarginTop = 14;
+		style.ContentMarginBottom = 14;
+		return style;
+	}
+
 	public static StyleBox CreateBackdropPanel()
 	{
 		var style = new StyleBoxFlat();

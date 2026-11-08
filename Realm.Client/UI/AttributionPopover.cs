@@ -148,15 +148,8 @@ public partial class AttributionPopover : Control
 		row.Name = "SourceRow_PanelContainer";
 		row.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 
-		var rowStyle = new StyleBoxFlat();
-		rowStyle.BgColor = new Color(0.04f, 0.05f, 0.07f, 0.75f);
-		rowStyle.BorderColor = new Color(0.45f, 0.38f, 0.25f, 0.35f);
-		rowStyle.SetBorderWidthAll(1);
-		rowStyle.SetCornerRadiusAll(4);
-		rowStyle.ContentMarginLeft = 10;
-		rowStyle.ContentMarginRight = 10;
-		rowStyle.ContentMarginTop = 5;
-		rowStyle.ContentMarginBottom = 5;
+		var rowStyle = UIStyle.CreateCardPlate(new Color(0.04f, 0.05f, 0.07f, 0.75f),
+			new Color(0.45f, 0.38f, 0.25f, 0.35f), 1, 4, 10, 10, 5, 5);
 		row.AddThemeStyleboxOverride("panel", rowStyle);
 
 		var label = new Label();
@@ -207,19 +200,5 @@ public partial class AttributionPopover : Control
 		GetViewport().SetInputAsHandled();
 	}
 
-	private static StyleBoxFlat CreatePanelStyle()
-	{
-		var style = new StyleBoxFlat();
-		style.BgColor = new Color(0.04f, 0.05f, 0.08f, 0.98f);
-		style.BorderColor = UIStyle.ColorGoldDull;
-		style.SetBorderWidthAll(1);
-		style.SetCornerRadiusAll(8);
-		style.ShadowColor = new Color(0.0f, 0.0f, 0.0f, 0.6f);
-		style.ShadowSize = 12;
-		style.ContentMarginLeft = 16;
-		style.ContentMarginRight = 16;
-		style.ContentMarginTop = 14;
-		style.ContentMarginBottom = 14;
-		return style;
-	}
+	private static StyleBoxFlat CreatePanelStyle() => UIStyle.CreatePopoverPanelPlate();
 }
