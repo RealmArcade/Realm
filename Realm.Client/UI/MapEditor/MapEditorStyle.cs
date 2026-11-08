@@ -126,4 +126,152 @@ internal static class MapEditorStyle
 		btn.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
 		btn.Alignment = HorizontalAlignment.Center;
 	}
+
+	public static void SubContainer(Control boxNode, string? headerText = null)
+	{
+		if (boxNode == null) return;
+
+		var boxStyle = new StyleBoxFlat();
+		boxStyle.BgColor = new Color(0.13f, 0.12f, 0.10f, 0.7f);
+		boxStyle.BorderColor = new Color(0.32f, 0.27f, 0.20f, 0.6f);
+		boxStyle.SetBorderWidthAll(1);
+		boxStyle.SetCornerRadiusAll(4);
+		boxStyle.ContentMarginLeft = 10;
+		boxStyle.ContentMarginRight = 14;
+		boxStyle.ContentMarginTop = 6;
+		boxStyle.ContentMarginBottom = 6;
+
+		if (boxNode is PanelContainer pc)
+		{
+			pc.AddThemeStyleboxOverride("panel", boxStyle);
+		}
+		else if (boxNode is VBoxContainer vbox)
+		{
+			vbox.AddThemeConstantOverride("separation", 4);
+			Panel bgPanel = vbox.GetNodeOrNull<Panel>("SubBoxBG");
+			if (bgPanel == null)
+			{
+				bgPanel = new Panel();
+				bgPanel.Name = "SubBoxBG";
+				bgPanel.ShowBehindParent = true;
+				bgPanel.MouseFilter = Control.MouseFilterEnum.Ignore;
+				bgPanel.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+				vbox.AddChild(bgPanel);
+				vbox.MoveChild(bgPanel, 0);
+			}
+
+			bgPanel.AddThemeStyleboxOverride("panel", boxStyle);
+		}
+
+		if (!string.IsNullOrEmpty(headerText))
+		{
+			Label lblHeader = boxNode.GetNodeOrNull<Label>("Header/LblSubTitle");
+			if (lblHeader == null)
+			{
+				var headerBox = boxNode.GetNodeOrNull<Control>("Header");
+				if (headerBox != null)
+				{
+					lblHeader = headerBox.GetNodeOrNull<Label>("LblSubTitle");
+				}
+			}
+
+			if (lblHeader != null)
+			{
+				lblHeader.Text = headerText.ToUpperInvariant();
+				lblHeader.AddThemeFontSizeOverride("font_size", 10);
+				lblHeader.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+			}
+		}
+	}
+
+	public static void ValueBadge(Label lbl)
+	{
+		if (lbl == null) return;
+		var badgeStyle = new StyleBoxFlat();
+		badgeStyle.BgColor = new Color(0.18f, 0.16f, 0.13f, 0.95f);
+		badgeStyle.BorderColor = UIStyle.ColorGold;
+		badgeStyle.SetBorderWidthAll(1);
+		badgeStyle.SetCornerRadiusAll(3);
+		badgeStyle.ContentMarginLeft = 6;
+		badgeStyle.ContentMarginRight = 6;
+		badgeStyle.ContentMarginTop = 2;
+		badgeStyle.ContentMarginBottom = 2;
+
+		lbl.AddThemeStyleboxOverride("normal", badgeStyle);
+		lbl.AddThemeFontSizeOverride("font_size", 11);
+		lbl.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+		lbl.HorizontalAlignment = HorizontalAlignment.Center;
+		lbl.VerticalAlignment = VerticalAlignment.Center;
+	}
+
+	public static void OptionButtonsInContainer(Control container, Font? font)
+	{
+		if (container == null) return;
+		foreach (Node child in container.GetChildren())
+		{
+			if (child is OptionButton optBtn)
+			{
+				OptionButtonPopup(optBtn, font);
+			}
+			else if (child is Button btn && !btn.Name.ToString().StartsWith("BtnHeader"))
+			{
+				if (btn.CustomMinimumSize.X != 52 || btn.CustomMinimumSize.Y != 52)
+				{
+					btn.AddThemeStyleboxOverride("normal", UIStyle.CreateOptionButtonNormal());
+					btn.AddThemeStyleboxOverride("hover", UIStyle.CreateOptionButtonHover());
+					btn.AddThemeStyleboxOverride("pressed", UIStyle.CreateOptionButtonPressed());
+					btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+					btn.AddThemeColorOverride("font_color", new Color(0.95f, 0.90f, 0.82f));
+					btn.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
+				}
+			}
+			else if (child is Control subContainer)
+			{
+				OptionButtonsInContainer(subContainer, font);
+			}
+		}
+	}
+
+	public static Control? ContentTarget(Control? contentControl)
+	{
+		if (contentControl == null) return null;
+		var inner = contentControl.GetNodeOrNull<Control>("CardScroll/InnerVBox");
+		return inner ?? contentControl;
+	}
+
+	public static void OptionButtonPopup(OptionButton optBtn, Font? font)
+	{
+		if (optBtn == null) return;
+		if (font != null)
+		{
+			optBtn.AddThemeFontOverride("font", font);
+		}
+
+		PopupMenuTheme(optBtn.GetPopup(), font);
+	}
+
+	public static void PopupMenuTheme(PopupMenu popup, Font? font)
+	{
+		if (popup == null) return;
+		if (font != null)
+		{
+			popup.AddThemeFontOverride("font", font);
+		}
+
+		popup.AddThemeFontSizeOverride("font_size", 12);
+
+		var popupStyle = new StyleBoxFlat();
+		popupStyle.BgColor = new Color(0.14f, 0.13f, 0.11f, 0.98f);
+		popupStyle.BorderColor = UIStyle.ColorGold;
+		popupStyle.SetBorderWidthAll(1);
+		popupStyle.SetCornerRadiusAll(4);
+		popupStyle.ContentMarginLeft = 8;
+		popupStyle.ContentMarginRight = 8;
+		popupStyle.ContentMarginTop = 6;
+		popupStyle.ContentMarginBottom = 6;
+
+		popup.AddThemeStyleboxOverride("panel", popupStyle);
+		popup.AddThemeColorOverride("font_color", new Color(0.92f, 0.88f, 0.82f));
+		popup.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
+	}
 }

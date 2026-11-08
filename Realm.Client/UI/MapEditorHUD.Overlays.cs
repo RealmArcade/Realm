@@ -2138,13 +2138,7 @@ namespace Realm.Client.UI
 			btn.Alignment = HorizontalAlignment.Left;
 		}
 
-		private Control? GetContentTarget(Control? contentControl)
-		{
-			if (contentControl == null) return null;
-			var inner = contentControl.GetNodeOrNull<Control>("CardScroll/InnerVBox");
-			return inner ?? contentControl;
-		}
-
+		private Control? GetContentTarget(Control? contentControl) => MapEditorStyle.ContentTarget(contentControl);
 
 		private void SetupCardScrollContainer(Control contentControl, float maxHeight = 300f, bool allowExpandBtn = true)
 		{
@@ -2221,82 +2215,9 @@ namespace Realm.Client.UI
 			scroll.CustomMinimumSize = new Vector2(245, 0);
 		}
 
-		private void StyleSubContainer(Control boxNode, string? headerText = null)
-		{
-			if (boxNode == null) return;
+		private void StyleSubContainer(Control boxNode, string? headerText = null) => MapEditorStyle.SubContainer(boxNode, headerText);
 
-			var boxStyle = new StyleBoxFlat();
-			boxStyle.BgColor = new Color(0.13f, 0.12f, 0.10f, 0.7f);
-			boxStyle.BorderColor = new Color(0.32f, 0.27f, 0.20f, 0.6f);
-			boxStyle.SetBorderWidthAll(1);
-			boxStyle.SetCornerRadiusAll(4);
-			boxStyle.ContentMarginLeft = 10;
-			boxStyle.ContentMarginRight = 14;
-			boxStyle.ContentMarginTop = 6;
-			boxStyle.ContentMarginBottom = 6;
-
-			if (boxNode is PanelContainer pc)
-			{
-				pc.AddThemeStyleboxOverride("panel", boxStyle);
-			}
-			else if (boxNode is VBoxContainer vbox)
-			{
-				vbox.AddThemeConstantOverride("separation", 4);
-				Panel bgPanel = vbox.GetNodeOrNull<Panel>("SubBoxBG");
-				if (bgPanel == null)
-				{
-					bgPanel = new Panel();
-					bgPanel.Name = "SubBoxBG";
-					bgPanel.ShowBehindParent = true;
-					bgPanel.MouseFilter = MouseFilterEnum.Ignore;
-					bgPanel.SetAnchorsPreset(LayoutPreset.FullRect);
-					vbox.AddChild(bgPanel);
-					vbox.MoveChild(bgPanel, 0);
-				}
-
-				bgPanel.AddThemeStyleboxOverride("panel", boxStyle);
-			}
-
-			if (!string.IsNullOrEmpty(headerText))
-			{
-				Label lblHeader = boxNode.GetNodeOrNull<Label>("Header/LblSubTitle");
-				if (lblHeader == null)
-				{
-					var headerBox = boxNode.GetNodeOrNull<Control>("Header");
-					if (headerBox != null)
-					{
-						lblHeader = headerBox.GetNodeOrNull<Label>("LblSubTitle");
-					}
-				}
-
-				if (lblHeader != null)
-				{
-					lblHeader.Text = headerText.ToUpperInvariant();
-					lblHeader.AddThemeFontSizeOverride("font_size", 10);
-					lblHeader.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-				}
-			}
-		}
-
-		private void StyleValueBadge(Label lbl)
-		{
-			if (lbl == null) return;
-			var badgeStyle = new StyleBoxFlat();
-			badgeStyle.BgColor = new Color(0.18f, 0.16f, 0.13f, 0.95f);
-			badgeStyle.BorderColor = UIStyle.ColorGold;
-			badgeStyle.SetBorderWidthAll(1);
-			badgeStyle.SetCornerRadiusAll(3);
-			badgeStyle.ContentMarginLeft = 6;
-			badgeStyle.ContentMarginRight = 6;
-			badgeStyle.ContentMarginTop = 2;
-			badgeStyle.ContentMarginBottom = 2;
-
-			lbl.AddThemeStyleboxOverride("normal", badgeStyle);
-			lbl.AddThemeFontSizeOverride("font_size", 11);
-			lbl.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-			lbl.HorizontalAlignment = HorizontalAlignment.Center;
-			lbl.VerticalAlignment = VerticalAlignment.Center;
-		}
+		private void StyleValueBadge(Label lbl) => MapEditorStyle.ValueBadge(lbl);
 
 		private void StyleCheckBoxRow(CheckBox chk)
 		{
@@ -2748,72 +2669,11 @@ namespace Realm.Client.UI
 			}
 		}
 
-		private void StyleOptionButtonPopup(OptionButton optBtn)
-		{
-			if (optBtn == null) return;
-			var font = GetFontAwesomeFont();
-			if (font != null)
-			{
-				optBtn.AddThemeFontOverride("font", font);
-			}
+		private void StyleOptionButtonPopup(OptionButton optBtn) => MapEditorStyle.OptionButtonPopup(optBtn, GetFontAwesomeFont());
 
-			StylePopupMenu(optBtn.GetPopup());
-		}
+		private void StylePopupMenu(PopupMenu popup) => MapEditorStyle.PopupMenuTheme(popup, GetFontAwesomeFont());
 
-		private void StylePopupMenu(PopupMenu popup)
-		{
-			if (popup == null) return;
-			var font = GetFontAwesomeFont();
-			if (font != null)
-			{
-				popup.AddThemeFontOverride("font", font);
-			}
-
-			popup.AddThemeFontSizeOverride("font_size", 12);
-
-			var popupStyle = new StyleBoxFlat();
-			popupStyle.BgColor = new Color(0.14f, 0.13f, 0.11f, 0.98f);
-			popupStyle.BorderColor = UIStyle.ColorGold;
-			popupStyle.SetBorderWidthAll(1);
-			popupStyle.SetCornerRadiusAll(4);
-			popupStyle.ContentMarginLeft = 8;
-			popupStyle.ContentMarginRight = 8;
-			popupStyle.ContentMarginTop = 6;
-			popupStyle.ContentMarginBottom = 6;
-
-			popup.AddThemeStyleboxOverride("panel", popupStyle);
-			popup.AddThemeColorOverride("font_color", new Color(0.92f, 0.88f, 0.82f));
-			popup.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
-		}
-
-		private void StyleOptionButtonsInContainer(Control container)
-		{
-			if (container == null) return;
-			foreach (Node child in container.GetChildren())
-			{
-				if (child is OptionButton optBtn)
-				{
-					StyleOptionButtonPopup(optBtn);
-				}
-				else if (child is Button btn && !btn.Name.ToString().StartsWith("BtnHeader"))
-				{
-					if (btn.CustomMinimumSize.X != 52 || btn.CustomMinimumSize.Y != 52)
-					{
-						btn.AddThemeStyleboxOverride("normal", UIStyle.CreateOptionButtonNormal());
-						btn.AddThemeStyleboxOverride("hover", UIStyle.CreateOptionButtonHover());
-						btn.AddThemeStyleboxOverride("pressed", UIStyle.CreateOptionButtonPressed());
-						btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-						btn.AddThemeColorOverride("font_color", new Color(0.95f, 0.90f, 0.82f));
-						btn.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
-					}
-				}
-				else if (child is Control subContainer)
-				{
-					StyleOptionButtonsInContainer(subContainer);
-				}
-			}
-		}
-
+		private void StyleOptionButtonsInContainer(Control container) => MapEditorStyle.OptionButtonsInContainer(container, GetFontAwesomeFont());
 
 		public void SetupTextureSwatches(bool connectEvents = false)
 		{
