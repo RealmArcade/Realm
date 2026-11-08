@@ -227,7 +227,7 @@ public static class AssetThumbnailProvider
 			".rmesh" or ".glb" or ".gltf" => ModelCacheDir,
 			_ => ImageCacheDir
 		};
-		string hash = GlbThumbnailRenderer.GetBlake3(normPath, blake3);
+		string hash = ThumbnailCacheKey.GetBlake3(normPath, blake3);
 		if (string.IsNullOrEmpty(hash) || hash.Length < 2)
 		{
 			return string.Empty;
