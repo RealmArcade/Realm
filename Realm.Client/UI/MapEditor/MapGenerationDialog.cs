@@ -75,7 +75,7 @@ public partial class MapGenerationDialog : Control
 		AddChild(center);
 
 		var panel = new PanelContainer { Name = "GenerationPanel", CustomMinimumSize = new Vector2(510f, 490f) };
-		panel.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
+		UIStyle.ClearPanelBackground(panel);
 		center.AddChild(panel);
 
 		var background = new TextureRect
