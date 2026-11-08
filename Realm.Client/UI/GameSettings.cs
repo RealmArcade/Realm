@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Text.Json;
@@ -390,7 +390,7 @@ public static class GameSettings
 
 	private static void ApplyLodVisibilityDistances()
 	{
-		GameHost host = GameContext.Host;
+		GameHost? host = GameContext.Host;
 		if (host == null || !GodotObject.IsInstanceValid(host)) return;
 
 		var units = host.AllUnits;
@@ -455,7 +455,7 @@ public static class GameSettings
 		viewport.Scaling3DMode = Viewport.Scaling3DModeEnum.Bilinear;
 	}
 
-	private static void ApplyWorldEnvironment(Window root)
+	private static void ApplyWorldEnvironment(Window? root)
 	{
 		if (root == null || !GodotObject.IsInstanceValid(root)) return;
 
@@ -479,7 +479,7 @@ public static class GameSettings
 		}
 	}
 
-	private static void ApplyTerrainQuality(Window root)
+	private static void ApplyTerrainQuality(Window? root)
 	{
 		var terrain = (root != null ? FindNodeInTree<RuntimeTerrain>(root) : null) ?? GameContext.Terrain;
 		if (terrain != null && GodotObject.IsInstanceValid(terrain))
@@ -488,9 +488,9 @@ public static class GameSettings
 		}
 	}
 
-	private static void ApplyGameHostSettings(Window root)
+	private static void ApplyGameHostSettings(Window? root)
 	{
-		GameHost gameHost = GetValidGameHost(root);
+		GameHost? gameHost = GetValidGameHost(root);
 		if (gameHost == null) return;
 
 		var envService = GameContext.EnvironmentService;
@@ -508,9 +508,9 @@ public static class GameSettings
 		envService.UpdateDayNightVisuals(progress);
 	}
 
-	private static GameHost GetValidGameHost(Window root)
+	private static GameHost? GetValidGameHost(Window? root)
 	{
-		GameHost host = null;
+		GameHost? host = null;
 		if (root != null)
 		{
 			var foundHost = FindNodeInTree<GameHost>(root);
@@ -595,14 +595,14 @@ public static class GameSettings
 
 	private static bool IsEditorShadowsDisabled()
 	{
-		GameHost host = GameContext.Host;
+		GameHost? host = GameContext.Host;
 		if (host == null) return false;
 		if (!GameContext.SessionState.IsMapEditorMode) return false;
 		if (!GameContext.EditorService.EditorDisableShadows) return false;
 		return true;
 	}
 
-	private static T FindNodeInTree<T>(Node parent) where T : Node
+	private static T? FindNodeInTree<T>(Node parent) where T : Node
 	{
 		if (parent is T t) return t;
 		int childCount = parent.GetChildCount();
