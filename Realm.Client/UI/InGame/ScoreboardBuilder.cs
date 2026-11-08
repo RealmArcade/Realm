@@ -29,15 +29,7 @@ public static class ScoreboardBuilder
 		panel.Visible = false;
 		panel.SizeFlagsHorizontal = Control.SizeFlags.ShrinkEnd;
 
-		var panelStyle = new StyleBoxFlat();
-		panelStyle.BgColor = new Color(0.12f, 0.12f, 0.14f, 0.9f);
-		panelStyle.SetBorderWidthAll(1);
-		panelStyle.BorderColor = UIStyle.ColorBronze;
-		panelStyle.SetCornerRadiusAll(4);
-		panelStyle.ContentMarginLeft = 10;
-		panelStyle.ContentMarginRight = 10;
-		panelStyle.ContentMarginTop = 8;
-		panelStyle.ContentMarginBottom = 8;
+		var panelStyle = UIStyle.CreateCardPlate(new Color(0.12f, 0.12f, 0.14f, 0.9f), UIStyle.ColorBronze, 1, 4, 10, 10, 8, 8);
 		panel.AddThemeStyleboxOverride("panel", panelStyle);
 
 		var vbox = new VBoxContainer();
