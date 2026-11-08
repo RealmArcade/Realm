@@ -18,9 +18,17 @@ namespace Realm.Client.Services;
 
 public class InputService
 {
+	/// <summary>
+	/// The world this service reads input state from. Every member below is an input path that
+	/// only runs while a world exists, so reaching one without a world is a programming error;
+	/// stating that once keeps fifty reads from each re-proving it.
+	/// </summary>
+	private static EcsWorld World => GameContext.World
+		?? throw new InvalidOperationException("InputService used before a world existed.");
+
 	public int GetPopCostForIndex(Entity buildingEntity, int index)
 	{
-		var prod = GameContext.World.Get<ProductionQueue>(buildingEntity);
+		var prod = World.Get<ProductionQueue>(buildingEntity);
 		string? peekCancelledId = prod.Get(index);
 		if (peekCancelledId != null && GameHost.UnitRegistry.TryGetValue(peekCancelledId, out var metaPeek))
 		{
@@ -36,11 +44,11 @@ public class InputService
 		if (index == 0 && nextUnitId != null && !isMultiplayerClient)
 		{
 			var nextMeta = GameHost.UnitRegistry[nextUnitId];
-			if (GameContext.World.Has<ProductionQueue>(buildingEntity))
+			if (World.Has<ProductionQueue>(buildingEntity))
 			{
-				var p = GameContext.World.Get<ProductionQueue>(buildingEntity);
+				var p = World.Get<ProductionQueue>(buildingEntity);
 				p.BuildTime = nextMeta.ProductionTime;
-				GameContext.World.Set(buildingEntity, p);
+				World.Set(buildingEntity, p);
 			}
 		}
 	}
@@ -52,13 +60,13 @@ public class InputService
 	{
 		Entity worldEntity = Entity.Null;
 		var query = QueryCache.AllInputStateQuery;
-		GameContext.World.Query(in query, entity => worldEntity = entity);
+		World.Query(in query, entity => worldEntity = entity);
 		return worldEntity;
 	}
 
 	private ref InputState GetInputState(Entity worldEntity)
 	{
-		return ref GameContext.World.Get<InputState>(worldEntity);
+		return ref World.Get<InputState>(worldEntity);
 	}
 
 
@@ -93,9 +101,9 @@ public class InputService
 			return;
 		}
 
-		if (!GameContext.World.Has<BuildTask>(unitEntity))
+		if (!World.Has<BuildTask>(unitEntity))
 		{
-			GameContext.World.SetOrAdd(unitEntity, new MoveTo(buildingPos));
+			World.SetOrAdd(unitEntity, new MoveTo(buildingPos));
 		}
 	}
 
@@ -110,18 +118,18 @@ public class InputService
 				return false;
 			}
 		}
-		return GameContext.World.IsAlive(unitEntity);
+		return World.IsAlive(unitEntity);
 	}
 
 	public bool ShouldEnqueueWorkerBuild(Entity entity)
 	{
-			return UnitActivityHelper.IsUnitActive(GameContext.World, entity) || GameContext.World.Has<BuildQueue>(entity);
+			return UnitActivityHelper.IsUnitActive(World, entity) || World.Has<BuildQueue>(entity);
 	}
 
 	public void EnqueueBuildTask(Entity worker, string type, Vector3 pos)
 	{
-		if (!GameContext.World.Has<BuildQueue>(worker)) GameContext.World.Add(worker, new BuildQueue());
-		ref var q = ref GameContext.World.Get<BuildQueue>(worker);
+		if (!World.Has<BuildQueue>(worker)) World.Add(worker, new BuildQueue());
+		ref var q = ref World.Get<BuildQueue>(worker);
 		q.TryEnqueue(type, pos);
 	}
 
@@ -142,29 +150,29 @@ public class InputService
 	{
 		foreach (var workerEntity in selectedWorkerEntities)
 		{
-				if (shiftHeld && (UnitActivityHelper.IsUnitActive(GameContext.World, workerEntity) || GameContext.World.Has<BuildQueue>(workerEntity)))
+				if (shiftHeld && (UnitActivityHelper.IsUnitActive(World, workerEntity) || World.Has<BuildQueue>(workerEntity)))
 			{
-				if (!GameContext.World.Has<BuildQueue>(workerEntity))
+				if (!World.Has<BuildQueue>(workerEntity))
 				{
-					GameContext.World.Add(workerEntity, new BuildQueue());
+					World.Add(workerEntity, new BuildQueue());
 				}
 
-				ref var q = ref GameContext.World.Get<BuildQueue>(workerEntity);
+				ref var q = ref World.Get<BuildQueue>(workerEntity);
 				q.TryEnqueue(targetBuildingUnitId, bPos, targetBuildingEntity);
 			}
 			else
 			{
 				GameContext.SimulationService.OnClearUnitOrdersRequested?.Invoke(workerEntity);
 
-				if (GameContext.World.Has<ConstructionState>(targetBuildingEntity))
+				if (World.Has<ConstructionState>(targetBuildingEntity))
 				{
-					var cState = GameContext.World.Get<ConstructionState>(targetBuildingEntity);
+					var cState = World.Get<ConstructionState>(targetBuildingEntity);
 					var buildTask = new BuildTask(targetBuildingEntity, cState.TotalBuildTime)
 					{
 						Progress = cState.Progress
 					};
-					GameContext.World.SetOrAdd(workerEntity, buildTask);
-					GameContext.World.SetOrAdd(workerEntity, new MoveTo(bPos));
+					World.SetOrAdd(workerEntity, buildTask);
+					World.SetOrAdd(workerEntity, new MoveTo(bPos));
 				}
 			}
 		}
@@ -174,7 +182,7 @@ public class InputService
 	{
 		if (unitIds == null || unitIds.Count <= 1 || worldEntity == Entity.Null) return 0;
 
-		ref var state = ref GameContext.World.Get<InputState>(worldEntity);
+		ref var state = ref World.Get<InputState>(worldEntity);
 		int currentIndex = Math.Clamp(state.CycleSelectionIndex, 0, unitIds.Count - 1);
 
 		var subGroups = new List<string>();
@@ -215,7 +223,7 @@ public class InputService
 	{
 		if (selectedCount <= 1 || worldEntity == Entity.Null) return 0;
 
-		ref var state = ref GameContext.World.Get<InputState>(worldEntity);
+		ref var state = ref World.Get<InputState>(worldEntity);
 		if (reverse)
 		{
 			state.CycleSelectionIndex = (state.CycleSelectionIndex - 1 + selectedCount) % selectedCount;
@@ -232,7 +240,7 @@ public class InputService
 	{
 		var buildings = new List<Entity>();
 		var query = QueryCache.AllBuildingAndOwnerAndPositionNoneDeadQuery;
-		GameContext.World.Query(in query, (Entity entity, ref Owner owner) =>
+		World.Query(in query, (Entity entity, ref Owner owner) =>
 		{
 			if (owner.PlayerEntity.Value == playerEntity)
 			{
@@ -249,9 +257,9 @@ public class InputService
 	{
 		foreach (var entity in entities)
 		{
-			if (GameContext.World.IsAlive(entity) && !GameContext.World.Has<Dead>(entity))
+			if (World.IsAlive(entity) && !World.Has<Dead>(entity))
 			{
-				GameContext.World.Add<Dead>(entity);
+				World.Add<Dead>(entity);
 			}
 		}
 	}
@@ -260,14 +268,14 @@ public class InputService
 	{
 		var result = new List<Entity>();
 		var query = QueryCache.AllOwnerAndMovableNoneDeadAndBuildingQuery;
-		GameContext.World.Query(in query, (Entity entity, ref Owner owner) =>
+		World.Query(in query, (Entity entity, ref Owner owner) =>
 		{
 			if (owner.PlayerEntity.Value == playerEntity)
 			{
-				bool hasMoveTo = GameContext.World.Has<MoveTo>(entity);
-				bool hasAttackTarget = GameContext.World.Has<AttackTarget>(entity);
-				bool hasAttackMove = GameContext.World.Has<AttackMove>(entity);
-				bool isGathering = GameContext.World.Has<Gatherer>(entity) && GameContext.World.Get<Gatherer>(entity).TargetEntity != Entity.Null;
+				bool hasMoveTo = World.Has<MoveTo>(entity);
+				bool hasAttackTarget = World.Has<AttackTarget>(entity);
+				bool hasAttackMove = World.Has<AttackMove>(entity);
+				bool isGathering = World.Has<Gatherer>(entity) && World.Get<Gatherer>(entity).TargetEntity != Entity.Null;
 
 				if (!hasMoveTo && !hasAttackTarget && !hasAttackMove && !isGathering)
 				{
@@ -282,7 +290,7 @@ public class InputService
 	{
 		var result = new List<Entity>();
 		var query = QueryCache.AllOwnerAndMovableNoneDeadAndBuildingQuery;
-		GameContext.World.Query(in query, (Entity entity, ref Owner owner) =>
+		World.Query(in query, (Entity entity, ref Owner owner) =>
 		{
 			if (owner.PlayerEntity.Value == playerEntity)
 			{
@@ -296,7 +304,7 @@ public class InputService
 	{
 		var result = new List<Entity>();
 		var query = QueryCache.AllOwnerAndBuildingNoneDeadQuery;
-		GameContext.World.Query(in query, (Entity entity, ref Owner owner) =>
+		World.Query(in query, (Entity entity, ref Owner owner) =>
 		{
 			if (owner.PlayerEntity.Value == playerEntity)
 			{
@@ -313,9 +321,9 @@ public class InputService
 
 	public bool IsAreaObstructed(Vector3 position, float clearance)
 	{
-		if (GameContext.World != null && GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) && GameContext.World.Has<Realm.Ecs.Components.Terrain.TerrainState>(GameContext.Simulation.WorldEntity))
+		if (GameContext.World != null && World.IsAlive(GameContext.Simulation.WorldEntity) && World.Has<Realm.Ecs.Components.Terrain.TerrainState>(GameContext.Simulation.WorldEntity))
 		{
-			ref var terrain = ref GameContext.World.Get<Realm.Ecs.Components.Terrain.TerrainState>(GameContext.Simulation.WorldEntity);
+			ref var terrain = ref World.Get<Realm.Ecs.Components.Terrain.TerrainState>(GameContext.Simulation.WorldEntity);
 			if (terrain.PathingCodes != null && terrain.Width > 0 && terrain.Depth > 0 && terrain.QuadSize > 0f)
 			{
 				int cx = Math.Clamp((int)MathF.Floor(position.X / terrain.QuadSize + terrain.Width / 2.0f), 0, terrain.Width - 1);
@@ -329,26 +337,26 @@ public class InputService
 
 		bool obstructed = false;
 		var query = QueryCache.AllPositionNoneDeadQuery;
-		GameContext.World.Query(in query, (Entity entity, ref Position pos) =>
+		World.Query(in query, (Entity entity, ref Position pos) =>
 		{
 			if (obstructed) return;
 
-			if (GameContext.World.Has<DefinitionId>(entity))
+			if (World.Has<DefinitionId>(entity))
 			{
-				string defId = GameContext.World.Get<DefinitionId>(entity).Value;
+				string defId = World.Get<DefinitionId>(entity).Value;
 				if (GameHost.TryGetUnitOrBuildingMetadata(defId, out var meta) &&
 				    (meta.PathingType == 16 || string.Equals(meta.VisualMode, "GroundPlane", StringComparison.OrdinalIgnoreCase)))
 				{
 					return;
 				}
 			}
-			else if (!GameContext.World.Has<PropIdentity>(entity))
+			else if (!World.Has<PropIdentity>(entity))
 			{
 				return;
 			}
 
-			float defaultRadius = GameContext.World.Has<PropIdentity>(entity) ? GameplayConstants.DefaultPropCollisionRadius : GameplayConstants.DefaultCollisionRadius;
-			float entityRadius = GameplayConstants.ResolveBodyRadius(GameContext.World, entity, defaultRadius);
+			float defaultRadius = World.Has<PropIdentity>(entity) ? GameplayConstants.DefaultPropCollisionRadius : GameplayConstants.DefaultCollisionRadius;
+			float entityRadius = GameplayConstants.ResolveBodyRadius(World, entity, defaultRadius);
 			float minDist = MathF.Max(clearance, entityRadius + 0.5f);
 			float dx = position.X - pos.Value.X;
 			float dz = position.Z - pos.Value.Z;
@@ -365,28 +373,28 @@ public class InputService
 		bool blocked = false;
 
 		var query = QueryCache.AllPositionNoneDeadQuery;
-		GameContext.World.Query(in query, (Entity entity, ref Position entityPos) =>
+		World.Query(in query, (Entity entity, ref Position entityPos) =>
 		{
 			if (entity == ignoreEntity) return;
 
 			float r1 = checkRadius;
 			float r2 = 1.2f;
 
-			if (GameContext.World.Has<DefinitionId>(entity))
+			if (World.Has<DefinitionId>(entity))
 			{
-				string defId = GameContext.World.Get<DefinitionId>(entity).Value;
-				float scale = GameContext.World.Has<ModelScale>(entity) ? GameContext.World.Get<ModelScale>(entity).Value : 1.0f;
+				string defId = World.Get<DefinitionId>(entity).Value;
+				float scale = World.Has<ModelScale>(entity) ? World.Get<ModelScale>(entity).Value : 1.0f;
 				r2 = GetPlacementRadius(defId, scale);
 			}
-			else if (GameContext.World.Has<PropIdentity>(entity))
+			else if (World.Has<PropIdentity>(entity))
 			{
-				string propId = GameContext.World.Get<PropIdentity>(entity).PropId;
-				float scale = GameContext.World.Has<ModelScale>(entity) ? GameContext.World.Get<ModelScale>(entity).Value : 1.0f;
+				string propId = World.Get<PropIdentity>(entity).PropId;
+				float scale = World.Has<ModelScale>(entity) ? World.Get<ModelScale>(entity).Value : 1.0f;
 				r2 = GetPlacementRadius(propId, scale);
 			}
 			else
 			{
-				float scale = GameContext.World.Has<ModelScale>(entity) ? GameContext.World.Get<ModelScale>(entity).Value : 1.0f;
+				float scale = World.Has<ModelScale>(entity) ? World.Get<ModelScale>(entity).Value : 1.0f;
 				r2 = scale * 1.2f;
 			}
 
@@ -452,9 +460,9 @@ public class InputService
 
 	private bool ConsumeManaIfSufficient(Entity entity, string spellId)
 	{
-		if (!GameContext.World.Has<Mana>(entity)) return true;
+		if (!World.Has<Mana>(entity)) return true;
 
-		ref var mana = ref GameContext.World.Get<Mana>(entity);
+		ref var mana = ref World.Get<Mana>(entity);
 		float cost = 0f;
 		if (GameContext.Host != null)
 		{
@@ -470,16 +478,16 @@ public class InputService
 
 	private bool TryApplyCooldown(Entity entity, string spellId, float cooldownMax)
 	{
-		if (GameContext.World.Has<Cooldowns>(entity))
+		if (World.Has<Cooldowns>(entity))
 		{
-			ref var cooldowns = ref GameContext.World.Get<Cooldowns>(entity);
+			ref var cooldowns = ref World.Get<Cooldowns>(entity);
 			if (cooldowns.TryGetValue(spellId, out float currentCooldown) && currentCooldown > 0f) return false;
 			cooldowns.Set(spellId, cooldownMax, cooldownMax);
 		}
 
-		if (GameContext.World.Has<SpellCooldowns>(entity))
+		if (World.Has<SpellCooldowns>(entity))
 		{
-			ref var spellCooldowns = ref GameContext.World.Get<SpellCooldowns>(entity);
+			ref var spellCooldowns = ref World.Get<SpellCooldowns>(entity);
 			if (spellCooldowns.TryGetValue(spellId, out float currentCooldown) && currentCooldown > 0f) return false;
 			spellCooldowns.Set(spellId, cooldownMax, cooldownMax);
 		}
@@ -499,14 +507,14 @@ public class InputService
 			}
 		}
 
-		if (casterEntity != Entity.Null && GameContext.World.IsAlive(casterEntity))
+		if (casterEntity != Entity.Null && World.IsAlive(casterEntity))
 		{
 			if (!ConsumeManaIfSufficient(casterEntity, spellId)) return false;
 
 			if (!TryApplyCooldown(casterEntity, spellId, cooldownMax)) return false;
 		}
 
-		if (GameContext.World.IsAlive(playerEntity))
+		if (World.IsAlive(playerEntity))
 		{
 			if (!TryApplyCooldown(playerEntity, spellId, cooldownMax)) return false;
 		}
@@ -520,11 +528,11 @@ public class InputService
 
 		Entity target = FindClosestFriendlyCombatUnit(shopPosition, playerEntity, 20.0f);
 
-		if (target == Entity.Null && GameContext.World.IsAlive(selectedUnitEntity))
+		if (target == Entity.Null && World.IsAlive(selectedUnitEntity))
 		{
-			bool isBuilding = GameContext.World.Has<Building>(selectedUnitEntity);
-			bool isOwnedByPlayer = GameContext.World.Has<Owner>(selectedUnitEntity) && GameContext.World.Get<Owner>(selectedUnitEntity).PlayerEntity.Value == playerEntity;
-			if (!isBuilding && isOwnedByPlayer && GameContext.World.Has<Inventory>(selectedUnitEntity))
+			bool isBuilding = World.Has<Building>(selectedUnitEntity);
+			bool isOwnedByPlayer = World.Has<Owner>(selectedUnitEntity) && World.Get<Owner>(selectedUnitEntity).PlayerEntity.Value == playerEntity;
+			if (!isBuilding && isOwnedByPlayer && World.Has<Inventory>(selectedUnitEntity))
 			{
 				target = selectedUnitEntity;
 			}
@@ -533,7 +541,7 @@ public class InputService
 		if (target != Entity.Null)
 		{
 			targetUnitEntity = target;
-			Realm.Client.Utils.ItemGrantingUtility.EquipItem(GameContext.World, target, itemId);
+			Realm.Client.Utils.ItemGrantingUtility.EquipItem(World, target, itemId);
 			return true;
 		}
 
@@ -546,7 +554,7 @@ public class InputService
 		float closestDist = maxDistance;
 
 		var query = QueryCache.AllPositionAndOwnerAndInventoryNoneDeadAndBuildingQuery;
-		GameContext.World.Query(in query, (Entity entity, ref Position pos, ref Owner owner) =>
+		World.Query(in query, (Entity entity, ref Position pos, ref Owner owner) =>
 		{
 			if (owner.PlayerEntity.Value == playerEntity)
 			{
@@ -565,14 +573,14 @@ public class InputService
 	public bool UseItem(Entity unitEntity, string itemId, out float healedAmount)
 	{
 		healedAmount = 0f;
-		if (!GameContext.World.IsAlive(unitEntity) || !GameContext.World.Has<Inventory>(unitEntity) || !GameContext.World.Has<Health>(unitEntity))
+		if (!World.IsAlive(unitEntity) || !World.Has<Inventory>(unitEntity) || !World.Has<Health>(unitEntity))
 			return false;
 
-		ref var inv = ref GameContext.World.Get<Inventory>(unitEntity);
+		ref var inv = ref World.Get<Inventory>(unitEntity);
 		int currentCount = inv.GetItemCount(itemId);
 		if (currentCount <= 0) return false;
 
-		ref var hp = ref GameContext.World.Get<Health>(unitEntity);
+		ref var hp = ref World.Get<Health>(unitEntity);
 		if (hp.Current >= hp.Max) return false;
 
 		int newCount = currentCount - 1;
@@ -583,7 +591,7 @@ public class InputService
 
 		if (newCount <= 0)
 		{
-			Realm.Client.Utils.ItemGrantingUtility.UnequipItem(GameContext.World, unitEntity, itemId);
+			Realm.Client.Utils.ItemGrantingUtility.UnequipItem(World, unitEntity, itemId);
 		}
 
 		return true;
@@ -591,10 +599,10 @@ public class InputService
 
 	public bool IsUnitAlive(Entity unitEntity)
 	{
-		return GameContext.World.IsAlive(unitEntity);
+		return World.IsAlive(unitEntity);
 	}
 
-	public bool TryGetItemMeta(string itemId, out ItemMetadata itemMeta)
+	public bool TryGetItemMeta(string itemId, out ItemMetadata? itemMeta)
 	{
         var itemRegistry = GameContext.RegistryService?.ItemRegistry;
         if (itemRegistry != null)
@@ -612,9 +620,9 @@ public class InputService
 
 	public bool IsUnitAtFullHealth(Entity unitEntity)
 	{
-		if (GameContext.World.IsAlive(unitEntity) && GameContext.World.Has<Health>(unitEntity))
+		if (World.IsAlive(unitEntity) && World.Has<Health>(unitEntity))
 		{
-			var hp = GameContext.World.Get<Health>(unitEntity);
+			var hp = World.Get<Health>(unitEntity);
 			return hp.Current >= hp.Max;
 		}
 		return false;
@@ -625,7 +633,7 @@ public class InputService
 		return GameContext.UnitSpawnService.CreateEcsUnitEntity(
 			type, meta.Name, meta.MaxHp, meta.Damage, meta.Range, meta.Armor, 0f, 
 			meta.SightRange, false, 1.5f, meta.PopCost, 
-			new Godot.Vector3(position.X, position.Y, position.Z), playerEntity.AsPlayerEntity(GameContext.World), playerEntity, 
+			new Godot.Vector3(position.X, position.Y, position.Z), playerEntity.AsPlayerEntity(World), playerEntity, 
 			false, false, 
 			meta.Abilities, meta.CostGold, meta.CostWood, meta.CostStone, 
 			meta.ProductionTime, meta.MagicResistance, 0f, 0f, 
@@ -639,12 +647,12 @@ public class InputService
 
 	public bool TryAssignFirstWorkerTask(Entity firstWorkerEntity, string type, System.Numerics.Vector3 buildingPos, bool shiftHeld)
 	{
-		if (GameContext.World.IsAlive(firstWorkerEntity))
+		if (World.IsAlive(firstWorkerEntity))
 		{
 			AssignFirstWorkerTask(firstWorkerEntity, type, buildingPos, shiftHeld, (entity, t, pos) => {
-				if (!GameContext.World.Has<BuildTask>(entity))
+				if (!World.Has<BuildTask>(entity))
 				{
-					GameContext.World.SetOrAdd(entity, new MoveTo(pos));
+					World.SetOrAdd(entity, new MoveTo(pos));
 				}
 			});
 			return true;
@@ -666,9 +674,9 @@ public class InputService
 
 	public bool TryGetCameraState(out CameraState state)
 	{
-		if (GameContext.World != null && GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) && GameContext.World.Has<CameraState>(GameContext.Simulation.WorldEntity))
+		if (GameContext.World != null && World.IsAlive(GameContext.Simulation.WorldEntity) && World.Has<CameraState>(GameContext.Simulation.WorldEntity))
 		{
-			state = GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity);
+			state = World.Get<CameraState>(GameContext.Simulation.WorldEntity);
 			return true;
 		}
 
@@ -678,9 +686,9 @@ public class InputService
 
 	public void TrySaveCameraSlot(int slotIndex, Vector3 pos, float zoom)
 	{
-		if (GameContext.World == null || !GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) || !GameContext.World.Has<CameraState>(GameContext.Simulation.WorldEntity)) return;
+		if (GameContext.World == null || !World.IsAlive(GameContext.Simulation.WorldEntity) || !World.Has<CameraState>(GameContext.Simulation.WorldEntity)) return;
 
-		ref var state = ref GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity);
+		ref var state = ref World.Get<CameraState>(GameContext.Simulation.WorldEntity);
 		var slot = new CameraLocationSlot
 		{
 			Position = pos,
@@ -762,12 +770,12 @@ public class InputService
 		{
 			int currIdx = (startIndex + i) % count;
 			var bldEntity = candidateBuildings[currIdx];
-			if (!GameContext.World.IsAlive(bldEntity)) continue;
+			if (!World.IsAlive(bldEntity)) continue;
 
 			int queueCount = 0;
-			if (GameContext.World.Has<ProductionQueue>(bldEntity))
+			if (World.Has<ProductionQueue>(bldEntity))
 			{
-				queueCount = GameContext.World.Get<ProductionQueue>(bldEntity).Count;
+				queueCount = World.Get<ProductionQueue>(bldEntity).Count;
 			}
 
 			if (queueCount < 5)
@@ -782,19 +790,19 @@ public class InputService
 
 	public bool TryQueueUnit(Entity playerEntity, Entity buildingEntity, string unitId, int popCost, float productionTime)
 	{
-		if (!GameContext.World.IsAlive(playerEntity) || !GameContext.World.IsAlive(buildingEntity)) return false;
+		if (!World.IsAlive(playerEntity) || !World.IsAlive(buildingEntity)) return false;
 
-		if (GameContext.World.Has<PlayerPopulation>(playerEntity))
+		if (World.Has<PlayerPopulation>(playerEntity))
 		{
-			ref var pop = ref GameContext.World.Get<PlayerPopulation>(playerEntity);
+			ref var pop = ref World.Get<PlayerPopulation>(playerEntity);
 			if (popCost > 0 && pop.Current + popCost > pop.Max)
 			{
 				return false;
 			}
 		}
 
-		ref var prod = ref GameContext.World.Has<ProductionQueue>(buildingEntity)
-			? ref GameContext.World.Get<ProductionQueue>(buildingEntity)
+		ref var prod = ref World.Has<ProductionQueue>(buildingEntity)
+			? ref World.Get<ProductionQueue>(buildingEntity)
 			: ref CreateProductionQueue(buildingEntity);
 
 		if (prod.Count >= 5) return false;
@@ -805,15 +813,15 @@ public class InputService
 		}
 
 		if (!prod.Enqueue(unitId)) return false;
-		GameContext.World.Set(buildingEntity, prod);
+		World.Set(buildingEntity, prod);
 
 		return true;
 	}
 
 	private ref ProductionQueue CreateProductionQueue(Entity buildingEntity)
 	{
-		GameContext.World.Add(buildingEntity, new ProductionQueue());
-		return ref GameContext.World.Get<ProductionQueue>(buildingEntity);
+		World.Add(buildingEntity, new ProductionQueue());
+		return ref World.Get<ProductionQueue>(buildingEntity);
 	}
 
 	public bool CancelQueuedUnitAt(Entity buildingEntity, int index, out string? cancelledUnitId, out string? nextUnitId)
@@ -821,10 +829,10 @@ public class InputService
 		cancelledUnitId = null;
 		nextUnitId = null;
 
-		if (!GameContext.World.IsAlive(buildingEntity) || !GameContext.World.Has<ProductionQueue>(buildingEntity))
+		if (!World.IsAlive(buildingEntity) || !World.Has<ProductionQueue>(buildingEntity))
 			return false;
 
-		var prod = GameContext.World.Get<ProductionQueue>(buildingEntity);
+		var prod = World.Get<ProductionQueue>(buildingEntity);
 		if (index < 0 || index >= prod.Count)
 			return false;
 
@@ -838,7 +846,7 @@ public class InputService
 
 
 
-		GameContext.World.Set(buildingEntity, prod);
+		World.Set(buildingEntity, prod);
 		return true;
 	}
 
@@ -847,24 +855,24 @@ public class InputService
 	{
 		if (!TryApplyRallyPoint(entity, buildingEntity))
 		{
-			GameContext.World.Add(entity, new MoveTo(defaultPosition));
+			World.Add(entity, new MoveTo(defaultPosition));
 		}
 	}
 
 	public bool TryApplyRallyPoint(Entity entity, Entity buildingEntity)
 	{
-		if (!GameContext.World.IsAlive(buildingEntity) || !GameContext.World.Has<RallyPoint>(buildingEntity))
+		if (!World.IsAlive(buildingEntity) || !World.Has<RallyPoint>(buildingEntity))
 		{
 			return false;
 		}
 
-		var rp = GameContext.World.Get<RallyPoint>(buildingEntity);
+		var rp = World.Get<RallyPoint>(buildingEntity);
 		if (rp.Count <= 0)
 		{
 			return false;
 		}
 
-		GameContext.World.Add(entity, new MoveTo(rp.Waypoints[0]));
+		World.Add(entity, new MoveTo(rp.Waypoints[0]));
 		if (rp.Count > 1)
 		{
 			var wq = new WaypointQueue(rp.Waypoints[1]);
@@ -873,7 +881,7 @@ public class InputService
 				wq.Add(rp.Waypoints[i]);
 			}
 
-			GameContext.World.Add(entity, wq);
+			World.Add(entity, wq);
 		}
 
 		return true;
@@ -881,35 +889,35 @@ public class InputService
 
 	public void SetRallyPoint(Entity buildingEntity, Vector3 position, bool queue)
 	{
-		if (!GameContext.World.IsAlive(buildingEntity)) return;
+		if (!World.IsAlive(buildingEntity)) return;
 
 		if (queue)
 		{
-			if (GameContext.World.Has<RallyPoint>(buildingEntity))
+			if (World.Has<RallyPoint>(buildingEntity))
 			{
-				var rp = GameContext.World.Get<RallyPoint>(buildingEntity);
+				var rp = World.Get<RallyPoint>(buildingEntity);
 				rp.Add(position);
-				GameContext.World.Set(buildingEntity, rp);
+				World.Set(buildingEntity, rp);
 			}
 			else
 			{
 				var rp = new RallyPoint(position);
-				GameContext.World.Add(buildingEntity, rp);
+				World.Add(buildingEntity, rp);
 			}
 		}
 		else
 		{
 			var rp = new RallyPoint(position);
-			GameContext.World.SetOrAdd(buildingEntity, rp);
+			World.SetOrAdd(buildingEntity, rp);
 		}
 	}
 
 	public void SetEntityPosition(Entity entity, Vector3 position)
 	{
-		if (GameContext.World.IsAlive(entity))
+		if (World.IsAlive(entity))
 		{
 			PositionWriteTrace.Mark(entity, PositionWriter.Input);
-			GameContext.World.Set(entity, new Position(position));
+			World.Set(entity, new Position(position));
 		}
 	}
 
@@ -918,15 +926,15 @@ public class InputService
 		get
 		{
 			var worldEntity = GetWorldEntity();
-			return worldEntity != Entity.Null && GameContext.World.Has<InputState>(worldEntity)
-				? GameContext.World.Get<InputState>(worldEntity).ActiveSpellTargeting
+			return worldEntity != Entity.Null && World.Has<InputState>(worldEntity)
+				? World.Get<InputState>(worldEntity).ActiveSpellTargeting
 				: null;
 		}
 		set
 		{
 			var worldEntity = GetWorldEntity();
-			if (worldEntity == Entity.Null || !GameContext.World.Has<InputState>(worldEntity)) return;
-			ref var state = ref GameContext.World.Get<InputState>(worldEntity);
+			if (worldEntity == Entity.Null || !World.Has<InputState>(worldEntity)) return;
+			ref var state = ref World.Get<InputState>(worldEntity);
 			state.ActiveSpellTargeting = value;
 		}
 	}
@@ -936,15 +944,15 @@ public class InputService
 		get
 		{
 			var worldEntity = GetWorldEntity();
-			return worldEntity != Entity.Null && GameContext.World.Has<InputState>(worldEntity)
-				? GameContext.World.Get<InputState>(worldEntity).ActiveCommandTargeting
+			return worldEntity != Entity.Null && World.Has<InputState>(worldEntity)
+				? World.Get<InputState>(worldEntity).ActiveCommandTargeting
 				: null;
 		}
 		set
 		{
 			var worldEntity = GetWorldEntity();
-			if (worldEntity == Entity.Null || !GameContext.World.Has<InputState>(worldEntity)) return;
-			ref var state = ref GameContext.World.Get<InputState>(worldEntity);
+			if (worldEntity == Entity.Null || !World.Has<InputState>(worldEntity)) return;
+			ref var state = ref World.Get<InputState>(worldEntity);
 			state.ActiveCommandTargeting = value;
 		}
 	}
@@ -954,15 +962,15 @@ public class InputService
 		get
 		{
 			var worldEntity = GetWorldEntity();
-			return worldEntity != Entity.Null && GameContext.World.Has<InputState>(worldEntity)
-				? GameContext.World.Get<InputState>(worldEntity).ActiveBuildingPlacementType
+			return worldEntity != Entity.Null && World.Has<InputState>(worldEntity)
+				? World.Get<InputState>(worldEntity).ActiveBuildingPlacementType
 				: null;
 		}
 		set
 		{
 			var worldEntity = GetWorldEntity();
-			if (worldEntity == Entity.Null || !GameContext.World.Has<InputState>(worldEntity)) return;
-			ref var state = ref GameContext.World.Get<InputState>(worldEntity);
+			if (worldEntity == Entity.Null || !World.Has<InputState>(worldEntity)) return;
+			ref var state = ref World.Get<InputState>(worldEntity);
 			state.ActiveBuildingPlacementType = value;
 		}
 	}
@@ -972,14 +980,14 @@ public class InputService
 		get
 		{
 			var worldEntity = GetWorldEntity();
-			return worldEntity != Entity.Null && GameContext.World.Has<InputState>(worldEntity)
-			                                  && GameContext.World.Get<InputState>(worldEntity).ActivePingMode;
+			return worldEntity != Entity.Null && World.Has<InputState>(worldEntity)
+			                                  && World.Get<InputState>(worldEntity).ActivePingMode;
 		}
 		set
 		{
 			var worldEntity = GetWorldEntity();
-			if (worldEntity == Entity.Null || !GameContext.World.Has<InputState>(worldEntity)) return;
-			ref var state = ref GameContext.World.Get<InputState>(worldEntity);
+			if (worldEntity == Entity.Null || !World.Has<InputState>(worldEntity)) return;
+			ref var state = ref World.Get<InputState>(worldEntity);
 			state.ActivePingMode = value;
 		}
 	}
@@ -988,35 +996,35 @@ public class InputService
 	{
 		if (selectedCount == 0) return 0;
 		var worldEntity = GetWorldEntity();
-		if (worldEntity == Entity.Null || !GameContext.World.Has<InputState>(worldEntity)) return 0;
-		int val = GameContext.World.Get<InputState>(worldEntity).CycleSelectionIndex;
+		if (worldEntity == Entity.Null || !World.Has<InputState>(worldEntity)) return 0;
+		int val = World.Get<InputState>(worldEntity).CycleSelectionIndex;
 		return Math.Clamp(val, 0, selectedCount - 1);
 	}
 
 	public void SetCycleSelectionIndex(int value, int selectedCount)
 	{
 		var worldEntity = GetWorldEntity();
-		if (worldEntity == Entity.Null || !GameContext.World.Has<InputState>(worldEntity)) return;
-		ref var state = ref GameContext.World.Get<InputState>(worldEntity);
+		if (worldEntity == Entity.Null || !World.Has<InputState>(worldEntity)) return;
+		ref var state = ref World.Get<InputState>(worldEntity);
 		state.CycleSelectionIndex = selectedCount > 0 ? Math.Clamp(value, 0, selectedCount - 1) : 0;
 	}
 
 	public void SetSpellCooldown(Entity playerEntity, string spellId, float cooldown)
 	{
-		if (playerEntity == Entity.Null || !GameContext.World.IsAlive(playerEntity)) return;
-		if (GameContext.World.Has<SpellCooldowns>(playerEntity))
+		if (playerEntity == Entity.Null || !World.IsAlive(playerEntity)) return;
+		if (World.Has<SpellCooldowns>(playerEntity))
 		{
-			ref var spellCooldowns = ref GameContext.World.Get<SpellCooldowns>(playerEntity);
+			ref var spellCooldowns = ref World.Get<SpellCooldowns>(playerEntity);
 			spellCooldowns.Set(spellId, cooldown, cooldown);
 		}
 	}
 
 	public float GetSpellCooldown(Entity playerEntity, string spellId)
 	{
-		if (playerEntity == Entity.Null || !GameContext.World.IsAlive(playerEntity)) return 0f;
-		if (GameContext.World.Has<SpellCooldowns>(playerEntity))
+		if (playerEntity == Entity.Null || !World.IsAlive(playerEntity)) return 0f;
+		if (World.Has<SpellCooldowns>(playerEntity))
 		{
-			var spellCooldowns = GameContext.World.Get<SpellCooldowns>(playerEntity);
+			var spellCooldowns = World.Get<SpellCooldowns>(playerEntity);
 			if (spellCooldowns.TryGetValue(spellId, out float remaining)) return remaining;
 		}
 
@@ -1031,8 +1039,8 @@ public class InputService
 	public bool TryGetCasterPosition(Entity casterEntity, out Vector3 position)
 	{
 		position = default;
-		if (!GameContext.World.IsAlive(casterEntity) || !GameContext.World.Has<Position>(casterEntity)) return false;
-		position = GameContext.World.Get<Position>(casterEntity).Value;
+		if (!World.IsAlive(casterEntity) || !World.Has<Position>(casterEntity)) return false;
+		position = World.Get<Position>(casterEntity).Value;
 		return true;
 	}
 }
