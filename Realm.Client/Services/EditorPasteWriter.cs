@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using Godot;
+using Realm.Client.Core;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Terrain;
 
@@ -13,10 +15,12 @@ namespace Realm.Client.Services;
 internal sealed class EditorPasteWriter
 {
 	private readonly EditorTerrainSurface _surface;
+	private readonly EditorAreaClipboard _clipboard;
 
-	public EditorPasteWriter(EditorTerrainSurface surface)
+	public EditorPasteWriter(EditorTerrainSurface surface, EditorAreaClipboard clipboard)
 	{
 		_surface = surface;
+		_clipboard = clipboard;
 	}
 
 	private void ProcessCell(
@@ -201,5 +205,211 @@ internal sealed class EditorPasteWriter
 				ProcessCell(copiedArea, sx, sz, pasteWidth, pasteDepth, targetWidth, targetDepth, blockStartX, blockStartZ, rotSteps, pasteReflection, symmetryMirror, foldRotSteps, width, depth, pasteHeights, pasteTextures, pastePathing, srcCells, cells, ref terrain, ref modified, ref pathingModified);
 			}
 		}
+	}
+
+	public PasteAreaResult Build(
+		int startX,
+		int startZ,
+		bool pasteHeights,
+		bool pasteTextures,
+		bool pasteEntities,
+		bool pastePathing,
+		MirrorMode mirrorMode,
+		float rotationDegrees,
+		PasteReflection pasteReflection,
+		Vector2 symmetryPivot,
+		int symmetryFolds)
+	{
+		var result = new PasteAreaResult();
+		result.SpawnRequests = new List<EntitySpawnRequest>();
+
+		if (_clipboard.CopiedArea == null) return result;
+		var copiedArea = _clipboard.CopiedArea;
+
+		ref var terrain = ref EditorService.GetTerrainState();
+		if (terrain.Cells == null) return result;
+
+		if (_surface.SplatMap == null && GameContext.Host?.GroundTerrain != null)
+		{
+			_surface.SplatMap = GameContext.Host.GroundTerrain.SplatMap;
+		}
+
+		if (_surface.CliffSplatMap == null && GameContext.Host?.GroundTerrain != null)
+		{
+			_surface.CliffSplatMap = GameContext.Host.GroundTerrain.CliffSplatMap;
+		}
+
+		int width = terrain.Width;
+		int depth = terrain.Depth;
+		float quadSize = terrain.QuadSize;
+
+		int pasteWidth = copiedArea.Width;
+		int pasteDepth = copiedArea.Depth;
+		bool modified = false;
+		bool pathingModified = false;
+
+		float r = rotationDegrees % 360.0f;
+		if (r < 0) r += 360.0f;
+		int rotSteps = (int)Math.Round(r / 90.0f) % 4;
+		int targetWidth = (rotSteps == 1 || rotSteps == 3) ? pasteDepth : pasteWidth;
+		int targetDepth = (rotSteps == 1 || rotSteps == 3) ? pasteWidth : pasteDepth;
+
+		PasteBlock(copiedArea, startX, startZ, rotSteps, pasteReflection, MirrorMode.None, 0, width, depth, pasteHeights, pasteTextures, pastePathing, ref terrain, ref modified, ref pathingModified);
+
+		if (mirrorMode != MirrorMode.None)
+		{
+			Godot.Vector3 centerPos = new Godot.Vector3((startX + targetWidth / 2.0f - width / 2.0f) * quadSize, 0, (startZ + targetDepth / 2.0f - depth / 2.0f) * quadSize);
+			var transforms = EditorGridSnapping.GetMirroredTransforms(centerPos, 0.0f, mirrorMode, symmetryPivot, symmetryFolds);
+			if (mirrorMode == MirrorMode.Horizontal)
+			{
+				if (transforms.Count > 0)
+				{
+					var (rcx, rcz) = EditorGridSnapping.WorldPosToCellCoords(transforms[0].Position);
+					int rStartX = rcx - targetWidth / 2;
+					int rStartZ = rcz - targetDepth / 2;
+					PasteBlock(copiedArea, rStartX, rStartZ, rotSteps, pasteReflection, MirrorMode.Horizontal, 0, width, depth, pasteHeights, pasteTextures, pastePathing, ref terrain, ref modified, ref pathingModified);
+				}
+			}
+			else if (mirrorMode == MirrorMode.Vertical)
+			{
+				if (transforms.Count > 0)
+				{
+					var (rcx, rcz) = EditorGridSnapping.WorldPosToCellCoords(transforms[0].Position);
+					int rStartX = rcx - targetWidth / 2;
+					int rStartZ = rcz - targetDepth / 2;
+					PasteBlock(copiedArea, rStartX, rStartZ, rotSteps, pasteReflection, MirrorMode.Vertical, 0, width, depth, pasteHeights, pasteTextures, pastePathing, ref terrain, ref modified, ref pathingModified);
+				}
+			}
+			else if (mirrorMode == MirrorMode.Both)
+			{
+				if (transforms.Count >= 3)
+				{
+					var (rcx0, rcz0) = EditorGridSnapping.WorldPosToCellCoords(transforms[0].Position);
+					int rStartX0 = rcx0 - targetWidth / 2;
+					int rStartZ0 = rcz0 - targetDepth / 2;
+					PasteBlock(copiedArea, rStartX0, rStartZ0, rotSteps, pasteReflection, MirrorMode.Horizontal, 0, width, depth, pasteHeights, pasteTextures, pastePathing, ref terrain, ref modified, ref pathingModified);
+
+					var (rcx1, rcz1) = EditorGridSnapping.WorldPosToCellCoords(transforms[1].Position);
+					int rStartX1 = rcx1 - targetWidth / 2;
+					int rStartZ1 = rcz1 - targetDepth / 2;
+					PasteBlock(copiedArea, rStartX1, rStartZ1, rotSteps, pasteReflection, MirrorMode.Vertical, 0, width, depth, pasteHeights, pasteTextures, pastePathing, ref terrain, ref modified, ref pathingModified);
+
+					var (rcx2, rcz2) = EditorGridSnapping.WorldPosToCellCoords(transforms[2].Position);
+					int rStartX2 = rcx2 - targetWidth / 2;
+					int rStartZ2 = rcz2 - targetDepth / 2;
+					PasteBlock(copiedArea, rStartX2, rStartZ2, rotSteps, pasteReflection, MirrorMode.Both, 0, width, depth, pasteHeights, pasteTextures, pastePathing, ref terrain, ref modified, ref pathingModified);
+				}
+			}
+			else if (mirrorMode == MirrorMode.Rotational)
+			{
+				foreach (var t in transforms)
+				{
+					int rotKSteps = ((int)Math.Round(t.Rotation / 90.0f) % 4 + 4) % 4;
+					int curTargetWidth = (rotKSteps == 1 || rotKSteps == 3) ? targetDepth : targetWidth;
+					int curTargetDepth = (rotKSteps == 1 || rotKSteps == 3) ? targetWidth : targetDepth;
+					var (rcx, rcz) = EditorGridSnapping.WorldPosToCellCoords(t.Position);
+					int rStartX = rcx - curTargetWidth / 2;
+					int rStartZ = rcz - curTargetDepth / 2;
+					PasteBlock(copiedArea, rStartX, rStartZ, rotSteps, pasteReflection, MirrorMode.None, rotKSteps, width, depth, pasteHeights, pasteTextures, pastePathing, ref terrain, ref modified, ref pathingModified);
+				}
+			}
+		}
+
+		if (modified && pasteHeights)
+		{
+			EditorGridSnapping.SanitizeCornerHeights(ref terrain);
+		}
+
+		if (modified && pasteTextures)
+		{
+			_surface.AlignSplatMapSlots(0, 0, width, depth);
+		}
+
+		result.TerrainModified = modified;
+		result.HeightsModified = pasteHeights && modified;
+		result.PathingModified = pathingModified;
+
+		if (pasteEntities)
+		{
+			Godot.Vector3 pasteCenter = new Godot.Vector3((startX + (targetWidth - 1) / 2.0f - width / 2.0f) * quadSize, 0, (startZ + (targetDepth - 1) / 2.0f - depth / 2.0f) * quadSize);
+
+			float rad = rotationDegrees * Mathf.Pi / 180.0f;
+			float cosR = Mathf.Cos(rad);
+			float sinR = Mathf.Sin(rad);
+
+			Godot.Vector3 originalCenterOffset = new Godot.Vector3((pasteWidth - 1) / 2.0f * quadSize, 0, (pasteDepth - 1) / 2.0f * quadSize);
+
+			foreach (var ent in copiedArea.Entities)
+			{
+				Godot.Vector3 relPos = ent.RelativePos;
+				float entRot = ent.Rotation;
+
+				if (pasteReflection == PasteReflection.Horizontal)
+				{
+					relPos = new Godot.Vector3((pasteWidth - 1) * quadSize - relPos.X, relPos.Y, relPos.Z);
+					entRot = -entRot;
+				}
+				else if (pasteReflection == PasteReflection.Vertical)
+				{
+					relPos = new Godot.Vector3(relPos.X, relPos.Y, (pasteDepth - 1) * quadSize - relPos.Z);
+					entRot = 180.0f - entRot;
+				}
+
+				Godot.Vector3 relativeToCenter = relPos - originalCenterOffset;
+
+				float rx = relativeToCenter.X * cosR - relativeToCenter.Z * sinR;
+				float rz = relativeToCenter.X * sinR + relativeToCenter.Z * cosR;
+
+				Godot.Vector3 rotatedRelative = new Godot.Vector3(rx, 0, rz);
+				Godot.Vector3 destPos = pasteCenter + rotatedRelative;
+
+				destPos.Y = TerrainHeightAt(destPos);
+
+				float finalRot = entRot - rotationDegrees;
+
+				result.SpawnRequests.Add(new EntitySpawnRequest
+				{
+					Type = ent.Type,
+					Id = ent.Id,
+					Position = destPos,
+					Rotation = finalRot,
+					Scale = ent.Scale,
+					Player = ent.Player
+				});
+
+				AddMirroredRequests(result.SpawnRequests, ent.Type, ent.Id, destPos, finalRot, ent.Scale, ent.Player, mirrorMode, symmetryPivot, symmetryFolds);
+			}
+		}
+
+		return result;
+	}
+
+	public void AddMirroredRequests(
+		List<EntitySpawnRequest> requests,
+		string type, string id,
+		Godot.Vector3 pos, float rotation, float scale,
+		int player,
+		MirrorMode mirrorMode,
+		Vector2 symmetryPivot,
+		int symmetryFolds)
+	{
+		var mirrored = EditorGridSnapping.GetMirroredTransforms(pos, rotation, mirrorMode, symmetryPivot, symmetryFolds);
+		foreach (var m in mirrored)
+		{
+			Godot.Vector3 mPos = m.Position;
+			mPos.Y = TerrainHeightAt(mPos);
+			requests.Add(new EntitySpawnRequest { Type = type, Id = id, Position = mPos, Rotation = m.Rotation, Scale = scale, Player = player });
+		}
+	}
+
+	private static float TerrainHeightAt(Godot.Vector3 worldPos)
+	{
+		if (!EditorService.TryGetTerrainState(out var terrainEntity))
+		{
+			return 0.0f;
+		}
+
+		ref var terrain = ref EditorService.GetTerrainState();
+		return EditorTerrainQueries.GetHeightAt(in terrain, worldPos);
 	}
 }
