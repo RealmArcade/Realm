@@ -2237,151 +2237,17 @@ public partial class InGameHUD : Control
 		AddChild(specPanel);
 	}
 
-	private PanelContainer _pausePanel = null!;
-	private VBoxContainer _pausePlayerListContainer = null!;
-	private Label _pauseTitleLabel = null!;
-	private Button _pauseResumeButton = null!;
+
+	private PauseOverlayPanel? _pauseOverlay;
+
+	private PauseOverlayPanel PauseOverlay => _pauseOverlay ??= new PauseOverlayPanel();
 
 	public void UpdatePauseUI()
 	{
 		if (GameContext.Host == null) return;
-		if (_pausePanel == null) BuildPausePanel();
-		if (_pausePanel is not { } pausePanel) return;
 
 		RefreshPauseMatchButton();
-
-		pausePanel.Visible = GameContext.NetworkService.IsPaused;
-		if (!GameContext.NetworkService.IsPaused) return;
-
-		UpdatePauseTitle();
-		UpdatePauseResumeButton();
-
-		ClearPausePlayerList();
-		UpdatePausePlayerList();
-	}
-
-	private void UpdatePauseResumeButton()
-	{
-		if (_pauseResumeButton == null) return;
-
-		int countdown = GameContext.NetworkService.PauseResumeCountdownSeconds;
-		_pauseResumeButton.Disabled = countdown > 0;
-		_pauseResumeButton.Text = countdown > 0
-			? string.Format(TranslationServer.Translate("RESUMING IN {0}"), countdown)
-			: TranslationServer.Translate("RESUME FOR EVERYONE");
-	}
-
-	private void ClearPausePlayerList()
-	{
-		foreach (var child in _pausePlayerListContainer.GetChildren()) child.QueueFree();
-	}
-
-	private void UpdatePauseTitle()
-	{
-		int countdown = GameContext.NetworkService.PauseResumeCountdownSeconds;
-		if (countdown > 0)
-		{
-			_pauseTitleLabel.Text = string.Format(TranslationServer.Translate("Resuming in {0}"), countdown);
-			return;
-		}
-
-		int pausedByPlayer = GameContext.NetworkService.PausedByPlayerIndex;
-		string pausedByName = ResolvePlayerName(pausedByPlayer);
-
-		_pauseTitleLabel.Text = string.IsNullOrEmpty(pausedByName)
-			? TranslationServer.Translate("Game Paused")
-			: string.Format(TranslationServer.Translate("Paused by {0}"), pausedByName);
-	}
-
-	private static string ResolvePlayerName(int playerSlot)
-	{
-		if (playerSlot < 0 || GameContext.Lobby == null) return string.Empty;
-
-		foreach (PlayerInfo player in GameContext.Lobby.PlayerList)
-		{
-			if (player.Slot == playerSlot) return player.Name;
-		}
-
-		return string.Empty;
-	}
-
-	private void UpdatePausePlayerList()
-	{
-		if (GameContext.Lobby == null) return;
-
-		foreach (var player in GameContext.Lobby.PlayerList)
-		{
-			if (player.Team == "Spectator") continue;
-
-			var row = new HBoxContainer();
-			row.Name = "Row_HBoxContainer";
-			row.AddThemeConstantOverride("separation", 15);
-
-			var nameLabel = new Label { Text = player.Name, CustomMinimumSize = new Vector2(150, 0) };
-			row.AddChild(nameLabel);
-
-			_pausePlayerListContainer.AddChild(row);
-		}
-	}
-
-	private void BuildPausePanel()
-	{
-		_pausePanel = new PanelContainer();
-		_pausePanel.Name = "PausePanel";
-
-		var style = new StyleBoxFlat();
-		style.BgColor = new Color(0.1f, 0.1f, 0.12f, 0.95f);
-		style.SetBorderWidthAll(2);
-		style.BorderColor = UIStyle.ColorBronze;
-		style.SetCornerRadiusAll(8);
-		style.ContentMarginLeft = 20;
-		style.ContentMarginRight = 20;
-		style.ContentMarginTop = 20;
-		style.ContentMarginBottom = 20;
-		_pausePanel.AddThemeStyleboxOverride("panel", style);
-
-		_pausePanel.SetAnchorsAndOffsetsPreset(LayoutPreset.Center);
-		_pausePanel.GrowHorizontal = GrowDirection.Both;
-		_pausePanel.GrowVertical = GrowDirection.Both;
-
-		var mainVBox = new VBoxContainer();
-		mainVBox.Name = "MainVBox_VBoxContainer";
-		mainVBox.AddThemeConstantOverride("separation", 15);
-		_pausePanel.AddChild(mainVBox);
-
-		_pauseTitleLabel = new Label();
-		_pauseTitleLabel.Name = "PauseTitleLabel_Label";
-		_pauseTitleLabel.Text = "Game Paused";
-		_pauseTitleLabel.HorizontalAlignment = HorizontalAlignment.Center;
-		_pauseTitleLabel.AddThemeFontSizeOverride("font_size", 24);
-		mainVBox.AddChild(_pauseTitleLabel);
-
-		var scroll = new ScrollContainer();
-		scroll.Name = "Scroll_ScrollContainer";
-		scroll.CustomMinimumSize = new Vector2(450, 150);
-		mainVBox.AddChild(scroll);
-
-		_pausePlayerListContainer = new VBoxContainer();
-		_pausePlayerListContainer.Name = "PausePlayerListContainer_VBoxContainer";
-		_pausePlayerListContainer.AddThemeConstantOverride("separation", 10);
-		scroll.AddChild(_pausePlayerListContainer);
-
-		_pauseResumeButton = new Button();
-		_pauseResumeButton.Name = "PauseResumeButton";
-		_pauseResumeButton.Text = TranslationServer.Translate("RESUME FOR EVERYONE");
-		_pauseResumeButton.CustomMinimumSize = new Vector2(0, 34);
-		UIStyle.ApplyHudButtonStyleboxes(_pauseResumeButton);
-		_pauseResumeButton.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-		_pauseResumeButton.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		_pauseResumeButton.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
-		_pauseResumeButton.Pressed += () =>
-		{
-			GameContext.UserInterface?.PlayClickSound();
-			GameContext.Host?.RequestPause(false);
-		};
-		mainVBox.AddChild(_pauseResumeButton);
-
-		AddChild(_pausePanel);
+		PauseOverlay.Update(this);
 	}
 
 }
