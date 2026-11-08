@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using Realm.Ecs;
 using Godot;
@@ -61,6 +61,8 @@ public class SnapshotComponentApplier
 
 	internal void Apply(ComponentDelta delta, int snapshotSequence)
 	{
+		if (GameContext.World is not { } world) return;
+
 		var codec = ReplicatedComponents.Find(delta.ComponentTypeId);
 		if (codec == null)
 		{
@@ -78,8 +80,8 @@ public class SnapshotComponentApplier
 		if ((ReplicatedScope)delta.Scope == ReplicatedScope.Player)
 		{
 			Entity worldEntity = _findWorldEntity();
-			if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkMappingState>(worldEntity)) return;
-			var mapping = GameContext.World.Get<NetworkMappingState>(worldEntity);
+			if (worldEntity == Entity.Null || !world.Has<NetworkMappingState>(worldEntity)) return;
+			var mapping = world.Get<NetworkMappingState>(worldEntity);
 			if (mapping.PlayerEntities == null || delta.Key < 0 || delta.Key >= mapping.PlayerEntities.Length) return;
 			targetEntity = mapping.PlayerEntities[delta.Key];
 		}
@@ -101,8 +103,8 @@ public class SnapshotComponentApplier
 					return;
 				}
 				Entity worldEntity = _findWorldEntity();
-				if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkMappingState>(worldEntity)) return;
-				targetEntity = ReplicatedLootLifecycle.Create(delta.Key, GameContext.World.Get<NetworkMappingState>(worldEntity));
+				if (worldEntity == Entity.Null || !world.Has<NetworkMappingState>(worldEntity)) return;
+				targetEntity = ReplicatedLootLifecycle.Create(delta.Key, world.Get<NetworkMappingState>(worldEntity));
 			}
 		}
 		else if ((ReplicatedScope)delta.Scope == ReplicatedScope.World)
@@ -110,7 +112,7 @@ public class SnapshotComponentApplier
 			targetEntity = GameContext.Simulation.WorldEntity;
 		}
 
-		if (targetEntity == Entity.Null || !GameContext.World.IsAlive(targetEntity)) return;
+		if (targetEntity == Entity.Null || !world.IsAlive(targetEntity)) return;
 		if (delta.Bytes.Length == 0)
 		{
 			codec.Remove(GameContext.World, targetEntity);
@@ -118,9 +120,9 @@ public class SnapshotComponentApplier
 			if (codec.ComponentTypeId == ComponentType<GroundLoot>.Id)
 			{
 				Entity worldEntity = _findWorldEntity();
-				if (worldEntity != Entity.Null && GameContext.World.Has<NetworkMappingState>(worldEntity))
+				if (worldEntity != Entity.Null && world.Has<NetworkMappingState>(worldEntity))
 				{
-					ReplicatedLootLifecycle.Destroy(delta.Key, targetEntity, GameContext.World.Get<NetworkMappingState>(worldEntity));
+					ReplicatedLootLifecycle.Destroy(delta.Key, targetEntity, world.Get<NetworkMappingState>(worldEntity));
 				}
 			}
 		}
@@ -133,9 +135,9 @@ public class SnapshotComponentApplier
 				GameContext.SimulationService?.MarkRelationshipsAuthoritative();
 			}
 
-			if (codec.ComponentTypeId == ComponentType<MoveTo>.Id && GameContext.World.Has<PreviewMoveTo>(targetEntity))
+			if (codec.ComponentTypeId == ComponentType<MoveTo>.Id && world.Has<PreviewMoveTo>(targetEntity))
 			{
-				GameContext.World.Remove<PreviewMoveTo>(targetEntity);
+				world.Remove<PreviewMoveTo>(targetEntity);
 			}
 
 			if (codec.ComponentTypeId == ComponentType<GroundLoot>.Id) GameContext.Host?.SyncReplicatedLootNode(delta.Key, targetEntity);
@@ -198,10 +200,12 @@ public class SnapshotComponentApplier
 
 	private static void NoteLocalOrderState(Entity localEntity, bool holdsMoveOrder, int sequence)
 	{
+		if (GameContext.World is not { } world) return;
+
 		int localPlayerIndex = GameContext.Host?.LocalPlayerIndex ?? -1;
 		if (localPlayerIndex < 0) return;
-		if (!GameContext.World.Has<UnitOwnerPlayer>(localEntity)) return;
-		if (GameContext.World.Get<UnitOwnerPlayer>(localEntity).PlayerIndex != localPlayerIndex) return;
+		if (!world.Has<UnitOwnerPlayer>(localEntity)) return;
+		if (world.Get<UnitOwnerPlayer>(localEntity).PlayerIndex != localPlayerIndex) return;
 
 		GameContext.SnapshotTimeline.NoteConfirmedOrder(localEntity.Id, holdsMoveOrder, sequence);
 	}
