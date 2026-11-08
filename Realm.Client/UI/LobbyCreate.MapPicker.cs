@@ -57,8 +57,7 @@ public partial class LobbyCreate
 		searchBar.ClearButtonEnabled = true;
 		searchBar.CustomMinimumSize = new Vector2(1000, 44);
 		searchBar.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		searchBar.AddThemeStyleboxOverride("normal", UIStyle.CreateCustomLobbySearchInput(false));
-		searchBar.AddThemeStyleboxOverride("focus", UIStyle.CreateCustomLobbySearchInput(true));
+		UIStyle.ApplyCustomLobbySearchInput(searchBar);
 		searchBar.TextChanged += _ => RefreshMapPickerGrid();
 		vbox.AddChild(searchBar);
 		_mapPickerSearch = searchBar;
@@ -270,10 +269,7 @@ public partial class LobbyCreate
 		tile.ClipText = true;
 		tile.FocusMode = FocusModeEnum.None;
 		tile.AddThemeConstantOverride("icon_max_width", 0);
-		tile.AddThemeStyleboxOverride("normal", UIStyle.CreateDropdownStyle(false, false));
-		tile.AddThemeStyleboxOverride("hover", UIStyle.CreateDropdownStyle(true, false));
-		tile.AddThemeStyleboxOverride("pressed", UIStyle.CreateDropdownStyle(false, true));
-		tile.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyCustomLobbyDropdown(tile);
 		tile.AddThemeColorOverride("font_color", mapIndex == _selectedMapIndex ? UIStyle.ColorCyanGlow : UIStyle.ColorGoldDull);
 		tile.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
 		tile.AddThemeColorOverride("font_pressed_color", UIStyle.ColorCyanGlow);
