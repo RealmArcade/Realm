@@ -1054,166 +1054,23 @@ namespace Realm.Client.UI
 		}
 
 
-		public bool CloseCurrentlyOpenDialog()
-		{
-			if (TryCloseConfirmationOverlay()) return true;
-			if (TryCloseNodeOverlay("GenerationOverlay")) return true;
-			if (TryCloseScaleMapDialog()) return true;
-			if (TryCloseNodeOverlay("PublishInstructionsOverlay")) return true;
-			if (TryCloseNodeOverlay("CreatorRegistrationOverlay")) return true;
-			if (TryCloseAgreementOverlay()) return true;
-			if (TryCloseHelpOverlayPanel()) return true;
+		private MapEditorOverlayDismissal? _overlayDismissal;
 
-			if (FloatingDialogBase.HasAnyDialogOpen)
-			{
-				return FloatingDialogBase.CloseTopmostDialog();
-			}
+		private MapEditorOverlayDismissal OverlayDismissal => _overlayDismissal ??= new MapEditorOverlayDismissal(
+			new OverlayDismissalHooks(this, _scaleMapDialog, CloseScaleMapDialog, () => HelpPanel.Close()));
 
-			return false;
-		}
+		private MapEditorKeyboardShortcuts? _keyboardShortcuts;
 
-		private bool TryCloseConfirmationOverlay()
-		{
-			var confirmOverlay = GetNodeOrNull<Control>("ConfirmationOverlay") ?? GameContext.UserInterface?.GetNodeOrNull<Control>("ConfirmationOverlay");
-			if (confirmOverlay is { } overlay && IsValidOverlay(overlay))
-			{
-				if (overlay.HasMeta("CancelAction"))
-				{
-					var action = overlay.GetMeta("CancelAction").AsCallable();
-					action.Call();
-				}
-				else
-				{
-					confirmOverlay.QueueFree();
-				}
+		private MapEditorKeyboardShortcuts KeyboardShortcuts => _keyboardShortcuts ??= new MapEditorKeyboardShortcuts(
+			new KeyboardShortcutHooks(this, CloseCurrentlyOpenDialog));
 
-				return true;
-			}
-
-			return false;
-		}
-
-		private bool TryCloseNodeOverlay(string nodeName)
-		{
-			var overlay = GetNodeOrNull<Control>(nodeName);
-			if (IsValidOverlay(overlay))
-			{
-				overlay.QueueFree();
-				return true;
-			}
-
-			return false;
-		}
-
-		private bool TryCloseScaleMapDialog()
-		{
-			if (IsValidOverlay(_scaleMapDialog))
-			{
-				CloseScaleMapDialog();
-				return true;
-			}
-
-			return false;
-		}
-
-		private bool TryCloseAgreementOverlay()
-		{
-			var agreementOverlay = GetNodeOrNull<Control>("AgreementOverlay");
-			if (IsValidOverlay(agreementOverlay))
-			{
-				agreementOverlay.QueueFree();
-				GameContext.UserInterface?.TransitionTo(GameScreen.MainMenu);
-				return true;
-			}
-
-			return false;
-		}
-
-		private bool TryCloseHelpOverlayPanel() => HelpPanel.Close();
-		private bool IsValidOverlay(Node? overlay)
-		{
-			return overlay != null && GodotObject.IsInstanceValid(overlay) && overlay.IsInsideTree() && !overlay.IsQueuedForDeletion();
-		}
+		public bool CloseCurrentlyOpenDialog() => OverlayDismissal.CloseTopmost();
 
 		public override void _Input(InputEvent @event)
 		{
-			if (@event is not InputEventKey keyEvent || !keyEvent.Pressed)
-			{
-				return;
-			}
+			if (@event is not InputEventKey keyEvent || !keyEvent.Pressed) return;
 
-			if (HandleEscapeKey(keyEvent)) return;
-			if (HandleTabKey(keyEvent)) return;
-			if (HandleConsoleKey(keyEvent)) return;
-			HandleArrowKeys(keyEvent);
-		}
-
-		private bool HandleEscapeKey(InputEventKey keyEvent)
-		{
-			if (!keyEvent.Echo && keyEvent.Keycode == Godot.Key.Escape)
-			{
-				if (GameContext.IsSettingsMenuOpen)
-				{
-					return true;
-				}
-
-				if (CloseCurrentlyOpenDialog())
-				{
-					GetViewport().SetInputAsHandled();
-					return true;
-				}
-			}
-
-			return false;
-		}
-
-		private bool HandleTabKey(InputEventKey keyEvent)
-		{
-			if (keyEvent.Keycode == Godot.Key.Tab)
-			{
-				if (FloatingDialogBase.HasAnyDialogOpen)
-				{
-					return true;
-				}
-
-				GetViewport().SetInputAsHandled();
-				return true;
-			}
-
-			return false;
-		}
-
-		private bool HandleConsoleKey(InputEventKey keyEvent)
-		{
-			if (!keyEvent.Echo && keyEvent.Keycode == Godot.Key.Quoteleft)
-			{
-				if (IsFocusOwnerTextInput()) return true;
-
-				if (WasmConsoleWindow.IsSinglePlayerOrTestMode())
-				{
-					GameContext.WasmConsole.ToggleVisibility();
-					GetViewport().SetInputAsHandled();
-					return true;
-				}
-			}
-
-			return false;
-		}
-
-		private void HandleArrowKeys(InputEventKey keyEvent)
-		{
-			if (keyEvent.Keycode == Godot.Key.Up || keyEvent.Keycode == Godot.Key.Down ||
-			    keyEvent.Keycode == Godot.Key.Left || keyEvent.Keycode == Godot.Key.Right)
-			{
-				if (IsFocusOwnerTextInput()) return;
-				GetViewport().SetInputAsHandled();
-			}
-		}
-
-		private bool IsFocusOwnerTextInput()
-		{
-			var focusOwner = GetViewport().GuiGetFocusOwner();
-			return focusOwner != null && (focusOwner is LineEdit || focusOwner is TextEdit);
+			KeyboardShortcuts.Handle(keyEvent);
 		}
 
 		public void OpenInstanceManagerDialog(string? initialTypeFilter = null)
