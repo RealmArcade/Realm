@@ -475,6 +475,18 @@ public static partial class UIStyle
 		button.AddThemeStyleboxOverride("pressed", CreateCreatorDiscoveryTabButtonStyle(isActive, false, true));
 	}
 
+	/// <summary>
+	/// A button that draws no plate in any state because its artwork does the talking, such as a carousel arrow drawn as
+	/// a texture child.
+	/// </summary>
+	public static void ApplyPlainButtonStates(Button button)
+	{
+		button.AddThemeStyleboxOverride("normal", new StyleBoxEmpty());
+		button.AddThemeStyleboxOverride("hover", new StyleBoxEmpty());
+		button.AddThemeStyleboxOverride("pressed", new StyleBoxEmpty());
+		button.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+	}
+
 	/// <summary>The flat text button the discovery and lobby screens use for secondary actions.</summary>
 	public static void ApplyFlatButton(Button button)
 	{

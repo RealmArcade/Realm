@@ -123,6 +123,17 @@ public static partial class UIStyle
 		return style;
 	}
 
+	/// <summary>
+	/// The gold-on-graphite bar a slider sits in: the track, the filled portion and the same fill while the grabber is
+	/// held.
+	/// </summary>
+	public static void ApplySlider(HSlider slider)
+	{
+		slider.AddThemeStyleboxOverride("slider", CreateSliderTrack());
+		slider.AddThemeStyleboxOverride("grabber_area", CreateSliderFill());
+		slider.AddThemeStyleboxOverride("grabber_area_highlight", CreateSliderFill());
+	}
+
 	public static StyleBoxFlat CreateSliderFill()
 	{
 		var style = new StyleBoxFlat();

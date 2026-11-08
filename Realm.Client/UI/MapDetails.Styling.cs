@@ -36,9 +36,7 @@ public partial class MapDetails
 		ApplyMapFrame();
 		ApplyCarouselButtons();
 
-		_carouselSlider.AddThemeStyleboxOverride("slider", UIStyle.CreateSliderTrack());
-		_carouselSlider.AddThemeStyleboxOverride("grabber_area", UIStyle.CreateSliderFill());
-		_carouselSlider.AddThemeStyleboxOverride("grabber_area_highlight", UIStyle.CreateSliderFill());
+		UIStyle.ApplySlider(_carouselSlider);
 	}
 
 	private void ApplyBackgroundStyles()
@@ -255,10 +253,7 @@ public partial class MapDetails
 	private void ApplyImageCarouselButton(Button button, Texture2D texture, bool flipH)
 	{
 		button.Text = "";
-		button.AddThemeStyleboxOverride("normal", new StyleBoxEmpty());
-		button.AddThemeStyleboxOverride("hover", new StyleBoxEmpty());
-		button.AddThemeStyleboxOverride("pressed", new StyleBoxEmpty());
-		button.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyPlainButtonStates(button);
 		button.Size = new Vector2(40, 70);
 
 		var icon = button.GetNodeOrNull<TextureRect>("ArrowIcon");
@@ -278,9 +273,7 @@ public partial class MapDetails
 
 	private void ApplyFlatCarouselButton(Button button, string text)
 	{
-		button.AddThemeStyleboxOverride("normal", UIStyle.CreateFlatButtonStyle(false, false));
-		button.AddThemeStyleboxOverride("hover", UIStyle.CreateFlatButtonStyle(true, false));
-		button.AddThemeStyleboxOverride("pressed", UIStyle.CreateFlatButtonStyle(false, true));
+		UIStyle.ApplyFlatButton(button);
 		button.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 		UIStyle.ApplyButtonText(button, text, 24);
 	}
