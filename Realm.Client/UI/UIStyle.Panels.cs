@@ -788,4 +788,81 @@ public static partial class UIStyle
 		style.ContentMarginBottom = 4;
 		return style;
 	}
+
+	/// <summary>The drop shadow behind the settings menu's light stone frame.</summary>
+	public static StyleBoxFlat CreateSettingsWindowShadow()
+	{
+		var style = new StyleBoxFlat();
+		style.BgColor = new Color(0, 0, 0, 0);
+		style.ShadowColor = new Color(0, 0, 0, 0.7f);
+		style.ShadowSize = 24;
+		style.ShadowOffset = new Vector2(0, 14);
+		style.SetCornerRadiusAll(25);
+		return style;
+	}
+
+	/// <summary>The dark plate behind the settings menu's window title.</summary>
+	public static StyleBoxFlat CreateSettingsTitlePlate()
+	{
+		var style = new StyleBoxFlat();
+		style.BgColor = new Color(0.24f, 0.21f, 0.18f, 1.0f);
+		style.BorderColor = new Color(0.45f, 0.40f, 0.32f, 1.0f);
+		style.SetBorderWidthAll(3);
+		style.SetCornerRadiusAll(8);
+		style.ShadowColor = new Color(0, 0, 0, 0.75f);
+		style.ShadowSize = 12;
+		style.ShadowOffset = new Vector2(0, 6);
+		return style;
+	}
+
+	/// <summary>The recessed plate inside the settings menu's window title.</summary>
+	public static StyleBoxFlat CreateSettingsTitleInnerPlate()
+	{
+		var style = new StyleBoxFlat();
+		style.BgColor = new Color(0.18f, 0.16f, 0.14f, 1.0f);
+		style.BorderColor = new Color(0.82f, 0.72f, 0.50f, 0.5f);
+		style.SetBorderWidthAll(1);
+		style.SetCornerRadiusAll(5);
+		return style;
+	}
+
+	/// <summary>The plate behind a settings section title ("VIDEO", "AUDIO", ...).</summary>
+	public static StyleBoxFlat CreateSettingsSectionHeader()
+	{
+		var style = new StyleBoxFlat();
+		style.BgColor = new Color(0.12f, 0.11f, 0.10f, 0.6f);
+		style.BorderColor = new Color(0.40f, 0.35f, 0.28f, 0.7f);
+		style.SetBorderWidthAll(1);
+		style.SetCornerRadiusAll(4);
+		style.ContentMarginLeft = 14;
+		style.ContentMarginRight = 14;
+		style.ContentMarginTop = 8;
+		style.ContentMarginBottom = 8;
+		return style;
+	}
+
+	/// <summary>The plate behind a settings row's current value.</summary>
+	public static StyleBoxFlat CreateSettingsValuePlate()
+	{
+		var style = new StyleBoxFlat();
+		style.BgColor = new Color(0.12f, 0.11f, 0.10f, 0.6f);
+		style.BorderColor = new Color(0.40f, 0.35f, 0.28f, 0.7f);
+		style.SetBorderWidthAll(1);
+		style.SetCornerRadiusAll(4);
+		style.ContentMarginLeft = 6;
+		style.ContentMarginRight = 6;
+		style.ContentMarginTop = 2;
+		style.ContentMarginBottom = 2;
+		return style;
+	}
+
+	/// <summary>The rule between settings sections. Thicker and greyer than <see cref="CreateHairlineSeparator"/>.</summary>
+	public static StyleBoxFlat CreateSettingsSeparator()
+	{
+		var style = new StyleBoxFlat();
+		style.BgColor = new Color(0.42f, 0.38f, 0.33f, 0.6f);
+		style.ContentMarginTop = 1;
+		style.ContentMarginBottom = 1;
+		return style;
+	}
 }

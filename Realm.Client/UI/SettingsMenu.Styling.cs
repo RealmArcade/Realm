@@ -68,13 +68,7 @@ public partial class SettingsMenu
 	{
 		if (GetNodeOrNull<Panel>("CenterContainer/ShadowPanel") is Panel shadowPanel)
 		{
-			var shadowStyle = new StyleBoxFlat();
-			shadowStyle.BgColor = new Color(0, 0, 0, 0);
-			shadowStyle.ShadowColor = new Color(0, 0, 0, 0.7f);
-			shadowStyle.ShadowSize = 24;
-			shadowStyle.ShadowOffset = new Vector2(0, 14);
-			shadowStyle.SetCornerRadiusAll(25);
-			shadowPanel.AddThemeStyleboxOverride("panel", shadowStyle);
+			shadowPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateSettingsWindowShadow());
 		}
 
 		_mainFrame.AddThemeStyleboxOverride("panel", UIStyle.CreateLightStonePanel());
@@ -85,28 +79,12 @@ public partial class SettingsMenu
 
 		if (GetNodeOrNull<Panel>("CenterContainer/MainFrame/TitlePanel") is Panel titlePanel)
 		{
-			var titleStyle = new StyleBoxFlat();
-			titleStyle.BgColor = new Color(0.24f, 0.21f, 0.18f, 1.0f);
-			titleStyle.BorderColor = new Color(0.45f, 0.40f, 0.32f, 1.0f);
-			titleStyle.SetBorderWidthAll(3);
-			titleStyle.SetCornerRadiusAll(8);
-
-			titleStyle.ShadowColor = new Color(0, 0, 0, 0.75f);
-			titleStyle.ShadowSize = 12;
-			titleStyle.ShadowOffset = new Vector2(0, 6);
-
-			titlePanel.AddThemeStyleboxOverride("panel", titleStyle);
+			titlePanel.AddThemeStyleboxOverride("panel", UIStyle.CreateSettingsTitlePlate());
 		}
 
 		if (GetNodeOrNull<Panel>("CenterContainer/MainFrame/TitlePanel/TitleInnerPanel") is Panel titleInnerPanel)
 		{
-			var innerStyle = new StyleBoxFlat();
-			innerStyle.BgColor = new Color(0.18f, 0.16f, 0.14f, 1.0f);
-			innerStyle.BorderColor = new Color(0.82f, 0.72f, 0.50f, 0.5f);
-			innerStyle.SetBorderWidthAll(1);
-			innerStyle.SetCornerRadiusAll(5);
-
-			titleInnerPanel.AddThemeStyleboxOverride("panel", innerStyle);
+			titleInnerPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateSettingsTitleInnerPlate());
 		}
 	}
 
@@ -124,15 +102,7 @@ public partial class SettingsMenu
 		_settingsTitle.HorizontalAlignment = HorizontalAlignment.Center;
 		_settingsTitle.VerticalAlignment = VerticalAlignment.Center;
 
-		var headerStyle = new StyleBoxFlat();
-		headerStyle.BgColor = new Color(0.12f, 0.11f, 0.10f, 0.6f);
-		headerStyle.BorderColor = new Color(0.40f, 0.35f, 0.28f, 0.7f);
-		headerStyle.SetBorderWidthAll(1);
-		headerStyle.SetCornerRadiusAll(4);
-		headerStyle.ContentMarginLeft = 14;
-		headerStyle.ContentMarginRight = 14;
-		headerStyle.ContentMarginTop = 8;
-		headerStyle.ContentMarginBottom = 8;
+		var headerStyle = UIStyle.CreateSettingsSectionHeader();
 
 		if (GetNodeOrNull<PanelContainer>("CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/TitleBox") is PanelContainer videoHeader)
 			videoHeader.AddThemeStyleboxOverride("panel", headerStyle);
@@ -209,15 +179,7 @@ public partial class SettingsMenu
 			"CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/ControlsPanel/VBox/SensRow/SensValLabel",
 			"CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/ControlsPanel/VBox/HudScaleRow/HudScaleValLabel"
 		};
-		var valLabelStyle = new StyleBoxFlat();
-		valLabelStyle.BgColor = new Color(0.12f, 0.11f, 0.10f, 0.6f);
-		valLabelStyle.BorderColor = new Color(0.40f, 0.35f, 0.28f, 0.7f);
-		valLabelStyle.SetBorderWidthAll(1);
-		valLabelStyle.SetCornerRadiusAll(4);
-		valLabelStyle.ContentMarginLeft = 6;
-		valLabelStyle.ContentMarginRight = 6;
-		valLabelStyle.ContentMarginTop = 2;
-		valLabelStyle.ContentMarginBottom = 2;
+		var valLabelStyle = UIStyle.CreateSettingsValuePlate();
 
 		foreach (var path in valLabelPaths)
 		{
@@ -235,10 +197,7 @@ public partial class SettingsMenu
 
 	private void ApplySeparatorStyles()
 	{
-		var sepStyle = new StyleBoxFlat();
-		sepStyle.BgColor = new Color(0.42f, 0.38f, 0.33f, 0.6f);
-		sepStyle.ContentMarginTop = 1;
-		sepStyle.ContentMarginBottom = 1;
+		var sepStyle = UIStyle.CreateSettingsSeparator();
 
 		var separators = new[]
 		{
