@@ -238,7 +238,7 @@ public partial class EditorService : IEditorAPI
 		}
 		finally
 		{
-			UpdateWatchedFileTimestamps();
+			EditorWorkspaceWatcher.UpdateWatchedFileTimestamps();
 			IsPaused = false;
 			IsSyncing = false;
 		}
@@ -807,61 +807,11 @@ public partial class EditorService : IEditorAPI
 		EditorGridSnapping.SanitizeCornerHeights(ref terrain);
 	}
 
-	public bool GetBlockMode(Entity worldEntity) => EditorEntityState.GetBlockMode(worldEntity);
-
-	public void SetBlockMode(Entity worldEntity, bool value) => EditorEntityState.SetBlockMode(worldEntity, value);
-
-	public float GetBlockLevelHeight(Entity worldEntity) => EditorEntityState.GetBlockLevelHeight(worldEntity);
-
-	public void SetBlockLevelHeight(Entity worldEntity, float value) => EditorEntityState.SetBlockLevelHeight(worldEntity, value);
-
-	public WaterType GetWaterMode(Entity worldEntity) => EditorEntityState.GetWaterMode(worldEntity);
-
-	public void SetWaterMode(Entity worldEntity, WaterType value) => EditorEntityState.SetWaterMode(worldEntity, value);
-
-	public byte GetWaterProfileIndex(Entity worldEntity) => EditorEntityState.GetWaterProfileIndex(worldEntity);
-
-	public void SetWaterProfileIndex(Entity worldEntity, byte value) => EditorEntityState.SetWaterProfileIndex(worldEntity, value);
-
-
-
-	public float GetCameraBoundsLeft(Entity worldEntity) => EditorEntityState.GetCameraBoundsLeft(worldEntity);
-
-	public void SetCameraBoundsLeft(Entity worldEntity, float value) => EditorEntityState.SetCameraBoundsLeft(worldEntity, value);
-
-	public float GetCameraBoundsRight(Entity worldEntity) => EditorEntityState.GetCameraBoundsRight(worldEntity);
-
-	public void SetCameraBoundsRight(Entity worldEntity, float value) => EditorEntityState.SetCameraBoundsRight(worldEntity, value);
-
-	public float GetCameraBoundsTop(Entity worldEntity) => EditorEntityState.GetCameraBoundsTop(worldEntity);
-
-	public void SetCameraBoundsTop(Entity worldEntity, float value) => EditorEntityState.SetCameraBoundsTop(worldEntity, value);
-
-	public float GetCameraBoundsBottom(Entity worldEntity) => EditorEntityState.GetCameraBoundsBottom(worldEntity);
-
-	public void SetCameraBoundsBottom(Entity worldEntity, float value) => EditorEntityState.SetCameraBoundsBottom(worldEntity, value);
-
-	public string GetSkyboxPath(Entity worldEntity) => EditorEntityState.GetSkyboxPath(worldEntity);
-
-	public void SetSkyboxPath(Entity worldEntity, string value) => EditorEntityState.SetSkyboxPath(worldEntity, value);
-
-	public bool GetHasUnsavedChanges(Entity worldEntity) => EditorEntityState.GetHasUnsavedChanges(worldEntity);
-
-	public void SetHasUnsavedChanges(Entity worldEntity, bool value) => EditorEntityState.SetHasUnsavedChanges(worldEntity, value);
-
-	public static string GetLocalizedToolName(EditorTool tool) => EditorToolLabels.GetLocalizedToolName(tool);
-
 	public string GetTerrainStatusString(Godot.Vector3 pos, EditorTool tool, string activePlaceId)
 	{
 		return EditorToolLabels.GetTerrainStatusString(pos, tool, activePlaceId);
 	}
 
-
-	public static DateTime LastEditorChangeUtc => EditorWorkspaceWatcher.LastEditorChangeUtc;
-
-	internal static void NoteEditorChange() => EditorWorkspaceWatcher.NoteEditorChange();
-
-	public static void NoteInternalFileWrite(string filePath) => EditorWorkspaceWatcher.NoteInternalFileWrite(filePath);
 
 	public bool PasteOptionEntities { get; set; } = true;
 	public bool PasteOptionPathing { get; set; } = true;
@@ -887,18 +837,6 @@ public partial class EditorService : IEditorAPI
 			if (value) EditorWorkspaceWatcher.CancelPendingEvaluation();
 		}
 	}
-
-	public void UpdateWatchedFileTimestamps() => EditorWorkspaceWatcher.UpdateWatchedFileTimestamps();
-
-	public static void ReconcileKnownFileStatesFromDisk(bool clearPendingChanges = true) => EditorWorkspaceWatcher.ReconcileKnownFileStatesFromDisk(clearPendingChanges);
-
-	public static bool HasPendingExternalChanges => EditorWorkspaceWatcher.HasPendingExternalChanges;
-
-	public bool TryTakePendingExternalChanges(out bool metadataChanged, out bool terrainChanged) => EditorWorkspaceWatcher.TryTakePendingExternalChanges(out metadataChanged, out terrainChanged);
-
-	public void StartWorkspaceWatcher(string directory) => EditorWorkspaceWatcher.Start(directory);
-
-	public void StopWorkspaceWatcher() => EditorWorkspaceWatcher.Stop();
 
 	public bool CommitCoordinate(string name, int minCellX, int minCellZ, int maxCellX, int maxCellZ)
 	{
@@ -948,7 +886,7 @@ public partial class EditorService : IEditorAPI
 		this.LastTerrainSyncTime = terrainTime;
 		this.LastMetadataSyncTime = metadataTime;
 		if (!HasEditingDirectory) return;
-		this.StartWorkspaceWatcher(this._editingDirectory);
+		EditorWorkspaceWatcher.Start(this._editingDirectory);
 	}
 
 	public (string? casDir, string? defaultSave) ConsumePendingCasSourceDomain()

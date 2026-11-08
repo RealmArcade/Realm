@@ -12,7 +12,7 @@ namespace Realm.Client.Services;
 /// bounds, the skybox and the unsaved-changes flag. Every member here is a straight read or write of
 /// that <see cref="EditorState"/> component, defaulting the way the editor opens a fresh map.
 /// </summary>
-internal static class EditorEntityState
+public static class EditorEntityState
 {
 	private static EcsWorld World => GameContext.World
 		?? throw new InvalidOperationException("EditorService used before a world existed.");
@@ -137,7 +137,7 @@ internal static class EditorEntityState
 
 	public static void SetHasUnsavedChanges(Entity worldEntity, bool value)
 	{
-		if (value) EditorService.NoteEditorChange();
+		if (value) EditorWorkspaceWatcher.NoteEditorChange();
 		World.Mutate<EditorState>(worldEntity, (ref EditorState s) => s.HasUnsavedChanges = value);
 	}
 

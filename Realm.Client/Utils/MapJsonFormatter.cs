@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Diagnostics.CodeAnalysis;
 using System.Collections.Generic;
 using System.IO;
@@ -300,7 +300,7 @@ public static class MapJsonFormatter
 		}
 
 		File.WriteAllText(filePath, formatted);
-		EditorService.NoteInternalFileWrite(filePath);
+		EditorWorkspaceWatcher.NoteInternalFileWrite(filePath);
 	}
 
 	public static void SaveFormattedJson(string filePath, string jsonText)

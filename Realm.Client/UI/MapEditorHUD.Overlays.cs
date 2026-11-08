@@ -40,7 +40,7 @@ namespace Realm.Client.UI
 			}
 
 			GameContext.MetadataService.MetadataSaved -= OnMetadataSaved;
-			GameContext.EditorService?.StopWorkspaceWatcher();
+			EditorWorkspaceWatcher.Stop();
 			CloseWasmConsoleModal();
 			GameContext.UnregisterMapEditorHud(this);
 
@@ -110,7 +110,7 @@ namespace Realm.Client.UI
 
 		private void ApplyPendingExternalChanges()
 		{
-			if (!EditorService.HasPendingExternalChanges) return;
+			if (!EditorWorkspaceWatcher.HasPendingExternalChanges) return;
 			if (GameContext.Host == null) return;
 			if (GameContext.EditorService.IsSyncing || GameContext.EditorService.IsPaused) return;
 			if (FloatingDialogBase.HasAnyDialogOpen) return;
@@ -119,7 +119,7 @@ namespace Realm.Client.UI
 
 			string editingDirectory = GetActiveEditingDirectory();
 			if (string.IsNullOrEmpty(editingDirectory) || !File.Exists(Path.Combine(editingDirectory, "metadata.json"))) return;
-			if (!GameContext.EditorService.TryTakePendingExternalChanges(out bool metadataChanged, out bool terrainChanged)) return;
+			if (!EditorWorkspaceWatcher.TryTakePendingExternalChanges(out bool metadataChanged, out bool terrainChanged)) return;
 
 			if (metadataChanged)
 			{

@@ -2794,7 +2794,7 @@ namespace Realm.Client.Core
 			string terrainPath = Path.Combine(editingDirectory, "terrain.json");
 			GameContext.EditorService.LastTerrainSyncTime = GameContext.EditorService.GetMaxTerrainWriteTime(terrainPath);
 			GameContext.EditorService.LastMetadataSyncTime = GameContext.EditorService.GetLastWriteTimeSafe(Path.Combine(editingDirectory, "metadata.json"));
-			GameContext.EditorService.StartWorkspaceWatcher(editingDirectory);
+			EditorWorkspaceWatcher.Start(editingDirectory);
 		}
 
 		public void ExitMapEditorMode()

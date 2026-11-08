@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using Godot;
 using Realm.Client.Core;
@@ -11,7 +11,7 @@ namespace Realm.Client.Services;
 /// the editor itself because it is presentation, and because the status line is the only place that has
 /// to explain a pathing cell's layers.
 /// </summary>
-internal static class EditorToolLabels
+public static class EditorToolLabels
 {
 	public static string GetLocalizedToolName(EditorTool tool)
 	{

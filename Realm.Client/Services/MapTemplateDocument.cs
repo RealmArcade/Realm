@@ -100,7 +100,7 @@ internal static class MapTemplateDocument
 		try
 		{
 			File.WriteAllText(metadataPath, destinationRoot.ToJsonString(MetadataWriteOptions));
-			EditorService.NoteInternalFileWrite(metadataPath);
+			EditorWorkspaceWatcher.NoteInternalFileWrite(metadataPath);
 		}
 		catch (Exception ex)
 		{

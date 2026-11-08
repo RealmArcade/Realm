@@ -590,26 +590,26 @@ public partial class GameHost : Node3D
 
 	public float EditorCameraBoundsLeft
 	{
-		get => GameContext.EditorService.GetCameraBoundsLeft(GameContext.Simulation.WorldEntity);
-		set => GameContext.EditorService.SetCameraBoundsLeft(GameContext.Simulation.WorldEntity, value);
+		get => EditorEntityState.GetCameraBoundsLeft(GameContext.Simulation.WorldEntity);
+		set => EditorEntityState.SetCameraBoundsLeft(GameContext.Simulation.WorldEntity, value);
 	}
 
 	public float EditorCameraBoundsRight
 	{
-		get => GameContext.EditorService.GetCameraBoundsRight(GameContext.Simulation.WorldEntity);
-		set => GameContext.EditorService.SetCameraBoundsRight(GameContext.Simulation.WorldEntity, value);
+		get => EditorEntityState.GetCameraBoundsRight(GameContext.Simulation.WorldEntity);
+		set => EditorEntityState.SetCameraBoundsRight(GameContext.Simulation.WorldEntity, value);
 	}
 
 	public float EditorCameraBoundsTop
 	{
-		get => GameContext.EditorService.GetCameraBoundsTop(GameContext.Simulation.WorldEntity);
-		set => GameContext.EditorService.SetCameraBoundsTop(GameContext.Simulation.WorldEntity, value);
+		get => EditorEntityState.GetCameraBoundsTop(GameContext.Simulation.WorldEntity);
+		set => EditorEntityState.SetCameraBoundsTop(GameContext.Simulation.WorldEntity, value);
 	}
 
 	public float EditorCameraBoundsBottom
 	{
-		get => GameContext.EditorService.GetCameraBoundsBottom(GameContext.Simulation.WorldEntity);
-		set => GameContext.EditorService.SetCameraBoundsBottom(GameContext.Simulation.WorldEntity, value);
+		get => EditorEntityState.GetCameraBoundsBottom(GameContext.Simulation.WorldEntity);
+		set => EditorEntityState.SetCameraBoundsBottom(GameContext.Simulation.WorldEntity, value);
 	}
 
 	public MirrorMode EditorMirrorMode
@@ -688,26 +688,26 @@ public partial class GameHost : Node3D
 
 	public string EditorSkyboxPath
 	{
-		get => GameContext.EditorService.GetSkyboxPath(GameContext.Simulation.WorldEntity);
-		set => GameContext.EditorService.SetSkyboxPath(GameContext.Simulation.WorldEntity, value);
+		get => EditorEntityState.GetSkyboxPath(GameContext.Simulation.WorldEntity);
+		set => EditorEntityState.SetSkyboxPath(GameContext.Simulation.WorldEntity, value);
 	}
 
 	public bool EditorHasUnsavedChanges
 	{
-		get => GameContext.EditorService.GetHasUnsavedChanges(GameContext.Simulation.WorldEntity);
-		set => GameContext.EditorService.SetHasUnsavedChanges(GameContext.Simulation.WorldEntity, value);
+		get => EditorEntityState.GetHasUnsavedChanges(GameContext.Simulation.WorldEntity);
+		set => EditorEntityState.SetHasUnsavedChanges(GameContext.Simulation.WorldEntity, value);
 	}
 
 	public bool EditorBlockMode
 	{
-		get => GameContext.EditorService.GetBlockMode(GameContext.Simulation.WorldEntity);
-		set => GameContext.EditorService.SetBlockMode(GameContext.Simulation.WorldEntity, value);
+		get => EditorEntityState.GetBlockMode(GameContext.Simulation.WorldEntity);
+		set => EditorEntityState.SetBlockMode(GameContext.Simulation.WorldEntity, value);
 	}
 
 	public float EditorBlockLevelHeight
 	{
-		get => GameContext.EditorService.GetBlockLevelHeight(GameContext.Simulation.WorldEntity);
-		set => GameContext.EditorService.SetBlockLevelHeight(GameContext.Simulation.WorldEntity, value);
+		get => EditorEntityState.GetBlockLevelHeight(GameContext.Simulation.WorldEntity);
+		set => EditorEntityState.SetBlockLevelHeight(GameContext.Simulation.WorldEntity, value);
 	}
 
 	public float EditorExactHeight
@@ -718,14 +718,14 @@ public partial class GameHost : Node3D
 
 	public WaterType EditorWaterMode
 	{
-		get => GameContext.EditorService.GetWaterMode(GameContext.Simulation.WorldEntity);
-		set => GameContext.EditorService.SetWaterMode(GameContext.Simulation.WorldEntity, value);
+		get => EditorEntityState.GetWaterMode(GameContext.Simulation.WorldEntity);
+		set => EditorEntityState.SetWaterMode(GameContext.Simulation.WorldEntity, value);
 	}
 
 	public byte ActiveWaterProfileIndex
 	{
-		get => GameContext.EditorService.GetWaterProfileIndex(GameContext.Simulation.WorldEntity);
-		set => GameContext.EditorService.SetWaterProfileIndex(GameContext.Simulation.WorldEntity, value);
+		get => EditorEntityState.GetWaterProfileIndex(GameContext.Simulation.WorldEntity);
+		set => EditorEntityState.SetWaterProfileIndex(GameContext.Simulation.WorldEntity, value);
 	}
 
 	private Node? _hoveredEditorObject { get; set; }

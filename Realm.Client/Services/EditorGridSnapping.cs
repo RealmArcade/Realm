@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using Godot;
 using Realm.Client.Core;
@@ -12,7 +12,7 @@ namespace Realm.Client.Services;
 /// Everything here is a pure conversion of a position plus the map's dimensions, so it can be answered
 /// without touching the editor's own selection or clipboard state.
 /// </summary>
-internal static class EditorGridSnapping
+public static class EditorGridSnapping
 {
 	public static List<MirroredTransform> GetMirroredTransforms(Godot.Vector3 pos, float rotation, MirrorMode mirrorMode, Vector2 pivot, int folds)
 	{

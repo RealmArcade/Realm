@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading;
@@ -13,7 +13,7 @@ namespace Realm.Client.Services;
 /// pending-change flag the UI can consume, so an external rewrite never gets mistaken for the editor's own
 /// save.
 /// </summary>
-internal static class EditorWorkspaceWatcher
+public static class EditorWorkspaceWatcher
 {
 	private static readonly string[] MonitoredFileNames = BuildMonitoredFileNames();
 	private static readonly Dictionary<string, MapFileState> KnownFileStates = new(StringComparer.OrdinalIgnoreCase);

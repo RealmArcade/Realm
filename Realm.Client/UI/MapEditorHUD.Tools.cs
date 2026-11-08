@@ -5434,7 +5434,7 @@ namespace Realm.Client.UI
 		public void NotifyHistoryRestoreApplied(bool versionRecorded)
 		{
 			_hasChangesSinceLastVersion = !versionRecorded;
-			GameContext.EditorService.UpdateWatchedFileTimestamps();
+			EditorWorkspaceWatcher.UpdateWatchedFileTimestamps();
 		}
 
 		public void MarkScriptSourcesChangedByRestore()

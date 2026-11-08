@@ -151,7 +151,7 @@ public partial class EditorService
 		terrain.UpdateMeshAndPhysics(true, true);
 		terrain.UpdatePathingTexture();
 		GameContext.Host?.UpdatePathingOverlay();
-		UpdateWatchedFileTimestamps();
+		EditorWorkspaceWatcher.UpdateWatchedFileTimestamps();
 		return true;
 	}
 
@@ -212,6 +212,6 @@ public partial class EditorService
 
 	public void ResetWorkspaceFileWatchTimestamps()
 	{
-		UpdateWatchedFileTimestamps();
+		EditorWorkspaceWatcher.UpdateWatchedFileTimestamps();
 	}
 }

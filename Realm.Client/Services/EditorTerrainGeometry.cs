@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Runtime.CompilerServices;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Terrain;
@@ -10,7 +10,7 @@ namespace Realm.Client.Services;
 ///     paste applies. Every member is a pure function of the grid it is handed, so the drawing path that closes a brush
 ///     stroke and the paste path that rotates a copied block both use it without touching editor state.
 /// </summary>
-internal static class EditorTerrainGeometry
+public static class EditorTerrainGeometry
 {
 	internal static void SetGridNodeHeight(ref TerrainState terrain, int gx, int gz, float height)
 	{

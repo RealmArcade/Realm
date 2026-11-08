@@ -155,7 +155,7 @@ namespace Realm.Client.UI
 			DateTime now = DateTime.UtcNow;
 			if ((now - _lastAutosaveWriteUtc).TotalMilliseconds < AutosaveMinimumGapMilliseconds) return;
 
-			bool editsHaveSettled = (now - EditorService.LastEditorChangeUtc).TotalMilliseconds >= AutosaveQuietMilliseconds;
+			bool editsHaveSettled = (now - EditorWorkspaceWatcher.LastEditorChangeUtc).TotalMilliseconds >= AutosaveQuietMilliseconds;
 			bool writeIsOverdue = (now - _lastAutosaveWriteUtc).TotalMilliseconds >= AutosaveMaximumDelayMilliseconds;
 			if (!editsHaveSettled && !writeIsOverdue) return;
 
@@ -447,7 +447,7 @@ namespace Realm.Client.UI
 			GameContext.EditorService.SetActiveMapDirectory(fullTarget);
 			GameContext.EditorService.SetCurrentSourceFolder(fullTarget);
 			MapWorkspaceService.SetupWorkspace(fullTarget, "MapScript");
-			GameContext.EditorService.StartWorkspaceWatcher(fullTarget);
+			EditorWorkspaceWatcher.Start(fullTarget);
 
 			defaultLoadFolder = fullTarget;
 			defaultSaveFolder = fullTarget;
@@ -494,7 +494,7 @@ namespace Realm.Client.UI
 				{
 					GameContext.EditorService.SetActiveMapDirectory(Path.GetFullPath(targetFolder));
 					GameContext.EditorService.SetCurrentSourceFolder(Path.GetFullPath(targetFolder));
-					GameContext.EditorService.StartWorkspaceWatcher(Path.GetFullPath(targetFolder));
+					EditorWorkspaceWatcher.Start(Path.GetFullPath(targetFolder));
 				}
 
 				WorkspaceMetadataBootstrapper.EnsureLicenseFile(targetFolder);
@@ -911,7 +911,7 @@ namespace Realm.Client.UI
 
 				GameContext.EditorService.LastUsedFolder = null;
 				GameContext.EditorService.SetCurrentSourceFolder(string.Empty);
-				GameContext.EditorService.StartWorkspaceWatcher(workspacePath);
+				EditorWorkspaceWatcher.Start(workspacePath);
 				mapSaveFolder = null;
 				defaultSaveFolder = GetDocumentsDirectory();
 				RefreshSavedDirectoryHash();
@@ -1067,7 +1067,7 @@ namespace Realm.Client.UI
 
 			GameContext.EditorService.LastTerrainSyncTime = GameContext.EditorService.GetMaxTerrainWriteTime(terrainPath);
 			GameContext.EditorService.LastMetadataSyncTime = GameContext.EditorService.GetLastWriteTimeSafe(Path.Combine(GameContext.EditorService._editingDirectory, "metadata.json"));
-			GameContext.EditorService?.StartWorkspaceWatcher(GameContext.EditorService._editingDirectory);
+			EditorWorkspaceWatcher.Start(GameContext.EditorService._editingDirectory);
 			ShowFeedback(string.Format(TranslationServer.Translate("Map loaded successfully from folder {0}!"), Path.GetFileName(selectedFolder)));
 			RefreshSavedDirectoryHash();
 			PrimeMapHistory();
@@ -1189,7 +1189,7 @@ namespace Realm.Client.UI
 
 				GameContext.EditorService.LastTerrainSyncTime = GameContext.EditorService.GetMaxTerrainWriteTime(terrainPath);
 				GameContext.EditorService.LastMetadataSyncTime = GameContext.EditorService.GetLastWriteTimeSafe(metadataPath);
-				GameContext.EditorService?.StartWorkspaceWatcher(GameContext.EditorService._editingDirectory);
+				EditorWorkspaceWatcher.Start(GameContext.EditorService._editingDirectory);
 					ShowFeedback(string.Format(TranslationServer.Translate("Map loaded successfully from folder {0}!"), Path.GetFileName(selectedFolder)));
 				RefreshSavedDirectoryHash();
 				PrimeMapHistory();
