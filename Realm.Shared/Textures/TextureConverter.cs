@@ -825,7 +825,7 @@ public static class TextureConverter
 		return ProcessAndSaveSingleLayerTexture(rawImagePath, outputRtexPath, "vfx_vertical", enableRdo);
 	}
 
-	private static string BuildSingleLayerMetadata(string assetType, string originalBlake3, string? customMetadataJson)
+	private static string BuildSingleLayerMetadata(string assetType, string? originalBlake3, string? customMetadataJson)
 	{
 		string fallbackJson = $"{{\"created_utc\":\"{DateTime.UtcNow:O}\",\"type\":\"{assetType}\",\"canonical_blake3\":\"{originalBlake3}\",\"layers\":1}}";
 
