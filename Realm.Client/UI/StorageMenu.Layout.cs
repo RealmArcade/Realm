@@ -123,8 +123,7 @@ public partial class StorageMenu
 		_searchBar.Name = "SearchBar_LineEdit";
 		_searchBar.PlaceholderText = TranslationServer.Translate("Search Maps...");
 		_searchBar.CustomMinimumSize = new Vector2(0, 40);
-		_searchBar.AddThemeStyleboxOverride("normal", UIStyle.CreateTextInput(false));
-		_searchBar.AddThemeStyleboxOverride("focus", UIStyle.CreateTextInput(true));
+		UIStyle.ApplyTextInput(_searchBar);
 		_searchBar.AddThemeColorOverride("font_color", new Color(0.95f, 0.95f, 0.95f));
 		_searchBar.AddThemeColorOverride("font_placeholder_color", new Color(0.65f, 0.60f, 0.50f));
 		_searchBar.MouseFilter = MouseFilterEnum.Stop;
