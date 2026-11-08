@@ -2033,13 +2033,13 @@ namespace Realm.Client.UI
 
 		public static string SanitizeMapName(string? candidateName)
 		{
-			return GameContext.EditorService.SanitizeMapName(candidateName);
+			return GameContext.EditorService.MapIdentity.SanitizeName(candidateName);
 		}
 
 		public string GetMapVersionFromMetadata(bool forceReload = false)
 		{
 			string workspacePath = !string.IsNullOrEmpty(GameContext.EditorService._editingDirectory) ? GameContext.EditorService._editingDirectory : MapWorkspaceService.GetActiveWorkspacePath();
-			return GameContext.EditorService.GetMapVersionFromMetadata(forceReload, workspacePath);
+			return GameContext.EditorService.MapIdentity.GetVersionFromMetadata(forceReload, workspacePath);
 		}
 
 		public string GetManifestBlake3()
@@ -2048,7 +2048,7 @@ namespace Realm.Client.UI
 			string mapTitle = GetMapNameFromMetadata();
 			string mapVersion = GetMapVersionFromMetadata();
 			string author = GetPublishAuthorName();
-			return GameContext.EditorService.GetManifestBlake3(workspacePath, mapTitle, mapVersion, author);
+			return GameContext.EditorService.MapIdentity.GetManifestBlake3(workspacePath, mapTitle, mapVersion, author);
 		}
 
 		public void ImportTextureAssetFromExtension(string sourceFilePath, int slotIndex)

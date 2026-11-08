@@ -26,7 +26,7 @@ public partial class EditorService
 		var positions = new List<Vector3> { worldPosition };
 		if (host.EditorMirrorMode != MirrorMode.None)
 		{
-			foreach (MirroredTransform mirroredTransform in GetMirroredTransforms(worldPosition, 0.0f, host.EditorMirrorMode))
+			foreach (MirroredTransform mirroredTransform in Symmetry.GetTransforms(worldPosition, 0.0f, host.EditorMirrorMode))
 			{
 				positions.Add(mirroredTransform.Position);
 			}

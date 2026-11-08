@@ -143,11 +143,11 @@ namespace Realm.Client.Core
 			var ground = RequireGroundTerrain();
 			float quadSize = ground.QuadSize;
 			Vector3 centerPos = new Vector3((startX + pasteW / 2.0f - ground.Width / 2.0f) * quadSize, 0, (startZ + pasteD / 2.0f - ground.Depth / 2.0f) * quadSize);
-			var transforms = GameContext.EditorService.GetMirroredTransforms(centerPos, 0.0f, EditorMirrorMode);
+			var transforms = GameContext.EditorService.Symmetry.GetTransforms(centerPos, 0.0f, EditorMirrorMode);
 
 			foreach (var t in transforms)
 			{
-				var (rcx, rcz) = GameContext.EditorService.WorldPosToCellCoords(t.Position);
+				var (rcx, rcz) = EditorGridSnapping.WorldPosToCellCoords(t.Position);
 				affectedRegions.Add(new Rect2I(rcx - pasteW / 2 - 2, rcz - pasteD / 2 - 2, pasteW + 4, pasteD + 4));
 			}
 

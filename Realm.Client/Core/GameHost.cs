@@ -635,20 +635,20 @@ public partial class GameHost : Node3D
 
 	public Vector2 EditorSymmetryPivot
 	{
-		get => GameContext.EditorService?.SymmetryPivot ?? Vector2.Zero;
+		get => GameContext.EditorService?.Symmetry.Pivot ?? Vector2.Zero;
 		set
 		{
-			if (GameContext.EditorService != null) GameContext.EditorService.SymmetryPivot = value;
+			if (GameContext.EditorService != null) GameContext.EditorService.Symmetry.Pivot = value;
 			UpdateSymmetryPivotVisuals();
 		}
 	}
 
 	public int EditorSymmetryFolds
 	{
-		get => GameContext.EditorService?.SymmetryFolds ?? 4;
+		get => GameContext.EditorService?.Symmetry.Folds ?? 4;
 		set
 		{
-			if (GameContext.EditorService != null) GameContext.EditorService.SymmetryFolds = value;
+			if (GameContext.EditorService != null) GameContext.EditorService.Symmetry.Folds = value;
 			if (EditorMirrorMode == MirrorMode.Rotational)
 			{
 				var editor = GameContext.EditorService;

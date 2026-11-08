@@ -3548,27 +3548,27 @@ namespace Realm.Client.UI
 			{
 				string workspacePath = !string.IsNullOrEmpty(GameContext.EditorService._editingDirectory) ? GameContext.EditorService._editingDirectory : MapWorkspaceService.GetActiveWorkspacePath();
 
-				if (GameContext.EditorService.TryGetMapNameFromManifest(workspacePath, out string manifestMapName))
+				if (GameContext.EditorService.MapIdentity.TryGetNameFromManifest(workspacePath, out string manifestMapName))
 				{
-					return GameContext.EditorService.UpdateCachedMapName(manifestMapName, now);
+					return GameContext.EditorService.MapIdentity.UpdateCachedName(manifestMapName, now);
 				}
 
-				if (GameContext.EditorService.TryGetMapNameFromMetadata(workspacePath, out string metadataMapName))
+				if (GameContext.EditorService.MapIdentity.TryGetNameFromMetadata(workspacePath, out string metadataMapName))
 				{
-					return GameContext.EditorService.UpdateCachedMapName(metadataMapName, now);
+					return GameContext.EditorService.MapIdentity.UpdateCachedName(metadataMapName, now);
 				}
 
-				if (GameContext.EditorService.TryGetMapNameFromActiveHost(out string activeMapName))
+				if (GameContext.EditorService.MapIdentity.TryGetNameFromActiveHost(out string activeMapName))
 				{
-					return GameContext.EditorService.UpdateCachedMapName(activeMapName, now);
+					return GameContext.EditorService.MapIdentity.UpdateCachedName(activeMapName, now);
 				}
 
-				return GameContext.EditorService.UpdateCachedMapName(TranslationServer.Translate("Unnamed Map"), now);
+				return GameContext.EditorService.MapIdentity.UpdateCachedName(TranslationServer.Translate("Unnamed Map"), now);
 			}
 			catch (Exception ex)
 			{
 				GameLog.LogError($"[MapEditorHUD] Error getting map name: {ex.Message}");
-				return GameContext.EditorService.UpdateCachedMapName(TranslationServer.Translate("Unnamed Map"), now);
+				return GameContext.EditorService.MapIdentity.UpdateCachedName(TranslationServer.Translate("Unnamed Map"), now);
 			}
 		}
 

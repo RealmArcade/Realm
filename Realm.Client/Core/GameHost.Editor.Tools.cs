@@ -1864,7 +1864,7 @@ namespace Realm.Client.Core
 			Vector3 previewPos = position;
 			if (EditorSnapToGrid && GroundTerrain != null)
 			{
-				previewPos = GameContext.EditorService.SnapToGrid(previewPos);
+				previewPos = EditorGridSnapping.SnapToGrid(previewPos);
 			}
 
 			if (ActiveEditorTool != EditorTool.PlaceDecal)
@@ -2021,7 +2021,7 @@ namespace Realm.Client.Core
 			if (ActiveEditorTool != EditorTool.SelectMove) return false;
 			if (!editorService.Interaction.IsObjectMarqueeSelecting || editorService.Interaction.ObjectMarqueeStart == null) return false;
 
-			var (cellX, cellZ) = editorService.WorldPosToCellCoords(hitPos);
+			var (cellX, cellZ) = EditorGridSnapping.WorldPosToCellCoords(hitPos);
 			editorService.Interaction.SetObjectMarquee(editorService.Interaction.ObjectMarqueeStart, new Vector2I(cellX, cellZ), true);
 			UpdateEditorObjectMarqueeVisual();
 			return true;
@@ -2073,7 +2073,7 @@ namespace Realm.Client.Core
 
 		private void HandleSelectAreaHit(Vector3 hitPos)
 		{
-			var (cx, cz) = GameContext.EditorService.WorldPosToCellCoords(hitPos);
+			var (cx, cz) = EditorGridSnapping.WorldPosToCellCoords(hitPos);
 			GameContext.EditorService.Interaction.SetSelectionEnd(new Vector2I(cx, cz));
 			int minX = Mathf.Min(GameContext.EditorService.Interaction.SelectionStart!.Value.X, cx);
 			int minZ = Mathf.Min(GameContext.EditorService.Interaction.SelectionStart!.Value.Y, cz);
@@ -2085,7 +2085,7 @@ namespace Realm.Client.Core
 
 		private void HandleDrawCoordinateHit(Vector3 hitPos)
 		{
-			var (rcx, rcz) = GameContext.EditorService.WorldPosToCellCoords(hitPos);
+			var (rcx, rcz) = EditorGridSnapping.WorldPosToCellCoords(hitPos);
 			GameContext.EditorService.Interaction.SetSelectionEnd(new Vector2I(rcx, rcz));
 			int rMinX = Mathf.Min(GameContext.EditorService.Interaction.SelectionStart!.Value.X, rcx);
 			int rMinZ = Mathf.Min(GameContext.EditorService.Interaction.SelectionStart!.Value.Y, rcz);
@@ -2096,8 +2096,8 @@ namespace Realm.Client.Core
 
 		private void HandlePasteAreaHit(Vector3 hitPos)
 		{
-			var (cx, cz) = GameContext.EditorService.WorldPosToCellCoords(hitPos);
-			var (startX, startZ, targetWidth, targetDepth) = GameContext.EditorService.GetAnchoredPasteBounds(cx, cz, GameContext.EditorService.EditorPasteRotation, GameContext.EditorService.EditorPasteReflection);
+			var (cx, cz) = EditorGridSnapping.WorldPosToCellCoords(hitPos);
+			var (startX, startZ, targetWidth, targetDepth) = EditorGridSnapping.GetAnchoredPasteBounds(GameContext.EditorService.Clipboard.CopiedArea, cx, cz, GameContext.EditorService.EditorPasteRotation, GameContext.EditorService.EditorPasteReflection);
 
 			UpdatePasteSelectionHighlights(startX, startZ, targetWidth, targetDepth);
 
@@ -2111,7 +2111,7 @@ namespace Realm.Client.Core
 			float halfW = ground.Width / 2.0f;
 			float halfD = ground.Depth / 2.0f;
 			Vector2 targetWorld2D = new Vector2((cx - halfW) * quadSize, (cz - halfD) * quadSize);
-			Vector2 pivotWorld2D = GameContext.EditorService.SymmetryPivot;
+			Vector2 pivotWorld2D = GameContext.EditorService.Symmetry.Pivot;
 			Vector2 diffFromPivot = targetWorld2D - pivotWorld2D;
 			float distFromPivot = diffFromPivot.Length();
 			float angleFromPivot = Mathf.RadToDeg(Mathf.Atan2(diffFromPivot.Y, diffFromPivot.X));
@@ -2331,7 +2331,7 @@ namespace Realm.Client.Core
 			Vector3 dragPos = _dragObjectStartPos + delta;
 			if (EditorSnapToGrid && GroundTerrain != null)
 			{
-				dragPos = GameContext.EditorService.SnapToGrid(dragPos);
+				dragPos = EditorGridSnapping.SnapToGrid(dragPos);
 			}
 
 			float authoredYOffset = _dragObjectStartPos.Y - GameContext.EditorService.GetTerrainHeightAt(_dragObjectStartPos);
@@ -2348,7 +2348,7 @@ namespace Realm.Client.Core
 			Vector3 dragPos = _dragObjectStartPos + delta;
 			if (EditorSnapToGrid && GroundTerrain != null)
 			{
-				dragPos = GameContext.EditorService.SnapToGrid(dragPos);
+				dragPos = EditorGridSnapping.SnapToGrid(dragPos);
 			}
 
 			Vector3 offset = dragPos - _dragObjectStartPos;
@@ -2604,7 +2604,7 @@ namespace Realm.Client.Core
 				if (candidate == null || !GodotObject.IsInstanceValid(candidate)) continue;
 				if (candidate is not Node3D node3D) continue;
 
-				var (cellX, cellZ) = GameContext.EditorService.WorldPosToCellCoords(node3D.Position);
+				var (cellX, cellZ) = EditorGridSnapping.WorldPosToCellCoords(node3D.Position);
 				if (cellX < minX || cellX > maxX || cellZ < minZ || cellZ > maxZ) continue;
 
 				if (subtractive)
@@ -2938,8 +2938,8 @@ namespace Realm.Client.Core
 		{
 			if (GroundTerrain != null)
 			{
-				if (isVertexTool) return GameContext.EditorService.SnapToVertex(position);
-				if (EditorSnapToGrid) return GameContext.EditorService.SnapToGrid(position);
+				if (isVertexTool) return EditorGridSnapping.SnapToVertex(position);
+				if (EditorSnapToGrid) return EditorGridSnapping.SnapToGrid(position);
 			}
 
 			return position;
@@ -2994,8 +2994,8 @@ namespace Realm.Client.Core
 			immMesh.ClearSurfaces();
 			immMesh.SurfaceBegin(Mesh.PrimitiveType.Lines);
 
-			float px = GameContext.EditorService.SymmetryPivot.X;
-			float pz = GameContext.EditorService.SymmetryPivot.Y;
+			float px = GameContext.EditorService.Symmetry.Pivot.X;
+			float pz = GameContext.EditorService.Symmetry.Pivot.Y;
 			float py = GameContext.EditorService.GetTerrainHeightAt(new Vector3(px, 0, pz)) + 0.25f;
 			float s = 1.5f;
 
@@ -3018,7 +3018,7 @@ namespace Realm.Client.Core
 
 		public List<MirroredTransform> GetMirroredTransforms(Vector3 pos, float rotation)
 		{
-			return GameContext.EditorService.GetMirroredTransforms(pos, rotation, EditorMirrorMode);
+			return GameContext.EditorService.Symmetry.GetTransforms(pos, rotation, EditorMirrorMode);
 		}
 
 		private bool ApplyRampInternal(Vector3 start, Vector3 end)
@@ -3202,12 +3202,12 @@ namespace Realm.Client.Core
 			{
 				float quadSize = GroundTerrain.QuadSize;
 				Vector3 centerPos = new Vector3((startX + targetWidth / 2.0f - width / 2.0f) * quadSize, 0, (startZ + targetDepth / 2.0f - depth / 2.0f) * quadSize);
-				var transforms = GameContext.EditorService.GetMirroredTransforms(centerPos, 0.0f, EditorMirrorMode);
+				var transforms = GameContext.EditorService.Symmetry.GetTransforms(centerPos, 0.0f, EditorMirrorMode);
 				symCount = transforms.Count;
 				for (int i = 0; i < transforms.Count; i++)
 				{
 					var t = transforms[i];
-					var (rcx, rcz) = GameContext.EditorService.WorldPosToCellCoords(t.Position);
+					var (rcx, rcz) = EditorGridSnapping.WorldPosToCellCoords(t.Position);
 					int rStartX = rcx - targetWidth / 2;
 					int rStartZ = rcz - targetDepth / 2;
 					int rMinX = Mathf.Clamp(rStartX, 0, width - 1);

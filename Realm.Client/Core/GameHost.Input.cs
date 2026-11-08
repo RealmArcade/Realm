@@ -957,7 +957,7 @@ public partial class GameHost
 					GroundTerrain.SetPolarCenter(pivot);
 					UpdateSymmetryPivotVisuals();
 					InvalidateSelectionHighlightMesh();
-					var (cx, cz) = GameContext.EditorService.WorldPosToCellCoords(hitPos);
+					var (cx, cz) = EditorGridSnapping.WorldPosToCellCoords(hitPos);
 					GameContext.MapEditorHud?.ShowFeedbackExternal($"Pivot set to tile ({cx}, {cz})");
 					GetViewport().SetInputAsHandled();
 					return;
@@ -1604,7 +1604,7 @@ public partial class GameHost
 
 						if (GroundTerrain != null)
 						{
-							var (startCellX, startCellZ) = GameContext.EditorService.WorldPosToCellCoords(terrainHitPos);
+							var (startCellX, startCellZ) = EditorGridSnapping.WorldPosToCellCoords(terrainHitPos);
 							var startCell = new Vector2I(startCellX, startCellZ);
 							GameContext.EditorService.Interaction.SetObjectMarquee(startCell, startCell, false);
 						}
@@ -1711,8 +1711,8 @@ public partial class GameHost
 				{
 					if (GroundTerrain != null && GameContext.EditorService.Clipboard.HasCopiedArea)
 					{
-						var (cx, cz) = GameContext.EditorService.WorldPosToCellCoords(hitPos);
-						var (startX, startZ, targetWidth, targetDepth) = GameContext.EditorService.GetAnchoredPasteBounds(cx, cz, GameContext.EditorService.EditorPasteRotation, GameContext.EditorService.EditorPasteReflection);
+						var (cx, cz) = EditorGridSnapping.WorldPosToCellCoords(hitPos);
+						var (startX, startZ, targetWidth, targetDepth) = EditorGridSnapping.GetAnchoredPasteBounds(GameContext.EditorService.Clipboard.CopiedArea, cx, cz, GameContext.EditorService.EditorPasteRotation, GameContext.EditorService.EditorPasteReflection);
 						PerformPasteArea(startX, startZ, GameContext.EditorService.EditorPasteRotation, GameContext.EditorService.EditorPasteReflection);
 						GameContext.MapEditorHud?.ShowFeedbackExternal("Pasted clipboard contents");
 					}

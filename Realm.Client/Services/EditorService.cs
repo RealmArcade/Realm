@@ -207,12 +207,12 @@ public partial class EditorService : IEditorAPI
 	public (int cx, int cz) SetPivotDomain(Vector3 hitPos)
 	{
 		var pivot = new Vector2(hitPos.X, hitPos.Z);
-		if (GameContext.Host is not { } host) return WorldPosToCellCoords(new Godot.Vector3(hitPos.X, hitPos.Y, hitPos.Z));
+		if (GameContext.Host is not { } host) return EditorGridSnapping.WorldPosToCellCoords(new Godot.Vector3(hitPos.X, hitPos.Y, hitPos.Z));
 
 		host.EditorSymmetryPivot = pivot;
 		host.GroundTerrain?.SetPolarCenter(pivot);
 		host.UpdateSymmetryPivotVisuals();
-		return WorldPosToCellCoords(new Godot.Vector3(hitPos.X, hitPos.Y, hitPos.Z));
+		return EditorGridSnapping.WorldPosToCellCoords(new Godot.Vector3(hitPos.X, hitPos.Y, hitPos.Z));
 	}
 
 	public void SetPolarSpokesDomain(int spokes)
@@ -535,6 +535,10 @@ public partial class EditorService : IEditorAPI
 
 	public EditorAreaClipboard Clipboard => _clipboard;
 
+	public EditorSymmetry Symmetry { get; } = new();
+
+	public EditorMapIdentity MapIdentity => _mapIdentity;
+
 	private readonly EditorRampTool _ramp;
 	private readonly EditorInteractionState _interaction = new();
 
@@ -556,21 +560,6 @@ public partial class EditorService : IEditorAPI
 	public Godot.Vector3 DragStartGroundPos { get; set; }
 	public bool DragObjectHasMoved { get; set; }
 
-
-	private Vector2 _symmetryPivot = Vector2.Zero;
-	private int _symmetryFolds = 4;
-
-	public Vector2 SymmetryPivot
-	{
-		get => _symmetryPivot;
-		set => _symmetryPivot = value;
-	}
-
-	public int SymmetryFolds
-	{
-		get => _symmetryFolds;
-		set => _symmetryFolds = Math.Clamp(value, 2, 32);
-	}
 
 	public Godot.Vector3? RampStartPos => _ramp.RampStartPos;
 	public bool IsDrawingTerrain => _terrainEdit.IsDrawing;
@@ -660,7 +649,7 @@ public partial class EditorService : IEditorAPI
 		float placementRotation,
 		MirrorMode mirrorMode,
 		float assetBaseCollisionRadius = 0.5f) =>
-		EditorClumpPlacement.BuildSpawnRequests(centerPos, activeTool, activePlaceId, placeUnitPlayerIndex, placementScale, clumpCount, clumpScale, brushRadius, brushIsSquare, randomRotation, randomScale, placementRotation, mirrorMode, assetBaseCollisionRadius, _clump.Points, _symmetryPivot, _symmetryFolds);
+		EditorClumpPlacement.BuildSpawnRequests(centerPos, activeTool, activePlaceId, placeUnitPlayerIndex, placementScale, clumpCount, clumpScale, brushRadius, brushIsSquare, randomRotation, randomScale, placementRotation, mirrorMode, assetBaseCollisionRadius, _clump.Points, Symmetry.Pivot, Symmetry.Folds);
 
 	public bool ApplyRamp(Godot.Vector3 start, Godot.Vector3 end, float brushRadius, bool blockMode, float blockLevelHeight) =>
 		_ramp.Apply(start, end, brushRadius, blockMode, blockLevelHeight);
@@ -680,7 +669,7 @@ public partial class EditorService : IEditorAPI
 		MirrorMode mirrorMode,
 		float rotationDegrees,
 		PasteReflection pasteReflection = PasteReflection.None) =>
-		_paste.Build(startX, startZ, pasteHeights, pasteTextures, pasteEntities, pastePathing, mirrorMode, rotationDegrees, pasteReflection, _symmetryPivot, _symmetryFolds);
+		_paste.Build(startX, startZ, pasteHeights, pasteTextures, pasteEntities, pastePathing, mirrorMode, rotationDegrees, pasteReflection, Symmetry.Pivot, Symmetry.Folds);
 
 
 	public (float[,]? Heights, TerrainSplatWeights[,]? SplatMap, bool IsCliff) PerformFloodFill(
@@ -689,10 +678,10 @@ public partial class EditorService : IEditorAPI
 		int cliffTextureIndex,
 		MirrorMode mirrorMode,
 		bool isCliff = false) =>
-		_surface.PerformTextureFloodFill(clickPos, fillTextureIndex, cliffTextureIndex, mirrorMode, isCliff, _symmetryPivot, _symmetryFolds);
+		_surface.PerformTextureFloodFill(clickPos, fillTextureIndex, cliffTextureIndex, mirrorMode, isCliff, Symmetry.Pivot, Symmetry.Folds);
 
 	public (int[,]? Before, int[,]? After) PerformFloodFillPathing(Godot.Vector3 clickPos, int pathingMask, bool pathingAdd, MirrorMode mirrorMode) =>
-		_surface.PerformPathingFloodFill(clickPos, pathingMask, pathingAdd, mirrorMode, _symmetryPivot, _symmetryFolds);
+		_surface.PerformPathingFloodFill(clickPos, pathingMask, pathingAdd, mirrorMode, Symmetry.Pivot, Symmetry.Folds);
 
 	public (TerrainCell[,]? BeforeCells, TerrainCell[,]? AfterCells, int[,]? BeforePathing, int[,]? AfterPathing, bool WasAdded) PerformWaterFloodFill(
 		Godot.Vector3 clickPos,
@@ -701,45 +690,10 @@ public partial class EditorService : IEditorAPI
 		float waterHeight,
 		MirrorMode mirrorMode,
 		bool isRemoveAction = false) =>
-		_surface.PerformWaterFloodFill(clickPos, activeWaterMode, activeWaterProfile, waterHeight, mirrorMode, isRemoveAction, _symmetryPivot, _symmetryFolds);
+		_surface.PerformWaterFloodFill(clickPos, activeWaterMode, activeWaterProfile, waterHeight, mirrorMode, isRemoveAction, Symmetry.Pivot, Symmetry.Folds);
 
 	public bool FillWaterPoolAtCell(int cellX, int cellZ, float waterSurfaceY) =>
 		_surface.FillWaterPoolAtCell(cellX, cellZ, waterSurfaceY);
-
-	public List<MirroredTransform> GetMirroredTransforms(
-		Godot.Vector3 pos,
-		float rotation,
-		MirrorMode mirrorMode,
-		Vector2? pivot = null,
-		int? folds = null)
-	{
-		return EditorGridSnapping.GetMirroredTransforms(pos, rotation, mirrorMode, pivot ?? _symmetryPivot, folds ?? _symmetryFolds);
-	}
-
-	public (int startX, int startZ, int targetWidth, int targetDepth) GetAnchoredPasteBounds(int targetX, int targetZ, float rotationDegrees, PasteReflection reflection = PasteReflection.None)
-	{
-		return EditorGridSnapping.GetAnchoredPasteBounds(_clipboard.CopiedArea, targetX, targetZ, rotationDegrees, reflection);
-	}
-
-	public (int cx, int cz) WorldPosToCellCoords(Godot.Vector3 worldPos)
-	{
-		return EditorGridSnapping.WorldPosToCellCoords(worldPos);
-	}
-
-	public Godot.Vector3 SnapToGrid(Godot.Vector3 worldPos)
-	{
-		return EditorGridSnapping.SnapToGrid(worldPos);
-	}
-
-	public Godot.Vector3 SnapToVertex(Godot.Vector3 worldPos)
-	{
-		return EditorGridSnapping.SnapToVertex(worldPos);
-	}
-
-	public (int vx, int vz) WorldPosToVertexCoords(Godot.Vector3 worldPos)
-	{
-		return EditorGridSnapping.WorldPosToVertexCoords(worldPos);
-	}
 
 	internal static bool TryGetTerrainState(out Entity terrainEntity)
 	{
@@ -763,32 +717,6 @@ public partial class EditorService : IEditorAPI
 		return ref World.Get<TerrainState>(terrainEntity);
 	}
 
-	public List<Godot.Vector3> GetMirroredPositions(Godot.Vector3 pos, MirrorMode mirrorMode)
-	{
-		return EditorGridSnapping.GetMirroredPositions(pos, mirrorMode, _symmetryPivot, _symmetryFolds);
-	}
-
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public static TerrainCell RotateCell(in TerrainCell cell, int rotSteps) =>
-		EditorTerrainGeometry.RotateCell(in cell, rotSteps);
-
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public static TerrainCell MirrorCell(in TerrainCell cell, MirrorMode mode) =>
-		EditorTerrainGeometry.MirrorCell(in cell, mode);
-
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public static (TerrainSplatWeights NW, TerrainSplatWeights NE, TerrainSplatWeights SE, TerrainSplatWeights SW) MirrorSplatQuad(
-		in TerrainSplatWeights nw, in TerrainSplatWeights ne, in TerrainSplatWeights se, in TerrainSplatWeights sw, MirrorMode mode) =>
-		EditorTerrainGeometry.MirrorSplatQuad(in nw, in ne, in se, in sw, mode);
-
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public static (TerrainSplatWeights NW, TerrainSplatWeights NE, TerrainSplatWeights SE, TerrainSplatWeights SW) RotateSplatQuad(
-		in TerrainSplatWeights nw, in TerrainSplatWeights ne, in TerrainSplatWeights se, in TerrainSplatWeights sw, int rotSteps) =>
-		EditorTerrainGeometry.RotateSplatQuad(in nw, in ne, in se, in sw, rotSteps);
-
-	private void TrySetSplat(TerrainSplatWeights[,] map, int x, int z, int w, int d, in TerrainSplatWeights val) =>
-		EditorTerrainGeometry.TrySetSplat(map, x, z, w, d, in val);
-
 	private void SetGridNodeSplat(int gx, int gz, in TerrainSplatWeights nw, in TerrainSplatWeights ne, in TerrainSplatWeights se, in TerrainSplatWeights sw)
 	{
 		_surface.SetGridNodeSplat(gx, gz, in nw, in ne, in se, in sw);
@@ -797,14 +725,6 @@ public partial class EditorService : IEditorAPI
 	private void SetGridNodeCliffSplat(int gx, int gz, in TerrainSplatWeights nw, in TerrainSplatWeights ne, in TerrainSplatWeights se, in TerrainSplatWeights sw)
 	{
 		_surface.SetGridNodeCliffSplat(gx, gz, in nw, in ne, in se, in sw);
-	}
-
-	private void SanitizeCellCorners(TerrainCell[,] cells, int gx, int gz, int w, int d, float h) =>
-		EditorTerrainGeometry.SanitizeCellCorners(cells, gx, gz, w, d, h);
-
-	private void SanitizeCornerHeights(ref TerrainState terrain)
-	{
-		EditorGridSnapping.SanitizeCornerHeights(ref terrain);
 	}
 
 	public string GetTerrainStatusString(Godot.Vector3 pos, EditorTool tool, string activePlaceId)
@@ -991,46 +911,6 @@ public partial class EditorService : IEditorAPI
 	public string ResolveTextureFileName(string imagePath, string? preferredFileName)
 	{
 		return EditorAssetImport.ResolveTextureFileName(imagePath, preferredFileName);
-	}
-
-	public string GetManifestBlake3(string workspacePath, string mapTitle, string mapVersion, string author)
-	{
-		return _mapIdentity.GetManifestBlake3(workspacePath, mapTitle, mapVersion, author);
-	}
-
-	public string GetMapVersionFromMetadata(bool forceReload, string workspacePath)
-	{
-		return _mapIdentity.GetVersionFromMetadata(forceReload, workspacePath);
-	}
-
-	public string SanitizeMapName(string? candidateName)
-	{
-		return _mapIdentity.SanitizeName(candidateName);
-	}
-
-	public bool TryGetMapNameFromManifest(string workspacePath, out string mapName)
-	{
-		return _mapIdentity.TryGetNameFromManifest(workspacePath, out mapName);
-	}
-
-	public bool TryGetMapNameFromMetadata(string workspacePath, out string mapName)
-	{
-		return _mapIdentity.TryGetNameFromMetadata(workspacePath, out mapName);
-	}
-
-	public bool TryGetMapNameFromActiveHost(out string mapName)
-	{
-		return _mapIdentity.TryGetNameFromActiveHost(out mapName);
-	}
-
-	public string UpdateCachedMapName(string mapName, long nowTicks)
-	{
-		return _mapIdentity.UpdateCachedName(mapName, nowTicks);
-	}
-
-	public static bool TrySanitizeCandidate(string? candidateName, out string sanitizedMapName)
-	{
-		return EditorMapIdentity.TrySanitizeCandidate(candidateName, out sanitizedMapName);
 	}
 
 	public string RemoveUnitObjectAttachmentDomain(string unitId, string socket, string attachmentId, string? parentAttachmentId = null)

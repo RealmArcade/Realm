@@ -1,19 +1,19 @@
-using System;
+﻿using System;
 using System.IO;
 using Realm.Client.Core;
 using Realm.Shared.Services;
 
 namespace Realm.Client.Services;
 
-internal sealed class EditorMapIdentity
+public sealed class EditorMapIdentity
 {
-	internal string? CachedName { get; set; }
+	public string? CachedName { get; set; }
 
-	internal string? CachedVersion { get; set; }
+	public string? CachedVersion { get; set; }
 
-	internal long CacheTicks { get; set; }
+	public long CacheTicks { get; set; }
 
-	internal string SanitizeName(string? candidateName)
+	public string SanitizeName(string? candidateName)
 	{
 		if (string.IsNullOrWhiteSpace(candidateName))
 		{
@@ -24,26 +24,26 @@ internal sealed class EditorMapIdentity
 		return string.IsNullOrEmpty(sanitized) ? MapNaming.CreateUntitledMapName() : sanitized;
 	}
 
-	internal string UpdateCachedName(string mapName, long nowTicks)
+	public string UpdateCachedName(string mapName, long nowTicks)
 	{
 		CachedName = mapName;
 		CacheTicks = nowTicks;
 		return mapName;
 	}
 
-	internal bool TryGetNameFromManifest(string workspacePath, out string mapName)
+	public bool TryGetNameFromManifest(string workspacePath, out string mapName)
 	{
 		var manifest = MapFileService.LoadManifest(workspacePath);
 		return TrySanitizeCandidate(manifest?.MapName, out mapName);
 	}
 
-	internal bool TryGetNameFromMetadata(string workspacePath, out string mapName)
+	public bool TryGetNameFromMetadata(string workspacePath, out string mapName)
 	{
 		var metadata = MapFileService.LoadMetadata(workspacePath);
 		return TrySanitizeCandidate(metadata?.MapProperties?.MapName, out mapName);
 	}
 
-	internal bool TryGetNameFromActiveHost(out string mapName)
+	public bool TryGetNameFromActiveHost(out string mapName)
 	{
 		mapName = string.Empty;
 		if (!string.IsNullOrEmpty(GameContext.Simulation.ActiveMapName))
@@ -55,7 +55,7 @@ internal sealed class EditorMapIdentity
 		return false;
 	}
 
-	internal string GetVersionFromMetadata(bool forceReload, string workspacePath)
+	public string GetVersionFromMetadata(bool forceReload, string workspacePath)
 	{
 		long now = Environment.TickCount64;
 		if (!forceReload && !string.IsNullOrEmpty(CachedVersion) && (now - CacheTicks < 2000))
@@ -89,7 +89,7 @@ internal sealed class EditorMapIdentity
 		}
 	}
 
-	internal string GetManifestBlake3(string workspacePath, string mapTitle, string mapVersion, string author)
+	public string GetManifestBlake3(string workspacePath, string mapTitle, string mapVersion, string author)
 	{
 		try
 		{
@@ -117,7 +117,7 @@ internal sealed class EditorMapIdentity
 		return string.Empty;
 	}
 
-	internal static bool TrySanitizeCandidate(string? candidateName, out string sanitizedMapName)
+	public static bool TrySanitizeCandidate(string? candidateName, out string sanitizedMapName)
 	{
 		sanitizedMapName = string.Empty;
 		if (string.IsNullOrWhiteSpace(candidateName))
