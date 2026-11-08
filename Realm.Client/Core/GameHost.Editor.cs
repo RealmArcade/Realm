@@ -704,9 +704,9 @@ public partial class GameHost
 			if (!GodotObject.IsInstanceValid(prop) || !MatchesEntityOrAssetKey(prop, normAssetKey)) continue;
 
 			prop.UpdateCollisionCircleScale(ratio);
-			if (prop.Entity != Entity.Null && GameContext.World.IsAlive(prop.Entity))
+			if (prop.Entity != Entity.Null && GameContext.World is { } world && world.IsAlive(prop.Entity))
 			{
-				GameContext.World.SetOrAdd(prop.Entity, new CollisionRadius(ResolveTemplateCollisionRadius(prop.PropId)));
+				world.SetOrAdd(prop.Entity, new CollisionRadius(ResolveTemplateCollisionRadius(prop.PropId)));
 			}
 		}
 	}
@@ -718,9 +718,9 @@ public partial class GameHost
 			if (!GodotObject.IsInstanceValid(unit) || !MatchesEntityOrAssetKey(unit, normAssetKey)) continue;
 
 			unit.UpdateCollisionCircleScale(ratio);
-			if (unit.Entity != Entity.Null && GameContext.World.IsAlive(unit.Entity))
+			if (unit.Entity != Entity.Null && GameContext.World is { } world && world.IsAlive(unit.Entity))
 			{
-				GameContext.World.SetOrAdd(unit.Entity, new CollisionRadius(ResolveTemplateCollisionRadius(unit.UnitId)));
+				world.SetOrAdd(unit.Entity, new CollisionRadius(ResolveTemplateCollisionRadius(unit.UnitId)));
 			}
 		}
 	}
@@ -753,7 +753,7 @@ public partial class GameHost
 		return true;
 	}
 
-	public void RefreshAllPlacedObjectModels(string targetId = null)
+	public void RefreshAllPlacedObjectModels(string? targetId = null)
 	{
 		if (!string.IsNullOrEmpty(targetId))
 		{
@@ -770,7 +770,7 @@ public partial class GameHost
 		RefreshPropsModels(targetId);
 	}
 
-	private void RefreshUnitsModels(string targetId)
+	private void RefreshUnitsModels(string? targetId)
 	{
 		foreach (var unit in AllUnits)
 		{
@@ -783,7 +783,7 @@ public partial class GameHost
 		}
 	}
 
-	private bool IsTargetUnit(string unitId, string targetId)
+	private bool IsTargetUnit(string unitId, string? targetId)
 	{
 		return GameContext.EditorService.IsTargetUnit(unitId, targetId);
 	}
@@ -810,7 +810,7 @@ public partial class GameHost
 		return GameContext.RegistryService.GetUnitTargetModel(unitId, ref isBuilding);
 	}
 
-	private void RefreshPropsModels(string targetId)
+	private void RefreshPropsModels(string? targetId)
 	{
 		foreach (var prop in AllProps)
 		{
@@ -851,8 +851,8 @@ public partial class GameHost
 			bool despill = entity.DespillPlayerColor;
 			bool normLuma = entity.NormalizeLuminance;
 			bool ignoreColor = entity.IgnorePlayerColor;
-			string spawnShader = entity.SpawnShader;
-			string deathShader = entity.DeathShader;
+			string? spawnShader = entity.SpawnShader;
+			string? deathShader = entity.DeathShader;
 
 			ApplyVisualOverrides(entity.TemplateID, entity.ModelPath, ref despill, ref normLuma, ref ignoreColor, ref spawnShader, ref deathShader);
 
@@ -878,8 +878,8 @@ public partial class GameHost
 			bool despill = res.DespillPlayerColor;
 			bool normLuma = res.NormalizeLuminance;
 			bool ignoreColor = res.IgnorePlayerColor;
-			string spawnShader = res.SpawnShader;
-			string deathShader = res.DeathShader;
+			string? spawnShader = res.SpawnShader;
+			string? deathShader = res.DeathShader;
 
 			ApplyVisualOverrides(res.TemplateID, res.ModelPath, ref despill, ref normLuma, ref ignoreColor, ref spawnShader, ref deathShader);
 
@@ -899,7 +899,7 @@ public partial class GameHost
 		string norm = GameContext.EditorService.NormalizeModelAssetKey(templateId);
 		if (string.IsNullOrEmpty(norm)) return (animationId, enabled);
 
-		if (GameContext.ModelOverrideService.ModelProceduralAnimations.TryGetValue(norm, out string configuredAnimationId))
+		if (GameContext.ModelOverrideService.ModelProceduralAnimations.TryGetValue(norm, out string? configuredAnimationId))
 		{
 			animationId = string.IsNullOrWhiteSpace(configuredAnimationId) ? null : configuredAnimationId;
 		}
@@ -941,17 +941,17 @@ public partial class GameHost
 		HideSelectionHighlight();
 
 		bool temp = false;
-		GameContext.EditorService.ClearHistoryAndState(ref temp);
+		GameContext.EditorService?.ClearHistoryAndState(ref temp);
 		EditorHasUnsavedChanges = temp;
 
 		MapCameraBounds resetCameraBounds = GroundTerrain != null
 			? MapCameraBounds.FromTerrain(GroundTerrain.Width, GroundTerrain.Depth, GroundTerrain.QuadSize)
 			: MapCameraBounds.LegacyDefaults;
-		GameContext.EditorService.SetCameraBounds(GameContext.Simulation.WorldEntity, resetCameraBounds);
+		GameContext.EditorService?.SetCameraBounds(GameContext.Simulation.WorldEntity, resetCameraBounds);
 		GameContext.MapEditorHud?.UpdateCameraBoundsUI();
 		RebuildCameraBoundsOverlay();
 
-		GameContext.EditorService.EditorCoordinates.Clear();
+		GameContext.EditorService?.EditorCoordinates.Clear();
 		RebuildAllCoordinatePersistentMeshes();
 		HideCoordinateSelectionOutline();
 
@@ -1093,7 +1093,7 @@ public partial class GameHost
 	}
 
 
-	public Unit3D SpawnUnitExternal(string unitId, Vector3 position, float rotationY, float scale, int player = 0)
+	public Unit3D? SpawnUnitExternal(string unitId, Vector3 position, float rotationY, float scale, int player = 0)
 	{
 		int playerIndex = player >= 0 ? player : 0;
 		bool isBuilding = false;
@@ -1102,7 +1102,7 @@ public partial class GameHost
 			LoadUnitMetadata(!string.IsNullOrEmpty(GameContext.MapStorageService.CurrentMapDirectory) ? GameContext.MapStorageService.CurrentMapDirectory : GameContext.EditorService._editingDirectory);
 		}
 
-		UnitMetadata meta;
+		UnitMetadata? meta;
 		if (!UnitRegistry.TryGetValue(unitId, out meta))
 		{
 			if (BuildingRegistry.TryGetValue(unitId, out meta))
@@ -1111,7 +1111,9 @@ public partial class GameHost
 				return null;
 		}
 
-		var playerOwner = GetPlayerEntityForPlayerIndex(playerIndex).AsPlayerEntity(GameContext.World);
+		if (meta == null) return null;
+
+		var playerOwner = GetPlayerEntityForPlayerIndex(playerIndex).AsPlayerEntity(World);
 
 		if (string.IsNullOrEmpty(meta.ModelPath))
 		{
@@ -1129,11 +1131,11 @@ public partial class GameHost
 		unit3D.Visible = true;
 		unit3D.UpdateLodVisibility();
 
-		GameContext.World.SetOrAdd(entity, new CollisionScale(scale));
+		World.SetOrAdd(entity, new CollisionScale(scale));
 
-		GameContext.World.SetOrAdd(entity, new RotationY(rotationY));
+		World.SetOrAdd(entity, new RotationY(rotationY));
 
-		GameContext.World.SetOrAdd(entity, new ModelScale(scale));
+		World.SetOrAdd(entity, new ModelScale(scale));
 
 		return unit3D;
 	}
@@ -1155,7 +1157,7 @@ public partial class GameHost
 		return TryResolveResourceIdByModelPath(ref propId, ref cleanId);
 	}
 
-	public Prop3D SpawnPropExternalWithParams(string propId, Vector3 position, float rotationY, float scale)
+	public Prop3D? SpawnPropExternalWithParams(string propId, Vector3 position, float rotationY, float scale)
 	{
 		if (string.IsNullOrEmpty(propId)) return null;
 
@@ -1239,7 +1241,7 @@ public partial class GameHost
 		VfxAttachmentConfig? customConfig = null,
 		int ownerPlayerIndex = 0)
 	{
-		var entity = GameContext.World.Create();
+		var entity = World.Create();
 		var config = customConfig != null ? customConfig.Clone() : ResolveVfxConfig(vfxId);
 
 		if (normalOffset != 0f) config.SurfaceNormalOffset = normalOffset;
@@ -1263,9 +1265,9 @@ public partial class GameHost
 		AllVfx.Add(vfx);
 		EntityToVfx3D[entity] = vfx;
 
-		GameContext.World.Add(entity, new Position(new System.Numerics.Vector3(position.X, position.Y, position.Z)));
-		GameContext.World.Add(entity, new RotationY(rotationDegrees.Y));
-		GameContext.World.Add(entity, new ModelScale(safeScale.X));
+		World.Add(entity, new Position(new System.Numerics.Vector3(position.X, position.Y, position.Z)));
+		World.Add(entity, new RotationY(rotationDegrees.Y));
+		World.Add(entity, new ModelScale(safeScale.X));
 
 		return vfx;
 	}
@@ -1307,7 +1309,7 @@ public partial class GameHost
 		return CreateFallbackVfxConfig(vfxId, cleanId);
 	}
 
-	private VfxAttachmentConfig TryCreateVfxConfigFromPrimitive(string id)
+	private VfxAttachmentConfig? TryCreateVfxConfigFromPrimitive(string? id)
 	{
 		if (!string.IsNullOrEmpty(id) && Enum.TryParse<VfxPrimitiveType>(id, true, out var primType))
 		{
@@ -1320,7 +1322,7 @@ public partial class GameHost
 	}
 
 
-	private VfxAttachmentConfig CreateFallbackVfxConfig(string vfxId, string cleanId)
+	private VfxAttachmentConfig CreateFallbackVfxConfig(string? vfxId, string cleanId)
 	{
 		var particlePresets = SpellParticleConfig.GetAllPresets();
 		if (particlePresets.ContainsKey(cleanId) || cleanId.StartsWith("particle_", StringComparison.OrdinalIgnoreCase))
@@ -1336,7 +1338,7 @@ public partial class GameHost
 
 		return new VfxAttachmentConfig
 		{
-			VfxId = vfxId,
+			VfxId = vfxId ?? string.Empty,
 			Name = cleanId,
 			BaseTexture = cleanId,
 			PrimitiveType = VfxPrimitiveType.VortexDisc
@@ -1355,9 +1357,9 @@ public partial class GameHost
 
 	public void SetUnitPlayerExternal(Unit3D unit, int playerIndex)
 	{
-		if (GodotObject.IsInstanceValid(unit) && GameContext.World.IsAlive(unit.Entity))
+		if (GodotObject.IsInstanceValid(unit) && GameContext.World is { } world && world.IsAlive(unit.Entity))
 		{
-			var playerOwner = GetPlayerEntityForPlayerIndex(playerIndex).AsPlayerEntity(GameContext.World);
+			var playerOwner = GetPlayerEntityForPlayerIndex(playerIndex).AsPlayerEntity(world);
 			GameContext.World.Set(unit.Entity, new Owner(playerOwner));
 
 			GameContext.World.SetOrAdd(unit.Entity, new UnitOwnerPlayer(playerIndex));
@@ -1445,7 +1447,7 @@ public partial class GameHost
 	public MeshInstance3D? GridOverlayMesh => null;
 	public MeshInstance3D? PathingOverlayMesh => null;
 
-	private Node3D FindObjectNearPosition(Vector3 position, float searchRadius = 1.5f)
+	private Node3D? FindObjectNearPosition(Vector3 position, float searchRadius = 1.5f)
 	{
 		foreach (var child in GetChildren())
 		{

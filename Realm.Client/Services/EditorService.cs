@@ -256,7 +256,7 @@ public partial class EditorService : IEditorAPI
 		}
 	}
 
-	public bool IsTargetUnit(string unitId, string targetId)
+	public bool IsTargetUnit(string unitId, string? targetId)
 	{
 		if (string.IsNullOrEmpty(targetId)) return true;
 		if (string.Equals(unitId, targetId, StringComparison.OrdinalIgnoreCase)) return true;
@@ -268,7 +268,7 @@ public partial class EditorService : IEditorAPI
 			   string.Equals(unitId, targetFileName, StringComparison.OrdinalIgnoreCase);
 	}
 
-	public bool IsTargetProp(string propId, string targetId)
+	public bool IsTargetProp(string propId, string? targetId)
 	{
 		return string.IsNullOrEmpty(targetId)
 			   || string.Equals(propId, targetId, StringComparison.OrdinalIgnoreCase)
