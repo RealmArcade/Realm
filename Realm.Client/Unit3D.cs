@@ -264,7 +264,7 @@ public partial class Unit3D : Node3D
 	private bool _isResource;
 
 	private Node3D? _modelNode;
-	private AnimationPlayer _animationPlayer = null!;
+	private AnimationPlayer? _animationPlayer;
 	private Skeleton3D? _cachedSkeleton;
 	private string _currentAnimation = string.Empty;
 	private string? _lastRequestedAnimName;
@@ -1113,14 +1113,17 @@ public partial class Unit3D : Node3D
 		StringName? resolved = ResolveAnimationName(animName);
 		if (resolved == null) return;
 
+		AnimationPlayer? animationPlayer = _animationPlayer;
+		if (animationPlayer == null) return;
+
 		string resolvedStr = resolved.ToString();
 		UpdateHandAttachmentsForAnimation(animName, resolvedStr);
 
-		if (_currentAnimation == resolvedStr && _animationPlayer.IsPlaying()) return;
+		if (_currentAnimation == resolvedStr && animationPlayer.IsPlaying()) return;
 
 		_currentAnimation = resolvedStr;
 
-		var animResource = _animationPlayer.GetAnimation(resolved);
+		var animResource = animationPlayer.GetAnimation(resolved);
 		if (animResource != null)
 		{
 			animResource.LoopMode = ResolveAnimationType(animName) == RealmAnimationType.Death
@@ -1136,13 +1139,13 @@ public partial class Unit3D : Node3D
 		_animStepAccumulator = 0f;
 		if (!IsPreview)
 		{
-			_animationPlayer.CallbackModeProcess = AnimationMixer.AnimationCallbackModeProcess.Manual;
+			animationPlayer.CallbackModeProcess = AnimationMixer.AnimationCallbackModeProcess.Manual;
 		}
-		_animationPlayer.ProcessMode = _isCulled ? ProcessModeEnum.Disabled : ProcessModeEnum.Inherit;
-		_animationPlayer.Play(resolved, AnimationTransitionSeconds);
+		animationPlayer.ProcessMode = _isCulled ? ProcessModeEnum.Disabled : ProcessModeEnum.Inherit;
+		animationPlayer.Play(resolved, AnimationTransitionSeconds);
 		if (!_isCulled)
 		{
-			_animationPlayer.Advance(0.0);
+			animationPlayer.Advance(0.0);
 		}
 	}
 
@@ -2357,7 +2360,7 @@ public partial class Unit3D : Node3D
 
 	private StringName? TryRetargetAnimation(string animName, StringName direct)
 	{
-		string resolvedPath = AnimationRetargetingService.ResolveAnimationFilePath(animName, UnitId);
+		string? resolvedPath = AnimationRetargetingService.ResolveAnimationFilePath(animName, UnitId);
 		if (!string.IsNullOrEmpty(resolvedPath))
 		{
 			if (TryBindRetargetedAnimation(resolvedPath, animName)) return direct;
