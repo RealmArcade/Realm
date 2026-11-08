@@ -251,16 +251,8 @@ public class CountdownOverlayPanel
 		_compactPanel.Visible = false;
 		_compactPanel.SizeFlagsHorizontal = Control.SizeFlags.ShrinkEnd;
 
-		var panelStyle = new StyleBoxFlat();
-		panelStyle.BgColor = new Color(0.12f, 0.12f, 0.12f, 0.85f);
-		panelStyle.SetBorderWidthAll(1);
-		panelStyle.BorderColor = UIStyle.ColorBronze;
-		panelStyle.SetCornerRadiusAll(4);
-		panelStyle.ContentMarginLeft = 8;
-		panelStyle.ContentMarginRight = 8;
-		panelStyle.ContentMarginTop = 6;
-		panelStyle.ContentMarginBottom = 6;
-		_compactPanel.AddThemeStyleboxOverride("panel", panelStyle);
+		_compactPanel.AddThemeStyleboxOverride("panel",
+			UIStyle.CreateCardPlate(new Color(0.12f, 0.12f, 0.12f, 0.85f), UIStyle.ColorBronze, 1, 4, 8, 8, 6, 6));
 
 		var row = new HBoxContainer();
 		row.Name = "CountdownRow";
