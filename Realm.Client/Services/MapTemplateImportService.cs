@@ -1,5 +1,6 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Text.Encodings.Web;
@@ -662,7 +663,7 @@ public class MapTemplateImportService
 
 		public List<TemplateEntry> Entries { get; } = new();
 
-		public bool TryGetEntryInSections(string[] sectionKeys, string value, out TemplateEntry entry)
+		public bool TryGetEntryInSections(string[] sectionKeys, string value, [NotNullWhen(true)] out TemplateEntry? entry)
 		{
 			string slug = GetSlug(value);
 
@@ -674,32 +675,32 @@ public class MapTemplateImportService
 				if (sectionEntries.TryGetValue(slug, out entry)) return true;
 			}
 
-			entry = null!;
+			entry = null;
 			return false;
 		}
 
-		public bool TryGetEntry(string sectionKey, bool isDictionary, string identity, out TemplateEntry entry)
+		public bool TryGetEntry(string sectionKey, bool isDictionary, string identity, [NotNullWhen(true)] out TemplateEntry? entry)
 		{
 			return _byLookup.TryGetValue(BuildLookupKey(sectionKey, isDictionary, identity), out entry);
 		}
 
-		public bool TryGetEntryByFullIdentity(string identity, out TemplateEntry entry)
+		public bool TryGetEntryByFullIdentity(string identity, [NotNullWhen(true)] out TemplateEntry? entry)
 		{
 			return _byFullIdentity.TryGetValue(identity, out entry);
 		}
 
-		public bool TryGetEntryBySlug(string slug, out TemplateEntry entry)
+		public bool TryGetEntryBySlug(string slug, [NotNullWhen(true)] out TemplateEntry? entry)
 		{
 			if (_ambiguousSlugs.Contains(slug))
 			{
-				entry = null!;
+				entry = null;
 				return false;
 			}
 
 			return _bySlug.TryGetValue(slug, out entry);
 		}
 
-		public bool TryGetEntryByDictionaryKey(string key, out TemplateEntry entry)
+		public bool TryGetEntryByDictionaryKey(string key, [NotNullWhen(true)] out TemplateEntry? entry)
 		{
 			return _byDictionaryKey.TryGetValue(key, out entry);
 		}
