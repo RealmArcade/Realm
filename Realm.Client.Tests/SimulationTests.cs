@@ -27,23 +27,24 @@ public partial class SimulationTests
 	[TestCase]
 	public async Task TestMeleePathingAroundTree()
 	{
-		if (GameContext.Lobby == null)
+		LobbyManager? lobby = GameContext.Lobby;
+		if (lobby == null)
 		{
 			return;
 		}
 
-		SetupSinglePlayerLobby("melee");
+		SetupSinglePlayerLobby(lobby, "melee");
 
 		ISceneRunner runner = ISceneRunner.Load("res://GameHost.tscn");
 		await runner.AwaitMillis(1000);
 
-		GameHost gameHost = GameContext.Host;
+		GameHost? gameHost = GameContext.Host;
 		if (gameHost == null)
 		{
 			return;
 		}
 
-		Unit3D worker = SetupWorkerAndMove(gameHost);
+		Unit3D? worker = SetupWorkerAndMove(gameHost);
 		if (worker == null)
 		{
 			return;
@@ -134,7 +135,8 @@ public partial class SimulationTests
 	[TestCase]
 	public async Task TestChaosArenaPerformanceBenchmark()
 	{
-		if (GameContext.Lobby == null)
+		LobbyManager? lobby = GameContext.Lobby;
+		if (lobby == null)
 		{
 			return;
 		}
@@ -158,14 +160,14 @@ public partial class SimulationTests
 		string chaosArenaDir = @"c:\temp\ugc-ChaosArena";
 		string wasmPath = Path.Combine(chaosArenaDir, "bin", Realm.Shared.Services.MapFileService.ScriptOutputDirectoryName, "MapScript.wasm");
 
-		GameContext.Lobby.IsSinglePlayer = true;
-		PropertyInfo isHostProp = typeof(LobbyManager).GetProperty("IsHost", BindingFlags.Public | BindingFlags.Instance);
-		isHostProp?.SetValue(GameContext.Lobby, true);
-		GameContext.Lobby.IsGameStarted = true;
-		GameContext.Lobby.ActiveMapName = chaosArenaDir;
-		GameContext.Lobby.PlayerList.Clear();
+		lobby.IsSinglePlayer = true;
+		PropertyInfo? isHostProp = typeof(LobbyManager).GetProperty("IsHost", BindingFlags.Public | BindingFlags.Instance);
+		isHostProp?.SetValue(lobby, true);
+		lobby.IsGameStarted = true;
+		lobby.ActiveMapName = chaosArenaDir;
+		lobby.PlayerList.Clear();
 
-		GameContext.Lobby.PlayerList.Add(new PlayerInfo
+		lobby.PlayerList.Add(new PlayerInfo
 		{
 			PeerId = 1,
 			Slot = 1,
@@ -182,7 +184,7 @@ public partial class SimulationTests
 
 		for (int slot = 2; slot <= 12; slot++)
 		{
-			GameContext.Lobby.PlayerList.Add(new PlayerInfo
+			lobby.PlayerList.Add(new PlayerInfo
 			{
 				PeerId = -(slot + 100),
 				Slot = slot,
@@ -203,7 +205,7 @@ public partial class SimulationTests
 		ISceneRunner runner = ISceneRunner.Load("res://GameHost.tscn");
 		await runner.AwaitMillis(500);
 
-		GameHost gameHost = GameContext.Host;
+		GameHost? gameHost = GameContext.Host;
 		if (gameHost == null)
 		{
 			throw new Exception("GameContext.Host was null.");
@@ -622,22 +624,22 @@ public partial class SimulationTests
 		}
 	}
 
-	private void SetupSinglePlayerLobby(string mapName)
+	private void SetupSinglePlayerLobby(LobbyManager lobby, string mapName)
 	{
-		GameContext.Lobby.IsSinglePlayer = true;
+		lobby.IsSinglePlayer = true;
 
-		PropertyInfo isHostProp = typeof(LobbyManager).GetProperty("IsHost", BindingFlags.Public | BindingFlags.Instance);
-		isHostProp?.SetValue(GameContext.Lobby, true);
+		PropertyInfo? isHostProp = typeof(LobbyManager).GetProperty("IsHost", BindingFlags.Public | BindingFlags.Instance);
+		isHostProp?.SetValue(lobby, true);
 
-		GameContext.Lobby.IsGameStarted = true;
-		GameContext.Lobby.ActiveMapName = mapName;
-		GameContext.Lobby.PlayerList.Clear();
+		lobby.IsGameStarted = true;
+		lobby.ActiveMapName = mapName;
+		lobby.PlayerList.Clear();
 
 		PlayerInfo playerInfo = new PlayerInfo
 		{
 			PeerId = 1,
 			Slot = 0,
-			Name = GameContext.Lobby.AuthenticatedUsername,
+			Name = lobby.AuthenticatedUsername,
 			Faction = "HUMAN",
 			Team = "Team 1",
 			Color = new Color(0.8f, 0.1f, 0.1f),
@@ -648,21 +650,21 @@ public partial class SimulationTests
 			BinaryVersion = RealmVersion.GameBinaryVersion
 		};
 
-		GameContext.Lobby.PlayerList.Add(playerInfo);
+		lobby.PlayerList.Add(playerInfo);
 	}
 
-	private Unit3D SetupWorkerAndMove(GameHost gameHost)
+	private Unit3D? SetupWorkerAndMove(GameHost gameHost)
 	{
-		Unit3D worker = GameContext.Host.AllUnits.FirstOrDefault(u => u.UnitId == "worker" && u.Player == 1);
+		Unit3D? worker = gameHost.AllUnits.FirstOrDefault(u => u.UnitId == "worker" && u.Player == 1);
 		if (worker == null)
 		{
 			return null;
 		}
 
-		GameContext.Host.SelectedUnits.Clear();
-		GameContext.Host.SelectedUnits.Add(worker);
+		gameHost.SelectedUnits.Clear();
+		gameHost.SelectedUnits.Add(worker);
 		worker.IsSelected = true;
-		GameContext.InGameHud?.RefreshUI(GameContext.Host.SelectedUnits);
+		GameContext.InGameHud?.RefreshUI(gameHost.SelectedUnits);
 
 		Vector3 destination = new Vector3(-20f, 0f, -50f);
 		var unitWrapper = GameContext.SimulationService.GetUnitWrapper(worker.Entity);
@@ -672,18 +674,18 @@ public partial class SimulationTests
 
 	private void VerifyPathFollowComponent(GameHost gameHost, Unit3D worker)
 	{
-		if (GameContext.World.Has<PathFollow>(worker.Entity))
-		{
-			var pf = GameContext.World.Get<PathFollow>(worker.Entity);
-			GD.Print($"WAYPOINTS COUNT: {pf.WaypointCount}");
-			for (int i = 0; i < pf.WaypointCount; i++)
-			{
-				GD.Print($"Waypoint {i}: {pf.Waypoints[i]}");
-			}
-		}
-		else
+		EcsWorld? world = GameContext.World;
+		if (world == null || !world.Has<PathFollow>(worker.Entity))
 		{
 			GD.Print("NO PATHFOLLOW COMPONENT");
+			return;
+		}
+
+		var pf = world.Get<PathFollow>(worker.Entity);
+		GD.Print($"WAYPOINTS COUNT: {pf.WaypointCount}");
+		for (int i = 0; i < pf.WaypointCount; i++)
+		{
+			GD.Print($"Waypoint {i}: {pf.Waypoints[i]}");
 		}
 	}
 
@@ -707,7 +709,7 @@ public partial class SimulationTests
 		{
 			await runner.AwaitMillis(1000);
 
-			Image image = runner.Scene().GetViewport().GetTexture().GetImage();
+			Image image = SceneRunnerCapture.CaptureViewportImage(runner);
 			string fileName = $"Simulation_Step_{i:00}.png";
 			string filePath = Path.Combine(tempDir, fileName);
 			image.SavePng(filePath);

@@ -101,16 +101,16 @@ public class UxSceneTests
 			{
 				MapData[] dummy = GetDummyMaps();
 				MapData mapData = (dummy != null && dummy.Length > 0) ? dummy[0] : new MapData { Title = "Test Map" };
-				GameContext.UserInterface.TransitionToMapDetails(mapData);
+				GameContext.UserInterface?.TransitionToMapDetails(mapData);
 			}
 			else
 			{
-				GameContext.UserInterface.TransitionTo(screen);
+				GameContext.UserInterface?.TransitionTo(screen);
 			}
 
 			await runner.AwaitMillis(1000);
 
-			Image image = runner.Scene().GetViewport().GetTexture().GetImage();
+			Image image = SceneRunnerCapture.CaptureViewportImage(runner);
 			string fileName = $"UX_Screen_{screen}.png";
 			string filePath = Path.Combine(tempDir, fileName);
 			image.SavePng(filePath);
@@ -134,14 +134,15 @@ public class UxSceneTests
 	{
 		TrimmedTextureLoader.LogUsedRect = true;
 
-		string configuredOutputDirectory = Environment.GetEnvironmentVariable("REALM_RESIZED_UX_OUTPUT");
+		string? configuredOutputDirectory = Environment.GetEnvironmentVariable("REALM_RESIZED_UX_OUTPUT");
 		bool writeInPlace = string.IsNullOrWhiteSpace(configuredOutputDirectory);
+		string outputDirectory = configuredOutputDirectory ?? string.Empty;
 		string stagingDirectory = Path.Combine(Path.GetTempPath(), "Realm_Resized_UX_Images");
 		Directory.CreateDirectory(stagingDirectory);
 
 		if (!writeInPlace)
 		{
-			Directory.CreateDirectory(configuredOutputDirectory);
+			Directory.CreateDirectory(outputDirectory);
 		}
 
 		string reportPath = Path.Combine(stagingDirectory, "UX_Image_Resize_Report.txt");
@@ -152,7 +153,7 @@ public class UxSceneTests
 		ISceneRunner runner = ISceneRunner.Load("res://GameHost.tscn");
 		await runner.AwaitMillis(1000);
 
-		Node sceneRoot = runner.Scene();
+		Node sceneRoot = runner.Scene() ?? throw new InvalidOperationException("The running scene was not available to measure UI textures.");
 		Node probeParent = sceneRoot.GetParent() ?? sceneRoot.GetTree().Root;
 
 		var probeRoot = new Control();
@@ -182,11 +183,11 @@ public class UxSceneTests
 			{
 				MapData[] dummyMaps = GetDummyMaps();
 				MapData mapData = (dummyMaps != null && dummyMaps.Length > 0) ? dummyMaps[0] : new MapData { Title = "Test Map" };
-				GameContext.UserInterface.TransitionToMapDetails(mapData);
+				GameContext.UserInterface?.TransitionToMapDetails(mapData);
 			}
 			else
 			{
-				GameContext.UserInterface.TransitionTo(screen);
+				GameContext.UserInterface?.TransitionTo(screen);
 			}
 
 			await runner.AwaitMillis(750);
@@ -205,7 +206,7 @@ public class UxSceneTests
 				continue;
 			}
 
-			Node instance = null;
+			Node? instance = null;
 			try
 			{
 				PackedScene packedScene = GD.Load<PackedScene>(sceneResourcePath);
@@ -304,7 +305,7 @@ public class UxSceneTests
 			Vector2I outputSize = ComputeFitSize(sourceCropRect.Size.X, sourceCropRect.Size.Y, targetSize);
 			string status = hasUsage ? "rendered" : "no-render-usage";
 
-			string outputPath = writeInPlace ? ResolveInPlacePath(globalPath) : Path.Combine(configuredOutputDirectory, Path.GetFileNameWithoutExtension(fileName) + ".webp");
+			string outputPath = writeInPlace ? ResolveInPlacePath(globalPath) : Path.Combine(outputDirectory, Path.GetFileNameWithoutExtension(fileName) + ".webp");
 			string stagedPath = Path.Combine(stagingDirectory, $"staged_{stagedIndex++}.webp");
 
 			Error saveError;
@@ -366,7 +367,7 @@ public class UxSceneTests
 		var reportLines = new List<string>
 		{
 			$"UX image resize report ({DateTime.Now:yyyy-MM-dd HH:mm:ss})",
-			$"write mode: {(writeInPlace ? "in-place (Assets/UI)" : configuredOutputDirectory)}",
+			$"write mode: {(writeInPlace ? "in-place (Assets/UI)" : outputDirectory)}",
 			$"cwebp encoder: {encoder}",
 			$"scene count: {sceneResourcePaths.Count}",
 			$"images resized: {resizedCount}, images skipped: {skippedCount}, images not loaded: {notLoadedImageLines.Count}",
@@ -393,7 +394,7 @@ public class UxSceneTests
 			GD.Print($"[ResizeUxImages][image] {imageReportLine}");
 		}
 
-		string writeMode = writeInPlace ? "in-place" : configuredOutputDirectory;
+		string writeMode = writeInPlace ? "in-place" : outputDirectory;
 		GD.Print($"[ResizeUxImages] scenes={sceneResourcePaths.Count} resized={resizedCount} skipped={skippedCount} notLoaded={notLoadedImageLines.Count} writeMode={writeMode} encoder={encoder} sourceBytes={sourceBytes} outputBytes={outputBytes} report={reportPath}");
 	}
 
@@ -745,8 +746,8 @@ public class UxSceneTests
 			return Error.CantOpen;
 		}
 
-		Image trimmedImage = null;
-		Image outputImage = null;
+		Image? trimmedImage = null;
+		Image? outputImage = null;
 
 		try
 		{
@@ -795,7 +796,7 @@ public class UxSceneTests
 
 			try
 			{
-				using Process process = Process.Start(startInfo);
+				using Process? process = Process.Start(startInfo);
 				if (process == null)
 				{
 					return Error.CantCreate;
@@ -818,13 +819,13 @@ public class UxSceneTests
 
 	private static string FindCwebpExecutable()
 	{
-		string configuredPath = Environment.GetEnvironmentVariable("REALM_CWEBP_PATH");
+		string? configuredPath = Environment.GetEnvironmentVariable("REALM_CWEBP_PATH");
 		if (!string.IsNullOrWhiteSpace(configuredPath) && File.Exists(configuredPath))
 		{
 			return configuredPath;
 		}
 
-		string pathVariable = Environment.GetEnvironmentVariable("PATH");
+		string? pathVariable = Environment.GetEnvironmentVariable("PATH");
 		if (string.IsNullOrEmpty(pathVariable))
 		{
 			return string.Empty;

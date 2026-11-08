@@ -31,7 +31,7 @@ public partial class SnapshotReassemblerTests
 		return pieces;
 	}
 
-	private static bool SameBytes(byte[] actual, byte[] expected) => actual != null && expected != null && actual.AsSpan().SequenceEqual(expected);
+	private static bool SameBytes(byte[]? actual, byte[]? expected) => actual != null && expected != null && actual.AsSpan().SequenceEqual(expected);
 
 	[TestCase]
 	public void ADescriptionWholeEnoughForOneDatagramTravelsAsItself()
@@ -52,7 +52,7 @@ public partial class SnapshotReassemblerTests
 
 		Assertions.AssertThat(pieces.Count > 1).OverrideFailureMessage("the frame was not split, so nothing was reassembled").IsTrue();
 
-		byte[] assembled = null;
+		byte[]? assembled = null;
 		bool completed = false;
 		for (int index = 0; index < pieces.Count; index++) completed = reassembler.TryTake(pieces[index], out assembled);
 
@@ -92,7 +92,7 @@ public partial class SnapshotReassemblerTests
 
 		foreach (byte[] piece in Pieces(newer, 200)) reassembler.TryTake(piece, out _);
 
-		byte[] repaired = null;
+		byte[]? repaired = null;
 		bool completed = false;
 		foreach (byte[] piece in Pieces(older, 197)) completed = reassembler.TryTake(piece, out repaired);
 
