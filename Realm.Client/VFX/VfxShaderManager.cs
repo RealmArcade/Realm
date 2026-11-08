@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Text.Json.Nodes;
 using Godot;
@@ -13,10 +14,10 @@ namespace Realm.Client.VFX;
 
 public class VfxShaderManager
 {
-	private static Shader _shaderAdd = null!;
-	private static Shader _shaderMix = null!;
-	private static Shader _shaderProjectorAdd = null!;
-	private static Shader _shaderProjectorMix = null!;
+	private static Shader? _shaderAdd;
+	private static Shader? _shaderMix;
+	private static Shader? _shaderProjectorAdd;
+	private static Shader? _shaderProjectorMix;
 	private static readonly Dictionary<string, Texture2D> TextureCache = new(StringComparer.OrdinalIgnoreCase);
 	private static readonly Dictionary<string, (int Columns, int Rows, float Fps, bool SubframeBlend)> SpritesheetMetaCache = new(StringComparer.OrdinalIgnoreCase);
 	private static readonly Dictionary<string, ProceduralShaderParameters> ProceduralMotionCache = new(StringComparer.OrdinalIgnoreCase);
@@ -54,7 +55,7 @@ public class VfxShaderManager
 			if (ProceduralMotionCache.TryGetValue(motionId, out parameters)) return true;
 		}
 
-		ProceduralAnimationConfig config = ProceduralAnimationManager.GetConfig(motionId);
+		ProceduralAnimationConfig? config = ProceduralAnimationManager.GetConfig(motionId);
 		if (config == null) return false;
 
 		parameters = ProceduralAnimationManager.BuildShaderParameters(config);
@@ -66,54 +67,24 @@ public class VfxShaderManager
 		return true;
 	}
 
-	public static Shader GetShader(VfxBlendMode blendMode, VfxPrimitiveType primitiveType = VfxPrimitiveType.VortexDisc)
+	public static Shader? GetShader(VfxBlendMode blendMode, VfxPrimitiveType primitiveType = VfxPrimitiveType.VortexDisc)
 	{
 		lock (SyncLock)
 		{
 			if (primitiveType == VfxPrimitiveType.ProjectedVolumeCube)
 			{
-				if (blendMode == VfxBlendMode.Additive)
-				{
-					if (_shaderProjectorAdd == null)
-					{
-						_shaderProjectorAdd = LoadShaderFromFile("res://Assets/shaders/vfx_projector_add.gdshader");
-					}
-
-					return _shaderProjectorAdd;
-				}
-				else
-				{
-					if (_shaderProjectorMix == null)
-					{
-						_shaderProjectorMix = LoadShaderFromFile("res://Assets/shaders/vfx_projector_mix.gdshader");
-					}
-
-					return _shaderProjectorMix;
-				}
+				return blendMode == VfxBlendMode.Additive
+					? _shaderProjectorAdd ??= LoadShaderFromFile("res://Assets/shaders/vfx_projector_add.gdshader")
+					: _shaderProjectorMix ??= LoadShaderFromFile("res://Assets/shaders/vfx_projector_mix.gdshader");
 			}
 
-			if (blendMode == VfxBlendMode.Additive)
-			{
-				if (_shaderAdd == null)
-				{
-					_shaderAdd = LoadShaderFromFile("res://Assets/shaders/vfx_uber_add.gdshader");
-				}
-
-				return _shaderAdd;
-			}
-			else
-			{
-				if (_shaderMix == null)
-				{
-					_shaderMix = LoadShaderFromFile("res://Assets/shaders/vfx_uber_mix.gdshader");
-				}
-
-				return _shaderMix;
-			}
+			return blendMode == VfxBlendMode.Additive
+				? _shaderAdd ??= LoadShaderFromFile("res://Assets/shaders/vfx_uber_add.gdshader")
+				: _shaderMix ??= LoadShaderFromFile("res://Assets/shaders/vfx_uber_mix.gdshader");
 		}
 	}
 
-	private static Shader LoadShaderFromFile(string resPath)
+	private static Shader? LoadShaderFromFile(string resPath)
 	{
 		string shaderCode = ShaderIncludeExpander.LoadExpandedShader(resPath);
 		if (!string.IsNullOrEmpty(shaderCode))
@@ -142,7 +113,7 @@ public class VfxShaderManager
 			material.Shader = targetShader;
 		}
 
-		Texture2D baseTex = !string.IsNullOrEmpty(config.BaseTexture) ? LoadTextureSafe(config.BaseTexture) : null;
+		Texture2D? baseTex = !string.IsNullOrEmpty(config.BaseTexture) ? LoadTextureSafe(config.BaseTexture) : null;
 		material.SetShaderParameter("use_base_texture", baseTex != null);
 		if (baseTex != null)
 		{
@@ -164,7 +135,7 @@ public class VfxShaderManager
 		material.SetShaderParameter("invert_mask", config.InvertMask);
 		material.SetShaderParameter("high_pass_cutoff", Mathf.Clamp(config.HighPassCutoff, 0.0f, 1.0f));
 
-		Texture2D noiseTex = !string.IsNullOrEmpty(config.NoiseTexture) ? LoadTextureSafe(config.NoiseTexture) : null;
+		Texture2D? noiseTex = !string.IsNullOrEmpty(config.NoiseTexture) ? LoadTextureSafe(config.NoiseTexture) : null;
 		material.SetShaderParameter("use_noise_texture", noiseTex != null);
 		if (noiseTex != null)
 		{
@@ -222,7 +193,7 @@ public class VfxShaderManager
 		material.SetShaderParameter("proc_anim_shake", parameters.Shake);
 	}
 
-	public static Texture2D LoadTextureSafe(string path)
+	public static Texture2D? LoadTextureSafe(string path)
 	{
 		if (string.IsNullOrEmpty(path)) return null;
 
@@ -264,7 +235,7 @@ public class VfxShaderManager
 		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
 		try
 		{
-			VfxMetadata vmeta = FindVfxSpritesheetMetadata(wsPath, path);
+			VfxMetadata? vmeta = FindVfxSpritesheetMetadata(wsPath, path);
 			if (!string.IsNullOrWhiteSpace(vmeta?.TexturePath)) return vmeta.TexturePath;
 
 			return FindSpritesheetTextureBySlug(wsPath, path) ?? path;
@@ -275,7 +246,7 @@ public class VfxShaderManager
 		}
 	}
 
-	private static string FindSpritesheetTextureBySlug(string wsPath, string path)
+	private static string? FindSpritesheetTextureBySlug(string wsPath, string path)
 	{
 		if (!path.StartsWith("spritesheet/", StringComparison.OrdinalIgnoreCase)) return null;
 
@@ -312,7 +283,7 @@ public class VfxShaderManager
 		       !path.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase);
 	}
 
-	private static bool TryGetCachedTexture(string path, out Texture2D texture)
+	private static bool TryGetCachedTexture(string path, [NotNullWhen(true)] out Texture2D? texture)
 	{
 		texture = null;
 		if (!TextureCache.TryGetValue(path, out var cached)) return false;
@@ -322,7 +293,7 @@ public class VfxShaderManager
 		return true;
 	}
 
-	private static Texture2D LoadGodotTexture(string path)
+	private static Texture2D? LoadGodotTexture(string path)
 	{
 		if (!path.StartsWith("res://") && !path.StartsWith("user://")) return null;
 		if (!ResourceLoader.Exists(path)) return null;
@@ -334,7 +305,7 @@ public class VfxShaderManager
 		return tex;
 	}
 
-	private static Texture2D LoadTextureFromCandidates(string path)
+	private static Texture2D? LoadTextureFromCandidates(string path)
 	{
 		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
 		string[] candidates = GetTextureCandidates(path, wsPath);
@@ -378,9 +349,9 @@ public class VfxShaderManager
 		};
 	}
 
-	private static Texture2D TryLoadCandidate(string path, string candidate)
+	private static Texture2D? TryLoadCandidate(string path, string candidate)
 	{
-		string clean = GetExistingFilePath(candidate);
+		string? clean = GetExistingFilePath(candidate);
 		if (string.IsNullOrEmpty(clean)) return null;
 
 		var loaded = LoadTextureFromFile(clean);
@@ -390,7 +361,7 @@ public class VfxShaderManager
 		return loaded;
 	}
 
-	private static string GetExistingFilePath(string candidate)
+	private static string? GetExistingFilePath(string candidate)
 	{
 		if (File.Exists(candidate)) return candidate;
 
@@ -405,7 +376,7 @@ public class VfxShaderManager
 		return null;
 	}
 
-	private static Texture2D LoadTextureFromFile(string fullPath)
+	private static Texture2D? LoadTextureFromFile(string fullPath)
 	{
 		try
 		{
@@ -420,10 +391,10 @@ public class VfxShaderManager
 		}
 	}
 
-	private static Texture2D LoadRtexImage(string fullPath)
+	private static Texture2D? LoadRtexImage(string fullPath)
 	{
 		byte[] bytes = File.ReadAllBytes(fullPath);
-		byte[] layerData = RtexFile.GetLayer(bytes, 0);
+		byte[]? layerData = RtexFile.GetLayer(bytes, 0);
 		if (layerData == null || layerData.Length == 0) return null;
 
 		var img = Image.CreateEmpty(1, 1, false, Image.Format.Rgba8);
@@ -433,7 +404,7 @@ public class VfxShaderManager
 		return ImageTexture.CreateFromImage(img);
 	}
 
-	private static Texture2D LoadStandardImage(string fullPath)
+	private static Texture2D? LoadStandardImage(string fullPath)
 	{
 		var img = Image.LoadFromFile(fullPath);
 		if (img == null) return null;
@@ -483,7 +454,7 @@ public class VfxShaderManager
 	{
 		try
 		{
-			VfxMetadata vmeta = FindVfxSpritesheetMetadata(wsPath, path);
+			VfxMetadata? vmeta = FindVfxSpritesheetMetadata(wsPath, path);
 			if (vmeta == null) return null;
 
 			return ProcessVfxMetadata(path, vmeta);
@@ -494,7 +465,7 @@ public class VfxShaderManager
 		}
 	}
 
-	private static VfxMetadata FindVfxSpritesheetMetadata(string wsPath, string path)
+	private static VfxMetadata? FindVfxSpritesheetMetadata(string wsPath, string path)
 	{
 		var metadata = MapFileService.LoadMetadata(wsPath);
 		if (metadata?.VfxSpritesheets == null) return null;
@@ -544,7 +515,7 @@ public class VfxShaderManager
 
 		foreach (var candidate in candidates)
 		{
-			string clean = GetExistingFilePath(candidate);
+			string? clean = GetExistingFilePath(candidate);
 			if (string.IsNullOrEmpty(clean)) continue;
 
 			return ParseEmbeddedMetadata(path, clean);
@@ -581,7 +552,7 @@ public class VfxShaderManager
 
 	private static (int Columns, int Rows, float Fps, bool SubframeBlend)? ParseEmbeddedMetadata(string path, string clean)
 	{
-		string metaJson = RealmMetadataHelper.ExtractMetadata(clean);
+		string? metaJson = RealmMetadataHelper.ExtractMetadata(clean);
 		if (string.IsNullOrEmpty(metaJson)) return null;
 
 		try
@@ -642,7 +613,7 @@ public class VfxShaderManager
 
 	private static bool IsSpritesheetAssetType(JsonObject obj, int cols, int rows)
 	{
-		string assetType = null;
+		string? assetType = null;
 		if (obj.TryGetPropertyValue("asset_type", out var atNode))
 			assetType = atNode?.ToString();
 		else if (obj.TryGetPropertyValue("type", out var tNode))
