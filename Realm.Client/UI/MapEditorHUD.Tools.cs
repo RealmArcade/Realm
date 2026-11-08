@@ -55,15 +55,7 @@ namespace Realm.Client.UI
 
 		private void InitUIHooksAndStyles()
 		{
-			_highlightStyle = new StyleBoxFlat();
-			_highlightStyle.BgColor = new Color(0.35f, 0.28f, 0.18f, 0.95f);
-			_highlightStyle.BorderColor = UIStyle.ColorGold;
-			_highlightStyle.SetBorderWidthAll(2);
-			_highlightStyle.SetCornerRadiusAll(6);
-			_highlightStyle.ContentMarginLeft = 4;
-			_highlightStyle.ContentMarginRight = 4;
-			_highlightStyle.ContentMarginTop = 4;
-			_highlightStyle.ContentMarginBottom = 4;
+			_highlightStyle = UIStyle.CreateCardPlate(new Color(0.35f, 0.28f, 0.18f, 0.95f), UIStyle.ColorGold, 2, 6, 4, 4, 4, 4);
 
 			var panelTex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/map_editor_panel.webp");
 			if (panelTex != null)
