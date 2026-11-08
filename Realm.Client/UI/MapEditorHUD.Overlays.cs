@@ -2497,19 +2497,7 @@ namespace Realm.Client.UI
 			_minimapController?.RegenerateMinimap();
 		}
 
-		public void SetScaleDialogTargets(int width, int depth)
-		{
-			GameContext.EditorService.Tools.ScaleDialogTargetWidth = width;
-			_scaleDialogTargetDepth = depth;
-		}
-
-		private void UpdateScaleDialogLabels()
-		{
-			if (_lblScalePreviewWidth != null)
-				_lblScalePreviewWidth.Text = $"W: {GameContext.EditorService.Tools.ScaleDialogTargetWidth}";
-			if (_lblScalePreviewHeight != null)
-				_lblScalePreviewHeight.Text = $"H: {_scaleDialogTargetDepth}";
-		}
+		public void SetScaleDialogTargets(int width, int depth) => ScaleDialog.SetTargets(width, depth);
 
 		private void HookSliders(Node parent)
 		{

@@ -185,11 +185,7 @@ public partial class MapEditorHUD : Control
 	private Label _lblTerrainTexture { get; set; } = null!;
 	private Label _lblCliffTexture { get; set; } = null!;
 
-	private PanelContainer? _scaleMapDialog { get; set; }
-	private Label? _lblScalePreviewWidth { get; set; }
-	private Label? _lblScalePreviewHeight { get; set; }
-
-	private int _scaleDialogTargetDepth { get; set; }
+	private PanelContainer? _scaleMapDialog => _scaleDialog?.Panel;
 
 	private Camera3D? _camera3D { get; set; }
 	private bool _isDraggingSlider { get; set; } = false;
