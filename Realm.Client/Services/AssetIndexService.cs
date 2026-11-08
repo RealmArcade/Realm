@@ -315,7 +315,7 @@ public class AssetIndexService : IDisposable
 	public AssetIndexService()
 	{
 		_directoryIndexer = new AssetIndexDirectoryIndexer(
-			() => new AssetIndexScanTarget(_database, _assetCollection, _folderCollection, GlobalCasAssetsDirectory),
+			() => new AssetIndexTarget(_database, _assetCollection, _folderCollection, _mapPackageCollection, MapAssetManager.Storage, GlobalCasAssetsDirectory),
 			_syncLock,
 			(path, indexing) => DirectoryIndexingStateChanged?.Invoke(path, indexing),
 			path => DirectoryScanCompleted?.Invoke(path),
@@ -617,13 +617,14 @@ public class AssetIndexService : IDisposable
 	{
 		if (!isP2P)
 		{
-			return new AssetIndexTarget(_database, _assetCollection, _mapPackageCollection, MapAssetManager.Storage, GlobalCasAssetsDirectory);
+			return new AssetIndexTarget(_database, _assetCollection, _folderCollection, _mapPackageCollection, MapAssetManager.Storage, GlobalCasAssetsDirectory);
 		}
 
 		var database = GetP2PDatabase();
 		return new AssetIndexTarget(
 			database,
 			database.GetCollection<IndexedAsset>("assets"),
+			database.GetCollection<IndexedFolder>("folders"),
 			database.GetCollection<IndexedMapPackage>("map_packages"),
 			MapAssetManager.P2PStorage,
 			MapAssetManager.P2PArchiveDirectory);

@@ -12,12 +12,14 @@ using JsonSerializer = System.Text.Json.JsonSerializer;
 namespace Realm.Client.Services;
 
 /// <summary>
-///     The index a manifest is being written into: the database to checkpoint, the asset and package
-///     collections to write, and the content-addressed store whose files the manifest names.
+///     One index and the rows that belong to it: the database to checkpoint, the asset, folder and package
+///     collections, the content-addressed store it reads, and the directory that store keeps its files in.
+///     Built once per operation so a reopened or rebuilt database is never captured by a stale reference.
 /// </summary>
 internal readonly record struct AssetIndexTarget(
 	LiteDatabase Database,
 	ILiteCollection<IndexedAsset> Assets,
+	ILiteCollection<IndexedFolder> Folders,
 	ILiteCollection<IndexedMapPackage> Packages,
 	ContentAddressableStorage Storage,
 	string StorageDirectory);

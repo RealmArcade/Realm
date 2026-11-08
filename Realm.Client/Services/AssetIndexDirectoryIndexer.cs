@@ -13,16 +13,6 @@ using Realm.Shared.Distribution;
 namespace Realm.Client.Services;
 
 /// <summary>
-///     The rows a directory scan writes into, read fresh from the index service every time the scan needs
-///     them, because reopening or rebuilding the index replaces the database and its collections.
-/// </summary>
-internal readonly record struct AssetIndexScanTarget(
-	LiteDatabase Database,
-	ILiteCollection<IndexedAsset> Assets,
-	ILiteCollection<IndexedFolder> Folders,
-	string GlobalCasDirectory);
-
-/// <summary>
 ///     The directories the user has asked to have indexed: registering one, scanning its files into the
 ///     index, dropping the rows of files that are gone, unregistering it again, and rescanning one or all
 ///     of them. The set of directories being scanned right now lives here, so a scan started from the
@@ -30,7 +20,7 @@ internal readonly record struct AssetIndexScanTarget(
 /// </summary>
 internal sealed class AssetIndexDirectoryIndexer
 {
-	private readonly Func<AssetIndexScanTarget> _target;
+	private readonly Func<AssetIndexTarget> _target;
 	private readonly object _syncLock;
 	private readonly HashSet<string> _indexingDirectories = new(StringComparer.OrdinalIgnoreCase);
 	private readonly Action<string, bool> _indexingStateChanged;
@@ -38,7 +28,7 @@ internal sealed class AssetIndexDirectoryIndexer
 	private readonly Action _scanAllCasManifests;
 
 	internal AssetIndexDirectoryIndexer(
-		Func<AssetIndexScanTarget> target,
+		Func<AssetIndexTarget> target,
 		object syncLock,
 		Action<string, bool> indexingStateChanged,
 		Action<string> scanCompleted,
@@ -159,7 +149,7 @@ internal sealed class AssetIndexDirectoryIndexer
 		}
 
 		string normalizedPath = AssetIndexPaths.Normalize(directoryPath);
-		if (string.Equals(normalizedPath, target.GlobalCasDirectory, StringComparison.OrdinalIgnoreCase))
+		if (string.Equals(normalizedPath, target.StorageDirectory, StringComparison.OrdinalIgnoreCase))
 		{
 			return;
 		}
@@ -258,7 +248,7 @@ internal sealed class AssetIndexDirectoryIndexer
 
 			dirsToScan = target.Folders.FindAll()
 				.Select(f => f.DirectoryPath)
-				.Where(p => Directory.Exists(p) && !_indexingDirectories.Contains(p) && !string.Equals(p, target.GlobalCasDirectory, StringComparison.OrdinalIgnoreCase))
+				.Where(p => Directory.Exists(p) && !_indexingDirectories.Contains(p) && !string.Equals(p, target.StorageDirectory, StringComparison.OrdinalIgnoreCase))
 				.ToList();
 
 			foreach (var dir in dirsToScan)
@@ -284,7 +274,7 @@ internal sealed class AssetIndexDirectoryIndexer
 
 		var orphanedAssets = target.Assets.FindAll()
 			.Where(a => (!validFolders.Contains(a.DirectoryPath) &&
-			             !string.Equals(a.DirectoryPath, target.GlobalCasDirectory, StringComparison.OrdinalIgnoreCase) &&
+			             !string.Equals(a.DirectoryPath, target.StorageDirectory, StringComparison.OrdinalIgnoreCase) &&
 			             !a.FilePath.StartsWith(globalArchive, StringComparison.OrdinalIgnoreCase) &&
 			             !a.FilePath.StartsWith(p2pArchive, StringComparison.OrdinalIgnoreCase) &&
 			             string.IsNullOrEmpty(a.MapName)) ||
@@ -304,7 +294,7 @@ internal sealed class AssetIndexDirectoryIndexer
 		try
 		{
 			_scanAllCasManifests();
-			_scanCompleted(target.GlobalCasDirectory);
+			_scanCompleted(target.StorageDirectory);
 		}
 		catch (Exception ex)
 		{
@@ -344,10 +334,10 @@ internal sealed class AssetIndexDirectoryIndexer
 		var target = _target();
 		if (!Directory.Exists(normalizedDirectoryPath)) return;
 
-		if (string.Equals(normalizedDirectoryPath, target.GlobalCasDirectory, StringComparison.OrdinalIgnoreCase))
+		if (string.Equals(normalizedDirectoryPath, target.StorageDirectory, StringComparison.OrdinalIgnoreCase))
 		{
 			_scanAllCasManifests();
-			_scanCompleted(target.GlobalCasDirectory);
+			_scanCompleted(target.StorageDirectory);
 			return;
 		}
 
