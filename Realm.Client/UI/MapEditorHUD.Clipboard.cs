@@ -33,14 +33,14 @@ namespace Realm.Client.UI
 
 			editorService.CyclePasteAnchorDomain();
 			UpdatePasteAnchorButtonText();
-			ShowFeedback(string.Format(TranslationServer.Translate("Paste Anchor: {0}"), TranslationServer.Translate(EditorService.PasteAnchorNames[editorService.CurrentPasteAnchorIndex])));
+			ShowFeedback(string.Format(TranslationServer.Translate("Paste Anchor: {0}"), TranslationServer.Translate(EditorToolCatalog.PasteAnchorNames[editorService.CurrentPasteAnchorIndex])));
 		}
 
 		public void UpdatePasteAnchorButtonText()
 		{
 			if (_btnPasteAnchor != null)
 			{
-				_btnPasteAnchor.Text = $"{UnicodeIcons.MOUSE_POINTER} " + string.Format(TranslationServer.Translate("ANCHOR: {0}"), TranslationServer.Translate(EditorService.PasteAnchorNames[GameContext.EditorService.CurrentPasteAnchorIndex]));
+				_btnPasteAnchor.Text = $"{UnicodeIcons.MOUSE_POINTER} " + string.Format(TranslationServer.Translate("ANCHOR: {0}"), TranslationServer.Translate(EditorToolCatalog.PasteAnchorNames[GameContext.EditorService.CurrentPasteAnchorIndex]));
 			}
 		}
 

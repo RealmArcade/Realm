@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -1007,7 +1007,7 @@ public partial class MapEditorHUD : Control
 			return;
 		}
 
-		if (EditorService.ToolInfoTexts.TryGetValue(tool, out var rawText))
+		if (EditorToolCatalog.ToolInfoTexts.TryGetValue(tool, out var rawText))
 		{
 			_lblInfoText.Text = TranslationServer.Translate(rawText);
 		}

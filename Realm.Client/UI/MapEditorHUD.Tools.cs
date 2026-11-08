@@ -4883,7 +4883,7 @@ namespace Realm.Client.UI
 		}
 
 		private static bool IsSwatchCompatibleTool(EditorTool tool) =>
-			GameContext.EditorService.IsSwatchCompatibleToolDomain(tool);
+			EditorToolCatalog.IsSwatchCompatibleTool(tool);
 
 		public void UpdateTextureLabels()
 		{

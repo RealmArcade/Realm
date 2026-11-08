@@ -1897,9 +1897,9 @@ namespace Realm.Client.UI
 			opt.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 			opt.ClipText = true;
 
-			for (int i = 0; i < EditorService.SpokeCountOptions.Length; i++)
+			for (int i = 0; i < EditorToolCatalog.SpokeCountOptions.Length; i++)
 			{
-				int count = EditorService.SpokeCountOptions[i];
+				int count = EditorToolCatalog.SpokeCountOptions[i];
 				opt.AddItem($"{UnicodeIcons.COMPASS} " + string.Format(TranslationServer.Translate("SPOKES: {0}"), count), count);
 			}
 
