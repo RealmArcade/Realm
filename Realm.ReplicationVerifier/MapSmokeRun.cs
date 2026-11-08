@@ -267,7 +267,7 @@ public static class MapSmokeRun
 		}
 
 		int labelledHeroes = 0;
-		ServerPresentationEvent[] presentations = simulation.CollectPresentation();
+		ReadOnlySpan<ServerPresentationEvent> presentations = simulation.CollectPresentation();
 		for (int index = 0; index < presentations.Length; index++)
 		{
 			if (presentations[index].Kind == PresentationKind.StaticTextCreated) labelledHeroes++;
@@ -283,7 +283,7 @@ public static class MapSmokeRun
 	{
 		simulation.ApplyConsoleCommand(1, new ScriptConsoleCommand { Command = command, SelectedUnitEntityId = 0 });
 
-		ServerPresentationEvent[] events = simulation.CollectPresentation();
+		ReadOnlySpan<ServerPresentationEvent> events = simulation.CollectPresentation();
 		for (int index = 0; index < events.Length; index++)
 		{
 			string text = events[index].Text;

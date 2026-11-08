@@ -25,7 +25,7 @@ public partial class ListenServerHost
 
 		_syncRecorder?.BeginSequence(sequence, simulation.TickCount);
 
-		ServerPresentationEvent[] presentation = simulation.CollectPresentation();
+		ReadOnlySpan<ServerPresentationEvent> presentation = simulation.CollectPresentation();
 		if (_seatedPeers.Count == 0)
 		{
 			_syncRecorder?.EndSequence();

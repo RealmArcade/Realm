@@ -320,7 +320,7 @@ public class ServerSimulation : IDisposable
 		return true;
 	}
 
-	public ServerPresentationEvent[] CollectPresentation()
+	public ReadOnlySpan<ServerPresentationEvent> CollectPresentation()
 	{
 		return _presentation.Drain();
 	}

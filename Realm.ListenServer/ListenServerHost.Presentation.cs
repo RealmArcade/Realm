@@ -29,7 +29,7 @@ public partial class ListenServerHost
 		return count;
 	}
 
-	private void SendPresentation(int peerCount, ServerPresentationEvent[] events) => SendPresentation(_seatedPeerIds.AsSpan(0, peerCount), events, _publishSequence);
+	private void SendPresentation(int peerCount, ReadOnlySpan<ServerPresentationEvent> events) => SendPresentation(_seatedPeerIds.AsSpan(0, peerCount), events, _publishSequence);
 
 	private void SendPresentationToPeer(int peerId, ServerPresentationEvent[] events)
 	{
@@ -51,7 +51,7 @@ public partial class ListenServerHost
 	///     held every effect queued after it, and giving each one its own reliable frame cost a header apiece for a shower
 	///     of sparks.
 	/// </summary>
-	private void SendPresentation(ReadOnlySpan<int> peerIds, ServerPresentationEvent[] events, int sequence)
+	private void SendPresentation(ReadOnlySpan<int> peerIds, ReadOnlySpan<ServerPresentationEvent> events, int sequence)
 	{
 		for (int peerIndex = 0; peerIndex < peerIds.Length; peerIndex++)
 		{
