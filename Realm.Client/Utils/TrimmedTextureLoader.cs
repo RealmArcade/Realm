@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using Godot;
 using Realm.Client.Services;
@@ -38,7 +38,7 @@ public static class TrimmedTextureLoader
 			return false;
 		}
 
-		if (_textureSourcePaths.TryGetValue(texture.GetInstanceId(), out string recordedPath))
+		if (_textureSourcePaths.TryGetValue(texture.GetInstanceId(), out string? recordedPath))
 		{
 			resourcePath = recordedPath;
 			return true;
@@ -47,12 +47,12 @@ public static class TrimmedTextureLoader
 		return false;
 	}
 
-	public static Texture2D LoadTrimmedTexture(string resourcePath)
+	public static Texture2D? LoadTrimmedTexture(string resourcePath)
 	{
 		return LoadTrimmedTexture(resourcePath, 0);
 	}
 
-	public static Texture2D LoadTrimmedTexture(string resourcePath, int maxDimension)
+	public static Texture2D? LoadTrimmedTexture(string resourcePath, int maxDimension)
 	{
 		if (string.IsNullOrEmpty(resourcePath))
 		{
@@ -60,12 +60,12 @@ public static class TrimmedTextureLoader
 		}
 
 		string cacheKey = maxDimension > 0 ? $"{resourcePath}@{maxDimension}" : resourcePath;
-		if (_cache.TryGetValue(cacheKey, out Texture2D cachedTexture) && GodotObject.IsInstanceValid(cachedTexture))
+		if (_cache.TryGetValue(cacheKey, out Texture2D? cachedTexture) && GodotObject.IsInstanceValid(cachedTexture))
 		{
 			return cachedTexture;
 		}
 
-		Texture2D loadedTexture = LoadUncompressedTexture(resourcePath, maxDimension);
+		Texture2D? loadedTexture = LoadUncompressedTexture(resourcePath, maxDimension);
 		if (loadedTexture == null)
 		{
 			return null;
@@ -81,13 +81,13 @@ public static class TrimmedTextureLoader
 		_cache.Clear();
 	}
 
-	private static Texture2D LoadUncompressedTexture(string resourcePath, int maxDimension)
+	private static Texture2D? LoadUncompressedTexture(string resourcePath, int maxDimension)
 	{
 		try
 		{
 			if (FileAccess.FileExists(resourcePath) || System.IO.File.Exists(resourcePath))
 			{
-				Image image = DecodeImageFile(resourcePath);
+				Image? image = DecodeImageFile(resourcePath);
 				if (image != null && !image.IsEmpty())
 				{
 					int sourceWidth = image.GetWidth();
@@ -125,7 +125,7 @@ public static class TrimmedTextureLoader
 		}
 	}
 
-	private static Image DecodeImageFile(string resourcePath)
+	private static Image? DecodeImageFile(string resourcePath)
 	{
 		byte[] fileBytes = FileAccess.GetFileAsBytes(resourcePath);
 		if (fileBytes == null || fileBytes.Length == 0)
