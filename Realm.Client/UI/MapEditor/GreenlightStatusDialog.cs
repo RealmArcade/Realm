@@ -47,14 +47,9 @@ internal static class GreenlightStatusDialog
 		var panel = new PanelContainer();
 		panel.Name = "Panel_PanelContainer";
 		panel.CustomMinimumSize = new Vector2(640, 440);
-		var style = new StyleBoxFlat();
-		style.BgColor = new Color(0.12f, 0.14f, 0.20f, 0.98f);
-		style.BorderWidthTop = 2;
-		style.BorderWidthBottom = 2;
-		style.BorderWidthLeft = 2;
-		style.BorderWidthRight = 2;
-		style.BorderColor = isGreenlit ? new Color(0.3f, 0.8f, 0.4f, 1f) : new Color(0.8f, 0.4f, 0.3f, 1f);
-		style.SetCornerRadiusAll(8);
+		var style = UIStyle.CreateCardPlate(new Color(0.12f, 0.14f, 0.20f, 0.98f),
+			isGreenlit ? new Color(0.3f, 0.8f, 0.4f, 1f) : new Color(0.8f, 0.4f, 0.3f, 1f),
+			2, 8, 0, 0, 0, 0);
 		panel.AddThemeStyleboxOverride("panel", style);
 		center.AddChild(panel);
 
