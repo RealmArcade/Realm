@@ -905,7 +905,7 @@ public partial class WasmScriptHost : IWasmRuntime, IWasmEvaluationEngine, IDisp
 		{
 			_cachedApi.OnPlayerChatMessage -= HandleDebugChatCommand;
 		}
-		if (_simulation.EvaluationEngine == this)
+		if (_simulation!.EvaluationEngine == this)
 		{
 			_simulation.EvaluationEngine = null;
 		}
