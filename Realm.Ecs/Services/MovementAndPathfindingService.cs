@@ -873,7 +873,11 @@ namespace Realm.Ecs.Services
 			else
 			{
 				replanCause = ResolveReplanCause(pf, target);
-				_context.NavMeshPathfinder.ComputePath(_currentTerrainState.NavMeshQuery, start, target, pathingFlags, ref pf, out startRecovery);
+				var navQuery = _currentTerrainState.NavMeshQuery;
+				if (navQuery != null)
+				{
+					_context.NavMeshPathfinder.ComputePath(navQuery, start, target, pathingFlags, ref pf, out startRecovery);
+				}
 			}
 
 			pf.Target = target;
