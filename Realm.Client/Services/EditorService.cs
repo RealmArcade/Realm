@@ -517,6 +517,7 @@ public partial class EditorService : IEditorAPI
 	public bool ModelYOffsetSavePending { get; set; } = false;
 	public bool ModelCollisionCircleSavePending { get; set; } = false;
 	public readonly Dictionary<string, string> NormalizedAssetKeyCache = new(StringComparer.OrdinalIgnoreCase);
+	private readonly EditorAssetKeys _assetKeys;
 
 	public float EditorClumpCount { get; set; } = 5.0f;
 	public float EditorClumpScale { get; set; } = 0.3f;
@@ -700,6 +701,7 @@ public partial class EditorService : IEditorAPI
 		_clipboard = new EditorAreaClipboard(_surface);
 		_paste = new EditorPasteWriter(_surface, _clipboard);
 		_ramp = new EditorRampTool(_surface);
+		_assetKeys = new EditorAssetKeys(NormalizedAssetKeyCache);
 	}
 
 	public bool PasteOptionTextures { get; set; } = true;
@@ -1699,52 +1701,10 @@ public partial class EditorService : IEditorAPI
 		EditorCoordinates.AddRange(loadedCoordinates.Select(r => new EditorCoordinate { Name = r.Name, MinX = r.MinX, MinZ = r.MinZ, MaxX = r.MaxX, MaxZ = r.MaxZ }));
 	}
 
-	private string ApplyModelAssetExtension(string filename)
-	{
-		if (filename.EndsWith(".glb", StringComparison.OrdinalIgnoreCase) || filename.EndsWith(".gltf", StringComparison.OrdinalIgnoreCase))
-		{
-			return Path.GetFileNameWithoutExtension(filename) + ".rmesh";
-		}
-
-		if (filename.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) || filename.EndsWith(".png", StringComparison.OrdinalIgnoreCase) || filename.EndsWith(".webp", StringComparison.OrdinalIgnoreCase))
-		{
-			return filename;
-		}
-
-		if (!filename.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase))
-		{
-			return filename + ".rmesh";
-		}
-
-		return filename;
-	}
 
 	public string NormalizeModelAssetKey(string pathOrId)
 	{
-		if (string.IsNullOrEmpty(pathOrId)) return "";
-		if (NormalizedAssetKeyCache.TryGetValue(pathOrId, out string? cached))
-		{
-			return cached;
-		}
-
-		string trimmed = pathOrId.Trim().Replace('\\', '/');
-		if (trimmed.Contains('/'))
-		{
-			string prefix = trimmed.Substring(0, trimmed.IndexOf('/'));
-			if (AssetIndexService.ValidAssetPrefixes.Contains(prefix))
-			{
-				string lower = trimmed.ToLowerInvariant();
-				NormalizedAssetKeyCache[pathOrId] = lower;
-				return lower;
-			}
-		}
-
-		string filename = Path.GetFileName(trimmed);
-		filename = ApplyModelAssetExtension(filename);
-
-		string result = filename.ToLowerInvariant();
-		NormalizedAssetKeyCache[pathOrId] = result;
-		return result;
+		return _assetKeys.NormalizeModelAssetKey(pathOrId);
 	}
 
 	public bool ConsumeModelOffsetSavePending()
