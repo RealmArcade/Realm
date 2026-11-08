@@ -2168,61 +2168,17 @@ public class {mapName} : IMapScript
 
 	public async Task<bool> PerformCompilationStepAsyncDomain(string workspace, Func<string, string?> findProjectFile, Func<string, bool, bool> tryBypassCompilation, Func<string, bool> checkMapApiDependency, Func<string, string, bool, Task<bool>> executeDotnetPublishAsync, Action<string> onStatusError, Action<string> onLog, bool isDebug = false)
 	{
-		try
-		{
-			if (!Directory.Exists(workspace))
-			{
-				onStatusError($"[MapEditorHUD] ERROR: The map folder '{workspace}' is not open, so there is nothing to compile");
-				onLog($"[MapEditorHUD] The compilation step was asked for a workspace that does not exist: '{workspace}'");
-				return false;
-			}
-
-			Realm.Client.Services.MapWorkspaceService.EnsureWitFile(workspace);
-			Realm.Client.Services.MapWorkspaceService.EnsureWasmEntryPoint(workspace);
-			Realm.Client.Services.MapWorkspaceService.EnsureCsproj(workspace, Path.GetFileName(workspace));
-			Realm.Client.Services.MapWorkspaceService.EnsureSingleScriptOutput(workspace);
-
-			string? csproj = findProjectFile(workspace);
-			if (string.IsNullOrEmpty(csproj)) return false;
-
-			if (!isDebug && tryBypassCompilation(workspace, isDebug)) return true;
-
-			if (!checkMapApiDependency(workspace)) return false;
-
-			return await executeDotnetPublishAsync(workspace, csproj, isDebug);
-		}
-		catch (Exception ex)
-		{
-			onStatusError(ex.Message);
-			onLog(ex.ToString());
-			return false;
-		}
+		return await EditorMapBuild.PerformCompilationStepAsync(workspace, findProjectFile, tryBypassCompilation, checkMapApiDependency, executeDotnetPublishAsync, onStatusError, onLog, isDebug);
 	}
 
 	public string? FindProjectFileDomain(string workspace, Action<string> onErrorMessage)
 	{
-		var csprojFiles = Directory.GetFiles(workspace, "*.csproj", SearchOption.TopDirectoryOnly);
-		if (csprojFiles.Length == 0)
-		{
-			onErrorMessage("[MapEditorHUD] ERROR: No .csproj found in workspace, cannot compile map script");
-			return null;
-		}
-
-		return System.Linq.Enumerable.FirstOrDefault(csprojFiles, f => Path.GetFileName(f).Equals("MapScript.csproj", StringComparison.OrdinalIgnoreCase)) ?? csprojFiles[0];
+		return EditorMapBuild.FindProjectFile(workspace, onErrorMessage);
 	}
 
 	public bool TryBypassCompilationDomain(string workspace, Func<string, string?> findExistingWasmFile, Func<string, DateTime, bool> hasNewerSourceFiles, Action onBypassSuccess, bool isDebug = false)
 	{
-		string? existingWasm = findExistingWasmFile(workspace);
-		if (string.IsNullOrEmpty(existingWasm) || !File.Exists(existingWasm)) return false;
-
-		if (!string.Equals(MapWorkspaceService.ReadBuildFlavorDomain(workspace), isDebug ? MapWorkspaceService.DebugBuildFlavor : MapWorkspaceService.ReleaseBuildFlavor, StringComparison.OrdinalIgnoreCase)) return false;
-
-		DateTime wasmTime = File.GetLastWriteTimeUtc(existingWasm);
-		if (hasNewerSourceFiles(workspace, wasmTime)) return false;
-
-		onBypassSuccess();
-		return true;
+		return EditorMapBuild.TryBypassCompilation(workspace, findExistingWasmFile, hasNewerSourceFiles, onBypassSuccess, isDebug);
 	}
 	public void RestoreEditorStateDomain(float waterHeight, int paintTextureIndex, int cliffPaintTextureIndex, CopiedAreaTemplate? copiedArea, System.Numerics.Vector3? selectionStart, System.Numerics.Vector3? selectionEnd)
 	{
