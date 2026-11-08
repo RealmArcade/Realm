@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using Godot;
 using Realm.Client.Animation;
@@ -184,17 +185,16 @@ public partial class Unit3D : Node3D
 	{
 		get
 		{
-			if (GameContext.Host != null && GameContext.World.IsAlive(Entity)
-			                              && GameContext.World.Has<DefinitionId>(Entity))
-				return GameContext.World.Get<DefinitionId>(Entity).Value;
+			if (GameContext.Host != null && GameContext.World is { } world
+			                              && world.IsAlive(Entity) && world.Has<DefinitionId>(Entity))
+				return world.Get<DefinitionId>(Entity).Value;
 			return _objectId;
 		}
 		set
 		{
 			_objectId = value;
-			if (GameContext.Host != null && GameContext.World.IsAlive(Entity))
+			if (GameContext.Host != null && GameContext.World is { } world && world.IsAlive(Entity))
 			{
-				var world = GameContext.World;
 				world.SetOrAdd(Entity, new DefinitionId(value));
 			}
 		}
@@ -263,7 +263,7 @@ public partial class Unit3D : Node3D
 
 	private bool _isResource;
 
-	private Node3D _modelNode = null!;
+	private Node3D? _modelNode;
 	private AnimationPlayer _animationPlayer = null!;
 	private Skeleton3D? _cachedSkeleton;
 	private string _currentAnimation = string.Empty;
@@ -415,17 +415,16 @@ public partial class Unit3D : Node3D
 	{
 		get
 		{
-			if (GameContext.Host != null && GameContext.World.IsAlive(Entity)
-			                              && GameContext.World.Has<UnitOwnerPlayer>(Entity))
-				return GameContext.World.Get<UnitOwnerPlayer>(Entity).PlayerIndex;
+			if (GameContext.Host != null && GameContext.World is { } world
+			                              && world.IsAlive(Entity) && world.Has<UnitOwnerPlayer>(Entity))
+				return world.Get<UnitOwnerPlayer>(Entity).PlayerIndex;
 			return _player;
 		}
 		set
 		{
 			_player = value;
-			if (GameContext.Host != null && GameContext.World.IsAlive(Entity))
+			if (GameContext.Host != null && GameContext.World is { } world && world.IsAlive(Entity))
 			{
-				var world = GameContext.World;
 				world.SetOrAdd(Entity, new UnitOwnerPlayer(value));
 			}
 
@@ -770,7 +769,7 @@ public partial class Unit3D : Node3D
 
 	public float BaseModelYOffset => 0f;
 	public string ModelPath { get; private set; } = null!;
-	public Node3D ModelNode => _modelNode;
+	public Node3D? ModelNode => _modelNode;
 	public bool IsFlashingScale { get; set; }
 
 	public void UpdateVisualYOffset(float yOffset) => UpdateModelYOffset(yOffset);
@@ -810,7 +809,7 @@ public partial class Unit3D : Node3D
 
 		CleanupExistingModel();
 
-		string resolved = ModelCache.ResolveModelPath(modelPath);
+		string? resolved = ModelCache.ResolveModelPath(modelPath);
 		if (string.IsNullOrEmpty(resolved))
 		{
 			resolved = modelPath;
@@ -1111,7 +1110,7 @@ public partial class Unit3D : Node3D
 		_deferredAnimationName = null;
 		_deferredAnimationDelayRemaining = 0f;
 
-		StringName resolved = ResolveAnimationName(animName);
+		StringName? resolved = ResolveAnimationName(animName);
 		if (resolved == null) return;
 
 		string resolvedStr = resolved.ToString();
@@ -1206,7 +1205,7 @@ public partial class Unit3D : Node3D
 			_animationPlayer = AnimationRetargetingService.FindOrCreateAnimationPlayer(_modelNode);
 		}
 
-		StringName idleAnim = ResolveAnimationName("Idle");
+		StringName? idleAnim = ResolveAnimationName("Idle");
 		if (idleAnim != null && _animationPlayer != null && _animationPlayer.HasAnimation(idleAnim))
 		{
 			UpdateHandAttachmentsForAnimation("Idle", idleAnim.ToString());
@@ -1291,7 +1290,7 @@ public partial class Unit3D : Node3D
 		return false;
 	}
 
-	private bool TryClearSocketAttachment(HumanoidBone bone, string? attachmentId, bool clearExisting, Vector3? posOffsetOverride, Vector3? rotOffsetOverride, float? scaleOverride, Vector3? scaleVectorOverride, float? normalOffsetOverride)
+	private bool TryClearSocketAttachment(HumanoidBone bone, [NotNullWhen(false)] string? attachmentId, bool clearExisting, Vector3? posOffsetOverride, Vector3? rotOffsetOverride, float? scaleOverride, Vector3? scaleVectorOverride, float? normalOffsetOverride)
 	{
 		if (IsAttachmentIdEmptyOrNone(attachmentId))
 		{
@@ -2077,7 +2076,7 @@ public partial class Unit3D : Node3D
 	}
 
 
-	public static Node3D? ResolveAndInstantiateAttachment(string attachmentId, out float defaultScale, out Vector3 defaultPos, out Vector3 defaultRot)
+	public static Node3D? ResolveAndInstantiateAttachment(string? attachmentId, out float defaultScale, out Vector3 defaultPos, out Vector3 defaultRot)
 	{
 		defaultScale = 1.0f;
 		defaultPos = Vector3.Zero;
@@ -2239,19 +2238,20 @@ public partial class Unit3D : Node3D
 
 	private static void ApplyChildVfx(Node3D loadedNode, AttachmentMetadata attMeta)
 	{
-		var childVfx = ResolveAndInstantiateAttachment(attMeta.ChildVfxId, out _, out _, out _);
-		if (childVfx != null)
-		{
-			childVfx.Position = attMeta.ChildVfxPosition.ToGodotVector3();
-			childVfx.RotationDegrees = attMeta.ChildVfxRotation.ToGodotVector3();
-			var childScale = attMeta.ChildVfxScale.ToGodotVector3();
-			childVfx.Scale = childScale == Vector3.Zero ? Vector3.One : childScale;
-			string cleanChildId = attMeta.ChildVfxId.StartsWith("vfx:", StringComparison.OrdinalIgnoreCase) ? attMeta.ChildVfxId : Path.GetFileNameWithoutExtension(attMeta.ChildVfxId);
-			childVfx.Name = $"ChildVfx_{cleanChildId}";
-			childVfx.SetMeta("AttachmentId", attMeta.ChildVfxId);
-			childVfx.SetMeta("CleanAttachmentId", cleanChildId);
-			loadedNode.AddChild(childVfx);
-		}
+		if (attMeta.ChildVfxId is not { Length: > 0 } childVfxId) return;
+
+		var childVfx = ResolveAndInstantiateAttachment(childVfxId, out _, out _, out _);
+		if (childVfx == null) return;
+
+		childVfx.Position = attMeta.ChildVfxPosition.ToGodotVector3();
+		childVfx.RotationDegrees = attMeta.ChildVfxRotation.ToGodotVector3();
+		var childScale = attMeta.ChildVfxScale.ToGodotVector3();
+		childVfx.Scale = childScale == Vector3.Zero ? Vector3.One : childScale;
+		string cleanChildId = childVfxId.StartsWith("vfx:", StringComparison.OrdinalIgnoreCase) ? childVfxId : Path.GetFileNameWithoutExtension(childVfxId);
+		childVfx.Name = $"ChildVfx_{cleanChildId}";
+		childVfx.SetMeta("AttachmentId", childVfxId);
+		childVfx.SetMeta("CleanAttachmentId", cleanChildId);
+		loadedNode.AddChild(childVfx);
 	}
 
 
@@ -2292,7 +2292,9 @@ public partial class Unit3D : Node3D
 
 	private UnitAnimationEntry? FindExactAnimationEntry(UnitMetadata uMeta, string actionType, int variantIndex)
 	{
-		foreach (var kvp in uMeta.Animations)
+		if (uMeta.Animations is not { } animations) return null;
+
+		foreach (var kvp in animations)
 		{
 			if (kvp.Key.Equals(actionType, StringComparison.OrdinalIgnoreCase))
 			{
@@ -2311,7 +2313,9 @@ public partial class Unit3D : Node3D
 
 	private UnitAnimationEntry? FindFallbackAnimationEntry(UnitMetadata uMeta, string animName, string resolvedName)
 	{
-		foreach (var kvp in uMeta.Animations)
+		if (uMeta.Animations is not { } animations) return null;
+
+		foreach (var kvp in animations)
 		{
 			if (kvp.Value == null) continue;
 
@@ -2396,7 +2400,7 @@ public partial class Unit3D : Node3D
 	}
 
 
-	private StringName ResolveAnimationName(string animName)
+	private StringName? ResolveAnimationName(string animName)
 	{
 		if (_animationPlayer == null) return null;
 		if (_resolvedAnimCache.TryGetValue(animName, out var cached)) return cached;
@@ -2521,9 +2525,8 @@ public partial class Unit3D : Node3D
 	private void GetRemainingRallyPoints(List<Vector3> points)
 	{
 		points.Clear();
-		if (GameContext.Host == null || !GameContext.World.IsAlive(Entity)) return;
+		if (GameContext.Host == null || GameContext.World is not { } world || !world.IsAlive(Entity)) return;
 
-		var world = GameContext.World;
 		Vector3 currentPos = GetEcsOrLocalPosition();
 		points.Add(currentPos);
 
@@ -2610,9 +2613,9 @@ public partial class Unit3D : Node3D
 			var marker = GetOrCreateRallyMarker(i);
 			marker.Visible = true;
 			Vector3 pos = points[i + 1];
-			if (GameContext.Host.GroundTerrain != null)
+			if (GameContext.Host?.GroundTerrain is { } terrain)
 			{
-				GameContext.Host.GroundTerrain.GetHeightAndNormal(pos.X, pos.Z, out float h, out _);
+				terrain.GetHeightAndNormal(pos.X, pos.Z, out float h, out _);
 				pos.Y = h + 0.1f;
 			}
 
@@ -2681,7 +2684,7 @@ public partial class Unit3D : Node3D
 	public void UpdateRallyVisuals()
 	{
 		if (!IsBuilding || !GameContext.PerspectiveFilter.CanSeeOwnedUi(Player)) return;
-		if (GameContext.Host == null || !GameContext.World.IsAlive(Entity)) return;
+		if (GameContext.Host == null || GameContext.World is not { } world || !world.IsAlive(Entity)) return;
 
 		EnsureRallyVisualsContainer();
 		if (!GameContext.Host.CanProduceUnits(this))
@@ -2745,9 +2748,9 @@ public partial class Unit3D : Node3D
 
 	private void PositionRallyMarker(Vector3 finalPos)
 	{
-		if (GameContext.Host.GroundTerrain != null)
+		if (GameContext.Host?.GroundTerrain is { } terrain)
 		{
-			GameContext.Host.GroundTerrain.GetHeightAndNormal(finalPos.X, finalPos.Z, out float hFinal, out _);
+			terrain.GetHeightAndNormal(finalPos.X, finalPos.Z, out float hFinal, out _);
 			finalPos.Y = hFinal + 1.5f;
 		}
 
@@ -2795,9 +2798,8 @@ public partial class Unit3D : Node3D
 	{
 		points.Clear();
 		IsAttackPath = false;
-		if (GameContext.Host == null || !GameContext.World.IsAlive(Entity)) return;
+		if (GameContext.Host == null || GameContext.World is not { } world || !world.IsAlive(Entity)) return;
 
-		var world = GameContext.World;
 		if (world.Has<AttackTarget>(Entity) || world.Has<AttackMove>(Entity))
 		{
 			IsAttackPath = true;

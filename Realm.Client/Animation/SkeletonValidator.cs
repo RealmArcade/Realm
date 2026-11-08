@@ -26,9 +26,9 @@ public static class SkeletonValidator
 	{
 		if (rootNode == null) return null;
 		if (rootNode is Skeleton3D skeleton) return skeleton;
-		if (rootNode is Unit3D unit && unit.ModelNode != null)
+		if (rootNode is Unit3D unit && unit.ModelNode is { } unitModel)
 		{
-			var foundInModel = FindSkeleton(unit.ModelNode);
+			var foundInModel = FindSkeleton(unitModel);
 			if (foundInModel != null) return foundInModel;
 		}
 
@@ -53,7 +53,7 @@ public static class SkeletonValidator
 			return result;
 		}
 
-		Skeleton3D skeleton = FindSkeleton(modelRoot);
+		Skeleton3D? skeleton = FindSkeleton(modelRoot);
 		if (skeleton == null)
 		{
 			result.IsValid = false;

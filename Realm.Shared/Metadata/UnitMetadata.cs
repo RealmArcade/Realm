@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Realm.Shared.Animation;
 
 namespace Realm.Shared.Metadata;
@@ -98,7 +99,7 @@ public class UnitMetadata
 
 	public string? Attribution_ImportedFromMap { get; set; }
 
-	public bool TryGetObjectAttachment(HumanoidBone hand, string attachmentId, out HandAttachmentOrientation? orientation)
+	public bool TryGetObjectAttachment(HumanoidBone hand, string attachmentId, [NotNullWhen(true)] out HandAttachmentOrientation? orientation)
 	{
 		if (ObjectAttachments != null)
 		{
@@ -109,7 +110,7 @@ public class UnitMetadata
 		return false;
 	}
 
-	public bool TryGetObjectAttachment(string socket, string attachmentId, out HandAttachmentOrientation? orientation)
+	public bool TryGetObjectAttachment(string socket, string attachmentId, [NotNullWhen(true)] out HandAttachmentOrientation? orientation)
 	{
 		if (ObjectAttachments != null)
 		{

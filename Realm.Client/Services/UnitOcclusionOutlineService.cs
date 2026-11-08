@@ -94,7 +94,7 @@ public partial class UnitOcclusionOutlineService : Node3D
 			bool isOccluded = IsOccluded(eye, unit);
 			ulong unitInstanceId = unit.GetInstanceId();
 
-			if (_silhouetteStates.TryGetValue(unitInstanceId, out SilhouetteState existingState))
+			if (_silhouetteStates.TryGetValue(unitInstanceId, out SilhouetteState? existingState) && existingState != null)
 			{
 				existingState.LastSeenTick = _tickIndex;
 				UpdateSilhouette(existingState, isOccluded, delta);
@@ -158,7 +158,7 @@ public partial class UnitOcclusionOutlineService : Node3D
 
 	private static bool IsOccludedByTerrain(Vector3 eye, Vector3 toUnit, float distance)
 	{
-		RuntimeTerrain terrain = GameContext.Host?.GroundTerrain;
+		RuntimeTerrain? terrain = GameContext.Host?.GroundTerrain;
 		if (terrain == null) return false;
 
 		float travelFraction = MathF.Min(1.0f, MathF.Max(0.1f, (distance - 2.0f) / distance));
@@ -258,7 +258,7 @@ public partial class UnitOcclusionOutlineService : Node3D
 
 	private static void GetBuildingWorldBounds(Unit3D unit, out Vector3 center, out Vector3 extents)
 	{
-		Node3D modelNode = unit.ModelNode;
+		Node3D? modelNode = unit.ModelNode;
 		if (modelNode == null || !GodotObject.IsInstanceValid(modelNode))
 		{
 			float radius = MathF.Max(MinimumBuildingHalfExtent, unit.GetBaseObstacleRadius());
@@ -346,13 +346,13 @@ public partial class UnitOcclusionOutlineService : Node3D
 
 	private static void EnsureMeshes(SilhouetteState state)
 	{
-		Node3D modelNode = state.Unit.ModelNode;
+		Node3D? modelNode = state.Unit.ModelNode;
 		ulong modelInstanceId = modelNode != null && GodotObject.IsInstanceValid(modelNode) ? modelNode.GetInstanceId() : 0UL;
 		if (modelInstanceId == state.ModelInstanceId && state.Meshes.Count > 0) return;
 
 		state.ModelInstanceId = modelInstanceId;
 		state.Meshes.Clear();
-		if (modelInstanceId == 0UL) return;
+		if (modelNode == null || modelInstanceId == 0UL) return;
 
 		CollectMeshes(modelNode, state.Meshes);
 	}
