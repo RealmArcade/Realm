@@ -1,5 +1,6 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Text;
 using System.Text.Json.Nodes;
@@ -17,13 +18,13 @@ public static class MixamoAnimationImporter
 		return ExtractAnimationsFromFile(glbPath);
 	}
 
-	public static List<(string AnimationName, RealmAnimationData Data)> ExtractAnimationsFromFile(string filePath, string originalFileName = null)
+	public static List<(string AnimationName, RealmAnimationData Data)> ExtractAnimationsFromFile(string filePath, string? originalFileName = null)
 	{
 		var result = new List<(string AnimationName, RealmAnimationData Data)>();
 		if (!File.Exists(filePath)) return result;
 
 		string ext = Path.GetExtension(filePath).ToLowerInvariant();
-		Node rootNode = LoadSceneDocument(filePath, ext);
+		Node? rootNode = LoadSceneDocument(filePath, ext);
 
 		if (rootNode == null) return result;
 
@@ -44,7 +45,7 @@ public static class MixamoAnimationImporter
 		return result;
 	}
 
-	private static Node LoadSceneDocument(string filePath, string ext)
+	private static Node? LoadSceneDocument(string filePath, string ext)
 	{
 		if (ext == ".fbx")
 		{
@@ -141,7 +142,7 @@ public static class MixamoAnimationImporter
 		return (targetFileName, newHash, false);
 	}
 
-	public static RealmAnimationData ConvertGodotAnimationToRealm(GAnimation godotAnim, string animationName)
+	public static RealmAnimationData? ConvertGodotAnimationToRealm(GAnimation godotAnim, string animationName)
 	{
 		if (godotAnim == null) return null;
 
@@ -268,7 +269,7 @@ public static class MixamoAnimationImporter
 				return false;
 			}
 
-			if (!TryStripAnimationsFromJson(glbBytes, jsonChunkLength, out byte[] paddedJson, out int paddedJsonLength, out bool noAnimationsPresent))
+			if (!TryStripAnimationsFromJson(glbBytes, jsonChunkLength, out byte[]? paddedJson, out int paddedJsonLength, out bool noAnimationsPresent))
 			{
 				File.Copy(sourceGlbPath, destGlbPath, true);
 				return noAnimationsPresent;
@@ -307,7 +308,7 @@ public static class MixamoAnimationImporter
 		return jsonChunkType == 0x4E4F534A;
 	}
 
-	private static bool TryStripAnimationsFromJson(byte[] glbBytes, uint jsonChunkLength, out byte[] paddedJson, out int paddedJsonLength, out bool noAnimationsPresent)
+	private static bool TryStripAnimationsFromJson(byte[] glbBytes, uint jsonChunkLength, [NotNullWhen(true)] out byte[]? paddedJson, out int paddedJsonLength, out bool noAnimationsPresent)
 	{
 		paddedJson = null;
 		paddedJsonLength = 0;
@@ -340,7 +341,7 @@ public static class MixamoAnimationImporter
 
 	private static void WriteStrippedGlb(string destGlbPath, uint magic, uint version, uint newTotalLength, int paddedJsonLength, byte[] paddedJson, byte[] glbBytes, int binChunkStart, int binChunkTotalLength)
 	{
-		string destDir = Path.GetDirectoryName(destGlbPath);
+		string? destDir = Path.GetDirectoryName(destGlbPath);
 		if (!string.IsNullOrEmpty(destDir) && !Directory.Exists(destDir))
 		{
 			Directory.CreateDirectory(destDir);
