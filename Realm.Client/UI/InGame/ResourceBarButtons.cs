@@ -6,9 +6,9 @@ using System.Collections.Generic;
 namespace Realm.Client.UI.InGame;
 
 /// <summary>
-///     The three buttons that sit beside the settings gear in the resource bar: the map's own rules, the match pause and
-///     the way out of the match. They are built here because they are the only buttons in the bar that the HUD creates
-///     rather than finds, and they share the row-insertion dance that keeps them left of the gear.
+///     The resource bar's buttons: the settings gear the scene provides, and the three the HUD creates beside it - the
+///     map's own rules, the match pause and the way out of the match. The gear is configured here because the others
+///     anchor themselves to it, and they share the row-insertion dance that keeps them left of it.
 /// </summary>
 public sealed class ResourceBarButtons
 {
@@ -38,6 +38,7 @@ public sealed class ResourceBarButtons
 	{
 		if (_settings == null) return;
 
+		SetupSettingsButton();
 		SetupInstructionsButton();
 		SetupPauseMatchButton();
 		SetupQuitMatchButton();
@@ -67,6 +68,32 @@ public sealed class ResourceBarButtons
 		// the one it has to press to be told, so only a player with nothing left to spend is stopped here. A match of one
 		// spends nothing, so its button is never taken away.
 		PauseMatch.Disabled = !paused && !singlePlayer && network != null && network.RemainingPauses <= 0;
+	}
+
+	/// <summary>
+	///     The gear is the one button in the bar the scene already provides: it only needs its icon, its tooltip and its
+	///     click wired. It is set up before the others so they insert themselves to its left in a configured row.
+	/// </summary>
+	private void SetupSettingsButton()
+	{
+		if (_settings == null) return;
+
+		_settings.ExpandIcon = true;
+		_settings.Icon = UIStyle.LoadCrispIcon("res://Assets/UI/gear_icon.webp", 128);
+		_settings.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
+		_settings.AddThemeConstantOverride("icon_max_width", 22);
+		_settings.TooltipText = TranslationServer.Translate("Settings (F12)");
+		UIStyle.ApplyHudButtonStyleboxes(_settings);
+		_settings.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		_settings.AddThemeColorOverride("icon_normal_color", UIStyle.ColorGoldDull);
+		_settings.AddThemeColorOverride("icon_hover_color", UIStyle.ColorGold);
+		_settings.AddThemeColorOverride("icon_pressed_color", UIStyle.ColorCyanGlow);
+		_settings.AddThemeColorOverride("icon_focus_color", UIStyle.ColorGoldDull);
+		_settings.Pressed += () =>
+		{
+			GameContext.UserInterface?.PlayClickSound();
+			GameContext.UserInterface?.OpenSettingsOverlay();
+		};
 	}
 
 	/// <summary>A menu with nothing in it is not a menu: the button only exists once the map has published a page.</summary>
