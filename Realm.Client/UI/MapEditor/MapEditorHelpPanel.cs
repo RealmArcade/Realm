@@ -56,7 +56,7 @@ internal sealed class MapEditorHelpPanel
 
 		var panel = new PanelContainer();
 		panel.Name = "Panel_PanelContainer";
-		panel.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
+		UIStyle.ClearPanelBackground(panel);
 		panel.CustomMinimumSize = new Vector2(1024, 770);
 		center.AddChild(panel);
 
