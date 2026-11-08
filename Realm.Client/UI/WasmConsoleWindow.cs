@@ -105,9 +105,7 @@ public partial class WasmConsoleWindow : Window
 		mainPanel.Name = "MainPanel_PanelContainer";
 		mainPanel.SetAnchorsPreset(Control.LayoutPreset.FullRect);
 
-		var panelStyle = new StyleBoxFlat();
-		panelStyle.BgColor = UIStyle.ColorBgDark;
-		mainPanel.AddThemeStyleboxOverride("panel", panelStyle);
+		mainPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateFlatFillPlate(UIStyle.ColorBgDark, 0));
 
 		AddChild(mainPanel);
 
