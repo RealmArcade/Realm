@@ -372,31 +372,8 @@ public partial class InGameHUD : Control
 
 	private void SetupWarningLabel()
 	{
-		_connectionWarningLabel = new Label();
-		_connectionWarningLabel.Name = "ConnectionWarningLabel";
-		_connectionWarningLabel.Text = TranslationServer.Translate("Connection to host lost ... Reconnecting");
-		_connectionWarningLabel.HorizontalAlignment = HorizontalAlignment.Center;
-		_connectionWarningLabel.VerticalAlignment = VerticalAlignment.Center;
-		_connectionWarningLabel.AddThemeColorOverride("font_color", new Color(0.95f, 0.2f, 0.2f));
-		_connectionWarningLabel.AddThemeFontSizeOverride("font_size", 22);
-
-		var warningStyle = new StyleBoxFlat();
-		warningStyle.BgColor = new Color(0.12f, 0.05f, 0.05f, 0.7f);
-		warningStyle.BorderColor = new Color(0.8f, 0.2f, 0.2f, 0.5f);
-		warningStyle.SetBorderWidthAll(2);
-		warningStyle.ContentMarginLeft = 20;
-		warningStyle.ContentMarginRight = 20;
-		warningStyle.ContentMarginTop = 8;
-		warningStyle.ContentMarginBottom = 8;
-		_connectionWarningLabel.AddThemeStyleboxOverride("normal", warningStyle);
-
+		_connectionWarningLabel = ConnectionWarningBanner.Create();
 		AddChild(_connectionWarningLabel);
-		_connectionWarningLabel.SetAnchorsPreset(LayoutPreset.CenterTop);
-		_connectionWarningLabel.GrowHorizontal = GrowDirection.Both;
-		_connectionWarningLabel.OffsetTop = 20;
-		_connectionWarningLabel.OffsetLeft = -250;
-		_connectionWarningLabel.OffsetRight = 250;
-		_connectionWarningLabel.Visible = false;
 	}
 
 	private CheatCommands? _cheats;
