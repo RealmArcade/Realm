@@ -40,15 +40,7 @@ public sealed class PauseOverlayPanel
 		Root = new PanelContainer();
 		Root.Name = "PausePanel";
 
-		var style = new StyleBoxFlat();
-		style.BgColor = new Color(0.1f, 0.1f, 0.12f, 0.95f);
-		style.SetBorderWidthAll(2);
-		style.BorderColor = UIStyle.ColorBronze;
-		style.SetCornerRadiusAll(8);
-		style.ContentMarginLeft = 20;
-		style.ContentMarginRight = 20;
-		style.ContentMarginTop = 20;
-		style.ContentMarginBottom = 20;
+		var style = UIStyle.CreateCardPlate(new Color(0.1f, 0.1f, 0.12f, 0.95f), UIStyle.ColorBronze, 2, 8, 20, 20, 20, 20);
 		Root.AddThemeStyleboxOverride("panel", style);
 
 		Root.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.Center);
