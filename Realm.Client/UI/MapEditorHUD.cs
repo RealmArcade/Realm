@@ -83,8 +83,6 @@ public partial class MapEditorHUD : Control
 	private Dictionary<Control, CardDragData> _cardDragMap { get; set; } = new();
 
 	private VBoxContainer _accordionFile { get; set; } = null!;
-	private Button _btnHeaderFile { get; set; } = null!;
-	private Control _contentFile { get; set; } = null!;
 
 	private MapSettingsDialog? _mapSettingsDialog { get; set; }
 
@@ -127,14 +125,6 @@ public partial class MapEditorHUD : Control
 
 	private Dictionary<Control, Control.MouseFilterEnum> _savedMouseFilters { get; set; } = new();
 
-	private Button _btnPublish { get; set; } = null!;
-	private Button _btnSave { get; set; } = null!;
-	private Button _btnSaveAs { get; set; } = null!;
-	private Button _btnExportMap { get; set; } = null!;
-	private Button _btnLoad { get; set; } = null!;
-	private Button _btnLoadMore { get; set; } = null!;
-	private PopupPanel _popupLoadMore { get; set; } = null!;
-	private Button _btnImportArchive { get; set; } = null!;
 
 	private Label _statusLabel { get; set; } = null!;
 	private Label _feedbackLabel { get; set; } = null!;
@@ -175,8 +165,6 @@ public partial class MapEditorHUD : Control
 	private TestSettingsDialog _testSettingsDialog { get; set; } = null!;
 	private MapVersionsDialog _mapVersionsDialog { get; set; } = null!;
 	private MapHistoryStoresDialog _mapHistoryStoresDialog { get; set; } = null!;
-	private Button _btnEditorSettings { get; set; } = null!;
-	private Button _btnMapVersions { get; set; } = null!;
 	private double _mapNameUpdateTimer { get; set; } = 0.0;
 	private Button _btnOpenGlobalOverrides { get; set; } = null!;
 	private Button BtnEditVfx { get; set; } = null!;
@@ -196,9 +184,6 @@ public partial class MapEditorHUD : Control
 	private OptionButton _optEnvLighting { get; set; } = null!;
 	private OptionButton _optEnvWeather { get; set; } = null!;
 	private CheckBox _chkEnvShadows { get; set; } = null!;
-	private Button _btnResetMap { get; set; } = null!;
-	private Button _btnSaveMore { get; set; } = null!;
-	private PopupPanel _popupSaveMore { get; set; } = null!;
 	private OptionButton _optEyedropperMode { get; set; } = null!;
 	private PanelContainer _minimapFrame { get; set; } = null!;
 	private Control _minimapArea { get; set; } = null!;
@@ -264,6 +249,7 @@ public partial class MapEditorHUD : Control
 	private PlacementSettingsPanel _placementPanel { get; set; } = null!;
 	private ToolAccordionPanel _toolPanel { get; set; } = null!;
 	private TopToolbarPanel _topToolbar { get; set; } = null!;
+	private FileOperationsPanel _filePanel { get; set; } = null!;
 	private BrushSettingsPanel _brushPanel { get; set; } = null!;
 	private WaterSettingsPanel _waterPanel { get; set; } = null!;
 	private PasteSettingsPanel _pastePanel { get; set; } = null!;
@@ -995,7 +981,7 @@ public partial class MapEditorHUD : Control
 
 	private void RefreshCardScrollStates()
 	{
-		UpdateCardScrollState(_contentFile, 300f);
+		UpdateCardScrollState(_filePanel.Content, 300f);
 		UpdateCardScrollState(_contentViewport, 0f, false);
 		UpdateCardScrollState(_toolPanel.Content, 320f);
 		UpdateCardScrollState(_brushPanel.Content, 300f);
@@ -1077,8 +1063,8 @@ public partial class MapEditorHUD : Control
 			_popupEnvironment,
 			_popupCamera,
 			_topToolbar.EditorsPopup,
-			_popupSaveMore,
-			_popupLoadMore
+			_filePanel.SaveMorePopup,
+			_filePanel.LoadMorePopup
 		);
 	}
 
@@ -1140,7 +1126,7 @@ public partial class MapEditorHUD : Control
 	{
 		Control[] optionContents = new Control[]
 		{
-			_contentFile, _contentViewport, _toolPanel.Content,
+			_filePanel.Content, _contentViewport, _toolPanel.Content,
 			_brushPanel.Content, _contentToolSettings, _placementPanel.Content, _contentInspector, _contentLightingTuning
 		};
 		foreach (var content in optionContents)

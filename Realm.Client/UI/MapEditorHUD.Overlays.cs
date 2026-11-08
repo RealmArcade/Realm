@@ -346,7 +346,7 @@ namespace Realm.Client.UI
 
 		private void ApplyContentBoxStyles()
 		{
-			StyleContentBox(_contentFile);
+			StyleContentBox(_filePanel.Content);
 			StyleContentBox(_contentViewport);
 			StyleContentBox(_toolPanel.Content);
 			StyleContentBox(_brushPanel.Content);
@@ -358,7 +358,7 @@ namespace Realm.Client.UI
 
 		private void ApplyScrollContainerStyles()
 		{
-			SetupCardScrollContainer(_contentFile, 300f);
+			SetupCardScrollContainer(_filePanel.Content, 300f);
 			SetupCardScrollContainer(_contentViewport, 0f, false);
 			SetupCardScrollContainer(_toolPanel.Content, 320f);
 			SetupCardScrollContainer(_brushPanel.Content, 300f);
@@ -370,7 +370,7 @@ namespace Realm.Client.UI
 
 		private void ApplyActionButtonsStyles()
 		{
-			foreach (var btn in new[] { _btnLoad, _btnSave, _btnLoadMore, _btnSaveMore })
+			foreach (var btn in new[] { _filePanel.LoadButton, _filePanel.SaveButton, _filePanel.LoadMoreButton, _filePanel.SaveMoreButton })
 			{
 				if (btn == null) continue;
 				StyleRowButton(btn);
@@ -389,13 +389,13 @@ namespace Realm.Client.UI
 			}
 
 			StyleRowButton(_topToolbar.TestMapButton);
-			StyleRowButton(_btnSaveAs);
-			StyleRowButton(_btnPublish);
-			StyleRowButton(_btnExportMap);
-			StyleRowButton(_btnResetMap);
+			StyleRowButton(_filePanel.SaveAsButton);
+			StyleRowButton(_filePanel.PublishButton);
+			StyleRowButton(_filePanel.ExportMapButton);
+			StyleRowButton(_filePanel.ResetMapButton);
 			StyleRowButton(_btnRandomGen);
-			StyleRowButton(_btnEditorSettings);
-			if (_btnEditorSettings != null) _btnEditorSettings.Alignment = HorizontalAlignment.Center;
+			StyleRowButton(_filePanel.EditorSettingsButton);
+			if (_filePanel.EditorSettingsButton != null) _filePanel.EditorSettingsButton.Alignment = HorizontalAlignment.Center;
 		}
 
 		private void ApplyToolButtonsStyles()
