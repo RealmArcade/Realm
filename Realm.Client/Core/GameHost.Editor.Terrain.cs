@@ -17,7 +17,10 @@ namespace Realm.Client.Core
 	{
 		public Decal SpawnDecalExternal(Vector3 position)
 		{
-			var entity = GameContext.World.Create();
+			if (GameContext.World is not { } world)
+				throw new InvalidOperationException("Cannot spawn a decal without a running simulation.");
+
+			var entity = world.Create();
 			var decal = new Decal3D();
 			decal.Name = "Decal_Decal3D";
 			decal.Entity = entity;
@@ -32,17 +35,17 @@ namespace Realm.Client.Core
 			position.Y = GetTerrainHeightAt(position);
 			decal.Position = position;
 
-			GameContext.World.Add(entity, new Position(new System.Numerics.Vector3(position.X, position.Y, position.Z)));
-			GameContext.World.Add(entity, new RotationY(0.0f));
-			GameContext.World.Add(entity, new ModelScale(1.0f));
+			world.Add(entity, new Position(new System.Numerics.Vector3(position.X, position.Y, position.Z)));
+			world.Add(entity, new RotationY(0.0f));
+			world.Add(entity, new ModelScale(1.0f));
 
 			if (GameContext.SessionState.IsMapEditorMode)
 			{
 				decal.RotationDegrees = new Vector3(0.0f, GameContext.EditorService.EditorPlacementRotation, 0.0f);
 				decal.Size = new Vector3(6.0f, 20.0f, 6.0f) * (EditorPlacementScale <= 0.001f ? 1.0f : EditorPlacementScale);
 				decal.Scale = Vector3.One;
-				GameContext.World.Set(entity, new RotationY(GameContext.EditorService.EditorPlacementRotation));
-				GameContext.World.Set(entity, new ModelScale(EditorPlacementScale));
+				world.Set(entity, new RotationY(GameContext.EditorService.EditorPlacementRotation));
+				world.Set(entity, new ModelScale(EditorPlacementScale));
 			}
 
 			return decal;
@@ -100,9 +103,9 @@ namespace Realm.Client.Core
 				{
 					pos.Y = targetY;
 					unit.GlobalPosition = pos;
-					if (GameContext.World.IsAlive(unit.Entity))
+					if (GameContext.World is { } world && world.IsAlive(unit.Entity))
 					{
-						GameContext.World.Set(unit.Entity, new Position(new System.Numerics.Vector3(pos.X, pos.Y, pos.Z)));
+						world.Set(unit.Entity, new Position(new System.Numerics.Vector3(pos.X, pos.Y, pos.Z)));
 					}
 				}
 			}
@@ -213,7 +216,10 @@ namespace Realm.Client.Core
 
 		public Decal SpawnDecalExternalWithParams(string decalId, Vector3 position, Vector3 rotationDegrees, float scale)
 		{
-			var entity = GameContext.World.Create();
+			if (GameContext.World is not { } world)
+				throw new InvalidOperationException("Cannot spawn a decal without a running simulation.");
+
+			var entity = world.Create();
 			var decal = new Decal3D();
 			decal.Name = "Decal_Decal3D";
 			decal.Entity = entity;
@@ -229,10 +235,10 @@ namespace Realm.Client.Core
 			decal.RotationDegrees = rotationDegrees;
 			decal.Scale = Vector3.One;
 
-			GameContext.World.Add(entity, new Position(new System.Numerics.Vector3(position.X, position.Y, position.Z)));
-			GameContext.World.Add(entity, new Rotation3D(new System.Numerics.Vector3(rotationDegrees.X, rotationDegrees.Y, rotationDegrees.Z)));
-			GameContext.World.Add(entity, new RotationY(rotationDegrees.Y));
-			GameContext.World.Add(entity, new ModelScale(scale));
+			world.Add(entity, new Position(new System.Numerics.Vector3(position.X, position.Y, position.Z)));
+			world.Add(entity, new Rotation3D(new System.Numerics.Vector3(rotationDegrees.X, rotationDegrees.Y, rotationDegrees.Z)));
+			world.Add(entity, new RotationY(rotationDegrees.Y));
+			world.Add(entity, new ModelScale(scale));
 
 			ApplyDecalPropertiesFromMetadata(decal, decalId);
 
@@ -273,7 +279,7 @@ namespace Realm.Client.Core
 			if (indexA == indexB) return;
 
 			TerrainSplatWeights[,] splatBefore = (TerrainSplatWeights[,])GroundTerrain.SplatMap.Clone();
-			TerrainSplatWeights[,] cliffBefore = null;
+			TerrainSplatWeights[,]? cliffBefore = null;
 
 			if (GroundTerrain.CliffSplatMap != null)
 			{
@@ -286,14 +292,14 @@ namespace Realm.Client.Core
 			if (!anyChanged) return;
 
 			TerrainSplatWeights[,] splatAfter = (TerrainSplatWeights[,])GroundTerrain.SplatMap.Clone();
-			TerrainSplatWeights[,] cliffAfter = null;
+			TerrainSplatWeights[,]? cliffAfter = null;
 
 			if (GroundTerrain.CliffSplatMap != null)
 			{
 				cliffAfter = (TerrainSplatWeights[,])GroundTerrain.CliffSplatMap.Clone();
 			}
 
-			var action = new TerrainModifyAction((TerrainCell[,])null, (TerrainCell[,])null, splatBefore, splatAfter, null, null, cliffBefore, cliffAfter);
+			var action = new TerrainModifyAction((TerrainCell[,]?)null, (TerrainCell[,]?)null, splatBefore, splatAfter, null, null, cliffBefore, cliffAfter);
 			EditorHistoryManager.RecordAction(action);
 			EditorHasUnsavedChanges = true;
 
@@ -305,7 +311,7 @@ namespace Realm.Client.Core
 			}
 		}
 
-		private bool SwapAllSplats(TerrainSplatWeights[,] map, int indexA, int indexB)
+		private bool SwapAllSplats(TerrainSplatWeights[,]? map, int indexA, int indexB)
 		{
 			if (map == null) return false;
 
@@ -413,7 +419,7 @@ namespace Realm.Client.Core
 			if (result.Before != null && result.After != null)
 			{
 				GroundTerrain.UpdateMeshAndPhysics(false, false);
-				var action = new TerrainModifyAction((TerrainCell[,])null, (TerrainCell[,])null, null, null, result.Before, result.After);
+				var action = new TerrainModifyAction((TerrainCell[,]?)null, (TerrainCell[,]?)null, null, null, result.Before, result.After);
 				EditorHistoryManager.RecordAction(action);
 				EditorHasUnsavedChanges = true;
 				GameContext.MapEditorHud?.ShowFeedbackExternal("Flood filled pathing area");
