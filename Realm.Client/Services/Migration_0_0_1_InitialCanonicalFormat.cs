@@ -199,7 +199,7 @@ public class Migration_0_0_1_InitialCanonicalFormat : IMapMigration
 		if (!Directory.Exists(assetsDir)) return;
 
 		string[] allFiles = Directory.GetFiles(assetsDir, "*.*", SearchOption.AllDirectories);
-		var modelFiles = allFiles.Where(f => ModelExtensions.Contains(Path.GetExtension((string?)f))).ToList();
+		var modelFiles = allFiles.Where(f => ModelExtensions.Contains(Path.GetExtension(f) ?? string.Empty)).ToList();
 
 		for (int i = 0; i < modelFiles.Count; i++)
 		{

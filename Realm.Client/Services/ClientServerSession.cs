@@ -854,7 +854,7 @@ public class ClientServerSession : IDisposable
 	{
 		// A description too large for one datagram arrives as several. A group a piece short is a description this screen
 		// was not told: nothing is applied for it, the acknowledgement reports the hole, and the match sends it again.
-		if (!_snapshotReassembler.TryTake(payload, out byte[] frame)) return;
+		if (!_snapshotReassembler.TryTake(payload, out byte[]? frame)) return;
 
 		ReadOnlySpan<byte> serialized = _snapshotDecompressor.Decode(frame, ref _snapshotBuffer);
 		WorldSnapshot snapshot = MemoryPackSerializer.Deserialize<WorldSnapshot>(serialized);

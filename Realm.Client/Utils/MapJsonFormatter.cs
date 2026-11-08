@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics.CodeAnalysis;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -104,7 +105,7 @@ public static class MapJsonFormatter
 		sortedObj[key] = value != null ? SortKeysRecursively(value.DeepClone()) : null;
 	}
 
-	private static bool TryGetJsonObjectArray(JsonNode? node, out JsonArray array)
+	private static bool TryGetJsonObjectArray(JsonNode? node, [NotNullWhen(true)] out JsonArray? array)
 	{
 		array = node as JsonArray;
 		return array != null && array.All(item => item is JsonObject);
@@ -287,7 +288,7 @@ public static class MapJsonFormatter
 			formatted = formatted.Replace("\r\n", "\n").Replace("\n", "\r\n");
 		}
 
-		string directory = Path.GetDirectoryName(filePath);
+		string? directory = Path.GetDirectoryName(filePath);
 		if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
 		{
 			Directory.CreateDirectory(directory);

@@ -129,7 +129,8 @@ public static class MultiplayerSplitVerification
 		{
 			if (!client.Players.Exists(player => player.Slot == pair.Key)) continue;
 
-			SummaryPlayer clientPlayer = client.Players.Find(player => player.Slot == pair.Key);
+			SummaryPlayer? clientPlayer = client.Players.Find(player => player.Slot == pair.Key);
+			if (clientPlayer == null) continue;
 			SummaryPlayer hostPlayer = pair.Value;
 			if (hostPlayer.Active != clientPlayer.Active || hostPlayer.Computer != clientPlayer.Computer || hostPlayer.Team != clientPlayer.Team)
 			{

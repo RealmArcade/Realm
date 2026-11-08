@@ -264,6 +264,8 @@ public static class PseudoSocketCache
 			}
 		}
 
+		if (modelRoot == null) return new Aabb();
+
 		Aabb bounds = modelRoot.CalculateLocalBounds();
 
 		lock (_cacheLock)
@@ -342,7 +344,7 @@ public static class PseudoSocketCache
 
 	private static string GetModelCacheKey(Node3D? modelRoot, string modelPath)
 	{
-		string resolved = ModelCache.ResolveModelPath(modelPath);
+		string? resolved = ModelCache.ResolveModelPath(modelPath);
 		if (!string.IsNullOrEmpty(resolved)) return resolved;
 
 		if (!string.IsNullOrEmpty(modelPath)) return modelPath;

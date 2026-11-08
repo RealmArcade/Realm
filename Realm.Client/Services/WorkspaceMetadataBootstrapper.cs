@@ -64,9 +64,10 @@ please visit the URL above.
 		}
 
 		string templateMetaPath = templateMetadataPath ?? string.Empty;
-		if (File.Exists(templateMetaPath))
+		string? templateDirectory = Path.GetDirectoryName(templateMetaPath);
+		if (templateDirectory != null && File.Exists(templateMetaPath))
 		{
-			string templateAssetsDir = Path.Combine(Path.GetDirectoryName(templateMetaPath), "Assets");
+			string templateAssetsDir = Path.Combine(templateDirectory, "Assets");
 			if (Directory.Exists(templateAssetsDir))
 			{
 				RealmDefaultAnimations.EnsureDefaultTemplateAnimations(templateAssetsDir);
@@ -75,7 +76,8 @@ please visit the URL above.
 				{
 					string relPath = Path.GetRelativePath(templateAssetsDir, assetFile);
 					string destFile = Path.Combine(destAssetsDir, relPath);
-					Directory.CreateDirectory(Path.GetDirectoryName(destFile));
+					string? destDirectory = Path.GetDirectoryName(destFile);
+					if (destDirectory != null) Directory.CreateDirectory(destDirectory);
 					if (!File.Exists(destFile))
 					{
 						File.Copy(assetFile, destFile, true);

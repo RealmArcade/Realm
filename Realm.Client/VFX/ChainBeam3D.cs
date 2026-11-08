@@ -117,7 +117,7 @@ public partial class ChainBeam3D : Node3D
 
 	private Vector3 GetCameraPosition()
 	{
-		Camera3D camera = GetViewport()?.GetCamera3D();
+		Camera3D? camera = GetViewport()?.GetCamera3D();
 		return camera != null && GodotObject.IsInstanceValid(camera)
 			? camera.GlobalPosition
 			: GlobalPosition + new Vector3(0, 5, 10);

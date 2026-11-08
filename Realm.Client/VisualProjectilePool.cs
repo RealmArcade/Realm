@@ -18,7 +18,7 @@ public static class VisualProjectilePool
 
 	public static VisualProjectile3D Rent(Node3D parent)
 	{
-		VisualProjectile3D projectile = null;
+		VisualProjectile3D? projectile = null;
 		while (_available.Count > 0)
 		{
 			var cand = _available.Pop();

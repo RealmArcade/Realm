@@ -70,7 +70,7 @@ internal static class EditorWindowIntegration
 	}
 
 	[DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
-	private static extern IntPtr CreateJobObject(IntPtr lpJobAttributes, string lpName);
+	private static extern IntPtr CreateJobObject(IntPtr lpJobAttributes, string? lpName);
 
 	[DllImport("kernel32.dll")]
 	private static extern bool SetInformationJobObject(IntPtr hJob, int JobObjectInfoClass, IntPtr lpJobObjectInfo, uint cbJobObjectInfoLength);
