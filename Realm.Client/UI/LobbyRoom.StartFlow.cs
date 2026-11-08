@@ -52,10 +52,7 @@ public partial class LobbyRoom
 		}
 
 		_startButton.CustomMinimumSize = new Vector2(300, 86);
-		_startButton.AddThemeStyleboxOverride("normal", UIStyle.CreateCustomLobbyStartGameButton(false, false));
-		_startButton.AddThemeStyleboxOverride("hover", UIStyle.CreateCustomLobbyStartGameButton(true, false));
-		_startButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateCustomLobbyStartGameButton(false, true));
-		_startButton.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyCustomLobbyStartGameButton(_startButton);
 	}
 
 	private void ApplyStartButtonState()
