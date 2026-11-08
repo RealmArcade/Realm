@@ -27,8 +27,13 @@ internal static class EditorWorkspaceWatcher
 	private static volatile bool _hasPendingExternalChanges;
 	private static long _lastEditorChangeUtcTicks = DateTime.MinValue.Ticks;
 
-	/// <summary>True while the editor should ignore file change events it caused itself.</summary>
-	public static Func<bool>? IsSuppressed { get; set; }
+	/// <summary>True while the editor is paused and should ignore file change events.</summary>
+	public static bool IsPaused { get; set; }
+
+	/// <summary>True while the editor is syncing and should ignore file change events.</summary>
+	public static bool IsSyncing { get; set; }
+
+	private static bool IsSuppressed => IsPaused || IsSyncing;
 
 	public static DateTime LastEditorChangeUtc => new(Volatile.Read(ref _lastEditorChangeUtcTicks), DateTimeKind.Utc);
 
@@ -214,7 +219,7 @@ internal static class EditorWorkspaceWatcher
 	{
 		try
 		{
-			if (IsSuppressed?.Invoke() == true) return;
+			if (IsSuppressed) return;
 			if (!TryReadFileState(fullPath, out MapFileState current)) return;
 
 			lock (_watcherLock)

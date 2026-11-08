@@ -317,7 +317,15 @@ public partial class EditorService : IEditorAPI
 
 	public Godot.Vector3 LastRaycastPos { get; set; } = new Godot.Vector3(float.MinValue, float.MinValue, float.MinValue);
 	public static readonly float[] PolarRingSpacingOptions = new[] { 4.0f, 8.0f, 16.0f, 32.0f };
-	public bool IsSyncing { get; set; } = false;
+	public bool IsSyncing
+	{
+		get => _isSyncing;
+		set
+		{
+			_isSyncing = value;
+			EditorWorkspaceWatcher.IsSyncing = value;
+		}
+	}
 
 	public string GetWorkspacePath()
 	{
@@ -3249,6 +3257,7 @@ public partial class EditorService : IEditorAPI
 	public PasteReflection EditorPasteReflection { get; set; } = PasteReflection.None;
 
 	private bool _isPaused;
+	private bool _isSyncing;
 
 	public void ClearHistoryAndState(ref bool hasUnsavedChanges)
 	{
@@ -3262,6 +3271,7 @@ public partial class EditorService : IEditorAPI
 		set
 		{
 			_isPaused = value;
+			EditorWorkspaceWatcher.IsPaused = value;
 			if (value) EditorWorkspaceWatcher.CancelPendingEvaluation();
 		}
 	}
