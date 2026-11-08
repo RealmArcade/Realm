@@ -133,19 +133,7 @@ internal sealed class CreatorRegistrationDialog
 		overlay.AddChild(center);
 
 		var panel = new PanelContainer { CustomMinimumSize = new Vector2(480, 260) };
-		var style = new StyleBoxFlat
-		{
-			BgColor = new Color(0.12f, 0.12f, 0.18f, 0.98f),
-			BorderColor = UIStyle.ColorCyanGlow,
-			BorderWidthTop = 2,
-			BorderWidthBottom = 2,
-			BorderWidthLeft = 2,
-			BorderWidthRight = 2,
-			CornerRadiusTopLeft = 6,
-			CornerRadiusTopRight = 6,
-			CornerRadiusBottomLeft = 6,
-			CornerRadiusBottomRight = 6
-		};
+		var style = UIStyle.CreateCardPlate(new Color(0.12f, 0.12f, 0.18f, 0.98f), UIStyle.ColorCyanGlow, 2, 6, 0, 0, 0, 0);
 		panel.AddThemeStyleboxOverride("panel", style);
 		center.AddChild(panel);
 
