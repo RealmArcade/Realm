@@ -997,178 +997,34 @@ public partial class InGameHUD : Control
 			float vpH = GetViewportRect().Size.Y;
 			if (vpW <= 0f) vpW = 1920f;
 			if (vpH <= 0f) vpH = 1080f;
-			float consoleH = vpW * (BaseConsoleHeight / 1920f);
+			float consoleH = vpW * (BottomConsoleLayout.BaseConsoleHeight / 1920f);
 			float playfieldCenterY = (80f + (vpH - consoleH)) / 2f;
 			_hotkeyReference.PlaceOverPlayfield(playfieldCenterY, vpH);
 		}
 	}
 
-	private const float BaseConsoleHeight = 240f;
-	private const float ConsoleArtworkHeight = 240f;
-	private const float PortraitSlotLeft = 370f;
-	private const float PortraitSlotTop = 75f;
-	private const float PortraitSlotRight = 515f;
-	private const float PortraitSlotBottom = 195f;
-	private const float PortraitNameHeight = 20f;
+	private BottomConsoleLayout? _consoleLayout;
 
-	private void UpdateBottomConsoleHeight()
-	{
-		if (_bottomConsole != null)
-		{
-			float viewportWidth = GetViewportRect().Size.X;
-			if (viewportWidth <= 0f) viewportWidth = 1920f;
-			float proportionalHeight = viewportWidth * (BaseConsoleHeight / 1920f);
+	private BottomConsoleLayout ConsoleLayout => _consoleLayout ??= new BottomConsoleLayout();
 
-			_bottomConsole.OffsetBottom = 0;
-			_bottomConsole.OffsetTop = -Mathf.Round(proportionalHeight);
+	private ConsoleLayoutNodes ConsoleNodes => new(this,
+		() => _bottomConsole,
+		() => _consoleBackground,
+		() => _unitVitalsBars,
+		() => _minimapFrame,
+		() => _minimapControls,
+		() => _portraitFrame,
+		() => _selectionFrame,
+		() => _unitStatsPanel,
+		() => _commandFrame,
+		() => _chatPanel,
+		() => _resourceContainer,
+		() => _controlGroupsContainer,
+		() => _customUIPanel);
 
-			if (_consoleBackground != null && _consoleBackground.Material is ShaderMaterial mat)
-			{
-				mat.SetShaderParameter("u_console_size", new Vector2(viewportWidth, proportionalHeight));
-			}
+	private void UpdateBottomConsoleHeight() => ConsoleLayout.Apply(ConsoleNodes);
 
-			_unitVitalsBars?.ApplyLayout(proportionalHeight);
-
-			float s = proportionalHeight / 433f;
-			float wLeft = 935f * s;
-			float wRight = 912f * s;
-
-			if (_minimapFrame != null)
-			{
-				_minimapFrame.AnchorLeft = 0;
-				_minimapFrame.AnchorRight = 0;
-				_minimapFrame.AnchorTop = 0;
-				_minimapFrame.AnchorBottom = 0;
-				_minimapFrame.OffsetLeft = Mathf.Round(38f * s);
-				_minimapFrame.OffsetRight = Mathf.Round(426f * s);
-				_minimapFrame.OffsetTop = Mathf.Round(61f * s);
-				_minimapFrame.OffsetBottom = Mathf.Round(426f * s);
-			}
-
-			if (_minimapControls != null)
-			{
-				_minimapControls.AnchorLeft = 0;
-				_minimapControls.AnchorRight = 0;
-				_minimapControls.AnchorTop = 0;
-				_minimapControls.AnchorBottom = 0;
-				_minimapControls.OffsetLeft = Mathf.Round(438f * s);
-				_minimapControls.OffsetRight = Mathf.Round(534f * s);
-				_minimapControls.OffsetTop = Mathf.Round(64f * s);
-				_minimapControls.OffsetBottom = Mathf.Round(424f * s);
-			}
-
-			if (_portraitFrame != null)
-			{
-				float artworkScale = proportionalHeight / ConsoleArtworkHeight;
-				_portraitFrame.AnchorLeft = 0;
-				_portraitFrame.AnchorRight = 0;
-				_portraitFrame.AnchorTop = 0;
-				_portraitFrame.AnchorBottom = 0;
-				_portraitFrame.OffsetLeft = Mathf.Round(PortraitSlotLeft * artworkScale);
-				_portraitFrame.OffsetRight = Mathf.Round(PortraitSlotRight * artworkScale);
-				_portraitFrame.OffsetTop = Mathf.Round(PortraitSlotTop * artworkScale);
-				_portraitFrame.OffsetBottom = Mathf.Round(PortraitSlotBottom * artworkScale);
-
-				var pTexture = _portraitFrame.GetNodeOrNull<TextureRect>("VBox/PortraitTexture");
-				if (pTexture != null)
-				{
-					float slotHeight = (PortraitSlotBottom - PortraitSlotTop - PortraitNameHeight) * artworkScale;
-					float slotWidth = (PortraitSlotRight - PortraitSlotLeft) * artworkScale;
-					float portraitSize = Mathf.Round(Mathf.Min(slotWidth, slotHeight));
-					pTexture.CustomMinimumSize = new Vector2(portraitSize, portraitSize);
-				}
-			}
-
-			if (_selectionFrame != null)
-			{
-				_selectionFrame.AnchorLeft = 0;
-				_selectionFrame.AnchorRight = 0;
-				_selectionFrame.AnchorTop = 0;
-				_selectionFrame.AnchorBottom = 0;
-				_selectionFrame.OffsetLeft = Mathf.Round(wLeft + 140f * s);
-				_selectionFrame.OffsetRight = Mathf.Round(viewportWidth - wRight - 40f * s);
-				_selectionFrame.OffsetTop = Mathf.Round(165f * s);
-				_selectionFrame.OffsetBottom = Mathf.Round(415f * s);
-
-				if (_unitStatsPanel != null)
-				{
-					float labelW = Mathf.Max(200f, _selectionFrame.OffsetRight - _selectionFrame.OffsetLeft - 20f);
-					_unitStatsPanel.Root.CustomMinimumSize = new Vector2(labelW, 0);
-				}
-			}
-
-			var inventoryFrame = GetNodeOrNull<PanelContainer>("BottomConsole/HBox/InventoryFrame");
-			if (inventoryFrame != null)
-			{
-				inventoryFrame.AnchorLeft = 0;
-				inventoryFrame.AnchorRight = 0;
-				inventoryFrame.AnchorTop = 0;
-				inventoryFrame.AnchorBottom = 0;
-				inventoryFrame.OffsetLeft = Mathf.Round(viewportWidth - (2752f - 1850f) * s);
-				inventoryFrame.OffsetRight = Mathf.Round(viewportWidth - (2752f - 2150f) * s);
-				inventoryFrame.OffsetTop = Mathf.Round(170f * s);
-				inventoryFrame.OffsetBottom = Mathf.Round(425f * s);
-			}
-
-			if (_commandFrame != null)
-			{
-				_commandFrame.AnchorLeft = 0;
-				_commandFrame.AnchorRight = 0;
-				_commandFrame.AnchorTop = 0;
-				_commandFrame.AnchorBottom = 0;
-				_commandFrame.OffsetLeft = Mathf.Round(viewportWidth - (2752f - 2250f) * s);
-				_commandFrame.OffsetRight = Mathf.Round(viewportWidth - (2752f - 2725f) * s);
-				_commandFrame.OffsetTop = Mathf.Round(60f * s);
-				_commandFrame.OffsetBottom = Mathf.Round(415f * s);
-			}
-
-			if (_chatPanel != null)
-			{
-				float chatHeight = 240f;
-				_chatPanel.OffsetBottom = _bottomConsole.OffsetTop - 15f;
-				_chatPanel.OffsetTop = _chatPanel.OffsetBottom - chatHeight;
-			}
-		}
-	}
-
-	public void ApplyHUDScale()
-	{
-		float s = GameSettings.HudScale / 100f;
-
-		if (_resourceContainer != null)
-		{
-			_resourceContainer.PivotOffset = new Vector2(_resourceContainer.Size.X / 2f, 0f);
-			_resourceContainer.Scale = new Vector2(s, s);
-		}
-
-		if (_bottomConsole != null)
-		{
-			float width = _bottomConsole.Size.X > 0 ? _bottomConsole.Size.X : GetViewportRect().Size.X;
-			float height = _bottomConsole.Size.Y > 0 ? _bottomConsole.Size.Y : BaseConsoleHeight;
-			_bottomConsole.PivotOffset = new Vector2(width / 2f, height);
-			_bottomConsole.Scale = new Vector2(s, s);
-		}
-
-		if (_chatPanel != null)
-		{
-			_chatPanel.PivotOffset = new Vector2(0f, _chatPanel.Size.Y);
-			_chatPanel.Scale = new Vector2(s, s);
-		}
-
-		if (_controlGroupsContainer != null)
-		{
-			_controlGroupsContainer.PivotOffset = Vector2.Zero;
-			_controlGroupsContainer.Scale = new Vector2(s, s);
-		}
-
-		if (_customUIPanel != null)
-		{
-			_customUIPanel.PivotOffset = new Vector2(_customUIPanel.Size.X, 0f);
-			_customUIPanel.Scale = new Vector2(s, s);
-		}
-
-		_hotkeyReference?.ApplyScale(s);
-	}
+	public void ApplyHUDScale() => ConsoleLayout.ApplyHudScale(ConsoleNodes, GameSettings.HudScale / 100f);
 
 	public void UpdateFPSVisibility()
 	{
