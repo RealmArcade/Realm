@@ -1,3 +1,4 @@
+using System;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.Services;
@@ -10,25 +11,33 @@ namespace Realm.Client;
 [GlobalClass]
 public partial class CameraControl : Camera3D
 {
+	/// <summary>
+	/// The world these camera-state reads and writes need. Every member below is reached only
+	/// while HasCameraState holds, but nullable analysis cannot carry that through a property
+	/// getter, so the invariant is stated once instead of re-derived at fifty call sites.
+	/// </summary>
+	private static EcsWorld World => GameContext.World
+		?? throw new InvalidOperationException("CameraControl read the world before one existed.");
+
 	private bool HasCameraState
 	{
 		get
 		{
-			GameHost tempQualifier = GameContext.Host;
-			return (tempQualifier != null ? GameContext.World : null) != null &&
-				   GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) &&
-				   GameContext.World.Has<CameraState>(GameContext.Simulation.WorldEntity);
+			var world = GameContext.World;
+			return GameContext.Host != null && world != null &&
+				   world.IsAlive(GameContext.Simulation.WorldEntity) &&
+				   world.Has<CameraState>(GameContext.Simulation.WorldEntity);
 		}
 	}
 
 	public float MoveSpeed
 	{
-		get => HasCameraState ? GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity).MoveSpeed : 35.0f;
+		get => HasCameraState ? World.Get<CameraState>(GameContext.Simulation.WorldEntity).MoveSpeed : 35.0f;
 		set
 		{
 			if (HasCameraState)
 			{
-				ref var state = ref GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity);
+				ref var state = ref World.Get<CameraState>(GameContext.Simulation.WorldEntity);
 				state.MoveSpeed = value;
 			}
 		}
@@ -36,12 +45,12 @@ public partial class CameraControl : Camera3D
 
 	public float ZoomSpeed
 	{
-		get => HasCameraState ? GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity).ZoomSpeed : 10.0f;
+		get => HasCameraState ? World.Get<CameraState>(GameContext.Simulation.WorldEntity).ZoomSpeed : 10.0f;
 		set
 		{
 			if (HasCameraState)
 			{
-				ref var state = ref GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity);
+				ref var state = ref World.Get<CameraState>(GameContext.Simulation.WorldEntity);
 				state.ZoomSpeed = value;
 			}
 		}
@@ -49,12 +58,12 @@ public partial class CameraControl : Camera3D
 
 	public float MinZoom
 	{
-		get => HasCameraState ? GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity).MinZoom : 10.0f;
+		get => HasCameraState ? World.Get<CameraState>(GameContext.Simulation.WorldEntity).MinZoom : 10.0f;
 		set
 		{
 			if (HasCameraState)
 			{
-				ref var state = ref GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity);
+				ref var state = ref World.Get<CameraState>(GameContext.Simulation.WorldEntity);
 				state.MinZoom = value;
 			}
 		}
@@ -62,12 +71,12 @@ public partial class CameraControl : Camera3D
 
 	public float MaxZoom
 	{
-		get => HasCameraState ? GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity).MaxZoom : 90.0f;
+		get => HasCameraState ? World.Get<CameraState>(GameContext.Simulation.WorldEntity).MaxZoom : 90.0f;
 		set
 		{
 			if (HasCameraState)
 			{
-				ref var state = ref GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity);
+				ref var state = ref World.Get<CameraState>(GameContext.Simulation.WorldEntity);
 				state.MaxZoom = value;
 			}
 		}
@@ -75,12 +84,12 @@ public partial class CameraControl : Camera3D
 
 	public float ZoomStep
 	{
-		get => HasCameraState ? GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity).ZoomStep : 4.0f;
+		get => HasCameraState ? World.Get<CameraState>(GameContext.Simulation.WorldEntity).ZoomStep : 4.0f;
 		set
 		{
 			if (HasCameraState)
 			{
-				ref var state = ref GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity);
+				ref var state = ref World.Get<CameraState>(GameContext.Simulation.WorldEntity);
 				state.ZoomStep = value;
 			}
 		}
@@ -88,12 +97,12 @@ public partial class CameraControl : Camera3D
 
 	public float EdgePanMargin
 	{
-		get => HasCameraState ? GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity).EdgePanMargin : 20.0f;
+		get => HasCameraState ? World.Get<CameraState>(GameContext.Simulation.WorldEntity).EdgePanMargin : 20.0f;
 		set
 		{
 			if (HasCameraState)
 			{
-				ref var state = ref GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity);
+				ref var state = ref World.Get<CameraState>(GameContext.Simulation.WorldEntity);
 				state.EdgePanMargin = value;
 			}
 		}
@@ -101,12 +110,12 @@ public partial class CameraControl : Camera3D
 
 	public bool EnableEdgePanning
 	{
-		get => HasCameraState ? GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity).EnableEdgePanning : true;
+		get => HasCameraState ? World.Get<CameraState>(GameContext.Simulation.WorldEntity).EnableEdgePanning : true;
 		set
 		{
 			if (HasCameraState)
 			{
-				ref var state = ref GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity);
+				ref var state = ref World.Get<CameraState>(GameContext.Simulation.WorldEntity);
 				state.EnableEdgePanning = value;
 			}
 		}
@@ -114,12 +123,12 @@ public partial class CameraControl : Camera3D
 
 	public bool IsLocked
 	{
-		get => HasCameraState ? GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity).IsLocked : false;
+		get => HasCameraState ? World.Get<CameraState>(GameContext.Simulation.WorldEntity).IsLocked : false;
 		set
 		{
 			if (HasCameraState)
 			{
-				ref var state = ref GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity);
+				ref var state = ref World.Get<CameraState>(GameContext.Simulation.WorldEntity);
 				state.IsLocked = value;
 			}
 		}
@@ -127,13 +136,13 @@ public partial class CameraControl : Camera3D
 
 	public bool IsFreeCamera
 	{
-		get => HasCameraState ? GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity).IsFreeCamera : _isFreeCamera;
+		get => HasCameraState ? World.Get<CameraState>(GameContext.Simulation.WorldEntity).IsFreeCamera : _isFreeCamera;
 		set
 		{
 			_isFreeCamera = value;
 			if (HasCameraState)
 			{
-				ref var state = ref GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity);
+				ref var state = ref World.Get<CameraState>(GameContext.Simulation.WorldEntity);
 				state.IsFreeCamera = value;
 			}
 		}
@@ -141,16 +150,16 @@ public partial class CameraControl : Camera3D
 
 	private bool _isFreeCamera = false;
 
-	public Node3D FollowTarget { get; set; } = null;
+	public Node3D? FollowTarget { get; set; }
 
 	public float? LimitLeft
 	{
-		get => HasCameraState ? GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity).LimitLeft : null;
+		get => HasCameraState ? World.Get<CameraState>(GameContext.Simulation.WorldEntity).LimitLeft : null;
 		set
 		{
 			if (HasCameraState)
 			{
-				ref var state = ref GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity);
+				ref var state = ref World.Get<CameraState>(GameContext.Simulation.WorldEntity);
 				state.LimitLeft = value;
 			}
 		}
@@ -158,12 +167,12 @@ public partial class CameraControl : Camera3D
 
 	public float? LimitRight
 	{
-		get => HasCameraState ? GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity).LimitRight : null;
+		get => HasCameraState ? World.Get<CameraState>(GameContext.Simulation.WorldEntity).LimitRight : null;
 		set
 		{
 			if (HasCameraState)
 			{
-				ref var state = ref GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity);
+				ref var state = ref World.Get<CameraState>(GameContext.Simulation.WorldEntity);
 				state.LimitRight = value;
 			}
 		}
@@ -171,12 +180,12 @@ public partial class CameraControl : Camera3D
 
 	public float? LimitTop
 	{
-		get => HasCameraState ? GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity).LimitTop : null;
+		get => HasCameraState ? World.Get<CameraState>(GameContext.Simulation.WorldEntity).LimitTop : null;
 		set
 		{
 			if (HasCameraState)
 			{
-				ref var state = ref GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity);
+				ref var state = ref World.Get<CameraState>(GameContext.Simulation.WorldEntity);
 				state.LimitTop = value;
 			}
 		}
@@ -184,12 +193,12 @@ public partial class CameraControl : Camera3D
 
 	public float? LimitBottom
 	{
-		get => HasCameraState ? GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity).LimitBottom : null;
+		get => HasCameraState ? World.Get<CameraState>(GameContext.Simulation.WorldEntity).LimitBottom : null;
 		set
 		{
 			if (HasCameraState)
 			{
-				ref var state = ref GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity);
+				ref var state = ref World.Get<CameraState>(GameContext.Simulation.WorldEntity);
 				state.LimitBottom = value;
 			}
 		}
@@ -197,12 +206,12 @@ public partial class CameraControl : Camera3D
 
 	public float TargetHeight
 	{
-		get => HasCameraState ? GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity).TargetHeight : 35.0f;
+		get => HasCameraState ? World.Get<CameraState>(GameContext.Simulation.WorldEntity).TargetHeight : 35.0f;
 		set
 		{
 			if (HasCameraState)
 			{
-				ref var state = ref GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity);
+				ref var state = ref World.Get<CameraState>(GameContext.Simulation.WorldEntity);
 				state.TargetHeight = value;
 			}
 		}
@@ -210,12 +219,12 @@ public partial class CameraControl : Camera3D
 
 	public float CurrentHeight
 	{
-		get => HasCameraState ? GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity).CurrentHeight : 35.0f;
+		get => HasCameraState ? World.Get<CameraState>(GameContext.Simulation.WorldEntity).CurrentHeight : 35.0f;
 		set
 		{
 			if (HasCameraState)
 			{
-				ref var state = ref GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity);
+				ref var state = ref World.Get<CameraState>(GameContext.Simulation.WorldEntity);
 				state.CurrentHeight = value;
 			}
 		}
@@ -223,12 +232,12 @@ public partial class CameraControl : Camera3D
 
 	private bool _isDraggingMouse
 	{
-		get => HasCameraState ? GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity).IsDraggingMouse : false;
+		get => HasCameraState ? World.Get<CameraState>(GameContext.Simulation.WorldEntity).IsDraggingMouse : false;
 		set
 		{
 			if (HasCameraState)
 			{
-				ref var state = ref GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity);
+				ref var state = ref World.Get<CameraState>(GameContext.Simulation.WorldEntity);
 				state.IsDraggingMouse = value;
 			}
 		}
@@ -240,7 +249,7 @@ public partial class CameraControl : Camera3D
 		{
 			if (HasCameraState)
 			{
-				var pos = GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity).LastMousePosition;
+				var pos = World.Get<CameraState>(GameContext.Simulation.WorldEntity).LastMousePosition;
 				return new Vector2(pos.X, pos.Y);
 			}
 
@@ -250,7 +259,7 @@ public partial class CameraControl : Camera3D
 		{
 			if (HasCameraState)
 			{
-				ref var state = ref GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity);
+				ref var state = ref World.Get<CameraState>(GameContext.Simulation.WorldEntity);
 				state.LastMousePosition = new System.Numerics.Vector2(value.X, value.Y);
 			}
 		}
@@ -258,12 +267,12 @@ public partial class CameraControl : Camera3D
 
 	private float _targetYaw
 	{
-		get => HasCameraState ? GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity).TargetYaw : 0.0f;
+		get => HasCameraState ? World.Get<CameraState>(GameContext.Simulation.WorldEntity).TargetYaw : 0.0f;
 		set
 		{
 			if (HasCameraState)
 			{
-				ref var state = ref GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity);
+				ref var state = ref World.Get<CameraState>(GameContext.Simulation.WorldEntity);
 				state.TargetYaw = value;
 			}
 		}
@@ -271,12 +280,12 @@ public partial class CameraControl : Camera3D
 
 	private float _currentYaw
 	{
-		get => HasCameraState ? GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity).CurrentYaw : 0.0f;
+		get => HasCameraState ? World.Get<CameraState>(GameContext.Simulation.WorldEntity).CurrentYaw : 0.0f;
 		set
 		{
 			if (HasCameraState)
 			{
-				ref var state = ref GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity);
+				ref var state = ref World.Get<CameraState>(GameContext.Simulation.WorldEntity);
 				state.CurrentYaw = value;
 			}
 		}
@@ -284,12 +293,12 @@ public partial class CameraControl : Camera3D
 
 	private float _targetPitch
 	{
-		get => HasCameraState ? GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity).TargetPitch : -55.0f;
+		get => HasCameraState ? World.Get<CameraState>(GameContext.Simulation.WorldEntity).TargetPitch : -55.0f;
 		set
 		{
 			if (HasCameraState)
 			{
-				ref var state = ref GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity);
+				ref var state = ref World.Get<CameraState>(GameContext.Simulation.WorldEntity);
 				state.TargetPitch = value;
 			}
 		}
@@ -297,12 +306,12 @@ public partial class CameraControl : Camera3D
 
 	private float _currentPitch
 	{
-		get => HasCameraState ? GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity).CurrentPitch : -55.0f;
+		get => HasCameraState ? World.Get<CameraState>(GameContext.Simulation.WorldEntity).CurrentPitch : -55.0f;
 		set
 		{
 			if (HasCameraState)
 			{
-				ref var state = ref GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity);
+				ref var state = ref World.Get<CameraState>(GameContext.Simulation.WorldEntity);
 				state.CurrentPitch = value;
 			}
 		}
@@ -310,12 +319,12 @@ public partial class CameraControl : Camera3D
 
 	private bool _isTopDown
 	{
-		get => HasCameraState ? GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity).IsTopDown : false;
+		get => HasCameraState ? World.Get<CameraState>(GameContext.Simulation.WorldEntity).IsTopDown : false;
 		set
 		{
 			if (HasCameraState)
 			{
-				ref var state = ref GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity);
+				ref var state = ref World.Get<CameraState>(GameContext.Simulation.WorldEntity);
 				state.IsTopDown = value;
 			}
 		}
@@ -323,12 +332,12 @@ public partial class CameraControl : Camera3D
 
 	private float _yawSwing
 	{
-		get => HasCameraState ? GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity).YawSwing : 0.0f;
+		get => HasCameraState ? World.Get<CameraState>(GameContext.Simulation.WorldEntity).YawSwing : 0.0f;
 		set
 		{
 			if (HasCameraState)
 			{
-				ref var state = ref GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity);
+				ref var state = ref World.Get<CameraState>(GameContext.Simulation.WorldEntity);
 				state.YawSwing = value;
 			}
 		}
@@ -336,12 +345,12 @@ public partial class CameraControl : Camera3D
 
 	private float _pitchSwing
 	{
-		get => HasCameraState ? GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity).PitchSwing : 0.0f;
+		get => HasCameraState ? World.Get<CameraState>(GameContext.Simulation.WorldEntity).PitchSwing : 0.0f;
 		set
 		{
 			if (HasCameraState)
 			{
-				ref var state = ref GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity);
+				ref var state = ref World.Get<CameraState>(GameContext.Simulation.WorldEntity);
 				state.PitchSwing = value;
 			}
 		}
@@ -613,7 +622,7 @@ public partial class CameraControl : Camera3D
 
 		if (!HasCameraState) return;
 
-		ref var state = ref GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity);
+		ref var state = ref World.Get<CameraState>(GameContext.Simulation.WorldEntity);
 		state.MoveSpeed = 10.0f + (GameSettings.ScrollSpeed / 100.0f) * 50.0f;
 
 		float terrainHeight = 0.0f;
