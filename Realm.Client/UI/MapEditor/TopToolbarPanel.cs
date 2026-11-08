@@ -49,6 +49,8 @@ public sealed record TopToolbarHooks(
 /// </summary>
 public sealed class TopToolbarPanel
 {
+	private Control? _owner;
+
 	public Button BackToHubButton { get; private set; } = null!;
 	public PanelContainer MapNameHeaderPanel { get; private set; } = null!;
 	public Label MapNameLabel { get; private set; } = null!;
@@ -68,10 +70,40 @@ public sealed class TopToolbarPanel
 	public Button InstanceManagerButton { get; private set; } = null!;
 	public Button ImportFromMapButton { get; private set; } = null!;
 	public Button UtilitiesButton { get; private set; } = null!;
+	public Label StatusLabel { get; private set; } = null!;
+	public Label FeedbackLabel { get; private set; } = null!;
 
 	public void Build(TopToolbarHooks hooks)
 	{
+		_owner = hooks.Owner;
 		BuildTopLeftToolbar(hooks);
+	}
+
+	/// <summary>
+	/// The window-level chrome the toolbar row shares: the status readout in the bottom bar, the fading feedback
+	/// label, and the two side scrollers that must not swallow mouse input so the panels can float freely.
+	/// </summary>
+	public void BuildWindowChrome()
+	{
+		if (_owner == null) return;
+
+		StatusLabel = _owner.GetNode<Label>("BottomCenterBar/TopBar/HBox/StatusLabel");
+		FeedbackLabel = _owner.GetNode<Label>("FeedbackLabel");
+		FeedbackLabel.Modulate = new Color(1, 1, 1, 0);
+		FeedbackLabel.MouseFilter = Control.MouseFilterEnum.Ignore;
+
+		DisableScrollerInput("LeftSlidePanel/LeftScroll");
+		DisableScrollerInput("RightSlidePanel/RightScroll");
+	}
+
+	private void DisableScrollerInput(string path)
+	{
+		var scroller = _owner?.GetNodeOrNull<ScrollContainer>(path);
+		if (scroller == null) return;
+
+		scroller.MouseFilter = Control.MouseFilterEnum.Ignore;
+		scroller.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
+		scroller.VerticalScrollMode = ScrollContainer.ScrollMode.Disabled;
 	}
 
 	private void BuildTopLeftToolbar(TopToolbarHooks hooks)

@@ -326,8 +326,8 @@ namespace Realm.Client.UI
 		private void ApplyAccordionStyles()
 		{
 			if (_accordionFile != null) _accordionFile.CustomMinimumSize = new Vector2(260, 0);
-			if (_accordionViewport != null) _accordionViewport.CustomMinimumSize = new Vector2(260, 0);
-			if (_toolPanel?.Accordion != null) _toolPanel.Accordion.CustomMinimumSize = new Vector2(260, 0);
+			if (_viewportPanel.Accordion != null) _viewportPanel.Accordion.CustomMinimumSize = new Vector2(260, 0);
+			if (_toolPanel.Accordion != null) _toolPanel.Accordion.CustomMinimumSize = new Vector2(260, 0);
 			if (_brushPanel?.Accordion != null) _brushPanel.Accordion.CustomMinimumSize = new Vector2(260, 0);
 			if (_accordionToolSettings != null) _accordionToolSettings.CustomMinimumSize = new Vector2(260, 0);
 			if (_placementPanel?.Accordion != null) _placementPanel.Accordion.CustomMinimumSize = new Vector2(260, 0);
@@ -335,7 +335,7 @@ namespace Realm.Client.UI
 			if (_waterPanel?.Accordion != null) _waterPanel.Accordion.CustomMinimumSize = new Vector2(260, 0);
 
 			ApplyCardPanelStyle(_accordionFile);
-			ApplyCardPanelStyle(_accordionViewport);
+			ApplyCardPanelStyle(_viewportPanel.Accordion);
 			ApplyCardPanelStyle(_toolPanel.Accordion);
 			ApplyCardPanelStyle(_brushPanel.Accordion);
 			if (_waterPanel?.Accordion != null) ApplyCardPanelStyle(_waterPanel.Accordion);
@@ -347,7 +347,7 @@ namespace Realm.Client.UI
 		private void ApplyContentBoxStyles()
 		{
 			StyleContentBox(_filePanel.Content);
-			StyleContentBox(_contentViewport);
+			StyleContentBox(_viewportPanel.Content);
 			StyleContentBox(_toolPanel.Content);
 			StyleContentBox(_brushPanel.Content);
 			if (_waterPanel?.Content != null) StyleContentBox(_waterPanel.Content);
@@ -359,7 +359,7 @@ namespace Realm.Client.UI
 		private void ApplyScrollContainerStyles()
 		{
 			SetupCardScrollContainer(_filePanel.Content, 300f);
-			SetupCardScrollContainer(_contentViewport, 0f, false);
+			SetupCardScrollContainer(_viewportPanel.Content, 0f, false);
 			SetupCardScrollContainer(_toolPanel.Content, 320f);
 			SetupCardScrollContainer(_brushPanel.Content, 300f);
 			if (_waterPanel?.Content != null) SetupCardScrollContainer(_waterPanel.Content, 200f);
@@ -388,7 +388,7 @@ namespace Realm.Client.UI
 				}
 			}
 
-			StyleRowButton(_topToolbar.TestMapButton);
+			if (_topToolbar.TestMapButton != null) StyleRowButton(_topToolbar.TestMapButton);
 			StyleRowButton(_filePanel.SaveAsButton);
 			StyleRowButton(_filePanel.PublishButton);
 			StyleRowButton(_filePanel.ExportMapButton);
@@ -514,9 +514,9 @@ namespace Realm.Client.UI
 				_topBar.AddThemeStyleboxOverride("panel", barStyle);
 			}
 
-			if (_panelMeasurementHUD != null)
+			if (_viewportPanel.MeasurementPanel != null)
 			{
-				_panelMeasurementHUD.AddThemeStyleboxOverride("panel", barStyle);
+				_viewportPanel.MeasurementPanel.AddThemeStyleboxOverride("panel", barStyle);
 			}
 
 			var hBox = _topBar?.GetNodeOrNull<HBoxContainer>("HBox") ?? GetNodeOrNull<HBoxContainer>("BottomCenterBar/TopBar/HBox");
@@ -528,33 +528,33 @@ namespace Realm.Client.UI
 
 		private void ApplyStatusLabelStyles()
 		{
-			if (_statusLabel != null)
+			if (_topToolbar.StatusLabel != null)
 			{
-				_statusLabel.HorizontalAlignment = HorizontalAlignment.Left;
-				_statusLabel.VerticalAlignment = VerticalAlignment.Center;
-				_statusLabel.AddThemeFontSizeOverride("font_size", 13);
-				_statusLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+				_topToolbar.StatusLabel.HorizontalAlignment = HorizontalAlignment.Left;
+				_topToolbar.StatusLabel.VerticalAlignment = VerticalAlignment.Center;
+				_topToolbar.StatusLabel.AddThemeFontSizeOverride("font_size", 13);
+				_topToolbar.StatusLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 				var fontStatus = GetFontAwesomeFont();
 				if (fontStatus != null)
 				{
-					_statusLabel.AddThemeFontOverride("font", fontStatus);
+					_topToolbar.StatusLabel.AddThemeFontOverride("font", fontStatus);
 				}
 			}
 
-			if (_lblMeasureTelemetry != null)
+			if (_viewportPanel.MeasurementLabel != null)
 			{
-				_lblMeasureTelemetry.HorizontalAlignment = HorizontalAlignment.Left;
-				_lblMeasureTelemetry.VerticalAlignment = VerticalAlignment.Center;
-				_lblMeasureTelemetry.AddThemeFontSizeOverride("font_size", 13);
-				_lblMeasureTelemetry.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+				_viewportPanel.MeasurementLabel.HorizontalAlignment = HorizontalAlignment.Left;
+				_viewportPanel.MeasurementLabel.VerticalAlignment = VerticalAlignment.Center;
+				_viewportPanel.MeasurementLabel.AddThemeFontSizeOverride("font_size", 13);
+				_viewportPanel.MeasurementLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 				var fontStatus = GetFontAwesomeFont();
 				if (fontStatus != null)
 				{
-					_lblMeasureTelemetry.AddThemeFontOverride("font", fontStatus);
+					_viewportPanel.MeasurementLabel.AddThemeFontOverride("font", fontStatus);
 				}
 			}
 
-			UIStyle.ApplyTitle(_feedbackLabel, "", 24);
+			UIStyle.ApplyTitle(_topToolbar.FeedbackLabel, "", 24);
 		}
 
 		public void RefreshCoordinateListExternal()
@@ -565,7 +565,7 @@ namespace Realm.Client.UI
 
 		private void OpenOverlayModePopup()
 		{
-			if (_popupOverlayMode == null || GameContext.Host == null || _btnToggleGrid == null) return;
+			if (_viewportPanel.OverlayPopup == null || GameContext.Host == null || _viewportPanel.GridToggleButton == null) return;
 
 			var mode = GameContext.EditorService.Tools.GridMode;
 			bool isGrid = mode == GridOverlayMode.Grid || mode == GridOverlayMode.Both;
@@ -577,34 +577,34 @@ namespace Realm.Client.UI
 			SetPopupItemChecked(2, GameContext.EditorService.Tools.CameraBoundsVisible);
 			SetPopupItemChecked(3, isWireframe);
 
-			var globalRect = _btnToggleGrid.GetGlobalRect();
+			var globalRect = _viewportPanel.GridToggleButton.GetGlobalRect();
 			var popupPos = new Vector2I((int)globalRect.Position.X, (int)(globalRect.Position.Y + globalRect.Size.Y + 2));
-			_popupOverlayMode.Position = popupPos;
-			_popupOverlayMode.Popup();
+			_viewportPanel.OverlayPopup.Position = popupPos;
+			_viewportPanel.OverlayPopup.Popup();
 		}
 
 		private void SetPopupItemChecked(int itemIndexInList, bool isChecked)
 		{
-			int idx = _popupOverlayMode.GetItemIndex(itemIndexInList);
-			if (idx >= 0) _popupOverlayMode.SetItemChecked(idx, isChecked);
+			int idx = _viewportPanel.OverlayPopup.GetItemIndex(itemIndexInList);
+			if (idx >= 0) _viewportPanel.OverlayPopup.SetItemChecked(idx, isChecked);
 		}
 
 		public void UpdateGridOverlayExternal(GridOverlayMode mode)
 		{
-			if (_btnToggleGrid != null)
+			if (_viewportPanel.GridToggleButton != null)
 			{
-				_btnToggleGrid.Text = UnicodeIcons.BORDER_ALL;
-				_btnToggleGrid.TooltipText = TranslationServer.Translate("Overlay");
+				_viewportPanel.GridToggleButton.Text = UnicodeIcons.BORDER_ALL;
+				_viewportPanel.GridToggleButton.TooltipText = TranslationServer.Translate("Overlay");
 			}
 
-			if (_popupOverlayMode != null)
+			if (_viewportPanel.OverlayPopup != null)
 			{
 				bool isGrid = mode == GridOverlayMode.Grid || mode == GridOverlayMode.Both;
 				bool isPolar = mode == GridOverlayMode.Polar || mode == GridOverlayMode.Both;
-				int gridIdx = _popupOverlayMode.GetItemIndex(0);
-				int polarIdx = _popupOverlayMode.GetItemIndex(1);
-				if (gridIdx >= 0) _popupOverlayMode.SetItemChecked(gridIdx, isGrid);
-				if (polarIdx >= 0) _popupOverlayMode.SetItemChecked(polarIdx, isPolar);
+				int gridIdx = _viewportPanel.OverlayPopup.GetItemIndex(0);
+				int polarIdx = _viewportPanel.OverlayPopup.GetItemIndex(1);
+				if (gridIdx >= 0) _viewportPanel.OverlayPopup.SetItemChecked(gridIdx, isGrid);
+				if (polarIdx >= 0) _viewportPanel.OverlayPopup.SetItemChecked(polarIdx, isPolar);
 			}
 
 			UpdatePolarSubControlsVisibility(mode);
@@ -616,9 +616,9 @@ namespace Realm.Client.UI
 			bool isPolar = GameContext.EditorService.IsPolarGridActive(mode, mirrorMode);
 			bool showResetPivot = isPolar || mirrorMode != MirrorMode.None;
 
-			if (_optPolarRingSpacing != null) _optPolarRingSpacing.Visible = isPolar;
-			if (_optPolarRadialStep != null) _optPolarRadialStep.Visible = isPolar;
-			if (_btnResetPivotToCenter != null) _btnResetPivotToCenter.Visible = showResetPivot;
+			if (_viewportPanel.RingSpacingOption != null) _viewportPanel.RingSpacingOption.Visible = isPolar;
+			if (_viewportPanel.RadialStepOption != null) _viewportPanel.RadialStepOption.Visible = isPolar;
+			if (_viewportPanel.ResetPivotButton != null) _viewportPanel.ResetPivotButton.Visible = showResetPivot;
 			if (_rowPolarConfig != null)
 			{
 				_rowPolarConfig.Visible = showResetPivot;
@@ -627,8 +627,8 @@ namespace Realm.Client.UI
 
 		public void UpdateMeasureTelemetry(float eucTiles, float eucWorld, float manhattanTiles, float dx, float dz, float dy, float angleDeg, float slopePct)
 		{
-			if (_panelMeasurementHUD == null || _lblMeasureTelemetry == null) return;
-			_panelMeasurementHUD.Visible = true;
+			if (_viewportPanel.MeasurementPanel == null || _viewportPanel.MeasurementLabel == null) return;
+			_viewportPanel.MeasurementPanel.Visible = true;
 
 			string slopeStr;
 			float absDx = Mathf.Abs(dx);
@@ -671,17 +671,17 @@ namespace Realm.Client.UI
 				text += string.Format(TranslationServer.Translate(" | Elev: {0:+0.0;-0.0;0.0}m ({1:F1}%)"), dy, slopePct);
 			}
 
-			_measureLabelWidth.Apply(_lblMeasureTelemetry, text);
+			_measureLabelWidth.Apply(_viewportPanel.MeasurementLabel, text);
 		}
 
 		public void ClearMeasureTelemetry()
 		{
-			if (_panelMeasurementHUD != null)
+			if (_viewportPanel.MeasurementPanel != null)
 			{
-				_panelMeasurementHUD.Visible = false;
+				_viewportPanel.MeasurementPanel.Visible = false;
 			}
 
-			_measureLabelWidth.Reset(_lblMeasureTelemetry);
+			_measureLabelWidth.Reset(_viewportPanel.MeasurementLabel);
 		}
 
 		public void UpdatePasteTelemetry(int deltaX, int deltaZ, float distTiles, float distWorld, float angleDeg)
@@ -696,19 +696,19 @@ namespace Realm.Client.UI
 
 		public void UpdateCameraBoundsOverlayExternal(bool visible)
 		{
-			if (_popupOverlayMode != null)
+			if (_viewportPanel.OverlayPopup != null)
 			{
-				int camBoundsIdx = _popupOverlayMode.GetItemIndex(2);
-				if (camBoundsIdx >= 0) _popupOverlayMode.SetItemChecked(camBoundsIdx, visible);
+				int camBoundsIdx = _viewportPanel.OverlayPopup.GetItemIndex(2);
+				if (camBoundsIdx >= 0) _viewportPanel.OverlayPopup.SetItemChecked(camBoundsIdx, visible);
 			}
 		}
 
 		public void UpdateWireframeOverlayExternal(bool enabled)
 		{
-			if (_popupOverlayMode != null)
+			if (_viewportPanel.OverlayPopup != null)
 			{
-				int wireframeIdx = _popupOverlayMode.GetItemIndex(3);
-				if (wireframeIdx >= 0) _popupOverlayMode.SetItemChecked(wireframeIdx, enabled);
+				int wireframeIdx = _viewportPanel.OverlayPopup.GetItemIndex(3);
+				if (wireframeIdx >= 0) _viewportPanel.OverlayPopup.SetItemChecked(wireframeIdx, enabled);
 			}
 		}
 
@@ -760,9 +760,9 @@ namespace Realm.Client.UI
 
 		public void UpdateShadowsExternal(bool disabled)
 		{
-			if (_chkEnvShadows != null)
+			if (_viewportPanel.ShadowsCheck != null)
 			{
-				_chkEnvShadows.SetPressedNoSignal(!disabled);
+				_viewportPanel.ShadowsCheck.SetPressedNoSignal(!disabled);
 			}
 		}
 
@@ -778,27 +778,27 @@ namespace Realm.Client.UI
 
 		private void OpenEnvironmentPopup()
 		{
-			if (_popupEnvironment == null || GameContext.Host == null || _btnToggleEnvironment == null) return;
+			if (_viewportPanel.EnvironmentPopup == null || GameContext.Host == null || _viewportPanel.EnvironmentToggleButton == null) return;
 
 			UpdateEnvironmentPopupControls();
 
-			var globalRect = _btnToggleEnvironment.GetGlobalRect();
+			var globalRect = _viewportPanel.EnvironmentToggleButton.GetGlobalRect();
 			var popupPos = new Vector2I((int)globalRect.Position.X, (int)(globalRect.Position.Y + globalRect.Size.Y + 2));
-			_popupEnvironment.Position = popupPos;
-			_popupEnvironment.Popup();
+			_viewportPanel.EnvironmentPopup.Position = popupPos;
+			_viewportPanel.EnvironmentPopup.Popup();
 		}
 
 		public void UpdateEnvironmentPopupControls()
 		{
 			if (GameContext.Host == null) return;
 
-			if (_optEnvLighting != null)
+			if (_viewportPanel.LightingOption != null)
 			{
 				int timeIdx = GameContext.Host.TimeOfDayIndex;
-				_optEnvLighting.Select(Mathf.Clamp(timeIdx, 0, 3));
+				_viewportPanel.LightingOption.Select(Mathf.Clamp(timeIdx, 0, 3));
 			}
 
-			if (_optEnvWeather != null && GameContext.EnvironmentService != null)
+			if (_viewportPanel.WeatherOption != null && GameContext.EnvironmentService != null)
 			{
 				string curWeather = GameContext.EnvironmentService.GetCurrentWeather();
 				int weatherIdx = (curWeather?.ToLowerInvariant()) switch
@@ -808,18 +808,18 @@ namespace Realm.Client.UI
 					"fog" => 3,
 					_ => 0
 				};
-				_optEnvWeather.Select(weatherIdx);
+				_viewportPanel.WeatherOption.Select(weatherIdx);
 			}
 
-			if (_chkEnvShadows != null)
+			if (_viewportPanel.ShadowsCheck != null)
 			{
-				_chkEnvShadows.SetPressedNoSignal(!GameContext.EditorService.Tools.DisableShadows);
+				_viewportPanel.ShadowsCheck.SetPressedNoSignal(!GameContext.EditorService.Tools.DisableShadows);
 			}
 		}
 
 		public void UpdateEnvWeatherSelection(string weatherType)
 		{
-			if (_optEnvWeather != null)
+			if (_viewportPanel.WeatherOption != null)
 			{
 				int idx = (weatherType?.ToLowerInvariant()) switch
 				{
@@ -828,7 +828,7 @@ namespace Realm.Client.UI
 					"fog" => 3,
 					_ => 0
 				};
-				_optEnvWeather.Select(idx);
+				_viewportPanel.WeatherOption.Select(idx);
 			}
 		}
 
@@ -1938,16 +1938,16 @@ namespace Realm.Client.UI
 
 		public void UpdatePolarRingSpacingButtonText()
 		{
-			if (_optPolarRingSpacing != null && GameContext.Host != null)
+			if (_viewportPanel.RingSpacingOption != null && GameContext.Host != null)
 			{
 				float current = GameContext.EditorService.Tools.PolarRingSpacing;
-				for (int i = 0; i < _optPolarRingSpacing.ItemCount; i++)
+				for (int i = 0; i < _viewportPanel.RingSpacingOption.ItemCount; i++)
 				{
-					if (Mathf.IsEqualApprox((float)_optPolarRingSpacing.GetItemId(i), current))
+					if (Mathf.IsEqualApprox((float)_viewportPanel.RingSpacingOption.GetItemId(i), current))
 					{
-						if (_optPolarRingSpacing.Selected != i)
+						if (_viewportPanel.RingSpacingOption.Selected != i)
 						{
-							_optPolarRingSpacing.Selected = i;
+							_viewportPanel.RingSpacingOption.Selected = i;
 						}
 
 						break;
@@ -1958,21 +1958,21 @@ namespace Realm.Client.UI
 
 		public void UpdatePolarRadialStepButtonText()
 		{
-			if (_optPolarRadialStep != null && GameContext.Host != null)
+			if (_viewportPanel.RadialStepOption != null && GameContext.Host != null)
 			{
 				int spokes = GameContext.Host.EditorMirrorMode == MirrorMode.Rotational
 					? GameContext.Host.EditorSymmetryFolds
 					: GameContext.EditorService.Tools.PolarSpokeFolds;
 
-				UpdateSpokesDropdownSelection(_optPolarRadialStep, spokes);
+				UpdateSpokesDropdownSelection(_viewportPanel.RadialStepOption, spokes);
 
 				if (GameContext.Host.EditorMirrorMode == MirrorMode.Rotational)
 				{
-					_optPolarRadialStep.TooltipText = TranslationServer.Translate("Spokes are automatically locked to Rotational N-Fold symmetry");
+					_viewportPanel.RadialStepOption.TooltipText = TranslationServer.Translate("Spokes are automatically locked to Rotational N-Fold symmetry");
 				}
 				else
 				{
-					_optPolarRadialStep.TooltipText = TranslationServer.Translate("Select radial spoke count (2, 3, 4, 5, 6, 8, 12, 16)");
+					_viewportPanel.RadialStepOption.TooltipText = TranslationServer.Translate("Select radial spoke count (2, 3, 4, 5, 6, 8, 12, 16)");
 				}
 			}
 		}
@@ -2571,7 +2571,7 @@ namespace Realm.Client.UI
 		public void ResetAllPanelPositions()
 		{
 			ResetSingleCardPosition(_accordionFile);
-			ResetSingleCardPosition(_accordionViewport);
+			ResetSingleCardPosition(_viewportPanel.Accordion);
 			ResetSingleCardPosition(_toolPanel.Accordion);
 			ResetSingleCardPosition(_brushPanel.Accordion);
 			ResetSingleCardPosition(_accordionToolSettings);
@@ -2622,7 +2622,7 @@ namespace Realm.Client.UI
 
 		private void SetupMinimap()
 		{
-			MinimapHelper.SetupMinimapBackground(_minimapArea);
+			MinimapHelper.SetupMinimapBackground(_viewportPanel.MinimapArea);
 		}
 
 		public void RegenerateMinimap()
@@ -3094,7 +3094,7 @@ namespace Realm.Client.UI
 			TweenHudElement(_panelLeft, targetAlpha, duration);
 			TweenHudElement(_panelRight, targetAlpha, duration);
 			TweenHudElement(_topBar, targetAlpha, duration);
-			TweenHudElement(_panelMeasurementHUD, targetAlpha, duration);
+			TweenHudElement(_viewportPanel.MeasurementPanel, targetAlpha, duration);
 			TweenHudElement(_screenFrameRect, targetAlpha, duration);
 
 			foreach (var card in _cardDragMap.Keys)

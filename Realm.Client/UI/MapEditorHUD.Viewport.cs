@@ -69,7 +69,7 @@ namespace Realm.Client.UI
 			UpdatePolarSubControlsVisibility(gridMode);
 			if (isRotational)
 			{
-				ExpandAccordion(_btnHeaderViewport, _contentViewport, "Viewport & Navigation");
+				ExpandAccordion(_viewportPanel.Header, _viewportPanel.Content, "Viewport & Navigation");
 			}
 		}
 	}

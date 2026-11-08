@@ -195,13 +195,13 @@ namespace Realm.Client.UI
 		{
 			TriggerToolSelection(EditorTool.Raise, _toolPanel.RaiseButton);
 
-			_feedbackLabel.Modulate = new Color(1, 1, 1, 0);
+			_topToolbar.FeedbackLabel.Modulate = new Color(1, 1, 1, 0);
 			Input.MouseMode = Input.MouseModeEnum.Visible;
 
 
 			_entityPaletteController = new MapEditorEntityPaletteController(this, _containerCategorySelector, _toolPanel.AddObjectButton);
 
-			_topBarController = new MapEditorTopBar(_topToolbar.BackToHubButton, _filePanel.PublishButton, _filePanel.SaveButton, _filePanel.LoadButton, _topToolbar.UndoButton, _topToolbar.RedoButton, _topToolbar.EditorsButton, _statusLabel, _feedbackLabel);
+			_topBarController = new MapEditorTopBar(_topToolbar.BackToHubButton, _filePanel.PublishButton, _filePanel.SaveButton, _filePanel.LoadButton, _topToolbar.UndoButton, _topToolbar.RedoButton, _topToolbar.EditorsButton, _topToolbar.StatusLabel, _topToolbar.FeedbackLabel);
 			_brushSettingsController = new MapEditorBrushSettings(_brushPanel.SizeSlider, _brushPanel.SizeValue, _brushPanel.StrengthSlider, _brushPanel.StrengthValue, _brushPanel.BlockModeCheck, _brushPanel.StepSlider, _brushPanel.StepValue, _brushPanel.HeightSlider, _brushPanel.HeightValue);
 			_placementSettingsController = new MapEditorPlacementSettings(_placementPanel.RotateSlider, _placementPanel.RotateValue, _placementPanel.ScaleSlider, _placementPanel.ScaleValue, _placementPanel.RandomRotationCheck, _placementPanel.RandomScaleCheck, _placementPanel.ClumpModeCheck, _placementPanel.DensitySlider, _placementPanel.DensityValue, _placementPanel.ScaleVarSlider, _placementPanel.ScaleVarValue);
 			InitializeInspectorPanel();
@@ -210,11 +210,11 @@ namespace Realm.Client.UI
 
 			SetupMinimap();
 
-			_minimapController = new MapEditorMinimap(_minimapFrame, _minimapArea, _cameraIndicator, this);
+			_minimapController = new MapEditorMinimap(_viewportPanel.MinimapFrame, _viewportPanel.MinimapArea, _viewportPanel.CameraIndicator, this);
 			RegenerateMinimap();
 
 			MakeCardDraggable(_accordionFile, _filePanel.Header, _filePanel.Content, "File");
-			MakeCardDraggable(_accordionViewport, _btnHeaderViewport, _contentViewport, "Viewport & Navigation");
+			MakeCardDraggable(_viewportPanel.Accordion, _viewportPanel.Header, _viewportPanel.Content, "Viewport & Navigation");
 			MakeCardDraggable(_toolPanel.Accordion, _toolPanel.Header, _toolPanel.Content, "Tool");
 			MakeCardDraggable(_brushPanel.Accordion, _brushPanel.Header, _brushPanel.Content, "Global Brush Properties");
 			MakeCardDraggable(_accordionToolSettings, _btnHeaderToolSettings, _contentToolSettings, "Tool Settings");
@@ -338,29 +338,9 @@ namespace Realm.Client.UI
 
 		private void BuildWindowChrome()
 		{
-			_statusLabel = GetNode<Label>("BottomCenterBar/TopBar/HBox/StatusLabel");
-			_feedbackLabel = GetNode<Label>("FeedbackLabel");
-			_feedbackLabel.Modulate = new Color(1, 1, 1, 0);
-			_feedbackLabel.MouseFilter = MouseFilterEnum.Ignore;
-
-			var leftScroll = GetNodeOrNull<ScrollContainer>("LeftSlidePanel/LeftScroll");
-			if (leftScroll != null)
-			{
-				leftScroll.MouseFilter = MouseFilterEnum.Ignore;
-				leftScroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
-				leftScroll.VerticalScrollMode = ScrollContainer.ScrollMode.Disabled;
-			}
-
-			var rightScroll = GetNodeOrNull<ScrollContainer>("RightSlidePanel/RightScroll");
-			if (rightScroll != null)
-			{
-				rightScroll.MouseFilter = MouseFilterEnum.Ignore;
-				rightScroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
-				rightScroll.VerticalScrollMode = ScrollContainer.ScrollMode.Disabled;
-			}
+			// Window-level readouts belong with the toolbar row, which already feeds the same top-bar controller.
+			_topToolbar.BuildWindowChrome();
 		}
-
-
 
 
 		private void BuildFileOperationsPanel()
@@ -392,21 +372,19 @@ namespace Realm.Client.UI
 
 		private void BuildViewportNavigationPanel()
 		{
-			_accordionViewport = GetNode<VBoxContainer>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion");
-			_btnHeaderViewport = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/BtnHeaderViewport");
-			_contentViewport = GetNode<VBoxContainer>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport");
-			StyleAccordionHeader(_btnHeaderViewport);
-			SetupAccordion(_btnHeaderViewport, _contentViewport, TranslationServer.Translate("Viewport & Navigation"));
-
-			InitializeEditingDirectory();
-
-
-			BuildOverlayModePopup();
-
-			_btnToggleGrid = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/BoxViewportToolbar/ViewportIconRow1/BtnToggleGrid");
-			SetupButton(_btnToggleGrid, UnicodeIcons.BORDER_ALL, () => OpenOverlayModePopup(), 12, "Overlay");
-
-			BuildEnvironmentPopup();
+			_viewportPanel = new ViewportPanel();
+			// The panel builds the accordion, both toolbar popups, the minimap references, the measurement readout and
+			// the polar controls; the camera popup, its initial state and the map-settings dialog follow here because
+			// they are editor state rather than viewport nodes.
+			_viewportPanel.Build(new ViewportPanelHooks(
+				this, StyleAccordionHeader, SetupAccordion, SetupButton, SetupOptionButton, StylePopupMenu,
+				OpenOverlayModePopup, OpenEnvironmentPopup, SetupEnvLightingDropdown, SetupEnvWeatherDropdown,
+				SetEnvironmentLighting, SetEnvironmentWeather, UpdateGridOverlayExternal,
+				UpdateCameraBoundsOverlayExternal, UpdateWireframeOverlayExternal, ShowFeedback, ToggleMeasureTool,
+				InitializeEditingDirectory,
+				opt => SetupPolarRingSpacingDropdown(opt, "Select interval between concentric polar distance rings (4, 8, 16, 32 tiles)"),
+				opt => SetupSpokesDropdown(opt, SetPolarSpokesView, "Select radial spoke count (2, 3, 4, 5, 6, 8, 12, 16)"),
+				ResetPivotToMapCenterView));
 
 			BuildCameraPopup();
 
@@ -414,17 +392,7 @@ namespace Realm.Client.UI
 			UpdateFreeCameraExternal(initialCam != null && initialCam.IsFreeCamera);
 			UpdateShadowsExternal(GameContext.Host != null && GameContext.EditorService.Tools.DisableShadows);
 
-			_minimapFrame = GetNode<PanelContainer>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/MinimapFrame");
-			_minimapArea = GetNode<Control>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/MinimapFrame/MinimapArea");
-			_cameraIndicator = GetNode<MapEditorCameraIndicator>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/MinimapFrame/MinimapArea/CameraIndicator");
-
 			_mapSettingsDialog = new MapSettingsDialog(this);
-
-			BuildMeasurementAndPolarControls();
-
-			var bottomBar = GetNode<HBoxContainer>("BottomCenterBar");
-			bottomBar.Alignment = BoxContainer.AlignmentMode.Center;
-			bottomBar.MouseFilter = MouseFilterEnum.Ignore;
 
 			if (_topBar != null)
 			{
@@ -432,196 +400,28 @@ namespace Realm.Client.UI
 				_topBar.SizeFlagsVertical = SizeFlags.ShrinkCenter;
 				_topBar.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
 			}
+		}
 
-			_panelMeasurementHUD = new PanelContainer();
-			_panelMeasurementHUD.Name = "MeasurementHUD";
-			_panelMeasurementHUD.CustomMinimumSize = new Vector2(0, 44);
-			_panelMeasurementHUD.SizeFlagsVertical = SizeFlags.ShrinkCenter;
-			_panelMeasurementHUD.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
-			_panelMeasurementHUD.MouseFilter = MouseFilterEnum.Ignore;
-			_panelMeasurementHUD.Visible = false;
 
-			var measureHBox = new HBoxContainer();
-			measureHBox.Name = "MeasureHBox";
-			measureHBox.Alignment = BoxContainer.AlignmentMode.Center;
-			measureHBox.AddThemeConstantOverride("separation", 8);
-			measureHBox.MouseFilter = MouseFilterEnum.Ignore;
+		/// <summary>
+		/// The tape measure button toggles: pressing it while the tool is active clears the measurement and returns to
+		/// the tool the user had before, otherwise it activates the tape measure.
+		/// </summary>
+		private void ToggleMeasureTool(Button measureButton)
+		{
+			if (GameContext.Host == null) return;
 
-			_lblMeasureTelemetry = new Label();
-			_lblMeasureTelemetry.Name = "LblMeasureTelemetry";
-			_lblMeasureTelemetry.HorizontalAlignment = HorizontalAlignment.Left;
-			_lblMeasureTelemetry.VerticalAlignment = VerticalAlignment.Center;
-			_lblMeasureTelemetry.AddThemeFontSizeOverride("font_size", 13);
-			_lblMeasureTelemetry.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-			var fontStatus = GetFontAwesomeFont();
-			if (fontStatus != null)
+			if (GameContext.Host.ActiveEditorTool == EditorTool.Measure)
 			{
-				_lblMeasureTelemetry.AddThemeFontOverride("font", fontStatus);
+				GameContext.Host.ClearMeasureVisuals();
+				ClearMeasureTelemetry();
+				TriggerToolSelection(GameContext.SessionState.SavedActiveTool != EditorTool.Measure ? GameContext.SessionState.SavedActiveTool : EditorTool.Raise, null);
 			}
-
-			measureHBox.AddChild(_lblMeasureTelemetry);
-			_panelMeasurementHUD.AddChild(measureHBox);
-
-			bottomBar.AddChild(_panelMeasurementHUD);
+			else
+			{
+				TriggerToolSelection(EditorTool.Measure, measureButton);
+			}
 		}
-
-
-		private void BuildOverlayModePopup()
-		{
-			_popupOverlayMode = new PopupMenu();
-			_popupOverlayMode.Name = "PopupOverlayMode";
-			_popupOverlayMode.HideOnCheckableItemSelection = false;
-			_popupOverlayMode.AddCheckItem(TranslationServer.Translate("Grid") + " (V)", 0);
-			_popupOverlayMode.AddCheckItem(TranslationServer.Translate("Polar") + " (V)", 1);
-			_popupOverlayMode.AddCheckItem(TranslationServer.Translate("Camera Bounds"), 2);
-			_popupOverlayMode.AddCheckItem(TranslationServer.Translate("Wireframe") + " (F7)", 3);
-			StylePopupMenu(_popupOverlayMode);
-			_popupOverlayMode.IdPressed += (long id) =>
-			{
-				_popupOverlayMode.Hide();
-				if (GameContext.Host == null) return;
-				int idx = _popupOverlayMode.GetItemIndex((int)id);
-				if (idx < 0) return;
-				bool newChecked = !_popupOverlayMode.IsItemChecked(idx);
-				_popupOverlayMode.SetItemChecked(idx, newChecked);
-
-				if (id == 0 || id == 1)
-				{
-					int gridIdx = _popupOverlayMode.GetItemIndex(0);
-					int polarIdx = _popupOverlayMode.GetItemIndex(1);
-					bool gridOn = gridIdx >= 0 && _popupOverlayMode.IsItemChecked(gridIdx);
-					bool polarOn = polarIdx >= 0 && _popupOverlayMode.IsItemChecked(polarIdx);
-
-					var newMode = (gridOn, polarOn) switch
-					{
-						(true, true) => GridOverlayMode.Both,
-						(true, false) => GridOverlayMode.Grid,
-						(false, true) => GridOverlayMode.Polar,
-						(false, false) => GridOverlayMode.Off
-					};
-
-					GameContext.EditorService.Tools.GridMode = newMode;
-					GameContext.Host.UpdateGridOverlayVisibility();
-					UpdateGridOverlayExternal(newMode);
-					string modeName = newMode switch
-					{
-						GridOverlayMode.Off => "OFF",
-						GridOverlayMode.Grid => "GRID",
-						GridOverlayMode.Polar => "POLAR",
-						GridOverlayMode.Both => "GRID + POLAR",
-						_ => "OFF"
-					};
-					ShowFeedback($"Overlay Mode: {modeName}");
-				}
-				else if (id == 2)
-				{
-					GameContext.EditorService.Tools.CameraBoundsVisible = newChecked;
-					GameContext.Host.UpdateCameraBoundsOverlayVisibility();
-					UpdateCameraBoundsOverlayExternal(newChecked);
-					ShowFeedback(newChecked
-						? TranslationServer.Translate("Camera Bounds: ON")
-						: TranslationServer.Translate("Camera Bounds: OFF"));
-				}
-				else if (id == 3)
-				{
-					if (GameContext.Host.GroundTerrain != null)
-					{
-						GameContext.Host.GroundTerrain.ToggleWireframeMode();
-						bool isWireframe = GetViewport()?.DebugDraw == Viewport.DebugDrawEnum.Wireframe;
-						UpdateWireframeOverlayExternal(isWireframe);
-						ShowFeedback(isWireframe
-							? TranslationServer.Translate("Wireframe Mode: ON")
-							: TranslationServer.Translate("Wireframe Mode: OFF"));
-					}
-				}
-			};
-			AddChild(_popupOverlayMode);
-		}
-
-
-
-		private void BuildEnvironmentPopup()
-		{
-			_popupEnvironment = new PopupPanel();
-			_popupEnvironment.Name = "PopupEnvironment";
-
-			var envPopupStyle = new StyleBoxFlat();
-			envPopupStyle.BgColor = new Color(0.14f, 0.13f, 0.11f, 0.98f);
-			envPopupStyle.BorderColor = UIStyle.ColorGold;
-			envPopupStyle.SetBorderWidthAll(1);
-			envPopupStyle.SetCornerRadiusAll(4);
-			envPopupStyle.ContentMarginLeft = 10;
-			envPopupStyle.ContentMarginRight = 10;
-			envPopupStyle.ContentMarginTop = 10;
-			envPopupStyle.ContentMarginBottom = 10;
-			_popupEnvironment.AddThemeStyleboxOverride("panel", envPopupStyle);
-
-			var envVBox = new VBoxContainer();
-			envVBox.Name = "EnvVBox";
-			envVBox.AddThemeConstantOverride("separation", 6);
-			envVBox.CustomMinimumSize = new Vector2(170, 0);
-
-			_optEnvLighting = new OptionButton();
-			_optEnvLighting.Name = "OptEnvLighting";
-			_optEnvLighting.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-			_optEnvLighting.CustomMinimumSize = new Vector2(0, 24);
-			_optEnvLighting.ClipText = true;
-			SetupEnvLightingDropdown(_optEnvLighting);
-			_optEnvLighting.ItemSelected += (idx) =>
-			{
-				SetEnvironmentLighting((int)idx);
-				_popupEnvironment.Hide();
-			};
-			envVBox.AddChild(_optEnvLighting);
-
-			_optEnvWeather = new OptionButton();
-			_optEnvWeather.Name = "OptEnvWeather";
-			_optEnvWeather.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-			_optEnvWeather.CustomMinimumSize = new Vector2(0, 24);
-			_optEnvWeather.ClipText = true;
-			SetupEnvWeatherDropdown(_optEnvWeather);
-			_optEnvWeather.ItemSelected += (idx) =>
-			{
-				SetEnvironmentWeather((int)idx);
-				_popupEnvironment.Hide();
-			};
-			envVBox.AddChild(_optEnvWeather);
-
-			_chkEnvShadows = new CheckBox();
-			_chkEnvShadows.Name = "ChkEnvShadows";
-			_chkEnvShadows.Text = TranslationServer.Translate("Shadows");
-			_chkEnvShadows.TooltipText = TranslationServer.Translate("Toggle shadows in editor (F9)");
-			_chkEnvShadows.ButtonPressed = true;
-			_chkEnvShadows.FocusMode = FocusModeEnum.None;
-			_chkEnvShadows.AddThemeFontSizeOverride("font_size", 11);
-			UIStyle.ApplyCheckboxStyle(_chkEnvShadows);
-			_chkEnvShadows.Toggled += (pressed) =>
-			{
-				if (GameContext.Host != null)
-				{
-					bool disableShadows = !pressed;
-					if (GameContext.EditorService.Tools.DisableShadows != disableShadows)
-					{
-						GameContext.EditorService.Tools.DisableShadows = disableShadows;
-						GameContext.Host.UpdateEditorShadows();
-						ShowFeedback(disableShadows
-							? TranslationServer.Translate("Shadows: OFF")
-							: TranslationServer.Translate("Shadows: ON"));
-					}
-				}
-				_popupEnvironment.Hide();
-			};
-			envVBox.AddChild(_chkEnvShadows);
-
-			_popupEnvironment.AddChild(envVBox);
-			AddChild(_popupEnvironment);
-
-			_btnToggleEnvironment = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/BoxViewportToolbar/ViewportIconRow1/BtnToggleEnvironment");
-			_btnToggleEnvironment.Name = "BtnToggleEnvironment";
-			_btnToggleEnvironment.Set("icon_max_width", 0);
-			SetupButton(_btnToggleEnvironment, UnicodeIcons.SUN, () => OpenEnvironmentPopup(), 12, "Environment");
-		}
-
 
 
 		private void BuildCameraPopup()
@@ -629,41 +429,6 @@ namespace Realm.Client.UI
 			_cameraPanel = new CameraControlsPanel();
 			_cameraPanel.Build(new CameraControlsHooks(
 				this, StylePopupButton, SetupButton, OpenCameraPopup, UpdateCameraAngleButtonText, ToggleFreeCamera));
-		}
-
-
-		private void BuildMeasurementAndPolarControls()
-		{
-			_btnTapeMeasure = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/BoxViewportToolbar/ViewportIconRow1/BtnTapeMeasure");
-			_btnTapeMeasure.Set("icon_max_width", 0);
-			SetupButton(_btnTapeMeasure, UnicodeIcons.RULER, () =>
-			{
-				if (GameContext.Host != null)
-				{
-					if (GameContext.Host.ActiveEditorTool == EditorTool.Measure)
-					{
-						GameContext.Host.ClearMeasureVisuals();
-						ClearMeasureTelemetry();
-						TriggerToolSelection(GameContext.SessionState.SavedActiveTool != EditorTool.Measure ? GameContext.SessionState.SavedActiveTool : EditorTool.Raise, null);
-					}
-					else
-					{
-						TriggerToolSelection(EditorTool.Measure, _btnTapeMeasure);
-					}
-				}
-			}, 12, "Tape Measure Tool: Click Point A, then Point B to measure distance & slope (U)");
-
-			_optPolarRingSpacing = GetNode<OptionButton>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/RowPolarConfig/OptPolarRingSpacing");
-			_optPolarRingSpacing.Set("icon_max_width", 0);
-			SetupPolarRingSpacingDropdown(_optPolarRingSpacing, "Select interval between concentric polar distance rings (4, 8, 16, 32 tiles)");
-
-			_optPolarRadialStep = GetNode<OptionButton>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/RowPolarConfig/OptPolarRadialStep");
-			_optPolarRadialStep.Set("icon_max_width", 0);
-			SetupSpokesDropdown(_optPolarRadialStep, (spokes) => SetPolarSpokesView(spokes), "Select radial spoke count (2, 3, 4, 5, 6, 8, 12, 16)");
-
-			_btnResetPivotToCenter = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/RowPolarConfig/BtnResetPivotToCenter");
-			_btnResetPivotToCenter.Set("icon_max_width", 0);
-			SetupOptionButton(_btnResetPivotToCenter, $"{UnicodeIcons.CROSSHAIRS} RESET PIVOT", () => ResetPivotToMapCenterView(), 10, "Reset symmetry and polar overlay center pivot to true map center");
 		}
 
 
@@ -1191,11 +956,11 @@ namespace Realm.Client.UI
 
 		public void UpdateMeasureToolExternal(bool active)
 		{
-			if (_btnTapeMeasure != null)
+			if (_viewportPanel.MeasureButton != null)
 			{
-				_btnTapeMeasure.Text = UnicodeIcons.RULER;
-				_btnTapeMeasure.TooltipText = TranslationServer.Translate($"Tape Measure Tool: {(active ? "ACTIVE" : "INACTIVE")} (U)");
-				_btnTapeMeasure.Modulate = active ? new Color(1.3f, 1.15f, 0.7f) : new Color(1f, 1f, 1f);
+				_viewportPanel.MeasureButton.Text = UnicodeIcons.RULER;
+				_viewportPanel.MeasureButton.TooltipText = TranslationServer.Translate($"Tape Measure Tool: {(active ? "ACTIVE" : "INACTIVE")} (U)");
+				_viewportPanel.MeasureButton.Modulate = active ? new Color(1.3f, 1.15f, 0.7f) : new Color(1f, 1f, 1f);
 			}
 		}
 
@@ -1211,10 +976,10 @@ namespace Realm.Client.UI
 
 		public void UpdateEnvLightingSelection(int timeOfDayIndex)
 		{
-			if (_optEnvLighting != null)
+			if (_viewportPanel.LightingOption != null)
 			{
 				int idx = Mathf.Clamp(timeOfDayIndex, 0, 3);
-				_optEnvLighting.Select(idx);
+				_viewportPanel.LightingOption.Select(idx);
 			}
 		}
 
@@ -1573,7 +1338,7 @@ namespace Realm.Client.UI
 				case EditorTool.DeleteObject: targetBtn = _toolPanel.DeleteObjectButton; break;
 				case EditorTool.SelectMove: targetBtn = _toolPanel.SelectMoveButton; break;
 				case EditorTool.Eyedropper: targetBtn = _topToolbar.EyedropperButton; break;
-				case EditorTool.Measure: targetBtn = _btnTapeMeasure; break;
+				case EditorTool.Measure: targetBtn = _viewportPanel.MeasureButton; break;
 			}
 
 			if (targetBtn != null)
@@ -2321,7 +2086,7 @@ namespace Realm.Client.UI
 			UpdatePolarRadialStepButtonText();
 			if (mode == MirrorMode.Rotational)
 			{
-				ExpandAccordion(_btnHeaderViewport, _contentViewport, "Viewport & Navigation");
+				ExpandAccordion(_viewportPanel.Header, _viewportPanel.Content, "Viewport & Navigation");
 			}
 
 			string modeName = mode == MirrorMode.Both ? "QUAD" : mode.ToString().ToUpperInvariant();
@@ -2751,7 +2516,7 @@ namespace Realm.Client.UI
 		{
 			Control[] allOptionContents = new Control[]
 			{
-				_filePanel.Content, _contentViewport, _toolPanel.Content,
+				_filePanel.Content, _viewportPanel.Content, _toolPanel.Content,
 				_brushPanel.Content, _contentToolSettings, _placementPanel.Content, _contentInspector, _contentLightingTuning
 			};
 			foreach (var content in allOptionContents)
@@ -2848,37 +2613,37 @@ namespace Realm.Client.UI
 
 		private void StyleViewportNavigationBar()
 		{
-			var targetViewport = GetContentTarget(_contentViewport);
+			var targetViewport = GetContentTarget(_viewportPanel.Content);
 			if (targetViewport != null)
 			{
-				StyleIconButton(_btnToggleGrid, UnicodeIcons.BORDER_ALL, "Overlay");
-				StyleIconButton(_btnToggleEnvironment, UnicodeIcons.SUN, "Environment");
+				StyleIconButton(_viewportPanel.GridToggleButton, UnicodeIcons.BORDER_ALL, "Overlay");
+				StyleIconButton(_viewportPanel.EnvironmentToggleButton, UnicodeIcons.SUN, "Environment");
 				StyleIconButton(_cameraPanel.ToggleButton, UnicodeIcons.CAMERA, "Configure camera controls (R / C / + / - / F8)");
-				StyleIconButton(_btnTapeMeasure, UnicodeIcons.RULER, "Tape measure distance & slope tool (U)");
+				StyleIconButton(_viewportPanel.MeasureButton, UnicodeIcons.RULER, "Tape measure distance & slope tool (U)");
 
 				StyleSubContainer(targetViewport.GetNodeOrNull<Control>("BoxViewportToolbar"), "Navigation Bar");
 
 				_rowPolarConfig = targetViewport.GetNodeOrNull<HBoxContainer>("RowPolarConfig");
 
-				if (_optPolarRingSpacing != null)
+				if (_viewportPanel.RingSpacingOption != null)
 				{
-					_optPolarRingSpacing.CustomMinimumSize = new Vector2(0, 26);
-					_optPolarRingSpacing.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-					_optPolarRingSpacing.AddThemeFontSizeOverride("font_size", 9);
+					_viewportPanel.RingSpacingOption.CustomMinimumSize = new Vector2(0, 26);
+					_viewportPanel.RingSpacingOption.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+					_viewportPanel.RingSpacingOption.AddThemeFontSizeOverride("font_size", 9);
 				}
 
-				if (_optPolarRadialStep != null)
+				if (_viewportPanel.RadialStepOption != null)
 				{
-					_optPolarRadialStep.CustomMinimumSize = new Vector2(0, 26);
-					_optPolarRadialStep.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-					_optPolarRadialStep.AddThemeFontSizeOverride("font_size", 9);
+					_viewportPanel.RadialStepOption.CustomMinimumSize = new Vector2(0, 26);
+					_viewportPanel.RadialStepOption.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+					_viewportPanel.RadialStepOption.AddThemeFontSizeOverride("font_size", 9);
 				}
 
-				if (_btnResetPivotToCenter != null)
+				if (_viewportPanel.ResetPivotButton != null)
 				{
-					_btnResetPivotToCenter.CustomMinimumSize = new Vector2(0, 26);
-					_btnResetPivotToCenter.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-					_btnResetPivotToCenter.AddThemeFontSizeOverride("font_size", 9);
+					_viewportPanel.ResetPivotButton.CustomMinimumSize = new Vector2(0, 26);
+					_viewportPanel.ResetPivotButton.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+					_viewportPanel.ResetPivotButton.AddThemeFontSizeOverride("font_size", 9);
 				}
 
 				bool isSymmetryActive = GameContext.Host != null &&

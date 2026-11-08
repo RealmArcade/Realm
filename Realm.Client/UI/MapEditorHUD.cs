@@ -75,9 +75,6 @@ public partial class MapEditorHUD : Control
 	private VBoxContainer _contentToolSettings { get; set; } = null!;
 
 
-	private VBoxContainer _accordionViewport { get; set; } = null!;
-	private Button _btnHeaderViewport { get; set; } = null!;
-	private VBoxContainer _contentViewport { get; set; } = null!;
 
 
 	private Dictionary<Control, CardDragData> _cardDragMap { get; set; } = new();
@@ -97,14 +94,8 @@ public partial class MapEditorHUD : Control
 	private VBoxContainer _containerCategorySelector { get; set; } = null!;
 
 
-	private OptionButton _optPolarRingSpacing { get; set; } = null!;
-	private OptionButton _optPolarRadialStep { get; set; } = null!;
-	private Button _btnTapeMeasure { get; set; } = null!;
-	private Button _btnResetPivotToCenter { get; set; } = null!;
 	private HBoxContainer _rowPolarConfig { get; set; } = null!;
 
-	private PanelContainer _panelMeasurementHUD { get; set; } = null!;
-	private Label _lblMeasureTelemetry { get; set; } = null!;
 	private ThrottledLabelWidth _measureLabelWidth { get; set; } = new();
 
 
@@ -126,8 +117,6 @@ public partial class MapEditorHUD : Control
 	private Dictionary<Control, Control.MouseFilterEnum> _savedMouseFilters { get; set; } = new();
 
 
-	private Label _statusLabel { get; set; } = null!;
-	private Label _feedbackLabel { get; set; } = null!;
 
 	private Button _btnCenter { get; set; } = null!;
 
@@ -173,17 +162,7 @@ public partial class MapEditorHUD : Control
 
 	private VBoxContainer _placementRotateBox { get; set; } = null!;
 	private VBoxContainer _placementScaleBox { get; set; } = null!;
-	private Button _btnToggleGrid { get; set; } = null!;
-	private PopupMenu _popupOverlayMode { get; set; } = null!;
-	private Button _btnToggleEnvironment { get; set; } = null!;
-	private PopupPanel _popupEnvironment { get; set; } = null!;
-	private OptionButton _optEnvLighting { get; set; } = null!;
-	private OptionButton _optEnvWeather { get; set; } = null!;
-	private CheckBox _chkEnvShadows { get; set; } = null!;
 	private OptionButton _optEyedropperMode { get; set; } = null!;
-	private PanelContainer _minimapFrame { get; set; } = null!;
-	private Control _minimapArea { get; set; } = null!;
-	private MapEditorCameraIndicator _cameraIndicator { get; set; } = null!;
 
 
 
@@ -244,6 +223,7 @@ public partial class MapEditorHUD : Control
 	private TopToolbarPanel _topToolbar { get; set; } = null!;
 	private FileOperationsPanel _filePanel { get; set; } = null!;
 	private CameraControlsPanel _cameraPanel { get; set; } = null!;
+	private ViewportPanel _viewportPanel { get; set; } = null!;
 	private BrushSettingsPanel _brushPanel { get; set; } = null!;
 	private WaterSettingsPanel _waterPanel { get; set; } = null!;
 	private PasteSettingsPanel _pastePanel { get; set; } = null!;
@@ -809,7 +789,7 @@ public partial class MapEditorHUD : Control
 
 	private void UpdatePanelVisibilityForToolPathing(EditorTool tool)
 	{
-		if (tool == EditorTool.DrawCoordinate && _toolPanel?.CommitCoordinateButton != null)
+		if (tool == EditorTool.DrawCoordinate && _toolPanel.CommitCoordinateButton != null)
 		{
 			_toolPanel.CommitCoordinateButton.Visible = false;
 		}
@@ -856,12 +836,12 @@ public partial class MapEditorHUD : Control
 
 	private void UpdateActiveToolLabel(EditorTool tool, string shortPlaceName)
 	{
-		if (_statusLabel == null) return;
+		if (_topToolbar.StatusLabel == null) return;
 
 		string toolName = Realm.Client.Services.EditorToolLabels.GetLocalizedToolName(tool);
 		if (!string.IsNullOrEmpty(shortPlaceName)) toolName += $" ({shortPlaceName})";
 
-		_statusLabel.Text = string.Format(TranslationServer.Translate("ACTIVE TOOL: {0}"), toolName);
+		_topToolbar.StatusLabel.Text = string.Format(TranslationServer.Translate("ACTIVE TOOL: {0}"), toolName);
 	}
 
 	private void UpdateToolInfoText(EditorTool tool, string shortPlaceName)
@@ -921,11 +901,10 @@ public partial class MapEditorHUD : Control
 	private void SetAccordionVisibilities(EditorModule module)
 	{
 		_accordionFile ??= GetNodeOrNull<VBoxContainer>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion");
-		_accordionViewport ??= GetNodeOrNull<VBoxContainer>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion");
 
 		if (_accordionFile != null) _accordionFile.Visible = true;
-		if (_accordionViewport != null) _accordionViewport.Visible = true;
-		if (_toolPanel?.Accordion != null) _toolPanel.Accordion.Visible = true;
+		if (_viewportPanel.Accordion != null) _viewportPanel.Accordion.Visible = true;
+		if (_toolPanel.Accordion != null) _toolPanel.Accordion.Visible = true;
 
 		if (_brushPanel?.Accordion != null) _brushPanel.Accordion.Visible = IsBrushAccordionVisible(module);
 		if (_accordionToolSettings != null) _accordionToolSettings.Visible = IsToolSettingsAccordionVisible(module);
@@ -935,12 +914,12 @@ public partial class MapEditorHUD : Control
 
 	private void SetModuleVBoxVisibilities(EditorModule module)
 	{
-		if (_toolPanel?.TerrainPanel != null) _toolPanel.TerrainPanel.Visible = (module == EditorModule.Terrain);
-		if (_toolPanel?.DecoPanel != null) _toolPanel.DecoPanel.Visible = (module == EditorModule.TextureDeco);
-		if (_toolPanel?.PathingPanel != null) _toolPanel.PathingPanel.Visible = (module == EditorModule.Pathing);
-		if (_toolPanel?.CoordinatesPanel != null) _toolPanel.CoordinatesPanel.Visible = (module == EditorModule.Coordinates);
-		if (_toolPanel?.ObjectsPanel != null) _toolPanel.ObjectsPanel.Visible = (module == EditorModule.Objects);
-		if (_toolPanel?.ClipboardPanel != null) _toolPanel.ClipboardPanel.Visible = (module == EditorModule.Clipboard);
+		if (_toolPanel.TerrainPanel != null) _toolPanel.TerrainPanel.Visible = (module == EditorModule.Terrain);
+		if (_toolPanel.DecoPanel != null) _toolPanel.DecoPanel.Visible = (module == EditorModule.TextureDeco);
+		if (_toolPanel.PathingPanel != null) _toolPanel.PathingPanel.Visible = (module == EditorModule.Pathing);
+		if (_toolPanel.CoordinatesPanel != null) _toolPanel.CoordinatesPanel.Visible = (module == EditorModule.Coordinates);
+		if (_toolPanel.ObjectsPanel != null) _toolPanel.ObjectsPanel.Visible = (module == EditorModule.Objects);
+		if (_toolPanel.ClipboardPanel != null) _toolPanel.ClipboardPanel.Visible = (module == EditorModule.Clipboard);
 	}
 
 	private void SetSettingsVisibilities(EditorModule module)
@@ -976,7 +955,7 @@ public partial class MapEditorHUD : Control
 	private void RefreshCardScrollStates()
 	{
 		UpdateCardScrollState(_filePanel.Content, 300f);
-		UpdateCardScrollState(_contentViewport, 0f, false);
+		UpdateCardScrollState(_viewportPanel.Content, 0f, false);
 		UpdateCardScrollState(_toolPanel.Content, 320f);
 		UpdateCardScrollState(_brushPanel.Content, 300f);
 		UpdateCardScrollState(_contentToolSettings, 320f);
@@ -1053,8 +1032,8 @@ public partial class MapEditorHUD : Control
 	private bool IsPanelPopupVisible()
 	{
 		return AnyWindowVisible(
-			_popupOverlayMode,
-			_popupEnvironment,
+			_viewportPanel.OverlayPopup,
+			_viewportPanel.EnvironmentPopup,
 			_cameraPanel.Popup,
 			_topToolbar.EditorsPopup,
 			_filePanel.SaveMorePopup,
@@ -1085,10 +1064,10 @@ public partial class MapEditorHUD : Control
 	{
 		return AnyOptionButtonPopupVisible(
 			_placementPanel.MirrorOption,
-			_optPolarRingSpacing,
-			_optPolarRadialStep,
-			_optEnvLighting,
-			_optEnvWeather
+			_viewportPanel.RingSpacingOption,
+			_viewportPanel.RadialStepOption,
+			_viewportPanel.LightingOption,
+			_viewportPanel.WeatherOption
 		);
 	}
 
@@ -1120,7 +1099,7 @@ public partial class MapEditorHUD : Control
 	{
 		Control[] optionContents = new Control[]
 		{
-			_filePanel.Content, _contentViewport, _toolPanel.Content,
+			_filePanel.Content, _viewportPanel.Content, _toolPanel.Content,
 			_brushPanel.Content, _contentToolSettings, _placementPanel.Content, _contentInspector, _contentLightingTuning
 		};
 		foreach (var content in optionContents)
