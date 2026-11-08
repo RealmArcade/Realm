@@ -21,7 +21,7 @@ namespace Realm.Client.ReplaySystem
 {
 	public class ReplayPlaybackManager
 	{
-		public ReplayHeader Header { get; private set; }
+		public ReplayHeader Header { get; private set; } = null!;
 		public bool IsPlayingReplay { get; set; } = false;
 		public bool IsPlaying { get; set; } = false;
 		public int CurrentTick { get; set; } = 0;
@@ -29,7 +29,7 @@ namespace Realm.Client.ReplaySystem
 		public float PlaybackSpeed { get; set; } = 1.0f;
 		public int SpectatorPerspective { get; set; } = -1;
 
-		private ReplayFrame[] _frames;
+		private ReplayFrame[] _frames = null!;
 		private float _timer = 0.0f;
 		private const float TickInterval = 1.0f / 30.0f;
 

@@ -146,7 +146,7 @@ public partial class LobbyManager : BaseMapTransferNode
 	public bool IsGameStarted { get; set; }
 	public DateTime? GameSessionStartTime { get; private set; }
 	public int MatchSeed { get; private set; }
-	public string ActiveMapName { get; set; }
+	public string ActiveMapName { get; set; } = null!;
 	public string ActiveMapVersion { get; set; } = "1.0.0";
 	public bool SpectatorDelay { get; set; } = false;
 	public string? LobbyJoinError { get; set; }

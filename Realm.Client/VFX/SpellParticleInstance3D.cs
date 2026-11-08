@@ -8,10 +8,10 @@ namespace Realm.Client.VFX;
 [GlobalClass]
 public partial class SpellParticleInstance3D : Node3D
 {
-	private GpuParticles3D _particles;
-	private ParticleProcessMaterial _processMaterial;
-	private StandardMaterial3D _billboardMaterial;
-	private QuadMesh _quadMesh;
+	private GpuParticles3D _particles = null!;
+	private ParticleProcessMaterial _processMaterial = null!;
+	private StandardMaterial3D _billboardMaterial = null!;
+	private QuadMesh _quadMesh = null!;
 	private SpellParticleConfig _config = new();
 	private Color _playerColor = Colors.White;
 

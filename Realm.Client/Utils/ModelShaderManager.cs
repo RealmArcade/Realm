@@ -7,7 +7,7 @@ namespace Realm.Client.Utils;
 
 public static class ModelShaderManager
 {
-	private static Shader _sharedShader;
+	private static Shader _sharedShader = null!;
 	private static readonly Dictionary<string, ShaderMaterial> _materialCache = new(StringComparer.Ordinal);
 	private static readonly Dictionary<ulong, Texture2D> _normalizedAlbedoCache = new();
 	private static readonly Dictionary<ulong, bool> _playerMaskCheckCache = new();

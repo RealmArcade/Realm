@@ -54,7 +54,7 @@ public partial class VSCodeManager
 
 	private bool _isInstalling = false;
 	private bool _installCompleted = false;
-	private Task _installTask;
+	private Task _installTask = null!;
 	private readonly object _installLock = new object();
 
 	private static readonly string[] FutureExtensionsToConsider = new[]
@@ -298,8 +298,8 @@ public partial class VSCodeManager
 		}
 	}
 
-	private Process _vscodeProcess;
-	private Control _containerControl;
+	private Process _vscodeProcess = null!;
+	private Control _containerControl = null!;
 	private bool _isInitialized;
 	private bool _isVisible;
 

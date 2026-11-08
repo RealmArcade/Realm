@@ -15,7 +15,7 @@ public class MapStateSnapshot
 {
 	public int Width;
 	public int Depth;
-	public TerrainCell[,] Cells;
+	public TerrainCell[,] Cells = null!;
 
 	public float[,] Heights
 	{
@@ -42,9 +42,9 @@ public class MapStateSnapshot
 		}
 	}
 
-	public int[,] PathingCodes;
-	public TerrainSplatWeights[,] SplatMap;
-	public TerrainSplatWeights[,] CliffSplatMap;
+	public int[,] PathingCodes = null!;
+	public TerrainSplatWeights[,] SplatMap = null!;
+	public TerrainSplatWeights[,] CliffSplatMap = null!;
 
 	public float CameraBoundsLeft;
 	public float CameraBoundsRight;

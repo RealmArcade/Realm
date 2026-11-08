@@ -263,8 +263,8 @@ public partial class Unit3D : Node3D
 
 	private bool _isResource;
 
-	private Node3D _modelNode;
-	private AnimationPlayer _animationPlayer;
+	private Node3D _modelNode = null!;
+	private AnimationPlayer _animationPlayer = null!;
 	private Skeleton3D? _cachedSkeleton;
 	private string _currentAnimation = string.Empty;
 	private string? _lastRequestedAnimName;
@@ -275,7 +275,7 @@ public partial class Unit3D : Node3D
 	private string? _currentLeftAttachmentId;
 	private readonly Dictionary<HumanoidBone, Node3D> _boneAttachments = new();
 	private readonly Dictionary<HumanoidBone, string> _currentBoneAttachmentIds = new();
-	private Node3D _pathVisualsContainer;
+	private Node3D _pathVisualsContainer = null!;
 	private readonly List<MeshInstance3D> _pathMarkersPool = new();
 	private readonly List<MeshInstance3D> _pathLinesPool = new();
 	private readonly List<Vector3> _pathPointsBuffer = new();
@@ -517,19 +517,19 @@ public partial class Unit3D : Node3D
 
 		SetPlayerColor(resolvedColor);
 	}
-	private Node3D _rallyVisualsContainer;
-	private MeshInstance3D _rallyMarker;
+	private Node3D _rallyVisualsContainer = null!;
+	private MeshInstance3D _rallyMarker = null!;
 	private readonly List<MeshInstance3D> _rallyMarkersPool = new();
 	private readonly List<MeshInstance3D> _rallyLinesPool = new();
 	private readonly List<Vector3> _rallyPointsBuffer = new();
 	private Vector3 _lastRallyRenderPos = new Vector3(float.NaN, float.NaN, float.NaN);
 	private readonly List<Vector3> _lastRenderedRallyPoints = new();
 
-	private MeshInstance3D _selectionRing;
+	private MeshInstance3D _selectionRing = null!;
 	private bool _isSelected = false;
-	private MeshInstance3D _hoverRing;
+	private MeshInstance3D _hoverRing = null!;
 	private bool _isHovered = false;
-	private MeshInstance3D _playerColorRing;
+	private MeshInstance3D _playerColorRing = null!;
 
 	public bool IsPreview { get; set; } = false;
 
@@ -769,7 +769,7 @@ public partial class Unit3D : Node3D
 	}
 
 	public float BaseModelYOffset => 0f;
-	public string ModelPath { get; private set; }
+	public string ModelPath { get; private set; } = null!;
 	public Node3D ModelNode => _modelNode;
 	public bool IsFlashingScale { get; set; }
 

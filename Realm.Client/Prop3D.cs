@@ -84,7 +84,7 @@ public partial class Prop3D : Node3D
 		set => TemplateID = value;
 	}
 
-	private string _cachedResolvedModelPath;
+	private string _cachedResolvedModelPath = null!;
 
 	public string ModelAssetPath
 	{
@@ -153,10 +153,10 @@ public partial class Prop3D : Node3D
 		set { _isResource = value; }
 	}
 
-	private MeshInstance3D _selectionRing;
+	private MeshInstance3D _selectionRing = null!;
 	private bool _isSelected = false;
 
-	private MeshInstance3D _hoverRing;
+	private MeshInstance3D _hoverRing = null!;
 	private bool _isHovered = false;
 
 	public virtual float GetBaseObstacleRadius()

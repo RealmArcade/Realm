@@ -413,8 +413,8 @@ public partial class RuntimeTerrain : Node3D
 		return true;
 	}
 
-	protected TerrainCell[,] _localCells;
-	protected int[,] _localPathingCodes;
+	protected TerrainCell[,] _localCells = null!;
+	protected int[,] _localPathingCodes = null!;
 
 		private void UpdateTerrainState(TerrainCell[,] newCells, int[,] newPathingCodes)
 		{
@@ -506,8 +506,8 @@ public partial class RuntimeTerrain : Node3D
 		Cells = TerrainState.CalculateCells(Width, Depth, heights);
 	}
 
-	public TerrainSplatWeights[,] SplatMap { get; set; }
-	public TerrainSplatWeights[,] CliffSplatMap { get; set; }
+	public TerrainSplatWeights[,] SplatMap { get; set; } = null!;
+	public TerrainSplatWeights[,] CliffSplatMap { get; set; } = null!;
 
 	public float BlendSoftness { get; set; } = 0.04f;
 	public float BlendNoiseStrength { get; set; } = 0.22f;
@@ -568,13 +568,13 @@ public partial class RuntimeTerrain : Node3D
 
 	protected List<TerrainChunk> _chunks = new List<TerrainChunk>();
 	public IReadOnlyList<TerrainChunk> Chunks => _chunks;
-	protected ShaderMaterial _material;
+	protected ShaderMaterial _material = null!;
 	public ShaderMaterial Material => _material;
-	protected ShaderMaterial _shallowWaterMaterial;
-	protected ShaderMaterial _deepWaterMaterial;
+	protected ShaderMaterial _shallowWaterMaterial = null!;
+	protected ShaderMaterial _deepWaterMaterial = null!;
 	protected System.Collections.Generic.Dictionary<byte, WaterProfileSaveData> _waterProfiles = new();
 	protected System.Collections.Generic.Dictionary<byte, ShaderMaterial> _waterMaterials = new();
-	protected Shader _waterUberShader;
+	protected Shader _waterUberShader = null!;
 
 	public System.Collections.Generic.Dictionary<byte, WaterProfileSaveData> WaterProfiles => _waterProfiles;
 	public System.Collections.Generic.Dictionary<byte, ShaderMaterial> WaterMaterials => _waterMaterials;
@@ -1998,9 +1998,9 @@ public partial class RuntimeTerrain : Node3D
 		}
 	}
 
-	protected ShaderMaterial _polarOverlayMaterial;
-	private Shader _terrainUberShader;
-	private Shader _polarOverlayShader;
+	protected ShaderMaterial _polarOverlayMaterial = null!;
+	private Shader _terrainUberShader = null!;
+	private Shader _polarOverlayShader = null!;
 
 	private void CreatePolarOverlayMaterial()
 	{

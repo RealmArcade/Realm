@@ -58,16 +58,16 @@ public partial class VisualProjectile3D : Node3D
 	private readonly TrailPoint[] _trailPoints = new TrailPoint[MaxTrailPoints];
 	private int _trailPointCount;
 
-	private Node3D _meshContainer;
-	private Node3D _visualTransformContainer;
-	private MeshInstance3D _fallbackMeshInstance;
-	private Node3D _customModelInstance;
+	private Node3D _meshContainer = null!;
+	private Node3D _visualTransformContainer = null!;
+	private MeshInstance3D _fallbackMeshInstance = null!;
+	private Node3D _customModelInstance = null!;
 	private readonly Dictionary<string, Node3D> _loadedModelsByPath = new(StringComparer.OrdinalIgnoreCase);
 	private static readonly Dictionary<string, Texture2D?> _textureCache = new(StringComparer.OrdinalIgnoreCase);
-	private OmniLight3D _pointLight;
+	private OmniLight3D _pointLight = null!;
 	private bool _hasAcquiredLight;
-	private ShaderMaterial _uberShaderMaterial;
-	private static Shader _sharedUberShader;
+	private ShaderMaterial _uberShaderMaterial = null!;
+	private static Shader _sharedUberShader = null!;
 
 	public static void ClearSharedShaderCache()
 	{
@@ -77,7 +77,7 @@ public partial class VisualProjectile3D : Node3D
 
 	public static void ClearCache() => ClearSharedShaderCache();
 
-	private WeaponMetadata _weapon;
+	private WeaponMetadata _weapon = null!;
 	private Vector3 _startPosition;
 	private Vector3 _targetPosition;
 	private Vector3 _initialTargetPosition;
@@ -105,12 +105,12 @@ public partial class VisualProjectile3D : Node3D
 	private Vector3 _currentFlightDirection;
 	private Vector3 _tumbleAxis;
 	private float _tumbleSpeed;
-	private string _currentLoadedModelPath;
+	private string _currentLoadedModelPath = null!;
 
 	public bool IsActive => _isFlying || _isImpacted;
 	public bool IsFlying => _isFlying;
 	public bool IsImpacted => _isImpacted;
-	public Action<VisualProjectile3D> OnRecycleRequested;
+	public Action<VisualProjectile3D> OnRecycleRequested = null!;
 
 	public Node3D MeshContainer => _meshContainer;
 	public Node3D VisualTransformContainer => _visualTransformContainer;

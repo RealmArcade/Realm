@@ -13,10 +13,10 @@ namespace Realm.Client.VFX;
 
 public class VfxShaderManager
 {
-	private static Shader _shaderAdd;
-	private static Shader _shaderMix;
-	private static Shader _shaderProjectorAdd;
-	private static Shader _shaderProjectorMix;
+	private static Shader _shaderAdd = null!;
+	private static Shader _shaderMix = null!;
+	private static Shader _shaderProjectorAdd = null!;
+	private static Shader _shaderProjectorMix = null!;
 	private static readonly Dictionary<string, Texture2D> TextureCache = new(StringComparer.OrdinalIgnoreCase);
 	private static readonly Dictionary<string, (int Columns, int Rows, float Fps, bool SubframeBlend)> SpritesheetMetaCache = new(StringComparer.OrdinalIgnoreCase);
 	private static readonly Dictionary<string, ProceduralShaderParameters> ProceduralMotionCache = new(StringComparer.OrdinalIgnoreCase);

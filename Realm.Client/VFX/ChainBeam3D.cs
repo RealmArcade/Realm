@@ -8,9 +8,9 @@ namespace Realm.Client.VFX;
 public partial class ChainBeam3D : Node3D
 {
 	private readonly List<Vector3> _targetPositions = new();
-	private ImmediateMesh _immediateMesh;
-	private MeshInstance3D _meshInstance;
-	private StandardMaterial3D _material;
+	private ImmediateMesh _immediateMesh = null!;
+	private MeshInstance3D _meshInstance = null!;
+	private StandardMaterial3D _material = null!;
 
 	public List<Vector3> TargetPositions => _targetPositions;
 	public float JumpDelay { get; set; } = 0.05f;

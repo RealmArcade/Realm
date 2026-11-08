@@ -10,7 +10,7 @@ namespace Realm.Client.Utils;
 public static class SpawnDeathShaderManager
 {
 	private const string ShaderPath = "res://Assets/shaders/universal_dissolve_spatial.gdshader";
-	private static Shader _shader;
+	private static Shader _shader = null!;
 	private static readonly Dictionary<string, Dictionary<string, CustomShaderConfig>> _cachedWorkspaceShaders = new(StringComparer.OrdinalIgnoreCase);
 	private static readonly StringName _paramProgress = new("progress");
 	private static readonly StringName _paramTransitionMode = new("transition_mode");

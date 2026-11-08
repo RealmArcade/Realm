@@ -13,8 +13,8 @@ namespace Realm.Client.Utils;
 
 public static class PathUtils
 {
-	private static string _cachedProjectRoot;
-	private static string[] _cachedDataDirs;
+	private static string _cachedProjectRoot = null!;
+	private static string[] _cachedDataDirs = null!;
 	private static readonly ConcurrentDictionary<string, string> _cachedPaths = new(StringComparer.OrdinalIgnoreCase);
 
 	public static bool IsDevelopmentBuild
