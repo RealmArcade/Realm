@@ -393,6 +393,18 @@ public static partial class UIStyle
 		return CreateTexturedPanel("res://Assets/UI/map_editor_publish.webp", 140);
 	}
 
+	/// <summary>
+	/// A fill with rounded corners and nothing else: no rule, no inset. Used where the plate marks a region rather than a
+	/// control.
+	/// </summary>
+	public static StyleBoxFlat CreateFlatFillPlate(Color bgColor, int cornerRadius = 4)
+	{
+		var style = new StyleBoxFlat();
+		style.BgColor = bgColor;
+		style.SetCornerRadiusAll(cornerRadius);
+		return style;
+	}
+
 	/// <summary>Clears a panel's plate so the artwork behind it shows through instead.</summary>
 	public static void ClearPanelBackground(Control? panel)
 	{

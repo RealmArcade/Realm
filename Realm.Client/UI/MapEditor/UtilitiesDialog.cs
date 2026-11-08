@@ -158,15 +158,7 @@ public partial class UtilitiesDialog : FloatingDialogBase
 		{
 			var row = new PanelContainer();
 			row.Name = "SuggestionRow_PanelContainer";
-			var rowStyle = new StyleBoxFlat
-			{
-				BgColor = new Color(0.16f, 0.17f, 0.22f, 0.9f),
-				CornerRadiusTopLeft = 4,
-				CornerRadiusTopRight = 4,
-				CornerRadiusBottomLeft = 4,
-				CornerRadiusBottomRight = 4
-			};
-			row.AddThemeStyleboxOverride("panel", rowStyle);
+			row.AddThemeStyleboxOverride("panel", UIStyle.CreateFlatFillPlate(new Color(0.16f, 0.17f, 0.22f, 0.9f)));
 
 			var rowHBox = new HBoxContainer();
 			rowHBox.Name = "SuggestionRowHBox_HBoxContainer";
@@ -341,16 +333,8 @@ public partial class UtilitiesDialog : FloatingDialogBase
 		var disclaimerPanel = new PanelContainer();
 		disclaimerPanel.Name = "DisclaimerPanel_PanelContainer";
 		disclaimerPanel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		var disclaimerStyle = new StyleBoxFlat();
-		disclaimerStyle.BgColor = new Color(0.28f, 0.16f, 0.08f, 0.85f);
-		disclaimerStyle.BorderColor = new Color(0.85f, 0.55f, 0.2f, 0.95f);
-		disclaimerStyle.SetBorderWidthAll(1);
-		disclaimerStyle.SetCornerRadiusAll(4);
-		disclaimerStyle.ContentMarginLeft = 12;
-		disclaimerStyle.ContentMarginRight = 12;
-		disclaimerStyle.ContentMarginTop = 8;
-		disclaimerStyle.ContentMarginBottom = 8;
-		disclaimerPanel.AddThemeStyleboxOverride("panel", disclaimerStyle);
+		disclaimerPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateCardPlate(
+			new Color(0.28f, 0.16f, 0.08f, 0.85f), new Color(0.85f, 0.55f, 0.2f, 0.95f), 1, 4, 12, 12, 8, 8));
 
 		var disclaimerHBox = new HBoxContainer();
 		disclaimerHBox.Name = "DisclaimerHBox_HBoxContainer";
