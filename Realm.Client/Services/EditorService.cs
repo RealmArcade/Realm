@@ -3846,68 +3846,21 @@ public partial class EditorService : IEditorAPI
 		}
 	}
 
-	public bool GetBlockMode(Entity worldEntity)
-	{
-		return World.GetFieldOrDefault<EditorState, bool>(worldEntity, s => s.BlockMode, true);
-	}
+	public bool GetBlockMode(Entity worldEntity) => EditorEntityState.GetBlockMode(worldEntity);
 
-	public void SetBlockMode(Entity worldEntity, bool value)
-	{
-		World.Mutate<EditorState>(worldEntity, (ref EditorState s) => s.BlockMode = value);
-	}
+	public void SetBlockMode(Entity worldEntity, bool value) => EditorEntityState.SetBlockMode(worldEntity, value);
 
-	public float GetBlockLevelHeight(Entity worldEntity)
-	{
-		return World.GetFieldOrDefault<EditorState, float>(worldEntity, s => s.BlockLevelHeight, 3.0f);
-	}
+	public float GetBlockLevelHeight(Entity worldEntity) => EditorEntityState.GetBlockLevelHeight(worldEntity);
 
-	public void SetBlockLevelHeight(Entity worldEntity, float value)
-	{
-		float clamped = Math.Clamp(value, 0.0f, 50.0f);
-		World.Mutate<EditorState>(worldEntity, (ref EditorState s) => s.BlockLevelHeight = clamped);
-	}
+	public void SetBlockLevelHeight(Entity worldEntity, float value) => EditorEntityState.SetBlockLevelHeight(worldEntity, value);
 
-	public WaterType GetWaterMode(Entity worldEntity)
-	{
-		return World.GetFieldOrDefault<EditorState, WaterType>(worldEntity, s => s.WaterMode, WaterType.None);
-	}
+	public WaterType GetWaterMode(Entity worldEntity) => EditorEntityState.GetWaterMode(worldEntity);
 
-	public void SetWaterMode(Entity worldEntity, WaterType value)
-	{
-		if (GameContext.World != null && World.IsAlive(worldEntity))
-		{
-			if (World.Has<EditorState>(worldEntity))
-			{
-				ref var state = ref World.Get<EditorState>(worldEntity);
-				state.WaterMode = value;
-			}
-			else
-			{
-				World.Add(worldEntity, new EditorState(true, 3.0f, -95.0f, 95.0f, -95.0f, 125.0f, "", false, MirrorMode.None, value, 0));
-			}
-		}
-	}
+	public void SetWaterMode(Entity worldEntity, WaterType value) => EditorEntityState.SetWaterMode(worldEntity, value);
 
-	public byte GetWaterProfileIndex(Entity worldEntity)
-	{
-		return World.GetFieldOrDefault<EditorState, byte>(worldEntity, s => s.WaterProfileIndex, (byte)0);
-	}
+	public byte GetWaterProfileIndex(Entity worldEntity) => EditorEntityState.GetWaterProfileIndex(worldEntity);
 
-	public void SetWaterProfileIndex(Entity worldEntity, byte value)
-	{
-		if (GameContext.World != null && World.IsAlive(worldEntity))
-		{
-			if (World.Has<EditorState>(worldEntity))
-			{
-				ref var state = ref World.Get<EditorState>(worldEntity);
-				state.WaterProfileIndex = value;
-			}
-			else
-			{
-				World.Add(worldEntity, new EditorState(true, 3.0f, -95.0f, 95.0f, -95.0f, 125.0f, "", false, MirrorMode.None, WaterType.None, value));
-			}
-		}
-	}
+	public void SetWaterProfileIndex(Entity worldEntity, byte value) => EditorEntityState.SetWaterProfileIndex(worldEntity, value);
 
 	public List<ProceduralSpawnDescriptor> BuildWaterProceduralSpawns(int x, int z, byte profileIndex, float waterY, float quadSize, int width, int depth)
 	{
@@ -3920,66 +3873,29 @@ public partial class EditorService : IEditorAPI
 	}
 
 
-	public float GetCameraBoundsLeft(Entity worldEntity)
-	{
-		return World.GetFieldOrDefault<EditorState, float>(worldEntity, s => s.CameraBoundsLeft, -95.0f);
-	}
+	public float GetCameraBoundsLeft(Entity worldEntity) => EditorEntityState.GetCameraBoundsLeft(worldEntity);
 
-	public void SetCameraBoundsLeft(Entity worldEntity, float value)
-	{
-		World.Mutate<EditorState>(worldEntity, (ref EditorState s) => s.CameraBoundsLeft = value);
-	}
+	public void SetCameraBoundsLeft(Entity worldEntity, float value) => EditorEntityState.SetCameraBoundsLeft(worldEntity, value);
 
-	public float GetCameraBoundsRight(Entity worldEntity)
-	{
-		return World.GetFieldOrDefault<EditorState, float>(worldEntity, s => s.CameraBoundsRight, 95.0f);
-	}
+	public float GetCameraBoundsRight(Entity worldEntity) => EditorEntityState.GetCameraBoundsRight(worldEntity);
 
-	public void SetCameraBoundsRight(Entity worldEntity, float value)
-	{
-		World.Mutate<EditorState>(worldEntity, (ref EditorState s) => s.CameraBoundsRight = value);
-	}
+	public void SetCameraBoundsRight(Entity worldEntity, float value) => EditorEntityState.SetCameraBoundsRight(worldEntity, value);
 
-	public float GetCameraBoundsTop(Entity worldEntity)
-	{
-		return World.GetFieldOrDefault<EditorState, float>(worldEntity, s => s.CameraBoundsTop, -95.0f);
-	}
+	public float GetCameraBoundsTop(Entity worldEntity) => EditorEntityState.GetCameraBoundsTop(worldEntity);
 
-	public void SetCameraBoundsTop(Entity worldEntity, float value)
-	{
-		World.Mutate<EditorState>(worldEntity, (ref EditorState s) => s.CameraBoundsTop = value);
-	}
+	public void SetCameraBoundsTop(Entity worldEntity, float value) => EditorEntityState.SetCameraBoundsTop(worldEntity, value);
 
-	public float GetCameraBoundsBottom(Entity worldEntity)
-	{
-		return World.GetFieldOrDefault<EditorState, float>(worldEntity, s => s.CameraBoundsBottom, 125.0f);
-	}
+	public float GetCameraBoundsBottom(Entity worldEntity) => EditorEntityState.GetCameraBoundsBottom(worldEntity);
 
-	public void SetCameraBoundsBottom(Entity worldEntity, float value)
-	{
-		World.Mutate<EditorState>(worldEntity, (ref EditorState s) => s.CameraBoundsBottom = value);
-	}
+	public void SetCameraBoundsBottom(Entity worldEntity, float value) => EditorEntityState.SetCameraBoundsBottom(worldEntity, value);
 
-	public string GetSkyboxPath(Entity worldEntity)
-	{
-		return World.GetFieldOrDefault<EditorState, string>(worldEntity, s => s.SkyboxPath, "");
-	}
+	public string GetSkyboxPath(Entity worldEntity) => EditorEntityState.GetSkyboxPath(worldEntity);
 
-	public void SetSkyboxPath(Entity worldEntity, string value)
-	{
-		World.Mutate<EditorState>(worldEntity, (ref EditorState s) => s.SkyboxPath = value);
-	}
+	public void SetSkyboxPath(Entity worldEntity, string value) => EditorEntityState.SetSkyboxPath(worldEntity, value);
 
-	public bool GetHasUnsavedChanges(Entity worldEntity)
-	{
-		return World.GetFieldOrDefault<EditorState, bool>(worldEntity, s => s.HasUnsavedChanges, false);
-	}
+	public bool GetHasUnsavedChanges(Entity worldEntity) => EditorEntityState.GetHasUnsavedChanges(worldEntity);
 
-	public void SetHasUnsavedChanges(Entity worldEntity, bool value)
-	{
-		if (value) NoteEditorChange();
-		World.Mutate<EditorState>(worldEntity, (ref EditorState s) => s.HasUnsavedChanges = value);
-	}
+	public void SetHasUnsavedChanges(Entity worldEntity, bool value) => EditorEntityState.SetHasUnsavedChanges(worldEntity, value);
 
 	public static string GetLocalizedToolName(EditorTool tool)
 	{
@@ -4096,7 +4012,7 @@ public partial class EditorService : IEditorAPI
 
 	public static DateTime LastEditorChangeUtc => new(Volatile.Read(ref _lastEditorChangeUtcTicks), DateTimeKind.Utc);
 
-	private static void NoteEditorChange()
+	internal static void NoteEditorChange()
 	{
 		Volatile.Write(ref _lastEditorChangeUtcTicks, DateTime.UtcNow.Ticks);
 	}
