@@ -625,7 +625,7 @@ namespace Realm.Client.Core
 				candidatePositions.Add(node3D.Position);
 			}
 
-			var eraseResult = GameContext.EditorService.BuildEraseAreaResult(
+			var eraseResult = GameContext.EditorService.Surface.EraseArea(
 				bounds.Item1, bounds.Item2, bounds.Item3, bounds.Item4,
 				GameContext.EditorService.PasteOptionHeights, GameContext.EditorService.PasteOptionTextures, GameContext.EditorService.PasteOptionEntities, PasteOptionPathing,
 				CollectionsMarshal.AsSpan(candidatePositions), EditorBrushIsSquare);

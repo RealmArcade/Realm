@@ -759,23 +759,8 @@ public partial class EditorService : IEditorAPI
 		return EditorTerrainQueries.GetHeightAt(in terrain, worldPos);
 	}
 
-	public WaterType GetWaterModeAt(Godot.Vector3 worldPos)
-	{
-		ref var terrain = ref GetTerrainState();
-		return EditorTerrainQueries.GetWaterModeAt(in terrain, worldPos);
-	}
 
-	public byte GetWaterProfileIndexAt(Godot.Vector3 worldPos)
-	{
-		ref var terrain = ref GetTerrainState();
-		return EditorTerrainQueries.GetWaterProfileIndexAt(in terrain, worldPos);
-	}
 
-	public float GetWaterHeightAt(Godot.Vector3 worldPos)
-	{
-		ref var terrain = ref GetTerrainState();
-		return EditorTerrainQueries.GetWaterHeightAt(in terrain, worldPos);
-	}
 
 
 
@@ -855,43 +840,6 @@ public partial class EditorService : IEditorAPI
 		PasteReflection pasteReflection = PasteReflection.None) =>
 		_paste.Build(startX, startZ, pasteHeights, pasteTextures, pasteEntities, pastePathing, mirrorMode, rotationDegrees, pasteReflection, _symmetryPivot, _symmetryFolds);
 
-	public EraseAreaResult BuildEraseAreaResult(
-		int minX, int minZ, int maxX, int maxZ,
-		bool pasteHeights,
-		bool pasteTextures,
-		bool pasteEntities,
-		bool pastePathing,
-		ReadOnlySpan<Godot.Vector3> candidatePositions,
-		bool isSquare = true)
-	{
-		var result = new EraseAreaResult { ErasedCandidateIndices = new List<int>() };
-		ref var terrain = ref GetTerrainState();
-		if (terrain.Cells == null) return result;
-
-		_surface.EnsureSplatMapsInitialized();
-
-		int selWidth = maxX - minX + 1;
-		int selDepth = maxZ - minZ + 1;
-		bool terrainModified = false;
-		bool pathingModified = false;
-
-		if (pasteHeights || pasteTextures || (pastePathing && terrain.PathingCodes != null))
-		{
-			EditorTerrainSurface.ProcessTerrainErase(ref terrain, minX, minZ, maxX, maxZ, selWidth, selDepth, isSquare, pasteHeights, pasteTextures, pastePathing, ref terrainModified, ref pathingModified, _surface.SplatMap, _surface.CliffSplatMap);
-			if (terrainModified && pasteTextures) _surface.AlignSplatMapSlots(minX - 2, minZ - 2, maxX + 2, maxZ + 2);
-		}
-
-		result.TerrainModified = terrainModified;
-		result.HeightsModified = pasteHeights && terrainModified;
-		result.PathingModified = pathingModified;
-
-		if (pasteEntities)
-		{
-			EditorTerrainSurface.ProcessEntityErase(minX, minZ, maxX, maxZ, terrain.Width, terrain.Depth, terrain.QuadSize, isSquare, candidatePositions, result.ErasedCandidateIndices);
-		}
-
-		return result;
-	}
 
 	public (float[,]? Heights, TerrainSplatWeights[,]? SplatMap, bool IsCliff) PerformFloodFill(
 		Godot.Vector3 clickPos,
@@ -1049,15 +997,7 @@ public partial class EditorService : IEditorAPI
 
 	public void SetWaterProfileIndex(Entity worldEntity, byte value) => EditorEntityState.SetWaterProfileIndex(worldEntity, value);
 
-	public List<ProceduralSpawnDescriptor> BuildWaterProceduralSpawns(int x, int z, byte profileIndex, float waterY, float quadSize, int width, int depth)
-	{
-		return EditorProceduralSpawns.BuildWater(x, z, profileIndex, waterY, quadSize, width, depth);
-	}
 
-	public List<ProceduralSpawnDescriptor> BuildTerrainProceduralSpawns(int x, int z, int textureIndex, float terrainY, float quadSize, int width, int depth)
-	{
-		return EditorProceduralSpawns.BuildTerrain(x, z, textureIndex, terrainY, quadSize, width, depth);
-	}
 
 	public float GetCameraBoundsLeft(Entity worldEntity) => EditorEntityState.GetCameraBoundsLeft(worldEntity);
 

@@ -109,6 +109,48 @@ public sealed class EditorTerrainSurface
 		rzWorld = Math.Max(quadSize * 0.5f, (maxWorldZ - minWorldZ) * 0.5f);
 	}
 
+	/// <summary>
+	/// Erases a selection: heights, textures and pathing through the terrain, then the entities whose origins fall
+	/// inside it. The result says which halves actually changed, which is what the undo action is gated on.
+	/// </summary>
+	public EraseAreaResult EraseArea(
+		int minX, int minZ, int maxX, int maxZ,
+		bool pasteHeights,
+		bool pasteTextures,
+		bool pasteEntities,
+		bool pastePathing,
+		ReadOnlySpan<Godot.Vector3> candidatePositions,
+		bool isSquare = true)
+	{
+		var result = new EraseAreaResult { ErasedCandidateIndices = new List<int>() };
+		ref var terrain = ref EditorService.GetTerrainState();
+		if (terrain.Cells == null) return result;
+
+		EnsureSplatMapsInitialized();
+
+		int selWidth = maxX - minX + 1;
+		int selDepth = maxZ - minZ + 1;
+		bool terrainModified = false;
+		bool pathingModified = false;
+
+		if (pasteHeights || pasteTextures || (pastePathing && terrain.PathingCodes != null))
+		{
+			ProcessTerrainErase(ref terrain, minX, minZ, maxX, maxZ, selWidth, selDepth, isSquare, pasteHeights, pasteTextures, pastePathing, ref terrainModified, ref pathingModified, SplatMap, CliffSplatMap);
+			if (terrainModified && pasteTextures) AlignSplatMapSlots(minX - 2, minZ - 2, maxX + 2, maxZ + 2);
+		}
+
+		result.TerrainModified = terrainModified;
+		result.HeightsModified = pasteHeights && terrainModified;
+		result.PathingModified = pathingModified;
+
+		if (pasteEntities)
+		{
+			ProcessEntityErase(minX, minZ, maxX, maxZ, terrain.Width, terrain.Depth, terrain.QuadSize, isSquare, candidatePositions, result.ErasedCandidateIndices);
+		}
+
+		return result;
+	}
+
 	public static void ProcessTerrainErase(ref TerrainState terrain, int minX, int minZ, int maxX, int maxZ, int selWidth, int selDepth, bool isSquare, bool pasteHeights, bool pasteTextures, bool pastePathing, ref bool terrainModified, ref bool pathingModified, TerrainSplatWeights[,]? splatMap, TerrainSplatWeights[,]? cliffSplatMap)
 	{
 		float selCenterX = (minX + maxX) * 0.5f;
