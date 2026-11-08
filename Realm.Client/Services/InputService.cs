@@ -24,38 +24,18 @@ public class InputService
 	/// only runs while a world exists, so reaching one without a world is a programming error;
 	/// stating that once keeps fifty reads from each re-proving it.
 	/// </summary>
+	private readonly ProductionQueueCommands _productionQueue = new();
+
 	private static EcsWorld World => GameContext.World
 		?? throw new InvalidOperationException("InputService used before a world existed.");
 
-	public int GetPopCostForIndex(Entity buildingEntity, int index)
-	{
-		var prod = World.Get<ProductionQueue>(buildingEntity);
-		string? peekCancelledId = prod.Get(index);
-		if (peekCancelledId != null && GameHost.UnitRegistry.TryGetValue(peekCancelledId, out var metaPeek))
-		{
-			return metaPeek.PopCost;
-		}
-
-		return 0;
-	}
+	public int GetPopCostForIndex(Entity buildingEntity, int index) => _productionQueue.GetPopCostForIndex(buildingEntity, index);
 
 
-	public void UpdateProductionQueueAfterCancel(Entity buildingEntity, int index, string? nextUnitId, bool isMultiplayerClient)
-	{
-		if (index == 0 && nextUnitId != null && !isMultiplayerClient)
-		{
-			var nextMeta = GameHost.UnitRegistry[nextUnitId];
-			if (World.Has<ProductionQueue>(buildingEntity))
-			{
-				var p = World.Get<ProductionQueue>(buildingEntity);
-				p.BuildTime = nextMeta.ProductionTime;
-				World.Set(buildingEntity, p);
-			}
-		}
-	}
+	public void UpdateProductionQueueAfterCancel(Entity buildingEntity, int index, string? nextUnitId, bool isMultiplayerClient) =>
+		_productionQueue.UpdateProductionQueueAfterCancel(buildingEntity, index, nextUnitId, isMultiplayerClient);
 
 	private int _buildingCycleIndex;
-	private int _productionRoundRobinIndex;
 
 	private Entity GetWorldEntity()
 	{
@@ -631,96 +611,15 @@ public class InputService
 		return TryGetCandidateBuildingResult.Success;
 	}
 
-	public Entity GetNextProductionStructure(List<Entity> candidateBuildings)
-	{
-		if (candidateBuildings == null || candidateBuildings.Count == 0) return Entity.Null;
+	public Entity GetNextProductionStructure(List<Entity> candidateBuildings) => _productionQueue.GetNextProductionStructure(candidateBuildings);
 
-		int count = candidateBuildings.Count;
-		int startIndex = Math.Abs(_productionRoundRobinIndex) % count;
+	public bool TryQueueUnit(Entity playerEntity, Entity buildingEntity, string unitId, int popCost, float productionTime) =>
+		_productionQueue.TryQueueUnit(playerEntity, buildingEntity, unitId, popCost, productionTime);
 
-		for (int i = 0; i < count; i++)
-		{
-			int currIdx = (startIndex + i) % count;
-			var bldEntity = candidateBuildings[currIdx];
-			if (!World.IsAlive(bldEntity)) continue;
+	private ref ProductionQueue CreateProductionQueue(Entity buildingEntity) => ref _productionQueue.CreateProductionQueue(buildingEntity);
 
-			int queueCount = 0;
-			if (World.Has<ProductionQueue>(bldEntity))
-			{
-				queueCount = World.Get<ProductionQueue>(bldEntity).Count;
-			}
-
-			if (queueCount < 5)
-			{
-				_productionRoundRobinIndex = (currIdx + 1) % count;
-				return bldEntity;
-			}
-		}
-
-		return Entity.Null;
-	}
-
-	public bool TryQueueUnit(Entity playerEntity, Entity buildingEntity, string unitId, int popCost, float productionTime)
-	{
-		if (!World.IsAlive(playerEntity) || !World.IsAlive(buildingEntity)) return false;
-
-		if (World.Has<PlayerPopulation>(playerEntity))
-		{
-			ref var pop = ref World.Get<PlayerPopulation>(playerEntity);
-			if (popCost > 0 && pop.Current + popCost > pop.Max)
-			{
-				return false;
-			}
-		}
-
-		ref var prod = ref World.Has<ProductionQueue>(buildingEntity)
-			? ref World.Get<ProductionQueue>(buildingEntity)
-			: ref CreateProductionQueue(buildingEntity);
-
-		if (prod.Count >= 5) return false;
-
-		if (prod.Count == 0)
-		{
-			prod.BuildTime = productionTime;
-		}
-
-		if (!prod.Enqueue(unitId)) return false;
-		World.Set(buildingEntity, prod);
-
-		return true;
-	}
-
-	private ref ProductionQueue CreateProductionQueue(Entity buildingEntity)
-	{
-		World.Add(buildingEntity, new ProductionQueue());
-		return ref World.Get<ProductionQueue>(buildingEntity);
-	}
-
-	public bool CancelQueuedUnitAt(Entity buildingEntity, int index, out string? cancelledUnitId, out string? nextUnitId)
-	{
-		cancelledUnitId = null;
-		nextUnitId = null;
-
-		if (!World.IsAlive(buildingEntity) || !World.Has<ProductionQueue>(buildingEntity))
-			return false;
-
-		var prod = World.Get<ProductionQueue>(buildingEntity);
-		if (index < 0 || index >= prod.Count)
-			return false;
-
-		cancelledUnitId = prod.RemoveAt(index);
-
-		if (index == 0)
-		{
-			prod.CurrentProgress = 0f;
-			nextUnitId = prod.Get(0);
-		}
-
-
-
-		World.Set(buildingEntity, prod);
-		return true;
-	}
+	public bool CancelQueuedUnitAt(Entity buildingEntity, int index, out string? cancelledUnitId, out string? nextUnitId) =>
+		_productionQueue.CancelQueuedUnitAt(buildingEntity, index, out cancelledUnitId, out nextUnitId);
 
 
 	public void ApplySpawnRallyPointOrMove(Entity entity, Entity buildingEntity, Vector3 defaultPosition)
