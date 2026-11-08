@@ -123,12 +123,12 @@ public partial class GameHost
 
 	private float GetUnitPropRotationY(Entity entity, float defaultRotY)
 	{
-		return GameContext.SaveLoadService.GetUnitPropRotationY(entity, defaultRotY, GameContext.World);
+		return GameContext.SaveLoadService.GetUnitPropRotationY(entity, defaultRotY, World);
 	}
 
 	private float GetUnitPropScale(Entity entity, float defaultScale)
 	{
-		return GameContext.SaveLoadService.GetUnitPropScale(entity, defaultScale, GameContext.World);
+		return GameContext.SaveLoadService.GetUnitPropScale(entity, defaultScale, World);
 	}
 
 	private (Entity Entity, Vector3 Position, float RotationY, float Scale)[] GetDecalsData()

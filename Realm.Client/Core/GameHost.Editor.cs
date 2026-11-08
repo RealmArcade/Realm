@@ -1236,7 +1236,7 @@ public partial class GameHost
 		Vector3 rotationDegrees,
 		Vector3 scale,
 		float normalOffset = 0f,
-		VfxAttachmentConfig customConfig = null,
+		VfxAttachmentConfig? customConfig = null,
 		int ownerPlayerIndex = 0)
 	{
 		var entity = GameContext.World.Create();
