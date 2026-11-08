@@ -540,7 +540,7 @@ public partial class GameHost : Node3D
 		{
 			GameContext.EditorService.FlushTerrainMeshAndPhysics();
 			GameContext.EditorService.ActiveEditorTool = value;
-			GameContext.EditorService?.SetIsPastingObject(false);
+			GameContext.EditorService?.Interaction.SetIsPastingObject(false);
 			if (value != EditorTool.SelectArea && value != EditorTool.PasteArea)
 			{
 				HideSelectionHighlight();
@@ -738,7 +738,7 @@ public partial class GameHost : Node3D
 
 	public void GenerateNewRandomPlacementRotationAndScale()
 	{
-		GameContext.EditorService.GenerateNewRandomPlacementRotationAndScale();
+		GameContext.EditorService.Interaction.GenerateNewRandomPlacementRotationAndScale();
 	}
 
 	public bool PasteOptionPathing

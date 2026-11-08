@@ -25,7 +25,7 @@ public partial class EditorService
 
 	public TerrainMaterialPalette GetTerrainMaterialPalette()
 	{
-		int swatchCount = SwatchDisplayNames.Count;
+		int swatchCount = Swatches.DisplayNames.Count;
 		if (swatchCount <= 0)
 		{
 			return new TerrainMaterialPalette(0, 0, 0, 0);
@@ -42,9 +42,9 @@ public partial class EditorService
 
 	private int ResolveMaterialIndex(string[] keywords, int fallbackIndex, HashSet<int> usedMaterials)
 	{
-		for (int materialIndex = 0; materialIndex < SwatchDisplayNames.Count; materialIndex++)
+		for (int materialIndex = 0; materialIndex < Swatches.DisplayNames.Count; materialIndex++)
 		{
-			string displayName = SwatchDisplayNames[materialIndex] ?? string.Empty;
+			string displayName = Swatches.DisplayNames[materialIndex] ?? string.Empty;
 			for (int keywordIndex = 0; keywordIndex < keywords.Length; keywordIndex++)
 			{
 				if (displayName.Contains(keywords[keywordIndex], StringComparison.OrdinalIgnoreCase) && !usedMaterials.Contains(materialIndex))
@@ -67,7 +67,7 @@ public partial class EditorService
 
 	private int FindNextUnusedMaterial(int startIndex, HashSet<int> usedMaterials)
 	{
-		int swatchCount = SwatchDisplayNames.Count;
+		int swatchCount = Swatches.DisplayNames.Count;
 		for (int offset = 0; offset < swatchCount; offset++)
 		{
 			int candidate = (startIndex + offset) % swatchCount;
@@ -82,12 +82,12 @@ public partial class EditorService
 
 	private int ClampMaterialIndex(int materialIndex)
 	{
-		if (SwatchDisplayNames.Count <= 0)
+		if (Swatches.DisplayNames.Count <= 0)
 		{
 			return 0;
 		}
 
-		return Math.Clamp(materialIndex, 0, SwatchDisplayNames.Count - 1);
+		return Math.Clamp(materialIndex, 0, Swatches.DisplayNames.Count - 1);
 	}
 
 	public int GetSelectedCliffTextureIndex()

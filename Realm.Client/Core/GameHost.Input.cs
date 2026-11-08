@@ -121,11 +121,11 @@ public partial class GameHost
 			if (_is3DDragOperationActive
 			    && ActiveEditorTool == EditorTool.SelectMove
 			    && !_isDraggingObject
-			    && GameContext.EditorService.ObjectMarqueeStart != null
-			    && !GameContext.EditorService.IsObjectMarqueeSelecting)
+			    && GameContext.EditorService.Interaction.ObjectMarqueeStart != null
+			    && !GameContext.EditorService.Interaction.IsObjectMarqueeSelecting)
 			{
-				Vector2I marqueeStart = GameContext.EditorService.ObjectMarqueeStart.Value;
-				GameContext.EditorService.SetObjectMarquee(marqueeStart, marqueeStart, true);
+				Vector2I marqueeStart = GameContext.EditorService.Interaction.ObjectMarqueeStart.Value;
+				GameContext.EditorService.Interaction.SetObjectMarquee(marqueeStart, marqueeStart, true);
 				UpdateEditorObjectMarqueeVisual();
 			}
 		}
@@ -1021,28 +1021,28 @@ public partial class GameHost
 				return;
 			}
 
-			if (GameContext.EditorService.IsObjectMarqueeSelecting)
+			if (GameContext.EditorService.Interaction.IsObjectMarqueeSelecting)
 			{
 				FinalizeEditorObjectMarquee();
 				GetViewport().SetInputAsHandled();
 				return;
 			}
 
-			if (GameContext.EditorService.ObjectMarqueeStart != null)
+			if (GameContext.EditorService.Interaction.ObjectMarqueeStart != null)
 			{
-				GameContext.EditorService.ClearObjectMarquee();
+				GameContext.EditorService.Interaction.ClearObjectMarquee();
 				HideEditorObjectMarquee();
 			}
 
-			if (GameContext.EditorService.IsSelectingArea)
+			if (GameContext.EditorService.Interaction.IsSelectingArea)
 			{
-				GameContext.EditorService.SetIsSelectingArea(false);
-				if (ActiveEditorTool == EditorTool.DrawCoordinate && GameContext.EditorService.SelectionStart != null && GameContext.EditorService.SelectionEnd != null)
+				GameContext.EditorService.Interaction.SetIsSelectingArea(false);
+				if (ActiveEditorTool == EditorTool.DrawCoordinate && GameContext.EditorService.Interaction.SelectionStart != null && GameContext.EditorService.Interaction.SelectionEnd != null)
 				{
-					int rMinX = Mathf.Min(GameContext.EditorService.SelectionStart.Value.X, GameContext.EditorService.SelectionEnd.Value.X);
-					int rMinZ = Mathf.Min(GameContext.EditorService.SelectionStart.Value.Y, GameContext.EditorService.SelectionEnd.Value.Y);
-					int rMaxX = Mathf.Max(GameContext.EditorService.SelectionStart.Value.X, GameContext.EditorService.SelectionEnd.Value.X);
-					int rMaxZ = Mathf.Max(GameContext.EditorService.SelectionStart.Value.Y, GameContext.EditorService.SelectionEnd.Value.Y);
+					int rMinX = Mathf.Min(GameContext.EditorService.Interaction.SelectionStart.Value.X, GameContext.EditorService.Interaction.SelectionEnd.Value.X);
+					int rMinZ = Mathf.Min(GameContext.EditorService.Interaction.SelectionStart.Value.Y, GameContext.EditorService.Interaction.SelectionEnd.Value.Y);
+					int rMaxX = Mathf.Max(GameContext.EditorService.Interaction.SelectionStart.Value.X, GameContext.EditorService.Interaction.SelectionEnd.Value.X);
+					int rMaxZ = Mathf.Max(GameContext.EditorService.Interaction.SelectionStart.Value.Y, GameContext.EditorService.Interaction.SelectionEnd.Value.Y);
 					GameContext.MapEditorHud?.OpenCoordinateNamingPanel(rMinX, rMinZ, rMaxX, rMaxZ);
 				}
 
@@ -1119,7 +1119,7 @@ public partial class GameHost
 					}
 
 					GenerateNewRandomPlacementRotationAndScale();
-					GameContext.EditorService.SetIsPastingObject(false);
+					GameContext.EditorService.Interaction.SetIsPastingObject(false);
 					GetViewport().SetInputAsHandled();
 				}
 				else if (ActiveEditorTool == EditorTool.PlaceProp)
@@ -1155,7 +1155,7 @@ public partial class GameHost
 					}
 
 					GenerateNewRandomPlacementRotationAndScale();
-					GameContext.EditorService.SetIsPastingObject(false);
+					GameContext.EditorService.Interaction.SetIsPastingObject(false);
 					GetViewport().SetInputAsHandled();
 				}
 				else if (ActiveEditorTool == EditorTool.PlaceDecal)
@@ -1197,15 +1197,15 @@ public partial class GameHost
 					}
 
 					GenerateNewRandomPlacementRotationAndScale();
-					GameContext.EditorService.SetIsPastingObject(false);
+					GameContext.EditorService.Interaction.SetIsPastingObject(false);
 					GetViewport().SetInputAsHandled();
 				}
 				else if (ActiveEditorTool == EditorTool.PlaceVfx)
 				{
 					if (EditorClumpMode) return;
-					if (!GameContext.EditorService.HasCachedRandom) GenerateNewRandomPlacementRotationAndScale();
-					float placementRot = (GameContext.EditorService.EditorRandomRotation && !GameContext.EditorService.IsPastingObject) ? GameContext.EditorService.CachedRandomRotation : GameContext.EditorService.EditorPlacementRotation;
-					float scaleVal = (GameContext.EditorService.EditorRandomScale && !GameContext.EditorService.IsPastingObject) ? GameContext.EditorService.CachedRandomScale : EditorPlacementScale;
+					if (!GameContext.EditorService.Interaction.HasCachedRandom) GenerateNewRandomPlacementRotationAndScale();
+					float placementRot = (GameContext.EditorService.EditorRandomRotation && !GameContext.EditorService.Interaction.IsPastingObject) ? GameContext.EditorService.Interaction.CachedRandomRotation : GameContext.EditorService.EditorPlacementRotation;
+					float scaleVal = (GameContext.EditorService.EditorRandomScale && !GameContext.EditorService.Interaction.IsPastingObject) ? GameContext.EditorService.Interaction.CachedRandomScale : EditorPlacementScale;
 					float safeScale = scaleVal <= 0.001f ? 1.0f : scaleVal;
 
 					VfxAttachmentConfig config;
@@ -1279,7 +1279,7 @@ public partial class GameHost
 					}
 
 					GenerateNewRandomPlacementRotationAndScale();
-					GameContext.EditorService.SetIsPastingObject(false);
+					GameContext.EditorService.Interaction.SetIsPastingObject(false);
 					GetViewport().SetInputAsHandled();
 				}
 				else if (ActiveEditorTool == EditorTool.DeleteObject)
@@ -1606,7 +1606,7 @@ public partial class GameHost
 						{
 							var (startCellX, startCellZ) = GameContext.EditorService.WorldPosToCellCoords(terrainHitPos);
 							var startCell = new Vector2I(startCellX, startCellZ);
-							GameContext.EditorService.SetObjectMarquee(startCell, startCell, false);
+							GameContext.EditorService.Interaction.SetObjectMarquee(startCell, startCell, false);
 						}
 					}
 
@@ -1682,9 +1682,9 @@ public partial class GameHost
 						float fz = hitPos.Z / GroundTerrain.QuadSize + (GroundTerrain.Depth - 1) / 2.0f;
 						int cx = Mathf.Clamp((int)Math.Round(fx), 0, GroundTerrain.Width - 1);
 						int cz = Mathf.Clamp((int)Math.Round(fz), 0, GroundTerrain.Depth - 1);
-						GameContext.EditorService.SetSelectionStart(new Vector2I(cx, cz));
-						GameContext.EditorService.SetSelectionEnd(new Vector2I(cx, cz));
-						GameContext.EditorService.SetIsSelectingArea(true);
+						GameContext.EditorService.Interaction.SetSelectionStart(new Vector2I(cx, cz));
+						GameContext.EditorService.Interaction.SetSelectionEnd(new Vector2I(cx, cz));
+						GameContext.EditorService.Interaction.SetIsSelectingArea(true);
 						CreateSelectionHighlight();
 						RebuildSelectionHighlightMesh(cx, cz, cx, cz);
 					}
@@ -1699,9 +1699,9 @@ public partial class GameHost
 						float rfz = hitPos.Z / GroundTerrain.QuadSize + (GroundTerrain.Depth - 1) / 2.0f;
 						int rcx = Mathf.Clamp((int)Math.Round(rfx), 0, GroundTerrain.Width - 1);
 						int rcz = Mathf.Clamp((int)Math.Round(rfz), 0, GroundTerrain.Depth - 1);
-						GameContext.EditorService.SetSelectionStart(new Vector2I(rcx, rcz));
-						GameContext.EditorService.SetSelectionEnd(new Vector2I(rcx, rcz));
-						GameContext.EditorService.SetIsSelectingArea(true);
+						GameContext.EditorService.Interaction.SetSelectionStart(new Vector2I(rcx, rcz));
+						GameContext.EditorService.Interaction.SetSelectionEnd(new Vector2I(rcx, rcz));
+						GameContext.EditorService.Interaction.SetIsSelectingArea(true);
 						HideCoordinatePreviewMesh();
 					}
 
@@ -4533,10 +4533,10 @@ public partial class GameHost
 			spawnPos = hitPos;
 
 			if (EditorClumpMode) return false;
-			if (!GameContext.EditorService.HasCachedRandom) GenerateNewRandomPlacementRotationAndScale();
+			if (!GameContext.EditorService.Interaction.HasCachedRandom) GenerateNewRandomPlacementRotationAndScale();
 			
-			placementRot = (GameContext.EditorService.EditorRandomRotation && !GameContext.EditorService.IsPastingObject) ? GameContext.EditorService.CachedRandomRotation : GameContext.EditorService.EditorPlacementRotation;
-			scaleVal = (GameContext.EditorService.EditorRandomScale && !GameContext.EditorService.IsPastingObject) ? GameContext.EditorService.CachedRandomScale : EditorPlacementScale;
+			placementRot = (GameContext.EditorService.EditorRandomRotation && !GameContext.EditorService.Interaction.IsPastingObject) ? GameContext.EditorService.Interaction.CachedRandomRotation : GameContext.EditorService.EditorPlacementRotation;
+			scaleVal = (GameContext.EditorService.EditorRandomScale && !GameContext.EditorService.Interaction.IsPastingObject) ? GameContext.EditorService.Interaction.CachedRandomScale : EditorPlacementScale;
 
 			var finalPos = TryGetValidPlacementLocation(spawnPos, scaleVal);
 			if (finalPos == null) return false;

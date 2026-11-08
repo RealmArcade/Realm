@@ -1834,9 +1834,9 @@ namespace Realm.Client.Core
 		{
 			if (_editorPreviewNode is not { } previewNode) return;
 
-			if (!GameContext.EditorService.HasCachedRandom) GameContext.EditorService.GenerateNewRandomPlacementRotationAndScale();
-			float previewRot = (GameContext.EditorService.EditorRandomRotation && !GameContext.EditorService.IsPastingObject) ? GameContext.EditorService.CachedRandomRotation : GameContext.EditorService.EditorPlacementRotation;
-			float previewScaleVal = (GameContext.EditorService.EditorRandomScale && !GameContext.EditorService.IsPastingObject) ? GameContext.EditorService.CachedRandomScale : EditorPlacementScale;
+			if (!GameContext.EditorService.Interaction.HasCachedRandom) GameContext.EditorService.Interaction.GenerateNewRandomPlacementRotationAndScale();
+			float previewRot = (GameContext.EditorService.EditorRandomRotation && !GameContext.EditorService.Interaction.IsPastingObject) ? GameContext.EditorService.Interaction.CachedRandomRotation : GameContext.EditorService.EditorPlacementRotation;
+			float previewScaleVal = (GameContext.EditorService.EditorRandomScale && !GameContext.EditorService.Interaction.IsPastingObject) ? GameContext.EditorService.Interaction.CachedRandomScale : EditorPlacementScale;
 
 			Vector3 previewPos = CalculateEditorPreviewPosition(position, previewScaleVal);
 
@@ -1960,7 +1960,7 @@ namespace Realm.Client.Core
 
 		private void ProcessMapEditorTick(float fDelta)
 		{
-			GameContext.EditorService.TickClumpCooldown(fDelta);
+			GameContext.EditorService.Clump.TickCooldown(fDelta);
 
 			var mousePos = GetViewport().GetMousePosition();
 			var terrainHit = RaycastTerrainFromMouse(mousePos);
@@ -2019,17 +2019,17 @@ namespace Realm.Client.Core
 		{
 			var editorService = GameContext.EditorService;
 			if (ActiveEditorTool != EditorTool.SelectMove) return false;
-			if (!editorService.IsObjectMarqueeSelecting || editorService.ObjectMarqueeStart == null) return false;
+			if (!editorService.Interaction.IsObjectMarqueeSelecting || editorService.Interaction.ObjectMarqueeStart == null) return false;
 
 			var (cellX, cellZ) = editorService.WorldPosToCellCoords(hitPos);
-			editorService.SetObjectMarquee(editorService.ObjectMarqueeStart, new Vector2I(cellX, cellZ), true);
+			editorService.Interaction.SetObjectMarquee(editorService.Interaction.ObjectMarqueeStart, new Vector2I(cellX, cellZ), true);
 			UpdateEditorObjectMarqueeVisual();
 			return true;
 		}
 
 		private bool ProcessAreaSelectionTool(Vector3 hitPos)
 		{
-			if (ActiveEditorTool == EditorTool.SelectArea && GameContext.EditorService.IsSelectingArea && GameContext.EditorService.SelectionStart != null)
+			if (ActiveEditorTool == EditorTool.SelectArea && GameContext.EditorService.Interaction.IsSelectingArea && GameContext.EditorService.Interaction.SelectionStart != null)
 			{
 				HandleSelectAreaHit(hitPos);
 				return true;
@@ -2040,7 +2040,7 @@ namespace Realm.Client.Core
 
 		private bool ProcessCoordinateTool(Vector3 hitPos)
 		{
-			if (ActiveEditorTool == EditorTool.DrawCoordinate && GameContext.EditorService.IsSelectingArea && GameContext.EditorService.SelectionStart != null)
+			if (ActiveEditorTool == EditorTool.DrawCoordinate && GameContext.EditorService.Interaction.IsSelectingArea && GameContext.EditorService.Interaction.SelectionStart != null)
 			{
 				HandleDrawCoordinateHit(hitPos);
 				return true;
@@ -2074,11 +2074,11 @@ namespace Realm.Client.Core
 		private void HandleSelectAreaHit(Vector3 hitPos)
 		{
 			var (cx, cz) = GameContext.EditorService.WorldPosToCellCoords(hitPos);
-			GameContext.EditorService.SetSelectionEnd(new Vector2I(cx, cz));
-			int minX = Mathf.Min(GameContext.EditorService.SelectionStart!.Value.X, cx);
-			int minZ = Mathf.Min(GameContext.EditorService.SelectionStart!.Value.Y, cz);
-			int maxX = Mathf.Max(GameContext.EditorService.SelectionStart!.Value.X, cx);
-			int maxZ = Mathf.Max(GameContext.EditorService.SelectionStart!.Value.Y, cz);
+			GameContext.EditorService.Interaction.SetSelectionEnd(new Vector2I(cx, cz));
+			int minX = Mathf.Min(GameContext.EditorService.Interaction.SelectionStart!.Value.X, cx);
+			int minZ = Mathf.Min(GameContext.EditorService.Interaction.SelectionStart!.Value.Y, cz);
+			int maxX = Mathf.Max(GameContext.EditorService.Interaction.SelectionStart!.Value.X, cx);
+			int maxZ = Mathf.Max(GameContext.EditorService.Interaction.SelectionStart!.Value.Y, cz);
 			CreateSelectionHighlight();
 			RebuildSelectionHighlightMesh(minX, minZ, maxX, maxZ);
 		}
@@ -2086,11 +2086,11 @@ namespace Realm.Client.Core
 		private void HandleDrawCoordinateHit(Vector3 hitPos)
 		{
 			var (rcx, rcz) = GameContext.EditorService.WorldPosToCellCoords(hitPos);
-			GameContext.EditorService.SetSelectionEnd(new Vector2I(rcx, rcz));
-			int rMinX = Mathf.Min(GameContext.EditorService.SelectionStart!.Value.X, rcx);
-			int rMinZ = Mathf.Min(GameContext.EditorService.SelectionStart!.Value.Y, rcz);
-			int rMaxX = Mathf.Max(GameContext.EditorService.SelectionStart!.Value.X, rcx);
-			int rMaxZ = Mathf.Max(GameContext.EditorService.SelectionStart!.Value.Y, rcz);
+			GameContext.EditorService.Interaction.SetSelectionEnd(new Vector2I(rcx, rcz));
+			int rMinX = Mathf.Min(GameContext.EditorService.Interaction.SelectionStart!.Value.X, rcx);
+			int rMinZ = Mathf.Min(GameContext.EditorService.Interaction.SelectionStart!.Value.Y, rcz);
+			int rMaxX = Mathf.Max(GameContext.EditorService.Interaction.SelectionStart!.Value.X, rcx);
+			int rMaxZ = Mathf.Max(GameContext.EditorService.Interaction.SelectionStart!.Value.Y, rcz);
 			UpdateCoordinatePreviewMesh(rMinX, rMinZ, rMaxX, rMaxZ);
 		}
 
@@ -2142,7 +2142,7 @@ namespace Realm.Client.Core
 
 		private void HandleMapEditorMouseHover(Vector2 mousePos)
 		{
-			bool canHover = (ActiveEditorTool == EditorTool.SelectMove && !_isDraggingObject && !GameContext.EditorService.IsObjectMarqueeSelecting) ||
+			bool canHover = (ActiveEditorTool == EditorTool.SelectMove && !_isDraggingObject && !GameContext.EditorService.Interaction.IsObjectMarqueeSelecting) ||
 			                ActiveEditorTool == EditorTool.DeleteObject ||
 			                ActiveEditorTool == EditorTool.Eyedropper;
 
@@ -2227,15 +2227,15 @@ namespace Realm.Client.Core
 		{
 			if ((ActiveEditorTool == EditorTool.PlaceUnit || ActiveEditorTool == EditorTool.PlaceProp || ActiveEditorTool == EditorTool.PlaceDecal) && EditorClumpMode)
 			{
-				if (!GameContext.EditorService.IsDrawingClump)
+				if (!GameContext.EditorService.Clump.IsDrawing)
 				{
-					GameContext.EditorService.BeginClumpSession();
+					GameContext.EditorService.Clump.Begin();
 				}
 
-				if (GameContext.EditorService.CanSpawnClump())
+				if (GameContext.EditorService.Clump.CanSpawn)
 				{
 					ApplyGeneralClumpSpawn(hitPos);
-					GameContext.EditorService.SetClumpCooldown(0.15f);
+					GameContext.EditorService.Clump.SetCooldown(0.15f);
 				}
 			}
 		}
@@ -2463,9 +2463,9 @@ namespace Realm.Client.Core
 
 		private void ClearClumpSessionState()
 		{
-			if (GameContext.EditorService.IsDrawingClump)
+			if (GameContext.EditorService.Clump.IsDrawing)
 			{
-				var composite = GameContext.EditorService.EndClumpSession();
+				var composite = GameContext.EditorService.Clump.End();
 				if (composite != null)
 				{
 					EditorHistoryManager.RecordAction(composite);
@@ -2542,18 +2542,18 @@ namespace Realm.Client.Core
 
 		private void ClearSelectionState()
 		{
-			if (GameContext.EditorService.IsSelectingArea)
+			if (GameContext.EditorService.Interaction.IsSelectingArea)
 			{
-				GameContext.EditorService.SetIsSelectingArea(false);
+				GameContext.EditorService.Interaction.SetIsSelectingArea(false);
 			}
 
-			if (GameContext.EditorService.IsObjectMarqueeSelecting)
+			if (GameContext.EditorService.Interaction.IsObjectMarqueeSelecting)
 			{
 				FinalizeEditorObjectMarquee();
 			}
-			else if (GameContext.EditorService.ObjectMarqueeStart != null)
+			else if (GameContext.EditorService.Interaction.ObjectMarqueeStart != null)
 			{
-				GameContext.EditorService.ClearObjectMarquee();
+				GameContext.EditorService.Interaction.ClearObjectMarquee();
 				HideEditorObjectMarquee();
 			}
 		}
@@ -2561,15 +2561,15 @@ namespace Realm.Client.Core
 		private void FinalizeEditorObjectMarquee()
 		{
 			var editorService = GameContext.EditorService;
-			if (!editorService.IsObjectMarqueeSelecting || editorService.ObjectMarqueeStart == null || editorService.ObjectMarqueeEnd == null)
+			if (!editorService.Interaction.IsObjectMarqueeSelecting || editorService.Interaction.ObjectMarqueeStart == null || editorService.Interaction.ObjectMarqueeEnd == null)
 			{
-				editorService.ClearObjectMarquee();
+				editorService.Interaction.ClearObjectMarquee();
 				HideEditorObjectMarquee();
 				return;
 			}
 
-			Vector2I start = editorService.ObjectMarqueeStart.Value;
-			Vector2I end = editorService.ObjectMarqueeEnd.Value;
+			Vector2I start = editorService.Interaction.ObjectMarqueeStart.Value;
+			Vector2I end = editorService.Interaction.ObjectMarqueeEnd.Value;
 			int minX = Mathf.Min(start.X, end.X);
 			int minZ = Mathf.Min(start.Y, end.Y);
 			int maxX = Mathf.Max(start.X, end.X);
@@ -2589,7 +2589,7 @@ namespace Realm.Client.Core
 			CollectMarqueeSelection(AllVfx, minX, minZ, maxX, maxZ, subtractive, selection);
 
 			SetEditorObjectSelection(selection);
-			editorService.ClearObjectMarquee();
+			editorService.Interaction.ClearObjectMarquee();
 			HideEditorObjectMarquee();
 			GameContext.MapEditorHud?.ShowFeedbackExternal(string.Format("{0} Objects Selected", selection.Count));
 		}
@@ -3123,7 +3123,7 @@ namespace Realm.Client.Core
 
 				if (spawnedNode != null)
 				{
-					GameContext.EditorService.RecordClumpSpawnAction(new ObjectSpawnAction(req.Type, req.Id, req.Position, req.Rotation, req.Scale, spawnedNode, req.Player));
+					GameContext.EditorService.Clump.Record(new ObjectSpawnAction(req.Type, req.Id, req.Position, req.Rotation, req.Scale, spawnedNode, req.Player));
 				}
 			}
 		}
@@ -3177,9 +3177,9 @@ namespace Realm.Client.Core
 				}
 			}
 
-			GameContext.EditorService?.SetIsSelectingArea(false);
-			GameContext.EditorService?.SetSelectionStart(null);
-			GameContext.EditorService?.SetSelectionEnd(null);
+			GameContext.EditorService?.Interaction.SetIsSelectingArea(false);
+			GameContext.EditorService?.Interaction.SetSelectionStart(null);
+			GameContext.EditorService?.Interaction.SetSelectionEnd(null);
 		}
 
 		public void UpdatePasteSelectionHighlights(int startX, int startZ, int targetWidth, int targetDepth)
@@ -3372,9 +3372,9 @@ namespace Realm.Client.Core
 		public void PerformEraseAreaExternal()
 		{
 			PerformEraseArea();
-			if (GroundTerrain != null && GameContext.EditorService.SelectionStart != null && GameContext.EditorService.SelectionEnd != null)
+			if (GroundTerrain != null && GameContext.EditorService.Interaction.SelectionStart != null && GameContext.EditorService.Interaction.SelectionEnd != null)
 			{
-				var (minX, minZ, maxX, maxZ) = GameContext.EditorService.GetCurrentSelectionBounds();
+				var (minX, minZ, maxX, maxZ) = GameContext.EditorService.Interaction.GetSelectionBounds();
 				if (_selectionHighlightMesh != null && _selectionHighlightMesh.Visible)
 				{
 					RebuildSelectionHighlightMesh(minX, minZ, maxX, maxZ);
@@ -3384,7 +3384,7 @@ namespace Realm.Client.Core
 
 		public void PerformCutAreaExternal()
 		{
-			if (GroundTerrain == null || GameContext.EditorService.SelectionStart == null || GameContext.EditorService.SelectionEnd == null)
+			if (GroundTerrain == null || GameContext.EditorService.Interaction.SelectionStart == null || GameContext.EditorService.Interaction.SelectionEnd == null)
 			{
 				GameContext.MapEditorHud?.ShowFeedbackExternal("Nothing to Cut (select an area first)");
 				return;
@@ -3393,7 +3393,7 @@ namespace Realm.Client.Core
 			PerformCopyArea();
 			PerformEraseArea();
 
-			var (minX, minZ, maxX, maxZ) = GameContext.EditorService.GetCurrentSelectionBounds();
+			var (minX, minZ, maxX, maxZ) = GameContext.EditorService.Interaction.GetSelectionBounds();
 			if (_selectionHighlightMesh != null && _selectionHighlightMesh.Visible)
 			{
 				RebuildSelectionHighlightMesh(minX, minZ, maxX, maxZ);
@@ -3404,9 +3404,9 @@ namespace Realm.Client.Core
 
 		public void RefreshSelectionHighlight()
 		{
-			if (GroundTerrain != null && GameContext.EditorService.SelectionStart != null && GameContext.EditorService.SelectionEnd != null)
+			if (GroundTerrain != null && GameContext.EditorService.Interaction.SelectionStart != null && GameContext.EditorService.Interaction.SelectionEnd != null)
 			{
-				var (minX, minZ, maxX, maxZ) = GameContext.EditorService.GetCurrentSelectionBounds();
+				var (minX, minZ, maxX, maxZ) = GameContext.EditorService.Interaction.GetSelectionBounds();
 				if (_selectionHighlightMesh != null && _selectionHighlightMesh.Visible)
 				{
 					RebuildSelectionHighlightMesh(minX, minZ, maxX, maxZ);

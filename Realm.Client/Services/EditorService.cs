@@ -444,44 +444,7 @@ public partial class EditorService : IEditorAPI
 
 	private readonly EditorSwatchCatalog _swatches = new();
 
-	public List<string> SwatchPaths
-	{
-		get => _swatches.Paths;
-		set => _swatches.Paths = value;
-	}
-
-	public List<string> SwatchDisplayNames
-	{
-		get => _swatches.DisplayNames;
-		set => _swatches.DisplayNames = value;
-	}
-
-	public List<Color> SwatchColors
-	{
-		get => _swatches.Colors;
-		set => _swatches.Colors = value;
-	}
-
-	public void ClearSwatchData()
-	{
-		_swatches.Clear();
-	}
-
-
-	public void PopulateSwatchData(SwatchSlotInfo[] slots, string wsPath)
-	{
-		_swatches.Populate(slots, wsPath);
-	}
-
-	public string GetSwatchName(Color color)
-	{
-		return _swatches.GetName(color);
-	}
-
-	public Color GetSwatchColor(int index)
-	{
-		return _swatches.GetColor(index);
-	}
+	public EditorSwatchCatalog Swatches => _swatches;
 
 	public Rect2I? TerrainFlushRegion { get; set; }
 	public float TerrainMeshRebuildPeriodMs { get; set; } = 33.3f;
@@ -561,6 +524,8 @@ public partial class EditorService : IEditorAPI
 
 	private readonly EditorClumpSession _clump = new();
 
+	public EditorClumpSession Clump => _clump;
+
 
 	private readonly EditorTerrainEditSession _terrainEdit;
 
@@ -572,6 +537,8 @@ public partial class EditorService : IEditorAPI
 
 	private readonly EditorRampTool _ramp;
 	private readonly EditorInteractionState _interaction = new();
+
+	public EditorInteractionState Interaction => _interaction;
 
 	public EditorService()
 	{
@@ -590,18 +557,6 @@ public partial class EditorService : IEditorAPI
 	public bool DragObjectHasMoved { get; set; }
 
 
-	public bool IsPastingObject => _interaction.IsPastingObject;
-	public bool HasCachedRandom => _interaction.HasCachedRandom;
-	public float CachedRandomRotation => _interaction.CachedRandomRotation;
-	public float CachedRandomScale => _interaction.CachedRandomScale;
-	public Vector2I? SelectionStart => _interaction.SelectionStart;
-	public Vector2I? SelectionEnd => _interaction.SelectionEnd;
-	public bool IsSelectingArea => _interaction.IsSelectingArea;
-
-	public Vector2I? ObjectMarqueeStart => _interaction.ObjectMarqueeStart;
-	public Vector2I? ObjectMarqueeEnd => _interaction.ObjectMarqueeEnd;
-	public bool IsObjectMarqueeSelecting => _interaction.IsObjectMarqueeSelecting;
-
 	private Vector2 _symmetryPivot = Vector2.Zero;
 	private int _symmetryFolds = 4;
 
@@ -619,11 +574,10 @@ public partial class EditorService : IEditorAPI
 
 	public Godot.Vector3? RampStartPos => _ramp.RampStartPos;
 	public bool IsDrawingTerrain => _terrainEdit.IsDrawing;
-	public bool IsDrawingClump => _clump.IsDrawing;
 
 	public void ApplyCopiedObjectStateDomain(CopiedObjectTemplate copiedObj, out EditorTool newTool)
 	{
-		SetIsPastingObject(true);
+		_interaction.SetIsPastingObject(true);
 		EditorPlacementRotation = copiedObj.Rotation;
 
 		newTool = EditorTool.None;
@@ -641,24 +595,6 @@ public partial class EditorService : IEditorAPI
 				break;
 		}
 	}
-
-	public void SetIsPastingObject(bool value) => _interaction.SetIsPastingObject(value);
-
-	public void SetSelectionStart(Vector2I? value) => _interaction.SetSelectionStart(value);
-
-	public void SetSelectionEnd(Vector2I? value) => _interaction.SetSelectionEnd(value);
-
-	public void SetIsSelectingArea(bool value) => _interaction.SetIsSelectingArea(value);
-
-	public void SetObjectMarquee(Vector2I? start, Vector2I? end, bool selecting) => _interaction.SetObjectMarquee(start, end, selecting);
-
-	public void ClearObjectMarquee() => _interaction.ClearObjectMarquee();
-
-	public void GenerateNewRandomPlacementRotationAndScale() => _interaction.GenerateNewRandomPlacementRotationAndScale();
-
-	public void InvalidateCachedRandom() => _interaction.InvalidateCachedRandom();
-
-	public (int minX, int minZ, int maxX, int maxZ) GetCurrentSelectionBounds() => _interaction.GetSelectionBounds();
 
 	private void SetGridNodeHeight(ref TerrainState terrain, int gx, int gz, float height) =>
 		EditorTerrainGeometry.SetGridNodeHeight(ref terrain, gx, gz, height);
@@ -695,12 +631,6 @@ public partial class EditorService : IEditorAPI
 		_clump.Reset();
 	}
 
-	public void TickClumpCooldown(float delta) => _clump.TickCooldown(delta);
-
-	public bool CanSpawnClump() => _clump.CanSpawn;
-
-	public void BeginClumpSession() => _clump.Begin();
-
 	public Entity SpawnPropDomain(string propId, System.Numerics.Vector3 position, float rotationY, float scale, string cleanId, float defaultAmount, float terrainHeight, float collisionRadius)
 	{
 		var entity = PropEntityFactory.CreateCore(
@@ -714,12 +644,6 @@ public partial class EditorService : IEditorAPI
 		GameContext.RegistryService.TryAddResourceNodeComponent(entity, propId, cleanId, defaultAmount);
 		return entity;
 	}
-
-	public void RecordClumpSpawnAction(IEditorAction action) => _clump.Record(action);
-
-	public void SetClumpCooldown(float value) => _clump.SetCooldown(value);
-
-	public CompositeAction? EndClumpSession() => _clump.End();
 
 	public List<EntitySpawnRequest> BuildClumpSpawnRequests(
 		Godot.Vector3 centerPos,
@@ -1295,8 +1219,8 @@ public partial class EditorService : IEditorAPI
 		this.EditorPaintTextureIndex = paintTextureIndex;
 		this.EditorCliffPaintTextureIndex = cliffPaintTextureIndex;
 		_clipboard.CopiedArea = copiedArea;
-		SetSelectionStart(selectionStart != null ? new Godot.Vector2I((int)selectionStart.Value.X, (int)selectionStart.Value.Z) : (Godot.Vector2I?)null);
-		SetSelectionEnd(selectionEnd != null ? new Godot.Vector2I((int)selectionEnd.Value.X, (int)selectionEnd.Value.Z) : (Godot.Vector2I?)null);
+		_interaction.SetSelectionStart(selectionStart != null ? new Godot.Vector2I((int)selectionStart.Value.X, (int)selectionStart.Value.Z) : (Godot.Vector2I?)null);
+		_interaction.SetSelectionEnd(selectionEnd != null ? new Godot.Vector2I((int)selectionEnd.Value.X, (int)selectionEnd.Value.Z) : (Godot.Vector2I?)null);
 	}
 
 	public void InitializeDefaultTerrainStateDomain(int defaultWidth, int defaultDepth)

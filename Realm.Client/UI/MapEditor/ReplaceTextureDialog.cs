@@ -137,7 +137,7 @@ public partial class ReplaceTextureDialog : FloatingDialogBase
 		_optTarget.Clear();
 
 		var host = GameContext.Host;
-		IReadOnlyList<string>? displayNames = host != null ? GameContext.EditorService.SwatchDisplayNames : null;
+		IReadOnlyList<string>? displayNames = host != null ? GameContext.EditorService.Swatches.DisplayNames : null;
 
 		int defaultSourceIndex = host != null ? GameContext.EditorService.EditorPaintTextureIndex : 0;
 		int defaultTargetIndex = host != null ? GameContext.EditorService.EditorCliffPaintTextureIndex : 0;

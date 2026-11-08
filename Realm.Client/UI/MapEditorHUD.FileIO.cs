@@ -1967,12 +1967,12 @@ namespace Realm.Client.UI
 		private Texture2D? LoadSwatchTextureInternal(int i)
 		{
 			string wsPath = GameContext.EditorService._editingDirectory;
-			if (i >= 0 && i < GameContext.EditorService.SwatchDisplayNames.Count && GameContext.EditorService.SwatchDisplayNames[i].EndsWith("(Empty)"))
+			if (i >= 0 && i < GameContext.EditorService.Swatches.DisplayNames.Count && GameContext.EditorService.Swatches.DisplayNames[i].EndsWith("(Empty)"))
 			{
 				return null;
 			}
 
-			var (swatchPaths, swatchNames) = (GameContext.EditorService.SwatchPaths, GameContext.EditorService.SwatchDisplayNames);
+			var (swatchPaths, swatchNames) = (GameContext.EditorService.Swatches.Paths, GameContext.EditorService.Swatches.DisplayNames);
 			string localRtex = GameContext.MapStorageService.TryGetLocalRtexPath(i, wsPath, swatchPaths, swatchNames);
 
 			if (File.Exists(localRtex))
@@ -1981,9 +1981,9 @@ namespace Realm.Client.UI
 				if (loadedTex != null) return loadedTex;
 			}
 
-			if (i >= 0 && i < GameContext.EditorService.SwatchPaths.Count && ResourceLoader.Exists(GameContext.EditorService.SwatchPaths[i]))
+			if (i >= 0 && i < GameContext.EditorService.Swatches.Paths.Count && ResourceLoader.Exists(GameContext.EditorService.Swatches.Paths[i]))
 			{
-				return TrimmedTextureLoader.LoadTrimmedTexture(GameContext.EditorService.SwatchPaths[i]);
+				return TrimmedTextureLoader.LoadTrimmedTexture(GameContext.EditorService.Swatches.Paths[i]);
 			}
 
 			return null;

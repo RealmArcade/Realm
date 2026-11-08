@@ -610,7 +610,7 @@ namespace Realm.Client.Core
 				return new List<IEditorAction>();
 			}
 
-			var bounds = GameContext.EditorService.GetCurrentSelectionBounds();
+			var bounds = GameContext.EditorService.Interaction.GetSelectionBounds();
 			var terrainSnapshotBefore = CreateTerrainSnapshot();
 
 			var eraseTargets = new List<Node3D>();
@@ -647,8 +647,8 @@ namespace Realm.Client.Core
 		private bool CanEraseArea()
 		{
 			return GroundTerrain is { Cells: not null, SplatMap: not null } &&
-			       GameContext.EditorService.SelectionStart != null &&
-			       GameContext.EditorService.SelectionEnd != null;
+			       GameContext.EditorService.Interaction.SelectionStart != null &&
+			       GameContext.EditorService.Interaction.SelectionEnd != null;
 		}
 
 		private (TerrainCell[,] Cells, TerrainSplatWeights[,] Splat, int[,] Pathing, TerrainSplatWeights[,]? Cliff) CreateTerrainSnapshot()

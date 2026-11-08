@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Godot;
 
 namespace Realm.Client.Services;
@@ -7,7 +7,7 @@ namespace Realm.Client.Services;
 /// One prop clump being placed: whether the drag is still open, the spawn actions it has produced so far,
 /// the points and radii used to keep the pieces apart, and the cooldown that gates the next clump.
 /// </summary>
-internal sealed class EditorClumpSession
+public sealed class EditorClumpSession
 {
 	private readonly List<IEditorAction> _actions = new();
 	private readonly List<(Vector3 Position, float Radius)> _points = new();

@@ -990,14 +990,14 @@ namespace Realm.Client.Core
 		public void UpdateEditorObjectMarqueeVisual()
 		{
 			var editorService = GameContext.EditorService;
-			if (!editorService.IsObjectMarqueeSelecting || editorService.ObjectMarqueeStart == null || editorService.ObjectMarqueeEnd == null)
+			if (!editorService.Interaction.IsObjectMarqueeSelecting || editorService.Interaction.ObjectMarqueeStart == null || editorService.Interaction.ObjectMarqueeEnd == null)
 			{
 				HideEditorObjectMarquee();
 				return;
 			}
 
-			Vector2I start = editorService.ObjectMarqueeStart.Value;
-			Vector2I end = editorService.ObjectMarqueeEnd.Value;
+			Vector2I start = editorService.Interaction.ObjectMarqueeStart.Value;
+			Vector2I end = editorService.Interaction.ObjectMarqueeEnd.Value;
 			int minX = Mathf.Min(start.X, end.X);
 			int minZ = Mathf.Min(start.Y, end.Y);
 			int maxX = Mathf.Max(start.X, end.X);

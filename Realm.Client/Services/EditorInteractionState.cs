@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using Godot;
 
 namespace Realm.Client.Services;
@@ -8,7 +8,7 @@ namespace Realm.Client.Services;
 /// whether a copied object is being placed, and the random rotation and scale a placement reuses. It is a
 /// plain state holder - the editor asks it to start, extend and clear, and reads it back for overlays.
 /// </summary>
-internal sealed class EditorInteractionState
+public sealed class EditorInteractionState
 {
 	private Vector2I? _selectionStart;
 	private Vector2I? _selectionEnd;

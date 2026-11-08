@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Threading.Tasks;
 using Godot;
@@ -194,7 +194,7 @@ namespace Realm.Client.UI
 
 				UpdateTextureLabels();
 
-				string name = TranslationServer.Translate(GameContext.EditorService.SwatchDisplayNames[index]);
+				string name = TranslationServer.Translate(GameContext.EditorService.Swatches.DisplayNames[index]);
 				ShowFeedback(string.Format(TranslationServer.Translate("Selected Terrain: {0}"), name));
 			}
 		}

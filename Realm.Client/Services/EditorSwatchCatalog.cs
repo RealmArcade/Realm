@@ -10,7 +10,7 @@ namespace Realm.Client.Services;
 /// colours the palette paints each slot with. Resolving a slot to a path on disk belongs here too,
 /// because that is the only thing the swatch list is built from.
 /// </summary>
-internal sealed class EditorSwatchCatalog
+public sealed class EditorSwatchCatalog
 {
 	public List<string> Paths { get; set; } = new List<string>();
 	public List<string> DisplayNames { get; set; } = new List<string>();

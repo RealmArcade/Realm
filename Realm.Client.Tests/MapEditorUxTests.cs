@@ -94,7 +94,7 @@ public class MapEditorUxTests
 		int deepMossIndex = 1;
 		int lavaVeinIndex = 3;
 
-		var displayNames = Enumerable.ToList(GameContext.EditorService.SwatchDisplayNames);
+		var displayNames = Enumerable.ToList(GameContext.EditorService.Swatches.DisplayNames);
 		for (int i = 0; i < displayNames.Count; i++)
 		{
 			if (displayNames[i].Equals("Deep Moss", StringComparison.OrdinalIgnoreCase)) deepMossIndex = i;

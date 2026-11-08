@@ -2844,13 +2844,13 @@ namespace Realm.Client.UI
 
 			try
 			{
-				GameContext.EditorService.ClearSwatchData();
+				GameContext.EditorService.Swatches.Clear();
 
 				string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
 				var metadata = MapFileService.LoadMetadata(wsPath);
 				var slots = TextureSwatchSlots.ResolveSlots(metadata?.Textures, wsPath);
 
-				GameContext.EditorService.PopulateSwatchData(slots, wsPath);
+				GameContext.EditorService.Swatches.Populate(slots, wsPath);
 				return slots;
 			}
 			catch (Exception ex)
@@ -2964,7 +2964,7 @@ namespace Realm.Client.UI
 			{
 				var colorBox = new ColorRect();
 				colorBox.Name = "ColorBox_ColorRect";
-				colorBox.Color = GameContext.EditorService.SwatchColors[slotIndex];
+				colorBox.Color = GameContext.EditorService.Swatches.Colors[slotIndex];
 				colorBox.MouseFilter = MouseFilterEnum.Ignore;
 				colorBox.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
 				colorBox.GrowHorizontal = GrowDirection.Both;
@@ -2972,7 +2972,7 @@ namespace Realm.Client.UI
 				btn.AddChild(colorBox);
 			}
 
-			btn.TooltipText = $"{slotIndex}: {GameContext.EditorService.SwatchDisplayNames[slotIndex]}";
+			btn.TooltipText = $"{slotIndex}: {GameContext.EditorService.Swatches.DisplayNames[slotIndex]}";
 		}
 
 		private void HandleSwatchInput_ViewLogic(InputEvent @event, int slotIndex, Button btn)

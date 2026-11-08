@@ -13,9 +13,9 @@ namespace Realm.Client.Core
 	{
 		private void PerformCopyArea()
 		{
-			if (GroundTerrain == null || GameContext.EditorService.SelectionStart == null || GameContext.EditorService.SelectionEnd == null) return;
+			if (GroundTerrain == null || GameContext.EditorService.Interaction.SelectionStart == null || GameContext.EditorService.Interaction.SelectionEnd == null) return;
 
-			var (minX, minZ, maxX, maxZ) = GameContext.EditorService.GetCurrentSelectionBounds();
+			var (minX, minZ, maxX, maxZ) = GameContext.EditorService.Interaction.GetSelectionBounds();
 
 			var candidates = new List<CopiedEntityCandidate>();
 			foreach (var child in GetChildren())
@@ -89,7 +89,7 @@ namespace Realm.Client.Core
 
 		public void PerformCopyAreaExternal()
 		{
-			if (GroundTerrain == null || GameContext.EditorService.SelectionStart == null || GameContext.EditorService.SelectionEnd == null)
+			if (GroundTerrain == null || GameContext.EditorService.Interaction.SelectionStart == null || GameContext.EditorService.Interaction.SelectionEnd == null)
 			{
 				GameContext.MapEditorHud?.ShowFeedbackExternal("Nothing to Copy (select an area first)");
 				return;

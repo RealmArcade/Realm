@@ -2538,9 +2538,9 @@ namespace Realm.Client.UI
 					_btnClipboardBrushShape.Text = isSquare ? TranslationServer.Translate($"{UnicodeIcons.SQUARE} BRUSH: SQUARE") : TranslationServer.Translate($"{UnicodeIcons.CIRCLE} BRUSH: CIRCLE");
 				}
 
-				if (GameContext.Host != null && GameContext.Host.GroundTerrain != null && GameContext.EditorService != null && GameContext.EditorService.SelectionStart != null && GameContext.EditorService.SelectionEnd != null)
+				if (GameContext.Host != null && GameContext.Host.GroundTerrain != null && GameContext.EditorService != null && GameContext.EditorService.Interaction.SelectionStart != null && GameContext.EditorService.Interaction.SelectionEnd != null)
 				{
-					var (minX, minZ, maxX, maxZ) = GameContext.EditorService.GetCurrentSelectionBounds();
+					var (minX, minZ, maxX, maxZ) = GameContext.EditorService.Interaction.GetSelectionBounds();
 					GameContext.Host.RebuildSelectionHighlightMeshExternal(minX, minZ, maxX, maxZ);
 				}
 			}
@@ -2631,9 +2631,9 @@ namespace Realm.Client.UI
 
 		private Button GetTextureSwatchButton(string placeId)
 		{
-			for (int i = 0; i < GameContext.EditorService.SwatchPaths.Count && i < _swatchButtons.Count; i++)
+			for (int i = 0; i < GameContext.EditorService.Swatches.Paths.Count && i < _swatchButtons.Count; i++)
 			{
-				if (GameContext.EditorService.SwatchPaths[i] == placeId)
+				if (GameContext.EditorService.Swatches.Paths[i] == placeId)
 				{
 					return _swatchButtons[i];
 				}
@@ -4877,7 +4877,7 @@ namespace Realm.Client.UI
 
 				UpdateTextureLabels();
 
-				string name = TranslationServer.Translate(GameContext.EditorService.SwatchDisplayNames[index]);
+				string name = TranslationServer.Translate(GameContext.EditorService.Swatches.DisplayNames[index]);
 				ShowFeedback(string.Format(TranslationServer.Translate("Selected Cliff Face: {0}"), name));
 			}
 		}
