@@ -63,7 +63,7 @@ public partial class GameHost
 		GameContext.RegistryService.RegisterCustomAbilities(customAbilities);
 	}
 
-	public AbilityDefinition GetAbilityDefinition(string abilityId)
+	public AbilityDefinition? GetAbilityDefinition(string abilityId)
 	{
 		return GameContext.RegistryService.GetAbilityDefinition(abilityId);
 	}

@@ -26,7 +26,7 @@ public class MetadataService
 		Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
 	};
 
-	public static string ResolveMetadataPath(string pathOrDirectory)
+	public static string ResolveMetadataPath(string? pathOrDirectory)
 	{
 		if (string.IsNullOrWhiteSpace(pathOrDirectory))
 		{
@@ -97,7 +97,7 @@ public class MetadataService
 		}
 	}
 
-	public void UpdateMetadata(string pathOrDirectory, Action<MapMetadata> updateAction)
+	public void UpdateMetadata(string? pathOrDirectory, Action<MapMetadata> updateAction)
 	{
 		if (updateAction == null) return;
 

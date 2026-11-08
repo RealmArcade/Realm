@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using Realm.Ecs;
 using Godot;
@@ -61,7 +62,7 @@ public class RegistryService
 		return null;
 	}
 
-	public string GetUnitTargetModel(string unitId, ref bool isBuilding)
+	public string? GetUnitTargetModel(string unitId, ref bool isBuilding)
 	{
 		if (UnitRegistry.TryGetValue(unitId, out var meta) && !string.IsNullOrEmpty(meta.ModelPath)) return meta.ModelPath;
 
@@ -334,7 +335,7 @@ public class RegistryService
 		}
 	}
 
-	public bool TryGetVfxConfig(string? vfxId, out VfxAttachmentConfig config)
+	public bool TryGetVfxConfig(string? vfxId, [NotNullWhen(true)] out VfxAttachmentConfig? config)
 	{
 		config = null;
 		if (string.IsNullOrWhiteSpace(vfxId)) return false;
@@ -415,14 +416,14 @@ public class RegistryService
 
 	public TooltipValueStore TooltipValues { get; } = new();
 
-	public bool CheckPropRegistryForMatch(string id, string cleanId, string normTarget, Func<string, string, bool> isMatch)
+	public bool CheckPropRegistryForMatch(string id, string cleanId, string normTarget, Func<string?, string, bool> isMatch)
 	{
 		if (PropRegistry.TryGetValue(id, out var meta) && isMatch(meta.ModelPath, normTarget)) return true;
 		if (!string.IsNullOrEmpty(cleanId) && PropRegistry.TryGetValue(cleanId, out meta) && isMatch(meta.ModelPath, normTarget)) return true;
 		return false;
 	}
 
-	public bool MatchesUnitKey(string unitId, string modelPath, string normTarget, Func<string, string, bool> isMatch)
+	public bool MatchesUnitKey(string unitId, string? modelPath, string normTarget, Func<string?, string, bool> isMatch)
 	{
 		if (isMatch(unitId, normTarget)) return true;
 		if (isMatch(modelPath, normTarget)) return true;
@@ -479,7 +480,7 @@ public class RegistryService
 		       path.StartsWith("resources/", StringComparison.OrdinalIgnoreCase);
 	}
 
-	public bool CheckBuildingRegistryForMatch(string id, string cleanId, string normTarget, Func<string, string, bool> isMatch)
+	public bool CheckBuildingRegistryForMatch(string id, string cleanId, string normTarget, Func<string?, string, bool> isMatch)
 	{
 		if (BuildingRegistry.TryGetValue(id, out var meta) && isMatch(meta.ModelPath, normTarget)) return true;
 		if (!string.IsNullOrEmpty(cleanId) && BuildingRegistry.TryGetValue(cleanId, out meta) && isMatch(meta.ModelPath, normTarget)) return true;
@@ -567,7 +568,8 @@ public class RegistryService
 			ResourceRegistry.TryGetValue(cleanId, out metadata);
 		}
 
-		PropEntityFactory.AddResourceNode(GameContext.World, entity, metadata, defaultAmount);
+		if (GameContext.World is not { } world) return;
+		PropEntityFactory.AddResourceNode(world, entity, metadata, defaultAmount);
 	}
 
 
@@ -722,7 +724,7 @@ public class RegistryService
 		def.TooltipTemplate = tooltip ?? "";
 	}
 
-	public AbilityDefinition GetAbilityDefinition(string abilityId)
+	public AbilityDefinition? GetAbilityDefinition(string abilityId)
 	{
 		if (string.IsNullOrEmpty(abilityId)) return null;
 		foreach (var key in GetNormalizedAbilityIdCandidates(abilityId))
@@ -919,7 +921,7 @@ public class RegistryService
 	}
 
 
-	public void SaveUnitObjectAttachment(string unitId, string socket, string attachmentId, HandAttachmentOrientation orientation, string wsPath = null)
+	public void SaveUnitObjectAttachment(string unitId, string socket, string attachmentId, HandAttachmentOrientation orientation, string? wsPath = null)
 	{
 		if (string.IsNullOrEmpty(unitId) || string.IsNullOrEmpty(attachmentId)) return;
 
@@ -998,7 +1000,7 @@ public class RegistryService
 	}
 
 
-	public void UpdateMetadataFile(string unitId, string regKey, string socket, string attachmentId, HandAttachmentOrientation orientation, string wsPath = null)
+	public void UpdateMetadataFile(string unitId, string regKey, string socket, string attachmentId, HandAttachmentOrientation orientation, string? wsPath = null)
 	{
 		string metadataPath = MetadataService.ResolveMetadataPath(wsPath);
 		if (!File.Exists(metadataPath)) return;
