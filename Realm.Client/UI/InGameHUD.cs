@@ -34,7 +34,7 @@ public partial class InGameHUD : Control
 	}
 
 	private InGameHUDViewModel _viewModel = new();
-	private string _lastSelectionSignature = string.Empty;
+	private readonly List<int> _lastSelectionIds = new();
 
 	public float Gold
 	{
@@ -640,10 +640,25 @@ public partial class InGameHUD : Control
 	{
 		if (selectedUnits == null) return;
 
-		string signature = string.Join(";", selectedUnits.Select(unit => unit.Entity.Id));
-		if (string.Equals(signature, _lastSelectionSignature, StringComparison.Ordinal)) return;
+		bool unchanged = selectedUnits.Count == _lastSelectionIds.Count;
+		if (unchanged)
+		{
+			for (int index = 0; index < selectedUnits.Count; index++)
+			{
+				if (selectedUnits[index].Entity.Id == _lastSelectionIds[index]) continue;
+				unchanged = false;
+				break;
+			}
+		}
 
-		_lastSelectionSignature = signature;
+		if (unchanged) return;
+
+		_lastSelectionIds.Clear();
+		for (int index = 0; index < selectedUnits.Count; index++)
+		{
+			_lastSelectionIds.Add(selectedUnits[index].Entity.Id);
+		}
+
 		if (_viewModel.IsBuildSubMenuOpen) _viewModel.IsBuildSubMenuOpen = false;
 	}
 
