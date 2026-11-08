@@ -111,6 +111,28 @@ public static partial class UIStyle
 		cb.AddThemeConstantOverride("icon_max_width", 20);
 	}
 
+	/// <summary>
+	/// A palette swatch. The plate is the colour itself, ringed gold while it is the chosen one, and every state draws
+	/// the ring because a swatch is bigger than its pointer affordance.
+	/// </summary>
+	public static void ApplyPaletteSwatch(Button swatch, Color color, bool highlighted)
+	{
+		swatch.AddThemeStyleboxOverride("normal", CreatePaletteSwatchPlate(color, highlighted));
+		swatch.AddThemeStyleboxOverride("hover", CreatePaletteSwatchPlate(color, true));
+		swatch.AddThemeStyleboxOverride("pressed", CreatePaletteSwatchPlate(color, true));
+		swatch.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+	}
+
+	public static StyleBoxFlat CreatePaletteSwatchPlate(Color color, bool highlighted)
+	{
+		var style = new StyleBoxFlat();
+		style.BgColor = color;
+		style.BorderColor = highlighted ? ColorGold : new Color(0.35f, 0.35f, 0.4f);
+		style.SetBorderWidthAll(highlighted ? 3 : 1);
+		style.SetCornerRadiusAll(4);
+		return style;
+	}
+
 	/// <summary>The gold-on-graphite bar a progress bar fills, matching the sliders beside it.</summary>
 	public static void ApplyProgressBar(ProgressBar bar)
 	{

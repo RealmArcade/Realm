@@ -118,11 +118,7 @@ public partial class ColorPickerPopover : Control
 		swatch.CustomMinimumSize = new Vector2(SwatchSize, SwatchSize);
 		swatch.FocusMode = FocusModeEnum.None;
 
-		var style = CreateSwatchStyle(PlayerColorConfig.GetColor(paletteIndex), isSelected);
-		swatch.AddThemeStyleboxOverride("normal", style);
-		swatch.AddThemeStyleboxOverride("hover", CreateSwatchStyle(PlayerColorConfig.GetColor(paletteIndex), true));
-		swatch.AddThemeStyleboxOverride("pressed", CreateSwatchStyle(PlayerColorConfig.GetColor(paletteIndex), true));
-		swatch.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyPaletteSwatch(swatch, PlayerColorConfig.GetColor(paletteIndex), isSelected);
 
 		swatch.Pressed += () =>
 		{
@@ -132,16 +128,6 @@ public partial class ColorPickerPopover : Control
 		swatch.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 
 		return swatch;
-	}
-
-	private static StyleBoxFlat CreateSwatchStyle(Color color, bool highlighted)
-	{
-		var style = new StyleBoxFlat();
-		style.BgColor = color;
-		style.BorderColor = highlighted ? UIStyle.ColorGold : new Color(0.35f, 0.35f, 0.4f);
-		style.SetBorderWidthAll(highlighted ? 3 : 1);
-		style.SetCornerRadiusAll(4);
-		return style;
 	}
 
 	private void PositionPanelNear(Control? anchor)
