@@ -193,20 +193,8 @@ public partial class MapEditorHUD
 	private PanelContainer CreatePublishMapPanel()
 	{
 		var panel = new PanelContainer { CustomMinimumSize = new Vector2(1200, 800) };
-		var style = new StyleBoxFlat
-		{
-			BgColor = new Color(0.1f, 0.1f, 0.15f, 0.95f),
-			BorderWidthTop = 2,
-			BorderWidthBottom = 2,
-			BorderWidthLeft = 2,
-			BorderWidthRight = 2,
-			BorderColor = new Color(0.3f, 0.3f, 0.35f, 1f),
-			CornerRadiusTopLeft = 4,
-			CornerRadiusTopRight = 4,
-			CornerRadiusBottomLeft = 4,
-			CornerRadiusBottomRight = 4
-		};
-		panel.AddThemeStyleboxOverride("panel", style);
+		panel.AddThemeStyleboxOverride("panel",
+			UIStyle.CreateButtonPlate(new Color(0.1f, 0.1f, 0.15f, 0.95f), new Color(0.3f, 0.3f, 0.35f, 1f), 4, 2));
 		return panel;
 	}
 
@@ -245,20 +233,8 @@ public partial class MapEditorHUD
 
 		var tipPanel = new PanelContainer();
 		tipPanel.Name = "TipPanel_PanelContainer";
-		var tipStyle = new StyleBoxFlat
-		{
-			BgColor = new Color(0.2f, 0.17f, 0.1f, 0.95f),
-			BorderColor = UIStyle.ColorGoldDull,
-			BorderWidthBottom = 1,
-			BorderWidthTop = 1,
-			BorderWidthLeft = 1,
-			BorderWidthRight = 1,
-			CornerRadiusTopLeft = 4,
-			CornerRadiusTopRight = 4,
-			CornerRadiusBottomLeft = 4,
-			CornerRadiusBottomRight = 4
-		};
-		tipPanel.AddThemeStyleboxOverride("panel", tipStyle);
+		tipPanel.AddThemeStyleboxOverride("panel",
+			UIStyle.CreateButtonPlate(new Color(0.2f, 0.17f, 0.1f, 0.95f), UIStyle.ColorGoldDull));
 
 		var tipMargin = new MarginContainer();
 		tipMargin.Name = "TipMargin_MarginContainer";
@@ -279,20 +255,8 @@ public partial class MapEditorHUD
 	{
 		var identityPanel = new PanelContainer();
 		identityPanel.Name = "IdentityPanel_PanelContainer";
-		var identityStyle = new StyleBoxFlat
-		{
-			BgColor = new Color(0.12f, 0.15f, 0.22f, 0.95f),
-			BorderColor = new Color(0.3f, 0.5f, 0.8f, 0.9f),
-			BorderWidthBottom = 1,
-			BorderWidthTop = 1,
-			BorderWidthLeft = 1,
-			BorderWidthRight = 1,
-			CornerRadiusTopLeft = 4,
-			CornerRadiusTopRight = 4,
-			CornerRadiusBottomLeft = 4,
-			CornerRadiusBottomRight = 4
-		};
-		identityPanel.AddThemeStyleboxOverride("panel", identityStyle);
+		identityPanel.AddThemeStyleboxOverride("panel",
+			UIStyle.CreateButtonPlate(new Color(0.12f, 0.15f, 0.22f, 0.95f), new Color(0.3f, 0.5f, 0.8f, 0.9f)));
 		var idMargin = new MarginContainer();
 		idMargin.Name = "IdMargin_MarginContainer";
 		idMargin.AddThemeConstantOverride("margin_top", 8);

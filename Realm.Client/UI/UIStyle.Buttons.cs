@@ -491,12 +491,12 @@ public static partial class UIStyle
 	/// A button plate that sets only the fill, the border and the rounding. Its content inset is left to the border
 	/// width, which is the default every small square button relies on.
 	/// </summary>
-	public static StyleBoxFlat CreateButtonPlate(Color bgColor, Color borderColor, int cornerRadius = 4)
+	public static StyleBoxFlat CreateButtonPlate(Color bgColor, Color borderColor, int cornerRadius = 4, int borderWidth = 1)
 	{
 		var style = new StyleBoxFlat();
 		style.BgColor = bgColor;
 		style.BorderColor = borderColor;
-		style.SetBorderWidthAll(1);
+		style.SetBorderWidthAll(borderWidth);
 		style.SetCornerRadiusAll(cornerRadius);
 		return style;
 	}
