@@ -118,7 +118,6 @@ public partial class MapEditorHUD : Control
 
 
 
-	private Button _btnCenter { get; set; } = null!;
 
 
 
@@ -151,8 +150,6 @@ public partial class MapEditorHUD : Control
 	private MapVersionsDialog _mapVersionsDialog { get; set; } = null!;
 	private MapHistoryStoresDialog _mapHistoryStoresDialog { get; set; } = null!;
 	private double _mapNameUpdateTimer { get; set; } = 0.0;
-	private Button _btnOpenGlobalOverrides { get; set; } = null!;
-	private Button BtnEditVfx { get; set; } = null!;
 	private bool IsUpdatingInspectorUI { get; set; }
 
 	private CheckBox? ChkApplyGroundTexture { get; set; }
@@ -169,20 +166,6 @@ public partial class MapEditorHUD : Control
 
 
 
-	private PanelContainer _inspectorPanel { get; set; } = null!;
-	private Label _lblInspectorTitle { get; set; } = null!;
-	private Label _lblInspectorPos { get; set; } = null!;
-	private Button _btnInspectorRotLeft { get; set; } = null!;
-	private Button _btnInspectorRotRight { get; set; } = null!;
-	private Button _btnInspectorScaleDown { get; set; } = null!;
-	private Button _btnInspectorScaleUp { get; set; } = null!;
-	private Button _btnInspectorScaleReset { get; set; } = null!;
-	private Button _btnInspectorDelete { get; set; } = null!;
-	private Button _btnShowCoverage { get; set; } = null!;
-	private HBoxContainer _playerOwnerContainer { get; set; } = null!;
-	private OptionButton _optPlayerOwner { get; set; } = null!;
-	private PanelContainer _rigStatusContainer { get; set; } = null!;
-	private Label _lblRigStatus { get; set; } = null!;
 
 	private CheckBox _chkShallowWater { get; set; } = null!;
 	private CheckBox _chkDeepWater { get; set; } = null!;
@@ -224,6 +207,7 @@ public partial class MapEditorHUD : Control
 	private FileOperationsPanel _filePanel { get; set; } = null!;
 	private CameraControlsPanel _cameraPanel { get; set; } = null!;
 	private ViewportPanel _viewportPanel { get; set; } = null!;
+	private InspectorPanel _inspectorView { get; set; } = null!;
 	private BrushSettingsPanel _brushPanel { get; set; } = null!;
 	private WaterSettingsPanel _waterPanel { get; set; } = null!;
 	private PasteSettingsPanel _pastePanel { get; set; } = null!;

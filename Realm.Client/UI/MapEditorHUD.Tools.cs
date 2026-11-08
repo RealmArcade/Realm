@@ -205,7 +205,7 @@ namespace Realm.Client.UI
 			_brushSettingsController = new MapEditorBrushSettings(_brushPanel.SizeSlider, _brushPanel.SizeValue, _brushPanel.StrengthSlider, _brushPanel.StrengthValue, _brushPanel.BlockModeCheck, _brushPanel.StepSlider, _brushPanel.StepValue, _brushPanel.HeightSlider, _brushPanel.HeightValue);
 			_placementSettingsController = new MapEditorPlacementSettings(_placementPanel.RotateSlider, _placementPanel.RotateValue, _placementPanel.ScaleSlider, _placementPanel.ScaleValue, _placementPanel.RandomRotationCheck, _placementPanel.RandomScaleCheck, _placementPanel.ClumpModeCheck, _placementPanel.DensitySlider, _placementPanel.DensityValue, _placementPanel.ScaleVarSlider, _placementPanel.ScaleVarValue);
 			InitializeInspectorPanel();
-			_inspectorController = new MapEditorInspector(_lblInspectorTitle, _lblInspectorPos, _btnInspectorRotLeft, _btnInspectorRotRight, _btnInspectorScaleDown, _btnInspectorScaleUp, _btnInspectorScaleReset, _btnInspectorDelete);
+			_inspectorController = new MapEditorInspector(_inspectorView.Title, _inspectorView.PositionLabel, _inspectorView.RotateLeftButton, _inspectorView.RotateRightButton, _inspectorView.ScaleDownButton, _inspectorView.ScaleUpButton, _inspectorView.ScaleResetButton, _inspectorView.DeleteButton);
 			_pathingPanelController = new MapEditorPathingPanel(_chkShallowWater, _chkDeepWater, _chkFlying, _chkGround, _chkBuildable, _optPathingMode);
 
 			SetupMinimap();
@@ -717,13 +717,13 @@ namespace Realm.Client.UI
 
 		private void HideInspectorInfo()
 		{
-			if (_playerOwnerContainer != null) _playerOwnerContainer.Visible = false;
-			if (_btnOpenGlobalOverrides != null) _btnOpenGlobalOverrides.Visible = false;
-			if (BtnEditVfx != null) BtnEditVfx.Visible = false;
-			if (_rigStatusContainer != null) _rigStatusContainer.Visible = false;
-			if (_btnShowCoverage != null) _btnShowCoverage.Visible = false;
+			if (_inspectorView.PlayerOwnerContainer != null) _inspectorView.PlayerOwnerContainer.Visible = false;
+			if (_inspectorView.EditTemplateButton != null) _inspectorView.EditTemplateButton.Visible = false;
+			if (_inspectorView.EditVfxButton != null) _inspectorView.EditVfxButton.Visible = false;
+			if (_inspectorView.RigStatusContainer != null) _inspectorView.RigStatusContainer.Visible = false;
+			if (_inspectorView.CoverageButton != null) _inspectorView.CoverageButton.Visible = false;
 			if (_lblInfoText != null) _lblInfoText.Visible = true;
-			if (_inspectorPanel != null) _inspectorPanel.Visible = false;
+			if (_inspectorView.Root != null) _inspectorView.Root.Visible = false;
 			if (_accordionInspector != null) _accordionInspector.Visible = false;
 			if (_viewModel != null)
 			{
@@ -742,11 +742,11 @@ namespace Realm.Client.UI
 		{
 			SetInspectorVisibility();
 
-			if (_playerOwnerContainer != null) _playerOwnerContainer.Visible = false;
-			if (_btnShowCoverage != null) _btnShowCoverage.Visible = false;
-			if (_rigStatusContainer != null) _rigStatusContainer.Visible = false;
-			if (_btnOpenGlobalOverrides != null) _btnOpenGlobalOverrides.Visible = false;
-			if (BtnEditVfx != null) BtnEditVfx.Visible = false;
+			if (_inspectorView.PlayerOwnerContainer != null) _inspectorView.PlayerOwnerContainer.Visible = false;
+			if (_inspectorView.CoverageButton != null) _inspectorView.CoverageButton.Visible = false;
+			if (_inspectorView.RigStatusContainer != null) _inspectorView.RigStatusContainer.Visible = false;
+			if (_inspectorView.EditTemplateButton != null) _inspectorView.EditTemplateButton.Visible = false;
+			if (_inspectorView.EditVfxButton != null) _inspectorView.EditVfxButton.Visible = false;
 
 			if (_viewModel == null) return;
 
@@ -758,7 +758,7 @@ namespace Realm.Client.UI
 		private void SetInspectorVisibility()
 		{
 			if (_lblInfoText != null) _lblInfoText.Visible = false;
-			if (_inspectorPanel != null) _inspectorPanel.Visible = true;
+			if (_inspectorView.Root != null) _inspectorView.Root.Visible = true;
 			if (_accordionInspector != null)
 			{
 				_accordionInspector.Visible = true;
@@ -861,23 +861,23 @@ namespace Realm.Client.UI
 
 		private void UpdateInspectorOwnerAndCoverage(Node selected)
 		{
-			if (selected is Unit3D unitOwner && _playerOwnerContainer != null && _optPlayerOwner != null)
+			if (selected is Unit3D unitOwner && _inspectorView.PlayerOwnerContainer != null && _inspectorView.PlayerOwnerOption != null)
 			{
-				_playerOwnerContainer.Visible = true;
+				_inspectorView.PlayerOwnerContainer.Visible = true;
 				IsUpdatingInspectorUI = true;
-				_optPlayerOwner.Selected = Mathf.Clamp(unitOwner.Player, 0, PlayerColorConfig.Palette.Length - 1);
+				_inspectorView.PlayerOwnerOption.Selected = Mathf.Clamp(unitOwner.Player, 0, PlayerColorConfig.Palette.Length - 1);
 				IsUpdatingInspectorUI = false;
 			}
-			else if (_playerOwnerContainer != null) _playerOwnerContainer.Visible = false;
+			else if (_inspectorView.PlayerOwnerContainer != null) _inspectorView.PlayerOwnerContainer.Visible = false;
 
-			if (_btnShowCoverage != null)
+			if (_inspectorView.CoverageButton != null)
 			{
 				bool isUnit = selected is Unit3D;
-				_btnShowCoverage.Visible = isUnit;
+				_inspectorView.CoverageButton.Visible = isUnit;
 				if (isUnit && GameContext.Host != null)
 				{
-					_btnShowCoverage.SetPressedNoSignal(GameContext.Host.EditorCoverageOverlayEnabled);
-					_btnShowCoverage.Text = GameContext.Host.EditorCoverageOverlayEnabled ? TranslationServer.Translate("◉ VISION/ATTACK RANGES: ON") : TranslationServer.Translate("◉ VISION/ATTACK RANGES: OFF");
+					_inspectorView.CoverageButton.SetPressedNoSignal(GameContext.Host.EditorCoverageOverlayEnabled);
+					_inspectorView.CoverageButton.Text = GameContext.Host.EditorCoverageOverlayEnabled ? TranslationServer.Translate("◉ VISION/ATTACK RANGES: ON") : TranslationServer.Translate("◉ VISION/ATTACK RANGES: OFF");
 				}
 			}
 		}
@@ -892,29 +892,29 @@ namespace Realm.Client.UI
 				if (selected is Unit3D uObj && uObj.ModelNode != null) modelRoot = uObj.ModelNode;
 
 				var validation = SkeletonValidator.Validate(modelRoot);
-				if (_rigStatusContainer != null && _lblRigStatus != null)
+				if (_inspectorView.RigStatusContainer != null && _inspectorView.RigStatusLabel != null)
 				{
-					_rigStatusContainer.Visible = true;
+					_inspectorView.RigStatusContainer.Visible = true;
 					if (validation.IsValid)
 					{
-						_lblRigStatus.Text = TranslationServer.Translate("Rig: ✔ Compatible Humanoid");
-						_lblRigStatus.AddThemeColorOverride("font_color", new Color(0.3f, 0.9f, 0.3f));
+						_inspectorView.RigStatusLabel.Text = TranslationServer.Translate("Rig: ✔ Compatible Humanoid");
+						_inspectorView.RigStatusLabel.AddThemeColorOverride("font_color", new Color(0.3f, 0.9f, 0.3f));
 					}
 					else if (validation.Skeleton == null)
 					{
-						_lblRigStatus.Text = TranslationServer.Translate("Rig: ✖ Unrigged Mesh");
-						_lblRigStatus.AddThemeColorOverride("font_color", new Color(0.9f, 0.4f, 0.4f));
+						_inspectorView.RigStatusLabel.Text = TranslationServer.Translate("Rig: ✖ Unrigged Mesh");
+						_inspectorView.RigStatusLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.4f, 0.4f));
 					}
 					else
 					{
-						_lblRigStatus.Text = string.Format(TranslationServer.Translate("Rig: ✖ Incompatible ({0})"), string.Join(", ", validation.MissingRequiredBones));
-						_lblRigStatus.AddThemeColorOverride("font_color", new Color(0.9f, 0.4f, 0.4f));
+						_inspectorView.RigStatusLabel.Text = string.Format(TranslationServer.Translate("Rig: ✖ Incompatible ({0})"), string.Join(", ", validation.MissingRequiredBones));
+						_inspectorView.RigStatusLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.4f, 0.4f));
 					}
 				}
 			}
 			else
 			{
-				if (_rigStatusContainer != null) _rigStatusContainer.Visible = false;
+				if (_inspectorView.RigStatusContainer != null) _inspectorView.RigStatusContainer.Visible = false;
 			}
 		}
 
@@ -923,19 +923,19 @@ namespace Realm.Client.UI
 		{
 			string assetKey = GameContext.Host?.GetSelectedEntityOrAssetKey(selected) ?? "";
 			bool isDecal = selected is Decal || (GameContext.Host != null && GameContext.Host.FindDecalInParentChain(selected) != null);
-			if (!string.IsNullOrEmpty(assetKey) && !isDecal && _btnOpenGlobalOverrides != null)
+			if (!string.IsNullOrEmpty(assetKey) && !isDecal && _inspectorView.EditTemplateButton != null)
 			{
-				_btnOpenGlobalOverrides.Visible = true;
-				_btnOpenGlobalOverrides.TooltipText = string.Format(TranslationServer.Translate("Edit global model scale, offsets, and shaders for {0}"), assetKey);
+				_inspectorView.EditTemplateButton.Visible = true;
+				_inspectorView.EditTemplateButton.TooltipText = string.Format(TranslationServer.Translate("Edit global model scale, offsets, and shaders for {0}"), assetKey);
 			}
-			else if (_btnOpenGlobalOverrides != null) _btnOpenGlobalOverrides.Visible = false;
+			else if (_inspectorView.EditTemplateButton != null) _inspectorView.EditTemplateButton.Visible = false;
 
-			if (selected is ProceduralVfxInstance3D && BtnEditVfx != null)
+			if (selected is ProceduralVfxInstance3D && _inspectorView.EditVfxButton != null)
 			{
-				BtnEditVfx.Visible = true;
-				BtnEditVfx.TooltipText = TranslationServer.Translate("Open Procedural VFX Studio to edit this effect");
+				_inspectorView.EditVfxButton.Visible = true;
+				_inspectorView.EditVfxButton.TooltipText = TranslationServer.Translate("Open Procedural VFX Studio to edit this effect");
 			}
-			else if (BtnEditVfx != null) BtnEditVfx.Visible = false;
+			else if (_inspectorView.EditVfxButton != null) _inspectorView.EditVfxButton.Visible = false;
 		}
 
 
@@ -3285,122 +3285,43 @@ namespace Realm.Client.UI
 
 		private void InitializeInspectorPanel()
 		{
-			var inspectorVBox = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspectorPanel/VBox");
-			BuildInspectorActionBar();
-
-			BuildCoverageToggle(inspectorVBox);
-
-			BuildPlayerOwnerRow(inspectorVBox);
-
-			BuildRigStatusLabel(inspectorVBox);
-
-			CreateInspectorDialogs();
-
-			RefreshWaterSwatches();
-			ApplyEditorPreferences(EditorSettingsDialog.CurrentSettings);
-
-			InitInspectorActionButtons(inspectorVBox);
+			_inspectorView = new InspectorPanel();
+			// Dialog creation, the water swatch refresh and the preference pass sit between the inspector's rows and
+			// its action buttons, so they arrive as hooks rather than moving: dialogs belong to the whole editor.
+			_inspectorView.Build(new InspectorPanelHooks(
+				this, SetupButton, GetFontAwesomeFont,
+				RotateSelectedObjectAction, ScaleSelectedObjectAction, LocateSelectedObjectAction, DeleteSelectedObjectAction,
+				CreateInspectorDialogs, RefreshWaterSwatches,
+				() => ApplyEditorPreferences(EditorSettingsDialog.CurrentSettings),
+				EditSelectedTemplate, EditSelectedVfx, () => IsUpdatingInspectorUI));
 		}
 
 
-		private void BuildInspectorActionBar()
+		/// <summary>Opens the visual template editor for the object selected in the inspector.</summary>
+		private void EditSelectedTemplate()
 		{
-			_inspectorPanel = GetNode<PanelContainer>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspectorPanel");
-			_lblInspectorTitle = GetNode<Label>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspectorPanel/VBox/LblInspectorTitle");
-			_lblInspectorPos = GetNode<Label>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspectorPanel/VBox/LblInspectorPos");
-			_btnInspectorRotLeft = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspBox_VBoxContainer/InspGrid_GridContainer/BtnInspectorRotLeft");
-			SetupButton(_btnInspectorRotLeft, $"{UnicodeIcons.UNDO} ROT -15°", () => RotateSelectedObjectAction(-15f), 11, "Rotate object counter-clockwise (Shift + Mouse_Wheel)");
-			_btnInspectorRotRight = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspBox_VBoxContainer/InspGrid_GridContainer/BtnInspectorRotRight");
-			SetupButton(_btnInspectorRotRight, $"{UnicodeIcons.ROTATE} ROT +15°", () => RotateSelectedObjectAction(15f), 11, "Rotate object clockwise (Shift + Mouse_Wheel)");
-			_btnInspectorScaleDown = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspBox_VBoxContainer/InspGrid_GridContainer/BtnInspectorScaleDown");
-			SetupButton(_btnInspectorScaleDown, $"{UnicodeIcons.MINUS} SCALE DOWN", () => ScaleSelectedObjectAction(0.9f), 11, "Shrink object size by 10% (Alt + Mouse_Wheel)");
-			_btnInspectorScaleUp = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspBox_VBoxContainer/InspGrid_GridContainer/BtnInspectorScaleUp");
-			SetupButton(_btnInspectorScaleUp, $"{UnicodeIcons.PLUS} SCALE UP", () => ScaleSelectedObjectAction(1.1f), 11, "Enlarge object size by 10% (Alt + Mouse_Wheel)");
-			_btnInspectorScaleReset = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspBox_VBoxContainer/InspGrid_GridContainer/BtnInspectorScaleReset");
-			SetupButton(_btnInspectorScaleReset, $"{UnicodeIcons.UNDO} RESET SCALE", () => ScaleSelectedObjectAction(-1f), 12, "Reset object scale size to 1.0x");
-
-			_btnCenter = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspectorPanel/VBox/BtnCenter");
-			SetupButton(_btnCenter, $"{UnicodeIcons.CROSSHAIRS_TARGET} LOCATE OBJECT", () => LocateSelectedObjectAction(), 12, "Center camera on selected object");
-			_btnInspectorDelete = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspBox_VBoxContainer/InspGrid_GridContainer/BtnInspectorDelete");
-			SetupButton(_btnInspectorDelete, $"{UnicodeIcons.TRASH_ALT} ERASE", () => DeleteSelectedObjectAction(), 12, "Erase selected unit, prop, or decal");
-		}
-
-
-		private void BuildCoverageToggle(VBoxContainer inspectorVBox)
-		{
-			_btnShowCoverage = new Button();
-			_btnShowCoverage.Name = "BtnShowCoverage_Button";
-			_btnShowCoverage.Text = TranslationServer.Translate($"{UnicodeIcons.EYE} RANGES: OFF");
-			var fontCoverage = GetFontAwesomeFont();
-			if (fontCoverage != null) _btnShowCoverage.AddThemeFontOverride("font", fontCoverage);
-			_btnShowCoverage.ToggleMode = true;
-			_btnShowCoverage.FocusMode = FocusModeEnum.None;
-			_btnShowCoverage.AddThemeFontSizeOverride("font_size", 11);
-			_btnShowCoverage.ButtonPressed = false;
-			_btnShowCoverage.Toggled += (pressed) =>
+			if (GameContext.Host != null && GodotObject.IsInstanceValid(GameContext.Host.SelectedEditorObject))
 			{
-				if (GameContext.Host != null)
-				{
-					GameContext.Host.EditorCoverageOverlayEnabled = pressed;
-					_btnShowCoverage.Text = pressed ? TranslationServer.Translate($"{UnicodeIcons.EYE} RANGES: ON") : TranslationServer.Translate($"{UnicodeIcons.EYE} RANGES: OFF");
-					GameContext.Host.UpdateEditorCoverageOverlay();
-				}
-			};
-			inspectorVBox.AddChild(_btnShowCoverage);
+				_entityVisualEditDialog?.OpenForObject(GameContext.Host.SelectedEditorObject);
+			}
 		}
 
 
-		private void BuildPlayerOwnerRow(VBoxContainer inspectorVBox)
+		/// <summary>
+		/// Opens the VFX studio for the selected procedural VFX instance. When its VFX id has a template the studio
+		/// starts from a clone, so edits produce a new configuration instead of mutating the shared template.
+		/// </summary>
+		private void EditSelectedVfx()
 		{
-			_playerOwnerContainer = new HBoxContainer();
-			_playerOwnerContainer.Name = "PlayerOwnerContainer";
-			_playerOwnerContainer.Visible = false;
+			if (GameContext.Host == null || !GodotObject.IsInstanceValid(GameContext.Host.SelectedEditorObject) || GameContext.Host.SelectedEditorObject is not ProceduralVfxInstance3D vfx) return;
 
-			var lblPlayer = new Label();
-			lblPlayer.Name = "LblPlayer_Label";
-			lblPlayer.Text = TranslationServer.Translate("Player");
-			lblPlayer.CustomMinimumSize = new Vector2(50, 0);
-			lblPlayer.AddThemeFontSizeOverride("font_size", 11);
-			_playerOwnerContainer.AddChild(lblPlayer);
-
-			_optPlayerOwner = new OptionButton();
-			_optPlayerOwner.Name = "OptPlayerOwner";
-			_optPlayerOwner.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-			_optPlayerOwner.AddThemeFontSizeOverride("font_size", 11);
-
-			for (int i = 0; i < PlayerColorConfig.Palette.Length; i++)
+			VfxAttachmentConfig editConfig = vfx.Config;
+			if (GameContext.RegistryService.TryGetVfxConfig(editConfig?.VfxId, out var templateConfig))
 			{
-				_optPlayerOwner.AddItem(PlayerColorConfig.GetPaletteLabel(i), i);
+				editConfig = templateConfig.Clone();
 			}
 
-			_optPlayerOwner.ItemSelected += (long index) =>
-			{
-				if (IsUpdatingInspectorUI) return;
-				if (GameContext.Host != null && GameContext.Host.SelectedEditorObject is Unit3D unit && GodotObject.IsInstanceValid(unit))
-				{
-					int playerIndex = (int)index;
-					GameContext.Host.SetUnitPlayerExternal(unit, playerIndex);
-				}
-			};
-
-			_playerOwnerContainer.AddChild(_optPlayerOwner);
-			inspectorVBox.AddChild(_playerOwnerContainer);
-			inspectorVBox.MoveChild(_playerOwnerContainer, 2);
-		}
-
-
-		private void BuildRigStatusLabel(VBoxContainer inspectorVBox)
-		{
-			_rigStatusContainer = new PanelContainer();
-			_rigStatusContainer.Name = "RigStatusContainer";
-			_rigStatusContainer.Visible = false;
-			_lblRigStatus = new Label();
-			_lblRigStatus.Name = "LblRigStatus";
-			_lblRigStatus.AddThemeFontSizeOverride("font_size", 11);
-			_lblRigStatus.AutowrapMode = TextServer.AutowrapMode.Word;
-			_lblRigStatus.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-			_rigStatusContainer.AddChild(_lblRigStatus);
-			inspectorVBox.AddChild(_rigStatusContainer);
+			OpenVfxStudioDialog(editConfig, (newCfg) => { vfx.UpdateConfig(newCfg); });
 		}
 
 
@@ -3431,48 +3352,6 @@ namespace Realm.Client.UI
 		}
 
 
-		private void InitInspectorActionButtons(VBoxContainer inspectorVBox)
-		{
-			_btnOpenGlobalOverrides = new Button();
-			_btnOpenGlobalOverrides.Name = "BtnOpenGlobalOverrides";
-			_btnOpenGlobalOverrides.Set("icon_max_width", 0);
-			_btnOpenGlobalOverrides.Text = "✏️ " + TranslationServer.Translate("Edit Template");
-			_btnOpenGlobalOverrides.AddThemeFontSizeOverride("font_size", 11);
-			_btnOpenGlobalOverrides.FocusMode = FocusModeEnum.None;
-			_btnOpenGlobalOverrides.CustomMinimumSize = new Vector2(0, 28);
-			_btnOpenGlobalOverrides.Visible = false;
-			_btnOpenGlobalOverrides.Pressed += () =>
-			{
-				if (GameContext.Host != null && GodotObject.IsInstanceValid(GameContext.Host.SelectedEditorObject))
-				{
-					_entityVisualEditDialog?.OpenForObject(GameContext.Host.SelectedEditorObject);
-				}
-			};
-			inspectorVBox.AddChild(_btnOpenGlobalOverrides);
-
-			BtnEditVfx = new Button();
-			BtnEditVfx.Name = "BtnEditVfx";
-			BtnEditVfx.Set("icon_max_width", 0);
-			BtnEditVfx.Text = "✨ " + TranslationServer.Translate("Edit VFX");
-			BtnEditVfx.AddThemeFontSizeOverride("font_size", 11);
-			BtnEditVfx.FocusMode = FocusModeEnum.None;
-			BtnEditVfx.CustomMinimumSize = new Vector2(0, 28);
-			BtnEditVfx.Visible = false;
-			BtnEditVfx.Pressed += () =>
-			{
-				if (GameContext.Host != null && GodotObject.IsInstanceValid(GameContext.Host.SelectedEditorObject) && GameContext.Host.SelectedEditorObject is ProceduralVfxInstance3D vfx)
-				{
-					VfxAttachmentConfig editConfig = vfx.Config;
-					if (GameContext.RegistryService.TryGetVfxConfig(editConfig?.VfxId, out var templateConfig))
-					{
-						editConfig = templateConfig.Clone();
-					}
-
-					OpenVfxStudioDialog(editConfig, (newCfg) => { vfx.UpdateConfig(newCfg); });
-				}
-			};
-			inspectorVBox.AddChild(BtnEditVfx);
-		}
 
 		public void OpenWeaponVfxDialog(string weaponId, WeaponMetadata? weapon, Action<WeaponMetadata>? onApplied = null)
 		{

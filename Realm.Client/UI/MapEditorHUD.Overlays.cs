@@ -426,12 +426,12 @@ namespace Realm.Client.UI
 
 		private void ApplyInspectorButtonsStyles()
 		{
-			StyleRowButton(_btnInspectorRotLeft);
-			StyleRowButton(_btnInspectorRotRight);
-			StyleRowButton(_btnInspectorScaleDown);
-			StyleRowButton(_btnInspectorScaleUp);
-			StyleRowButton(_btnInspectorScaleReset);
-			StyleRowButton(_btnInspectorDelete);
+			StyleRowButton(_inspectorView.RotateLeftButton);
+			StyleRowButton(_inspectorView.RotateRightButton);
+			StyleRowButton(_inspectorView.ScaleDownButton);
+			StyleRowButton(_inspectorView.ScaleUpButton);
+			StyleRowButton(_inspectorView.ScaleResetButton);
+			StyleRowButton(_inspectorView.DeleteButton);
 		}
 
 		private void ApplyValueBadgeStylesViewLogic()
