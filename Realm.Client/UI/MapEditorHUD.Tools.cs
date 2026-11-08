@@ -2862,154 +2862,6 @@ namespace Realm.Client.UI
 			GameContext.UserInterface?.ShowPopupMessage("CORRUPT MAP FILE", msg);
 		}
 
-		private void InitializePublishDialog(out Panel popup, out VBoxContainer vbox, out ProgressBar progressBar, out Label statusLabel, out Button closeBtn, out CheckBox testVersionCheck)
-		{
-			BuildPublishDialogFrame(out popup, out vbox);
-
-			BuildPublishDialogHeader(vbox);
-
-			testVersionCheck = BuildPublishTestVersionRow(vbox);
-
-			BuildPublishMaintainerInfo(vbox);
-
-			vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 5) });
-
-			(progressBar, statusLabel) = BuildPublishProgressSection(vbox);
-
-			vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 5) });
-
-			closeBtn = BuildPublishCloseButton(vbox);
-		}
-
-
-		private void BuildPublishDialogFrame(out Panel popup, out VBoxContainer vbox)
-		{
-			popup = new Panel();
-			popup.Name = "Popup_Panel";
-			popup.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-			popup.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
-			popup.ZIndex = 1100;
-			AddChild(popup);
-
-			var cardPanel = new Panel();
-			cardPanel.Name = "CardPanel_Panel";
-			cardPanel.CustomMinimumSize = new Vector2(580, 280);
-			cardPanel.SetAnchorsAndOffsetsPreset(LayoutPreset.Center);
-			cardPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
-			popup.AddChild(cardPanel);
-
-			vbox = new VBoxContainer();
-			vbox.Name = "Vbox_VBoxContainer";
-			vbox.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-			vbox.CustomMinimumSize = new Vector2(540, 240);
-			vbox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-			vbox.SizeFlagsVertical = SizeFlags.ExpandFill;
-			vbox.AddThemeConstantOverride("separation", 10);
-			cardPanel.AddChild(vbox);
-		}
-
-
-		private void BuildPublishDialogHeader(VBoxContainer vbox)
-		{
-			vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 10) });
-
-			var titleLabel = new Label();
-			titleLabel.Name = "TitleLabel_Label";
-			UIStyle.ApplyTitle(titleLabel, "🚀 " + TranslationServer.Translate("PUBLISHING MAP PACKAGE"), 20);
-			titleLabel.HorizontalAlignment = HorizontalAlignment.Center;
-			vbox.AddChild(titleLabel);
-
-			string mapTitle = GetMapNameFromMetadata();
-			if (string.IsNullOrWhiteSpace(mapTitle) || MapNaming.IsUntitledMapName(mapTitle)) mapTitle = "UntitledMap";
-			string mapVersion = GetMapVersionFromMetadata();
-			if (string.IsNullOrWhiteSpace(mapVersion)) mapVersion = "1.0.0";
-
-			var descLabel = new Label();
-			descLabel.Name = "DescLabel_Label";
-			descLabel.Text = string.Format(TranslationServer.Translate("Map: {0} (v{1})"), mapTitle, mapVersion);
-			descLabel.HorizontalAlignment = HorizontalAlignment.Center;
-			descLabel.AddThemeFontSizeOverride("font_size", 13);
-			descLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-			vbox.AddChild(descLabel);
-		}
-
-
-		private CheckBox BuildPublishTestVersionRow(VBoxContainer vbox)
-		{
-			var publishOptionsRow = new HBoxContainer();
-			publishOptionsRow.Name = "PublishOptions_HBoxContainer";
-			publishOptionsRow.AddThemeConstantOverride("separation", 12);
-			publishOptionsRow.Alignment = BoxContainer.AlignmentMode.Center;
-
-			var testVersionCheck = new CheckBox
-			{
-				Name = "TestVersionCheck_CheckBox",
-				Text = TranslationServer.Translate("Publish as test version"),
-				TooltipText = TranslationServer.Translate("Test versions are listed separately and never replace the official version players download.")
-			};
-			testVersionCheck.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
-			publishOptionsRow.AddChild(testVersionCheck);
-
-			vbox.AddChild(publishOptionsRow);
-			return testVersionCheck;
-		}
-
-
-		private void BuildPublishMaintainerInfo(VBoxContainer vbox)
-		{
-			var maintainerInfoLabel = new Label
-			{
-				Name = "MaintainerInfo_Label",
-				Text = TranslationServer.Translate("Maintainer keys: every listed key can publish this map. Keys are added or revoked by an existing key holder through the registry maintainer endpoints; revocations take effect immediately."),
-				AutowrapMode = TextServer.AutowrapMode.Word,
-				CustomMinimumSize = new Vector2(520, 0),
-				SizeFlagsHorizontal = SizeFlags.ExpandFill
-			};
-			maintainerInfoLabel.AddThemeFontSizeOverride("font_size", 11);
-			maintainerInfoLabel.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-			vbox.AddChild(maintainerInfoLabel);
-		}
-
-
-		private (ProgressBar Progress, Label Status) BuildPublishProgressSection(VBoxContainer vbox)
-		{
-			var progressBar = UIStyle.CreateProgressBar(480f, 24f);
-			vbox.AddChild(progressBar);
-
-			var statusLabel = new Label();
-			statusLabel.Name = "StatusLabel_Label";
-			statusLabel.Text = TranslationServer.Translate("Checking publish eligibility...");
-			statusLabel.HorizontalAlignment = HorizontalAlignment.Center;
-			statusLabel.AddThemeFontSizeOverride("font_size", 13);
-			statusLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.95f));
-			statusLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-			statusLabel.CustomMinimumSize = new Vector2(520, 0);
-			statusLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-			vbox.AddChild(statusLabel);
-			return (progressBar, statusLabel);
-		}
-
-
-		private Button BuildPublishCloseButton(VBoxContainer vbox)
-		{
-			var buttonRow = new HBoxContainer();
-			buttonRow.Name = "ButtonRow_HBoxContainer";
-			buttonRow.Alignment = BoxContainer.AlignmentMode.Center;
-			vbox.AddChild(buttonRow);
-
-			var closeBtn = new Button();
-			closeBtn.Name = "CloseBtn_Button";
-			closeBtn.Flat = false;
-			closeBtn.AddThemeConstantOverride("icon_max_width", 0);
-			UIStyle.ApplyButtonStyleBoxesClearingFocus(closeBtn);
-			UIStyle.ApplyButtonText(closeBtn, TranslationServer.Translate("CLOSE"), 14);
-			closeBtn.CustomMinimumSize = new Vector2(130, 36);
-			closeBtn.Visible = false;
-			buttonRow.AddChild(closeBtn);
-			return closeBtn;
-		}
-
-
 		private async void PublishMapActionView(bool fullExport = false)
 		{
 			if (GameContext.Host == null || GameContext.EditorService.IsSyncing) return;
@@ -3066,7 +2918,15 @@ namespace Realm.Client.UI
 			string activeConfigPath = metaJsonPath;
 			string tempTerrainPath = Path.Combine(workspace, "terrain.json");
 
-			InitializePublishDialog(out Panel popup, out VBoxContainer vbox, out ProgressBar progressBar, out Label statusLabel, out Button closeBtn, out CheckBox testVersionCheck);
+			var publishDialog = new MapPublishDialog();
+			publishDialog.Initialize(mapTitle, mapVersion);
+			AddChild(publishDialog);
+
+			Control popup = publishDialog;
+			var progressBar = publishDialog.Progress;
+			var statusLabel = publishDialog.StatusLabel;
+			var closeBtn = publishDialog.CloseButton;
+			var testVersionCheck = publishDialog.TestVersionCheck;
 
 			closeBtn.Pressed += () =>
 			{
