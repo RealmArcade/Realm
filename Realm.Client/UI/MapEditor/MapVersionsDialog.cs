@@ -367,7 +367,7 @@ public partial class MapVersionsDialog : FloatingDialogBase
 			Callable.From(() =>
 			{
 				HideLabelEditor();
-				Hud.ShowFeedback(result.Success
+				RequireHud.ShowFeedback(result.Success
 					? TranslationServer.Translate("Version name saved.")
 					: string.Format(TranslationServer.Translate("Could not name that version: {0}"), result.ErrorMessage ?? string.Empty));
 				RefreshVersions();
@@ -409,7 +409,7 @@ public partial class MapVersionsDialog : FloatingDialogBase
 			TranslationServer.Translate("Restore the map to the version from {0}?\n\nYour current map is saved as a new version first, so nothing is lost and you can undo this."),
 			FormatTimestamp(version.CreatedAt));
 
-		Hud.ShowConfirmationDialog(
+		RequireHud.ShowConfirmationDialog(
 			message,
 			() => RequestRestore(version),
 			confirmText: TranslationServer.Translate("RESTORE"),
@@ -422,14 +422,14 @@ public partial class MapVersionsDialog : FloatingDialogBase
 
 		string editingDirectory = ResolveEditingDirectory();
 		SetBusy(true, TranslationServer.Translate("Restoring version..."));
-		Hud.ShowFeedback(TranslationServer.Translate("Restoring version..."));
+		RequireHud.ShowFeedback(TranslationServer.Translate("Restoring version..."));
 
 		GameContext.EditorService.IsSyncing = true;
 
 		GameContext.MapHistoryService.RestoreVersion(editingDirectory, version.CommitId, result =>
 		{
 			Callable.From(() => CompleteRestore(editingDirectory, result)).CallDeferred();
-		}, Hud.PersistEditorStateBeforeRestore);
+		}, RequireHud.PersistEditorStateBeforeRestore);
 	}
 
 	private void CompleteRestore(string editingDirectory, MapHistoryRestoreResult result)
@@ -438,7 +438,7 @@ public partial class MapVersionsDialog : FloatingDialogBase
 		{
 			if (!result.Success)
 			{
-				Hud.ShowFeedback(string.Format(TranslationServer.Translate("Could not restore that version: {0}"), result.ErrorMessage ?? string.Empty));
+				RequireHud.ShowFeedback(string.Format(TranslationServer.Translate("Could not restore that version: {0}"), result.ErrorMessage ?? string.Empty));
 				return;
 			}
 
@@ -450,11 +450,11 @@ public partial class MapVersionsDialog : FloatingDialogBase
 
 			if (result.MetadataRestored)
 			{
-				Hud.InvalidateMetadataCache();
-				Hud.ReadMetadataAndRefreshTextures();
-				Hud.ViewLoadMapProperties();
-				Hud.RefreshEntityPalette();
-				Hud.UpdateMapNameHeader();
+				RequireHud.InvalidateMetadataCache();
+				RequireHud.ReadMetadataAndRefreshTextures();
+				RequireHud.ViewLoadMapProperties();
+				RequireHud.RefreshEntityPalette();
+				RequireHud.UpdateMapNameHeader();
 			}
 
 			if (GameContext.Host != null)
@@ -462,7 +462,7 @@ public partial class MapVersionsDialog : FloatingDialogBase
 				GameContext.Host.EditorHasUnsavedChanges = false;
 			}
 
-			Hud.NotifyHistoryRestoreApplied(result.VersionRecorded || result.AlreadyInHistory);
+			RequireHud.NotifyHistoryRestoreApplied(result.VersionRecorded || result.AlreadyInHistory);
 
 			string restoredText = string.Format(TranslationServer.Translate("Restored the version from {0}. {1} file(s) restored, {2} removed."), FormatTimestamp(result.NewVersion?.CreatedAt ?? DateTimeOffset.Now), result.FilesWritten, result.FilesRemoved);
 			if (result.AlreadyInHistory)
@@ -474,11 +474,11 @@ public partial class MapVersionsDialog : FloatingDialogBase
 				restoredText += " " + string.Format(TranslationServer.Translate("The restored files could not be recorded in the history: {0}"), result.ErrorMessage ?? string.Empty);
 			}
 
-			Hud.ShowFeedback(restoredText);
+			RequireHud.ShowFeedback(restoredText);
 
 			if (result.ScriptSourcesRestored)
 			{
-				Hud.MarkScriptSourcesChangedByRestore();
+				RequireHud.MarkScriptSourcesChangedByRestore();
 			}
 
 			RefreshVersions();
@@ -503,7 +503,7 @@ public partial class MapVersionsDialog : FloatingDialogBase
 			Callable.From(() =>
 			{
 				SetBusy(false, null);
-				Hud.ShowFeedback(!result.Success
+				RequireHud.ShowFeedback(!result.Success
 					? string.Format(TranslationServer.Translate("Could not save a version: {0}"), result.ErrorMessage ?? string.Empty)
 					: result.AlreadyInHistory
 						? TranslationServer.Translate("This map already matches a version in the history, so nothing new was saved.")

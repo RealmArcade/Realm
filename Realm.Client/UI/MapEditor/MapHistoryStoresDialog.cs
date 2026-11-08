@@ -166,7 +166,7 @@ public partial class MapHistoryStoresDialog : FloatingDialogBase
 			DescribeStoreName(store),
 			FormatBytes(store.TotalBytes));
 
-		Hud.ShowConfirmationDialog(
+		RequireHud.ShowConfirmationDialog(
 			message,
 			() => RequestDelete(store),
 			confirmText: TranslationServer.Translate("REMOVE"),
@@ -192,11 +192,11 @@ public partial class MapHistoryStoresDialog : FloatingDialogBase
 					_noticeLabel.Text = message;
 				}
 
-				Hud.ShowFeedback(message);
+				RequireHud.ShowFeedback(message);
 
 				if (result.Success && removesOpenMapHistory)
 				{
-					Hud.PrimeMapHistory();
+					RequireHud.PrimeMapHistory();
 				}
 
 				RefreshStores();

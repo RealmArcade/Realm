@@ -52,7 +52,7 @@ public partial class ImportFromMapDialog : FloatingDialogBase
 		Exported = 2
 	}
 
-	public ImportFromMapDialog(MapEditorHUD hud)
+	public ImportFromMapDialog(MapEditorHUD? hud)
 		: base(hud, TranslationServer.Translate("Import From Map"), new Vector2(760, 680))
 	{
 		SetUncompressedPanelTexture("res://Assets/UI/map_editor_assets_importer.webp", 30, 45, 70, 70);
@@ -895,7 +895,7 @@ public partial class ImportFromMapDialog : FloatingDialogBase
 				return;
 			}
 
-			Hud.ShowConfirmationDialog(
+			RequireHud.ShowConfirmationDialog(
 				message,
 				() => ExecuteCodeImport(source.Value, selectedTypeNames, selectedNamespaces, workspacePath),
 				confirmText: TranslationServer.Translate("REPLACE"),

@@ -357,8 +357,8 @@ public partial class MapSettingsDialog : FloatingDialogBase
 		{
 			if (GameContext.Host?.GroundTerrain == null || Hud == null) return;
 
-			Hud.SetScaleDialogTargets(GameContext.Host.GroundTerrain.Width, GameContext.Host.GroundTerrain.Depth);
-			Hud.OpenScaleMapDialog();
+			RequireHud.SetScaleDialogTargets(GameContext.Host.GroundTerrain.Width, GameContext.Host.GroundTerrain.Depth);
+			RequireHud.OpenScaleMapDialog();
 		};
 		mapSizePanel.AddChild(_btnScaleMap);
 	}

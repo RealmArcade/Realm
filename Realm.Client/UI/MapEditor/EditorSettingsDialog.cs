@@ -252,7 +252,7 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 		try
 		{
 			string fullPath = ProjectSettings.GlobalizePath(SettingsFilePath);
-			string dir = Path.GetDirectoryName(fullPath);
+			string? dir = Path.GetDirectoryName(fullPath);
 			if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
 			{
 				Directory.CreateDirectory(dir);

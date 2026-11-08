@@ -67,7 +67,15 @@ public partial class FloatingDialogBase : PanelContainer
 		_openDialogs.Add(this);
 	}
 
-	protected readonly MapEditorHUD Hud = null!;
+	/// <summary>
+	/// The map editor this dialog was opened from. It is optional: a dialog can be built and
+	/// inspected without a live editor, which is how the UI tests exercise them. Actions that
+	/// genuinely need the editor go through <see cref="RequireHud"/> so a missing editor is
+	/// reported by name instead of as a null dereference somewhere further down.
+	/// </summary>
+	protected readonly MapEditorHUD? Hud;
+
+	protected MapEditorHUD RequireHud => Hud ?? throw new InvalidOperationException($"{GetType().Name} needs a live map editor for this action.");
 	protected VBoxContainer MainVBox = null!;
 	protected HBoxContainer HeaderHBox = null!;
 	protected Label TitleLabel = null!;
@@ -84,7 +92,7 @@ public partial class FloatingDialogBase : PanelContainer
 
 	public bool IsOpen => Visible && GetParent() != null;
 
-	public FloatingDialogBase(MapEditorHUD hud, string titleText, Vector2 minSize)
+	public FloatingDialogBase(MapEditorHUD? hud, string titleText, Vector2 minSize)
 	{
 		Name = GetType().Name;
 		Hud = hud;
