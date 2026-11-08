@@ -44,8 +44,7 @@ public partial class LobbyRoom
 		_downloadProgress.Value = 0;
 
 
-		_downloadProgress.AddThemeStyleboxOverride("background", UIStyle.CreateSliderTrack());
-		_downloadProgress.AddThemeStyleboxOverride("fill", UIStyle.CreateSliderFill());
+		UIStyle.ApplyProgressBar(_downloadProgress);
 		_downloadProgress.AddThemeColorOverride("font_color", new Color(1, 1, 1));
 		_downloadProgress.AddThemeFontSizeOverride("font_size", 12);
 		AddChild(_downloadProgress);
