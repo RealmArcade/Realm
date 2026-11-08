@@ -106,10 +106,7 @@ public partial class MainMenu
 		var hoverStyle = CreateMenuButtonStyleBox(texturePath ?? "res://Assets/UI/menu_button_hover.webp", texturePath, new Color(1.12f, 1.10f, 0.96f));
 		var pressedStyle = CreateMenuButtonStyleBox(texturePath ?? "res://Assets/UI/menu_button_pressed.webp", texturePath, new Color(0.85f, 0.82f, 0.75f));
 
-		button.AddThemeStyleboxOverride("normal", normalStyle);
-		button.AddThemeStyleboxOverride("hover", hoverStyle);
-		button.AddThemeStyleboxOverride("pressed", pressedStyle);
-		button.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyStyleBoxStates(button, normalStyle, hoverStyle, pressedStyle);
 	}
 
 	private StyleBoxTexture CreateMenuButtonStyleBox(string texPath, string? customPath, Color? modColor)
