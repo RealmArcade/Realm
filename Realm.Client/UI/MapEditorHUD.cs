@@ -934,13 +934,7 @@ public partial class MapEditorHUD : Control
 
 	private void RefreshCardScrollStates()
 	{
-		UpdateCardScrollState(_filePanel.Content, 300f);
-		UpdateCardScrollState(_viewportPanel.Content, 0f, false);
-		UpdateCardScrollState(_toolPanel.Content, 320f);
-		UpdateCardScrollState(_brushPanel.Content, 300f);
-		UpdateCardScrollState(_contentToolSettings, 320f);
-		UpdateCardScrollState(_placementPanel.Content, 320f);
-		UpdateCardScrollState(_contentInspector, 300f);
+		foreach (var card in Cards()) MapEditorCardTheme.RefreshScroll(card.Content, card.ScrollMaxHeight, card.AllowExpand);
 	}
 
 	private FontVariation? _faFontVariation { get; set; }

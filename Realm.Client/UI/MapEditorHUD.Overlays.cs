@@ -1095,39 +1095,6 @@ namespace Realm.Client.UI
 
 		public void UpdatePolarRadialStepButtonText() => _viewportPanel.RefreshRadialStepSelection();
 
-		private void UpdateCardScrollState(Control contentControl, float maxHeight = 300f, bool allowExpandBtn = true)
-		{
-			if (contentControl == null) return;
-			ScrollContainer scroll = contentControl.GetNodeOrNull<ScrollContainer>("CardScroll");
-			if (scroll == null) return;
-
-			var targetInner = scroll.GetNodeOrNull<VBoxContainer>("InnerVBox");
-			if (targetInner != null)
-			{
-				targetInner.ForceUpdateTransform();
-				float minH = targetInner.GetCombinedMinimumSize().Y;
-				Button expandBtn = contentControl.GetNodeOrNull<Button>("BtnExpandHeight");
-
-				if (!allowExpandBtn)
-				{
-					if (expandBtn != null) expandBtn.Visible = false;
-					scroll.VerticalScrollMode = ScrollContainer.ScrollMode.Disabled;
-					scroll.CustomMinimumSize = new Vector2(245, 0);
-					return;
-				}
-
-				if (minH > maxHeight)
-				{
-					if (expandBtn != null) expandBtn.Visible = true;
-				}
-				else
-				{
-					if (expandBtn != null) expandBtn.Visible = false;
-					scroll.CustomMinimumSize = new Vector2(245, minH);
-				}
-			}
-		}
-
 		private void UpdateModuleSwitchButtons()
 		{
 			if (_topToolbar.ModuleOption != null)

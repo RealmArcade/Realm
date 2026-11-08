@@ -114,29 +114,48 @@ internal static class MapEditorCardTheme
 			content.AddChild(scroll);
 		}
 
+		SizeScroll(content, scroll, maxHeight, allowExpand, resizeWhenOverflowing: true);
+	}
+
+	/// <summary>
+	/// Re-applies the scroll sizing after the card's contents changed. It does not touch the overflowing height, because
+	/// <see cref="SetupScroll"/> already set it; it only catches up with the content's new minimum height and with whether
+	/// the expand button should be offered yet.
+	/// </summary>
+	public static void RefreshScroll(Control? content, float maxHeight, bool allowExpand)
+	{
+		if (content == null) return;
+
+		ScrollContainer scroll = content.GetNodeOrNull<ScrollContainer>("CardScroll");
+		if (scroll == null) return;
+
+		SizeScroll(content, scroll, maxHeight, allowExpand, resizeWhenOverflowing: false);
+	}
+
+	private static void SizeScroll(Control content, ScrollContainer scroll, float maxHeight, bool allowExpand, bool resizeWhenOverflowing)
+	{
 		var targetInner = scroll.GetNodeOrNull<VBoxContainer>("InnerVBox");
-		if (targetInner != null)
+		if (targetInner == null) return;
+
+		targetInner.ForceUpdateTransform();
+		float minH = targetInner.GetCombinedMinimumSize().Y;
+		Button expandBtn = content.GetNodeOrNull<Button>("BtnExpandHeight");
+
+		if (!allowExpand)
 		{
-			targetInner.ForceUpdateTransform();
-			float minH = targetInner.GetCombinedMinimumSize().Y;
-			Button expandBtn = content.GetNodeOrNull<Button>("BtnExpandHeight");
+			DisableExpansion(scroll, expandBtn);
+			return;
+		}
 
-			if (!allowExpand)
-			{
-				DisableExpansion(scroll, expandBtn);
-				return;
-			}
-
-			if (minH > maxHeight)
-			{
-				scroll.CustomMinimumSize = new Vector2(ContentWidth, maxHeight);
-				if (expandBtn != null) expandBtn.Visible = true;
-			}
-			else
-			{
-				scroll.CustomMinimumSize = new Vector2(ContentWidth, minH);
-				if (expandBtn != null) expandBtn.Visible = false;
-			}
+		if (minH > maxHeight)
+		{
+			if (resizeWhenOverflowing) scroll.CustomMinimumSize = new Vector2(ContentWidth, maxHeight);
+			if (expandBtn != null) expandBtn.Visible = true;
+		}
+		else
+		{
+			scroll.CustomMinimumSize = new Vector2(ContentWidth, minH);
+			if (expandBtn != null) expandBtn.Visible = false;
 		}
 	}
 
