@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Godot;
 using Realm.Client.Network;
@@ -464,12 +465,15 @@ public partial class SettingsMenu : Control
 	private void PopulateResolutionDropdown()
 	{
 		_resolutionOpt.Clear();
-		if (GameSettings.Resolutions == null || GameSettings.Resolutions.Count == 0)
+		List<Vector2I>? resolutions = GameSettings.Resolutions;
+		if (resolutions == null || resolutions.Count == 0)
 		{
 			GameSettings.InitializeResolutions();
+			resolutions = GameSettings.Resolutions;
 		}
 
-		var resolutions = GameSettings.Resolutions;
+		if (resolutions == null) return;
+
 		for (int i = 0; i < resolutions.Count; i++)
 		{
 			var res = resolutions[i];
@@ -925,7 +929,7 @@ public partial class SettingsMenu : Control
 
 		if (GameContext.UserInterface != null)
 		{
-			await GameContext.UserInterface?.ApplyWindowSettings(windowMode, GameSettings.ResolutionIdx);
+			await GameContext.UserInterface.ApplyWindowSettings(windowMode, GameSettings.ResolutionIdx);
 		}
 	}
 
