@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using Godot;
@@ -112,5 +112,13 @@ internal sealed class EditorSwatchCatalog
 		if (!string.IsNullOrEmpty(foundTemplate) && File.Exists(foundTemplate)) return foundTemplate;
 
 		return null;
+	}
+
+	internal (string terrainName, string cliffName) GetTextureNames(int terrainIdx, int cliffIdx)
+	{
+		string terrainName = (terrainIdx >= 0 && terrainIdx < DisplayNames.Count) ? DisplayNames[terrainIdx] : "Unknown";
+		string cliffName = (cliffIdx >= 0 && cliffIdx < DisplayNames.Count) ? DisplayNames[cliffIdx] : "Unknown";
+
+		return (terrainName, cliffName);
 	}
 }

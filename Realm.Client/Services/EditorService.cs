@@ -549,13 +549,7 @@ public partial class EditorService : IEditorAPI
 
 	public (string terrainName, string cliffName) GetTextureNamesDomain()
 	{
-		int terrainIdx = EditorPaintTextureIndex;
-		int cliffIdx = EditorCliffPaintTextureIndex;
-
-		string terrainName = (terrainIdx >= 0 && terrainIdx < SwatchDisplayNames.Count) ? SwatchDisplayNames[terrainIdx] : "Unknown";
-		string cliffName = (cliffIdx >= 0 && cliffIdx < SwatchDisplayNames.Count) ? SwatchDisplayNames[cliffIdx] : "Unknown";
-
-		return (terrainName, cliffName);
+		return _swatches.GetTextureNames(EditorPaintTextureIndex, EditorCliffPaintTextureIndex);
 	}
 
 	public EditorTool ActiveEditorTool { get; set; } = EditorTool.None;
@@ -1701,7 +1695,6 @@ public partial class EditorService : IEditorAPI
 		EditorCoordinates.AddRange(loadedCoordinates.Select(r => new EditorCoordinate { Name = r.Name, MinX = r.MinX, MinZ = r.MinZ, MaxX = r.MaxX, MaxZ = r.MaxZ }));
 	}
 
-
 	public string NormalizeModelAssetKey(string pathOrId)
 	{
 		return _assetKeys.NormalizeModelAssetKey(pathOrId);
@@ -1720,22 +1713,7 @@ public partial class EditorService : IEditorAPI
 
 	public string GetInitialDirectoryDomain(string lastOpenedFolder, string documentsDir, Func<string, bool> isRestrictedSaveDirectory)
 	{
-		if (!string.IsNullOrEmpty(LastUsedFolder) && !isRestrictedSaveDirectory(LastUsedFolder) && Directory.Exists(LastUsedFolder))
-		{
-			return LastUsedFolder;
-		}
-
-		if (!string.IsNullOrEmpty(CurrentSourceFolder) && !isRestrictedSaveDirectory(CurrentSourceFolder) && Directory.Exists(CurrentSourceFolder))
-		{
-			return CurrentSourceFolder;
-		}
-
-		if (!string.IsNullOrEmpty(lastOpenedFolder) && !isRestrictedSaveDirectory(lastOpenedFolder) && Directory.Exists(lastOpenedFolder))
-		{
-			return lastOpenedFolder;
-		}
-
-		return documentsDir;
+		return EditorWorkspace.ChooseInitialDirectory(LastUsedFolder, CurrentSourceFolder, lastOpenedFolder, documentsDir, isRestrictedSaveDirectory);
 	}
 
 	public bool IsRestrictedSaveDirectoryDomain(string fullPath, string mapBackups, string userDir, string resDir)

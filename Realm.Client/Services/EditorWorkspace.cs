@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using Realm.Client.Utils;
 
@@ -126,5 +126,25 @@ public class {mapName} : IMapScript
 		File.WriteAllText(Path.Combine(mapDir, "MapScript.cs"), scriptContent);
 		MapJsonFormatter.SaveFormattedJson(Path.Combine(mapDir, "metadata.json"), "{}");
 		MapJsonFormatter.SaveFormattedJson(Path.Combine(mapDir, "terrain.json"), "{}");
+	}
+
+	internal static string ChooseInitialDirectory(string? lastUsedFolder, string? currentSourceFolder, string lastOpenedFolder, string documentsDir, Func<string, bool> isRestrictedSaveDirectory)
+	{
+		if (!string.IsNullOrEmpty(lastUsedFolder) && !isRestrictedSaveDirectory(lastUsedFolder) && System.IO.Directory.Exists(lastUsedFolder))
+		{
+			return lastUsedFolder;
+		}
+
+		if (!string.IsNullOrEmpty(currentSourceFolder) && !isRestrictedSaveDirectory(currentSourceFolder) && System.IO.Directory.Exists(currentSourceFolder))
+		{
+			return currentSourceFolder;
+		}
+
+		if (!string.IsNullOrEmpty(lastOpenedFolder) && !isRestrictedSaveDirectory(lastOpenedFolder) && System.IO.Directory.Exists(lastOpenedFolder))
+		{
+			return lastOpenedFolder;
+		}
+
+		return documentsDir;
 	}
 }
