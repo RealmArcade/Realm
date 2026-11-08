@@ -629,9 +629,9 @@ public class SaveLoadService
 		TerrainCell[,]? unscaledCells = null;
 		int unscaledW = 0, unscaledH = 0;
 
-		LoadTerrainHeights(directory, width, depth, ref ts, ref unscaledCells, ref unscaledW, ref unscaledH);
-		LoadTerrainWater(directory, width, depth, ref ts, ref unscaledCells, ref unscaledW, ref unscaledH);
-		LoadTerrainPathing(directory, width, depth, ref ts);
+		MapTerrainLoad.LoadTerrainHeights(directory, width, depth, ref ts, ref unscaledCells, ref unscaledW, ref unscaledH);
+		MapTerrainLoad.LoadTerrainWater(directory, width, depth, ref ts, ref unscaledCells, ref unscaledW, ref unscaledH);
+		MapTerrainLoad.LoadTerrainPathing(directory, width, depth, ref ts);
 
 		// A ref-returned struct's fields are not flow-tracked across statements, so the grids the
 		// call needs are named here, where the null checks below are visible to the compiler.
@@ -645,122 +645,9 @@ public class SaveLoadService
 		World.Set(worldEntity, ts);
 	}
 
-	private void LoadTerrainHeights(string directory, int width, int depth, ref TerrainState ts, ref TerrainCell[,]? unscaledCells, ref int unscaledW, ref int unscaledH)
-	{
-		float[]? floatData = MapTerrainFiles.TryReadHeights(directory, out int imgW, out int imgH);
-		if (floatData == null) return;
-		if (ts.Cells == null) return;
 
-		if (imgW == width && imgH == depth)
-		{
-			for (int z = 0; z < depth; z++)
-			{
-				for (int x = 0; x < width; x++)
-				{
-					int baseIdx = (z * imgW + x) * 4;
-					ts.Cells[x, z] = new TerrainCell(floatData[baseIdx], floatData[baseIdx + 1], floatData[baseIdx + 2], floatData[baseIdx + 3]);
-				}
-			}
-		}
-		else
-		{
-			unscaledW = imgW;
-			unscaledH = imgH;
-			unscaledCells = MapTerrainFiles.CellsFromHeights(floatData, imgW, imgH);
 
-			ScaleTerrainHeights(width, depth, imgW, imgH, floatData, ref ts);
-		}
-	}
 
-	private void ScaleTerrainHeights(int width, int depth, int imgW, int imgH, ReadOnlySpan<float> floatData, ref TerrainState ts)
-	{
-		if (ts.Cells == null) return;
-		var cells = ts.Cells;
-
-		float[,] newGridHeights = new float[width + 1, depth + 1];
-		for (int vz = 0; vz <= depth; vz++)
-		{
-			for (int vx = 0; vx <= width; vx++)
-			{
-				int srcVx = Math.Clamp((int)Math.Round(vx * (float)imgW / width), 0, imgW);
-				int srcVz = Math.Clamp((int)Math.Round(vz * (float)imgH / depth), 0, imgH);
-				newGridHeights[vx, vz] = GetInterpolatedHeight(srcVx, srcVz, imgW, imgH, floatData);
-			}
-		}
-
-		for (int z = 0; z < depth; z++)
-		{
-			for (int x = 0; x < width; x++)
-			{
-				cells[x, z] = new TerrainCell(newGridHeights[x, z], newGridHeights[x + 1, z], newGridHeights[x + 1, z + 1], newGridHeights[x, z + 1]);
-			}
-		}
-	}
-
-	private float GetInterpolatedHeight(int srcVx, int srcVz, int imgW, int imgH, ReadOnlySpan<float> floatData)
-	{
-		if (srcVx < imgW && srcVz < imgH) return floatData[(srcVz * imgW + srcVx) * 4 + 0];
-		if (srcVx >= imgW && srcVz >= imgH) return floatData[((imgH - 1) * imgW + (imgW - 1)) * 4 + 2];
-		if (srcVx >= imgW) return floatData[(srcVz * imgW + (imgW - 1)) * 4 + 1];
-		if (srcVz >= imgH) return floatData[((imgH - 1) * imgW + srcVx) * 4 + 3];
-		return 0f;
-	}
-
-	private void LoadTerrainWater(string directory, int width, int depth, ref TerrainState ts, ref TerrainCell[,]? unscaledCells, ref int unscaledW, ref int unscaledH)
-	{
-		float[]? waterFloatData = MapTerrainFiles.TryReadWater(directory, out int imgW, out int imgH);
-		if (waterFloatData == null) return;
-		if (ts.Cells == null) return;
-
-		if (imgW == width && imgH == depth && unscaledCells == null)
-		{
-			MapTerrainFiles.ApplyWater(waterFloatData, imgW, imgH, ts.Cells);
-		}
-		else
-		{
-			if (unscaledCells == null || unscaledW != imgW || unscaledH != imgH)
-			{
-				unscaledCells = new TerrainCell[imgW, imgH];
-				unscaledW = imgW;
-				unscaledH = imgH;
-			}
-
-			MapTerrainFiles.ApplyWater(waterFloatData, imgW, imgH, unscaledCells);
-		}
-	}
-
-	private void LoadTerrainPathing(string directory, int width, int depth, ref TerrainState ts)
-	{
-		byte[]? byteData = MapTerrainFiles.TryReadPathing(directory, out int imgW, out int imgH);
-		if (byteData == null)
-		{
-			SetDefaultPathing(width, depth, ref ts);
-			return;
-		}
-
-		var pathingCodes = ts.PathingCodes;
-		if (pathingCodes == null)
-		{
-			SetDefaultPathing(width, depth, ref ts);
-			return;
-		}
-
-		MapTerrainFiles.ApplyPathing(byteData, imgW, imgH, pathingCodes, width, depth);
-	}
-
-	private void SetDefaultPathing(int width, int depth, ref TerrainState ts)
-	{
-		if (ts.PathingCodes == null) return;
-
-		int defaultPathing = TerrainPathing.DefaultPathingCodeByWaterType(WaterType.None);
-		for (int z = 0; z < depth; z++)
-		{
-			for (int x = 0; x < width; x++)
-			{
-				ts.PathingCodes[x, z] = defaultPathing;
-			}
-		}
-	}
 
 	private void LoadSplatColors(string absolutePath, Entity worldEntity, int width, int depth)
 	{
@@ -901,11 +788,6 @@ public class SaveLoadService
 			GameLog.LogError($"[SaveLoadService] Failed to remap splat EXR {file}: {ex.Message}");
 		}
 	}
-
-
-
-
-
 
 
 
