@@ -27,9 +27,9 @@ public partial class Unit3D
 	private MeshInstance3D _rallyMarker = null!;
 	private readonly List<MeshInstance3D> _rallyMarkersPool = new();
 	private readonly List<MeshInstance3D> _rallyLinesPool = new();
-	private readonly List<Vector3> _rallyPointsBuffer = new();
+	private readonly List<System.Numerics.Vector3> _rallyPointsBuffer = new();
 	private Vector3 _lastRallyRenderPos = new Vector3(float.NaN, float.NaN, float.NaN);
-	private readonly List<Vector3> _lastRenderedRallyPoints = new();
+	private readonly List<System.Numerics.Vector3> _lastRenderedRallyPoints = new();
 
 	private MeshInstance3D _selectionRing = null!;
 	private bool _isSelected = false;

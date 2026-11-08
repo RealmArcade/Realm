@@ -59,49 +59,18 @@ public partial class Unit3D
 
 	public bool IsAttackPath { get; set; } = false;
 
+	private readonly List<System.Numerics.Vector3> _pathPointsEcs = new();
+
 	private void GetRemainingPathPoints(List<Vector3> points)
 	{
+		UnitPathQuery.FillMovementPath(Entity, ToEcsVector(Position), _pathPointsEcs, out bool isAttackPath);
+
+		IsAttackPath = isAttackPath;
+
 		points.Clear();
-		IsAttackPath = false;
-		if (GameContext.Host == null || GameContext.World is not { } world || !world.IsAlive(Entity)) return;
-
-		if (world.Has<AttackTarget>(Entity) || world.Has<AttackMove>(Entity))
+		for (int i = 0; i < _pathPointsEcs.Count; i++)
 		{
-			IsAttackPath = true;
-		}
-
-		points.Add(GetEcsOrLocalPosition());
-
-		bool hasPathPoints = false;
-		if (world.Has<PathFollow>(Entity))
-		{
-			var pf = world.Get<PathFollow>(Entity);
-			for (int i = pf.CurrentWaypointIndex; i < pf.WaypointCount; i++)
-			{
-				points.Add(new Vector3(pf.Waypoints[i].X, pf.Waypoints[i].Y, pf.Waypoints[i].Z));
-				hasPathPoints = true;
-			}
-		}
-
-		if (!hasPathPoints && world.Has<MoveTo>(Entity))
-		{
-			var mt = world.Get<MoveTo>(Entity);
-			points.Add(new Vector3(mt.Target.X, mt.Target.Y, mt.Target.Z));
-		}
-
-		if (!hasPathPoints && world.Has<PreviewMoveTo>(Entity))
-		{
-			var preview = world.Get<PreviewMoveTo>(Entity);
-			points.Add(new Vector3(preview.Target.X, preview.Target.Y, preview.Target.Z));
-		}
-
-		if (world.Has<WaypointQueue>(Entity))
-		{
-			var q = world.Get<WaypointQueue>(Entity);
-			for (int i = 0; i < q.Count; i++)
-			{
-				points.Add(new Vector3(q.Waypoints[i].X, q.Waypoints[i].Y, q.Waypoints[i].Z));
-			}
+			points.Add(ToGodotVector(_pathPointsEcs[i]));
 		}
 	}
 

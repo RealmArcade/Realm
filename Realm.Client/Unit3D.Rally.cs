@@ -78,37 +78,13 @@ public partial class Unit3D
 		}
 	}
 
-	private Vector3 GetEcsOrLocalPosition()
+	private static Vector3 ToGodotVector(System.Numerics.Vector3 value) => new(value.X, value.Y, value.Z);
+
+	private static System.Numerics.Vector3 ToEcsVector(Vector3 value) => new(value.X, value.Y, value.Z);
+
+	private void FillRallyPath(List<System.Numerics.Vector3> points)
 	{
-		if (GameContext.Host != null && GameContext.World != null && Entity != default && GameContext.World.IsAlive(Entity) && GameContext.World.Has<Position>(Entity))
-		{
-			var p = GameContext.World.Get<Position>(Entity).Value;
-			return new Vector3(p.X, p.Y, p.Z);
-		}
-
-		return Position;
-	}
-
-	private void GetRemainingRallyPoints(List<Vector3> points)
-	{
-		points.Clear();
-		if (GameContext.Host == null || GameContext.World is not { } world || !world.IsAlive(Entity)) return;
-
-		Vector3 currentPos = GetEcsOrLocalPosition();
-		points.Add(currentPos);
-
-		if (world.Has<RallyPoint>(Entity))
-		{
-			var rp = world.Get<RallyPoint>(Entity);
-			for (int i = 0; i < rp.Count; i++)
-			{
-				points.Add(new Vector3(rp.Waypoints[i].X, rp.Waypoints[i].Y, rp.Waypoints[i].Z));
-			}
-		}
-		else
-		{
-			points.Add(currentPos + new Vector3(0, 0, 8));
-		}
+		UnitPathQuery.FillRallyPath(Entity, ToEcsVector(Position), points);
 	}
 
 	private void EnsureRallyVisualsContainer()
@@ -173,13 +149,13 @@ public partial class Unit3D
 		return _rallyLinesPool[index];
 	}
 
-	private void UpdateRallyMarkers(List<Vector3> points, int markerCountNeeded)
+	private void UpdateRallyMarkers(List<System.Numerics.Vector3> points, int markerCountNeeded)
 	{
 		for (int i = 0; i < markerCountNeeded; i++)
 		{
 			var marker = GetOrCreateRallyMarker(i);
 			marker.Visible = true;
-			Vector3 pos = points[i + 1];
+			Vector3 pos = ToGodotVector(points[i + 1]);
 			if (GameContext.Host?.GroundTerrain is { } terrain)
 			{
 				terrain.GetHeightAndNormal(pos.X, pos.Z, out float h, out _);
@@ -218,15 +194,15 @@ public partial class Unit3D
 		}
 	}
 
-	private void UpdateRallyLines(List<Vector3> points, int lineCountNeeded)
+	private void UpdateRallyLines(List<System.Numerics.Vector3> points, int lineCountNeeded)
 	{
 		for (int i = 0; i < lineCountNeeded; i++)
 		{
 			var line = GetOrCreateRallyLine(i);
 			line.Visible = true;
 
-			Vector3 start = SamplePathGround(points[i]);
-			Vector3 end = SamplePathGround(points[i + 1]);
+			Vector3 start = SamplePathGround(ToGodotVector(points[i]));
+			Vector3 end = SamplePathGround(ToGodotVector(points[i + 1]));
 
 			UpdateLineTransform(line, start, end, PathBaseWidth, new Color(0.95f, 0.85f, 0.25f), 0.85f);
 		}
@@ -248,6 +224,17 @@ public partial class Unit3D
 		return true;
 	}
 
+	private static bool PointsListEqual(List<System.Numerics.Vector3> a, List<System.Numerics.Vector3> b)
+	{
+		if (a.Count != b.Count) return false;
+		for (int i = 0; i < a.Count; i++)
+		{
+			if (System.Numerics.Vector3.DistanceSquared(a[i], b[i]) > 0.0001f) return false;
+		}
+
+		return true;
+	}
+
 	public void UpdateRallyVisuals()
 	{
 		if (!IsBuilding || !GameContext.PerspectiveFilter.CanSeeOwnedUi(Player)) return;
@@ -263,7 +250,7 @@ public partial class Unit3D
 		_rallyVisualsContainer.Visible = IsSelected;
 		if (!IsSelected) return;
 
-		GetRemainingRallyPoints(_rallyPointsBuffer);
+		FillRallyPath(_rallyPointsBuffer);
 
 		if (_rallyPointsBuffer.Count <= 1)
 		{
@@ -273,7 +260,7 @@ public partial class Unit3D
 			return;
 		}
 
-		Vector3 currentPos = _rallyPointsBuffer[0];
+		Vector3 currentPos = ToGodotVector(_rallyPointsBuffer[0]);
 		bool posUnchanged = !float.IsNaN(_lastRallyRenderPos.X) && currentPos.DistanceSquaredTo(_lastRallyRenderPos) < 0.0025f;
 		bool pointsUnchanged = PointsListEqual(_rallyPointsBuffer, _lastRenderedRallyPoints);
 
@@ -286,7 +273,7 @@ public partial class Unit3D
 		EnsureRallyMarkerExists();
 		_rallyMarker.Visible = true;
 
-		PositionRallyMarker(_rallyPointsBuffer[_rallyPointsBuffer.Count - 1]);
+		PositionRallyMarker(ToGodotVector(_rallyPointsBuffer[_rallyPointsBuffer.Count - 1]));
 
 		UpdateRallyMarkers(_rallyPointsBuffer, _rallyPointsBuffer.Count - 2);
 		UpdateRallyLines(_rallyPointsBuffer, _rallyPointsBuffer.Count - 1);
