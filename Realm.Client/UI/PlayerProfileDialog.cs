@@ -84,7 +84,7 @@ public partial class PlayerProfileDialog : Control
 		backdrop.SetAnchorsPreset(LayoutPreset.FullRect);
 		backdrop.MouseFilter = MouseFilterEnum.Stop;
 		backdrop.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
-		backdrop.AddThemeStyleboxOverride("panel", CreateBackdropStyle());
+		UIStyle.ApplyScreenBackground(backdrop, "res://Assets/UI/player_profile_bg.webp");
 		AddChild(backdrop);
 
 		var center = new CenterContainer { Name = "PlayerProfileCenter" };
@@ -94,7 +94,8 @@ public partial class PlayerProfileDialog : Control
 		var card = new PanelContainer { Name = "PlayerProfileCard" };
 		card.CustomMinimumSize = new Vector2(560, 0);
 		card.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
-		card.AddThemeStyleboxOverride("panel", CreateCardStyle());
+		card.AddThemeStyleboxOverride("panel", UIStyle.CreateArtworkPlate(
+			"res://Assets/UI/player_profile_card_bg.webp", 24, 24, 24, 24, 40));
 		center.AddChild(card);
 
 		var margin = new MarginContainer { Name = "PlayerProfileMargin" };
@@ -128,35 +129,6 @@ public partial class PlayerProfileDialog : Control
 		_statusLabel.HorizontalAlignment = HorizontalAlignment.Center;
 
 		column.AddChild(CreateBackButton());
-	}
-
-	private static StyleBox CreateBackdropStyle()
-	{
-		Texture2D? backdropTexture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/player_profile_bg.webp");
-		if (backdropTexture == null) return UIStyle.CreateBgGradient();
-
-		return new StyleBoxTexture { Texture = backdropTexture };
-	}
-
-	private static StyleBox CreateCardStyle()
-	{
-		Texture2D? cardTexture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/player_profile_card_bg.webp");
-		if (cardTexture == null) return UIStyle.CreateStonePanel();
-
-		var style = new StyleBoxTexture
-		{
-			Texture = cardTexture,
-			TextureMarginLeft = 40,
-			TextureMarginRight = 40,
-			TextureMarginTop = 40,
-			TextureMarginBottom = 40,
-			ContentMarginLeft = 24,
-			ContentMarginRight = 24,
-			ContentMarginTop = 24,
-			ContentMarginBottom = 24
-		};
-
-		return style;
 	}
 
 	private Label CreateTitleLabel()
@@ -765,24 +737,9 @@ public partial class PlayerProfileDialog : Control
 		Texture2D? buttonTexture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/player_profile_button.webp");
 		if (buttonTexture != null)
 		{
-			var normalStyle = new StyleBoxTexture
-			{
-				Texture = buttonTexture,
-				ContentMarginLeft = 16,
-				ContentMarginRight = 16,
-				ContentMarginTop = 8,
-				ContentMarginBottom = 8
-			};
-
-			var hoverStyle = (StyleBoxTexture)normalStyle.Duplicate();
-			hoverStyle.ModulateColor = new Color(1.15f, 1.15f, 1.2f);
-
-			var pressedStyle = (StyleBoxTexture)normalStyle.Duplicate();
-			pressedStyle.ModulateColor = new Color(0.85f, 0.85f, 0.9f);
-
-			button.AddThemeStyleboxOverride("normal", normalStyle);
-			button.AddThemeStyleboxOverride("hover", hoverStyle);
-			button.AddThemeStyleboxOverride("pressed", pressedStyle);
+			UIStyle.ApplyTintedArtworkButton(button, "res://Assets/UI/player_profile_button.webp",
+				new Color(1f, 1f, 1f), new Color(1.15f, 1.15f, 1.2f), new Color(0.85f, 0.85f, 0.9f),
+				16, 16, 8, 8);
 			button.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 		}
 		else

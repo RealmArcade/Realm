@@ -98,14 +98,14 @@ public static partial class UIStyle
 	/// One of the nine-slice artwork plates a screen draws its panels and cards with: the texture is stretched whole and
 	/// the content is inset by the given amounts, which is what every map discovery plate does.
 	/// </summary>
-	public static StyleBoxTexture CreateArtworkPlate(string texturePath, int left, int right, int top, int bottom)
+	public static StyleBoxTexture CreateArtworkPlate(string texturePath, int left, int right, int top, int bottom, int textureMargin = 0)
 	{
 		var style = new StyleBoxTexture();
 		style.Texture = TrimmedTextureLoader.LoadTrimmedTexture(texturePath);
-		style.TextureMarginLeft = 0;
-		style.TextureMarginRight = 0;
-		style.TextureMarginTop = 0;
-		style.TextureMarginBottom = 0;
+		style.TextureMarginLeft = textureMargin;
+		style.TextureMarginRight = textureMargin;
+		style.TextureMarginTop = textureMargin;
+		style.TextureMarginBottom = textureMargin;
 		style.ContentMarginLeft = left;
 		style.ContentMarginRight = right;
 		style.ContentMarginTop = top;
