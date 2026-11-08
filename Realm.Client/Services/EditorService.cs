@@ -364,136 +364,20 @@ public partial class EditorService : IEditorAPI
 
 	public void SaveCustomUnitAnimations(string unitId, Dictionary<string, List<UnitAnimationEntry>> animations)
 	{
-		if (string.IsNullOrEmpty(unitId)) return;
-
-		if (GameHost.UnitRegistry.TryGetValue(unitId, out var uMeta))
-		{
-			uMeta.Animations = animations;
-			GameHost.UnitRegistry[unitId] = uMeta;
-		}
-
-		string wsPath = GetWorkspacePath();
-		string metadataPath = MetadataService.ResolveMetadataPath(wsPath);
-		if (!File.Exists(metadataPath)) return;
-
-		GameContext.MetadataService.UpdateMetadata(wsPath, meta =>
-		{
-			meta.UpdateUnit(unitId, u =>
-			{
-				u.Animations = animations;
-				return u;
-			});
-		});
-		this.LastMetadataSyncTime = File.Exists(metadataPath) ? File.GetLastWriteTimeUtc(metadataPath).Ticks : 0;
+		long? metadataTicks = EditorMetadataWrites.SaveCustomUnitAnimations(GetWorkspacePath(), unitId, animations);
+		if (metadataTicks is long ticks) LastMetadataSyncTime = ticks;
 	}
 
 	public void SaveCustomAbilityVfxToMetadata(string abilityId, string visualEffect, string castSound, string iconPath, float aoeRadius)
 	{
-		if (string.IsNullOrEmpty(abilityId)) return;
-
-		string wsPath = GetWorkspacePath();
-		string metadataPath = MetadataService.ResolveMetadataPath(wsPath);
-		if (!File.Exists(metadataPath)) return;
-
-		GameContext.MetadataService.UpdateMetadata(wsPath, meta =>
-		{
-			meta.UpdateAbility(abilityId, ab =>
-			{
-				ab.VisualEffect = visualEffect;
-				ab.CastSound = castSound;
-				ab.IconPath = iconPath;
-				ab.AreaOfEffectRadius = aoeRadius;
-				return ab;
-			});
-		});
-		this.LastMetadataSyncTime = File.Exists(metadataPath) ? File.GetLastWriteTimeUtc(metadataPath).Ticks : 0;
+		long? metadataTicks = EditorMetadataWrites.SaveCustomAbilityVfxToMetadata(GetWorkspacePath(), abilityId, visualEffect, castSound, iconPath, aoeRadius);
+		if (metadataTicks is long ticks) LastMetadataSyncTime = ticks;
 	}
 
 	public void SaveEntityModelPathToMetadata(string entityId, string fieldName, string domain, string newModelPath)
 	{
-		if (string.IsNullOrEmpty(entityId)) return;
-
-		fieldName = string.IsNullOrEmpty(fieldName) ? "ModelPath" : fieldName;
-		domain = string.IsNullOrEmpty(domain) ? "units" : domain;
-
-		UpdateLocalRegistryForModelPath(entityId, fieldName, domain, newModelPath);
-		UpdateMetadataFileForModelPath(entityId, fieldName, domain, newModelPath);
-	}
-
-	private void UpdateLocalRegistryForModelPath(string entityId, string fieldName, string domain, string newModelPath)
-	{
-		switch (domain.ToLowerInvariant())
-		{
-			case "units":
-				if (!GameHost.UnitRegistry.TryGetValue(entityId, out var uMeta)) return;
-				if (fieldName == "PortraitModelPath") uMeta.PortraitModelPath = newModelPath;
-				else uMeta.ModelPath = newModelPath;
-				GameHost.UnitRegistry[entityId] = uMeta;
-				break;
-			case "buildings":
-				if (!GameHost.BuildingRegistry.TryGetValue(entityId, out var bMeta)) return;
-				if (fieldName == "PortraitModelPath") bMeta.PortraitModelPath = newModelPath;
-				else bMeta.ModelPath = newModelPath;
-				GameHost.BuildingRegistry[entityId] = bMeta;
-				break;
-			case "resources":
-				if (!GameHost.ResourceRegistry.TryGetValue(entityId, out var rMeta)) return;
-				if (fieldName == "PortraitModelPath") rMeta.PortraitModelPath = newModelPath;
-				else rMeta.ModelPath = newModelPath;
-				GameHost.ResourceRegistry[entityId] = rMeta;
-				break;
-			case "props":
-				if (!GameHost.PropRegistry.TryGetValue(entityId, out var pMeta)) return;
-				pMeta.ModelPath = newModelPath;
-				GameHost.PropRegistry[entityId] = pMeta;
-				break;
-		}
-	}
-
-	private void UpdateMetadataFileForModelPath(string entityId, string fieldName, string domain, string newModelPath)
-	{
-		string wsPath = GetWorkspacePath();
-		string metadataPath = MetadataService.ResolveMetadataPath(wsPath);
-		if (!File.Exists(metadataPath)) return;
-
-		GameContext.MetadataService.UpdateMetadata(wsPath, meta =>
-		{
-			switch (domain.ToLowerInvariant())
-			{
-				case "units":
-					meta.UpdateUnit(entityId, u =>
-					{
-						if (fieldName == "PortraitModelPath") u.PortraitModelPath = newModelPath;
-						else u.ModelPath = newModelPath;
-						return u;
-					});
-					break;
-				case "buildings":
-					meta.UpdateBuilding(entityId, b =>
-					{
-						if (fieldName == "PortraitModelPath") b.PortraitModelPath = newModelPath;
-						else b.ModelPath = newModelPath;
-						return b;
-					});
-					break;
-				case "resources":
-					meta.UpdateResource(entityId, r =>
-					{
-						if (fieldName == "PortraitModelPath") r.PortraitModelPath = newModelPath;
-						else r.ModelPath = newModelPath;
-						return r;
-					});
-					break;
-				case "props":
-					meta.UpdateProp(entityId, p =>
-					{
-						p.ModelPath = newModelPath;
-						return p;
-					});
-					break;
-			}
-		});
-		this.LastMetadataSyncTime = File.Exists(metadataPath) ? File.GetLastWriteTimeUtc(metadataPath).Ticks : 0;
+		long? metadataTicks = EditorMetadataWrites.SaveEntityModelPathToMetadata(GetWorkspacePath(), entityId, fieldName, domain, newModelPath);
+		if (metadataTicks is long ticks) LastMetadataSyncTime = ticks;
 	}
 
 	public long LastMapNameCacheTicks { get; set; } = 0;
