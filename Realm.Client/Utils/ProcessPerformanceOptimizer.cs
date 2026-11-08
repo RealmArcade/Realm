@@ -180,8 +180,11 @@ public static class ProcessPerformanceOptimizer
 						EfficiencyCoreAffinityMask = eCoreMask;
 					}
 
-					var process = Process.GetCurrentProcess();
-					process.ProcessorAffinity = new IntPtr(pCoreMask);
+					if (OperatingSystem.IsWindows())
+					{
+						var process = Process.GetCurrentProcess();
+						process.ProcessorAffinity = new IntPtr(pCoreMask);
+					}
 					Log($"[Performance] Hybrid CPU detected ({Environment.ProcessorCount} logical threads). " +
 					    $"P-Core Mask: 0x{pCoreMask:X}, E-Core Mask: 0x{EfficiencyCoreAffinityMask:X}. " +
 					    $"Process affinity successfully pinned to Performance cores.");
