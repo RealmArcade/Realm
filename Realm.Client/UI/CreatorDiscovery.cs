@@ -1,13 +1,9 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Text.Json;
 using System.Threading.Tasks;
 using Godot;
 using Realm.Client.Network;
 using Realm.Shared.Distribution;
-using HttpClient = System.Net.Http.HttpClient;
 using Realm.Client.Services;
 using static Godot.Control;
 using static Godot.CanvasItem;
@@ -336,18 +332,7 @@ public partial class CreatorDiscovery : Control
 	private void LoadForYouData()
 	{
 		string statsPath = ProjectSettings.GlobalizePath("user://appdata/playtime_stats.json");
-		var localCreators = new Dictionary<string, int>();
-		if (File.Exists(statsPath))
-		{
-			try
-			{
-				string statsJson = File.ReadAllText(statsPath);
-				localCreators = JsonSerializer.Deserialize<Dictionary<string, int>>(statsJson) ?? localCreators;
-			}
-			catch
-			{
-			}
-		}
+		Dictionary<string, int> localCreators = CreatorDiscoveryService.LoadPlaytimeCreators(statsPath);
 
 		if (localCreators.Count == 0)
 		{
@@ -422,34 +407,19 @@ public partial class CreatorDiscovery : Control
 	private async void LoadPortfolioData()
 	{
 		string seedServerUrl = GodotObject.IsInstanceValid(GameContext.Lobby) ? GameContext.Lobby.RegistryServerUrl : ServersConfigHelper.GetDefaultServerUrl();
-		try
+		List<CreatorInfo> creators = await CreatorDiscoveryService.LoadCreatorsAsync(seedServerUrl);
+		if (creators.Count > 0)
 		{
-			using (var httpClient = new HttpClient())
+			_creatorsList = creators;
+			_creatorDropdown.Clear();
+			for (int i = 0; i < _creatorsList.Count; i++)
 			{
-				var res = await httpClient.GetAsync(seedServerUrl + "/api/creators");
-				if (res.IsSuccessStatusCode)
-				{
-					string json = await res.Content.ReadAsStringAsync();
-					var creators = JsonSerializer.Deserialize<CreatorInfo[]>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-					if (creators != null && creators.Length > 0)
-					{
-						_creatorsList = creators.ToList();
-						_creatorDropdown.Clear();
-						for (int i = 0; i < _creatorsList.Count; i++)
-						{
-							_creatorDropdown.AddItem(_creatorsList[i].Username, i);
-						}
-
-						_creatorDropdown.ItemSelected += (idx) => UpdatePortfolioView(idx);
-						UpdatePortfolioView(0);
-						return;
-					}
-				}
+				_creatorDropdown.AddItem(_creatorsList[i].Username, i);
 			}
-		}
-		catch (Exception ex)
-		{
-			GameLog.LogError($"[CreatorDiscovery] Failed to load creators: {ex.Message}");
+
+			_creatorDropdown.ItemSelected += (idx) => UpdatePortfolioView(idx);
+			UpdatePortfolioView(0);
+			return;
 		}
 
 		_creatorDropdown.Clear();
@@ -515,29 +485,16 @@ public partial class CreatorDiscovery : Control
 
 	private async Task<bool> TryLoadAndDisplayPortfolioAssets(string seedServerUrl, CreatorInfo creator)
 	{
-		try
+		List<PortfolioAsset> assets = await CreatorDiscoveryService.LoadPortfolioAsync(seedServerUrl, creator);
+		if (assets.Count == 0) return false;
+
+		foreach (var asset in assets)
 		{
-			using var httpClient = new HttpClient();
-			var res = await httpClient.GetAsync(seedServerUrl + $"/api/creators/{Uri.EscapeDataString(creator.PublicKey)}/portfolio");
-			if (!res.IsSuccessStatusCode) return false;
-
-			string json = await res.Content.ReadAsStringAsync();
-			var assets = JsonSerializer.Deserialize<PortfolioAsset[]>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-			if (assets == null || assets.Length == 0) return false;
-
-			foreach (var asset in assets)
-			{
-				var card = CreateAssetCard(TranslationServer.Translate("Greenlit Asset Pack"), asset.Hash);
-				_portfolioGrid.AddChild(card);
-			}
-
-			return true;
+			var card = CreateAssetCard(TranslationServer.Translate("Greenlit Asset Pack"), asset.Hash);
+			_portfolioGrid.AddChild(card);
 		}
-		catch (Exception ex)
-		{
-			GameLog.LogError($"[CreatorDiscovery] Failed to load portfolio: {ex.Message}");
-			return false;
-		}
+
+		return true;
 	}
 
 	private void DisplayEmptyPortfolioMessage()
