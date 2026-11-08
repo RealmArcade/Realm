@@ -749,6 +749,7 @@ public partial class EditorService : IEditorAPI
 	private readonly EditorPasteWriter _paste;
 	private readonly EditorAreaClipboard _clipboard;
 	private readonly EditorRampTool _ramp;
+	private readonly EditorInteractionState _interaction = new();
 
 	public EditorService()
 	{
@@ -759,18 +760,8 @@ public partial class EditorService : IEditorAPI
 	}
 
 
-	private Vector2I? _selectionStart;
-	private Vector2I? _selectionEnd;
-	private bool _isSelectingArea;
 
-	private Vector2I? _objectMarqueeStart;
-	private Vector2I? _objectMarqueeEnd;
-	private bool _isObjectMarqueeSelecting;
 
-	private float _cachedRandomRotation;
-	private float _cachedRandomScale = 1.0f;
-	private bool _hasCachedRandom;
-	private bool _isPastingObject;
 
 
 
@@ -816,17 +807,17 @@ public partial class EditorService : IEditorAPI
 		}
 	}
 
-	public bool IsPastingObject => _isPastingObject;
-	public bool HasCachedRandom => _hasCachedRandom;
-	public float CachedRandomRotation => _cachedRandomRotation;
-	public float CachedRandomScale => _cachedRandomScale;
-	public Vector2I? SelectionStart => _selectionStart;
-	public Vector2I? SelectionEnd => _selectionEnd;
-	public bool IsSelectingArea => _isSelectingArea;
+	public bool IsPastingObject => _interaction.IsPastingObject;
+	public bool HasCachedRandom => _interaction.HasCachedRandom;
+	public float CachedRandomRotation => _interaction.CachedRandomRotation;
+	public float CachedRandomScale => _interaction.CachedRandomScale;
+	public Vector2I? SelectionStart => _interaction.SelectionStart;
+	public Vector2I? SelectionEnd => _interaction.SelectionEnd;
+	public bool IsSelectingArea => _interaction.IsSelectingArea;
 
-	public Vector2I? ObjectMarqueeStart => _objectMarqueeStart;
-	public Vector2I? ObjectMarqueeEnd => _objectMarqueeEnd;
-	public bool IsObjectMarqueeSelecting => _isObjectMarqueeSelecting;
+	public Vector2I? ObjectMarqueeStart => _interaction.ObjectMarqueeStart;
+	public Vector2I? ObjectMarqueeEnd => _interaction.ObjectMarqueeEnd;
+	public bool IsObjectMarqueeSelecting => _interaction.IsObjectMarqueeSelecting;
 
 
 
@@ -934,52 +925,32 @@ public partial class EditorService : IEditorAPI
 		}
 	}
 
-	public void SetIsPastingObject(bool value)
-	{
-		_isPastingObject = value;
-	}
 
 
-	public void SetSelectionStart(Vector2I? value)
-	{
-		_selectionStart = value;
-	}
 
-	public void SetSelectionEnd(Vector2I? value)
-	{
-		_selectionEnd = value;
-	}
 
-	public void SetIsSelectingArea(bool value)
-	{
-		_isSelectingArea = value;
-	}
 
-	public void SetObjectMarquee(Vector2I? start, Vector2I? end, bool selecting)
-	{
-		_objectMarqueeStart = start;
-		_objectMarqueeEnd = end;
-		_isObjectMarqueeSelecting = selecting;
-	}
 
-	public void ClearObjectMarquee()
-	{
-		_objectMarqueeStart = null;
-		_objectMarqueeEnd = null;
-		_isObjectMarqueeSelecting = false;
-	}
 
-	public void GenerateNewRandomPlacementRotationAndScale()
-	{
-		_cachedRandomRotation = (float)(GD.Randf() * 360.0);
-		_cachedRandomScale = 0.2f + (float)(GD.Randf() * 2.8);
-		_hasCachedRandom = true;
-	}
 
-	public void InvalidateCachedRandom()
-	{
-		_hasCachedRandom = false;
-	}
+
+	public void SetIsPastingObject(bool value) => _interaction.SetIsPastingObject(value);
+
+	public void SetSelectionStart(Vector2I? value) => _interaction.SetSelectionStart(value);
+
+	public void SetSelectionEnd(Vector2I? value) => _interaction.SetSelectionEnd(value);
+
+	public void SetIsSelectingArea(bool value) => _interaction.SetIsSelectingArea(value);
+
+	public void SetObjectMarquee(Vector2I? start, Vector2I? end, bool selecting) => _interaction.SetObjectMarquee(start, end, selecting);
+
+	public void ClearObjectMarquee() => _interaction.ClearObjectMarquee();
+
+	public void GenerateNewRandomPlacementRotationAndScale() => _interaction.GenerateNewRandomPlacementRotationAndScale();
+
+	public void InvalidateCachedRandom() => _interaction.InvalidateCachedRandom();
+
+	public (int minX, int minZ, int maxX, int maxZ) GetCurrentSelectionBounds() => _interaction.GetSelectionBounds();
 
 	private void SetGridNodeHeight(ref TerrainState terrain, int gx, int gz, float height) =>
 		EditorTerrainGeometry.SetGridNodeHeight(ref terrain, gx, gz, height);
@@ -1099,9 +1070,8 @@ public partial class EditorService : IEditorAPI
 
 	public void ResetAllState()
 	{
-		_selectionStart = null;
-		_selectionEnd = null;
-		ClearObjectMarquee();
+		_interaction.ClearSelection();
+		_interaction.ClearObjectMarquee();
 		_clipboard.ClearArea();
 		_terrainEdit.ResetAll();
 		_surface.SplatMap = null;
@@ -1525,15 +1495,6 @@ public partial class EditorService : IEditorAPI
 		return EditorGridSnapping.GetAnchoredPasteBounds(_clipboard.CopiedArea, targetX, targetZ, rotationDegrees, reflection);
 	}
 
-	public (int minX, int minZ, int maxX, int maxZ) GetCurrentSelectionBounds()
-	{
-		if (_selectionStart == null || _selectionEnd == null) return (0, 0, 0, 0);
-		int minX = Mathf.Min(_selectionStart.Value.X, _selectionEnd.Value.X);
-		int minZ = Mathf.Min(_selectionStart.Value.Y, _selectionEnd.Value.Y);
-		int maxX = Mathf.Max(_selectionStart.Value.X, _selectionEnd.Value.X);
-		int maxZ = Mathf.Max(_selectionStart.Value.Y, _selectionEnd.Value.Y);
-		return (minX, minZ, maxX, maxZ);
-	}
 
 	public (int cx, int cz) WorldPosToCellCoords(Godot.Vector3 worldPos)
 	{
