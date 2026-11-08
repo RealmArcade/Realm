@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using Realm.EditorAPI;
@@ -8,7 +8,7 @@ namespace Realm.Client.Services.MapGeneration;
 
 public class ProceduralMapGenerator
 {
-	private const int AnchorCount = 9;
+	internal const int AnchorCount = 9;
 	private const int MaximumScatterPoints = 20000;
 
 	private static readonly float[] StageWeights = { 2f, 10f, 3f, 14f, 4f, 8f, 3f, 3f, 5f, 9f, 4f, 4f, 10f, 8f, 6f, 5f, 2f };
@@ -28,6 +28,7 @@ public class ProceduralMapGenerator
 	private readonly SeededValueNoise _coarseNoise;
 	private readonly SeededValueNoise _detailNoise;
 	private readonly AnchorCell[] _anchors = new AnchorCell[AnchorCount];
+	private MapPathCarver? _pathCarver;
 
 	private readonly bool[,] _land;
 	private readonly bool[,] _landScratch;
@@ -61,21 +62,6 @@ public class ProceduralMapGenerator
 	private bool _passPrepared;
 	private int _anchorIndex;
 
-	private List<MstEdge> _mstEdges = new();
-	private bool _mstComputed;
-	private int _pathPhase;
-	private int _edgeIndex;
-	private PriorityQueue<int, float>? _astarOpen;
-	private float[]? _astarCost;
-	private int[]? _astarCameFrom;
-	private bool[]? _astarClosed;
-	private int _astarStart;
-	private int _astarGoal;
-	private int _astarSequence;
-	private readonly List<List<CellPosition>> _routes = new();
-	private List<CellPosition> _currentRoute = new();
-	private int _carveRouteIndex;
-	private int _carvePointIndex;
 	private int _distanceRow;
 	private bool _distanceInitialized;
 	private readonly Queue<int> _distanceQueue = new();
@@ -205,10 +191,7 @@ public class ProceduralMapGenerator
 		_row = 0;
 		_passPrepared = false;
 		_anchorIndex = 0;
-		_pathPhase = 0;
-		_edgeIndex = 0;
-		_carveRouteIndex = 0;
-		_carvePointIndex = 0;
+		_pathCarver = null;
 		_distanceRow = 0;
 		_distanceInitialized = false;
 		_distanceQueue.Clear();
@@ -382,295 +365,11 @@ public class ProceduralMapGenerator
 
 	private bool RunPaths(int remainingBudgetMilliseconds)
 	{
-		if (_pathPhase == 0)
-		{
-			ComputeMst();
-			_pathPhase = 1;
-			return false;
-		}
+		_pathCarver ??= new MapPathCarver(_land, _path, _walkable, _width, _depth, _anchors, _pathBrushRadius);
 
-		if (_pathPhase == 1)
-		{
-			if (_edgeIndex >= _mstEdges.Count)
-			{
-				_pathPhase = 2;
-				return false;
-			}
-
-			MstEdge edge = _mstEdges[_edgeIndex];
-			if (_astarOpen == null)
-			{
-				StartAStar(edge);
-			}
-
-			bool finished = StepAStar(750);
-			_stageProgress = 0.05f + 0.55f * (_edgeIndex + (finished ? 1f : 0.5f)) / Math.Max(1, _mstEdges.Count);
-			if (!finished)
-			{
-				return false;
-			}
-
-			if (_currentRoute.Count > 0)
-			{
-				_routes.Add(_currentRoute);
-			}
-
-			_currentRoute = new List<CellPosition>();
-			_astarOpen = null;
-			_astarCost = null;
-			_astarCameFrom = null;
-			_astarClosed = null;
-			_edgeIndex++;
-			return false;
-		}
-
-		if (_pathPhase == 2)
-		{
-			int carvedThisStep = 0;
-			while (_carveRouteIndex < _routes.Count && carvedThisStep < 400)
-			{
-				List<CellPosition> route = _routes[_carveRouteIndex];
-				while (_carvePointIndex < route.Count && carvedThisStep < 400)
-				{
-					CarvePathAt(route[_carvePointIndex]);
-					_carvePointIndex++;
-					carvedThisStep++;
-				}
-
-				if (_carvePointIndex < route.Count)
-				{
-					break;
-				}
-
-				_carveRouteIndex++;
-				_carvePointIndex = 0;
-			}
-
-			_stageProgress = 0.6f + 0.3f * (_carveRouteIndex / (float)Math.Max(1, _routes.Count));
-			if (_carveRouteIndex < _routes.Count)
-			{
-				return false;
-			}
-
-			_pathPhase = 3;
-			return false;
-		}
-
-		for (int anchorIndex = 0; anchorIndex < AnchorCount; anchorIndex++)
-		{
-			MarkWalkableCircle(_anchors[anchorIndex].CellX, _anchors[anchorIndex].CellZ, 10);
-		}
-
-		_stageProgress = 1f;
-		return true;
-	}
-
-	private void ComputeMst()
-	{
-		if (_mstComputed)
-		{
-			return;
-		}
-
-		_mstComputed = true;
-		var inTree = new bool[AnchorCount];
-		inTree[0] = true;
-		for (int edgeIndex = 0; edgeIndex < AnchorCount - 1; edgeIndex++)
-		{
-			float bestDistance = float.MaxValue;
-			int bestFrom = 0;
-			int bestTo = 0;
-			for (int fromIndex = 0; fromIndex < AnchorCount; fromIndex++)
-			{
-				if (!inTree[fromIndex])
-				{
-					continue;
-				}
-
-				for (int toIndex = 0; toIndex < AnchorCount; toIndex++)
-				{
-					if (inTree[toIndex])
-					{
-						continue;
-					}
-
-					float deltaX = _anchors[fromIndex].CellX - _anchors[toIndex].CellX;
-					float deltaZ = _anchors[fromIndex].CellZ - _anchors[toIndex].CellZ;
-					float distance = deltaX * deltaX + deltaZ * deltaZ;
-					if (distance < bestDistance)
-					{
-						bestDistance = distance;
-						bestFrom = fromIndex;
-						bestTo = toIndex;
-					}
-				}
-			}
-
-			_mstEdges.Add(new MstEdge(bestFrom, bestTo));
-			inTree[bestTo] = true;
-		}
-	}
-
-	private void StartAStar(MstEdge edge)
-	{
-		int cellCount = _width * _depth;
-		_astarCost = _astarCost == null || _astarCost.Length != cellCount ? new float[cellCount] : _astarCost;
-		_astarCameFrom = _astarCameFrom == null || _astarCameFrom.Length != cellCount ? new int[cellCount] : _astarCameFrom;
-		_astarClosed = _astarClosed == null || _astarClosed.Length != cellCount ? new bool[cellCount] : _astarClosed;
-		Array.Fill(_astarCost, float.PositiveInfinity);
-		Array.Fill(_astarCameFrom, -1);
-		Array.Fill(_astarClosed, false);
-		_astarOpen = new PriorityQueue<int, float>();
-		_astarStart = _anchors[edge.From].CellZ * _width + _anchors[edge.From].CellX;
-		_astarGoal = _anchors[edge.To].CellZ * _width + _anchors[edge.To].CellX;
-		_astarCost[_astarStart] = 0f;
-		_astarSequence = 0;
-		_astarOpen.Enqueue(_astarStart, Heuristic(_astarStart));
-		_currentRoute = new List<CellPosition>();
-	}
-
-	private bool StepAStar(int nodeBudget)
-	{
-		if (_astarOpen == null || _astarCost == null || _astarCameFrom == null || _astarClosed == null)
-		{
-			return true;
-		}
-
-		for (int processed = 0; processed < nodeBudget; processed++)
-		{
-			if (!_astarOpen.TryDequeue(out int currentNode, out _))
-			{
-				return true;
-			}
-
-			if (_astarClosed[currentNode])
-			{
-				continue;
-			}
-
-			if (currentNode == _astarGoal)
-			{
-				ReconstructRoute();
-				return true;
-			}
-
-			_astarClosed[currentNode] = true;
-			int currentX = currentNode % _width;
-			int currentZ = currentNode / _width;
-			ExpandAStarNeighbour(currentNode, currentX - 1, currentZ);
-			ExpandAStarNeighbour(currentNode, currentX + 1, currentZ);
-			ExpandAStarNeighbour(currentNode, currentX, currentZ - 1);
-			ExpandAStarNeighbour(currentNode, currentX, currentZ + 1);
-		}
-
-		return false;
-	}
-
-	private void ExpandAStarNeighbour(int currentNode, int neighbourX, int neighbourZ)
-	{
-		if (_astarCost == null || _astarClosed == null || _astarOpen == null || _astarCameFrom == null)
-		{
-			return;
-		}
-
-		if (neighbourX < 0 || neighbourX >= _width || neighbourZ < 0 || neighbourZ >= _depth)
-		{
-			return;
-		}
-
-		int neighbourIndex = neighbourZ * _width + neighbourX;
-		if (_astarClosed[neighbourIndex])
-		{
-			return;
-		}
-
-		float stepCost = _land[neighbourX, neighbourZ] ? 16f : 1f;
-		float candidateCost = _astarCost[currentNode] + stepCost;
-		if (candidateCost >= _astarCost[neighbourIndex])
-		{
-			return;
-		}
-
-		_astarCost[neighbourIndex] = candidateCost;
-		_astarCameFrom[neighbourIndex] = currentNode;
-		float priority = candidateCost + Heuristic(neighbourIndex) + _astarSequence++ * 0.00001f;
-		_astarOpen.Enqueue(neighbourIndex, priority);
-	}
-
-	private float Heuristic(int cellIndex)
-	{
-		int x = cellIndex % _width;
-		int z = cellIndex / _width;
-		int goalX = _astarGoal % _width;
-		int goalZ = _astarGoal / _width;
-		float deltaX = x - goalX;
-		float deltaZ = z - goalZ;
-		return MathF.Sqrt(deltaX * deltaX + deltaZ * deltaZ);
-	}
-
-	private void ReconstructRoute()
-	{
-		if (_astarCameFrom == null)
-		{
-			return;
-		}
-
-		int node = _astarGoal;
-		while (node != -1)
-		{
-			_currentRoute.Add(new CellPosition(node % _width, node / _width));
-			node = _astarCameFrom[node];
-			if (_currentRoute.Count > _width * _depth)
-			{
-				break;
-			}
-		}
-
-		_currentRoute.Reverse();
-	}
-
-	private void CarvePathAt(CellPosition position)
-	{
-		MarkLandCircle(position.X, position.Z, _pathBrushRadius);
-		MarkWalkableCircle(position.X, position.Z, _pathBrushRadius + 1);
-	}
-
-	private void MarkLandCircle(int centerX, int centerZ, int radius)
-	{
-		int radiusSquared = radius * radius;
-		for (int z = Math.Max(0, centerZ - radius); z <= Math.Min(_depth - 1, centerZ + radius); z++)
-		{
-			int deltaZ = z - centerZ;
-			for (int x = Math.Max(0, centerX - radius); x <= Math.Min(_width - 1, centerX + radius); x++)
-			{
-				int deltaX = x - centerX;
-				if (deltaX * deltaX + deltaZ * deltaZ > radiusSquared)
-				{
-					continue;
-				}
-
-				_land[x, z] = false;
-				_path[x, z] = true;
-				_walkable[x, z] = true;
-			}
-		}
-	}
-
-	private void MarkWalkableCircle(int centerX, int centerZ, int radius)
-	{
-		int radiusSquared = radius * radius;
-		for (int z = Math.Max(0, centerZ - radius); z <= Math.Min(_depth - 1, centerZ + radius); z++)
-		{
-			int deltaZ = z - centerZ;
-			for (int x = Math.Max(0, centerX - radius); x <= Math.Min(_width - 1, centerX + radius); x++)
-			{
-				int deltaX = x - centerX;
-				if (deltaX * deltaX + deltaZ * deltaZ <= radiusSquared)
-				{
-					_walkable[x, z] = true;
-				}
-			}
-		}
+		bool done = _pathCarver.Step();
+		_stageProgress = _pathCarver.Progress;
+		return done;
 	}
 
 	private bool RunDensity()
@@ -1119,9 +818,9 @@ public class ProceduralMapGenerator
 		return true;
 	}
 
-	private readonly record struct AnchorCell(int CellX, int CellZ, int ClearRadius);
+	internal readonly record struct AnchorCell(int CellX, int CellZ, int ClearRadius);
 
-	private readonly record struct MstEdge(int From, int To);
+	internal readonly record struct MstEdge(int From, int To);
 
-	private readonly record struct CellPosition(int X, int Z);
+	internal readonly record struct CellPosition(int X, int Z);
 }
