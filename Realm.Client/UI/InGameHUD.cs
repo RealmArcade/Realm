@@ -194,7 +194,7 @@ public partial class InGameHUD : Control
 	private PanelContainer _hotkeyPanel = null!;
 	private bool _hotkeyPanelVisible = false;
 
-	private Label _armyCompositionLabel;
+	private Label _armyCompositionLabel = null!;
 
 	private Camera3D _camera3D = null!;
 

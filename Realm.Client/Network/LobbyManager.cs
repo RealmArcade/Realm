@@ -151,7 +151,7 @@ public partial class LobbyManager : BaseMapTransferNode
 	public bool SpectatorDelay { get; set; } = false;
 	public string? LobbyJoinError { get; set; }
 	public string HostStability { get; set; } = "Excellent";
-	public event Action<string> HostStabilityUpdated;
+	public event Action<string>? HostStabilityUpdated;
 
 	public List<PlayerInfo> PlayerList { get; } = new();
 

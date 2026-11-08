@@ -249,7 +249,7 @@ public class SimulationService
 	public Action<string, Vector3, Entity, bool>? OnSpawnUnitFromProductionRequested;
 	public Action<Entity>? OnClearUnitOrdersRequested;
 	public Action<Entity> OnStopGatheringMovementRequested = null!;
-	public Action OnUiRefreshRequested;
+	public Action OnUiRefreshRequested = null!;
 	public Action<Entity> OnPropDepleted = null!;
 
 	private readonly HashSet<long> _alliedPairs = new();
@@ -583,8 +583,8 @@ public class SimulationService
 
 	public Action<Entity>? OnResourceHarvested;
 	public Action<int, string, float> OnResourceDepositedForPlayer = null!;
-	public Action<int, string> OnProductionCompleted;
-	public Func<string, float> GetProductionBuildTime;
+	public Action<int, string> OnProductionCompleted = null!;
+	public Func<string, float> GetProductionBuildTime = null!;
 
 	private bool _positionWriterInvariantReported;
 

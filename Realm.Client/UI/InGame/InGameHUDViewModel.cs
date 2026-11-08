@@ -445,7 +445,7 @@ public class InGameHUDViewModel
 	private static readonly Dictionary<string, string[]> _cachedEmptySummaryRows = new();
 
 	public List<SelectedUnitInfo> SelectedUnits { get; } = new();
-	public Prop3D SelectedProp { get; set; }
+	public Prop3D SelectedProp { get; set; } = null!;
 	public int CycleSelectionIndex { get; set; }
 
 	public bool IsChatActive { get; set; }

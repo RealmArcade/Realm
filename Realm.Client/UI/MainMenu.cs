@@ -24,39 +24,39 @@ public partial class MainMenu : Control
 		Realm.Client.Services.GameContext.EnsureServices();
 	}
 
-	private Panel _bgPanel;
-	private Panel _leftPillar;
-	private Panel _rightPillar;
-	private PanelContainer _centralPanel;
+	private Panel _bgPanel = null!;
+	private Panel _leftPillar = null!;
+	private Panel _rightPillar = null!;
+	private PanelContainer _centralPanel = null!;
 
-	private TextureRect _gameLogo;
-	private Button _playButton;
-	private Button _singlePlayerButton;
-	private Button _mapDiscoveryButton;
-	private Button _creatorDiscoveryButton;
-	private Button _mapEditorButton;
-	private Button _replaysButton;
-	private Button _storageButton;
-	private Button _settingsButton;
-	private Button _profileButton;
-	private Button _quitButton;
-	private Button _socialButton;
-	private Control _socialPopoverOverlay;
-	private Control _socialPopover;
-	private Button _wishlistButton;
-	private Button _websiteButton;
-	private Button _discordButton;
-	private Button _youtubeButton;
-	private Button _donateButton;
-	private Button _announcementsButton;
-	private Button _bugReportButton;
-	private PlayerProfileDialog _profileDialog;
-	private AnnouncementsDialog _announcementsDialog;
-	private OptionButton _versionDropdown;
-	private Label _outdatedLabel;
+	private TextureRect _gameLogo = null!;
+	private Button _playButton = null!;
+	private Button _singlePlayerButton = null!;
+	private Button _mapDiscoveryButton = null!;
+	private Button _creatorDiscoveryButton = null!;
+	private Button _mapEditorButton = null!;
+	private Button _replaysButton = null!;
+	private Button _storageButton = null!;
+	private Button _settingsButton = null!;
+	private Button _profileButton = null!;
+	private Button _quitButton = null!;
+	private Button _socialButton = null!;
+	private Control _socialPopoverOverlay = null!;
+	private Control _socialPopover = null!;
+	private Button _wishlistButton = null!;
+	private Button _websiteButton = null!;
+	private Button _discordButton = null!;
+	private Button _youtubeButton = null!;
+	private Button _donateButton = null!;
+	private Button _announcementsButton = null!;
+	private Button _bugReportButton = null!;
+	private PlayerProfileDialog _profileDialog = null!;
+	private AnnouncementsDialog _announcementsDialog = null!;
+	private OptionButton _versionDropdown = null!;
+	private Label _outdatedLabel = null!;
 
-	private static Font _norseFont;
-	private static Font _norseBoldFont;
+	private static Font _norseFont = null!;
+	private static Font _norseBoldFont = null!;
 
 
 	private readonly string[] _runes = { "ᚠ", "ᚢ", "ᚦ", "ᚨ", "ᚱ", "ᚲ", "ᚷ", "ᚹ", "ᚺ", "ᚾ", "ᛁ", "ᛃ", "ᛇ", "ᛈ", "ᛉ", "ᛊ", "ᛏ", "ᛒ", "ᛖ", "ᛗ", "ᛚ", "ᛜ", "ᛞ", "ᛟ" };

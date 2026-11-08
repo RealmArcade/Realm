@@ -7,7 +7,7 @@ namespace Realm.Client.UI.MapEditor;
 
 public class AssetFilterDropdownState
 {
-	public LineEdit Txt { get; set; }
+	public LineEdit Txt { get; set; } = null!;
 	public DropdownSuggestionList Suggestions { get; private set; } = null!;
 	public string CommittedValue { get; set; } = null!;
 	public bool IsUpdatingTextProgrammatically { get; set; }
@@ -15,8 +15,8 @@ public class AssetFilterDropdownState
 	public bool IsPopupSelectionInProgress { get; set; }
 	public bool IsShowingAll { get; set; }
 	public bool IncludeAllFolders { get; set; }
-	public Func<bool, List<string>> ItemsProvider { get; set; }
-	public Action<string> OnChanged { get; set; }
+	public Func<bool, List<string>> ItemsProvider { get; set; } = null!;
+	public Action<string> OnChanged { get; set; } = null!;
 
 	public bool IsDropdownVisible => Suggestions != null && Suggestions.IsVisible;
 

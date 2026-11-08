@@ -118,7 +118,7 @@ public static class LocalizationManager
 		}
 	}
 
-	public static event Action<GameLanguage> LanguageChanged;
+	public static event Action<GameLanguage>? LanguageChanged;
 
 	public static void UpdateLocale(GameLanguage language)
 	{

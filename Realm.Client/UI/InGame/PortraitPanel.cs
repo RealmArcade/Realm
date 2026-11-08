@@ -53,7 +53,7 @@ public class PortraitPanel
 
 	private readonly string[] _lastUnitStatuses;
 
-	public event Action<int> UnitSelectionButtonClicked;
+	public event Action<int>? UnitSelectionButtonClicked;
 
 	public PortraitPanel(PanelContainer portraitFrame, PanelContainer selectionFrame,
 		HBoxContainer unitsContainer, List<Button> unitButtons, HBoxContainer statsContainer,

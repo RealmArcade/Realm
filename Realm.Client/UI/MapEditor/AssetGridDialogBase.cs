@@ -18,8 +18,8 @@ public partial class AssetGridDialogBase : FloatingDialogBase
 	protected float GridPadding = 15.0f;
 
 	protected readonly List<AssetGridCell> _cellPool = new();
-	protected Control _virtualGridContent;
-	protected ScrollContainer _scrollContainer;
+	protected Control _virtualGridContent = null!;
+	protected ScrollContainer _scrollContainer = null!;
 
 	protected void EnsureCellPoolCapacity(int requiredCapacity)
 	{

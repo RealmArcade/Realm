@@ -25,7 +25,7 @@ public partial class UIManager : Control
 		Realm.Client.Services.GameContext.EnsureServices();
 	}
 
-	[Export] public PackedScene MainMenuScene;
+	[Export] public PackedScene MainMenuScene = null!;
 	[Export] public PackedScene LobbyBrowserScene = null!;
 	[Export] public PackedScene LobbyRoomScene = null!;
 	[Export] public PackedScene SettingsScene = null!;

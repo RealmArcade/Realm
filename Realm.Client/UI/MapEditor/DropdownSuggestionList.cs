@@ -15,8 +15,8 @@ public class DropdownSuggestionList
 
 	public bool IsVisible => _catcher != null && GodotObject.IsInstanceValid(_catcher) && _catcher.Visible;
 
-	public event Action<int, string> ItemSelected;
-	public event Action Dismissed;
+	public event Action<int, string>? ItemSelected;
+	public event Action? Dismissed;
 
 	private const int OverlayZIndex = 1000;
 

@@ -13,10 +13,10 @@ public class CopiedAreaTemplate
 	public int SourceMinZ;
 	public int SourceMaxX;
 	public int SourceMaxZ;
-	public TerrainCell[,] Cells;
-	public TerrainSplatWeights[,] SplatMap;
-	public TerrainSplatWeights[,] CliffSplatMap;
-	public int[,] Pathing;
-	public List<CopiedEntityInfo> Entities;
-	public bool[,] Mask;
+	public TerrainCell[,] Cells = null!;
+	public TerrainSplatWeights[,] SplatMap = null!;
+	public TerrainSplatWeights[,] CliffSplatMap = null!;
+	public int[,] Pathing = null!;
+	public List<CopiedEntityInfo> Entities = null!;
+	public bool[,] Mask = null!;
 }

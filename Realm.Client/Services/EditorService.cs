@@ -1161,8 +1161,8 @@ public partial class EditorService : IEditorAPI
 	public const float MAX_CLUMP_DENSITY = MAX_CLUMP_COUNT;
 
 
-	private TerrainSplatWeights[,] _terrainSplatMap;
-	private TerrainSplatWeights[,] _terrainCliffSplatMap;
+	private TerrainSplatWeights[,] _terrainSplatMap = null!;
+	private TerrainSplatWeights[,] _terrainCliffSplatMap = null!;
 
 	private float _clumpSpawnCooldown;
 	private bool _isDrawingClump;
@@ -1201,10 +1201,10 @@ public partial class EditorService : IEditorAPI
 	private byte _activePlateauWaterProfile = 0;
 	private float _activePlateauWaterHeight = 0f;
 
-	private TerrainCell[,] _terrainCellsBefore;
-	private TerrainSplatWeights[,] _terrainSplatMapBefore;
-	private TerrainSplatWeights[,] _terrainCliffSplatMapBefore;
-	private int[,] _terrainPathingBefore;
+	private TerrainCell[,] _terrainCellsBefore = null!;
+	private TerrainSplatWeights[,] _terrainSplatMapBefore = null!;
+	private TerrainSplatWeights[,] _terrainCliffSplatMapBefore = null!;
+	private int[,] _terrainPathingBefore = null!;
 	private bool _isDrawingTerrain;
 	private int _drawMinX;
 	private int _drawMinZ;

@@ -9,7 +9,7 @@ public class OverlayState
 	public bool WasBrushVisible;
 	public GridOverlayMode WasGridMode;
 	public bool WasPathingVisible;
-	public MeshInstance3D PathingMesh;
+	public MeshInstance3D PathingMesh = null!;
 	public bool WasPathingMeshVisible;
 	public List<(Unit3D unit, bool visible)> UnitVisibility = new();
 }
