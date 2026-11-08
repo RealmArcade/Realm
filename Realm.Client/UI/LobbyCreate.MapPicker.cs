@@ -206,7 +206,7 @@ public partial class LobbyCreate
 		{
 			var map = _availableMaps[i];
 
-			if (!includeAssetPacks && IsAssetPackMap(map)) continue;
+			if (!includeAssetPacks && MapSelectionService.IsAssetPackMap(map)) continue;
 			if (searchText.Length > 0 && !MatchesSearchText(map, searchText)) continue;
 			if (requiredTags.Count > 0 && !HasAnyTag(map, requiredTags)) continue;
 

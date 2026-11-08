@@ -335,7 +335,7 @@ public partial class LobbyCreate : Control
 		string selectedVersion = GetSelectedVersion();
 		var mapInfo = GetSelectedMapInfo();
 
-		if (IsMapBuildMismatch(mapInfo.BuildNumber))
+		if (MapSelectionService.IsBuildMismatch(mapInfo.BuildNumber))
 		{
 			GameContext.UserInterface?.PlayWarningSound();
 			ShowMapBuildMismatchModal(mapInfo.PathName, mapInfo.DisplayName, mapInfo.BuildNumber, RealmVersion.GameBuildNumber);
@@ -593,12 +593,6 @@ public partial class LobbyCreate : Control
 		return ("melee", "Melee Battlefield", RealmVersion.GameBuildNumber);
 	}
 
-	private bool IsMapBuildMismatch(string mapBuildNumber)
-	{
-		return !string.IsNullOrEmpty(mapBuildNumber) &&
-		       !string.Equals(mapBuildNumber, RealmVersion.GameBuildNumber, StringComparison.OrdinalIgnoreCase);
-	}
-
 	private void ShowMapBuildMismatchModal(string mapPath, string mapDisplayName, string mapBuildNumber, string currentBuildNumber)
 	{
 		bool versionExistsLocally = File.Exists(LobbyManager.GetVersionExecutablePath(mapBuildNumber));
@@ -648,68 +642,8 @@ public partial class LobbyCreate : Control
 			return;
 		}
 
-		SelectMap(ResolvePreferredMapIndex(selectMapName), selectMapVersion);
+		SelectMap(MapSelectionService.ResolvePreferredMapIndex(_availableMaps, selectMapName), selectMapVersion);
 		RefreshMapPickerGrid();
-	}
-
-	private int ResolvePreferredMapIndex(string? requestedMapName)
-	{
-		int requestedIndex = IndexOfMap(requestedMapName);
-		if (requestedIndex >= 0) return requestedIndex;
-
-		if (BuildFlags.IS_AUTOBATTLE_FESTIVAL_ACTIVE)
-		{
-			int festivalIndex = IndexOfMap(BuildFlags.FESTIVAL_FEATURED_MAP_NAME);
-			if (festivalIndex >= 0) return festivalIndex;
-		}
-
-		int lastHostedIndex = IndexOfMap(GameSettings.LastHostedMapName);
-		if (lastHostedIndex >= 0) return lastHostedIndex;
-
-		for (int i = 0; i < _availableMaps.Count; i++)
-		{
-			if (!IsAssetPackMap(_availableMaps[i])) return i;
-		}
-
-		return 0;
-	}
-
-	private int IndexOfMap(string? mapName)
-	{
-		if (string.IsNullOrWhiteSpace(mapName)) return -1;
-
-		string normalizedMapName = NormalizeMapName(mapName);
-
-		for (int i = 0; i < _availableMaps.Count; i++)
-		{
-			var map = _availableMaps[i];
-
-			if (string.Equals(map.PathName, mapName, StringComparison.OrdinalIgnoreCase)) return i;
-			if (string.Equals(map.DisplayName, mapName, StringComparison.OrdinalIgnoreCase)) return i;
-			if (string.Equals(NormalizeMapName(map.PathName), normalizedMapName, StringComparison.Ordinal)) return i;
-			if (string.Equals(NormalizeMapName(map.DisplayName), normalizedMapName, StringComparison.Ordinal)) return i;
-		}
-
-		return -1;
-	}
-
-	private static string NormalizeMapName(string mapName)
-	{
-		return mapName.Replace(" ", string.Empty).Replace("_", string.Empty).Replace("-", string.Empty).Trim().ToLowerInvariant();
-	}
-
-	private static bool IsAssetPackMap(MapBriefingDetails map)
-	{
-		if (string.Equals((map.MapType ?? string.Empty).Trim(), MapTagCatalog.AssetPackTag, StringComparison.OrdinalIgnoreCase)) return true;
-		if (map.Tags == null) return false;
-
-		foreach (string mapTag in map.Tags)
-		{
-			if (string.IsNullOrWhiteSpace(mapTag)) continue;
-			if (string.Equals(mapTag.Trim(), MapTagCatalog.AssetPackTag, StringComparison.OrdinalIgnoreCase)) return true;
-		}
-
-		return false;
 	}
 
 	private void SelectMap(int index, string? targetVersion = null)
