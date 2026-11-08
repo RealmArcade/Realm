@@ -741,9 +741,7 @@ public partial class EditorService : IEditorAPI
 	private readonly EditorTerrainSurface _surface = new();
 
 	private float _clumpSpawnCooldown;
-	private bool _isDrawingClump;
-	private readonly List<IEditorAction> _clumpSpawnActionsInSession = new();
-	private readonly List<(Godot.Vector3 Position, float Radius)> _cachedSessionPoints = new();
+	private readonly EditorClumpSession _clump = new();
 
 	private readonly Dictionary<Vector2I, long> _paintCoordLastTimeMs = new();
 
@@ -918,7 +916,7 @@ public partial class EditorService : IEditorAPI
 
 	public Godot.Vector3? RampStartPos => _rampStartPos;
 	public bool IsDrawingTerrain => _isDrawingTerrain;
-	public bool IsDrawingClump => _isDrawingClump;
+	public bool IsDrawingClump => _clump.IsDrawing;
 
 	public CopiedObjectTemplate? GetCopiedObject() => _copiedObject;
 
@@ -1929,23 +1927,14 @@ public partial class EditorService : IEditorAPI
 		_activeBlockTargetWaterMode = WaterType.None;
 		_surface.SplatMap = null;
 		_surface.CliffSplatMap = null;
-		_clumpSpawnCooldown = 0.0f;
+		_clump.Reset();
 	}
 
-	public void TickClumpCooldown(float delta)
-	{
-		if (_clumpSpawnCooldown > 0.0f)
-			_clumpSpawnCooldown -= delta;
-	}
+	public void TickClumpCooldown(float delta) => _clump.TickCooldown(delta);
 
-	public bool CanSpawnClump() => _clumpSpawnCooldown <= 0.0f;
+	public bool CanSpawnClump() => _clump.CanSpawn;
 
-	public void BeginClumpSession()
-	{
-		_isDrawingClump = true;
-		_clumpSpawnActionsInSession.Clear();
-		_cachedSessionPoints.Clear();
-	}
+	public void BeginClumpSession() => _clump.Begin();
 
 	public Entity SpawnPropDomain(string propId, System.Numerics.Vector3 position, float rotationY, float scale, string cleanId, float defaultAmount, float terrainHeight, float collisionRadius)
 	{
@@ -1961,31 +1950,11 @@ public partial class EditorService : IEditorAPI
 		return entity;
 	}
 
-	public void RecordClumpSpawnAction(IEditorAction action)
-	{
-		_clumpSpawnActionsInSession.Add(action);
-		if (action is ObjectSpawnAction objAct && GodotObject.IsInstanceValid(objAct.SpawnedNode))
-		{
-			float baseRadius = 0.5f;
-			_cachedSessionPoints.Add((objAct.Position, baseRadius * objAct.Scale));
-		}
-	}
+	public void RecordClumpSpawnAction(IEditorAction action) => _clump.Record(action);
 
-	public void SetClumpCooldown(float value)
-	{
-		_clumpSpawnCooldown = value;
-	}
+	public void SetClumpCooldown(float value) => _clump.SetCooldown(value);
 
-	public CompositeAction? EndClumpSession()
-	{
-		_isDrawingClump = false;
-		if (_clumpSpawnActionsInSession.Count > 0)
-		{
-			return new CompositeAction(_clumpSpawnActionsInSession);
-		}
-
-		return null;
-	}
+	public CompositeAction? EndClumpSession() => _clump.End();
 
 	public List<EntitySpawnRequest> BuildClumpSpawnRequests(
 		Godot.Vector3 centerPos,
@@ -2071,7 +2040,7 @@ public partial class EditorService : IEditorAPI
 
 				if (collision) continue;
 
-				foreach (var sessionPt in _cachedSessionPoints)
+				foreach (var sessionPt in _clump.Points)
 				{
 					float minDist = (candidateRadius + sessionPt.Radius) * autoClumpSpacing;
 					float distSq = (spawnPos.X - sessionPt.Position.X) * (spawnPos.X - sessionPt.Position.X) +
