@@ -6,20 +6,23 @@ namespace Realm.Client.Services;
 
 public class SpectatorService
 {
-	private Entity FindWorldEntity()
+	private static Entity FindWorldEntity(EcsWorld world)
 	{
 		Entity worldEntity = Entity.Null;
 		var query = QueryCache.AllNetworkMappingStateQuery;
-		GameContext.World.Query(in query, (Entity entity) => worldEntity = entity);
+		world.Query(in query, (Entity entity) => worldEntity = entity);
 		return worldEntity;
 	}
 
 	public int GetSpectatorPerspective()
 	{
-		var worldEntity = FindWorldEntity();
-		if (worldEntity != Entity.Null && GameContext.World.IsAlive(worldEntity) && GameContext.World.Has<SpectatorPerspective>(worldEntity))
+		EcsWorld? world = GameContext.World;
+		if (world == null) return -1;
+
+		var worldEntity = FindWorldEntity(world);
+		if (worldEntity != Entity.Null && world.IsAlive(worldEntity) && world.Has<SpectatorPerspective>(worldEntity))
 		{
-			return GameContext.World.Get<SpectatorPerspective>(worldEntity).Value;
+			return world.Get<SpectatorPerspective>(worldEntity).Value;
 		}
 
 		return -1;
@@ -27,10 +30,13 @@ public class SpectatorService
 
 	public void SetSpectatorPerspective(int value)
 	{
-		var worldEntity = FindWorldEntity();
-		if (worldEntity != Entity.Null && GameContext.World.IsAlive(worldEntity))
+		EcsWorld? world = GameContext.World;
+		if (world == null) return;
+
+		var worldEntity = FindWorldEntity(world);
+		if (worldEntity != Entity.Null && world.IsAlive(worldEntity))
 		{
-			GameContext.World.SetOrAdd(worldEntity, new SpectatorPerspective(value));
+			world.SetOrAdd(worldEntity, new SpectatorPerspective(value));
 		}
 	}
 }
