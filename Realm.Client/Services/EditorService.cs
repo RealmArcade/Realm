@@ -49,7 +49,7 @@ public partial class EditorService : IEditorAPI
 		var importResult = MixamoAnimationImporter.ImportMixamoGlb(sourceFilePath, wsPath, subCat);
 		if (!importResult.Success)
 		{
-			return (false, importResult.ErrorMessage, null, fileName);
+			return (false, importResult.ErrorMessage, null!, fileName);
 		}
 
 		byte[] glbBytes = File.ReadAllBytes(importResult.StrippedGlbPath);
@@ -67,7 +67,7 @@ public partial class EditorService : IEditorAPI
 		}
 
 		GameContext.Host?.LoadUnitMetadata(wsPath);
-		return (true, null, importResult.ExtractedAnimationFiles, fileName);
+		return (true, null!, importResult.ExtractedAnimationFiles, fileName);
 	}
 
 	public string ResolveAnimationFileName(string sourceFilePath, string? preferredFileName)
@@ -5866,7 +5866,7 @@ public partial class EditorService : IEditorAPI
 		}
 		catch (Exception ex)
 		{
-			return (false, ex.Message, null, null);
+			return (false, ex.Message, null!, null!);
 		}
 	}
 
