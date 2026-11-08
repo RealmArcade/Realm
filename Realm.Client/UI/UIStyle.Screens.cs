@@ -94,6 +94,66 @@ public static partial class UIStyle
 		return style;
 	}
 
+	/// <summary>
+	/// One of the nine-slice artwork plates a screen draws its panels and cards with: the texture is stretched whole and
+	/// the content is inset by the given amounts, which is what every map discovery plate does.
+	/// </summary>
+	public static StyleBoxTexture CreateArtworkPlate(string texturePath, int left, int right, int top, int bottom)
+	{
+		var style = new StyleBoxTexture();
+		style.Texture = TrimmedTextureLoader.LoadTrimmedTexture(texturePath);
+		style.TextureMarginLeft = 0;
+		style.TextureMarginRight = 0;
+		style.TextureMarginTop = 0;
+		style.TextureMarginBottom = 0;
+		style.ContentMarginLeft = left;
+		style.ContentMarginRight = right;
+		style.ContentMarginTop = top;
+		style.ContentMarginBottom = bottom;
+		return style;
+	}
+
+	/// <summary>
+	/// The full-screen backdrop: the first artwork that loads, and the plain gradient when none of them do. The caller
+	/// passes its own preference order.
+	/// </summary>
+	public static void ApplyScreenBackground(Panel panel, params string[] texturePaths)
+	{
+		foreach (var path in texturePaths)
+		{
+			if (!ResourceLoader.Exists(path)) continue;
+
+			var texture = TrimmedTextureLoader.LoadTrimmedTexture(path);
+			if (texture == null) continue;
+
+			panel.AddThemeStyleboxOverride("panel", new StyleBoxTexture { Texture = texture });
+			panel.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
+			return;
+		}
+
+		panel.AddThemeStyleboxOverride("panel", CreateBgGradient());
+	}
+
+	/// <summary>
+	/// An artwork button whose three states are the same plate tinted brighter, then brighter still, then dimmer, plus
+	/// the content inset those plates carry.
+	/// </summary>
+	public static void ApplyTintedArtworkButton(Button button, string texturePath, Color normalTint, Color hoverTint, Color pressedTint)
+	{
+		var normal = CreateArtworkPlate(texturePath, 16, 16, 18, 14);
+		normal.ModulateColor = normalTint;
+
+		var hover = (StyleBoxTexture)normal.Duplicate();
+		hover.ModulateColor = hoverTint;
+
+		var pressed = (StyleBoxTexture)normal.Duplicate();
+		pressed.ModulateColor = pressedTint;
+
+		button.AddThemeStyleboxOverride("normal", normal);
+		button.AddThemeStyleboxOverride("hover", hover);
+		button.AddThemeStyleboxOverride("pressed", pressed);
+	}
+
 	/// <summary>The plate the lobby setup screen's briefing text sits in, roomier than the plain backdrop.</summary>
 	public static StyleBox CreateBriefingTextPlate()
 	{

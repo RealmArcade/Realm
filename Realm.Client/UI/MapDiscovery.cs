@@ -159,34 +159,10 @@ public partial class MapDiscovery : Control
 
 	private void ApplyBackgroundStyle()
 	{
-		Texture2D? bgTexture = null;
-		string[] bgPaths = new string[]
-		{
+		UIStyle.ApplyScreenBackground(_bgPanel,
 			"res://Assets/UI/procedural_bg.webp",
 			"res://Assets/UI/map_discovery_bg_rpg_grey2.webp",
-			"res://Assets/UI/map_discovery_bg_fortress2.webp"
-		};
-
-		foreach (var path in bgPaths)
-		{
-			if (ResourceLoader.Exists(path))
-			{
-				bgTexture = TrimmedTextureLoader.LoadTrimmedTexture(path);
-				if (bgTexture != null) break;
-			}
-		}
-
-		if (bgTexture != null)
-		{
-			var style = new StyleBoxTexture();
-			style.Texture = bgTexture;
-			_bgPanel.AddThemeStyleboxOverride("panel", style);
-			_bgPanel.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
-		}
-		else
-		{
-			_bgPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
-		}
+			"res://Assets/UI/map_discovery_bg_fortress2.webp");
 
 		_leftPillar.AddThemeStyleboxOverride("panel", UIStyle.CreatePillarPanel(true));
 		_rightPillar.AddThemeStyleboxOverride("panel", UIStyle.CreatePillarPanel(false));
@@ -194,30 +170,12 @@ public partial class MapDiscovery : Control
 
 	private void ApplyPanelStyles()
 	{
-		var filterPanelStyle = new StyleBoxTexture();
-		filterPanelStyle.Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/procedural_filter_panel.webp");
-		filterPanelStyle.TextureMarginLeft = 0;
-		filterPanelStyle.TextureMarginRight = 0;
-		filterPanelStyle.TextureMarginTop = 0;
-		filterPanelStyle.TextureMarginBottom = 0;
-		filterPanelStyle.ContentMarginLeft = 55;
-		filterPanelStyle.ContentMarginRight = 55;
-		filterPanelStyle.ContentMarginTop = 60;
-		filterPanelStyle.ContentMarginBottom = 24;
-		_filterPanel.AddThemeStyleboxOverride("panel", filterPanelStyle);
+		_filterPanel.AddThemeStyleboxOverride("panel",
+			UIStyle.CreateArtworkPlate("res://Assets/UI/procedural_filter_panel.webp", 55, 55, 60, 24));
 		_filterPanel.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 
-		var lobbyPanelStyle = new StyleBoxTexture();
-		lobbyPanelStyle.Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/procedural_main_panel.webp");
-		lobbyPanelStyle.TextureMarginLeft = 0;
-		lobbyPanelStyle.TextureMarginRight = 0;
-		lobbyPanelStyle.TextureMarginTop = 0;
-		lobbyPanelStyle.TextureMarginBottom = 0;
-		lobbyPanelStyle.ContentMarginLeft = 80;
-		lobbyPanelStyle.ContentMarginRight = 80;
-		lobbyPanelStyle.ContentMarginTop = 130;
-		lobbyPanelStyle.ContentMarginBottom = 65;
-		_mapListPanel.AddThemeStyleboxOverride("panel", lobbyPanelStyle);
+		_mapListPanel.AddThemeStyleboxOverride("panel",
+			UIStyle.CreateArtworkPlate("res://Assets/UI/procedural_main_panel.webp", 80, 80, 130, 65));
 		_mapListPanel.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 	}
 
@@ -253,17 +211,7 @@ public partial class MapDiscovery : Control
 
 	private void ApplySearchBarStyle()
 	{
-		var searchStyle = new StyleBoxTexture();
-		searchStyle.Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/procedural_search_bar.webp");
-		searchStyle.TextureMarginLeft = 0;
-		searchStyle.TextureMarginRight = 0;
-		searchStyle.TextureMarginTop = 0;
-		searchStyle.TextureMarginBottom = 0;
-		searchStyle.ContentMarginLeft = 24;
-		searchStyle.ContentMarginRight = 24;
-		searchStyle.ContentMarginTop = 0;
-		searchStyle.ContentMarginBottom = 0;
-
+		var searchStyle = UIStyle.CreateArtworkPlate("res://Assets/UI/procedural_search_bar.webp", 24, 24, 0, 0);
 		_searchBar.AddThemeStyleboxOverride("normal", searchStyle);
 		_searchBar.AddThemeStyleboxOverride("focus", searchStyle);
 		if (_fontNorseBold != null) _searchBar.AddThemeFontOverride("font", _fontNorseBold);
@@ -334,27 +282,8 @@ public partial class MapDiscovery : Control
 			button.AddThemeConstantOverride("outline_size", 5);
 			button.AddThemeColorOverride("font_outline_color", new Color(0.22f, 0.16f, 0.04f));
 
-			var activeStyle = new StyleBoxTexture();
-			activeStyle.Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/procedural_btn_normal.webp");
-			activeStyle.TextureMarginLeft = 0;
-			activeStyle.TextureMarginRight = 0;
-			activeStyle.TextureMarginTop = 0;
-			activeStyle.TextureMarginBottom = 0;
-			activeStyle.ContentMarginLeft = 16;
-			activeStyle.ContentMarginRight = 16;
-			activeStyle.ContentMarginTop = 18;
-			activeStyle.ContentMarginBottom = 14;
-			activeStyle.ModulateColor = new Color(1.30f, 1.20f, 0.88f);
-
-			var activeHover = (StyleBoxTexture)activeStyle.Duplicate();
-			activeHover.ModulateColor = new Color(1.42f, 1.30f, 0.95f);
-
-			var activePressed = (StyleBoxTexture)activeStyle.Duplicate();
-			activePressed.ModulateColor = new Color(1.08f, 1.00f, 0.75f);
-
-			button.AddThemeStyleboxOverride("normal", activeStyle);
-			button.AddThemeStyleboxOverride("hover", activeHover);
-			button.AddThemeStyleboxOverride("pressed", activePressed);
+			UIStyle.ApplyTintedArtworkButton(button, "res://Assets/UI/procedural_btn_normal.webp",
+				new Color(1.30f, 1.20f, 0.88f), new Color(1.42f, 1.30f, 0.95f), new Color(1.08f, 1.00f, 0.75f));
 		}
 		else
 		{
@@ -363,27 +292,8 @@ public partial class MapDiscovery : Control
 			button.AddThemeConstantOverride("outline_size", 4);
 			button.AddThemeColorOverride("font_outline_color", new Color(0.06f, 0.06f, 0.08f));
 
-			var normalStyle = new StyleBoxTexture();
-			normalStyle.Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/procedural_btn_normal.webp");
-			normalStyle.TextureMarginLeft = 0;
-			normalStyle.TextureMarginRight = 0;
-			normalStyle.TextureMarginTop = 0;
-			normalStyle.TextureMarginBottom = 0;
-			normalStyle.ContentMarginLeft = 16;
-			normalStyle.ContentMarginRight = 16;
-			normalStyle.ContentMarginTop = 18;
-			normalStyle.ContentMarginBottom = 14;
-			normalStyle.ModulateColor = new Color(0.85f, 0.85f, 0.88f);
-
-			var hoverStyle = (StyleBoxTexture)normalStyle.Duplicate();
-			hoverStyle.ModulateColor = new Color(1.12f, 1.08f, 0.92f);
-
-			var pressedStyle = (StyleBoxTexture)normalStyle.Duplicate();
-			pressedStyle.ModulateColor = new Color(0.75f, 0.75f, 0.78f);
-
-			button.AddThemeStyleboxOverride("normal", normalStyle);
-			button.AddThemeStyleboxOverride("hover", hoverStyle);
-			button.AddThemeStyleboxOverride("pressed", pressedStyle);
+			UIStyle.ApplyTintedArtworkButton(button, "res://Assets/UI/procedural_btn_normal.webp",
+				new Color(0.85f, 0.85f, 0.88f), new Color(1.12f, 1.08f, 0.92f), new Color(0.75f, 0.75f, 0.78f));
 		}
 	}
 
@@ -457,17 +367,8 @@ public partial class MapDiscovery : Control
 		card.CustomMinimumSize = new Vector2(560, 220);
 		card.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 
-		var cardStyle = new StyleBoxTexture();
-		cardStyle.Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/procedural_card_bg.webp");
-		cardStyle.TextureMarginLeft = 0;
-		cardStyle.TextureMarginRight = 0;
-		cardStyle.TextureMarginTop = 0;
-		cardStyle.TextureMarginBottom = 0;
-		cardStyle.ContentMarginLeft = 32;
-		cardStyle.ContentMarginRight = 32;
-		cardStyle.ContentMarginTop = 38;
-		cardStyle.ContentMarginBottom = 26;
-		card.AddThemeStyleboxOverride("panel", cardStyle);
+		card.AddThemeStyleboxOverride("panel",
+			UIStyle.CreateArtworkPlate("res://Assets/UI/procedural_card_bg.webp", 32, 32, 38, 26));
 
 		var hBox = new HBoxContainer();
 		hBox.Name = "HBox_HBoxContainer";
