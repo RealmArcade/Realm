@@ -143,12 +143,7 @@ public partial class LobbyCreate : Control
 		contentContainer.MoveChild(_versionContainer, mapHeaderVBox.GetIndex() + 1);
 
 		var textPanelWrapper = GetNode<PanelContainer>("CentralPanel/ContentContainer/BriefingPanel/TextPanelWrapper");
-		var textPanelStyle = UIStyle.CreateBackdropPanel();
-		textPanelStyle.ContentMarginLeft = 24;
-		textPanelStyle.ContentMarginRight = 24;
-		textPanelStyle.ContentMarginTop = 20;
-		textPanelStyle.ContentMarginBottom = 20;
-		textPanelWrapper.AddThemeStyleboxOverride("panel", textPanelStyle);
+		textPanelWrapper.AddThemeStyleboxOverride("panel", UIStyle.CreateBriefingTextPlate());
 
 		var spacer = new Control { CustomMinimumSize = new Vector2(0, 16) };
 		_createButton.GetParent().AddChild(spacer);
@@ -282,10 +277,7 @@ public partial class LobbyCreate : Control
 		_openMapLibraryButton.AddThemeConstantOverride("h_separation", 12);
 		_openMapLibraryButton.Icon = UIStyle.GetUnicodeIconTexture(UnicodeIcons.FOLDER_OPEN, 20, UIStyle.ColorGold);
 		UIStyle.ApplyButtonText(_openMapLibraryButton, TranslationServer.Translate("SELECT MAP"), 20);
-		_openMapLibraryButton.AddThemeStyleboxOverride("normal", UIStyle.CreateDropdownStyle(false, false));
-		_openMapLibraryButton.AddThemeStyleboxOverride("hover", UIStyle.CreateDropdownStyle(true, false));
-		_openMapLibraryButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateDropdownStyle(false, true));
-		_openMapLibraryButton.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyCustomLobbyDropdown(_openMapLibraryButton);
 		_openMapLibraryButton.AddThemeColorOverride("font_pressed_color", UIStyle.ColorCyanGlow);
 
 		UIStyle.ApplyBackButton(_backButton, () => GameContext.UserInterface?.TransitionTo(GameContext.Lobby?.IsSinglePlayer == true ? GameScreen.MainMenu : GameScreen.LobbyBrowser));
@@ -295,10 +287,7 @@ public partial class LobbyCreate : Control
 		_versionLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		_versionLabel.AddThemeFontSizeOverride("font_size", 14);
 
-		_versionSelectButton.AddThemeStyleboxOverride("normal", UIStyle.CreateDropdownStyle(false, false));
-		_versionSelectButton.AddThemeStyleboxOverride("hover", UIStyle.CreateDropdownStyle(true, false));
-		_versionSelectButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateDropdownStyle(false, true));
-		_versionSelectButton.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyCustomLobbyDropdown(_versionSelectButton);
 		_versionSelectButton.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 		_versionSelectButton.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
 		_versionSelectButton.AddThemeColorOverride("font_pressed_color", UIStyle.ColorCyanGlow);
@@ -317,10 +306,7 @@ public partial class LobbyCreate : Control
 		_createButton.AddThemeConstantOverride("icon_max_width", 0);
 		UIStyle.ApplyButtonText(_createButton, TranslationServer.Translate("CREATE LOBBY"), 18);
 
-		_createButton.AddThemeStyleboxOverride("normal", UIStyle.CreateCustomLobbyStartGameButton(false, false));
-		_createButton.AddThemeStyleboxOverride("hover", UIStyle.CreateCustomLobbyStartGameButton(true, false));
-		_createButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateCustomLobbyStartGameButton(false, true));
-		_createButton.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyCustomLobbyStartGameButton(_createButton);
 
 		_createButton.Pressed += OnCreatePressed;
 		_createButton.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();

@@ -36,6 +36,15 @@ public static partial class UIStyle
 		button.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 	}
 
+	/// <summary>The plate behind a lobby dropdown, from the version picker to the "select map" button.</summary>
+	public static void ApplyCustomLobbyDropdown(Button button)
+	{
+		button.AddThemeStyleboxOverride("normal", CreateDropdownStyle(false, false));
+		button.AddThemeStyleboxOverride("hover", CreateDropdownStyle(true, false));
+		button.AddThemeStyleboxOverride("pressed", CreateDropdownStyle(false, true));
+		button.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+	}
+
 	/// <summary>The search field, which draws a different plate while it holds focus.</summary>
 	public static void ApplyCustomLobbySearchInput(LineEdit edit)
 	{

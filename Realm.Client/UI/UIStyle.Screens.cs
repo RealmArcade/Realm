@@ -94,6 +94,17 @@ public static partial class UIStyle
 		return style;
 	}
 
+	/// <summary>The plate the lobby setup screen's briefing text sits in, roomier than the plain backdrop.</summary>
+	public static StyleBox CreateBriefingTextPlate()
+	{
+		var style = (StyleBoxFlat)CreateBackdropPanel();
+		style.ContentMarginLeft = 24;
+		style.ContentMarginRight = 24;
+		style.ContentMarginTop = 20;
+		style.ContentMarginBottom = 20;
+		return style;
+	}
+
 	/// <summary>The bronze-ruled bar a shortcut group is named under in the hotkey reference.</summary>
 	public static StyleBoxFlat CreateHotkeyGroupHeaderPlate()
 	{
