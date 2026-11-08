@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Buffers;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -99,7 +99,7 @@ namespace Realm.Client.ReplaySystem
 			ReplayObjectPool.Trim();
 		}
 
-		public void RecordTick(int tick, List<ReplayUnitSnapshot> units, List<ReplayProjectileSnapshot> projectiles, float gold, float wood, float stone, bool isKeyframe)
+		public void RecordTick(int tick, List<ReplayUnitSnapshot> units, List<ReplayProjectileSnapshot>? projectiles, float gold, float wood, float stone, bool isKeyframe)
 		{
 			var frame = ReplayObjectPool.RentFrame();
 			frame.Tick = tick;
