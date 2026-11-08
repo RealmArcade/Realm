@@ -1303,123 +1303,18 @@ public partial class EditorService : IEditorAPI
 	}
 
 
+
+
 	public (float[,]? Heights, TerrainSplatWeights[,]? SplatMap, bool IsCliff) PerformFloodFill(
 		Godot.Vector3 clickPos,
 		int fillTextureIndex,
 		int cliffTextureIndex,
 		MirrorMode mirrorMode,
-		bool isCliff = false)
-	{
-		ref var terrain = ref GetTerrainState();
-		if (terrain.Cells == null) return (null, null, isCliff);
+		bool isCliff = false) =>
+		_surface.PerformTextureFloodFill(clickPos, fillTextureIndex, cliffTextureIndex, mirrorMode, isCliff, _symmetryPivot, _symmetryFolds);
 
-		if (_surface.SplatMap == null && GameContext.Host?.GroundTerrain != null)
-		{
-			_surface.SplatMap = GameContext.Host.GroundTerrain.SplatMap;
-		}
-
-		if (_surface.CliffSplatMap == null && GameContext.Host?.GroundTerrain != null)
-		{
-			_surface.CliffSplatMap = GameContext.Host.GroundTerrain.CliffSplatMap;
-		}
-
-		if (_surface.SplatMap == null) return (null, null, isCliff);
-
-		int width = terrain.Width;
-		int depth = terrain.Depth;
-		float quadSize = terrain.QuadSize;
-
-		TerrainSplatWeights[,] targetSplatMap = (isCliff && _surface.CliffSplatMap != null) ? _surface.CliffSplatMap : _surface.SplatMap;
-		int targetTextureIndex = isCliff ? cliffTextureIndex : fillTextureIndex;
-
-		int splatW = targetSplatMap.GetLength(0);
-		int splatD = targetSplatMap.GetLength(1);
-
-		var splatBefore = (TerrainSplatWeights[,])targetSplatMap.Clone();
-		var visited = new bool[splatW, splatD];
-
-		var cells = EditorTerrainSurface.GetFloodFillArea(
-			clickPos,
-			splatBefore,
-			width,
-			depth,
-			quadSize,
-			visited,
-			mirrorMode,
-			isCliff,
-			(x, z) => !splatBefore[x, z].IsSolid(targetTextureIndex),
-			_symmetryPivot,
-			_symmetryFolds
-		);
-
-		if (cells.Count == 0) return (null, null, isCliff);
-
-		foreach (var cell in cells)
-		{
-			targetSplatMap[cell.X, cell.Y] = TerrainSplatWeights.CreateSolid(targetTextureIndex);
-		}
-
-		int minGridX = splatW;
-		int maxGridX = 0;
-		int minGridZ = splatD;
-		int maxGridZ = 0;
-		foreach (var cell in cells)
-		{
-			if (cell.X < minGridX) minGridX = cell.X;
-			if (cell.X > maxGridX) maxGridX = cell.X;
-			if (cell.Y < minGridZ) minGridZ = cell.Y;
-			if (cell.Y > maxGridZ) maxGridZ = cell.Y;
-		}
-
-		AlignSplatMapSlots(minGridX - 2, minGridZ - 2, maxGridX + 2, maxGridZ + 2);
-
-		return (null, (TerrainSplatWeights[,])targetSplatMap.Clone(), isCliff);
-	}
-
-	public (int[,]? Before, int[,]? After) PerformFloodFillPathing(Godot.Vector3 clickPos, int pathingMask, bool pathingAdd, MirrorMode mirrorMode)
-	{
-		ref var terrain = ref GetTerrainState();
-		if (terrain.Cells == null || terrain.PathingCodes == null) return (null, null);
-
-		if (_surface.SplatMap == null && GameContext.Host?.GroundTerrain != null)
-		{
-			_surface.SplatMap = GameContext.Host.GroundTerrain.SplatMap;
-		}
-
-		int width = terrain.Width;
-		int depth = terrain.Depth;
-		float quadSize = terrain.QuadSize;
-		var splatBefore = _surface.SplatMap != null ? (TerrainSplatWeights[,])_surface.SplatMap.Clone() : null;
-		var pathingBefore = (int[,])terrain.PathingCodes.Clone();
-		var visited = new bool[width, depth];
-
-		var pathingCodes = terrain.PathingCodes;
-
-		var cells = EditorTerrainSurface.GetFloodFillPathingArea(
-			clickPos,
-			splatBefore,
-			width,
-			depth,
-			quadSize,
-			visited,
-			mirrorMode,
-			(x, z) => EditorTerrainSurface.CheckPathingCondition(pathingBefore, x, z, pathingMask, pathingAdd),
-			_symmetryPivot,
-			_symmetryFolds
-		);
-
-		if (cells.Count == 0) return (null, null);
-
-		foreach (var cell in cells)
-		{
-			if (pathingAdd)
-				pathingCodes[cell.X, cell.Y] |= pathingMask;
-			else
-				pathingCodes[cell.X, cell.Y] &= ~pathingMask;
-		}
-
-		return (pathingBefore, (int[,])pathingCodes.Clone());
-	}
+	public (int[,]? Before, int[,]? After) PerformFloodFillPathing(Godot.Vector3 clickPos, int pathingMask, bool pathingAdd, MirrorMode mirrorMode) =>
+		_surface.PerformPathingFloodFill(clickPos, pathingMask, pathingAdd, mirrorMode, _symmetryPivot, _symmetryFolds);
 
 	public (TerrainCell[,]? BeforeCells, TerrainCell[,]? AfterCells, int[,]? BeforePathing, int[,]? AfterPathing, bool WasAdded) PerformWaterFloodFill(
 		Godot.Vector3 clickPos,

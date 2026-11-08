@@ -607,4 +607,124 @@ internal sealed class EditorTerrainSurface
 			GameContext.Host?.ApplyProceduralSpawns(x, z, CollectionsMarshal.AsSpan(waterSpawnScratch), ProceduralSpawnLayer.Water);
 		}
 	}
+
+	public (float[,]? Heights, TerrainSplatWeights[,]? SplatMap, bool IsCliff) PerformTextureFloodFill(
+		Godot.Vector3 clickPos,
+		int fillTextureIndex,
+		int cliffTextureIndex,
+		MirrorMode mirrorMode,
+		bool isCliff,
+		Vector2 symmetryPivot,
+		int symmetryFolds)
+	{
+		ref var terrain = ref EditorService.GetTerrainState();
+		if (terrain.Cells == null) return (null, null, isCliff);
+
+		if (SplatMap == null && GameContext.Host?.GroundTerrain != null)
+		{
+			SplatMap = GameContext.Host.GroundTerrain.SplatMap;
+		}
+
+		if (CliffSplatMap == null && GameContext.Host?.GroundTerrain != null)
+		{
+			CliffSplatMap = GameContext.Host.GroundTerrain.CliffSplatMap;
+		}
+
+		if (SplatMap == null) return (null, null, isCliff);
+
+		int width = terrain.Width;
+		int depth = terrain.Depth;
+		float quadSize = terrain.QuadSize;
+
+		TerrainSplatWeights[,] targetSplatMap = (isCliff && CliffSplatMap != null) ? CliffSplatMap : SplatMap;
+		int targetTextureIndex = isCliff ? cliffTextureIndex : fillTextureIndex;
+
+		int splatW = targetSplatMap.GetLength(0);
+		int splatD = targetSplatMap.GetLength(1);
+
+		var splatBefore = (TerrainSplatWeights[,])targetSplatMap.Clone();
+		var visited = new bool[splatW, splatD];
+
+		var cells = GetFloodFillArea(
+			clickPos,
+			splatBefore,
+			width,
+			depth,
+			quadSize,
+			visited,
+			mirrorMode,
+			isCliff,
+			(x, z) => !splatBefore[x, z].IsSolid(targetTextureIndex),
+			symmetryPivot,
+			symmetryFolds
+		);
+
+		if (cells.Count == 0) return (null, null, isCliff);
+
+		foreach (var cell in cells)
+		{
+			targetSplatMap[cell.X, cell.Y] = TerrainSplatWeights.CreateSolid(targetTextureIndex);
+		}
+
+		int minGridX = splatW;
+		int maxGridX = 0;
+		int minGridZ = splatD;
+		int maxGridZ = 0;
+		foreach (var cell in cells)
+		{
+			if (cell.X < minGridX) minGridX = cell.X;
+			if (cell.X > maxGridX) maxGridX = cell.X;
+			if (cell.Y < minGridZ) minGridZ = cell.Y;
+			if (cell.Y > maxGridZ) maxGridZ = cell.Y;
+		}
+
+		AlignSplatMapSlots(minGridX - 2, minGridZ - 2, maxGridX + 2, maxGridZ + 2);
+
+		return (null, (TerrainSplatWeights[,])targetSplatMap.Clone(), isCliff);
+	}
+
+	public (int[,]? Before, int[,]? After) PerformPathingFloodFill(Godot.Vector3 clickPos, int pathingMask, bool pathingAdd, MirrorMode mirrorMode, Vector2 symmetryPivot, int symmetryFolds)
+	{
+		ref var terrain = ref EditorService.GetTerrainState();
+		if (terrain.Cells == null || terrain.PathingCodes == null) return (null, null);
+
+		if (SplatMap == null && GameContext.Host?.GroundTerrain != null)
+		{
+			SplatMap = GameContext.Host.GroundTerrain.SplatMap;
+		}
+
+		int width = terrain.Width;
+		int depth = terrain.Depth;
+		float quadSize = terrain.QuadSize;
+		var splatBefore = SplatMap != null ? (TerrainSplatWeights[,])SplatMap.Clone() : null;
+		var pathingBefore = (int[,])terrain.PathingCodes.Clone();
+		var visited = new bool[width, depth];
+
+		var pathingCodes = terrain.PathingCodes;
+
+		var cells = GetFloodFillPathingArea(
+			clickPos,
+			splatBefore,
+			width,
+			depth,
+			quadSize,
+			visited,
+			mirrorMode,
+			(x, z) => CheckPathingCondition(pathingBefore, x, z, pathingMask, pathingAdd),
+			symmetryPivot,
+			symmetryFolds
+		);
+
+		if (cells.Count == 0) return (null, null);
+
+		foreach (var cell in cells)
+		{
+			if (pathingAdd)
+				pathingCodes[cell.X, cell.Y] |= pathingMask;
+			else
+				pathingCodes[cell.X, cell.Y] &= ~pathingMask;
+		}
+
+		return (pathingBefore, (int[,])pathingCodes.Clone());
+	}
 }
