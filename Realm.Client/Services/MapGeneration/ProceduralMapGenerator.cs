@@ -29,6 +29,7 @@ public class ProceduralMapGenerator
 	private readonly SeededValueNoise _detailNoise;
 	private readonly AnchorCell[] _anchors = new AnchorCell[AnchorCount];
 	private MapPathCarver? _pathCarver;
+	private PathDistanceField? _pathDistance;
 
 	private readonly bool[,] _land;
 	private readonly bool[,] _landScratch;
@@ -62,9 +63,6 @@ public class ProceduralMapGenerator
 	private bool _passPrepared;
 	private int _anchorIndex;
 
-	private int _distanceRow;
-	private bool _distanceInitialized;
-	private readonly Queue<int> _distanceQueue = new();
 	private PoissonScatter? _treeScatter;
 	private PoissonScatter? _decorationScatter;
 	private int _treePlantIndex;
@@ -192,9 +190,7 @@ public class ProceduralMapGenerator
 		_passPrepared = false;
 		_anchorIndex = 0;
 		_pathCarver = null;
-		_distanceRow = 0;
-		_distanceInitialized = false;
-		_distanceQueue.Clear();
+		_pathDistance = null;
 		_treePlantIndex = 0;
 		_decorationPlantIndex = 0;
 		_waterScanIndex = 0;
@@ -636,77 +632,14 @@ public class ProceduralMapGenerator
 
 	private bool RunDistanceToPaths(int remainingBudgetMilliseconds)
 	{
-		if (!_distanceInitialized)
-		{
-			if (_distanceRow == 0)
-			{
-				for (int z = 0; z < _depth; z++)
-				{
-					for (int x = 0; x < _width; x++)
-					{
-						_distance[x, z] = int.MaxValue;
-					}
-				}
-			}
+		_pathDistance ??= new PathDistanceField(_walkable, _distance, _width, _depth);
 
-			for (int rowIndex = 0; rowIndex < 32 && _distanceRow < _depth; rowIndex++, _distanceRow++)
-			{
-				int z = _distanceRow;
-				for (int x = 0; x < _width; x++)
-				{
-					if (!_walkable[x, z])
-					{
-						continue;
-					}
-
-					_distance[x, z] = 0;
-					_distanceQueue.Enqueue(z * _width + x);
-				}
-			}
-
-			_stageProgress = 0.4f * (_distanceRow / (float)_depth);
-			if (_distanceRow < _depth)
-			{
-				return false;
-			}
-
-			_distanceInitialized = true;
-		}
-
-		int processedNodes = 0;
-		int nodeBudget = Math.Max(2048, remainingBudgetMilliseconds * 2048);
-		while (_distanceQueue.Count > 0 && processedNodes < nodeBudget)
-		{
-			int node = _distanceQueue.Dequeue();
-			int currentX = node % _width;
-			int currentZ = node / _width;
-			int nextDistance = _distance[currentX, currentZ] + 1;
-			ExpandDistanceNeighbour(currentX - 1, currentZ, nextDistance);
-			ExpandDistanceNeighbour(currentX + 1, currentZ, nextDistance);
-			ExpandDistanceNeighbour(currentX, currentZ - 1, nextDistance);
-			ExpandDistanceNeighbour(currentX, currentZ + 1, nextDistance);
-			processedNodes++;
-		}
-
-		_stageProgress = _distanceQueue.Count == 0 ? 1f : 0.4f + 0.6f * Math.Min(0.99f, processedNodes / (float)(processedNodes + _distanceQueue.Count));
-		return _distanceQueue.Count == 0;
+		bool done = _pathDistance.Step(remainingBudgetMilliseconds);
+		_stageProgress = _pathDistance.Progress;
+		return done;
 	}
 
-	private void ExpandDistanceNeighbour(int x, int z, int nextDistance)
-	{
-		if (x < 0 || x >= _width || z < 0 || z >= _depth)
-		{
-			return;
-		}
 
-		if (_distance[x, z] <= nextDistance)
-		{
-			return;
-		}
-
-		_distance[x, z] = nextDistance;
-		_distanceQueue.Enqueue(z * _width + x);
-	}
 
 	private bool RunScatterTrees(int remainingBudgetMilliseconds)
 	{
