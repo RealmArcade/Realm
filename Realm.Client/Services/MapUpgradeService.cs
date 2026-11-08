@@ -83,7 +83,7 @@ public class MapUpgradeService
 		return !string.Equals(currentVersion, targetVersion, StringComparison.OrdinalIgnoreCase);
 	}
 
-	public bool IsMapNewerThanGame(string mapVersionOrDirectory, string? gameVersion = null)
+	public bool IsMapNewerThanGame(string? mapVersionOrDirectory, string? gameVersion = null)
 	{
 		string? mapBuildNumber = mapVersionOrDirectory;
 		if (!string.IsNullOrEmpty(mapVersionOrDirectory) && (Directory.Exists(mapVersionOrDirectory) || File.Exists(mapVersionOrDirectory)))

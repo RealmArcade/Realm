@@ -954,7 +954,7 @@ namespace Realm.Client.UI
 			}
 		}
 
-		private void HighlightSwatch(Button selectedSwatch)
+		private void HighlightSwatch(Button? selectedSwatch)
 		{
 			if (!GodotObject.IsInstanceValid(_swatchHighlightPanel))
 			{
@@ -988,7 +988,7 @@ namespace Realm.Client.UI
 			}
 		}
 
-		private void HighlightCliffSwatch(Button selectedSwatch)
+		private void HighlightCliffSwatch(Button? selectedSwatch)
 		{
 			if (!GodotObject.IsInstanceValid(_swatchCliffHighlightPanel))
 			{
@@ -1061,7 +1061,7 @@ namespace Realm.Client.UI
 			onCompleted?.Invoke();
 		}
 
-		private void ShowMapNewerThanGameErrorDialog(string selectedFolder, string mapVersion, string gameVersion)
+		private void ShowMapNewerThanGameErrorDialog(string selectedFolder, string? mapVersion, string gameVersion)
 		{
 			string msg = $"{string.Format(Tr("Map: {0}"), Path.GetFileName(selectedFolder))}\n{string.Format(Tr("Map Build: {0} | Editor Build: {1}"), mapVersion, gameVersion)}\n\n{Tr("This map was created with a newer version of the game. Downgrading maps is not supported.\nPlease update the game to open this map.")}";
 			GameContext.UserInterface?.ShowPopupMessage("MAP REQUIRES NEWER GAME VERSION", msg);

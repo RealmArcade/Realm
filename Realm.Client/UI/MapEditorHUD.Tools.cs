@@ -407,7 +407,7 @@ namespace Realm.Client.UI
 				}
 				else
 				{
-					Button toolBtn = GetButtonForTool(GameContext.SessionState.SavedActiveTool, GameContext.SessionState.SavedActivePlaceId);
+					Button? toolBtn = GetButtonForTool(GameContext.SessionState.SavedActiveTool, GameContext.SessionState.SavedActivePlaceId);
 					if (toolBtn != null)
 					{
 						TriggerToolSelection(GameContext.SessionState.SavedActiveTool, toolBtn, GameContext.SessionState.SavedActivePlaceId);
@@ -867,8 +867,7 @@ namespace Realm.Client.UI
 
 			var initialCam = GameContext.Host?.MainCamera;
 			UpdateFreeCameraExternal(initialCam != null && initialCam.IsFreeCamera);
-			GameHost tempQualifier = GameContext.Host;
-			UpdateShadowsExternal((tempQualifier != null ? GameContext.EditorService.EditorDisableShadows : (bool?)null) ?? false);
+			UpdateShadowsExternal(GameContext.Host != null && GameContext.EditorService.EditorDisableShadows);
 
 			_minimapFrame = GetNode<PanelContainer>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/MinimapFrame");
 			_minimapArea = GetNode<Control>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/MinimapFrame/MinimapArea");
@@ -1364,7 +1363,7 @@ namespace Realm.Client.UI
 				{
 					RefreshCoordinateListExternal();
 					ShowFeedback($"Coordinate '{name}' created.");
-					_txtCoordinateName.Text = "";
+					_txtCoordinateName?.Text = "";
 				}
 			};
 			_btnViewCoordinates = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelCoordinatesVBox/BtnViewCoordinates");
@@ -1817,7 +1816,7 @@ namespace Realm.Client.UI
 			{
 				if (!toggled && (ChkApplyCliffTexture == null || !ChkApplyCliffTexture.ButtonPressed))
 				{
-					ChkApplyCliffTexture.SetPressedNoSignal(true);
+					ChkApplyCliffTexture?.SetPressedNoSignal(true);
 				}
 
 				UpdateTextureLabels();
@@ -1827,7 +1826,7 @@ namespace Realm.Client.UI
 			{
 				if (!toggled && (ChkApplyGroundTexture == null || !ChkApplyGroundTexture.ButtonPressed))
 				{
-					ChkApplyGroundTexture.SetPressedNoSignal(true);
+					ChkApplyGroundTexture?.SetPressedNoSignal(true);
 				}
 
 				UpdateTextureLabels();
@@ -2025,7 +2024,7 @@ namespace Realm.Client.UI
 			}
 		}
 
-		private void GetObjectDetails(Node selected, out string typeStr, out string idStr, out string nameStr)
+		private void GetObjectDetails(Node selected, out string typeStr, out string? idStr, out string nameStr)
 		{
 			typeStr = "";
 			nameStr = selected.Name;
@@ -2104,7 +2103,7 @@ namespace Realm.Client.UI
 			Vector3 rot = selected is Node3D node3DRot ? node3DRot.RotationDegrees : Vector3.Zero;
 			Vector3 scale = selected is Node3D node3DScale ? node3DScale.Scale : Vector3.One;
 
-			GetObjectDetails(selected, out string typeStr, out string idStr, out string nameStr);
+			GetObjectDetails(selected, out string typeStr, out string? idStr, out string nameStr);
 
 			if (_viewModel != null)
 			{
@@ -2179,7 +2178,7 @@ namespace Realm.Client.UI
 
 		private void UpdateInspectorActionVisibility(Node selected)
 		{
-			string assetKey = GameContext.Host.GetSelectedEntityOrAssetKey(selected);
+			string assetKey = GameContext.Host?.GetSelectedEntityOrAssetKey(selected) ?? "";
 			bool isDecal = selected is Decal || (GameContext.Host != null && GameContext.Host.FindDecalInParentChain(selected) != null);
 			if (!string.IsNullOrEmpty(assetKey) && !isDecal && _btnOpenGlobalOverrides != null)
 			{
@@ -2286,7 +2285,7 @@ namespace Realm.Client.UI
 			Callable.From(ReportEditorDependencyState).CallDeferred();
 		}
 
-		private Control _editorInstallingCard = null!;
+		private Control? _editorInstallingCard;
 
 		private void ShowEditorInstallingCard()
 		{
@@ -2570,7 +2569,7 @@ namespace Realm.Client.UI
 
 		public void SelectToolFromHotkey(EditorTool tool)
 		{
-			Button targetBtn = null;
+			Button? targetBtn = null;
 			switch (tool)
 			{
 				case EditorTool.Raise: targetBtn = _btnRaise; break;
@@ -2605,7 +2604,7 @@ namespace Realm.Client.UI
 			}
 		}
 
-		private Button GetButtonForTool(EditorTool tool, string placeId)
+		private Button? GetButtonForTool(EditorTool tool, string placeId)
 		{
 			return tool switch
 			{
@@ -2646,7 +2645,7 @@ namespace Realm.Client.UI
 		private async Task<bool> PromptAndUpgradeMapIfNeededAsync(string selectedFolder)
 		{
 			var upgradeService = GameContext.MapUpgradeService ?? GameContext.MapUpgradeService;
-			if (upgradeService == null || !upgradeService.NeedsUpgrade(selectedFolder, out string currentVersion, out string targetVersion))
+			if (upgradeService == null || !upgradeService.NeedsUpgrade(selectedFolder, out string? currentVersion, out string? targetVersion))
 			{
 				return true;
 			}
@@ -2686,7 +2685,7 @@ namespace Realm.Client.UI
 		}
 
 		private (Panel Popup, ProgressBar ProgressBar, Label StatusLabel, Button UpgradeButton, Button CancelButton) BuildMapUpgradePromptDialog(
-			string selectedFolder, string currentVersion, string targetVersion)
+			string selectedFolder, string? currentVersion, string targetVersion)
 		{
 			var popup = new Panel();
 			popup.Name = "Popup_Panel";
@@ -3029,22 +3028,31 @@ namespace Realm.Client.UI
 				GameContext.EditorService.IsPaused = true;
 			}
 
-			string workspace = !string.IsNullOrEmpty(GameContext.EditorService._editingDirectory) ? GameContext.EditorService._editingDirectory : MapWorkspaceService.GetActiveWorkspacePath();
+			var activeEditor = GameContext.EditorService;
+			string workspace = activeEditor != null && !string.IsNullOrEmpty(activeEditor._editingDirectory)
+				? activeEditor._editingDirectory
+				: MapWorkspaceService.GetActiveWorkspacePath();
 
 			var (assetsValid, missingAssets) = MapAssetHelper.ValidateWorkspaceAssets(workspace);
 			if (!assetsValid)
 			{
 				ShowFeedback(string.Format(TranslationServer.Translate("Publish failed: Map is missing required asset files:\n{0}"), string.Join(", ", missingAssets.Take(4)) + (missingAssets.Count > 4 ? "..." : "")));
 				AppendWasmConsoleLog($"[ERROR] Publish failed. Missing required asset files:\n  {string.Join("\n  ", missingAssets)}");
-				GameContext.EditorService.IsSyncing = false;
-				if (GameContext.EditorService != null) GameContext.EditorService.IsPaused = false;
+				if (GameContext.EditorService != null)
+				{
+					GameContext.EditorService.IsSyncing = false;
+					GameContext.EditorService.IsPaused = false;
+				}
 				return;
 			}
 
 			if (!CheckAssetSizeValidation(workspace))
 			{
-				GameContext.EditorService.IsSyncing = false;
-				if (GameContext.EditorService != null) GameContext.EditorService.IsPaused = false;
+				if (GameContext.EditorService != null)
+				{
+					GameContext.EditorService.IsSyncing = false;
+					GameContext.EditorService.IsPaused = false;
+				}
 				return;
 			}
 
@@ -3334,14 +3342,14 @@ namespace Realm.Client.UI
 			finally
 			{
 				GameLog.OnLine -= logHandler;
-				if (GameContext.EditorService != null)
+				var syncingEditor = GameContext.EditorService;
+				if (syncingEditor != null)
 				{
-					GameContext.EditorService.IsPaused = false;
+					syncingEditor.IsPaused = false;
+					syncingEditor.LastMetadataSyncTime = syncingEditor.GetLastWriteTimeSafe(activeConfigPath);
+					syncingEditor.LastTerrainSyncTime = syncingEditor.GetMaxTerrainWriteTime(tempTerrainPath);
+					syncingEditor.IsSyncing = false;
 				}
-
-				GameContext.EditorService.LastMetadataSyncTime = GameContext.EditorService.GetLastWriteTimeSafe(activeConfigPath);
-				GameContext.EditorService.LastTerrainSyncTime = GameContext.EditorService.GetMaxTerrainWriteTime(tempTerrainPath);
-				GameContext.EditorService.IsSyncing = false;
 			}
 		}
 
@@ -3470,8 +3478,9 @@ namespace Realm.Client.UI
 			await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
 			WorkspaceMetadataBootstrapper.EnsureLicenseFile(workspace);
-			GameContext.Host.SaveMapToFile(terrainPath, performReload: false);
-			GameContext.Host.EditorHasUnsavedChanges = false;
+			var host = GameContext.Host ?? throw new InvalidOperationException("Publishing requires an editor host.");
+			host.SaveMapToFile(terrainPath, performReload: false);
+			host.EditorHasUnsavedChanges = false;
 			InvalidateMetadataCache();
 
 			if (OperatingSystem.IsWindows())
@@ -3510,7 +3519,7 @@ namespace Realm.Client.UI
 		}
 
 
-		public async Task ShowAssetIndexRepairModalAsync(Action onCompleted = null)
+		public async Task ShowAssetIndexRepairModalAsync(Action? onCompleted = null)
 		{
 			var overlay = CreateAssetRepairOverlay();
 
@@ -3958,7 +3967,7 @@ namespace Realm.Client.UI
 			parent.MoveChild(rowPanel, originalIndex);
 		}
 
-		public FontVariation GetFontAwesomeFont()
+		public FontVariation? GetFontAwesomeFont()
 		{
 			if (_faFontVariation == null)
 			{
@@ -4830,7 +4839,7 @@ namespace Realm.Client.UI
 			_lblScalePreviewHeight = null;
 		}
 
-		private void SetupButton(Button btn, string text, Action onClick, int fontSize = 13, string tooltip = "")
+		private void SetupButton(Button btn, string text, Action? onClick, int fontSize = 13, string tooltip = "")
 		{
 			if (btn == null) return;
 			btn.Text = text;
@@ -4889,8 +4898,8 @@ namespace Realm.Client.UI
 			if (_lblTerrainTexture != null) _lblTerrainTexture.Text = TranslationServer.Translate(terrainName);
 			if (_lblCliffTexture != null) _lblCliffTexture.Text = TranslationServer.Translate(cliffName);
 
-			Button terrainSwatch = (terrainIdx >= 0 && terrainIdx < _swatchButtons.Count) ? _swatchButtons[terrainIdx] : null;
-			Button cliffSwatch = (cliffIdx >= 0 && cliffIdx < _swatchButtons.Count) ? _swatchButtons[cliffIdx] : null;
+			Button? terrainSwatch = (terrainIdx >= 0 && terrainIdx < _swatchButtons.Count) ? _swatchButtons[terrainIdx] : null;
+			Button? cliffSwatch = (cliffIdx >= 0 && cliffIdx < _swatchButtons.Count) ? _swatchButtons[cliffIdx] : null;
 
 			HighlightSwatch(terrainSwatch);
 			HighlightCliffSwatch(cliffSwatch);
@@ -5140,7 +5149,7 @@ namespace Realm.Client.UI
 			inspectorVBox.AddChild(BtnEditVfx);
 		}
 
-		public void OpenWeaponVfxDialog(string weaponId, WeaponMetadata weapon, Action<WeaponMetadata> onApplied = null)
+		public void OpenWeaponVfxDialog(string weaponId, WeaponMetadata weapon, Action<WeaponMetadata>? onApplied = null)
 		{
 			if (_weaponVfxDialog == null)
 			{
@@ -5150,7 +5159,7 @@ namespace Realm.Client.UI
 			_weaponVfxDialog.OpenForWeapon(weaponId, weapon, onApplied);
 		}
 
-		public void OpenVfxStudioDialog(VfxAttachmentConfig initialConfig = null, Action<VfxAttachmentConfig> onApplied = null)
+		public void OpenVfxStudioDialog(VfxAttachmentConfig? initialConfig = null, Action<VfxAttachmentConfig>? onApplied = null)
 		{
 			if (_vfxStudioDialog == null)
 			{
@@ -5161,11 +5170,11 @@ namespace Realm.Client.UI
 		}
 
 		public void OpenObjectAttachmentDialog(
-			string unitId = null,
-			string attachmentId = null,
+			string? unitId = null,
+			string? attachmentId = null,
 			string hand = "RightHand",
-			Node3D sourceModel = null,
-			Action<HandAttachmentOrientation> onApplied = null)
+			Node3D? sourceModel = null,
+			Action<HandAttachmentOrientation>? onApplied = null)
 		{
 			if (_objectAttachmentDialog == null)
 			{
@@ -5283,7 +5292,7 @@ namespace Realm.Client.UI
 			}
 		}
 
-		public void OpenShaderEditorDialog(string shaderKey = "", Action<CustomShaderConfig> onSaved = null)
+		public void OpenShaderEditorDialog(string shaderKey = "", Action<CustomShaderConfig>? onSaved = null)
 		{
 			if (_shaderEditorDialog == null)
 			{
@@ -5293,7 +5302,7 @@ namespace Realm.Client.UI
 			_shaderEditorDialog.OpenForShader(shaderKey, onSaved);
 		}
 
-		public void OpenProceduralAnimationStudioDialog(ProceduralAnimationConfig initialConfig = null, Action<ProceduralAnimationConfig> onApplied = null, string previewModelKey = null)
+		public void OpenProceduralAnimationStudioDialog(ProceduralAnimationConfig? initialConfig = null, Action<ProceduralAnimationConfig>? onApplied = null, string? previewModelKey = null)
 		{
 			if (_proceduralAnimationStudioDialog == null)
 			{
@@ -5303,7 +5312,7 @@ namespace Realm.Client.UI
 			_proceduralAnimationStudioDialog.OpenForConfig(initialConfig, onApplied, previewModelKey);
 		}
 
-		public void OpenModelPickerDialog(string entityId, string fieldName, string domain, string currentPath, Action<string> onApplied = null)
+		public void OpenModelPickerDialog(string entityId, string fieldName, string domain, string currentPath, Action<string>? onApplied = null)
 		{
 			if (_modelPickerDialog == null)
 			{
@@ -5313,7 +5322,7 @@ namespace Realm.Client.UI
 			_modelPickerDialog.OpenForEntity(entityId, fieldName, domain, currentPath, onApplied);
 		}
 
-		public void OpenAnimationPreviewDialog(string unitId, string modelPath = null)
+		public void OpenAnimationPreviewDialog(string unitId, string? modelPath = null)
 		{
 			if (_animationPreviewDialog == null)
 			{
@@ -5366,7 +5375,7 @@ namespace Realm.Client.UI
 			}
 		}
 
-		private Texture2D GetSwatchTexture(int i)
+		private Texture2D? GetSwatchTexture(int i)
 		{
 			if (_swatchTextureCache.TryGetValue(i, out var cached) && cached != null && GodotObject.IsInstanceValid(cached))
 			{
@@ -5382,7 +5391,7 @@ namespace Realm.Client.UI
 			return result;
 		}
 
-		public void OpenNoiseTextureDialog(Action<string> onSaved = null)
+		public void OpenNoiseTextureDialog(Action<string>? onSaved = null)
 		{
 			_noiseTextureDialog?.OpenWithCallback(onSaved);
 		}
@@ -5456,7 +5465,7 @@ namespace Realm.Client.UI
 			_mapSettingsDialog?.RefreshSkyboxList();
 		}
 
-		private void UpdateMetadataJsonAsset(string category, string fileName, string blake3Hash, string subCategory = null, int columns = 0, int rows = 0, int targetSlot = -1)
+		private void UpdateMetadataJsonAsset(string category, string fileName, string blake3Hash, string? subCategory = null, int columns = 0, int rows = 0, int targetSlot = -1)
 		{
 			GameContext.EditorService.UpdateMetadataJsonAssetDomain(category, fileName, blake3Hash, subCategory, columns, rows, targetSlot);
 		}
@@ -5670,8 +5679,8 @@ namespace Realm.Client.UI
 				_environmentConfigDialog = new EnvironmentConfigDialog(this);
 			}
 
-			List<EnvironmentPresetConfig> presetsList = null;
-			string defaultPreset = null;
+			List<EnvironmentPresetConfig>? presetsList = null;
+			string? defaultPreset = null;
 			string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
 			if (GameContext.MetadataService.TryLoadMetadata(wsPath, out var meta) && meta != null)
 			{
@@ -5685,12 +5694,12 @@ namespace Realm.Client.UI
 
 			if (presetsList == null || presetsList.Count == 0)
 			{
-				GameHost tempQualifier = GameContext.Host;
-				presetsList = (tempQualifier != null ? GameContext.EnvironmentService : null)?.GetPresets().ToList() ?? EnvironmentPresetConfig.CreateDefaultPresets();
+				presetsList = GameContext.Host != null
+					? GameContext.EnvironmentService.GetPresets().ToList()
+					: EnvironmentPresetConfig.CreateDefaultPresets();
 			}
 
-			GameHost tempQualifier1 = GameContext.Host;
-			string currentId = (tempQualifier1 != null ? GameContext.EnvironmentService : null)?.GetCurrentPresetId() ?? defaultPreset ?? "day";
+			string currentId = (GameContext.Host != null ? GameContext.EnvironmentService.GetCurrentPresetId() : null) ?? defaultPreset ?? "day";
 			_environmentConfigDialog?.OpenWithPresets(presetsList, currentId, defaultPreset);
 		}
 	}

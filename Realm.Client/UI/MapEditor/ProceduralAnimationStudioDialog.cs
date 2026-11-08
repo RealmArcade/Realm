@@ -93,7 +93,7 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 	private float _impulseTime = 0.0f;
 	private float _simVelocityX = 0.0f;
 
-	private Action<ProceduralAnimationConfig> _onSaved = null!;
+	private Action<ProceduralAnimationConfig>? _onSaved;
 
 	public ProceduralAnimationStudioDialog(MapEditorHUD hud)
 		: base(hud, TranslationServer.Translate("Procedural Animation & Sway Studio"), new Vector2(560, 780))
@@ -403,7 +403,7 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 		}
 	}
 
-	public void OpenForConfig(ProceduralAnimationConfig config, Action<ProceduralAnimationConfig> onSaved = null, string previewModelKey = null)
+	public void OpenForConfig(ProceduralAnimationConfig? config, Action<ProceduralAnimationConfig>? onSaved = null, string? previewModelKey = null)
 	{
 		_onSaved = onSaved;
 		if (!string.IsNullOrWhiteSpace(previewModelKey))

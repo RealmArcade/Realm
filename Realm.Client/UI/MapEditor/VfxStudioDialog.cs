@@ -161,7 +161,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 
 	private VfxAttachmentConfig _currentConfig = new();
 	private VfxAttachmentConfig _initialConfig = new();
-	private Action<VfxAttachmentConfig> _onAppliedCallback = null!;
+	private Action<VfxAttachmentConfig>? _onAppliedCallback;
 	private bool _isUpdatingUI;
 
 	public VfxStudioDialog(MapEditorHUD hud)
@@ -1061,7 +1061,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		_previewVfxInstance.Initialize(_currentConfig);
 	}
 
-	public void OpenForConfig(VfxAttachmentConfig config, Action<VfxAttachmentConfig> onApplied = null)
+	public void OpenForConfig(VfxAttachmentConfig? config, Action<VfxAttachmentConfig>? onApplied = null)
 	{
 		_initialConfig = config?.Clone() ?? new VfxAttachmentConfig();
 		_currentConfig = config?.Clone() ?? new VfxAttachmentConfig();

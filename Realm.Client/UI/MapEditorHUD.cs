@@ -251,8 +251,8 @@ public partial class MapEditorHUD : Control
 	private Button BtnUtilities { get; set; } = null!;
 	private bool IsUpdatingInspectorUI { get; set; }
 
-	private CheckBox ChkApplyGroundTexture { get; set; } = null!;
-	private CheckBox ChkApplyCliffTexture { get; set; } = null!;
+	private CheckBox? ChkApplyGroundTexture { get; set; }
+	private CheckBox? ChkApplyCliffTexture { get; set; }
 	private HBoxContainer RowGroundTexture { get; set; } = null!;
 	private HBoxContainer RowCliffTexture { get; set; } = null!;
 
@@ -338,7 +338,7 @@ public partial class MapEditorHUD : Control
 
 
 	private Button _btnDrawCoordinate { get; set; } = null!;
-	private LineEdit _txtCoordinateName { get; set; } = null!;
+	private LineEdit? _txtCoordinateName { get; set; }
 	private Button _btnCommitCoordinate { get; set; } = null!;
 	private Button _btnViewCoordinates { get; set; } = null!;
 
@@ -350,13 +350,13 @@ public partial class MapEditorHUD : Control
 	private Label _lblTerrainTexture { get; set; } = null!;
 	private Label _lblCliffTexture { get; set; } = null!;
 
-	private PanelContainer _scaleMapDialog { get; set; } = null!;
-	private Label _lblScalePreviewWidth { get; set; } = null!;
-	private Label _lblScalePreviewHeight { get; set; } = null!;
+	private PanelContainer? _scaleMapDialog { get; set; }
+	private Label? _lblScalePreviewWidth { get; set; }
+	private Label? _lblScalePreviewHeight { get; set; }
 
 	private int _scaleDialogTargetDepth { get; set; }
 
-	private Camera3D _camera3D { get; set; } = null!;
+	private Camera3D? _camera3D { get; set; }
 	private Button _btnEditors { get; set; } = null!;
 	private Button _btnVSCode { get; set; } = null!;
 	private PopupPanel _popupEditors { get; set; } = null!;
@@ -821,7 +821,7 @@ public partial class MapEditorHUD : Control
 	}
 
 
-	public void TriggerToolSelection(EditorTool tool, Button btn, string placeId = "")
+	public void TriggerToolSelection(EditorTool tool, Button? btn, string placeId = "")
 	{
 		if (GameContext.Host == null) return;
 
@@ -1103,7 +1103,7 @@ public partial class MapEditorHUD : Control
 		UpdateCardScrollState(_contentInspector, 300f);
 	}
 
-	private FontVariation _faFontVariation { get; set; } = null!;
+	private FontVariation? _faFontVariation { get; set; }
 
 	private HashSet<ulong> _hookedSliderInstanceIds { get; set; } = new();
 

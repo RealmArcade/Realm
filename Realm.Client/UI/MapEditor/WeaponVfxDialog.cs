@@ -102,7 +102,7 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 	private Label _lblObjectTypePrefix = null!;
 	private LineEdit _txtSlug = null!;
 	private LineEdit _txtName = null!;
-	private Action<WeaponMetadata> _onAppliedCallback = null!;
+	private Action<WeaponMetadata>? _onAppliedCallback;
 	private bool _isUpdatingUI;
 
 	private Action<string> _setAttackSoundValue = null!;
@@ -910,7 +910,7 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 		}
 	}
 
-	public void OpenForWeapon(string weaponId, WeaponMetadata weapon, Action<WeaponMetadata> onApplied = null)
+	public void OpenForWeapon(string weaponId, WeaponMetadata? weapon, Action<WeaponMetadata>? onApplied = null)
 	{
 		string effectiveId = !string.IsNullOrWhiteSpace(weapon?.TemplateID) ? weapon.TemplateID : weaponId;
 		var (_, parsedSlug) = TemplateIDHelper.ParseTemplateID(effectiveId);

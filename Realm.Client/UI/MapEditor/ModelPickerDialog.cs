@@ -71,7 +71,7 @@ public partial class ModelPickerDialog : FloatingPreview3DDialogBase
 		BodyContainer.AddChild(_lblStatus);
 	}
 
-	public void OpenForEntity(string entityId, string fieldName, string domain, string currentPath, Action<string> onApplied = null)
+	public void OpenForEntity(string entityId, string fieldName, string domain, string currentPath, Action<string>? onApplied = null)
 	{
 		InitializeFields(entityId, fieldName, domain, currentPath, onApplied);
 		UpdateTitleLabel();

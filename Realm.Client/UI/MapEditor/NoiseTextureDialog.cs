@@ -62,7 +62,7 @@ public partial class NoiseTextureDialog : FloatingDialogBase
 	private TextureRect _previewTextureRect = null!;
 	private Label _lblPreviewInfo = null!;
 
-	private Action<string> _onSavedCallback = null!;
+	private Action<string>? _onSavedCallback;
 	private bool _isUpdatingPreview;
 
 	public NoiseTextureDialog(MapEditorHUD hud) : base(hud, TranslationServer.Translate("Procedural Noise Texture Generator"), new Vector2(740, 560))
@@ -419,7 +419,7 @@ public partial class NoiseTextureDialog : FloatingDialogBase
 		}
 	}
 
-	public void OpenWithCallback(Action<string> onSaved = null)
+	public void OpenWithCallback(Action<string>? onSaved = null)
 	{
 		_onSavedCallback = onSaved;
 		OpenDialog();

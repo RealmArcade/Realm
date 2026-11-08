@@ -471,11 +471,11 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 	}
 
 	public void OpenForUnitAndAttachment(
-		string unitId,
-		string attachmentId = null,
-		string socket = null,
-		Node3D sourceModel = null,
-		Action<HandAttachmentOrientation> onApplied = null)
+		string? unitId,
+		string? attachmentId = null,
+		string? socket = null,
+		Node3D? sourceModel = null,
+		Action<HandAttachmentOrientation>? onApplied = null)
 	{
 		OpenForTarget(unitId, attachmentId, socket, sourceModel, onApplied);
 	}

@@ -230,7 +230,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 		return providedModelPath;
 	}
 
-	public void OpenForUnitId(string unitId, string modelPath = null)
+	public void OpenForUnitId(string unitId, string? modelPath = null)
 	{
 		_currentUnitId = unitId;
 		TitleLabel.Text = $"{TranslationServer.Translate("Unit Animation Studio")} - {unitId}";
@@ -872,7 +872,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 		_attachmentVisualNodes[key] = loaded;
 	}
 
-	private bool IsInvalidSocketAnchor(string normSocket, out Node3D targetAnchor)
+	private bool IsInvalidSocketAnchor(string normSocket, out Node3D? targetAnchor)
 	{
 		if (!_socketAnchorNodes.TryGetValue(normSocket, out targetAnchor)) return true;
 		if (targetAnchor == null) return true;

@@ -334,7 +334,7 @@ public class RegistryService
 		}
 	}
 
-	public bool TryGetVfxConfig(string vfxId, out VfxAttachmentConfig config)
+	public bool TryGetVfxConfig(string? vfxId, out VfxAttachmentConfig config)
 	{
 		config = null;
 		if (string.IsNullOrWhiteSpace(vfxId)) return false;

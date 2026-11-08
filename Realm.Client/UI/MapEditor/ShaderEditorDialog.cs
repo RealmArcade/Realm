@@ -55,7 +55,7 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 	private bool _isPlaying = false;
 	private bool _isPlayingForward = true;
 	private float _currentAnimTime = 0.0f;
-	private Action<CustomShaderConfig> _onSaved = null!;
+	private Action<CustomShaderConfig>? _onSaved;
 
 	public ShaderEditorDialog(MapEditorHUD hud)
 		: base(hud, TranslationServer.Translate("Custom Shader & Dissolve Studio"), new Vector2(560, 780))
@@ -325,7 +325,7 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 		UpdateShaderParameters();
 	}
 
-	public void OpenForShader(string shaderKey, Action<CustomShaderConfig> onSaved = null)
+	public void OpenForShader(string shaderKey, Action<CustomShaderConfig>? onSaved = null)
 	{
 		_onSaved = onSaved;
 
