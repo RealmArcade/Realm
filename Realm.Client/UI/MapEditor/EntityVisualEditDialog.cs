@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using Godot;
@@ -38,13 +39,13 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 	private string _proceduralAnimation = "";
 
 	private bool _isSyncing = false;
-	private Node _currentSelectedObject = null!;
+	private Node? _currentSelectedObject;
 	private VisualOverridesSnapshot _initialSnapshot;
 	private string? _initialTemplateJson = null;
 	private bool _templateExistedInitially = false;
 	private float _modelLocalMinY = 0f;
 	private float _previousScale = 1.0f;
-	private Action<string, string> _onAppliedCallback = null!;
+	private Action<string, string>? _onAppliedCallback;
 
 	private Label _lblDescription = null!;
 	private Label _lblIdentitySectionHeader = null!;
@@ -513,7 +514,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 		string targetKey = GetTargetKey();
 		bool isBuilding = _objectType == "building" || (GameHost.BuildingRegistry?.ContainsKey(targetKey) == true);
 		string defaultSocket = isBuilding ? "Center" : "RightHand";
-		Node3D sourceModel = _currentSelectedObject as Node3D;
+		Node3D? sourceModel = _currentSelectedObject as Node3D;
 		Hud?.OpenObjectAttachmentDialog(targetKey, null, defaultSocket, sourceModel, orient => HandleAttachmentOrientation(targetKey));
 	}
 
@@ -638,7 +639,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 	private bool TryCheckModelCacheForRigging(string meshPath, out bool isRigged)
 	{
 		isRigged = false;
-		Node loadedNode = ModelCache.GetModel(meshPath);
+		Node? loadedNode = ModelCache.GetModel(meshPath);
 		if (loadedNode == null)
 		{
 			string? resolved = ModelCache.ResolveModelPath(meshPath);
@@ -1063,14 +1064,14 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 	{
 		if (!string.IsNullOrEmpty(objectId))
 		{
-			if (TryGetCategoryFromPrefix(objectId, out string cat)) return (cat, objectId);
-			if (TryGetCategoryFromRegistry(objectId, out string regCat)) return (regCat, objectId);
+			if (TryGetCategoryFromPrefix(objectId, out string? cat)) return (cat, objectId);
+			if (TryGetCategoryFromRegistry(objectId, out string? regCat)) return (regCat, objectId);
 		}
 
 		return ("props", objectId);
 	}
 
-	private static bool TryGetCategoryFromPrefix(string objectId, out string category)
+	private static bool TryGetCategoryFromPrefix(string objectId, [NotNullWhen(true)] out string? category)
 	{
 		if (objectId.StartsWith("unit/", StringComparison.OrdinalIgnoreCase))
 		{
@@ -1100,7 +1101,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 		return false;
 	}
 
-	private static bool TryGetCategoryFromRegistry(string objectId, out string category)
+	private static bool TryGetCategoryFromRegistry(string objectId, [NotNullWhen(true)] out string? category)
 	{
 		if (GameHost.BuildingRegistry != null && GameHost.BuildingRegistry.ContainsKey(objectId))
 		{
@@ -1239,9 +1240,9 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 
 		if (_currentSelectedObject != null && GodotObject.IsInstanceValid(_currentSelectedObject))
 		{
-			if (_currentSelectedObject is Unit3D u3d)
+			if (_currentSelectedObject is Unit3D u3d && GameContext.Host is { } host)
 			{
-				string fallbackModel = GameContext.Host.GetFallbackModelPath(_modelPath, u3d.IsBuilding);
+				string fallbackModel = host.GetFallbackModelPath(_modelPath, u3d.IsBuilding);
 				u3d.LoadModel(fallbackModel);
 			}
 			else if (_currentSelectedObject is Prop3D p3d)
@@ -1289,16 +1290,16 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 		OpenForObject(category, objectId, null, selectedObject);
 	}
 
-	public void OpenForObject(string category, string objectId, Action<string, string> onApplied = null)
+	public void OpenForObject(string? category, string objectId, Action<string, string>? onApplied = null)
 	{
 		OpenForObject(category, objectId, onApplied, null);
 	}
 
-	public void OpenForObject(string category, string objectId, Action<string, string> onApplied, Node selectedObject)
+	public void OpenForObject(string? category, string objectId, Action<string, string>? onApplied, Node? selectedObject)
 	{
 		InitializeDialogState(category, objectId, selectedObject, onApplied);
 
-		object targetLookup = (object)selectedObject ?? (object)_originalTemplateID;
+		object targetLookup = selectedObject is { } selectedNode ? selectedNode : _originalTemplateID;
 
 		InitializeModelProperties(targetLookup, _slug);
 
@@ -1340,7 +1341,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 		UpdateStudioButtonVisibility();
 	}
 
-	private void InitializeDialogState(string category, string objectId, Node selectedObject, Action<string, string> onApplied)
+	private void InitializeDialogState(string? category, string objectId, Node? selectedObject, Action<string, string>? onApplied)
 	{
 		_currentSelectedObject = selectedObject;
 		_modelLocalMinY = CalculateInitialModelLocalMinY(selectedObject);
@@ -1348,12 +1349,12 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 		_objectType = DetermineObjectType(_category);
 		_originalTemplateID = objectId ?? "";
 
-		var (parsedType, parsedSlug) = TemplateIDHelper.ParseTemplateID(objectId);
-		_slug = !string.IsNullOrEmpty(parsedSlug) ? parsedSlug : TemplateIDHelper.GenerateSlug(objectId);
+		var (parsedType, parsedSlug) = TemplateIDHelper.ParseTemplateID(_originalTemplateID);
+		_slug = !string.IsNullOrEmpty(parsedSlug) ? parsedSlug : TemplateIDHelper.GenerateSlug(_originalTemplateID);
 		_onAppliedCallback = onApplied;
 	}
 
-	private float CalculateInitialModelLocalMinY(Node selectedObject)
+	private float CalculateInitialModelLocalMinY(Node? selectedObject)
 	{
 		if (selectedObject != null) return CalculateModelLocalMinY(selectedObject);
 		var editorObj = GameContext.Host?.SelectedEditorObject;
@@ -1512,7 +1513,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 		ApplyBaseMetadataProperties(p.TemplateID, p.ModelPath, p.PortraitModelPath, p.VisualMode, p.Name, p.Description, p.Scale, p.YOffset, p.CollisionCircle, p.Brightness, p.Tint, p.NormalizeLuminance, p.IgnorePlayerColor, p.DespillPlayerColor, p.SpawnShader, p.DeathShader);
 	}
 
-	private void ApplyBaseMetadataProperties(string templateId, string modelPath, string portraitModelPath, string visualMode, string name, string description, float scale, float yOffset, float collisionCircle, float brightness, string tint, bool normalizeLuminance, bool ignorePlayerColor, bool despillPlayerColor, string spawnShader, string deathShader)
+	private void ApplyBaseMetadataProperties(string templateId, string? modelPath, string? portraitModelPath, string? visualMode, string? name, string? description, float scale, float yOffset, float collisionCircle, float brightness, string? tint, bool normalizeLuminance, bool ignorePlayerColor, bool despillPlayerColor, string? spawnShader, string? deathShader)
 	{
 		ApplyModelPaths(modelPath, portraitModelPath);
 		ApplyBasicProperties(visualMode, name, description, scale, yOffset, collisionCircle, brightness);
@@ -1521,7 +1522,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 		ApplyProceduralAnimationProperties(templateId, modelPath);
 	}
 
-	private void ApplyModelPaths(string modelPath, string portraitModelPath)
+	private void ApplyModelPaths(string? modelPath, string? portraitModelPath)
 	{
 		if (!string.IsNullOrEmpty(modelPath) && (modelPath.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) || modelPath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) || modelPath.StartsWith("vfx:", StringComparison.OrdinalIgnoreCase)))
 		{
@@ -1534,7 +1535,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 		}
 	}
 
-	private void ApplyBasicProperties(string visualMode, string name, string description, float scale, float yOffset, float collisionCircle, float brightness)
+	private void ApplyBasicProperties(string? visualMode, string? name, string? description, float scale, float yOffset, float collisionCircle, float brightness)
 	{
 		_visualMode = !string.IsNullOrEmpty(visualMode) ? visualMode : _visualMode;
 		_name = name ?? _name;
@@ -1545,7 +1546,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 		_brightness = brightness;
 	}
 
-	private void ApplyColorProperties(string tint, bool normalizeLuminance, bool ignorePlayerColor, bool despillPlayerColor)
+	private void ApplyColorProperties(string? tint, bool normalizeLuminance, bool ignorePlayerColor, bool despillPlayerColor)
 	{
 		_tint = !string.IsNullOrEmpty(tint) && tint.StartsWith("#") ? Color.FromHtml(tint) : _tint;
 		_normalizeLuminance = normalizeLuminance;
@@ -1553,13 +1554,13 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 		_despillPlayerColor = despillPlayerColor;
 	}
 
-	private void ApplyShaderProperties(string spawnShader, string deathShader)
+	private void ApplyShaderProperties(string? spawnShader, string? deathShader)
 	{
 		if (!string.IsNullOrEmpty(spawnShader)) _spawnShader = spawnShader;
 		if (!string.IsNullOrEmpty(deathShader)) _deathShader = deathShader;
 	}
 
-	private void ApplyProceduralAnimationProperties(string templateId, string modelPath)
+	private void ApplyProceduralAnimationProperties(string templateId, string? modelPath)
 	{
 		string normKey = NormalizeModelAssetKey(templateId);
 		string normModel = !string.IsNullOrEmpty(modelPath) ? NormalizeModelAssetKey(modelPath) : "";
@@ -1870,7 +1871,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 			GameContext.IEditorAPI.RefreshPlacedObjectModels(_originalTemplateID);
 		}
 
-		GameContext.Host.LoadUnitMetadata(wsPath);
+		if (GameContext.Host is { } host) host.LoadUnitMetadata(wsPath);
 
 		InvalidateModelCaches(newTemplateID);
 
@@ -1885,8 +1886,11 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 
 		RefreshCurrentSelectedObject();
 
-		GameContext.Host.FlushModelYOffsetSave();
-		GameContext.Host.FlushModelCollisionCircleSave();
+		if (GameContext.Host is { } flushHost)
+		{
+			flushHost.FlushModelYOffsetSave();
+			flushHost.FlushModelCollisionCircleSave();
+		}
 	}
 
 	private void InvalidateModelCaches(string newTemplateID)
@@ -1906,9 +1910,9 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 	{
 		if (_currentSelectedObject != null && GodotObject.IsInstanceValid(_currentSelectedObject))
 		{
-			if (_currentSelectedObject is Unit3D u3d)
+			if (_currentSelectedObject is Unit3D u3d && GameContext.Host is { } host)
 			{
-				string fallbackModel = GameContext.Host.GetFallbackModelPath(_modelPath, u3d.IsBuilding);
+				string fallbackModel = host.GetFallbackModelPath(_modelPath, u3d.IsBuilding);
 				u3d.LoadModel(fallbackModel);
 			}
 			else if (_currentSelectedObject is Prop3D p3d)
@@ -2183,8 +2187,11 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 			}
 		}
 
-		GameContext.Host.FlushModelYOffsetSave();
-		GameContext.Host.FlushModelCollisionCircleSave();
+		if (GameContext.Host is { } flushHost)
+		{
+			flushHost.FlushModelYOffsetSave();
+			flushHost.FlushModelCollisionCircleSave();
+		}
 		UpdateStudioButtonVisibility();
 	}
 
@@ -2220,7 +2227,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 		if (selectedObject == null || !GodotObject.IsInstanceValid(selectedObject))
 			return 0f;
 
-		Node3D visualNode = null;
+		Node3D? visualNode = null;
 		if (selectedObject is Unit3D unit && unit.ModelNode != null && GodotObject.IsInstanceValid(unit.ModelNode))
 		{
 			visualNode = unit.ModelNode;
