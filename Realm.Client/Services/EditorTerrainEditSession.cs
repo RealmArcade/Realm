@@ -155,7 +155,7 @@ internal sealed class EditorTerrainEditSession
 		_terrainCliffSplatMapBefore = currentCliffSplatMap != null ? (TerrainSplatWeights[,])currentCliffSplatMap.Clone() : null;
 		_terrainPathingBefore = currentPathing != null ? (int[,])currentPathing.Clone() : null;
 
-		float startHeight = TerrainHeightAt(hitPos);
+		float startHeight = EditorTerrainQueries.GetHeightAt(hitPos);
 
 		if (activeTool == EditorTool.Plateau)
 		{
@@ -436,7 +436,7 @@ internal sealed class EditorTerrainEditSession
 	private void InitializeBlockHeights(EditorTool tool, Godot.Vector3 worldPos, float blockLevelHeight)
 	{
 		if (_hasBlockTargetHeight) return;
-		float startHeight = TerrainHeightAt(worldPos);
+		float startHeight = EditorTerrainQueries.GetHeightAt(worldPos);
 		if (tool == EditorTool.Height) _activeBlockTargetHeight = blockLevelHeight;
 		else if (tool == EditorTool.Raise) _activeBlockTargetHeight = startHeight + blockLevelHeight;
 		else if (tool == EditorTool.Lower) _activeBlockTargetHeight = startHeight - blockLevelHeight;
@@ -747,7 +747,7 @@ internal sealed class EditorTerrainEditSession
 	{
 		if (!_activePlateauHeight.HasValue)
 		{
-			_activePlateauHeight = TerrainHeightAt(ctx.WorldPos);
+			_activePlateauHeight = EditorTerrainQueries.GetHeightAt(ctx.WorldPos);
 			_activePlateauWaterMode = WaterModeAt(ctx.WorldPos);
 			_activePlateauWaterProfile = WaterProfileIndexAt(ctx.WorldPos);
 			_activePlateauWaterHeight = WaterHeightAt(ctx.WorldPos);
@@ -868,17 +868,6 @@ internal sealed class EditorTerrainEditSession
 			_activeBlockTargetWaterHeight = WaterHeightAt(hitPos);
 			_hasBlockTargetHeight = true;
 		}
-	}
-
-	private static float TerrainHeightAt(Godot.Vector3 worldPos)
-	{
-		if (!EditorService.TryGetTerrainState(out var terrainEntity))
-		{
-			return 0.0f;
-		}
-
-		ref var terrain = ref EditorService.GetTerrainState();
-		return EditorTerrainQueries.GetHeightAt(in terrain, worldPos);
 	}
 
 	private static WaterType WaterModeAt(Godot.Vector3 worldPos)

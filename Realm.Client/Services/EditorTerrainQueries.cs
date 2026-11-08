@@ -42,6 +42,21 @@ internal static class EditorTerrainQueries
 		return (1 - tx) * (1 - tz) * hNW + tx * (1 - tz) * hNE + (1 - tx) * tz * hSW + tx * tz * hSE;
 	}
 
+	/// <summary>
+	/// The same sample for callers that do not already hold the terrain: resolves the editor's terrain state
+	/// first and returns zero when there is none, which is what a cursor readout before a map loads sees.
+	/// </summary>
+	internal static float GetHeightAt(Vector3 worldPos)
+	{
+		if (!EditorService.TryGetTerrainState(out _))
+		{
+			return 0.0f;
+		}
+
+		ref var terrain = ref EditorService.GetTerrainState();
+		return GetHeightAt(in terrain, worldPos);
+	}
+
 	internal static WaterType GetWaterModeAt(in TerrainState terrain, Vector3 worldPos)
 	{
 		var cells = terrain.Cells;

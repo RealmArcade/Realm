@@ -363,7 +363,7 @@ internal sealed class EditorPasteWriter
 				Godot.Vector3 rotatedRelative = new Godot.Vector3(rx, 0, rz);
 				Godot.Vector3 destPos = pasteCenter + rotatedRelative;
 
-				destPos.Y = TerrainHeightAt(destPos);
+				destPos.Y = EditorTerrainQueries.GetHeightAt(destPos);
 
 				float finalRot = entRot - rotationDegrees;
 
@@ -397,19 +397,9 @@ internal sealed class EditorPasteWriter
 		foreach (var m in mirrored)
 		{
 			Godot.Vector3 mPos = m.Position;
-			mPos.Y = TerrainHeightAt(mPos);
+			mPos.Y = EditorTerrainQueries.GetHeightAt(mPos);
 			requests.Add(new EntitySpawnRequest { Type = type, Id = id, Position = mPos, Rotation = m.Rotation, Scale = scale, Player = player });
 		}
 	}
 
-	private static float TerrainHeightAt(Godot.Vector3 worldPos)
-	{
-		if (!EditorService.TryGetTerrainState(out var terrainEntity))
-		{
-			return 0.0f;
-		}
-
-		ref var terrain = ref EditorService.GetTerrainState();
-		return EditorTerrainQueries.GetHeightAt(in terrain, worldPos);
-	}
 }
