@@ -184,7 +184,6 @@ public class SimulationService
 	private float _fDelta;
 
 	private readonly List<Entity> _tickArrivedUnits = new();
-	private readonly Dictionary<int, BotController> _botControllers = new();
 
 
 	private EntityCallback<LatestDescription> _presentationQueryDelegate = null!;
@@ -354,6 +353,7 @@ public class SimulationService
 
 	public SimulationService()
 	{
+		_bots = new PlayerBotDirector((pIdx, actionId, intent, pos) => OnBotCustomActionExecuted?.Invoke(pIdx, actionId, intent, pos, string.Empty));
 		_destruction = new UnitDestruction(UnitWrapperCache);
 		_buildQueue = new BuildQueueProcessor(PendingQueuedCommands);
 		_relationships = new PlayerRelationshipTable(GetPlayerTeam, () => ActiveWorldEntity);
@@ -444,147 +444,78 @@ public class SimulationService
 		return World.Has<UnitOwnerPlayer>(entity) && World.Get<UnitOwnerPlayer>(entity).PlayerIndex == localPlayerIndex;
 	}
 
-	private readonly Dictionary<int, List<GenericAffordance>> _customDecisionsPerPlayer = new();
 	public event Action<int, string, string, Vector3, string>? OnBotCustomActionExecuted;
+
+	private readonly PlayerBotDirector _bots;
 
 	public void SetPlayerBotProfileDomain(int playerIndex, string profileJson)
 	{
-		if (string.IsNullOrWhiteSpace(profileJson)) return;
-		try
-		{
-			var profile = BotProfile.FromJson(profileJson);
-			SetBotProfile(playerIndex, profile);
-		}
-		catch
-		{
-		}
+		_bots.SetPlayerBotProfileDomain(playerIndex, profileJson);
 	}
 
 	public void SetBotProfile(int playerIndex, BotProfile profile)
 	{
-		if (!_botControllers.TryGetValue(playerIndex, out var bot))
-		{
-			bot = new BotController(playerIndex, profile);
-			bot.CustomActionCallback = (pIdx, actId, pos, intent) => { OnBotCustomActionExecuted?.Invoke(pIdx, actId, intent, pos, string.Empty); };
-			_botControllers[playerIndex] = bot;
-		}
-		else
-		{
-			bot.LoadProfile(profile);
-		}
+		_bots.SetBotProfile(playerIndex, profile);
 	}
 
 	public string GetPlayerBotProfileDomain(int playerIndex)
 	{
-		var profile = GetBotProfile(playerIndex);
-		return profile != null ? profile.ToJson() : string.Empty;
+		return _bots.GetPlayerBotProfileDomain(playerIndex);
 	}
 
 	public BotProfile? GetBotProfile(int playerIndex)
 	{
-		return _botControllers.TryGetValue(playerIndex, out var bot) ? bot.Profile : null;
+		return _bots.GetBotProfile(playerIndex);
 	}
 
 	public void SetPlayerBotGenreDomain(int playerIndex, string genreName, string? configJson)
 	{
-		SetBotGenre(playerIndex, genreName, configJson);
+		_bots.SetPlayerBotGenreDomain(playerIndex, genreName, configJson);
 	}
 
 	public void SetBotGenre(int playerIndex, string genreName, string? configJson = null)
 	{
-		var genreProvider = AiGenreRegistry.Get(genreName);
-		ConfigureGenreProvider(genreProvider, configJson);
-		ConfigureCustomProvider(genreName, genreProvider);
-		UpdateOrCreateBotController(playerIndex, genreProvider);
-	}
-
-	private void ConfigureGenreProvider(IAiGenreProvider genreProvider, string? configJson)
-	{
-		if (string.IsNullOrWhiteSpace(configJson)) return;
-		try
-		{
-			var dict = JsonSerializer.Deserialize<Dictionary<string, string>>(configJson);
-			if (dict != null) genreProvider.ConfigureFromParameters(dict);
-		}
-		catch
-		{
-		}
-	}
-
-	private void ConfigureCustomProvider(string genreName, IAiGenreProvider genreProvider)
-	{
-		if (!string.Equals(genreName, "custom", StringComparison.OrdinalIgnoreCase)) return;
-		if (genreProvider is not CustomGenreProvider customProvider) return;
-
-		customProvider.CustomScanner = (world, pIdx, dest, ctx) =>
-		{
-			if (_customDecisionsPerPlayer.TryGetValue(pIdx, out var list) && list != null) dest.AddRange(list);
-		};
-	}
-
-	private void UpdateOrCreateBotController(int playerIndex, IAiGenreProvider genreProvider)
-	{
-		if (!_botControllers.TryGetValue(playerIndex, out var bot))
-		{
-			var profile = genreProvider.CreateDefaultProfile(GameContext.Simulation.ActiveMapName ?? "GenericMap");
-			bot = new BotController(playerIndex, profile, genreProvider);
-			bot.CustomActionCallback = (pIdx, actId, pos, intent) => { OnBotCustomActionExecuted?.Invoke(pIdx, actId, intent, pos, string.Empty); };
-			_botControllers[playerIndex] = bot;
-		}
-		else
-		{
-			bot.GenreProvider = genreProvider;
-			var profile = genreProvider.CreateDefaultProfile(bot.Profile.MapName);
-			bot.LoadProfile(profile);
-		}
+		_bots.SetBotGenre(playerIndex, genreName, configJson);
 	}
 
 	public string GetPlayerBotGenreDomain(int playerIndex)
 	{
-		return GetBotGenre(playerIndex);
+		return _bots.GetPlayerBotGenreDomain(playerIndex);
 	}
 
 	public string GetBotGenre(int playerIndex)
 	{
-		return _botControllers.TryGetValue(playerIndex, out var bot) ? bot.GenreProvider.GenreName : "rts";
+		return _bots.GetBotGenre(playerIndex);
 	}
 
 	public void RegisterCustomBotDecisionDomain(int playerIndex, string actionId, string intent, float[] featureVector, Vector3 position, string payload)
 	{
-		RegisterCustomBotDecision(playerIndex, actionId, intent, featureVector, position, payload);
+		_bots.RegisterCustomBotDecisionDomain(playerIndex, actionId, intent, featureVector, position, payload);
 	}
 
 	public void RegisterCustomBotDecision(int playerIndex, string actionId, string intent, float[] featureVector, Vector3 position, string payload)
 	{
-		if (!_customDecisionsPerPlayer.TryGetValue(playerIndex, out var list))
-		{
-			list = new List<GenericAffordance>();
-			_customDecisionsPerPlayer[playerIndex] = list;
-		}
-
-		CommandIntent cmdIntent = CommandIntent.Interact;
-		if (Enum.TryParse<CommandIntent>(intent, true, out var parsedIntent))
-		{
-			cmdIntent = parsedIntent;
-		}
-
-		list.Add(new GenericAffordance(
-			Entity.Null,
-			cmdIntent,
-			Entity.Null,
-			position,
-			actionId,
-			featureVector
-		));
+		_bots.RegisterCustomBotDecision(playerIndex, actionId, intent, featureVector, position, payload);
 	}
 
 	public void ClearCustomBotDecisions(int playerIndex)
 	{
-		if (_customDecisionsPerPlayer.TryGetValue(playerIndex, out var list))
-		{
-			list.Clear();
-		}
+		_bots.ClearCustomBotDecisions(playerIndex);
 	}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 	public void TickEditorPhysics(float fDelta)
 	{
