@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using Godot;
 using Realm.Client.Utils;
@@ -22,10 +22,10 @@ public class DropdownSuggestionList
 
 	private readonly List<Button> _rowButtons = new();
 	private readonly List<string> _shownItems = new();
-	private Control _catcher = null!;
-	private PanelContainer _panel = null!;
-	private ScrollContainer _scroll = null!;
-	private VBoxContainer _rows = null!;
+	private Control? _catcher;
+	private PanelContainer? _panel;
+	private ScrollContainer? _scroll;
+	private VBoxContainer? _rows;
 
 	public DropdownSuggestionList(Node owner, Control anchor)
 	{
@@ -175,6 +175,8 @@ public class DropdownSuggestionList
 
 	private Button EnsureRowButton(int index)
 	{
+		if (_rows == null) throw new InvalidOperationException("[DropdownSuggestionList] Cannot build a row before the overlay exists.");
+
 		while (_rowButtons.Count <= index)
 		{
 			int slotIndex = _rowButtons.Count;
@@ -205,7 +207,7 @@ public class DropdownSuggestionList
 
 	private void PositionAndShow()
 	{
-		if (Anchor == null || !Anchor.IsInsideTree() || _catcher == null || _panel == null) return;
+		if (Anchor == null || !Anchor.IsInsideTree() || _catcher == null || _panel == null || _scroll == null) return;
 
 		Rect2 anchorRect = Anchor.GetGlobalRect();
 		Vector2 viewportSize = Anchor.GetViewportRect().Size;
