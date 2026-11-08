@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -1246,7 +1246,7 @@ namespace Realm.Client.UI
 		{
 			string name = !string.IsNullOrWhiteSpace(mapName) ? mapName : GetMapNameFromMetadata();
 			string docs = GetDocumentsDirectory();
-			return GameContext.EditorService.GetDefaultDevelopmentMapDirectoryDomain(name, docs);
+			return EditorWorkspace.GetDefaultDevelopmentMapDirectory(name, docs);
 		}
 
 		public static bool IsRestrictedSaveDirectory(string path)
@@ -1269,7 +1269,7 @@ namespace Realm.Client.UI
 			string userDir = Path.GetFullPath(ProjectSettings.GlobalizePath("user://")).Replace("\\", "/").TrimEnd('/');
 			string resDir = Path.GetFullPath(ProjectSettings.GlobalizePath("res://")).Replace("\\", "/").TrimEnd('/');
 
-			return GameContext.EditorService.IsRestrictedSaveDirectoryDomain(fullPath, mapBackups, userDir, resDir);
+			return EditorWorkspace.IsRestrictedSaveDirectory(fullPath, mapBackups, userDir, resDir);
 		}
 
 
@@ -1304,12 +1304,12 @@ namespace Realm.Client.UI
 
 		private string? FindProjectFile(string workspace)
 		{
-			return GameContext.EditorService.FindProjectFileDomain(workspace, msg => { _wasmHasErrors = true; SetWasmConsoleStatus("❌ " + msg, new Color(1.0f, 0.3f, 0.3f)); AppendWasmConsoleLog(msg); GameLog.LogError(msg); });
+			return EditorMapBuild.FindProjectFile(workspace, msg => { _wasmHasErrors = true; SetWasmConsoleStatus("❌ " + msg, new Color(1.0f, 0.3f, 0.3f)); AppendWasmConsoleLog(msg); GameLog.LogError(msg); });
 		}
 
 		private bool TryBypassCompilation(string workspace, bool isDebug)
 		{
-			return GameContext.EditorService.TryBypassCompilationDomain(workspace, FindExistingWasmFile, HasNewerSourceFiles, () => { _wasmHasErrors = false; SetWasmConsoleStatus("✓ WASM Compilation Bypassed (Unchanged)", UIStyle.ColorCyanGlow); AppendWasmConsoleLog($"[INFO] The script sources are unchanged since the last {(isDebug ? "debug" : "release")} build. Bypassing compilation using the WASM binary already in bin/script."); }, isDebug);
+			return EditorMapBuild.TryBypassCompilation(workspace, FindExistingWasmFile, HasNewerSourceFiles, () => { _wasmHasErrors = false; SetWasmConsoleStatus("✓ WASM Compilation Bypassed (Unchanged)", UIStyle.ColorCyanGlow); AppendWasmConsoleLog($"[INFO] The script sources are unchanged since the last {(isDebug ? "debug" : "release")} build. Bypassing compilation using the WASM binary already in bin/script."); }, isDebug);
 		}
 
 		private string? FindExistingWasmFile(string workspace)

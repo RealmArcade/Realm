@@ -187,6 +187,7 @@ public partial class EditorService : IEditorAPI
 		}
 	}
 
+
 	public void ClearEditorCoordinates()
 	{
 		EditorCoordinates.Clear();
@@ -468,10 +469,6 @@ public partial class EditorService : IEditorAPI
 		_swatches.Clear();
 	}
 
-	public string GetActiveWorkspacePathFromSettings()
-	{
-		return MapWorkspaceService.GetActiveWorkspacePath();
-	}
 
 	public void PopulateSwatchData(SwatchSlotInfo[] slots, string wsPath)
 	{
@@ -1299,10 +1296,6 @@ public partial class EditorService : IEditorAPI
 		return (casDir, defaultSave);
 	}
 
-	public void RedoDomain()
-	{
-		EditorHistoryManager.Redo();
-	}
 
 	public void SetPendingCoordinatesDomain(int minX, int minZ, int maxX, int maxZ)
 	{
@@ -1317,10 +1310,6 @@ public partial class EditorService : IEditorAPI
 		PlaceUnitPlayerIndex = Mathf.Clamp(playerIndex, 0, PlayerColorConfig.Palette.Length - 1);
 	}
 
-	public void UndoDomain()
-	{
-		EditorHistoryManager.Undo();
-	}
 
 	public bool TryGetSymmetryVisibilityState(out bool isRotational, out GridOverlayMode gridMode)
 	{
@@ -1507,10 +1496,6 @@ public partial class EditorService : IEditorAPI
 		this.LastMetadataSyncTime = 0;
 	}
 
-	public void GenerateMapDirectoryDomain(string mapName, string mapDir, string projectRoot, string templateDirSearch)
-	{
-		EditorWorkspace.CreateMapDirectory(mapName, mapDir, projectRoot, templateDirSearch);
-	}
 
 	public void GenerateVSCodeFilesExternalDomain()
 	{
@@ -1556,30 +1541,14 @@ public partial class EditorService : IEditorAPI
 		return EditorWorkspace.ChooseInitialDirectory(LastUsedFolder, CurrentSourceFolder, lastOpenedFolder, documentsDir, isRestrictedSaveDirectory);
 	}
 
-	public bool IsRestrictedSaveDirectoryDomain(string fullPath, string mapBackups, string userDir, string resDir)
-	{
-		return EditorWorkspace.IsRestrictedSaveDirectory(fullPath, mapBackups, userDir, resDir);
-	}
 
-	public string GetDefaultDevelopmentMapDirectoryDomain(string mapName, string docsDir)
-	{
-		return EditorWorkspace.GetDefaultDevelopmentMapDirectory(mapName, docsDir);
-	}
 
 	public async Task<bool> PerformCompilationStepAsyncDomain(string workspace, Func<string, string?> findProjectFile, Func<string, bool, bool> tryBypassCompilation, Func<string, bool> checkMapApiDependency, Func<string, string, bool, Task<bool>> executeDotnetPublishAsync, Action<string> onStatusError, Action<string> onLog, bool isDebug = false)
 	{
 		return await EditorMapBuild.PerformCompilationStepAsync(workspace, findProjectFile, tryBypassCompilation, checkMapApiDependency, executeDotnetPublishAsync, onStatusError, onLog, isDebug);
 	}
 
-	public string? FindProjectFileDomain(string workspace, Action<string> onErrorMessage)
-	{
-		return EditorMapBuild.FindProjectFile(workspace, onErrorMessage);
-	}
 
-	public bool TryBypassCompilationDomain(string workspace, Func<string, string?> findExistingWasmFile, Func<string, DateTime, bool> hasNewerSourceFiles, Action onBypassSuccess, bool isDebug = false)
-	{
-		return EditorMapBuild.TryBypassCompilation(workspace, findExistingWasmFile, hasNewerSourceFiles, onBypassSuccess, isDebug);
-	}
 	public void RestoreEditorStateDomain(float waterHeight, int paintTextureIndex, int cliffPaintTextureIndex, CopiedAreaTemplate? copiedArea, System.Numerics.Vector3? selectionStart, System.Numerics.Vector3? selectionEnd)
 	{
 		this.EditorWaterHeight = waterHeight;

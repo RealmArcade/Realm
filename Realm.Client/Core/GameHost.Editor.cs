@@ -947,7 +947,7 @@ public partial class GameHost
 		GameContext.MapEditorHud?.UpdateCameraBoundsUI();
 		RebuildCameraBoundsOverlay();
 
-		GameContext.EditorService?.EditorCoordinates.Clear();
+		GameContext.EditorService?.ClearEditorCoordinates();
 		RebuildAllCoordinatePersistentMeshes();
 		HideCoordinateSelectionOutline();
 

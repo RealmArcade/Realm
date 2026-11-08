@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -1648,7 +1648,7 @@ public partial class VSCodeManager
 				string blankDir = Path.Combine(docPath, "blank_map");
 				if (!Directory.Exists(blankDir))
 				{
-					GameContext.EditorService.GenerateMapDirectoryDomain("blank_map", blankDir, Realm.Client.Utils.PathUtils.GetProjectRoot(), Realm.Client.Utils.PathUtils.FindPath("MapTemplate"));
+					EditorWorkspace.CreateMapDirectory("blank_map", blankDir, Realm.Client.Utils.PathUtils.GetProjectRoot(), Realm.Client.Utils.PathUtils.FindPath("MapTemplate"));
 					GameHost.EnsureMapProjectFiles(blankDir);
 				}
 

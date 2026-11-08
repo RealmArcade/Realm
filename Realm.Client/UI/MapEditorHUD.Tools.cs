@@ -2410,13 +2410,13 @@ namespace Realm.Client.UI
 
 		public void UndoAction()
 		{
-			GameContext.EditorService.UndoDomain();
+			EditorHistoryManager.Undo();
 			ShowFeedback("Undo Action performed");
 		}
 
 		public void RedoAction()
 		{
-			GameContext.EditorService.RedoDomain();
+			EditorHistoryManager.Redo();
 			ShowFeedback("Redo Action performed");
 		}
 

@@ -2846,7 +2846,7 @@ namespace Realm.Client.UI
 			{
 				GameContext.EditorService.ClearSwatchData();
 
-				string wsPath = GameContext.EditorService.GetActiveWorkspacePathFromSettings();
+				string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
 				var metadata = MapFileService.LoadMetadata(wsPath);
 				var slots = TextureSwatchSlots.ResolveSlots(metadata?.Textures, wsPath);
 
