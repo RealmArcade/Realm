@@ -145,7 +145,7 @@ internal static class WasmWitDocumentWriter
 		if (retKind == RetKind.Unsupported && !isVector3Ret && method.ReturnType.SpecialType != SpecialType.System_Void) return;
 		if (retKind == RetKind.EntityListReturn) return;
 
-		string paramsStr = BuildWitEntityMethodParams(method);
+		string? paramsStr = BuildWitEntityMethodParams(method);
 		if (paramsStr == null) return;
 
 		string witName = tKebab + "-" + WitIdentifierFormat.ToKebabCase(method.Name);
@@ -227,7 +227,7 @@ internal static class WasmWitDocumentWriter
 		bool isVector3Ret = method.ReturnType.ToDisplayString() == "System.Numerics.Vector3";
 		if (retKind == RetKind.Unsupported && !isVector3Ret) return;
 
-		string paramsStr = BuildWitMethodParams(method);
+		string? paramsStr = BuildWitMethodParams(method);
 		if (paramsStr == null && method.Parameters.Length > 0) return;
 		paramsStr ??= "";
 
