@@ -10,9 +10,9 @@ namespace Realm.Client.UI
 	{
 		public void ClearPasteTelemetry()
 		{
-			if (_lblPasteTelemetry != null)
+			if (_pastePanel?.Telemetry != null)
 			{
-				_lblPasteTelemetry.Text = "";
+				_pastePanel.Telemetry.Text = "";
 			}
 		}
 
@@ -38,9 +38,9 @@ namespace Realm.Client.UI
 
 		public void UpdatePasteAnchorButtonText()
 		{
-			if (_btnPasteAnchor != null)
+			if (_pastePanel?.PasteAnchor != null)
 			{
-				_btnPasteAnchor.Text = $"{UnicodeIcons.MOUSE_POINTER} " + string.Format(TranslationServer.Translate("ANCHOR: {0}"), TranslationServer.Translate(EditorToolCatalog.PasteAnchorNames[GameContext.EditorService.Clipboard.PasteAnchorIndex]));
+				_pastePanel.PasteAnchor.Text = $"{UnicodeIcons.MOUSE_POINTER} " + string.Format(TranslationServer.Translate("ANCHOR: {0}"), TranslationServer.Translate(EditorToolCatalog.PasteAnchorNames[GameContext.EditorService.Clipboard.PasteAnchorIndex]));
 			}
 		}
 
@@ -54,9 +54,9 @@ namespace Realm.Client.UI
 
 		public void UpdatePasteReflectionButtonText()
 		{
-			if (_btnPasteReflection != null && GameContext.Host != null)
+			if (_pastePanel?.PasteReflection != null && GameContext.Host != null)
 			{
-				_btnPasteReflection.Text = $"{UnicodeIcons.ARROWS_H} " + string.Format(TranslationServer.Translate("REFLECT: {0}"), TranslationServer.Translate(GameContext.EditorService.Tools.PasteReflectionMode.ToString().ToUpperInvariant()));
+				_pastePanel.PasteReflection.Text = $"{UnicodeIcons.ARROWS_H} " + string.Format(TranslationServer.Translate("REFLECT: {0}"), TranslationServer.Translate(GameContext.EditorService.Tools.PasteReflectionMode.ToString().ToUpperInvariant()));
 			}
 		}
 	}

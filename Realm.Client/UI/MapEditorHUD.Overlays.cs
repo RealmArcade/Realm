@@ -444,7 +444,7 @@ namespace Realm.Client.UI
 			StyleValueBadge(_lblPlacementScaleValue);
 			StyleValueBadge(_lblClumpDensityValue);
 			StyleValueBadge(_lblClumpScaleVarValue);
-			StyleValueBadge(_lblPasteRotation);
+			StyleValueBadge(_pastePanel?.RotationLabel);
 		}
 
 		private void ApplyCheckBoxStyles()
@@ -468,7 +468,7 @@ namespace Realm.Client.UI
 			StyleSubContainer(_densityBox, "Clump Density");
 			StyleSubContainer(_scaleVarBox, "Scale Variance");
 			StyleSubContainer(_containerEyedropperSettings, "Eyedropper Sample Filter");
-			StyleSubContainer(_containerPasteSettings, "Paste Options");
+			StyleSubContainer(_pastePanel?.Container, "Paste Options");
 			StyleSubContainer(_containerCategorySelector, "Entity Categories");
 		}
 
@@ -686,10 +686,10 @@ namespace Realm.Client.UI
 
 		public void UpdatePasteTelemetry(int deltaX, int deltaZ, float distTiles, float distWorld, float angleDeg)
 		{
-			if (_lblPasteTelemetry != null)
+			if (_pastePanel?.Telemetry != null)
 			{
-				_lblPasteTelemetry.Visible = true;
-				_lblPasteTelemetry.Text = string.Format("ΔX: {0:+0;-0;0}, ΔZ: {1:+0;-0;0} | Pivot: {2:F1}T ({3:F1}m) @ {4:F1}°",
+				_pastePanel.Telemetry.Visible = true;
+				_pastePanel.Telemetry.Text = string.Format("ΔX: {0:+0;-0;0}, ΔZ: {1:+0;-0;0} | Pivot: {2:F1}T ({3:F1}m) @ {4:F1}°",
 					deltaX, deltaZ, distTiles, distWorld, angleDeg);
 			}
 		}
@@ -909,8 +909,8 @@ namespace Realm.Client.UI
 		public void UpdatePasteRotationExternal(float angle)
 		{
 			if (!GameContext.EditorService.Placement.SetLastPasteRotation(angle)) return;
-			if (_lblPasteRotation != null) _lblPasteRotation.Text = angle.ToString("F0") + "°";
-			if (_sldPasteRotation != null && !Mathf.IsEqualApprox((float)_sldPasteRotation.Value, angle)) _sldPasteRotation.Value = angle;
+			if (_pastePanel?.RotationLabel != null) _pastePanel.RotationLabel.Text = angle.ToString("F0") + "°";
+			if (_pastePanel?.RotationSlider != null && !Mathf.IsEqualApprox((float)_pastePanel.RotationSlider.Value, angle)) _pastePanel.RotationSlider.Value = angle;
 		}
 
 		public void UpdateScaleExternal(float scale)

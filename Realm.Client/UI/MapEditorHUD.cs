@@ -113,7 +113,6 @@ public partial class MapEditorHUD : Control
 	private VBoxContainer _containerPathingSettings { get; set; } = null!;
 	private VBoxContainer _containerPlacementSettings { get; set; } = null!;
 	private VBoxContainer _containerEyedropperSettings { get; set; } = null!;
-	private VBoxContainer _containerPasteSettings { get; set; } = null!;
 	private VBoxContainer _containerCategorySelector { get; set; } = null!;
 
 	private VBoxContainer _panelObjects { get; set; } = null!;
@@ -124,11 +123,6 @@ public partial class MapEditorHUD : Control
 	private VBoxContainer _panelCoordinatesVBox { get; set; } = null!;
 	private Button _btnCut { get; set; } = null!;
 	private Button _btnEraseArea { get; set; } = null!;
-	private Button _btnPasteReflection { get; set; } = null!;
-	private Button _btnClipboardBrushShape { get; set; } = null!;
-	private OptionButton _optClipboardMirrorMode { get; set; } = null!;
-	private HSlider _sldPasteRotation { get; set; } = null!;
-	private Label _lblPasteRotation { get; set; } = null!;
 
 	private OptionButton _optPolarRingSpacing { get; set; } = null!;
 	private OptionButton _optPolarRadialStep { get; set; } = null!;
@@ -140,8 +134,6 @@ public partial class MapEditorHUD : Control
 	private Label _lblMeasureTelemetry { get; set; } = null!;
 	private ThrottledLabelWidth _measureLabelWidth { get; set; } = new();
 
-	private Button _btnPasteAnchor { get; set; } = null!;
-	private Label _lblPasteTelemetry { get; set; } = null!;
 
 
 	private List<Button> _swatchButtons { get; set; } = new List<Button>();
@@ -369,6 +361,7 @@ public partial class MapEditorHUD : Control
 	private MapEditorPlacementSettings _placementSettingsController { get; set; } = null!;
 	private MapEditorInspector _inspectorController { get; set; } = null!;
 	private MapEditorPathingPanel _pathingPanelController { get; set; } = null!;
+	private PasteSettingsPanel _pastePanel { get; set; } = null!;
 	private MapEditorMinimap _minimapController { get; set; } = null!;
 	private MapEditorEntityPaletteController _entityPaletteController { get; set; } = null!;
 
@@ -1069,7 +1062,7 @@ public partial class MapEditorHUD : Control
 	{
 		if (_containerTextureSettings != null) _containerTextureSettings.Visible = (module == EditorModule.Terrain || module == EditorModule.TextureDeco);
 		if (_containerPathingSettings != null) _containerPathingSettings.Visible = (module == EditorModule.Pathing);
-		if (_containerPasteSettings != null) _containerPasteSettings.Visible = (module == EditorModule.Clipboard);
+		if (_pastePanel?.Container != null) _pastePanel.Container.Visible = (module == EditorModule.Clipboard);
 		if (_containerCategorySelector != null) _containerCategorySelector.Visible = (module == EditorModule.Objects);
 	}
 
@@ -1193,7 +1186,7 @@ public partial class MapEditorHUD : Control
 			_optEyedropperMode,
 			_optPathingMode,
 			_optMirrorMode,
-			_optClipboardMirrorMode
+			_pastePanel?.ClipboardMirrorMode
 		);
 	}
 

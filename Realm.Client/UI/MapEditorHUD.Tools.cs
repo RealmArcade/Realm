@@ -1635,11 +1635,7 @@ namespace Realm.Client.UI
 
 			BuildEyedropperSettings();
 
-			BuildPasteControls();
-
-			BuildPasteRotationAndClipboardControls();
-
-			AssemblePasteOptionsBox();
+			BuildPasteSettingsPanel();
 		}
 
 
@@ -1659,115 +1655,12 @@ namespace Realm.Client.UI
 		}
 
 
-		private void BuildPasteControls()
+		private void BuildPasteSettingsPanel()
 		{
-			_containerPasteSettings = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerPaste");
-			var chkPasteHeights = GetNode<CheckBox>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerPaste/PasteOptionsBox/ChkPasteHeights");
-			chkPasteHeights.Text = TranslationServer.Translate("HeightMap");
-			chkPasteHeights.ButtonPressed = true;
-			var chkPasteTextures = GetNode<CheckBox>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerPaste/PasteOptionsBox/ChkPasteTextures");
-			chkPasteTextures.Text = TranslationServer.Translate("Textures");
-			chkPasteTextures.ButtonPressed = true;
-			var chkPasteEntities = GetNode<CheckBox>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerPaste/PasteOptionsBox/ChkPasteEntities");
-			chkPasteEntities.Text = TranslationServer.Translate("Objects");
-			chkPasteEntities.ButtonPressed = true;
-			var chkPastePathing = GetNode<CheckBox>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerPaste/PasteOptionsBox/ChkPastePathing");
-			chkPastePathing.Text = TranslationServer.Translate("Pathing");
-			chkPastePathing.ButtonPressed = true;
-
-			chkPasteTextures.Toggled += (toggled) =>
-			{
-				if (GameContext.Host != null) GameContext.EditorService.Tools.PasteTextures = toggled;
-			};
-			chkPasteHeights.Toggled += (toggled) =>
-			{
-				if (GameContext.Host != null) GameContext.EditorService.Tools.PasteHeights = toggled;
-			};
-			chkPasteEntities.Toggled += (toggled) =>
-			{
-				if (GameContext.Host != null) GameContext.EditorService.Tools.PasteEntities = toggled;
-			};
-			chkPastePathing.Toggled += (toggled) =>
-			{
-				if (GameContext.Host != null) GameContext.Host.PasteOptionPathing = toggled;
-			};
-		}
-
-
-		private void BuildPasteRotationAndClipboardControls()
-		{
-			_lblPasteRotation = GetNode<Label>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerPaste/PasteOptionsBox/PasteRotationBox/Header/LblPasteRotationValue");
-			_sldPasteRotation = GetNode<HSlider>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerPaste/PasteOptionsBox/PasteRotationBox/SldPasteRotation");
-			_sldPasteRotation.ValueChanged += (val) =>
-			{
-				float fVal = (float)val;
-				_lblPasteRotation.Text = fVal.ToString("F0") + "°";
-				if (GameContext.Host != null)
-				{
-					GameContext.EditorService.Tools.PasteRotation = fVal;
-				}
-			};
-			_sldPasteRotation.DragStarted += () => _isDraggingSlider = true;
-			_sldPasteRotation.DragEnded += (valueChanged) => _isDraggingSlider = false;
-
-			_btnClipboardBrushShape = new Button();
-			_btnClipboardBrushShape.Name = "BtnClipboardBrushShape";
-			_btnClipboardBrushShape.Set("icon_max_width", 0);
-			SetupOptionButton(_btnClipboardBrushShape, GameContext.Host != null && !GameContext.Host.EditorBrushIsSquare ? $"{UnicodeIcons.CIRCLE} BRUSH: CIRCLE" : $"{UnicodeIcons.SQUARE} BRUSH: SQUARE", () =>
-			{
-				if (GameContext.Host != null)
-				{
-					GameContext.Host.EditorBrushIsSquare = !GameContext.Host.EditorBrushIsSquare;
-					UpdateBrushShapeExternal(GameContext.Host.EditorBrushIsSquare);
-					ShowFeedback(GameContext.Host.EditorBrushIsSquare ? TranslationServer.Translate("Brush Shape: SQUARE") : TranslationServer.Translate("Brush Shape: CIRCLE"));
-				}
-			}, 10, "Toggle square / circular selection and clipboard brush shape");
-
-			_optClipboardMirrorMode = new OptionButton();
-			_optClipboardMirrorMode.Name = "OptClipboardMirrorMode";
-			_optClipboardMirrorMode.Set("icon_max_width", 0);
-			SetupMirrorDropdown(_optClipboardMirrorMode, "Select terrain, clipboard and object mirroring symmetry mode");
-
-			_btnPasteReflection = new Button();
-			_btnPasteReflection.Name = "BtnPasteReflection";
-			_btnPasteReflection.Set("icon_max_width", 0);
-			SetupOptionButton(_btnPasteReflection, $"{UnicodeIcons.ARROWS_H} REFLECT: NONE", () => CyclePasteReflection(), 11, "Cycle reflection mode for paste operation (None, Horizontal, Vertical)");
-
-			_btnPasteAnchor = new Button();
-			_btnPasteAnchor.Name = "BtnPasteAnchor";
-			_btnPasteAnchor.Set("icon_max_width", 0);
-			SetupOptionButton(_btnPasteAnchor, $"{UnicodeIcons.MOUSE_POINTER} ANCHOR: CENTER", () => CyclePasteAnchor(), 11, "Cycle pivot / anchor tile used to align pasted selection (Center, Corners)");
-		}
-
-
-		private void AssemblePasteOptionsBox()
-		{
-			_lblPasteTelemetry = new Label();
-			_lblPasteTelemetry.Name = "LblPasteTelemetry";
-			_lblPasteTelemetry.AddThemeFontSizeOverride("font_size", 10);
-			_lblPasteTelemetry.AddThemeColorOverride("font_color", new Color(0.3f, 0.85f, 1.0f));
-			_lblPasteTelemetry.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-			_lblPasteTelemetry.CustomMinimumSize = new Vector2(200, 0);
-			_lblPasteTelemetry.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-			_lblPasteTelemetry.Text = "";
-
-			var pasteOptionsBox = _containerPasteSettings.GetNodeOrNull<VBoxContainer>("PasteOptionsBox");
-			if (pasteOptionsBox != null)
-			{
-				var shapeMirrorGrid = new GridContainer();
-				shapeMirrorGrid.Name = "ClipboardShapeMirrorGrid";
-				shapeMirrorGrid.Columns = 2;
-				shapeMirrorGrid.AddThemeConstantOverride("h_separation", 6);
-				shapeMirrorGrid.AddThemeConstantOverride("v_separation", 4);
-				shapeMirrorGrid.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-				shapeMirrorGrid.AddChild(_btnClipboardBrushShape);
-				shapeMirrorGrid.AddChild(_optClipboardMirrorMode);
-				pasteOptionsBox.AddChild(shapeMirrorGrid);
-
-				pasteOptionsBox.AddChild(_btnPasteReflection);
-				pasteOptionsBox.AddChild(_btnPasteAnchor);
-				pasteOptionsBox.AddChild(_lblPasteTelemetry);
-			}
+			_pastePanel = new PasteSettingsPanel();
+			_pastePanel.Build(new PasteSettingsHooks(
+				this, SetupOptionButton, SetupMirrorDropdown, CyclePasteReflection, CyclePasteAnchor,
+				UpdateBrushShapeExternal, ShowFeedback, dragging => _isDraggingSlider = dragging));
 		}
 
 
@@ -2534,9 +2427,9 @@ namespace Realm.Client.UI
 					_btnBrushShape.Text = isSquare ? TranslationServer.Translate($"{UnicodeIcons.SQUARE} BRUSH: SQUARE") : TranslationServer.Translate($"{UnicodeIcons.CIRCLE} BRUSH: CIRCLE");
 				}
 
-				if (_btnClipboardBrushShape != null)
+				if (_pastePanel?.ClipboardBrushShape != null)
 				{
-					_btnClipboardBrushShape.Text = isSquare ? TranslationServer.Translate($"{UnicodeIcons.SQUARE} BRUSH: SQUARE") : TranslationServer.Translate($"{UnicodeIcons.CIRCLE} BRUSH: CIRCLE");
+					_pastePanel.ClipboardBrushShape.Text = isSquare ? TranslationServer.Translate($"{UnicodeIcons.SQUARE} BRUSH: SQUARE") : TranslationServer.Translate($"{UnicodeIcons.CIRCLE} BRUSH: CIRCLE");
 				}
 
 				if (GameContext.Host != null && GameContext.Host.GroundTerrain != null && GameContext.EditorService != null && GameContext.EditorService.Interaction.SelectionStart != null && GameContext.EditorService.Interaction.SelectionEnd != null)
@@ -3359,7 +3252,7 @@ namespace Realm.Client.UI
 
 			UpdateSingleMirrorDropdown(_optMirrorMode, mode, folds);
 			UpdateSingleMirrorDropdown(_optPlacementMirrorMode, mode, folds);
-			UpdateSingleMirrorDropdown(_optClipboardMirrorMode, mode, folds);
+			UpdateSingleMirrorDropdown(_pastePanel?.ClipboardMirrorMode, mode, folds);
 
 			UpdateSymmetrySubControlsVisibility();
 		}
@@ -3799,34 +3692,34 @@ namespace Realm.Client.UI
 
 		private void StylePasteAndPlacementSettings()
 		{
-			if (_containerPasteSettings != null)
+			if (_pastePanel?.Container != null)
 			{
-				StyleSubContainer(_containerPasteSettings, "Paste Options");
-				StyleValueBadge(_lblPasteRotation);
-				if (_btnClipboardBrushShape != null)
+				StyleSubContainer(_pastePanel.Container, "Paste Options");
+				StyleValueBadge(_pastePanel.RotationLabel);
+				if (_pastePanel?.ClipboardBrushShape != null)
 				{
-					_btnClipboardBrushShape.CustomMinimumSize = new Vector2(0, 30);
-					_btnClipboardBrushShape.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-					_btnClipboardBrushShape.AddThemeFontSizeOverride("font_size", 10);
+					_pastePanel.ClipboardBrushShape.CustomMinimumSize = new Vector2(0, 30);
+					_pastePanel.ClipboardBrushShape.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+					_pastePanel.ClipboardBrushShape.AddThemeFontSizeOverride("font_size", 10);
 				}
 
-				if (_optClipboardMirrorMode != null)
+				if (_pastePanel?.ClipboardMirrorMode != null)
 				{
-					_optClipboardMirrorMode.CustomMinimumSize = new Vector2(0, 30);
-					_optClipboardMirrorMode.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-					_optClipboardMirrorMode.AddThemeFontSizeOverride("font_size", 10);
+					_pastePanel.ClipboardMirrorMode.CustomMinimumSize = new Vector2(0, 30);
+					_pastePanel.ClipboardMirrorMode.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+					_pastePanel.ClipboardMirrorMode.AddThemeFontSizeOverride("font_size", 10);
 				}
 
-				if (_btnPasteReflection != null)
+				if (_pastePanel?.PasteReflection != null)
 				{
-					_btnPasteReflection.CustomMinimumSize = new Vector2(0, 30);
-					_btnPasteReflection.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+					_pastePanel.PasteReflection.CustomMinimumSize = new Vector2(0, 30);
+					_pastePanel.PasteReflection.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 				}
 
-				if (_btnPasteAnchor != null)
+				if (_pastePanel?.PasteAnchor != null)
 				{
-					_btnPasteAnchor.CustomMinimumSize = new Vector2(0, 30);
-					_btnPasteAnchor.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+					_pastePanel.PasteAnchor.CustomMinimumSize = new Vector2(0, 30);
+					_pastePanel.PasteAnchor.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 				}
 			}
 
@@ -4137,8 +4030,8 @@ namespace Realm.Client.UI
 			bool eyedropperSettingsVisible = _containerEyedropperSettings != null && (tool == EditorTool.Eyedropper);
 			if (_containerEyedropperSettings != null) _containerEyedropperSettings.Visible = eyedropperSettingsVisible;
 
-			bool pasteSettingsVisible = _containerPasteSettings != null && (tool == EditorTool.SelectArea || tool == EditorTool.PasteArea);
-			if (_containerPasteSettings != null) _containerPasteSettings.Visible = pasteSettingsVisible;
+			bool pasteSettingsVisible = _pastePanel?.Container != null && (tool == EditorTool.SelectArea || tool == EditorTool.PasteArea);
+			if (_pastePanel?.Container != null) _pastePanel.Container.Visible = pasteSettingsVisible;
 
 			bool isPlacement = (tool == EditorTool.PlaceUnit ||
 			                    tool == EditorTool.PlaceProp ||
