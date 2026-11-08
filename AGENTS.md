@@ -128,6 +128,9 @@ The client renders the authority's own timeline. It does not simulate or predict
 ## Test CLI example
 dotnet test Realm.Client.Tests/Realm.Client.Tests.csproj -e GODOT_BIN="C:\Program Files\Godot_v4.7-stable_mono_win64\Godot_v4.7-stable_mono_win64.exe" --filter "FullyQualifiedName~Realm.Client.Tests.MapEditorUxTests.TestCustomWeaponProjectileLayersAndVisualRendering"
 - Don't run tests unless explicitly told to do so
+- The adapter needs `GODOT_BIN`; on this checkout Godot 4.7 mono lives at `C:\Program Files\Godot_v4.7-stable_mono_win64\Godot_v4.7-stable_mono_win64.exe` (there is no `godot` on PATH). Without it every suite fails with "Godot runtime is not configured".
+- Method-level `--filter` works for the logic suites, e.g. `--filter "FullyQualifiedName~MultiplayerEcsSyncTests.CleanTwoPeerRunKeepsBothClientsConverged"`; the unfiltered run discovers all 8 suites (60 tests) and starts normally.
+- The scene-based suites (`MapEditorUxTests`, `UxSceneTests`) cannot start the runtime here: the adapter launches `res://gdunit4_testadapter_v5/GdUnit4TestRunnerScene.cs` and Godot reports `Cannot instantiate C# script because the associated class could not be found`, then the adapter gives up with `Failed to connect: Connection timeout`. Adding that script to the test project's `<Compile>` items puts the type in the assembly but does not fix the instantiation. So UI-test changes cannot be verified by test on this machine; verify them by building and by running the game.
 
 ## git commit rules
 - NEVER add automated footer tags like "Generated with {{ToolName}}" or "Co-Authored-By: {{Agent}}" to Git commit messages. 
