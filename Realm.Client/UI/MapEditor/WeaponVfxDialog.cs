@@ -20,7 +20,7 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 	private static readonly string[] ForwardAxes = { "-Z", "+Z", "+X", "-X", "+Y", "-Y" };
 	private static readonly string[] EmissionMasks = { "noise", "vertex_color", "fresnel", "texture_alpha" };
 
-	private void SafeInvoke(Action<string> action, string val)
+	private void SafeInvoke(Action<string>? action, string? val)
 	{
 		action?.Invoke(val ?? "");
 	}
@@ -62,21 +62,21 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 		}
 	}
 
-	private void UpdateDropdown(OptionButton dropdown, string[] options, string value, string fallback)
+	private void UpdateDropdown(OptionButton dropdown, string[] options, string? value, string fallback)
 	{
 		if (dropdown != null)
 		{
-			string v = value;
+			string? v = value;
 			if (v == null) v = fallback;
 			dropdown.Selected = Math.Max(0, Array.IndexOf(options, v));
 		}
 	}
 
-	private void UpdateDropdownLower(OptionButton dropdown, string[] options, string value, string fallback)
+	private void UpdateDropdownLower(OptionButton dropdown, string[] options, string? value, string fallback)
 	{
 		if (dropdown != null)
 		{
-			string v = value;
+			string? v = value;
 			if (v != null) v = v.ToLowerInvariant();
 			if (v == null) v = fallback;
 			dropdown.Selected = Math.Max(0, Array.IndexOf(options, v));
@@ -89,9 +89,9 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 	}
 
 	private AudioStreamPlayer _sfxPlayer = null!;
-	private VisualProjectile3D _previewProjectile = null!;
+	private VisualProjectile3D? _previewProjectile;
 
-	public VisualProjectile3D PreviewProjectile => _previewProjectile;
+	public VisualProjectile3D? PreviewProjectile => _previewProjectile;
 
 	private WeaponMetadata _initialWeapon = new();
 	private WeaponMetadata _currentWeapon = new();
@@ -1191,7 +1191,7 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 		if (string.IsNullOrEmpty(soundPath)) return;
 		try
 		{
-			AudioStream stream = GetAudioStream(soundPath);
+			AudioStream? stream = GetAudioStream(soundPath);
 
 			if (stream != null && _sfxPlayer != null)
 			{
@@ -1205,7 +1205,7 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 		}
 	}
 
-	private AudioStream GetAudioStream(string soundPath)
+	private AudioStream? GetAudioStream(string soundPath)
 	{
 		if (soundPath.StartsWith("res://") || soundPath.StartsWith("user://"))
 		{
@@ -1213,7 +1213,7 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 		}
 
 		string wsPath = GameContext.EditorService._editingDirectory;
-		string fullPath = ResolveAudioFilePath(Path.Combine(wsPath, "Assets", "audio"), soundPath)
+		string? fullPath = ResolveAudioFilePath(Path.Combine(wsPath, "Assets", "audio"), soundPath)
 			?? ResolveAudioFilePath(wsPath, soundPath)
 			?? ResolveAudioFilePath(ProjectSettings.GlobalizePath("res://Assets/audio"), soundPath)
 			?? ResolveAudioFilePath(ProjectSettings.GlobalizePath("res://Assets/Audio/UI"), soundPath);
@@ -1241,7 +1241,7 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 		return null;
 	}
 
-	private AudioStream LoadStreamFromFile(string fullPath)
+	private AudioStream? LoadStreamFromFile(string fullPath)
 	{
 		if (fullPath.EndsWith(".raud", StringComparison.OrdinalIgnoreCase))
 		{
@@ -1263,7 +1263,7 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 		return null;
 	}
 
-	private Color ParseColorSafe(string hex, Color fallback)
+	private Color ParseColorSafe(string? hex, Color fallback)
 	{
 		if (string.IsNullOrEmpty(hex)) return fallback;
 		try
