@@ -471,92 +471,27 @@ public partial class EditorService : IEditorAPI
 	public bool TryGetValidCurrentSourceFolder(out string? folder)
 	{
 		folder = CurrentSourceFolder;
-		return !string.IsNullOrEmpty(folder) && Directory.Exists(folder);
+		return EditorMapFolderInspector.IsExistingFolder(folder);
 	}
 
 	public bool IsNestedInExistingMap(string fullSelectedPath)
 	{
-		var parentDir = Directory.GetParent(fullSelectedPath);
-		while (parentDir != null)
-		{
-			if (File.Exists(Path.Combine(parentDir.FullName, "manifest.json")))
-			{
-				return true;
-			}
-
-			parentDir = parentDir.Parent;
-		}
-
-		return false;
+		return EditorMapFolderInspector.IsNestedInExistingMap(fullSelectedPath);
 	}
 
 	public bool ContainsNestedMap(string fullSelectedPath)
 	{
-		if (!Directory.Exists(fullSelectedPath)) return false;
-		try
-		{
-			foreach (string subDir in Directory.EnumerateDirectories(fullSelectedPath))
-			{
-				if (File.Exists(Path.Combine(subDir, "manifest.json")))
-				{
-					return true;
-				}
-			}
-		}
-		catch
-		{
-		}
-
-		return false;
+		return EditorMapFolderInspector.ContainsNestedMap(fullSelectedPath);
 	}
 
 	public bool IsValidMapFolder(string folder)
 	{
-		return File.Exists(Path.Combine(folder, "metadata.json"))
-			   && File.Exists(Path.Combine(folder, "manifest.json"));
+		return EditorMapFolderInspector.IsValidMapFolder(folder);
 	}
 
 	public bool IsMapFolderCorrupt(string folder, out string corruptFileName, out string parseErrorMessage)
 	{
-		corruptFileName = string.Empty;
-		parseErrorMessage = string.Empty;
-
-		if (string.IsNullOrWhiteSpace(folder) || !Directory.Exists(folder))
-		{
-			return false;
-		}
-
-		string[] targetFiles = { "metadata.json", "manifest.json", "terrain.json", "license.json" };
-
-		foreach (string fileName in targetFiles)
-		{
-			string filePath = Path.Combine(folder, fileName);
-			if (!File.Exists(filePath))
-			{
-				continue;
-			}
-
-			try
-			{
-				string json = File.ReadAllText(filePath);
-				if (string.IsNullOrWhiteSpace(json))
-				{
-					corruptFileName = fileName;
-					parseErrorMessage = "File is empty.";
-					return true;
-				}
-
-				using var doc = JsonDocument.Parse(json);
-			}
-			catch (Exception ex)
-			{
-				corruptFileName = fileName;
-				parseErrorMessage = ex.Message;
-				return true;
-			}
-		}
-
-		return false;
+		return EditorMapFolderInspector.IsMapFolderCorrupt(folder, out corruptFileName, out parseErrorMessage);
 	}
 
 	public string _editingDirectory { get; set; } = string.Empty;
