@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 
 namespace Realm.Ecs.Components.Core;
@@ -44,6 +45,7 @@ public struct ScriptPlayer
 		set => IsComputerByte = value ? (byte)1 : (byte)0;
 	}
 
+	[AllowNull]
 	public string Name
 	{
 		get => StringRegistry.Get(NameStringId);
