@@ -22,7 +22,7 @@ public partial struct WorldSnapshot
 
 	public List<int>? RetiredEntityIds;
 
-	public List<UnitComponentPresence> UnitComponentPresence;
+	public List<UnitComponentPresence>? UnitComponentPresence;
 	public uint StateFingerprint;
 
 	public void ResetForDescription(int sequence, bool isBaseline, int baseSequence)
