@@ -24,15 +24,15 @@ public class ResourceEconomyService
 	private EntityCallback<Position, Gatherer> _gatherQueryDelegate = null!;
 	private EntityCallback<PlayerResources> _passiveIncomeQueryDelegate = null!;
 
-	private DefinitionManager _definitionManagerRef;
+	private DefinitionManager _definitionManagerRef = null!;
 	private ResourceId _goldResourceId;
 	private ResourceId _woodResourceId;
 	private ResourceId _stoneResourceId;
 
 	public Action<int, string, float>? OnResourceDepositedForPlayer;
-	public Action<Entity> OnClearUnitOrdersRequested;
-	public Action<Entity> OnStopGatheringMovementRequested;
-	public Action<Entity> OnPropDepleted;
+	public Action<Entity> OnClearUnitOrdersRequested = null!;
+	public Action<Entity> OnStopGatheringMovementRequested = null!;
+	public Action<Entity> OnPropDepleted = null!;
 	public Action<Entity>? OnResourceHarvested;
 
 	public ResourceEconomyService(SimulationContext context)
@@ -145,7 +145,7 @@ public class ResourceEconomyService
 		var query = QueryCache.AllPositionAndResourceNodeAndPropIdentityQuery;
 		_context.World.Query(in query, (Entity entity, ref Position nodePos, ref PropIdentity identity) =>
 		{
-			string pType = _context.MapRules.GetResourceTypeForNode(identity.PropId);
+			string? pType = _context.MapRules.GetResourceTypeForNode(identity.PropId);
 
 			if (pType == type)
 			{
