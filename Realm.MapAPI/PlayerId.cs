@@ -159,7 +159,7 @@ public static unsafe class PlayerIdScriptExtensions
 	public void PanCameraTo(Vector3 position, float duration = 0f) => GameAPI.Current.PanPlayerCameraTo(playerId.Value, position, duration);
 
 	/// <summary>
-	/// Smoothly moves or pans this player's camera to the specified 3D world position (alias for <see cref="PlayerIdScriptExtensions.PanCameraTo(Vector3, float)"/>).
+	/// Smoothly moves or pans this player's camera to the specified 3D world position (alias for <c>PanCameraTo(Vector3, float)</c>).
 	/// </summary>
 	/// <param name="position">The destination coordinates.</param>
 	/// <param name="duration">Duration of the camera pan transition in seconds.</param>
