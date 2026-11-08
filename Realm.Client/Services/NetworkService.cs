@@ -36,6 +36,7 @@ public class NetworkService
 	private readonly ReplicatedStateMirror _mirror = new();
 	private readonly SnapshotComponentApplier _componentApplier;
 	private readonly ReplicatedUnitLifecycle _unitSpawner;
+	private readonly ReplicatedLootApplier _lootApplier;
 	private readonly ReplicatedDriftAudit _driftAudit;
 	private readonly BaselineReconciler _baselineReconciler;
 	private int _appliedColdPayloadCount;
@@ -48,8 +49,6 @@ public class NetworkService
 	private List<Entity> _pendingUnitKills = new();
 	private List<Entity> _pendingUnitDespawns = new();
 
-	private readonly HashSet<int> _describedLootServerIds = new();
-	private readonly List<int> _staleLootServerIds = new();
 
 
 	public NetworkService()
@@ -57,6 +56,7 @@ public class NetworkService
 		_componentApplier = new SnapshotComponentApplier(_mirror, _references, TryGetLocalEntity, IsWaitingForUnitSpawn, FindWorldEntity);
 		_driftAudit = new ReplicatedDriftAudit(_mirror, FindWorldEntity);
 		_baselineReconciler = new BaselineReconciler(_references, RetireClientEntityForUntrackedServerId);
+		_lootApplier = new ReplicatedLootApplier((mapping, serverEntityId) => RetireUnitReplicaForReusedServerId(mapping, serverEntityId));
 		_unitSpawner = new ReplicatedUnitLifecycle(
 			FindWorldEntity,
 			() => LastAppliedSnapshotSequenceForDiagnostics,
@@ -306,7 +306,7 @@ public class NetworkService
 			_baselineReconciler.ReconcileComponents(snapshot, mapping);
 		}
 
-		ApplyLootState(snapshot, mapping);
+		_lootApplier.Apply(snapshot, mapping);
 
 		LastAppliedSnapshotSequenceForDiagnostics = snapshot.Sequence;
 		GameContext.SnapshotTimeline.AdvanceTo(snapshot.Sequence);
@@ -348,67 +348,7 @@ public class NetworkService
 
 
 
-	private void ApplyLootState(WorldSnapshot snapshot, NetworkMappingState mapping)
-	{
-		if (snapshot.Loot == null) return;
 
-		_describedLootServerIds.Clear();
-		for (int index = 0; index < snapshot.Loot.Count; index++)
-		{
-			LootSnapshot entry = snapshot.Loot[index];
-			_describedLootServerIds.Add(entry.EntityId);
-			ApplyLootEntry(in entry, mapping);
-		}
-
-		_staleLootServerIds.Clear();
-		foreach (var kvp in mapping.ServerToClientEntityMap)
-		{
-			if (_describedLootServerIds.Contains(kvp.Key)) continue;
-			if (!World.Has<GroundLoot>(kvp.Value)) continue;
-			_staleLootServerIds.Add(kvp.Key);
-		}
-
-		for (int index = 0; index < _staleLootServerIds.Count; index++)
-		{
-			int serverEntityId = _staleLootServerIds[index];
-			if (!mapping.ServerToClientEntityMap.TryGetValue(serverEntityId, out Entity localEntity)) continue;
-			ReplicatedLootLifecycle.Destroy(serverEntityId, localEntity, mapping, World);
-		}
-	}
-
-	private static void ApplyLootEntry(in LootSnapshot entry, NetworkMappingState mapping)
-	{
-		var position = new System.Numerics.Vector3(entry.Position.X, entry.Position.Y, entry.Position.Z);			if (mapping.ServerToClientEntityMap.TryGetValue(entry.EntityId, out Entity localEntity)
-				&& World.IsAlive(localEntity)
-				&& World.Has<GroundLoot>(localEntity))
-		{
-			GroundLoot loot = World.Get<GroundLoot>(localEntity);
-			loot.UniqueId = entry.EntityId;
-			loot.ItemTypeId = entry.ItemTypeId;
-			loot.Charges = entry.Charges;
-			loot.Lifetime = entry.Lifetime;
-			loot.RemainingLifetime = entry.RemainingLifetime;
-			loot.PickupRadius = entry.PickupRadius;
-			loot.AutoPickup = entry.AutoPickup;
-			loot.OwnerPlayerIndex = entry.OwnerPlayerIndex;
-
-			World.Set(localEntity, loot);
-			World.Set(localEntity, new Position(position));
-			GameContext.Host?.SyncReplicatedLootNode(entry.EntityId, localEntity);
-			return;
-		}
-
-		GameContext.NetworkService?.RetireUnitReplicaForReusedServerId(mapping, entry.EntityId);
-		localEntity = ReplicatedLootLifecycle.Create(entry.EntityId, mapping, World);
-		var described = new GroundLoot(entry.EntityId, entry.ItemTypeId, entry.Charges, entry.Lifetime, entry.PickupRadius, entry.AutoPickup, entry.OwnerPlayerIndex)
-		{
-			RemainingLifetime = entry.RemainingLifetime
-		};
-
-		World.Set(localEntity, new Position(position));
-		World.Set(localEntity, described);
-		GameContext.Host?.SyncReplicatedLootNode(entry.EntityId, localEntity);
-	}
 
 	public void RetireUnitReplicaForReusedServerId(NetworkMappingState mapping, int serverEntityId)
 	{
