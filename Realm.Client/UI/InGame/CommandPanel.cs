@@ -24,7 +24,7 @@ public partial class CommandPanel
 		_commandGrid = commandGrid;
 	}
 
-	private static Texture2D s_whiteTexture = null!;
+	private static Texture2D? s_whiteTexture;
 	private static readonly string[] s_integerStrings = CreateIntegerStringCache();
 
 	private static string[] CreateIntegerStringCache()
@@ -62,9 +62,9 @@ public partial class CommandPanel
 
 	private int _pageIndex = 0;
 	private List<CommandCardItem> _activeItems = new();
-	private readonly CommandCardItem[] _displayedGridItems = new CommandCardItem[12];
+	private readonly CommandCardItem?[] _displayedGridItems = new CommandCardItem?[12];
 	private Entity _lastFocusedEntity = Entity.Null;
-	private string _lastFocusedUnitId = null;
+	private string? _lastFocusedUnitId;
 	private bool _lastIsUnderConstruction = false;
 	private bool _lastIsMobile = false;
 	private int _lastAbilityCount = -1;
@@ -220,13 +220,13 @@ public partial class CommandPanel
 		UpdateAbilityButtonState(btn, item, currentMana, manaCost, cdRemaining);
 	}
 
-	private float GetMaxCooldown(CommandCardItem item, AbilityDefinition abilityDef, float cdRemaining)
+	private float GetMaxCooldown(CommandCardItem item, AbilityDefinition? abilityDef, float cdRemaining)
 	{
 		if (abilityDef != null && abilityDef.Cooldown > 0f) return abilityDef.Cooldown;
 
 		// A script-set cooldown carries its own duration, which is the only scale available for a command the map
 		// timed but never defined as an ability. Guessing one made the sweep sit full until the last ten seconds.
-		EcsWorld world = GameContext.World;
+		EcsWorld? world = GameContext.World;
 		Entity caster = item.CasterEntity != Entity.Null && world != null && world.IsAlive(item.CasterEntity)
 			? item.CasterEntity
 			: _lastFocusedEntity;
@@ -254,8 +254,7 @@ public partial class CommandPanel
 
 	private void UpdateAbilityStats(CommandCardItem item, ref float cdRemaining, ref float currentMana)
 	{
-		GameHost tempQualifier = GameContext.Host;
-		var world = (tempQualifier != null ? GameContext.World : null);
+		EcsWorld? world = GameContext.Host != null ? GameContext.World : null;
 		if (world == null) return;
 
 		var caster = item.CasterEntity != Entity.Null && world.IsAlive(item.CasterEntity) ? item.CasterEntity : _lastFocusedEntity;
@@ -651,7 +650,7 @@ public partial class CommandPanel
 
 	private static readonly HashSet<string> s_reportedMissingIcons = new(StringComparer.OrdinalIgnoreCase);
 
-	private Texture2D LoadCommandIcon(string iconPath)
+	private Texture2D? LoadCommandIcon(string iconPath)
 	{
 		if (string.IsNullOrEmpty(iconPath)) return null;
 		var tex = RtexIconLoader.Load(iconPath);
@@ -841,6 +840,11 @@ public partial class CommandPanel
 		return items;
 	}
 
+	private static void AddItem(List<CommandCardItem> items, CommandCardItem? item)
+	{
+		if (item != null) items.Add(item);
+	}
+
 	private CommandCardItem CreateCancelConstructionItem()
 	{
 		return new CommandCardItem
@@ -853,7 +857,7 @@ public partial class CommandPanel
 		};
 	}
 
-	private void PopulateUnitItems(List<CommandCardItem> items, SelectedUnitInfo focusedUnit, UnitMetadata meta, bool hasMetadata, bool isBuildSubMenuOpen)
+	private void PopulateUnitItems(List<CommandCardItem> items, SelectedUnitInfo focusedUnit, UnitMetadata? meta, bool hasMetadata, bool isBuildSubMenuOpen)
 	{
 		if (isBuildSubMenuOpen)
 		{
@@ -866,7 +870,7 @@ public partial class CommandPanel
 		{
 			PopulateStationaryUnitItems(items, focusedUnit);
 
-			if (hasMetadata && meta.BuildOptions?.Length > 0)
+			if (meta?.BuildOptions?.Length > 0)
 			{
 				items.Add(new CommandCardItem
 				{
@@ -893,9 +897,9 @@ public partial class CommandPanel
 		}
 	}
 
-	private void PopulateBuildSubMenuItems(List<CommandCardItem> items, SelectedUnitInfo focusedUnit, UnitMetadata meta, bool hasMetadata)
+	private void PopulateBuildSubMenuItems(List<CommandCardItem> items, SelectedUnitInfo focusedUnit, UnitMetadata? meta, bool hasMetadata)
 	{
-		string[] options = hasMetadata && meta.BuildOptions != null ? meta.BuildOptions : Array.Empty<string>();
+		string[] options = meta?.BuildOptions ?? Array.Empty<string>();
 		foreach (var opt in options)
 		{
 			var item = CreateBuildOptionItem(opt, focusedUnit.Entity);
@@ -928,18 +932,18 @@ public partial class CommandPanel
 
 		if (perkAbilities.Count > 0)
 		{
-			foreach (var ab in perkAbilities) items.Add(CreateAbilityItem(ab, focusedUnit.Entity));
+			foreach (var ab in perkAbilities) AddItem(items, CreateAbilityItem(ab, focusedUnit.Entity));
 			AddStandardCombatCommands(items, focusedUnit.Entity);
-			foreach (var ab in otherAbilities) items.Add(CreateAbilityItem(ab, focusedUnit.Entity));
+			foreach (var ab in otherAbilities) AddItem(items, CreateAbilityItem(ab, focusedUnit.Entity));
 		}
 		else
 		{
-			foreach (var ab in focusedUnit.Abilities) items.Add(CreateAbilityItem(ab, focusedUnit.Entity));
+			foreach (var ab in focusedUnit.Abilities) AddItem(items, CreateAbilityItem(ab, focusedUnit.Entity));
 			AddStandardCombatCommands(items, focusedUnit.Entity);
 		}
 	}
 
-	private void PopulateMobileUnitItems(List<CommandCardItem> items, SelectedUnitInfo focusedUnit, bool hasMetadata, UnitMetadata meta)
+	private void PopulateMobileUnitItems(List<CommandCardItem> items, SelectedUnitInfo focusedUnit, bool hasMetadata, UnitMetadata? meta)
 	{
 		if (!IsCommandsFrozen(focusedUnit.Entity))
 		{
@@ -977,7 +981,7 @@ public partial class CommandPanel
 			});
 		}
 
-		if (hasMetadata && meta.BuildOptions?.Length > 0)
+		if (meta?.BuildOptions?.Length > 0)
 		{
 			items.Add(new CommandCardItem
 			{
@@ -994,7 +998,7 @@ public partial class CommandPanel
 
 		foreach (var ab in focusedUnit.Abilities)
 		{
-			items.Add(CreateAbilityItem(ab, focusedUnit.Entity));
+			AddItem(items, CreateAbilityItem(ab, focusedUnit.Entity));
 		}
 	}
 
@@ -1047,9 +1051,9 @@ public partial class CommandPanel
 		};
 	}
 
-	private void PopulateBuildingItems(List<CommandCardItem> items, SelectedUnitInfo focusedUnit, UnitMetadata meta, bool hasMetadata)
+	private void PopulateBuildingItems(List<CommandCardItem> items, SelectedUnitInfo focusedUnit, UnitMetadata? meta, bool hasMetadata)
 	{
-		if (hasMetadata && meta.BuildOptions != null)
+		if (meta?.BuildOptions != null)
 		{
 			foreach (var opt in meta.BuildOptions) items.Add(CreateTrainOptionItem(opt));
 		}
@@ -1074,7 +1078,7 @@ public partial class CommandPanel
 
 		foreach (var ab in focusedUnit.Abilities)
 		{
-			items.Add(CreateAbilityItem(ab, focusedUnit.Entity));
+			AddItem(items, CreateAbilityItem(ab, focusedUnit.Entity));
 		}
 	}
 
@@ -1357,13 +1361,13 @@ public partial class CommandPanel
 		};
 	}
 
-	private bool IsAbilityHidden(GameHost host, Unit_WasmRuntime unitWrapper, string abilityId)
+	private bool IsAbilityHidden(GameHost? host, Unit_WasmRuntime? unitWrapper, string abilityId)
 	{
 		if (host == null) return false;
 		return host.IsAbilityHiddenForUnit(unitWrapper, abilityId);
 	}
 
-	private string ResolveAbilityIcon(string abilityId, AbilityDefinition abilityDef)
+	private string ResolveAbilityIcon(string abilityId, AbilityDefinition? abilityDef)
 	{
 		if (abilityDef != null && !string.IsNullOrEmpty(abilityDef.IconPath))
 		{
@@ -1373,7 +1377,7 @@ public partial class CommandPanel
 		return GetDefaultAbilityIcon(abilityId);
 	}
 
-	private string ResolveAbilityTooltip(string abilityId, AbilityDefinition abilityDef, bool disabled, float manaCost)
+	private string ResolveAbilityTooltip(string abilityId, AbilityDefinition? abilityDef, bool disabled, float manaCost)
 	{
 		// The description is map text, so it is looked up in the player's catalog before its placeholders are resolved:
 		// a translation keeps the {{tokens}} it was given, and TooltipTemplate fills them in on the way to the tooltip.
@@ -1394,18 +1398,18 @@ public partial class CommandPanel
 		return GameContext.RegistryService.IsAbilityDisabledForUnit(new UnitId(casterEntity.Id), abilityId);
 	}
 
-	private Unit_WasmRuntime GetUnitWrapperIfAlive(GameHost host, Entity casterEntity)
+	private Unit_WasmRuntime? GetUnitWrapperIfAlive(GameHost? host, Entity casterEntity)
 	{
 		if (host == null || casterEntity == Entity.Null) return null;
-		return GameContext.World.IsAlive(casterEntity) ? GameContext.SimulationService.GetUnitWrapper(casterEntity) : null;
+		return GameContext.World is { } world && world.IsAlive(casterEntity) ? GameContext.SimulationService.GetUnitWrapper(casterEntity) : null;
 	}
 
-	private float GetAbilityManaCost(GameHost host, Unit_WasmRuntime unitWrapper, AbilityDefinition abilityDef, string abilityId)
+	private float GetAbilityManaCost(GameHost? host, Unit_WasmRuntime? unitWrapper, AbilityDefinition? abilityDef, string abilityId)
 	{
 		return host != null ? host.GetAbilityManaCostForUnit(unitWrapper, abilityId) : (abilityDef?.ManaCost ?? 0f);
 	}
 
-	private HotkeySpec ParseHotkey(string hotkeyString)
+	private HotkeySpec ParseHotkey(string? hotkeyString)
 	{
 		if (string.IsNullOrWhiteSpace(hotkeyString)) return HotkeySpec.None;
 
@@ -1424,7 +1428,7 @@ public partial class CommandPanel
 		return () => GameContext.Host?.EnterSpellTargeting(abilityId);
 	}
 
-	private bool IsAbilityDisabled(GameHost host, Unit_WasmRuntime unitWrapper, Entity casterEntity, string abilityId, float manaCost)
+	private bool IsAbilityDisabled(GameHost? host, Unit_WasmRuntime? unitWrapper, Entity casterEntity, string abilityId, float manaCost)
 	{
 		if (host == null) return false;
 		if (GameContext.RegistryService.IsAbilityDisabledForUnit(unitWrapper, abilityId)) return true;

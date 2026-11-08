@@ -688,7 +688,7 @@ public class RegistryService
 		return false;
 	}
 
-	public bool IsAbilityDisabledForUnit(Unit_WasmRuntime unit, string abilityId)
+	public bool IsAbilityDisabledForUnit(Unit_WasmRuntime? unit, string abilityId)
 	{
 		return unit != null && IsAbilityDisabledForUnit((UnitId)unit.UniqueId, abilityId);
 	}
