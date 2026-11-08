@@ -1,3 +1,4 @@
+﻿using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using System.Threading.Tasks;
 using Godot;
@@ -106,7 +107,7 @@ public static class MinimapHelper
 		outPoints[3] = WorldToMinimap(pBL, minimapSize);
 	}
 
-	public static TextureRect SetupMinimapBackground(Control minimapArea)
+	public static TextureRect? SetupMinimapBackground(Control minimapArea)
 	{
 		if (minimapArea == null) return null;
 		var existing = minimapArea.GetNodeOrNull<TextureRect>("MinimapBg");
@@ -133,12 +134,12 @@ public static class MinimapHelper
 	private static readonly SemaphoreSlim _captureLock = new(1, 1);
 
 
-	private static bool IsNodeValid(Node node)
+	private static bool IsNodeValid([NotNullWhen(true)] Node? node)
 	{
 		return node != null && GodotObject.IsInstanceValid(node);
 	}
 
-	private static void HideBrushIndicator(OverlayState state, GameHost gameHost)
+	private static void HideBrushIndicator(OverlayState state, GameHost? gameHost)
 	{
 		if (gameHost == null || !gameHost.IsPaintCursorVisible) return;
 
@@ -146,29 +147,30 @@ public static class MinimapHelper
 		gameHost.SetPaintCursorVisible(false);
 	}
 
-	private static void HideGridAndPathing(OverlayState state, GameHost gameHost)
+	private static void HideGridAndPathing(OverlayState state, GameHost? gameHost)
 	{
 		state.WasGridMode = GridOverlayMode.Off;
 		if (gameHost == null) return;
 
 		state.WasGridMode = GameContext.EditorService.EditorGridMode;
-		state.WasPathingVisible = GameContext.Host.PathingOverlayVisible;
+		state.WasPathingVisible = gameHost.PathingOverlayVisible;
 		GameContext.EditorService.EditorGridMode = GridOverlayMode.Off;
-		GameContext.Host.PathingOverlayVisible = false;
-		GameContext.Host.UpdateGridOverlayVisibility();
-		GameContext.Host.UpdatePathingOverlay();
+		gameHost.PathingOverlayVisible = false;
+		gameHost.UpdateGridOverlayVisibility();
+		gameHost.UpdatePathingOverlay();
 	}
 
-	private static void HidePathingMesh(OverlayState state, GameHost gameHost)
+	private static void HidePathingMesh(OverlayState state, GameHost? gameHost)
 	{
-		state.PathingMesh = gameHost?.PathingOverlayMesh;
-		if (!IsNodeValid(state.PathingMesh)) return;
+		var pathingMesh = gameHost?.PathingOverlayMesh;
+		state.PathingMesh = pathingMesh;
+		if (!IsNodeValid(pathingMesh)) return;
 
-		state.WasPathingMeshVisible = state.PathingMesh.Visible;
-		state.PathingMesh.Visible = false;
+		state.WasPathingMeshVisible = pathingMesh.Visible;
+		pathingMesh.Visible = false;
 	}
 
-	private static void HideUnits(OverlayState state, GameHost gameHost)
+	private static void HideUnits(OverlayState state, GameHost? gameHost)
 	{
 		if (GameContext.SessionState.IsMapEditorMode) return;
 
@@ -200,9 +202,9 @@ public static class MinimapHelper
 
 	private static void RestoreOverlays(OverlayState state)
 	{
-		if (IsNodeValid(state.PathingMesh))
+		if (state.PathingMesh is { } pathingMesh && IsNodeValid(pathingMesh))
 		{
-			state.PathingMesh.Visible = state.WasPathingMeshVisible;
+			pathingMesh.Visible = state.WasPathingMeshVisible;
 		}
 
 		var gameHost = GameContext.Host;
@@ -214,9 +216,9 @@ public static class MinimapHelper
 		if (gameHost != null)
 		{
 			GameContext.EditorService.EditorGridMode = state.WasGridMode;
-			GameContext.Host.PathingOverlayVisible = state.WasPathingVisible;
-			GameContext.Host.UpdateGridOverlayVisibility();
-			GameContext.Host.UpdatePathingOverlay();
+			gameHost.PathingOverlayVisible = state.WasPathingVisible;
+			gameHost.UpdateGridOverlayVisibility();
+			gameHost.UpdatePathingOverlay();
 		}
 
 		foreach (var (u, vis) in state.UnitVisibility)
@@ -268,7 +270,7 @@ public static class MinimapHelper
 		return viewport;
 	}
 
-	private static Image ExtractViewportImage(SubViewport viewport)
+	private static Image? ExtractViewportImage(SubViewport viewport)
 	{
 		var texture = viewport.GetTexture();
 		if (texture == null) return null;
@@ -307,7 +309,7 @@ public static class MinimapHelper
 		var (viewportWidth, viewportHeight) = CalculateViewportSize(resolution, physicalWidth, physicalDepth);
 
 		var overlayState = HideOverlays();
-		SubViewport viewport = null;
+		SubViewport? viewport = null;
 
 		try
 		{
