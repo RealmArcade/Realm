@@ -314,8 +314,8 @@ public partial class MapDiscovery : Control
 		}
 
 		var filtered = _allMaps.AsEnumerable();
-		filtered = FilterByCategory(filtered);
-		filtered = FilterBySearchQuery(filtered);
+		filtered = MapCatalogFilter.ByCategory(filtered, _selectedCategory);
+		filtered = MapCatalogFilter.BySearchQuery(filtered, _searchQuery);
 
 		var list = filtered.ToList();
 
@@ -335,27 +335,6 @@ public partial class MapDiscovery : Control
 			var card = CreateMapCard(map);
 			_mapGrid.AddChild(card);
 		}
-	}
-
-	private IEnumerable<MapData> FilterByCategory(IEnumerable<MapData> maps)
-	{
-		if (_selectedCategory == "All") return maps;
-
-		if (_selectedCategory == "Featured")
-		{
-			return maps.Where(m => m.RatingStars >= 4.5f);
-		}
-
-		return maps.Where(m => m.Genre.Contains(_selectedCategory) || m.Features.Contains(_selectedCategory) || m.MapId.Contains(_selectedCategory));
-	}
-
-	private IEnumerable<MapData> FilterBySearchQuery(IEnumerable<MapData> maps)
-	{
-		if (string.IsNullOrEmpty(_searchQuery)) return maps;
-
-		return maps.Where(m => m.Title.Contains(_searchQuery, StringComparison.OrdinalIgnoreCase) ||
-		                       m.Creator.Contains(_searchQuery, StringComparison.OrdinalIgnoreCase) ||
-		                       m.Description.Contains(_searchQuery, StringComparison.OrdinalIgnoreCase));
 	}
 
 	private Control CreateMapCard(MapData map)
