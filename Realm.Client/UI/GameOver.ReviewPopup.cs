@@ -82,9 +82,7 @@ public partial class GameOver
 		var ratingOption = new OptionButton();
 		ratingOption.Name = "RatingOption_OptionButton";
 		ratingOption.CustomMinimumSize = new Vector2(180, 36);
-		ratingOption.AddThemeStyleboxOverride("normal", UIStyle.CreateTextInput(false));
-		ratingOption.AddThemeStyleboxOverride("hover", UIStyle.CreateTextInput(true));
-		ratingOption.AddThemeStyleboxOverride("pressed", UIStyle.CreateTextInput(true));
+		UIStyle.ApplyInputDropdown(ratingOption);
 		ratingOption.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.9f));
 		ratingOption.AddItem(Tr("5 Stars (Excellent)"), 5);
 		ratingOption.AddItem(Tr("4 Stars (Good)"), 4);
@@ -116,8 +114,7 @@ public partial class GameOver
 		commentsEdit.Name = "CommentsEdit_TextEdit";
 		commentsEdit.SizeFlagsVertical = SizeFlags.ExpandFill;
 		commentsEdit.PlaceholderText = Tr("Write your thoughts about this map here...");
-		commentsEdit.AddThemeStyleboxOverride("normal", UIStyle.CreateTextInput(false));
-		commentsEdit.AddThemeStyleboxOverride("focus", UIStyle.CreateTextInput(true));
+		UIStyle.ApplyTextInput(commentsEdit);
 		commentsEdit.AddThemeColorOverride("font_color", new Color(0.9f, 0.85f, 0.75f));
 		commentsEdit.AddThemeColorOverride("font_placeholder_color", new Color(0.5f, 0.5f, 0.5f));
 

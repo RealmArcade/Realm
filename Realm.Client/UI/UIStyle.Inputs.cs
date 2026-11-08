@@ -112,6 +112,27 @@ public static partial class UIStyle
 	}
 
 	/// <summary>
+	/// The plain framed text field, drawn with the focused plate while it holds focus. Both text controls Godot offers
+	/// take the same pair under the same names, so either one can be passed.
+	/// </summary>
+	public static void ApplyTextInput(Control edit)
+	{
+		edit.AddThemeStyleboxOverride("normal", CreateTextInput(false));
+		edit.AddThemeStyleboxOverride("focus", CreateTextInput(true));
+	}
+
+	/// <summary>
+	/// A dropdown that is dressed like a text field rather than like a button: the pointed plate while closed, the
+	/// focused one while open or hovered.
+	/// </summary>
+	public static void ApplyInputDropdown(Button option)
+	{
+		option.AddThemeStyleboxOverride("normal", CreateTextInput(false));
+		option.AddThemeStyleboxOverride("hover", CreateTextInput(true));
+		option.AddThemeStyleboxOverride("pressed", CreateTextInput(true));
+	}
+
+	/// <summary>
 	/// A palette swatch. The plate is the colour itself, ringed gold while it is the chosen one, and every state draws
 	/// the ring because a swatch is bigger than its pointer affordance.
 	/// </summary>
