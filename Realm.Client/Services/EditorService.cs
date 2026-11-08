@@ -429,7 +429,6 @@ public partial class EditorService : IEditorAPI
 		return _workspace.TickBackupInterval(intervalMins, delta);
 	}
 
-
 	public bool TryGetValidCurrentSourceFolder(out string? folder)
 	{
 		folder = CurrentSourceFolder;
@@ -558,7 +557,6 @@ public partial class EditorService : IEditorAPI
 	public bool ModelYOffsetSavePending { get; set; } = false;
 	public bool ModelCollisionCircleSavePending { get; set; } = false;
 	public readonly Dictionary<string, string> NormalizedAssetKeyCache = new(StringComparer.OrdinalIgnoreCase);
-
 
 	public float EditorClumpCount { get; set; } = 5.0f;
 	public float EditorClumpScale { get; set; } = 0.3f;
@@ -724,11 +722,9 @@ public partial class EditorService : IEditorAPI
 	public const float MAX_CLUMP_SCALE = 1.0f;
 	public const float MAX_CLUMP_DENSITY = MAX_CLUMP_COUNT;
 
-
 	private readonly EditorTerrainSurface _surface = new();
 
 	private readonly EditorClumpSession _clump = new();
-
 
 	public void ResetPaintThrottle() => _terrainEdit.ResetPaintThrottle();
 
@@ -745,12 +741,6 @@ public partial class EditorService : IEditorAPI
 		_paste = new EditorPasteWriter(_surface, _clipboard);
 		_ramp = new EditorRampTool(_surface);
 	}
-
-
-
-
-
-
 
 	public bool PasteOptionTextures { get; set; } = true;
 	public bool PasteOptionHeights { get; set; } = true;
@@ -806,11 +796,6 @@ public partial class EditorService : IEditorAPI
 	public Vector2I? ObjectMarqueeEnd => _interaction.ObjectMarqueeEnd;
 	public bool IsObjectMarqueeSelecting => _interaction.IsObjectMarqueeSelecting;
 
-
-
-
-
-
 	public CopiedAreaTemplate? CopiedArea
 	{
 		get => _clipboard.CopiedArea;
@@ -865,8 +850,6 @@ public partial class EditorService : IEditorAPI
 	public bool IsDrawingTerrain => _terrainEdit.IsDrawing;
 	public bool IsDrawingClump => _clump.IsDrawing;
 
-
-
 	public void CopyEditorPropDomain(string propId, float rotation, float scale)
 	{
 		SetCopiedObject(new CopiedObjectTemplate
@@ -911,15 +894,6 @@ public partial class EditorService : IEditorAPI
 				break;
 		}
 	}
-
-
-
-
-
-
-
-
-
 
 	public void SetIsPastingObject(bool value) => _interaction.SetIsPastingObject(value);
 
@@ -1030,7 +1004,6 @@ public partial class EditorService : IEditorAPI
 		return _terrainEdit.Finalize(ctx, isHeights, isPaint, isPathing);
 	}
 
-
 	public void BeginTerrainDraw(
 		Godot.Vector3 hitPos,
 		EditorTool activeTool,
@@ -1117,9 +1090,6 @@ public partial class EditorService : IEditorAPI
 	public float GetMinHeightInBrushBounds(Godot.Vector3 worldPos, float brushRadius, bool brushIsSquare) =>
 		EditorTerrainQueries.GetMinHeightInBrushBounds(worldPos, brushRadius, brushIsSquare);
 
-
-
-
 	public PasteAreaResult BuildPasteAreaResult(
 		int startX,
 		int startZ,
@@ -1170,9 +1140,6 @@ public partial class EditorService : IEditorAPI
 		return result;
 	}
 
-
-
-
 	public (float[,]? Heights, TerrainSplatWeights[,]? SplatMap, bool IsCliff) PerformFloodFill(
 		Godot.Vector3 clickPos,
 		int fillTextureIndex,
@@ -1183,8 +1150,6 @@ public partial class EditorService : IEditorAPI
 
 	public (int[,]? Before, int[,]? After) PerformFloodFillPathing(Godot.Vector3 clickPos, int pathingMask, bool pathingAdd, MirrorMode mirrorMode) =>
 		_surface.PerformPathingFloodFill(clickPos, pathingMask, pathingAdd, mirrorMode, _symmetryPivot, _symmetryFolds);
-
-
 
 	public (TerrainCell[,]? BeforeCells, TerrainCell[,]? AfterCells, int[,]? BeforePathing, int[,]? AfterPathing, bool WasAdded) PerformWaterFloodFill(
 		Godot.Vector3 clickPos,
@@ -1212,7 +1177,6 @@ public partial class EditorService : IEditorAPI
 	{
 		return EditorGridSnapping.GetAnchoredPasteBounds(_clipboard.CopiedArea, targetX, targetZ, rotationDegrees, reflection);
 	}
-
 
 	public (int cx, int cz) WorldPosToCellCoords(Godot.Vector3 worldPos)
 	{
@@ -1300,8 +1264,6 @@ public partial class EditorService : IEditorAPI
 		EditorGridSnapping.SanitizeCornerHeights(ref terrain);
 	}
 
-
-
 	private void PasteBlock(
 		CopiedAreaTemplate copiedArea,
 		int blockStartX, int blockStartZ,
@@ -1343,7 +1305,6 @@ public partial class EditorService : IEditorAPI
 	{
 		return EditorProceduralSpawns.BuildTerrain(x, z, textureIndex, terrainY, quadSize, width, depth);
 	}
-
 
 	public float GetCameraBoundsLeft(Entity worldEntity) => EditorEntityState.GetCameraBoundsLeft(worldEntity);
 
@@ -1423,7 +1384,6 @@ public partial class EditorService : IEditorAPI
 	public void StartWorkspaceWatcher(string directory) => EditorWorkspaceWatcher.Start(directory);
 
 	public void StopWorkspaceWatcher() => EditorWorkspaceWatcher.Stop();
-
 
 	public bool CommitCoordinate(string name, int minCellX, int minCellZ, int maxCellX, int maxCellZ)
 	{
@@ -1608,76 +1568,27 @@ public partial class EditorService : IEditorAPI
 
 	public bool ImportTextureAssetFromExtensionDomain(string sourceFilePath, int slotIndex, string wsPath, GameHost? gameHost, out string cleanBaseName, out string outputRtex, Action<string, string, string, int> updateMetadata)
 	{
-		cleanBaseName = Path.GetFileNameWithoutExtension(sourceFilePath).ToLowerInvariant().Replace(" ", "_") + ".rtex";
-		string texDir = Path.Combine(wsPath, "Assets", "textures");
-		Directory.CreateDirectory(texDir);
-		outputRtex = Path.Combine(texDir, cleanBaseName);
-
-		string ext = Path.GetExtension(sourceFilePath);
-		if (ext.Equals(".rtex", StringComparison.OrdinalIgnoreCase))
-		{
-			File.Copy(sourceFilePath, outputRtex, true);
-		}
-		else if (gameHost != null && gameHost.GroundTerrain != null)
-		{
-			gameHost.GroundTerrain.ProcessAndSaveRawTexture(sourceFilePath, outputRtex);
-		}
-
-		if (File.Exists(outputRtex))
-		{
-			byte[] rtexBytes = File.ReadAllBytes(outputRtex);
-			string blake3 = RealmMetadataHelper.ComputeBlake3(rtexBytes, ".rtex");
-			updateMetadata?.Invoke("textures", cleanBaseName, blake3, slotIndex);
-			return true;
-		}
-
-		return false;
+		return EditorAssetImport.ImportTextureAssetFromExtensionDomain(sourceFilePath, slotIndex, wsPath, gameHost, out cleanBaseName, out outputRtex, updateMetadata);
 	}
 
 	public void UpdateTextureMetadataAndReload(int index, string cleanBaseName, string outputRtex, GameHost? gameHost, Action<string, string, string, int> updateMetadata)
 	{
-		if (File.Exists(outputRtex))
-		{
-			byte[] rtexBytes = File.ReadAllBytes(outputRtex);
-			string blake3 = RealmMetadataHelper.ComputeBlake3(rtexBytes, ".rtex");
-			updateMetadata?.Invoke("textures", cleanBaseName, blake3, index);
-		}
-
-		if (gameHost != null && gameHost.GroundTerrain != null)
-		{
-			gameHost.GroundTerrain.ReloadTerrainTextures(true);
-		}
+		EditorAssetImport.UpdateTextureMetadataAndReload(index, cleanBaseName, outputRtex, gameHost, updateMetadata);
 	}
 
 	public void CopyOrProcessTexture(string imagePath, string outputRtex, GameHost? gameHost)
 	{
-		string ext = Path.GetExtension(imagePath);
-		if (ext.Equals(".rtex", StringComparison.OrdinalIgnoreCase))
-		{
-			File.Copy(imagePath, outputRtex, true);
-		}
-		else if (gameHost != null && gameHost.GroundTerrain != null)
-		{
-			gameHost.GroundTerrain.ProcessAndSaveRawTexture(imagePath, outputRtex);
-		}
+		EditorAssetImport.CopyOrProcessTexture(imagePath, outputRtex, gameHost);
 	}
 
 	public string PrepareTextureOutputDir(string cleanBaseName)
 	{
-		string wsPath = string.IsNullOrEmpty(this._editingDirectory)
-			? MapWorkspaceService.GetDefaultMapFolderGlobalPath()
-			: this._editingDirectory;
-		string texDir = Path.Combine(wsPath, "Assets", "textures");
-		Directory.CreateDirectory(texDir);
-		return Path.Combine(texDir, cleanBaseName);
+		return EditorAssetImport.PrepareTextureOutputDir(cleanBaseName, _editingDirectory);
 	}
 
 	public string ResolveTextureFileName(string imagePath, string? preferredFileName)
 	{
-		string resolvedName = !string.IsNullOrWhiteSpace(preferredFileName) && !AssetIndexService.IsHexHash(Path.GetFileNameWithoutExtension(preferredFileName))
-			? preferredFileName
-			: (GameContext.AssetIndexService?.ResolvePrettyFileName(imagePath, preferredFileName) ?? Path.GetFileName(imagePath));
-		return Path.GetFileNameWithoutExtension(resolvedName).ToLowerInvariant().Replace(" ", "_") + ".rtex";
+		return EditorAssetImport.ResolveTextureFileName(imagePath, preferredFileName);
 	}
 
 	public string GetManifestBlake3(string workspacePath, string mapTitle, string mapVersion, string author)
@@ -1720,13 +1631,6 @@ public partial class EditorService : IEditorAPI
 		return EditorMapIdentity.TrySanitizeCandidate(candidateName, out sanitizedMapName);
 	}
 
-
-
-
-
-
-
-
 	public string RemoveUnitObjectAttachmentDomain(string unitId, string socket, string attachmentId, string? parentAttachmentId = null)
 	{
 		string regKey = EditorAttachmentWrites.RemoveUnitObjectAttachment(unitId, socket, attachmentId, parentAttachmentId, _editingDirectory, out long? metadataSyncTime);
@@ -1750,65 +1654,17 @@ public partial class EditorService : IEditorAPI
 
 	public (bool Success, string Message, string FileName, string Blake3) ImportSkyboxAsset(string sourceFilePath, string wsPath)
 	{
-		try
-		{
-			string fileName = Path.GetFileName(sourceFilePath);
-			string skyboxesDir = Path.Combine(wsPath, "Assets", "skyboxes");
-			Directory.CreateDirectory(skyboxesDir);
-			string targetPath = Path.Combine(skyboxesDir, fileName);
-
-			File.Copy(sourceFilePath, targetPath, true);
-
-			byte[] bytes = File.ReadAllBytes(targetPath);
-			string blake3 = RealmMetadataHelper.ComputeBlake3(bytes, fileName);
-
-			return (true, "", fileName, blake3);
-		}
-		catch (Exception ex)
-		{
-			return (false, ex.Message, null!, null!);
-		}
-	}
-
-	private (bool Success, string Message, string FileName, string Blake3) ImportImageAsAsset(string sourceFilePath, string wsPath, string subFolder)
-	{
-		try
-		{
-			string baseName = Path.GetFileNameWithoutExtension(sourceFilePath);
-			string fileName = baseName + ".png";
-			string outputDir = Path.Combine(wsPath, "Assets", subFolder);
-			Directory.CreateDirectory(outputDir);
-			string targetPath = Path.Combine(outputDir, fileName);
-
-			var img = Image.LoadFromFile(sourceFilePath);
-			if (img != null)
-			{
-				img.SavePng(targetPath);
-			}
-			else
-			{
-				File.Copy(sourceFilePath, targetPath, true);
-			}
-
-			byte[] bytes = File.ReadAllBytes(targetPath);
-			string blake3 = RealmMetadataHelper.ComputeBlake3(bytes, ".png");
-
-			return (true, "", fileName, blake3);
-		}
-		catch (Exception ex)
-		{
-			return (false, ex.Message, null!, null!);
-		}
+		return EditorAssetImport.ImportSkyboxAsset(sourceFilePath, wsPath);
 	}
 
 	public (bool Success, string Message, string FileName, string Blake3) ImportSpritesheetAsset(string sourceFilePath, string wsPath)
 	{
-		return ImportImageAsAsset(sourceFilePath, wsPath, "vfx");
+		return EditorAssetImport.ImportSpritesheetAsset(sourceFilePath, wsPath);
 	}
 
 	public (bool Success, string Message, string FileName, string Blake3) ImportIconAsset(string sourceFilePath, string wsPath)
 	{
-		return ImportImageAsAsset(sourceFilePath, wsPath, "icons");
+		return EditorAssetImport.ImportIconAsset(sourceFilePath, wsPath);
 	}
 
 	public long GetLastWriteTimeSafe(string path)
@@ -1868,52 +1724,12 @@ public partial class EditorService : IEditorAPI
 
 	public string ResolveDecalKeyFromMetadata(string decalId, string wsPath)
 	{
-		try
-		{
-			var metadata = MapFileService.LoadMetadata(wsPath);
-			if (metadata?.Decals != null)
-			{
-				string filename = Path.GetFileName(decalId);
-				string baseKey = Path.GetFileNameWithoutExtension(decalId);
-				DecalMetadata? meta = null;
-
-				if (metadata.Decals.TryGetValue(decalId, out var d0)) meta = d0;
-				else if (metadata.Decals.TryGetValue(filename, out var d1)) meta = d1;
-				else if (metadata.Decals.TryGetValue(baseKey, out var d2)) meta = d2;
-
-				if (meta != null && !string.IsNullOrWhiteSpace(meta.TexturePath))
-				{
-					return meta.TexturePath;
-				}
-			}
-		}
-		catch
-		{
-		}
-
-		return decalId;
+		return EditorAssetImport.ResolveDecalKeyFromMetadata(decalId, wsPath);
 	}
 
 	public string FindDecalFile(string targetKey, string wsPath)
 	{
-		string targetFilename = Path.GetFileName(targetKey);
-		string candidate1 = Path.Combine(wsPath, "Assets", "decals", targetFilename);
-		if (File.Exists(candidate1)) return candidate1;
-
-		if (!targetFilename.Contains('.'))
-		{
-			string candidate2 = Path.Combine(wsPath, "Assets", "decals", targetFilename + ".png");
-			if (File.Exists(candidate2)) return candidate2;
-			string candidateRtex = Path.Combine(wsPath, "Assets", "decals", targetFilename + ".rtex");
-			if (File.Exists(candidateRtex)) return candidateRtex;
-		}
-
-		if (Path.IsPathRooted(targetKey) && File.Exists(targetKey)) return targetKey;
-
-		string candidate3 = Path.Combine(wsPath, targetKey);
-		if (File.Exists(candidate3)) return candidate3;
-
-		return "res://icon.svg";
+		return EditorAssetImport.FindDecalFile(targetKey, wsPath);
 	}
 
 	public void RestoreLoadedCoordinates()
