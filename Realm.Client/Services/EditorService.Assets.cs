@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -28,7 +28,7 @@ public partial class EditorService
 	public static void RevertTemplateJson(string wsPath, string templateSlug, string? snapshotJson) =>
 		EditorAssetOperations.RevertTemplateJson(wsPath, templateSlug, snapshotJson);
 
-	public static string? GetTemplateSlugFromJsonObject(JsonObject obj) => EditorAssetOperations.GetTemplateSlugFromJsonObject(obj);
+	public static string? GetTemplateSlugFromJsonObject(JsonObject obj) => TemplateJsonSearch.GetTemplateSlugFromJsonObject(obj);
 
 	public void AssignRandomAssetsToTemplate(string templateSlug, bool overwriteExisting = false)
 	{
@@ -52,7 +52,7 @@ public partial class EditorService
 			return;
 		}
 
-		JsonObject? foundTemplateObj = EditorAssetOperations.FindTemplateOrEntryObject(rootObj, templateSlug);
+		JsonObject? foundTemplateObj = TemplateJsonSearch.FindTemplateOrEntryObject(rootObj, templateSlug);
 		if (foundTemplateObj == null)
 		{
 			return;

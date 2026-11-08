@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -27,31 +27,6 @@ internal static partial class EditorAssetOperations
 {
 	[GeneratedRegex(@"[^a-zA-Z]+")]
 	internal static partial Regex NonAlphaRegex();
-
-	private static readonly Dictionary<string, AssetType> PathSegmentToAssetType = new(StringComparer.OrdinalIgnoreCase)
-	{
-		["decals"] = AssetType.Decal,
-		["textures"] = AssetType.Terrain,
-		["terrain"] = AssetType.Terrain,
-		["icons"] = AssetType.Icon,
-		["noise"] = AssetType.Noise,
-		["ribbons"] = AssetType.Ribbon,
-		["skyboxes"] = AssetType.Skybox,
-		["vfx_spritesheets"] = AssetType.Spritesheet,
-		["vfx_radial"] = AssetType.VfxRadial,
-		["vfx_vertical"] = AssetType.VfxVertical,
-		["units"] = AssetType.Character,
-		["characters"] = AssetType.Character,
-		["buildings"] = AssetType.Building,
-		["props"] = AssetType.Prop,
-		["items"] = AssetType.Item,
-		["attachments"] = AssetType.Item,
-		["projectiles"] = AssetType.Item,
-		["animations"] = AssetType.Animation,
-		["music"] = AssetType.Music,
-		["sfx"] = AssetType.SoundEffect,
-		["shaders"] = AssetType.Shader
-	};
 
 	private static HashSet<string>? GetAllowedTypeStrings(HashSet<AssetType>? allowedTypes)
 	{
@@ -114,7 +89,7 @@ internal static partial class EditorAssetOperations
 					{
 						if (candidate == null) continue;
 
-						var mappedType = MapStringToAssetType(candidate.AssetType, candidate.Extension, candidate.FilePath ?? candidate.DirectoryPath);
+						var mappedType = AssetTypeMapping.MapStringToAssetType(candidate.AssetType, candidate.Extension, candidate.FilePath ?? candidate.DirectoryPath);
 						if (allowedTypes != null && !allowedTypes.Contains(mappedType))
 						{
 							continue;
@@ -201,7 +176,7 @@ internal static partial class EditorAssetOperations
 
 		foreach (var candidate in indexedAssetMap.Values)
 		{
-			var mappedType = MapStringToAssetType(candidate.AssetType, candidate.Extension, candidate.FilePath ?? candidate.DirectoryPath);
+			var mappedType = AssetTypeMapping.MapStringToAssetType(candidate.AssetType, candidate.Extension, candidate.FilePath ?? candidate.DirectoryPath);
 			if (allowedTypes != null && !allowedTypes.Contains(mappedType))
 			{
 				continue;
@@ -226,7 +201,6 @@ internal static partial class EditorAssetOperations
 		return rankedAssets;
 	}
 
-
 	internal static string ExtractSearchQuery(string templateSlug)
 	{
 		if (string.IsNullOrWhiteSpace(templateSlug))
@@ -248,7 +222,7 @@ internal static partial class EditorAssetOperations
 			return string.Empty;
 		}
 
-		JsonObject? foundTemplateObj = FindTemplateOrEntryObject(rootObj, templateSlug);
+		JsonObject? foundTemplateObj = TemplateJsonSearch.FindTemplateOrEntryObject(rootObj, templateSlug);
 		if (foundTemplateObj == null)
 		{
 			return string.Empty;
@@ -256,12 +230,12 @@ internal static partial class EditorAssetOperations
 
 		var op1Terms = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 		var assetReferences = new List<string>();
-		TraverseJsonForTermsAndAssetReferences(foundTemplateObj, op1Terms, assetReferences);
+		TemplateJsonSearch.TraverseJsonForTermsAndAssetReferences(foundTemplateObj, op1Terms, assetReferences);
 
 		var op2Terms = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 		foreach (string assetRef in assetReferences)
 		{
-			ExtractTermsFromAssetReference(wsPath, assetRef, op2Terms);
+			TemplateJsonSearch.ExtractTermsFromAssetReference(wsPath, assetRef, op2Terms);
 		}
 
 		var unionedTerms = op1Terms.Union(op2Terms, StringComparer.OrdinalIgnoreCase).ToList();
@@ -280,7 +254,6 @@ internal static partial class EditorAssetOperations
 
 		return string.Join(" ", validTerms);
 	}
-
 
 	internal static void ImportAssets(List<Asset> assets)
 	{
@@ -331,8 +304,8 @@ internal static partial class EditorAssetOperations
 				}
 			}
 
-			string category = MapAssetTypeToCategoryString(asset.AssetType);
-			string targetSubFolder = MapCategoryToDestinationSubFolder(category);
+			string category = AssetTypeMapping.MapAssetTypeToCategoryString(asset.AssetType);
+			string targetSubFolder = AssetTypeMapping.MapCategoryToDestinationSubFolder(category);
 			string targetDir = Path.Combine(wsPath, "Assets", targetSubFolder);
 			Directory.CreateDirectory(targetDir);
 
@@ -347,7 +320,6 @@ internal static partial class EditorAssetOperations
 			existingAssetsDict[asset.FileName] = normalizedHash;
 		}
 	}
-
 
 	internal static string? SnapshotTemplateJson(string wsPath, string templateSlug)
 	{
@@ -369,10 +341,9 @@ internal static partial class EditorAssetOperations
 			return null;
 		}
 
-		JsonObject? found = FindTemplateOrEntryObject(rootObj, templateSlug);
+		JsonObject? found = TemplateJsonSearch.FindTemplateOrEntryObject(rootObj, templateSlug);
 		return found?.ToJsonString();
 	}
-
 
 	internal static void RevertTemplateJson(string wsPath, string templateSlug, string? snapshotJson)
 	{
@@ -404,7 +375,7 @@ internal static partial class EditorAssetOperations
 				{
 					for (int i = 0; i < arr.Count; i++)
 					{
-						if (arr[i] is JsonObject obj && IsTemplateMatch(obj, templateSlug))
+						if (arr[i] is JsonObject obj && TemplateJsonSearch.IsTemplateMatch(obj, templateSlug))
 						{
 							if (snapshotJson != null)
 							{
@@ -468,7 +439,6 @@ internal static partial class EditorAssetOperations
 		}
 	}
 
-
 	internal static int CountMatchingTerms(IndexedAsset asset, string[] terms)
 	{
 		int count = 0;
@@ -487,7 +457,6 @@ internal static partial class EditorAssetOperations
 		return count;
 	}
 
-
 	internal static Asset ToEditorAsset(IndexedAsset item)
 	{
 		return new Asset
@@ -496,370 +465,19 @@ internal static partial class EditorAssetOperations
 			FileName = item.FileName,
 			Extension = item.Extension,
 			Blake3 = item.Blake3 ?? string.Empty,
-			AssetType = MapStringToAssetType(item.AssetType, item.Extension, item.FilePath ?? item.DirectoryPath),
+			AssetType = AssetTypeMapping.MapStringToAssetType(item.AssetType, item.Extension, item.FilePath ?? item.DirectoryPath),
 			Tags = item.Tags != null ? new List<string>(item.Tags) : new List<string>()
 		};
 	}
 
 
-	internal static AssetType MapStringToAssetType(AssetType? rawType, string extension, string? pathHint = null)
-	{
-		if (rawType.HasValue)
-		{
-			return rawType.Value;
-		}
-
-		return MapStringToAssetType((string?)null, extension, pathHint);
-	}
 
 
-	internal static AssetType MapStringToAssetType(string? rawType, string extension, string? pathHint = null)
-	{
-		if (AssetTypeExtensions.TryParse(rawType, out var parsed))
-		{
-			return parsed;
-		}
-
-		if (!string.IsNullOrEmpty(pathHint))
-		{
-			string normalizedHint = pathHint.Replace('\\', '/');
-			string[] segments = normalizedHint.Split('/', StringSplitOptions.RemoveEmptyEntries);
-			foreach (var segment in segments.Reverse())
-			{
-				if (PathSegmentToAssetType.TryGetValue(segment, out var matchedType))
-				{
-					return matchedType;
-				}
-				if (AssetTypeExtensions.TryParse(segment, out var segmentParsed))
-				{
-					return segmentParsed;
-				}
-			}
-		}
-
-		string ext = (extension ?? string.Empty).ToLowerInvariant();
-		return ext switch
-		{
-			".rmesh" => AssetType.Character,
-			".ranim" => AssetType.Animation,
-			".raud" => AssetType.SoundEffect,
-			".gdshader" => AssetType.Shader,
-			_ => AssetType.Terrain
-		};
-	}
 
 
-	internal static string MapAssetTypeToCategoryString(AssetType assetType)
-	{
-		return assetType switch
-		{
-			AssetType.Character => "Character",
-			AssetType.Building => "Building",
-			AssetType.Prop => "Prop",
-			AssetType.Item => "Item",
-			AssetType.Decal => "Decal",
-			AssetType.Icon => "Icon",
-			AssetType.Noise => "Noise",
-			AssetType.Ribbon => "Ribbon",
-			AssetType.Skybox => "Skybox",
-			AssetType.Spritesheet => "Spritesheet",
-			AssetType.Terrain => "Terrain",
-			AssetType.VfxRadial => "vfx_radial",
-			AssetType.VfxVertical => "vfx_vertical",
-			AssetType.Animation => "Animation",
-			AssetType.Music => "Music",
-			AssetType.SoundEffect => "SoundEffect",
-			AssetType.Shader => "Shader",
-			_ => "Other"
-		};
-	}
 
 
-	internal static string MapCategoryToDestinationSubFolder(string category)
-	{
-		return category switch
-		{
-			"Character" => "models/units",
-			"Building" => "models/buildings",
-			"Prop" => "models/props",
-			"Item" => "models/items",
-			"Spritesheet" or "vfx_spritesheets" => "vfx_spritesheets",
-			"vfx_radial" => "vfx_radial",
-			"vfx_vertical" => "vfx_vertical",
-			"Animation" => "animations",
-			"SoundEffect" => "audio/sfx",
-			"Music" => "audio/music",
-			"Icon" => "icons",
-			"Decal" => "decals",
-			"Ribbon" => "ribbons",
-			"Noise" => "noise",
-			"Skybox" => "skyboxes",
-			"Terrain" => "textures",
-			"Shader" => "shaders",
-			_ => category.ToLowerInvariant()
-		};
-	}
 
-
-	internal static JsonObject? FindTemplateOrEntryObject(JsonObject rootObj, string templateSlug)
-	{
-		if (rootObj.TryGetPropertyValue("Templates", out var templatesNode) && templatesNode is JsonObject templatesObj)
-		{
-			foreach (var kvp in templatesObj)
-			{
-				if (kvp.Value is JsonArray arr)
-				{
-					foreach (var item in arr)
-					{
-						if (item is JsonObject obj && IsTemplateMatch(obj, templateSlug))
-						{
-							return obj;
-						}
-					}
-				}
-			}
-		}
-
-		string[] dictionaryKeys = { "textures", "vfx_spritesheets", "decals", "SpawnShader" };
-		var (_, slug) = TemplateIDHelper.ParseTemplateID(templateSlug);
-
-		foreach (string dictKey in dictionaryKeys)
-		{
-			if (rootObj.TryGetPropertyValue(dictKey, out var dictNode) && dictNode is JsonObject dictObj)
-			{
-				foreach (var kvp in dictObj)
-				{
-					if (string.Equals(kvp.Key, templateSlug, StringComparison.OrdinalIgnoreCase) ||
-					    (!string.IsNullOrEmpty(slug) && string.Equals(kvp.Key, slug, StringComparison.OrdinalIgnoreCase)) ||
-					    (!string.IsNullOrEmpty(slug) && string.Equals(Path.GetFileNameWithoutExtension(kvp.Key), slug, StringComparison.OrdinalIgnoreCase)))
-					{
-						if (kvp.Value is JsonObject itemObj)
-						{
-							return itemObj;
-						}
-					}
-				}
-			}
-		}
-
-		return null;
-	}
-
-
-	internal static bool IsTemplateMatch(JsonObject obj, string templateSlug)
-	{
-		string? slug = GetTemplateSlugFromJsonObject(obj);
-		if (string.IsNullOrEmpty(slug)) return false;
-
-		if (string.Equals(slug, templateSlug, StringComparison.OrdinalIgnoreCase))
-		{
-			return true;
-		}
-
-		if (slug.Contains('/'))
-		{
-			var parts = slug.Split('/');
-			if (parts.Length > 1 && string.Equals(parts[1], templateSlug, StringComparison.OrdinalIgnoreCase))
-			{
-				return true;
-			}
-		}
-
-		var (_, parsedSlug) = TemplateIDHelper.ParseTemplateID(templateSlug);
-		if (!string.IsNullOrEmpty(parsedSlug))
-		{
-			if (string.Equals(slug, parsedSlug, StringComparison.OrdinalIgnoreCase))
-			{
-				return true;
-			}
-
-			if (slug.Contains('/'))
-			{
-				var parts = slug.Split('/');
-				if (parts.Length > 1 && string.Equals(parts[1], parsedSlug, StringComparison.OrdinalIgnoreCase))
-				{
-					return true;
-				}
-			}
-		}
-
-		return false;
-	}
-
-
-	internal static string? GetTemplateSlugFromJsonObject(JsonObject obj)
-	{
-		if (obj.TryGetPropertyValue("TemplateID", out var tidNode) && tidNode != null)
-		{
-			return tidNode.ToString();
-		}
-		if (obj.TryGetPropertyValue("template_id", out var tidNodeLower) && tidNodeLower != null)
-		{
-			return tidNodeLower.ToString();
-		}
-		if (obj.TryGetPropertyValue("AttachmentId", out var aidNode) && aidNode != null)
-		{
-			return aidNode.ToString();
-		}
-		if (obj.TryGetPropertyValue("VfxId", out var vidNode) && vidNode != null)
-		{
-			return vidNode.ToString();
-		}
-		if (obj.TryGetPropertyValue("DecalId", out var didNode) && didNode != null)
-		{
-			return didNode.ToString();
-		}
-		if (obj.TryGetPropertyValue("decal_id", out var didNodeLower) && didNodeLower != null)
-		{
-			return didNodeLower.ToString();
-		}
-
-		return null;
-	}
-
-
-	internal static void TraverseJsonForTermsAndAssetReferences(JsonNode node, HashSet<string> op1Terms, List<string> assetReferences)
-	{
-		if (node is JsonObject obj)
-		{
-			foreach (var kvp in obj)
-			{
-				if (kvp.Value == null) continue;
-
-				if (kvp.Value is JsonValue val && val.TryGetValue<string>(out string? strVal) && !string.IsNullOrWhiteSpace(strVal))
-				{
-					if (IsAssetExtension(strVal))
-					{
-						assetReferences.Add(strVal);
-					}
-					else
-					{
-						SplitAndAddTerms(strVal, op1Terms);
-					}
-				}
-				else
-				{
-					TraverseJsonForTermsAndAssetReferences(kvp.Value, op1Terms, assetReferences);
-				}
-			}
-		}
-		else if (node is JsonArray arr)
-		{
-			foreach (var item in arr)
-			{
-				if (item == null) continue;
-
-				if (item is JsonValue val && val.TryGetValue<string>(out string? strVal) && !string.IsNullOrWhiteSpace(strVal))
-				{
-					if (IsAssetExtension(strVal))
-					{
-						assetReferences.Add(strVal);
-					}
-					else
-					{
-						SplitAndAddTerms(strVal, op1Terms);
-					}
-				}
-				else
-				{
-					TraverseJsonForTermsAndAssetReferences(item, op1Terms, assetReferences);
-				}
-			}
-		}
-	}
-
-
-	internal static bool IsAssetExtension(string? value)
-	{
-		if (value == null)
-		{
-			return false;
-		}
-
-		string lower = value.ToLowerInvariant();
-		return lower.EndsWith(".rtex") || lower.EndsWith(".raud") || lower.EndsWith(".rmesh") || lower.EndsWith(".ranim");
-	}
-
-
-	internal static void SplitAndAddTerms(string text, HashSet<string> termsSet)
-	{
-		string[] words = NonAlphaRegex().Split(text);
-		foreach (string word in words)
-		{
-			if (!string.IsNullOrWhiteSpace(word) && word.Length > 1)
-			{
-				termsSet.Add(word.Trim().ToLowerInvariant());
-			}
-		}
-	}
-
-
-	internal static void ExtractTermsFromAssetReference(string wsPath, string assetRef, HashSet<string> termsSet)
-	{
-		string fileName = Path.GetFileName(assetRef);
-		string fileNameWithoutExt = Path.GetFileNameWithoutExtension(assetRef);
-		SplitAndAddTerms(fileNameWithoutExt, termsSet);
-
-		string? fullDiskPath = null;
-		if (File.Exists(assetRef))
-		{
-			fullDiskPath = assetRef;
-		}
-		else
-		{
-			string directWs = Path.Combine(wsPath, assetRef.TrimStart('/', '\\'));
-			if (File.Exists(directWs))
-			{
-				fullDiskPath = directWs;
-			}
-			else
-			{
-				string assetsWs = Path.Combine(wsPath, "Assets", assetRef.TrimStart('/', '\\'));
-				if (File.Exists(assetsWs))
-				{
-					fullDiskPath = assetsWs;
-				}
-				else
-				{
-					var manifest = MapFileService.LoadManifest(wsPath);
-					if (manifest.Assets != null)
-					{
-						var dict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-						MapManifest.FlattenAssetsInto(dict, manifest.Assets);
-						if (dict.TryGetValue(fileName, out string? hash) && !string.IsNullOrEmpty(hash))
-						{
-							fullDiskPath = MapAssetManager.Storage.FindAssetFilePath(hash);
-						}
-					}
-				}
-			}
-		}
-
-		if (fullDiskPath != null && File.Exists(fullDiskPath))
-		{
-			string? metaJson = RealmMetadataHelper.ExtractMetadata(fullDiskPath);
-			if (!string.IsNullOrEmpty(metaJson))
-			{
-				try
-				{
-					var metaObj = JsonNode.Parse(metaJson) as JsonObject;
-					if (metaObj != null && metaObj.TryGetPropertyValue("tags", out var tagsNode) && tagsNode is JsonArray tagArr)
-					{
-						foreach (var t in tagArr)
-						{
-							if (t != null)
-							{
-								SplitAndAddTerms(t.ToString(), termsSet);
-							}
-						}
-					}
-				}
-				catch
-				{
-				}
-			}
-		}
-	}
 
 
 	internal static List<IndexedAsset> FallbackScanAssets(HashSet<AssetType>? allowedTypes)
@@ -906,7 +524,7 @@ internal static partial class EditorAssetOperations
 					}
 
 					string relativePath = Path.GetRelativePath(baseDir, file).Replace('\\', '/');
-					var mappedType = MapStringToAssetType((string?)null, ext, relativePath);
+					var mappedType = AssetTypeMapping.MapStringToAssetType((string?)null, ext, relativePath);
 					if (allowedTypes != null && !allowedTypes.Contains(mappedType))
 					{
 						continue;
@@ -932,7 +550,6 @@ internal static partial class EditorAssetOperations
 		return results;
 	}
 
-
 	internal static void CollectAssetProperties(JsonObject obj, List<AssetPropertyTarget> properties, bool overwriteExisting, string? templateSlug = null)
 	{
 		EnsureKnownTemplateAssetProperties(obj, templateSlug);
@@ -953,7 +570,7 @@ internal static partial class EditorAssetOperations
 				continue;
 			}
 
-			if (IsAssetExtension(strVal) || IsKnownAssetProperty(kvp.Key))
+			if (TemplateJsonSearch.IsAssetExtension(strVal) || IsKnownAssetProperty(kvp.Key))
 			{
 				properties.Add(new AssetPropertyTarget
 				{
@@ -965,10 +582,9 @@ internal static partial class EditorAssetOperations
 		}
 	}
 
-
 	internal static void EnsureKnownTemplateAssetProperties(JsonObject obj, string? templateSlug = null)
 	{
-		string? slug = (templateSlug ?? GetTemplateSlugFromJsonObject(obj))?.ToLowerInvariant();
+		string? slug = (templateSlug ?? TemplateJsonSearch.GetTemplateSlugFromJsonObject(obj))?.ToLowerInvariant();
 
 		if (obj.ContainsKey("Columns") || obj.ContainsKey("Rows") || obj.ContainsKey("Fps") ||
 		    (slug != null && (slug.StartsWith("spritesheet/") || slug.Contains("spritesheet"))))
@@ -1024,13 +640,11 @@ internal static partial class EditorAssetOperations
 		}
 	}
 
-
 	internal static bool IsKnownAssetProperty(string propertyName)
 	{
 		string p = propertyName.ToLowerInvariant();
 		return p is "modelpath" or "portraitmodelpath" or "projectilemodelpath" or "iconpath" or "texturepath" or "basetexture" or "noisetexture" or "ribbontexture" or "visualeffect" or "attacksound" or "castsound" or "impactsound" or "impactvisualeffect" or "texture_path";
 	}
-
 
 	internal static AssetType[] GetAssetTypesForProperty(AssetPropertyTarget propTarget, string? templateSlug = null)
 	{
@@ -1102,7 +716,7 @@ internal static partial class EditorAssetOperations
 				return new[] { parentAssetType };
 			}
 
-			string? slug = GetTemplateSlugFromJsonObject(propTarget.Parent)?.ToLowerInvariant();
+			string? slug = TemplateJsonSearch.GetTemplateSlugFromJsonObject(propTarget.Parent)?.ToLowerInvariant();
 			if (!string.IsNullOrEmpty(slug))
 			{
 				int slashIdx = slug.IndexOf('/');
