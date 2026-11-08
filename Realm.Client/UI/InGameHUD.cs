@@ -104,11 +104,6 @@ public partial class InGameHUD : Control
 	private HBoxContainer _queueSlotsContainer = null!;
 
 	private VBoxContainer _minimapControls = null!;
-	private Button _btnZoom = null!;
-	private Button _btnToggleTerrain = null!;
-	private Button _btnToggleColorScheme = null!;
-	private Button _btnPing = null!;
-	private Button _btnCenter = null!;
 	private Button _btnSettings = null!;
 	private Button _btnQuitMatch = null!;
 	private Button _btnInstructions = null!;
@@ -175,8 +170,6 @@ public partial class InGameHUD : Control
 	private CountdownOverlayPanel _countdownOverlayPanelController = null!;
 
 	private HBoxContainer _controlGroupsContainer = null!;
-	private Button _btnSelectIdle = null!;
-	private Button _btnSelectArmy = null!;
 
 	private float _idlePulseTimer = 0f;
 	private int _lastIdleCount = 0;
@@ -674,71 +667,15 @@ public partial class InGameHUD : Control
 		_connectionWarningLabel.Visible = false;
 	}
 
+	private MinimapControlsPanel? _minimapControlsPanel;
+
+	private MinimapControlsPanel MinimapControls => _minimapControlsPanel ??= new MinimapControlsPanel();
+
 	private void SetupMinimapControls()
 	{
-		_minimapControls = new VBoxContainer();
-		_minimapControls.Name = "MinimapControls_VBoxContainer";
-		_minimapControls.Alignment = BoxContainer.AlignmentMode.Center;
-		_minimapControls.AddThemeConstantOverride("separation", 3);
-		_minimapControls.AnchorLeft = 0.1773f;
-		_minimapControls.AnchorRight = 0.2660f;
-		_minimapControls.AnchorTop = 0.18f;
-		_minimapControls.AnchorBottom = 0.94f;
-		_minimapControls.OffsetLeft = 0;
-		_minimapControls.OffsetRight = 0;
-		_minimapControls.OffsetTop = 0;
-		_minimapControls.OffsetBottom = 0;
-		_minimapControls.GrowHorizontal = GrowDirection.Both;
-		_minimapControls.GrowVertical = GrowDirection.Both;
-		var slotsContainer = GetNode<Control>("BottomConsole/HBox");
-		slotsContainer.AddChild(_minimapControls);
-
-		_btnZoom = new Button();
-		_btnZoom.Name = "BtnZoom_Button";
-		SetupMinimapButton(_btnZoom, UnicodeIcons.ZOOM_IN, "Toggle Camera Zoom (Near / Mid / Far) [Z]", () => GameContext.Host?.CycleCameraZoom());
-		_minimapControls.AddChild(_btnZoom);
-
-		_btnToggleTerrain = new Button();
-		_btnToggleTerrain.Name = "BtnToggleTerrain_Button";
-		SetupMinimapButton(_btnToggleTerrain, UnicodeIcons.MAP_IMAGE, "Toggle Terrain Overlay (Radar Mode) [F4]", () => ToggleMinimapTerrain());
-		_minimapControls.AddChild(_btnToggleTerrain);
-
-		_btnToggleColorScheme = new Button();
-		_btnToggleColorScheme.Name = "BtnToggleColorScheme_Button";
-		SetupMinimapButton(_btnToggleColorScheme, UnicodeIcons.PALETTE, "Toggle Minimap Color Scheme (Team / Player Colors)", () => ToggleMinimapColorScheme());
-		_minimapControls.AddChild(_btnToggleColorScheme);
-
-		_btnPing = new Button();
-		_btnPing.Name = "BtnPing_Button";
-		SetupMinimapButton(_btnPing, UnicodeIcons.CROSSHAIRS_TARGET, "Send Alert Ping on Map [Alt+G]", () =>
-		{
-			if (GameContext.Host != null)
-			{
-				GameContext.Host.ActivePingMode = true;
-				ShowFeedbackText("Ping Mode: Click Minimap or Ground to ping", new Color(1.0f, 0.1f, 0.2f));
-			}
-		});
-		_minimapControls.AddChild(_btnPing);
-
-		_btnCenter = new Button();
-		_btnCenter.Name = "BtnCenter_Button";
-		SetupMinimapButton(_btnCenter, UnicodeIcons.CASTLE, "Center Camera on Base [Space]", () => GameContext.Host?.CenterCameraOnPrimaryBuilding());
-		_minimapControls.AddChild(_btnCenter);
-
-		_btnSelectIdle = new Button();
-		_btnSelectIdle.Name = "BtnSelectIdle_Button";
-		SetupMinimapButton(_btnSelectIdle, UnicodeIcons.USER_CLOCK, "Select All Idle Units [F1]", () => GameContext.Host?.SelectAllIdleUnits());
-		_minimapControls.AddChild(_btnSelectIdle);
-
-		_btnSelectArmy = new Button();
-		_btnSelectArmy.Name = "BtnSelectArmy_Button";
-		SetupMinimapButton(_btnSelectArmy, UnicodeIcons.SHIELD, "Select All Army Units [F2]", () => GameContext.Host?.SelectAllMilitaryUnits());
-		_minimapControls.AddChild(_btnSelectArmy);
-
-		var btnHotkeys = new Button();
-		btnHotkeys.Name = "BtnHotkeys_Button";
-		SetupMinimapButton(btnHotkeys, UnicodeIcons.KEYBOARD, "Hotkey Reference", () => ToggleHotkeyPanel());
-		_minimapControls.AddChild(btnHotkeys);
+		MinimapControls.Build(new MinimapControlsHooks(this, ToggleMinimapTerrain, ToggleMinimapColorScheme,
+			ShowFeedbackText, ToggleHotkeyPanel));
+		_minimapControls = MinimapControls.Root!;
 	}
 
 	private string GetCurrentWeather()
@@ -818,81 +755,15 @@ public partial class InGameHUD : Control
 
 	private void SetupScoreboardPanel()
 	{
-		_scoreboardPanel = new PanelContainer();
-		_scoreboardPanel.Name = "ScoreboardPanel";
-		_scoreboardPanel.Visible = false;
-		_scoreboardPanel.SizeFlagsHorizontal = SizeFlags.ShrinkEnd;
-		var scoreboardStyle = new StyleBoxFlat();
-		scoreboardStyle.BgColor = new Color(0.12f, 0.12f, 0.14f, 0.9f);
-		scoreboardStyle.SetBorderWidthAll(1);
-		scoreboardStyle.BorderColor = UIStyle.ColorBronze;
-		scoreboardStyle.SetCornerRadiusAll(4);
-		scoreboardStyle.ContentMarginLeft = 10;
-		scoreboardStyle.ContentMarginRight = 10;
-		scoreboardStyle.ContentMarginTop = 8;
-		scoreboardStyle.ContentMarginBottom = 8;
-		_scoreboardPanel.AddThemeStyleboxOverride("panel", scoreboardStyle);
+		var nodes = ScoreboardBuilder.Create(_customUIPanel);
 
-		var scoreboardVBox = new VBoxContainer();
-		scoreboardVBox.Name = "ScoreboardVBox_VBoxContainer";
-		_scoreboardPanel.AddChild(scoreboardVBox);
-
-		var scoreboardHeader = new HBoxContainer();
-		scoreboardHeader.Name = "ScoreboardHeader_HBoxContainer";
-		scoreboardHeader.AddThemeConstantOverride("separation", 6);
-		scoreboardVBox.AddChild(scoreboardHeader);
-
-		var headerInset = new Control();
-		headerInset.Name = "ScoreboardHeaderInset";
-		headerInset.CustomMinimumSize = new Vector2(26, 0);
-		scoreboardHeader.AddChild(headerInset);
-
-		_scoreboardTitleLabel = new Label();
-		_scoreboardTitleLabel.Name = "ScoreboardTitle";
-		_scoreboardTitleLabel.Text = TranslationServer.Translate("SCOREBOARD");
-		UIStyle.ApplyTitle(_scoreboardTitleLabel, TranslationServer.Translate("SCOREBOARD"), 12);
-		_scoreboardTitleLabel.HorizontalAlignment = HorizontalAlignment.Center;
-		_scoreboardTitleLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		scoreboardHeader.AddChild(_scoreboardTitleLabel);
-
-		_scoreboardCollapseButton = new Button();
-		_scoreboardCollapseButton.Name = "ScoreboardCollapse_Button";
-		_scoreboardCollapseButton.Flat = false;
-		_scoreboardCollapseButton.FocusMode = FocusModeEnum.None;
-		_scoreboardCollapseButton.CustomMinimumSize = new Vector2(26, 22);
-		_scoreboardCollapseButton.AddThemeConstantOverride("icon_max_width", 0);
-		Font collapseIconFont = UIStyle.FontAwesome;
-		if (collapseIconFont != null)
-		{
-			_scoreboardCollapseButton.AddThemeFontOverride("font", collapseIconFont);
-		}
-
-		_scoreboardCollapseButton.AddThemeFontSizeOverride("font_size", 12);
-		UIStyle.ApplyButtonStyleBoxesClearingFocus(_scoreboardCollapseButton);
-		_scoreboardCollapseButton.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		_scoreboardCollapseButton.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
-		scoreboardHeader.AddChild(_scoreboardCollapseButton);
-
-		_scoreboardContent = new VBoxContainer();
-		_scoreboardContent.Name = "ScoreboardContent";
-		_scoreboardContent.AddThemeConstantOverride("separation", 6);
-		scoreboardVBox.AddChild(_scoreboardContent);
-
-		_scoreboardSelectors = new VBoxContainer();
-		_scoreboardSelectors.Name = "ScoreboardSelectors";
-		_scoreboardSelectors.AddThemeConstantOverride("separation", 4);
-		_scoreboardContent.AddChild(_scoreboardSelectors);
-
-		_scoreboardLeaderboardContent = new VBoxContainer();
-		_scoreboardLeaderboardContent.Name = "ScoreboardLeaderboardContent";
-		_scoreboardContent.AddChild(_scoreboardLeaderboardContent);
-
-		_scoreboardSummaryContent = new VBoxContainer();
-		_scoreboardSummaryContent.Name = "ScoreboardSummaryContent";
-		_scoreboardSummaryContent.Visible = false;
-		_scoreboardContent.AddChild(_scoreboardSummaryContent);
-
-		_customUIPanel.AddChild(_scoreboardPanel);
+		_scoreboardPanel = nodes.Panel;
+		_scoreboardTitleLabel = nodes.TitleLabel;
+		_scoreboardCollapseButton = nodes.CollapseButton;
+		_scoreboardContent = nodes.Content;
+		_scoreboardSelectors = nodes.Selectors;
+		_scoreboardLeaderboardContent = nodes.LeaderboardContent;
+		_scoreboardSummaryContent = nodes.SummaryContent;
 	}
 
 	private void ApplyModeSpecificUI()
@@ -1370,11 +1241,11 @@ public partial class InGameHUD : Control
 
 	private void UpdateIdleUnitButton(double delta)
 	{
-		if (_btnSelectIdle == null) return;
+		if (MinimapControls.IdleButton is not { } idleButton) return;
 
 		if (_lastIdleCount != _viewModel.IdleCount)
 		{
-			_btnSelectIdle.TooltipText = $"{TranslationServer.Translate("Select All Idle Units [F1]")} ({_viewModel.IdleCount} {TranslationServer.Translate("Idle")})";
+			idleButton.TooltipText = $"{TranslationServer.Translate("Select All Idle Units [F1]")} ({_viewModel.IdleCount} {TranslationServer.Translate("Idle")})";
 		}
 
 		if (_viewModel.IdleCount > 0)
@@ -1386,12 +1257,12 @@ public partial class InGameHUD : Control
 			}
 
 			float pulse = Mathf.Sin(_idlePulseTimer * 4f) * 0.5f + 0.5f;
-			_btnSelectIdle.Modulate = new Color(1f, 0.8f + pulse * 0.2f, 0.2f + pulse * 0.8f, 1f);
+			idleButton.Modulate = new Color(1f, 0.8f + pulse * 0.2f, 0.2f + pulse * 0.8f, 1f);
 		}
 		else
 		{
 			_idlePulseTimer = 0f;
-			_btnSelectIdle.Modulate = Colors.White;
+			idleButton.Modulate = Colors.White;
 		}
 
 		_lastIdleCount = _viewModel.IdleCount;
@@ -1429,46 +1300,6 @@ public partial class InGameHUD : Control
 
 		ShowFeedbackText(string.Format(TranslationServer.Translate("Minimap Colors: {0}"), schemeName), UIStyle.ColorGold);
 		QueueMinimapRedraw();
-	}
-
-	private void SetupMinimapButton(Button btn, string iconGlyph, string tooltip, Action onClick)
-	{
-		btn.Flat = false;
-		btn.Text = iconGlyph;
-		btn.Icon = null;
-		string trans = TranslationServer.Translate(tooltip);
-		btn.TooltipText = string.IsNullOrEmpty(trans) ? tooltip : trans;
-		btn.FocusMode = FocusModeEnum.None;
-		btn.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		btn.SizeFlagsVertical = SizeFlags.ExpandFill;
-		btn.Alignment = HorizontalAlignment.Center;
-		btn.AddThemeConstantOverride("icon_max_width", 0);
-
-		var font = UIStyle.FontAwesome;
-		if (font != null)
-		{
-			btn.AddThemeFontOverride("font", font);
-		}
-
-		btn.AddThemeFontSizeOverride("font_size", 14);
-		btn.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		btn.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
-		btn.AddThemeColorOverride("font_pressed_color", UIStyle.ColorCyanGlow);
-		btn.AddThemeColorOverride("font_focus_color", UIStyle.ColorGoldDull);
-		btn.AddThemeConstantOverride("outline_size", 2);
-		btn.AddThemeColorOverride("font_outline_color", new Color(0f, 0f, 0f, 0.9f));
-
-		btn.AddThemeStyleboxOverride("normal", UIStyle.CreateMinimapButtonStyle(false, false));
-		btn.AddThemeStyleboxOverride("hover", UIStyle.CreateMinimapButtonStyle(true, false));
-		btn.AddThemeStyleboxOverride("pressed", UIStyle.CreateMinimapButtonStyle(false, true));
-		btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-
-		btn.Pressed += () =>
-		{
-			GameContext.UserInterface?.PlayClickSound();
-			onClick?.Invoke();
-		};
-		btn.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 	}
 
 	private void SetupHUDButton(Button btn, string iconPath, string tooltip, Action onClick)
