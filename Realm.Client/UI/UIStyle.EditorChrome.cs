@@ -91,6 +91,17 @@ public static partial class UIStyle
 		return style;
 	}
 
+	/// <summary>The lit plate under the entity palette's selected category button.</summary>
+	public static StyleBoxFlat CreateEditorPaletteCategoryActive()
+	{
+		var style = new StyleBoxFlat();
+		style.BgColor = new Color(0.15f, 0.45f, 0.7f, 0.8f);
+		style.BorderColor = ColorCyanGlow;
+		style.SetBorderWidthAll(2);
+		style.SetCornerRadiusAll(4);
+		return style;
+	}
+
 	/// <summary>The panel behind an editor option button's popup list.</summary>
 	public static StyleBoxFlat CreateEditorPopupPanel()
 	{

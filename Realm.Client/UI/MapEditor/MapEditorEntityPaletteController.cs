@@ -256,11 +256,7 @@ public class MapEditorEntityPaletteController
 
 	private void UpdateCategoryButtonsStyle(string category)
 	{
-		var activeStyle = new StyleBoxFlat();
-		activeStyle.BgColor = new Color(0.15f, 0.45f, 0.7f, 0.8f);
-		activeStyle.BorderColor = UIStyle.ColorCyanGlow;
-		activeStyle.SetBorderWidthAll(2);
-		activeStyle.SetCornerRadiusAll(4);
+		var activeStyle = UIStyle.CreateEditorPaletteCategoryActive();
 
 		_btnChars.RemoveThemeStyleboxOverride("normal");
 		_btnBuilds.RemoveThemeStyleboxOverride("normal");
@@ -269,23 +265,17 @@ public class MapEditorEntityPaletteController
 		_btnDecals.RemoveThemeStyleboxOverride("normal");
 		_btnVfx.RemoveThemeStyleboxOverride("normal");
 
-		if (category == "Units" || category == "Characters") _btnChars.AddThemeStyleboxOverride("normal", activeStyle);
-		else _btnChars.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
+		ApplyCategoryButton(_btnChars, category is "Units" or "Characters", activeStyle);
+		ApplyCategoryButton(_btnBuilds, category is "Buildings", activeStyle);
+		ApplyCategoryButton(_btnEnv, category is "Resources" or "Environment", activeStyle);
+		ApplyCategoryButton(_btnProps, category is "Props", activeStyle);
+		ApplyCategoryButton(_btnDecals, category is "Decals", activeStyle);
+		ApplyCategoryButton(_btnVfx, category is "VFX", activeStyle);
+	}
 
-		if (category == "Buildings") _btnBuilds.AddThemeStyleboxOverride("normal", activeStyle);
-		else _btnBuilds.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-
-		if (category == "Resources" || category == "Environment") _btnEnv.AddThemeStyleboxOverride("normal", activeStyle);
-		else _btnEnv.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-
-		if (category == "Props") _btnProps.AddThemeStyleboxOverride("normal", activeStyle);
-		else _btnProps.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-
-		if (category == "Decals") _btnDecals.AddThemeStyleboxOverride("normal", activeStyle);
-		else _btnDecals.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-
-		if (category == "VFX") _btnVfx.AddThemeStyleboxOverride("normal", activeStyle);
-		else _btnVfx.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
+	private static void ApplyCategoryButton(Button button, bool isActive, StyleBox activeStyle)
+	{
+		button.AddThemeStyleboxOverride("normal", isActive ? activeStyle : UIStyle.CreateButtonNormal());
 	}
 
 	private string? GetPreviousSelectedId()
