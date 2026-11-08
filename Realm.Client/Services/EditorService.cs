@@ -489,15 +489,29 @@ public partial class EditorService : IEditorAPI
 
 	public int CurrentPasteAnchorIndex { get; set; } = 0;
 
-	public List<string> SwatchPaths { get; set; } = new List<string>();
-	public List<string> SwatchDisplayNames { get; set; } = new List<string>();
-	public List<Color> SwatchColors { get; set; } = new List<Color>();
+	private readonly EditorSwatchCatalog _swatches = new();
+
+	public List<string> SwatchPaths
+	{
+		get => _swatches.Paths;
+		set => _swatches.Paths = value;
+	}
+
+	public List<string> SwatchDisplayNames
+	{
+		get => _swatches.DisplayNames;
+		set => _swatches.DisplayNames = value;
+	}
+
+	public List<Color> SwatchColors
+	{
+		get => _swatches.Colors;
+		set => _swatches.Colors = value;
+	}
 
 	public void ClearSwatchData()
 	{
-		SwatchPaths.Clear();
-		SwatchDisplayNames.Clear();
-		SwatchColors.Clear();
+		_swatches.Clear();
 	}
 
 	public string GetActiveWorkspacePathFromSettings()
@@ -507,94 +521,17 @@ public partial class EditorService : IEditorAPI
 
 	public void PopulateSwatchData(SwatchSlotInfo[] slots, string wsPath)
 	{
-		for (int i = 0; i < TextureSwatchSlots.MaxSlots; i++)
-		{
-			var slot = slots[i];
-			if (!slot.IsFiller && !string.IsNullOrEmpty(slot.BaseName))
-			{
-				string resolvedPath = ResolveTexturePath(slot, wsPath);
-				SwatchDisplayNames.Add(slot.BaseName);
-				SwatchPaths.Add(resolvedPath);
-				SwatchColors.Add(new Color(0.6f, 0.6f, 0.6f));
-			}
-			else
-			{
-				SwatchDisplayNames.Add($"Slot {i} (Empty)");
-				SwatchPaths.Add("");
-				SwatchColors.Add(new Color(0.2f, 0.2f, 0.2f, 0.5f));
-			}
-		}
-	}
-
-	private string ResolveTexturePath(SwatchSlotInfo slot, string wsPath)
-	{
-		string rtexName = GetRtexName(slot);
-
-		string[] pathsToTry =
-		{
-			Path.Combine(wsPath, "Assets", "textures", rtexName),
-			Path.Combine(wsPath, rtexName)
-		};
-
-		foreach (var path in pathsToTry)
-		{
-			if (File.Exists(path)) return path;
-		}
-
-		string? found = TryFindRtexPath(rtexName);
-		if (!string.IsNullOrEmpty(found)) return found;
-
-		return string.Empty;
-	}
-
-	private string GetRtexName(SwatchSlotInfo slot)
-	{
-		string rtexName = slot.MetadataNode?.TexturePath ?? slot.FileName ?? (slot.BaseName + ".rtex");
-		if (!rtexName.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
-		{
-			rtexName += ".rtex";
-		}
-
-		return Path.GetFileName(rtexName);
-	}
-
-	private string? TryFindRtexPath(string rtexName)
-	{
-		string? found = PathUtils.FindPath($"Assets/textures/{rtexName}");
-		if (!string.IsNullOrEmpty(found) && File.Exists(found)) return found;
-
-		string? foundTemplate = PathUtils.FindPath($"MapTemplate/Assets/textures/{rtexName}");
-		if (!string.IsNullOrEmpty(foundTemplate) && File.Exists(foundTemplate)) return foundTemplate;
-
-		return null;
+		_swatches.Populate(slots, wsPath);
 	}
 
 	public string GetSwatchName(Color color)
 	{
-		float epsilon = 0.01f;
-		for (int i = 1; i <= this.SwatchColors.Count; i++)
-		{
-			Color c = GetSwatchColor(i);
-			if (Mathf.Abs(color.R - c.R) < epsilon &&
-				Mathf.Abs(color.G - c.G) < epsilon &&
-				Mathf.Abs(color.B - c.B) < epsilon)
-			{
-				string texName = (i >= 1 && i <= this.SwatchDisplayNames.Count) ? this.SwatchDisplayNames[i - 1] : "Unknown";
-				return texName;
-			}
-		}
-
-		return "Custom";
+		return _swatches.GetName(color);
 	}
 
 	public Color GetSwatchColor(int index)
 	{
-		if (index >= 1 && index <= this.SwatchColors.Count)
-		{
-			return this.SwatchColors[index - 1];
-		}
-
-		return new Color(1, 1, 1);
+		return _swatches.GetColor(index);
 	}
 
 	public static readonly string[] PasteAnchorNames = new string[]
