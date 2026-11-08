@@ -55,6 +55,7 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 	private bool _isPlaying = false;
 	private bool _isPlayingForward = true;
 	private float _currentAnimTime = 0.0f;
+	private int _lastProgressHundredths = -1;
 	private Action<CustomShaderConfig>? _onSaved;
 
 	public ShaderEditorDialog(MapEditorHUD hud)
@@ -307,8 +308,10 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 				_sldProgress.SetValueNoSignal(prog);
 			}
 
-			if (_lblProgress != null)
+			int hundredths = Mathf.RoundToInt(prog * 100.0f);
+			if (_lblProgress != null && hundredths != _lastProgressHundredths)
 			{
+				_lastProgressHundredths = hundredths;
 				_lblProgress.Text = $"{prog:F2}";
 			}
 
