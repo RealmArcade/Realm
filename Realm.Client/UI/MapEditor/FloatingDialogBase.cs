@@ -308,7 +308,7 @@ public partial class FloatingDialogBase : PanelContainer
 
 	public void SetUncompressedPanelTexture(string texturePath, int marginTop = 30, int marginBottom = 40, int marginLeft = 50, int marginRight = 50)
 	{
-		AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
+		UIStyle.ClearPanelBackground(this);
 
 		if (BackgroundTextureRect == null)
 		{
