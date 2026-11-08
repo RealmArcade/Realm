@@ -1,6 +1,7 @@
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -337,10 +338,10 @@ public static partial class MapWorkspaceService
 		return string.Empty;
 	}
 
-	private static string _cachedRepoRoot = null!;
+	private static string? _cachedRepoRoot;
 	private static bool _repoRootResolved;
 
-	private static string GetRepoRoot()
+	private static string? GetRepoRoot()
 	{
 		if (_repoRootResolved) return _cachedRepoRoot;
 		_repoRootResolved = true;
@@ -361,7 +362,7 @@ public static partial class MapWorkspaceService
 		return null;
 	}
 
-	private static string FindRootFile(string relativePath)
+	private static string? FindRootFile(string relativePath)
 	{
 		string found = PathUtils.FindPath(relativePath);
 		if (File.Exists(found) || Directory.Exists(found))
@@ -369,25 +370,29 @@ public static partial class MapWorkspaceService
 			return found;
 		}
 
-		string repoRoot = GetRepoRoot();
+		string? repoRoot = GetRepoRoot();
 		if (repoRoot == null) return null;
 		return Path.Combine(repoRoot, relativePath).Replace("\\", "/");
 	}
 
+	/// <summary>
+	///     The absolute path to a file in the map template. <see cref="string.Empty" /> when the template is not on this
+	///     machine, which is what the <c>File.Exists</c>/<c>Directory.Exists</c> guards at every copy site test for.
+	/// </summary>
 	public static string GetTemplatePath(string fileName)
 	{
-		return FindRootFile("MapTemplate/" + fileName);
+		return FindRootFile("MapTemplate/" + fileName) ?? string.Empty;
 	}
 
 	public static string? GetTemplateRoot()
 	{
-		string templateRoot = FindRootFile("MapTemplate");
+		string? templateRoot = FindRootFile("MapTemplate");
 		return Directory.Exists(templateRoot) ? templateRoot : null;
 	}
 
-	private static string FindBuiltApiDll()
+	private static string? FindBuiltApiDll()
 	{
-		string repoRoot = GetRepoRoot();
+		string? repoRoot = GetRepoRoot();
 		if (repoRoot == null) return null;
 		string binDir = Path.Combine(repoRoot, "Realm.MapAPI", "bin");
 		if (!Directory.Exists(binDir)) return null;
@@ -490,7 +495,7 @@ public static partial class MapWorkspaceService
 		string[] schemas = { "metadata.schema.json", "terrain.schema.json", "manifest.schema.json" };
 		foreach (string schema in schemas)
 		{
-			string schemaSrc = FindRootFile("Realm.MapEditorExtension/" + schema);
+			string? schemaSrc = FindRootFile("Realm.MapEditorExtension/" + schema);
 			if (!string.IsNullOrEmpty(schemaSrc) && File.Exists(schemaSrc))
 			{
 				File.Copy(schemaSrc, Path.Combine(vscodeDir, schema), true);
@@ -547,7 +552,7 @@ public static partial class MapWorkspaceService
 		}
 	}
 
-	private static string GetWitPath()
+	private static string? GetWitPath()
 	{
 		return FindRootFile("Realm.MapAPI/wit/game.g.wit");
 	}
@@ -557,7 +562,7 @@ public static partial class MapWorkspaceService
 		string witDir = Path.Combine(directory, "wit");
 		Directory.CreateDirectory(witDir);
 		string witPath = Path.Combine(witDir, "game.g.wit");
-		string sourceWit = GetWitPath();
+		string? sourceWit = GetWitPath();
 		if (File.Exists(sourceWit))
 		{
 			File.Copy(sourceWit, witPath, true);
@@ -747,7 +752,7 @@ public static partial class MapWorkspaceService
 		string libDir = Path.Combine(directory, "lib");
 		Directory.CreateDirectory(libDir);
 
-		string sourceDll = FindBestApiDllSource();
+		string? sourceDll = FindBestApiDllSource();
 		if (sourceDll == null)
 		{
 			GD.PushWarning("[MapWorkspaceService] Realm.MapAPI.dll not found (neither the Realm.MapAPI build output nor MapTemplate/lib is available). Map scripts will not compile until a valid DLL is provided.");
@@ -766,11 +771,11 @@ public static partial class MapWorkspaceService
 	private static string? FindBestApiDllSource()
 	{
 		var candidates = new List<string>();
-		string builtDll = FindBuiltApiDll();
+		string? builtDll = FindBuiltApiDll();
 		if (builtDll != null) candidates.Add(builtDll);
 
 		string templateDll = GetTemplatePath("lib/Realm.MapAPI.dll");
-		if (templateDll != null && File.Exists(templateDll)) candidates.Add(templateDll);
+		if (File.Exists(templateDll)) candidates.Add(templateDll);
 
 		if (candidates.Count == 0) return null;
 
@@ -779,12 +784,14 @@ public static partial class MapWorkspaceService
 
 	private static void ProcessApiLibFile(string sourceDll, string fileName, string libDir)
 	{
-		string source = Path.Combine(Path.GetDirectoryName(sourceDll), fileName);
+		string source = Path.GetDirectoryName(sourceDll) is { } sourceDir
+			? Path.Combine(sourceDir, fileName)
+			: GetTemplatePath("lib/" + fileName);
 
 		if (!File.Exists(source))
 		{
 			string templateAlt = GetTemplatePath("lib/" + fileName);
-			if (templateAlt != null && File.Exists(templateAlt))
+			if (File.Exists(templateAlt))
 				source = templateAlt;
 		}
 
@@ -1114,7 +1121,7 @@ public static partial class MapWorkspaceService
 
 	private static bool TryOptimizeGlb(string glbPath, string workspacePath, GlbOptimizer optimizer, OptimizationOptions options, DateTime lastWrite)
 	{
-		byte[] glbBytes = null;
+		byte[] glbBytes;
 		try
 		{
 			glbBytes = File.ReadAllBytes(glbPath);
@@ -1196,7 +1203,8 @@ public static partial class MapWorkspaceService
 		return unoptimizedList;
 	}
 
-	private static bool TryReadGlbBytes(string glbPath, out DateTime lastWrite, out byte[] bytes)
+	private static bool TryReadGlbBytes(
+		string glbPath, out DateTime lastWrite, [NotNullWhen(true)] out byte[]? bytes)
 	{
 		bytes = null;
 		lastWrite = default;
@@ -1293,13 +1301,15 @@ public static partial class MapWorkspaceService
 				File.SetAttributes(glbPath, attrs & ~FileAttributes.ReadOnly);
 			}
 
+			if (optResult.OutputGlbBytes is not { Length: > 0 } outputBytes) return false;
+
 			File.Delete(glbPath);
-			File.WriteAllBytes(glbPath, optResult.OutputGlbBytes);
+			File.WriteAllBytes(glbPath, outputBytes);
 
 			DateTime newLastWrite = File.GetLastWriteTimeUtc(glbPath);
 			_optimizedFlagCache[glbPath] = (newLastWrite, true);
 
-			string newHash = RealmMetadataHelper.ComputeBlake3(optResult.OutputGlbBytes, ".glb");
+			string newHash = RealmMetadataHelper.ComputeBlake3(outputBytes, ".glb");
 			UpdateMetadataGlbHash(workspacePath, fileName, newHash);
 
 			GameLog.LogToConsole($"[MapWorkspaceService] Successfully optimized {fileName} ({optResult.OriginalSize} -> {optResult.OptimizedSize} bytes).");
@@ -1748,7 +1758,7 @@ public static partial class MapWorkspaceService
 
 		foreach (var kvp in texturesObj)
 		{
-			if (kvp.Value is JsonValue val && val.TryGetValue<string>(out string hashStr))
+			if (kvp.Value is JsonValue val && val.TryGetValue<string>(out string? hashStr) && hashStr != null)
 				entriesToConvert.Add((kvp.Key, hashStr));
 		}
 
