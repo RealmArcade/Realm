@@ -20,6 +20,16 @@ public sealed class SpectatorPerspectiveOverlay
 	};
 
 	public PanelContainer? Root { get; private set; }
+	/// <summary>
+	/// Centres the switcher along the top edge. It is a fixed 300 wide, so the viewport alone decides the left offset.
+	/// </summary>
+	public void PlaceCentered(float viewportWidth)
+	{
+		if (Root == null || !GodotObject.IsInstanceValid(Root)) return;
+		Root.Position = new Vector2((viewportWidth - 300f) / 2.0f, 10f);
+	}
+
+
 
 	public void Build(Node owner, Action<int> setPerspective)
 	{

@@ -13,6 +13,7 @@ public sealed class HudVisibility
 {
 	private readonly Dictionary<HudElement, bool> _wishes = new();
 
+	private readonly Func<Control?> _bottomConsole;
 	private readonly Func<Control?> _minimapFrame;
 	private readonly Func<Control?> _minimapControls;
 	private readonly Func<Control?> _resourceBar;
@@ -26,6 +27,7 @@ public sealed class HudVisibility
 	private readonly Action _refreshScoreboard;
 
 	public HudVisibility(
+		Func<Control?> bottomConsole,
 		Func<Control?> minimapFrame,
 		Func<Control?> minimapControls,
 		Func<Control?> resourceBar,
@@ -38,6 +40,7 @@ public sealed class HudVisibility
 		Action refreshCountdown,
 		Action refreshScoreboard)
 	{
+		_bottomConsole = bottomConsole;
 		_minimapFrame = minimapFrame;
 		_minimapControls = minimapControls;
 		_resourceBar = resourceBar;
@@ -98,6 +101,22 @@ public sealed class HudVisibility
 				_refreshCountdown();
 				break;
 		}
+	}
+
+	/// <summary>
+	/// The console chrome a replay or a spectator does not get. Replay hides the whole command console; spectating keeps
+	/// it but drops the resource bar, because a spectator owns nothing to spend.
+	/// </summary>
+	public void ApplyModePresentation(bool isReplay, bool isSpectating)
+	{
+		if (isReplay)
+		{
+			if (_bottomConsole() is { } bottomConsole) bottomConsole.Visible = false;
+			if (_resourceBar() is { } resourceBar) resourceBar.Visible = false;
+			if (_chat() is { } chat) chat.Visible = false;
+		}
+
+		if (isSpectating && _resourceBar() is { } spectatorBar) spectatorBar.Visible = false;
 	}
 
 	/// <summary>

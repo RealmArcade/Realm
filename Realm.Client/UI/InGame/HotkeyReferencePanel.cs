@@ -140,6 +140,19 @@ public sealed class HotkeyReferencePanel
 	/// Centres the plate on the playfield, which is the area above the bottom console rather than the whole window. The
 	/// offsets are relative to the centre anchor, so a taller console pushes the plate up.
 	/// </summary>
+	/// <summary>
+	/// Centres the reference over the playfield rather than the screen, so the console artwork never cuts through it. The
+	/// console height follows the same 1920-scaled rule the console layout uses.
+	/// </summary>
+	public void CenterInPlayfield(float viewportWidth, float viewportHeight)
+	{
+		float vpW = viewportWidth <= 0f ? 1920f : viewportWidth;
+		float vpH = viewportHeight <= 0f ? 1080f : viewportHeight;
+		float consoleH = vpW * (BottomConsoleLayout.BaseConsoleHeight / 1920f);
+		float playfieldCenterY = (80f + (vpH - consoleH)) / 2f;
+		PlaceOverPlayfield(playfieldCenterY, vpH);
+	}
+
 	public void PlaceOverPlayfield(float playfieldCenterY, float viewportHeight)
 	{
 		if (Root == null) return;

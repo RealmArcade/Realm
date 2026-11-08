@@ -198,4 +198,18 @@ public sealed class InGameHudTheme
 			minimapArea.MoveChild(cameraIndicator, minimapArea.GetChildCount() - 1);
 		}
 	}
+
+	/// <summary>
+	/// Tells the resource plate's shader how big it ended up, so the painted border follows the plate instead of assuming
+	/// the size it was authored at. The fallbacks are the artwork's own dimensions.
+	/// </summary>
+	public static void ResizeResourcePlate(TextureRect? background, Control? container)
+	{
+		if (background?.Material is not ShaderMaterial topMat) return;
+
+		Vector2 size = container?.Size ?? Vector2.Zero;
+		float resW = size.X > 0 ? size.X : 840f;
+		float resH = size.Y > 0 ? size.Y : 76f;
+		topMat.SetShaderParameter("u_panel_size", new Vector2(resW, resH));
+	}
 }

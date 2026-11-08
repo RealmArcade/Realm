@@ -12,6 +12,21 @@ namespace Realm.Client.UI.InGame;
 [GlobalClass]
 public partial class UnitHealthBarOverlay : Control
 {
+	/// <summary>
+	/// Adds the overlay to the HUD and puts it behind everything else, so the bars sit over the world but under every
+	/// panel. It ignores the mouse throughout: health bars are read, never clicked.
+	/// </summary>
+	public static UnitHealthBarOverlay Create(Node host)
+	{
+		var overlay = new UnitHealthBarOverlay();
+		overlay.Name = "UnitHealthBarOverlay";
+		overlay.MouseFilter = Control.MouseFilterEnum.Ignore;
+		host.AddChild(overlay);
+		overlay.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+		host.MoveChild(overlay, 0);
+		return overlay;
+	}
+
 	private const float BaseBarWidth = 54f;
 	private const float BaseBarHeight = 6f;
 	private const float BaseBarGap = 2f;

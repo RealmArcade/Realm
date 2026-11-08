@@ -75,14 +75,13 @@ public partial class InGameHUD : Control
 	///     The player's HUD element switches and the panels each one fences.
 	/// </summary>
 	private HudVisibility Visibility => _visibility ??= new HudVisibility(
-		() => _minimapFrame, () => _minimapControls, () => _resourceContainer, () => _commandFrame,
+		() => _bottomConsole, () => _minimapFrame, () => _minimapControls, () => _resourceContainer, () => _commandFrame,
 		() => _portraitFrame, () => _chatPanel, () => _inventoryFrame, () => _inventoryGrid,
 		() => { if (GameContext.Host != null) RefreshUI(GameContext.Host.SelectedUnits); },
 		() => _countdownOverlayPanelController?.Update(_viewModel),
 		UpdateScoreboardVisibility);
 
 
-	private Shader _hudPortraitMaskShader = null!;
 
 	private GridContainer _commandGrid = null!;
 	private GridContainer _inventoryGrid = null!;
@@ -148,13 +147,6 @@ public partial class InGameHUD : Control
 	private Label _clockLabel = null!;
 
 	private VBoxContainer _customUIPanel = null!;
-	private PanelContainer _scoreboardPanel = null!;
-	private VBoxContainer _scoreboardContent = null!;
-	private VBoxContainer _scoreboardSelectors = null!;
-	private VBoxContainer _scoreboardLeaderboardContent = null!;
-	private VBoxContainer _scoreboardSummaryContent = null!;
-	private Label _scoreboardTitleLabel = null!;
-	private Button _scoreboardCollapseButton = null!;
 	private CountdownOverlayPanel _countdownOverlayPanelController = null!;
 
 	private HBoxContainer _controlGroupsContainer = null!;
@@ -283,16 +275,7 @@ public partial class InGameHUD : Control
 
 	private void OnLobbyCountdownTick(int seconds) => _viewModel.CountdownDuration = seconds;
 
-	private void SetupUnitHealthBarOverlay()
-	{
-		var overlay = new UnitHealthBarOverlay();
-		overlay.Name = "UnitHealthBarOverlay";
-		overlay.MouseFilter = MouseFilterEnum.Ignore;
-		AddChild(overlay);
-		overlay.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		MoveChild(overlay, 0);
-		_unitHealthBarOverlay = overlay;
-	}
+	private void SetupUnitHealthBarOverlay() => _unitHealthBarOverlay = UnitHealthBarOverlay.Create(this);
 
 	private void InitializeReferences()
 	{
@@ -421,18 +404,7 @@ public partial class InGameHUD : Control
 		SetupScoreboardPanel();
 	}
 
-	private void SetupScoreboardPanel()
-	{
-		var nodes = ScoreboardBuilder.Create(_customUIPanel);
-
-		_scoreboardPanel = nodes.Panel;
-		_scoreboardTitleLabel = nodes.TitleLabel;
-		_scoreboardCollapseButton = nodes.CollapseButton;
-		_scoreboardContent = nodes.Content;
-		_scoreboardSelectors = nodes.Selectors;
-		_scoreboardLeaderboardContent = nodes.LeaderboardContent;
-		_scoreboardSummaryContent = nodes.SummaryContent;
-	}
+	private void SetupScoreboardPanel() => _scoreboardPanelController = ScoreboardPanel.Create(_customUIPanel);
 
 	private void ApplyModeSpecificUI()
 	{
@@ -450,8 +422,7 @@ public partial class InGameHUD : Control
 
 		_camera3D = GameContext.Host?.MainCamera;
 		_minimapPanelController = new MinimapPanel(_minimapFrame, _minimapArea, _cameraIndicator, _camera3D);
-		_scoreboardPanelController = new ScoreboardPanel(_scoreboardPanel, _scoreboardTitleLabel, _scoreboardCollapseButton, _scoreboardContent, _scoreboardSelectors, _scoreboardLeaderboardContent, _scoreboardSummaryContent);
-
+	
 		_portraitPanelController = new PortraitPanel(
 			_portraitFrame, _selectionFrame, _unitsContainer, _unitButtons, _statsContainer,
 			_unitStatsPanel,
@@ -474,17 +445,11 @@ public partial class InGameHUD : Control
 
 	private void ApplySpectatorAndReplayOverrides()
 	{
-		if (GameContext.ReplayPlayback.IsPlayingReplay)
-		{
-			_bottomConsole.Visible = false;
-			_resourceContainer.Visible = false;
-			if (_chatPanel != null) _chatPanel.Visible = false;
-		}
-
 		bool isSpectator = GameContext.PerspectiveFilter.IsSpectating;
+		Visibility.ApplyModePresentation(GameContext.ReplayPlayback.IsPlayingReplay, isSpectator);
+
 		if (isSpectator)
 		{
-			_resourceContainer.Visible = false;
 			CreateSpectatorPerspectiveUI();
 		}
 	}
@@ -494,29 +459,11 @@ public partial class InGameHUD : Control
 		UpdateBottomConsoleHeight();
 		ApplyHUDScale();
 
-		if (_resourceBackground != null && _resourceBackground.Material is ShaderMaterial topMat && _resourceContainer != null)
-		{
-			float resW = _resourceContainer.Size.X > 0 ? _resourceContainer.Size.X : 840f;
-			float resH = _resourceContainer.Size.Y > 0 ? _resourceContainer.Size.Y : 76f;
-			topMat.SetShaderParameter("u_panel_size", new Vector2(resW, resH));
-		}
+		InGameHudTheme.ResizeResourcePlate(_resourceBackground, _resourceContainer);
 
-		var specPanel = GetNodeOrNull<PanelContainer>("SpectatorPanel");
-		if (specPanel != null)
-		{
-			specPanel.Position = new Vector2((GetViewportRect().Size.X - 300) / 2.0f, 10);
-		}
-
-		if (_hotkeyReference != null)
-		{
-			float vpW = GetViewportRect().Size.X;
-			float vpH = GetViewportRect().Size.Y;
-			if (vpW <= 0f) vpW = 1920f;
-			if (vpH <= 0f) vpH = 1080f;
-			float consoleH = vpW * (BottomConsoleLayout.BaseConsoleHeight / 1920f);
-			float playfieldCenterY = (80f + (vpH - consoleH)) / 2f;
-			_hotkeyReference.PlaceOverPlayfield(playfieldCenterY, vpH);
-		}
+		Vector2 viewportSize = GetViewportRect().Size;
+		SpectatorPerspective.PlaceCentered(viewportSize.X);
+		HotkeyReference.CenterInPlayfield(viewportSize.X, viewportSize.Y);
 	}
 
 	private BottomConsoleLayout? _consoleLayout;
@@ -741,20 +688,7 @@ public partial class InGameHUD : Control
 		QueueMinimapRedraw();
 	}
 
-	private void SetupPortrait()
-	{
-		var pTexture = GetNodeOrNull<TextureRect>("BottomConsole/HBox/PortraitFrame/VBox/PortraitTexture");
-		if (pTexture != null)
-		{
-			pTexture.Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/alliance_flag.webp");
-			_hudPortraitMaskShader ??= GD.Load<Shader>("res://Assets/shaders/hud_portrait_mask.gdshader");
-			var portraitMaskMaterial = new ShaderMaterial();
-			portraitMaskMaterial.Shader = _hudPortraitMaskShader;
-			pTexture.Material = portraitMaskMaterial;
-		}
-
-		GetNode<Label>("BottomConsole/HBox/PortraitFrame/VBox/UnitName").Text = TranslationServer.Translate("No Selection");
-	}
+	private void SetupPortrait() => PortraitFrameSetup.Prepare(this);
 
 	private void CenterCameraOnSelectedUnit()
 	{

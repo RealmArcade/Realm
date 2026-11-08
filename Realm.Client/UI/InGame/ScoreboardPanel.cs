@@ -45,7 +45,19 @@ public class ScoreboardPanel
 	private int _lastBoardSignature = int.MinValue;
 	private int _lastGroupSignature = int.MinValue;
 
-	public ScoreboardPanel(
+	/// <summary>
+	/// Builds the scoreboard into <paramref name="dock" /> and returns the controller that owns it. The nodes never
+	/// leave this class: the HUD only ever talks to the controller.
+	/// </summary>
+	public static ScoreboardPanel Create(Control dock) => new(ScoreboardBuilder.Create(dock));
+
+	public ScoreboardPanel(ScoreboardNodes nodes)
+		: this(nodes.Panel, nodes.TitleLabel, nodes.CollapseButton, nodes.Content, nodes.Selectors,
+			nodes.LeaderboardContent, nodes.SummaryContent)
+	{
+	}
+
+	private ScoreboardPanel(
 		PanelContainer panel,
 		Label titleLabel,
 		Button collapseButton,
