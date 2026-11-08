@@ -2658,7 +2658,7 @@ public partial class GameHost
 		CycleSelectionIndex = 0;
 	}
 
-	private Unit3D FindUnit3DInParentChain(Node node)
+	private Unit3D? FindUnit3DInParentChain(Node? node)
 	{
 		while (node != null)
 		{
@@ -2673,7 +2673,7 @@ public partial class GameHost
 		return null;
 	}
 
-	public Decal FindDecalInParentChain(Node node)
+	public Decal? FindDecalInParentChain(Node? node)
 	{
 		if (!GameContext.SessionState.IsMapEditorMode) return null;
 		while (node != null)
@@ -2689,7 +2689,7 @@ public partial class GameHost
 		return null;
 	}
 
-	public ProceduralVfxInstance3D FindVfxInParentChain(Node node)
+	public ProceduralVfxInstance3D? FindVfxInParentChain(Node? node)
 	{
 		if (!GameContext.SessionState.IsMapEditorMode) return null;
 		while (node != null)

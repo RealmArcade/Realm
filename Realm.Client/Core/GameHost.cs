@@ -731,7 +731,7 @@ public partial class GameHost : Node3D
 		}
 	}
 
-	public Node SelectedEditorObject
+	public Node? SelectedEditorObject
 	{
 		get => _selectedEditorObject;
 		set
@@ -2765,7 +2765,7 @@ public partial class GameHost : Node3D
 		SetSkyboxTexture(EditorSkyboxPath);
 	}
 
-	private Prop3D FindProp3DInParentChain(Node node)
+	private Prop3D? FindProp3DInParentChain(Node? node)
 	{
 		while (node != null)
 		{

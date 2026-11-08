@@ -16,19 +16,19 @@ public class ObjectDeleteAction : IEditorAction
 	private readonly float _rotationY;
 	private readonly float _scale;
 	private readonly int _player;
-	private Node _spawnedNode;
+	private Node? _spawnedNode;
 
-	public ObjectDeleteAction(string objectType, string objectId, Vector3 position, float rotationY, float scale, Node deletedNode, int player = -1)
+	public ObjectDeleteAction(string objectType, string objectId, Vector3 position, float rotationY, float scale, Node? deletedNode, int player = -1)
 		: this(objectType, objectId, position, (deletedNode as Node3D)?.RotationDegrees ?? new Vector3(0f, rotationY, 0f), scale, deletedNode, player)
 	{
 	}
 
-	public ObjectDeleteAction(string objectType, string objectId, Vector3 position, float rotationY, float scale, bool isEnemy, Node deletedNode, int player = -1)
+	public ObjectDeleteAction(string objectType, string objectId, Vector3 position, float rotationY, float scale, bool isEnemy, Node? deletedNode, int player = -1)
 		: this(objectType, objectId, position, (deletedNode as Node3D)?.RotationDegrees ?? new Vector3(0f, rotationY, 0f), scale, deletedNode, player >= 0 ? player : (isEnemy ? 1 : 0))
 	{
 	}
 
-	public ObjectDeleteAction(string objectType, string objectId, Vector3 position, Vector3 rotationDegrees, float scale, Node deletedNode, int player = -1)
+	public ObjectDeleteAction(string objectType, string objectId, Vector3 position, Vector3 rotationDegrees, float scale, Node? deletedNode, int player = -1)
 	{
 		_objectType = objectType;
 		_objectId = objectId;
@@ -40,7 +40,7 @@ public class ObjectDeleteAction : IEditorAction
 		_spawnedNode = deletedNode;
 	}
 
-	public ObjectDeleteAction(string objectType, string objectId, Vector3 position, Vector3 rotationDegrees, float scale, bool isEnemy, Node deletedNode, int player = -1)
+	public ObjectDeleteAction(string objectType, string objectId, Vector3 position, Vector3 rotationDegrees, float scale, bool isEnemy, Node? deletedNode, int player = -1)
 		: this(objectType, objectId, position, rotationDegrees, scale, deletedNode, player >= 0 ? player : (isEnemy ? 1 : 0))
 	{
 	}

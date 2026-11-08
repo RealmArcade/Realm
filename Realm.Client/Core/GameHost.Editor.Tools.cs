@@ -65,7 +65,7 @@ namespace Realm.Client.Core
 			return GameContext.EditorService.NormalizeModelAssetKey(str);
 		}
 
-		private string CheckPropOrResourceRegistryForModelPath(string str)
+		private string? CheckPropOrResourceRegistryForModelPath(string str)
 		{
 			if (PropRegistry != null && PropRegistry.TryGetValue(str, out var propMeta) && !string.IsNullOrEmpty(propMeta.ModelPath))
 				return GameContext.EditorService.NormalizeModelAssetKey(propMeta.ModelPath);
@@ -74,7 +74,7 @@ namespace Realm.Client.Core
 			return null;
 		}
 
-		private string CheckUnitOrBuildingRegistryForModelPath(string str)
+		private string? CheckUnitOrBuildingRegistryForModelPath(string str)
 		{
 			if (UnitRegistry != null && UnitRegistry.TryGetValue(str, out var unitMeta) && !string.IsNullOrEmpty(unitMeta.ModelPath))
 				return GameContext.EditorService.NormalizeModelAssetKey(unitMeta.ModelPath);
@@ -140,7 +140,7 @@ namespace Realm.Client.Core
 			return false;
 		}
 
-		private bool IsMatch(string key, string normTarget)
+		private bool IsMatch(string? key, string normTarget)
 		{
 			return !string.IsNullOrEmpty(key) && GameContext.EditorService.NormalizeModelAssetKey(key) == normTarget;
 		}
@@ -330,14 +330,14 @@ namespace Realm.Client.Core
 			GameContext.ModelOverrideService.ModelDespillPlayerColor[norm] = despillPlayerColor;
 
 			string modelAsset = GetModelAssetKey(assetKey);
-			string normModel = !string.IsNullOrEmpty(modelAsset) ? GameContext.EditorService.NormalizeModelAssetKey(modelAsset) : null;
+			string? normModel = !string.IsNullOrEmpty(modelAsset) ? GameContext.EditorService.NormalizeModelAssetKey(modelAsset) : null;
 			if (!string.IsNullOrEmpty(normModel) && !normModel.Equals(norm, StringComparison.OrdinalIgnoreCase))
 			{
 				GameContext.ModelOverrideService.ModelDespillPlayerColor[normModel] = despillPlayerColor;
 			}
 
 			string primaryKey = GetSelectedEntityOrAssetKey(assetKey);
-			string normPrimary = !string.IsNullOrEmpty(primaryKey) ? GameContext.EditorService.NormalizeModelAssetKey(primaryKey) : null;
+			string? normPrimary = !string.IsNullOrEmpty(primaryKey) ? GameContext.EditorService.NormalizeModelAssetKey(primaryKey) : null;
 			if (!string.IsNullOrEmpty(normPrimary) && !normPrimary.Equals(norm, StringComparison.OrdinalIgnoreCase))
 			{
 				GameContext.ModelOverrideService.ModelDespillPlayerColor[normPrimary] = despillPlayerColor;
@@ -412,7 +412,7 @@ namespace Realm.Client.Core
 			if (string.IsNullOrEmpty(norm)) return;
 
 			string modelAsset = GetModelAssetKey(assetKey);
-			string normModel = !string.IsNullOrEmpty(modelAsset) ? GameContext.EditorService.NormalizeModelAssetKey(modelAsset) : null;
+			string? normModel = !string.IsNullOrEmpty(modelAsset) ? GameContext.EditorService.NormalizeModelAssetKey(modelAsset) : null;
 
 			UpdateModelSpawnShaders(norm, normModel, shaderKey);
 			UpdateRegistrySpawnShaders(assetKey, shaderKey);
@@ -438,7 +438,7 @@ namespace Realm.Client.Core
 
 		private void UpdateRegistrySpawnShaders(string assetKey, string shaderKey)
 		{
-			string finalShader = string.IsNullOrWhiteSpace(shaderKey) ? null : shaderKey.Trim();
+			string? finalShader = string.IsNullOrWhiteSpace(shaderKey) ? null : shaderKey.Trim();
 
 			if (UnitRegistry.TryGetValue(assetKey, out var unitMeta))
 			{
@@ -471,7 +471,7 @@ namespace Realm.Client.Core
 			if (string.IsNullOrEmpty(norm)) return;
 
 			string modelAsset = GetModelAssetKey(assetKey);
-			string normModel = !string.IsNullOrEmpty(modelAsset) ? GameContext.EditorService.NormalizeModelAssetKey(modelAsset) : null;
+			string? normModel = !string.IsNullOrEmpty(modelAsset) ? GameContext.EditorService.NormalizeModelAssetKey(modelAsset) : null;
 
 			if (string.IsNullOrWhiteSpace(shaderKey))
 			{
@@ -499,7 +499,7 @@ namespace Realm.Client.Core
 
 		private void UpdateDeathShaderMetadataForAsset(string assetKey, string shaderKey)
 		{
-			string cleanShaderKey = string.IsNullOrWhiteSpace(shaderKey) ? null : shaderKey.Trim();
+			string? cleanShaderKey = string.IsNullOrWhiteSpace(shaderKey) ? null : shaderKey.Trim();
 
 			if (UnitRegistry != null && UnitRegistry.TryGetValue(assetKey, out var unitMeta))
 			{
@@ -548,7 +548,7 @@ namespace Realm.Client.Core
 			if (string.IsNullOrEmpty(norm)) return;
 
 			string modelAsset = GetModelAssetKey(assetKey);
-			string normModel = !string.IsNullOrEmpty(modelAsset) ? GameContext.EditorService.NormalizeModelAssetKey(modelAsset) : null;
+			string? normModel = !string.IsNullOrEmpty(modelAsset) ? GameContext.EditorService.NormalizeModelAssetKey(modelAsset) : null;
 
 			if (string.IsNullOrWhiteSpace(animId))
 			{
@@ -621,14 +621,14 @@ namespace Realm.Client.Core
 			GameContext.ModelOverrideService.ModelIgnorePlayerColor[norm] = ignorePlayerColor;
 
 			string modelAsset = GetModelAssetKey(assetKey);
-			string normModel = !string.IsNullOrEmpty(modelAsset) ? GameContext.EditorService.NormalizeModelAssetKey(modelAsset) : null;
+			string? normModel = !string.IsNullOrEmpty(modelAsset) ? GameContext.EditorService.NormalizeModelAssetKey(modelAsset) : null;
 			if (!string.IsNullOrEmpty(normModel) && !normModel.Equals(norm, StringComparison.OrdinalIgnoreCase))
 			{
 				GameContext.ModelOverrideService.ModelIgnorePlayerColor[normModel] = ignorePlayerColor;
 			}
 
 			string primaryKey = GetSelectedEntityOrAssetKey(assetKey);
-			string normPrimary = !string.IsNullOrEmpty(primaryKey) ? GameContext.EditorService.NormalizeModelAssetKey(primaryKey) : null;
+			string? normPrimary = !string.IsNullOrEmpty(primaryKey) ? GameContext.EditorService.NormalizeModelAssetKey(primaryKey) : null;
 			if (!string.IsNullOrEmpty(normPrimary) && !normPrimary.Equals(norm, StringComparison.OrdinalIgnoreCase))
 			{
 				GameContext.ModelOverrideService.ModelIgnorePlayerColor[normPrimary] = ignorePlayerColor;
@@ -794,7 +794,7 @@ namespace Realm.Client.Core
 			return SpawnPropExternalWithParams(propId, position, rotY, scale);
 		}
 
-		private Decal3D FindDecal3DInParentChain(Node node)
+		private Decal3D? FindDecal3DInParentChain(Node? node)
 		{
 			if (!GameContext.SessionState.IsMapEditorMode) return null;
 			Node current = node;
@@ -826,7 +826,7 @@ namespace Realm.Client.Core
 			}
 		}
 
-		private ImageTexture GenerateNormalMap(Image albedoImg, int sKey)
+		private ImageTexture? GenerateNormalMap(Image albedoImg, int sKey)
 		{
 			int w = Math.Min(albedoImg.GetWidth(), 512);
 			int h = Math.Min(albedoImg.GetHeight(), 512);
@@ -995,7 +995,7 @@ namespace Realm.Client.Core
 			return Colors.White;
 		}
 
-		private DecalMetadata TryGetDecalMetadata(MapMetadata metadata, string decalId)
+		private DecalMetadata? TryGetDecalMetadata(MapMetadata metadata, string decalId)
 		{
 			if (metadata?.Decals == null) return null;
 
@@ -1355,7 +1355,7 @@ namespace Realm.Client.Core
 			DestroyMapEntity(vfx.Entity);
 		}
 
-		public IEditorAction DeleteObjectAtWithUndo(Node collider, Vector3 hitPos)
+		public IEditorAction? DeleteObjectAtWithUndo(Node collider, Vector3 hitPos)
 		{
 			if (collider == null || !GodotObject.IsInstanceValid(collider))
 			{
@@ -1373,7 +1373,7 @@ namespace Realm.Client.Core
 			return null;
 		}
 
-		private IEditorAction DeleteByDirectParentChain(Node collider)
+		private IEditorAction? DeleteByDirectParentChain(Node collider)
 		{
 			var unitAction = TryDeleteUnitFromParent(collider);
 			if (unitAction != null) return unitAction;
@@ -1390,7 +1390,7 @@ namespace Realm.Client.Core
 			return null;
 		}
 
-		private IEditorAction TryDeleteUnitFromParent(Node collider)
+		private IEditorAction? TryDeleteUnitFromParent(Node collider)
 		{
 			var unit = (collider as Unit3D) ?? FindUnit3DInParentChain(collider);
 			if (unit != null && GodotObject.IsInstanceValid(unit))
@@ -1409,7 +1409,7 @@ namespace Realm.Client.Core
 			return null;
 		}
 
-		private IEditorAction TryDeletePropFromParent(Node collider)
+		private IEditorAction? TryDeletePropFromParent(Node collider)
 		{
 			var proxy = collider as PropEntityProxyNode;
 			if (proxy != null && GodotObject.IsInstanceValid(proxy))
@@ -1440,7 +1440,7 @@ namespace Realm.Client.Core
 			return null;
 		}
 
-		private IEditorAction TryDeleteDecalFromParent(Node collider)
+		private IEditorAction? TryDeleteDecalFromParent(Node collider)
 		{
 			var decal = (collider as Decal) ?? FindDecalInParentChain(collider);
 			if (decal != null && GodotObject.IsInstanceValid(decal))
@@ -1457,7 +1457,7 @@ namespace Realm.Client.Core
 			return null;
 		}
 
-		private IEditorAction TryDeleteVfxFromParent(Node collider)
+		private IEditorAction? TryDeleteVfxFromParent(Node collider)
 		{
 			var vfx = (collider as ProceduralVfxInstance3D) ?? FindVfxInParentChain(collider);
 			if (vfx != null && GodotObject.IsInstanceValid(vfx))
@@ -1475,7 +1475,7 @@ namespace Realm.Client.Core
 			return null;
 		}
 
-		private IEditorAction DeleteByProximitySearch(Vector3 hitPos)
+		private IEditorAction? DeleteByProximitySearch(Vector3 hitPos)
 		{
 			var (closestUnit, closestUnitDist) = FindClosestUnitDistance(hitPos);
 			var (closestProp, closestPropDist) = FindClosestPropDistance(hitPos);
@@ -1510,7 +1510,7 @@ namespace Realm.Client.Core
 
 		private (Unit3D?, float) FindClosestUnitDistance(Vector3 hitPos)
 		{
-			Unit3D closestUnit = null;
+			Unit3D? closestUnit = null;
 			float closestDist = 2.0f;
 			foreach (var u in AllUnits)
 			{
@@ -1530,7 +1530,7 @@ namespace Realm.Client.Core
 
 		private (Prop3D?, float) FindClosestPropDistance(Vector3 hitPos)
 		{
-			Prop3D closestProp = null;
+			Prop3D? closestProp = null;
 			float closestDist = 2.0f;
 			foreach (var p in AllProps)
 			{
@@ -1551,7 +1551,7 @@ namespace Realm.Client.Core
 		private (Entity, string?, Vector3, float, float, float) FindClosestStaticPropDistance(Vector3 hitPos)
 		{
 			Entity closestEntity = Entity.Null;
-			string closestId = null;
+			string? closestId = null;
 			Vector3 closestPos = Vector3.Zero;
 			float closestRotY = 0f;
 			float closestScale = 1f;
@@ -1582,7 +1582,7 @@ namespace Realm.Client.Core
 
 		private (Decal?, float) FindClosestDecalDistance(Vector3 hitPos)
 		{
-			Decal closestDecal = null;
+			Decal? closestDecal = null;
 			float closestDist = 2.0f;
 			foreach (var decalObj in AllDecals)
 			{
@@ -1602,7 +1602,7 @@ namespace Realm.Client.Core
 
 		private (ProceduralVfxInstance3D?, float) FindClosestVfxDistance(Vector3 hitPos)
 		{
-			ProceduralVfxInstance3D closestVfx = null;
+			ProceduralVfxInstance3D? closestVfx = null;
 			float closestDist = 2.0f;
 			foreach (var vfxObj in AllVfx)
 			{
@@ -2143,7 +2143,7 @@ namespace Realm.Client.Core
 			                ActiveEditorTool == EditorTool.DeleteObject ||
 			                ActiveEditorTool == EditorTool.Eyedropper;
 
-			Node newHovered = null;
+			Node? newHovered = null;
 			if (canHover && !IsMouseOverUI())
 			{
 				newHovered = ResolveHoveredEditorObject(mousePos);
@@ -2157,12 +2157,12 @@ namespace Realm.Client.Core
 			}
 		}
 
-		private Node ResolveHoveredEditorObject(Vector2 mousePos)
+		private Node? ResolveHoveredEditorObject(Vector2 mousePos)
 		{
 			var objectHit = RaycastFromMouse(mousePos);
 			var collider = (objectHit != null && objectHit.ContainsKey("collider")) ? objectHit["collider"].As<Node>() : null;
 
-			Node newHovered = null;
+			Node? newHovered = null;
 			if (collider != null)
 			{
 				newHovered = FindUnit3DInParentChain(collider);
@@ -3110,7 +3110,7 @@ namespace Realm.Client.Core
 
 			foreach (var req in requests)
 			{
-				Node spawnedNode = null;
+				Node? spawnedNode = null;
 				if (req.Type == "unit")
 					spawnedNode = SpawnUnitExternal(req.Id, req.Position, req.Rotation, req.Scale, req.Player);
 				else if (req.Type == "prop")
