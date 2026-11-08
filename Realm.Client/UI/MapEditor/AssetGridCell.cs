@@ -40,10 +40,7 @@ public partial class AssetGridCell : PanelContainer
 		thumbContainer.CustomMinimumSize = new Vector2(0, 56);
 		thumbContainer.SizeFlagsVertical = SizeFlags.ExpandFill;
 		thumbContainer.MouseFilter = MouseFilterEnum.Pass;
-		var thumbStyle = new StyleBoxFlat();
-		thumbStyle.BgColor = new Color(0.06f, 0.07f, 0.09f, 0.8f);
-		thumbStyle.SetCornerRadiusAll(3);
-		thumbContainer.AddThemeStyleboxOverride("panel", thumbStyle);
+		thumbContainer.AddThemeStyleboxOverride("panel", UIStyle.CreateFlatFillPlate(new Color(0.06f, 0.07f, 0.09f, 0.8f), 3));
 		mainVBox.AddChild(thumbContainer);
 
 		_thumbnailRect = new TextureRect();
@@ -188,37 +185,20 @@ public partial class AssetGridCell : PanelContainer
 		AddThemeStyleboxOverride("panel", CreatePanelStyle(_isSelected, _isHovered));
 	}
 
-	private StyleBox CreatePanelStyle(bool isSelected, bool isHovered)
+	/// <summary>Selected, hovered and resting are the same card plate; only the fill and the rule change.</summary>
+	private static StyleBox CreatePanelStyle(bool isSelected, bool isHovered)
 	{
-		var style = new StyleBoxFlat();
-		style.BgColor = isSelected
-			? new Color(0.24f, 0.22f, 0.18f, 0.95f)
-			: (isHovered ? new Color(0.18f, 0.19f, 0.22f, 0.9f) : new Color(0.12f, 0.13f, 0.15f, 0.85f));
-
 		if (isSelected)
 		{
-			style.BorderColor = UIStyle.ColorGold;
-			style.SetBorderWidthAll(2);
+			return UIStyle.CreateCardPlate(new Color(0.24f, 0.22f, 0.18f, 0.95f), UIStyle.ColorGold, 2, 4, 6, 6, 6, 6);
 		}
-		else if (isHovered)
+
+		if (isHovered)
 		{
-			style.BorderColor = UIStyle.ColorCyanGlow;
-			style.SetBorderWidthAll(1);
-		}
-		else
-		{
-			style.BorderColor = new Color(0.28f, 0.26f, 0.22f, 0.6f);
-			style.SetBorderWidthAll(1);
+			return UIStyle.CreateCardPlate(new Color(0.18f, 0.19f, 0.22f, 0.9f), UIStyle.ColorCyanGlow, 1, 4, 6, 6, 6, 6);
 		}
 
-		style.SetCornerRadiusAll(4);
-
-		style.ContentMarginLeft = 6;
-		style.ContentMarginRight = 6;
-		style.ContentMarginTop = 6;
-		style.ContentMarginBottom = 6;
-
-		return style;
+		return UIStyle.CreateCardPlate(new Color(0.12f, 0.13f, 0.15f, 0.85f), new Color(0.28f, 0.26f, 0.22f, 0.6f), 1, 4, 6, 6, 6, 6);
 	}
 
 	private static string FormatFileSize(long bytes)
