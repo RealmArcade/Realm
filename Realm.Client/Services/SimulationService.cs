@@ -104,6 +104,7 @@ public class SimulationService
 	}
 
 	private readonly BuildQueueProcessor _buildQueue;
+	private readonly PresentationTransform _presentation;
 
 	public void DomainProcessCompletedBuilding(Entity buildingEntity, Action<Entity>? viewCallback, Action<Entity>? notifyCallback)
 	{
@@ -353,6 +354,7 @@ public class SimulationService
 
 	public SimulationService()
 	{
+		_presentation = new PresentationTransform();
 		_bots = new PlayerBotDirector((pIdx, actionId, intent, pos) => OnBotCustomActionExecuted?.Invoke(pIdx, actionId, intent, pos, string.Empty));
 		_destruction = new UnitDestruction(UnitWrapperCache);
 		_buildQueue = new BuildQueueProcessor(PendingQueuedCommands);
@@ -429,7 +431,7 @@ public class SimulationService
 
 	public void Initialize()
 	{
-		_presentationQueryDelegate = PresentationQueryAction;
+		_presentationQueryDelegate = _presentation.PresentationQueryAction;
 	}
 
 	public bool ShouldSimulateEntity(Entity entity)
@@ -544,33 +546,15 @@ public class SimulationService
 
 	public bool TryGetInterpolatedTransform(Entity entity, float fraction, out Vector3 position, out float rotationY)
 	{
-		position = Vector3.Zero;
-		rotationY = 0f;
-
-		if (GameContext.World == null || !World.IsAlive(entity)) return false;
-
-		if (World.Has<Position>(entity))
-		{
-			Vector3 curPos = World.Get<Position>(entity).Value;
-			Vector3 prevPos = World.Has<PreviousPosition>(entity) ? World.Get<PreviousPosition>(entity).Value : curPos;
-			position = Vector3.Lerp(prevPos, curPos, fraction);
-		}
-
-		if (World.Has<RotationY>(entity))
-		{
-			float curRot = World.Get<RotationY>(entity).Value;
-			float prevRot = World.Has<PreviousRotationY>(entity) ? World.Get<PreviousRotationY>(entity).Value : curRot;
-			rotationY = Mathf.LerpAngle(prevRot, curRot, fraction);
-		}
-
-		return true;
+		return _presentation.TryGetInterpolatedTransform(entity, fraction, out position, out rotationY);
 	}
 
 	public (Vector3 Position, float RotationY) GetInterpolatedTransform(Entity entity, float fraction)
 	{
-		TryGetInterpolatedTransform(entity, fraction, out var pos, out var rotY);
-		return (pos, rotY);
+		return _presentation.GetInterpolatedTransform(entity, fraction);
 	}
+
+
 
 	public EntityCallback<Position, MoveTo, MovementStats> EditorMovementQueryDelegate => _movementService.EditorMovementQueryDelegate;
 	public EntityCallback<LatestDescription> PresentationQueryDelegate => _presentationQueryDelegate;
@@ -740,49 +724,6 @@ public class SimulationService
 		}
 	}
 
-	private const float StationaryVelocitySquared = 0.01f;
-
-	/// <summary>
-	///     The one thing that writes <see cref="Position" /> for a replicated unit, from the description sampled where the
-	///     match clock is being rendered rather than where the authority has got to. A unit is drawn between the two
-	///     descriptions either side of the cursor, so it neither trails a smoothed target nor has to be caught up.
-	/// </summary>
-	private void PresentationQueryAction(Entity entity, ref LatestDescription target)
-	{
-		if (!World.Has<Position>(entity)) return;
-
-		if (MultiplayerSyncDiagnostics.IsRecording) MultiplayerSyncDiagnostics.RecordPresentationStep(entity.Id, GameContext.NetworkService?.LastAppliedSnapshotSequenceForDiagnostics ?? -1);
-
-		// Only a unit this screen ordered to move is drawn ahead of its newest description, and the step is bounded to one
-		// interval and 0.75 m along the direction it was already moving. Everything else is drawn strictly between
-		// descriptions this screen holds. Drawing another player's unit ahead of its description would invent motion this
-		// screen was never told about, so the step masks one interval of the delay for the local player's own orders only.
-		// What this frame reads is the order this screen believes it holds, which a unit it has just ordered holds from the
-		// moment the order went out; the answer the match gave to that order is stamped where the description carrying it is
-		// applied, so the lead a completed order leaves behind is released when the completion is drawn rather than when
-		// some later frame happened to notice it.
-		int localPlayerIndex = GameContext.Host?.LocalPlayerIndex ?? -1;
-		bool localOrderBelievedHeld = World.Has<MoveTo>(entity)
-		                              && World.Has<UnitOwnerPlayer>(entity)
-		                              && World.Get<UnitOwnerPlayer>(entity).PlayerIndex == localPlayerIndex;
-		if (!GameContext.SnapshotTimeline.TrySample(entity.Id, localOrderBelievedHeld, out Vector3 sampledPosition, out float sampledRotationY, out Vector3 sampledVelocity)) return;
-
-		Vector3 currentPos = World.Get<Position>(entity).Value;
-
-		if (MultiplayerSyncDiagnostics.IsRecording && (sampledPosition - currentPos).LengthSquared() > 4f)
-		{
-			MultiplayerSyncDiagnostics.RecordPresentationStepDetail(entity.Id, currentPos, sampledPosition, 1f, sampledPosition);
-		}
-
-		PositionWriteTrace.MarkPresentation(entity, 1f, currentPos, sampledPosition, sampledPosition, target.Position);
-		World.Set(entity, new Position(sampledPosition));
-		World.SetOrAdd(entity, new Velocity(sampledVelocity));
-
-		// A unit standing still is drawn facing where the authority had it facing at the moment being rendered. The
-		// renderer smooths towards this value, so a unit that turns in place turns when it is drawn rather than one
-		// presentation delay before it. A moving unit is turned along its own movement by the renderer instead.
-		if (sampledVelocity.LengthSquared() <= StationaryVelocitySquared) target.RotationY = sampledRotationY;
-	}
 
 	private int GetTimeOfDayIndex()
 		=> World.GetFieldOrDefault<WorldState, int>(ActiveWorldEntity, s => s.TimeOfDayIndex);
