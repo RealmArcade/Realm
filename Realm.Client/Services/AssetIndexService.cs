@@ -232,276 +232,21 @@ public class AssetIndexService : IDisposable
 		return IsContentRebuildRequired();
 	}
 
-	public const int DefaultVerificationSampleSize = 64;
+	public const int DefaultVerificationSampleSize = AssetIndexVerification.DefaultSampleSize;
 
 	public AssetIndexVerificationResult VerifyIndex(int sampleSize = DefaultVerificationSampleSize)
 	{
-		if (sampleSize <= 0)
-		{
-			throw new ArgumentOutOfRangeException(nameof(sampleSize));
-		}
-
-		lock (_syncLock)
-		{
-			var assets = _assetCollection.FindAll()
-				.OrderBy(a => a.FilePath, StringComparer.Ordinal)
-				.ToList();
-
-			var sampledAssets = SelectDeterministicSample(assets, sampleSize);
-			var checkedPaths = new List<string>(sampledAssets.Count);
-			var failures = new List<AssetIndexVerificationFailure>();
-
-			foreach (var asset in sampledAssets)
-			{
-				checkedPaths.Add(asset.FilePath);
-				string? failureReason = AssetIndexInspector.Inspect(asset, verifyContentHash: false);
-				if (failureReason != null)
-				{
-					failures.Add(new AssetIndexVerificationFailure(asset.FilePath, failureReason));
-				}
-			}
-
-			int previousFailureCount = _lastVerificationFailurePaths.Count;
-			_lastVerificationFailurePaths = failures.Select(f => f.FilePath).ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-			int stride = CalculateSampleStride(assets.Count, sampleSize);
-			string strategy = $"Deterministic stride sample of up to {sampleSize} of {assets.Count} indexed file(s) ordered by path (stride {stride}), always including the {previousFailureCount} file(s) that failed the previous verification.";
-			LogVerificationOutcome("sample", strategy, checkedPaths.Count, failures);
-
-			return new AssetIndexVerificationResult(checkedPaths.Count, assets.Count, strategy, checkedPaths, failures);
-		}
+		return AssetIndexVerification.VerifySample(_assetCollection, _syncLock, ref _lastVerificationFailurePaths, sampleSize);
 	}
 
 	public AssetIndexVerificationResult VerifyAllIndexedAssets(bool verifyContentHash, IProgress<AssetIndexProgressUpdate>? progress = null, double progressStart = 0.0, double progressEnd = 1.0)
 	{
-		lock (_syncLock)
-		{
-			var assets = _assetCollection.FindAll()
-				.OrderBy(a => a.FilePath, StringComparer.Ordinal)
-				.ToList();
-
-			var checkedPaths = new List<string>(assets.Count);
-			var failures = new List<AssetIndexVerificationFailure>();
-			int total = Math.Max(1, assets.Count);
-
-			for (int i = 0; i < assets.Count; i++)
-			{
-				var asset = assets[i];
-				checkedPaths.Add(asset.FilePath);
-
-				string? failureReason = AssetIndexInspector.Inspect(asset, verifyContentHash);
-				if (failureReason != null)
-				{
-					failures.Add(new AssetIndexVerificationFailure(asset.FilePath, failureReason));
-				}
-
-				if (progress != null && (i % 128 == 0 || i == assets.Count - 1))
-				{
-					double fraction = (double)(i + 1) / total;
-					progress.Report(new AssetIndexProgressUpdate(progressStart + (progressEnd - progressStart) * fraction, string.Format(TranslationServer.Translate("Verifying indexed file {0}/{1}..."), i + 1, assets.Count)));
-				}
-			}
-
-			_lastVerificationFailurePaths = failures.Select(f => f.FilePath).ToHashSet(StringComparer.OrdinalIgnoreCase);
-			string strategy = verifyContentHash
-				? "Full verification of every indexed file, including its content hash."
-				: "Full verification of every indexed file.";
-			LogVerificationOutcome("full", strategy, checkedPaths.Count, failures);
-
-			return new AssetIndexVerificationResult(checkedPaths.Count, assets.Count, strategy, checkedPaths, failures);
-		}
+		return AssetIndexVerification.VerifyAll(_assetCollection, _syncLock, ref _lastVerificationFailurePaths, verifyContentHash, progress, progressStart, progressEnd);
 	}
 
 	public int RepairIndexedAssets(IReadOnlyList<AssetIndexVerificationFailure> failures, IProgress<AssetIndexProgressUpdate>? progress = null, double progressStart = 0.0, double progressEnd = 1.0)
 	{
-		if (failures == null || failures.Count == 0) return 0;
-
-		int repairedCount = 0;
-		lock (_syncLock)
-		{
-			for (int i = 0; i < failures.Count; i++)
-			{
-				double fraction = (double)(i + 1) / failures.Count;
-				progress?.Report(new AssetIndexProgressUpdate(progressStart + (progressEnd - progressStart) * fraction, string.Format(TranslationServer.Translate("Repairing indexed file {0}/{1}..."), i + 1, failures.Count)));
-				if (RepairIndexedAsset(failures[i].FilePath))
-				{
-					repairedCount++;
-				}
-			}
-
-			if (repairedCount > 0)
-			{
-				_database.Checkpoint();
-			}
-		}
-
-		return repairedCount;
-	}
-
-	private List<IndexedAsset> SelectDeterministicSample(List<IndexedAsset> assets, int sampleSize)
-	{
-		var sampledAssets = new List<IndexedAsset>();
-		var sampledPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-		foreach (var asset in assets)
-		{
-			if (sampledAssets.Count >= sampleSize) break;
-			if (_lastVerificationFailurePaths.Contains(asset.FilePath) && sampledPaths.Add(asset.FilePath))
-			{
-				sampledAssets.Add(asset);
-			}
-		}
-
-		int stride = CalculateSampleStride(assets.Count, sampleSize);
-		for (int i = 0; i < assets.Count && sampledAssets.Count < sampleSize; i += stride)
-		{
-			if (sampledPaths.Add(assets[i].FilePath))
-			{
-				sampledAssets.Add(assets[i]);
-			}
-		}
-
-		return sampledAssets;
-	}
-
-	private static int CalculateSampleStride(int assetCount, int sampleSize)
-	{
-		if (assetCount <= sampleSize) return 1;
-		return (int)Math.Ceiling((double)assetCount / sampleSize);
-	}
-
-	private static void LogVerificationOutcome(string passName, string strategy, int checkedCount, List<AssetIndexVerificationFailure> failures)
-	{
-		GameLog.LogToConsole($"[AssetIndexService] {passName} verification checked {checkedCount} file(s). {strategy} Problems: {failures.Count}.");
-		foreach (var failure in failures)
-		{
-			GameLog.LogError($"[AssetIndexService] Verification problem in {failure.FilePath}: {failure.Reason}");
-		}
-	}
-
-	private bool RepairIndexedAsset(string filePath)
-	{
-		if (string.IsNullOrWhiteSpace(filePath)) return false;
-
-		string normalizedFilePath = NormalizePath(filePath);
-		var asset = _assetCollection.FindOne(x => x.FilePath == normalizedFilePath);
-		if (asset == null) return false;
-
-		if (!RestoreCasAssetFileIfNeeded(asset))
-		{
-			_assetCollection.Delete(asset.Id);
-			return true;
-		}
-
-		ReindexAssetFromDisk(asset, normalizedFilePath);
-		_assetCollection.Update(asset);
-		return true;
-	}
-
-	private bool RestoreCasAssetFileIfNeeded(IndexedAsset asset)
-	{
-		if (!AssetIndexInspector.IsCasAsset(asset)) return true;
-
-		string hash = ContentAddressableStorage.NormalizeBlake3Hash(asset.Blake3 ?? Path.GetFileName(asset.FilePath));
-		if (hash.Length < 2) return false;
-
-		if (File.Exists(asset.FilePath) && ContentMatchesHash(asset.FilePath, hash)) return true;
-
-		return TryRestoreCasAssetFile(hash, asset.FilePath);
-	}
-
-	private static bool TryRestoreCasAssetFile(string hash, string casFilePath)
-	{
-		foreach (string archiveDirectory in GetArchiveDirectories())
-		{
-			string[] manifestFiles = Directory.GetFiles(archiveDirectory, "manifest.json", SearchOption.AllDirectories);
-			foreach (string manifestFile in manifestFiles)
-			{
-				string? sourceFilePath = FindManifestSourceForHash(manifestFile, hash);
-				if (sourceFilePath == null || !ContentMatchesHash(sourceFilePath, hash)) continue;
-
-				HardLinkHelper.CreateHardLinkOrCopy(casFilePath, sourceFilePath);
-				MapAssetManager.Storage.InvalidateAssetPath(hash);
-				return File.Exists(casFilePath);
-			}
-		}
-
-		return false;
-	}
-
-	private static IReadOnlyList<string> GetArchiveDirectories()
-	{
-		var archiveDirectories = new List<string>();
-		if (Directory.Exists(MapAssetManager.GlobalArchiveDirectory))
-		{
-			archiveDirectories.Add(MapAssetManager.GlobalArchiveDirectory);
-		}
-
-		if (Directory.Exists(MapAssetManager.P2PArchiveDirectory))
-		{
-			archiveDirectories.Add(MapAssetManager.P2PArchiveDirectory);
-		}
-
-		return archiveDirectories;
-	}
-
-	private static string? FindManifestSourceForHash(string manifestFile, string hash)
-	{
-		var manifest = MapManifest.LoadFromFile(manifestFile);
-		if (manifest?.Files == null || manifest.Files.Count == 0) return null;
-
-		string mapDirectory = Path.GetDirectoryName(manifestFile) ?? string.Empty;
-		foreach (var entry in manifest.Files)
-		{
-			if (!string.Equals(ContentAddressableStorage.NormalizeBlake3Hash(entry.Value), hash, StringComparison.OrdinalIgnoreCase)) continue;
-
-			string relativePath = entry.Key.StartsWith("res://", StringComparison.OrdinalIgnoreCase) ? entry.Key.Substring(6) : entry.Key;
-			relativePath = relativePath.TrimStart('/', '\\').Replace('/', Path.DirectorySeparatorChar);
-
-			string candidateFilePath = Path.Combine(mapDirectory, relativePath);
-			if (File.Exists(candidateFilePath)) return candidateFilePath;
-		}
-
-		return null;
-	}
-
-	private static bool ContentMatchesHash(string filePath, string hash)
-	{
-		try
-		{
-			string contentHash = ContentAddressableStorage.NormalizeBlake3Hash(RealmMetadataHelper.ComputeBlake3(filePath));
-			return string.Equals(contentHash, hash, StringComparison.OrdinalIgnoreCase);
-		}
-		catch
-		{
-			return false;
-		}
-	}
-
-	private void ReindexAssetFromDisk(IndexedAsset asset, string normalizedFilePath)
-	{
-		var fileInfo = new FileInfo(normalizedFilePath);
-		string diskExtension = Path.GetExtension(normalizedFilePath).ToLowerInvariant();
-
-		if (AssetIndexInspector.IsCasAsset(asset))
-		{
-			asset.FileSizeBytes = fileInfo.Length;
-			asset.LastModifiedUtc = fileInfo.LastWriteTimeUtc;
-			asset.Extension = diskExtension;
-			asset.Blake3 = ContentAddressableStorage.NormalizeBlake3Hash(Path.GetFileName(normalizedFilePath));
-
-			AssetType? diskAssetType = RealmMetadataHelper.NormalizeAssetType(RealmMetadataHelper.ExtractAssetType(normalizedFilePath));
-			if (diskAssetType.HasValue)
-			{
-				asset.AssetType = diskAssetType;
-			}
-
-			asset.HasRealmMetadata = asset.HasRealmMetadata || !string.IsNullOrEmpty(RealmMetadataHelper.ExtractMetadata(normalizedFilePath));
-			return;
-		}
-
-		AssetType? expectedDirType = AssetRecordFactory.GetExpectedAssetTypeFromDirectory(normalizedFilePath);
-		AssetRecordFactory.GenerateIndexedAssetFromFile(normalizedFilePath, asset.DirectoryPath, fileInfo, diskExtension, expectedDirType, asset);
+		return AssetIndexVerification.RepairAssets(_assetCollection, _database, _syncLock, failures, progress, progressStart, progressEnd);
 	}
 
 	public void SynchronizeCasAndMapPackages(IProgress<AssetIndexProgressUpdate>? progress = null)
@@ -590,7 +335,7 @@ public class AssetIndexService : IDisposable
 		string? sourceFile = FindSourceFileForCas(mapDir, virtualPath, mapFilePath);
 		if (sourceFile == null || !File.Exists(sourceFile)) return null;
 
-		if (!ContentMatchesHash(sourceFile, blake3))
+		if (!AssetIndexVerification.ContentMatchesHash(sourceFile, blake3))
 		{
 			GameLog.LogError($"[AssetIndexService] Refusing to restore {targetCasPath}: {sourceFile} does not match its recorded hash {blake3}.");
 			return null;
@@ -766,7 +511,7 @@ public class AssetIndexService : IDisposable
 			if (verification.Failures.Count > 0)
 			{
 				int repairedCount = RepairIndexedAssets(verification.Failures, progress, 0.98, 0.99);
-				int remainingCount = CountRemainingVerificationFailures(verification.Failures);
+				int remainingCount = AssetIndexVerification.CountRemaining(verification.Failures, GetAssetByPath);
 				progress?.Report(new AssetIndexProgressUpdate(0.99, string.Format(TranslationServer.Translate("Repaired {0} indexed file(s); {1} problem(s) remain."), repairedCount, remainingCount)));
 			}
 
@@ -781,19 +526,6 @@ public class AssetIndexService : IDisposable
 		{
 			MapAssetManager.P2PStorage.InvalidateAllAssetPaths();
 		}
-	}
-
-	private int CountRemainingVerificationFailures(IReadOnlyList<AssetIndexVerificationFailure> failures)
-	{
-		int remainingCount = 0;
-		foreach (var failure in failures)
-		{
-			var asset = GetAssetByPath(failure.FilePath);
-			if (asset == null) continue;
-			if (AssetIndexInspector.Inspect(asset, verifyContentHash: true) != null) remainingCount++;
-		}
-
-		return remainingCount;
 	}
 
 	public AssetIndexService()
