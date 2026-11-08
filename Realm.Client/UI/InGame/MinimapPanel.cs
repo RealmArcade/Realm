@@ -10,7 +10,7 @@ public class MinimapPanel
 {
 	private Control _minimapArea;
 	private MinimapCameraIndicator _cameraIndicator;
-	private Camera3D _camera3D;
+	private Camera3D? _camera3D;
 	private PanelContainer _minimapFrame;
 	private bool _isRightClickPanning = false;
 	private bool _isLeftClickDragging = false;
@@ -18,7 +18,7 @@ public class MinimapPanel
 	private Vector3 _lastCameraRot;
 	private readonly Vector2[] _cachedMinimapPoints = new Vector2[4];
 
-	public MinimapPanel(PanelContainer minimapFrame, Control minimapArea, MinimapCameraIndicator cameraIndicator, Camera3D camera3D)
+	public MinimapPanel(PanelContainer minimapFrame, Control minimapArea, MinimapCameraIndicator cameraIndicator, Camera3D? camera3D)
 	{
 		_minimapFrame = minimapFrame;
 		_minimapArea = minimapArea;

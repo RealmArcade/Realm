@@ -52,7 +52,7 @@ public partial class UnitHealthBarOverlay : Control
 		public bool HasBadge;
 	}
 
-	public void Refresh(Camera3D camera)
+	public void Refresh(Camera3D? camera)
 	{
 		_bars.Clear();
 

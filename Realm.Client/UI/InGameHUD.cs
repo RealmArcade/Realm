@@ -121,29 +121,19 @@ public partial class InGameHUD : Control
 
 	private string _currentWeather
 	{
-		get
-		{
-			GameHost tempQualifier = GameContext.Host;
-			return (tempQualifier != null ? GameContext.EnvironmentService : null)?.GetCurrentWeather() ?? "clear";
-		}
+		get => GameContext.Host != null ? GameContext.EnvironmentService.GetCurrentWeather() : "clear";
 		set
 		{
-			GameHost tempQualifier = GameContext.Host;
-			(tempQualifier != null ? GameContext.EnvironmentService : null)?.SetCurrentWeather(value);
+			if (GameContext.Host != null) GameContext.EnvironmentService.SetCurrentWeather(value);
 		}
 	}
 
 	private float _baseFogDensity
 	{
-		get
-		{
-			GameHost tempQualifier = GameContext.Host;
-			return (tempQualifier != null ? GameContext.EnvironmentService : null)?.GetBaseFogDensity() ?? 0f;
-		}
+		get => GameContext.Host != null ? GameContext.EnvironmentService.GetBaseFogDensity() : 0f;
 		set
 		{
-			GameHost tempQualifier = GameContext.Host;
-			(tempQualifier != null ? GameContext.EnvironmentService : null)?.SetBaseFogDensity(value);
+			if (GameContext.Host != null) GameContext.EnvironmentService.SetBaseFogDensity(value);
 		}
 	}
 
@@ -196,7 +186,7 @@ public partial class InGameHUD : Control
 
 	private Label _armyCompositionLabel = null!;
 
-	private Camera3D _camera3D = null!;
+	private Camera3D? _camera3D;
 
 	private PanelContainer _chatPanel = null!;
 	private LineEdit _chatInput = null!;
@@ -205,15 +195,10 @@ public partial class InGameHUD : Control
 
 	public int LiveSpectatorPerspective
 	{
-		get
-		{
-			GameHost tempQualifier = GameContext.Host;
-			return (tempQualifier != null ? GameContext.SpectatorService : null)?.GetSpectatorPerspective() ?? -1;
-		}
+		get => GameContext.Host != null ? GameContext.SpectatorService.GetSpectatorPerspective() : -1;
 		set
 		{
-			GameHost tempQualifier = GameContext.Host;
-			(tempQualifier != null ? GameContext.SpectatorService : null)?.SetSpectatorPerspective(value);
+			if (GameContext.Host != null) GameContext.SpectatorService.SetSpectatorPerspective(value);
 		}
 	}
 
@@ -1366,7 +1351,7 @@ public partial class InGameHUD : Control
 		_unitVitalsBars.UpdateSingleSelection(selectedUnits[index]);
 	}
 
-	public void RefreshUI(List<Unit3D> selectedUnits)
+	public void RefreshUI(List<Unit3D>? selectedUnits)
 	{
 		InvalidateCadence(tactical: true, macro: false);
 
@@ -1593,7 +1578,7 @@ public partial class InGameHUD : Control
 	///     The Build submenu belongs to the unit that opened it, so a new selection closes it instead of leaving a
 	///     builder's build options on another unit's command card.
 	/// </summary>
-	private void ResetBuildSubMenuOnSelectionChange(List<Unit3D> selectedUnits)
+	private void ResetBuildSubMenuOnSelectionChange(List<Unit3D>? selectedUnits)
 	{
 		if (selectedUnits == null) return;
 
@@ -2366,8 +2351,7 @@ public partial class InGameHUD : Control
 	[Rpc(MultiplayerApi.RpcMode.AnyPeer, CallLocal = true)]
 	public void SyncWeather(string weather)
 	{
-		GameHost tempQualifier = GameContext.Host;
-		if ((tempQualifier != null ? GameContext.EnvironmentService : null) != null)
+		if (GameContext.Host != null)
 		{
 			GameContext.EnvironmentService.SetCurrentWeather(weather);
 			float density = weather switch
@@ -2387,8 +2371,7 @@ public partial class InGameHUD : Control
 
 	public void ApplyWeatherEffects(string weather)
 	{
-		GameHost tempQualifier = GameContext.Host;
-		if ((tempQualifier != null ? GameContext.EnvironmentService : null) != null)
+		if (GameContext.Host != null)
 		{
 			GameContext.EnvironmentService.ApplyWeatherVisuals(weather);
 		}
@@ -2416,8 +2399,8 @@ public partial class InGameHUD : Control
 	{
 		if (GameContext.CheatService == null) return false;
 
-		var selectedEntities = GameContext.Host.SelectedUnits != null
-			? Enumerable.ToList(Enumerable.Select(GameContext.Host.SelectedUnits, u => u.Entity))
+		var selectedEntities = GameContext.Host?.SelectedUnits is { } selectedUnits
+			? Enumerable.ToList(Enumerable.Select(selectedUnits, u => u.Entity))
 			: new List<Entity>();
 
 		bool isMultiplayer = GameContext.Lobby != null && !GameContext.Lobby.IsSinglePlayer
@@ -2439,16 +2422,20 @@ public partial class InGameHUD : Control
 		switch (result)
 		{
 			case CheatResult.Gigachad:
-				RefreshUI(GameContext.Host.SelectedUnits);
+				RefreshUI(GameContext.Host?.SelectedUnits);
 				break;
 			case CheatResult.AbsoluteUnit:
-				foreach (var unit in GameContext.Host.SelectedUnits)
+			{
+				if (GameContext.Host is not { } host) break;
+
+				foreach (var unit in host.SelectedUnits)
 				{
 					if (GodotObject.IsInstanceValid(unit)) unit.Scale = new Vector3(3f, 3f, 3f);
 				}
 
-				RefreshUI(GameContext.Host.SelectedUnits);
+				RefreshUI(host.SelectedUnits);
 				break;
+			}
 			case CheatResult.EzClap:
 				GameContext.UserInterface?.PlayClickSound();
 				GameContext.UserInterface?.TransitionTo(GameScreen.GameOver, true);
@@ -2552,10 +2539,11 @@ public partial class InGameHUD : Control
 	{
 		if (GameContext.Host == null) return;
 		if (_pausePanel == null) BuildPausePanel();
+		if (_pausePanel is not { } pausePanel) return;
 
 		RefreshPauseMatchButton();
 
-		_pausePanel.Visible = GameContext.NetworkService.IsPaused;
+		pausePanel.Visible = GameContext.NetworkService.IsPaused;
 		if (!GameContext.NetworkService.IsPaused) return;
 
 		UpdatePauseTitle();

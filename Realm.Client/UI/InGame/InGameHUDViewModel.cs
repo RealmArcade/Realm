@@ -445,7 +445,7 @@ public class InGameHUDViewModel
 	private static readonly Dictionary<string, string[]> _cachedEmptySummaryRows = new();
 
 	public List<SelectedUnitInfo> SelectedUnits { get; } = new();
-	public Prop3D SelectedProp { get; set; } = null!;
+	public Prop3D? SelectedProp { get; set; }
 	public int CycleSelectionIndex { get; set; }
 
 	public bool IsChatActive { get; set; }
@@ -567,7 +567,7 @@ public class InGameHUDViewModel
 		IdleCount = idle;
 	}
 
-	public void UpdateSelectedUnits(List<Unit3D> selectedUnits)
+	public void UpdateSelectedUnits(List<Unit3D>? selectedUnits)
 	{
 		if (selectedUnits == null)
 		{

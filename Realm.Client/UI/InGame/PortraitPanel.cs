@@ -26,7 +26,7 @@ public class PortraitPanel
 	private HBoxContainer _queueSlotsContainer;
 	private Label _armyCompositionLabel;
 	private Label _unitNameLabel;
-	private TextureRect _portraitTexture = null!;
+	private TextureRect? _portraitTexture;
 
 	private readonly List<string> _lastProductionQueue = new();
 	private readonly Dictionary<string, int> _unitTypeCounts = new();
@@ -60,7 +60,7 @@ public class PortraitPanel
 		UnitStatsPanel unitStatsPanel,
 		VBoxContainer productionBox, Label productionTitle, ProgressBar productionProgress,
 		Label productionQueueLabel, HBoxContainer queueSlotsContainer, Label armyCompositionLabel,
-		Label unitNameLabel, TextureRect portraitTexture)
+		Label unitNameLabel, TextureRect? portraitTexture)
 	{
 		_portraitFrame = portraitFrame;
 		_selectionFrame = selectionFrame;
@@ -185,10 +185,11 @@ public class PortraitPanel
 
 	private void UpdatePropSelection(InGameHUDViewModel viewModel)
 	{
+		if (viewModel.SelectedProp is not { } prop) return;
+
 		_statsContainer.Visible = true;
 		_armyCompositionLabel?.Hide();
 
-		var prop = viewModel.SelectedProp;
 		float remainingAmount = GetPropRemainingAmount(prop);
 
 		bool propChanged = _lastSelectionType != SelectionType.Prop || prop.Entity != _lastPropEntity || prop.PropId != _lastPropId || Math.Abs(remainingAmount - _lastPropRemaining) > 0.01f;
