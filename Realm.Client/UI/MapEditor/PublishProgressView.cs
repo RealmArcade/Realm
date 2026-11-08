@@ -30,7 +30,7 @@ internal sealed class PublishProgressView
 	/// Moves the bar to a stage and states what is happening. Deliberately does not touch the text colour: every
 	/// stage before an outcome leaves the theme colour alone, and no stage runs after a terminal one.
 	/// </summary>
-	public void Stage(int value, string text)
+	public void Stage(double value, string text)
 	{
 		if (!IsAlive) return;
 		_progress.Value = value;
