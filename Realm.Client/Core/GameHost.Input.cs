@@ -3076,9 +3076,9 @@ public partial class GameHost
 		GameContext.InGameHud?.ShowFeedbackText($"Jumped to: {building.UnitId.ToUpper()}", new Color(0.9f, 0.8f, 0.3f));
 	}
 
-	private void KillUnitDeferred(Unit3D unit)
+	private void KillUnitDeferred(Unit3D? unit)
 	{
-		if (AllUnits.Contains(unit))
+		if (unit != null && AllUnits.Contains(unit))
 			KillUnit(unit);
 		GameContext.InGameHud?.RefreshUI(SelectedUnits);
 	}

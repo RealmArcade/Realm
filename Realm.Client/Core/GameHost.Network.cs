@@ -34,7 +34,7 @@ public partial class GameHost
 	public void SetBackupResources(float gold, float wood, float stone) =>
 		GameContext.NetworkService.SetBackupResources(gold, wood, stone);
 
-	public void KillUnitDeferredExternal(Unit3D unit)
+	public void KillUnitDeferredExternal(Unit3D? unit)
 	{
 		Callable.From(() => KillUnitDeferred(unit)).CallDeferred();
 	}
