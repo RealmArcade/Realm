@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Threading.Tasks;
 using Godot;
@@ -38,7 +38,7 @@ public partial class UIManager : Control
 	[Export] public PackedScene LobbyCreateScene = null!;
 	[Export] public PackedScene StorageScene = null!;
 
-	private Control _currentScreen = null!;
+	private Control? _currentScreen;
 	private ColorRect _fadeOverlay = null!;
 	private AnimationPlayer _fadeAnim = null!;
 	private Label _watermark = null!;
@@ -531,20 +531,20 @@ public partial class UIManager : Control
 
 	private void InstantiateTargetScreen()
 	{
-		PackedScene targetScene = GetTargetScene(_targetScreen);
+		PackedScene? targetScene = GetTargetScene(_targetScreen);
 
 		if (targetScene != null)
 		{
 			_currentScreen = targetScene.Instantiate<Control>();
 			AddChild(_currentScreen);
 
-			ConfigureReplayViewer();
+			ConfigureReplayViewer(_currentScreen);
 			ConfigureOverlays();
 			ConfigureScreenData();
 		}
 	}
 
-	private void ConfigureReplayViewer()
+	private void ConfigureReplayViewer(Control screen)
 	{
 		if (_targetScreen == GameScreen.InGameHUD && GameContext.ReplayPlayback.IsPlayingReplay)
 		{
@@ -553,7 +553,7 @@ public partial class UIManager : Control
 			if (panelScene != null)
 			{
 				var panel = panelScene.Instantiate<Control>();
-				_currentScreen.AddChild(panel);
+				screen.AddChild(panel);
 			}
 		}
 	}
@@ -582,12 +582,12 @@ public partial class UIManager : Control
 		}
 	}
 
-	private PackedScene GetSceneOrLoad(PackedScene cachedScene, string path)
+	private PackedScene? GetSceneOrLoad(PackedScene? cachedScene, string path)
 	{
 		return cachedScene ?? GD.Load<PackedScene>(path);
 	}
 
-	private PackedScene GetLobbyOrMapScene(GameScreen screen)
+	private PackedScene? GetLobbyOrMapScene(GameScreen screen)
 	{
 		return screen switch
 		{
@@ -600,7 +600,7 @@ public partial class UIManager : Control
 		};
 	}
 
-	private PackedScene GetOtherScene(GameScreen screen)
+	private PackedScene? GetOtherScene(GameScreen screen)
 	{
 		return screen switch
 		{
@@ -614,7 +614,7 @@ public partial class UIManager : Control
 		};
 	}
 
-	private PackedScene GetTargetScene(GameScreen screen)
+	private PackedScene? GetTargetScene(GameScreen screen)
 	{
 		Input.MouseMode = Input.MouseModeEnum.Visible;
 
@@ -664,12 +664,12 @@ public partial class UIManager : Control
 	}
 
 
-	public void ShowPopupMessage(string title, string message, Action onOkPressed = null)
+	public void ShowPopupMessage(string title, string message, Action? onOkPressed = null)
 	{
 		ShowConfirmationDialog(message, onOkPressed, confirmText: TranslationServer.Translate("OK"), showCancel: false, titleOverride: title);
 	}
 
-	public void ShowConfirmationDialog(string message, Action onConfirm, string confirmText = "YES", string cancelText = "NO", Action onCancel = null, bool showCancel = true, string titleOverride = null)
+	public void ShowConfirmationDialog(string message, Action? onConfirm, string confirmText = "YES", string cancelText = "NO", Action? onCancel = null, bool showCancel = true, string? titleOverride = null)
 	{
 		var overlay = new ColorRect();
 		overlay.Name = "ConfirmationOverlay";
