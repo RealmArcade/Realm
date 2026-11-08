@@ -152,7 +152,7 @@ public partial class Decal3D : Decal
 		Size = _baseSize;
 	}
 
-	public void SetNormalFade(float normalFade)
+	public new void SetNormalFade(float normalFade)
 	{
 		NormalFade = Mathf.Clamp(normalFade, 0.0f, 1.0f);
 	}
