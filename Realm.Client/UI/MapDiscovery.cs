@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -42,14 +42,14 @@ public partial class MapDiscovery : Control
 	private string _selectedCategory = "All";
 	private string _searchQuery = "";
 
-	private static Font _fontNorseBold = null!;
+	private static Font? _fontNorseBold;
 
 	private static void EnsureFontsLoaded()
 	{
 		_fontNorseBold ??= LoadFont("res://Assets/UI/Norse-Bold.otf");
 	}
 
-	private static Font LoadFont(string path)
+	private static Font? LoadFont(string path)
 	{
 		try
 		{
@@ -159,7 +159,7 @@ public partial class MapDiscovery : Control
 
 	private void ApplyBackgroundStyle()
 	{
-		Texture2D bgTexture = null;
+		Texture2D? bgTexture = null;
 		string[] bgPaths = new string[]
 		{
 			"res://Assets/UI/procedural_bg.webp",
@@ -244,7 +244,7 @@ public partial class MapDiscovery : Control
 
 	private void ApplyBackButtonStyle()
 	{
-		UIStyle.ApplyBackButton(_backButton, () => GameContext.UserInterface.TransitionTo(GameScreen.MainMenu));
+		UIStyle.ApplyBackButton(_backButton, () => GameContext.UserInterface?.TransitionTo(GameScreen.MainMenu));
 		_backButton.SetAnchorsPreset(LayoutPreset.TopLeft);
 		_backButton.Position = new Vector2(130, 40);
 		_backButton.Size = new Vector2(130, 42);
@@ -303,12 +303,12 @@ public partial class MapDiscovery : Control
 
 		button.Pressed += () =>
 		{
-			GameContext.UserInterface.PlayClickSound();
+			GameContext.UserInterface?.PlayClickSound();
 			_selectedCategory = categoryValue;
 			UpdateButtonHighlight();
 			RenderMapGrid();
 		};
-		button.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
+		button.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 	}
 
 	private void UpdateButtonHighlight()
@@ -578,16 +578,16 @@ public partial class MapDiscovery : Control
 
 		btnDetails.Pressed += () =>
 		{
-			GameContext.UserInterface.PlayClickSound();
-			GameContext.UserInterface.TransitionToMapDetails(map);
+			GameContext.UserInterface?.PlayClickSound();
+			GameContext.UserInterface?.TransitionToMapDetails(map);
 		};
-		btnDetails.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
+		btnDetails.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 		footer.AddChild(btnDetails);
 
 		return card;
 	}
 
-	private static Texture2D LoadTextureSafe(string resPath)
+	private static Texture2D? LoadTextureSafe(string resPath)
 	{
 		return TrimmedTextureLoader.LoadTrimmedTexture(resPath);
 	}
