@@ -349,7 +349,7 @@ public class DistributionServer
 			result.AuthorPublicKey ??= parsedForm.AuthorPublicKey;
 			result.AuthorSignature ??= parsedForm.AuthorSignature;
 
-			string parsedExt = Path.GetExtension(parsedForm.FileName);
+			string? parsedExt = Path.GetExtension(parsedForm.FileName);
 			if (!string.IsNullOrEmpty(parsedExt))
 			{
 				result.FileExtension = parsedExt;
