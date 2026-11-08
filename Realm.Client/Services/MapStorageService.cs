@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -931,8 +931,13 @@ public class MapStorageService
 		string tempTerrainPath = Path.Combine(editingDirectory, "terrain.json");
 		WorkspaceMetadataBootstrapper.EnsureLicenseFile(editingDirectory);
 		MapWorkspaceService.EnsureWasmEntryPoint(editingDirectory);
-		GameContext.Host.SaveMapToFile(tempTerrainPath, performReload: false);
-		GameContext.Host.EditorHasUnsavedChanges = false;
+		if (GameContext.Host is not { } host)
+		{
+			throw new InvalidOperationException("[MapStorageService] Cannot save map state for export without an active game host.");
+		}
+
+		host.SaveMapToFile(tempTerrainPath, performReload: false);
+		host.EditorHasUnsavedChanges = false;
 
 		if (isWindows && OperatingSystem.IsWindows())
 		{
@@ -948,7 +953,7 @@ public class MapStorageService
 		return (assetsValid, missingAssets, sizesValid, oversizedAssets);
 	}
 
-	public static string FindWasmPath(string editingDirectory)
+	public static string? FindWasmPath(string editingDirectory)
 	{
 		return MapWorkspaceService.SearchForWasmInDirectoryDomain(Path.Combine(editingDirectory, "bin"));
 	}
@@ -958,7 +963,7 @@ public class MapStorageService
 		var csprojFiles = Directory.GetFiles(editingDirectory, "*.csproj", SearchOption.TopDirectoryOnly);
 		if (csprojFiles.Length > 0 || File.Exists(Path.Combine(editingDirectory, "MapScript.cs")))
 		{
-			string wasmPath = FindWasmPath(editingDirectory);
+			string? wasmPath = FindWasmPath(editingDirectory);
 
 			if (string.IsNullOrEmpty(wasmPath) || !File.Exists(wasmPath))
 			{
@@ -1276,7 +1281,7 @@ public class MapStorageService
 
 			var assetAuthorJson = await assetAuthorRes.Content.ReadAsStringAsync();
 			var assetMeta = JsonNode.Parse(assetAuthorJson);
-			string author = assetMeta?["AuthorUsername"]?.GetValue<string>();
+			string? author = assetMeta?["AuthorUsername"]?.GetValue<string>();
 
 			if (string.IsNullOrEmpty(author)) return;
 
@@ -1308,11 +1313,14 @@ public class MapStorageService
 	{
 		string path = string.IsNullOrEmpty(customPath) ? Path.Combine(currentDir ?? defaultPath, "terrain.json") : customPath;
 		string absolutePath = globalizePath(path);
-		this.CurrentMapDirectory = Path.GetDirectoryName(absolutePath);
-		if (ensureGlbOptimized)
+		if (Path.GetDirectoryName(absolutePath) is { } mapDirectory)
 		{
-			MapWorkspaceService.EnsureGlbAssetsOptimized(this.CurrentMapDirectory);
-			MapWorkspaceService.EnsurePngAssetsConverted(this.CurrentMapDirectory);
+			this.CurrentMapDirectory = mapDirectory;
+			if (ensureGlbOptimized)
+			{
+				MapWorkspaceService.EnsureGlbAssetsOptimized(mapDirectory);
+				MapWorkspaceService.EnsurePngAssetsConverted(mapDirectory);
+			}
 		}
 
 		return absolutePath;

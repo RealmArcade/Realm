@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -3147,7 +3147,7 @@ namespace Realm.Client.UI
 				var csprojFiles = Directory.GetFiles(workspace, "*.csproj", SearchOption.TopDirectoryOnly);
 				if (csprojFiles.Length > 0 || File.Exists(Path.Combine(workspace, "MapScript.cs")))
 				{
-					string wasmPath = MapStorageService.FindWasmPath(workspace);
+					string? wasmPath = MapStorageService.FindWasmPath(workspace);
 
 					if (string.IsNullOrEmpty(wasmPath) || !File.Exists(wasmPath))
 					{
@@ -5382,7 +5382,7 @@ namespace Realm.Client.UI
 				return cached;
 			}
 
-			Texture2D result = LoadSwatchTextureInternal(i);
+			Texture2D? result = LoadSwatchTextureInternal(i);
 			if (result != null)
 			{
 				_swatchTextureCache[i] = result;
