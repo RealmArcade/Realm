@@ -34,19 +34,10 @@ public class ChatPanel
 		var input = root.GetNode<LineEdit>("ChatPanel/ChatContainer/ChatInput");
 		var log = root.GetNode<RichTextLabel>("ChatPanel/ChatContainer/ChatLog");
 
-		var panelStyle = new StyleBoxFlat();
-		panelStyle.BgColor = new Color(0.15f, 0.15f, 0.15f, 0.9f);
-		panelStyle.SetBorderWidthAll(1);
-		panelStyle.BorderColor = new Color(0.25f, 0.25f, 0.25f, 0.9f);
-		panelStyle.SetCornerRadiusAll(4);
-		panelStyle.ContentMarginLeft = 8;
-		panelStyle.ContentMarginRight = 8;
-		panelStyle.ContentMarginTop = 8;
-		panelStyle.ContentMarginBottom = 8;
-		panel.AddThemeStyleboxOverride("panel", panelStyle);
+		panel.AddThemeStyleboxOverride("panel", UIStyle.CreateCardPlate(
+			new Color(0.15f, 0.15f, 0.15f, 0.9f), new Color(0.25f, 0.25f, 0.25f, 0.9f), 1, 4));
 
-		input.AddThemeStyleboxOverride("normal", UIStyle.CreateTextInput(false));
-		input.AddThemeStyleboxOverride("focus", UIStyle.CreateTextInput(true));
+		UIStyle.ApplyTextInput(input);
 		input.AddThemeColorOverride("font_color", new Color(0.9f, 0.85f, 0.7f));
 
 		log.Text = $"[color=#ffd700]{TranslationServer.Translate("Chat log initialized. Press Enter to type a message.")}[/color]\n";
