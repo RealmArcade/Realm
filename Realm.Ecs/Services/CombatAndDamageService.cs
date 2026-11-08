@@ -1416,7 +1416,7 @@ namespace Realm.Ecs.Services
 			return reachable;
 		}
 
-		private bool TryGetNavMeshQuery(out DtNavMeshQuery navMeshQuery, out DtNavMesh navMesh)
+		private bool TryGetNavMeshQuery(out DtNavMeshQuery? navMeshQuery, out DtNavMesh? navMesh)
 		{
 			navMeshQuery = null;
 			navMesh = null;
