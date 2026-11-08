@@ -350,9 +350,10 @@ public partial class EditorService : IEditorAPI
 		if (metadataTicks is long ticks) LastMetadataSyncTime = ticks;
 	}
 
-	public long LastMapNameCacheTicks { get; set; } = 0;
-	public string? CachedMapName { get; set; }
-	public string? CachedMapVersion { get; set; }
+	private readonly EditorMapIdentity _mapIdentity = new();
+	public long LastMapNameCacheTicks { get => _mapIdentity.CacheTicks; set => _mapIdentity.CacheTicks = value; }
+	public string? CachedMapName { get => _mapIdentity.CachedName; set => _mapIdentity.CachedName = value; }
+	public string? CachedMapVersion { get => _mapIdentity.CachedVersion; set => _mapIdentity.CachedVersion = value; }
 	public string CurrentDirectoryBlake3 { get => _workspace.CurrentDirectoryBlake3; set => _workspace.CurrentDirectoryBlake3 = value; }
 	public long LastTerrainSyncTime { get; set; } = 0;
 	public long LastMetadataSyncTime { get; set; } = 0;
@@ -1681,126 +1682,42 @@ public partial class EditorService : IEditorAPI
 
 	public string GetManifestBlake3(string workspacePath, string mapTitle, string mapVersion, string author)
 	{
-		try
-		{
-			string manifestJsonPath = Path.Combine(workspacePath, "manifest.json");
-			if (File.Exists(manifestJsonPath))
-			{
-				string manifestBlake3 = RealmMetadataHelper.ComputeBlake3(manifestJsonPath);
-				if (!string.IsNullOrEmpty(manifestBlake3))
-				{
-					return manifestBlake3;
-				}
-			}
-
-			if (Directory.Exists(workspacePath))
-			{
-				var manifest = MapManifest.CreateFromDirectory(workspacePath, mapTitle, author, mapVersion);
-				return manifest.ComputeManifestBlake3();
-			}
-		}
-		catch (Exception ex)
-		{
-			GameLog.LogError($"could not compute the manifest hash of workspace {workspacePath}, so changes to it may go unnoticed: {ex.GetType().Name}: {ex.Message}");
-		}
-
-		return string.Empty;
+		return _mapIdentity.GetManifestBlake3(workspacePath, mapTitle, mapVersion, author);
 	}
 
 	public string GetMapVersionFromMetadata(bool forceReload, string workspacePath)
 	{
-		long now = Environment.TickCount64;
-		if (!forceReload && !string.IsNullOrEmpty(this.CachedMapVersion) && (now - this.LastMapNameCacheTicks < 2000))
-		{
-			return this.CachedMapVersion;
-		}
-
-		try
-		{
-			var manifest = MapFileService.LoadManifest(workspacePath);
-			if (!string.IsNullOrWhiteSpace(manifest.Version))
-			{
-				this.CachedMapVersion = manifest.Version.Trim();
-				return this.CachedMapVersion;
-			}
-
-			var metadata = MapFileService.LoadMetadata(workspacePath);
-			if (!string.IsNullOrWhiteSpace(metadata.MapProperties?.Version))
-			{
-				this.CachedMapVersion = metadata.MapProperties.Version.Trim();
-				return this.CachedMapVersion;
-			}
-
-			this.CachedMapVersion = "1.0.0";
-			return "1.0.0";
-		}
-		catch
-		{
-			this.CachedMapVersion = "1.0.0";
-			return "1.0.0";
-		}
+		return _mapIdentity.GetVersionFromMetadata(forceReload, workspacePath);
 	}
-
 
 	public string SanitizeMapName(string? candidateName)
 	{
-		if (string.IsNullOrWhiteSpace(candidateName))
-		{
-			return MapNaming.CreateUntitledMapName();
-		}
-
-		string sanitized = candidateName.Trim();
-		return string.IsNullOrEmpty(sanitized) ? MapNaming.CreateUntitledMapName() : sanitized;
+		return _mapIdentity.SanitizeName(candidateName);
 	}
 
 	public bool TryGetMapNameFromManifest(string workspacePath, out string mapName)
 	{
-		var manifest = MapFileService.LoadManifest(workspacePath);
-		return TrySanitizeCandidate(manifest?.MapName, out mapName);
+		return _mapIdentity.TryGetNameFromManifest(workspacePath, out mapName);
 	}
 
 	public bool TryGetMapNameFromMetadata(string workspacePath, out string mapName)
 	{
-		var metadata = MapFileService.LoadMetadata(workspacePath);
-		return TrySanitizeCandidate(metadata?.MapProperties?.MapName, out mapName);
+		return _mapIdentity.TryGetNameFromMetadata(workspacePath, out mapName);
 	}
 
 	public bool TryGetMapNameFromActiveHost(out string mapName)
 	{
-		mapName = string.Empty;
-		if (!string.IsNullOrEmpty(GameContext.Simulation.ActiveMapName))
-		{
-			string candidate = Path.GetFileNameWithoutExtension(GameContext.Simulation.ActiveMapName);
-			return TrySanitizeCandidate(candidate, out mapName);
-		}
-
-		return false;
+		return _mapIdentity.TryGetNameFromActiveHost(out mapName);
 	}
 
 	public string UpdateCachedMapName(string mapName, long nowTicks)
 	{
-		this.CachedMapName = mapName;
-		this.LastMapNameCacheTicks = nowTicks;
-		return mapName;
+		return _mapIdentity.UpdateCachedName(mapName, nowTicks);
 	}
-
 
 	public static bool TrySanitizeCandidate(string? candidateName, out string sanitizedMapName)
 	{
-		sanitizedMapName = string.Empty;
-		if (string.IsNullOrWhiteSpace(candidateName))
-		{
-			return false;
-		}
-
-		string cleaned = candidateName.Trim();
-		if (string.IsNullOrEmpty(cleaned))
-		{
-			return false;
-		}
-
-		sanitizedMapName = cleaned;
-		return true;
+		return EditorMapIdentity.TrySanitizeCandidate(candidateName, out sanitizedMapName);
 	}
 
 
