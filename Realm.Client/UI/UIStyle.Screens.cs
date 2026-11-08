@@ -165,6 +165,15 @@ public static partial class UIStyle
 		return style;
 	}
 
+	/// <summary>
+	/// The plate behind a unit button's health bar. It carries no colour of its own: the portrait panel rewrites the fill
+	/// as the unit's health changes, so one instance per button lasts the whole match.
+	/// </summary>
+	public static StyleBoxFlat CreateUnitHealthFill()
+	{
+		return new StyleBoxFlat();
+	}
+
 	/// <summary>The bronze-ruled bar a shortcut group is named under in the hotkey reference.</summary>
 	public static StyleBoxFlat CreateHotkeyGroupHeaderPlate()
 	{

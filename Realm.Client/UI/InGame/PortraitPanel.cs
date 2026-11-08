@@ -94,28 +94,10 @@ public class PortraitPanel
 			_unitButtonHpBars[i] = _unitButtons[i].GetNodeOrNull<ProgressBar>("HealthBar");
 			_unitButtonStatusLabels[i] = _unitButtons[i].GetNodeOrNull<Label>("StatusIcon");
 
-			_buttonStylesFocused3[i] = new StyleBoxFlat
-			{
-				BgColor = new Color(0, 0, 0, 0),
-				BorderColor = new Color(0.95f, 0.82f, 0.55f, 1.0f)
-			};
-			_buttonStylesFocused3[i].SetBorderWidthAll(3);
-
-			_buttonStylesFocused2[i] = new StyleBoxFlat
-			{
-				BgColor = new Color(0, 0, 0, 0),
-				BorderColor = new Color(0.95f, 0.82f, 0.55f, 1.0f)
-			};
-			_buttonStylesFocused2[i].SetBorderWidthAll(2);
-
-			_buttonStylesSelected3[i] = new StyleBoxFlat
-			{
-				BgColor = new Color(0, 0, 0, 0),
-				BorderColor = new Color(0.1f, 0.8f, 0.2f, 0.8f)
-			};
-			_buttonStylesSelected3[i].SetBorderWidthAll(3);
-
-			_healthBarFillStyles[i] = new StyleBoxFlat();
+			_buttonStylesFocused3[i] = UIStyle.CreateBorderPlate(new Color(0.95f, 0.82f, 0.55f, 1.0f), 3);
+			_buttonStylesFocused2[i] = UIStyle.CreateBorderPlate(new Color(0.95f, 0.82f, 0.55f, 1.0f), 2);
+			_buttonStylesSelected3[i] = UIStyle.CreateBorderPlate(new Color(0.1f, 0.8f, 0.2f, 0.8f), 3);
+			_healthBarFillStyles[i] = UIStyle.CreateUnitHealthFill();
 		}
 
 		if (_portraitTexture != null)
@@ -581,11 +563,7 @@ public class PortraitPanel
 		slot.MouseFilter = Control.MouseFilterEnum.Stop;
 		slot.TooltipText = $"{unitDisplayName}\n" + TranslationServer.Translate("Click to cancel & refund");
 
-		var border = new StyleBoxFlat();
-		border.BgColor = new Color(0, 0, 0, 0.4f);
-		border.BorderColor = UIStyle.ColorBronze;
-		border.SetBorderWidthAll(1);
-		slot.AddThemeStyleboxOverride("panel", border);
+		slot.AddThemeStyleboxOverride("panel", UIStyle.CreateBorderPlate(UIStyle.ColorBronze, 1, new Color(0, 0, 0, 0.4f)));
 
 		return slot;
 	}
@@ -615,11 +593,7 @@ public class PortraitPanel
 		btnCancel.OffsetRight = 2;
 		btnCancel.OffsetTop = -2;
 
-		var styleEmpty = new StyleBoxEmpty();
-		btnCancel.AddThemeStyleboxOverride("normal", styleEmpty);
-		btnCancel.AddThemeStyleboxOverride("hover", styleEmpty);
-		btnCancel.AddThemeStyleboxOverride("pressed", styleEmpty);
-		btnCancel.AddThemeStyleboxOverride("focus", styleEmpty);
+		UIStyle.ApplyPlainButtonStates(btnCancel);
 
 		return btnCancel;
 	}

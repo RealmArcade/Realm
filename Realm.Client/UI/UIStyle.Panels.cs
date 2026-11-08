@@ -393,6 +393,19 @@ public static partial class UIStyle
 		return CreateTexturedPanel("res://Assets/UI/map_editor_publish.webp", 140);
 	}
 
+	/// <summary>
+	/// A transparent plate traced with a border, which is how the in-game HUD marks the selected unit button. The fill
+	/// is optional because most of these plates are only an outline over the button's own artwork.
+	/// </summary>
+	public static StyleBoxFlat CreateBorderPlate(Color borderColor, int borderWidth, Color? bgColor = null)
+	{
+		var style = new StyleBoxFlat();
+		style.BgColor = bgColor ?? new Color(0, 0, 0, 0);
+		style.BorderColor = borderColor;
+		style.SetBorderWidthAll(borderWidth);
+		return style;
+	}
+
 	public static StyleBox CreateBackdropPanel()
 	{
 		var style = new StyleBoxFlat();
