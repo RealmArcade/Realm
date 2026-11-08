@@ -61,86 +61,86 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 
 	private bool _isSyncingControls = false;
 	private string _slug = "";
-	private Label _lblObjectTypePrefix;
-	private LineEdit _txtSlug;
-	private LineEdit _txtTexturePath;
-	private Action<string> _setTexturePathValue;
-	private CheckBox _chkAnimateOpacity;
-	private HSlider _sldOpacitySpeed;
-	private Label _lblOpacitySpeed;
-	private HSlider _sldMinOpacity;
-	private Label _lblMinOpacity;
-	private HSlider _sldMaxOpacity;
-	private Label _lblMaxOpacity;
+	private Label _lblObjectTypePrefix = null!;
+	private LineEdit _txtSlug = null!;
+	private LineEdit _txtTexturePath = null!;
+	private Action<string> _setTexturePathValue = null!;
+	private CheckBox _chkAnimateOpacity = null!;
+	private HSlider _sldOpacitySpeed = null!;
+	private Label _lblOpacitySpeed = null!;
+	private HSlider _sldMinOpacity = null!;
+	private Label _lblMinOpacity = null!;
+	private HSlider _sldMaxOpacity = null!;
+	private Label _lblMaxOpacity = null!;
 
-	private CheckBox _chkAnimateEmission;
-	private HSlider _sldEmissionSpeed;
-	private Label _lblEmissionSpeed;
-	private HSlider _sldMinEmission;
-	private Label _lblMinEmission;
-	private HSlider _sldMaxEmission;
-	private Label _lblMaxEmission;
+	private CheckBox _chkAnimateEmission = null!;
+	private HSlider _sldEmissionSpeed = null!;
+	private Label _lblEmissionSpeed = null!;
+	private HSlider _sldMinEmission = null!;
+	private Label _lblMinEmission = null!;
+	private HSlider _sldMaxEmission = null!;
+	private Label _lblMaxEmission = null!;
 
-	private CheckBox _chkAnimateScale;
-	private HSlider _sldScaleSpeed;
-	private Label _lblScaleSpeed;
-	private HSlider _sldMinScale;
-	private Label _lblMinScale;
-	private HSlider _sldMaxScale;
-	private Label _lblMaxScale;
+	private CheckBox _chkAnimateScale = null!;
+	private HSlider _sldScaleSpeed = null!;
+	private Label _lblScaleSpeed = null!;
+	private HSlider _sldMinScale = null!;
+	private Label _lblMinScale = null!;
+	private HSlider _sldMaxScale = null!;
+	private Label _lblMaxScale = null!;
 
-	private HSlider _sldUpperFade;
-	private Label _lblUpperFade;
-	private HSlider _sldLowerFade;
-	private Label _lblLowerFade;
+	private HSlider _sldUpperFade = null!;
+	private Label _lblUpperFade = null!;
+	private HSlider _sldLowerFade = null!;
+	private Label _lblLowerFade = null!;
 
-	private OptionButton _optPlacementMode;
-	private HSlider _sldProjectionSize;
-	private Label _lblProjectionSize;
-	private HSlider _sldProjectionHeight;
-	private Label _lblProjectionHeight;
-	private HSlider _sldGroundOffset;
-	private Label _lblGroundOffset;
-	private HSlider _sldNormalFade;
-	private Label _lblNormalFade;
-	private CheckBox _chkDistanceFade;
-	private HSlider _sldDistanceFadeBegin;
-	private Label _lblDistanceFadeBegin;
-	private HSlider _sldDistanceFadeEnd;
-	private Label _lblDistanceFadeEnd;
+	private OptionButton _optPlacementMode = null!;
+	private HSlider _sldProjectionSize = null!;
+	private Label _lblProjectionSize = null!;
+	private HSlider _sldProjectionHeight = null!;
+	private Label _lblProjectionHeight = null!;
+	private HSlider _sldGroundOffset = null!;
+	private Label _lblGroundOffset = null!;
+	private HSlider _sldNormalFade = null!;
+	private Label _lblNormalFade = null!;
+	private CheckBox _chkDistanceFade = null!;
+	private HSlider _sldDistanceFadeBegin = null!;
+	private Label _lblDistanceFadeBegin = null!;
+	private HSlider _sldDistanceFadeEnd = null!;
+	private Label _lblDistanceFadeEnd = null!;
 
 	private double _previewAnimTime = 0.0;
 
 
 	private readonly Dictionary<ulong, DecalNodeState> _originalDecalStates = new();
 
-	private DecalSnapshot _initialSnapshot;
+	private DecalSnapshot _initialSnapshot = null!;
 	private string? _initialTemplateJson = null;
 	private bool _templateExistedInitially = false;
-	private Action<JsonObject> _onApplied;
+	private Action<JsonObject> _onApplied = null!;
 
-	private Label _lblDecalName;
-	private TextureRect _previewRect;
-	private Texture2D _baseTexture;
+	private Label _lblDecalName = null!;
+	private TextureRect _previewRect = null!;
+	private Texture2D _baseTexture = null!;
 
-	private HSlider _sldBrightness;
-	private Label _lblBrightness;
-	private ColorPickerButton _btnTint;
-	private HSlider _sldContrast;
-	private Label _lblContrast;
-	private HSlider _sldSaturation;
-	private Label _lblSaturation;
-	private HSlider _sldOpacity;
-	private Label _lblOpacity;
-	private HSlider _sldAlbedoMix;
-	private Label _lblAlbedoMix;
-	private HSlider _sldNormalStrength;
-	private Label _lblNormalStrength;
-	private HSlider _sldRoughness;
-	private Label _lblRoughness;
-	private HSlider _sldMetallic;
-	private Label _lblMetallic;
-	private OptionButton _optBlendMode;
+	private HSlider _sldBrightness = null!;
+	private Label _lblBrightness = null!;
+	private ColorPickerButton _btnTint = null!;
+	private HSlider _sldContrast = null!;
+	private Label _lblContrast = null!;
+	private HSlider _sldSaturation = null!;
+	private Label _lblSaturation = null!;
+	private HSlider _sldOpacity = null!;
+	private Label _lblOpacity = null!;
+	private HSlider _sldAlbedoMix = null!;
+	private Label _lblAlbedoMix = null!;
+	private HSlider _sldNormalStrength = null!;
+	private Label _lblNormalStrength = null!;
+	private HSlider _sldRoughness = null!;
+	private Label _lblRoughness = null!;
+	private HSlider _sldMetallic = null!;
+	private Label _lblMetallic = null!;
+	private OptionButton _optBlendMode = null!;
 
 	public DecalSettingsDialog(MapEditorHUD hud)
 		: base(hud, TranslationServer.Translate("Decal Rendering & Blending Properties"), new Vector2(480, 720))
