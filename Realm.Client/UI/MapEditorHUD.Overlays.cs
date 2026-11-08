@@ -63,7 +63,7 @@ namespace Realm.Client.UI
 			if (GameContext.Host != null)
 			{
 				_viewModel.UpdateFromHost();
-				UpdateTerrainStatus();
+				TerrainStatus.Update();
 				UpdateInspectorVisibility();
 			}
 
@@ -85,102 +85,26 @@ namespace Realm.Client.UI
 			ApplyPendingExternalChanges();
 		}
 
-		private void ApplyPendingExternalChanges()
-		{
-			if (!EditorWorkspaceWatcher.HasPendingExternalChanges) return;
-			if (GameContext.Host == null) return;
-			if (GameContext.EditorService.IsSyncing || GameContext.EditorService.IsPaused) return;
-			if (FloatingDialogBase.HasAnyDialogOpen) return;
-			if (Input.IsMouseButtonPressed(MouseButton.Left) || Input.IsMouseButtonPressed(MouseButton.Right)) return;
-			if (GameContext.MapAutosaveService.HasPendingWrite) return;
+		private MapEditorWorkspaceReload? _workspaceReload;
 
-			string editingDirectory = GetActiveEditingDirectory();
-			if (string.IsNullOrEmpty(editingDirectory) || !File.Exists(Path.Combine(editingDirectory, "metadata.json"))) return;
-			if (!EditorWorkspaceWatcher.TryTakePendingExternalChanges(out bool metadataChanged, out bool terrainChanged)) return;
-
-			if (metadataChanged)
-			{
-				ReadMetadataAndRefreshTextures();
-				ViewLoadMapProperties();
-				UpdateMapNameHeader();
-				ShowFeedback(TranslationServer.Translate("metadata.json changed outside the editor — reloaded."));
-			}
-
-			if (!terrainChanged) return;
-
-			RecordMapVersion(MapVersionKind.ExternalChange, TranslationServer.Translate("Change made outside the editor"));
-
-			if (!GameContext.Host.EditorHasUnsavedChanges)
-			{
-				ReloadTerrainFromDisk(editingDirectory);
-				return;
-			}
-
-			ShowFeedback(TranslationServer.Translate("The terrain files changed outside the editor - your map was left as it is. The other version is in MAP VERSIONS."));
-		}
-
-		private void ReloadTerrainFromDisk(string editingDirectory)
-		{
-			if (GameContext.Host is not { } host) return;
-
-			string terrainPath = Path.Combine(editingDirectory, "terrain.json");
-			if (!File.Exists(terrainPath)) return;
-
-			GameContext.EditorService.IsSyncing = true;
-			try
-			{
-				bool loaded = host.LoadMapFromFile(terrainPath, ensureGlbOptimized: false);
-				if (loaded)
+		private MapEditorWorkspaceReload WorkspaceReload => _workspaceReload ??= new MapEditorWorkspaceReload(
+			new WorkspaceReloadHooks(GetActiveEditingDirectory,
+				() => GameContext.Host?.EditorHasUnsavedChanges ?? false,
+				() =>
 				{
-					host.EditorHasUnsavedChanges = false;
-					ShowFeedback(TranslationServer.Translate("The terrain changed outside the editor — reloaded."));
-				}
-				else
-				{
-					ShowFeedback(TranslationServer.Translate("The changed terrain files could not be read, so the map in this window was left untouched."));
-				}
-			}
-			catch (Exception ex)
-			{
-				GameLog.LogError($"[MapEditorHUD] Reloading terrain from disk failed: {ex.Message}");
-			}
-			finally
-			{
-				GameContext.EditorService.IsSyncing = false;
-			}
-		}
+					ReadMetadataAndRefreshTextures();
+					ViewLoadMapProperties();
+					UpdateMapNameHeader();
+				},
+				() => RecordMapVersion(MapVersionKind.ExternalChange, TranslationServer.Translate("Change made outside the editor")),
+				ShowFeedback));
 
-		private float _lastStatusX = float.NaN;
-		private float _lastStatusY = float.NaN;
-		private float _lastStatusZ = float.NaN;
-		private EditorTool? _lastActiveTool = null;
-		private string? _lastActivePlaceId = null;
+		private MapEditorTerrainStatus? _terrainStatus;
 
-		private void UpdateTerrainStatus()
-		{
-			if (GameContext.Host is not { } host) return;
+		private MapEditorTerrainStatus TerrainStatus => _terrainStatus ??= new MapEditorTerrainStatus(
+			this, text => _viewModel.StatusText = text);
 
-			var mousePos = GetViewport().GetMousePosition();
-			if (host.TryRaycastTerrainFromMousePosition(mousePos, out Vector3 pos))
-			{
-				float roundX = (float)Math.Round(pos.X, 1);
-				float roundY = (float)Math.Round(pos.Y, 1);
-				float roundZ = (float)Math.Round(pos.Z, 1);
-				EditorTool currentTool = host.ActiveEditorTool;
-				string currentPlaceId = host.ActivePlaceId;
-
-				if (roundX != _lastStatusX || roundY != _lastStatusY || roundZ != _lastStatusZ || currentTool != _lastActiveTool || currentPlaceId != _lastActivePlaceId)
-				{
-					_lastStatusX = roundX;
-					_lastStatusY = roundY;
-					_lastStatusZ = roundZ;
-					_lastActiveTool = currentTool;
-					_lastActivePlaceId = currentPlaceId;
-					GameContext.EditorService.CheckAndUpdateRaycast(pos);
-					_viewModel.StatusText = host.GetTerrainStatusString(pos);
-				}
-			}
-		}
+		private void ApplyPendingExternalChanges() => WorkspaceReload.ApplyPending();
 
 		private void UpdateInspectorVisibility()
 		{
