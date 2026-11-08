@@ -114,7 +114,7 @@ internal static class MapEditorChromeTheme
 		ApplyReadoutStyle(status, font);
 		ApplyReadoutStyle(measurement, font);
 
-		UIStyle.ApplyTitle(feedback, "", 24);
+		if (feedback != null) UIStyle.ApplyTitle(feedback, "", 24);
 	}
 
 	private static void ApplyReadoutStyle(Label? label, Font? font)
