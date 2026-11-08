@@ -233,6 +233,17 @@ public static partial class UIStyle
 		button.AddThemeStyleboxOverride("pressed", style);
 	}
 
+	/// <summary>The lit plate under the replay viewer's current playback speed.</summary>
+	public static StyleBoxFlat CreateReplaySpeedActivePlate()
+	{
+		var style = new StyleBoxFlat();
+		style.BgColor = ColorCyanGlow;
+		style.BorderColor = ColorGold;
+		style.SetBorderWidthAll(1);
+		style.SetCornerRadiusAll(4);
+		return style;
+	}
+
 	/// <summary>The raised, gold-rimmed plate under the game-over screen's selected tab.</summary>
 	public static StyleBoxFlat CreateGameOverTabActive()
 	{
