@@ -1,6 +1,7 @@
 using System;
 using System.Globalization;
 using Godot;
+using Realm.Client.Services;
 using Realm.Client.Utils;
 
 namespace Realm.Client.UI.MapEditor;
@@ -204,6 +205,167 @@ internal static class MapEditorStyle
 		lbl.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		lbl.HorizontalAlignment = HorizontalAlignment.Center;
 		lbl.VerticalAlignment = VerticalAlignment.Center;
+	}
+
+	/// <summary>
+	/// The top bar's textured plate. The compact variant used for the grouped toolbar buttons is the same plate with
+	/// tighter side padding, so both go through here rather than carrying a copy of the four styleboxes each.
+	/// </summary>
+	public static void TopButton(Button btn, int horizontalMargin = 12)
+	{
+		if (btn == null) return;
+
+		var tex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/map_editor_button.webp");
+		if (tex != null)
+		{
+			btn.AddThemeStyleboxOverride("normal", TopButtonPlate(tex, new Color(1, 1, 1, 1), horizontalMargin));
+			btn.AddThemeStyleboxOverride("hover", TopButtonPlate(tex, new Color(1.25f, 1.2f, 1.0f, 1.0f), horizontalMargin));
+			btn.AddThemeStyleboxOverride("pressed", TopButtonPlate(tex, new Color(0.85f, 0.8f, 0.7f, 1.0f), horizontalMargin));
+		}
+
+		btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+	}
+
+	private static StyleBoxTexture TopButtonPlate(Texture2D tex, Color modulate, int horizontalMargin)
+	{
+		var style = new StyleBoxTexture();
+		style.Texture = tex;
+		style.ModulateColor = modulate;
+		style.TextureMarginLeft = 0;
+		style.TextureMarginRight = 0;
+		style.TextureMarginTop = 0;
+		style.TextureMarginBottom = 0;
+		style.ContentMarginLeft = horizontalMargin;
+		style.ContentMarginRight = horizontalMargin;
+		style.ContentMarginTop = 6;
+		style.ContentMarginBottom = 6;
+		return style;
+	}
+
+	/// <summary>
+	/// The primary button used in the editor's dialogs: taller than an option button and drawn with the standard button
+	/// plates. The click sound lives here because every one of these buttons is a command.
+	/// </summary>
+	public static void DialogButton(Button btn, string text, Action? onClick, int fontSize, string tooltip, Font? font)
+	{
+		if (btn == null) return;
+
+		btn.Text = text;
+		if (font != null)
+		{
+			btn.AddThemeFontOverride("font", font);
+		}
+
+		btn.CustomMinimumSize = new Vector2(0, 32);
+		UIStyle.ApplyButtonStyleBoxesClearingFocus(btn);
+		btn.AddThemeFontSizeOverride("font_size", fontSize);
+		btn.FocusMode = Control.FocusModeEnum.None;
+		if (!string.IsNullOrEmpty(tooltip))
+		{
+			btn.TooltipText = TranslationServer.Translate(tooltip);
+		}
+
+		btn.Pressed += () =>
+		{
+			GameContext.UserInterface?.PlayClickSound();
+			onClick?.Invoke();
+		};
+	}
+
+	/// <summary>
+	/// The option button used throughout the editor's cards and dialogs: gold on hover, no focus ring, and a translated
+	/// tooltip. The tooltip is the only thing it translates — the label is the caller's own text.
+	/// </summary>
+	public static void OptionButton(Button btn, string text, Action? onClick, int fontSize, string tooltip, Font? font)
+	{
+		if (btn == null) return;
+
+		btn.Text = text;
+		if (font != null)
+		{
+			btn.AddThemeFontOverride("font", font);
+		}
+
+		btn.CustomMinimumSize = new Vector2(0, 30);
+		btn.AddThemeStyleboxOverride("normal", UIStyle.CreateOptionButtonNormal());
+		btn.AddThemeStyleboxOverride("hover", UIStyle.CreateOptionButtonHover());
+		btn.AddThemeStyleboxOverride("pressed", UIStyle.CreateOptionButtonPressed());
+		btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		btn.AddThemeFontSizeOverride("font_size", fontSize);
+		btn.AddThemeColorOverride("font_color", new Color(0.95f, 0.90f, 0.82f));
+		btn.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
+		btn.FocusMode = Control.FocusModeEnum.None;
+		btn.MouseFilter = Control.MouseFilterEnum.Stop;
+		if (!string.IsNullOrEmpty(tooltip))
+		{
+			btn.TooltipText = TranslationServer.Translate(tooltip);
+		}
+
+		if (onClick != null)
+		{
+			btn.Pressed += () =>
+			{
+				GameContext.UserInterface?.PlayClickSound();
+				onClick?.Invoke();
+			};
+		}
+	}
+
+	/// <summary>
+	/// A button whose face is an image rather than a glyph: the texture is inset on all four sides and the icon dims to
+	/// gold-dull until hovered, so the toolbar reads as dark plates with lit icons. The existing
+	/// <see cref="IconButton"/> is the glyph version of this.
+	/// </summary>
+	public static void IconButtonFromPath(Button btn, string iconPath, Action onClick, string tooltip)
+	{
+		if (btn == null) return;
+
+		btn.Flat = false;
+		btn.Text = "";
+		btn.Icon = null;
+		btn.CustomMinimumSize = new Vector2(36, 32);
+		btn.FocusMode = Control.FocusModeEnum.None;
+		btn.AddThemeConstantOverride("icon_max_width", 0);
+
+		UIStyle.ApplyButtonStyleBoxesClearingFocus(btn);
+
+		foreach (Node child in btn.GetChildren())
+		{
+			if (child is TextureRect) child.QueueFree();
+		}
+
+		var iconRect = new TextureRect();
+		iconRect.Name = "IconRect";
+		iconRect.Texture = TrimmedTextureLoader.LoadTrimmedTexture(iconPath);
+		iconRect.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
+		iconRect.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
+		iconRect.MouseFilter = Control.MouseFilterEnum.Ignore;
+		iconRect.AnchorLeft = 0;
+		iconRect.AnchorTop = 0;
+		iconRect.AnchorRight = 1;
+		iconRect.AnchorBottom = 1;
+		iconRect.OffsetLeft = 7;
+		iconRect.OffsetTop = 5;
+		iconRect.OffsetRight = -7;
+		iconRect.OffsetBottom = -5;
+		iconRect.Modulate = UIStyle.ColorGoldDull;
+		btn.AddChild(iconRect);
+
+		btn.MouseEntered += () => iconRect.Modulate = UIStyle.ColorGold;
+		btn.MouseExited += () => iconRect.Modulate = UIStyle.ColorGoldDull;
+		btn.ButtonDown += () => iconRect.Modulate = UIStyle.ColorCyanGlow;
+		btn.ButtonUp += () => iconRect.Modulate = btn.IsHovered() ? UIStyle.ColorGold : UIStyle.ColorGoldDull;
+
+		if (!string.IsNullOrEmpty(tooltip))
+		{
+			btn.TooltipText = TranslationServer.Translate(tooltip);
+		}
+
+		btn.Pressed += () =>
+		{
+			GameContext.UserInterface?.PlayClickSound();
+			onClick?.Invoke();
+		};
 	}
 
 	/// <summary>

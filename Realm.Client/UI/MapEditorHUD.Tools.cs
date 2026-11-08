@@ -1611,31 +1611,8 @@ namespace Realm.Client.UI
 
 		private void CloseScaleMapDialog() => ScaleDialog.Close();
 
-		private void SetupButton(Button btn, string text, Action? onClick, int fontSize = 13, string tooltip = "")
-		{
-			if (btn == null) return;
-			btn.Text = text;
-			var font = GetFontAwesomeFont();
-			if (font != null)
-			{
-				btn.AddThemeFontOverride("font", font);
-			}
-
-			btn.CustomMinimumSize = new Vector2(0, 32);
-			UIStyle.ApplyButtonStyleBoxesClearingFocus(btn);
-			btn.AddThemeFontSizeOverride("font_size", fontSize);
-			btn.FocusMode = FocusModeEnum.None;
-			if (!string.IsNullOrEmpty(tooltip))
-			{
-				btn.TooltipText = TranslationServer.Translate(tooltip);
-			}
-
-			btn.Pressed += () =>
-			{
-				GameContext.UserInterface?.PlayClickSound();
-				onClick?.Invoke();
-			};
-		}
+		private void SetupButton(Button btn, string text, Action? onClick, int fontSize = 13, string tooltip = "") =>
+			MapEditorStyle.DialogButton(btn, text, onClick, fontSize, tooltip, GetFontAwesomeFont());
 
 		private void SelectCliffTexture(int index)
 		{

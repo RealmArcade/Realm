@@ -1065,103 +1065,10 @@ namespace Realm.Client.UI
 
 		private void StyleCheckBoxRow(CheckBox chk) => MapEditorStyle.CheckBoxRow(chk);
 
-		private void StyleMapEditorTopButton(Button btn)
-		{
-			if (btn == null) return;
-			var tex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/map_editor_button.webp");
-			if (tex != null)
-			{
-				var normalStyle = new StyleBoxTexture();
-				normalStyle.Texture = tex;
-				normalStyle.TextureMarginLeft = 0;
-				normalStyle.TextureMarginRight = 0;
-				normalStyle.TextureMarginTop = 0;
-				normalStyle.TextureMarginBottom = 0;
-				normalStyle.ContentMarginLeft = 12;
-				normalStyle.ContentMarginRight = 12;
-				normalStyle.ContentMarginTop = 6;
-				normalStyle.ContentMarginBottom = 6;
+		private void StyleMapEditorTopButton(Button btn) => MapEditorStyle.TopButton(btn);
 
-				var hoverStyle = new StyleBoxTexture();
-				hoverStyle.Texture = tex;
-				hoverStyle.ModulateColor = new Color(1.25f, 1.2f, 1.0f, 1.0f);
-				hoverStyle.TextureMarginLeft = 0;
-				hoverStyle.TextureMarginRight = 0;
-				hoverStyle.TextureMarginTop = 0;
-				hoverStyle.TextureMarginBottom = 0;
-				hoverStyle.ContentMarginLeft = 12;
-				hoverStyle.ContentMarginRight = 12;
-				hoverStyle.ContentMarginTop = 6;
-				hoverStyle.ContentMarginBottom = 6;
-
-				var pressedStyle = new StyleBoxTexture();
-				pressedStyle.Texture = tex;
-				pressedStyle.ModulateColor = new Color(0.85f, 0.8f, 0.7f, 1.0f);
-				pressedStyle.TextureMarginLeft = 0;
-				pressedStyle.TextureMarginRight = 0;
-				pressedStyle.TextureMarginTop = 0;
-				pressedStyle.TextureMarginBottom = 0;
-				pressedStyle.ContentMarginLeft = 12;
-				pressedStyle.ContentMarginRight = 12;
-				pressedStyle.ContentMarginTop = 6;
-				pressedStyle.ContentMarginBottom = 6;
-
-				btn.AddThemeStyleboxOverride("normal", normalStyle);
-				btn.AddThemeStyleboxOverride("hover", hoverStyle);
-				btn.AddThemeStyleboxOverride("pressed", pressedStyle);
-			}
-
-			btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-		}
-
-		private void StyleCompactMapEditorTopButton(Button btn, int horizontalMargin = 4)
-		{
-			if (btn == null) return;
-			var tex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/map_editor_button.webp");
-			if (tex != null)
-			{
-				var normalStyle = new StyleBoxTexture();
-				normalStyle.Texture = tex;
-				normalStyle.TextureMarginLeft = 0;
-				normalStyle.TextureMarginRight = 0;
-				normalStyle.TextureMarginTop = 0;
-				normalStyle.TextureMarginBottom = 0;
-				normalStyle.ContentMarginLeft = horizontalMargin;
-				normalStyle.ContentMarginRight = horizontalMargin;
-				normalStyle.ContentMarginTop = 6;
-				normalStyle.ContentMarginBottom = 6;
-
-				var hoverStyle = new StyleBoxTexture();
-				hoverStyle.Texture = tex;
-				hoverStyle.ModulateColor = new Color(1.25f, 1.2f, 1.0f, 1.0f);
-				hoverStyle.TextureMarginLeft = 0;
-				hoverStyle.TextureMarginRight = 0;
-				hoverStyle.TextureMarginTop = 0;
-				hoverStyle.TextureMarginBottom = 0;
-				hoverStyle.ContentMarginLeft = horizontalMargin;
-				hoverStyle.ContentMarginRight = horizontalMargin;
-				hoverStyle.ContentMarginTop = 6;
-				hoverStyle.ContentMarginBottom = 6;
-
-				var pressedStyle = new StyleBoxTexture();
-				pressedStyle.Texture = tex;
-				pressedStyle.ModulateColor = new Color(0.85f, 0.8f, 0.7f, 1.0f);
-				pressedStyle.TextureMarginLeft = 0;
-				pressedStyle.TextureMarginRight = 0;
-				pressedStyle.TextureMarginTop = 0;
-				pressedStyle.TextureMarginBottom = 0;
-				pressedStyle.ContentMarginLeft = horizontalMargin;
-				pressedStyle.ContentMarginRight = horizontalMargin;
-				pressedStyle.ContentMarginTop = 6;
-				pressedStyle.ContentMarginBottom = 6;
-
-				btn.AddThemeStyleboxOverride("normal", normalStyle);
-				btn.AddThemeStyleboxOverride("hover", hoverStyle);
-				btn.AddThemeStyleboxOverride("pressed", pressedStyle);
-			}
-
-			btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-		}
+		private void StyleCompactMapEditorTopButton(Button btn, int horizontalMargin = 4) =>
+			MapEditorStyle.TopButton(btn, horizontalMargin);
 
 
 		private MapEditorCardInteraction? _cardInteraction;
@@ -1242,90 +1149,11 @@ namespace Realm.Client.UI
 			}
 		}
 
-		private void SetupIconButton(Button btn, string iconPath, Action onClick, string tooltip = "")
-		{
-			btn.Flat = false;
-			btn.Text = "";
-			btn.Icon = null;
-			btn.CustomMinimumSize = new Vector2(36, 32);
-			btn.FocusMode = FocusModeEnum.None;
-			btn.AddThemeConstantOverride("icon_max_width", 0);
+		private void SetupIconButton(Button btn, string iconPath, Action onClick, string tooltip = "") =>
+			MapEditorStyle.IconButtonFromPath(btn, iconPath, onClick, tooltip);
 
-			UIStyle.ApplyButtonStyleBoxesClearingFocus(btn);
-
-			foreach (Node child in btn.GetChildren())
-			{
-				if (child is TextureRect) child.QueueFree();
-			}
-
-			var iconRect = new TextureRect();
-			iconRect.Name = "IconRect";
-			iconRect.Texture = TrimmedTextureLoader.LoadTrimmedTexture(iconPath);
-			iconRect.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
-			iconRect.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
-			iconRect.MouseFilter = MouseFilterEnum.Ignore;
-			iconRect.AnchorLeft = 0;
-			iconRect.AnchorTop = 0;
-			iconRect.AnchorRight = 1;
-			iconRect.AnchorBottom = 1;
-			iconRect.OffsetLeft = 7;
-			iconRect.OffsetTop = 5;
-			iconRect.OffsetRight = -7;
-			iconRect.OffsetBottom = -5;
-			iconRect.Modulate = UIStyle.ColorGoldDull;
-			btn.AddChild(iconRect);
-
-			btn.MouseEntered += () => iconRect.Modulate = UIStyle.ColorGold;
-			btn.MouseExited += () => iconRect.Modulate = UIStyle.ColorGoldDull;
-			btn.ButtonDown += () => iconRect.Modulate = UIStyle.ColorCyanGlow;
-			btn.ButtonUp += () => iconRect.Modulate = btn.IsHovered() ? UIStyle.ColorGold : UIStyle.ColorGoldDull;
-
-			if (!string.IsNullOrEmpty(tooltip))
-			{
-				btn.TooltipText = TranslationServer.Translate(tooltip);
-			}
-
-			btn.Pressed += () =>
-			{
-				GameContext.UserInterface?.PlayClickSound();
-				onClick?.Invoke();
-			};
-		}
-
-		private void SetupOptionButton(Button btn, string text, Action? onClick, int fontSize = 11, string tooltip = "")
-		{
-			if (btn == null) return;
-			btn.Text = text;
-			var font = GetFontAwesomeFont();
-			if (font != null)
-			{
-				btn.AddThemeFontOverride("font", font);
-			}
-
-			btn.CustomMinimumSize = new Vector2(0, 30);
-			btn.AddThemeStyleboxOverride("normal", UIStyle.CreateOptionButtonNormal());
-			btn.AddThemeStyleboxOverride("hover", UIStyle.CreateOptionButtonHover());
-			btn.AddThemeStyleboxOverride("pressed", UIStyle.CreateOptionButtonPressed());
-			btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-			btn.AddThemeFontSizeOverride("font_size", fontSize);
-			btn.AddThemeColorOverride("font_color", new Color(0.95f, 0.90f, 0.82f));
-			btn.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
-			btn.FocusMode = FocusModeEnum.None;
-			btn.MouseFilter = MouseFilterEnum.Stop;
-			if (!string.IsNullOrEmpty(tooltip))
-			{
-				btn.TooltipText = TranslationServer.Translate(tooltip);
-			}
-
-			if (onClick != null)
-			{
-				btn.Pressed += () =>
-				{
-					GameContext.UserInterface?.PlayClickSound();
-					onClick?.Invoke();
-				};
-			}
-		}
+		private void SetupOptionButton(Button btn, string text, Action? onClick, int fontSize = 11, string tooltip = "") =>
+			MapEditorStyle.OptionButton(btn, text, onClick, fontSize, tooltip, GetFontAwesomeFont());
 
 		private void StyleOptionButtonPopup(OptionButton optBtn) => MapEditorStyle.OptionButtonPopup(optBtn, GetFontAwesomeFont());
 
