@@ -7,15 +7,15 @@ using Realm.Shared.Metadata;
 namespace Realm.Client.UI.MapEditor;
 
 /// <summary>
-/// What the water panel needs from the editor: its node tree and the sibling it follows, the shared accordion,
-/// row and highlight styling, the profile dialog it opens, and the slider-drag flag.
+/// What the water panel needs from the editor: its node tree and the sibling it follows, the shared accordion and
+/// highlight styling, the profile dialog it opens, and the slider-drag flag. Row styling is not here: it is shared
+/// chrome, so the panel calls MapEditorStyle directly.
 /// </summary>
 public sealed record WaterSettingsHooks(
 	Node Owner,
 	Node? InsertAfter,
 	Action<Button> StyleAccordionHeader,
 	Action<Button, Control, string> SetupAccordion,
-	Action<Button> StyleRowButton,
 	StyleBoxFlat HighlightStyle,
 	Action OpenProfiles,
 	Action<bool> SetSliderDragging);
@@ -142,7 +142,7 @@ public sealed class WaterSettingsPanel
 		ActionAdd.FocusMode = Control.FocusModeEnum.None;
 		ActionAdd.AddThemeFontSizeOverride("font_size", 11);
 		ActionAdd.TooltipText = TranslationServer.Translate("Add water to terrain");
-		hooks.StyleRowButton(ActionAdd);
+		MapEditorStyle.RowButton(ActionAdd);
 		ActionAdd.AddThemeStyleboxOverride("normal", hooks.HighlightStyle);
 		waterActionButtonRow.AddChild(ActionAdd);
 
@@ -154,7 +154,7 @@ public sealed class WaterSettingsPanel
 		ActionRemove.FocusMode = Control.FocusModeEnum.None;
 		ActionRemove.AddThemeFontSizeOverride("font_size", 11);
 		ActionRemove.TooltipText = TranslationServer.Translate("Remove water from terrain");
-		hooks.StyleRowButton(ActionRemove);
+		MapEditorStyle.RowButton(ActionRemove);
 		waterActionButtonRow.AddChild(ActionRemove);
 
 		ActionAdd.Pressed += () =>

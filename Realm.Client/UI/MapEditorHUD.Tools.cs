@@ -454,7 +454,7 @@ namespace Realm.Client.UI
 		{
 			_waterPanel = new WaterSettingsPanel();
 			_waterPanel.Build(new WaterSettingsHooks(
-				this, _brushPanel.Accordion, StyleAccordionHeader, SetupAccordion, StyleRowButton, _highlightStyle,
+				this, _brushPanel.Accordion, StyleAccordionHeader, SetupAccordion, _highlightStyle,
 				OpenWaterProfileDialog, dragging => _isDraggingSlider = dragging));
 		}
 
