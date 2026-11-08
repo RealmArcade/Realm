@@ -91,6 +91,25 @@ public static partial class UIStyle
 		return style;
 	}
 
+	/// <summary>
+	/// One row of an editor dropdown's suggestion list: invisible until hovered or held, and sharing the resting plate
+	/// while disabled.
+	/// </summary>
+	public static void ApplyEditorSuggestionRow(Button row)
+	{
+		row.AddThemeStyleboxOverride("normal", CreateCardPlate(new Color(0, 0, 0, 0), new Color(0, 0, 0, 0), 0, 3, 5, 5, 1, 1));
+		row.AddThemeStyleboxOverride("hover", CreateEditorSuggestionRowHover());
+		row.AddThemeStyleboxOverride("pressed", CreateEditorSuggestionRowHover());
+		row.AddThemeStyleboxOverride("disabled", CreateCardPlate(new Color(0, 0, 0, 0), new Color(0, 0, 0, 0), 0, 3, 5, 5, 1, 1));
+		row.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+	}
+
+	/// <summary>The gold-edged plate a suggestion row takes while the pointer is over it or it is held down.</summary>
+	private static StyleBoxFlat CreateEditorSuggestionRowHover()
+	{
+		return CreateCardPlate(new Color(0.16f, 0.18f, 0.22f, 0.95f), ColorGold, 1, 3, 5, 5, 1, 1);
+	}
+
 	/// <summary>The lit plate under the entity palette's selected category button.</summary>
 	public static StyleBoxFlat CreateEditorPaletteCategoryActive()
 	{

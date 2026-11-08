@@ -105,7 +105,8 @@ public class DropdownSuggestionList
 			Visible = false,
 			MouseFilter = Control.MouseFilterEnum.Stop
 		};
-		_panel.AddThemeStyleboxOverride("panel", CreatePanelStyle());
+		_panel.AddThemeStyleboxOverride("panel",
+			UIStyle.CreateCardPlate(new Color(0.08f, 0.09f, 0.11f, 0.97f), new Color(0.45f, 0.38f, 0.3f), 1, 4, 2, 2, 2, 2));
 		_catcher.AddChild(_panel);
 
 		var margin = new MarginContainer { Name = "DropdownSuggestionMargin_MarginContainer" };
@@ -191,11 +192,7 @@ public class DropdownSuggestionList
 				SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
 				MouseDefaultCursorShape = Control.CursorShape.PointingHand
 			};
-			rowButton.AddThemeStyleboxOverride("normal", CreateRowStyle(false));
-			rowButton.AddThemeStyleboxOverride("hover", CreateRowStyle(true));
-			rowButton.AddThemeStyleboxOverride("pressed", CreateRowStyle(true));
-			rowButton.AddThemeStyleboxOverride("disabled", CreateRowStyle(false));
-			rowButton.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+			UIStyle.ApplyEditorSuggestionRow(rowButton);
 			rowButton.AddThemeFontSizeOverride("font_size", 11);
 			rowButton.Pressed += () => HandleRowPressed(slotIndex);
 			_rows.AddChild(rowButton);
@@ -251,28 +248,4 @@ public class DropdownSuggestionList
 		}
 	}
 
-	private static StyleBoxFlat CreatePanelStyle()
-	{
-		var style = new StyleBoxFlat();
-		style.BgColor = new Color(0.08f, 0.09f, 0.11f, 0.97f);
-		style.BorderColor = new Color(0.45f, 0.38f, 0.3f);
-		style.SetBorderWidthAll(1);
-		style.SetCornerRadiusAll(4);
-		style.SetContentMarginAll(2);
-		return style;
-	}
-
-	private static StyleBoxFlat CreateRowStyle(bool isHover)
-	{
-		var style = new StyleBoxFlat();
-		style.BgColor = isHover ? new Color(0.16f, 0.18f, 0.22f, 0.95f) : new Color(0.0f, 0.0f, 0.0f, 0.0f);
-		style.BorderColor = isHover ? UIStyle.ColorGold : new Color(0.0f, 0.0f, 0.0f, 0.0f);
-		style.SetBorderWidthAll(isHover ? 1 : 0);
-		style.SetCornerRadiusAll(3);
-		style.ContentMarginLeft = 5;
-		style.ContentMarginRight = 5;
-		style.ContentMarginTop = 1;
-		style.ContentMarginBottom = 1;
-		return style;
-	}
 }
