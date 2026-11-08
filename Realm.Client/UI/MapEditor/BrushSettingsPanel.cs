@@ -150,6 +150,9 @@ public sealed class BrushSettingsPanel
 			MapEditorStyle.ValueBadge(SizeValue);
 			MapEditorStyle.ValueBadge(StrengthValue);
 			MapEditorStyle.ValueBadge(StepValue);
+			MapEditorStyle.ValueBadge(HeightValue);
+
+			MapEditorStyle.CheckBoxRow(BlockModeCheck);
 
 			if (ShapeButton != null)
 			{

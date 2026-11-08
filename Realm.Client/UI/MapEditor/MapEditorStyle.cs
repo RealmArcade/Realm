@@ -206,6 +206,19 @@ internal static class MapEditorStyle
 		lbl.VerticalAlignment = VerticalAlignment.Center;
 	}
 
+	/// <summary>
+	/// A checkbox that reads as a row in a settings column: a full-height hit area, the panel's small text, and the gold
+	/// hover the rest of the editor uses. Shared because the panels and the editor both style checkboxes they own.
+	/// </summary>
+	public static void CheckBoxRow(CheckBox chk)
+	{
+		if (chk == null) return;
+		chk.CustomMinimumSize = new Vector2(0, 28);
+		chk.AddThemeFontSizeOverride("font_size", 11);
+		chk.AddThemeColorOverride("font_color", new Color(0.88f, 0.84f, 0.78f));
+		UIStyle.ApplyGoldHoverColors(chk);
+	}
+
 	public static void OptionButtonsInContainer(Control container, Font? font)
 	{
 		if (container == null) return;

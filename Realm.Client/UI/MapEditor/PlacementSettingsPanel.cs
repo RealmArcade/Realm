@@ -167,11 +167,24 @@ public sealed class PlacementSettingsPanel
 	}
 
 	/// <summary>
-	/// The mirror dropdown is the only control on the placement card that the shared accordion pass does not already
-	/// size for a narrow column.
+	/// Theme pass for everything this card owns: the value badges beside each slider, the two plates that hold the
+	/// clump sliders, the toggle rows, and the mirror dropdown, which is the only control the shared accordion pass does
+	/// not already size for a narrow column.
 	/// </summary>
 	public void StyleControls()
 	{
+		MapEditorStyle.ValueBadge(RotateValue);
+		MapEditorStyle.ValueBadge(ScaleValue);
+		MapEditorStyle.ValueBadge(DensityValue);
+		MapEditorStyle.ValueBadge(ScaleVarValue);
+
+		MapEditorStyle.CheckBoxRow(RandomRotationCheck);
+		MapEditorStyle.CheckBoxRow(RandomScaleCheck);
+		MapEditorStyle.CheckBoxRow(ClumpModeCheck);
+
+		if (DensityBox != null) MapEditorStyle.SubContainer(DensityBox, "Clump Density");
+		if (ScaleVarBox != null) MapEditorStyle.SubContainer(ScaleVarBox, "Scale Variance");
+
 		if (MirrorOption == null) return;
 		MirrorOption.CustomMinimumSize = new Vector2(0, 30);
 		MirrorOption.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;

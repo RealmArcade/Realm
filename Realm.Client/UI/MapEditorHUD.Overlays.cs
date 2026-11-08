@@ -279,7 +279,6 @@ namespace Realm.Client.UI
 			ApplyActionButtonsStyles();
 			ApplyToolButtonsStyles();
 			ApplyInspectorButtonsStyles();
-			ApplyValueBadgeStylesViewLogic();
 			ApplyCheckBoxStyles();
 			ApplySubContainerStyles();
 			ApplyTopBarStyles();
@@ -384,41 +383,29 @@ namespace Realm.Client.UI
 
 		private void ApplyToolButtonsStyles() => _toolPanel.StyleButtons();
 		private void ApplyInspectorButtonsStyles() => _inspectorView.StyleButtons();
-		private void ApplyValueBadgeStylesViewLogic()
-		{
-			StyleValueBadge(_brushPanel.SizeValue);
-			StyleValueBadge(_brushPanel.StrengthValue);
-			StyleValueBadge(_brushPanel.StepValue);
-			StyleValueBadge(_brushPanel.HeightValue);
-			StyleValueBadge(_placementPanel.RotateValue);
-			StyleValueBadge(_placementPanel.ScaleValue);
-			StyleValueBadge(_placementPanel.DensityValue);
-			StyleValueBadge(_placementPanel.ScaleVarValue);
-			StyleValueBadge(_pastePanel?.RotationLabel);
-		}
-
+		/// <summary>
+		/// The checkboxes the editor itself owns: the terrain flags on the pathing card. Every other checkbox in the
+		/// sidebar belongs to a panel that styles its own rows.
+		/// </summary>
 		private void ApplyCheckBoxStyles()
 		{
-			StyleCheckBoxRow(_brushPanel.BlockModeCheck);
 			StyleCheckBoxRow(_chkShallowWater);
 			StyleCheckBoxRow(_chkDeepWater);
 			StyleCheckBoxRow(_chkFlying);
 			StyleCheckBoxRow(_chkGround);
 			StyleCheckBoxRow(_chkBuildable);
-			StyleCheckBoxRow(_placementPanel.RandomRotationCheck);
-			StyleCheckBoxRow(_placementPanel.RandomScaleCheck);
-			StyleCheckBoxRow(_placementPanel.ClumpModeCheck);
 		}
 
+		/// <summary>
+		/// The plates the editor itself owns, on the tool-settings card. The brush, placement and paste panels plate their
+		/// own sections in their own style passes.
+		/// </summary>
 		private void ApplySubContainerStyles()
 		{
 			StyleSubContainer(_containerTextureSettings, "Texture Paint Palette");
 			StyleSubContainer(_containerPathingSettings, "Pathing Masks");
 			StyleSubContainer(_containerPlacementSettings, "Placement Controls");
-			StyleSubContainer(_placementPanel.DensityBox, "Clump Density");
-			StyleSubContainer(_placementPanel.ScaleVarBox, "Scale Variance");
 			StyleSubContainer(_containerEyedropperSettings, "Eyedropper Sample Filter");
-			StyleSubContainer(_pastePanel?.Container, "Paste Options");
 			StyleSubContainer(_containerCategorySelector, "Entity Categories");
 		}
 
@@ -1189,16 +1176,7 @@ namespace Realm.Client.UI
 
 		private void StyleSubContainer(Control boxNode, string? headerText = null) => MapEditorStyle.SubContainer(boxNode, headerText);
 
-		private void StyleValueBadge(Label lbl) => MapEditorStyle.ValueBadge(lbl);
-
-		private void StyleCheckBoxRow(CheckBox chk)
-		{
-			if (chk == null) return;
-			chk.CustomMinimumSize = new Vector2(0, 28);
-			chk.AddThemeFontSizeOverride("font_size", 11);
-			chk.AddThemeColorOverride("font_color", new Color(0.88f, 0.84f, 0.78f));
-			UIStyle.ApplyGoldHoverColors(chk);
-		}
+		private void StyleCheckBoxRow(CheckBox chk) => MapEditorStyle.CheckBoxRow(chk);
 
 		private void StyleMapEditorTopButton(Button btn)
 		{
