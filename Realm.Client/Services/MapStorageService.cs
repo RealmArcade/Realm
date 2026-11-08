@@ -934,7 +934,7 @@ public class MapStorageService
 		GameContext.Host.SaveMapToFile(tempTerrainPath, performReload: false);
 		GameContext.Host.EditorHasUnsavedChanges = false;
 
-		if (isWindows)
+		if (isWindows && OperatingSystem.IsWindows())
 		{
 			await GameContext.VSCode.SaveAllOpenFilesAsync();
 		}
