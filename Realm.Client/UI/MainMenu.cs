@@ -115,7 +115,7 @@ public partial class MainMenu : Control
 		AccountOperationResult result = await GameContext.Account.SignInWithSteamIdentityAsync();
 		if (!GodotObject.IsInstanceValid(this) || !IsInsideTree()) return;
 		if (result.Succeeded) return;
-		if (!PlayerProfileDialog.IsDisplayNameRefusal(result.ErrorCode)) return;
+		if (!AccountService.IsDisplayNameRefusal(result.ErrorCode)) return;
 
 		OpenProfileDialog();
 

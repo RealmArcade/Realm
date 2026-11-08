@@ -317,7 +317,7 @@ public partial class PlayerProfileDialog : Control
 		bool signedIn = GameContext.Account.IsSignedIn;
 		bool steamAvailable = GameContext.Steam.IsAvailable;
 
-		if (signedIn) AdoptAccountNameAsLocalName();
+		if (signedIn) GameContext.Account.AdoptDisplayNameAsLocalName();
 
 		_userNameValueLabel.Text = signedIn
 			? GameContext.Account.DisplayName
@@ -329,21 +329,6 @@ public partial class PlayerProfileDialog : Control
 		_signInButton.Disabled = _busy || _serverRefusesSteam;
 
 		RefreshWarning();
-	}
-
-	/// <summary>
-	///     Makes the name the account goes by the name this machine falls back to when it is signed out, so the local name tracks
-	///     the most recent name the player actually used instead of freezing whatever was typed before the first sign-in. The
-	///     account's name is canonical already, so it is stored as it stands and never re-validated here.
-	/// </summary>
-	private static void AdoptAccountNameAsLocalName()
-	{
-		string accountName = GameContext.Account.DisplayName;
-		if (accountName.Length == 0) return;
-		if (string.Equals(accountName, GameSettings.PlayerName, StringComparison.Ordinal)) return;
-
-		GameSettings.PlayerName = accountName;
-		GameSettings.Save();
 	}
 
 	private void RefreshWarning()
@@ -490,7 +475,7 @@ public partial class PlayerProfileDialog : Control
 		AccountOperationResult result = await SignInWithSteamAsync(GameContext.Steam.UserName.Trim(), false);
 		if (!GodotObject.IsInstanceValid(this) || result.Succeeded) return;
 
-		if (IsDisplayNameRefusal(result.ErrorCode))
+		if (AccountService.IsDisplayNameRefusal(result.ErrorCode))
 		{
 			ClearStatus();
 			OpenNameConflictDialog(result);
@@ -619,19 +604,6 @@ public partial class PlayerProfileDialog : Control
 		if (result.Succeeded) return UserNameChangeResult.Succeeded;
 
 		return UserNameChangeResult.Refused(DescribeErrorCode(result.ErrorCode, result.Message));
-	}
-
-	public static bool IsDisplayNameRefusal(string errorCode)
-	{
-		return errorCode is AccountErrorCodes.DisplayNameEmpty
-			or AccountErrorCodes.DisplayNameTooShort
-			or AccountErrorCodes.DisplayNameTooLong
-			or AccountErrorCodes.DisplayNameTooManyBytes
-			or AccountErrorCodes.DisplayNameDisallowedCharacter
-			or AccountErrorCodes.DisplayNameCombiningMarkWithoutBase
-			or AccountErrorCodes.DisplayNameNeedsLetterOrDigit
-			or AccountErrorCodes.DisplayNameAlreadyTaken
-			or AccountErrorCodes.DisplayNameVisuallySimilar;
 	}
 
 	private async Task SignOutAsync()

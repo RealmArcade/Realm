@@ -127,6 +127,35 @@ public class AccountService
 		}
 	}
 
+	/// <summary>Whether a refused sign-in or rename was refused on the name itself, which is the one refusal the player can fix.</summary>
+	public static bool IsDisplayNameRefusal(string errorCode)
+	{
+		return errorCode is AccountErrorCodes.DisplayNameEmpty
+			or AccountErrorCodes.DisplayNameTooShort
+			or AccountErrorCodes.DisplayNameTooLong
+			or AccountErrorCodes.DisplayNameTooManyBytes
+			or AccountErrorCodes.DisplayNameDisallowedCharacter
+			or AccountErrorCodes.DisplayNameCombiningMarkWithoutBase
+			or AccountErrorCodes.DisplayNameNeedsLetterOrDigit
+			or AccountErrorCodes.DisplayNameAlreadyTaken
+			or AccountErrorCodes.DisplayNameVisuallySimilar;
+	}
+
+	/// <summary>
+	///     Makes the account's name the name this machine falls back to when it is signed out, so the local name tracks the
+	///     most recent name the player actually used instead of freezing whatever was typed before the first sign-in. The
+	///     account's name is canonical already, so it is stored as it stands and never re-validated here.
+	/// </summary>
+	public void AdoptDisplayNameAsLocalName()
+	{
+		string accountName = DisplayName;
+		if (accountName.Length == 0) return;
+		if (string.Equals(accountName, GameSettings.PlayerName, StringComparison.Ordinal)) return;
+
+		GameSettings.PlayerName = accountName;
+		GameSettings.Save();
+	}
+
 	/// <summary>
 	///     The name this screen goes by right now. An account owns its name, so signing in replaces whatever was typed while
 	///     signed out, and the name the account last went by is kept as the local fallback, so a player who signs out carries on
