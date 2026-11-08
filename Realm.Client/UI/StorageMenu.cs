@@ -171,46 +171,30 @@ public partial class StorageMenu : Control
 
 	private static StyleBoxFlat CreateCardStyle(bool isSelected, bool isHover)
 	{
-		var style = new StyleBoxFlat();
-		style.BgColor = isSelected
-			? new Color(0.16f, 0.18f, 0.24f, 0.95f)
-			: (isHover ? new Color(0.12f, 0.13f, 0.17f, 0.90f) : new Color(0.09f, 0.10f, 0.13f, 0.85f));
-		style.BorderColor = isSelected ? UIStyle.ColorGold : (isHover ? UIStyle.ColorCyanGlowDim : new Color(0.25f, 0.25f, 0.30f, 0.7f));
-		style.SetBorderWidthAll(1);
+		var style = UIStyle.CreateCardPlate(
+			isSelected
+				? new Color(0.16f, 0.18f, 0.24f, 0.95f)
+				: (isHover ? new Color(0.12f, 0.13f, 0.17f, 0.90f) : new Color(0.09f, 0.10f, 0.13f, 0.85f)),
+			isSelected ? UIStyle.ColorGold : (isHover ? UIStyle.ColorCyanGlowDim : new Color(0.25f, 0.25f, 0.30f, 0.7f)),
+			1, 4, 10, 10, 6, 6);
+
 		if (isSelected)
 		{
 			style.BorderWidthLeft = 4;
 		}
 
-		style.SetCornerRadiusAll(4);
-		style.ContentMarginLeft = 10;
-		style.ContentMarginRight = 10;
-		style.ContentMarginTop = 6;
-		style.ContentMarginBottom = 6;
 		return style;
 	}
 
 	private static StyleBoxFlat CreateVersionRowStyle()
 	{
-		var style = new StyleBoxFlat();
-		style.BgColor = new Color(0.10f, 0.11f, 0.15f, 0.90f);
-		style.BorderColor = new Color(0.28f, 0.28f, 0.35f, 0.7f);
-		style.SetBorderWidthAll(1);
-		style.SetCornerRadiusAll(4);
-		style.ContentMarginLeft = 14;
-		style.ContentMarginRight = 14;
-		style.ContentMarginTop = 8;
-		style.ContentMarginBottom = 8;
-		return style;
+		return UIStyle.CreateCardPlate(new Color(0.10f, 0.11f, 0.15f, 0.90f), new Color(0.28f, 0.28f, 0.35f, 0.7f), 1, 4, 14, 14, 8, 8);
 	}
 
 	private static StyleBoxFlat CreateDeleteButtonStyle(bool isHover)
 	{
-		var style = new StyleBoxFlat();
-		style.BgColor = isHover ? new Color(0.4f, 0.12f, 0.12f, 0.9f) : new Color(0.25f, 0.08f, 0.08f, 0.8f);
-		style.BorderColor = isHover ? new Color(0.9f, 0.3f, 0.3f, 1.0f) : new Color(0.5f, 0.2f, 0.2f, 0.8f);
-		style.SetBorderWidthAll(1);
-		style.SetCornerRadiusAll(4);
-		return style;
+		return isHover
+			? UIStyle.CreateButtonPlate(new Color(0.4f, 0.12f, 0.12f, 0.9f), new Color(0.9f, 0.3f, 0.3f, 1.0f))
+			: UIStyle.CreateButtonPlate(new Color(0.25f, 0.08f, 0.08f, 0.8f), new Color(0.5f, 0.2f, 0.2f, 0.8f));
 	}
 }

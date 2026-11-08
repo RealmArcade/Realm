@@ -487,6 +487,20 @@ public static partial class UIStyle
 		button.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 	}
 
+	/// <summary>
+	/// A button plate that sets only the fill, the border and the rounding. Its content inset is left to the border
+	/// width, which is the default every small square button relies on.
+	/// </summary>
+	public static StyleBoxFlat CreateButtonPlate(Color bgColor, Color borderColor, int cornerRadius = 4)
+	{
+		var style = new StyleBoxFlat();
+		style.BgColor = bgColor;
+		style.BorderColor = borderColor;
+		style.SetBorderWidthAll(1);
+		style.SetCornerRadiusAll(cornerRadius);
+		return style;
+	}
+
 	/// <summary>The light stone button the settings menu dresses its option rows with.</summary>
 	public static void ApplyLightButton(Button button)
 	{
