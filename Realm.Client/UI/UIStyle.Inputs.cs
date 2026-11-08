@@ -218,4 +218,12 @@ public static partial class UIStyle
 		style.SetCornerRadiusAll(3);
 		return style;
 	}
+
+	/// <summary>An option dropdown's three states, which every screen that owns one applies the same way.</summary>
+	public static void ApplyDropdownButton(Control control)
+	{
+		control.AddThemeStyleboxOverride("normal", CreateDropdownStyle(false, false));
+		control.AddThemeStyleboxOverride("hover", CreateDropdownStyle(true, false));
+		control.AddThemeStyleboxOverride("pressed", CreateDropdownStyle(false, true));
+	}
 }

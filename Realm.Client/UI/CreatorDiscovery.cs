@@ -87,7 +87,7 @@ public partial class CreatorDiscovery : Control
 		topHeaderPanel.Name = "TopHeaderPanel_PanelContainer";
 		topHeaderPanel.SetAnchorsPreset(LayoutPreset.TopWide);
 		topHeaderPanel.CustomMinimumSize = new Vector2(0, 70);
-		topHeaderPanel.AddThemeStyleboxOverride("panel", CreateHeaderPanelStyle());
+		topHeaderPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateDiscoveryHeaderPanel());
 		AddChild(topHeaderPanel);
 
 		var topHeaderHBox = new HBoxContainer();
@@ -110,7 +110,7 @@ public partial class CreatorDiscovery : Control
 
 		var badgePanel = new PanelContainer();
 		badgePanel.Name = "BadgePanel_PanelContainer";
-		badgePanel.AddThemeStyleboxOverride("panel", CreateBadgeStyle());
+		badgePanel.AddThemeStyleboxOverride("panel", UIStyle.CreateDiscoveryBadge());
 		var badgeLabel = new Label();
 		badgeLabel.Name = "BadgeLabel_Label";
 		badgeLabel.Text = TranslationServer.Translate("COMMUNITY HUB");
@@ -162,7 +162,7 @@ public partial class CreatorDiscovery : Control
 		_tabContainer.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 		_tabContainer.SizeFlagsVertical = SizeFlags.ExpandFill;
 		_tabContainer.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		_tabContainer.AddThemeStyleboxOverride("panel", CreateBackdropContainerStyle());
+		_tabContainer.AddThemeStyleboxOverride("panel", UIStyle.CreateCreatorDiscoveryPanelStyle());
 		centerVBox.AddChild(_tabContainer);
 
 		BuildForYouTab();
@@ -177,13 +177,8 @@ public partial class CreatorDiscovery : Control
 	private void SelectTab(int index)
 	{
 		_tabContainer.CurrentTab = index;
-		_forYouTabBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateCreatorDiscoveryTabButtonStyle(index == 0, false, false));
-		_forYouTabBtn.AddThemeStyleboxOverride("hover", UIStyle.CreateCreatorDiscoveryTabButtonStyle(index == 0, true, false));
-		_forYouTabBtn.AddThemeStyleboxOverride("pressed", UIStyle.CreateCreatorDiscoveryTabButtonStyle(index == 0, false, true));
-
-		_portfolioTabBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateCreatorDiscoveryTabButtonStyle(index == 1, false, false));
-		_portfolioTabBtn.AddThemeStyleboxOverride("hover", UIStyle.CreateCreatorDiscoveryTabButtonStyle(index == 1, true, false));
-		_portfolioTabBtn.AddThemeStyleboxOverride("pressed", UIStyle.CreateCreatorDiscoveryTabButtonStyle(index == 1, false, true));
+		UIStyle.ApplyCreatorDiscoveryTabButton(_forYouTabBtn, index == 0);
+		UIStyle.ApplyCreatorDiscoveryTabButton(_portfolioTabBtn, index == 1);
 	}
 
 	private void BuildForYouTab()
@@ -203,7 +198,7 @@ public partial class CreatorDiscovery : Control
 
 		var bannerPanel = new PanelContainer();
 		bannerPanel.Name = "BannerPanel_PanelContainer";
-		bannerPanel.AddThemeStyleboxOverride("panel", CreateCardStyle(new Color(0.14f, 0.16f, 0.20f, 0.9f), UIStyle.ColorCyanGlowDim));
+		bannerPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateDiscoveryCard(new Color(0.14f, 0.16f, 0.20f, 0.9f), UIStyle.ColorCyanGlowDim));
 		forYouVBox.AddChild(bannerPanel);
 
 		var bannerHBox = new HBoxContainer();
@@ -266,7 +261,7 @@ public partial class CreatorDiscovery : Control
 
 		var profileHeaderPanel = new PanelContainer();
 		profileHeaderPanel.Name = "ProfileHeaderPanel_PanelContainer";
-		profileHeaderPanel.AddThemeStyleboxOverride("panel", CreateCardStyle(new Color(0.12f, 0.13f, 0.17f, 0.95f), UIStyle.ColorBronze));
+		profileHeaderPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateDiscoveryCard(new Color(0.12f, 0.13f, 0.17f, 0.95f), UIStyle.ColorBronze));
 		portVBox.AddChild(profileHeaderPanel);
 
 		var profileVBox = new VBoxContainer();
@@ -289,9 +284,7 @@ public partial class CreatorDiscovery : Control
 		_creatorDropdown = new OptionButton();
 		_creatorDropdown.Name = "CreatorDropdown_OptionButton";
 		_creatorDropdown.CustomMinimumSize = new Vector2(240, 36);
-		_creatorDropdown.AddThemeStyleboxOverride("normal", UIStyle.CreateDropdownStyle(false, false));
-		_creatorDropdown.AddThemeStyleboxOverride("hover", UIStyle.CreateDropdownStyle(true, false));
-		_creatorDropdown.AddThemeStyleboxOverride("pressed", UIStyle.CreateDropdownStyle(false, true));
+		UIStyle.ApplyDropdownButton(_creatorDropdown);
 		topBarHBox.AddChild(_creatorDropdown);
 
 		_selectedCreatorNameLabel = new Label();
@@ -377,7 +370,7 @@ public partial class CreatorDiscovery : Control
 			cardPanel.Name = "CardPanel_PanelContainer";
 			cardPanel.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 			cardPanel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-			cardPanel.AddThemeStyleboxOverride("panel", CreateCardStyle(new Color(0.12f, 0.14f, 0.17f, 0.95f), UIStyle.ColorBronze));
+			cardPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateDiscoveryCard(new Color(0.12f, 0.14f, 0.17f, 0.95f), UIStyle.ColorBronze));
 
 			var cardHBox = new HBoxContainer();
 			cardHBox.Name = "CardHBox_HBoxContainer";
@@ -400,7 +393,7 @@ public partial class CreatorDiscovery : Control
 
 			var chipPanel = new PanelContainer();
 			chipPanel.Name = "ChipPanel_PanelContainer";
-			chipPanel.AddThemeStyleboxOverride("panel", CreateChipStyle());
+			chipPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateDiscoveryChip());
 			var ptLbl = new Label();
 			ptLbl.Name = "PtLbl_Label";
 			ptLbl.Text = $"{kvp.Value} {TranslationServer.Translate("mins played on maps/assets")}";
@@ -416,9 +409,7 @@ public partial class CreatorDiscovery : Control
 			actionBtn.SizeFlagsVertical = SizeFlags.ShrinkCenter;
 			actionBtn.SizeFlagsHorizontal = SizeFlags.ShrinkEnd;
 			UIStyle.ApplyButtonText(actionBtn, TranslationServer.Translate("VIEW PORTFOLIO"), 12);
-			actionBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateFlatButtonStyle(false, false));
-			actionBtn.AddThemeStyleboxOverride("hover", UIStyle.CreateFlatButtonStyle(true, false));
-			actionBtn.AddThemeStyleboxOverride("pressed", UIStyle.CreateFlatButtonStyle(false, true));
+			UIStyle.ApplyFlatButton(actionBtn);
 
 			string targetCreator = kvp.Key;
 			actionBtn.Pressed += () => SwitchToPortfolioForCreator(targetCreator);
@@ -551,7 +542,7 @@ public partial class CreatorDiscovery : Control
 
 	private void DisplayEmptyPortfolioMessage()
 	{
-		var emptyPanel = CreateCardStyle(new Color(0.1f, 0.11f, 0.14f, 0.7f), new Color(0.3f, 0.3f, 0.35f));
+		var emptyPanel = UIStyle.CreateDiscoveryCard(new Color(0.1f, 0.11f, 0.14f, 0.7f), new Color(0.3f, 0.3f, 0.35f));
 		var emptyBox = new PanelContainer();
 		emptyBox.Name = "EmptyBox_PanelContainer";
 		emptyBox.AddThemeStyleboxOverride("panel", emptyPanel);
@@ -651,15 +642,7 @@ public partial class CreatorDiscovery : Control
 		container.Name = "Container_PanelContainer";
 		container.CustomMinimumSize = new Vector2(size, size);
 
-		var style = new StyleBoxFlat();
-		style.BgColor = new Color(0.08f, 0.09f, 0.12f, 0.9f);
-		style.BorderColor = UIStyle.ColorCyanGlowDim;
-		style.SetBorderWidthAll(2);
-		style.CornerRadiusTopLeft = size / 2;
-		style.CornerRadiusTopRight = size / 2;
-		style.CornerRadiusBottomLeft = size / 2;
-		style.CornerRadiusBottomRight = size / 2;
-		container.AddThemeStyleboxOverride("panel", style);
+		container.AddThemeStyleboxOverride("panel", UIStyle.CreateDiscoveryAvatarPlate(size));
 
 		var textureRect = new TextureRect();
 		textureRect.Name = "TextureRect_TextureRect";
@@ -677,12 +660,7 @@ public partial class CreatorDiscovery : Control
 		container.Name = "Container_PanelContainer";
 		container.CustomMinimumSize = new Vector2(width, height);
 
-		var style = new StyleBoxFlat();
-		style.BgColor = new Color(0.06f, 0.07f, 0.09f, 0.95f);
-		style.BorderColor = new Color(0.25f, 0.27f, 0.32f);
-		style.SetBorderWidthAll(1);
-		style.SetCornerRadiusAll(6);
-		container.AddThemeStyleboxOverride("panel", style);
+		container.AddThemeStyleboxOverride("panel", UIStyle.CreateDiscoveryThumbnailPlate());
 
 		var textureRect = new TextureRect();
 		textureRect.Name = "TextureRect_TextureRect";
@@ -698,7 +676,7 @@ public partial class CreatorDiscovery : Control
 		badgePanel.OffsetTop = 6;
 		badgePanel.OffsetRight = -6;
 		badgePanel.OffsetBottom = 24;
-		badgePanel.AddThemeStyleboxOverride("panel", CreateBadgeStyle());
+		badgePanel.AddThemeStyleboxOverride("panel", UIStyle.CreateDiscoveryBadge());
 
 		var badgeLabel = new Label();
 		badgeLabel.Name = "BadgeLabel_Label";
@@ -712,63 +690,4 @@ public partial class CreatorDiscovery : Control
 		return container;
 	}
 
-	private StyleBoxFlat CreateCardStyle(Color bgColor, Color borderColor)
-	{
-		var style = new StyleBoxFlat();
-		style.BgColor = bgColor;
-		style.BorderColor = borderColor;
-		style.SetBorderWidthAll(1);
-		style.SetCornerRadiusAll(8);
-		style.ContentMarginLeft = 18;
-		style.ContentMarginRight = 18;
-		style.ContentMarginTop = 14;
-		style.ContentMarginBottom = 14;
-		return style;
-	}
-
-	private StyleBoxFlat CreateHeaderPanelStyle()
-	{
-		var style = new StyleBoxFlat();
-		style.BgColor = new Color(0.08f, 0.09f, 0.11f, 0.95f);
-		style.BorderColor = UIStyle.ColorBronze;
-		style.BorderWidthBottom = 2;
-		style.ContentMarginLeft = 20;
-		style.ContentMarginRight = 20;
-		style.ContentMarginTop = 12;
-		style.ContentMarginBottom = 12;
-		return style;
-	}
-
-	private StyleBox CreateBackdropContainerStyle()
-	{
-		return UIStyle.CreateCreatorDiscoveryPanelStyle();
-	}
-
-	private StyleBoxFlat CreateBadgeStyle()
-	{
-		var style = new StyleBoxFlat();
-		style.BgColor = new Color(0.18f, 0.15f, 0.10f, 0.9f);
-		style.BorderColor = UIStyle.ColorGoldDull;
-		style.SetBorderWidthAll(1);
-		style.SetCornerRadiusAll(4);
-		style.ContentMarginLeft = 8;
-		style.ContentMarginRight = 8;
-		style.ContentMarginTop = 4;
-		style.ContentMarginBottom = 4;
-		return style;
-	}
-
-	private StyleBoxFlat CreateChipStyle()
-	{
-		var style = new StyleBoxFlat();
-		style.BgColor = new Color(0.10f, 0.18f, 0.24f, 0.7f);
-		style.BorderColor = UIStyle.ColorCyanGlowDim;
-		style.SetBorderWidthAll(1);
-		style.SetCornerRadiusAll(10);
-		style.ContentMarginLeft = 10;
-		style.ContentMarginRight = 10;
-		style.ContentMarginTop = 4;
-		style.ContentMarginBottom = 4;
-		return style;
-	}
 }
