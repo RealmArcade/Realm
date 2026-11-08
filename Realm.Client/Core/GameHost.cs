@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -38,6 +39,14 @@ namespace Realm.Client.Core;
 [GlobalClass]
 public partial class GameHost : Node3D
 {
+	/// <summary>
+	/// The world this host drives. Every simulation, entity and replication path below runs
+	/// only while a world exists, so reaching one without a world is a programming error;
+	/// stating that once keeps each path from re-deriving it from a property getter.
+	/// </summary>
+	private static EcsWorld World => GameContext.World
+		?? throw new InvalidOperationException("GameHost used before a world existed.");
+
 	public GameHost()
 	{
 		GameContext.RegisterHost(this);
@@ -169,13 +178,13 @@ public partial class GameHost : Node3D
 	public bool IsConnectionLost => GameContext.NetworkService?.IsConnectionLost ?? false;
 
 	private Dictionary<int, Entity> _peerIdToPlayerEntityMap
-		=> GameContext.World?.GetFieldOrDefault<NetworkMappingState, Dictionary<int, Entity>>(GameContext.Simulation.WorldEntity, s => s.PeerIdToPlayerEntityMap);
+		=> World.GetFieldOrDefault<NetworkMappingState, Dictionary<int, Entity>>(GameContext.Simulation.WorldEntity, s => s.PeerIdToPlayerEntityMap);
 
 	private Dictionary<int, Entity> _serverToClientEntityMap
-		=> GameContext.World?.GetFieldOrDefault<NetworkMappingState, Dictionary<int, Entity>>(GameContext.Simulation.WorldEntity, s => s.ServerToClientEntityMap);
+		=> World.GetFieldOrDefault<NetworkMappingState, Dictionary<int, Entity>>(GameContext.Simulation.WorldEntity, s => s.ServerToClientEntityMap);
 
 	private Dictionary<int, int> _clientToServerEntityMap
-		=> GameContext.World?.GetFieldOrDefault<NetworkMappingState, Dictionary<int, int>>(GameContext.Simulation.WorldEntity, s => s.ClientToServerEntityMap);
+		=> World.GetFieldOrDefault<NetworkMappingState, Dictionary<int, int>>(GameContext.Simulation.WorldEntity, s => s.ClientToServerEntityMap);
 
 	public List<Unit3D> SelectedUnits { get; set; } = new List<Unit3D>();
 	private readonly List<Unit3D> _activeImpulseUnits = new();
@@ -224,30 +233,30 @@ public partial class GameHost : Node3D
 	public static Dictionary<Entity, Prop3D> EntityToProp3D { get; set; } = new();
 	public static Dictionary<Entity, ProceduralVfxInstance3D> EntityToVfx3D { get; set; } = new();
 
-	public static bool TryGetUnit3D(Entity entity, out Unit3D unit)
+	public static bool TryGetUnit3D(Entity entity, [NotNullWhen(true)] out Unit3D? unit)
 	{
 		return EntityToUnit3D.TryGetValue(entity, out unit);
 	}
 
-	public static bool TryGetProp3D(Entity entity, out Prop3D prop)
+	public static bool TryGetProp3D(Entity entity, [NotNullWhen(true)] out Prop3D? prop)
 	{
 		return EntityToProp3D.TryGetValue(entity, out prop);
 	}
 
-	public static bool TryGetVfx3D(Entity entity, out ProceduralVfxInstance3D vfx)
+	public static bool TryGetVfx3D(Entity entity, [NotNullWhen(true)] out ProceduralVfxInstance3D? vfx)
 	{
 		return EntityToVfx3D.TryGetValue(entity, out vfx);
 	}
 
 	public Entity GetPlayerEntityForPlayerIndex(int playerIndex)
 	{
-		if (GameContext.Simulation.WorldEntity != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) && GameContext.World.Has<NetworkMappingState>(GameContext.Simulation.WorldEntity))
+		if (GameContext.Simulation.WorldEntity != Entity.Null && GameContext.World != null && World.IsAlive(GameContext.Simulation.WorldEntity) && World.Has<NetworkMappingState>(GameContext.Simulation.WorldEntity))
 		{
-			var playerEntities = GameContext.World.Get<NetworkMappingState>(GameContext.Simulation.WorldEntity).PlayerEntities;
+			var playerEntities = World.Get<NetworkMappingState>(GameContext.Simulation.WorldEntity).PlayerEntities;
 			if (playerEntities != null && playerIndex >= 0 && playerIndex < playerEntities.Length)
 			{
 				var pe = playerEntities[playerIndex];
-				if (pe != Entity.Null && GameContext.World.IsAlive(pe))
+				if (pe != Entity.Null && World.IsAlive(pe))
 					return pe;
 			}
 		}
@@ -258,7 +267,7 @@ public partial class GameHost : Node3D
 	{
 		if (!_multiplayerActive || GameContext.Lobby == null || GameContext.Lobby.PlayerList.Count <= 0) return Entity.Null;
 		var p = GameContext.Lobby.PlayerList.Find(x => x.Slot == playerIndex);
-		if (p == null || _peerIdToPlayerEntityMap?.TryGetValue(p.PeerId, out var pe) != true || !GameContext.World.IsAlive(pe)) return Entity.Null;
+		if (p == null || _peerIdToPlayerEntityMap?.TryGetValue(p.PeerId, out var pe) != true || !World.IsAlive(pe)) return Entity.Null;
 		return pe;
 	}
 
@@ -360,11 +369,11 @@ public partial class GameHost : Node3D
 	{
 		pos = Vector3.Zero;
 		scale = 1f;
-		if (entity != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(entity) && GameContext.World.Has<Position>(entity))
+		if (entity != Entity.Null && GameContext.World != null && World.IsAlive(entity) && World.Has<Position>(entity))
 		{
-			var posComp = GameContext.World.Get<Position>(entity);
+			var posComp = World.Get<Position>(entity);
 			pos = new Vector3(posComp.Value.X, posComp.Value.Y, posComp.Value.Z);
-			scale = GameContext.World.Has<ModelScale>(entity) ? GameContext.World.Get<ModelScale>(entity).Value : 1f;
+			scale = World.Has<ModelScale>(entity) ? World.Get<ModelScale>(entity).Value : 1f;
 			return true;
 		}
 		return false;
@@ -633,8 +642,10 @@ public partial class GameHost : Node3D
 			if (GameContext.EditorService != null) GameContext.EditorService.SymmetryFolds = value;
 			if (EditorMirrorMode == MirrorMode.Rotational)
 			{
-				GameContext.EditorService.EditorPolarRadialStep = 360.0f / Mathf.Max(1, value);
-				GroundTerrain?.SetPolarRadialStep(GameContext.EditorService.EditorPolarRadialStep);
+				var editor = GameContext.EditorService;
+				if (editor == null) return;
+				editor.EditorPolarRadialStep = 360.0f / Mathf.Max(1, value);
+				GroundTerrain?.SetPolarRadialStep(editor.EditorPolarRadialStep);
 			}
 		}
 	}
@@ -756,7 +767,7 @@ public partial class GameHost : Node3D
 
 	public int SelectedEditorObjectCount => _editorObjectSelection.Count;
 
-	public void SetEditorObjectSelection(IEnumerable<Node> nodes)
+	public void SetEditorObjectSelection(IEnumerable<Node>? nodes)
 	{
 		ClearEditorSelectionVisuals();
 		_editorObjectSelection.Clear();
@@ -968,7 +979,7 @@ public partial class GameHost : Node3D
 	{
 		get => GameContext.World?.GetFieldOrDefault<WorldState, float>(GameContext.Simulation.WorldEntity, s => s.GameElapsedTime) ?? 0f;
 		private set => GameContext.World?.Mutate<WorldState>(GameContext.Simulation.WorldEntity, (ref WorldState s) =>
-			GameContext.World.Set(GameContext.Simulation.WorldEntity, new WorldState(value, s.TimeOfDayIndex, s.TimeOfDayTimer, s.DayNightCycleEnabled)));
+			World.Set(GameContext.Simulation.WorldEntity, new WorldState(value, s.TimeOfDayIndex, s.TimeOfDayTimer, s.DayNightCycleEnabled)));
 	}
 
 	public int TimeOfDayIndex
@@ -978,16 +989,16 @@ public partial class GameHost : Node3D
 	{
 		get => GameContext.World?.GetFieldOrDefault<WorldState, float>(GameContext.Simulation.WorldEntity, s => s.TimeOfDayTimer) ?? 0f;
 		set => GameContext.World?.Mutate<WorldState>(GameContext.Simulation.WorldEntity, (ref WorldState s) =>
-			GameContext.World.Set(GameContext.Simulation.WorldEntity, new WorldState(s.GameElapsedTime, s.TimeOfDayIndex, value, s.DayNightCycleEnabled)));
+			World.Set(GameContext.Simulation.WorldEntity, new WorldState(s.GameElapsedTime, s.TimeOfDayIndex, value, s.DayNightCycleEnabled)));
 	}
 
 	public float GetPlayerSpellCooldown(int playerIndex, string abilityId)
 	{
 		var pe = GetPlayerEntityForPlayerIndex(playerIndex);
-		if (GameContext.World == null || pe == Entity.Null || !GameContext.World.IsAlive(pe)) return 0f;
-		if (GameContext.World.Has<SpellCooldowns>(pe))
+		if (GameContext.World == null || pe == Entity.Null || !World.IsAlive(pe)) return 0f;
+		if (World.Has<SpellCooldowns>(pe))
 		{
-			var spellCooldowns = GameContext.World.Get<SpellCooldowns>(pe);
+			var spellCooldowns = World.Get<SpellCooldowns>(pe);
 			if (spellCooldowns.TryGetValue(abilityId, out float remaining)) return remaining;
 		}
 
@@ -997,10 +1008,10 @@ public partial class GameHost : Node3D
 	public void SetPlayerSpellCooldown(int playerIndex, string abilityId, float cooldown)
 	{
 		var pe = GetPlayerEntityForPlayerIndex(playerIndex);
-		if (GameContext.World == null || pe == Entity.Null || !GameContext.World.IsAlive(pe)) return;
-		if (GameContext.World.Has<SpellCooldowns>(pe))
+		if (GameContext.World == null || pe == Entity.Null || !World.IsAlive(pe)) return;
+		if (World.Has<SpellCooldowns>(pe))
 		{
-			ref var spellCooldowns = ref GameContext.World.Get<SpellCooldowns>(pe);
+			ref var spellCooldowns = ref World.Get<SpellCooldowns>(pe);
 			spellCooldowns.Set(abilityId, cooldown, cooldown);
 		}
 	}
@@ -1014,7 +1025,7 @@ public partial class GameHost : Node3D
 	public static Dictionary<StringName, ItemMetadata> ItemRegistry => GameContext.RegistryService?.ItemRegistry ?? new();
 	public static Dictionary<StringName, UpgradeMetadata> UpgradeRegistry => GameContext.RegistryService?.UpgradeRegistry ?? new();
 
-	public static bool TryGetUnitOrBuildingMetadata(StringName objectId, out UnitMetadata meta)
+	public static bool TryGetUnitOrBuildingMetadata(StringName objectId, [NotNullWhen(true)] out UnitMetadata? meta)
 	{
 		meta = default;
 		if (objectId.IsEmpty) return false;
@@ -1023,7 +1034,7 @@ public partial class GameHost : Node3D
 		return false;
 	}
 
-	public static bool TryGetUnitOrBuildingMetadata(string? objectId, out UnitMetadata meta)
+	public static bool TryGetUnitOrBuildingMetadata(string? objectId, [NotNullWhen(true)] out UnitMetadata? meta)
 	{
 		meta = default;
 		if (string.IsNullOrEmpty(objectId)) return false;
@@ -1057,7 +1068,7 @@ public partial class GameHost : Node3D
 	{
 		get => GameContext.World?.GetFieldOrDefault<WorldState, bool>(GameContext.Simulation.WorldEntity, s => s.DayNightCycleEnabled, true) ?? true;
 		set => GameContext.World?.Mutate<WorldState>(GameContext.Simulation.WorldEntity, (ref WorldState s) =>
-			GameContext.World.Set(GameContext.Simulation.WorldEntity, new WorldState(s.GameElapsedTime, s.TimeOfDayIndex, s.TimeOfDayTimer, value)));
+			World.Set(GameContext.Simulation.WorldEntity, new WorldState(s.GameElapsedTime, s.TimeOfDayIndex, s.TimeOfDayTimer, value)));
 	}
 
 	public event Action<UnitId>? OnUnitCreated;
@@ -1094,7 +1105,7 @@ public partial class GameHost : Node3D
 		if (string.IsNullOrWhiteSpace(message)) return;
 
 		int selectedServerEntityId = 0;
-		if (SelectedUnits.Count > 0 && GameContext.World.IsAlive(SelectedUnits[0].Entity))
+		if (SelectedUnits.Count > 0 && World.IsAlive(SelectedUnits[0].Entity))
 		{
 			selectedServerEntityId = GetServerEntityId(SelectedUnits[0].Entity);
 		}
@@ -1117,7 +1128,7 @@ public partial class GameHost : Node3D
 			{ GameContext.Simulation.PlayerResourceService.WoodResourceId, 400 },
 			{ GameContext.Simulation.PlayerResourceService.StoneResourceId, 200 }
 		};
-		GameContext.World.Add(playerEntity, new PlayerResources(resourcesDict));
+		World.Add(playerEntity, new PlayerResources(resourcesDict));
 	}
 
 	private void SetupWorldEntityComponents()
@@ -1127,9 +1138,9 @@ public partial class GameHost : Node3D
 		float quadSize = GroundTerrain != null ? GroundTerrain.QuadSize : 2.0f;
 		float cellSize = GroundTerrain != null ? GroundTerrain.CellSize : TerrainState.DefaultCellSize;
 		var cells = GroundTerrain != null ? GroundTerrain.Cells : null;
-		int[,] pathingCodes = GroundTerrain != null ? GroundTerrain.PathingCodes : null;
-		DtNavMesh navMesh = GroundTerrain != null ? GroundTerrain.NavMesh : null;
-		DtNavMeshQuery navMeshQuery = GroundTerrain != null ? GroundTerrain.NavMeshQuery : null;
+		int[,]? pathingCodes = GroundTerrain != null ? GroundTerrain.PathingCodes : null;
+		DtNavMesh? navMesh = GroundTerrain != null ? GroundTerrain.NavMesh : null;
+		DtNavMeshQuery? navMeshQuery = GroundTerrain != null ? GroundTerrain.NavMeshQuery : null;
 
 		GameContext.Simulation.WorldEntity = GameContext.WorldInitService.SetupWorldEntityComponents(
 			width, depth, quadSize, cellSize,
@@ -1413,9 +1424,9 @@ public partial class GameHost : Node3D
 	public void CaptureDefaultCameraBounds()
 	{
 		if (_defaultCameraBoundsCaptured) return;
-		if (GameContext.Simulation.WorldEntity != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) && GameContext.World.Has<CameraState>(GameContext.Simulation.WorldEntity))
+		if (GameContext.Simulation.WorldEntity != Entity.Null && GameContext.World != null && World.IsAlive(GameContext.Simulation.WorldEntity) && World.Has<CameraState>(GameContext.Simulation.WorldEntity))
 		{
-			ref var cam = ref GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity);
+			ref var cam = ref World.Get<CameraState>(GameContext.Simulation.WorldEntity);
 			DefaultCameraBoundsLeft = cam.LimitLeft;
 			DefaultCameraBoundsRight = cam.LimitRight;
 			DefaultCameraBoundsTop = cam.LimitTop;
@@ -1513,7 +1524,7 @@ public partial class GameHost : Node3D
 			for (int i = 0; i < AllUnits.Count; i++)
 			{
 				var u = AllUnits[i];
-				if (GodotObject.IsInstanceValid(u) && u.Entity.Id == unit.Value && GameContext.World != null && GameContext.World.IsAlive(u.Entity))
+				if (GodotObject.IsInstanceValid(u) && u.Entity.Id == unit.Value && GameContext.World != null && World.IsAlive(u.Entity))
 				{
 					ClearSelection();
 					SelectUnit(u);
@@ -1538,9 +1549,9 @@ public partial class GameHost : Node3D
 
 	private void TickZoneTriggers()
 	{
-		if (OnUnitEnterZone == null || GameContext.World == null || !GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) || !GameContext.World.Has<ScriptZonesState>(GameContext.Simulation.WorldEntity)) return;
+		if (OnUnitEnterZone == null || GameContext.World == null || !World.IsAlive(GameContext.Simulation.WorldEntity) || !World.Has<ScriptZonesState>(GameContext.Simulation.WorldEntity)) return;
 
-		int zoneHandle = GameContext.World.Get<ScriptZonesState>(GameContext.Simulation.WorldEntity).Handle;
+		int zoneHandle = World.Get<ScriptZonesState>(GameContext.Simulation.WorldEntity).Handle;
 		int zoneCount = ScriptZonesState.GetZones(zoneHandle).Length;
 		if (zoneCount == 0) return;
 
@@ -1551,10 +1562,10 @@ public partial class GameHost : Node3D
 		}
 
 		var positionQuery = QueryCache.AllPositionAndDefinitionIdNoneDeadQuery;
-		GameContext.World.Query(in positionQuery, (Entity entity, ref Position posComp) =>
+		World.Query(in positionQuery, (Entity entity, ref Position posComp) =>
 		{
-			if (!GameContext.World.Has<OccupiedZones>(entity)) GameContext.World.Add(entity, new OccupiedZones());
-			ref var occupiedZones = ref GameContext.World.Get<OccupiedZones>(entity);
+			if (!World.Has<OccupiedZones>(entity)) World.Add(entity, new OccupiedZones());
+			ref var occupiedZones = ref World.Get<OccupiedZones>(entity);
 			CheckUnitZones(entity, new Vector3(posComp.Value.X, posComp.Value.Y, posComp.Value.Z), ref occupiedZones, ScriptZonesState.GetZones(zoneHandle));
 		});
 	}
@@ -1678,7 +1689,7 @@ public partial class GameHost : Node3D
 		return null;
 	}
 
-	public void LoadUnitMetadata(string mapName = null)
+	public void LoadUnitMetadata(string? mapName = null)
 	{
 		ResetAbilityCatalog();
 		mapName = !string.IsNullOrEmpty(mapName) ? mapName : (!string.IsNullOrEmpty(GameContext.Simulation.ActiveMapName) ? GameContext.Simulation.ActiveMapName : "Untitled Map");
@@ -1690,7 +1701,9 @@ public partial class GameHost : Node3D
 		string path = resolvedDir != null ? Path.Combine(resolvedDir, "metadata.json") : (mapName.StartsWith("user://") || mapName.StartsWith("res://") || Path.IsPathRooted(mapName) ? Path.Combine(mapName, "metadata.json") : $"res://Maps/{mapName}/metadata.json");
 		if (resolvedDir != null) GameContext.MapStorageService.CurrentMapDirectory = resolvedDir;
 
-		var metadata = (GameContext.MetadataService ?? GameContext.MetadataService).LoadMetadata(path);
+		var metadataService = GameContext.MetadataService
+			?? throw new InvalidOperationException("LoadUnitMetadata ran before the metadata service existed.");
+		var metadata = metadataService.LoadMetadata(path);
 
 		// Tuning is applied before anything is spawned, so the first stat calculation already sees the map's numbers.
 		var combatTuningWarnings = new List<string>(4);
@@ -1835,7 +1848,8 @@ public partial class GameHost : Node3D
 	{
 		for (int index = 0; index < templates.Count; index++)
 		{
-			if (!string.IsNullOrEmpty(templates[index].ModelPath)) ModelCache.PreloadModel(templates[index].ModelPath);
+			var modelPath = templates[index].ModelPath;
+			if (!string.IsNullOrEmpty(modelPath)) ModelCache.PreloadModel(modelPath);
 		}
 	}
 
@@ -1946,7 +1960,9 @@ public partial class GameHost : Node3D
 
 		IsBuildingMatchWorld = true;
 		_worldBuildStage = 0;
-		GameContext.Lobby.ActiveMapName = mapName;
+		var lobby = GameContext.Lobby;
+		if (lobby == null) return;
+		lobby.ActiveMapName = mapName;
 		MatchLoadTrace.Begin("lobby_prebuild");
 		HideWorldUntilMatchStarts();
 		ClearWorldNodesForRebuild();
@@ -2148,14 +2164,14 @@ public partial class GameHost : Node3D
 		GameContext.SimulationService.OnKillUnitRequested = entity =>
 		{
 			GameContext.SimulationService.WarnedNonFinitePositions.Remove(entity);
-			if (GameContext.World.IsAlive(entity) && TryGetUnit3D(entity, out var unit3D)) Callable.From(() => KillUnit(unit3D)).CallDeferred();
+			if (World.IsAlive(entity) && TryGetUnit3D(entity, out var unit3D)) Callable.From(() => KillUnit(unit3D)).CallDeferred();
 		};
 
 		GameContext.SimulationService.OnPropDepleted = entity =>
 		{
-			if (GameContext.World != null && GameContext.World.IsAlive(entity) && GameContext.World.Has<PropIdentity>(entity))
+			if (GameContext.World != null && World.IsAlive(entity) && World.Has<PropIdentity>(entity))
 			{
-				string propId = GameContext.World.Get<PropIdentity>(entity).PropId;
+				string propId = World.Get<PropIdentity>(entity).PropId;
 				GameContext.PropMultiMesh?.MarkDirty(propId);
 			}
 			else
@@ -2181,9 +2197,9 @@ public partial class GameHost : Node3D
 
 	private void HandleUnitDamaged(Entity targetEntity, Entity attackerEntity, float damage)
 	{
-		if (!GameContext.World.IsAlive(targetEntity)) return;
+		if (!World.IsAlive(targetEntity)) return;
 
-		UnitId attackerId = (attackerEntity != Entity.Null && GameContext.World.IsAlive(attackerEntity)) ? (UnitId)attackerEntity.Id : UnitId.Invalid;
+		UnitId attackerId = (attackerEntity != Entity.Null && World.IsAlive(attackerEntity)) ? (UnitId)attackerEntity.Id : UnitId.Invalid;
 		OnUnitDamaged?.Invoke((UnitId)targetEntity.Id, attackerId, damage);
 
 		if (TryGetUnit3D(targetEntity, out var targetUnit3D))
@@ -2196,13 +2212,13 @@ public partial class GameHost : Node3D
 
 	private void HandleUnitHealed(Entity targetEntity, Entity healerEntity, float healAmount)
 	{
-		if (GameContext.World.IsAlive(targetEntity) && TryGetUnit3D(targetEntity, out var targetUnit3D))
+		if (World.IsAlive(targetEntity) && TryGetUnit3D(targetEntity, out var targetUnit3D))
 			GameContext.FXService.SpawnHealNumber(this, targetUnit3D.GlobalPosition, healAmount);
 	}
 
 	private void HandleUnitAttacked(Entity attackerEntity, Entity targetEntity)
 	{
-		if (!GameContext.World.IsAlive(attackerEntity) || !GameContext.World.IsAlive(targetEntity)) return;
+		if (!World.IsAlive(attackerEntity) || !World.IsAlive(targetEntity)) return;
 
 		if (TryGetUnit3D(attackerEntity, out var attackerUnit3D)) attackerUnit3D.PlayAnimation("Attack");
 		OnUnitAttacked?.Invoke((UnitId)attackerEntity.Id, (UnitId)targetEntity.Id);
@@ -2248,19 +2264,21 @@ public partial class GameHost : Node3D
 
 	private void SetupLobbyPlayers()
 	{
-		var playerEntities = GameContext.World.Get<NetworkMappingState>(GameContext.Simulation.WorldEntity).PlayerEntities;
+		var playerEntities = World.Get<NetworkMappingState>(GameContext.Simulation.WorldEntity).PlayerEntities;
 		_peerIdToPlayerEntityMap[0] = playerEntities[0];
 		UpdateScriptPlayerState(0, "Neutral", active: true, isComputer: true, teamIndex: 0);
 
-		foreach (var p in GameContext.Lobby.PlayerList)
+		var lobby = GameContext.Lobby;
+		if (lobby == null) return;
+		foreach (var p in lobby.PlayerList)
 		{
 			if (p.Slot >= 0 && p.Slot < playerEntities.Length)
 			{
 				var playerEntity = playerEntities[p.Slot];
 				_peerIdToPlayerEntityMap[p.PeerId] = playerEntity;
-				if (GameContext.World.Has<Name>(playerEntity))
+				if (World.Has<Name>(playerEntity))
 				{
-					GameContext.World.Set(playerEntity, new Name(p.Name));
+					World.Set(playerEntity, new Name(p.Name));
 				}
 				UpdateScriptPlayerState(p.Slot, p.Name, active: true, isComputer: p.PeerId < 0, teamIndex: p.TeamIndex);
 			}
@@ -2279,7 +2297,7 @@ public partial class GameHost : Node3D
 
 	private void SetupDefaultPlayers()
 	{
-		var playerEntities = GameContext.World.Get<NetworkMappingState>(GameContext.Simulation.WorldEntity).PlayerEntities;
+		var playerEntities = World.Get<NetworkMappingState>(GameContext.Simulation.WorldEntity).PlayerEntities;
 		_peerIdToPlayerEntityMap[0] = playerEntities[0];
 		_peerIdToPlayerEntityMap[1] = playerEntities[1];
 		_peerIdToPlayerEntityMap[-1] = playerEntities[2];
@@ -2294,9 +2312,9 @@ public partial class GameHost : Node3D
 
 	private void UpdateScriptPlayerState(int pIdx, string name, bool active = true, bool isComputer = false, int teamIndex = -1)
 	{
-		if (!GameContext.World.Has<ScriptPlayersState>(GameContext.Simulation.WorldEntity)) return;
+		if (!World.Has<ScriptPlayersState>(GameContext.Simulation.WorldEntity)) return;
 
-		ref var playersState = ref GameContext.World.Get<ScriptPlayersState>(GameContext.Simulation.WorldEntity);
+		ref var playersState = ref World.Get<ScriptPlayersState>(GameContext.Simulation.WorldEntity);
 		if (playersState.IsValidSlot(pIdx))
 		{
 			playersState.SetName(pIdx, name);
@@ -2309,23 +2327,23 @@ public partial class GameHost : Node3D
 			}
 
 			var player = playersState.Get(pIdx);
-			GameContext.World.GetBuffer<ScriptPlayer>().Set(pIdx, in player);
+			World.GetBuffer<ScriptPlayer>().Set(pIdx, in player);
 
-			if (teamIndex >= 0 && GameContext.World.Has<NetworkMappingState>(GameContext.Simulation.WorldEntity))
+			if (teamIndex >= 0 && World.Has<NetworkMappingState>(GameContext.Simulation.WorldEntity))
 			{
-				var playerEntities = GameContext.World.Get<NetworkMappingState>(GameContext.Simulation.WorldEntity).PlayerEntities;
-				if (pIdx < playerEntities.Length && playerEntities[pIdx] != Entity.Null && GameContext.World.IsAlive(playerEntities[pIdx]))
+				var playerEntities = World.Get<NetworkMappingState>(GameContext.Simulation.WorldEntity).PlayerEntities;
+				if (pIdx < playerEntities.Length && playerEntities[pIdx] != Entity.Null && World.IsAlive(playerEntities[pIdx]))
 				{
 					int stringId = playersState.Get(pIdx).TeamNameStringId;
-					if (GameContext.World.Has<PlayerTeam>(playerEntities[pIdx]))
+					if (World.Has<PlayerTeam>(playerEntities[pIdx]))
 					{
-						ref var pt = ref GameContext.World.Get<PlayerTeam>(playerEntities[pIdx]);
+						ref var pt = ref World.Get<PlayerTeam>(playerEntities[pIdx]);
 						pt.TeamIndex = teamIndex;
 						pt.TeamNameStringId = stringId;
 					}
 					else
 					{
-						GameContext.World.Add(playerEntities[pIdx], new PlayerTeam(teamIndex, stringId));
+						World.Add(playerEntities[pIdx], new PlayerTeam(teamIndex, stringId));
 					}
 				}
 			}
@@ -2334,9 +2352,9 @@ public partial class GameHost : Node3D
 
 	private void EnsureFallbackPlayers()
 	{
-		if (GameContext.World != null && GameContext.Simulation.WorldEntity != Entity.Null && GameContext.World.Has<NetworkMappingState>(GameContext.Simulation.WorldEntity))
+		if (GameContext.World != null && GameContext.Simulation.WorldEntity != Entity.Null && World.Has<NetworkMappingState>(GameContext.Simulation.WorldEntity))
 		{
-			var playerEntities = GameContext.World.Get<NetworkMappingState>(GameContext.Simulation.WorldEntity).PlayerEntities;
+			var playerEntities = World.Get<NetworkMappingState>(GameContext.Simulation.WorldEntity).PlayerEntities;
 			if (playerEntities != null && playerEntities.Length > 2)
 			{
 				_peerIdToPlayerEntityMap[0] = playerEntities[0];
@@ -2523,7 +2541,8 @@ public partial class GameHost : Node3D
 		GameContext.SaveLoadService.IsLoadingMap = wasLoadingMap;
 		if (wasProfilingEnabled)
 		{
-			GameContext.PerformanceTrackingService.IsFunctionProfilingEnabled = true;
+			var profiling = GameContext.PerformanceTrackingService;
+			if (profiling != null) profiling.IsFunctionProfilingEnabled = true;
 		}
 
 		// Do not touch the lazy GroundTerrain getter here: InitializeGameEcs() creates the ground exactly once, and
@@ -2782,31 +2801,31 @@ public partial class GameHost : Node3D
 
 	private void RemoveIfHas<T>(Entity entity) where T : unmanaged
 	{
-		if (GameContext.World.Has<T>(entity)) GameContext.World.Remove<T>(entity);
+		if (World.Has<T>(entity)) World.Remove<T>(entity);
 	}
 
 	public void ClearUnitOrders(Entity entity)
 	{
-		UnitOrderService.ClearOrders(GameContext.World, entity);
+		UnitOrderService.ClearOrders(World, entity);
 	}
 
 	private void StopGatheringMovement(Entity entity)
 	{
-		if (GameContext.World.IsAlive(entity))
+		if (World.IsAlive(entity))
 		{
-			if (GameContext.World.Has<MoveTo>(entity)) GameContext.World.Remove<MoveTo>(entity);
+			if (World.Has<MoveTo>(entity)) World.Remove<MoveTo>(entity);
 		}
 	}
 
-	private Prop3D FindNearbyResourceNode(Vector3 pos, string type, float radius)
+	private Prop3D? FindNearbyResourceNode(Vector3 pos, string type, float radius)
 	{
-		Prop3D closest = null;
+		Prop3D? closest = null;
 		float closestDist = radius;
 		foreach (var prop in AllProps)
 		{
 			if (GodotObject.IsInstanceValid(prop))
 			{
-				string pType = prop.PropId switch
+				string? pType = prop.PropId switch
 				{
 					"goldmine" => "gold",
 					"tree" => "wood",
@@ -2832,16 +2851,16 @@ public partial class GameHost : Node3D
 	public void IssueGatherCommand(Entity propEntity, bool isQueued = false)
 	{
 		if (GameContext.PerspectiveFilter.IsSpectating) return;
-		if (SelectedUnits.Count == 0 || propEntity == Entity.Null || !GameContext.World.IsAlive(propEntity)) return;
+		if (SelectedUnits.Count == 0 || propEntity == Entity.Null || !World.IsAlive(propEntity)) return;
 
-		string propId = GameContext.World.Has<PropIdentity>(propEntity) ? GameContext.World.Get<PropIdentity>(propEntity).PropId : "";
+		string propId = World.Has<PropIdentity>(propEntity) ? World.Get<PropIdentity>(propEntity).PropId : "";
 		string? resType = GetPropResourceType(propId);
 		if (resType == null) return;
 
 		Vector3 propPos = Vector3.Zero;
-		if (GameContext.World.Has<Position>(propEntity))
+		if (World.Has<Position>(propEntity))
 		{
-			var p = GameContext.World.Get<Position>(propEntity).Value;
+			var p = World.Get<Position>(propEntity).Value;
 			propPos = new Vector3(p.X, p.Y, p.Z);
 		}
 
@@ -2880,7 +2899,7 @@ public partial class GameHost : Node3D
 
 	private Entity CreateEcsUnit(string id, string name, float hp, float damage, float range, float armor, float speed, Vector3 pos, PlayerEntity owner)
 	{
-		UnitMetadata regMeta = null;
+		UnitMetadata? regMeta = null;
 		if (!UnitRegistry.TryGetValue(id, out regMeta)) TryGetUnitOrBuildingMetadata(id, out regMeta);
 
 		bool hasShields = GameContext.World?.GetFieldOrDefault<PlayerUpgrades, bool>(owner.Value, u => u.ShieldsUpgrade) ?? false;
@@ -2919,8 +2938,8 @@ public partial class GameHost : Node3D
 	{
 		if (meta.Strength != 0f || meta.Agility != 0f || meta.Vitality != 0f || meta.Intelligence != 0f || meta.Wisdom != 0f || meta.Fortune != 0f)
 		{
-			GameContext.World.Set(entity, new UnitAttributes(meta.Strength, meta.Agility, meta.Vitality, meta.Intelligence, meta.Wisdom, meta.Fortune));
-			AttributeStatCalculator.RecalculateEntityStats(GameContext.World, entity);
+			World.Set(entity, new UnitAttributes(meta.Strength, meta.Agility, meta.Vitality, meta.Intelligence, meta.Wisdom, meta.Fortune));
+			AttributeStatCalculator.RecalculateEntityStats(World, entity);
 		}
 	}
 
@@ -2930,33 +2949,33 @@ public partial class GameHost : Node3D
 		int localPlayerIndex = GameContext.PerspectiveFilter.ControlledPlayerIndex;
 		if (localPlayerIndex <= 0) return;
 		if (NetworkService.ArePlayerIndicesEnemies(localPlayerIndex, playerIndex)) return;
-		if (GameContext.World.Has<Health>(entity)) GameContext.World.Set(entity, new Health(9000f, 9000f));
-		if (GameContext.World.Has<Attack>(entity))
+		if (World.Has<Health>(entity)) World.Set(entity, new Health(9000f, 9000f));
+		if (World.Has<Attack>(entity))
 		{
-			var atk = GameContext.World.Get<Attack>(entity);
-			GameContext.World.Set(entity, new Attack(9001f, atk.Range, atk.Cooldown, atk.CurrentCooldown));
+			var atk = World.Get<Attack>(entity);
+			World.Set(entity, new Attack(9001f, atk.Range, atk.Cooldown, atk.CurrentCooldown));
 		}
 	}
 
 	private void HandleBuildingSpawn(Entity entity, Unit3D unit3D, string id, Vector3 pos)
 	{
-		UnitMetadata meta = TryGetUnitOrBuildingMetadata(id, out var resolved) ? resolved : null;
+		UnitMetadata? meta = TryGetUnitOrBuildingMetadata(id, out var resolved) ? resolved : null;
 		if (meta != null && !UnitEntityFactory.BlocksMovement(meta))
 		{
 			return;
 		}
 
-		GameContext.World.SetOrAdd(entity, new BuildingSpawnOffset(new System.Numerics.Vector3(0f, 0f, 8f)));
+		World.SetOrAdd(entity, new BuildingSpawnOffset(new System.Numerics.Vector3(0f, 0f, 8f)));
 
 		// A screen in a match holds the body the authority stated and works nothing out for itself; only a screen
 		// playing no match supplies its own radius.
 		if (GameContext.ServerSession != null) return;
-		if (GameContext.World.Has<CollisionRadius>(entity)) return;
+		if (World.Has<CollisionRadius>(entity)) return;
 
 		float baseRadius = meta != null
 			? UnitEntityFactory.ResolveCollisionRadius(meta)
 			: GameplayConstants.DefaultBuildingCollisionRadius;
-		GameContext.World.SetOrAdd(entity, new CollisionRadius(baseRadius));
+		World.SetOrAdd(entity, new CollisionRadius(baseRadius));
 	}
 
 	private Unit3D SpawnUnit3D(Entity entity, string id, string modelPath, Vector3 pos, bool isBuilding, int player = 0, bool isFromQueue = false, bool executeSpawnShader = false)
@@ -2993,10 +3012,10 @@ public partial class GameHost : Node3D
 
 	private void SetupUnitEntityComponents(Entity entity, string id, int playerIndex)
 	{
-		GameContext.World.SetOrAdd(entity, new UnitOwnerPlayer(playerIndex));
-		GameContext.World.SetOrAdd(entity, new DefinitionId(id));
+		World.SetOrAdd(entity, new UnitOwnerPlayer(playerIndex));
+		World.SetOrAdd(entity, new DefinitionId(id));
 		ApplyGigachadBuffsIfNeeded(entity, playerIndex);
-		SyncPreviousTransform(GameContext.World, entity);
+		SyncPreviousTransform(World, entity);
 	}
 
 	private static readonly QueryDescription _positionQuery = new QueryDescription().WithAll<Position>().WithNone<Building, PropIdentity, Dead>();
@@ -3161,7 +3180,7 @@ public partial class GameHost : Node3D
 			VisualProjectilePool.AdvanceActiveProjectiles(fDelta);
 
 			GameContext.FXService?.UpdateFloatingLabels(fDelta);
-			GameContext.FXService?.RenderBatchedRibbonTrails(MainCamera);
+			if (MainCamera != null) GameContext.FXService?.RenderBatchedRibbonTrails(MainCamera);
 		}
 	}
 
@@ -3312,9 +3331,9 @@ public partial class GameHost : Node3D
 	public void UncarveObstacle(System.Numerics.Vector3 pos, float radius)
 	{
 		if (!GameContext.SessionState.IsMapEditorMode) return;
-		if (GameContext.World != null && GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) && GameContext.World.Has<TerrainState>(GameContext.Simulation.WorldEntity))
+		if (GameContext.World != null && World.IsAlive(GameContext.Simulation.WorldEntity) && World.Has<TerrainState>(GameContext.Simulation.WorldEntity))
 		{
-			ref var state = ref GameContext.World.Get<TerrainState>(GameContext.Simulation.WorldEntity);
+			ref var state = ref World.Get<TerrainState>(GameContext.Simulation.WorldEntity);
 			GameContext.Simulation.TerrainNavMeshService?.UncarveObstacle(ref state, pos, radius);
 		}
 	}
@@ -3381,12 +3400,12 @@ public partial class GameHost : Node3D
 
 	public bool IsPathingCapability(Entity entity, TerrainPathingFlags capability)
 	{
-		if (GameContext.World == null || !GameContext.World.IsAlive(entity) || !GameContext.World.Has<Realm.Ecs.Components.Movement.PathingFlags>(entity)) return false;
-		int flags = GameContext.World.Get<Realm.Ecs.Components.Movement.PathingFlags>(entity).Value;
+		if (GameContext.World == null || !World.IsAlive(entity) || !World.Has<Realm.Ecs.Components.Movement.PathingFlags>(entity)) return false;
+		int flags = World.Get<Realm.Ecs.Components.Movement.PathingFlags>(entity).Value;
 		return ((TerrainPathingFlags)flags & capability) != 0;
 	}
 
-	private static ImageTexture SharedShadowGradient { get; set; } = null!;
+	private static ImageTexture? SharedShadowGradient { get; set; }
 
 	public Texture2D GetSharedShadowGradient()
 	{
@@ -3428,9 +3447,9 @@ public partial class GameHost : Node3D
 	{
 		using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.ProcessVisualAndEnvironment))
 		{
-			if (GameContext.World != null && GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) && GameContext.World.Has<WorldState>(GameContext.Simulation.WorldEntity))
+			if (GameContext.World != null && World.IsAlive(GameContext.Simulation.WorldEntity) && World.Has<WorldState>(GameContext.Simulation.WorldEntity))
 			{
-				var state = GameContext.World.Get<WorldState>(GameContext.Simulation.WorldEntity);
+				var state = World.Get<WorldState>(GameContext.Simulation.WorldEntity);
 				if (state.DayNightCycleEnabled && !GameContext.SessionState.IsMapEditorMode)
 				{
 					using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.UpdateDayNightVisuals))
@@ -3473,9 +3492,9 @@ public partial class GameHost : Node3D
 
 	private void PollVFXQueue()
 	{
-		if (GameContext.World == null || !GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) || !GameContext.World.Has<VFXQueue>(GameContext.Simulation.WorldEntity)) return;
+		if (GameContext.World == null || !World.IsAlive(GameContext.Simulation.WorldEntity) || !World.Has<VFXQueue>(GameContext.Simulation.WorldEntity)) return;
 
-		ref var queue = ref GameContext.World.Get<VFXQueue>(GameContext.Simulation.WorldEntity);
+		ref var queue = ref World.Get<VFXQueue>(GameContext.Simulation.WorldEntity);
 		if (queue.Count == 0) return;
 
 		for (int i = 0; i < queue.Count; i++)
