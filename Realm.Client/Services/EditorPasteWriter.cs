@@ -377,29 +377,11 @@ internal sealed class EditorPasteWriter
 					Player = ent.Player
 				});
 
-				AddMirroredRequests(result.SpawnRequests, ent.Type, ent.Id, destPos, finalRot, ent.Scale, ent.Player, mirrorMode, symmetryPivot, symmetryFolds);
+				EditorGridSnapping.AddMirroredRequests(result.SpawnRequests, ent.Type, ent.Id, destPos, finalRot, ent.Scale, ent.Player, mirrorMode, symmetryPivot, symmetryFolds);
 			}
 		}
 
 		return result;
-	}
-
-	public void AddMirroredRequests(
-		List<EntitySpawnRequest> requests,
-		string type, string id,
-		Godot.Vector3 pos, float rotation, float scale,
-		int player,
-		MirrorMode mirrorMode,
-		Vector2 symmetryPivot,
-		int symmetryFolds)
-	{
-		var mirrored = EditorGridSnapping.GetMirroredTransforms(pos, rotation, mirrorMode, symmetryPivot, symmetryFolds);
-		foreach (var m in mirrored)
-		{
-			Godot.Vector3 mPos = m.Position;
-			mPos.Y = EditorTerrainQueries.GetHeightAt(mPos);
-			requests.Add(new EntitySpawnRequest { Type = type, Id = id, Position = mPos, Rotation = m.Rotation, Scale = scale, Player = player });
-		}
 	}
 
 }

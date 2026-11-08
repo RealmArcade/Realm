@@ -1221,7 +1221,7 @@ public partial class EditorService : IEditorAPI
 
 				if (mirrorMode != MirrorMode.None)
 				{
-					_paste.AddMirroredRequests(requests, spawnType, activePlaceId, spawnPos, rotY, scaleVal, playerIndex, mirrorMode, _symmetryPivot, _symmetryFolds);
+					EditorGridSnapping.AddMirroredRequests(requests, spawnType, activePlaceId, spawnPos, rotY, scaleVal, playerIndex, mirrorMode, _symmetryPivot, _symmetryFolds);
 				}
 
 				placed = true;

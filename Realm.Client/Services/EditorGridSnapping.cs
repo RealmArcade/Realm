@@ -180,4 +180,22 @@ internal static class EditorGridSnapping
 			}
 		}
 	}
+
+	public static void AddMirroredRequests(
+		List<EntitySpawnRequest> requests,
+		string type, string id,
+		Godot.Vector3 pos, float rotation, float scale,
+		int player,
+		MirrorMode mirrorMode,
+		Vector2 symmetryPivot,
+		int symmetryFolds)
+	{
+		var mirrored = EditorGridSnapping.GetMirroredTransforms(pos, rotation, mirrorMode, symmetryPivot, symmetryFolds);
+		foreach (var m in mirrored)
+		{
+			Godot.Vector3 mPos = m.Position;
+			mPos.Y = EditorTerrainQueries.GetHeightAt(mPos);
+			requests.Add(new EntitySpawnRequest { Type = type, Id = id, Position = mPos, Rotation = m.Rotation, Scale = scale, Player = player });
+		}
+	}
 }
