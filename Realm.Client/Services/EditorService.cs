@@ -3342,7 +3342,7 @@ public partial class EditorService : IEditorAPI
 
 			float waterY = cells[x, z].MacroTier * TerrainCell.TIER_HEIGHT + waterHeight;
 			waterSpawnScratch.Clear();
-			CollectWaterProceduralSpawns(x, z, waterProfile, waterY, quadSize, width, depth, waterSpawnScratch);
+			EditorProceduralSpawns.CollectWater(x, z, waterProfile, waterY, quadSize, width, depth, waterSpawnScratch);
 			GameContext.Host?.ApplyProceduralSpawns(x, z, CollectionsMarshal.AsSpan(waterSpawnScratch), ProceduralSpawnLayer.Water);
 		}
 	}
@@ -3911,68 +3911,12 @@ public partial class EditorService : IEditorAPI
 
 	public List<ProceduralSpawnDescriptor> BuildWaterProceduralSpawns(int x, int z, byte profileIndex, float waterY, float quadSize, int width, int depth)
 	{
-		var descriptors = new List<ProceduralSpawnDescriptor>();
-		CollectWaterProceduralSpawns(x, z, GameContext.Terrain?.GetWaterProfile(profileIndex), waterY, quadSize, width, depth, descriptors);
-		return descriptors;
-	}
-
-	private static void CollectWaterProceduralSpawns(int x, int z, Realm.Shared.Metadata.WaterProfileSaveData? profile, float waterY, float quadSize, int width, int depth, List<ProceduralSpawnDescriptor> descriptors)
-	{
-		if (profile == null) return;
-
-		float cellCenterX = (x + 0.5f - width / 2.0f) * quadSize;
-		float cellCenterZ = (z + 0.5f - depth / 2.0f) * quadSize;
-
-		CollectBombingSpawns(profile.DecalBombingRules, ProceduralSpawnKind.Decal, r => r.DecalId, r => r.Density, r => r.MinScale, r => r.MaxScale, cellCenterX, cellCenterZ, waterY, quadSize, descriptors);
-		CollectBombingSpawns(profile.VfxBombingRules, ProceduralSpawnKind.Vfx, r => r.VfxId, r => r.Density, r => r.MinScale, r => r.MaxScale, cellCenterX, cellCenterZ, waterY, quadSize, descriptors);
+		return EditorProceduralSpawns.BuildWater(x, z, profileIndex, waterY, quadSize, width, depth);
 	}
 
 	public List<ProceduralSpawnDescriptor> BuildTerrainProceduralSpawns(int x, int z, int textureIndex, float terrainY, float quadSize, int width, int depth)
 	{
-		var descriptors = new List<ProceduralSpawnDescriptor>();
-
-		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
-		if (string.IsNullOrEmpty(wsPath)) return descriptors;
-		if (!GameContext.MetadataService.TryLoadMetadata(wsPath, out var metaRoot) || metaRoot == null) return descriptors;
-
-		string? swatchName = null;
-		if (GameContext.Host?.GroundTerrain != null && textureIndex >= 0 && textureIndex < GameContext.Host.GroundTerrain.LoadedTextureList.Count)
-		{
-			swatchName = GameContext.Host.GroundTerrain.LoadedTextureList[textureIndex];
-		}
-
-		if (string.IsNullOrEmpty(swatchName)) return descriptors;
-
-		var prof = metaRoot.GetTerrainProfile(swatchName);
-		if (prof == null) return descriptors;
-
-		float cellCenterX = (x + 0.5f - width / 2.0f) * quadSize;
-		float cellCenterZ = (z + 0.5f - depth / 2.0f) * quadSize;
-
-		CollectBombingSpawns(prof.DecalBombingRules, ProceduralSpawnKind.Decal, r => r.DecalId, r => r.Density, r => r.MinScale, r => r.MaxScale, cellCenterX, cellCenterZ, terrainY, quadSize, descriptors);
-		CollectBombingSpawns(prof.VfxBombingRules, ProceduralSpawnKind.Vfx, r => r.VfxId, r => r.Density, r => r.MinScale, r => r.MaxScale, cellCenterX, cellCenterZ, terrainY, quadSize, descriptors);
-
-		return descriptors;
-	}
-
-	private static void CollectBombingSpawns<T>(List<T>? rules, ProceduralSpawnKind kind, Func<T, string> getId, Func<T, float> getDensity, Func<T, float> getMinScale, Func<T, float> getMaxScale, float cellCenterX, float cellCenterZ, float baseY, float quadSize, List<ProceduralSpawnDescriptor> descriptors)
-	{
-		if (rules == null || rules.Count == 0) return;
-
-		foreach (var rule in rules)
-		{
-			string id = getId(rule);
-			if (string.IsNullOrWhiteSpace(id)) continue;
-			if (Random.Shared.NextSingle() > (getDensity(rule) * 0.05f)) continue;
-
-			float jx = (Random.Shared.NextSingle() - 0.5f) * quadSize * 0.8f;
-			float jz = (Random.Shared.NextSingle() - 0.5f) * quadSize * 0.8f;
-			float scale = Mathf.Lerp(getMinScale(rule), getMaxScale(rule), Random.Shared.NextSingle());
-			float rotY = Random.Shared.NextSingle() * 360f;
-			var pos = new Godot.Vector3(cellCenterX + jx, baseY, cellCenterZ + jz);
-
-			descriptors.Add(new ProceduralSpawnDescriptor(kind, id, pos, rotY, scale));
-		}
+		return EditorProceduralSpawns.BuildTerrain(x, z, textureIndex, terrainY, quadSize, width, depth);
 	}
 
 
