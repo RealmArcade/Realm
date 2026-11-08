@@ -42,8 +42,8 @@ namespace Realm.Client.Core
 				}
 			}
 
-			var entities = GameContext.EditorService.BuildCopiedEntityList(minX, minZ, maxX, maxZ, candidates, EditorBrushIsSquare);
-			GameContext.EditorService.CopyArea(minX, minZ, maxX, maxZ, entities, EditorBrushIsSquare);
+			var entities = GameContext.EditorService.Clipboard.BuildCopiedEntityList(minX, minZ, maxX, maxZ, candidates, EditorBrushIsSquare);
+			GameContext.EditorService.Clipboard.CopyArea(minX, minZ, maxX, maxZ, entities, EditorBrushIsSquare);
 
 			int selWidth = maxX - minX + 1;
 			int selDepth = maxZ - minZ + 1;
@@ -56,8 +56,8 @@ namespace Realm.Client.Core
 			if (r < 0) r += 360.0f;
 			int rotSteps = (int)Math.Round(r / 90.0f) % 4;
 
-			int pasteWidth = GameContext.EditorService.CopiedAreaWidth;
-			int pasteDepth = GameContext.EditorService.CopiedAreaDepth;
+			int pasteWidth = GameContext.EditorService.Clipboard.CopiedAreaWidth;
+			int pasteDepth = GameContext.EditorService.Clipboard.CopiedAreaDepth;
 
 			int origSx = sx;
 			int origSz = sz;
@@ -84,7 +84,7 @@ namespace Realm.Client.Core
 			if (GameContext.EditorService.EditorPasteReflection == PasteReflection.Horizontal) srcX = pasteWidth - 1 - origSx;
 			else if (GameContext.EditorService.EditorPasteReflection == PasteReflection.Vertical) srcZ = pasteDepth - 1 - origSz;
 
-			return GameContext.EditorService.IsCopiedCellMasked(srcX, srcZ);
+			return GameContext.EditorService.Clipboard.IsCopiedCellMasked(srcX, srcZ);
 		}
 
 		public void PerformCopyAreaExternal()
@@ -101,7 +101,7 @@ namespace Realm.Client.Core
 
 		private List<IEditorAction> PerformPasteArea(int startX, int startZ, float rotationDegrees, PasteReflection reflection = PasteReflection.None, bool recordToHistory = true)
 		{
-			if (GroundTerrain?.Cells == null || GroundTerrain.SplatMap == null || !GameContext.EditorService.HasCopiedArea) return new List<IEditorAction>();
+			if (GroundTerrain?.Cells == null || GroundTerrain.SplatMap == null || !GameContext.EditorService.Clipboard.HasCopiedArea) return new List<IEditorAction>();
 
 			var cellsBefore = (TerrainCell[,])GroundTerrain.Cells.Clone();
 			var splatBefore = (TerrainSplatWeights[,])GroundTerrain.SplatMap.Clone();
@@ -122,7 +122,7 @@ namespace Realm.Client.Core
 		{
 			if (!pasteResult.TerrainModified) return;
 
-			int pasteW = Math.Max(GameContext.EditorService.CopiedAreaWidth, GameContext.EditorService.CopiedAreaDepth);
+			int pasteW = Math.Max(GameContext.EditorService.Clipboard.CopiedAreaWidth, GameContext.EditorService.Clipboard.CopiedAreaDepth);
 			var affectedRegions = GetAffectedRegions(startX, startZ, pasteW, pasteW);
 
 			if (pasteResult.HeightsModified)

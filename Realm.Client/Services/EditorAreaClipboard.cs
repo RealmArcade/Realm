@@ -16,12 +16,13 @@ namespace Realm.Client.Services;
 /// paste path need. It reads the terrain through the editor service and the live splat maps through
 /// <see cref="EditorTerrainSurface"/>, so nothing else has to hold this state.
 /// </summary>
-internal sealed class EditorAreaClipboard
+public sealed class EditorAreaClipboard
 {
 	private readonly EditorTerrainSurface _surface;
 
 	private CopiedAreaTemplate? _copiedArea;
 	private CopiedObjectTemplate? _copiedObject;
+	private int _pasteAnchorIndex;
 
 	public EditorAreaClipboard(EditorTerrainSurface surface)
 	{
@@ -61,6 +62,34 @@ internal sealed class EditorAreaClipboard
 		};
 	}
 
+	public int GetPasteAnchorZ(int index, int depth)
+	{
+		return index switch
+		{
+			0 => depth / 2,
+			1 => 0,
+			2 => 0,
+			3 => Math.Max(0, depth - 1),
+			4 => Math.Max(0, depth - 1),
+			_ => depth / 2
+		};
+	}
+
+	public int PasteAnchorIndex
+	{
+		get => _pasteAnchorIndex;
+		set => _pasteAnchorIndex = value;
+	}
+
+	public void CyclePasteAnchor()
+	{
+		if (!HasCopiedArea) return;
+		_pasteAnchorIndex = (_pasteAnchorIndex + 1) % EditorToolCatalog.PasteAnchorNames.Length;
+		SetCopiedAreaAnchor(
+			GetPasteAnchorX(_pasteAnchorIndex, CopiedAreaWidth),
+			GetPasteAnchorZ(_pasteAnchorIndex, CopiedAreaDepth));
+	}
+
 	public void SetCopiedAreaAnchor(int anchorTileX, int anchorTileZ)
 	{
 		if (_copiedArea != null)
@@ -76,6 +105,26 @@ internal sealed class EditorAreaClipboard
 	{
 		_copiedObject = template;
 	}
+
+	public void CopyProp(string propId, float rotation, float scale) =>
+		_copiedObject = new CopiedObjectTemplate
+		{
+			Type = "prop",
+			Id = propId,
+			Rotation = rotation,
+			Scale = scale,
+			Player = 0
+		};
+
+	public void CopyDecal(string decalId, float rotation, float scale) =>
+		_copiedObject = new CopiedObjectTemplate
+		{
+			Type = "decal",
+			Id = decalId,
+			Rotation = rotation,
+			Scale = scale,
+			Player = 0
+		};
 
 	public void CopyArea(int minX, int minZ, int maxX, int maxZ, List<CopiedEntityInfo> entities, bool isSquare = true)
 	{

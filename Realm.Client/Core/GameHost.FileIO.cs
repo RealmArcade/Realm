@@ -77,7 +77,7 @@ public partial class GameHost
 			CliffPaintTextureIndex = GameContext.EditorService.EditorCliffPaintTextureIndex,
 			ActiveTool = ActiveEditorTool,
 			ActivePlaceId = ActivePlaceId,
-			CopiedArea = GameContext.EditorService.CopiedArea,
+			CopiedArea = GameContext.EditorService.Clipboard.CopiedArea,
 			SelectionStart = GameContext.EditorService.SelectionStart,
 			SelectionEnd = GameContext.EditorService.SelectionEnd,
 			HasCameraPosition = camera != null,

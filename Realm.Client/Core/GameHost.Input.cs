@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using Realm.Ecs;
@@ -405,7 +405,7 @@ public partial class GameHost
 				{
 					if (SelectedEditorObject is Unit3D unit)
 					{
-						GameContext.EditorService.SetCopiedObject(new CopiedObjectTemplate
+						GameContext.EditorService.Clipboard.SetCopiedObject(new CopiedObjectTemplate
 						{
 							Type = "unit",
 							Id = unit.UnitId,
@@ -417,7 +417,7 @@ public partial class GameHost
 					}
 					else if (SelectedEditorObject is PropEntityProxyNode propProxy)
 					{
-						GameContext.EditorService.SetCopiedObject(new CopiedObjectTemplate
+						GameContext.EditorService.Clipboard.SetCopiedObject(new CopiedObjectTemplate
 						{
 							Type = "prop",
 							Id = propProxy.PropId,
@@ -429,7 +429,7 @@ public partial class GameHost
 					}
 					else if (SelectedEditorObject is Prop3D prop)
 					{
-						GameContext.EditorService.SetCopiedObject(new CopiedObjectTemplate
+						GameContext.EditorService.Clipboard.SetCopiedObject(new CopiedObjectTemplate
 						{
 							Type = "prop",
 							Id = prop.PropId,
@@ -442,7 +442,7 @@ public partial class GameHost
 					else if (SelectedEditorObject is Decal decal)
 					{
 						string decalId = decal is Decal3D decal3D ? decal3D.DecalId : "logo";
-						GameContext.EditorService.SetCopiedObject(new CopiedObjectTemplate
+						GameContext.EditorService.Clipboard.SetCopiedObject(new CopiedObjectTemplate
 						{
 							Type = "decal",
 							Id = decalId,
@@ -462,7 +462,7 @@ public partial class GameHost
 			{
 				if (ActiveEditorTool == EditorTool.SelectArea || ActiveEditorTool == EditorTool.PasteArea)
 				{
-					if (GameContext.EditorService.HasCopiedArea)
+					if (GameContext.EditorService.Clipboard.HasCopiedArea)
 					{
 						ActiveEditorTool = EditorTool.PasteArea;
 						GameContext.MapEditorHud?.SelectToolFromHotkey(EditorTool.PasteArea);
@@ -472,7 +472,7 @@ public partial class GameHost
 					}
 				}
 
-				var copiedObj = GameContext.EditorService.GetCopiedObject();
+				var copiedObj = GameContext.EditorService.Clipboard.GetCopiedObject();
 				if (copiedObj != null)
 				{
 					var hit = RaycastTerrainFromMouse(GetViewport().GetMousePosition());
@@ -1709,7 +1709,7 @@ public partial class GameHost
 				}
 				else if (ActiveEditorTool == EditorTool.PasteArea)
 				{
-					if (GroundTerrain != null && GameContext.EditorService.HasCopiedArea)
+					if (GroundTerrain != null && GameContext.EditorService.Clipboard.HasCopiedArea)
 					{
 						var (cx, cz) = GameContext.EditorService.WorldPosToCellCoords(hitPos);
 						var (startX, startZ, targetWidth, targetDepth) = GameContext.EditorService.GetAnchoredPasteBounds(cx, cz, GameContext.EditorService.EditorPasteRotation, GameContext.EditorService.EditorPasteReflection);
@@ -3236,7 +3236,7 @@ public partial class GameHost
 
 		if (SelectedEditorObject is PropEntityProxyNode propProxy)
 		{
-			GameContext.EditorService.CopyEditorPropDomain(propProxy.PropId, propProxy.RotationDegrees.Y, propProxy.Scale.X);
+			GameContext.EditorService.Clipboard.CopyProp(propProxy.PropId, propProxy.RotationDegrees.Y, propProxy.Scale.X);
 			GameContext.MapEditorHud?.ShowFeedbackExternal($"Copied Prop: {propProxy.PropId.ToUpper()}");
 			return;
 		}
@@ -3256,7 +3256,7 @@ public partial class GameHost
 
 	private void CopyEditorUnit(Unit3D unit)
 	{
-		GameContext.EditorService.SetCopiedObject(new CopiedObjectTemplate
+		GameContext.EditorService.Clipboard.SetCopiedObject(new CopiedObjectTemplate
 		{
 			Type = "unit",
 			Id = unit.UnitId,
@@ -3269,14 +3269,14 @@ public partial class GameHost
 
 	private void CopyEditorProp(Prop3D prop)
 	{
-		GameContext.EditorService.CopyEditorPropDomain(prop.PropId, prop.RotationDegrees.Y, prop.Scale.X);
+		GameContext.EditorService.Clipboard.CopyProp(prop.PropId, prop.RotationDegrees.Y, prop.Scale.X);
 		GameContext.MapEditorHud?.ShowFeedbackExternal($"Copied Prop: {prop.PropId.ToUpper()}");
 	}
 
 	private void CopyEditorDecal(Decal decal)
 	{
 		string decalId = decal is Decal3D decal3D ? decal3D.DecalId : "logo";
-		GameContext.EditorService.CopyEditorDecalDomain(decalId, decal.RotationDegrees.Y, decal.Scale.X);
+		GameContext.EditorService.Clipboard.CopyDecal(decalId, decal.RotationDegrees.Y, decal.Scale.X);
 		GameContext.MapEditorHud?.ShowFeedbackExternal($"Copied Decal: {decalId.ToUpper()}");
 	}
 
@@ -3284,7 +3284,7 @@ public partial class GameHost
 	{
 		if (TryActivateAreaPasteMode()) return;
 
-		var copiedObjOpt = GameContext.EditorService.GetCopiedObject();
+		var copiedObjOpt = GameContext.EditorService.Clipboard.GetCopiedObject();
 		if (copiedObjOpt == null)
 		{
 			GameContext.MapEditorHud?.ShowFeedbackExternal("Nothing to Paste (copy an object or area first)");
@@ -3298,7 +3298,7 @@ public partial class GameHost
 
 	private bool TryActivateAreaPasteMode()
 	{
-		if ((ActiveEditorTool == EditorTool.SelectArea || ActiveEditorTool == EditorTool.PasteArea) && GameContext.EditorService.HasCopiedArea)
+		if ((ActiveEditorTool == EditorTool.SelectArea || ActiveEditorTool == EditorTool.PasteArea) && GameContext.EditorService.Clipboard.HasCopiedArea)
 		{
 			ActiveEditorTool = EditorTool.PasteArea;
 			GameContext.MapEditorHud?.SelectToolFromHotkey(EditorTool.PasteArea);

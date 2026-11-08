@@ -797,7 +797,7 @@ namespace Realm.Client.Core
 		public void RebuildSelectionHighlightMeshExternal(int minX, int minZ, int maxX, int maxZ)
 		{
 			GameContext.EditorService.LastSelectionMinX = -1;
-			if (ActiveEditorTool == EditorTool.PasteArea && GameContext.EditorService.HasCopiedArea)
+			if (ActiveEditorTool == EditorTool.PasteArea && GameContext.EditorService.Clipboard.HasCopiedArea)
 			{
 				int w = maxX - minX + 1;
 				int d = maxZ - minZ + 1;

@@ -25,22 +25,22 @@ namespace Realm.Client.UI
 		private void CyclePasteAnchor()
 		{
 			var editorService = GameContext.EditorService;
-			if (editorService == null || !editorService.HasCopiedArea)
+			if (editorService == null || !editorService.Clipboard.HasCopiedArea)
 			{
 				ShowFeedback(TranslationServer.Translate("No area currently in clipboard to set anchor for."));
 				return;
 			}
 
-			editorService.CyclePasteAnchorDomain();
+			editorService.Clipboard.CyclePasteAnchor();
 			UpdatePasteAnchorButtonText();
-			ShowFeedback(string.Format(TranslationServer.Translate("Paste Anchor: {0}"), TranslationServer.Translate(EditorToolCatalog.PasteAnchorNames[editorService.CurrentPasteAnchorIndex])));
+			ShowFeedback(string.Format(TranslationServer.Translate("Paste Anchor: {0}"), TranslationServer.Translate(EditorToolCatalog.PasteAnchorNames[editorService.Clipboard.PasteAnchorIndex])));
 		}
 
 		public void UpdatePasteAnchorButtonText()
 		{
 			if (_btnPasteAnchor != null)
 			{
-				_btnPasteAnchor.Text = $"{UnicodeIcons.MOUSE_POINTER} " + string.Format(TranslationServer.Translate("ANCHOR: {0}"), TranslationServer.Translate(EditorToolCatalog.PasteAnchorNames[GameContext.EditorService.CurrentPasteAnchorIndex]));
+				_btnPasteAnchor.Text = $"{UnicodeIcons.MOUSE_POINTER} " + string.Format(TranslationServer.Translate("ANCHOR: {0}"), TranslationServer.Translate(EditorToolCatalog.PasteAnchorNames[GameContext.EditorService.Clipboard.PasteAnchorIndex]));
 			}
 		}
 

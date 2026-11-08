@@ -2051,7 +2051,7 @@ namespace Realm.Client.Core
 
 		private bool ProcessPasteTool(Vector3 hitPos)
 		{
-			if (ActiveEditorTool == EditorTool.PasteArea && GameContext.EditorService.HasCopiedArea)
+			if (ActiveEditorTool == EditorTool.PasteArea && GameContext.EditorService.Clipboard.HasCopiedArea)
 			{
 				HandlePasteAreaHit(hitPos);
 				return true;
@@ -2101,8 +2101,8 @@ namespace Realm.Client.Core
 
 			UpdatePasteSelectionHighlights(startX, startZ, targetWidth, targetDepth);
 
-			int srcAnchorX = GameContext.EditorService.CopiedAreaSourceMinX + GameContext.EditorService.CopiedAreaAnchorX;
-			int srcAnchorZ = GameContext.EditorService.CopiedAreaSourceMinZ + GameContext.EditorService.CopiedAreaAnchorZ;
+			int srcAnchorX = GameContext.EditorService.Clipboard.CopiedAreaSourceMinX + GameContext.EditorService.Clipboard.CopiedAreaAnchorX;
+			int srcAnchorZ = GameContext.EditorService.Clipboard.CopiedAreaSourceMinZ + GameContext.EditorService.Clipboard.CopiedAreaAnchorZ;
 			int deltaX = cx - srcAnchorX;
 			int deltaZ = cz - srcAnchorZ;
 
@@ -3184,7 +3184,7 @@ namespace Realm.Client.Core
 
 		public void UpdatePasteSelectionHighlights(int startX, int startZ, int targetWidth, int targetDepth)
 		{
-			if (GroundTerrain == null || GroundTerrain.Cells == null || !GameContext.EditorService.HasCopiedArea) return;
+			if (GroundTerrain == null || GroundTerrain.Cells == null || !GameContext.EditorService.Clipboard.HasCopiedArea) return;
 
 			int width = GroundTerrain.Width;
 			int depth = GroundTerrain.Depth;
@@ -3238,12 +3238,12 @@ namespace Realm.Client.Core
 
 			if (ActiveEditorTool == EditorTool.PasteArea)
 			{
-				if (GameContext.EditorService.HasCopiedArea && GameContext.EditorService.HasCopiedAreaMask)
+				if (GameContext.EditorService.Clipboard.HasCopiedArea && GameContext.EditorService.Clipboard.HasCopiedAreaMask)
 				{
 					return IsCopiedQuadMasked(sx, sz);
 				}
 
-				if (!EditorBrushIsSquare && !GameContext.EditorService.HasCopiedArea)
+				if (!EditorBrushIsSquare && !GameContext.EditorService.Clipboard.HasCopiedArea)
 				{
 					return IsWithinBrushRadius(sx, sz, minX, minZ, selCenterX, selCenterZ, rx, rz);
 				}

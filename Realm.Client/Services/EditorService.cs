@@ -442,8 +442,6 @@ public partial class EditorService : IEditorAPI
 	public int LastSelectionMaxZ { get; set; } = -1;
 	public bool LastSelectionBrushIsSquare { get; set; } = true;
 
-	public int CurrentPasteAnchorIndex { get; set; } = 0;
-
 	private readonly EditorSwatchCatalog _swatches = new();
 
 	public List<string> SwatchPaths
@@ -551,30 +549,6 @@ public partial class EditorService : IEditorAPI
 
 	public EditorPlacementSettings Placement { get; } = new();
 
-	public int GetPasteAnchorZ(int index, int depth)
-	{
-		return index switch
-		{
-			0 => depth / 2,
-			1 => 0,
-			2 => 0,
-			3 => Math.Max(0, depth - 1),
-			4 => Math.Max(0, depth - 1),
-			_ => depth / 2
-		};
-	}
-
-	public void CyclePasteAnchorDomain()
-	{
-		if (!HasCopiedArea) return;
-		CurrentPasteAnchorIndex = (CurrentPasteAnchorIndex + 1) % EditorToolCatalog.PasteAnchorNames.Length;
-		int w = CopiedAreaWidth;
-		int d = CopiedAreaDepth;
-		int ax = GetPasteAnchorX(CurrentPasteAnchorIndex, w);
-		int az = GetPasteAnchorZ(CurrentPasteAnchorIndex, d);
-		SetCopiedAreaAnchor(ax, az);
-	}
-
 	public const float MIN_CLUMP_COUNT = 1.0f;
 	public const float MAX_CLUMP_COUNT = 20.0f;
 	public const float MIN_CLUMP_SCALE = 0.0f;
@@ -593,6 +567,9 @@ public partial class EditorService : IEditorAPI
 	public EditorTerrainEditSession TerrainEdit => _terrainEdit;
 	private readonly EditorPasteWriter _paste;
 	private readonly EditorAreaClipboard _clipboard;
+
+	public EditorAreaClipboard Clipboard => _clipboard;
+
 	private readonly EditorRampTool _ramp;
 	private readonly EditorInteractionState _interaction = new();
 
@@ -625,41 +602,6 @@ public partial class EditorService : IEditorAPI
 	public Vector2I? ObjectMarqueeEnd => _interaction.ObjectMarqueeEnd;
 	public bool IsObjectMarqueeSelecting => _interaction.IsObjectMarqueeSelecting;
 
-	public CopiedAreaTemplate? CopiedArea
-	{
-		get => _clipboard.CopiedArea;
-		set => _clipboard.CopiedArea = value;
-	}
-
-	public bool HasCopiedArea => _clipboard.HasCopiedArea;
-	public int CopiedAreaWidth => _clipboard.CopiedAreaWidth;
-	public int CopiedAreaDepth => _clipboard.CopiedAreaDepth;
-	public int CopiedAreaAnchorX => _clipboard.CopiedAreaAnchorX;
-	public int CopiedAreaAnchorZ => _clipboard.CopiedAreaAnchorZ;
-	public int CopiedAreaSourceMinX => _clipboard.CopiedAreaSourceMinX;
-	public int CopiedAreaSourceMinZ => _clipboard.CopiedAreaSourceMinZ;
-	public int CopiedAreaSourceMaxX => _clipboard.CopiedAreaSourceMaxX;
-	public int CopiedAreaSourceMaxZ => _clipboard.CopiedAreaSourceMaxZ;
-	public bool HasCopiedAreaMask => _clipboard.HasCopiedAreaMask;
-	public bool IsCopiedCellMasked(int srcX, int srcZ) => _clipboard.IsCopiedCellMasked(srcX, srcZ);
-
-	public int GetPasteAnchorX(int index, int width) => _clipboard.GetPasteAnchorX(index, width);
-
-	public void SetCopiedAreaAnchor(int anchorTileX, int anchorTileZ) => _clipboard.SetCopiedAreaAnchor(anchorTileX, anchorTileZ);
-
-	public CopiedObjectTemplate? GetCopiedObject() => _clipboard.GetCopiedObject();
-
-	public void SetCopiedObject(CopiedObjectTemplate? template) => _clipboard.SetCopiedObject(template);
-
-	public void CopyArea(int minX, int minZ, int maxX, int maxZ, List<CopiedEntityInfo> entities, bool isSquare = true) =>
-		_clipboard.CopyArea(minX, minZ, maxX, maxZ, entities, isSquare);
-
-	public List<CopiedEntityInfo> BuildCopiedEntityList(
-		int minX, int minZ, int maxX, int maxZ,
-		IReadOnlyList<CopiedEntityCandidate> candidates,
-		bool isSquare = true) =>
-		_clipboard.BuildCopiedEntityList(minX, minZ, maxX, maxZ, candidates, isSquare);
-
 	private Vector2 _symmetryPivot = Vector2.Zero;
 	private int _symmetryFolds = 4;
 
@@ -678,30 +620,6 @@ public partial class EditorService : IEditorAPI
 	public Godot.Vector3? RampStartPos => _ramp.RampStartPos;
 	public bool IsDrawingTerrain => _terrainEdit.IsDrawing;
 	public bool IsDrawingClump => _clump.IsDrawing;
-
-	public void CopyEditorPropDomain(string propId, float rotation, float scale)
-	{
-		SetCopiedObject(new CopiedObjectTemplate
-		{
-			Type = "prop",
-			Id = propId,
-			Rotation = rotation,
-			Scale = scale,
-			Player = 0
-		});
-	}
-
-	public void CopyEditorDecalDomain(string decalId, float rotation, float scale)
-	{
-		SetCopiedObject(new CopiedObjectTemplate
-		{
-			Type = "decal",
-			Id = decalId,
-			Rotation = rotation,
-			Scale = scale,
-			Player = 0
-		});
-	}
 
 	public void ApplyCopiedObjectStateDomain(CopiedObjectTemplate copiedObj, out EditorTool newTool)
 	{
@@ -963,22 +881,6 @@ public partial class EditorService : IEditorAPI
 	private void SanitizeCornerHeights(ref TerrainState terrain)
 	{
 		EditorGridSnapping.SanitizeCornerHeights(ref terrain);
-	}
-
-	private void PasteBlock(
-		CopiedAreaTemplate copiedArea,
-		int blockStartX, int blockStartZ,
-		int rotSteps,
-		PasteReflection pasteReflection,
-		MirrorMode symmetryMirror,
-		int foldRotSteps,
-		int width, int depth,
-		bool pasteHeights, bool pasteTextures, bool pastePathing,
-		ref TerrainState terrain,
-		ref bool modified,
-		ref bool pathingModified)
-	{
-		_paste.PasteBlock(copiedArea, blockStartX, blockStartZ, rotSteps, pasteReflection, symmetryMirror, foldRotSteps, width, depth, pasteHeights, pasteTextures, pastePathing, ref terrain, ref modified, ref pathingModified);
 	}
 
 	public bool GetBlockMode(Entity worldEntity) => EditorEntityState.GetBlockMode(worldEntity);
@@ -1392,7 +1294,7 @@ public partial class EditorService : IEditorAPI
 		this.EditorWaterHeight = waterHeight;
 		this.EditorPaintTextureIndex = paintTextureIndex;
 		this.EditorCliffPaintTextureIndex = cliffPaintTextureIndex;
-		this.CopiedArea = copiedArea;
+		_clipboard.CopiedArea = copiedArea;
 		SetSelectionStart(selectionStart != null ? new Godot.Vector2I((int)selectionStart.Value.X, (int)selectionStart.Value.Z) : (Godot.Vector2I?)null);
 		SetSelectionEnd(selectionEnd != null ? new Godot.Vector2I((int)selectionEnd.Value.X, (int)selectionEnd.Value.Z) : (Godot.Vector2I?)null);
 	}
