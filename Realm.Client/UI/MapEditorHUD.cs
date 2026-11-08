@@ -64,8 +64,6 @@ public partial class MapEditorHUD : Control
 	private bool _leftPanelExpanded { get; set; } = false;
 	private bool _rightPanelExpanded { get; set; } = true;
 
-	private OptionButton _optModule { get; set; } = null!;
-	private Button _btnGameSettings { get; set; } = null!;
 	private EditorModule _activeModule { get; set; } = EditorModule.Terrain;
 
 
@@ -83,7 +81,6 @@ public partial class MapEditorHUD : Control
 
 
 	private Dictionary<Control, CardDragData> _cardDragMap { get; set; } = new();
-	private Button _btnResetLayout { get; set; } = null!;
 
 	private VBoxContainer _accordionFile { get; set; } = null!;
 	private Button _btnHeaderFile { get; set; } = null!;
@@ -130,19 +127,14 @@ public partial class MapEditorHUD : Control
 
 	private Dictionary<Control, Control.MouseFilterEnum> _savedMouseFilters { get; set; } = new();
 
-	private Button _btnBackToHub { get; set; } = null!;
 	private Button _btnPublish { get; set; } = null!;
 	private Button _btnSave { get; set; } = null!;
 	private Button _btnSaveAs { get; set; } = null!;
-	private Button _btnTestMap { get; set; } = null!;
-	private OptionButton _optTestSettings { get; set; } = null!;
 	private Button _btnExportMap { get; set; } = null!;
 	private Button _btnLoad { get; set; } = null!;
 	private Button _btnLoadMore { get; set; } = null!;
 	private PopupPanel _popupLoadMore { get; set; } = null!;
 	private Button _btnImportArchive { get; set; } = null!;
-	private Button _btnUndo { get; set; } = null!;
-	private Button _btnRedo { get; set; } = null!;
 
 	private Label _statusLabel { get; set; } = null!;
 	private Label _feedbackLabel { get; set; } = null!;
@@ -185,16 +177,9 @@ public partial class MapEditorHUD : Control
 	private MapHistoryStoresDialog _mapHistoryStoresDialog { get; set; } = null!;
 	private Button _btnEditorSettings { get; set; } = null!;
 	private Button _btnMapVersions { get; set; } = null!;
-	private PanelContainer _mapNameHeaderPanel { get; set; } = null!;
-	private Label _lblMapNameHeader { get; set; } = null!;
 	private double _mapNameUpdateTimer { get; set; } = 0.0;
 	private Button _btnOpenGlobalOverrides { get; set; } = null!;
 	private Button BtnEditVfx { get; set; } = null!;
-	private Button BtnAssetsManager { get; set; } = null!;
-	private Button BtnTemplateManager { get; set; } = null!;
-	private Button BtnInstanceManager { get; set; } = null!;
-	private Button BtnImportFromMap { get; set; } = null!;
-	private Button BtnUtilities { get; set; } = null!;
 	private bool IsUpdatingInspectorUI { get; set; }
 
 	private CheckBox? ChkApplyGroundTexture { get; set; }
@@ -214,7 +199,6 @@ public partial class MapEditorHUD : Control
 	private Button _btnResetMap { get; set; } = null!;
 	private Button _btnSaveMore { get; set; } = null!;
 	private PopupPanel _popupSaveMore { get; set; } = null!;
-	private Button _btnEyedropper { get; set; } = null!;
 	private OptionButton _optEyedropperMode { get; set; } = null!;
 	private PanelContainer _minimapFrame { get; set; } = null!;
 	private Control _minimapArea { get; set; } = null!;
@@ -268,9 +252,6 @@ public partial class MapEditorHUD : Control
 	private int _scaleDialogTargetDepth { get; set; }
 
 	private Camera3D? _camera3D { get; set; }
-	private Button _btnEditors { get; set; } = null!;
-	private Button _btnVSCode { get; set; } = null!;
-	private PopupPanel _popupEditors { get; set; } = null!;
 	private bool _isDraggingSlider { get; set; } = false;
 	private Panel _swatchHighlightPanel { get; set; } = null!;
 	private Panel _swatchCliffHighlightPanel { get; set; } = null!;
@@ -282,6 +263,7 @@ public partial class MapEditorHUD : Control
 	private MapEditorPathingPanel _pathingPanelController { get; set; } = null!;
 	private PlacementSettingsPanel _placementPanel { get; set; } = null!;
 	private ToolAccordionPanel _toolPanel { get; set; } = null!;
+	private TopToolbarPanel _topToolbar { get; set; } = null!;
 	private BrushSettingsPanel _brushPanel { get; set; } = null!;
 	private WaterSettingsPanel _waterPanel { get; set; } = null!;
 	private PasteSettingsPanel _pastePanel { get; set; } = null!;
@@ -1094,7 +1076,7 @@ public partial class MapEditorHUD : Control
 			_popupOverlayMode,
 			_popupEnvironment,
 			_popupCamera,
-			_popupEditors,
+			_topToolbar.EditorsPopup,
 			_popupSaveMore,
 			_popupLoadMore
 		);
@@ -1103,8 +1085,8 @@ public partial class MapEditorHUD : Control
 	private bool IsPrimaryOptionPopupVisible()
 	{
 		return AnyOptionButtonPopupVisible(
-			_optModule,
-			_optTestSettings,
+			_topToolbar.ModuleOption,
+			_topToolbar.TestSettingsOption,
 			_entityPaletteController?.OptCategoryItems,
 			_optEyedropperMode,
 			_optPathingMode,

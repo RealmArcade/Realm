@@ -388,7 +388,7 @@ namespace Realm.Client.UI
 				}
 			}
 
-			StyleRowButton(_btnTestMap);
+			StyleRowButton(_topToolbar.TestMapButton);
 			StyleRowButton(_btnSaveAs);
 			StyleRowButton(_btnPublish);
 			StyleRowButton(_btnExportMap);
@@ -2012,9 +2012,9 @@ namespace Realm.Client.UI
 
 		private void UpdateModuleSwitchButtons()
 		{
-			if (_optModule != null)
+			if (_topToolbar.ModuleOption != null)
 			{
-				_optModule.Selected = (int)_activeModule;
+				_topToolbar.ModuleOption.Selected = (int)_activeModule;
 			}
 		}
 
@@ -3575,7 +3575,7 @@ namespace Realm.Client.UI
 
 		public void UpdateMapNameHeader()
 		{
-			if (_lblMapNameHeader == null) return;
+			if (_topToolbar.MapNameLabel == null) return;
 			string mapName = GetMapNameFromMetadata();
 			string displayMapName = MapNaming.IsUntitledMapName(mapName)
 				? TranslationServer.Translate("Untitled Map")
@@ -3587,14 +3587,14 @@ namespace Realm.Client.UI
 				? $"{displayMapName} * ({TranslationServer.Translate("Unsaved changes — Press Ctrl+S to save")})"
 				: $"{displayMapName} ({TranslationServer.Translate("All changes saved")})";
 
-			if (_lblMapNameHeader.Text != displayText)
+			if (_topToolbar.MapNameLabel.Text != displayText)
 			{
-				_lblMapNameHeader.Text = displayText;
+				_topToolbar.MapNameLabel.Text = displayText;
 			}
 
-			if (_lblMapNameHeader.TooltipText != tooltipText)
+			if (_topToolbar.MapNameLabel.TooltipText != tooltipText)
 			{
-				_lblMapNameHeader.TooltipText = tooltipText;
+				_topToolbar.MapNameLabel.TooltipText = tooltipText;
 			}
 		}
 
