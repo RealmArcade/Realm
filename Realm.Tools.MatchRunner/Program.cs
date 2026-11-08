@@ -5,6 +5,8 @@ using Realm.Ecs.AI.Policy;
 using Realm.Ecs.AI.Training;
 using Realm.Tools.MatchRunner;
 
+Console.OutputEncoding = Encoding.UTF8;
+
 MatchRunOptions options;
 try
 {
@@ -22,6 +24,37 @@ if (options.ShowHelp)
 {
 	Console.WriteLine(MatchRunOptions.Usage);
 	return 0;
+}
+
+if (!string.IsNullOrWhiteSpace(options.BalanceInputPath))
+{
+	string balanceInputPath = Path.GetFullPath(options.BalanceInputPath);
+	List<string> balanceLines = Directory.Exists(balanceInputPath)
+		? ReadCorpusDirectory(balanceInputPath)
+		: File.ReadAllLines(balanceInputPath).Where(line => line.Length > 0).ToList();
+
+	string reportPath = options.BalanceReportPath
+		?? (Directory.Exists(balanceInputPath)
+			? Path.Combine(balanceInputPath, "balance.md")
+			: balanceInputPath + ".balance.md");
+
+	string digest = BalanceReport.Write(balanceLines, options, reportPath);
+	Console.WriteLine($"analysed {balanceLines.Count} line(s) of {balanceInputPath}");
+	Console.WriteLine($"balance: {reportPath}");
+	Console.WriteLine(digest);
+	return 0;
+}
+
+static List<string> ReadCorpusDirectory(string directory)
+{
+	var lines = new List<string>();
+	foreach (string file in Directory.GetFiles(directory, "*.jsonl").Order(StringComparer.Ordinal))
+	{
+		if (file.Contains(".parts-", StringComparison.Ordinal)) continue;
+		lines.AddRange(File.ReadAllLines(file).Where(line => line.Length > 0));
+	}
+
+	return lines;
 }
 
 if (options.Train)
@@ -79,11 +112,20 @@ string summary = MatchBatchSummary.Build(outcomeLines, options, wallClockSeconds
 string summaryPath = outputPath + ".summary.json";
 File.WriteAllText(summaryPath, summary, new UTF8Encoding(false));
 
+string balancePath = options.BalanceReportPath ?? outputPath + ".balance.md";
+string balanceDigest = options.Balance ? BalanceReport.Write(outcomeLines, options, balancePath) : string.Empty;
+
 if (!isChild)
 {
 	Console.WriteLine($"played {outcomeLines.Count - failureSeeds.Count} match(es) of seeds {options.SeedStart}-{options.SeedEnd} in {wallClockSeconds:F2}s");
 	Console.WriteLine($"outcomes: {outputPath}");
 	Console.WriteLine($"summary:  {summaryPath}");
+
+	if (options.Balance)
+	{
+		Console.WriteLine($"balance:  {balancePath}");
+		Console.WriteLine(balanceDigest);
+	}
 }
 
 Directory.Delete(partsDirectory, recursive: true);

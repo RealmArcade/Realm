@@ -27,6 +27,9 @@ public class MatchRunOptions
 	public int TrainSeed { get; private set; }
 	public string? TrainOutputPath { get; private set; }
 	public float[]? TrainInitialWeights { get; private set; }
+	public bool Balance { get; private set; }
+	public string? BalanceReportPath { get; private set; }
+	public string? BalanceInputPath { get; private set; }
 
 	public int SeedCount => SeedEnd - SeedStart + 1;
 
@@ -52,6 +55,9 @@ public class MatchRunOptions
 		  --train-seed <n>        seed of the evolution; zero selects the fixed default
 		  --train-output <path>   profile file to write (default <map>/<mapName>_bot.json)
 		  --train-initial-weights <a,b,...> start the population around this weight vector instead of pure noise
+		  --balance               write the balance report of the played batch beside the outcomes
+		  --balance-report <path> markdown report to write (default <output>.balance.md)
+		  --balance-input <path>  analyse an already played jsonl (or a directory of chunk jsonl) instead of playing
 		  --help                  show this text
 		""";
 
@@ -125,6 +131,16 @@ public class MatchRunOptions
 				case "--train-initial-weights":
 					options.TrainInitialWeights = ReadFloatList(args, ref index, argument);
 					break;
+				case "--balance":
+					options.Balance = true;
+					break;
+				case "--balance-report":
+					options.BalanceReportPath = ReadValue(args, ref index, argument);
+					break;
+				case "--balance-input":
+					options.BalanceInputPath = ReadValue(args, ref index, argument);
+					options.Balance = true;
+					break;
 				default:
 					throw new ArgumentException($"unknown argument '{argument}'");
 			}
@@ -134,7 +150,6 @@ public class MatchRunOptions
 		{
 			throw new ArgumentException("--map is required");
 		}
-
 		if (!options.ShowHelp && options.Seats > 24)
 		{
 			throw new ArgumentException("--seats cannot exceed 24, because slot zero is the neutral seat");
