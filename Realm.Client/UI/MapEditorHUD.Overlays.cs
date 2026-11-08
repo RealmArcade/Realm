@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Globalization;
 using System.IO;
 using System.Text.Json.Nodes;
@@ -44,20 +44,7 @@ namespace Realm.Client.UI
 
 			if (_swatchGrid != null) _swatchGrid.ReleaseOrphanedHighlights();
 
-			if (_hudFadeTween != null && _hudFadeTween.IsValid())
-			{
-				_hudFadeTween.Kill();
-			}
-
-			foreach (var (ctrl, filter) in _savedMouseFilters)
-			{
-				if (GodotObject.IsInstanceValid(ctrl))
-				{
-					ctrl.MouseFilter = filter;
-				}
-			}
-
-			_savedMouseFilters.Clear();
+			_hudFade?.Release();
 		}
 
 		public void UpdateFPSVisibility()
@@ -1065,89 +1052,11 @@ namespace Realm.Client.UI
 		}
 
 
-		public void Set3DInteractionActive_ViewLogic(bool active)
-		{
-			if (_is3DInteractionActive == active) return;
-			_is3DInteractionActive = active;
+		internal MapEditorHudFade HudFade => _hudFade ??= new MapEditorHudFade(
+			new HudFadeHooks(this, _topLeftBox, _panelLeft, _panelRight, _topBar, _viewportPanel.MeasurementPanel,
+				_screenFrameRect, CardInteraction.Cards, () => EditorSettingsDialog.CurrentSettings.HideHudDuringToolUsage));
 
-			if (!EditorSettingsDialog.CurrentSettings.HideHudDuringToolUsage && active)
-			{
-				return;
-			}
-
-			UpdateMouseFilters_ViewLogic(active);
-			AnimateHudFade(active);
-		}
-
-		private void UpdateMouseFilters_ViewLogic(bool active)
-		{
-			if (active)
-			{
-				_savedMouseFilters.Clear();
-				ApplyMouseFilterIgnoreRecursive(_panelLeft);
-				ApplyMouseFilterIgnoreRecursive(_panelRight);
-				ApplyMouseFilterIgnoreRecursive(_topLeftBox);
-				if (GodotObject.IsInstanceValid(_topBar))
-				{
-					ApplyMouseFilterIgnoreRecursive(_topBar);
-				}
-
-				foreach (var card in CardInteraction.Cards)
-				{
-					if (GodotObject.IsInstanceValid(card))
-					{
-						ApplyMouseFilterIgnoreRecursive(card);
-					}
-				}
-			}
-			else
-			{
-				foreach (var (ctrl, filter) in _savedMouseFilters)
-				{
-					if (GodotObject.IsInstanceValid(ctrl))
-					{
-						ctrl.MouseFilter = filter;
-					}
-				}
-
-				_savedMouseFilters.Clear();
-			}
-		}
-
-		private void AnimateHudFade(bool active)
-		{
-			if (_hudFadeTween != null && _hudFadeTween.IsValid())
-			{
-				_hudFadeTween.Kill();
-			}
-
-			_hudFadeTween = CreateTween();
-			_hudFadeTween.SetParallel(true);
-			float targetAlpha = (active && EditorSettingsDialog.CurrentSettings.HideHudDuringToolUsage) ? 0.0f : 1.0f;
-			float duration = 0.35f;
-
-			TweenHudElement(_topLeftBox, targetAlpha, duration);
-			TweenHudElement(_panelLeft, targetAlpha, duration);
-			TweenHudElement(_panelRight, targetAlpha, duration);
-			TweenHudElement(_topBar, targetAlpha, duration);
-			TweenHudElement(_viewportPanel.MeasurementPanel, targetAlpha, duration);
-			TweenHudElement(_screenFrameRect, targetAlpha, duration);
-
-			foreach (var card in CardInteraction.Cards)
-			{
-				TweenHudElement(card, targetAlpha, duration);
-			}
-		}
-
-		private void TweenHudElement(Control element, float targetAlpha, float duration)
-		{
-			if (GodotObject.IsInstanceValid(element))
-			{
-				_hudFadeTween.TweenProperty(element, "modulate:a", targetAlpha, duration)
-					.SetTrans(Tween.TransitionType.Cubic)
-					.SetEase(Tween.EaseType.Out);
-			}
-		}
+		public void Set3DInteractionActive_ViewLogic(bool active) => HudFade.SetInteractionActive(active);
 
 		private void UpdateBlockStepVisibility()
 		{
@@ -1371,7 +1280,7 @@ namespace Realm.Client.UI
 				ApplyPanelOpacity(prefs.PanelOpacity);
 			}
 
-			if (!prefs.HideHudDuringToolUsage && _is3DInteractionActive)
+			if (!prefs.HideHudDuringToolUsage && HudFade.IsActive)
 			{
 				Set3DInteractionActive_ViewLogic(false);
 			}

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -105,10 +105,7 @@ public partial class MapEditorHUD : Control
 	private VBoxContainer _middleRightBox { get; set; } = null!;
 	private HBoxContainer _topLeftBox { get; set; } = null!;
 	private TextureRect _screenFrameRect { get; set; } = null!;
-	private Tween _hudFadeTween { get; set; } = null!;
-	private bool _is3DInteractionActive { get; set; } = false;
-
-	private Dictionary<Control, Control.MouseFilterEnum> _savedMouseFilters { get; set; } = new();
+	private MapEditorHudFade? _hudFade;
 
 
 
@@ -960,7 +957,7 @@ public partial class MapEditorHUD : Control
 
 	private bool IsDraggingOrHoveringCoreUI()
 	{
-		if (_is3DInteractionActive) return false;
+		if (HudFade.IsActive) return false;
 		if (_minimapController?.IsDragging == true || _isDraggingSlider) return true;
 
 		var hoveredControl = GetViewport().GuiGetHoveredControl();
@@ -1097,24 +1094,6 @@ public partial class MapEditorHUD : Control
 		return false;
 	}
 
-
-	private void ApplyMouseFilterIgnoreRecursive(Node node)
-	{
-		if (node == null) return;
-		if (node is Control ctrl)
-		{
-			if (ctrl.MouseFilter != MouseFilterEnum.Ignore)
-			{
-				_savedMouseFilters[ctrl] = ctrl.MouseFilter;
-				ctrl.MouseFilter = MouseFilterEnum.Ignore;
-			}
-		}
-
-		foreach (Node child in node.GetChildren())
-		{
-			ApplyMouseFilterIgnoreRecursive(child);
-		}
-	}
 
 
 	private ObjectAttachmentDialog _objectAttachmentDialog { get; set; } = null!;
