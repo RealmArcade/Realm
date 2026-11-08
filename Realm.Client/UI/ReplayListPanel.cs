@@ -232,15 +232,7 @@ public partial class ReplayListPanel : Control
 		panel.CustomMinimumSize = new Vector2(0, 70);
 		panel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 
-		var style = new StyleBoxFlat();
-		style.BgColor = new Color(0.15f, 0.15f, 0.15f, 0.6f);
-		style.SetBorderWidthAll(1);
-		style.BorderColor = UIStyle.ColorBronze;
-		style.SetCornerRadiusAll(4);
-		style.ContentMarginLeft = 15;
-		style.ContentMarginRight = 15;
-		style.ContentMarginTop = 10;
-		style.ContentMarginBottom = 10;
+		var style = UIStyle.CreateCardPlate(new Color(0.15f, 0.15f, 0.15f, 0.6f), UIStyle.ColorBronze, 1, 4, 15, 15, 10, 10);
 		panel.AddThemeStyleboxOverride("panel", style);
 
 		var hBox = new HBoxContainer();
