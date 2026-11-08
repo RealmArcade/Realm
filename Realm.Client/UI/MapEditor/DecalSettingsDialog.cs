@@ -121,7 +121,7 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 
 	private Label _lblDecalName = null!;
 	private TextureRect _previewRect = null!;
-	private Texture2D _baseTexture = null!;
+	private Texture2D? _baseTexture;
 
 	private HSlider _sldBrightness = null!;
 	private Label _lblBrightness = null!;
@@ -1056,7 +1056,7 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 		}
 
 		var candidates = ScanAvailableAssets("decals", true);
-		string candidateMatch = candidates.FirstOrDefault(c => string.Equals(c, candidate, StringComparison.OrdinalIgnoreCase))
+		string? candidateMatch = candidates.FirstOrDefault(c => string.Equals(c, candidate, StringComparison.OrdinalIgnoreCase))
 		                        ?? candidates.FirstOrDefault(c => string.Equals(Path.GetFileNameWithoutExtension(c), _slug, StringComparison.OrdinalIgnoreCase));
 
 		return !string.IsNullOrEmpty(candidateMatch) ? candidateMatch : string.Empty;

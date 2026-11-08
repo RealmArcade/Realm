@@ -31,8 +31,11 @@ public partial class SpritesheetAssetEditDialog : FloatingDialogBase
 	private string? _initialTemplateJson = null;
 	private bool _templateExistedInitially = false;
 
-	private Action<int, int, float, bool> _onApplied = null!;
-	private Action<string, string, int, int, float, bool> _onAppliedWithTemplateIdAndRtex = null!;
+	/// <summary>Set by the overload that edits a sheet in place. Only one of the two callbacks is live.</summary>
+	private Action<int, int, float, bool>? _onApplied;
+
+	/// <summary>Set by the overload that edits a template's sheet. Only one of the two callbacks is live.</summary>
+	private Action<string, string, int, int, float, bool>? _onAppliedWithTemplateIdAndRtex;
 
 	private Label _lblObjectTypePrefix = null!;
 	private LineEdit _txtSlug = null!;
@@ -236,7 +239,7 @@ public partial class SpritesheetAssetEditDialog : FloatingDialogBase
 	private string FindCandidateRtexAsset(string slug)
 	{
 		var candidates = ScanRtexAssets(true);
-		string candidateMatch = candidates.FirstOrDefault(c => string.Equals(c, $"{slug}.rtex", StringComparison.OrdinalIgnoreCase))
+		string? candidateMatch = candidates.FirstOrDefault(c => string.Equals(c, $"{slug}.rtex", StringComparison.OrdinalIgnoreCase))
 		                        ?? candidates.FirstOrDefault(c => string.Equals(Path.GetFileNameWithoutExtension(c), slug, StringComparison.OrdinalIgnoreCase));
 		return candidateMatch ?? string.Empty;
 	}
