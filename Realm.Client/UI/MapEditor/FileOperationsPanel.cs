@@ -167,6 +167,24 @@ public sealed class FileOperationsPanel
 		Content.MoveChild(MapVersionsButton, 2);
 	}
 
+	/// <summary>
+	/// Stretches every control in the file card to the card's full width. The card's children are built by several
+	/// helpers, so the editor calls this once the whole accordion exists rather than each helper opting in.
+	/// </summary>
+	public void ExpandContentChildren()
+	{
+		var target = MapEditorStyle.ContentTarget(Content);
+		if (target == null) return;
+
+		foreach (Node child in target.GetChildren())
+		{
+			if (child is Control ctrl)
+			{
+				ctrl.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+			}
+		}
+	}
+
 	public void StyleOperations()
 	{
 		var targetFile = MapEditorStyle.ContentTarget(Content);

@@ -271,17 +271,7 @@ namespace Realm.Client.UI
 				CheckPostLaunchPrompts();
 			}
 
-			var targetFileBox = GetContentTarget(_filePanel.Content);
-			if (targetFileBox != null)
-			{
-				foreach (Node child in targetFileBox.GetChildren())
-				{
-					if (child is Control ctrl)
-					{
-						ctrl.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-					}
-				}
-			}
+			_filePanel.ExpandContentChildren();
 
 			if (GameContext.SessionState.ReturningFromTest)
 			{
