@@ -1490,12 +1490,12 @@ namespace Realm.Client.Core
 			if (dynAction != null) return dynAction;
 
 			if (closestStaticPropEntity != Entity.Null && minDistance == closestStaticPropDist)
-				return ExecuteStaticPropProximityDelete(closestStaticPropEntity, closestStaticPropId, closestStaticPropPos, closestStaticPropRotY, closestStaticPropScale);
+				return ExecuteStaticPropProximityDelete(closestStaticPropEntity, closestStaticPropId!, closestStaticPropPos, closestStaticPropRotY, closestStaticPropScale);
 
 			return null;
 		}
 
-		private IEditorAction TryExecuteDynamicProximityDelete(float minDistance, Unit3D closestUnit, float closestUnitDist, Prop3D closestProp, float closestPropDist, Decal closestDecal, float closestDecalDist, ProceduralVfxInstance3D closestVfx, float closestVfxDist)
+		private IEditorAction TryExecuteDynamicProximityDelete(float minDistance, Unit3D? closestUnit, float closestUnitDist, Prop3D? closestProp, float closestPropDist, Decal? closestDecal, float closestDecalDist, ProceduralVfxInstance3D? closestVfx, float closestVfxDist)
 		{
 			if (closestUnit != null && minDistance == closestUnitDist)
 				return ExecuteUnitProximityDelete(closestUnit);
@@ -1508,7 +1508,7 @@ namespace Realm.Client.Core
 			return null;
 		}
 
-		private (Unit3D, float) FindClosestUnitDistance(Vector3 hitPos)
+		private (Unit3D?, float) FindClosestUnitDistance(Vector3 hitPos)
 		{
 			Unit3D closestUnit = null;
 			float closestDist = 2.0f;
@@ -1528,7 +1528,7 @@ namespace Realm.Client.Core
 			return (closestUnit, closestDist);
 		}
 
-		private (Prop3D, float) FindClosestPropDistance(Vector3 hitPos)
+		private (Prop3D?, float) FindClosestPropDistance(Vector3 hitPos)
 		{
 			Prop3D closestProp = null;
 			float closestDist = 2.0f;
@@ -1548,7 +1548,7 @@ namespace Realm.Client.Core
 			return (closestProp, closestDist);
 		}
 
-		private (Entity, string, Vector3, float, float, float) FindClosestStaticPropDistance(Vector3 hitPos)
+		private (Entity, string?, Vector3, float, float, float) FindClosestStaticPropDistance(Vector3 hitPos)
 		{
 			Entity closestEntity = Entity.Null;
 			string closestId = null;
@@ -1580,7 +1580,7 @@ namespace Realm.Client.Core
 			return (closestEntity, closestId, closestPos, closestRotY, closestScale, closestDist);
 		}
 
-		private (Decal, float) FindClosestDecalDistance(Vector3 hitPos)
+		private (Decal?, float) FindClosestDecalDistance(Vector3 hitPos)
 		{
 			Decal closestDecal = null;
 			float closestDist = 2.0f;
@@ -1600,7 +1600,7 @@ namespace Realm.Client.Core
 			return (closestDecal, closestDist);
 		}
 
-		private (ProceduralVfxInstance3D, float) FindClosestVfxDistance(Vector3 hitPos)
+		private (ProceduralVfxInstance3D?, float) FindClosestVfxDistance(Vector3 hitPos)
 		{
 			ProceduralVfxInstance3D closestVfx = null;
 			float closestDist = 2.0f;
@@ -2073,10 +2073,10 @@ namespace Realm.Client.Core
 		{
 			var (cx, cz) = GameContext.EditorService.WorldPosToCellCoords(hitPos);
 			GameContext.EditorService.SetSelectionEnd(new Vector2I(cx, cz));
-			int minX = Mathf.Min(GameContext.EditorService.SelectionStart.Value.X, cx);
-			int minZ = Mathf.Min(GameContext.EditorService.SelectionStart.Value.Y, cz);
-			int maxX = Mathf.Max(GameContext.EditorService.SelectionStart.Value.X, cx);
-			int maxZ = Mathf.Max(GameContext.EditorService.SelectionStart.Value.Y, cz);
+			int minX = Mathf.Min(GameContext.EditorService.SelectionStart!.Value.X, cx);
+			int minZ = Mathf.Min(GameContext.EditorService.SelectionStart!.Value.Y, cz);
+			int maxX = Mathf.Max(GameContext.EditorService.SelectionStart!.Value.X, cx);
+			int maxZ = Mathf.Max(GameContext.EditorService.SelectionStart!.Value.Y, cz);
 			CreateSelectionHighlight();
 			RebuildSelectionHighlightMesh(minX, minZ, maxX, maxZ);
 		}
@@ -2085,10 +2085,10 @@ namespace Realm.Client.Core
 		{
 			var (rcx, rcz) = GameContext.EditorService.WorldPosToCellCoords(hitPos);
 			GameContext.EditorService.SetSelectionEnd(new Vector2I(rcx, rcz));
-			int rMinX = Mathf.Min(GameContext.EditorService.SelectionStart.Value.X, rcx);
-			int rMinZ = Mathf.Min(GameContext.EditorService.SelectionStart.Value.Y, rcz);
-			int rMaxX = Mathf.Max(GameContext.EditorService.SelectionStart.Value.X, rcx);
-			int rMaxZ = Mathf.Max(GameContext.EditorService.SelectionStart.Value.Y, rcz);
+			int rMinX = Mathf.Min(GameContext.EditorService.SelectionStart!.Value.X, rcx);
+			int rMinZ = Mathf.Min(GameContext.EditorService.SelectionStart!.Value.Y, rcz);
+			int rMaxX = Mathf.Max(GameContext.EditorService.SelectionStart!.Value.X, rcx);
+			int rMaxZ = Mathf.Max(GameContext.EditorService.SelectionStart!.Value.Y, rcz);
 			UpdateCoordinatePreviewMesh(rMinX, rMinZ, rMaxX, rMaxZ);
 		}
 
@@ -2120,9 +2120,9 @@ namespace Realm.Client.Core
 		private void HandleMeasureHit(Vector3 hitPos)
 		{
 			EditorTapeMeasureEnd = hitPos;
-			UpdateMeasureVisuals(GameContext.EditorService.EditorTapeMeasureStart.Value, hitPos);
+			UpdateMeasureVisuals(GameContext.EditorService.EditorTapeMeasureStart!.Value, hitPos);
 
-			Vector3 delta = hitPos - GameContext.EditorService.EditorTapeMeasureStart.Value;
+			Vector3 delta = hitPos - GameContext.EditorService.EditorTapeMeasureStart!.Value;
 			float quadSize = GroundTerrain.QuadSize;
 			float dx = delta.X / quadSize;
 			float dz = delta.Z / quadSize;
