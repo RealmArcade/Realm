@@ -62,16 +62,7 @@ internal static class MapEditorStyle
 		}
 		else
 		{
-			var headerNormal = new StyleBoxFlat();
-			headerNormal.BgColor = new Color(0.18f, 0.16f, 0.14f, 0.95f);
-			headerNormal.BorderColor = new Color(0.40f, 0.34f, 0.24f, 0.9f);
-			headerNormal.SetBorderWidthAll(1);
-			headerNormal.CornerRadiusTopLeft = 4;
-			headerNormal.CornerRadiusTopRight = 4;
-			headerNormal.CornerRadiusBottomLeft = 2;
-			headerNormal.CornerRadiusBottomRight = 2;
-			headerNormal.ContentMarginLeft = 10;
-			headerNormal.ContentMarginRight = 10;
+			var headerNormal = UIStyle.CreateEditorAccordionHeader();
 
 			btn.AddThemeStyleboxOverride("normal", headerNormal);
 			btn.AddThemeStyleboxOverride("hover", headerNormal);
@@ -103,22 +94,9 @@ internal static class MapEditorStyle
 			btn.AddThemeFontOverride("font", font);
 		}
 
-		var btnNormal = new StyleBoxFlat();
-		btnNormal.BgColor = new Color(0.16f, 0.15f, 0.13f, 0.85f);
-		btnNormal.BorderColor = new Color(0.38f, 0.32f, 0.24f, 0.7f);
-		btnNormal.SetBorderWidthAll(1);
-		btnNormal.SetCornerRadiusAll(4);
-
-		var btnHover = new StyleBoxFlat();
-		btnHover.BgColor = new Color(0.28f, 0.25f, 0.19f, 0.95f);
-		btnHover.BorderColor = UIStyle.ColorGold;
-		btnHover.SetBorderWidthAll(1);
-		btnHover.SetCornerRadiusAll(4);
-
-		var btnPressed = new StyleBoxFlat();
-		btnPressed.BgColor = new Color(0.35f, 0.30f, 0.22f, 0.98f);
-		btnPressed.BorderColor = UIStyle.ColorGold;
-		btnPressed.SetBorderWidthAll(1);
+		var btnNormal = UIStyle.CreateEditorIconButtonNormal();
+		var btnHover = UIStyle.CreateEditorIconButtonHover();
+		var btnPressed = UIStyle.CreateEditorIconButtonPressed();
 
 		btn.AddThemeStyleboxOverride("normal", btnNormal);
 		btn.AddThemeStyleboxOverride("hover", btnHover);
@@ -134,15 +112,7 @@ internal static class MapEditorStyle
 	{
 		if (boxNode == null) return;
 
-		var boxStyle = new StyleBoxFlat();
-		boxStyle.BgColor = new Color(0.13f, 0.12f, 0.10f, 0.7f);
-		boxStyle.BorderColor = new Color(0.32f, 0.27f, 0.20f, 0.6f);
-		boxStyle.SetBorderWidthAll(1);
-		boxStyle.SetCornerRadiusAll(4);
-		boxStyle.ContentMarginLeft = 10;
-		boxStyle.ContentMarginRight = 14;
-		boxStyle.ContentMarginTop = 6;
-		boxStyle.ContentMarginBottom = 6;
+		var boxStyle = UIStyle.CreateEditorSubPanel();
 
 		if (boxNode is PanelContainer pc)
 		{
@@ -190,15 +160,7 @@ internal static class MapEditorStyle
 	public static void ValueBadge(Label lbl)
 	{
 		if (lbl == null) return;
-		var badgeStyle = new StyleBoxFlat();
-		badgeStyle.BgColor = new Color(0.18f, 0.16f, 0.13f, 0.95f);
-		badgeStyle.BorderColor = UIStyle.ColorGold;
-		badgeStyle.SetBorderWidthAll(1);
-		badgeStyle.SetCornerRadiusAll(3);
-		badgeStyle.ContentMarginLeft = 6;
-		badgeStyle.ContentMarginRight = 6;
-		badgeStyle.ContentMarginTop = 2;
-		badgeStyle.ContentMarginBottom = 2;
+		var badgeStyle = UIStyle.CreateEditorValueBadge();
 
 		lbl.AddThemeStyleboxOverride("normal", badgeStyle);
 		lbl.AddThemeFontSizeOverride("font_size", 11);
@@ -437,15 +399,7 @@ internal static class MapEditorStyle
 
 		popup.AddThemeFontSizeOverride("font_size", 12);
 
-		var popupStyle = new StyleBoxFlat();
-		popupStyle.BgColor = new Color(0.14f, 0.13f, 0.11f, 0.98f);
-		popupStyle.BorderColor = UIStyle.ColorGold;
-		popupStyle.SetBorderWidthAll(1);
-		popupStyle.SetCornerRadiusAll(4);
-		popupStyle.ContentMarginLeft = 8;
-		popupStyle.ContentMarginRight = 8;
-		popupStyle.ContentMarginTop = 6;
-		popupStyle.ContentMarginBottom = 6;
+		var popupStyle = UIStyle.CreateEditorPopupPanel();
 
 		popup.AddThemeStyleboxOverride("panel", popupStyle);
 		popup.AddThemeColorOverride("font_color", new Color(0.92f, 0.88f, 0.82f));
@@ -505,15 +459,7 @@ internal static class MapEditorStyle
 	{
 		if (row == null) return;
 
-		var style = new StyleBoxFlat();
-		style.BgColor = bgColor;
-		style.BorderColor = borderColor;
-		style.SetBorderWidthAll(1);
-		style.SetCornerRadiusAll(4);
-		style.ContentMarginLeft = 8;
-		style.ContentMarginRight = 8;
-		style.ContentMarginTop = 4;
-		style.ContentMarginBottom = 4;
+		var style = UIStyle.CreateEditorRowPlate(bgColor, borderColor);
 
 		var panel = row.GetNodeOrNull<Panel>("RowBG");
 		if (panel == null)
@@ -539,26 +485,9 @@ internal static class MapEditorStyle
 		btn.Flat = false;
 		btn.CustomMinimumSize = new Vector2(0, 32);
 
-		var rowNormal = new StyleBoxFlat();
-		rowNormal.BgColor = new Color(0.14f, 0.13f, 0.11f, 0.4f);
-		rowNormal.BorderColor = new Color(0.24f, 0.21f, 0.17f, 0.5f);
-		rowNormal.BorderWidthBottom = 1;
-		rowNormal.ContentMarginLeft = 10;
-		rowNormal.ContentMarginRight = 10;
-
-		var rowHover = new StyleBoxFlat();
-		rowHover.BgColor = new Color(0.25f, 0.22f, 0.18f, 0.9f);
-		rowHover.BorderColor = UIStyle.ColorGold;
-		rowHover.BorderWidthBottom = 1;
-		rowHover.ContentMarginLeft = 10;
-		rowHover.ContentMarginRight = 10;
-
-		var rowPressed = new StyleBoxFlat();
-		rowPressed.BgColor = new Color(0.30f, 0.26f, 0.20f, 0.95f);
-		rowPressed.BorderColor = UIStyle.ColorGold;
-		rowPressed.SetBorderWidthAll(1);
-		rowPressed.ContentMarginLeft = 10;
-		rowPressed.ContentMarginRight = 10;
+		var rowNormal = UIStyle.CreateEditorRowButtonNormal();
+		var rowHover = UIStyle.CreateEditorRowButtonHover();
+		var rowPressed = UIStyle.CreateEditorRowButtonPressed();
 
 		btn.AddThemeStyleboxOverride("normal", rowNormal);
 		btn.AddThemeStyleboxOverride("hover", rowHover);

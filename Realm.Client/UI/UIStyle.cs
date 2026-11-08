@@ -7,7 +7,7 @@ using Realm.Client.Services;
 
 namespace Realm.Client.UI;
 
-public static class UIStyle
+public static partial class UIStyle
 {
 	public static readonly Color ColorBgDark = new Color(0.08f, 0.08f, 0.1f, 1.0f);
 	public static readonly Color ColorPanelBg = new Color(0.13f, 0.14f, 0.17f, 0.95f);
