@@ -30,8 +30,8 @@ namespace Realm.Client.UI
 
 		public float GetSelectedWaterHeight()
 		{
-			if (_sldWaterHeight == null) return 0.9f;
-			return (float)_sldWaterHeight.Value;
+			if (_waterPanel?.HeightSlider == null) return 0.9f;
+			return (float)_waterPanel.HeightSlider.Value;
 		}
 
 		public void SelectPaintSwatchByIndexView(int index)

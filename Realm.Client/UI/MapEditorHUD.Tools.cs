@@ -331,7 +331,7 @@ namespace Realm.Client.UI
 			MakeCardDraggable(_accordionToolSettings, _btnHeaderToolSettings, _contentToolSettings, "Tool Settings");
 			MakeCardDraggable(_accordionPlacement, _btnHeaderPlacement, _contentPlacement, "Placement Config");
 			MakeCardDraggable(_accordionInspector, _btnHeaderInspector, _contentInspector, "Selected Object Inspector");
-			if (_accordionWater != null) MakeCardDraggable(_accordionWater, _btnHeaderWater, _contentWater, "Liquid / Water Config");
+			if (_waterPanel?.Accordion != null) MakeCardDraggable(_waterPanel.Accordion, _waterPanel.Header, _waterPanel.Content, "Liquid / Water Config");
 
 			RestructurePanelLayouts();
 
@@ -1443,181 +1443,10 @@ namespace Realm.Client.UI
 
 		private void BuildWaterAccordion()
 		{
-			_accordionWater = new VBoxContainer();
-			_accordionWater.Name = "WaterAccordion";
-			_btnHeaderWater = new Button();
-			_btnHeaderWater.Name = "BtnHeaderWater";
-			_contentWater = new VBoxContainer();
-			_contentWater.Name = "ContentWater";
-			_accordionWater.AddChild(_btnHeaderWater);
-			_accordionWater.AddChild(_contentWater);
-
-			var mainAccordionContainer = GetNodeOrNull<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer");
-			if (mainAccordionContainer != null)
-			{
-				mainAccordionContainer.AddChild(_accordionWater);
-				if (_accordionBrush != null)
-				{
-					mainAccordionContainer.MoveChild(_accordionWater, _accordionBrush.GetIndex() + 1);
-				}
-			}
-
-			StyleAccordionHeader(_btnHeaderWater);
-			SetupAccordion(_btnHeaderWater, _contentWater, TranslationServer.Translate("Liquid / Water Config"));
-
-			BuildWaterHeightSlider();
-
-			BuildWaterActionButtons();
-
-			_waterModeBox = new VBoxContainer();
-			_waterModeBox.Name = "WaterModeBox";
-			_waterModeBox.AddThemeConstantOverride("separation", 2);
-
-			_optWaterMode = new OptionButton();
-			_optWaterMode.Name = "OptWaterMode";
-			_optWaterMode.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-			_optWaterMode.ClipText = true;
-			_optWaterMode.CustomMinimumSize = new Vector2(0, 24);
-			_waterModeBox.AddChild(_optWaterMode);
-
-			_optWaterMode.ItemSelected += (idx) =>
-			{
-				byte profIdx = 0;
-				var meta = _optWaterMode.GetItemMetadata((int)idx);
-				if (meta.VariantType != Variant.Type.Nil)
-				{
-					profIdx = (byte)(int)meta;
-				}
-
-				if (GameContext.Host != null)
-				{
-					GameContext.Host.EditorWaterMode = WaterType.Shallow;
-					GameContext.Host.ActiveWaterProfileIndex = profIdx;
-				}
-			};
-			_contentWater.AddChild(_waterModeBox);
-			RefreshWaterSwatches();
-
-			_btnWaterProfiles = new Button();
-			_btnWaterProfiles.Name = "BtnWaterProfiles";
-			_btnWaterProfiles.Set("icon_max_width", 0);
-			_btnWaterProfiles.Text = "⚙ " + TranslationServer.Translate("Water Profiles");
-			_btnWaterProfiles.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-			_btnWaterProfiles.TooltipText = TranslationServer.Translate("Configure Liquid / Water Uber Profiles");
-			_btnWaterProfiles.FocusMode = FocusModeEnum.None;
-			_btnWaterProfiles.AddThemeFontSizeOverride("font_size", 11);
-			_btnWaterProfiles.Pressed += () => OpenWaterProfileDialog();
-			_contentWater.AddChild(_btnWaterProfiles);
-		}
-
-
-
-
-		private void BuildWaterHeightSlider()
-		{
-			_waterHeightBox = new VBoxContainer();
-			_waterHeightBox.Name = "WaterHeightBox";
-			_waterHeightBox.AddThemeConstantOverride("separation", 2);
-
-			var headerWaterHeight = new HBoxContainer();
-			headerWaterHeight.Name = "HeaderWaterHeight";
-			_waterHeightBox.AddChild(headerWaterHeight);
-
-			var lblWaterHeightTitle = new Label();
-			lblWaterHeightTitle.Name = "LblWaterHeightTitle";
-			lblWaterHeightTitle.Text = TranslationServer.Translate("Water Height");
-			lblWaterHeightTitle.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-			lblWaterHeightTitle.AddThemeFontSizeOverride("font_size", 10);
-			headerWaterHeight.AddChild(lblWaterHeightTitle);
-
-			_lblWaterHeightValue = new Label();
-			_lblWaterHeightValue.Name = "LblWaterHeightValue";
-			_lblWaterHeightValue.Text = "0.9m";
-			_lblWaterHeightValue.AddThemeFontSizeOverride("font_size", 11);
-			headerWaterHeight.AddChild(_lblWaterHeightValue);
-
-			_sldWaterHeight = new HSlider();
-			_sldWaterHeight.Name = "SldWaterHeight";
-			_sldWaterHeight.FocusMode = FocusModeEnum.None;
-			_sldWaterHeight.MinValue = 0.1;
-			_sldWaterHeight.MaxValue = 15.0;
-			_sldWaterHeight.Step = 0.1;
-			_sldWaterHeight.Value = 0.9;
-			_sldWaterHeight.ValueChanged += (val) =>
-			{
-				float fVal = (float)val;
-				_lblWaterHeightValue.Text = fVal.ToString("F1") + "m";
-				if (GameContext.Host != null) GameContext.EditorService.Tools.WaterHeight = fVal;
-			};
-			_sldWaterHeight.DragStarted += () => _isDraggingSlider = true;
-			_sldWaterHeight.DragEnded += (valueChanged) => _isDraggingSlider = false;
-			_waterHeightBox.AddChild(_sldWaterHeight);
-
-			_contentWater.AddChild(_waterHeightBox);
-		}
-
-
-		private void BuildWaterActionButtons()
-		{
-			var waterActionBox = new VBoxContainer();
-			waterActionBox.Name = "WaterActionBox";
-			waterActionBox.AddThemeConstantOverride("separation", 2);
-
-			var lblWaterAction = new Label();
-			lblWaterAction.Name = "LblWaterActionTitle";
-			lblWaterAction.Text = TranslationServer.Translate("Action");
-			lblWaterAction.AddThemeFontSizeOverride("font_size", 10);
-			waterActionBox.AddChild(lblWaterAction);
-
-			var waterActionButtonRow = new HBoxContainer();
-			waterActionButtonRow.Name = "WaterActionButtonRow";
-			waterActionButtonRow.AddThemeConstantOverride("separation", 4);
-			waterActionBox.AddChild(waterActionButtonRow);
-
-			_btnWaterActionAdd = new Button();
-			_btnWaterActionAdd.Name = "BtnWaterActionAdd";
-			_btnWaterActionAdd.Set("icon_max_width", 0);
-			_btnWaterActionAdd.Text = "+ " + TranslationServer.Translate("Add");
-			_btnWaterActionAdd.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-			_btnWaterActionAdd.FocusMode = FocusModeEnum.None;
-			_btnWaterActionAdd.AddThemeFontSizeOverride("font_size", 11);
-			_btnWaterActionAdd.TooltipText = TranslationServer.Translate("Add water to terrain");
-			StyleRowButton(_btnWaterActionAdd);
-			_btnWaterActionAdd.AddThemeStyleboxOverride("normal", _highlightStyle);
-			waterActionButtonRow.AddChild(_btnWaterActionAdd);
-
-			_btnWaterActionRemove = new Button();
-			_btnWaterActionRemove.Name = "BtnWaterActionRemove";
-			_btnWaterActionRemove.Set("icon_max_width", 0);
-			_btnWaterActionRemove.Text = "- " + TranslationServer.Translate("Remove");
-			_btnWaterActionRemove.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-			_btnWaterActionRemove.FocusMode = FocusModeEnum.None;
-			_btnWaterActionRemove.AddThemeFontSizeOverride("font_size", 11);
-			_btnWaterActionRemove.TooltipText = TranslationServer.Translate("Remove water from terrain");
-			StyleRowButton(_btnWaterActionRemove);
-			waterActionButtonRow.AddChild(_btnWaterActionRemove);
-
-			_btnWaterActionAdd.Pressed += () =>
-			{
-				GameContext.EditorService.Tools.IsWaterRemove = false;
-				_btnWaterActionAdd.AddThemeStyleboxOverride("normal", _highlightStyle);
-				_btnWaterActionRemove.RemoveThemeStyleboxOverride("normal");
-				if (_waterHeightBox != null) _waterHeightBox.Visible = true;
-				if (_waterModeBox != null) _waterModeBox.Visible = true;
-				if (_btnWaterProfiles != null) _btnWaterProfiles.Visible = true;
-			};
-
-			_btnWaterActionRemove.Pressed += () =>
-			{
-				GameContext.EditorService.Tools.IsWaterRemove = true;
-				_btnWaterActionRemove.AddThemeStyleboxOverride("normal", _highlightStyle);
-				_btnWaterActionAdd.RemoveThemeStyleboxOverride("normal");
-				if (_waterHeightBox != null) _waterHeightBox.Visible = false;
-				if (_waterModeBox != null) _waterModeBox.Visible = false;
-				if (_btnWaterProfiles != null) _btnWaterProfiles.Visible = false;
-			};
-
-			_contentWater.AddChild(waterActionBox);
+			_waterPanel = new WaterSettingsPanel();
+			_waterPanel.Build(new WaterSettingsHooks(
+				this, _accordionBrush, StyleAccordionHeader, SetupAccordion, StyleRowButton, _highlightStyle,
+				OpenWaterProfileDialog, dragging => _isDraggingSlider = dragging));
 		}
 
 
@@ -4000,9 +3829,9 @@ namespace Realm.Client.UI
 				UpdateBlockStepVisibility();
 			}
 
-			if (_accordionWater != null)
+			if (_waterPanel?.Accordion != null)
 			{
-				_accordionWater.Visible = (tool == EditorTool.Water);
+				_waterPanel.Accordion.Visible = (tool == EditorTool.Water);
 			}
 
 			bool isBlockModeActive = (_chkBlockMode != null && _chkBlockMode.Visible && _chkBlockMode.ButtonPressed) || (GameContext.Host != null && GameContext.Host.EditorBlockMode);
@@ -5138,63 +4967,7 @@ namespace Realm.Client.UI
 
 		public void RefreshWaterSwatches()
 		{
-			if (_optWaterMode == null) return;
-
-			byte currentProf = GameContext.Host != null ? GameContext.Host.ActiveWaterProfileIndex : (byte)0;
-			if (_optWaterMode.Selected >= 0 && _optWaterMode.Selected < _optWaterMode.ItemCount)
-			{
-				var currentMeta = _optWaterMode.GetItemMetadata(_optWaterMode.Selected);
-				if (currentMeta.VariantType != Variant.Type.Nil)
-				{
-					currentProf = (byte)(int)currentMeta;
-				}
-			}
-
-			_optWaterMode.Clear();
-
-			var profiles = GameContext.Terrain != null ? GameContext.Terrain.GetWaterProfiles() : null;
-			if (profiles != null && profiles.Count > 0)
-			{
-				int itemIdx = 0;
-				foreach (var kvp in profiles)
-				{
-					byte pIdx = kvp.Key;
-					var prof = kvp.Value;
-					string label = TranslationServer.Translate(prof.Name);
-					_optWaterMode.AddItem(label, itemIdx);
-					_optWaterMode.SetItemMetadata(itemIdx, pIdx);
-					itemIdx++;
-				}
-			}
-			else
-			{
-				var defaults = WaterProfileSaveData.CreateDefaultProfiles();
-				int itemIdx = 0;
-				foreach (var def in defaults)
-				{
-					_optWaterMode.AddItem(TranslationServer.Translate(def.Name), itemIdx);
-					_optWaterMode.SetItemMetadata(itemIdx, def.ProfileIndex);
-					itemIdx++;
-				}
-			}
-
-			int targetSelected = 0;
-			for (int i = 0; i < _optWaterMode.ItemCount; i++)
-			{
-				var meta = _optWaterMode.GetItemMetadata(i);
-				if (meta.VariantType != Variant.Type.Nil && (byte)(int)meta == currentProf)
-				{
-					targetSelected = i;
-					break;
-				}
-			}
-
-			if (_optWaterMode.ItemCount > 0)
-			{
-				_optWaterMode.Selected = targetSelected;
-			}
-
-			GameContext.EnvironmentService.SetActiveWaterProfileIndex(currentProf);
+			_waterPanel?.RefreshSwatches();
 		}
 
 		public void OpenWaterProfileDialog()

@@ -72,11 +72,6 @@ public partial class MapEditorHUD : Control
 	private Button _btnHeaderBrush { get; set; } = null!;
 	private VBoxContainer _contentBrush { get; set; } = null!;
 
-	private VBoxContainer _accordionWater { get; set; } = null!;
-	private Button _btnHeaderWater { get; set; } = null!;
-	private VBoxContainer _contentWater { get; set; } = null!;
-	private Button _btnWaterActionAdd { get; set; } = null!;
-	private Button _btnWaterActionRemove { get; set; } = null!;
 
 
 	private VBoxContainer _accordionTool { get; set; } = null!;
@@ -198,12 +193,6 @@ public partial class MapEditorHUD : Control
 	private Slider _sldHeight { get; set; } = null!;
 	private Label _lblHeightValue { get; set; } = null!;
 
-	private Control _waterHeightBox { get; set; } = null!;
-	private Slider _sldWaterHeight { get; set; } = null!;
-	private Label _lblWaterHeightValue { get; set; } = null!;
-	private Control _waterModeBox { get; set; } = null!;
-	private OptionButton _optWaterMode { get; set; } = null!;
-	private Button _btnWaterProfiles { get; set; } = null!;
 	private WaterProfileDialog _waterProfileDialog { get; set; } = null!;
 	private EnvironmentConfigDialog _environmentConfigDialog { get; set; } = null!;
 	private EntityVisualEditDialog _entityVisualEditDialog { get; set; } = null!;
@@ -361,6 +350,7 @@ public partial class MapEditorHUD : Control
 	private MapEditorPlacementSettings _placementSettingsController { get; set; } = null!;
 	private MapEditorInspector _inspectorController { get; set; } = null!;
 	private MapEditorPathingPanel _pathingPanelController { get; set; } = null!;
+	private WaterSettingsPanel _waterPanel { get; set; } = null!;
 	private PasteSettingsPanel _pastePanel { get; set; } = null!;
 	private MapEditorMinimap _minimapController { get; set; } = null!;
 	private MapEditorEntityPaletteController _entityPaletteController { get; set; } = null!;

@@ -260,15 +260,15 @@ namespace Realm.Client.UI
 
 		public byte GetSelectedWaterProfileIndex()
 		{
-			if (_optWaterMode == null || _optWaterMode.Selected < 0) return 0;
-			var meta = _optWaterMode.GetItemMetadata(_optWaterMode.Selected);
+			if (_waterPanel?.ModeOption == null || _waterPanel.ModeOption.Selected < 0) return 0;
+			var meta = _waterPanel.ModeOption.GetItemMetadata(_waterPanel.ModeOption.Selected);
 			if (meta.VariantType == Variant.Type.Nil) return 0;
 			return (byte)(int)meta;
 		}
 
 		public WaterType GetSelectedWaterMode()
 		{
-			if (_optWaterMode == null || _optWaterMode.Selected < 0) return WaterType.None;
+			if (_waterPanel?.ModeOption == null || _waterPanel.ModeOption.Selected < 0) return WaterType.None;
 			return WaterType.Shallow;
 		}
 
@@ -332,13 +332,13 @@ namespace Realm.Client.UI
 			if (_accordionToolSettings != null) _accordionToolSettings.CustomMinimumSize = new Vector2(260, 0);
 			if (_accordionPlacement != null) _accordionPlacement.CustomMinimumSize = new Vector2(260, 0);
 			if (_accordionInspector != null) _accordionInspector.CustomMinimumSize = new Vector2(260, 0);
-			if (_accordionWater != null) _accordionWater.CustomMinimumSize = new Vector2(260, 0);
+			if (_waterPanel?.Accordion != null) _waterPanel.Accordion.CustomMinimumSize = new Vector2(260, 0);
 
 			ApplyCardPanelStyle(_accordionFile);
 			ApplyCardPanelStyle(_accordionViewport);
 			ApplyCardPanelStyle(_accordionTool);
 			ApplyCardPanelStyle(_accordionBrush);
-			if (_accordionWater != null) ApplyCardPanelStyle(_accordionWater);
+			if (_waterPanel?.Accordion != null) ApplyCardPanelStyle(_waterPanel.Accordion);
 			ApplyCardPanelStyle(_accordionToolSettings);
 			ApplyCardPanelStyle(_accordionPlacement);
 			ApplyCardPanelStyle(_accordionInspector);
@@ -350,7 +350,7 @@ namespace Realm.Client.UI
 			StyleContentBox(_contentViewport);
 			StyleContentBox(_contentTool);
 			StyleContentBox(_contentBrush);
-			if (_contentWater != null) StyleContentBox(_contentWater);
+			if (_waterPanel?.Content != null) StyleContentBox(_waterPanel.Content);
 			StyleContentBox(_contentToolSettings);
 			StyleContentBox(_contentPlacement);
 			StyleContentBox(_contentInspector);
@@ -362,7 +362,7 @@ namespace Realm.Client.UI
 			SetupCardScrollContainer(_contentViewport, 0f, false);
 			SetupCardScrollContainer(_contentTool, 320f);
 			SetupCardScrollContainer(_contentBrush, 300f);
-			if (_contentWater != null) SetupCardScrollContainer(_contentWater, 200f);
+			if (_waterPanel?.Content != null) SetupCardScrollContainer(_waterPanel.Content, 200f);
 			SetupCardScrollContainer(_contentToolSettings, 320f);
 			SetupCardScrollContainer(_contentPlacement, 320f);
 			SetupCardScrollContainer(_contentInspector, 300f);
