@@ -127,26 +127,7 @@ namespace Realm.Client.UI
 
 		private void ShowInvalidMapFolderErrorDialog(string selectedFolder)
 		{
-			var popup = new Panel();
-			popup.Name = "Popup_Panel";
-			popup.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-			popup.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
-			AddChild(popup);
-
-			var cardPanel = new Panel();
-			cardPanel.Name = "CardPanel_Panel";
-			cardPanel.CustomMinimumSize = new Vector2(520, 240);
-			cardPanel.SetAnchorsAndOffsetsPreset(LayoutPreset.Center);
-			cardPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
-			popup.AddChild(cardPanel);
-
-			var vbox = new VBoxContainer();
-			vbox.Name = "Vbox_VBoxContainer";
-			vbox.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-			vbox.CustomMinimumSize = new Vector2(480, 210);
-			vbox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-			vbox.SizeFlagsVertical = SizeFlags.ExpandFill;
-			cardPanel.AddChild(vbox);
+			var (popup, vbox) = UIStyle.CreateModalCard(this, new Vector2(520, 240), new Vector2(480, 210));
 
 			vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 15) });
 

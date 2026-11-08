@@ -46,27 +46,8 @@ public partial class MapPublishDialog : Control
 
 	private VBoxContainer BuildFrame()
 	{
-		var panel = new Panel();
-		panel.Name = "Popup_Panel";
-		panel.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		panel.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
-		AddChild(panel);
-
-		var cardPanel = new Panel();
-		cardPanel.Name = "CardPanel_Panel";
-		cardPanel.CustomMinimumSize = new Vector2(580, 280);
-		cardPanel.SetAnchorsAndOffsetsPreset(LayoutPreset.Center);
-		cardPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
-		panel.AddChild(cardPanel);
-
-		var body = new VBoxContainer();
-		body.Name = "Vbox_VBoxContainer";
-		body.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		body.CustomMinimumSize = new Vector2(540, 240);
-		body.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		body.SizeFlagsVertical = SizeFlags.ExpandFill;
+		var (_, body) = UIStyle.CreateModalCard(this, new Vector2(580, 280), new Vector2(540, 240));
 		body.AddThemeConstantOverride("separation", 10);
-		cardPanel.AddChild(body);
 		return body;
 	}
 

@@ -107,6 +107,37 @@ public static partial class UIStyle
 		return center;
 	}
 
+	/// <summary>
+	/// The frame the editor's modal popups are all built from: a full-screen wash, a stone card centred on it, and a
+	/// vertical body filling that card. The card and body sizes are the only things a caller varies. The wash comes
+	/// back with the body because a popup that closes itself frees the wash rather than the card.
+	/// </summary>
+	public static (Panel wash, VBoxContainer body) CreateModalCard(Node owner, Vector2 cardSize, Vector2 bodySize)
+	{
+		var wash = new Panel();
+		wash.Name = "Popup_Panel";
+		wash.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+		wash.AddThemeStyleboxOverride("panel", CreateBgGradient());
+		owner.AddChild(wash);
+
+		var card = new Panel();
+		card.Name = "CardPanel_Panel";
+		card.CustomMinimumSize = cardSize;
+		card.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.Center);
+		card.AddThemeStyleboxOverride("panel", CreateStonePanel(true));
+		wash.AddChild(card);
+
+		var body = new VBoxContainer();
+		body.Name = "Vbox_VBoxContainer";
+		body.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+		body.CustomMinimumSize = bodySize;
+		body.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		body.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
+		card.AddChild(body);
+
+		return (wash, body);
+	}
+
 	public static HBoxContainer CreateRowContainer()
 	{
 		var row = new HBoxContainer();

@@ -39,26 +39,7 @@ public partial class MapUpgradeDialog : Control
 
 	private VBoxContainer BuildFrame()
 	{
-		var panel = new Panel();
-		panel.Name = "Popup_Panel";
-		panel.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		panel.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
-		AddChild(panel);
-
-		var cardPanel = new Panel();
-		cardPanel.Name = "CardPanel_Panel";
-		cardPanel.CustomMinimumSize = new Vector2(540, 290);
-		cardPanel.SetAnchorsAndOffsetsPreset(LayoutPreset.Center);
-		cardPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
-		panel.AddChild(cardPanel);
-
-		var body = new VBoxContainer();
-		body.Name = "Vbox_VBoxContainer";
-		body.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		body.CustomMinimumSize = new Vector2(500, 260);
-		body.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		body.SizeFlagsVertical = SizeFlags.ExpandFill;
-		cardPanel.AddChild(body);
+		var (_, body) = UIStyle.CreateModalCard(this, new Vector2(540, 290), new Vector2(500, 260));
 		return body;
 	}
 
