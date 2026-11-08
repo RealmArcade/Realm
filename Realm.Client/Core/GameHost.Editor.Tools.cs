@@ -2298,7 +2298,7 @@ namespace Realm.Client.Core
 			{
 				firstClick = true;
 				float targetBlockHeight = ActiveEditorTool == EditorTool.Height ? EditorExactHeight : EditorBlockLevelHeight;
-				GameContext.EditorService.BeginTerrainDraw(hitPos, ActiveEditorTool, EditorBlockMode, targetBlockHeight, null, GroundTerrain.SplatMap, GroundTerrain.PathingCodes, GroundTerrain.CliffSplatMap);
+				GameContext.EditorService.TerrainEdit.BeginDraw(hitPos, ActiveEditorTool, EditorBlockMode, targetBlockHeight, null, GroundTerrain.SplatMap, GroundTerrain.PathingCodes, GroundTerrain.CliffSplatMap);
 			}
 
 			GameContext.EditorService.ApplyActiveTerrainToolAt(hitPos.X, hitPos.Y, hitPos.Z, fDelta, firstClick);
@@ -2444,7 +2444,7 @@ namespace Realm.Client.Core
 			Clear3DDragOperationState();
 			ClearClumpSessionState();
 
-			GameContext.EditorService.ResetDrawState();
+			GameContext.EditorService.TerrainEdit.ResetDrawState();
 
 			ClearDraggingState();
 			ClearSelectionState();
@@ -2624,7 +2624,7 @@ namespace Realm.Client.Core
 
 			if (GroundTerrain != null && GroundTerrain.Cells != null && GroundTerrain.SplatMap != null && GroundTerrain.PathingCodes != null)
 			{
-				var action = GameContext.EditorService.EndTerrainDraw(null, GroundTerrain.SplatMap, GroundTerrain.PathingCodes, GroundTerrain.CliffSplatMap);
+				var action = GameContext.EditorService.TerrainEdit.EndDraw(null, GroundTerrain.SplatMap, GroundTerrain.PathingCodes, GroundTerrain.CliffSplatMap);
 				EditorHistoryManager.RecordAction(action);
 
 				if (IsTerrainHeightsTool(ActiveEditorTool))
@@ -2637,7 +2637,7 @@ namespace Realm.Client.Core
 			}
 			else
 			{
-				GameContext.EditorService.EndTerrainDraw(null, null, null, null);
+				GameContext.EditorService.TerrainEdit.EndDraw(null, null, null, null);
 			}
 		}
 

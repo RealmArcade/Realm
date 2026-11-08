@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using Godot;
@@ -14,7 +14,7 @@ namespace Realm.Client.Services;
 /// undo action is built from, and the draw bounds that action covers. It owns that state for the whole drag
 /// and writes through <see cref="EditorTerrainSurface"/>, so the editor itself only starts, feeds and ends it.
 /// </summary>
-internal sealed class EditorTerrainEditSession
+public sealed class EditorTerrainEditSession
 {
 	private readonly EditorTerrainSurface _surface;
 	private readonly Dictionary<Vector2I, long> _paintCoordLastTimeMs = new();
@@ -134,15 +134,75 @@ internal sealed class EditorTerrainEditSession
 		return result;
 	}
 
+	/// <summary>
+	/// Applies one tick of the held brush: heights, texture or pathing, block or freehand. Reports nothing when the tool
+	/// is not one that edits the surface, and when the terrain has no cells to edit yet.
+	/// </summary>
+	public TerrainEditResult Apply(
+		Godot.Vector3 worldPos, float delta, EditorTool activeTool,
+		float brushRadius, float brushStrength, bool brushIsSquare, bool blockMode,
+		float blockLevelHeight, int paintTextureIndex, int cliffPaintTextureIndex,
+		int pathingMask, bool pathingAdd, bool isFirstClick = false,
+		bool applyGroundTexture = true, bool applyCliffTexture = true)
+	{
+		ref var terrain = ref EditorService.GetTerrainState();
+		if (terrain.Cells == null || !_surface.EnsureSplatMapsInitialized()) return default;
+
+		bool isHeights = IsHeightTool(activeTool);
+		bool isPaint = activeTool == EditorTool.PaintTexture;
+		bool isPathing = activeTool == EditorTool.PaintPathing;
+
+		if (!isHeights && !isPaint && !isPathing) return default;
+		if (isFirstClick) ResetPaintThrottle();
+
+		var ctx = new ContinuousEditContext
+		{
+			WorldPos = worldPos,
+			Delta = delta,
+			ActiveTool = activeTool,
+			BrushRadius = brushRadius,
+			BrushStrength = brushStrength,
+			BrushIsSquare = brushIsSquare,
+			PaintTextureIndex = paintTextureIndex,
+			CliffPaintTextureIndex = cliffPaintTextureIndex,
+			PathingMask = pathingMask,
+			PathingAdd = pathingAdd,
+			ApplyGroundTexture = applyGroundTexture,
+			ApplyCliffTexture = applyCliffTexture,
+			Width = terrain.Width,
+			Depth = terrain.Depth,
+			QuadSize = terrain.QuadSize,
+			ModMinX = terrain.Width,
+			ModMinZ = terrain.Depth,
+			ModMaxX = -1,
+			ModMaxZ = -1,
+			NowMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+			IsHeights = isHeights
+		};
+
+		bool isBlock = (blockMode || activeTool == EditorTool.Height) && activeTool != EditorTool.Noise && activeTool != EditorTool.Smooth;
+
+		if (isBlock)
+		{
+			ApplyBlock(ref terrain, ref ctx, blockLevelHeight);
+		}
+		else
+		{
+			ApplyContinuous(ref terrain, ref ctx);
+		}
+
+		return Finalize(ctx, isHeights, isPaint, isPathing);
+	}
+
 	public void BeginDraw(
 		Godot.Vector3 hitPos,
 		EditorTool activeTool,
 		bool blockMode,
 		float blockLevelHeight,
-		float[,]? currentHeights,
-		TerrainSplatWeights[,]? currentSplatMap,
-		int[,]? currentPathing,
-		TerrainSplatWeights[,]? currentCliffSplatMap)
+		float[,]? currentHeights = null,
+		TerrainSplatWeights[,]? currentSplatMap = null,
+		int[,]? currentPathing = null,
+		TerrainSplatWeights[,]? currentCliffSplatMap = null)
 	{
 		ref var terrain = ref EditorService.GetTerrainState();
 		_isDrawing = true;
@@ -172,10 +232,10 @@ internal sealed class EditorTerrainEditSession
 	}
 
 	public TerrainModifyAction EndDraw(
-		float[,]? currentHeights,
-		TerrainSplatWeights[,]? currentSplatMap,
-		int[,]? currentPathing,
-		TerrainSplatWeights[,]? currentCliffSplatMap)
+		float[,]? currentHeights = null,
+		TerrainSplatWeights[,]? currentSplatMap = null,
+		int[,]? currentPathing = null,
+		TerrainSplatWeights[,]? currentCliffSplatMap = null)
 	{
 		_isDrawing = false;
 		_hasBlockTargetHeight = false;

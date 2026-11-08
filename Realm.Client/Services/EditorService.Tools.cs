@@ -48,7 +48,7 @@ public partial class EditorService
 		bool anyModified = false;
 		foreach (Vector3 position in positions)
 		{
-			TerrainEditResult result = ApplyContinuousTerrainEditing(
+			TerrainEditResult result = TerrainEdit.Apply(
 				position,
 				delta,
 				host.ActiveEditorTool,
