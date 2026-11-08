@@ -1127,11 +1127,8 @@ public partial class EditorService : IEditorAPI
 
 	public void SetRampStartPos(Godot.Vector3? pos) => _ramp.SetStart(pos);
 
-	public float GetMinHeightInBrushBounds(Godot.Vector3 worldPos, float brushRadius, bool brushIsSquare)
-	{
-		float result = GetMinHeightInBrushBoundsInternal(worldPos, brushRadius, brushIsSquare);
-		return result;
-	}
+	public float GetMinHeightInBrushBounds(Godot.Vector3 worldPos, float brushRadius, bool brushIsSquare) =>
+		EditorTerrainQueries.GetMinHeightInBrushBounds(worldPos, brushRadius, brushIsSquare);
 
 
 
@@ -1271,57 +1268,6 @@ public partial class EditorService : IEditorAPI
 
 		return ref World.Get<TerrainState>(terrainEntity);
 	}
-
-	private float GetMinHeightInBrushBoundsInternal(Godot.Vector3 worldPos, float brushRadius = -1f, bool brushIsSquare = false)
-	{
-		ref var terrain = ref GetTerrainState();
-		if (terrain.Cells == null) return GetTerrainHeightAt(worldPos);
-
-		float quadSize = terrain.QuadSize;
-		int width = terrain.Width;
-		int depth = terrain.Depth;
-		float minHeight = float.MaxValue;
-		bool foundAny = false;
-
-		for (int z = 0; z <= depth; z++)
-		{
-			for (int x = 0; x <= width; x++)
-			{
-				float vx = (x - width / 2.0f) * quadSize;
-				float vz = (z - depth / 2.0f) * quadSize;
-
-				bool inBounds = false;
-				if (brushRadius < 0)
-				{
-					inBounds = true;
-				}
-				else if (brushIsSquare)
-				{
-					float dx = Mathf.Abs(vx - worldPos.X);
-					float dz = Mathf.Abs(vz - worldPos.Z);
-					inBounds = dx <= brushRadius && dz <= brushRadius;
-				}
-				else
-				{
-					float dist = new Vector2(vx - worldPos.X, vz - worldPos.Z).Length();
-					inBounds = dist <= brushRadius;
-				}
-
-				if (inBounds)
-				{
-					float h = GetGridNodeHeight(in terrain, x, z);
-					if (h < minHeight)
-					{
-						minHeight = h;
-						foundAny = true;
-					}
-				}
-			}
-		}
-
-		return foundAny ? minHeight : GetTerrainHeightAt(worldPos);
-	}
-
 
 	public List<Godot.Vector3> GetMirroredPositions(Godot.Vector3 pos, MirrorMode mirrorMode)
 	{

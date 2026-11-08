@@ -113,4 +113,54 @@ internal static class EditorTerrainQueries
 
 		return cells[x, z].WaterHeight;
 	}
+
+	internal static float GetMinHeightInBrushBounds(Vector3 worldPos, float brushRadius, bool brushIsSquare)
+	{
+		ref var terrain = ref EditorService.GetTerrainState();
+		if (terrain.Cells == null) return GetHeightAt(worldPos);
+
+		float quadSize = terrain.QuadSize;
+		int width = terrain.Width;
+		int depth = terrain.Depth;
+		float minHeight = float.MaxValue;
+		bool foundAny = false;
+
+		for (int z = 0; z <= depth; z++)
+		{
+			for (int x = 0; x <= width; x++)
+			{
+				float vx = (x - width / 2.0f) * quadSize;
+				float vz = (z - depth / 2.0f) * quadSize;
+
+				bool inBounds = false;
+				if (brushRadius < 0)
+				{
+					inBounds = true;
+				}
+				else if (brushIsSquare)
+				{
+					float dx = Mathf.Abs(vx - worldPos.X);
+					float dz = Mathf.Abs(vz - worldPos.Z);
+					inBounds = dx <= brushRadius && dz <= brushRadius;
+				}
+				else
+				{
+					float dist = new Vector2(vx - worldPos.X, vz - worldPos.Z).Length();
+					inBounds = dist <= brushRadius;
+				}
+
+				if (inBounds)
+				{
+					float h = EditorTerrainGeometry.GetGridNodeHeight(in terrain, x, z);
+					if (h < minHeight)
+					{
+						minHeight = h;
+						foundAny = true;
+					}
+				}
+			}
+		}
+
+		return foundAny ? minHeight : GetHeightAt(worldPos);
+	}
 }
