@@ -188,46 +188,13 @@ public partial class UnitOcclusionOutlineService : Node3D
 			float perpendicularDistanceSquared = toCenter.LengthSquared() - alongSegment * alongSegment;
 			if (perpendicularDistanceSquared > occluder.BoundingRadiusSquared) continue;
 
-			if (SegmentIntersectsBox(eye, target, occluder.Center, occluder.Extents)) return true;
+			if (OcclusionSegmentQuery.SegmentIntersectsBox(ToEcsVector(eye), ToEcsVector(target), ToEcsVector(occluder.Center), ToEcsVector(occluder.Extents))) return true;
 		}
 
 		return false;
 	}
 
-	private static bool SegmentIntersectsBox(Vector3 start, Vector3 end, Vector3 center, Vector3 extents)
-	{
-		Vector3 direction = end - start;
-		float minimum = 0.0f;
-		float maximum = 1.0f;
-
-		if (!IntersectAxis(start.X, direction.X, center.X, extents.X, ref minimum, ref maximum)) return false;
-		if (!IntersectAxis(start.Y, direction.Y, center.Y, extents.Y, ref minimum, ref maximum)) return false;
-		if (!IntersectAxis(start.Z, direction.Z, center.Z, extents.Z, ref minimum, ref maximum)) return false;
-
-		return maximum >= minimum;
-	}
-
-	private static bool IntersectAxis(float origin, float direction, float center, float halfExtent, ref float minimum, ref float maximum)
-	{
-		float boxMinimum = center - halfExtent;
-		float boxMaximum = center + halfExtent;
-
-		if (MathF.Abs(direction) < 0.0001f)
-		{
-			return origin >= boxMinimum && origin <= boxMaximum;
-		}
-
-		float first = (boxMinimum - origin) / direction;
-		float second = (boxMaximum - origin) / direction;
-		if (first > second)
-		{
-			(first, second) = (second, first);
-		}
-
-		minimum = MathF.Max(minimum, first);
-		maximum = MathF.Min(maximum, second);
-		return maximum >= minimum;
-	}
+	private static System.Numerics.Vector3 ToEcsVector(Vector3 value) => new(value.X, value.Y, value.Z);
 
 	private void RebuildBuildingOccluders(IReadOnlyList<Unit3D> units, Vector3 eye)
 	{
