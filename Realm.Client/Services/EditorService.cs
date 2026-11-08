@@ -297,60 +297,22 @@ public partial class EditorService : IEditorAPI
 
 	public bool HasCoordinate(string coordinateName)
 	{
-		if (string.IsNullOrEmpty(coordinateName)) return false;
-		string searchName = coordinateName.Trim();
-		foreach (var r in EditorCoordinates)
-		{
-			if (r.Name.Equals(searchName, StringComparison.OrdinalIgnoreCase))
-				return true;
-		}
-
-		return false;
+		return EditorCoordinateQueries.HasCoordinate(EditorCoordinates, coordinateName);
 	}
 
 	public Vector3 GetCoordinateMin(string coordinateName)
 	{
-		if (string.IsNullOrEmpty(coordinateName)) return Vector3.Zero;
-		string searchName = coordinateName.Trim();
-		foreach (var r in EditorCoordinates)
-		{
-			if (r.Name.Equals(searchName, StringComparison.OrdinalIgnoreCase))
-				return new Vector3(r.MinX, 0f, r.MinZ);
-		}
-
-		return Vector3.Zero;
+		return EditorCoordinateQueries.GetCoordinateMin(EditorCoordinates, coordinateName);
 	}
 
 	public Vector3 GetCoordinateMax(string coordinateName)
 	{
-		if (string.IsNullOrEmpty(coordinateName)) return Vector3.Zero;
-		string searchName = coordinateName.Trim();
-		foreach (var r in EditorCoordinates)
-		{
-			if (r.Name.Equals(searchName, StringComparison.OrdinalIgnoreCase))
-				return new Vector3(r.MaxX, 0f, r.MaxZ);
-		}
-
-		return Vector3.Zero;
+		return EditorCoordinateQueries.GetCoordinateMax(EditorCoordinates, coordinateName);
 	}
 
 	public bool IsPositionInCoordinate(Vector3 position, string coordinateName)
 	{
-		if (string.IsNullOrEmpty(coordinateName)) return false;
-		string searchName = coordinateName.Trim();
-		foreach (var r in EditorCoordinates)
-		{
-			if (r.Name.Equals(searchName, StringComparison.OrdinalIgnoreCase))
-			{
-				float minX = Math.Min(r.MinX, r.MaxX);
-				float maxX = Math.Max(r.MinX, r.MaxX);
-				float minZ = Math.Min(r.MinZ, r.MaxZ);
-				float maxZ = Math.Max(r.MinZ, r.MaxZ);
-				return position.X >= minX && position.X <= maxX && position.Z >= minZ && position.Z <= maxZ;
-			}
-		}
-
-		return false;
+		return EditorCoordinateQueries.IsPositionInCoordinate(EditorCoordinates, position, coordinateName);
 	}
 
 	public Godot.Vector3 LastRaycastPos { get; set; } = new Godot.Vector3(float.MinValue, float.MinValue, float.MinValue);
