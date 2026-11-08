@@ -567,15 +567,15 @@ public partial class InGameHUD : Control
 
 	private InGameHudTheme? _theme;
 
-	private InGameHudTheme Theme => _theme ??= new InGameHudTheme();
+	private InGameHudTheme HudStyles => _theme ??= new InGameHudTheme();
 
 	private void ApplyThemeStyles()
 	{
-		Theme.Apply(new HudThemeNodes(this, _resourceContainer, _resourceBackground, _consoleBackground, _bottomConsole,
+		HudStyles.Apply(new HudThemeNodes(this, _resourceContainer, _resourceBackground, _consoleBackground, _bottomConsole,
 			_minimapFrame, _portraitFrame, _selectionFrame, _commandFrame, _feedbackLabel,
 			_goldLabel, _woodLabel, _stoneLabel, _populationLabel, _clockLabel, _minimapArea, _cameraIndicator));
 
-		MinimapCapture.Overlay = Theme.MinimapOverlay;
+		MinimapCapture.Overlay = HudStyles.MinimapOverlay;
 	}
 
 	public override void _Process(double delta)
@@ -656,7 +656,7 @@ public partial class InGameHUD : Control
 			return true;
 		}
 
-		Control[] controls = { _bottomConsole, _resourceContainer, _hotkeyPanel };
+		Control?[] controls = { _bottomConsole, _resourceContainer, _hotkeyPanel };
 		return Enumerable.Any(controls, c => c != null && c.Visible && c.GetGlobalRect().HasPoint(mousePos));
 	}
 

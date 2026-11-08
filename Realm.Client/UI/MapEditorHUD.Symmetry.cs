@@ -71,7 +71,7 @@ namespace Realm.Client.UI
 			UpdateSymmetrySubControlsVisibility();
 		}
 
-		private void UpdateSingleMirrorDropdown(OptionButton opt, MirrorMode mode, int folds)
+		private void UpdateSingleMirrorDropdown(OptionButton? opt, MirrorMode mode, int folds)
 			=> SymmetryDropdowns.Refresh(opt, mode, folds);
 
 		private void SetSymmetrySpokes(int spokes) => Symmetry.SetSymmetrySpokes(spokes);
