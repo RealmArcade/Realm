@@ -13,6 +13,8 @@ public partial class TimelineGraph : Control
 
 	private int _activeTab = 0;
 	private float _drawProgress = 0f;
+	private Vector2[] _screenPoints = new Vector2[8];
+	private Vector2[] _activePoints = new Vector2[8];
 
 
 	private List<Vector2> _p1Overview = new List<Vector2> { new Vector2(0, 3), new Vector2(5, 5), new Vector2(15, 12), new Vector2(25, 20), new Vector2(35, 28) };
@@ -111,8 +113,12 @@ public partial class TimelineGraph : Control
 	{
 		if (data.Count < 2) return;
 
-		Vector2[] screenPoints = new Vector2[data.Count];
-		for (int i = 0; i < data.Count; i++)
+		int pointCount = data.Count;
+		if (_screenPoints.Length < pointCount) _screenPoints = new Vector2[pointCount];
+		if (_activePoints.Length < pointCount) _activePoints = new Vector2[pointCount];
+
+		Vector2[] screenPoints = _screenPoints;
+		for (int i = 0; i < pointCount; i++)
 		{
 			float xRatio = data[i].X / 35f;
 			float yRatio = data[i].Y / maxY;
@@ -124,22 +130,22 @@ public partial class TimelineGraph : Control
 		}
 
 
-		int numPointsToDraw = (int)Math.Max(2, Math.Ceiling(screenPoints.Length * _drawProgress));
-		float subProgress = (screenPoints.Length * _drawProgress) % 1.0f;
-		if (numPointsToDraw > screenPoints.Length)
+		int numPointsToDraw = (int)Math.Max(2, Math.Ceiling(pointCount * _drawProgress));
+		float subProgress = (pointCount * _drawProgress) % 1.0f;
+		if (numPointsToDraw > pointCount)
 		{
-			numPointsToDraw = screenPoints.Length;
+			numPointsToDraw = pointCount;
 			subProgress = 1.0f;
 		}
 
-		Vector2[] activePoints = new Vector2[numPointsToDraw];
+		Vector2[] activePoints = _activePoints;
 		for (int i = 0; i < numPointsToDraw - 1; i++)
 		{
 			activePoints[i] = screenPoints[i];
 		}
 
 
-		if (numPointsToDraw < screenPoints.Length)
+		if (numPointsToDraw < pointCount)
 		{
 			Vector2 lastDrawPoint = screenPoints[numPointsToDraw - 2];
 			Vector2 nextTargetPoint = screenPoints[numPointsToDraw - 1];
@@ -147,18 +153,18 @@ public partial class TimelineGraph : Control
 		}
 		else
 		{
-			activePoints[numPointsToDraw - 1] = screenPoints[screenPoints.Length - 1];
+			activePoints[numPointsToDraw - 1] = screenPoints[pointCount - 1];
 		}
 
 
-		for (int i = 0; i < activePoints.Length - 1; i++)
+		for (int i = 0; i < numPointsToDraw - 1; i++)
 		{
 			DrawLine(activePoints[i], activePoints[i + 1], lineColor, 3.0f, true);
 
 			DrawCircle(activePoints[i], 4f, lineColor);
 		}
 
-		DrawCircle(activePoints[activePoints.Length - 1], 4f, lineColor);
+		DrawCircle(activePoints[numPointsToDraw - 1], 4f, lineColor);
 	}
 
 	private List<Vector2> GetActiveData(bool isP1)
