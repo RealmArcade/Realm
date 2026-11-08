@@ -21,6 +21,7 @@ public partial class PingCounter : Label
 	private float _forceHideTimer;
 	private bool _forcedByLatency;
 	private int _lastReportedDelayMilliseconds = -1;
+	private int _lastRenderedMilliseconds = -1;
 
 	public override void _Ready()
 	{
@@ -58,7 +59,11 @@ public partial class PingCounter : Label
 
 		if (!shouldShow) return;
 
-		Text = string.Format(TranslationServer.Translate("Ping: {0} ms"), Mathf.RoundToInt(roundTripMilliseconds));
+		int renderedMilliseconds = Mathf.RoundToInt(roundTripMilliseconds);
+		if (renderedMilliseconds == _lastRenderedMilliseconds) return;
+
+		_lastRenderedMilliseconds = renderedMilliseconds;
+		Text = string.Format(TranslationServer.Translate("Ping: {0} ms"), renderedMilliseconds);
 		AddThemeColorOverride("font_color", ResolveColor(roundTripMilliseconds));
 	}
 
