@@ -13,8 +13,8 @@ namespace Realm.Client.Utils;
 
 public static class PathUtils
 {
-	private static string _cachedProjectRoot = null!;
-	private static string[] _cachedDataDirs = null!;
+	private static string? _cachedProjectRoot;
+	private static string[]? _cachedDataDirs;
 	private static readonly ConcurrentDictionary<string, string> _cachedPaths = new(StringComparer.OrdinalIgnoreCase);
 
 	public static bool IsDevelopmentBuild
@@ -169,7 +169,7 @@ public static class PathUtils
 		}
 
 		string normalizedRelative = relativePath.Replace("\\", "/").TrimStart('/');
-		if (_cachedPaths.TryGetValue(normalizedRelative, out string cached))
+		if (_cachedPaths.TryGetValue(normalizedRelative, out var cached))
 		{
 			return cached;
 		}
@@ -187,25 +187,25 @@ public static class PathUtils
 			return primaryPath;
 		}
 
-		string baseDirPath = ResolveFromBaseDir(normalizedRelative);
+		string? baseDirPath = ResolveFromBaseDir(normalizedRelative);
 		if (baseDirPath != null)
 		{
 			return baseDirPath;
 		}
 
-		string exeDirPath = ResolveFromExeDir(normalizedRelative);
+		string? exeDirPath = ResolveFromExeDir(normalizedRelative);
 		if (exeDirPath != null)
 		{
 			return exeDirPath;
 		}
 
-		string globalizedResPath = ResolveFromGlobalizedRes(normalizedRelative);
+		string? globalizedResPath = ResolveFromGlobalizedRes(normalizedRelative);
 		if (globalizedResPath != null)
 		{
 			return globalizedResPath;
 		}
 
-		string parentRootPath = ResolveFromParentRoot(normalizedRelative);
+		string? parentRootPath = ResolveFromParentRoot(normalizedRelative);
 		if (parentRootPath != null)
 		{
 			return parentRootPath;
@@ -214,7 +214,7 @@ public static class PathUtils
 		return primaryPath;
 	}
 
-	private static string ResolveFromBaseDir(string normalizedRelative)
+	private static string? ResolveFromBaseDir(string normalizedRelative)
 	{
 		string baseDir = AppDomain.CurrentDomain.BaseDirectory.Replace("\\", "/").TrimEnd('/');
 		if (string.IsNullOrWhiteSpace(baseDir))
@@ -231,7 +231,7 @@ public static class PathUtils
 		return null;
 	}
 
-	private static string ResolveFromExeDir(string normalizedRelative)
+	private static string? ResolveFromExeDir(string normalizedRelative)
 	{
 		if (!IsGodotInitialized || Engine.GetMainLoop() == null)
 		{
@@ -250,7 +250,7 @@ public static class PathUtils
 			return exeDirectPath;
 		}
 
-		string dataDirPath = FindInDataDirs(exeDir, normalizedRelative);
+		string? dataDirPath = FindInDataDirs(exeDir, normalizedRelative);
 		if (dataDirPath != null)
 		{
 			return dataDirPath;
@@ -259,7 +259,7 @@ public static class PathUtils
 		return null;
 	}
 
-	private static string ResolveFromGlobalizedRes(string normalizedRelative)
+	private static string? ResolveFromGlobalizedRes(string normalizedRelative)
 	{
 		if (!IsGodotInitialized || Engine.GetMainLoop() == null)
 		{
@@ -280,7 +280,7 @@ public static class PathUtils
 		return null;
 	}
 
-	private static string ResolveFromParentRoot(string normalizedRelative)
+	private static string? ResolveFromParentRoot(string normalizedRelative)
 	{
 		string parentRootPath = Path.GetFullPath(Path.Combine(GetProjectRoot(), "..", normalizedRelative)).Replace("\\", "/");
 		if (File.Exists(parentRootPath) || Directory.Exists(parentRootPath))
@@ -291,7 +291,7 @@ public static class PathUtils
 		return null;
 	}
 
-	private static string FindInDataDirs(string exeDir, string normalizedRelative)
+	private static string? FindInDataDirs(string exeDir, string normalizedRelative)
 	{
 		string[] dataDirs = GetDataDirs(exeDir);
 		foreach (var dataDir in dataDirs)
@@ -517,7 +517,7 @@ public static class PathUtils
 
 	private static void PrepareTargetDirectory(string fullTarget)
 	{
-		string targetDir = Path.GetDirectoryName(fullTarget);
+		string? targetDir = Path.GetDirectoryName(fullTarget);
 		if (!string.IsNullOrEmpty(targetDir) && !Directory.Exists(targetDir))
 		{
 			Directory.CreateDirectory(targetDir);
