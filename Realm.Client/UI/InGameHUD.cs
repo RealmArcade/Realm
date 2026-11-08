@@ -69,7 +69,18 @@ public partial class InGameHUD : Control
 	private PanelContainer _selectionFrame = null!;
 	private PanelContainer _commandFrame = null!;
 	private PanelContainer _inventoryFrame = null!;
-	private readonly Dictionary<HudElement, bool> _hudElementVisibility = new();
+	private HudVisibility? _visibility;
+
+	/// <summary>
+	///     The player's HUD element switches and the panels each one fences.
+	/// </summary>
+	private HudVisibility Visibility => _visibility ??= new HudVisibility(
+		() => _minimapFrame, () => _minimapControls, () => _resourceContainer, () => _commandFrame,
+		() => _portraitFrame, () => _chatPanel, () => _inventoryFrame, () => _inventoryGrid,
+		() => { if (GameContext.Host != null) RefreshUI(GameContext.Host.SelectedUnits); },
+		() => _countdownOverlayPanelController?.Update(_viewModel),
+		UpdateScoreboardVisibility);
+
 
 	private Shader _hudPortraitMaskShader = null!;
 
@@ -358,49 +369,9 @@ public partial class InGameHUD : Control
 	/// </summary>
 	private void SetupSelectionFrame()
 	{
-		_unitsContainer = GetNode<HBoxContainer>("BottomConsole/HBox/SelectionFrame/UnitsContainer");
-
-		foreach (Node child in _unitsContainer.GetChildren())
-		{
-			_unitsContainer.RemoveChild(child);
-			child.QueueFree();
-		}
-		_unitButtons.Clear();
-
-		for (int i = 0; i < 12; i++)
-		{
-			var btn = new Button();
-			btn.Name = $"Unit{i + 1}";
-			btn.CustomMinimumSize = new Vector2(36, 36);
-			btn.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-			btn.ExpandIcon = true;
-			btn.FocusMode = FocusModeEnum.None;
-			btn.AddThemeConstantOverride("icon_max_width", 30);
-			UIStyle.ApplyButtonStyleBoxesClearingFocus(btn);
-
-			var hpBar = new ProgressBar();
-			hpBar.Name = "HealthBar";
-			hpBar.CustomMinimumSize = new Vector2(36, 4);
-			hpBar.ShowPercentage = false;
-			hpBar.SetAnchorsAndOffsetsPreset(LayoutPreset.BottomWide);
-			hpBar.OffsetTop = -6;
-			hpBar.AddThemeStyleboxOverride("background", UIStyle.CreateSliderTrack());
-			hpBar.AddThemeStyleboxOverride("fill", UIStyle.CreateSliderFill());
-			hpBar.Visible = false;
-			btn.AddChild(hpBar);
-
-			var statusLbl = new Label();
-			statusLbl.Name = "StatusIcon";
-			statusLbl.Text = "";
-			statusLbl.AddThemeFontSizeOverride("font_size", 10);
-			statusLbl.AddThemeColorOverride("font_color", new Color(1f, 0.9f, 0.2f));
-			statusLbl.SetAnchorsAndOffsetsPreset(LayoutPreset.TopLeft);
-			statusLbl.Visible = false;
-			btn.AddChild(statusLbl);
-
-			_unitsContainer.AddChild(btn);
-			_unitButtons.Add(btn);
-		}
+		SelectionUnitStrip.Parts strip = SelectionUnitStrip.Rebuild(this);
+		_unitsContainer = strip.Container;
+		_unitButtons = strip.Buttons;
 	}
 
 	private void SetupCommandAndInventoryGrids()
@@ -799,27 +770,7 @@ public partial class InGameHUD : Control
 		_commandPanelController?.Update(_viewModel);
 		_inventoryPanelController?.Update(_viewModel);
 
-		if (!IsHudElementVisible(HudElement.UnitPortrait, true) && _portraitFrame != null)
-		{
-			_portraitFrame.Visible = false;
-		}
-		if (!IsHudElementVisible(HudElement.CommandCard, true) && _commandFrame != null)
-		{
-			_commandFrame.Visible = false;
-		}
-		if (!IsHudElementVisible(HudElement.Minimap, true) && _minimapFrame != null)
-		{
-			_minimapFrame.Visible = false;
-		}
-		if (!IsHudElementVisible(HudElement.ResourceBar, true) && _resourceContainer != null)
-		{
-			_resourceContainer.Visible = false;
-		}
-		if (!IsHudElementVisible(HudElement.Inventory, true))
-		{
-			if (_inventoryFrame != null) _inventoryFrame.Visible = false;
-			if (_inventoryGrid != null) _inventoryGrid.Visible = false;
-		}
+		Visibility.HideDisallowed();
 	}
 
 	private InGameHudTheme? _theme;
@@ -1065,42 +1016,8 @@ public partial class InGameHUD : Control
 
 	private void OnUnitSelectionButtonClicked(int index)
 	{
-		if (GameContext.Host == null) return;
-		var selectedUnits = GameContext.Host.SelectedUnits;
-		if (selectedUnits == null || index < 0 || index >= selectedUnits.Count) return;
-
-		var clickedUnit = selectedUnits[index];
-		bool shiftPressed = Input.IsKeyPressed(Key.Shift);
-		bool ctrlPressed = Input.IsKeyPressed(Key.Ctrl);
-
-		if (ctrlPressed)
-		{
-			string targetId = clickedUnit.UnitId;
-			var toDeselect = new List<Unit3D>();
-			foreach (var u in selectedUnits)
-			{
-				if (u.UnitId != targetId)
-				{
-					toDeselect.Add(u);
-				}
-			}
-
-			foreach (var u in toDeselect)
-			{
-				GameContext.Host.DeselectUnit(u);
-			}
-		}
-		else if (shiftPressed)
-		{
-			GameContext.Host.DeselectUnit(clickedUnit);
-		}
-		else
-		{
-			GameContext.Host.SelectOnlyUnit(clickedUnit);
-			CenterCameraOnUnit(clickedUnit);
-		}
-
-		RefreshUI(GameContext.Host.SelectedUnits);
+		if (!SelectionClickPolicy.Apply(index, CenterCameraOnUnit)) return;
+		RefreshUI(GameContext.Host!.SelectedUnits);
 	}
 
 	public override void _UnhandledInput(InputEvent @event)
@@ -1210,14 +1127,11 @@ public partial class InGameHUD : Control
 		_viewModel.CountdownText = labelText;
 	}
 
-	public bool IsHudElementVisible(HudElement element, bool defaultValue = true)
-	{
-		return _hudElementVisibility.TryGetValue(element, out bool v) ? v : defaultValue;
-	}
+	public bool IsHudElementVisible(HudElement element, bool defaultValue = true) => Visibility.IsVisible(element, defaultValue);
 
 	public void SetHudElementVisible(HudElement element, bool visible)
 	{
-		_hudElementVisibility[element] = visible;
+		Visibility.Set(element, visible);
 		if (GameContext.Host != null)
 		{
 			GameContext.Host.LocalHudVisibilityOverrides[element] = visible;
@@ -1225,54 +1139,7 @@ public partial class InGameHUD : Control
 		ApplyHudElementVisibility(element);
 	}
 
-	public void ApplyHudElementVisibility(HudElement element)
-	{
-		bool visible = IsHudElementVisible(element, true);
-		switch (element)
-		{
-			case HudElement.Minimap:
-				if (_minimapFrame != null) _minimapFrame.Visible = visible;
-				if (_minimapControls != null) _minimapControls.Visible = visible;
-				break;
-			case HudElement.ResourceBar:
-				if (_resourceContainer != null) _resourceContainer.Visible = visible;
-				break;
-			case HudElement.CommandCard:
-				if (!visible && _commandFrame != null)
-				{
-					_commandFrame.Visible = false;
-				}
-				else if (visible && GameContext.Host != null)
-				{
-					RefreshUI(GameContext.Host.SelectedUnits);
-				}
-				break;
-			case HudElement.UnitPortrait:
-				if (!visible && _portraitFrame != null)
-				{
-					_portraitFrame.Visible = false;
-				}
-				else if (visible && _portraitFrame != null)
-				{
-					_portraitFrame.Visible = true;
-				}
-				break;
-			case HudElement.Chat:
-				if (_chatPanel != null) _chatPanel.Visible = visible;
-				break;
-			case HudElement.Leaderboard:
-			case HudElement.SummaryTable:
-				UpdateScoreboardVisibility();
-				break;
-			case HudElement.Inventory:
-				if (_inventoryFrame != null) _inventoryFrame.Visible = visible;
-				if (_inventoryGrid != null) _inventoryGrid.Visible = visible;
-				break;
-			case HudElement.CountdownTimer:
-				_countdownOverlayPanelController?.Update(_viewModel);
-				break;
-		}
-	}
+	public void ApplyHudElementVisibility(HudElement element) => Visibility.Apply(element);
 
 	public void ApplySavedHudVisibilityOverrides()
 	{
@@ -1280,7 +1147,7 @@ public partial class InGameHUD : Control
 		{
 			foreach (var kvp in GameContext.Host.LocalHudVisibilityOverrides)
 			{
-				_hudElementVisibility[kvp.Key] = kvp.Value;
+				Visibility.Set(kvp.Key, kvp.Value);
 				ApplyHudElementVisibility(kvp.Key);
 			}
 		}
