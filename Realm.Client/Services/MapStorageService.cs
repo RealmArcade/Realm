@@ -1553,7 +1553,7 @@ public class MapStorageService
 
 			var compileProcess = new Process();
 			compileProcess.StartInfo.FileName = dotnetExecutablePath;
-			compileProcess.StartInfo.Arguments = $"publish \"{csprojName}\" -c {configuration} -r wasi-wasm -o \"{scriptOutputDirectory}\" -p:WASI_SDK_PATH=\"{resolvedWasiSdk}\"";
+			compileProcess.StartInfo.Arguments = $"publish \"{csprojName}\" -c {configuration} -r wasi-wasm -o \"{scriptOutputDirectory}\" -p:WASI_SDK_PATH=\"{resolvedWasiSdk}\"{ResolveBuildPropertyOverrides(isDebug)}";
 			compileProcess.StartInfo.EnvironmentVariables["WASI_SDK_PATH"] = resolvedWasiSdk;
 			compileProcess.StartInfo.WorkingDirectory = workspace;
 			compileProcess.StartInfo.CreateNoWindow = true;
@@ -1604,6 +1604,12 @@ public class MapStorageService
 			return (succeeded, compileProcess.ExitCode, streamHadErrors);
 		});
 	}
+
+	private const string DebugBuildPropertyOverrides = " -p:Optimize=false -p:DebugSymbols=true -p:DebugType=embedded -p:StripSymbols=false -p:IlcGenerateCompleteTypeMetadata=true";
+
+	private const string ReleaseBuildPropertyOverrides = " -p:Optimize=true -p:DebugSymbols=true -p:DebugType=embedded -p:StripSymbols=false";
+
+	private static string ResolveBuildPropertyOverrides(bool isDebug) => isDebug ? DebugBuildPropertyOverrides : ReleaseBuildPropertyOverrides;
 
 	private static void ClearScriptOutput(string workspace, string scriptOutputDirectory)
 	{

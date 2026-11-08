@@ -253,13 +253,13 @@ public partial class WasmScriptHost : IWasmRuntime, IWasmEvaluationEngine, IDisp
 		{
 			IsFaulted = true;
 			RequestWasiLogFlush();
-			LogToConsole($"[WASM RUNTIME TRAP] Script fault or timeout in {contextName}: {trapEx.Message} (Type: {trapEx.Type})", true);
+			LogToConsole($"[WASM RUNTIME TRAP] Script fault or timeout in {contextName}: {trapEx.Message} (Type: {trapEx.Type}){DescribeTrapFrames(trapEx)}", true);
 		}
 		catch (Exception ex)
 		{
 			IsFaulted = true;
 			RequestWasiLogFlush();
-			LogToConsole($"[WASM RUNTIME ERROR] Unhandled exception in {contextName}: {ex.Message}", true);
+			LogToConsole($"[WASM RUNTIME ERROR] Unhandled exception in {contextName}: {ex.Message}{DescribeTrapFrames(ex as WasmtimeException)}", true);
 		}
 		finally
 		{
@@ -288,14 +288,14 @@ public partial class WasmScriptHost : IWasmRuntime, IWasmEvaluationEngine, IDisp
 		{
 			IsFaulted = true;
 			RequestWasiLogFlush();
-			LogToConsole($"[WASM RUNTIME TRAP] Script fault or timeout in {contextName}: {trapEx.Message} (Type: {trapEx.Type})", true);
+			LogToConsole($"[WASM RUNTIME TRAP] Script fault or timeout in {contextName}: {trapEx.Message} (Type: {trapEx.Type}){DescribeTrapFrames(trapEx)}", true);
 			return defaultValue;
 		}
 		catch (Exception ex)
 		{
 			IsFaulted = true;
 			RequestWasiLogFlush();
-			LogToConsole($"[WASM RUNTIME ERROR] Unhandled exception in {contextName}: {ex.Message}", true);
+			LogToConsole($"[WASM RUNTIME ERROR] Unhandled exception in {contextName}: {ex.Message}{DescribeTrapFrames(ex as WasmtimeException)}", true);
 			return defaultValue;
 		}
 		finally
@@ -305,6 +305,30 @@ public partial class WasmScriptHost : IWasmRuntime, IWasmEvaluationEngine, IDisp
 				Interlocked.Exchange(ref _executingStartTimestamp, 0);
 			}
 		}
+	}
+
+	private const int MaximumTrapFramesLogged = 16;
+
+	private static string DescribeTrapFrames(WasmtimeException? error)
+	{
+		IReadOnlyList<TrapFrame>? frames = error?.Frames;
+		if (frames == null || frames.Count == 0) return string.Empty;
+
+		var text = new StringBuilder();
+		int shown = Math.Min(frames.Count, MaximumTrapFramesLogged);
+		for (int index = 0; index < shown; index++)
+		{
+			TrapFrame frame = frames[index];
+			text.Append("\n  at ");
+			text.Append(string.IsNullOrEmpty(frame.ModuleName) ? "<unknown module>" : frame.ModuleName);
+			text.Append('!');
+			text.Append(string.IsNullOrEmpty(frame.FunctionName) ? "<unknown function>" : frame.FunctionName);
+			text.Append("+0x");
+			text.Append(frame.FunctionOffset.ToString("x"));
+		}
+
+		if (frames.Count > shown) text.Append("\n  ... ").Append(frames.Count - shown).Append(" more frame(s)");
+		return text.ToString();
 	}
 
 	private int _logFlushInProgress;

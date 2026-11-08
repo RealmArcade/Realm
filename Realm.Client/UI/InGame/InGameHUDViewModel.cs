@@ -198,6 +198,8 @@ public class InGameHUDViewModel
 
 	public bool IsConnectionLost { get; set; }
 
+	public bool IsWaitingForAuthorityDebugger { get; set; }
+
 	public bool CountdownActive
 	{
 		get
@@ -475,6 +477,7 @@ public class InGameHUDViewModel
 			return;
 
 		IsConnectionLost = GameContext.Host.IsConnectionLost;
+		IsWaitingForAuthorityDebugger = GameContext.Host.IsWaitingForAuthorityDebugger;
 		CycleSelectionIndex = GameContext.Host.CycleSelectionIndex;
 	}
 

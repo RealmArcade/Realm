@@ -107,6 +107,24 @@ public class ClientServerSession : IDisposable
 	private const int MaximumReconnectAttempts = 240;
 
 	/// <summary>
+	///     How long a debug match may go without hearing from its authority before this screen treats the silence as a
+	///     debugger holding the authority rather than a match that went away. It is several snapshot intervals, which is
+	///     longer than a stall in a running match and shorter than anything a person would call a pause.
+	/// </summary>
+	private const int DebugHoldStartMilliseconds = 500;
+
+	/// <summary>
+	///     How often a held debug match tries to put its socket back. The authority is stopped while it is held, so an
+	///     attempt cannot be answered and trying one every quarter second would spend the whole pause opening peers for a
+	///     match that is not listening.
+	/// </summary>
+	private const int HeldReconnectIntervalMilliseconds = 2000;
+
+	private long _lastAuthorityFrameMilliseconds;
+	private long _lastHeldReconnectAttemptMilliseconds;
+	private bool _longSilenceAllowed;
+
+	/// <summary>
 	///     How many descriptions the ring holds before the oldest is overwritten. A screen with this many waiting has
 	///     stopped reading rather than met a link that is late, and the ones at its front describe a world the ones behind
 	///     them already supersede.
@@ -128,6 +146,19 @@ public class ClientServerSession : IDisposable
 	private const int MaximumQueuedDescriptionsBeforeDiscard = 6;
 
 	public bool IsRunning => TerminationReport == null && (_local ? GameContext.LocalAuthority.IsRunning : _joined);
+
+	/// <summary>
+	///     Whether the script this match runs was built for a debugger. A debug match is the one case where the authority
+	///     going quiet means a person stopped it at a breakpoint rather than that the match was lost.
+	/// </summary>
+	public bool IsDebugSession { get; private set; }
+
+	/// <summary>
+	///     Whether the authority of a debug match has gone quiet for long enough to be held at a breakpoint. While this is
+	///     true the screen waits on the same description it last applied: it steps no clock, asks for no repair and gives
+	///     up no connection, because each of those would answer a debugger pause as a fault.
+	/// </summary>
+	public bool IsAuthorityHeldForDebug { get; private set; }
 
 	public int LocalPeerId { get; private set; }
 
@@ -215,6 +246,7 @@ public class ClientServerSession : IDisposable
 
 	public async Task<MatchStartResult> TryStartAsync(ServerMatchStart start, int authorityPort = 0)
 	{
+		IsDebugSession = start.WasmDebug;
 		if (!ListenServerTarget.TryResolve(out ServerLaunchTarget? target, out string failure) || target == null) return MatchStartResult.Failed(failure, string.Empty);
 
 		string logName = Path.GetFileName(Path.TrimEndingDirectorySeparator(start.MapFolderPath));
@@ -257,6 +289,7 @@ public class ClientServerSession : IDisposable
 	public bool TryJoin(string address, int port, string language, string? mapFolder, out string failure)
 	{
 		failure = string.Empty;
+		IsDebugSession = false;
 
 		if (!string.IsNullOrEmpty(mapFolder) && Directory.Exists(mapFolder))
 		{
@@ -271,6 +304,7 @@ public class ClientServerSession : IDisposable
 		_joinedPort = port;
 		_address = address;
 		_port = port;
+		_lastAuthorityFrameMilliseconds = System.Environment.TickCount64;
 		return true;
 	}
 
@@ -283,6 +317,7 @@ public class ClientServerSession : IDisposable
 
 	public async Task<MatchStartResult> TryStartLobbyAsync(ServerLobbyStart start, int lobbyPort = 0)
 	{
+		IsDebugSession = start.WasmDebug;
 		if (!ListenServerTarget.TryResolve(out ServerLaunchTarget? target, out string failure) || target == null) return MatchStartResult.Failed(failure, string.Empty);
 
 		string authorityLogPath = Path.Combine(start.LogDirectory, LocalAuthority.LogFileName);
@@ -328,7 +363,7 @@ public class ClientServerSession : IDisposable
 		LocalAuthorityReply started = await authority.StartMatchAsync(command);
 		if (!started.Started) return FailedLaunch(started.Failure, started.LogPath);
 
-		if (!_channel.TryConnect("127.0.0.1", started.Port, out string failure))
+		if (!_channel.TryConnect("127.0.0.1", started.Port, IsDebugSession, out string failure))
 		{
 			authority.Pause();
 			return MatchStartResult.Failed(failure, started.LogPath);
@@ -342,6 +377,7 @@ public class ClientServerSession : IDisposable
 		_mapHash = started.MapHash;
 		_address = "127.0.0.1";
 		_port = started.Port;
+		_lastAuthorityFrameMilliseconds = System.Environment.TickCount64;
 		LogPath = started.LogPath;
 		ConsoleLogPath = started.ConsoleLogPath;
 		return MatchStartResult.Success(LogPath, ConsoleLogPath);
@@ -350,6 +386,7 @@ public class ClientServerSession : IDisposable
 	public bool TryJoinLobby(string address, int port, string language, int localPort, out string failure)
 	{
 		failure = string.Empty;
+		IsDebugSession = false;
 
 		_mapHash = string.Empty;
 		if (!_channel.TryConnect(address, port, localPort, out failure)) return false;
@@ -360,6 +397,7 @@ public class ClientServerSession : IDisposable
 		_joinedPort = port;
 		_address = address;
 		_port = port;
+		_lastAuthorityFrameMilliseconds = System.Environment.TickCount64;
 		return true;
 	}
 
@@ -502,6 +540,15 @@ public class ClientServerSession : IDisposable
 
 		if (!_local && !_joined) return false;
 
+		if (IsDebugSession && !_longSilenceAllowed && _channel.IsConnected && _channel.AllowLongAuthoritySilence()) _longSilenceAllowed = true;
+
+		UpdateDebugHold();
+		if (IsAuthorityHeldForDebug)
+		{
+			ReconnectWhileHeld();
+			return false;
+		}
+
 		bool handed = false;
 
 		DiscardSupersededDescriptions();
@@ -570,6 +617,36 @@ public class ClientServerSession : IDisposable
 		_challenge = string.Empty;
 	}
 
+	private void UpdateDebugHold()
+	{
+		bool held = IsDebugSession
+		            && _started
+		            && System.Environment.TickCount64 - _lastAuthorityFrameMilliseconds >= DebugHoldStartMilliseconds;
+
+		if (held && !IsAuthorityHeldForDebug) GameContext.SnapshotTimeline.NoteDebuggerHold();
+		IsAuthorityHeldForDebug = held;
+	}
+
+	/// <summary>
+	///     Gives a held debug match its socket back without ever deciding the match is over. A peer whose timeout was not
+	///     widened, or a link that was reset anyway, would otherwise leave this screen waiting on an authority that can
+	///     never reach it: the hold ends when a frame arrives, and no frame can arrive on a socket that is gone.
+	/// </summary>
+	private void ReconnectWhileHeld()
+	{
+		if (_channel.IsConnected) return;
+		if (_address.Length == 0 || _port <= 0) return;
+
+		long now = System.Environment.TickCount64;
+		if (_lastHeldReconnectAttemptMilliseconds != 0 && now - _lastHeldReconnectAttemptMilliseconds < HeldReconnectIntervalMilliseconds) return;
+
+		_lastHeldReconnectAttemptMilliseconds = now;
+		_helloSent = false;
+		_challenge = string.Empty;
+		_longSilenceAllowed = false;
+		_channel.TryConnect(_address, _port, IsDebugSession, out _);
+	}
+
 	private bool TryReconnect()
 	{
 		if (_address.Length == 0 || _port <= 0) return true;
@@ -585,7 +662,8 @@ public class ClientServerSession : IDisposable
 			return false;
 		}
 
-		_channel.TryConnect(_address, _port, out _);
+		_channel.TryConnect(_address, _port, IsDebugSession, out _);
+		_longSilenceAllowed = false;
 		return true;
 	}
 
@@ -621,6 +699,10 @@ public class ClientServerSession : IDisposable
 
 	private void Enqueue(NetworkFrameKind kind, byte[] payload)
 	{
+		_lastAuthorityFrameMilliseconds = System.Environment.TickCount64;
+		IsAuthorityHeldForDebug = false;
+		GameContext.NetworkService?.NoteAuthorityAlive();
+
 		ulong arrivalMilliseconds = kind == NetworkFrameKind.LatencyProbeEcho ? Time.GetTicksMsec() : 0UL;
 		var frame = new QueuedFrame(kind, payload, arrivalMilliseconds);
 
@@ -898,6 +980,11 @@ public class ClientServerSession : IDisposable
 		_descriptionCount = 0;
 		_reliableQueue.Clear();
 		_descriptionsWereDropped = false;
+		IsAuthorityHeldForDebug = false;
+		_longSilenceAllowed = false;
+		_lastReconnectAttemptMilliseconds = 0;
+		_lastHeldReconnectAttemptMilliseconds = 0;
+		_reconnectAttempts = 0;
 
 		if (heldHere) GameContext.LocalAuthority.Pause();
 		_channel.Disconnect();

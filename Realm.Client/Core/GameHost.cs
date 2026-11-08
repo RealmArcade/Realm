@@ -167,6 +167,8 @@ public partial class GameHost : Node3D
 	private bool _wasClientInMultiplayer => GameContext.NetworkService?.WasClientInMultiplayer ?? false;
 	public bool IsConnectionLost => GameContext.NetworkService?.IsConnectionLost ?? false;
 
+	public bool IsWaitingForAuthorityDebugger => GameContext.ServerSession?.IsAuthorityHeldForDebug ?? false;
+
 	private Dictionary<int, Entity> _peerIdToPlayerEntityMap
 		=> GameContext.World?.GetFieldOrDefault<NetworkMappingState, Dictionary<int, Entity>>(GameContext.Simulation.WorldEntity, s => s.PeerIdToPlayerEntityMap);
 
@@ -3260,6 +3262,15 @@ public partial class GameHost : Node3D
 			}
 
 			float fDelta = (float)delta;
+
+			// A debugger holding the authority is a pause this screen imposes on itself: the session keeps its socket
+			// watched, but no clock moves and no tick runs until a description says the match is running again.
+			if (IsWaitingForAuthorityDebugger)
+			{
+				GameContext.ServerSession?.Pump();
+				return;
+			}
+
 			if (_wasClientInMultiplayer) UpdateConnectionStatus();
 
 			if (GameContext.ReplayPlayback.IsPlayingReplay)

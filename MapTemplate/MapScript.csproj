@@ -36,15 +36,15 @@
   <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
     <DebugSymbols>true</DebugSymbols>
     <DebugType>embedded</DebugType>
-    <Optimize>false</Optimize>
+    <Optimize>true</Optimize>
     <StripSymbols>false</StripSymbols>
     <IlcGenerateCompleteTypeMetadata>true</IlcGenerateCompleteTypeMetadata>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">
-    <DebugSymbols>false</DebugSymbols>
-    <DebugType>none</DebugType>
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>embedded</DebugType>
     <Optimize>true</Optimize>
-    <StripSymbols>true</StripSymbols>
+    <StripSymbols>false</StripSymbols>
   </PropertyGroup>
   <ItemGroup>
     <DirectPInvoke Include="env" />

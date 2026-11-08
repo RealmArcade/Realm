@@ -170,6 +170,8 @@ public partial class InGameHUD : Control
 
 	private Label _feedbackLabel;
 	private Label _connectionWarningLabel;
+	private bool _connectionWarningVisible;
+	private bool _connectionWarningWaiting;
 	private Control _minimapArea;
 	private MinimapCameraIndicator _cameraIndicator;
 
@@ -1606,7 +1608,18 @@ public partial class InGameHUD : Control
 		_minimapPanelController?.UpdateMinimapIndicator();
 		if (_connectionWarningLabel != null)
 		{
-			_connectionWarningLabel.Visible = _viewModel.IsConnectionLost;
+			bool waiting = _viewModel.IsWaitingForAuthorityDebugger;
+			bool visible = waiting || _viewModel.IsConnectionLost;
+			if (visible != _connectionWarningVisible || waiting != _connectionWarningWaiting)
+			{
+				_connectionWarningVisible = visible;
+				_connectionWarningWaiting = waiting;
+				_connectionWarningLabel.Text = waiting
+					? TranslationServer.Translate("Waiting for the authority debugger ... the match is paused")
+					: TranslationServer.Translate("Connection to host lost ... Reconnecting");
+				_connectionWarningLabel.AddThemeColorOverride("font_color", waiting ? new Color(0.95f, 0.75f, 0.2f) : new Color(0.95f, 0.2f, 0.2f));
+				_connectionWarningLabel.Visible = visible;
+			}
 		}
 
 		_tacticalTimer += dt;

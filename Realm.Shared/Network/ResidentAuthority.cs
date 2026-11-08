@@ -145,7 +145,14 @@ public class ResidentAuthority : IDisposable
 	///     Hands one command over and waits for the answer that belongs to it. The command travels on a queue a writer
 	///     thread drains, so a screen asking for a match is never held by the authority's input pipe.
 	/// </summary>
-	public Task<ServerControlReply> SendAsync(ServerControlCommand command)
+	/// <param name="command">The command to hand over.</param>
+	/// <param name="timeoutMilliseconds">
+	///     How long to wait for its answer, or zero to use the authority's own bound. A debug match waits without one,
+	///     because the answer is written after the map script starts and a breakpoint there can hold it for as long as a
+	///     person leaves it. A process that ends still answers, so the wait is not unbounded in the one case it should not
+	///     be.
+	/// </param>
+	public Task<ServerControlReply> SendAsync(ServerControlCommand command, int timeoutMilliseconds = 0)
 	{
 		if (_disposed || !IsRunning) return Task.FromResult(Refused(command.RequestId, DescribeStop()));
 
@@ -160,16 +167,17 @@ public class ResidentAuthority : IDisposable
 			return Task.FromResult(Refused(requestId, "the local authority is not taking commands right now"));
 		}
 
-		return AwaitReplyAsync(requestId, pending);
+		return AwaitReplyAsync(requestId, pending, timeoutMilliseconds);
 	}
 
-	private async Task<ServerControlReply> AwaitReplyAsync(int requestId, TaskCompletionSource<ServerControlReply> pending)
+	private async Task<ServerControlReply> AwaitReplyAsync(int requestId, TaskCompletionSource<ServerControlReply> pending, int timeoutMilliseconds)
 	{
-		Task answered = await Task.WhenAny(pending.Task, Task.Delay(_request.CommandTimeoutMilliseconds)).ConfigureAwait(false);
+		int effectiveTimeoutMilliseconds = timeoutMilliseconds == 0 ? _request.CommandTimeoutMilliseconds : timeoutMilliseconds;
+		Task answered = await Task.WhenAny(pending.Task, Task.Delay(effectiveTimeoutMilliseconds)).ConfigureAwait(false);
 		if (answered == pending.Task) return await pending.Task.ConfigureAwait(false);
 
 		_pendingReplies.TryRemove(requestId, out _);
-		return Refused(requestId, $"the local authority did not answer within {_request.CommandTimeoutMilliseconds}ms; see '{LogPath}' and '{ConsoleLogPath}'");
+		return Refused(requestId, $"the local authority did not answer within {effectiveTimeoutMilliseconds}ms; see '{LogPath}' and '{ConsoleLogPath}'");
 	}
 
 	public string DescribeStop()

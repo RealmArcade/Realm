@@ -8,18 +8,27 @@ public class EnetServerTransport : IServerTransport
 {
 	private const string LoopbackAddress = "127.0.0.1";
 
+	private const int LongSilenceTimeoutLimit = 32;
+
+	private const int LongSilenceTimeoutMinimumMilliseconds = 5000;
+
+	private const int LongSilenceTimeoutMaximumMilliseconds = 86_400_000;
+
 	private readonly ServerNetworkChannel _channel;
 	private readonly int _requestedPort;
+
+	private readonly bool _allowLongSilence;
 
 	private ENetMultiplayerPeer? _peer;
 	private IServerTransportSink? _sink;
 	private bool _connected;
 	private bool _disposed;
 
-	public EnetServerTransport(ServerNetworkChannel channel, int requestedPort)
+	public EnetServerTransport(ServerNetworkChannel channel, int requestedPort, bool allowLongSilence = false)
 	{
 		_channel = channel;
 		_requestedPort = requestedPort;
+		_allowLongSilence = allowLongSilence;
 	}
 
 	public int Port { get; private set; }
@@ -139,7 +148,19 @@ public class EnetServerTransport : IServerTransport
 
 	private void OnFrameArrived(int peerId, NetworkFrameKind kind, byte[] payload) => _sink?.OnFrameReceived(peerId, kind, payload);
 
-	private void OnPeerConnected(long peerId) => _sink?.OnPeerConnected((int)peerId);
+	private void OnPeerConnected(long peerId)
+	{
+		ApplyLongSilenceTimeout((int)peerId);
+		_sink?.OnPeerConnected((int)peerId);
+	}
+
+	private void ApplyLongSilenceTimeout(int peerId)
+	{
+		if (!_allowLongSilence || _peer == null) return;
+
+		ENetPacketPeer? peer = _peer.GetPeer(peerId);
+		peer?.SetTimeout(LongSilenceTimeoutLimit, LongSilenceTimeoutMinimumMilliseconds, LongSilenceTimeoutMaximumMilliseconds);
+	}
 
 	private void OnPeerDisconnected(long peerId) => _sink?.OnPeerDisconnected((int)peerId, "the peer left");
 

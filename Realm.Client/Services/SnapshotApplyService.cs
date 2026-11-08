@@ -224,6 +224,7 @@ public class SnapshotApplyService
 	{
 		if (GameContext.Host == null) return;
 		if (GameContext.NetworkService == null || GameContext.NetworkService.IsPaused) return;
+		if (GameContext.ServerSession is { IsAuthorityHeldForDebug: true }) return;
 
 		int newestSequence = GameContext.SnapshotTimeline.NewestSequence;
 		if (newestSequence < 0) return;
