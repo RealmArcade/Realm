@@ -92,6 +92,30 @@ public static partial class UIStyle
 	}
 
 	/// <summary>
+	/// One button on the editor's accordion rail. Only the fill and border change between states; the 2px rule and the
+	/// corner rounding never do. A negative inset leaves the content margin to the border width, which is what the held
+	/// state has always done.
+	/// </summary>
+	public static StyleBoxFlat CreateEditorToolButtonPlate(Color bgColor, Color borderColor, int contentMargin)
+	{
+		var style = new StyleBoxFlat();
+		style.BgColor = bgColor;
+		style.BorderColor = borderColor;
+		style.SetBorderWidthAll(2);
+		style.SetCornerRadiusAll(6);
+
+		if (contentMargin >= 0)
+		{
+			style.ContentMarginLeft = contentMargin;
+			style.ContentMarginRight = contentMargin;
+			style.ContentMarginTop = contentMargin;
+			style.ContentMarginBottom = contentMargin;
+		}
+
+		return style;
+	}
+
+	/// <summary>
 	/// One row of an editor dropdown's suggestion list: invisible until hovered or held, and sharing the resting plate
 	/// while disabled.
 	/// </summary>

@@ -217,35 +217,12 @@ public sealed class ToolAccordionPanel
 			btn.AddThemeFontOverride("font", font);
 		}
 
-		var btnNormal = new StyleBoxFlat();
-		btnNormal.BgColor = new Color(0.16f, 0.15f, 0.13f, 0.90f);
-		btnNormal.BorderColor = new Color(0.42f, 0.36f, 0.26f, 0.85f);
-		btnNormal.SetBorderWidthAll(2);
-		btnNormal.SetCornerRadiusAll(6);
-		btnNormal.ContentMarginLeft = 4;
-		btnNormal.ContentMarginRight = 4;
-		btnNormal.ContentMarginTop = 4;
-		btnNormal.ContentMarginBottom = 4;
-
-		var btnHover = new StyleBoxFlat();
-		btnHover.BgColor = new Color(0.28f, 0.24f, 0.18f, 0.96f);
-		btnHover.BorderColor = UIStyle.ColorGold;
-		btnHover.SetBorderWidthAll(2);
-		btnHover.SetCornerRadiusAll(6);
-		btnHover.ContentMarginLeft = 4;
-		btnHover.ContentMarginRight = 4;
-		btnHover.ContentMarginTop = 4;
-		btnHover.ContentMarginBottom = 4;
-
-		var btnPressed = new StyleBoxFlat();
-		btnPressed.BgColor = new Color(0.36f, 0.30f, 0.20f, 0.98f);
-		btnPressed.BorderColor = UIStyle.ColorGold;
-		btnPressed.SetBorderWidthAll(2);
-		btnPressed.SetCornerRadiusAll(6);
-
-		btn.AddThemeStyleboxOverride("normal", btnNormal);
-		btn.AddThemeStyleboxOverride("hover", btnHover);
-		btn.AddThemeStyleboxOverride("pressed", btnPressed);
+		btn.AddThemeStyleboxOverride("normal", UIStyle.CreateEditorToolButtonPlate(
+			new Color(0.16f, 0.15f, 0.13f, 0.90f), new Color(0.42f, 0.36f, 0.26f, 0.85f), 4));
+		btn.AddThemeStyleboxOverride("hover", UIStyle.CreateEditorToolButtonPlate(
+			new Color(0.28f, 0.24f, 0.18f, 0.96f), UIStyle.ColorGold, 4));
+		btn.AddThemeStyleboxOverride("pressed", UIStyle.CreateEditorToolButtonPlate(
+			new Color(0.36f, 0.30f, 0.20f, 0.98f), UIStyle.ColorGold, -1));
 		btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 		btn.AddThemeFontSizeOverride("font_size", 20);
 		btn.AddThemeColorOverride("font_color", new Color(0.95f, 0.90f, 0.82f));
