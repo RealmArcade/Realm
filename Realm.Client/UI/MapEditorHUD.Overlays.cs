@@ -321,49 +321,35 @@ namespace Realm.Client.UI
 			}
 		}
 
+		/// <summary>
+		/// The sidebar's cards, in the order they appear. Every card pass walks this one list, so a new card is styled by
+		/// all of them instead of being added to each pass by hand.
+		/// </summary>
+		private MapEditorCard[] Cards() => new[]
+		{
+			new MapEditorCard(_accordionFile, _filePanel.Content, 300f),
+			new MapEditorCard(_viewportPanel.Accordion, _viewportPanel.Content, 0f, false),
+			new MapEditorCard(_toolPanel.Accordion, _toolPanel.Content, 320f),
+			new MapEditorCard(_brushPanel?.Accordion, _brushPanel?.Content, 300f),
+			new MapEditorCard(_waterPanel?.Accordion, _waterPanel?.Content, 200f),
+			new MapEditorCard(_accordionToolSettings, _contentToolSettings, 320f),
+			new MapEditorCard(_placementPanel.Accordion, _placementPanel.Content, 320f),
+			new MapEditorCard(_accordionInspector, _contentInspector, 300f),
+		};
+
 		private void ApplyAccordionStyles()
 		{
-			if (_accordionFile != null) _accordionFile.CustomMinimumSize = new Vector2(260, 0);
-			if (_viewportPanel.Accordion != null) _viewportPanel.Accordion.CustomMinimumSize = new Vector2(260, 0);
-			if (_toolPanel.Accordion != null) _toolPanel.Accordion.CustomMinimumSize = new Vector2(260, 0);
-			if (_brushPanel?.Accordion != null) _brushPanel.Accordion.CustomMinimumSize = new Vector2(260, 0);
-			if (_accordionToolSettings != null) _accordionToolSettings.CustomMinimumSize = new Vector2(260, 0);
-			if (_placementPanel?.Accordion != null) _placementPanel.Accordion.CustomMinimumSize = new Vector2(260, 0);
-			if (_accordionInspector != null) _accordionInspector.CustomMinimumSize = new Vector2(260, 0);
-			if (_waterPanel?.Accordion != null) _waterPanel.Accordion.CustomMinimumSize = new Vector2(260, 0);
-
-			ApplyCardPanelStyle(_accordionFile);
-			ApplyCardPanelStyle(_viewportPanel.Accordion);
-			ApplyCardPanelStyle(_toolPanel.Accordion);
-			ApplyCardPanelStyle(_brushPanel.Accordion);
-			if (_waterPanel?.Accordion != null) ApplyCardPanelStyle(_waterPanel.Accordion);
-			ApplyCardPanelStyle(_accordionToolSettings);
-			ApplyCardPanelStyle(_placementPanel.Accordion);
-			ApplyCardPanelStyle(_accordionInspector);
+			foreach (var card in Cards()) MapEditorCardTheme.StyleAccordion(card.Accordion);
 		}
 
 		private void ApplyContentBoxStyles()
 		{
-			StyleContentBox(_filePanel.Content);
-			StyleContentBox(_viewportPanel.Content);
-			StyleContentBox(_toolPanel.Content);
-			StyleContentBox(_brushPanel.Content);
-			if (_waterPanel?.Content != null) StyleContentBox(_waterPanel.Content);
-			StyleContentBox(_contentToolSettings);
-			StyleContentBox(_placementPanel.Content);
-			StyleContentBox(_contentInspector);
+			foreach (var card in Cards()) MapEditorCardTheme.StyleContent(card.Content);
 		}
 
 		private void ApplyScrollContainerStyles()
 		{
-			SetupCardScrollContainer(_filePanel.Content, 300f);
-			SetupCardScrollContainer(_viewportPanel.Content, 0f, false);
-			SetupCardScrollContainer(_toolPanel.Content, 320f);
-			SetupCardScrollContainer(_brushPanel.Content, 300f);
-			if (_waterPanel?.Content != null) SetupCardScrollContainer(_waterPanel.Content, 200f);
-			SetupCardScrollContainer(_contentToolSettings, 320f);
-			SetupCardScrollContainer(_placementPanel.Content, 320f);
-			SetupCardScrollContainer(_contentInspector, 300f);
+			foreach (var card in Cards()) MapEditorCardTheme.SetupScroll(card.Content, card.ScrollMaxHeight, card.AllowExpand);
 		}
 
 		private void ApplyActionButtonsStyles()
@@ -1197,152 +1183,9 @@ namespace Realm.Client.UI
 			StyleSubContainer(contentControl);
 		}
 
-		private void ApplyCardPanelStyle(Control? accordionNode)
-		{
-			if (accordionNode == null) return;
-
-			var cardStyle = new StyleBoxFlat();
-			cardStyle.BgColor = new Color(0.12f, 0.11f, 0.10f, 0.94f);
-			cardStyle.BorderColor = new Color(0.38f, 0.32f, 0.22f, 0.85f);
-			cardStyle.SetBorderWidthAll(1);
-			cardStyle.SetCornerRadiusAll(5);
-			cardStyle.ContentMarginLeft = 8;
-			cardStyle.ContentMarginRight = 8;
-			cardStyle.ContentMarginTop = 6;
-			cardStyle.ContentMarginBottom = 8;
-
-			Panel bgPanel = accordionNode.GetNodeOrNull<Panel>("CardBG");
-			if (bgPanel == null)
-			{
-				bgPanel = new Panel();
-				bgPanel.Name = "CardBG";
-				bgPanel.ShowBehindParent = true;
-				bgPanel.MouseFilter = MouseFilterEnum.Ignore;
-				bgPanel.SetAnchorsPreset(LayoutPreset.FullRect);
-				accordionNode.AddChild(bgPanel);
-				accordionNode.MoveChild(bgPanel, 0);
-			}
-
-			bgPanel.AddThemeStyleboxOverride("panel", cardStyle);
-		}
-
-		private void StyleContentBox(Control contentControl)
-		{
-			if (contentControl == null) return;
-
-			var contentStyle = new StyleBoxFlat();
-			contentStyle.BgColor = new Color(0.10f, 0.09f, 0.08f, 0.95f);
-			contentStyle.BorderColor = new Color(0.38f, 0.32f, 0.22f, 0.85f);
-			contentStyle.SetBorderWidthAll(1);
-			contentStyle.BorderWidthTop = 0;
-			contentStyle.CornerRadiusBottomLeft = 4;
-			contentStyle.CornerRadiusBottomRight = 4;
-			contentStyle.ContentMarginLeft = 6;
-			contentStyle.ContentMarginRight = 6;
-			contentStyle.ContentMarginTop = 6;
-			contentStyle.ContentMarginBottom = 8;
-
-			if (contentControl is PanelContainer pc)
-			{
-				pc.AddThemeStyleboxOverride("panel", contentStyle);
-			}
-			else if (contentControl is VBoxContainer vbox)
-			{
-				vbox.AddThemeConstantOverride("separation", 2);
-
-				Panel bgPanel = vbox.GetNodeOrNull<Panel>("ContentBG");
-				if (bgPanel == null)
-				{
-					bgPanel = new Panel();
-					bgPanel.Name = "ContentBG";
-					bgPanel.ShowBehindParent = true;
-					bgPanel.MouseFilter = MouseFilterEnum.Ignore;
-					bgPanel.SetAnchorsPreset(LayoutPreset.FullRect);
-					vbox.AddChild(bgPanel);
-					vbox.MoveChild(bgPanel, 0);
-				}
-
-				bgPanel.AddThemeStyleboxOverride("panel", contentStyle);
-			}
-		}
-
 		private void StyleRowButton(Button btn) => MapEditorStyle.RowButton(btn);
+
 		private Control? GetContentTarget(Control? contentControl) => MapEditorStyle.ContentTarget(contentControl);
-
-		private void SetupCardScrollContainer(Control contentControl, float maxHeight = 300f, bool allowExpandBtn = true)
-		{
-			if (contentControl == null) return;
-
-			contentControl.CustomMinimumSize = new Vector2(245, 0);
-
-			ScrollContainer scroll = contentControl.GetNodeOrNull<ScrollContainer>("CardScroll");
-			if (scroll == null)
-			{
-				scroll = CreateCardScrollContainer(allowExpandBtn);
-				PopulateCardScrollContainer(contentControl, scroll);
-				contentControl.AddChild(scroll);
-			}
-
-			var targetInner = scroll.GetNodeOrNull<VBoxContainer>("InnerVBox");
-			if (targetInner != null)
-			{
-				targetInner.ForceUpdateTransform();
-				float minH = targetInner.GetCombinedMinimumSize().Y;
-				Button expandBtn = contentControl.GetNodeOrNull<Button>("BtnExpandHeight");
-
-				if (!allowExpandBtn)
-				{
-					DisableScrollContainerExpansion(scroll, expandBtn);
-					return;
-				}
-
-				if (minH > maxHeight)
-				{
-					scroll.CustomMinimumSize = new Vector2(245, maxHeight);
-					if (expandBtn != null) expandBtn.Visible = true;
-				}
-				else
-				{
-					scroll.CustomMinimumSize = new Vector2(245, minH);
-					if (expandBtn != null) expandBtn.Visible = false;
-				}
-			}
-		}
-
-		private ScrollContainer CreateCardScrollContainer(bool allowExpandBtn)
-		{
-			var scroll = new ScrollContainer();
-			scroll.Name = "CardScroll";
-			scroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
-			scroll.VerticalScrollMode = allowExpandBtn ? ScrollContainer.ScrollMode.Auto : ScrollContainer.ScrollMode.Disabled;
-			scroll.CustomMinimumSize = new Vector2(245, 0);
-			return scroll;
-		}
-
-		private void PopulateCardScrollContainer(Control contentControl, ScrollContainer scroll)
-		{
-			var innerVBox = new VBoxContainer();
-			innerVBox.Name = "InnerVBox";
-			innerVBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-			innerVBox.AddThemeConstantOverride("separation", 2);
-
-			var children = new Array<Node>(contentControl.GetChildren());
-			foreach (Node child in children)
-			{
-				if (child is Panel && child.Name == "ContentBG") continue;
-				contentControl.RemoveChild(child);
-				innerVBox.AddChild(child);
-			}
-
-			scroll.AddChild(innerVBox);
-		}
-
-		private void DisableScrollContainerExpansion(ScrollContainer scroll, Button expandBtn)
-		{
-			if (expandBtn != null) expandBtn.Visible = false;
-			scroll.VerticalScrollMode = ScrollContainer.ScrollMode.Disabled;
-			scroll.CustomMinimumSize = new Vector2(245, 0);
-		}
 
 		private void StyleSubContainer(Control boxNode, string? headerText = null) => MapEditorStyle.SubContainer(boxNode, headerText);
 
