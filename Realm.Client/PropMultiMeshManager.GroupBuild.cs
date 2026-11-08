@@ -22,7 +22,7 @@ public partial class PropMultiMeshManager : Node3D
 {
 	private PropModelGroup? CreateGroupForAsset(string normAssetKey)
 	{
-		string modelPath = ResolveModelPathForAssetKey(normAssetKey);
+		string modelPath = PropModelPathResolver.ResolveRegistered(normAssetKey);
 		if (string.IsNullOrEmpty(modelPath)) return null;
 		Node? prototype = ModelCache.GetModel(modelPath);
 		if (prototype == null) return null;

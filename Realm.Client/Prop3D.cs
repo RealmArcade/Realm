@@ -93,7 +93,7 @@ public partial class Prop3D : Node3D
 		{
 			if (_cachedResolvedModelPath == null)
 			{
-				_cachedResolvedModelPath = ResolvePropModelPath(PropId);
+				_cachedResolvedModelPath = PropModelPathResolver.Resolve(PropId);
 			}
 
 			return _cachedResolvedModelPath;
@@ -395,7 +395,7 @@ public partial class Prop3D : Node3D
 
 	private void CreatePropVisual()
 	{
-		string modelPath = ResolvePropModelPath(PropId);
+		string modelPath = PropModelPathResolver.Resolve(PropId);
 
 		if (IsPreview || GameContext.SessionState.IsMapEditorMode == true)
 		{
@@ -499,84 +499,13 @@ public partial class Prop3D : Node3D
 		}
 	}
 
-	private static readonly Dictionary<string, string> _resolvedModelPathCache = new(StringComparer.OrdinalIgnoreCase);
-
-	protected string ResolvePropModelPath(string propId)
-	{
-		if (string.IsNullOrEmpty(propId))
-			return string.Empty;
-
-		if (_resolvedModelPathCache.TryGetValue(propId, out var cachedPath))
-			return cachedPath;
-
-		string resolved = ResolvePropModelPathInternal(propId);
-		_resolvedModelPathCache[propId] = resolved;
-		return resolved;
-	}
-
-	public static void InvalidateModelPathCache(string propId)
-	{
-		if (string.IsNullOrEmpty(propId)) return;
-		_resolvedModelPathCache.Remove(propId);
-	}
+	public static void InvalidateModelPathCache(string propId) => PropModelPathResolver.Invalidate(propId);
 
 	public static void ClearModelPathCache()
 	{
-		_resolvedModelPathCache.Clear();
+		PropModelPathResolver.Clear();
 		Realm.Client.Utils.VisualSelectionHelper.ClearCache();
 	}
 
 	public static void ClearCache() => ClearModelPathCache();
-
-	private string ResolvePropModelPathInternal(string propId)
-	{
-		if (string.IsNullOrEmpty(propId))
-			return string.Empty;
-
-		string cleanId = Path.GetFileNameWithoutExtension(propId);
-		string targetModel = TryGetModelPathFromRegistries(propId, cleanId) ?? propId;
-
-		if (string.IsNullOrEmpty(targetModel))
-			return string.Empty;
-
-		string? resolvedPath = ModelCache.ResolveModelPath(targetModel);
-		if (!string.IsNullOrEmpty(resolvedPath) && (resolvedPath.StartsWith("res://") || File.Exists(resolvedPath)))
-		{
-			return resolvedPath;
-		}
-
-		return targetModel;
-	}
-
-	private string? TryGetModelPathFromRegistries(string propId, string cleanId)
-	{
-		return TryGetModelPath(GameHost.PropRegistry, propId, cleanId)
-		       ?? TryGetModelPath(GameHost.ResourceRegistry, propId, cleanId)
-		       ?? TryGetModelPath(GameHost.UnitRegistry, propId, cleanId)
-		       ?? TryGetModelPath(GameHost.BuildingRegistry, propId, cleanId);
-	}
-
-	private string? TryGetModelPath(Dictionary<StringName, PropMetadata> registry, string propId, string cleanId)
-	{
-		if (registry == null) return null;
-		if (registry.TryGetValue(propId, out var meta) && !string.IsNullOrEmpty(meta.ModelPath)) return meta.ModelPath;
-		if (!string.IsNullOrEmpty(cleanId) && registry.TryGetValue(cleanId, out meta) && !string.IsNullOrEmpty(meta.ModelPath)) return meta.ModelPath;
-		return null;
-	}
-
-	private string? TryGetModelPath(Dictionary<StringName, ResourceMetadata> registry, string propId, string cleanId)
-	{
-		if (registry == null) return null;
-		if (registry.TryGetValue(propId, out var meta) && !string.IsNullOrEmpty(meta.ModelPath)) return meta.ModelPath;
-		if (!string.IsNullOrEmpty(cleanId) && registry.TryGetValue(cleanId, out meta) && !string.IsNullOrEmpty(meta.ModelPath)) return meta.ModelPath;
-		return null;
-	}
-
-	private string? TryGetModelPath(Dictionary<StringName, UnitMetadata> registry, string propId, string cleanId)
-	{
-		if (registry == null) return null;
-		if (registry.TryGetValue(propId, out var meta) && !string.IsNullOrEmpty(meta.ModelPath)) return meta.ModelPath;
-		if (!string.IsNullOrEmpty(cleanId) && registry.TryGetValue(cleanId, out meta) && !string.IsNullOrEmpty(meta.ModelPath)) return meta.ModelPath;
-		return null;
-	}
 }
