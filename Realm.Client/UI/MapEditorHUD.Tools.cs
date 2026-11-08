@@ -1826,33 +1826,8 @@ namespace Realm.Client.UI
 		}
 
 		private void SetupMirrorDropdown(OptionButton opt, string tooltip = "")
-		{
-			if (opt == null) return;
-			opt.Clear();
-			opt.Set("icon_max_width", 0);
-			opt.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-			opt.ClipText = true;
-
-			int folds = GameContext.Host != null ? GameContext.Host.EditorSymmetryFolds : 4;
-			opt.AddItem(TranslationServer.Translate($"{UnicodeIcons.BAN} SYMMETRY: NONE"), (int)MirrorMode.None);
-			opt.AddItem(TranslationServer.Translate($"{UnicodeIcons.ARROWS_V} MIRROR: VERTICAL"), (int)MirrorMode.Vertical);
-			opt.AddItem(TranslationServer.Translate($"{UnicodeIcons.ARROWS_H} MIRROR: HORIZONTAL"), (int)MirrorMode.Horizontal);
-			opt.AddItem(TranslationServer.Translate($"{UnicodeIcons.GRID_QUAD} MIRROR: QUAD"), (int)MirrorMode.Both);
-			opt.AddItem($"{UnicodeIcons.ROTATE} " + string.Format(TranslationServer.Translate("ROTATIONAL ({0}-FOLD)"), folds), (int)MirrorMode.Rotational);
-
-			if (!string.IsNullOrEmpty(tooltip))
-			{
-				opt.TooltipText = tooltip;
-			}
-
-			StyleOptionButtonPopup(opt);
-
-			opt.ItemSelected += (long idx) =>
-			{
-				int modeId = opt.GetItemId((int)idx);
-				SetMirrorMode((MirrorMode)modeId);
-			};
-		}
+			=> SymmetryDropdowns.Populate(opt, GameContext.Host?.EditorSymmetryFolds ?? 4, SetMirrorMode,
+				GetFontAwesomeFont(), tooltip);
 
 		private void SetMirrorMode(MirrorMode mode)
 		{
@@ -1883,32 +1858,7 @@ namespace Realm.Client.UI
 		}
 
 		private void UpdateSingleMirrorDropdown(OptionButton opt, MirrorMode mode, int folds)
-		{
-			if (opt == null) return;
-
-			string rotText = $"{UnicodeIcons.ROTATE} " + string.Format(TranslationServer.Translate("ROTATIONAL ({0}-FOLD)"), folds);
-			for (int i = 0; i < opt.ItemCount; i++)
-			{
-				if (opt.GetItemId(i) == (int)MirrorMode.Rotational)
-				{
-					opt.SetItemText(i, rotText);
-					break;
-				}
-			}
-
-			for (int i = 0; i < opt.ItemCount; i++)
-			{
-				if (opt.GetItemId(i) == (int)mode)
-				{
-					if (opt.Selected != i)
-					{
-						opt.Selected = i;
-					}
-
-					break;
-				}
-			}
-		}
+			=> SymmetryDropdowns.Refresh(opt, mode, folds);
 
 		private void SetSymmetrySpokes(int spokes)
 		{
