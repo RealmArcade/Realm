@@ -85,78 +85,26 @@ public partial class VisualProjectile3D : Node3D
 		return currentTarget;
 	}
 
-	private bool ProcessLinearTrajectory(float currentSpeed, float dt, float rawT)
-	{
-		_currentFlightPosition += _currentFlightDirection * (currentSpeed * dt);
-		return rawT >= 1.0f;
-	}
-
-	private bool ProcessBoomerangTrajectory(Vector3 currentTarget)
-	{
-		float delay = _weapon.BoomerangReturnDelay >= 0.0f ? _weapon.BoomerangReturnDelay : 0.2f;
-		float outboundDuration = _totalFlightDuration;
-		float returnDuration = _totalFlightDuration;
-
-		if (_elapsedTime <= outboundDuration)
-		{
-			float bOutT = Mathf.Clamp(_elapsedTime / outboundDuration, 0.0f, 1.0f);
-			_currentFlightPosition = _startPosition.Lerp(currentTarget, ProjectileFlightMath.Ease(bOutT, _easeCurve));
-			return false;
-		}
-
-		if (_elapsedTime <= outboundDuration + delay)
-		{
-			_currentFlightPosition = currentTarget;
-			return false;
-		}
-
-		if (_elapsedTime <= outboundDuration + delay + returnDuration)
-		{
-			float bRetT = Mathf.Clamp((_elapsedTime - outboundDuration - delay) / returnDuration, 0.0f, 1.0f);
-			_currentFlightPosition = currentTarget.Lerp(_startPosition, ProjectileFlightMath.Ease(bRetT, _easeCurve));
-			return false;
-		}
-
-		return true;
-	}
-
-	private bool ProcessHomingOrParabolicTrajectory(Vector3 currentTarget, float currentSpeed, float dt, float rawT)
-	{
-		float easedT = ProjectileFlightMath.Ease(rawT, _easeCurve);
-
-		if (_weapon.TurnRateLimit > 0.0f && _weapon.HomingWeight > 0.0f)
-		{
-			Vector3 toCurrentTarget = currentTarget - _currentFlightPosition;
-			float distToTarget = toCurrentTarget.Length();
-			if (distToTarget > 0.001f)
-			{
-				Vector3 desiredDir = toCurrentTarget / distToTarget;
-				float maxTurnRadians = Mathf.DegToRad(_weapon.TurnRateLimit) * dt * _weapon.HomingWeight;
-				float angleBetween = _currentFlightDirection.AngleTo(desiredDir);
-				if (angleBetween > 0.0001f)
-				{
-					float step = Mathf.Min(1.0f, maxTurnRadians / angleBetween);
-					_currentFlightDirection = _currentFlightDirection.Slerp(desiredDir, step).Normalized();
-				}
-			}
-
-			_currentFlightPosition += _currentFlightDirection * (currentSpeed * dt);
-			return distToTarget <= Mathf.Max(0.5f, currentSpeed * dt * 1.5f) || rawT >= 1.0f;
-		}
-
-		Vector3 effectiveTarget = _initialTargetPosition.Lerp(currentTarget, Mathf.Clamp(_weapon.HomingWeight * easedT, 0.0f, 1.0f));
-		_currentFlightPosition = _startPosition.Lerp(effectiveTarget, easedT);
-		return rawT >= 1.0f;
-	}
-
 	private bool UpdateFlightTrajectory(ProjectileTrajectoryType trajType, Vector3 currentTarget, float currentSpeed, float dt, float rawT)
 	{
-		return trajType switch
+		System.Numerics.Vector3 position = ToEcsVector(_currentFlightPosition);
+		System.Numerics.Vector3 direction = ToEcsVector(_currentFlightDirection);
+
+		bool finished = trajType switch
 		{
-			ProjectileTrajectoryType.Linear => ProcessLinearTrajectory(currentSpeed, dt, rawT),
-			ProjectileTrajectoryType.Boomerang => ProcessBoomerangTrajectory(currentTarget),
-			_ => ProcessHomingOrParabolicTrajectory(currentTarget, currentSpeed, dt, rawT),
+			ProjectileTrajectoryType.Linear => ProjectileTrajectorySolver.StepLinear(direction, currentSpeed, dt, rawT, ref position),
+			ProjectileTrajectoryType.Boomerang => ProjectileTrajectorySolver.StepBoomerang(
+				_elapsedTime, _totalFlightDuration, _weapon.BoomerangReturnDelay, _easeCurve,
+				ToEcsVector(_startPosition), ToEcsVector(currentTarget), ref position),
+			_ => ProjectileTrajectorySolver.StepHomingOrParabolic(
+				ToEcsVector(_startPosition), ToEcsVector(_initialTargetPosition), ToEcsVector(currentTarget),
+				currentSpeed, dt, rawT, _weapon.TurnRateLimit, _weapon.HomingWeight, _easeCurve,
+				ref position, ref direction),
 		};
+
+		_currentFlightPosition = ToGodotVector(position);
+		_currentFlightDirection = ToGodotVector(direction);
+		return finished;
 	}
 
 	private void UpdateVisualTransforms(Vector3 nextPos, float dt, float rawT)
