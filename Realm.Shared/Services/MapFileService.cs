@@ -121,7 +121,7 @@ public static class MapFileService
 		return JsonSerializer.Serialize(manifest, ManifestJsonOptions);
 	}
 
-	public static MapMetadata LoadMetadata(string pathOrDirectory)
+	public static MapMetadata LoadMetadata(string? pathOrDirectory)
 	{
 		string targetPath = ResolvePath(pathOrDirectory, "metadata.json");
 		if (!File.Exists(targetPath))

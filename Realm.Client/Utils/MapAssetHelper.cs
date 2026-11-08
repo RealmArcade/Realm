@@ -324,7 +324,7 @@ public static class MapAssetHelper
 	}
 
 	public static void RemoveManifestAsset(
-		string mapDirectory,
+		string? mapDirectory,
 		string category,
 		string fileName)
 	{

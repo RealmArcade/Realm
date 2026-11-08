@@ -10,7 +10,7 @@ namespace Realm.Client.Utils;
 public static class SpawnDeathShaderManager
 {
 	private const string ShaderPath = "res://Assets/shaders/universal_dissolve_spatial.gdshader";
-	private static Shader _shader = null!;
+	private static Shader? _shader;
 	private static readonly Dictionary<string, Dictionary<string, CustomShaderConfig>> _cachedWorkspaceShaders = new(StringComparer.OrdinalIgnoreCase);
 	private static readonly StringName _paramProgress = new("progress");
 	private static readonly StringName _paramTransitionMode = new("transition_mode");
@@ -27,7 +27,7 @@ public static class SpawnDeathShaderManager
 	private static readonly StringName _paramModelBoundsMin = new("model_bounds_min");
 	private static readonly StringName _paramModelBoundsMax = new("model_bounds_max");
 
-	public static Shader GetOrCreateShader()
+	public static Shader? GetOrCreateShader()
 	{
 		if (_shader != null && GodotObject.IsInstanceValid(_shader))
 		{
@@ -44,7 +44,7 @@ public static class SpawnDeathShaderManager
 		_cachedWorkspaceShaders.Clear();
 	}
 
-	public static Dictionary<string, CustomShaderConfig> LoadAllCustomShaders(string workspacePath = null)
+	public static Dictionary<string, CustomShaderConfig> LoadAllCustomShaders(string? workspacePath = null)
 	{
 		string wsPath = !string.IsNullOrEmpty(workspacePath)
 			? workspacePath
@@ -99,7 +99,7 @@ public static class SpawnDeathShaderManager
 		return result;
 	}
 
-	public static CustomShaderConfig GetShaderConfig(string shaderKey, string workspacePath = null)
+	public static CustomShaderConfig? GetShaderConfig(string shaderKey, string? workspacePath = null)
 	{
 		if (string.IsNullOrEmpty(shaderKey)) return null;
 		var all = LoadAllCustomShaders(workspacePath);
@@ -117,7 +117,7 @@ public static class SpawnDeathShaderManager
 		return null;
 	}
 
-	public static void SaveCustomShader(CustomShaderConfig config, string workspacePath = null)
+	public static void SaveCustomShader(CustomShaderConfig config, string? workspacePath = null)
 	{
 		if (config == null || string.IsNullOrWhiteSpace(config.Key)) return;
 
@@ -149,7 +149,7 @@ public static class SpawnDeathShaderManager
 		});
 	}
 
-	public static void DeleteCustomShader(string shaderKey, string workspacePath = null)
+	public static void DeleteCustomShader(string shaderKey, string? workspacePath = null)
 	{
 		if (string.IsNullOrWhiteSpace(shaderKey)) return;
 
@@ -169,7 +169,7 @@ public static class SpawnDeathShaderManager
 		}
 	}
 
-	public static ShaderMaterial CreateShaderMaterial(CustomShaderConfig config, Aabb aabb, Texture2D albedoTex = null)
+	public static ShaderMaterial CreateShaderMaterial(CustomShaderConfig? config, Aabb aabb, Texture2D? albedoTex = null)
 	{
 		var shader = GetOrCreateShader();
 		var mat = new ShaderMaterial();
@@ -243,7 +243,7 @@ public static class SpawnDeathShaderManager
 		return combined;
 	}
 
-	private static Texture2D GetAlbedoTexture(MeshInstance3D mesh)
+	private static Texture2D? GetAlbedoTexture(MeshInstance3D mesh)
 	{
 		var activeMat = mesh.GetActiveMaterial(0);
 		if (activeMat is StandardMaterial3D stdMat) return stdMat.AlbedoTexture;
@@ -261,16 +261,16 @@ public static class SpawnDeathShaderManager
 		return null;
 	}
 
-	private static void ApplyShaderToMeshNode(Node node, CustomShaderConfig config, Aabb aabb, float progress, Shader shader, List<ShaderMaterial> collectedMaterials = null)
+	private static void ApplyShaderToMeshNode(Node node, CustomShaderConfig? config, Aabb aabb, float progress, Shader shader, List<ShaderMaterial>? collectedMaterials = null)
 	{
 		if (IsExcludedMesh(node)) return;
 
 		if (node is MeshInstance3D mesh)
 		{
-			ShaderMaterial mat = mesh.MaterialOverride as ShaderMaterial;
+			ShaderMaterial? mat = mesh.MaterialOverride as ShaderMaterial;
 			if (mat == null || mat.Shader != shader)
 			{
-				Texture2D albedo = GetAlbedoTexture(mesh);
+				Texture2D? albedo = GetAlbedoTexture(mesh);
 				mat = CreateShaderMaterial(config, aabb, albedo);
 				mesh.MaterialOverride = mat;
 			}
@@ -292,8 +292,10 @@ public static class SpawnDeathShaderManager
 		}
 	}
 
-	private static void SetShaderParameters(ShaderMaterial mat, CustomShaderConfig config)
+	private static void SetShaderParameters(ShaderMaterial mat, CustomShaderConfig? config)
 	{
+		if (config == null) return;
+
 		mat.SetShaderParameter(_paramTransitionMode, config.TransitionMode);
 		mat.SetShaderParameter(_paramDirection, config.Direction);
 		mat.SetShaderParameter(_paramEdgeColor, config.EdgeColor);
@@ -311,7 +313,7 @@ public static class SpawnDeathShaderManager
 		if (targetNode == null || !GodotObject.IsInstanceValid(targetNode)) return;
 
 		var aabb = CalculateNodeAabb(targetNode);
-		var shader = GetOrCreateShader();
+		if (GetOrCreateShader() is not { } shader) return;
 
 		ApplyShaderToMeshNode(targetNode, config, aabb, progress, shader);
 	}
@@ -354,7 +356,7 @@ public static class SpawnDeathShaderManager
 		};
 	}
 
-	public static void AnimateTransition(Node3D targetNode, string shaderKey, bool isSpawn, float? durationOverride = null, Action onComplete = null)
+	public static void AnimateTransition(Node3D targetNode, string shaderKey, bool isSpawn, float? durationOverride = null, Action? onComplete = null)
 	{
 		if (!IsValidForTransition(targetNode))
 		{
@@ -373,7 +375,12 @@ public static class SpawnDeathShaderManager
 		float endProgress = isSpawn ? 1.0f : 0.0f;
 
 		var aabb = CalculateNodeAabb(targetNode);
-		var shader = GetOrCreateShader();
+		if (GetOrCreateShader() is not { } shader)
+		{
+			onComplete?.Invoke();
+			return;
+		}
+
 		var materials = new List<ShaderMaterial>(4);
 		ApplyShaderToMeshNode(targetNode, config, aabb, startProgress, shader, materials);
 
@@ -406,7 +413,7 @@ public static class SpawnDeathShaderManager
 		}
 	}
 
-	private static void CompleteTransition(Node3D targetNode, bool isSpawn, Action onComplete)
+	private static void CompleteTransition(Node3D targetNode, bool isSpawn, Action? onComplete)
 	{
 		if (GodotObject.IsInstanceValid(targetNode))
 		{
