@@ -147,7 +147,7 @@ public static class ColdPayloadCodecs
 	{
 		if (world == null || worldEntity == Entity.Null || !world.IsAlive(worldEntity)) return;
 
-		var snapshot = MemoryPackSerializer.Deserialize<LeaderboardBoardsSnapshot>(bytes.ToArray());
+		var snapshot = MemoryPackSerializer.Deserialize<LeaderboardBoardsSnapshot>(bytes.ToArray())!;
 		var boards = new LeaderboardBoards();
 		for (int boardIndex = 0; boardIndex < snapshot.Boards.Length; boardIndex++)
 		{
@@ -202,7 +202,7 @@ public static class ColdPayloadCodecs
 	{
 		if (world == null || worldEntity == Entity.Null || !world.IsAlive(worldEntity)) return;
 
-		var snapshot = MemoryPackSerializer.Deserialize<SummaryTableSnapshot>(bytes.ToArray());
+		var snapshot = MemoryPackSerializer.Deserialize<SummaryTableSnapshot>(bytes.ToArray())!;
 		var rows = new Dictionary<string, string[]>(snapshot.RowKeys.Length, StringComparer.Ordinal);
 		for (int index = 0; index < snapshot.RowKeys.Length; index++)
 		{
