@@ -1,5 +1,6 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using Godot;
 using Realm.Client.Core;
@@ -31,7 +32,7 @@ public class MapEditorEntityPaletteController
 		if (file.StartsWith("vfx:", StringComparison.OrdinalIgnoreCase))
 		{
 			string sub = file.Substring(4);
-			if (TryGetVfxName(sub, out string subName))
+			if (TryGetVfxName(sub, out string? subName))
 			{
 				return "✨ " + subName;
 			}
@@ -39,22 +40,22 @@ public class MapEditorEntityPaletteController
 			return "✨ " + sub;
 		}
 
-		if (TryGetVfxName(file, out string vfxName))
+		if (TryGetVfxName(file, out string? vfxName))
 		{
 			return "✨ " + vfxName;
 		}
 
-		if (TryGetUnitName(file, out string unitName))
+		if (TryGetUnitName(file, out string? unitName))
 		{
 			return unitName;
 		}
 
-		if (TryGetPropName(file, out string propName))
+		if (TryGetPropName(file, out string? propName))
 		{
 			return propName;
 		}
 
-		if (TryGetResourceName(file, out string resourceName))
+		if (TryGetResourceName(file, out string? resourceName))
 		{
 			return resourceName;
 		}
@@ -62,7 +63,7 @@ public class MapEditorEntityPaletteController
 		return Path.GetFileNameWithoutExtension(file).Replace("_", " ");
 	}
 
-	private bool TryGetVfxName(string key, out string name)
+	private bool TryGetVfxName(string key, [NotNullWhen(true)] out string? name)
 	{
 		name = null;
 		if (GameContext.RegistryService.VfxRegistry == null)
@@ -82,7 +83,7 @@ public class MapEditorEntityPaletteController
 		return false;
 	}
 
-	private bool TryGetUnitName(string key, out string name)
+	private bool TryGetUnitName(string key, [NotNullWhen(true)] out string? name)
 	{
 		name = null;
 		if (GameHost.UnitRegistry == null)
@@ -102,7 +103,7 @@ public class MapEditorEntityPaletteController
 		return false;
 	}
 
-	private bool TryGetPropName(string key, out string name)
+	private bool TryGetPropName(string key, [NotNullWhen(true)] out string? name)
 	{
 		name = null;
 		if (GameHost.PropRegistry == null)
@@ -122,7 +123,7 @@ public class MapEditorEntityPaletteController
 		return false;
 	}
 
-	private bool TryGetResourceName(string key, out string name)
+	private bool TryGetResourceName(string key, [NotNullWhen(true)] out string? name)
 	{
 		name = null;
 		if (GameHost.ResourceRegistry == null)
@@ -229,7 +230,7 @@ public class MapEditorEntityPaletteController
 		_currentCategory = category;
 		UpdateCategoryButtonsStyle(category);
 
-		string previousSelectedId = GetPreviousSelectedId();
+		string? previousSelectedId = GetPreviousSelectedId();
 
 		_categoryFiles.Clear();
 		_idToDisplayName.Clear();
@@ -287,7 +288,7 @@ public class MapEditorEntityPaletteController
 		else _btnVfx.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
 	}
 
-	private string GetPreviousSelectedId()
+	private string? GetPreviousSelectedId()
 	{
 		if (_optCategoryItems != null && _optCategoryItems.Selected >= 0 && _optCategoryItems.Selected < _categoryFiles.Count)
 		{
@@ -297,7 +298,7 @@ public class MapEditorEntityPaletteController
 		return null;
 	}
 
-	private void RestorePreviousSelection(string previousSelectedId)
+	private void RestorePreviousSelection(string? previousSelectedId)
 	{
 		if (_optCategoryItems.ItemCount == 0)
 		{
@@ -356,7 +357,7 @@ public class MapEditorEntityPaletteController
 		}
 	}
 
-	private void AddCategoryItem(string id, string displayName)
+	private void AddCategoryItem(string id, string? displayName)
 	{
 		var (prefix, slug) = TemplateIDHelper.ParseTemplateID(id);
 
@@ -379,7 +380,7 @@ public class MapEditorEntityPaletteController
 		{
 			if (string.IsNullOrEmpty(vObj.VfxId)) continue;
 
-			string name = string.IsNullOrEmpty(vObj.Name) ? null : "✨ " + vObj.Name;
+			string? name = string.IsNullOrEmpty(vObj.Name) ? null : "✨ " + vObj.Name;
 			AddCategoryItem(vObj.VfxId, name);
 		}
 	}
