@@ -852,7 +852,7 @@ public partial class MapEditorHUD : Control
 	}
 
 
-	private ColorRect? _helpOverlayPanel { get; set; }
+	private ColorRect? _helpOverlayPanel => _helpPanel?.Panel;
 
 
 	private void UpdatePanelVisibilityForModule(EditorModule module)
