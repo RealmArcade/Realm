@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using Realm.Ecs;
@@ -350,9 +350,10 @@ public class EnvironmentService
 	public string GetCurrentWeather()
 	{
 		var worldEntity = FindWorldEntity();
-		if (worldEntity != Entity.Null && GameContext.World.IsAlive(worldEntity) && GameContext.World.Has<WeatherState>(worldEntity))
+		if (GameContext.World is { } world && worldEntity != Entity.Null
+		                              && world.IsAlive(worldEntity) && world.Has<WeatherState>(worldEntity))
 		{
-			return GameContext.World.Get<WeatherState>(worldEntity).CurrentWeather;
+			return world.Get<WeatherState>(worldEntity).CurrentWeather;
 		}
 
 		return "clear";
@@ -361,9 +362,10 @@ public class EnvironmentService
 	public void SetCurrentWeather(string weather)
 	{
 		var worldEntity = FindWorldEntity();
-		if (worldEntity != Entity.Null && GameContext.World.IsAlive(worldEntity) && GameContext.World.Has<WeatherState>(worldEntity))
+		if (GameContext.World is { } world && worldEntity != Entity.Null
+		                              && world.IsAlive(worldEntity) && world.Has<WeatherState>(worldEntity))
 		{
-			ref var state = ref GameContext.World.Get<WeatherState>(worldEntity);
+			ref var state = ref world.Get<WeatherState>(worldEntity);
 			state.CurrentWeather = weather;
 		}
 	}
@@ -371,9 +373,10 @@ public class EnvironmentService
 	public float GetBaseFogDensity()
 	{
 		var worldEntity = FindWorldEntity();
-		if (worldEntity != Entity.Null && GameContext.World.IsAlive(worldEntity) && GameContext.World.Has<WeatherState>(worldEntity))
+		if (GameContext.World is { } world && worldEntity != Entity.Null
+		                              && world.IsAlive(worldEntity) && world.Has<WeatherState>(worldEntity))
 		{
-			return GameContext.World.Get<WeatherState>(worldEntity).BaseFogDensity;
+			return world.Get<WeatherState>(worldEntity).BaseFogDensity;
 		}
 
 		return 0f;
@@ -382,9 +385,10 @@ public class EnvironmentService
 	public void SetBaseFogDensity(float density)
 	{
 		var worldEntity = FindWorldEntity();
-		if (worldEntity != Entity.Null && GameContext.World.IsAlive(worldEntity) && GameContext.World.Has<WeatherState>(worldEntity))
+		if (GameContext.World is { } world && worldEntity != Entity.Null
+		                              && world.IsAlive(worldEntity) && world.Has<WeatherState>(worldEntity))
 		{
-			ref var state = ref GameContext.World.Get<WeatherState>(worldEntity);
+			ref var state = ref world.Get<WeatherState>(worldEntity);
 			state.BaseFogDensity = density;
 		}
 	}
@@ -433,13 +437,12 @@ public class EnvironmentService
 
 	private float CalculateFogDensity(Camera3D camera3D, float baseFogDensity)
 	{
-		bool isValidCamera = camera3D != null && GodotObject.IsInstanceValid(camera3D);
-		if (!isValidCamera || baseFogDensity <= 0f)
+		if (camera3D is not { } camera || !GodotObject.IsInstanceValid(camera) || baseFogDensity <= 0f)
 		{
 			return _currentState.FogDensity;
 		}
 
-		float height = camera3D.GlobalPosition.Y;
+		float height = camera.GlobalPosition.Y;
 		float scale = 18.0f / Mathf.Max(8.0f, height);
 		float scaledDensity = baseFogDensity * scale;
 
@@ -459,7 +462,7 @@ public class EnvironmentService
 			return;
 		}
 
-		Node3D host = GetEnvironmentHost();
+		Node3D? host = GetEnvironmentHost();
 		if (host == null) return;
 
 		weatherType = (weatherType ?? "clear").Trim().ToLowerInvariant();
@@ -517,7 +520,7 @@ public class EnvironmentService
 		if (_activeParticleDensity != newCount)
 		{
 			_activeParticleDensity = newCount;
-			_weatherParticles.Amount = Mathf.Clamp(newCount, 10, 5000);
+			if (_weatherParticles is { } particles) particles.Amount = Mathf.Clamp(newCount, 10, 5000);
 		}
 
 		UpdateWeatherParticlePosition(GameContext.Host?.MainCamera);
@@ -862,7 +865,7 @@ public class EnvironmentService
 
 	public (int TimeOfDayIndex, float TimeOfDayTimer) SetTimeOfDay(Entity worldEntity, int timeOfDayIndex, float cycleDuration)
 	{
-		if (!GameContext.World.IsAlive(worldEntity) || !GameContext.World.Has<WorldState>(worldEntity))
+		if (GameContext.World is not { } world || !world.IsAlive(worldEntity) || !world.Has<WorldState>(worldEntity))
 		{
 			return (0, 0f);
 		}
@@ -882,7 +885,7 @@ public class EnvironmentService
 
 	public (int TimeOfDayIndex, float TimeOfDayTimer) CycleTimeOfDay(Entity worldEntity, float cycleDuration)
 	{
-		if (!GameContext.World.IsAlive(worldEntity) || !GameContext.World.Has<WorldState>(worldEntity))
+		if (GameContext.World is not { } world || !world.IsAlive(worldEntity) || !world.Has<WorldState>(worldEntity))
 		{
 			return (0, 0f);
 		}
