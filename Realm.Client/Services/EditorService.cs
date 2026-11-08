@@ -1093,92 +1093,25 @@ public partial class EditorService : IEditorAPI
 		}
 
 		ref var terrain = ref World.Get<TerrainState>(terrainEntity);
-		var cells = terrain.Cells;
-		if (cells == null) return 0.0f;
-
-		int cellW = cells.GetLength(0);
-		int cellD = cells.GetLength(1);
-		if (cellW <= 0 || cellD <= 0) return 0.0f;
-
-		int width = terrain.Width;
-		int depth = terrain.Depth;
-		float quadSize = terrain.QuadSize;
-
-		float fx = worldPos.X / quadSize + width / 2.0f;
-		float fz = worldPos.Z / quadSize + depth / 2.0f;
-
-		int x = Math.Clamp((int)Math.Floor(fx), 0, cellW - 1);
-		int z = Math.Clamp((int)Math.Floor(fz), 0, cellD - 1);
-		float tx = Math.Clamp(fx - x, 0f, 1f);
-		float tz = Math.Clamp(fz - z, 0f, 1f);
-
-		var cell = cells[x, z];
-		float hNW = cell.Y_NW;
-		float hNE = cell.Y_NE;
-		float hSW = cell.Y_SW;
-		float hSE = cell.Y_SE;
-
-		return (1 - tx) * (1 - tz) * hNW + tx * (1 - tz) * hNE + (1 - tx) * tz * hSW + tx * tz * hSE;
+		return EditorTerrainQueries.GetHeightAt(in terrain, worldPos);
 	}
 
 	public WaterType GetWaterModeAt(Godot.Vector3 worldPos)
 	{
 		ref var terrain = ref GetTerrainState();
-		var cells = terrain.Cells;
-		if (cells == null) return WaterType.None;
-
-		int cellW = cells.GetLength(0);
-		int cellD = cells.GetLength(1);
-		if (cellW <= 0 || cellD <= 0) return WaterType.None;
-
-		int width = terrain.Width;
-		int depth = terrain.Depth;
-		float quadSize = terrain.QuadSize;
-
-		int x = Math.Clamp((int)Math.Floor(worldPos.X / quadSize + width / 2.0f), 0, cellW - 1);
-		int z = Math.Clamp((int)Math.Floor(worldPos.Z / quadSize + depth / 2.0f), 0, cellD - 1);
-
-		return cells[x, z].WaterMode;
+		return EditorTerrainQueries.GetWaterModeAt(in terrain, worldPos);
 	}
 
 	public byte GetWaterProfileIndexAt(Godot.Vector3 worldPos)
 	{
 		ref var terrain = ref GetTerrainState();
-		var cells = terrain.Cells;
-		if (cells == null) return 0;
-
-		int cellW = cells.GetLength(0);
-		int cellD = cells.GetLength(1);
-		if (cellW <= 0 || cellD <= 0) return 0;
-
-		int width = terrain.Width;
-		int depth = terrain.Depth;
-		float quadSize = terrain.QuadSize;
-
-		int x = Math.Clamp((int)Math.Floor(worldPos.X / quadSize + width / 2.0f), 0, cellW - 1);
-		int z = Math.Clamp((int)Math.Floor(worldPos.Z / quadSize + depth / 2.0f), 0, cellD - 1);
-
-		return cells[x, z].WaterProfileIndex;
+		return EditorTerrainQueries.GetWaterProfileIndexAt(in terrain, worldPos);
 	}
 
 	public float GetWaterHeightAt(Godot.Vector3 worldPos)
 	{
 		ref var terrain = ref GetTerrainState();
-		var cells = terrain.Cells;
-		if (cells == null) return 0f;
-
-		int cellW = cells.GetLength(0);
-		int cellD = cells.GetLength(1);
-		if (cellW <= 0 || cellD <= 0) return 0f;
-
-		int width = terrain.Width;
-		int depth = terrain.Depth;
-		float quadSize = terrain.QuadSize;
-
-		int x = Math.Clamp((int)Math.Floor(worldPos.X / quadSize + width / 2.0f), 0, cellW - 1);
-		int z = Math.Clamp((int)Math.Floor(worldPos.Z / quadSize + depth / 2.0f), 0, cellD - 1);
-
-		return cells[x, z].WaterHeight;
+		return EditorTerrainQueries.GetWaterHeightAt(in terrain, worldPos);
 	}
 
 	public TerrainEditResult ApplyContinuousTerrainEditing(
