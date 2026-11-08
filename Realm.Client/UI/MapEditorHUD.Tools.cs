@@ -313,7 +313,7 @@ namespace Realm.Client.UI
 			_entityPaletteController = new MapEditorEntityPaletteController(this, _containerCategorySelector, _btnAddObject);
 
 			_topBarController = new MapEditorTopBar(_btnBackToHub, _btnPublish, _btnSave, _btnLoad, _btnUndo, _btnRedo, _btnEditors, _statusLabel, _feedbackLabel);
-			_brushSettingsController = new MapEditorBrushSettings(_sldBrushSize, _lblBrushSizeValue, _sldBrushStrength, _lblBrushStrengthValue, _chkBlockMode, _sldBlockStep, _lblBlockStepValue, _sldHeight, _lblHeightValue);
+			_brushSettingsController = new MapEditorBrushSettings(_brushPanel.SizeSlider, _brushPanel.SizeValue, _brushPanel.StrengthSlider, _brushPanel.StrengthValue, _brushPanel.BlockModeCheck, _brushPanel.StepSlider, _brushPanel.StepValue, _brushPanel.HeightSlider, _brushPanel.HeightValue);
 			_placementSettingsController = new MapEditorPlacementSettings(_sldPlacementRotate, _lblPlacementRotateValue, _sldPlacementScale, _lblPlacementScaleValue, _chkRandomRotation, _chkRandomScale, _chkClumpMode, _sldClumpDensity, _lblClumpDensityValue, _sldClumpScaleVar, _lblClumpScaleVarValue);
 			InitializeInspectorPanel();
 			_inspectorController = new MapEditorInspector(_lblInspectorTitle, _lblInspectorPos, _btnInspectorRotLeft, _btnInspectorRotRight, _btnInspectorScaleDown, _btnInspectorScaleUp, _btnInspectorScaleReset, _btnInspectorDelete);
@@ -327,7 +327,7 @@ namespace Realm.Client.UI
 			MakeCardDraggable(_accordionFile, _btnHeaderFile, _contentFile, "File");
 			MakeCardDraggable(_accordionViewport, _btnHeaderViewport, _contentViewport, "Viewport & Navigation");
 			MakeCardDraggable(_accordionTool, _btnHeaderTool, _contentTool, "Tool");
-			MakeCardDraggable(_accordionBrush, _btnHeaderBrush, _contentBrush, "Global Brush Properties");
+			MakeCardDraggable(_brushPanel.Accordion, _brushPanel.Header, _brushPanel.Content, "Global Brush Properties");
 			MakeCardDraggable(_accordionToolSettings, _btnHeaderToolSettings, _contentToolSettings, "Tool Settings");
 			MakeCardDraggable(_accordionPlacement, _btnHeaderPlacement, _contentPlacement, "Placement Config");
 			MakeCardDraggable(_accordionInspector, _btnHeaderInspector, _contentInspector, "Selected Object Inspector");
@@ -397,8 +397,8 @@ namespace Realm.Client.UI
 			if (GameContext.SessionState.ReturningFromTest)
 			{
 				ReadMetadataAndRefreshTextures();
-				_sldBrushSize.Value = GameContext.SessionState.SavedBrushRadius;
-				_sldBrushStrength.Value = GameContext.SessionState.SavedBrushStrength;
+				_brushPanel.SizeSlider.Value = GameContext.SessionState.SavedBrushRadius;
+				_brushPanel.StrengthSlider.Value = GameContext.SessionState.SavedBrushStrength;
 
 				if (GameContext.SessionState.SavedActiveTool == EditorTool.PlaceUnit ||
 				    GameContext.SessionState.SavedActiveTool == EditorTool.PlaceProp ||
@@ -1374,68 +1374,16 @@ namespace Realm.Client.UI
 
 		private void BuildBrushAccordion()
 		{
-			_accordionBrush = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion");
-			_btnHeaderBrush = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/BtnHeaderBrush");
-			_contentBrush = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush");
-			StyleAccordionHeader(_btnHeaderBrush);
-			SetupAccordion(_btnHeaderBrush, _contentBrush, TranslationServer.Translate("Global Brush Properties"));
-
-			_sldBrushSize = GetNode<Slider>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/BrushSizeBox/SldBrushSize");
-			_lblBrushSizeValue = GetNode<Label>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/BrushSizeBox/Header/LblBrushSizeValue");
-			_brushSizeBox = GetNodeOrNull<Control>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/BrushSizeBox");
-			_sldBrushSize.DragStarted += () => _isDraggingSlider = true;
-			_sldBrushSize.DragEnded += (valueChanged) => _isDraggingSlider = false;
-
-			_sldBrushStrength = GetNode<Slider>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/BrushStrengthBox/SldBrushStrength");
-			_lblBrushStrengthValue = GetNode<Label>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/BrushStrengthBox/Header/LblBrushStrengthValue");
-			_sldBrushStrength.DragStarted += () => _isDraggingSlider = true;
-			_sldBrushStrength.DragEnded += (valueChanged) => _isDraggingSlider = false;
-
-			_btnBrushShape = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/ShapeMirrorGrid/BtnBrushShape");
-			SetupOptionButton(_btnBrushShape, $"{UnicodeIcons.SQUARE} BRUSH: SQUARE", () =>
-			{
-				if (GameContext.Host != null)
+			_brushPanel = new BrushSettingsPanel();
+			_brushPanel.Build(new BrushSettingsHooks(
+				this, StyleAccordionHeader, SetupAccordion, SetupOptionButton, SetupMirrorDropdown, ShowFeedback,
+				UpdateBrushShapeExternal, () =>
 				{
-					GameContext.Host.EditorBrushIsSquare = !GameContext.Host.EditorBrushIsSquare;
-					GameContext.Host.UpdateBrushMesh();
-					UpdateBrushShapeExternal(GameContext.Host.EditorBrushIsSquare);
-				}
-			}, 11, "Toggle brush shape between circular and square (B)");
-
-			_optMirrorMode = GetNode<OptionButton>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/ShapeMirrorGrid/OptMirrorMode");
-			SetupMirrorDropdown(_optMirrorMode, "Select terrain and object mirroring symmetry mode");
-
-			_chkBlockMode = GetNode<CheckBox>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/ChkBlockMode");
-			_chkBlockMode.Toggled += (toggled) =>
-			{
-				if (GameContext.Host != null)
-					GameContext.Host.EditorBlockMode = toggled;
-
-				ShowFeedback(toggled ? "Block Mode: Enabled" : "Block Mode: Disabled");
-				UpdateBlockStepVisibility();
-				UpdateBrushStrengthVisibility();
-				if (GameContext.Host != null)
-					UpdateSidebarMorph(GameContext.Host.ActiveEditorTool);
-			};
-			_chkBlockMode.ButtonPressed = true;
-
-			_stepBox = GetNode<Control>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/StepBox");
-			_sldBlockStep = GetNode<Slider>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/StepBox/SldBlockStep");
-			_sldBlockStep.DragStarted += () => _isDraggingSlider = true;
-			_sldBlockStep.DragEnded += (valueChanged) => _isDraggingSlider = false;
-			_lblBlockStepValue = GetNode<Label>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/StepBox/Header/LblBlockStepValue");
-			var lblStepTitle = GetNodeOrNull<Label>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/StepBox/Header/LblStepTitle");
-			if (lblStepTitle != null) lblStepTitle.Text = TranslationServer.Translate("Step Height");
-
-			_heightBox = GetNode<Control>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/HeightBox");
-			_sldHeight = GetNode<Slider>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/HeightBox/SldHeight");
-			_sldHeight.MinValue = TerrainCell.MIN_Y;
-			_sldHeight.MaxValue = TerrainCell.MAX_Y;
-			_sldHeight.DragStarted += () => _isDraggingSlider = true;
-			_sldHeight.DragEnded += (valueChanged) => _isDraggingSlider = false;
-			_lblHeightValue = GetNode<Label>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/HeightBox/Header/LblHeightValue");
-			var lblHeightTitle = GetNodeOrNull<Label>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/HeightBox/Header/LblHeightTitle");
-			if (lblHeightTitle != null) lblHeightTitle.Text = TranslationServer.Translate("Height");
+					UpdateBlockStepVisibility();
+					UpdateBrushStrengthVisibility();
+					if (GameContext.Host != null) UpdateSidebarMorph(GameContext.Host.ActiveEditorTool);
+				},
+				dragging => _isDraggingSlider = dragging));
 
 			BuildWaterAccordion();
 		}
@@ -1445,7 +1393,7 @@ namespace Realm.Client.UI
 		{
 			_waterPanel = new WaterSettingsPanel();
 			_waterPanel.Build(new WaterSettingsHooks(
-				this, _accordionBrush, StyleAccordionHeader, SetupAccordion, StyleRowButton, _highlightStyle,
+				this, _brushPanel.Accordion, StyleAccordionHeader, SetupAccordion, StyleRowButton, _highlightStyle,
 				OpenWaterProfileDialog, dragging => _isDraggingSlider = dragging));
 		}
 
@@ -2251,9 +2199,9 @@ namespace Realm.Client.UI
 		{
 			if (GameContext.EditorService.Placement.TrySetBrushShape(isSquare))
 			{
-				if (_btnBrushShape != null)
+				if (_brushPanel?.ShapeButton != null)
 				{
-					_btnBrushShape.Text = isSquare ? TranslationServer.Translate($"{UnicodeIcons.SQUARE} BRUSH: SQUARE") : TranslationServer.Translate($"{UnicodeIcons.CIRCLE} BRUSH: CIRCLE");
+					_brushPanel.ShapeButton.Text = isSquare ? TranslationServer.Translate($"{UnicodeIcons.SQUARE} BRUSH: SQUARE") : TranslationServer.Translate($"{UnicodeIcons.CIRCLE} BRUSH: CIRCLE");
 				}
 
 				if (_pastePanel?.ClipboardBrushShape != null)
@@ -2271,22 +2219,22 @@ namespace Realm.Client.UI
 
 		public void UpdateBrushStrengthExternal(float strength)
 		{
-			if (_sldBrushStrength != null)
+			if (_brushPanel?.StrengthSlider != null)
 			{
-				_sldBrushStrength.Value = strength;
+				_brushPanel.StrengthSlider.Value = strength;
 			}
 
-			if (_lblBrushStrengthValue != null)
+			if (_brushPanel?.StrengthValue != null)
 			{
-				_lblBrushStrengthValue.Text = strength.ToString("F1");
+				_brushPanel.StrengthValue.Text = strength.ToString("F1");
 			}
 		}
 
 		public void UpdateBlockModeExternal(bool enabled)
 		{
-			if (_chkBlockMode != null)
+			if (_brushPanel?.BlockModeCheck != null)
 			{
-				_chkBlockMode.ButtonPressed = enabled;
+				_brushPanel.BlockModeCheck.ButtonPressed = enabled;
 			}
 		}
 
@@ -3079,7 +3027,7 @@ namespace Realm.Client.UI
 			int folds = GameContext.Host.EditorSymmetryFolds;
 			var mode = GameContext.Host.EditorMirrorMode;
 
-			UpdateSingleMirrorDropdown(_optMirrorMode, mode, folds);
+			UpdateSingleMirrorDropdown(_brushPanel.MirrorOption, mode, folds);
 			UpdateSingleMirrorDropdown(_optPlacementMirrorMode, mode, folds);
 			UpdateSingleMirrorDropdown(_pastePanel?.ClipboardMirrorMode, mode, folds);
 
@@ -3574,7 +3522,7 @@ namespace Realm.Client.UI
 			Control[] allOptionContents = new Control[]
 			{
 				_contentFile, _contentViewport, _contentTool,
-				_contentBrush, _contentToolSettings, _contentPlacement, _contentInspector, _contentLightingTuning
+				_brushPanel.Content, _contentToolSettings, _contentPlacement, _contentInspector, _contentLightingTuning
 			};
 			foreach (var content in allOptionContents)
 			{
@@ -3585,26 +3533,26 @@ namespace Realm.Client.UI
 
 		private void StyleBrushAccordionControls()
 		{
-			if (_contentBrush != null)
+			if (_brushPanel?.Content != null)
 			{
-				StyleSubContainer(_contentBrush, "Brush Properties");
+				StyleSubContainer(_brushPanel.Content, "Brush Properties");
 
-				StyleValueBadge(_lblBrushSizeValue);
-				StyleValueBadge(_lblBrushStrengthValue);
-				StyleValueBadge(_lblBlockStepValue);
+				StyleValueBadge(_brushPanel.SizeValue);
+				StyleValueBadge(_brushPanel.StrengthValue);
+				StyleValueBadge(_brushPanel.StepValue);
 
-				if (_btnBrushShape != null)
+				if (_brushPanel?.ShapeButton != null)
 				{
-					_btnBrushShape.CustomMinimumSize = new Vector2(0, 32);
-					_btnBrushShape.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-					_btnBrushShape.AddThemeFontSizeOverride("font_size", 10);
+					_brushPanel.ShapeButton.CustomMinimumSize = new Vector2(0, 32);
+					_brushPanel.ShapeButton.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+					_brushPanel.ShapeButton.AddThemeFontSizeOverride("font_size", 10);
 				}
 
-				if (_optMirrorMode != null)
+				if (_brushPanel?.MirrorOption != null)
 				{
-					_optMirrorMode.CustomMinimumSize = new Vector2(0, 32);
-					_optMirrorMode.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-					_optMirrorMode.AddThemeFontSizeOverride("font_size", 10);
+					_brushPanel.MirrorOption.CustomMinimumSize = new Vector2(0, 32);
+					_brushPanel.MirrorOption.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+					_brushPanel.MirrorOption.AddThemeFontSizeOverride("font_size", 10);
 				}
 			}
 		}
@@ -3806,16 +3754,16 @@ namespace Realm.Client.UI
 			                ((tool == EditorTool.PlaceUnit || tool == EditorTool.PlaceProp || tool == EditorTool.PlaceDecal) && isClumpActive))
 			               && tool != EditorTool.Water;
 
-			if (_accordionBrush != null)
+			if (_brushPanel?.Accordion != null)
 			{
-				_accordionBrush.Visible = isBrush;
+				_brushPanel.Accordion.Visible = isBrush;
 				UpdateBrushSizeVisibility();
 				UpdateBrushShapeVisibility();
 				UpdateBrushStrengthVisibility();
 				bool isTextureMode = tool == EditorTool.PaintTexture;
-				if (_chkBlockMode != null)
+				if (_brushPanel?.BlockModeCheck != null)
 				{
-					_chkBlockMode.Visible = (tool != EditorTool.PaintPathing &&
+					_brushPanel.BlockModeCheck.Visible = (tool != EditorTool.PaintPathing &&
 					                         tool != EditorTool.FloodFillPathing &&
 					                         !isTextureMode &&
 					                         tool != EditorTool.Smooth &&
@@ -3834,7 +3782,7 @@ namespace Realm.Client.UI
 				_waterPanel.Accordion.Visible = (tool == EditorTool.Water);
 			}
 
-			bool isBlockModeActive = (_chkBlockMode != null && _chkBlockMode.Visible && _chkBlockMode.ButtonPressed) || (GameContext.Host != null && GameContext.Host.EditorBlockMode);
+			bool isBlockModeActive = (_brushPanel?.BlockModeCheck != null && _brushPanel.BlockModeCheck.Visible && _brushPanel.BlockModeCheck.ButtonPressed) || (GameContext.Host != null && GameContext.Host.EditorBlockMode);
 			bool isPaintTool = tool == EditorTool.PaintTexture ||
 			                   tool == EditorTool.FloodFill;
 			bool isBlockHeightTool = (isBlockModeActive && (
@@ -4295,27 +4243,27 @@ namespace Realm.Client.UI
 
 		private void UpdateBrushSizeVisibility()
 		{
-			if (_brushSizeBox == null || GameContext.Host == null) return;
+			if (_brushPanel?.SizeBox == null || GameContext.Host == null) return;
 
 			var tool = GameContext.Host.ActiveEditorTool;
-			_brushSizeBox.Visible = tool != EditorTool.FloodFill && tool != EditorTool.FloodFillPathing;
+			_brushPanel.SizeBox.Visible = tool != EditorTool.FloodFill && tool != EditorTool.FloodFillPathing;
 		}
 
 		private void UpdateBrushShapeVisibility()
 		{
-			if (_btnBrushShape == null || GameContext.Host == null) return;
+			if (_brushPanel?.ShapeButton == null || GameContext.Host == null) return;
 
 			var tool = GameContext.Host.ActiveEditorTool;
-			_btnBrushShape.Visible = tool != EditorTool.FloodFill && tool != EditorTool.FloodFillPathing;
+			_brushPanel.ShapeButton.Visible = tool != EditorTool.FloodFill && tool != EditorTool.FloodFillPathing;
 		}
 
 		private void UpdateBrushStrengthVisibility()
 		{
-			if (_sldBrushStrength != null && _sldBrushStrength.GetParent() is Control strengthParent)
+			if (_brushPanel?.StrengthSlider != null && _brushPanel.StrengthSlider.GetParent() is Control strengthParent)
 			{
 				if (GameContext.Host == null) return;
 				var tool = GameContext.Host.ActiveEditorTool;
-				bool blockModeEnabled = (_chkBlockMode != null && _chkBlockMode.ButtonPressed);
+				bool blockModeEnabled = (_brushPanel?.BlockModeCheck != null && _brushPanel.BlockModeCheck.ButtonPressed);
 
 				bool isClumpPlacement = tool == EditorTool.PlacePropClump ||
 				                        ((tool == EditorTool.PlaceUnit || tool == EditorTool.PlaceProp || tool == EditorTool.PlaceDecal) &&

@@ -328,7 +328,7 @@ namespace Realm.Client.UI
 			if (_accordionFile != null) _accordionFile.CustomMinimumSize = new Vector2(260, 0);
 			if (_accordionViewport != null) _accordionViewport.CustomMinimumSize = new Vector2(260, 0);
 			if (_accordionTool != null) _accordionTool.CustomMinimumSize = new Vector2(260, 0);
-			if (_accordionBrush != null) _accordionBrush.CustomMinimumSize = new Vector2(260, 0);
+			if (_brushPanel?.Accordion != null) _brushPanel.Accordion.CustomMinimumSize = new Vector2(260, 0);
 			if (_accordionToolSettings != null) _accordionToolSettings.CustomMinimumSize = new Vector2(260, 0);
 			if (_accordionPlacement != null) _accordionPlacement.CustomMinimumSize = new Vector2(260, 0);
 			if (_accordionInspector != null) _accordionInspector.CustomMinimumSize = new Vector2(260, 0);
@@ -337,7 +337,7 @@ namespace Realm.Client.UI
 			ApplyCardPanelStyle(_accordionFile);
 			ApplyCardPanelStyle(_accordionViewport);
 			ApplyCardPanelStyle(_accordionTool);
-			ApplyCardPanelStyle(_accordionBrush);
+			ApplyCardPanelStyle(_brushPanel.Accordion);
 			if (_waterPanel?.Accordion != null) ApplyCardPanelStyle(_waterPanel.Accordion);
 			ApplyCardPanelStyle(_accordionToolSettings);
 			ApplyCardPanelStyle(_accordionPlacement);
@@ -349,7 +349,7 @@ namespace Realm.Client.UI
 			StyleContentBox(_contentFile);
 			StyleContentBox(_contentViewport);
 			StyleContentBox(_contentTool);
-			StyleContentBox(_contentBrush);
+			StyleContentBox(_brushPanel.Content);
 			if (_waterPanel?.Content != null) StyleContentBox(_waterPanel.Content);
 			StyleContentBox(_contentToolSettings);
 			StyleContentBox(_contentPlacement);
@@ -361,7 +361,7 @@ namespace Realm.Client.UI
 			SetupCardScrollContainer(_contentFile, 300f);
 			SetupCardScrollContainer(_contentViewport, 0f, false);
 			SetupCardScrollContainer(_contentTool, 320f);
-			SetupCardScrollContainer(_contentBrush, 300f);
+			SetupCardScrollContainer(_brushPanel.Content, 300f);
 			if (_waterPanel?.Content != null) SetupCardScrollContainer(_waterPanel.Content, 200f);
 			SetupCardScrollContainer(_contentToolSettings, 320f);
 			SetupCardScrollContainer(_contentPlacement, 320f);
@@ -436,10 +436,10 @@ namespace Realm.Client.UI
 
 		private void ApplyValueBadgeStylesViewLogic()
 		{
-			StyleValueBadge(_lblBrushSizeValue);
-			StyleValueBadge(_lblBrushStrengthValue);
-			StyleValueBadge(_lblBlockStepValue);
-			StyleValueBadge(_lblHeightValue);
+			StyleValueBadge(_brushPanel.SizeValue);
+			StyleValueBadge(_brushPanel.StrengthValue);
+			StyleValueBadge(_brushPanel.StepValue);
+			StyleValueBadge(_brushPanel.HeightValue);
 			StyleValueBadge(_lblPlacementRotateValue);
 			StyleValueBadge(_lblPlacementScaleValue);
 			StyleValueBadge(_lblClumpDensityValue);
@@ -449,7 +449,7 @@ namespace Realm.Client.UI
 
 		private void ApplyCheckBoxStyles()
 		{
-			StyleCheckBoxRow(_chkBlockMode);
+			StyleCheckBoxRow(_brushPanel.BlockModeCheck);
 			StyleCheckBoxRow(_chkShallowWater);
 			StyleCheckBoxRow(_chkDeepWater);
 			StyleCheckBoxRow(_chkFlying);
@@ -923,40 +923,40 @@ namespace Realm.Client.UI
 		public void UpdateBrushSizeExternal(float size)
 		{
 			if (!GameContext.EditorService.Placement.SetLastBrushSize(size)) return;
-			if (_sldBrushSize != null && !Mathf.IsEqualApprox((float)_sldBrushSize.Value, size))
+			if (_brushPanel?.SizeSlider != null && !Mathf.IsEqualApprox((float)_brushPanel.SizeSlider.Value, size))
 			{
-				_sldBrushSize.Value = Mathf.Round(size);
+				_brushPanel.SizeSlider.Value = Mathf.Round(size);
 			}
 
-			if (_lblBrushSizeValue != null)
+			if (_brushPanel?.SizeValue != null)
 			{
-				_lblBrushSizeValue.Text = Mathf.Round(size).ToString("F0");
+				_brushPanel.SizeValue.Text = Mathf.Round(size).ToString("F0");
 			}
 		}
 
 		public void UpdateBlockLevelHeightExternal(float step)
 		{
-			if (_sldBlockStep != null)
+			if (_brushPanel?.StepSlider != null)
 			{
-				_sldBlockStep.Value = step;
+				_brushPanel.StepSlider.Value = step;
 			}
 
-			if (_lblBlockStepValue != null)
+			if (_brushPanel?.StepValue != null)
 			{
-				_lblBlockStepValue.Text = step.ToString("F1") + " m";
+				_brushPanel.StepValue.Text = step.ToString("F1") + " m";
 			}
 		}
 
 		public void UpdateExactHeightExternal(float height)
 		{
-			if (_sldHeight != null)
+			if (_brushPanel?.HeightSlider != null)
 			{
-				_sldHeight.Value = height;
+				_brushPanel.HeightSlider.Value = height;
 			}
 
-			if (_lblHeightValue != null)
+			if (_brushPanel?.HeightValue != null)
 			{
-				_lblHeightValue.Text = height.ToString("F1") + "m";
+				_brushPanel.HeightValue.Text = height.ToString("F1") + "m";
 			}
 		}
 
@@ -2573,7 +2573,7 @@ namespace Realm.Client.UI
 			ResetSingleCardPosition(_accordionFile);
 			ResetSingleCardPosition(_accordionViewport);
 			ResetSingleCardPosition(_accordionTool);
-			ResetSingleCardPosition(_accordionBrush);
+			ResetSingleCardPosition(_brushPanel.Accordion);
 			ResetSingleCardPosition(_accordionToolSettings);
 			ResetSingleCardPosition(_accordionPlacement);
 			ResetSingleCardPosition(_accordionInspector);
@@ -3115,17 +3115,17 @@ namespace Realm.Client.UI
 
 		private void UpdateBlockStepVisibility()
 		{
-			bool blockModeEnabled = (_chkBlockMode != null && _chkBlockMode.Visible && _chkBlockMode.ButtonPressed);
+			bool blockModeEnabled = (_brushPanel?.BlockModeCheck != null && _brushPanel.BlockModeCheck.Visible && _brushPanel.BlockModeCheck.ButtonPressed);
 			var tool = GameContext.Host != null ? GameContext.Host.ActiveEditorTool : EditorTool.Lower;
 
-			if (_stepBox != null)
+			if (_brushPanel?.StepBox != null)
 			{
-				_stepBox.Visible = blockModeEnabled && (tool == EditorTool.Raise || tool == EditorTool.Lower);
+				_brushPanel.StepBox.Visible = blockModeEnabled && (tool == EditorTool.Raise || tool == EditorTool.Lower);
 			}
 
-			if (_heightBox != null)
+			if (_brushPanel?.HeightBox != null)
 			{
-				_heightBox.Visible = (tool == EditorTool.Height);
+				_brushPanel.HeightBox.Visible = (tool == EditorTool.Height);
 			}
 		}
 

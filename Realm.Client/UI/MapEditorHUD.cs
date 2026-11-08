@@ -68,9 +68,6 @@ public partial class MapEditorHUD : Control
 	private Button _btnGameSettings { get; set; } = null!;
 	private EditorModule _activeModule { get; set; } = EditorModule.Terrain;
 
-	private VBoxContainer _accordionBrush { get; set; } = null!;
-	private Button _btnHeaderBrush { get; set; } = null!;
-	private VBoxContainer _contentBrush { get; set; } = null!;
 
 
 
@@ -171,11 +168,6 @@ public partial class MapEditorHUD : Control
 	private Button _btnRotate { get; set; } = null!;
 	private Button _btnCameraAngle { get; set; } = null!;
 
-	private Slider _sldBrushSize { get; set; } = null!;
-	private Label _lblBrushSizeValue { get; set; } = null!;
-	private Control _brushSizeBox { get; set; } = null!;
-	private Slider _sldBrushStrength { get; set; } = null!;
-	private Label _lblBrushStrengthValue { get; set; } = null!;
 
 
 	private CheckBox _chkRandomRotation { get; set; } = null!;
@@ -186,12 +178,6 @@ public partial class MapEditorHUD : Control
 	private Control _densityBox { get; set; } = null!;
 	private Control _scaleVarBox { get; set; } = null!;
 	private Control _camBoundsBox { get; set; } = null!;
-	private CheckBox _chkBlockMode { get; set; } = null!;
-	private Slider _sldBlockStep { get; set; } = null!;
-	private Label _lblBlockStepValue { get; set; } = null!;
-	private Control _heightBox { get; set; } = null!;
-	private Slider _sldHeight { get; set; } = null!;
-	private Label _lblHeightValue { get; set; } = null!;
 
 	private WaterProfileDialog _waterProfileDialog { get; set; } = null!;
 	private EnvironmentConfigDialog _environmentConfigDialog { get; set; } = null!;
@@ -245,7 +231,6 @@ public partial class MapEditorHUD : Control
 	private VBoxContainer _placementScaleBox { get; set; } = null!;
 	private Button _btnCopy { get; set; } = null!;
 	private Button _btnPaste { get; set; } = null!;
-	private Control _stepBox { get; set; } = null!;
 	private Button _btnToggleSnap { get; set; } = null!;
 	private Button _btnToggleGrid { get; set; } = null!;
 	private PopupMenu _popupOverlayMode { get; set; } = null!;
@@ -254,7 +239,6 @@ public partial class MapEditorHUD : Control
 	private OptionButton _optEnvLighting { get; set; } = null!;
 	private OptionButton _optEnvWeather { get; set; } = null!;
 	private CheckBox _chkEnvShadows { get; set; } = null!;
-	private Button _btnBrushShape { get; set; } = null!;
 	private Button _btnResetMap { get; set; } = null!;
 	private Button _btnSaveMore { get; set; } = null!;
 	private PopupPanel _popupSaveMore { get; set; } = null!;
@@ -278,7 +262,6 @@ public partial class MapEditorHUD : Control
 	private Button _btnSmooth { get; set; } = null!;
 	private Button _btnPlateau { get; set; } = null!;
 	private Button _btnRamp { get; set; } = null!;
-	private OptionButton _optMirrorMode { get; set; } = null!;
 	private OptionButton _optPlacementMirrorMode { get; set; } = null!;
 	private HSlider _sldClumpDensity { get; set; } = null!;
 	private Label _lblClumpDensityValue { get; set; } = null!;
@@ -350,6 +333,7 @@ public partial class MapEditorHUD : Control
 	private MapEditorPlacementSettings _placementSettingsController { get; set; } = null!;
 	private MapEditorInspector _inspectorController { get; set; } = null!;
 	private MapEditorPathingPanel _pathingPanelController { get; set; } = null!;
+	private BrushSettingsPanel _brushPanel { get; set; } = null!;
 	private WaterSettingsPanel _waterPanel { get; set; } = null!;
 	private PasteSettingsPanel _pastePanel { get; set; } = null!;
 	private MapEditorMinimap _minimapController { get; set; } = null!;
@@ -927,25 +911,25 @@ public partial class MapEditorHUD : Control
 
 	private void ApplyBrushStrengthForTool(EditorTool tool)
 	{
-		if (_sldBrushStrength == null || GameContext.Host == null) return;
+		if (_brushPanel?.StrengthSlider == null || GameContext.Host == null) return;
 
 		if (tool == EditorTool.PaintTexture)
 		{
-			_sldBrushStrength.MinValue = 0.0;
-			_sldBrushStrength.MaxValue = 10.0;
-			_sldBrushStrength.Step = 1.0;
-			_sldBrushStrength.Value = GameContext.SessionState.SavedTextureIntensity;
-			if (_lblBrushStrengthValue != null) _lblBrushStrengthValue.Text = GameContext.SessionState.SavedTextureIntensity.ToString("F0");
+			_brushPanel.StrengthSlider.MinValue = 0.0;
+			_brushPanel.StrengthSlider.MaxValue = 10.0;
+			_brushPanel.StrengthSlider.Step = 1.0;
+			_brushPanel.StrengthSlider.Value = GameContext.SessionState.SavedTextureIntensity;
+			if (_brushPanel?.StrengthValue != null) _brushPanel.StrengthValue.Text = GameContext.SessionState.SavedTextureIntensity.ToString("F0");
 			GameContext.Host.EditorBrushStrength = GameContext.SessionState.SavedTextureIntensity;
 		}
 		else
 		{
-			_sldBrushStrength.MinValue = 0.5;
-			_sldBrushStrength.MaxValue = 10.0;
-			_sldBrushStrength.Step = 0.5;
+			_brushPanel.StrengthSlider.MinValue = 0.5;
+			_brushPanel.StrengthSlider.MaxValue = 10.0;
+			_brushPanel.StrengthSlider.Step = 0.5;
 			float restoredStrength = Math.Max(0.5f, GameContext.SessionState.SavedBrushStrength);
-			_sldBrushStrength.Value = restoredStrength;
-			if (_lblBrushStrengthValue != null) _lblBrushStrengthValue.Text = restoredStrength.ToString("F1");
+			_brushPanel.StrengthSlider.Value = restoredStrength;
+			if (_brushPanel?.StrengthValue != null) _brushPanel.StrengthValue.Text = restoredStrength.ToString("F1");
 			GameContext.Host.EditorBrushStrength = restoredStrength;
 		}
 	}
@@ -1032,7 +1016,7 @@ public partial class MapEditorHUD : Control
 		if (_accordionViewport != null) _accordionViewport.Visible = true;
 		if (_accordionTool != null) _accordionTool.Visible = true;
 
-		if (_accordionBrush != null) _accordionBrush.Visible = IsBrushAccordionVisible(module);
+		if (_brushPanel?.Accordion != null) _brushPanel.Accordion.Visible = IsBrushAccordionVisible(module);
 		if (_accordionToolSettings != null) _accordionToolSettings.Visible = IsToolSettingsAccordionVisible(module);
 		if (_accordionPlacement != null) _accordionPlacement.Visible = IsPlacementAccordionVisible(module);
 		if (_accordionInspector != null) _accordionInspector.Visible = IsInspectorAccordionVisible(module);
@@ -1061,7 +1045,7 @@ public partial class MapEditorHUD : Control
 		SetHeaderContent(_contentTool, _btnHeaderTool, true, "Tool");
 
 		bool showBrush = module is EditorModule.Terrain or EditorModule.TextureDeco or EditorModule.Pathing;
-		SetHeaderContent(_contentBrush, _btnHeaderBrush, showBrush, "Global Brush Properties");
+		SetHeaderContent(_brushPanel.Content, _brushPanel.Header, showBrush, "Global Brush Properties");
 
 		bool showToolSettings = module is EditorModule.Terrain or EditorModule.TextureDeco or EditorModule.Pathing or EditorModule.Objects or EditorModule.Clipboard;
 		SetHeaderContent(_contentToolSettings, _btnHeaderToolSettings, showToolSettings, "Tool Settings");
@@ -1083,7 +1067,7 @@ public partial class MapEditorHUD : Control
 		UpdateCardScrollState(_contentFile, 300f);
 		UpdateCardScrollState(_contentViewport, 0f, false);
 		UpdateCardScrollState(_contentTool, 320f);
-		UpdateCardScrollState(_contentBrush, 300f);
+		UpdateCardScrollState(_brushPanel.Content, 300f);
 		UpdateCardScrollState(_contentToolSettings, 320f);
 		UpdateCardScrollState(_contentPlacement, 320f);
 		UpdateCardScrollState(_contentInspector, 300f);
@@ -1175,7 +1159,7 @@ public partial class MapEditorHUD : Control
 			_entityPaletteController?.OptCategoryItems,
 			_optEyedropperMode,
 			_optPathingMode,
-			_optMirrorMode,
+			_brushPanel.MirrorOption,
 			_pastePanel?.ClipboardMirrorMode
 		);
 	}
@@ -1226,7 +1210,7 @@ public partial class MapEditorHUD : Control
 		Control[] optionContents = new Control[]
 		{
 			_contentFile, _contentViewport, _contentTool,
-			_contentBrush, _contentToolSettings, _contentPlacement, _contentInspector, _contentLightingTuning
+			_brushPanel.Content, _contentToolSettings, _contentPlacement, _contentInspector, _contentLightingTuning
 		};
 		foreach (var content in optionContents)
 		{
@@ -1371,8 +1355,8 @@ public partial class MapEditorHUD : Control
 		GameContext.SessionState.SavedDisableShadows = GameContext.EditorService.Tools.DisableShadows;
 		GameContext.SessionState.SavedEditorHasUnsavedChanges = host.EditorHasUnsavedChanges;
 		GameContext.SessionState.SavedEntityCategory = _entityPaletteController?.CurrentCategory ?? "";
-		GameContext.SessionState.SavedBrushRadius = (float)(_sldBrushSize?.Value ?? 1f);
-		float val = (float)(_sldBrushStrength?.Value ?? 1f);
+		GameContext.SessionState.SavedBrushRadius = (float)(_brushPanel.SizeSlider?.Value ?? 1f);
+		float val = (float)(_brushPanel.StrengthSlider?.Value ?? 1f);
 		GameContext.SessionState.SavedBrushStrength = val;
 	}
 
