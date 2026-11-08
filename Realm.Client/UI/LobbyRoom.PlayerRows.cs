@@ -87,15 +87,7 @@ public partial class LobbyRoom
 		panel.Name = "Panel_PanelContainer";
 		panel.CustomMinimumSize = new Vector2(0, 46);
 
-		var style = new StyleBoxFlat();
-		style.BgColor = new Color(0.12f, 0.13f, 0.16f, 0.3f);
-		style.BorderColor = new Color(0.2f, 0.2f, 0.25f, 0.2f);
-		style.SetBorderWidthAll(1);
-		style.ContentMarginLeft = 8;
-		style.ContentMarginRight = 8;
-		style.ContentMarginTop = 0;
-		style.ContentMarginBottom = 0;
-		panel.AddThemeStyleboxOverride("panel", style);
+		panel.AddThemeStyleboxOverride("panel", UIStyle.CreateLobbyPlayerRowPlate());
 		return panel;
 	}
 
@@ -222,10 +214,7 @@ public partial class LobbyRoom
 		colorBtn.Name = "ColorBtn";
 		colorBtn.CustomMinimumSize = new Vector2(24, 24);
 
-		var colorStyle = CreateColorStyle(p.Color);
-		colorBtn.AddThemeStyleboxOverride("normal", colorStyle);
-		colorBtn.AddThemeStyleboxOverride("hover", colorStyle);
-		colorBtn.AddThemeStyleboxOverride("pressed", colorStyle);
+		UIStyle.ApplySeatColorSwatch(colorBtn, p.Color);
 
 		colorBtn.Pressed += () => OpenColorPicker(colorBtn, p);
 		colorBtn.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
@@ -237,16 +226,6 @@ public partial class LobbyRoom
 
 		FillColumnCell(cell, colorBtn);
 		hBox.AddChild(cell);
-	}
-
-	private StyleBoxFlat CreateColorStyle(Color color)
-	{
-		var colorStyle = new StyleBoxFlat();
-		colorStyle.BgColor = color;
-		colorStyle.BorderColor = new Color(0.4f, 0.4f, 0.45f);
-		colorStyle.SetBorderWidthAll(2);
-		colorStyle.SetCornerRadiusAll(4);
-		return colorStyle;
 	}
 
 	private void OpenColorPicker(Control anchor, PlayerInfo p)
@@ -624,14 +603,9 @@ public partial class LobbyRoom
 
 		colorBtn.Disabled = !canEditSeat || p.TeamIndex < 1;
 
-		if (colorBtn.GetThemeStylebox("normal") is not StyleBoxFlat colorStyle) return;
+		if (colorBtn.GetThemeStylebox("normal") is StyleBoxFlat colorStyle && colorStyle.BgColor == p.Color) return;
 
-		if (colorStyle.BgColor == p.Color) return;
-
-		colorStyle.BgColor = p.Color;
-		colorBtn.AddThemeStyleboxOverride("normal", colorStyle);
-		colorBtn.AddThemeStyleboxOverride("hover", colorStyle);
-		colorBtn.AddThemeStyleboxOverride("pressed", colorStyle);
+		UIStyle.ApplySeatColorSwatch(colorBtn, p.Color);
 	}
 
 	private void UpdateRowNameElements(HBoxContainer hBox, PlayerInfo p)

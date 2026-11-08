@@ -165,6 +165,37 @@ public static partial class UIStyle
 		return style;
 	}
 
+	/// <summary>One seat in the lobby room's player list: a barely-there plate with a hairline rule.</summary>
+	public static StyleBoxFlat CreateLobbyPlayerRowPlate()
+	{
+		var style = new StyleBoxFlat();
+		style.BgColor = new Color(0.12f, 0.13f, 0.16f, 0.3f);
+		style.BorderColor = new Color(0.2f, 0.2f, 0.25f, 0.2f);
+		style.SetBorderWidthAll(1);
+		style.ContentMarginLeft = 8;
+		style.ContentMarginRight = 8;
+		style.ContentMarginTop = 0;
+		style.ContentMarginBottom = 0;
+		return style;
+	}
+
+	/// <summary>
+	/// The seat colour swatch. All three states share one plate, because the swatch is a single flat colour and the
+	/// button never redraws itself differently while hovered or held.
+	/// </summary>
+	public static void ApplySeatColorSwatch(Button button, Color color)
+	{
+		var style = new StyleBoxFlat();
+		style.BgColor = color;
+		style.BorderColor = new Color(0.4f, 0.4f, 0.45f);
+		style.SetBorderWidthAll(2);
+		style.SetCornerRadiusAll(4);
+
+		button.AddThemeStyleboxOverride("normal", style);
+		button.AddThemeStyleboxOverride("hover", style);
+		button.AddThemeStyleboxOverride("pressed", style);
+	}
+
 	/// <summary>The raised, gold-rimmed plate under the game-over screen's selected tab.</summary>
 	public static StyleBoxFlat CreateGameOverTabActive()
 	{
