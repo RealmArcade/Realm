@@ -436,12 +436,13 @@ public static partial class UIStyle
 	/// A transparent plate traced with a border, which is how the in-game HUD marks the selected unit button. The fill
 	/// is optional because most of these plates are only an outline over the button's own artwork.
 	/// </summary>
-	public static StyleBoxFlat CreateBorderPlate(Color borderColor, int borderWidth, Color? bgColor = null)
+	public static StyleBoxFlat CreateBorderPlate(Color borderColor, int borderWidth, Color? bgColor = null, int cornerRadius = 0)
 	{
 		var style = new StyleBoxFlat();
 		style.BgColor = bgColor ?? new Color(0, 0, 0, 0);
 		style.BorderColor = borderColor;
 		style.SetBorderWidthAll(borderWidth);
+		style.SetCornerRadiusAll(cornerRadius);
 		return style;
 	}
 

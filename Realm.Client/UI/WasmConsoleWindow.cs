@@ -152,13 +152,8 @@ public partial class WasmConsoleWindow : Window
 		_logLabel.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 		_logLabel.CustomMinimumSize = new Vector2(0, 200);
 
-		var logAreaStyle = new StyleBoxFlat();
-		logAreaStyle.BgColor = new Color(0.05f, 0.05f, 0.07f, 1.0f);
-		logAreaStyle.SetCornerRadiusAll(4);
-		logAreaStyle.ContentMarginLeft = 8;
-		logAreaStyle.ContentMarginTop = 8;
-		logAreaStyle.ContentMarginRight = 8;
-		logAreaStyle.ContentMarginBottom = 8;
+		var logAreaStyle = UIStyle.CreateFlatFillPlate(new Color(0.05f, 0.05f, 0.07f, 1.0f), 4);
+		logAreaStyle.SetContentMarginAll(8);
 		_logLabel.AddThemeStyleboxOverride("normal", logAreaStyle);
 
 		mainVBox.AddChild(_logLabel);
