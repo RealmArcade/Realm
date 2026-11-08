@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -181,8 +181,7 @@ public partial class InGameHUD : Control
 	private float _idlePulseTimer = 0f;
 	private int _lastIdleCount = 0;
 
-	private PanelContainer _hotkeyPanel = null!;
-	private bool _hotkeyPanelVisible = false;
+	private PanelContainer? _hotkeyPanel => (_hotkeyReference?.Root) ?? null;
 
 	private Label _armyCompositionLabel = null!;
 
@@ -992,7 +991,7 @@ public partial class InGameHUD : Control
 			specPanel.Position = new Vector2((GetViewportRect().Size.X - 300) / 2.0f, 10);
 		}
 
-		if (_hotkeyPanel != null)
+		if (_hotkeyReference != null)
 		{
 			float vpW = GetViewportRect().Size.X;
 			float vpH = GetViewportRect().Size.Y;
@@ -1000,10 +999,7 @@ public partial class InGameHUD : Control
 			if (vpH <= 0f) vpH = 1080f;
 			float consoleH = vpW * (BaseConsoleHeight / 1920f);
 			float playfieldCenterY = (80f + (vpH - consoleH)) / 2f;
-			_hotkeyPanel.OffsetLeft = -240f;
-			_hotkeyPanel.OffsetRight = 240f;
-			_hotkeyPanel.OffsetTop = playfieldCenterY - (vpH / 2f) - 336f;
-			_hotkeyPanel.OffsetBottom = _hotkeyPanel.OffsetTop + 672f;
+			_hotkeyReference.PlaceOverPlayfield(playfieldCenterY, vpH);
 		}
 	}
 
@@ -1171,11 +1167,7 @@ public partial class InGameHUD : Control
 			_customUIPanel.Scale = new Vector2(s, s);
 		}
 
-		if (_hotkeyPanel != null)
-		{
-			_hotkeyPanel.PivotOffset = new Vector2(240f, 336f);
-			_hotkeyPanel.Scale = new Vector2(s, s);
-		}
+		_hotkeyReference?.ApplyScale(s);
 	}
 
 	public void UpdateFPSVisibility()
@@ -1834,9 +1826,9 @@ public partial class InGameHUD : Control
 
 		if (@event is InputEventKey keyEvent && keyEvent.Pressed)
 		{
-			if (keyEvent.Keycode == Key.Escape && _hotkeyPanelVisible)
+			if (keyEvent.Keycode == Key.Escape && HotkeyReference.Visible)
 			{
-				ToggleHotkeyPanel();
+				HotkeyReference.Close();
 				GetViewport().SetInputAsHandled();
 				return;
 			}
@@ -1902,298 +1894,13 @@ public partial class InGameHUD : Control
 		_chatPanelController?.OnLobbyChatReceived(senderName, message, alliesOnly, timestampUtcTicks);
 	}
 
-	private void BuildHotkeyReferencePanel()
-	{
-		_hotkeyPanel = new PanelContainer();
-		_hotkeyPanel.Name = "HotkeyPanel";
-		_hotkeyPanel.Visible = false;
-		_hotkeyPanel.MouseFilter = MouseFilterEnum.Stop;
-		_hotkeyPanel.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
+	private HotkeyReferencePanel? _hotkeyReference;
 
-		_hotkeyPanel.SetAnchorsPreset(LayoutPreset.Center);
-		_hotkeyPanel.GrowHorizontal = GrowDirection.Both;
-		_hotkeyPanel.GrowVertical = GrowDirection.Both;
-		_hotkeyPanel.OffsetLeft = -240;
-		_hotkeyPanel.OffsetRight = 240;
-		_hotkeyPanel.OffsetTop = -372;
-		_hotkeyPanel.OffsetBottom = 300;
-		_hotkeyPanel.PivotOffset = new Vector2(240f, 336f);
+	private HotkeyReferencePanel HotkeyReference => _hotkeyReference ??= new HotkeyReferencePanel();
 
-		var bgTexture = new TextureRect();
-		bgTexture.Name = "Background";
-		bgTexture.Texture = UIStyle.LoadTextureWithFallback("res://Assets/UI/In-Game_MatchView_HotkeyReference.webp");
-		bgTexture.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
-		bgTexture.StretchMode = TextureRect.StretchModeEnum.Scale;
-		bgTexture.SetAnchorsPreset(LayoutPreset.FullRect);
-		bgTexture.MouseFilter = MouseFilterEnum.Ignore;
-		_hotkeyPanel.AddChild(bgTexture);
+	private void BuildHotkeyReferencePanel() => HotkeyReference.Build(this);
 
-		var contentRoot = new Control();
-		contentRoot.Name = "ContentRoot";
-		contentRoot.SetAnchorsPreset(LayoutPreset.FullRect);
-		contentRoot.MouseFilter = MouseFilterEnum.Pass;
-		_hotkeyPanel.AddChild(contentRoot);
-
-		var titleLbl = new Label();
-		titleLbl.Name = "TitleLabel";
-		titleLbl.Text = TranslationServer.Translate("HOTKEY REFERENCE");
-		titleLbl.SetAnchorsPreset(LayoutPreset.TopWide);
-		titleLbl.OffsetLeft = 65;
-		titleLbl.OffsetRight = -105;
-		titleLbl.OffsetTop = 22;
-		titleLbl.OffsetBottom = 58;
-		titleLbl.HorizontalAlignment = HorizontalAlignment.Center;
-		titleLbl.VerticalAlignment = VerticalAlignment.Center;
-		titleLbl.AddThemeFontOverride("font", UIStyle.FontNorseBold);
-		titleLbl.AddThemeFontSizeOverride("font_size", 16);
-		titleLbl.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-		titleLbl.AddThemeConstantOverride("outline_size", 3);
-		titleLbl.AddThemeColorOverride("font_outline_color", new Color(0f, 0f, 0f, 0.95f));
-		contentRoot.AddChild(titleLbl);
-
-		var btnClose = new Button();
-		btnClose.Name = "BtnClose";
-		btnClose.Text = "✕";
-		btnClose.SetAnchorsPreset(LayoutPreset.TopRight);
-		btnClose.OffsetLeft = -98;
-		btnClose.OffsetRight = -72;
-		btnClose.OffsetTop = 27;
-		btnClose.OffsetBottom = 53;
-		btnClose.FocusMode = FocusModeEnum.None;
-		btnClose.TooltipText = TranslationServer.Translate("Close [Esc]");
-		btnClose.AddThemeFontSizeOverride("font_size", 14);
-		btnClose.AddThemeStyleboxOverride("normal", new StyleBoxEmpty());
-		var closeHoverStyle = new StyleBoxFlat();
-		closeHoverStyle.BgColor = new Color(0.15f, 0.65f, 1.0f, 0.25f);
-		closeHoverStyle.SetCornerRadiusAll(4);
-		btnClose.AddThemeStyleboxOverride("hover", closeHoverStyle);
-		var closePressedStyle = new StyleBoxFlat();
-		closePressedStyle.BgColor = new Color(0.15f, 0.65f, 1.0f, 0.45f);
-		closePressedStyle.SetCornerRadiusAll(4);
-		btnClose.AddThemeStyleboxOverride("pressed", closePressedStyle);
-		btnClose.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-		btnClose.AddThemeColorOverride("font_color", Colors.White);
-		btnClose.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
-		btnClose.AddThemeColorOverride("font_pressed_color", UIStyle.ColorCyanGlow);
-		btnClose.AddThemeConstantOverride("outline_size", 2);
-		btnClose.AddThemeColorOverride("font_outline_color", new Color(0f, 0f, 0f, 0.9f));
-		btnClose.Pressed += () => ToggleHotkeyPanel();
-		contentRoot.AddChild(btnClose);
-
-		var scroll = new ScrollContainer();
-		scroll.Name = "HotkeyScroll";
-		scroll.SetAnchorsPreset(LayoutPreset.FullRect);
-		scroll.OffsetLeft = 90;
-		scroll.OffsetRight = -90;
-		scroll.OffsetTop = 88;
-		scroll.OffsetBottom = -82;
-		scroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
-		scroll.VerticalScrollMode = ScrollContainer.ScrollMode.Auto;
-		contentRoot.AddChild(scroll);
-
-		var vScroll = scroll.GetVScrollBar();
-		if (vScroll != null)
-		{
-			vScroll.CustomMinimumSize = new Vector2(4, 0);
-			var grabberNormal = new StyleBoxFlat();
-			grabberNormal.BgColor = new Color(0.6f, 0.5f, 0.35f, 0.7f);
-			grabberNormal.SetCornerRadiusAll(2);
-			vScroll.AddThemeStyleboxOverride("grabber", grabberNormal);
-
-			var grabberHighlight = new StyleBoxFlat();
-			grabberHighlight.BgColor = UIStyle.ColorGold;
-			grabberHighlight.SetCornerRadiusAll(2);
-			vScroll.AddThemeStyleboxOverride("grabber_highlight", grabberHighlight);
-
-			var grabberPressed = new StyleBoxFlat();
-			grabberPressed.BgColor = UIStyle.ColorCyanGlow;
-			grabberPressed.SetCornerRadiusAll(2);
-			vScroll.AddThemeStyleboxOverride("grabber_pressed", grabberPressed);
-
-			var scrollTrack = new StyleBoxFlat();
-			scrollTrack.BgColor = new Color(0.04f, 0.04f, 0.06f, 0.3f);
-			scrollTrack.SetCornerRadiusAll(2);
-			vScroll.AddThemeStyleboxOverride("scroll", scrollTrack);
-		}
-
-		var vbox = new VBoxContainer();
-		vbox.Name = "Vbox_VBoxContainer";
-		vbox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		vbox.AddThemeConstantOverride("separation", 3);
-		scroll.AddChild(vbox);
-
-		var hotkeyGroups = new (string groupTitle, (string key, string desc)[] items)[]
-		{
-			(
-				"COMMANDS",
-				new (string key, string desc)[]
-				{
-					("Right-Click", "Smart Command (Move/Attack/Rally)"),
-					("Shift+R-Click", "Queue Action / Waypoint"),
-					("A", "Attack / Attack-Move"),
-					("M", "Move to Target"),
-					("P", "Patrol Route"),
-					("S", "Stop Current Action"),
-					("H", "Hold Position"),
-					("B", "Open Build Menu"),
-				}
-			),
-			(
-				"SELECTION & GROUPS",
-				new (string key, string desc)[]
-				{
-					("Left-Click", "Select Unit (Drag to Box-Select)"),
-					("Shift+Click", "Add / Remove from Selection"),
-					("Double-Click", "Select All Same Type on Screen"),
-					("Tab", "Cycle Selection Focus"),
-					("F1", "Select All Idle Units"),
-					("F2", "Select All Military Units"),
-					("F3", "Select All Buildings"),
-					("`", "Cycle Through Buildings"),
-					("Ctrl+0..9", "Assign Control Group"),
-					("0..9", "Recall Group (Double: Jump)"),
-				}
-			),
-			(
-				"CAMERA & MINIMAP",
-				new (string key, string desc)[]
-				{
-					("WASD / Edge", "Pan Camera"),
-					("Shift+WASD", "Fast Camera Pan"),
-					("Space", "Center Camera on Base"),
-					("Z", "Cycle Zoom (Near / Mid / Far)"),
-					("F4", "Toggle Terrain Radar Mode"),
-					("Alt+G", "Ping Map Alert"),
-					("Ctrl+F5..F8", "Save Camera Location 1..4"),
-					("F5..F8", "Jump to Saved Camera 1..4"),
-				}
-			),
-			(
-				"BUILDINGS & SYSTEM",
-				new (string key, string desc)[]
-				{
-					("Y", "Set Building Rally Point"),
-					("Enter", "Open Chat (Shift: All Chat)"),
-					("Esc", "Clear Selection / Cancel Targeting"),
-					("F12", "Settings"),
-					("~ (Tilde)", "Developer Console"),
-				}
-			),
-		};
-
-		int groupIndex = 0;
-		foreach (var (groupTitle, items) in hotkeyGroups)
-		{
-			if (groupIndex > 0)
-			{
-				var groupSpacer = new Control();
-				groupSpacer.Name = "GroupSpacer_Control";
-				groupSpacer.CustomMinimumSize = new Vector2(0, 6);
-				vbox.AddChild(groupSpacer);
-			}
-
-			var catHeader = new PanelContainer();
-			catHeader.Name = "CatHeader_PanelContainer";
-			var catHeaderStyle = new StyleBoxFlat();
-			catHeaderStyle.BgColor = new Color(0.18f, 0.16f, 0.14f, 0.85f);
-			catHeaderStyle.BorderColor = new Color(0.6f, 0.5f, 0.35f, 0.5f);
-			catHeaderStyle.SetBorderWidthAll(1);
-			catHeaderStyle.SetCornerRadiusAll(3);
-			catHeaderStyle.ContentMarginLeft = 6;
-			catHeaderStyle.ContentMarginRight = 6;
-			catHeaderStyle.ContentMarginTop = 3;
-			catHeaderStyle.ContentMarginBottom = 3;
-			catHeader.AddThemeStyleboxOverride("panel", catHeaderStyle);
-
-			var catTitleLbl = new Label();
-			catTitleLbl.Name = "CatTitleLbl_Label";
-			catTitleLbl.Text = TranslationServer.Translate(groupTitle);
-			catTitleLbl.AddThemeFontOverride("font", UIStyle.FontNorseBold);
-			catTitleLbl.AddThemeFontSizeOverride("font_size", 13);
-			catTitleLbl.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-			catTitleLbl.AddThemeConstantOverride("outline_size", 2);
-			catTitleLbl.AddThemeColorOverride("font_outline_color", new Color(0, 0, 0, 0.95f));
-			catTitleLbl.HorizontalAlignment = HorizontalAlignment.Center;
-			catTitleLbl.VerticalAlignment = VerticalAlignment.Center;
-			catHeader.AddChild(catTitleLbl);
-			vbox.AddChild(catHeader);
-
-			for (int i = 0; i < items.Length; i++)
-			{
-				var (key, desc) = items[i];
-
-				var rowPanel = new PanelContainer();
-				rowPanel.Name = "RowPanel_PanelContainer";
-				var rowStyle = new StyleBoxFlat();
-				rowStyle.BgColor = (i % 2 == 0)
-					? new Color(0.12f, 0.13f, 0.15f, 0.35f)
-					: new Color(0.06f, 0.07f, 0.08f, 0.15f);
-				rowStyle.SetCornerRadiusAll(2);
-				rowStyle.ContentMarginLeft = 4;
-				rowStyle.ContentMarginRight = 4;
-				rowStyle.ContentMarginTop = 2;
-				rowStyle.ContentMarginBottom = 2;
-				rowPanel.AddThemeStyleboxOverride("panel", rowStyle);
-
-				var row = UIStyle.CreateRowContainer();
-				row.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-
-				var keyBadge = new PanelContainer();
-				keyBadge.Name = "KeyBadge_PanelContainer";
-				var badgeStyle = new StyleBoxFlat();
-				badgeStyle.BgColor = new Color(0.08f, 0.10f, 0.14f, 0.85f);
-				badgeStyle.BorderColor = new Color(0.35f, 0.45f, 0.55f, 0.5f);
-				badgeStyle.SetBorderWidthAll(1);
-				badgeStyle.SetCornerRadiusAll(3);
-				badgeStyle.ContentMarginLeft = 4;
-				badgeStyle.ContentMarginRight = 4;
-				badgeStyle.ContentMarginTop = 1;
-				badgeStyle.ContentMarginBottom = 1;
-				keyBadge.AddThemeStyleboxOverride("panel", badgeStyle);
-				keyBadge.CustomMinimumSize = new Vector2(86, 0);
-
-				var keyLbl = new Label();
-				keyLbl.Name = "KeyLbl_Label";
-				keyLbl.Text = TranslationServer.Translate(key);
-				keyLbl.AddThemeFontSizeOverride("font_size", 10);
-				keyLbl.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
-				keyLbl.AddThemeConstantOverride("outline_size", 1);
-				keyLbl.AddThemeColorOverride("font_outline_color", new Color(0, 0, 0, 0.9f));
-				keyLbl.HorizontalAlignment = HorizontalAlignment.Center;
-				keyLbl.VerticalAlignment = VerticalAlignment.Center;
-				keyBadge.AddChild(keyLbl);
-				row.AddChild(keyBadge);
-
-				var descLbl = new Label();
-				descLbl.Name = "DescLbl_Label";
-				descLbl.Text = TranslationServer.Translate(desc);
-				descLbl.AddThemeFontSizeOverride("font_size", 11);
-				descLbl.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-				descLbl.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-				descLbl.CustomMinimumSize = new Vector2(170, 0);
-				descLbl.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-				descLbl.VerticalAlignment = VerticalAlignment.Center;
-				row.AddChild(descLbl);
-
-				rowPanel.AddChild(row);
-				vbox.AddChild(rowPanel);
-			}
-
-			groupIndex++;
-		}
-
-		AddChild(_hotkeyPanel);
-	}
-
-	public void ToggleHotkeyPanel()
-	{
-		_hotkeyPanelVisible = !_hotkeyPanelVisible;
-		_hotkeyPanel.Visible = _hotkeyPanelVisible;
-		if (_hotkeyPanelVisible && _hotkeyPanel != null)
-		{
-			_hotkeyPanel.MoveToFront();
-		}
-	}
+	public void ToggleHotkeyPanel() => HotkeyReference.Toggle();
 
 	public void StartCountdownTimer(float duration, string labelText)
 	{
