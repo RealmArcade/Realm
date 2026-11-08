@@ -26,13 +26,13 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 	private LineEdit _txtVfxName = null!;
 	private OptionButton _optMode = null!;
 	private OptionButton _optPrimitive = null!;
-	private Control _rowPrimitive = null!;
+	private Control? _rowPrimitive;
 	private OptionButton _optBlendMode = null!;
 	private OptionButton _optPlacementMode = null!;
 	private CheckBox _chkTintWithPlayerColor = null!;
-	private Control _rowBaseTexture = null!;
-	private Control _rowParticleTexture = null!;
-	private Control _rowParticleMesh = null!;
+	private Control? _rowBaseTexture;
+	private Control? _rowParticleTexture;
+	private Control? _rowParticleMesh;
 	private VBoxContainer _uberShaderContainer = null!;
 	private VBoxContainer _particleContainer = null!;
 	private VBoxContainer _stagesContainer = null!;
@@ -41,7 +41,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 
 	private OptionButton _optParticleShape = null!;
 	private OptionButton _optParticleRenderMode = null!;
-	private Control _rowParticleRenderMode = null!;
+	private Control? _rowParticleRenderMode;
 	private Action<string> _setParticleTextureVal = null!;
 	private Action<string> _setParticleMeshVal = null!;
 	private Action<string> _setBaseTextureVal = null!;
@@ -236,7 +236,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 			_currentConfig.VfxId = _vfxId;
 			if (_currentConfig.ParticleConfig != null)
 			{
-				_currentConfig.ParticleConfig.ParticleId = _vfxId;
+				Particle.ParticleId = _vfxId;
 			}
 		};
 		rowId.AddChild(_txtSlug);
@@ -283,7 +283,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 			_currentConfig.BlendMode = (VfxBlendMode)idx;
 			if (_currentConfig.ParticleConfig != null)
 			{
-				_currentConfig.ParticleConfig.BlendMode = (VfxBlendMode)idx;
+				Particle.BlendMode = (VfxBlendMode)idx;
 			}
 
 			RestartPreviewVfx();
@@ -315,11 +315,11 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		);
 
 		string[] renderModes = Enum.GetNames<SpellParticleRenderMode>();
-		_optParticleRenderMode = AddOptionDropdown(parent, TranslationServer.Translate("Render Mode"), renderModes, _currentConfig.ParticleConfig != null ? (int)_currentConfig.ParticleConfig.RenderMode : 0, (idx) =>
+		_optParticleRenderMode = AddOptionDropdown(parent, TranslationServer.Translate("Render Mode"), renderModes, _currentConfig.ParticleConfig != null ? (int)Particle.RenderMode : 0, (idx) =>
 		{
 			if (_isUpdatingUI) return;
 			EnsureParticleConfig();
-			_currentConfig.ParticleConfig.RenderMode = (SpellParticleRenderMode)idx;
+			Particle.RenderMode = (SpellParticleRenderMode)idx;
 			UpdateSectionVisibilities();
 			RestartPreviewVfx();
 		}, 140f);
@@ -354,7 +354,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 			{
 				if (_isUpdatingUI) return;
 				EnsureParticleConfig();
-				_currentConfig.ParticleConfig.ParticleTexture = val;
+				Particle.ParticleTexture = val;
 				RestartPreviewVfx();
 			},
 			TranslationServer.Translate("Select billboard texture..."),
@@ -370,7 +370,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 				"🎞️",
 				() =>
 				{
-					string tex = _currentConfig.ParticleConfig?.ParticleTexture;
+					string? tex = _currentConfig.ParticleConfig?.ParticleTexture;
 					if (string.IsNullOrEmpty(tex)) return;
 					var meta = VfxShaderManager.GetSpritesheetMetadataSafe(tex) ?? (Columns: 4, Rows: 4, Fps: 20.0f, SubframeBlend: true);
 					_spritesheetEditDialog?.OpenForSheet(
@@ -402,7 +402,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 			{
 				if (_isUpdatingUI) return;
 				EnsureParticleConfig();
-				_currentConfig.ParticleConfig.MeshAssetPath = val;
+				Particle.MeshAssetPath = val;
 				RestartPreviewVfx();
 			},
 			TranslationServer.Translate("Select .rmesh asset..."),
@@ -1081,7 +1081,8 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		RestartPreviewVfx();
 	}
 
-	private void SetVisibleSafe(Control c, bool visible)
+	// Rows are built lazily per primitive type, so an absent row is normal rather than a bug.
+	private static void SetVisibleSafe(Control? c, bool visible)
 	{
 		if (c != null) c.Visible = visible;
 	}
@@ -1110,7 +1111,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		{
 			if (_isUpdatingUI) return;
 			EnsureParticleConfig();
-			_currentConfig.ParticleConfig.EmitterShape = (SpellParticleShape)idx;
+			Particle.EmitterShape = (SpellParticleShape)idx;
 			RestartPreviewVfx();
 		}, 140f);
 
@@ -1118,7 +1119,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		{
 			if (_isUpdatingUI) return;
 			EnsureParticleConfig();
-			_currentConfig.ParticleConfig.Amount = (int)val;
+			Particle.Amount = (int)val;
 			RestartPreviewVfx();
 		}, "0", 140f);
 
@@ -1126,7 +1127,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		{
 			if (_isUpdatingUI) return;
 			EnsureParticleConfig();
-			_currentConfig.ParticleConfig.Lifetime = val;
+			Particle.Lifetime = val;
 			RestartPreviewVfx();
 		}, "0.0", 140f);
 
@@ -1134,7 +1135,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		{
 			if (_isUpdatingUI) return;
 			EnsureParticleConfig();
-			_currentConfig.ParticleConfig.Explosiveness = val;
+			Particle.Explosiveness = val;
 			RestartPreviewVfx();
 		}, "0.00", 140f);
 
@@ -1142,7 +1143,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		{
 			if (_isUpdatingUI) return;
 			EnsureParticleConfig();
-			_currentConfig.ParticleConfig.LocalCoords = val;
+			Particle.LocalCoords = val;
 			RestartPreviewVfx();
 		}, "Particles move with parent rather than drifting in world space");
 	}
@@ -1155,7 +1156,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		{
 			if (_isUpdatingUI) return;
 			EnsureParticleConfig();
-			_currentConfig.ParticleConfig.Direction = val.ToVector3Data();
+			Particle.Direction = val.ToVector3Data();
 			RestartPreviewVfx();
 		}, 140f);
 
@@ -1163,7 +1164,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		{
 			if (_isUpdatingUI) return;
 			EnsureParticleConfig();
-			_currentConfig.ParticleConfig.SpreadDegrees = val;
+			Particle.SpreadDegrees = val;
 			RestartPreviewVfx();
 		}, "0", 140f);
 
@@ -1171,7 +1172,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		{
 			if (_isUpdatingUI) return;
 			EnsureParticleConfig();
-			_currentConfig.ParticleConfig.InitialVelocityMin = val;
+			Particle.InitialVelocityMin = val;
 			RestartPreviewVfx();
 		}, "0.0", 140f);
 
@@ -1179,7 +1180,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		{
 			if (_isUpdatingUI) return;
 			EnsureParticleConfig();
-			_currentConfig.ParticleConfig.InitialVelocityMax = val;
+			Particle.InitialVelocityMax = val;
 			RestartPreviewVfx();
 		}, "0.0", 140f);
 
@@ -1187,7 +1188,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		{
 			if (_isUpdatingUI) return;
 			EnsureParticleConfig();
-			_currentConfig.ParticleConfig.Gravity = val.ToVector3Data();
+			Particle.Gravity = val.ToVector3Data();
 			RestartPreviewVfx();
 		}, 140f);
 
@@ -1195,7 +1196,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		{
 			if (_isUpdatingUI) return;
 			EnsureParticleConfig();
-			_currentConfig.ParticleConfig.Damping = val;
+			Particle.Damping = val;
 			RestartPreviewVfx();
 		}, "0.0", 140f);
 
@@ -1203,7 +1204,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		{
 			if (_isUpdatingUI) return;
 			EnsureParticleConfig();
-			_currentConfig.ParticleConfig.RadialAccel = val;
+			Particle.RadialAccel = val;
 			RestartPreviewVfx();
 		}, "0.0", 140f);
 
@@ -1211,7 +1212,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		{
 			if (_isUpdatingUI) return;
 			EnsureParticleConfig();
-			_currentConfig.ParticleConfig.TangentialAccel = val;
+			Particle.TangentialAccel = val;
 			RestartPreviewVfx();
 		}, "0.0", 140f);
 	}
@@ -1224,7 +1225,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		{
 			if (_isUpdatingUI) return;
 			EnsureParticleConfig();
-			_currentConfig.ParticleConfig.InitialScaleMin = val;
+			Particle.InitialScaleMin = val;
 			RestartPreviewVfx();
 		}, "0.00", 140f);
 
@@ -1232,7 +1233,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		{
 			if (_isUpdatingUI) return;
 			EnsureParticleConfig();
-			_currentConfig.ParticleConfig.InitialScaleMax = val;
+			Particle.InitialScaleMax = val;
 			RestartPreviewVfx();
 		}, "0.00", 140f);
 
@@ -1240,7 +1241,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		{
 			if (_isUpdatingUI) return;
 			EnsureParticleConfig();
-			_currentConfig.ParticleConfig.EndScaleRatio = val;
+			Particle.EndScaleRatio = val;
 			RestartPreviewVfx();
 		}, "0.00", 140f);
 
@@ -1248,7 +1249,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		{
 			if (_isUpdatingUI) return;
 			EnsureParticleConfig();
-			_currentConfig.ParticleConfig.ColorStart = "#" + c.ToHtml(false);
+			Particle.ColorStart = "#" + c.ToHtml(false);
 			RestartPreviewVfx();
 		}, 140f);
 
@@ -1256,7 +1257,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		{
 			if (_isUpdatingUI) return;
 			EnsureParticleConfig();
-			_currentConfig.ParticleConfig.ColorMid = "#" + c.ToHtml(false);
+			Particle.ColorMid = "#" + c.ToHtml(false);
 			RestartPreviewVfx();
 		}, 140f);
 
@@ -1264,7 +1265,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		{
 			if (_isUpdatingUI) return;
 			EnsureParticleConfig();
-			_currentConfig.ParticleConfig.ColorEnd = "#" + c.ToHtml(false);
+			Particle.ColorEnd = "#" + c.ToHtml(false);
 			RestartPreviewVfx();
 		}, 140f);
 
@@ -1272,7 +1273,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		{
 			if (_isUpdatingUI) return;
 			EnsureParticleConfig();
-			_currentConfig.ParticleConfig.EmissionEnergy = val;
+			Particle.EmissionEnergy = val;
 			RestartPreviewVfx();
 		}, "0.0", 140f);
 	}
@@ -1295,6 +1296,14 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 			};
 		}
 	}
+
+	// The particle controls cannot render an absent section, so touching one creates it rather than
+	// reporting a null the caller would have to re-check at every widget.
+	private SpellParticleConfig Particle => _currentConfig.ParticleConfig ??= new SpellParticleConfig
+	{
+		ParticleId = _currentConfig.VfxId,
+		Name = _currentConfig.Name
+	};
 
 	private void UpdateUIBasicSettings()
 	{
@@ -1479,7 +1488,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 
 	private void UpdateUIParticleBasicSettings()
 	{
-		var pc = _currentConfig.ParticleConfig;
+		var pc = Particle;
 		UpdateUIParticleBasicShapeSettings(pc);
 		UpdateUIParticleBasicAmountSettings(pc);
 	}
@@ -1505,7 +1514,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 
 	private void UpdateUIParticleMotionSettings()
 	{
-		var pc = _currentConfig.ParticleConfig;
+		var pc = Particle;
 		UpdateUIParticleMotionDirectionSettings(pc);
 		UpdateUIParticleMotionGravitySettings(pc);
 	}
@@ -1540,7 +1549,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 
 	private void UpdateUIParticleVisualSettings()
 	{
-		var pc = _currentConfig.ParticleConfig;
+		var pc = Particle;
 		UpdateUIParticleVisualScaleSettings(pc);
 		UpdateUIParticleVisualColorSettings(pc);
 	}
@@ -1641,7 +1650,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 
 		if (_currentConfig.ParticleConfig != null)
 		{
-			_currentConfig.ParticleConfig.ParticleId = _vfxId;
+			Particle.ParticleId = _vfxId;
 		}
 	}
 
@@ -1671,7 +1680,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 
 	private void SyncParticleVisuals()
 	{
-		var pc = _currentConfig.ParticleConfig;
+		var pc = Particle;
 		if (_optParticleShape != null) pc.EmitterShape = (SpellParticleShape)_optParticleShape.Selected;
 		if (_optParticleRenderMode != null) pc.RenderMode = (SpellParticleRenderMode)_optParticleRenderMode.Selected;
 		if (_pickerParticleColorStart != null) pc.ColorStart = "#" + _pickerParticleColorStart.Color.ToHtml(false);
@@ -1685,7 +1694,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 
 	private void SyncParticleMotion()
 	{
-		var pc = _currentConfig.ParticleConfig;
+		var pc = Particle;
 		SyncParticleMotionAmount(pc);
 		SyncParticleMotionVelocity(pc);
 	}
@@ -1996,47 +2005,47 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 			EnsureParticleConfig();
 
 			var shapes = Enum.GetValues<SpellParticleShape>();
-			_currentConfig.ParticleConfig.EmitterShape = shapes.GetValue(Random.Shared.Next(0, shapes.Length)) is SpellParticleShape s ? s : SpellParticleShape.Sphere;
+			Particle.EmitterShape = shapes.GetValue(Random.Shared.Next(0, shapes.Length)) is SpellParticleShape s ? s : SpellParticleShape.Sphere;
 
-			_currentConfig.ParticleConfig.Amount = Random.Shared.Next(12, 180);
-			_currentConfig.ParticleConfig.Lifetime = (float)Math.Round(Random.Shared.NextDouble() * (3.0 - 0.4) + 0.4, 2);
-			_currentConfig.ParticleConfig.Explosiveness = (float)Math.Round(Random.Shared.NextDouble() * 0.9, 2);
-			_currentConfig.ParticleConfig.LocalCoords = Random.Shared.NextDouble() > 0.6;
+			Particle.Amount = Random.Shared.Next(12, 180);
+			Particle.Lifetime = (float)Math.Round(Random.Shared.NextDouble() * (3.0 - 0.4) + 0.4, 2);
+			Particle.Explosiveness = (float)Math.Round(Random.Shared.NextDouble() * 0.9, 2);
+			Particle.LocalCoords = Random.Shared.NextDouble() > 0.6;
 
 			float dirX = (float)Math.Round((Random.Shared.NextDouble() * 2.0 - 1.0), 2);
 			float dirY = (float)Math.Round(Random.Shared.NextDouble() * 1.5, 2);
 			float dirZ = (float)Math.Round((Random.Shared.NextDouble() * 2.0 - 1.0), 2);
-			_currentConfig.ParticleConfig.Direction = new Vector3(dirX, dirY, dirZ).Normalized().ToVector3Data();
+			Particle.Direction = new Vector3(dirX, dirY, dirZ).Normalized().ToVector3Data();
 
-			_currentConfig.ParticleConfig.SpreadDegrees = (float)Math.Round(Random.Shared.NextDouble() * 80.0 + 10.0, 1);
+			Particle.SpreadDegrees = (float)Math.Round(Random.Shared.NextDouble() * 80.0 + 10.0, 1);
 
 			float vMin = (float)Math.Round(Random.Shared.NextDouble() * 4.0 + 0.5, 2);
 			float vMax = (float)Math.Round(vMin + Random.Shared.NextDouble() * 8.0 + 0.5, 2);
-			_currentConfig.ParticleConfig.InitialVelocityMin = vMin;
-			_currentConfig.ParticleConfig.InitialVelocityMax = vMax;
+			Particle.InitialVelocityMin = vMin;
+			Particle.InitialVelocityMax = vMax;
 
 			float gravY = (float)Math.Round(Random.Shared.NextDouble() * 12.0 - 6.0, 2);
-			_currentConfig.ParticleConfig.Gravity = new Vector3(0.0f, gravY, 0.0f).ToVector3Data();
+			Particle.Gravity = new Vector3(0.0f, gravY, 0.0f).ToVector3Data();
 
-			_currentConfig.ParticleConfig.Damping = (float)Math.Round(Random.Shared.NextDouble() * 4.0, 2);
-			_currentConfig.ParticleConfig.RadialAccel = (float)Math.Round((Random.Shared.NextDouble() * 2.0 - 1.0) * 15.0, 2);
-			_currentConfig.ParticleConfig.TangentialAccel = (float)Math.Round((Random.Shared.NextDouble() * 2.0 - 1.0) * 15.0, 2);
+			Particle.Damping = (float)Math.Round(Random.Shared.NextDouble() * 4.0, 2);
+			Particle.RadialAccel = (float)Math.Round((Random.Shared.NextDouble() * 2.0 - 1.0) * 15.0, 2);
+			Particle.TangentialAccel = (float)Math.Round((Random.Shared.NextDouble() * 2.0 - 1.0) * 15.0, 2);
 
 			float sMin = (float)Math.Round(Random.Shared.NextDouble() * 0.4 + 0.05, 2);
 			float sMax = (float)Math.Round(sMin + Random.Shared.NextDouble() * 0.6 + 0.1, 2);
-			_currentConfig.ParticleConfig.InitialScaleMin = sMin;
-			_currentConfig.ParticleConfig.InitialScaleMax = sMax;
-			_currentConfig.ParticleConfig.EndScaleRatio = (float)Math.Round(Random.Shared.NextDouble() * 2.0, 2);
+			Particle.InitialScaleMin = sMin;
+			Particle.InitialScaleMax = sMax;
+			Particle.EndScaleRatio = (float)Math.Round(Random.Shared.NextDouble() * 2.0, 2);
 
 			float baseHue = (float)Random.Shared.NextDouble();
 			Color colStart = Color.FromHsv(baseHue, (float)(Random.Shared.NextDouble() * 0.4 + 0.6), 1.0f);
 			Color colMid = Color.FromHsv((baseHue + 0.08f) % 1.0f, (float)(Random.Shared.NextDouble() * 0.4 + 0.6), (float)(Random.Shared.NextDouble() * 0.4 + 0.6));
 			Color colEnd = Color.FromHsv((baseHue + 0.16f) % 1.0f, 1.0f, (float)(Random.Shared.NextDouble() * 0.3 + 0.1));
 
-			_currentConfig.ParticleConfig.ColorStart = "#" + colStart.ToHtml(false);
-			_currentConfig.ParticleConfig.ColorMid = "#" + colMid.ToHtml(false);
-			_currentConfig.ParticleConfig.ColorEnd = "#" + colEnd.ToHtml(false);
-			_currentConfig.ParticleConfig.EmissionEnergy = (float)Math.Round(Random.Shared.NextDouble() * 9.0 + 1.0, 1);
+			Particle.ColorStart = "#" + colStart.ToHtml(false);
+			Particle.ColorMid = "#" + colMid.ToHtml(false);
+			Particle.ColorEnd = "#" + colEnd.ToHtml(false);
+			Particle.EmissionEnergy = (float)Math.Round(Random.Shared.NextDouble() * 9.0 + 1.0, 1);
 		}
 		else
 		{
