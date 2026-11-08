@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using Realm.Ecs;
 
@@ -22,8 +22,8 @@ public class SelectedUnitInfo
 	public bool IsEnemy { get; set; }
 	public bool IsBuilding { get; set; }
 	public bool IsUnderConstruction { get; set; }
-	public string StateText { get; set; } = null!;
-	public string Description { get; set; } = null!;
+	public string? StateText { get; set; }
+	public string? Description { get; set; }
 	public List<string> Abilities { get; set; } = new();
 	public int Potions { get; set; }
 	public Dictionary<string, int> InventoryItems { get; set; } = new(StringComparer.OrdinalIgnoreCase);
@@ -31,7 +31,7 @@ public class SelectedUnitInfo
 	public bool HasInventory { get; set; }
 
 	public bool HasProduction { get; set; }
-	public string ProductionTitle { get; set; } = null!;
+	public string? ProductionTitle { get; set; }
 	public float ProductionProgress { get; set; }
 	public float ProductionMaxProgress { get; set; }
 	public List<string> ProductionQueue { get; set; } = new();

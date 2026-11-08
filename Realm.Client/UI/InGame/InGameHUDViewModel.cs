@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using Realm.Ecs;
 using Godot;
@@ -21,12 +21,11 @@ public class InGameHUDViewModel
 {
 	private Entity GetTargetPlayerEntity()
 	{
-		GameHost tempQualifier = GameContext.Host;
-		if ((tempQualifier != null ? GameContext.World : null) == null)
+		if (GameContext.Host is not { } host || GameContext.World == null)
 			return Entity.Null;
 
 		if (IsPlayingNormally())
-			return GameContext.Host.GetPlayerEntityForPlayerIndex(GameContext.PerspectiveFilter.ControlledPlayerIndex);
+			return host.GetPlayerEntityForPlayerIndex(GameContext.PerspectiveFilter.ControlledPlayerIndex);
 
 		if (GameContext.ReplayPlayback.IsPlayingReplay)
 		{
@@ -39,7 +38,7 @@ public class InGameHUDViewModel
 		if (livePerspective <= 0)
 			return Entity.Null;
 
-		return GameContext.Host.GetPlayerEntityForPlayerIndex(livePerspective);
+		return host.GetPlayerEntityForPlayerIndex(livePerspective);
 	}
 
 	private bool IsPlayingNormally()
@@ -51,7 +50,8 @@ public class InGameHUDViewModel
 
 	private Entity GetSpectatedPlayer(int targetPeerId)
 	{
-		var world = GameContext.World;
+		var world = GameContext.World
+		            ?? throw new InvalidOperationException($"No player entity is mapped for peer {targetPeerId}.");
 		var worldEntity = GameContext.Simulation.WorldEntity;
 		if (worldEntity == Entity.Null) throw new InvalidOperationException($"No player entity is mapped for peer {targetPeerId}.");
 		if (!world.IsAlive(worldEntity)) throw new InvalidOperationException($"No player entity is mapped for peer {targetPeerId}.");
@@ -517,10 +517,12 @@ public class InGameHUDViewModel
 
 	private void UpdateClock()
 	{
-		float t = GameContext.Host.GameElapsedTime;
+		if (GameContext.Host is not { } host) return;
+
+		float t = host.GameElapsedTime;
 		int mins = (int)(t / 60);
 		int secs = (int)(t % 60);
-		int phaseIdx = GameContext.Host.TimeOfDayIndex;
+		int phaseIdx = host.TimeOfDayIndex;
 
 		if (mins == _lastClockMins && secs == _lastClockSecs && phaseIdx == _lastClockPhase)
 			return;
@@ -602,10 +604,8 @@ public class InGameHUDViewModel
 
 		InitializeUnitInfo(u, info, entityChanged);
 
-		if (GameContext.Host == null || !GameContext.World.IsAlive(u.Entity))
+		if (GameContext.Host == null || GameContext.World is not { } world || !world.IsAlive(u.Entity))
 			return;
-
-		var world = GameContext.World;
 
 		UpdateUnitBasicStats(world, u, info);
 		UpdateUnitStateText(world, u, info);
@@ -698,7 +698,7 @@ public class InGameHUDViewModel
 		}
 	}
 
-	private string GetBaseStateText(EcsWorld world, Unit3D u)
+	private string? GetBaseStateText(EcsWorld world, Unit3D u)
 	{
 		if (world.Has<Gatherer>(u.Entity))
 			return GetGathererStateText(world.Get<Gatherer>(u.Entity));
