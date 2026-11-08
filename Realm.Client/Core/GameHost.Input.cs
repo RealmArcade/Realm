@@ -24,6 +24,14 @@ namespace Realm.Client.Core;
 
 public partial class GameHost
 {
+	/// <summary>
+	/// The HUD this host reports through and, for the resource deductions below, reads and
+	/// writes game state through. It exists for the lifetime of a match, so reaching this
+	/// without one is a programming error rather than a state to survive.
+	/// </summary>
+	private static InGameHUD Hud => GameContext.InGameHud
+		?? throw new InvalidOperationException("GameHost used the HUD before it existed.");
+
 	private PhysicsRayQueryParameters3D? _cachedRaycastQuery { get; set; }
 	private bool _leftClickInitiatedOverUI { get; set; } = false;
 	private bool _is3DLeftClickDown { get; set; } = false;
@@ -45,7 +53,7 @@ public partial class GameHost
 
 		HandleGlobalMouseLeftClick(@event);
 
-		if (GameContext.InGameHud != null && GameContext.InGameHud.IsChatActive) return;
+		if (GameContext.InGameHud != null && Hud.IsChatActive) return;
 
 		if (GameContext.SessionState.IsMapEditorMode)
 		{
@@ -707,13 +715,13 @@ public partial class GameHost
 							node3D.Scale, node3D.Scale
 						);
 						node3D.Position = targetPos;
-						if (node3D is Unit3D unit && GameContext.World.IsAlive(unit.Entity))
+						if (node3D is Unit3D unit && World.IsAlive(unit.Entity))
 						{
 							GameContext.InputService.SetEntityPosition(unit.Entity, new System.Numerics.Vector3(targetPos.X, targetPos.Y, targetPos.Z));
 						}
-						else if (node3D is PropEntityProxyNode propProxy && GameContext.World.IsAlive(propProxy.Entity))
+						else if (node3D is PropEntityProxyNode propProxy && World.IsAlive(propProxy.Entity))
 						{
-							GameContext.World.Set(propProxy.Entity, new Position(new System.Numerics.Vector3(targetPos.X, targetPos.Y, targetPos.Z)));
+							World.Set(propProxy.Entity, new Position(new System.Numerics.Vector3(targetPos.X, targetPos.Y, targetPos.Z)));
 							GameContext.PropMultiMesh?.UpdateInstanceTransform(propProxy.Entity, targetPos, propProxy.RotationDegrees.Y, propProxy.Scale.X);
 							UpdateSelectedPropRingPosition(targetPos);
 						}
@@ -1327,7 +1335,7 @@ public partial class GameHost
 							string? closestStaticPropId = null;
 							float closestStaticDist = 3.0f;
 							var propQuery = QueryCache.AllPropIdentityAndPositionQuery;
-							GameContext.World.Query(in propQuery, (Entity entity, ref PropIdentity pId, ref Position pPos) =>
+							World.Query(in propQuery, (Entity entity, ref PropIdentity pId, ref Position pPos) =>
 							{
 								if (EntityToProp3D.ContainsKey(entity)) return;
 								Vector3 wPos = new Vector3(pPos.Value.X, pPos.Value.Y, pPos.Value.Z);
@@ -1757,7 +1765,7 @@ public partial class GameHost
 		if (@event is InputEventKey settingsKeyEvent && settingsKeyEvent.Pressed && !settingsKeyEvent.Echo && settingsKeyEvent.Keycode == Key.F12)
 		{
 			GetViewport().SetInputAsHandled();
-			GameContext.UserInterface.OpenSettingsOverlay();
+			GameContext.UserInterface?.OpenSettingsOverlay();
 			return;
 		}
 
@@ -1816,7 +1824,7 @@ public partial class GameHost
 				Input.SetCustomMouseCursor(null);
 				Input.SetDefaultCursorShape(Input.CursorShape.Arrow);
 				if (GameContext.InGameHud != null)
-					GameContext.InGameHud.ShowFeedbackText("Targeting Cancelled", new Color(0.8f, 0.8f, 0.8f));
+					Hud.ShowFeedbackText("Targeting Cancelled", new Color(0.8f, 0.8f, 0.8f));
 				GetViewport().SetInputAsHandled();
 				return;
 			}
@@ -1832,14 +1840,14 @@ public partial class GameHost
 			{
 				ActivePingMode = false;
 				if (GameContext.InGameHud != null)
-					GameContext.InGameHud.ShowFeedbackText("Ping Mode Cancelled", new Color(0.8f, 0.8f, 0.8f));
+					Hud.ShowFeedbackText("Ping Mode Cancelled", new Color(0.8f, 0.8f, 0.8f));
 				GetViewport().SetInputAsHandled();
 				return;
 			}
 
-			if (GameContext.InGameHud != null && GameContext.InGameHud.IsBuildSubMenuOpen)
+			if (GameContext.InGameHud != null && Hud.IsBuildSubMenuOpen)
 			{
-				GameContext.InGameHud.ExitBuildSubMenu();
+				Hud.ExitBuildSubMenu();
 				GetViewport().SetInputAsHandled();
 				return;
 			}
@@ -1849,7 +1857,7 @@ public partial class GameHost
 				if (SelectedUnits.Count == 1 && GameContext.PerspectiveFilter.CanControl(SelectedUnits[0].Player))
 				{
 					var unit = SelectedUnits[0];
-					if (GameContext.World.Has<ProductionQueue>(unit.Entity) && GameContext.World.Get<ProductionQueue>(unit.Entity).Count > 0)
+					if (World.Has<ProductionQueue>(unit.Entity) && World.Get<ProductionQueue>(unit.Entity).Count > 0)
 					{
 						CancelLastQueuedUnit(unit.Entity);
 						GetViewport().SetInputAsHandled();
@@ -1913,7 +1921,7 @@ public partial class GameHost
 			{
 				if (GameContext.InGameHud != null)
 				{
-					GameContext.InGameHud.ToggleMinimapTerrain();
+					Hud.ToggleMinimapTerrain();
 				}
 
 				GetViewport().SetInputAsHandled();
@@ -1926,9 +1934,9 @@ public partial class GameHost
 				if (GameContext.InGameHud != null)
 				{
 					if (ActivePingMode)
-						GameContext.InGameHud.ShowFeedbackText("Ping Mode: Click Minimap or Ground to ping", new Color(1.0f, 0.1f, 0.2f));
+						Hud.ShowFeedbackText("Ping Mode: Click Minimap or Ground to ping", new Color(1.0f, 0.1f, 0.2f));
 					else
-						GameContext.InGameHud.ShowFeedbackText("Ping Mode Cancelled", new Color(0.8f, 0.8f, 0.8f));
+						Hud.ShowFeedbackText("Ping Mode Cancelled", new Color(0.8f, 0.8f, 0.8f));
 				}
 
 				GetViewport().SetInputAsHandled();
@@ -1956,7 +1964,7 @@ public partial class GameHost
 				return;
 			}
 
-			if (GameContext.InGameHud != null && GameContext.InGameHud.HandleCommandCardHotkey(keyEvent.Keycode, keyEvent.GetModifiersMask()))
+			if (GameContext.InGameHud != null && Hud.HandleCommandCardHotkey(keyEvent.Keycode, keyEvent.GetModifiersMask()))
 			{
 				GetViewport().SetInputAsHandled();
 				return;
@@ -2066,7 +2074,7 @@ public partial class GameHost
 					}
 					else if (clickedUnit != null && !isClickedEnemy && clickedUnit != SelectedUnits.Find(u => GameContext.PerspectiveFilter.CanControl(u.Player)))
 					{
-						if (clickedUnit.IsBuilding && GameContext.World.Has<UnderConstruction>(clickedUnit.Entity))
+						if (clickedUnit.IsBuilding && World.Has<UnderConstruction>(clickedUnit.Entity))
 						{
 							bool workerSelected = false;
 							foreach (var u in SelectedUnits)
@@ -2218,7 +2226,7 @@ public partial class GameHost
 					_isDragging = false;
 					if (GameContext.InGameHud != null)
 					{
-						GameContext.InGameHud.UpdateDragBox(Vector2.Zero, Vector2.Zero, false);
+						Hud.UpdateDragBox(Vector2.Zero, Vector2.Zero, false);
 					}
 
 					ClearTemporarySelection();
@@ -2249,7 +2257,7 @@ public partial class GameHost
 				{
 					ActivePingMode = false;
 					if (GameContext.InGameHud != null)
-						GameContext.InGameHud.ShowFeedbackText("Ping Mode Cancelled", new Color(0.8f, 0.8f, 0.8f));
+						Hud.ShowFeedbackText("Ping Mode Cancelled", new Color(0.8f, 0.8f, 0.8f));
 					GetViewport().SetInputAsHandled();
 					return;
 				}
@@ -2261,7 +2269,7 @@ public partial class GameHost
 					Input.SetCustomMouseCursor(null);
 					Input.SetDefaultCursorShape(Input.CursorShape.Arrow);
 					if (GameContext.InGameHud != null)
-						GameContext.InGameHud.ShowFeedbackText("Targeting Cancelled", new Color(0.8f, 0.8f, 0.8f));
+						Hud.ShowFeedbackText("Targeting Cancelled", new Color(0.8f, 0.8f, 0.8f));
 					return;
 				}
 
@@ -2307,7 +2315,7 @@ public partial class GameHost
 			_dragEnd = mouseMotion.Position;
 			if (GameContext.InGameHud != null)
 			{
-				GameContext.InGameHud.UpdateDragBox(_dragStart, _dragEnd, true);
+				Hud.UpdateDragBox(_dragStart, _dragEnd, true);
 			}
 
 			UpdateTemporarySelection(_dragStart, _dragEnd);
@@ -2858,19 +2866,19 @@ public partial class GameHost
 		{
 			if (mode == "attack")
 			{
-				GameContext.InGameHud.ShowFeedbackText("Attack Command: Click enemy to attack, or ground to Attack-Move", new Color(0.9f, 0.4f, 0.1f));
+				Hud.ShowFeedbackText("Attack Command: Click enemy to attack, or ground to Attack-Move", new Color(0.9f, 0.4f, 0.1f));
 			}
 			else if (mode == "move")
 			{
-				GameContext.InGameHud.ShowFeedbackText("Move Command: Click ground to move", new Color(0.2f, 0.9f, 0.3f));
+				Hud.ShowFeedbackText("Move Command: Click ground to move", new Color(0.2f, 0.9f, 0.3f));
 			}
 			else if (mode == "patrol")
 			{
-				GameContext.InGameHud.ShowFeedbackText("Patrol Command: Click ground to set patrol endpoint", new Color(0.7f, 0.4f, 1.0f));
+				Hud.ShowFeedbackText("Patrol Command: Click ground to set patrol endpoint", new Color(0.7f, 0.4f, 1.0f));
 			}
 			else if (mode == "rally")
 			{
-				GameContext.InGameHud.ShowFeedbackText("Rally Command: Click ground to set building Rally Point", new Color(1.0f, 0.85f, 0.5f));
+				Hud.ShowFeedbackText("Rally Command: Click ground to set building Rally Point", new Color(1.0f, 0.85f, 0.5f));
 			}
 		}
 	}
@@ -2947,7 +2955,7 @@ public partial class GameHost
 
 		if (GameContext.InGameHud != null)
 		{
-			GameContext.InGameHud.ShowFeedbackText($"Command: Attack {target.UnitId.ToUpper()}", new Color(0.9f, 0.2f, 0.2f));
+			Hud.ShowFeedbackText($"Command: Attack {target.UnitId.ToUpper()}", new Color(0.9f, 0.2f, 0.2f));
 		}
 	}
 
@@ -2989,7 +2997,7 @@ public partial class GameHost
 	{
 		if (GameContext.InGameHud == null) return;
 
-		GameContext.InGameHud.ShowFeedbackText($"Command: Follow {target.UnitId.ToUpper()}", new Color(0.2f, 0.6f, 1.0f));
+		Hud.ShowFeedbackText($"Command: Follow {target.UnitId.ToUpper()}", new Color(0.2f, 0.6f, 1.0f));
 	}
 
 	private void CollectFollowCommandTargets(Unit3D target, List<Entity> selectedEntities, List<int> targetIds)
@@ -3091,7 +3099,7 @@ public partial class GameHost
 		GameContext.InGameHud?.RefreshUI(SelectedUnits);
 		if (GameContext.InGameHud != null)
 		{
-			GameContext.InGameHud.ShowFeedbackText($"Selected {selectedCount} Idle Units", new Color(0.5f, 1.0f, 0.5f));
+			Hud.ShowFeedbackText($"Selected {selectedCount} Idle Units", new Color(0.5f, 1.0f, 0.5f));
 		}
 	}
 
@@ -3114,7 +3122,7 @@ public partial class GameHost
 		GameContext.InGameHud?.RefreshUI(SelectedUnits);
 		if (GameContext.InGameHud != null)
 		{
-			GameContext.InGameHud.ShowFeedbackText($"Selected All Army ({selectedCount} Units)", new Color(0.5f, 1.0f, 0.5f));
+			Hud.ShowFeedbackText($"Selected All Army ({selectedCount} Units)", new Color(0.5f, 1.0f, 0.5f));
 		}
 	}
 
@@ -3322,8 +3330,8 @@ public partial class GameHost
 		_controlGroups[index] = groupUnits;
 		if (GameContext.InGameHud != null)
 		{
-			GameContext.InGameHud.ShowFeedbackText($"Assigned {groupUnits.Count} units to Control Group {index}", new Color(0.5f, 0.8f, 1.0f));
-			GameContext.InGameHud.RefreshUI(SelectedUnits);
+			Hud.ShowFeedbackText($"Assigned {groupUnits.Count} units to Control Group {index}", new Color(0.5f, 0.8f, 1.0f));
+			Hud.RefreshUI(SelectedUnits);
 		}
 	}
 
@@ -3388,7 +3396,7 @@ public partial class GameHost
 
 		if (GameContext.InGameHud != null)
 		{
-			GameContext.InGameHud.ShowFeedbackText($"Casting: Select Location for {spellId.ToUpper()}", new Color(1f, 0.7f, 0.1f));
+			Hud.ShowFeedbackText($"Casting: Select Location for {spellId.ToUpper()}", new Color(1f, 0.7f, 0.1f));
 		}
 	}
 
@@ -3420,7 +3428,7 @@ public partial class GameHost
 	private UnitId GetFocusedSelectedUnitId()
 	{
 		Unit3D focusedUnit = GetFocusedSelectedUnit();
-		return focusedUnit != null && GameContext.World.IsAlive(focusedUnit.Entity)
+		return focusedUnit != null && World.IsAlive(focusedUnit.Entity)
 			? (UnitId)focusedUnit.Entity.Id
 			: UnitId.Invalid;
 	}
@@ -3452,7 +3460,7 @@ public partial class GameHost
 
 		if (_multiplayerActive && focusedUnit != null && !GameContext.PerspectiveFilter.CanControl(focusedUnit.Player)) return;
 
-		bool hasCaster = focusedUnit != null && GameContext.World.IsAlive(focusedUnit.Entity);
+		bool hasCaster = focusedUnit != null && World.IsAlive(focusedUnit.Entity);
 		UnitId caster = hasCaster ? (UnitId)focusedUnit.Entity.Id : UnitId.Invalid;
 
 		// Affordability and cooldown are settled before the script hears about the cast, matching the authoritative server
@@ -3500,8 +3508,8 @@ public partial class GameHost
 		string displayName = def?.DisplayName ?? spellId;
 		if (GameContext.InGameHud != null)
 		{
-			GameContext.InGameHud.ShowFeedbackText($"Cast: {displayName}", new Color(0.9f, 0.3f, 0.1f));
-			GameContext.UserInterface.PlayClickSound();
+			Hud.ShowFeedbackText($"Cast: {displayName}", new Color(0.9f, 0.3f, 0.1f));
+			GameContext.UserInterface?.PlayClickSound();
 		}
 
 		if (def != null)
@@ -3519,7 +3527,7 @@ public partial class GameHost
 	public void CastInstantAbility(string abilityId)
 	{
 		if (GameContext.PerspectiveFilter.IsSpectating) return;
-		if (SelectedUnits.Count == 0 || !GameContext.World.IsAlive(SelectedUnits[0].Entity)) return;
+		if (SelectedUnits.Count == 0 || !World.IsAlive(SelectedUnits[0].Entity)) return;
 		if (!GameContext.PerspectiveFilter.CanControl(SelectedUnits[0].Player)) return;
 
 		if (GameContext.InputService.TryGetCasterPosition(SelectedUnits[0].Entity, out var pos))
@@ -3535,9 +3543,9 @@ public partial class GameHost
 
 		if (GameContext.InGameHud == null) return;
 
-		if (GameContext.InGameHud.Gold < costGold)
+		if (Hud.Gold < costGold)
 		{
-			GameContext.InGameHud.ShowFeedbackText("Cannot buy item: Insufficient gold!", new Color(1.0f, 0.2f, 0.2f));
+			Hud.ShowFeedbackText("Cannot buy item: Insufficient gold!", new Color(1.0f, 0.2f, 0.2f));
 			GameContext.UserInterface?.PlayWarningSound();
 			return;
 		}
@@ -3558,7 +3566,7 @@ public partial class GameHost
 		}
 		else
 		{
-			GameContext.InGameHud.ShowFeedbackText("Cannot buy item: No friendly combat units nearby!", new Color(1.0f, 0.2f, 0.2f));
+			Hud.ShowFeedbackText("Cannot buy item: No friendly combat units nearby!", new Color(1.0f, 0.2f, 0.2f));
 			GameContext.UserInterface?.PlayWarningSound();
 		}
 	}
@@ -3580,7 +3588,7 @@ public partial class GameHost
 		
 		if (GameContext.InGameHud != null)
 		{
-			GameContext.InGameHud.Gold -= costGold;
+			Hud.Gold -= costGold;
 		}
 
 		if (targetUnit != null)
@@ -3703,7 +3711,7 @@ public partial class GameHost
 		if (GameContext.InGameHud != null)
 		{
 			string displayName = !string.IsNullOrEmpty(meta.Name) ? meta.Name : type.ToUpper();
-			GameContext.InGameHud.ShowFeedbackText($"Place {displayName}: Click on map to construct", new Color(0.15f, 0.65f, 1.0f));
+			Hud.ShowFeedbackText($"Place {displayName}: Click on map to construct", new Color(0.15f, 0.65f, 1.0f));
 		}
 	}
 
@@ -3718,7 +3726,7 @@ public partial class GameHost
 
 		if (GameContext.InGameHud != null)
 		{
-			GameContext.InGameHud.ShowFeedbackText("Building Placement Cancelled", new Color(0.8f, 0.8f, 0.8f));
+			Hud.ShowFeedbackText("Building Placement Cancelled", new Color(0.8f, 0.8f, 0.8f));
 		}
 
 		Input.SetDefaultCursorShape(Input.CursorShape.Arrow);
@@ -3732,7 +3740,7 @@ public partial class GameHost
 	private Unit3D? FindWorkerForPlacement(string type, Vector3 position)
 	{
 		Unit3D? selectedWorker = SelectedUnits.Find(u => CanUnitConstructType(u, type));
-		if (selectedWorker != null && GameContext.World.IsAlive(selectedWorker.Entity)) return selectedWorker;
+		if (selectedWorker != null && World.IsAlive(selectedWorker.Entity)) return selectedWorker;
 
 		int playerIndex = GameContext.PerspectiveFilter.ControlledPlayerIndex;
 		if (!PlayerToUnits.TryGetValue(playerIndex, out List<Unit3D>? ownedUnits)) return null;
@@ -3743,7 +3751,7 @@ public partial class GameHost
 		{
 			Unit3D candidate = ownedUnits[index];
 			if (!GodotObject.IsInstanceValid(candidate)) continue;
-			if (!GameContext.World.IsAlive(candidate.Entity)) continue;
+			if (!World.IsAlive(candidate.Entity)) continue;
 			if (!CanUnitConstructType(candidate, type)) continue;
 
 			float distanceSquared = candidate.Position.DistanceSquaredTo(position);
@@ -3798,7 +3806,7 @@ public partial class GameHost
 			if (GameContext.InGameHud != null)
 			{
 				DeductResourcesForBuilding(meta);
-				GameContext.InGameHud.ShowFeedbackText($"Constructing {meta.Name}...", new Color(0.3f, 0.9f, 0.4f));
+				Hud.ShowFeedbackText($"Constructing {meta.Name}...", new Color(0.3f, 0.9f, 0.4f));
 			}
 
 			SubmitRemoteCommand("build", new List<int> { placementWorkerServerId }, position, 0, type);
@@ -3818,12 +3826,12 @@ public partial class GameHost
 
 		if (!GameContext.InputService.HasSufficientResources(
 			    meta,
-			    GameContext.InGameHud.Gold,
-			    GameContext.InGameHud.Wood,
-			    GameContext.InGameHud.Stone
+			    Hud.Gold,
+			    Hud.Wood,
+			    Hud.Stone
 		    ))
 		{
-			GameContext.InGameHud.ShowFeedbackText("Cannot construct: Insufficient resources!", new Color(1.0f, 0.2f, 0.2f));
+			Hud.ShowFeedbackText("Cannot construct: Insufficient resources!", new Color(1.0f, 0.2f, 0.2f));
 			GameContext.UserInterface?.PlayWarningSound();
 		}
 		else
@@ -3831,7 +3839,7 @@ public partial class GameHost
 			DeductResourcesForBuilding(meta);
 			var buildingPos = new System.Numerics.Vector3(position.X, position.Y, position.Z);
 			Unit3D? firstWorker = SelectedUnits.Find(u => CanUnitConstructType(u, type));
-			if (firstWorker != null && GameContext.World.IsAlive(firstWorker.Entity))
+			if (firstWorker != null && World.IsAlive(firstWorker.Entity))
 			{
 				OnUnitOrdered?.Invoke((UnitId)firstWorker.Entity.Id, type, buildingPos);
 				AssignWorkerTasks(type, buildingPos, meta, shiftHeld, firstWorker);
@@ -3849,7 +3857,7 @@ public partial class GameHost
 
 	private void ViewHandleObstructedPlacement()
 	{
-		GameContext.InGameHud.ShowFeedbackText("Cannot construct: Area is obstructed!", new Color(1.0f, 0.2f, 0.2f));
+		Hud.ShowFeedbackText("Cannot construct: Area is obstructed!", new Color(1.0f, 0.2f, 0.2f));
 		GameContext.UserInterface?.PlayWarningSound();
 		ClearBuildingPlacementState();
 	}
@@ -3858,9 +3866,9 @@ public partial class GameHost
 	{
 		GameContext.InputService.DeductResourcesForBuilding(
 			meta,
-			amount => GameContext.InGameHud.Gold -= amount,
-			amount => GameContext.InGameHud.Wood -= amount,
-			amount => GameContext.InGameHud.Stone -= amount);
+			amount => Hud.Gold -= amount,
+			amount => Hud.Wood -= amount,
+			amount => Hud.Stone -= amount);
 	}
 
 	private void AssignWorkerTasks(string type, System.Numerics.Vector3 buildingPos, UnitMetadata meta, bool shiftHeld, Unit3D firstWorker)
@@ -3877,11 +3885,11 @@ public partial class GameHost
 
 		if (wasQueued)
 		{
-			GameContext.InGameHud.ShowFeedbackText($"Queued: Construct {meta.Name}", new Color(0.5f, 0.8f, 1.0f));
+			Hud.ShowFeedbackText($"Queued: Construct {meta.Name}", new Color(0.5f, 0.8f, 1.0f));
 		}
 		else
 		{
-			GameContext.InGameHud.ShowFeedbackText($"Constructing: {meta.Name}", new Color(0.3f, 0.9f, 0.4f));
+			Hud.ShowFeedbackText($"Constructing: {meta.Name}", new Color(0.3f, 0.9f, 0.4f));
 		}
 	}
 
@@ -3922,9 +3930,9 @@ public partial class GameHost
 
 	public void CancelLastQueuedUnit(Entity buildingEntity)
 	{
-		if (GameContext.World.IsAlive(buildingEntity) && GameContext.World.Has<ProductionQueue>(buildingEntity))
+		if (World.IsAlive(buildingEntity) && World.Has<ProductionQueue>(buildingEntity))
 		{
-			var prod = GameContext.World.Get<ProductionQueue>(buildingEntity);
+			var prod = World.Get<ProductionQueue>(buildingEntity);
 			if (prod.Count > 0)
 			{
 				CancelQueuedUnitAt(buildingEntity, prod.Count - 1);
@@ -3973,11 +3981,11 @@ public partial class GameHost
 		{
 			if (queue)
 			{
-				GameContext.InGameHud.ShowFeedbackText($"Queued Rally Point set to {position.X:F0}, {position.Z:F0}", new Color(0.9f, 0.7f, 0.2f));
+				Hud.ShowFeedbackText($"Queued Rally Point set to {position.X:F0}, {position.Z:F0}", new Color(0.9f, 0.7f, 0.2f));
 			}
 			else
 			{
-				GameContext.InGameHud.ShowFeedbackText($"Rally Point set to {position.X:F0}, {position.Z:F0}", new Color(0.9f, 0.7f, 0.2f));
+				Hud.ShowFeedbackText($"Rally Point set to {position.X:F0}, {position.Z:F0}", new Color(0.9f, 0.7f, 0.2f));
 			}
 		}
 
@@ -4115,9 +4123,9 @@ public partial class GameHost
 
 		if (!GameContext.InputService.HasSufficientResources(
 			    meta,
-			    GameContext.InGameHud.Gold,
-			    GameContext.InGameHud.Wood,
-			    GameContext.InGameHud.Stone
+			    Hud.Gold,
+			    Hud.Wood,
+			    Hud.Stone
 		    ))
 		{
 			ShowTrainingFeedback("Cannot train unit: Insufficient resources!", new Color(1f, 0.2f, 0.2f), isWarning: true);
@@ -4130,7 +4138,7 @@ public partial class GameHost
 
 	private bool TryGetCandidateBuilding(out Entity targetBuildingEntity)
 	{
-		var candidateBuildingEntities = SelectedUnits.FindAll(u => GameContext.PerspectiveFilter.CanControl(u.Player) && u.IsBuilding && GameContext.World.IsAlive(u.Entity) && CanProduceUnits(u)).ConvertAll(u => u.Entity);
+		var candidateBuildingEntities = SelectedUnits.FindAll(u => GameContext.PerspectiveFilter.CanControl(u.Player) && u.IsBuilding && World.IsAlive(u.Entity) && CanProduceUnits(u)).ConvertAll(u => u.Entity);
 
 		var result = GameContext.InputService.TryGetCandidateBuilding(candidateBuildingEntities, out targetBuildingEntity);
 
@@ -4167,27 +4175,27 @@ public partial class GameHost
 
 	private void DeductResourcesAndNotify(UnitMetadata meta)
 	{
-		float gold = GameContext.InGameHud.Gold;
-		float wood = GameContext.InGameHud.Wood;
-		float stone = GameContext.InGameHud.Stone;
+		float gold = Hud.Gold;
+		float wood = Hud.Wood;
+		float stone = Hud.Stone;
 
 		GameContext.InputService.DeductResources(meta, ref gold, ref wood, ref stone);
 
-		GameContext.InGameHud.Gold = gold;
-		GameContext.InGameHud.Wood = wood;
-		GameContext.InGameHud.Stone = stone;
+		Hud.Gold = gold;
+		Hud.Wood = wood;
+		Hud.Stone = stone;
 
 		int localSlot = GameContext.PerspectiveFilter.ControlledPlayerIndex;
 		int curPop = GetCurrentPopulation(localSlot);
 		int maxPop = GetMaxPopulation(localSlot);
 		string msg = string.Format(TranslationServer.Translate("Queued {0} ({1}/{2} pop)"), meta.Name, curPop, maxPop);
 		ShowTrainingFeedback(msg, new Color(0.2f, 0.8f, 1f), isWarning: false);
-		GameContext.InGameHud.RefreshUI(SelectedUnits);
+		Hud.RefreshUI(SelectedUnits);
 	}
 
 	private void ShowTrainingFeedback(string message, Color color, bool isWarning)
 	{
-		GameContext.InGameHud.ShowFeedbackText(message, color);
+		Hud.ShowFeedbackText(message, color);
 		if (isWarning)
 			GameContext.UserInterface?.PlayWarningSound();
 		else
@@ -4266,7 +4274,7 @@ public partial class GameHost
 	public void CancelQueuedUnitAt(Entity buildingEntity, int index)
 	{
 		if (GameContext.PerspectiveFilter.IsSpectating) return;
-		if (!GameContext.World.IsAlive(buildingEntity) || !GameContext.World.Has<ProductionQueue>(buildingEntity)) return;
+		if (!World.IsAlive(buildingEntity) || !World.Has<ProductionQueue>(buildingEntity)) return;
 		// A building read through a view-only selection shows its queue, but only a building this screen owns answers.
 		if (!TryGetUnit3D(buildingEntity, out var building3D) || !GameContext.PerspectiveFilter.CanControl(building3D.Player)) return;
 
@@ -4356,8 +4364,8 @@ public partial class GameHost
 
 	private void IssueResumeConstructionCommand(Unit3D targetBuilding, bool shiftHeld)
 	{
-		if (targetBuilding == null || !GameContext.World.IsAlive(targetBuilding.Entity)) return;
-		if (!GameContext.World.Has<UnderConstruction>(targetBuilding.Entity)) return;
+		if (targetBuilding == null || !World.IsAlive(targetBuilding.Entity)) return;
+		if (!World.Has<UnderConstruction>(targetBuilding.Entity)) return;
 
 		var pos = targetBuilding.GlobalPosition;
 		var bPos = new System.Numerics.Vector3(pos.X, pos.Y, pos.Z);
@@ -4366,8 +4374,8 @@ public partial class GameHost
 
 		if (GameContext.InGameHud != null)
 		{
-			GameContext.InGameHud.ShowFeedbackText($"Resuming construction...", new Color(0.3f, 0.9f, 0.4f));
-			GameContext.InGameHud.RefreshUI(SelectedUnits);
+			Hud.ShowFeedbackText($"Resuming construction...", new Color(0.3f, 0.9f, 0.4f));
+			Hud.RefreshUI(SelectedUnits);
 		}
 	}
 
@@ -4471,7 +4479,7 @@ public partial class GameHost
 
 	private void HandleFriendlyUnitRightClick(Unit3D clickedUnit, bool shiftHeld)
 	{
-		if (clickedUnit.IsBuilding && GameContext.World.Has<UnderConstruction>(clickedUnit.Entity))
+		if (clickedUnit.IsBuilding && World.Has<UnderConstruction>(clickedUnit.Entity))
 		{
 			if (SelectedUnits.Exists(u => u.UnitId == "worker"))
 			{
