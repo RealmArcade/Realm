@@ -205,5 +205,39 @@ public sealed class FileOperationsPanel
 			MapEditorStyle.SubContainer(targetFile.GetNodeOrNull<Control>("BoxFileOps"), "File Operations");
 			MapEditorStyle.SubContainer(targetFile.GetNodeOrNull<Control>("BoxGenOps"), "Generation & Imports");
 		}
+
+		// Load and save are the wide pair with a narrow "more" button beside each, so they take the row look with
+		// tightened side padding to leave room for the label inside half the column.
+		StyleCompactRow(LoadButton);
+		StyleCompactRow(SaveButton);
+		StyleCompactRow(LoadMoreButton);
+		StyleCompactRow(SaveMoreButton);
+
+		MapEditorStyle.RowButton(SaveAsButton);
+		MapEditorStyle.RowButton(PublishButton);
+		MapEditorStyle.RowButton(ExportMapButton);
+		MapEditorStyle.RowButton(ResetMapButton);
+		MapEditorStyle.RowButton(EditorSettingsButton);
+		if (EditorSettingsButton != null) EditorSettingsButton.Alignment = HorizontalAlignment.Center;
+	}
+
+	private static void StyleCompactRow(Button btn)
+	{
+		if (btn == null) return;
+
+		MapEditorStyle.RowButton(btn);
+		btn.AddThemeFontSizeOverride("font_size", 11);
+		btn.Alignment = HorizontalAlignment.Center;
+
+		foreach (string styleName in new[] { "normal", "hover", "pressed" })
+		{
+			if (btn.GetThemeStylebox(styleName) is StyleBoxFlat styleBox)
+			{
+				var compactBox = (StyleBoxFlat)styleBox.Duplicate();
+				compactBox.ContentMarginLeft = 4;
+				compactBox.ContentMarginRight = 4;
+				btn.AddThemeStyleboxOverride(styleName, compactBox);
+			}
+		}
 	}
 }

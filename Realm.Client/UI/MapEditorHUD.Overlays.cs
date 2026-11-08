@@ -351,34 +351,14 @@ namespace Realm.Client.UI
 			foreach (var card in Cards()) MapEditorCardTheme.SetupScroll(card.Content, card.ScrollMaxHeight, card.AllowExpand);
 		}
 
+		/// <summary>
+		/// The two row buttons in the editor's own chrome. The file card's buttons take the same look from
+		/// <see cref="FileOperationsPanel.StyleOperations"/>, which runs with the other panel passes.
+		/// </summary>
 		private void ApplyActionButtonsStyles()
 		{
-			foreach (var btn in new[] { _filePanel.LoadButton, _filePanel.SaveButton, _filePanel.LoadMoreButton, _filePanel.SaveMoreButton })
-			{
-				if (btn == null) continue;
-				StyleRowButton(btn);
-				btn.AddThemeFontSizeOverride("font_size", 11);
-				btn.Alignment = HorizontalAlignment.Center;
-				foreach (string styleName in new[] { "normal", "hover", "pressed" })
-				{
-					if (btn.GetThemeStylebox(styleName) is StyleBoxFlat styleBox)
-					{
-						var compactBox = (StyleBoxFlat)styleBox.Duplicate();
-						compactBox.ContentMarginLeft = 4;
-						compactBox.ContentMarginRight = 4;
-						btn.AddThemeStyleboxOverride(styleName, compactBox);
-					}
-				}
-			}
-
 			if (_topToolbar.TestMapButton != null) StyleRowButton(_topToolbar.TestMapButton);
-			StyleRowButton(_filePanel.SaveAsButton);
-			StyleRowButton(_filePanel.PublishButton);
-			StyleRowButton(_filePanel.ExportMapButton);
-			StyleRowButton(_filePanel.ResetMapButton);
 			StyleRowButton(_btnRandomGen);
-			StyleRowButton(_filePanel.EditorSettingsButton);
-			if (_filePanel.EditorSettingsButton != null) _filePanel.EditorSettingsButton.Alignment = HorizontalAlignment.Center;
 		}
 
 		private void ApplyToolButtonsStyles() => _toolPanel.StyleButtons();
