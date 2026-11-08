@@ -421,7 +421,7 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 		OpenDialog();
 	}
 
-	private void InitializeConfig(ProceduralAnimationConfig config)
+	private void InitializeConfig(ProceduralAnimationConfig? config)
 	{
 		if (config != null && !string.IsNullOrWhiteSpace(config.Id))
 		{
@@ -482,7 +482,7 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 		PopulateTemplatePickerAndSelect();
 	}
 
-	private void AddTemplateIfNotExists(string id, string name, string category, string modelPath, string visualMode, HashSet<string> existingIds)
+	private void AddTemplateIfNotExists(string id, string name, string category, string? modelPath, string? visualMode, HashSet<string> existingIds)
 	{
 		if (string.IsNullOrEmpty(id) || !existingIds.Add(id)) return;
 
@@ -507,7 +507,7 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 		AddMetadataTemplates(meta.Templates.Props, "Prop", existingIds, p => p.TemplateID, p => p.Name, p => p.ModelPath, p => p.VisualMode);
 	}
 
-	private void AddMetadataTemplates<T>(IEnumerable<T> items, string category, HashSet<string> existingIds, Func<T, string> getId, Func<T, string> getName, Func<T, string> getModelPath, Func<T, string> getVisualMode)
+	private void AddMetadataTemplates<T>(IEnumerable<T> items, string category, HashSet<string> existingIds, Func<T, string> getId, Func<T, string> getName, Func<T, string?> getModelPath, Func<T, string> getVisualMode)
 	{
 		if (items == null) return;
 
@@ -1054,7 +1054,7 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 			return;
 		}
 
-		Node3D loadedNode3D = LoadTemplateModel(template);
+		Node3D? loadedNode3D = LoadTemplateModel(template);
 
 		if (loadedNode3D != null)
 		{
@@ -1097,7 +1097,7 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 		UpdateShaderParameters();
 	}
 
-	private Node3D LoadTemplateModel(TemplateItemInfo template)
+	private Node3D? LoadTemplateModel(TemplateItemInfo template)
 	{
 		string assetPath = !string.IsNullOrEmpty(template.ModelPath) ? template.ModelPath : template.Id;
 		string visualMode = !string.IsNullOrEmpty(template.VisualMode) ? template.VisualMode : (assetPath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? "GroundPlane" : "Mesh");
@@ -1116,9 +1116,9 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 		return Load3DModel(assetPath);
 	}
 
-	private Node3D Load2DTextureModel(string assetPath, string visualMode)
+	private Node3D? Load2DTextureModel(string assetPath, string visualMode)
 	{
-		Node3D loadedNode3D = null;
+		Node3D? loadedNode3D = null;
 		var loaded = ModelCache.GetModel(assetPath);
 		if (loaded is Node3D n)
 		{
@@ -1150,12 +1150,12 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 		return loadedNode3D;
 	}
 
-	private Node3D Load3DModel(string assetPath)
+	private Node3D? Load3DModel(string assetPath)
 	{
 		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
-		string resolvedDiskPath = ResolveDiskPath(wsPath, assetPath);
+		string? resolvedDiskPath = ResolveDiskPath(wsPath, assetPath);
 
-		Node3D loadedNode3D = null;
+		Node3D? loadedNode3D = null;
 		if (resolvedDiskPath != null && File.Exists(resolvedDiskPath))
 		{
 			loadedNode3D = LoadFromDiskPath(resolvedDiskPath, assetPath);
@@ -1181,7 +1181,7 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 		return loadedNode3D;
 	}
 
-	private string ResolveDiskPath(string wsPath, string assetPath)
+	private string? ResolveDiskPath(string wsPath, string assetPath)
 	{
 		foreach (var sub in new[] { "props", "units", "buildings", "resources", "characters", "items", "projectiles", "attachments" })
 		{
@@ -1204,7 +1204,7 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 		return null;
 	}
 
-	private Node3D LoadFromDiskPath(string resolvedDiskPath, string assetPath)
+	private Node3D? LoadFromDiskPath(string resolvedDiskPath, string assetPath)
 	{
 		var loaded = ModelCache.GetModel(resolvedDiskPath) ?? ModelCache.GetModel(assetPath);
 		if (loaded is Node3D n) return n;
