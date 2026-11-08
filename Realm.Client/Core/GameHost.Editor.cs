@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using Godot;
@@ -1032,7 +1032,7 @@ public partial class GameHost
 		if (splatMap == null || splatMap.GetLength(0) < width + 1 || splatMap.GetLength(1) < depth + 1)
 			GroundTerrain.SplatMap = new TerrainSplatWeights[width + 1, depth + 1];
 
-		TerrainSplatWeights[,] cliffSplatMap = GroundTerrain.CliffSplatMap;
+		TerrainSplatWeights[,]? cliffSplatMap = GroundTerrain.CliffSplatMap;
 		if (cliffSplatMap == null || cliffSplatMap.GetLength(0) < width + 1 || cliffSplatMap.GetLength(1) < depth + 1)
 			GroundTerrain.CliffSplatMap = new TerrainSplatWeights[width + 1, depth + 1];
 
@@ -1057,12 +1057,14 @@ public partial class GameHost
 
 	private void PopulateSplatMaps(int width, int depth)
 	{
+		if (GroundTerrain.SplatMap is not { } splatMap || GroundTerrain.CliffSplatMap is not { } cliffSplatMap) return;
+
 		for (int z = 0; z <= depth; z++)
 		{
 			for (int x = 0; x <= width; x++)
 			{
-				GroundTerrain.SplatMap[x, z] = TerrainSplatWeights.CreateSolid(0);
-				GroundTerrain.CliffSplatMap[x, z] = TerrainSplatWeights.CreateSolid(1);
+				splatMap[x, z] = TerrainSplatWeights.CreateSolid(0);
+				cliffSplatMap[x, z] = TerrainSplatWeights.CreateSolid(1);
 			}
 		}
 	}

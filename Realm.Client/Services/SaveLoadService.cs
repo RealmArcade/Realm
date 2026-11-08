@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -1321,7 +1321,7 @@ public class SaveLoadService
 		}).ToList();
 	}
 
-	public string[] SerializeCliffSplatMap(TerrainSplatWeights[,] cliffSplatMap)
+	public string[] SerializeCliffSplatMap(TerrainSplatWeights[,]? cliffSplatMap)
 	{
 		if (cliffSplatMap == null) return Array.Empty<string>();
 		int cliffW = cliffSplatMap.GetLength(0);

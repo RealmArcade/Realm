@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using Godot;
 using Realm.Client.Services;
@@ -177,14 +177,14 @@ namespace Realm.Client.Core
 			return null;
 		}
 
-		private List<IEditorAction> FinalizePasteActions(bool terrainModified, TerrainCell[,] cellsBefore, TerrainSplatWeights[,] splatBefore, TerrainSplatWeights[,] cliffBefore, int[,] pathingBefore, List<IEditorAction> spawnActions, bool recordToHistory)
+		private List<IEditorAction> FinalizePasteActions(bool terrainModified, TerrainCell[,] cellsBefore, TerrainSplatWeights[,] splatBefore, TerrainSplatWeights[,]? cliffBefore, int[,] pathingBefore, List<IEditorAction> spawnActions, bool recordToHistory)
 		{
 			var actions = new List<IEditorAction>();
 			if (terrainModified)
 			{
 				var cellsAfter = (TerrainCell[,])GroundTerrain.Cells.Clone();
 				var splatAfter = (TerrainSplatWeights[,])GroundTerrain.SplatMap.Clone();
-				var cliffAfter = GroundTerrain.CliffSplatMap != null ? (TerrainSplatWeights[,])GroundTerrain.CliffSplatMap.Clone() : null;
+				TerrainSplatWeights[,]? cliffAfter = GroundTerrain.CliffSplatMap != null ? (TerrainSplatWeights[,])GroundTerrain.CliffSplatMap.Clone() : null;
 				var pathingAfter = (int[,])GroundTerrain.PathingCodes.Clone();
 				actions.Add(new TerrainModifyAction(cellsBefore, cellsAfter, splatBefore, splatAfter, pathingBefore, pathingAfter, cliffBefore, cliffAfter));
 			}

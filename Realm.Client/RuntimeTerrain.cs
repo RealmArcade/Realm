@@ -1,4 +1,4 @@
-using Realm.Shared.Maps;
+﻿using Realm.Shared.Maps;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -513,7 +513,7 @@ public partial class RuntimeTerrain : Node3D
 	}
 
 	public TerrainSplatWeights[,] SplatMap { get; set; } = null!;
-	public TerrainSplatWeights[,] CliffSplatMap { get; set; } = null!;
+	public TerrainSplatWeights[,]? CliffSplatMap { get; set; }
 
 	public float BlendSoftness { get; set; } = 0.04f;
 	public float BlendNoiseStrength { get; set; } = 0.22f;
