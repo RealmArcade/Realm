@@ -50,7 +50,7 @@ public partial class MainMenu : Control
 	private Button _donateButton = null!;
 	private Button _announcementsButton = null!;
 	private Button _bugReportButton = null!;
-	private PlayerProfileDialog _profileDialog = null!;
+	private PlayerProfileDialog? _profileDialog;
 	private AnnouncementsDialog _announcementsDialog = null!;
 	private OptionButton _versionDropdown = null!;
 	private Label _outdatedLabel = null!;
@@ -231,16 +231,16 @@ public partial class MainMenu : Control
 				GameContext.SessionState.IsMapEditorMode = false;
 				GameContext.SessionState.IsTestMode = false;
 				if (GameContext.Lobby != null) GameContext.Lobby.IsSinglePlayer = true;
-				GameContext.UserInterface.TransitionTo(GameScreen.LobbyCreate);
+				NavigateTo(GameScreen.LobbyCreate);
 			}, "res://Assets/UI/menu_single_player_button.webp");
 			_singlePlayerButton.AddThemeConstantOverride("icon_max_width", 28);
 		}
 
-		SetupMenuButton(_mapDiscoveryButton, "MAP DISCOVERY", () => GameContext.UserInterface.TransitionTo(GameScreen.MapDiscovery), "res://Assets/UI/menu_discovery_button.webp");
+		SetupMenuButton(_mapDiscoveryButton, "MAP DISCOVERY", () => NavigateTo(GameScreen.MapDiscovery), "res://Assets/UI/menu_discovery_button.webp");
 		_mapDiscoveryButton.Visible = !BuildFlags.IS_AUTOBATTLE_FESTIVAL_ACTIVE;
 		if (_creatorDiscoveryButton != null)
 		{
-			SetupMenuButton(_creatorDiscoveryButton, "CREATOR DISCOVERY", () => GameContext.UserInterface.TransitionTo(GameScreen.CreatorDiscovery), "res://Assets/UI/menu_creator_button.webp");
+			SetupMenuButton(_creatorDiscoveryButton, "CREATOR DISCOVERY", () => NavigateTo(GameScreen.CreatorDiscovery), "res://Assets/UI/menu_creator_button.webp");
 			_creatorDiscoveryButton.AddThemeConstantOverride("icon_max_width", 28);
 			_creatorDiscoveryButton.Visible = !BuildFlags.IS_AUTOBATTLE_FESTIVAL_ACTIVE;
 		}
@@ -248,17 +248,17 @@ public partial class MainMenu : Control
 		SetupMenuButton(_mapEditorButton, "MAP EDITOR", () => OnMapEditorPressed(), "res://Assets/UI/menu_editor_button.webp");
 		if (_replaysButton != null)
 		{
-			SetupMenuButton(_replaysButton, "REPLAYS", () => GameContext.UserInterface.TransitionTo(GameScreen.ReplayList), "res://Assets/UI/menu_replays_button.webp");
+			SetupMenuButton(_replaysButton, "REPLAYS", () => NavigateTo(GameScreen.ReplayList), "res://Assets/UI/menu_replays_button.webp");
 			_replaysButton.AddThemeConstantOverride("icon_max_width", 28);
 		}
 
 		if (_storageButton != null)
 		{
-			SetupMenuButton(_storageButton, "STORAGE", () => GameContext.UserInterface.TransitionTo(GameScreen.Storage), "res://Assets/UI/menu_storage_button.webp");
+			SetupMenuButton(_storageButton, "STORAGE", () => NavigateTo(GameScreen.Storage), "res://Assets/UI/menu_storage_button.webp");
 			_storageButton.AddThemeConstantOverride("icon_max_width", 28);
 		}
 
-		SetupIconButton(_settingsButton, "OPTIONS", "res://Assets/UI/gear_icon.webp", () => GameContext.UserInterface.OpenSettingsOverlay(), new Vector2(22, 22));
+		SetupIconButton(_settingsButton, "OPTIONS", "res://Assets/UI/gear_icon.webp", () => GameContext.UserInterface?.OpenSettingsOverlay(), new Vector2(22, 22));
 		SetupAvatarButton(_profileButton, () => OpenProfileDialog());
 		SetupButton(_quitButton, "QUIT GAME", () => GetTree().Quit());
 
@@ -396,7 +396,7 @@ public partial class MainMenu : Control
 		};
 	}
 
-	private void SetupMenuButton(Button button, string text, Action onClick, string texturePath = null, Vector2? minSize = null, string iconPath = null)
+	private void SetupMenuButton(Button button, string text, Action? onClick, string? texturePath = null, Vector2? minSize = null, string? iconPath = null)
 	{
 		button.Flat = false;
 		button.Text = TranslationServer.Translate(text);
@@ -415,7 +415,7 @@ public partial class MainMenu : Control
 		button.MouseEntered += () => PlayHoverSound();
 	}
 
-	private void ApplyMenuButtonIcon(Button button, string iconPath)
+	private void ApplyMenuButtonIcon(Button button, string? iconPath)
 	{
 		if (!string.IsNullOrEmpty(iconPath))
 		{
@@ -447,7 +447,7 @@ public partial class MainMenu : Control
 		button.AddThemeConstantOverride("shadow_offset_y", 2);
 	}
 
-	private void ApplyMenuButtonStyleBoxes(Button button, string texturePath)
+	private void ApplyMenuButtonStyleBoxes(Button button, string? texturePath)
 	{
 		var normalStyle = CreateMenuButtonStyleBox(texturePath ?? "res://Assets/UI/menu_button_normal.webp", texturePath, null);
 		var hoverStyle = CreateMenuButtonStyleBox(texturePath ?? "res://Assets/UI/menu_button_hover.webp", texturePath, new Color(1.12f, 1.10f, 0.96f));
@@ -459,7 +459,7 @@ public partial class MainMenu : Control
 		button.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 	}
 
-	private StyleBoxTexture CreateMenuButtonStyleBox(string texPath, string customPath, Color? modColor)
+	private StyleBoxTexture CreateMenuButtonStyleBox(string texPath, string? customPath, Color? modColor)
 	{
 		var style = new StyleBoxTexture();
 		style.Texture = TrimmedTextureLoader.LoadTrimmedTexture(texPath);
@@ -625,9 +625,9 @@ public partial class MainMenu : Control
 	{
 		GameContext.SessionState.IsMapEditorMode = false;
 		GameContext.SessionState.IsTestMode = false;
-		GameContext.Lobby.IsSinglePlayer = false;
+		if (GameContext.Lobby is { } lobby) lobby.IsSinglePlayer = false;
 
-		GameContext.UserInterface.TransitionTo(GameScreen.LobbyBrowser);
+		NavigateTo(GameScreen.LobbyBrowser);
 	}
 
 	private void SetupPlayButton(Button button, Action onClick)
@@ -759,7 +759,7 @@ public partial class MainMenu : Control
 		levelLabel.AddThemeColorOverride("font_outline_color", new Color(0.05f, 0.05f, 0.05f, 1.0f));
 		levelLabel.AddThemeConstantOverride("outline_size", 5);
 
-		Tween scaleTween = null;
+		Tween? scaleTween = null;
 		button.MouseEntered += () =>
 		{
 			PlayHoverSound();
@@ -903,7 +903,7 @@ public partial class MainMenu : Control
 
 	private void ApplyButtonAnimations(Button button, float hoverScale)
 	{
-		Tween scaleTween = null;
+		Tween? scaleTween = null;
 		button.MouseEntered += () =>
 		{
 			PlayHoverSound();
@@ -927,21 +927,36 @@ public partial class MainMenu : Control
 		container.Visible = false;
 	}
 
+	/// <summary>
+	///     Switches screens, reporting instead of throwing when no UI manager is registered: during teardown this menu can
+	///     outlive the manager, and then a click genuinely has nowhere to go.
+	/// </summary>
+	private static void NavigateTo(GameScreen screen)
+	{
+		if (GameContext.UserInterface is { } userInterface)
+		{
+			userInterface.TransitionTo(screen);
+			return;
+		}
+
+		GameLog.LogError($"[MainMenu] Cannot open {screen}: no UI manager is registered.");
+	}
+
 	private void PlayHoverSound()
 	{
-		GameContext.UserInterface.PlayHoverSound();
+		GameContext.UserInterface?.PlayHoverSound();
 	}
 
 	private void PlayClickSound()
 	{
-		GameContext.UserInterface.PlayClickSound();
+		GameContext.UserInterface?.PlayClickSound();
 	}
 
 	private void OnMapEditorPressed()
 	{
 		if (OperatingSystem.IsWindows()) GameContext.VSCode.StartInstallIfNeeded();
 
-		GameContext.UserInterface.TransitionTo(GameScreen.MapEditorHUD);
+		NavigateTo(GameScreen.MapEditorHUD);
 	}
 
 }
