@@ -36,6 +36,8 @@ public class NetworkService
 	private readonly ReplicatedStateMirror _mirror = new();
 	private readonly SnapshotComponentApplier _componentApplier;
 	private readonly ReplicatedUnitLifecycle _unitSpawner;
+	private readonly ReplicatedDriftAudit _driftAudit;
+	private readonly BaselineReconciler _baselineReconciler;
 	private int _appliedColdPayloadCount;
 	private int _appliedAbilityStateCount;
 	private int _appliedStaticTextCount;
@@ -46,17 +48,15 @@ public class NetworkService
 	private List<Entity> _pendingUnitKills = new();
 	private List<Entity> _pendingUnitDespawns = new();
 
-	private readonly List<int> _untrackedServerIds = new();
 	private readonly HashSet<int> _describedLootServerIds = new();
 	private readonly List<int> _staleLootServerIds = new();
-	private readonly Dictionary<int, ulong> _baselineUnitPresence = new();
-	private readonly HashSet<(int Key, int TypeId)> _baselineSentUnitComponents = new();
-	private byte[] _baselineReconcileScratch = new byte[256];
 
 
 	public NetworkService()
 	{
 		_componentApplier = new SnapshotComponentApplier(_mirror, _references, TryGetLocalEntity, IsWaitingForUnitSpawn, FindWorldEntity);
+		_driftAudit = new ReplicatedDriftAudit(_mirror, FindWorldEntity);
+		_baselineReconciler = new BaselineReconciler(_references, RetireClientEntityForUntrackedServerId);
 		_unitSpawner = new ReplicatedUnitLifecycle(
 			FindWorldEntity,
 			() => LastAppliedSnapshotSequenceForDiagnostics,
@@ -108,7 +108,7 @@ public class NetworkService
 		_componentApplier.Clear();
 		GameContext.SnapshotTimeline.Clear();
 		_references.Clear();
-		_untrackedServerIds.Clear();
+		_baselineReconciler.Reset();
 		ReplicatedEntityReferences.Clear();
 	}
 
@@ -260,6 +260,8 @@ public class NetworkService
 		VerifyReplicatedEcsDriftDomain();
 	}
 
+	public void VerifyReplicatedEcsDriftDomain() => _driftAudit.Check();
+
 	public (int CommandId, byte[] Payload) BuildClientCommand(string commandType, List<int> unitIds, System.Numerics.Vector3 targetPos, int targetEntityId, string argString)
 	{
 		Entity worldEntity = FindWorldEntity();
@@ -300,8 +302,8 @@ public class NetworkService
 		{
 			_componentApplier.Clear();
 
-			ProcessBaselineSnapshotMismatches(snapshot, mapping);
-			ProcessBaselineComponentReconciliation(snapshot, mapping);
+			_baselineReconciler.SnapshotMismatches(snapshot, mapping);
+			_baselineReconciler.ReconcileComponents(snapshot, mapping);
 		}
 
 		ApplyLootState(snapshot, mapping);
@@ -343,91 +345,8 @@ public class NetworkService
 		}
 	}
 
-	private void ProcessBaselineSnapshotMismatches(WorldSnapshot snapshot, NetworkMappingState mapping)
-	{
-		var serverIdsInSnapshot = new HashSet<int>(snapshot.Units.Count);
-		for (int i = 0; i < snapshot.Units.Count; i++)
-		{
-			serverIdsInSnapshot.Add(snapshot.Units[i].EntityId);
-		}
 
-		_untrackedServerIds.Clear();
-		foreach (var kvp in mapping.ServerToClientEntityMap)
-		{
-			if (serverIdsInSnapshot.Contains(kvp.Key)) continue;			_untrackedServerIds.Add(kvp.Key);
-		}
 
-		for (int index = 0; index < _untrackedServerIds.Count; index++)
-		{
-			int serverEntityId = _untrackedServerIds[index];
-			if (!mapping.ServerToClientEntityMap.TryGetValue(serverEntityId, out var localEntity)) continue;
-			if (World.Has<GroundLoot>(localEntity)) continue;
-
-			RetireClientEntityForUntrackedServerId(mapping, localEntity, serverEntityId);
-		}
-	}
-
-	private void ProcessBaselineComponentReconciliation(WorldSnapshot snapshot, NetworkMappingState mapping)
-	{
-		if (snapshot.ComponentDeltas == null || snapshot.Units == null || snapshot.UnitComponentPresence == null) return;
-
-		_baselineUnitPresence.Clear();
-		for (int index = 0; index < snapshot.UnitComponentPresence.Count; index++)
-		{
-			var presence = snapshot.UnitComponentPresence[index];
-			_baselineUnitPresence[presence.ServerEntityId] = presence.Mask;
-		}
-
-		_baselineSentUnitComponents.Clear();
-		for (int index = 0; index < snapshot.ComponentDeltas.Count; index++)
-		{
-			var delta = snapshot.ComponentDeltas[index];
-			if ((ReplicatedScope)delta.Scope != ReplicatedScope.Unit) continue;
-			if (delta.Bytes == null || delta.Bytes.Length == 0) continue;
-			_baselineSentUnitComponents.Add((delta.Key, delta.ComponentTypeId));
-		}
-
-		IReadOnlyList<IReplicatedComponentCodec> codecs = ReplicatedUnitComponentSlots.Slots;
-		foreach (var kvp in mapping.ServerToClientEntityMap)
-		{
-			int serverEntityId = kvp.Key;
-			if (!_baselineUnitPresence.TryGetValue(serverEntityId, out ulong presenceMask))
-			{
-				if (World.IsAlive(kvp.Value) && !World.Has<GroundLoot>(kvp.Value))
-				{
-					MultiplayerSyncDiagnostics.RecordUnreconciledUnit(serverEntityId);
-				}
-
-				continue;
-			}
-
-			Entity localEntity = kvp.Value;
-			if (!World.IsAlive(localEntity)) continue;
-
-			for (int slot = 0; slot < codecs.Count; slot++)
-			{
-				var codec = codecs[slot];
-				if (_baselineReconcileScratch.Length < codec.SizeInBytes) _baselineReconcileScratch = new byte[codec.SizeInBytes];
-
-				bool peerHasComponent = codec.TryWrite(World, localEntity, _baselineReconcileScratch.AsSpan(0, codec.SizeInBytes));
-				if ((presenceMask & (1UL << slot)) != 0)
-				{
-					if (!peerHasComponent && !_baselineSentUnitComponents.Contains((serverEntityId, codec.ComponentTypeId)))
-					{
-						MultiplayerSyncDiagnostics.RecordMissingUnitComponent(serverEntityId, codec.ComponentName);
-					}
-
-					continue;
-				}
-
-				if (!peerHasComponent) continue;
-
-				codec.Remove(World, localEntity);
-				MultiplayerSyncDiagnostics.RecordRemovedUnitComponent(serverEntityId, codec.ComponentName);
-				_references.Forget(localEntity.Id, codec.ComponentTypeId);
-			}
-		}
-	}
 
 	private void ApplyLootState(WorldSnapshot snapshot, NetworkMappingState mapping)
 	{
@@ -732,111 +651,6 @@ public class NetworkService
 		MultiplayerSyncDiagnostics.RecordFingerprintMismatch(sequence, hostFingerprint, localFingerprint);
 	}
 
-	private int _replicatedEcsDriftCheckCounter;
-
-	public void VerifyReplicatedEcsDriftDomain()
-	{
-		_replicatedEcsDriftCheckCounter++;
-		if (_replicatedEcsDriftCheckCounter % 30 != 0) return;
-
-		Entity worldEntity = FindWorldEntity();
-		if (worldEntity == Entity.Null || !World.Has<NetworkMappingState>(worldEntity)) return;
-		var mapping = World.Get<NetworkMappingState>(worldEntity);
-
-		var codecs = ReplicatedComponents.All;
-		for (int codecIndex = 0; codecIndex < codecs.Count; codecIndex++)
-		{
-			var codec = codecs[codecIndex];
-			if (codec.Scope != ReplicatedScope.Player) continue;
-
-			for (int slot = 0; slot < Realm.Ecs.EcsWorld.MAX_PLAYERS; slot++)
-			{
-				if (mapping.PlayerEntities == null || slot >= mapping.PlayerEntities.Length) continue;
-				if (!_mirror.Components.TryGetValue(((byte)ReplicatedScope.Player, slot, codec.ComponentTypeId), out var expected)) continue;
-
-				Entity playerEntity = mapping.PlayerEntities[slot];
-				if (playerEntity == Entity.Null || !World.IsAlive(playerEntity)) continue;
-
-				if (_replicatedEcsDriftBuffer.Length < codec.SizeInBytes) _replicatedEcsDriftBuffer = new byte[codec.SizeInBytes];
-				var actual = _replicatedEcsDriftBuffer.AsSpan(0, codec.SizeInBytes);
-				if (!codec.TryWrite(World, playerEntity, actual))
-				{
-					ReportReplicatedEcsDrift(slot, codec.ComponentName, "component missing");
-					continue;
-				}				if (!actual.SequenceEqual(expected))
-				{
-					ReportReplicatedEcsDrift(slot, codec.ComponentName, "bytes differ from the last authoritative value");
-				}
-			}
-		}
-
-		AuditReplicatedUnitDrift(mapping);
-	}
-
-	private const int UnitDriftAuditWindowEntities = 128;
-	private int _unitDriftAuditNextServerEntityId;
-
-	/// <summary>
-	///     Audits one window of the replicated unit components this screen has applied, so a whole board is swept every few
-	///     seconds rather than every tick. It runs only while a recording harness is watching, because that is where the
-	///     report is read: a unit component this screen writes itself is overwritten by the next description, which looks
-	///     exactly like a description that never arrived, and this is the only check that can say which of the two it was.
-	/// </summary>
-	private void AuditReplicatedUnitDrift(NetworkMappingState mapping)
-	{
-		if (!MultiplayerSyncDiagnostics.IsRecording) return;
-
-		IReadOnlyList<IReplicatedComponentCodec> codecs = ReplicatedUnitComponentSlots.Slots;
-		int windowEnd = _unitDriftAuditNextServerEntityId + UnitDriftAuditWindowEntities;
-		if (windowEnd > Realm.Ecs.EcsWorld.MAX_ENTITIES) windowEnd = Realm.Ecs.EcsWorld.MAX_ENTITIES;
-
-		for (int serverEntityId = _unitDriftAuditNextServerEntityId; serverEntityId < windowEnd; serverEntityId++)
-		{
-			if (!mapping.ServerToClientEntityMap.TryGetValue(serverEntityId, out Entity localEntity)) continue;
-			if (!World.IsAlive(localEntity)) continue;
-
-			for (int codecIndex = 0; codecIndex < codecs.Count; codecIndex++)
-			{
-				var codec = codecs[codecIndex];
-				if (!_mirror.Components.TryGetValue(((byte)ReplicatedScope.Unit, serverEntityId, codec.ComponentTypeId), out var expected)) continue;
-
-				if (_replicatedEcsDriftBuffer.Length < codec.SizeInBytes) _replicatedEcsDriftBuffer = new byte[codec.SizeInBytes];
-				var actual = _replicatedEcsDriftBuffer.AsSpan(0, codec.SizeInBytes);
-				if (!codec.TryWrite(World, localEntity, actual))
-				{
-					ReportReplicatedUnitDrift(serverEntityId, codec.ComponentName, "the component the match described is gone");
-					continue;
-				}
-
-				if (!actual.SequenceEqual(expected))
-				{
-					ReportReplicatedUnitDrift(serverEntityId, codec.ComponentName, "bytes differ from the last authoritative value");
-				}
-			}
-		}
-
-		_unitDriftAuditNextServerEntityId = windowEnd >= Realm.Ecs.EcsWorld.MAX_ENTITIES ? 0 : windowEnd;
-	}
-
-	private readonly HashSet<(int ServerEntityId, string ComponentName)> _reportedUnitEcsDrift = new();
-
-	private void ReportReplicatedUnitDrift(int serverEntityId, string componentName, string reason)
-	{
-		if (!_reportedUnitEcsDrift.Add((serverEntityId, componentName))) return;
-		GD.PushError($"[Replication] local write clobbered replicated unit state: {componentName} for unit {serverEntityId} ({reason})");
-		MultiplayerSyncDiagnostics.RecordEcsDrift(serverEntityId, componentName);
-	}
-
-	private void ReportReplicatedEcsDrift(int slot, string componentName, string reason)
-	{
-		if (_reportedEcsDrift.Contains((slot, componentName))) return;
-		_reportedEcsDrift.Add((slot, componentName));
-		GD.PushError($"[Replication] local write clobbered replicated state: {componentName} for player slot {slot} ({reason})");
-		MultiplayerSyncDiagnostics.RecordEcsDrift(slot, componentName);
-	}
-
-	private readonly HashSet<(int Slot, string ComponentName)> _reportedEcsDrift = new();
-	private byte[] _replicatedEcsDriftBuffer = new byte[16];
 
 	private List<(int Key, int ComponentTypeId, byte[] Bytes)> ReadPlayerComponentRecordsFromEcs()
 	{
