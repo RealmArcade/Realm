@@ -409,7 +409,7 @@ internal static class AssetRecordFactory
 	}
 
 
-	internal static void EnqueueThumbnailRequestIfNeeded(string extension, string normPath, string norm)
+	internal static void EnqueueThumbnailRequestIfNeeded(string extension, string normPath, string? norm)
 	{
 		if (extension == ".rmesh" && !GlbThumbnailRenderer.HasDiskCache(normPath, norm))
 		{

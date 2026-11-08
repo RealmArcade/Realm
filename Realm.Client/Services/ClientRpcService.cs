@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics.CodeAnalysis;
 using System.Collections.Generic;
 using Godot;
 using Realm.Client.Core;
@@ -11,7 +12,7 @@ namespace Realm.Client.Services;
 
 public class ClientRpcService
 {
-	private static bool TryResolveLocalPlayer(int playerIndex, out GameHost host)
+	private static bool TryResolveLocalPlayer(int playerIndex, [NotNullWhen(true)] out GameHost? host)
 	{
 		host = GameContext.Host;
 		if (host == null || !GodotObject.IsInstanceValid(host))

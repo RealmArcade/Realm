@@ -160,7 +160,7 @@ public static class NoiseTextureGenerator
 
 	public static string GenerateAndSaveRtex(JsonObject config, string outputRtexPath)
 	{
-		string targetDir = Path.GetDirectoryName(outputRtexPath);
+		string? targetDir = Path.GetDirectoryName(outputRtexPath);
 		if (!string.IsNullOrEmpty(targetDir) && !Directory.Exists(targetDir))
 		{
 			Directory.CreateDirectory(targetDir);

@@ -769,7 +769,7 @@ internal static partial class EditorAssetOperations
 	}
 
 
-	internal static bool IsAssetExtension(string value)
+	internal static bool IsAssetExtension(string? value)
 	{
 		if (value == null)
 		{

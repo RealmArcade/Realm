@@ -2221,7 +2221,7 @@ public class AssetIndexService : IDisposable
 
 	private ILiteQueryable<IndexedAsset> ApplySearchTermFilter(ILiteQueryable<IndexedAsset> query, string? searchTerm)
 	{
-		string[] terms = !string.IsNullOrWhiteSpace(searchTerm) ? searchTerm.Split((char[])null, StringSplitOptions.RemoveEmptyEntries) : [];
+		string[] terms = !string.IsNullOrWhiteSpace(searchTerm) ? searchTerm.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries) : [];
 
 		foreach (var queryTerm in terms)
 		{

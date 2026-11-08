@@ -95,7 +95,7 @@ public static class MatchPlayerColorAssignment
 		}
 	}
 
-	private static bool IsSeated(IReadOnlyList<PlayerInfo> seats, int slot)
+	private static bool IsSeated(IReadOnlyList<PlayerInfo>? seats, int slot)
 	{
 		if (seats == null) return false;
 
