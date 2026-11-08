@@ -5267,7 +5267,7 @@ public partial class EditorService : IEditorAPI
 		return candidatePaths;
 	}
 
-	public void ParseRtexDecalMetadata(string customJson, ref int cols, ref int rows)
+	public void ParseRtexDecalMetadata(string? customJson, ref int cols, ref int rows)
 	{
 		if (string.IsNullOrEmpty(customJson)) return;
 		try
@@ -6235,7 +6235,7 @@ public class {mapName} : IMapScript
 		onBypassSuccess();
 		return true;
 	}
-	public void RestoreEditorStateDomain(float waterHeight, int paintTextureIndex, int cliffPaintTextureIndex, CopiedAreaTemplate copiedArea, System.Numerics.Vector3? selectionStart, System.Numerics.Vector3? selectionEnd)
+	public void RestoreEditorStateDomain(float waterHeight, int paintTextureIndex, int cliffPaintTextureIndex, CopiedAreaTemplate? copiedArea, System.Numerics.Vector3? selectionStart, System.Numerics.Vector3? selectionEnd)
 	{
 		this.EditorWaterHeight = waterHeight;
 		this.EditorPaintTextureIndex = paintTextureIndex;

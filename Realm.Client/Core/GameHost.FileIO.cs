@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using Realm.Ecs;
@@ -40,7 +41,7 @@ public partial class GameHost
 		string defaultSaveDirectory = !string.IsNullOrEmpty(currentMapDirectory) ? currentMapDirectory : MapWorkspaceService.GetDefaultMapFolderGlobalPath();
 		string path = string.IsNullOrEmpty(customPath) ? Path.Combine(defaultSaveDirectory, "terrain.json") : customPath;
 		string absolutePath = ProjectSettings.GlobalizePath(path);
-		GameContext.MapStorageService.CurrentMapDirectory = Path.GetDirectoryName(absolutePath);
+		GameContext.MapStorageService.CurrentMapDirectory = Path.GetDirectoryName(absolutePath) ?? string.Empty;
 
 		string[] cliffSplatData = GetCliffSplatData();
 
@@ -76,13 +77,13 @@ public partial class GameHost
 			CliffPaintTextureIndex = GameContext.EditorService.EditorCliffPaintTextureIndex,
 			ActiveTool = ActiveEditorTool,
 			ActivePlaceId = ActivePlaceId,
-			CopiedArea = GameContext.EditorService?.CopiedArea,
-			SelectionStart = GameContext.EditorService?.SelectionStart,
-			SelectionEnd = GameContext.EditorService?.SelectionEnd,
+			CopiedArea = GameContext.EditorService.CopiedArea,
+			SelectionStart = GameContext.EditorService.SelectionStart,
+			SelectionEnd = GameContext.EditorService.SelectionEnd,
 			HasCameraPosition = camera != null,
 			CameraPosition = camera != null ? camera.Position : default,
 			HasCameraState = hasCameraState,
-			CameraStateSnapshot = hasCameraState ? GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity) : default
+			CameraStateSnapshot = hasCameraState ? World.Get<CameraState>(GameContext.Simulation.WorldEntity) : default
 		};
 	}
 
@@ -96,7 +97,7 @@ public partial class GameHost
 		var unitsData = new List<(Entity Entity, float RotationY, float Scale)>();
 		foreach (var unit in AllUnits)
 		{
-			if (!GodotObject.IsInstanceValid(unit) || !GameContext.World.IsAlive(unit.Entity)) continue;
+			if (!GodotObject.IsInstanceValid(unit) || !World.IsAlive(unit.Entity)) continue;
 
 			float rotY = GetUnitPropRotationY(unit.Entity, unit.RotationDegrees.Y);
 			float scale = GetUnitPropScale(unit.Entity, unit.Scale.X);
@@ -111,7 +112,7 @@ public partial class GameHost
 		var propsData = new List<(Entity Entity, float RotationY, float Scale)>();
 		foreach (var prop in AllProps)
 		{
-			if (!GodotObject.IsInstanceValid(prop) || !GameContext.World.IsAlive(prop.Entity)) continue;
+			if (!GodotObject.IsInstanceValid(prop) || !World.IsAlive(prop.Entity)) continue;
 
 			float rotY = GetUnitPropRotationY(prop.Entity, prop.RotationDegrees.Y);
 			float scale = GetUnitPropScale(prop.Entity, prop.Scale.X);
@@ -226,7 +227,7 @@ public partial class GameHost
 		bool hasCameraState = GameContext.World != null && GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) && GameContext.World.Has<CameraState>(GameContext.Simulation.WorldEntity);
 		if (savedState.HasCameraState && hasCameraState)
 		{
-			ref var state = ref GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity);
+			ref var state = ref World.Get<CameraState>(GameContext.Simulation.WorldEntity);
 			state = savedState.CameraStateSnapshot;
 		}
 	}
@@ -268,7 +269,7 @@ public partial class GameHost
 			bool foundWorld = false;
 
 			var worldQuery = QueryCache.AllTerrainStateAndEditorStateQuery;
-			GameContext.World.Query(in worldQuery, (Entity _, ref TerrainState t, ref EditorState e) =>
+			World.Query(in worldQuery, (Entity _, ref TerrainState t, ref EditorState e) =>
 			{
 				terrain = t;
 				editor = e;
@@ -465,20 +466,22 @@ public partial class GameHost
 
 	private void ApplyTerrainStateView(TerrainState terrain)
 	{
-		if (terrain.Cells != null && GroundTerrain != null)
+		if (GroundTerrain is not { } ground) return;
+
+		if (terrain.Cells != null)
 		{
-			GroundTerrain.Cells = (TerrainCell[,])terrain.Cells.Clone();
+			ground.Cells = (TerrainCell[,])terrain.Cells.Clone();
 		}
 
 		// The size is read after the cells land, because the cells are what states the map's size. Reading it first on a
 		// ground built from nothing but its node returned the default size and dropped the pathing codes of every map
 		// that is not that size.
-		int width = GroundTerrain.Width;
-		int depth = GroundTerrain.Depth;
+		int width = ground.Width;
+		int depth = ground.Depth;
 
-		if (terrain.PathingCodes != null && terrain.PathingCodes.Length == width * depth && GroundTerrain != null)
+		if (terrain.PathingCodes != null && terrain.PathingCodes.Length == width * depth)
 		{
-			GameContext.SaveLoadService.CopyPathingCodes(terrain.PathingCodes, GroundTerrain.PathingCodes, width, depth);
+			GameContext.SaveLoadService.CopyPathingCodes(terrain.PathingCodes, ground.PathingCodes, width, depth);
 		}
 	}
 
@@ -487,8 +490,9 @@ public partial class GameHost
 		int splatW = GroundTerrain.Width + 1;
 		int splatD = GroundTerrain.Depth + 1;
 
-		string directory = Path.GetDirectoryName(absolutePath);
-		TerrainSplatWeights[,]? splatMap = MapTerrainFiles.ReadSplatMap(directory, MapTerrainFiles.SplatPrefix, splatW, splatD);
+		TerrainSplatWeights[,]? splatMap = Path.GetDirectoryName(absolutePath) is { } directory
+			? MapTerrainFiles.ReadSplatMap(directory, MapTerrainFiles.SplatPrefix, splatW, splatD)
+			: null;
 
 		if (splatMap == null)
 		{
@@ -510,8 +514,9 @@ public partial class GameHost
 
 		int targetCliffW = GroundTerrain.Width + 1;
 		int targetCliffD = GroundTerrain.Depth + 1;
-		string directory = Path.GetDirectoryName(absolutePath);
-		TerrainSplatWeights[,]? cliffSplatMap = MapTerrainFiles.ReadSplatMap(directory, MapTerrainFiles.CliffSplatPrefix, targetCliffW, targetCliffD);
+		TerrainSplatWeights[,]? cliffSplatMap = Path.GetDirectoryName(absolutePath) is { } directory
+			? MapTerrainFiles.ReadSplatMap(directory, MapTerrainFiles.CliffSplatPrefix, targetCliffW, targetCliffD)
+			: null;
 
 		if (cliffSplatMap != null)
 		{
@@ -581,7 +586,7 @@ public partial class GameHost
 		FlushModelYOffsetSave();
 	}
 
-	public void LoadModelYOffsetsFromMetadataJson(string directory = null)
+	public void LoadModelYOffsetsFromMetadataJson(string? directory = null)
 	{
 		try
 		{
@@ -592,7 +597,7 @@ public partial class GameHost
 			}
 
 			LoadUnitMetadata(mapDir);
-			var metaService = GameContext.MetadataService ?? GameContext.MetadataService;
+			var metaService = GameContext.MetadataService;
 			var metadata = metaService.LoadMetadata(mapDir);
 
 			GameContext.ModelOverrideService.LoadOverridesFromMetadata(metadata, GameContext.EditorService.NormalizeModelAssetKey);
@@ -614,14 +619,14 @@ public partial class GameHost
 
 
 
-	public void SaveModelYOffsetsToMetadataJson(string directory = null)
+	public void SaveModelYOffsetsToMetadataJson(string? directory = null)
 	{
 		try
 		{
 			string mapDir = !string.IsNullOrEmpty(directory) ? directory : GameContext.MapStorageService.CurrentMapDirectory;
 			if (string.IsNullOrEmpty(mapDir)) mapDir = GameContext.EditorService._editingDirectory;
 
-			var metaService = GameContext.MetadataService ?? GameContext.MetadataService;
+			var metaService = GameContext.MetadataService;
 			metaService.UpdateMetadata(mapDir, UpdateMetadataModelOverrides);
 		}
 		catch (Exception ex)
@@ -781,7 +786,7 @@ public partial class GameHost
 	}
 
 
-	private bool TryGetValidCachedDecal(string cacheKey, out DecalAssetData cachedData)
+	private bool TryGetValidCachedDecal(string cacheKey, [NotNullWhen(true)] out DecalAssetData? cachedData)
 	{
 		cachedData = null;
 		if (GameContext.EditorService.DecalAssetCache.TryGetValue(cacheKey, out var data) && data != null && GodotObject.IsInstanceValid(data.PrimaryTexture))
@@ -793,7 +798,7 @@ public partial class GameHost
 		return false;
 	}
 
-	private DecalAssetData TryLoadDecalFromCandidates(string decalId, int cols, int rows, string? explicitPath, string wsPath, string cacheKey)
+	private DecalAssetData? TryLoadDecalFromCandidates(string decalId, int cols, int rows, string? explicitPath, string wsPath, string cacheKey)
 	{
 		var candidatePaths = GameContext.EditorService.GetDecalCandidatePaths(decalId, explicitPath, wsPath);
 		foreach (var path in candidatePaths)
