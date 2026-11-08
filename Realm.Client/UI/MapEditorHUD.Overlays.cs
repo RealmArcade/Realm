@@ -42,15 +42,7 @@ namespace Realm.Client.UI
 			CloseWasmConsoleModal();
 			GameContext.UnregisterMapEditorHud(this);
 
-			if (GodotObject.IsInstanceValid(_swatchHighlightPanel) && _swatchHighlightPanel.GetParent() == null)
-			{
-				_swatchHighlightPanel.QueueFree();
-			}
-
-			if (GodotObject.IsInstanceValid(_swatchCliffHighlightPanel) && _swatchCliffHighlightPanel.GetParent() == null)
-			{
-				_swatchCliffHighlightPanel.QueueFree();
-			}
+			if (_swatchGrid != null) _swatchGrid.ReleaseOrphanedHighlights();
 
 			if (_hudFadeTween != null && _hudFadeTween.IsValid())
 			{
@@ -96,7 +88,7 @@ namespace Realm.Client.UI
 				_mapNameUpdateTimer = 0.0;
 				UpdateMapNameHeader();
 
-				if (!ReferenceEquals(_swatchDataService, GameContext.EditorService))
+				if (Swatches.IsDataStale)
 				{
 					UpdateTextureLabels();
 				}
@@ -877,73 +869,21 @@ namespace Realm.Client.UI
 			}
 		}
 
-		private void HighlightSwatch(Button? selectedSwatch)
-		{
-			if (!GodotObject.IsInstanceValid(_swatchHighlightPanel))
-			{
-				_swatchHighlightPanel = new Panel();
-				_swatchHighlightPanel.Name = "SwatchHighlightPanel";
-				_swatchHighlightPanel.MouseFilter = MouseFilterEnum.Ignore;
-				_swatchHighlightPanel.SetAnchorsPreset(LayoutPreset.FullRect);
-				_swatchHighlightPanel.GrowHorizontal = GrowDirection.Both;
-				_swatchHighlightPanel.GrowVertical = GrowDirection.Both;
+		private TextureSwatchGrid? _swatchGrid;
 
-				var style = new StyleBoxFlat();
-				style.BgColor = new Color(0, 0, 0, 0);
-				style.BorderColor = UIStyle.ColorCyanGlow;
-				style.SetBorderWidthAll(3);
-				style.SetCornerRadiusAll(4);
-				_swatchHighlightPanel.AddThemeStyleboxOverride("panel", style);
-			}
+		/// <summary>The texture palette: its buttons, both selection overlays and the thumbnail cache.</summary>
+		internal TextureSwatchGrid Swatches => _swatchGrid ??= new TextureSwatchGrid(
+			new SwatchGridHooks(
+				SelectTerrainTexture,
+				SelectCliffTexture,
+				() => ChkApplyCliffTexture != null && ChkApplyCliffTexture.ButtonPressed,
+				() => ChkApplyGroundTexture == null || !ChkApplyGroundTexture.ButtonPressed,
+				LoadSwatchTextureInternal,
+				UpdateTextureLabels));
 
-			if (selectedSwatch != null)
-			{
-				if (_swatchHighlightPanel.GetParent() != selectedSwatch)
-				{
-					_swatchHighlightPanel.GetParent()?.RemoveChild(_swatchHighlightPanel);
-					selectedSwatch.AddChild(_swatchHighlightPanel);
-				}
-				_swatchHighlightPanel.Visible = true;
-			}
-			else
-			{
-				_swatchHighlightPanel.Visible = false;
-			}
-		}
+		private void HighlightSwatch(Button? selectedSwatch) => Swatches.Highlight(selectedSwatch);
 
-		private void HighlightCliffSwatch(Button? selectedSwatch)
-		{
-			if (!GodotObject.IsInstanceValid(_swatchCliffHighlightPanel))
-			{
-				_swatchCliffHighlightPanel = new Panel();
-				_swatchCliffHighlightPanel.Name = "SwatchCliffHighlightPanel";
-				_swatchCliffHighlightPanel.MouseFilter = MouseFilterEnum.Ignore;
-				_swatchCliffHighlightPanel.SetAnchorsPreset(LayoutPreset.FullRect);
-				_swatchCliffHighlightPanel.GrowHorizontal = GrowDirection.Both;
-				_swatchCliffHighlightPanel.GrowVertical = GrowDirection.Both;
-
-				var style = new StyleBoxFlat();
-				style.BgColor = new Color(0, 0, 0, 0);
-				style.BorderColor = new Color(0.9f, 0.45f, 0.1f);
-				style.SetBorderWidthAll(3);
-				style.SetCornerRadiusAll(4);
-				_swatchCliffHighlightPanel.AddThemeStyleboxOverride("panel", style);
-			}
-
-			if (selectedSwatch != null)
-			{
-				if (_swatchCliffHighlightPanel.GetParent() != selectedSwatch)
-				{
-					_swatchCliffHighlightPanel.GetParent()?.RemoveChild(_swatchCliffHighlightPanel);
-					selectedSwatch.AddChild(_swatchCliffHighlightPanel);
-				}
-				_swatchCliffHighlightPanel.Visible = true;
-			}
-			else
-			{
-				_swatchCliffHighlightPanel.Visible = false;
-			}
-		}
+		private void HighlightCliffSwatch(Button? selectedSwatch) => Swatches.HighlightCliff(selectedSwatch);
 
 		private void CheckPostLaunchPrompts()
 		{
@@ -1393,217 +1333,11 @@ namespace Realm.Client.UI
 
 		private void StyleOptionButtonsInContainer(Control container) => MapEditorStyle.OptionButtonsInContainer(container, GetFontAwesomeFont());
 
-		public void SetupTextureSwatches(bool connectEvents = false)
-		{
-			_swatchTextureCache.Clear();
-
-			var slots = RefreshSwatchDataFromWorkspace();
-			if (slots != null)
-			{
-				RebuildSwatchesUI(slots, connectEvents);
-			}
-
-			UpdateTextureLabels();
-		}
-
-		private EditorService? _swatchDataService { get; set; }
+		public void SetupTextureSwatches(bool connectEvents = false) => Swatches.Setup(connectEvents);
 
 		private void EnsureSwatchDataCurrent()
 		{
-			var editorService = GameContext.EditorService;
-			if (ReferenceEquals(_swatchDataService, editorService)) return;
-
-			RefreshSwatchDataFromWorkspace();
-		}
-
-		private SwatchSlotInfo[]? RefreshSwatchDataFromWorkspace()
-		{
-			_swatchDataService = GameContext.EditorService;
-
-			try
-			{
-				GameContext.EditorService.Swatches.Clear();
-
-				string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
-				var metadata = MapFileService.LoadMetadata(wsPath);
-				var slots = TextureSwatchSlots.ResolveSlots(metadata?.Textures, wsPath);
-
-				GameContext.EditorService.Swatches.Populate(slots, wsPath);
-				return slots;
-			}
-			catch (Exception ex)
-			{
-				GameLog.LogError($"[MapEditorHUD] Error in SetupTextureSwatches: {ex.Message}");
-				return null;
-			}
-		}
-
-
-		private void RebuildSwatchesUI(SwatchSlotInfo[] slots, bool connectEvents)
-		{
-			if (_gridSwatches == null) return;
-
-			EnsureScrollSwatchesContainerExists();
-			ConfigureGridSwatchesContainer_ViewLogic();
-			CreateSwatchButtons_ViewLogic(slots, connectEvents);
-		}
-
-		private void EnsureScrollSwatchesContainerExists()
-		{
-			if (_scrollSwatches == null && _gridSwatches.GetParent() is VBoxContainer parentVBox)
-			{
-				int gridIndex = _gridSwatches.GetIndex();
-				parentVBox.RemoveChild(_gridSwatches);
-				_scrollSwatches = new ScrollContainer();
-				_scrollSwatches.Name = "ScrollSwatches";
-				_scrollSwatches.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
-				_scrollSwatches.VerticalScrollMode = ScrollContainer.ScrollMode.Auto;
-				_scrollSwatches.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-				_scrollSwatches.AddChild(_gridSwatches);
-				parentVBox.AddChild(_scrollSwatches);
-				parentVBox.MoveChild(_scrollSwatches, gridIndex);
-			}
-		}
-
-		private void ConfigureGridSwatchesContainer_ViewLogic()
-		{
-			if (_gridSwatches is GridContainer gridSwatchesContainer)
-			{
-				gridSwatchesContainer.Columns = 6;
-			}
-
-			foreach (Node child in _gridSwatches.GetChildren())
-			{
-				_gridSwatches.RemoveChild(child);
-				child.QueueFree();
-			}
-
-			_swatchButtons.Clear();
-		}
-
-		private void CreateSwatchButtons_ViewLogic(SwatchSlotInfo[] slots, bool connectEvents)
-		{
-			int visibleCount = 0;
-			for (int i = 0; i < TextureSwatchSlots.MaxSlots; i++)
-			{
-				var slot = slots[i];
-				var btn = CreateSwatchButton_ViewLogic(slot);
-
-				if (!slot.IsFiller && !string.IsNullOrEmpty(slot.BaseName))
-				{
-					btn.Visible = true;
-					visibleCount++;
-					SetupSwatchVisuals_ViewLogic(btn, slot.SlotIndex);
-				}
-				else
-				{
-					btn.Visible = false;
-				}
-
-				btn.GuiInput += (@event) => HandleSwatchInput_ViewLogic(@event, slot.SlotIndex, btn);
-
-				_swatchButtons.Add(btn);
-				_gridSwatches.AddChild(btn);
-			}
-
-			UpdateSwatchesScrollHeight_ViewLogic(visibleCount);
-		}
-
-		private Button CreateSwatchButton_ViewLogic(SwatchSlotInfo slot)
-		{
-			var btn = new Button();
-			btn.Name = $"Swatch{slot.SlotIndex + 1}";
-			btn.Flat = false;
-			btn.ExpandIcon = true;
-			btn.FocusMode = FocusModeEnum.None;
-			btn.CustomMinimumSize = new Vector2(40, 40);
-			btn.Set("icon_max_width", 0);
-			UIStyle.ApplyButtonStyleBoxes(btn);
-			return btn;
-		}
-
-		private void SetupSwatchVisuals_ViewLogic(Button btn, int slotIndex)
-		{
-			Texture2D? tex = GetSwatchTexture(slotIndex);
-			if (tex != null)
-			{
-				var texRect = new TextureRect();
-				texRect.Name = "TexRect_TextureRect";
-				texRect.Texture = tex;
-				texRect.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
-				texRect.StretchMode = TextureRect.StretchModeEnum.KeepAspectCovered;
-				texRect.MouseFilter = MouseFilterEnum.Ignore;
-				texRect.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-				texRect.GrowHorizontal = GrowDirection.Both;
-				texRect.GrowVertical = GrowDirection.Both;
-				btn.AddChild(texRect);
-			}
-			else
-			{
-				var colorBox = new ColorRect();
-				colorBox.Name = "ColorBox_ColorRect";
-				colorBox.Color = GameContext.EditorService.Swatches.Colors[slotIndex];
-				colorBox.MouseFilter = MouseFilterEnum.Ignore;
-				colorBox.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-				colorBox.GrowHorizontal = GrowDirection.Both;
-				colorBox.GrowVertical = GrowDirection.Both;
-				btn.AddChild(colorBox);
-			}
-
-			btn.TooltipText = $"{slotIndex}: {GameContext.EditorService.Swatches.DisplayNames[slotIndex]}";
-		}
-
-		private void HandleSwatchInput_ViewLogic(InputEvent @event, int slotIndex, Button btn)
-		{
-			if (@event is InputEventMouseButton mouseEvent && mouseEvent.Pressed)
-			{
-				if (mouseEvent.ButtonIndex == MouseButton.Left)
-				{
-					bool isShift = Input.IsKeyPressed(Godot.Key.Shift);
-					bool cliffChecked = ChkApplyCliffTexture != null && ChkApplyCliffTexture.ButtonPressed;
-					bool groundUnchecked = ChkApplyGroundTexture == null || !ChkApplyGroundTexture.ButtonPressed;
-
-					if (isShift || (cliffChecked && groundUnchecked))
-					{
-						SelectCliffTexture(slotIndex);
-					}
-					else
-					{
-						SelectTerrainTexture(slotIndex, btn);
-					}
-				}
-				else if (mouseEvent.ButtonIndex == MouseButton.Right)
-				{
-					SelectCliffTexture(slotIndex);
-				}
-			}
-		}
-
-		private void UpdateSwatchesScrollHeight_ViewLogic(int visibleCount)
-		{
-			if (_scrollSwatches == null) return;
-
-			const int maxVisibleSwatchesBeforeScroll = 36;
-			int totalColumns = 6;
-			int numRows = (int)MathF.Ceiling((float)visibleCount / totalColumns);
-			if (numRows < 1) numRows = 1;
-			int maxRows = maxVisibleSwatchesBeforeScroll / totalColumns;
-			int displayedRows = Math.Min(numRows, maxRows);
-
-			float rowHeight = 40f;
-			float vSeparation = 6f;
-			if (_gridSwatches is GridContainer gc && gc.HasThemeConstantOverride("v_separation"))
-			{
-				vSeparation = gc.GetThemeConstant("v_separation");
-			}
-
-			float targetHeight = displayedRows * rowHeight + Math.Max(0, displayedRows - 1) * vSeparation;
-
-			_scrollSwatches.CustomMinimumSize = new Vector2(0, targetHeight);
-			_scrollSwatches.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
-			_scrollSwatches.VerticalScrollMode = visibleCount > maxVisibleSwatchesBeforeScroll
-				? ScrollContainer.ScrollMode.Auto
-				: ScrollContainer.ScrollMode.Disabled;
+			if (Swatches.IsDataStale) Swatches.RefreshData();
 		}
 
 

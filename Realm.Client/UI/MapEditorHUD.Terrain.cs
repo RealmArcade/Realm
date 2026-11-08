@@ -36,16 +36,16 @@ namespace Realm.Client.UI
 
 		public void SelectPaintSwatchByIndexView(int index)
 		{
-			if (index >= 0 && index < _swatchButtons.Count)
+			var swatch = Swatches.GetButton(index);
+			if (swatch == null) return;
+
+			if (ChkApplyCliffTexture != null && ChkApplyCliffTexture.ButtonPressed && (ChkApplyGroundTexture == null || !ChkApplyGroundTexture.ButtonPressed))
 			{
-				if (ChkApplyCliffTexture != null && ChkApplyCliffTexture.ButtonPressed && (ChkApplyGroundTexture == null || !ChkApplyGroundTexture.ButtonPressed))
-				{
-					SelectCliffTexture(index);
-				}
-				else
-				{
-					SelectTerrainTexture(index, _swatchButtons[index]);
-				}
+				SelectCliffTexture(index);
+			}
+			else
+			{
+				SelectTerrainTexture(index, swatch);
 			}
 		}
 

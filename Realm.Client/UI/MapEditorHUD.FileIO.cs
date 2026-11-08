@@ -2097,7 +2097,7 @@ namespace Realm.Client.UI
 
 				InvalidateMetadataCache();
 
-				_swatchTextureCache.Clear();
+				Swatches.InvalidateTextureCache();
 				if (GameContext.Host != null && GameContext.Host.GroundTerrain != null)
 				{
 					GameContext.Host.GroundTerrain.ReloadTerrainTextures(true);

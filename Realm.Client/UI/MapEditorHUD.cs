@@ -99,11 +99,6 @@ public partial class MapEditorHUD : Control
 
 
 
-	private List<Button> _swatchButtons { get; set; } = new List<Button>();
-
-
-	private ScrollContainer _scrollSwatches { get; set; } = null!;
-	private Control _gridSwatches { get; set; } = null!;
 	private Button _btnReplaceTexture { get; set; } = null!;
 
 	private PanelContainer _topBar { get; set; } = null!;
@@ -188,8 +183,6 @@ public partial class MapEditorHUD : Control
 
 	private Camera3D? _camera3D { get; set; }
 	private bool _isDraggingSlider { get; set; } = false;
-	private Panel _swatchHighlightPanel { get; set; } = null!;
-	private Panel _swatchCliffHighlightPanel { get; set; } = null!;
 
 	private MapEditorTopBar _topBarController { get; set; } = null!;
 	private MapEditorBrushSettings _brushSettingsController { get; set; } = null!;
@@ -1357,9 +1350,6 @@ public partial class MapEditorHUD : Control
 			AppendWasmConsoleLog($"[AUTHORITY] Its console output could not be read: {exception.Message}");
 		}
 	}
-
-
-	private Dictionary<int, Texture2D> _swatchTextureCache { get; set; } = new();
 
 
 	public void InvalidateMetadataCache()

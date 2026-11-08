@@ -518,8 +518,7 @@ namespace Realm.Client.UI
 			ChkApplyCliffTexture = texturePanel.CliffApply;
 			RowGroundTexture = texturePanel.GroundRow;
 			RowCliffTexture = texturePanel.CliffRow;
-			_scrollSwatches = texturePanel.SwatchesScroll!;
-			_gridSwatches = texturePanel.SwatchesGrid!;
+			Swatches.Attach(texturePanel.SwatchesGrid!, texturePanel.SwatchesScroll);
 			_btnReplaceTexture = texturePanel.ReplaceButton;
 
 			SetupTextureSwatches(true);
@@ -869,12 +868,12 @@ namespace Realm.Client.UI
 
 		private Button GetTextureSwatchButton(string placeId)
 		{
-			for (int i = 0; i < GameContext.EditorService.Swatches.Paths.Count && i < _swatchButtons.Count; i++)
+			for (int i = 0; i < GameContext.EditorService.Swatches.Paths.Count; i++)
 			{
-				if (GameContext.EditorService.Swatches.Paths[i] == placeId)
-				{
-					return _swatchButtons[i];
-				}
+				if (GameContext.EditorService.Swatches.Paths[i] != placeId) continue;
+
+				var swatch = Swatches.GetButton(i);
+				if (swatch != null) return swatch;
 			}
 
 			return _toolPanel.TextureBrushButton;
@@ -1671,8 +1670,8 @@ namespace Realm.Client.UI
 			if (_lblTerrainTexture != null) _lblTerrainTexture.Text = TranslationServer.Translate(terrainName);
 			if (_lblCliffTexture != null) _lblCliffTexture.Text = TranslationServer.Translate(cliffName);
 
-			Button? terrainSwatch = (terrainIdx >= 0 && terrainIdx < _swatchButtons.Count) ? _swatchButtons[terrainIdx] : null;
-			Button? cliffSwatch = (cliffIdx >= 0 && cliffIdx < _swatchButtons.Count) ? _swatchButtons[cliffIdx] : null;
+			Button? terrainSwatch = Swatches.GetButton(terrainIdx);
+			Button? cliffSwatch = Swatches.GetButton(cliffIdx);
 
 			HighlightSwatch(terrainSwatch);
 			HighlightCliffSwatch(cliffSwatch);
@@ -2025,22 +2024,6 @@ namespace Realm.Client.UI
 			{
 				await ProceedToTestMap();
 			}
-		}
-
-		private Texture2D? GetSwatchTexture(int i)
-		{
-			if (_swatchTextureCache.TryGetValue(i, out var cached) && cached != null && GodotObject.IsInstanceValid(cached))
-			{
-				return cached;
-			}
-
-			Texture2D? result = LoadSwatchTextureInternal(i);
-			if (result != null)
-			{
-				_swatchTextureCache[i] = result;
-			}
-
-			return result;
 		}
 
 		public void OpenNoiseTextureDialog(Action<string>? onSaved = null)
