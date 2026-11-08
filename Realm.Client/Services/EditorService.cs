@@ -353,7 +353,7 @@ public partial class EditorService : IEditorAPI
 	public long LastMapNameCacheTicks { get; set; } = 0;
 	public string? CachedMapName { get; set; }
 	public string? CachedMapVersion { get; set; }
-	public string CurrentDirectoryBlake3 { get; set; } = string.Empty;
+	public string CurrentDirectoryBlake3 { get => _workspace.CurrentDirectoryBlake3; set => _workspace.CurrentDirectoryBlake3 = value; }
 	public long LastTerrainSyncTime { get; set; } = 0;
 	public long LastMetadataSyncTime { get; set; } = 0;
 	public int ScaleDialogTargetWidth { get; set; }
@@ -410,7 +410,7 @@ public partial class EditorService : IEditorAPI
 		return mirrorMode == MirrorMode.Rotational || mode == GridOverlayMode.Polar || mode == GridOverlayMode.Both;
 	}
 
-	public double AutoBackupElapsedSeconds { get; set; } = 0;
+	public double AutoBackupElapsedSeconds { get => _workspace.AutoBackupElapsedSeconds; set => _workspace.AutoBackupElapsedSeconds = value; }
 
 	public bool CheckAndUpdateRaycast(Godot.Vector3 pos)
 	{
@@ -425,16 +425,7 @@ public partial class EditorService : IEditorAPI
 
 	public bool CheckAutoBackup(int intervalMins, double delta)
 	{
-		if (intervalMins <= 0) return false;
-		AutoBackupElapsedSeconds += delta;
-		double targetSeconds = intervalMins * 60.0;
-		if (AutoBackupElapsedSeconds >= targetSeconds)
-		{
-			AutoBackupElapsedSeconds = 0;
-			return true;
-		}
-
-		return false;
+		return _workspace.TickBackupInterval(intervalMins, delta);
 	}
 
 
@@ -464,29 +455,24 @@ public partial class EditorService : IEditorAPI
 		return EditorMapFolderInspector.IsMapFolderCorrupt(folder, out corruptFileName, out parseErrorMessage);
 	}
 
-	public string _editingDirectory { get; set; } = string.Empty;
+	public string _editingDirectory { get => _workspace.Directory; set => _workspace.Directory = value; }
+	private readonly EditorWorkspace _workspace = new();
 
-	public bool HasEditingDirectory => !string.IsNullOrEmpty(_editingDirectory);
+	public bool HasEditingDirectory => _workspace.HasDirectory;
 
 	public void SetActiveMapDirectory(string absoluteDirectory)
 	{
-		_editingDirectory = absoluteDirectory;
+		_workspace.Directory = absoluteDirectory;
 	}
 
 	public void ClearEditingDirectoryDomain()
 	{
-		_editingDirectory = string.Empty;
+		_workspace.Clear();
 	}
 
 	public void EnsureEditingDirectoryDomain()
 	{
-		if (HasEditingDirectory) return;
-
-		string? sourceFolder = CurrentSourceFolder;
-		if (string.IsNullOrEmpty(sourceFolder) || !Directory.Exists(sourceFolder)) return;
-
-		SetActiveMapDirectory(Path.GetFullPath(sourceFolder));
-		SetCurrentSourceFolder(sourceFolder);
+		if (_workspace.EnsureDirectory(CurrentSourceFolder)) SetCurrentSourceFolder(CurrentSourceFolder);
 	}
 
 	public int LastSelectionMinX { get; set; } = -1;
@@ -1910,8 +1896,7 @@ public partial class EditorService : IEditorAPI
 
 	public long GetLastWriteTimeSafe(string path)
 	{
-		if (!File.Exists(path)) return 0;
-		return File.GetLastWriteTimeUtc(path).Ticks;
+		return EditorWorkspace.GetLastWriteTimeTicks(path);
 	}
 
 	public long GetMaxTerrainWriteTime(string baseTerrainJsonPath)
@@ -1940,42 +1925,7 @@ public partial class EditorService : IEditorAPI
 
 	public void GenerateMapDirectoryDomain(string mapName, string mapDir, string projectRoot, string templateDirSearch)
 	{
-		Directory.CreateDirectory(mapDir);
-
-		string templateDir = templateDirSearch;
-		if (!Directory.Exists(templateDir))
-		{
-			templateDir = Path.Combine(projectRoot, "..", "MapTemplate");
-		}
-
-		string templateScriptPath = Path.Combine(templateDir, "MapScript.cs");
-
-		string scriptContent;
-		if (File.Exists(templateScriptPath))
-		{
-			scriptContent = File.ReadAllText(templateScriptPath).Replace("__MAP_NAME__", mapName);
-		}
-		else
-		{
-			scriptContent = $@"namespace Realm.Maps;
-
-
-public class {mapName} : IMapScript
-{{
-    public void Initialize(IGameAPI api)
-    {{
-    }}
-
-    public void Update(IGameAPI api, float delta)
-    {{
-    }}
-}}
-";
-		}
-
-		File.WriteAllText(Path.Combine(mapDir, "MapScript.cs"), scriptContent);
-		Realm.Client.Utils.MapJsonFormatter.SaveFormattedJson(Path.Combine(mapDir, "metadata.json"), "{}");
-		Realm.Client.Utils.MapJsonFormatter.SaveFormattedJson(Path.Combine(mapDir, "terrain.json"), "{}");
+		EditorWorkspace.CreateMapDirectory(mapName, mapDir, projectRoot, templateDirSearch);
 	}
 
 	public void GenerateVSCodeFilesExternalDomain()
@@ -1991,14 +1941,7 @@ public class {mapName} : IMapScript
 
 	public void UpdateWorkspaceModTime()
 	{
-		try
-		{
-			var wsDir = new DirectoryInfo(this._editingDirectory);
-			wsDir.LastWriteTimeUtc = DateTime.UtcNow;
-		}
-		catch
-		{
-		}
+		_workspace.TouchModTime();
 	}
 
 	public bool HasDecalOverrides(int overrideCols, int overrideRows, float overrideFps, bool? overrideSubframeBlend)
@@ -2144,26 +2087,12 @@ public class {mapName} : IMapScript
 
 	public bool IsRestrictedSaveDirectoryDomain(string fullPath, string mapBackups, string userDir, string resDir)
 	{
-		if (fullPath.Equals(mapBackups, StringComparison.OrdinalIgnoreCase) || fullPath.StartsWith(mapBackups + "/", StringComparison.OrdinalIgnoreCase))
-		{
-			return false;
-		}
-
-		if (fullPath.Equals(userDir, StringComparison.OrdinalIgnoreCase) || fullPath.StartsWith(userDir + "/", StringComparison.OrdinalIgnoreCase) ||
-			fullPath.Equals(resDir, StringComparison.OrdinalIgnoreCase) || fullPath.StartsWith(resDir + "/", StringComparison.OrdinalIgnoreCase))
-		{
-			return true;
-		}
-
-		return false;
+		return EditorWorkspace.IsRestrictedSaveDirectory(fullPath, mapBackups, userDir, resDir);
 	}
 
 	public string GetDefaultDevelopmentMapDirectoryDomain(string mapName, string docsDir)
 	{
-		string cleanName = string.Join("_", mapName.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries)).Trim();
-		if (string.IsNullOrEmpty(cleanName) || MapNaming.IsUntitledMapName(cleanName)) cleanName = "new_map";
-
-		return Path.Combine(docsDir, cleanName);
+		return EditorWorkspace.GetDefaultDevelopmentMapDirectory(mapName, docsDir);
 	}
 
 	public async Task<bool> PerformCompilationStepAsyncDomain(string workspace, Func<string, string?> findProjectFile, Func<string, bool, bool> tryBypassCompilation, Func<string, bool> checkMapApiDependency, Func<string, string, bool, Task<bool>> executeDotnetPublishAsync, Action<string> onStatusError, Action<string> onLog, bool isDebug = false)
