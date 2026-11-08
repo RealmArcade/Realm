@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Globalization;
 using System.IO;
 using System.Text.Json;
@@ -1847,7 +1847,7 @@ namespace Realm.Client.UI
 
 			try
 			{
-				string errText = await GameContext.EditorService.ProcessCreatorRegistrationAsync(username, pubKeyStr, key);
+				string? errText = await GameContext.EditorService.ProcessCreatorRegistrationAsync(username, pubKeyStr, key);
 
 				if (string.IsNullOrEmpty(errText))
 				{

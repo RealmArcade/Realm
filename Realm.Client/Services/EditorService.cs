@@ -1,4 +1,4 @@
-using Realm.Shared.Maps;
+﻿using Realm.Shared.Maps;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -50,7 +50,7 @@ public partial class EditorService : IEditorAPI
 	private static EcsWorld World => GameContext.World
 		?? throw new InvalidOperationException("EditorService used before a world existed.");
 
-	public (bool Success, string ErrorMessage, IReadOnlyList<string> ExtractedAnimationFiles, string FileName) ImportGlbAssetFromExtensionDomain(string sourceFilePath, string category, string wsPath, Action<string, string, string, string> updateMetadataAction)
+	public (bool Success, string ErrorMessage, IReadOnlyList<string> ExtractedAnimationFiles, string FileName) ImportGlbAssetFromExtensionDomain(string sourceFilePath, string category, string wsPath, Action<string, string, string, string?> updateMetadataAction)
 	{
 		string fileName = Path.GetFileName(sourceFilePath);
 		string subCat = category.ToLowerInvariant();
@@ -125,8 +125,9 @@ public partial class EditorService : IEditorAPI
 
 		if (File.Exists(targetPath))
 		{
-			finalFileName = HandleExistingRanimFileDomain(targetPath, animsDir, baseName, newHash, sourceBytes);
-			if (string.IsNullOrEmpty(finalFileName)) return (false, Path.GetFileName(targetPath), newHash);
+			string? replacementName = HandleExistingRanimFileDomain(targetPath, animsDir, baseName, newHash, sourceBytes);
+			if (string.IsNullOrEmpty(replacementName)) return (false, Path.GetFileName(targetPath), newHash);
+			finalFileName = replacementName;
 		}
 		else
 		{
@@ -217,7 +218,7 @@ public partial class EditorService : IEditorAPI
 		}
 	}
 
-	public async Task<string> ProcessCreatorRegistrationAsync(string username, string pubKeyStr, Key key)
+	public async Task<string?> ProcessCreatorRegistrationAsync(string username, string pubKeyStr, Key key)
 	{
 		if (!Realm.Shared.NameNormalizationHelper.ValidateUsername(username, out var validationError))
 		{
@@ -395,19 +396,23 @@ public partial class EditorService : IEditorAPI
 
 	public void ResetPivotToMapCenterDomain()
 	{
+		if (GameContext.Host is not { } host) return;
+
 		var pivot = Vector2.Zero;
-		GameContext.Host.EditorSymmetryPivot = pivot;
-		GameContext.Host.GroundTerrain.SetPolarCenter(pivot);
-		GameContext.Host.UpdateSymmetryPivotVisuals();
-		GameContext.Host.InvalidateSelectionHighlightMesh();
+		host.EditorSymmetryPivot = pivot;
+		host.GroundTerrain?.SetPolarCenter(pivot);
+		host.UpdateSymmetryPivotVisuals();
+		host.InvalidateSelectionHighlightMesh();
 	}
 
 	public (int cx, int cz) SetPivotDomain(Vector3 hitPos)
 	{
 		var pivot = new Vector2(hitPos.X, hitPos.Z);
-		GameContext.Host.EditorSymmetryPivot = pivot;
-		GameContext.Host.GroundTerrain.SetPolarCenter(pivot);
-		GameContext.Host.UpdateSymmetryPivotVisuals();
+		if (GameContext.Host is not { } host) return WorldPosToCellCoords(new Godot.Vector3(hitPos.X, hitPos.Y, hitPos.Z));
+
+		host.EditorSymmetryPivot = pivot;
+		host.GroundTerrain?.SetPolarCenter(pivot);
+		host.UpdateSymmetryPivotVisuals();
 		return WorldPosToCellCoords(new Godot.Vector3(hitPos.X, hitPos.Y, hitPos.Z));
 	}
 
@@ -741,7 +746,7 @@ public partial class EditorService : IEditorAPI
 	}
 
 
-	public bool TryGetValidCurrentSourceFolder(out string folder)
+	public bool TryGetValidCurrentSourceFolder(out string? folder)
 	{
 		folder = CurrentSourceFolder;
 		return !string.IsNullOrEmpty(folder) && Directory.Exists(folder);
@@ -2644,7 +2649,7 @@ public partial class EditorService : IEditorAPI
 
 		int cellX = Math.Clamp(gridX, 0, width - 1);
 		int cellZ = Math.Clamp(gridZ, 0, depth - 1);
-		if (terrain.PathingCodes != null)
+		if (terrain.PathingCodes != null && terrain.Cells != null)
 		{
 			int defaultPathBefore = EditableTerrain.GetDefaultPathingCode(terrain.Cells[cellX, cellZ]);
 			if (terrain.PathingCodes[cellX, cellZ] == defaultPathBefore)
@@ -2956,6 +2961,7 @@ public partial class EditorService : IEditorAPI
 		result.SpawnRequests = new List<EntitySpawnRequest>();
 
 		if (_copiedArea == null) return result;
+		var copiedArea = _copiedArea;
 
 		ref var terrain = ref GetTerrainState();
 		if (terrain.Cells == null) return result;
@@ -2985,7 +2991,7 @@ public partial class EditorService : IEditorAPI
 		int targetWidth = (rotSteps == 1 || rotSteps == 3) ? pasteDepth : pasteWidth;
 		int targetDepth = (rotSteps == 1 || rotSteps == 3) ? pasteWidth : pasteDepth;
 
-		PasteBlock(startX, startZ, rotSteps, pasteReflection, MirrorMode.None, 0, width, depth, pasteHeights, pasteTextures, pastePathing, ref terrain, ref modified, ref pathingModified);
+		PasteBlock(copiedArea, startX, startZ, rotSteps, pasteReflection, MirrorMode.None, 0, width, depth, pasteHeights, pasteTextures, pastePathing, ref terrain, ref modified, ref pathingModified);
 
 		if (mirrorMode != MirrorMode.None)
 		{
@@ -2998,7 +3004,7 @@ public partial class EditorService : IEditorAPI
 					var (rcx, rcz) = WorldPosToCellCoords(transforms[0].Position);
 					int rStartX = rcx - targetWidth / 2;
 					int rStartZ = rcz - targetDepth / 2;
-					PasteBlock(rStartX, rStartZ, rotSteps, pasteReflection, MirrorMode.Horizontal, 0, width, depth, pasteHeights, pasteTextures, pastePathing, ref terrain, ref modified, ref pathingModified);
+					PasteBlock(copiedArea, rStartX, rStartZ, rotSteps, pasteReflection, MirrorMode.Horizontal, 0, width, depth, pasteHeights, pasteTextures, pastePathing, ref terrain, ref modified, ref pathingModified);
 				}
 			}
 			else if (mirrorMode == MirrorMode.Vertical)
@@ -3008,7 +3014,7 @@ public partial class EditorService : IEditorAPI
 					var (rcx, rcz) = WorldPosToCellCoords(transforms[0].Position);
 					int rStartX = rcx - targetWidth / 2;
 					int rStartZ = rcz - targetDepth / 2;
-					PasteBlock(rStartX, rStartZ, rotSteps, pasteReflection, MirrorMode.Vertical, 0, width, depth, pasteHeights, pasteTextures, pastePathing, ref terrain, ref modified, ref pathingModified);
+					PasteBlock(copiedArea, rStartX, rStartZ, rotSteps, pasteReflection, MirrorMode.Vertical, 0, width, depth, pasteHeights, pasteTextures, pastePathing, ref terrain, ref modified, ref pathingModified);
 				}
 			}
 			else if (mirrorMode == MirrorMode.Both)
@@ -3018,17 +3024,17 @@ public partial class EditorService : IEditorAPI
 					var (rcx0, rcz0) = WorldPosToCellCoords(transforms[0].Position);
 					int rStartX0 = rcx0 - targetWidth / 2;
 					int rStartZ0 = rcz0 - targetDepth / 2;
-					PasteBlock(rStartX0, rStartZ0, rotSteps, pasteReflection, MirrorMode.Horizontal, 0, width, depth, pasteHeights, pasteTextures, pastePathing, ref terrain, ref modified, ref pathingModified);
+					PasteBlock(copiedArea, rStartX0, rStartZ0, rotSteps, pasteReflection, MirrorMode.Horizontal, 0, width, depth, pasteHeights, pasteTextures, pastePathing, ref terrain, ref modified, ref pathingModified);
 
 					var (rcx1, rcz1) = WorldPosToCellCoords(transforms[1].Position);
 					int rStartX1 = rcx1 - targetWidth / 2;
 					int rStartZ1 = rcz1 - targetDepth / 2;
-					PasteBlock(rStartX1, rStartZ1, rotSteps, pasteReflection, MirrorMode.Vertical, 0, width, depth, pasteHeights, pasteTextures, pastePathing, ref terrain, ref modified, ref pathingModified);
+					PasteBlock(copiedArea, rStartX1, rStartZ1, rotSteps, pasteReflection, MirrorMode.Vertical, 0, width, depth, pasteHeights, pasteTextures, pastePathing, ref terrain, ref modified, ref pathingModified);
 
 					var (rcx2, rcz2) = WorldPosToCellCoords(transforms[2].Position);
 					int rStartX2 = rcx2 - targetWidth / 2;
 					int rStartZ2 = rcz2 - targetDepth / 2;
-					PasteBlock(rStartX2, rStartZ2, rotSteps, pasteReflection, MirrorMode.Both, 0, width, depth, pasteHeights, pasteTextures, pastePathing, ref terrain, ref modified, ref pathingModified);
+					PasteBlock(copiedArea, rStartX2, rStartZ2, rotSteps, pasteReflection, MirrorMode.Both, 0, width, depth, pasteHeights, pasteTextures, pastePathing, ref terrain, ref modified, ref pathingModified);
 				}
 			}
 			else if (mirrorMode == MirrorMode.Rotational)
@@ -3041,7 +3047,7 @@ public partial class EditorService : IEditorAPI
 					var (rcx, rcz) = WorldPosToCellCoords(t.Position);
 					int rStartX = rcx - curTargetWidth / 2;
 					int rStartZ = rcz - curTargetDepth / 2;
-					PasteBlock(rStartX, rStartZ, rotSteps, pasteReflection, MirrorMode.None, rotKSteps, width, depth, pasteHeights, pasteTextures, pastePathing, ref terrain, ref modified, ref pathingModified);
+					PasteBlock(copiedArea, rStartX, rStartZ, rotSteps, pasteReflection, MirrorMode.None, rotKSteps, width, depth, pasteHeights, pasteTextures, pastePathing, ref terrain, ref modified, ref pathingModified);
 				}
 			}
 		}
@@ -3179,11 +3185,12 @@ public partial class EditorService : IEditorAPI
 
 		if (pasteHeights && terrain.Cells != null)
 		{
+			var targetCells = terrain.Cells;
 			SetGridNodeHeight(ref terrain, targetX, targetZ, 0f);
 			SetGridNodeHeight(ref terrain, targetX + 1, targetZ, 0f);
 			SetGridNodeHeight(ref terrain, targetX + 1, targetZ + 1, 0f);
 			SetGridNodeHeight(ref terrain, targetX, targetZ + 1, 0f);
-			terrain.Cells[targetX, targetZ] = default;
+			targetCells[targetX, targetZ] = default;
 		}
 
 		if (pasteTextures)
@@ -3421,7 +3428,7 @@ public partial class EditorService : IEditorAPI
 	}
 
 	private List<Vector2I> GetFloodFillPathingCells(
-		Godot.Vector3 clickPos, TerrainSplatWeights[,] splatBefore, int width, int depth, float quadSize, bool[,] visited)
+		Godot.Vector3 clickPos, TerrainSplatWeights[,]? splatBefore, int width, int depth, float quadSize, bool[,] visited)
 	{
 		ref var terrain = ref GetTerrainState();
 		var cells = new List<Vector2I>();
@@ -3501,7 +3508,7 @@ public partial class EditorService : IEditorAPI
 
 	private List<Vector2I> GetFloodFillPathingArea(
 		Godot.Vector3 clickPos,
-		TerrainSplatWeights[,] splatBefore,
+		TerrainSplatWeights[,]? splatBefore,
 		int width,
 		int depth,
 		float quadSize,
@@ -4167,6 +4174,7 @@ public partial class EditorService : IEditorAPI
 	}
 
 	private void ProcessPasteBlockCell(
+		CopiedAreaTemplate copiedArea,
 		int sx, int sz, int pasteWidth, int pasteDepth, int targetWidth, int targetDepth,
 		int blockStartX, int blockStartZ,
 		int rotSteps, PasteReflection pasteReflection, MirrorMode symmetryMirror, int foldRotSteps,
@@ -4177,7 +4185,7 @@ public partial class EditorService : IEditorAPI
 		int srcX = pasteReflection == PasteReflection.Horizontal ? pasteWidth - 1 - sx : sx;
 		int srcZ = pasteReflection == PasteReflection.Vertical ? pasteDepth - 1 - sz : sz;
 
-		if (_copiedArea.Mask != null && !_copiedArea.Mask[srcX, srcZ]) return;
+		if (copiedArea.Mask != null && !copiedArea.Mask[srcX, srcZ]) return;
 
 		int rotX = sx;
 		int rotZ = sz;
@@ -4210,28 +4218,28 @@ public partial class EditorService : IEditorAPI
 		TerrainSplatWeights cS_NW = default, cS_NE = default, cS_SE = default, cS_SW = default;
 		if (pasteTextures)
 		{
-			if (_copiedArea.SplatMap != null && srcX + 1 < _copiedArea.SplatMap.GetLength(0) && srcZ + 1 < _copiedArea.SplatMap.GetLength(1))
+			if (copiedArea.SplatMap != null && srcX + 1 < copiedArea.SplatMap.GetLength(0) && srcZ + 1 < copiedArea.SplatMap.GetLength(1))
 			{
-				sNW = _copiedArea.SplatMap[srcX, srcZ];
-				sNE = _copiedArea.SplatMap[srcX + 1, srcZ];
-				sSE = _copiedArea.SplatMap[srcX + 1, srcZ + 1];
-				sSW = _copiedArea.SplatMap[srcX, srcZ + 1];
+				sNW = copiedArea.SplatMap[srcX, srcZ];
+				sNE = copiedArea.SplatMap[srcX + 1, srcZ];
+				sSE = copiedArea.SplatMap[srcX + 1, srcZ + 1];
+				sSW = copiedArea.SplatMap[srcX, srcZ + 1];
 				if (pasteReflection == PasteReflection.Horizontal) (sNW, sNE, sSE, sSW) = MirrorSplatQuad(in sNW, in sNE, in sSE, in sSW, MirrorMode.Horizontal);
 				else if (pasteReflection == PasteReflection.Vertical) (sNW, sNE, sSE, sSW) = MirrorSplatQuad(in sNW, in sNE, in sSE, in sSW, MirrorMode.Vertical);
 				(sNW, sNE, sSE, sSW) = RotateSplatQuad(in sNW, in sNE, in sSE, in sSW, rotSteps);
 			}
 
-			if (_copiedArea.CliffSplatMap != null && srcX + 1 < _copiedArea.CliffSplatMap.GetLength(0) && srcZ + 1 < _copiedArea.CliffSplatMap.GetLength(1))
+			if (copiedArea.CliffSplatMap != null && srcX + 1 < copiedArea.CliffSplatMap.GetLength(0) && srcZ + 1 < copiedArea.CliffSplatMap.GetLength(1))
 			{
-				cS_NW = _copiedArea.CliffSplatMap[srcX, srcZ];
-				cS_NE = _copiedArea.CliffSplatMap[srcX + 1, srcZ];
-				cS_SE = _copiedArea.CliffSplatMap[srcX + 1, srcZ + 1];
-				cS_SW = _copiedArea.CliffSplatMap[srcX, srcZ + 1];
+				cS_NW = copiedArea.CliffSplatMap[srcX, srcZ];
+				cS_NE = copiedArea.CliffSplatMap[srcX + 1, srcZ];
+				cS_SE = copiedArea.CliffSplatMap[srcX + 1, srcZ + 1];
+				cS_SW = copiedArea.CliffSplatMap[srcX, srcZ + 1];
 				if (pasteReflection == PasteReflection.Horizontal) (cS_NW, cS_NE, cS_SE, cS_SW) = MirrorSplatQuad(in cS_NW, in cS_NE, in cS_SE, in cS_SW, MirrorMode.Horizontal);
 				else if (pasteReflection == PasteReflection.Vertical) (cS_NW, cS_NE, cS_SE, cS_SW) = MirrorSplatQuad(in cS_NW, in cS_NE, in cS_SE, in cS_SW, MirrorMode.Vertical);
 				(cS_NW, cS_NE, cS_SE, cS_SW) = RotateSplatQuad(in cS_NW, in cS_NE, in cS_SE, in cS_SW, rotSteps);
 			}
-			else if (_copiedArea.SplatMap != null)
+			else if (copiedArea.SplatMap != null)
 			{
 				cS_NW = sNW;
 				cS_NE = sNE;
@@ -4309,9 +4317,9 @@ public partial class EditorService : IEditorAPI
 				SetGridNodeCliffSplat(targetX, targetZ, in cS_NW, in cS_NE, in cS_SE, in cS_SW);
 			}
 
-			if (pastePathing && _copiedArea.Pathing != null && terrain.PathingCodes != null && srcX < pasteWidth && srcZ < pasteDepth)
+			if (pastePathing && copiedArea.Pathing != null && terrain.PathingCodes != null && srcX < pasteWidth && srcZ < pasteDepth)
 			{
-				terrain.PathingCodes[targetX, targetZ] = _copiedArea.Pathing[srcX, srcZ];
+				terrain.PathingCodes[targetX, targetZ] = copiedArea.Pathing[srcX, srcZ];
 				pathingModified = true;
 			}
 
@@ -4320,6 +4328,7 @@ public partial class EditorService : IEditorAPI
 	}
 
 	private void PasteBlock(
+		CopiedAreaTemplate copiedArea,
 		int blockStartX, int blockStartZ,
 		int rotSteps,
 		PasteReflection pasteReflection,
@@ -4331,19 +4340,19 @@ public partial class EditorService : IEditorAPI
 		ref bool modified,
 		ref bool pathingModified)
 	{
-		int pasteWidth = _copiedArea.Width;
-		int pasteDepth = _copiedArea.Depth;
+		int pasteWidth = copiedArea.Width;
+		int pasteDepth = copiedArea.Depth;
 		int targetWidth = (rotSteps == 1 || rotSteps == 3) ? pasteDepth : pasteWidth;
 		int targetDepth = (rotSteps == 1 || rotSteps == 3) ? pasteWidth : pasteDepth;
 
 		var cells = terrain.Cells;
-		var srcCells = _copiedArea.Cells;
+		var srcCells = copiedArea.Cells;
 
 		for (int sz = 0; sz < pasteDepth; sz++)
 		{
 			for (int sx = 0; sx < pasteWidth; sx++)
 			{
-				ProcessPasteBlockCell(sx, sz, pasteWidth, pasteDepth, targetWidth, targetDepth, blockStartX, blockStartZ, rotSteps, pasteReflection, symmetryMirror, foldRotSteps, width, depth, pasteHeights, pasteTextures, pastePathing, srcCells, cells, ref terrain, ref modified, ref pathingModified);
+				ProcessPasteBlockCell(copiedArea, sx, sz, pasteWidth, pasteDepth, targetWidth, targetDepth, blockStartX, blockStartZ, rotSteps, pasteReflection, symmetryMirror, foldRotSteps, width, depth, pasteHeights, pasteTextures, pastePathing, srcCells, cells, ref terrain, ref modified, ref pathingModified);
 			}
 		}
 	}
