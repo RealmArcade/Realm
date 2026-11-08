@@ -210,9 +210,8 @@ public partial class SteamFriendsDialog : Control
 		_sendButton.CustomMinimumSize = new Vector2(220, 44);
 		_sendButton.FocusMode = FocusModeEnum.None;
 		_sendButton.AddThemeFontSizeOverride("font_size", 14);
-		UIStyle.ApplyButtonStyleBoxes(_sendButton);
+		UIStyle.ApplyButtonStyleBoxesClearingFocus(_sendButton);
 		_sendButton.AddThemeStyleboxOverride("disabled", UIStyle.CreateButtonNormal());
-		_sendButton.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 		_sendButton.Pressed += OnSendInvitesPressed;
 		_sendButton.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 		buttons.AddChild(_sendButton);
