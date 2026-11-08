@@ -119,9 +119,10 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 
 	private bool HasCountsChanged()
 	{
-		int curUnits = GameContext.Host.AllUnits?.Count ?? 0;
-		int curProps = GameContext.Host.AllProps?.Count ?? 0;
-		int curDecals = GameContext.Host.AllDecals?.Count ?? 0;
+		var host = GameContext.Host;
+		int curUnits = host?.AllUnits?.Count ?? 0;
+		int curProps = host?.AllProps?.Count ?? 0;
+		int curDecals = host?.AllDecals?.Count ?? 0;
 		int curCoords = GameContext.EditorService?.EditorCoordinates?.Count ?? 0;
 
 		return curUnits != _lastUnitsCount || curProps != _lastPropsCount || curDecals != _lastDecalsCount || curCoords != _lastCoordinatesCount;
@@ -232,9 +233,10 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 
 	private void UpdateLastCounts()
 	{
-		_lastUnitsCount = GameContext.Host.AllUnits?.Count ?? 0;
-		_lastPropsCount = GameContext.Host.AllProps?.Count ?? 0;
-		_lastDecalsCount = GameContext.Host.AllDecals?.Count ?? 0;
+		var host = GameContext.Host;
+		_lastUnitsCount = host?.AllUnits?.Count ?? 0;
+		_lastPropsCount = host?.AllProps?.Count ?? 0;
+		_lastDecalsCount = host?.AllDecals?.Count ?? 0;
 		_lastCoordinatesCount = GameContext.EditorService?.EditorCoordinates?.Count ?? 0;
 	}
 
@@ -257,7 +259,7 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 	private int ProcessCategoryGroup(TreeItem rootNode, string categoryName, List<(string DisplayTitle, Node3D? Node, string? PosText, string? CoordName)> objectsInCategory)
 	{
 		int matchedCount = 0;
-		TreeItem categoryNode = null;
+		TreeItem? categoryNode = null;
 
 		foreach (var (displayTitle, node, posText, coordName) in objectsInCategory)
 		{
@@ -291,7 +293,7 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 				Vector3 pos = node.Position;
 				itemNode.SetText(1, $"({pos.X:F1}, {pos.Y:F1}, {pos.Z:F1})");
 
-				if (GameContext.Host.SelectedEditorObject == node)
+				if (GameContext.Host?.SelectedEditorObject == node)
 				{
 					itemNode.Select(0);
 					categoryNode.Collapsed = false;
@@ -327,9 +329,10 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 
 	private void CollectUnits(List<(string DisplayTitle, string AssetType, Node3D? Node, string? PosText, string? CoordName)> result)
 	{
-		if (GameContext.Host.AllUnits == null) return;
+		var host = GameContext.Host;
+		if (host?.AllUnits == null) return;
 
-		foreach (var unit in GameContext.Host.AllUnits)
+		foreach (var unit in host.AllUnits)
 		{
 			if (!GodotObject.IsInstanceValid(unit)) continue;
 
@@ -375,9 +378,10 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 
 	private void CollectProps(List<(string DisplayTitle, string AssetType, Node3D? Node, string? PosText, string? CoordName)> result)
 	{
-		if (GameContext.Host.AllProps == null) return;
+		var host = GameContext.Host;
+		if (host?.AllProps == null) return;
 
-		foreach (var prop in GameContext.Host.AllProps)
+		foreach (var prop in host.AllProps)
 		{
 			if (!GodotObject.IsInstanceValid(prop)) continue;
 
@@ -395,9 +399,10 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 
 	private void CollectDecals(List<(string DisplayTitle, string AssetType, Node3D? Node, string? PosText, string? CoordName)> result)
 	{
-		if (GameContext.Host.AllDecals == null) return;
+		var host = GameContext.Host;
+		if (host?.AllDecals == null) return;
 
-		foreach (var decal in GameContext.Host.AllDecals)
+		foreach (var decal in host.AllDecals)
 		{
 			if (!GodotObject.IsInstanceValid(decal)) continue;
 
@@ -408,9 +413,10 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 
 	private void CollectVfx(List<(string DisplayTitle, string AssetType, Node3D? Node, string? PosText, string? CoordName)> result)
 	{
-		if (GameContext.Host.AllVfx == null) return;
+		var host = GameContext.Host;
+		if (host?.AllVfx == null) return;
 
-		foreach (var vfx in GameContext.Host.AllVfx)
+		foreach (var vfx in host.AllVfx)
 		{
 			if (!GodotObject.IsInstanceValid(vfx)) continue;
 
@@ -457,11 +463,11 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 		TreeItem selectedItem = _objectTree.GetSelected();
 		if (selectedItem == null) return;
 
-		if (_treeItemToObjectMap.TryGetValue(selectedItem, out Node3D targetObject) && GodotObject.IsInstanceValid(targetObject))
+		if (_treeItemToObjectMap.TryGetValue(selectedItem, out var targetObject) && GodotObject.IsInstanceValid(targetObject))
 		{
 			FocusOnObject(targetObject);
 		}
-		else if (_treeItemToCoordinateMap.TryGetValue(selectedItem, out string coordName))
+		else if (_treeItemToCoordinateMap.TryGetValue(selectedItem, out var coordName))
 		{
 			FocusOnCoordinate(coordName);
 		}
@@ -471,7 +477,7 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 	{
 		if (item == null) return;
 
-		if (_treeItemToObjectMap.TryGetValue(item, out Node3D targetObject) && GodotObject.IsInstanceValid(targetObject))
+		if (_treeItemToObjectMap.TryGetValue(item, out var targetObject) && GodotObject.IsInstanceValid(targetObject))
 		{
 			if (GameContext.Host != null)
 			{
@@ -479,7 +485,7 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 			}
 			DeleteObject(targetObject);
 		}
-		else if (_treeItemToCoordinateMap.TryGetValue(item, out string coordName) && !string.IsNullOrEmpty(coordName))
+		else if (_treeItemToCoordinateMap.TryGetValue(item, out var coordName) && !string.IsNullOrEmpty(coordName))
 		{
 			GameContext.IEditorAPI?.DeleteCoordinate(coordName);
 			RefreshObjectTree();
@@ -491,11 +497,11 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 		TreeItem selectedItem = _objectTree.GetSelected();
 		if (selectedItem == null) return;
 
-		if (_treeItemToObjectMap.TryGetValue(selectedItem, out Node3D targetObject) && GodotObject.IsInstanceValid(targetObject))
+		if (_treeItemToObjectMap.TryGetValue(selectedItem, out var targetObject) && GodotObject.IsInstanceValid(targetObject))
 		{
 			FocusOnObject(targetObject);
 		}
-		else if (_treeItemToCoordinateMap.TryGetValue(selectedItem, out string coordName))
+		else if (_treeItemToCoordinateMap.TryGetValue(selectedItem, out var coordName))
 		{
 			FocusOnCoordinate(coordName);
 		}
