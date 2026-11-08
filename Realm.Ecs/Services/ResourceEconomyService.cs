@@ -23,6 +23,14 @@ public class ResourceEconomyService
 
 	private EntityCallback<Position, Gatherer> _gatherQueryDelegate = null!;
 	private EntityCallback<PlayerResources> _passiveIncomeQueryDelegate = null!;
+	private EntityCallback<Position, DefinitionId, Owner> _dropoffQueryDelegate = null!;
+
+	private Vector3 _dropoffSearchOrigin;
+	private PlayerEntity _dropoffPlayer;
+	private bool _dropoffRequireDropoffBuilding;
+	private Entity _dropoffFound;
+	private Vector3 _dropoffFoundPosition;
+	private float _dropoffFoundDistance;
 
 	private DefinitionManager _definitionManagerRef = null!;
 	private ResourceId _goldResourceId;
@@ -40,6 +48,7 @@ public class ResourceEconomyService
 		_context = context;
 		_gatherQueryDelegate = GatherQueryAction;
 		_passiveIncomeQueryDelegate = UpdatePassiveIncomeQueryAction;
+		_dropoffQueryDelegate = FindDropoffCandidate;
 		_populationUnitDelegate = PopulationUnitQueryAction;
 		_populationQueueDelegate = PopulationQueueQueryAction;
 	}
@@ -338,51 +347,52 @@ public class ResourceEconomyService
 
 	private void FindNearestDropoff(Vector3 currentPos, PlayerEntity wOwner, out Entity nearestDropoff, out Vector3 nearestDropoffPos, out float dropoffRadius)
 	{
-		Entity foundDropoff = Entity.Null;
-		Vector3 foundDropoffPos = Vector3.Zero;
+		// A dropoff building first, and any finished building of the owner's only when the map names none. Both passes
+		// run through one cached callback that reads where it is looking from the fields above instead of capturing it:
+		// this is walked for every worker carrying something home, every tick, and the closure it used to build was
+		// thrown away on each of them.
+		_dropoffSearchOrigin = currentPos;
+		_dropoffPlayer = wOwner;
+		_dropoffFound = Entity.Null;
+		_dropoffFoundPosition = Vector3.Zero;
+		_dropoffFoundDistance = float.MaxValue;
 		float foundRadius = 6.0f;
-		float nearestDist = float.MaxValue;
 
 		var buildingQuery = QueryCache.AllPositionAndDefinitionIdAndOwnerNoneDeadQuery;
-		_context.World.Query(in buildingQuery, (Entity bldEntity, ref Position bldPos, ref DefinitionId defId, ref Owner ownerComp) =>
-		{
-			if (ownerComp.PlayerEntity == wOwner && _context.MapRules.IsResourceDropoffBuilding(defId.Value))
-			{
-				float dist = Vector3.Distance(currentPos, bldPos.Value);
-				if (dist < nearestDist)
-				{
-					nearestDist = dist;
-					foundDropoff = bldEntity;
-					foundDropoffPos = bldPos.Value;
-				}
-			}
-		});
+		_dropoffRequireDropoffBuilding = true;
+		_context.World.Query(in buildingQuery, _dropoffQueryDelegate);
 
-		if (foundDropoff == Entity.Null)
+		if (_dropoffFound == Entity.Null)
 		{
-			_context.World.Query(in buildingQuery, (Entity bldEntity, ref Position bldPos, ref DefinitionId defId, ref Owner ownerComp) =>
-			{
-				if (ownerComp.PlayerEntity == wOwner && _context.World.Has<Building>(bldEntity) && !_context.World.Has<ConstructionState>(bldEntity))
-				{
-					float dist = Vector3.Distance(currentPos, bldPos.Value);
-					if (dist < nearestDist)
-					{
-						nearestDist = dist;
-						foundDropoff = bldEntity;
-						foundDropoffPos = bldPos.Value;
-					}
-				}
-			});
+			_dropoffRequireDropoffBuilding = false;
+			_context.World.Query(in buildingQuery, _dropoffQueryDelegate);
 		}
 
-		if (foundDropoff != Entity.Null && _context.World.Has<CollisionRadius>(foundDropoff))
+		if (_dropoffFound != Entity.Null && _context.World.Has<CollisionRadius>(_dropoffFound))
 		{
-			foundRadius = Math.Max(4f, _context.World.Get<CollisionRadius>(foundDropoff).Value + 2.0f);
+			foundRadius = Math.Max(4f, _context.World.Get<CollisionRadius>(_dropoffFound).Value + 2.0f);
 		}
 
-		nearestDropoff = foundDropoff;
-		nearestDropoffPos = foundDropoffPos;
+		nearestDropoff = _dropoffFound;
+		nearestDropoffPos = _dropoffFoundPosition;
 		dropoffRadius = foundRadius;
+	}
+
+	private void FindDropoffCandidate(Entity buildingEntity, ref Position buildingPos, ref DefinitionId definitionId, ref Owner owner)
+	{
+		if (owner.PlayerEntity != _dropoffPlayer) return;
+
+		bool candidate = _dropoffRequireDropoffBuilding
+			? _context.MapRules.IsResourceDropoffBuilding(definitionId.Value)
+			: _context.World.Has<Building>(buildingEntity) && !_context.World.Has<ConstructionState>(buildingEntity);
+		if (!candidate) return;
+
+		float distance = Vector3.Distance(_dropoffSearchOrigin, buildingPos.Value);
+		if (distance >= _dropoffFoundDistance) return;
+
+		_dropoffFoundDistance = distance;
+		_dropoffFound = buildingEntity;
+		_dropoffFoundPosition = buildingPos.Value;
 	}
 
 	private void FindNearestDropoffAndReturn(Entity entity, ref Gatherer gather, Vector3 currentPos)
