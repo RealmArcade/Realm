@@ -126,12 +126,7 @@ internal sealed class TextureSwatchGrid
 			panel.GrowHorizontal = GrowDirection.Both;
 			panel.GrowVertical = GrowDirection.Both;
 
-			var style = new StyleBoxFlat();
-			style.BgColor = new Color(0, 0, 0, 0);
-			style.BorderColor = borderColor;
-			style.SetBorderWidthAll(3);
-			style.SetCornerRadiusAll(4);
-			panel.AddThemeStyleboxOverride("panel", style);
+			panel.AddThemeStyleboxOverride("panel", UIStyle.CreateBorderPlate(borderColor, 3, null, 4));
 		}
 
 		if (selectedSwatch == null)
