@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -103,9 +103,6 @@ public partial class InGameHUD : Control
 
 	private VBoxContainer _minimapControls = null!;
 	private Button _btnSettings = null!;
-	private Button _btnQuitMatch = null!;
-	private Button _btnInstructions = null!;
-	private InstructionsDialog _instructionsDialog = null!;
 	public bool ShowMinimapTerrain => _viewModel.ShowMinimapTerrain;
 	public MinimapColorScheme MinimapColorScheme => _viewModel.MinimapColorScheme;
 
@@ -230,7 +227,7 @@ public partial class InGameHUD : Control
 
 		InitializeReferences();
 		SetupUnitHealthBarOverlay();
-		SetupResourcePanel();
+		ResourceBar.Build();
 		SetupSelectionFrame();
 		SetupCommandAndInventoryGrids();
 		SetupWarningLabel();
@@ -337,86 +334,6 @@ public partial class InGameHUD : Control
 		_cameraIndicator = GetNode<MinimapCameraIndicator>("BottomConsole/HBox/MinimapFrame/MinimapArea/Indicator");
 	}
 
-	private void SetupResourcePanel()
-	{
-		if (_btnSettings != null)
-		{
-			_btnSettings.ExpandIcon = true;
-			_btnSettings.Icon = UIStyle.LoadCrispIcon("res://Assets/UI/gear_icon.webp", 128);
-			_btnSettings.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
-			_btnSettings.AddThemeConstantOverride("icon_max_width", 22);
-			_btnSettings.TooltipText = TranslationServer.Translate("Settings (F12)");
-			UIStyle.ApplyHudButtonStyleboxes(_btnSettings);
-			_btnSettings.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-			_btnSettings.AddThemeColorOverride("icon_normal_color", UIStyle.ColorGoldDull);
-			_btnSettings.AddThemeColorOverride("icon_hover_color", UIStyle.ColorGold);
-			_btnSettings.AddThemeColorOverride("icon_pressed_color", UIStyle.ColorCyanGlow);
-			_btnSettings.AddThemeColorOverride("icon_focus_color", UIStyle.ColorGoldDull);
-			_btnSettings.Pressed += () =>
-			{
-				GameContext.UserInterface?.PlayClickSound();
-				GameContext.UserInterface?.OpenSettingsOverlay();
-			};
-		}
-
-		SetupInstructionsButton();
-		SetupPauseMatchButton();
-		SetupQuitMatchButton();
-	}
-
-	/// <summary>
-	///     The entry point to the map's own rules reference. The toolbar only offers it once the map has published a page,
-	///     because a menu with nothing in it is not a menu: the authority decides what there is to read, and this button
-	///     reports whether it has anything to show rather than deciding itself.
-	/// </summary>
-	private void SetupInstructionsButton()
-	{
-		if (_btnSettings == null) return;
-
-		_btnInstructions = new Button();
-		_btnInstructions.Name = "BtnInstructions";
-		_btnInstructions.Set("icon_max_width", 0);
-		_btnInstructions.Text = UnicodeIcons.HELP;
-		_btnInstructions.CustomMinimumSize = new Vector2(32, 32);
-		_btnInstructions.SizeFlagsVertical = SizeFlags.ShrinkCenter;
-		_btnInstructions.FocusMode = FocusModeEnum.None;
-		_btnInstructions.Visible = _viewModel.InstructionSections.Count > 0;
-		Font instructionsIconFont = UIStyle.FontAwesome;
-		if (instructionsIconFont != null)
-		{
-			_btnInstructions.AddThemeFontOverride("font", instructionsIconFont);
-		}
-
-		_btnInstructions.AddThemeFontSizeOverride("font_size", 16);
-		_btnInstructions.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		_btnInstructions.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
-		_btnInstructions.AddThemeColorOverride("font_pressed_color", UIStyle.ColorCyanGlow);
-		_btnInstructions.AddThemeColorOverride("font_focus_color", UIStyle.ColorGoldDull);
-		UIStyle.ApplyHudButtonStyleboxes(_btnInstructions);
-		_btnInstructions.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-		_btnInstructions.TooltipText = TranslationServer.Translate("Instructions");
-		_btnInstructions.Pressed += OnInstructionsPressed;
-		_btnInstructions.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
-
-		var resourceRow = _btnSettings.GetParent();
-		resourceRow.AddChild(_btnInstructions);
-		resourceRow.MoveChild(_btnInstructions, _btnSettings.GetIndex());
-	}
-
-	private void OnInstructionsPressed()
-	{
-		GameContext.UserInterface?.PlayClickSound();
-
-		if (_instructionsDialog != null && GodotObject.IsInstanceValid(_instructionsDialog))
-		{
-			_instructionsDialog.QueueFree();
-		}
-
-		_instructionsDialog = new InstructionsDialog { Name = "InstructionsDialog" };
-		AddChild(_instructionsDialog);
-		_instructionsDialog.Open(_viewModel.InstructionSections);
-	}
-
 	/// <summary>
 	///     Takes one page the map published for the Instructions menu. Pages keep the order they arrive in, and a page
 	///     whose title is already listed is restated in place, so a rule that changes during a match does not become a
@@ -430,151 +347,15 @@ public partial class InGameHUD : Control
 		sections.RemoveAll(section => string.Equals(section.Title, title, StringComparison.Ordinal));
 		sections.Add(new InstructionsSection(title, body ?? string.Empty));
 
-		if (_btnInstructions != null && GodotObject.IsInstanceValid(_btnInstructions))
-		{
-			_btnInstructions.Visible = sections.Count > 0;
-		}
-
-		if (_instructionsDialog != null && GodotObject.IsInstanceValid(_instructionsDialog) && _instructionsDialog.Visible)
-		{
-			_instructionsDialog.Refresh(sections);
-		}
+		ResourceBar.SetInstructionsAvailable(sections.Count > 0);
+		ResourceBar.RefreshOpenInstructions();
 	}
-
-	private Button _btnPauseMatch = null!;
 
 	/// <summary>
 	///     The pause control every player has: it asks the match to hold where it is, and while the match is held it asks
 	///     for the resume countdown that belongs to everyone. What a player is still allowed to ask for is the match's
 	///     answer, so the button reports the match's state rather than deciding anything itself.
 	/// </summary>
-	private void SetupPauseMatchButton()
-	{
-		if (_btnSettings == null) return;
-
-		_btnPauseMatch = new Button();
-		_btnPauseMatch.Name = "BtnPauseMatch";
-		_btnPauseMatch.Set("icon_max_width", 0);
-		_btnPauseMatch.Text = UnicodeIcons.PAUSE;
-		_btnPauseMatch.CustomMinimumSize = new Vector2(32, 32);
-		_btnPauseMatch.SizeFlagsVertical = SizeFlags.ShrinkCenter;
-		_btnPauseMatch.FocusMode = FocusModeEnum.None;
-		Font pauseIconFont = UIStyle.FontAwesome;
-		if (pauseIconFont != null)
-		{
-			_btnPauseMatch.AddThemeFontOverride("font", pauseIconFont);
-		}
-
-		_btnPauseMatch.AddThemeFontSizeOverride("font_size", 16);
-		_btnPauseMatch.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		_btnPauseMatch.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
-		_btnPauseMatch.AddThemeColorOverride("font_pressed_color", UIStyle.ColorCyanGlow);
-		_btnPauseMatch.AddThemeColorOverride("font_focus_color", UIStyle.ColorGoldDull);
-		UIStyle.ApplyHudButtonStyleboxes(_btnPauseMatch);
-		_btnPauseMatch.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-		_btnPauseMatch.TooltipText = TranslationServer.Translate("Pause Match");
-		_btnPauseMatch.Pressed += OnPauseMatchButtonPressed;
-		_btnPauseMatch.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
-
-		var resourceRow = _btnSettings.GetParent();
-		resourceRow.AddChild(_btnPauseMatch);
-		resourceRow.MoveChild(_btnPauseMatch, _btnSettings.GetIndex());
-	}
-
-	/// <summary>
-	///     Holds the match for everyone, which is a request the whole lobby cannot undo by accident, so it is asked for
-	///     once before it is sent. Resuming is not: a held match has nothing left to lose by being released. A match with
-	///     nobody else in it holds only the screen pressing the button, so that one is not asked at all.
-	/// </summary>
-	private void OnPauseMatchButtonPressed()
-	{
-		GameContext.UserInterface?.PlayClickSound();
-
-		if (GameContext.NetworkService?.IsPaused == true || GameContext.Host?.IsSinglePlayerMatch == true)
-		{
-			GameContext.Host?.TogglePauseRequest();
-			return;
-		}
-
-		GameContext.UserInterface?.ShowConfirmationDialog(
-			TranslationServer.Translate("Pause game for everyone?"),
-			() => GameContext.Host?.TogglePauseRequest(),
-			confirmText: TranslationServer.Translate("PAUSE"),
-			cancelText: TranslationServer.Translate("CANCEL"));
-	}
-
-	private void RefreshPauseMatchButton()
-	{
-		if (_btnPauseMatch == null || !GodotObject.IsInstanceValid(_btnPauseMatch)) return;
-
-		var network = GameContext.NetworkService;
-		bool paused = network != null && network.IsPaused;
-
-		_btnPauseMatch.Text = paused ? UnicodeIcons.PLAY : UnicodeIcons.PAUSE;
-
-		bool singlePlayer = GameContext.Host?.IsSinglePlayerMatch == true;
-		_btnPauseMatch.TooltipText = paused
-			? TranslationServer.Translate("Resume Match")
-			: singlePlayer
-				? TranslationServer.Translate("Pause Match")
-				: string.Format(TranslationServer.Translate("Pause Match - {0} pause(s) left this match"), network?.RemainingPauses ?? 0);
-
-		// The cooldown is deliberately left to the authority: the button that could tell a player it is still recharging is
-		// the one it has to press to be told, so only a player with nothing left to spend is stopped here. A match of one
-		// spends nothing, so its button is never taken away.
-		_btnPauseMatch.Disabled = !paused && !singlePlayer && network != null && network.RemainingPauses <= 0;
-	}
-
-	private void SetupQuitMatchButton()
-	{
-		if (_btnSettings == null) return;
-
-		_btnQuitMatch = new Button();
-		_btnQuitMatch.Name = "BtnQuitMatch";
-		_btnQuitMatch.Set("icon_max_width", 0);
-		_btnQuitMatch.Text = UnicodeIcons.SIGN_OUT;
-		_btnQuitMatch.TooltipText = TranslationServer.Translate("Quit Match");
-		_btnQuitMatch.CustomMinimumSize = new Vector2(32, 32);
-		_btnQuitMatch.SizeFlagsVertical = SizeFlags.ShrinkCenter;
-		_btnQuitMatch.FocusMode = FocusModeEnum.None;
-		Font quitIconFont = UIStyle.FontAwesome;
-		if (quitIconFont != null)
-		{
-			_btnQuitMatch.AddThemeFontOverride("font", quitIconFont);
-		}
-
-		_btnQuitMatch.AddThemeFontSizeOverride("font_size", 16);
-		_btnQuitMatch.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		_btnQuitMatch.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
-		_btnQuitMatch.AddThemeColorOverride("font_pressed_color", UIStyle.ColorCyanGlow);
-		_btnQuitMatch.AddThemeColorOverride("font_focus_color", UIStyle.ColorGoldDull);
-		UIStyle.ApplyHudButtonStyleboxes(_btnQuitMatch);
-		_btnQuitMatch.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-		_btnQuitMatch.Pressed += OnQuitMatchPressed;
-		_btnQuitMatch.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
-
-		var resourceRow = _btnSettings.GetParent();
-		resourceRow.AddChild(_btnQuitMatch);
-		resourceRow.MoveChild(_btnQuitMatch, _btnSettings.GetIndex() + 1);
-	}
-
-	private void OnQuitMatchPressed()
-	{
-		GameContext.UserInterface?.PlayClickSound();
-		GameContext.UserInterface?.ShowConfirmationDialog(
-			TranslationServer.Translate("Are you sure you want to quit the current match and return to the main menu?"),
-			QuitMatchToMainMenu,
-			confirmText: TranslationServer.Translate("QUIT"),
-			cancelText: TranslationServer.Translate("CANCEL"));
-	}
-
-	private void QuitMatchToMainMenu()
-	{
-		GameContext.SessionState.IsTestMode = false;
-		GameContext.Lobby?.Disconnect();
-		GameContext.UserInterface?.TransitionTo(GameScreen.MainMenu);
-	}
-
 	private void SetupSelectionFrame()
 	{
 		_unitsContainer = GetNode<HBoxContainer>("BottomConsole/HBox/SelectionFrame/UnitsContainer");
@@ -664,6 +445,14 @@ public partial class InGameHUD : Control
 		_connectionWarningLabel.OffsetRight = 250;
 		_connectionWarningLabel.Visible = false;
 	}
+
+	private ResourceBarButtons? _resourceBar;
+
+	/// <summary>
+	///     The rules, pause and quit buttons beside the settings gear. They are built after
+	///     <see cref="InitializeReferences" /> resolves the gear, which is what they anchor themselves to.
+	/// </summary>
+	private ResourceBarButtons ResourceBar => _resourceBar ??= new ResourceBarButtons(_btnSettings, this, () => _viewModel.InstructionSections);
 
 	private MinimapControlsPanel? _minimapControlsPanel;
 
@@ -1690,7 +1479,7 @@ public partial class InGameHUD : Control
 	{
 		if (GameContext.Host == null) return;
 
-		RefreshPauseMatchButton();
+		ResourceBar.RefreshPauseMatch();
 		PauseOverlay.Update(this);
 	}
 
