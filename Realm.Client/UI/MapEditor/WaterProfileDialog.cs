@@ -15,78 +15,78 @@ public partial class WaterProfileDialog : FloatingDialogBase
 
 	private List<WaterProfileSaveData> _profiles = new();
 	private int _selectedProfileIdx = 0;
-	private WaterProfileSaveData _activeProfile;
+	private WaterProfileSaveData _activeProfile = null!;
 	private List<WaterProfileSaveData> _initialSnapshots = new();
 
-	private OptionButton _optProfileSelect;
-	private Button _btnAddProfile;
-	private Button _btnDeleteProfile;
+	private OptionButton _optProfileSelect = null!;
+	private Button _btnAddProfile = null!;
+	private Button _btnDeleteProfile = null!;
 
-	private LineEdit _txtName;
+	private LineEdit _txtName = null!;
 
-	private ColorPickerButton _cpShallow;
-	private ColorPickerButton _cpDeep;
-	private ColorPickerButton _cpFoam;
-	private HSlider _sldMaxDepth;
-	private HSlider _sldFoamDepth;
-	private HSlider _sldWaveSpeed;
-	private HSlider _sldWaveStrength;
+	private ColorPickerButton _cpShallow = null!;
+	private ColorPickerButton _cpDeep = null!;
+	private ColorPickerButton _cpFoam = null!;
+	private HSlider _sldMaxDepth = null!;
+	private HSlider _sldFoamDepth = null!;
+	private HSlider _sldWaveSpeed = null!;
+	private HSlider _sldWaveStrength = null!;
 
-	private CheckBox _chkUseNormal;
-	private LineEdit _txtNormalPath;
-	private Action<string> _setNormalPath;
-	private HSlider _sldNormalScale;
-	private HSlider _sldFlowDirX;
-	private HSlider _sldFlowDirY;
-	private HSlider _sldFlowSpeed;
-	private CheckBox _chkUseFlowMap;
-	private LineEdit _txtFlowMapPath;
-	private Action<string> _setFlowMapPath;
+	private CheckBox _chkUseNormal = null!;
+	private LineEdit _txtNormalPath = null!;
+	private Action<string> _setNormalPath = null!;
+	private HSlider _sldNormalScale = null!;
+	private HSlider _sldFlowDirX = null!;
+	private HSlider _sldFlowDirY = null!;
+	private HSlider _sldFlowSpeed = null!;
+	private CheckBox _chkUseFlowMap = null!;
+	private LineEdit _txtFlowMapPath = null!;
+	private Action<string> _setFlowMapPath = null!;
 
-	private HSlider _sldRefraction;
-	private HSlider _sldCausticStrength;
-	private HSlider _sldCausticScale;
-	private HSlider _sldCausticSpeed;
+	private HSlider _sldRefraction = null!;
+	private HSlider _sldCausticStrength = null!;
+	private HSlider _sldCausticScale = null!;
+	private HSlider _sldCausticSpeed = null!;
 
-	private ColorPickerButton _cpEmission;
-	private HSlider _sldEmissionBoost;
-	private ColorPickerButton _cpCore;
-	private HSlider _sldCoreThreshold;
-	private ColorPickerButton _cpSubsurface;
-	private HSlider _sldSubsurfaceStrength;
+	private ColorPickerButton _cpEmission = null!;
+	private HSlider _sldEmissionBoost = null!;
+	private ColorPickerButton _cpCore = null!;
+	private HSlider _sldCoreThreshold = null!;
+	private ColorPickerButton _cpSubsurface = null!;
+	private HSlider _sldSubsurfaceStrength = null!;
 
-	private CheckBox _chkUseDetail;
-	private LineEdit _txtDetailPath;
-	private Action<string> _setDetailPath;
-	private OptionButton _optDetailTileMode;
-	private HSlider _sldDetailUvScaleX;
-	private HSlider _sldDetailUvScaleY;
-	private HSlider _sldDetailUvScrollX;
-	private HSlider _sldDetailUvScrollY;
-	private HSlider _sldDetailStochasticTileSize;
-	private HSlider _sldDetailCrossFade;
-	private HSlider _sldDetailAlpha;
-	private OptionButton _optDetailBlend;
+	private CheckBox _chkUseDetail = null!;
+	private LineEdit _txtDetailPath = null!;
+	private Action<string> _setDetailPath = null!;
+	private OptionButton _optDetailTileMode = null!;
+	private HSlider _sldDetailUvScaleX = null!;
+	private HSlider _sldDetailUvScaleY = null!;
+	private HSlider _sldDetailUvScrollX = null!;
+	private HSlider _sldDetailUvScrollY = null!;
+	private HSlider _sldDetailStochasticTileSize = null!;
+	private HSlider _sldDetailCrossFade = null!;
+	private HSlider _sldDetailAlpha = null!;
+	private OptionButton _optDetailBlend = null!;
 
-	private CheckBox _chkPathShallow;
-	private CheckBox _chkPathDeep;
-	private CheckBox _chkPathGround;
-	private CheckBox _chkPathBuildable;
-	private CheckBox _chkPathFlying;
+	private CheckBox _chkPathShallow = null!;
+	private CheckBox _chkPathDeep = null!;
+	private CheckBox _chkPathGround = null!;
+	private CheckBox _chkPathBuildable = null!;
+	private CheckBox _chkPathFlying = null!;
 
-	private ItemList _lstDecals;
-	private LineEdit _txtDecalId;
-	private Action<string> _setDecalIdValue;
-	private HSlider _sldDecalDensity;
-	private HSlider _sldDecalMinScale;
-	private HSlider _sldDecalMaxScale;
+	private ItemList _lstDecals = null!;
+	private LineEdit _txtDecalId = null!;
+	private Action<string> _setDecalIdValue = null!;
+	private HSlider _sldDecalDensity = null!;
+	private HSlider _sldDecalMinScale = null!;
+	private HSlider _sldDecalMaxScale = null!;
 
-	private ItemList _lstVfx;
-	private LineEdit _txtVfxId;
-	private Action<string> _setVfxIdValue;
-	private HSlider _sldVfxDensity;
-	private HSlider _sldVfxMinScale;
-	private HSlider _sldVfxMaxScale;
+	private ItemList _lstVfx = null!;
+	private LineEdit _txtVfxId = null!;
+	private Action<string> _setVfxIdValue = null!;
+	private HSlider _sldVfxDensity = null!;
+	private HSlider _sldVfxMinScale = null!;
+	private HSlider _sldVfxMaxScale = null!;
 
 	public WaterProfileDialog(MapEditorHUD hud) : base(hud, TranslationServer.Translate("LIQUID / WATER PROFILE UBER CONFIG"), new Vector2(620, 680))
 	{
