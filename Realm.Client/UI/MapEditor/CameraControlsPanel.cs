@@ -57,16 +57,7 @@ public sealed class CameraControlsPanel
 		Popup = new PopupPanel();
 		Popup.Name = "PopupCamera";
 
-		var camPopupStyle = new StyleBoxFlat();
-		camPopupStyle.BgColor = new Color(0.14f, 0.13f, 0.11f, 0.98f);
-		camPopupStyle.BorderColor = UIStyle.ColorGold;
-		camPopupStyle.SetBorderWidthAll(1);
-		camPopupStyle.SetCornerRadiusAll(4);
-		camPopupStyle.ContentMarginLeft = 8;
-		camPopupStyle.ContentMarginRight = 8;
-		camPopupStyle.ContentMarginTop = 8;
-		camPopupStyle.ContentMarginBottom = 8;
-		Popup.AddThemeStyleboxOverride("panel", camPopupStyle);
+		Popup.AddThemeStyleboxOverride("panel", UIStyle.CreateEditorPopupPanel(8));
 
 		var camVBox = new VBoxContainer();
 		camVBox.Name = "CamVBox";
