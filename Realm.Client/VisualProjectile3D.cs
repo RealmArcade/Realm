@@ -215,10 +215,10 @@ public partial class VisualProjectile3D : Node3D
 		_initialTargetPosition = target;
 		_targetEntity = targetEntity;
 
-		_trajectoryType = ParseTrajectoryType(weapon.TrajectoryType);
-		_speedCurve = ParseSpeedCurve(weapon.SpeedCurve);
-		_scaleCurve = ParseScaleCurve(weapon.ScaleCurve);
-		_easeCurve = ParseEaseCurve(weapon.EaseCurve);
+		_trajectoryType = ProjectileFlightMath.ParseTrajectoryType(weapon.TrajectoryType);
+		_speedCurve = ProjectileFlightMath.ParseSpeedCurve(weapon.SpeedCurve);
+		_scaleCurve = ProjectileFlightMath.ParseScaleCurve(weapon.ScaleCurve);
+		_easeCurve = ProjectileFlightMath.ParseEaseCurve(weapon.EaseCurve);
 
 		_speed = weapon.ProjectileSpeed > 0 ? weapon.ProjectileSpeed : 25.0f;
 		float distance = _startPosition.DistanceTo(_targetPosition);
@@ -277,58 +277,6 @@ public partial class VisualProjectile3D : Node3D
 
 		Node parent = GetParent() ?? this;
 		_vfxSequence = GameContext.FXService.SpawnVfxSequence(sequenceConfig, parent, _startPosition, 1.0f, _targetEntity != Entity.Null ? _targetEntity.Id : -1, this);
-	}
-
-	private static ProjectileTrajectoryType ParseTrajectoryType(string? raw)
-	{
-		if (string.IsNullOrEmpty(raw)) return ProjectileTrajectoryType.Parabolic;
-		return raw.Trim().ToLowerInvariant() switch
-		{
-			"linearvector" or "linear" or "piercing" => ProjectileTrajectoryType.Linear,
-			"boomerang" => ProjectileTrajectoryType.Boomerang,
-			"swarmorbit" or "swarm" => ProjectileTrajectoryType.SwarmOrbit,
-			_ => ProjectileTrajectoryType.Parabolic,
-		};
-	}
-
-	private static ProjectileSpeedCurve ParseSpeedCurve(string? raw)
-	{
-		if (string.IsNullOrEmpty(raw)) return ProjectileSpeedCurve.Constant;
-		return raw.Trim().ToLowerInvariant() switch
-		{
-			"accelerate" or "ease_in" => ProjectileSpeedCurve.Accelerate,
-			"decelerate" or "ease_out" => ProjectileSpeedCurve.Decelerate,
-			"ease_in_out" => ProjectileSpeedCurve.EaseInOut,
-			"rocket_boost" => ProjectileSpeedCurve.RocketBoost,
-			"burst" => ProjectileSpeedCurve.Burst,
-			_ => ProjectileSpeedCurve.Constant,
-		};
-	}
-
-	private static ProjectileScaleCurve ParseScaleCurve(string? raw)
-	{
-		if (string.IsNullOrEmpty(raw)) return ProjectileScaleCurve.Constant;
-		return raw.Trim().ToLowerInvariant() switch
-		{
-			"grow" => ProjectileScaleCurve.Grow,
-			"shrink" => ProjectileScaleCurve.Shrink,
-			"grow_shrink" => ProjectileScaleCurve.GrowShrink,
-			"squash_stretch" => ProjectileScaleCurve.SquashStretch,
-			"impact_shrink" => ProjectileScaleCurve.ImpactShrink,
-			_ => ProjectileScaleCurve.Constant,
-		};
-	}
-
-	private static ProjectileEaseCurve ParseEaseCurve(string? raw)
-	{
-		if (string.IsNullOrEmpty(raw)) return ProjectileEaseCurve.Linear;
-		return raw.Trim().ToLowerInvariant() switch
-		{
-			"ease_in" => ProjectileEaseCurve.EaseIn,
-			"ease_out" => ProjectileEaseCurve.EaseOut,
-			"ease_in_out" => ProjectileEaseCurve.EaseInOut,
-			_ => ProjectileEaseCurve.Linear,
-		};
 	}
 
 }

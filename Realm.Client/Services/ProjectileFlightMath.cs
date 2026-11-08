@@ -124,4 +124,57 @@ internal static class ProjectileFlightMath
 		if (t > 0.85f) return MathF.Max(0.001f, (1.0f - t) / 0.15f);
 		return 1.0f;
 	}
+
+	/// <summary>The weapon metadata spells these curves as strings; anything unrecognised flies as the default.</summary>
+	internal static ProjectileTrajectoryType ParseTrajectoryType(string? raw)
+	{
+		if (string.IsNullOrEmpty(raw)) return ProjectileTrajectoryType.Parabolic;
+		return raw.Trim().ToLowerInvariant() switch
+		{
+			"linearvector" or "linear" or "piercing" => ProjectileTrajectoryType.Linear,
+			"boomerang" => ProjectileTrajectoryType.Boomerang,
+			"swarmorbit" or "swarm" => ProjectileTrajectoryType.SwarmOrbit,
+			_ => ProjectileTrajectoryType.Parabolic,
+		};
+	}
+
+	internal static ProjectileSpeedCurve ParseSpeedCurve(string? raw)
+	{
+		if (string.IsNullOrEmpty(raw)) return ProjectileSpeedCurve.Constant;
+		return raw.Trim().ToLowerInvariant() switch
+		{
+			"accelerate" or "ease_in" => ProjectileSpeedCurve.Accelerate,
+			"decelerate" or "ease_out" => ProjectileSpeedCurve.Decelerate,
+			"ease_in_out" => ProjectileSpeedCurve.EaseInOut,
+			"rocket_boost" => ProjectileSpeedCurve.RocketBoost,
+			"burst" => ProjectileSpeedCurve.Burst,
+			_ => ProjectileSpeedCurve.Constant,
+		};
+	}
+
+	internal static ProjectileScaleCurve ParseScaleCurve(string? raw)
+	{
+		if (string.IsNullOrEmpty(raw)) return ProjectileScaleCurve.Constant;
+		return raw.Trim().ToLowerInvariant() switch
+		{
+			"grow" => ProjectileScaleCurve.Grow,
+			"shrink" => ProjectileScaleCurve.Shrink,
+			"grow_shrink" => ProjectileScaleCurve.GrowShrink,
+			"squash_stretch" => ProjectileScaleCurve.SquashStretch,
+			"impact_shrink" => ProjectileScaleCurve.ImpactShrink,
+			_ => ProjectileScaleCurve.Constant,
+		};
+	}
+
+	internal static ProjectileEaseCurve ParseEaseCurve(string? raw)
+	{
+		if (string.IsNullOrEmpty(raw)) return ProjectileEaseCurve.Linear;
+		return raw.Trim().ToLowerInvariant() switch
+		{
+			"ease_in" => ProjectileEaseCurve.EaseIn,
+			"ease_out" => ProjectileEaseCurve.EaseOut,
+			"ease_in_out" => ProjectileEaseCurve.EaseInOut,
+			_ => ProjectileEaseCurve.Linear,
+		};
+	}
 }
