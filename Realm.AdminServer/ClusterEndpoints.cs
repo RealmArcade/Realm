@@ -17,9 +17,9 @@ using Realm.AdminServer.Helpers;
 namespace Realm.AdminServer;
 
 /// <summary>Cluster state reads, event intake and peer synchronisation.</summary>
-internal static class ClusterEndpoints
+public static class ClusterEndpoints
 {
-	internal static void MapClusterEndpoints(WebApplication app, ServerSetup setup)
+	public static void MapClusterEndpoints(WebApplication app, ServerSetup setup)
 	{
 		app.MapGet("/api/cluster/events", (DateTime? sinceUtc, int? limit, ClusterEventService clusterEvents, DataStoreService db) =>
 		{
@@ -90,7 +90,7 @@ internal static class ClusterEndpoints
 		});
 	}
 
-	internal static void MapClusterSyncEndpoints(WebApplication app, ServerSetup setup)
+	public static void MapClusterSyncEndpoints(WebApplication app, ServerSetup setup)
 	{
 		app.MapPost("/api/cluster/sync_metrics", async (HttpRequest request, ClusterEventService clusterEvents, DataStoreService db, ContentAddressableStorage cas) =>
 		{

@@ -17,9 +17,9 @@ using Realm.AdminServer.Helpers;
 namespace Realm.AdminServer;
 
 /// <summary>Seeder registration and the public seeder listings.</summary>
-internal static class SeederEndpoints
+public static class SeederEndpoints
 {
-	internal static void MapSeederEndpoints(WebApplication app, ServerSetup setup)
+	public static void MapSeederEndpoints(WebApplication app, ServerSetup setup)
 	{
 	app.MapPost("/seeders/register", (SeederRegisterRequest req, SeederRegistry registry, HttpContext context) =>
 	{
@@ -87,7 +87,7 @@ internal static class SeederEndpoints
 
 	}
 
-	internal static void MapSeederDownloadEndpoints(WebApplication app, ServerSetup setup)
+	public static void MapSeederDownloadEndpoints(WebApplication app, ServerSetup setup)
 	{
 		app.MapPost("/seeders/download", async (SeederDownloadRequest req, SeederRegistry registry) =>
 		{
@@ -135,7 +135,7 @@ internal static class SeederEndpoints
 		});
 	}
 
-	internal static void MapSeederWebSocketEndpoints(WebApplication app, ServerSetup setup)
+	public static void MapSeederWebSocketEndpoints(WebApplication app, ServerSetup setup)
 	{
 		app.Map("/seeders/ws", async (HttpContext context, SeederRegistry registry) =>
 		{

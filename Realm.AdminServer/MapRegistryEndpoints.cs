@@ -17,9 +17,9 @@ using Realm.AdminServer.Helpers;
 namespace Realm.AdminServer;
 
 /// <summary>Map greenlight status and the maintainer roster.</summary>
-internal static class MapRegistryEndpoints
+public static class MapRegistryEndpoints
 {
-	internal static void MapMapRegistryEndpoints(WebApplication app, ServerSetup setup)
+	public static void MapMapRegistryEndpoints(WebApplication app, ServerSetup setup)
 	{
 		app.MapGet("/api/maps/greenlight_status/{mapId}", (string mapId, DataStoreService db) =>
 		{
@@ -92,7 +92,7 @@ internal static class MapRegistryEndpoints
 		});
 	}
 
-	internal static void MapMapMetricsEndpoints(WebApplication app, ServerSetup setup)
+	public static void MapMapMetricsEndpoints(WebApplication app, ServerSetup setup)
 	{
 		app.MapPost("/api/maps/report_metrics", (MapMetricsReport req, AccountStoreService accounts, DataStoreService db, ClusterEventService clusterEvents, PeerRegistry registeredPeers, IHttpClientFactory httpClientFactory) =>
 		{

@@ -16,7 +16,7 @@ public class AccountEventApplier
 	private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNameCaseInsensitive = true };
 	private readonly AccountAuthorityOptions _accountAuthorityOptions;
 
-	internal AccountEventApplier(AccountAuthorityOptions accountAuthorityOptions)
+	public AccountEventApplier(AccountAuthorityOptions accountAuthorityOptions)
 	{
 		_accountAuthorityOptions = accountAuthorityOptions;
 	}
@@ -26,7 +26,7 @@ public class AccountEventApplier
 	///     authority key or whose signature does not verify, and logs the refusal instead of merging it. Re-applying the same
 	///     event leaves the store unchanged.
 	/// </summary>
-	internal bool Apply(ClusterEventDto evt, DataStoreService db)
+	public bool Apply(ClusterEventDto evt, DataStoreService db)
 	{
 		string eventType = evt.EventType.ToLowerInvariant();
 		AccountClusterEventPayload? payload = ParsePayload(evt);

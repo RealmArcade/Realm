@@ -13,9 +13,9 @@ namespace Realm.AdminServer.Services;
 ///     none is left, and keep the database rows in step. Every member takes its store, directory and target map as
 ///     parameters, so the prune reads no service state.
 /// </summary>
-internal static class ManifestVersionPruner
+public static class ManifestVersionPruner
 {
-	internal static void HandleRemainingVersionsFallback(ContentAddressableStorage cas, DataStoreService db, string targetMap, string targetVersion, string manifestDir, ref int manifestsDeleted, List<string> deletedFiles)
+	public static void HandleRemainingVersionsFallback(ContentAddressableStorage cas, DataStoreService db, string targetMap, string targetVersion, string manifestDir, ref int manifestsDeleted, List<string> deletedFiles)
 	{
 		var remainingVersions = new List<(string version, JsonDocument doc, string? filePath)>();
 
@@ -23,13 +23,13 @@ internal static class ManifestVersionPruner
 		ApplyFallbackOperations(cas, db, manifestDir, targetMap, remainingVersions, ref manifestsDeleted, deletedFiles);
 	}
 
-	internal static void CollectRemainingVersions(DataStoreService db, string manifestDir, string targetMap, string targetVersion, List<(string version, JsonDocument doc, string? filePath)> remainingVersions)
+	private static void CollectRemainingVersions(DataStoreService db, string manifestDir, string targetMap, string targetVersion, List<(string version, JsonDocument doc, string? filePath)> remainingVersions)
 	{
 		CollectRemainingVersionsFromDirectory(manifestDir, targetMap, targetVersion, remainingVersions);
 		CollectRemainingVersionsFromDatabase(db, targetMap, targetVersion, remainingVersions);
 	}
 
-	internal static void CollectRemainingVersionsFromDirectory(string manifestDir, string targetMap, string targetVersion, List<(string version, JsonDocument doc, string? filePath)> remainingVersions)
+	private static void CollectRemainingVersionsFromDirectory(string manifestDir, string targetMap, string targetVersion, List<(string version, JsonDocument doc, string? filePath)> remainingVersions)
 	{
 		if (!Directory.Exists(manifestDir)) return;
 
@@ -39,7 +39,7 @@ internal static class ManifestVersionPruner
 		}
 	}
 
-	internal static void TryAddVersionFromManifestFile(string filePath, string targetMap, string targetVersion, List<(string version, JsonDocument doc, string? filePath)> remainingVersions)
+	private static void TryAddVersionFromManifestFile(string filePath, string targetMap, string targetVersion, List<(string version, JsonDocument doc, string? filePath)> remainingVersions)
 	{
 		try
 		{
@@ -60,7 +60,7 @@ internal static class ManifestVersionPruner
 		}
 	}
 
-	internal static void CollectRemainingVersionsFromDatabase(DataStoreService db, string targetMap, string targetVersion, List<(string version, JsonDocument doc, string? filePath)> remainingVersions)
+	private static void CollectRemainingVersionsFromDatabase(DataStoreService db, string targetMap, string targetVersion, List<(string version, JsonDocument doc, string? filePath)> remainingVersions)
 	{
 		foreach (var pair in db.GetAllWithKeys<JsonDocument>("published_maps"))
 		{
@@ -70,13 +70,13 @@ internal static class ManifestVersionPruner
 		}
 	}
 
-	internal static bool IsDbKeyMatchingTargetMapExact(string dbKey, string targetMap)
+	private static bool IsDbKeyMatchingTargetMapExact(string dbKey, string targetMap)
 	{
 		return string.Equals(dbKey, targetMap, StringComparison.OrdinalIgnoreCase)
 		       || string.Equals(dbKey.Replace(' ', '_'), targetMap.Replace(' ', '_'), StringComparison.OrdinalIgnoreCase);
 	}
 
-	internal static void TryAddVersionFromDatabaseRecord(JsonDocument doc, string targetMap, string targetVersion, List<(string version, JsonDocument doc, string? filePath)> remainingVersions)
+	private static void TryAddVersionFromDatabaseRecord(JsonDocument doc, string targetMap, string targetVersion, List<(string version, JsonDocument doc, string? filePath)> remainingVersions)
 	{
 		try
 		{
@@ -99,12 +99,12 @@ internal static class ManifestVersionPruner
 		}
 	}
 
-	internal static bool HasVersionAlready(List<(string version, JsonDocument doc, string? filePath)> remainingVersions, string version)
+	private static bool HasVersionAlready(List<(string version, JsonDocument doc, string? filePath)> remainingVersions, string version)
 	{
 		return remainingVersions.Any(r => string.Equals(r.version, version, StringComparison.OrdinalIgnoreCase));
 	}
 
-	internal static void ApplyFallbackOperations(ContentAddressableStorage cas, DataStoreService db, string manifestDir, string targetMap, List<(string version, JsonDocument doc, string? filePath)> remainingVersions, ref int manifestsDeleted, List<string> deletedFiles)
+	private static void ApplyFallbackOperations(ContentAddressableStorage cas, DataStoreService db, string manifestDir, string targetMap, List<(string version, JsonDocument doc, string? filePath)> remainingVersions, ref int manifestsDeleted, List<string> deletedFiles)
 	{
 		if (remainingVersions.Count > 0)
 		{

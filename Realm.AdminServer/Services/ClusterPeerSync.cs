@@ -27,12 +27,12 @@ public class ClusterPeerSync
 	private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNameCaseInsensitive = true };
 	private readonly IClusterStateStore _state;
 
-	internal ClusterPeerSync(IClusterStateStore state)
+	public ClusterPeerSync(IClusterStateStore state)
 	{
 		_state = state;
 	}
 
-	internal void BroadcastEvent(ClusterEventDto evt, PeerRegistry peerRegistry, IHttpClientFactory httpClientFactory)
+	public void BroadcastEvent(ClusterEventDto evt, PeerRegistry peerRegistry, IHttpClientFactory httpClientFactory)
 	{
 		if (peerRegistry.PeerUrls.Count == 0) return;
 
@@ -71,7 +71,7 @@ public class ClusterPeerSync
 		});
 	}
 
-	internal async Task RunCatchUpSyncAsync(PeerRegistry peerRegistry, IHttpClientFactory httpClientFactory, DataStoreService db, ContentAddressableStorage cas, HashSet<string> adminPublicKeys)
+	private async Task RunCatchUpSyncAsync(PeerRegistry peerRegistry, IHttpClientFactory httpClientFactory, DataStoreService db, ContentAddressableStorage cas, HashSet<string> adminPublicKeys)
 	{
 		if (peerRegistry.PeerUrls.Count == 0) return;
 
@@ -97,7 +97,7 @@ public class ClusterPeerSync
 		}
 	}
 
-	internal async Task RunQuorumSyncAsync(PeerRegistry peerRegistry, IHttpClientFactory httpClientFactory, DataStoreService db, ContentAddressableStorage cas, HashSet<string> adminPublicKeys)
+	public async Task RunQuorumSyncAsync(PeerRegistry peerRegistry, IHttpClientFactory httpClientFactory, DataStoreService db, ContentAddressableStorage cas, HashSet<string> adminPublicKeys)
 	{
 		if (peerRegistry.PeerUrls.Count == 0) return;
 

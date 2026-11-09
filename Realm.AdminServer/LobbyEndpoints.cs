@@ -17,9 +17,9 @@ using Realm.AdminServer.Helpers;
 namespace Realm.AdminServer;
 
 /// <summary>Lobby registration, heartbeats, join and the host websocket.</summary>
-internal static class LobbyEndpoints
+public static class LobbyEndpoints
 {
-	internal static void MapLobbyEndpoints(WebApplication app, ConcurrentDictionary<string, WebSocket> hostConnections)
+	public static void MapLobbyEndpoints(WebApplication app, ConcurrentDictionary<string, WebSocket> hostConnections)
 	{
 	app.MapGet("/lobbies", (LobbyRegistry registry, GeoIpService geoIp, HttpContext context) =>
 	{

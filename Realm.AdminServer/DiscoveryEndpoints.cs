@@ -17,9 +17,9 @@ using Realm.AdminServer.Helpers;
 namespace Realm.AdminServer;
 
 /// <summary>The public map discovery feed.</summary>
-internal static class DiscoveryEndpoints
+public static class DiscoveryEndpoints
 {
-	internal static void MapDiscoveryEndpoints(WebApplication app, ServerSetup setup)
+	public static void MapDiscoveryEndpoints(WebApplication app, ServerSetup setup)
 	{
 		app.MapGet("/api/discovery/maps", (DataStoreService db, ContentAddressableStorage cas) =>
 		{

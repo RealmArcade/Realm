@@ -30,11 +30,11 @@ public record ServerSetup(
 	string SeederId,
 	int CapacityPercent);
 
-internal static class ServerHost
+public static class ServerHost
 {
-	internal const string ContentNotServedError = "content_not_served_by_this_node";
+	public const string ContentNotServedError = "content_not_served_by_this_node";
 
-	internal static ServerSetup Start(WebApplicationBuilder builder)
+	public static ServerSetup Start(WebApplicationBuilder builder)
 	{
 	var storageDirectory = builder.Configuration.GetValue<string>("StorageDirectory")
 	                       ?? builder.Configuration.GetValue<string>("storage-path");
@@ -199,7 +199,7 @@ internal static class ServerHost
 	}
 
 	/// <summary>Every 63 seconds, pull cluster state from the peers and drop events older than a day.</summary>
-	internal static void RunQuorumSyncLoop(WebApplication app, HashSet<string> adminPublicKeys)
+	public static void RunQuorumSyncLoop(WebApplication app, HashSet<string> adminPublicKeys)
 	{
 		_ = Task.Run(async () =>
 		{

@@ -17,9 +17,9 @@ using Realm.AdminServer.Helpers;
 namespace Realm.AdminServer;
 
 /// <summary>Content-addressed asset reads, writes, bundles and published map manifests.</summary>
-internal static class AssetEndpoints
+public static class AssetEndpoints
 {
-	internal static void MapAssetEndpoints(WebApplication app, ServerSetup setup)
+	public static void MapAssetEndpoints(WebApplication app, ServerSetup setup)
 	{
 		app.MapMethods("/api/assets/{hash}", new[] { "HEAD" }, (string hash, ContentAddressableStorage cas) =>
 		{

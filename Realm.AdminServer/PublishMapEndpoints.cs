@@ -17,9 +17,9 @@ using Realm.AdminServer.Helpers;
 namespace Realm.AdminServer;
 
 /// <summary>The map publication pipeline: session initiation, finalisation and the direct publish path.</summary>
-internal static class PublishMapEndpoints
+public static class PublishMapEndpoints
 {
-	internal static void MapPublishMapEndpoints(WebApplication app, ServerSetup setup)
+	public static void MapPublishMapEndpoints(WebApplication app, ServerSetup setup)
 	{
 		app.MapPost("/api/publish_map/initiate", (PublishMapInitiateRequest req, DataStoreService db, ContentAddressableStorage cas) =>
 		{
@@ -600,7 +600,7 @@ internal static class PublishMapEndpoints
 		});
 	}
 
-	internal static void MapPublishMapAssetEndpoints(WebApplication app, ServerSetup setup)
+	public static void MapPublishMapAssetEndpoints(WebApplication app, ServerSetup setup)
 	{
 		app.MapPost("/api/publish_map/upload_asset", async (HttpRequest request, DataStoreService db, ContentAddressableStorage cas) =>
 		{

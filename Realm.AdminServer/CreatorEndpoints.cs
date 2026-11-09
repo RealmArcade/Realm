@@ -17,9 +17,9 @@ using Realm.AdminServer.Helpers;
 namespace Realm.AdminServer;
 
 /// <summary>Creator registration, presence checks, listings and portfolios.</summary>
-internal static class CreatorEndpoints
+public static class CreatorEndpoints
 {
-	internal static void MapCreatorEndpoints(WebApplication app, ServerSetup setup)
+	public static void MapCreatorEndpoints(WebApplication app, ServerSetup setup)
 	{
 		app.MapPost("/api/creators/register", async (HttpRequest request, RegisterCreatorRequest req, DataStoreService db, AccountStoreService accounts, ClusterEventService clusterEvents, PeerRegistry registeredPeers, IHttpClientFactory httpClientFactory) =>
 		{

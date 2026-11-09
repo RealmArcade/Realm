@@ -17,9 +17,9 @@ using Realm.AdminServer.Helpers;
 namespace Realm.AdminServer;
 
 /// <summary>The generic collection CRUD surface behind the editor and admin tools.</summary>
-internal static class DataEndpoints
+public static class DataEndpoints
 {
-	internal static void MapDataEndpoints(WebApplication app, ServerSetup setup)
+	public static void MapDataEndpoints(WebApplication app, ServerSetup setup)
 	{
 		app.MapGet("/api/data/{collection}/{id}", (string collection, string id, DataStoreService db, HttpContext context) =>
 		{

@@ -17,9 +17,9 @@ using Realm.AdminServer.Helpers;
 namespace Realm.AdminServer;
 
 /// <summary>Administrative maintenance: CAS pruning and manifest removal.</summary>
-internal static class AdminEndpoints
+public static class AdminEndpoints
 {
-	internal static void MapAdminRemovalEndpoints(WebApplication app, ServerSetup setup)
+	public static void MapAdminRemovalEndpoints(WebApplication app, ServerSetup setup)
 	{
 		app.MapPost("/api/admin/prune_cas", (HttpRequest request, ContentPruner pruner, DataStoreService db, ContentAddressableStorage cas) =>
 		{
@@ -117,7 +117,7 @@ internal static class AdminEndpoints
 		});
 	}
 
-	internal static void MapAdminInfoEndpoints(WebApplication app, ServerSetup setup)
+	public static void MapAdminInfoEndpoints(WebApplication app, ServerSetup setup)
 	{
 		app.MapGet("/api/admin/info", (DataStoreService db, ContentAddressableStorage cas, HttpContext context) =>
 		{
@@ -230,7 +230,7 @@ internal static class AdminEndpoints
 		});
 	}
 
-	internal static void MapBanEndpoints(WebApplication app, ServerSetup setup)
+	public static void MapBanEndpoints(WebApplication app, ServerSetup setup)
 	{
 		app.MapGet("/api/admin/bans", (DataStoreService db, HttpContext context) =>
 		{
