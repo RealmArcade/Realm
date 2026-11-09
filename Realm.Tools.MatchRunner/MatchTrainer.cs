@@ -15,6 +15,7 @@ public class TrainingRunResult
 	public BotProfile Profile { get; init; } = new();
 	public IReadOnlyList<float> GenerationBestFitness { get; init; } = Array.Empty<float>();
 	public float ValidationFitness { get; init; }
+	public int ChampionGeneration { get; init; }
 	public int PlayedEvaluations { get; init; }
 	public int FailedEvaluations { get; init; }
 }
@@ -41,18 +42,21 @@ public static class MatchTrainer
 				options.TrainPopulation,
 				options.TrainEvaluations,
 				provider.FeatureCount,
+				options.TrainMapCandidateFeatures,
 				provider.GenreName,
 				evaluator.Evaluate,
 				options.TrainSeed,
 				RealmVersion.GameBuildNumber,
 				options.TrainInitialWeights,
-				ReportGeneration);
+				ReportGeneration,
+				options.TrainParallel);
 
 			return new TrainingRunResult
 			{
 				Profile = profile,
 				GenerationBestFitness = trainer.GenerationBestFitness.ToArray(),
 				ValidationFitness = trainer.ValidationFitness,
+				ChampionGeneration = trainer.ChampionGeneration,
 				PlayedEvaluations = evaluator.PlayedMatches,
 				FailedEvaluations = evaluator.FailedMatches
 			};
@@ -74,6 +78,8 @@ public static class MatchTrainer
 			gameBuildNumber = result.Profile.GameBuildNumber,
 			genre = provider.GenreName,
 			featureCount = provider.FeatureCount,
+			mapCandidateFeatures = options.TrainMapCandidateFeatures,
+			mapCandidateWeights = result.Profile.MapCandidateWeights,
 			generations = options.TrainGenerations,
 			populationSize = options.TrainPopulation,
 			evaluationsPerCandidate = options.TrainEvaluations,
@@ -91,8 +97,11 @@ public static class MatchTrainer
 			{
 				seedSalt = SelfPlayTrainer.ValidationSeedSalt,
 				candidates = options.TrainEvaluations,
+				championSelection = "highest held-out fitness across every generation champion",
+				championGeneration = result.ChampionGeneration,
 				fitness = result.ValidationFitness
 			},
+			evaluationsInParallel = options.TrainParallel,
 			profilePath = Path.GetFullPath(profilePath),
 			fitnessScore = result.Profile.FitnessScore,
 			generationBestFitness = result.GenerationBestFitness,
@@ -151,6 +160,7 @@ public class TrainingMatchEvaluator
 	private readonly string _workspaceDirectory;
 	private int _playedMatches;
 	private int _failedMatches;
+	private int _evaluationCounter;
 
 	public TrainingMatchEvaluator(MatchRunOptions options, string workspaceDirectory)
 	{
@@ -158,9 +168,9 @@ public class TrainingMatchEvaluator
 		_workspaceDirectory = workspaceDirectory;
 	}
 
-	public int PlayedMatches => _playedMatches;
+	public int PlayedMatches => Volatile.Read(ref _playedMatches);
 
-	public int FailedMatches => _failedMatches;
+	public int FailedMatches => Volatile.Read(ref _failedMatches);
 
 	public float Evaluate(float[] weights, int seed)
 	{
@@ -172,9 +182,11 @@ public class TrainingMatchEvaluator
 	private float PlayOrientation(float[] weights, int seed, int candidateSeat)
 	{
 		string profilePath = WriteCandidateProfile(weights);
-		string outcomePath = Path.Combine(_workspaceDirectory, $"outcome-{seed}-{candidateSeat}.jsonl");
+		string outcomePath = Path.Combine(
+			_workspaceDirectory,
+			$"outcome-{seed}-{candidateSeat}-{Interlocked.Increment(ref _evaluationCounter)}.jsonl");
 		ClearOutcomeFiles(outcomePath);
-		_playedMatches++;
+		Interlocked.Increment(ref _playedMatches);
 
 		try
 		{
@@ -183,11 +195,11 @@ public class TrainingMatchEvaluator
 		}
 		catch (InvalidOperationException exception)
 		{
-			_failedMatches++;
-			if (_failedMatches * 2 > _playedMatches)
+			int failedMatches = Interlocked.Increment(ref _failedMatches);
+			if (failedMatches * 2 > Volatile.Read(ref _playedMatches))
 			{
 				throw new InvalidOperationException(
-					$"the training stopped after {_failedMatches} of {_playedMatches} evaluation matches failed to run: {exception.Message}",
+					$"the training stopped after {failedMatches} of {Volatile.Read(ref _playedMatches)} evaluation matches failed to run: {exception.Message}",
 					exception);
 			}
 
@@ -275,15 +287,21 @@ public class TrainingMatchEvaluator
 		string profilePath = Path.Combine(_workspaceDirectory, $"candidate-{HashWeights(weights)}.json");
 		if (File.Exists(profilePath)) return profilePath;
 
+		int mapCandidateFeatures = Math.Clamp(_options.TrainMapCandidateFeatures, 0, weights.Length);
+		int genreFeatureCount = weights.Length - mapCandidateFeatures;
+
 		var profile = new BotProfile
 		{
 			Genre = _options.TrainGenre,
 			MapName = "Training",
 			ProfileId = "TrainingCandidate",
-			Weights = weights
+			Weights = weights[..genreFeatureCount],
+			MapCandidateWeights = mapCandidateFeatures > 0 ? weights[genreFeatureCount..] : Array.Empty<float>()
 		};
 
-		File.WriteAllText(profilePath, profile.ToJson(), new UTF8Encoding(false));
+		string temporaryPath = $"{profilePath}.{Environment.ProcessId}.{Interlocked.Increment(ref _evaluationCounter)}.tmp";
+		File.WriteAllText(temporaryPath, profile.ToJson(), new UTF8Encoding(false));
+		File.Move(temporaryPath, profilePath, overwrite: true);
 		return profilePath;
 	}
 

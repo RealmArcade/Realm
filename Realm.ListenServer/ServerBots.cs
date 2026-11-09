@@ -92,7 +92,6 @@ public class ServerBots
 		}
 
 		ApplyHandicap(playerIndex, bot);
-		ConfigureCustomScanner(bot.GenreProvider, playerIndex);
 		_log.Write($"player {playerIndex} now plays the profile the map handed it");
 	}
 
@@ -129,7 +128,6 @@ public class ServerBots
 
 		IAiGenreProvider genre = AiGenreRegistry.Get(genreName);
 		ConfigureGenre(genre, configJson);
-		ConfigureCustomScanner(genre, playerIndex);
 
 		if (_controllers.TryGetValue(playerIndex, out BotController? bot))
 		{
@@ -138,6 +136,7 @@ public class ServerBots
 			ApplyHandicap(playerIndex, bot);
 			ApplyGenreDefaultPolicy(playerIndex, genreName, bot);
 			LoadSavedProfile(playerIndex, bot);
+			AttachMapCandidates(playerIndex, bot);
 			_log.Write($"player {playerIndex} now plays the '{genreName}' genre");
 			return;
 		}
@@ -147,6 +146,7 @@ public class ServerBots
 		ApplyGenreDefaultPolicy(playerIndex, genreName, created);
 		LoadSavedProfile(playerIndex, created);
 		ApplyHandicap(playerIndex, created);
+		AttachMapCandidates(playerIndex, created);
 		_controllers[playerIndex] = created;
 		_log.Write($"player {playerIndex} seated with the '{genreName}' genre");
 	}
@@ -233,6 +233,7 @@ public class ServerBots
 		bot.CustomActionCallback = AnnounceCustomAction;
 		LoadSavedProfile(playerIndex, bot);
 		ApplyHandicap(playerIndex, bot);
+		AttachMapCandidates(playerIndex, bot);
 		return bot;
 	}
 
@@ -244,7 +245,18 @@ public class ServerBots
 		created.CustomActionCallback = AnnounceCustomAction;
 		_controllers[playerIndex] = created;
 		ApplyHandicap(playerIndex, created);
+		AttachMapCandidates(playerIndex, created);
 		return created;
+	}
+
+	private void AttachMapCandidates(int playerIndex, BotController bot)
+	{
+		bot.MapCandidateSource = () => GetCustomDecisions(playerIndex);
+	}
+
+	private List<GenericAffordance>? GetCustomDecisions(int playerIndex)
+	{
+		return _customDecisionsPerPlayer.TryGetValue(playerIndex, out List<GenericAffordance>? decisions) ? decisions : null;
 	}
 
 	private void AnnounceCustomAction(int playerIndex, string actionId, Vector3 position, string intent)
@@ -267,16 +279,4 @@ public class ServerBots
 		}
 	}
 
-	private void ConfigureCustomScanner(IAiGenreProvider genre, int playerIndex)
-	{
-		if (genre is not CustomGenreProvider customGenre) return;
-
-		customGenre.CustomScanner = (world, scanningPlayerIndex, destination, scannerContext) =>
-		{
-			if (!_customDecisionsPerPlayer.TryGetValue(playerIndex, out List<GenericAffordance>? decisions) || decisions == null) return;
-			if (scanningPlayerIndex != playerIndex) return;
-
-			destination.AddRange(decisions);
-		};
-	}
 }

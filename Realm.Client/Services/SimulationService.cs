@@ -704,6 +704,7 @@ public class SimulationService
 		{
 			bot = new BotController(playerIndex, profile);
 			bot.CustomActionCallback = (pIdx, actId, pos, intent) => { OnBotCustomActionExecuted?.Invoke(pIdx, actId, intent, pos, string.Empty); };
+			AttachMapCandidates(playerIndex, bot);
 			_botControllers[playerIndex] = bot;
 		}
 		else
@@ -732,7 +733,6 @@ public class SimulationService
 	{
 		var genreProvider = AiGenreRegistry.Get(genreName);
 		ConfigureGenreProvider(genreProvider, configJson);
-		ConfigureCustomProvider(genreName, genreProvider);
 		UpdateOrCreateBotController(playerIndex, genreProvider);
 	}
 
@@ -749,17 +749,6 @@ public class SimulationService
 		}
 	}
 
-	private void ConfigureCustomProvider(string genreName, IAiGenreProvider genreProvider)
-	{
-		if (!string.Equals(genreName, "custom", StringComparison.OrdinalIgnoreCase)) return;
-		if (genreProvider is not CustomGenreProvider customProvider) return;
-
-		customProvider.CustomScanner = (world, pIdx, dest, ctx) =>
-		{
-			if (_customDecisionsPerPlayer.TryGetValue(pIdx, out var list) && list != null) dest.AddRange(list);
-		};
-	}
-
 	private void UpdateOrCreateBotController(int playerIndex, IAiGenreProvider genreProvider)
 	{
 		if (!_botControllers.TryGetValue(playerIndex, out var bot))
@@ -767,6 +756,7 @@ public class SimulationService
 			var profile = genreProvider.CreateDefaultProfile(GameContext.Simulation.ActiveMapName ?? "GenericMap");
 			bot = new BotController(playerIndex, profile, genreProvider);
 			bot.CustomActionCallback = (pIdx, actId, pos, intent) => { OnBotCustomActionExecuted?.Invoke(pIdx, actId, intent, pos, string.Empty); };
+			AttachMapCandidates(playerIndex, bot);
 			_botControllers[playerIndex] = bot;
 		}
 		else
@@ -775,6 +765,16 @@ public class SimulationService
 			var profile = genreProvider.CreateDefaultProfile(bot.Profile.MapName);
 			bot.LoadProfile(profile);
 		}
+	}
+
+	private void AttachMapCandidates(int playerIndex, BotController bot)
+	{
+		bot.MapCandidateSource = () => GetCustomDecisions(playerIndex);
+	}
+
+	private List<GenericAffordance>? GetCustomDecisions(int playerIndex)
+	{
+		return _customDecisionsPerPlayer.TryGetValue(playerIndex, out var decisions) ? decisions : null;
 	}
 
 	public string GetPlayerBotGenreDomain(int playerIndex)

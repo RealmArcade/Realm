@@ -138,6 +138,15 @@ public static class MatchPlayer
 			return;
 		}
 
+		const string randomPayloadPrefix = "random-payload:";
+		if (policy.StartsWith(randomPayloadPrefix, StringComparison.OrdinalIgnoreCase))
+		{
+			string payloadPrefix = policy[randomPayloadPrefix.Length..];
+			if (payloadPrefix.Length == 0) throw new ArgumentException($"seat {seat} was given 'random-payload:' without the payload prefix to randomise");
+			bots.SetDecisionPolicy(seat, new PayloadRandomDecisionPolicy(payloadPrefix, new LinearUtilityDecisionPolicy()));
+			return;
+		}
+
 		const string fixedOncePrefix = "fixed-once:";
 		if (policy.StartsWith(fixedOncePrefix, StringComparison.OrdinalIgnoreCase))
 		{
@@ -184,6 +193,6 @@ public static class MatchPlayer
 			return;
 		}
 
-		throw new ArgumentException($"seat {seat} was given the policy '{policy}', which is not uniform, fixed:<payload>, fixed-once:<payload> or profile:<path>");
+		throw new ArgumentException($"seat {seat} was given the policy '{policy}', which is not uniform, fixed:<payload>, fixed-once:<payload>, random-payload:<prefix> or profile:<path>");
 	}
 }

@@ -1292,6 +1292,16 @@ public interface IGameAPI
 	IReadOnlyList<string> GetUnitTypeAbilities(string unitTypeId);
 
 	/// <summary>
+	/// Retrieves one declared template statistic of a unit or building type, exactly as the map's unit definitions
+	/// write it and before any per-unit upgrade, item or buff modifies it. A map uses it to value a type without
+	/// spawning one, for example to let a bot compare two heroes it is choosing between.
+	/// </summary>
+	/// <param name="unitTypeId">The unit or building type identifier.</param>
+	/// <param name="statName">The declared statistic name: for example <c>MaxHp</c>, <c>Armor</c>, <c>Damage</c>, <c>AttackCooldown</c>, <c>Speed</c>, <c>Range</c>, <c>MaxMana</c>, <c>ManaRegen</c> or one of the attribute names such as <c>Strength</c>.</param>
+	/// <returns>The declared value, or zero when the type or the statistic name is unknown.</returns>
+	float GetUnitTypeStat(string unitTypeId, string statName);
+
+	/// <summary>
 	/// Retrieves the authored display name for the specified unit or building type.
 	/// </summary>
 	/// <param name="unitTypeId">The unit or building type identifier.</param>

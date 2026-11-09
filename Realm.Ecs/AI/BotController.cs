@@ -14,6 +14,8 @@ public class BotController
 
 	private BotProfile _profile = BotProfile.CreateDefault();
 	private float[] _weights = Array.Empty<float>();
+	private float[] _mapCandidateWeights = Array.Empty<float>();
+	private float[] _equalFeatureWeights = Array.Empty<float>();
 	private float _decisionInterval = 1.0f;
 	private float _aggressionMultiplier = 1.0f;
 	private float _actionTemperature = 0.0f;
@@ -23,6 +25,7 @@ public class BotController
 
 	public int PlayerIndex => _playerIndex;
 	public float[] Weights => _weights;
+	public float[] MapCandidateWeights => _mapCandidateWeights;
 	public float DecisionInterval => _decisionInterval;
 	public float AggressionMultiplier => _aggressionMultiplier;
 	public float ActionTemperature => _actionTemperature;
@@ -47,6 +50,12 @@ public class BotController
 	}
 
 	public Action<int, string, Vector3, string>? CustomActionCallback { get; set; }
+
+	/// <summary>
+	/// Supplies candidate actions a map registered for this player, which every genre offers alongside the ones it
+	/// scans itself. Whoever owns the world sets it once, so a seat keeps receiving them when its genre changes.
+	/// </summary>
+	public Func<List<GenericAffordance>?>? MapCandidateSource { get; set; }
 
 	public BotController(int playerIndex = 0, BotProfile? profile = null, IAiGenreProvider? genreProvider = null)
 	{
@@ -92,6 +101,10 @@ public class BotController
 		{
 			_weights = _genreProvider.GetDefaultWeights();
 		}
+
+		_mapCandidateWeights = profile.MapCandidateWeights != null && profile.MapCandidateWeights.Length > 0
+			? (float[])profile.MapCandidateWeights.Clone()
+			: Array.Empty<float>();
 	}
 
 	public void Tick(EcsWorld world, int playerIndex, float delta)
@@ -105,6 +118,26 @@ public class BotController
 
 		_timer = 0.0f;
 
+		List<GenericAffordance>? mapCandidates = MapCandidateSource?.Invoke();
+		if (mapCandidates != null && mapCandidates.Count > 0)
+		{
+			IBotDecisionPolicy candidatePolicy = _mistakeChance > 0.0f && SeededRandom.Shared.NextDouble() < _mistakeChance
+				? _uniformPolicy
+				: _decisionPolicy;
+			GenericAffordance? chosenCandidate = candidatePolicy.SelectAction(
+				mapCandidates,
+				ResolveMapCandidateWeights(mapCandidates[0].FeatureVector.Length),
+				0.0f,
+				1.0f,
+				SeededRandom.Shared);
+
+			if (chosenCandidate.HasValue)
+			{
+				ExecuteSelected(world, playerIndex, chosenCandidate.Value);
+				return;
+			}
+		}
+
 		_genreProvider.ScanAffordances(world, playerIndex, _affordanceBuffer);
 
 		IBotDecisionPolicy policy = _mistakeChance > 0.0f && SeededRandom.Shared.NextDouble() < _mistakeChance
@@ -117,7 +150,11 @@ public class BotController
 			return;
 		}
 
-		GenericAffordance selected = action.Value;
+		ExecuteSelected(world, playerIndex, action.Value);
+	}
+
+	private void ExecuteSelected(EcsWorld world, int playerIndex, in GenericAffordance selected)
+	{
 		if (selected.SourceEntity.IsNull && CustomActionCallback != null)
 		{
 			CustomActionCallback(playerIndex, selected.PayloadId, selected.TargetPosition, selected.Intent.ToString());
@@ -125,5 +162,19 @@ public class BotController
 		}
 
 		_genreProvider.ExecuteAction(world, playerIndex, selected, CustomActionCallback);
+	}
+
+	private float[] ResolveMapCandidateWeights(int featureCount)
+	{
+		if (featureCount <= 0) return Array.Empty<float>();
+		if (_mapCandidateWeights.Length == featureCount) return _mapCandidateWeights;
+
+		if (_equalFeatureWeights.Length != featureCount)
+		{
+			_equalFeatureWeights = new float[featureCount];
+			Array.Fill(_equalFeatureWeights, 1.0f);
+		}
+
+		return _equalFeatureWeights;
 	}
 }

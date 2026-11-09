@@ -27,6 +27,8 @@ public class MatchRunOptions
 	public int TrainSeed { get; private set; }
 	public string? TrainOutputPath { get; private set; }
 	public float[]? TrainInitialWeights { get; private set; }
+	public int TrainMapCandidateFeatures { get; private set; }
+	public int TrainParallel { get; private set; } = Math.Max(1, Environment.ProcessorCount - 2);
 	public bool Balance { get; private set; }
 	public string? BalanceReportPath { get; private set; }
 	public string? BalanceInputPath { get; private set; }
@@ -43,7 +45,7 @@ public class MatchRunOptions
 		  --seed-range <a-b>      seeds to play, inclusive (default 1-1)
 		  --seats <n>             computer seats to seat on slots 1..n (default 2)
 		  --max-seconds <value>   stop a match after this many simulated seconds (default 1800)
-		  --policy <spec>         policy for every seat: uniform, none, fixed:<payloadId>, profile:<path> (default uniform)
+		  --policy <spec>         policy for every seat: uniform, none, fixed:<payloadId>, random-payload:<prefix>, profile:<path> (default uniform)
 		  --seat-policy <s>=<spec> override the policy of one seat (repeatable)
 		  --output <path>         jsonl file that receives one line per match (default match-outcomes.jsonl)
 		  --parallel <n>          matches played at the same time, one process each (default 1)
@@ -55,6 +57,8 @@ public class MatchRunOptions
 		  --train-seed <n>        seed of the evolution; zero selects the fixed default
 		  --train-output <path>   profile file to write (default <map>/<mapName>_bot.json)
 		  --train-initial-weights <a,b,...> start the population around this weight vector instead of pure noise
+		  --train-map-features <n> trailing genome slots the map's own candidates own (default 0)
+		  --train-parallel <n>    candidate evaluations played at the same time (default cores minus two)
 		  --balance               write the balance report of the played batch beside the outcomes
 		  --balance-report <path> markdown report to write (default <output>.balance.md)
 		  --balance-input <path>  analyse an already played jsonl (or a directory of chunk jsonl) instead of playing
@@ -130,6 +134,12 @@ public class MatchRunOptions
 					break;
 				case "--train-initial-weights":
 					options.TrainInitialWeights = ReadFloatList(args, ref index, argument);
+					break;
+				case "--train-parallel":
+					options.TrainParallel = ReadInt(args, ref index, argument, minimum: 1);
+					break;
+				case "--train-map-features":
+					options.TrainMapCandidateFeatures = ReadNonNegativeInt(args, ref index, argument);
 					break;
 				case "--balance":
 					options.Balance = true;
