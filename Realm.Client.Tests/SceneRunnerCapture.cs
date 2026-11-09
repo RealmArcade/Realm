@@ -9,7 +9,7 @@ namespace Realm.Client.Tests;
 /// A scene runner only has a viewport while its scene is attached to the tree, so the
 /// capture states that requirement once instead of every caller dereferencing the chain.
 /// </summary>
-internal static class SceneRunnerCapture
+public static class SceneRunnerCapture
 {
 	public static Image CaptureViewportImage(ISceneRunner runner)
 	{

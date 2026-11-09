@@ -34,7 +34,6 @@
     <Compile Include="SnapshotTimelineTests.cs" />
     <Compile Include="SnapshotReassemblerTests.cs" />
     <Compile Include="ReplicationContractTests.cs" />
-    <Compile Include="SceneRunnerCapture.cs" />
     <Compile Include="UxSceneTests.cs" />
   </ItemGroup>
 </Project>
