@@ -509,14 +509,14 @@ public partial class EditorService : IEditorAPI
 		newTool = EditorTool.None;
 		switch (copiedObj.Type)
 		{
-			case "unit":
+			case CopiedObjectKind.Unit:
 				newTool = EditorTool.PlaceUnit;
 				SetPlaceUnitPlayerIndexDomain(copiedObj.Player);
 				break;
-			case "prop":
+			case CopiedObjectKind.Prop:
 				newTool = EditorTool.PlaceProp;
 				break;
-			case "decal":
+			case CopiedObjectKind.Decal:
 				newTool = EditorTool.PlaceDecal;
 				break;
 		}

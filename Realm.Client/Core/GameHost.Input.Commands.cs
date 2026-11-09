@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using Realm.Ecs;
@@ -423,7 +423,7 @@ public partial class GameHost
 	{
 		GameContext.EditorService.Clipboard.SetCopiedObject(new CopiedObjectTemplate
 		{
-			Type = "unit",
+			Type = CopiedObjectKind.Unit,
 			Id = unit.UnitId,
 			Rotation = unit.RotationDegrees.Y,
 			Scale = unit.Scale.X,

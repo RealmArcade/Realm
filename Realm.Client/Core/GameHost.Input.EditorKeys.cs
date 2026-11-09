@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using Realm.Ecs;
@@ -301,7 +301,7 @@ private void HandleEditorKeyInput(InputEventKey editorKeyEvent)
 				{
 					GameContext.EditorService.Clipboard.SetCopiedObject(new CopiedObjectTemplate
 					{
-						Type = "unit",
+						Type = CopiedObjectKind.Unit,
 						Id = unit.UnitId,
 						Rotation = unit.RotationDegrees.Y,
 						Scale = unit.Scale.X,
@@ -313,7 +313,7 @@ private void HandleEditorKeyInput(InputEventKey editorKeyEvent)
 				{
 					GameContext.EditorService.Clipboard.SetCopiedObject(new CopiedObjectTemplate
 					{
-						Type = "prop",
+						Type = CopiedObjectKind.Prop,
 						Id = propProxy.PropId,
 						Rotation = propProxy.RotationDegrees.Y,
 						Scale = propProxy.Scale.X,
@@ -325,7 +325,7 @@ private void HandleEditorKeyInput(InputEventKey editorKeyEvent)
 				{
 					GameContext.EditorService.Clipboard.SetCopiedObject(new CopiedObjectTemplate
 					{
-						Type = "prop",
+						Type = CopiedObjectKind.Prop,
 						Id = prop.PropId,
 						Rotation = prop.RotationDegrees.Y,
 						Scale = prop.Scale.X,
@@ -338,7 +338,7 @@ private void HandleEditorKeyInput(InputEventKey editorKeyEvent)
 					string decalId = decal is Decal3D decal3D ? decal3D.DecalId : "logo";
 					GameContext.EditorService.Clipboard.SetCopiedObject(new CopiedObjectTemplate
 					{
-						Type = "decal",
+						Type = CopiedObjectKind.Decal,
 						Id = decalId,
 						Rotation = decal.RotationDegrees.Y,
 						Scale = decal.Scale.X,
@@ -378,7 +378,7 @@ private void HandleEditorKeyInput(InputEventKey editorKeyEvent)
 					var cop = copiedObj.Value;
 					Node? pastedNode = null;
 					IEditorAction? action = null;
-					if (cop.Type == "unit")
+					if (cop.Type == CopiedObjectKind.Unit)
 					{
 						pastedNode = SpawnUnitExternal(cop.Id, spawnPos, cop.Rotation, cop.Scale, cop.Player);
 						if (pastedNode != null)
@@ -387,7 +387,7 @@ private void HandleEditorKeyInput(InputEventKey editorKeyEvent)
 							GameContext.MapEditorHud?.ShowFeedbackExternal($"Pasted Unit: {cop.Id.ToUpper()}");
 						}
 					}
-					else if (cop.Type == "prop")
+					else if (cop.Type == CopiedObjectKind.Prop)
 					{
 						pastedNode = SpawnPropExternalWithParams(cop.Id, spawnPos, cop.Rotation, cop.Scale);
 						if (pastedNode != null)
@@ -396,7 +396,7 @@ private void HandleEditorKeyInput(InputEventKey editorKeyEvent)
 							GameContext.MapEditorHud?.ShowFeedbackExternal($"Pasted Prop: {cop.Id.ToUpper()}");
 						}
 					}
-					else if (cop.Type == "decal")
+					else if (cop.Type == CopiedObjectKind.Decal)
 					{
 						pastedNode = SpawnDecalExternalWithParams(cop.Id, spawnPos, cop.Rotation, cop.Scale);
 						if (pastedNode != null)
@@ -416,7 +416,7 @@ private void HandleEditorKeyInput(InputEventKey editorKeyEvent)
 								Vector3 mPos = t.Position;
 								mPos.Y = GetTerrainHeightAt(mPos);
 								Node? mNode = null;
-								if (cop.Type == "unit")
+								if (cop.Type == CopiedObjectKind.Unit)
 								{
 									mNode = SpawnUnitExternal(cop.Id, mPos, t.Rotation, cop.Scale, cop.Player);
 									if (mNode != null)
@@ -424,7 +424,7 @@ private void HandleEditorKeyInput(InputEventKey editorKeyEvent)
 										actionsList.Add(new ObjectSpawnAction("unit", cop.Id, mPos, t.Rotation, cop.Scale, mNode, cop.Player));
 									}
 								}
-								else if (cop.Type == "prop")
+								else if (cop.Type == CopiedObjectKind.Prop)
 								{
 									mNode = SpawnPropExternalWithParams(cop.Id, mPos, t.Rotation, cop.Scale);
 									if (mNode != null)
@@ -432,7 +432,7 @@ private void HandleEditorKeyInput(InputEventKey editorKeyEvent)
 										actionsList.Add(new ObjectSpawnAction("prop", cop.Id, mPos, t.Rotation, cop.Scale, false, mNode));
 									}
 								}
-								else if (cop.Type == "decal")
+								else if (cop.Type == CopiedObjectKind.Decal)
 								{
 									mNode = SpawnDecalExternalWithParams(cop.Id, mPos, t.Rotation, cop.Scale);
 									if (mNode != null)

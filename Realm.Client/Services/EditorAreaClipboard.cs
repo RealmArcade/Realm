@@ -109,7 +109,7 @@ public sealed class EditorAreaClipboard
 	public void CopyProp(string propId, float rotation, float scale) =>
 		_copiedObject = new CopiedObjectTemplate
 		{
-			Type = "prop",
+			Type = CopiedObjectKind.Prop,
 			Id = propId,
 			Rotation = rotation,
 			Scale = scale,
@@ -119,7 +119,7 @@ public sealed class EditorAreaClipboard
 	public void CopyDecal(string decalId, float rotation, float scale) =>
 		_copiedObject = new CopiedObjectTemplate
 		{
-			Type = "decal",
+			Type = CopiedObjectKind.Decal,
 			Id = decalId,
 			Rotation = rotation,
 			Scale = scale,
