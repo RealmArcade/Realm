@@ -1,4 +1,4 @@
-﻿// Scene construction: the two toolbars and every section of the scroll body, in the order they
+// Scene construction: the two toolbars and every section of the scroll body, in the order they
 // appear in the panel. Each Build* builds one section and returns nothing, because the section
 // seats its widgets into fields the sync methods then refresh.
 
@@ -430,11 +430,11 @@ public partial class WeaponVfxDialog
 		presetFxRow.Name = "PresetFxRow_HBoxContainer";
 		presetFxRow.AddThemeConstantOverride("separation", 4);
 		AddLabel(presetFxRow, TranslationServer.Translate("Presets:"), 11, UIStyle.ColorGoldDull);
-		AddButton(presetFxRow, "🔥 Fire", () => ApplyShaderPreset("fire"), "Fire/Lava preset", 10);
-		AddButton(presetFxRow, "❄️ Frost", () => ApplyShaderPreset("frost"), "Frost/Ice preset", 10);
-		AddButton(presetFxRow, "🧪 Poison", () => ApplyShaderPreset("poison"), "Poison preset", 10);
-		AddButton(presetFxRow, "✨ Arcane", () => ApplyShaderPreset("arcane"), "Arcane preset", 10);
-		AddButton(presetFxRow, "☀️ Holy", () => ApplyShaderPreset("holy"), "Holy preset", 10);
+		AddButton(presetFxRow, "🔥 Fire", () => ApplyShaderPreset(ShaderPreset.Fire), "Fire/Lava preset", 10);
+		AddButton(presetFxRow, "❄️ Frost", () => ApplyShaderPreset(ShaderPreset.Frost), "Frost/Ice preset", 10);
+		AddButton(presetFxRow, "🧪 Poison", () => ApplyShaderPreset(ShaderPreset.Poison), "Poison preset", 10);
+		AddButton(presetFxRow, "✨ Arcane", () => ApplyShaderPreset(ShaderPreset.Arcane), "Arcane preset", 10);
+		AddButton(presetFxRow, "☀️ Holy", () => ApplyShaderPreset(ShaderPreset.Holy), "Holy preset", 10);
 		scrollBody.AddChild(presetFxRow);
 		string[] emissionMasks = new[] { "noise", "vertex_color", "fresnel", "texture_alpha" };
 		int maskIdx = Math.Max(0, Array.IndexOf(emissionMasks, _currentWeapon.EmissionMaskSource?.ToLowerInvariant() ?? "noise"));

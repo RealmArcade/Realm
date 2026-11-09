@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Linq;
 using Godot;
@@ -393,11 +393,21 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 		RestartPreviewProjectile();
 	}
 
-	private void ApplyShaderPreset(string preset)
+	/// <summary>The shader presets this dialog offers. Editor state only: never read from a file.</summary>
+	private enum ShaderPreset
+	{
+		Fire,
+		Frost,
+		Poison,
+		Arcane,
+		Holy
+	}
+
+	private void ApplyShaderPreset(ShaderPreset preset)
 	{
 		switch (preset)
 		{
-			case "fire":
+			case ShaderPreset.Fire:
 				_currentWeapon.BaseColor = "#261e19";
 				_currentWeapon.EmissionColor = "#ff6600";
 				_currentWeapon.EmissionEnergy = 4.0f;
@@ -406,7 +416,7 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 				_currentWeapon.PointLightColor = "#ffaa33";
 				_currentWeapon.RibbonColor = "#ff6600";
 				break;
-			case "frost":
+			case ShaderPreset.Frost:
 				_currentWeapon.BaseColor = "#142838";
 				_currentWeapon.EmissionColor = "#00b4ff";
 				_currentWeapon.EmissionEnergy = 3.5f;
@@ -415,7 +425,7 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 				_currentWeapon.PointLightColor = "#00b4ff";
 				_currentWeapon.RibbonColor = "#00b4ff";
 				break;
-			case "poison":
+			case ShaderPreset.Poison:
 				_currentWeapon.BaseColor = "#142814";
 				_currentWeapon.EmissionColor = "#00ff3c";
 				_currentWeapon.EmissionEnergy = 3.5f;
@@ -424,7 +434,7 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 				_currentWeapon.PointLightColor = "#00ff3c";
 				_currentWeapon.RibbonColor = "#00ff3c";
 				break;
-			case "arcane":
+			case ShaderPreset.Arcane:
 				_currentWeapon.BaseColor = "#261438";
 				_currentWeapon.EmissionColor = "#b400ff";
 				_currentWeapon.EmissionEnergy = 4.5f;
@@ -433,7 +443,7 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 				_currentWeapon.PointLightColor = "#b400ff";
 				_currentWeapon.RibbonColor = "#b400ff";
 				break;
-			case "holy":
+			case ShaderPreset.Holy:
 				_currentWeapon.BaseColor = "#383214";
 				_currentWeapon.EmissionColor = "#ffdc00";
 				_currentWeapon.EmissionEnergy = 5.0f;
