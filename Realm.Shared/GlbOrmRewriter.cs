@@ -10,7 +10,7 @@ namespace Realm.Shared;
 
 public static class GlbOrmRewriter
 {
-	internal static void RebuildBufferViews(
+	private static void RebuildBufferViews(
 		JsonArray bufferViews, byte[] binChunk, HashSet<int> retainedBvIndices,
 		MemoryStream newBinStream, JsonArray newBufferViewsList, Dictionary<int, int> oldBvToNewBv)
 	{
@@ -40,7 +40,7 @@ public static class GlbOrmRewriter
 		}
 	}
 
-	internal static void UpdateAccessors(JsonArray accessors, Dictionary<int, int> oldBvToNewBv)
+	private static void UpdateAccessors(JsonArray accessors, Dictionary<int, int> oldBvToNewBv)
 	{
 		foreach (var acc in accessors)
 		{
@@ -55,7 +55,7 @@ public static class GlbOrmRewriter
 		}
 	}
 
-	internal static void UpdateImageBufferViews(JsonArray images, Dictionary<int, int> oldBvToNewBv, int ormImageIndex)
+	public static void UpdateImageBufferViews(JsonArray images, Dictionary<int, int> oldBvToNewBv, int ormImageIndex)
 	{
 		for (int i = 0; i < images.Count; i++)
 		{
@@ -72,7 +72,7 @@ public static class GlbOrmRewriter
 		}
 	}
 
-	internal static void CreateMissingOrmTexture(JsonArray images, JsonArray textures, JsonArray materials, int newOrmBvIdx)
+	private static void CreateMissingOrmTexture(JsonArray images, JsonArray textures, JsonArray materials, int newOrmBvIdx)
 	{
 		int newOrmImageIdx = images.Count;
 		images.Add(new JsonObject { ["mimeType"] = "image/webp", ["bufferView"] = newOrmBvIdx });
@@ -99,7 +99,7 @@ public static class GlbOrmRewriter
 		}
 	}
 
-	internal static void UpdateImagesAndMaterials(
+	private static void UpdateImagesAndMaterials(
 		JsonArray images, JsonArray textures, JsonArray materials, Dictionary<int, int> oldBvToNewBv,
 		int ormImageIndex, int newOrmBvIdx)
 	{
@@ -118,7 +118,7 @@ public static class GlbOrmRewriter
 		}
 	}
 
-	internal static int EnsureTextureSource(JsonObject texObj, int textureIndex, JsonArray textures, JsonArray images)
+	private static int EnsureTextureSource(JsonObject texObj, int textureIndex, JsonArray textures, JsonArray images)
 	{
 		int src = texObj["source"]?.GetValue<int>() ?? -1;
 		if (src < 0)
@@ -138,7 +138,7 @@ public static class GlbOrmRewriter
 		return src;
 	}
 
-	internal static void UpdateTextureExtensions(JsonObject texObj, int src)
+	private static void UpdateTextureExtensions(JsonObject texObj, int src)
 	{
 		if (src < 0) return;
 
@@ -153,7 +153,7 @@ public static class GlbOrmRewriter
 		}
 	}
 
-	internal static void UpdateTextures(JsonArray textures, JsonArray images)
+	private static void UpdateTextures(JsonArray textures, JsonArray images)
 	{
 		for (int i = 0; i < textures.Count; i++)
 		{
@@ -164,7 +164,7 @@ public static class GlbOrmRewriter
 		}
 	}
 
-	internal static HashSet<int> GetRetainedBufferViews(JsonArray accessors, JsonArray bufferViews, JsonArray images, int excludeImageIndex)
+	public static HashSet<int> GetRetainedBufferViews(JsonArray accessors, JsonArray bufferViews, JsonArray images, int excludeImageIndex)
 	{
 		var retainedBvIndices = new HashSet<int>();
 
@@ -174,7 +174,7 @@ public static class GlbOrmRewriter
 		return retainedBvIndices;
 	}
 
-	internal static void EnsureWebPExtension(JsonObject root)
+	private static void EnsureWebPExtension(JsonObject root)
 	{
 		if (root.TryGetPropertyValue("extensionsUsed", out var extNode) && extNode is JsonArray extArray)
 		{
@@ -196,7 +196,7 @@ public static class GlbOrmRewriter
 		}
 	}
 
-	internal static byte[] RebuildGlbWithUpdatedOrmTexture(
+	public static byte[] RebuildGlbWithUpdatedOrmTexture(
 		JsonObject root,
 		byte[] binChunk,
 		int ormImageIndex,
@@ -246,7 +246,7 @@ public static class GlbOrmRewriter
 		return GlbManifestUtils.BuildGlb(root, newBinStream.ToArray(), glbVersion);
 	}
 
-	internal static void UpdateWebpExtensionBufferView(JsonObject imgObj, Dictionary<int, int> oldBvToNewBv)
+	private static void UpdateWebpExtensionBufferView(JsonObject imgObj, Dictionary<int, int> oldBvToNewBv)
 	{
 		if (imgObj.TryGetPropertyValue("extensions", out var extNode) && extNode is JsonObject imgExt &&
 		    imgExt.TryGetPropertyValue("EXT_texture_webp", out var webpNode) && webpNode is JsonObject webp &&
@@ -260,7 +260,7 @@ public static class GlbOrmRewriter
 		}
 	}
 
-	internal static void AddAccessorBufferViews(JsonArray accessors, JsonArray bufferViews, HashSet<int> retainedBvIndices)
+	private static void AddAccessorBufferViews(JsonArray accessors, JsonArray bufferViews, HashSet<int> retainedBvIndices)
 	{
 		foreach (var acc in accessors)
 		{
@@ -272,7 +272,7 @@ public static class GlbOrmRewriter
 		}
 	}
 
-	internal static void AddImageBufferViews(JsonArray images, JsonArray bufferViews, HashSet<int> retainedBvIndices, int excludeImageIndex)
+	private static void AddImageBufferViews(JsonArray images, JsonArray bufferViews, HashSet<int> retainedBvIndices, int excludeImageIndex)
 	{
 		for (int i = 0; i < images.Count; i++)
 		{
@@ -285,7 +285,7 @@ public static class GlbOrmRewriter
 		}
 	}
 
-	internal static JsonArray GetJsonArrayOrDefault(JsonObject root, string propertyName)
+	private static JsonArray GetJsonArrayOrDefault(JsonObject root, string propertyName)
 	{
 		if (root.TryGetPropertyValue(propertyName, out var arrayNode) && arrayNode is JsonArray array)
 		{

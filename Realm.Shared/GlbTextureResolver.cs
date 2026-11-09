@@ -32,7 +32,7 @@ public static class GlbTextureResolver
 		return texObj["index"]?.GetValue<int>() ?? -1;
 	}
 
-	internal static int GetImageSourceFromExtension(JsonObject texExt, string extensionName)
+	private static int GetImageSourceFromExtension(JsonObject texExt, string extensionName)
 	{
 		if (texExt[extensionName] is JsonObject extObj)
 		{
@@ -102,7 +102,7 @@ public static class GlbTextureResolver
 		return result;
 	}
 
-	internal static int GetJsonNodeIntValue(JsonObject obj, string propertyName, int defaultValue)
+	public static int GetJsonNodeIntValue(JsonObject obj, string propertyName, int defaultValue)
 	{
 		if (obj.TryGetPropertyValue(propertyName, out var propVal) && propVal != null)
 		{

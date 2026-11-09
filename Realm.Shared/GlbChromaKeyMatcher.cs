@@ -10,7 +10,7 @@ namespace Realm.Shared;
 
 public static class GlbChromaKeyMatcher
 {
-	internal static int ProcessCandidatePixelsForChromaKey(SKBitmap albedoImg, float targetHueUnitX, float targetHueUnitY, Dictionary<int, int> candidateColorCounts)
+	private static int ProcessCandidatePixelsForChromaKey(SKBitmap albedoImg, float targetHueUnitX, float targetHueUnitY, Dictionary<int, int> candidateColorCounts)
 	{
 		int totalCandidatePixels = 0;
 		GlbChromaKeyDetector.IterateOklabPixels(albedoImg, (pixel, pL, pA, pB) =>
@@ -170,7 +170,7 @@ public static class GlbChromaKeyMatcher
 		}
 	}
 
-	internal static void CalculateAndCheckScore(int rgbKey, int count, float targetHueUnitX, float targetHueUnitY, ref float bestScore, ref int bestRgbKey)
+	private static void CalculateAndCheckScore(int rgbKey, int count, float targetHueUnitX, float targetHueUnitY, ref float bestScore, ref int bestRgbKey)
 	{
 		byte rByte = (byte)((rgbKey >> 16) & 0xFF);
 		byte gByte = (byte)((rgbKey >> 8) & 0xFF);

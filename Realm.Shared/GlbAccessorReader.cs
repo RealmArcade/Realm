@@ -10,14 +10,14 @@ namespace Realm.Shared;
 
 public static class GlbAccessorReader
 {
-	internal static int GetAttributeIndex(JsonObject primObj, string attributeName)
+	public static int GetAttributeIndex(JsonObject primObj, string attributeName)
 	{
 		if (primObj["attributes"] is not JsonObject attributes) return -1;
 		if (!attributes.TryGetPropertyValue(attributeName, out var val)) return -1;
 		return val?.GetValue<int>() ?? -1;
 	}
 
-	internal static (bool Valid, int Count, int BaseOffset, int Stride, int ComponentType) GetAccessorBufferInfo(JsonArray accessors, JsonArray bufferViews, int accessorIndex, int defaultElementSize)
+	public static (bool Valid, int Count, int BaseOffset, int Stride, int ComponentType) GetAccessorBufferInfo(JsonArray accessors, JsonArray bufferViews, int accessorIndex, int defaultElementSize)
 	{
 		if (accessorIndex < 0 || accessorIndex >= accessors.Count) return (false, 0, 0, 0, 0);
 		if (accessors[accessorIndex] is not JsonObject acc) return (false, 0, 0, 0, 0);
@@ -39,7 +39,7 @@ public static class GlbAccessorReader
 		return (true, count, baseOffset, stride, componentType);
 	}
 
-	internal static List<Vector2> ReadAccessorVec2(JsonArray accessors, JsonArray bufferViews, byte[] bin, int accessorIndex)
+	public static List<Vector2> ReadAccessorVec2(JsonArray accessors, JsonArray bufferViews, byte[] bin, int accessorIndex)
 	{
 		var result = new List<Vector2>();
 		var (valid, count, baseOffset, stride, componentType) = GetAccessorBufferInfo(accessors, bufferViews, accessorIndex, 8);
@@ -71,7 +71,7 @@ public static class GlbAccessorReader
 		return result;
 	}
 
-	internal static List<Vector3> ReadAccessorVec3(JsonArray accessors, JsonArray bufferViews, byte[] bin, int accessorIndex)
+	public static List<Vector3> ReadAccessorVec3(JsonArray accessors, JsonArray bufferViews, byte[] bin, int accessorIndex)
 	{
 		var result = new List<Vector3>();
 		var (valid, count, baseOffset, stride, _) = GetAccessorBufferInfo(accessors, bufferViews, accessorIndex, 12);
@@ -91,7 +91,7 @@ public static class GlbAccessorReader
 		return result;
 	}
 
-	internal static List<int> ReadAccessorIndices(JsonArray accessors, JsonArray bufferViews, byte[] bin, int accessorIndex)
+	public static List<int> ReadAccessorIndices(JsonArray accessors, JsonArray bufferViews, byte[] bin, int accessorIndex)
 	{
 		var result = new List<int>();
 		var (valid, count, baseOffset, _, componentType) = GetAccessorBufferInfo(accessors, bufferViews, accessorIndex, 4);
@@ -122,14 +122,14 @@ public static class GlbAccessorReader
 		return result;
 	}
 
-	internal static bool TryGetMeshArrays(JsonObject root, out JsonArray meshes, out JsonArray accessors)
+	public static bool TryGetMeshArrays(JsonObject root, out JsonArray meshes, out JsonArray accessors)
 	{
 		meshes = root["meshes"] as JsonArray ?? new JsonArray();
 		accessors = root["accessors"] as JsonArray ?? new JsonArray();
 		return root.ContainsKey("meshes") && root.ContainsKey("accessors");
 	}
 
-	internal static bool TryGetBaseGlbArrays(JsonObject root, out JsonArray textures, out JsonArray materials, out JsonArray images, out JsonArray bufferViews)
+	public static bool TryGetBaseGlbArrays(JsonObject root, out JsonArray textures, out JsonArray materials, out JsonArray images, out JsonArray bufferViews)
 	{
 		textures = root["textures"] as JsonArray ?? new JsonArray();
 		materials = root["materials"] as JsonArray ?? new JsonArray();

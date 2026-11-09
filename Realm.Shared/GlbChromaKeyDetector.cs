@@ -8,11 +8,11 @@ using SkiaSharp;
 
 namespace Realm.Shared;
 
-internal delegate void PixelOklabAction(SKColor pixel, float pL, float pA, float pB);
+public delegate void PixelOklabAction(SKColor pixel, float pL, float pA, float pB);
 
 public static class GlbChromaKeyDetector
 {
-	internal static byte[]? GetGlbBytesFromSpan(ReadOnlySpan<byte> bytes)
+	public static byte[]? GetGlbBytesFromSpan(ReadOnlySpan<byte> bytes)
 	{
 		if (!RmeshFile.IsRmeshBytes(bytes)) return bytes.ToArray();
 
@@ -20,7 +20,7 @@ public static class GlbChromaKeyDetector
 		return (extractedGlb == null || extractedGlb.Length == 0) ? null : extractedGlb;
 	}
 
-	internal static string? AutoDetectChromaKeyFromModel(string filePath)
+	private static string? AutoDetectChromaKeyFromModel(string filePath)
 	{
 		using var importer = new AssimpContext();
 		var scene = importer.ImportFile(filePath, PostProcessSteps.Triangulate | PostProcessSteps.GenerateNormals | PostProcessSteps.MakeLeftHanded | PostProcessSteps.FlipUVs);
@@ -79,7 +79,7 @@ public static class GlbChromaKeyDetector
 		}
 	}
 
-	internal static string? ExtractAlbedoAndDetectChroma(byte[] glbBytes)
+	private static string? ExtractAlbedoAndDetectChroma(byte[] glbBytes)
 	{
 		var (jsonNode, binChunk, _) = GlbManifestUtils.ParseGlb(glbBytes);
 		if (jsonNode is not JsonObject root || binChunk == null) return null;
@@ -101,7 +101,7 @@ public static class GlbChromaKeyDetector
 		return AutoDetectChromaKey(albedoImg);
 	}
 
-	internal static void IterateOklabPixels(SkiaSharp.SKBitmap albedoImg, PixelOklabAction action)
+	public static void IterateOklabPixels(SkiaSharp.SKBitmap albedoImg, PixelOklabAction action)
 	{
 		for (int y = 0; y < albedoImg.Height; y++)
 		{
@@ -131,7 +131,7 @@ public static class GlbChromaKeyDetector
 		return "#FF00FF";
 	}
 
-	internal static void PopulateChromaBins(
+	private static void PopulateChromaBins(
 		SKBitmap albedoImg, float minChroma,
 		float[] binTotalWeight, float[] binSumLightness,
 		float[] binSumA, float[] binSumB, int[] binPixelCount,
@@ -158,7 +158,7 @@ public static class GlbChromaKeyDetector
 		});
 	}
 
-	internal static (int bestGridX, int bestGridY) FindBestChromaCluster(float[] binTotalWeight, int gridDimension)
+	public static (int bestGridX, int bestGridY) FindBestChromaCluster(float[] binTotalWeight, int gridDimension)
 	{
 		float maximumClusterScore = 0f;
 		int bestGridX = -1;
@@ -182,7 +182,7 @@ public static class GlbChromaKeyDetector
 		return (bestGridX, bestGridY);
 	}
 
-	internal static float CalculateClusterScore(int gx, int gy, float[] binTotalWeight, int gridDimension)
+	private static float CalculateClusterScore(int gx, int gy, float[] binTotalWeight, int gridDimension)
 	{
 		float clusterScore = 0f;
 		for (int dy = -1; dy <= 1; dy++)
@@ -202,7 +202,7 @@ public static class GlbChromaKeyDetector
 		return clusterScore;
 	}
 
-	internal static string? ComputeClusterAverageHex(
+	private static string? ComputeClusterAverageHex(
 		int bestGridX, int bestGridY, int gridDimension,
 		float[] binTotalWeight, float[] binSumLightness,
 		float[] binSumA, float[] binSumB, int[] binPixelCount)
@@ -250,7 +250,7 @@ public static class GlbChromaKeyDetector
 		return null;
 	}
 
-	internal static string? DetectDominantChromaKeyWithThreshold(SKBitmap albedoImg, float minChroma)
+	private static string? DetectDominantChromaKeyWithThreshold(SKBitmap albedoImg, float minChroma)
 	{
 		const int gridDimension = 32;
 		const float minGridCoord = -0.40f;
@@ -280,7 +280,7 @@ public static class GlbChromaKeyDetector
 		return null;
 	}
 
-	internal static (float Lightness, float A, float B) ConvertRgbToOklab(float r, float g, float b)
+	public static (float Lightness, float A, float B) ConvertRgbToOklab(float r, float g, float b)
 	{
 		float rLinear = r <= 0.04045f ? r / 12.92f : MathF.Pow((r + 0.055f) / 1.055f, 2.4f);
 		float gLinear = g <= 0.04045f ? g / 12.92f : MathF.Pow((g + 0.055f) / 1.055f, 2.4f);
@@ -301,7 +301,7 @@ public static class GlbChromaKeyDetector
 		return (lightness, a, bComponent);
 	}
 
-	internal static (float R, float G, float B) ConvertOklabToRgb(float lightness, float a, float b)
+	public static (float R, float G, float B) ConvertOklabToRgb(float lightness, float a, float b)
 	{
 		float lRoot = lightness + 0.3963377774f * a + 0.2158037573f * b;
 		float mRoot = lightness - 0.1055613458f * a - 0.0638541728f * b;

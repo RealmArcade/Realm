@@ -24,7 +24,7 @@ public static class GlbTeamColorProbe
 		}
 	}
 
-	internal static bool CheckOrmTeamColorMask(SKBitmap ormImg)
+	private static bool CheckOrmTeamColorMask(SKBitmap ormImg)
 	{
 		int maskCount = 0;
 		int unmaskCount = 0;
@@ -36,7 +36,7 @@ public static class GlbTeamColorProbe
 		return maskCount > 5 && unmaskCount > 5;
 	}
 
-	internal static void CountMaskPixelsInRow(SKBitmap ormImg, int y, ref int maskCount, ref int unmaskCount)
+	private static void CountMaskPixelsInRow(SKBitmap ormImg, int y, ref int maskCount, ref int unmaskCount)
 	{
 		for (int x = 0; x < ormImg.Width; x += 2)
 		{
@@ -67,7 +67,7 @@ public static class GlbTeamColorProbe
 		}
 	}
 
-	internal static bool DetectSupportsTeamColorFromGlb(byte[] glbBytes)
+	private static bool DetectSupportsTeamColorFromGlb(byte[] glbBytes)
 	{
 		var (jsonNode, binChunk, _) = GlbManifestUtils.ParseGlb(glbBytes);
 		if (jsonNode is not JsonObject root || binChunk == null) return false;
