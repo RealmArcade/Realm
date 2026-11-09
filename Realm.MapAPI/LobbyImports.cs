@@ -7,7 +7,7 @@ namespace Realm.MapAPI;
 ///     The roster orders a map script places with the authority, declared by hand because the roster itself is published
 ///     in shared memory the script reads directly: only the orders a script makes cross the boundary.
 /// </summary>
-internal static class LobbyImports
+public static class LobbyImports
 {
 	private const string Module = "custom:game/game-api";
 
