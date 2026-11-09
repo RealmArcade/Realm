@@ -2,9 +2,9 @@ using Microsoft.CodeAnalysis;
 
 namespace Realm.WasmBindgen;
 
-internal static class WitIdentifierFormat
+public static class WitIdentifierFormat
 {
-	internal static string CleanInterfaceName(ITypeSymbol type)
+	public static string CleanInterfaceName(ITypeSymbol type)
 	{
 		string name = type.Name;
 		if (name.StartsWith("I") && name.Length > 1 && char.IsUpper(name[1]))
@@ -12,7 +12,7 @@ internal static class WitIdentifierFormat
 		return name;
 	}
 
-	internal static string EscapeWitIdentifier(string name)
+	public static string EscapeWitIdentifier(string name)
 	{
 		string kebab = ToKebabCase(name);
 		return kebab switch
@@ -23,7 +23,7 @@ internal static class WitIdentifierFormat
 		};
 	}
 
-	internal static string ToKebabCase(string value)
+	public static string ToKebabCase(string value)
 	{
 		if (string.IsNullOrEmpty(value)) return "";
 		var sb = new System.Text.StringBuilder();

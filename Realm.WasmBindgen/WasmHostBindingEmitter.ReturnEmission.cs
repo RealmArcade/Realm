@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -7,9 +7,9 @@ using Microsoft.CodeAnalysis;
 namespace Realm.WasmBindgen;
 
 
-internal static partial class WasmHostBindingEmitter
+public static partial class WasmHostBindingEmitter
 {
-	internal static void EmitBlockBody(StringBuilder sb, IMethodSymbol method, List<ParamInfo> paramInfos, RetKind retKind, string targetInstance, INamedTypeSymbol gameApiSymbol)
+	private static void EmitBlockBody(StringBuilder sb, IMethodSymbol method, List<ParamInfo> paramInfos, RetKind retKind, string targetInstance, INamedTypeSymbol gameApiSymbol)
 	{
 		ReadStringParameters(sb, paramInfos);
 		ReadVector3Parameters(sb, paramInfos);
@@ -21,7 +21,7 @@ internal static partial class WasmHostBindingEmitter
 		EmitMethodCallAndReturn(sb, method, retKind, gameApiSymbol, entityParams, callExpr);
 	}
 
-	internal static void ReadStringParameters(StringBuilder sb, List<ParamInfo> paramInfos)
+	private static void ReadStringParameters(StringBuilder sb, List<ParamInfo> paramInfos)
 	{
 		foreach (var p in paramInfos)
 		{
@@ -34,7 +34,7 @@ internal static partial class WasmHostBindingEmitter
 		}
 	}
 
-	internal static void ReadVector3Parameters(StringBuilder sb, List<ParamInfo> paramInfos)
+	private static void ReadVector3Parameters(StringBuilder sb, List<ParamInfo> paramInfos)
 	{
 		var processedVec = new HashSet<string>();
 		foreach (var p in paramInfos)
@@ -60,7 +60,7 @@ internal static partial class WasmHostBindingEmitter
 		}
 	}
 
-	internal static void ReadEntityParameters(StringBuilder sb, List<ParamInfo> paramInfos, INamedTypeSymbol gameApiSymbol)
+	private static void ReadEntityParameters(StringBuilder sb, List<ParamInfo> paramInfos, INamedTypeSymbol gameApiSymbol)
 	{
 		foreach (var p in paramInfos)
 		{
@@ -79,7 +79,7 @@ internal static partial class WasmHostBindingEmitter
 		}
 	}
 
-	internal static void EmitMethodCallAndReturn(StringBuilder sb, IMethodSymbol method, RetKind retKind, INamedTypeSymbol gameApiSymbol, List<ParamInfo> entityParams, string callExpr)
+	private static void EmitMethodCallAndReturn(StringBuilder sb, IMethodSymbol method, RetKind retKind, INamedTypeSymbol gameApiSymbol, List<ParamInfo> entityParams, string callExpr)
 	{
 		var nonStructEntityParams = entityParams.FindAll(p => !WasmEntityDiscovery.IsEntityIdStruct(p.Type, out _));
 		string condition = nonStructEntityParams.Count > 0 ? string.Join(" && ", nonStructEntityParams.Select(u => $"{u.Name} != null")) : "";
@@ -108,7 +108,7 @@ internal static partial class WasmHostBindingEmitter
 		}
 	}
 
-	internal static void EmitVoidReturn(StringBuilder sb, bool noEntityParams, string condition, string callExpr)
+	private static void EmitVoidReturn(StringBuilder sb, bool noEntityParams, string condition, string callExpr)
 	{
 		if (noEntityParams)
 			sb.AppendLine($"            {callExpr};");
@@ -116,13 +116,13 @@ internal static partial class WasmHostBindingEmitter
 			sb.AppendLine($"            if ({condition}) {callExpr};");
 	}
 
-	internal static void EmitStringReturn(StringBuilder sb, string callExpr)
+	private static void EmitStringReturn(StringBuilder sb, string callExpr)
 	{
 		sb.AppendLine($"            string result = {callExpr} ?? \"\";");
 		sb.AppendLine("            WriteGuestString(caller, retArea, result);");
 	}
 
-	internal static void EmitEntityListReturn(StringBuilder sb, IMethodSymbol method, INamedTypeSymbol gameApiSymbol, string callExpr)
+	private static void EmitEntityListReturn(StringBuilder sb, IMethodSymbol method, INamedTypeSymbol gameApiSymbol, string callExpr)
 	{
 		WasmEntityDiscovery.IsCollection(method.ReturnType, out var elemType);
 		if (WasmEntityDiscovery.IsEntityIdStruct(elemType, out _))
@@ -149,7 +149,7 @@ internal static partial class WasmHostBindingEmitter
 		}
 	}
 
-	internal static void EmitEntitySingleReturn(StringBuilder sb, IMethodSymbol method, INamedTypeSymbol gameApiSymbol, bool noEntityParams, string condition, string callExpr)
+	private static void EmitEntitySingleReturn(StringBuilder sb, IMethodSymbol method, INamedTypeSymbol gameApiSymbol, bool noEntityParams, string condition, string callExpr)
 	{
 		if (WasmEntityDiscovery.IsEntityIdStruct(method.ReturnType, out _))
 		{
@@ -187,7 +187,7 @@ internal static partial class WasmHostBindingEmitter
 		}
 	}
 
-	internal static void EmitBoolReturn(StringBuilder sb, bool noEntityParams, string condition, string callExpr)
+	private static void EmitBoolReturn(StringBuilder sb, bool noEntityParams, string condition, string callExpr)
 	{
 		if (noEntityParams)
 			sb.AppendLine($"            return ({callExpr} ?? false) ? 1 : 0;");
@@ -195,7 +195,7 @@ internal static partial class WasmHostBindingEmitter
 			sb.AppendLine($"            return ({condition}) ? (({callExpr} ?? false) ? 1 : 0) : 0;");
 	}
 
-	internal static void EmitDefaultReturn(StringBuilder sb, RetKind retKind, bool noEntityParams, string condition, string callExpr)
+	private static void EmitDefaultReturn(StringBuilder sb, RetKind retKind, bool noEntityParams, string condition, string callExpr)
 	{
 		string defaultVal = retKind == RetKind.DirectFloat ? "0f" : "0";
 		if (noEntityParams)
@@ -204,7 +204,7 @@ internal static partial class WasmHostBindingEmitter
 			sb.AppendLine($"            return ({condition}) ? ({callExpr} ?? {defaultVal}) : {defaultVal};");
 	}
 
-	internal static void EmitEntityReturnMapping(StringBuilder sb, INamedTypeSymbol gameApiSymbol, ITypeSymbol unwrapped, bool hasUniqueId, string resultVar)
+	private static void EmitEntityReturnMapping(StringBuilder sb, INamedTypeSymbol gameApiSymbol, ITypeSymbol unwrapped, bool hasUniqueId, string resultVar)
 	{
 		if (hasUniqueId)
 		{
@@ -217,7 +217,7 @@ internal static partial class WasmHostBindingEmitter
 		}
 	}
 
-	internal static string BuildSimpleExpression(IMethodSymbol method, List<ParamInfo> paramInfos, RetKind retKind, string targetInstance, INamedTypeSymbol gameApiSymbol)
+	private static string BuildSimpleExpression(IMethodSymbol method, List<ParamInfo> paramInfos, RetKind retKind, string targetInstance, INamedTypeSymbol gameApiSymbol)
 	{
 		string callExpr = BuildCallExpression(method, targetInstance);
 		if (retKind == RetKind.EntityReturn || retKind == RetKind.EntityNullableReturn)
@@ -246,12 +246,12 @@ internal static partial class WasmHostBindingEmitter
 		};
 	}
 
-	internal static void lastWasWasMultiLine(ref bool last, bool current)
+	private static void lastWasWasMultiLine(ref bool last, bool current)
 	{
 		last = current;
 	}
 
-	internal static string? RetKindToWit(RetKind retKind)
+	public static string? RetKindToWit(RetKind retKind)
 	{
 		return retKind switch
 		{
@@ -267,7 +267,7 @@ internal static partial class WasmHostBindingEmitter
 		};
 	}
 
-	internal static HashSet<string> CollectPropertyAccessorNames(INamedTypeSymbol symbol)
+	public static HashSet<string> CollectPropertyAccessorNames(INamedTypeSymbol symbol)
 	{
 		var set = new HashSet<string>(StringComparer.Ordinal);
 		foreach (var member in symbol.GetMembers())

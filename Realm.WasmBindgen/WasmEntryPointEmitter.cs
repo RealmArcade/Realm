@@ -9,9 +9,9 @@ using Microsoft.CodeAnalysis;
 
 namespace Realm.WasmBindgen;
 
-internal static class WasmEntryPointEmitter
+public static class WasmEntryPointEmitter
 {
-	internal static void GenerateWasmEntryPoint(string repoRoot, INamedTypeSymbol gameApiSymbol)
+	public static void GenerateWasmEntryPoint(string repoRoot, INamedTypeSymbol gameApiSymbol)
 	{
 		string templatePath = Path.Combine(repoRoot, "MapTemplate", "WasmEntryPoint.template.cs");
 		if (!File.Exists(templatePath)) return;
@@ -59,7 +59,7 @@ internal static class WasmEntryPointEmitter
 		}
 	}
 
-	internal static void EmitWasmEntryPointEventHandler(StringBuilder stringBuilder, IEventSymbol eventSymbol)
+	private static void EmitWasmEntryPointEventHandler(StringBuilder stringBuilder, IEventSymbol eventSymbol)
 	{
 		var delegateMethod = ((INamedTypeSymbol)eventSymbol.Type).DelegateInvokeMethod;
 		if (delegateMethod == null) return;
@@ -131,7 +131,7 @@ internal static class WasmEntryPointEmitter
 		stringBuilder.AppendLine();
 	}
 
-	internal static List<string> GenerateWasmEntryPointParameterNames(ImmutableArray<IParameterSymbol> parameters)
+	private static List<string> GenerateWasmEntryPointParameterNames(ImmutableArray<IParameterSymbol> parameters)
 	{
 		var baseNames = new List<string>(parameters.Length);
 		for (int parameterIndex = 0; parameterIndex < parameters.Length; parameterIndex++)
@@ -184,7 +184,7 @@ internal static class WasmEntryPointEmitter
 		return resolvedNames;
 	}
 
-	internal static bool HasAuthoredSymbolParameterName(IParameterSymbol parameter)
+	private static bool HasAuthoredSymbolParameterName(IParameterSymbol parameter)
 	{
 		if (string.IsNullOrWhiteSpace(parameter.Name)) return false;
 		if (string.Equals(parameter.Name, "obj", StringComparison.OrdinalIgnoreCase)) return false;
@@ -197,7 +197,7 @@ internal static class WasmEntryPointEmitter
 		return true;
 	}
 
-	internal static string GetDefaultBaseSymbolParameterName(ITypeSymbol type)
+	private static string GetDefaultBaseSymbolParameterName(ITypeSymbol type)
 	{
 		if (WasmEntityDiscovery.IsEntityInterface(type, out var unwrapped))
 		{
@@ -239,7 +239,7 @@ internal static class WasmEntryPointEmitter
 		return "param";
 	}
 
-	internal static string GetCleanSymbolTypeName(ITypeSymbol type)
+	private static string GetCleanSymbolTypeName(ITypeSymbol type)
 	{
 		if (type.SpecialType == SpecialType.System_Int32) return "int";
 		if (type.SpecialType == SpecialType.System_Single) return "float";

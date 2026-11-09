@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -7,9 +7,9 @@ using Microsoft.CodeAnalysis;
 namespace Realm.WasmBindgen;
 
 
-internal static partial class WasmHostBindingEmitter
+public static partial class WasmHostBindingEmitter
 {
-	internal static void EmitEntityMethodBinding(StringBuilder sb, IMethodSymbol method, string tKebab, INamedTypeSymbol entitySymbol, INamedTypeSymbol gameApiSymbol, ref bool lastWasMultiLine, HashSet<string> definedFunctions, List<string> methodNames)
+	private static void EmitEntityMethodBinding(StringBuilder sb, IMethodSymbol method, string tKebab, INamedTypeSymbol entitySymbol, INamedTypeSymbol gameApiSymbol, ref bool lastWasMultiLine, HashSet<string> definedFunctions, List<string> methodNames)
 	{
 		var retKind = WasmTypeClassifier.ClassifyReturn(method.ReturnType);
 		if (!IsValidReturnType(retKind, method.ReturnType)) return;
@@ -56,20 +56,20 @@ internal static partial class WasmHostBindingEmitter
 		lastWasMultiLine = true;
 	}
 
-	internal static bool IsValidReturnType(RetKind retKind, ITypeSymbol returnType)
+	private static bool IsValidReturnType(RetKind retKind, ITypeSymbol returnType)
 	{
 		if (retKind == RetKind.EntityListReturn) return false;
 		if (retKind != RetKind.Unsupported) return true;
 		return returnType.ToDisplayString() == "System.Numerics.Vector3" || returnType.SpecialType == SpecialType.System_Void;
 	}
 
-	internal static string GetDefaultReturnValue(IMethodSymbol method, RetKind retKind, bool needsRetArea)
+	private static string GetDefaultReturnValue(IMethodSymbol method, RetKind retKind, bool needsRetArea)
 	{
 		if (method.ReturnType.SpecialType == SpecialType.System_Void || needsRetArea) return string.Empty;
 		return retKind == RetKind.DirectFloat ? "0f" : "0";
 	}
 
-	internal static List<ParamInfo>? ExtractParamInfos(IMethodSymbol method)
+	private static List<ParamInfo>? ExtractParamInfos(IMethodSymbol method)
 	{
 		var paramInfos = new List<ParamInfo>();
 		foreach (var param in method.Parameters)
@@ -82,7 +82,7 @@ internal static partial class WasmHostBindingEmitter
 		return paramInfos;
 	}
 
-	internal static string BuildEntityLambdaParams(IMethodSymbol method, List<ParamInfo> paramInfos, bool needsRetArea)
+	private static string BuildEntityLambdaParams(IMethodSymbol method, List<ParamInfo> paramInfos, bool needsRetArea)
 	{
 		bool hasStringParam = method.Parameters.Any(p => p.Type.SpecialType == SpecialType.System_String);
 		bool hasListParam = method.Parameters.Any(p => WasmTypeClassifier.ClassifyParam(p.Type) == PrmKind.StringListParam || WasmTypeClassifier.ClassifyParam(p.Type) == PrmKind.FloatListParam);
@@ -97,7 +97,7 @@ internal static partial class WasmHostBindingEmitter
 		return string.Join(", ", lambdaParams);
 	}
 
-	internal static void EmitEntityStringListMethod(StringBuilder sb, string witName, string resolver, IMethodSymbol method, ref bool lastWasMultiLine, HashSet<string> definedFunctions, List<string> methodNames)
+	private static void EmitEntityStringListMethod(StringBuilder sb, string witName, string resolver, IMethodSymbol method, ref bool lastWasMultiLine, HashSet<string> definedFunctions, List<string> methodNames)
 	{
 		string countName = $"{witName}-count";
 		if (definedFunctions.Add(countName))
@@ -128,7 +128,7 @@ internal static partial class WasmHostBindingEmitter
 		lastWasMultiLine = true;
 	}
 
-	internal static string GetLambdaParamDefinition(ParamInfo p)
+	private static string GetLambdaParamDefinition(ParamInfo p)
 	{
 		return p.Kind switch
 		{
@@ -145,7 +145,7 @@ internal static partial class WasmHostBindingEmitter
 		};
 	}
 
-	internal static void EmitEntityMethodParameters(StringBuilder sb, List<ParamInfo> paramInfos, INamedTypeSymbol gameApiSymbol)
+	private static void EmitEntityMethodParameters(StringBuilder sb, List<ParamInfo> paramInfos, INamedTypeSymbol gameApiSymbol)
 	{
 		foreach (var p in paramInfos)
 		{
@@ -172,7 +172,7 @@ internal static partial class WasmHostBindingEmitter
 		}
 	}
 
-	internal static void EmitEntityMethodCall(StringBuilder sb, IMethodSymbol method, RetKind retKind, INamedTypeSymbol gameApiSymbol, bool needsRetArea)
+	private static void EmitEntityMethodCall(StringBuilder sb, IMethodSymbol method, RetKind retKind, INamedTypeSymbol gameApiSymbol, bool needsRetArea)
 	{
 		string callExpr = BuildEntityMethodCallExpression(method);
 
@@ -193,7 +193,7 @@ internal static partial class WasmHostBindingEmitter
 		sb.AppendLine($"                return {exprMapped};");
 	}
 
-	internal static string BuildEntityMethodCallExpression(IMethodSymbol method)
+	private static string BuildEntityMethodCallExpression(IMethodSymbol method)
 	{
 		var callArgs = new List<string>();
 		foreach (var p in method.Parameters)
@@ -209,7 +209,7 @@ internal static partial class WasmHostBindingEmitter
 		return $"hostTarget.{method.Name}({string.Join(", ", callArgs)})";
 	}
 
-	internal static string MapEntityMethodReturnExpression(IMethodSymbol method, RetKind retKind, INamedTypeSymbol gameApiSymbol, string callExpr)
+	private static string MapEntityMethodReturnExpression(IMethodSymbol method, RetKind retKind, INamedTypeSymbol gameApiSymbol, string callExpr)
 	{
 		if (retKind == RetKind.EntityReturn || retKind == RetKind.EntityNullableReturn)
 		{

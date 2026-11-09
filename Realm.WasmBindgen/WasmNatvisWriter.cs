@@ -9,9 +9,9 @@ using Microsoft.CodeAnalysis;
 
 namespace Realm.WasmBindgen;
 
-internal static class WasmNatvisWriter
+public static class WasmNatvisWriter
 {
-	internal static void GenerateNatvisFile(string repoRoot, Compilation compilation)
+	public static void GenerateNatvisFile(string repoRoot, Compilation compilation)
 	{
 		string targetPath = Path.Combine(repoRoot, "realm.natvis");
 		string templatePath = Path.Combine(repoRoot, "Realm.WasmBindgen", "realm.natvis.template.xml");
@@ -60,7 +60,7 @@ internal static class WasmNatvisWriter
 		}
 	}
 
-	internal static List<INamedTypeSymbol> DiscoverHandleTypes(Compilation compilation)
+	private static List<INamedTypeSymbol> DiscoverHandleTypes(Compilation compilation)
 	{
 		var gameApiSymbol = compilation.GetTypeByMetadataName("Realm.MapAPI.IGameAPI");
 		if (gameApiSymbol == null) return new List<INamedTypeSymbol>();
@@ -73,12 +73,12 @@ internal static class WasmNatvisWriter
 			.ToList();
 	}
 
-	internal static IEnumerable<INamedTypeSymbol> GetAllTypes(IAssemblySymbol assembly)
+	private static IEnumerable<INamedTypeSymbol> GetAllTypes(IAssemblySymbol assembly)
 	{
 		return GetAllTypes(assembly.GlobalNamespace);
 	}
 
-	internal static IEnumerable<INamedTypeSymbol> GetAllTypes(INamespaceSymbol namespaceSymbol)
+	private static IEnumerable<INamedTypeSymbol> GetAllTypes(INamespaceSymbol namespaceSymbol)
 	{
 		foreach (var member in namespaceSymbol.GetMembers())
 		{

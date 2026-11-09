@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -7,9 +7,9 @@ using Microsoft.CodeAnalysis;
 namespace Realm.WasmBindgen;
 
 
-internal static partial class WasmHostBindingEmitter
+public static partial class WasmHostBindingEmitter
 {
-	internal static void EmitPropertyBindings(StringBuilder sb, IPropertySymbol property, ref bool lastWasMultiLine, string targetInstance, HashSet<string> definedFunctions, List<string> methodNames)
+	private static void EmitPropertyBindings(StringBuilder sb, IPropertySymbol property, ref bool lastWasMultiLine, string targetInstance, HashSet<string> definedFunctions, List<string> methodNames)
 	{
 		var retKind = WasmTypeClassifier.ClassifyReturn(property.Type);
 		if (retKind == RetKind.Unsupported || RetKindToWit(retKind) == null)
@@ -21,7 +21,7 @@ internal static partial class WasmHostBindingEmitter
 		EmitPropertySetter(sb, property, witBase, targetInstance, definedFunctions, methodNames);
 	}
 
-	internal static void EmitPropertyGetter(StringBuilder sb, IPropertySymbol property, string witBase, RetKind retKind, string targetInstance, ref bool lastWasMultiLine, HashSet<string> definedFunctions, List<string> methodNames)
+	private static void EmitPropertyGetter(StringBuilder sb, IPropertySymbol property, string witBase, RetKind retKind, string targetInstance, ref bool lastWasMultiLine, HashSet<string> definedFunctions, List<string> methodNames)
 	{
 		if (property.GetMethod == null) return;
 
@@ -46,7 +46,7 @@ internal static partial class WasmHostBindingEmitter
 		lastWasMultiLine = false;
 	}
 
-	internal static void EmitPropertySetter(StringBuilder sb, IPropertySymbol property, string witBase, string targetInstance, HashSet<string> definedFunctions, List<string> methodNames)
+	private static void EmitPropertySetter(StringBuilder sb, IPropertySymbol property, string witBase, string targetInstance, HashSet<string> definedFunctions, List<string> methodNames)
 	{
 		if (property.SetMethod == null) return;
 
@@ -66,7 +66,7 @@ internal static partial class WasmHostBindingEmitter
 			sb.AppendLine($"        _linker.DefineFunction(mod, \"{setWitBase}\", (Caller caller, int valPtr, int valLen) => {{ using var _scope = BeginProfileApiCall({methodIndex}); if ({targetInstance} != null) {targetInstance}.{property.Name} = ReadGuestString(caller, valPtr, valLen); }});");
 	}
 
-	internal static string BuildPropertyGetterExpression(string propertyName, RetKind retKind, string targetInstance)
+	private static string BuildPropertyGetterExpression(string propertyName, RetKind retKind, string targetInstance)
 	{
 		return retKind switch
 		{
@@ -78,7 +78,7 @@ internal static partial class WasmHostBindingEmitter
 		};
 	}
 
-	internal static void EmitMethodBinding(StringBuilder sb, IMethodSymbol method, ref bool lastWasMultiLine, string targetInstance, INamedTypeSymbol gameApiSymbol, HashSet<string> definedFunctions, List<string> methodNames)
+	private static void EmitMethodBinding(StringBuilder sb, IMethodSymbol method, ref bool lastWasMultiLine, string targetInstance, INamedTypeSymbol gameApiSymbol, HashSet<string> definedFunctions, List<string> methodNames)
 	{
 		if (method.Parameters.Any(p => p.RefKind != RefKind.None)) return;
 
@@ -106,7 +106,7 @@ internal static partial class WasmHostBindingEmitter
 		EmitStandardMethodBinding(sb, method, witName, paramInfos, retKind, isVector3Ret, targetInstance, gameApiSymbol, ref lastWasMultiLine, definedFunctions, methodNames);
 	}
 
-	internal static void EmitStringListMethodBinding(StringBuilder sb, IMethodSymbol method, string witName, List<ParamInfo> paramInfos, string targetInstance, INamedTypeSymbol gameApiSymbol, ref bool lastWasMultiLine, HashSet<string> definedFunctions, List<string> methodNames)
+	private static void EmitStringListMethodBinding(StringBuilder sb, IMethodSymbol method, string witName, List<ParamInfo> paramInfos, string targetInstance, INamedTypeSymbol gameApiSymbol, ref bool lastWasMultiLine, HashSet<string> definedFunctions, List<string> methodNames)
 	{
 		string countName = $"{witName}-count";
 		int countIdx = methodNames.Count;
@@ -141,7 +141,7 @@ internal static partial class WasmHostBindingEmitter
 		lastWasMultiLine = true;
 	}
 
-	internal static void EmitStandardMethodBinding(StringBuilder sb, IMethodSymbol method, string witName, List<ParamInfo> paramInfos, RetKind retKind, bool isVector3Ret, string targetInstance, INamedTypeSymbol gameApiSymbol, ref bool lastWasMultiLine, HashSet<string> definedFunctions, List<string> methodNames)
+	private static void EmitStandardMethodBinding(StringBuilder sb, IMethodSymbol method, string witName, List<ParamInfo> paramInfos, RetKind retKind, bool isVector3Ret, string targetInstance, INamedTypeSymbol gameApiSymbol, ref bool lastWasMultiLine, HashSet<string> definedFunctions, List<string> methodNames)
 	{
 		bool hasStringParam = method.Parameters.Any(p => p.Type.SpecialType == SpecialType.System_String);
 		bool hasListParam = method.Parameters.Any(p => WasmTypeClassifier.ClassifyParam(p.Type) == PrmKind.StringListParam || WasmTypeClassifier.ClassifyParam(p.Type) == PrmKind.FloatListParam);
@@ -191,7 +191,7 @@ internal static partial class WasmHostBindingEmitter
 		lastWasWasMultiLine(ref lastWasMultiLine, true);
 	}
 
-	internal static bool CanUseExpressionBody(IMethodSymbol method, bool isVector3Ret, bool hasStringParam, bool hasListParam, bool needsRetArea, RetKind retKind)
+	private static bool CanUseExpressionBody(IMethodSymbol method, bool isVector3Ret, bool hasStringParam, bool hasListParam, bool needsRetArea, RetKind retKind)
 	{
 		bool hasVector2Param = method.Parameters.Any(p => p.Type.ToDisplayString() == "System.Numerics.Vector2");
 		bool hasVector3Param = method.Parameters.Any(p => p.Type.ToDisplayString() == "System.Numerics.Vector3");
@@ -201,7 +201,7 @@ internal static partial class WasmHostBindingEmitter
 		return !isVector3Ret && !hasStringParam && !hasListParam && !hasVector2Param && !hasVector3Param && !hasVector3NullableParam && !hasUnitParam && !needsRetArea && retKind != RetKind.EntityReturn && retKind != RetKind.EntityNullableReturn;
 	}
 
-	internal static void EmitVector3AxisBinding(StringBuilder sb, string witName, string axis, string lambdaParams, List<ParamInfo> paramInfos, IMethodSymbol method, string targetInstance, INamedTypeSymbol gameApiSymbol, List<string> methodNames)
+	private static void EmitVector3AxisBinding(StringBuilder sb, string witName, string axis, string lambdaParams, List<ParamInfo> paramInfos, IMethodSymbol method, string targetInstance, INamedTypeSymbol gameApiSymbol, List<string> methodNames)
 	{
 		string axisName = $"{witName}-{axis}";
 		int methodIndex = methodNames.Count;
@@ -249,7 +249,7 @@ internal static partial class WasmHostBindingEmitter
 		sb.AppendLine("        });");
 	}
 
-	internal static string BuildLambdaParams(List<ParamInfo> paramInfos, bool needsCaller, bool needsRetArea)
+	private static string BuildLambdaParams(List<ParamInfo> paramInfos, bool needsCaller, bool needsRetArea)
 	{
 		var parts = new List<string>();
 
@@ -260,7 +260,7 @@ internal static partial class WasmHostBindingEmitter
 		return string.Join(", ", parts);
 	}
 
-	internal static List<string> GetMethodCallArgs(IMethodSymbol method)
+	private static List<string> GetMethodCallArgs(IMethodSymbol method)
 	{
 		var args = new List<string>();
 		foreach (var p in method.Parameters)
@@ -279,7 +279,7 @@ internal static partial class WasmHostBindingEmitter
 		return args;
 	}
 
-	internal static string BuildCallExpression(IMethodSymbol method, string targetInstance)
+	private static string BuildCallExpression(IMethodSymbol method, string targetInstance)
 	{
 		var args = GetMethodCallArgs(method);
 		return $"{targetInstance}?.{method.Name}({string.Join(", ", args)})";

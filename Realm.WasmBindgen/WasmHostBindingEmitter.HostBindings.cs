@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -7,9 +7,9 @@ using Microsoft.CodeAnalysis;
 namespace Realm.WasmBindgen;
 
 
-internal static partial class WasmHostBindingEmitter
+public static partial class WasmHostBindingEmitter
 {
-	internal static void GenerateGameApiBindings(StringBuilder sb, INamedTypeSymbol gameApiSymbol, HashSet<string> definedFunctions, List<string> methodNames, ref bool lastWasMultiLine)
+	private static void GenerateGameApiBindings(StringBuilder sb, INamedTypeSymbol gameApiSymbol, HashSet<string> definedFunctions, List<string> methodNames, ref bool lastWasMultiLine)
 	{
 		var propertyAccessorMethods = CollectPropertyAccessorNames(gameApiSymbol);
 
@@ -32,7 +32,7 @@ internal static partial class WasmHostBindingEmitter
 		}
 	}
 
-	internal static void GenerateEntityInterfaceBindings(StringBuilder sb, HashSet<INamedTypeSymbol> entityInterfaces, INamedTypeSymbol gameApiSymbol, HashSet<string> definedFunctions, List<string> methodNames, ref bool lastWasMultiLine)
+	private static void GenerateEntityInterfaceBindings(StringBuilder sb, HashSet<INamedTypeSymbol> entityInterfaces, INamedTypeSymbol gameApiSymbol, HashSet<string> definedFunctions, List<string> methodNames, ref bool lastWasMultiLine)
 	{
 		foreach (var entityIface in entityInterfaces)
 		{
@@ -40,7 +40,7 @@ internal static partial class WasmHostBindingEmitter
 		}
 	}
 
-	internal static void GenerateSingleEntityInterfaceBinding(StringBuilder sb, INamedTypeSymbol entityIface, INamedTypeSymbol gameApiSymbol, HashSet<string> definedFunctions, List<string> methodNames, ref bool lastWasMultiLine)
+	private static void GenerateSingleEntityInterfaceBinding(StringBuilder sb, INamedTypeSymbol entityIface, INamedTypeSymbol gameApiSymbol, HashSet<string> definedFunctions, List<string> methodNames, ref bool lastWasMultiLine)
 	{
 		string tKebab = WitIdentifierFormat.ToKebabCase(WitIdentifierFormat.CleanInterfaceName(entityIface));
 		bool hasUniqueId = entityIface.GetMembers().Any(m => m is IPropertySymbol p && p.Name == "UniqueId");
@@ -54,7 +54,7 @@ internal static partial class WasmHostBindingEmitter
 		}
 	}
 
-	internal static void EmitEntityCountFunctionIfNeeded(StringBuilder sb, INamedTypeSymbol entityIface, INamedTypeSymbol gameApiSymbol, string tKebab, bool hasUniqueId, HashSet<string> definedFunctions, List<string> methodNames)
+	private static void EmitEntityCountFunctionIfNeeded(StringBuilder sb, INamedTypeSymbol entityIface, INamedTypeSymbol gameApiSymbol, string tKebab, bool hasUniqueId, HashSet<string> definedFunctions, List<string> methodNames)
 	{
 		if (hasUniqueId) return;
 
@@ -67,7 +67,7 @@ internal static partial class WasmHostBindingEmitter
 		}
 	}
 
-	internal static void ProcessEntityInterfaceMember(StringBuilder sb, ISymbol member, INamedTypeSymbol entityIface, INamedTypeSymbol gameApiSymbol, string tKebab, HashSet<string> accessorMethods, HashSet<string> definedFunctions, List<string> methodNames, ref bool lastWasMultiLine)
+	private static void ProcessEntityInterfaceMember(StringBuilder sb, ISymbol member, INamedTypeSymbol entityIface, INamedTypeSymbol gameApiSymbol, string tKebab, HashSet<string> accessorMethods, HashSet<string> definedFunctions, List<string> methodNames, ref bool lastWasMultiLine)
 	{
 		if (!member.IsAbstract) return;
 

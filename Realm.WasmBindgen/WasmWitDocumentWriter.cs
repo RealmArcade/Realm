@@ -6,9 +6,9 @@ using Microsoft.CodeAnalysis;
 
 namespace Realm.WasmBindgen;
 
-internal static class WasmWitDocumentWriter
+public static class WasmWitDocumentWriter
 {
-	internal static string GenerateWitContent(INamedTypeSymbol gameApiSymbol, HashSet<INamedTypeSymbol> entityInterfaces, string manualFunctions)
+	public static string GenerateWitContent(INamedTypeSymbol gameApiSymbol, HashSet<INamedTypeSymbol> entityInterfaces, string manualFunctions)
 	{
 		var functions = new SortedDictionary<string, string>(StringComparer.Ordinal);
 
@@ -42,7 +42,7 @@ internal static class WasmWitDocumentWriter
 		return wit.ToString();
 	}
 
-	internal static void AppendWitGameApiMembers(SortedDictionary<string, string> functions, INamedTypeSymbol gameApiSymbol)
+	private static void AppendWitGameApiMembers(SortedDictionary<string, string> functions, INamedTypeSymbol gameApiSymbol)
 	{
 		var propertyAccessorMethods = WasmHostBindingEmitter.CollectPropertyAccessorNames(gameApiSymbol);
 
@@ -64,7 +64,7 @@ internal static class WasmWitDocumentWriter
 		}
 	}
 
-	internal static void AppendWitEntityInterfaces(SortedDictionary<string, string> functions, HashSet<INamedTypeSymbol> entityInterfaces)
+	private static void AppendWitEntityInterfaces(SortedDictionary<string, string> functions, HashSet<INamedTypeSymbol> entityInterfaces)
 	{
 		foreach (var entityIface in entityInterfaces.OrderBy(e => e.Name, StringComparer.Ordinal))
 		{
@@ -72,7 +72,7 @@ internal static class WasmWitDocumentWriter
 		}
 	}
 
-	internal static void AppendWitEntityInterface(SortedDictionary<string, string> functions, INamedTypeSymbol entitySymbol)
+	private static void AppendWitEntityInterface(SortedDictionary<string, string> functions, INamedTypeSymbol entitySymbol)
 	{
 		string tKebab = WitIdentifierFormat.ToKebabCase(WitIdentifierFormat.CleanInterfaceName(entitySymbol));
 		bool hasUniqueId = entitySymbol.GetMembers().Any(m => m is IPropertySymbol p && p.Name == "UniqueId");
@@ -101,7 +101,7 @@ internal static class WasmWitDocumentWriter
 		}
 	}
 
-	internal static void AppendWitEntityProperties(SortedDictionary<string, string> functions, IPropertySymbol property, string tKebab)
+	private static void AppendWitEntityProperties(SortedDictionary<string, string> functions, IPropertySymbol property, string tKebab)
 	{
 		string witBase = $"{tKebab}-{WitIdentifierFormat.ToKebabCase(property.Name)}";
 
@@ -135,7 +135,7 @@ internal static class WasmWitDocumentWriter
 		}
 	}
 
-	internal static void AppendWitEntityMethod(SortedDictionary<string, string> functions, IMethodSymbol method, string tKebab)
+	private static void AppendWitEntityMethod(SortedDictionary<string, string> functions, IMethodSymbol method, string tKebab)
 	{
 		if (method.Parameters.Any(p => p.RefKind != RefKind.None)) return;
 
@@ -165,26 +165,26 @@ internal static class WasmWitDocumentWriter
 		AppendWitStandardMethod(functions, method, witName, paramsStr, retKind);
 	}
 
-	internal static void AppendWitVector3Method(SortedDictionary<string, string> functions, string witName, string paramsStr)
+	private static void AppendWitVector3Method(SortedDictionary<string, string> functions, string witName, string paramsStr)
 	{
 		AppendFunction(functions, $"{witName}-x", $"func({paramsStr}) -> f32");
 		AppendFunction(functions, $"{witName}-y", $"func({paramsStr}) -> f32");
 		AppendFunction(functions, $"{witName}-z", $"func({paramsStr}) -> f32");
 	}
 
-	internal static void AppendWitStringListMethod(SortedDictionary<string, string> functions, string witName, string paramsStr)
+	private static void AppendWitStringListMethod(SortedDictionary<string, string> functions, string witName, string paramsStr)
 	{
 		AppendFunction(functions, $"{witName}-count", $"func({paramsStr}) -> s32");
 		AppendFunction(functions, $"{witName}-get", $"func({paramsStr}, index: s32) -> string");
 	}
 
-	internal static void AppendWitStandardMethod(SortedDictionary<string, string> functions, IMethodSymbol method, string witName, string paramsStr, RetKind retKind)
+	private static void AppendWitStandardMethod(SortedDictionary<string, string> functions, IMethodSymbol method, string witName, string paramsStr, RetKind retKind)
 	{
 		string retStr = (retKind == RetKind.Void || method.ReturnType.SpecialType == SpecialType.System_Void) ? "" : $" -> {WasmHostBindingEmitter.RetKindToWit(retKind)}";
 		AppendFunction(functions, witName, $"func({paramsStr}){retStr}");
 	}
 
-	internal static string? BuildWitEntityMethodParams(IMethodSymbol method)
+	public static string? BuildWitEntityMethodParams(IMethodSymbol method)
 	{
 		var witParams = new List<string> { "id: s32" };
 		foreach (var param in method.Parameters)
@@ -197,7 +197,7 @@ internal static class WasmWitDocumentWriter
 		return string.Join(", ", witParams);
 	}
 
-	internal static void AppendWitProperty(SortedDictionary<string, string> functions, IPropertySymbol property)
+	private static void AppendWitProperty(SortedDictionary<string, string> functions, IPropertySymbol property)
 	{
 		var retKind = WasmTypeClassifier.ClassifyReturn(property.Type);
 		if (retKind == RetKind.Unsupported)
@@ -219,7 +219,7 @@ internal static class WasmWitDocumentWriter
 		}
 	}
 
-	internal static void AppendWitMethod(SortedDictionary<string, string> functions, IMethodSymbol method)
+	private static void AppendWitMethod(SortedDictionary<string, string> functions, IMethodSymbol method)
 	{
 		if (method.Parameters.Any(p => p.RefKind != RefKind.None)) return;
 
@@ -251,7 +251,7 @@ internal static class WasmWitDocumentWriter
 		}
 	}
 
-	internal static string? BuildWitMethodParams(IMethodSymbol method)
+	public static string? BuildWitMethodParams(IMethodSymbol method)
 	{
 		if (method.Parameters.Length == 0) return "";
 		var witParams = new List<string>();
@@ -265,7 +265,7 @@ internal static class WasmWitDocumentWriter
 		return string.Join(", ", witParams);
 	}
 
-	internal static string? ParamToWit(ITypeSymbol type, string name)
+	private static string? ParamToWit(ITypeSymbol type, string name)
 	{
 		var kind = WasmTypeClassifier.ClassifyParam(type);
 		string paramName = WitIdentifierFormat.EscapeWitIdentifier(name);
@@ -285,7 +285,7 @@ internal static class WasmWitDocumentWriter
 		};
 	}
 
-	internal static string? RetKindToWitParam(RetKind retKind)
+	private static string? RetKindToWitParam(RetKind retKind)
 	{
 		return retKind switch
 		{
@@ -300,7 +300,7 @@ internal static class WasmWitDocumentWriter
 		};
 	}
 
-	internal static void AppendFunction(SortedDictionary<string, string> functions, string name, string body)
+	private static void AppendFunction(SortedDictionary<string, string> functions, string name, string body)
 	{
 		if (!functions.ContainsKey(name))
 		{

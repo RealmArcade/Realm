@@ -9,9 +9,9 @@ using Microsoft.CodeAnalysis;
 
 namespace Realm.WasmBindgen;
 
-internal static class WasmLldbScriptWriter
+public static class WasmLldbScriptWriter
 {
-	internal static void GenerateLldbScript(string repoRoot, Compilation compilation)
+	public static void GenerateLldbScript(string repoRoot, Compilation compilation)
 	{
 		string targetPath = Path.Combine(repoRoot, "MapTemplate", "realm_lldb.py");
 		string templatePath = Path.Combine(repoRoot, "Realm.WasmBindgen", "realm_lldb.template.py");
@@ -154,7 +154,7 @@ internal static class WasmLldbScriptWriter
 		}
 	}
 
-	internal static List<(string Name, int Offset, string TypeName)> CalculateStructLayout(INamedTypeSymbol structSymbol, out int totalSize)
+	public static List<(string Name, int Offset, string TypeName)> CalculateStructLayout(INamedTypeSymbol structSymbol, out int totalSize)
 	{
 		var fields = new List<(string Name, int Offset, string TypeName)>();
 		int currentOffset = 0;
@@ -184,7 +184,7 @@ internal static class WasmLldbScriptWriter
 		return fields;
 	}
 
-	internal static int GetPrimitiveSize(ITypeSymbol type)
+	private static int GetPrimitiveSize(ITypeSymbol type)
 	{
 		if (type.SpecialType == SpecialType.System_Boolean || type.SpecialType == SpecialType.System_Byte || type.SpecialType == SpecialType.System_SByte)
 			return 1;
@@ -197,7 +197,7 @@ internal static class WasmLldbScriptWriter
 		return 0;
 	}
 
-	internal static int GetFieldSize(ITypeSymbol type)
+	private static int GetFieldSize(ITypeSymbol type)
 	{
 		int primSize = GetPrimitiveSize(type);
 		if (primSize > 0) return primSize;
@@ -211,7 +211,7 @@ internal static class WasmLldbScriptWriter
 		return 4;
 	}
 
-	internal static int GetFieldAlignment(ITypeSymbol type)
+	private static int GetFieldAlignment(ITypeSymbol type)
 	{
 		int primSize = GetPrimitiveSize(type);
 		if (primSize > 0) return primSize;
@@ -221,7 +221,7 @@ internal static class WasmLldbScriptWriter
 		return 4;
 	}
 
-	internal static string GetPyTypeName(IFieldSymbol field)
+	private static string GetPyTypeName(IFieldSymbol field)
 	{
 		var type = field.Type;
 		if (type.SpecialType == SpecialType.System_Single) return "float";

@@ -13,9 +13,9 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 namespace Realm.WasmBindgen;
 
-internal static class WasmEcsComponentEmitter
+public static class WasmEcsComponentEmitter
 {
-	internal static string GenerateEcsComponents(string repoRoot)
+	public static string GenerateEcsComponents(string repoRoot)
 	{
 		var relativePaths = new[]
 		{
@@ -76,7 +76,7 @@ internal static class WasmEcsComponentEmitter
 		return sb.ToString();
 	}
 
-	internal static string FormatTypeForMapApi(BaseTypeDeclarationSyntax typeDecl)
+	private static string FormatTypeForMapApi(BaseTypeDeclarationSyntax typeDecl)
 	{
 		string typeName = typeDecl.Identifier.Text;
 		var sb = new StringBuilder();
@@ -185,7 +185,7 @@ internal static class WasmEcsComponentEmitter
 		return CleanCode(typeDecl.ToFullString());
 	}
 
-	internal static string CleanCode(string code)
+	private static string CleanCode(string code)
 	{
 		code = code
 			.Replace("Realm.Ecs.Common.", "")
@@ -205,7 +205,7 @@ internal static class WasmEcsComponentEmitter
 		return code;
 	}
 
-	internal static string ExtractDocComment(SyntaxNode node)
+	private static string ExtractDocComment(SyntaxNode node)
 	{
 		var leadingTrivia = node.GetLeadingTrivia();
 		var docLines = new List<string>();
@@ -224,7 +224,7 @@ internal static class WasmEcsComponentEmitter
 		return string.Join("\n", docLines);
 	}
 
-	internal static string GetMemberName(MemberDeclarationSyntax member)
+	private static string GetMemberName(MemberDeclarationSyntax member)
 	{
 		if (member is FieldDeclarationSyntax field && field.Declaration.Variables.Count > 0)
 			return field.Declaration.Variables[0].Identifier.Text;

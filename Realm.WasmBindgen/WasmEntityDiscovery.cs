@@ -4,9 +4,9 @@ using Microsoft.CodeAnalysis;
 
 namespace Realm.WasmBindgen;
 
-internal static class WasmEntityDiscovery
+public static class WasmEntityDiscovery
 {
-	internal static HashSet<INamedTypeSymbol> DiscoverEntityInterfaces(INamedTypeSymbol gameApiSymbol)
+	public static HashSet<INamedTypeSymbol> DiscoverEntityInterfaces(INamedTypeSymbol gameApiSymbol)
 	{
 		var discovered = new HashSet<INamedTypeSymbol>(SymbolComparer.Instance);
 		var queue = new Queue<INamedTypeSymbol>();
@@ -43,7 +43,7 @@ internal static class WasmEntityDiscovery
 		return discovered;
 	}
 
-	internal static void ProcessType(ITypeSymbol type, HashSet<INamedTypeSymbol> discovered, Queue<INamedTypeSymbol> queue)
+	private static void ProcessType(ITypeSymbol type, HashSet<INamedTypeSymbol> discovered, Queue<INamedTypeSymbol> queue)
 	{
 		if (IsCollection(type, out var elemType))
 		{
@@ -60,7 +60,7 @@ internal static class WasmEntityDiscovery
 		}
 	}
 
-	internal static bool IsEntityInterface(ITypeSymbol type, out ITypeSymbol unwrappedType)
+	public static bool IsEntityInterface(ITypeSymbol type, out ITypeSymbol unwrappedType)
 	{
 		unwrappedType = type;
 		if (type is INamedTypeSymbol named && named.IsGenericType && named.ConstructedFrom.SpecialType == SpecialType.System_Nullable_T)
@@ -85,7 +85,7 @@ internal static class WasmEntityDiscovery
 		return true;
 	}
 
-	internal static bool IsEntityIdStruct(ITypeSymbol type, out string typeName)
+	public static bool IsEntityIdStruct(ITypeSymbol type, out string typeName)
 	{
 		typeName = string.Empty;
 		if (type == null) return false;
@@ -120,7 +120,7 @@ internal static class WasmEntityDiscovery
 		return false;
 	}
 
-	internal static bool IsCollection(ITypeSymbol type, out ITypeSymbol elementType)
+	public static bool IsCollection(ITypeSymbol type, out ITypeSymbol elementType)
 	{
 		elementType = null!;
 		if (type == null || type.SpecialType == SpecialType.System_String)
@@ -159,7 +159,7 @@ internal static class WasmEntityDiscovery
 		return false;
 	}
 
-	internal static string FindCollectionMember(INamedTypeSymbol gameApiSymbol, ITypeSymbol entityType)
+	public static string FindCollectionMember(INamedTypeSymbol gameApiSymbol, ITypeSymbol entityType)
 	{
 		foreach (var member in gameApiSymbol.GetMembers())
 		{
@@ -182,7 +182,7 @@ internal static class WasmEntityDiscovery
 		throw new InvalidOperationException($"Could not find collection member on IGameAPI returning a collection of {entityType.ToDisplayString()}");
 	}
 
-	internal static string FindResolverMember(INamedTypeSymbol gameApiSymbol, ITypeSymbol entityType)
+	public static string FindResolverMember(INamedTypeSymbol gameApiSymbol, ITypeSymbol entityType)
 	{
 		foreach (var member in gameApiSymbol.GetMembers())
 		{

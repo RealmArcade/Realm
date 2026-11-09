@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -7,9 +7,9 @@ using Microsoft.CodeAnalysis;
 namespace Realm.WasmBindgen;
 
 
-internal static partial class WasmHostBindingEmitter
+public static partial class WasmHostBindingEmitter
 {
-	internal static readonly Dictionary<string, string> ComponentMemberDescriptions = new(StringComparer.OrdinalIgnoreCase)
+	public static readonly Dictionary<string, string> ComponentMemberDescriptions = new(StringComparer.OrdinalIgnoreCase)
 	{
 		["Health.Current"] = "The current health points of the entity.",
 		["Health.Max"] = "The maximum health point capacity of the entity.",

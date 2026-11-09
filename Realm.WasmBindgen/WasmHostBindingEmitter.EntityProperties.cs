@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -7,9 +7,9 @@ using Microsoft.CodeAnalysis;
 namespace Realm.WasmBindgen;
 
 
-internal static partial class WasmHostBindingEmitter
+public static partial class WasmHostBindingEmitter
 {
-	internal static void EmitEntityPropertyBindings(StringBuilder sb, IPropertySymbol property, string tKebab, INamedTypeSymbol entitySymbol, INamedTypeSymbol gameApiSymbol, ref bool lastWasMultiLine, HashSet<string> definedFunctions, List<string> methodNames)
+	private static void EmitEntityPropertyBindings(StringBuilder sb, IPropertySymbol property, string tKebab, INamedTypeSymbol entitySymbol, INamedTypeSymbol gameApiSymbol, ref bool lastWasMultiLine, HashSet<string> definedFunctions, List<string> methodNames)
 	{
 		string witBase = tKebab + "-" + WitIdentifierFormat.ToKebabCase(property.Name);
 		string resolver = WasmEntityDiscovery.FindResolverMember(gameApiSymbol, entitySymbol);
@@ -27,7 +27,7 @@ internal static partial class WasmHostBindingEmitter
 		EmitEntityPropertySetter(sb, property, witBase, resolver, gameApiSymbol, definedFunctions, methodNames);
 	}
 
-	internal static void EmitEntityVector3Property(StringBuilder sb, IPropertySymbol property, string witBase, string resolver, HashSet<string> definedFunctions, List<string> methodNames)
+	private static void EmitEntityVector3Property(StringBuilder sb, IPropertySymbol property, string witBase, string resolver, HashSet<string> definedFunctions, List<string> methodNames)
 	{
 		string nameX = $"{witBase}-x";
 		if (definedFunctions.Add(nameX))
@@ -65,7 +65,7 @@ internal static partial class WasmHostBindingEmitter
 		}
 	}
 
-	internal static void EmitEntityStandardProperty(StringBuilder sb, IPropertySymbol property, string witBase, string resolver, INamedTypeSymbol gameApiSymbol, RetKind retKind, ref bool lastWasMultiLine, HashSet<string> definedFunctions, List<string> methodNames)
+	private static void EmitEntityStandardProperty(StringBuilder sb, IPropertySymbol property, string witBase, string resolver, INamedTypeSymbol gameApiSymbol, RetKind retKind, ref bool lastWasMultiLine, HashSet<string> definedFunctions, List<string> methodNames)
 	{
 		string expr = $"(_cachedApi ?? (IGameAPI?)Realm.MapAPI.GameAPI.Current)?.{resolver}(id)?.{property.Name}";
 		string mapped = MapEntityPropertyExpression(property, gameApiSymbol, retKind, expr);
@@ -88,7 +88,7 @@ internal static partial class WasmHostBindingEmitter
 		lastWasMultiLine = false;
 	}
 
-	internal static string MapEntityPropertyExpression(IPropertySymbol property, INamedTypeSymbol gameApiSymbol, RetKind retKind, string expr)
+	private static string MapEntityPropertyExpression(IPropertySymbol property, INamedTypeSymbol gameApiSymbol, RetKind retKind, string expr)
 	{
 		if (retKind == RetKind.EntityReturn || retKind == RetKind.EntityNullableReturn)
 		{
@@ -115,7 +115,7 @@ internal static partial class WasmHostBindingEmitter
 		};
 	}
 
-	internal static void EmitEntityPropertySetter(StringBuilder sb, IPropertySymbol property, string witBase, string resolver, INamedTypeSymbol gameApiSymbol, HashSet<string> definedFunctions, List<string> methodNames)
+	private static void EmitEntityPropertySetter(StringBuilder sb, IPropertySymbol property, string witBase, string resolver, INamedTypeSymbol gameApiSymbol, HashSet<string> definedFunctions, List<string> methodNames)
 	{
 		if (property.SetMethod == null) return;
 

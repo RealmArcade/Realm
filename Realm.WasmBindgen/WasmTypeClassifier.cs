@@ -4,9 +4,9 @@ using Microsoft.CodeAnalysis;
 
 namespace Realm.WasmBindgen;
 
-internal static class WasmTypeClassifier
+public static class WasmTypeClassifier
 {
-	internal static PrmKind ClassifyParam(ITypeSymbol type)
+	public static PrmKind ClassifyParam(ITypeSymbol type)
 	{
 		if (type.SpecialType == SpecialType.System_Int32) return PrmKind.DirectInt;
 		if (type.TypeKind == TypeKind.Enum) return PrmKind.DirectInt;
@@ -31,7 +31,7 @@ internal static class WasmTypeClassifier
 		return PrmKind.Unsupported;
 	}
 
-	internal static RetKind ClassifyReturn(ITypeSymbol type)
+	public static RetKind ClassifyReturn(ITypeSymbol type)
 	{
 		var specialRet = ClassifySpecialReturn(type.SpecialType);
 		if (specialRet != RetKind.Unsupported) return specialRet;
@@ -53,7 +53,7 @@ internal static class WasmTypeClassifier
 		return ClassifyCollectionReturn(type);
 	}
 
-	internal static RetKind ClassifySpecialReturn(SpecialType specialType)
+	private static RetKind ClassifySpecialReturn(SpecialType specialType)
 	{
 		return specialType switch
 		{
@@ -66,7 +66,7 @@ internal static class WasmTypeClassifier
 		};
 	}
 
-	internal static RetKind ClassifyCollectionReturn(ITypeSymbol type)
+	private static RetKind ClassifyCollectionReturn(ITypeSymbol type)
 	{
 		if (!WasmEntityDiscovery.IsCollection(type, out var elemType)) return RetKind.Unsupported;
 
@@ -77,7 +77,7 @@ internal static class WasmTypeClassifier
 		return RetKind.Unsupported;
 	}
 
-	internal static bool IsNullableVector3(ITypeSymbol type)
+	public static bool IsNullableVector3(ITypeSymbol type)
 	{
 		if (type is INamedTypeSymbol named && named.IsGenericType && named.ConstructedFrom.SpecialType == SpecialType.System_Nullable_T)
 		{
