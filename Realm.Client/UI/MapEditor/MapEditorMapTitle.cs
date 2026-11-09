@@ -10,7 +10,7 @@ namespace Realm.Client.UI.MapEditor;
 /// The map's display name in the editor's top bar: resolving it from the workspace (manifest first, then metadata, then
 /// a running host, then the placeholder) and rendering the header, which marks unsaved changes.
 /// </summary>
-internal static class MapEditorMapTitle
+public static class MapEditorMapTitle
 {
 	/// <summary>
 	/// The cache is two seconds long because the header refreshes on a timer and re-reading the manifest each tick would

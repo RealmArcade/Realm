@@ -8,7 +8,7 @@ namespace Realm.Client.UI.MapEditor;
 /// verified good review is. It is pure presentation over the numbers it is given, so it takes the node to parent
 /// itself to and nothing else.
 /// </summary>
-internal static class GreenlightStatusDialog
+public static class GreenlightStatusDialog
 {
 	public static void Show(Node owner, string mapTitle, string mapVersion, int verifiedGoodReviews, int totalReviews, double averageRating, bool isGreenlit)
 	{

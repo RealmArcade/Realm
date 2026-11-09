@@ -1,4 +1,4 @@
-﻿// Module switch button state and the left/right panel expand-collapse pair: the accordion hooks the
+// Module switch button state and the left/right panel expand-collapse pair: the accordion hooks the
 // collapsing panels reuse, and the two tweens that slide them.
 
 using System;
@@ -69,7 +69,7 @@ namespace Realm.Client.UI
 		private MapEditorCardInteraction? _cardInteraction;
 
 		/// <summary>Dragging, collapsing and resetting the sidebar cards.</summary>
-		internal MapEditorCardInteraction CardInteraction =>
+		public MapEditorCardInteraction CardInteraction =>
 			_cardInteraction ??= new MapEditorCardInteraction(new CardInteractionHooks(this, ShowFeedback));
 
 		private void MakeCardDraggable(Control cardNode, Button headerBtn, Control? contentControl = null, string? titleText = null) =>

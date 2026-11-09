@@ -11,7 +11,7 @@ namespace Realm.Client.UI.MapEditor;
 /// uses everywhere else. The members keep those names because the localization generator only extracts keys from call
 /// sites that name a registered translating wrapper.
 /// </summary>
-internal sealed record ScaleDialogHooks(
+public sealed record ScaleDialogHooks(
 	Node Owner,
 	Action<Button, string, Action, int, string> SetupButton,
 	Action<Button, string, Action, int, string> SetupOptionButton);
@@ -20,7 +20,7 @@ internal sealed record ScaleDialogHooks(
 /// The scale-map modal: the width/depth steppers, the live target labels, and the apply/cancel pair. It owns the
 /// target depth the steppers adjust and the silhouette preview the host draws, so the editor only opens and closes it.
 /// </summary>
-internal sealed class ScaleMapDialog
+public sealed class ScaleMapDialog
 {
 	private readonly ScaleDialogHooks _hooks;
 

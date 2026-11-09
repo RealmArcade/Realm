@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Globalization;
 using System.IO;
 using System.Text.Json.Nodes;
@@ -474,7 +474,7 @@ namespace Realm.Client.UI
 		private TextureSwatchGrid? _swatchGrid;
 
 		/// <summary>The texture palette: its buttons, both selection overlays and the thumbnail cache.</summary>
-		internal TextureSwatchGrid Swatches => _swatchGrid ??= new TextureSwatchGrid(
+		public TextureSwatchGrid Swatches => _swatchGrid ??= new TextureSwatchGrid(
 			new SwatchGridHooks(
 				SelectTerrainTexture,
 				SelectCliffTexture,
@@ -690,7 +690,7 @@ namespace Realm.Client.UI
 		}
 
 
-		internal MapEditorHudFade HudFade => _hudFade ??= new MapEditorHudFade(
+		public MapEditorHudFade HudFade => _hudFade ??= new MapEditorHudFade(
 			new HudFadeHooks(this, _topLeftBox, _panelLeft, _panelRight, _topBar, _viewportPanel.MeasurementPanel,
 				_screenFrameRect, CardInteraction.Cards, () => EditorSettingsDialog.CurrentSettings.HideHudDuringToolUsage));
 

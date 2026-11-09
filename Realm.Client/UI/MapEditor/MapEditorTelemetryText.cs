@@ -6,7 +6,7 @@ namespace Realm.Client.UI.MapEditor;
 /// The two readouts the editor prints while the pointer is on the map: the tape measure's distance/slope line and the
 /// paste pivot line. Pure formatting - the callers own the panels and the labels, so this only turns numbers into text.
 /// </summary>
-internal static class MapEditorTelemetryText
+public static class MapEditorTelemetryText
 {
 	public static string Measure(float eucTiles, float eucWorld, float manhattanTiles, float dx, float dz, float dy,
 		float angleDeg, float slopePct)

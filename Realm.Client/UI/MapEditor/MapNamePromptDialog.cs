@@ -9,7 +9,7 @@ namespace Realm.Client.UI.MapEditor;
 /// it complains through when the name is left empty. The member keeps the wrapper's name because the localization
 /// generator only extracts keys from call sites that name a registered translating wrapper.
 /// </summary>
-internal sealed record MapNamePromptHooks(
+public sealed record MapNamePromptHooks(
 	Node Owner,
 	Action<Button, string, Action, int, string> SetupButton,
 	Action<string> Feedback);
@@ -18,7 +18,7 @@ internal sealed record MapNamePromptHooks(
 /// The map-name prompt: the overlay, its title and explanation, the name field that takes focus on open, and the
 /// name-it/cancel pair. It validates that a name was entered before handing it back; the caller decides what to do with it.
 /// </summary>
-internal sealed class MapNamePromptDialog
+public sealed class MapNamePromptDialog
 {
 	private readonly MapNamePromptHooks _hooks;
 

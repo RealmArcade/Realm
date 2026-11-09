@@ -17,7 +17,7 @@ public sealed record KeyboardShortcutHooks(
 /// backquote toggles the wasm console, and the arrow keys are kept from scrolling the sidebar while the pointer drives the
 /// 3D view. Text inputs keep their own keys, which is why every branch checks the focus owner first.
 /// </summary>
-internal sealed class MapEditorKeyboardShortcuts
+public sealed class MapEditorKeyboardShortcuts
 {
 	private readonly KeyboardShortcutHooks _hooks;
 

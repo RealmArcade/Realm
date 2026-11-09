@@ -21,7 +21,7 @@ public sealed record OverlayDismissalHooks(
 /// always on top of whatever opened it, then the transient progress overlays, then the agreement, the manual, and finally
 /// the floating dialogs, which close their own topmost.
 /// </summary>
-internal sealed class MapEditorOverlayDismissal
+public sealed class MapEditorOverlayDismissal
 {
 	private readonly OverlayDismissalHooks _hooks;
 

@@ -18,14 +18,14 @@ using Environment = System.Environment;
 namespace Realm.Client.UI.MapEditor;
 
 /// <summary>Asks the editor for the authorship key a publish is signed with; false when none is selected.</summary>
-internal delegate bool AuthorshipKeyProvider(out Key? key);
+public delegate bool AuthorshipKeyProvider(out Key? key);
 
 /// <summary>
 /// What the publish flow needs from the editor: the node it may parent its dialog to (and take process-frame waits
 /// from), the status surfaces it reports through, and the editor-owned steps it cannot perform itself - sign-in,
 /// authorship, asset validation, metadata naming and signing, the WASM compile and the thumbnail.
 /// </summary>
-internal sealed record PublishHooks(
+public sealed record PublishHooks(
 	Node Owner,
 	Action<string> Feedback,
 	Action<string> AppendLog,
@@ -49,7 +49,7 @@ internal sealed record PublishHooks(
 /// registry's initiate/upload/finalize handshake. It runs on the editor's node so the process-frame waits and the
 /// dialog child behave as they did inside the HUD, and reports every outcome through <see cref="PublishProgressView"/>.
 /// </summary>
-internal sealed class MapPublishController
+public sealed class MapPublishController
 {
 	private readonly PublishHooks _hooks;
 

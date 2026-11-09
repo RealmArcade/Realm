@@ -12,7 +12,7 @@ namespace Realm.Client.UI.MapEditor;
 /// fallback font, which is why they take that font as a parameter here rather than reaching
 /// for the HUD through a back-reference.
 /// </summary>
-internal static class MapEditorStyle
+public static class MapEditorStyle
 {
 	/// <summary>
 	/// Accordion headers: a textured plate when the map editor header art is available, and a

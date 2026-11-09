@@ -7,7 +7,7 @@ namespace Realm.Client.UI.MapEditor;
 /// panels and minimap dim when the frame is hidden, and the panel opacity. The nodes are looked up by path because they
 /// belong to the scene, so these passes take the editor as the lookup root.
 /// </summary>
-internal static class MapEditorChromeAppearance
+public static class MapEditorChromeAppearance
 {
 	public const string ScreenFramePath = "MapEditorScreenFrame";
 	private const string LeftPanelPath = "LeftSlidePanel";

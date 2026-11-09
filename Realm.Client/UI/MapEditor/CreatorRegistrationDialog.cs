@@ -15,7 +15,7 @@ namespace Realm.Client.UI.MapEditor;
 /// and the feedback line. The member keeps the wrapper's name because the localization generator only extracts keys
 /// from call sites naming a registered wrapper.
 /// </summary>
-internal sealed record CreatorRegistrationHooks(
+public sealed record CreatorRegistrationHooks(
 	Node Owner,
 	Action<Button, string, Action?, int, string> SetupOptionButton,
 	Action<string> ShowFeedback);
@@ -25,7 +25,7 @@ internal sealed record CreatorRegistrationHooks(
 /// prompted for once per key: the authority is asked first, and the dialog is skipped when the check says the key is
 /// already registered, when the account is not signed in, or when another overlay is already up.
 /// </summary>
-internal sealed class CreatorRegistrationDialog
+public sealed class CreatorRegistrationDialog
 {
 	private const string OverlayName = "CreatorRegistrationOverlay";
 	private const string AgreementOverlayName = "AgreementOverlay";

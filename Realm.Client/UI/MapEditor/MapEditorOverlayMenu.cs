@@ -21,7 +21,7 @@ public sealed record OverlayMenuHooks(
 /// indexed by position, so the four update paths all go through one checked-setter rather than four copies of the
 /// item-index dance.
 /// </summary>
-internal sealed class MapEditorOverlayMenu
+public sealed class MapEditorOverlayMenu
 {
 	private const int GridItem = 0;
 	private const int PolarItem = 1;

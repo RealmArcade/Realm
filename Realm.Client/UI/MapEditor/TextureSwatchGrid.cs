@@ -16,7 +16,7 @@ namespace Realm.Client.UI.MapEditor;
 /// keeps the wrapper's name because the localization generator only extracts keys from call sites naming a registered
 /// wrapper.
 /// </summary>
-internal sealed record SwatchGridHooks(
+public sealed record SwatchGridHooks(
 	Action<int, Button> SelectTerrain,
 	Action<int> SelectCliff,
 	Func<bool> IsCliffApplyChecked,
@@ -29,7 +29,7 @@ internal sealed record SwatchGridHooks(
 /// orange selection overlays, and the texture cache behind the thumbnails. The selection itself stays on the editor —
 /// this grid only reports which slot was clicked and which slots should look selected.
 /// </summary>
-internal sealed class TextureSwatchGrid
+public sealed class TextureSwatchGrid
 {
 	private const int Columns = 6;
 	private const int MaxVisibleBeforeScroll = 36;

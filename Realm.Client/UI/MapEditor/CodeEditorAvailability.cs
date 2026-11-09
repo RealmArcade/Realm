@@ -12,7 +12,7 @@ namespace Realm.Client.UI.MapEditor;
 /// from, the way back into the editor once an install finishes, and the editor's button styling so the dismiss
 /// button keeps the icon font the rest of the editor uses.
 /// </summary>
-internal sealed record CodeEditorHooks(
+public sealed record CodeEditorHooks(
 	Node Owner,
 	Action OpenEditor,
 	Action<Button, string, Action> StyleButton);
@@ -22,7 +22,7 @@ internal sealed record CodeEditorHooks(
 /// that closes it and opens the editor when the background install lands, plus the two notices for an editor that
 /// could not be installed or that opened with components missing.
 /// </summary>
-internal sealed class CodeEditorAvailability
+public sealed class CodeEditorAvailability
 {
 	private readonly CodeEditorHooks _hooks;
 	private Control? _installingCard;

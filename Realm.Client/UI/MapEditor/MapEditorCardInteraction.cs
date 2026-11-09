@@ -10,7 +10,7 @@ namespace Realm.Client.UI.MapEditor;
 /// What card interaction needs from the editor: the node it looks the two sidebar columns up in, and the feedback line
 /// the reset and double-click gestures report through.
 /// </summary>
-internal sealed record CardInteractionHooks(
+public sealed record CardInteractionHooks(
 	Node Owner,
 	Action<string> Feedback);
 
@@ -19,7 +19,7 @@ internal sealed record CardInteractionHooks(
 /// past a small threshold lifts the card out of its column, and a release without movement is read as a click that
 /// collapses or expands the card instead. Double-clicking a header puts that card back in its column.
 /// </summary>
-internal sealed class MapEditorCardInteraction
+public sealed class MapEditorCardInteraction
 {
 	private const float DragThresholdSquared = 16.0f;
 

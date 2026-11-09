@@ -10,7 +10,7 @@ namespace Realm.Client.UI.MapEditor;
 /// with the same five entries and refreshed the same way, and none of them needs anything but the editor's current
 /// mode and fold count, so the population and refresh live here instead of being repeated per panel.
 /// </summary>
-internal static class SymmetryDropdowns
+public static class SymmetryDropdowns
 {
 	private static string RotationalText(int folds) =>
 		$"{UnicodeIcons.ROTATE} " + string.Format(TranslationServer.Translate("ROTATIONAL ({0}-FOLD)"), folds);

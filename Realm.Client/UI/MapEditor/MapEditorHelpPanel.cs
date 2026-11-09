@@ -9,7 +9,7 @@ namespace Realm.Client.UI.MapEditor;
 /// What the manual needs from the editor: the node it parents itself to, and the button styling. The member keeps the
 /// wrapper's name because the localization generator only extracts keys from call sites naming a registered wrapper.
 /// </summary>
-internal sealed record HelpPanelHooks(
+public sealed record HelpPanelHooks(
 	Node Owner,
 	Action<Button, string, Action, int> SetupButton);
 
@@ -18,7 +18,7 @@ internal sealed record HelpPanelHooks(
 /// close button. It owns its overlay so a second toggle closes it, and reports whether it was open so the Escape path can
 /// use the same close.
 /// </summary>
-internal sealed class MapEditorHelpPanel
+public sealed class MapEditorHelpPanel
 {
 	private readonly HelpPanelHooks _hooks;
 	private ColorRect? _panel;

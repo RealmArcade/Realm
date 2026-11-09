@@ -11,7 +11,7 @@ namespace Realm.Client.UI.MapEditor;
 /// styling, and the session flag that keeps the modal from reappearing on the next editor load. The member keeps the
 /// wrapper's name because the localization generator only extracts keys from call sites naming a registered wrapper.
 /// </summary>
-internal sealed record AgreementDialogHooks(
+public sealed record AgreementDialogHooks(
 	Node Owner,
 	Action<Button, string, Action?, int, string> SetupOptionButton,
 	Action<bool> SetShownThisSession);
@@ -23,7 +23,7 @@ internal sealed record AgreementDialogHooks(
 /// the continuation once the overlay has left the tree; quitting forgets that and returns to the main menu, which is
 /// also what Escape does.
 /// </summary>
-internal sealed class AgreementDialog
+public sealed class AgreementDialog
 {
 	private readonly AgreementDialogHooks _hooks;
 

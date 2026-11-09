@@ -10,7 +10,7 @@ namespace Realm.Client.UI.MapEditor;
 /// may expand, and the feedback line. The setters themselves change editor state through EditorService, so they do
 /// not need the editor's panels - only its refresh paths.
 /// </summary>
-internal sealed record SymmetryHooks(
+public sealed record SymmetryHooks(
 	Action RefreshMirrorDropdowns,
 	Action RefreshSymmetrySubControls,
 	Action RefreshSpokeLabel,
@@ -23,7 +23,7 @@ internal sealed record SymmetryHooks(
 /// Each writes its value through EditorService and then refreshes only the surfaces that read it, which is why the
 /// refreshes arrive as callbacks rather than the controller reaching into the panels that show them.
 /// </summary>
-internal sealed class MapEditorSymmetry
+public sealed class MapEditorSymmetry
 {
 	private readonly SymmetryHooks _hooks;
 

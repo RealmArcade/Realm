@@ -10,7 +10,7 @@ namespace Realm.Client.UI.MapEditor;
 /// What the texture accordion needs from the editor: the option-button styling every button in it uses, the label
 /// refresh the two apply checkboxes trigger, and the replace-texture dialog, which the editor owns and reuses.
 /// </summary>
-internal sealed record TextureSettingsHooks(
+public sealed record TextureSettingsHooks(
 	Action<Button, string, Action, int, string> SetupOptionButton,
 	Action RefreshLabels,
 	Action OpenReplaceTextureDialog);
@@ -20,7 +20,7 @@ internal sealed record TextureSettingsHooks(
 /// the swatch grid and the scroll container that clips it, and the replace-texture button. It builds the controls and
 /// exposes them; the swatch population and label refresh stay in the editor, which is where the selected indices live.
 /// </summary>
-internal sealed class TextureSettingsPanel
+public sealed class TextureSettingsPanel
 {
 	private readonly TextureSettingsHooks _hooks;
 

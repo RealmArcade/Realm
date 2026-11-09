@@ -10,7 +10,7 @@ namespace Realm.Client.UI.MapEditor;
 /// the editor uses. The member keeps the wrapper's name because the localization generator only extracts keys from call
 /// sites that name a registered translating wrapper.
 /// </summary>
-internal sealed record EditorConfirmationDialogHooks(
+public sealed record EditorConfirmationDialogHooks(
 	Node Owner,
 	Action<Button, string, Action, int, string> SetupButton);
 
@@ -19,7 +19,7 @@ internal sealed record EditorConfirmationDialogHooks(
 /// callback runs when the overlay leaves the tree, which covers both buttons and an Escape taken elsewhere, and the
 /// cancel answer is published as metadata so that path can run the same action.
 /// </summary>
-internal sealed class EditorConfirmationDialog
+public sealed class EditorConfirmationDialog
 {
 	private readonly EditorConfirmationDialogHooks _hooks;
 

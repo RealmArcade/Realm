@@ -9,7 +9,7 @@ namespace Realm.Client.UI.MapEditor;
 /// nodes are laid out in the scene, so the passes here take the nodes they style rather than building them, and the
 /// editor keeps the single list of what it hands over.
 /// </summary>
-internal static class MapEditorChromeTheme
+public static class MapEditorChromeTheme
 {
 	/// <summary>
 	/// Makes the sidebar columns click-through. The columns are decoration behind the cards, so a click that lands on the

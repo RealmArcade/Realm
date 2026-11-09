@@ -8,14 +8,14 @@ namespace Realm.Client.UI.MapEditor;
 /// One editor card: the accordion header that names it, the content box beneath it, and how tall the content may grow
 /// before it scrolls rather than overflow.
 /// </summary>
-internal readonly record struct MapEditorCard(Control? Accordion, Control? Content, float ScrollMaxHeight = 300f, bool AllowExpand = true);
+public readonly record struct MapEditorCard(Control? Accordion, Control? Content, float ScrollMaxHeight = 300f, bool AllowExpand = true);
 
 /// <summary>
 /// The card chrome shared by every panel in the editor sidebar: a header panel with a darker content box under it and
 /// a scroll container inside that. The editor names its cards once, so a new card is styled by all of the passes
 /// instead of being added to three of them.
 /// </summary>
-internal static class MapEditorCardTheme
+public static class MapEditorCardTheme
 {
 	private const float CardWidth = 260f;
 	private const float ContentWidth = 245f;

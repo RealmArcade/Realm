@@ -7,7 +7,7 @@ namespace Realm.Client.UI.MapEditor;
 /// the run has finished. The publish flow reports the same three things on every path, so the wording and colour of
 /// each outcome is written once here instead of being repeated at every failure site.
 /// </summary>
-internal sealed class PublishProgressView
+public sealed class PublishProgressView
 {
 	private readonly ProgressBar _progress;
 	private readonly Label _status;
