@@ -37,7 +37,7 @@ public static class PropModelPathResolver
 		if (string.IsNullOrEmpty(assetKey))
 			return string.Empty;
 
-		string targetModel = FindRegistryModelPath(assetKey, Path.GetFileNameWithoutExtension(assetKey));
+		string? targetModel = FindRegistryModelPath(assetKey, Path.GetFileNameWithoutExtension(assetKey));
 		if (string.IsNullOrEmpty(targetModel))
 			return string.Empty;
 
