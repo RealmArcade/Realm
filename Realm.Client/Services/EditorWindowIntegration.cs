@@ -13,23 +13,23 @@ namespace Realm.Client.Services;
 ///     give its window the game's taskbar identity and icon, and bring the game window back to the foreground when the
 ///     editor asks it to. Every entry point is a no-op off Windows.
 /// </summary>
-internal static class EditorWindowIntegration
+public static class EditorWindowIntegration
 {
-	internal const int SW_RESTORE = 9;
+	public const int SW_RESTORE = 9;
 
 	[DllImport("user32.dll")]
-	internal static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+	public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 
 	[DllImport("user32.dll")]
-	internal static extern bool SetForegroundWindow(IntPtr hWnd);
+	public static extern bool SetForegroundWindow(IntPtr hWnd);
 
 	[DllImport("user32.dll")]
-	internal static extern bool BringWindowToTop(IntPtr hWnd);
+	public static extern bool BringWindowToTop(IntPtr hWnd);
 
 	[DllImport("user32.dll")]
-	internal static extern void SwitchToThisWindow(IntPtr hWnd, bool fUnknown);
+	private static extern void SwitchToThisWindow(IntPtr hWnd, bool fUnknown);
 
-	internal static void RestoreAndFocusGodotWindow()
+	public static void RestoreAndFocusGodotWindow()
 	{
 		Callable.From(() =>
 		{
@@ -125,7 +125,7 @@ internal static class EditorWindowIntegration
 	private static extern void ZeroMemory(IntPtr destination, int length);
 
 
-	internal static void AddProcessToJob(Process proc)
+	public static void AddProcessToJob(Process proc)
 	{
 		if (proc == null || proc.HasExited || !OperatingSystem.IsWindows()) return;
 		try
@@ -151,7 +151,7 @@ internal static class EditorWindowIntegration
 	private static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
 
 	[DllImport("shell32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
-	internal static extern int SetCurrentProcessExplicitAppUserModelID(string appID);
+	public static extern int SetCurrentProcessExplicitAppUserModelID(string appID);
 
 	[StructLayout(LayoutKind.Sequential, Pack = 4)]
 	private struct PROPERTYKEY
@@ -236,7 +236,7 @@ internal static class EditorWindowIntegration
 		}
 	}
 
-	internal static void AttachWindowGrouping(Process proc)
+	public static void AttachWindowGrouping(Process proc)
 	{
 		if (proc == null || proc.HasExited || !OperatingSystem.IsWindows()) return;
 

@@ -13,12 +13,12 @@ namespace Realm.Client.Services;
 ///     rally path a producer sends new units along. Both answer in ECS vectors and leave the scene-graph conversion
 ///     to the caller, so the rules hold without a node.
 /// </summary>
-internal static class UnitPathQuery
+public static class UnitPathQuery
 {
 	private const float DefaultRallyAimDistance = 8f;
 
 	/// <summary>Where the entity stands, or the node's own position when the world has no answer.</summary>
-	internal static Vector3 EcsOrFallback(Entity entity, Vector3 fallbackPosition)
+	private static Vector3 EcsOrFallback(Entity entity, Vector3 fallbackPosition)
 	{
 		if (GameContext.Host != null && GameContext.World != null && entity != default
 		                            && GameContext.World.IsAlive(entity) && GameContext.World.Has<Position>(entity))
@@ -34,7 +34,7 @@ internal static class UnitPathQuery
 	///     when no path exists yet, followed by anything still queued. <paramref name="isAttackPath" /> reports whether
 	///     the order was an attack, which is what the caller colours the path by.
 	/// </summary>
-	internal static void FillMovementPath(Entity entity, Vector3 fallbackOrigin, List<Vector3> points, out bool isAttackPath)
+	public static void FillMovementPath(Entity entity, Vector3 fallbackOrigin, List<Vector3> points, out bool isAttackPath)
 	{
 		points.Clear();
 		isAttackPath = false;
@@ -83,7 +83,7 @@ internal static class UnitPathQuery
 	///     The rally path: the producer's position followed by its rally waypoints, or — for a producer that was never
 	///     given one — the point it aims at by default. A caller that sees two points has something to draw.
 	/// </summary>
-	internal static void FillRallyPath(Entity entity, Vector3 fallbackOrigin, List<Vector3> points)
+	public static void FillRallyPath(Entity entity, Vector3 fallbackOrigin, List<Vector3> points)
 	{
 		points.Clear();
 		if (GameContext.Host == null || GameContext.World is not { } world || !world.IsAlive(entity)) return;

@@ -1,4 +1,4 @@
-﻿﻿using System;
+﻿using System;
 using System.Collections.Generic;
 using Godot;
 using Realm.Client.UI;
@@ -10,7 +10,7 @@ namespace Realm.Client.Services;
 ///     entries with their start position, colour and elapsed time, and the pass that rises and fades them
 ///     before returning each label to the pool.
 /// </summary>
-internal sealed class FloatingCombatText
+public sealed class FloatingCombatText
 {
 	private readonly Stack<Label3D> _floatingLabelPool = new();
 	private readonly ActiveFloatingLabel[] _activeFloatingLabels = new ActiveFloatingLabel[MaxActiveFloatingLabels];

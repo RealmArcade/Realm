@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using Realm.Shared.Services;
@@ -10,7 +10,7 @@ namespace Realm.Client.Services.MapHistory;
 ///     mid-write. The exclusion rules are the workspace's ignored paths plus the editor's own scratch files
 ///     and the repository's per-user artefacts.
 /// </summary>
-internal static class HistoryFileSet
+public static class HistoryFileSet
 {
 	private static readonly string[] _historyOnlyDirectoryNames = { ".vscode" };
 
@@ -19,7 +19,7 @@ internal static class HistoryFileSet
 		".pem", ".rkey", ".user", ".suo", AtomicFileWriter.TemporarySuffix
 	};
 
-	internal static List<string> CollectMapFiles(string mapDirectory)
+	public static List<string> CollectMapFiles(string mapDirectory)
 	{
 		var relativePaths = new List<string>();
 		if (!Directory.Exists(mapDirectory)) return relativePaths;
@@ -29,7 +29,7 @@ internal static class HistoryFileSet
 		return relativePaths;
 	}
 
-	internal static void CollectMapFilesInto(DirectoryInfo directory, string prefix, List<string> relativePaths, int depth)
+	private static void CollectMapFilesInto(DirectoryInfo directory, string prefix, List<string> relativePaths, int depth)
 	{
 		if (depth > 64) return;
 
@@ -48,7 +48,7 @@ internal static class HistoryFileSet
 		}
 	}
 
-	internal static bool IsExcludedFromHistory(string relativePath)
+	private static bool IsExcludedFromHistory(string relativePath)
 	{
 		string normalized = relativePath.Replace('\\', '/');
 		if (string.IsNullOrWhiteSpace(normalized)) return true;
@@ -70,7 +70,7 @@ internal static class HistoryFileSet
 		return false;
 	}
 
-	internal static bool TryReadStableContent(string absolutePath, out byte[] content)
+	public static bool TryReadStableContent(string absolutePath, out byte[] content)
 	{
 		content = Array.Empty<byte>();
 		for (int attempt = 0; attempt < 3; attempt++)
@@ -108,13 +108,13 @@ internal static class HistoryFileSet
 		return false;
 	}
 
-	internal static bool IsScriptSourcePath(string relativePath)
+	public static bool IsScriptSourcePath(string relativePath)
 	{
 		return relativePath.EndsWith(".cs", StringComparison.OrdinalIgnoreCase) ||
 		       relativePath.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase);
 	}
 
-	internal static bool FileLengthMatches(string path, int length)
+	public static bool FileLengthMatches(string path, int length)
 	{
 		try
 		{
@@ -126,7 +126,7 @@ internal static class HistoryFileSet
 		}
 	}
 
-	internal static bool FileContentMatches(string path, byte[] content)
+	public static bool FileContentMatches(string path, byte[] content)
 	{
 		try
 		{

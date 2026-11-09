@@ -9,10 +9,10 @@ namespace Realm.Client.Services;
 ///     position (and heading, for homing) and reports whether the flight is over, so the node keeps the state and the
 ///     rules live here.
 /// </summary>
-internal static class ProjectileTrajectorySolver
+public static class ProjectileTrajectorySolver
 {
 	/// <summary>Straight flight: advance along the heading. Ends when the flight time is spent.</summary>
-	internal static bool StepLinear(Vector3 direction, float speed, float dt, float rawT, ref Vector3 position)
+	public static bool StepLinear(Vector3 direction, float speed, float dt, float rawT, ref Vector3 position)
 	{
 		position += direction * (speed * dt);
 		return rawT >= 1.0f;
@@ -22,7 +22,7 @@ internal static class ProjectileTrajectorySolver
 	///     Out to the target, a pause, then back to where it was fired from. The return delay falls back to 0.2s
 	///     when the weapon does not name one, and each leg is eased by the weapon's curve.
 	/// </summary>
-	internal static bool StepBoomerang(float elapsedTime, float flightDuration, float returnDelay,
+	public static bool StepBoomerang(float elapsedTime, float flightDuration, float returnDelay,
 		ProjectileEaseCurve easeCurve, Vector3 start, Vector3 target, ref Vector3 position)
 	{
 		float delay = returnDelay >= 0.0f ? returnDelay : 0.2f;
@@ -57,7 +57,7 @@ internal static class ProjectileTrajectorySolver
 	///     both a turn limit and a homing weight flies the first way; otherwise the path is the eased straight line to
 	///     the blended target and the heading is left alone.
 	/// </summary>
-	internal static bool StepHomingOrParabolic(Vector3 start, Vector3 initialTarget, Vector3 currentTarget,
+	public static bool StepHomingOrParabolic(Vector3 start, Vector3 initialTarget, Vector3 currentTarget,
 		float speed, float dt, float rawT, float turnRateLimit, float homingWeight, ProjectileEaseCurve easeCurve,
 		ref Vector3 position, ref Vector3 direction)
 	{

@@ -8,14 +8,14 @@ namespace Realm.Client.Services;
 ///     targets the build needs. It works on text only, so the caller supplies the target triple and nothing here touches
 ///     the filesystem.
 /// </summary>
-internal static partial class MapProjectFileNormalizer
+public static partial class MapProjectFileNormalizer
 {
 	private const string MapApiDllRelativePath = "lib/Realm.MapAPI.dll";
 	private const string EcsDllRelativePath = "lib/Realm.Ecs.dll";
 	private const string EcsUsingItem = "<Using Include=\"Realm.Ecs\" />";
 
 	/// <summary>The target triple the map project should build for, taken from the template when it declares one.</summary>
-	internal static string ResolveDefaultIlcLlvmTarget(string? templatePath)
+	public static string ResolveDefaultIlcLlvmTarget(string? templatePath)
 	{
 		if (!string.IsNullOrEmpty(templatePath) && System.IO.File.Exists(templatePath))
 		{
@@ -30,7 +30,7 @@ internal static partial class MapProjectFileNormalizer
 		return WasiSdkResolver.GetDefaultIlcLlvmTarget();
 	}
 
-	internal static string Normalize(string csprojContent, string defaultIlcLlvmTarget)
+	public static string Normalize(string csprojContent, string defaultIlcLlvmTarget)
 	{
 		csprojContent = csprojContent.Replace("\r\n", "\n");
 

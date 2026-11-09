@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -18,9 +18,9 @@ namespace Realm.Client.Services;
 ///     plain hash strings are turned into entries, every entry gets a swatch slot and a luminance scale
 ///     factor, and the model and animation hashes are rewritten when an asset is reimported.
 /// </summary>
-internal static class MapTextureMetadata
+public static class MapTextureMetadata
 {
-	internal static float ExtractRtexScaleFactor(string rtexPath)
+	public static float ExtractRtexScaleFactor(string rtexPath)
 	{
 		if (string.IsNullOrEmpty(rtexPath) || !File.Exists(rtexPath)) return 1.0f;
 
@@ -49,7 +49,7 @@ internal static class MapTextureMetadata
 		return 1.0f;
 	}
 
-	internal static bool NormalizeTextureEntries(JsonObject root, string? wsPath = null)
+	public static bool NormalizeTextureEntries(JsonObject root, string? wsPath = null)
 	{
 		if (root == null || !(root["textures"] is JsonObject texturesObj)) return false;
 
@@ -178,13 +178,13 @@ internal static class MapTextureMetadata
 		return PathUtils.FindPath($"MapTemplate/Assets/textures/{rtexFileName}");
 	}
 
-	internal static void NormalizeTextureEntries(MapManifestAssets assets, string workspacePath)
+	public static void NormalizeTextureEntries(MapManifestAssets assets, string workspacePath)
 	{
 		if (assets == null || string.IsNullOrEmpty(workspacePath)) return;
 		MapAssetHelper.SaveAssetsToManifest(workspacePath, assets, removeFromMetadata: true);
 	}
 
-	internal static void NormalizeMetadataTextureEntries(string workspacePath)
+	public static void NormalizeMetadataTextureEntries(string workspacePath)
 	{
 		if (string.IsNullOrEmpty(workspacePath) || !Directory.Exists(workspacePath)) return;
 
@@ -199,7 +199,7 @@ internal static class MapTextureMetadata
 		}
 	}
 
-	internal static void UpdateMetadataGlbHash(string workspacePath, string fileName, string newHash)
+	public static void UpdateMetadataGlbHash(string workspacePath, string fileName, string newHash)
 	{
 		try
 		{
@@ -212,7 +212,7 @@ internal static class MapTextureMetadata
 		}
 	}
 
-	internal static void UpdateMetadataAnimationHash(string workspacePath, string animFileName, string newHash)
+	public static void UpdateMetadataAnimationHash(string workspacePath, string animFileName, string newHash)
 	{
 		try
 		{
@@ -224,7 +224,7 @@ internal static class MapTextureMetadata
 		}
 	}
 
-	internal static void DeduplicateWorkspaceBuildArtifacts(string workspacePath)
+	public static void DeduplicateWorkspaceBuildArtifacts(string workspacePath)
 	{
 		MapArchiveHelper.DeduplicateWorkspaceBuildArtifacts(workspacePath);
 	}

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using Realm.Ecs;
 using Godot;
@@ -23,7 +23,7 @@ namespace Realm.Client.Services;
 /// </summary>
 public class SnapshotComponentApplier
 {
-	internal delegate bool TryResolveEntity(int serverEntityId, out Entity localEntity);
+	public delegate bool TryResolveEntity(int serverEntityId, out Entity localEntity);
 
 	private const int UnplacedUnitDeltaGraceSequences = 4;
 
@@ -43,7 +43,7 @@ public class SnapshotComponentApplier
 
 	public int AppliedComponentDeltaCount { get; private set; }
 
-	internal SnapshotComponentApplier(ReplicatedStateMirror mirror, ReplicatedReferenceIndex references,
+	public SnapshotComponentApplier(ReplicatedStateMirror mirror, ReplicatedReferenceIndex references,
 		TryResolveEntity tryResolveEntity, Func<int, bool> isWaitingForUnitSpawn, Func<Entity> findWorldEntity)
 	{
 		_mirror = mirror;
@@ -53,13 +53,13 @@ public class SnapshotComponentApplier
 		_findWorldEntity = findWorldEntity;
 	}
 
-	internal void Clear()
+	public void Clear()
 	{
 		_pendingDeltas.Clear();
 		_pendingKeys.Clear();
 	}
 
-	internal void Apply(ComponentDelta delta, int snapshotSequence)
+	public void Apply(ComponentDelta delta, int snapshotSequence)
 	{
 		if (GameContext.World is not { } world) return;
 
@@ -163,7 +163,7 @@ public class SnapshotComponentApplier
 		}
 	}
 
-	internal void FlushPending(int sequence)
+	public void FlushPending(int sequence)
 	{
 		if (_pendingDeltas.Count == 0) return;
 

@@ -1,4 +1,4 @@
-﻿﻿using System;
+﻿using System;
 using System.Collections.Generic;
 using Realm.Ecs.Components.Terrain;
 using Realm.Shared.Distribution;
@@ -10,9 +10,9 @@ namespace Realm.Client.Services;
 ///     resampled to the map's current one, the water mask, and the pathing codes with their default when
 ///     the map carries none.
 /// </summary>
-internal static class MapTerrainLoad
+public static class MapTerrainLoad
 {
-	internal static void LoadTerrainHeights(string directory, int width, int depth, ref TerrainState ts, ref TerrainCell[,]? unscaledCells, ref int unscaledW, ref int unscaledH)
+	public static void LoadTerrainHeights(string directory, int width, int depth, ref TerrainState ts, ref TerrainCell[,]? unscaledCells, ref int unscaledW, ref int unscaledH)
 	{
 		float[]? floatData = MapTerrainFiles.TryReadHeights(directory, out int imgW, out int imgH);
 		if (floatData == null) return;
@@ -39,7 +39,7 @@ internal static class MapTerrainLoad
 		}
 	}
 
-	internal static void ScaleTerrainHeights(int width, int depth, int imgW, int imgH, ReadOnlySpan<float> floatData, ref TerrainState ts)
+	private static void ScaleTerrainHeights(int width, int depth, int imgW, int imgH, ReadOnlySpan<float> floatData, ref TerrainState ts)
 	{
 		if (ts.Cells == null) return;
 		var cells = ts.Cells;
@@ -64,7 +64,7 @@ internal static class MapTerrainLoad
 		}
 	}
 
-	internal static float GetInterpolatedHeight(int srcVx, int srcVz, int imgW, int imgH, ReadOnlySpan<float> floatData)
+	private static float GetInterpolatedHeight(int srcVx, int srcVz, int imgW, int imgH, ReadOnlySpan<float> floatData)
 	{
 		if (srcVx < imgW && srcVz < imgH) return floatData[(srcVz * imgW + srcVx) * 4 + 0];
 		if (srcVx >= imgW && srcVz >= imgH) return floatData[((imgH - 1) * imgW + (imgW - 1)) * 4 + 2];
@@ -73,7 +73,7 @@ internal static class MapTerrainLoad
 		return 0f;
 	}
 
-	internal static void LoadTerrainWater(string directory, int width, int depth, ref TerrainState ts, ref TerrainCell[,]? unscaledCells, ref int unscaledW, ref int unscaledH)
+	public static void LoadTerrainWater(string directory, int width, int depth, ref TerrainState ts, ref TerrainCell[,]? unscaledCells, ref int unscaledW, ref int unscaledH)
 	{
 		float[]? waterFloatData = MapTerrainFiles.TryReadWater(directory, out int imgW, out int imgH);
 		if (waterFloatData == null) return;
@@ -96,7 +96,7 @@ internal static class MapTerrainLoad
 		}
 	}
 
-	internal static void LoadTerrainPathing(string directory, int width, int depth, ref TerrainState ts)
+	public static void LoadTerrainPathing(string directory, int width, int depth, ref TerrainState ts)
 	{
 		byte[]? byteData = MapTerrainFiles.TryReadPathing(directory, out int imgW, out int imgH);
 		if (byteData == null)
@@ -115,7 +115,7 @@ internal static class MapTerrainLoad
 		MapTerrainFiles.ApplyPathing(byteData, imgW, imgH, pathingCodes, width, depth);
 	}
 
-	internal static void SetDefaultPathing(int width, int depth, ref TerrainState ts)
+	private static void SetDefaultPathing(int width, int depth, ref TerrainState ts)
 	{
 		if (ts.PathingCodes == null) return;
 

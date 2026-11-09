@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -19,9 +19,9 @@ namespace Realm.Client.Services;
 ///     file's metadata headers, and keeping the sidecar in step - through the CAS sidecar cache for a
 ///     content-addressed file, and through a plain .json next to the file otherwise.
 /// </summary>
-internal static class AssetIndexAssetWrites
+public static class AssetIndexAssetWrites
 {
-	internal static void UpdateTags(ILiteCollection<IndexedAsset> assets, LiteDatabase database, object syncLock, string globalCasDirectory, string filePath, List<string> newTags)
+	public static void UpdateTags(ILiteCollection<IndexedAsset> assets, LiteDatabase database, object syncLock, string globalCasDirectory, string filePath, List<string> newTags)
 	{
 		if (string.IsNullOrWhiteSpace(filePath))
 		{
@@ -74,7 +74,7 @@ internal static class AssetIndexAssetWrites
 		}
 	}
 
-	internal static void UpdateType(ILiteCollection<IndexedAsset> assets, LiteDatabase database, object syncLock, string globalCasDirectory, string filePath, AssetType newAssetType)
+	public static void UpdateType(ILiteCollection<IndexedAsset> assets, LiteDatabase database, object syncLock, string globalCasDirectory, string filePath, AssetType newAssetType)
 	{
 		if (string.IsNullOrWhiteSpace(filePath))
 		{
@@ -111,7 +111,7 @@ internal static class AssetIndexAssetWrites
 		}
 	}
 
-	internal static void UpdateType(ILiteCollection<IndexedAsset> assets, LiteDatabase database, object syncLock, string globalCasDirectory, string filePath, string newAssetType)
+	public static void UpdateType(ILiteCollection<IndexedAsset> assets, LiteDatabase database, object syncLock, string globalCasDirectory, string filePath, string newAssetType)
 	{
 		var norm = RealmMetadataHelper.NormalizeAssetType(newAssetType);
 		if (norm.HasValue)

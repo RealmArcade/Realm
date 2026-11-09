@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -16,7 +16,7 @@ namespace Realm.Client.Services;
 ///     collections, the content-addressed store it reads, and the directory that store keeps its files in.
 ///     Built once per operation so a reopened or rebuilt database is never captured by a stale reference.
 /// </summary>
-internal readonly record struct AssetIndexTarget(
+public readonly record struct AssetIndexTarget(
 	LiteDatabase Database,
 	ILiteCollection<IndexedAsset> Assets,
 	ILiteCollection<IndexedFolder> Folders,
@@ -30,9 +30,9 @@ internal readonly record struct AssetIndexTarget(
 ///     inserted when it is new. Asset type, tags, team-colour mask and chroma key come from the sidecar
 ///     metadata first and from the file name, folders and manifest tags after that.
 /// </summary>
-internal static class AssetIndexManifestRegistration
+public static class AssetIndexManifestRegistration
 {
-	internal static List<string> Register(AssetIndexTarget target, MapManifest manifest, string manifestPath, bool isP2P)
+	public static List<string> Register(AssetIndexTarget target, MapManifest manifest, string manifestPath, bool isP2P)
 	{
 		var indexedPaths = new List<string>();
 		if (manifest == null) return indexedPaths;

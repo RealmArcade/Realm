@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using Realm.Ecs;
 using Realm.Ecs.Common;
@@ -22,16 +22,16 @@ namespace Realm.Client.Services;
 ///     task cannot be started. Completion of a building is the same subject, so the construction components
 ///     come off here too.
 /// </summary>
-internal sealed class BuildQueueProcessor
+public sealed class BuildQueueProcessor
 {
 	private readonly List<(Entity Entity, string? Type, Vector3 Position, Entity Target)> _pending;
 
-	internal BuildQueueProcessor(List<(Entity Entity, string? Type, Vector3 Position, Entity Target)> pending)
+	public BuildQueueProcessor(List<(Entity Entity, string? Type, Vector3 Position, Entity Target)> pending)
 	{
 		_pending = pending;
 	}
 
-	internal void DomainProcessCompletedBuilding(Entity buildingEntity, Action<Entity>? viewCallback, Action<Entity>? notifyCallback)
+	public void DomainProcessCompletedBuilding(Entity buildingEntity, Action<Entity>? viewCallback, Action<Entity>? notifyCallback)
 	{
 		if (!SimulationService.World.IsAlive(buildingEntity)) return;
 
@@ -40,7 +40,7 @@ internal sealed class BuildQueueProcessor
 		notifyCallback?.Invoke(buildingEntity);
 	}
 
-	internal void RemoveConstructionComponents(Entity buildingEntity)
+	public void RemoveConstructionComponents(Entity buildingEntity)
 	{
 		if (SimulationService.World.Has<UnderConstruction>(buildingEntity))
 		{
@@ -53,7 +53,7 @@ internal sealed class BuildQueueProcessor
 		}
 	}
 
-	internal void ProcessBuildQueueEntity(Entity entity)
+	public void ProcessBuildQueueEntity(Entity entity)
 	{
 		if (HasActiveTask(entity)) return;
 
@@ -71,7 +71,7 @@ internal sealed class BuildQueueProcessor
 		}
 	}
 
-	internal bool HasActiveTask(Entity entity)
+	public bool HasActiveTask(Entity entity)
 	{
 		return SimulationService.World.Has<MoveTo>(entity) ||
 			   SimulationService.World.Has<BuildTask>(entity) ||
@@ -83,7 +83,7 @@ internal sealed class BuildQueueProcessor
 			   SimulationService.World.Has<HealingTarget>(entity);
 	}
 
-	internal void ProcessPendingQueuedCommands(Func<Entity, string?, Vector3, Entity, bool> executeCommandCallback)
+	public void ProcessPendingQueuedCommands(Func<Entity, string?, Vector3, Entity, bool> executeCommandCallback)
 	{
 		foreach (var cmd in _pending)
 		{
@@ -93,7 +93,7 @@ internal sealed class BuildQueueProcessor
 		}
 	}
 
-	internal void ProcessPendingCommand((Entity Entity, string? Type, Vector3 Position, Entity Target) cmd, Func<Entity, string?, Vector3, Entity, bool> executeCommandCallback)
+	public void ProcessPendingCommand((Entity Entity, string? Type, Vector3 Position, Entity Target) cmd, Func<Entity, string?, Vector3, Entity, bool> executeCommandCallback)
 	{
 		if (cmd.Type == "clear_queue_component")
 		{
@@ -105,7 +105,7 @@ internal sealed class BuildQueueProcessor
 		ProcessRemainingQueue(cmd.Entity, success, executeCommandCallback);
 	}
 
-	internal void ClearQueueComponent(Entity entity)
+	public void ClearQueueComponent(Entity entity)
 	{
 		if (SimulationService.World.Has<BuildQueue>(entity))
 		{
@@ -113,7 +113,7 @@ internal sealed class BuildQueueProcessor
 		}
 	}
 
-	internal void ProcessRemainingQueue(Entity entity, bool lastSuccess, Func<Entity, string?, Vector3, Entity, bool> executeCommandCallback)
+	public void ProcessRemainingQueue(Entity entity, bool lastSuccess, Func<Entity, string?, Vector3, Entity, bool> executeCommandCallback)
 	{
 		while (!lastSuccess && SimulationService.World.Has<BuildQueue>(entity))
 		{

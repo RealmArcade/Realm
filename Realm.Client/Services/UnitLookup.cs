@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using Godot;
 using Realm.Client.Core;
@@ -13,16 +13,16 @@ namespace Realm.Client.Services;
 ///     this match, the fallback walk over the host's live unit list, and the count of a player's living
 ///     units.
 /// </summary>
-internal sealed class UnitLookup
+public sealed class UnitLookup
 {
 	private readonly Dictionary<int, Unit_WasmRuntime> _cache;
 
-	internal UnitLookup(Dictionary<int, Unit_WasmRuntime> cache)
+	public UnitLookup(Dictionary<int, Unit_WasmRuntime> cache)
 	{
 		_cache = cache;
 	}
 
-	internal Unit_WasmRuntime GetUnitWrapper(Entity entity)
+	public Unit_WasmRuntime GetUnitWrapper(Entity entity)
 	{
 		if (!SimulationService.World.IsAlive(entity))
 		{
@@ -39,7 +39,7 @@ internal sealed class UnitLookup
 		return wrapper;
 	}
 
-	internal bool TryGetEntity(UnitId unit, out Entity entity)
+	public bool TryGetEntity(UnitId unit, out Entity entity)
 	{
 		if (!unit.IsValid)
 		{
@@ -63,7 +63,7 @@ internal sealed class UnitLookup
 		return false;
 	}
 
-	internal Unit_WasmRuntime? GetUnitWrapper(UnitId unit)
+	public Unit_WasmRuntime? GetUnitWrapper(UnitId unit)
 	{
 		if (!unit.IsValid) return null;
 
@@ -88,7 +88,7 @@ internal sealed class UnitLookup
 		return null;
 	}
 
-	internal int CountUnitsOwnedByPlayer(ReadOnlySpan<UnitId> units)
+	public int CountUnitsOwnedByPlayer(ReadOnlySpan<UnitId> units)
 	{
 		int count = 0;
 		for (int i = 0; i < units.Length; i++)

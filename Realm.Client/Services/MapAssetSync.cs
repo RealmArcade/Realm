@@ -1,4 +1,4 @@
-﻿﻿using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -12,7 +12,7 @@ namespace Realm.Client.Services;
 ///     where a named asset actually sits on disk, and the sync that drops stale import files, rewrites
 ///     each asset's hash into the manifest and removes the directories left empty.
 /// </summary>
-internal static class MapAssetSync
+public static class MapAssetSync
 {
 	public static bool IsValidPropObjectId(string propId, string? mapDirectory = null)
 	{

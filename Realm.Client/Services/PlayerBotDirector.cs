@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text.Json;
 using Realm.Client.Core;
@@ -17,18 +17,18 @@ namespace Realm.Client.Services;
 ///     decides what it wants, and the per-player feed of decisions a custom genre scanner reads. A script
 ///     sets either a profile or a genre, and the same slot keeps its controller across both.
 /// </summary>
-internal sealed class PlayerBotDirector
+public sealed class PlayerBotDirector
 {
 	private readonly Dictionary<int, BotController> _controllers = new();
 	private readonly Dictionary<int, List<GenericAffordance>> _customDecisions = new();
 	private readonly Action<int, string, string, Vector3> _customAction;
 
-	internal PlayerBotDirector(Action<int, string, string, Vector3> customAction)
+	public PlayerBotDirector(Action<int, string, string, Vector3> customAction)
 	{
 		_customAction = customAction;
 	}
 
-	internal void SetPlayerBotProfileDomain(int playerIndex, string profileJson)
+	public void SetPlayerBotProfileDomain(int playerIndex, string profileJson)
 	{
 		if (string.IsNullOrWhiteSpace(profileJson)) return;
 		try
@@ -41,7 +41,7 @@ internal sealed class PlayerBotDirector
 		}
 	}
 
-	internal void SetBotProfile(int playerIndex, BotProfile profile)
+	public void SetBotProfile(int playerIndex, BotProfile profile)
 	{
 		if (!_controllers.TryGetValue(playerIndex, out var bot))
 		{
@@ -55,23 +55,23 @@ internal sealed class PlayerBotDirector
 		}
 	}
 
-	internal string GetPlayerBotProfileDomain(int playerIndex)
+	public string GetPlayerBotProfileDomain(int playerIndex)
 	{
 		var profile = GetBotProfile(playerIndex);
 		return profile != null ? profile.ToJson() : string.Empty;
 	}
 
-	internal BotProfile? GetBotProfile(int playerIndex)
+	public BotProfile? GetBotProfile(int playerIndex)
 	{
 		return _controllers.TryGetValue(playerIndex, out var bot) ? bot.Profile : null;
 	}
 
-	internal void SetPlayerBotGenreDomain(int playerIndex, string genreName, string? configJson)
+	public void SetPlayerBotGenreDomain(int playerIndex, string genreName, string? configJson)
 	{
 		SetBotGenre(playerIndex, genreName, configJson);
 	}
 
-	internal void SetBotGenre(int playerIndex, string genreName, string? configJson = null)
+	public void SetBotGenre(int playerIndex, string genreName, string? configJson = null)
 	{
 		var genreProvider = AiGenreRegistry.Get(genreName);
 		ConfigureGenreProvider(genreProvider, configJson);
@@ -79,7 +79,7 @@ internal sealed class PlayerBotDirector
 		UpdateOrCreateBotController(playerIndex, genreProvider);
 	}
 
-	internal void ConfigureGenreProvider(IAiGenreProvider genreProvider, string? configJson)
+	private void ConfigureGenreProvider(IAiGenreProvider genreProvider, string? configJson)
 	{
 		if (string.IsNullOrWhiteSpace(configJson)) return;
 		try
@@ -92,7 +92,7 @@ internal sealed class PlayerBotDirector
 		}
 	}
 
-	internal void ConfigureCustomProvider(string genreName, IAiGenreProvider genreProvider)
+	private void ConfigureCustomProvider(string genreName, IAiGenreProvider genreProvider)
 	{
 		if (!string.Equals(genreName, "custom", StringComparison.OrdinalIgnoreCase)) return;
 		if (genreProvider is not CustomGenreProvider customProvider) return;
@@ -103,7 +103,7 @@ internal sealed class PlayerBotDirector
 		};
 	}
 
-	internal void UpdateOrCreateBotController(int playerIndex, IAiGenreProvider genreProvider)
+	private void UpdateOrCreateBotController(int playerIndex, IAiGenreProvider genreProvider)
 	{
 		if (!_controllers.TryGetValue(playerIndex, out var bot))
 		{
@@ -120,22 +120,22 @@ internal sealed class PlayerBotDirector
 		}
 	}
 
-	internal string GetPlayerBotGenreDomain(int playerIndex)
+	public string GetPlayerBotGenreDomain(int playerIndex)
 	{
 		return GetBotGenre(playerIndex);
 	}
 
-	internal string GetBotGenre(int playerIndex)
+	public string GetBotGenre(int playerIndex)
 	{
 		return _controllers.TryGetValue(playerIndex, out var bot) ? bot.GenreProvider.GenreName : "rts";
 	}
 
-	internal void RegisterCustomBotDecisionDomain(int playerIndex, string actionId, string intent, float[] featureVector, Vector3 position, string payload)
+	public void RegisterCustomBotDecisionDomain(int playerIndex, string actionId, string intent, float[] featureVector, Vector3 position, string payload)
 	{
 		RegisterCustomBotDecision(playerIndex, actionId, intent, featureVector, position, payload);
 	}
 
-	internal void RegisterCustomBotDecision(int playerIndex, string actionId, string intent, float[] featureVector, Vector3 position, string payload)
+	public void RegisterCustomBotDecision(int playerIndex, string actionId, string intent, float[] featureVector, Vector3 position, string payload)
 	{
 		if (!_customDecisions.TryGetValue(playerIndex, out var list))
 		{
@@ -159,7 +159,7 @@ internal sealed class PlayerBotDirector
 		));
 	}
 
-	internal void ClearCustomBotDecisions(int playerIndex)
+	public void ClearCustomBotDecisions(int playerIndex)
 	{
 		if (_customDecisions.TryGetValue(playerIndex, out var list))
 		{

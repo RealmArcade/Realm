@@ -14,7 +14,7 @@ namespace Realm.Client.Services;
 /// the snapshot to both stores and reports the metadata write time, so the caller decides whether to track
 /// it; nothing here holds state.
 /// </summary>
-internal static class EditorAttachmentWrites
+public static class EditorAttachmentWrites
 {
 	private static string ResolveUnitOrBuildingKey(string id, RegistryService registryService, out bool isBuildingMeta)
 	{

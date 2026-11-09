@@ -8,9 +8,9 @@ namespace Realm.Client.Services;
 ///     the indices its four neighbours blend so that adjacent quads can share a texture slot instead of
 ///     falling back to a blend of two different slots. A pure pass over the matrix it is handed.
 /// </summary>
-internal static class EditorSplatAlignment
+public static class EditorSplatAlignment
 {
-	internal static void AlignSplatMapMatrix(TerrainSplatWeights[,] splatMatrix, int minX, int minZ, int maxX, int maxZ)
+	public static void AlignSplatMapMatrix(TerrainSplatWeights[,] splatMatrix, int minX, int minZ, int maxX, int maxZ)
 	{
 		int width = splatMatrix.GetLength(0);
 		int depth = splatMatrix.GetLength(1);

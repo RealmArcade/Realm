@@ -4,9 +4,9 @@ using System.Threading.Tasks;
 
 namespace Realm.Client.Services;
 
-internal static class EditorMapBuild
+public static class EditorMapBuild
 {
-	internal static async Task<bool> PerformCompilationStepAsync(string workspace, Func<string, string?> findProjectFile, Func<string, bool, bool> tryBypassCompilation, Func<string, bool> checkMapApiDependency, Func<string, string, bool, Task<bool>> executeDotnetPublishAsync, Action<string> onStatusError, Action<string> onLog, bool isDebug = false)
+	public static async Task<bool> PerformCompilationStepAsync(string workspace, Func<string, string?> findProjectFile, Func<string, bool, bool> tryBypassCompilation, Func<string, bool> checkMapApiDependency, Func<string, string, bool, Task<bool>> executeDotnetPublishAsync, Action<string> onStatusError, Action<string> onLog, bool isDebug = false)
 	{
 		try
 		{
@@ -39,7 +39,7 @@ internal static class EditorMapBuild
 		}
 	}
 
-	internal static string? FindProjectFile(string workspace, Action<string> onErrorMessage)
+	public static string? FindProjectFile(string workspace, Action<string> onErrorMessage)
 	{
 		var csprojFiles = Directory.GetFiles(workspace, "*.csproj", SearchOption.TopDirectoryOnly);
 		if (csprojFiles.Length == 0)
@@ -51,7 +51,7 @@ internal static class EditorMapBuild
 		return System.Linq.Enumerable.FirstOrDefault(csprojFiles, f => Path.GetFileName(f).Equals("MapScript.csproj", StringComparison.OrdinalIgnoreCase)) ?? csprojFiles[0];
 	}
 
-	internal static bool TryBypassCompilation(string workspace, Func<string, string?> findExistingWasmFile, Func<string, DateTime, bool> hasNewerSourceFiles, Action onBypassSuccess, bool isDebug = false)
+	public static bool TryBypassCompilation(string workspace, Func<string, string?> findExistingWasmFile, Func<string, DateTime, bool> hasNewerSourceFiles, Action onBypassSuccess, bool isDebug = false)
 	{
 		string? existingWasm = findExistingWasmFile(workspace);
 		if (string.IsNullOrEmpty(existingWasm) || !File.Exists(existingWasm)) return false;

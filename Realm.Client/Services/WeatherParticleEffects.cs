@@ -8,13 +8,13 @@ namespace Realm.Client.Services;
 /// Owns the single particle node that draws rain or snow around the camera, and the fog side-effects of a weather
 /// change. <see cref="EnvironmentService"/> keeps the public weather surface and forwards here.
 /// </summary>
-internal sealed class WeatherParticleEffects
+public sealed class WeatherParticleEffects
 {
 	private CpuParticles3D? _weatherParticles = null;
 	private string _activeWeatherVisualType = "clear";
 	private int _activeParticleDensity = 0;
 
-	internal static Node3D? GetEnvironmentHost()
+	public static Node3D? GetEnvironmentHost()
 	{
 		Node3D? host = GameContext.Host;
 		return host != null && GodotObject.IsInstanceValid(host) ? host : null;

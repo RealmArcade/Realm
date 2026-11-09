@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Realm.Ecs;
 using Realm.Ecs.Common;
 using Realm.Shared.Maps;
@@ -141,7 +141,7 @@ public static class EditorEntityState
 		World.Mutate<EditorState>(worldEntity, (ref EditorState s) => s.HasUnsavedChanges = value);
 	}
 
-	internal static void SetCameraBounds(Entity worldEntity, MapCameraBounds cameraBounds)
+	public static void SetCameraBounds(Entity worldEntity, MapCameraBounds cameraBounds)
 	{
 		if (GameContext.World == null || !World.IsAlive(worldEntity)) return;
 

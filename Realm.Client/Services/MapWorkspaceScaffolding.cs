@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -18,7 +18,7 @@ namespace Realm.Client.Services;
 ///     file operations retry briefly, because a workspace is also held open by dotnet watch and the ld
 ///     toolchain.
 /// </summary>
-internal static class MapWorkspaceScaffolding
+public static class MapWorkspaceScaffolding
 {
 	private static string? FindBuiltApiDll()
 	{
@@ -415,7 +415,7 @@ internal static class MapWorkspaceScaffolding
 
 	private const int FileLockRetryDelayMilliseconds = 100;
 
-	internal static bool TryRunFileOperation(Action operation)
+	public static bool TryRunFileOperation(Action operation)
 	{
 		for (int attempt = 0; attempt < FileLockRetryAttempts; attempt++)
 		{
@@ -433,7 +433,7 @@ internal static class MapWorkspaceScaffolding
 		return false;
 	}
 
-	internal static void ClearFolderBestEffort(string folderPath)
+	public static void ClearFolderBestEffort(string folderPath)
 	{
 		foreach (string filePath in Directory.GetFiles(folderPath, "*", SearchOption.AllDirectories))
 		{
@@ -463,7 +463,7 @@ internal static class MapWorkspaceScaffolding
 		File.Delete(filePath);
 	}
 
-	internal static void CopyFolderBestEffort(string sourceFolder, string targetFolder)
+	public static void CopyFolderBestEffort(string sourceFolder, string targetFolder)
 	{
 		foreach (string sourcePath in Directory.GetFiles(sourceFolder, "*", SearchOption.AllDirectories))
 		{

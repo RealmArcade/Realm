@@ -1,4 +1,4 @@
-﻿﻿using System.IO;
+﻿using System.IO;
 
 namespace Realm.Client.Services;
 
@@ -7,9 +7,9 @@ namespace Realm.Client.Services;
 ///     joins the spritesheets, and the per-asset-type folders nested one level too deep by the old
 ///     exporter are flattened into their category folder.
 /// </summary>
-internal static class Migration_0_0_4_AssetDirectories
+public static class Migration_0_0_4_AssetDirectories
 {
-	internal static void MigrateAssetsDirectories(string mapDirectory)
+	public static void MigrateAssetsDirectories(string mapDirectory)
 	{
 		string assetsDir = Path.Combine(mapDirectory, "Assets");
 		if (!Directory.Exists(assetsDir)) return;
@@ -18,7 +18,7 @@ internal static class Migration_0_0_4_AssetDirectories
 		MovePrefixSubfolders(assetsDir);
 	}
 
-	internal static void MoveLegacyVfxDir(string assetsDir)
+	private static void MoveLegacyVfxDir(string assetsDir)
 	{
 		string legacyVfxDir = Path.Combine(assetsDir, "vfx");
 		string newVfxDir = Path.Combine(assetsDir, "vfx_spritesheets");
@@ -36,7 +36,7 @@ internal static class Migration_0_0_4_AssetDirectories
 		}
 	}
 
-	internal static void MovePrefixSubfolders(string assetsDir)
+	private static void MovePrefixSubfolders(string assetsDir)
 	{
 		var prefixSubfolderChecks = new (string Folder, string Prefix)[]
 		{
@@ -63,7 +63,7 @@ internal static class Migration_0_0_4_AssetDirectories
 		}
 	}
 
-	internal static void MoveDirectoryContents(string sourceDir, string targetDir)
+	private static void MoveDirectoryContents(string sourceDir, string targetDir)
 	{
 		foreach (var file in Directory.GetFiles(sourceDir, "*.*", SearchOption.AllDirectories))
 		{

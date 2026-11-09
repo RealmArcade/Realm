@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -17,9 +17,9 @@ namespace Realm.Client.Services;
 ///     finally from where the file sits in the Assets tree; the converted texture replaces the png and the
 ///     map manifest and metadata are updated to point at it. Only used by the workspace save paths.
 /// </summary>
-internal static class MapPngConversion
+public static class MapPngConversion
 {
-	internal static void EnsurePngAssetsConverted(string workspacePath)
+	public static void EnsurePngAssetsConverted(string workspacePath)
 	{
 		if (string.IsNullOrEmpty(workspacePath) || !Directory.Exists(workspacePath)) return;
 
@@ -46,7 +46,7 @@ internal static class MapPngConversion
 	}
 
 
-	internal static async Task EnsurePngAssetsConvertedCooperativeAsync(
+	public static async Task EnsurePngAssetsConvertedCooperativeAsync(
 		string workspacePath,
 		Func<int, int, string, Task>? onTextureProgress = null)
 	{

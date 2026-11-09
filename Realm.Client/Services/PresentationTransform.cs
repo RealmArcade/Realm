@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.Network;
@@ -18,11 +18,11 @@ namespace Realm.Client.Services;
 ///     facing, and the presentation pass that samples the snapshot timeline for a replicated unit and writes
 ///     the result back as the unit's position.
 /// </summary>
-internal sealed class PresentationTransform
+public sealed class PresentationTransform
 {
 	private const float StationaryVelocitySquared = 0.01f;
 
-	internal bool TryGetInterpolatedTransform(Entity entity, float fraction, out Vector3 position, out float rotationY)
+	public bool TryGetInterpolatedTransform(Entity entity, float fraction, out Vector3 position, out float rotationY)
 	{
 		position = Vector3.Zero;
 		rotationY = 0f;
@@ -46,7 +46,7 @@ internal sealed class PresentationTransform
 		return true;
 	}
 
-	internal (Vector3 Position, float RotationY) GetInterpolatedTransform(Entity entity, float fraction)
+	public (Vector3 Position, float RotationY) GetInterpolatedTransform(Entity entity, float fraction)
 	{
 		TryGetInterpolatedTransform(entity, fraction, out var pos, out var rotY);
 		return (pos, rotY);
@@ -57,7 +57,7 @@ internal sealed class PresentationTransform
 	///     match clock is being rendered rather than where the authority has got to. A unit is drawn between the two
 	///     descriptions either side of the cursor, so it neither trails a smoothed target nor has to be caught up.
 	/// </summary>
-	internal void PresentationQueryAction(Entity entity, ref LatestDescription target)
+	public void PresentationQueryAction(Entity entity, ref LatestDescription target)
 	{
 		if (!SimulationService.World.Has<Position>(entity)) return;
 

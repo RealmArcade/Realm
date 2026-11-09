@@ -19,23 +19,23 @@ namespace Realm.Client.Services;
 ///     record the same file the same way. Every member is a pure function of the path, the file and its metadata; none
 ///     of them reads a collection or takes a lock, and the callers keep their own lock for the write that follows.
 /// </summary>
-internal static class AssetRecordFactory
+public static class AssetRecordFactory
 {
 
-	internal static bool IsIgnoredFileExtension(string extension)
+	public static bool IsIgnoredFileExtension(string extension)
 	{
 		return extension == ".cache" || extension == ".log" || extension == ".tmp" || extension == ".uid";
 	}
 
 
-	internal static bool IsMetadataSidecarFile(string normalizedFilePath)
+	public static bool IsMetadataSidecarFile(string normalizedFilePath)
 	{
 		return normalizedFilePath.EndsWith(".json", StringComparison.OrdinalIgnoreCase) &&
 		       File.Exists(normalizedFilePath.Substring(0, normalizedFilePath.Length - 5));
 	}
 
 
-	internal static AssetType? GetExpectedAssetTypeFromDirectory(string normalizedFilePath)
+	public static AssetType? GetExpectedAssetTypeFromDirectory(string normalizedFilePath)
 	{
 		string? dir = Path.GetDirectoryName(normalizedFilePath);
 		if (string.IsNullOrEmpty(dir)) return null;
@@ -54,7 +54,7 @@ internal static class AssetRecordFactory
 	}
 
 
-	internal static bool IsExistingAssetUpToDate(IndexedAsset? existingAsset, FileInfo fileInfo, AssetType? expectedDirType, string normalizedFilePath)
+	public static bool IsExistingAssetUpToDate(IndexedAsset? existingAsset, FileInfo fileInfo, AssetType? expectedDirType, string normalizedFilePath)
 	{
 		if (existingAsset == null) return false;
 		if (existingAsset.FileSizeBytes != fileInfo.Length) return false;
@@ -67,7 +67,7 @@ internal static class AssetRecordFactory
 	}
 
 
-	internal static bool IsAssetMetadataValid(IndexedAsset existingAsset, AssetType? expectedDirType)
+	private static bool IsAssetMetadataValid(IndexedAsset existingAsset, AssetType? expectedDirType)
 	{
 		if (string.IsNullOrEmpty(existingAsset.Blake3)) return false;
 		if (!existingAsset.AssetType.HasValue) return false;
@@ -78,7 +78,7 @@ internal static class AssetRecordFactory
 	}
 
 
-	internal static IndexedAsset GenerateIndexedAssetFromFile(string normalizedFilePath, string normalizedDirectoryPath, FileInfo fileInfo, string extension, AssetType? expectedDirType, IndexedAsset? existingAsset)
+	public static IndexedAsset GenerateIndexedAssetFromFile(string normalizedFilePath, string normalizedDirectoryPath, FileInfo fileInfo, string extension, AssetType? expectedDirType, IndexedAsset? existingAsset)
 	{
 		string? metaJson = RealmMetadataHelper.ExtractMetadata(normalizedFilePath);
 		var parsedMeta = ExtractParsedMetadata(metaJson, normalizedFilePath);
@@ -92,7 +92,7 @@ internal static class AssetRecordFactory
 	}
 
 
-	internal static void PopulateBasicAssetData(IndexedAsset asset, string normalizedFilePath, string normalizedDirectoryPath, FileInfo fileInfo, string extension, List<string> tags, IndexedAsset? existingAsset)
+	private static void PopulateBasicAssetData(IndexedAsset asset, string normalizedFilePath, string normalizedDirectoryPath, FileInfo fileInfo, string extension, List<string> tags, IndexedAsset? existingAsset)
 	{
 		asset.FilePath = normalizedFilePath;
 		asset.FileName = Path.GetFileName(normalizedFilePath);
@@ -107,7 +107,7 @@ internal static class AssetRecordFactory
 	}
 
 
-	internal static void PopulateAssetMetadata(IndexedAsset asset, string normalizedFilePath, AssetType? expectedDirType, string? metaJson, (AssetType? AssetType, string? Blake3, List<string> Tags, bool? HasMask, string? ChromaKey) parsedMeta, List<string> tags)
+	private static void PopulateAssetMetadata(IndexedAsset asset, string normalizedFilePath, AssetType? expectedDirType, string? metaJson, (AssetType? AssetType, string? Blake3, List<string> Tags, bool? HasMask, string? ChromaKey) parsedMeta, List<string> tags)
 	{
 		AssetType? assetType = DetermineAssetType(parsedMeta.AssetType, expectedDirType, normalizedFilePath, tags);
 		string normBlake3 = GetOrComputeBlake3(parsedMeta.Blake3, normalizedFilePath);
@@ -122,7 +122,7 @@ internal static class AssetRecordFactory
 	}
 
 
-	internal static (AssetType? AssetType, string? Blake3, List<string> Tags, bool? HasMask, string? ChromaKey) ExtractParsedMetadata(string? metaJson, string normalizedFilePath)
+	public static (AssetType? AssetType, string? Blake3, List<string> Tags, bool? HasMask, string? ChromaKey) ExtractParsedMetadata(string? metaJson, string normalizedFilePath)
 	{
 		if (string.IsNullOrEmpty(metaJson))
 		{
@@ -133,7 +133,7 @@ internal static class AssetRecordFactory
 	}
 
 
-	internal static (AssetType? AssetType, string? Blake3, List<string> Tags, bool? HasMask, string? ChromaKey) ExtractParsedMetadataFromJson(string metaJson, string normalizedFilePath)
+	public static (AssetType? AssetType, string? Blake3, List<string> Tags, bool? HasMask, string? ChromaKey) ExtractParsedMetadataFromJson(string metaJson, string normalizedFilePath)
 	{
 		try
 		{
@@ -155,7 +155,7 @@ internal static class AssetRecordFactory
 	}
 
 
-	internal static AssetType? ExtractAssetTypeFromJson(JsonObject obj, string normalizedFilePath)
+	public static AssetType? ExtractAssetTypeFromJson(JsonObject obj, string normalizedFilePath)
 	{
 		string? typeVal = obj[AssetMetadataKeys.AssetType]?.ToString();
 		if (!string.IsNullOrEmpty(typeVal))
@@ -171,7 +171,7 @@ internal static class AssetRecordFactory
 	}
 
 
-	internal static List<string> ExtractTagsFromJson(JsonObject obj)
+	private static List<string> ExtractTagsFromJson(JsonObject obj)
 	{
 		var embeddedTags = new List<string>();
 		if (obj.TryGetPropertyValue("tags", out var tagsNode) && tagsNode is JsonArray arr)
@@ -190,7 +190,7 @@ internal static class AssetRecordFactory
 	}
 
 
-	internal static AssetType? DetermineAssetType(AssetType? parsedType, AssetType? expectedDirType, string normalizedFilePath, List<string> tags)
+	private static AssetType? DetermineAssetType(AssetType? parsedType, AssetType? expectedDirType, string normalizedFilePath, List<string> tags)
 	{
 		if (parsedType.HasValue) return parsedType;
 		if (expectedDirType.HasValue) return expectedDirType;
@@ -211,7 +211,7 @@ internal static class AssetRecordFactory
 	}
 
 
-	internal static string GetOrComputeBlake3(string? parsedBlake3, string normalizedFilePath)
+	private static string GetOrComputeBlake3(string? parsedBlake3, string normalizedFilePath)
 	{
 		if (!string.IsNullOrEmpty(parsedBlake3)) return parsedBlake3;
 		try
@@ -225,7 +225,7 @@ internal static class AssetRecordFactory
 	}
 
 
-	internal static ParsedAssetMetadata ParseMetadataHeaders(string? metaJson, string filePath)
+	public static ParsedAssetMetadata ParseMetadataHeaders(string? metaJson, string filePath)
 	{
 		var result = new ParsedAssetMetadata { Tags = new List<string>() };
 		if (string.IsNullOrWhiteSpace(metaJson)) return result;
@@ -248,7 +248,7 @@ internal static class AssetRecordFactory
 	}
 
 
-	internal static AssetType? ExtractAssetTypeFromMetadata(JsonObject obj, string filePath)
+	private static AssetType? ExtractAssetTypeFromMetadata(JsonObject obj, string filePath)
 	{
 		string? typeVal = obj[AssetMetadataKeys.AssetType]?.ToString();
 		if (!string.IsNullOrEmpty(typeVal))
@@ -264,7 +264,7 @@ internal static class AssetRecordFactory
 	}
 
 
-	internal static bool? ExtractSupportsTeamColor(JsonObject obj)
+	public static bool? ExtractSupportsTeamColor(JsonObject obj)
 	{
 		if (obj["team_color"] != null && bool.TryParse(obj["team_color"]?.ToString(), out bool tcVal)) return tcVal;
 		if (obj["supports_team_color"] != null && bool.TryParse(obj["supports_team_color"]?.ToString(), out bool stcVal)) return stcVal;
@@ -273,13 +273,13 @@ internal static class AssetRecordFactory
 	}
 
 
-	internal static string? ExtractChromaKeyFromMetadata(JsonObject obj)
+	private static string? ExtractChromaKeyFromMetadata(JsonObject obj)
 	{
 		return obj["chroma_key"]?.ToString() ?? obj["chromaKey"]?.ToString() ?? obj["target_hex"]?.ToString() ?? obj["targetHex"]?.ToString();
 	}
 
 
-	internal static void ExtractTagsFromMetadata(JsonObject obj, List<string> resultTags)
+	private static void ExtractTagsFromMetadata(JsonObject obj, List<string> resultTags)
 	{
 		if (obj["tags"] is JsonArray arr)
 		{
@@ -295,7 +295,7 @@ internal static class AssetRecordFactory
 	}
 
 
-	internal static bool DetermineHasPlayerColorMask(string? metaJson, string? filePath)
+	public static bool DetermineHasPlayerColorMask(string? metaJson, string? filePath)
 	{
 		if (!string.IsNullOrEmpty(metaJson) && RealmMetadataHelper.ExtractSupportsTeamColorFromMetadataJson(metaJson))
 		{
@@ -315,7 +315,7 @@ internal static class AssetRecordFactory
 	}
 
 
-	internal static List<string> LoadTagsForFile(string filePath, string rootDirectory, List<string>? preloadedTags = null)
+	public static List<string> LoadTagsForFile(string filePath, string rootDirectory, List<string>? preloadedTags = null)
 	{
 		var tagSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -335,7 +335,7 @@ internal static class AssetRecordFactory
 	}
 
 
-	internal static void PopulateInitialTags(string filePath, List<string>? preloadedTags, HashSet<string> tagSet)
+	private static void PopulateInitialTags(string filePath, List<string>? preloadedTags, HashSet<string> tagSet)
 	{
 		if (preloadedTags != null && preloadedTags.Count > 0)
 		{
@@ -349,7 +349,7 @@ internal static class AssetRecordFactory
 	}
 
 
-	internal static void TryLoadTagsFromSidecar(string filePath, HashSet<string> tagSet)
+	private static void TryLoadTagsFromSidecar(string filePath, HashSet<string> tagSet)
 	{
 		string sidecarJsonWithExt = filePath + ".json";
 		string sidecarJsonNoExt = Path.Combine(Path.GetDirectoryName(filePath)!, Path.GetFileNameWithoutExtension(filePath) + ".json");
@@ -365,7 +365,7 @@ internal static class AssetRecordFactory
 	}
 
 
-	internal static void ParseTagsFromSidecarJson(string foundMetadataPath, HashSet<string> tagSet)
+	private static void ParseTagsFromSidecarJson(string foundMetadataPath, HashSet<string> tagSet)
 	{
 		try
 		{
@@ -385,7 +385,7 @@ internal static class AssetRecordFactory
 	}
 
 
-	internal static void GenerateFallbackTags(string filePath, string rootDirectory, HashSet<string> tagSet)
+	private static void GenerateFallbackTags(string filePath, string rootDirectory, HashSet<string> tagSet)
 	{
 		string nameWithoutExt = Path.GetFileNameWithoutExtension(filePath);
 		var nameTokens = nameWithoutExt.Split(new[] { '_', '-', ' ', '.', '@' }, StringSplitOptions.RemoveEmptyEntries);
@@ -409,7 +409,7 @@ internal static class AssetRecordFactory
 	}
 
 
-	internal static void EnqueueThumbnailRequestIfNeeded(string extension, string normPath, string? norm)
+	public static void EnqueueThumbnailRequestIfNeeded(string extension, string normPath, string? norm)
 	{
 		if (extension == ".rmesh" && !GlbThumbnailRenderer.HasDiskCache(normPath, norm))
 		{

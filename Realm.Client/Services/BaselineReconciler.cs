@@ -1,4 +1,4 @@
-﻿﻿using System;
+﻿using System;
 using System.Collections.Generic;
 using Realm.Client.Core;
 using Realm.Ecs;
@@ -13,7 +13,7 @@ namespace Realm.Client.Services;
 ///     describes are retired, and a unit component the baseline says the host does not have is removed
 ///     locally, so a stale component cannot outlive the description that omitted it.
 /// </summary>
-internal sealed class BaselineReconciler
+public sealed class BaselineReconciler
 {
 	private static EcsWorld Ecs => GameContext.World
 		?? throw new InvalidOperationException("The baseline reconciler was used before a world existed.");

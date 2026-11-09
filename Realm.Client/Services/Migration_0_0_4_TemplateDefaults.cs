@@ -1,4 +1,4 @@
-﻿﻿using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json.Nodes;
@@ -10,9 +10,9 @@ namespace Realm.Client.Services;
 ///     matching template: a unit, building, prop, resource, decal, terrain texture, spritesheet, icon or
 ///     shader entry generated from the asset's file name, plus the small lookups those checks share.
 /// </summary>
-internal static class Migration_0_0_4_TemplateDefaults
+public static class Migration_0_0_4_TemplateDefaults
 {
-	internal static JsonObject CreateDefaultShaderConfig(
+	public static JsonObject CreateDefaultShaderConfig(
 		string name,
 		int transitionMode,
 		int direction,
@@ -44,7 +44,7 @@ internal static class Migration_0_0_4_TemplateDefaults
 		};
 	}
 
-	internal static bool ModelExistsInOtherCategories(JsonObject templatesObj, string fileName, string slug)
+	private static bool ModelExistsInOtherCategories(JsonObject templatesObj, string fileName, string slug)
 	{
 		return new[] { "Units", "Buildings", "Resources", "Props" }
 			.Where(cat => templatesObj.ContainsKey(cat) && templatesObj[cat] is JsonArray)
@@ -55,7 +55,7 @@ internal static class Migration_0_0_4_TemplateDefaults
 				string.Equals(TemplateIDHelper.GenerateSlug(item["TemplateID"]?.ToString() ?? ""), slug, StringComparison.OrdinalIgnoreCase));
 	}
 
-	internal static void EnsureTemplateForManifestAsset(JsonObject metadataRoot, JsonObject templatesObj, string category, string fileName, string hash)
+	public static void EnsureTemplateForManifestAsset(JsonObject metadataRoot, JsonObject templatesObj, string category, string fileName, string hash)
 	{
 		if (string.IsNullOrWhiteSpace(fileName)) return;
 
@@ -94,7 +94,7 @@ internal static class Migration_0_0_4_TemplateDefaults
 		}
 	}
 
-	internal static void EnsureUnitTemplate(JsonObject templatesObj, string fileName, string slug)
+	private static void EnsureUnitTemplate(JsonObject templatesObj, string fileName, string slug)
 	{
 		string unitTemplateId = TemplateIDHelper.NormalizeTemplateID("unit", slug);
 		var unitsArr = GetOrAddArray(templatesObj, "Units");
@@ -115,7 +115,7 @@ internal static class Migration_0_0_4_TemplateDefaults
 		});
 	}
 
-	internal static JsonArray GetOrAddArray(JsonObject templatesObj, string key)
+	private static JsonArray GetOrAddArray(JsonObject templatesObj, string key)
 	{
 		if (!templatesObj.ContainsKey(key) || templatesObj[key] is not JsonArray)
 		{
@@ -125,7 +125,7 @@ internal static class Migration_0_0_4_TemplateDefaults
 		return (JsonArray)templatesObj[key]!;
 	}
 
-	internal static bool CheckIfTemplateExists(JsonArray array, string templateId, string fileName, string slug)
+	private static bool CheckIfTemplateExists(JsonArray array, string templateId, string fileName, string slug)
 	{
 		return array.OfType<JsonObject>().Any(t =>
 			string.Equals(t["TemplateID"]?.ToString(), templateId, StringComparison.OrdinalIgnoreCase) ||
@@ -134,12 +134,12 @@ internal static class Migration_0_0_4_TemplateDefaults
 			string.Equals(TemplateIDHelper.GenerateSlug(t["ModelPath"]?.ToString() ?? ""), slug, StringComparison.OrdinalIgnoreCase));
 	}
 
-	internal static string GetVisualMode(string fileName)
+	private static string GetVisualMode(string fileName)
 	{
 		return fileName.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) ? "3D Mesh (.rmesh)" : "GroundPlane";
 	}
 
-	internal static void EnsureBuildingTemplate(JsonObject templatesObj, string fileName, string slug)
+	private static void EnsureBuildingTemplate(JsonObject templatesObj, string fileName, string slug)
 	{
 		string buildingTemplateId = TemplateIDHelper.NormalizeTemplateID("building", slug);
 		var buildingsArr = GetOrAddArray(templatesObj, "Buildings");
@@ -160,7 +160,7 @@ internal static class Migration_0_0_4_TemplateDefaults
 		});
 	}
 
-	internal static void EnsurePropTemplate(JsonObject templatesObj, string fileName, string slug)
+	private static void EnsurePropTemplate(JsonObject templatesObj, string fileName, string slug)
 	{
 		string propTemplateId = TemplateIDHelper.NormalizeTemplateID("prop", slug);
 		var propsArr = GetOrAddArray(templatesObj, "Props");
@@ -182,7 +182,7 @@ internal static class Migration_0_0_4_TemplateDefaults
 		});
 	}
 
-	internal static void EnsureResourceTemplate(JsonObject templatesObj, string fileName, string slug)
+	private static void EnsureResourceTemplate(JsonObject templatesObj, string fileName, string slug)
 	{
 		string resourceTemplateId = TemplateIDHelper.NormalizeTemplateID("resource", slug);
 		var resourcesArr = GetOrAddArray(templatesObj, "Resources");
@@ -204,7 +204,7 @@ internal static class Migration_0_0_4_TemplateDefaults
 		});
 	}
 
-	internal static void EnsureDecalTemplate(JsonObject metadataRoot, string fileName, string slug, string hash)
+	private static void EnsureDecalTemplate(JsonObject metadataRoot, string fileName, string slug, string hash)
 	{
 		string decalTemplateId = TemplateIDHelper.NormalizeTemplateID("decal", slug);
 		var decalsObj = GetOrAddObject(metadataRoot, "decals");
@@ -222,7 +222,7 @@ internal static class Migration_0_0_4_TemplateDefaults
 		};
 	}
 
-	internal static JsonObject GetOrAddObject(JsonObject parent, string key)
+	private static JsonObject GetOrAddObject(JsonObject parent, string key)
 	{
 		if (!parent.ContainsKey(key) || parent[key] is not JsonObject)
 		{
@@ -232,7 +232,7 @@ internal static class Migration_0_0_4_TemplateDefaults
 		return (JsonObject)parent[key]!;
 	}
 
-	internal static bool CheckIfDecalExists(JsonObject decalsObj, string templateId, string fileName, string slug)
+	private static bool CheckIfDecalExists(JsonObject decalsObj, string templateId, string fileName, string slug)
 	{
 		foreach (var kvp in decalsObj)
 		{
@@ -245,7 +245,7 @@ internal static class Migration_0_0_4_TemplateDefaults
 		return false;
 	}
 
-	internal static bool IsDecalMatch(string key, JsonObject? dObj, string templateId, string fileName, string slug)
+	private static bool IsDecalMatch(string key, JsonObject? dObj, string templateId, string fileName, string slug)
 	{
 		if (string.Equals(key, templateId, StringComparison.OrdinalIgnoreCase) ||
 		    string.Equals(key, slug, StringComparison.OrdinalIgnoreCase) ||
@@ -265,7 +265,7 @@ internal static class Migration_0_0_4_TemplateDefaults
 		       string.Equals(TemplateIDHelper.GenerateSlug(texturePath), slug, StringComparison.OrdinalIgnoreCase);
 	}
 
-	internal static void EnsureTerrainTemplate(JsonObject metadataRoot, string fileName, string slug, string hash)
+	private static void EnsureTerrainTemplate(JsonObject metadataRoot, string fileName, string slug, string hash)
 	{
 		string terrainTemplateId = TemplateIDHelper.NormalizeTemplateID("terrain", slug);
 		if (!metadataRoot.ContainsKey("textures") || metadataRoot["textures"] is not JsonObject)
@@ -297,7 +297,7 @@ internal static class Migration_0_0_4_TemplateDefaults
 		}
 	}
 
-	internal static void EnsureSpritesheetTemplate(JsonObject metadataRoot, string fileName, string slug, string hash)
+	private static void EnsureSpritesheetTemplate(JsonObject metadataRoot, string fileName, string slug, string hash)
 	{
 		string spritesheetTemplateId = TemplateIDHelper.NormalizeTemplateID("spritesheet", slug);
 		if (!metadataRoot.ContainsKey("vfx_spritesheets") || metadataRoot["vfx_spritesheets"] is not JsonObject)
@@ -324,7 +324,7 @@ internal static class Migration_0_0_4_TemplateDefaults
 		}
 	}
 
-	internal static void EnsureIconTemplate(JsonObject metadataRoot, string slug, string hash)
+	private static void EnsureIconTemplate(JsonObject metadataRoot, string slug, string hash)
 	{
 		string iconTemplateId = TemplateIDHelper.NormalizeTemplateID("icon", slug);
 		if (!metadataRoot.ContainsKey("icons") || metadataRoot["icons"] is not JsonObject)
@@ -343,7 +343,7 @@ internal static class Migration_0_0_4_TemplateDefaults
 		}
 	}
 
-	internal static void EnsureShaderTemplate(JsonObject metadataRoot, string slug, string hash)
+	private static void EnsureShaderTemplate(JsonObject metadataRoot, string slug, string hash)
 	{
 		string shaderTemplateId = TemplateIDHelper.NormalizeTemplateID("gdshader", slug);
 		if (!metadataRoot.ContainsKey("gdshader") || metadataRoot["gdshader"] is not JsonObject)
@@ -362,7 +362,7 @@ internal static class Migration_0_0_4_TemplateDefaults
 		}
 	}
 
-	internal static void UnionCategoryInto(JsonObject targetContainer, string targetCategory, JsonObject sourceObject)
+	public static void UnionCategoryInto(JsonObject targetContainer, string targetCategory, JsonObject sourceObject)
 	{
 		if (!targetContainer.ContainsKey(targetCategory) || targetContainer[targetCategory] is not JsonObject)
 		{
@@ -387,7 +387,7 @@ internal static class Migration_0_0_4_TemplateDefaults
 		}
 	}
 
-	internal static string? GetStringValue(JsonObject obj, string key)
+	public static string? GetStringValue(JsonObject obj, string key)
 	{
 		return obj.TryGetPropertyValue(key, out var node) ? node?.ToString() : null;
 	}

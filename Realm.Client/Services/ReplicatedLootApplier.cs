@@ -1,4 +1,4 @@
-﻿﻿using System;
+﻿using System;
 using System.Collections.Generic;
 using Realm.Client.Core;
 using Realm.Ecs;
@@ -15,7 +15,7 @@ namespace Realm.Client.Services;
 ///     snapshot still lists is refreshed in place (or spawned), and a loot entity it no longer lists is
 ///     destroyed, so a picked-up pile cannot linger on this screen after the host has removed it.
 /// </summary>
-internal sealed class ReplicatedLootApplier
+public sealed class ReplicatedLootApplier
 {
 	private static EcsWorld Ecs => GameContext.World
 		?? throw new InvalidOperationException("The loot applier was used before a world existed.");

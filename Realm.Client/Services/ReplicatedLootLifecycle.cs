@@ -19,9 +19,9 @@ namespace Realm.Client.Services;
 ///     Creates and destroys the local entity that stands in for a server-side loot drop, keeping the server/client
 ///     identifier maps, the replicated reference registry and any payloads that point at the drop in step with it.
 /// </summary>
-internal static class ReplicatedLootLifecycle
+public static class ReplicatedLootLifecycle
 {
-	internal static Entity Create(int serverEntityId, NetworkMappingState mapping, EcsWorld world)
+	public static Entity Create(int serverEntityId, NetworkMappingState mapping, EcsWorld world)
 	{
 		Entity localEntity = world.Create();
 		mapping.ServerToClientEntityMap[serverEntityId] = localEntity;
@@ -30,7 +30,7 @@ internal static class ReplicatedLootLifecycle
 		GameContext.NetworkService?.References.Refix(serverEntityId);
 		return localEntity;
 	}
-	internal static void Destroy(int serverEntityId, Entity localEntity, NetworkMappingState mapping, EcsWorld world)
+	public static void Destroy(int serverEntityId, Entity localEntity, NetworkMappingState mapping, EcsWorld world)
 	{
 		GameContext.Host?.RemoveLootItemLocal(serverEntityId);
 		GameContext.NetworkService?.References.ForgetAllHeldBy(localEntity.Id);

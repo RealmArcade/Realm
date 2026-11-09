@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -17,9 +17,9 @@ public class MapCodeImportService
 	private const string ImportsRootFolder = "imports";
 	private const string AttributionNamespace = "Realm.Maps";
 	private const string SourceMapAttributeUsageName = "Attribution_SourceMap";
-	internal const string SourceMapAttributeTypeName = "Attribution_SourceMapAttribute";
-	internal const string ExportAttributeUsageName = "Export";
-	internal const string ExportAttributeTypeName = "ExportAttribute";
+	public const string SourceMapAttributeTypeName = "Attribution_SourceMapAttribute";
+	public const string ExportAttributeUsageName = "Export";
+	public const string ExportAttributeTypeName = "ExportAttribute";
 	private static readonly string[] RetainedUsingPrefixes =
 	{
 		"System",
@@ -550,7 +550,7 @@ public class MapCodeImportService
 		return false;
 	}
 
-	internal static SyntaxList<AttributeListSyntax> GetAttributeLists(SyntaxNode declaration)
+	public static SyntaxList<AttributeListSyntax> GetAttributeLists(SyntaxNode declaration)
 	{
 		return declaration switch
 		{
@@ -577,7 +577,7 @@ public class MapCodeImportService
 		       || attributeName.Equals(SourceMapAttributeTypeName, StringComparison.Ordinal);
 	}
 
-	internal static string GetAttributeTypeName(AttributeSyntax attribute)
+	public static string GetAttributeTypeName(AttributeSyntax attribute)
 	{
 		string text = attribute.Name.ToString();
 		int lastDotIndex = text.LastIndexOf('.');
@@ -765,7 +765,7 @@ public class MapCodeImportService
 		return sanitized.Length == 0 ? "_" : sanitized;
 	}
 
-	internal static string GetAbsolutePath(string rootPath, string relativePath)
+	public static string GetAbsolutePath(string rootPath, string relativePath)
 	{
 		return Path.Combine(rootPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
 	}

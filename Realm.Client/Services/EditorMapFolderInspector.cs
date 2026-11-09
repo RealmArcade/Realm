@@ -9,14 +9,14 @@ namespace Realm.Client.Services;
 ///     all, whether it sits inside another map or contains one, and which of its documents fail to
 ///     parse. Only filesystem state is consulted, so no editor session is needed.
 /// </summary>
-internal static class EditorMapFolderInspector
+public static class EditorMapFolderInspector
 {
-	internal static bool IsExistingFolder(string? folder)
+	public static bool IsExistingFolder(string? folder)
 	{
 		return !string.IsNullOrEmpty(folder) && Directory.Exists(folder);
 	}
 
-	internal static bool IsNestedInExistingMap(string fullSelectedPath)
+	public static bool IsNestedInExistingMap(string fullSelectedPath)
 	{
 		var parentDir = Directory.GetParent(fullSelectedPath);
 		while (parentDir != null)
@@ -32,7 +32,7 @@ internal static class EditorMapFolderInspector
 		return false;
 	}
 
-	internal static bool ContainsNestedMap(string fullSelectedPath)
+	public static bool ContainsNestedMap(string fullSelectedPath)
 	{
 		if (!Directory.Exists(fullSelectedPath)) return false;
 		try
@@ -52,13 +52,13 @@ internal static class EditorMapFolderInspector
 		return false;
 	}
 
-	internal static bool IsValidMapFolder(string folder)
+	public static bool IsValidMapFolder(string folder)
 	{
 		return File.Exists(Path.Combine(folder, "metadata.json"))
 			   && File.Exists(Path.Combine(folder, "manifest.json"));
 	}
 
-	internal static bool IsMapFolderCorrupt(string folder, out string corruptFileName, out string parseErrorMessage)
+	public static bool IsMapFolderCorrupt(string folder, out string corruptFileName, out string parseErrorMessage)
 	{
 		corruptFileName = string.Empty;
 		parseErrorMessage = string.Empty;

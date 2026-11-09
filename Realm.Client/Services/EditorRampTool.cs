@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using Godot;
@@ -12,7 +12,7 @@ namespace Realm.Client.Services;
 /// the pathing and terrain writes each touched grid node needs. It owns the drag state and writes through
 /// <see cref="EditorTerrainSurface"/>; the editor only starts and applies it.
 /// </summary>
-internal sealed class EditorRampTool
+public sealed class EditorRampTool
 {
 	private readonly EditorTerrainSurface _surface;
 

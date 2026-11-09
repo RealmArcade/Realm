@@ -1,4 +1,4 @@
-﻿﻿using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using Realm.Client.Core;
@@ -12,9 +12,9 @@ namespace Realm.Client.Services;
 ///     live registry and the metadata file, applying the result to the running instances, and the
 ///     save/restore pair the editor's undo uses.
 /// </summary>
-internal static class UnitAttachmentCommands
+public static class UnitAttachmentCommands
 {
-	internal static void SaveUnitObjectAttachment(string unitId, HumanoidBone hand, string attachmentId, HandAttachmentOrientation orientation, string wsPath)
+	public static void SaveUnitObjectAttachment(string unitId, HumanoidBone hand, string attachmentId, HandAttachmentOrientation orientation, string wsPath)
 	{
 		string handKey = hand switch
 		{
@@ -30,7 +30,7 @@ internal static class UnitAttachmentCommands
 		SaveUnitObjectAttachment(unitId, handKey, attachmentId, orientation, wsPath);
 	}
 
-	internal static void SaveUnitObjectAttachment(string unitId, string socket, string attachmentId, HandAttachmentOrientation orientation, string? wsPath = null)
+	public static void SaveUnitObjectAttachment(string unitId, string socket, string attachmentId, HandAttachmentOrientation orientation, string? wsPath = null)
 	{
 		if (string.IsNullOrEmpty(unitId) || string.IsNullOrEmpty(attachmentId)) return;
 
@@ -43,7 +43,7 @@ internal static class UnitAttachmentCommands
 		ApplyAttachmentsToGameInstances(unitId, regKey);
 	}
 
-	internal static (string regKey, bool isBuildingMeta) ResolveRegistryKeyAndType(string unitId)
+	public static (string regKey, bool isBuildingMeta) ResolveRegistryKeyAndType(string unitId)
 	{
 		string regKey = unitId;
 		bool isBuildingMeta = false;
@@ -58,7 +58,7 @@ internal static class UnitAttachmentCommands
 		return ResolveRegistryKeyByIterating(unitId, cleanId);
 	}
 
-	internal static (string regKey, bool isBuildingMeta) ResolveRegistryKeyByIterating(string unitId, string cleanId)
+	public static (string regKey, bool isBuildingMeta) ResolveRegistryKeyByIterating(string unitId, string cleanId)
 	{
 		string regKey = unitId;
 		bool isBuildingMeta = false;
@@ -91,7 +91,7 @@ internal static class UnitAttachmentCommands
 		return (regKey, isBuildingMeta);
 	}
 
-	internal static void UpdateLocalRegistry(string regKey, bool isBuildingMeta, string socket, string attachmentId, HandAttachmentOrientation orientation)
+	public static void UpdateLocalRegistry(string regKey, bool isBuildingMeta, string socket, string attachmentId, HandAttachmentOrientation orientation)
 	{
 		if (isBuildingMeta && GameHost.BuildingRegistry != null && GameHost.BuildingRegistry.TryGetValue(regKey, out var bMeta))
 		{
@@ -105,7 +105,7 @@ internal static class UnitAttachmentCommands
 		}
 	}
 
-	internal static void UpdateMetadataFile(string unitId, string regKey, string socket, string attachmentId, HandAttachmentOrientation orientation, string? wsPath = null)
+	public static void UpdateMetadataFile(string unitId, string regKey, string socket, string attachmentId, HandAttachmentOrientation orientation, string? wsPath = null)
 	{
 		string metadataPath = MetadataService.ResolveMetadataPath(wsPath);
 		if (!File.Exists(metadataPath)) return;
@@ -140,7 +140,7 @@ internal static class UnitAttachmentCommands
 				GameContext.EditorService.LastMetadataSyncTime = GameContext.EditorService.GetLastWriteTimeSafe(metadataPath);
 	}
 
-	internal static void ApplyAttachmentsToGameInstances(string unitId, string regKey)
+	public static void ApplyAttachmentsToGameInstances(string unitId, string regKey)
 	{
 		if (GameContext.Host == null) return;
 
@@ -164,19 +164,19 @@ internal static class UnitAttachmentCommands
 		}
 	}
 
-	internal static bool IsMatchingUnit(string instanceUnitId, string unitId, string regKey)
+	public static bool IsMatchingUnit(string instanceUnitId, string unitId, string regKey)
 	{
 		return instanceUnitId == unitId ||
 		       instanceUnitId == regKey ||
 		       Path.GetFileNameWithoutExtension(instanceUnitId ?? "").Equals(Path.GetFileNameWithoutExtension(unitId), StringComparison.OrdinalIgnoreCase);
 	}
 
-	internal static void SaveAllUnitObjectAttachments(string targetId, UnitObjectAttachments? attachments, Action<string, UnitObjectAttachments?> restoreCallback)
+	public static void SaveAllUnitObjectAttachments(string targetId, UnitObjectAttachments? attachments, Action<string, UnitObjectAttachments?> restoreCallback)
 	{
 		restoreCallback?.Invoke(targetId, attachments);
 	}
 
-	internal static void SaveUnitPseudoSockets(string targetId, List<PseudoSocketAnchor>? pseudoSockets, Action<string, List<PseudoSocketAnchor>?> restoreCallback)
+	public static void SaveUnitPseudoSockets(string targetId, List<PseudoSocketAnchor>? pseudoSockets, Action<string, List<PseudoSocketAnchor>?> restoreCallback)
 	{
 		restoreCallback?.Invoke(targetId, pseudoSockets);
 	}

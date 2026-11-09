@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 
@@ -9,12 +9,12 @@ namespace Realm.Client.Services.MapHistory;
 ///     beside its target first, each original is kept as a backup before it is replaced, and either the
 ///     backups are deleted on success or every touched path is put back on failure.
 /// </summary>
-internal static class HistoryRestoreTransaction
+public static class HistoryRestoreTransaction
 {
 	private const string RestoreStagingSuffix = ".realm-restore.tmp";
 	private const string RestoreBackupSuffix = ".realm-restore.bak";
 
-	internal static bool Apply(
+	public static bool Apply(
 		string mapDirectory,
 		List<(string RelativePath, byte[] Content)> filesToWrite,
 		List<string> relativePathsToRemove,
@@ -78,7 +78,7 @@ internal static class HistoryRestoreTransaction
 		return true;
 	}
 
-	internal static void StageRestoreContent(string absolutePath, byte[] content)
+	private static void StageRestoreContent(string absolutePath, byte[] content)
 	{
 		string? directory = Path.GetDirectoryName(absolutePath);
 		if (!string.IsNullOrEmpty(directory))
@@ -91,7 +91,7 @@ internal static class HistoryRestoreTransaction
 		File.WriteAllBytes(stagingPath, content);
 	}
 
-	internal static void BackUpOriginalFile(string absolutePath, List<string> touchedPaths)
+	private static void BackUpOriginalFile(string absolutePath, List<string> touchedPaths)
 	{
 		if (!File.Exists(absolutePath)) return;
 
@@ -102,7 +102,7 @@ internal static class HistoryRestoreTransaction
 		touchedPaths.Add(absolutePath);
 	}
 
-	internal static void RollBackRestore(List<string> touchedPaths, List<string> stagedPaths)
+	private static void RollBackRestore(List<string> touchedPaths, List<string> stagedPaths)
 	{
 		foreach (string touchedPath in touchedPaths)
 		{
@@ -127,7 +127,7 @@ internal static class HistoryRestoreTransaction
 		}
 	}
 
-	internal static void DeleteFileQuietly(string absolutePath)
+	public static void DeleteFileQuietly(string absolutePath)
 	{
 		if (!File.Exists(absolutePath)) return;
 
@@ -142,7 +142,7 @@ internal static class HistoryRestoreTransaction
 		}
 	}
 
-	internal static void ClearReadOnlyAttribute(string absolutePath)
+	public static void ClearReadOnlyAttribute(string absolutePath)
 	{
 		try
 		{

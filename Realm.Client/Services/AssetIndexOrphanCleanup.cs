@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -13,9 +13,9 @@ namespace Realm.Client.Services;
 ///     package rows whose manifest file is gone. It also creates the content-addressed store's directory on
 ///     first run, which is the moment the index is initialised from the archives.
 /// </summary>
-internal static class AssetIndexOrphanCleanup
+public static class AssetIndexOrphanCleanup
 {
-	internal static void Initialize(AssetIndexTarget target, object syncLock)
+	public static void Initialize(AssetIndexTarget target, object syncLock)
 	{
 		lock (syncLock)
 		{

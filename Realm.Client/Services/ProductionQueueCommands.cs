@@ -1,4 +1,4 @@
-﻿﻿using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Realm.Client.Core;
@@ -14,14 +14,14 @@ namespace Realm.Client.Services;
 ///     building takes the next unit, enqueueing with the population check, cancelling one slot and
 ///     resetting the progress of the unit that moves to the front.
 /// </summary>
-internal sealed class ProductionQueueCommands
+public sealed class ProductionQueueCommands
 {
 	private static EcsWorld World => GameContext.World
 		?? throw new InvalidOperationException("ProductionQueueCommands used before a world existed.");
 
 	private static int _productionRoundRobinIndex;
 
-	internal int GetPopCostForIndex(Entity buildingEntity, int index)
+	public int GetPopCostForIndex(Entity buildingEntity, int index)
 	{
 		var prod = World.Get<ProductionQueue>(buildingEntity);
 		string? peekCancelledId = prod.Get(index);
@@ -33,7 +33,7 @@ internal sealed class ProductionQueueCommands
 		return 0;
 	}
 
-	internal void UpdateProductionQueueAfterCancel(Entity buildingEntity, int index, string? nextUnitId, bool isMultiplayerClient)
+	public void UpdateProductionQueueAfterCancel(Entity buildingEntity, int index, string? nextUnitId, bool isMultiplayerClient)
 	{
 		if (index == 0 && nextUnitId != null && !isMultiplayerClient)
 		{
@@ -47,7 +47,7 @@ internal sealed class ProductionQueueCommands
 		}
 	}
 
-	internal Entity GetNextProductionStructure(List<Entity> candidateBuildings)
+	public Entity GetNextProductionStructure(List<Entity> candidateBuildings)
 	{
 		if (candidateBuildings == null || candidateBuildings.Count == 0) return Entity.Null;
 
@@ -76,7 +76,7 @@ internal sealed class ProductionQueueCommands
 		return Entity.Null;
 	}
 
-	internal bool TryQueueUnit(Entity playerEntity, Entity buildingEntity, string unitId, int popCost, float productionTime)
+	public bool TryQueueUnit(Entity playerEntity, Entity buildingEntity, string unitId, int popCost, float productionTime)
 	{
 		if (!World.IsAlive(playerEntity) || !World.IsAlive(buildingEntity)) return false;
 
@@ -106,13 +106,13 @@ internal sealed class ProductionQueueCommands
 		return true;
 	}
 
-	internal ref ProductionQueue CreateProductionQueue(Entity buildingEntity)
+	public ref ProductionQueue CreateProductionQueue(Entity buildingEntity)
 	{
 		World.Add(buildingEntity, new ProductionQueue());
 		return ref World.Get<ProductionQueue>(buildingEntity);
 	}
 
-	internal bool CancelQueuedUnitAt(Entity buildingEntity, int index, out string? cancelledUnitId, out string? nextUnitId)
+	public bool CancelQueuedUnitAt(Entity buildingEntity, int index, out string? cancelledUnitId, out string? nextUnitId)
 	{
 		cancelledUnitId = null;
 		nextUnitId = null;

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -17,9 +17,9 @@ namespace Realm.Client.Services;
 ///     Realm editor replaces. Every member takes the directory it should touch, so nothing here knows how the install was
 ///     located.
 /// </summary>
-internal static class VSCodeInstallPatcher
+public static class VSCodeInstallPatcher
 {
-	internal static void EnsureVSCodiumSettings(string serverDataDir, string workspacePath)
+	public static void EnsureVSCodiumSettings(string serverDataDir, string workspacePath)
 	{
 		try
 		{
@@ -126,7 +126,7 @@ internal static class VSCodeInstallPatcher
 		return string.Empty;
 	}
 
-	internal static void EnsureOhziExtensionPatched(string extensionsDir)
+	public static void EnsureOhziExtensionPatched(string extensionsDir)
 	{
 		if (string.IsNullOrEmpty(extensionsDir) || !Directory.Exists(extensionsDir)) return;
 
@@ -170,7 +170,7 @@ internal static class VSCodeInstallPatcher
 		}
 	}
 
-	internal static void EnsureOpencuiExtensionAutoStarts(string extensionsDir)
+	public static void EnsureOpencuiExtensionAutoStarts(string extensionsDir)
 	{
 		if (string.IsNullOrEmpty(extensionsDir) || !Directory.Exists(extensionsDir))
 		{
@@ -224,7 +224,7 @@ internal static class VSCodeInstallPatcher
 		return false;
 	}
 
-	internal static void RemoveAntigravityExtension(string extensionsDir)
+	public static void RemoveAntigravityExtension(string extensionsDir)
 	{
 		if (string.IsNullOrEmpty(extensionsDir) || !Directory.Exists(extensionsDir))
 		{
@@ -293,7 +293,7 @@ internal static class VSCodeInstallPatcher
 		}
 	}
 
-	internal static void PatchVSCodiumConfiguration(string embedDir)
+	public static void PatchVSCodiumConfiguration(string embedDir)
 	{
 		try
 		{
@@ -400,7 +400,7 @@ internal static class VSCodeInstallPatcher
 		return true;
 	}
 
-	internal static bool IsExtensionInstalled(string extensionsDir, string extensionId)
+	public static bool IsExtensionInstalled(string extensionsDir, string extensionId)
 	{
 		if (!Directory.Exists(extensionsDir))
 		{

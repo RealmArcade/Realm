@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using Realm.Ecs;
 using Realm.Ecs.Components.Core;
@@ -11,12 +11,12 @@ namespace Realm.Client.Services;
 ///     table arrives, derivation is this screen's best guess from the teams it knows plus the explicit
 ///     allied pairs; after that the authority's answer stands and derivation stops.
 /// </summary>
-internal sealed class PlayerRelationshipTable
+public sealed class PlayerRelationshipTable
 {
 	private readonly Func<int, int> _teamOf;
 	private readonly Func<Entity> _worldEntityOf;
 
-	internal PlayerRelationshipTable(Func<int, int> teamOf, Func<Entity> worldEntityOf)
+	public PlayerRelationshipTable(Func<int, int> teamOf, Func<Entity> worldEntityOf)
 	{
 		_teamOf = teamOf;
 		_worldEntityOf = worldEntityOf;
@@ -33,7 +33,7 @@ internal sealed class PlayerRelationshipTable
 		return ((long)min << 32) | (uint)max;
 	}
 
-	internal void SetPlayerTeam(int playerIndex, int teamIndex)
+	public void SetPlayerTeam(int playerIndex, int teamIndex)
 	{
 		int stringId = StringRegistry.GetOrAdd(teamIndex == 0 ? "Neutral" : $"Team {teamIndex}");
 
@@ -84,7 +84,7 @@ internal sealed class PlayerRelationshipTable
 		RecalculatePlayerRelationships();
 	}
 
-	internal string GetPlayerTeamName(int playerIndex)
+	public string GetPlayerTeamName(int playerIndex)
 	{
 		if (playerIndex >= 0 && playerIndex < 25 && GameContext.World != null)
 		{
@@ -103,7 +103,7 @@ internal sealed class PlayerRelationshipTable
 		return teamIndex == 0 ? "Neutral" : $"Team {teamIndex}";
 	}
 
-	internal void SetPlayersAllied(int playerIndex, int otherPlayerIndex, bool allied)
+	public void SetPlayersAllied(int playerIndex, int otherPlayerIndex, bool allied)
 	{
 		long key = MakePairKey(playerIndex, otherPlayerIndex);
 		if (allied)
@@ -120,7 +120,7 @@ internal sealed class PlayerRelationshipTable
 		RecalculatePlayerRelationships();
 	}
 
-	internal void SetPlayerRelationship(int playerIndex, int otherPlayerIndex, PlayerRelationship relationship)
+	public void SetPlayerRelationship(int playerIndex, int otherPlayerIndex, PlayerRelationship relationship)
 	{
 		long key = MakePairKey(playerIndex, otherPlayerIndex);
 		_explicitRelationships[key] = relationship;
@@ -136,7 +136,7 @@ internal sealed class PlayerRelationshipTable
 		RecalculatePlayerRelationships();
 	}
 
-	internal PlayerRelationship GetPlayerRelationship(int playerIndex, int otherPlayerIndex)
+	public PlayerRelationship GetPlayerRelationship(int playerIndex, int otherPlayerIndex)
 	{
 		if (playerIndex == otherPlayerIndex) return PlayerRelationship.Ally;
 
@@ -159,7 +159,7 @@ internal sealed class PlayerRelationshipTable
 		return PlayerRelationship.Neutral;
 	}
 
-	internal bool ArePlayersAllied(int playerIndex, int otherPlayerIndex)
+	public bool ArePlayersAllied(int playerIndex, int otherPlayerIndex)
 	{
 		if (playerIndex == otherPlayerIndex) return true;
 
@@ -178,7 +178,7 @@ internal sealed class PlayerRelationshipTable
 		return false;
 	}
 
-	internal bool ArePlayersEnemies(int playerIndex, int otherPlayerIndex)
+	public bool ArePlayersEnemies(int playerIndex, int otherPlayerIndex)
 	{
 		if (playerIndex == otherPlayerIndex) return false;
 
@@ -207,13 +207,13 @@ internal sealed class PlayerRelationshipTable
 	///     hostile. Once the authority's table is here, deriving over it would answer a question this screen has already
 	///     been answered.
 	/// </summary>
-	internal bool RelationshipsAreAuthoritative { get; private set; }
+	public bool RelationshipsAreAuthoritative { get; private set; }
 
-	internal void MarkRelationshipsAuthoritative() => RelationshipsAreAuthoritative = true;
+	public void MarkRelationshipsAuthoritative() => RelationshipsAreAuthoritative = true;
 
-	internal void RestartRelationshipDerivation() => RelationshipsAreAuthoritative = false;
+	public void RestartRelationshipDerivation() => RelationshipsAreAuthoritative = false;
 
-	internal void RecalculatePlayerRelationships()
+	public void RecalculatePlayerRelationships()
 	{
 		if (RelationshipsAreAuthoritative) return;
 
@@ -271,7 +271,7 @@ internal sealed class PlayerRelationshipTable
 		}
 	}
 
-	internal void SetPlayerActiveDomain(int playerIndex, bool active)
+	public void SetPlayerActiveDomain(int playerIndex, bool active)
 	{
 		if (SimulationService.HasScriptPlayersState())
 		{

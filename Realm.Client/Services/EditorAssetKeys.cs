@@ -1,14 +1,14 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 
 namespace Realm.Client.Services;
 
-internal sealed class EditorAssetKeys
+public sealed class EditorAssetKeys
 {
 	private readonly Dictionary<string, string> _cache;
 
-	internal EditorAssetKeys(Dictionary<string, string> cache)
+	public EditorAssetKeys(Dictionary<string, string> cache)
 	{
 		_cache = cache;
 	}
@@ -33,7 +33,7 @@ internal sealed class EditorAssetKeys
 		return filename;
 	}
 
-	internal string NormalizeModelAssetKey(string pathOrId)
+	public string NormalizeModelAssetKey(string pathOrId)
 	{
 		if (string.IsNullOrEmpty(pathOrId)) return "";
 		if (_cache.TryGetValue(pathOrId, out string? cached))

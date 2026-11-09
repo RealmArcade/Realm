@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -13,12 +13,12 @@ namespace Realm.Client.Services.MapHistory;
 
 public class MapHistoryService
 {
-	internal const string AuthorName = "Realm Map Editor";
-	internal const string AuthorEmail = "map-editor@realm.local";
+	public const string AuthorName = "Realm Map Editor";
+	public const string AuthorEmail = "map-editor@realm.local";
 
 	private static readonly TimeSpan SynchronousLockTimeout = TimeSpan.FromSeconds(4);
 
-	internal static readonly JsonSerializerOptions JsonOptions = new()
+	public static readonly JsonSerializerOptions JsonOptions = new()
 	{
 		WriteIndented = true,
 		PropertyNamingPolicy = JsonNamingPolicy.CamelCase
@@ -888,7 +888,7 @@ public class MapHistoryService
 		};
 	}
 
-	internal static MapHistoryStateFile LoadState(MapHistoryStoreLayout layout)
+	public static MapHistoryStateFile LoadState(MapHistoryStoreLayout layout)
 	{
 		try
 		{
@@ -920,7 +920,7 @@ public class MapHistoryService
 		}
 	}
 
-	internal static void SaveState(MapHistoryStoreLayout layout, MapHistoryStateFile state)
+	public static void SaveState(MapHistoryStoreLayout layout, MapHistoryStateFile state)
 	{
 		Directory.CreateDirectory(layout.StoreDirectory);
 		string temporaryPath = layout.StateFilePath + ".tmp";

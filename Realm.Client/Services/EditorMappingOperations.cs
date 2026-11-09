@@ -12,10 +12,10 @@ namespace Realm.Client.Services;
 ///     <see cref="GameContext" /> only, so they can be called without an editor session and hold no lock. EditorService
 ///     keeps each public method as a forwarder, which is the surface IEditorAPI is implemented against.
 /// </summary>
-internal static class EditorMappingOperations
+public static class EditorMappingOperations
 {
 
-	internal static TerrainGridInfo GetTerrainGridInfo()
+	public static TerrainGridInfo GetTerrainGridInfo()
 	{
 		if (GameContext.Host?.GroundTerrain == null)
 		{
@@ -27,7 +27,7 @@ internal static class EditorMappingOperations
 	}
 
 
-	internal static void RebuildTerrain()
+	public static void RebuildTerrain()
 	{
 		RuntimeTerrain? terrain = GameContext.Host?.GroundTerrain;
 		if (terrain == null)
@@ -41,7 +41,7 @@ internal static class EditorMappingOperations
 	}
 
 
-	internal static void RefreshEditorAfterTerrainChange(bool regenerateMinimap)
+	public static void RefreshEditorAfterTerrainChange(bool regenerateMinimap)
 	{
 		GameHost? host = GameContext.Host;
 		if (host == null)
@@ -62,7 +62,7 @@ internal static class EditorMappingOperations
 	}
 
 
-	internal static void MarkDocumentModified()
+	public static void MarkDocumentModified()
 	{
 		GameHost? host = GameContext.Host;
 		if (host == null)
@@ -74,7 +74,7 @@ internal static class EditorMappingOperations
 	}
 
 
-	internal static bool PlaceProp(string propId, float x, float y, float z, float rotationY, float scale)
+	public static bool PlaceProp(string propId, float x, float y, float z, float rotationY, float scale)
 	{
 		if (string.IsNullOrWhiteSpace(propId) || GameContext.Host == null)
 		{
@@ -85,7 +85,7 @@ internal static class EditorMappingOperations
 	}
 
 
-	internal static List<string> ResolvePropAssetIds(string[] keywords, bool includeResources)
+	public static List<string> ResolvePropAssetIds(string[] keywords, bool includeResources)
 	{
 		var matches = new List<string>();
 		if (keywords == null || keywords.Length == 0)
@@ -104,7 +104,7 @@ internal static class EditorMappingOperations
 	}
 
 
-	internal static void CollectMatchingRegistryIds<TMetadata>(Dictionary<StringName, TMetadata> registry, string[] keywords, List<string> matches) where TMetadata : Realm.Shared.Metadata.PlaceableMetadata
+	public static void CollectMatchingRegistryIds<TMetadata>(Dictionary<StringName, TMetadata> registry, string[] keywords, List<string> matches) where TMetadata : Realm.Shared.Metadata.PlaceableMetadata
 	{
 		foreach (KeyValuePair<StringName, TMetadata> entry in registry)
 		{
@@ -128,7 +128,7 @@ internal static class EditorMappingOperations
 	}
 
 
-	internal static bool MatchesAnyKeyword(string? value, string[] keywords)
+	private static bool MatchesAnyKeyword(string? value, string[] keywords)
 	{
 		if (string.IsNullOrWhiteSpace(value))
 		{

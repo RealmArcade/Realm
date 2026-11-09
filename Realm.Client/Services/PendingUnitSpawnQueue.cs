@@ -11,27 +11,27 @@ public class PendingUnitSpawnQueue
 {
 	private readonly Dictionary<int, UnitSnapshot> _pending = new();
 
-	internal int Count => _pending.Count;
+	public int Count => _pending.Count;
 
-	internal bool Contains(int serverEntityId) => _pending.ContainsKey(serverEntityId);
+	public bool Contains(int serverEntityId) => _pending.ContainsKey(serverEntityId);
 
-	internal void Clear() => _pending.Clear();
+	public void Clear() => _pending.Clear();
 
-	internal void Remove(int serverEntityId) => _pending.Remove(serverEntityId);
+	public void Remove(int serverEntityId) => _pending.Remove(serverEntityId);
 
 	/// <summary>
 	///     Holds a unit this screen has not built yet until it has the budget to build it. A description of a unit that
 	///     already has a definition on the wire leaves it out, so a unit waiting to be built keeps the one it arrived with
 	///     rather than being queued a second time without it.
 	/// </summary>
-	internal void Queue(UnitSnapshot snap)
+	public void Queue(UnitSnapshot snap)
 	{
 		if (snap.UnitId.Length == 0 && _pending.TryGetValue(snap.EntityId, out UnitSnapshot queued)) snap.UnitId = queued.UnitId;
 
 		_pending[snap.EntityId] = snap;
 	}
 
-	internal bool TryTakeAny(out UnitSnapshot snapshot)
+	public bool TryTakeAny(out UnitSnapshot snapshot)
 	{
 		snapshot = default;
 		if (_pending.Count == 0) return false;

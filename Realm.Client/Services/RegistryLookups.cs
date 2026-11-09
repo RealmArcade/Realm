@@ -1,4 +1,4 @@
-﻿﻿using Godot;
+﻿using Godot;
 using Realm.Ecs.Common;
 
 namespace Realm.Client.Services;
@@ -8,9 +8,9 @@ namespace Realm.Client.Services;
 ///     colour tint and death shader, and the luminance flag the editor toggles across all four registry
 ///     kinds for one asset key.
 /// </summary>
-internal static class RegistryLookups
+public static class RegistryLookups
 {
-	internal static float GetRegistryCollisionCircleRatio(RegistryService registries, string primaryKey)
+	public static float GetRegistryCollisionCircleRatio(RegistryService registries, string primaryKey)
 	{
 		if (string.IsNullOrEmpty(primaryKey)) return 1.0f;
 
@@ -22,7 +22,7 @@ internal static class RegistryLookups
 		return 1.0f;
 	}
 
-	internal static bool TryGetRegistryBrightness(RegistryService registries, string key, out float brightness)
+	public static bool TryGetRegistryBrightness(RegistryService registries, string key, out float brightness)
 	{
 		brightness = 0f;
 		if (registries.UnitRegistry.TryGetValue(key, out var meta) && meta.Brightness > 0f)
@@ -52,7 +52,7 @@ internal static class RegistryLookups
 		return false;
 	}
 
-	internal static bool TryGetRegistryColorTint(RegistryService registries, string key, out Color color)
+	public static bool TryGetRegistryColorTint(RegistryService registries, string key, out Color color)
 	{
 		color = default;
 		if (registries.UnitRegistry.TryGetValue(key, out var meta) && !string.IsNullOrEmpty(meta.Tint) && Color.HtmlIsValid(meta.Tint))
@@ -82,7 +82,7 @@ internal static class RegistryLookups
 		return false;
 	}
 
-	internal static void UpdateLuminanceInRegistries(RegistryService registries, string assetKey, bool normalizeLuminance)
+	public static void UpdateLuminanceInRegistries(RegistryService registries, string assetKey, bool normalizeLuminance)
 	{
 		if (registries.UnitRegistry.TryGetValue(assetKey, out var unitMeta))
 		{
@@ -109,7 +109,7 @@ internal static class RegistryLookups
 		}
 	}
 
-	internal static bool TryGetRegistryDeathShader(RegistryService registries, string key, out string shader)
+	public static bool TryGetRegistryDeathShader(RegistryService registries, string key, out string shader)
 	{
 		shader = "";
 		if (registries.UnitRegistry.TryGetValue(key, out var meta) && !string.IsNullOrWhiteSpace(meta.DeathShader))

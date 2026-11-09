@@ -10,9 +10,9 @@ namespace Realm.Client.Services;
 ///     corner a coordinate starts and ends at, and whether a world position falls inside one. The
 ///     coordinate list is supplied by the caller, so the answers depend only on what it is given.
 /// </summary>
-internal static class EditorCoordinateQueries
+public static class EditorCoordinateQueries
 {
-	internal static bool HasCoordinate(List<EditorCoordinate> coordinates, string coordinateName)
+	public static bool HasCoordinate(List<EditorCoordinate> coordinates, string coordinateName)
 	{
 		if (string.IsNullOrEmpty(coordinateName)) return false;
 		string searchName = coordinateName.Trim();
@@ -25,7 +25,7 @@ internal static class EditorCoordinateQueries
 		return false;
 	}
 
-	internal static Vector3 GetCoordinateMin(List<EditorCoordinate> coordinates, string coordinateName)
+	public static Vector3 GetCoordinateMin(List<EditorCoordinate> coordinates, string coordinateName)
 	{
 		if (string.IsNullOrEmpty(coordinateName)) return Vector3.Zero;
 		string searchName = coordinateName.Trim();
@@ -38,7 +38,7 @@ internal static class EditorCoordinateQueries
 		return Vector3.Zero;
 	}
 
-	internal static Vector3 GetCoordinateMax(List<EditorCoordinate> coordinates, string coordinateName)
+	public static Vector3 GetCoordinateMax(List<EditorCoordinate> coordinates, string coordinateName)
 	{
 		if (string.IsNullOrEmpty(coordinateName)) return Vector3.Zero;
 		string searchName = coordinateName.Trim();
@@ -51,7 +51,7 @@ internal static class EditorCoordinateQueries
 		return Vector3.Zero;
 	}
 
-	internal static bool IsPositionInCoordinate(List<EditorCoordinate> coordinates, Vector3 position, string coordinateName)
+	public static bool IsPositionInCoordinate(List<EditorCoordinate> coordinates, Vector3 position, string coordinateName)
 	{
 		if (string.IsNullOrEmpty(coordinateName)) return false;
 		string searchName = coordinateName.Trim();

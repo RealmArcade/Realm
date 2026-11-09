@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Runtime.CompilerServices;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Terrain;
@@ -12,7 +12,7 @@ namespace Realm.Client.Services;
 /// </summary>
 public static class EditorTerrainGeometry
 {
-	internal static void SetGridNodeHeight(ref TerrainState terrain, int gx, int gz, float height)
+	public static void SetGridNodeHeight(ref TerrainState terrain, int gx, int gz, float height)
 	{
 		var cells = terrain.Cells;
 		if (cells == null) return;
@@ -43,7 +43,7 @@ public static class EditorTerrainGeometry
 		}
 	}
 
-	internal static float GetGridNodeHeight(in TerrainState terrain, int gx, int gz)
+	public static float GetGridNodeHeight(in TerrainState terrain, int gx, int gz)
 	{
 		var cells = terrain.Cells;
 		if (cells == null) return 0f;
@@ -58,7 +58,7 @@ public static class EditorTerrainGeometry
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	internal static TerrainCell RotateCell(in TerrainCell cell, int rotSteps)
+	public static TerrainCell RotateCell(in TerrainCell cell, int rotSteps)
 	{
 		rotSteps = (rotSteps % 4 + 4) % 4;
 		switch (rotSteps)
@@ -76,7 +76,7 @@ public static class EditorTerrainGeometry
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	internal static TerrainCell MirrorCell(in TerrainCell cell, MirrorMode mode)
+	public static TerrainCell MirrorCell(in TerrainCell cell, MirrorMode mode)
 	{
 		switch (mode)
 		{
@@ -93,7 +93,7 @@ public static class EditorTerrainGeometry
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	internal static (TerrainSplatWeights NW, TerrainSplatWeights NE, TerrainSplatWeights SE, TerrainSplatWeights SW) MirrorSplatQuad(
+	public static (TerrainSplatWeights NW, TerrainSplatWeights NE, TerrainSplatWeights SE, TerrainSplatWeights SW) MirrorSplatQuad(
 		in TerrainSplatWeights nw, in TerrainSplatWeights ne, in TerrainSplatWeights se, in TerrainSplatWeights sw, MirrorMode mode)
 	{
 		switch (mode)
@@ -111,7 +111,7 @@ public static class EditorTerrainGeometry
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	internal static (TerrainSplatWeights NW, TerrainSplatWeights NE, TerrainSplatWeights SE, TerrainSplatWeights SW) RotateSplatQuad(
+	public static (TerrainSplatWeights NW, TerrainSplatWeights NE, TerrainSplatWeights SE, TerrainSplatWeights SW) RotateSplatQuad(
 		in TerrainSplatWeights nw, in TerrainSplatWeights ne, in TerrainSplatWeights se, in TerrainSplatWeights sw, int rotSteps)
 	{
 		rotSteps = (rotSteps % 4 + 4) % 4;
@@ -129,12 +129,12 @@ public static class EditorTerrainGeometry
 		}
 	}
 
-	internal static void TrySetSplat(TerrainSplatWeights[,] map, int x, int z, int w, int d, in TerrainSplatWeights val)
+	public static void TrySetSplat(TerrainSplatWeights[,] map, int x, int z, int w, int d, in TerrainSplatWeights val)
 	{
 		if (x >= 0 && x < w && z >= 0 && z < d) map[x, z] = val;
 	}
 
-	internal static void SanitizeCellCorners(TerrainCell[,] cells, int gx, int gz, int w, int d, float h)
+	public static void SanitizeCellCorners(TerrainCell[,] cells, int gx, int gz, int w, int d, float h)
 	{
 		bool xm1 = gx > 0 && gx - 1 < w;
 		bool zm1 = gz > 0 && gz - 1 < d;

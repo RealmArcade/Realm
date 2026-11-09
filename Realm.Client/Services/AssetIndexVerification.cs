@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -19,11 +19,11 @@ namespace Realm.Client.Services;
 ///     it from disk when it cannot, and drops the entry when the bytes are gone. The collection, the lock,
 ///     the database and the set of paths that failed last time are supplied by the caller.
 /// </summary>
-internal static class AssetIndexVerification
+public static class AssetIndexVerification
 {
-	internal const int DefaultSampleSize = 64;
+	public const int DefaultSampleSize = 64;
 
-	internal static AssetIndexVerificationResult VerifySample(
+	public static AssetIndexVerificationResult VerifySample(
 		ILiteCollection<IndexedAsset> collection, object syncLock, ref HashSet<string> lastFailurePaths, int sampleSize)
 	{
 		if (sampleSize <= 0)
@@ -62,7 +62,7 @@ internal static class AssetIndexVerification
 		}
 	}
 
-	internal static AssetIndexVerificationResult VerifyAll(
+	public static AssetIndexVerificationResult VerifyAll(
 		ILiteCollection<IndexedAsset> collection, object syncLock, ref HashSet<string> lastFailurePaths, bool verifyContentHash, IProgress<AssetIndexProgressUpdate>? progress, double progressStart, double progressEnd)
 	{
 		lock (syncLock)
@@ -103,7 +103,7 @@ internal static class AssetIndexVerification
 		}
 	}
 
-	internal static int RepairAssets(
+	public static int RepairAssets(
 		ILiteCollection<IndexedAsset> collection, LiteDatabase database, object syncLock, IReadOnlyList<AssetIndexVerificationFailure> failures, IProgress<AssetIndexProgressUpdate>? progress, double progressStart, double progressEnd)
 	{
 		if (failures == null || failures.Count == 0) return 0;
@@ -257,7 +257,7 @@ internal static class AssetIndexVerification
 		return null;
 	}
 
-	internal static bool ContentMatchesHash(string filePath, string hash)
+	public static bool ContentMatchesHash(string filePath, string hash)
 	{
 		try
 		{
@@ -296,7 +296,7 @@ internal static class AssetIndexVerification
 		AssetRecordFactory.GenerateIndexedAssetFromFile(normalizedFilePath, asset.DirectoryPath, fileInfo, diskExtension, expectedDirType, asset);
 	}
 
-	internal static int CountRemaining(
+	public static int CountRemaining(
 		IReadOnlyList<AssetIndexVerificationFailure> failures, Func<string, IndexedAsset?> locateAsset)
 	{
 		int remainingCount = 0;

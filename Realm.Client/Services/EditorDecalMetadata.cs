@@ -11,9 +11,9 @@ namespace Realm.Client.Services;
 ///     which files on disk could hold its texture. All of it reads metadata.json and the workspace, so
 ///     the answers depend only on the arguments.
 /// </summary>
-internal static class EditorDecalMetadata
+public static class EditorDecalMetadata
 {
-	internal static DecalMetadata? FindDecalMetadata(MapMetadata metadata, string decalId, string filename, string baseKey)
+	public static DecalMetadata? FindDecalMetadata(MapMetadata metadata, string decalId, string filename, string baseKey)
 	{
 		if (metadata?.Decals == null) return null;
 		if (metadata.Decals.TryGetValue(decalId, out var d0)) return d0;
@@ -24,7 +24,7 @@ internal static class EditorDecalMetadata
 		return null;
 	}
 
-	internal static VfxMetadata? FindVfxMetadata(MapMetadata metadata, string decalId, string filename, string baseKey)
+	public static VfxMetadata? FindVfxMetadata(MapMetadata metadata, string decalId, string filename, string baseKey)
 	{
 		if (metadata?.VfxSpritesheets == null) return null;
 		if (metadata.VfxSpritesheets.TryGetValue(decalId, out var v0)) return v0;
@@ -33,7 +33,7 @@ internal static class EditorDecalMetadata
 		return null;
 	}
 
-	internal static (int cols, int rows, float fps, bool blend, string? explicitPath) ParseDecalMetadata(string decalId, string filename, string baseKey, string wsPath)
+	public static (int cols, int rows, float fps, bool blend, string? explicitPath) ParseDecalMetadata(string decalId, string filename, string baseKey, string wsPath)
 	{
 		int cols = 1, rows = 1;
 		float fps = 12.0f;
@@ -65,7 +65,7 @@ internal static class EditorDecalMetadata
 		return (cols, rows, fps, blend, explicitPath);
 	}
 
-	internal static List<string> GetDecalCandidatePaths(string decalId, string? explicitTexturePath, string wsPath)
+	public static List<string> GetDecalCandidatePaths(string decalId, string? explicitTexturePath, string wsPath)
 	{
 		var candidatePaths = new List<string>();
 
@@ -95,7 +95,7 @@ internal static class EditorDecalMetadata
 		return candidatePaths;
 	}
 
-	internal static void ParseRtexDecalMetadata(string? customJson, ref int cols, ref int rows)
+	public static void ParseRtexDecalMetadata(string? customJson, ref int cols, ref int rows)
 	{
 		if (string.IsNullOrEmpty(customJson)) return;
 		try
@@ -113,7 +113,7 @@ internal static class EditorDecalMetadata
 		}
 	}
 
-	internal static void ParseExternalDecalMetadata(string meta, ref int cols, ref int rows)
+	public static void ParseExternalDecalMetadata(string meta, ref int cols, ref int rows)
 	{
 		if (string.IsNullOrEmpty(meta)) return;
 		try

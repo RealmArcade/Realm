@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using Realm.Client.Core;
@@ -13,9 +13,9 @@ namespace Realm.Client.Services;
 ///     resource or prop. Every entry point returns the metadata file's new timestamp, or null when
 ///     it declined to write, so EditorService keeps owning the sync-time field.
 /// </summary>
-internal static class EditorMetadataWrites
+public static class EditorMetadataWrites
 {
-	internal static long? SaveCustomUnitAnimations(string wsPath, string unitId, Dictionary<string, List<UnitAnimationEntry>> animations)
+	public static long? SaveCustomUnitAnimations(string wsPath, string unitId, Dictionary<string, List<UnitAnimationEntry>> animations)
 	{
 		if (string.IsNullOrEmpty(unitId)) return null;
 
@@ -39,7 +39,7 @@ internal static class EditorMetadataWrites
 		return File.Exists(metadataPath) ? File.GetLastWriteTimeUtc(metadataPath).Ticks : 0;
 	}
 
-	internal static long? SaveCustomAbilityVfxToMetadata(string wsPath, string abilityId, string visualEffect, string castSound, string iconPath, float aoeRadius)
+	public static long? SaveCustomAbilityVfxToMetadata(string wsPath, string abilityId, string visualEffect, string castSound, string iconPath, float aoeRadius)
 	{
 		if (string.IsNullOrEmpty(abilityId)) return null;
 
@@ -60,7 +60,7 @@ internal static class EditorMetadataWrites
 		return File.Exists(metadataPath) ? File.GetLastWriteTimeUtc(metadataPath).Ticks : 0;
 	}
 
-	internal static long? SaveEntityModelPathToMetadata(string wsPath, string entityId, string fieldName, string domain, string newModelPath)
+	public static long? SaveEntityModelPathToMetadata(string wsPath, string entityId, string fieldName, string domain, string newModelPath)
 	{
 		if (string.IsNullOrEmpty(entityId)) return null;
 
@@ -146,7 +146,7 @@ internal static class EditorMetadataWrites
 		return File.Exists(metadataPath) ? File.GetLastWriteTimeUtc(metadataPath).Ticks : 0;
 	}
 
-	internal static void UpdateScaleMetadata(int newWidth, int newDepth, MapCameraBounds cameraBounds)
+	public static void UpdateScaleMetadata(int newWidth, int newDepth, MapCameraBounds cameraBounds)
 	{
 		string scaleWsPath = MapWorkspaceService.GetActiveWorkspacePath();
 		string scaleMetaPath = MetadataService.ResolveMetadataPath(scaleWsPath);

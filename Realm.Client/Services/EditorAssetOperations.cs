@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -23,10 +23,10 @@ namespace Realm.Client.Services;
 ///     it can run without an editor session; EditorService forwards the public methods because they are the IEditorAPI
 ///     surface. The random-assignment orchestration stays on EditorService because it owns the metadata-sync timestamp.
 /// </summary>
-internal static partial class EditorAssetOperations
+public static partial class EditorAssetOperations
 {
 	[GeneratedRegex(@"[^a-zA-Z]+")]
-	internal static partial Regex NonAlphaRegex();
+	public static partial Regex NonAlphaRegex();
 
 	private static HashSet<string>? GetAllowedTypeStrings(HashSet<AssetType>? allowedTypes)
 	{
@@ -50,7 +50,7 @@ internal static partial class EditorAssetOperations
 		return typeStrings;
 	}
 
-	internal static List<Asset> SearchAssets(AssetType[] assetTypes, string query, int limit = 5)
+	public static List<Asset> SearchAssets(AssetType[] assetTypes, string query, int limit = 5)
 	{
 		string cacheFilePath = AssetIndexService.GetCacheFilePath();
 		var connectionString = new ConnectionString
@@ -201,7 +201,7 @@ internal static partial class EditorAssetOperations
 		return rankedAssets;
 	}
 
-	internal static string ExtractSearchQuery(string templateSlug)
+	public static string ExtractSearchQuery(string templateSlug)
 	{
 		if (string.IsNullOrWhiteSpace(templateSlug))
 		{
@@ -255,7 +255,7 @@ internal static partial class EditorAssetOperations
 		return string.Join(" ", validTerms);
 	}
 
-	internal static void ImportAssets(List<Asset> assets)
+	public static void ImportAssets(List<Asset> assets)
 	{
 		if (assets == null || assets.Count == 0)
 		{
@@ -321,7 +321,7 @@ internal static partial class EditorAssetOperations
 		}
 	}
 
-	internal static string? SnapshotTemplateJson(string wsPath, string templateSlug)
+	public static string? SnapshotTemplateJson(string wsPath, string templateSlug)
 	{
 		if (string.IsNullOrWhiteSpace(templateSlug) || string.IsNullOrEmpty(wsPath))
 		{
@@ -345,7 +345,7 @@ internal static partial class EditorAssetOperations
 		return found?.ToJsonString();
 	}
 
-	internal static void RevertTemplateJson(string wsPath, string templateSlug, string? snapshotJson)
+	public static void RevertTemplateJson(string wsPath, string templateSlug, string? snapshotJson)
 	{
 		if (string.IsNullOrWhiteSpace(templateSlug) || string.IsNullOrEmpty(wsPath))
 		{
@@ -439,7 +439,7 @@ internal static partial class EditorAssetOperations
 		}
 	}
 
-	internal static int CountMatchingTerms(IndexedAsset asset, string[] terms)
+	private static int CountMatchingTerms(IndexedAsset asset, string[] terms)
 	{
 		int count = 0;
 		foreach (string term in terms)
@@ -457,7 +457,7 @@ internal static partial class EditorAssetOperations
 		return count;
 	}
 
-	internal static Asset ToEditorAsset(IndexedAsset item)
+	private static Asset ToEditorAsset(IndexedAsset item)
 	{
 		return new Asset
 		{
@@ -480,7 +480,7 @@ internal static partial class EditorAssetOperations
 
 
 
-	internal static List<IndexedAsset> FallbackScanAssets(HashSet<AssetType>? allowedTypes)
+	private static List<IndexedAsset> FallbackScanAssets(HashSet<AssetType>? allowedTypes)
 	{
 		var results = new List<IndexedAsset>();
 		var seenPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -550,7 +550,7 @@ internal static partial class EditorAssetOperations
 		return results;
 	}
 
-	internal static void CollectAssetProperties(JsonObject obj, List<AssetPropertyTarget> properties, bool overwriteExisting, string? templateSlug = null)
+	public static void CollectAssetProperties(JsonObject obj, List<AssetPropertyTarget> properties, bool overwriteExisting, string? templateSlug = null)
 	{
 		EnsureKnownTemplateAssetProperties(obj, templateSlug);
 
@@ -582,7 +582,7 @@ internal static partial class EditorAssetOperations
 		}
 	}
 
-	internal static void EnsureKnownTemplateAssetProperties(JsonObject obj, string? templateSlug = null)
+	private static void EnsureKnownTemplateAssetProperties(JsonObject obj, string? templateSlug = null)
 	{
 		string? slug = (templateSlug ?? TemplateJsonSearch.GetTemplateSlugFromJsonObject(obj))?.ToLowerInvariant();
 
@@ -640,13 +640,13 @@ internal static partial class EditorAssetOperations
 		}
 	}
 
-	internal static bool IsKnownAssetProperty(string propertyName)
+	private static bool IsKnownAssetProperty(string propertyName)
 	{
 		string p = propertyName.ToLowerInvariant();
 		return p is "modelpath" or "portraitmodelpath" or "projectilemodelpath" or "iconpath" or "texturepath" or "basetexture" or "noisetexture" or "ribbontexture" or "visualeffect" or "attacksound" or "castsound" or "impactsound" or "impactvisualeffect" or "texture_path";
 	}
 
-	internal static AssetType[] GetAssetTypesForProperty(AssetPropertyTarget propTarget, string? templateSlug = null)
+	public static AssetType[] GetAssetTypesForProperty(AssetPropertyTarget propTarget, string? templateSlug = null)
 	{
 		string p = propTarget.PropertyName.ToLowerInvariant();
 		string curr = (propTarget.CurrentValue ?? string.Empty).ToLowerInvariant();

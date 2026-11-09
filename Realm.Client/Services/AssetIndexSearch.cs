@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -8,9 +8,9 @@ using Realm.Shared.Distribution;
 
 namespace Realm.Client.Services;
 
-internal static class AssetIndexSearch
+public static class AssetIndexSearch
 {
-	internal static List<IndexedAsset> Search(
+	public static List<IndexedAsset> Search(
 		ILiteCollection<IndexedAsset> assets, object syncLock, Func<string, string?> latestVersionForMap,
 		string? searchTerm,
 		IReadOnlyCollection<string>? allowedExtensions = null,
@@ -157,7 +157,7 @@ internal static class AssetIndexSearch
 		return deduplicated;
 	}
 
-	internal static string GetCanonicalBlake3(IndexedAsset asset)
+	public static string GetCanonicalBlake3(IndexedAsset asset)
 	{
 		if (!string.IsNullOrEmpty(asset.Blake3))
 		{

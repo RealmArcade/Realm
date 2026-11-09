@@ -17,14 +17,14 @@ public class ReplicatedReferenceIndex
 	private readonly Dictionary<(int LocalEntityId, int ComponentTypeId), int> _referencedServerEntityIds = new();
 	private readonly Dictionary<int, List<int>> _referencedComponentTypesByLocalEntity = new();
 
-	internal void Clear()
+	public void Clear()
 	{
 		_referrersByServerEntityId.Clear();
 		_referencedServerEntityIds.Clear();
 		_referencedComponentTypesByLocalEntity.Clear();
 	}
 
-	internal void Record(ComponentDelta delta, Entity referrer, IReplicatedComponentCodec codec)
+	public void Record(ComponentDelta delta, Entity referrer, IReplicatedComponentCodec codec)
 	{
 		if (codec is not INormalizingComponentCodec normalizing) return;
 
@@ -62,21 +62,21 @@ public class ReplicatedReferenceIndex
 		if (!componentTypeIds.Contains(codec.ComponentTypeId)) componentTypeIds.Add(codec.ComponentTypeId);
 	}
 
-	internal bool IsReferenceUnresolved(int localEntityId, int componentTypeId)
+	public bool IsReferenceUnresolved(int localEntityId, int componentTypeId)
 	{
 		if (!_referencedServerEntityIds.TryGetValue((localEntityId, componentTypeId), out int serverEntityId)) return false;
 
 		return ReplicatedEntityReferences.Resolve(new Entity(serverEntityId)) == Entity.Null;
 	}
 
-	internal void ForgetAllHeldBy(int localEntityId)
+	public void ForgetAllHeldBy(int localEntityId)
 	{
 		if (!_referencedComponentTypesByLocalEntity.Remove(localEntityId, out List<int>? componentTypeIds)) return;
 
 		for (int index = 0; index < componentTypeIds.Count; index++) Forget(localEntityId, componentTypeIds[index]);
 	}
 
-	internal void Forget(int localEntityId, int componentTypeId)
+	public void Forget(int localEntityId, int componentTypeId)
 	{
 		var referenceKey = (localEntityId, componentTypeId);
 
@@ -100,7 +100,7 @@ public class ReplicatedReferenceIndex
 		if (referrers.Count == 0) _referrersByServerEntityId.Remove(serverEntityId);
 	}
 
-	internal void Refix(int serverEntityId)
+	public void Refix(int serverEntityId)
 	{
 		if (!_referrersByServerEntityId.TryGetValue(serverEntityId, out var referrers)) return;
 

@@ -1,4 +1,4 @@
-﻿﻿using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -13,9 +13,9 @@ namespace Realm.Client.Services;
 ///     Reading a template's JSON for search terms: finding the object a slug names, collecting the text a
 ///     template carries, and following the asset references it makes into the asset index's names.
 /// </summary>
-internal static class TemplateJsonSearch
+public static class TemplateJsonSearch
 {
-	internal static JsonObject? FindTemplateOrEntryObject(JsonObject rootObj, string templateSlug)
+	public static JsonObject? FindTemplateOrEntryObject(JsonObject rootObj, string templateSlug)
 	{
 		if (rootObj.TryGetPropertyValue("Templates", out var templatesNode) && templatesNode is JsonObject templatesObj)
 		{
@@ -59,7 +59,7 @@ internal static class TemplateJsonSearch
 		return null;
 	}
 
-	internal static bool IsTemplateMatch(JsonObject obj, string templateSlug)
+	public static bool IsTemplateMatch(JsonObject obj, string templateSlug)
 	{
 		string? slug = GetTemplateSlugFromJsonObject(obj);
 		if (string.IsNullOrEmpty(slug)) return false;
@@ -99,7 +99,7 @@ internal static class TemplateJsonSearch
 		return false;
 	}
 
-	internal static string? GetTemplateSlugFromJsonObject(JsonObject obj)
+	public static string? GetTemplateSlugFromJsonObject(JsonObject obj)
 	{
 		if (obj.TryGetPropertyValue("TemplateID", out var tidNode) && tidNode != null)
 		{
@@ -129,7 +129,7 @@ internal static class TemplateJsonSearch
 		return null;
 	}
 
-	internal static void TraverseJsonForTermsAndAssetReferences(JsonNode node, HashSet<string> op1Terms, List<string> assetReferences)
+	public static void TraverseJsonForTermsAndAssetReferences(JsonNode node, HashSet<string> op1Terms, List<string> assetReferences)
 	{
 		if (node is JsonObject obj)
 		{
@@ -179,7 +179,7 @@ internal static class TemplateJsonSearch
 		}
 	}
 
-	internal static bool IsAssetExtension(string? value)
+	public static bool IsAssetExtension(string? value)
 	{
 		if (value == null)
 		{
@@ -190,7 +190,7 @@ internal static class TemplateJsonSearch
 		return lower.EndsWith(".rtex") || lower.EndsWith(".raud") || lower.EndsWith(".rmesh") || lower.EndsWith(".ranim");
 	}
 
-	internal static void SplitAndAddTerms(string text, HashSet<string> termsSet)
+	private static void SplitAndAddTerms(string text, HashSet<string> termsSet)
 	{
 		string[] words = EditorAssetOperations.NonAlphaRegex().Split(text);
 		foreach (string word in words)
@@ -202,7 +202,7 @@ internal static class TemplateJsonSearch
 		}
 	}
 
-	internal static void ExtractTermsFromAssetReference(string wsPath, string assetRef, HashSet<string> termsSet)
+	public static void ExtractTermsFromAssetReference(string wsPath, string assetRef, HashSet<string> termsSet)
 	{
 		string fileName = Path.GetFileName(assetRef);
 		string fileNameWithoutExt = Path.GetFileNameWithoutExtension(assetRef);

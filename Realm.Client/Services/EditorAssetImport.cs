@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net.Http;
@@ -26,9 +26,9 @@ namespace Realm.Client.Services;
 ///     call. None of it holds editor state, so EditorService forwards the public members because they
 ///     are its IEditorAPI surface.
 /// </summary>
-internal static class EditorAssetImport
+public static class EditorAssetImport
 {
-	internal static (bool Success, string ErrorMessage, IReadOnlyList<string> ExtractedAnimationFiles, string FileName) ImportGlbAssetFromExtensionDomain(string sourceFilePath, string category, string wsPath, Action<string, string, string, string?> updateMetadataAction)
+	public static (bool Success, string ErrorMessage, IReadOnlyList<string> ExtractedAnimationFiles, string FileName) ImportGlbAssetFromExtensionDomain(string sourceFilePath, string category, string wsPath, Action<string, string, string, string?> updateMetadataAction)
 	{
 		string fileName = Path.GetFileName(sourceFilePath);
 		string subCat = category.ToLowerInvariant();
@@ -56,7 +56,7 @@ internal static class EditorAssetImport
 		return (true, null!, importResult.ExtractedAnimationFiles, fileName);
 	}
 
-	internal static string ResolveAnimationFileName(string sourceFilePath, string? preferredFileName)
+	public static string ResolveAnimationFileName(string sourceFilePath, string? preferredFileName)
 	{
 		string originalFileName = !string.IsNullOrWhiteSpace(preferredFileName) && !AssetIndexService.IsHexHash(Path.GetFileNameWithoutExtension(preferredFileName))
 			? Path.GetFileNameWithoutExtension(preferredFileName)
@@ -64,7 +64,7 @@ internal static class EditorAssetImport
 		return Path.GetFileNameWithoutExtension(originalFileName);
 	}
 
-	internal static (int ImportedCount, int SkippedCount, List<(string FileName, string Blake3)>? NewAnims) Import3DAnimationFileDomain(string sourceFilePath, string originalFileName, string animsDir)
+	public static (int ImportedCount, int SkippedCount, List<(string FileName, string Blake3)>? NewAnims) Import3DAnimationFileDomain(string sourceFilePath, string originalFileName, string animsDir)
 	{
 		var extracted = MixamoAnimationImporter.ExtractAnimationsFromFile(sourceFilePath, originalFileName);
 		if (extracted.Count == 0)
@@ -87,7 +87,7 @@ internal static class EditorAssetImport
 		return (importedCount, skippedCount, newAnims);
 	}
 
-	internal static (bool Success, string FinalFileName, string NewHash) ImportRanimFileDomain(string sourceFilePath, string? preferredFileName, string animsDir)
+	public static (bool Success, string FinalFileName, string NewHash) ImportRanimFileDomain(string sourceFilePath, string? preferredFileName, string animsDir)
 	{
 		string resolvedName = !string.IsNullOrWhiteSpace(preferredFileName) && !AssetIndexService.IsHexHash(Path.GetFileNameWithoutExtension(preferredFileName))
 			? preferredFileName
@@ -144,7 +144,7 @@ internal static class EditorAssetImport
 		return null;
 	}
 
-	internal static (bool Success, string Message, string FileName, string Blake3) ImportDecalAssetDomain(string sourceFilePath, string wsPath)
+	public static (bool Success, string Message, string FileName, string Blake3) ImportDecalAssetDomain(string sourceFilePath, string wsPath)
 	{
 		try
 		{
@@ -174,14 +174,14 @@ internal static class EditorAssetImport
 		}
 	}
 
-	internal static string PrepareAnimationsDirectory(string wsPath)
+	public static string PrepareAnimationsDirectory(string wsPath)
 	{
 		string animsDir = Path.Combine(wsPath, "Assets", "animations");
 		Directory.CreateDirectory(animsDir);
 		return animsDir;
 	}
 
-	internal static byte[]? GetRtexWebpBytes(string localRtex)
+	public static byte[]? GetRtexWebpBytes(string localRtex)
 	{
 		try
 		{
@@ -195,7 +195,7 @@ internal static class EditorAssetImport
 		}
 	}
 
-	internal static async Task<string?> ProcessCreatorRegistrationAsync(string username, string pubKeyStr, Key key)
+	public static async Task<string?> ProcessCreatorRegistrationAsync(string username, string pubKeyStr, Key key)
 	{
 		if (!Realm.Shared.NameNormalizationHelper.ValidateUsername(username, out var validationError))
 		{
@@ -210,7 +210,7 @@ internal static class EditorAssetImport
 		return await RegisterCreatorAsync(username, pubKeyStr, key);
 	}
 
-	internal static async Task<string?> RegisterCreatorAsync(string username, string pubKeyStr, Key key)
+	public static async Task<string?> RegisterCreatorAsync(string username, string pubKeyStr, Key key)
 	{
 		byte[] payloadBytes = Encoding.UTF8.GetBytes(CreatorRegistrationProof.BuildPayload(username, pubKeyStr, null, null));
 		byte[] sigBytes = SignatureAlgorithm.Ed25519.Sign(key, payloadBytes);

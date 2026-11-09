@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using Godot;
 using Realm.Ecs;
@@ -21,9 +21,9 @@ namespace Realm.Client.Services;
 /// </summary>
 public class ReplicatedUnitLifecycle
 {
-	internal const float MaximumPlausibleTargetStepMeters = 2f;
+	private const float MaximumPlausibleTargetStepMeters = 2f;
 
-	internal const float PlausibleStepAllowanceFactor = 2f;
+	private const float PlausibleStepAllowanceFactor = 2f;
 
 	private readonly Func<Entity> _findWorldEntity;
 	private readonly Func<int> _lastAppliedSequence;
@@ -31,7 +31,7 @@ public class ReplicatedUnitLifecycle
 	private readonly Action<Entity> _notePendingKill;
 	private readonly Action<NetworkMappingState, Entity, int> _retireReplica;
 
-	internal ReplicatedUnitLifecycle(Func<Entity> findWorldEntity, Func<int> lastAppliedSequence,
+	public ReplicatedUnitLifecycle(Func<Entity> findWorldEntity, Func<int> lastAppliedSequence,
 		PendingUnitSpawnQueue pendingSpawns, Action<Entity> notePendingKill,
 		Action<NetworkMappingState, Entity, int> retireReplica)
 	{
@@ -42,7 +42,7 @@ public class ReplicatedUnitLifecycle
 		_retireReplica = retireReplica;
 	}
 
-	internal Entity Spawn(UnitSnapshot snap, Func<string, bool, string> getFallbackModelPath, out string modelPath, out int playerIndex)
+	public Entity Spawn(UnitSnapshot snap, Func<string, bool, string> getFallbackModelPath, out string modelPath, out int playerIndex)
 	{
 		modelPath = string.Empty;
 		playerIndex = 0;
@@ -102,7 +102,7 @@ public class ReplicatedUnitLifecycle
 		GameContext.SnapshotTimeline.Record(localEntityId, position, rotationY, anchorSequence);
 	}
 
-	internal static Entity ApplySnapshotToEntity(string unitId, int entityId, int ownerPlayerEntityId, System.Numerics.Vector3 position, float rotationY, float currentHp, float maxHp, bool isBuilding, UnitMetadata meta, ref NetworkMappingState mapping, Func<string, bool, string> getFallbackModelPath, out string modelPath, out int playerIndex, int ownerPlayerIndex = -1)
+	public static Entity ApplySnapshotToEntity(string unitId, int entityId, int ownerPlayerEntityId, System.Numerics.Vector3 position, float rotationY, float currentHp, float maxHp, bool isBuilding, UnitMetadata meta, ref NetworkMappingState mapping, Func<string, bool, string> getFallbackModelPath, out string modelPath, out int playerIndex, int ownerPlayerIndex = -1)
 	{
 		modelPath = string.Empty;
 		playerIndex = 0;
@@ -177,7 +177,7 @@ public class ReplicatedUnitLifecycle
 		return entity;
 	}
 
-	internal static bool IsServerEntityIdRecycled(UnitSnapshot snap, Entity localEntity)
+	private static bool IsServerEntityIdRecycled(UnitSnapshot snap, Entity localEntity)
 	{
 		if (GameContext.World is not { } world) return true;
 
@@ -193,7 +193,7 @@ public class ReplicatedUnitLifecycle
 		if (world.Has<Building>(localEntity) != snap.IsBuilding) return true;
 		return world.Has<Dead>(localEntity);
 	}
-	internal void ApplyDescription(UnitSnapshot snap, int sequence, NetworkMappingState mapping)
+	public void ApplyDescription(UnitSnapshot snap, int sequence, NetworkMappingState mapping)
 	{
 		if (GameContext.World is not { } world) return;
 

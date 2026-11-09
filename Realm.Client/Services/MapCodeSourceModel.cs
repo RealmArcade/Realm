@@ -1,4 +1,4 @@
-﻿﻿using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.CodeAnalysis;
@@ -13,7 +13,7 @@ namespace Realm.Client.Services;
 ///     (including which of them are exported and what they depend on), and the destination workspace's
 ///     namespaces, types, file paths and source-map attributions.
 /// </summary>
-	internal class SourceCodeIndex
+	public class SourceCodeIndex
 	{
 		public Dictionary<string, SourceType> TypesByFullName { get; } = new(StringComparer.Ordinal);
 		public Dictionary<string, List<SourceType>> TypesBySimpleName { get; } = new(StringComparer.Ordinal);
@@ -170,7 +170,7 @@ namespace Realm.Client.Services;
 		}
 	}
 
-	internal class SourceType
+	public class SourceType
 	{
 		private readonly HashSet<string> _declaredIdentifiers = new(StringComparer.Ordinal);
 
@@ -353,7 +353,7 @@ namespace Realm.Client.Services;
 		}
 	}
 
-	internal class TypePart
+	public class TypePart
 	{
 		public TypePart(SyntaxNode declaration, IReadOnlyList<UsingDirectiveSyntax> usings)
 		{
@@ -365,7 +365,7 @@ namespace Realm.Client.Services;
 		public IReadOnlyList<UsingDirectiveSyntax> Usings { get; }
 	}
 
-	internal class DestinationCodeIndex
+	public class DestinationCodeIndex
 	{
 		public HashSet<string> TypeFullNames { get; } = new(StringComparer.Ordinal);
 		public HashSet<string> Namespaces { get; } = new(StringComparer.Ordinal);
@@ -411,7 +411,7 @@ namespace Realm.Client.Services;
 		}
 	}
 
-	internal class SourceFile
+	public class SourceFile
 	{
 		public SourceFile(string relativePath, string text, bool isTemplateFile)
 		{

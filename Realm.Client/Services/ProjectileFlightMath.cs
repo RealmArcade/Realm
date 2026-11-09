@@ -9,9 +9,9 @@ namespace Realm.Client.Services;
 ///     sway added on top, and the ease that shapes the parametric ones. They are rules about a weapon, not about a
 ///     node, so they take the metadata and plain vectors and can be checked without a scene.
 /// </summary>
-internal static class ProjectileFlightMath
+public static class ProjectileFlightMath
 {
-	internal static float Speed(float baseSpeed, float elapsedTime, float totalDuration, ProjectileSpeedCurve speedCurve, float acceleration)
+	public static float Speed(float baseSpeed, float elapsedTime, float totalDuration, ProjectileSpeedCurve speedCurve, float acceleration)
 	{
 		float speed = MathF.Max(0.1f, baseSpeed + acceleration * elapsedTime);
 
@@ -31,7 +31,7 @@ internal static class ProjectileFlightMath
 		};
 	}
 
-	internal static float ScaleOverLifetime(float t, ProjectileScaleCurve scaleCurve)
+	public static float ScaleOverLifetime(float t, ProjectileScaleCurve scaleCurve)
 	{
 		if (scaleCurve == ProjectileScaleCurve.Constant)
 			return 1.0f;
@@ -47,7 +47,7 @@ internal static class ProjectileFlightMath
 		};
 	}
 
-	internal static float Ease(float t, ProjectileEaseCurve easeCurve)
+	public static float Ease(float t, ProjectileEaseCurve easeCurve)
 	{
 		return easeCurve switch
 		{
@@ -62,7 +62,7 @@ internal static class ProjectileFlightMath
 	///     How far a projectile rises above its straight path at <paramref name="rawT" />: one hump, or one hump per
 	///     bounce with each later bounce lower than the last.
 	/// </summary>
-	internal static float ArcHeight(float rawT, float arcHeight, int maxBounces)
+	public static float ArcHeight(float rawT, float arcHeight, int maxBounces)
 	{
 		if (maxBounces > 0)
 		{
@@ -86,7 +86,7 @@ internal static class ProjectileFlightMath
 	///     Everything that moves a projectile off its straight path: the arc, then the spiral, zigzag and — for the
 	///     swarm-orbit trajectory only — the orbit sway, all measured in the projectile's own right/up basis.
 	/// </summary>
-	internal static Vector3 CurveOffset(WeaponMetadata weapon, bool orbits, float elapsedTime, float rawT, Vector3 right, Vector3 up)
+	public static Vector3 CurveOffset(WeaponMetadata weapon, bool orbits, float elapsedTime, float rawT, Vector3 right, Vector3 up)
 	{
 		Vector3 offset = new(0f, ArcHeight(rawT, weapon.ArcHeight, weapon.MaxBounces), 0f);
 		offset += SpiralOffset(elapsedTime, weapon.SpiralRadius, weapon.SpiralFrequency, right, up);
@@ -126,7 +126,7 @@ internal static class ProjectileFlightMath
 	}
 
 	/// <summary>The weapon metadata spells these curves as strings; anything unrecognised flies as the default.</summary>
-	internal static ProjectileTrajectoryType ParseTrajectoryType(string? raw)
+	public static ProjectileTrajectoryType ParseTrajectoryType(string? raw)
 	{
 		if (string.IsNullOrEmpty(raw)) return ProjectileTrajectoryType.Parabolic;
 		return raw.Trim().ToLowerInvariant() switch
@@ -138,7 +138,7 @@ internal static class ProjectileFlightMath
 		};
 	}
 
-	internal static ProjectileSpeedCurve ParseSpeedCurve(string? raw)
+	public static ProjectileSpeedCurve ParseSpeedCurve(string? raw)
 	{
 		if (string.IsNullOrEmpty(raw)) return ProjectileSpeedCurve.Constant;
 		return raw.Trim().ToLowerInvariant() switch
@@ -152,7 +152,7 @@ internal static class ProjectileFlightMath
 		};
 	}
 
-	internal static ProjectileScaleCurve ParseScaleCurve(string? raw)
+	public static ProjectileScaleCurve ParseScaleCurve(string? raw)
 	{
 		if (string.IsNullOrEmpty(raw)) return ProjectileScaleCurve.Constant;
 		return raw.Trim().ToLowerInvariant() switch
@@ -166,7 +166,7 @@ internal static class ProjectileFlightMath
 		};
 	}
 
-	internal static ProjectileEaseCurve ParseEaseCurve(string? raw)
+	public static ProjectileEaseCurve ParseEaseCurve(string? raw)
 	{
 		if (string.IsNullOrEmpty(raw)) return ProjectileEaseCurve.Linear;
 		return raw.Trim().ToLowerInvariant() switch

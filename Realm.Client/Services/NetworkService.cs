@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Text.Json;
@@ -658,7 +658,7 @@ public class NetworkService
 		return GameContext.CommandAuthority.ValidateSpellCommandForHarness(peerId, cmd, out rejectionReason);
 	}
 
-	internal ReplicatedReferenceIndex References => _references;
+	public ReplicatedReferenceIndex References => _references;
 
 	private readonly ReplicatedReferenceIndex _references = new();
 

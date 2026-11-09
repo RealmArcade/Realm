@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Text.Json.Nodes;
 using Godot;
@@ -15,9 +15,9 @@ namespace Realm.Client.Services;
 ///     into the map, and every restored file gets a sidecar cache next to it that carries the asset type
 ///     from its metadata headers.
 /// </summary>
-internal static class AssetIndexCasSynchronization
+public static class AssetIndexCasSynchronization
 {
-	internal static void Synchronize(IProgress<AssetIndexProgressUpdate>? progress = null)
+	public static void Synchronize(IProgress<AssetIndexProgressUpdate>? progress = null)
 	{
 		SynchronizeArchiveDirectory(MapAssetManager.GlobalArchiveDirectory, MapAssetManager.Storage, isP2P: false, progress, 0.02, 0.08);
 		if (Directory.Exists(MapAssetManager.P2PArchiveDirectory))
@@ -230,7 +230,7 @@ internal static class AssetIndexCasSynchronization
 		}
 	}
 
-	internal static void InvalidatePathCaches()
+	public static void InvalidatePathCaches()
 	{
 		MapAssetManager.Storage.InvalidateAllAssetPaths();
 		if (Directory.Exists(MapAssetManager.P2PArchiveDirectory))

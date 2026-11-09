@@ -1,4 +1,4 @@
-﻿﻿using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace Realm.Client.Services.MapGeneration;
@@ -7,7 +7,7 @@ namespace Realm.Client.Services.MapGeneration;
 ///     How far every cell is from the carved paths, by breadth-first distance from the walkable cells: the
 ///     scatter stages read it to keep trees and decorations off the roads and the anchor clearings.
 /// </summary>
-internal sealed class PathDistanceField
+public sealed class PathDistanceField
 {
 	private readonly bool[,] _walkable;
 	private readonly int[,] _distance;

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -16,9 +16,9 @@ namespace Realm.Client.Services;
 ///     register step and the index to write to are supplied by the caller, so this stays independent of how
 ///     the service resolves a target and takes its P2P lock.
 /// </summary>
-internal static class AssetIndexArchiveScans
+public static class AssetIndexArchiveScans
 {
-	internal static void ScanAll(
+	public static void ScanAll(
 		Func<AssetIndexTarget> globalTarget,
 		Action<MapManifest, string, bool> registerManifest,
 		object syncLock,

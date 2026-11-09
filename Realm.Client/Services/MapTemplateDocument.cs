@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Text.Encodings.Web;
 using System.Text.Json;
@@ -12,17 +12,17 @@ namespace Realm.Client.Services;
 ///     Reads and writes the metadata document a template import merges into: the source and destination files, the
 ///     section containers entries are added to, and the identity a template is known by.
 /// </summary>
-internal static class MapTemplateDocument
+public static class MapTemplateDocument
 {
-		internal const string TemplatesRootKey = "Templates";
-		internal static readonly string[] TemplateIdentityKeys = { "TemplateID", "AttachmentId", "VfxId", "Id" };
-		internal static readonly JsonSerializerOptions MetadataWriteOptions = new()
+		public const string TemplatesRootKey = "Templates";
+		private static readonly string[] TemplateIdentityKeys = { "TemplateID", "AttachmentId", "VfxId", "Id" };
+		private static readonly JsonSerializerOptions MetadataWriteOptions = new()
 		{
 			WriteIndented = true,
 			Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
 		};
 
-	internal static string? ResolveSourceMetadataPath(MapAssetImportSource source)
+	private static string? ResolveSourceMetadataPath(MapAssetImportSource source)
 	{
 		string sourceDirectory = GetSourceDirectory(source);
 		if (string.IsNullOrEmpty(sourceDirectory)) return null;
@@ -35,7 +35,7 @@ internal static class MapTemplateDocument
 			: null;
 	}
 
-	internal static MapManifest LoadSourceManifest(string manifestFilePath)
+	private static MapManifest LoadSourceManifest(string manifestFilePath)
 	{
 		try
 		{
@@ -48,7 +48,7 @@ internal static class MapTemplateDocument
 		}
 	}
 
-	internal static bool TryExtractManifestFile(string manifestFilePath, string relativePath, string destinationDirectory)
+	private static bool TryExtractManifestFile(string manifestFilePath, string relativePath, string destinationDirectory)
 	{
 		MapManifest manifest = LoadSourceManifest(manifestFilePath);
 		if (manifest.Files == null || !manifest.Files.TryGetValue(relativePath, out string? hash) || string.IsNullOrEmpty(hash)) return false;
@@ -56,14 +56,14 @@ internal static class MapTemplateDocument
 		return MapAssetManager.ExtractSingleAsset(relativePath, hash, destinationDirectory);
 	}
 
-	internal static string GetSourceDirectory(MapAssetImportSource source)
+	private static string GetSourceDirectory(MapAssetImportSource source)
 	{
 		return string.IsNullOrEmpty(source.ManifestFilePath)
 			? string.Empty
 			: Path.GetDirectoryName(source.ManifestFilePath) ?? string.Empty;
 	}
 
-	internal static JsonObject? LoadSourceMetadata(MapAssetImportSource source)
+	public static JsonObject? LoadSourceMetadata(MapAssetImportSource source)
 	{
 		string? metadataPath = ResolveSourceMetadataPath(source);
 		if (string.IsNullOrEmpty(metadataPath)) return null;
@@ -79,7 +79,7 @@ internal static class MapTemplateDocument
 		}
 	}
 
-	internal static JsonObject? LoadDestinationMetadata(string destinationWorkspacePath)
+	public static JsonObject? LoadDestinationMetadata(string destinationWorkspacePath)
 	{
 		string metadataPath = MetadataService.ResolveMetadataPath(destinationWorkspacePath);
 		if (!File.Exists(metadataPath)) return null;
@@ -95,7 +95,7 @@ internal static class MapTemplateDocument
 		}
 	}
 
-	internal static void SaveDestinationMetadata(string metadataPath, JsonObject destinationRoot)
+	public static void SaveDestinationMetadata(string metadataPath, JsonObject destinationRoot)
 	{
 		try
 		{
@@ -108,7 +108,7 @@ internal static class MapTemplateDocument
 		}
 	}
 
-	internal static void AddEntry(JsonObject destinationRoot, string sectionKey, bool isDictionary, string identity, JsonObject entry)
+	public static void AddEntry(JsonObject destinationRoot, string sectionKey, bool isDictionary, string identity, JsonObject entry)
 	{
 		if (isDictionary)
 		{
@@ -120,7 +120,7 @@ internal static class MapTemplateDocument
 		GetOrCreateArray(templates, sectionKey).Add(entry);
 	}
 
-	internal static bool ContainsEntry(JsonObject root, string sectionKey, bool isDictionary, string identity)
+	public static bool ContainsEntry(JsonObject root, string sectionKey, bool isDictionary, string identity)
 	{
 		if (isDictionary)
 		{
@@ -141,7 +141,7 @@ internal static class MapTemplateDocument
 		return false;
 	}
 
-	internal static bool ContainsKeyIgnoreCase(JsonObject dictionary, string key)
+	private static bool ContainsKeyIgnoreCase(JsonObject dictionary, string key)
 	{
 		foreach (var property in dictionary)
 		{
@@ -151,7 +151,7 @@ internal static class MapTemplateDocument
 		return false;
 	}
 
-	internal static JsonObject GetOrCreateObject(JsonObject parent, string key)
+	public static JsonObject GetOrCreateObject(JsonObject parent, string key)
 	{
 		if (parent[key] is JsonObject existing) return existing;
 
@@ -160,7 +160,7 @@ internal static class MapTemplateDocument
 		return created;
 	}
 
-	internal static JsonArray GetOrCreateArray(JsonObject parent, string key)
+	private static JsonArray GetOrCreateArray(JsonObject parent, string key)
 	{
 		if (parent[key] is JsonArray existing) return existing;
 
@@ -169,7 +169,7 @@ internal static class MapTemplateDocument
 		return created;
 	}
 
-	internal static string ReadIdentity(JsonObject entry)
+	public static string ReadIdentity(JsonObject entry)
 	{
 		foreach (string identityKey in TemplateIdentityKeys)
 		{
@@ -182,13 +182,13 @@ internal static class MapTemplateDocument
 		return string.Empty;
 	}
 
-	internal static string GetSlug(string identity)
+	public static string GetSlug(string identity)
 	{
 		int slashIndex = identity.LastIndexOf('/');
 		return slashIndex >= 0 ? identity.Substring(slashIndex + 1) : identity;
 	}
 
-	internal static string NormalizeRelativePath(string relativePath)
+	public static string NormalizeRelativePath(string relativePath)
 	{
 		return relativePath.Replace('\\', '/').TrimStart('/');
 	}

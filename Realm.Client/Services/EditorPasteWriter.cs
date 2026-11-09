@@ -12,7 +12,7 @@ namespace Realm.Client.Services;
 /// time, with the height, splat, cliff-splat and pathing writes that each copied cell carries. It writes
 /// through <see cref="EditorTerrainSurface"/>, so the editor only decides the layout and hands it over.
 /// </summary>
-internal sealed class EditorPasteWriter
+public sealed class EditorPasteWriter
 {
 	private readonly EditorTerrainSurface _surface;
 	private readonly EditorAreaClipboard _clipboard;

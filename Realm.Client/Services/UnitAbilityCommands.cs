@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using Godot;
 using Realm.Client.Core;
@@ -17,18 +17,18 @@ namespace Realm.Client.Services;
 ///     The ability buttons a script drives: casting (direct effect or a spawn request), the two cooldown
 ///     stores the game reads, and the auto-cast and auto-combat toggles that are per-unit state.
 /// </summary>
-internal sealed class UnitAbilityCommands
+public sealed class UnitAbilityCommands
 {
 	private readonly Func<UnitId, Entity> _entityOf;
 	private readonly Func<UnitId, Unit_WasmRuntime?> _wrapperOf;
 
-	internal UnitAbilityCommands(Func<UnitId, Entity> entityOf, Func<UnitId, Unit_WasmRuntime?> wrapperOf)
+	public UnitAbilityCommands(Func<UnitId, Entity> entityOf, Func<UnitId, Unit_WasmRuntime?> wrapperOf)
 	{
 		_entityOf = entityOf;
 		_wrapperOf = wrapperOf;
 	}
 
-	internal void SetAbilityAutoCast(UnitId unit, string abilityId, bool active)
+	public void SetAbilityAutoCast(UnitId unit, string abilityId, bool active)
 	{
 		var entity = _entityOf(unit);
 		if (entity != Entity.Null && SimulationService.World.IsAlive(entity))
@@ -62,7 +62,7 @@ internal sealed class UnitAbilityCommands
 		}
 	}
 
-	internal void EnableUnitAutoCombat(UnitId unit, bool enabled)
+	public void EnableUnitAutoCombat(UnitId unit, bool enabled)
 	{
 		var entity = _entityOf(unit);
 		if (entity != Entity.Null && SimulationService.World.IsAlive(entity))
@@ -81,7 +81,7 @@ internal sealed class UnitAbilityCommands
 		}
 	}
 
-	internal void CastAbility(UnitId unit, string abilityId, Vector3 targetPosition, AbilityDefinition def, Action<UnitId, string, Vector3>? onSpellCast, Action<AbilityDefinition, Godot.Vector3>? spawnFx)
+	public void CastAbility(UnitId unit, string abilityId, Vector3 targetPosition, AbilityDefinition def, Action<UnitId, string, Vector3>? onSpellCast, Action<AbilityDefinition, Godot.Vector3>? spawnFx)
 	{
 		var godotPos = new Godot.Vector3(targetPosition.X, targetPosition.Y, targetPosition.Z);
 		var casterEnt = _entityOf(unit);
@@ -108,7 +108,7 @@ internal sealed class UnitAbilityCommands
 		}
 	}
 
-	internal float GetAbilityCooldown(UnitId unit, string abilityId)
+	public float GetAbilityCooldown(UnitId unit, string abilityId)
 	{
 		var entity = _entityOf(unit);
 		if (entity != Entity.Null && SimulationService.World.IsAlive(entity))
@@ -129,7 +129,7 @@ internal sealed class UnitAbilityCommands
 		return 0f;
 	}
 
-	internal void SetAbilityCooldown(UnitId unit, string abilityId, float cooldown)
+	public void SetAbilityCooldown(UnitId unit, string abilityId, float cooldown)
 	{
 		var entity = _entityOf(unit);
 		if (entity != Entity.Null && SimulationService.World.IsAlive(entity))
@@ -150,12 +150,12 @@ internal sealed class UnitAbilityCommands
 		}
 	}
 
-	internal void SetAbilityCooldown(Unit_WasmRuntime unit, string abilityId, float cooldown)
+	public void SetAbilityCooldown(Unit_WasmRuntime unit, string abilityId, float cooldown)
 	{
 		SetAbilityCooldown((UnitId)unit.UniqueId, abilityId, cooldown);
 	}
 
-	internal void CastAbility(Unit_WasmRuntime unit, string abilityId, Vector3 targetPosition, AbilityDefinition def, Action<UnitId, string, Vector3>? onSpellCast, Action<AbilityDefinition, Godot.Vector3>? spawnFx)
+	public void CastAbility(Unit_WasmRuntime unit, string abilityId, Vector3 targetPosition, AbilityDefinition def, Action<UnitId, string, Vector3>? onSpellCast, Action<AbilityDefinition, Godot.Vector3>? spawnFx)
 	{
 		CastAbility((UnitId)unit.UniqueId, abilityId, targetPosition, def, onSpellCast, spawnFx);
 	}

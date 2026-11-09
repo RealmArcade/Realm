@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using Realm.Client.Core;
 using Realm.Ecs;
@@ -22,17 +22,17 @@ namespace Realm.Client.Services;
 ///     mapping and the cached script wrapper, and clearing every LastAttacker that pointed at it so no stale
 ///     entity reference outlives the unit.
 /// </summary>
-internal sealed class UnitDestruction
+public sealed class UnitDestruction
 {
 	private readonly Dictionary<int, Unit_WasmRuntime> _wrapperCache;
 	private readonly List<Entity> _referenceHoldersScratch = new();
 
-	internal UnitDestruction(Dictionary<int, Unit_WasmRuntime> wrapperCache)
+	public UnitDestruction(Dictionary<int, Unit_WasmRuntime> wrapperCache)
 	{
 		_wrapperCache = wrapperCache;
 	}
 
-	internal void DomainKillUnit(Entity entity, Action viewAction)
+	public void DomainKillUnit(Entity entity, Action viewAction)
 	{
 		if (SimulationService.World.IsAlive(entity) && !SimulationService.World.Has<Dead>(entity))
 		{
@@ -41,7 +41,7 @@ internal sealed class UnitDestruction
 		}
 	}
 
-	internal void DomainDestroyUnit(Entity entity, bool isBuilding, float radius, Vector3 unitPos, Action viewAction)
+	public void DomainDestroyUnit(Entity entity, bool isBuilding, float radius, Vector3 unitPos, Action viewAction)
 	{
 		if (!SimulationService.World.IsAlive(entity)) return;
 
@@ -65,7 +65,7 @@ internal sealed class UnitDestruction
 		viewAction?.Invoke();
 	}
 
-	internal bool HandleEnemyDeathEconomyDomain(Entity unitEntity, string unitId, Entity playerEntity, int resourceCap)
+	public bool HandleEnemyDeathEconomyDomain(Entity unitEntity, string unitId, Entity playerEntity, int resourceCap)
 	{
 		if (!GameContext.RegistryService.UnitRegistry.TryGetValue(unitId, out var bountyMeta) || bountyMeta.GoldBounty <= 0f) return false;
 		if (!SimulationService.World.IsAlive(playerEntity) || !SimulationService.World.Has<PlayerResources>(playerEntity)) return false;
@@ -78,14 +78,14 @@ internal sealed class UnitDestruction
 		return true;
 	}
 
-	internal (float Radius, System.Numerics.Vector3 Position) GetObstacleUncarveData(Entity unitEntity, System.Numerics.Vector3 fallbackPos)
+	public (float Radius, System.Numerics.Vector3 Position) GetObstacleUncarveData(Entity unitEntity, System.Numerics.Vector3 fallbackPos)
 	{
 		float radius = SimulationService.World.Has<CollisionRadius>(unitEntity) ? SimulationService.World.Get<CollisionRadius>(unitEntity).Value : 2.0f;
 		var unitPos = SimulationService.World.Has<Position>(unitEntity) ? SimulationService.World.Get<Position>(unitEntity).Value : fallbackPos;
 		return (radius, unitPos);
 	}
 
-	internal int GetDeathPopulationCost(Entity unitEntity, string unitId)
+	public int GetDeathPopulationCost(Entity unitEntity, string unitId)
 	{
 		if (!GameContext.RegistryService.UnitRegistry.TryGetValue(unitId, out var killMeta)) return 0;
 		
@@ -98,7 +98,7 @@ internal sealed class UnitDestruction
 		return popCost;
 	}
 
-	internal Entity GetKillerEntityDomain(Entity unitEntity)
+	public Entity GetKillerEntityDomain(Entity unitEntity)
 	{
 		Entity killerEntity = Entity.Null;
 		if (!SimulationService.World.IsAlive(unitEntity)) return killerEntity;
@@ -114,7 +114,7 @@ internal sealed class UnitDestruction
 		return killerEntity;
 	}
 
-	internal void DestroyUnitEntityDomain(Entity unitEntity)
+	public void DestroyUnitEntityDomain(Entity unitEntity)
 	{
 		if (!SimulationService.World.IsAlive(unitEntity)) return;
 		_wrapperCache.Remove(unitEntity.Id);
@@ -123,7 +123,7 @@ internal sealed class UnitDestruction
 		RemoveReferencesToDestroyedEntity(unitEntity);
 	}
 
-	internal void RemoveReferencesToDestroyedEntity(Entity destroyedEntity)
+	private void RemoveReferencesToDestroyedEntity(Entity destroyedEntity)
 	{
 		EcsWorld? world = GameContext.World;
 		if (world == null) return;
@@ -141,7 +141,7 @@ internal sealed class UnitDestruction
 		}
 	}
 
-	internal void DestroyEntitiesDomain(IEnumerable<Entity> entities)
+	public void DestroyEntitiesDomain(IEnumerable<Entity> entities)
 	{
 		foreach (var entity in entities)
 		{

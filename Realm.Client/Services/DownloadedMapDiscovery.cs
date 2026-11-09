@@ -15,9 +15,9 @@ namespace Realm.Client.Services;
 ///     Every member here is a pure function of the filesystem, so it holds no state and can be called from any thread that
 ///     is willing to pay for the directory walk.
 /// </summary>
-internal static class DownloadedMapDiscovery
+public static class DownloadedMapDiscovery
 {
-	internal static IReadOnlyList<DownloadedMapInfo> Collect(bool includeBundledMaps)
+	public static IReadOnlyList<DownloadedMapInfo> Collect(bool includeBundledMaps)
 	{
 		var mapDictionary = new Dictionary<string, DownloadedMapInfo>(StringComparer.OrdinalIgnoreCase);
 		var searchRoots = new List<string>();
@@ -415,7 +415,7 @@ internal static class DownloadedMapDiscovery
 		return string.Compare(v2, v1, StringComparison.OrdinalIgnoreCase);
 	}
 
-	internal static bool TryParseVersion(string vStr, out Version version)
+	public static bool TryParseVersion(string vStr, out Version version)
 	{
 		vStr = vStr.Trim().TrimStart('v', 'V');
 		if (Version.TryParse(vStr, out version!))

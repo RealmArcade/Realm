@@ -14,9 +14,9 @@ namespace Realm.Client.Services;
 ///     lock and touches no index state: the verification passes that call it keep their own lock for the query they run
 ///     before inspecting, and that is unchanged by this class.
 /// </summary>
-internal static class AssetIndexInspector
+public static class AssetIndexInspector
 {
-	internal static string? Inspect(IndexedAsset asset, bool verifyContentHash)
+	public static string? Inspect(IndexedAsset asset, bool verifyContentHash)
 	{
 		if (string.IsNullOrEmpty(asset.FilePath) || !File.Exists(asset.FilePath))
 		{
@@ -103,7 +103,7 @@ internal static class AssetIndexInspector
 		return null;
 	}
 
-	internal static bool IsCasAsset(IndexedAsset asset)
+	public static bool IsCasAsset(IndexedAsset asset)
 	{
 		string p2pCasAssetsDirectory = P2PCasAssetsDirectory;
 		if (string.Equals(asset.DirectoryPath, AssetIndexService.GlobalCasAssetsDirectory, StringComparison.OrdinalIgnoreCase)) return true;

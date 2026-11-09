@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using LibGit2Sharp;
 using Realm.Client.Core;
@@ -10,9 +10,9 @@ namespace Realm.Client.Services.MapHistory;
 ///     the newest commit of each tree plus the first commit inside each age bracket, and the rewrite then
 ///     re-parents the kept commits into one chain and re-applies the labels that pointed at them.
 /// </summary>
-internal static class HistoryCondensation
+public static class HistoryCondensation
 {
-	internal static void TrimHistoryAfterCommit(MapHistoryStoreSession session)
+	public static void TrimHistoryAfterCommit(MapHistoryStoreSession session)
 	{
 		var repository = new MapGitRepository(session.Layout.RepositoryDirectory);
 		MapHistoryService.MapHistoryStateFile state = MapHistoryService.LoadState(session.Layout);
@@ -33,7 +33,7 @@ internal static class HistoryCondensation
 		}
 	}
 
-	internal static MapHistoryCleanupResult CondenseHistoryInStore(MapHistoryStoreSession session)
+	public static MapHistoryCleanupResult CondenseHistoryInStore(MapHistoryStoreSession session)
 	{
 		var repository = new MapGitRepository(session.Layout.RepositoryDirectory);
 		MapHistoryService.MapHistoryStateFile state = MapHistoryService.LoadState(session.Layout);
@@ -41,7 +41,7 @@ internal static class HistoryCondensation
 		return MakeHistoryLessGranularInStore(session, repository, state, plan);
 	}
 
-	internal static MapHistoryCondensePlan BuildCondensePlan(MapGitRepository repository, MapHistoryService.MapHistoryStateFile state)
+	private static MapHistoryCondensePlan BuildCondensePlan(MapGitRepository repository, MapHistoryService.MapHistoryStateFile state)
 	{
 		using Repository versionScope = repository.OpenRepositoryScope();
 		IReadOnlyList<MapGitCommitInfo> commitsNewestFirst = repository.ReadVersionHistory(int.MaxValue);
@@ -89,7 +89,7 @@ internal static class HistoryCondensation
 		return new MapHistoryCondensePlan(keptNewestFirst, slotsNewestFirst.Count - keptNewestFirst.Count);
 	}
 
-	internal static bool IsPinnedVersion(MapVersionSlot slot)
+	private static bool IsPinnedVersion(MapVersionSlot slot)
 	{
 		if (slot.HasManualLabel) return true;
 		if (slot.Entry?.Kind == MapVersionKind.RestoredVersion) return false;
@@ -97,7 +97,7 @@ internal static class HistoryCondensation
 		return !string.IsNullOrWhiteSpace(slot.Label) || slot.Entry?.Kind is MapVersionKind.BeforeRestore or MapVersionKind.BeforeNewMap;
 	}
 
-	internal static MapHistoryCleanupResult MakeHistoryLessGranularInStore(MapHistoryStoreSession session, MapGitRepository repository, MapHistoryService.MapHistoryStateFile state, MapHistoryCondensePlan plan)
+	private static MapHistoryCleanupResult MakeHistoryLessGranularInStore(MapHistoryStoreSession session, MapGitRepository repository, MapHistoryService.MapHistoryStateFile state, MapHistoryCondensePlan plan)
 	{
 		if (plan.DroppedCount == 0)
 		{
@@ -157,9 +157,9 @@ internal static class HistoryCondensation
 		};
 	}
 
-	internal readonly record struct MapVersionSlot(MapGitCommitInfo Commit, MapHistoryService.MapHistoryStateEntry? Entry, string? Label, long SaveVersion, bool HasManualLabel);
+	public readonly record struct MapVersionSlot(MapGitCommitInfo Commit, MapHistoryService.MapHistoryStateEntry? Entry, string? Label, long SaveVersion, bool HasManualLabel);
 
-	internal sealed class MapHistoryCondensePlan
+	private sealed class MapHistoryCondensePlan
 	{
 		public MapHistoryCondensePlan(List<MapVersionSlot> keptOldestFirst, int droppedCount)
 		{

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -13,9 +13,9 @@ namespace Realm.Client.Services.MapHistory;
 ///     from the damaged folder), their byte sizes and version counts, and removing a store once every
 ///     window that has it open has let go.
 /// </summary>
-internal static class HistoryStoreDirectory
+public static class HistoryStoreDirectory
 {
-	internal static IReadOnlyList<MapHistoryStoreInfo> ReadStoresOnDisk()
+	public static IReadOnlyList<MapHistoryStoreInfo> ReadStoresOnDisk()
 	{
 		var stores = new List<MapHistoryStoreInfo>();
 		string root = MapHistoryStore.GetRootDirectory();
@@ -40,7 +40,7 @@ internal static class HistoryStoreDirectory
 		return stores.OrderByDescending(store => store.TotalBytes).ToList();
 	}
 
-	internal static MapHistoryStoreInfo DescribeStore(string storeName, string storeDirectory, bool isRecovery)
+	private static MapHistoryStoreInfo DescribeStore(string storeName, string storeDirectory, bool isRecovery)
 	{
 		long totalBytes = MeasureDirectoryBytes(storeDirectory);
 		string? storedMapName = TryReadStoredMapName(storeDirectory);
@@ -72,7 +72,7 @@ internal static class HistoryStoreDirectory
 		}
 	}
 
-	internal static MapHistoryStoreInfo DescribeUnreadableStore(string storeName, string storeDirectory, string? mapName, long totalBytes, bool isRecovery, bool isUnreadable)
+	private static MapHistoryStoreInfo DescribeUnreadableStore(string storeName, string storeDirectory, string? mapName, long totalBytes, bool isRecovery, bool isUnreadable)
 	{
 		return new MapHistoryStoreInfo
 		{
@@ -85,7 +85,7 @@ internal static class HistoryStoreDirectory
 		};
 	}
 
-	internal static string? TryReadStoredMapName(string storeDirectory)
+	private static string? TryReadStoredMapName(string storeDirectory)
 	{
 		try
 		{
@@ -101,7 +101,7 @@ internal static class HistoryStoreDirectory
 		}
 	}
 
-	internal static long MeasureDirectoryBytes(string directoryPath)
+	private static long MeasureDirectoryBytes(string directoryPath)
 	{
 		long totalBytes = 0;
 		try
@@ -128,7 +128,7 @@ internal static class HistoryStoreDirectory
 		return totalBytes;
 	}
 
-	internal static MapHistoryStoreDeleteResult DeleteStoreOnDisk(string storeDirectoryPath, MapHistoryMessages messages)
+	public static MapHistoryStoreDeleteResult DeleteStoreOnDisk(string storeDirectoryPath, MapHistoryMessages messages)
 	{
 		if (string.IsNullOrWhiteSpace(storeDirectoryPath))
 		{
@@ -165,7 +165,7 @@ internal static class HistoryStoreDirectory
 		return new MapHistoryStoreDeleteResult { Success = Directory.Exists(fullPath) == false, ErrorMessage = Directory.Exists(fullPath) ? messages.HistoryFolderNotRemoved : null };
 	}
 
-	internal static void DeleteStoreDirectory(string directoryPath)
+	private static void DeleteStoreDirectory(string directoryPath)
 	{
 		try
 		{

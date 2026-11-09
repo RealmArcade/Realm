@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using Realm.EditorAPI;
@@ -8,7 +8,7 @@ namespace Realm.Client.Services.MapGeneration;
 
 public class ProceduralMapGenerator
 {
-	internal const int AnchorCount = 9;
+	public const int AnchorCount = 9;
 	private const int MaximumScatterPoints = 20000;
 
 	private static readonly float[] StageWeights = { 2f, 10f, 3f, 14f, 4f, 8f, 3f, 3f, 5f, 9f, 4f, 4f, 10f, 8f, 6f, 5f, 2f };
@@ -751,9 +751,9 @@ public class ProceduralMapGenerator
 		return true;
 	}
 
-	internal readonly record struct AnchorCell(int CellX, int CellZ, int ClearRadius);
+	public readonly record struct AnchorCell(int CellX, int CellZ, int ClearRadius);
 
-	internal readonly record struct MstEdge(int From, int To);
+	public readonly record struct MstEdge(int From, int To);
 
-	internal readonly record struct CellPosition(int X, int Z);
+	public readonly record struct CellPosition(int X, int Z);
 }

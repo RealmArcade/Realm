@@ -9,12 +9,12 @@ namespace Realm.Client.Services;
 ///     fields survive a replacement, and that a new grid's dimensions follow the arrays that came with it — lived in
 ///     two places (the node's setters and the editor's restore path); it lives here once.
 /// </summary>
-internal static class TerrainStateStore
+public static class TerrainStateStore
 {
 	private const int DefaultDimension = 128;
 
 	/// <summary>The live state, or the default one a world with no terrain answers with.</summary>
-	internal static TerrainState Read()
+	public static TerrainState Read()
 	{
 		if (GameContext.Host != null
 		    && GameContext.World is { } world
@@ -28,19 +28,19 @@ internal static class TerrainStateStore
 			(TerrainCell[,]?)null, null, null, null);
 	}
 
-	internal static void SetQuadSize(float quadSize) =>
+	public static void SetQuadSize(float quadSize) =>
 		WriteScalar(state => new TerrainState(state.Width, state.Depth, quadSize, state.CellSize,
 			state.Cells, state.PathingCodes, state.NavMesh, state.NavMeshQuery));
 
-	internal static void SetCellSize(float cellSize) =>
+	public static void SetCellSize(float cellSize) =>
 		WriteScalar(state => new TerrainState(state.Width, state.Depth, state.QuadSize, cellSize,
 			state.Cells, state.PathingCodes, state.NavMesh, state.NavMeshQuery));
 
-	internal static void SetWidth(int width) =>
+	public static void SetWidth(int width) =>
 		WriteScalar(state => new TerrainState(width, state.Depth, state.QuadSize, state.CellSize,
 			state.Cells, state.PathingCodes, state.NavMesh, state.NavMeshQuery));
 
-	internal static void SetDepth(int depth) =>
+	public static void SetDepth(int depth) =>
 		WriteScalar(state => new TerrainState(state.Width, depth, state.QuadSize, state.CellSize,
 			state.Cells, state.PathingCodes, state.NavMesh, state.NavMeshQuery));
 
@@ -48,7 +48,7 @@ internal static class TerrainStateStore
 	///     Replaces one or both grids, taking the new dimensions from whichever array was supplied and keeping the
 	///     other grid, the quad size, the cell size and the baked navmesh as they were.
 	/// </summary>
-	internal static void ReplaceGrid(TerrainCell[,]? cells, int[,]? pathingCodes) =>
+	public static void ReplaceGrid(TerrainCell[,]? cells, int[,]? pathingCodes) =>
 		Write(state =>
 		{
 			int width = state.Width;
@@ -70,7 +70,7 @@ internal static class TerrainStateStore
 		});
 
 	/// <summary>Replaces the whole grid at a new size, as an editor restore does.</summary>
-	internal static void ReplaceGrid(int width, int depth, float quadSize, TerrainCell[,] cells, int[,] pathingCodes) =>
+	public static void ReplaceGrid(int width, int depth, float quadSize, TerrainCell[,] cells, int[,] pathingCodes) =>
 		Write(state => new TerrainState(width, depth, quadSize, state.CellSize,
 			cells, pathingCodes, state.NavMesh, state.NavMeshQuery));
 
@@ -78,7 +78,7 @@ internal static class TerrainStateStore
 	///     Hands the state to the navmesh baker and stores what it produced. The bake itself belongs to the
 	///     simulation, so this only moves the component across the call.
 	/// </summary>
-	internal static void BakeNavMesh()
+	public static void BakeNavMesh()
 	{
 		if (GameContext.Host == null
 		    || GameContext.World is not { } world

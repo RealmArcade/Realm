@@ -1,4 +1,4 @@
-﻿using Realm.Shared.Maps;
+using Realm.Shared.Maps;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -632,7 +632,7 @@ public partial class EditorService : IEditorAPI
 	public bool FillWaterPoolAtCell(int cellX, int cellZ, float waterSurfaceY) =>
 		_surface.FillWaterPoolAtCell(cellX, cellZ, waterSurfaceY);
 
-	internal static bool TryGetTerrainState(out Entity terrainEntity)
+	public static bool TryGetTerrainState(out Entity terrainEntity)
 	{
 		terrainEntity = Entity.Null;
 		if (GameContext.World == null) return false;
@@ -644,7 +644,7 @@ public partial class EditorService : IEditorAPI
 		return terrainEntity != Entity.Null && World.IsAlive(terrainEntity);
 	}
 
-	internal static ref TerrainState GetTerrainState()
+	public static ref TerrainState GetTerrainState()
 	{
 		if (!TryGetTerrainState(out Entity terrainEntity))
 		{

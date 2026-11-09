@@ -1,4 +1,4 @@
-﻿﻿using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using Realm.Client.Core;
@@ -16,7 +16,7 @@ namespace Realm.Client.Services;
 ///     local ECS and compared with the mirror, and a difference is reported once per unit and component.
 ///     It runs only while a recording harness is watching, because that is where the report is read.
 /// </summary>
-internal sealed class ReplicatedDriftAudit
+public sealed class ReplicatedDriftAudit
 {
 	private static EcsWorld Ecs => GameContext.World
 		?? throw new InvalidOperationException("The drift audit was used before a world existed.");

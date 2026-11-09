@@ -15,9 +15,9 @@ namespace Realm.Client.Services;
 ///     resource or texture entry, records the auto-computed offset and scale, and refreshes the manifest hash. The
 ///     workspace is passed in, so the writer itself holds no editor state.
 /// </summary>
-internal static class EditorMetadataOperations
+public static class EditorMetadataOperations
 {
-	internal static void UpdateMetadataJsonAsset(string category, string fileName, string blake3Hash, string wsPath,
+	public static void UpdateMetadataJsonAsset(string category, string fileName, string blake3Hash, string wsPath,
 		string? subCategory = null, int columns = 0, int rows = 0, int targetSlot = -1)
 	{
 		try

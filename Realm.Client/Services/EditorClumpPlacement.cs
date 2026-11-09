@@ -12,7 +12,7 @@ namespace Realm.Client.Services;
 /// already placed in the drag, so the pieces do not overlap. It is a pure function of its arguments - the
 /// clump session hands it the points it has collected and the editor hands it the symmetry settings.
 /// </summary>
-internal static class EditorClumpPlacement
+public static class EditorClumpPlacement
 {
 
 	public static List<EntitySpawnRequest> BuildSpawnRequests(

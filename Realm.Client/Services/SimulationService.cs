@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
@@ -36,7 +36,7 @@ public class SimulationService
 	/// every member here is a tick path, so reaching one without a world is a programming
 	/// error; stating that once keeps the fifty reads below from each re-proving it.
 	/// </summary>
-	internal static EcsWorld World => GameContext.World
+	public static EcsWorld World => GameContext.World
 		?? throw new InvalidOperationException("SimulationService used before a world existed.");
 
 	public void ApplySpellEffectDomain(string spellId, Vector3 position, Entity casterEnt)
@@ -274,7 +274,7 @@ public class SimulationService
 		return Vector3.Zero;
 	}
 
-	internal static bool HasScriptPlayersState()
+	public static bool HasScriptPlayersState()
 	{
 		var worldEntity = GameContext.Simulation.WorldEntity;
 		return GameContext.World != null && worldEntity != Entity.Null && World.IsAlive(worldEntity) && World.Has<ScriptPlayersState>(worldEntity);

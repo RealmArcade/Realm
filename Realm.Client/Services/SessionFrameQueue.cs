@@ -10,9 +10,9 @@ namespace Realm.Client.Services;
 ///     for. Descriptions (snapshots and presentation batches) wait in a ring whose old entries may be dropped; everything
 ///     else waits on a queue that is drained in full and in order.
 /// </summary>
-internal sealed class SessionFrameQueue
+public sealed class SessionFrameQueue
 {
-	internal readonly struct QueuedFrame
+	public readonly struct QueuedFrame
 	{
 		public QueuedFrame(NetworkFrameKind kind, byte[] payload, ulong arrivalMilliseconds)
 		{

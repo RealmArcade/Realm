@@ -1,4 +1,4 @@
-﻿﻿using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -10,7 +10,7 @@ namespace Realm.Client.Services;
 ///     How an indexed asset's reported type and extension become an AssetType, and how that type names the
 ///     metadata category and the folder an imported asset lands in.
 /// </summary>
-internal static class AssetTypeMapping
+public static class AssetTypeMapping
 {
 	private static readonly Dictionary<string, AssetType> PathSegmentToAssetType = new(StringComparer.OrdinalIgnoreCase)
 	{
@@ -37,7 +37,7 @@ internal static class AssetTypeMapping
 		["shaders"] = AssetType.Shader
 	};
 
-	internal static AssetType MapStringToAssetType(AssetType? rawType, string extension, string? pathHint = null)
+	public static AssetType MapStringToAssetType(AssetType? rawType, string extension, string? pathHint = null)
 	{
 		if (rawType.HasValue)
 		{
@@ -47,7 +47,7 @@ internal static class AssetTypeMapping
 		return MapStringToAssetType((string?)null, extension, pathHint);
 	}
 
-	internal static AssetType MapStringToAssetType(string? rawType, string extension, string? pathHint = null)
+	public static AssetType MapStringToAssetType(string? rawType, string extension, string? pathHint = null)
 	{
 		if (AssetTypeExtensions.TryParse(rawType, out var parsed))
 		{
@@ -82,7 +82,7 @@ internal static class AssetTypeMapping
 		};
 	}
 
-	internal static string MapAssetTypeToCategoryString(AssetType assetType)
+	public static string MapAssetTypeToCategoryString(AssetType assetType)
 	{
 		return assetType switch
 		{
@@ -107,7 +107,7 @@ internal static class AssetTypeMapping
 		};
 	}
 
-	internal static string MapCategoryToDestinationSubFolder(string category)
+	public static string MapCategoryToDestinationSubFolder(string category)
 	{
 		return category switch
 		{

@@ -1,4 +1,4 @@
-﻿﻿using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using Godot;
@@ -12,10 +12,10 @@ namespace Realm.Client.Services;
 ///     turns them into the import service's source files. The manifest is preferred; anything it does
 ///     not carry is read from the map folder, and the editor's scratch and template files are skipped.
 /// </summary>
-internal static class CodeWorkspaceFiles
+public static class CodeWorkspaceFiles
 {
 
-	internal static readonly HashSet<string> IgnoredDirectoryNames = new(StringComparer.OrdinalIgnoreCase)
+	public static readonly HashSet<string> IgnoredDirectoryNames = new(StringComparer.OrdinalIgnoreCase)
 	{
 		"bin",
 		"obj",
@@ -28,7 +28,7 @@ internal static class CodeWorkspaceFiles
 		"backups"
 	};
 
-	internal static readonly HashSet<string> ExcludedTemplateFileNames = new(StringComparer.OrdinalIgnoreCase)
+	private static readonly HashSet<string> ExcludedTemplateFileNames = new(StringComparer.OrdinalIgnoreCase)
 	{
 		"MapScript.cs",
 		"Coordinates.cs",
@@ -39,13 +39,13 @@ internal static class CodeWorkspaceFiles
 	};
 
 
-	internal static SourceCodeIndex LoadSourceIndex(MapAssetImportSource source)
+	public static SourceCodeIndex LoadSourceIndex(MapAssetImportSource source)
 	{
 		List<SourceFile> sourceFiles = LoadSourceFiles(source);
 		return SourceCodeIndex.Build(sourceFiles);
 	}
 
-	internal static List<SourceFile> LoadSourceFiles(MapAssetImportSource source)
+	private static List<SourceFile> LoadSourceFiles(MapAssetImportSource source)
 	{
 		var sourceFiles = new List<SourceFile>();
 		if (string.IsNullOrEmpty(source.ManifestFilePath)) return sourceFiles;
@@ -121,7 +121,7 @@ internal static class CodeWorkspaceFiles
 		return sourceFiles;
 	}
 
-	internal static void LoadSourceFilesFromDisk(string sourceDirectory, List<SourceFile> sourceFiles)
+	private static void LoadSourceFilesFromDisk(string sourceDirectory, List<SourceFile> sourceFiles)
 	{
 		if (string.IsNullOrEmpty(sourceDirectory) || !Directory.Exists(sourceDirectory)) return;
 
@@ -142,7 +142,7 @@ internal static class CodeWorkspaceFiles
 		}
 	}
 
-	internal static void AddSourceFile(List<SourceFile> sourceFiles, string relativePath, string text)
+	private static void AddSourceFile(List<SourceFile> sourceFiles, string relativePath, string text)
 	{
 		if (string.IsNullOrWhiteSpace(text)) return;
 		if (ContainsSourceFile(sourceFiles, relativePath)) return;
@@ -150,7 +150,7 @@ internal static class CodeWorkspaceFiles
 		sourceFiles.Add(new SourceFile(relativePath, text, !IsImportableCodePath(relativePath)));
 	}
 
-	internal static bool ContainsSourceFile(List<SourceFile> sourceFiles, string relativePath)
+	private static bool ContainsSourceFile(List<SourceFile> sourceFiles, string relativePath)
 	{
 		for (int index = 0; index < sourceFiles.Count; index++)
 		{
@@ -160,7 +160,7 @@ internal static class CodeWorkspaceFiles
 		return false;
 	}
 
-	internal static string NormalizeCodeRelativePath(string manifestKey)
+	private static string NormalizeCodeRelativePath(string manifestKey)
 	{
 		string relativePath = manifestKey.StartsWith("res://", StringComparison.OrdinalIgnoreCase)
 			? manifestKey.Substring(6)
@@ -168,7 +168,7 @@ internal static class CodeWorkspaceFiles
 		return relativePath.TrimStart('/', '\\').Replace('\\', '/');
 	}
 
-	internal static bool IsCodeFilePath(string relativePath)
+	private static bool IsCodeFilePath(string relativePath)
 	{
 		if (!relativePath.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)) return false;
 		if (relativePath.EndsWith(".template.cs", StringComparison.OrdinalIgnoreCase)) return false;
@@ -182,7 +182,7 @@ internal static class CodeWorkspaceFiles
 		return true;
 	}
 
-	internal static IEnumerable<string> EnumerateCodeFiles(string workspacePath, bool includeTemplateFiles)
+	public static IEnumerable<string> EnumerateCodeFiles(string workspacePath, bool includeTemplateFiles)
 	{
 		var directories = new Stack<string>();
 		directories.Push(workspacePath);
@@ -218,7 +218,7 @@ internal static class CodeWorkspaceFiles
 		}
 	}
 
-	internal static bool IsExcludedTemplateFile(string filePath, string workspaceRoot)
+	private static bool IsExcludedTemplateFile(string filePath, string workspaceRoot)
 	{
 		string relativePath = Path.GetRelativePath(workspaceRoot, filePath).Replace('\\', '/');
 		if (relativePath.Contains('/')) return false;
@@ -228,7 +228,7 @@ internal static class CodeWorkspaceFiles
 		       || fileName.EndsWith(".template.cs", StringComparison.OrdinalIgnoreCase);
 	}
 
-	internal static bool IsImportableCodePath(string relativePath)
+	private static bool IsImportableCodePath(string relativePath)
 	{
 		if (!relativePath.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)) return false;
 		if (relativePath.EndsWith(".template.cs", StringComparison.OrdinalIgnoreCase)) return false;

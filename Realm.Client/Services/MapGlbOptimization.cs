@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
@@ -20,7 +20,7 @@ namespace Realm.Client.Services;
 ///     per-file result is cached against the file's write time, so a workspace that has already been
 ///     optimized costs one read per model.
 /// </summary>
-internal static class MapGlbOptimization
+public static class MapGlbOptimization
 {
 	private static readonly ConcurrentDictionary<string, (DateTime LastWriteTime, bool HasFlag)> _optimizedFlagCache = new(StringComparer.OrdinalIgnoreCase);
 

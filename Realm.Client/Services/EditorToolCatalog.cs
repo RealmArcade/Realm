@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using Realm.Client.Core;
 
 namespace Realm.Client.Services;
@@ -7,7 +7,7 @@ namespace Realm.Client.Services;
 /// The editor's tool catalogue: the blurb each tool shows while it is active, the paste anchors a copied area can be
 /// pinned to, the spoke counts the symmetry overlay offers, and which tools paint a texture swatch.
 /// </summary>
-internal static class EditorToolCatalog
+public static class EditorToolCatalog
 {
 	public static readonly string[] PasteAnchorNames = new string[]
 	{

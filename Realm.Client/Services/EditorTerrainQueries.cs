@@ -10,9 +10,9 @@ namespace Realm.Client.Services;
 ///     member is a pure function of the grid it is handed, so the brush paths and the cursor readout
 ///     ask the same questions of the same terrain without touching editor state.
 /// </summary>
-internal static class EditorTerrainQueries
+public static class EditorTerrainQueries
 {
-	internal static float GetHeightAt(in TerrainState terrain, Vector3 worldPos)
+	public static float GetHeightAt(in TerrainState terrain, Vector3 worldPos)
 	{
 		var cells = terrain.Cells;
 		if (cells == null) return 0.0f;
@@ -46,7 +46,7 @@ internal static class EditorTerrainQueries
 	/// The same sample for callers that do not already hold the terrain: resolves the editor's terrain state
 	/// first and returns zero when there is none, which is what a cursor readout before a map loads sees.
 	/// </summary>
-	internal static float GetHeightAt(Vector3 worldPos)
+	public static float GetHeightAt(Vector3 worldPos)
 	{
 		if (!EditorService.TryGetTerrainState(out _))
 		{
@@ -57,7 +57,7 @@ internal static class EditorTerrainQueries
 		return GetHeightAt(in terrain, worldPos);
 	}
 
-	internal static WaterType GetWaterModeAt(in TerrainState terrain, Vector3 worldPos)
+	public static WaterType GetWaterModeAt(in TerrainState terrain, Vector3 worldPos)
 	{
 		var cells = terrain.Cells;
 		if (cells == null) return WaterType.None;
@@ -76,7 +76,7 @@ internal static class EditorTerrainQueries
 		return cells[x, z].WaterMode;
 	}
 
-	internal static byte GetWaterProfileIndexAt(in TerrainState terrain, Vector3 worldPos)
+	public static byte GetWaterProfileIndexAt(in TerrainState terrain, Vector3 worldPos)
 	{
 		var cells = terrain.Cells;
 		if (cells == null) return 0;
@@ -95,7 +95,7 @@ internal static class EditorTerrainQueries
 		return cells[x, z].WaterProfileIndex;
 	}
 
-	internal static float GetWaterHeightAt(in TerrainState terrain, Vector3 worldPos)
+	public static float GetWaterHeightAt(in TerrainState terrain, Vector3 worldPos)
 	{
 		var cells = terrain.Cells;
 		if (cells == null) return 0f;
@@ -114,7 +114,7 @@ internal static class EditorTerrainQueries
 		return cells[x, z].WaterHeight;
 	}
 
-	internal static float GetMinHeightInBrushBounds(Vector3 worldPos, float brushRadius, bool brushIsSquare)
+	public static float GetMinHeightInBrushBounds(Vector3 worldPos, float brushRadius, bool brushIsSquare)
 	{
 		ref var terrain = ref EditorService.GetTerrainState();
 		if (terrain.Cells == null) return GetHeightAt(worldPos);

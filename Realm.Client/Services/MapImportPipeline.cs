@@ -1,4 +1,4 @@
-﻿﻿using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
@@ -21,9 +21,9 @@ namespace Realm.Client.Services;
 ///     and a plain folder all end here, where the manifest is stored in the CAS, the files are
 ///     extracted or copied into the archive directory, and the result is validated before it is indexed.
 /// </summary>
-internal static class MapImportPipeline
+public static class MapImportPipeline
 {
-	internal const string EmbeddedMapsDirectoryName = "EmbeddedMaps";
+	private const string EmbeddedMapsDirectoryName = "EmbeddedMaps";
 
 	public static int ImportEmbeddedMaps()
 	{
@@ -53,7 +53,7 @@ internal static class MapImportPipeline
 		return importedCount;
 	}
 
-	internal static IEnumerable<string> GetEmbeddedMapDirectories()
+	private static IEnumerable<string> GetEmbeddedMapDirectories()
 	{
 		string executableDirectory = Path.GetDirectoryName(OS.GetExecutablePath()) ?? string.Empty;
 		if (string.IsNullOrEmpty(executableDirectory) || !Directory.Exists(executableDirectory))
@@ -88,7 +88,7 @@ internal static class MapImportPipeline
 		}
 	}
 
-	internal static bool ImportEmbeddedMap(string archivePath)
+	private static bool ImportEmbeddedMap(string archivePath)
 	{
 		string archiveFileName = Path.GetFileName(archivePath);
 
@@ -139,7 +139,7 @@ internal static class MapImportPipeline
 		}
 	}
 
-	internal static bool IsImportedMapComplete(string targetDirectory, MapManifest manifest)
+	private static bool IsImportedMapComplete(string targetDirectory, MapManifest manifest)
 	{
 		if (!Directory.Exists(targetDirectory) || !File.Exists(Path.Combine(targetDirectory, "manifest.json")))
 		{
@@ -149,7 +149,7 @@ internal static class MapImportPipeline
 		return ValidateImportedMap(targetDirectory, manifest).IsValid;
 	}
 
-	internal static Task<(bool Success, string Message, string? MapTitle, string? MapVersion)> ImportMapFromArchiveAsync(
+	public static Task<(bool Success, string Message, string? MapTitle, string? MapVersion)> ImportMapFromArchiveAsync(
 		string archivePath,
 		Action<float>? progressCallback)
 	{
@@ -208,7 +208,7 @@ internal static class MapImportPipeline
 		return Task.FromResult((true, "Map imported successfully.", (string?)mapTitle, (string?)mapVersion));
 	}
 
-	internal static (string MapTitle, string MapVersion) DetermineMapTitleAndVersion(MapManifest manifest, RmapHeaderInfo? headerInfo, string archivePath)
+	public static (string MapTitle, string MapVersion) DetermineMapTitleAndVersion(MapManifest manifest, RmapHeaderInfo? headerInfo, string archivePath)
 	{
 		string mapTitle = headerInfo != null && !string.IsNullOrWhiteSpace(headerInfo.MapName)
 			? headerInfo.MapName.Trim()
@@ -219,7 +219,7 @@ internal static class MapImportPipeline
 		return (mapTitle, mapVersion);
 	}
 
-	internal static void CleanupOnValidationFailure(string targetDirectory)
+	private static void CleanupOnValidationFailure(string targetDirectory)
 	{
 		try
 		{
@@ -233,7 +233,7 @@ internal static class MapImportPipeline
 		}
 	}
 
-	internal static Task<(bool Success, string Message, string? MapTitle, string? MapVersion)> ImportMapFromFolderAsync(
+	public static Task<(bool Success, string Message, string? MapTitle, string? MapVersion)> ImportMapFromFolderAsync(
 		string folderPath,
 		Action<float>? progressCallback)
 	{
@@ -289,7 +289,7 @@ internal static class MapImportPipeline
 		return Task.FromResult((true, "Map imported successfully.", (string?)mapTitle, (string?)mapVersion));
 	}
 
-	internal static void ProcessImportedManifestFiles(MapManifest manifest, string manifestSourceDir, string targetDirectory, Action<float>? progressCallback)
+	private static void ProcessImportedManifestFiles(MapManifest manifest, string manifestSourceDir, string targetDirectory, Action<float>? progressCallback)
 	{
 		if (manifest.Files == null) return;
 
@@ -314,7 +314,7 @@ internal static class MapImportPipeline
 		}
 	}
 
-	internal static void ProcessSingleImportedFile(string fileKey, string hash, string manifestSourceDir, string targetDirectory)
+	private static void ProcessSingleImportedFile(string fileKey, string hash, string manifestSourceDir, string targetDirectory)
 	{
 		string relativePath = GetRelativePath(fileKey);
 		string normHash = ContentAddressableStorage.NormalizeBlake3Hash(hash);
@@ -325,7 +325,7 @@ internal static class MapImportPipeline
 		CreateDestinationLink(targetDirectory, relativePath, casFilePath, candidateFilePath);
 	}
 
-	internal static string GetRelativePath(string fileKey)
+	public static string GetRelativePath(string fileKey)
 	{
 		string relativePath = fileKey.StartsWith("res://", StringComparison.OrdinalIgnoreCase)
 			? fileKey.Substring(6)
@@ -333,7 +333,7 @@ internal static class MapImportPipeline
 		return relativePath.TrimStart('/', '\\');
 	}
 
-	internal static string GetCandidateFilePath(string manifestSourceDir, string relativePath)
+	private static string GetCandidateFilePath(string manifestSourceDir, string relativePath)
 	{
 		string candidateFilePath = Path.Combine(manifestSourceDir, relativePath);
 		if (File.Exists(candidateFilePath)) return candidateFilePath;
@@ -343,7 +343,7 @@ internal static class MapImportPipeline
 		return File.Exists(altPath) ? altPath : candidateFilePath;
 	}
 
-	internal static string? EnsureAssetInCas(string candidateFilePath, string normHash)
+	private static string? EnsureAssetInCas(string candidateFilePath, string normHash)
 	{
 		string? casFilePath = MapAssetManager.Storage.FindAssetFilePath(normHash);
 		if ((casFilePath == null || !File.Exists(casFilePath)) && File.Exists(candidateFilePath))
@@ -357,7 +357,7 @@ internal static class MapImportPipeline
 		return casFilePath;
 	}
 
-	internal static void CreateDestinationLink(string targetDirectory, string relativePath, string? casFilePath, string candidateFilePath)
+	private static void CreateDestinationLink(string targetDirectory, string relativePath, string? casFilePath, string candidateFilePath)
 	{
 		string destFilePath = Path.Combine(targetDirectory, relativePath);
 		string? destFileDir = Path.GetDirectoryName(destFilePath);
@@ -376,7 +376,7 @@ internal static class MapImportPipeline
 		}
 	}
 
-	internal static void CopyFolderCandidateFiles(string sourceDir, string targetDir, MapManifest manifest)
+	private static void CopyFolderCandidateFiles(string sourceDir, string targetDir, MapManifest manifest)
 	{
 		if (!Directory.Exists(sourceDir))
 		{
@@ -392,7 +392,7 @@ internal static class MapImportPipeline
 		}
 	}
 
-	internal static bool ShouldCopyCandidateFile(string file, string sourceDir, MapManifest manifest)
+	private static bool ShouldCopyCandidateFile(string file, string sourceDir, MapManifest manifest)
 	{
 		string rel = Path.GetRelativePath(sourceDir, file).Replace('\\', '/');
 		if (IsIgnoredRelativePath(rel))
@@ -403,7 +403,7 @@ internal static class MapImportPipeline
 		return manifest.IsCandidateFile(rel);
 	}
 
-	internal static bool IsIgnoredRelativePath(string rel)
+	private static bool IsIgnoredRelativePath(string rel)
 	{
 		return rel.StartsWith(".git/", StringComparison.OrdinalIgnoreCase) ||
 		       rel.StartsWith(".backups/", StringComparison.OrdinalIgnoreCase) ||
@@ -412,7 +412,7 @@ internal static class MapImportPipeline
 		       rel.Equals("manifest.json", StringComparison.OrdinalIgnoreCase);
 	}
 
-	internal static void CopySingleCandidateFile(string file, string sourceDir, string targetDir)
+	private static void CopySingleCandidateFile(string file, string sourceDir, string targetDir)
 	{
 		string rel = Path.GetRelativePath(sourceDir, file).Replace('\\', '/');
 		string dest = Path.Combine(targetDir, rel.Replace('/', Path.DirectorySeparatorChar));
@@ -429,7 +429,7 @@ internal static class MapImportPipeline
 		}
 	}
 
-	internal static (bool IsValid, string ErrorMessage) ValidateImportedMap(string targetDirectory, MapManifest manifest)
+	public static (bool IsValid, string ErrorMessage) ValidateImportedMap(string targetDirectory, MapManifest manifest)
 	{
 		var wasmValidation = ValidateWasmFiles(targetDirectory);
 		if (!wasmValidation.IsValid)
@@ -446,7 +446,7 @@ internal static class MapImportPipeline
 		return (true, string.Empty);
 	}
 
-	internal static (bool IsValid, string ErrorMessage) ValidateWasmFiles(string targetDirectory)
+	public static (bool IsValid, string ErrorMessage) ValidateWasmFiles(string targetDirectory)
 	{
 		bool hasCsproj = Directory.GetFiles(targetDirectory, "*.csproj", SearchOption.TopDirectoryOnly).Length > 0;
 		bool hasCsFiles = Directory.GetFiles(targetDirectory, "*.cs", SearchOption.AllDirectories).Any(f => !f.Contains("obj"));
@@ -468,7 +468,7 @@ internal static class MapImportPipeline
 		return (true, string.Empty);
 	}
 
-	internal static (bool IsValid, string ErrorMessage) ValidateMissingFiles(string targetDirectory, MapManifest manifest)
+	public static (bool IsValid, string ErrorMessage) ValidateMissingFiles(string targetDirectory, MapManifest manifest)
 	{
 		if (manifest.Files == null || manifest.Files.Count == 0)
 		{
@@ -516,7 +516,7 @@ internal static class MapImportPipeline
 		return (true, string.Empty);
 	}
 
-	internal static List<string> FindManifestFilesExcludingBackups(string rootDirectory)
+	private static List<string> FindManifestFilesExcludingBackups(string rootDirectory)
 	{
 		var results = new List<string>();
 		if (!Directory.Exists(rootDirectory))

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -18,7 +18,7 @@ namespace Realm.Client.Services;
 ///     of them. The set of directories being scanned right now lives here, so a scan started from the
 ///     editor and a rescan started from the asset browser cannot both claim the same directory.
 /// </summary>
-internal sealed class AssetIndexDirectoryIndexer
+public sealed class AssetIndexDirectoryIndexer
 {
 	private readonly Func<AssetIndexTarget> _target;
 	private readonly object _syncLock;
@@ -27,7 +27,7 @@ internal sealed class AssetIndexDirectoryIndexer
 	private readonly Action<string> _scanCompleted;
 	private readonly Action _scanAllCasManifests;
 
-	internal AssetIndexDirectoryIndexer(
+	public AssetIndexDirectoryIndexer(
 		Func<AssetIndexTarget> target,
 		object syncLock,
 		Action<string, bool> indexingStateChanged,
@@ -41,7 +41,7 @@ internal sealed class AssetIndexDirectoryIndexer
 		_scanAllCasManifests = scanAllCasManifests;
 	}
 
-	internal bool IsDirectoryIndexing(string directoryPath)
+	public bool IsDirectoryIndexing(string directoryPath)
 	{
 		if (string.IsNullOrWhiteSpace(directoryPath)) return false;
 		lock (_syncLock)
@@ -50,7 +50,7 @@ internal sealed class AssetIndexDirectoryIndexer
 		}
 	}
 
-	internal IReadOnlyList<string> GetIndexedDirectories()
+	public IReadOnlyList<string> GetIndexedDirectories()
 	{
 		var target = _target();
 		lock (_syncLock)
@@ -62,7 +62,7 @@ internal sealed class AssetIndexDirectoryIndexer
 		}
 	}
 
-	internal void AddDirectory(string directoryPath)
+	public void AddDirectory(string directoryPath)
 	{
 		if (string.IsNullOrWhiteSpace(directoryPath)) return;
 
@@ -140,7 +140,7 @@ internal sealed class AssetIndexDirectoryIndexer
 		});
 	}
 
-	internal void RemoveDirectory(string directoryPath)
+	public void RemoveDirectory(string directoryPath)
 	{
 		var target = _target();
 		if (string.IsNullOrWhiteSpace(directoryPath))
@@ -178,7 +178,7 @@ internal sealed class AssetIndexDirectoryIndexer
 		_indexingStateChanged(normalizedPath, false);
 	}
 
-	internal void RescanDirectory(string directoryPath)
+	public void RescanDirectory(string directoryPath)
 	{
 		if (string.IsNullOrWhiteSpace(directoryPath))
 		{
@@ -226,7 +226,7 @@ internal sealed class AssetIndexDirectoryIndexer
 		});
 	}
 
-	internal void RescanAllDirectories()
+	public void RescanAllDirectories()
 	{
 		List<string> dirsToScan = PrepareDirectoriesForRescan();
 

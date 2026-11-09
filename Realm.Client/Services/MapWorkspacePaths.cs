@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using Godot;
 using Realm.Client.Core;
@@ -13,9 +13,9 @@ namespace Realm.Client.Services;
 ///     binary. The root lookup walks up from the Godot project once and caches the answer, because every
 ///     scaffolding step asks for a template file.
 /// </summary>
-internal static class MapWorkspacePaths
+public static class MapWorkspacePaths
 {
-	internal static string DefaultMapFolderGlobalPath()
+	public static string DefaultMapFolderGlobalPath()
 	{
 		string documentsDirectory = System.Environment.GetFolderPath(System.Environment.SpecialFolder.MyDocuments);
 		if (!string.IsNullOrEmpty(documentsDirectory))
@@ -28,12 +28,12 @@ internal static class MapWorkspacePaths
 
 	private static string? _testActiveWorkspacePath;
 
-	internal static void SetActiveWorkspacePathForTesting(string? path)
+	public static void SetActiveWorkspacePathForTesting(string? path)
 	{
 		_testActiveWorkspacePath = path;
 	}
 
-	internal static string ActiveWorkspacePath()
+	public static string ActiveWorkspacePath()
 	{
 		if (!string.IsNullOrEmpty(_testActiveWorkspacePath))
 			return _testActiveWorkspacePath;
@@ -44,7 +44,7 @@ internal static class MapWorkspacePaths
 		return ActiveMapDirectory();
 	}
 
-	internal static string ActiveMapDirectory()
+	public static string ActiveMapDirectory()
 	{
 		string? mapDirectory = GameContext.MapStorageService?.CurrentMapDirectory;
 		if (GameContext.Host != null && !string.IsNullOrEmpty(mapDirectory))
@@ -53,7 +53,7 @@ internal static class MapWorkspacePaths
 		return string.Empty;
 	}
 
-	internal static string EditorWorkspacePath()
+	public static string EditorWorkspacePath()
 	{
 		if (!string.IsNullOrEmpty(GameContext.EditorService._editingDirectory))
 			return GameContext.EditorService._editingDirectory;
@@ -64,7 +64,7 @@ internal static class MapWorkspacePaths
 	private static string? _cachedRepoRoot;
 	private static bool _repoRootResolved;
 
-	internal static string? RepoRoot()
+	public static string? RepoRoot()
 	{
 		if (_repoRootResolved) return _cachedRepoRoot;
 		_repoRootResolved = true;
@@ -85,7 +85,7 @@ internal static class MapWorkspacePaths
 		return null;
 	}
 
-	internal static string? FindRootFile(string relativePath)
+	public static string? FindRootFile(string relativePath)
 	{
 		string found = PathUtils.FindPath(relativePath);
 		if (File.Exists(found) || Directory.Exists(found))
@@ -102,18 +102,18 @@ internal static class MapWorkspacePaths
 	///     The absolute path to a file in the map template. <see cref="string.Empty" /> when the template is not on this
 	///     machine, which is what the <c>File.Exists</c>/<c>Directory.Exists</c> guards at every copy site test for.
 	/// </summary>
-	internal static string TemplatePath(string fileName)
+	public static string TemplatePath(string fileName)
 	{
 		return FindRootFile("MapTemplate/" + fileName) ?? string.Empty;
 	}
 
-	internal static string? TemplateRoot()
+	public static string? TemplateRoot()
 	{
 		string? templateRoot = FindRootFile("MapTemplate");
 		return Directory.Exists(templateRoot) ? templateRoot : null;
 	}
 
-	internal static string? WitPath()
+	public static string? WitPath()
 	{
 		return FindRootFile("Realm.MapAPI/wit/game.g.wit");
 	}
@@ -122,7 +122,7 @@ internal static class MapWorkspacePaths
 	///     A path inside a folder that is generated or vendored - build output, the editor's caches, the SDK
 	///     copies - and therefore never a map asset. Spelled with forward slashes.
 	/// </summary>
-	internal static bool IsBuildOutputPath(string path)
+	public static bool IsBuildOutputPath(string path)
 	{
 		string normalized = path.Replace('\\', '/');
 		return normalized.Contains("/bin/") || normalized.Contains("/obj/") || normalized.Contains("/.git/") ||

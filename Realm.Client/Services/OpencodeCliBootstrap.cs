@@ -10,9 +10,9 @@ namespace Realm.Client.Services;
 ///     Makes the opencode CLI usable by the OpenCode Panel extension: installs it if it is missing and
 ///     points its data directory at the per-user location Realm owns.
 /// </summary>
-internal static class OpencodeCliBootstrap
+public static class OpencodeCliBootstrap
 {
-	internal static async Task EnsureInstalledAsync()
+	public static async Task EnsureInstalledAsync()
 	{
 		if (OpencodeCliResolver.IsAvailable())
 		{
@@ -26,7 +26,7 @@ internal static class OpencodeCliBootstrap
 		}
 	}
 
-	internal static void ApplyEnvironmentVariables(ProcessStartInfo startInfo)
+	public static void ApplyEnvironmentVariables(ProcessStartInfo startInfo)
 	{
 		try
 		{

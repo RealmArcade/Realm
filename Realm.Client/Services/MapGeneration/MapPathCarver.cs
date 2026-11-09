@@ -1,4 +1,4 @@
-﻿﻿using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace Realm.Client.Services.MapGeneration;
@@ -9,7 +9,7 @@ namespace Realm.Client.Services.MapGeneration;
 ///     each route into walkable, must-be-clear ground. It writes into the generator's own grids, so the
 ///     later stages see the carved map.
 /// </summary>
-internal sealed class MapPathCarver
+public sealed class MapPathCarver
 {
 	private readonly bool[,] _land;
 	private readonly bool[,] _path;

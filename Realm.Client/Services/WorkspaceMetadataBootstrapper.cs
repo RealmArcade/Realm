@@ -11,9 +11,9 @@ namespace Realm.Client.Services;
 ///     is empty, copies the template assets and writes the UGC licence. Every step tolerates a missing template, because a
 ///     workspace that is only half scaffolded is still better than an editor that refuses to open.
 /// </summary>
-internal static class WorkspaceMetadataBootstrapper
+public static class WorkspaceMetadataBootstrapper
 {
-	internal const string UgcLicenseSummaryText = @"REALM PLATFORM USER-GENERATED CONTENT (UGC)
+	private const string UgcLicenseSummaryText = @"REALM PLATFORM USER-GENERATED CONTENT (UGC)
 
 This map and its custom assets are User-Generated Content created for the 
 Realm Platform ecosystem.
@@ -26,7 +26,7 @@ For details on permissions, streaming, and standalone export restrictions,
 please visit the URL above.
 ";
 
-	internal static void EnsureMetadata(string directory, string? templateMetadataPath)
+	public static void EnsureMetadata(string directory, string? templateMetadataPath)
 	{
 		string metadataPath = MetadataService.ResolveMetadataPath(directory);
 		if (!File.Exists(metadataPath) || new FileInfo(metadataPath).Length == 0)
@@ -90,7 +90,7 @@ please visit the URL above.
 		EnsureLicenseFile(directory);
 	}
 
-	internal static void EnsureLicenseFile(string directory)
+	public static void EnsureLicenseFile(string directory)
 	{
 		if (string.IsNullOrEmpty(directory)) return;
 

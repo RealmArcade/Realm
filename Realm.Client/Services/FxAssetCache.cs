@@ -1,4 +1,4 @@
-﻿﻿using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using Godot;
@@ -11,7 +11,7 @@ namespace Realm.Client.Services;
 ///     loaded image (or its .rtex layer) behind it, and the sprite frames sliced out of an atlas, each
 ///     cached against the key that produced it.
 /// </summary>
-internal sealed class FxAssetCache
+public sealed class FxAssetCache
 {
 	private readonly Dictionary<string, string> _resolvedPathCache = new(StringComparer.OrdinalIgnoreCase);
 	private readonly Dictionary<string, Texture2D?> _textureCache = new(StringComparer.OrdinalIgnoreCase);

@@ -1,4 +1,4 @@
-﻿﻿using System;
+﻿using System;
 using System.Numerics;
 using Realm.Client.Core;
 using Realm.Ecs;
@@ -14,17 +14,17 @@ namespace Realm.Client.Services;
 ///     already standing there within the combined collision radii, and the ring search that finds the
 ///     nearest free spot when the exact position is taken.
 /// </summary>
-internal static class PlacementQueries
+public static class PlacementQueries
 {
 	private static EcsWorld World => GameContext.World
 		?? throw new InvalidOperationException("PlacementQueries used before a world existed.");
 
-	internal static bool TryPlaceBuilding(Vector3 position, float clearance)
+	public static bool TryPlaceBuilding(Vector3 position, float clearance)
 	{
 		return !IsAreaObstructed(position, clearance);
 	}
 
-	internal static bool IsAreaObstructed(Vector3 position, float clearance)
+	public static bool IsAreaObstructed(Vector3 position, float clearance)
 	{
 		if (GameContext.World != null && World.IsAlive(GameContext.Simulation.WorldEntity) && World.Has<Realm.Ecs.Components.Terrain.TerrainState>(GameContext.Simulation.WorldEntity))
 		{
@@ -73,7 +73,7 @@ internal static class PlacementQueries
 		return obstructed;
 	}
 
-	internal static bool IsPositionBlocked(Vector3 pos, float checkRadius, Entity ignoreEntity)
+	public static bool IsPositionBlocked(Vector3 pos, float checkRadius, Entity ignoreEntity)
 	{
 		bool blocked = false;
 
@@ -116,12 +116,12 @@ internal static class PlacementQueries
 		return blocked;
 	}
 
-	internal static float GetPlacementRadius(string placeId, float scale = 1.0f)
+	public static float GetPlacementRadius(string placeId, float scale = 1.0f)
 	{
 		return GameContext.RegistryService.GetPlacementRadius(placeId, scale);
 	}
 
-	internal static Vector3? FindNearestFreePosition(Vector3 startPos, float checkRadius, float maxSearchDist = 20.0f, float terrainQuadSize = 2.0f, int terrainWidth = 256, int terrainDepth = 256)
+	public static Vector3? FindNearestFreePosition(Vector3 startPos, float checkRadius, float maxSearchDist = 20.0f, float terrainQuadSize = 2.0f, int terrainWidth = 256, int terrainDepth = 256)
 	{
 		if (!IsPositionBlocked(startPos, checkRadius, Entity.Null))
 		{

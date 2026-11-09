@@ -1,4 +1,4 @@
-﻿﻿using System;
+﻿using System;
 using Realm.Shared.Distribution;
 
 namespace Realm.Client.Services;
@@ -8,7 +8,7 @@ namespace Realm.Client.Services;
 ///     top-left corner, then by the remaining properties. A stable order keeps a map's save file from
 ///     churning between writes that changed nothing.
 /// </summary>
-internal static class MapSaveOrdering
+public static class MapSaveOrdering
 {
 	private static int CompareDistanceAndPosition(float aPosX, float aPosY, float aPosZ, float aRotY, float bPosX, float bPosY, float bPosZ, float bRotY, float topLeftX, float topLeftZ)
 	{

@@ -10,7 +10,7 @@ namespace Realm.Client.Services;
 /// profile or a terrain texture scatters across it. Nothing here touches editor state; the cell and the
 /// profile are the whole input.
 /// </summary>
-internal static class EditorProceduralSpawns
+public static class EditorProceduralSpawns
 {
 	public static List<ProceduralSpawnDescriptor> BuildWater(int x, int z, byte profileIndex, float waterY, float quadSize, int width, int depth)
 	{
