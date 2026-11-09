@@ -41,30 +41,30 @@ public partial class CommandAuthorityService
 			return;
 		}
 
-		switch (key)
+		switch (ParseCheat(key))
 		{
-			case "securethebag":
+			case CheatKind.SecureTheBag:
 				ApplySecureTheBag(playerEntity);
 				break;
-			case "gigachad":
+			case CheatKind.GigaChad:
 				ApplyGigachad(playerEntity);
 				break;
-			case "needforspeed":
+			case CheatKind.NeedForSpeed:
 				ApplyNeedForSpeed(peerId, cmd);
 				break;
-			case "thanossnap":
+			case CheatKind.ThanosSnap:
 				ApplyThanosSnap();
 				break;
-			case "ezclap":
+			case CheatKind.EzClap:
 				_context.IsGameOver = true;
 				break;
-			case "aura":
+			case CheatKind.Aura:
 				ApplyAura();
 				break;
-			case "speedrun":
+			case CheatKind.SpeedRun:
 				_context.FastBuildEnabled = !_context.FastBuildEnabled;
 				break;
-			case "skibidi":
+			case CheatKind.Skibidi:
 				ApplySkibidi(playerEntity);
 				break;
 			default:
@@ -72,6 +72,33 @@ public partial class CommandAuthorityService
 				break;
 		}
 	}
+
+	/// <summary>The cheats this build answers to; the wire carries their names, not these values.</summary>
+	private enum CheatKind
+	{
+		None,
+		SecureTheBag,
+		GigaChad,
+		NeedForSpeed,
+		ThanosSnap,
+		EzClap,
+		Aura,
+		SpeedRun,
+		Skibidi
+	}
+
+	private static CheatKind ParseCheat(string key) => key switch
+	{
+		"securethebag" => CheatKind.SecureTheBag,
+		"gigachad" => CheatKind.GigaChad,
+		"needforspeed" => CheatKind.NeedForSpeed,
+		"thanossnap" => CheatKind.ThanosSnap,
+		"ezclap" => CheatKind.EzClap,
+		"aura" => CheatKind.Aura,
+		"speedrun" => CheatKind.SpeedRun,
+		"skibidi" => CheatKind.Skibidi,
+		_ => CheatKind.None
+	};
 
 	private void ApplySecureTheBag(Entity playerEntity)
 	{
