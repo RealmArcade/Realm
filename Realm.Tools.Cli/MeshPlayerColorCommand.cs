@@ -14,9 +14,9 @@ using Realm.Shared.Textures;
 
 namespace Realm.Tools.Cli;
 
-internal static class MeshPlayerColorCommand
+public static class MeshPlayerColorCommand
 {
-	internal static int Execute(MeshPlayerColorCliOptions options)
+	public static int Execute(MeshPlayerColorCliOptions options)
 	{
 		if (!string.IsNullOrWhiteSpace(options.AssetType))
 		{
@@ -67,7 +67,7 @@ internal static class MeshPlayerColorCommand
 			summaryActionName: "mesh player color processing");
 	}
 
-	internal static int ProcessSingleMeshPlayerColor(
+	private static int ProcessSingleMeshPlayerColor(
 		string inputPath,
 		string outputPath,
 		GlbPlayerColorOptions processorOptions,
@@ -110,7 +110,7 @@ internal static class MeshPlayerColorCommand
 		}
 	}
 
-	internal static int RepackAndSaveRmesh(string inputPath, string outputPath, byte[] processedGlbBytes, string? targetAssetType, string? targetAuthor, string resolvedChromaKey, string? existingMeta, bool inPlace)
+	private static int RepackAndSaveRmesh(string inputPath, string outputPath, byte[] processedGlbBytes, string? targetAssetType, string? targetAuthor, string resolvedChromaKey, string? existingMeta, bool inPlace)
 	{
 		var convResult = ModelConverter.ConvertToRmesh(
 			processedGlbBytes,
@@ -135,7 +135,7 @@ internal static class MeshPlayerColorCommand
 		return 0;
 	}
 
-	internal static (byte[] glbBytes, string? metadata) ExtractInputBytesAndMetadata(string inputPath)
+	public static (byte[] glbBytes, string? metadata) ExtractInputBytesAndMetadata(string inputPath)
 	{
 		string inputExt = Path.GetExtension(inputPath).ToLowerInvariant();
 		bool isRmeshInput = inputExt == ".rmesh";
@@ -150,7 +150,7 @@ internal static class MeshPlayerColorCommand
 		return (File.ReadAllBytes(inputPath), null);
 	}
 
-	internal static string ResolveMeshPlayerColorOutputPath(string inputPath, string? explicitOutput, bool inPlace)
+	private static string ResolveMeshPlayerColorOutputPath(string inputPath, string? explicitOutput, bool inPlace)
 	{
 		if (inPlace) return Path.ChangeExtension(inputPath, ".rmesh");
 		if (!string.IsNullOrEmpty(explicitOutput))

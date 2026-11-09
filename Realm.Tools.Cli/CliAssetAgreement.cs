@@ -2,11 +2,11 @@ using Realm.Shared.Metadata;
 
 namespace Realm.Tools.Cli;
 
-internal static class CliAssetAgreement
+public static class CliAssetAgreement
 {
-	internal static bool Accepted { get; set; }
+	public static bool Accepted { get; set; }
 
-	internal static void EnsureAccepted()
+	public static void EnsureAccepted()
 	{
 		if (Accepted) return;
 

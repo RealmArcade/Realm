@@ -14,9 +14,9 @@ using Realm.Shared.Textures;
 
 namespace Realm.Tools.Cli;
 
-internal static class Blake3Command
+public static class Blake3Command
 {
-	internal static int Execute(Blake3Options options)
+	public static int Execute(Blake3Options options)
 	{
 		if (!CliFileSet.EnsurePathExists(options.Input)) return 1;
 

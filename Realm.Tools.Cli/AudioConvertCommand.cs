@@ -14,9 +14,9 @@ using Realm.Shared.Textures;
 
 namespace Realm.Tools.Cli;
 
-internal static class AudioConvertCommand
+public static class AudioConvertCommand
 {
-	internal static int Execute(AudioConvertOptions options)
+	public static int Execute(AudioConvertOptions options)
 	{
 		return CliFileSet.ProcessTraversedFiles(
 			options.Input,
@@ -29,7 +29,7 @@ internal static class AudioConvertCommand
 			summaryActionName: "audio conversion");
 	}
 
-	internal static int ProcessSingleAudioConvert(string inputFile, string targetFile, AudioConvertOptions options)
+	private static int ProcessSingleAudioConvert(string inputFile, string targetFile, AudioConvertOptions options)
 	{
 		string fileExt = Path.GetExtension(inputFile).ToLowerInvariant();
 

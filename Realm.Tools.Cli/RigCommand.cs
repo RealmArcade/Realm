@@ -14,9 +14,9 @@ using Realm.Shared.Textures;
 
 namespace Realm.Tools.Cli;
 
-internal static class RigCommand
+public static class RigCommand
 {
-	internal static int Execute(RigHumanoidOptions options)
+	public static int Execute(RigHumanoidOptions options)
 	{
 		if (!string.IsNullOrWhiteSpace(options.AssetType))
 		{
@@ -45,7 +45,7 @@ internal static class RigCommand
 			summaryActionName: "humanoid rigging");
 	}
 
-	internal static int ProcessSingleRigHumanoid(string inputPath, string targetOutput, RigHumanoidOptions options)
+	private static int ProcessSingleRigHumanoid(string inputPath, string targetOutput, RigHumanoidOptions options)
 	{
 		Console.WriteLine($"Processing humanoid rig: {inputPath} -> {targetOutput}");
 
@@ -86,7 +86,7 @@ internal static class RigCommand
 		}
 	}
 
-	internal static int ProcessRiggedOutput(string inputPath, string targetOutput, string tempGlbOutput, string? existingMeta, RigHumanoidOptions options)
+	private static int ProcessRiggedOutput(string inputPath, string targetOutput, string tempGlbOutput, string? existingMeta, RigHumanoidOptions options)
 	{
 		byte[] riggedGlb = File.ReadAllBytes(tempGlbOutput);
 		RmeshIo.EnsureDirectoryForFile(targetOutput);
@@ -109,7 +109,7 @@ internal static class RigCommand
 		return 0;
 	}
 
-	internal static void TryDeleteFile(string? filePath)
+	public static void TryDeleteFile(string? filePath)
 	{
 		if (filePath != null && File.Exists(filePath))
 		{
@@ -124,7 +124,7 @@ internal static class RigCommand
 		}
 	}
 
-	internal static (string tempExtractedGlb, string? existingMeta) ExtractRigInputBytes(string inputPath)
+	public static (string tempExtractedGlb, string? existingMeta) ExtractRigInputBytes(string inputPath)
 	{
 		byte[] rmeshBytes = File.ReadAllBytes(inputPath);
 		var (meta, glbBytes, _) = RmeshFile.Parse(rmeshBytes);
@@ -134,7 +134,7 @@ internal static class RigCommand
 		return (tempExtractedGlb, meta);
 	}
 
-	internal static int SaveRiggedRmesh(byte[] riggedGlb, string inputPath, string targetOutput, RigHumanoidOptions options, string? existingMeta)
+	private static int SaveRiggedRmesh(byte[] riggedGlb, string inputPath, string targetOutput, RigHumanoidOptions options, string? existingMeta)
 	{
 		var (extractedType, targetAuthor) = RmeshIo.ExtractAssetTypeAndAuthor(existingMeta, options.AssetType);
 		string targetAssetType = extractedType ?? "Character";

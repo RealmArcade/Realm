@@ -14,9 +14,9 @@ using Realm.Shared.Textures;
 
 namespace Realm.Tools.Cli;
 
-internal static class KeygenCommand
+public static class KeygenCommand
 {
-	internal static int Execute(KeygenOptions options)
+	public static int Execute(KeygenOptions options)
 	{
 		var (privateKeyBase64, publicKeyBase64) = AuthorSignatureHelper.GenerateKeyPair();
 
@@ -54,7 +54,7 @@ internal static class KeygenCommand
 		return 0;
 	}
 
-	internal static void PrintKeygenHeader(string publicKeyBase64, string privateKeyBase64)
+	private static void PrintKeygenHeader(string publicKeyBase64, string privateKeyBase64)
 	{
 		Console.WriteLine("=================================================");
 		Console.WriteLine("Realm Cryptographic Ed25519 Key Pair Generated");

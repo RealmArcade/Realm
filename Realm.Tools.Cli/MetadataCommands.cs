@@ -14,13 +14,13 @@ using Realm.Shared.Textures;
 
 namespace Realm.Tools.Cli;
 
-internal static class MetadataCommands
+public static class MetadataCommands
 {
 	private static readonly string[] MetadataAddModes = new[] { "add", "update", "set", "write", "embed" };
 	private static readonly string[] MetadataRemoveModes = new[] { "remove", "delete", "clear", "strip" };
 	private static readonly string[] MetadataHashModes = new[] { "blake3", "hash" };
 
-	internal static int Execute(MetadataOptions options)
+	public static int Execute(MetadataOptions options)
 	{
 		string mode = options.Mode?.ToLowerInvariant() ?? "read";
 
@@ -42,7 +42,7 @@ internal static class MetadataCommands
 		return ExecuteMetadataRead(options);
 	}
 
-	internal static string FormatFileMetadata(string filePath)
+	private static string FormatFileMetadata(string filePath)
 	{
 		string? rawMeta = RealmMetadataHelper.ExtractMetadata(filePath);
 		JsonObject metaObj;
@@ -72,7 +72,7 @@ internal static class MetadataCommands
 		return metaObj.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
 	}
 
-	internal static int ExecuteMetadataRead(MetadataOptions options)
+	private static int ExecuteMetadataRead(MetadataOptions options)
 	{
 		if (!CliFileSet.EnsurePathExists(options.Input)) return 1;
 
@@ -112,7 +112,7 @@ internal static class MetadataCommands
 		return 0;
 	}
 
-	internal static bool PrepareMetadataJsonForFile(string targetPath, ref string inputJsonContent, bool isUpdate, string? explicitAssetType, out string error)
+	private static bool PrepareMetadataJsonForFile(string targetPath, ref string inputJsonContent, bool isUpdate, string? explicitAssetType, out string error)
 	{
 		error = string.Empty;
 		string ext = Path.GetExtension(targetPath).ToLowerInvariant();
@@ -163,7 +163,7 @@ internal static class MetadataCommands
 		}
 	}
 
-	internal static bool TryParseMetadataJson(string inputJsonContent, out JsonObject inputObj, out string error)
+	private static bool TryParseMetadataJson(string inputJsonContent, out JsonObject inputObj, out string error)
 	{
 		var parsedNode = JsonNode.Parse(inputJsonContent);
 		if (parsedNode is not JsonObject obj)
@@ -178,7 +178,7 @@ internal static class MetadataCommands
 		return true;
 	}
 
-	internal static string? GetStringPropertyOrNull(JsonObject inputObj, string propertyName)
+	private static string? GetStringPropertyOrNull(JsonObject inputObj, string propertyName)
 	{
 		if (inputObj.TryGetPropertyValue(propertyName, out var val))
 		{
@@ -188,7 +188,7 @@ internal static class MetadataCommands
 		return null;
 	}
 
-	internal static string? GetRawAssetType(string? explicitAssetType, JsonObject inputObj)
+	private static string? GetRawAssetType(string? explicitAssetType, JsonObject inputObj)
 	{
 		if (!string.IsNullOrWhiteSpace(explicitAssetType))
 		{
@@ -198,7 +198,7 @@ internal static class MetadataCommands
 		return GetStringPropertyOrNull(inputObj, "asset_type");
 	}
 
-	internal static bool ResolveAssetType(string? explicitAssetType, string ext, JsonObject inputObj, out string error)
+	public static bool ResolveAssetType(string? explicitAssetType, string ext, JsonObject inputObj, out string error)
 	{
 		error = string.Empty;
 		string? rawAssetType = GetRawAssetType(explicitAssetType, inputObj);
@@ -215,7 +215,7 @@ internal static class MetadataCommands
 		return true;
 	}
 
-	internal static JsonObject MergeMetadataUpdate(string? existingMeta, JsonObject inputObj)
+	private static JsonObject MergeMetadataUpdate(string? existingMeta, JsonObject inputObj)
 	{
 		JsonObject finalObj;
 		if (!string.IsNullOrEmpty(existingMeta))
@@ -242,7 +242,7 @@ internal static class MetadataCommands
 		return finalObj;
 	}
 
-	internal static JsonObject MergeMetadataCreate(string? existingMeta, JsonObject inputObj)
+	private static JsonObject MergeMetadataCreate(string? existingMeta, JsonObject inputObj)
 	{
 		if (string.IsNullOrEmpty(existingMeta)) return inputObj;
 
@@ -261,7 +261,7 @@ internal static class MetadataCommands
 		return inputObj;
 	}
 
-	internal static void CopyPropertyIfNotExists(string key, JsonObject source, JsonObject target)
+	private static void CopyPropertyIfNotExists(string key, JsonObject source, JsonObject target)
 	{
 		if (!target.ContainsKey(key) && source.ContainsKey(key))
 		{
@@ -269,7 +269,7 @@ internal static class MetadataCommands
 		}
 	}
 
-	internal static int ExecuteMetadataAdd(MetadataOptions options)
+	private static int ExecuteMetadataAdd(MetadataOptions options)
 	{
 		if (!CliFileSet.EnsurePathExists(options.Input)) return 1;
 
@@ -295,7 +295,7 @@ internal static class MetadataCommands
 		return ProcessDirectoryMetadataAdd(options, jsonContent, isUpdate);
 	}
 
-	internal static bool PrepareMetadataAddData(MetadataOptions options)
+	private static bool PrepareMetadataAddData(MetadataOptions options)
 	{
 		if (!string.IsNullOrEmpty(options.Data)) return true;
 
@@ -315,7 +315,7 @@ internal static class MetadataCommands
 		return false;
 	}
 
-	internal static int ProcessSingleMetadataAdd(string inputPath, string jsonContent, bool isUpdate, string? assetType)
+	private static int ProcessSingleMetadataAdd(string inputPath, string jsonContent, bool isUpdate, string? assetType)
 	{
 		string processedJson = jsonContent;
 		if (!PrepareMetadataJsonForFile(inputPath, ref processedJson, isUpdate, assetType, out string error))
@@ -335,7 +335,7 @@ internal static class MetadataCommands
 		return 1;
 	}
 
-	internal static int ProcessDirectoryMetadataAdd(MetadataOptions options, string jsonContent, bool isUpdate)
+	private static int ProcessDirectoryMetadataAdd(MetadataOptions options, string jsonContent, bool isUpdate)
 	{
 		var files = CliFileSet.TraverseFiles(options.Input, options.Recursive, file => RealmMetadataHelper.SupportsMetadata(Path.GetExtension(file).ToLowerInvariant())).ToArray();
 		int successCount = 0;
@@ -367,7 +367,7 @@ internal static class MetadataCommands
 		return failCount > 0 ? 1 : 0;
 	}
 
-	internal static int ExecuteMetadataRemove(MetadataOptions options)
+	private static int ExecuteMetadataRemove(MetadataOptions options)
 	{
 		if (!CliFileSet.EnsurePathExists(options.Input)) return 1;
 

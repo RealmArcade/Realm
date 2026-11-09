@@ -14,9 +14,9 @@ using Realm.Shared.Textures;
 
 namespace Realm.Tools.Cli;
 
-internal static class RanimCommands
+public static class RanimCommands
 {
-	internal static int ExecuteRender(RanimRenderOptions options)
+	public static int ExecuteRender(RanimRenderOptions options)
 	{
 		RanimOutputFormat outputFormat = RanimOutputFormat.Webp;
 		string formatLower = options.Format.Trim().ToLowerInvariant();
@@ -73,7 +73,7 @@ internal static class RanimCommands
 			summaryActionName: "rendering animations");
 	}
 
-	internal static int ProcessSingleRanimRender(string inputFile, string targetFile, Shared.Animation.RanimRenderOptions renderOptions)
+	private static int ProcessSingleRanimRender(string inputFile, string targetFile, Shared.Animation.RanimRenderOptions renderOptions)
 	{
 		var result = RanimRenderer.ExportFile(inputFile, targetFile, renderOptions);
 		if (result.Success)
@@ -88,7 +88,7 @@ internal static class RanimCommands
 		}
 	}
 
-	internal static int ExecuteFromFbx(FbxToRanimOptions options)
+	public static int ExecuteFromFbx(FbxToRanimOptions options)
 	{
 		return CliFileSet.ProcessTraversedFiles(
 			options.Input,
@@ -101,7 +101,7 @@ internal static class RanimCommands
 			summaryActionName: "FBX conversion");
 	}
 
-	internal static int ProcessSingleFbxToRanim(string inputFile, string targetFile)
+	private static int ProcessSingleFbxToRanim(string inputFile, string targetFile)
 	{
 		var res = MixamoFbxConverter.ConvertFbxFile(inputFile, targetFile);
 		if (res.Success)

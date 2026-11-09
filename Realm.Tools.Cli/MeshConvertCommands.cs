@@ -14,9 +14,9 @@ using Realm.Shared.Textures;
 
 namespace Realm.Tools.Cli;
 
-internal static class MeshConvertCommands
+public static class MeshConvertCommands
 {
-	internal static int Execute(MeshConvertOptions options)
+	public static int Execute(MeshConvertOptions options)
 	{
 		if (!string.IsNullOrWhiteSpace(options.AssetType))
 		{
@@ -59,7 +59,7 @@ internal static class MeshConvertCommands
 			summaryActionName: "model conversion");
 	}
 
-	internal static int ProcessSingleMeshConvert(string inputFile, string targetFile, MeshConvertOptions options)
+	private static int ProcessSingleMeshConvert(string inputFile, string targetFile, MeshConvertOptions options)
 	{
 		string fileExt = Path.GetExtension(inputFile).ToLowerInvariant();
 		string targetExt = Path.GetExtension(targetFile).ToLowerInvariant();
@@ -88,7 +88,7 @@ internal static class MeshConvertCommands
 		return ExecuteModelToRmeshConversion(inputFile, targetFile, options);
 	}
 
-	internal static int ExtractSourceProfileImage(string inputFile, string targetPath)
+	private static int ExtractSourceProfileImage(string inputFile, string targetPath)
 	{
 		if (!string.Equals(Path.GetExtension(inputFile), ".rmesh", StringComparison.OrdinalIgnoreCase))
 		{
@@ -120,7 +120,7 @@ internal static class MeshConvertCommands
 		}
 	}
 
-	internal static int ExtractGlbFromRmesh(string inputFile, string targetFile)
+	public static int ExtractGlbFromRmesh(string inputFile, string targetFile)
 	{
 		var res = ModelConverter.ExtractGlbFromRmesh(inputFile, targetFile);
 		if (res.Success)
@@ -133,7 +133,7 @@ internal static class MeshConvertCommands
 		return 1;
 	}
 
-	internal static int OptimizeGlb(string inputFile, string targetFile, MeshConvertOptions options)
+	public static int OptimizeGlb(string inputFile, string targetFile, MeshConvertOptions options)
 	{
 		try
 		{
@@ -169,24 +169,24 @@ internal static class MeshConvertCommands
 		}
 	}
 
-	internal static void WriteLodTriangleCountsReport(Realm.Shared.OptimizationResult result, string inputFile)
+	private static void WriteLodTriangleCountsReport(Realm.Shared.OptimizationResult result, string inputFile)
 	{
 		WriteLodTriangleCountsReport(result.LodTriangleCounts, inputFile);
 	}
 
-	internal static void WriteUvChartReport(Realm.Shared.OptimizationResult result, string inputFile)
+	private static void WriteUvChartReport(Realm.Shared.OptimizationResult result, string inputFile)
 	{
 		WriteUvChartReport(result.UvIslandCountBefore, result.UvIslandCountAfter, result.UvChartMergeTolerance, inputFile);
 	}
 
-	internal static void WriteUvChartReport(int islandCountBefore, int islandCountAfter, float tolerance, string inputFile)
+	private static void WriteUvChartReport(int islandCountBefore, int islandCountAfter, float tolerance, string inputFile)
 	{
 		if (islandCountBefore <= 0) return;
 
 		Console.WriteLine($"UV charts for {inputFile}: {islandCountBefore} -> {islandCountAfter} islands (seam tolerance {tolerance:0.00000})");
 	}
 
-	internal static void WriteLodTriangleCountsReport(int[]? counts, string inputFile)
+	private static void WriteLodTriangleCountsReport(int[]? counts, string inputFile)
 	{
 		if (counts == null || counts.Length == 0)
 		{
@@ -204,7 +204,7 @@ internal static class MeshConvertCommands
 		Console.WriteLine($"LOD triangles for {inputFile}: {report}");
 	}
 
-	internal static OptimizationOptions BuildMeshConvertOptimizationOptions(MeshConvertOptions options)
+	private static OptimizationOptions BuildMeshConvertOptimizationOptions(MeshConvertOptions options)
 	{
 		var optimizationOptions = ModelConverter.GetAutomaticOptimizationOptions(options.AssetType, options.Force);
 		optimizationOptions.ReduceUvIslands = !options.NoUvChartReduction;
@@ -216,7 +216,7 @@ internal static class MeshConvertCommands
 		return optimizationOptions;
 	}
 
-	internal static int ExecuteModelToRmeshConversion(string inputFile, string targetFile, MeshConvertOptions options)
+	private static int ExecuteModelToRmeshConversion(string inputFile, string targetFile, MeshConvertOptions options)
 	{
 		OptimizationOptions optimizationOptions = BuildMeshConvertOptimizationOptions(options);
 
@@ -242,7 +242,7 @@ internal static class MeshConvertCommands
 		return 1;
 	}
 
-	internal static string ResolveMeshTargetExtension(string inputPath, string? explicitOutput, bool inPlace)
+	public static string ResolveMeshTargetExtension(string inputPath, string? explicitOutput, bool inPlace)
 	{
 		if (inPlace)
 		{

@@ -14,9 +14,9 @@ using Realm.Shared.Textures;
 
 namespace Realm.Tools.Cli;
 
-internal static class CliFileSet
+public static class CliFileSet
 {
-	internal static bool EnsurePathExists(string inputPath)
+	public static bool EnsurePathExists(string inputPath)
 	{
 		if (File.Exists(inputPath) || Directory.Exists(inputPath))
 		{
@@ -27,7 +27,7 @@ internal static class CliFileSet
 		return false;
 	}
 
-	internal static IEnumerable<string> TraverseFiles(string inputPath, bool recursive, Func<string, bool>? filter = null)
+	public static IEnumerable<string> TraverseFiles(string inputPath, bool recursive, Func<string, bool>? filter = null)
 	{
 		if (File.Exists(inputPath))
 		{
@@ -49,7 +49,7 @@ internal static class CliFileSet
 		}
 	}
 
-	internal static string ResolveTargetOutputPath(
+	private static string ResolveTargetOutputPath(
 		string inputRoot,
 		string currentFile,
 		string? outputDestination,
@@ -80,7 +80,7 @@ internal static class CliFileSet
 		return Path.ChangeExtension(currentFile, targetExtension);
 	}
 
-	internal static string ResolveDirectoryTarget(
+	private static string ResolveDirectoryTarget(
 		string inputRoot,
 		string currentFile,
 		string? outputDestination,
@@ -96,7 +96,7 @@ internal static class CliFileSet
 		return Path.ChangeExtension(currentFile, targetExtension);
 	}
 
-	internal static string ResolveOutputDestination(
+	private static string ResolveOutputDestination(
 		string currentFile,
 		string outputDestination,
 		string targetExtension,
@@ -121,7 +121,7 @@ internal static class CliFileSet
 			: outputDestination;
 	}
 
-	internal static int ProcessTraversedFiles(
+	public static int ProcessTraversedFiles(
 		string inputPath,
 		string? outputPath,
 		bool recursive,
@@ -174,13 +174,13 @@ internal static class CliFileSet
 		return failCount > 0 ? 1 : 0;
 	}
 
-	internal static void EnsureTargetDirectoryExists(string targetPath)
+	public static void EnsureTargetDirectoryExists(string targetPath)
 	{
 		string? outDir = Path.GetDirectoryName(targetPath);
 		if (!string.IsNullOrEmpty(outDir) && !Directory.Exists(outDir)) Directory.CreateDirectory(outDir);
 	}
 
-	internal static (int successCount, int failCount) ProcessMultipleFiles(
+	public static (int successCount, int failCount) ProcessMultipleFiles(
 		string[] matchingFiles,
 		string fullInputDir,
 		string? outputPath,

@@ -14,9 +14,9 @@ using Realm.Shared.Textures;
 
 namespace Realm.Tools.Cli;
 
-internal static class TextureConvertCommand
+public static class TextureConvertCommand
 {
-	internal static int Execute(TextureConvertOptions options)
+	public static int Execute(TextureConvertOptions options)
 	{
 		try
 		{
@@ -48,7 +48,7 @@ internal static class TextureConvertCommand
 		}
 	}
 
-	internal static int ProcessSingleTextureConvert(string inputFile, string targetFile, TextureConvertOptions options)
+	private static int ProcessSingleTextureConvert(string inputFile, string targetFile, TextureConvertOptions options)
 	{
 		string fileExt = Path.GetExtension(inputFile).ToLowerInvariant();
 

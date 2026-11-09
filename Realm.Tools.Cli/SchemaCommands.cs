@@ -14,9 +14,9 @@ using Realm.Shared.Textures;
 
 namespace Realm.Tools.Cli;
 
-internal static class SchemaCommands
+public static class SchemaCommands
 {
-	internal static int ExecuteManifest(GenerateManifestSchemaOptions options)
+	public static int ExecuteManifest(GenerateManifestSchemaOptions options)
 	{
 		string schemaJson = MapManifest.GenerateJsonSchema();
 		string outputPath = !string.IsNullOrWhiteSpace(options.Output) ? options.Output : "manifest.schema.json";
@@ -31,7 +31,7 @@ internal static class SchemaCommands
 		return 0;
 	}
 
-	internal static int ExecuteMetadata(GenerateMetadataSchemaOptions options)
+	public static int ExecuteMetadata(GenerateMetadataSchemaOptions options)
 	{
 		string schemaJson = MapMetadata.GenerateJsonSchema();
 		string outputPath = !string.IsNullOrWhiteSpace(options.Output) ? options.Output : "metadata.schema.json";
@@ -46,7 +46,7 @@ internal static class SchemaCommands
 		return 0;
 	}
 
-	internal static int ExecuteTerrain(GenerateTerrainSchemaOptions options)
+	public static int ExecuteTerrain(GenerateTerrainSchemaOptions options)
 	{
 		string schemaJson = MapSaveData.GenerateJsonSchema();
 		string outputPath = !string.IsNullOrWhiteSpace(options.Output) ? options.Output : "terrain.schema.json";
@@ -61,7 +61,7 @@ internal static class SchemaCommands
 		return 0;
 	}
 
-	internal static int ExecuteAll(GenerateSchemasOptions options)
+	public static int ExecuteAll(GenerateSchemasOptions options)
 	{
 		string baseDir = !string.IsNullOrWhiteSpace(options.Output) ? options.Output : Directory.GetCurrentDirectory();
 		if (!Directory.Exists(baseDir))
