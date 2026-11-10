@@ -261,6 +261,7 @@ public partial class CompositeMapDialog : FloatingDialogBase
 		}
 
 		_rowCount = 0;
+		UpdateConflictResolutionButton();
 
 		if (_references == null || _references.References.Count == 0)
 		{
@@ -270,17 +271,7 @@ public partial class CompositeMapDialog : FloatingDialogBase
 			emptyLabel.AddThemeFontSizeOverride("font_size", 11);
 			emptyLabel.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 			_selectedList.AddChild(emptyLabel);
-			if (_btnConflictResolution != null)
-			{
-				_btnConflictResolution.Disabled = true;
-			}
-
 			return;
-		}
-
-		if (_btnConflictResolution != null)
-		{
-			_btnConflictResolution.Disabled = false;
 		}
 
 		foreach (MapReference reference in _references.References)
@@ -317,6 +308,24 @@ public partial class CompositeMapDialog : FloatingDialogBase
 		}
 	}
 
+	/// <summary>
+	///     States whether a conflict can be decided at all: with one referenced map every file already has exactly one
+	///     outcome, because this map keeps the file when it carries it and the referenced map supplies the rest.
+	/// </summary>
+	private void UpdateConflictResolutionButton()
+	{
+		if (_btnConflictResolution == null)
+		{
+			return;
+		}
+
+		bool choosesBetweenMaps = _references != null && _references.References.Count > 1;
+		_btnConflictResolution.Disabled = !choosesBetweenMaps;
+		_btnConflictResolution.TooltipText = choosesBetweenMaps
+			? TranslationServer.Translate("State which map keeps each file this map and its referenced maps both carry")
+			: TranslationServer.Translate("Reference two or more maps to choose which of them keeps a file they both carry.");
+	}
+
 	private void RemoveReference(MapReference reference)
 	{
 		_references.References.Remove(reference);
@@ -326,9 +335,9 @@ public partial class CompositeMapDialog : FloatingDialogBase
 
 	private void OnConflictResolutionPressed()
 	{
-		if (_references == null || _references.References.Count == 0)
+		if (_references == null || _references.References.Count < 2)
 		{
-			_lblStatus.Text = TranslationServer.Translate("Reference at least one map before resolving conflicts.");
+			_lblStatus.Text = TranslationServer.Translate("Reference two or more maps to choose which of them keeps a file they both carry.");
 			return;
 		}
 

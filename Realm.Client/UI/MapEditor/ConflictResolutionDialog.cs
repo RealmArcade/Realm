@@ -45,7 +45,7 @@ public partial class ConflictResolutionDialog : FloatingDialogBase
 
 		_txtSearch = new LineEdit();
 		_txtSearch.Name = "TxtSearch_LineEdit";
-		_txtSearch.PlaceholderText = TranslationServer.Translate("Type to search the assets of every referenced map");
+		_txtSearch.PlaceholderText = TranslationServer.Translate("Type to search the files more than one map carries");
 		_txtSearch.CustomMinimumSize = new Vector2(240, 26);
 		_txtSearch.AddThemeFontSizeOverride("font_size", 11);
 		_txtSearch.TextChanged += _ => RefreshAssetOptions();
@@ -108,7 +108,12 @@ public partial class ConflictResolutionDialog : FloatingDialogBase
 
 		_references.ConflictPriorities ??= new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
 		_assets.Clear();
-		_assets.AddRange(GameContext.MapReferenceService.DescribeAssets(workspacePath, _references));
+		_assets.AddRange(GameContext.MapReferenceService.DescribeAssets(workspacePath, _references).Where(IsDecidableConflict));
+		if (_assets.Count == 0)
+		{
+			_lblStatus.Text = TranslationServer.Translate("No file is carried by more than one map, so there is nothing to resolve.");
+		}
+
 		RefreshAssetOptions();
 		RebuildPriorityRows();
 		OpenDialog();
@@ -118,6 +123,18 @@ public partial class ConflictResolutionDialog : FloatingDialogBase
 	{
 		base.CloseDialog();
 		_onClosed?.Invoke();
+	}
+
+	/// <summary>
+	///     Answers whether a file is one a priority decides: a file more than one map carries, other than the metadata
+	///     every composition merges and no priority can replace.
+	/// </summary>
+	/// <param name="asset">The file and the maps carrying it.</param>
+	/// <returns>Whether the dialog offers a priority for it.</returns>
+	private static bool IsDecidableConflict(MapReferenceAssetEntry asset)
+	{
+		return asset.IsConflicting
+		       && !string.Equals(asset.RelativePath, MapMetadataMerger.MetadataFileName, StringComparison.OrdinalIgnoreCase);
 	}
 
 	private static string ResolveWorkspacePath()
@@ -148,7 +165,11 @@ public partial class ConflictResolutionDialog : FloatingDialogBase
 
 		if (_filteredAssetPaths.Count == 0)
 		{
-			_optAsset.AddItem(TranslationServer.Translate("No matching asset"), -1);
+			_optAsset.AddItem(
+				_assets.Count == 0
+					? TranslationServer.Translate("No conflicting file")
+					: TranslationServer.Translate("No matching asset"),
+				-1);
 			_optAsset.Disabled = true;
 			return;
 		}
