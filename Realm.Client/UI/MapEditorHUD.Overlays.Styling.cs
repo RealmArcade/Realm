@@ -37,8 +37,6 @@ namespace Realm.Client.UI
 			ApplyContentBoxStyles();
 			ApplyScrollContainerStyles();
 			ApplyActionButtonsStyles();
-			ApplyToolButtonsStyles();
-			ApplyInspectorButtonsStyles();
 			ApplyCheckBoxStyles();
 			ApplySubContainerStyles();
 			ApplyTopBarStyles();
@@ -86,8 +84,6 @@ namespace Realm.Client.UI
 			StyleRowButton(_btnRandomGen);
 		}
 
-		private void ApplyToolButtonsStyles() => _toolPanel.StyleButtons();
-		private void ApplyInspectorButtonsStyles() => _inspectorView.StyleButtons();
 		/// <summary>
 		/// The checkboxes the editor itself owns: the terrain flags on the pathing card. Every other checkbox in the
 		/// sidebar belongs to a panel that styles its own rows.

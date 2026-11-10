@@ -286,34 +286,4 @@ public sealed class ToolAccordionPanel
 			MapEditorStyle.SubContainer(targetInspector.GetNodeOrNull<Control>("InspBox_VBoxContainer"), "Transform Controls");
 		}
 	}
-	/// <summary>
-	/// Row styling for every tool button the panel owns. It lives here because the buttons do: the editor only asks for
-	/// the pass, it does not name each button to restyle it.
-	/// </summary>
-	public void StyleButtons()
-	{
-		MapEditorStyle.RowButton(RaiseButton);
-		MapEditorStyle.RowButton(LowerButton);
-		MapEditorStyle.RowButton(HeightButton);
-		MapEditorStyle.RowButton(SmoothButton);
-		MapEditorStyle.RowButton(FlattenButton);
-		MapEditorStyle.RowButton(RampButton);
-		MapEditorStyle.RowButton(NoiseButton);
-		MapEditorStyle.RowButton(WaterButton);
-		MapEditorStyle.RowButton(TextureBrushButton);
-		MapEditorStyle.RowButton(FloodFillButton);
-		MapEditorStyle.RowButton(PathingBrushButton);
-		MapEditorStyle.RowButton(FloodFillPathingButton);
-		MapEditorStyle.RowButton(AddObjectButton);
-		MapEditorStyle.RowButton(SelectMoveButton);
-		MapEditorStyle.RowButton(DeleteObjectButton);
-		MapEditorStyle.RowButton(DrawCoordinateButton);
-		MapEditorStyle.RowButton(CommitCoordinateButton);
-		MapEditorStyle.RowButton(SelectAreaButton);
-		MapEditorStyle.RowButton(CutButton);
-		MapEditorStyle.RowButton(CopyButton);
-		MapEditorStyle.RowButton(PasteButton);
-		MapEditorStyle.RowButton(EraseAreaButton);
-	}
-
 }
