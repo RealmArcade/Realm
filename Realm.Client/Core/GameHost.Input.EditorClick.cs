@@ -42,13 +42,7 @@ public partial class GameHost
 
 			if (EditorSnapToGrid && GroundTerrain != null)
 			{
-				float quadSize = GroundTerrain.QuadSize;
-				int width = GroundTerrain.Width;
-				int depth = GroundTerrain.Depth;
-				float fx = Mathf.Round(hitPos.X / quadSize + (width - 1) / 2.0f);
-				hitPos.X = (Mathf.Clamp(fx, 0, width - 1) - (width - 1) / 2.0f) * quadSize;
-				float fz = Mathf.Round(hitPos.Z / quadSize + (depth - 1) / 2.0f);
-				hitPos.Z = (Mathf.Clamp(fz, 0, depth - 1) - (depth - 1) / 2.0f) * quadSize;
+				hitPos = EditorGridSnapping.SnapToCellCenter(hitPos);
 			}
 
 			if (IsObjectPlacementTool(ActiveEditorTool) && string.IsNullOrWhiteSpace(ActivePlaceId))

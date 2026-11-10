@@ -147,6 +147,7 @@ public static partial class TextureConverter
 				return (result, null, originalBits, originalBlake3);
 			}
 
+			result.Success = true;
 			return (result, sourceImage, originalBits, originalBlake3);
 		}
 		catch (Exception ex)

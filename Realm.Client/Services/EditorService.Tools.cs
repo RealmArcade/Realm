@@ -9,7 +9,7 @@ namespace Realm.Client.Services;
 
 public partial class EditorService
 {
-	private long _lastTerrainMeshRebuildMilliseconds = long.MinValue;
+	private long _lastTerrainMeshRebuildMilliseconds;
 	private bool _terrainGeometryDirty;
 	private bool _terrainHeightsDirty;
 	private bool _terrainPathingDirty;
@@ -141,7 +141,7 @@ public partial class EditorService
 		}
 
 		ClearPendingTerrainFlushState();
-		_lastTerrainMeshRebuildMilliseconds = long.MinValue;
+		_lastTerrainMeshRebuildMilliseconds = 0;
 	}
 
 	private void ClearPendingTerrainFlushState()

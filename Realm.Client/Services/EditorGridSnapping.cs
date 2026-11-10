@@ -134,6 +134,27 @@ public static class EditorGridSnapping
 		return worldPos;
 	}
 
+	/// <summary>
+	/// Snaps a position onto the centre of the quad that contains it, which is where a placed object actually lands.
+	/// The preview has to use this rather than <see cref="SnapToGrid"/>, because snapping to the grid lines puts the
+	/// cursor ghost on a corner while the click places the object in the middle of the quad.
+	/// </summary>
+	public static Godot.Vector3 SnapToCellCenter(Godot.Vector3 worldPos)
+	{
+		ref var terrain = ref EditorService.GetTerrainState();
+		if (terrain.Cells == null) return worldPos;
+		float quadSize = terrain.QuadSize;
+		int width = terrain.Width;
+		int depth = terrain.Depth;
+		float centerOffsetX = (width - 1) / 2.0f;
+		float centerOffsetZ = (depth - 1) / 2.0f;
+		float fx = Mathf.Round(worldPos.X / quadSize + centerOffsetX);
+		worldPos.X = (Mathf.Clamp(fx, 0, width - 1) - centerOffsetX) * quadSize;
+		float fz = Mathf.Round(worldPos.Z / quadSize + centerOffsetZ);
+		worldPos.Z = (Mathf.Clamp(fz, 0, depth - 1) - centerOffsetZ) * quadSize;
+		return worldPos;
+	}
+
 	public static Godot.Vector3 SnapToVertex(Godot.Vector3 worldPos)
 	{
 		ref var terrain = ref EditorService.GetTerrainState();

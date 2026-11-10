@@ -184,6 +184,7 @@ public partial class EditorService : IEditorAPI
 		if (World.IsAlive(entity) && World.Has<Position>(entity))
 		{
 			World.Set(entity, new Position(newPos));
+			World.SetOrAdd(entity, new PreviousPosition(newPos));
 		}
 	}
 

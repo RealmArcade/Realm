@@ -90,7 +90,7 @@ namespace Realm.Client.Core
 				string targetModel = !string.IsNullOrEmpty(meta.ModelPath) ? meta.ModelPath : reqId;
 				string modelPath = GetFallbackModelPath(targetModel, isBuilding);
 
-				Color color = Realm.Client.Utils.PreviewHologram.UnitColor(reqIsEnemy);
+				Color color = Realm.Client.Utils.PreviewHologram.UnitColor(false);
 				var previewUnit = new Unit3D();
 				previewUnit.Name = "PreviewUnit_Unit3D";
 				previewUnit.UnitId = reqId;
@@ -207,7 +207,7 @@ namespace Realm.Client.Core
 			Vector3 previewPos = position;
 			if (EditorSnapToGrid && GroundTerrain != null)
 			{
-				previewPos = EditorGridSnapping.SnapToGrid(previewPos);
+				previewPos = EditorGridSnapping.SnapToCellCenter(previewPos);
 			}
 
 			if (ActiveEditorTool != EditorTool.PlaceDecal)

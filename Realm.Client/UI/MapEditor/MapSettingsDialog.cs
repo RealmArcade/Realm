@@ -202,8 +202,8 @@ public partial class MapSettingsDialog : FloatingDialogBase
 			camGrid,
 			() => GameContext.Host?.EditorCameraBoundsRight ?? 0.0f,
 			value => { if (GameContext.Host is { } host) host.EditorCameraBoundsRight = value; },
-			() => (GameContext.Host?.GroundTerrain?.Width ?? 0),
 			() => GameContext.Host?.EditorCameraBoundsLeft ?? 0.0f,
+			() => (GameContext.Host?.GroundTerrain?.Width ?? 0),
 			"Move Right boundary further left (West)",
 			"Move Right boundary further right (East)");
 	}
@@ -226,8 +226,8 @@ public partial class MapSettingsDialog : FloatingDialogBase
 			camGrid,
 			() => GameContext.Host?.EditorCameraBoundsBottom ?? 0.0f,
 			value => { if (GameContext.Host is { } host) host.EditorCameraBoundsBottom = value; },
-			() => (GameContext.Host?.GroundTerrain?.Depth ?? 0),
 			() => GameContext.Host?.EditorCameraBoundsTop ?? 0.0f,
+			() => (GameContext.Host?.GroundTerrain?.Depth ?? 0),
 			"Move Bottom boundary further North (Up)",
 			"Move Bottom boundary further South (Down)");
 	}
