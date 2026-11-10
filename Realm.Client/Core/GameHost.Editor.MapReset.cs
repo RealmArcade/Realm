@@ -176,7 +176,6 @@ public partial class GameHost
 	private void RefreshUIAndExternalState()
 	{
 		GameContext.MapEditorHud?.RefreshCoordinateListExternal();
-		MapEditorHUD.ResetFolderLocations();
 		GameContext.MapEditorHud?.ResetEditingDirectorySyncState();
 		GameContext.MapEditorHud?.GenerateVSCodeFilesExternal();
 		GameContext.MapEditorHud?.ReadMetadataAndRefreshTextures();
