@@ -14,7 +14,9 @@ public static class MapEditorChromeTheme
 	/// <summary>
 	/// Makes the sidebar columns click-through and blank. The columns are decoration behind the cards, so a click that
 	/// lands on the column rather than a card must reach the 3D viewport underneath, and the column itself draws no plate
-	/// of its own: leaving the theme's plate on it is what washes a grey background behind both card stacks.
+	/// of its own: leaving the theme's plate on it is what washes a grey background behind both card stacks. The scrollers
+	/// themselves keep taking the mouse, because a card stack taller than the screen must be scrollable rather than cut
+	/// off; they never scroll sideways, so a wide card cannot drag the column past the panel.
 	/// </summary>
 	public static void SidebarColumns(Node owner, Panel? leftPanel, Panel? rightPanel)
 	{
@@ -24,8 +26,8 @@ public static class MapEditorChromeTheme
 		IgnoreMouse(leftPanel);
 		IgnoreMouse(rightPanel);
 
-		IgnoreMouse(owner.GetNodeOrNull<ScrollContainer>("LeftSlidePanel/LeftScroll"));
-		IgnoreMouse(owner.GetNodeOrNull<ScrollContainer>("RightSlidePanel/RightScroll"));
+		MakeScrollable(owner.GetNodeOrNull<ScrollContainer>("LeftSlidePanel/LeftScroll"));
+		MakeScrollable(owner.GetNodeOrNull<ScrollContainer>("RightSlidePanel/RightScroll"));
 
 		var leftVBox = owner.GetNodeOrNull<VBoxContainer>("LeftSlidePanel/LeftScroll/LeftVBox");
 		if (leftVBox != null)
@@ -45,6 +47,15 @@ public static class MapEditorChromeTheme
 	private static void IgnoreMouse(Control? control)
 	{
 		if (control != null) control.MouseFilter = MouseFilterEnum.Ignore;
+	}
+
+	private static void MakeScrollable(ScrollContainer? scroller)
+	{
+		if (scroller == null) return;
+
+		scroller.MouseFilter = MouseFilterEnum.Pass;
+		scroller.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
+		scroller.VerticalScrollMode = ScrollContainer.ScrollMode.Auto;
 	}
 
 	private static void ClearPlate(Panel? panel)

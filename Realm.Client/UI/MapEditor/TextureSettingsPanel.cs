@@ -126,6 +126,8 @@ public sealed class TextureSettingsPanel
 		container.RemoveChild(label);
 		row.AddChild(label);
 		label.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		label.ClipText = true;
+		label.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
 		row.AddChild(checkBox);
 		container.AddChild(row);
 		container.MoveChild(row, labelIndex);

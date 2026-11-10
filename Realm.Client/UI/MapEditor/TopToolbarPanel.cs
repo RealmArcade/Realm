@@ -80,8 +80,8 @@ public sealed class TopToolbarPanel
 	}
 
 	/// <summary>
-	/// The window-level chrome the toolbar row shares: the status readout in the bottom bar, the fading feedback
-	/// label, and the two side scrollers that must not swallow mouse input so the panels can float freely.
+	/// The window-level chrome the toolbar row shares: the status readout in the bottom bar and the fading feedback
+	/// label. The side scrollers are configured with the rest of the editor frame's theme, not here.
 	/// </summary>
 	public void BuildWindowChrome()
 	{
@@ -91,19 +91,6 @@ public sealed class TopToolbarPanel
 		FeedbackLabel = _owner.GetNode<Label>("FeedbackLabel");
 		FeedbackLabel.Modulate = new Color(1, 1, 1, 0);
 		FeedbackLabel.MouseFilter = Control.MouseFilterEnum.Ignore;
-
-		DisableScrollerInput("LeftSlidePanel/LeftScroll");
-		DisableScrollerInput("RightSlidePanel/RightScroll");
-	}
-
-	private void DisableScrollerInput(string path)
-	{
-		var scroller = _owner?.GetNodeOrNull<ScrollContainer>(path);
-		if (scroller == null) return;
-
-		scroller.MouseFilter = Control.MouseFilterEnum.Ignore;
-		scroller.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
-		scroller.VerticalScrollMode = ScrollContainer.ScrollMode.Disabled;
 	}
 
 	private void BuildTopLeftToolbar(TopToolbarHooks hooks)

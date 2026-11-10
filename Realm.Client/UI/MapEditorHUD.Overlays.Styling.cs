@@ -45,19 +45,20 @@ namespace Realm.Client.UI
 
 		/// <summary>
 		/// The sidebar's cards, in the order they appear. Every card pass walks this one list, so a new card is styled by
-		/// all of them instead of being added to each pass by hand. Only the cards that cap their content are scrollable;
-		/// the rest grow with their content and let the sidebar column scroll.
+		/// all of them instead of being added to each pass by hand. Every card but the viewport readout caps its content
+		/// at the height it names and scrolls it beyond that, so a long card scrolls inside itself instead of pushing the
+		/// rest of the column past the panel.
 		/// </summary>
 		private MapEditorCard[] Cards() => new[]
 		{
 			new MapEditorCard(_accordionFile, _filePanel.Content, 300f),
 			new MapEditorCard(_viewportPanel.Accordion, _viewportPanel.Content, 0f, false),
-			new MapEditorCard(_toolPanel.Accordion, _toolPanel.Content, 320f, true, false),
-			new MapEditorCard(_brushPanel?.Accordion, _brushPanel?.Content, 300f, true, false),
-			new MapEditorCard(_waterPanel?.Accordion, _waterPanel?.Content, 200f, true, false),
-			new MapEditorCard(_accordionToolSettings, _contentToolSettings, 320f, true, false),
-			new MapEditorCard(_placementPanel.Accordion, _placementPanel.Content, 320f, true, false),
-			new MapEditorCard(_accordionInspector, _contentInspector, 300f, true, false),
+			new MapEditorCard(_toolPanel.Accordion, _toolPanel.Content, 320f),
+			new MapEditorCard(_brushPanel?.Accordion, _brushPanel?.Content, 300f),
+			new MapEditorCard(_waterPanel?.Accordion, _waterPanel?.Content, 200f),
+			new MapEditorCard(_accordionToolSettings, _contentToolSettings, 320f),
+			new MapEditorCard(_placementPanel.Accordion, _placementPanel.Content, 320f),
+			new MapEditorCard(_accordionInspector, _contentInspector, 300f),
 		};
 
 		private void ApplyAccordionStyles()
