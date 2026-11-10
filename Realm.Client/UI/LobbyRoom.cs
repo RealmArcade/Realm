@@ -16,6 +16,7 @@ using Realm.Client.Utils;
 using Realm.Client.UI.InGame;
 using Realm.Client.Services;
 using Realm.Shared.Accounts;
+using Realm.Shared.Simulation;
 
 namespace Realm.Client.UI;
 
@@ -60,6 +61,16 @@ public partial class LobbyRoom : Control
 	private Panel? _countdownPopup;
 	private Label? _countdownTextLabel;
 	private Panel? _connectingPopup;
+	private Button? _matchSettingsButton;
+	private Panel? _matchSettingsPopup;
+	private SpinBox? _maximumPlayersSpin;
+	private SpinBox? _draftCountSpin;
+	private SpinBox? _uniqueBuildingsSpin;
+	private SpinBox? _capacityMultiplierSpin;
+	private SpinBox? _chargeMultiplierSpin;
+	private OptionButton? _shroudModeOption;
+	private CheckBox? _mirroredDraftCheck;
+	private CheckBox? _openPoolDraftingCheck;
 
 	private Label _lobbyTitle = null!;
 	private Label _playersTitle = null!;
@@ -224,6 +235,8 @@ public partial class LobbyRoom : Control
 
 		CreateSpectatorDelayUI();
 		Lobby.SpectatorDelayChanged += OnSpectatorDelayChanged;
+		CreateMatchSettingsUI();
+		Lobby.MatchOptionsChanged += OnMatchOptionsChanged;
 
 		_chatLog.Text = $"[color=#ffd700]{Tr("System: Connected to Lobby.")}[/color]\n";
 		_chatInput.TextSubmitted += OnChatSubmitted;
@@ -386,6 +399,7 @@ public partial class LobbyRoom : Control
 			Lobby.KickReceived -= OnLobbyKickReceived;
 
 			Lobby.SpectatorDelayChanged -= OnSpectatorDelayChanged;
+			Lobby.MatchOptionsChanged -= OnMatchOptionsChanged;
 
 			Lobby.MapDownloadProgressChanged -= OnMapDownloadProgress;
 			Lobby.MapDownloadCompleted -= OnMapDownloadCompleted;
@@ -745,5 +759,222 @@ public partial class LobbyRoom : Control
 		{
 			_spectatorDelayCheck.Visible = true;
 		}
+	}
+	/// <summary>
+	///     Offers the lobby's host the parameters it may set for the match: how many players are seated, how many building
+	///     options a draft offers, how many copies of a building one player may hold, which vision mode applies, and the
+	///     three switches the standard lobby leaves off. Every control states zero or its neutral position as the map's own
+	///     default, so a host that touches nothing plays the map exactly as it was authored.
+	/// </summary>
+	private void CreateMatchSettingsUI()
+	{
+		if (!GameContext.Lobby.IsHost) return;
+
+		_matchSettingsButton = new Button();
+		_matchSettingsButton.Name = "MatchSettingsButton_Button";
+		_matchSettingsButton.Position = new Vector2(1450, 720);
+		_matchSettingsButton.Size = new Vector2(340, 40);
+		_matchSettingsButton.AddThemeConstantOverride("icon_max_width", 20);
+		_matchSettingsButton.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
+		_matchSettingsButton.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
+		_matchSettingsButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
+		_matchSettingsButton.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyButtonText(_matchSettingsButton, TranslationServer.Translate("Match Settings"), 16);
+		_matchSettingsButton.TooltipText = TranslationServer.Translate("Set how many players, building options and building copies this match allows, and which modes it plays with.");
+		_matchSettingsButton.Pressed += () =>
+		{
+			GameContext.UserInterface.PlayClickSound();
+			ToggleMatchSettingsPopup();
+		};
+		_matchSettingsButton.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
+		AddChild(_matchSettingsButton);
+	}
+
+	private void ToggleMatchSettingsPopup()
+	{
+		if (_matchSettingsPopup != null && GodotObject.IsInstanceValid(_matchSettingsPopup))
+		{
+			_matchSettingsPopup.QueueFree();
+			_matchSettingsPopup = null;
+			return;
+		}
+
+		_matchSettingsPopup = new Panel();
+		_matchSettingsPopup.Name = "MatchSettingsPopup_Panel";
+		_matchSettingsPopup.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+		_matchSettingsPopup.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
+		AddChild(_matchSettingsPopup);
+
+		var centerContainer = new CenterContainer();
+		centerContainer.Name = "Center_CenterContainer";
+		centerContainer.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+		_matchSettingsPopup.AddChild(centerContainer);
+
+		var cardPanel = new Panel();
+		cardPanel.Name = "CardPanel_Panel";
+		cardPanel.CustomMinimumSize = new Vector2(640, 520);
+		cardPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateBackdropPanel());
+		centerContainer.AddChild(cardPanel);
+
+		var content = new VBoxContainer();
+		content.Name = "Content_VBoxContainer";
+		content.CustomMinimumSize = new Vector2(600, 480);
+		content.AddThemeConstantOverride("separation", 10);
+		cardPanel.AddChild(content);
+
+		var title = new Label();
+		title.Name = "Title_Label";
+		UIStyle.ApplyTitle(title, TranslationServer.Translate("MATCH SETTINGS"), 22);
+		title.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+		content.AddChild(title);
+
+		var hint = new Label();
+		hint.Name = "Hint_Label";
+		hint.Text = TranslationServer.Translate("Zero leaves each setting to the map. Changes reach the next match this lobby starts.");
+		hint.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+		hint.CustomMinimumSize = new Vector2(580, 0);
+		hint.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		hint.AddThemeFontSizeOverride("font_size", 13);
+		hint.AddThemeColorOverride("font_color", new Color(0.75f, 0.75f, 0.8f));
+		content.AddChild(hint);
+
+		var grid = new GridContainer();
+		grid.Name = "Grid_GridContainer";
+		grid.Columns = 2;
+		grid.AddThemeConstantOverride("h_separation", 16);
+		grid.AddThemeConstantOverride("v_separation", 8);
+		grid.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		content.AddChild(grid);
+
+		_maximumPlayersSpin = AddCountSetting(grid, TranslationServer.Translate("Players:"), 0, LobbyLimits.MaximumSeats, MatchOption.MaximumPlayers, TranslationServer.Translate("How many players this match seats. Zero seats the number the map states."));
+		_draftCountSpin = AddCountSetting(grid, TranslationServer.Translate("Building options per draft:"), 0, 24, MatchOption.MaximumBuildingDraftCount, TranslationServer.Translate("How many building options a draft offers at once. Zero offers the number the ruleset states."));
+		_uniqueBuildingsSpin = AddCountSetting(grid, TranslationServer.Translate("Copies of one building:"), 0, 24, MatchOption.MaximumUniqueBuildingInstances, TranslationServer.Translate("How many unique instances of one building a player may own. Zero uses the ruleset's own limit."));
+		_capacityMultiplierSpin = AddCountSetting(grid, TranslationServer.Translate("Capacity multiplier (%):"), 0, MatchOptionSet.MaximumMultiplierPercent, MatchOption.CapacityMultiplierPercent, TranslationServer.Translate("The percentage every player's capacity ceiling is multiplied by. Zero uses the ruleset's own values."));
+		_chargeMultiplierSpin = AddCountSetting(grid, TranslationServer.Translate("Charge multiplier (%):"), 0, MatchOptionSet.MaximumMultiplierPercent, MatchOption.ChargeMultiplierPercent, TranslationServer.Translate("The percentage every player's maximum charges is multiplied by. Zero uses the ruleset's own values."));
+
+		var visionLabel = new Label();
+		visionLabel.Name = "VisionLabel_Label";
+		visionLabel.Text = TranslationServer.Translate("Vision:");
+		visionLabel.AddThemeFontSizeOverride("font_size", 13);
+		visionLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+		grid.AddChild(visionLabel);
+
+		_shroudModeOption = new OptionButton();
+		_shroudModeOption.Name = "ShroudMode_OptionButton";
+		_shroudModeOption.AddThemeConstantOverride("icon_max_width", 20);
+		_shroudModeOption.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		_shroudModeOption.AddItem(TranslationServer.Translate("Map default"), (int)MatchShroudMode.FromMap);
+		_shroudModeOption.AddItem(TranslationServer.Translate("Revealed"), (int)MatchShroudMode.Revealed);
+		_shroudModeOption.AddItem(TranslationServer.Translate("Vision shroud"), (int)MatchShroudMode.VisionShroud);
+		_shroudModeOption.AddItem(TranslationServer.Translate("Exploration shroud"), (int)MatchShroudMode.ExplorationShroud);
+		_shroudModeOption.TooltipText = TranslationServer.Translate("Whether this match is played with the whole board visible or with vision limited to what each player's units can see.");
+		_shroudModeOption.ItemSelected += index => GameContext.Lobby.SetMatchOption(MatchOption.ShroudMode, (int)_shroudModeOption.GetItemId((int)index));
+		grid.AddChild(_shroudModeOption);
+
+		_mirroredDraftCheck = AddToggleSetting(grid, TranslationServer.Translate("Mirrored draft:"), MatchOption.MirroredAutoDraft, TranslationServer.Translate("Every player draws the same heroes and the same building options, which removes draft asymmetry."));
+		_openPoolDraftingCheck = AddToggleSetting(grid, TranslationServer.Translate("Open pool drafting:"), MatchOption.OpenPoolDrafting, TranslationServer.Translate("Drafted buildings stay in the deck instead of leaving it, so the same building can be drafted again."));
+
+		var closeButton = new Button();
+		closeButton.Name = "Close_Button";
+		closeButton.CustomMinimumSize = new Vector2(180, 40);
+		closeButton.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
+		closeButton.AddThemeConstantOverride("icon_max_width", 20);
+		closeButton.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
+		closeButton.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
+		closeButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
+		closeButton.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyButtonText(closeButton, TranslationServer.Translate("CLOSE"), 14);
+		closeButton.Pressed += () =>
+		{
+			GameContext.UserInterface.PlayClickSound();
+			ToggleMatchSettingsPopup();
+		};
+		content.AddChild(closeButton);
+
+		LoadMatchOptionsIntoSettings();
+	}
+
+	private SpinBox AddCountSetting(GridContainer grid, string labelText, double minimum, double maximum, MatchOption matchOption, string tooltip)
+	{
+		var label = new Label();
+		label.Name = $"{matchOption}Label_Label";
+		label.Text = labelText;
+		label.AddThemeFontSizeOverride("font_size", 13);
+		label.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+		label.TooltipText = tooltip;
+		grid.AddChild(label);
+
+		var spin = new SpinBox();
+		spin.Name = $"{matchOption}_SpinBox";
+		spin.MinValue = minimum;
+		spin.MaxValue = maximum;
+		spin.Step = 1;
+		spin.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		spin.TooltipText = tooltip;
+		spin.ValueChanged += value => GameContext.Lobby.SetMatchOption(matchOption, (int)value);
+		grid.AddChild(spin);
+		return spin;
+	}
+
+	private CheckBox AddToggleSetting(GridContainer grid, string labelText, MatchOption matchOption, string tooltip)
+	{
+		var label = new Label();
+		label.Name = $"{matchOption}Label_Label";
+		label.Text = labelText;
+		label.AddThemeFontSizeOverride("font_size", 13);
+		label.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+		label.TooltipText = tooltip;
+		grid.AddChild(label);
+
+		var check = new CheckBox();
+		check.Name = $"{matchOption}_CheckBox";
+		check.Text = TranslationServer.Translate("Enabled");
+		check.AddThemeConstantOverride("icon_max_width", 20);
+		check.TooltipText = tooltip;
+		UIStyle.ApplyCheckboxStyle(check);
+		check.Toggled += toggled => GameContext.Lobby.SetMatchOption(matchOption, toggled ? 1 : 0);
+		grid.AddChild(check);
+		return check;
+	}
+
+	/// <summary>
+	///     Shows the settings the lobby currently holds, so a host that opens the panel reads what the match will play
+	///     rather than the values it typed before the lobby refused one of them.
+	/// </summary>
+	private void LoadMatchOptionsIntoSettings()
+	{
+		MatchOptionSet options = GameContext.Lobby.MatchOptions;
+
+		SetSpinValue(_maximumPlayersSpin, options.Get(MatchOption.MaximumPlayers));
+		SetSpinValue(_draftCountSpin, options.Get(MatchOption.MaximumBuildingDraftCount));
+		SetSpinValue(_uniqueBuildingsSpin, options.Get(MatchOption.MaximumUniqueBuildingInstances));
+		SetSpinValue(_capacityMultiplierSpin, options.Get(MatchOption.CapacityMultiplierPercent));
+		SetSpinValue(_chargeMultiplierSpin, options.Get(MatchOption.ChargeMultiplierPercent));
+
+		if (_shroudModeOption != null)
+		{
+			int shroudMode = options.Get(MatchOption.ShroudMode);
+			for (int index = 0; index < _shroudModeOption.ItemCount; index++)
+			{
+				if (_shroudModeOption.GetItemId(index) != shroudMode) continue;
+				_shroudModeOption.Select(index);
+				break;
+			}
+		}
+
+		if (_mirroredDraftCheck != null) _mirroredDraftCheck.ButtonPressed = options.IsEnabled(MatchOption.MirroredAutoDraft);
+		if (_openPoolDraftingCheck != null) _openPoolDraftingCheck.ButtonPressed = options.IsEnabled(MatchOption.OpenPoolDrafting);
+	}
+
+	private static void SetSpinValue(SpinBox? spin, int value)
+	{
+		if (spin == null) return;
+
+		spin.SetValueNoSignal(value);
+	}
+
+	private void OnMatchOptionsChanged()
+	{
+		LoadMatchOptionsIntoSettings();
 	}
 }

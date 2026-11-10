@@ -656,6 +656,17 @@
                 Represents the ownership of an entity by a player.
             </summary>
         </member>
+        <member name="T:Realm.Ecs.Components.Core.PlayerBuildingLimit">
+            <summary>
+            Caps how many buildings a player may hold at once; a limit of zero leaves the player unlimited.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.PlayerDamageEffectiveness">
+            <summary>
+                The multiplier a player's damage carries against each other player, which is how a rule states that one side of a
+                contest is currently less effective than another without changing the units themselves.
+            </summary>
+        </member>
         <member name="T:Realm.Ecs.Components.Core.PlayerPopulation">
             <summary>
             Tracks current and maximum food population unit capacities for a player.
@@ -760,6 +771,55 @@
             <summary>
                 Represents the upgrade level of a defensive tower structure.
             </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.UnitCharges">
+            <summary>
+                The charges a unit holds and regains over time, such as the soldiers a barracks keeps ready to field.
+            </summary>
+            <remarks>
+                The engine regains a charge on its own, so a map only states how many charges a unit keeps and how long one takes
+                to come back, and spends a charge when it fields what the charge was holding. Reading it from the world means every
+                screen states the same count without the map publishing it.
+            </remarks>
+        </member>
+        <member name="F:Realm.Ecs.Components.Core.UnitCharges.Charges">
+            <summary>Gets or sets the number of charges the unit holds right now.</summary>
+        </member>
+        <member name="F:Realm.Ecs.Components.Core.UnitCharges.MaximumCharges">
+            <summary>Gets or sets the greatest number of charges the unit may hold.</summary>
+        </member>
+        <member name="F:Realm.Ecs.Components.Core.UnitCharges.RechargeSeconds">
+            <summary>Gets or sets the seconds the unit takes to regain one charge.</summary>
+        </member>
+        <member name="F:Realm.Ecs.Components.Core.UnitCharges.RechargeProgress">
+            <summary>Gets or sets the seconds accumulated toward the charge being regained.</summary>
+        </member>
+        <member name="M:Realm.Ecs.Components.Core.UnitCharges.CanSpend(Realm.Ecs.Components.Core.UnitCharges@)">
+            <summary>
+                Answers whether the unit still has a charge it may spend, which is what a map asks before fielding what the
+                charge holds.
+            </summary>
+            <param name="charges">The charges the unit holds before the spend.</param>
+            <returns>True when the count may be lowered by one; otherwise false.</returns>
+        </member>
+        <member name="M:Realm.Ecs.Components.Core.UnitCharges.Spend">
+            <summary>
+                Lowers the count by one without going below zero, which spends the charge the unit held.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Components.Core.UnitCharges.Advance(System.Single)">
+            <summary>
+                Advances the recharge by the elapsed time, regaining whole charges as they become due. A unit that already
+                holds its greatest number keeps no partial charge, because the time it waits at full is not time served
+                toward the next one.
+            </summary>
+            <param name="deltaSeconds">The seconds this tick covers.</param>
+        </member>
+        <member name="M:Realm.Ecs.Components.Core.UnitCharges.RemainingSecondsToNextCharge">
+            <summary>
+                States how many seconds are left until the next charge arrives, or zero when the unit already holds all it may.
+            </summary>
+            <returns>The remaining seconds, never negative.</returns>
         </member>
         <member name="T:Realm.Ecs.Components.Core.UnitOwnerPlayer">
             <summary>
@@ -1283,6 +1343,17 @@
                 </para>
             </summary>
         </member>
+        <member name="M:Realm.Ecs.ComponentTypeRegistry.VerifySharedComponentIds">
+            <summary>
+                Fails the registry when a component a map script reaches through shared memory is not registered under the
+                identifier <see cref="T:Realm.Ecs.ComponentIds" /> declares for it.
+            </summary>
+            <remarks>
+                The canonical identifiers come from this list's order, while a map script uses the constants, so inserting a type
+                above, removing one or reordering the list silently moves every later identifier and leaves the script reading the
+                wrong array or mask bit. Refusing to start states which type drifted instead of leaving a map to misbehave.
+            </remarks>
+        </member>
         <member name="T:Realm.Ecs.EcsWorld">
             <summary>
                 The entities and component arrays of one world. Owned by a single thread: entity creation, destruction and
@@ -1666,6 +1737,18 @@
                 chosen without measuring it again.
             </summary>
         </member>
+        <member name="F:Realm.Ecs.Services.CombatAndDamageService.OnUnitDamagedCallback">
+            <summary>
+                Called with (victim, attacker, dealt damage, damage before the victim's mitigation), so a rule can weigh what
+                was swung rather than what landed.
+            </summary>
+        </member>
+        <member name="F:Realm.Ecs.Services.CombatAndDamageService.DamageEffectivenessProvider">
+            <summary>
+                Answers the multiplier this hit's damage carries, which is how a rule scales one seat's damage against
+                another. A null provider, or a provider answering zero for a pair, leaves the damage as resolved.
+            </summary>
+        </member>
         <member name="P:Realm.Ecs.Services.CombatAndDamageService.AuthoritativeProvider">
             <summary>
                 Decides whether this service is the one that applies the damage it computed. A client takes every unit's
@@ -1695,7 +1778,7 @@
             matrix apply. This is the single-target counterpart to <see cref="M:Realm.Ecs.Services.CombatAndDamageService.DealSpellDamageAOE(System.Numerics.Vector3,System.Single,System.Single,Realm.Ecs.Entity,System.Boolean,System.String)"/>.
             </summary>
         </member>
-        <member name="M:Realm.Ecs.Services.CombatAndDamageService.AbsorbDamage(Realm.Ecs.Entity,System.Single)">
+        <member name="M:Realm.Ecs.Services.CombatAndDamageService.ResolveDamageEffectiveness(Realm.Ecs.Entity,Realm.Ecs.Entity)">
             <summary>
                 Runs damage through the entity's absorb pools before health. Called by every damage
                 source, so a shield is worth the same against an attack, a splash, a spell or an ability.
@@ -2317,6 +2400,12 @@
             <summary>
             Defines deterministic canonical component type identifiers agreed upon by both host and guest simulation runtimes.
             </summary>
+            <remarks>
+                A map script reads its world through shared linear memory, where a component array is found by the directory entry
+                carrying one of these identifiers and a tag is found by this bit of the entity's component mask. The host sets that
+                mask bit from <c>ComponentType&lt;T&gt;.Id</c>, so every identifier here has to be the identifier the canonical
+                registry assigns to that type; <c>ComponentTypeRegistry</c> refuses to start when one of them has drifted.
+            </remarks>
         </member>
         <member name="F:Realm.Ecs.ComponentIds.Position">
             <summary>Position component identifier.</summary>
@@ -2392,6 +2481,12 @@
         </member>
         <member name="F:Realm.Ecs.ComponentIds.OverheadBarsHidden">
             <summary>Overhead bars hidden tag component identifier.</summary>
+        </member>
+        <member name="F:Realm.Ecs.ComponentIds.UnitCharges">
+            <summary>Unit charges component identifier, holding the charges a unit keeps and the time to regain one.</summary>
+        </member>
+        <member name="F:Realm.Ecs.ComponentIds.PlayerDamageEffectiveness">
+            <summary>Player damage effectiveness component identifier, holding the multiplier a seat's damage carries against each other seat.</summary>
         </member>
         <member name="T:Realm.Ecs.ComponentMask">
             <summary>
@@ -2812,6 +2907,12 @@
         <member name="F:Realm.Ecs.EcsSharedMemory.PLAYER_ROSTER_SLOTS_OFFSET">
             <summary>Offset to the per-player roster slots, one for every player slot the lobby may seat.</summary>
         </member>
+        <member name="F:Realm.Ecs.EcsSharedMemory.UNIT_CHARGES_OFFSET">
+            <summary>Offset to the entity charges array, which is placed after the lobby's tables so adding it moved nothing.</summary>
+        </member>
+        <member name="F:Realm.Ecs.EcsSharedMemory.PLAYER_DAMAGE_EFFECTIVENESS_OFFSET">
+            <summary>Offset to the per-player damage effectiveness tables, placed after the charges array.</summary>
+        </member>
         <member name="F:Realm.Ecs.EcsSharedMemory.TOTAL_SIZE_BYTES">
             <summary>Total byte capacity of the contiguous shared memory block.</summary>
         </member>
@@ -2906,6 +3007,12 @@
         </member>
         <member name="P:Realm.Ecs.EcsSharedMemory.PlayerPopulation">
             <summary>Gets the raw pointer to the player population limits array.</summary>
+        </member>
+        <member name="P:Realm.Ecs.EcsSharedMemory.UnitCharges">
+            <summary>Gets the raw pointer to the unit charges array.</summary>
+        </member>
+        <member name="P:Realm.Ecs.EcsSharedMemory.PlayerDamageEffectiveness">
+            <summary>Gets the raw pointer to the per-player damage effectiveness tables.</summary>
         </member>
         <member name="P:Realm.Ecs.EcsSharedMemory.RandomSeed">
             <summary>
@@ -3422,6 +3529,54 @@
             Formats the loot item identifier as a string.
             </summary>
             <returns>A string representation of the loot item identifier.</returns>
+        </member>
+        <member name="T:Realm.Ecs.MatchOption">
+            <summary>
+                A parameter a lobby's host may set for the match it is about to start. Every option names a value the game's own
+                formulas already read, so a host changes how much of something a match allows without selecting a different ruleset.
+            </summary>
+        </member>
+        <member name="F:Realm.Ecs.MatchOption.MaximumPlayers">
+            <summary>How many players the lobby seats, which is also the ceiling on the seats a map fills.</summary>
+        </member>
+        <member name="F:Realm.Ecs.MatchOption.MaximumBuildingDraftCount">
+            <summary>How many building options a draft offers at once.</summary>
+        </member>
+        <member name="F:Realm.Ecs.MatchOption.MaximumUniqueBuildingInstances">
+            <summary>How many unique instances of one building a player may own.</summary>
+        </member>
+        <member name="F:Realm.Ecs.MatchOption.ShroudMode">
+            <summary>Whether vision is limited to sight ranges, and which of the two shroud modes applies.</summary>
+        </member>
+        <member name="F:Realm.Ecs.MatchOption.MirroredAutoDraft">
+            <summary>Whether every player draws the same heroes and the same building options.</summary>
+        </member>
+        <member name="F:Realm.Ecs.MatchOption.OpenPoolDrafting">
+            <summary>Whether a drafted building stays in the deck instead of leaving it when taken.</summary>
+        </member>
+        <member name="F:Realm.Ecs.MatchOption.CapacityMultiplierPercent">
+            <summary>The percentage every player's capacity ceiling is multiplied by.</summary>
+        </member>
+        <member name="F:Realm.Ecs.MatchOption.ChargeMultiplierPercent">
+            <summary>The percentage every player's maximum charges is multiplied by.</summary>
+        </member>
+        <member name="T:Realm.Ecs.MatchShroudMode">
+            <summary>
+                How much of the world a match shows. A lobby's host may override the mode the map states, and
+                <see cref="F:Realm.Ecs.MatchShroudMode.FromMap" /> is the absence of an override rather than a mode of its own.
+            </summary>
+        </member>
+        <member name="F:Realm.Ecs.MatchShroudMode.FromMap">
+            <summary>Leaves the mode to the map, which is what a lobby that was not told anything plays.</summary>
+        </member>
+        <member name="F:Realm.Ecs.MatchShroudMode.Revealed">
+            <summary>Shows the whole board to every player.</summary>
+        </member>
+        <member name="F:Realm.Ecs.MatchShroudMode.VisionShroud">
+            <summary>Shows what a player's units can see, on ground the player has not walked.</summary>
+        </member>
+        <member name="F:Realm.Ecs.MatchShroudMode.ExplorationShroud">
+            <summary>Shows what a player's units can see, on ground the player has not explored.</summary>
         </member>
         <member name="T:Realm.Ecs.PlayerId">
             <summary>
@@ -4073,6 +4228,26 @@
         <member name="P:Realm.Ecs.UnitId.Experience">
             <summary>
             Gets or sets the experience points accumulated by the hero unit.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.UnitId.Charges">
+            <summary>
+            Gets the number of charges the unit holds right now, which is zero when it holds none.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.UnitId.MaximumCharges">
+            <summary>
+            Gets the greatest number of charges the unit may hold, which is zero when it holds none.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.UnitId.ChargeRechargeSeconds">
+            <summary>
+            Gets the seconds the unit takes to regain one charge, which is zero when it holds none.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.UnitId.ChargeRechargeRemainingSeconds">
+            <summary>
+            Gets the seconds left until the unit regains its next charge, which is zero when it already holds all it may.
             </summary>
         </member>
         <member name="P:Realm.Ecs.UnitId.Scale">

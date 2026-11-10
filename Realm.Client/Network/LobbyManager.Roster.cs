@@ -43,7 +43,7 @@ public partial class LobbyManager
 			int difficulty = isComputer
 				? (int)LobbyBotDifficultyRules.Clamp((int)player.Difficulty)
 				: (int)LobbyBotDifficultyRules.Default;
-			seats.Add(new MatchRosterSeat(player.Slot, player.AccountId, player.Name, ResolveSeatTeam(player.Team, player.Slot), player.Team, isComputer, difficulty));
+			seats.Add(new MatchRosterSeat(player.Slot, player.AccountId, player.Name, ResolveSeatTeam(player.Team, player.Slot), player.Team, isComputer, difficulty, player.Faction));
 		}
 
 		seats.Sort((left, right) => left.Slot.CompareTo(right.Slot));

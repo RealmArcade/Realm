@@ -17,6 +17,7 @@ public class MapSaveData
 	public float? CameraBoundsBottom { get; set; }
 	public string? SkyboxPath { get; set; }
 	public List<CoordinateSaveData>? Coordinates { get; set; }
+	public List<SpawnAnchorSaveData>? SpawnAnchors { get; set; }
 
 	public static string GenerateJsonSchema()
 	{

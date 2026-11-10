@@ -7,10 +7,11 @@ using Realm.Ecs;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Core;
 using Realm.Shared.Network;
+using Realm.Shared.Simulation;
 
 namespace Realm.Shared.Maps;
 
-public readonly record struct MatchRosterSeat(int Slot, long AccountId, string Name, int Team, string TeamName, bool IsComputer, int Difficulty = (int)LobbyBotDifficulty.Hard);
+public readonly record struct MatchRosterSeat(int Slot, long AccountId, string Name, int Team, string TeamName, bool IsComputer, int Difficulty = (int)LobbyBotDifficulty.Hard, string Faction = "");
 
 public static class MatchRoster
 {
@@ -30,7 +31,8 @@ public static class MatchRoster
 			Team = 0,
 			Name = "Neutral",
 			KillCount = 0,
-			TeamNameStringId = StringRegistry.GetOrAdd("Neutral")
+			TeamNameStringId = StringRegistry.GetOrAdd("Neutral"),
+			Faction = string.Empty
 		};
 
 		for (int index = 1; index < EcsWorld.MAX_PLAYERS; index++)
@@ -45,7 +47,8 @@ public static class MatchRoster
 				Team = index,
 				Name = $"Player {index}",
 				KillCount = 0,
-				TeamNameStringId = StringRegistry.GetOrAdd($"Team {index}")
+				TeamNameStringId = StringRegistry.GetOrAdd($"Team {index}"),
+				Faction = string.Empty
 			};
 		}
 
@@ -77,6 +80,7 @@ public static class MatchRoster
 			players[seat.Slot].IsComputer = seat.IsComputer;
 			players[seat.Slot].Team = seat.Team;
 			players[seat.Slot].TeamNameStringId = StringRegistry.GetOrAdd(teamName);
+			players[seat.Slot].Faction = seat.Faction ?? string.Empty;
 		}
 	}
 
@@ -93,14 +97,29 @@ public static class MatchRosterFile
 {
 	public const string FileSuffix = ".roster.txt";
 
-	private const string Header = "realm-match-roster 3";
+	private const string Header = "realm-match-roster 5";
+	private const string OptionsSection = "options";
 	private const char Separator = '\t';
-	private const int ColumnCount = 7;
+	private const int ColumnCount = 8;
 
-	public static void Write(string path, IReadOnlyList<MatchRosterSeat> seats)
+	public static void Write(string path, IReadOnlyList<MatchRosterSeat> seats, MatchOptionSet? matchOptions = null)
 	{
 		var builder = new StringBuilder();
 		builder.Append(Header).Append('\n');
+
+		builder.Append(OptionsSection);
+		if (matchOptions != null)
+		{
+			MatchOptionValue[] values = matchOptions.ToValues();
+			Array.Sort(values, static (left, right) => left.Option.CompareTo(right.Option));
+
+			for (int index = 0; index < values.Length; index++)
+			{
+				builder.Append(Separator).Append((int)values[index].Option).Append('=').Append(values[index].Value);
+			}
+		}
+
+		builder.Append('\n');
 
 		for (int index = 0; index < seats.Count; index++)
 		{
@@ -111,7 +130,8 @@ public static class MatchRosterFile
 			builder.Append(seat.Team.ToString(CultureInfo.InvariantCulture)).Append(Separator);
 			builder.Append(Sanitize(seat.TeamName)).Append(Separator);
 			builder.Append(seat.IsComputer ? '1' : '0').Append(Separator);
-			builder.Append(seat.Difficulty.ToString(CultureInfo.InvariantCulture)).Append('\n');
+			builder.Append(seat.Difficulty.ToString(CultureInfo.InvariantCulture)).Append(Separator);
+			builder.Append(Sanitize(seat.Faction)).Append('\n');
 		}
 
 		string? directory = Path.GetDirectoryName(Path.GetFullPath(path));
@@ -119,9 +139,10 @@ public static class MatchRosterFile
 		File.WriteAllText(path, builder.ToString());
 	}
 
-	public static bool TryRead(string path, out MatchRosterSeat[] seats, out string error)
+	public static bool TryRead(string path, out MatchRosterSeat[] seats, out MatchOptionSet matchOptions, out string error)
 	{
 		seats = Array.Empty<MatchRosterSeat>();
+		matchOptions = new MatchOptionSet();
 		error = string.Empty;
 
 		string[] lines;
@@ -141,8 +162,34 @@ public static class MatchRosterFile
 			return false;
 		}
 
-		var parsed = new List<MatchRosterSeat>(lines.Length - 1);
-		for (int index = 1; index < lines.Length; index++)
+		string[] optionColumns = lines.Length < 2 ? Array.Empty<string>() : lines[1].Split(Separator);
+		if (optionColumns.Length == 0 || !string.Equals(optionColumns[0], OptionsSection, StringComparison.Ordinal))
+		{
+			error = $"the match roster '{path}' does not state the match options on its second line.";
+			return false;
+		}
+
+		for (int column = 1; column < optionColumns.Length; column++)
+		{
+			string entry = optionColumns[column];
+			int separator = entry.IndexOf('=');
+			if (separator <= 0 || !int.TryParse(entry[..separator], NumberStyles.Integer, CultureInfo.InvariantCulture, out int option)
+				|| !Enum.IsDefined(typeof(MatchOption), option)
+				|| !int.TryParse(entry[(separator + 1)..], NumberStyles.Integer, CultureInfo.InvariantCulture, out int value))
+			{
+				error = $"the match roster '{path}' states the option '{entry}', which is not one an option and a value.";
+				return false;
+			}
+
+			if (!matchOptions.Set((MatchOption)option, value))
+			{
+				error = $"the match roster '{path}' states the option '{entry}', which the match could not play.";
+				return false;
+			}
+		}
+
+		var parsed = new List<MatchRosterSeat>(lines.Length - 2);
+		for (int index = 2; index < lines.Length; index++)
 		{
 			string line = lines[index];
 			if (line.Length == 0) continue;
@@ -176,7 +223,7 @@ public static class MatchRosterFile
 				return false;
 			}
 
-			parsed.Add(new MatchRosterSeat(slot, accountId, columns[2], team, columns[4], columns[5][0] == '1', difficulty));
+			parsed.Add(new MatchRosterSeat(slot, accountId, columns[2], team, columns[4], columns[5][0] == '1', difficulty, columns[7]));
 		}
 
 		seats = parsed.ToArray();

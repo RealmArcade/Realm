@@ -26,6 +26,16 @@ public partial interface IGameAPI
 	event Action<UnitId, UnitId, float>? OnUnitDamaged;
 
 	/// <summary>
+	/// Triggered when a unit is hit, passing the damage the blow carried before the victim's resistances reduced it.
+	/// </summary>
+	/// <remarks>
+	/// A rule that weighs how much a side is contributing to a fight reads this rather than
+	/// <see cref="OnUnitDamaged" />, because damage that lands is what the victim's armour and magic resistance decide
+	/// and would let a heavily armoured target absorb participation. Both events describe the same blow, this one first.
+	/// </remarks>
+	event Action<UnitId, UnitId, float>? OnUnitDamagedBeforeMitigation;
+
+	/// <summary>
 	/// Triggered when a unit casts or channels a spell. Passes the caster unit, the spell ID, and the target position.
 	/// </summary>
 	event Action<UnitId, string, Vector3>? OnSpellCast;

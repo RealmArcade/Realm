@@ -135,6 +135,14 @@ namespace Realm.Ecs.Services
 		///     Runs damage through the entity's absorb pools before health. Called by every damage
 		///     source, so a shield is worth the same against an attack, a splash, a spell or an ability.
 		/// </summary>
+		private float ResolveDamageEffectiveness(Entity attacker, Entity target)
+		{
+			if (DamageEffectivenessProvider == null) return 1f;
+
+			float effectiveness = DamageEffectivenessProvider(attacker, target);
+			return float.IsFinite(effectiveness) && effectiveness >= 0f ? effectiveness : 1f;
+		}
+
 		private float AbsorbDamage(Entity entity, float damage)
 		{
 			if (damage <= 0f) return 0f;
@@ -164,13 +172,14 @@ namespace Realm.Ecs.Services
 
 		private void ApplyResolvedDamage(Entity entity, ref Health hp, float finalDamage, Entity casterEntity)
 		{
-			finalDamage = AbsorbDamage(entity, finalDamage);
-			if (finalDamage <= 0f) return;
+			float effectiveness = ResolveDamageEffectiveness(casterEntity, entity);
+			float scaledDamage = AbsorbDamage(entity, finalDamage * effectiveness);
+			if (scaledDamage <= 0f) return;
 
-			float newHp = Math.Max(0, hp.Current - finalDamage);
+			float newHp = Math.Max(0, hp.Current - scaledDamage);
 			if (HasAuthority) hp.Current = newHp;
 
-			OnUnitDamagedCallback?.Invoke(entity, casterEntity, finalDamage);
+			OnUnitDamagedCallback?.Invoke(entity, casterEntity, scaledDamage, finalDamage * effectiveness);
 
 			if (HasAuthority && newHp <= 0) _aoeKillList.Add(entity);
 			else OnDamageFlashRequested?.Invoke(entity);

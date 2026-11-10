@@ -124,6 +124,12 @@ public partial class MapEditorHUD
 		host.EditorHasUnsavedChanges = false;
 		InvalidateMetadataCache();
 
+		if (!ApplyMapReferencesOnSave(GameContext.EditorService._editingDirectory))
+		{
+			SetWasmConsoleStatus("❌ Referenced maps could not be applied", new Color(1.0f, 0.3f, 0.3f));
+			return;
+		}
+
 		await GameContext.MapHistoryService.CreateVersionAsync(
 			GameContext.EditorService._editingDirectory,
 			MapVersionKind.BeforePlaytest,

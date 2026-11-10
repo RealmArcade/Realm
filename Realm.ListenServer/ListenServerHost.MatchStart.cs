@@ -33,7 +33,7 @@ public partial class ListenServerHost
 			MarkStartStage("map loaded");
 			var paths = ServerMatchPaths.From(_arguments);
 			int hostPlayerSlot = ResolveLobbyHostPlayerSlot(assignments);
-			_simulation = new ServerSimulation(worldOwnedHere, paths, _log, seed, _arguments.Cheats, _arguments.WasmDebug, _arguments.WorkspacePath, roster, hostPlayerSlot, preparedScriptHost);
+			_simulation = new ServerSimulation(worldOwnedHere, paths, _log, seed, _arguments.Cheats, _arguments.WasmDebug, _arguments.WorkspacePath, roster, hostPlayerSlot, preparedScriptHost, matchOptions: _lobby?.MatchOptions);
 			preparedScriptHost = null;
 			if (hostPlayerSlot > 0) _log.Write($"player slot {hostPlayerSlot} hosts this match: its seat is the one that administered the lobby");
 
@@ -132,11 +132,12 @@ public partial class ListenServerHost
 		return 0;
 	}
 
-	private MatchRosterSeat[] ReadRoster()
+	private MatchRosterSeat[] ReadRoster(out MatchOptionSet matchOptions)
 	{
+		matchOptions = new MatchOptionSet();
 		if (string.IsNullOrWhiteSpace(_arguments.RosterPath)) return Array.Empty<MatchRosterSeat>();
 
-		if (!MatchRosterFile.TryRead(_arguments.RosterPath, out MatchRosterSeat[] roster, out string error))
+		if (!MatchRosterFile.TryRead(_arguments.RosterPath, out MatchRosterSeat[] roster, out matchOptions, out string error))
 		{
 			throw new InvalidDataException(error);
 		}
@@ -150,6 +151,7 @@ public partial class ListenServerHost
 		}
 
 		_log.Write($"the match was started for {people} player(s) and {computers} computer(s) on the roster");
+		if (!matchOptions.IsEmpty) _log.Write($"the roster states {matchOptions.Count} match option(s), which the match plays instead of the map's own defaults");
 		return roster;
 	}
 

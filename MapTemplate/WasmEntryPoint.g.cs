@@ -8,6 +8,7 @@
 namespace GameClientWorld;
 
 using System;
+using System.Collections.Generic;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using Realm.Ecs;
@@ -62,15 +63,16 @@ public class WasmEntryPoint
     {
         if (_mapScript != null) return;
 
+        var candidates = new List<Type>();
         foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
         {
             try
             {
                 foreach (var type in assembly.GetTypes())
                 {
-                    if ((typeof(IWasmModule).IsAssignableFrom(type) || typeof(IMapScript).IsAssignableFrom(type)) && !type.IsInterface && !type.IsAbstract)
+                    if (typeof(IMapScript).IsAssignableFrom(type) && !type.IsInterface && !type.IsAbstract)
                     {
-                        _mapScript = (IMapScript)Activator.CreateInstance(type)!;
+                        candidates.Add(type);
                     }
                 }
             }
@@ -79,6 +81,40 @@ public class WasmEntryPoint
                 _gameApi?.BroadcastMessage($"Error loading types from {assembly.GetName().Name}: {ex.Message}");
             }
         }
+
+        _mapScript = SelectEntryScript(candidates);
+    }
+
+    private static IMapScript? SelectEntryScript(List<Type> candidates)
+    {
+        foreach (var type in candidates)
+        {
+            if (type.Namespace == "Realm.Maps" && type.Name == "MapScript")
+            {
+                return (IMapScript)Activator.CreateInstance(type)!;
+            }
+        }
+
+        if (candidates.Count == 1)
+        {
+            return (IMapScript)Activator.CreateInstance(candidates[0])!;
+        }
+
+        if (candidates.Count == 0)
+        {
+            _gameApi?.BroadcastMessage("Error: No WasmModule class implementing IWasmModule was found in any assembly!");
+            return null;
+        }
+
+        var names = new System.Text.StringBuilder();
+        foreach (var type in candidates)
+        {
+            if (names.Length > 0) names.Append(", ");
+            names.Append(type.FullName);
+        }
+
+        _gameApi?.BroadcastMessage($"Error: this map declares more than one script and none of them is Realm.Maps.MapScript, so there is no entry to run: {names}");
+        return null;
     }
 
     [UnmanagedCallersOnly(EntryPoint = "initialize")]
@@ -291,6 +327,12 @@ public class WasmEntryPoint
     public static void OnUnitDamaged(int param1, int param2, float amount)
     {
         if (_gameApi is GameAPI_WasmModule api) api.TriggerOnUnitDamaged(param1, param2, amount);
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "on-unit-damaged-before-mitigation")]
+    public static void OnUnitDamagedBeforeMitigation(int param1, int param2, float amount)
+    {
+        if (_gameApi is GameAPI_WasmModule api) api.TriggerOnUnitDamagedBeforeMitigation(param1, param2, amount);
     }
 
     [UnmanagedCallersOnly(EntryPoint = "on-unit-died")]

@@ -440,6 +440,7 @@ public partial class EditorService : IEditorAPI
 
 	public EditorDecalAssets Decals { get; } = new();
 	public List<EditorCoordinate> EditorCoordinates { get; set; } = new();
+	public List<EditorSpawnAnchor> EditorSpawnAnchors { get; set; } = new();
 	public bool ModelYOffsetSavePending { get; set; } = false;
 	public bool ModelCollisionCircleSavePending { get; set; } = false;
 	public readonly Dictionary<string, string> NormalizedAssetKeyCache = new(StringComparer.OrdinalIgnoreCase);
@@ -709,6 +710,26 @@ public partial class EditorService : IEditorAPI
 		GameContext.Host?.SelectCoordinateExternal(name);
 	}
 
+	public EditorOperationResult CommitSpawnAnchor(int player, int minCellX, int minCellZ, int maxCellX, int maxCellZ)
+	{
+		if (GameContext.Host == null) return EditorOperationResult.Failed("No map is open in the editor.");
+
+		return GameContext.Host.CommitSpawnAnchorExternal(player, minCellX, minCellZ, maxCellX, maxCellZ);
+	}
+
+	public EditorOperationResult DeleteSpawnAnchor(int player)
+	{
+		if (GameContext.Host == null) return EditorOperationResult.Failed("No map is open in the editor.");
+
+		return GameContext.Host.DeleteSpawnAnchorExternal(player);
+	}
+
+	public EditorOperationResult SelectSpawnAnchor(int player)
+	{
+		if (GameContext.Host == null) return EditorOperationResult.Failed("No map is open in the editor.");
+
+		return GameContext.Host.SelectSpawnAnchorExternal(player);
+	}
 
 	public void RequestOpenFromCasDomain(string casSourceDirectory, string? defaultSaveFolder)
 	{
@@ -920,6 +941,20 @@ public partial class EditorService : IEditorAPI
 		var loadedCoordinates = GameContext.SaveLoadService.GetLastLoadedCoordinates();
 		EditorCoordinates.Clear();
 		EditorCoordinates.AddRange(loadedCoordinates.Select(r => new EditorCoordinate { Name = r.Name, MinX = r.MinX, MinZ = r.MinZ, MaxX = r.MaxX, MaxZ = r.MaxZ }));
+
+		var loadedAnchors = GameContext.SaveLoadService.GetLastLoadedSpawnAnchors();
+		EditorSpawnAnchors.Clear();
+		EditorSpawnAnchors.AddRange(loadedAnchors.Select(r => new EditorSpawnAnchor { Player = r.Player, PositionX = r.PosX, PositionZ = r.PosZ }));
+	}
+
+	public EditorSpawnAnchor? FindSpawnAnchor(int player)
+	{
+		for (int index = 0; index < EditorSpawnAnchors.Count; index++)
+		{
+			if (EditorSpawnAnchors[index].Player == player) return EditorSpawnAnchors[index];
+		}
+
+		return null;
 	}
 
 	public string NormalizeModelAssetKey(string pathOrId)

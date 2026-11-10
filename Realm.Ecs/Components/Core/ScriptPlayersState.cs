@@ -98,4 +98,12 @@ public struct ScriptPlayersState
 
 		Slots[playerIndex].KillCount = kills;
 	}
+
+	public void SetFaction(int playerIndex, string? faction)
+	{
+		if (!IsValidSlot(playerIndex)) return;
+
+		Slots[playerIndex].Faction = faction ?? string.Empty;
+	}
+
 }

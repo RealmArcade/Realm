@@ -302,7 +302,17 @@ namespace Realm.Ecs.Services
 
 		public Action<Entity>? OnHealFlashRequested;
 
-		public Action<Entity, Entity, float>? OnUnitDamagedCallback;
+		/// <summary>
+		///     Called with (victim, attacker, dealt damage, damage before the victim's mitigation), so a rule can weigh what
+		///     was swung rather than what landed.
+		/// </summary>
+		public Action<Entity, Entity, float, float>? OnUnitDamagedCallback;
+
+		/// <summary>
+		///     Answers the multiplier this hit's damage carries, which is how a rule scales one seat's damage against
+		///     another. A null provider, or a provider answering zero for a pair, leaves the damage as resolved.
+		/// </summary>
+		public Func<Entity, Entity, float>? DamageEffectivenessProvider;
 
 		public Action<Entity, Entity, float>? OnUnitHealedCallback;
 

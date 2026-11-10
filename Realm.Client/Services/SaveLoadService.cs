@@ -31,6 +31,7 @@ namespace Realm.Client.Services;
 public class SaveLoadService
 {
 	private List<CoordinateSaveData> _lastLoadedCoordinates = new();
+	private List<SpawnAnchorSaveData> _lastLoadedSpawnAnchors = new();
 
 	public bool IsLoadingMap { get; set; }
 
@@ -119,6 +120,8 @@ public class SaveLoadService
 	}
 
 	public List<CoordinateSaveData> GetLastLoadedCoordinates() => _lastLoadedCoordinates;
+
+	public List<SpawnAnchorSaveData> GetLastLoadedSpawnAnchors() => _lastLoadedSpawnAnchors;
 
 	private void UpdateEntityTransforms(Entity entity, Vector3? position, float rotationY, float scale)
 	{
@@ -260,6 +263,13 @@ public class SaveLoadService
 		}
 	}
 
+	/// <summary>
+	///     Carries the placements the editor does not author into the terrain it is about to write: the neutral objective
+	///     site declarations the board holds. The file is rewritten whole, so anything the save does not read back from
+	///     disk is lost, and a site belongs to the board rather than to a script.
+	/// </summary>
+	/// <param name="saveData">The terrain being written.</param>
+	/// <param name="absolutePath">The terrain file the map currently holds.</param>
 	private static TerrainCell[,]? CloneTerrainCells(TerrainCell[,]? cells)
 	{
 		return cells == null ? null : (TerrainCell[,])cells.Clone();
@@ -295,8 +305,22 @@ public class SaveLoadService
 			CameraBoundsTop = editor.CameraBoundsTop,
 			CameraBoundsBottom = editor.CameraBoundsBottom,
 			SkyboxPath = editor.SkyboxPath,
-			Coordinates = coordinatesData ?? new List<CoordinateSaveData>()
+			Coordinates = coordinatesData ?? new List<CoordinateSaveData>(),
+			SpawnAnchors = CopySpawnAnchors(GameContext.EditorService.EditorSpawnAnchors)
 		};
+	}
+
+	private static List<SpawnAnchorSaveData> CopySpawnAnchors(List<EditorSpawnAnchor> anchors)
+	{
+		var saved = new List<SpawnAnchorSaveData>(anchors.Count);
+
+		for (int index = 0; index < anchors.Count; index++)
+		{
+			EditorSpawnAnchor anchor = anchors[index];
+			saved.Add(new SpawnAnchorSaveData { Player = anchor.Player, PosX = anchor.PositionX, PosZ = anchor.PositionZ });
+		}
+
+		return saved;
 	}
 
 	private void PopulateMapSaveData(MapSaveData saveData, string directory, HashSet<Entity>? validDecalEntities)
@@ -586,6 +610,7 @@ public class SaveLoadService
 			GameContext.Host?.LoadModelYOffsetsFromMetadataJson(mapDir);
 
 			_lastLoadedCoordinates = saveData.Coordinates ?? new List<CoordinateSaveData>();
+			_lastLoadedSpawnAnchors = saveData.SpawnAnchors ?? new List<SpawnAnchorSaveData>();
 
 			CleanupOldMapEntities();
 

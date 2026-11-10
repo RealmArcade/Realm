@@ -4,8 +4,10 @@ using MemoryPack;
 using Realm.Shared.Distribution;
 using Realm.Shared.Maps;
 using Realm.Shared.Network;
+using Realm.Ecs;
 using Realm.Shared.Players;
 using Realm.Shared.Services;
+using Realm.Shared.Simulation;
 
 namespace Realm.ListenServer;
 
@@ -55,6 +57,11 @@ public partial class ServerLobby
 			case LobbyCommandKind.SetComputerDifficulty:
 				if (!RequireAdmin(peerId, isAdmin, out _, "change a computer player's difficulty")) return;
 				SetComputerDifficulty(command.TargetPeerId, command.Progress);
+				break;
+			case LobbyCommandKind.SetMatchOption:
+				if (!RequireAdmin(peerId, isAdmin, out _, "change the match settings")) return;
+				if (!Enum.IsDefined(typeof(MatchOption), command.Option)) return;
+				TrySetMatchOption((MatchOption)command.Option, command.OptionValue);
 				break;
 			case LobbyCommandKind.ReportMapReady:
 				ReportMapReady(sender, command.Flag);
