@@ -77,19 +77,24 @@ public partial class ListenServerHost
 		// A repair answered once is not asked for again on every answer that still reports the same hole: the
 		// description is already on its way, and asking again each time spent the request budget on nothing.
 		long tick = simulation.TickCount;
+		int oldestMissingSequence = missingCount > 0 ? missingSequences[missingCount - 1] : 0;
+
+		// An acknowledgement describes the world a whole round trip ago, so the holes it still reports are usually the
+		// ones the peer has since asked for by name. Answering each of them again puts descriptions on the reliable
+		// stream that the peer already holds, and on a slow link that queue is what every description behind it waits on.
 		if (_lastRepairSentTickPerPeer.TryGetValue(peerId, out long lastRepairTick) && tick - lastRepairTick < RepairCooldownTicks) return;
 
 		if (missingBits <= SnapshotFrameRing.Capacity && TryResendMissingDescriptions(peerId, missingSequences.Slice(0, missingCount)))
 		{
-			_lastRepairSentTickPerPeer[peerId] = tick;
+			RecordRepairSent(peerId, oldestMissingSequence, tick);
 			_log.Write($"peer {peerId} is missing {missingBits} description(s); the missing ones are sent again");
 			return;
 		}
 
 		if (!TryClaimBaselineRequest(peerId, tick)) return;
 
+		LagProbe.Count(LagEvent.AuthorityBaselinesBecauseAcknowledgementMissed);
 		simulation.RequestBaseline(peerId);
-		_log.Write($"peer {peerId} is missing a description this match no longer holds; it is described from scratch");
 	}
 
 	private void LogAcknowledgedSequence(int peerId, in SnapshotAck ack)
@@ -109,6 +114,12 @@ public partial class ListenServerHost
 	/// </summary>
 	private bool IsRefreshDue(int peerId, long tick)
 	{
+		// A peer that has not answered once is not a peer that has stopped answering: it is a screen that is still
+		// loading the world it was handed, and it cannot acknowledge until it has applied something. Counting that load
+		// as a stall described the whole world to every screen joining in turn, once a second for as long as it loaded,
+		// which is where both the baseline traffic and the delay of joining came from.
+		if (!_acknowledgedSequencePerPeer.ContainsKey(peerId)) return false;
+
 		return _lastAcknowledgedProgressTickPerPeer.TryGetValue(peerId, out long lastProgressTick) && tick - lastProgressTick >= SnapshotRefreshStallTicks;
 	}
 
@@ -161,6 +172,8 @@ public partial class ListenServerHost
 	private const long RepairCooldownTicks = MatchTiming.SnapshotRepairCooldownTicks;
 
 	private readonly Dictionary<int, long> _lastRepairSentTickPerPeer = new();
+
+	private readonly Dictionary<int, int> _lastRepairFirstSequencePerPeer = new();
 
 	private long _unreliableSnapshotCount;
 	private long _reliableSnapshotCount;

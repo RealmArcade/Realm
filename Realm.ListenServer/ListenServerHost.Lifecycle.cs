@@ -57,6 +57,7 @@ public partial class ListenServerHost
 
 		_scriptLogSink = _log.Write;
 		WasmScriptHost.OnWasmLog += _scriptLogSink;
+		LagProbe.TryEnableFromEnvironment("authority");
 
 		MatchRosterSeat[] roster = ReadRoster();
 		LoadedMap map = MapWorldLoader.Load(_arguments.MapPath, roster);
@@ -66,6 +67,7 @@ public partial class ListenServerHost
 			var paths = ServerMatchPaths.From(_arguments);
 			_simulation = new ServerSimulation(map, paths, _log, _arguments.Seed, _arguments.Cheats, _arguments.WasmDebug, _arguments.WorkspacePath, roster, _arguments.Cheats ? 1 : 0);
 			MarkStartStage("simulation built");
+			WarmSnapshotFraming();
 			_simulation.PeerDropped += DisconnectPeer;
 			_log.Write($"map '{paths.MapName}' keeps its saved data under '{_simulation.MapSavedDataDirectory()}'");
 			_log.Write(_simulation.Describe());

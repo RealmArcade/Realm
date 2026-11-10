@@ -13,6 +13,7 @@ using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Services;
 using Realm.Shared;
+using Realm.Shared.Diagnostics;
 using Realm.Shared.Maps;
 
 namespace Realm.Client.Testing;
@@ -51,6 +52,8 @@ public partial class MultiplayerSimulationHarness : Node
 	private int _peerCount = 2;
 	private int _peerIndex = 1;
 	private int _botCount;
+	private bool _cheatsEnabled;
+	private bool _unlockTiles;
 	private int _splitUnitsBeforeCommand = -1;
 	private float _dropAtSeconds;
 	private float _pauseAtSeconds;
@@ -95,6 +98,7 @@ public partial class MultiplayerSimulationHarness : Node
 		finally
 		{
 			TryWriteDoneFile();
+			WriteSimulatedLinkStats();
 			if (!_probeOwnsProcess) GetTree().Quit(exitCode);
 		}
 	}
@@ -158,6 +162,12 @@ public partial class MultiplayerSimulationHarness : Node
 				case "--bots":
 					_botCount = int.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
 					break;
+				case "--cheats":
+					_cheatsEnabled = value == "1";
+					break;
+				case "--unlock-tiles":
+					_unlockTiles = value == "1";
+					break;
 				case "--wait-for-peer-ready":
 					_waitForPeerReadyFile = value;
 					break;
@@ -196,7 +206,10 @@ public partial class MultiplayerSimulationHarness : Node
 
 	private void RecordClientPeerId(int peerId)
 	{
-		if (_role != "client" || peerId <= 0 || peerId == _recordedClientPeerId) return;
+		// The host screen is a peer of its own authority as well, and a room's records can only be held against the
+		// descriptions one peer was sent: without this number the verification compares a screen's records against every
+		// peer's baselines and reports a room full of mismatches that the match never had.
+		if (peerId <= 0 || peerId == _recordedClientPeerId) return;
 
 		_recordedClientPeerId = peerId;
 		try
@@ -206,6 +219,43 @@ public partial class MultiplayerSimulationHarness : Node
 		catch (IOException)
 		{
 		}
+	}
+
+	/// <summary>
+	///     Parks this screen's authority and waits for the report it writes as the match ends. It waits for the file rather
+	///     than for the reply alone, because the reply says the match was given up and the report is written after that.
+	/// </summary>
+	private async Task PauseAuthorityAndWaitForItsReportAsync()
+	{
+		string? probeDirectory = System.Environment.GetEnvironmentVariable(LagProbe.OutputDirectoryVariable);
+		if (string.IsNullOrEmpty(probeDirectory)) probeDirectory = _outputDirectory;
+
+		bool paused = await GameContext.LocalAuthority.PauseAsync();
+		string reportPath = Path.Combine(probeDirectory, "lag_authority.json");
+		float deadline = 5f;
+		while (!File.Exists(reportPath) && deadline > 0f)
+		{
+			await ToSignal(GetTree().CreateTimer(0.1f), SceneTreeTimer.SignalName.Timeout);
+			deadline -= 0.1f;
+		}
+
+		GameLog.LogToConsole($"[MP_HARNESS] Authority parked (accepted={paused}); its report {(File.Exists(reportPath) ? "was written" : "was not written")} to '{reportPath}'.");
+	}
+
+	private async Task IssueUnlockTilesAsync()
+	{
+		await ToSignal(GetTree().CreateTimer(2.0f), SceneTreeTimer.SignalName.Timeout);
+		bool sent = GameContext.ServerSession?.SendChat("-unlockTiles", false) ?? false;
+		GameLog.LogToConsole($"[MP_HARNESS] Asked the map to unlock every tile (sent={sent}) so every seat drafts without waiting for the food cap.");
+		await ToSignal(GetTree().CreateTimer(1.0f), SceneTreeTimer.SignalName.Timeout);
+	}
+
+	private void WriteSimulatedLinkStats()
+	{
+		ClientNetworkChannel? channel = GetNodeOrNull<ClientNetworkChannel>("/root/RealmNetwork");
+		if (channel == null) return;
+
+		channel.SimulatedLink.WriteStatistics(Path.Combine(_outputDirectory, "simulated_link.txt"));
 	}
 
 	private void TryWriteReadyFile()

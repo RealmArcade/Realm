@@ -13,6 +13,7 @@ using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Services;
 using Realm.Shared;
+using Realm.Shared.Diagnostics;
 using Realm.Shared.Maps;
 
 namespace Realm.Client.Testing;
@@ -54,7 +55,7 @@ public partial class MultiplayerSimulationHarness : Node
 		GameLog.LogToConsole($"[MP_HARNESS] The authority is listening on port {session.Port}; this process plays as one of its clients.");
 		if (!string.IsNullOrEmpty(_listeningFile)) File.WriteAllText(_listeningFile, session.Port.ToString(System.Globalization.CultureInfo.InvariantCulture));
 
-		int expectedClientCount = Math.Max(1, _peerCount - 1);
+		int expectedClientCount = Math.Max(0, _peerCount - 1);
 		bool clientsSeated = await WaitUntilAsync(() => CountSeatedPeers(session) >= expectedClientCount + 1, 240f);
 		if (!clientsSeated)
 		{
@@ -69,6 +70,7 @@ public partial class MultiplayerSimulationHarness : Node
 		if (!string.IsNullOrEmpty(_clientBuildId)) IssueClientBuildRequest(gameHost);
 
 		double matchStartGameTime = await WaitForClientsToStartAsync(gameHost);
+		if (_unlockTiles) await IssueUnlockTilesAsync();
 		bool finished = false;
 		ulong simulationDeadline = Time.GetTicksMsec() + (ulong)((_durationSeconds * 4f + 120f) * 1000f);
 		while (Time.GetTicksMsec() < simulationDeadline)
@@ -91,12 +93,18 @@ public partial class MultiplayerSimulationHarness : Node
 			await ToSignal(GetTree().CreateTimer(_drainMilliseconds / 1000f), SceneTreeTimer.SignalName.Timeout);
 		}
 
+		// The authority writes what it measured as the match ends, so it has to be parked before this process exits: a
+		// child authority that is killed with its parent takes the tick and publish numbers of the whole run with it.
+		await PauseAuthorityAndWaitForItsReportAsync();
+
 		_hardeningFailureCount = MultiplayerHardeningChecks.Run(_outputDirectory, true, _session?.LogPath ?? string.Empty);
 
 		_finalSequence = ResolveSnapshotSequence();
 		MultiplayerBandwidthMeter.WriteReport(_outputDirectory, gameHost.GameElapsedTime);
+		WriteSimulatedLinkStats();
 		GameLog.LogToConsole($"[MP_HARNESS] Host finished at game time {gameHost.GameElapsedTime:F2}s with {gameHost.AllUnits.Count} units and snapshot sequence {_finalSequence}.");
 		MultiplayerSyncDiagnostics.Stop();
+		LagProbe.WriteReport();
 		WriteFinalWorldSnapshot("ECS_host_final_full.bin");
 		WriteWorldSummary("world_summary_host.json", "host");
 		return 0;
@@ -115,9 +123,13 @@ public partial class MultiplayerSimulationHarness : Node
 			Path.Combine(_outputDirectory, "listen_server"),
 			_outputDirectory,
 			LocalizationManager.GetCurrentLanguageCode(),
+			Cheats: _cheatsEnabled,
 			OpenToOthers: true,
 			Roster: BuildHarnessRoster(),
-			AuthorityRecordDirectory: _outputDirectory);
+			AuthorityRecordDirectory: _outputDirectory,
+			LoopbackOnly: true);
+
+		GameLog.LogToConsole($"[MP_HARNESS] This screen's link to the authority is simulated at {SimulatedLink.FromEnvironment().Describe()}.");
 
 		MatchStartResult started = await session.TryStartAsync(start, _port);
 		if (!started.Started) throw new InvalidOperationException($"The authority could not be started on port {_port}: {started.Failure}");
@@ -183,7 +195,13 @@ public partial class MultiplayerSimulationHarness : Node
 
 	private async Task<double> WaitForClientsToStartAsync(GameHost gameHost)
 	{
-		int expectedClients = Math.Max(1, _peerCount - 1);
+		int expectedClients = Math.Max(0, _peerCount - 1);
+		if (expectedClients == 0)
+		{
+			GameLog.LogToConsole($"[MP_HARNESS] This screen is the only client; the match window starts at its game time {gameHost.GameElapsedTime:F2}s.");
+			return gameHost.GameElapsedTime;
+		}
+
 		float timeoutSeconds = 60f + 90f * expectedClients;
 		ulong deadline = Time.GetTicksMsec() + (ulong)(timeoutSeconds * 1000f);
 		while (Time.GetTicksMsec() < deadline)

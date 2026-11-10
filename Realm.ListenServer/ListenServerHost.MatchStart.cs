@@ -39,6 +39,7 @@ public partial class ListenServerHost
 
 			worldOwnedHere = null;
 			MarkStartStage("simulation built");
+			WarmSnapshotFraming();
 			_simulation.PeerDropped += DisconnectPeer;
 			_log.Write($"map '{paths.MapName}' keeps its saved data under '{_simulation.MapSavedDataDirectory()}'");
 			_log.Write(_simulation.Describe());

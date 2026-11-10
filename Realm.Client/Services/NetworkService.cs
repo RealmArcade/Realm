@@ -20,6 +20,7 @@ using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
 using Realm.Client.UI;
 using Realm.Ecs.Replication;
+using Realm.Shared.Diagnostics;
 using Realm.Shared.Network;
 using HttpClient = System.Net.Http.HttpClient;
 
@@ -290,6 +291,13 @@ public class NetworkService
 
 	public void ApplySnapshotToWorld(WorldSnapshot snapshot)
 	{
+		long applyStarted = LagProbe.IsEnabled ? LagProbe.Timestamp() : 0L;
+		if (LagProbe.IsEnabled)
+		{
+			if (snapshot.IsBaseline) LagProbe.Count(LagEvent.ClientBaselinesApplied);
+			else LagProbe.Count(LagEvent.ClientDeltasApplied);
+		}
+
 		Entity worldEntity = FindWorldEntity();
 		if (worldEntity == Entity.Null || !World.Has<NetworkMappingState>(worldEntity)) return;
 		var mapping = World.Get<NetworkMappingState>(worldEntity);
@@ -327,6 +335,8 @@ public class NetworkService
 			MultiplayerSyncDiagnostics.RecordClientSnapshot(snapshot.IsBaseline);
 		}
 		GameContext.SnapshotApply.Acknowledge(snapshot.Sequence);
+
+		if (applyStarted != 0L) LagProbe.Add(LagStage.ClientApplyMilliseconds, LagProbe.ElapsedMilliseconds(applyStarted));
 	}
 
 	private void RetireUndescribedUnits(WorldSnapshot snapshot, NetworkMappingState mapping)

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Godot;
+using Realm.Shared.Diagnostics;
 using Realm.Shared.Network;
 
 namespace Realm.Client.Services;
@@ -30,16 +31,19 @@ public sealed class SessionFrameQueue
 	/// <summary>
 	///     How many descriptions the ring holds before the oldest is overwritten. A screen with this many waiting has
 	///     stopped reading rather than met a link that is late, and the ones at its front describe a world the ones behind
-	///     them already supersede.
+	///     them already supersede. It is twice the run the match keeps because a repair answer arrives as that whole run
+	///     while the descriptions written since it are already queueing behind it.
 	/// </summary>
-	private const int MaximumQueuedDescriptions = 32;
+	private const int MaximumQueuedDescriptions = MatchTiming.SnapshotHistoryDepth * 2;
 
 	/// <summary>
-	///     How many descriptions may wait to be applied before the older ones are dropped. A queue this deep is a screen
-	///     that stopped reading for a fifth of a second, and the descriptions at its front describe a world the ones behind
-	///     them already supersede.
+	///     How many descriptions may wait to be applied before the older ones are dropped. It is not shorter than the run
+	///     this screen asks the match to send again: the answer to a repair that was one description deep arrives as that
+	///     whole run at once, and a threshold below it dropped most of the run the moment it was answered, which left a
+	///     hole where the repair had just healed one and asked for it again. A screen that has stopped reading for longer
+	///     than this is given the world instead, which is what the apply path already asks for.
 	/// </summary>
-	private const int MaximumQueuedDescriptionsBeforeDiscard = 6;
+	private const int MaximumQueuedDescriptionsBeforeDiscard = MatchTiming.SnapshotHistoryDepth;
 
 	/// <summary>
 	///     Descriptions waiting to be applied, oldest first. They live in a ring because the oldest is dropped whenever a
@@ -141,6 +145,8 @@ public sealed class SessionFrameQueue
 		if (queuedDescriptions <= MaximumQueuedDescriptionsBeforeDiscard) return;
 
 		int toDiscard = queuedDescriptions - MaximumQueuedDescriptionsBeforeDiscard;
+		LagProbe.Count(LagEvent.ClientDescriptionsSuperseded, toDiscard);
+
 		while (toDiscard > 0 && _descriptionCount > 0)
 		{
 			QueuedFrame oldest = _descriptionQueue[_descriptionHead];

@@ -12,6 +12,7 @@ using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Replication;
+using Realm.Shared.Diagnostics;
 using Realm.Shared.Network;
 
 namespace Realm.Client.Services;
@@ -195,7 +196,11 @@ public class SnapshotComponentApplier
 			anUnplaceableChangeWasDropped = true;
 		}
 
-		if (anUnplaceableChangeWasDropped) GameContext.SnapshotApply.RequestBaseline();
+		if (anUnplaceableChangeWasDropped)
+		{
+			LagProbe.Count(LagEvent.ClientBaselinesBecauseUnplaceableChange);
+			GameContext.SnapshotApply.RequestBaseline();
+		}
 	}
 
 	private static void NoteLocalOrderState(Entity localEntity, bool holdsMoveOrder, int sequence)
