@@ -8,10 +8,10 @@ namespace Realm.Client.VFX;
 [GlobalClass]
 public partial class SpellParticleInstance3D : Node3D
 {
-	private GpuParticles3D _particles;
-	private ParticleProcessMaterial _processMaterial;
-	private StandardMaterial3D _billboardMaterial;
-	private QuadMesh _quadMesh;
+	private GpuParticles3D _particles = null!;
+	private ParticleProcessMaterial _processMaterial = null!;
+	private StandardMaterial3D _billboardMaterial = null!;
+	private QuadMesh _quadMesh = null!;
 	private SpellParticleConfig _config = new();
 	private Color _playerColor = Colors.White;
 
@@ -276,7 +276,7 @@ public partial class SpellParticleInstance3D : Node3D
 			? BaseMaterial3D.BlendModeEnum.Add
 			: BaseMaterial3D.BlendModeEnum.Mix;
 
-		Texture2D particleTex = !string.IsNullOrEmpty(_config.ParticleTexture)
+		Texture2D? particleTex = !string.IsNullOrEmpty(_config.ParticleTexture)
 			? VfxShaderManager.LoadTextureSafe(_config.ParticleTexture)
 			: null;
 		_billboardMaterial.AlbedoTexture = particleTex;
@@ -363,12 +363,12 @@ public partial class SpellParticleInstance3D : Node3D
 				}
 			}
 
-			Node node = ModelCache.GetModel(fullPath);
+			Node? node = ModelCache.GetModel(fullPath);
 			if (node != null)
 			{
 				try
 				{
-					Mesh foundMesh = FindFirstMesh(node);
+					Mesh? foundMesh = FindFirstMesh(node);
 					if (foundMesh != null) return foundMesh;
 				}
 				finally
@@ -386,7 +386,7 @@ public partial class SpellParticleInstance3D : Node3D
 		return fallbackBox;
 	}
 
-	private Mesh FindFirstMesh(Node node)
+	private Mesh? FindFirstMesh(Node node)
 	{
 		if (node is MeshInstance3D mi && mi.Mesh != null)
 		{

@@ -38,10 +38,7 @@ public static class UIHelper
 		btn.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
 		btn.AddThemeColorOverride("font_pressed_color", UIStyle.ColorCyanGlow);
 
-		btn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		btn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		btn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyButtonStyleBoxesClearingFocus(btn);
 
 		btn.Pressed += () =>
 		{

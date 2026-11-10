@@ -10,7 +10,7 @@ public class MinimapPanel
 {
 	private Control _minimapArea;
 	private MinimapCameraIndicator _cameraIndicator;
-	private Camera3D _camera3D;
+	private Camera3D? _camera3D;
 	private PanelContainer _minimapFrame;
 	private bool _isRightClickPanning = false;
 	private bool _isLeftClickDragging = false;
@@ -18,7 +18,7 @@ public class MinimapPanel
 	private Vector3 _lastCameraRot;
 	private readonly Vector2[] _cachedMinimapPoints = new Vector2[4];
 
-	public MinimapPanel(PanelContainer minimapFrame, Control minimapArea, MinimapCameraIndicator cameraIndicator, Camera3D camera3D)
+	public MinimapPanel(PanelContainer minimapFrame, Control minimapArea, MinimapCameraIndicator cameraIndicator, Camera3D? camera3D)
 	{
 		_minimapFrame = minimapFrame;
 		_minimapArea = minimapArea;
@@ -173,24 +173,27 @@ public class MinimapPanel
 
 	private void HandleCommandTargeting(Vector3 minimapWorldPos)
 	{
-		string cmd = GameContext.Host.ActiveCommandTargeting;
+		GameHost? host = GameContext.Host;
+		if (host == null) return;
+
+		string? cmd = host.ActiveCommandTargeting;
 		switch (cmd)
 		{
 			case "attack":
-				GameContext.Host.IssueAttackMoveCommand(minimapWorldPos);
+				host.IssueAttackMoveCommand(minimapWorldPos);
 				break;
 			case "move":
-				GameContext.Host.IssueMoveCommand(minimapWorldPos, Input.IsKeyPressed(Key.Shift));
+				host.IssueMoveCommand(minimapWorldPos, Input.IsKeyPressed(Key.Shift));
 				break;
 			case "patrol":
-				GameContext.Host.IssuePatrolCommand(minimapWorldPos);
+				host.IssuePatrolCommand(minimapWorldPos);
 				break;
 			case "rally":
 				HandleRallyCommand(minimapWorldPos);
 				break;
 		}
 
-		GameContext.Host.ClearTargetingModes();
+		host.ClearTargetingModes();
 	}
 
 	private void HandleRallyCommand(Vector3 minimapWorldPos)

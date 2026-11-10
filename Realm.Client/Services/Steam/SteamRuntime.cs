@@ -1,4 +1,5 @@
 using System;
+using System.Threading.Tasks;
 using Godot;
 using Realm.Client.Network;
 using Realm.Client.UI;
@@ -68,7 +69,24 @@ public partial class SteamRuntime : Node
 		JoinInvitedLobbyAsync(invitedLobbyId, inviterName);
 	}
 
+	/// <summary>
+	///     Reached both directly and as a confirmation dialog's callback, so it keeps a void signature. It had no
+	///     catcher: the current lobby is disconnected before the join is awaited, so a fault in the join left the player
+	///     with no lobby, no error popup and nothing in the log.
+	/// </summary>
 	private async void JoinInvitedLobbyAsync(string invitedLobbyId, string inviterName)
+	{
+		try
+		{
+			await JoinInvitedLobbyCoreAsync(invitedLobbyId, inviterName);
+		}
+		catch (Exception exception)
+		{
+			GameLog.LogError($"[SteamRuntime] Joining the invited lobby failed: {exception}");
+		}
+	}
+
+	private async Task JoinInvitedLobbyCoreAsync(string invitedLobbyId, string inviterName)
 	{
 		LobbyManager? lobby = GameContext.Lobby;
 		if (lobby == null) return;

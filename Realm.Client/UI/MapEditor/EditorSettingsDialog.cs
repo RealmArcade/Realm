@@ -19,11 +19,11 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 
 	private EditorPreferencesData _snapshot = new EditorPreferencesData();
 
-	private CheckBox _chkHideChromeBorder;
-	private CheckBox _chkHideHudDuringToolUsage;
+	private CheckBox _chkHideChromeBorder = null!;
+	private CheckBox _chkHideHudDuringToolUsage = null!;
 
-	private HSlider _sldPanelOpacity;
-	private Label _lblPanelOpacity;
+	private HSlider _sldPanelOpacity = null!;
+	private Label _lblPanelOpacity = null!;
 
 
 	public EditorSettingsDialog(MapEditorHUD hud)
@@ -243,7 +243,7 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[EditorSettingsDialog] Load error: {ex.Message}");
+			GameLog.LogError($"[EditorSettingsDialog] Load error: {ex.Message}");
 		}
 	}
 
@@ -252,7 +252,7 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 		try
 		{
 			string fullPath = ProjectSettings.GlobalizePath(SettingsFilePath);
-			string dir = Path.GetDirectoryName(fullPath);
+			string? dir = Path.GetDirectoryName(fullPath);
 			if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
 			{
 				Directory.CreateDirectory(dir);
@@ -263,7 +263,7 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[EditorSettingsDialog] Save error: {ex.Message}");
+			GameLog.LogError($"[EditorSettingsDialog] Save error: {ex.Message}");
 		}
 	}
 }

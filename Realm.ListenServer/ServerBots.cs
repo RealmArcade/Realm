@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using System.Text.Json;
 using Realm.Ecs;
 using Realm.Ecs.AI;
@@ -127,7 +127,7 @@ public class ServerBots
 		if (string.IsNullOrWhiteSpace(genreName)) return;
 
 		IAiGenreProvider genre = AiGenreRegistry.Get(genreName);
-		ConfigureGenre(genre, configJson);
+		ConfigureGenre(genre, configJson, playerIndex);
 
 		if (_controllers.TryGetValue(playerIndex, out BotController? bot))
 		{
@@ -192,7 +192,7 @@ public class ServerBots
 		_customDecisionsPerPlayer.Remove(playerIndex);
 	}
 
-	public static string Train(string mapName, int generations, int populationSize, int matchesPerEvaluation, string genre, int seed)
+	public static string Train(string mapName, int generations, int populationSize, int matchesPerEvaluation, string genre, int seed = 0)
 	{
 		IAiGenreProvider provider = AiGenreRegistry.Get(genre);
 		var trainer = new SelfPlayTrainer();
@@ -265,7 +265,7 @@ public class ServerBots
 		ClearCustomDecisions(playerIndex);
 	}
 
-	private static void ConfigureGenre(IAiGenreProvider genre, string? configJson)
+	private void ConfigureGenre(IAiGenreProvider genre, string? configJson, int playerIndex)
 	{
 		if (string.IsNullOrWhiteSpace(configJson)) return;
 
@@ -274,8 +274,9 @@ public class ServerBots
 			Dictionary<string, string>? parameters = JsonSerializer.Deserialize<Dictionary<string, string>>(configJson);
 			if (parameters != null) genre.ConfigureFromParameters(parameters);
 		}
-		catch (JsonException)
+		catch (JsonException exception)
 		{
+			_log.Write($"player {playerIndex} was given a genre configuration this build cannot read, so the genre keeps its defaults: {exception.Message}");
 		}
 	}
 

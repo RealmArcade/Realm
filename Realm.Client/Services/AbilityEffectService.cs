@@ -24,7 +24,7 @@ public static class AbilityEffectService
 
 	public static void Execute(Entity casterEntity, Vector3 casterPosition, AbilityDefinition def, Vector3 targetPosition)
 	{
-		EcsWorld world = GameContext.World;
+		EcsWorld? world = GameContext.World;
 		if (world == null || def.Effects.Count == 0) return;
 
 		bool casterAlive = casterEntity != Entity.Null && world.IsAlive(casterEntity);

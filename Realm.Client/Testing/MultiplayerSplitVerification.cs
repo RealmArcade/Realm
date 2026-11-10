@@ -129,7 +129,8 @@ public static class MultiplayerSplitVerification
 		{
 			if (!client.Players.Exists(player => player.Slot == pair.Key)) continue;
 
-			SummaryPlayer clientPlayer = client.Players.Find(player => player.Slot == pair.Key);
+			SummaryPlayer? clientPlayer = client.Players.Find(player => player.Slot == pair.Key);
+			if (clientPlayer == null) continue;
 			SummaryPlayer hostPlayer = pair.Value;
 			if (hostPlayer.Active != clientPlayer.Active || hostPlayer.Computer != clientPlayer.Computer || hostPlayer.Team != clientPlayer.Team)
 			{
@@ -215,13 +216,13 @@ public static class MultiplayerSplitVerification
 		}
 	}
 
-	private sealed class WorldSummary
+	private class WorldSummary
 	{
 		public List<SummaryUnit> Units { get; } = new();
 		public List<SummaryPlayer> Players { get; } = new();
 	}
 
-	private sealed class SummaryUnit
+	private class SummaryUnit
 	{
 		public int ServerId;
 		public string UnitId = string.Empty;
@@ -234,7 +235,7 @@ public static class MultiplayerSplitVerification
 		public float MaxHp;
 	}
 
-	private sealed class SummaryPlayer
+	private class SummaryPlayer
 	{
 		public int Slot;
 		public bool Active;

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text.Json;
 using Godot;
+using Realm.Client.Services;
 
 namespace Realm.Client.Network;
 
@@ -30,7 +31,7 @@ public static class HostStabilityTracker
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[HostStabilityTracker] Failed to load history: {ex.Message}");
+			GameLog.LogError($"[HostStabilityTracker] Failed to load history: {ex.Message}");
 			return new List<GameStabilitySummary>();
 		}
 	}
@@ -48,7 +49,7 @@ public static class HostStabilityTracker
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[HostStabilityTracker] Failed to save history: {ex.Message}");
+			GameLog.LogError($"[HostStabilityTracker] Failed to save history: {ex.Message}");
 		}
 	}
 

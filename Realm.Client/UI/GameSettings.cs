@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Text.Json;
@@ -29,7 +29,7 @@ public static class GameSettings
 	public static int ResolutionIdx { get; set; } = 0;
 	public static int WindowedResolutionWidth { get; set; } = 0;
 	public static int WindowedResolutionHeight { get; set; } = 0;
-	public static List<Vector2I> Resolutions { get; private set; }
+	public static List<Vector2I> Resolutions { get; private set; } = null!;
 	public static GraphicsQuality QualityIdx { get; set; } = GraphicsQuality.High;
 	public static float LodDistanceScale => GetLodDistanceScale(QualityIdx);
 	public static WindowMode WindowModeIdx { get; set; } = WindowMode.Fullscreen;
@@ -233,7 +233,7 @@ public static class GameSettings
 		}
 		catch (Exception e)
 		{
-			GD.PrintErr($"Failed to deserialize settings: {e.Message}");
+			GameLog.LogError($"Failed to deserialize settings: {e.Message}");
 			ResetToDefaults();
 		}
 	}
@@ -377,6 +377,13 @@ public static class GameSettings
 		return fpsLimit == 0 || (fpsLimit >= MinFpsLimit && fpsLimit <= MaxFpsLimit);
 	}
 
+	/// <summary>Snaps a free slider value onto a limit the engine will accept: zero stays unlimited, anything else clamps.</summary>
+	public static int NormalizeFpsLimit(int fpsLimit)
+	{
+		if (fpsLimit <= 0) return 0;
+		return Math.Clamp(fpsLimit, MinFpsLimit, MaxFpsLimit);
+	}
+
 	private static float GetLodDistanceScale(GraphicsQuality quality)
 	{
 		return quality switch
@@ -390,7 +397,7 @@ public static class GameSettings
 
 	private static void ApplyLodVisibilityDistances()
 	{
-		GameHost host = GameContext.Host;
+		GameHost? host = GameContext.Host;
 		if (host == null || !GodotObject.IsInstanceValid(host)) return;
 
 		var units = host.AllUnits;
@@ -455,7 +462,7 @@ public static class GameSettings
 		viewport.Scaling3DMode = Viewport.Scaling3DModeEnum.Bilinear;
 	}
 
-	private static void ApplyWorldEnvironment(Window root)
+	private static void ApplyWorldEnvironment(Window? root)
 	{
 		if (root == null || !GodotObject.IsInstanceValid(root)) return;
 
@@ -479,7 +486,7 @@ public static class GameSettings
 		}
 	}
 
-	private static void ApplyTerrainQuality(Window root)
+	private static void ApplyTerrainQuality(Window? root)
 	{
 		var terrain = (root != null ? FindNodeInTree<RuntimeTerrain>(root) : null) ?? GameContext.Terrain;
 		if (terrain != null && GodotObject.IsInstanceValid(terrain))
@@ -488,9 +495,9 @@ public static class GameSettings
 		}
 	}
 
-	private static void ApplyGameHostSettings(Window root)
+	private static void ApplyGameHostSettings(Window? root)
 	{
-		GameHost gameHost = GetValidGameHost(root);
+		GameHost? gameHost = GetValidGameHost(root);
 		if (gameHost == null) return;
 
 		var envService = GameContext.EnvironmentService;
@@ -508,9 +515,9 @@ public static class GameSettings
 		envService.UpdateDayNightVisuals(progress);
 	}
 
-	private static GameHost GetValidGameHost(Window root)
+	private static GameHost? GetValidGameHost(Window? root)
 	{
-		GameHost host = null;
+		GameHost? host = null;
 		if (root != null)
 		{
 			var foundHost = FindNodeInTree<GameHost>(root);
@@ -595,14 +602,14 @@ public static class GameSettings
 
 	private static bool IsEditorShadowsDisabled()
 	{
-		GameHost host = GameContext.Host;
+		GameHost? host = GameContext.Host;
 		if (host == null) return false;
 		if (!GameContext.SessionState.IsMapEditorMode) return false;
-		if (!GameContext.EditorService.EditorDisableShadows) return false;
+		if (!GameContext.EditorService.Tools.DisableShadows) return false;
 		return true;
 	}
 
-	private static T FindNodeInTree<T>(Node parent) where T : Node
+	private static T? FindNodeInTree<T>(Node parent) where T : Node
 	{
 		if (parent is T t) return t;
 		int childCount = parent.GetChildCount();
@@ -638,7 +645,7 @@ public static class GameSettings
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"Failed to query GPU VRAM via DXGI: {ex.Message}");
+			GameLog.LogError($"Failed to query GPU VRAM via DXGI: {ex.Message}");
 		}
 
 		return 8.0f;

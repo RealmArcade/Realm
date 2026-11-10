@@ -39,7 +39,7 @@ public partial class BillboardIconAttachment3D : AnimatedSprite3D
 
 		if (frames == null)
 		{
-			GD.PrintErr($"[BillboardIconAttachment3D] Could not load spritesheet '{config.TexturePath}'.");
+			GameLog.LogError($"[BillboardIconAttachment3D] Could not load spritesheet '{config.TexturePath}'.");
 			return false;
 		}
 

@@ -84,7 +84,7 @@ public class UnitObjectAttachments
 		if (TrySetUpperSocketList(s, list)) return;
 		if (TrySetLowerSocketList(s, list)) return;
 		if (TrySetMiscSocketList(s, list)) return;
-		SetCustomSocketList(socket, list);
+		SetCustomSocketList(socket!, list);
 	}
 
 	private void SetCustomSocketList(string socket, List<Dictionary<string, HandAttachmentOrientation>> list)

@@ -12,14 +12,14 @@ public class CountdownOverlayPanel
 	private const float FadeInSeconds = 0.2f;
 	private const float FadeOutSeconds = 0.3f;
 
-	private Control _overlayRoot;
-	private Label _overlayTitleLabel;
-	private Label _overlayNumberLabel;
-	private Button _overlayCancelButton;
+	private Control _overlayRoot = null!;
+	private Label _overlayTitleLabel = null!;
+	private Label _overlayNumberLabel = null!;
+	private Button _overlayCancelButton = null!;
 
-	private PanelContainer _compactPanel;
-	private Label _compactLabel;
-	private Button _compactCancelButton;
+	private PanelContainer _compactPanel = null!;
+	private Label _compactLabel = null!;
+	private Button _compactCancelButton = null!;
 
 	private Tween? _fadeTween;
 	private Tween? _pulseTween;
@@ -251,19 +251,8 @@ public class CountdownOverlayPanel
 		_compactPanel.Visible = false;
 		_compactPanel.SizeFlagsHorizontal = Control.SizeFlags.ShrinkEnd;
 
-		var panelStyle = new StyleBoxFlat();
-		panelStyle.BgColor = new Color(0.12f, 0.12f, 0.12f, 0.85f);
-		panelStyle.SetBorderWidthAll(1);
-		panelStyle.BorderColor = UIStyle.ColorBronze;
-		panelStyle.CornerRadiusTopLeft = 4;
-		panelStyle.CornerRadiusTopRight = 4;
-		panelStyle.CornerRadiusBottomLeft = 4;
-		panelStyle.CornerRadiusBottomRight = 4;
-		panelStyle.ContentMarginLeft = 8;
-		panelStyle.ContentMarginRight = 8;
-		panelStyle.ContentMarginTop = 6;
-		panelStyle.ContentMarginBottom = 6;
-		_compactPanel.AddThemeStyleboxOverride("panel", panelStyle);
+		_compactPanel.AddThemeStyleboxOverride("panel",
+			UIStyle.CreateCardPlate(new Color(0.12f, 0.12f, 0.12f, 0.85f), UIStyle.ColorBronze, 1, 4, 8, 8, 6, 6));
 
 		var row = new HBoxContainer();
 		row.Name = "CountdownRow";
@@ -292,10 +281,7 @@ public class CountdownOverlayPanel
 		button.CustomMinimumSize = minimumSize;
 		button.FocusMode = Control.FocusModeEnum.None;
 		button.AddThemeConstantOverride("icon_max_width", 0);
-		button.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		button.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		button.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		button.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyButtonStyleBoxesClearingFocus(button);
 		UIStyle.ApplyButtonText(button, TranslationServer.Translate("CANCEL"), fontSize);
 		button.Pressed += () => onCancel();
 		return button;

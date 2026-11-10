@@ -13,7 +13,7 @@ public static class MatchPlayerColorAssignment
 	private static readonly bool[] TakenPaletteIndices = new bool[PlayerColorConfig.Palette.Length];
 	private static int _seatsSignature = int.MinValue;
 
-	public static void RefreshIfSeatsChanged(IReadOnlyList<PlayerInfo> seats)
+	public static void RefreshIfSeatsChanged(IReadOnlyList<PlayerInfo>? seats)
 	{
 		int signature = ComputeSignature(seats);
 		if (signature == _seatsSignature) return;
@@ -40,7 +40,7 @@ public static class MatchPlayerColorAssignment
 		return defaults;
 	}
 
-	private static int ComputeSignature(IReadOnlyList<PlayerInfo> seats)
+	private static int ComputeSignature(IReadOnlyList<PlayerInfo>? seats)
 	{
 		if (seats == null || seats.Count == 0) return 0;
 
@@ -60,7 +60,7 @@ public static class MatchPlayerColorAssignment
 		}
 	}
 
-	private static void Assign(IReadOnlyList<PlayerInfo> seats)
+	private static void Assign(IReadOnlyList<PlayerInfo>? seats)
 	{
 		for (int slot = 0; slot < AssignedColors.Length; slot++)
 		{
@@ -95,7 +95,7 @@ public static class MatchPlayerColorAssignment
 		}
 	}
 
-	private static bool IsSeated(IReadOnlyList<PlayerInfo> seats, int slot)
+	private static bool IsSeated(IReadOnlyList<PlayerInfo>? seats, int slot)
 	{
 		if (seats == null) return false;
 

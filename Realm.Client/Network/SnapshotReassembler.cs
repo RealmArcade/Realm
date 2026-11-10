@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics.CodeAnalysis;
 using Realm.Shared.Network;
 
 namespace Realm.Client.Network;
@@ -37,7 +38,7 @@ public class SnapshotReassembler
 	/// <summary>
 	///     Hands back the description this payload completes, or the payload itself when it was never split.
 	/// </summary>
-	public bool TryTake(byte[] payload, out byte[] frame)
+	public bool TryTake(byte[] payload, [NotNullWhen(true)] out byte[]? frame)
 	{
 		frame = null;
 		if (payload == null || payload.Length == 0) return false;
@@ -50,7 +51,7 @@ public class SnapshotReassembler
 
 		if (fragmentCount > MaximumFragmentsPerGroup) return false;
 
-		FragmentGroup group = FindOrCreate(sequence, fragmentCount);
+		FragmentGroup? group = FindOrCreate(sequence, fragmentCount);
 		if (group == null) return false;
 
 		group.LastTouchedMilliseconds = Environment.TickCount64;

@@ -17,17 +17,17 @@ public partial class ReplayViewerPanel : PanelContainer
 		Realm.Client.Services.GameContext.EnsureServices();
 	}
 
-	private Button _playPauseBtn;
-	private Button _speedBtn05;
-	private Button _speedBtn1;
-	private Button _speedBtn2;
-	private Button _speedBtn4;
-	private Button _speedBtn8;
-	private HSlider _scrubber;
-	private Label _timeLabel;
-	private OptionButton _perspectiveOpt;
-	private Button _tetherBtn;
-	private Button _quitBtn;
+	private Button _playPauseBtn = null!;
+	private Button _speedBtn05 = null!;
+	private Button _speedBtn1 = null!;
+	private Button _speedBtn2 = null!;
+	private Button _speedBtn4 = null!;
+	private Button _speedBtn8 = null!;
+	private HSlider _scrubber = null!;
+	private Label _timeLabel = null!;
+	private OptionButton _perspectiveOpt = null!;
+	private Button _tetherBtn = null!;
+	private Button _quitBtn = null!;
 
 	private bool _isDraggingScrubber = false;
 	private bool _suppressScrubberSignal = false;
@@ -155,9 +155,7 @@ public partial class ReplayViewerPanel : PanelContainer
 	{
 		foreach (var btn in new Button[] { _playPauseBtn, _speedBtn05, _speedBtn1, _speedBtn2, _speedBtn4, _speedBtn8, _tetherBtn, _quitBtn })
 		{
-			btn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-			btn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-			btn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
+			UIStyle.ApplyButtonStyleBoxes(btn);
 		}
 	}
 
@@ -193,25 +191,17 @@ public partial class ReplayViewerPanel : PanelContainer
 	{
 		float speed = GameContext.ReplayPlayback.PlaybackSpeed;
 		_lastPlaybackSpeed = speed;
-		if (_activeSpeedStyle == null)
-		{
-			_activeSpeedStyle = new StyleBoxFlat
-			{
-				BgColor = UIStyle.ColorCyanGlow,
-				BorderColor = UIStyle.ColorGold
-			};
-			_activeSpeedStyle.SetBorderWidthAll(1);
-			_activeSpeedStyle.CornerRadiusTopLeft = 4;
-			_activeSpeedStyle.CornerRadiusTopRight = 4;
-			_activeSpeedStyle.CornerRadiusBottomLeft = 4;
-			_activeSpeedStyle.CornerRadiusBottomRight = 4;
-		}
+		_activeSpeedStyle ??= UIStyle.CreateReplaySpeedActivePlate();
 
-		_speedBtn05.AddThemeStyleboxOverride("normal", speed == 0.5f ? _activeSpeedStyle : UIStyle.CreateButtonNormal());
-		_speedBtn1.AddThemeStyleboxOverride("normal", speed == 1.0f ? _activeSpeedStyle : UIStyle.CreateButtonNormal());
-		_speedBtn2.AddThemeStyleboxOverride("normal", speed == 2.0f ? _activeSpeedStyle : UIStyle.CreateButtonNormal());
-		_speedBtn4.AddThemeStyleboxOverride("normal", speed == 4.0f ? _activeSpeedStyle : UIStyle.CreateButtonNormal());
-		_speedBtn8.AddThemeStyleboxOverride("normal", speed == 8.0f ? _activeSpeedStyle : UIStyle.CreateButtonNormal());
+		(Button Button, float Speed)[] speedButtons =
+		{
+			(_speedBtn05, 0.5f), (_speedBtn1, 1.0f), (_speedBtn2, 2.0f), (_speedBtn4, 4.0f), (_speedBtn8, 8.0f)
+		};
+
+		foreach (var (speedBtn, buttonSpeed) in speedButtons)
+		{
+			speedBtn.AddThemeStyleboxOverride("normal", speed == buttonSpeed ? _activeSpeedStyle : UIStyle.CreateButtonNormal());
+		}
 	}
 
 	private void PopulatePerspectives()
@@ -255,7 +245,7 @@ public partial class ReplayViewerPanel : PanelContainer
 		}
 		else
 		{
-			Unit3D targetUnit = null;
+			Unit3D? targetUnit = null;
 			if (GameContext.Host != null && GameContext.Host.AllUnits.Count > 0)
 			{
 				foreach (var unit in GameContext.Host.AllUnits)

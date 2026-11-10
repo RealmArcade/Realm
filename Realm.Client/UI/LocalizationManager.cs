@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Encodings.Web;
@@ -114,11 +114,11 @@ public static class LocalizationManager
 		}
 		catch (Exception e)
 		{
-			GD.PrintErr($"{errorContext}: {e.Message}");
+			GameLog.LogError($"{errorContext}: {e.Message}");
 		}
 	}
 
-	public static event Action<GameLanguage> LanguageChanged;
+	public static event Action<GameLanguage>? LanguageChanged;
 
 	public static void UpdateLocale(GameLanguage language)
 	{
@@ -145,14 +145,15 @@ public static class LocalizationManager
 	private static Dictionary<string, string> BuildTranslationKeyLookup(string locale)
 	{
 		var lookup = new Dictionary<string, string>(StringComparer.Ordinal);
-		Translation? translation = TranslationServer.GetTranslationObject(locale);
-		if (translation == null) return lookup;
 
-		foreach (string key in translation.GetMessageList())
+		foreach (Translation translation in TranslationServer.FindTranslations(locale, false))
 		{
-			string translated = translation.GetMessage(key);
-			if (string.IsNullOrEmpty(translated) || translated == key) continue;
-			if (!lookup.ContainsKey(translated)) lookup[translated] = key;
+			foreach (string key in translation.GetMessageList())
+			{
+				string translated = translation.GetMessage(key);
+				if (string.IsNullOrEmpty(translated) || translated == key) continue;
+				if (!lookup.ContainsKey(translated)) lookup[translated] = key;
+			}
 		}
 
 		return lookup;
@@ -228,8 +229,9 @@ public static class LocalizationManager
 						foreach (var kvp in parsed) dict[kvp.Key] = kvp.Value;
 					}
 				}
-				catch
+				catch (Exception ex)
 				{
+					GameLog.LogError($"could not read a locale file, so that language falls back to English: {ex.GetType().Name}: {ex.Message}");
 				}
 			}
 		}
@@ -389,7 +391,7 @@ public static class LocalizationManager
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"Failed to flush en.json: {ex.Message}");
+			GameLog.LogError($"Failed to flush en.json: {ex.Message}");
 		}
 	}
 

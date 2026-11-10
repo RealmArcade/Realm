@@ -6,7 +6,7 @@
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
-    <NoWarn>$(NoWarn);CS8600;CS8601;CS8602;CS8603;CS8604;CS8618;CS8625;CS8981</NoWarn>
+    <NoWarn>$(NoWarn);CS8981</NoWarn>
     <DefaultItemExcludes>$(DefaultItemExcludes);vscode_embedded\**;wasi_sdk_embedded\**;.vscode\**;.godot\**;Maps\**\obj\**;Maps\**\bin\**;MapTemplate\**\obj\**;MapTemplate\**\bin\**</DefaultItemExcludes>
 
   </PropertyGroup>

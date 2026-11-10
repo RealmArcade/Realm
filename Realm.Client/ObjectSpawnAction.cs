@@ -16,11 +16,11 @@ public class ObjectSpawnAction : IEditorAction
 	private readonly float _rotationY;
 	private readonly float _scale;
 	private readonly int _player;
-	private Node _spawnedNode;
+	private Node? _spawnedNode;
 
 	public Vector3 Position => _position;
 	public float Scale => _scale;
-	public Node SpawnedNode => _spawnedNode;
+	public Node? SpawnedNode => _spawnedNode;
 
 	public ObjectSpawnAction(string objectType, string objectId, Vector3 position, float rotationY, float scale, Node spawnedNode, int player = -1)
 		: this(objectType, objectId, position, new Vector3(0f, rotationY, 0f), scale, spawnedNode, player)

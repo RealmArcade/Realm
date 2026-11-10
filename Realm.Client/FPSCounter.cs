@@ -7,6 +7,7 @@ namespace Realm.Client;
 public partial class FPSCounter : Label
 {
 	private float _updateTimer = 0f;
+	private int _lastRenderedFps = -1;
 
 	public override void _Ready()
 	{
@@ -31,7 +32,12 @@ public partial class FPSCounter : Label
 			if (_updateTimer >= 0.25f)
 			{
 				_updateTimer = 0f;
-				Text = string.Format(TranslationServer.Translate("FPS: {0}"), (int)Engine.GetFramesPerSecond());
+				int fps = (int)Engine.GetFramesPerSecond();
+				if (fps != _lastRenderedFps)
+				{
+					_lastRenderedFps = fps;
+					Text = string.Format(TranslationServer.Translate("FPS: {0}"), fps);
+				}
 			}
 		}
 	}

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Globalization;
 using System.Net.Http;
 using System.Text.Json;
@@ -57,8 +57,9 @@ public class SteamTicketService
 			string json = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
 			return ReadSteamId(json);
 		}
-		catch (HttpRequestException)
+		catch (HttpRequestException ex)
 		{
+			Console.Error.WriteLine($"[SteamTickets] the ticket validation request to Steam failed: {ex.GetType().Name}: {ex.Message}");
 			return null;
 		}
 		catch (TaskCanceledException)
@@ -82,8 +83,9 @@ public class SteamTicketService
 			string? steamIdText = steamId.GetString();
 			return string.IsNullOrWhiteSpace(steamIdText) ? null : steamIdText.Trim();
 		}
-		catch (JsonException)
+		catch (JsonException ex)
 		{
+			Console.Error.WriteLine($"[SteamTickets] Steam returned a response that was not readable JSON: {ex.GetType().Name}: {ex.Message}");
 			return null;
 		}
 	}

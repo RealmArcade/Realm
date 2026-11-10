@@ -57,7 +57,7 @@ namespace Realm.Client.Services
 			EcsSharedMemory.RandomSeed = resolvedSeed;
 			SeededRandom.Shared.Reset(resolvedSeed);
 			Rng = RandomProxy.Shared;
-			Godot.GD.Print($"[RandomService] Deterministic random seed {resolvedSeed}.");
+			GameLog.LogToConsole($"[RandomService] Deterministic random seed {resolvedSeed}.");
 		}
 	}
 }

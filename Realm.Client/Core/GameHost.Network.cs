@@ -34,7 +34,7 @@ public partial class GameHost
 	public void SetBackupResources(float gold, float wood, float stone) =>
 		GameContext.NetworkService.SetBackupResources(gold, wood, stone);
 
-	public void KillUnitDeferredExternal(Unit3D unit)
+	public void KillUnitDeferredExternal(Unit3D? unit)
 	{
 		Callable.From(() => KillUnitDeferred(unit)).CallDeferred();
 	}
@@ -98,8 +98,14 @@ public partial class GameHost
 			return false;
 		}
 
+		if (GameContext.World is not EcsWorld world)
+		{
+			failure = "there is no match running to buy from";
+			return false;
+		}
+
 		Entity localBuilding = new Entity(building.Value);
-		if (!GameContext.World.IsAlive(localBuilding))
+		if (!world.IsAlive(localBuilding))
 		{
 			failure = "the shop is gone";
 			return false;

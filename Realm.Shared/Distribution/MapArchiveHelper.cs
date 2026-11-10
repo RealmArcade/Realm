@@ -1,4 +1,4 @@
-using System.IO.Compression;
+﻿using System.IO.Compression;
 using System.Text;
 using Blake3;
 using Realm.Shared.Metadata;
@@ -604,72 +604,6 @@ public static class MapArchiveHelper
 		return normalized.TrimStart('/');
 	}
 
-	private static RmapHeaderInfo ExtractRmapHeaderInfoFromDirectory(string sourceDirectory)
-	{
-		string mapName = Path.GetFileName(sourceDirectory);
-		string version = "1.0.0";
-		string gameBuildNumber = RealmVersion.GameBuildNumber;
-		string author = "Unknown";
-		string description = string.Empty;
-		var tags = new List<string>();
-
-		ApplyManifestToHeaderInfo(sourceDirectory, ref mapName, ref version, ref author, ref description, tags);
-		ApplyMetadataToHeaderInfo(sourceDirectory, ref gameBuildNumber);
-
-		return new RmapHeaderInfo
-		{
-			MapName = mapName,
-			Version = version,
-			GameBuildNumber = string.IsNullOrWhiteSpace(gameBuildNumber) ? RealmVersion.GameBuildNumber : gameBuildNumber,
-			Author = author,
-			Description = description,
-			Tags = tags
-		};
-	}
-
-	private static void ApplyManifestToHeaderInfo(
-		string sourceDirectory,
-		ref string mapName,
-		ref string version,
-		ref string author,
-		ref string description,
-		List<string> tags)
-	{
-		string manifestPath = Path.Combine(sourceDirectory, "manifest.json");
-		if (!File.Exists(manifestPath)) return;
-
-		try
-		{
-			var manifest = MapFileService.LoadManifest(manifestPath);
-			if (!string.IsNullOrWhiteSpace(manifest.MapName)) mapName = manifest.MapName.Trim();
-			if (!string.IsNullOrWhiteSpace(manifest.Version)) version = manifest.Version.Trim();
-			if (!string.IsNullOrWhiteSpace(manifest.Author)) author = manifest.Author.Trim();
-			if (!string.IsNullOrWhiteSpace(manifest.Description)) description = manifest.Description;
-			if (manifest.Tags != null) tags.AddRange(manifest.Tags);
-		}
-		catch
-		{
-		}
-	}
-
-	private static void ApplyMetadataToHeaderInfo(string sourceDirectory, ref string gameBuildNumber)
-	{
-		string metadataPath = Path.Combine(sourceDirectory, "metadata.json");
-		if (!File.Exists(metadataPath)) return;
-
-		try
-		{
-			var metadata = MapFileService.LoadMetadata(metadataPath);
-			if (!string.IsNullOrWhiteSpace(metadata.GameBuildNumber))
-			{
-				gameBuildNumber = metadata.GameBuildNumber.Trim();
-			}
-		}
-		catch
-		{
-		}
-	}
-
 	private static bool IsWorkspaceApiLibFile(string fileName)
 	{
 		return fileName.Equals("Realm.MapAPI.dll", StringComparison.OrdinalIgnoreCase) ||
@@ -712,7 +646,11 @@ public static class MapArchiveHelper
 					{
 						if (!IsWorkspaceApiLibFile(Path.GetFileName(file))) continue;
 
-						try { File.Delete(file); } catch { }
+						try { File.Delete(file); }
+						catch (Exception exception)
+						{
+							Console.Error.WriteLine($"[MapArchiveHelper] could not remove the stale API library {file}: {exception.GetType().Name}: {exception.Message}");
+						}
 					}
 				}
 			}
@@ -720,11 +658,16 @@ public static class MapArchiveHelper
 			var elfFiles = Directory.GetFiles(workspacePath, "*.elf", SearchOption.AllDirectories);
 			foreach (var file in elfFiles)
 			{
-				try { File.Delete(file); } catch { }
+				try { File.Delete(file); }
+				catch (Exception exception)
+				{
+					Console.Error.WriteLine($"[MapArchiveHelper] could not remove the stray ELF {file}: {exception.GetType().Name}: {exception.Message}");
+				}
 			}
 		}
-		catch
+		catch (Exception ex)
 		{
+			Console.Error.WriteLine($"[MapArchiveHelper] could not deduplicate the workspace build artifacts under {workspacePath}: {ex.GetType().Name}: {ex.Message}");
 		}
 	}
 

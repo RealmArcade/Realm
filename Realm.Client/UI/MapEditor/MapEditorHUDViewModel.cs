@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Realm.Client.Core;
 using Realm.Client.Services;
 using PasteReflection = Realm.Ecs.Components.Core.PasteReflection;
@@ -75,21 +75,21 @@ public class MapEditorHUDViewModel
 			BlockStep = GameContext.Host.EditorBlockLevelHeight;
 			ExactHeight = GameContext.Host.EditorExactHeight;
 
-			PlacementRotate = GameContext.EditorService.EditorPlacementRotation;
+			PlacementRotate = GameContext.EditorService.Tools.PlacementRotation;
 			PlacementScale = GameContext.Host.EditorPlacementScale;
-			PasteRotation = GameContext.EditorService.EditorPasteRotation;
-			PasteReflection = GameContext.EditorService.EditorPasteReflection;
-			SpawnAsEnemy = GameContext.EditorService.PlaceUnitIsEnemy;
-			RandomRotation = GameContext.EditorService.EditorRandomRotation;
-			RandomScale = GameContext.EditorService.EditorRandomScale;
+			PasteRotation = GameContext.EditorService.Tools.PasteRotation;
+			PasteReflection = GameContext.EditorService.Tools.PasteReflectionMode;
+			SpawnAsEnemy = GameContext.EditorService.Tools.PlaceUnitIsEnemy;
+			RandomRotation = GameContext.EditorService.Tools.RandomRotation;
+			RandomScale = GameContext.EditorService.Tools.RandomScale;
 			ClumpMode = GameContext.Host.EditorClumpMode;
 			ClumpCount = GameContext.Host.EditorClumpCount;
 			ClumpScale = GameContext.Host.EditorClumpScale;
 
 			SnapToGrid = GameContext.Host.EditorSnapToGrid;
 			GridOverlayVisible = GameContext.Host.EditorGridVisible;
-			CameraBoundsOverlayVisible = GameContext.EditorService.EditorCameraBoundsVisible;
-			DisableShadows = GameContext.EditorService.EditorDisableShadows;
+			CameraBoundsOverlayVisible = GameContext.EditorService.Tools.CameraBoundsVisible;
+			DisableShadows = GameContext.EditorService.Tools.DisableShadows;
 			PathingOverlayVisible = GameContext.Host.PathingOverlayVisible;
 			BrushShapeSquare = GameContext.Host.EditorBrushIsSquare;
 		}

@@ -23,7 +23,7 @@ public class CheatService
 		{ "skibidi", CheatResult.UnlimitedPower }
 	};
 
-	internal (CheatResult Result, int AffectedCount) TryTriggerCheat(string text, bool isMultiplayer, IEnumerable<Entity> selectedEntities)
+	public (CheatResult Result, int AffectedCount) TryTriggerCheat(string text, bool isMultiplayer, IEnumerable<Entity> selectedEntities)
 	{
 		if (isMultiplayer) return (CheatResult.None, 0);
 		if (!(GameContext.Host?.CheatsEnabled ?? false)) return (CheatResult.None, 0);

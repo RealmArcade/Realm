@@ -42,7 +42,7 @@ public static class MultiplayerHardeningChecks
 		builder.AppendLine($"Verdict: {(failures.Count == 0 ? "PASS" : "FAIL")}");
 
 		string text = builder.ToString();
-		GD.Print(text);
+		GameLog.LogToConsole(text);
 		Directory.CreateDirectory(outputDirectory);
 		File.WriteAllText(Path.Combine(outputDirectory, "hardening_report.txt"), text);
 		File.WriteAllText(

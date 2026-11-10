@@ -138,7 +138,7 @@ public partial class ServerGameAPI
 		return SpawnUnit(unitTypeId, new Vector3(position.X, 0f, position.Y), owner, playerIndex, bypassPopulation);
 	}
 
-	internal UnitId SpawnUnit(string unitTypeId, Vector3 position, PlayerEntity owner, int playerIndex, bool bypassPopulation)
+	private UnitId SpawnUnit(string unitTypeId, Vector3 position, PlayerEntity owner, int playerIndex, bool bypassPopulation)
 	{
 		float groundHeight = ReadTerrainHeight(position);
 		var placed = new Vector3(position.X, groundHeight, position.Z);

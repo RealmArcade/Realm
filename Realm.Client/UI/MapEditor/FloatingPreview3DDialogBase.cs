@@ -8,11 +8,11 @@ public partial class FloatingPreview3DDialogBase : FloatingDialogBase
 {
 	public FloatingPreview3DDialogBase() { }
 
-	protected SubViewportContainer PreviewViewportContainer;
-	protected SubViewport PreviewSubViewport;
-	protected Camera3D PreviewCamera;
-	protected DirectionalLight3D PreviewLight;
-	protected Node3D PreviewSceneRoot;
+	protected SubViewportContainer PreviewViewportContainer = null!;
+	protected SubViewport PreviewSubViewport = null!;
+	protected Camera3D PreviewCamera = null!;
+	protected DirectionalLight3D PreviewLight = null!;
+	protected Node3D PreviewSceneRoot = null!;
 
 	protected float DefaultDistance = 5.0f;
 	protected float CameraDistance = 5.0f;
@@ -30,7 +30,7 @@ public partial class FloatingPreview3DDialogBase : FloatingDialogBase
 	protected bool IsPanning;
 	protected Vector2 LastMousePosition;
 
-	protected HBoxContainer CameraPresetToolbar;
+	protected HBoxContainer CameraPresetToolbar = null!;
 
 	public SubViewport SubViewport => PreviewSubViewport;
 	public Camera3D Camera => PreviewCamera;
@@ -60,7 +60,7 @@ public partial class FloatingPreview3DDialogBase : FloatingDialogBase
 		bool includeBack = true,
 		bool includeLightingToggle = false,
 		bool includeGridToggle = false,
-		Action onToggleGrid = null)
+		Action? onToggleGrid = null)
 	{
 		CameraPresetToolbar = new HBoxContainer();
 		CameraPresetToolbar.Name = "CameraPresetToolbar_HBoxContainer";
@@ -166,6 +166,21 @@ public partial class FloatingPreview3DDialogBase : FloatingDialogBase
 
 		CameraDistance = DefaultDistance;
 		HasUserAdjustedCamera = false;
+		UpdateCameraTransform();
+	}
+
+	/// <summary>
+	/// Frames the camera on a node using its raw AABB size (2.2x padding, clamped).
+	/// Distinct from <see cref="FrameCameraOnNode"/>, which uses the aspect-aware
+	/// <see cref="ComputeFramedDistance"/> instead.
+	/// </summary>
+	protected void CenterAndFrameNode(Node3D targetNode)
+	{
+		var aabb = SpawnDeathShaderManager.CalculateNodeAabb(targetNode);
+		TargetPosition = aabb.Position + aabb.Size * 0.5f;
+		float maxDim = Mathf.Max(aabb.Size.X, Mathf.Max(aabb.Size.Y, aabb.Size.Z));
+		CameraDistance = Mathf.Clamp(maxDim * 2.2f, 2.0f, 30.0f);
+		DefaultDistance = CameraDistance;
 		UpdateCameraTransform();
 	}
 

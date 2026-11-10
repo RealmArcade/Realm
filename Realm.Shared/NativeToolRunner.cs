@@ -161,41 +161,6 @@ public static class NativeToolRunner
 		return null;
 	}
 
-	private static bool ExtractEmbeddedResource(string resourceSuffix, string destinationPath)
-	{
-		if (File.Exists(destinationPath) && new FileInfo(destinationPath).Length > 0)
-		{
-			return true;
-		}
-
-		Stream? stream = null;
-		foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
-		{
-			var names = asm.GetManifestResourceNames();
-			foreach (var name in names)
-			{
-				if (name.EndsWith(resourceSuffix, StringComparison.OrdinalIgnoreCase))
-				{
-					stream = asm.GetManifestResourceStream(name);
-					break;
-				}
-			}
-
-			if (stream != null) break;
-		}
-
-		if (stream != null)
-		{
-			string? dir = Path.GetDirectoryName(destinationPath);
-			if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
-			using var fileStream = File.Create(destinationPath);
-			stream.CopyTo(fileStream);
-			return true;
-		}
-
-		return false;
-	}
-
 	public static (int ExitCode, string Stdout, string Stderr) RunTool(string toolFileName, string arguments, int timeoutMs = 60000, string? workingDir = null)
 	{
 		string effectiveWorkingDir = !string.IsNullOrEmpty(workingDir) && Directory.Exists(workingDir)

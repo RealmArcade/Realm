@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Text.Json.Nodes;
 
 namespace Realm.Shared.Animation;
@@ -80,6 +80,7 @@ public static class GlbAutoRigger
 		}
 		catch (AbandonedMutexException)
 		{
+			Console.Error.WriteLine("[GlbAutoRigger] the previous rigging run did not release its lock; continuing on the abandoned mutex");
 			return true;
 		}
 	}
@@ -90,8 +91,9 @@ public static class GlbAutoRigger
 		{
 			RiggingMutex.ReleaseMutex();
 		}
-		catch
+		catch (Exception ex)
 		{
+			Console.Error.WriteLine($"[GlbAutoRigger] could not release the rigging mutex: {ex.GetType().Name}: {ex.Message}");
 		}
 	}
 

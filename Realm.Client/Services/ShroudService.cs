@@ -25,13 +25,13 @@ public class ShroudService
 	private static readonly StringName ShroudWorldBoundsParameter = new("rts_shroud_world_bounds");
 	private static readonly StringName ShroudLerpParameter = new("rts_shroud_lerp");
 
-	private Image _shroudImage;
-	private ImageTexture _shroudTexture;
-	private Image _shroudMinimapImage;
-	private ImageTexture _shroudMinimapTexture;
-	private Texture2D _appliedGlobalTexture;
+	private Image? _shroudImage;
+	private ImageTexture? _shroudTexture;
+	private Image? _shroudMinimapImage;
+	private ImageTexture? _shroudMinimapTexture;
+	private Texture2D? _appliedGlobalTexture;
 	private Vector4 _appliedGlobalBounds;
-	private static ImageTexture _fullyRevealedTexture;
+	private static ImageTexture _fullyRevealedTexture = null!;
 
 	private byte[] _shroudPixelBuffer = Array.Empty<byte>();
 	private byte[] _shroudMinimapPixelBuffer = Array.Empty<byte>();
@@ -140,17 +140,16 @@ public class ShroudService
 		bool isOmniscient = observedPlayerIndex < 0
 		                    || (uint)observedPlayerIndex >= ShroudGrid.MaxGroups
 		                    || GameContext.SessionState.IsMapEditorMode
-		                    || shroud.VisibilityMode == ShroudVisibilityMode.Revealed
-		                    || grid == null
-		                    || !grid.IsAllocated;
+		                    || shroud.VisibilityMode == ShroudVisibilityMode.Revealed;
 
-		int observedGroupIndex = isOmniscient ? -1 : grid.GetGroupIndex(observedPlayerIndex);
-		if (!isOmniscient && (uint)observedGroupIndex >= (uint)grid.GroupCount)
+		if (grid == null || !grid.IsAllocated || isOmniscient)
 		{
-			isOmniscient = true;
+			ApplyRevealAllPresentation(allUnits, allProps, allDecals, allVfx, allProjectiles);
+			return;
 		}
 
-		if (isOmniscient)
+		int observedGroupIndex = grid.GetGroupIndex(observedPlayerIndex);
+		if ((uint)observedGroupIndex >= (uint)grid.GroupCount)
 		{
 			ApplyRevealAllPresentation(allUnits, allProps, allDecals, allVfx, allProjectiles);
 			return;
@@ -178,7 +177,7 @@ public class ShroudService
 			_lastAppliedVersion = grid.Version;
 		}
 
-		ApplyEntityVisibility(grid, allUnits, allProps, allDecals, allVfx, allProjectiles);
+		ApplyEntityVisibility(grid, world, allUnits, allProps, allDecals, allVfx, allProjectiles);
 	}
 
 	private void ApplyRevealAllPresentation(List<Unit3D> allUnits, List<Prop3D> allProps, List<Decal> allDecals, List<ProceduralVfxInstance3D> allVfx, IReadOnlyList<VisualProjectile3D> allProjectiles)
@@ -230,9 +229,8 @@ public class ShroudService
 		}
 	}
 
-	private void ApplyEntityVisibility(ShroudGridData grid, List<Unit3D> allUnits, List<Prop3D> allProps, List<Decal> allDecals, List<ProceduralVfxInstance3D> allVfx, IReadOnlyList<VisualProjectile3D> allProjectiles)
+	private void ApplyEntityVisibility(ShroudGridData grid, EcsWorld world, List<Unit3D> allUnits, List<Prop3D> allProps, List<Decal> allDecals, List<ProceduralVfxInstance3D> allVfx, IReadOnlyList<VisualProjectile3D> allProjectiles)
 	{
-		var world = GameContext.World;
 		int observedGroup = _observedGroup;
 
 		for (int index = 0; index < allUnits.Count; index++)
@@ -492,6 +490,8 @@ public class ShroudService
 	private void UploadShroudTexture()
 	{
 		EnsureTextures(_textureWidth, _textureHeight);
+		if (_shroudImage == null || _shroudTexture == null) return;
+
 		_shroudImage.SetData(_textureWidth, _textureHeight, false, Image.Format.Rgba8, _shroudPixelBuffer);
 		_shroudTexture.Update(_shroudImage);
 		ApplyGlobalTexture();
@@ -501,6 +501,8 @@ public class ShroudService
 	private void UploadMinimapTexture()
 	{
 		EnsureTextures(_textureWidth, _textureHeight);
+		if (_shroudMinimapImage == null || _shroudMinimapTexture == null) return;
+
 		_shroudMinimapImage.SetData(_textureWidth, _textureHeight, false, Image.Format.Rgba8, _shroudMinimapPixelBuffer);
 		_shroudMinimapTexture.Update(_shroudMinimapImage);
 	}

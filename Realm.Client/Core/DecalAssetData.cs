@@ -6,7 +6,7 @@ public class DecalAssetData
 {
 	public string DecalId = "";
 	public string TexturePath = "";
-	public Texture2D PrimaryTexture;
+	public Texture2D PrimaryTexture = null!;
 	public Texture2D? PrimaryNormal;
 	public Texture2D[]? AlbedoFrames;
 	public Texture2D[]? NormalFrames;

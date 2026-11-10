@@ -4,6 +4,7 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading.Tasks;
 using Godot;
+using Realm.Client.Services;
 
 namespace Realm.Client.Network;
 
@@ -13,7 +14,7 @@ public class UdpHolePuncher
 
 	public static async Task PunchHoleAsync(string remoteIp, int remotePort, int localPort, int packetCount = 8)
 	{
-		GD.Print($"[HolePuncher] Punching hole to {remoteIp}:{remotePort} from local port {localPort}...");
+		GameLog.LogToConsole($"[HolePuncher] Punching hole to {remoteIp}:{remotePort} from local port {localPort}...");
 
 		using var udp = new UdpClient();
 		udp.ExclusiveAddressUse = false;
@@ -27,7 +28,7 @@ public class UdpHolePuncher
 			}
 			catch (SocketException) when (localPort != 0)
 			{
-				GD.Print($"[HolePuncher] Local port {localPort} unavailable, falling back to ephemeral port 0.");
+				GameLog.LogToConsole($"[HolePuncher] Local port {localPort} unavailable, falling back to ephemeral port 0.");
 				udp.Client.Bind(new IPEndPoint(IPAddress.Any, 0));
 			}
 
@@ -40,11 +41,11 @@ public class UdpHolePuncher
 				await Task.Delay(DelayBetweenBurstsMilliseconds);
 			}
 
-			GD.Print($"[HolePuncher] Hole punch bursts sent ({packetCount} packets).");
+			GameLog.LogToConsole($"[HolePuncher] Hole punch bursts sent ({packetCount} packets).");
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[HolePuncher] Error during hole punch: {ex.Message}");
+			GameLog.LogError($"[HolePuncher] Error during hole punch: {ex.Message}");
 		}
 		finally
 		{

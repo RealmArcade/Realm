@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using Realm.Ecs;
 using Godot;
 using Realm.Client.Core;
@@ -103,13 +104,13 @@ public class ModelOverrideService
 
 		ModelNormalizeLuminance[norm] = normalizeLuminance;
 
-		string normModel = !string.IsNullOrEmpty(modelAsset) ? normalizeAssetKeyFunc(modelAsset) : null;
+		string? normModel = !string.IsNullOrEmpty(modelAsset) ? normalizeAssetKeyFunc(modelAsset) : null;
 		if (!string.IsNullOrEmpty(normModel) && !normModel.Equals(norm, StringComparison.OrdinalIgnoreCase))
 		{
 			ModelNormalizeLuminance[normModel] = normalizeLuminance;
 		}
 
-		string normPrimary = !string.IsNullOrEmpty(primaryKey) ? normalizeAssetKeyFunc(primaryKey) : null;
+		string? normPrimary = !string.IsNullOrEmpty(primaryKey) ? normalizeAssetKeyFunc(primaryKey) : null;
 		if (!string.IsNullOrEmpty(normPrimary) && !normPrimary.Equals(norm, StringComparison.OrdinalIgnoreCase))
 		{
 			ModelNormalizeLuminance[normPrimary] = normalizeLuminance;
@@ -120,8 +121,8 @@ public class ModelOverrideService
 
 	public string GetModelDeathShader(string primaryKey, string assetKey, Func<string, string> normalizeAssetKeyFunc)
 	{
-		if (TryGetModelDeathShader(primaryKey, normalizeAssetKeyFunc, out string d1)) return d1;
-		if (TryGetModelDeathShader(assetKey, normalizeAssetKeyFunc, out string d2)) return d2;
+		if (TryGetModelDeathShader(primaryKey, normalizeAssetKeyFunc, out string? d1)) return d1;
+		if (TryGetModelDeathShader(assetKey, normalizeAssetKeyFunc, out string? d2)) return d2;
 		if (string.IsNullOrEmpty(primaryKey)) return "";
 
 		var registry = GameContext.RegistryService;
@@ -130,7 +131,7 @@ public class ModelOverrideService
 		return "";
 	}
 
-	public bool TryGetModelDeathShader(string key, Func<string, string> normalizeAssetKeyFunc, out string shader)
+	public bool TryGetModelDeathShader(string key, Func<string, string> normalizeAssetKeyFunc, [NotNullWhen(true)] out string? shader)
 	{
 		shader = "";
 		string norm = normalizeAssetKeyFunc(key);
@@ -158,10 +159,9 @@ public class ModelOverrideService
 
 	public void UpdateCollisionRadius(Entity entity, float baseRadius)
 	{
-		if (entity != Entity.Null && GameContext.World.IsAlive(entity))
-		{
-			GameContext.World.SetOrAdd(entity, new CollisionRadius(baseRadius));
-		}
+		if (entity == Entity.Null || GameContext.World is not { } world || !world.IsAlive(entity)) return;
+
+		world.SetOrAdd(entity, new CollisionRadius(baseRadius));
 	}
 
 	public bool TryGetModelYOffset(string key, Func<string, string> normalizeFunc, out float offset)
@@ -198,7 +198,7 @@ public class ModelOverrideService
 		string norm = normalizeAssetKeyFunc(assetKey);
 		if (string.IsNullOrEmpty(norm)) return;
 
-		string normModel = !string.IsNullOrEmpty(modelAsset) ? normalizeAssetKeyFunc(modelAsset) : null;
+		string? normModel = !string.IsNullOrEmpty(modelAsset) ? normalizeAssetKeyFunc(modelAsset) : null;
 
 		if (!enable)
 		{
@@ -244,15 +244,15 @@ public class ModelOverrideService
 
 	public T GetOverrideValue<T>(string normKey, string normModel, Dictionary<string, T> dict, T defaultValue)
 	{
-		if (dict.TryGetValue(normKey, out T val1)) return val1;
-		if (!string.IsNullOrEmpty(normModel) && dict.TryGetValue(normModel, out T val2)) return val2;
+		if (dict.TryGetValue(normKey, out T? val1) && val1 is not null) return val1;
+		if (!string.IsNullOrEmpty(normModel) && dict.TryGetValue(normModel, out T? val2) && val2 is not null) return val2;
 		return defaultValue;
 	}
 
-	public string GetShaderOverride(string normKey, string normModel, Dictionary<string, string> dict)
+	public string? GetShaderOverride(string normKey, string normModel, Dictionary<string, string> dict)
 	{
-		if (!string.IsNullOrEmpty(normKey) && dict.TryGetValue(normKey, out string val1)) return val1;
-		if (!string.IsNullOrEmpty(normModel) && dict.TryGetValue(normModel, out string val2)) return val2;
+		if (!string.IsNullOrEmpty(normKey) && dict.TryGetValue(normKey, out string? val1) && val1 is not null) return val1;
+		if (!string.IsNullOrEmpty(normModel) && dict.TryGetValue(normModel, out string? val2) && val2 is not null) return val2;
 		return null;
 	}
 
@@ -297,12 +297,12 @@ public class ModelOverrideService
 		}
 	}
 
-	public void ProcessMetadataEntities<T>(IEnumerable<T> items, float defaultScale, Func<T, string> getId, Func<T, string> getModelPath, Func<T, float> getYOffset, Func<T, float> getScale, Func<T, float> getCollisionCircle, Func<T, float> getBrightness, Func<T, string> getTint, Func<T, bool> getDespillPlayerColor, Func<T, bool> getNormalizeLuminance, Func<string, string> normalizeModelAssetKey)
+	public void ProcessMetadataEntities<T>(IEnumerable<T> items, float defaultScale, Func<T, string?> getId, Func<T, string?> getModelPath, Func<T, float> getYOffset, Func<T, float> getScale, Func<T, float> getCollisionCircle, Func<T, float> getBrightness, Func<T, string?> getTint, Func<T, bool> getDespillPlayerColor, Func<T, bool> getNormalizeLuminance, Func<string, string> normalizeModelAssetKey)
 	{
 		if (items == null) return;
 		foreach (var item in items)
 		{
-			string uId = getId(item);
+			string? uId = getId(item);
 			if (string.IsNullOrEmpty(uId)) continue;
 			string normKey = normalizeModelAssetKey(uId);
 
@@ -318,7 +318,7 @@ public class ModelOverrideService
 				ModelScales[normKey] = defaultScale;
 			}
 
-			string mPath = getModelPath(item);
+			string? mPath = getModelPath(item);
 			if (!string.IsNullOrEmpty(mPath))
 			{
 				string normModel = normalizeModelAssetKey(mPath);
@@ -331,7 +331,7 @@ public class ModelOverrideService
 			ModelCollisionCircleRatios[normKey] = getCollisionCircle(item);
 			ModelBrightness[normKey] = getBrightness(item);
 
-			string tintStr = getTint(item);
+			string? tintStr = getTint(item);
 			if (!string.IsNullOrEmpty(tintStr))
 			{
 				ModelColorTint[normKey] = Godot.Color.FromString(tintStr, new Godot.Color(1, 1, 1));

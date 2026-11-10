@@ -658,7 +658,7 @@ public class MapGitRepository
 		}
 		catch (IOException exception)
 		{
-			Godot.GD.PrintErr($"[MapGitRepository] Could not remove {filePath}: {exception.Message}");
+			GameLog.LogError($"[MapGitRepository] Could not remove {filePath}: {exception.Message}");
 		}
 	}
 
@@ -677,7 +677,7 @@ public class MapGitRepository
 		}
 		catch (IOException exception)
 		{
-			Godot.GD.PrintErr($"[MapGitRepository] Could not remove {directoryPath}: {exception.Message}");
+			GameLog.LogError($"[MapGitRepository] Could not remove {directoryPath}: {exception.Message}");
 		}
 	}
 }

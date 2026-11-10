@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -21,14 +21,14 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 			string metadataPath = Path.Combine(mapDirectory, "metadata.json");
 			JsonObject metadataRoot = LoadMetadata(metadataPath);
 
-			MigrateAssetsDirectories(mapDirectory);
+			Migration_0_0_4_AssetDirectories.MigrateAssetsDirectories(mapDirectory);
 
 			const int totalSteps = 4;
 			progress?.Report(new MigrationProgressUpdate(Description, 1, totalSteps, "Normalizing entity template definitions into Templates container..."));
 
 			var templatesObj = GetOrCreateObject(metadataRoot, "Templates");
-			MigrateEntityCategories(metadataRoot, templatesObj);
-			MigrateDecals(metadataRoot);
+			Migration_0_0_4_EntityTemplates.MigrateEntityCategories(metadataRoot, templatesObj);
+			Migration_0_0_4_EntityTemplates.MigrateDecals(metadataRoot);
 			MigrateSpawnShaders(metadataRoot);
 			MigrateTerrainProfiles(metadataRoot);
 			MigrateTextures(metadataRoot);
@@ -72,214 +72,8 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 		return parent[key]!.AsObject();
 	}
 
-	private static void MigrateAssetsDirectories(string mapDirectory)
-	{
-		string assetsDir = Path.Combine(mapDirectory, "Assets");
-		if (!Directory.Exists(assetsDir)) return;
 
-		MoveLegacyVfxDir(assetsDir);
-		MovePrefixSubfolders(assetsDir);
-	}
 
-	private static void MoveLegacyVfxDir(string assetsDir)
-	{
-		string legacyVfxDir = Path.Combine(assetsDir, "vfx");
-		string newVfxDir = Path.Combine(assetsDir, "vfx_spritesheets");
-		if (Directory.Exists(legacyVfxDir))
-		{
-			Directory.CreateDirectory(newVfxDir);
-			MoveDirectoryContents(legacyVfxDir, newVfxDir);
-			try
-			{
-				Directory.Delete(legacyVfxDir, true);
-			}
-			catch
-			{
-			}
-		}
-	}
-
-	private static void MovePrefixSubfolders(string assetsDir)
-	{
-		var prefixSubfolderChecks = new (string Folder, string Prefix)[]
-		{
-			("icons", "icon"), ("skyboxes", "skybox"), ("textures", "terrain"),
-			("decals", "decal"), ("ribbons", "ribbon"),
-			("vfx_spritesheets", "spritesheet"), ("vfx_spritesheets", "vfx")
-		};
-
-		foreach (var (folder, prefix) in prefixSubfolderChecks)
-		{
-			string nestedDir = Path.Combine(assetsDir, folder, prefix);
-			if (Directory.Exists(nestedDir))
-			{
-				string parentDir = Path.Combine(assetsDir, folder);
-				MoveDirectoryContents(nestedDir, parentDir);
-				try
-				{
-					Directory.Delete(nestedDir, true);
-				}
-				catch
-				{
-				}
-			}
-		}
-	}
-
-	private static void MoveDirectoryContents(string sourceDir, string targetDir)
-	{
-		foreach (var file in Directory.GetFiles(sourceDir, "*.*", SearchOption.AllDirectories))
-		{
-			string rel = Path.GetRelativePath(sourceDir, file);
-			string target = Path.Combine(targetDir, rel);
-			string? targetFileDir = Path.GetDirectoryName(target);
-			if (!string.IsNullOrEmpty(targetFileDir)) Directory.CreateDirectory(targetFileDir);
-
-			if (!File.Exists(target)) File.Move(file, target);
-			else File.Delete(file);
-		}
-	}
-
-	private static void MigrateEntityCategories(JsonObject metadataRoot, JsonObject templatesObj)
-	{
-		var entityCategories = new (string LegacyCustomKey, string CanonicalKey, string ObjectType, string LegacyIdKey)[]
-		{
-			("CustomUnits", "Units", "unit", "UnitId"), ("CustomBuildings", "Buildings", "building", "UnitId"),
-			("CustomResources", "Resources", "resource", "UnitId"), ("CustomProps", "Props", "prop", "UnitId"),
-			("CustomAbilities", "Abilities", "ability", "AbilityId"), ("CustomWeapons", "Weapons", "weapon", "WeaponId"),
-			("CustomUpgrades", "Upgrades", "upgrade", "UpgradeId"), ("CustomItems", "Items", "item", "ItemId"),
-			("CustomAttachments", "Attachments", "", ""), ("CustomVfx", "Vfx", "", "")
-		};
-
-		foreach (var (legacyKey, canonicalKey, objectType, legacyIdKey) in entityCategories)
-		{
-			MigrateEntityCategoryList(metadataRoot, templatesObj, legacyKey, canonicalKey);
-			NormalizeEntityIdsAndModels(templatesObj, canonicalKey, objectType, legacyIdKey);
-		}
-	}
-
-	private static void MigrateEntityCategoryList(JsonObject metadataRoot, JsonObject templatesObj, string legacyKey, string canonicalKey)
-	{
-		if (metadataRoot.TryGetPropertyValue(legacyKey, out var legacyArrNode) && legacyArrNode is JsonArray legacyArray)
-		{
-			if (!templatesObj.ContainsKey(canonicalKey) || templatesObj[canonicalKey] is not JsonArray)
-			{
-				templatesObj[canonicalKey] = new JsonArray();
-			}
-
-			var canonicalArray = templatesObj[canonicalKey]!.AsArray();
-			foreach (var item in legacyArray)
-			{
-				if (item != null) canonicalArray.Add(item.DeepClone());
-			}
-
-			metadataRoot.Remove(legacyKey);
-		}
-	}
-
-	private static void NormalizeEntityIdsAndModels(JsonObject templatesObj, string canonicalKey, string objectType, string legacyIdKey)
-	{
-		if (string.IsNullOrEmpty(objectType)) return;
-		if (!templatesObj.TryGetPropertyValue(canonicalKey, out var arrNode) || arrNode is not JsonArray entityArray) return;
-
-		foreach (var item in entityArray.OfType<JsonObject>())
-		{
-			string rawId = ExtractRawId(item, legacyIdKey);
-			if (!string.IsNullOrWhiteSpace(rawId))
-			{
-				item["TemplateID"] = TemplateIDHelper.NormalizeTemplateID(objectType, rawId);
-			}
-
-			string modelPath = item["ModelPath"]?.ToString() ?? string.Empty;
-			if (modelPath.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase))
-			{
-				item["VisualMode"] = "Mesh";
-			}
-		}
-	}
-
-	private static string ExtractRawId(JsonObject entityObj, string legacyIdKey)
-	{
-		string rawId = string.Empty;
-		if (entityObj.TryGetPropertyValue("TemplateID", out var tid) && tid != null) rawId = tid.ToString();
-		else if (entityObj.TryGetPropertyValue("ObjectID", out var oid) && oid != null)
-		{
-			rawId = oid.ToString();
-			entityObj.Remove("ObjectID");
-		}
-		else if (!string.IsNullOrEmpty(legacyIdKey) && entityObj.TryGetPropertyValue(legacyIdKey, out var lid) && lid != null)
-		{
-			rawId = lid.ToString();
-			entityObj.Remove(legacyIdKey);
-		}
-		else if (entityObj.TryGetPropertyValue("UnitId", out var uid) && uid != null)
-		{
-			rawId = uid.ToString();
-			entityObj.Remove("UnitId");
-		}
-
-		return rawId;
-	}
-
-	private static void MigrateDecals(JsonObject metadataRoot)
-	{
-		if (!metadataRoot.TryGetPropertyValue("decals", out var decalsNode) || decalsNode is not JsonObject decalsObj) return;
-
-		var normalizedDecals = new JsonObject();
-		foreach (var kvp in decalsObj)
-		{
-			string rawKey = kvp.Key;
-			string slug = TemplateIDHelper.GenerateSlug(rawKey);
-			string normalizedId = TemplateIDHelper.NormalizeTemplateID("decal", slug);
-			var itemObj = kvp.Value as JsonObject ?? new JsonObject();
-
-			CleanHashAndAssetType(itemObj);
-			if (string.IsNullOrWhiteSpace(itemObj["TexturePath"]?.ToString()))
-			{
-				itemObj["TexturePath"] = rawKey.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? rawKey : $"{slug}.rtex";
-			}
-
-			EnsureDecalDefaults(itemObj);
-			MergeOrAddNormalizedItem(normalizedDecals, normalizedId, itemObj);
-		}
-
-		metadataRoot["decals"] = normalizedDecals;
-	}
-
-	private static void CleanHashAndAssetType(JsonObject itemObj)
-	{
-		itemObj.Remove("Hash");
-		itemObj.Remove("hash");
-		itemObj.Remove("AssetType");
-		itemObj.Remove("assetType");
-		itemObj.Remove("asset_type");
-	}
-
-	private static void EnsureDecalDefaults(JsonObject itemObj)
-	{
-		if (!itemObj.ContainsKey("Opacity")) itemObj["Opacity"] = 1.0f;
-		if (!itemObj.ContainsKey("Brightness")) itemObj["Brightness"] = 1.0f;
-		if (!itemObj.ContainsKey("Contrast")) itemObj["Contrast"] = 1.0f;
-		if (!itemObj.ContainsKey("Saturation")) itemObj["Saturation"] = 1.0f;
-	}
-
-	private static void MergeOrAddNormalizedItem(JsonObject normalizedCollection, string normalizedId, JsonObject itemObj)
-	{
-		if (!normalizedCollection.ContainsKey(normalizedId))
-		{
-			normalizedCollection[normalizedId] = itemObj.DeepClone();
-		}
-		else if (normalizedCollection[normalizedId] is JsonObject existingObj)
-		{
-			foreach (var prop in itemObj)
-			{
-				if (prop.Value != null && (!existingObj.ContainsKey(prop.Key) || existingObj[prop.Key] == null))
-				{
-					existingObj[prop.Key] = prop.Value.DeepClone();
-				}
-			}
-		}
-	}
 
 	private static void MigrateSpawnShaders(JsonObject metadataRoot)
 	{
@@ -370,12 +164,12 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 	{
 		if (normalizedShaders.Count == 0)
 		{
-			normalizedShaders["SpawnShader/magic_blueprint"] = CreateDefaultShaderConfig("Magic Blueprint", 0, 0, "#00e5ffff", 0.06f, 6.0f, 12.0f, 0.4f, 3.0f, 0.0f, 0.9f, 1.2f);
-			normalizedShaders["SpawnShader/fire_demolish"] = CreateDefaultShaderConfig("Fire Ember Dissolve", 1, 1, "#ff590cff", 0.08f, 7.0f, 16.0f, 0.7f, 1.5f, 0.15f, 1.0f, 1.5f);
-			normalizedShaders["SpawnShader/hologram_warp"] = CreateDefaultShaderConfig("Hologram Scanlines", 2, 0, "#66ff33ff", 0.04f, 4.0f, 20.0f, 0.2f, 4.0f, 0.02f, 0.75f, 1.0f);
-			normalizedShaders["SpawnShader/earth_crumble"] = CreateDefaultShaderConfig("Earth Ground Crumble", 3, 1, "#99734cff", 0.05f, 2.0f, 8.0f, 0.8f, 1.0f, 0.25f, 1.0f, 1.1f);
-			normalizedShaders["SpawnShader/frost_crystallize"] = CreateDefaultShaderConfig("Frost Crystallize", 4, 2, "#b2e5ffff", 0.05f, 5.0f, 25.0f, 0.6f, 3.5f, 0.03f, 0.95f, 1.3f);
-			normalizedShaders["SpawnShader/shadow_void"] = CreateDefaultShaderConfig("Shadow Void Collapse", 5, 3, "#b219ffff", 0.07f, 8.0f, 14.0f, 0.9f, 2.0f, 0.18f, 1.0f, 1.4f);
+			normalizedShaders["SpawnShader/magic_blueprint"] = Migration_0_0_4_TemplateDefaults.CreateDefaultShaderConfig("Magic Blueprint", 0, 0, "#00e5ffff", 0.06f, 6.0f, 12.0f, 0.4f, 3.0f, 0.0f, 0.9f, 1.2f);
+			normalizedShaders["SpawnShader/fire_demolish"] = Migration_0_0_4_TemplateDefaults.CreateDefaultShaderConfig("Fire Ember Dissolve", 1, 1, "#ff590cff", 0.08f, 7.0f, 16.0f, 0.7f, 1.5f, 0.15f, 1.0f, 1.5f);
+			normalizedShaders["SpawnShader/hologram_warp"] = Migration_0_0_4_TemplateDefaults.CreateDefaultShaderConfig("Hologram Scanlines", 2, 0, "#66ff33ff", 0.04f, 4.0f, 20.0f, 0.2f, 4.0f, 0.02f, 0.75f, 1.0f);
+			normalizedShaders["SpawnShader/earth_crumble"] = Migration_0_0_4_TemplateDefaults.CreateDefaultShaderConfig("Earth Ground Crumble", 3, 1, "#99734cff", 0.05f, 2.0f, 8.0f, 0.8f, 1.0f, 0.25f, 1.0f, 1.1f);
+			normalizedShaders["SpawnShader/frost_crystallize"] = Migration_0_0_4_TemplateDefaults.CreateDefaultShaderConfig("Frost Crystallize", 4, 2, "#b2e5ffff", 0.05f, 5.0f, 25.0f, 0.6f, 3.5f, 0.03f, 0.95f, 1.3f);
+			normalizedShaders["SpawnShader/shadow_void"] = Migration_0_0_4_TemplateDefaults.CreateDefaultShaderConfig("Shadow Void Collapse", 5, 3, "#b219ffff", 0.07f, 8.0f, 14.0f, 0.9f, 2.0f, 0.18f, 1.0f, 1.4f);
 		}
 	}
 
@@ -436,13 +230,13 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 			var itemObj = kvp.Value as JsonObject ?? new JsonObject();
 
 			NormalizeTexturePath(itemObj, kvp.Key, slug);
-			CleanHashAndAssetType(itemObj);
+			Migration_0_0_4_EntityTemplates.CleanHashAndAssetType(itemObj);
 			itemObj.Remove("rtex");
 			itemObj.Remove("texturePath");
 
 			RenameTextureProperties(itemObj);
 			EnsureTextureDefaults(itemObj);
-			MergeOrAddNormalizedItem(normalizedTextures, normalizedId, itemObj);
+			Migration_0_0_4_EntityTemplates.MergeOrAddNormalizedItem(normalizedTextures, normalizedId, itemObj);
 		}
 
 		metadataRoot["textures"] = normalizedTextures;
@@ -511,7 +305,7 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 			string slug = TemplateIDHelper.GenerateSlug(rawKey);
 			string normalizedId = TemplateIDHelper.NormalizeTemplateID(objectType, slug);
 			var itemObj = kvp.Value as JsonObject ?? new JsonObject();
-			CleanHashAndAssetType(itemObj);
+			Migration_0_0_4_EntityTemplates.CleanHashAndAssetType(itemObj);
 			itemObj["TexturePath"] = itemObj["TexturePath"]?.ToString() ?? (rawKey.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? rawKey : $"{slug}.rtex");
 			normalized[normalizedId] = itemObj;
 		}
@@ -531,14 +325,14 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 			var itemObj = kvp.Value as JsonObject ?? new JsonObject();
 
 			itemObj["TexturePath"] = itemObj["TexturePath"]?.ToString() ?? itemObj["AssetType"]?.ToString() ?? (kvp.Key.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? kvp.Key : $"{slug}.rtex");
-			CleanHashAndAssetType(itemObj);
+			Migration_0_0_4_EntityTemplates.CleanHashAndAssetType(itemObj);
 
 			RenameProperty(itemObj, "Columns", "columns");
 			RenameProperty(itemObj, "Rows", "rows");
 			RenameProperty(itemObj, "Fps", "fps");
 			RenameProperty(itemObj, "SubframeBlend", "subframe_blend", "subframeBlend");
 
-			MergeOrAddNormalizedItem(normalizedSpritesheets, normalizedId, itemObj);
+			Migration_0_0_4_EntityTemplates.MergeOrAddNormalizedItem(normalizedSpritesheets, normalizedId, itemObj);
 		}
 
 		metadataRoot["vfx_spritesheets"] = normalizedSpritesheets;
@@ -555,8 +349,8 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 		{
 			string targetKey = DetermineModelTargetKey(kvp.Key, modelToTemplateId);
 			var itemObj = kvp.Value as JsonObject ?? new JsonObject();
-			CleanHashAndAssetType(itemObj);
-			MergeOrAddNormalizedItem(normalizedModels, targetKey, itemObj);
+			Migration_0_0_4_EntityTemplates.CleanHashAndAssetType(itemObj);
+			Migration_0_0_4_EntityTemplates.MergeOrAddNormalizedItem(normalizedModels, targetKey, itemObj);
 		}
 
 		metadataRoot["Models"] = normalizedModels;
@@ -630,7 +424,7 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 		{
 			if (assetsObj.TryGetPropertyValue(oldKey, out var sourceNode) && sourceNode is JsonObject sourceObj)
 			{
-				UnionCategoryInto(assetsObj, newKey, sourceObj);
+				Migration_0_0_4_TemplateDefaults.UnionCategoryInto(assetsObj, newKey, sourceObj);
 				assetsObj.Remove(oldKey);
 			}
 		}
@@ -649,7 +443,7 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 		{
 			if (glbObj.TryGetPropertyValue(oldKey, out var sourceNode) && sourceNode is JsonObject sourceObj)
 			{
-				UnionCategoryInto(assetsObj, newKey, sourceObj);
+				Migration_0_0_4_TemplateDefaults.UnionCategoryInto(assetsObj, newKey, sourceObj);
 				glbObj.Remove(oldKey);
 			}
 		}
@@ -675,7 +469,7 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 		foreach (var assetPair in categoryObj)
 		{
 			string hash = GetAssetHash(assetPair.Value);
-			EnsureTemplateForManifestAsset(metadataRoot, templatesObj, categoryName, assetPair.Key, hash);
+			Migration_0_0_4_TemplateDefaults.EnsureTemplateForManifestAsset(metadataRoot, templatesObj, categoryName, assetPair.Key, hash);
 		}
 	}
 
@@ -749,7 +543,7 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[Migration_0_0_4] Failed to migrate terrain.json: {ex.Message}");
+			GameLog.LogError($"[Migration_0_0_4] Failed to migrate terrain.json: {ex.Message}");
 		}
 	}
 
@@ -768,16 +562,11 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 
 	private static void ProcessCategoryItem(JsonObject item, Dictionary<string, string> targetLookup, Dictionary<string, string> allTemplatesLookup)
 	{
-		string tId = GetStringValue(item, "TemplateID") ?? string.Empty;
-		string? objectId = GetStringValue(item, "UnitId") ?? GetStringValue(item, "ObjectID");
-		string? name = GetStringValue(item, "Name");
-		string? modelPath = GetStringValue(item, "ModelPath");
+		string tId = Migration_0_0_4_TemplateDefaults.GetStringValue(item, "TemplateID") ?? string.Empty;
+		string? objectId = Migration_0_0_4_TemplateDefaults.GetStringValue(item, "UnitId") ?? Migration_0_0_4_TemplateDefaults.GetStringValue(item, "ObjectID");
+		string? name = Migration_0_0_4_TemplateDefaults.GetStringValue(item, "Name");
+		string? modelPath = Migration_0_0_4_TemplateDefaults.GetStringValue(item, "ModelPath");
 		RegisterInLookup(targetLookup, allTemplatesLookup, tId, name, modelPath, objectId);
-	}
-
-	private static string? GetStringValue(JsonObject obj, string key)
-	{
-		return obj.TryGetPropertyValue(key, out var node) ? node?.ToString() : null;
 	}
 
 	private static void PopulateDecalLookup(JsonObject metadataRoot, Dictionary<string, string> decalLookup)
@@ -906,378 +695,4 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 		return Task.Run(() => Up(mapDirectory, progress));
 	}
 
-	private static JsonObject CreateDefaultShaderConfig(
-		string name,
-		int transitionMode,
-		int direction,
-		string edgeColorHex,
-		float edgeWidth,
-		float edgeEmission,
-		float noiseScale,
-		float noiseRoughness,
-		float fresnelPower,
-		float vertexDisplacement,
-		float alphaFade,
-		float duration)
-	{
-		return new JsonObject
-		{
-			["Name"] = name,
-			["TransitionMode"] = transitionMode,
-			["Direction"] = direction,
-			["EdgeColor"] = edgeColorHex,
-			["EdgeWidth"] = edgeWidth,
-			["EdgeEmission"] = edgeEmission,
-			["NoiseScale"] = noiseScale,
-			["NoiseRoughness"] = noiseRoughness,
-			["FresnelPower"] = fresnelPower,
-			["VertexDisplacement"] = vertexDisplacement,
-			["AlphaFade"] = alphaFade,
-			["Duration"] = duration,
-			["AssetType"] = "SpawnShader"
-		};
-	}
-
-	private static bool ModelExistsInOtherCategories(JsonObject templatesObj, string fileName, string slug)
-	{
-		return new[] { "Units", "Buildings", "Resources", "Props" }
-			.Where(cat => templatesObj.ContainsKey(cat) && templatesObj[cat] is JsonArray)
-			.SelectMany(cat => templatesObj[cat]!.AsArray().OfType<JsonObject>())
-			.Any(item =>
-				string.Equals(item["ModelPath"]?.ToString(), fileName, StringComparison.OrdinalIgnoreCase) ||
-				string.Equals(TemplateIDHelper.GenerateSlug(item["ModelPath"]?.ToString() ?? ""), slug, StringComparison.OrdinalIgnoreCase) ||
-				string.Equals(TemplateIDHelper.GenerateSlug(item["TemplateID"]?.ToString() ?? ""), slug, StringComparison.OrdinalIgnoreCase));
-	}
-
-	private static void EnsureTemplateForManifestAsset(JsonObject metadataRoot, JsonObject templatesObj, string category, string fileName, string hash)
-	{
-		if (string.IsNullOrWhiteSpace(fileName)) return;
-
-		string slug = TemplateIDHelper.GenerateSlug(fileName);
-		string normalizedCategory = MapAssetHelper.NormalizeCategoryKey(category);
-
-		switch (normalizedCategory.ToLowerInvariant())
-		{
-			case "character" or "unit" or "characters" or "units":
-				EnsureUnitTemplate(templatesObj, fileName, slug);
-				break;
-			case "building" or "buildings":
-				EnsureBuildingTemplate(templatesObj, fileName, slug);
-				break;
-			case "prop" or "props":
-				EnsurePropTemplate(templatesObj, fileName, slug);
-				break;
-			case "resource" or "resources":
-				EnsureResourceTemplate(templatesObj, fileName, slug);
-				break;
-			case "decal" or "decals":
-				EnsureDecalTemplate(metadataRoot, fileName, slug, hash);
-				break;
-			case "terrain" or "textures":
-				EnsureTerrainTemplate(metadataRoot, fileName, slug, hash);
-				break;
-			case "spritesheet" or "spritesheets" or "vfx":
-				EnsureSpritesheetTemplate(metadataRoot, fileName, slug, hash);
-				break;
-			case "icon" or "icons":
-				EnsureIconTemplate(metadataRoot, slug, hash);
-				break;
-			case "shader" or "shaders" or "gdshader":
-				EnsureShaderTemplate(metadataRoot, slug, hash);
-				break;
-		}
-	}
-
-	private static void EnsureUnitTemplate(JsonObject templatesObj, string fileName, string slug)
-	{
-		string unitTemplateId = TemplateIDHelper.NormalizeTemplateID("unit", slug);
-		var unitsArr = GetOrAddArray(templatesObj, "Units");
-
-		if (CheckIfTemplateExists(unitsArr, unitTemplateId, fileName, slug) || ModelExistsInOtherCategories(templatesObj, fileName, slug)) return;
-
-		unitsArr.Add(new JsonObject
-		{
-			["TemplateID"] = unitTemplateId,
-			["Name"] = slug,
-			["Description"] = "",
-			["ModelPath"] = fileName,
-			["VisualMode"] = GetVisualMode(fileName),
-			["Scale"] = 1.0f,
-			["PathingType"] = 9,
-			["DespillPlayerColor"] = false,
-			["NormalizeLuminance"] = true
-		});
-	}
-
-	private static JsonArray GetOrAddArray(JsonObject templatesObj, string key)
-	{
-		if (!templatesObj.ContainsKey(key) || templatesObj[key] is not JsonArray)
-		{
-			templatesObj[key] = new JsonArray();
-		}
-
-		return (JsonArray)templatesObj[key]!;
-	}
-
-	private static bool CheckIfTemplateExists(JsonArray array, string templateId, string fileName, string slug)
-	{
-		return array.OfType<JsonObject>().Any(t =>
-			string.Equals(t["TemplateID"]?.ToString(), templateId, StringComparison.OrdinalIgnoreCase) ||
-			string.Equals(TemplateIDHelper.GenerateSlug(t["TemplateID"]?.ToString() ?? ""), slug, StringComparison.OrdinalIgnoreCase) ||
-			string.Equals(t["ModelPath"]?.ToString(), fileName, StringComparison.OrdinalIgnoreCase) ||
-			string.Equals(TemplateIDHelper.GenerateSlug(t["ModelPath"]?.ToString() ?? ""), slug, StringComparison.OrdinalIgnoreCase));
-	}
-
-	private static string GetVisualMode(string fileName)
-	{
-		return fileName.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) ? "3D Mesh (.rmesh)" : "GroundPlane";
-	}
-
-	private static void EnsureBuildingTemplate(JsonObject templatesObj, string fileName, string slug)
-	{
-		string buildingTemplateId = TemplateIDHelper.NormalizeTemplateID("building", slug);
-		var buildingsArr = GetOrAddArray(templatesObj, "Buildings");
-
-		if (CheckIfTemplateExists(buildingsArr, buildingTemplateId, fileName, slug) || ModelExistsInOtherCategories(templatesObj, fileName, slug)) return;
-
-		buildingsArr.Add(new JsonObject
-		{
-			["TemplateID"] = buildingTemplateId,
-			["Name"] = slug,
-			["Description"] = "",
-			["ModelPath"] = fileName,
-			["VisualMode"] = GetVisualMode(fileName),
-			["Scale"] = 1.5f,
-			["PathingType"] = 32,
-			["DespillPlayerColor"] = false,
-			["NormalizeLuminance"] = true
-		});
-	}
-
-	private static void EnsurePropTemplate(JsonObject templatesObj, string fileName, string slug)
-	{
-		string propTemplateId = TemplateIDHelper.NormalizeTemplateID("prop", slug);
-		var propsArr = GetOrAddArray(templatesObj, "Props");
-
-		if (CheckIfTemplateExists(propsArr, propTemplateId, fileName, slug) || ModelExistsInOtherCategories(templatesObj, fileName, slug)) return;
-
-		propsArr.Add(new JsonObject
-		{
-			["TemplateID"] = propTemplateId,
-			["Name"] = slug,
-			["Description"] = "",
-			["ModelPath"] = fileName,
-			["VisualMode"] = GetVisualMode(fileName),
-			["Scale"] = 1.25f,
-			["PathingType"] = 255,
-			["DespillPlayerColor"] = false,
-			["NormalizeLuminance"] = true,
-			["IgnorePlayerColor"] = true
-		});
-	}
-
-	private static void EnsureResourceTemplate(JsonObject templatesObj, string fileName, string slug)
-	{
-		string resourceTemplateId = TemplateIDHelper.NormalizeTemplateID("resource", slug);
-		var resourcesArr = GetOrAddArray(templatesObj, "Resources");
-
-		if (CheckIfTemplateExists(resourcesArr, resourceTemplateId, fileName, slug) || ModelExistsInOtherCategories(templatesObj, fileName, slug)) return;
-
-		resourcesArr.Add(new JsonObject
-		{
-			["TemplateID"] = resourceTemplateId,
-			["Name"] = slug,
-			["Description"] = "",
-			["ModelPath"] = fileName,
-			["VisualMode"] = GetVisualMode(fileName),
-			["Scale"] = 2.75f,
-			["PathingType"] = 255,
-			["DespillPlayerColor"] = false,
-			["NormalizeLuminance"] = true,
-			["IgnorePlayerColor"] = true
-		});
-	}
-
-	private static void EnsureDecalTemplate(JsonObject metadataRoot, string fileName, string slug, string hash)
-	{
-		string decalTemplateId = TemplateIDHelper.NormalizeTemplateID("decal", slug);
-		var decalsObj = GetOrAddObject(metadataRoot, "decals");
-
-		if (CheckIfDecalExists(decalsObj, decalTemplateId, fileName, slug)) return;
-
-		decalsObj[decalTemplateId] = new JsonObject
-		{
-			["Hash"] = hash ?? string.Empty,
-			["TexturePath"] = fileName,
-			["Opacity"] = 1.0f,
-			["Brightness"] = 1.0f,
-			["Contrast"] = 1.0f,
-			["Saturation"] = 1.0f
-		};
-	}
-
-	private static JsonObject GetOrAddObject(JsonObject parent, string key)
-	{
-		if (!parent.ContainsKey(key) || parent[key] is not JsonObject)
-		{
-			parent[key] = new JsonObject();
-		}
-
-		return (JsonObject)parent[key]!;
-	}
-
-	private static bool CheckIfDecalExists(JsonObject decalsObj, string templateId, string fileName, string slug)
-	{
-		foreach (var kvp in decalsObj)
-		{
-			if (IsDecalMatch(kvp.Key, kvp.Value as JsonObject, templateId, fileName, slug))
-			{
-				return true;
-			}
-		}
-
-		return false;
-	}
-
-	private static bool IsDecalMatch(string key, JsonObject? dObj, string templateId, string fileName, string slug)
-	{
-		if (string.Equals(key, templateId, StringComparison.OrdinalIgnoreCase) ||
-		    string.Equals(key, slug, StringComparison.OrdinalIgnoreCase) ||
-		    string.Equals(key, fileName, StringComparison.OrdinalIgnoreCase) ||
-		    string.Equals(TemplateIDHelper.GenerateSlug(key), slug, StringComparison.OrdinalIgnoreCase))
-		{
-			return true;
-		}
-
-		if (dObj == null) return false;
-
-		string? texturePath = GetStringValue(dObj, "TexturePath");
-		if (texturePath == null) return false;
-
-		return string.Equals(texturePath, fileName, StringComparison.OrdinalIgnoreCase) ||
-		       string.Equals(texturePath, slug, StringComparison.OrdinalIgnoreCase) ||
-		       string.Equals(TemplateIDHelper.GenerateSlug(texturePath), slug, StringComparison.OrdinalIgnoreCase);
-	}
-
-	private static void EnsureTerrainTemplate(JsonObject metadataRoot, string fileName, string slug, string hash)
-	{
-		string terrainTemplateId = TemplateIDHelper.NormalizeTemplateID("terrain", slug);
-		if (!metadataRoot.ContainsKey("textures") || metadataRoot["textures"] is not JsonObject)
-		{
-			metadataRoot["textures"] = new JsonObject();
-		}
-
-		var texturesObj = metadataRoot["textures"]!.AsObject();
-		bool exists = texturesObj.Any(kvp =>
-			string.Equals(kvp.Key, terrainTemplateId, StringComparison.OrdinalIgnoreCase) ||
-			string.Equals(kvp.Key, slug, StringComparison.OrdinalIgnoreCase) ||
-			string.Equals(kvp.Key, fileName, StringComparison.OrdinalIgnoreCase) ||
-			(kvp.Value is JsonObject tObj && string.Equals(tObj["AssetType"]?.ToString(), fileName, StringComparison.OrdinalIgnoreCase)));
-		if (!exists)
-		{
-			texturesObj[terrainTemplateId] = new JsonObject
-			{
-				["Hash"] = hash ?? string.Empty,
-				["AssetType"] = fileName,
-				["ScaleFactor"] = 1.0f,
-				["Brightness"] = 1.0f,
-				["Contrast"] = 1.0f,
-				["Saturation"] = 1.0f,
-				["TileMode"] = "Stochastic",
-				["DefaultPathingCode"] = 8 | 32 | 4,
-				["DecalBombingRules"] = new JsonArray(),
-				["VfxBombingRules"] = new JsonArray()
-			};
-		}
-	}
-
-	private static void EnsureSpritesheetTemplate(JsonObject metadataRoot, string fileName, string slug, string hash)
-	{
-		string spritesheetTemplateId = TemplateIDHelper.NormalizeTemplateID("spritesheet", slug);
-		if (!metadataRoot.ContainsKey("vfx_spritesheets") || metadataRoot["vfx_spritesheets"] is not JsonObject)
-		{
-			metadataRoot["vfx_spritesheets"] = new JsonObject();
-		}
-
-		var vfxObj = metadataRoot["vfx_spritesheets"]!.AsObject();
-		bool exists = vfxObj.Any(kvp =>
-			string.Equals(kvp.Key, spritesheetTemplateId, StringComparison.OrdinalIgnoreCase) ||
-			string.Equals(kvp.Key, slug, StringComparison.OrdinalIgnoreCase) ||
-			string.Equals(kvp.Key, fileName, StringComparison.OrdinalIgnoreCase) ||
-			(kvp.Value is JsonObject sObj && string.Equals(sObj["AssetType"]?.ToString(), fileName, StringComparison.OrdinalIgnoreCase)));
-		if (!exists)
-		{
-			vfxObj[spritesheetTemplateId] = new JsonObject
-			{
-				["Hash"] = hash ?? string.Empty,
-				["AssetType"] = fileName,
-				["Columns"] = 4,
-				["Rows"] = 4,
-				["Fps"] = 20.0f
-			};
-		}
-	}
-
-	private static void EnsureIconTemplate(JsonObject metadataRoot, string slug, string hash)
-	{
-		string iconTemplateId = TemplateIDHelper.NormalizeTemplateID("icon", slug);
-		if (!metadataRoot.ContainsKey("icons") || metadataRoot["icons"] is not JsonObject)
-		{
-			metadataRoot["icons"] = new JsonObject();
-		}
-
-		var iconsObj = metadataRoot["icons"]!.AsObject();
-		bool exists = iconsObj.Any(kvp => string.Equals(kvp.Key, iconTemplateId, StringComparison.OrdinalIgnoreCase));
-		if (!exists)
-		{
-			iconsObj[iconTemplateId] = new JsonObject
-			{
-				["Hash"] = hash ?? string.Empty
-			};
-		}
-	}
-
-	private static void EnsureShaderTemplate(JsonObject metadataRoot, string slug, string hash)
-	{
-		string shaderTemplateId = TemplateIDHelper.NormalizeTemplateID("gdshader", slug);
-		if (!metadataRoot.ContainsKey("gdshader") || metadataRoot["gdshader"] is not JsonObject)
-		{
-			metadataRoot["gdshader"] = new JsonObject();
-		}
-
-		var shaderObj = metadataRoot["gdshader"]!.AsObject();
-		bool exists = shaderObj.Any(kvp => string.Equals(kvp.Key, shaderTemplateId, StringComparison.OrdinalIgnoreCase));
-		if (!exists)
-		{
-			shaderObj[shaderTemplateId] = new JsonObject
-			{
-				["Hash"] = hash ?? string.Empty
-			};
-		}
-	}
-
-	private static void UnionCategoryInto(JsonObject targetContainer, string targetCategory, JsonObject sourceObject)
-	{
-		if (!targetContainer.ContainsKey(targetCategory) || targetContainer[targetCategory] is not JsonObject)
-		{
-			targetContainer[targetCategory] = new JsonObject();
-		}
-
-		var categoryTarget = targetContainer[targetCategory]!.AsObject();
-
-		foreach (var pair in sourceObject)
-		{
-			if (categoryTarget.ContainsKey(pair.Key) && categoryTarget[pair.Key] is JsonObject existingObj && pair.Value is JsonObject sourceObj)
-			{
-				foreach (var prop in sourceObj)
-				{
-					existingObj[prop.Key] = prop.Value?.DeepClone();
-				}
-			}
-			else if (pair.Value != null)
-			{
-				categoryTarget[pair.Key] = pair.Value.DeepClone();
-			}
-		}
-	}
 }

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.Services;
@@ -10,53 +10,53 @@ namespace Realm.Client.UI
 	{
 		public void ClearPasteTelemetry()
 		{
-			if (_lblPasteTelemetry != null)
+			if (_pastePanel?.Telemetry != null)
 			{
-				_lblPasteTelemetry.Text = "";
+				_pastePanel.Telemetry.Text = "";
 			}
 		}
 
 		public void UpdatePasteReflectionExternal(PasteReflection reflection)
 		{
-			GameContext.EditorService.UpdatePasteReflectionExternalDomain(reflection);
+			GameContext.EditorService.Placement.UpdatePasteReflection(reflection);
 			UpdatePasteReflectionButtonText();
 		}
 
 		private void CyclePasteAnchor()
 		{
 			var editorService = GameContext.EditorService;
-			if (editorService == null || !editorService.HasCopiedArea)
+			if (editorService == null || !editorService.Clipboard.HasCopiedArea)
 			{
 				ShowFeedback(TranslationServer.Translate("No area currently in clipboard to set anchor for."));
 				return;
 			}
 
-			editorService.CyclePasteAnchorDomain();
+			editorService.Clipboard.CyclePasteAnchor();
 			UpdatePasteAnchorButtonText();
-			ShowFeedback(string.Format(TranslationServer.Translate("Paste Anchor: {0}"), TranslationServer.Translate(EditorService.PasteAnchorNames[editorService.CurrentPasteAnchorIndex])));
+			ShowFeedback(string.Format(TranslationServer.Translate("Paste Anchor: {0}"), TranslationServer.Translate(EditorToolCatalog.PasteAnchorNames[editorService.Clipboard.PasteAnchorIndex])));
 		}
 
 		public void UpdatePasteAnchorButtonText()
 		{
-			if (_btnPasteAnchor != null)
+			if (_pastePanel?.PasteAnchor != null)
 			{
-				_btnPasteAnchor.Text = $"{UnicodeIcons.MOUSE_POINTER} " + string.Format(TranslationServer.Translate("ANCHOR: {0}"), TranslationServer.Translate(EditorService.PasteAnchorNames[GameContext.EditorService.CurrentPasteAnchorIndex]));
+				_pastePanel.PasteAnchor.Text = $"{UnicodeIcons.MOUSE_POINTER} " + string.Format(TranslationServer.Translate("ANCHOR: {0}"), TranslationServer.Translate(EditorToolCatalog.PasteAnchorNames[GameContext.EditorService.Clipboard.PasteAnchorIndex]));
 			}
 		}
 
 		private void CyclePasteReflection()
 		{
 			if (GameContext.Host == null) return;
-			var next = GameContext.EditorService.CyclePasteReflectionDomain();
+			var next = GameContext.EditorService.Tools.CyclePasteReflection();
 			UpdatePasteReflectionButtonText();
 			ShowFeedback(string.Format(TranslationServer.Translate("Paste Reflection: {0}"), TranslationServer.Translate(next.ToString().ToUpperInvariant())));
 		}
 
 		public void UpdatePasteReflectionButtonText()
 		{
-			if (_btnPasteReflection != null && GameContext.Host != null)
+			if (_pastePanel?.PasteReflection != null && GameContext.Host != null)
 			{
-				_btnPasteReflection.Text = $"{UnicodeIcons.ARROWS_H} " + string.Format(TranslationServer.Translate("REFLECT: {0}"), TranslationServer.Translate(GameContext.EditorService.EditorPasteReflection.ToString().ToUpperInvariant()));
+				_pastePanel.PasteReflection.Text = $"{UnicodeIcons.ARROWS_H} " + string.Format(TranslationServer.Translate("REFLECT: {0}"), TranslationServer.Translate(GameContext.EditorService.Tools.PasteReflectionMode.ToString().ToUpperInvariant()));
 			}
 		}
 	}

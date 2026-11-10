@@ -4,7 +4,9 @@ using System.Linq;
 using System.Threading.Tasks;
 using Godot;
 using Realm.Client.Network;
+using Realm.Client.UI;
 using Realm.Shared.Distribution;
+using FileAccess = Godot.FileAccess;
 
 namespace Realm.Client.Services;
 
@@ -63,6 +65,49 @@ public static class MapProvisioningService
 
 		GameContext.AssetIndexService?.RescanAllDirectories();
 		return true;
+	}
+
+	/// <summary>
+	///     Whether one version of a map is already on this machine: a manifest under the map's folder in one of the
+	///     layouts the details screen reads, or a package the asset manager has downloaded under either its id or title.
+	/// </summary>
+	public static bool IsLocalCopyPresent(MapData map)
+	{
+		if (map == null) return false;
+
+		string version = !string.IsNullOrWhiteSpace(map.Version) ? map.Version.Trim() : "1.0.0";
+
+		if (HasLocalManifestFile(map, version)) return true;
+		if (IsDownloadedViaAssetManager(map, version)) return true;
+
+		return false;
+	}
+
+	private static bool HasLocalManifestFile(MapData map, string version)
+	{
+		if (FileAccess.FileExists($"res://Maps/{map.Title}/{version}/manifest.json")) return true;
+		if (FileAccess.FileExists($"res://Maps/{map.MapId}/manifest.json")) return true;
+
+		return FileAccess.FileExists($"res://Maps/{map.Title}/manifest.json") && CheckManifestByTitle(map.Title, version);
+	}
+
+	private static bool IsDownloadedViaAssetManager(MapData map, string version)
+	{
+		if (!string.IsNullOrWhiteSpace(map.MapId) && MapAssetManager.IsMapDownloaded(map.MapId)) return true;
+		return !string.IsNullOrWhiteSpace(map.Title) && MapAssetManager.IsMapDownloaded(map.Title, version);
+	}
+
+	private static bool CheckManifestByTitle(string title, string version)
+	{
+		try
+		{
+			var manifest = MapManifest.LoadFromJson(FileAccess.GetFileAsString($"res://Maps/{title}/manifest.json"));
+			return manifest != null && (string.Equals(manifest.Version, version, StringComparison.OrdinalIgnoreCase) || string.IsNullOrEmpty(manifest.Version));
+		}
+		catch
+		{
+			return false;
+		}
 	}
 
 	private static bool MatchesMapName(string normalizedMapName, string? mapName)

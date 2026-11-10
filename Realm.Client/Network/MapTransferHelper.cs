@@ -167,7 +167,7 @@ public static class MapTransferHelper
 		try
 		{
 			var extractedAssets = await Task.Run(() => ZstdAssetBundleHelper.ExtractBundleBytes(chunkBytes));
-			GD.Print($"[{logPrefix}] Decompressed chunk {chunkIndex + 1}/{totalChunks} ({extractedAssets.Count} assets) in memory.");
+			GameLog.LogToConsole($"[{logPrefix}] Decompressed chunk {chunkIndex + 1}/{totalChunks} ({extractedAssets.Count} assets) in memory.");
 			transferSession.LastActivityTimeUtc = DateTime.UtcNow;
 
 			await Task.Run(() =>
@@ -201,7 +201,7 @@ public static class MapTransferHelper
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[{logPrefix}] Error extracting chunk {chunkIndex}: {ex.Message}");
+			GameLog.LogError($"[{logPrefix}] Error extracting chunk {chunkIndex}: {ex.Message}");
 			transferCompleteTcs?.TrySetException(ex);
 		}
 	}
@@ -232,7 +232,7 @@ public static class MapTransferHelper
 		{
 			if (activeEphemeralTransferPeerId != 0 && activeEphemeralTransferPeerId != senderId)
 			{
-				Godot.GD.Print($"[{context.GetType().Name}] Rejecting map transfer {transferId} from peer {senderId}: Seeder busy with peer {activeEphemeralTransferPeerId}.");
+				GameLog.LogToConsole($"[{context.GetType().Name}] Rejecting map transfer {transferId} from peer {senderId}: Seeder busy with peer {activeEphemeralTransferPeerId}.");
 				return false;
 			}
 
@@ -308,7 +308,7 @@ public static class MapTransferHelper
 		}
 		catch (Exception ex)
 		{
-			Godot.GD.PrintErr($"[{logPrefix}] Error during host asset transfer {transferId} to peer {peerId}: {ex.Message}");
+			GameLog.LogError($"[{logPrefix}] Error during host asset transfer {transferId} to peer {peerId}: {ex.Message}");
 		}
 	}
 
@@ -332,7 +332,7 @@ public static class MapTransferHelper
 		}
 		catch (Exception ex)
 		{
-			Godot.GD.PrintErr($"[{logPrefix}] Error sending chunk {chunkIndex} for transfer {session.TransferId}: {ex.Message}");
+			GameLog.LogError($"[{logPrefix}] Error sending chunk {chunkIndex} for transfer {session.TransferId}: {ex.Message}");
 		}
 	}
 
@@ -479,7 +479,7 @@ public static class MapTransferHelper
 		}
 		catch (Exception ex)
 		{
-			Godot.GD.PrintErr($"[{logPrefix}] Chunk write error: {ex.Message}");
+			GameLog.LogError($"[{logPrefix}] Chunk write error: {ex.Message}");
 			transferCompleteTcs?.TrySetException(ex);
 		}
 	}

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -37,7 +37,7 @@ public class PeerSeederManager
 
 		if (GameContext.Lobby == null || GameContext.Lobby.LocalNatType == NatType.Symmetric)
 		{
-			GD.Print("[PeerSeeder] Machine cannot host (Symmetric NAT). Seeding disabled.");
+			GameLog.LogToConsole("[PeerSeeder] Machine cannot host (Symmetric NAT). Seeding disabled.");
 			return;
 		}
 
@@ -52,7 +52,7 @@ public class PeerSeederManager
 			var err = _enetPeer.CreateServer(localPort, 1);
 			if (err != Error.Ok)
 			{
-				GD.PrintErr($"[PeerSeeder] Failed to create ENet Seeder server on port {localPort}: {err}");
+				GameLog.LogError($"[PeerSeeder] Failed to create ENet Seeder server on port {localPort}: {err}");
 				_isSeeding = false;
 				return;
 			}
@@ -60,11 +60,11 @@ public class PeerSeederManager
 			_previousPeer = GameContext.Lobby.Multiplayer.MultiplayerPeer;
 			GameContext.Lobby.Multiplayer.MultiplayerPeer = _enetPeer;
 
-			GD.Print($"[PeerSeeder] Bound ENet seeder listener on port {localPort}");
+			GameLog.LogToConsole($"[PeerSeeder] Bound ENet seeder listener on port {localPort}");
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[PeerSeeder] Failed to bind ENet listener on port {localPort}: {ex.Message}");
+			GameLog.LogError($"[PeerSeeder] Failed to bind ENet listener on port {localPort}: {ex.Message}");
 			_isSeeding = false;
 			return;
 		}
@@ -97,7 +97,7 @@ public class PeerSeederManager
 		}
 
 		SendUnregisterRequest();
-		GD.Print("[PeerSeeder] Stopped seeding.");
+		GameLog.LogToConsole("[PeerSeeder] Stopped seeding.");
 	}
 
 	private List<string> GetFullyAvailableMapIds()
@@ -116,7 +116,7 @@ public class PeerSeederManager
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[PeerSeeder] Error scanning local maps: {ex.Message}");
+			GameLog.LogError($"[PeerSeeder] Error scanning local maps: {ex.Message}");
 		}
 
 		return availableMaps.Distinct().ToList();
@@ -144,8 +144,9 @@ public class PeerSeederManager
 				availableMaps.Add($"{manifest.MapName}_{manifest.Version}");
 			}
 		}
-		catch
+		catch (Exception ex)
 		{
+			GameLog.LogError($"could not read the manifest of a map this seeder holds, so it will not be advertised: {ex.GetType().Name}: {ex.Message}");
 		}
 	}
 
@@ -156,9 +157,12 @@ public class PeerSeederManager
 		{
 			try
 			{
+				LobbyManager? lobby = GameContext.Lobby;
+				if (lobby == null) break;
+
 				var mapIds = GetFullyAvailableMapIds();
-				int publicPort = GameContext.Lobby.PublicPort + 15;
-				string publicIp = GameContext.Lobby.PublicIP;
+				int publicPort = lobby.PublicPort + 15;
+				string publicIp = lobby.PublicIP;
 
 				if (mapIds.Count > 0)
 				{
@@ -172,11 +176,11 @@ public class PeerSeederManager
 						AcceptingUploads = AcceptingUploads
 					};
 					var jsonContent = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
-					var regUrl = $"{GameContext.Lobby.RegistryServerUrl}/seeders/register";
+					var regUrl = $"{lobby.RegistryServerUrl}/seeders/register";
 					var resp = await httpClient.PostAsync(regUrl, jsonContent, token);
 					if (resp.IsSuccessStatusCode)
 					{
-						GD.Print($"[PeerSeeder] Registered {mapIds.Count} fully available map identifiers with orchestrator.");
+						GameLog.LogToConsole($"[PeerSeeder] Registered {mapIds.Count} fully available map identifiers with orchestrator.");
 					}
 				}
 
@@ -188,7 +192,7 @@ public class PeerSeederManager
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"[PeerSeeder] Seeder registration loop exception: {ex.Message}");
+				GameLog.LogError($"[PeerSeeder] Seeder registration loop exception: {ex.Message}");
 				await Task.Delay(5000, token);
 			}
 		}
@@ -203,11 +207,15 @@ public class PeerSeederManager
 				using var client = new HttpClient();
 				var payload = new { SeederId = _seederId };
 				var jsonContent = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
-				await client.PostAsync($"{GameContext.Lobby.RegistryServerUrl}/seeders/unregister", jsonContent);
-				GD.Print("[PeerSeeder] Sent unregister request to orchestrator.");
+				string? registryServerUrl = GameContext.Lobby?.RegistryServerUrl;
+				if (string.IsNullOrEmpty(registryServerUrl)) return;
+
+				await client.PostAsync($"{registryServerUrl}/seeders/unregister", jsonContent);
+				GameLog.LogToConsole("[PeerSeeder] Sent unregister request to orchestrator.");
 			}
-			catch
+			catch (Exception ex)
 			{
+				GameLog.LogError($"could not unregister this seeder from the orchestrator, so it may stay listed after shutdown: {ex.GetType().Name}: {ex.Message}");
 			}
 		});
 	}
@@ -235,12 +243,12 @@ public class PeerSeederManager
 
 		if (shouldSeed && !_isSeeding)
 		{
-			GD.Print("[PeerSeeder] Seeder condition met. Starting background ENet seeding service...");
+			GameLog.LogToConsole("[PeerSeeder] Seeder condition met. Starting background ENet seeding service...");
 			Start();
 		}
 		else if (!shouldSeed && _isSeeding)
 		{
-			GD.Print("[PeerSeeder] Seeder condition no longer met. Stopping seeding service...");
+			GameLog.LogToConsole("[PeerSeeder] Seeder condition no longer met. Stopping seeding service...");
 			Stop();
 		}
 	}

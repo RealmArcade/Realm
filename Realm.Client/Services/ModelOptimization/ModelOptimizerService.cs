@@ -22,7 +22,7 @@ public class ModelOptimizerService
 		public float CreaseAngleDegrees { get; set; } = GlbMeshSmoother.DefaultCreaseAngleDegrees;
 		public int MaxTextureResolution { get; set; } = 1024;
 		public bool ForceReDecimate { get; set; } = false;
-		public LodTierConfig[] LodTiers { get; set; } = null;
+		public LodTierConfig[]? LodTiers { get; set; }
 		public bool ReduceUvIslands { get; set; } = true;
 		public float UvChartMergeTolerance { get; set; } = UvChartReducer.DefaultTexCoordTolerance;
 
@@ -31,7 +31,8 @@ public class ModelOptimizerService
 	public struct OptimizationResult
 	{
 		public bool Success;
-		public byte[] OptimizedGlbBytes;
+		/// <summary>The optimized model, present only when <see cref="Success"/> is true.</summary>
+		public byte[]? OptimizedGlbBytes;
 		public int OriginalTriangleCount;
 		public int OptimizedTriangleCount;
 		public int[] LodTriangleCounts;
@@ -42,7 +43,8 @@ public class ModelOptimizerService
 		public int UvIslandCountBefore;
 		public int UvIslandCountAfter;
 		public float UvChartMergeTolerance;
-		public string ErrorMessage;
+		/// <summary>Why the model was not optimized. Absent when it was.</summary>
+		public string? ErrorMessage;
 	}
 
 	public OptimizationResult OptimizeGlb(byte[] glbBytes, OptimizationOptions options = default)

@@ -201,7 +201,7 @@ public static class ProceduralAnimationManager
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[ProceduralAnimationManager] LoadAllConfigs error: {ex.Message}");
+			GameLog.LogError($"[ProceduralAnimationManager] LoadAllConfigs error: {ex.Message}");
 		}
 
 		return result;
@@ -259,7 +259,7 @@ public static class ProceduralAnimationManager
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[ProceduralAnimationManager] SaveConfig error: {ex.Message}");
+			GameLog.LogError($"[ProceduralAnimationManager] SaveConfig error: {ex.Message}");
 		}
 	}
 
@@ -280,7 +280,7 @@ public static class ProceduralAnimationManager
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[ProceduralAnimationManager] DeleteConfig error: {ex.Message}");
+			GameLog.LogError($"[ProceduralAnimationManager] DeleteConfig error: {ex.Message}");
 		}
 	}
 
@@ -295,7 +295,7 @@ public static class ProceduralAnimationManager
 		return ProceduralSwayRegionResolver.Resolve(config, modelKey);
 	}
 
-	public static ProceduralShaderParameters BuildShaderParameters(ProceduralAnimationConfig config)
+	public static ProceduralShaderParameters BuildShaderParameters(ProceduralAnimationConfig? config)
 	{
 		if (config == null)
 		{

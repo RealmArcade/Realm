@@ -1,4 +1,4 @@
-using Realm.Client.Services;
+﻿using Realm.Client.Services;
 using System;
 using Godot;
 using Realm.Client.Core;
@@ -16,7 +16,7 @@ public class InventoryPanel
 		public Panel BlackTile;
 		public Button ItemButton;
 		public Label CountLabel;
-		public string LastItemId;
+		public string? LastItemId;
 		public int LastCount;
 		public bool LastIsCarriedConsumable;
 	}
@@ -29,14 +29,19 @@ public class InventoryPanel
 		public bool IsCarriedConsumable;
 	}
 
-	private readonly GridContainer _inventoryGrid;
+	private readonly GridContainer _inventoryGrid = null!;
 	private readonly SlotControls[] _slots = new SlotControls[6];
 
-	private static StyleBoxFlat s_blackTileStyle;
-	private static StyleBoxFlat s_buttonNormal;
-	private static StyleBoxFlat s_buttonHover;
-	private static StyleBoxFlat s_buttonPressed;
-	private static StyleBoxEmpty s_buttonFocus;
+	private struct SlotStyles
+	{
+		public StyleBoxFlat BlackTile;
+		public StyleBoxFlat Normal;
+		public StyleBoxFlat Hover;
+		public StyleBoxFlat Pressed;
+		public StyleBoxEmpty Focus;
+	}
+
+	private static SlotStyles? s_styles;
 
 	private Entity _lastFocusedEntity = Entity.Null;
 	private int _lastFocusIdx = -1;
@@ -51,34 +56,31 @@ public class InventoryPanel
 		_inventoryGrid = inventoryGrid;
 		if (_inventoryGrid == null) return;
 
-		EnsureStyleBoxes();
-		InitializeSlots();
+		InitializeSlots(EnsureStyles());
 	}
 
-	private static void EnsureStyleBoxes()
+	private static SlotStyles EnsureStyles()
 	{
-		if (s_blackTileStyle == null)
-		{
-			s_blackTileStyle = new StyleBoxFlat();
-			s_blackTileStyle.BgColor = new Color(0.04f, 0.04f, 0.06f, 0.35f);
-			s_blackTileStyle.BorderColor = new Color(UIStyle.ColorBronze.R, UIStyle.ColorBronze.G, UIStyle.ColorBronze.B, 0.25f);
-			s_blackTileStyle.SetBorderWidthAll(1);
-			s_blackTileStyle.CornerRadiusTopLeft = 3;
-			s_blackTileStyle.CornerRadiusTopRight = 3;
-			s_blackTileStyle.CornerRadiusBottomLeft = 3;
-			s_blackTileStyle.CornerRadiusBottomRight = 3;
-		}
+		if (s_styles.HasValue) return s_styles.Value;
 
-		if (s_buttonNormal == null)
+		var blackTile = UIStyle.CreateButtonPlate(
+			new Color(0.04f, 0.04f, 0.06f, 0.35f),
+			new Color(UIStyle.ColorBronze.R, UIStyle.ColorBronze.G, UIStyle.ColorBronze.B, 0.25f),
+			3);
+
+		var styles = new SlotStyles
 		{
-			s_buttonNormal = UIStyle.CreateHUDButtonStyle(false, false);
-			s_buttonHover = UIStyle.CreateHUDButtonStyle(true, false);
-			s_buttonPressed = UIStyle.CreateHUDButtonStyle(false, true);
-			s_buttonFocus = new StyleBoxEmpty();
-		}
+			BlackTile = blackTile,
+			Normal = UIStyle.CreateHUDButtonStyle(false, false),
+			Hover = UIStyle.CreateHUDButtonStyle(true, false),
+			Pressed = UIStyle.CreateHUDButtonStyle(false, true),
+			Focus = new StyleBoxEmpty()
+		};
+		s_styles = styles;
+		return styles;
 	}
 
-	private void InitializeSlots()
+	private void InitializeSlots(SlotStyles styles)
 	{
 		foreach (Node child in _inventoryGrid.GetChildren())
 		{
@@ -96,7 +98,7 @@ public class InventoryPanel
 
 			var blackTile = new Panel();
 			blackTile.Name = "Tile_Panel";
-			blackTile.AddThemeStyleboxOverride("panel", s_blackTileStyle);
+			blackTile.AddThemeStyleboxOverride("panel", styles.BlackTile);
 			blackTile.SetAnchorsPreset(Control.LayoutPreset.FullRect);
 			blackTile.MouseFilter = Control.MouseFilterEnum.Ignore;
 			slotRoot.AddChild(blackTile);
@@ -112,10 +114,10 @@ public class InventoryPanel
 			btn.ClipContents = true;
 			btn.AddThemeConstantOverride("icon_max_width", 34);
 
-			btn.AddThemeStyleboxOverride("normal", s_buttonNormal);
-			btn.AddThemeStyleboxOverride("hover", s_buttonHover);
-			btn.AddThemeStyleboxOverride("pressed", s_buttonPressed);
-			btn.AddThemeStyleboxOverride("focus", s_buttonFocus);
+			btn.AddThemeStyleboxOverride("normal", styles.Normal);
+			btn.AddThemeStyleboxOverride("hover", styles.Hover);
+			btn.AddThemeStyleboxOverride("pressed", styles.Pressed);
+			btn.AddThemeStyleboxOverride("focus", styles.Focus);
 			btn.SetAnchorsPreset(Control.LayoutPreset.FullRect);
 
 			var countLabel = new Label();
@@ -153,15 +155,16 @@ public class InventoryPanel
 	{
 		if (_slots[slotIndex].LastIsCarriedConsumable) return;
 
-		string itemId = _slots[slotIndex].LastItemId;
+		string? itemId = _slots[slotIndex].LastItemId;
 		if (string.IsNullOrEmpty(itemId)) return;
 
-		var selected = GameContext.Host?.SelectedUnits;
+		if (GameContext.Host is not { } host) return;
+		var selected = host.SelectedUnits;
 		int localPlayer = GameContext.PerspectiveFilter.ControlledPlayerIndex;
 		int focusIdx = _currentFocusIdx;
-		if (selected != null && selected.Count > focusIdx && selected[focusIdx].Player == localPlayer)
+		if (selected.Count > focusIdx && selected[focusIdx].Player == localPlayer)
 		{
-			GameContext.Host.UseItem(selected[focusIdx], itemId);
+			host.UseItem(selected[focusIdx], itemId);
 		}
 	}
 
@@ -349,10 +352,6 @@ public class InventoryPanel
 
 	public static void ClearCache()
 	{
-		s_blackTileStyle = null;
-		s_buttonNormal = null;
-		s_buttonHover = null;
-		s_buttonPressed = null;
-		s_buttonFocus = null;
+		s_styles = null;
 	}
 }

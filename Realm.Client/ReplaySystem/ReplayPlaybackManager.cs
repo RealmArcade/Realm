@@ -21,7 +21,7 @@ namespace Realm.Client.ReplaySystem
 {
 	public class ReplayPlaybackManager
 	{
-		public ReplayHeader Header { get; private set; }
+		public ReplayHeader? Header { get; private set; }
 		public bool IsPlayingReplay { get; set; } = false;
 		public bool IsPlaying { get; set; } = false;
 		public int CurrentTick { get; set; } = 0;
@@ -29,7 +29,7 @@ namespace Realm.Client.ReplaySystem
 		public float PlaybackSpeed { get; set; } = 1.0f;
 		public int SpectatorPerspective { get; set; } = -1;
 
-		private ReplayFrame[] _frames;
+		private ReplayFrame?[]? _frames;
 		private float _timer = 0.0f;
 		private const float TickInterval = 1.0f / 30.0f;
 
@@ -43,8 +43,9 @@ namespace Realm.Client.ReplaySystem
 				if (!ReadReplayHeaderInternal(fs)) return false;
 				if (TotalTicks <= 0) return false;
 
-				_frames = new ReplayFrame[TotalTicks];
-				int framesRead = ReadReplayFrames(fs);
+				var frames = new ReplayFrame?[TotalTicks];
+				int framesRead = ReadReplayFrames(fs, frames);
+				_frames = frames;
 				if (framesRead == 0) return false;
 
 				TotalTicks = framesRead;
@@ -59,7 +60,7 @@ namespace Realm.Client.ReplaySystem
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"[ReplayPlaybackManager] Error loading replay: {ex.Message}");
+				GameLog.LogError($"[ReplayPlaybackManager] Error loading replay: {ex.Message}");
 				return false;
 			}
 		}
@@ -77,6 +78,7 @@ namespace Realm.Client.ReplaySystem
 			byte[] headerBytes = new byte[headerLen];
 			fs.ReadExactly(headerBytes, 0, headerLen);
 			Header = MemoryPackSerializer.Deserialize<ReplayHeader>(headerBytes);
+			if (Header == null) return false;
 
 			fs.ReadExactly(lenBytes, 0, 4);
 			TotalTicks = BitConverter.ToInt32(lenBytes, 0);
@@ -84,7 +86,7 @@ namespace Realm.Client.ReplaySystem
 			return true;
 		}
 
-		private int ReadReplayFrames(FileStream fs)
+		private int ReadReplayFrames(FileStream fs, ReplayFrame?[] frames)
 		{
 			using var deflate = new DeflateStream(fs, CompressionMode.Decompress, true);
 			byte[] frameLenBytes = new byte[4];
@@ -105,7 +107,10 @@ namespace Realm.Client.ReplaySystem
 
 				if (!ReadFrameData(deflate, buffer, frameLen)) break;
 
-				_frames[i] = MemoryPackSerializer.Deserialize<ReplayFrame>(buffer.AsSpan(0, frameLen));
+				var frame = MemoryPackSerializer.Deserialize<ReplayFrame>(buffer.AsSpan(0, frameLen));
+				if (frame == null) break;
+
+				frames[i] = frame;
 				framesRead++;
 			}
 
@@ -130,7 +135,7 @@ namespace Realm.Client.ReplaySystem
 			IsPlayingReplay = false;
 			IsPlaying = false;
 			_frames = null;
-			Header = default;
+			Header = null;
 			TotalTicks = 0;
 			CurrentTick = 0;
 			_timer = 0.0f;
@@ -176,7 +181,7 @@ namespace Realm.Client.ReplaySystem
 			int keyframeTick = 0;
 			for (int i = targetTick; i >= 0; i--)
 			{
-				if (_frames[i] != null && _frames[i].IsKeyframe)
+				if (_frames[i] is { IsKeyframe: true })
 				{
 					keyframeTick = i;
 					break;
@@ -199,16 +204,18 @@ namespace Realm.Client.ReplaySystem
 			_timer = 0.0f;
 		}
 
-		public void ApplyFrame(ReplayFrame frame)
+		public void ApplyFrame(ReplayFrame? frame)
 		{
-			if (GameContext.Host == null || frame == null) return;
+			var host = GameContext.Host;
+			var world = GameContext.World;
+			if (host == null || world == null || frame == null) return;
 
-			ApplyResources(frame);
-			ApplyProjectiles(frame);
-			ApplyUnits(frame);
+			ApplyResources(frame, host);
+			ApplyProjectiles(frame, host);
+			ApplyUnits(frame, world, host);
 		}
 
-		private void ApplyResources(ReplayFrame frame)
+		private static void ApplyResources(ReplayFrame frame, GameHost host)
 		{
 			if (GameContext.InGameHud != null)
 			{
@@ -218,94 +225,94 @@ namespace Realm.Client.ReplaySystem
 			}
 			else
 			{
-				GameContext.Host.SetBackupResources(frame.Resources.Gold, frame.Resources.Wood, frame.Resources.Stone);
+				host.SetBackupResources(frame.Resources.Gold, frame.Resources.Wood, frame.Resources.Stone);
 			}
 		}
 
-		private void ApplyProjectiles(ReplayFrame frame)
+		private static void ApplyProjectiles(ReplayFrame frame, GameHost host)
 		{
 			if (frame.Projectiles == null) return;
 
 			foreach (var proj in frame.Projectiles)
 			{
-				GameContext.Host.SpawnWeaponProjectileForReplay(proj.Start.ToNumerics(), proj.Target.ToNumerics(), proj.ProjectileTypeId);
+				host.SpawnWeaponProjectileForReplay(proj.Start.ToNumerics(), proj.Target.ToNumerics(), proj.ProjectileTypeId);
 			}
 		}
 
-		private void ApplyUnits(ReplayFrame frame)
+		private static void ApplyUnits(ReplayFrame frame, EcsWorld world, GameHost host)
 		{
 			if (frame.Units == null) return;
 
 			foreach (var snap in frame.Units)
 			{
-				ApplyUnitSnapshot(snap);
+				ApplyUnitSnapshot(snap, world, host);
 			}
 		}
 
-		private void ApplyUnitSnapshot(ReplayUnitSnapshot snap)
+		private static void ApplyUnitSnapshot(ReplayUnitSnapshot snap, EcsWorld world, GameHost host)
 		{
-			if (GameContext.Host.TryGetLocalEntity(snap.EntityId, out var localEntity))
+			if (host.TryGetLocalEntity(snap.EntityId, out var localEntity))
 			{
-				if (GameContext.World.IsAlive(localEntity))
+				if (world.IsAlive(localEntity))
 				{
 					if (snap.IsDead)
 					{
-						HandleDeadUnit(localEntity);
+						HandleDeadUnit(localEntity, world, host);
 					}
 					else
 					{
-						UpdateUnitState(localEntity, snap);
+						UpdateUnitState(localEntity, snap, world);
 					}
 				}
 			}
 			else if (!snap.IsDead)
 			{
-				GameContext.Host.SpawnUnitFromReplaySnapshot(snap);
+				host.SpawnUnitFromReplaySnapshot(snap);
 			}
 		}
 
-		private void HandleDeadUnit(Entity localEntity)
+		private static void HandleDeadUnit(Entity localEntity, EcsWorld world, GameHost host)
 		{
-			if (!GameContext.World.Has<Dead>(localEntity))
+			if (!world.Has<Dead>(localEntity))
 			{
-				GameContext.World.Add<Dead>(localEntity);
+				world.Add<Dead>(localEntity);
 				GameHost.TryGetUnit3D(localEntity, out var unit3D);
-				GameContext.Host.KillUnitDeferredExternal(unit3D);
+				host.KillUnitDeferredExternal(unit3D);
 			}
 		}
 
-		private void UpdateUnitState(Entity localEntity, ReplayUnitSnapshot snap)
+		private static void UpdateUnitState(Entity localEntity, ReplayUnitSnapshot snap, EcsWorld world)
 		{
-			if (GameContext.World.Has<Health>(localEntity))
+			if (world.Has<Health>(localEntity))
 			{
-				var hp = GameContext.World.Get<Health>(localEntity);
+				var hp = world.Get<Health>(localEntity);
 				hp.Current = snap.CurrentHp;
 				hp.Max = snap.MaxHp;
-				GameContext.World.Set(localEntity, hp);
+				world.Set(localEntity, hp);
 			}
 
-			if (GameContext.World.Has<Position>(localEntity))
+			if (world.Has<Position>(localEntity))
 			{
-				GameContext.World.Set(localEntity, new Position(snap.Position.ToNumerics()));
-				GameContext.World.SetOrAdd(localEntity, new PreviousPosition(snap.Position.ToNumerics()));
-				GameContext.World.SetOrAdd(localEntity, new PreviousRotationY(snap.RotationY));
+				world.Set(localEntity, new Position(snap.Position.ToNumerics()));
+				world.SetOrAdd(localEntity, new PreviousPosition(snap.Position.ToNumerics()));
+				world.SetOrAdd(localEntity, new PreviousRotationY(snap.RotationY));
 			}
 
-			if (GameContext.World.Has<Velocity>(localEntity))
+			if (world.Has<Velocity>(localEntity))
 			{
-				GameContext.World.Set(localEntity, new Velocity(snap.Velocity.ToNumerics()));
+				world.Set(localEntity, new Velocity(snap.Velocity.ToNumerics()));
 			}
 
-			if (GameContext.World.Has<LatestDescription>(localEntity))
+			if (world.Has<LatestDescription>(localEntity))
 			{
-				GameContext.World.Set(localEntity, new LatestDescription
+				world.Set(localEntity, new LatestDescription
 				{
 					Position = snap.Position.ToNumerics(),
 					RotationY = snap.RotationY
 				});
 			}
 
-			GameContext.World.SetOrAdd(localEntity, new ReplayAnimationState(snap.Animation ?? "Idle"));
+			world.SetOrAdd(localEntity, new ReplayAnimationState(snap.Animation ?? "Idle"));
 
 			GameHost.TryGetUnit3D(localEntity, out var unit3DNode);
 			if (GodotObject.IsInstanceValid(unit3DNode))
@@ -316,7 +323,7 @@ namespace Realm.Client.ReplaySystem
 			}
 		}
 
-		public static ReplayHeader ReadReplayHeader(string path, out int totalTicks)
+		public static ReplayHeader? ReadReplayHeader(string path, out int totalTicks)
 		{
 			totalTicks = 0;
 			try
@@ -342,7 +349,7 @@ namespace Realm.Client.ReplaySystem
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"[ReplayPlaybackManager] Error reading header from {path}: {ex}");
+				GameLog.LogError($"[ReplayPlaybackManager] Error reading header from {path}: {ex}");
 				return null;
 			}
 		}

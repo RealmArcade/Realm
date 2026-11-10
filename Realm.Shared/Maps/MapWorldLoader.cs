@@ -14,9 +14,9 @@ using Realm.Shared.Terrain;
 
 namespace Realm.Shared.Maps;
 
-public sealed class LoadedMap : IDisposable
+public class LoadedMap : IDisposable
 {
-	internal LoadedMap(SimulationContext simulation, DefinitionCatalog catalog, MapSaveData saveData)
+	public LoadedMap(SimulationContext simulation, DefinitionCatalog catalog, MapSaveData saveData)
 	{
 		Simulation = simulation;
 		Catalog = catalog;
@@ -31,23 +31,23 @@ public sealed class LoadedMap : IDisposable
 
 	public MapSaveData SaveData { get; }
 
-	public Entity WorldEntity { get; internal set; } = Entity.Null;
+	public Entity WorldEntity { get; set; } = Entity.Null;
 
 	public Entity[] PlayerEntities { get; } = new Entity[EcsWorld.MAX_PLAYERS];
 
 	public MapMetadata Metadata => Catalog.Metadata;
 
-	public int Width { get; internal set; }
+	public int Width { get; set; }
 
-	public int Depth { get; internal set; }
+	public int Depth { get; set; }
 
-	public int PlayerCount { get; internal set; }
+	public int PlayerCount { get; set; }
 
-	public int UnitCount { get; internal set; }
+	public int UnitCount { get; set; }
 
-	public int PropCount { get; internal set; }
+	public int PropCount { get; set; }
 
-	public bool HasNavMesh { get; internal set; }
+	public bool HasNavMesh { get; set; }
 
 	public List<string> Warnings { get; } = new();
 

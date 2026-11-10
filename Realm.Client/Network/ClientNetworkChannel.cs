@@ -11,7 +11,7 @@ public partial class ClientNetworkChannel : Node
 
 	public event Action<NetworkFrameKind, byte[]>? FrameArrived;
 
-	public bool IsConnected => Multiplayer.MultiplayerPeer?.GetConnectionStatus() == MultiplayerPeer.ConnectionStatus.Connected;
+	public new bool IsConnected => Multiplayer.MultiplayerPeer?.GetConnectionStatus() == MultiplayerPeer.ConnectionStatus.Connected;
 
 	[Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = false, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
 	public void Frame(int kind, byte[] payload)

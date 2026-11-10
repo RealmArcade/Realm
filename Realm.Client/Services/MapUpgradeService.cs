@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -83,7 +83,7 @@ public class MapUpgradeService
 		return !string.Equals(currentVersion, targetVersion, StringComparison.OrdinalIgnoreCase);
 	}
 
-	public bool IsMapNewerThanGame(string mapVersionOrDirectory, string? gameVersion = null)
+	public bool IsMapNewerThanGame(string? mapVersionOrDirectory, string? gameVersion = null)
 	{
 		string? mapBuildNumber = mapVersionOrDirectory;
 		if (!string.IsNullOrEmpty(mapVersionOrDirectory) && (Directory.Exists(mapVersionOrDirectory) || File.Exists(mapVersionOrDirectory)))
@@ -175,8 +175,17 @@ public class MapUpgradeService
 
 	public UpgradeResult UpgradeMap(string mapDirectory, IProgress<MigrationProgressUpdate>? progress = null)
 	{
-		string initialVersion = GetMapBuildNumber(mapDirectory);
+		string? initialVersion = GetMapBuildNumber(mapDirectory);
 		string targetVersion = RealmVersion.GameBuildNumber;
+
+		if (initialVersion == null)
+		{
+			return new UpgradeResult
+			{
+				Success = false,
+				ErrorMessage = $"Map metadata in '{mapDirectory}' has no readable build number, so its migrations cannot be chosen safely."
+			};
+		}
 
 		if (IsMapNewerThanGame(initialVersion, targetVersion))
 		{

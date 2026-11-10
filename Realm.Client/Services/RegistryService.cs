@@ -1,5 +1,6 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using Realm.Ecs;
 using Godot;
@@ -61,7 +62,7 @@ public class RegistryService
 		return null;
 	}
 
-	public string GetUnitTargetModel(string unitId, ref bool isBuilding)
+	public string? GetUnitTargetModel(string unitId, ref bool isBuilding)
 	{
 		if (UnitRegistry.TryGetValue(unitId, out var meta) && !string.IsNullOrEmpty(meta.ModelPath)) return meta.ModelPath;
 
@@ -133,134 +134,15 @@ public class RegistryService
 		}
 	}
 
-	public float GetRegistryCollisionCircleRatio(string primaryKey)
-	{
-		if (string.IsNullOrEmpty(primaryKey)) return 1.0f;
+	public float GetRegistryCollisionCircleRatio(string primaryKey) => RegistryLookups.GetRegistryCollisionCircleRatio(this, primaryKey);
 
-		if (UnitRegistry.TryGetValue(primaryKey, out var meta) && meta.CollisionCircle > 0f) return meta.CollisionCircle;
-		if (BuildingRegistry.TryGetValue(primaryKey, out var buildingMeta) && buildingMeta.CollisionCircle > 0f) return buildingMeta.CollisionCircle;
-		if (ResourceRegistry.TryGetValue(primaryKey, out var resMeta) && resMeta.CollisionCircle > 0f) return resMeta.CollisionCircle;
-		if (PropRegistry.TryGetValue(primaryKey, out var propMeta) && propMeta.CollisionCircle > 0f) return propMeta.CollisionCircle;
+	public bool TryGetRegistryBrightness(string key, out float brightness) => RegistryLookups.TryGetRegistryBrightness(this, key, out brightness);
 
-		return 1.0f;
-	}
+	public bool TryGetRegistryColorTint(string key, out Color color) => RegistryLookups.TryGetRegistryColorTint(this, key, out color);
 
-	public bool TryGetRegistryBrightness(string key, out float brightness)
-	{
-		brightness = 0f;
-		if (UnitRegistry.TryGetValue(key, out var meta) && meta.Brightness > 0f)
-		{
-			brightness = meta.Brightness;
-			return true;
-		}
+	public void UpdateLuminanceInRegistries(string assetKey, bool normalizeLuminance) => RegistryLookups.UpdateLuminanceInRegistries(this, assetKey, normalizeLuminance);
 
-		if (BuildingRegistry.TryGetValue(key, out var buildingMeta) && buildingMeta.Brightness > 0f)
-		{
-			brightness = buildingMeta.Brightness;
-			return true;
-		}
-
-		if (ResourceRegistry.TryGetValue(key, out var resMeta) && resMeta.Brightness > 0f)
-		{
-			brightness = resMeta.Brightness;
-			return true;
-		}
-
-		if (PropRegistry.TryGetValue(key, out var propMeta) && propMeta.Brightness > 0f)
-		{
-			brightness = propMeta.Brightness;
-			return true;
-		}
-
-		return false;
-	}
-
-	public bool TryGetRegistryColorTint(string key, out Color color)
-	{
-		color = default;
-		if (UnitRegistry.TryGetValue(key, out var meta) && !string.IsNullOrEmpty(meta.Tint) && Color.HtmlIsValid(meta.Tint))
-		{
-			color = Color.FromHtml(meta.Tint);
-			return true;
-		}
-
-		if (BuildingRegistry.TryGetValue(key, out var buildingMeta) && !string.IsNullOrEmpty(buildingMeta.Tint) && Color.HtmlIsValid(buildingMeta.Tint))
-		{
-			color = Color.FromHtml(buildingMeta.Tint);
-			return true;
-		}
-
-		if (ResourceRegistry.TryGetValue(key, out var resMeta) && !string.IsNullOrEmpty(resMeta.Tint) && Color.HtmlIsValid(resMeta.Tint))
-		{
-			color = Color.FromHtml(resMeta.Tint);
-			return true;
-		}
-
-		if (PropRegistry.TryGetValue(key, out var propMeta) && !string.IsNullOrEmpty(propMeta.Tint) && Color.HtmlIsValid(propMeta.Tint))
-		{
-			color = Color.FromHtml(propMeta.Tint);
-			return true;
-		}
-
-		return false;
-	}
-
-	public void UpdateLuminanceInRegistries(string assetKey, bool normalizeLuminance)
-	{
-		if (UnitRegistry.TryGetValue(assetKey, out var unitMeta))
-		{
-			unitMeta.NormalizeLuminance = normalizeLuminance;
-			UnitRegistry[assetKey] = unitMeta;
-		}
-
-		if (BuildingRegistry.TryGetValue(assetKey, out var bldMeta))
-		{
-			bldMeta.NormalizeLuminance = normalizeLuminance;
-			BuildingRegistry[assetKey] = bldMeta;
-		}
-
-		if (ResourceRegistry.TryGetValue(assetKey, out var resMeta))
-		{
-			resMeta.NormalizeLuminance = normalizeLuminance;
-			ResourceRegistry[assetKey] = resMeta;
-		}
-
-		if (PropRegistry.TryGetValue(assetKey, out var propMeta))
-		{
-			propMeta.NormalizeLuminance = normalizeLuminance;
-			PropRegistry[assetKey] = propMeta;
-		}
-	}
-
-	public bool TryGetRegistryDeathShader(string key, out string shader)
-	{
-		shader = "";
-		if (UnitRegistry.TryGetValue(key, out var meta) && !string.IsNullOrWhiteSpace(meta.DeathShader))
-		{
-			shader = meta.DeathShader;
-			return true;
-		}
-
-		if (BuildingRegistry.TryGetValue(key, out var bldMeta) && !string.IsNullOrWhiteSpace(bldMeta.DeathShader))
-		{
-			shader = bldMeta.DeathShader;
-			return true;
-		}
-
-		if (ResourceRegistry.TryGetValue(key, out var resMeta) && !string.IsNullOrWhiteSpace(resMeta.DeathShader))
-		{
-			shader = resMeta.DeathShader;
-			return true;
-		}
-
-		if (PropRegistry.TryGetValue(key, out var propMeta) && !string.IsNullOrWhiteSpace(propMeta.DeathShader))
-		{
-			shader = propMeta.DeathShader;
-			return true;
-		}
-
-		return false;
-	}
+	public bool TryGetRegistryDeathShader(string key, out string shader) => RegistryLookups.TryGetRegistryDeathShader(this, key, out shader);
 
 	public readonly Dictionary<StringName, UnitMetadata> UnitRegistry = new();
 	public readonly Dictionary<StringName, UnitMetadata> BuildingRegistry = new();
@@ -334,7 +216,7 @@ public class RegistryService
 		}
 	}
 
-	public bool TryGetVfxConfig(string vfxId, out VfxAttachmentConfig config)
+	public bool TryGetVfxConfig(string? vfxId, [NotNullWhen(true)] out VfxAttachmentConfig? config)
 	{
 		config = null;
 		if (string.IsNullOrWhiteSpace(vfxId)) return false;
@@ -415,76 +297,21 @@ public class RegistryService
 
 	public TooltipValueStore TooltipValues { get; } = new();
 
-	public bool CheckPropRegistryForMatch(string id, string cleanId, string normTarget, Func<string, string, bool> isMatch)
-	{
-		if (PropRegistry.TryGetValue(id, out var meta) && isMatch(meta.ModelPath, normTarget)) return true;
-		if (!string.IsNullOrEmpty(cleanId) && PropRegistry.TryGetValue(cleanId, out meta) && isMatch(meta.ModelPath, normTarget)) return true;
-		return false;
-	}
+	public bool CheckPropRegistryForMatch(string id, string cleanId, string normTarget, Func<string?, string, bool> isMatch) => RegistryKeyMatching.CheckPropRegistryForMatch(this, id, cleanId, normTarget, isMatch);
 
-	public bool MatchesUnitKey(string unitId, string modelPath, string normTarget, Func<string, string, bool> isMatch)
-	{
-		if (isMatch(unitId, normTarget)) return true;
-		if (isMatch(modelPath, normTarget)) return true;
-		if (UnitRegistry.TryGetValue(unitId, out var meta) && isMatch(meta.ModelPath, normTarget)) return true;
-		if (BuildingRegistry.TryGetValue(unitId, out var bldMeta) && isMatch(bldMeta.ModelPath, normTarget)) return true;
-		return false;
-	}
+	public bool MatchesUnitKey(string unitId, string? modelPath, string normTarget, Func<string?, string, bool> isMatch) => RegistryKeyMatching.MatchesUnitKey(this, unitId, modelPath, normTarget, isMatch);
 
-	public bool IsPropOrResourceKey(string key, string norm, string resolved, Func<string, string> normalizeFunc)
-	{
-		if (PropRegistry.ContainsKey(key) || PropRegistry.ContainsKey(norm)) return true;
-		if (ResourceRegistry.ContainsKey(key) || ResourceRegistry.ContainsKey(norm)) return true;
+	public bool IsPropOrResourceKey(string key, string norm, string? resolved, Func<string, string> normalizeFunc) => RegistryKeyMatching.IsPropOrResourceKey(this, key, norm, resolved, normalizeFunc);
 
-		if (HasMatchingPropOrResourceMetadata(norm, normalizeFunc)) return true;
-		if (MatchesPropOrResourcePathPattern(key) || MatchesPropOrResourcePathPattern(norm)) return true;
+	public bool HasMatchingPropOrResourceMetadata(string norm, Func<string, string> normalizeFunc) => RegistryKeyMatching.HasMatchingPropOrResourceMetadata(this, norm, normalizeFunc);
 
-		return !string.IsNullOrEmpty(resolved) && MatchesPropOrResourcePathPattern(resolved);
-	}
+	public bool HasMatchingPropMetadata(string norm, Func<string, string> normalizeFunc) => RegistryKeyMatching.HasMatchingPropMetadata(this, norm, normalizeFunc);
 
-	public bool HasMatchingPropOrResourceMetadata(string norm, Func<string, string> normalizeFunc)
-	{
-		return HasMatchingPropMetadata(norm, normalizeFunc) || HasMatchingResourceMetadata(norm, normalizeFunc);
-	}
+	public bool HasMatchingResourceMetadata(string norm, Func<string, string> normalizeFunc) => RegistryKeyMatching.HasMatchingResourceMetadata(this, norm, normalizeFunc);
 
-	public bool HasMatchingPropMetadata(string norm, Func<string, string> normalizeFunc)
-	{
-		foreach (var propMeta in PropRegistry.Values)
-		{
-			if (!string.IsNullOrEmpty(propMeta.ModelPath) && normalizeFunc(propMeta.ModelPath) == norm) return true;
-			if (!string.IsNullOrEmpty(propMeta.TemplateID) && normalizeFunc(propMeta.TemplateID) == norm) return true;
-		}
+	public bool MatchesPropOrResourcePathPattern(string path) => RegistryKeyMatching.MatchesPropOrResourcePathPattern(this, path);
 
-		return false;
-	}
-
-	public bool HasMatchingResourceMetadata(string norm, Func<string, string> normalizeFunc)
-	{
-		foreach (var resMeta in ResourceRegistry.Values)
-		{
-			if (!string.IsNullOrEmpty(resMeta.ModelPath) && normalizeFunc(resMeta.ModelPath) == norm) return true;
-			if (!string.IsNullOrEmpty(resMeta.TemplateID) && normalizeFunc(resMeta.TemplateID) == norm) return true;
-		}
-
-		return false;
-	}
-
-	public bool MatchesPropOrResourcePathPattern(string path)
-	{
-		return path.Contains("/props/", StringComparison.OrdinalIgnoreCase) ||
-		       path.Contains("\\props\\", StringComparison.OrdinalIgnoreCase) ||
-		       path.StartsWith("props/", StringComparison.OrdinalIgnoreCase) ||
-		       path.Contains("/resources/", StringComparison.OrdinalIgnoreCase) ||
-		       path.Contains("\\resources\\", StringComparison.OrdinalIgnoreCase) ||
-		       path.StartsWith("resources/", StringComparison.OrdinalIgnoreCase);
-	}
-
-	public bool CheckBuildingRegistryForMatch(string id, string cleanId, string normTarget, Func<string, string, bool> isMatch)
-	{
-		if (BuildingRegistry.TryGetValue(id, out var meta) && isMatch(meta.ModelPath, normTarget)) return true;
-		if (!string.IsNullOrEmpty(cleanId) && BuildingRegistry.TryGetValue(cleanId, out meta) && isMatch(meta.ModelPath, normTarget)) return true;
-		return false;
-	}
+	public bool CheckBuildingRegistryForMatch(string id, string cleanId, string normTarget, Func<string?, string, bool> isMatch) => RegistryKeyMatching.CheckBuildingRegistryForMatch(this, id, cleanId, normTarget, isMatch);
 
 	public bool TryGetRegistryYOffset(string key, out float offset)
 	{
@@ -567,7 +394,8 @@ public class RegistryService
 			ResourceRegistry.TryGetValue(cleanId, out metadata);
 		}
 
-		PropEntityFactory.AddResourceNode(GameContext.World, entity, metadata, defaultAmount);
+		if (GameContext.World is not { } world) return;
+		PropEntityFactory.AddResourceNode(world, entity, metadata, defaultAmount);
 	}
 
 
@@ -637,7 +465,7 @@ public class RegistryService
 
 		if (!HotkeySpec.TryParse(hotkey, out _, out string errorMessage))
 		{
-			GD.PrintErr($"[RegistryService] Rejected hotkey '{hotkey}' for ability '{abilityId}': {errorMessage}");
+			GameLog.LogError($"[RegistryService] Rejected hotkey '{hotkey}' for ability '{abilityId}': {errorMessage}");
 			return;
 		}
 
@@ -688,7 +516,7 @@ public class RegistryService
 		return false;
 	}
 
-	public bool IsAbilityDisabledForUnit(Unit_WasmRuntime unit, string abilityId)
+	public bool IsAbilityDisabledForUnit(Unit_WasmRuntime? unit, string abilityId)
 	{
 		return unit != null && IsAbilityDisabledForUnit((UnitId)unit.UniqueId, abilityId);
 	}
@@ -722,7 +550,7 @@ public class RegistryService
 		def.TooltipTemplate = tooltip ?? "";
 	}
 
-	public AbilityDefinition GetAbilityDefinition(string abilityId)
+	public AbilityDefinition? GetAbilityDefinition(string abilityId)
 	{
 		if (string.IsNullOrEmpty(abilityId)) return null;
 		foreach (var key in GetNormalizedAbilityIdCandidates(abilityId))
@@ -902,180 +730,33 @@ public class RegistryService
 		}
 	}
 
-	public void SaveUnitObjectAttachment(string unitId, HumanoidBone hand, string attachmentId, HandAttachmentOrientation orientation, string wsPath)
-	{
-		string handKey = hand switch
-		{
-			HumanoidBone.LeftHand => "left_hand",
-			HumanoidBone.RightHand => "right_hand",
-			HumanoidBone.Chest => "chest",
-			HumanoidBone.Hips => "root",
-			HumanoidBone.Head => "head",
-			HumanoidBone.LeftFoot => "left_foot",
-			HumanoidBone.RightFoot => "right_foot",
-			_ => "right_hand"
-		};
-		SaveUnitObjectAttachment(unitId, handKey, attachmentId, orientation, wsPath);
-	}
+	public void SaveUnitObjectAttachment(string unitId, HumanoidBone hand, string attachmentId, HandAttachmentOrientation orientation, string wsPath) => UnitAttachmentCommands.SaveUnitObjectAttachment(unitId, hand, attachmentId, orientation, wsPath);
 
 
-	public void SaveUnitObjectAttachment(string unitId, string socket, string attachmentId, HandAttachmentOrientation orientation, string wsPath = null)
-	{
-		if (string.IsNullOrEmpty(unitId) || string.IsNullOrEmpty(attachmentId)) return;
-
-		var (regKey, isBuildingMeta) = ResolveRegistryKeyAndType(unitId);
-
-		UpdateLocalRegistry(regKey, isBuildingMeta, socket, attachmentId, orientation);
-
-		UpdateMetadataFile(unitId, regKey, socket, attachmentId, orientation, wsPath);
-
-		ApplyAttachmentsToGameInstances(unitId, regKey);
-	}
+	public void SaveUnitObjectAttachment(string unitId, string socket, string attachmentId, HandAttachmentOrientation orientation, string? wsPath = null) => UnitAttachmentCommands.SaveUnitObjectAttachment(unitId, socket, attachmentId, orientation, wsPath);
 
 
-	public (string regKey, bool isBuildingMeta) ResolveRegistryKeyAndType(string unitId)
-	{
-		string regKey = unitId;
-		bool isBuildingMeta = false;
-
-		if (GameHost.UnitRegistry.ContainsKey(unitId)) return (regKey, isBuildingMeta);
-		if (GameHost.BuildingRegistry != null && GameHost.BuildingRegistry.ContainsKey(unitId)) return (regKey, true);
-
-		string cleanId = Path.GetFileNameWithoutExtension(unitId);
-		if (GameHost.UnitRegistry.ContainsKey(cleanId)) return (cleanId, false);
-		if (GameHost.BuildingRegistry != null && GameHost.BuildingRegistry.ContainsKey(cleanId)) return (cleanId, true);
-
-		return ResolveRegistryKeyByIterating(unitId, cleanId);
-	}
+	public (string regKey, bool isBuildingMeta) ResolveRegistryKeyAndType(string unitId) => UnitAttachmentCommands.ResolveRegistryKeyAndType(unitId);
 
 
-	public (string regKey, bool isBuildingMeta) ResolveRegistryKeyByIterating(string unitId, string cleanId)
-	{
-		string regKey = unitId;
-		bool isBuildingMeta = false;
-
-		foreach (var k in GameHost.UnitRegistry.Keys)
-		{
-			string kStr = k.ToString();
-			if (kStr.Equals(unitId, StringComparison.OrdinalIgnoreCase) ||
-			    kStr.Equals(cleanId, StringComparison.OrdinalIgnoreCase) ||
-			    Path.GetFileNameWithoutExtension(kStr).Equals(cleanId, StringComparison.OrdinalIgnoreCase))
-			{
-				return (k.ToString(), false);
-			}
-		}
-
-		if (GameHost.BuildingRegistry != null)
-		{
-			foreach (var k in GameHost.BuildingRegistry.Keys)
-			{
-				string kStr = k.ToString();
-				if (kStr.Equals(unitId, StringComparison.OrdinalIgnoreCase) ||
-				    kStr.Equals(cleanId, StringComparison.OrdinalIgnoreCase) ||
-				    Path.GetFileNameWithoutExtension(kStr).Equals(cleanId, StringComparison.OrdinalIgnoreCase))
-				{
-					return (k.ToString(), true);
-				}
-			}
-		}
-
-		return (regKey, isBuildingMeta);
-	}
+	public (string regKey, bool isBuildingMeta) ResolveRegistryKeyByIterating(string unitId, string cleanId) => UnitAttachmentCommands.ResolveRegistryKeyByIterating(unitId, cleanId);
 
 
-	public void UpdateLocalRegistry(string regKey, bool isBuildingMeta, string socket, string attachmentId, HandAttachmentOrientation orientation)
-	{
-		if (isBuildingMeta && GameHost.BuildingRegistry != null && GameHost.BuildingRegistry.TryGetValue(regKey, out var bMeta))
-		{
-			bMeta.SetObjectAttachment(socket, attachmentId, orientation);
-			GameHost.BuildingRegistry[regKey] = bMeta;
-		}
-		else if (GameHost.UnitRegistry.TryGetValue(regKey, out var uMeta))
-		{
-			uMeta.SetObjectAttachment(socket, attachmentId, orientation);
-			GameHost.UnitRegistry[regKey] = uMeta;
-		}
-	}
+	public void UpdateLocalRegistry(string regKey, bool isBuildingMeta, string socket, string attachmentId, HandAttachmentOrientation orientation) => UnitAttachmentCommands.UpdateLocalRegistry(regKey, isBuildingMeta, socket, attachmentId, orientation);
 
 
-	public void UpdateMetadataFile(string unitId, string regKey, string socket, string attachmentId, HandAttachmentOrientation orientation, string wsPath = null)
-	{
-		string metadataPath = MetadataService.ResolveMetadataPath(wsPath);
-		if (!File.Exists(metadataPath)) return;
-
-		GameContext.MetadataService.UpdateMetadata(wsPath, meta =>
-		{
-			bool updated = meta.UpdateUnit(unitId, u =>
-			{
-				u.SetObjectAttachment(socket, attachmentId, orientation);
-				return u;
-			});
-			if (!updated)
-				updated = meta.UpdateBuilding(unitId, b =>
-				{
-					b.SetObjectAttachment(socket, attachmentId, orientation);
-					return b;
-				});
-			if (!updated)
-				updated = meta.UpdateUnit(regKey, u =>
-				{
-					u.SetObjectAttachment(socket, attachmentId, orientation);
-					return u;
-				});
-			if (!updated)
-				meta.UpdateBuilding(regKey, b =>
-				{
-					b.SetObjectAttachment(socket, attachmentId, orientation);
-					return b;
-				});
-		});
-
-				GameContext.EditorService.LastMetadataSyncTime = GameContext.EditorService.GetLastWriteTimeSafe(metadataPath);
-	}
+	public void UpdateMetadataFile(string unitId, string regKey, string socket, string attachmentId, HandAttachmentOrientation orientation, string? wsPath = null) => UnitAttachmentCommands.UpdateMetadataFile(unitId, regKey, socket, attachmentId, orientation, wsPath);
 
 
-	public void ApplyAttachmentsToGameInstances(string unitId, string regKey)
-	{
-		if (GameContext.Host == null) return;
-
-		if (GameContext.Host.AllUnits != null)
-		{
-			foreach (var u in GameContext.Host.AllUnits)
-			{
-				if (u != null && IsMatchingUnit(u.UnitId, unitId, regKey))
-				{
-					u.ApplyAllConfiguredAttachments();
-				}
-			}
-		}
-
-		if (GameContext.Host.SelectedEditorObject is Unit3D selUnit)
-		{
-			if (IsMatchingUnit(selUnit.UnitId, unitId, regKey))
-			{
-				selUnit.ApplyAllConfiguredAttachments();
-			}
-		}
-	}
+	public void ApplyAttachmentsToGameInstances(string unitId, string regKey) => UnitAttachmentCommands.ApplyAttachmentsToGameInstances(unitId, regKey);
 
 
-	public bool IsMatchingUnit(string instanceUnitId, string unitId, string regKey)
-	{
-		return instanceUnitId == unitId ||
-		       instanceUnitId == regKey ||
-		       Path.GetFileNameWithoutExtension(instanceUnitId ?? "").Equals(Path.GetFileNameWithoutExtension(unitId), StringComparison.OrdinalIgnoreCase);
-	}
+	public bool IsMatchingUnit(string instanceUnitId, string unitId, string regKey) => UnitAttachmentCommands.IsMatchingUnit(instanceUnitId, unitId, regKey);
 
 
-	public void SaveAllUnitObjectAttachments(string targetId, UnitObjectAttachments? attachments, Action<string, UnitObjectAttachments?> restoreCallback)
-	{
-		restoreCallback?.Invoke(targetId, attachments);
-	}
+	public void SaveAllUnitObjectAttachments(string targetId, UnitObjectAttachments? attachments, Action<string, UnitObjectAttachments?> restoreCallback) => UnitAttachmentCommands.SaveAllUnitObjectAttachments(targetId, attachments, restoreCallback);
 
-	public void SaveUnitPseudoSockets(string targetId, List<PseudoSocketAnchor>? pseudoSockets, Action<string, List<PseudoSocketAnchor>?> restoreCallback)
-	{
-		restoreCallback?.Invoke(targetId, pseudoSockets);
-	}
+	public void SaveUnitPseudoSockets(string targetId, List<PseudoSocketAnchor>? pseudoSockets, Action<string, List<PseudoSocketAnchor>?> restoreCallback) => UnitAttachmentCommands.SaveUnitPseudoSockets(targetId, pseudoSockets, restoreCallback);
 
 
 	public void SaveCustomWeaponToMetadata(string weaponId, WeaponMetadata weapon, string wsPath)

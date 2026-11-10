@@ -68,7 +68,7 @@ public class MapAttributionService
 		}
 		catch (Exception exception)
 		{
-			GD.PrintErr($"[MapAttributionService] Failed to update manifest attribution in '{manifestPath}': {exception.Message}");
+			GameLog.LogError($"[MapAttributionService] Failed to update manifest attribution in '{manifestPath}': {exception.Message}");
 		}
 	}
 
@@ -84,7 +84,7 @@ public class MapAttributionService
 		}
 		catch (Exception exception)
 		{
-			GD.PrintErr($"[MapAttributionService] Failed to read metadata attribution from '{metadataPath}': {exception.Message}");
+			GameLog.LogError($"[MapAttributionService] Failed to read metadata attribution from '{metadataPath}': {exception.Message}");
 		}
 	}
 
@@ -139,7 +139,7 @@ public class MapAttributionService
 			}
 			catch (Exception exception)
 			{
-				GD.PrintErr($"[MapAttributionService] Failed to read code attribution from '{filePath}': {exception.Message}");
+				GameLog.LogError($"[MapAttributionService] Failed to read code attribution from '{filePath}': {exception.Message}");
 			}
 		}
 	}

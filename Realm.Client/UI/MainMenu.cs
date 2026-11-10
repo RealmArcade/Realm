@@ -1,13 +1,11 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Text.Json;
 using System.Threading.Tasks;
 using Godot;
 using Realm.Client.Network;
 using Realm.Shared;
 using Realm.Shared.Network;
-using HttpClient = System.Net.Http.HttpClient;
 using static Godot.Control;
 using static Godot.CanvasItem;
 using Realm.Client.Services;
@@ -24,41 +22,40 @@ public partial class MainMenu : Control
 		Realm.Client.Services.GameContext.EnsureServices();
 	}
 
-	private Panel _bgPanel;
-	private Panel _leftPillar;
-	private Panel _rightPillar;
-	private PanelContainer _centralPanel;
+	private Panel _bgPanel = null!;
+	private Panel _leftPillar = null!;
+	private Panel _rightPillar = null!;
+	private PanelContainer _centralPanel = null!;
 
-	private TextureRect _gameLogo;
-	private Button _playButton;
-	private Button _singlePlayerButton;
-	private Button _mapDiscoveryButton;
-	private Button _creatorDiscoveryButton;
-	private Button _mapEditorButton;
-	private Button _replaysButton;
-	private Button _storageButton;
-	private Button _settingsButton;
-	private Button _profileButton;
-	private Button _quitButton;
-	private Button _socialButton;
-	private Control _socialPopoverOverlay;
-	private Control _socialPopover;
-	private Button _wishlistButton;
-	private Button _websiteButton;
-	private Button _discordButton;
-	private Button _youtubeButton;
-	private Button _donateButton;
-	private Button _announcementsButton;
-	private Button _bugReportButton;
-	private PlayerProfileDialog _profileDialog;
-	private AnnouncementsDialog _announcementsDialog;
-	private OptionButton _versionDropdown;
-	private Label _outdatedLabel;
+	private TextureRect _gameLogo = null!;
+	private Button _playButton = null!;
+	private Button _singlePlayerButton = null!;
+	private Button _mapDiscoveryButton = null!;
+	private Button _creatorDiscoveryButton = null!;
+	private Button _mapEditorButton = null!;
+	private Button _replaysButton = null!;
+	private Button _storageButton = null!;
+	private Button _settingsButton = null!;
+	private Button _profileButton = null!;
+	private Button _quitButton = null!;
+	private Button _socialButton = null!;
+	private Control _socialPopoverOverlay = null!;
+	private Control _socialPopover = null!;
+	private Button _wishlistButton = null!;
+	private Button _websiteButton = null!;
+	private Button _discordButton = null!;
+	private Button _youtubeButton = null!;
+	private Button _donateButton = null!;
+	private Button _announcementsButton = null!;
+	private Button _bugReportButton = null!;
+	private PlayerProfileDialog? _profileDialog;
+	private AnnouncementsDialog _announcementsDialog = null!;
+	private OptionButton _versionDropdown = null!;
+	private Label _outdatedLabel = null!;
 
-	private static Font _norseFont;
-	private static Font _norseBoldFont;
+	private static Font _norseFont = null!;
+	private static Font _norseBoldFont = null!;
 
-	private static readonly Color ProfileKeyColor = new(0.95f, 0.78f, 0.52f);
 
 	private readonly string[] _runes = { "ᚠ", "ᚢ", "ᚦ", "ᚨ", "ᚱ", "ᚲ", "ᚷ", "ᚹ", "ᚺ", "ᚾ", "ᛁ", "ᛃ", "ᛇ", "ᛈ", "ᛉ", "ᛊ", "ᛏ", "ᛒ", "ᛖ", "ᛗ", "ᛚ", "ᛜ", "ᛞ", "ᛟ" };
 
@@ -118,7 +115,7 @@ public partial class MainMenu : Control
 		AccountOperationResult result = await GameContext.Account.SignInWithSteamIdentityAsync();
 		if (!GodotObject.IsInstanceValid(this) || !IsInsideTree()) return;
 		if (result.Succeeded) return;
-		if (!PlayerProfileDialog.IsDisplayNameRefusal(result.ErrorCode)) return;
+		if (!AccountService.IsDisplayNameRefusal(result.ErrorCode)) return;
 
 		OpenProfileDialog();
 
@@ -232,16 +229,16 @@ public partial class MainMenu : Control
 				GameContext.SessionState.IsMapEditorMode = false;
 				GameContext.SessionState.IsTestMode = false;
 				if (GameContext.Lobby != null) GameContext.Lobby.IsSinglePlayer = true;
-				GameContext.UserInterface.TransitionTo(GameScreen.LobbyCreate);
+				NavigateTo(GameScreen.LobbyCreate);
 			}, "res://Assets/UI/menu_single_player_button.webp");
 			_singlePlayerButton.AddThemeConstantOverride("icon_max_width", 28);
 		}
 
-		SetupMenuButton(_mapDiscoveryButton, "MAP DISCOVERY", () => GameContext.UserInterface.TransitionTo(GameScreen.MapDiscovery), "res://Assets/UI/menu_discovery_button.webp");
+		SetupMenuButton(_mapDiscoveryButton, "MAP DISCOVERY", () => NavigateTo(GameScreen.MapDiscovery), "res://Assets/UI/menu_discovery_button.webp");
 		_mapDiscoveryButton.Visible = !BuildFlags.IS_AUTOBATTLE_FESTIVAL_ACTIVE;
 		if (_creatorDiscoveryButton != null)
 		{
-			SetupMenuButton(_creatorDiscoveryButton, "CREATOR DISCOVERY", () => GameContext.UserInterface.TransitionTo(GameScreen.CreatorDiscovery), "res://Assets/UI/menu_creator_button.webp");
+			SetupMenuButton(_creatorDiscoveryButton, "CREATOR DISCOVERY", () => NavigateTo(GameScreen.CreatorDiscovery), "res://Assets/UI/menu_creator_button.webp");
 			_creatorDiscoveryButton.AddThemeConstantOverride("icon_max_width", 28);
 			_creatorDiscoveryButton.Visible = !BuildFlags.IS_AUTOBATTLE_FESTIVAL_ACTIVE;
 		}
@@ -249,17 +246,17 @@ public partial class MainMenu : Control
 		SetupMenuButton(_mapEditorButton, "MAP EDITOR", () => OnMapEditorPressed(), "res://Assets/UI/menu_editor_button.webp");
 		if (_replaysButton != null)
 		{
-			SetupMenuButton(_replaysButton, "REPLAYS", () => GameContext.UserInterface.TransitionTo(GameScreen.ReplayList), "res://Assets/UI/menu_replays_button.webp");
+			SetupMenuButton(_replaysButton, "REPLAYS", () => NavigateTo(GameScreen.ReplayList), "res://Assets/UI/menu_replays_button.webp");
 			_replaysButton.AddThemeConstantOverride("icon_max_width", 28);
 		}
 
 		if (_storageButton != null)
 		{
-			SetupMenuButton(_storageButton, "STORAGE", () => GameContext.UserInterface.TransitionTo(GameScreen.Storage), "res://Assets/UI/menu_storage_button.webp");
+			SetupMenuButton(_storageButton, "STORAGE", () => NavigateTo(GameScreen.Storage), "res://Assets/UI/menu_storage_button.webp");
 			_storageButton.AddThemeConstantOverride("icon_max_width", 28);
 		}
 
-		SetupIconButton(_settingsButton, "OPTIONS", "res://Assets/UI/gear_icon.webp", () => GameContext.UserInterface.OpenSettingsOverlay(), new Vector2(22, 22));
+		SetupIconButton(_settingsButton, "OPTIONS", "res://Assets/UI/gear_icon.webp", () => GameContext.UserInterface?.OpenSettingsOverlay(), new Vector2(22, 22));
 		SetupAvatarButton(_profileButton, () => OpenProfileDialog());
 		SetupButton(_quitButton, "QUIT GAME", () => GetTree().Quit());
 
@@ -370,132 +367,6 @@ public partial class MainMenu : Control
 		if (_socialPopoverOverlay != null) _socialPopoverOverlay.Visible = false;
 	}
 
-	private void SetupButton(Button button, string text, Action onClick)
-	{
-		button.Flat = false;
-		button.Text = TranslationServer.Translate(text);
-		button.AddThemeFontOverride("font", _norseBoldFont);
-		button.AddThemeFontSizeOverride("font_size", 18);
-
-		button.AddThemeColorOverride("font_color", Color.FromHtml("#D1C4AE"));
-		button.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
-		button.AddThemeColorOverride("font_pressed_color", UIStyle.ColorGold);
-		button.AddThemeColorOverride("font_focus_color", UIStyle.ColorGold);
-
-		button.AddThemeColorOverride("font_shadow_color", Color.FromHtml("#8C8171"));
-		button.AddThemeConstantOverride("shadow_offset_x", 0);
-		button.AddThemeConstantOverride("shadow_offset_y", 2);
-		button.AddThemeConstantOverride("icon_max_width", 32);
-		button.AddThemeConstantOverride("h_separation", 2);
-
-		UIStyle.ApplyButtonStyleBoxes(button);
-
-		ApplyButtonAnimations(button, 1.03f);
-
-		button.Pressed += () =>
-		{
-			PlayClickSound();
-			onClick?.Invoke();
-		};
-	}
-
-	private void SetupMenuButton(Button button, string text, Action onClick, string texturePath = null, Vector2? minSize = null, string iconPath = null)
-	{
-		button.Flat = false;
-		button.Text = TranslationServer.Translate(text);
-		button.CustomMinimumSize = minSize ?? (texturePath != null ? new Vector2(240, 59) : new Vector2(240, 40));
-
-		ApplyMenuButtonIcon(button, iconPath);
-		ApplyMenuButtonTextStyles(button);
-		ApplyMenuButtonStyleBoxes(button, texturePath);
-
-		button.Pressed += () =>
-		{
-			PlayClickSound();
-			onClick?.Invoke();
-		};
-
-		button.MouseEntered += () => PlayHoverSound();
-	}
-
-	private void ApplyMenuButtonIcon(Button button, string iconPath)
-	{
-		if (!string.IsNullOrEmpty(iconPath))
-		{
-			button.Icon = TrimmedTextureLoader.LoadTrimmedTexture(iconPath);
-		}
-
-		if (button.Icon == null) return;
-
-		button.ExpandIcon = true;
-		button.IconAlignment = HorizontalAlignment.Left;
-		button.VerticalIconAlignment = VerticalAlignment.Center;
-		button.AddThemeConstantOverride("icon_max_width", 24);
-		button.AddThemeConstantOverride("h_separation", 10);
-	}
-
-	private void ApplyMenuButtonTextStyles(Button button)
-	{
-		button.AddThemeFontOverride("font", _norseBoldFont);
-		button.AddThemeFontSizeOverride("font_size", 20);
-
-		button.AddThemeColorOverride("font_color", Color.FromHtml("#D1C4AE"));
-		button.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
-		button.AddThemeColorOverride("font_pressed_color", UIStyle.ColorGold);
-		button.AddThemeColorOverride("font_focus_color", UIStyle.ColorGold);
-
-		button.AddThemeColorOverride("font_outline_color", new Color(0.10f, 0.07f, 0.02f, 1.0f));
-		button.AddThemeConstantOverride("outline_size", 8);
-
-		button.AddThemeColorOverride("font_shadow_color", Color.FromHtml("#8C8171"));
-		button.AddThemeConstantOverride("shadow_offset_x", 0);
-		button.AddThemeConstantOverride("shadow_offset_y", 2);
-	}
-
-	private void ApplyMenuButtonStyleBoxes(Button button, string texturePath)
-	{
-		var normalStyle = CreateMenuButtonStyleBox(texturePath ?? "res://Assets/UI/menu_button_normal.webp", texturePath, null);
-		var hoverStyle = CreateMenuButtonStyleBox(texturePath ?? "res://Assets/UI/menu_button_hover.webp", texturePath, new Color(1.12f, 1.10f, 0.96f));
-		var pressedStyle = CreateMenuButtonStyleBox(texturePath ?? "res://Assets/UI/menu_button_pressed.webp", texturePath, new Color(0.85f, 0.82f, 0.75f));
-
-		button.AddThemeStyleboxOverride("normal", normalStyle);
-		button.AddThemeStyleboxOverride("hover", hoverStyle);
-		button.AddThemeStyleboxOverride("pressed", pressedStyle);
-		button.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-	}
-
-	private StyleBoxTexture CreateMenuButtonStyleBox(string texPath, string customPath, Color? modColor)
-	{
-		var style = new StyleBoxTexture();
-		style.Texture = TrimmedTextureLoader.LoadTrimmedTexture(texPath);
-		if (customPath != null && modColor.HasValue) style.ModulateColor = modColor.Value;
-
-		if (customPath != null)
-		{
-			style.TextureMarginLeft = 0;
-			style.TextureMarginRight = 0;
-			style.TextureMarginTop = 0;
-			style.TextureMarginBottom = 0;
-			style.ContentMarginLeft = 24;
-			style.ContentMarginRight = 24;
-			style.ContentMarginTop = 6;
-			style.ContentMarginBottom = 6;
-		}
-		else
-		{
-			style.TextureMarginLeft = 32;
-			style.TextureMarginRight = 32;
-			style.TextureMarginTop = 10;
-			style.TextureMarginBottom = 10;
-			style.ContentMarginLeft = 32;
-			style.ContentMarginRight = 32;
-			style.ContentMarginTop = 10;
-			style.ContentMarginBottom = 10;
-		}
-
-		return style;
-	}
-
 	private void CreateVersionSelector()
 	{
 		var versionBox = new HBoxContainer();
@@ -542,10 +413,7 @@ public partial class MainMenu : Control
 		downloadBtn.AddThemeColorOverride("font_color", Color.FromHtml("#D1C4AE"));
 		downloadBtn.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
 		downloadBtn.CustomMinimumSize = new Vector2(110, 32);
-		downloadBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		downloadBtn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		downloadBtn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		downloadBtn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyButtonStyleBoxesClearingFocus(downloadBtn);
 		downloadBtn.Pressed += () => OS.ShellOpen("https://github.com/RealmArcade/Realm/releases");
 		versionBox.AddChild(downloadBtn);
 
@@ -555,30 +423,9 @@ public partial class MainMenu : Control
 
 	private async void CheckForUpdatesAsync()
 	{
-		try
+		if (await GameUpdateService.IsNewerReleasePublishedAsync())
 		{
-			using var client = new HttpClient();
-			client.DefaultRequestHeaders.UserAgent.ParseAdd("Realm-Godot-Client");
-			var response = await client.GetAsync("https://api.github.com/repos/speige/Realm/releases/latest");
-			if (response.IsSuccessStatusCode)
-			{
-				string json = await response.Content.ReadAsStringAsync();
-				using var doc = JsonDocument.Parse(json);
-				if (doc.RootElement.TryGetProperty("tag_name", out var tagProp))
-				{
-					string latestTag = tagProp.GetString() ?? "";
-					if (latestTag.StartsWith("v")) latestTag = latestTag.Substring(1);
-
-					if (latestTag != RealmVersion.GameBinaryVersion)
-					{
-						_outdatedLabel.Visible = true;
-					}
-				}
-			}
-		}
-		catch (Exception ex)
-		{
-			GD.PrintErr($"[MainMenu] Failed to check for updates: {ex.Message}");
+			_outdatedLabel.Visible = true;
 		}
 	}
 
@@ -590,20 +437,10 @@ public partial class MainMenu : Control
 
 		if (!OS.HasFeature("editor"))
 		{
-			string baseDir = LobbyManager.GetBaseGameDirectory();
-			string versionsDir = Path.Combine(baseDir, "versions");
-			if (Directory.Exists(versionsDir))
+			foreach (string version in GameUpdateService.GetOtherInstalledVersions(LobbyManager.GetBaseGameDirectory()))
 			{
-				var dirs = Directory.GetDirectories(versionsDir);
-				foreach (var dir in dirs)
-				{
-					string ver = Path.GetFileName(dir);
-					if (ver != RealmVersion.GameBinaryVersion)
-					{
-						_versionDropdown.AddItem(ver);
-						_versionDropdown.SetItemMetadata(_versionDropdown.ItemCount - 1, ver);
-					}
-				}
+				_versionDropdown.AddItem(version);
+				_versionDropdown.SetItemMetadata(_versionDropdown.ItemCount - 1, version);
 			}
 		}
 
@@ -633,306 +470,9 @@ public partial class MainMenu : Control
 	{
 		GameContext.SessionState.IsMapEditorMode = false;
 		GameContext.SessionState.IsTestMode = false;
-		GameContext.Lobby.IsSinglePlayer = false;
+		if (GameContext.Lobby is { } lobby) lobby.IsSinglePlayer = false;
 
-		GameContext.UserInterface.TransitionTo(GameScreen.LobbyBrowser);
-	}
-
-	private void SetupPlayButton(Button button, Action onClick)
-	{
-		button.Flat = false;
-		button.Icon = null;
-		button.CustomMinimumSize = new Vector2(240, 56);
-		button.Text = TranslationServer.Translate("PLAY");
-
-		button.AddThemeFontOverride("font", _norseBoldFont);
-		button.AddThemeFontSizeOverride("font_size", 20);
-
-		button.AddThemeColorOverride("font_color", Color.FromHtml("#D1C4AE"));
-		button.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
-		button.AddThemeColorOverride("font_pressed_color", UIStyle.ColorGold);
-		button.AddThemeColorOverride("font_focus_color", UIStyle.ColorGold);
-
-		button.AddThemeColorOverride("font_outline_color", new Color(0.12f, 0.08f, 0.03f, 1.0f));
-		button.AddThemeConstantOverride("outline_size", 8);
-
-		button.AddThemeColorOverride("font_shadow_color", Color.FromHtml("#8C8171"));
-		button.AddThemeConstantOverride("shadow_offset_x", 0);
-		button.AddThemeConstantOverride("shadow_offset_y", 2);
-
-		var playNormalStyle = new StyleBoxTexture();
-		playNormalStyle.Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/menu_play_button.webp");
-		playNormalStyle.TextureMarginLeft = 0;
-		playNormalStyle.TextureMarginRight = 0;
-		playNormalStyle.TextureMarginTop = 0;
-		playNormalStyle.TextureMarginBottom = 0;
-		playNormalStyle.ContentMarginLeft = 24;
-		playNormalStyle.ContentMarginRight = 24;
-		playNormalStyle.ContentMarginTop = 6;
-		playNormalStyle.ContentMarginBottom = 6;
-
-		var playHoverStyle = new StyleBoxTexture();
-		playHoverStyle.Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/menu_play_button.webp");
-		playHoverStyle.ModulateColor = new Color(1.12f, 1.10f, 0.96f);
-		playHoverStyle.TextureMarginLeft = 0;
-		playHoverStyle.TextureMarginRight = 0;
-		playHoverStyle.TextureMarginTop = 0;
-		playHoverStyle.TextureMarginBottom = 0;
-		playHoverStyle.ContentMarginLeft = 24;
-		playHoverStyle.ContentMarginRight = 24;
-		playHoverStyle.ContentMarginTop = 6;
-		playHoverStyle.ContentMarginBottom = 6;
-
-		var playPressedStyle = new StyleBoxTexture();
-		playPressedStyle.Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/menu_play_button.webp");
-		playPressedStyle.ModulateColor = new Color(0.85f, 0.82f, 0.75f);
-		playPressedStyle.TextureMarginLeft = 0;
-		playPressedStyle.TextureMarginRight = 0;
-		playPressedStyle.TextureMarginTop = 0;
-		playPressedStyle.TextureMarginBottom = 0;
-		playPressedStyle.ContentMarginLeft = 24;
-		playPressedStyle.ContentMarginRight = 24;
-		playPressedStyle.ContentMarginTop = 6;
-		playPressedStyle.ContentMarginBottom = 6;
-
-		button.AddThemeStyleboxOverride("normal", playNormalStyle);
-		button.AddThemeStyleboxOverride("hover", playHoverStyle);
-		button.AddThemeStyleboxOverride("pressed", playPressedStyle);
-		button.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-
-		ApplyButtonAnimations(button, 1.04f);
-
-		button.Pressed += () =>
-		{
-			PlayClickSound();
-			onClick?.Invoke();
-		};
-	}
-
-	private void SetupAvatarButton(Button button, Action onClick)
-	{
-		button.Flat = true;
-		button.Text = "";
-		button.FocusMode = FocusModeEnum.None;
-
-		button.AddThemeStyleboxOverride("normal", new StyleBoxEmpty());
-		button.AddThemeStyleboxOverride("hover", new StyleBoxEmpty());
-		button.AddThemeStyleboxOverride("pressed", new StyleBoxEmpty());
-		button.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-
-		var frameNormal = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/profile_frame_normal.webp");
-		var nameplateNormal = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/profile_nameplate_normal.webp");
-		var backdropNormal = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/profile_backdrop_normal.webp");
-
-		var backdrop = button.GetNode<TextureRect>("Backdrop");
-		var avatar = button.GetNode<TextureRect>("Avatar");
-		var frame = button.GetNode<TextureRect>("Frame");
-		var nameplate = button.GetNode<TextureRect>("Nameplate");
-		var nameLabel = button.GetNode<Label>("Nameplate/Label");
-		var levelLabel = button.GetNode<Label>("Badge/Label");
-
-		backdrop.Texture = backdropNormal;
-		backdrop.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
-		backdrop.StretchMode = TextureRect.StretchModeEnum.Scale;
-		backdrop.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
-
-		frame.Texture = frameNormal;
-		frame.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
-		frame.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
-		frame.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
-
-		nameplate.Texture = nameplateNormal;
-		nameplate.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
-		nameplate.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
-		nameplate.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
-
-		avatar.Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/avatar_icon.webp");
-		avatar.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
-		avatar.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
-		avatar.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
-
-		ApplyProfileNameLabels();
-
-		var labelFont = new SystemFont();
-		labelFont.FontNames = new string[] { "Cinzel Bold", "Cinzel", "Palatino Linotype", "Georgia", "serif" };
-		labelFont.FontWeight = 700;
-
-		nameLabel.AddThemeFontOverride("font", labelFont);
-		nameLabel.AddThemeFontSizeOverride("font_size", 14);
-		nameLabel.AddThemeColorOverride("font_color", new Color(0.95f, 0.85f, 0.65f));
-		nameLabel.AddThemeColorOverride("font_outline_color", new Color(0.05f, 0.05f, 0.05f, 1.0f));
-		nameLabel.AddThemeConstantOverride("outline_size", 6);
-
-		levelLabel.AddThemeFontOverride("font", labelFont);
-		levelLabel.AddThemeFontSizeOverride("font_size", 12);
-		levelLabel.AddThemeColorOverride("font_color", new Color(0.85f, 0.75f, 0.55f));
-		levelLabel.AddThemeColorOverride("font_outline_color", new Color(0.05f, 0.05f, 0.05f, 1.0f));
-		levelLabel.AddThemeConstantOverride("outline_size", 5);
-
-		Tween scaleTween = null;
-		button.MouseEntered += () =>
-		{
-			PlayHoverSound();
-			scaleTween?.Kill();
-			scaleTween = button.CreateTween();
-			scaleTween.SetParallel(true);
-			button.PivotOffset = button.Size / 2;
-			scaleTween.TweenProperty(button, "scale", new Vector2(1.04f, 1.04f), 0.15f)
-				.SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
-			scaleTween.TweenProperty(button, "modulate", new Color(1.10f, 1.08f, 0.98f), 0.15f)
-				.SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
-		};
-
-		button.MouseExited += () =>
-		{
-			scaleTween?.Kill();
-			scaleTween = button.CreateTween();
-			scaleTween.SetParallel(true);
-			scaleTween.TweenProperty(button, "scale", Vector2.One, 0.15f)
-				.SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
-			scaleTween.TweenProperty(button, "modulate", Colors.White, 0.15f)
-				.SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
-		};
-
-		button.Pressed += () =>
-		{
-			PlayClickSound();
-			onClick?.Invoke();
-		};
-	}
-
-	private void SetupIconButton(Button button, string text, string iconPath, Action onClick, Vector2? iconSize = null)
-	{
-		button.Flat = false;
-		button.Icon = null;
-		button.Text = "";
-
-		UIStyle.ApplyButtonStyleBoxes(button);
-
-		foreach (Node child in button.GetChildren())
-		{
-			if (child.Name == "ButtonContent")
-			{
-				child.QueueFree();
-			}
-		}
-
-		var container = CreateIconButtonContainer();
-
-		var iconRect = CreateIconButtonIcon(iconPath, iconSize);
-		container.AddChild(iconRect);
-
-		var label = CreateIconButtonLabel(text);
-		container.AddChild(label);
-
-		button.AddChild(container);
-
-		BindIconButtonEvents(button, label, iconRect, onClick);
-	}
-
-	private HBoxContainer CreateIconButtonContainer()
-	{
-		var container = new HBoxContainer();
-		container.Name = "ButtonContent";
-		container.AnchorLeft = 0.0f;
-		container.AnchorRight = 1.0f;
-		container.AnchorTop = 0.0f;
-		container.AnchorBottom = 1.0f;
-		container.Alignment = BoxContainer.AlignmentMode.Center;
-		container.MouseFilter = MouseFilterEnum.Ignore;
-		container.AddThemeConstantOverride("separation", 6);
-		return container;
-	}
-
-	private TextureRect CreateIconButtonIcon(string iconPath, Vector2? iconSize)
-	{
-		var iconRect = new TextureRect();
-		iconRect.Name = "IconRect_TextureRect";
-		iconRect.Texture = TrimmedTextureLoader.LoadTrimmedTexture(iconPath);
-		iconRect.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
-		iconRect.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
-		iconRect.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
-		Vector2 size = iconSize ?? new Vector2(22, 22);
-		iconRect.CustomMinimumSize = size;
-		iconRect.Size = size;
-		iconRect.PivotOffset = size / 2.0f;
-		iconRect.MouseFilter = MouseFilterEnum.Ignore;
-		iconRect.Modulate = UIStyle.ColorGoldDull;
-		return iconRect;
-	}
-
-	private Label CreateIconButtonLabel(string text)
-	{
-		var label = new Label();
-		label.Name = "Label_Label";
-		label.Text = TranslationServer.Translate(text);
-		label.AddThemeFontOverride("font", _norseBoldFont);
-		label.AddThemeFontSizeOverride("font_size", 18);
-		label.AddThemeColorOverride("font_color", Color.FromHtml("#D1C4AE"));
-		label.AddThemeColorOverride("font_shadow_color", Color.FromHtml("#8C8171"));
-		label.AddThemeConstantOverride("shadow_offset_x", 0);
-		label.AddThemeConstantOverride("shadow_offset_y", 2);
-		label.MouseFilter = MouseFilterEnum.Ignore;
-		return label;
-	}
-
-	private void BindIconButtonEvents(Button button, Label label, TextureRect iconRect, Action onClick)
-	{
-		Tween scaleTween = null;
-		Tween rotationTween = null;
-
-				ApplyButtonAnimations(button, 1.03f);
-
-		button.MouseEntered += () =>
-		{
-			label.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-			iconRect.Modulate = UIStyle.ColorGold;
-		};
-
-		button.MouseExited += () =>
-		{
-			label.AddThemeColorOverride("font_color", Color.FromHtml("#D1C4AE"));
-			iconRect.Modulate = UIStyle.ColorGoldDull;
-		};
-
-		button.ButtonDown += () =>
-		{
-			label.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-			iconRect.Modulate = UIStyle.ColorCyanGlow;
-		};
-
-		button.ButtonUp += () =>
-		{
-			label.AddThemeColorOverride("font_color", button.IsHovered() ? UIStyle.ColorGold : Color.FromHtml("#D1C4AE"));
-			iconRect.Modulate = button.IsHovered() ? UIStyle.ColorGold : UIStyle.ColorGoldDull;
-		};
-
-		button.Pressed += () =>
-		{
-			PlayClickSound();
-			onClick?.Invoke();
-		};
-	}
-
-	private void ApplyButtonAnimations(Button button, float hoverScale)
-	{
-		Tween scaleTween = null;
-		button.MouseEntered += () =>
-		{
-			PlayHoverSound();
-			scaleTween?.Kill();
-			scaleTween = button.CreateTween();
-			button.PivotOffset = button.Size / 2;
-			scaleTween.TweenProperty(button, "scale", new Vector2(hoverScale, hoverScale), 0.15f)
-				.SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
-		};
-		button.MouseExited += () =>
-		{
-			scaleTween?.Kill();
-			scaleTween = button.CreateTween();
-			scaleTween.TweenProperty(button, "scale", Vector2.One, 0.15f)
-				.SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
-		};
+		NavigateTo(GameScreen.LobbyBrowser);
 	}
 
 	private void PopulateRunicPillar(VBoxContainer container)
@@ -940,21 +480,36 @@ public partial class MainMenu : Control
 		container.Visible = false;
 	}
 
+	/// <summary>
+	///     Switches screens, reporting instead of throwing when no UI manager is registered: during teardown this menu can
+	///     outlive the manager, and then a click genuinely has nowhere to go.
+	/// </summary>
+	private static void NavigateTo(GameScreen screen)
+	{
+		if (GameContext.UserInterface is { } userInterface)
+		{
+			userInterface.TransitionTo(screen);
+			return;
+		}
+
+		GameLog.LogError($"[MainMenu] Cannot open {screen}: no UI manager is registered.");
+	}
+
 	private void PlayHoverSound()
 	{
-		GameContext.UserInterface.PlayHoverSound();
+		GameContext.UserInterface?.PlayHoverSound();
 	}
 
 	private void PlayClickSound()
 	{
-		GameContext.UserInterface.PlayClickSound();
+		GameContext.UserInterface?.PlayClickSound();
 	}
 
 	private void OnMapEditorPressed()
 	{
 		if (OperatingSystem.IsWindows()) GameContext.VSCode.StartInstallIfNeeded();
 
-		GameContext.UserInterface.TransitionTo(GameScreen.MapEditorHUD);
+		NavigateTo(GameScreen.MapEditorHUD);
 	}
 
 }

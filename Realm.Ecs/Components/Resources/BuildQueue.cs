@@ -96,6 +96,7 @@ public struct BuildQueue
 	}
 }
 
+/// <summary>One queued construction order: the building's type, where it is to be placed, and the entity it was issued against.</summary>
 [StructLayout(LayoutKind.Sequential, Pack = 4)]
 public struct BuildQueueSlot
 {
@@ -104,6 +105,7 @@ public struct BuildQueueSlot
 	public Entity Target;
 }
 
+/// <summary>Inline room for a worker's whole build queue, keeping its pending orders inside the component rather than in a pooled list.</summary>
 [InlineArray(GameplayConstants.BuildQueueCapacity)]
 [StructLayout(LayoutKind.Sequential, Pack = 4)]
 public struct BuildQueueSlots

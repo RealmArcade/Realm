@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using Godot;
@@ -240,7 +240,7 @@ public class UnitStatsPanel
 		world.TryGet(entity, out Level level);
 		world.TryGet(entity, out Buffs buffs);
 
-		UnitMetadata metadata = null;
+		UnitMetadata? metadata = null;
 		GameHost.TryGetUnitOrBuildingMetadata(info.UnitId, out metadata);
 		string damageType = metadata != null && !string.IsNullOrEmpty(metadata.DamageType) ? metadata.DamageType : string.Empty;
 		float experiencePerLevel = metadata != null ? metadata.ExperiencePerLevel : 0f;
@@ -307,7 +307,7 @@ public class UnitStatsPanel
 
 	private ulong ComputeSignature(Entity entity, in Stats stats, in UnitAttributes attributes,
 		in Experience experience, in Level level, in Attack attack, bool hasExperience, bool hasLevel, bool hasAttack,
-		string damageType, float experiencePerLevel, string stateText, string description, int playerIndex, UnitMetadata metadata)
+		string damageType, float experiencePerLevel, string? stateText, string? description, int playerIndex, UnitMetadata? metadata)
 	{
 		ulong signature = SignatureSeed;
 		signature = Mix(signature, entity.Id);
@@ -390,7 +390,7 @@ public class UnitStatsPanel
 		_statusEffectsSection.Visible = _statusEffectsStrip.GetChildCount() > 0;
 	}
 
-	private void UpdateUpgradeStrip(SelectedUnitInfo info, UnitMetadata metadata)
+	private void UpdateUpgradeStrip(SelectedUnitInfo info, UnitMetadata? metadata)
 	{
 		if (metadata?.Upgrades == null || metadata.Upgrades.Length == 0)
 		{
@@ -421,7 +421,7 @@ public class UnitStatsPanel
 			string upgradeId = metadata.Upgrades[index];
 			if (string.IsNullOrEmpty(upgradeId)) continue;
 
-			UpgradeMetadata upgrade = ResolveUpgrade(upgradeId);
+			UpgradeMetadata? upgrade = ResolveUpgrade(upgradeId);
 			int upgradeLevel = ReadUpgradeLevel(info.Player, upgradeId);
 			string upgradeName = upgrade != null && !string.IsNullOrEmpty(upgrade.Name) ? upgrade.Name : ToDisplayName(upgradeId);
 			string tooltip = TranslationServer.Translate(upgradeName);
@@ -439,14 +439,14 @@ public class UnitStatsPanel
 	{
 		if (playerIndex <= 0 || GameContext.Host == null) return 0;
 
-		UpgradeMetadata upgrade = ResolveUpgrade(upgradeId);
+		UpgradeMetadata? upgrade = ResolveUpgrade(upgradeId);
 		string canonicalId = upgrade != null && !string.IsNullOrEmpty(upgrade.TemplateID) ? upgrade.TemplateID : upgradeId;
 		return GameContext.Host.GetPlayerTechLevel(playerIndex, canonicalId);
 	}
 
-	private static UpgradeMetadata ResolveUpgrade(string upgradeId)
+	private static UpgradeMetadata? ResolveUpgrade(string upgradeId)
 	{
-		if (GameHost.UpgradeRegistry.TryGetValue(upgradeId, out UpgradeMetadata upgrade)) return upgrade;
+		if (GameHost.UpgradeRegistry.TryGetValue(upgradeId, out UpgradeMetadata? upgrade)) return upgrade;
 
 		string alternateId = upgradeId.StartsWith("upgrade/", StringComparison.OrdinalIgnoreCase)
 			? upgradeId.Substring("upgrade/".Length)
@@ -517,7 +517,7 @@ public class UnitStatsPanel
 		return (signature ^ (uint)value) * SignaturePrime;
 	}
 
-	private static ulong Mix(ulong signature, string text)
+	private static ulong Mix(ulong signature, string? text)
 	{
 		return (signature ^ (uint)(text?.GetHashCode() ?? 0)) * SignaturePrime;
 	}
@@ -527,7 +527,7 @@ public class UnitStatsPanel
 		if (UIStyle.FontAwesome != null) label.AddThemeFontOverride("font", UIStyle.FontAwesome);
 	}
 
-	private static void ApplyText(Label label, string text)
+	private static void ApplyText(Label label, string? text)
 	{
 		string resolved = text ?? string.Empty;
 		if (label.Text != resolved) label.Text = resolved;
@@ -634,7 +634,7 @@ public class UnitStatsPanel
 			column.QueueFree();
 		}
 
-		VBoxContainer currentColumn = null;
+		VBoxContainer? currentColumn = null;
 		int rowsInColumn = RowsPerColumn;
 		for (int index = 0; index < _orderedRows.Count; index++)
 		{

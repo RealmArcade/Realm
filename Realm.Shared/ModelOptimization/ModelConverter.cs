@@ -106,7 +106,7 @@ public static class ModelConverter
 	{
 		if (string.Equals(chromaKey, "auto", StringComparison.OrdinalIgnoreCase))
 		{
-			return GlbPlayerColorProcessor.AutoDetectChromaKey(finalGlbBytes) ?? "#FF00FF";
+			return GlbChromaKeyDetector.AutoDetectChromaKey(finalGlbBytes) ?? "#FF00FF";
 		}
 
 		if (string.IsNullOrEmpty(chromaKey))
@@ -114,7 +114,7 @@ public static class ModelConverter
 			string? existingKey = metaObj["chroma_key"]?.ToString() ?? metaObj["chromaKey"]?.ToString();
 			if (string.Equals(existingKey, "auto", StringComparison.OrdinalIgnoreCase))
 			{
-				return GlbPlayerColorProcessor.AutoDetectChromaKey(finalGlbBytes) ?? "#FF00FF";
+				return GlbChromaKeyDetector.AutoDetectChromaKey(finalGlbBytes) ?? "#FF00FF";
 			}
 
 			return existingKey ?? string.Empty;
@@ -389,7 +389,7 @@ public static class ModelConverter
 			}
 
 			byte[] finalGlbBytes = optRes.OutputGlbBytes;
-			bool supportsTeamColor = GlbPlayerColorProcessor.DetectSupportsTeamColor(finalGlbBytes);
+			bool supportsTeamColor = GlbTeamColorProbe.DetectSupportsTeamColor(finalGlbBytes);
 			byte[]? effectiveSourceProfileImage = ResolveSourceProfileImage(inputBytes, sourceProfileImageWebp, stripSourceProfileImage);
 
 			UpdateMetadataObject(metaObj, inputFileName, effectiveAssetType, author, chromaKey, finalGlbBytes, supportsTeamColor, effectiveSourceProfileImage);
@@ -515,7 +515,7 @@ public static class ModelConverter
 			result.Success = true;
 			result.OutputBytes = outputGlbBytes;
 			result.OptimizedSize = outputGlbBytes.Length;
-			result.SupportsTeamColor = GlbPlayerColorProcessor.DetectSupportsTeamColor(outputGlbBytes);
+			result.SupportsTeamColor = GlbTeamColorProbe.DetectSupportsTeamColor(outputGlbBytes);
 			result.AssetType = assetType;
 			result.Author = author;
 			return result;

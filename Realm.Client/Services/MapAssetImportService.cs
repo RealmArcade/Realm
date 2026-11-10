@@ -40,7 +40,7 @@ public class MapAssetImportService
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[MapAssetImportService] Failed to read manifest '{manifestFilePath}': {ex.Message}");
+			GameLog.LogError($"[MapAssetImportService] Failed to read manifest '{manifestFilePath}': {ex.Message}");
 			return candidates;
 		}
 
@@ -72,7 +72,7 @@ public class MapAssetImportService
 		if (candidates == null || candidates.Count == 0) return summary;
 		if (string.IsNullOrEmpty(destinationWorkspacePath) || !Directory.Exists(destinationWorkspacePath))
 		{
-			GD.PrintErr($"[MapAssetImportService] Destination workspace does not exist: {destinationWorkspacePath}");
+			GameLog.LogError($"[MapAssetImportService] Destination workspace does not exist: {destinationWorkspacePath}");
 			summary.Missing.AddRange(BuildNames(candidates));
 			return summary;
 		}
@@ -141,7 +141,7 @@ public class MapAssetImportService
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[MapAssetImportService] Failed to prepare '{destinationPath}': {ex.Message}");
+			GameLog.LogError($"[MapAssetImportService] Failed to prepare '{destinationPath}': {ex.Message}");
 			return false;
 		}
 	}
@@ -170,7 +170,7 @@ public class MapAssetImportService
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[MapAssetImportService] Failed to register imported assets in manifest.json: {ex.Message}");
+			GameLog.LogError($"[MapAssetImportService] Failed to register imported assets in manifest.json: {ex.Message}");
 		}
 	}
 
@@ -192,7 +192,7 @@ public class MapAssetImportService
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[MapAssetImportService] Failed to hash '{filePath}': {ex.Message}");
+			GameLog.LogError($"[MapAssetImportService] Failed to hash '{filePath}': {ex.Message}");
 			return false;
 		}
 	}

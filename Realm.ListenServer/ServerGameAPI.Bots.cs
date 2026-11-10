@@ -15,6 +15,6 @@ public partial class ServerGameAPI
 
 	public void ClearCustomBotDecisions(int playerIndex) => Bots.ClearCustomDecisions(playerIndex);
 
-	public string TrainBotProfile(string mapName, int generations = 5, int populationSize = 8, int matchesPerEvaluation = 4, string genre = "rts", int seed = 0) =>
-		ServerBots.Train(string.IsNullOrWhiteSpace(mapName) ? _paths.MapName : mapName, generations, populationSize, matchesPerEvaluation, genre, seed);
+	public string TrainBotProfile(string mapName, int generations = 5, int populationSize = 8, int matchesPerEvaluation = 4, string genre = "rts") =>
+		ServerBots.Train(string.IsNullOrWhiteSpace(mapName) ? _paths.MapName : mapName, generations, populationSize, matchesPerEvaluation, genre);
 }

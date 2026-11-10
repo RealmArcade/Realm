@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -20,30 +20,30 @@ public partial class AssetBrowserDialog : AssetGridDialogBase
 		GridPadding = 10.0f;
 	}
 
-	private HBoxContainer _folderChipsContainer;
-	private Button _btnAddFolder;
-	private Button _btnRescanAll;
-	private OptionButton _optDirectoryFilter;
-	private LineEdit _txtSearch;
-	private Label _lblResultsCount;
-	private Label _lblFilterExtensions;
+	private HBoxContainer _folderChipsContainer = null!;
+	private Button _btnAddFolder = null!;
+	private Button _btnRescanAll = null!;
+	private OptionButton _optDirectoryFilter = null!;
+	private LineEdit _txtSearch = null!;
+	private Label _lblResultsCount = null!;
+	private Label _lblFilterExtensions = null!;
 
-	private ScrollContainer _folderScroll;
-	private Label _lblEmptyState;
+	private ScrollContainer _folderScroll = null!;
+	private Label _lblEmptyState = null!;
 
-	private PanelContainer _bottomDetailsPanel;
-	private TextureRect _bottomThumbnail;
-	private Label _lblSelectedFileName;
-	private Label _lblSelectedPath;
-	private Label _lblSelectedSize;
-	private Button _btnAudioPlayPause;
-	private LineEdit _txtTagsEdit;
-	private Button _btnEditTags;
-	private LineEdit _txtAssetTypeEdit;
-	private Button _btnEditAssetType;
-	private PanelContainer _gridPanel;
+	private PanelContainer _bottomDetailsPanel = null!;
+	private TextureRect _bottomThumbnail = null!;
+	private Label _lblSelectedFileName = null!;
+	private Label _lblSelectedPath = null!;
+	private Label _lblSelectedSize = null!;
+	private Button _btnAudioPlayPause = null!;
+	private LineEdit _txtTagsEdit = null!;
+	private Button _btnEditTags = null!;
+	private LineEdit _txtAssetTypeEdit = null!;
+	private Button _btnEditAssetType = null!;
+	private PanelContainer _gridPanel = null!;
 
-	private readonly AudioStreamPlayer _audioPlayer;
+	private readonly AudioStreamPlayer _audioPlayer = null!;
 
 	private readonly List<IndexedAsset> _matchingAssets = new();
 
@@ -51,8 +51,8 @@ public partial class AssetBrowserDialog : AssetGridDialogBase
 	private HashSet<string> _allowedExtensions = new(StringComparer.OrdinalIgnoreCase);
 	private bool _requireRealmMetadata = false;
 	private string? _selectedAssetTypeFilter;
-	private OptionButton _optAssetTypeFilter;
-	private CheckBox _chkHasPlayerColorMask;
+	private OptionButton _optAssetTypeFilter = null!;
+	private CheckBox _chkHasPlayerColorMask = null!;
 	private static string? _selectedDirectoryFilter;
 	private static string? _selectedMapNameFilter;
 	private static string? _selectedMapVersionFilter;
@@ -63,9 +63,9 @@ public partial class AssetBrowserDialog : AssetGridDialogBase
 
 	private readonly HashSet<string> _selectedAssetPaths = new(StringComparer.OrdinalIgnoreCase);
 	private bool _multiSelectEnabled;
-	private Button _btnSelectAll;
-	private Button _btnClearSelection;
-	private Label _lblSelectionCount;
+	private Button _btnSelectAll = null!;
+	private Button _btnClearSelection = null!;
+	private Label _lblSelectionCount = null!;
 
 	public AssetBrowserDialog(MapEditorHUD hud)
 		: base(hud, TranslationServer.Translate("Asset Browser"), new Vector2(780, 640))
@@ -124,468 +124,7 @@ public partial class AssetBrowserDialog : AssetGridDialogBase
 		}
 	}
 
-	private void BuildControls()
-	{
-		BodyContainer.AddThemeConstantOverride("separation", 6);
 
-		var topFoldersSection = new VBoxContainer();
-		topFoldersSection.Name = "TopFoldersSection_VBoxContainer";
-		topFoldersSection.AddThemeConstantOverride("separation", 4);
-		BodyContainer.AddChild(topFoldersSection);
-
-		var folderHeaderRow = new HBoxContainer();
-		folderHeaderRow.Name = "FolderHeaderRow_HBoxContainer";
-		folderHeaderRow.AddThemeConstantOverride("separation", 8);
-
-		var faFont = Hud?.GetFontAwesomeFont();
-
-		var lblFoldersTitle = new Label();
-		lblFoldersTitle.Name = "LblFoldersTitle_Label";
-		lblFoldersTitle.Text = "\uf07b " + TranslationServer.Translate("Indexed Folders:");
-		lblFoldersTitle.AddThemeFontSizeOverride("font_size", 11);
-		lblFoldersTitle.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-		if (faFont != null)
-		{
-			lblFoldersTitle.AddThemeFontOverride("font", faFont);
-		}
-		folderHeaderRow.AddChild(lblFoldersTitle);
-
-		_btnAddFolder = new Button();
-		_btnAddFolder.Name = "BtnAddFolder_Button";
-		_btnAddFolder.Set("icon_max_width", 0);
-		_btnAddFolder.Text = "\uf0fe " + TranslationServer.Translate("Add Folder");
-		_btnAddFolder.AddThemeFontSizeOverride("font_size", 11);
-		_btnAddFolder.CustomMinimumSize = new Vector2(100, 24);
-		_btnAddFolder.FocusMode = FocusModeEnum.None;
-		_btnAddFolder.TooltipText = TranslationServer.Translate("Add a new local folder to the asset index");
-		if (faFont != null)
-		{
-			_btnAddFolder.AddThemeFontOverride("font", faFont);
-		}
-		_btnAddFolder.Pressed += OnAddFolderPressed;
-		folderHeaderRow.AddChild(_btnAddFolder);
-
-		_btnRescanAll = new Button();
-		_btnRescanAll.Name = "BtnRescanAll_Button";
-		_btnRescanAll.Set("icon_max_width", 0);
-		_btnRescanAll.Text = "\uf021 " + TranslationServer.Translate("Rescan");
-		_btnRescanAll.AddThemeFontSizeOverride("font_size", 11);
-		_btnRescanAll.CustomMinimumSize = new Vector2(80, 24);
-		_btnRescanAll.FocusMode = FocusModeEnum.None;
-		_btnRescanAll.TooltipText = TranslationServer.Translate("Rescan all indexed folders for new or modified files");
-		if (faFont != null)
-		{
-			_btnRescanAll.AddThemeFontOverride("font", faFont);
-		}
-		_btnRescanAll.Pressed += OnRescanAllPressed;
-		folderHeaderRow.AddChild(_btnRescanAll);
-
-		topFoldersSection.AddChild(folderHeaderRow);
-
-		_folderScroll = new ScrollContainer();
-		_folderScroll.Name = "FolderScroll_ScrollContainer";
-		_folderScroll.CustomMinimumSize = new Vector2(0, 24);
-		_folderScroll.VerticalScrollMode = ScrollContainer.ScrollMode.Disabled;
-		_folderScroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Auto;
-		_folderScroll.Visible = false;
-
-		_folderChipsContainer = new HBoxContainer();
-		_folderChipsContainer.Name = "FolderChipsContainer_HBoxContainer";
-		_folderChipsContainer.AddThemeConstantOverride("separation", 6);
-		_folderScroll.AddChild(_folderChipsContainer);
-		topFoldersSection.AddChild(_folderScroll);
-
-		var directoryRow = new HBoxContainer();
-		directoryRow.Name = "DirectoryRow_HBoxContainer";
-		directoryRow.AddThemeConstantOverride("separation", 8);
-		BodyContainer.AddChild(directoryRow);
-
-		_optDirectoryFilter = new OptionButton();
-		_optDirectoryFilter.Name = "OptDirectoryFilter_OptionButton";
-		_optDirectoryFilter.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		_optDirectoryFilter.CustomMinimumSize = new Vector2(0, 24);
-		_optDirectoryFilter.AddThemeFontSizeOverride("font_size", 11);
-		_optDirectoryFilter.FocusMode = FocusModeEnum.None;
-		_optDirectoryFilter.ItemSelected += OnDirectoryFilterChanged;
-		directoryRow.AddChild(_optDirectoryFilter);
-
-		var filterRow = new HBoxContainer();
-		filterRow.Name = "FilterRow_HBoxContainer";
-		filterRow.AddThemeConstantOverride("separation", 8);
-		BodyContainer.AddChild(filterRow);
-
-		_txtSearch = new LineEdit();
-		_txtSearch.Name = "TxtSearch_LineEdit";
-		_txtSearch.PlaceholderText = "\uf002 " + TranslationServer.Translate("Search tags (e.g. grass, rock) or filename...");
-		_txtSearch.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		_txtSearch.AddThemeFontSizeOverride("font_size", 11);
-		if (faFont != null)
-		{
-			_txtSearch.AddThemeFontOverride("font", faFont);
-		}
-		_txtSearch.TextChanged += (_) => RefreshSearchResults();
-		filterRow.AddChild(_txtSearch);
-
-		_optAssetTypeFilter = new OptionButton();
-		_optAssetTypeFilter.Name = "OptAssetTypeFilter_OptionButton";
-		_optAssetTypeFilter.CustomMinimumSize = new Vector2(150, 24);
-		_optAssetTypeFilter.AddThemeFontSizeOverride("font_size", 11);
-		_optAssetTypeFilter.FocusMode = FocusModeEnum.None;
-		_optAssetTypeFilter.ItemSelected += OnAssetTypeFilterChanged;
-		filterRow.AddChild(_optAssetTypeFilter);
-
-		_chkHasPlayerColorMask = new CheckBox();
-		_chkHasPlayerColorMask.Name = "ChkHasPlayerColorMask_CheckBox";
-		_chkHasPlayerColorMask.Set("icon_max_width", 0);
-		_chkHasPlayerColorMask.Text = TranslationServer.Translate("Has Player Color Mask");
-		_chkHasPlayerColorMask.AddThemeFontSizeOverride("font_size", 11);
-		_chkHasPlayerColorMask.FocusMode = FocusModeEnum.None;
-		_chkHasPlayerColorMask.TooltipText = TranslationServer.Translate("Filter assets that have a player color (chroma key) mask in metadata");
-		_chkHasPlayerColorMask.Toggled += (_) => RefreshSearchResults();
-		filterRow.AddChild(_chkHasPlayerColorMask);
-
-		var infoBar = new HBoxContainer();
-		infoBar.Name = "InfoBar_HBoxContainer";
-		infoBar.AddThemeConstantOverride("separation", 12);
-		BodyContainer.AddChild(infoBar);
-
-		_lblResultsCount = new Label();
-		_lblResultsCount.Name = "LblResultsCount_Label";
-		_lblResultsCount.Text = "0 " + TranslationServer.Translate("items found");
-		_lblResultsCount.AddThemeFontSizeOverride("font_size", 10);
-		_lblResultsCount.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		infoBar.AddChild(_lblResultsCount);
-
-		_lblFilterExtensions = new Label();
-		_lblFilterExtensions.Name = "LblFilterExtensions_Label";
-		_lblFilterExtensions.AddThemeFontSizeOverride("font_size", 10);
-		_lblFilterExtensions.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlowDim);
-		_lblFilterExtensions.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		infoBar.AddChild(_lblFilterExtensions);
-
-		_lblSelectionCount = new Label();
-		_lblSelectionCount.Name = "LblSelectionCount_Label";
-		_lblSelectionCount.AddThemeFontSizeOverride("font_size", 10);
-		_lblSelectionCount.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-		_lblSelectionCount.Visible = false;
-		infoBar.AddChild(_lblSelectionCount);
-
-		_btnSelectAll = new Button();
-		_btnSelectAll.Name = "BtnSelectAll_Button";
-		_btnSelectAll.Set("icon_max_width", 0);
-		_btnSelectAll.Text = TranslationServer.Translate("Select All");
-		_btnSelectAll.AddThemeFontSizeOverride("font_size", 10);
-		_btnSelectAll.CustomMinimumSize = new Vector2(90, 22);
-		_btnSelectAll.FocusMode = FocusModeEnum.None;
-		_btnSelectAll.TooltipText = TranslationServer.Translate("Select every asset matching the current filters");
-		_btnSelectAll.Pressed += OnSelectAllPressed;
-		_btnSelectAll.Visible = false;
-		infoBar.AddChild(_btnSelectAll);
-
-		_btnClearSelection = new Button();
-		_btnClearSelection.Name = "BtnClearSelection_Button";
-		_btnClearSelection.Set("icon_max_width", 0);
-		_btnClearSelection.Text = TranslationServer.Translate("Clear Selection");
-		_btnClearSelection.AddThemeFontSizeOverride("font_size", 10);
-		_btnClearSelection.CustomMinimumSize = new Vector2(100, 22);
-		_btnClearSelection.FocusMode = FocusModeEnum.None;
-		_btnClearSelection.TooltipText = TranslationServer.Translate("Deselect all assets");
-		_btnClearSelection.Pressed += OnClearSelectionPressed;
-		_btnClearSelection.Visible = false;
-		infoBar.AddChild(_btnClearSelection);
-
-		_gridPanel = new PanelContainer();
-		_gridPanel.Name = "GridPanel_PanelContainer";
-		_gridPanel.CustomMinimumSize = new Vector2(0, 320);
-		_gridPanel.SizeFlagsVertical = SizeFlags.ExpandFill;
-		_gridPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateLightInnerPanel());
-		BodyContainer.AddChild(_gridPanel);
-
-		_scrollContainer = new ScrollContainer();
-		_scrollContainer.Name = "ScrollContainer_ScrollContainer";
-		_scrollContainer.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		_scrollContainer.SizeFlagsVertical = SizeFlags.ExpandFill;
-		_scrollContainer.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
-		_scrollContainer.VerticalScrollMode = ScrollContainer.ScrollMode.Auto;
-		_gridPanel.AddChild(_scrollContainer);
-
-		_virtualGridContent = new Control();
-		_virtualGridContent.Name = "VirtualGridContent_Control";
-		_virtualGridContent.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		_virtualGridContent.MouseFilter = MouseFilterEnum.Pass;
-		_scrollContainer.AddChild(_virtualGridContent);
-
-		_lblEmptyState = new Label();
-		_lblEmptyState.Name = "LblEmptyState_Label";
-		_lblEmptyState.Text = TranslationServer.Translate("No assets found matching the search criteria.\nClick '+ Add Folder' above to index directories.");
-		_lblEmptyState.HorizontalAlignment = HorizontalAlignment.Center;
-		_lblEmptyState.VerticalAlignment = VerticalAlignment.Center;
-		_lblEmptyState.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		_lblEmptyState.SizeFlagsVertical = SizeFlags.ExpandFill;
-		_lblEmptyState.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		_lblEmptyState.AddThemeFontSizeOverride("font_size", 12);
-		_lblEmptyState.Visible = false;
-		_gridPanel.AddChild(_lblEmptyState);
-
-		_scrollContainer.GetVScrollBar().ValueChanged += (_) => UpdateVisibleGridCells();
-		_scrollContainer.Resized += () =>
-		{
-			UpdateVirtualGridSize(_matchingAssets.Count);
-			UpdateVisibleGridCells();
-		};
-
-		_bottomDetailsPanel = new PanelContainer();
-		_bottomDetailsPanel.Name = "BottomDetailsPanel_PanelContainer";
-		_bottomDetailsPanel.CustomMinimumSize = new Vector2(0, 60);
-		var detailStyle = new StyleBoxFlat();
-		detailStyle.BgColor = new Color(0.08f, 0.09f, 0.11f, 0.9f);
-		detailStyle.BorderColor = new Color(0.25f, 0.23f, 0.20f, 0.8f);
-		detailStyle.SetBorderWidthAll(1);
-		detailStyle.CornerRadiusTopLeft = 4;
-		detailStyle.CornerRadiusTopRight = 4;
-		detailStyle.CornerRadiusBottomLeft = 4;
-		detailStyle.CornerRadiusBottomRight = 4;
-		detailStyle.ContentMarginLeft = 8;
-		detailStyle.ContentMarginRight = 8;
-		detailStyle.ContentMarginTop = 6;
-		detailStyle.ContentMarginBottom = 6;
-		_bottomDetailsPanel.AddThemeStyleboxOverride("panel", detailStyle);
-		BodyContainer.AddChild(_bottomDetailsPanel);
-
-		var bottomHBox = new HBoxContainer();
-		bottomHBox.Name = "BottomHBox_HBoxContainer";
-		bottomHBox.AddThemeConstantOverride("separation", 10);
-		_bottomDetailsPanel.AddChild(bottomHBox);
-
-		_bottomThumbnail = new TextureRect();
-		_bottomThumbnail.Name = "BottomThumbnail_TextureRect";
-		_bottomThumbnail.CustomMinimumSize = new Vector2(48, 48);
-		_bottomThumbnail.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
-		_bottomThumbnail.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
-		bottomHBox.AddChild(_bottomThumbnail);
-
-		var bottomInfoVBox = new VBoxContainer();
-		bottomInfoVBox.Name = "BottomInfoVBox_VBoxContainer";
-		bottomInfoVBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		bottomInfoVBox.AddThemeConstantOverride("separation", 2);
-		bottomHBox.AddChild(bottomInfoVBox);
-
-		var nameRow = new HBoxContainer();
-		nameRow.Name = "NameRow_HBoxContainer";
-		nameRow.AddThemeConstantOverride("separation", 8);
-
-		_lblSelectedFileName = new Label();
-		_lblSelectedFileName.Name = "LblSelectedFileName_Label";
-		_lblSelectedFileName.Text = TranslationServer.Translate("No asset selected");
-		_lblSelectedFileName.AddThemeFontSizeOverride("font_size", 11);
-		_lblSelectedFileName.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-		nameRow.AddChild(_lblSelectedFileName);
-
-		_lblSelectedSize = new Label();
-		_lblSelectedSize.Name = "LblSelectedSize_Label";
-		_lblSelectedSize.AddThemeFontSizeOverride("font_size", 10);
-		_lblSelectedSize.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		nameRow.AddChild(_lblSelectedSize);
-
-		_btnAudioPlayPause = new Button();
-		_btnAudioPlayPause.Name = "BtnAudioPlayPause_Button";
-		_btnAudioPlayPause.Set("icon_max_width", 0);
-		_btnAudioPlayPause.Text = "▶ " + TranslationServer.Translate("Play");
-		_btnAudioPlayPause.AddThemeFontSizeOverride("font_size", 10);
-		_btnAudioPlayPause.CustomMinimumSize = new Vector2(70, 20);
-		_btnAudioPlayPause.FocusMode = FocusModeEnum.None;
-		_btnAudioPlayPause.TooltipText = TranslationServer.Translate("Play audio");
-		_btnAudioPlayPause.Pressed += OnAudioPlayPausePressed;
-		_btnAudioPlayPause.Visible = false;
-		nameRow.AddChild(_btnAudioPlayPause);
-
-		bottomInfoVBox.AddChild(nameRow);
-
-		_lblSelectedPath = new Label();
-		_lblSelectedPath.Name = "LblSelectedPath_Label";
-		_lblSelectedPath.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
-		_lblSelectedPath.AddThemeFontSizeOverride("font_size", 9);
-		_lblSelectedPath.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		bottomInfoVBox.AddChild(_lblSelectedPath);
-
-		var tagsRow = new HBoxContainer();
-		tagsRow.Name = "TagsRow_HBoxContainer";
-		tagsRow.AddThemeConstantOverride("separation", 6);
-
-		var lblTagsTitle = new Label();
-		lblTagsTitle.Name = "LblTagsTitle_Label";
-		lblTagsTitle.Text = TranslationServer.Translate("Tags:");
-		lblTagsTitle.AddThemeFontSizeOverride("font_size", 10);
-		lblTagsTitle.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		tagsRow.AddChild(lblTagsTitle);
-
-		_txtTagsEdit = new LineEdit();
-		_txtTagsEdit.Name = "TxtTagsEdit_LineEdit";
-		_txtTagsEdit.PlaceholderText = TranslationServer.Translate("No tags");
-		_txtTagsEdit.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		_txtTagsEdit.AddThemeFontSizeOverride("font_size", 10);
-		_txtTagsEdit.Editable = false;
-		tagsRow.AddChild(_txtTagsEdit);
-
-		_btnEditTags = new Button();
-		_btnEditTags.Name = "BtnEditTags_Button";
-		_btnEditTags.Set("icon_max_width", 0);
-		_btnEditTags.Text = "✏️";
-		_btnEditTags.AddThemeFontSizeOverride("font_size", 11);
-		_btnEditTags.CustomMinimumSize = new Vector2(28, 22);
-		_btnEditTags.FocusMode = FocusModeEnum.None;
-		_btnEditTags.TooltipText = TranslationServer.Translate("Edit tags");
-		_btnEditTags.Pressed += OnEditTagsPressed;
-		tagsRow.AddChild(_btnEditTags);
-
-		bottomInfoVBox.AddChild(tagsRow);
-
-		var assetTypeRow = new HBoxContainer();
-		assetTypeRow.Name = "AssetTypeRow_HBoxContainer";
-		assetTypeRow.AddThemeConstantOverride("separation", 6);
-
-		var lblAssetTypeTitle = new Label();
-		lblAssetTypeTitle.Name = "LblAssetTypeTitle_Label";
-		lblAssetTypeTitle.Text = TranslationServer.Translate("Asset Type:");
-		lblAssetTypeTitle.AddThemeFontSizeOverride("font_size", 10);
-		lblAssetTypeTitle.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		assetTypeRow.AddChild(lblAssetTypeTitle);
-
-		_txtAssetTypeEdit = new LineEdit();
-		_txtAssetTypeEdit.Name = "TxtAssetTypeEdit_LineEdit";
-		_txtAssetTypeEdit.PlaceholderText = TranslationServer.Translate("None");
-		_txtAssetTypeEdit.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		_txtAssetTypeEdit.AddThemeFontSizeOverride("font_size", 10);
-		_txtAssetTypeEdit.Editable = false;
-		assetTypeRow.AddChild(_txtAssetTypeEdit);
-
-		_btnEditAssetType = new Button();
-		_btnEditAssetType.Name = "BtnEditAssetType_Button";
-		_btnEditAssetType.Set("icon_max_width", 0);
-		_btnEditAssetType.Text = "✏️";
-		_btnEditAssetType.AddThemeFontSizeOverride("font_size", 11);
-		_btnEditAssetType.CustomMinimumSize = new Vector2(28, 22);
-		_btnEditAssetType.FocusMode = FocusModeEnum.None;
-		_btnEditAssetType.TooltipText = TranslationServer.Translate("Edit asset type");
-		_btnEditAssetType.Pressed += OnEditAssetTypePressed;
-		assetTypeRow.AddChild(_btnEditAssetType);
-
-		bottomInfoVBox.AddChild(assetTypeRow);
-
-		ApplyButton.Text = TranslationServer.Translate("Select");
-	}
-
-	public void OpenForImport(string titleText, IEnumerable<string> allowedExtensions, Action<string> onAssetSelected, bool requireRealmMetadata = false, string? requiredAssetType = null)
-	{
-		_onAssetSelectedCallback = onAssetSelected;
-		_onAssetSelectedWithPreferredNameCallback = null;
-		_onAssetsSelectedCallback = null;
-		_multiSelectEnabled = false;
-		_selectedAssetPaths.Clear();
-		_selectedAsset = null;
-		_txtSearch.Text = string.Empty;
-
-		if (_btnSelectAll != null) _btnSelectAll.Visible = false;
-		if (_btnClearSelection != null) _btnClearSelection.Visible = false;
-		if (_lblSelectionCount != null) _lblSelectionCount.Visible = false;
-		if (ApplyButton != null) ApplyButton.Text = TranslationServer.Translate("Select");
-
-		if (_chkHasPlayerColorMask != null)
-		{
-			_chkHasPlayerColorMask.ButtonPressed = false;
-		}
-
-		_requireRealmMetadata = requireRealmMetadata;
-		_selectedAssetTypeFilter = requiredAssetType;
-
-		TitleLabel.Text = string.IsNullOrWhiteSpace(titleText)
-			? TranslationServer.Translate("Asset Browser")
-			: TranslationServer.Translate(titleText);
-
-		if (!string.IsNullOrEmpty(titleText) && titleText.Contains("Minimap", StringComparison.OrdinalIgnoreCase))
-		{
-			CustomMinimumSize = new Vector2(800, 520);
-			SetUncompressedPanelTexture("res://Assets/UI/map_editor_publish.webp", 78, 38, 75, 75);
-			_gridPanel.CustomMinimumSize = new Vector2(0, 180);
-			if (TitleLabel?.GetParent() is MarginContainer titleMargin)
-			{
-				titleMargin.AddThemeConstantOverride("margin_top", -64);
-			}
-			if (CloseButton != null)
-			{
-				CloseButton.Visible = false;
-			}
-			if (FooterHBox?.GetParent() is MarginContainer footerMargin)
-			{
-				footerMargin.AddThemeConstantOverride("margin_bottom", 16);
-				footerMargin.AddThemeConstantOverride("margin_right", 8);
-			}
-		}
-		else
-		{
-			CustomMinimumSize = new Vector2(780, 640);
-			SetUncompressedPanelTexture("res://Assets/UI/map_editor_assets_importer.webp", 30, 45, 70, 70);
-			_gridPanel.CustomMinimumSize = new Vector2(0, 320);
-			if (TitleLabel?.GetParent() is MarginContainer titleMargin)
-			{
-				titleMargin.AddThemeConstantOverride("margin_top", -14);
-			}
-			if (CloseButton != null)
-			{
-				CloseButton.Visible = true;
-				if (CloseButton.GetParent() is MarginContainer closeMargin)
-				{
-					closeMargin.AddThemeConstantOverride("margin_top", -18);
-				}
-			}
-			if (FooterHBox?.GetParent() is MarginContainer footerMargin)
-			{
-				footerMargin.AddThemeConstantOverride("margin_bottom", 10);
-				footerMargin.AddThemeConstantOverride("margin_right", 0);
-			}
-		}
-
-		_allowedExtensions = (allowedExtensions ?? Array.Empty<string>())
-			.Select(e => e.Trim().ToLowerInvariant())
-			.Select(e => e.StartsWith(".") ? e : "." + e)
-			.ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-		if (_allowedExtensions.Contains(".rmesh"))
-		{
-			requireRealmMetadata = true;
-		}
-
-		_requireRealmMetadata = requireRealmMetadata;
-
-		if (_allowedExtensions.Count > 0)
-		{
-			_lblFilterExtensions.Text = $"{TranslationServer.Translate("Extensions")}: {string.Join(", ", _allowedExtensions)}";
-			_lblFilterExtensions.Visible = true;
-		}
-		else
-		{
-			_lblFilterExtensions.Visible = false;
-		}
-
-		if (!_hasAutoRescannedOnFirstOpen || GameContext.AssetIndexService.GetAssetCount() == 0)
-		{
-			_hasAutoRescannedOnFirstOpen = true;
-			GameContext.AssetIndexService.RescanAllDirectories();
-		}
-
-		OpenDialog();
-
-		RefreshFolderChips();
-		RefreshAssetTypeFilterOptions();
-		RefreshSearchResults();
-		UpdateSelectedAssetDisplay();
-
-		Callable.From(() =>
-		{
-			UpdateVirtualGridSize(_matchingAssets.Count);
-			UpdateVisibleGridCells();
-		}).CallDeferred();
-	}
 
 	public void OpenForImport(string titleText, IEnumerable<string> allowedExtensions, Action<string, string?> onAssetSelected, bool requireRealmMetadata = false, string? requiredAssetType = null)
 	{
@@ -607,214 +146,6 @@ public partial class AssetBrowserDialog : AssetGridDialogBase
 		UpdateVisibleGridCells();
 	}
 
-	private void RefreshFolderChips()
-	{
-		foreach (var child in _folderChipsContainer.GetChildren())
-		{
-			child.QueueFree();
-		}
-
-		_optDirectoryFilter.Clear();
-		_optDirectoryFilter.AddItem(TranslationServer.Translate("All Indexed Folders & Maps"), 0);
-		_optDirectoryFilter.SetItemMetadata(0, "all");
-
-		int currentItemIndex = 1;
-		int selectedIndex = 0;
-
-		selectedIndex = PopulateMapGroupsFilter(ref currentItemIndex, selectedIndex);
-		selectedIndex = PopulateIndexedDirsFilter(ref currentItemIndex, selectedIndex);
-
-		if (selectedIndex == 0 && (_selectedDirectoryFilter != null || _selectedMapNameFilter != null))
-		{
-			_selectedDirectoryFilter = null;
-			_selectedMapNameFilter = null;
-			_selectedMapVersionFilter = null;
-		}
-
-		_optDirectoryFilter.Selected = selectedIndex;
-		if (_folderScroll != null)
-		{
-			_folderScroll.Visible = _folderChipsContainer.GetChildCount() > 0;
-		}
-	}
-
-	private int PopulateMapGroupsFilter(ref int currentItemIndex, int selectedIndex)
-	{
-		var downloadedPackages = GameContext.AssetIndexService.GetDownloadedMapPackages();
-		var mapGroups = downloadedPackages
-			.GroupBy(p => p.MapName, StringComparer.OrdinalIgnoreCase)
-			.OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase);
-
-		foreach (var group in mapGroups)
-		{
-			string mapName = group.Key;
-			var sortedVersions = group.OrderBy(p => p.MapVersion, StringComparer.OrdinalIgnoreCase).ToList();
-			sortedVersions.Sort((a, b) => AssetIndexService.CompareVersions(b.MapVersion, a.MapVersion));
-
-			bool isFirst = true;
-			foreach (var pkg in sortedVersions)
-			{
-				string ver = pkg.MapVersion;
-				string label = isFirst
-					? $"📦 [Map] {mapName} ({ver} - {TranslationServer.Translate("Latest")})"
-					: $"📦 [Map] {mapName} ({ver})";
-				string metaKey = $"map:{mapName}|{ver}";
-
-				_optDirectoryFilter.AddItem(label, currentItemIndex);
-				_optDirectoryFilter.SetItemMetadata(currentItemIndex, metaKey);
-
-				if (IsMapFilterSelected(mapName, ver, isFirst))
-				{
-					selectedIndex = currentItemIndex;
-				}
-
-				currentItemIndex++;
-				isFirst = false;
-			}
-		}
-
-		return selectedIndex;
-	}
-
-	private bool IsMapFilterSelected(string mapName, string ver, bool isFirst)
-	{
-		if (string.IsNullOrEmpty(_selectedMapNameFilter)) return false;
-		if (!string.Equals(mapName, _selectedMapNameFilter, StringComparison.OrdinalIgnoreCase)) return false;
-
-		if (string.IsNullOrEmpty(_selectedMapVersionFilter)) return true;
-		if (string.Equals(_selectedMapVersionFilter, "latest", StringComparison.OrdinalIgnoreCase) && isFirst) return true;
-		if (string.Equals(_selectedMapVersionFilter, ver, StringComparison.OrdinalIgnoreCase)) return true;
-
-		return false;
-	}
-
-	private int PopulateIndexedDirsFilter(ref int currentItemIndex, int selectedIndex)
-	{
-		var indexedDirs = GameContext.AssetIndexService.GetIndexedDirectories();
-
-		for (int i = 0; i < indexedDirs.Count; i++)
-		{
-			string dirPath = indexedDirs[i];
-			if (string.Equals(dirPath, AssetIndexService.GlobalCasAssetsDirectory, StringComparison.OrdinalIgnoreCase))
-			{
-				continue;
-			}
-
-			int itemIdx = currentItemIndex++;
-			selectedIndex = AddIndexedDirItem(dirPath, itemIdx, selectedIndex);
-			AddIndexedDirChip(dirPath);
-		}
-
-		return selectedIndex;
-	}
-
-	private int AddIndexedDirItem(string dirPath, int itemIdx, int selectedIndex)
-	{
-		string folderName = Path.GetFileName(dirPath.TrimEnd('/', '\\'));
-		if (string.IsNullOrEmpty(folderName))
-		{
-			folderName = dirPath;
-		}
-
-		bool isIndexing = GameContext.AssetIndexService.IsDirectoryIndexing(dirPath);
-		string metaKey = $"dir:{dirPath}";
-		_optDirectoryFilter.AddItem(isIndexing ? $"⏳ {folderName} ({TranslationServer.Translate("Indexing...")})" : folderName, itemIdx);
-		_optDirectoryFilter.SetItemMetadata(itemIdx, metaKey);
-
-		if (string.IsNullOrEmpty(_selectedMapNameFilter) && !string.IsNullOrEmpty(_selectedDirectoryFilter) && string.Equals(dirPath, _selectedDirectoryFilter, StringComparison.OrdinalIgnoreCase))
-		{
-			return itemIdx;
-		}
-
-		return selectedIndex;
-	}
-
-	private void AddIndexedDirChip(string dirPath)
-	{
-		string folderName = Path.GetFileName(dirPath.TrimEnd('/', '\\'));
-		if (string.IsNullOrEmpty(folderName))
-		{
-			folderName = dirPath;
-		}
-
-		bool isIndexing = GameContext.AssetIndexService.IsDirectoryIndexing(dirPath);
-		var chip = new PanelContainer();
-		chip.Name = "Chip_PanelContainer";
-		var chipStyle = new StyleBoxFlat();
-		chipStyle.BgColor = isIndexing ? new Color(0.18f, 0.16f, 0.12f, 0.9f) : new Color(0.15f, 0.16f, 0.19f, 0.9f);
-		chipStyle.BorderColor = isIndexing ? UIStyle.ColorGold : new Color(0.35f, 0.32f, 0.28f, 0.7f);
-		chipStyle.SetBorderWidthAll(1);
-		chipStyle.CornerRadiusTopLeft = 3;
-		chipStyle.CornerRadiusTopRight = 3;
-		chipStyle.CornerRadiusBottomLeft = 3;
-		chipStyle.CornerRadiusBottomRight = 3;
-		chipStyle.ContentMarginLeft = 6;
-		chipStyle.ContentMarginRight = 4;
-		chipStyle.ContentMarginTop = 2;
-		chipStyle.ContentMarginBottom = 2;
-		chip.AddThemeStyleboxOverride("panel", chipStyle);
-		chip.TooltipText = isIndexing
-			? $"{dirPath}\n({TranslationServer.Translate("Indexing in progress...")})"
-			: dirPath;
-
-		var chipHBox = new HBoxContainer();
-		chipHBox.Name = "ChipHBox_HBoxContainer";
-		chipHBox.AddThemeConstantOverride("separation", 4);
-		chip.AddChild(chipHBox);
-
-		var lblName = new Label();
-		lblName.Name = "LblName_Label";
-		lblName.Text = isIndexing ? $"⏳ {folderName}" : $"📁 {folderName}";
-		lblName.AddThemeFontSizeOverride("font_size", 10);
-		lblName.AddThemeColorOverride("font_color", isIndexing ? UIStyle.ColorCyanGlow : UIStyle.ColorGold);
-		chipHBox.AddChild(lblName);
-
-		var btnRemove = new Button();
-		btnRemove.Name = "BtnRemove_Button";
-		btnRemove.Set("icon_max_width", 0);
-		btnRemove.Text = "✕";
-		btnRemove.AddThemeFontSizeOverride("font_size", 9);
-		btnRemove.CustomMinimumSize = new Vector2(16, 16);
-		btnRemove.FocusMode = FocusModeEnum.None;
-		btnRemove.TooltipText = $"{TranslationServer.Translate("Remove folder from index")}: {dirPath}";
-		btnRemove.Pressed += () =>
-		{
-			GameContext.AssetIndexService.RemoveDirectory(dirPath);
-			RefreshFolderChips();
-			RefreshSearchResults();
-		};
-		chipHBox.AddChild(btnRemove);
-
-		_folderChipsContainer.AddChild(chip);
-	}
-
-	private void RefreshAssetTypeFilterOptions()
-	{
-		if (_optAssetTypeFilter == null) return;
-		_optAssetTypeFilter.Clear();
-
-		var validTypes = GetValidAssetTypes();
-
-		if (validTypes.Count == 0)
-		{
-			_optAssetTypeFilter.Visible = false;
-			_selectedAssetTypeFilter = null;
-			return;
-		}
-
-		_optAssetTypeFilter.Visible = true;
-		_optAssetTypeFilter.AddItem(TranslationServer.Translate("All Types"), 0);
-		_optAssetTypeFilter.SetItemMetadata(0, "");
-
-		int selectedIndex = PopulateAssetTypeFilterDropdown(validTypes);
-
-		if (selectedIndex == 0 && !string.IsNullOrEmpty(_selectedAssetTypeFilter))
-		{
-			_selectedAssetTypeFilter = null;
-		}
-
-		_optAssetTypeFilter.Selected = selectedIndex;
-	}
 
 	private List<string> GetValidAssetTypes()
 	{
@@ -880,69 +211,6 @@ public partial class AssetBrowserDialog : AssetGridDialogBase
 		RefreshSearchResults();
 	}
 
-	private void OnDirectoryFilterChanged(long index)
-	{
-		int idx = (int)index;
-		if (idx <= 0 || _optDirectoryFilter == null)
-		{
-			_selectedDirectoryFilter = null;
-			_selectedMapNameFilter = null;
-			_selectedMapVersionFilter = null;
-		}
-		else
-		{
-			string meta = _optDirectoryFilter.GetItemMetadata(idx).AsString();
-			if (meta.StartsWith("map:"))
-			{
-				string payload = meta.Substring(4);
-				string[] parts = payload.Split('|');
-				_selectedDirectoryFilter = null;
-				_selectedMapNameFilter = parts[0];
-				_selectedMapVersionFilter = parts.Length > 1 ? parts[1] : "latest";
-			}
-			else if (meta.StartsWith("dir:"))
-			{
-				_selectedDirectoryFilter = meta.Substring(4);
-				_selectedMapNameFilter = null;
-				_selectedMapVersionFilter = null;
-			}
-			else
-			{
-				_selectedDirectoryFilter = null;
-				_selectedMapNameFilter = null;
-				_selectedMapVersionFilter = null;
-			}
-		}
-
-		RefreshSearchResults();
-	}
-
-	private void OnAddFolderPressed()
-	{
-		var err = DisplayServer.FileDialogShow(
-			TranslationServer.Translate("Select Folder to Index"),
-			PathUtils.GetProjectRoot(),
-			"",
-			false,
-			DisplayServer.FileDialogMode.OpenDir,
-			Array.Empty<string>(),
-			Callable.From((bool status, string[] selectedPaths, int selectedFilterIndex) =>
-			{
-				if (status && selectedPaths.Length > 0)
-				{
-					string folderPath = selectedPaths[0];
-					GameContext.AssetIndexService.AddDirectory(folderPath);
-					RefreshFolderChips();
-					RefreshSearchResults();
-				}
-			})
-		);
-
-		if (err != Error.Ok)
-		{
-			Hud?.ShowFeedback(TranslationServer.Translate("Failed to show folder dialog"));
-		}
-	}
 
 	private void OnRescanAllPressed()
 	{
@@ -985,7 +253,7 @@ public partial class AssetBrowserDialog : AssetGridDialogBase
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[AssetBrowserDialog] RefreshSearchResults error: {ex.Message}");
+			GameLog.LogError($"[AssetBrowserDialog] RefreshSearchResults error: {ex.Message}");
 		}
 	}
 
@@ -1250,7 +518,7 @@ public partial class AssetBrowserDialog : AssetGridDialogBase
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[AssetBrowserDialog] Failed to load audio stream: {ex.Message}");
+			GameLog.LogError($"[AssetBrowserDialog] Failed to load audio stream: {ex.Message}");
 		}
 	}
 
@@ -1307,7 +575,7 @@ public partial class AssetBrowserDialog : AssetGridDialogBase
 			return;
 		}
 
-		var dialog = new TagEditorDialog(Hud, _selectedAsset, OnTagsSaved);
+		var dialog = new TagEditorDialog(RequireHud, _selectedAsset, OnTagsSaved);
 		dialog.DialogClosed += () => dialog.QueueFree();
 		dialog.OpenDialog();
 	}
@@ -1330,7 +598,7 @@ public partial class AssetBrowserDialog : AssetGridDialogBase
 	private void OnEditAssetTypePressed()
 	{
 		if (_selectedAsset == null) return;
-		var dialog = new AssetTypeEditorDialog(Hud, _selectedAsset, OnAssetTypeSaved);
+		var dialog = new AssetTypeEditorDialog(RequireHud, _selectedAsset, OnAssetTypeSaved);
 		dialog.DialogClosed += () => dialog.QueueFree();
 		dialog.OpenDialog();
 	}

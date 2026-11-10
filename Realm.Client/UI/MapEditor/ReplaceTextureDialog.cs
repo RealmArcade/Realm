@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.Services;
@@ -11,11 +11,38 @@ public partial class ReplaceTextureDialog : FloatingDialogBase
 {
 	public ReplaceTextureDialog() { }
 
-	private OptionButton _optSource;
-	private OptionButton _optTarget;
+	private OptionButton _optSource = null!;
+	private OptionButton _optTarget = null!;
 
-	private TerrainSplatWeights[,]? _snapshotSplatMap;
-	private TerrainSplatWeights[,]? _snapshotCliffSplatMap;
+	private readonly struct SplatSnapshot
+	{
+		public readonly TerrainSplatWeights[,] Splat;
+		public readonly TerrainSplatWeights[,]? Cliff;
+
+		public SplatSnapshot(TerrainSplatWeights[,] splat, TerrainSplatWeights[,]? cliff)
+		{
+			Splat = splat;
+			Cliff = cliff;
+		}
+	}
+
+	private readonly struct SplatSwap
+	{
+		public readonly RuntimeTerrain GroundTerrain;
+		public readonly SplatSnapshot Snapshot;
+		public readonly int SourceSlot;
+		public readonly int TargetSlot;
+
+		public SplatSwap(RuntimeTerrain groundTerrain, SplatSnapshot snapshot, int sourceSlot, int targetSlot)
+		{
+			GroundTerrain = groundTerrain;
+			Snapshot = snapshot;
+			SourceSlot = sourceSlot;
+			TargetSlot = targetSlot;
+		}
+	}
+
+	private SplatSnapshot? _snapshot;
 
 	public ReplaceTextureDialog(MapEditorHUD hud) : base(hud, TranslationServer.Translate("REPLACE TERRAIN TEXTURE"), new Vector2(420, 200))
 	{
@@ -24,9 +51,7 @@ public partial class ReplaceTextureDialog : FloatingDialogBase
 
 	private void BuildUI()
 	{
-		var contentVBox = new VBoxContainer();
-		contentVBox.Name = "ContentVBox_VBoxContainer";
-		contentVBox.AddThemeConstantOverride("separation", 10);
+		var contentVBox = CreateContentColumn();
 		BodyContainer.AddChild(contentVBox);
 
 		AddSectionHeader(contentVBox, "🔄 " + TranslationServer.Translate("TEXTURE SWAP SELECTION"), new Color(0.35f, 0.75f, 0.9f));
@@ -91,12 +116,12 @@ public partial class ReplaceTextureDialog : FloatingDialogBase
 
 	public override void OpenDialog()
 	{
-		if (GameContext.Host?.GroundTerrain != null && GameContext.Host.GroundTerrain.SplatMap != null)
+		_snapshot = null;
+		if (GameContext.Host?.GroundTerrain is { SplatMap: { } splatMap } groundTerrain)
 		{
-			_snapshotSplatMap = (TerrainSplatWeights[,])GameContext.Host.GroundTerrain.SplatMap.Clone();
-			_snapshotCliffSplatMap = GameContext.Host.GroundTerrain.CliffSplatMap != null
-				? (TerrainSplatWeights[,])GameContext.Host.GroundTerrain.CliffSplatMap.Clone()
-				: null;
+			_snapshot = new SplatSnapshot(
+				(TerrainSplatWeights[,])splatMap.Clone(),
+				groundTerrain.CliffSplatMap is { } cliffSplatMap ? (TerrainSplatWeights[,])cliffSplatMap.Clone() : null);
 		}
 
 		PopulateDropdowns();
@@ -111,26 +136,25 @@ public partial class ReplaceTextureDialog : FloatingDialogBase
 		_optSource.Clear();
 		_optTarget.Clear();
 
-		var displayNames = (Hud != null ? GameContext.EditorService.SwatchDisplayNames : (IReadOnlyList<string>)null);
-		int count = displayNames?.Count ?? 0;
+		var host = GameContext.Host;
+		IReadOnlyList<string>? displayNames = host != null ? GameContext.EditorService.Swatches.DisplayNames : null;
 
-		GameHost tempQualifier = GameContext.Host;
-		int defaultSourceIndex = (tempQualifier != null ? GameContext.EditorService.EditorPaintTextureIndex : (int?)null) ?? 0;
-		GameHost tempQualifier1 = GameContext.Host;
-		int defaultTargetIndex = (tempQualifier1 != null ? GameContext.EditorService.EditorCliffPaintTextureIndex : (int?)null) ?? 0;
+		int defaultSourceIndex = host != null ? GameContext.EditorService.Tools.PaintTextureIndex : 0;
+		int defaultTargetIndex = host != null ? GameContext.EditorService.Tools.CliffPaintTextureIndex : 0;
 
-		PopulateDropdownItems(displayNames, count, defaultSourceIndex, defaultTargetIndex);
+		PopulateDropdownItems(displayNames, defaultSourceIndex, defaultTargetIndex);
 	}
 
-	private void PopulateDropdownItems(IReadOnlyList<string> displayNames, int count, int defaultSourceIndex, int defaultTargetIndex)
+	private void PopulateDropdownItems(IReadOnlyList<string>? displayNames, int defaultSourceIndex, int defaultTargetIndex)
 	{
 		int itemIndex = 0;
 		int selectedSourceItem = 0;
 		int selectedTargetItem = 0;
 
+		int count = displayNames?.Count ?? 0;
 		for (int i = 0; i < count; i++)
 		{
-			string rawName = displayNames![i];
+			string? rawName = displayNames![i];
 			if (string.IsNullOrWhiteSpace(rawName) || rawName.EndsWith("(Empty)"))
 			{
 				continue;
@@ -153,87 +177,86 @@ public partial class ReplaceTextureDialog : FloatingDialogBase
 		if (_optTarget.ItemCount > 0) _optTarget.Selected = selectedTargetItem;
 	}
 
-	private bool TryGetValidState(out RuntimeTerrain? groundTerrain, out int sourceSlot, out int targetSlot)
+	private SplatSwap? BuildSwap()
 	{
-		sourceSlot = -1;
-		targetSlot = -1;
-		groundTerrain = GameContext.Host?.GroundTerrain;
-
-		if (_snapshotSplatMap == null || groundTerrain?.SplatMap == null) return false;
-		if (_optSource.Selected < 0 || _optTarget.Selected < 0) return false;
+		if (_snapshot is not { } snapshot) return null;
+		if (GameContext.Host?.GroundTerrain is not { SplatMap: not null } groundTerrain) return null;
+		if (_optSource.Selected < 0 || _optTarget.Selected < 0) return null;
 
 		var sourceMeta = _optSource.GetItemMetadata(_optSource.Selected);
 		var targetMeta = _optTarget.GetItemMetadata(_optTarget.Selected);
 
-		if (sourceMeta.VariantType == Variant.Type.Nil || targetMeta.VariantType == Variant.Type.Nil) return false;
+		if (sourceMeta.VariantType == Variant.Type.Nil || targetMeta.VariantType == Variant.Type.Nil) return null;
 
-		sourceSlot = (int)sourceMeta;
-		targetSlot = (int)targetMeta;
-		return true;
+		return new SplatSwap(groundTerrain, snapshot, (int)sourceMeta, (int)targetMeta);
 	}
 
 	private void ApplyLivePreview()
 	{
-		if (!TryGetValidState(out var groundTerrain, out int sourceSlot, out int targetSlot)) return;
+		if (BuildSwap() is not { } swap) return;
 
-		if (sourceSlot == targetSlot)
+		if (swap.SourceSlot == swap.TargetSlot)
 		{
-			RestoreSplatMap(groundTerrain!);
+			RestoreSplatMap(swap.GroundTerrain, swap.Snapshot);
 		}
 		else
 		{
-			ReplaceSplatMap(groundTerrain!, sourceSlot, targetSlot);
+			ReplaceSplatMap(swap.GroundTerrain, swap.Snapshot, swap.SourceSlot, swap.TargetSlot);
 		}
 
-		groundTerrain!.UpdateMeshAndPhysics(false, false, (Rect2I?)null, false);
+		swap.GroundTerrain.UpdateMeshAndPhysics(false, false, (Rect2I?)null, false);
 	}
 
-	private void RestoreSplatMap(RuntimeTerrain groundTerrain)
+	private static void RestoreSplatMap(RuntimeTerrain groundTerrain, SplatSnapshot snapshot)
 	{
-		int width = _snapshotSplatMap.GetLength(0);
-		int depth = _snapshotSplatMap.GetLength(1);
+		if (groundTerrain.SplatMap is not { } splatTarget) return;
+
+		int width = snapshot.Splat.GetLength(0);
+		int depth = snapshot.Splat.GetLength(1);
 		for (int z = 0; z < depth; z++)
 		{
 			for (int x = 0; x < width; x++)
 			{
-				groundTerrain.SplatMap[x, z] = _snapshotSplatMap[x, z];
+				splatTarget[x, z] = snapshot.Splat[x, z];
 			}
 		}
 
-		if (_snapshotCliffSplatMap == null || groundTerrain.CliffSplatMap == null) return;
+		if (snapshot.Cliff is not { } cliffSnapshot || groundTerrain.CliffSplatMap is not { } cliffTarget) return;
 
-		int cliffWidth = _snapshotCliffSplatMap.GetLength(0);
-		int cliffDepth = _snapshotCliffSplatMap.GetLength(1);
+		int cliffWidth = cliffSnapshot.GetLength(0);
+		int cliffDepth = cliffSnapshot.GetLength(1);
 		for (int z = 0; z < cliffDepth; z++)
 		{
 			for (int x = 0; x < cliffWidth; x++)
 			{
-				groundTerrain.CliffSplatMap[x, z] = _snapshotCliffSplatMap[x, z];
+				cliffTarget[x, z] = cliffSnapshot[x, z];
 			}
 		}
 	}
 
-	private void ReplaceSplatMap(RuntimeTerrain groundTerrain, int sourceSlot, int targetSlot)
+	private static void ReplaceSplatMap(RuntimeTerrain groundTerrain, SplatSnapshot snapshot, int sourceSlot, int targetSlot)
 	{
-		int width = _snapshotSplatMap.GetLength(0);
-		int depth = _snapshotSplatMap.GetLength(1);
+		if (groundTerrain.SplatMap is not { } splatTarget) return;
+
+		int width = snapshot.Splat.GetLength(0);
+		int depth = snapshot.Splat.GetLength(1);
 		for (int z = 0; z < depth; z++)
 		{
 			for (int x = 0; x < width; x++)
 			{
-				groundTerrain.SplatMap[x, z] = ReplaceIndexInSplat(_snapshotSplatMap[x, z], sourceSlot, targetSlot);
+				splatTarget[x, z] = ReplaceIndexInSplat(snapshot.Splat[x, z], sourceSlot, targetSlot);
 			}
 		}
 
-		if (_snapshotCliffSplatMap == null || groundTerrain.CliffSplatMap == null) return;
+		if (snapshot.Cliff is not { } cliffSnapshot || groundTerrain.CliffSplatMap is not { } cliffTarget) return;
 
-		int cliffWidth = _snapshotCliffSplatMap.GetLength(0);
-		int cliffDepth = _snapshotCliffSplatMap.GetLength(1);
+		int cliffWidth = cliffSnapshot.GetLength(0);
+		int cliffDepth = cliffSnapshot.GetLength(1);
 		for (int z = 0; z < cliffDepth; z++)
 		{
 			for (int x = 0; x < cliffWidth; x++)
 			{
-				groundTerrain.CliffSplatMap[x, z] = ReplaceIndexInSplat(_snapshotCliffSplatMap[x, z], sourceSlot, targetSlot);
+				cliffTarget[x, z] = ReplaceIndexInSplat(cliffSnapshot[x, z], sourceSlot, targetSlot);
 			}
 		}
 	}
@@ -245,28 +268,32 @@ public partial class ReplaceTextureDialog : FloatingDialogBase
 
 	protected override void OnApply()
 	{
-		if (!TryGetValidState(out var groundTerrain, out int sourceSlot, out int targetSlot)) return;
-		if (sourceSlot == targetSlot) return;
+		if (BuildSwap() is not { } swap) return;
+		if (swap.SourceSlot == swap.TargetSlot) return;
 
-		RecordTerrainAction(groundTerrain!);
+		RecordTerrainAction(swap.GroundTerrain, swap.Snapshot);
 		ShowFeedback();
 	}
 
-	private void RecordTerrainAction(RuntimeTerrain groundTerrain)
+	private void RecordTerrainAction(RuntimeTerrain groundTerrain, SplatSnapshot snapshot)
 	{
-		var currentSplat = (TerrainSplatWeights[,])groundTerrain.SplatMap.Clone();
-		var currentCliffSplat = groundTerrain.CliffSplatMap != null
-			? (TerrainSplatWeights[,])groundTerrain.CliffSplatMap.Clone()
+		if (groundTerrain.SplatMap is not { } liveSplat) return;
+
+		var currentSplat = (TerrainSplatWeights[,])liveSplat.Clone();
+		var currentCliffSplat = groundTerrain.CliffSplatMap is { } liveCliff
+			? (TerrainSplatWeights[,])liveCliff.Clone()
 			: null;
 
+		TerrainCell[,]? noCells = null;
+
 		var action = new TerrainModifyAction(
-			(TerrainCell[,])null,
-			(TerrainCell[,])null,
-			_snapshotSplatMap,
+			noCells,
+			noCells,
+			snapshot.Splat,
 			currentSplat,
 			null,
 			null,
-			_snapshotCliffSplatMap,
+			snapshot.Cliff,
 			currentCliffSplat
 		);
 
@@ -286,10 +313,10 @@ public partial class ReplaceTextureDialog : FloatingDialogBase
 
 	private void RevertToSnapshot()
 	{
-		var groundTerrain = GameContext.Host?.GroundTerrain;
-		if (_snapshotSplatMap == null || groundTerrain?.SplatMap == null) return;
+		if (_snapshot is not { } snapshot) return;
+		if (GameContext.Host?.GroundTerrain is not { } groundTerrain) return;
 
-		RestoreSplatMap(groundTerrain);
+		RestoreSplatMap(groundTerrain, snapshot);
 		groundTerrain.UpdateMeshAndPhysics(false, false, (Rect2I?)null, false);
 	}
 

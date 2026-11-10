@@ -10,7 +10,7 @@ namespace Realm.AdminServer.Helpers
     {
         public static void ParseMapMetadataDetails(
             Realm.Shared.Distribution.ContentAddressableStorage cas, 
-            string metadataFileHash, 
+            string? metadataFileHash, 
             ref string description,
             List<string> tags,
             out string engineVersion,

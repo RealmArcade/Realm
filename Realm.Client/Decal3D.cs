@@ -44,17 +44,18 @@ public partial class Decal3D : Decal
 	{
 		get
 		{
-			if (GameContext.Host != null && GameContext.World.IsAlive(Entity)
-			                              && GameContext.World.Has<DecalIdentity>(Entity))
-				return GameContext.World.Get<DecalIdentity>(Entity).DecalId;
+			EcsWorld? world = GameContext.World;
+			if (world != null && GameContext.Host != null && world.IsAlive(Entity)
+			                && world.Has<DecalIdentity>(Entity))
+				return world.Get<DecalIdentity>(Entity).DecalId;
 			return _decalId;
 		}
 		set
 		{
 			_decalId = value;
-			if (GameContext.Host != null && GameContext.World.IsAlive(Entity))
+			EcsWorld? world = GameContext.World;
+			if (world != null && GameContext.Host != null && world.IsAlive(Entity))
 			{
-				var world = GameContext.World;
 				world.SetOrAdd(Entity, new DecalIdentity(value));
 			}
 		}
@@ -152,7 +153,7 @@ public partial class Decal3D : Decal
 		Size = _baseSize;
 	}
 
-	public void SetNormalFade(float normalFade)
+	public new void SetNormalFade(float normalFade)
 	{
 		NormalFade = Mathf.Clamp(normalFade, 0.0f, 1.0f);
 	}

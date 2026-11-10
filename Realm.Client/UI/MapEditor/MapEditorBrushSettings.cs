@@ -11,8 +11,8 @@ public class MapEditorBrushSettings
 	private Slider _sldBrushStrength;
 	private Label _lblBrushStrengthValue;
 
-	private CheckBox _chkBlockMode;
-	private Slider _sldBlockStep;
+	private CheckBox _chkBlockMode = null!;
+	private Slider _sldBlockStep = null!;
 	private Label _lblBlockStepValue;
 	private Slider? _sldHeight;
 	private Label? _lblHeightValue;
