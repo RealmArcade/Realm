@@ -370,6 +370,7 @@ public class NetworkService
 		// something the next one may be given. What a unit that merely left sight keeps is untouched here: it is still
 		// the same unit, and it is owed everything it held when it comes back.
 		_mirror.RemoveAbilitiesForEntity(serverEntityId);
+		_unresolvedAbilityStateServerIds.Remove(serverEntityId);
 		RetireClientEntityForUntrackedServerId(mapping, localEntity, serverEntityId);
 	}
 
@@ -384,7 +385,8 @@ public class NetworkService
 
 		// The exceptions a map declared against a unit are held beside the replica, keyed by the local entity that carried
 		// them, and a match recycles a local entity the moment one is freed: left here they would be read as the next
-		// unit's own, withholding abilities it offers and offering the ones the map withheld from this one.
+		// unit's own, withholding abilities it offers and offering the ones the map withheld from this one. A unit that only
+		// left sight is owed them again, and they are still in the mirror: the description that builds it back replays them.
 		GameContext.RegistryService?.ClearAbilityStateForUnit(new UnitId(localEntity.Id));
 
 		GameContext.SnapshotTimeline.Reset(localEntity.Id);
@@ -462,23 +464,10 @@ public class NetworkService
 			}
 		}
 
-		if (snapshot.AbilityStates != null)
-		{
-			for (int i = 0; i < snapshot.AbilityStates.Count; i++)
-			{
-				ApplyAbilityStateDelta(snapshot.AbilityStates[i]);
-			}
-			GameContext.RegistryService?.ClearAbilityStateDirty();
-		}
-
-		if (snapshot.StaticTexts != null)
-		{
-			for (int i = 0; i < snapshot.StaticTexts.Count; i++)
-			{
-				ApplyStaticTextDelta(snapshot.StaticTexts[i]);
-			}
-		}
-
+		// The text table a description carries comes before the states that name abilities by it. An exception the map
+		// declared against a slot is resolved to the ability the unit lists there, and that list is a list of text
+		// identifiers: applied before the texts of the very description that first names them, every one of them resolved
+		// to nothing, and the match had already recorded them as told.
 		if (snapshot.Catalog != null)
 		{
 			var registry = GameContext.RegistryService;
@@ -490,6 +479,25 @@ public class NetworkService
 					registry.ApplyCatalogEntry(entry.Channel, entry.Key, entry.Value, entry.Number);
 					_appliedCatalogCount++;
 				}
+			}
+		}
+
+		if (snapshot.AbilityStates != null)
+		{
+			for (int i = 0; i < snapshot.AbilityStates.Count; i++)
+			{
+				ApplyAbilityStateDelta(snapshot.AbilityStates[i]);
+			}
+			GameContext.RegistryService?.ClearAbilityStateDirty();
+		}
+
+		RetryUnresolvedAbilityStates();
+
+		if (snapshot.StaticTexts != null)
+		{
+			for (int i = 0; i < snapshot.StaticTexts.Count; i++)
+			{
+				ApplyStaticTextDelta(snapshot.StaticTexts[i]);
 			}
 		}
 
@@ -546,27 +554,65 @@ public class NetworkService
 	{
 		_mirror.RecordAbility(delta);
 		_appliedAbilityStateCount++;
-		ApplyAbilityStateToUnit(delta.ServerEntityId, delta.AbilityIndex, delta.Flags, delta.AbilityId);
+
+		// A slot the list cannot resolve yet is not a delivery this screen can make use of, and the match will not state it
+		// again: it recorded the exception as told. The unit an exception could not be placed on is remembered here and the
+		// entries the mirror holds for it are retried until they resolve, rather than dropped on the floor.
+		if (!ApplyAbilityStateToUnit(delta.ServerEntityId, delta.AbilityIndex, delta.Flags, delta.AbilityId)) _unresolvedAbilityStateServerIds.Add(delta.ServerEntityId);
 	}
 
-	private void ApplyAbilityStateToUnit(int serverEntityId, short abilityIndex, byte flags, string? namedAbilityId = null)
+	private bool ApplyAbilityStateToUnit(int serverEntityId, short abilityIndex, byte flags, string? namedAbilityId = null)
 	{
-		if (!TryGetLocalEntity(serverEntityId, out var localEntity)) return;
+		if (!TryGetLocalEntity(serverEntityId, out var localEntity)) return false;
 
 		// A delta names a slot in the unit's ability list, so a list that was replaced renumbers every slot. A change about
 		// an ability the unit does not list is named instead, which is how a build option the map withheld reaches a
 		// screen even though the unit can never cast it.
 		string? abilityId = string.IsNullOrEmpty(namedAbilityId) ? ResolveAbilityIdAt(localEntity, abilityIndex) : namedAbilityId;
-		if (abilityId == null) return;
+		if (abilityId == null) return false;
 
 		GameContext.RegistryService?.SetAbilityState(new UnitId(localEntity.Id), abilityId, (flags & 1) != 0, (flags & 2) != 0);
+		return true;
+	}
+
+	private readonly HashSet<int> _unresolvedAbilityStateServerIds = new();
+	private readonly HashSet<int> _stillUnresolvedAbilityStateServerIds = new();
+
+	/// <summary>
+	///     Re-attempts the exceptions this screen was told about but could not place, and forgets the units that resolved.
+	///     An exception arrives with the description that first names its ability, and the ability's text is resolved from
+	///     the text table that description carries: one applied before that table is applied resolves to nothing, and the
+	///     match has already recorded it as told, so nothing repeats it.
+	/// </summary>
+	private void RetryUnresolvedAbilityStates()
+	{
+		if (_unresolvedAbilityStateServerIds.Count == 0) return;
+
+		_stillUnresolvedAbilityStateServerIds.Clear();
+		foreach (var kvp in _mirror.Abilities)
+		{
+			if (!_unresolvedAbilityStateServerIds.Contains(kvp.Key.ServerEntityId)) continue;
+			if (!ApplyAbilityStateToUnit(kvp.Key.ServerEntityId, kvp.Key.AbilityIndex, kvp.Value)) _stillUnresolvedAbilityStateServerIds.Add(kvp.Key.ServerEntityId);
+		}
+
+		foreach (var kvp in _mirror.AbilitiesById)
+		{
+			if (!_unresolvedAbilityStateServerIds.Contains(kvp.Key.ServerEntityId)) continue;
+			ApplyAbilityStateToUnit(kvp.Key.ServerEntityId, -1, kvp.Value, kvp.Key.AbilityId);
+		}
+
+		_unresolvedAbilityStateServerIds.Clear();
+		foreach (int serverEntityId in _stillUnresolvedAbilityStateServerIds) _unresolvedAbilityStateServerIds.Add(serverEntityId);
+
+		GameContext.RegistryService?.ClearAbilityStateDirty();
 	}
 
 	private static string? ResolveAbilityIdAt(Entity localEntity, short abilityIndex)
 	{
 		if (!World.Has<AbilityState>(localEntity)) return null;
 
-		return World.Get<AbilityState>(localEntity).Get(abilityIndex);
+		string? abilityId = World.Get<AbilityState>(localEntity).Get(abilityIndex);
+		return string.IsNullOrEmpty(abilityId) ? null : abilityId;
 	}
 
 	public void ReapplyAbilityStatesToUnits()

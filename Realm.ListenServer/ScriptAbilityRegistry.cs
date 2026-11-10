@@ -28,9 +28,9 @@ public class ScriptAbilityRegistry
 	private readonly Dictionary<int, Dictionary<(int UnitId, string AbilityId), byte>> _toldIdFlagsByPeer = new();
 	private readonly List<(int UnitId, short AbilityIndex)> _clearedKeys = new();
 	private readonly List<int> _changedAbilityListUnitIds = new();
+	private readonly HashSet<int> _unitsOwedAbilityRestatement = new();
 	private bool _abilityListsPublished;
 	private bool _statesChanged = true;
-	private bool _everyPeerIsOwedEveryAbilityState;
 
 	public ScriptAbilityRegistry(DefinitionCatalog catalog)
 	{
@@ -278,14 +278,19 @@ public class ScriptAbilityRegistry
 		_abilityListsPublished = true;
 
 		// A list that changed renumbers every slot the exceptions were addressed by, so what every peer was told about
-		// those units stops meaning what it said: the units whose list moved forget what they were told, and every peer is
-		// owed the whole table again. What a peer was told about the units whose list did not move is kept, because that is
-		// the only record of which exceptions it holds - dropping it lost the change that makes an ability visible again,
-		// since a state the map stopped withholding is stated by the delta that clears it and by nothing else.
+		// those slots stops meaning what it said: the units whose list moved forget what they were told by slot, and are
+		// stated again in full. What every peer was told about those units by name is kept, because a name is not a slot
+		// and a list moving cannot change what it means - and it is the only record of which exceptions a screen holds, so
+		// dropping it lost the change that makes an ability visible again, since a state the map stopped withholding is
+		// stated by the delta that clears it and by nothing else.
 		if (abilityListsChanged)
 		{
-			_everyPeerIsOwedEveryAbilityState = true;
-			for (int index = 0; index < _changedAbilityListUnitIds.Count; index++) ForgetToldAbilityStateForUnit(_changedAbilityListUnitIds[index]);
+			for (int index = 0; index < _changedAbilityListUnitIds.Count; index++)
+			{
+				int changedUnitId = _changedAbilityListUnitIds[index];
+				ForgetToldAbilityStateSlotsForUnit(changedUnitId);
+				_unitsOwedAbilityRestatement.Add(changedUnitId);
+			}
 		}
 
 		_publishedAbilityListHandles.Clear();
@@ -319,11 +324,12 @@ public class ScriptAbilityRegistry
 		deltas.Clear();
 
 		Dictionary<(int UnitId, short AbilityIndex), byte> told = GetTold(peerId);
-		bool restateEverything = includeAll || _everyPeerIsOwedEveryAbilityState;
+		bool restateEverything = includeAll;
 
 		foreach (var entry in _currentFlags)
 		{
-			if (!restateEverything && told.TryGetValue(entry.Key, out byte toldFlags) && toldFlags == entry.Value) continue;
+			bool restatedForUnit = !restateEverything && _unitsOwedAbilityRestatement.Contains(entry.Key.UnitId);
+			if (!restateEverything && !restatedForUnit && told.TryGetValue(entry.Key, out byte toldFlags) && toldFlags == entry.Value) continue;
 
 			deltas.Add(new AbilityStateDelta
 			{
@@ -351,7 +357,7 @@ public class ScriptAbilityRegistry
 
 		for (int index = 0; index < _clearedKeys.Count; index++) told.Remove(_clearedKeys[index]);
 
-		CollectNamedDeltas(peerId, restateEverything, deltas);
+		CollectNamedDeltas(peerId, includeAll, deltas);
 
 		deltas.Sort(static (left, right) =>
 		{
@@ -473,22 +479,13 @@ public class ScriptAbilityRegistry
 	}
 
 	/// <summary>
-	///     Drops what every peer is remembered as having been told about one unit's exceptions, so the next description
-	///     states them again. It is what a unit that died and a unit whose ability list moved have in common: in the first
-	///     case nobody is left to hold them, and in the second the slots they were addressed by mean different abilities.
+	///     Drops what every peer is remembered as having been told about one unit's exceptions, by slot and by name, so the
+	///     next description states them again. Nobody is left to hold them: the unit that held them is gone, and the
+	///     identifier it held now belongs to another unit.
 	/// </summary>
 	private void ForgetToldAbilityStateForUnit(int unitId)
 	{
-		foreach (var told in _toldByPeer.Values)
-		{
-			_toldKeys.Clear();
-			foreach (var entry in told)
-			{
-				if (entry.Key.UnitId == unitId) _toldKeys.Add(entry.Key);
-			}
-
-			for (int index = 0; index < _toldKeys.Count; index++) told.Remove(_toldKeys[index]);
-		}
+		ForgetToldAbilityStateSlotsForUnit(unitId);
 
 		foreach (var told in _toldIdFlagsByPeer.Values)
 		{
@@ -499,6 +496,26 @@ public class ScriptAbilityRegistry
 			}
 
 			for (int index = 0; index < _clearedNamedKeys.Count; index++) told.Remove(_clearedNamedKeys[index]);
+		}
+	}
+
+	/// <summary>
+	///     Drops what every peer is remembered as having been told about one unit's slot-addressed exceptions. A slot only
+	///     names an ability while the unit's list is the list it was numbered against, so a list that moved makes those
+	///     records meaningless, while the records addressed by name - which no renumbering can touch - are the only
+	///     statement of what a screen holds for an ability the unit does not list.
+	/// </summary>
+	private void ForgetToldAbilityStateSlotsForUnit(int unitId)
+	{
+		foreach (var told in _toldByPeer.Values)
+		{
+			_toldKeys.Clear();
+			foreach (var entry in told)
+			{
+				if (entry.Key.UnitId == unitId) _toldKeys.Add(entry.Key);
+			}
+
+			for (int index = 0; index < _toldKeys.Count; index++) told.Remove(_toldKeys[index]);
 		}
 	}
 
@@ -544,7 +561,7 @@ public class ScriptAbilityRegistry
 	///     list that moved is not asked for again. A peer the tick told nothing is not collected at all, but it is owed a
 	///     description built from scratch instead, and that states every exception its units hold.
 	/// </summary>
-	public void CompleteTick() => _everyPeerIsOwedEveryAbilityState = false;
+	public void CompleteTick() => _unitsOwedAbilityRestatement.Clear();
 
 	private static bool TryResolveAbilityIndex(EcsWorld world, int unitId, string abilityId, out short abilityIndex)
 	{
