@@ -111,7 +111,7 @@ public sealed class BrushSettingsPanel
 			if (GameContext.Host != null)
 				GameContext.Host.EditorBlockMode = toggled;
 
-			hooks.Feedback(toggled ? "Block Mode: Enabled" : "Block Mode: Disabled");
+			hooks.Feedback(toggled ? TranslationServer.Translate("Block Mode: Enabled") : TranslationServer.Translate("Block Mode: Disabled"));
 			hooks.BlockModeChanged();
 		};
 		BlockModeCheck.ButtonPressed = true;

@@ -96,17 +96,17 @@ namespace Realm.Client.UI
 				if (success)
 				{
 					ReadMetadataAndRefreshTextures();
-					ShowFeedback($"Successfully processed & imported RTEX texture for {cleanBaseName}!");
+					ShowFeedback(string.Format(TranslationServer.Translate("Successfully imported custom texture for {0}!"), cleanBaseName));
 				}
 				else
 				{
-					ShowFeedback($"Failed to generate RTEX texture at {outputRtex}");
+					ShowFeedback(string.Format(TranslationServer.Translate("Failed to generate RTEX texture at {0}"), outputRtex));
 				}
 			}
 			catch (Exception ex)
 			{
 				GameLog.LogError($"ImportTextureAssetFromExtension error: {ex.Message}");
-				ShowFeedback($"Failed to import texture: {ex.Message}");
+				ShowFeedback(string.Format(TranslationServer.Translate("Failed to import texture: {0}"), ex.Message));
 			}
 		}
 

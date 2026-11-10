@@ -48,7 +48,7 @@ public sealed class CheatCommands
 		(CheatResult result, _) = GameContext.CheatService.TryTriggerCheat(text, isMultiplayer, selectedEntities);
 		if (result == CheatResult.None) return false;
 
-		_hooks.Feedback("Cheat Activated!", new Color(0.1f, 0.9f, 0.2f));
+		_hooks.Feedback(TranslationServer.Translate("Cheat Activated!"), new Color(0.1f, 0.9f, 0.2f));
 		HandleResult(result);
 		return true;
 	}

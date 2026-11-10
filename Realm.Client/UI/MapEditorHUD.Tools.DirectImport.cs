@@ -62,17 +62,17 @@ namespace Realm.Client.UI
 				if (File.Exists(outputRtexPath))
 				{
 					ReadMetadataAndRefreshTextures();
-					ShowFeedback($"Successfully processed & imported RTEX texture for {swatchName}!");
+					ShowFeedback(string.Format(TranslationServer.Translate("Successfully imported custom texture for {0}!"), swatchName));
 				}
 				else
 				{
-					ShowFeedback($"Failed to generate RTEX texture at {outputRtexPath}");
+					ShowFeedback(string.Format(TranslationServer.Translate("Failed to generate RTEX texture at {0}"), outputRtexPath));
 				}
 			}
 			catch (Exception ex)
 			{
 				GameLog.LogError($"ConvertRawTextureDirect error: {ex.Message}");
-				ShowFeedback($"Failed to import texture: {ex.Message}");
+				ShowFeedback(string.Format(TranslationServer.Translate("Failed to import texture: {0}"), ex.Message));
 			}
 		}
 
