@@ -235,7 +235,7 @@ namespace Realm.Client.UI
 		public void AppendWasmConsoleLog(string line)
 		{
 			GameContext.WasmConsole.AppendLog(line);
-			GameLog.LogToConsole("[WASM_BUILD] " + line);
+			GD.Print("[REALM] [WASM_BUILD] " + line);
 		}
 	}
 }
