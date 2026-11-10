@@ -29,7 +29,7 @@ public partial class MultiplayerSimulationHarness : Node
 		if (_draftsIssued >= 2) return;
 
 		GameHost? host = GameContext.Host;
-		if (host == null || host.GameElapsedTime < _nextDraftAtSeconds) return;
+		if (host == null || GameContext.RegistryService == null || host.GameElapsedTime < _nextDraftAtSeconds) return;
 
 		_nextDraftAtSeconds = host.GameElapsedTime + 6f;
 		int controlledPlayer = GameContext.PerspectiveFilter.ControlledPlayerIndex;
@@ -77,7 +77,7 @@ public partial class MultiplayerSimulationHarness : Node
 		if (GameContext.World is not { } world) return;
 
 		GameHost? host = GameContext.Host;
-		if (host == null) return;
+		if (host == null || GameContext.RegistryService == null || GameContext.NetworkService == null) return;
 
 		List<Unit3D> units = host.AllUnits;
 		for (int unitIndex = 0; unitIndex < units.Count; unitIndex++)
