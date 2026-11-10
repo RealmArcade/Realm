@@ -339,16 +339,27 @@ public static partial class MapWorkspaceService
 		if (string.IsNullOrEmpty(directory) || !Directory.Exists(directory)) return;
 
 		MapReferences references = MapReferences.Load(directory);
-		if (references == null || references.IsEmpty) return;
+		if (references == null || references.IsEmpty)
+		{
+			MapScriptComposer.Compose(directory, null, null);
+			return;
+		}
 
 		MapReferenceService referenceService = GameContext.MapReferenceService;
 		if (referenceService == null) return;
 
-		MapScriptComposer.Compose(directory, references.References, reference =>
+		List<ComposedScriptMap>? composed = MapScriptComposer.Compose(directory, references.References, reference =>
 		{
 			string helperFolder = referenceService.ResolveHelperFolder(reference);
 			return string.IsNullOrEmpty(helperFolder) ? referenceService.ResolveStoreFolder(reference) : helperFolder;
 		});
+
+		if (composed == null)
+		{
+			GameLog.LogError(
+				$"[MapWorkspaceService] A map that '{directory}' references could not be found, so the composed scripts already in the workspace were kept. " +
+				"Download the referenced map or stop referencing it before the script will compile again.");
+		}
 	}
 
 	public static void CleanWorkspaceDirectory(string targetDir)

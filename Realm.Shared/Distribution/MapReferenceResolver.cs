@@ -97,6 +97,7 @@ public static class MapReferenceResolver
 		MapReferences references = MapReferences.Load(mapFolder);
 		if (references == null || references.IsEmpty)
 		{
+			DiscardComposedOutput(mapFolder);
 			return MapReferenceResolutionResult.NoReferences();
 		}
 
@@ -260,10 +261,16 @@ public static class MapReferenceResolver
 			sourceFolders[source.Reference.MapName] = source.Folder;
 		}
 
-		List<ComposedScriptMap> composed = MapScriptComposer.Compose(
+		List<ComposedScriptMap>? composed = MapScriptComposer.Compose(
 			mapFolder,
 			sources.Select(source => source.Reference).ToList(),
 			reference => sourceFolders.TryGetValue(reference.MapName, out string folder) ? folder : null);
+		if (composed == null)
+		{
+			return MapReferenceResolutionResult.Failure(
+				"A referenced map could not be read while its scripts were being composed, so the composed sources already in the map were kept. " +
+				"Save again once the map is available.");
+		}
 
 		return new MapReferenceResolutionResult
 		{
@@ -275,6 +282,30 @@ public static class MapReferenceResolver
 			MetadataOverrides = metadataResult.MetadataOverrides,
 			ConflictingFiles = conflictingFiles
 		};
+	}
+
+	/// <summary>
+	///     Removes what a composition left behind once a folder references nothing. Its generated sources would otherwise
+	///     keep compiling the rules the author just removed, and the files an earlier save copied in would stay read-only
+	///     even though no reference decides them any more, which is the same ownership a file a remaining reference stopped
+	///     carrying gets.
+	/// </summary>
+	/// <param name="mapFolder">The map folder that no longer references anything.</param>
+	private static void DiscardComposedOutput(string mapFolder)
+	{
+		string composedDirectory = Path.Combine(mapFolder, MapScriptComposer.ComposedDirectoryName);
+		string registryPath = Path.Combine(mapFolder, MapScriptComposer.RegistryFileName);
+		if (!Directory.Exists(composedDirectory) && !File.Exists(registryPath))
+		{
+			return;
+		}
+
+		MapScriptComposer.Compose(mapFolder, null, null);
+
+		foreach (string relativePath in EnumeratePackageFiles(mapFolder))
+		{
+			ClearReadOnly(Path.Combine(mapFolder, relativePath.Replace('/', Path.DirectorySeparatorChar)));
+		}
 	}
 
 	/// <summary>

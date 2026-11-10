@@ -132,8 +132,9 @@ namespace Realm.Ecs.Services
 		}
 
 		/// <summary>
-		///     Runs damage through the entity's absorb pools before health. Called by every damage
-		///     source, so a shield is worth the same against an attack, a splash, a spell or an ability.
+		///     Answers the multiplier this attacker's damage carries against this target, where one leaves it as resolved and
+		///     zero nullifies the hit. Called by every damage source, so one rule scales an attack, a splash, a spell and an
+		///     ability alike.
 		/// </summary>
 		private float ResolveDamageEffectiveness(Entity attacker, Entity target)
 		{

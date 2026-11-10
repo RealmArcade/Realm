@@ -310,7 +310,8 @@ namespace Realm.Ecs.Services
 
 		/// <summary>
 		///     Answers the multiplier this hit's damage carries, which is how a rule scales one seat's damage against
-		///     another. A null provider, or a provider answering zero for a pair, leaves the damage as resolved.
+		///     another. A null provider, or one answering a value that is not a finite, non-negative number, leaves the damage
+		///     as resolved; zero is a stated multiplier like any other and means the hit lands for nothing.
 		/// </summary>
 		public Func<Entity, Entity, float>? DamageEffectivenessProvider;
 

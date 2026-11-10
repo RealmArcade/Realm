@@ -76,21 +76,28 @@ public static class MapScriptComposer
 	///     Composes the maps a folder references into that folder.
 	/// </summary>
 	/// <param name="mapFolder">The map folder whose script composes the referenced maps.</param>
-	/// <param name="references">The maps it references, which are already known to be reachable.</param>
+	/// <param name="references">
+	///     The maps it references, or nothing to remove what an earlier composition left, which is what a folder that no
+	///     longer references anything needs.
+	/// </param>
 	/// <param name="folderLookup">Finds the folder a reference is read from.</param>
-	/// <returns>One entry per composed map, naming the namespace its sources now occupy.</returns>
-	public static List<ComposedScriptMap> Compose(
+	/// <returns>
+	///     One entry per composed map, naming the namespace its sources now occupy, or nothing when a reference could not be
+	///     found: the composed sources already in the folder are then the last set that did resolve and are left exactly as
+	///     they are, rather than replaced by a composition missing the map that could not be read.
+	/// </returns>
+	public static List<ComposedScriptMap>? Compose(
 		string mapFolder,
-		IEnumerable<MapReference> references,
-		Func<MapReference, string?> folderLookup)
+		IEnumerable<MapReference>? references,
+		Func<MapReference, string?>? folderLookup)
 	{
 		var composed = new List<ComposedScriptMap>();
 
 		string composedDirectory = Path.Combine(mapFolder, ComposedDirectoryName);
-		DeleteDirectory(composedDirectory);
 
 		if (references == null)
 		{
+			DeleteDirectory(composedDirectory);
 			WriteRegistry(mapFolder, composed);
 			return composed;
 		}
@@ -98,14 +105,22 @@ public static class MapScriptComposer
 		var ordered = new List<MapReference>(references);
 		ordered.Sort((left, right) => string.Compare(left.MapName, right.MapName, StringComparison.OrdinalIgnoreCase));
 
+		var resolved = new List<(MapReference Reference, string Folder)>(ordered.Count);
 		foreach (MapReference reference in ordered)
 		{
 			string folder = folderLookup?.Invoke(reference);
 			if (string.IsNullOrEmpty(folder) || !Directory.Exists(folder))
 			{
-				continue;
+				return null;
 			}
 
+			resolved.Add((reference, folder));
+		}
+
+		DeleteDirectory(composedDirectory);
+
+		foreach ((MapReference reference, string folder) in resolved)
+		{
 			string mapNamespace = GetNamespaceFor(reference.MapName);
 			string destinationDirectory = Path.Combine(composedDirectory, ToIdentifier(reference.MapName));
 

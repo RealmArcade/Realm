@@ -1746,7 +1746,8 @@
         <member name="F:Realm.Ecs.Services.CombatAndDamageService.DamageEffectivenessProvider">
             <summary>
                 Answers the multiplier this hit's damage carries, which is how a rule scales one seat's damage against
-                another. A null provider, or a provider answering zero for a pair, leaves the damage as resolved.
+                another. A null provider, or one answering a value that is not a finite, non-negative number, leaves the damage
+                as resolved; zero is a stated multiplier like any other and means the hit lands for nothing.
             </summary>
         </member>
         <member name="P:Realm.Ecs.Services.CombatAndDamageService.AuthoritativeProvider">
@@ -1780,8 +1781,9 @@
         </member>
         <member name="M:Realm.Ecs.Services.CombatAndDamageService.ResolveDamageEffectiveness(Realm.Ecs.Entity,Realm.Ecs.Entity)">
             <summary>
-                Runs damage through the entity's absorb pools before health. Called by every damage
-                source, so a shield is worth the same against an attack, a splash, a spell or an ability.
+                Answers the multiplier this attacker's damage carries against this target, where one leaves it as resolved and
+                zero nullifies the hit. Called by every damage source, so one rule scales an attack, a splash, a spell and an
+                ability alike.
             </summary>
         </member>
         <member name="M:Realm.Ecs.Services.CombatAndDamageService.HealSingle(Realm.Ecs.Entity,Realm.Ecs.Entity,System.Single)">
