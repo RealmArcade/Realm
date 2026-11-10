@@ -236,12 +236,12 @@ namespace Realm.Client.UI
 			if (result.Success)
 			{
 				UpdateMetadataJsonAsset("decals", result.FileName, result.Blake3);
-				ShowFeedback($"Imported decal {result.FileName}");
+				ShowFeedback(string.Format(TranslationServer.Translate("Imported decal {0}"), result.FileName));
 			}
 			else
 			{
 				GameLog.LogError($"ImportDecalAssetFromExtension error: {result.Message}");
-				ShowFeedback($"Failed to import decal: {result.Message}");
+				ShowFeedback(string.Format(TranslationServer.Translate("Failed to import decal: {0}"), result.Message));
 			}
 		}
 
@@ -253,12 +253,12 @@ namespace Realm.Client.UI
 			{
 				UpdateMetadataJsonAsset("skyboxes", result.FileName, result.Blake3);
 				RefreshSkyboxList();
-				ShowFeedback($"Imported skybox {result.FileName}");
+				ShowFeedback(string.Format(TranslationServer.Translate("Imported skybox {0}"), result.FileName));
 			}
 			else
 			{
 				GameLog.LogError($"ImportSkyboxAssetFromExtension error: {result.Message}");
-				ShowFeedback($"Failed to import skybox: {result.Message}");
+				ShowFeedback(string.Format(TranslationServer.Translate("Failed to import skybox: {0}"), result.Message));
 			}
 		}
 
@@ -269,12 +269,12 @@ namespace Realm.Client.UI
 			if (result.Success)
 			{
 				UpdateMetadataJsonAsset("vfx_spritesheets", result.FileName, result.Blake3, columns: columns, rows: rows);
-				ShowFeedback($"Imported VFX spritesheet {result.FileName}");
+				ShowFeedback(string.Format(TranslationServer.Translate("Imported VFX spritesheet {0}"), result.FileName));
 			}
 			else
 			{
 				GameLog.LogError($"ImportSpritesheetAssetFromExtension error: {result.Message}");
-				ShowFeedback($"Failed to import VFX spritesheet: {result.Message}");
+				ShowFeedback(string.Format(TranslationServer.Translate("Failed to import VFX spritesheet: {0}"), result.Message));
 			}
 		}
 
@@ -285,12 +285,12 @@ namespace Realm.Client.UI
 			if (result.Success)
 			{
 				UpdateMetadataJsonAsset("icons", result.FileName, result.Blake3);
-				ShowFeedback($"Imported 2D Icon {result.FileName}");
+				ShowFeedback(string.Format(TranslationServer.Translate("Imported 2D Icon {0}"), result.FileName));
 			}
 			else
 			{
 				GameLog.LogError($"ImportIconAssetFromExtension error: {result.Message}");
-				ShowFeedback($"Failed to import 2D Icon: {result.Message}");
+				ShowFeedback(string.Format(TranslationServer.Translate("Failed to import 2D Icon: {0}"), result.Message));
 			}
 		}
 
@@ -303,12 +303,12 @@ namespace Realm.Client.UI
 			if (result.Success)
 			{
 				UpdateMetadataJsonAsset(result.AudioCategory, result.FileName, result.Blake3);
-				ShowFeedback($"Imported audio {result.FileName} ({audioType})");
+				ShowFeedback(string.Format(TranslationServer.Translate("Imported audio {0} ({1})"), result.FileName, audioType));
 			}
 			else
 			{
 				GameLog.LogError($"ImportAudioAssetFromExtension error: {result.Message}");
-				ShowFeedback($"Failed to import audio asset: {result.Message}");
+				ShowFeedback(string.Format(TranslationServer.Translate("Failed to import audio asset: {0}"), result.Message));
 			}
 		}
 	}
