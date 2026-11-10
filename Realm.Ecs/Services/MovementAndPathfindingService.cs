@@ -327,6 +327,15 @@ namespace Realm.Ecs.Services
 						}
 					}
 
+					if (_context.World.Has<Patrol>(entity))
+					{
+						var patrol = _context.World.Get<Patrol>(entity);
+						patrol.GoingToB = !patrol.GoingToB;
+						_context.World.Set(entity, patrol);
+						_context.World.Set(entity, new MoveTo(patrol.GoingToB ? patrol.PointB : patrol.PointA));
+						continue;
+					}
+
 					_context.World.Remove<MoveTo>(entity);
 				}
 			}

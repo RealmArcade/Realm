@@ -458,6 +458,18 @@ namespace Realm.Client.UI
 			}
 		}
 
+		public void StepBlockLevelHeightExternal(int direction)
+		{
+			if (_brushPanel?.StepSlider == null) return;
+
+			double step = _brushPanel.StepSlider.Step > 0.0 ? _brushPanel.StepSlider.Step : 1.0;
+			double next = Math.Clamp(_brushPanel.StepSlider.Value + step * direction, _brushPanel.StepSlider.MinValue, _brushPanel.StepSlider.MaxValue);
+			if (Mathf.IsEqualApprox((float)_brushPanel.StepSlider.Value, (float)next)) return;
+
+			_brushPanel.StepSlider.Value = next;
+			UpdateBlockLevelHeightExternal((float)next);
+		}
+
 		public void UpdateExactHeightExternal(float height)
 		{
 			if (_brushPanel?.HeightSlider != null)

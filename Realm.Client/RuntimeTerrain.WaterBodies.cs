@@ -184,27 +184,29 @@ public partial class RuntimeTerrain
 
 		foreach (var body in waterBodies)
 		{
-			var seedCells = FindSeedCells(body, newCells, newWidth, newDepth, oldWidth, oldDepth);
-			FillSingleWaterBody(body, seedCells, newCells, newPathing, overallVisited, newWidth, newDepth, dx, dz, stepCliffThreshold);
+			float waterSurfaceY = body.MacroTier * TerrainCell.TIER_HEIGHT + (body.WaterHeight > 0.001f ? body.WaterHeight : WATER_DELTA);
+			var seedCells = FindSeedCells(body, waterSurfaceY, newCells, newWidth, newDepth, oldWidth, oldDepth);
+			FillSingleWaterBody(body, waterSurfaceY, seedCells, newCells, newPathing, overallVisited, newWidth, newDepth, dx, dz, stepCliffThreshold);
 		}
 	}
 
-	private static HashSet<(int x, int z)> FindSeedCells((WaterType WaterMode, byte WaterProfileIndex, float WaterHeight, sbyte MacroTier, List<(int x, int z)> OldCoords) body, TerrainCell[,] newCells, int newWidth, int newDepth, int oldWidth, int oldDepth)
+	private static HashSet<(int x, int z)> FindSeedCells((WaterType WaterMode, byte WaterProfileIndex, float WaterHeight, sbyte MacroTier, List<(int x, int z)> OldCoords) body, float waterSurfaceY, TerrainCell[,] newCells, int newWidth, int newDepth, int oldWidth, int oldDepth)
 	{
 		var seedCells = new HashSet<(int x, int z)>();
 		(int x, int z) closestSeed = (-1, -1);
-		float minHeightDiff = float.MaxValue;
-		float expectedHeight = body.MacroTier * TerrainCell.TIER_HEIGHT;
+		float closestSubmergedCellHeight = float.MaxValue;
 
 		foreach (var (ox, oz) in body.OldCoords)
 		{
 			int nx = Math.Clamp((int)Math.Round(ox * (float)newWidth / oldWidth), 0, newWidth - 1);
 			int nz = Math.Clamp((int)Math.Round(oz * (float)newDepth / oldDepth), 0, newDepth - 1);
 
-			float hDiff = MathF.Abs(newCells[nx, nz].CenterHeight - expectedHeight);
-			if (hDiff < minHeightDiff)
+			if (waterSurfaceY <= GetCellFloorHeight(newCells[nx, nz])) continue;
+
+			float hDiff = MathF.Abs(newCells[nx, nz].CenterHeight - waterSurfaceY);
+			if (hDiff < closestSubmergedCellHeight)
 			{
-				minHeightDiff = hDiff;
+				closestSubmergedCellHeight = hDiff;
 				closestSeed = (nx, nz);
 			}
 
@@ -222,19 +224,18 @@ public partial class RuntimeTerrain
 		return seedCells;
 	}
 
-	private static void FillSingleWaterBody((WaterType WaterMode, byte WaterProfileIndex, float WaterHeight, sbyte MacroTier, List<(int x, int z)> OldCoords) body, HashSet<(int x, int z)> seedCells, TerrainCell[,] newCells, int[,] newPathing, bool[,] overallVisited, int newWidth, int newDepth, int[] dx, int[] dz, float stepCliffThreshold)
-	{
-		float effectiveWaterHeight = body.WaterHeight > 0.001f ? body.WaterHeight : 0.9f;
-		float startTerrainHeight = body.MacroTier * TerrainCell.TIER_HEIGHT;
-		float baseWaterLevel = startTerrainHeight + effectiveWaterHeight;
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private static float GetCellFloorHeight(TerrainCell cell) => cell.MacroTier * TerrainCell.TIER_HEIGHT;
 
+	private static void FillSingleWaterBody((WaterType WaterMode, byte WaterProfileIndex, float WaterHeight, sbyte MacroTier, List<(int x, int z)> OldCoords) body, float baseWaterLevel, HashSet<(int x, int z)> seedCells, TerrainCell[,] newCells, int[,] newPathing, bool[,] overallVisited, int newWidth, int newDepth, int[] dx, int[] dz, float stepCliffThreshold)
+	{
 		var newQueue = new Queue<(int x, int z)>();
 		EnqueueSeedCells(seedCells, overallVisited, newQueue);
 
 		while (newQueue.Count > 0)
 		{
 			var (currX, currZ) = newQueue.Dequeue();
-			ApplyWaterToCell(currX, currZ, body, newCells, newPathing);
+			if (!ApplyWaterToCell(currX, currZ, body, baseWaterLevel, newCells, newPathing)) continue;
 
 			var currCell = newCells[currX, currZ];
 			SpreadWaterToNeighbors(currX, currZ, currCell, newCells, overallVisited, newWidth, newDepth, dx, dz, stepCliffThreshold, baseWaterLevel, newQueue);
@@ -252,16 +253,21 @@ public partial class RuntimeTerrain
 		}
 	}
 
-	private static void ApplyWaterToCell(int x, int z, (WaterType WaterMode, byte WaterProfileIndex, float WaterHeight, sbyte MacroTier, List<(int x, int z)> OldCoords) body, TerrainCell[,] newCells, int[,] newPathing)
+	private static bool ApplyWaterToCell(int x, int z, (WaterType WaterMode, byte WaterProfileIndex, float WaterHeight, sbyte MacroTier, List<(int x, int z)> OldCoords) body, float baseWaterLevel, TerrainCell[,] newCells, int[,] newPathing)
 	{
+		float waterHeightAboveTier = baseWaterLevel - GetCellFloorHeight(newCells[x, z]);
+		if (waterHeightAboveTier <= 0.001f) return false;
+
 		newCells[x, z].WaterMode = body.WaterMode;
 		newCells[x, z].WaterProfileIndex = body.WaterProfileIndex;
-		newCells[x, z].WaterHeight = body.WaterHeight;
+		newCells[x, z].WaterHeight = waterHeightAboveTier;
 
 		if (newPathing != null)
 		{
 			newPathing[x, z] = GetDefaultPathingCode(newCells[x, z]);
 		}
+
+		return true;
 	}
 
 	private static void SpreadWaterToNeighbors(int currX, int currZ, TerrainCell currCell, TerrainCell[,] newCells, bool[,] overallVisited, int newWidth, int newDepth, int[] dx, int[] dz, float stepCliffThreshold, float baseWaterLevel, Queue<(int x, int z)> newQueue)

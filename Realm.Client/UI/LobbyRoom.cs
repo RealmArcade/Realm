@@ -77,6 +77,7 @@ public partial class LobbyRoom : Control
 	private Button _otherAuthorsButton = null!;
 	private Button _attributionButton = null!;
 	private AttributionPopover _attributionPopover = null!;
+	private AttributionPopover _otherAuthorsPopover = null!;
 	private List<string> _otherAuthorsList = new List<string>();
 
 
@@ -272,17 +273,7 @@ public partial class LobbyRoom : Control
 		_otherAuthorsButton.SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter;
 		_otherAuthorsButton.Visible = false;
 		UIStyle.ApplyButtonStyleBoxes(_otherAuthorsButton);
-		_otherAuthorsButton.Pressed += () =>
-		{
-			if (_otherAuthorsList.Count > 0)
-			{
-				ShowConfirmationDialog(Tr("Contributors:") + "\n" + string.Join("\n", _otherAuthorsList), null);
-			}
-			else
-			{
-				ShowConfirmationDialog(Tr("No other contributors listed."), null);
-			}
-		};
+		_otherAuthorsButton.Pressed += OnOtherAuthorsPressed;
 		GetNode<VBoxContainer>("BriefingPanel/VBoxContainer").AddChild(_otherAuthorsButton);
 
 		SetupAttributionButton();

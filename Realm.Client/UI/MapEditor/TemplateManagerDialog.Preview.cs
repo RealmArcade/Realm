@@ -106,7 +106,7 @@ public partial class TemplateManagerDialog
 			? item.Description
 			: $"<b>{item.Name}</b>\n<color=#888888>{item.TemplateID}</color>";
 
-		Control tooltipWidget = RichTooltip.Create(tooltipText);
+		Control tooltipWidget = RichTooltip.Create(tooltipText, useStonePanel: false);
 		_tooltipPreviewContainer.AddChild(tooltipWidget);
 		_tooltipPreviewContainer.Visible = true;
 

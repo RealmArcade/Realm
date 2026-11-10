@@ -106,8 +106,20 @@ public partial class AttributionPopover : Control
 
 	public void ShowFor(Control anchor, IReadOnlyList<string> sourceMapNames)
 	{
+		ShowFor(anchor,
+			LocalizationManager.Translate("ATTRIBUTION"),
+			LocalizationManager.Translate("This map contains content imported from:"),
+			LocalizationManager.Translate("No imported content has been attributed to this map."),
+			sourceMapNames);
+	}
+
+	public void ShowFor(Control anchor, string title, string subtitle, string emptyText, IReadOnlyList<string> entries)
+	{
 		EnsureBuilt();
-		Populate(sourceMapNames);
+		_titleLabel.Text = title;
+		_subtitleLabel.Text = subtitle;
+		_emptyLabel.Text = emptyText;
+		Populate(entries);
 		Visible = true;
 
 		Node? parent = GetParent();

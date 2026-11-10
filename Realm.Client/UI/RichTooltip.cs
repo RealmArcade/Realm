@@ -36,10 +36,15 @@ public partial class RichTooltip : PanelContainer
 
 	public static Control Create(string text)
 	{
+		return Create(text, useStonePanel: true);
+	}
+
+	public static Control Create(string text, bool useStonePanel)
+	{
 		var panel = new RichTooltip();
 		panel.Name = "TooltipPanel_RichTooltip";
 		panel.MouseFilter = MouseFilterEnum.Ignore;
-		panel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
+		panel.AddThemeStyleboxOverride("panel", useStonePanel ? UIStyle.CreateStonePanel(true) : UIStyle.CreatePopoverPanelPlate());
 
 		var margin = new MarginContainer();
 		margin.Name = "Margin_MarginContainer";

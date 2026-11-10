@@ -56,6 +56,8 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 
 	private AudioStreamPlayer _audioPlayer = null!;
 
+	private AssetConversionProgressOverlay? _conversionOverlay;
+
 	private readonly List<IndexedAsset> _matchingAssets = new();
 
 	private SpritesheetAssetEditDialog _spritesheetEditDialog = null!;
@@ -321,32 +323,77 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 	{
 		if (string.IsNullOrEmpty(sourceFilePath) || !File.Exists(sourceFilePath)) return;
 
+		string defaultCategory = _selectedAssetType is "Decal" or "Icon" or "Noise" or "Ribbon" or "Skybox" or "Spritesheet" or "Terrain" or "vfx_radial" or "vfx_vertical"
+			? _selectedAssetType
+			: "Terrain";
+
+		new AssetImageConvertDialog(this, Path.GetFileName(sourceFilePath), defaultCategory, targetCategory => StartImageConversion(sourceFilePath, targetCategory)).Show();
+	}
+
+	private void StartImageConversion(string sourceFilePath, string targetCategory)
+	{
 		string wsPath = GetWorkspacePath();
 		string resolvedName = GameContext.AssetIndexService?.ResolvePrettyFileName(sourceFilePath) ?? Path.GetFileName(sourceFilePath);
 		string cleanBase = Path.GetFileNameWithoutExtension(resolvedName).ToLowerInvariant().Replace(' ', '_');
+		string destPath = SetupImageDestinationPath(wsPath, targetCategory, cleanBase);
 
+		RunBackgroundConversion(
+			TranslationServer.Translate("CONVERTING IMAGE"),
+			string.Format(TranslationServer.Translate("Converting {0} ..."), Path.GetFileName(sourceFilePath)),
+			() =>
+			{
+				TextureConversionResult result = ProcessImageConversion(sourceFilePath, destPath, targetCategory);
+				return (result.Success, result.ErrorMessage);
+			},
+			outcome =>
+			{
+				if (!outcome.Success)
+				{
+					Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Failed to convert image: {0}"), outcome.ErrorMessage));
+					return;
+				}
+
+				FinalizeImageConversionSafely(wsPath, targetCategory, cleanBase, destPath);
+			});
+	}
+
+	private void FinalizeImageConversionSafely(string wsPath, string targetCategory, string cleanBase, string destPath)
+	{
 		try
 		{
-			string targetCategory = _selectedAssetType is "Decal" or "Icon" or "Noise" or "Ribbon" or "Skybox" or "Spritesheet" or "Terrain" or "vfx_radial" or "vfx_vertical"
-				? _selectedAssetType
-				: "Terrain";
-
-			string destPath = SetupImageDestinationPath(wsPath, targetCategory, cleanBase);
-			TextureConversionResult convResult = ProcessImageConversion(sourceFilePath, destPath, targetCategory);
-
-			if (!convResult.Success)
-			{
-				Hud?.ShowFeedback($"Failed to convert image: {convResult.ErrorMessage}");
-				return;
-			}
-
 			FinalizeImageConversion(wsPath, targetCategory, cleanBase, destPath);
 		}
 		catch (Exception ex)
 		{
-			GameLog.LogError($"[AssetManagerDialog] ConvertImageToRealmFormat error: {ex.Message}");
-			Hud?.ShowFeedback($"Error converting image: {ex.Message}");
+			GameLog.LogError($"[AssetManagerDialog] FinalizeImageConversion error: {ex.Message}");
+			Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Error converting image: {0}"), ex.Message));
 		}
+	}
+
+	private void RunBackgroundConversion(string title, string status, Func<(bool Success, string ErrorMessage)> work, Action<(bool Success, string ErrorMessage)> onCompleted)
+	{
+		if (_conversionOverlay != null && GodotObject.IsInstanceValid(_conversionOverlay)) return;
+
+		Node host = Hud != null ? Hud : this;
+		var overlay = new AssetConversionProgressOverlay();
+		host.AddChild(overlay);
+		overlay.Initialize(title, status);
+		_conversionOverlay = overlay;
+
+		Task.Run(work).ContinueWith(task =>
+		{
+			(bool Success, string ErrorMessage) outcome = task.IsCompletedSuccessfully
+				? task.Result
+				: (false, task.Exception?.GetBaseException().Message ?? string.Empty);
+
+			Callable.From(() =>
+			{
+				if (GodotObject.IsInstanceValid(overlay)) overlay.QueueFree();
+				_conversionOverlay = null;
+
+				if (GodotObject.IsInstanceValid(this)) onCompleted(outcome);
+			}).CallDeferred();
+		}, TaskScheduler.Default);
 	}
 
 	private string SetupImageDestinationPath(string wsPath, string targetCategory, string cleanBase)
@@ -369,7 +416,7 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 		return Path.Combine(destDir, $"{cleanBase}.rtex");
 	}
 
-	private TextureConversionResult ProcessImageConversion(string sourceFilePath, string destPath, string targetCategory)
+	private static TextureConversionResult ProcessImageConversion(string sourceFilePath, string destPath, string targetCategory)
 	{
 		int decalCols = 1, decalRows = 1;
 		int vfxCols = 4, vfxRows = 4;
@@ -433,19 +480,34 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 
 		string wsPath = GetWorkspacePath();
 		string cleanBase = GetCleanBaseAudioName(sourceFilePath);
+		string targetCategory = _selectedAssetType == "Music" ? "Music" : "SoundEffect";
+		string destPath = SetupAudioDestinationPath(wsPath, targetCategory, cleanBase);
 
+		RunBackgroundConversion(
+			TranslationServer.Translate("CONVERTING AUDIO"),
+			string.Format(TranslationServer.Translate("Converting {0} to Ogg Vorbis ..."), Path.GetFileName(sourceFilePath)),
+			() =>
+			{
+				var result = AudioConverter.ConvertToOgg(sourceFilePath, destPath);
+				return (result.Success, result.ErrorMessage);
+			},
+			outcome =>
+			{
+				if (!outcome.Success)
+				{
+					SafeDeletePartialConversion(destPath);
+					Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Failed to convert audio: {0}"), outcome.ErrorMessage));
+					return;
+				}
+
+				FinalizeAudioConversionSafely(wsPath, targetCategory, destPath, cleanBase);
+			});
+	}
+
+	private void FinalizeAudioConversionSafely(string wsPath, string targetCategory, string destPath, string cleanBase)
+	{
 		try
 		{
-			string targetCategory = _selectedAssetType == "Music" ? "Music" : "SoundEffect";
-			string destPath = SetupAudioDestinationPath(wsPath, targetCategory, cleanBase);
-
-			var res = AudioConverter.ConvertToOgg(sourceFilePath, destPath);
-			if (!res.Success)
-			{
-				Hud?.ShowFeedback($"Failed to convert audio: {res.ErrorMessage}");
-				return;
-			}
-
 			UpdateAudioManifest(wsPath, targetCategory, destPath, $"{cleanBase}.ogg");
 
 			Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Converted and imported audio {0}.ogg"), cleanBase));
@@ -455,7 +517,19 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 		catch (Exception ex)
 		{
 			GameLog.LogError($"[AssetManagerDialog] ConvertAudioToRealmFormat error: {ex.Message}");
-			Hud?.ShowFeedback($"Error converting audio: {ex.Message}");
+			Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Error converting audio: {0}"), ex.Message));
+		}
+	}
+
+	private static void SafeDeletePartialConversion(string destPath)
+	{
+		try
+		{
+			if (File.Exists(destPath)) File.Delete(destPath);
+		}
+		catch (Exception ex)
+		{
+			GameLog.LogError($"[AssetManagerDialog] Could not delete partial conversion {destPath}: {ex.Message}");
 		}
 	}
 

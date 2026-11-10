@@ -170,6 +170,13 @@ public partial class GameHost
 					GetViewport().SetInputAsHandled();
 					return;
 				}
+
+				if (altPressed && (ActiveEditorTool == EditorTool.Raise || ActiveEditorTool == EditorTool.Lower))
+				{
+					GameContext.MapEditorHud?.StepBlockLevelHeightExternal(isUp ? 1 : -1);
+					GetViewport().SetInputAsHandled();
+					return;
+				}
 			}
 
 			if (shiftPressed)

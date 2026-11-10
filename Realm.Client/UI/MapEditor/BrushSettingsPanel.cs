@@ -121,6 +121,7 @@ public sealed class BrushSettingsPanel
 	{
 		StepBox = hooks.Owner.GetNode<Control>(BasePath + "/ContentBrush/StepBox");
 		StepSlider = hooks.Owner.GetNode<Slider>(BasePath + "/ContentBrush/StepBox/SldBlockStep");
+		StepSlider.TooltipText = TranslationServer.Translate("Block step height per stroke (Alt + MouseWheel Scroll)");
 		StepSlider.DragStarted += () => hooks.SetSliderDragging(true);
 		StepSlider.DragEnded += (valueChanged) => hooks.SetSliderDragging(false);
 		StepValue = hooks.Owner.GetNode<Label>(BasePath + "/ContentBrush/StepBox/Header/LblBlockStepValue");
