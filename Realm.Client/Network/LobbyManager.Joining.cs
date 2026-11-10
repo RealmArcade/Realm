@@ -212,6 +212,9 @@ public partial class LobbyManager
 		_lobbyRevision = state.Revision;
 
 		MaxPlayers = state.MaxPlayers > 0 ? state.MaxPlayers : MaxPlayers;
+
+		MatchOptions.CopyFrom(state.Options);
+		MatchOptionsChanged?.Invoke();
 		LobbyFactions = state.Factions ?? Array.Empty<string>();
 		LobbyTeamCount = state.TeamCount > 0 ? state.TeamCount : LobbyLimits.DefaultTeamCount;
 		SpectatorDelay = state.SpectatorDelay;
@@ -240,9 +243,17 @@ public partial class LobbyManager
 	{
 		if (string.IsNullOrWhiteSpace(ActiveMapName)) return;
 
-		bool holdsMap = IsHost
-			? !string.IsNullOrEmpty(GameHost.ResolveMapDirectory(ActiveMapName, ActiveMapVersion))
-			: MapAssetManager.IsMapDownloaded(ActiveMapName, ActiveMapVersion);
+		bool holdsMap;
+		if (IsHost)
+		{
+			string? hostMapDirectory = GameHost.ResolveMapDirectory(ActiveMapName, ActiveMapVersion);
+			holdsMap = !string.IsNullOrEmpty(hostMapDirectory) && Directory.Exists(hostMapDirectory);
+		}
+		else
+		{
+			holdsMap = MapAssetManager.IsMapDownloaded(ActiveMapName, ActiveMapVersion);
+		}
+
 		if (!holdsMap) return;
 
 		bool preparedForThisMap = _preparation.IsPrepared && string.Equals(_preparation.MapName, ActiveMapName, StringComparison.Ordinal);

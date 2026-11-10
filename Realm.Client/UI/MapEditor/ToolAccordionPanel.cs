@@ -3,6 +3,7 @@ using Godot;
 using Realm.Client.Core;
 using Realm.Client.Services;
 using Realm.Client.Utils;
+using Realm.Ecs;
 
 namespace Realm.Client.UI.MapEditor;
 
@@ -69,6 +70,8 @@ public sealed class ToolAccordionPanel
 	public LineEdit CoordinateNameInput { get; private set; } = null!;
 	public Button CommitCoordinateButton { get; private set; } = null!;
 	public Button ViewCoordinatesButton { get; private set; } = null!;
+	public OptionButton SpawnAnchorPlayerOption { get; private set; } = null!;
+	public Button CommitSpawnAnchorButton { get; private set; } = null!;
 
 	public void Build(ToolAccordionHooks hooks)
 	{
@@ -193,6 +196,31 @@ public sealed class ToolAccordionPanel
 		};
 		ViewCoordinatesButton = hooks.Owner.GetNode<Button>(ContentPath + "/PanelCoordinatesVBox/BtnViewCoordinates");
 		hooks.SetupOptionButton(ViewCoordinatesButton, $"{UnicodeIcons.LIST} View Existing Coordinates", () => hooks.OpenInstanceManager("Coordinates"), 11, "Open instance manager to view and locate existing defined coordinates");
+
+		SpawnAnchorPlayerOption = hooks.Owner.GetNode<OptionButton>(ContentPath + "/PanelCoordinatesVBox/SpawnAnchorRow/OptSpawnAnchorPlayer");
+		for (int slot = 1; slot <= EcsWorld.MAX_PLAYERS; slot++)
+		{
+			SpawnAnchorPlayerOption.AddItem(string.Format(TranslationServer.Translate("Slot {0}"), slot), slot);
+		}
+
+		CommitSpawnAnchorButton = hooks.Owner.GetNode<Button>(ContentPath + "/PanelCoordinatesVBox/BtnCommitSpawnAnchor");
+		hooks.SetupButton(CommitSpawnAnchorButton, $"{UnicodeIcons.PIN} SEAT AREA", null, 11, "Seat the drawn area's centre as the spawn anchor of the selected player slot");
+		CommitSpawnAnchorButton.Pressed += () =>
+		{
+			int slot = (int)SpawnAnchorPlayerOption.GetItemId(SpawnAnchorPlayerOption.Selected);
+			var result = GameContext.IEditorAPI?.CommitSpawnAnchor(slot,
+				GameContext.EditorService.Tools.PendingCoordinateMinX, GameContext.EditorService.Tools.PendingCoordinateMinZ,
+				GameContext.EditorService.Tools.PendingCoordinateMaxX, GameContext.EditorService.Tools.PendingCoordinateMaxZ);
+
+			if (result == null || !result.Value.Success)
+			{
+				hooks.ShowFeedback(result?.Error ?? TranslationServer.Translate("Draw an area with the coordinate tool first."));
+				return;
+			}
+
+			hooks.RefreshCoordinateList();
+			hooks.ShowFeedback(string.Format(TranslationServer.Translate("Slot {0} now starts at the drawn area."), slot));
+		};
 	}
 
 	/// <summary>

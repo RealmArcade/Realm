@@ -171,7 +171,8 @@ public partial class LobbyManager
 			AllowsCheats,
 			openToOthers,
 			wasmDebug,
-			BuildMatchRoster());
+			BuildMatchRoster(),
+			Options: MatchOptions);
 
 		MatchStartResult started = await session.TryStartAsync(start, authorityPort);
 		LastAuthorityLogPath = started.LogPath;

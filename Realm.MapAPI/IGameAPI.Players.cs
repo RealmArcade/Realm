@@ -23,6 +23,42 @@ public partial interface IGameAPI
 	string GetPlayerName(int playerIndex);
 
 	/// <summary>
+	/// Returns the faction a player selected in the lobby. A map that offers hero choices through its lobby script reads
+	/// this to decide which hero that player enters the match with; a slot that holds no faction answers empty.
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index.</param>
+	string GetPlayerFaction(int playerIndex);
+
+	/// <summary>
+	/// Counts the buildings a player owns, including completed buildings, construction sites and its starting structure.
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index.</param>
+	/// <returns>The number of buildings the slot owns.</returns>
+	int GetPlayerBuildingCount(int playerIndex);
+
+	/// <summary>
+	/// Caps how many buildings a player may hold at once. A limit of zero leaves the slot unlimited, which is the default.
+	/// A placement that would exceed the limit is refused before its cost is charged.
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index.</param>
+	/// <param name="limit">The maximum number of buildings, or zero for no limit.</param>
+	void SetPlayerBuildingLimit(int playerIndex, int limit);
+
+	/// <summary>
+	/// Reads a parameter the lobby's host configured for this match, which is how a map lets a host change a limit or a
+	/// mode it would otherwise have stated as a constant.
+	/// </summary>
+	/// <remarks>
+	/// Every option modifies a value the game already evaluates rather than selecting a different set of rules, so a map
+	/// reads it once while it starts and falls back to its own default when the host left the option alone. A host that
+	/// left an option alone answers zero, which is the value no option treats as a real setting, and a map that reads an
+	/// option it does not act on simply ignores it.
+	/// </remarks>
+	/// <param name="matchOption">The option being read, named by <see cref="Realm.Ecs.MatchOption" />.</param>
+	/// <returns>The value the host set, or zero when the host left the option to the map.</returns>
+	int GetMatchOption(MatchOption matchOption);
+
+	/// <summary>
 	/// Sets the gold resource for the specified player slot.
 	/// </summary>
 	/// <param name="playerIndex">Zero-based player slot index.</param>

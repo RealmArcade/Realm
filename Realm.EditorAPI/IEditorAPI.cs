@@ -33,6 +33,38 @@ public interface IEditorAPI
 	void SelectCoordinate(string name);
 
 	/// <summary>
+	/// Places the spawn anchor of a player slot, which is where that seat begins a match on this board.
+	/// </summary>
+	/// <remarks>
+	/// An anchor is authored the way a coordinate is: the coordinate tool draws a box on the terrain and the centre of that
+	/// box becomes the point the seat starts on. The editor keeps one anchor per slot, so committing a slot that already has
+	/// one moves it rather than adding a second. Anchors are written to the board's terrain file beside its coordinates,
+	/// which is where the authority reads them and where a rules script finds them through
+	/// <c>IGameAPI.GetSpawnAnchor</c>.
+	/// </remarks>
+	/// <param name="player">The player slot the anchor seats, from 1 to the largest slot a match can hold.</param>
+	/// <param name="minCellX">West grid cell boundary of the drawn area.</param>
+	/// <param name="minCellZ">South grid cell boundary of the drawn area.</param>
+	/// <param name="maxCellX">East grid cell boundary of the drawn area.</param>
+	/// <param name="maxCellZ">North grid cell boundary of the drawn area.</param>
+	/// <returns>A result stating whether the anchor was placed, and why not when it was not.</returns>
+	EditorOperationResult CommitSpawnAnchor(int player, int minCellX, int minCellZ, int maxCellX, int maxCellZ);
+
+	/// <summary>
+	/// Removes the spawn anchor of a player slot, so that slot is not seated on this board.
+	/// </summary>
+	/// <param name="player">The player slot whose anchor is removed.</param>
+	/// <returns>A result stating whether an anchor was removed, and why not when it was not.</returns>
+	EditorOperationResult DeleteSpawnAnchor(int player);
+
+	/// <summary>
+	/// Selects the spawn anchor of a player slot and shows where it stands on the terrain.
+	/// </summary>
+	/// <param name="player">The player slot whose anchor is selected.</param>
+	/// <returns>A result stating whether the anchor exists to be selected, and why not when it does not.</returns>
+	EditorOperationResult SelectSpawnAnchor(int player);
+
+	/// <summary>
 	/// Searches indexed assets across the specified asset types matching terms in the query, ranking by matching term count.
 	/// </summary>
 	/// <param name="assetTypes">Array of asset categories to filter on, or empty to search all categories.</param>

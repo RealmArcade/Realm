@@ -314,7 +314,7 @@ namespace Realm.Client.UI
 				() => GameContext.UserInterface?.OpenSettingsOverlay(), TestMapAction,
 				OpenTestSettingsDialog, ResetAllPanelPositions, ToggleVSCodeEditor, GenerateVSCodeFilesExternal,
 				() => _assetManagerDialog?.OpenDialog(), OpenTemplateManagerDialog, () => OpenInstanceManagerDialog(),
-				() => OpenImportFromMapDialog(), OpenUtilitiesDialog));
+				() => OpenImportFromMapDialog(), OpenCompositeMapDialog, OpenUtilitiesDialog));
 		}
 
 

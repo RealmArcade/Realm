@@ -118,6 +118,24 @@ public partial class LobbyManager
 		});
 	}
 
+	/// <summary>
+	///     Sets one parameter the host configures for the match. Zero returns an option to the map's own default, which is
+	///     how the standard lobby states all of them.
+	/// </summary>
+	/// <param name="matchOption">The option being configured.</param>
+	/// <param name="value">The value to play, or zero for the map's default.</param>
+	public void SetMatchOption(MatchOption matchOption, int value)
+	{
+		if (!IsHost) return;
+
+		_lobbySession?.SendLobbyCommand(new LobbyCommand
+		{
+			Kind = LobbyCommandKind.SetMatchOption,
+			Option = (int)matchOption,
+			OptionValue = value
+		});
+	}
+
 	public void StartGame(string mapName, bool ignoreReadiness = false, bool acknowledgeStartWarning = false)
 	{
 		if (!IsHost) return;

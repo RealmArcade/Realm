@@ -70,6 +70,7 @@ public partial class ServerLobby
 			HostStability = HostStability,
 			CountdownActive = _countdownActive,
 			CountdownRemainingSeconds = _countdownActive ? Math.Max(0, _lastCountdownSeconds) : 0,
+			Options = _matchOptions.ToValues(),
 			Revision = ++_revision
 		};
 	}

@@ -23,6 +23,7 @@ using Realm.Shared.Distribution;
 using Realm.Shared.Maps;
 using Realm.Shared.Metadata;
 using Realm.Shared.Network;
+using Realm.Shared.Simulation;
 using Realm.Shared.Services;
 using Environment = System.Environment;
 using FileAccess = System.IO.FileAccess;
@@ -149,6 +150,14 @@ public partial class LobbyManager : BaseMapTransferNode
 	public string ActiveMapName { get; set; } = null!;
 	public string ActiveMapVersion { get; set; } = "1.0.0";
 	public bool SpectatorDelay { get; set; } = false;
+
+	/// <summary>
+	///     The parameters the lobby's host configured for the match, as the lobby last published them. Every seat shows the
+	///     same list; only the host may change it.
+	/// </summary>
+	public MatchOptionSet MatchOptions { get; } = new();
+
+	public event Action? MatchOptionsChanged;
 	public string? LobbyJoinError { get; set; }
 	public string HostStability { get; set; } = "Excellent";
 	public event Action<string>? HostStabilityUpdated;

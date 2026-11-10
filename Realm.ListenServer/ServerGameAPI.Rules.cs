@@ -1,7 +1,18 @@
+using Realm.Ecs;
+using Realm.Shared.Simulation;
+
 namespace Realm.ListenServer;
 
 public partial class ServerGameAPI
 {
+	/// <summary>Gets the parameters the lobby's host configured for this match, empty when the host left them to the map.</summary>
+	public MatchOptionSet MatchOptions { get; } = new();
+
+	public int GetMatchOption(MatchOption matchOption)
+	{
+		return MatchOptions.Get(matchOption);
+	}
+
 	public void RegisterPlacementRadius(string definitionKey, float radius)
 	{
 		if (string.IsNullOrEmpty(definitionKey)) return;

@@ -59,13 +59,13 @@ public partial class ListenServerHost
 		WasmScriptHost.OnWasmLog += _scriptLogSink;
 		LagProbe.TryEnableFromEnvironment("authority");
 
-		MatchRosterSeat[] roster = ReadRoster();
+		MatchRosterSeat[] roster = ReadRoster(out MatchOptionSet rosterOptions);
 		LoadedMap map = MapWorldLoader.Load(_arguments.MapPath, roster);
 		MarkStartStage("map loaded");
 		try
 		{
 			var paths = ServerMatchPaths.From(_arguments);
-			_simulation = new ServerSimulation(map, paths, _log, _arguments.Seed, _arguments.Cheats, _arguments.WasmDebug, _arguments.WorkspacePath, roster, _arguments.Cheats ? 1 : 0);
+			_simulation = new ServerSimulation(map, paths, _log, _arguments.Seed, _arguments.Cheats, _arguments.WasmDebug, _arguments.WorkspacePath, roster, _arguments.Cheats ? 1 : 0, matchOptions: rosterOptions);
 			MarkStartStage("simulation built");
 			WarmSnapshotFraming();
 			_simulation.PeerDropped += DisconnectPeer;

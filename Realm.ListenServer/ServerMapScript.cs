@@ -37,9 +37,14 @@ public class ServerMapScript : IDisposable
 	/// <param name="mapWorkspacePath">The workspace a script this call has to instantiate was published from.</param>
 	/// <param name="preparedHost">A script the lobby already instantiated and warmed on this same world, which the match takes over instead of instantiating its own.</param>
 	/// <param name="scriptPathOverride">The exact script this match must run, which replaces the search for one inside the map folder and fails loudly when it is missing.</param>
-	public static ServerMapScript Load(LoadedMap map, ServerMatchPaths paths, int randomSeed, ServerLog log, ServerPresentationQueue presentation, ItemGrantService items, GroundLootService loot, bool wasmDebug = false, string? mapWorkspacePath = null, WasmScriptHost? preparedHost = null, string? scriptPathOverride = null)
+	/// <param name="matchOptions">The parameters the lobby's host configured, which the script reads while it initializes.</param>
+	public static ServerMapScript Load(LoadedMap map, ServerMatchPaths paths, int randomSeed, ServerLog log, ServerPresentationQueue presentation, ItemGrantService items, GroundLootService loot, bool wasmDebug = false, string? mapWorkspacePath = null, WasmScriptHost? preparedHost = null, string? scriptPathOverride = null, Realm.Shared.Simulation.MatchOptionSet? matchOptions = null)
 	{
 		var api = new ServerGameAPI(map, log, presentation, items, loot, paths);
+
+		// The host's parameters are in place before the script runs its first line, because a map reads them once while it
+		// starts and never asks again.
+		if (matchOptions != null) api.MatchOptions.CopyFrom(matchOptions);
 
 		if (preparedHost != null)
 		{

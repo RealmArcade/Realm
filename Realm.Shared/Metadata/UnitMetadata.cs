@@ -52,6 +52,7 @@ public class UnitMetadata
 	public float SightRange { get; set; } = 15.0f;
 	public float AcquisitionRange { get; set; } = 15.0f;
 	public float GoldBounty { get; set; }
+	public float RespawnSeconds { get; set; }
 	public string? ModelPath { get; set; }
 	public string? PortraitModelPath { get; set; }
 	public string VisualMode { get; set; } = "GroundPlane";

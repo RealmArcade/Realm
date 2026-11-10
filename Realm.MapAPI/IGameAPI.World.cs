@@ -138,4 +138,54 @@ public partial interface IGameAPI
 	/// <param name="node">The resource node identifier.</param>
 	/// <returns>True if depleted; otherwise, false.</returns>
 	bool IsResourceNodeDepleted(ResourceNodeId node);
+
+	/// <summary>
+	/// Gets how many player starting points the map instance the match is playing declares.
+	/// A spawn anchor joins a player slot to a point on the board, and it is authored with the board's terrain instead
+	/// of in a script, so one ruleset can be played on any board that seats its players. A map that declares none
+	/// answers zero, which is how a script tells a board meant for it apart from one it was pointed at by mistake.
+	/// </summary>
+	/// <returns>The number of spawn anchors the loaded map declares.</returns>
+	int GetSpawnAnchorCount();
+
+	/// <summary>
+	/// Gets where the map instance places the starting point of one player slot.
+	/// The point is snapped to the ground of the loaded terrain, so it is a position a starting building can be placed
+	/// at and a camera can be moved to without the script reading a height field itself. A slot the map declares no
+	/// anchor for answers <see cref="Vector3.Zero"/>.
+	/// </summary>
+	/// <param name="playerSlot">The one-based player slot the lobby seats a player in, as the map's own slot numbering states it.</param>
+	/// <returns>The ground position of that slot's anchor, or <see cref="Vector3.Zero"/> when the map declares none for it.</returns>
+	Vector3 GetSpawnAnchor(int playerSlot);
+
+	/// <summary>
+	/// Reports how far a building site has been built, as a fraction from zero to one. A unit that is not a building
+	/// site answers one, so a caller may ask any unit without first knowing what state it is in.
+	/// </summary>
+	/// <param name="unit">The building site.</param>
+	/// <returns>The completed fraction of its construction time.</returns>
+	float GetUnitConstructionProgress(UnitId unit);
+
+	/// <summary>
+	/// Advances a building site's construction by the given amount of work, which is how an ability that finishes part
+	/// of a construction reads without the map having to know how construction time is stored.
+	/// </summary>
+	/// <param name="unit">The building site.</param>
+	/// <param name="seconds">The amount of construction work to add, in seconds of build time.</param>
+	void AdvanceUnitConstruction(UnitId unit, float seconds);
+
+	/// <summary>
+	/// Starts a building site for a player: spawns the building and schedules its construction, charging no resource and
+	/// consuming no building supply. The engine advances a site nobody is working on only when the map says so, through
+	/// <see cref="AdvanceUnitConstruction" />, and announces it through <see cref="OnConstructionFinished" /> like any
+	/// other site, so a map that builds from an order it authored keeps the completion path it already handles.
+	/// Use this instead of <see cref="SpawnUnitForPlayer(string, System.Numerics.Vector2, int, bool, bool)" /> when the building is meant to appear unfinished; that method
+	/// creates a completed building.
+	/// </summary>
+	/// <param name="buildingTypeId">The template identifier of the building to start.</param>
+	/// <param name="position">The world position of the site.</param>
+	/// <param name="playerIndex">The zero-based player slot index that owns the site.</param>
+	/// <param name="totalConstructionSeconds">How much build time the site needs before it completes.</param>
+	/// <returns>The site unit, or an invalid handle when the template is not a building this map defines.</returns>
+	UnitId SpawnBuildingUnderConstruction(string buildingTypeId, Vector3 position, int playerIndex, float totalConstructionSeconds);
 }

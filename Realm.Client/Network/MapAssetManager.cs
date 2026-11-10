@@ -196,6 +196,16 @@ public static partial class MapAssetManager
 		return missing;
 	}
 
+	public static byte[]? ReadAssetBytes(string assetKey)
+	{
+		if (string.IsNullOrWhiteSpace(assetKey)) return null;
+
+		string normalizedHash = ContentAddressableStorage.NormalizeBlake3Hash(assetKey);
+		if (string.IsNullOrEmpty(normalizedHash)) return null;
+
+		return Storage.GetAssetBytes(normalizedHash) ?? P2PStorage.GetAssetBytes(normalizedHash);
+	}
+
 	public static void AddOrUpdateGlobalArchive(Dictionary<string, byte[]> newFilesByHash)
 	{
 		if (newFilesByHash == null || newFilesByHash.Count == 0) return;
