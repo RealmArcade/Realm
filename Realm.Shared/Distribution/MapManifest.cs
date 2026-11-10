@@ -536,6 +536,9 @@ public class MapManifest
 		if (string.Equals(relativePath, "manifest.json", StringComparison.OrdinalIgnoreCase))
 			return true;
 
+		if (string.Equals(relativePath, MapMetadataMerger.MetadataPartialFileName, StringComparison.OrdinalIgnoreCase))
+			return true;
+
 		return string.Equals(Path.GetFileName(relativePath), "authorship_key.pem", StringComparison.OrdinalIgnoreCase);
 	}
 
@@ -697,6 +700,9 @@ public class MapManifest
 
 		string fileName = Path.GetFileName(norm);
 		if (string.IsNullOrEmpty(fileName)) return false;
+
+		if (string.Equals(fileName, MapReferences.FileName, StringComparison.OrdinalIgnoreCase)) return false;
+		if (string.Equals(fileName, MapMetadataMerger.MetadataPartialFileName, StringComparison.OrdinalIgnoreCase)) return false;
 
 		if (HasFileName(fileName)) return true;
 

@@ -353,6 +353,7 @@ public partial class GameHost
 	private MeshInstance3D? _objectMarqueeFillMesh { get; set; }
 	private MeshInstance3D? _objectMarqueeOutlineMesh { get; set; }
 	private List<MeshInstance3D> _coordinatePersistentMeshes { get; set; } = new();
+	private List<MeshInstance3D> _spawnAnchorMeshes { get; set; } = new();
 
 	public void GenerateNewRandomPlacementRotationAndScale()
 	{

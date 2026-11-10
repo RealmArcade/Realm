@@ -789,6 +789,7 @@ public static class ReplicatedComponents
 		Register(new TagComponentCodec<AnimationsFrozen>(ReplicatedScope.Unit));
 		Register(new TagComponentCodec<OverheadBarsHidden>(ReplicatedScope.Unit));
 		Register(new ReplicatedComponentCodec<OverheadBadge>(ReplicatedScope.Unit));
+		Register(new ReplicatedComponentCodec<UnitCharges>(ReplicatedScope.Unit));
 		Register(new TagComponentCodec<SpellImmune>(ReplicatedScope.Unit));
 		Register(new TagComponentCodec<UnderConstruction>(ReplicatedScope.Unit));
 	}

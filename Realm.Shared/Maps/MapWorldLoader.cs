@@ -107,6 +107,8 @@ public static class MapWorldLoader
 			loaded.WorldEntity = worldEntity;
 			simulation.WorldEntity = worldEntity;
 
+			ReservePlayerEntities(loaded);
+
 			TerrainState terrain = BuildTerrain(folder, width, depth);
 			simulation.TerrainNavMeshService.BakeNavMesh(ref terrain);
 			loaded.HasNavMesh = terrain.NavMesh != null;
@@ -237,7 +239,7 @@ public static class MapWorldLoader
 
 		for (int index = 0; index < EcsWorld.MAX_PLAYERS; index++)
 		{
-			Entity playerEntity = world.Create();
+			Entity playerEntity = loaded.PlayerEntities[index];
 			world.Add(playerEntity, new Player());
 			world.Add(playerEntity, new UnitOwnerPlayer(index));
 			world.Add(playerEntity, new Name(players[index].Name));
@@ -293,6 +295,22 @@ public static class MapWorldLoader
 		return relationships;
 	}
 
+	/// <summary>
+	///     Creates the player entities before the map places anything. A player slot is read through its entity id everywhere
+	///     the shared memory indexes a player, so the seats have to hold the first entity ids after the world entity: a board
+	///     that places a thousand props first would otherwise put every player beyond the arrays that describe them.
+	/// </summary>
+	/// <param name="loaded">The map that is being loaded.</param>
+	private static void ReservePlayerEntities(LoadedMap loaded)
+	{
+		EcsWorld world = loaded.World;
+
+		for (int index = 0; index < EcsWorld.MAX_PLAYERS; index++)
+		{
+			loaded.PlayerEntities[index] = world.Create();
+		}
+	}
+
 	private static void SpawnPlacedUnits(LoadedMap loaded)
 	{
 		EcsWorld world = loaded.World;
@@ -319,6 +337,7 @@ public static class MapWorldLoader
 				continue;
 			}
 
+			world.SetOrAdd(entity, new UnitOwnerPlayer(unit.Player));
 			loaded.UnitCount++;
 		}
 	}

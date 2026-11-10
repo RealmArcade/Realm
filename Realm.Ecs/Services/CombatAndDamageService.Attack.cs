@@ -30,6 +30,12 @@ namespace Realm.Ecs.Services
 				return;
 			}
 
+			if (!ArePlayerIndicesEnemies(GetPlayerIndexForEntity(entity), GetPlayerIndexForEntity(target.Target)))
+			{
+				_tickActionsToRemoveTarget.Add(entity);
+				return;
+			}
+
 			if (IsFlying(target.Target) && !CanAttackTarget(entity, target.Target))
 			{
 				_tickActionsToRemoveTarget.Add(entity);
@@ -138,8 +144,10 @@ namespace Realm.Ecs.Services
 
 			OnUnitAttackedCallback?.Invoke(entity, target);
 
-			float dealt = AbsorbDamage(target, damage);
-			if (dealt > 0f) OnUnitDamagedCallback?.Invoke(target, entity, dealt);
+			float effectiveness = ResolveDamageEffectiveness(entity, target);
+			float scaledDamage = damage * effectiveness;
+			float dealt = AbsorbDamage(target, scaledDamage);
+			if (dealt > 0f) OnUnitDamagedCallback?.Invoke(target, entity, dealt, baseDamage * effectiveness);
 
 			float newHp = 0f;
 			if (HasAuthority)

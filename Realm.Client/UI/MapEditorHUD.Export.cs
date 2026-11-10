@@ -152,29 +152,45 @@ namespace Realm.Client.UI
 
 		private async Task<string?> PerformExportStepsAsync(ProgressBar progressBar, Label statusLabel, Button closeBtn, string destinationPath, bool fullExport)
 		{
-			await SaveMapStateAsync(progressBar, statusLabel);
+			List<string> copiedFiles = await SaveMapStateAsync(progressBar, statusLabel);
 
-			if (!await VerifyMapAssetsAsync(progressBar, statusLabel, closeBtn)) return null;
+			try
+			{
+				if (!await VerifyMapAssetsAsync(progressBar, statusLabel, closeBtn)) return null;
 
-			if (!await CompileMapScriptAsync(progressBar, statusLabel, closeBtn)) return null;
+				if (!await CompileMapScriptAsync(progressBar, statusLabel, closeBtn)) return null;
 
-			GameContext.MapStorageService.DeduplicateWorkspaceBuildArtifacts(GameContext.EditorService._editingDirectory);
+				GameContext.MapStorageService.DeduplicateWorkspaceBuildArtifacts(GameContext.EditorService._editingDirectory);
 
-			await OptimizeMapAssetsAsync(progressBar, statusLabel);
+				await OptimizeMapAssetsAsync(progressBar, statusLabel);
 
-			await GenerateMapMetadataAsync(progressBar, statusLabel);
+				await GenerateMapMetadataAsync(progressBar, statusLabel);
 
-			return await CreateMapArchiveAsync(progressBar, statusLabel, destinationPath, fullExport);
+				return await CreateMapArchiveAsync(progressBar, statusLabel, destinationPath, fullExport);
+			}
+			finally
+			{
+				MapReferenceResolver.RestoreReadOnly(copiedFiles);
+			}
 		}
 
-		private async Task SaveMapStateAsync(ProgressBar progressBar, Label statusLabel)
+		/// <summary>
+		///     Writes the map state an export archives. The export has to write across the whole folder, so the read-only mark
+		///     on the files a save copied in is lifted here and put back once the export is done: the paths lifted are returned
+		///     so the export can mark exactly those again.
+		/// </summary>
+		private async Task<List<string>> SaveMapStateAsync(ProgressBar progressBar, Label statusLabel)
 		{
 			progressBar.Value = 10;
 			statusLabel.Text = TranslationServer.Translate("Saving map state & workspace...");
 			await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
 			string editingDirectory = GameContext.EditorService._editingDirectory;
+			ApplyMapReferencesOnSave(editingDirectory);
+			List<string> copiedFiles = MapReferenceResolver.CollectReadOnlyPaths(editingDirectory);
+			MapReferenceResolver.ClearReadOnlyRecursive(editingDirectory);
 			await GameContext.MapStorageService.SaveMapStateForExportAsync(editingDirectory, OperatingSystem.IsWindows());
+			return copiedFiles;
 		}
 
 		private async Task<bool> VerifyMapAssetsAsync(ProgressBar progressBar, Label statusLabel, Button closeBtn)

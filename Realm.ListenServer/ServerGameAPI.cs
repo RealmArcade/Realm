@@ -139,6 +139,47 @@ public partial class ServerGameAPI : IGameAPI, IDisposable
 		return playerIndex == 0 ? "Neutral" : $"Player {playerIndex}";
 	}
 
+	/// <summary>
+	///     Answers the faction the lobby seated this player as. A map that offers hero choices through its lobby script
+	///     reads it to decide which hero that player enters the match with; a slot that holds no faction answers empty.
+	/// </summary>
+	public string GetPlayerFaction(int playerIndex)
+	{
+		if (!TryReadPlayersState(out ScriptPlayersState playersState) || !playersState.IsValidSlot(playerIndex)) return string.Empty;
+
+		return playersState.Get(playerIndex).Faction ?? string.Empty;
+	}
+
+	/// <summary>
+	///     Counts the buildings a player owns, including construction sites and buildings that were destroyed but are still
+	///     standing, so a map can describe how much of its building supply a player has spent.
+	/// </summary>
+	public int GetPlayerBuildingCount(int playerIndex)
+	{
+		Entity playerEntity = _context.GetPlayerEntity(playerIndex);
+		if (playerEntity == Entity.Null) return 0;
+
+		return BuildingPlacementService.CountBuildingsOwnedBy(_context.World, new PlayerEntity(playerEntity));
+	}
+
+	/// <summary>
+	///     Caps how many buildings a player may hold at once. A limit of zero leaves the slot unlimited, which is the
+	///     default, and a placement that would exceed the cap is refused before its cost is charged.
+	/// </summary>
+	public void SetPlayerBuildingLimit(int playerIndex, int limit)
+	{
+		Entity playerEntity = _context.GetPlayerEntity(playerIndex);
+		if (playerEntity == Entity.Null) return;
+
+		if (limit <= 0)
+		{
+			_context.World.Remove<PlayerBuildingLimit>(playerEntity);
+			return;
+		}
+
+		_context.World.SetOrAdd(playerEntity, new PlayerBuildingLimit(limit));
+	}
+
 	public Vector3 GetPlayerStartLocation(int playerIndex)
 	{
 		Entity playerEntity = _context.GetPlayerEntity(playerIndex);
@@ -160,17 +201,29 @@ public partial class ServerGameAPI : IGameAPI, IDisposable
 
 	public float GetPlayerStone(int playerIndex) => ReadPlayerResource(playerIndex, PlayerResourceKind.Stone);
 
-	public void SetPlayerGold(int playerIndex, float amount) => WritePlayerResource(playerIndex, PlayerResourceKind.Gold, amount);
+	public void SetPlayerGold(int playerIndex, float amount)
+	{
+		ClearResourceRemainder(playerIndex, PlayerResourceKind.Gold);
+		WritePlayerResource(playerIndex, PlayerResourceKind.Gold, amount);
+	}
 
-	public void SetPlayerWood(int playerIndex, float amount) => WritePlayerResource(playerIndex, PlayerResourceKind.Wood, amount);
+	public void SetPlayerWood(int playerIndex, float amount)
+	{
+		ClearResourceRemainder(playerIndex, PlayerResourceKind.Wood);
+		WritePlayerResource(playerIndex, PlayerResourceKind.Wood, amount);
+	}
 
-	public void SetPlayerStone(int playerIndex, float amount) => WritePlayerResource(playerIndex, PlayerResourceKind.Stone, amount);
+	public void SetPlayerStone(int playerIndex, float amount)
+	{
+		ClearResourceRemainder(playerIndex, PlayerResourceKind.Stone);
+		WritePlayerResource(playerIndex, PlayerResourceKind.Stone, amount);
+	}
 
-	public void AdjustPlayerGold(int playerIndex, float delta) => SetPlayerGold(playerIndex, GetPlayerGold(playerIndex) + delta);
+	public void AdjustPlayerGold(int playerIndex, float delta) => AdjustPlayerResource(playerIndex, PlayerResourceKind.Gold, delta);
 
-	public void AdjustPlayerWood(int playerIndex, float delta) => SetPlayerWood(playerIndex, GetPlayerWood(playerIndex) + delta);
+	public void AdjustPlayerWood(int playerIndex, float delta) => AdjustPlayerResource(playerIndex, PlayerResourceKind.Wood, delta);
 
-	public void AdjustPlayerStone(int playerIndex, float delta) => SetPlayerStone(playerIndex, GetPlayerStone(playerIndex) + delta);
+	public void AdjustPlayerStone(int playerIndex, float delta) => AdjustPlayerResource(playerIndex, PlayerResourceKind.Stone, delta);
 
 	public void SetPlayerMaxPopulation(int playerIndex, int max) => _context.ResourceEconomyService.SetPlayerMaxPopulation(playerIndex, max);
 
@@ -405,12 +458,89 @@ public partial class ServerGameAPI : IGameAPI, IDisposable
 		_context.World.SetOrAdd(entity, new CollisionScale(value));
 	}
 
+	public void SetUnitCharges(UnitId unit, int maximumCharges, float rechargeSeconds)
+	{
+		Entity entity = ResolveUnit(unit);
+		if (entity == Entity.Null) return;
+
+		if (maximumCharges <= 0)
+		{
+			if (_context.World.Has<UnitCharges>(entity)) _context.World.Remove<UnitCharges>(entity);
+			return;
+		}
+
+		bool carriesCharges = _context.World.TryGet<UnitCharges>(entity, out UnitCharges existing);
+		int charges = carriesCharges ? Math.Clamp(existing.Charges, 0, maximumCharges) : 0;
+		float rechargeProgress = carriesCharges ? existing.RechargeProgress : 0f;
+
+		_context.World.SetOrAdd(entity, new UnitCharges(charges, maximumCharges, MathF.Max(0f, rechargeSeconds))
+		{
+			RechargeProgress = rechargeProgress
+		});
+	}
+
+	public void SetUnitChargeCount(UnitId unit, int charges)
+	{
+		Entity entity = ResolveUnit(unit);
+		if (entity == Entity.Null) return;
+		if (!_context.World.TryGet<UnitCharges>(entity, out UnitCharges existing)) return;
+
+		int clamped = Math.Clamp(charges, 0, existing.MaximumCharges);
+		if (clamped == existing.Charges) return;
+
+		existing.Charges = clamped;
+		if (clamped == 0) existing.RechargeProgress = 0f;
+
+		_context.World.Set(entity, existing);
+	}
+
+	public void SetPlayerDamageEffectiveness(int attackingPlayerIndex, int defendingPlayerIndex, float multiplier)
+	{
+		Entity playerEntity = _context.GetPlayerEntity(attackingPlayerIndex);
+		if (playerEntity == Entity.Null || defendingPlayerIndex < 0 || defendingPlayerIndex >= EcsWorld.MAX_PLAYERS) return;
+
+		PlayerDamageEffectiveness table = _context.World.TryGet(playerEntity, out PlayerDamageEffectiveness existing)
+			? existing
+			: PlayerDamageEffectiveness.AtFullEffectiveness();
+
+		table.SetAgainst(defendingPlayerIndex, multiplier);
+		_context.World.SetOrAdd(playerEntity, table);
+	}
+
 	public void SetUnitExperience(UnitId unit, float value)
 	{
 		Entity entity = ResolveUnit(unit);
 		if (entity == Entity.Null) return;
 
 		_context.World.SetOrAdd(entity, new Experience(value));
+	}
+
+	/// <summary>
+	///     Reports the completed fraction of a building site's construction time. Anything that is not a site under
+	///     construction answers one, so an ability may ask about any unit before it knows what state it is in.
+	/// </summary>
+	public float GetUnitConstructionProgress(UnitId unit)
+	{
+		Entity entity = ResolveUnit(unit);
+		if (entity == Entity.Null) return 1f;
+		if (!_context.World.TryGet<ConstructionState>(entity, out ConstructionState construction)) return 1f;
+		if (construction.TotalBuildTime <= 0f) return 1f;
+
+		return Math.Clamp(construction.Progress / construction.TotalBuildTime, 0f, 1f);
+	}
+
+	/// <summary>
+	///     Adds construction work to a building site. The site completes on the next construction tick, which is where a
+	///     placement's completion is announced, so a map never has to finish a construction itself.
+	/// </summary>
+	public void AdvanceUnitConstruction(UnitId unit, float seconds)
+	{
+		Entity entity = ResolveUnit(unit);
+		if (entity == Entity.Null || seconds <= 0f) return;
+		if (!_context.World.TryGet<ConstructionState>(entity, out ConstructionState construction)) return;
+
+		construction.Progress = MathF.Min(construction.Progress + seconds, construction.TotalBuildTime);
+		_context.World.Set(entity, construction);
 	}
 
 	public void SetUnitLevel(UnitId unit, int level)

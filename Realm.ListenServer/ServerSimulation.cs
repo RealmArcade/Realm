@@ -28,6 +28,7 @@ public class ServerSimulation : IDisposable
 	private readonly ServerSimulationEvents _events;
 	private readonly ServerPresentationQueue _presentation = new();
 	private readonly ServerMapScript _script;
+	private readonly NeutralRespawnService _neutralRespawns;
 	private readonly GroundLootService _loot;
 	private readonly HashSet<int> _peersNeedingBaseline = new();
 	private readonly HashSet<int> _peersNeedingDescriptionRepeat = new();
@@ -39,8 +40,9 @@ public class ServerSimulation : IDisposable
 	private bool _disposed;
 	private long _navMeshRebakeTick = -1;
 
-	public ServerSimulation(LoadedMap map, ServerMatchPaths paths, ServerLog log, int randomSeed = 0, bool cheatsEnabled = false, bool wasmDebug = false, string? mapWorkspacePath = null, IReadOnlyList<MatchRosterSeat>? roster = null, int hostPlayerSlot = 0, WasmScriptHost? preparedScriptHost = null, string? scriptPathOverride = null)
+	public ServerSimulation(LoadedMap map, ServerMatchPaths paths, ServerLog log, int randomSeed = 0, bool cheatsEnabled = false, bool wasmDebug = false, string? mapWorkspacePath = null, IReadOnlyList<MatchRosterSeat>? roster = null, int hostPlayerSlot = 0, WasmScriptHost? preparedScriptHost = null, string? scriptPathOverride = null, MatchOptionSet? matchOptions = null)
 	{
+		MatchOptions = matchOptions ?? new MatchOptionSet();
 		_map = map;
 		_hasRoster = roster is { Count: > 0 };
 		if (roster != null)
@@ -53,6 +55,11 @@ public class ServerSimulation : IDisposable
 		_log = log;
 		map.Simulation.CheatsEnabled = cheatsEnabled;
 		map.Simulation.HostPlayerSlot = hostPlayerSlot;
+
+		// Shroud is the one option the authority evaluates itself rather than handing to the map: a host that revealed the
+		// board leaves the authority publishing every unit to every peer instead of only what each peer can see.
+		MatchShroudMode shroudMode = MatchOptions.GetShroudMode();
+		if (shroudMode != MatchShroudMode.FromMap) map.Simulation.ShroudDisabled = shroudMode == MatchShroudMode.Revealed;
 
 		// The stream the simulation and its script draw from is established here, by the owner of the match, before
 		// anything can step or describe it.
@@ -70,9 +77,10 @@ public class ServerSimulation : IDisposable
 		_construction = new ConstructionTick(map.Simulation, map.Catalog);
 		Items = new ItemGrantService(map.Simulation, map.Catalog);
 		_loot = new GroundLootService(map.Simulation, Items);
-		_script = ServerMapScript.Load(map, paths, randomSeed, log, _presentation, Items, _loot, wasmDebug, mapWorkspacePath, preparedScriptHost, scriptPathOverride);
+		_script = ServerMapScript.Load(map, paths, randomSeed, log, _presentation, Items, _loot, wasmDebug, mapWorkspacePath, preparedScriptHost, scriptPathOverride, MatchOptions);
 		if (roster != null) ApplyRosterBotDifficulties(roster);
 		_script.Api.Metrics = Metrics;
+		if (!MatchOptions.IsEmpty) log.Write($"the lobby configured this match: {MatchOptions.Describe()}");
 		_commands.ConsumableChangedSink = (unitId, consumableId) => _script.Api.RaiseConsumableChanged(unitId, consumableId);
 		_snapshots.Abilities = _script.Api.Abilities;
 		_snapshots.TechLevels = _script.Api.TechLevels;
@@ -84,6 +92,9 @@ public class ServerSimulation : IDisposable
 
 		_commands.TechLevelReader = ReadPlayerTechLevel;
 		_commands.TechLevelWriter = WritePlayerTechLevel;
+
+		_neutralRespawns = new NeutralRespawnService(map, _script.Api, log);
+		_neutralRespawns.Start();
 
 		PlayerResourceService resources = map.Simulation.PlayerResourceService;
 		map.Simulation.ResourceEconomyService.SetRuntimeReferences(
@@ -117,6 +128,9 @@ public class ServerSimulation : IDisposable
 		if (!map.World.Has<ScriptZonesState>(worldEntity)) map.World.Add(worldEntity, new ScriptZonesState(null));
 	}
 
+	/// <summary>Gets the parameters the lobby's host configured for this match.</summary>
+	public MatchOptionSet MatchOptions { get; }
+
 	public LoadedMap Map => _map;
 
 	public ServerGameAPI ScriptApi => _script.Api;
@@ -148,6 +162,7 @@ public class ServerSimulation : IDisposable
 		_production.Step(deltaSeconds);
 		_construction.Step(deltaSeconds);
 		_loot.Step(deltaSeconds);
+		_neutralRespawns.Step(deltaSeconds);
 		_script.Step(deltaSeconds);
 		_script.Api.AdvanceTimers(deltaSeconds);
 		RecomputePopulationWhenDue();
@@ -178,14 +193,27 @@ public class ServerSimulation : IDisposable
 		simulation.CombatDamageService.ItemGrantedWeaponsProvider = itemId => _map.Catalog.FindItem(itemId)?.GrantedWeapons;
 		simulation.CombatDamageService.UnlimitedPowerProvider = () => simulation.UnlimitedPowerEnabled;
 		simulation.CombatDamageService.OnKillUnitRequested = KillUnit;
-		simulation.CombatDamageService.OnUnitDamagedCallback = (target, attacker, damage) =>
+		simulation.CombatDamageService.DamageEffectivenessProvider = (attacker, target) =>
+		{
+			if (!_map.World.TryGet<UnitOwnerPlayer>(attacker, out UnitOwnerPlayer attackingOwner)) return 1f;
+
+			Entity attackingPlayerEntity = new(_map.GetPlayerEntity(attackingOwner.Value).Value);
+			if (!_map.World.TryGet(attackingPlayerEntity, out PlayerDamageEffectiveness effectiveness)) return 1f;
+
+			int defendingPlayerIndex = _map.World.TryGet<UnitOwnerPlayer>(target, out UnitOwnerPlayer defendingOwner)
+				? defendingOwner.Value
+				: 0;
+
+			return effectiveness.GetAgainst(defendingPlayerIndex);
+		};
+		simulation.CombatDamageService.OnUnitDamagedCallback = (target, attacker, damage, damageBeforeMitigation) =>
 		{
 			if (_map.World.TryGet<UnitOwnerPlayer>(attacker, out UnitOwnerPlayer damagingOwner))
 			{
 				Metrics.RecordDamageDealt(damagingOwner.Value, damage);
 			}
 
-			_script.Api.RaiseUnitDamaged(target.Id, attacker.Id, damage);
+			_script.Api.RaiseUnitDamaged(target.Id, attacker.Id, damage, damageBeforeMitigation);
 		};
 		simulation.CombatDamageService.OnUnitAttackedCallback = (attacker, target) =>
 			_script.Api.RaiseUnitAttacked(attacker.Id, target.Id);
@@ -206,6 +234,7 @@ public class ServerSimulation : IDisposable
 		if (!_map.World.IsAlive(entity)) return;
 
 		Entity killer = _map.World.TryGet<LastAttacker>(entity, out LastAttacker lastAttacker) ? lastAttacker.Value : Entity.Null;
+		_neutralRespawns.OnPlacementDestroyed(new UnitId(entity.Id), killer == Entity.Null ? UnitId.Invalid : new UnitId(killer.Id));
 		_script.Api.RaiseUnitDied(entity.Id, killer.Id);
 
 		if (_map.World.IsAlive(entity)) _map.World.Destroy(entity);

@@ -317,6 +317,7 @@ public static partial class MapWorkspaceService
 		EnsureMapScript(directory, mapName);
 		EnsureSourceMapAttributionAttribute(directory);
 		EnsureWasmEntryPoint(directory);
+		ComposeReferencedScripts(directory);
 		WorkspaceMetadataBootstrapper.EnsureMetadata(directory, GetTemplatePath("metadata.json"));
 		WorkspaceMetadataBootstrapper.EnsureLicenseFile(directory);
 		MapAssetHelper.EnsureManifestJson(directory);
@@ -326,6 +327,39 @@ public static partial class MapWorkspaceService
 		EnsurePngAssetsConverted(directory);
 		EnsureNoiseTexturesGenerated(directory);
 		MapTemplateGeneratorService.EnsureMapTemplates(directory);
+	}
+
+	/// <summary>
+	///     Imports the C# of the maps this folder references so the workspace compiles with those rules in it. A save does
+	///     the same thing, and this runs when a folder is opened so a freshly cloned map compiles before its first save.
+	/// </summary>
+	/// <param name="directory">The map folder being opened.</param>
+	public static void ComposeReferencedScripts(string directory)
+	{
+		if (string.IsNullOrEmpty(directory) || !Directory.Exists(directory)) return;
+
+		MapReferences references = MapReferences.Load(directory);
+		if (references == null || references.IsEmpty)
+		{
+			MapScriptComposer.Compose(directory, null, null);
+			return;
+		}
+
+		MapReferenceService referenceService = GameContext.MapReferenceService;
+		if (referenceService == null) return;
+
+		List<ComposedScriptMap>? composed = MapScriptComposer.Compose(directory, references.References, reference =>
+		{
+			string helperFolder = referenceService.ResolveHelperFolder(reference);
+			return string.IsNullOrEmpty(helperFolder) ? referenceService.ResolveStoreFolder(reference) : helperFolder;
+		});
+
+		if (composed == null)
+		{
+			GameLog.LogError(
+				$"[MapWorkspaceService] A map that '{directory}' references could not be found, so the composed scripts already in the workspace were kept. " +
+				"Download the referenced map or stop referencing it before the script will compile again.");
+		}
 	}
 
 	public static void CleanWorkspaceDirectory(string targetDir)

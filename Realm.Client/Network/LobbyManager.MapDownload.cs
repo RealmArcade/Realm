@@ -47,8 +47,7 @@ public partial class LobbyManager
 
 			if (missingHashes.Count == 0)
 			{
-				await RegisterDownloadedMapAsync(targetMap, manifest);
-				return true;
+				return await RegisterDownloadedMapAsync(targetMap, manifest);
 			}
 
 			float initialProgress = totalManifestFiles > 0 ? Math.Clamp((float)(totalManifestFiles - missingHashes.Count) / totalManifestFiles, 0.0f, 1.0f) : 0.0f;
@@ -94,18 +93,21 @@ public partial class LobbyManager
 		}
 	}
 
-	private async Task RegisterDownloadedMapAsync(string targetMap, MapManifest manifest)
+	private async Task<bool> RegisterDownloadedMapAsync(string targetMap, MapManifest manifest)
 	{
 		string targetMapDir = MapAssetManager.GetMapDirectory(targetMap, manifest.Version ?? "1.0.0");
 		await Task.Run(() =>
 		{
+			MapReferenceResolver.ClearReadOnlyRecursive(targetMapDir);
 			MapAssetManager.ExtractManifestFiles(manifest, targetMapDir);
 			string localManifestPath = Path.Combine(targetMapDir, "manifest.json");
 			GameContext.AssetIndexService.RegisterManifest(manifest, localManifestPath);
+			MapReferenceResolver.SetReadOnlyRecursive(targetMapDir);
 		});
 
 		CallDeferred(nameof(EmitDownloadProgress), 1.0f);
 		CallDeferred(nameof(EmitDownloadCompleted));
+		return true;
 	}
 
 	private async Task<bool> PerformMapAssetTransferAsync(string targetMap, MapManifest manifest, List<string> missingHashes, int totalManifestFiles)

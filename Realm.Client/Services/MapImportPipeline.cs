@@ -146,7 +146,12 @@ public static class MapImportPipeline
 			return false;
 		}
 
-		return ValidateImportedMap(targetDirectory, manifest).IsValid;
+		if (!ValidateImportedMap(targetDirectory, manifest).IsValid)
+		{
+			return false;
+		}
+
+		return true;
 	}
 
 	public static Task<(bool Success, string Message, string? MapTitle, string? MapVersion)> ImportMapFromArchiveAsync(

@@ -384,6 +384,7 @@ namespace Realm.Client.Core
 			}
 
 			_coordinatePersistentMeshes.Clear();
+			RebuildAllSpawnAnchorMeshes();
 
 			if (ActiveEditorTool != EditorTool.DrawCoordinate)
 			{
