@@ -71,7 +71,7 @@ if (options.Train)
 
 	Console.WriteLine($"trained profile: {profilePath}");
 	Console.WriteLine($"run manifest:    {manifestPath}");
-	Console.WriteLine($"validation fitness {profile.FitnessScore:F3} on {Math.Max(options.TrainEvaluations, SelfPlayTrainer.MinimumValidationCandidates)} held-out seeds after {profile.TrainedEpochs} generation(s)");
+	Console.WriteLine($"win rate against the factory profile {profile.FitnessScore:F3} on {Math.Max(options.TrainEvaluations, SelfPlayTrainer.MinimumValidationCandidates)} held-out seeds after {profile.TrainedEpochs} generation(s)");
 	Console.WriteLine($"evaluation matches: {result.PlayedEvaluations} played, {result.FailedEvaluations} failed");
 
 	return 0;

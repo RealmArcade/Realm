@@ -49,7 +49,8 @@ public static class MatchTrainer
 				RealmVersion.GameBuildNumber,
 				options.TrainInitialWeights,
 				ReportGeneration,
-				options.TrainParallel);
+				options.TrainParallel,
+				evaluator.EvaluateWinRate);
 
 			return new TrainingRunResult
 			{
@@ -96,10 +97,10 @@ public static class MatchTrainer
 			validation = new
 			{
 				seedSalt = SelfPlayTrainer.ValidationSeedSalt,
-				candidates = options.TrainEvaluations,
-				championSelection = "highest held-out fitness across every generation champion",
+				candidates = Math.Max(options.TrainEvaluations, SelfPlayTrainer.MinimumValidationCandidates),
+				championSelection = "highest win rate against the factory profile across every generation champion",
 				championGeneration = result.ChampionGeneration,
-				fitness = result.ValidationFitness
+				winRateAgainstFactoryProfile = result.ValidationFitness
 			},
 			evaluationsInParallel = options.TrainParallel,
 			profilePath = Path.GetFullPath(profilePath),
@@ -174,12 +175,19 @@ public class TrainingMatchEvaluator
 
 	public float Evaluate(float[] weights, int seed)
 	{
-		float candidateAsSeatOne = PlayOrientation(weights, seed, candidateSeat: 1);
-		float candidateAsSeatTwo = PlayOrientation(weights, seed, candidateSeat: 2);
+		float candidateAsSeatOne = PlayOrientation(weights, seed, candidateSeat: 1, winOnly: false);
+		float candidateAsSeatTwo = PlayOrientation(weights, seed, candidateSeat: 2, winOnly: false);
 		return 0.5f * (candidateAsSeatOne + candidateAsSeatTwo);
 	}
 
-	private float PlayOrientation(float[] weights, int seed, int candidateSeat)
+	public float EvaluateWinRate(float[] weights, int seed)
+	{
+		float candidateAsSeatOne = PlayOrientation(weights, seed, candidateSeat: 1, winOnly: true);
+		float candidateAsSeatTwo = PlayOrientation(weights, seed, candidateSeat: 2, winOnly: true);
+		return 0.5f * (candidateAsSeatOne + candidateAsSeatTwo);
+	}
+
+	private float PlayOrientation(float[] weights, int seed, int candidateSeat, bool winOnly)
 	{
 		string profilePath = WriteCandidateProfile(weights);
 		string outcomePath = Path.Combine(
@@ -191,7 +199,7 @@ public class TrainingMatchEvaluator
 		try
 		{
 			RunMatchProcess(profilePath, seed, candidateSeat, outcomePath);
-			return ReadFitness(outcomePath, candidateSeat);
+			return ReadScore(outcomePath, candidateSeat, winOnly);
 		}
 		catch (InvalidOperationException exception)
 		{
@@ -321,7 +329,7 @@ public class TrainingMatchEvaluator
 		return hash.ToString("x8", CultureInfo.InvariantCulture);
 	}
 
-	private static float ReadFitness(string outcomePath, int candidateSeat)
+	private static float ReadScore(string outcomePath, int candidateSeat, bool winOnly)
 	{
 		if (!File.Exists(outcomePath))
 		{
@@ -346,6 +354,7 @@ public class TrainingMatchEvaluator
 
 			int winnerSeat = winner.GetInt32();
 			float winScore = winnerSeat == candidateSeat ? 1.0f : winnerSeat <= 0 ? 0.5f : 0.0f;
+			if (winOnly) return winScore;
 			return MatchTrainer.WinWeight * winScore + MatchTrainer.DamageShareWeight * ReadDamageShare(root, candidateSeat);
 		}
 
