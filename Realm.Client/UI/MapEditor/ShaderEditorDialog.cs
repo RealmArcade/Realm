@@ -196,7 +196,6 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 			_config.Key = TemplateIDHelper.NormalizeTemplateID("SpawnShader", _slug);
 		};
 		rowId.AddChild(_txtSlug);
-		configVBox.AddChild(rowId);
 
 		var btnRandomizeAll = new Button();
 		btnRandomizeAll.Name = "BtnRandomizeAll_Button";

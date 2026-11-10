@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
@@ -382,8 +382,8 @@ public partial class GameHost
 			}
 
 			if (GodotObject.IsInstanceValid(value)
-			    && _editorObjectSelection.Count == 1
-			    && _editorObjectSelection[0] == value)
+				&& _editorObjectSelection.Count == 1
+				&& _editorObjectSelection[0] == value)
 			{
 				return;
 			}

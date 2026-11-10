@@ -119,6 +119,8 @@ namespace Realm.Client.UI
 
 				WireEditorControllers();
 
+				ApplyThemeStyles();
+
 				RestoreEditorSessionAfterReady();
 			}
 			catch (Exception ex)
@@ -238,7 +240,6 @@ namespace Realm.Client.UI
 
 			BuildViewportNavigationPanel();
 
-			ApplyThemeStyles();
 			SetupLightingTuningUI();
 
 			BuildToolAccordion();

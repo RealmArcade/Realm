@@ -69,7 +69,6 @@ public partial class SpritesheetAssetEditDialog : FloatingDialogBase
 		_txtSlug.AddThemeFontSizeOverride("font_size", 11);
 		_txtSlug.TextChanged += (val) => { _slug = TemplateIDHelper.ToSnakeCase(val); };
 		rowId.AddChild(_txtSlug);
-		contentVBox.AddChild(rowId);
 
 		(_txtRtexAsset, _setRtexAssetValue) = AddAssetFilterDropdown(
 			contentVBox,

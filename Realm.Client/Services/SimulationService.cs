@@ -569,8 +569,7 @@ public class SimulationService
 		DefinitionManager definitionManager,
 		ResourceId goldResourceId,
 		ResourceId woodResourceId,
-		ResourceId stoneResourceId,
-		RuntimeTerrain groundTerrain)
+		ResourceId stoneResourceId)
 	{
 		_economyService.SetRuntimeReferences(definitionManager, goldResourceId, woodResourceId, stoneResourceId);
 	}

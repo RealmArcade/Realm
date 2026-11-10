@@ -30,7 +30,6 @@ public partial class VfxStudioDialog
 			}
 		};
 		rowId.AddChild(_txtSlug);
-		parent.AddChild(rowId);
 
 		_txtVfxName = AddTextInput(parent, TranslationServer.Translate("Display Name:"), _currentConfig.Name, (val) =>
 		{

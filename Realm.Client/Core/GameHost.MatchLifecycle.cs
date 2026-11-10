@@ -264,7 +264,7 @@ public partial class GameHost
 
 	private void InitializeSimulationService()
 	{
-		GameContext.SimulationService.SetRuntimeReferences(AllUnits, AllProps, GameContext.Simulation.DefinitionManager, GameContext.Simulation.PlayerResourceService.GoldResourceId, GameContext.Simulation.PlayerResourceService.WoodResourceId, GameContext.Simulation.PlayerResourceService.StoneResourceId, RequireGroundTerrain());
+		GameContext.SimulationService.SetRuntimeReferences(AllUnits, AllProps, GameContext.Simulation.DefinitionManager, GameContext.Simulation.PlayerResourceService.GoldResourceId, GameContext.Simulation.PlayerResourceService.WoodResourceId, GameContext.Simulation.PlayerResourceService.StoneResourceId);
 		GameContext.SimulationService.Initialize();
 		GameContext.SimulationService.EditorHeightProvider = p => GetTerrainHeightAt(new Vector3(p.X, p.Y, p.Z));
 

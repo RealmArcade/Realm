@@ -1626,6 +1626,25 @@
             Returns true when a contribution was actually removed.
             </summary>
         </member>
+        <member name="T:Realm.Ecs.Services.CombatAndDamageService">
+            <summary>the abandoned target cooldown.</summary>
+            <summary>picking a target for each attacker.</summary>
+            <summary>resolving an attack, from range check to damage and projectiles.</summary>
+            <summary>the public damage and heal entry points and the aoe passes behind them.</summary>
+            <summary>healer ticks, targets and the heal itself.</summary>
+            <summary>range, reach and the navmesh route check behind them.</summary>
+            <summary>splash damage around an impact.</summary>
+            <summary>the caches and cooldowns the step ages out.</summary>
+            <summary>the per tick passes: retaliation, deaths, reference clearing and chases.</summary>
+            <summary>the cached world and terrain lookups and the predicates the tick reads.</summary>
+        </member>
+        <member name="M:Realm.Ecs.Services.CombatAndDamageService.ReadPenetration(Realm.Ecs.Entity,System.Boolean,System.Single)">
+            <summary>
+                The flat penetration that matches the hit's damage type, read from the stat snapshot so
+                items and buffs are honoured. The attack component's authored value is the fallback for
+                an entity whose stats have never been recalculated.
+            </summary>
+        </member>
         <member name="P:Realm.Ecs.Services.CombatAndDamageService.UnlimitedPowerProvider">
             <summary>Answers whether the match is running with cooldowns switched off, which a cheat sets and a server does not.</summary>
         </member>
@@ -1670,12 +1689,20 @@
                 lobby that has not started yet looks like. A match that has a matrix never asks.
             </summary>
         </member>
-        <member name="M:Realm.Ecs.Services.CombatAndDamageService.ReadPenetration(Realm.Ecs.Entity,System.Boolean,System.Single)">
+        <member name="M:Realm.Ecs.Services.CombatAndDamageService.DealResolvedDamage(Realm.Ecs.Entity,Realm.Ecs.Entity,System.Single,System.String)">
             <summary>
-                The flat penetration that matches the hit's damage type, read from the stat snapshot so
-                items and buffs are honoured. The attack component's authored value is the fallback for
-                an entity whose stats have never been recalculated.
+            Applies damage through the combat resolver so armor, penetration and the damage/armor type
+            matrix apply. This is the single-target counterpart to <see cref="M:Realm.Ecs.Services.CombatAndDamageService.DealSpellDamageAOE(System.Numerics.Vector3,System.Single,System.Single,Realm.Ecs.Entity,System.Boolean,System.String)"/>.
             </summary>
+        </member>
+        <member name="M:Realm.Ecs.Services.CombatAndDamageService.AbsorbDamage(Realm.Ecs.Entity,System.Single)">
+            <summary>
+                Runs damage through the entity's absorb pools before health. Called by every damage
+                source, so a shield is worth the same against an attack, a splash, a spell or an ability.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Services.CombatAndDamageService.HealSingle(Realm.Ecs.Entity,Realm.Ecs.Entity,System.Single)">
+            <summary>Heals one unit, honouring the caster's healing multiplier.</summary>
         </member>
         <member name="M:Realm.Ecs.Services.CombatAndDamageService.GetUnitContactRadius(Realm.Ecs.Entity)">
             <summary>
@@ -1703,21 +1730,6 @@
                 distance at which the two bodies come to rest against each other; otherwise units
                 whose attack range is shorter than their own body width can never land a hit.
             </summary>
-        </member>
-        <member name="M:Realm.Ecs.Services.CombatAndDamageService.DealResolvedDamage(Realm.Ecs.Entity,Realm.Ecs.Entity,System.Single,System.String)">
-            <summary>
-            Applies damage through the combat resolver so armor, penetration and the damage/armor type
-            matrix apply. This is the single-target counterpart to <see cref="M:Realm.Ecs.Services.CombatAndDamageService.DealSpellDamageAOE(System.Numerics.Vector3,System.Single,System.Single,Realm.Ecs.Entity,System.Boolean,System.String)"/>.
-            </summary>
-        </member>
-        <member name="M:Realm.Ecs.Services.CombatAndDamageService.AbsorbDamage(Realm.Ecs.Entity,System.Single)">
-            <summary>
-                Runs damage through the entity's absorb pools before health. Called by every damage
-                source, so a shield is worth the same against an attack, a splash, a spell or an ability.
-            </summary>
-        </member>
-        <member name="M:Realm.Ecs.Services.CombatAndDamageService.HealSingle(Realm.Ecs.Entity,Realm.Ecs.Entity,System.Single)">
-            <summary>Heals one unit, honouring the caster's healing multiplier.</summary>
         </member>
         <member name="T:Realm.Ecs.Services.CombatConfig">
             <summary>
@@ -2164,26 +2176,6 @@
                 gameplay uses because both come from the same snapshot.
             </summary>
         </member>
-        <member name="P:Realm.Ecs.Services.TerrainNavMeshService.LastBakedObstacleCount">
-            <summary>
-            How many obstacle volumes went into the last bake. Reported by the host and by each peer so a mesh that differs from
-            the authority's can be traced to the input it was built from rather than to the bake itself.
-            </summary>
-        </member>
-        <member name="P:Realm.Ecs.Services.TerrainNavMeshService.UsesAuthoritativeObstacles">
-            <summary>
-            True when this instance bakes with obstacle volumes received from the authority rather than collecting them from the
-            entities it can see. A peer does not run the map script, so most of the authority's obstacle volumes have no entity
-            behind them on the peer at all. An empty authoritative set still counts: a map with no blockers is baked with no
-            volumes rather than with whatever bodies the peer happens to hold.
-            </summary>
-        </member>
-        <member name="P:Realm.Ecs.Services.TerrainNavMeshService.HasBakedMesh">
-            <summary>
-            True once this instance has built a mesh. The volumes a bake consumed are only meaningful after one, so a peer
-            that is seated before the match bakes must be told nothing rather than told that the map has no blockers.
-            </summary>
-        </member>
         <member name="M:Realm.Ecs.Services.TerrainNavMeshService.ObstaclesChangedSinceBake">
             <summary>
             True when the volumes this instance would bake with are not the ones its mesh was last built from, which is how the
@@ -2212,6 +2204,26 @@
         <member name="P:Realm.Ecs.Services.TerrainNavMeshService.BakedObstacleRadii">
             <summary>
             The radii that belong to <see cref="P:Realm.Ecs.Services.TerrainNavMeshService.BakedObstaclePositions"/>.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.Services.TerrainNavMeshService.LastBakedObstacleCount">
+            <summary>
+            How many obstacle volumes went into the last bake. Reported by the host and by each peer so a mesh that differs from
+            the authority's can be traced to the input it was built from rather than to the bake itself.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.Services.TerrainNavMeshService.UsesAuthoritativeObstacles">
+            <summary>
+            True when this instance bakes with obstacle volumes received from the authority rather than collecting them from the
+            entities it can see. A peer does not run the map script, so most of the authority's obstacle volumes have no entity
+            behind them on the peer at all. An empty authoritative set still counts: a map with no blockers is baked with no
+            volumes rather than with whatever bodies the peer happens to hold.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.Services.TerrainNavMeshService.HasBakedMesh">
+            <summary>
+            True once this instance has built a mesh. The volumes a bake consumed are only meaningful after one, so a peer
+            that is seated before the match bakes must be told nothing rather than told that the map has no blockers.
             </summary>
         </member>
         <member name="T:Realm.Ecs.Services.UnitOrderService">
