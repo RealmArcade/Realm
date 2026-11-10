@@ -11,14 +11,17 @@ namespace Realm.Client.UI.MapEditor;
 /// </summary>
 public static class MapEditorChromeTheme
 {
+	private const float ScrollSideMargin = 10f;
+	private const float DefaultScrollbarWidth = 14f;
+	private const float MaximumViewportFraction = 0.5f;
+
 	/// <summary>
 	/// Makes the sidebar columns click-through and blank. The columns are decoration behind the cards, so a click that
 	/// lands on the column rather than a card must reach the 3D viewport underneath, and the column itself draws no plate
-	/// of its own: leaving the theme's plate on it is what washes a grey background behind both card stacks. Neither
-	/// scroller may grow the column: a scroll container set to <c>Disabled</c> adopts its content's minimum size, so one
-	/// card wider than the sidebar would push the whole panel past the edge of the screen. They are left click-through
-	/// like the columns, so a click in the gap between two cards still reaches the viewport, and
-	/// <see cref="MapEditorHUD.TryScrollSidebarUnderMouse"/> scrolls them with the wheel instead.
+	/// of its own: leaving the theme's plate on it is what washes a grey background behind both card stacks. Both
+	/// scrollers keep the default <c>Auto</c> bars, which stay hidden while the cards fit; the panel is widened to the
+	/// cards by <see cref="MeasureColumnWidth"/> instead of any card being cropped, and
+	/// <see cref="MapEditorHUD.TryScrollSidebarUnderMouse"/> scrolls them with the wheel because the cards swallow it.
 	/// </summary>
 	public static void SidebarColumns(Node owner, Panel? leftPanel, Panel? rightPanel)
 	{
@@ -55,8 +58,52 @@ public static class MapEditorChromeTheme
 	{
 		if (scroller == null) return;
 
-		scroller.HorizontalScrollMode = ScrollContainer.ScrollMode.ShowNever;
-		scroller.VerticalScrollMode = ScrollContainer.ScrollMode.ShowNever;
+		scroller.HorizontalScrollMode = ScrollContainer.ScrollMode.Auto;
+		scroller.VerticalScrollMode = ScrollContainer.ScrollMode.Auto;
+	}
+
+	/// <summary>
+	/// The width a sidebar panel needs so that its cards are drawn whole: the column's own minimum width plus the
+	/// scroller's side margins, plus the vertical scrollbar the column would show when it is taller than the screen, so
+	/// that the bar never covers the last few pixels of a card. The result is never narrower than the panel's design
+	/// width and never wider than <see cref="MaximumViewportFraction"/> of the screen, which keeps one pathologically
+	/// long label from covering the viewport.
+	/// </summary>
+	public static float MeasureColumnWidth(Control? column, ScrollContainer? scroller, float minimumWidth, float viewportWidth)
+	{
+		if (column == null) return minimumWidth;
+
+		float scrollbarWidth = scroller?.GetVScrollBar()?.GetCombinedMinimumSize().X ?? 0f;
+		if (scrollbarWidth < 1f) scrollbarWidth = DefaultScrollbarWidth;
+
+		float width = Mathf.Max(minimumWidth, column.GetCombinedMinimumSize().X + ScrollSideMargin * 2f + scrollbarWidth);
+		float maximumWidth = viewportWidth * MaximumViewportFraction;
+
+		return maximumWidth > minimumWidth ? Mathf.Min(width, maximumWidth) : width;
+	}
+
+	/// <summary>
+	/// Gives a sidebar panel the width <see cref="MeasureColumnWidth"/> asked for, by setting the offset the panel's
+	/// anchor does not control, so the column grows away from the screen edge it is pinned to. A collapsed panel is
+	/// left at its collapsed offsets and drops its minimum width, because a minimum larger than the collapsed offsets
+	/// would stop the panel collapsing at all.
+	/// </summary>
+	public static void ApplyColumnWidth(Panel? panel, bool anchoredRight, bool expanded, float width)
+	{
+		if (panel == null) return;
+
+		panel.CustomMinimumSize = expanded ? new Vector2(width, 0f) : Vector2.Zero;
+		if (!expanded) return;
+
+		if (anchoredRight)
+		{
+			panel.OffsetLeft = -width;
+			panel.OffsetRight = 0f;
+			return;
+		}
+
+		panel.OffsetLeft = 0f;
+		panel.OffsetRight = width;
 	}
 
 	private static void ClearPlate(Panel? panel)

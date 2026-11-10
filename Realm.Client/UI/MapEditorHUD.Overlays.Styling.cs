@@ -30,6 +30,18 @@ namespace Realm.Client.UI
 {
 	public partial class MapEditorHUD
 	{
+		private const string LeftColumnPath = "LeftSlidePanel/LeftScroll/LeftVBox";
+		private const string RightColumnPath = "RightSlidePanel/RightScroll/AccordionContainer";
+		private const string LeftScrollerPath = "LeftSlidePanel/LeftScroll";
+		private const string RightScrollerPath = "RightSlidePanel/RightScroll";
+		private const float LeftPanelDesignWidth = 325f;
+		private const float RightPanelDesignWidth = 300f;
+		private const float WidthChangeTolerance = 0.5f;
+
+		private float _leftPanelWidth { get; set; } = LeftPanelDesignWidth;
+		private float _rightPanelWidth { get; set; } = RightPanelDesignWidth;
+		private bool _sidebarWidthsHooked { get; set; }
+
 		private void ApplyThemeStyles()
 		{
 			ApplyPanelStyles();
@@ -115,6 +127,57 @@ namespace Realm.Client.UI
 		private void ApplyPanelStyles()
 		{
 			MapEditorChromeTheme.SidebarColumns(this, _panelLeft, _panelRight);
+			HookSidebarWidthChanges();
+			FitSidebarWidths();
+		}
+
+		/// <summary>
+		/// The columns are sized to the cards, not the cards to the columns: whenever the widest card in a column changes
+		/// - a card is expanded, shows more rows, or is rebuilt with different texture names - the column reports a new
+		/// minimum and the panel is re-fitted, so no card is ever drawn past the panel's edge.
+		/// </summary>
+		private void HookSidebarWidthChanges()
+		{
+			if (_sidebarWidthsHooked) return;
+			_sidebarWidthsHooked = true;
+
+			var leftColumn = GetNodeOrNull<Control>(LeftColumnPath);
+			if (leftColumn != null) leftColumn.MinimumSizeChanged += FitSidebarWidths;
+
+			var rightColumn = GetNodeOrNull<Control>(RightColumnPath);
+			if (rightColumn != null) rightColumn.MinimumSizeChanged += FitSidebarWidths;
+
+			GetViewport()?.SizeChanged += FitSidebarWidths;
+		}
+
+		/// <summary>
+		/// Widens each sidebar panel to the width its column needs and remembers it, so the expand/collapse tweens slide
+		/// the panel by its real width. A measurement that has not changed is not applied, which keeps the
+		/// <see cref="Control.MinimumSizeChanged"/> that triggered it from re-entering.
+		/// </summary>
+		private void FitSidebarWidths()
+		{
+			float viewportWidth = GetViewportRect().Size.X;
+
+			float leftWidth = MapEditorChromeTheme.MeasureColumnWidth(
+				GetNodeOrNull<Control>(LeftColumnPath), GetNodeOrNull<ScrollContainer>(LeftScrollerPath),
+				LeftPanelDesignWidth, viewportWidth);
+
+			float rightWidth = MapEditorChromeTheme.MeasureColumnWidth(
+				GetNodeOrNull<Control>(RightColumnPath), GetNodeOrNull<ScrollContainer>(RightScrollerPath),
+				RightPanelDesignWidth, viewportWidth);
+
+			if (Mathf.Abs(leftWidth - _leftPanelWidth) > WidthChangeTolerance)
+			{
+				_leftPanelWidth = leftWidth;
+				MapEditorChromeTheme.ApplyColumnWidth(_panelLeft, anchoredRight: false, _leftPanelExpanded, leftWidth);
+			}
+
+			if (Mathf.Abs(rightWidth - _rightPanelWidth) > WidthChangeTolerance)
+			{
+				_rightPanelWidth = rightWidth;
+				MapEditorChromeTheme.ApplyColumnWidth(_panelRight, anchoredRight: true, _rightPanelExpanded, rightWidth);
+			}
 		}
 
 		private void ApplyTopBarStyles()

@@ -93,9 +93,10 @@ namespace Realm.Client.UI
 		private void SetLeftPanelExpanded(bool expand)
 		{
 			_leftPanelExpanded = expand;
+			if (_panelLeft != null) _panelLeft.CustomMinimumSize = expand ? new Vector2(_leftPanelWidth, 0f) : Vector2.Zero;
 			var tween = CreateTween();
-			float targetLeft = expand ? 0.0f : -260.0f;
-			float targetRight = expand ? 260.0f : 0.0f;
+			float targetLeft = 0.0f;
+			float targetRight = expand ? _leftPanelWidth : 0.0f;
 			tween.TweenProperty(_panelLeft, "offset_left", targetLeft, 0.2f).SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
 			tween.TweenProperty(_panelLeft, "offset_right", targetRight, 0.2f).SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
 			_btnLeftTab.Text = expand ? "◀" : "▶";
@@ -104,9 +105,10 @@ namespace Realm.Client.UI
 		private void SetRightPanelExpanded(bool expand)
 		{
 			_rightPanelExpanded = expand;
+			if (_panelRight != null) _panelRight.CustomMinimumSize = expand ? new Vector2(_rightPanelWidth, 0f) : Vector2.Zero;
 			var tween = CreateTween();
-			float targetLeft = expand ? -300.0f : 0.0f;
-			float targetRight = expand ? 0.0f : 300.0f;
+			float targetLeft = expand ? -_rightPanelWidth : 0.0f;
+			float targetRight = expand ? 0.0f : _rightPanelWidth;
 			tween.TweenProperty(_panelRight, "offset_left", targetLeft, 0.2f).SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
 			tween.TweenProperty(_panelRight, "offset_right", targetRight, 0.2f).SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
 			_btnRightTab.Text = expand ? "▶" : "◀";
