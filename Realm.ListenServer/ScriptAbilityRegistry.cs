@@ -26,6 +26,18 @@ public class ScriptAbilityRegistry
 	private readonly Dictionary<(int UnitId, string AbilityId), byte> _currentIdFlags = new();
 	private readonly Dictionary<int, Dictionary<(int UnitId, short AbilityIndex), byte>> _toldByPeer = new();
 	private readonly Dictionary<int, Dictionary<(int UnitId, string AbilityId), byte>> _toldIdFlagsByPeer = new();
+	private readonly Dictionary<int, Dictionary<(int UnitId, short AbilityIndex), int>> _restatementsByPeer = new();
+	private readonly Dictionary<int, Dictionary<(int UnitId, string AbilityId), int>> _namedRestatementsByPeer = new();
+
+	/// <summary>
+	///     How many descriptions a peer is told the same exception for. A component that changes is restated while it keeps
+	///     differing, but an exception the map declared once has nothing left to say after the description that carried it —
+	///     and that one description is not a delivery. It can be lost, or arrive for a unit this screen is still building, and
+	///     the match had already recorded it as told, so the grid offered every ability the map withheld for the rest of the
+	///     match. Stating it a few times is what makes a lost one cost a description rather than the match, which is the same
+	///     allowance a component removal is given.
+	/// </summary>
+	private const int RestatedDescriptionCount = 4;
 	private readonly List<(int UnitId, short AbilityIndex)> _clearedKeys = new();
 	private readonly List<int> _changedAbilityListUnitIds = new();
 	private readonly HashSet<int> _unitsOwedAbilityRestatement = new();
@@ -324,12 +336,14 @@ public class ScriptAbilityRegistry
 		deltas.Clear();
 
 		Dictionary<(int UnitId, short AbilityIndex), byte> told = GetTold(peerId);
+		Dictionary<(int UnitId, short AbilityIndex), int> restatements = GetRestatements(peerId);
 		bool restateEverything = includeAll;
 
 		foreach (var entry in _currentFlags)
 		{
 			bool restatedForUnit = !restateEverything && _unitsOwedAbilityRestatement.Contains(entry.Key.UnitId);
-			if (!restateEverything && !restatedForUnit && told.TryGetValue(entry.Key, out byte toldFlags) && toldFlags == entry.Value) continue;
+			bool alreadyStatedOnce = told.TryGetValue(entry.Key, out byte toldFlags) && toldFlags == entry.Value;
+			if (!restateEverything && !restatedForUnit && alreadyStatedOnce && !IsOwedAnotherStatement(restatements, entry.Key)) continue;
 
 			deltas.Add(new AbilityStateDelta
 			{
@@ -339,6 +353,7 @@ public class ScriptAbilityRegistry
 			});
 
 			told[entry.Key] = entry.Value;
+			restatements[entry.Key] = RestatedDescriptionCount;
 		}
 
 		_clearedKeys.Clear();
@@ -359,6 +374,9 @@ public class ScriptAbilityRegistry
 
 		CollectNamedDeltas(peerId, includeAll, deltas);
 
+		SpendRestatements(peerId);
+		SpendNamedRestatements(peerId);
+
 		deltas.Sort(static (left, right) =>
 		{
 			int byEntity = left.ServerEntityId.CompareTo(right.ServerEntityId);
@@ -376,9 +394,12 @@ public class ScriptAbilityRegistry
 			_toldIdFlagsByPeer[peerId] = told;
 		}
 
+		Dictionary<(int UnitId, string AbilityId), int> restatements = GetNamedRestatements(peerId);
+
 		foreach (var entry in _currentIdFlags)
 		{
-			if (!restateEverything && told.TryGetValue(entry.Key, out byte toldFlags) && toldFlags == entry.Value) continue;
+			bool alreadyStatedOnce = told.TryGetValue(entry.Key, out byte toldFlags) && toldFlags == entry.Value;
+			if (!restateEverything && alreadyStatedOnce && !IsOwedAnotherStatement(restatements, entry.Key)) continue;
 
 			deltas.Add(new AbilityStateDelta
 			{
@@ -389,6 +410,7 @@ public class ScriptAbilityRegistry
 			});
 
 			told[entry.Key] = entry.Value;
+			restatements[entry.Key] = RestatedDescriptionCount;
 		}
 
 		_clearedNamedKeys.Clear();
@@ -411,10 +433,80 @@ public class ScriptAbilityRegistry
 
 	private readonly List<(int UnitId, string AbilityId)> _clearedNamedKeys = new();
 
+	private Dictionary<(int UnitId, short AbilityIndex), int> GetRestatements(int peerId)
+	{
+		if (_restatementsByPeer.TryGetValue(peerId, out Dictionary<(int UnitId, short AbilityIndex), int>? restatements)) return restatements;
+
+		restatements = new Dictionary<(int UnitId, short AbilityIndex), int>();
+		_restatementsByPeer[peerId] = restatements;
+		return restatements;
+	}
+
+	private Dictionary<(int UnitId, string AbilityId), int> GetNamedRestatements(int peerId)
+	{
+		if (_namedRestatementsByPeer.TryGetValue(peerId, out Dictionary<(int UnitId, string AbilityId), int>? restatements)) return restatements;
+
+		restatements = new Dictionary<(int UnitId, string AbilityId), int>();
+		_namedRestatementsByPeer[peerId] = restatements;
+		return restatements;
+	}
+
+	private static bool IsOwedAnotherStatement<TKey>(Dictionary<TKey, int> restatements, TKey key) where TKey : notnull
+	{
+		return restatements.TryGetValue(key, out int remainingStatements) && remainingStatements > 0;
+	}
+
+	private void SpendRestatements(int peerId)
+	{
+		Dictionary<(int UnitId, short AbilityIndex), int> restatements = GetRestatements(peerId);
+		if (restatements.Count == 0) return;
+
+		_spentRestatementKeys.Clear();
+		foreach (var entry in restatements)
+		{
+			if (entry.Value <= 1)
+			{
+				_spentRestatementKeys.Add(entry.Key);
+				continue;
+			}
+
+			restatements[entry.Key] = entry.Value - 1;
+		}
+
+		for (int index = 0; index < _spentRestatementKeys.Count; index++) restatements.Remove(_spentRestatementKeys[index]);
+		_spentRestatementKeys.Clear();
+	}
+
+	private void SpendNamedRestatements(int peerId)
+	{
+		Dictionary<(int UnitId, string AbilityId), int> restatements = GetNamedRestatements(peerId);
+		if (restatements.Count == 0) return;
+
+		_spentNamedRestatementKeys.Clear();
+		foreach (var entry in restatements)
+		{
+			if (entry.Value <= 1)
+			{
+				_spentNamedRestatementKeys.Add(entry.Key);
+				continue;
+			}
+
+			restatements[entry.Key] = entry.Value - 1;
+		}
+
+		for (int index = 0; index < _spentNamedRestatementKeys.Count; index++) restatements.Remove(_spentNamedRestatementKeys[index]);
+		_spentNamedRestatementKeys.Clear();
+	}
+
+	private readonly List<(int UnitId, short AbilityIndex)> _spentRestatementKeys = new();
+	private readonly List<(int UnitId, string AbilityId)> _spentNamedRestatementKeys = new();
+
 	public void ForgetPeer(int peerId)
 	{
 		_toldByPeer.Remove(peerId);
 		_toldIdFlagsByPeer.Remove(peerId);
+		_restatementsByPeer.Remove(peerId);
+		_namedRestatementsByPeer.Remove(peerId);
 	}
 
 	private Dictionary<(int UnitId, short AbilityIndex), byte> GetTold(int peerId)

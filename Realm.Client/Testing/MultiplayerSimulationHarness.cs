@@ -198,10 +198,19 @@ public partial class MultiplayerSimulationHarness : Node
 		if (string.IsNullOrEmpty(_outputDirectory)) throw new InvalidOperationException("Missing --output argument.");
 	}
 
+	private float _abilityDumpAccumulator;
+
 	public override void _PhysicsProcess(double delta)
 	{
 		_session?.Pump();
 		RecordClientPeerId(_session?.LocalPeerId ?? 0);
+
+		_abilityDumpAccumulator += (float)delta;
+		if (_abilityDumpAccumulator < 1f) return;
+
+		_abilityDumpAccumulator = 0f;
+		TryDraftOnCircle();
+		DumpAbilityStates(_role);
 	}
 
 	private void RecordClientPeerId(int peerId)

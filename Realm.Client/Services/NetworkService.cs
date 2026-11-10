@@ -376,22 +376,36 @@ public class NetworkService
 
 	private void RetireClientEntityForUntrackedServerId(NetworkMappingState mapping, Entity localEntity, int serverEntityId)
 	{
-		if (World.IsAlive(localEntity) && !World.Has<Dead>(localEntity))
+		// A local identifier outlives the unit that held it, and the authority hands a freed one to whatever it spawns next,
+		// so the identifier being retired here may already stand for another unit: a description that names the newcomer can
+		// be applied before the one that names the unit it replaced as retired, and the two are only ever told apart by the
+		// mapping. Retiring the newcomer on the strength of an identifier the authority recycled dropped its description, its
+		// exceptions and its presentation, and the match had already recorded those as delivered, so nothing stated them
+		// again and the unit rendered what it was first drawn with for the rest of the match.
+		bool theLocalEntityStillStandsForTheRetiredUnit =
+			!mapping.ClientToServerEntityMap.TryGetValue(localEntity.Id, out int locallyMappedServerId)
+			|| locallyMappedServerId == serverEntityId;
+
+		if (theLocalEntityStillStandsForTheRetiredUnit)
 		{
-			_pendingUnitDespawns.Add(localEntity);
+			if (World.IsAlive(localEntity) && !World.Has<Dead>(localEntity))
+			{
+				_pendingUnitDespawns.Add(localEntity);
+			}
+
+			ForgetReferencesHeldBy(localEntity.Id);
+
+			// The exceptions a map declared against a unit are held beside the replica, keyed by the local entity that carried
+			// them, and a match recycles a local entity the moment one is freed: left here they would be read as the next
+			// unit's own, withholding abilities it offers and offering the ones the map withheld from this one. A unit that only
+			// left sight is owed them again, and they are still in the mirror: the description that builds it back replays them.
+			GameContext.RegistryService?.ClearAbilityStateForUnit(new UnitId(localEntity.Id));
+
+			GameContext.SnapshotTimeline.Reset(localEntity.Id);
+			mapping.ClientToServerEntityMap.Remove(localEntity.Id);
 		}
 
-		ForgetReferencesHeldBy(localEntity.Id);
-
-		// The exceptions a map declared against a unit are held beside the replica, keyed by the local entity that carried
-		// them, and a match recycles a local entity the moment one is freed: left here they would be read as the next
-		// unit's own, withholding abilities it offers and offering the ones the map withheld from this one. A unit that only
-		// left sight is owed them again, and they are still in the mirror: the description that builds it back replays them.
-		GameContext.RegistryService?.ClearAbilityStateForUnit(new UnitId(localEntity.Id));
-
-		GameContext.SnapshotTimeline.Reset(localEntity.Id);
 		mapping.ServerToClientEntityMap.Remove(serverEntityId);
-		mapping.ClientToServerEntityMap.Remove(localEntity.Id);
 		ReplicatedEntityReferences.Unregister(serverEntityId);
 	}
 
@@ -613,6 +627,21 @@ public class NetworkService
 
 		string? abilityId = World.Get<AbilityState>(localEntity).Get(abilityIndex);
 		return string.IsNullOrEmpty(abilityId) ? null : abilityId;
+	}
+
+	public void DescribeAbilityMirrorFor(int serverEntityId, out int slotStates, out int namedStates)
+	{
+		slotStates = 0;
+		namedStates = 0;
+		foreach (var key in _mirror.Abilities.Keys)
+		{
+			if (key.ServerEntityId == serverEntityId) slotStates++;
+		}
+
+		foreach (var key in _mirror.AbilitiesById.Keys)
+		{
+			if (key.ServerEntityId == serverEntityId) namedStates++;
+		}
 	}
 
 	public void ReapplyAbilityStatesToUnits()
