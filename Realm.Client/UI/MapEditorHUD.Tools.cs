@@ -560,11 +560,17 @@ namespace Realm.Client.UI
 		private void SetupButton(Button btn, string text, Action? onClick, int fontSize = 13, string tooltip = "") =>
 			MapEditorStyle.DialogButton(btn, text, onClick, fontSize, tooltip, GetFontAwesomeFont());
 
-		private void SelectCliffTexture(int index)
+		/// <summary>
+		/// Picks the cliff texture. The clicked swatch is passed through when the palette is the source of the choice, so
+		/// the cliff ring settles on that button even before the label pass recomputes it from the index.
+		/// </summary>
+		private void SelectCliffTexture(int index, Button? clickedSwatch = null)
 		{
 			if (GameContext.Host != null)
 			{
 				GameContext.EditorService.SelectCliffTexture(index);
+				HighlightCliffSwatch(clickedSwatch ?? Swatches.GetButton(index));
+
 				if (!IsSwatchCompatibleTool(GameContext.Host.ActiveEditorTool))
 				{
 					TriggerToolSelection(EditorTool.PaintTexture, _toolPanel.TextureBrushButton);

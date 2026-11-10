@@ -479,7 +479,7 @@ namespace Realm.Client.UI
 				SelectTerrainTexture,
 				SelectCliffTexture,
 				() => ChkApplyCliffTexture != null && ChkApplyCliffTexture.ButtonPressed,
-				() => ChkApplyGroundTexture == null || !ChkApplyGroundTexture.ButtonPressed,
+				() => ChkApplyGroundTexture != null && ChkApplyGroundTexture.ButtonPressed,
 				LoadSwatchTextureInternal,
 				UpdateTextureLabels));
 

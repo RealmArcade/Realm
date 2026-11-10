@@ -18,7 +18,7 @@ namespace Realm.Client.UI.MapEditor;
 /// </summary>
 public sealed record SwatchGridHooks(
 	Action<int, Button> SelectTerrain,
-	Action<int> SelectCliff,
+	Action<int, Button> SelectCliff,
 	Func<bool> IsCliffApplyChecked,
 	Func<bool> IsGroundApplyChecked,
 	Func<int, Texture2D?> LoadTexture,
@@ -283,30 +283,32 @@ public sealed class TextureSwatchGrid
 
 	/// <summary>
 	/// A left click paints with the ground texture unless shift is held or only the cliff checkbox is on, in which case
-	/// it picks the cliff texture; a right click always picks the cliff texture.
+	/// it picks the cliff texture; a right click always picks the cliff texture. The clicked button travels with the
+	/// choice so the cliff ring lands on the swatch that was actually clicked, not on one recomputed from the index.
 	/// </summary>
 	private void HandleInput(InputEvent @event, int slotIndex, Button btn)
 	{
 		if (@event is not InputEventMouseButton mouseEvent || !mouseEvent.Pressed) return;
 
-		if (mouseEvent.ButtonIndex == MouseButton.Left)
+		if (mouseEvent.ButtonIndex == MouseButton.Right)
 		{
-			bool isShift = Input.IsKeyPressed(Godot.Key.Shift);
-			bool cliffChecked = _hooks.IsCliffApplyChecked();
-			bool groundUnchecked = !_hooks.IsGroundApplyChecked();
-
-			if (isShift || (cliffChecked && groundUnchecked))
-			{
-				_hooks.SelectCliff(slotIndex);
-			}
-			else
-			{
-				_hooks.SelectTerrain(slotIndex, btn);
-			}
+			_hooks.SelectCliff(slotIndex, btn);
+			return;
 		}
-		else if (mouseEvent.ButtonIndex == MouseButton.Right)
+
+		if (mouseEvent.ButtonIndex != MouseButton.Left) return;
+
+		bool isShift = Input.IsKeyPressed(Godot.Key.Shift);
+		bool cliffChecked = _hooks.IsCliffApplyChecked();
+		bool groundChecked = _hooks.IsGroundApplyChecked();
+
+		if (isShift || (cliffChecked && !groundChecked))
 		{
-			_hooks.SelectCliff(slotIndex);
+			_hooks.SelectCliff(slotIndex, btn);
+		}
+		else
+		{
+			_hooks.SelectTerrain(slotIndex, btn);
 		}
 	}
 
